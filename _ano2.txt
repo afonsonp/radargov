@@ -1,0 +1,9 @@
+links: 10
+
+--- com a sessao da pagina ---
+  fich=1724841 -> 200 | application/pdf | 72381 bytes | attachment; filename*=UTF-8''Anuncio_19218_1787657002898.pdf
+  fich=1724849 -> 200 | text/xml | 251525 bytes | attachment; filename*=UTF-8''espd-request.xml
+  fich=1724848 -> 200 | application/pdf | 172386 bytes | attachment; filename*=UTF-8''2026-OJS163-00586853-pt-ts.pdf
+
+--- sem sessao ---
+  status: 200 | type: application/pdf | bytes: 72381

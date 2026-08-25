@@ -781,11 +781,8 @@ def reparsear(limite=None):
 #                  API publica. Tres saltos: o identificador cifrado do
 #                  link -> GetPublicTenderInformation -> o PT1.NTC.x ->
 #                  GetContractNoticeDocuments -> lista com URL de cada um.
-#   compraspt ~1%  mesmo JSF da anogov, mas aqui o codigo resolve: a
-#                  pagina lista os documentos e cada um sai de um
-#                  'decryptservlet'. Directo.
-#   anogov    ~8%  o codigo de acesso nao resolve sem sessao autenticada,
-#                  nem com cookie de visita. Fica o link para o utilizador.
+#   anogov    ~8%  a pagina lista os documentos e cada um sai de um
+#   compraspt ~1%  'decryptservlet'. Mesma aplicacao JSF, mesmo codigo.
 #
 # Nenhum destes precisa de browser nem de credenciais.
 
@@ -811,17 +808,19 @@ def nome_seguro(nome):
 
 def _pecas_acingov(sessao, link):
     """Devolve [(nome, bytes)] a partir do ZIP das pecas."""
-    r = sessao.get(link, timeout=180)
-    r.raise_for_status()
-    if not r.content.startswith(b"PK"):
-        return []
-    saida = []
-    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+    _, bruto = _descarregar(sessao, link, limite=MAX_FICHEIRO * 4)
+    if not bruto or not bruto.startswith(b"PK"):
+        return [], (["o ZIP das peças"] if bruto is None else [])
+    saida, grandes = [], []
+    with zipfile.ZipFile(io.BytesIO(bruto)) as z:
         for info in z.infolist():
-            if info.is_dir() or info.file_size > 80 * 1024 * 1024:
+            if info.is_dir():
+                continue
+            if info.file_size > MAX_FICHEIRO:
+                grandes.append(info.filename)
                 continue
             saida.append((nome_seguro(info.filename), z.read(info)))
-    return saida
+    return saida, grandes
 
 
 def _pecas_vortal(sessao, link):
@@ -831,52 +830,91 @@ def _pecas_vortal(sessao, link):
     aviso = info.get("contractNoticeUrl") or ""
     m = re.search(r"(PT\d+\.NTC\.\d+)", aviso)
     if not m:
-        return []
+        return [], []
     lista = sessao.get(VORTAL_DOCS, timeout=90,
                        params={"contractNoticeUId": m.group(1)}).json()
-    saida = []
+    saida, grandes = [], []
     for doc in lista if isinstance(lista, list) else []:
         endereco = doc.get("downloadUrl")
         if not endereco:
             continue
-        d = sessao.get(endereco, timeout=180)
-        if d.status_code == 200 and d.content:
-            saida.append((nome_seguro(doc.get("name") or "documento"), d.content))
-    return saida
+        nome, dados = _descarregar(sessao, endereco)
+        if dados is None:
+            if doc.get("name"):
+                grandes.append(doc["name"])
+            continue
+        saida.append((nome_seguro(doc.get("name") or nome or "documento"), dados))
+    return saida, grandes
 
 
 # Aquelas de que se conseguem trazer as pecas sem sessao iniciada. Serve
 # tambem para o ecra de indicadores nao chamar "sem acesso" ao que se
 # obtem, nem prometer o que nao se obtem.
-PLATAFORMAS_COM_PECAS = ("acingov", "vortal", "compraspt")
+PLATAFORMAS_COM_PECAS = ("acingov", "vortal", "compraspt", "anogov")
 
 # Valor que representa "o anuncio nao diz qual e", no filtro e no ecra de
 # indicadores. Nao e uma plataforma, e a ausencia de uma.
 SEM_PLATAFORMA = "(nenhuma)"
 
-RX_CPT_DOC = re.compile(
-    r'href="(https://www\.compraspt\.com/[^"]*decryptservlet[^"]*)"')
+# anogov e compraspt sao a mesma aplicacao JSF, do mesmo fornecedor:
+# 'faces/app/acessoDocs.jsp' lista os documentos em HTML e cada ficheiro
+# sai de um 'decryptservlet' no mesmo servidor.
+PLATAFORMAS_JSF = ("anogov.com", "compraspt.com")
+RX_DOC_JSF = re.compile(
+    r'href="(https://[^"]*(?:anogov|compraspt)\.com/[^"]*decryptservlet[^"]*)"')
 
 
-def _pecas_compraspt(sessao, link):
-    """A ComprasPT abre a lista de documentos em HTML e cada ficheiro sai
-    de um 'decryptservlet'. O nome vem no Content-Disposition.
+def _pecas_jsf(sessao, link):
+    """Pecas da anogov e da ComprasPT. O nome vem no Content-Disposition.
 
-    Parece a anogov (mesmo JSF, mesmo 'faces/app/acessoDocs.jsp'), mas ao
-    contrario dela o codigo de acesso resolve sem sessao iniciada."""
+    A pagina responde a um GET com o codigo de acesso que vem no anuncio,
+    sem sessao iniciada. **O codigo tem ~50 caracteres**: se aparecer
+    curto, foi truncado por quem o imprimiu, e a pagina responde
+    "nao foi encontrado nenhum documento" -- que se confunde facilmente
+    com "esta plataforma nao da acesso". Deu-se essa volta duas vezes."""
     pagina = sessao.get(link, timeout=120)
     pagina.encoding = "windows-1252"
-    saida, vistos = [], set()
-    for endereco in dict.fromkeys(RX_CPT_DOC.findall(pagina.text)):
+    saida, vistos, grandes = [], set(), []
+    for endereco in dict.fromkeys(RX_DOC_JSF.findall(pagina.text)):
         endereco = html.unescape(endereco)
         if endereco in vistos:
             continue
         vistos.add(endereco)
-        r = sessao.get(endereco, timeout=180)
-        if r.status_code != 200 or not r.content:
+        nome, dados = _descarregar(sessao, endereco)
+        if dados is None:
+            if nome:
+                grandes.append(nome)
             continue
-        saida.append((nome_seguro(_nome_da_resposta(r) or "documento"), r.content))
-    return saida
+        saida.append((nome_seguro(nome or "documento"), dados))
+    return saida, grandes
+
+
+# Tecto por ficheiro. A Infraestruturas de Portugal publica anexos
+# tecnicos enormes -- um anuncio real trouxe 551 MB num unico ZIP. Sem
+# isto, uma triagem de dez anuncios enche o disco e a memoria, porque o
+# conteudo era todo juntado antes de se decidir o que fazer com ele.
+MAX_FICHEIRO = 60 * 1024 * 1024
+
+
+def _descarregar(sessao, endereco, limite=MAX_FICHEIRO):
+    """(nome, bytes) ou (nome, None) se passar do tecto.
+
+    Le por pedacos e desiste a meio: assim um ficheiro de 500 MB custa o
+    tamanho do pedaco, nao 500 MB de memoria."""
+    with sessao.get(endereco, timeout=180, stream=True) as r:
+        if r.status_code != 200:
+            return "", None
+        nome = _nome_da_resposta(r)
+        declarado = r.headers.get("Content-Length")
+        if declarado and declarado.isdigit() and int(declarado) > limite:
+            return nome, None
+        pedacos, total = [], 0
+        for pedaco in r.iter_content(262144):
+            total += len(pedaco)
+            if total > limite:
+                return nome, None
+            pedacos.append(pedaco)
+    return nome, (b"".join(pedacos) or None)
 
 
 def _nome_da_resposta(r):
@@ -913,20 +951,32 @@ def obter_documentos(ref):
 
     link = a["link_pecas"] or ""
     plataforma = a["plataforma"] or ""
+    grandes = []
     try:
         if link and "acingov" in link:
-            ficheiros += _pecas_acingov(sessao, link)
+            novos, grandes = _pecas_acingov(sessao, link)
         elif link and "vortal" in link:
-            ficheiros += _pecas_vortal(sessao, link)
-        elif link and "compraspt" in link:
-            ficheiros += _pecas_compraspt(sessao, link)
+            novos, grandes = _pecas_vortal(sessao, link)
+        elif link and any(h in link for h in PLATAFORMAS_JSF):
+            novos, grandes = _pecas_jsf(sessao, link)
         elif link:
-            aviso = ("a plataforma %s não dá as peças sem sessão autenticada; "
-                     "usa o botão que abre a plataforma" % (plataforma or "indicada"))
+            novos = []
+            aviso = ("não sei trazer as peças da plataforma %s; usa o botão "
+                     "que a abre" % (plataforma or "indicada"))
         else:
+            novos = []
             aviso = "o anúncio não indica link para as peças"
+        ficheiros += novos
     except (requests.RequestException, ValueError, zipfile.BadZipFile) as erro:
         aviso = "falhou a ir buscar as peças: %s" % str(erro)[:120]
+
+    if grandes:
+        # Dizer quais ficaram de fora: sao normalmente os anexos tecnicos,
+        # e o utilizador tem de saber que existem para os ir buscar a mao.
+        aviso = ("%d ficheiro(s) acima de %d MB não foram trazidos (%s); "
+                 "vai buscá-los pelo botão que abre a plataforma"
+                 % (len(grandes), MAX_FICHEIRO // (1024 * 1024),
+                    ", ".join(n[:40] for n in grandes[:3])))
 
     if not ficheiros:
         with liga() as c:

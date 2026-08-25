@@ -1,0 +1,20 @@
+=== anogov     21494/2026   2 ficheiros, 7.8s
+    aviso: 2 ficheiro(s) acima de 60 MB não foram trazidos (IP - Peças Procedimento.zip, IP - Peças Técnicas.zip); vai bu
+          0.1 MB  Anúncio DR.pdf
+          0.1 MB  Anuncio_18938_1785489764238.pdf
+      estado: parcial
+=== compraspt  21490/2026   3 ficheiros, 0.8s
+          0.7 MB  CE_23_ISEL_2026.pdf
+          0.4 MB  Programa_23_ISEL_2026.pdf
+          0.1 MB  Anúncio DR.pdf
+      estado: ok
+=== acingov    21508/2026   6 ficheiros, 0.7s
+          0.3 MB  1_Caderno_de_Encargos.pdf
+          0.2 MB  2_Programa_do_Procedimento.pdf
+          0.1 MB  2026-OJS163-00585138-pt-ts.pdf
+      estado: ok
+=== vortal     21492/2026   4 ficheiros, 1.4s
+          0.9 MB  PC e CE CP Electrobisturis.pdf
+          0.1 MB  Anúncio DR.pdf
+          0.1 MB  419971138.pdf
+      estado: ok
