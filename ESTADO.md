@@ -689,6 +689,39 @@ horas seguidas. Nessa altura vale a pena confirmar que o token de
 `anuncios(estado)`, para a base não abrandar à medida que cresce para
 lá dos 500.
 
+## Testes, controlo de versões e automatismos
+
+**`teste_radar.py`** — 31 testes, correm em milissegundos, sem rede nem
+base de dados. Não são exaustivos de propósito: cada um corresponde a um
+erro que existiu **mesmo**, e o comentário diz qual, para ninguém
+"simplificar" de volta para o erro. Cobrem o prefixo de CPV, o escape do
+LIKE, as duas caixas de pesquisa, a contagem de dias, `nome_seguro()`, o
+parser de secções e a semeadora de fases.
+
+Verificado que apanham regressões: reintroduzindo o bug do CPV
+(`curto or digitos` em vez do mínimo de dois dígitos), três testes falham
+com a mensagem certa (`['3'] != ['30']`).
+
+**Git** — o repositório começa aqui, com um `.gitignore` que deixa de
+fora o que nunca deve entrar em histórico: `curl_*.txt` (levam o token da
+sessão do browser), `radar.db*`, `documentos/` (Cadernos de Encargos e
+propostas) e `amostras/`.
+
+**Hooks**, em `../.claude/hooks/`:
+
+- `verificar_sintaxe.py` (PostToolUse) — compila o ficheiro Python
+  acabado de escrever, com `-W error::SyntaxWarning`. Existe porque os
+  erros que passaram foram todos de sintaxe e de escapes; este apanha o
+  `"\%"` que aqui mordeu duas vezes.
+- `proteger_dados.py` (PreToolUse) — recusa escritas em `curl_*.txt` e
+  `radar.db*`. Sai com código 2 para travar a ferramenta.
+
+**Skill `/estado-radar`** — o resumo que se pedia à mão várias vezes por
+sessão: quantos por ler, triagem, fases, validade das capturas, painel e
+tarefas. Lê a base em modo só-leitura e não importa o `radar.py`, por
+isso funciona mesmo com o programa a meio de uma alteração que não
+compila.
+
 ## Estrutura do código
 
 Ficheiro único, `radar.py`, sem dependências além de `flask` e

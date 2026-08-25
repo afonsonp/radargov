@@ -287,6 +287,14 @@ python radar.py --importar-cpv ficheiro.json
 ```
 Carrega uma versão nova do vocabulário CPV.
 
+```bash
+python teste_radar.py
+```
+Corre os testes — 31 verificações em menos de um segundo, sem tocar na
+rede nem na base. Vale a pena corrê-los depois de qualquer alteração ao
+`radar.py`. Se o DR mudar o formato dos anúncios, é o teste do parser
+que avisa primeiro.
+
 ## 12. Ficheiros
 
 | Ficheiro | Para que serve |
