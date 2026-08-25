@@ -268,7 +268,25 @@ no quadro — clica para abrir a ficha. Quem tem prazo já passado ou para
 lá dos 45 dias não aparece na grade (fica contado numa nota por baixo),
 mas continua no quadro.
 
-## 11. Comandos, se precisares
+## 11. Histórico de alterações
+
+Duplo clique em `historico.bat`. Abre uma janela com todas as
+alterações ao programa: à esquerda a lista, e ao clicar numa vês
+exactamente que linhas mudaram, a verde e a vermelho.
+
+Fica tudo **no teu PC**, dentro da pasta `.git`. Não há nada online e
+não sai nada para lado nenhum.
+
+Ficam de fora do histórico, de propósito: as capturas (levam o token da
+tua sessão), a base de dados e a pasta `documentos/`.
+
+Na linha de comandos, se preferires:
+
+```bash
+git log --oneline
+```
+
+## 12. Comandos, se precisares
 
 O uso normal é o painel. Estes são para casos pontuais:
 
@@ -299,7 +317,7 @@ rede nem na base. Vale a pena corrê-los depois de qualquer alteração ao
 `radar.py`. Se o DR mudar o formato dos anúncios, é o teste do parser
 que avisa primeiro.
 
-## 12. Ficheiros
+## 13. Ficheiros
 
 | Ficheiro | Para que serve |
 |---|---|
@@ -314,8 +332,10 @@ que avisa primeiro.
 | `agendar.bat` | cria as tarefas das 09h e 17h |
 | `verificar.bat` | o que as tarefas correm |
 | `desinstalar.bat` | remove tarefas e pacotes |
+| `historico.bat` | abre o histórico de alterações |
+| `teste_radar.py` | os testes |
 
-## 13. Limites, para não haver surpresas
+## 14. Limites, para não haver surpresas
 
 O DR publica anúncios acima de certos valores. Ajustes directos e
 consultas prévias abaixo dos limiares não passam por aqui: aparecem no
