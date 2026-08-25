@@ -197,10 +197,14 @@ guardado. Não precisas de esperar por verificação nenhuma.
 Sobre as peças: o botão **Trazer peças** vai buscá-las à plataforma
 indicada no anúncio. Também vêm sozinhas quando marcas **interessa**.
 
-Isto funciona para cerca de 90% dos anúncios — os que usam a acingov e a
-vortal. Nos da anogov a plataforma exige sessão iniciada, e nesses a
-ficha mostra o botão **Abrir plataforma** para ires buscá-las à mão. O
-PDF oficial do anúncio vem sempre, seja qual for a plataforma.
+Funciona nas quatro plataformas que aparecem na base — acingov, vortal,
+anogov e ComprasPT — o que cobre quase todos os anúncios que indicam
+plataforma. O PDF oficial do anúncio vem sempre, seja qual for.
+
+**Ficheiros muito grandes ficam de fora.** Alguns anúncios (sobretudo da
+Infraestruturas de Portugal) trazem anexos técnicos de centenas de MB.
+Acima de 60 MB o radar não os traz, diz-te quais são pelo nome, e marca
+o anúncio como parcial — vais buscá-los pelo botão **Abrir plataforma**.
 
 Não se descarrega tudo de uma vez de propósito: seriam centenas de GB.
 Assim ficas com as peças daquilo em que trabalhas mesmo.

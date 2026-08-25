@@ -190,6 +190,105 @@ Link para acesso às peças do concurso (URL): https://www.acingov.pt/x/y
                          "45214200, 45232400")
 
 
+class TestTectoDeFicheiro(unittest.TestCase):
+    """Um anúncio real trouxe 551 MB num só ZIP, tudo para memória."""
+
+    class FalsaResposta:
+        def __init__(self, tamanho, declarado=None):
+            self.status_code = 200
+            self._tamanho = tamanho
+            self.headers = {"Content-Disposition":
+                            "attachment; filename=\"grande.zip\""}
+            if declarado is not None:
+                self.headers["Content-Length"] = str(declarado)
+
+        def iter_content(self, n):
+            restante = self._tamanho
+            while restante > 0:
+                pedaco = min(n, restante)
+                restante -= pedaco
+                yield b"x" * pedaco
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class FalsaSessao:
+        def __init__(self, resposta):
+            self.resposta = resposta
+
+        def get(self, *a, **k):
+            return self.resposta
+
+    def test_ficheiro_pequeno_passa(self):
+        s = self.FalsaSessao(self.FalsaResposta(1000))
+        nome, dados = radar._descarregar(s, "http://x", limite=5000)
+        self.assertEqual(len(dados), 1000)
+        self.assertEqual(nome, "grande.zip")
+
+    def test_ficheiro_grande_e_recusado(self):
+        s = self.FalsaSessao(self.FalsaResposta(9000))
+        nome, dados = radar._descarregar(s, "http://x", limite=5000)
+        self.assertIsNone(dados)
+        self.assertEqual(nome, "grande.zip")   # o nome volta, para avisar
+
+    def test_content_length_evita_descarregar_de_todo(self):
+        # se o servidor declara o tamanho, nem se comeca
+        s = self.FalsaSessao(self.FalsaResposta(9000, declarado=9000))
+        _, dados = radar._descarregar(s, "http://x", limite=5000)
+        self.assertIsNone(dados)
+
+    def test_ha_um_tecto_por_omissao(self):
+        self.assertGreater(radar.MAX_FICHEIRO, 0)
+
+
+class TestNomeDaResposta(unittest.TestCase):
+
+    class R:
+        def __init__(self, disp):
+            self.headers = {"Content-Disposition": disp} if disp else {}
+
+    def test_utf8_com_mais_como_espaco(self):
+        r = self.R("attachment; filename*=UTF-8''Programa+de+Concurso.pdf")
+        self.assertEqual(radar._nome_da_resposta(r), "Programa de Concurso.pdf")
+
+    def test_percentagem_descodificada(self):
+        r = self.R("attachment; filename*=UTF-8''An%C3%BAncio.pdf")
+        self.assertEqual(radar._nome_da_resposta(r), "Anúncio.pdf")
+
+    def test_formato_simples(self):
+        r = self.R('attachment; filename="Caderno de Encargos.pdf"')
+        self.assertEqual(radar._nome_da_resposta(r), "Caderno de Encargos.pdf")
+
+    def test_sem_cabecalho(self):
+        self.assertEqual(radar._nome_da_resposta(self.R(None)), "")
+
+
+class TestPlataformasJSF(unittest.TestCase):
+    """anogov e compraspt sao a mesma aplicacao: um so obtentor serve."""
+
+    def test_reconhece_os_dois_hosts(self):
+        for host in ("anogov.com", "compraspt.com"):
+            with self.subTest(host=host):
+                alvo = ('href="https://www.%s/x/decryptservlet?'
+                        'papId=1&amp;fichId=2"' % host)
+                achados = radar.RX_DOC_JSF.findall(alvo)
+                self.assertEqual(len(achados), 1)
+
+    def test_ignora_outros_enderecos(self):
+        self.assertEqual(
+            radar.RX_DOC_JSF.findall('href="https://exemplo.pt/decryptservlet"'),
+            [])
+
+    def test_ambas_contam_como_obteniveis(self):
+        # esteve escrito que a anogov nao dava; era um codigo de acesso
+        # truncado a 78 caracteres, nao um bloqueio da plataforma
+        for p in ("anogov", "compraspt", "acingov", "vortal"):
+            self.assertIn(p, radar.PLATAFORMAS_COM_PECAS)
+
+
 class TestDatas(unittest.TestCase):
 
     def test_normaliza_para_iso(self):

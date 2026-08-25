@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 24 de agosto de 2026.
+Última actualização: 25 de agosto de 2026.
 
 ## O que isto é
 
@@ -20,26 +20,20 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem 65819 anúncios (2 anos de histórico, puxados nesta
-sessão). Os últimos 90 dias já têm detalhe completo; o resto (~57 mil,
-mais antigos) está a ser lido em fundo, lançado nesta sessão
-(`python radar.py` não, um `while True: ler_detalhes(...)` à parte —
-ver "Histórico e paginação"), ao ritmo de 1/segundo — para a base
-inteira, contar horas, não minutos. Se este ficheiro estiver a ser
-lido antes disso acabar, `SELECT COUNT(*) FROM anuncios WHERE
-detalhe_lido=0` diz quanto falta.
+Funciona. A base tem ~5100 anúncios, **todos com detalhe lido**, a
+cobrir os últimos 60 dias.
 
-O filtro de CPV do painel percebe agora também palavras da descrição
-oficial do CPV, não só o código. Ver secção "CPV por código ou por
-palavra", mais abaixo.
+Chegou a ter 65 819 (dois anos de histórico) e o Afonso mandou apagar o
+que fosse mais antigo que 60 dias — decisão informada, com os números à
+frente: saíam 92% das linhas, mas nenhum anúncio triado, nenhum
+documento e nenhum histórico, porque nada disso existia fora da janela.
+Ficou sem cópia, por escolha dele. Para voltar a ter histórico é
+`python radar.py --historico 730`, e conta horas.
 
-Os 500 originais vinham de um limite artificial: `dias_catchup` a 15 dias, e um
-tecto de páginas (`paginas: 20`, 500 resultados a 25/página) que cortava
-a meio de qualquer janela maior. Ambos foram corrigidos — ver "Histórico
-e paginação", mais abaixo. Está a decorrer, lançada nesta sessão, uma
-recolha de 2 anos (`python radar.py --historico 730`) só da listagem;
-os detalhes desses novos anúncios ainda vão ficar por ler, aos poucos,
-nas verificações seguintes (40 de cada vez).
+A janela é a mesma que a rotina usa (`detalhe_dias`, 60), e a razão é a
+mesma: entre a publicação e o prazo vão ~18 dias em média, por isso mais
+atrás que isso já fechou. O que ficar mais velho volta a acumular — a
+limpeza não é automática.
 
 ## A ficha do anúncio e as peças do procedimento
 
@@ -113,8 +107,8 @@ credenciais**:
 |---|---|---|
 | acingov | ~48% | GET no link devolve um ZIP com tudo lá dentro |
 | vortal | ~42% | três saltos de API pública, ver abaixo |
-| anogov | ~8% | **não se consegue** |
-| compraspt | ~1% | a página lista os documentos; cada um sai de um `decryptservlet` |
+| anogov | ~8% | a página lista os documentos; cada um sai de um `decryptservlet` |
+| compraspt | ~1% | igual à anogov — é a mesma aplicação |
 
 **ComprasPT esteve por reconhecer durante algum tempo** e caía num balde
 chamado "(nenhuma)" que o ecrã de indicadores pintava de vermelho com a
@@ -124,10 +118,11 @@ lista `PLATAFORMAS`. Repara na ordem dessa constante: `compraspt` tem de
 vir antes de `compraspublicas`, senão um endereço `compraspt.com` nunca
 chega a ser testado contra o primeiro.
 
-Tecnicamente a ComprasPT é o mesmo JSF da anogov (mesmo
-`faces/app/acessoDocs.jsp`), mas ao contrário dela o código de acesso
-resolve sem sessão iniciada. Testado: 6 ficheiros em 2 segundos, com
-Programa do Concurso e Caderno de Encargos.
+A ComprasPT e a anogov são a **mesma aplicação JSF** do mesmo
+fornecedor, e um só obtentor serve as duas (`_pecas_jsf`): a página
+responde a um GET com o código de acesso, lista os documentos em HTML,
+e cada ficheiro sai de um `decryptservlet` no mesmo servidor. Sem
+sessão iniciada.
 
 `PLATAFORMAS_COM_PECAS` diz quais é que dão as peças; é o que decide a
 cor da etiqueta na lista e o "sem acesso" nos indicadores. Ao acrescentar
@@ -155,11 +150,27 @@ Atenção ao nome do parâmetro: é `contractNoticeUId`;
 `contractNoticeUniqueIdentifier` devolve **400**, embora seja esse o
 nome usado noutro endpoint da mesma API.
 
-**anogov não dá.** `acessoDocs.jsp?codigoAcesso=...` responde sempre
-"não foi encontrado nenhum documento para o código de acesso
-introduzido", em anúncios recentes e antigos, com e sem cookie de
-sessão. Para estes mostra-se o botão "Abrir plataforma" e fica claro
-que é preciso ir lá.
+**Esteve escrito aqui que "a anogov não dá".** Era falso, e a causa
+merece ficar registada porque se repetiu: eu tinha imprimido os links
+truncados a 78 caracteres e testei o código de acesso **cortado**. Os
+códigos da anogov têm ~50 caracteres; um código truncado faz a página
+responder "não foi encontrado nenhum documento para o código de acesso
+introduzido" — que se lê como "esta plataforma não dá acesso".
+
+Com o código inteiro, a anogov devolve a lista completa: Programa do
+Procedimento, Cláusulas Gerais e Especiais, anexos técnicos.
+
+**O mesmo erro tinha acontecido antes com a vortal**, também por
+truncar a URL ao imprimi-la. Duas vezes o mesmo engano custou ~53% de
+cobertura declarada como impossível. A lição: nunca testar um endereço
+que passou por um `[:n]` ou por um `print` truncado.
+
+**Ficheiros grandes.** A Infraestruturas de Portugal publica anexos
+técnicos enormes — um anúncio real trouxe 551 MB num único ZIP, mais
+69 MB noutro, e o código juntava tudo em memória antes de decidir.
+Há agora `MAX_FICHEIRO` (60 MB) e `_descarregar()`, que lê por pedaços
+e desiste a meio; o que fica de fora é nomeado no aviso, e o anúncio
+fica com `docs_estado='parcial'`.
 
 O **PDF oficial do anúncio** (`URL_PDF`) descarrega para 100% dos
 casos, sem autenticação, e é sempre trazido.
@@ -796,8 +807,9 @@ qualificar-se, e que a API v3 do TED é pública e sem chave.
 
 O radar já traz as peças do procedimento (Programa de Concurso, Caderno
 de Encargos, anexos) em ~90% dos casos — ver "A ficha do anúncio e as
-peças do procedimento". Fica de fora a anogov (~8%), cujos códigos de
-acesso não resolvem sem sessão autenticada.
+peças do procedimento" — nas quatro plataformas que aparecem na base
+(acingov, vortal, anogov, compraspt), o que cobre ~99% dos anúncios que
+indicam plataforma.
 
 A sonda (`sonda.py`, `sonda.bat`, `sonda.txt`, `sonda_detalhe.html`) foi
 apagada: respondia a duas perguntas — se a pesquisa aceitava termo vazio
