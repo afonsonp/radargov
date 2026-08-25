@@ -1,0 +1,15 @@
+# Dados e credenciais -- nunca em histórico.
+# As capturas levam o token da sessão do browser; a pasta de documentos
+# leva Cadernos de Encargos e propostas de clientes.
+curl_*.txt
+radar.db
+radar.db-shm
+radar.db-wal
+documentos/
+amostras/
+
+# Gerados
+__pycache__/
+*.pyc
+painel.log
+config.json.estragado
