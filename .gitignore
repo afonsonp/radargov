@@ -13,3 +13,7 @@ __pycache__/
 *.pyc
 painel.log
 config.json.estragado
+
+# rascunhos de investigacao
+_*.txt
+_*.py
