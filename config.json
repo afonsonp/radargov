@@ -1,0 +1,23 @@
+{
+  "horas_verificacao": [
+    "09:00",
+    "17:00"
+  ],
+  "dias_catchup": 15,
+  "recuperar_slot_falhado": true,
+  "abrir_browser_ao_encontrar": false,
+  "por_pagina": 25,
+  "paginas": 5000,
+  "termos_de_pesquisa": [
+    ""
+  ],
+  "termos_de_reserva": [
+    "aquisição",
+    "serviços",
+    "fornecimento",
+    "prestação",
+    "concurso",
+    "contratação"
+  ],
+  "detalhe_dias": 60
+}
