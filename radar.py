@@ -1025,7 +1025,12 @@ def _servir_fila():
             if not n:
                 marca("docs_ultimo_erro", "%s: %s" % (ref, aviso or "sem documentos"))
         except Exception as erro:
+            # Tem de ficar num estado terminal: se ficasse "pendente", a
+            # ficha esperava para sempre por peças que nunca vinham.
             try:
+                with liga() as c:
+                    c.execute("UPDATE anuncios SET docs_estado='falhou' WHERE ref=?",
+                              (ref,))
                 marca("docs_ultimo_erro", "%s: %s" % (ref, str(erro)[:200]))
             except Exception:
                 pass
@@ -1035,6 +1040,8 @@ def _servir_fila():
 
 def pedir_documentos(ref):
     """Poe o anuncio na fila e garante que ha quem a sirva."""
+    with liga() as c:
+        c.execute("UPDATE anuncios SET docs_estado='pendente' WHERE ref=?", (ref,))
     global _TRABALHADOR
     with _TRABALHADOR_LOCK:
         if _TRABALHADOR is None or not _TRABALHADOR.is_alive():
@@ -1389,6 +1396,19 @@ details.sec .par{display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px
 details.sec dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
 details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
  white-space:pre-line;text-wrap:pretty;word-break:break-word}
+.essencial dl{margin:0;padding:6px 22px 18px}
+.essencial .par{display:grid;grid-template-columns:230px minmax(0,1fr);
+ gap:18px;padding:11px 0;border-top:1px solid var(--papel)}
+.essencial .par:first-child{border-top:0}
+.essencial dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
+.essencial dd{margin:0;font:600 13px/1.5 var(--sans);color:var(--ink);
+ text-wrap:pretty;word-break:break-word}
+.em-falta{font-weight:400;color:var(--t6);font-style:italic}
+.a-trazer{color:var(--azul)}
+.a-trazer::before{content:'';display:inline-block;width:7px;height:7px;
+ border-radius:50%;background:var(--azul);margin-right:7px;
+ animation:pulsa 1s ease-in-out infinite}
+@keyframes pulsa{0%,100%{opacity:1}50%{opacity:.25}}
 .prazo-cx{background:var(--ink);border-radius:11px;padding:22px;color:#fff}
 .prazo-cx .r{font:500 10px/1 var(--sans);color:rgba(255,255,255,.5);
  text-transform:uppercase;letter-spacing:.1em}
@@ -2217,11 +2237,6 @@ def exportar():
 
 # -------------------------------------------------------- ficha do anuncio
 
-# Secoes mostradas no modo "essencial". As outras ficam atras do botao
-# "Anuncio completo" -- um anuncio tem 28 e a maior parte e burocracia.
-SECCOES_ESSENCIAIS = ("5", "6", "13", "15", "21", "29")
-
-
 def descricoes_cpv(campo_cpv):
     """['72268000 — Servicos de fornecimento de software', ...]
 
@@ -2254,6 +2269,76 @@ def _facto(rotulo, valor, classe="", largo=False):
     return ("<div class='facto%s'><div class='k'>%s</div>"
             "<div class='v %s'>%s</div></div>"
             % (" larg" if largo else "", rotulo, classe, valor))
+
+
+def criterio_de_adjudicacao(seccoes):
+    """Le a seccao 21, que vem de duas maneiras.
+
+    Monofator:  Multifator: Não / Monofator: / Nome: Preço
+    Multifator: Multifator: Sim / (Fator: / Nome: X / Ponderação: 50%)+
+
+    Quando o Nome e "Outros", o nome verdadeiro esta em "Outro Nome"."""
+    pares = next((p for n, _, p in seccoes if n == "21"), [])
+    if not pares:
+        return ""
+    valores = {radar_chave(k): v for k, v in pares}
+    if simplifica(valores.get("multifator", "")) != "sim":
+        return valores.get("nome", "")
+
+    fatores, nome, outro = [], "", ""
+    for chave, valor in pares:
+        c = radar_chave(chave)
+        if c == "nome":
+            nome, outro = valor, ""
+        elif c == "outro nome":
+            outro = valor
+        elif c == "ponderacao" and (nome or outro):
+            fatores.append("%s %s" % (outro or nome, valor))
+            nome, outro = "", ""
+    # ponto literal, nao a entidade: este valor passa por html.escape()
+    # ao ser desenhado, e "&middot;" sairia escrito tal e qual
+    return " · ".join(fatores)
+
+
+def radar_chave(chave):
+    """A chave sem acentos nem maiusculas, para comparar."""
+    return simplifica(chave).strip()
+
+
+# Os campos que o Afonso quer ver ao abrir um concurso. Os cinco ultimos
+# nao estao no anuncio do DR -- vivem no Programa de Concurso e no
+# Caderno de Encargos, e ficam assinalados em vez de omitidos, para se
+# ver o que falta em vez de parecer que nao existe.
+FALTA_CE = "só consta do Caderno de Encargos"
+FALTA_PC = "só consta do Programa de Concurso"
+
+
+def essencial_do_anuncio(a, seccoes):
+    """[(rotulo, valor, em_falta)] com o essencial para decidir."""
+    def v(*nomes):
+        return valor_de(seccoes, *nomes)
+
+    concelho, distrito = v("Concelho"), v("Distrito")
+    local = concelho if concelho == distrito else \
+        ", ".join(x for x in (concelho, distrito) if x)
+    duracao = v("Prazo de execução do contrato")
+    if duracao and simplifica(v("Previsão de renovações")) == "sim":
+        duracao += " (com renovações previstas)"
+
+    return [
+        ("Nome do projeto", a["titulo"] or v("Designação do contrato"), ""),
+        ("Entidade adjudicante", a["entidade"], ""),
+        ("Critério de adjudicação", criterio_de_adjudicacao(seccoes), ""),
+        ("Preço base", a["preco_base"], ""),
+        ("Preço anormalmente baixo", "", FALTA_PC),
+        ("Duração do contrato", duracao, ""),
+        ("Local de prestação de serviços", local, ""),
+        ("Data de esclarecimentos", "", FALTA_PC),
+        ("Data de submissão da proposta", a["prazo"], ""),
+        ("Objeto, âmbito e características", "", FALTA_CE),
+        ("Equipa", "", FALTA_CE),
+        ("Documentos que constituem a proposta", "", FALTA_PC),
+    ]
 
 
 @app.route("/anuncio/<path:ref>")
@@ -2335,13 +2420,28 @@ def ficha(ref):
 
     # --- seccoes do anuncio
     seccoes = seccoes_do_texto(a["texto"])
-    if seccoes:
-        blocos, escondidas = [], 0
+
+    # No modo essencial mostra-se a tabela do que interessa para decidir,
+    # e nao as seccoes em bruto: o DR espalha estes campos por meia duzia
+    # de seccoes numeradas, e a maior parte do anuncio e burocracia.
+    if seccoes and not completo:
+        linhas_ess = []
+        for rotulo, valor, em_falta in essencial_do_anuncio(a, seccoes):
+            if em_falta:
+                celula = "<span class='em-falta'>%s</span>" % em_falta
+            elif valor:
+                celula = html.escape(valor)
+            else:
+                celula = "<span class='em-falta'>o anúncio não indica</span>"
+            linhas_ess.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
+                              % (html.escape(rotulo), celula))
+        seccoes_html = ("<div class='cx essencial'><dl>%s</dl></div>"
+                        % "".join(linhas_ess))
+        nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
+    elif seccoes:
+        blocos = []
         for numero, titulo_sec, pares in seccoes:
             if not pares:
-                continue
-            if not completo and numero not in SECCOES_ESSENCIAIS:
-                escondidas += 1
                 continue
             itens = []
             for chave, valor in pares:
@@ -2368,7 +2468,7 @@ def ficha(ref):
                 % (" open" if len(blocos) < 2 else "", html.escape(cabecalho),
                    html.escape(dica), "".join(itens)))
         seccoes_html = "".join(blocos)
-        nota_modo = ("%d secções lidas de data.DetalheConteudo.Texto"
+        nota_modo = ("%d secções lidas do anúncio"
                      % len([s for s in seccoes if s[2]]))
     else:
         seccoes_html = ("<div class='vazio'>Não foi possível ler o texto deste "
@@ -2427,6 +2527,12 @@ def ficha(ref):
                       "<div style='margin-top:14px'>%s</div>"
                       % (linhas_doc,
                          accao("/documentos/%s" % ref, "Actualizar peças")))
+    elif a["docs_estado"] == "pendente":
+        # As peças vêm em fundo e demoram entre 1 e 10 segundos. Sem isto
+        # a página era desenhada antes de elas existirem e parecia que não
+        # tinham vindo -- só recarregando à mão é que apareciam.
+        corpo_docs = ("<div class='nota a-trazer'>A trazer as peças da "
+                      "plataforma… a página actualiza-se sozinha.</div>")
     else:
         if a["docs_estado"] == "falhou":
             nota = ("Não foi possível trazer as peças automaticamente. A "
@@ -2473,10 +2579,16 @@ def ficha(ref):
 
     migalhas = ("<a href='/'>Lista</a><s>&rsaquo;</s><em>/anuncio/%s</em>"
                 % html.escape(ref))
+    # Enquanto as peças não chegam, a página volta a pedir-se sozinha. O
+    # trabalhador põe sempre um estado terminal (ok/parcial/falhou), por
+    # isso isto pára -- não fica em ciclo.
+    espera = ("<script>setTimeout(function(){location.reload()},3000)</script>"
+              if a["docs_estado"] == "pendente" else "")
+
     return envolver("lista", a["titulo"] or ref,
                     "/anuncio/%s &middot; %s" % (html.escape(ref),
                                                  html.escape(a["entidade"] or "")),
-                    conteudo, migalhas=migalhas,
+                    conteudo, migalhas=migalhas, script=espera,
                     titulo_aba="%s, Radar de Concursos" % ref)
 
 

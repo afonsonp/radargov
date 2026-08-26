@@ -289,6 +289,109 @@ class TestPlataformasJSF(unittest.TestCase):
             self.assertIn(p, radar.PLATAFORMAS_COM_PECAS)
 
 
+class TestCriterioDeAdjudicacao(unittest.TestCase):
+    """A secção 21 vem de duas maneiras muito diferentes."""
+
+    def criterio(self, texto):
+        return radar.criterio_de_adjudicacao(radar.seccoes_do_texto(texto))
+
+    def test_monofator(self):
+        self.assertEqual(self.criterio(
+            "21 - CRITÉRIO DE ADJUDICAÇÃO\n"
+            "Multifator: Não\nMonofator: \nNome: Preço\n"), "Preço")
+
+    def test_multifator_com_ponderacoes(self):
+        # "Outro Nome" é o nome verdadeiro quando o Nome é "Outros"
+        c = self.criterio(
+            "21 - CRITÉRIO DE ADJUDICAÇÃO\n"
+            "Multifator: Sim\n"
+            "Fator: \nNome: Preço\nPonderação: 50%\n"
+            "Fator: \nNome: Outros\nOutro Nome: Experiência da equipa\n"
+            "Ponderação: 50%\n")
+        self.assertIn("Preço 50%", c)
+        self.assertIn("Experiência da equipa 50%", c)
+        self.assertNotIn("Outros", c)
+
+    def test_usa_ponto_literal_nao_a_entidade(self):
+        # o valor passa por html.escape() ao ser desenhado: "&middot;"
+        # sairia escrito tal e qual
+        c = self.criterio(
+            "21 - CRITÉRIO DE ADJUDICAÇÃO\nMultifator: Sim\n"
+            "Nome: A\nPonderação: 60%\nNome: B\nPonderação: 40%\n")
+        self.assertNotIn("&", c)
+
+    def test_seccao_ausente(self):
+        self.assertEqual(self.criterio("6 - OBJETO DO CONTRATO\nX: y\n"), "")
+
+
+class TestTabelaEssencial(unittest.TestCase):
+    """Os 12 campos que o Afonso quer ver ao abrir um concurso."""
+
+    TEXTO = """
+9 - LOCAL DA EXECUÇÃO DO CONTRATO
+Concelho: Montijo
+Distrito: Setúbal
+
+10 - PRAZO DE EXECUÇÃO DO CONTRATO
+Prazo de execução do contrato: 36 MESES
+Previsão de renovações: Não
+
+21 - CRITÉRIO DE ADJUDICAÇÃO
+Multifator: Não
+Nome: Preço
+"""
+
+    ANUNCIO = {"titulo": "Aquisição de X", "entidade": "Município Y",
+               "preco_base": "150.000,00 EUR", "prazo": "2026-09-01"}
+
+    def tabela(self, texto=None, anuncio=None):
+        return radar.essencial_do_anuncio(
+            anuncio or self.ANUNCIO,
+            radar.seccoes_do_texto(texto if texto is not None else self.TEXTO))
+
+    def test_tem_os_doze_campos(self):
+        self.assertEqual(len(self.tabela()), 12)
+
+    def test_preenche_o_que_vem_do_anuncio(self):
+        d = {r: v for r, v, _ in self.tabela()}
+        self.assertEqual(d["Nome do projeto"], "Aquisição de X")
+        self.assertEqual(d["Entidade adjudicante"], "Município Y")
+        self.assertEqual(d["Preço base"], "150.000,00 EUR")
+        self.assertEqual(d["Data de submissão da proposta"], "2026-09-01")
+        self.assertEqual(d["Duração do contrato"], "36 MESES")
+        self.assertEqual(d["Critério de adjudicação"], "Preço")
+
+    def test_local_junta_concelho_e_distrito(self):
+        d = {r: v for r, v, _ in self.tabela()}
+        self.assertEqual(d["Local de prestação de serviços"], "Montijo, Setúbal")
+
+    def test_local_nao_se_repete_quando_sao_iguais(self):
+        t = "9 - LOCAL DA EXECUÇÃO DO CONTRATO\nConcelho: Lisboa\nDistrito: Lisboa\n"
+        d = {r: v for r, v, _ in self.tabela(t)}
+        self.assertEqual(d["Local de prestação de serviços"], "Lisboa")
+
+    def test_renovacoes_aparecem_na_duracao(self):
+        t = ("10 - PRAZO DE EXECUÇÃO DO CONTRATO\n"
+             "Prazo de execução do contrato: 12 MESES\n"
+             "Previsão de renovações: Sim\n")
+        d = {r: v for r, v, _ in self.tabela(t)}
+        self.assertIn("renovações", d["Duração do contrato"])
+
+    def test_os_cinco_que_faltam_estao_assinalados(self):
+        # nao se omitem: se nao aparecessem, parecia que nao existiam
+        faltam = {r for r, _, f in self.tabela() if f}
+        self.assertEqual(faltam, {
+            "Preço anormalmente baixo", "Data de esclarecimentos",
+            "Objeto, âmbito e características", "Equipa",
+            "Documentos que constituem a proposta"})
+
+    def test_diz_em_que_documento_esta_o_que_falta(self):
+        for _, _, falta in self.tabela():
+            if falta:
+                self.assertTrue("Caderno de Encargos" in falta
+                                or "Programa de Concurso" in falta)
+
+
 class TestDatas(unittest.TestCase):
 
     def test_normaliza_para_iso(self):

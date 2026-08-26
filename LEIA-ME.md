@@ -184,18 +184,24 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica.
 
-O texto começa em **Essencial**, que mostra só as secções que interessam
-para decidir (processo, objecto, condições de apresentação, peças,
-critério de adjudicação, alterações). O botão **Anúncio completo**
-abre as restantes — um anúncio tem à volta de 28 secções e a maioria é
-burocracia.
+**Essencial** mostra uma tabela com o que interessa para decidir: nome,
+entidade, critério de adjudicação, preço base, duração, local, data de
+submissão. O botão **Anúncio completo** abre as 28 secções em bruto.
+
+Cinco campos aparecem assinalados como em falta — preço anormalmente
+baixo, data de esclarecimentos, objecto detalhado, equipa e documentos
+da proposta. Não estão no anúncio do DR: vivem no Programa de Concurso
+e no Caderno de Encargos. Aparecem na tabela de propósito, para veres o
+que falta em vez de parecer que não existe.
 
 Se abrires um anúncio que o radar ainda não tinha lido — um antigo, por
 exemplo — ele lê-o na altura, demora cerca de um segundo, e fica
 guardado. Não precisas de esperar por verificação nenhuma.
 
 Sobre as peças: o botão **Trazer peças** vai buscá-las à plataforma
-indicada no anúncio. Também vêm sozinhas quando marcas **interessa**.
+indicada no anúncio. Também vêm sozinhas quando marcas **interessa** —
+nesse caso a ficha mostra "a trazer as peças…" e actualiza-se sozinha
+quando elas chegam, o que leva alguns segundos.
 
 Funciona nas quatro plataformas que aparecem na base — acingov, vortal,
 anogov e ComprasPT — o que cobre quase todos os anúncios que indicam
