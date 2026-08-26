@@ -156,6 +156,9 @@ def iniciar_db():
             ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_documentos_ref
                      ON documentos(ref)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS analise (
+            ref TEXT PRIMARY KEY, objecto TEXT, equipa TEXT,
+            documentos_proposta TEXT, modelo TEXT, fontes TEXT, quando TEXT)""")
         cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
         for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
             if nome not in cols_doc:
@@ -976,6 +979,121 @@ def extrair_textos(ref):
     return lidos, scans
 
 
+# ------------------------------------------- leitura das peças por modelo
+#
+# Tres campos que o anuncio do DR nao tem e que so estao no Caderno de
+# Encargos e no Programa de Concurso. Sao os unicos que justificam um
+# modelo -- todo o resto sai do texto do anuncio ou de calculo.
+#
+# So vao documentos publicos: Cadernos de Encargos e Programas de
+# Concurso, que as entidades publicam para quem os quiser. Propostas,
+# CVs e trabalho proprio nao passam por aqui.
+
+CHAVE_API = os.path.join(BASE_DIR, "chave_api.txt")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODELO = "llama-3.3-70b-versatile"
+# Tecto de seguranca para o pedido. Os documentos medidos ficam nos 5 a
+# 16 mil tokens; isto so trava um caso fora do normal.
+MAX_CHARS_PROMPT = 180000
+
+INSTRUCOES = """És um analista de concursos públicos portugueses. Lês o
+Programa de Concurso e o Caderno de Encargos e extrais três coisas.
+
+Responde SÓ com JSON, com estas chaves exactas:
+
+{"objecto": "...", "equipa": "...", "documentos_proposta": "..."}
+
+- "objecto": o âmbito do serviço decomposto em pontos concretos, um por
+  linha começada por "- ". Não repitas o título do concurso: enumera o
+  que tem mesmo de ser feito (desenvolvimento, migração, integrações,
+  formação, garantia, suporte, prazos parciais).
+- "equipa": os perfis exigidos e requisitos de cada um (anos de
+  experiência, certificações, formação). Um por linha começada por "- ".
+- "documentos_proposta": a lista dos documentos que o CONCORRENTE tem de
+  entregar na proposta, um por linha começada por "- ".
+
+ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
+(o que tu entregas) NÃO é o mesmo que "peças que constituem o
+procedimento" (anúncio, programa, caderno de encargos). Queremos o
+primeiro.
+
+Se algo não constar dos documentos, põe exactamente "não consta".
+Não inventes. Escreve em português de Portugal."""
+
+
+def ler_chave_api():
+    """A chave fica num ficheiro a parte, fora do git. Tambem se aceita
+    a variavel de ambiente GROQ_API_KEY."""
+    if os.path.exists(CHAVE_API):
+        with open(CHAVE_API, encoding="utf-8") as f:
+            chave = f.read().strip()
+        if chave:
+            return chave
+    return (os.environ.get("GROQ_API_KEY") or "").strip()
+
+
+def pecas_para_analise(ref):
+    """O texto do Caderno de Encargos e do Programa deste anuncio."""
+    with liga() as c:
+        docs = c.execute(
+            "SELECT nome, texto FROM documentos WHERE ref=? AND texto_estado='ok' "
+            "AND texto != '' ORDER BY nome", (ref,)).fetchall()
+    partes, usados = [], []
+    for d in docs:
+        if not re.search(r"caderno|encargos|programa|procedimento", d["nome"], re.I):
+            continue
+        partes.append("### %s\n%s" % (d["nome"], d["texto"]))
+        usados.append(d["nome"])
+    return "\n\n".join(partes)[:MAX_CHARS_PROMPT], usados
+
+
+def analisar_pecas(ref):
+    """Le as pecas com o modelo e guarda os tres campos. (ok, aviso)."""
+    chave = ler_chave_api()
+    if not chave:
+        return False, ("falta a chave da API: põe-na em chave_api.txt, "
+                       "na pasta do radar")
+    texto, usados = pecas_para_analise(ref)
+    if not texto:
+        with liga() as c:
+            scans = c.execute("SELECT COUNT(*) n FROM documentos WHERE ref=? "
+                              "AND texto_estado='scan'", (ref,)).fetchone()["n"]
+        return False, ("os documentos deste concurso são digitalizações, sem "
+                       "texto para ler" if scans else
+                       "ainda não há Caderno de Encargos nem Programa em disco")
+    try:
+        r = requests.post(GROQ_URL, timeout=180,
+                          headers={"Authorization": "Bearer " + chave,
+                                   "Content-Type": "application/json"},
+                          json={"model": GROQ_MODELO, "temperature": 0,
+                                "response_format": {"type": "json_object"},
+                                "messages": [
+                                    {"role": "system", "content": INSTRUCOES},
+                                    {"role": "user", "content": texto}]})
+        if r.status_code != 200:
+            return False, "o modelo respondeu %d: %s" % (
+                r.status_code, r.text[:160])
+        conteudo = r.json()["choices"][0]["message"]["content"]
+        dados = json.loads(conteudo)
+    except (requests.RequestException, ValueError, KeyError, IndexError) as erro:
+        return False, "falhou a leitura pelo modelo: %s" % str(erro)[:140]
+
+    with liga() as c:
+        c.execute("""INSERT OR REPLACE INTO analise
+            (ref,objecto,equipa,documentos_proposta,modelo,fontes,quando)
+            VALUES (?,?,?,?,?,?,?)""",
+                  (ref, dados.get("objecto", ""), dados.get("equipa", ""),
+                   dados.get("documentos_proposta", ""), GROQ_MODELO,
+                   ", ".join(usados),
+                   datetime.now().strftime("%Y-%m-%d %H:%M")))
+    return True, ""
+
+
+def analise_de(ref):
+    with liga() as c:
+        return c.execute("SELECT * FROM analise WHERE ref=?", (ref,)).fetchone()
+
+
 def _nome_da_resposta(r):
     """O nome do ficheiro que o servidor anuncia, se anunciar algum."""
     disp = r.headers.get("Content-Disposition") or ""
@@ -1462,7 +1580,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .essencial .par:first-child{border-top:0}
 .essencial dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
 .essencial dd{margin:0;font:600 13px/1.5 var(--sans);color:var(--ink);
- text-wrap:pretty;word-break:break-word}
+ text-wrap:pretty;word-break:break-word;white-space:pre-line}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
 .nota-campo{display:block;margin-top:3px;font:400 11.5px/1.45 var(--sans);
  color:var(--t5)}
@@ -2404,7 +2522,7 @@ def prazo_de_esclarecimentos(data_pub, prazo):
     return pub + timedelta(days=dias // 3)
 
 
-def essencial_do_anuncio(a, seccoes):
+def essencial_do_anuncio(a, seccoes, analise=None):
     """[(rotulo, valor, em_falta, nota)] com o essencial para decidir.
 
     `em_falta` diz onde procurar quando o anuncio nao traz o campo.
@@ -2433,6 +2551,18 @@ def essencial_do_anuncio(a, seccoes):
         esclarecimentos, esclarec_nota = "", ""
         esclarec_falta = FALTA_PC
 
+    # Os tres campos que so existem nas pecas vem da leitura pelo modelo,
+    # se ela ja tiver corrido. "nao consta" e resposta valida do modelo e
+    # trata-se como ausencia.
+    def das_pecas(campo):
+        if not analise:
+            return ""
+        valor = (analise[campo] or "").strip()
+        return "" if simplifica(valor) in ("", "nao consta", "não consta") else valor
+
+    nota_pecas = ("lido do Caderno de Encargos e do Programa por %s — confirmar "
+                  "no documento" % analise["modelo"]) if analise else ""
+
     return [
         ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
         ("Entidade adjudicante", a["entidade"], "", ""),
@@ -2450,9 +2580,12 @@ def essencial_do_anuncio(a, seccoes):
         ("Data de esclarecimentos", esclarecimentos, esclarec_falta,
          esclarec_nota),
         ("Data de submissão da proposta", a["prazo"], "", ""),
-        ("Objeto, âmbito e características", "", FALTA_CE, ""),
-        ("Equipa", "", FALTA_CE, ""),
-        ("Documentos que constituem a proposta", "", FALTA_PC, ""),
+        ("Objeto, âmbito e características", das_pecas("objecto"),
+         "" if das_pecas("objecto") else FALTA_CE, nota_pecas),
+        ("Equipa", das_pecas("equipa"),
+         "" if das_pecas("equipa") else FALTA_CE, nota_pecas),
+        ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
+         "" if das_pecas("documentos_proposta") else FALTA_PC, nota_pecas),
     ]
 
 
@@ -2541,7 +2674,8 @@ def ficha(ref):
     # de seccoes numeradas, e a maior parte do anuncio e burocracia.
     if seccoes and not completo:
         linhas_ess = []
-        for rotulo, valor, em_falta, nota in essencial_do_anuncio(a, seccoes):
+        for rotulo, valor, em_falta, nota in essencial_do_anuncio(
+                a, seccoes, analise_de(ref)):
             if em_falta:
                 celula = "<span class='em-falta'>%s</span>" % html.escape(em_falta)
             elif valor:
@@ -2640,9 +2774,13 @@ def ficha(ref):
         else:
             cabeca_docs = ("<div class='nota'>Guardadas em documentos/%s.</div>"
                            % html.escape(re.sub(r"[^0-9A-Za-z._-]", "-", ref)))
+        analise = analise_de(ref)
+        botao_ler = accao("/analisar/%s" % ref,
+                          "Reler pelo modelo" if analise else "Ler as peças",
+                          "bt" if analise else "bt forte")
         corpo_docs = (cabeca_docs + "<div class='docs'>%s</div>"
-                      "<div style='margin-top:14px'>%s</div>"
-                      % (linhas_doc,
+                      "<div class='accoes' style='margin-top:14px'>%s%s</div>"
+                      % (linhas_doc, botao_ler,
                          accao("/documentos/%s" % ref, "Actualizar peças")))
     elif a["docs_estado"] == "pendente":
         # As peças vêm em fundo e demoram entre 1 e 10 segundos. Sem isto
@@ -2717,6 +2855,16 @@ def trazer_documentos(ref):
     elif n:
         aviso = "%d ficheiro(s) trazido(s)." % n
     return redirect("/anuncio/" + ref + "?" + urlencode({"aviso": aviso}))
+
+
+@app.route("/analisar/<path:ref>", methods=["POST"])
+def analisar(ref):
+    """Le o Caderno de Encargos e o Programa com o modelo. Sincrono de
+    proposito: demora poucos segundos e o utilizador esta a espera."""
+    ok, aviso = analisar_pecas(ref)
+    registar(ref, "análise", "peças lidas" if ok else (aviso or "falhou"))
+    return redirect("/anuncio/" + ref + "?" + urlencode(
+        {"aviso": "peças lidas pelo modelo" if ok else aviso}))
 
 
 @app.route("/documento/<path:ref>/<nome>")

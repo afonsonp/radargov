@@ -17,3 +17,6 @@ config.json.estragado
 # rascunhos de investigacao
 _*.txt
 _*.py
+
+# credenciais -- nunca em historico
+chave_api.txt
