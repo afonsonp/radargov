@@ -1183,6 +1183,11 @@ def analisar_pecas(ref):
     modelo = ler_config().get("modelo_pecas") or GROQ_MODELO
     texto, usados = pecas_para_analise(ref)
     if not texto:
+        # As pecas trazidas antes de haver extracao de texto ficaram sem
+        # ele. Estao em disco: extrai-se agora, sem voltar a rede.
+        extrair_textos(ref)
+        texto, usados = pecas_para_analise(ref)
+    if not texto:
         with liga() as c:
             scans = c.execute("SELECT COUNT(*) n FROM documentos WHERE ref=? "
                               "AND texto_estado='scan'", (ref,)).fetchone()["n"]
@@ -3492,6 +3497,26 @@ def main():
         n = reparsear()
         print("%d anúncios reanalisados a partir do texto guardado, "
               "em %.1f segundos (nenhum pedido ao DR)" % (n, time.time() - ini))
+        return
+
+    if "--ler-pecas" in sys.argv:
+        # Para os concursos cujas pecas chegaram antes de haver leitura
+        # pelo modelo. O tecto de tokens por minuto trava isto a cerca de
+        # um por minuto; o 429 e esperado e a espera esta la dentro.
+        with liga() as c:
+            porler = [r["ref"] for r in c.execute(
+                "SELECT DISTINCT d.ref ref FROM documentos d "
+                "LEFT JOIN analise a ON a.ref = d.ref WHERE a.ref IS NULL")]
+        print("%d concurso(s) com peças por ler." % len(porler))
+        lidos = 0
+        for i, ref in enumerate(porler, 1):
+            ini = time.time()
+            ok, porque = analisar_pecas(ref)
+            print("  [%d/%d] %-14s %s (%.0fs)" % (
+                i, len(porler), ref, "lido" if ok else porque[:70],
+                time.time() - ini))
+            lidos += 1 if ok else 0
+        print("%d lido(s)." % lidos)
         return
 
     if "--uma-vez" in sys.argv:
