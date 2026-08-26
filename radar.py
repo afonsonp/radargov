@@ -156,6 +156,10 @@ def iniciar_db():
             ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_documentos_ref
                      ON documentos(ref)""")
+        cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
+        for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
+            if nome not in cols_doc:
+                c.execute("ALTER TABLE documentos ADD COLUMN %s %s" % (nome, tipo))
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -917,6 +921,61 @@ def _descarregar(sessao, endereco, limite=MAX_FICHEIRO):
     return nome, (b"".join(pedacos) or None)
 
 
+# --------------------------------------------- texto das peças (PDF)
+#
+# O passo anterior a qualquer analise: tirar o texto dos PDFs. E
+# independente de quem os venha a ler depois, e por isso faz-se ja.
+#
+# Medido sobre 12 Cadernos de Encargos e Programas reais: 10 dao texto
+# (5 a 16 mil tokens cada, 10 a 27 paginas) e 2 sao digitalizacoes sem
+# camada de texto, onde isto nao chega -- ficam marcados como 'scan'.
+
+# Abaixo disto por pagina, o PDF e imagem: nao vale a pena guardar.
+CHARS_POR_PAGINA_MINIMO = 120
+
+
+def texto_do_pdf(caminho):
+    """(texto, estado). Estado: 'ok', 'scan', ou 'erro: ...'."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return "", "erro: falta o pypdf (python -m pip install pypdf)"
+    try:
+        leitor = PdfReader(caminho)
+        paginas = len(leitor.pages)
+        texto = "\n".join((p.extract_text() or "") for p in leitor.pages)
+    except Exception as erro:
+        # os PDFs do anuncio do DR vem cifrados com AES e rebentam aqui,
+        # mas nao fazem falta: o texto do anuncio ja veio do portal
+        return "", "erro: %s" % str(erro)[:80]
+    if paginas and len(texto) / paginas < CHARS_POR_PAGINA_MINIMO:
+        return "", "scan"
+    return texto, "ok"
+
+
+def extrair_textos(ref):
+    """Guarda o texto dos PDFs deste anuncio. Devolve (lidos, digitalizados)."""
+    with liga() as c:
+        docs = c.execute("SELECT id,nome FROM documentos WHERE ref=? "
+                         "AND texto_estado IS NULL", (ref,)).fetchall()
+    pasta = pasta_do_anuncio(ref)
+    lidos = scans = 0
+    for d in docs:
+        caminho = os.path.join(pasta, d["nome"])
+        if not d["nome"].lower().endswith(".pdf") or not os.path.exists(caminho):
+            estado, texto = "não é PDF", ""
+        else:
+            texto, estado = texto_do_pdf(caminho)
+        with liga() as c:
+            c.execute("UPDATE documentos SET texto=?, texto_estado=? WHERE id=?",
+                      (texto, estado, d["id"]))
+        if estado == "ok":
+            lidos += 1
+        elif estado == "scan":
+            scans += 1
+    return lidos, scans
+
+
 def _nome_da_resposta(r):
     """O nome do ficheiro que o servidor anuncia, se anunciar algum."""
     disp = r.headers.get("Content-Disposition") or ""
@@ -1006,6 +1065,7 @@ def obter_documentos(ref):
         # facto de o Caderno de Encargos nao ter chegado.
         c.execute("UPDATE anuncios SET docs_estado=? WHERE ref=?",
                   ("parcial" if aviso else "ok", ref))
+    extrair_textos(ref)
     return guardados, aviso
 
 
