@@ -277,6 +277,25 @@ visíveis. `limpa_campo()` desfaz a segunda camada e tira linhas vazias.
 O CSS de `.essencial dd` já tem `white-space:pre-line`, por isso as
 mudanças de linha bastam para a lista se ver como lista.
 
+### As peças que chegaram antes disto existir
+
+Ficaram em disco sem texto extraído (`texto_estado` a NULL), e a leitura
+não tinha o que ler — a ficha mostrava "só consta do Caderno de
+Encargos" com o Caderno de Encargos ali ao lado, o que parece um erro de
+leitura e não é. `analisar_pecas()` extrai o texto na hora quando falta,
+sem voltar à rede, e `python radar.py --ler-pecas` percorre os que
+faltam (6 de 7 recuperados; o outro é digitalização, fica para o OCR).
+
+Sintoma parecido, causa diferente: **o painel a correr código antigo.**
+Aconteceu — duas instâncias de ontem agarradas à porta 8765 (é o
+problema do `SO_REUSEADDR` descrito mais abaixo, e as respostas vinham
+ora de uma ora de outra). Antes de diagnosticar seja o que for,
+confirmar a hora de arranque do processo:
+
+    Get-NetTCPConnection -LocalPort 8765 -State Listen
+
+e ver o `StartTime` do PID. Se for anterior à alteração, é isso.
+
 ### Quando é que corre
 
 Dentro do trabalhador que traz as peças, a seguir a `extrair_textos()`
