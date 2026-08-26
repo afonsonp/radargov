@@ -184,9 +184,11 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica.
 
-**Essencial** mostra uma tabela com o que interessa para decidir: nome,
-entidade, critério de adjudicação, preço base, duração, local, data de
-submissão. O botão **Anúncio completo** abre as 28 secções em bruto.
+**Essencial** mostra uma tabela com os doze campos que interessam para
+decidir: nome, entidade, critério de adjudicação, preço base, preço
+anormalmente baixo, duração, local, data de esclarecimentos, data de
+submissão, objecto, equipa e documentos que constituem a proposta.
+O botão **Anúncio completo** abre as 28 secções em bruto.
 
 A **data de esclarecimentos** é calculada, não lida: é o primeiro terço
 do prazo das propostas, que é a regra supletiva do artigo 50.º do CCP.
@@ -194,11 +196,12 @@ Vem marcada como tal, para confirmares no Programa de Concurso — alguns
 fixam prazo próprio. É um prazo que se perde em silêncio, porque fecha
 muito antes do prazo das propostas e ninguém avisa.
 
-Quatro campos aparecem assinalados como em falta — preço anormalmente
-baixo, objecto detalhado, equipa e documentos da proposta. Não estão no
-anúncio do DR: vivem no Programa de Concurso e no Caderno de Encargos.
-Aparecem na tabela de propósito, para veres o que falta em vez de
-parecer que não existe.
+Quatro desses campos não estão no anúncio do DR — preço anormalmente
+baixo, objecto detalhado, equipa e documentos da proposta. Vivem no
+Programa de Concurso e no Caderno de Encargos, e é um modelo que os lê
+de lá quando as peças chegam (ver o ponto seguinte). Enquanto as peças
+não vierem, aparecem assinalados na tabela de propósito, para veres o
+que falta em vez de parecer que não existe.
 
 Se abrires um anúncio que o radar ainda não tinha lido — um antigo, por
 exemplo — ele lê-o na altura, demora cerca de um segundo, e fica
@@ -208,6 +211,29 @@ Sobre as peças: o botão **Trazer peças** vai buscá-las à plataforma
 indicada no anúncio. Também vêm sozinhas quando marcas **interessa** —
 nesse caso a ficha mostra "a trazer as peças…" e actualiza-se sozinha
 quando elas chegam, o que leva alguns segundos.
+
+### As peças lidas
+
+Assim que as peças chegam, um modelo lê o Caderno de Encargos e o
+Programa e preenche os quatro campos que faltavam. Leva cerca de cinco
+segundos, corre em fundo, e a ficha só deixa de dizer "a trazer as
+peças…" quando já lá está tudo. Se preferires accionar à mão, ou se
+falhar, há o botão **Ler peças**.
+
+O que sai vem marcado com o nome do modelo e um aviso para confirmares
+no documento. Não é para assinar por baixo: é para saberes, em cinco
+segundos, se vale a pena abrir os PDF.
+
+Quando o Programa não fixa limiar de preço anormalmente baixo — o que é
+o caso na maioria — a tabela di-lo em vez de te mandar procurar.
+
+**Precisa de uma chave.** Um ficheiro `groq_API_KEY.txt` na pasta do
+radar, com a chave lá dentro e mais nada. Sem ele os quatro campos
+ficam simplesmente assinalados como antes, e o resto funciona na mesma.
+O ficheiro está fora do controlo de versões, de propósito.
+
+Só saem daqui documentos que já são públicos — Cadernos de Encargos e
+Programas. Propostas, CVs e trabalho teu não passam por lá.
 
 Funciona nas quatro plataformas que aparecem na base — acingov, vortal,
 anogov e ComprasPT — o que cobre quase todos os anúncios que indicam

@@ -65,6 +65,9 @@ CONFIG_INICIAL = {
     # que isto ja fechou: o CPV desses so interessa como historico, e
     # esses sao lidos quando se abre a ficha. Poe a 0 para ler tudo.
     "detalhe_dias": 60,
+    # Modelo que le o Caderno de Encargos e o Programa. Vazio = o de
+    # origem. A lista destas plataformas muda, por isso fica a jeito.
+    "modelo_pecas": "",
     "por_pagina": 25,
     # Tecto de seguranca, nao um alvo: o pedido para de pedir paginas
     # assim que o portal devolver menos que uma pagina cheia. So entra
@@ -158,7 +161,12 @@ def iniciar_db():
                      ON documentos(ref)""")
         c.execute("""CREATE TABLE IF NOT EXISTS analise (
             ref TEXT PRIMARY KEY, objecto TEXT, equipa TEXT,
-            documentos_proposta TEXT, modelo TEXT, fontes TEXT, quando TEXT)""")
+            documentos_proposta TEXT, preco_anormalmente_baixo TEXT,
+            modelo TEXT, fontes TEXT, quando TEXT)""")
+        cols_an = [r["name"] for r in c.execute("PRAGMA table_info(analise)")]
+        if "preco_anormalmente_baixo" not in cols_an:
+            c.execute("ALTER TABLE analise ADD COLUMN "
+                      "preco_anormalmente_baixo TEXT")
         cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
         for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
             if nome not in cols_doc:
@@ -989,28 +997,60 @@ def extrair_textos(ref):
 # Concurso, que as entidades publicam para quem os quiser. Propostas,
 # CVs e trabalho proprio nao passam por aqui.
 
-CHAVE_API = os.path.join(BASE_DIR, "chave_api.txt")
+NOMES_CHAVE = ("chave_api.txt", "groq_API_KEY.txt", "groq_api_key.txt")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODELO = "llama-3.3-70b-versatile"
-# Tecto de seguranca para o pedido. Os documentos medidos ficam nos 5 a
-# 16 mil tokens; isto so trava um caso fora do normal.
-MAX_CHARS_PROMPT = 180000
+# Pesos abertos. O contexto do modelo (131 mil tokens) nao e a
+# limitacao: o tecto da conta e de 8000 tokens por minuto, e e esse que
+# manda no tamanho do pedido. Fica no config.json porque a lista de
+# modelos destas plataformas muda.
+GROQ_MODELO = "openai/gpt-oss-120b"
+# 8000 tokens por minuto, contando a resposta. Sobram uns 5500 para a
+# entrada, e o portugues destes documentos anda nos 3,5 caracteres por
+# token -- daqui os 19 mil.
+MAX_CHARS_PROMPT = 19000
+TECTO_ENCARGOS = 11500
+TECTO_PROGRAMA = 7000
+
+# Onde e que mora cada campo. O numero e a prioridade: quando o
+# orcamento acaba, corta-se pelos 3 antes de tocar nos 1.
+# Comparadas contra simplifica(): sem acentos e em minusculas.
+ANCORAS_ENCARGOS = (
+    (1, r"objec?to\b|\bsolucao|\bambito|enquadramento"),
+    (1, r"equipa|perfil|recursos humanos|composicao|afetacao"),
+    (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
+    (3, r"niveis de servico|entregaveis|plano de trabalhos"),
+)
+ANCORAS_PROGRAMA = (
+    (1, r"documentos.{0,25}proposta|proposta.{0,25}documentos"),
+    (2, r"apresentacao da proposta|termos.{0,20}proposta"),
+    (2, r"anormalmente baixo"),
+    (3, r"habilitacao|criterio"),
+)
 
 INSTRUCOES = """És um analista de concursos públicos portugueses. Lês o
-Programa de Concurso e o Caderno de Encargos e extrais três coisas.
+Programa de Concurso e o Caderno de Encargos e extrais quatro coisas.
 
 Responde SÓ com JSON, com estas chaves exactas:
 
-{"objecto": "...", "equipa": "...", "documentos_proposta": "..."}
+{"objecto": "...", "equipa": "...", "documentos_proposta": "...",
+ "preco_anormalmente_baixo": "..."}
 
 - "objecto": o âmbito do serviço decomposto em pontos concretos, um por
   linha começada por "- ". Não repitas o título do concurso: enumera o
   que tem mesmo de ser feito (desenvolvimento, migração, integrações,
   formação, garantia, suporte, prazos parciais).
-- "equipa": os perfis exigidos e requisitos de cada um (anos de
-  experiência, certificações, formação). Um por linha começada por "- ".
+- "equipa": os perfis exigidos e os requisitos, um por linha começada
+  por "- ". Repara SEMPRE se o documento pede os requisitos a cada
+  perfil ou à equipa "em conjunto": não é a mesma coisa para quem
+  concorre — sete certificações numa pessoa ou espalhadas por quatro.
+  Não atribuas a um perfil o que o documento exige ao conjunto; nesse
+  caso escreve uma linha "- Em conjunto, a equipa deve deter: ...".
 - "documentos_proposta": a lista dos documentos que o CONCORRENTE tem de
   entregar na proposta, um por linha começada por "- ".
+- "preco_anormalmente_baixo": o limiar a partir do qual o preço da
+  proposta é tido por anormalmente baixo (art. 71.º do CCP) — a
+  percentagem ou o valor. Muitos Programas não fixam nenhum: nesse caso
+  responde "não consta". Não confundas com o preço base.
 
 ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
 (o que tu entregas) NÃO é o mesmo que "peças que constituem o
@@ -1024,27 +1064,114 @@ Não inventes. Escreve em português de Portugal."""
 def ler_chave_api():
     """A chave fica num ficheiro a parte, fora do git. Tambem se aceita
     a variavel de ambiente GROQ_API_KEY."""
-    if os.path.exists(CHAVE_API):
-        with open(CHAVE_API, encoding="utf-8") as f:
-            chave = f.read().strip()
-        if chave:
-            return chave
+    for nome in NOMES_CHAVE:
+        caminho = os.path.join(BASE_DIR, nome)
+        if os.path.exists(caminho):
+            with open(caminho, encoding="utf-8") as f:
+                chave = f.read().strip()
+            if chave:
+                return chave
     return (os.environ.get("GROQ_API_KEY") or "").strip()
 
 
+RX_MARCADOR = re.compile(r"^(clausula|artigo|anexo|capitulo|seccao|apendice)\b")
+RX_NUMERADO = re.compile(r"^[0-9IVXivx]+\s*[.)ºª-]+\s*[A-ZÀ-Ý]")
+
+
+def e_titulo(crua, curta):
+    """Um titulo de seccao, e nao uma frase do corpo com a palavra dentro.
+
+    A diferenca que conta: um titulo nao acaba em pontuacao de frase e
+    comeca por maiuscula ou por marcador -- "Clausula 1a - Objeto",
+    "3. Equipa", "Perfil de Equipa". Ja "as rejeicoes sao objeto de
+    notificacao ao adjudicatario." e corpo, e nao vale o orcamento.
+    """
+    if not (3 < len(crua) <= 70) or crua[-1] in ".,;:":
+        return False
+    return bool(RX_MARCADOR.match(curta) or RX_NUMERADO.match(crua)
+                or crua[0].isupper())
+
+
+def recorte_relevante(texto, ancoras, tecto, janela=3500):
+    """As partes do documento que respondem ao que se procura.
+
+    Um Caderno de Encargos tem 50 mil caracteres e so uns 10 mil dizem
+    respeito ao objecto e a equipa; o resto sao clausulas de rotina
+    (forca maior, subcontratacao, penalidades). O tecto de tokens por
+    minuto da API obriga a escolher, e escolher tambem melhora a
+    leitura, por tirar ruido do caminho do modelo.
+    """
+    pos, titulos = 0, []
+    for linha in texto.split("\n"):
+        crua = linha.strip()
+        curta = simplifica(crua)
+        if e_titulo(crua, curta):
+            for peso, padrao in ancoras:
+                if re.search(padrao, curta):
+                    titulos.append((peso, pos))
+                    break
+        pos += len(linha) + 1
+    if not titulos:
+        return texto[:tecto]
+
+    marca = bytearray(len(texto))
+    for _, p in sorted(titulos):
+        if sum(marca) >= tecto:
+            break
+        for i in range(max(0, p - 200), min(len(texto), p + janela)):
+            marca[i] = 1
+
+    partes, i, n = [], 0, len(texto)
+    while i < n:
+        if not marca[i]:
+            i += 1
+            continue
+        j = i
+        while j < n and marca[j]:
+            j += 1
+        partes.append(texto[i:j])
+        i = j
+    return "\n[...]\n".join(partes)[:tecto]
+
+
 def pecas_para_analise(ref):
-    """O texto do Caderno de Encargos e do Programa deste anuncio."""
+    """O que interessa do Caderno de Encargos e do Programa deste anuncio."""
     with liga() as c:
         docs = c.execute(
             "SELECT nome, texto FROM documentos WHERE ref=? AND texto_estado='ok' "
             "AND texto != '' ORDER BY nome", (ref,)).fetchall()
     partes, usados = [], []
     for d in docs:
-        if not re.search(r"caderno|encargos|programa|procedimento", d["nome"], re.I):
+        if re.search(r"caderno|encargos", d["nome"], re.I):
+            ancoras, tecto = ANCORAS_ENCARGOS, TECTO_ENCARGOS
+        elif re.search(r"programa|procedimento", d["nome"], re.I):
+            ancoras, tecto = ANCORAS_PROGRAMA, TECTO_PROGRAMA
+        else:
             continue
-        partes.append("### %s\n%s" % (d["nome"], d["texto"]))
+        partes.append("### %s\n%s" % (
+            d["nome"], recorte_relevante(d["texto"], ancoras, tecto)))
         usados.append(d["nome"])
     return "\n\n".join(partes)[:MAX_CHARS_PROMPT], usados
+
+
+def limpa_campo(valor):
+    """As mudancas de linha, que o modelo devolve escapadas a dobrar.
+
+    Sem isto o "\n" aparece a letra no meio do texto, porque o modelo
+    escreveu "\\n" no JSON e o json.loads so desfaz uma camada.
+    """
+    texto = str(valor or "").replace("\\n", "\n").replace("\\t", " ")
+    return "\n".join(l for l in (x.strip() for x in texto.split("\n")) if l)
+
+
+def espera_pedida(resposta, tecto=70):
+    """Quantos segundos esperar depois de um 429, segundo a propria API."""
+    cabecalho = resposta.headers.get("retry-after", "")
+    if cabecalho.replace(".", "", 1).isdigit():
+        return min(float(cabecalho) + 1, tecto)
+    # sem cabecalho, a mensagem costuma dizer "try again in 12.4s"
+    achado = re.search(r"in \s*([\d]+(?:\.[\d]+)?)s", resposta.text or "")
+    return min(float(achado.group(1)) + 1, tecto) if achado else 20.0
 
 
 def analisar_pecas(ref):
@@ -1053,6 +1180,7 @@ def analisar_pecas(ref):
     if not chave:
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
                        "na pasta do radar")
+    modelo = ler_config().get("modelo_pecas") or GROQ_MODELO
     texto, usados = pecas_para_analise(ref)
     if not texto:
         with liga() as c:
@@ -1062,14 +1190,21 @@ def analisar_pecas(ref):
                        "texto para ler" if scans else
                        "ainda não há Caderno de Encargos nem Programa em disco")
     try:
-        r = requests.post(GROQ_URL, timeout=180,
-                          headers={"Authorization": "Bearer " + chave,
-                                   "Content-Type": "application/json"},
-                          json={"model": GROQ_MODELO, "temperature": 0,
-                                "response_format": {"type": "json_object"},
-                                "messages": [
-                                    {"role": "system", "content": INSTRUCOES},
-                                    {"role": "user", "content": texto}]})
+        for tentativa in (1, 2):
+            r = requests.post(GROQ_URL, timeout=180,
+                              headers={"Authorization": "Bearer " + chave,
+                                       "Content-Type": "application/json"},
+                              json={"model": modelo, "temperature": 0,
+                                    "response_format": {"type": "json_object"},
+                                    "messages": [
+                                        {"role": "system", "content": INSTRUCOES},
+                                        {"role": "user", "content": texto}]})
+            if r.status_code != 429 or tentativa == 2:
+                break
+            # A conta tem um tecto de tokens por minuto e marcar tres
+            # concursos seguidos bate nele. Isto corre em fundo, sem
+            # ninguem a ver: esperar o minuto vale mais do que desistir.
+            time.sleep(espera_pedida(r))
         if r.status_code != 200:
             return False, "o modelo respondeu %d: %s" % (
                 r.status_code, r.text[:160])
@@ -1080,10 +1215,12 @@ def analisar_pecas(ref):
 
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
-            (ref,objecto,equipa,documentos_proposta,modelo,fontes,quando)
-            VALUES (?,?,?,?,?,?,?)""",
-                  (ref, dados.get("objecto", ""), dados.get("equipa", ""),
-                   dados.get("documentos_proposta", ""), GROQ_MODELO,
+            (ref,objecto,equipa,documentos_proposta,preco_anormalmente_baixo,
+             modelo,fontes,quando) VALUES (?,?,?,?,?,?,?,?)""",
+                  (ref, limpa_campo(dados.get("objecto")),
+                   limpa_campo(dados.get("equipa")),
+                   limpa_campo(dados.get("documentos_proposta")),
+                   limpa_campo(dados.get("preco_anormalmente_baixo")), modelo,
                    ", ".join(usados),
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
     return True, ""
@@ -1178,12 +1315,23 @@ def obter_documentos(ref):
                 (ref,nome,ficheiro,tamanho,origem,obtido_em) VALUES (?,?,?,?,?,?)""",
                       (ref, nome, nome, len(dados), plataforma or "dr", agora))
             guardados += 1
-        # "parcial" quando veio alguma coisa mas as pecas falharam: o PDF
-        # do anuncio vem sempre, e sozinho dava um "ok" que escondia o
-        # facto de o Caderno de Encargos nao ter chegado.
+    extrair_textos(ref)
+    # A leitura pelo modelo faz parte de trazer as pecas. Fica antes de
+    # se marcar o estado para a ficha so deixar de dizer "a trazer as
+    # peças" quando ja ca esta tudo, incluindo o objecto e a equipa --
+    # doutro modo a pagina recarregava a meio e mostrava a tabela por
+    # preencher. Sao segundos, ao lado de uma descarga que demora muito
+    # mais; e se falhar, as pecas ficam na mesma e ha o botao a mao.
+    if ler_chave_api() and not analise_de(ref):
+        lido, porque = analisar_pecas(ref)
+        if not lido:
+            marca("analise_ultimo_erro", "%s: %s" % (ref, porque))
+    # "parcial" quando veio alguma coisa mas as pecas falharam: o PDF
+    # do anuncio vem sempre, e sozinho dava um "ok" que escondia o
+    # facto de o Caderno de Encargos nao ter chegado.
+    with liga() as c:
         c.execute("UPDATE anuncios SET docs_estado=? WHERE ref=?",
                   ("parcial" if aviso else "ok", ref))
-    extrair_textos(ref)
     return guardados, aviso
 
 
@@ -2562,13 +2710,19 @@ def essencial_do_anuncio(a, seccoes, analise=None):
 
     nota_pecas = ("lido do Caderno de Encargos e do Programa por %s — confirmar "
                   "no documento" % analise["modelo"]) if analise else ""
+    # Lido o Programa e nao havendo limiar, isso e uma resposta -- e nao a
+    # mesma coisa que ainda nao se ter ido ver.
+    anormal = das_pecas("preco_anormalmente_baixo")
+    anormal_falta = "" if anormal else (
+        "o Programa de Concurso não fixa nenhum" if analise else FALTA_PC)
 
     return [
         ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
         ("Entidade adjudicante", a["entidade"], "", ""),
         ("Critério de adjudicação", criterio_de_adjudicacao(seccoes), "", ""),
         ("Preço base", a["preco_base"], "", ""),
-        ("Preço anormalmente baixo", "", FALTA_PC, ""),
+        ("Preço anormalmente baixo", anormal, anormal_falta,
+         nota_pecas if anormal else ""),
         ("Duração do contrato", duracao, "", ""),
         # O DR chama a esta seccao "LOCAL DA EXECUCAO DO CONTRATO
         # (PROCEDIMENTO)" e o que la esta e, quase sempre, a morada da

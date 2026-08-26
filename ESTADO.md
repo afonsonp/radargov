@@ -195,6 +195,127 @@ marcar **interessa**. Não se descarrega tudo: 65 mil anúncios a ~3 MB
 seriam ~200 GB e semanas de download. Assim tens sempre as peças
 daquilo em que realmente trabalhas.
 
+## A leitura das peças por um modelo
+
+Quatro dos doze campos do essencial não existem no anúncio do DR: o
+**objecto** decomposto, a **equipa** exigida, os **documentos que
+constituem a proposta** e o **preço anormalmente baixo**. Vivem no
+Caderno de Encargos e no Programa. Um modelo lê-os e a tabela fica
+completa; tudo o resto sai do texto do anúncio ou de cálculo, e não
+passa por modelo nenhum.
+
+**Só vão documentos públicos.** Cadernos de Encargos e Programas, que as
+entidades publicam para quem os quiser. Propostas, CVs e trabalho
+próprio não passam por aqui — foi condição desde o início.
+
+A chave fica em `groq_API_KEY.txt` (ou `chave_api.txt`) na pasta, fora
+do git: o `.gitignore` apanha-a por três padrões diferentes, incluindo
+maiúsculas/minúsculas. Confirma-se com `git check-ignore -v`.
+
+### Os limites da conta, medidos
+
+Não são os do modelo. Medido a 2026-08-26, com a chave dele:
+
+| modelo | contexto | tokens/minuto |
+|---|---|---|
+| `openai/gpt-oss-120b` | 131 mil | **8 mil** |
+| `openai/gpt-oss-20b` | 131 mil | 8 mil |
+| `qwen/qwen3.6-27b`, `qwen3.8-27b` | 131 mil | 8 mil |
+| `groq/compound`, `compound-mini` | 131 mil | 70 mil *(ver abaixo)* |
+
+O contexto de 131 mil tokens é irrelevante: quem manda é o tecto de
+**8000 tokens por minuto**, e um pedido acima disso leva 413, não 429.
+
+Os 70 mil do `groq/compound` são ilusórios — por dentro encaminha para
+`meta-llama/llama-4-scout-17b-16e-instruct`, que tem tecto próprio e
+mais baixo. Devolve 429 a falar de um modelo que não se pediu. Não
+serve para isto.
+
+Para saber o que a conta permite hoje, sem adivinhar:
+
+    GET https://api.groq.com/openai/v1/models
+    e ler o cabeçalho x-ratelimit-limit-tokens de um pedido pequeno
+
+O modelo está no `config.json` (`modelo_pecas`), porque estas listas
+mudam.
+
+### Porque é que não se envia o documento todo
+
+O Caderno de Encargos deste concurso tem 52 mil caracteres e o Programa
+40 mil: juntos, ~26 mil tokens, mais do triplo do que cabe num minuto.
+
+Mas o problema também não é só de orçamento. **A parte que interessa do
+Caderno de Encargos são os últimos 11 mil caracteres** — o anexo com
+"Objeto da Solução Tecnológica", "Requisitos" e "Equipa". Os 41 mil
+anteriores são cláusulas de rotina: força maior, subcontratação,
+penalidades, sigilo. Enviar tudo gasta o orçamento em ruído.
+
+`recorte_relevante()` marca janelas de 3500 caracteres à volta dos
+títulos que casam com as âncoras, junta-as e corta ao tecto. Resultado
+medido: 93.107 → 18.567 caracteres (~5,3 mil tokens), com todas as
+secções que interessam lá dentro e a rotina de fora.
+
+### Duas armadilhas que já custaram
+
+**Título não é frase.** À primeira, as âncoras casavam com qualquer
+linha — e "2. As rejeições de serviços são objeto de notificação ao
+adjudicatário." gastava 3500 caracteres do orçamento. O anexo do fim,
+que era o que valia a pena, ficava de fora. `e_titulo()` distingue:
+um título não acaba em `.,;:` e começa por maiúscula ou por marcador
+(`Cláusula 1ª`, `3. Equipa`, `Artigo 9.º`). Está testado.
+
+**`Resolução` contém `solucao`.** Sem fronteira de palavra na âncora,
+"Cláusula 24ª - Resolução do contrato" e "Cláusula 35ª - Resolução de
+litígios" davam anzol, e comiam o orçamento antes de se chegar a
+"1. Objeto da Solução Tecnológica". Daí o `\bsolucao`.
+
+### O `\n` que aparecia à letra
+
+O modelo escreve `\\n` dentro das cadeias do JSON, e o `json.loads`
+só desfaz uma camada — as listas apareciam numa linha só, com os `\n`
+visíveis. `limpa_campo()` desfaz a segunda camada e tira linhas vazias.
+O CSS de `.essencial dd` já tem `white-space:pre-line`, por isso as
+mudanças de linha bastam para a lista se ver como lista.
+
+### Quando é que corre
+
+Dentro do trabalhador que traz as peças, a seguir a `extrair_textos()`
+e **antes** de marcar `docs_estado`. Assim a ficha só deixa de dizer
+"a trazer as peças…" quando já lá está tudo, incluindo o objecto e a
+equipa. Se ficasse depois, a página recarregava a meio e mostrava a
+tabela por preencher. São ~5 segundos, ao lado de uma descarga que
+demora muito mais; e se falhar, as peças ficam na mesma e há o botão
+"Ler peças" à mão.
+
+Um 429 não desiste à primeira: `espera_pedida()` lê o `retry-after` (ou
+a mensagem, que diz "try again in 12.4s"), espera e tenta outra vez.
+Marcar três concursos seguidos bate no tecto, e isto corre em fundo,
+sem ninguém a ver.
+
+### O que se verificou da qualidade
+
+No 21508/2026 (AIMA), conferiram-se ~25 afirmações do modelo contra o
+texto enviado: todas constam. Atenção a uma coisa na verificação — o
+PDF parte números ("1 2 meses"), por isso um `grep` por "12 meses"
+falha e faz **parecer** que o modelo inventou. Normalizar os espaços
+entre dígitos antes de comparar.
+
+**O erro que valeu a pena caçar:** o Caderno deste concurso exige que
+os quatro perfis, *"em conjunto"*, detenham sete certificações Oracle.
+À primeira, o modelo distribuiu-as por perfil — o que muda o sentido
+por completo para quem concorre: sete certificações numa pessoa não é
+o mesmo que sete espalhadas por quatro. As `INSTRUCOES` passaram a
+mandar reparar nisso e a escrever uma linha "Em conjunto, a equipa deve
+deter: …". Corrigido e confirmado contra o documento. É o género de
+coisa a verificar quando se mexer no prompt.
+
+O `preço anormalmente baixo` sai "não consta" quase sempre, e está
+certo: dos 6 Programas lidos, só 1 fala do tema, e mesmo esse fala dele
+como documento a juntar, não como limiar. Por isso a tabela diz "o
+Programa de Concurso não fixa nenhum" depois de o ter lido, em vez de
+"só consta do Programa de Concurso" — que mandava procurar o que lá não
+está.
+
 ## O que descobrimos sobre o portal, para não se repetir o trabalho
 
 O DR não tem API pública, nem RSS. Todos os endereços do género

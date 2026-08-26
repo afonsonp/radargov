@@ -18,5 +18,12 @@ config.json.estragado
 _*.txt
 _*.py
 
-# credenciais -- nunca em historico
+# credenciais -- nunca em historico.
+# Largo de proposito: o ficheiro da chave ja apareceu com nomes
+# diferentes, e um so escorregao poe-na no historico para sempre.
 chave_api.txt
+*[Aa][Pp][Ii]_[Kk][Ee][Yy]*
+*[Aa][Pp][Ii][Kk][Ee][Yy]*
+*.key
+*secret*
+*token*
