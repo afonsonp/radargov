@@ -460,6 +460,25 @@ class TestPrazoDeEsclarecimentos(unittest.TestCase):
         self.assertIn("supletiva", nota)     # mas diz que é calculado
 
 
+class TestTextoDoPdf(unittest.TestCase):
+    """Nunca rebentar: um PDF ilegível não pode parar a recolha."""
+
+    def test_ficheiro_inexistente_devolve_erro_nao_excepcao(self):
+        texto, estado = radar.texto_do_pdf("nao-existe-de-todo.pdf")
+        self.assertEqual(texto, "")
+        self.assertTrue(estado.startswith("erro"))
+
+    def test_ficheiro_que_nao_e_pdf(self):
+        texto, estado = radar.texto_do_pdf(__file__)   # este .py
+        self.assertEqual(texto, "")
+        self.assertTrue(estado.startswith("erro"))
+
+    def test_ha_um_limiar_para_distinguir_digitalizacoes(self):
+        # abaixo de N chars por página o PDF é imagem, e guardar o
+        # "texto" dele seria guardar lixo
+        self.assertGreater(radar.CHARS_POR_PAGINA_MINIMO, 0)
+
+
 class TestDatas(unittest.TestCase):
 
     def test_normaliza_para_iso(self):
