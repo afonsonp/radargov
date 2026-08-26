@@ -323,6 +323,24 @@ class TestCriterioDeAdjudicacao(unittest.TestCase):
     def test_seccao_ausente(self):
         self.assertEqual(self.criterio("6 - OBJETO DO CONTRATO\nX: y\n"), "")
 
+    def test_monofator_com_nome_outros(self):
+        # 9,8% dos anúncios reais escrevem "Nome: Outros" e põem o nome
+        # verdadeiro em "Outro nome". Ler só o "Nome" mostrava "Outros",
+        # que não diz nada a ninguém.
+        self.assertEqual(self.criterio(
+            "21 - CRITÉRIO DE ADJUDICAÇÃO\n"
+            "Multifator: Não\nMonofator: \nNome: Outros\n"
+            "Outro nome: Fator Preço\n"), "Fator Preço")
+
+    def test_nunca_devolve_a_palavra_outros(self):
+        for texto in (
+            "21 - CRITÉRIO DE ADJUDICAÇÃO\nMultifator: Não\n"
+            "Nome: Outros\nOutro nome: Preço\n",
+            "21 - CRITÉRIO DE ADJUDICAÇÃO\nMultifator: Sim\n"
+            "Nome: Outros\nOutro nome: Qualidade técnica\nPonderação: 70%\n",
+        ):
+            self.assertNotIn("Outros", self.criterio(texto))
+
 
 class TestTabelaEssencial(unittest.TestCase):
     """Os 12 campos que o Afonso quer ver ao abrir um concurso."""
@@ -342,7 +360,8 @@ Nome: Preço
 """
 
     ANUNCIO = {"titulo": "Aquisição de X", "entidade": "Município Y",
-               "preco_base": "150.000,00 EUR", "prazo": "2026-09-01"}
+               "preco_base": "150.000,00 EUR", "prazo": "2026-09-01",
+               "data_pub": "2026-08-18"}
 
     def tabela(self, texto=None, anuncio=None):
         return radar.essencial_do_anuncio(
@@ -353,7 +372,7 @@ Nome: Preço
         self.assertEqual(len(self.tabela()), 12)
 
     def test_preenche_o_que_vem_do_anuncio(self):
-        d = {r: v for r, v, _ in self.tabela()}
+        d = {r: v for r, v, _, _ in self.tabela()}
         self.assertEqual(d["Nome do projeto"], "Aquisição de X")
         self.assertEqual(d["Entidade adjudicante"], "Município Y")
         self.assertEqual(d["Preço base"], "150.000,00 EUR")
@@ -362,34 +381,83 @@ Nome: Preço
         self.assertEqual(d["Critério de adjudicação"], "Preço")
 
     def test_local_junta_concelho_e_distrito(self):
-        d = {r: v for r, v, _ in self.tabela()}
+        d = {r: v for r, v, _, _ in self.tabela()}
         self.assertEqual(d["Local de prestação de serviços"], "Montijo, Setúbal")
 
     def test_local_nao_se_repete_quando_sao_iguais(self):
         t = "9 - LOCAL DA EXECUÇÃO DO CONTRATO\nConcelho: Lisboa\nDistrito: Lisboa\n"
-        d = {r: v for r, v, _ in self.tabela(t)}
+        d = {r: v for r, v, _, _ in self.tabela(t)}
         self.assertEqual(d["Local de prestação de serviços"], "Lisboa")
 
     def test_renovacoes_aparecem_na_duracao(self):
         t = ("10 - PRAZO DE EXECUÇÃO DO CONTRATO\n"
              "Prazo de execução do contrato: 12 MESES\n"
              "Previsão de renovações: Sim\n")
-        d = {r: v for r, v, _ in self.tabela(t)}
+        d = {r: v for r, v, _, _ in self.tabela(t)}
         self.assertIn("renovações", d["Duração do contrato"])
 
-    def test_os_cinco_que_faltam_estao_assinalados(self):
-        # nao se omitem: se nao aparecessem, parecia que nao existiam
-        faltam = {r for r, _, f in self.tabela() if f}
+    def test_os_que_faltam_estao_assinalados(self):
+        # nao se omitem: se nao aparecessem, parecia que nao existiam.
+        # A data de esclarecimentos saiu desta lista quando passou a ser
+        # calculada pela regra supletiva do CCP.
+        faltam = {r for r, _, f, _ in self.tabela() if f}
         self.assertEqual(faltam, {
-            "Preço anormalmente baixo", "Data de esclarecimentos",
+            "Preço anormalmente baixo",
             "Objeto, âmbito e características", "Equipa",
             "Documentos que constituem a proposta"})
 
     def test_diz_em_que_documento_esta_o_que_falta(self):
-        for _, _, falta in self.tabela():
+        for _, _, falta, _ in self.tabela():
             if falta:
                 self.assertTrue("Caderno de Encargos" in falta
                                 or "Programa de Concurso" in falta)
+
+    def test_local_avisa_que_nao_e_o_local_de_trabalho(self):
+        # a secção 9 do DR chama-se "LOCAL DA EXECUÇÃO DO CONTRATO
+        # (PROCEDIMENTO)" e traz quase sempre a morada da entidade;
+        # remoto, híbrido ou instalações nomeadas constam do CE
+        nota = next(n for r, _, _, n in self.tabela()
+                    if r == "Local de prestação de serviços")
+        self.assertIn("Caderno de Encargos", nota)
+
+
+class TestPrazoDeEsclarecimentos(unittest.TestCase):
+    """Regra supletiva do art. 50.º CCP: 1.º terço do prazo das propostas.
+
+    Não se lê do Programa de Concurso — calcula-se do que o anúncio já
+    dá. Encontrada literalmente em 4 dos 6 PCs legíveis que se leram."""
+
+    def esc(self, pub, prazo):
+        d = radar.prazo_de_esclarecimentos(pub, prazo)
+        return str(d) if d else None
+
+    def test_primeiro_terco(self):
+        # 27 dias entre publicação e prazo -> 9 dias depois da publicação
+        self.assertEqual(self.esc("2026-08-25", "2026-09-21"), "2026-09-03")
+        self.assertEqual(self.esc("2026-08-18", "2026-09-01"), "2026-08-22")
+
+    def test_prazo_muito_curto(self):
+        # 3 dias -> 1 dia; arredonda para baixo, nunca ultrapassa o terço
+        self.assertEqual(self.esc("2026-08-25", "2026-08-28"), "2026-08-26")
+
+    def test_datas_em_falta_ou_invalidas(self):
+        for pub, prazo in (("2026-08-25", ""), ("", "2026-09-01"),
+                           ("lixo", "2026-09-01"), (None, None)):
+            with self.subTest(pub=pub, prazo=prazo):
+                self.assertIsNone(self.esc(pub, prazo))
+
+    def test_prazo_antes_da_publicacao_nao_inventa_data(self):
+        self.assertIsNone(self.esc("2026-09-01", "2026-08-25"))
+        self.assertIsNone(self.esc("2026-08-25", "2026-08-25"))
+
+    def test_aparece_na_tabela_marcado_como_supletivo(self):
+        anuncio = dict(TestTabelaEssencial.ANUNCIO, data_pub="2026-08-18")
+        linha = next(l for l in radar.essencial_do_anuncio(anuncio, [])
+                     if l[0] == "Data de esclarecimentos")
+        rotulo, valor, falta, nota = linha
+        self.assertIn("2026-08-22", valor)   # prazo 2026-09-01
+        self.assertFalse(falta)              # deixou de estar em falta
+        self.assertIn("supletiva", nota)     # mas diz que é calculado
 
 
 class TestDatas(unittest.TestCase):

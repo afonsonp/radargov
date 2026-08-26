@@ -188,11 +188,17 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 entidade, critério de adjudicação, preço base, duração, local, data de
 submissão. O botão **Anúncio completo** abre as 28 secções em bruto.
 
-Cinco campos aparecem assinalados como em falta — preço anormalmente
-baixo, data de esclarecimentos, objecto detalhado, equipa e documentos
-da proposta. Não estão no anúncio do DR: vivem no Programa de Concurso
-e no Caderno de Encargos. Aparecem na tabela de propósito, para veres o
-que falta em vez de parecer que não existe.
+A **data de esclarecimentos** é calculada, não lida: é o primeiro terço
+do prazo das propostas, que é a regra supletiva do artigo 50.º do CCP.
+Vem marcada como tal, para confirmares no Programa de Concurso — alguns
+fixam prazo próprio. É um prazo que se perde em silêncio, porque fecha
+muito antes do prazo das propostas e ninguém avisa.
+
+Quatro campos aparecem assinalados como em falta — preço anormalmente
+baixo, objecto detalhado, equipa e documentos da proposta. Não estão no
+anúncio do DR: vivem no Programa de Concurso e no Caderno de Encargos.
+Aparecem na tabela de propósito, para veres o que falta em vez de
+parecer que não existe.
 
 Se abrires um anúncio que o radar ainda não tinha lido — um antigo, por
 exemplo — ele lê-o na altura, demora cerca de um segundo, e fica
