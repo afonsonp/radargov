@@ -343,6 +343,14 @@ depois de o programa ser melhorado a ler os anúncios — não traz nada
 de novo.
 
 ```bash
+python radar.py --ler-pecas
+```
+Lê pelo modelo os concursos que já têm peças mas ainda não têm análise
+— serve para recuperar os que trouxeste antes de isto existir. Vai a
+cerca de um por minuto, por causa do tecto de tokens da API, e diz-te
+o que leu e o que falhou.
+
+```bash
 python radar.py --importar-cpv ficheiro.json
 ```
 Carrega uma versão nova do vocabulário CPV.
@@ -350,7 +358,7 @@ Carrega uma versão nova do vocabulário CPV.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 31 verificações em menos de um segundo, sem tocar na
+Corre os testes — 82 verificações em menos de um segundo, sem tocar na
 rede nem na base. Vale a pena corrê-los depois de qualquer alteração ao
 `radar.py`. Se o DR mudar o formato dos anúncios, é o teste do parser
 que avisa primeiro.
