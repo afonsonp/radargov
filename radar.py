@@ -1404,6 +1404,8 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .essencial dd{margin:0;font:600 13px/1.5 var(--sans);color:var(--ink);
  text-wrap:pretty;word-break:break-word}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
+.nota-campo{display:block;margin-top:3px;font:400 11.5px/1.45 var(--sans);
+ color:var(--t5)}
 .a-trazer{color:var(--azul)}
 .a-trazer::before{content:'';display:inline-block;width:7px;height:7px;
  border-radius:50%;background:var(--azul);margin-right:7px;
@@ -2280,24 +2282,32 @@ def criterio_de_adjudicacao(seccoes):
     Quando o Nome e "Outros", o nome verdadeiro esta em "Outro Nome"."""
     pares = next((p for n, _, p in seccoes if n == "21"), [])
     if not pares:
-        return ""
-    valores = {radar_chave(k): v for k, v in pares}
-    if simplifica(valores.get("multifator", "")) != "sim":
-        return valores.get("nome", "")
+        return ""                     # ha anuncios sem seccao 21 de todo
 
+    # "Nome: Outros" nunca e o nome verdadeiro -- esse esta em "Outro
+    # nome", e vale nos dois ramos. Ler so o "Nome" fazia 9,8% dos
+    # anuncios mostrarem "Outros" como criterio, que nao diz nada.
     fatores, nome, outro = [], "", ""
+
+    def resolvido():
+        return outro if (not nome or simplifica(nome) == "outros") and outro \
+            else nome
+
     for chave, valor in pares:
         c = radar_chave(chave)
         if c == "nome":
             nome, outro = valor, ""
-        elif c == "outro nome":
+        elif c in ("outro nome", "outro fator"):
             outro = valor
-        elif c == "ponderacao" and (nome or outro):
-            fatores.append("%s %s" % (outro or nome, valor))
+        elif c == "ponderacao" and resolvido():
+            fatores.append("%s %s" % (resolvido(), valor))
             nome, outro = "", ""
-    # ponto literal, nao a entidade: este valor passa por html.escape()
-    # ao ser desenhado, e "&middot;" sairia escrito tal e qual
-    return " · ".join(fatores)
+
+    if fatores:
+        # ponto literal, nao a entidade: este valor passa por html.escape()
+        # ao ser desenhado, e "&middot;" sairia escrito tal e qual
+        return " · ".join(fatores)
+    return resolvido()                # monofator, ou multifator sem pesos
 
 
 def radar_chave(chave):
@@ -2313,8 +2323,32 @@ FALTA_CE = "só consta do Caderno de Encargos"
 FALTA_PC = "só consta do Programa de Concurso"
 
 
+def prazo_de_esclarecimentos(data_pub, prazo):
+    """Data-limite para pedir esclarecimentos, ou None.
+
+    Regra supletiva do artigo 50.º do CCP: os esclarecimentos pedem-se no
+    primeiro terço do prazo fixado para a apresentacao das propostas.
+    Encontrada literalmente em 4 dos 6 Programas de Concurso legiveis que
+    se leram; os outros dois fixam prazo proprio.
+
+    Por isso isto e um calculo, nao uma leitura do documento -- e aparece
+    sempre marcado como supletivo, para se confirmar no PC."""
+    try:
+        pub = datetime.strptime(data_pub or "", "%Y-%m-%d").date()
+        fim = datetime.strptime(prazo or "", "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+    dias = (fim - pub).days
+    if dias <= 0:
+        return None
+    return pub + timedelta(days=dias // 3)
+
+
 def essencial_do_anuncio(a, seccoes):
-    """[(rotulo, valor, em_falta)] com o essencial para decidir."""
+    """[(rotulo, valor, em_falta, nota)] com o essencial para decidir.
+
+    `em_falta` diz onde procurar quando o anuncio nao traz o campo.
+    `nota` acompanha um valor que existe mas nao conta a historia toda."""
     def v(*nomes):
         return valor_de(seccoes, *nomes)
 
@@ -2325,19 +2359,40 @@ def essencial_do_anuncio(a, seccoes):
     if duracao and simplifica(v("Previsão de renovações")) == "sim":
         duracao += " (com renovações previstas)"
 
+    # E um prazo que se perde em silencio: passa muito antes do prazo das
+    # propostas e nao ha aviso nenhum quando fecha.
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    if limite:
+        dias, passou = dias_restantes(limite.strftime("%Y-%m-%d"))
+        esclarecimentos = "%s (%s)" % (
+            limite, "já passou" if passou else conta_dias(dias))
+        esclarec_falta = ""
+        esclarec_nota = ("calculado pela regra supletiva do art. 50.º do CCP "
+                         "(1.º terço do prazo); confirmar no Programa de Concurso")
+    else:
+        esclarecimentos, esclarec_nota = "", ""
+        esclarec_falta = FALTA_PC
+
     return [
-        ("Nome do projeto", a["titulo"] or v("Designação do contrato"), ""),
-        ("Entidade adjudicante", a["entidade"], ""),
-        ("Critério de adjudicação", criterio_de_adjudicacao(seccoes), ""),
-        ("Preço base", a["preco_base"], ""),
-        ("Preço anormalmente baixo", "", FALTA_PC),
-        ("Duração do contrato", duracao, ""),
-        ("Local de prestação de serviços", local, ""),
-        ("Data de esclarecimentos", "", FALTA_PC),
-        ("Data de submissão da proposta", a["prazo"], ""),
-        ("Objeto, âmbito e características", "", FALTA_CE),
-        ("Equipa", "", FALTA_CE),
-        ("Documentos que constituem a proposta", "", FALTA_PC),
+        ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
+        ("Entidade adjudicante", a["entidade"], "", ""),
+        ("Critério de adjudicação", criterio_de_adjudicacao(seccoes), "", ""),
+        ("Preço base", a["preco_base"], "", ""),
+        ("Preço anormalmente baixo", "", FALTA_PC, ""),
+        ("Duração do contrato", duracao, "", ""),
+        # O DR chama a esta seccao "LOCAL DA EXECUCAO DO CONTRATO
+        # (PROCEDIMENTO)" e o que la esta e, quase sempre, a morada da
+        # entidade. Onde o servico e mesmo prestado -- remoto, hibrido,
+        # ou instalacoes nomeadas -- consta do Caderno de Encargos.
+        ("Local de prestação de serviços", local, "",
+         "localização do procedimento; regime presencial, remoto ou "
+         "híbrido consta do Caderno de Encargos"),
+        ("Data de esclarecimentos", esclarecimentos, esclarec_falta,
+         esclarec_nota),
+        ("Data de submissão da proposta", a["prazo"], "", ""),
+        ("Objeto, âmbito e características", "", FALTA_CE, ""),
+        ("Equipa", "", FALTA_CE, ""),
+        ("Documentos que constituem a proposta", "", FALTA_PC, ""),
     ]
 
 
@@ -2426,11 +2481,13 @@ def ficha(ref):
     # de seccoes numeradas, e a maior parte do anuncio e burocracia.
     if seccoes and not completo:
         linhas_ess = []
-        for rotulo, valor, em_falta in essencial_do_anuncio(a, seccoes):
+        for rotulo, valor, em_falta, nota in essencial_do_anuncio(a, seccoes):
             if em_falta:
-                celula = "<span class='em-falta'>%s</span>" % em_falta
+                celula = "<span class='em-falta'>%s</span>" % html.escape(em_falta)
             elif valor:
                 celula = html.escape(valor)
+                if nota:
+                    celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
             else:
                 celula = "<span class='em-falta'>o anúncio não indica</span>"
             linhas_ess.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
