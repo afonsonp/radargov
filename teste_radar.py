@@ -363,10 +363,17 @@ Nome: Preço
                "preco_base": "150.000,00 EUR", "prazo": "2026-09-01",
                "data_pub": "2026-08-18"}
 
-    def tabela(self, texto=None, anuncio=None):
+    # o que o modelo devolve depois de ler as pecas
+    LIDO = {"objecto": "- fazer X", "equipa": "- um gestor",
+            "documentos_proposta": "- DEUCP",
+            "preco_anormalmente_baixo": "não consta",
+            "modelo": "openai/gpt-oss-120b"}
+
+    def tabela(self, texto=None, anuncio=None, analise=None):
         return radar.essencial_do_anuncio(
             anuncio or self.ANUNCIO,
-            radar.seccoes_do_texto(texto if texto is not None else self.TEXTO))
+            radar.seccoes_do_texto(texto if texto is not None else self.TEXTO),
+            analise)
 
     def test_tem_os_doze_campos(self):
         self.assertEqual(len(self.tabela()), 12)
@@ -419,6 +426,58 @@ Nome: Preço
         nota = next(n for r, _, _, n in self.tabela()
                     if r == "Local de prestação de serviços")
         self.assertIn("Caderno de Encargos", nota)
+
+
+    def test_pecas_lidas_preenchem_os_campos_que_faltavam(self):
+        d = {r: v for r, v, _, _ in self.tabela(analise=self.LIDO)}
+        self.assertEqual(d["Objeto, âmbito e características"], "- fazer X")
+        self.assertEqual(d["Equipa"], "- um gestor")
+        self.assertEqual(d["Documentos que constituem a proposta"], "- DEUCP")
+
+    def test_lido_o_programa_sem_limiar_nao_se_promete_o_que_nao_ha(self):
+        # dizer "so consta do Programa de Concurso" depois de o termos
+        # lido e mandar procurar o que la nao esta: a maioria dos
+        # Programas nao fixa limiar nenhum
+        falta = next(f for r, _, f, _ in self.tabela(analise=self.LIDO)
+                     if r == "Preço anormalmente baixo")
+        self.assertIn("não fixa", falta)
+        self.assertNotIn("só consta", falta)
+
+    def test_com_limiar_mostra_o_valor_e_diz_de_onde_veio(self):
+        lido = dict(self.LIDO, preco_anormalmente_baixo="40% do preço base")
+        linha = next(l for l in self.tabela(analise=lido)
+                     if l[0] == "Preço anormalmente baixo")
+        self.assertEqual(linha[1], "40% do preço base")
+        self.assertEqual(linha[2], "")
+        self.assertIn("confirmar", linha[3])
+
+
+class TestEsperaPedida(unittest.TestCase):
+    """Quanto esperar depois de um 429 -- o tecto de tokens por minuto.
+
+    Marcar tres concursos seguidos bate no tecto; desistir a primeira
+    perdia a leitura de um deles sem ninguem dar por isso.
+    """
+
+    class FalsaResposta:
+        def __init__(self, cabecalhos, texto):
+            self.headers, self.text = cabecalhos, texto
+
+    def test_usa_o_cabecalho_da_api(self):
+        self.assertEqual(radar.espera_pedida(
+            self.FalsaResposta({"retry-after": "12.5"}, "")), 13.5)
+
+    def test_sem_cabecalho_le_a_mensagem(self):
+        self.assertEqual(radar.espera_pedida(self.FalsaResposta(
+            {}, "Please try again in 8.42s. Visit...")), 9.42)
+
+    def test_sem_pistas_espera_o_bastante(self):
+        self.assertEqual(radar.espera_pedida(
+            self.FalsaResposta({}, "nada")), 20.0)
+
+    def test_ha_um_tecto_para_nao_ficar_pendurado(self):
+        self.assertEqual(radar.espera_pedida(
+            self.FalsaResposta({"retry-after": "9999"}, "")), 70)
 
 
 class TestPrazoDeEsclarecimentos(unittest.TestCase):
@@ -531,5 +590,108 @@ class TestSemeadoraDeFases(unittest.TestCase):
         self.assertEqual(len(c.escritas), len(radar.FASES_INICIAIS))
 
 
+class TestETitulo(unittest.TestCase):
+    """Distinguir um titulo de seccao de uma frase do corpo.
+
+    Sem isto o orcamento de tokens gastava-se em frases que so por acaso
+    tinham a palavra la dentro, e o anexo do fim do Caderno de Encargos
+    -- que e onde mora o objecto -- ficava de fora do que se enviava.
+    """
+
+    def titulo(self, linha):
+        return radar.e_titulo(linha.strip(), radar.simplifica(linha.strip()))
+
+    def test_titulos_reais(self):
+        for linha in ("Cláusula 1ª - Objeto do procedimento",
+                      "Artigo 9.º  - Documentos da proposta",
+                      "Anexo I - Especificações Técnicas",
+                      "1. Objeto da Solução Tecnológica",
+                      "3. Equipa",
+                      "Perfil de Equipa"):
+            self.assertTrue(self.titulo(linha), linha)
+
+    def test_frases_do_corpo_nao_sao_titulos(self):
+        # acabam em pontuacao de frase, ou comecam por minuscula
+        for linha in ("2. As rejeições de serviços são objeto de notificação.",
+                      "no âmbito do contrato;",
+                      "equipa, em conjunto:",
+                      "à prestação de serviços objeto do presente Caderno.",
+                      "h)  Não subcontratar a execução do objeto do contrato, se"):
+            self.assertFalse(self.titulo(linha), linha)
+
+    def test_linha_comprida_nao_e_titulo(self):
+        self.assertFalse(self.titulo("Verificação de Requisitos Legais: "
+                                     "Funcionalidade para assinalar a "
+                                     "conformidade de cada documento"))
+
+
+class TestAncorasDoRecorte(unittest.TestCase):
+
+    def casa(self, linha, ancoras):
+        import re
+        curta = radar.simplifica(linha)
+        return any(re.search(padrao, curta) for _, padrao in ancoras)
+
+    def test_resolucao_nao_e_solucao(self):
+        # "Clausula 24a - Resolucao do contrato" casava com "solucao" por
+        # nao haver fronteira de palavra, e comia o orcamento todo
+        self.assertFalse(self.casa("Cláusula 24ª - Resolução do contrato",
+                                   radar.ANCORAS_ENCARGOS))
+        self.assertFalse(self.casa("Cláusula 35ª - Resolução de litígios",
+                                   radar.ANCORAS_ENCARGOS))
+        self.assertTrue(self.casa("1. Objeto da Solução Tecnológica",
+                                  radar.ANCORAS_ENCARGOS))
+
+    def test_o_que_interessa_casa(self):
+        self.assertTrue(self.casa("3. Equipa", radar.ANCORAS_ENCARGOS))
+        self.assertTrue(self.casa("Artigo 9.º - Documentos da proposta",
+                                  radar.ANCORAS_PROGRAMA))
+
+
+class TestRecorteRelevante(unittest.TestCase):
+    """O anexo do fim tem de sobreviver ao corte."""
+
+    def documento(self):
+        rotina = ("Cláusula %d - Penalidades" + chr(10) +
+                  "Texto de rotina. " * 60 + chr(10))
+        corpo = "".join(rotina % n for n in range(1, 20))
+        return (corpo + chr(10) + "3. Equipa" + chr(10) +
+                "A equipa é composta por um gestor e um arquiteto." + chr(10))
+
+    def test_apanha_o_anexo_do_fim(self):
+        d = self.documento()
+        r = radar.recorte_relevante(d, radar.ANCORAS_ENCARGOS, 4000)
+        self.assertIn("3. Equipa", r)
+        self.assertIn("gestor e um arquiteto", r)
+
+    def test_respeita_o_tecto(self):
+        # o tecto e o limite de tokens por minuto da API: passar dele e 413
+        d = self.documento()
+        self.assertLessEqual(len(radar.recorte_relevante(
+            d, radar.ANCORAS_ENCARGOS, 2000)), 2000)
+
+    def test_sem_ancoras_devolve_o_principio(self):
+        d = "Texto sem titulos nenhuns. " * 300
+        r = radar.recorte_relevante(d, radar.ANCORAS_ENCARGOS, 500)
+        self.assertEqual(r, d[:500])
+
+
+class TestLimpaCampo(unittest.TestCase):
+
+    def test_desfaz_o_escape_a_dobrar(self):
+        # o modelo escreve "\\n" no JSON e o json.loads so desfaz uma
+        # camada, pelo que o "\n" aparecia a letra no meio do texto
+        self.assertEqual(radar.limpa_campo("- um\\n- dois"),
+                         "- um" + chr(10) + "- dois")
+
+    def test_tira_linhas_vazias_e_espacos(self):
+        self.assertEqual(radar.limpa_campo("  a  \\n\\n  b "),
+                         "a" + chr(10) + "b")
+
+    def test_aguenta_vazio(self):
+        self.assertEqual(radar.limpa_campo(None), "")
+
+
 if __name__ == "__main__":
+
     unittest.main(verbosity=2)
