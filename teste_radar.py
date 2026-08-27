@@ -469,6 +469,42 @@ Nome: Preço
         self.assertIn("confirmar", linha[3])
 
 
+class TestPapeisDaPeca(unittest.TestCase):
+    """Que peça é cada ficheiro, pelo nome que a entidade lhe deu."""
+
+    def test_nomes_por_extenso(self):
+        for nome in ("1_Caderno_de_Encargos.pdf", "Caderno de Encargos.pdf",
+                     "CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf"):
+            self.assertEqual(radar.papeis_da_peca(nome), {"encargos"}, nome)
+        for nome in ("2_Programa_do_Procedimento.pdf", "ProgramaConcurso.pdf",
+                     "EPVL_CPi02-2627_ProgramaConsurso-Energia_signed.pdf"):
+            self.assertEqual(radar.papeis_da_peca(nome), {"programa"}, nome)
+
+    def test_siglas(self):
+        # ficavam por ler com o texto ja extraido e ali a jeito
+        self.assertEqual(radar.papeis_da_peca("1_02_CE_28_2026_CP_DO_signed.pdf"),
+                         {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("1_2026.06.30_CE_Outsourcing_vf.pdf"),
+                         {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("2_01_PP_28_2026_CP_DO_signed.pdf"),
+                         {"programa"})
+
+    def test_cp_e_concurso_publico_nao_programa(self):
+        # "CP" no meio do nome é Concurso Público
+        self.assertNotIn("programa", radar.papeis_da_peca("02_CE_28_CP_DO.pdf"))
+
+    def test_um_ficheiro_pode_ser_as_duas_pecas(self):
+        self.assertEqual(radar.papeis_da_peca("Programa_CE_12027226.pdf"),
+                         {"encargos", "programa"})
+
+    def test_o_que_nao_e_peca(self):
+        # o "Lista.pdf" é o índice das peças e diz "Caderno de Encargos"
+        # lá dentro -- por isso é que se vai pelo nome e não pelo conteúdo
+        for nome in ("Lista.pdf", "Minuta do anúncio.pdf", "Anúncio DR.pdf",
+                     "419971092.pdf", "espd-request.zip", "Anuncio_JOUE.pdf"):
+            self.assertEqual(radar.papeis_da_peca(nome), set(), nome)
+
+
 class TestEsperaPedida(unittest.TestCase):
     """Quanto esperar depois de um 429 -- o tecto de tokens por minuto.
 

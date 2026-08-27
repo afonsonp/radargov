@@ -1111,10 +1111,9 @@ Responde SÓ com {"documentos_proposta": "...",
 
 # Uma leitura por campo: que documentos ler, onde procurar, o que pedir.
 LEITURAS = (
-    ("objecto", r"caderno|encargos", ANCORAS_OBJECTO, INSTRUCOES_OBJECTO),
-    ("equipa", r"caderno|encargos", ANCORAS_EQUIPA, INSTRUCOES_EQUIPA),
-    ("proposta", r"programa|procedimento", ANCORAS_PROGRAMA,
-     INSTRUCOES_PROPOSTA),
+    ("objecto", "encargos", ANCORAS_OBJECTO, INSTRUCOES_OBJECTO),
+    ("equipa", "encargos", ANCORAS_EQUIPA, INSTRUCOES_EQUIPA),
+    ("proposta", "programa", ANCORAS_PROGRAMA, INSTRUCOES_PROPOSTA),
 )
 
 
@@ -1191,15 +1190,48 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
     return "\n[...]\n".join(partes)[:tecto]
 
 
+# As entidades gravam os ficheiros como lhes apetece.
+# "1_02_CE_28_2026_CP_DO_signed.pdf" e um Caderno de Encargos e nao tem
+# 'caderno' nem 'encargos' no nome; "2_01_PP_28_2026..." e um Programa.
+# Sem isto ficavam por ler, com o texto ja extraido e ali a jeito.
+#
+# Vai-se pelo nome e nao pelo conteudo: os Programas citam o Caderno de
+# Encargos logo nas primeiras paginas, e ate o "Lista.pdf" -- que e o
+# indice das pecas -- diz "Caderno de Encargos". Pelo nome nao ha um
+# unico engano no acervo; pelo conteudo havia varios.
+#
+# O \b do re nao serve, que trata o '_' como letra: em "_CE_" nao ha
+# fronteira nenhuma. Dai a espreitadela por caracteres alfanumericos.
+def _sigla(letras):
+    return r"(?<![a-z0-9])" + letras + r"(?![a-z0-9])"
+
+
+RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("ce"))
+# "cp" fica de fora de proposito: e "Concurso Publico", nao "Programa".
+RX_PECA_PROGRAMA = re.compile(r"programa|procedimento|" + _sigla("pp")
+                              + "|" + _sigla("pc"))
+
+
+def papeis_da_peca(nome):
+    """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF."""
+    n = simplifica(nome)
+    papeis = set()
+    if RX_PECA_ENCARGOS.search(n):
+        papeis.add("encargos")
+    if RX_PECA_PROGRAMA.search(n):
+        papeis.add("programa")
+    return papeis
+
+
 def pecas_para_analise(ref, quais, ancoras, tecto=TECTO_RECORTE):
-    """O que interessa, dos documentos cujo nome case com `quais`."""
+    """O que interessa, dos documentos que fazem o papel `quais`."""
     with liga() as c:
         docs = c.execute(
             "SELECT nome, texto FROM documentos WHERE ref=? AND texto_estado='ok' "
             "AND texto != '' ORDER BY nome", (ref,)).fetchall()
     partes, usados = [], []
     for d in docs:
-        if not re.search(quais, d["nome"], re.I):
+        if quais not in papeis_da_peca(d["nome"]):
             continue
         partes.append("### %s\n%s" % (
             d["nome"], recorte_relevante(d["texto"], ancoras, tecto)))
