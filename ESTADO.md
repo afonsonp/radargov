@@ -1022,7 +1022,17 @@ resposta a uma pergunta que ninguém fez.
    Na saúde o concurso público nem entra nos dois primeiros: compra-se
    por acordo-quadro, e quem não está no acordo não concorre. Isso não
    se vê numa tabela de contratos.
-3. **Evolução** — valor celebrado por trimestre.
+3. **Quem compra** — top 10 entidades adjudicantes por valor.
+4. **Concentração** — que fatia levam os cinco maiores, entre todas as
+   empresas que ganharam alguma coisa. Diz se vale a pena entrar: um
+   mercado onde cinco levam quatro quintos joga-se de outra maneira, ou
+   não se joga. Medido: no corpus todo os cinco maiores levam **9%**
+   (entre 95 567 empresas); em TI 10%; na saúde 13%.
+5. **Tamanho dos contratos** — quantos há de cada escalão, com o escalão
+   da mediana realçado a verde. Responde a "há aqui contratos do meu
+   tamanho?". Na saúde, **64 313 dos ~126 mil ficam abaixo de 5 k€** —
+   é um mercado de compras miudinhas com alguns contratos grandes.
+6. **Evolução** — valor celebrado por trimestre.
 
 Três decisões de construção:
 
@@ -1039,6 +1049,26 @@ Três decisões de construção:
   importação e há migração para o que já lá estava. Foi aqui que se
   descobriu que o `INSERT` posicional partia em silêncio ao acrescentar
   uma coluna — passou a nomear as colunas.
+
+Três medições que decidiram o resto, e que não se adivinhavam:
+
+- **"Quem ganha" e "Concentração" saem da mesma passagem.** As duas
+  agregam por adjudicatário; com `SUM(v) OVER ()` e `COUNT(*) OVER ()`
+  vem o total e o número de empresas sem uma segunda varredura. Duas
+  consultas eram 889 ms, uma é 514.
+- **O índice tornava o "quem compra" 3× mais lento.** `GROUP BY
+  c.adjudicante_norm` levava 1 443 ms: o SQLite varria o índice e ia
+  buscar cada linha ao acaso. Com o `+` à frente (`GROUP BY
+  +c.adjudicante_norm`), que desliga o índice de propósito, são 477 ms
+  com o mesmo resultado. **Não tires o `+`.** Agrupa-se pelo nome
+  normalizado e não pelo nome em bruto porque junta 636 variantes em
+  8 247 nomes — a mesma entidade escrita de duas maneiras.
+- **Escalões em vez de mediana exacta.** Ordenar 400 mil preços para
+  tirar o do meio levava 953 ms; os escalões custam 222 e respondem
+  melhor à pergunta. A mediana sai do escalão onde a contagem acumulada
+  passa metade, e vai realçada.
+
+Os seis juntos são ~1,7 s sem filtro, e só correm ao abrir o painel.
 
 **O trimestre a decorrer vai às riscas.** Sem isso, o trimestre corrente
 aparecia como uma queda a pique (668 M€ contra 1,2 mM€ no anterior) e a

@@ -100,7 +100,13 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   sem biblioteca. No "quem ganha", o valor reparte-se pelos
   adjudicatários (`contratos.n_adj`): um agrupamento de três não vale
   três vezes o mercado. O trimestre a decorrer vai às riscas, senão
-  parece uma queda a pique.
+  parece uma queda a pique. São seis: quem ganha, quem compra, como se
+  compra, concentração, tamanho dos contratos, evolução.
+- **No "quem compra", o `+` de `GROUP BY +c.adjudicante_norm` não se
+  tira.** Desliga o índice de propósito: com ele, o SQLite varre o
+  índice e vai buscar cada linha ao acaso — 1 443 ms contra 477, mesmo
+  resultado. Agrupa-se pelo normalizado, não pelo nome em bruto, porque
+  junta 636 variantes da mesma entidade.
 - **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
   põe um `data-de` no `<details>` e o JS lê dali a rota
   (`/cpv.json?de=anuncios|contratos`); `FONTES_CPV` diz de onde se conta.

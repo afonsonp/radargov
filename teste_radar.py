@@ -1571,6 +1571,104 @@ class TestBarras(unittest.TestCase):
         self.assertIn("height:2.0%", radar.barras_v(trim, "x"))
 
 
+class TestEscaloes(unittest.TestCase):
+    """"Há aqui contratos do meu tamanho?" -- lê-se melhor na distribuição
+    do que num número solto, e ordenar 400 mil preços para tirar a mediana
+    exacta levava 953 ms. A mediana sai do escalão onde a contagem
+    acumulada passa metade.
+    """
+
+    def escaloes(self, contagens):
+        return [{"e": i, "k": k, "v": float(k * 1000)}
+                for i, k in enumerate(contagens) if k]
+
+    def test_a_mediana_e_o_escalao_que_passa_metade(self):
+        # 10 + 10 = 20 de 40; a metade cai no segundo escalão
+        saiu = radar.escaloes_html(self.escaloes([10, 10, 10, 10, 0, 0]))
+        self.assertIn("Metade fica em <b>5 – 25 k€</b>", saiu)
+
+    def test_a_maioria_no_primeiro_escalao_puxa_a_mediana_para_la(self):
+        saiu = radar.escaloes_html(self.escaloes([90, 5, 5, 0, 0, 0]))
+        self.assertIn("Metade fica em <b>&lt; 5 k€</b>", saiu)
+
+    def test_escaloes_em_falta_nao_rebentam(self):
+        # o SQL só devolve os escalões com contratos; os vazios faltam
+        saiu = radar.escaloes_html([{"e": 5, "k": 3, "v": 9e6}])
+        self.assertIn("&gt; 1 M€", saiu)
+
+    def test_desenha_os_seis_escaloes_mesmo_os_vazios(self):
+        # um buraco no meio diz alguma coisa: escondê-lo mentia sobre a
+        # forma da distribuição
+        saiu = radar.escaloes_html(self.escaloes([5, 0, 0, 0, 0, 5]))
+        for etiqueta in radar.ESCALOES:
+            with self.subTest(etiqueta=etiqueta):
+                self.assertIn(etiqueta.replace("<", "&lt;").replace(">", "&gt;"),
+                              saiu)
+
+    def test_sem_dados_nao_desenha(self):
+        self.assertEqual(radar.escaloes_html([]), "")
+
+
+class TestConcentracao(unittest.TestCase):
+    """Diz se vale a pena entrar: um mercado onde cinco empresas levam
+    quatro quintos joga-se de outra maneira, ou não se joga."""
+
+    def ganha(self, valores, total=None, quantas=50):
+        total = total if total is not None else sum(valores)
+        return [{"n": "E%d" % i, "v": v, "k": 1,
+                 "total": total, "quantas": quantas}
+                for i, v in enumerate(valores)]
+
+    def test_quota_dos_cinco_maiores(self):
+        # 5 x 16 = 80 de 100
+        saiu = radar.concentracao_html(self.ganha([16] * 5, total=100.0))
+        self.assertIn(">80%<", saiu)
+
+    def test_as_fatias_incluem_o_resto_do_mercado(self):
+        saiu = radar.concentracao_html(self.ganha([10] * 5, total=100.0))
+        self.assertIn("as outras 45 empresas", saiu)
+
+    def test_sem_resto_nao_inventa_fatia(self):
+        # cinco empresas e mais nada: não há "outras"
+        saiu = radar.concentracao_html(self.ganha([20] * 5, total=100.0, quantas=5))
+        self.assertNotIn("as outras", saiu)
+
+    def test_total_zero_nao_divide_por_zero(self):
+        self.assertEqual(radar.concentracao_html(self.ganha([0], total=0.0)), "")
+        self.assertEqual(radar.concentracao_html([]), "")
+
+
+class TestDestaqueNasBarras(unittest.TestCase):
+    """O realce da mediana e o tracejado do período a decorrer são coisas
+    diferentes e não se podem trocar."""
+
+    def linhas(self):
+        return [{"t": "A", "v": 10.0, "k": 1}, {"t": "B", "v": 20.0, "k": 2}]
+
+    def test_destaque_marca_so_a_barra_pedida(self):
+        saiu = radar.barras_v(self.linhas(), "x", destaque="B")
+        self.assertEqual(saiu.count("col destaque"), 1)
+        self.assertIn("cai a mediana", saiu)
+
+    def test_destaque_e_parcial_nao_se_confundem(self):
+        saiu = radar.barras_v(self.linhas(), "x", parcial="A", destaque="B")
+        self.assertIn("col parcial", saiu)
+        self.assertIn("col destaque", saiu)
+        self.assertIn("trimestre a decorrer", saiu)
+
+    def test_sem_nenhum_dos_dois_nao_marca_nada(self):
+        saiu = radar.barras_v(self.linhas(), "x")
+        self.assertNotIn("parcial", saiu)
+        self.assertNotIn("destaque", saiu)
+
+    def test_formatador_proprio_para_contagens(self):
+        # os escalões contam contratos, não euros
+        saiu = radar.barras_v([{"t": "A", "v": 64313.0, "k": 64313}], "x",
+                              fmt=radar.mil_pt_f)
+        self.assertIn("64 313", saiu)
+        self.assertNotIn("€", saiu)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

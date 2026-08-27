@@ -2600,6 +2600,14 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .graf .barras .col.parcial .b{background:repeating-linear-gradient(135deg,
  var(--azul) 0 4px,rgba(31,78,121,.35) 4px 8px)}
 .graf .barras .col.parcial .v,.graf .barras .col.parcial .l{color:var(--t5)}
+.graf .barras .col.destaque .b{background:var(--verde)}
+.graf .barras .col.destaque .v{color:var(--verde)}
+.graf .barras .col.destaque .l{color:var(--verde);font-weight:600}
+.conc-n{font:700 34px/1 var(--mono);color:var(--ink);letter-spacing:-1.5px;
+ margin-bottom:12px}
+.conc-b{display:flex;height:22px;border-radius:5px;overflow:hidden;
+ background:var(--linha2)}
+.conc-b i{display:block;height:100%}
 @media (max-width:900px){.graf-corpo{grid-template-columns:minmax(0,1fr)}}
 
 /* separador dos contratos */
@@ -3979,14 +3987,30 @@ def resumo_contratos(args):
     """
     onde, valores = condicoes_contratos(args)
     with liga_corpus() as c:
-        # Quem ganha. O valor reparte-se pelos adjudicatarios (c.n_adj):
-        # um contrato ganho por um agrupamento de tres nao vale tres
-        # vezes o mercado -- e ha um com 35.
+        # Quem ganha e a concentracao saem da mesma passagem: as duas
+        # agregam por adjudicatario, e o SUM/COUNT OVER () traz o total e
+        # o numero de empresas sem uma segunda varredura (poupa ~450 ms).
+        #
+        # O valor reparte-se pelos adjudicatarios (c.n_adj): um contrato
+        # ganho por um agrupamento de tres nao vale tres vezes o mercado
+        # -- e ha um com 35.
         ganha = c.execute(
-            "SELECT a.nome n, SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k "
-            "FROM contratos c JOIN contrato_adjudicatario a "
-            "  ON a.contrato_id=c.id" + onde +
-            " GROUP BY a.nome ORDER BY v DESC LIMIT 10", valores).fetchall()
+            "WITH por_empresa AS ("
+            " SELECT a.nome n, SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k"
+            " FROM contratos c JOIN contrato_adjudicatario a"
+            "   ON a.contrato_id=c.id" + onde +
+            " GROUP BY a.nome)"
+            " SELECT n, v, k, SUM(v) OVER () total, COUNT(*) OVER () quantas"
+            " FROM por_empresa ORDER BY v DESC LIMIT 10", valores).fetchall()
+        # O `+` desliga o indice de proposito: com ele, o SQLite varre o
+        # indice e vai buscar cada linha ao acaso -- 1443 ms contra 477.
+        # Agrupa-se pelo nome normalizado para nao partir a mesma
+        # entidade escrita de duas maneiras (junta 636 nomes em 8247).
+        compra = c.execute(
+            "SELECT MIN(c.adjudicante) n, SUM(c.preco_contratual) v, "
+            "COUNT(*) k FROM contratos c" + onde +
+            " GROUP BY +c.adjudicante_norm ORDER BY v DESC LIMIT 10",
+            valores).fetchall()
         proc = c.execute(
             "SELECT c.tipo_procedimento p, COUNT(*) k, "
             "SUM(c.preco_contratual) v FROM contratos c" + onde +
@@ -3996,7 +4020,91 @@ def resumo_contratos(args):
             "  ((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3) t, "
             "COUNT(*) k, SUM(c.preco_contratual) v FROM contratos c" + onde +
             " AND c.data_celebracao!='' GROUP BY t ORDER BY t", valores).fetchall()
-    return ganha, proc, trim
+        # Escaloes de valor em vez da mediana exacta: ordenar 400 mil
+        # precos para tirar o do meio levava 953 ms, e a pergunta a que
+        # isto responde -- "ha aqui contratos do meu tamanho?" -- le-se
+        # melhor na distribuicao do que num numero solto. A mediana sai
+        # depois do escalao onde cai a contagem acumulada.
+        escal = c.execute(
+            "SELECT CASE"
+            " WHEN c.preco_contratual < 5000 THEN 0"
+            " WHEN c.preco_contratual < 25000 THEN 1"
+            " WHEN c.preco_contratual < 75000 THEN 2"
+            " WHEN c.preco_contratual < 200000 THEN 3"
+            " WHEN c.preco_contratual < 1000000 THEN 4 ELSE 5 END e,"
+            " COUNT(*) k, SUM(c.preco_contratual) v FROM contratos c" + onde +
+            " AND c.preco_contratual > 0 GROUP BY e ORDER BY e",
+            valores).fetchall()
+    return ganha, compra, proc, trim, escal
+
+
+ESCALOES = ("< 5 k€", "5 – 25 k€", "25 – 75 k€", "75 – 200 k€",
+            "200 k€ – 1 M€", "> 1 M€")
+
+
+def escaloes_html(escal):
+    """Quantos contratos ha de cada tamanho, e onde cai a mediana."""
+    if not escal:
+        return ""
+    por_e = {r["e"]: r for r in escal}
+    total = sum(r["k"] for r in escal)
+    # o escalao onde a contagem acumulada passa metade e o da mediana
+    acumulado, mediano = 0, None
+    for i in range(len(ESCALOES)):
+        acumulado += por_e[i]["k"] if i in por_e else 0
+        if mediano is None and acumulado >= total / 2.0:
+            mediano = ESCALOES[i]
+    linhas = [{"t": ESCALOES[i], "v": float(por_e[i]["k"]) if i in por_e else 0.0,
+               "k": por_e[i]["k"] if i in por_e else 0}
+              for i in range(len(ESCALOES))]
+    return barras_v(
+        linhas, "Tamanho dos contratos",
+        "Quantos contratos há de cada tamanho. Metade fica em <b>%s</b> "
+        "ou abaixo." % html.escape(mediano or "—"),
+        destaque=mediano, fmt=mil_pt_f)
+
+
+def mil_pt_f(v):
+    """mil_pt() para as barras, que passam o valor como float."""
+    return mil_pt(int(round(v or 0)))
+
+
+def concentracao_html(ganha):
+    """Quanto do mercado levam os maiores.
+
+    Diz se vale a pena entrar: um mercado onde cinco empresas levam
+    quatro quintos joga-se de outra maneira -- ou nao se joga.
+    """
+    if not ganha:
+        return ""
+    total = ganha[0]["total"] or 0
+    quantas = ganha[0]["quantas"] or 0
+    if not total:
+        return ""
+    topo = ganha[:5]
+    quota = sum(x["v"] for x in topo)
+    cores = ("#1f4e79", "#2f6ea6", "#4f8dc0", "#7fadd2", "#aecbe4")
+    fatias = []
+    for cor, x in zip(cores, topo):
+        fatias.append("<i style='width:%.2f%%;background:%s' title='%s — %s'></i>"
+                      % (100.0 * x["v"] / total, cor,
+                         html.escape(x["n"], quote=True), euros_curto(x["v"])))
+    resto = total - quota
+    if resto > 0:
+        fatias.append("<i style='width:%.2f%%;background:var(--linha2)' "
+                      "title='as outras %s empresas — %s'></i>"
+                      % (100.0 * resto / total, mil_pt(max(0, quantas - 5)),
+                         euros_curto(resto)))
+    return ("<div class='cx graf'><div class='rot'>Concentração</div>"
+            "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
+            "cinco maiores, entre as %s empresas que ganharam alguma "
+            "coisa.</div>"
+            "<div class='conc-n'>%.0f%%</div>"
+            "<div class='conc-b'>%s</div>"
+            "<div class='nota' style='margin-top:10px'>Os cinco maiores "
+            "levam %s dos %s adjudicados.</div></div>"
+            % (mil_pt(quantas), 100.0 * quota / total, "".join(fatias),
+               euros_curto(quota), euros_curto(total)))
 
 
 def barras_h(linhas, titulo, nota=""):
@@ -4026,7 +4134,7 @@ def trimestre_de(quando):
     return "%s T%d" % (quando.year, (quando.month + 2) // 3)
 
 
-def barras_v(linhas, titulo, nota="", parcial=""):
+def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None):
     """Barras verticais para o tempo, como as dos indicadores.
 
     O `parcial` e o periodo que ainda esta a decorrer: desenha-se as
@@ -4036,17 +4144,22 @@ def barras_v(linhas, titulo, nota="", parcial=""):
     """
     if not linhas:
         return ""
+    fmt = fmt or euros_curto
     maior = max(l["v"] for l in linhas) or 1
     cols = []
     for l in linhas:
-        meio = l["t"] == parcial
+        meio = bool(parcial) and l["t"] == parcial
+        realce = bool(destaque) and l["t"] == destaque
+        classes = "".join((" parcial" if meio else "",
+                           " destaque" if realce else ""))
         cols.append(
             "<div class='col%s'><span class='v'>%s</span>"
             "<div class='b' style='height:%.1f%%' title='%s contratos%s'>"
             "</div><span class='l'>%s</span></div>"
-            % (" parcial" if meio else "", euros_curto(l["v"]),
+            % (classes, fmt(l["v"]),
                max(2.0, 100.0 * l["v"] / maior), l["k"],
-               ", trimestre a decorrer" if meio else "",
+               ", trimestre a decorrer" if meio else
+               (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
     return ("<div class='cx graf'><div class='rot'>%s</div>%s"
             "<div class='barras'>%s</div></div>"
@@ -4067,7 +4180,7 @@ def contratos_resumo():
     """
     if not ha_corpus():
         return Response("", mimetype="text/html")
-    ganha, proc, trim = resumo_contratos(request.args)
+    ganha, compra, proc, trim, escal = resumo_contratos(request.args)
     if not proc:
         return Response("<div class='nota'>Nada a resumir neste filtro.</div>",
                         mimetype="text/html")
@@ -4075,10 +4188,14 @@ def contratos_resumo():
         barras_h(ganha, "Quem ganha",
                  "Valor adjudicado, do maior para o menor. Um contrato "
                  "ganho por um agrupamento reparte-se pelos membros."),
+        barras_h(compra, "Quem compra",
+                 "As entidades que mais adjudicaram, por valor."),
         barras_h([{"n": p["p"], "v": p["v"], "k": p["k"]} for p in proc],
                  "Como se compra",
                  "Por tipo de procedimento. O que não é concurso não teve "
                  "anúncio &mdash; não era concorrível."),
+        concentracao_html(ganha),
+        escaloes_html(escal),
         barras_v(trim, "Evolução",
                  "Valor celebrado por trimestre. O trimestre a decorrer "
                  "vai às riscas &mdash; ainda não acabou.",
