@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 25 de agosto de 2026.
+Última actualização: 27 de agosto de 2026.
 
 ## O que isto é
 
@@ -252,6 +252,68 @@ Para saber o que a conta permite hoje, sem adivinhar:
 
 O modelo está no `config.json` (`modelo_pecas`), porque estas listas
 mudam.
+
+### A cadeia de reserva, quando o dia da Groq acaba
+
+*27 de agosto de 2026.* O tecto diário acima é o problema: 200 mil
+tokens dão 2 releituras do acervo, e a partir daí a fila fica parada até
+ao dia seguinte. `FORNECEDORES` é agora uma lista, e `_perguntar()`
+desce-a até alguém responder:
+
+| ordem | fornecedor | modelo por omissão | chave |
+|---|---|---|---|
+| 1 | `groq` | `openai/gpt-oss-120b` | `groq_API_KEY.txt` |
+| 2 | `openrouter` | `z-ai/glm-5.2:free` | `openrouter_API_KEY.txt` |
+| 3 | `nvidia` | `openai/gpt-oss-120b` | `nvidia_API_KEY.txt` |
+
+Todos falam o dialecto da OpenAI (`/chat/completions`, `Bearer`,
+`response_format`), por isso a cadeia é uma lista de endereços e não
+três clientes. O NVIDIA serve **o mesmo modelo** que a Groq — é a
+reserva que não muda a qualidade da leitura.
+
+Três decisões que valem a pena guardar:
+
+- **Só entra quem tem chave.** Um fornecedor por configurar custava uma
+  volta e um 401 em cada uma das três perguntas de cada concurso.
+  Consequência prática: **sem chaves novas, o comportamento é exactamente
+  o de antes** — a cadeia tem só a Groq.
+- **O esgotamento fica em memória** (`_ESGOTADOS`, por dia). Sem isso,
+  cada pergunta voltava a bater na porta fechada — a hora deitada fora
+  que o `SEM_ORCAMENTO_HOJE` veio evitar, de volta multiplicada por três.
+- **A mensagem do tecto diário só aparece quando a cadeia inteira
+  esgota** (`cadeia_esgotada()`). Com "algum esgotado", bastava a Groq
+  acabar para o painel dar o dia por perdido com o OpenRouter a
+  responder ao lado.
+
+`analise.modelo` passou a guardar **quem respondeu** (`groq:openai/gpt-oss-120b`),
+e não o modelo configurado. Uma leitura da Groq e uma leitura de um
+modelo gratuito não valem o mesmo, e a ficha tem de o dizer. Isso trouxe
+de volta o problema que o `juntar_fontes()` já tinha pago nas fontes:
+sendo agora variável, uma releitura parcial apagava o registo do modelo
+que leu os outros campos. Reutiliza-se o mesmo `juntar_fontes()`.
+
+No `config.json`: `modelos_pecas` escolhe o modelo por fornecedor,
+`fornecedor_pecas` prende a leitura a um só — serve para comparar
+leituras com o `ensaio-de-leitura`. O `modelo_pecas` antigo continua a
+valer, e **só para a Groq**: aplicado à cadeia toda, pedia um nome de
+modelo da Groq ao OpenRouter, onde não existe.
+
+**O que está verificado e o que não está.** A lógica da cadeia está nos
+testes (23 novos) e o caminho da Groq foi corrido a sério, com resposta
+certa e `usado=groq:openai/gpt-oss-120b`. Os endereços dos outros dois
+foram sondados — o do OpenRouter dá 401 sem chave, o do NVIDIA dá 403
+com chave inválida, e `openai/gpt-oss-120b` está mesmo no catálogo de
+84 modelos que o `/v1/models` do NVIDIA devolve. **Mas nenhum dos dois
+foi corrido com chave verdadeira**, porque não há nenhuma. Ao pôr a
+primeira, correr `--ler-pecas` num concurso e confirmar na ficha que o
+`analise.modelo` diz o fornecedor novo. O risco conhecido é o
+`response_format`: se um deles o recusar com 400, a cadeia desce para o
+seguinte e o aviso di-lo — o `json_da_resposta()` já aguenta a resposta
+embrulhada em cercas markdown, que é o desvio mais comum.
+
+Os nomes dos ficheiros de chave já estão cobertos pelo `.gitignore`
+(`*[Aa][Pp][Ii]_[Kk][Ee][Yy]*`), de propósito largo — confirmado com
+`git check-ignore -v`.
 
 ### Porque é que não se envia o documento todo
 
