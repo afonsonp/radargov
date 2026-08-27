@@ -30,6 +30,14 @@ PASTA = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                      "..", ".."))
 TESTES = os.path.join(PASTA, "teste_radar.py")
 
+
+def interpretador():
+    """O mesmo criterio do _python.bat: se ha um Python dentro da pasta, e
+    esse que manda. O hook corre no Python do sistema, que pode nao ter as
+    dependencias -- e entao os testes "falhavam" todos por ImportError."""
+    proprio = os.path.join(PASTA, "python", "python.exe")
+    return proprio if os.path.exists(proprio) else sys.executable
+
 # O `git commit` de que se fala aqui e o de gravar. O `git commit --help`
 # ou uma mensagem que por acaso contenha as palavras nao contam.
 RX_COMMIT = re.compile(r"(?:^|[|;&]\s*)git\s+(?:-\S+\s+)*commit\b")
@@ -44,7 +52,7 @@ def main():
     if not RX_COMMIT.search(comando) or not os.path.exists(TESTES):
         return 0
 
-    r = subprocess.run([sys.executable, TESTES], cwd=PASTA,
+    r = subprocess.run([interpretador(), TESTES], cwd=PASTA,
                        capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     if not r.returncode:
