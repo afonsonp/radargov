@@ -352,6 +352,29 @@ um *timeout* por fornecedor (ou pôr de lado quem estoirar, como se faz
 com quem esgota) — não está feito, de propósito, para não se optimizar
 contra uma medição feita em rajada.
 
+### O que falta verificar na cadeia
+
+Fica aqui porque **ainda não foi feito**, e é fácil dar por assente que
+foi: tudo o que está acima mediu-se chamando os fornecedores
+directamente. **A cadeia nunca correu pelo caminho normal do radar** —
+`analisar_pecas()` a escrever na base, com o painel a mostrar o
+resultado. O que falta confirmar, e como:
+
+1. Com a Groq esgotada (ou com `"fornecedor_pecas": "nvidia"` no
+   `config.json`), correr `python radar.py --ler-pecas` num concurso.
+2. Abrir a ficha e confirmar que o campo do modelo diz **`nvidia:openai/gpt-oss-120b`**
+   e não `groq:...`. É o sinal de que o `_perguntar()` desceu a cadeia e
+   de que o `usado` chega mesmo à coluna `analise.modelo`.
+3. Numa releitura em que só um fornecedor responda, confirmar que a
+   coluna guarda **os dois** rótulos, separados por vírgula — é o
+   `juntar_fontes()` a fazer pela coluna `modelo` o que já fazia pelas
+   fontes. Está nos testes, mas nunca se viu na base verdadeira.
+4. Confirmar que o ritmo normal (meia dúzia de concursos) não põe o
+   NVIDIA em fila como a rajada dos testes pôs.
+
+Enquanto isto não estiver feito, tratar a cadeia como **implementada e
+testada em unidade, mas não exercitada em produção**.
+
 Os nomes dos ficheiros de chave já estão cobertos pelo `.gitignore`
 (`*[Aa][Pp][Ii]_[Kk][Ee][Yy]*`), de propósito largo — confirmado com
 `git check-ignore -v`.
