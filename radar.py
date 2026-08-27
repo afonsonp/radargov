@@ -33,7 +33,7 @@ import unicodedata
 import webbrowser
 import zipfile
 from datetime import datetime, timedelta
-from urllib.parse import unquote, urlencode
+from urllib.parse import parse_qsl, unquote, urlencode
 
 try:
     import requests
@@ -182,6 +182,13 @@ def iniciar_db():
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)""")
+        # Conjuntos de filtros com nome. O que se guarda e a query string
+        # da lista, nao as condicoes SQL: assim um filtro guardado e uma
+        # ligacao, e o que aprender a fazer amanha na lista funciona nos
+        # filtros de ontem sem migracao nenhuma.
+        c.execute("""CREATE TABLE IF NOT EXISTS filtros_guardados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE,
+            consulta TEXT, quem TEXT, criado_em TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT)""")
@@ -2129,6 +2136,29 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+.guardados{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+ padding:12px 16px;margin-bottom:12px}
+.guardados .rot{margin-right:4px}
+.guardados .nada{font:400 12px/1 var(--sans);color:var(--t6)}
+.guardado{display:inline-flex;align-items:center;border:1px solid var(--linha);
+ border-radius:99px;background:var(--creme);overflow:hidden}
+.guardado a{padding:7px 4px 7px 13px;font:500 12.5px/1 var(--sans);color:var(--t3)}
+.guardado:hover{border-color:var(--t6)}
+.guardado:hover a{color:var(--ink)}
+.guardado.on{border-color:var(--azul);background:#eef4fa}
+.guardado.on a{color:var(--azul);font-weight:600}
+.guardado form{display:inline-flex}
+.guardado button{cursor:pointer;border:0;background:none;color:var(--t6);
+ padding:7px 11px 7px 6px;font:500 14px/1 var(--sans)}
+.guardado button:hover{color:var(--verm)}
+.guardados .guardar{display:flex;align-items:center;gap:8px;margin-left:auto}
+.guardados .guardar input{padding:8px 12px;min-width:200px;
+ border:1px solid var(--linha);border-radius:8px;background:var(--creme);
+ font:400 12.5px/1.2 var(--sans);color:var(--ink)}
+.guardados .guardar button{cursor:pointer;padding:9px 15px;border-radius:8px;
+ border:1px solid var(--linha);background:#fff;color:var(--t3);
+ font:600 12.5px/1 var(--sans)}
+.guardados .guardar button:hover{border-color:var(--ink);color:var(--ink)}
 .cpv-activo{display:flex;align-items:center;gap:9px;padding:10px 14px;
  border:1px solid #cfe0ef;background:#eef4fa;border-radius:9px;margin-bottom:12px;
  font:500 12px/1.3 var(--sans);color:var(--azul)}
@@ -2666,6 +2696,40 @@ function arvoreConstruir(dados) {
   raizes.forEach(function(cod) { corpo.appendChild(arvoreNo(cod, porCodigo, filhos, total)); });
   document.getElementById('arvore-contagem').textContent =
       dados.length + ' códigos, ' + raizes.length + ' divisões';
+  arvoreMarcarSemeados();
+}
+
+function arvoreMarcarSemeados() {
+  // Poe as caixas de acordo com o filtro que ja esta em uso. Sem isto a
+  // arvore abria em branco por cima de um filtro cheio de CPV -- e como
+  // "Aplicar" escreve o que a arvore tem, aplicar limpava o filtro.
+  ARV_SEL.forEach(function(cod) {
+    if (!ARV_CHK[cod]) return;
+    ARV_CHK[cod].checked = true;
+    arvoreDescendentes(cod).forEach(function(f) {
+      if (ARV_CHK[f]) ARV_CHK[f].checked = true;
+    });
+    // abrir os antepassados: marcado dentro de um <details> fechado nao
+    // se ve, e o que nao se ve parece nao estar la
+    var no = ARV_CHK[cod].closest('.no-envolve');
+    while (no) {
+      if (no.tagName === 'DETAILS') no.open = true;
+      no = no.parentElement ? no.parentElement.closest('.no-envolve') : null;
+    }
+  });
+}
+
+function arvoreSemear() {
+  // O filtro em uso e a verdade de onde a arvore parte. Guarda-se tudo o
+  // que la esta, ate o que nao e codigo (o filtro tambem aceita palavras):
+  // assim "Aplicar" nao deita fora o que a arvore nao sabe desenhar.
+  var campo = document.getElementById('filtro-cpv');
+  if (!campo) return;
+  campo.value.split('|').forEach(function(p) {
+    p = p.trim();
+    if (p) ARV_SEL.add(p);
+  });
+  arvoreChip();
 }
 
 function arvoreNo(cod, porCodigo, filhos, total) {
@@ -2763,6 +2827,7 @@ document.getElementById('arvore-busca').addEventListener('input', function() {
   Array.from(document.getElementById('arvore-corpo').children).forEach(
       function(no) { arvoreFiltra(no, alvo); });
 });
+arvoreSemear();
 </script>"""
 
 
@@ -2774,11 +2839,21 @@ def pagina_pedida(args):
         return 1
 
 
+def args_da_lista(args, **muda):
+    """Os argumentos da lista de agora, sem os que sao da vez. O que vem
+    em `muda` entra depois da limpeza -- e assim que o paginador pode pedir
+    uma pagina sem que ela seja apagada a seguir."""
+    novos = args.to_dict()
+    for campo in CAMPOS_DA_VEZ:
+        novos.pop(campo, None)
+    novos.update(muda)
+    return novos
+
+
 def sem_pagina(args, **muda):
     """Liga da lista com os filtros de agora. Mexer num filtro volta a
     pagina 1: a pagina 7 do filtro anterior nao existe no novo."""
-    novos = dict(args.to_dict(), **muda)
-    novos.pop("pag", None)
+    novos = args_da_lista(args, **muda)
     return "/?" + urlencode(novos) if novos else "/"
 
 
@@ -2789,7 +2864,7 @@ def paginador(pagina, paginas, args):
         return ""
 
     def liga_pag(n, etiqueta=None, classe=""):
-        args_n = dict(args.to_dict(), pag=str(n))
+        args_n = args_da_lista(args, pag=str(n))
         return ("<a class='%s' href='/?%s'>%s</a>"
                 % (classe, urlencode(args_n), etiqueta or n))
 
@@ -2843,6 +2918,8 @@ def painel():
             "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
             "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC",
             (SEM_PLATAFORMA,)).fetchall()
+        guardados = c.execute("SELECT * FROM filtros_guardados "
+                              "ORDER BY nome COLLATE NOCASE").fetchall()
 
     def mil(n):
         return "{:,}".format(n).replace(",", " ")
@@ -2900,6 +2977,52 @@ def painel():
            html.escape(request.args.get("ate", ""), quote=True),
            html.escape(estado_actual, quote=True)))
 
+    # Filtros guardados. Aplicar um e seguir uma ligacao -- so leitura,
+    # nada muda na base -- mas guardar e apagar sao POST, como o resto do
+    # que escreve.
+    agora = filtro_actual(request.args)
+    fichas = []
+    nome_activo = ""
+    for f in guardados:
+        activo = f["consulta"] == agora
+        if activo:
+            nome_activo = f["nome"]
+        fichas.append(
+            "<span class='guardado%s'>"
+            "<a href='/?%s' title='%s'>%s</a>"
+            "<form method='post' action='/filtros/%d/apagar' "
+            "onsubmit='return confirm(\"Apagar o filtro guardado &quot;%s&quot;? "
+            "Os anúncios não se mexem.\")'>"
+            "<input type='hidden' name='volta' value='%s'>"
+            "<button type='submit' title='apagar este filtro'>&times;</button>"
+            "</form></span>"
+            % (" on" if activo else "",
+               html.escape(f["consulta"], quote=True),
+               html.escape(resumo_filtro(f["consulta"]), quote=True),
+               html.escape(f["nome"]), f["id"],
+               html.escape(f["nome"], quote=True),
+               html.escape(agora, quote=True)))
+
+    if fichas:
+        legenda = ""
+    else:
+        legenda = ("<span class='nada'>ainda nenhum &mdash; escolhe os filtros "
+                   "acima e dá-lhes um nome</span>")
+    # O nome do filtro em uso vem preenchido de proposito: gravar por cima
+    # do mesmo nome e como se actualiza um filtro depois de o afinar.
+    guardar = (
+        "<form class='guardar' method='post' action='/filtros/guardar'>"
+        "<input type='hidden' name='consulta' value='%s'>"
+        "<input type='text' name='nome' required maxlength='60' value='%s' "
+        "placeholder='dar nome a estes filtros…'>"
+        "<button type='submit' class='bt forte'>Guardar filtro</button>"
+        "</form>" % (html.escape(agora, quote=True),
+                     html.escape(nome_activo, quote=True)))
+
+    caixa_guardados = ("<div class='cx guardados'><span class='rot'>"
+                       "Filtros guardados</span>%s%s%s</div>"
+                       % ("".join(fichas), legenda, guardar))
+
     arvore = (
         "<details class='arvore'><summary>"
         "<span class='arv-tit'>Escolher CPV na árvore</span>"
@@ -2951,7 +3074,8 @@ def painel():
                  html.escape(le_marca("ultima_verificacao", "nunca")),
                  " e ".join(ler_config()["horas_verificacao"])))
 
-    conteudo = ("<div class='larg'>" + filtros + faixa_cpv + arvore +
+    conteudo = ("<div class='larg'>" + filtros + caixa_guardados +
+                faixa_cpv + arvore +
                 "<div class='linha-conta'>" + conta +
                 "<a href='/csv%s'>exportar CSV</a></div>"
                 % (("?" + request.query_string.decode())
@@ -2979,6 +3103,58 @@ def para_like(termo):
     for ch in (ESCAPE_LIKE, "%", "_"):
         termo = termo.replace(ch, ESCAPE_LIKE + ch)
     return termo
+
+
+# Os campos que fazem um filtro, por ordem fixa. A ordem importa: e ela
+# que deixa comparar a consulta guardada com a de agora por igualdade de
+# texto, para se saber qual dos filtros guardados esta em uso.
+CAMPOS_FILTRO = ("q", "ent", "cpv", "plat", "de", "ate", "estado")
+
+# Argumentos que a lista usa mas nao definem o filtro, e por isso nao se
+# guardam nem se arrastam para as ligacoes: a pagina e onde se esta, o
+# aviso e da vez.
+CAMPOS_DA_VEZ = ("pag", "aviso")
+
+
+def filtro_actual(args):
+    """A query string canonica do filtro em uso, para guardar e comparar."""
+    pares = []
+    for campo in CAMPOS_FILTRO:
+        if campo == "estado":
+            # o mesmo criterio de condicoes(): ausente e "novo", presente
+            # e vazio e "todos". Sao vistas diferentes, e a diferenca tem
+            # de sobreviver a ida a base -- por isso o estado entra
+            # sempre, mesmo quando esta vazio.
+            valor = args.get("estado")
+            valor = "novo" if valor is None else valor.strip()
+        else:
+            valor = (args.get(campo) or "").strip()
+            if not valor:
+                continue
+        pares.append((campo, valor))
+    return urlencode(pares)
+
+
+# Como se le cada campo na descricao de um filtro guardado.
+_NOMES_FILTRO = {"q": "objecto", "ent": "entidade", "cpv": "CPV",
+                 "plat": "plataforma", "de": "desde", "ate": "até"}
+_NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
+                 "descartado": "descartados", "": "todos"}
+
+
+def resumo_filtro(consulta):
+    """Diz por palavras o que um filtro guardado apanha, para a legenda."""
+    campos = dict(parse_qsl(consulta or "", keep_blank_values=True))
+    partes = []
+    for campo in CAMPOS_FILTRO:
+        valor = campos.get(campo)
+        if valor is None:
+            continue
+        if campo == "estado":
+            partes.append(_NOMES_ESTADO.get(valor, valor))
+        elif valor:
+            partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
+    return " · ".join(partes) or "sem filtro"
 
 
 def condicoes(args):
@@ -3049,6 +3225,48 @@ def condicoes(args):
     if estado:
         onde.append("estado = ?"); valores.append(estado)
     return (" WHERE " + " AND ".join(onde) if onde else ""), valores
+
+
+def volta_a_lista(consulta, aviso=""):
+    """Volta para a lista com os filtros que estavam, e um aviso da vez."""
+    partes = [p for p in (consulta, urlencode({"aviso": aviso}) if aviso else "")
+              if p]
+    return redirect("/?" + "&".join(partes) if partes else "/")
+
+
+@app.route("/filtros/guardar", methods=["POST"])
+def filtro_guardar():
+    """Guarda os filtros de agora com um nome. Gravar por cima do mesmo
+    nome actualiza-o -- e assim que se afina um filtro sem ficar com dois
+    quase iguais e sem saber qual deles esta em uso."""
+    nome = (request.form.get("nome") or "").strip()
+    consulta = (request.form.get("consulta") or "").strip()
+    if not nome:
+        return volta_a_lista(consulta)
+    with liga() as c:
+        antes = c.execute("SELECT id FROM filtros_guardados WHERE nome=?",
+                          (nome,)).fetchone()
+        c.execute("""INSERT INTO filtros_guardados (nome,consulta,quem,criado_em)
+                     VALUES (?,?,?,?)
+                     ON CONFLICT(nome) DO UPDATE SET
+                       consulta=excluded.consulta, quem=excluded.quem,
+                       criado_em=excluded.criado_em""",
+                  (nome, consulta, quem_sou() or "(sem nome)",
+                   datetime.now().strftime("%Y-%m-%d %H:%M")))
+    return volta_a_lista(consulta, "Filtro %s: %s"
+                         % ("actualizado" if antes else "guardado", nome))
+
+
+@app.route("/filtros/<int:filtro_id>/apagar", methods=["POST"])
+def filtro_apagar(filtro_id):
+    """Apaga so o filtro. Os anuncios nao se mexem -- um filtro esconde,
+    nao apaga, e apagar o filtro devolve a lista inteira."""
+    with liga() as c:
+        linha = c.execute("SELECT nome FROM filtros_guardados WHERE id=?",
+                          (filtro_id,)).fetchone()
+        c.execute("DELETE FROM filtros_guardados WHERE id=?", (filtro_id,))
+    return volta_a_lista((request.form.get("volta") or "").strip(),
+                         "Filtro apagado: %s" % linha["nome"] if linha else "")
 
 
 # (anuncios com detalhe lido, corpo JSON) -- ver cpv_json()

@@ -673,6 +673,17 @@ browser em JavaScript simples, sem framework:
 - "Aplicar" escreve `Array.from(ARV_SEL).join('|')` no campo escondido
   e submete o formulário — reaproveita a `condicoes()` que já existia,
   nenhuma rota nova para aplicar o filtro.
+- `arvoreSemear()` enche o `ARV_SEL` a partir do campo `filtro-cpv` ao
+  carregar a página, e `arvoreMarcarSemeados()` põe as caixas em dia
+  quando a árvore se constrói (abrindo os antepassados, senão o que
+  está marcado fica dentro de um `<details>` fechado e parece não estar
+  lá). **Sem isto a árvore abria em branco por cima de um filtro cheio
+  de CPV, e como "Aplicar" escreve o que a árvore tem, aplicar limpava
+  o filtro.** Passou despercebido enquanto o filtro de CPV se punha
+  sempre pela árvore na mesma visita; deu de caras com os filtros
+  guardados, onde o CPV chega de uma visita anterior. O semear guarda
+  também os pedaços que não são código (o filtro aceita palavras), para
+  "Aplicar" não deitar fora o que a árvore não sabe desenhar.
 
 Sem framework, sem build step: tudo dentro do `<script>` no fim do
 `PAGINA`. Testado ao vivo (browser tool, mais chamadas directas ao JS
@@ -763,6 +774,76 @@ funcionar nesta sessão, o painel do browser não compunha frames):
 fundo branco, `border-radius:6px`, sombra `rgba(0,0,0,.06) 0 1px 2px`,
 título a azul `#1f4e79` a negrito, etiqueta de prazo com fundo verde
 claro — confere com o CSS escrito.
+
+## Lista paginada, 20 por página
+
+Pedido do Afonso. A lista mostrava as primeiras 500 linhas e escondia
+o resto: com 5 390 anúncios a corresponder ao filtro por omissão,
+ficavam 4 890 sem forma de lá chegar sem apertar o filtro. `POR_PAGINA
+= 20` substitui o `LIMITE_LISTA = 500`, com `LIMIT ... OFFSET` na
+consulta.
+
+O que mudou de decisão, e porquê:
+
+- **A contagem deixou de ser condicional.** Havia um truque para a
+  evitar (pedir uma linha a mais que o limite e ver se ela vinha), que
+  poupava uma passagem pelas 65 mil linhas quando o filtro cabia todo
+  em 500. Com páginas de 20 esse caso quase nunca acontece — e agora
+  é a contagem que diz quantas páginas há, por isso corre sempre.
+- **Corre antes da consulta das linhas**, para se segurar a página
+  pedida dentro do que existe: pedir a página 999 de 270 devolvia uma
+  lista vazia sem explicação. Agora dá a última. `?pag=abc` dá a
+  primeira.
+- **Mexer num filtro ou trocar de aba volta à página 1**
+  (`args_da_lista()` deixa cair o `pag`): a página 7 do filtro anterior
+  não existe no filtro novo.
+- O paginador mostra uma janela de duas páginas para cada lado, com a
+  primeira e a última sempre presentes — 270 números não cabem na
+  linha.
+- O CSV continua a exportar tudo o que o filtro apanha; o `pag` na URL
+  é ignorado por `condicoes()`.
+
+## Filtros guardados
+
+Pedido do Afonso: "seleciono um conjunto de CPV e tenho um botão que
+diz guardar filtro, e sempre que seleciono ele volta onde estava".
+
+Tabela `filtros_guardados` (`nome` UNIQUE, `consulta`, `quem`,
+`criado_em`). **O que se guarda é a query string da lista, não as
+condições SQL** — assim um filtro guardado é uma ligação, aplicá-lo é
+seguir um `<a href>` (leitura, sem rota nova), e o que a lista aprender
+a filtrar amanhã funciona nos filtros de ontem sem migração nenhuma.
+
+`filtro_actual()` produz a forma canónica dessa query string, e é ela
+que faz o resto funcionar:
+
+- **Ordem fixa dos campos** (`CAMPOS_FILTRO`). Sem ela, os mesmos
+  filtros davam consultas diferentes conforme a ordem da URL, e o chip
+  do filtro em uso nunca se reconhecia como activo.
+- **O `estado` entra sempre, mesmo vazio.** É o mesmo critério da
+  `condicoes()`: ausente é "por ver", presente e vazio é "todos". São
+  vistas diferentes e a diferença tem de sobreviver à ida à base —
+  deixar cair o campo por ser vazio trocava "Todos" por "Por ver".
+- **O `pag` e o `aviso` ficam de fora** (`CAMPOS_DA_VEZ`). Guardar na
+  página 3 gravava a página 3 e o filtro abria sempre a meio; o aviso
+  colava-se ao filtro e reaparecia a cada visita.
+
+Gravar por cima do mesmo nome actualiza (`ON CONFLICT ... DO UPDATE`),
+e o campo do nome vem pré-preenchido com o filtro em uso — é assim que
+se afina um filtro sem ficar com dois quase iguais sem saber qual é
+qual. Apagar só apaga o filtro e fica-se onde se estava; os anúncios
+não se mexem.
+
+Armadilha apanhada nesta sessão: a **árvore de CPV não sabia o que já
+estava no filtro** — ver a secção da árvore. Era um erro que já existia,
+mas que só os filtros guardados tornavam visível.
+
+Verificado ao vivo num browser (a screenshot continua a não funcionar,
+o painel não compõe frames — verificou-se por DOM): guardar, o chip
+marcar-se activo só no seu próprio filtro, sair para outro filtro e
+voltar pelo chip (repõe CPV, aba e os 350 resultados), gravar por cima
+actualizar em vez de duplicar, e apagar. Mais o ciclo completo por
+`test_client` sobre uma **cópia** da base.
 
 ## Quadro (kanban)
 
