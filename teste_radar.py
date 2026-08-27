@@ -527,6 +527,15 @@ class TestEPdf(unittest.TestCase):
     def test_o_que_nao_e_pdf(self):
         self.assertFalse(radar.e_pdf(self.caminho(b"PK" + bytes(2000))))
 
+    def test_zip_com_pdf_por_comprimir_nao_e_pdf(self):
+        # o "%PDF" fica no byte 46 e a janela de 1 KB apanhava-o: o
+        # extrair_textos mandava o pacote ao pypdf e nunca o abria
+        import io, zipfile
+        saco = io.BytesIO()
+        with zipfile.ZipFile(saco, "w") as z:
+            z.writestr("CE_Clausulas.pdf", b"%PDF-1.7 conteudo")
+        self.assertFalse(radar.e_pdf(self.caminho(saco.getvalue())))
+
     def test_ficheiro_que_nao_existe(self):
         self.assertFalse(radar.e_pdf("nao-existe-de-certeza.pdf"))
 
@@ -610,6 +619,38 @@ class TestJuntarLeituras(unittest.TestCase):
     def test_devolve_sempre_os_quatro_campos(self):
         self.assertEqual(set(radar.juntar_leituras({}, None)),
                          set(radar.CAMPOS_DA_ANALISE))
+
+
+class TestJuntarFontes(unittest.TestCase):
+    """As fontes têm de acompanhar os campos que o juntar_leituras guarda."""
+
+    ANTES = "Caderno de Encargos.pdf, Programa.pdf"
+
+    def test_leitura_parcial_nao_perde_a_peca_de_antes(self):
+        # o objecto ficou do Caderno de Encargos lido antes; dizer só
+        # "Programa.pdf" era atribuí-lo à peça errada na ficha
+        juntas = radar.juntar_fontes(["Programa.pdf"], self.ANTES, True)
+        self.assertIn("Caderno de Encargos.pdf", juntas)
+        self.assertIn("Programa.pdf", juntas)
+
+    def test_leitura_inteira_fica_so_com_as_desta_vez(self):
+        # sem falhas, o que está guardado veio todo daqui: uma peça que
+        # deixou de existir não pode continuar a ser citada
+        self.assertEqual(radar.juntar_fontes(["Programa.pdf"], self.ANTES, False),
+                         "Programa.pdf")
+
+    def test_sem_fontes_novas_ficam_as_de_antes(self):
+        self.assertEqual(radar.juntar_fontes([], self.ANTES, False), self.ANTES)
+
+    def test_nao_repete(self):
+        self.assertEqual(
+            radar.juntar_fontes(["Programa.pdf"], "Programa.pdf", True),
+            "Programa.pdf")
+
+    def test_sem_leitura_anterior(self):
+        self.assertEqual(radar.juntar_fontes(["Programa.pdf"], None, True),
+                         "Programa.pdf")
+        self.assertEqual(radar.juntar_fontes([], None, True), "")
 
 
 class TestPapeisDaPeca(unittest.TestCase):
