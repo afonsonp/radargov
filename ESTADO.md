@@ -263,8 +263,13 @@ desce-a até alguém responder:
 | ordem | fornecedor | modelo por omissão | chave |
 |---|---|---|---|
 | 1 | `groq` | `openai/gpt-oss-120b` | `groq_API_KEY.txt` |
-| 2 | `openrouter` | `z-ai/glm-5.2:free` | `openrouter_API_KEY.txt` |
-| 3 | `nvidia` | `openai/gpt-oss-120b` | `nvidia_API_KEY.txt` |
+| 2 | `nvidia` | `openai/gpt-oss-120b` | `nvidia_API_KEY.txt` |
+| 3 | `openrouter` | `z-ai/glm-5.2:free` | `openrouter_API_KEY.txt` |
+
+O NVIDIA fica em segundo por servir **o mesmo modelo** que a Groq: é a
+reserva que não muda a qualidade da leitura. O OpenRouter, que lê com
+outro modelo e é o único que já recusou por falta de vaga, fica em
+último.
 
 Todos falam o dialecto da OpenAI (`/chat/completions`, `Bearer`,
 `response_format`), por isso a cadeia é uma lista de endereços e não
@@ -298,18 +303,54 @@ leituras com o `ensaio-de-leitura`. O `modelo_pecas` antigo continua a
 valer, e **só para a Groq**: aplicado à cadeia toda, pedia um nome de
 modelo da Groq ao OpenRouter, onde não existe.
 
-**O que está verificado e o que não está.** A lógica da cadeia está nos
-testes (23 novos) e o caminho da Groq foi corrido a sério, com resposta
-certa e `usado=groq:openai/gpt-oss-120b`. Os endereços dos outros dois
-foram sondados — o do OpenRouter dá 401 sem chave, o do NVIDIA dá 403
-com chave inválida, e `openai/gpt-oss-120b` está mesmo no catálogo de
-84 modelos que o `/v1/models` do NVIDIA devolve. **Mas nenhum dos dois
-foi corrido com chave verdadeira**, porque não há nenhuma. Ao pôr a
-primeira, correr `--ler-pecas` num concurso e confirmar na ficha que o
-`analise.modelo` diz o fornecedor novo. O risco conhecido é o
-`response_format`: se um deles o recusar com 400, a cadeia desce para o
-seguinte e o aviso di-lo — o `json_da_resposta()` já aguenta a resposta
-embrulhada em cercas markdown, que é o desvio mais comum.
+### Medido com chaves verdadeiras, e o resultado é mau
+
+*27 de agosto de 2026, com as três chaves postas.* Num recorte curto
+(3770 caracteres do CE do 21507/2026) os três respondem e todos honram
+o `response_format`:
+
+| fornecedor | tempo | resposta |
+|---|---|---|
+| groq | 1,2 s | a referência |
+| nvidia | 168 s → **3,5 s** com `reasoning_effort=low` | igual à da Groq |
+| openrouter | 15,6 s | mais curta, cortou o início da frase |
+
+Os 168 segundos do NVIDIA não cabiam no `timeout=180` e faziam estourar
+dois dos três pedidos de cada concurso. É o mesmo `gpt-oss-120b` da
+Groq, mas aqui vem com o raciocínio ligado — e o raciocínio não serve
+para nada nisto, que é extracção de texto que está à vista. Daí o campo
+de extras por fornecedor no `FORNECEDORES`. **O `reasoning_effort` não
+vai para os outros**: nem todos o aceitam, e um 400 por um parâmetro a
+mais tirava o fornecedor da cadeia.
+
+**Mas num recorte de tamanho real (7070 caracteres) nenhum dos dois de
+reserva aguenta:**
+
+- **OpenRouter**: 429 sistemático — `z-ai/glm-5.2:free is temporarily
+  rate-limited upstream`, `limit_source: upstream_provider_shared_pool`.
+  O *pool* gratuito é partilhado por toda a gente e está contendido. A
+  própria mensagem sugere trazer chave própria de um fornecedor (BYOK).
+  Não é utilizável como reserva.
+- **NVIDIA**: `ReadTimeout` aos 240 s, mesmo com `reasoning_effort=low`,
+  depois de uma série de pedidos seguidos. O escalão gratuito parece pôr
+  em fila em vez de devolver 429, o que é pior: não se distingue de uma
+  avaria e ocupa o *timeout* todo.
+
+**Conclusão honesta: a cadeia está bem feita e não custa nada, mas
+nenhuma das duas reservas resolve mesmo uma paragem da Groq.** Ao ritmo
+normal — meia dúzia de concursos por dia — o NVIDIA provavelmente
+chega, porque a 3,5 s por pedido é perfeitamente utilizável; foi o
+disparo em rajada dos testes que o pôs em fila. O que a cadeia não faz é
+salvar uma releitura do acervo inteiro. Para isso o caminho é o que a
+própria mensagem de erro da Groq diz: **Dev Tier**.
+
+Efeito colateral de medir isto: os testes gastaram o orçamento diário
+da Groq (`Used 197803` de 200000). Repõe-se sozinho.
+
+Se a lentidão do NVIDIA se confirmar em uso normal, o passo seguinte é
+um *timeout* por fornecedor (ou pôr de lado quem estoirar, como se faz
+com quem esgota) — não está feito, de propósito, para não se optimizar
+contra uma medição feita em rajada.
 
 Os nomes dos ficheiros de chave já estão cobertos pelo `.gitignore`
 (`*[Aa][Pp][Ii]_[Kk][Ee][Yy]*`), de propósito largo — confirmado com

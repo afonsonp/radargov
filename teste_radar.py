@@ -1007,9 +1007,10 @@ class TestCadeiaDeFornecedores(unittest.TestCase):
     """
 
     FALSOS = (
-        ("groq", "https://groq/x", "modelo-groq", ("g.txt",), "G_KEY"),
-        ("openrouter", "https://or/x", "modelo-or", ("o.txt",), "O_KEY"),
-        ("nvidia", "https://nv/x", "modelo-nv", ("n.txt",), "N_KEY"),
+        ("groq", "https://groq/x", "modelo-groq", ("g.txt",), "G_KEY", {}),
+        ("openrouter", "https://or/x", "modelo-or", ("o.txt",), "O_KEY", {}),
+        ("nvidia", "https://nv/x", "modelo-nv", ("n.txt",), "N_KEY",
+         {"reasoning_effort": "low"}),
     )
 
     def setUp(self):
@@ -1045,6 +1046,13 @@ class TestCadeiaDeFornecedores(unittest.TestCase):
         self.com_chaves("g", "o", "n")
         cadeia = radar.cadeia_de_fornecedores({"fornecedor_pecas": "openrouter"})
         self.assertEqual([f[0] for f in cadeia], ["openrouter"])
+
+    def test_os_extras_viajam_com_o_fornecedor(self):
+        # o reasoning_effort do NVIDIA vale 3,5s em vez de 168s, e é só
+        # dele: um parâmetro a mais dava 400 noutro e tirava-o da cadeia
+        self.com_chaves("n")
+        self.assertEqual(radar.cadeia_de_fornecedores({})[0][4],
+                         {"reasoning_effort": "low"})
 
 
 class TestModeloDoFornecedor(unittest.TestCase):
@@ -1094,15 +1102,15 @@ class TestOrcamentoPorFornecedor(unittest.TestCase):
 
     def test_um_esgotado_nao_esgota_a_cadeia(self):
         # com "algum", bastava a Groq acabar para o painel dar o dia por
-        # perdido com o OpenRouter ainda a responder ao lado
-        cadeia = [("groq", "u", "m", "k"), ("openrouter", "u", "m", "k")]
+        # perdido com o NVIDIA ainda a responder ao lado
+        cadeia = [("groq", "u", "m", "k", {}), ("nvidia", "u", "m", "k", {})]
         radar.marcar_esgotado("groq")
         self.assertFalse(radar.cadeia_esgotada(cadeia))
 
     def test_todos_esgotados_esgotam_a_cadeia(self):
-        cadeia = [("groq", "u", "m", "k"), ("openrouter", "u", "m", "k")]
+        cadeia = [("groq", "u", "m", "k", {}), ("nvidia", "u", "m", "k", {})]
         radar.marcar_esgotado("groq")
-        radar.marcar_esgotado("openrouter")
+        radar.marcar_esgotado("nvidia")
         self.assertTrue(radar.cadeia_esgotada(cadeia))
 
     def test_cadeia_vazia_nao_esta_esgotada(self):
@@ -1156,13 +1164,14 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
 
     def responder(self, respostas):
         """respostas: {nome do modelo: (dados, aviso)}."""
-        def falso(url, chave, modelo, instrucao, texto):
+        def falso(url, chave, modelo, instrucao, texto, extras=None):
             self.chamados.append(modelo)
+            self.extras = extras
             return respostas.get(modelo, (None, "sem resposta"))
         radar._um_pedido = falso
 
-    CADEIA = [("groq", "u", "m-groq", "k"),
-              ("openrouter", "u", "m-or", "k")]
+    CADEIA = [("groq", "u", "m-groq", "k", {}),
+              ("nvidia", "u", "m-nv", "k", {"reasoning_effort": "low"})]
 
     def test_o_primeiro_que_responde_ganha(self):
         self.responder({"m-groq": ({"objecto": "x"}, "")})
@@ -1173,17 +1182,17 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
 
     def test_esgotado_o_primeiro_desce_para_o_segundo(self):
         self.responder({"m-groq": (None, radar.SEM_ORCAMENTO_HOJE),
-                        "m-or": ({"objecto": "y"}, "")})
+                        "m-nv": ({"objecto": "y"}, "")})
         dados, aviso, usado = radar._perguntar(self.CADEIA, "i", "t")
         self.assertEqual(dados, {"objecto": "y"})
-        self.assertEqual(usado, "openrouter:m-or")
+        self.assertEqual(usado, "nvidia:m-nv")
 
     def test_o_tecto_do_dia_fica_marcado_e_nao_se_repete(self):
         # sem esta memória, cada uma das três perguntas de cada concurso
         # voltava a bater na mesma porta fechada -- a hora deitada fora
         # que o SEM_ORCAMENTO_HOJE veio evitar
         self.responder({"m-groq": (None, radar.SEM_ORCAMENTO_HOJE),
-                        "m-or": ({"objecto": "y"}, "")})
+                        "m-nv": ({"objecto": "y"}, "")})
         radar._perguntar(self.CADEIA, "i", "t")
         radar._perguntar(self.CADEIA, "i", "t")
         self.assertTrue(radar.esta_esgotado("groq"))
@@ -1192,7 +1201,7 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
     def test_uma_falha_normal_nao_marca_esgotado(self):
         # um 500 passageiro não pode encerrar o fornecedor até amanhã
         self.responder({"m-groq": (None, "respondeu 500: ..."),
-                        "m-or": ({"objecto": "y"}, "")})
+                        "m-nv": ({"objecto": "y"}, "")})
         radar._perguntar(self.CADEIA, "i", "t")
         self.assertFalse(radar.esta_esgotado("groq"))
 
@@ -1202,7 +1211,7 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
         self.assertIsNone(dados)
         self.assertEqual(usado, "")
         self.assertIn("groq", aviso)
-        self.assertIn("openrouter", aviso)
+        self.assertIn("nvidia", aviso)
 
 
 class TestModeloGuardadoNaReleitura(unittest.TestCase):
