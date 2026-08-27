@@ -469,6 +469,55 @@ Nome: Preço
         self.assertIn("confirmar", linha[3])
 
 
+class TestSemIndice(unittest.TestCase):
+    """O sumário casa com todas as âncoras e não diz nada."""
+
+    def test_tira_as_linhas_pontilhadas(self):
+        d = ("Artigo 1.º | Objeto ............................ 2" + chr(10) +
+             "O presente caderno tem por objeto o fornecimento de X.")
+        r = radar.sem_indice(d)
+        self.assertNotIn("Artigo 1.º | Objeto", r)
+        self.assertIn("fornecimento de X", r)
+
+    def test_nao_mexe_no_texto_normal(self):
+        d = "Uma frase normal. Outra frase. E outra." + chr(10) + "Mais texto."
+        self.assertEqual(radar.sem_indice(d), d)
+
+    def test_pontos_espacados_tambem_contam(self):
+        # o pdf devolve "..... ..... ....." com espaços pelo meio
+        self.assertEqual(
+            radar.sem_indice("Cláusula 5ª Preço . . . . . . 7"), "")
+
+
+class TestJuntarLeituras(unittest.TestCase):
+    """Uma leitura parcial não pode apagar o que já estava lido."""
+
+    ANTES = {"objecto": "- fazer X", "equipa": "- 20 perfis com preços",
+             "documentos_proposta": "- DEUCP",
+             "preco_anormalmente_baixo": "40%"}
+
+    def test_o_pedido_que_falhou_mantem_o_valor_antigo(self):
+        # a tabela de 20 perfis do INFARMED desapareceu assim: 429 no
+        # pedido da equipa, chave ausente, INSERT por cima
+        junto = radar.juntar_leituras({"objecto": "- fazer Y"}, self.ANTES)
+        self.assertEqual(junto["objecto"], "- fazer Y")
+        self.assertEqual(junto["equipa"], "- 20 perfis com preços")
+        self.assertEqual(junto["documentos_proposta"], "- DEUCP")
+
+    def test_nao_consta_e_resposta_e_substitui(self):
+        junto = radar.juntar_leituras({"equipa": "não consta"}, self.ANTES)
+        self.assertEqual(junto["equipa"], "não consta")
+
+    def test_sem_leitura_anterior_fica_vazio(self):
+        junto = radar.juntar_leituras({"objecto": "- fazer X"}, None)
+        self.assertEqual(junto["objecto"], "- fazer X")
+        self.assertEqual(junto["equipa"], "")
+
+    def test_devolve_sempre_os_quatro_campos(self):
+        self.assertEqual(set(radar.juntar_leituras({}, None)),
+                         set(radar.CAMPOS_DA_ANALISE))
+
+
 class TestPapeisDaPeca(unittest.TestCase):
     """Que peça é cada ficheiro, pelo nome que a entidade lhe deu."""
 

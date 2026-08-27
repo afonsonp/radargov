@@ -1148,6 +1148,21 @@ def e_titulo(crua, curta):
                 or crua[0].isupper())
 
 
+# As primeiras paginas de um Caderno de Encargos sao o indice, e o
+# indice casa com todas as ancoras: "Artigo 1.o | Objeto ....... 2".
+# Sem isto, o recorte do 21275/2026 era o sumario -- e o modelo
+# respondia "nao consta" com o documento inteiro por ler ao lado.
+# Sao 2% das linhas do acervo; as unicas que nao sao indice sao os
+# espacos para preencher dos anexos ("em ........, na qualidade de").
+RX_LINHA_DE_INDICE = re.compile(r"\.\s*\.\s*\.\s*\.\s*\.")
+
+
+def sem_indice(texto):
+    """O texto sem as linhas pontilhadas do sumario."""
+    return "\n".join(l for l in texto.split("\n")
+                      if not RX_LINHA_DE_INDICE.search(l))
+
+
 def recorte_relevante(texto, ancoras, tecto, janela=3500):
     """As partes do documento que respondem ao que se procura.
 
@@ -1234,7 +1249,8 @@ def pecas_para_analise(ref, quais, ancoras, tecto=TECTO_RECORTE):
         if quais not in papeis_da_peca(d["nome"]):
             continue
         partes.append("### %s\n%s" % (
-            d["nome"], recorte_relevante(d["texto"], ancoras, tecto)))
+            d["nome"],
+            recorte_relevante(sem_indice(d["texto"]), ancoras, tecto)))
         usados.append(d["nome"])
     return "\n\n".join(partes)[:tecto * 2], usados
 
@@ -1259,10 +1275,32 @@ def espera_pedida(resposta, tecto=70):
     return min(float(achado.group(1)) + 1, tecto) if achado else 20.0
 
 
+CAMPOS_DA_ANALISE = ("objecto", "equipa", "documentos_proposta",
+                     "preco_anormalmente_baixo")
+
+
+def juntar_leituras(dados, anterior):
+    """Os campos lidos agora, guardando os de antes onde faltarem.
+
+    Sao tres pedidos por concurso: se um apanhar um 429, a chave dele
+    nem vem. Sem isto, o INSERT apagava o campo que ja estava bom --
+    aconteceu, e a tabela de 20 perfis do INFARMED desapareceu numa
+    releitura. Chave ausente e pedido falhado; "nao consta" e resposta
+    do modelo, e essa substitui.
+    """
+    def antes(nome):
+        try:
+            return (anterior[nome] if anterior else "") or ""
+        except (KeyError, IndexError):
+            return ""
+    return {c: limpa_campo(dados[c]) if c in dados else antes(c)
+            for c in CAMPOS_DA_ANALISE}
+
+
 def _perguntar(chave, modelo, instrucao, texto):
     """Uma pergunta ao modelo. Devolve (dados, aviso)."""
     try:
-        for tentativa in (1, 2):
+        for tentativa in (1, 2, 3):
             r = requests.post(GROQ_URL, timeout=180,
                               headers={"Authorization": "Bearer " + chave,
                                        "Content-Type": "application/json"},
@@ -1271,7 +1309,7 @@ def _perguntar(chave, modelo, instrucao, texto):
                                     "messages": [
                                         {"role": "system", "content": instrucao},
                                         {"role": "user", "content": texto}]})
-            if r.status_code != 429 or tentativa == 2:
+            if r.status_code != 429 or tentativa == 3:
                 break
             # A conta tem um tecto de tokens por minuto, e sao tres
             # perguntas por concurso. Isto corre em fundo, sem ninguem a
@@ -1323,14 +1361,18 @@ def analisar_pecas(ref):
     if not dados:
         return False, "; ".join(falhas)[:200]
 
+    anterior = analise_de(ref)
+    campos = juntar_leituras(dados, anterior)
+    if anterior and not usados:
+        usados = [anterior["fontes"]]
+
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
             (ref,objecto,equipa,documentos_proposta,preco_anormalmente_baixo,
              modelo,fontes,quando) VALUES (?,?,?,?,?,?,?,?)""",
-                  (ref, limpa_campo(dados.get("objecto")),
-                   limpa_campo(dados.get("equipa")),
-                   limpa_campo(dados.get("documentos_proposta")),
-                   limpa_campo(dados.get("preco_anormalmente_baixo")), modelo,
+                  (ref, campos["objecto"], campos["equipa"],
+                   campos["documentos_proposta"],
+                   campos["preco_anormalmente_baixo"], modelo,
                    ", ".join(usados),
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
     # Leitura parcial e melhor do que nenhuma, mas tem de se saber.
@@ -3623,13 +3665,12 @@ def main():
         for i, ref in enumerate(porler, 1):
             ini = time.time()
             ok, porque = analisar_pecas(ref)
+            estado = porque[:80] if porque else "lido"
             print("  [%d/%d] %-14s %s (%.0fs)" % (
-                i, len(porler), ref, "lido" if ok else porque[:70],
-                time.time() - ini))
-            lidos += 1 if ok else 0
-        print("%d lido(s)." % lidos)
+                i, len(porler), ref, estado, time.time() - ini))
+            lidos += 1 if ok and not porque else 0
+        print("%d lido(s) por inteiro." % lidos)
         return
-
     if "--uma-vez" in sys.argv:
         mensagem, novos = verificar(cfg)
         hora = min(cfg["horas_verificacao"],
