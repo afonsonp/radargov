@@ -226,6 +226,20 @@ Não são os do modelo. Medido a 2026-08-26, com a chave dele:
 O contexto de 131 mil tokens é irrelevante: quem manda é o tecto de
 **8000 tokens por minuto**, e um pedido acima disso leva 413, não 429.
 
+**E há um segundo tecto que não aparece em cabeçalho nenhum: 200 mil
+tokens por DIA.** Só se descobre pela mensagem de erro do 429
+(`on tokens per day (TPD): Limit 200000`). Custou uma hora a perceber:
+uma releitura do acervo ficou a moer, porque cada pedido esperava dois
+minutos antes de desistir de um limite que só passa no dia seguinte.
+`orcamento_do_dia_esgotado()` distingue os dois — o do minuto espera-se,
+o do dia pára tudo de imediato.
+
+Em números: uma leitura completa de um concurso são ~6 mil tokens (três
+pedidos de ~2 mil). O dia dá para uns **30 concursos**, que é muito mais
+do que o uso normal — mas só para **2 releituras do acervo inteiro**.
+Reler tudo é uma operação cara; usar `--ler-pecas` sem `tudo` sempre que
+chegue.
+
 Os 70 mil do `groq/compound` são ilusórios — por dentro encaminha para
 `meta-llama/llama-4-scout-17b-16e-instruct`, que tem tecto próprio e
 mais baixo. Devolve 429 a falar de um modelo que não se pediu. Não
