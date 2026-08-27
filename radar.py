@@ -33,7 +33,7 @@ import unicodedata
 import webbrowser
 import zipfile
 from datetime import datetime, timedelta
-from urllib.parse import parse_qsl, unquote, urlencode
+from urllib.parse import parse_qsl, quote, unquote, urlencode
 
 try:
     import requests
@@ -2019,6 +2019,24 @@ def iniciar_corpus():
                      MAX(1, (SELECT COUNT(*) FROM contrato_adjudicatario a
                              WHERE a.contrato_id = contratos.id))
                      WHERE n_adj IS NULL""")
+        # A chave da entidade: o NIF quando existe. Ver chave_entidade().
+        if "adjudicante_chave" not in cols:
+            c.execute("ALTER TABLE contratos ADD COLUMN adjudicante_chave TEXT")
+        cols_a = [r["name"] for r in
+                  c.execute("PRAGMA table_info(contrato_adjudicatario)")]
+        if "chave" not in cols_a:
+            c.execute("ALTER TABLE contrato_adjudicatario ADD COLUMN chave TEXT")
+        # Nome canonico por entidade: o mais usado. Medido, e o unico
+        # criterio que da o nome certo -- o mais curto dava "Servicos
+        # Centrais" para o IEFP e "CP" para os comboios.
+        c.execute("""CREATE TABLE IF NOT EXISTS entidades (
+            chave TEXT PRIMARY KEY, nif TEXT, nome TEXT, variantes INTEGER)""")
+        # Todos os nomes por que uma entidade ja apareceu, normalizados.
+        # E por aqui que o nome que o DR escreve num anuncio chega a
+        # entidade do corpus -- a `entidades` so tem o nome canonico, e
+        # o DR pode ter escrito uma das outras 86.
+        c.execute("""CREATE TABLE IF NOT EXISTS entidade_nomes (
+            nome_norm TEXT PRIMARY KEY, chave TEXT)""")
         for ddl in (
             "CREATE INDEX IF NOT EXISTS ix_ctr_nif ON contratos(adjudicante_nif)",
             "CREATE INDEX IF NOT EXISTS ix_ctr_norm ON contratos(adjudicante_norm)",
@@ -2051,6 +2069,22 @@ def iniciar_corpus():
             if not ja:
                 c.execute(limpeza)     # so a primeira vez, nao a cada arranque
                 c.execute(ddl)
+        for ddl in (
+            "CREATE INDEX IF NOT EXISTS ix_ctr_chave "
+            "ON contratos(adjudicante_chave)",
+            "CREATE INDEX IF NOT EXISTS ix_adj_chave "
+            "ON contrato_adjudicatario(chave)",
+        ):
+            c.execute(ddl)
+        # Corpus que veio de antes das chaves: enche-se o que falta e
+        # resolvem-se os nomes. Idempotente -- so corre quando ha buracos.
+        falta = c.execute("SELECT 1 FROM contratos "
+                          "WHERE adjudicante_chave IS NULL LIMIT 1").fetchone()
+        vazia = not c.execute("SELECT 1 FROM entidades LIMIT 1").fetchone()
+        tem = c.execute("SELECT 1 FROM contratos LIMIT 1").fetchone()
+        if falta or (vazia and tem):
+            _preencher_chaves(c)
+            resolver_entidades(c)
 
 
 def norma_entidade(nome):
@@ -2071,11 +2105,35 @@ def norma_entidade(nome):
 
 def _nif_e_nome(valor):
     """O BASE escreve as partes como ['123456789 - Nome'], por vezes so
-    o nome. Devolve (nif, nome) com o que houver."""
+    o nome. Devolve (nif, nome) com o que houver.
+
+    Quando o NIF nao e publico -- pessoas singulares -- o BASE escreve
+    um traco no lugar dele ("- - Filomena Ferreira"). Sem tirar esse
+    traco, o nome ficava com o "- - " colado e aparecia assim no painel.
+    """
     if isinstance(valor, list):
         valor = valor[0] if valor else ""
-    m = re.match(r"\s*(\d{9})\s*-\s*(.*)$", valor or "")
-    return (m.group(1), m.group(2).strip()) if m else ("", (valor or "").strip())
+    valor = valor or ""
+    m = re.match(r"\s*(\d{9})\s*-\s*(.*)$", valor)
+    if m:
+        return m.group(1), m.group(2).strip()
+    return "", re.sub(r"^\s*-\s*-\s*", "", valor).strip()
+
+
+def chave_entidade(nif, nome):
+    """A identidade de uma entidade, para agrupar.
+
+    O NIF quando existe, o nome normalizado quando nao. **O nome nao e a
+    identidade**: medido, a Universidade do Porto aparece com 84 nomes
+    (faculdades e servicos) e a MEO com 81, todos com o mesmo NIF.
+    Agrupar por nome partia uma entidade em dezenas.
+
+    Sem NIF ficam as pessoas singulares, que o BASE nao identifica: 11%
+    das linhas de adjudicatario, 5% do valor. Essas agrupam-se pelo nome,
+    que e o que ha -- dai o prefixo, para nunca colidirem com um NIF.
+    """
+    nif = (nif or "").strip()
+    return nif if re.fullmatch(r"\d{9}", nif) else "n:" + norma_entidade(nome)
 
 
 def _partes(valor):
@@ -2184,6 +2242,11 @@ def importar_contratos(anos, avisar=print):
         total += n
         avisar("%d: %d contratos em %.0f s" % (ano, n, time.time() - ini))
     with liga_corpus() as c:
+        # Os nomes canonicos dependem das contagens de todo o corpus, por
+        # isso resolvem-se no fim e nao ano a ano.
+        avisar("a resolver as entidades...")
+        _preencher_chaves(c)
+        resolver_entidades(c)
         c.execute("INSERT OR REPLACE INTO corpus_estado VALUES (?,?)",
                   ("ultima_importacao", datetime.now().strftime("%Y-%m-%d %H:%M")))
     return total
@@ -2254,6 +2317,71 @@ def _despejar(c, linhas, cpvs, adjs):
                       "VALUES (?,?,?,?)", adjs)
 
 
+def _preencher_chaves(c):
+    """A mesma regra do chave_entidade(), em SQL, para nao trazer 400 mil
+    linhas ao Python so para lhes por a chave. So mexe no que falta."""
+    digitos = "[0-9]" * 9
+    c.execute("UPDATE contratos SET adjudicante_chave = CASE"
+              " WHEN adjudicante_nif GLOB '%s' THEN adjudicante_nif"
+              " ELSE 'n:' || adjudicante_norm END"
+              " WHERE adjudicante_chave IS NULL" % digitos)
+    c.execute("UPDATE contrato_adjudicatario SET chave = CASE"
+              " WHEN nif GLOB '%s' THEN nif ELSE 'n:' || nome_norm END"
+              " WHERE chave IS NULL" % digitos)
+
+
+def resolver_entidades(c):
+    """Escolhe o nome por que cada entidade fica conhecida.
+
+    O mais usado, com o mais curto a desempatar. Medido: da
+    "Universidade do Porto" (1137 vezes) e nao uma das 84 faculdades, e
+    "Instituto do Emprego e da Formacao Profissional, IP" e nao
+    "Servicos Centrais". Uma entidade pode comprar e ganhar, por isso
+    contam-se os dois lados.
+    """
+    c.execute("DELETE FROM entidades")
+    c.execute("""
+        WITH todos AS (
+            SELECT adjudicante_chave chave, adjudicante_nif nif,
+                   adjudicante nome, COUNT(*) k
+            FROM contratos WHERE adjudicante_chave IS NOT NULL
+              AND adjudicante != '' GROUP BY 1,2,3
+            UNION ALL
+            SELECT chave, nif, nome, COUNT(*) k
+            FROM contrato_adjudicatario WHERE chave IS NOT NULL
+              AND nome != '' GROUP BY 1,2,3
+        ),
+        somado AS (SELECT chave, nif, nome, SUM(k) k FROM todos
+                   GROUP BY chave, nif, nome),
+        melhor AS (
+            SELECT chave, nif, nome,
+                   ROW_NUMBER() OVER (PARTITION BY chave
+                                      ORDER BY k DESC, LENGTH(nome)) pos,
+                   COUNT(*) OVER (PARTITION BY chave) variantes
+            FROM somado)
+        INSERT INTO entidades (chave, nif, nome, variantes)
+        SELECT chave, nif, nome, variantes FROM melhor WHERE pos = 1""")
+
+    # E agora o caminho inverso: de qualquer nome para a entidade. Um
+    # nome normalizado pode servir duas entidades com NIF diferente
+    # (homonimos); fica com a que mais o usa.
+    c.execute("DELETE FROM entidade_nomes")
+    c.execute("""
+        WITH todos AS (
+            SELECT adjudicante_norm nm, adjudicante_chave chave, COUNT(*) k
+            FROM contratos WHERE adjudicante_norm != '' GROUP BY 1,2
+            UNION ALL
+            SELECT nome_norm, chave, COUNT(*) k
+            FROM contrato_adjudicatario WHERE nome_norm != '' GROUP BY 1,2
+        ),
+        somado AS (SELECT nm, chave, SUM(k) k FROM todos GROUP BY nm, chave),
+        melhor AS (SELECT nm, chave,
+                          ROW_NUMBER() OVER (PARTITION BY nm ORDER BY k DESC) pos
+                   FROM somado)
+        INSERT INTO entidade_nomes (nome_norm, chave)
+        SELECT nm, chave FROM melhor WHERE pos = 1""")
+
+
 def ha_corpus():
     """Se o corpus existe e tem alguma coisa la dentro. O painel usa isto
     para nao prometer historico a quem ainda nao o importou."""
@@ -2290,22 +2418,25 @@ def historico_entidade(entidade, cpv="", limite=25):
     para o grupo. Devolve (linhas, quantos_ao_todo, quantos_do_cpv).
     """
     if not ha_corpus():
-        return [], 0, 0
-    alvo = norma_entidade(entidade)
+        return [], 0, 0, ""
+    # Pela chave e nao pelo nome: o DR escreve "Universidade do Porto" e o
+    # contrato pode estar assinado por uma das 86 faculdades, todas com o
+    # mesmo NIF. Ver entidade_por_nome().
+    alvo = entidade_por_nome(entidade)
     if not alvo:
-        return [], 0, 0
+        return [], 0, 0, ""
     prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
     with liga_corpus() as c:
         ao_todo = c.execute("SELECT COUNT(*) n FROM contratos "
-                            "WHERE adjudicante_norm=?", (alvo,)).fetchone()["n"]
+                            "WHERE adjudicante_chave=?", (alvo,)).fetchone()["n"]
         if not ao_todo:
-            return [], 0, 0
+            return [], 0, 0, ""
         do_cpv = 0
         if prefixos:
             do_cpv = c.execute(
                 "SELECT COUNT(DISTINCT c.id) n FROM contratos c "
                 "JOIN contrato_cpv v ON v.contrato_id=c.id "
-                "WHERE c.adjudicante_norm=? AND (%s)"
+                "WHERE c.adjudicante_chave=? AND (%s)"
                 % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos),
                 [alvo] + [p + "%" for p in prefixos]).fetchone()["n"]
         # Os do CPV primeiro, e dentro de cada grupo os mais recentes --
@@ -2319,12 +2450,16 @@ def historico_entidade(entidade, cpv="", limite=25):
             perto, valores = "0", [alvo, limite]
         linhas = c.execute(
             "SELECT c.*, %s AS do_cpv, "
-            "(SELECT group_concat(a.nome, ' + ') FROM contrato_adjudicatario a "
-            " WHERE a.contrato_id=c.id) AS ganhou "
-            "FROM contratos c WHERE c.adjudicante_norm=? "
+            "(SELECT group_concat(COALESCE(g.nome, a.nome), '|') "
+            " FROM contrato_adjudicatario a "
+            " LEFT JOIN entidades g ON g.chave=a.chave "
+            " WHERE a.contrato_id=c.id) AS ganhou, "
+            "(SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a "
+            " WHERE a.contrato_id=c.id) AS ganhou_ch "
+            "FROM contratos c WHERE c.adjudicante_chave=? "
             "ORDER BY do_cpv DESC, c.data_celebracao DESC LIMIT ?"
             % perto, valores).fetchall()
-    return linhas, ao_todo, do_cpv
+    return linhas, ao_todo, do_cpv, alvo
 
 
 def condicoes_contratos(args):
@@ -2369,6 +2504,19 @@ def condicoes_contratos(args):
         valores += [p + "%" for p in prefixos]
     elif (args.get("cpv") or "").strip():
         onde.append("1=0")            # codigo que nao da prefixo: vazio, nao tudo
+
+    # Por entidade, e nao por nome: e o que a ficha da entidade usa nos
+    # atalhos. Filtrar pelo nome mostrava menos contratos do que o numero
+    # que a ficha promete, porque a mesma entidade assina com varios.
+    ent = (args.get("ent") or "").strip()
+    if ent:
+        onde.append("c.adjudicante_chave = ?")
+        valores.append(ent)
+    venc = (args.get("venc") or "").strip()
+    if venc:
+        onde.append("EXISTS (SELECT 1 FROM contrato_adjudicatario a "
+                    "WHERE a.contrato_id=c.id AND a.chave=?)")
+        valores.append(venc)
 
     proc = (args.get("proc") or "").strip()
     if proc:
@@ -2580,6 +2728,30 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+/* ficha da entidade */
+.ent-cab{padding:20px 24px;margin-bottom:14px}
+.ent-cab .n{font:600 22px/1.25 var(--sans);color:var(--ink);letter-spacing:-.3px}
+.ent-cab .m{font:500 12px/1 var(--mono);color:var(--t5);margin-top:7px}
+.ent-nomes{margin-top:12px}
+.ent-nomes summary{cursor:pointer;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
+.ent-nomes summary:hover{color:var(--ink)}
+.ent-nomes>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.ent-nomes span{font:400 10.5px/1.3 var(--sans);color:var(--t4);
+ background:var(--linha2);padding:4px 8px;border-radius:4px}
+.kpis.dois{grid-template-columns:repeat(2,minmax(0,1fr))}
+.kpi .r{font:600 11px/1 var(--sans);color:var(--t5);text-transform:uppercase;
+ letter-spacing:.07em}
+.ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.ent-atalhos a{padding:9px 14px;border:1px solid var(--linha);border-radius:8px;
+ background:#fff;font:500 12px/1 var(--sans);color:var(--t3);
+ box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.ent-atalhos a:hover{border-color:var(--ink);color:var(--ink)}
+.graf-corpo.solto{padding:0}
+.bh .t a{color:var(--azul)}
+.bh .t a:hover{color:var(--ink);text-decoration:underline}
+.tab-contratos td a{color:var(--azul)}
+.tab-contratos td a:hover{text-decoration:underline}
+
 /* graficos dos contratos */
 .graf-corpo{padding:16px 18px;display:grid;
  grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
@@ -3994,23 +4166,34 @@ def resumo_contratos(args):
         # O valor reparte-se pelos adjudicatarios (c.n_adj): um contrato
         # ganho por um agrupamento de tres nao vale tres vezes o mercado
         # -- e ha um com 35.
+        # Agrupa-se pela chave da entidade, nao pelo nome: o nome nao e a
+        # identidade. Sem isto a MEO aparecia partida pelos 81 nomes com
+        # que assina, e nenhum deles chegava ao topo.
         ganha = c.execute(
             "WITH por_empresa AS ("
-            " SELECT a.nome n, SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k"
+            " SELECT a.chave ch, SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k"
             " FROM contratos c JOIN contrato_adjudicatario a"
             "   ON a.contrato_id=c.id" + onde +
-            " GROUP BY a.nome)"
-            " SELECT n, v, k, SUM(v) OVER () total, COUNT(*) OVER () quantas"
-            " FROM por_empresa ORDER BY v DESC LIMIT 10", valores).fetchall()
+            " GROUP BY +a.chave),"
+            # o nome vai buscar-se so as 10 que ficam: juntar a
+            # `entidades` antes do LIMIT eram 68 mil buscas ao indice
+            " topo AS (SELECT ch, v, k, SUM(v) OVER () total,"
+            "          COUNT(*) OVER () quantas FROM por_empresa"
+            "          ORDER BY v DESC LIMIT 10)"
+            " SELECT t.ch, COALESCE(e.nome, t.ch) n, t.v, t.k, t.total,"
+            " t.quantas FROM topo t LEFT JOIN entidades e ON e.chave = t.ch"
+            " ORDER BY t.v DESC", valores).fetchall()
         # O `+` desliga o indice de proposito: com ele, o SQLite varre o
         # indice e vai buscar cada linha ao acaso -- 1443 ms contra 477.
-        # Agrupa-se pelo nome normalizado para nao partir a mesma
-        # entidade escrita de duas maneiras (junta 636 nomes em 8247).
         compra = c.execute(
-            "SELECT MIN(c.adjudicante) n, SUM(c.preco_contratual) v, "
-            "COUNT(*) k FROM contratos c" + onde +
-            " GROUP BY +c.adjudicante_norm ORDER BY v DESC LIMIT 10",
-            valores).fetchall()
+            "WITH por_entidade AS ("
+            " SELECT c.adjudicante_chave ch, SUM(c.preco_contratual) v,"
+            " COUNT(*) k FROM contratos c" + onde +
+            " GROUP BY +c.adjudicante_chave"
+            " ORDER BY v DESC LIMIT 10)"
+            " SELECT p.ch, COALESCE(e.nome, p.ch) n, p.v, p.k"
+            " FROM por_entidade p LEFT JOIN entidades e ON e.chave = p.ch"
+            " ORDER BY p.v DESC", valores).fetchall()
         proc = c.execute(
             "SELECT c.tipo_procedimento p, COUNT(*) k, "
             "SUM(c.preco_contratual) v FROM contratos c" + onde +
@@ -4036,6 +4219,104 @@ def resumo_contratos(args):
             " AND c.preco_contratual > 0 GROUP BY e ORDER BY e",
             valores).fetchall()
     return ganha, compra, proc, trim, escal
+
+
+def entidade_por_nome(nome):
+    """A chave da entidade a partir de um nome escrito de qualquer
+    maneira. E o que liga o nome que o DR poe num anuncio a entidade do
+    corpus, que pode ter assinado com outro dos seus 86 nomes."""
+    if not ha_corpus():
+        return ""
+    norm = norma_entidade(nome)
+    if not norm:
+        return ""
+    with liga_corpus() as c:
+        r = c.execute("SELECT chave FROM entidade_nomes WHERE nome_norm=?",
+                      (norm,)).fetchone()
+    return r["chave"] if r else ""
+
+
+def ficha_entidade(chave):
+    """Tudo o que o corpus sabe sobre uma entidade, nos dois papeis.
+
+    A mesma entidade compra e ganha -- um municipio adjudica obras e
+    ganha candidaturas -- e por isso a ficha tem os dois lados em vez de
+    haver uma pagina de compradores e outra de fornecedores.
+    """
+    with liga_corpus() as c:
+        ident = c.execute("SELECT * FROM entidades WHERE chave=?",
+                          (chave,)).fetchone()
+        if not ident:
+            return None
+        d = {"chave": chave, "nome": ident["nome"], "nif": ident["nif"],
+             "variantes": ident["variantes"]}
+        d["nomes"] = [r["nome_norm"] for r in c.execute(
+            "SELECT nome_norm FROM entidade_nomes WHERE chave=? "
+            "ORDER BY nome_norm LIMIT 40", (chave,))]
+
+        # --- como comprador
+        d["compra"] = c.execute(
+            "SELECT COUNT(*) k, COALESCE(SUM(preco_contratual),0) v, "
+            "MIN(data_celebracao) de, MAX(data_celebracao) ate "
+            "FROM contratos WHERE adjudicante_chave=?", (chave,)).fetchone()
+        d["fornecedores"] = c.execute(
+            "WITH p AS (SELECT a.chave ch, SUM(c.preco_contratual/c.n_adj) v, "
+            " COUNT(*) k FROM contratos c JOIN contrato_adjudicatario a "
+            " ON a.contrato_id=c.id WHERE c.adjudicante_chave=? "
+            " GROUP BY +a.chave ORDER BY v DESC LIMIT 10) "
+            "SELECT p.ch, COALESCE(e.nome,p.ch) n, p.v, p.k FROM p "
+            "LEFT JOIN entidades e ON e.chave=p.ch ORDER BY p.v DESC",
+            (chave,)).fetchall()
+        d["compra_proc"] = c.execute(
+            "SELECT tipo_procedimento p, COUNT(*) k, SUM(preco_contratual) v "
+            "FROM contratos WHERE adjudicante_chave=? GROUP BY p "
+            "ORDER BY v DESC LIMIT 8", (chave,)).fetchall()
+        d["compra_cpv"] = c.execute(
+            "SELECT v.cpv8 cod, COUNT(*) k, SUM(c.preco_contratual/"
+            " (SELECT COUNT(*) FROM contrato_cpv x WHERE x.contrato_id=c.id)) v "
+            "FROM contratos c JOIN contrato_cpv v ON v.contrato_id=c.id "
+            "WHERE c.adjudicante_chave=? GROUP BY v.cpv8 "
+            "ORDER BY v DESC LIMIT 10", (chave,)).fetchall()
+
+        # --- como fornecedor
+        d["ganha"] = c.execute(
+            "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual/c.n_adj),0) v, "
+            "MIN(c.data_celebracao) de, MAX(c.data_celebracao) ate "
+            "FROM contratos c JOIN contrato_adjudicatario a "
+            "ON a.contrato_id=c.id WHERE a.chave=?", (chave,)).fetchone()
+        d["clientes"] = c.execute(
+            "WITH p AS (SELECT c.adjudicante_chave ch, "
+            " SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k "
+            " FROM contratos c JOIN contrato_adjudicatario a "
+            " ON a.contrato_id=c.id WHERE a.chave=? "
+            " GROUP BY +c.adjudicante_chave ORDER BY v DESC LIMIT 10) "
+            "SELECT p.ch, COALESCE(e.nome,p.ch) n, p.v, p.k FROM p "
+            "LEFT JOIN entidades e ON e.chave=p.ch ORDER BY p.v DESC",
+            (chave,)).fetchall()
+        d["ganha_cpv"] = c.execute(
+            "SELECT v.cpv8 cod, COUNT(*) k, SUM(c.preco_contratual/c.n_adj/"
+            " (SELECT COUNT(*) FROM contrato_cpv x WHERE x.contrato_id=c.id)) v "
+            "FROM contratos c JOIN contrato_adjudicatario a "
+            " ON a.contrato_id=c.id JOIN contrato_cpv v ON v.contrato_id=c.id "
+            "WHERE a.chave=? GROUP BY v.cpv8 ORDER BY v DESC LIMIT 10",
+            (chave,)).fetchall()
+        d["ganha_trim"] = c.execute(
+            "SELECT substr(c.data_celebracao,1,4) || ' T' || "
+            " ((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3) t, "
+            "COUNT(*) k, SUM(c.preco_contratual/c.n_adj) v "
+            "FROM contratos c JOIN contrato_adjudicatario a "
+            "ON a.contrato_id=c.id WHERE a.chave=? AND c.data_celebracao!='' "
+            "GROUP BY t ORDER BY t", (chave,)).fetchall()
+        d["recentes"] = c.execute(
+            "SELECT c.id, c.data_celebracao, c.objecto, c.preco_contratual, "
+            "c.tipo_procedimento, c.adjudicante_chave, "
+            "COALESCE(e.nome,c.adjudicante) outro, 'ganhou' papel "
+            "FROM contratos c JOIN contrato_adjudicatario a "
+            " ON a.contrato_id=c.id "
+            "LEFT JOIN entidades e ON e.chave=c.adjudicante_chave "
+            "WHERE a.chave=? ORDER BY c.data_celebracao DESC LIMIT 12",
+            (chave,)).fetchall()
+    return d
 
 
 ESCALOES = ("< 5 k€", "5 – 25 k€", "25 – 75 k€", "75 – 200 k€",
@@ -4107,18 +4388,26 @@ def concentracao_html(ganha):
                euros_curto(quota), euros_curto(total)))
 
 
-def barras_h(linhas, titulo, nota=""):
-    """Barras horizontais: os nomes sao longos e nao cabem por baixo."""
+def barras_h(linhas, titulo, nota="", ligar=False):
+    """Barras horizontais: os nomes sao longos e nao cabem por baixo.
+
+    Com `ligar`, o nome leva a ficha da entidade -- e preciso que as
+    linhas tragam um `ch` com a chave. Sem chave, fica texto: mais vale
+    um nome sem ligacao do que uma ligacao para lado nenhum.
+    """
     if not linhas:
         return ""
     maior = max(l["v"] for l in linhas) or 1
     corpo = []
     for l in linhas:
+        chave = l["ch"] if ligar and "ch" in l.keys() else ""
+        etiqueta = (liga_entidade(chave, l["n"]) if chave
+                    else html.escape(l["n"]))
         corpo.append(
             "<div class='bh'><span class='t' title='%s'>%s</span>"
             "<span class='r'><i style='width:%.1f%%'></i></span>"
             "<span class='v'>%s</span><span class='k'>%s</span></div>"
-            % (html.escape(l["n"], quote=True), html.escape(l["n"]),
+            % (html.escape(l["n"], quote=True), etiqueta,
                100.0 * l["v"] / maior, euros_curto(l["v"]),
                "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
     return ("<div class='cx graf'><div class='rot'>%s</div>%s"
@@ -4187,9 +4476,10 @@ def contratos_resumo():
     partes = [
         barras_h(ganha, "Quem ganha",
                  "Valor adjudicado, do maior para o menor. Um contrato "
-                 "ganho por um agrupamento reparte-se pelos membros."),
+                 "ganho por um agrupamento reparte-se pelos membros. "
+                 "Carrega no nome para a ficha da empresa.", ligar=True),
         barras_h(compra, "Quem compra",
-                 "As entidades que mais adjudicaram, por valor."),
+                 "As entidades que mais adjudicaram, por valor.", ligar=True),
         barras_h([{"n": p["p"], "v": p["v"], "k": p["k"]} for p in proc],
                  "Como se compra",
                  "Por tipo de procedimento. O que não é concurso não teve "
@@ -4202,6 +4492,134 @@ def contratos_resumo():
                  parcial=trimestre_de(datetime.now())),
     ]
     return Response("".join(partes), mimetype="text/html")
+
+
+def liga_entidade(chave, nome, classe=""):
+    """O nome de uma entidade, a levar para a ficha dela."""
+    if not chave:
+        return html.escape(nome or "—")
+    return ("<a class='%s' href='/entidade/%s'>%s</a>"
+            % (classe, quote(chave, safe=""), html.escape(nome or chave)))
+
+
+def cpv_html(linhas, titulo, nota, ligar):
+    """Os CPV mais fortes, com a descricao do vocabulario quando ha."""
+    if not linhas:
+        return ""
+    with liga() as c:
+        desc = {r["codigo8"]: r["descricao"] for r in c.execute(
+            "SELECT codigo8, descricao FROM cpv_dict WHERE codigo8 IN (%s)"
+            % ",".join("?" * len(linhas)), [l["cod"] for l in linhas])}
+    itens = [{"n": "%s — %s" % (l["cod"], desc.get(l["cod"], "sem descrição")),
+              "v": l["v"], "k": l["k"], "cod": l["cod"]} for l in linhas]
+    return barras_h(itens, titulo, nota, ligar=ligar)
+
+
+@app.route("/entidade/<path:chave>")
+def entidade(chave):
+    if not ha_corpus():
+        return sem_corpus_html("Entidade")
+    d = ficha_entidade(chave)
+    if not d:
+        return ("Entidade não encontrada no corpus. "
+                "<a href='/contratos'>voltar</a>", 404)
+
+    compra, ganha = d["compra"], d["ganha"]
+    kpis = []
+    for etiqueta, quantos, valor, sufixo in (
+            ("Compra", compra["k"], compra["v"], "adjudicado a outros"),
+            ("Ganha", ganha["k"], ganha["v"], "adjudicado a si")):
+        kpis.append("<div class='cx kpi'><div class='r'>%s</div>"
+                    "<div class='v'>%s</div><div class='d'>%s contrato%s "
+                    "&middot; %s</div></div>"
+                    % (etiqueta, euros_curto(valor), mil_pt(quantos),
+                       "" if quantos == 1 else "s", sufixo))
+
+    # Ligacoes para a lista, ja filtrada por esta entidade nos dois papeis
+    ligacoes = []
+    if compra["k"]:
+        ligacoes.append("<a href='/contratos?ent=%s'>ver os %s contratos que "
+                        "adjudicou</a>" % (quote(chave, safe=""),
+                                           mil_pt(compra["k"])))
+    if ganha["k"]:
+        ligacoes.append("<a href='/contratos?venc=%s'>ver os %s que "
+                        "ganhou</a>" % (quote(chave, safe=""),
+                                        mil_pt(ganha["k"])))
+    atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
+
+    blocos = []
+    if compra["k"]:
+        blocos.append(barras_h(d["fornecedores"], "A quem compra",
+                               "Os fornecedores que mais receberam desta "
+                               "entidade.", ligar=True))
+        blocos.append(cpv_html(d["compra_cpv"], "O que compra",
+                               "Por CPV, valor repartido quando o contrato "
+                               "tem vários.", ligar=False))
+        blocos.append(barras_h(
+            [{"n": p["p"], "v": p["v"], "k": p["k"]} for p in d["compra_proc"]],
+            "Como compra",
+            "Por tipo de procedimento. O que não é concurso não teve "
+            "anúncio &mdash; não era concorrível."))
+    if ganha["k"]:
+        blocos.append(barras_h(d["clientes"], "A quem vende",
+                               "As entidades que mais lhe adjudicaram.",
+                               ligar=True))
+        blocos.append(cpv_html(d["ganha_cpv"], "O que ganha",
+                               "Por CPV, com o valor repartido.", ligar=False))
+        blocos.append(barras_v(d["ganha_trim"], "O que ganhou, por trimestre",
+                               "O trimestre a decorrer vai às riscas.",
+                               parcial=trimestre_de(datetime.now())))
+
+    if d["recentes"]:
+        linhas_r = "".join(
+            "<tr><td class='d'>%s</td><td class='o'>%s</td>"
+            "<td class='g'>%s</td><td>%s</td><td class='p'>%s</td></tr>"
+            % (html.escape(r["data_celebracao"] or "—"),
+               html.escape((r["objecto"] or "")[:130]),
+               liga_entidade(r["adjudicante_chave"], r["outro"]),
+               html.escape(r["tipo_procedimento"] or ""),
+               euros(r["preco_contratual"]))
+            for r in d["recentes"])
+        recentes = ("<div class='cx tab-cx' style='margin-top:14px'>"
+                    "<table class='tab-contratos'><thead><tr>"
+                    "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
+                    "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
+                    "<tbody>%s</tbody></table></div>" % linhas_r)
+    else:
+        recentes = ""
+
+    # Os outros nomes por que assina. E o que explica porque e que somar
+    # "a olho" pelo nome dava outro numero.
+    if d["variantes"] > 1:
+        nomes = ("<details class='ent-nomes'><summary>Assina com %d nomes "
+                 "diferentes &mdash; todos contam para estes números"
+                 "</summary><div>%s</div></details>"
+                 % (d["variantes"],
+                    "".join("<span>%s</span>" % html.escape(n)
+                            for n in d["nomes"])))
+    else:
+        nomes = ""
+
+    ident = ("<div class='cx ent-cab'><div class='n'>%s</div>"
+             "<div class='m'>%s</div>%s</div>"
+             % (html.escape(d["nome"]),
+                ("NIF %s" % html.escape(d["nif"])) if d["nif"]
+                else "sem NIF público &mdash; identificada pelo nome",
+                nomes))
+
+    conteudo = ("<div class='larg'>" + ident +
+                "<div class='kpis dois'>" + "".join(kpis) + "</div>" +
+                atalhos + "<div class='graf-corpo solto'>" +
+                "".join(blocos) + "</div>" + recentes + "</div>")
+
+    return envolver(
+        "contratos", d["nome"],
+        "O que esta entidade compra e ganha, segundo o Portal BASE.",
+        conteudo,
+        migalhas=("<a href='/'>Anúncios</a><s>&rsaquo;</s>"
+                  "<a href='/contratos'>Contratos</a><s>&rsaquo;</s><em>%s</em>"
+                  % html.escape(d["nome"][:40])),
+        titulo_aba="%s, Radar de Concursos" % d["nome"][:40])
 
 
 def sem_corpus_html(titulo):
@@ -4232,9 +4650,15 @@ def contratos():
         paginas = max(1, -(-correspondem // POR_PAGINA))
         pagina = min(max(1, pagina_pedida(request.args)), paginas)
         linhas = c.execute(
-            "SELECT c.*, (SELECT group_concat(a.nome, ' + ') "
-            " FROM contrato_adjudicatario a WHERE a.contrato_id=c.id) ganhou "
-            "FROM contratos c" + onde +
+            "SELECT c.*, COALESCE(e.nome, c.adjudicante) adj_nome, "
+            "(SELECT group_concat(COALESCE(g.nome, a.nome), '|') "
+            " FROM contrato_adjudicatario a "
+            " LEFT JOIN entidades g ON g.chave=a.chave "
+            " WHERE a.contrato_id=c.id) ganhou, "
+            "(SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a "
+            " WHERE a.contrato_id=c.id) ganhou_ch "
+            "FROM contratos c LEFT JOIN entidades e "
+            " ON e.chave=c.adjudicante_chave" + onde +
             " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ? OFFSET ?",
             valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
         procs = [r["p"] for r in c.execute(
@@ -4280,14 +4704,21 @@ def contratos():
     if linhas:
         corpo = []
         for l in linhas:
+            # os adjudicatarios vem em duas listas paralelas (nome e
+            # chave), separadas por | -- a virgula ja aparece nos nomes
+            nomes = (l["ganhou"] or "").split("|")
+            chaves = (l["ganhou_ch"] or "").split("|")
+            venceu = " + ".join(
+                liga_entidade(ch, n) for n, ch in zip(nomes, chaves)
+                if n) or "—"
             corpo.append(
                 "<tr><td class='d'>%s</td><td class='o'>%s</td>"
                 "<td>%s</td><td class='g'>%s</td><td>%s</td>"
                 "<td class='p'>%s</td></tr>"
                 % (html.escape(l["data_celebracao"] or "—"),
                    html.escape((l["objecto"] or "")[:150]),
-                   html.escape(l["adjudicante"] or ""),
-                   html.escape(l["ganhou"] or "—"),
+                   liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
+                   venceu,
                    html.escape(l["tipo_procedimento"] or ""),
                    euros(l["preco_contratual"])))
         tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
@@ -4323,13 +4754,28 @@ def contratos():
     # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
     # esta a filtrar e da onde carregar para o tirar.
     cpv_actual = (request.args.get("cpv") or "").strip()
+    faixas = []
     if cpv_actual:
         sem = args_da_lista(request.args, cpv="")
-        faixa_cpv = ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
-                     "<a href='/contratos?%s'>tirar</a></div>"
-                     % (html.escape(cpv_actual), urlencode(sem)))
-    else:
-        faixa_cpv = ""
+        faixas.append("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
+                      "<a href='/contratos?%s'>tirar</a></div>"
+                      % (html.escape(cpv_actual), urlencode(sem)))
+    # A chave da entidade e opaca na URL: diz-se de quem e, e da-se a
+    # ficha ao lado.
+    for campo, papel in (("ent", "adjudicadas por"), ("venc", "ganhas por")):
+        valor = (request.args.get(campo) or "").strip()
+        if not valor:
+            continue
+        with liga_corpus() as c:
+            r = c.execute("SELECT nome FROM entidades WHERE chave=?",
+                          (valor,)).fetchone()
+        sem = args_da_lista(request.args, **{campo: ""})
+        faixas.append("<div class='cpv-activo'>Só as %s <b>%s</b>"
+                      "<a href='/entidade/%s'>ficha</a>"
+                      "<a href='/contratos?%s'>tirar</a></div>"
+                      % (papel, html.escape(r["nome"] if r else valor),
+                         quote(valor, safe=""), urlencode(sem)))
+    faixa_cpv = "".join(faixas)
 
     # Pedidos so ao abrir, como a arvore: sao ~800 ms de consultas e a
     # tabela nao tem de esperar por eles.
@@ -4585,8 +5031,8 @@ def mercado(a):
                 "<code>python radar.py --contratos</code> para o trazer do "
                 "dados.gov (domínio público, sem chave).</div></div>")
 
-    linhas, ao_todo, do_cpv = historico_entidade(a["entidade"] or "",
-                                                 a["cpv"] or "")
+    linhas, ao_todo, do_cpv, chave = historico_entidade(a["entidade"] or "",
+                                                        a["cpv"] or "")
     if not ao_todo:
         return ("<div class='cx mercado'><div class='rot'>Histórico de "
                 "adjudicações</div><div class='nota' style='margin-top:8px'>"
@@ -4596,13 +5042,17 @@ def mercado(a):
 
     corpo = []
     for l in linhas:
+        nomes = (l["ganhou"] or "").split("|")
+        chaves = (l["ganhou_ch"] or "").split("|")
+        venceu = " + ".join(liga_entidade(ch, n)
+                            for n, ch in zip(nomes, chaves) if n) or "—"
         corpo.append(
             "<tr class='%s'><td class='d'>%s</td><td>%s</td>"
             "<td class='g'>%s</td><td class='p'>%s</td></tr>"
             % ("docpv" if l["do_cpv"] else "",
                html.escape(l["data_celebracao"] or "—"),
                html.escape(l["tipo_procedimento"] or ""),
-               html.escape(l["ganhou"] or "—"),
+               venceu,
                euros(l["preco_contratual"])))
 
     if a["cpv"]:
@@ -4611,6 +5061,8 @@ def mercado(a):
                                html.escape(a["cpv"])))
     else:
         resumo = "%s contratos desta entidade" % mil_pt(ao_todo)
+    resumo += (" &middot; <a href='/entidade/%s'>ficha da entidade</a>"
+               % quote(chave, safe=""))
 
     return ("<div class='cx mercado'>"
             "<div class='rot'>Histórico de adjudicações</div>"

@@ -1669,6 +1669,80 @@ class TestDestaqueNasBarras(unittest.TestCase):
         self.assertNotIn("€", saiu)
 
 
+class TestChaveDeEntidade(unittest.TestCase):
+    """**O nome não é a identidade.** Medido no corpus: a Universidade do
+    Porto aparece com 87 nomes (faculdades e serviços) e a MEO com 81,
+    todos com o mesmo NIF. Agrupar por nome partia uma entidade em
+    dezenas e nenhuma das partes chegava ao topo dos gráficos.
+    """
+
+    def test_o_nif_manda_quando_existe(self):
+        self.assertEqual(radar.chave_entidade("501413197", "Universidade do Porto"),
+                         "501413197")
+
+    def test_o_mesmo_nif_com_nomes_diferentes_da_a_mesma_chave(self):
+        a = radar.chave_entidade("501413197", "Universidade do Porto")
+        b = radar.chave_entidade("501413197", "UP - Faculdade de Arquitetura")
+        self.assertEqual(a, b)
+
+    def test_sem_nif_cai_no_nome_normalizado(self):
+        # pessoas singulares: 11% das linhas, 5% do valor
+        ch = radar.chave_entidade("", "Filomena Guimarães Ferreira")
+        self.assertEqual(ch, "n:filomena guimaraes ferreira")
+
+    def test_a_chave_por_nome_nunca_colide_com_um_nif(self):
+        # sem o prefixo, alguém chamado "123456789" colidia com esse NIF
+        self.assertTrue(radar.chave_entidade("", "123456789").startswith("n:"))
+
+    def test_nif_mal_formado_nao_passa_por_nif(self):
+        for mau in ("-", "12345", "1234567890", "abc123456"):
+            with self.subTest(mau=mau):
+                self.assertTrue(radar.chave_entidade(mau, "X").startswith("n:"))
+
+
+class TestNifENomeComTraco(unittest.TestCase):
+    """Quando o NIF não é público o BASE escreve um traço no lugar dele.
+    Sem o tirar, o nome ficava com o "- - " colado e aparecia assim no
+    painel."""
+
+    def test_traco_no_lugar_do_nif(self):
+        self.assertEqual(radar._nif_e_nome(["- - Filomena Ferreira"]),
+                         ("", "Filomena Ferreira"))
+
+    def test_nif_a_serio_continua_a_separar_se(self):
+        self.assertEqual(radar._nif_e_nome(["504615947 - MEO, S.A."]),
+                         ("504615947", "MEO, S.A."))
+
+    def test_nome_que_comeca_por_traco_a_serio_nao_e_comido(self):
+        # um traço só não é o padrão do NIF em falta, que são dois
+        self.assertEqual(radar._nif_e_nome(["- Alguma coisa"])[1],
+                         "- Alguma coisa")
+
+
+class TestFiltroPorEntidade(unittest.TestCase):
+    """Os atalhos da ficha filtram por entidade e não por nome: contado
+    por NIF, o número da ficha era maior do que o que a lista mostrava
+    ao filtrar pelo nome."""
+
+    def test_adjudicante_por_chave(self):
+        onde, valores = radar.condicoes_contratos({"ent": "501413197"})
+        self.assertIn("c.adjudicante_chave = ?", onde)
+        self.assertIn("501413197", valores)
+
+    def test_vencedor_por_chave_usa_exists(self):
+        onde, valores = radar.condicoes_contratos({"venc": "504615947"})
+        self.assertIn("EXISTS", onde)
+        self.assertIn("a.chave=?", onde)
+        self.assertIn("504615947", valores)
+
+    def test_os_dois_ao_mesmo_tempo(self):
+        # "o que a MEO ganhou à Universidade do Porto"
+        onde, valores = radar.condicoes_contratos(
+            {"ent": "501413197", "venc": "504615947"})
+        self.assertEqual(len(valores), 2)
+        self.assertIn(" AND ", onde)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -918,6 +918,74 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+### O nome não é a identidade — o NIF é
+
+O Afonso reparou: "entidades que são as mesmas têm variações nos nomes".
+Foi medir, e é pior do que parecia:
+
+| | nomes | NIFs |
+|---|---|---|
+| adjudicantes | 8 247 | **5 948** |
+| adjudicatários | 95 567 | **40 351** |
+
+A **Universidade do Porto assina com 87 nomes** (faculdades, serviços,
+institutos), o IEFP com 65 (os centros regionais), a **MEO com 81**, a
+Bricantel com 50 — todos com o mesmo NIF. Agrupar por nome partia uma
+entidade em dezenas, e nenhuma das partes chegava ao topo. Depois de
+corrigir, a MEO entra no top 3 de TI, onde antes não aparecia de todo, e
+a Petrogal passa de 304 M€ para 474 M€.
+
+A correcção é uma **chave de entidade**: o NIF quando existe, o nome
+normalizado com prefixo `n:` quando não. Sem NIF ficam as pessoas
+singulares, que o BASE não identifica — 11% das linhas de adjudicatário,
+mas só **5% do valor**. O prefixo evita que alguém chamado "123456789"
+colida com esse NIF.
+
+Duas tabelas novas:
+
+- **`entidades`** — o nome canónico de cada chave. É **o mais usado**,
+  com o mais curto a desempatar. Medido: dá "Universidade do Porto"
+  (1 137 vezes) e não uma das 87 faculdades. O critério "mais curto"
+  sozinho dava "Serviços Centrais" para o IEFP e "CP" para os comboios.
+- **`entidade_nomes`** — todos os nomes por que uma entidade já apareceu,
+  normalizados, a apontar para a chave. É por aqui que o nome que o DR
+  escreve num anúncio chega à entidade do corpus, que pode ter assinado
+  com outro dos seus 87 nomes. Subiu a resolução de 93,7% para 94,3%, e
+  mais importante, passou a apanhar **todos** os contratos da entidade:
+  o EMGFA foi de 2 342 para 2 628, e de 18 para 27 no CPV da ficha.
+
+Também se corrigiu o parser: quando o NIF não é público o BASE escreve
+um traço no lugar dele (`- - Filomena Ferreira`), e o nome ficava com o
+`- - ` colado.
+
+**O `+` do `GROUP BY` ficou ainda mais importante.** Com a chave
+indexada, `GROUP BY a.chave` levava **17 segundos** num filtro por CPV;
+com `+a.chave`, 1,5 s. E o `LEFT JOIN entidades` mudou-se para **depois
+do `LIMIT`**: juntar antes eram 68 mil buscas ao índice para mostrar 10
+linhas.
+
+### Ficha da entidade
+
+Pedido do Afonso: carregar num nome e ver um resumo. Rota
+`/entidade/<chave>`, com **os dois papéis na mesma página** — a mesma
+entidade compra e ganha (a Universidade do Porto compra 105,3 M€ e ganha
+3,4 M€), e ter uma página de compradores e outra de fornecedores partia
+isso ao meio.
+
+Traz: identificação com o NIF e quantos nomes usa (aberto num `<details>`
+— é o que explica porque é que somar "a olho" pelo nome dava outro
+número); dois KPI, compra e ganha; a quem compra / a quem vende, o que
+compra / o que ganha por CPV, como compra, e a evolução trimestral do
+que ganha; e os 12 contratos mais recentes.
+
+Chega-se lá de todo o lado: dos gráficos, da tabela de contratos, e do
+bloco de histórico na ficha do anúncio. Os nomes são ligações.
+
+**Os atalhos filtram por entidade, não por nome.** `/contratos?ent=` e
+`?venc=` filtram pela chave, e a lista mostra uma faixa a dizer de quem
+é. Sem isso o atalho prometia 1 871 contratos e mostrava menos, porque
+o número da ficha estava contado por NIF e o filtro era por nome.
+
 ### Ligar uma entidade do radar às adjudicações dela
 
 É a peça de que depende o ganho todo, e não era garantida: o radar

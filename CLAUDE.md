@@ -66,7 +66,8 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
    de contar com elas.
 6. **contratos celebrados (BASE)** — `importar_contratos()` traz o dump
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
-   próprio. `historico_entidade()` responde ao bloco da ficha.
+   próprio. `historico_entidade()` responde ao bloco da ficha do
+   anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
 7. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Vistas: anúncios (`/`), contratos
    (`/contratos`), ficha (`/anuncio/<ref>`), quadro kanban, calendário,
@@ -102,11 +103,18 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   três vezes o mercado. O trimestre a decorrer vai às riscas, senão
   parece uma queda a pique. São seis: quem ganha, quem compra, como se
   compra, concentração, tamanho dos contratos, evolução.
-- **No "quem compra", o `+` de `GROUP BY +c.adjudicante_norm` não se
-  tira.** Desliga o índice de propósito: com ele, o SQLite varre o
-  índice e vai buscar cada linha ao acaso — 1 443 ms contra 477, mesmo
-  resultado. Agrupa-se pelo normalizado, não pelo nome em bruto, porque
-  junta 636 variantes da mesma entidade.
+- **O nome não é a identidade de uma entidade: o NIF é.** A Universidade
+  do Porto assina com 87 nomes e a MEO com 81, todos com o mesmo NIF.
+  Agrupa-se sempre por `chave` (`chave_entidade()`: o NIF, ou `n:` mais o
+  nome normalizado quando não há). `entidades` guarda o nome canónico —
+  o mais usado — e `entidade_nomes` mapeia qualquer variante à chave, que
+  é como o nome que o DR escreve chega ao corpus. Nunca agrupes nem
+  filtres por `adjudicante` ou `a.nome`.
+- **O `+` de `GROUP BY +a.chave` não se tira.** Desliga o índice de
+  propósito: com ele o SQLite varre o índice e vai buscar cada linha ao
+  acaso — **17 segundos** contra 1,5 num filtro por CPV. Pela mesma
+  razão, o `LEFT JOIN entidades` vai **depois do `LIMIT`**: antes eram
+  68 mil buscas ao índice para mostrar 10 linhas.
 - **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
   põe um `data-de` no `<details>` e o JS lê dali a rota
   (`/cpv.json?de=anuncios|contratos`); `FONTES_CPV` diz de onde se conta.
