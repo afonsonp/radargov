@@ -13,6 +13,8 @@ __pycache__/
 *.pyc
 painel.log
 config.json.estragado
+# permissoes desta maquina; os hooks e as skills ficam no historico, isto nao
+.claude/settings.local.json
 
 # rascunhos de investigacao
 _*.txt
