@@ -3958,9 +3958,11 @@ def contratos():
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='adj' value='%s' placeholder='Entidade adjudicante…'>"
         "<input type='text' name='ganhou' value='%s' placeholder='Quem ganhou…'>"
-        # o mesmo id que nos anuncios: e por ele que a arvore escreve e le
-        "<input type='text' id='filtro-cpv' name='cpv' value='%s' "
-        "placeholder='CPV, ex. 72000000'>"
+        # Escondido, como nos anuncios: quem escolhe o CPV e a arvore, e
+        # uma caixa de texto ao lado dela so convidava a escrever a mao um
+        # codigo que a arvore a seguir apagava. O id e o mesmo nos dois
+        # separadores -- e por ele que a arvore le e escreve.
+        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<select name='proc'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
@@ -4014,7 +4016,20 @@ def contratos():
                 "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
                 else str(anos[0]) if anos else "—"))
 
-    conteudo = ("<div class='larg'>" + filtros + arvore_html(n_cpv, "contratos") +
+    # O campo do CPV e escondido, por isso um filtro activo nao se via em
+    # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
+    # esta a filtrar e da onde carregar para o tirar.
+    cpv_actual = (request.args.get("cpv") or "").strip()
+    if cpv_actual:
+        sem = args_da_lista(request.args, cpv="")
+        faixa_cpv = ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
+                     "<a href='/contratos?%s'>tirar</a></div>"
+                     % (html.escape(cpv_actual), urlencode(sem)))
+    else:
+        faixa_cpv = ""
+
+    conteudo = ("<div class='larg'>" + filtros + faixa_cpv +
+                arvore_html(n_cpv, "contratos") +
                 "<div class='linha-conta'>" + conta + "</div>" + tabela +
                 paginador(pagina, paginas, request.args, "/contratos") +
                 fonte + "</div>")
