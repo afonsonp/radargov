@@ -1427,6 +1427,53 @@ class TestPartesDoBase(unittest.TestCase):
         self.assertEqual(radar._data_iso("sem data"), "")
 
 
+class TestCondicoesContratos(unittest.TestCase):
+    """Os filtros do separador dos contratos. Lista própria e filtros
+    próprios: um anúncio não tem vencedor nem valor final, por isso
+    "quem ganhou" e "desde € X" só existem aqui.
+    """
+
+    def test_quem_ganhou_por_exists_e_nao_por_join(self):
+        # com JOIN, um contrato ganho por um agrupamento de três aparecia
+        # três vezes na lista -- e há um com 35 adjudicatários
+        onde, _ = radar.condicoes_contratos({"ganhou": "Bayer"})
+        self.assertIn("EXISTS", onde)
+        self.assertNotIn("JOIN", onde.upper())
+
+    def test_cpv_por_exists_pelo_mesmo_motivo(self):
+        # um contrato pode ter vários CPV da mesma divisão
+        onde, valores = radar.condicoes_contratos({"cpv": "72000000"})
+        self.assertIn("EXISTS", onde)
+        self.assertIn("72%", valores)
+
+    def test_cpv_sem_prefixo_nao_devolve_tudo(self):
+        # "-" não dá prefixo; sem o 1=0, o filtro caía e mostrava o
+        # corpus inteiro como se não houvesse filtro nenhum
+        onde, _ = radar.condicoes_contratos({"cpv": "-"})
+        self.assertIn("1=0", onde)
+
+    def test_preco_minimo_com_lixo_nao_filtra_nem_rebenta(self):
+        onde, valores = radar.condicoes_contratos({"min": "muito"})
+        self.assertNotIn("preco_contratual", onde)
+        self.assertEqual(valores, [])
+
+    def test_preco_minimo_aceita_virgula_e_espacos(self):
+        _, valores = radar.condicoes_contratos({"min": "1 000,50"})
+        self.assertEqual(valores, [1000.5])
+
+    def test_filtros_juntam_se_com_AND(self):
+        onde, valores = radar.condicoes_contratos(
+            {"adj": "Oeiras", "proc": "Consulta Prévia"})
+        self.assertIn(" AND ", onde)
+        self.assertEqual(len(valores), 2)
+
+    def test_sem_filtro_nenhum_nao_produz_where_partido(self):
+        # o WHERE tem de ser sempre válido: a rota concatena-o sempre
+        onde, valores = radar.condicoes_contratos({})
+        self.assertTrue(onde.strip().startswith("WHERE"))
+        self.assertEqual(valores, [])
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

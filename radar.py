@@ -2305,6 +2305,73 @@ def historico_entidade(entidade, cpv="", limite=25):
     return linhas, ao_todo, do_cpv
 
 
+def condicoes_contratos(args):
+    """Traduz os filtros do separador dos contratos em SQL.
+
+    Irma da condicoes(), mas nao a mesma: sao listas diferentes. Aqui
+    procura-se por quem ganhou, por tipo de procedimento e por valor, que
+    nos anuncios nem existem -- um anuncio ainda nao tem vencedor.
+    """
+    onde, valores = ["1=1"], []
+
+    def procura(texto, coluna):
+        pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
+        if not pedacos:
+            return
+        ors = []
+        for p in pedacos:
+            ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
+            valores.append("%" + para_like(p) + "%")
+        onde.append("(" + " OR ".join(ors) + ")")
+
+    procura(args.get("q"), "c.objecto")
+    procura(args.get("adj"), "c.adjudicante")
+
+    # Quem ganhou vive numa tabela a parte (um contrato pode ter varios
+    # adjudicatarios). EXISTS e nao JOIN: com JOIN, um contrato ganho por
+    # um agrupamento de tres aparecia tres vezes na lista.
+    ganhou = [p.strip() for p in (args.get("ganhou") or "").split("|") if p.strip()]
+    if ganhou:
+        onde.append("EXISTS (SELECT 1 FROM contrato_adjudicatario a "
+                    "WHERE a.contrato_id=c.id AND (%s))"
+                    % " OR ".join("a.nome LIKE ? ESCAPE '%s'" % ESCAPE_LIKE
+                                  for _ in ganhou))
+        valores += ["%" + para_like(p) + "%" for p in ganhou]
+
+    prefixos = [p for p in (prefixo_cpv(x)
+                            for x in (args.get("cpv") or "").split("|")) if p]
+    if prefixos:
+        onde.append("EXISTS (SELECT 1 FROM contrato_cpv v "
+                    "WHERE v.contrato_id=c.id AND (%s))"
+                    % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos))
+        valores += [p + "%" for p in prefixos]
+    elif (args.get("cpv") or "").strip():
+        onde.append("1=0")            # codigo que nao da prefixo: vazio, nao tudo
+
+    proc = (args.get("proc") or "").strip()
+    if proc:
+        onde.append("c.tipo_procedimento = ?")
+        valores.append(proc)
+
+    de = (args.get("de") or "").strip()
+    if de:
+        onde.append("c.data_celebracao >= ?")
+        valores.append(de)
+    ate = (args.get("ate") or "").strip()
+    if ate:
+        onde.append("c.data_celebracao <= ?")
+        valores.append(ate)
+
+    minimo = (args.get("min") or "").strip().replace(" ", "").replace(",", ".")
+    if minimo:
+        try:
+            valores.append(float(minimo))
+            onde.append("c.preco_contratual >= ?")
+        except ValueError:
+            pass                       # lixo na URL nao filtra nada
+    return " WHERE " + " AND ".join(onde), valores
+
+
 # ---------------------------------------------------------- agendamento
 
 def slot_corrido(dia, hora):
@@ -2481,13 +2548,34 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros input[type=date]{padding:9px 12px;border:1px solid var(--linha);
  border-radius:8px;background:var(--creme);font:500 12.5px/1.2 var(--mono);color:var(--ink)}
 .filtros select{padding:9px 12px;border:1px solid var(--linha);border-radius:8px;
- background:var(--creme);font:400 12.5px/1.2 var(--sans);color:var(--ink)}
+ background:var(--creme);font:400 12.5px/1.2 var(--sans);color:var(--ink);
+ /* o select cresce com a opcao mais longa ("Ao abrigo de acordo-quadro
+    (art.o 259.o)") e punha a pagina a rolar de lado num ecra estreito */
+ max-width:100%;min-width:0}
 .filtros label{font:500 12px/1 var(--sans);color:var(--t3)}
 .filtros button{cursor:pointer;padding:10px 18px;border-radius:8px;border:0;
  background:var(--azul);color:#fff;font:600 12.5px/1 var(--sans)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+/* separador dos contratos */
+.tab-cx{padding:0;overflow-x:auto}
+.tab-contratos{width:100%;border-collapse:collapse;min-width:900px}
+.tab-contratos th{text-align:left;padding:11px 12px;background:var(--creme);
+ border-bottom:1px solid var(--linha);font:600 10.5px/1 var(--sans);
+ color:var(--t5);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.tab-contratos td{padding:10px 12px;border-bottom:1px solid var(--linha2);
+ font:400 12px/1.4 var(--sans);color:var(--t3);vertical-align:top}
+.tab-contratos tr:last-child td{border-bottom:0}
+.tab-contratos tr:hover td{background:var(--creme)}
+.tab-contratos td.d{font-family:var(--mono);white-space:nowrap;color:var(--t5)}
+.tab-contratos td.o{color:var(--ink);max-width:340px}
+.tab-contratos td.g{color:var(--ink);font-weight:500;max-width:220px}
+.tab-contratos th.p,.tab-contratos td.p{text-align:right;white-space:nowrap;
+ font-family:var(--mono);color:var(--ink)}
+.vazio code,.larg>.nota code{font:500 11.5px/1 var(--mono);
+ background:var(--linha2);padding:2px 6px;border-radius:4px}
+
 /* historico de adjudicacoes, na ficha */
 .mercado{padding:16px 18px;margin-top:14px}
 .tab-mercado{width:100%;border-collapse:collapse}
@@ -2860,7 +2948,8 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 %(script)s
 </body></html>"""
 
-NAV = (("lista", "Lista", "/", "/"),
+NAV = (("anuncios", "Anúncios", "/", "/"),
+       ("contratos", "Contratos", "/contratos", "/contratos"),
        ("quadro", "Quadro", "/quadro", "/quadro"),
        ("calendario", "Calendário", "/calendario", "/calendario"),
        ("indicadores", "Indicadores", "/indicadores", "/indicadores"))
@@ -2905,7 +2994,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
               if quando != "nunca" else "ainda não verificou")
 
     if not migalhas:
-        migalhas = "<a href='/'>Lista</a>"
+        migalhas = "<a href='/'>Anúncios</a>"
 
     # Aviso de uma accao acabada de fazer, passado no proprio
     # redireccionamento. Nao vai para a base: e da vez, nao do sistema --
@@ -3226,16 +3315,19 @@ def sem_pagina(args, **muda):
     return "/?" + urlencode(novos) if novos else "/"
 
 
-def paginador(pagina, paginas, args):
+def paginador(pagina, paginas, args, base="/"):
     """Barra de paginas. Mostra uma janela a volta da actual em vez de
-    todas -- com 65 mil anuncios sao 3300 paginas e nao cabem na linha."""
+    todas -- com 65 mil anuncios sao 3300 paginas e nao cabem na linha.
+
+    O `base` e a rota que se pagina: a mesma barra serve os anuncios e os
+    contratos, que sao listas diferentes com filtros diferentes."""
     if paginas <= 1:
         return ""
 
     def liga_pag(n, etiqueta=None, classe=""):
         args_n = args_da_lista(args, pag=str(n))
-        return ("<a class='%s' href='/?%s'>%s</a>"
-                % (classe, urlencode(args_n), etiqueta or n))
+        return ("<a class='%s' href='%s?%s'>%s</a>"
+                % (classe, base, urlencode(args_n), etiqueta or n))
 
     pecas = []
     pecas.append(liga_pag(pagina - 1, "&larr; anterior")
@@ -3452,7 +3544,7 @@ def painel():
                 rodape + "</div>")
 
     return envolver(
-        "lista", "Anúncios da parte L",
+        "anuncios", "Anúncios da parte L",
         "Entra tudo o que o DR publica &mdash; a triagem faz-se aqui, "
         "por palavras, entidade, datas, CPV e estado.",
         conteudo, abas="".join(abas), script=ARVORE_JS,
@@ -3750,6 +3842,137 @@ def exportar():
                              "attachment; filename=concursos.csv"})
 
 
+
+
+# ------------------------------------------------------ separador contratos
+#
+# Lista propria, e nao uma vista da dos anuncios: sao coisas diferentes.
+# Um anuncio e uma oportunidade a que se pode concorrer; um contrato ja
+# esta assinado e o que dele se quer saber e quem ganhou e por quanto.
+# Ate os filtros sao outros -- um anuncio nao tem vencedor nem valor
+# final. Por isso separador proprio, tabela propria, ficheiro proprio.
+
+def sem_corpus_html(titulo):
+    return envolver(
+        "contratos", titulo,
+        "Contratos já celebrados, do Portal BASE &mdash; quem ganhou "
+        "o quê, por quanto.",
+        "<div class='larg'><div class='vazio'>"
+        "O corpus de contratos ainda não foi importado.<br><br>"
+        "Corre <code>python radar.py --contratos</code> para o trazer do "
+        "dados.gov &mdash; domínio público, sem chave nem sessão. "
+        "Dois anos são cerca de dois minutos.</div></div>",
+        migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
+        titulo_aba="Contratos, Radar de Concursos")
+
+
+@app.route("/contratos")
+def contratos():
+    if not ha_corpus():
+        return sem_corpus_html("Contratos celebrados")
+
+    onde, valores = condicoes_contratos(request.args)
+    with liga_corpus() as c:
+        resumo = c.execute(
+            "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
+            "FROM contratos c" + onde, valores).fetchone()
+        correspondem, valor = resumo["n"], resumo["v"]
+        paginas = max(1, -(-correspondem // POR_PAGINA))
+        pagina = min(max(1, pagina_pedida(request.args)), paginas)
+        linhas = c.execute(
+            "SELECT c.*, (SELECT group_concat(a.nome, ' + ') "
+            " FROM contrato_adjudicatario a WHERE a.contrato_id=c.id) ganhou "
+            "FROM contratos c" + onde +
+            " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ? OFFSET ?",
+            valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
+        procs = [r["p"] for r in c.execute(
+            "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
+            "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
+        anos = [r["a"] for r in c.execute(
+            "SELECT DISTINCT ano a FROM contratos ORDER BY a")]
+
+    proc_actual = (request.args.get("proc") or "").strip()
+    opcoes = ["<option value=''>todos os procedimentos</option>"]
+    for p in procs:
+        opcoes.append("<option value='%s'%s>%s</option>"
+                      % (html.escape(p, quote=True),
+                         " selected" if p == proc_actual else "",
+                         html.escape(p)))
+
+    def v(nome):
+        return html.escape(request.args.get(nome, ""), quote=True)
+
+    filtros = (
+        "<form class='cx filtros' method='get' action='/contratos'>"
+        "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
+        "<input type='text' name='adj' value='%s' placeholder='Entidade adjudicante…'>"
+        "<input type='text' name='ganhou' value='%s' placeholder='Quem ganhou…'>"
+        "<input type='text' name='cpv' value='%s' placeholder='CPV, ex. 72000000'>"
+        "<select name='proc'>%s</select>"
+        "<label>de</label><input type='date' name='de' value='%s'>"
+        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "<label>desde</label><input type='text' name='min' value='%s' "
+        "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
+        "<button type='submit'>Filtrar</button>"
+        "<a class='limpar' href='/contratos'>limpar</a>"
+        "</form>"
+        % (v("q"), v("adj"), v("ganhou"), v("cpv"), "".join(opcoes),
+           v("de"), v("ate"), v("min")))
+
+    if linhas:
+        corpo = []
+        for l in linhas:
+            corpo.append(
+                "<tr><td class='d'>%s</td><td class='o'>%s</td>"
+                "<td>%s</td><td class='g'>%s</td><td>%s</td>"
+                "<td class='p'>%s</td></tr>"
+                % (html.escape(l["data_celebracao"] or "—"),
+                   html.escape((l["objecto"] or "")[:150]),
+                   html.escape(l["adjudicante"] or ""),
+                   html.escape(l["ganhou"] or "—"),
+                   html.escape(l["tipo_procedimento"] or ""),
+                   euros(l["preco_contratual"])))
+        tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
+                  "<thead><tr><th>Celebrado</th><th>Objecto</th>"
+                  "<th>Entidade</th><th>Quem ganhou</th><th>Procedimento</th>"
+                  "<th class='p'>Preço</th></tr></thead><tbody>%s</tbody>"
+                  "</table></div>" % "".join(corpo))
+    else:
+        tabela = ("<div class='vazio'>Nada corresponde a este filtro. "
+                  "<a href='/contratos'>limpar</a></div>")
+
+    conta = "Celebrados mais recentes primeiro &middot; "
+    if correspondem > len(linhas):
+        primeiro = (pagina - 1) * POR_PAGINA + 1
+        conta += ("%s&ndash;%s de %s &middot; página %s de %s"
+                  % (mil_pt(primeiro), mil_pt(primeiro + len(linhas) - 1),
+                     mil_pt(correspondem), mil_pt(pagina), mil_pt(paginas)))
+    else:
+        conta += "%s %s" % (mil_pt(correspondem),
+                            "contrato" if correspondem == 1 else "contratos")
+    # O somatorio e do filtro todo, nao da pagina: e o numero que diz
+    # quanto vale este mercado, e por pagina nao queria dizer nada.
+    conta += " &middot; <b>%s</b> no total" % euros(valor)
+
+    fonte = ("<div class='nota' style='margin-top:14px'>Corpus do Portal "
+             "BASE (IMPIC, dados.gov), %s contratos de %s. Refaz-se com "
+             "<code>python radar.py --contratos</code>.</div>"
+             % (mil_pt(ha_corpus()),
+                "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
+                else str(anos[0]) if anos else "—"))
+
+    conteudo = ("<div class='larg'>" + filtros +
+                "<div class='linha-conta'>" + conta + "</div>" + tabela +
+                paginador(pagina, paginas, request.args, "/contratos") +
+                fonte + "</div>")
+
+    return envolver(
+        "contratos", "Contratos celebrados",
+        "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
+        "Não são oportunidades: servem para saber com quem se concorre.",
+        conteudo,
+        migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
+        titulo_aba="Contratos, Radar de Concursos")
 
 
 # -------------------------------------------------------- ficha do anuncio
@@ -4264,7 +4487,7 @@ def ficha(ref):
                 "<div class='ficha-dir'>" + prazo_cx + docs_cx + resp_cx +
                 hist_cx + "</div></div></div>")
 
-    migalhas = ("<a href='/'>Lista</a><s>&rsaquo;</s><em>/anuncio/%s</em>"
+    migalhas = ("<a href='/'>Anúncios</a><s>&rsaquo;</s><em>/anuncio/%s</em>"
                 % html.escape(ref))
     # Enquanto as peças não chegam, a página volta a pedir-se sozinha. O
     # trabalhador põe sempre um estado terminal (ok/parcial/falhou), por
@@ -4272,7 +4495,7 @@ def ficha(ref):
     espera = ("<script>setTimeout(function(){location.reload()},3000)</script>"
               if a["docs_estado"] == "pendente" else "")
 
-    return envolver("lista", a["titulo"] or ref,
+    return envolver("anuncios", a["titulo"] or ref,
                     "/anuncio/%s &middot; %s" % (html.escape(ref),
                                                  html.escape(a["entidade"] or "")),
                     conteudo, migalhas=migalhas, script=espera,
@@ -4452,7 +4675,7 @@ def quadro():
                 "<datalist id='etiquetas-existentes'>%s</datalist>"
                 % ("".join(colunas), datalist))
 
-    migalhas = "<a href='/'>Lista</a><s>&rsaquo;</s><em>Quadro</em>"
+    migalhas = "<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Quadro</em>"
     return envolver("quadro", "Quadro",
                     "Fases editáveis &middot; só anúncios marcados como "
                     "&ldquo;interessa&rdquo;.",
@@ -4474,7 +4697,7 @@ def calendario():
             "ORDER BY prazo").fetchall()
         fases_por_id = {f["id"]: f["nome"] for f in listar_fases()}
 
-    migalhas = "<a href='/'>Lista</a><s>&rsaquo;</s><em>Calendário</em>"
+    migalhas = "<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Calendário</em>"
     envolve = lambda corpo: envolver(
         "calendario", "Calendário",
         "Prazos dos anúncios interessados, %d dias a partir de hoje."
@@ -4657,7 +4880,7 @@ def indicadores():
         "<div class='saude'>%s</div></div>"
         "</div></div>" % (kpis_html, barras, saude_html))
 
-    migalhas = "<a href='/'>Lista</a><s>&rsaquo;</s><em>Indicadores</em>"
+    migalhas = "<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Indicadores</em>"
     return envolver("indicadores", "Indicadores",
                     "Consultas directas ao radar.db &mdash; sem serviços externos.",
                     conteudo, migalhas=migalhas,
