@@ -1110,12 +1110,34 @@ GROQ_MODELO = "openai/gpt-oss-120b"
 #
 # Os nomes dos ficheiros de chave ja estao cobertos pelo .gitignore
 # (*[Aa][Pp][Ii]_[Kk][Ee][Yy]*), de proposito largo.
+#
+# O ultimo campo sao extras a juntar ao corpo do pedido, que nao sao
+# iguais em todos. Medido a 2026-08-27 no 21507/2026, recorte de 3770
+# caracteres:
+#
+# | fornecedor | tempo | nota                                        |
+# |------------|-------|---------------------------------------------|
+# | groq       |  1,2s | a referencia                                |
+# | nvidia     |  168s | com o raciocinio por omissao                |
+# | nvidia     |  3,5s | com reasoning_effort=low                    |
+# | openrouter |  429  | pool gratuito partilhado, esgotado a montante |
+#
+# Os 168 segundos do NVIDIA nao cabiam no timeout de 180: dois dos tres
+# pedidos de um concurso estouravam. E o mesmo gpt-oss-120b da Groq, mas
+# aqui vem com o raciocinio ligado -- e o raciocinio nao serve para
+# nada nisto, que e extraccao de texto que esta a vista. O
+# reasoning_effort nao vai para os outros porque nem todos o aceitam, e
+# um 400 por um parametro a mais tirava o fornecedor da cadeia.
 FORNECEDORES = (
-    ("groq", GROQ_URL, GROQ_MODELO, NOMES_CHAVE, "GROQ_API_KEY"),
-    ("openrouter", "https://openrouter.ai/api/v1/chat/completions",
-     "z-ai/glm-5.2:free", ("openrouter_API_KEY.txt",), "OPENROUTER_API_KEY"),
+    ("groq", GROQ_URL, GROQ_MODELO, NOMES_CHAVE, "GROQ_API_KEY", {}),
     ("nvidia", "https://integrate.api.nvidia.com/v1/chat/completions",
-     "openai/gpt-oss-120b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY"),
+     "openai/gpt-oss-120b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY",
+     {"reasoning_effort": "low"}),
+    # Fica em ultimo por ser o unico que le com outro modelo, e o unico
+    # que ja recusou por falta de vaga no pool gratuito.
+    ("openrouter", "https://openrouter.ai/api/v1/chat/completions",
+     "z-ai/glm-5.2:free", ("openrouter_API_KEY.txt",), "OPENROUTER_API_KEY",
+     {}),
 )
 # Cada campo tem o seu recorte e o seu pedido. Juntos num so, as
 # ancoras do objecto gastavam o orcamento antes de se chegar a tabela de
@@ -1299,20 +1321,20 @@ def modelo_do_fornecedor(cfg, nome, omissao):
 def cadeia_de_fornecedores(cfg=None):
     """Os fornecedores com chave, por ordem de prioridade.
 
-    Devolve tuplos (nome, url, modelo, chave). Vazia quer dizer que nao
-    ha chave nenhuma configurada -- e o mesmo que o antigo
+    Devolve tuplos (nome, url, modelo, chave, extras). Vazia quer dizer
+    que nao ha chave nenhuma configurada -- e o mesmo que o antigo
     "falta a chave da API".
     """
     cfg = ler_config() if cfg is None else cfg
     so_este = (cfg.get("fornecedor_pecas") or "").strip()
     cadeia = []
-    for nome, url, omissao, nomes, variavel in FORNECEDORES:
+    for nome, url, omissao, nomes, variavel, extras in FORNECEDORES:
         if so_este and nome != so_este:
             continue
         chave = ler_chave(nomes, variavel)
         if chave:
             cadeia.append((nome, url, modelo_do_fornecedor(cfg, nome, omissao),
-                           chave))
+                           chave, extras))
     return cadeia
 
 
@@ -1526,7 +1548,7 @@ def cadeia_esgotada(cadeia):
     esgotado" bastava a Groq acabar para o painel anunciar que o dia
     tinha acabado, com o OpenRouter ainda a responder ao lado.
     """
-    return bool(cadeia) and all(esta_esgotado(n) for n, _, _, _ in cadeia)
+    return bool(cadeia) and all(esta_esgotado(f[0]) for f in cadeia)
 
 
 def espera_pedida(resposta, tecto=70):
@@ -1597,18 +1619,19 @@ def json_da_resposta(conteudo):
     return json.loads(conteudo)
 
 
-def _um_pedido(url, chave, modelo, instrucao, texto):
+def _um_pedido(url, chave, modelo, instrucao, texto, extras=None):
     """Uma pergunta a um fornecedor. Devolve (dados, aviso)."""
+    corpo = {"model": modelo, "temperature": 0,
+             "response_format": {"type": "json_object"},
+             "messages": [{"role": "system", "content": instrucao},
+                          {"role": "user", "content": texto}]}
+    corpo.update(extras or {})
     try:
         for tentativa in (1, 2, 3):
             r = requests.post(url, timeout=180,
                               headers={"Authorization": "Bearer " + chave,
                                        "Content-Type": "application/json"},
-                              json={"model": modelo, "temperature": 0,
-                                    "response_format": {"type": "json_object"},
-                                    "messages": [
-                                        {"role": "system", "content": instrucao},
-                                        {"role": "user", "content": texto}]})
+                              json=corpo)
             if r.status_code == 429 and orcamento_do_dia_esgotado(r):
                 return None, SEM_ORCAMENTO_HOJE
             if r.status_code != 429 or tentativa == 3:
@@ -1633,11 +1656,11 @@ def _perguntar(cadeia, instrucao, texto):
     de um modelo gratuito nao valem o mesmo, e a ficha tem de o dizer.
     """
     avisos = []
-    for nome, url, modelo, chave in cadeia:
+    for nome, url, modelo, chave, extras in cadeia:
         if esta_esgotado(nome):
             avisos.append("%s: %s" % (nome, SEM_ORCAMENTO_HOJE))
             continue
-        dados, aviso = _um_pedido(url, chave, modelo, instrucao, texto)
+        dados, aviso = _um_pedido(url, chave, modelo, instrucao, texto, extras)
         if dados is not None:
             return dados, "", "%s:%s" % (nome, modelo)
         if aviso == SEM_ORCAMENTO_HOJE:

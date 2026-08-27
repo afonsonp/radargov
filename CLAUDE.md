@@ -59,8 +59,10 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
    no disco, **não na base** — para o `radar.db` ficar pequeno.
 5. **leitura das peças por modelo** — `analisar_pecas()` recorta as zonas
    relevantes do CE/PC e faz três pedidos (um por campo), gravando em
-   `analise`. Cada pedido desce a cadeia `FORNECEDORES` (Groq →
-   OpenRouter → NVIDIA) até alguém responder.
+   `analise`. Cada pedido desce a cadeia `FORNECEDORES` (Groq → NVIDIA →
+   OpenRouter) até alguém responder. **Medido: nenhuma das reservas
+   aguenta um recorte de tamanho real em rajada** — ver o ESTADO.md antes
+   de contar com elas.
 6. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Vistas: lista (`/`), ficha (`/anuncio/<ref>`),
    quadro kanban, calendário, indicadores.
