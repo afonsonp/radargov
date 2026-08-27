@@ -285,7 +285,13 @@ class TestPlataformasJSF(unittest.TestCase):
         # obtentor nunca era escolhido -- 14 concursos calados
         self.assertIn(radar.ASSINATURA_JSF,
                       "https://plataforma-sncp.espap.gov.pt/espap/faces/app/"
-                      "acessoDocs.jsp?codigoAcesso=abc")
+                      "acessoDocs.jsp?codigoAcesso=abc".lower())
+
+    def test_a_assinatura_nao_depende_de_maiusculas(self):
+        # o RX_DOC_JSF é re.I; as duas metades da decisão têm de
+        # concordar, senão o link cai no "não sei trazer as peças"
+        link = "https://x.pt/FACES/App/AcessoDocs.jsp?codigoAcesso=abc"
+        self.assertIn(radar.ASSINATURA_JSF, link.lower())
 
     def test_nao_vai_buscar_a_outro_servidor(self):
         # a pagina e conteudo de fora: nao se segue para onde ela mandar
@@ -384,6 +390,7 @@ Nome: Preço
     LIDO = {"objecto": "- fazer X", "equipa": "- um gestor",
             "documentos_proposta": "- DEUCP",
             "preco_anormalmente_baixo": "não consta",
+            "fontes": "Caderno_de_Encargos.pdf, Programa.pdf",
             "modelo": "openai/gpt-oss-120b"}
 
     def tabela(self, texto=None, anuncio=None, analise=None):
@@ -468,6 +475,15 @@ Nome: Preço
         self.assertEqual(linha[2], "")
         self.assertIn("confirmar", linha[3])
 
+    def test_a_nota_nomeia_as_pecas_que_foram_mesmo_lidas(self):
+        # numa leitura parcial, dizer "do Caderno de Encargos e do
+        # Programa" era afirmar o que não houve
+        so_o_programa = dict(self.LIDO, fontes="Programa.pdf")
+        nota = next(n for r, _, _, n in self.tabela(analise=so_o_programa)
+                    if r == "Equipa")
+        self.assertIn("Programa.pdf", nota)
+        self.assertNotIn("Caderno de Encargos", nota)
+
 
 class TestSemIndice(unittest.TestCase):
     """O sumário casa com todas as âncoras e não diz nada."""
@@ -504,11 +520,67 @@ class TestEPdf(unittest.TestCase):
         # trazia um "Caderno de Encargos" de 291 KB que ficava por ler
         self.assertTrue(radar.e_pdf(self.caminho(b"%PDF-1.7 tralha")))
 
+    def test_pdf_com_lixo_antes_da_assinatura(self):
+        # a norma tolera-o e o pypdf lê-os na mesma
+        self.assertTrue(radar.e_pdf(self.caminho(b"\r\n   %PDF-1.4 x")))
+
     def test_o_que_nao_e_pdf(self):
-        self.assertFalse(radar.e_pdf(self.caminho(b"PK" + bytes(20))))
+        self.assertFalse(radar.e_pdf(self.caminho(b"PK" + bytes(2000))))
 
     def test_ficheiro_que_nao_existe(self):
         self.assertFalse(radar.e_pdf("nao-existe-de-certeza.pdf"))
+
+
+class TestTextoDoZip(unittest.TestCase):
+    """Há entidades que entregam a peça dentro de um ZIP."""
+
+    def zip_com(self, ficheiros):
+        import tempfile, zipfile
+        f = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+        f.close()
+        with zipfile.ZipFile(f.name, "w") as z:
+            for nome, dados in ficheiros:
+                z.writestr(nome, dados)
+        self.addCleanup(
+            lambda: os.path.exists(f.name) and os.remove(f.name))
+        return f.name
+
+    def test_zip_sem_pdf_nenhum(self):
+        caminho = self.zip_com([("leia.txt", b"nada")])
+        self.assertEqual(radar.texto_do_zip(caminho, {"encargos"}),
+                         ("", "não é PDF"))
+
+    def test_pdf_ilegivel_nao_e_digitalizacao(self):
+        # dizer "scan" a um PDF cifrado manda a pessoa buscar o OCR
+        # quando o que falta é um pacote de Python
+        caminho = self.zip_com([("CE_Clausulas.pdf", b"%PDF-1.7 estragado")])
+        _, estado = radar.texto_do_zip(caminho, {"encargos"})
+        self.assertTrue(estado.startswith("erro"), estado)
+
+    def test_ficheiro_que_nao_e_zip(self):
+        _, estado = radar.texto_do_zip("nao-existe-de-certeza.zip",
+                                       {"encargos"})
+        self.assertTrue(estado.startswith("erro"), estado)
+
+
+class TestPecaOuAcessorio(unittest.TestCase):
+    """As siglas de duas letras aparecem nos anexos por acaso."""
+
+    def test_anexo_com_sigla_nao_e_a_peca(self):
+        # "PC" aqui é o nome do anexo, não Programa de Concurso
+        self.assertEqual(
+            radar.papeis_da_peca("Anexo.2-PC-Anexo.II-Prop.Preco.xlsx"),
+            set())
+
+    def test_anexo_por_extenso_continua_a_contar(self):
+        self.assertEqual(
+            radar.papeis_da_peca("Anexo I - Caderno de Encargos.pdf"),
+            {"encargos"})
+
+    def test_sigla_vale_fora_dos_anexos(self):
+        self.assertEqual(
+            radar.papeis_da_peca("2026.06.30_PC_Outsourcing_vf_ass.pdf"),
+            {"programa"})
 
 
 class TestJuntarLeituras(unittest.TestCase):

@@ -882,7 +882,9 @@ SEM_PLATAFORMA = "(nenhuma)"
 # dizia "nao sei trazer as pecas da plataforma anogov" com a plataforma
 # bem identificada. Sao 14 na base, e vem mais com cada camara que
 # estreie o seu proprio dominio.
-ASSINATURA_JSF = "/faces/app/acessoDocs.jsp"
+# Comparada contra link.lower(), como o RX_DOC_JSF que e re.I: as duas
+# metades da mesma decisao tem de concordar.
+ASSINATURA_JSF = "/faces/app/acessodocs.jsp"
 RX_DOC_JSF = re.compile(r'href="(https://[^"]*/decryptservlet\?[^"]*)"', re.I)
 
 
@@ -993,7 +995,10 @@ def e_pdf(caminho):
     """
     try:
         with open(caminho, "rb") as f:
-            return f.read(4) == b"%PDF"
+            # A norma tolera lixo antes da assinatura, e ha ferramentas
+            # que deixam la um BOM ou uma linha em branco; o pypdf le-os
+            # na mesma, por isso nao se exige o byte 0.
+            return b"%PDF" in f.read(1024)
     except OSError:
         return False
 
@@ -1013,7 +1018,7 @@ def texto_do_zip(caminho, papeis):
             # Se algum PDF de dentro for da peça que se procura, é esse
             # que conta; senão vão todos, que o ZIP já se chama assim.
             proprios = [n for n in dentro if papeis_da_peca(n) & papeis]
-            partes = []
+            partes, estados = [], []
             with tempfile.TemporaryDirectory() as temporaria:
                 for nome in (proprios or dentro):
                     alvo = os.path.join(
@@ -1021,11 +1026,18 @@ def texto_do_zip(caminho, papeis):
                     with open(alvo, "wb") as f:
                         f.write(z.read(nome))
                     texto, estado = texto_do_pdf(alvo)
+                    estados.append(estado)
                     if estado == "ok":
                         partes.append(texto)
     except (zipfile.BadZipFile, OSError, KeyError) as erro:
         return "", "erro: %s" % str(erro)[:80]
-    return ("\n\n".join(partes), "ok") if partes else ("", "scan")
+    if partes:
+        return "\n\n".join(partes), "ok"
+    # Nao sai texto por duas razoes muito diferentes, e dize-las trocadas
+    # manda a pessoa buscar a ferramenta errada: um PDF cifrado nao se
+    # resolve com OCR.
+    erros = [e for e in estados if e.startswith("erro")]
+    return "", (erros[0] if erros else "scan")
 
 
 def extrair_textos(ref):
@@ -1073,9 +1085,6 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # manda no tamanho do pedido. Fica no config.json porque a lista de
 # modelos destas plataformas muda.
 GROQ_MODELO = "openai/gpt-oss-120b"
-# 8000 tokens por minuto, contando a resposta. Sobram uns 5500 para a
-# entrada, e o portugues destes documentos anda nos 3,5 caracteres por
-# token -- daqui os 19 mil.
 # Cada campo tem o seu recorte e o seu pedido. Juntos num so, as
 # ancoras do objecto gastavam o orcamento antes de se chegar a tabela de
 # perfis: num Caderno de Encargos de 167 mil caracteres ela estava na
@@ -1083,6 +1092,9 @@ GROQ_MODELO = "openai/gpt-oss-120b"
 # de Encargos" -- que e verdade e nao serve para nada. Separados, a
 # equipa disputa 5 titulos em vez de 21, e quatro deles sao a zona
 # certa.
+# 7000 caracteres sao ~2 mil tokens (o portugues destes documentos anda
+# nos 3,5 caracteres por token); tres pedidos cabem no tecto de 8000 por
+# minuto.
 TECTO_RECORTE = 7000
 
 # Onde e que mora cada campo. O numero e a prioridade: quando o
@@ -1235,12 +1247,14 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
     if not titulos:
         return texto[:tecto]
 
-    marca = bytearray(len(texto))
+    marca, gasto = bytearray(len(texto)), 0
     for _, p in sorted(titulos):
-        if sum(marca) >= tecto:
+        if gasto >= tecto:
             break
         for i in range(max(0, p - 200), min(len(texto), p + janela)):
-            marca[i] = 1
+            if not marca[i]:
+                marca[i] = 1
+                gasto += 1
 
     partes, i, n = [], 0, len(texto)
     while i < n:
@@ -1277,23 +1291,43 @@ RX_PECA_PROGRAMA = re.compile(r"programa|procedimento|" + _sigla("pp")
                               + "|" + _sigla("pc"))
 
 
+# Um anexo nao e a peca, e as siglas de duas letras aparecem-lhes no
+# nome por acaso: "Anexo.2-PC-Anexo.II-Prop.Preco.xlsx" nao e o Programa
+# de Concurso. Nos anexos exige-se a palavra por extenso.
+RX_ACESSORIO = re.compile(r"anexo|modelo|formulario|minuta|declaracao")
+RX_PECA_ENCARGOS_EXTENSO = re.compile(r"caderno|encargos")
+RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|procedimento")
+
+
 def papeis_da_peca(nome):
     """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF."""
     n = simplifica(nome)
+    acessorio = bool(RX_ACESSORIO.search(n))
+    encargos = (RX_PECA_ENCARGOS_EXTENSO if acessorio else RX_PECA_ENCARGOS)
+    programa = (RX_PECA_PROGRAMA_EXTENSO if acessorio else RX_PECA_PROGRAMA)
     papeis = set()
-    if RX_PECA_ENCARGOS.search(n):
+    if encargos.search(n):
         papeis.add("encargos")
-    if RX_PECA_PROGRAMA.search(n):
+    if programa.search(n):
         papeis.add("programa")
     return papeis
 
 
-def pecas_para_analise(ref, quais, ancoras, tecto=TECTO_RECORTE):
-    """O que interessa, dos documentos que fazem o papel `quais`."""
+def documentos_com_texto(ref):
     with liga() as c:
-        docs = c.execute(
+        return c.execute(
             "SELECT nome, texto FROM documentos WHERE ref=? AND texto_estado='ok' "
             "AND texto != '' ORDER BY nome", (ref,)).fetchall()
+
+
+def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
+    """O que interessa, dos documentos que fazem o papel `quais`.
+
+    Recebe os documentos ja lidos: sao tres recortes por concurso e a
+    mesma consulta repetida tres vezes trazia da base o texto todo --
+    690 mil caracteres, num Caderno de Encargos grande, para produzir 21
+    mil.
+    """
     partes, usados = [], []
     for d in docs:
         if quais not in papeis_da_peca(d["nome"]):
@@ -1306,7 +1340,7 @@ def pecas_para_analise(ref, quais, ancoras, tecto=TECTO_RECORTE):
 
 
 def limpa_campo(valor):
-    """As mudancas de linha, que o modelo devolve escapadas a dobrar.
+    r"""As mudancas de linha, que o modelo devolve escapadas a dobrar.
 
     Sem isto o "\n" aparece a letra no meio do texto, porque o modelo
     escreveu "\\n" no JSON e o json.loads so desfaz uma camada.
@@ -1373,10 +1407,10 @@ def _perguntar(chave, modelo, instrucao, texto):
                                     "messages": [
                                         {"role": "system", "content": instrucao},
                                         {"role": "user", "content": texto}]})
+            if r.status_code == 429 and orcamento_do_dia_esgotado(r):
+                return None, SEM_ORCAMENTO_HOJE
             if r.status_code != 429 or tentativa == 3:
                 break
-            if orcamento_do_dia_esgotado(r):
-                return None, SEM_ORCAMENTO_HOJE
             # A conta tem um tecto de tokens por minuto, e sao tres
             # perguntas por concurso. Isto corre em fundo, sem ninguem a
             # ver: esperar o minuto vale mais do que desistir.
@@ -1397,13 +1431,15 @@ def analisar_pecas(ref):
                        "na pasta do radar")
     modelo = ler_config().get("modelo_pecas") or GROQ_MODELO
 
-    recortes = [(nome, pecas_para_analise(ref, quais, ancoras), instrucao)
+    docs = documentos_com_texto(ref)
+    recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
                 for nome, quais, ancoras, instrucao in LEITURAS]
     if not any(texto for _, (texto, _), _ in recortes):
         # As pecas trazidas antes de haver extracao de texto ficaram sem
         # ele. Estao em disco: extrai-se agora, sem voltar a rede.
         extrair_textos(ref)
-        recortes = [(nome, pecas_para_analise(ref, quais, ancoras), instrucao)
+        docs = documentos_com_texto(ref)
+        recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
                     for nome, quais, ancoras, instrucao in LEITURAS]
     if not any(texto for _, (texto, _), _ in recortes):
         with liga() as c:
@@ -1424,6 +1460,12 @@ def analisar_pecas(ref):
             continue
         dados.update(resposta)
         usados += [f for f in fontes if f not in usados]
+    # O tecto do dia nao cede antes de amanha: nao ha mais nada util a
+    # dizer, e a mensagem vai inteira para quem a procura no --ler-pecas.
+    # Espremida no meio das outras falhas, o corte apagava-a e a fila
+    # continuava a moer contra um limite que nao ia ceder.
+    if any(SEM_ORCAMENTO_HOJE in f for f in falhas):
+        return bool(dados), SEM_ORCAMENTO_HOJE
     if not dados:
         return False, "; ".join(falhas)[:200]
 
@@ -1491,7 +1533,7 @@ def obter_documentos(ref):
             novos, grandes = _pecas_acingov(sessao, link)
         elif link and "vortal" in link:
             novos, grandes = _pecas_vortal(sessao, link)
-        elif link and ASSINATURA_JSF in link:
+        elif link and ASSINATURA_JSF in link.lower():
             novos, grandes = _pecas_jsf(sessao, link)
         elif link:
             novos = []
@@ -2928,8 +2970,11 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         valor = (analise[campo] or "").strip()
         return "" if simplifica(valor) in ("", "nao consta", "não consta") else valor
 
-    nota_pecas = ("lido do Caderno de Encargos e do Programa por %s — confirmar "
-                  "no documento" % analise["modelo"]) if analise else ""
+    # Nomear as pecas que foram mesmo lidas: numa leitura parcial, dizer
+    # "do Caderno de Encargos e do Programa" e afirmar o que nao houve.
+    nota_pecas = ("lido de %s por %s — confirmar no documento"
+                  % (analise["fontes"] or "peças do procedimento",
+                     analise["modelo"])) if analise else ""
     # Lido o Programa e nao havendo limiar, isso e uma resposta -- e nao a
     # mesma coisa que ainda nao se ter ido ver.
     anormal = das_pecas("preco_anormalmente_baixo")
@@ -3223,12 +3268,18 @@ def ficha(ref):
 
 @app.route("/documentos/<path:ref>", methods=["POST"])
 def trazer_documentos(ref):
-    n, aviso = obter_documentos(ref)
-    if n and aviso:
-        aviso = "%d ficheiro(s) trazido(s), mas: %s" % (n, aviso)
-    elif n:
-        aviso = "%d ficheiro(s) trazido(s)." % n
-    return redirect("/anuncio/" + ref + "?" + urlencode({"aviso": aviso}))
+    """Poe na fila em vez de esperar aqui.
+
+    Trazer as pecas e le-las pelo modelo chega a demorar minutos -- tres
+    perguntas, cada uma com esperas de ate 70 segundos quando bate no
+    tecto por minuto. Feito aqui dentro, o pedido do browser ficava
+    pendurado esse tempo todo. A ficha ja sabe mostrar "a trazer as
+    pecas..." e recarregar-se sozinha, que e o mesmo caminho de quando
+    se marca interessa.
+    """
+    pedir_documentos(ref)
+    return redirect("/anuncio/" + ref + "?" + urlencode(
+        {"aviso": "a trazer as peças da plataforma…"}))
 
 
 @app.route("/analisar/<path:ref>", methods=["POST"])
