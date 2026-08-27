@@ -16,6 +16,12 @@ config.json.estragado
 # permissoes desta maquina; os hooks e as skills ficam no historico, isto nao
 .claude/settings.local.json
 
+# O Python e os pacotes que a pasta leva consigo quando vive numa pen.
+# Sao 36 MB de binarios que se voltam a descarregar em dois minutos, e
+# que nao dizem nada sobre este projecto -- o historico e para o codigo.
+python/
+libs/
+
 # rascunhos de investigacao
 _*.txt
 _*.py

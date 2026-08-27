@@ -1,4 +1,5 @@
 @echo off
 cd /d "%~dp0"
-python radar.py
+call "%~dp0_python.bat"
+"%PY%" radar.py
 pause
