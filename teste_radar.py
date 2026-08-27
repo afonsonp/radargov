@@ -1474,6 +1474,34 @@ class TestCondicoesContratos(unittest.TestCase):
         self.assertEqual(valores, [])
 
 
+class TestArvoreNosDoisSeparadores(unittest.TestCase):
+    """A mesma árvore serve os anúncios e os contratos. O que muda é de
+    onde vêm as contagens, e isso viaja no `data-de` do próprio elemento
+    -- é dali que o JS lê a rota a pedir. Duas cópias do JS divergiam ao
+    primeiro arranjo; contagens trocadas diziam que uma divisão está
+    vazia quando tem milhares de contratos.
+    """
+
+    def test_a_fonte_vai_no_elemento(self):
+        for de in ("anuncios", "contratos"):
+            with self.subTest(de=de):
+                self.assertIn("data-de='%s'" % de, radar.arvore_html(9454, de))
+
+    def test_o_subtitulo_diz_o_que_se_esta_a_contar(self):
+        self.assertIn("de anúncios", radar.arvore_html(9454, "anuncios"))
+        self.assertIn("de contratos", radar.arvore_html(9454, "contratos"))
+
+    def test_o_campo_que_a_arvore_escreve_e_o_mesmo_nos_dois(self):
+        # arvoreAplicar() e arvoreSemear() procuram por este id; se um
+        # dos separadores lhe chamasse outra coisa, ali a árvore abria
+        # em branco e "Aplicar" limpava o filtro
+        self.assertIn("arvoreAplicar()", radar.ARVORE_JS)
+        self.assertIn("getElementById('filtro-cpv')", radar.ARVORE_JS)
+
+    def test_ha_uma_fonte_de_contagem_por_separador(self):
+        self.assertEqual(sorted(radar.FONTES_CPV), ["anuncios", "contratos"])
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

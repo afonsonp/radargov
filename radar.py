@@ -3108,7 +3108,10 @@ var ARV_DADOS = null, ARV_SEL = new Set(), ARV_FILHOS = {}, ARV_CHK = {};
 
 function arvoreCarregar() {
   if (ARV_DADOS) return;
-  fetch('/cpv.json').then(function(r) { return r.json(); }).then(function(dados) {
+  // de onde se conta vem no proprio <details>: nos anuncios conta
+  // anuncios, nos contratos conta contratos
+  var de = document.querySelector('details.arvore').dataset.de || 'anuncios';
+  fetch('/cpv.json?de=' + de).then(function(r) { return r.json(); }).then(function(dados) {
     ARV_DADOS = dados;
     arvoreConstruir(dados);
   }).catch(function() {
@@ -3483,23 +3486,7 @@ def painel():
                        "Filtros guardados</span>%s%s%s</div>"
                        % ("".join(fichas), legenda, guardar))
 
-    arvore = (
-        "<details class='arvore'><summary>"
-        "<span class='arv-tit'>Escolher CPV na árvore</span>"
-        "<span class='arv-sub'>%s códigos &middot; contagens acumuladas</span>"
-        "<span class='arv-chip' id='arvore-chip'>nenhum seleccionado</span>"
-        "</summary>"
-        "<div class='arvore-topo'>"
-        "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software'>"
-        "<button type='button' onclick='arvoreAplicar()'>Aplicar seleccionados ao filtro</button>"
-        "<button type='button' class='claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
-        "<span id='arvore-contagem'></span>"
-        "</div>"
-        "<div id='arvore-corpo'>a carregar…</div>"
-        "<div class='arv-pe'>Marcar uma divisão marca visualmente os descendentes; "
-        "ao filtro vai só o código do grupo &mdash; os zeros à direita apanham "
-        "tudo o que está por baixo.</div>"
-        "</details>" % mil(n_cpv))
+    arvore = arvore_html(n_cpv, "anuncios")
 
     if linhas:
         corpo_lista = "<div class='lista'>" + "".join(linha(a) for a in linhas) + "</div>"
@@ -3615,6 +3602,35 @@ def resumo_filtro(consulta):
         elif valor:
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
+
+
+def arvore_html(n_cpv, de):
+    """A arvore de CPV, igual nos dois separadores.
+
+    O `de` diz de onde vem a contagem de cada codigo (anuncios ou
+    contratos) e vai no proprio elemento, num data-*: o JS e o mesmo nos
+    dois sitios e le dali a rota que ha-de pedir. Duas copias do JS
+    divergiam ao primeiro arranjo.
+    """
+    quantos = {"anuncios": "anúncios", "contratos": "contratos"}[de]
+    return (
+        "<details class='arvore' data-de='%s'><summary>"
+        "<span class='arv-tit'>Escolher CPV na árvore</span>"
+        "<span class='arv-sub'>%s códigos &middot; contagens acumuladas "
+        "de %s</span>"
+        "<span class='arv-chip' id='arvore-chip'>nenhum seleccionado</span>"
+        "</summary>"
+        "<div class='arvore-topo'>"
+        "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software'>"
+        "<button type='button' onclick='arvoreAplicar()'>Aplicar seleccionados ao filtro</button>"
+        "<button type='button' class='claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
+        "<span id='arvore-contagem'></span>"
+        "</div>"
+        "<div id='arvore-corpo'>a carregar…</div>"
+        "<div class='arv-pe'>Marcar uma divisão marca visualmente os descendentes; "
+        "ao filtro vai só o código do grupo &mdash; os zeros à direita apanham "
+        "tudo o que está por baixo.</div>"
+        "</details>" % (de, mil_pt(n_cpv), quantos))
 
 
 def prefixo_cpv(pedaco):
@@ -3741,38 +3757,71 @@ def filtro_apagar(filtro_id):
                          "Filtro apagado: %s" % linha["nome"] if linha else "")
 
 
-# (anuncios com detalhe lido, corpo JSON) -- ver cpv_json()
-_CPV_CACHE = None
+# {fonte: (chave de frescura, corpo JSON)} -- ver cpv_json()
+_CPV_CACHE = {}
 
 
-@app.route("/cpv.json")
-def cpv_json():
-    """O vocabulario CPV inteiro, com a contagem de anuncios guardados
-    (nao filtrados por estado) que tem cada codigo. Alimenta a arvore
-    do painel; o agrupamento em ramos e feito no browser."""
+def _contagens_cpv_anuncios():
+    """(chave de frescura, {codigo8: quantos anuncios})."""
+    contagens = {}
     with liga() as c:
         lidos = c.execute("SELECT COUNT(*) n FROM anuncios "
                           "WHERE detalhe_lido=1").fetchone()["n"]
-    # As contagens so mudam quando mais algum anuncio passa a ter detalhe
-    # lido. Guardar o resultado poupa varrer a tabela e serializar ~780 KB
-    # a cada abertura da arvore.
-    global _CPV_CACHE
-    if _CPV_CACHE and _CPV_CACHE[0] == lidos:
-        return Response(_CPV_CACHE[1], mimetype="application/json")
-
-    contagens = {}
-    with liga() as c:
         for row in c.execute("SELECT cpv FROM anuncios WHERE cpv != ''"):
             for pedaco in row["cpv"].split(","):
                 codigo8 = re.sub(r"\D", "", pedaco)[:8]
                 if len(codigo8) == 8:
                     contagens[codigo8] = contagens.get(codigo8, 0) + 1
+    return lidos, contagens
+
+
+def _contagens_cpv_contratos():
+    """A mesma coisa para o corpus. A arvore do separador dos contratos
+    tem de contar contratos: mostrar ali as contagens dos anuncios dizia
+    ao Afonso que uma divisao esta vazia quando tem milhares de
+    contratos, ou o contrario."""
+    if not ha_corpus():
+        return 0, {}
+    with liga_corpus() as c:
+        quantos = c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
+        contagens = {r["cpv8"]: r["n"] for r in c.execute(
+            "SELECT cpv8, COUNT(*) n FROM contrato_cpv GROUP BY cpv8")}
+    return quantos, contagens
+
+
+# De onde a arvore conta. A chave e o ?de= da rota.
+FONTES_CPV = {"anuncios": _contagens_cpv_anuncios,
+              "contratos": _contagens_cpv_contratos}
+
+
+@app.route("/cpv.json")
+def cpv_json():
+    """O vocabulario CPV inteiro, com a contagem que cada codigo tem na
+    fonte pedida (?de=anuncios, por omissao, ou ?de=contratos). Alimenta
+    a arvore dos dois separadores; o agrupamento em ramos e feito no
+    browser."""
+    de = request.args.get("de", "anuncios")
+    conta = FONTES_CPV.get(de)
+    if not conta:
+        return Response('{"erro":"fonte desconhecida"}',
+                        mimetype="application/json", status=400)
+    chave, contagens = conta()
+
+    # As contagens so mudam quando a fonte muda (mais um anuncio com
+    # detalhe lido, ou uma importacao de contratos). Guardar o resultado
+    # poupa varrer a tabela e serializar ~780 KB a cada abertura da
+    # arvore. Uma entrada por fonte: com uma so, alternar de separador
+    # deitava fora a cache do outro a cada visita.
+    if _CPV_CACHE.get(de, (None,))[0] == chave:
+        return Response(_CPV_CACHE[de][1], mimetype="application/json")
+
+    with liga() as c:
         linhas = c.execute(
             "SELECT codigo8, descricao FROM cpv_dict ORDER BY codigo8").fetchall()
     dados = [{"codigo8": r["codigo8"], "descricao": r["descricao"],
               "n": contagens.get(r["codigo8"], 0)} for r in linhas]
     corpo = json.dumps(dados, ensure_ascii=False)
-    _CPV_CACHE = (lidos, corpo)
+    _CPV_CACHE[de] = (chave, corpo)
     return Response(corpo, mimetype="application/json")
 
 
@@ -3890,6 +3939,8 @@ def contratos():
             "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
         anos = [r["a"] for r in c.execute(
             "SELECT DISTINCT ano a FROM contratos ORDER BY a")]
+    with liga() as c:
+        n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
 
     proc_actual = (request.args.get("proc") or "").strip()
     opcoes = ["<option value=''>todos os procedimentos</option>"]
@@ -3907,7 +3958,9 @@ def contratos():
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='adj' value='%s' placeholder='Entidade adjudicante…'>"
         "<input type='text' name='ganhou' value='%s' placeholder='Quem ganhou…'>"
-        "<input type='text' name='cpv' value='%s' placeholder='CPV, ex. 72000000'>"
+        # o mesmo id que nos anuncios: e por ele que a arvore escreve e le
+        "<input type='text' id='filtro-cpv' name='cpv' value='%s' "
+        "placeholder='CPV, ex. 72000000'>"
         "<select name='proc'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
@@ -3961,7 +4014,7 @@ def contratos():
                 "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
                 else str(anos[0]) if anos else "—"))
 
-    conteudo = ("<div class='larg'>" + filtros +
+    conteudo = ("<div class='larg'>" + filtros + arvore_html(n_cpv, "contratos") +
                 "<div class='linha-conta'>" + conta + "</div>" + tabela +
                 paginador(pagina, paginas, request.args, "/contratos") +
                 fonte + "</div>")
@@ -3970,7 +4023,7 @@ def contratos():
         "contratos", "Contratos celebrados",
         "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
         "Não são oportunidades: servem para saber com quem se concorre.",
-        conteudo,
+        conteudo, script=ARVORE_JS,
         migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
         titulo_aba="Contratos, Radar de Concursos")
 
