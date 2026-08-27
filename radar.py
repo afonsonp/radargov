@@ -2174,6 +2174,18 @@ details.arvore[open]>summary::before{content:'\25BE'}
  font:400 12px/1 var(--sans);color:var(--t5)}
 .linha-conta a{margin-left:auto;color:var(--t5)}
 .linha-conta a:hover{color:var(--ink)}
+.paginas{display:flex;align-items:center;justify-content:center;gap:5px;
+ flex-wrap:wrap;margin-top:16px}
+.paginas a,.paginas b,.paginas span{min-width:32px;padding:7px 10px;
+ border-radius:6px;text-align:center;font:500 12.5px/1 var(--sans)}
+.paginas a{background:#fff;border:1px solid var(--linha);color:var(--t4);
+ box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.paginas a:hover{border-color:var(--t6);color:var(--ink)}
+.paginas b.on{background:var(--ink);border:1px solid var(--ink);color:#fff;
+ font-weight:600}
+.paginas .morto{border:1px solid transparent;color:var(--t6);opacity:.5}
+.paginas .corte{border:1px solid transparent;color:var(--t6);min-width:0;
+ padding:7px 2px}
 .lista{display:flex;flex-direction:column;gap:10px}
 .item{display:grid;grid-template-columns:64px minmax(0,1fr) 210px;background:#fff;
  border:1px solid var(--linha);border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.06);
@@ -2526,8 +2538,9 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
 
 
 # Quantas linhas a lista mostra de uma vez. E um limite de apresentacao,
-# nao da base.
-LIMITE_LISTA = 500
+# nao da base: o filtro apanha o que apanhar, a pagina mostra 20 e o
+# resto alcanca-se pelo paginador.
+POR_PAGINA = 20
 
 MESES = ("jan", "fev", "mar", "abr", "mai", "jun",
          "jul", "ago", "set", "out", "nov", "dez")
@@ -2753,22 +2766,72 @@ document.getElementById('arvore-busca').addEventListener('input', function() {
 </script>"""
 
 
+def pagina_pedida(args):
+    """Le ?pag= sem rebentar com lixo na URL. Fora do sitio, e a 1."""
+    try:
+        return int(args.get("pag", 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def sem_pagina(args, **muda):
+    """Liga da lista com os filtros de agora. Mexer num filtro volta a
+    pagina 1: a pagina 7 do filtro anterior nao existe no novo."""
+    novos = dict(args.to_dict(), **muda)
+    novos.pop("pag", None)
+    return "/?" + urlencode(novos) if novos else "/"
+
+
+def paginador(pagina, paginas, args):
+    """Barra de paginas. Mostra uma janela a volta da actual em vez de
+    todas -- com 65 mil anuncios sao 3300 paginas e nao cabem na linha."""
+    if paginas <= 1:
+        return ""
+
+    def liga_pag(n, etiqueta=None, classe=""):
+        args_n = dict(args.to_dict(), pag=str(n))
+        return ("<a class='%s' href='/?%s'>%s</a>"
+                % (classe, urlencode(args_n), etiqueta or n))
+
+    pecas = []
+    pecas.append(liga_pag(pagina - 1, "&larr; anterior")
+                 if pagina > 1
+                 else "<span class='morto'>&larr; anterior</span>")
+
+    # janela de duas paginas para cada lado, com a primeira e a ultima
+    # sempre presentes -- e delas que se salta para as pontas
+    janela = {1, paginas}
+    janela.update(range(max(1, pagina - 2), min(paginas, pagina + 2) + 1))
+    anterior = 0
+    for n in sorted(janela):
+        if n - anterior > 1:
+            pecas.append("<span class='corte'>&hellip;</span>")
+        pecas.append("<b class='on'>%d</b>" % n if n == pagina
+                     else liga_pag(n))
+        anterior = n
+
+    pecas.append(liga_pag(pagina + 1, "seguinte &rarr;")
+                 if pagina < paginas
+                 else "<span class='morto'>seguinte &rarr;</span>")
+    return "<div class='paginas'>" + "".join(pecas) + "</div>"
+
+
 @app.route("/")
 def painel():
     onde, valores = condicoes(request.args)
     with liga() as c:
-        # Menos um por cento: pede-se uma linha a mais que o limite de
-        # apresentacao. Se ela vier, sabe-se que ha mais sem correr a
-        # consulta filtrada uma segunda vez so para contar -- com um
-        # filtro por palavras isso era outra passagem por 65 mil linhas.
+        # Com paginas de 20 a contagem deixa de ser dispensavel: e ela que
+        # diz quantas paginas ha. Faz-se sempre, antes da consulta das
+        # linhas, para se poder segurar a pagina pedida dentro do que
+        # existe -- pedir a pagina 900 de 12 devolvia uma lista vazia.
+        correspondem = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
+                                 valores).fetchone()["n"]
+        paginas = max(1, -(-correspondem // POR_PAGINA))
+        pagina = min(max(1, pagina_pedida(request.args)), paginas)
         linhas = c.execute("SELECT * FROM anuncios" + onde +
-                           " ORDER BY data_pub DESC, ref DESC LIMIT ?",
-                           valores + [LIMITE_LISTA + 1]).fetchall()
-        ha_mais = len(linhas) > LIMITE_LISTA
-        linhas = linhas[:LIMITE_LISTA]
-        correspondem = (c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
-                                  valores).fetchone()["n"]
-                        if ha_mais else len(linhas))
+                           " ORDER BY data_pub DESC, ref DESC LIMIT ? OFFSET ?",
+                           valores + [POR_PAGINA,
+                                      (pagina - 1) * POR_PAGINA]).fetchall()
         contas = {e: c.execute("SELECT COUNT(*) n FROM anuncios WHERE estado=?",
                                (e,)).fetchone()["n"]
                   for e in ("novo", "interessa", "descartado")}
@@ -2790,18 +2853,18 @@ def painel():
                                      ("interessa", "Interessa", contas["interessa"]),
                                      ("descartado", "Descartados", contas["descartado"]),
                                      ("", "Todos", total)):
-        args = dict(request.args.to_dict(), estado=valor)
-        abas.append("<a class='%s' href='/?%s'>%s <i>%s</i></a>"
+        abas.append("<a class='%s' href='%s'>%s <i>%s</i></a>"
                     % ("on" if valor == estado_actual else "",
-                       urlencode(args), etiqueta, mil(quantos)))
+                       sem_pagina(request.args, estado=valor),
+                       etiqueta, mil(quantos)))
     abas.append("</div>")
 
     cpv_actual = request.args.get("cpv", "")
     if cpv_actual:
-        sem_cpv = dict(request.args.to_dict(), cpv="")
         faixa_cpv = ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
-                     "<a href='/?%s'>tirar</a></div>"
-                     % (html.escape(cpv_actual), urlencode(sem_cpv)))
+                     "<a href='%s'>tirar</a></div>"
+                     % (html.escape(cpv_actual),
+                        sem_pagina(request.args, cpv="")))
     else:
         faixa_cpv = ""
 
@@ -2861,12 +2924,14 @@ def painel():
         corpo_lista = ("<div class='vazio'>Nada corresponde a este filtro. "
                        "<a href='/'>limpar</a></div>")
 
-    # o LIMIT 500 e de apresentacao; a contagem tem de dizer quantos o
-    # filtro apanhou mesmo, senao "500 de 65 869" parece um filtro que
-    # nao filtrou nada
+    # a pagina mostra 20; a contagem tem de dizer quantos o filtro apanhou
+    # mesmo, senao "20 de 65 869" parece um filtro que nao filtrou nada
     if correspondem > len(linhas):
-        conta = ("Mais recentes primeiro &middot; a mostrar %s dos %s que "
-                 "correspondem" % (mil(len(linhas)), mil(correspondem)))
+        primeiro = (pagina - 1) * POR_PAGINA + 1
+        conta = ("Mais recentes primeiro &middot; %s&ndash;%s de %s que "
+                 "correspondem &middot; página %s de %s"
+                 % (mil(primeiro), mil(primeiro + len(linhas) - 1),
+                    mil(correspondem), mil(pagina), mil(paginas)))
     else:
         conta = ("Mais recentes primeiro &middot; %s %s"
                  % (mil(correspondem),
@@ -2891,7 +2956,8 @@ def painel():
                 "<a href='/csv%s'>exportar CSV</a></div>"
                 % (("?" + request.query_string.decode())
                    if request.query_string else "") +
-                corpo_lista + rodape + "</div>")
+                corpo_lista + paginador(pagina, paginas, request.args) +
+                rodape + "</div>")
 
     return envolver(
         "lista", "Anúncios da parte L",
