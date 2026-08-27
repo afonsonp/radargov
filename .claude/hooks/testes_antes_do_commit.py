@@ -14,11 +14,17 @@ Sai com codigo 2 e o que estiver no stderr volta para o Claude, que fica
 a saber que teste caiu e pode corrigi-lo em vez de insistir.
 """
 
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+
+# A consola do Windows e cp1252 e o unittest escreve os nomes dos testes
+# em portugues; sem isto a explicacao chegava estropiada.
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
+                              errors="replace")
 
 PASTA = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                      "..", ".."))

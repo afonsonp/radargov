@@ -101,25 +101,56 @@ Cada classe de `teste_radar.py` corresponde a um erro que existiu mesmo, e
 o comentário diz qual — "simplificar" um teste é normalmente voltar ao erro.
 Correm em menos de um segundo: corre-os antes de gravar.
 
-## Hooks e skill
+### Armadilhas já pagas
 
-Tres hooks, em `.claude/settings.json`:
+Custaram horas uma vez. O registo longo está no `ESTADO.md`; estas quatro
+valem sempre:
+
+- **Nunca testes um endereço que passou por um `[:n]`.** Dois "isto é
+  impossível" falsos vieram de códigos de acesso truncados na impressão —
+  juntos, tinham declarado ~53% da cobertura das plataformas impossível.
+- **Antes de dizer "a correcção não funcionou", confirma a hora de arranque
+  do processo na porta 8765.** Já houve cinco instâncias em simultâneo
+  (SO_REUSEADDR no Windows), a responder à vez e com código velho.
+- **Para ver se o modelo inventou um facto, normaliza a fonte como o
+  extractor a normaliza.** O PDF parte números ("1 2 meses") e um grep
+  ingénuo produz uma acusação falsa. É o que o `ensaio-de-leitura` faz.
+- **Os heredocs do Bash comem um nível de escape neste ambiente.** Para
+  código com barras invertidas, usa as ferramentas de escrita.
+
+## Hooks, skills e subagente
+
+Tres hooks, em `.claude/settings.json`. Os tres olham para o `file_path` das
+ferramentas de escrita **e para o texto dos comandos** do Bash e do
+PowerShell -- so pelo `file_path` eram uma porta com a parede ao lado:
 
 - **`proteger_dados.py`** (PreToolUse) recusa escritas em `curl_*.txt` e
-  `radar.db*` -- capturas e base nao se editam a maos.
+  `radar.db*` -- capturas e base nao se editam a maos. Nos comandos, recusa
+  a escrita e deixa passar a leitura: um `sqlite3 radar.db "SELECT ..."` e
+  rotina, e travar leituras so ensinava a desligar o hook.
 - **`testes_antes_do_commit.py`** (PreToolUse) trava o `git commit` com
   testes a falhar. So o commit; o resto do git passa.
 - **`verificar_sintaxe.py`** (PostToolUse) compila o Python escrito com
   `-W error::SyntaxWarning`, porque os erros que passaram despercebidos
-  neste projecto foram todos de sintaxe e de escapes.
+  neste projecto foram todos de sintaxe e de escapes. Escrito por comando
+  (`sed -i`, heredoc), compila os `.py` nomeados no comando.
 
 Atencao: estes hooks so actuam quando o **`radar/` e a pasta de trabalho**
 da sessao. A trabalhar a partir da pasta-mae, nao disparam -- corre entao
 `python teste_radar.py` a mao antes de gravar.
 
-A skill `estado-radar` lê a base em modo só-leitura e diz quantos anúncios
-há, quantos faltam ler e se as capturas ainda são válidas — funciona mesmo
-com o `radar.py` a meio de uma alteração que não compila.
+Duas skills e um subagente:
+
+- **`estado-radar`** lê a base em modo só-leitura e diz quantos anúncios há,
+  quantos faltam ler e se as capturas ainda são válidas — funciona mesmo com
+  o `radar.py` a meio de uma alteração que não compila.
+- **`ensaio-de-leitura <ref>`** põe cada linha da resposta do modelo ao lado
+  do pedaço do documento que a sustenta, para julgar se a leitura das peças
+  presta. Com `--sem-modelo` não gasta orçamento; sem ele, relê sobre uma
+  **cópia** da base. É a ferramenta do ponto que falta para a v1.
+- **`explorador-de-plataforma`** (subagente) investiga se as peças de uma
+  plataforma que o radar ainda não sabe descarregar se alcançam sem sessão
+  iniciada, e devolve receita ou um "não há" fundamentado.
 
 ## Git
 

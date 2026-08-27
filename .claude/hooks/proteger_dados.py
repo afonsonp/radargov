@@ -27,10 +27,17 @@ Sai com codigo 2 para travar a ferramenta; o que for escrito no stderr
 volta para o Claude como explicacao.
 """
 
+import io
 import json
 import os
 import re
 import sys
+
+# A consola do Windows e cp1252 e a recusa vai escrita em portugues: sem
+# isto, "sessão" chegava ao Claude como "sess?o" -- ou pior, rebentava a
+# leitura de quem esta do outro lado.
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
+                              errors="replace")
 
 # (padrao do nome, porque e que nao se mexe)
 PROTEGIDOS = (
@@ -43,10 +50,10 @@ PROTEGIDOS = (
 # Os mesmos nomes, agora para procurar no meio de um comando.
 # (padrao, como se diz o nome na recusa, porque e que nao se mexe)
 NOMES = (
-    (r"curl_[\w.\-]*\.txt", "as capturas",
-     "levam o token da sessão do browser; refaz a captura no DevTools em "
+    (r"curl_[\w.\-]*\.txt", "curl_*.txt",
+     "leva o token da sessão do browser; refaz a captura no DevTools em "
      "vez de reescrever o ficheiro"),
-    (r"radar\.db(?:-wal|-shm)?", "o radar.db",
+    (r"radar\.db(?:-wal|-shm)?", "radar.db",
      "é a base de dados; se for mesmo preciso, mexe-lhe por SQL e com "
      "cópia antes"),
 )
