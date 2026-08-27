@@ -78,6 +78,12 @@ SQL_ESCRITA = re.compile(
     r"\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|"
     r"DROP\s+TABLE|ALTER\s+TABLE)\b", re.I)
 APONTA_NOUTRO_SITIO = re.compile(r"\bradar\s*\.\s*DB\s*=", re.I)
+# ... mas so quando o comando chega mesmo a abrir uma base. Sem isto, um
+# guiao que edite o radar.py era recusado por causa do SQL que vai DENTRO
+# das aspas -- o CREATE TABLE e o INSERT que ele escreve no ficheiro sao
+# texto, nao sao ordens. Aconteceu a acrescentar a coluna localizacao.
+ABRE_UMA_BASE = re.compile(r"\bsqlite3\b|\bliga\s*\(|\bconnect\s*\(|\.db\b",
+                           re.I)
 
 
 def por_caminho(caminho):
@@ -93,7 +99,8 @@ def por_comando(comando):
         for verbo in ESCRITAS:
             if re.search(verbo % nome, comando, re.I | re.S):
                 return "o comando escreve em %s, que %s" % (rotulo, motivo)
-    if SQL_ESCRITA.search(comando) and not APONTA_NOUTRO_SITIO.search(comando):
+    if (SQL_ESCRITA.search(comando) and ABRE_UMA_BASE.search(comando)
+            and not APONTA_NOUTRO_SITIO.search(comando)):
         return ("o comando tem SQL que altera dados e não diz sobre que base "
                 "-- fica a de trabalho. Faz uma cópia e aponta-lhe o "
                 "radar.DB, como no ensaio-de-leitura")

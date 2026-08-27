@@ -162,6 +162,10 @@ def analise_com_modelo(radar, ref):
     destino.close()
     origem.close()
     radar.DB = copia
+    # As migracoes correm no arranque do radar.py, e nos so o importamos:
+    # sem isto, uma copia de uma base anterior a uma coluna nova rebentava
+    # no INSERT ("table analise has no column named localizacao").
+    radar.iniciar_db()
     with radar.liga() as c:
         c.execute("DELETE FROM analise WHERE ref=?", (ref,))
     print("a ler as peças pelo modelo (uma cópia da base, ~6 mil tokens)…\n")

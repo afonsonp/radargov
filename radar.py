@@ -163,11 +163,11 @@ def iniciar_db():
         c.execute("""CREATE TABLE IF NOT EXISTS analise (
             ref TEXT PRIMARY KEY, objecto TEXT, equipa TEXT,
             documentos_proposta TEXT, preco_anormalmente_baixo TEXT,
-            modelo TEXT, fontes TEXT, quando TEXT)""")
+            localizacao TEXT, modelo TEXT, fontes TEXT, quando TEXT)""")
         cols_an = [r["name"] for r in c.execute("PRAGMA table_info(analise)")]
-        if "preco_anormalmente_baixo" not in cols_an:
-            c.execute("ALTER TABLE analise ADD COLUMN "
-                      "preco_anormalmente_baixo TEXT")
+        for nome in ("preco_anormalmente_baixo", "localizacao"):
+            if nome not in cols_an:
+                c.execute("ALTER TABLE analise ADD COLUMN %s TEXT" % nome)
         cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
         for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
             if nome not in cols_doc:
@@ -1109,6 +1109,11 @@ TECTO_RECORTE = 7000
 # Comparadas contra simplifica(): sem acentos e em minusculas.
 ANCORAS_OBJECTO = (
     (1, r"objec?to\b|\bsolucao|\bambito|enquadramento"),
+    # O regime -- presencial, remoto ou hibrido -- vem no mesmo pedido que
+    # o objecto, por ser o mesmo documento. Prioridade 1 para nao ser o
+    # primeiro a ser cortado quando o recorte enche: e uma clausula curta,
+    # custa pouco, e sem ela o campo fica vazio de vez.
+    (1, r"local d[aeo]|instalacoes|teletrabalho|presencial|regime de trabalho"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
 )
@@ -1133,29 +1138,58 @@ português de Portugal."""
 
 INSTRUCOES_OBJECTO = PREAMBULO + """
 
-Extrai o OBJECTO do contrato: o âmbito do serviço decomposto em pontos
-concretos, um por linha começada por "- ". Não repitas o título do
-concurso — enumera o que tem mesmo de ser feito (desenvolvimento,
-migração, integrações, formação, garantia, suporte, prazos parciais).
+Extrai duas coisas do Caderno de Encargos:
 
-Responde SÓ com {"objecto": "..."}."""
+- "objecto": o âmbito do serviço decomposto em pontos concretos, um por
+  linha começada por "- ". UMA LINHA POR OBRIGAÇÃO ou requisito técnico
+  principal. Sem introduções e sem texto jurídico acessório: nada de "o
+  presente caderno de encargos tem por objecto". Não repitas o título do
+  concurso — enumera o que tem mesmo de ser feito (desenvolvimento,
+  migração, integrações, formação, garantia, suporte, prazos parciais).
+
+- "localizacao": onde e como o serviço é prestado. Começa pelo REGIME
+  numa palavra — presencial, remoto ou híbrido — e a seguir o que o
+  documento exige em concreto: as instalações nomeadas, quantos dias por
+  semana se exige presença, deslocações previstas. Exemplos do formato:
+  "Presencial, nas instalações do INFARMED em Lisboa"; "Híbrido: 2 dias
+  por semana presenciais"; "Remoto, com deslocações pontuais a Lisboa
+  para reuniões de acompanhamento".
+  Se o documento não disser nada sobre presença nem regime, responde
+  "não consta" — NÃO deduzas o regime a partir da morada da entidade.
+
+Responde SÓ com {"objecto": "...", "localizacao": "..."}."""
 
 INSTRUCOES_EQUIPA = PREAMBULO + """
 
-Extrai os PERFIS exigidos para a equipa, um por linha começada por "- ".
+Extrai os PERFIS exigidos para a equipa. Um bloco por perfil, com esta
+estrutura exacta e uma linha em branco entre blocos:
 
-Para cada perfil diz o que o documento exige em CONCRETO: número mínimo
-de anos de experiência, formação e certificações exigidas, e o preço
-máximo por hora se lá estiver. Transcreve os números que lá estão.
-Nunca escrevas "conforme o Anexo" nem "experiência comprovada" — se o
-documento traz uma tabela de perfis, passa-a toda para linhas, um perfil
-por linha, com os valores dessa linha.
+Nome do perfil tal e qual está no documento
+Formação: área e grau exigidos, ou —
+Experiência geral: X anos, ou —
+Experiência específica: tecnologia, sector ou dimensão; se for mais do
+que uma, as seguintes em linhas próprias começadas por "- "
+Certificações: a lista exacta, ou —
+Outras condições: dedicação, presença, preço máximo/hora, ou —
+
+Regras duras:
+- Copia o nome do perfil TAL E QUAL. Não acrescentes "sénior", "júnior"
+  nem qualquer qualificador que não esteja lá.
+- Cada requisito numa linha autónoma.
+- Se o documento não quantifica, escreve a expressão exacta que lá está,
+  sem interpretar: "experiência relevante" fica "experiência relevante".
+- Onde não houver exigência, escreve — (travessão). Não inventes e não
+  deixes a linha de fora.
+- N perfis no documento, N blocos na resposta. Se há uma tabela de
+  perfis, passa-a toda.
+- Transcreve os números que lá estão. Nunca escrevas "conforme o Anexo"
+  nem "experiência comprovada".
 
 Repara SEMPRE se os requisitos são de cada perfil ou da equipa "em
 conjunto": não é a mesma coisa para quem concorre — sete certificações
 numa pessoa ou espalhadas por quatro. Não atribuas a um perfil o que o
-documento exige ao conjunto; nesse caso escreve uma linha
-"- Em conjunto, a equipa deve deter: ...".
+documento exige ao conjunto; para esse faz um bloco final com o nome
+"Em conjunto, a equipa deve deter".
 
 Responde SÓ com {"equipa": "..."}."""
 
@@ -1163,8 +1197,30 @@ INSTRUCOES_PROPOSTA = PREAMBULO + """
 
 Extrai duas coisas do Programa de Concurso:
 
-- "documentos_proposta": a lista dos documentos que o CONCORRENTE tem de
-  entregar na proposta, um por linha começada por "- ".
+- "documentos_proposta": a lista NUMERADA dos documentos que o
+  CONCORRENTE tem de entregar na proposta, assim:
+
+  1. Designação do documento
+  Condições especiais: em que casos é exigido, ou o que tem de conter
+
+  A linha "Condições especiais" só aparece quando há mesmo alguma; um
+  documento que se entregue sempre e sem condições fica só com o número
+  e o nome.
+
+  Escreve o NOME CURTO de cada documento, não o texto da alínea. Isto é
+  uma lista para preparar a proposta, não uma citação do Programa: cinco
+  a dez palavras no nome. Escreve "1. DEUCP", e não "1. Documento
+  Europeu Único de Contratação Pública, aprovado pelo Regulamento de
+  Execução (EU) 2016/7 da Comissão, de 5 de janeiro de 2016, cujo
+  modelo pré-preenchido (...)".
+
+  Usa a sigla quando ela é corrente (DEUCP, CV, certidão permanente).
+  Guarda o anexo ou modelo a usar, que muda o que há a fazer
+  ("2. Modelo da Proposta (Anexo II)"). Deita fora números de
+  regulamento, datas de diplomas e as fórmulas jurídicas de rotina.
+
+  NÃO omitas nenhum documento e NÃO fundas as regras de documentos
+  distintos: se o Programa tem sete alíneas, a lista tem sete números.
 - "preco_anormalmente_baixo": o limiar a partir do qual o preço da
   proposta é tido por anormalmente baixo (art. 71.º do CCP) — a
   percentagem ou o valor. Muitos Programas não fixam nenhum: nesse caso
@@ -1353,7 +1409,18 @@ def limpa_campo(valor):
     escreveu "\\n" no JSON e o json.loads so desfaz uma camada.
     """
     texto = str(valor or "").replace("\\n", "\n").replace("\\t", " ")
-    return "\n".join(l for l in (x.strip() for x in texto.split("\n")) if l)
+    # Uma linha em branco separa blocos -- a equipa vem em blocos por
+    # perfil, e sem isto os 21 do INFARMED saiam numa parede de 126
+    # linhas seguidas. Duas ou mais em branco continuam a valer uma, e
+    # nas pontas nao fica nenhuma. O CSS da ficha e white-space:pre-line,
+    # por isso o que aqui se guardar e o que la se ve.
+    fora = []
+    for linha in (x.strip() for x in texto.split("\n")):
+        if linha or (fora and fora[-1]):
+            fora.append(linha)
+    while fora and not fora[-1]:
+        fora.pop()
+    return "\n".join(fora)
 
 
 # A conta tem dois tectos, e so um deles se ve nos cabecalhos. O de
@@ -1381,7 +1448,7 @@ def espera_pedida(resposta, tecto=70):
 
 
 CAMPOS_DA_ANALISE = ("objecto", "equipa", "documentos_proposta",
-                     "preco_anormalmente_baixo")
+                     "preco_anormalmente_baixo", "localizacao")
 
 
 def juntar_leituras(dados, anterior):
@@ -1506,10 +1573,11 @@ def analisar_pecas(ref):
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
             (ref,objecto,equipa,documentos_proposta,preco_anormalmente_baixo,
-             modelo,fontes,quando) VALUES (?,?,?,?,?,?,?,?)""",
+             localizacao,modelo,fontes,quando) VALUES (?,?,?,?,?,?,?,?,?)""",
                   (ref, campos["objecto"], campos["equipa"],
                    campos["documentos_proposta"],
-                   campos["preco_anormalmente_baixo"], modelo, fontes,
+                   campos["preco_anormalmente_baixo"],
+                   campos["localizacao"], modelo, fontes,
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
     if sem_orcamento:
         return True, SEM_ORCAMENTO_HOJE
@@ -2997,7 +3065,14 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     def das_pecas(campo):
         if not analise:
             return ""
-        valor = (analise[campo] or "").strip()
+        try:
+            valor = (analise[campo] or "").strip()
+        except (KeyError, IndexError):
+            # Campo acrescentado depois: uma linha gravada antes dele nao
+            # o tem, e um sqlite3.Row rebenta em vez de devolver vazio.
+            # E a mesma licao do juntar_leituras -- a ficha inteira nao
+            # pode ir abaixo por causa de um campo que ainda nao foi lido.
+            return ""
         return "" if simplifica(valor) in ("", "nao consta", "não consta") else valor
 
     # Nomear as pecas que foram mesmo lidas: numa leitura parcial, dizer
@@ -3005,6 +3080,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     nota_pecas = ("lido de %s por %s — confirmar no documento"
                   % (analise["fontes"] or "peças do procedimento",
                      analise["modelo"])) if analise else ""
+    regime = das_pecas("localizacao")
     # Lido o Programa e nao havendo limiar, isso e uma resposta -- e nao a
     # mesma coisa que ainda nao se ter ido ver.
     anormal = das_pecas("preco_anormalmente_baixo")
@@ -3021,11 +3097,16 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Duração do contrato", duracao, "", ""),
         # O DR chama a esta seccao "LOCAL DA EXECUCAO DO CONTRATO
         # (PROCEDIMENTO)" e o que la esta e, quase sempre, a morada da
-        # entidade. Onde o servico e mesmo prestado -- remoto, hibrido,
-        # ou instalacoes nomeadas -- consta do Caderno de Encargos.
-        ("Local de prestação de serviços", local, "",
-         "localização do procedimento; regime presencial, remoto ou "
-         "híbrido consta do Caderno de Encargos"),
+        # entidade -- que nao diz se o trabalho e presencial, remoto ou
+        # hibrido, que e o que decide se ha alguem para o fazer. Esse
+        # regime so esta no Caderno de Encargos: quando a leitura o
+        # trouxer, e ele que manda, com o concelho a seguir.
+        ("Local de prestação de serviços",
+         "%s\n(%s, segundo o anúncio)" % (regime, local) if regime and local
+         else (regime or local), "",
+         nota_pecas if regime else
+         "localização do procedimento; o regime presencial, remoto ou "
+         "híbrido consta do Caderno de Encargos e ainda não foi lido"),
         ("Data de esclarecimentos", esclarecimentos, esclarec_falta,
          esclarec_nota),
         ("Data de submissão da proposta", a["prazo"], "", ""),
