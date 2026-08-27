@@ -845,6 +845,129 @@ voltar pelo chip (repõe CPV, aba e os 350 resultados), gravar por cima
 actualizar em vez de duplicar, e apagar. Mais o ciclo completo por
 `test_client` sobre uma **cópia** da base.
 
+## Portal BASE: corpus de contratos celebrados
+
+Segunda fonte, para inteligência de mercado. Vive num ficheiro próprio,
+`contratos.db`, e não no `radar.db` — pelo mesmo motivo que as peças
+vivem em `documentos/`: a base de trabalho tem 5 mil anúncios e tem de
+continuar pequena; dois anos de contratos são 405 mil linhas e 334 MB.
+Cruzam-se por `ATTACH` (`com_corpus()`).
+
+### O que se descobriu antes de escrever código, e mudou o plano
+
+O plano de partida tinha duas premissas. Uma caiu, a outra ficou.
+
+- **O dump "OCDS" do dados.gov não existe na prática.** A página está lá
+  desde 2019, mas tem **zero ficheiros** e a última actualização é de
+  **Outubro de 2022**. Não se conta com ele. O que está vivo é o dump
+  normal do IMPIC, no mesmo portal: `anuncios<ano>.json` e
+  `contratos<ano>.zip`, **semanal**, domínio público (melhor licença que
+  a do OCDS, que é cc-by), 15 anos disponíveis (2012–2026).
+- **Os "anúncios" do BASE são o mesmo universo do DR**, não uma fonte
+  nova. Medido: `nAnuncio` tem exactamente o formato do `ref` do radar, e
+  **4 917 dos 5 391** refs do radar estão lá directamente; o campo `url`
+  aponta para `files.diariodarepublica.pt` e há um `IdIncm` ao lado. Só
+  aparecem `Concurso público`, `Concurso limitado` e afins — nenhum
+  procedimento abaixo dos limiares, porque **abaixo dos limiares não há
+  anúncio nenhum** (ver a secção "O que fica de fora").
+- **As datas batem certo a 100%**: nos 4 917 comuns, zero dias de
+  diferença. Mas o dump é semanal e anda atrás: em 27/08 o radar tinha
+  anúncios de hoje e o dump parava em 21/08. Para anúncios, **o radar já
+  está na melhor fonte** e não há frescura a ganhar no BASE, por
+  construção — o BASE é a jusante do DR.
+
+Conclusão, decidida com o Afonso: **os anúncios do BASE ignoram-se por
+completo**. Não se acrescentou coluna `fonte` nem se mexeu na
+deduplicação, porque não há segunda fonte de anúncios para deduplicar.
+O que entra é só o corpus de contratos.
+
+### Como se traz
+
+```bash
+python radar.py --contratos              # ano corrente e anterior
+python radar.py --contratos 2019-2026    # intervalo
+python radar.py --contratos 2024 2026    # anos soltos
+```
+
+Medido: 2025 e 2026 juntos são 91 MB descarregados, 405 798 contratos,
+**2 minutos** e 334 MB de base. Os 15 anos ficam na ordem dos 2 GB — daí
+o valor de origem serem dois anos e não tudo.
+
+Três coisas que não são óbvias:
+
+- **O endereço do ficheiro muda todas as semanas.** Traz a data da
+  actualização no meio do caminho. Resolve-se sempre pela API do
+  dados.gov (`recursos_contratos()`) e nunca se guarda — um endereço
+  guardado deixa de servir na semana seguinte.
+- **O identificador do conjunto diz "2012-a-2025" e já vai em 2026.** O
+  nome ficou congelado quando o conjunto foi criado e é por ele que a
+  API responde. Não o "corrijas".
+- **Lê-se objecto a objecto** (`objectos_do_array()`). Um ano são 268 MB
+  de JSON e um `json.loads` disso constrói a lista toda em memória.
+
+### O erro dos filhos duplicados
+
+Há contratos que aparecem no ficheiro de **dois anos** (e até duas vezes
+no mesmo). O pai era substituído pela chave primária, mas
+`contrato_cpv` e `contrato_adjudicatario` iam a `INSERT` simples e
+**acumulavam**: medido, 917 CPV e 971 adjudicatários a dobrar em dois
+anos, o que inflacionava qualquer contagem por CPV. A correcção não foi
+mais código de limpeza no importador — foi um **índice único** em cada
+tabela filha mais `INSERT OR IGNORE`, que torna o problema impossível em
+vez de o remediar. A migração limpa o que já lá estava, uma vez só
+(guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
+arranque).
+
+### Ligar uma entidade do radar às adjudicações dela
+
+É a peça de que depende o ganho todo, e não era garantida: o radar
+guarda o nome da entidade como o DR o escreve, o BASE guarda
+`NIF - nome`. Medido sobre as 898 entidades distintas do radar:
+
+| normalização | resolve | ambíguos |
+|---|---|---|
+| acentos, maiúsculas, pontuação (1 ano de corpus) | 818/898 = 91,1% | 0 |
+| a mesma, com 2 anos de corpus | 841/898 = **93,7%** | 1 |
+| + tirar EPE/SA/IP, unificar Município com Câmara Municipal | 843/898 = 93,8% | — |
+
+Duas leituras, ambas no código:
+
+- **Mais anos, melhor cobertura.** Os que falham não são erros de
+  escrita — são entidades que ainda não adjudicaram nada nos anos
+  importados. De 1 para 2 anos ganharam-se 23.
+- **A normalização agressiva não compensa.** Dois casos em 898, e
+  arrisca juntar entidades diferentes. `norma_entidade()` fica no
+  básico, e há um teste que segura essa decisão.
+
+Os 6% que sobram são diferenças reais, não tipográficas: sub-unidades
+("Centro de Emprego de Entre Douro e Vouga" contra o IEFP que assina o
+anúncio), "Município de X" contra "Câmara Municipal de X", e "EPE"
+contra "E. P. E.".
+
+### O que aparece na ficha
+
+Bloco "Histórico de adjudicações", na coluna esquerda: os contratos já
+celebrados por aquela entidade, **os do mesmo CPV primeiro e
+destacados**, e dentro de cada grupo os mais recentes. Data, tipo de
+procedimento, quem ganhou, preço. Exemplo real (Município de Oeiras,
+CPV 48100000): 1 433 contratos da entidade, 6 no mesmo CPV.
+
+O CPV compara-se com `prefixo_cpv()`, que saiu de dentro da
+`condicoes()` para as duas coisas procurarem com o mesmo critério —
+duas cópias daquela regra divergiam, e a de "nunca abaixo de dois
+dígitos" já custou 4592 anúncios em vez de 440 uma vez.
+
+Degrada bem, e está verificado: sem corpus importado diz como o trazer;
+com corpus mas sem esta entidade diz que não há e porquê. Nunca finge
+que não há histórico quando o que falta é a importação.
+
+### Porque é que o `contratos.db` não está protegido pelo hook
+
+O `proteger_dados.py` cobre o `radar.db` porque lá está a triagem, que
+não se recupera. O corpus é **dado derivado**: refaz-se em dois minutos
+a partir de um dump público. Protegê-lo só travava a própria
+importação. Está no `.gitignore`, isso sim — são centenas de MB.
+
 ## Quadro (kanban)
 
 Pedido do Afonso depois de mostrar o SpotGov (concorrente comercial,
@@ -1287,11 +1410,22 @@ de cada vez.
 
 ## O que fica de fora, e porquê
 
-Abaixo dos limiares de publicação obrigatória, os procedimentos não
-aparecem no DR, aparecem no Portal BASE. O acesso à API do BASE exige
-pedido e autorização ao IMPIC, feito pelo helpdesk, e está por submeter.
-É a peça que falta para cobertura completa e para deixar de depender de
-capturas de browser.
+**Correcção, 27 de agosto de 2026.** Esta secção dizia que o pedido de
+acesso à API do BASE ao IMPIC "está por submeter". Está errado: o Afonso
+**submeteu-o pelo helpdesk e nunca obteve resposta**. Fica registado, e
+fica também que **deixou de ser caminho crítico** — o dump semanal do
+dados.gov dá os mesmos dados sem chave, sem sessão e sem depender de
+ninguém responder. Ver a secção do corpus de contratos.
+
+O que aqui se dizia sobre cobertura estava certo na conclusão e errado
+na premissa. A premissa era que abaixo dos limiares há anúncios que só
+o BASE publica. **Não há.** Abaixo dos limiares não existe anúncio
+nenhum: ajuste directo e consulta prévia são por convite, e o
+procedimento só se torna público como **contrato celebrado**, depois de
+estar tudo decidido. Medido no dump de 2026: 84,6% dos contratos
+(134 242 de 158 725) nunca tiveram anúncio, e valem 49% dos 13,98 mil
+M€ do ano. Não são oportunidades a que se possa concorrer — são o
+retrato de quem ganha o quê.
 
 O TED foi implementado e depois retirado, por decisão do Afonso: o que
 vai ao TED de entidades portuguesas sai também no DR. Fica a nota de que

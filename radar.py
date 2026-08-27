@@ -1953,6 +1953,358 @@ def verificar(cfg=None):
     return mensagem, novos
 
 
+# ------------------------------------------ contratos celebrados (BASE)
+#
+# Corpus historico para inteligencia de mercado: quem ganhou o que, por
+# quanto, de que entidade. Nao sao oportunidades -- sao contratos ja
+# assinados -- e por isso nao entram na tabela `anuncios` nem no funil.
+#
+# Vive num ficheiro proprio, pelo mesmo motivo que as pecas vivem em
+# `documentos/`: o radar.db e para o trabalho do dia e tem de continuar
+# pequeno. Um ano de contratos sao ~160 mil linhas; o acervo desde 2012
+# passa o milhao, e nao tem nada que fazer ao lado de 5 mil anuncios.
+# Para cruzar os dois faz-se ATTACH (ver `com_corpus()`).
+#
+# A fonte e o dump semanal do IMPIC no dados.gov, dominio publico, sem
+# token nem sessao. Nao e o conjunto "OCDS" do mesmo portal: esse esta
+# vazio e parado desde Outubro de 2022 -- ver o ESTADO.md.
+
+CORPUS = os.path.join(BASE_DIR, "contratos.db")
+
+# O identificador do conjunto no dados.gov. Diz "2025" e ja vai em 2026:
+# o nome ficou congelado quando o conjunto foi criado, e e por ele que a
+# API responde. Nao o "corrijas".
+CONJUNTO_CONTRATOS = ("contratos-publicos-portal-base-impic-"
+                      "contratos-de-2012-a-2025")
+API_DADOS_GOV = "https://dados.gov.pt/api/1/datasets/%s/"
+
+
+def liga_corpus():
+    c = sqlite3.connect(CORPUS, timeout=30)
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("PRAGMA busy_timeout=30000")
+    return c
+
+
+def iniciar_corpus():
+    """Migracoes idempotentes, como o iniciar_db(): corre sempre."""
+    with liga_corpus() as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS contratos (
+            id INTEGER PRIMARY KEY, ano INTEGER, n_anuncio TEXT,
+            tipo_procedimento TEXT, objecto TEXT,
+            adjudicante_nif TEXT, adjudicante TEXT, adjudicante_norm TEXT,
+            data_publicacao TEXT, data_celebracao TEXT,
+            preco_contratual REAL, preco_base REAL,
+            prazo_execucao INTEGER, local_execucao TEXT,
+            cpv TEXT, fundamentacao TEXT)""")
+        # Um contrato pode ter varios adjudicatarios (agrupamentos) e
+        # varios CPV. Em tabelas proprias, para se poder perguntar "quem
+        # ganhou nesta divisao de CPV" com indice em vez de LIKE.
+        c.execute("""CREATE TABLE IF NOT EXISTS contrato_adjudicatario (
+            contrato_id INTEGER, nif TEXT, nome TEXT, nome_norm TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS contrato_cpv (
+            contrato_id INTEGER, cpv8 TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS corpus_estado (
+            chave TEXT PRIMARY KEY, valor TEXT)""")
+        for ddl in (
+            "CREATE INDEX IF NOT EXISTS ix_ctr_nif ON contratos(adjudicante_nif)",
+            "CREATE INDEX IF NOT EXISTS ix_ctr_norm ON contratos(adjudicante_norm)",
+            "CREATE INDEX IF NOT EXISTS ix_ctr_anuncio ON contratos(n_anuncio)",
+            "CREATE INDEX IF NOT EXISTS ix_ctr_ano ON contratos(ano)",
+            "CREATE INDEX IF NOT EXISTS ix_cpv_v ON contrato_cpv(cpv8)",
+            "CREATE INDEX IF NOT EXISTS ix_adj_nif ON contrato_adjudicatario(nif)",
+        ):
+            c.execute(ddl)
+        # Os indices unicos das tabelas filhas nao sao so para procurar:
+        # sao o que impede duplicados. Ha contratos que aparecem no
+        # ficheiro de dois anos (e ate duas vezes no mesmo); o pai era
+        # substituido pela chave primaria e os filhos acumulavam --
+        # medido, 917 CPV e 971 adjudicatarios a dobrar em dois anos.
+        # Com o indice, o INSERT OR IGNORE trata disso sozinho.
+        for nome, ddl, limpeza in (
+            ("ux_cpv",
+             "CREATE UNIQUE INDEX ux_cpv ON contrato_cpv(contrato_id, cpv8)",
+             "DELETE FROM contrato_cpv WHERE rowid NOT IN "
+             "(SELECT MIN(rowid) FROM contrato_cpv GROUP BY contrato_id, cpv8)"),
+            ("ux_adj",
+             "CREATE UNIQUE INDEX ux_adj ON "
+             "contrato_adjudicatario(contrato_id, nif, nome)",
+             "DELETE FROM contrato_adjudicatario WHERE rowid NOT IN "
+             "(SELECT MIN(rowid) FROM contrato_adjudicatario "
+             " GROUP BY contrato_id, nif, nome)"),
+        ):
+            ja = c.execute("SELECT 1 FROM sqlite_master WHERE type='index' "
+                           "AND name=?", (nome,)).fetchone()
+            if not ja:
+                c.execute(limpeza)     # so a primeira vez, nao a cada arranque
+                c.execute(ddl)
+
+
+def norma_entidade(nome):
+    """Nome de entidade reduzido ao que da para comparar entre fontes.
+
+    O radar guarda o nome como o DR o escreve; o BASE guarda "NIF - nome".
+    Medido sobre 898 entidades do radar contra o corpus de dois anos:
+    93,7% acham-se assim, sem uma unica ambiguidade. Tirar tambem os
+    sufixos de forma juridica (EPE, SA, IP) e trocar "Camara Municipal"
+    por "Municipio" so acrescentava dois casos em 898 -- e arriscava
+    juntar entidades diferentes. Nao vale a pena: fica so o basico.
+    """
+    s = unicodedata.normalize("NFKD", nome or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    s = s.lower().replace("&", " e ")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
+
+
+def _nif_e_nome(valor):
+    """O BASE escreve as partes como ['123456789 - Nome'], por vezes so
+    o nome. Devolve (nif, nome) com o que houver."""
+    if isinstance(valor, list):
+        valor = valor[0] if valor else ""
+    m = re.match(r"\s*(\d{9})\s*-\s*(.*)$", valor or "")
+    return (m.group(1), m.group(2).strip()) if m else ("", (valor or "").strip())
+
+
+def _partes(valor):
+    """A mesma coisa, para os campos que sao mesmo uma lista."""
+    if not isinstance(valor, list):
+        valor = [valor] if valor else []
+    return [_nif_e_nome(v) for v in valor if v]
+
+
+def _data_iso(valor):
+    """O BASE escreve DD/MM/AAAA. Guarda-se ISO, para ordenar como texto."""
+    try:
+        return datetime.strptime((valor or "").strip(), "%d/%m/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return ""
+
+
+def _cpv8(valor):
+    """['72210000-0 - Servicos de ...'] -> ['72210000']."""
+    fora = []
+    for v in (valor if isinstance(valor, list) else [valor]):
+        m = re.match(r"\s*(\d{8})", v or "")
+        if m:
+            fora.append(m.group(1))
+    return fora
+
+
+def objectos_do_array(texto):
+    """Ceia um array JSON objecto a objecto.
+
+    Um ano de contratos sao 268 MB de JSON; um `json.loads` disso
+    constroi a lista toda em memoria de uma vez. Assim so fica o texto
+    mais o objecto da vez.
+    """
+    dec = json.JSONDecoder()
+    i, n = texto.index("[") + 1, len(texto)
+    while True:
+        while i < n and texto[i] in " \t\r\n,":
+            i += 1
+        if i >= n or texto[i] == "]":
+            return
+        obj, i = dec.raw_decode(texto, i)
+        yield obj
+
+
+def recursos_contratos():
+    """{ano: endereco} dos zips anuais.
+
+    O endereco traz a data da actualizacao no meio do caminho e muda
+    todas as semanas. Resolve-se sempre pela API do dados.gov e nunca se
+    guarda -- um endereco guardado deixa de servir na semana seguinte.
+    """
+    r = requests.get(API_DADOS_GOV % CONJUNTO_CONTRATOS, timeout=60)
+    r.raise_for_status()
+    fora = {}
+    for rec in r.json().get("resources", []):
+        m = re.match(r"contratos(\d{4})\.zip$", (rec.get("title") or "").strip(),
+                     re.I)
+        if m:
+            fora[int(m.group(1))] = rec["url"]
+    return fora
+
+
+def anos_pedidos(pedido, hoje=None):
+    """Le os anos da linha de comando: nada, "2024", "2019-2026", varios.
+
+    Sem nada, o ano corrente e o anterior -- em Janeiro o ano corrente
+    ainda quase nao tem contratos, e um corpus so com ele nao servia
+    para nada.
+    """
+    ano_hoje = (hoje or datetime.now()).year
+    anos = set()
+    for p in pedido:
+        m = re.fullmatch(r"(\d{4})\s*-\s*(\d{4})", p.strip())
+        if m:
+            anos.update(range(int(m.group(1)), int(m.group(2)) + 1))
+        elif re.fullmatch(r"\d{4}", p.strip()):
+            anos.add(int(p.strip()))
+    return sorted(anos) or [ano_hoje - 1, ano_hoje]
+
+
+def importar_contratos(anos, avisar=print):
+    """Traz os anos pedidos do dados.gov e enche o corpus.
+
+    Reimportar um ano substitui-o: apaga-se o ano inteiro antes de
+    inserir, para uma segunda passagem nao duplicar. E o que torna isto
+    seguro de correr todas as semanas.
+    """
+    iniciar_corpus()
+    disponiveis = recursos_contratos()
+    faltam = [a for a in anos if a not in disponiveis]
+    if faltam:
+        avisar("sem dados para: %s (ha %s)"
+               % (", ".join(str(a) for a in faltam),
+                  ", ".join(str(a) for a in sorted(disponiveis))))
+    total = 0
+    for ano in [a for a in anos if a in disponiveis]:
+        ini = time.time()
+        avisar("%d: a descarregar..." % ano)
+        r = requests.get(disponiveis[ano], timeout=600)
+        r.raise_for_status()
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+        texto = z.read(z.namelist()[0]).decode("utf-8")
+        avisar("%d: %.0f MB, a carregar..." % (ano, len(r.content) / 1e6))
+        n = _gravar_contratos(ano, objectos_do_array(texto))
+        total += n
+        avisar("%d: %d contratos em %.0f s" % (ano, n, time.time() - ini))
+    with liga_corpus() as c:
+        c.execute("INSERT OR REPLACE INTO corpus_estado VALUES (?,?)",
+                  ("ultima_importacao", datetime.now().strftime("%Y-%m-%d %H:%M")))
+    return total
+
+
+def _gravar_contratos(ano, registos):
+    with liga_corpus() as c:
+        velhos = [r[0] for r in
+                  c.execute("SELECT id FROM contratos WHERE ano=?", (ano,))]
+        if velhos:
+            c.execute("DELETE FROM contratos WHERE ano=?", (ano,))
+            c.executemany("DELETE FROM contrato_cpv WHERE contrato_id=?",
+                          [(i,) for i in velhos])
+            c.executemany("DELETE FROM contrato_adjudicatario WHERE contrato_id=?",
+                          [(i,) for i in velhos])
+        n = 0
+        linhas, cpvs, adjs = [], [], []
+        for k in registos:
+            cid = k.get("idcontrato")
+            if cid is None:
+                continue
+            nif, nome = _nif_e_nome(k.get("adjudicante"))
+            linhas.append((
+                cid, ano, (k.get("nAnuncio") or "").strip(),
+                k.get("tipoprocedimento") or "",
+                k.get("objectoContrato") or k.get("descContrato") or "",
+                nif, nome, norma_entidade(nome),
+                _data_iso(k.get("dataPublicacao")),
+                _data_iso(k.get("dataCelebracaoContrato")),
+                k.get("precoContratual") or 0.0,
+                k.get("precoBaseProcedimento") or 0.0,
+                k.get("prazoExecucao") or 0,
+                ", ".join(x for x in (k.get("localExecucao") or []) if x)
+                if isinstance(k.get("localExecucao"), list)
+                else (k.get("localExecucao") or ""),
+                ", ".join(_cpv8(k.get("cpv"))),
+                k.get("fundamentacao") or ""))
+            for v in _cpv8(k.get("cpv")):
+                cpvs.append((cid, v))
+            for anif, anome in _partes(k.get("adjudicatarios")):
+                adjs.append((cid, anif, anome, norma_entidade(anome)))
+            n += 1
+            if len(linhas) >= 5000:
+                _despejar(c, linhas, cpvs, adjs)
+                linhas, cpvs, adjs = [], [], []
+        _despejar(c, linhas, cpvs, adjs)
+    return n
+
+
+def _despejar(c, linhas, cpvs, adjs):
+    if linhas:
+        c.executemany("INSERT OR REPLACE INTO contratos VALUES "
+                      "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", linhas)
+    if cpvs:
+        c.executemany("INSERT OR IGNORE INTO contrato_cpv VALUES (?,?)", cpvs)
+    if adjs:
+        c.executemany("INSERT OR IGNORE INTO contrato_adjudicatario "
+                      "VALUES (?,?,?,?)", adjs)
+
+
+def ha_corpus():
+    """Se o corpus existe e tem alguma coisa la dentro. O painel usa isto
+    para nao prometer historico a quem ainda nao o importou."""
+    if not os.path.exists(CORPUS):
+        return 0
+    try:
+        with liga_corpus() as c:
+            return c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
+    except sqlite3.Error:
+        return 0
+
+
+def com_corpus(c):
+    """Poe o corpus ao lado da base de trabalho, como `corpus`, para se
+    poderem cruzar numa consulta so. Devolve se conseguiu."""
+    if not os.path.exists(CORPUS):
+        return False
+    try:
+        c.execute("ATTACH DATABASE ? AS corpus", (CORPUS,))
+        return True
+    except sqlite3.Error:
+        return False
+
+
+def historico_entidade(entidade, cpv="", limite=25):
+    """Contratos ja celebrados por esta entidade, os do CPV a frente.
+
+    A entidade acha-se pelo nome normalizado: o radar so guarda o nome
+    que o DR escreve, e o BASE guarda o NIF ao lado. Medido, 93,7% das
+    entidades do radar acham-se assim -- ver `norma_entidade()`.
+
+    O CPV compara-se por prefixo, com o mesmo criterio do filtro da
+    lista: os zeros a direita sao estrutura, tira-los alarga do codigo
+    para o grupo. Devolve (linhas, quantos_ao_todo, quantos_do_cpv).
+    """
+    if not ha_corpus():
+        return [], 0, 0
+    alvo = norma_entidade(entidade)
+    if not alvo:
+        return [], 0, 0
+    prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
+    with liga_corpus() as c:
+        ao_todo = c.execute("SELECT COUNT(*) n FROM contratos "
+                            "WHERE adjudicante_norm=?", (alvo,)).fetchone()["n"]
+        if not ao_todo:
+            return [], 0, 0
+        do_cpv = 0
+        if prefixos:
+            do_cpv = c.execute(
+                "SELECT COUNT(DISTINCT c.id) n FROM contratos c "
+                "JOIN contrato_cpv v ON v.contrato_id=c.id "
+                "WHERE c.adjudicante_norm=? AND (%s)"
+                % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos),
+                [alvo] + [p + "%" for p in prefixos]).fetchone()["n"]
+        # Os do CPV primeiro, e dentro de cada grupo os mais recentes --
+        # e o que se quer ver ao decidir se vale a pena concorrer.
+        if prefixos:
+            perto = ("(SELECT COUNT(*) FROM contrato_cpv v "
+                     "WHERE v.contrato_id=c.id AND (%s)) > 0"
+                     % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos))
+            valores = [p + "%" for p in prefixos] + [alvo] + [limite]
+        else:
+            perto, valores = "0", [alvo, limite]
+        linhas = c.execute(
+            "SELECT c.*, %s AS do_cpv, "
+            "(SELECT group_concat(a.nome, ' + ') FROM contrato_adjudicatario a "
+            " WHERE a.contrato_id=c.id) AS ganhou "
+            "FROM contratos c WHERE c.adjudicante_norm=? "
+            "ORDER BY do_cpv DESC, c.data_celebracao DESC LIMIT ?"
+            % perto, valores).fetchall()
+    return linhas, ao_todo, do_cpv
+
+
 # ---------------------------------------------------------- agendamento
 
 def slot_corrido(dia, hora):
@@ -2136,6 +2488,23 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+/* historico de adjudicacoes, na ficha */
+.mercado{padding:16px 18px;margin-top:14px}
+.tab-mercado{width:100%;border-collapse:collapse}
+.tab-mercado th{text-align:left;padding:7px 10px;border-bottom:1px solid var(--linha);
+ font:600 10.5px/1 var(--sans);color:var(--t5);text-transform:uppercase;
+ letter-spacing:.06em;white-space:nowrap}
+.tab-mercado td{padding:8px 10px;border-bottom:1px solid var(--linha2);
+ font:400 12px/1.35 var(--sans);color:var(--t3);vertical-align:top}
+.tab-mercado td.d{font-family:var(--mono);white-space:nowrap;color:var(--t5)}
+.tab-mercado td.g{color:var(--ink);font-weight:500}
+.tab-mercado th.p,.tab-mercado td.p{text-align:right;white-space:nowrap;
+ font-family:var(--mono)}
+.tab-mercado tr.docpv td{background:#eef4fa}
+.tab-mercado tr.docpv td.d{color:var(--azul);font-weight:600}
+.tab-mercado tr:last-child td{border-bottom:0}
+.mercado code{font:500 11.5px/1 var(--mono);background:var(--linha2);
+ padding:2px 5px;border-radius:4px}
 .guardados{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
  padding:12px 16px;margin-bottom:12px}
 .guardados .rot{margin-right:4px}
@@ -2921,8 +3290,7 @@ def painel():
         guardados = c.execute("SELECT * FROM filtros_guardados "
                               "ORDER BY nome COLLATE NOCASE").fetchall()
 
-    def mil(n):
-        return "{:,}".format(n).replace(",", " ")
+    mil = mil_pt
 
     estado_actual = request.args.get("estado", "novo")
     abas = ["<div class='abas'>"]
@@ -3157,6 +3525,29 @@ def resumo_filtro(consulta):
     return " · ".join(partes) or "sem filtro"
 
 
+def prefixo_cpv(pedaco):
+    """De um codigo CPV para o prefixo com que se procura.
+
+    So os 8 digitos do codigo, sem o digito de controlo, que descola do
+    formato guardado (o traco nao entra na conta). Os zeros a direita sao
+    estrutura no CPV, por isso tira-los alarga do codigo para o grupo:
+    "72000000" apanha "72267100".
+
+    Mas nunca abaixo de dois digitos, que e a largura da divisao:
+    "30000000".rstrip("0") daria "3" e apanhava as divisoes 31, 33, 34,
+    35, 37, 38 e 39 por engano -- medido, 4592 anuncios em vez de 440.
+
+    Devolve "" quando nao sobra digito nenhum. E aqui, e nao em cada
+    sitio que procura por CPV, para o corpus de contratos procurar com o
+    mesmo criterio da lista -- duas copias desta regra divergiam.
+    """
+    digitos = re.sub(r"\D", "", pedaco or "")[:8]
+    if not digitos:
+        return ""
+    curto = digitos.rstrip("0")
+    return curto if len(curto) >= 2 else digitos[:2]
+
+
 def condicoes(args):
     """Traduz os filtros do painel em SQL. Nada e apagado, so escondido."""
     onde, valores = [], []
@@ -3187,18 +3578,7 @@ def condicoes(args):
             if not pedaco:
                 continue
             if re.fullmatch(r"[\d\-\s]+", pedaco):
-                # so os 8 digitos do codigo, sem o digito de controlo, que
-                # descola do formato guardado (o traço nao entra na conta).
-                # Os zeros a direita sao estrutura no CPV, por isso tira-los
-                # alarga do codigo para o grupo: "72000000" apanha "72267100".
-                #
-                # Mas nunca abaixo de dois digitos, que e a largura da
-                # divisao: "30000000".rstrip("0") daria "3" e apanhava as
-                # divisoes 31, 33, 34, 35, 37, 38 e 39 por engano -- medido,
-                # 4592 anuncios em vez de 440.
-                digitos = re.sub(r"\D", "", pedaco)[:8]
-                curto = digitos.rstrip("0")
-                prefixos = [curto if len(curto) >= 2 else digitos[:2]]
+                prefixos = [prefixo_cpv(pedaco)]
             else:
                 prefixos = cpv_por_termo(pedaco)
             for prefixo in prefixos:
@@ -3568,6 +3948,69 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     ]
 
 
+def mil_pt(n):
+    """65869 -> '65 869'. Espaco fino a portuguesa, nao virgula."""
+    return "{:,}".format(n).replace(",", " ")
+
+
+def euros(v):
+    """1234567.8 -> '1 234 568 EUR'. Os centimos nao ajudam a decidir."""
+    return "{:,.0f}".format(v or 0).replace(",", " ") + " €"
+
+
+def mercado(a):
+    """O que esta entidade ja adjudicou, o do mesmo CPV a frente.
+
+    E o cruzamento que justifica isto ser uma aplicacao e nao duas: o
+    anuncio diz o que vem ai, e o corpus diz como esta entidade se tem
+    portado -- quem costuma ganhar, por quanto, e por que procedimento.
+    """
+    if not ha_corpus():
+        return ("<div class='cx mercado'><div class='rot'>Histórico de "
+                "adjudicações</div><div class='nota' style='margin-top:8px'>"
+                "O corpus de contratos ainda não foi importado. Corre "
+                "<code>python radar.py --contratos</code> para o trazer do "
+                "dados.gov (domínio público, sem chave).</div></div>")
+
+    linhas, ao_todo, do_cpv = historico_entidade(a["entidade"] or "",
+                                                 a["cpv"] or "")
+    if not ao_todo:
+        return ("<div class='cx mercado'><div class='rot'>Histórico de "
+                "adjudicações</div><div class='nota' style='margin-top:8px'>"
+                "Não há contratos desta entidade no corpus. Ou nunca "
+                "adjudicou nada nos anos importados, ou escreve o nome de "
+                "outra maneira no Portal BASE.</div></div>")
+
+    corpo = []
+    for l in linhas:
+        corpo.append(
+            "<tr class='%s'><td class='d'>%s</td><td>%s</td>"
+            "<td class='g'>%s</td><td class='p'>%s</td></tr>"
+            % ("docpv" if l["do_cpv"] else "",
+               html.escape(l["data_celebracao"] or "—"),
+               html.escape(l["tipo_procedimento"] or ""),
+               html.escape(l["ganhou"] or "—"),
+               euros(l["preco_contratual"])))
+
+    if a["cpv"]:
+        resumo = ("%s contratos desta entidade &middot; <b>%s no CPV %s</b>, "
+                  "em cima" % (mil_pt(ao_todo), mil_pt(do_cpv),
+                               html.escape(a["cpv"])))
+    else:
+        resumo = "%s contratos desta entidade" % mil_pt(ao_todo)
+
+    return ("<div class='cx mercado'>"
+            "<div class='rot'>Histórico de adjudicações</div>"
+            "<div class='nota' style='margin:6px 0 12px'>%s</div>"
+            "<table class='tab-mercado'><thead><tr><th>Celebrado</th>"
+            "<th>Procedimento</th><th>Quem ganhou</th><th class='p'>Preço</th>"
+            "</tr></thead><tbody>%s</tbody></table>"
+            "<div class='nota' style='margin-top:10px'>Contratos já "
+            "celebrados, do Portal BASE. Não são oportunidades &mdash; "
+            "servem para saber com quem se concorre.</div></div>"
+            % (resumo, "".join(corpo)))
+
+
 @app.route("/anuncio/<path:ref>")
 def ficha(ref):
     with liga() as c:
@@ -3816,7 +4259,8 @@ def ficha(ref):
 
     conteudo = ("<div class='larg'>" + topo +
                 "<div class='ficha'>"
-                "<div class='ficha-esq'>" + cabeca + modos + seccoes_html + "</div>"
+                "<div class='ficha-esq'>" + cabeca + modos + seccoes_html +
+                mercado(a) + "</div>"
                 "<div class='ficha-dir'>" + prazo_cx + docs_cx + resp_cx +
                 hist_cx + "</div></div></div>")
 
@@ -4317,6 +4761,22 @@ def main():
             os.path.join(BASE_DIR, "cpv-2024.json")
         n = importar_cpv_dict(caminho)
         print("dicionario de CPV importado: %d codigos" % n)
+        return
+
+    if "--contratos" in sys.argv:
+        # Corpus de contratos ja celebrados, do dump semanal do IMPIC.
+        # Nao e o funil: e o historico para saber quem ganha o que.
+        # "--contratos" sozinho traz o ano corrente e o anterior;
+        # "--contratos 2019-2026" ou "--contratos 2024 2025" tambem servem.
+        i = sys.argv.index("--contratos")
+        pedido = [a for a in sys.argv[i + 1:] if not a.startswith("--")]
+        anos = anos_pedidos(pedido)
+        print("a trazer contratos de %s do dados.gov (dominio publico, "
+              "sem chave). Cada ano sao dezenas de MB." %
+              ", ".join(str(a) for a in anos))
+        n = importar_contratos(anos)
+        print("%d contratos no corpus deste arranque; %d ao todo em %s"
+              % (n, ha_corpus(), os.path.basename(CORPUS)))
         return
 
     if "--historico" in sys.argv:
