@@ -871,16 +871,39 @@ PLATAFORMAS_COM_PECAS = ("acingov", "vortal", "compraspt", "anogov")
 # indicadores. Nao e uma plataforma, e a ausencia de uma.
 SEM_PLATAFORMA = "(nenhuma)"
 
-# anogov e compraspt sao a mesma aplicacao JSF, do mesmo fornecedor:
-# 'faces/app/acessoDocs.jsp' lista os documentos em HTML e cada ficheiro
-# sai de um 'decryptservlet' no mesmo servidor.
-PLATAFORMAS_JSF = ("anogov.com", "compraspt.com")
-RX_DOC_JSF = re.compile(
-    r'href="(https://[^"]*(?:anogov|compraspt)\.com/[^"]*decryptservlet[^"]*)"')
+# anogov, compraspt e a plataforma da ESPAP sao a mesma aplicacao JSF,
+# do mesmo fornecedor: 'faces/app/acessoDocs.jsp' lista os documentos em
+# HTML e cada ficheiro sai de um 'decryptservlet' no mesmo servidor.
+#
+# Reconhece-se pela assinatura da aplicacao e nao pelo dominio: os
+# concursos da ESPAP (plataforma-sncp.espap.gov.pt) vinham marcados como
+# anogov no DR mas com link noutro host, e ficavam de fora -- a ficha
+# dizia "nao sei trazer as pecas da plataforma anogov" com a plataforma
+# bem identificada. Sao 14 na base, e vem mais com cada camara que
+# estreie o seu proprio dominio.
+ASSINATURA_JSF = "/faces/app/acessoDocs.jsp"
+RX_DOC_JSF = re.compile(r'href="(https://[^"]*/decryptservlet\?[^"]*)"', re.I)
+
+
+def docs_jsf_da_pagina(pagina, link):
+    """Os documentos listados, so os que estao no mesmo servidor.
+
+    A pagina e conteudo vindo de fora: um endereco noutro servidor nao e
+    coisa para se ir buscar so porque ela o listou.
+    """
+    origem = re.match(r"https?://[^/]+", link)
+    origem = origem.group(0) if origem else ""
+    achados = []
+    for endereco in dict.fromkeys(RX_DOC_JSF.findall(pagina)):
+        endereco = html.unescape(endereco)
+        if origem and endereco.startswith(origem + "/") and endereco not in achados:
+            achados.append(endereco)
+    return achados
 
 
 def _pecas_jsf(sessao, link):
-    """Pecas da anogov e da ComprasPT. O nome vem no Content-Disposition.
+    """Pecas da anogov, da ComprasPT e da ESPAP. O nome vem no
+    Content-Disposition.
 
     A pagina responde a um GET com o codigo de acesso que vem no anuncio,
     sem sessao iniciada. **O codigo tem ~50 caracteres**: se aparecer
@@ -889,12 +912,8 @@ def _pecas_jsf(sessao, link):
     com "esta plataforma nao da acesso". Deu-se essa volta duas vezes."""
     pagina = sessao.get(link, timeout=120)
     pagina.encoding = "windows-1252"
-    saida, vistos, grandes = [], set(), []
-    for endereco in dict.fromkeys(RX_DOC_JSF.findall(pagina.text)):
-        endereco = html.unescape(endereco)
-        if endereco in vistos:
-            continue
-        vistos.add(endereco)
+    saida, grandes = [], []
+    for endereco in docs_jsf_da_pagina(pagina.text, link):
         nome, dados = _descarregar(sessao, endereco)
         if dados is None:
             if nome:
@@ -1007,18 +1026,26 @@ GROQ_MODELO = "openai/gpt-oss-120b"
 # 8000 tokens por minuto, contando a resposta. Sobram uns 5500 para a
 # entrada, e o portugues destes documentos anda nos 3,5 caracteres por
 # token -- daqui os 19 mil.
-MAX_CHARS_PROMPT = 19000
-TECTO_ENCARGOS = 11500
-TECTO_PROGRAMA = 7000
+# Cada campo tem o seu recorte e o seu pedido. Juntos num so, as
+# ancoras do objecto gastavam o orcamento antes de se chegar a tabela de
+# perfis: num Caderno de Encargos de 167 mil caracteres ela estava na
+# posicao 136 mil, e o modelo respondia "conforme o Anexo I do Caderno
+# de Encargos" -- que e verdade e nao serve para nada. Separados, a
+# equipa disputa 5 titulos em vez de 21, e quatro deles sao a zona
+# certa.
+TECTO_RECORTE = 7000
 
 # Onde e que mora cada campo. O numero e a prioridade: quando o
 # orcamento acaba, corta-se pelos 3 antes de tocar nos 1.
 # Comparadas contra simplifica(): sem acentos e em minusculas.
-ANCORAS_ENCARGOS = (
+ANCORAS_OBJECTO = (
     (1, r"objec?to\b|\bsolucao|\bambito|enquadramento"),
-    (1, r"equipa|perfil|recursos humanos|composicao|afetacao"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
+)
+ANCORAS_EQUIPA = (
+    (1, r"\bequipa|perfil|profissiona|recursos humanos|senioridade"),
+    (2, r"composicao|afetacao|alocacao|quadro de pessoal"),
 )
 ANCORAS_PROGRAMA = (
     (1, r"documentos.{0,25}proposta|proposta.{0,25}documentos"),
@@ -1027,24 +1054,46 @@ ANCORAS_PROGRAMA = (
     (3, r"habilitacao|criterio"),
 )
 
-INSTRUCOES = """És um analista de concursos públicos portugueses. Lês o
-Programa de Concurso e o Caderno de Encargos e extrais quatro coisas.
+PREAMBULO = """És um analista de concursos públicos portugueses. Lês
+peças de um procedimento e extrais o que te for pedido.
 
-Responde SÓ com JSON, com estas chaves exactas:
+Responde SÓ com JSON. Se algo não constar das peças, põe exactamente
+"não consta". Não inventes, e não mandes o leitor consultar outro
+documento: se a informação está nas peças, transcreve-a. Escreve em
+português de Portugal."""
 
-{"objecto": "...", "equipa": "...", "documentos_proposta": "...",
- "preco_anormalmente_baixo": "..."}
+INSTRUCOES_OBJECTO = PREAMBULO + """
 
-- "objecto": o âmbito do serviço decomposto em pontos concretos, um por
-  linha começada por "- ". Não repitas o título do concurso: enumera o
-  que tem mesmo de ser feito (desenvolvimento, migração, integrações,
-  formação, garantia, suporte, prazos parciais).
-- "equipa": os perfis exigidos e os requisitos, um por linha começada
-  por "- ". Repara SEMPRE se o documento pede os requisitos a cada
-  perfil ou à equipa "em conjunto": não é a mesma coisa para quem
-  concorre — sete certificações numa pessoa ou espalhadas por quatro.
-  Não atribuas a um perfil o que o documento exige ao conjunto; nesse
-  caso escreve uma linha "- Em conjunto, a equipa deve deter: ...".
+Extrai o OBJECTO do contrato: o âmbito do serviço decomposto em pontos
+concretos, um por linha começada por "- ". Não repitas o título do
+concurso — enumera o que tem mesmo de ser feito (desenvolvimento,
+migração, integrações, formação, garantia, suporte, prazos parciais).
+
+Responde SÓ com {"objecto": "..."}."""
+
+INSTRUCOES_EQUIPA = PREAMBULO + """
+
+Extrai os PERFIS exigidos para a equipa, um por linha começada por "- ".
+
+Para cada perfil diz o que o documento exige em CONCRETO: número mínimo
+de anos de experiência, formação e certificações exigidas, e o preço
+máximo por hora se lá estiver. Transcreve os números que lá estão.
+Nunca escrevas "conforme o Anexo" nem "experiência comprovada" — se o
+documento traz uma tabela de perfis, passa-a toda para linhas, um perfil
+por linha, com os valores dessa linha.
+
+Repara SEMPRE se os requisitos são de cada perfil ou da equipa "em
+conjunto": não é a mesma coisa para quem concorre — sete certificações
+numa pessoa ou espalhadas por quatro. Não atribuas a um perfil o que o
+documento exige ao conjunto; nesse caso escreve uma linha
+"- Em conjunto, a equipa deve deter: ...".
+
+Responde SÓ com {"equipa": "..."}."""
+
+INSTRUCOES_PROPOSTA = PREAMBULO + """
+
+Extrai duas coisas do Programa de Concurso:
+
 - "documentos_proposta": a lista dos documentos que o CONCORRENTE tem de
   entregar na proposta, um por linha começada por "- ".
 - "preco_anormalmente_baixo": o limiar a partir do qual o preço da
@@ -1057,8 +1106,16 @@ ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
 procedimento" (anúncio, programa, caderno de encargos). Queremos o
 primeiro.
 
-Se algo não constar dos documentos, põe exactamente "não consta".
-Não inventes. Escreve em português de Portugal."""
+Responde SÓ com {"documentos_proposta": "...",
+"preco_anormalmente_baixo": "..."}."""
+
+# Uma leitura por campo: que documentos ler, onde procurar, o que pedir.
+LEITURAS = (
+    ("objecto", r"caderno|encargos", ANCORAS_OBJECTO, INSTRUCOES_OBJECTO),
+    ("equipa", r"caderno|encargos", ANCORAS_EQUIPA, INSTRUCOES_EQUIPA),
+    ("proposta", r"programa|procedimento", ANCORAS_PROGRAMA,
+     INSTRUCOES_PROPOSTA),
+)
 
 
 def ler_chave_api():
@@ -1134,24 +1191,20 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
     return "\n[...]\n".join(partes)[:tecto]
 
 
-def pecas_para_analise(ref):
-    """O que interessa do Caderno de Encargos e do Programa deste anuncio."""
+def pecas_para_analise(ref, quais, ancoras, tecto=TECTO_RECORTE):
+    """O que interessa, dos documentos cujo nome case com `quais`."""
     with liga() as c:
         docs = c.execute(
             "SELECT nome, texto FROM documentos WHERE ref=? AND texto_estado='ok' "
             "AND texto != '' ORDER BY nome", (ref,)).fetchall()
     partes, usados = [], []
     for d in docs:
-        if re.search(r"caderno|encargos", d["nome"], re.I):
-            ancoras, tecto = ANCORAS_ENCARGOS, TECTO_ENCARGOS
-        elif re.search(r"programa|procedimento", d["nome"], re.I):
-            ancoras, tecto = ANCORAS_PROGRAMA, TECTO_PROGRAMA
-        else:
+        if not re.search(quais, d["nome"], re.I):
             continue
         partes.append("### %s\n%s" % (
             d["nome"], recorte_relevante(d["texto"], ancoras, tecto)))
         usados.append(d["nome"])
-    return "\n\n".join(partes)[:MAX_CHARS_PROMPT], usados
+    return "\n\n".join(partes)[:tecto * 2], usados
 
 
 def limpa_campo(valor):
@@ -1174,26 +1227,8 @@ def espera_pedida(resposta, tecto=70):
     return min(float(achado.group(1)) + 1, tecto) if achado else 20.0
 
 
-def analisar_pecas(ref):
-    """Le as pecas com o modelo e guarda os tres campos. (ok, aviso)."""
-    chave = ler_chave_api()
-    if not chave:
-        return False, ("falta a chave da API: põe-na em chave_api.txt, "
-                       "na pasta do radar")
-    modelo = ler_config().get("modelo_pecas") or GROQ_MODELO
-    texto, usados = pecas_para_analise(ref)
-    if not texto:
-        # As pecas trazidas antes de haver extracao de texto ficaram sem
-        # ele. Estao em disco: extrai-se agora, sem voltar a rede.
-        extrair_textos(ref)
-        texto, usados = pecas_para_analise(ref)
-    if not texto:
-        with liga() as c:
-            scans = c.execute("SELECT COUNT(*) n FROM documentos WHERE ref=? "
-                              "AND texto_estado='scan'", (ref,)).fetchone()["n"]
-        return False, ("os documentos deste concurso são digitalizações, sem "
-                       "texto para ler" if scans else
-                       "ainda não há Caderno de Encargos nem Programa em disco")
+def _perguntar(chave, modelo, instrucao, texto):
+    """Uma pergunta ao modelo. Devolve (dados, aviso)."""
     try:
         for tentativa in (1, 2):
             r = requests.post(GROQ_URL, timeout=180,
@@ -1202,21 +1237,59 @@ def analisar_pecas(ref):
                               json={"model": modelo, "temperature": 0,
                                     "response_format": {"type": "json_object"},
                                     "messages": [
-                                        {"role": "system", "content": INSTRUCOES},
+                                        {"role": "system", "content": instrucao},
                                         {"role": "user", "content": texto}]})
             if r.status_code != 429 or tentativa == 2:
                 break
-            # A conta tem um tecto de tokens por minuto e marcar tres
-            # concursos seguidos bate nele. Isto corre em fundo, sem
-            # ninguem a ver: esperar o minuto vale mais do que desistir.
+            # A conta tem um tecto de tokens por minuto, e sao tres
+            # perguntas por concurso. Isto corre em fundo, sem ninguem a
+            # ver: esperar o minuto vale mais do que desistir.
             time.sleep(espera_pedida(r))
         if r.status_code != 200:
-            return False, "o modelo respondeu %d: %s" % (
+            return None, "o modelo respondeu %d: %s" % (
                 r.status_code, r.text[:160])
-        conteudo = r.json()["choices"][0]["message"]["content"]
-        dados = json.loads(conteudo)
+        return json.loads(r.json()["choices"][0]["message"]["content"]), ""
     except (requests.RequestException, ValueError, KeyError, IndexError) as erro:
-        return False, "falhou a leitura pelo modelo: %s" % str(erro)[:140]
+        return None, "falhou a leitura pelo modelo: %s" % str(erro)[:140]
+
+
+def analisar_pecas(ref):
+    """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso)."""
+    chave = ler_chave_api()
+    if not chave:
+        return False, ("falta a chave da API: põe-na em chave_api.txt, "
+                       "na pasta do radar")
+    modelo = ler_config().get("modelo_pecas") or GROQ_MODELO
+
+    recortes = [(nome, pecas_para_analise(ref, quais, ancoras), instrucao)
+                for nome, quais, ancoras, instrucao in LEITURAS]
+    if not any(texto for _, (texto, _), _ in recortes):
+        # As pecas trazidas antes de haver extracao de texto ficaram sem
+        # ele. Estao em disco: extrai-se agora, sem voltar a rede.
+        extrair_textos(ref)
+        recortes = [(nome, pecas_para_analise(ref, quais, ancoras), instrucao)
+                    for nome, quais, ancoras, instrucao in LEITURAS]
+    if not any(texto for _, (texto, _), _ in recortes):
+        with liga() as c:
+            scans = c.execute("SELECT COUNT(*) n FROM documentos WHERE ref=? "
+                              "AND texto_estado='scan'", (ref,)).fetchone()["n"]
+        return False, ("os documentos deste concurso são digitalizações, sem "
+                       "texto para ler" if scans else
+                       "ainda não há Caderno de Encargos nem Programa em disco")
+
+    dados, usados, falhas = {}, [], []
+    for nome, (texto, fontes), instrucao in recortes:
+        if not texto:
+            falhas.append("%s: falta o documento" % nome)
+            continue
+        resposta, aviso = _perguntar(chave, modelo, instrucao, texto)
+        if resposta is None:
+            falhas.append("%s: %s" % (nome, aviso))
+            continue
+        dados.update(resposta)
+        usados += [f for f in fontes if f not in usados]
+    if not dados:
+        return False, "; ".join(falhas)[:200]
 
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
@@ -1228,7 +1301,9 @@ def analisar_pecas(ref):
                    limpa_campo(dados.get("preco_anormalmente_baixo")), modelo,
                    ", ".join(usados),
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
-    return True, ""
+    # Leitura parcial e melhor do que nenhuma, mas tem de se saber.
+    return True, ("não deu para ler tudo — " + "; ".join(falhas)[:160]
+                  if falhas else "")
 
 
 def analise_de(ref):
@@ -1276,7 +1351,7 @@ def obter_documentos(ref):
             novos, grandes = _pecas_acingov(sessao, link)
         elif link and "vortal" in link:
             novos, grandes = _pecas_vortal(sessao, link)
-        elif link and any(h in link for h in PLATAFORMAS_JSF):
+        elif link and ASSINATURA_JSF in link:
             novos, grandes = _pecas_jsf(sessao, link)
         elif link:
             novos = []
@@ -3503,10 +3578,14 @@ def main():
         # Para os concursos cujas pecas chegaram antes de haver leitura
         # pelo modelo. O tecto de tokens por minuto trava isto a cerca de
         # um por minuto; o 429 e esperado e a espera esta la dentro.
+        # "tudo" rele tambem os que ja tem analise -- serve depois de se
+        # mexer nas instrucoes ou nas ancoras.
+        tudo = "tudo" in sys.argv
         with liga() as c:
             porler = [r["ref"] for r in c.execute(
                 "SELECT DISTINCT d.ref ref FROM documentos d "
-                "LEFT JOIN analise a ON a.ref = d.ref WHERE a.ref IS NULL")]
+                "LEFT JOIN analise a ON a.ref = d.ref" +
+                ("" if tudo else " WHERE a.ref IS NULL"))]
         print("%d concurso(s) com peças por ler." % len(porler))
         lidos = 0
         for i, ref in enumerate(porler, 1):

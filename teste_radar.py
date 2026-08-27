@@ -269,18 +269,35 @@ class TestNomeDaResposta(unittest.TestCase):
 class TestPlataformasJSF(unittest.TestCase):
     """anogov e compraspt sao a mesma aplicacao: um so obtentor serve."""
 
-    def test_reconhece_os_dois_hosts(self):
-        for host in ("anogov.com", "compraspt.com"):
+    def test_reconhece_os_hosts_conhecidos(self):
+        for host in ("www.anogov.com", "www.compraspt.com",
+                     "plataforma-sncp.espap.gov.pt"):
             with self.subTest(host=host):
-                alvo = ('href="https://www.%s/x/decryptservlet?'
-                        'papId=1&amp;fichId=2"' % host)
-                achados = radar.RX_DOC_JSF.findall(alvo)
+                pagina = ('href="https://%s/x/decryptservlet?'
+                          'papId=1&amp;fichId=2"' % host)
+                achados = radar.docs_jsf_da_pagina(
+                    pagina, "https://%s/x/faces/app/acessoDocs.jsp?c=1" % host)
                 self.assertEqual(len(achados), 1)
+                self.assertIn("fichId=2", achados[0])
 
-    def test_ignora_outros_enderecos(self):
-        self.assertEqual(
-            radar.RX_DOC_JSF.findall('href="https://exemplo.pt/decryptservlet"'),
-            [])
+    def test_a_espap_tem_a_assinatura_da_aplicacao(self):
+        # vinha marcada como anogov no DR mas com link noutro host, e o
+        # obtentor nunca era escolhido -- 14 concursos calados
+        self.assertIn(radar.ASSINATURA_JSF,
+                      "https://plataforma-sncp.espap.gov.pt/espap/faces/app/"
+                      "acessoDocs.jsp?codigoAcesso=abc")
+
+    def test_nao_vai_buscar_a_outro_servidor(self):
+        # a pagina e conteudo de fora: nao se segue para onde ela mandar
+        pagina = 'href="https://outro-qualquer.pt/decryptservlet?fichId=2"'
+        self.assertEqual(radar.docs_jsf_da_pagina(
+            pagina, "https://www.anogov.com/x/faces/app/acessoDocs.jsp?c=1"), [])
+
+    def test_nao_repete_o_mesmo_documento(self):
+        um = 'href="https://www.anogov.com/d/decryptservlet?fichId=2"'
+        self.assertEqual(len(radar.docs_jsf_da_pagina(
+            um + " " + um,
+            "https://www.anogov.com/x/faces/app/acessoDocs.jsp?c=1")), 1)
 
     def test_ambas_contam_como_obteniveis(self):
         # esteve escrito que a anogov nao dava; era um codigo de acesso
@@ -636,14 +653,16 @@ class TestAncorasDoRecorte(unittest.TestCase):
         # "Clausula 24a - Resolucao do contrato" casava com "solucao" por
         # nao haver fronteira de palavra, e comia o orcamento todo
         self.assertFalse(self.casa("Cláusula 24ª - Resolução do contrato",
-                                   radar.ANCORAS_ENCARGOS))
+                                   radar.ANCORAS_OBJECTO))
         self.assertFalse(self.casa("Cláusula 35ª - Resolução de litígios",
-                                   radar.ANCORAS_ENCARGOS))
+                                   radar.ANCORAS_OBJECTO))
         self.assertTrue(self.casa("1. Objeto da Solução Tecnológica",
-                                  radar.ANCORAS_ENCARGOS))
+                                  radar.ANCORAS_OBJECTO))
 
     def test_o_que_interessa_casa(self):
-        self.assertTrue(self.casa("3. Equipa", radar.ANCORAS_ENCARGOS))
+        self.assertTrue(self.casa("3. Equipa", radar.ANCORAS_EQUIPA))
+        self.assertTrue(self.casa("Cláusula 39ª Profissionais",
+                                  radar.ANCORAS_EQUIPA))
         self.assertTrue(self.casa("Artigo 9.º - Documentos da proposta",
                                   radar.ANCORAS_PROGRAMA))
 
@@ -660,7 +679,7 @@ class TestRecorteRelevante(unittest.TestCase):
 
     def test_apanha_o_anexo_do_fim(self):
         d = self.documento()
-        r = radar.recorte_relevante(d, radar.ANCORAS_ENCARGOS, 4000)
+        r = radar.recorte_relevante(d, radar.ANCORAS_EQUIPA, 4000)
         self.assertIn("3. Equipa", r)
         self.assertIn("gestor e um arquiteto", r)
 
@@ -668,11 +687,24 @@ class TestRecorteRelevante(unittest.TestCase):
         # o tecto e o limite de tokens por minuto da API: passar dele e 413
         d = self.documento()
         self.assertLessEqual(len(radar.recorte_relevante(
-            d, radar.ANCORAS_ENCARGOS, 2000)), 2000)
+            d, radar.ANCORAS_EQUIPA, 2000)), 2000)
+
+    def test_a_equipa_nao_disputa_o_orcamento_com_o_objecto(self):
+        # num Caderno de Encargos de 167 mil caracteres, a tabela de
+        # perfis estava na posicao 136 mil e as ancoras do objecto
+        # gastavam o orcamento muito antes; o modelo respondia
+        # "conforme o Anexo I", que e verdade e nao serve
+        cabeca = ("Cláusula %d Objeto e âmbito da solução" + chr(10) +
+                  "Texto de rotina sobre o objeto. " * 40 + chr(10))
+        documento = ("".join(cabeca % n for n in range(1, 30)) + chr(10) +
+                     "Cláusula 39ª Profissionais" + chr(10) +
+                     "Gestor de Projeto 8 anos Certificação em Gestão" + chr(10))
+        r = radar.recorte_relevante(documento, radar.ANCORAS_EQUIPA, 4000)
+        self.assertIn("Gestor de Projeto 8 anos", r)
 
     def test_sem_ancoras_devolve_o_principio(self):
         d = "Texto sem titulos nenhuns. " * 300
-        r = radar.recorte_relevante(d, radar.ANCORAS_ENCARGOS, 500)
+        r = radar.recorte_relevante(d, radar.ANCORAS_OBJECTO, 500)
         self.assertEqual(r, d[:500])
 
 
