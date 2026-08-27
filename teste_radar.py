@@ -390,6 +390,7 @@ Nome: Preço
     LIDO = {"objecto": "- fazer X", "equipa": "- um gestor",
             "documentos_proposta": "- DEUCP",
             "preco_anormalmente_baixo": "não consta",
+            "localizacao": "Híbrido: 2 dias por semana presenciais",
             "fontes": "Caderno_de_Encargos.pdf, Programa.pdf",
             "modelo": "openai/gpt-oss-120b"}
 
@@ -474,6 +475,29 @@ Nome: Preço
         self.assertEqual(linha[1], "40% do preço base")
         self.assertEqual(linha[2], "")
         self.assertIn("confirmar", linha[3])
+
+    def test_o_regime_das_pecas_manda_no_local_do_anuncio(self):
+        # a morada da entidade não diz se o trabalho é presencial,
+        # remoto ou híbrido -- e é isso que decide se há quem o faça
+        linha = next(l for l in self.tabela(analise=self.LIDO)
+                     if l[0] == "Local de prestação de serviços")
+        self.assertIn("Híbrido", linha[1])
+        self.assertIn("segundo o anúncio", linha[1])
+        self.assertIn("confirmar no documento", linha[3])
+
+    def test_sem_leitura_o_local_continua_a_ser_o_do_anuncio(self):
+        linha = next(l for l in self.tabela()
+                     if l[0] == "Local de prestação de serviços")
+        self.assertNotIn("Híbrido", linha[1])
+        self.assertIn("ainda não foi lido", linha[3])
+
+    def test_analise_sem_o_campo_novo_nao_deita_a_ficha_abaixo(self):
+        # linha gravada antes de a coluna existir: um sqlite3.Row
+        # rebenta em vez de devolver vazio, e ia a ficha inteira atrás
+        antiga = {k: v for k, v in self.LIDO.items() if k != "localizacao"}
+        linha = next(l for l in self.tabela(analise=antiga)
+                     if l[0] == "Local de prestação de serviços")
+        self.assertIn("ainda não foi lido", linha[3])
 
     def test_a_nota_nomeia_as_pecas_que_foram_mesmo_lidas(self):
         # numa leitura parcial, dizer "do Caderno de Encargos e do
@@ -959,9 +983,16 @@ class TestLimpaCampo(unittest.TestCase):
         self.assertEqual(radar.limpa_campo("- um\\n- dois"),
                          "- um" + chr(10) + "- dois")
 
-    def test_tira_linhas_vazias_e_espacos(self):
+    def test_tira_espacos_e_colapsa_as_linhas_em_branco(self):
+        # a linha em branco passou a valer: separa os blocos por perfil
+        # da equipa. Continua a colapsar as seguidas e a limpar as
+        # pontas -- era isso que este teste protegia, e continua a
+        # proteger
         self.assertEqual(radar.limpa_campo("  a  \\n\\n  b "),
-                         "a" + chr(10) + "b")
+                         "a" + chr(10) + chr(10) + "b")
+        self.assertEqual(radar.limpa_campo("a\\n\\n\\n\\nb"),
+                         "a" + chr(10) + chr(10) + "b")
+        self.assertEqual(radar.limpa_campo("\\n\\n a \\n\\n"), "a")
 
     def test_aguenta_vazio(self):
         self.assertEqual(radar.limpa_campo(None), "")
