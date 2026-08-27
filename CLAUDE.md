@@ -93,6 +93,14 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   contratos vivem em `/contratos`, com `condicoes_contratos()` própria.
   Nas tabelas filhas usa-se **`EXISTS`, nunca `JOIN`**: com JOIN, um
   contrato ganho por um agrupamento repetia-se uma vez por adjudicatário.
+- **Os gráficos dos contratos correm sobre o filtro da lista**, não sobre
+  o corpus todo: o filtro é a pergunta. Pedidos só ao abrir o `<details>`
+  (`/contratos/resumo`, ~800 ms sem filtro), e a rota devolve **HTML e
+  não JSON** — desenhar continua em Python, com `<div>`s dimensionados,
+  sem biblioteca. No "quem ganha", o valor reparte-se pelos
+  adjudicatários (`contratos.n_adj`): um agrupamento de três não vale
+  três vezes o mercado. O trimestre a decorrer vai às riscas, senão
+  parece uma queda a pique.
 - **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
   põe um `data-de` no `<details>` e o JS lê dali a rota
   (`/cpv.json?de=anuncios|contratos`); `FONTES_CPV` diz de onde se conta.

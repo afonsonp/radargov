@@ -1502,6 +1502,75 @@ class TestArvoreNosDoisSeparadores(unittest.TestCase):
         self.assertEqual(sorted(radar.FONTES_CPV), ["anuncios", "contratos"])
 
 
+class TestEurosCurto(unittest.TestCase):
+    """Nos gráficos, "1 661 400 000 €" não se lê de relance."""
+
+    def test_escalas(self):
+        self.assertEqual(radar.euros_curto(1661400000), "1,7 mM€")
+        self.assertEqual(radar.euros_curto(35800000), "35,8 M€")
+        self.assertEqual(radar.euros_curto(9500), "9,5 k€")
+        self.assertEqual(radar.euros_curto(420), "420 €")
+
+    def test_virgula_decimal_a_portuguesa(self):
+        self.assertNotIn(".", radar.euros_curto(35800000))
+
+    def test_zero_e_none_nao_rebentam(self):
+        self.assertEqual(radar.euros_curto(0), "0 €")
+        self.assertEqual(radar.euros_curto(None), "0 €")
+
+
+class TestTrimestre(unittest.TestCase):
+    """Tem de dar exactamente o mesmo texto que o SQL do resumo produz,
+    senão o trimestre a decorrer nunca se reconhecia e a barra parcial
+    aparecia como uma queda a pique."""
+
+    def test_fronteiras(self):
+        for mes, esperado in ((1, "T1"), (3, "T1"), (4, "T2"), (6, "T2"),
+                              (7, "T3"), (9, "T3"), (10, "T4"), (12, "T4")):
+            with self.subTest(mes=mes):
+                self.assertEqual(radar.trimestre_de(datetime.date(2026, mes, 1)),
+                                 "2026 " + esperado)
+
+
+class TestBarras(unittest.TestCase):
+    """As barras são divs dimensionados no servidor -- sem biblioteca,
+    como o resto do painel."""
+
+    def linhas(self):
+        return [{"n": "A", "v": 100.0, "k": 3}, {"n": "B", "v": 25.0, "k": 1}]
+
+    def test_a_maior_enche_e_as_outras_sao_relativas(self):
+        saiu = radar.barras_h(self.linhas(), "Quem ganha")
+        self.assertIn("width:100.0%", saiu)
+        self.assertIn("width:25.0%", saiu)
+
+    def test_singular_e_plural_dos_contratos(self):
+        saiu = radar.barras_h(self.linhas(), "Quem ganha")
+        self.assertIn("3 contratos", saiu)
+        self.assertIn("1 contrato<", saiu)
+
+    def test_sem_dados_nao_desenha_caixa_vazia(self):
+        self.assertEqual(radar.barras_h([], "Quem ganha"), "")
+        self.assertEqual(radar.barras_v([], "Evolução"), "")
+
+    def test_o_periodo_a_decorrer_vai_marcado(self):
+        # sem isto, o trimestre corrente parecia uma queda a pique e a
+        # conclusão que se tirava dali ("este mercado secou") era falsa
+        trim = [{"t": "2026 T2", "v": 200.0, "k": 9},
+                {"t": "2026 T3", "v": 60.0, "k": 2}]
+        saiu = radar.barras_v(trim, "Evolução", parcial="2026 T3")
+        self.assertIn("col parcial", saiu)
+        self.assertIn("trimestre a decorrer", saiu)
+        # e só esse: o anterior está completo
+        self.assertEqual(saiu.count("col parcial"), 1)
+
+    def test_barra_minima_para_o_periodo_nao_desaparecer(self):
+        # um trimestre com 0,1% do maior desenhava uma barra invisível e
+        # parecia que o período não existia
+        trim = [{"t": "A", "v": 1000.0, "k": 1}, {"t": "B", "v": 0.5, "k": 1}]
+        self.assertIn("height:2.0%", radar.barras_v(trim, "x"))
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
