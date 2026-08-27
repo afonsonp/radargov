@@ -944,6 +944,31 @@ Os 6% que sobram são diferenças reais, não tipográficas: sub-unidades
 anúncio), "Município de X" contra "Câmara Municipal de X", e "EPE"
 contra "E. P. E.".
 
+### Separador próprio, e a lista passa a chamar-se Anúncios
+
+Pedido do Afonso, e é a arrumação certa: **são coisas diferentes**. Um
+anúncio é uma oportunidade a que se pode concorrer; um contrato já está
+assinado e o que dele se quer saber é quem ganhou e por quanto. Até os
+filtros são outros — um anúncio não tem vencedor nem valor final, por
+isso "quem ganhou" e "desde € X" só existem no separador dos contratos.
+
+A navegação passa a `Anúncios · Contratos · Quadro · Calendário ·
+Indicadores`, e a chave interna da vista da lista passou de `"lista"`
+para `"anuncios"` (as migalhas também). O `/contratos` tem lista
+própria, `condicoes_contratos()` própria e paginação a 20, como os
+anúncios — o `paginador()` ganhou um argumento `base` para servir as
+duas rotas em vez de estar preso a `/`.
+
+Filtros: objecto, entidade adjudicante, quem ganhou, CPV, tipo de
+procedimento (lista dos que existem no corpus, por frequência), datas de
+celebração e preço mínimo. A linha de contagem soma **o valor do filtro
+todo**, não o da página: é o número que diz quanto vale aquele mercado.
+
+**`EXISTS` e não `JOIN`**, nas duas tabelas filhas. Com `JOIN`, um
+contrato ganho por um agrupamento aparecia uma vez por adjudicatário —
+e há um com 35 — e um contrato com vários CPV da mesma divisão aparecia
+uma vez por CPV. Verificado sobre os 404 954: zero ids repetidos.
+
 ### O que aparece na ficha
 
 Bloco "Histórico de adjudicações", na coluna esquerda: os contratos já

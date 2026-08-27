@@ -68,8 +68,9 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
    próprio. `historico_entidade()` responde ao bloco da ficha.
 7. **painel** — rotas Flask, HTML gerado por concatenação de strings
-   (`CSS`, `BASE`, `NAV`). Vistas: lista (`/`), ficha (`/anuncio/<ref>`),
-   quadro kanban, calendário, indicadores.
+   (`CSS`, `BASE`, `NAV`). Vistas: anúncios (`/`), contratos
+   (`/contratos`), ficha (`/anuncio/<ref>`), quadro kanban, calendário,
+   indicadores.
 8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio
@@ -85,6 +86,13 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   celebrado. Não acrescentes coluna `fonte` nem mexas na deduplicação à
   espera de uma segunda fonte de anúncios: não há. E o conjunto "OCDS" do
   dados.gov está vazio desde 2022; o que se usa é o dump normal do IMPIC.
+- **Anúncios e contratos são separadores diferentes, de propósito.** Um
+  anúncio é uma oportunidade, um contrato já está assinado; os filtros
+  nem coincidem (um anúncio não tem vencedor nem valor final). A lista
+  `/` chama-se **Anúncios** e a chave interna é `"anuncios"`; os
+  contratos vivem em `/contratos`, com `condicoes_contratos()` própria.
+  Nas tabelas filhas usa-se **`EXISTS`, nunca `JOIN`**: com JOIN, um
+  contrato ganho por um agrupamento repetia-se uma vez por adjudicatário.
 - **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
   entra no funil: são contratos assinados, não oportunidades. Cruza-se
   com `ATTACH` (`com_corpus()`). Está no `.gitignore` — dois anos são
