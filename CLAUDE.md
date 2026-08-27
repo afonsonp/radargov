@@ -93,6 +93,13 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   contratos vivem em `/contratos`, com `condicoes_contratos()` própria.
   Nas tabelas filhas usa-se **`EXISTS`, nunca `JOIN`**: com JOIN, um
   contrato ganho por um agrupamento repetia-se uma vez por adjudicatário.
+- **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
+  põe um `data-de` no `<details>` e o JS lê dali a rota
+  (`/cpv.json?de=anuncios|contratos`); `FONTES_CPV` diz de onde se conta.
+  Não copies o JS para o segundo separador, e não reutilizes as contagens
+  dos anúncios nos contratos — são outras (1 548 códigos têm anúncios,
+  5 657 têm contratos). O campo tem `id='filtro-cpv'` nos dois, que é por
+  onde a árvore lê e escreve. O `_CPV_CACHE` é um dicionário por fonte.
 - **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
   entra no funil: são contratos assinados, não oportunidades. Cruza-se
   com `ATTACH` (`com_corpus()`). Está no `.gitignore` — dois anos são

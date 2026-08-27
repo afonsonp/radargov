@@ -959,10 +959,39 @@ própria, `condicoes_contratos()` própria e paginação a 20, como os
 anúncios — o `paginador()` ganhou um argumento `base` para servir as
 duas rotas em vez de estar preso a `/`.
 
-Filtros: objecto, entidade adjudicante, quem ganhou, CPV, tipo de
-procedimento (lista dos que existem no corpus, por frequência), datas de
-celebração e preço mínimo. A linha de contagem soma **o valor do filtro
-todo**, não o da página: é o número que diz quanto vale aquele mercado.
+Filtros: objecto, entidade adjudicante, quem ganhou, CPV **com a mesma
+árvore dos anúncios**, tipo de procedimento (lista dos que existem no
+corpus, por frequência), datas de celebração e preço mínimo. A linha de
+contagem soma **o valor do filtro todo**, não o da página: é o número
+que diz quanto vale aquele mercado.
+
+### A árvore de CPV serve os dois separadores
+
+Uma árvore só, `arvore_html(n_cpv, de)`, e um JS só. O que muda é **de
+onde vêm as contagens**, e isso viaja num `data-de` no próprio
+`<details>` — é dali que o `arvoreCarregar()` lê a rota a pedir. Duas
+cópias do JS divergiam ao primeiro arranjo.
+
+`/cpv.json` passou a aceitar `?de=anuncios` (por omissão) ou
+`?de=contratos`, com uma função de contagem por fonte (`FONTES_CPV`).
+**Isto não é cosmético:** as contagens são outras e mostrar as erradas
+diria que uma divisão está vazia quando tem milhares de contratos.
+Medido — 1 548 códigos têm anúncios e o mais carregado tem 175; **5 657
+códigos têm contratos** e o mais carregado tem 49 979.
+
+A cache (`_CPV_CACHE`) deixou de ser uma variável e passou a dicionário
+com uma entrada por fonte: com uma só, alternar de separador deitava
+fora a cache do outro a cada visita, e são ~770 KB a serializar de cada
+vez. A chave de frescura é o que muda a contagem — anúncios com detalhe
+lido, ou contratos no corpus.
+
+O campo do CPV tem o mesmo `id='filtro-cpv'` nos dois separadores, que é
+por onde o `arvoreSemear()` lê e o `arvoreAplicar()` escreve. Nos
+anúncios é escondido, nos contratos é uma caixa de texto à vista — o que
+até ajuda, vê-se o que a árvore lá pôs. Verificado ao vivo: marcar as
+divisões 33 e 72 e aplicar leva a `/contratos?cpv=33600000|72000000`,
+73 958 contratos, 6,85 mil M€, e a árvore volta a abrir com as duas
+marcadas.
 
 **`EXISTS` e não `JOIN`**, nas duas tabelas filhas. Com `JOIN`, um
 contrato ganho por um agrupamento aparecia uma vez por adjudicatário —
