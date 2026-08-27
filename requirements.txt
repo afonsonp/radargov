@@ -1,3 +1,7 @@
 flask
 requests
 pypdf
+# destranca os PDFs de anúncio cifrados com AES -- são 19 na base, e
+# nenhum é Caderno de Encargos nem Programa, por isso não afecta a
+# leitura das peças; é só para o PDF do anúncio abrir.
+cryptography
