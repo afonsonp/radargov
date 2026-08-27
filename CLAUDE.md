@@ -103,10 +103,19 @@ Correm em menos de um segundo: corre-os antes de gravar.
 
 ## Hooks e skill
 
-`.claude/hooks/proteger_dados.py` (PreToolUse) recusa escritas em
-`curl_*.txt` e `radar.db*`. `.claude/hooks/verificar_sintaxe.py` (PostToolUse)
-compila o Python escrito com `-W error::SyntaxWarning`, porque os erros que
-passaram despercebidos neste projecto foram todos de sintaxe e de escapes.
+Tres hooks, em `.claude/settings.json`:
+
+- **`proteger_dados.py`** (PreToolUse) recusa escritas em `curl_*.txt` e
+  `radar.db*` -- capturas e base nao se editam a maos.
+- **`testes_antes_do_commit.py`** (PreToolUse) trava o `git commit` com
+  testes a falhar. So o commit; o resto do git passa.
+- **`verificar_sintaxe.py`** (PostToolUse) compila o Python escrito com
+  `-W error::SyntaxWarning`, porque os erros que passaram despercebidos
+  neste projecto foram todos de sintaxe e de escapes.
+
+Atencao: estes hooks so actuam quando o **`radar/` e a pasta de trabalho**
+da sessao. A trabalhar a partir da pasta-mae, nao disparam -- corre entao
+`python teste_radar.py` a mao antes de gravar.
 
 A skill `estado-radar` lê a base em modo só-leitura e diz quantos anúncios
 há, quantos faltam ler e se as capturas ainda são válidas — funciona mesmo
