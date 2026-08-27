@@ -1,6 +1,7 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+call "%~dp0_python.bat"
 echo.
 echo  ENSAIO DE LEITURA
 echo  Poe o que o modelo escreveu ao lado do texto do documento.
@@ -8,7 +9,7 @@ echo.
 set /p REF=" Referencia do concurso (ex: 21295/2026): "
 if "%REF%"=="" goto fim
 echo.
-python ".claude\skills\ensaio-de-leitura\ensaio.py" %REF% --sem-modelo
+"%PY%" ".claude\skills\ensaio-de-leitura\ensaio.py" %REF% --sem-modelo
 echo.
 echo  ----------------------------------------------------------------
 echo   V literal: a frase esta no documento tal e qual.
@@ -20,3 +21,5 @@ echo  ----------------------------------------------------------------
 :fim
 echo.
 pause
+
+

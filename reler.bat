@@ -1,6 +1,7 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+call "%~dp0_python.bat"
 echo.
 echo  RELER AS PECAS PELO MODELO
 echo.
@@ -18,6 +19,7 @@ echo  fica guardado.
 echo.
 pause
 echo.
-python radar.py --ler-pecas tudo
+"%PY%" radar.py --ler-pecas tudo
 echo.
 pause
+
