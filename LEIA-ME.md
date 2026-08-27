@@ -235,9 +235,11 @@ O ficheiro está fora do controlo de versões, de propósito.
 Só saem daqui documentos que já são públicos — Cadernos de Encargos e
 Programas. Propostas, CVs e trabalho teu não passam por lá.
 
-Funciona nas quatro plataformas que aparecem na base — acingov, vortal,
-anogov e ComprasPT — o que cobre quase todos os anúncios que indicam
-plataforma. O PDF oficial do anúncio vem sempre, seja qual for.
+Funciona nas plataformas que aparecem na base — acingov, vortal,
+anogov, ComprasPT e a plataforma da ESPAP — o que cobre 99% dos
+anúncios que indicam plataforma. Os que faltam apontam para a página
+inicial de uma câmara ou para um painel sem código de acesso, e não há
+lá nada para ir buscar automaticamente. O PDF oficial do anúncio vem sempre, seja qual for.
 
 **Ficheiros muito grandes ficam de fora.** Alguns anúncios (sobretudo da
 Infraestruturas de Portugal) trazem anexos técnicos de centenas de MB.
@@ -346,9 +348,9 @@ de novo.
 python radar.py --ler-pecas
 ```
 Lê pelo modelo os concursos que já têm peças mas ainda não têm análise
-— serve para recuperar os que trouxeste antes de isto existir. Vai a
-cerca de um por minuto, por causa do tecto de tokens da API, e diz-te
-o que leu e o que falhou.
+— serve para recuperar os que trouxeste antes de isto existir. Diz-te
+o que leu e o que falhou. Acrescenta `tudo` ao fim para reler também os
+que já têm análise.
 
 ```bash
 python radar.py --importar-cpv ficheiro.json

@@ -251,9 +251,32 @@ anteriores são cláusulas de rotina: força maior, subcontratação,
 penalidades, sigilo. Enviar tudo gasta o orçamento em ruído.
 
 `recorte_relevante()` marca janelas de 3500 caracteres à volta dos
-títulos que casam com as âncoras, junta-as e corta ao tecto. Resultado
-medido: 93.107 → 18.567 caracteres (~5,3 mil tokens), com todas as
-secções que interessam lá dentro e a rotina de fora.
+títulos que casam com as âncoras, junta-as e corta ao tecto.
+
+### Uma leitura por campo, e não uma por concurso
+
+Ao princípio era um pedido só, com o Caderno e o Programa recortados
+juntos. Parecia bem e não era.
+
+O Caderno de Encargos do INFARMED (21295/2026) tem **167 mil
+caracteres** e a tabela de perfis — a coisa que interessa mesmo, com
+preço/hora, anos mínimos e certificação de cada um — está na posição
+**136 mil**. As âncoras do objecto (`objeto`, `solução`, `âmbito`,
+`requisitos`) casavam com 16 títulos, quase todos antes disso, e
+gastavam o orçamento muito antes de lá chegar. O modelo, sem a tabela,
+respondia *"conforme o Anexo I do Caderno de Encargos"* — que é verdade
+e não serve absolutamente para nada.
+
+A correcção foi separar: cada campo tem as suas âncoras, o seu recorte
+de 7000 caracteres e o seu pedido (`LEITURAS`). Medido no mesmo
+documento: as âncoras da equipa disputam **5 títulos em vez de 21**, e
+quatro deles são a zona certa. Passou a devolver os 20 perfis todos com
+os valores da tabela — e aplicou o requisito de português C1 só aos
+perfis que o documento nomeia, que é o que lá está.
+
+São três pedidos de ~2 mil tokens cada, o que cabe folgadamente nos
+8000 por minuto — mais rápido e mais barato do que o pedido único de
+antes.
 
 ### Duas armadilhas que já custaram
 
@@ -295,6 +318,27 @@ confirmar a hora de arranque do processo:
     Get-NetTCPConnection -LocalPort 8765 -State Listen
 
 e ver o `StartTime` do PID. Se for anterior à alteração, é isso.
+
+### As plataformas JSF reconhecem-se pela aplicação, não pelo domínio
+
+A anogov, a ComprasPT e a **plataforma da ESPAP**
+(`plataforma-sncp.espap.gov.pt`) são a mesma aplicação, do mesmo
+fornecedor. Estava a reconhecer-se pelo domínio, e os concursos da
+ESPAP ficavam de fora — vinham marcados como `anogov` no DR (a
+plataforma estava bem identificada!) mas com o link noutro host, e a
+ficha dizia *"não sei trazer as peças da plataforma anogov"*. São 14 na
+base, e são concursos grandes.
+
+Passou a reconhecer-se pela assinatura da aplicação,
+`ASSINATURA_JSF = "/faces/app/acessoDocs.jsp"`, e o `RX_DOC_JSF` deixou
+de exigir o domínio. Como a página é conteúdo vindo de fora,
+`docs_jsf_da_pagina()` só segue endereços **do mesmo servidor** da
+página — uma página não manda o radar buscar ficheiros a outro lado.
+
+Cobertura depois disto: 30 anúncios em 5244 (0,6%) ficam sem obtentor, e
+são casos que não têm mesmo solução — links para a página inicial de uma
+câmara, `www.anogov.pt` sem mais nada, um `dashboard.jsp` sem código de
+acesso.
 
 ### Quando é que corre
 
