@@ -2007,6 +2007,18 @@ def iniciar_corpus():
             contrato_id INTEGER, cpv8 TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS corpus_estado (
             chave TEXT PRIMARY KEY, valor TEXT)""")
+        # Quantos adjudicatarios tem o contrato, gravado em vez de contado.
+        # Um contrato ganho por um agrupamento reparte-se por eles no
+        # grafico de quem ganha, senao um contrato de tres inflacionava o
+        # mercado tres vezes -- e ha um com 35. Contar isso por subconsulta
+        # a cada linha levava 2,1 s no corpus todo; em coluna e imediato.
+        cols = [r["name"] for r in c.execute("PRAGMA table_info(contratos)")]
+        if "n_adj" not in cols:
+            c.execute("ALTER TABLE contratos ADD COLUMN n_adj INTEGER")
+        c.execute("""UPDATE contratos SET n_adj =
+                     MAX(1, (SELECT COUNT(*) FROM contrato_adjudicatario a
+                             WHERE a.contrato_id = contratos.id))
+                     WHERE n_adj IS NULL""")
         for ddl in (
             "CREATE INDEX IF NOT EXISTS ix_ctr_nif ON contratos(adjudicante_nif)",
             "CREATE INDEX IF NOT EXISTS ix_ctr_norm ON contratos(adjudicante_norm)",
@@ -2194,6 +2206,7 @@ def _gravar_contratos(ano, registos):
             if cid is None:
                 continue
             nif, nome = _nif_e_nome(k.get("adjudicante"))
+            ganhadores = _partes(k.get("adjudicatarios"))
             linhas.append((
                 cid, ano, (k.get("nAnuncio") or "").strip(),
                 k.get("tipoprocedimento") or "",
@@ -2208,10 +2221,12 @@ def _gravar_contratos(ano, registos):
                 if isinstance(k.get("localExecucao"), list)
                 else (k.get("localExecucao") or ""),
                 ", ".join(_cpv8(k.get("cpv"))),
-                k.get("fundamentacao") or ""))
+                k.get("fundamentacao") or "",
+                # nunca zero: e divisor no grafico de quem ganha
+                max(1, len(ganhadores))))
             for v in _cpv8(k.get("cpv")):
                 cpvs.append((cid, v))
-            for anif, anome in _partes(k.get("adjudicatarios")):
+            for anif, anome in ganhadores:
                 adjs.append((cid, anif, anome, norma_entidade(anome)))
             n += 1
             if len(linhas) >= 5000:
@@ -2223,8 +2238,15 @@ def _gravar_contratos(ano, registos):
 
 def _despejar(c, linhas, cpvs, adjs):
     if linhas:
-        c.executemany("INSERT OR REPLACE INTO contratos VALUES "
-                      "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", linhas)
+        # Colunas nomeadas de proposito: com VALUES posicional, acrescentar
+        # uma coluna a tabela partia o importador em silencio.
+        c.executemany(
+            "INSERT OR REPLACE INTO contratos (id,ano,n_anuncio,"
+            "tipo_procedimento,objecto,adjudicante_nif,adjudicante,"
+            "adjudicante_norm,data_publicacao,data_celebracao,"
+            "preco_contratual,preco_base,prazo_execucao,local_execucao,"
+            "cpv,fundamentacao,n_adj) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", linhas)
     if cpvs:
         c.executemany("INSERT OR IGNORE INTO contrato_cpv VALUES (?,?)", cpvs)
     if adjs:
@@ -2558,6 +2580,28 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+/* graficos dos contratos */
+.graf-corpo{padding:16px 18px;display:grid;
+ grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.graf-corpo>.graf:last-child{grid-column:1/-1}
+.graf{padding:16px 18px}
+.barras-h{display:flex;flex-direction:column;gap:9px}
+.bh{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(60px,2fr) 76px 84px;
+ align-items:center;gap:10px}
+.bh .t{font:400 11.5px/1.3 var(--sans);color:var(--t2);overflow:hidden;
+ text-overflow:ellipsis;white-space:nowrap}
+.bh .r{display:block;height:9px;border-radius:5px;background:var(--linha2)}
+.bh .r i{display:block;height:100%;border-radius:5px;background:var(--azul)}
+.bh .v{font:600 11.5px/1 var(--mono);color:var(--ink);text-align:right}
+.bh .k{font:400 10.5px/1 var(--sans);color:var(--t6);text-align:right}
+.graf .barras{height:150px}
+.graf .barras .v{font:600 10.5px/1 var(--mono)}
+.graf .barras .b{background:var(--azul)}
+.graf .barras .col.parcial .b{background:repeating-linear-gradient(135deg,
+ var(--azul) 0 4px,rgba(31,78,121,.35) 4px 8px)}
+.graf .barras .col.parcial .v,.graf .barras .col.parcial .l{color:var(--t5)}
+@media (max-width:900px){.graf-corpo{grid-template-columns:minmax(0,1fr)}}
+
 /* separador dos contratos */
 .tab-cx{padding:0;overflow-x:auto}
 .tab-contratos{width:100%;border-collapse:collapse;min-width:900px}
@@ -3901,6 +3945,148 @@ def exportar():
 # Ate os filtros sao outros -- um anuncio nao tem vencedor nem valor
 # final. Por isso separador proprio, tabela propria, ficheiro proprio.
 
+GRAFICOS_JS = """<script>
+(function() {
+  var det = document.querySelector('details.graficos');
+  if (!det) return;
+  var feito = false;
+  det.addEventListener('toggle', function() {
+    if (!det.open || feito) return;
+    feito = true;
+    // os mesmos filtros da lista, menos a pagina: os graficos sao do
+    // filtro todo e nao das 20 linhas que estao a dar
+    var p = new URLSearchParams(location.search);
+    p.delete('pag');
+    fetch('/contratos/resumo?' + p.toString())
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        document.getElementById('graf-corpo').innerHTML = html;
+      })
+      .catch(function() {
+        document.getElementById('graf-corpo').textContent = 'falhou a carregar.';
+      });
+  });
+})();
+</script>"""
+
+
+def resumo_contratos(args):
+    """Os numeros dos graficos, sobre o mesmo filtro da lista.
+
+    E o que faz os graficos valerem a pena: o filtro e a pergunta ("CPV
+    72, ultimos 12 meses") e estes numeros sao a resposta. Fixos, seriam
+    a resposta a uma pergunta que ninguem fez.
+    """
+    onde, valores = condicoes_contratos(args)
+    with liga_corpus() as c:
+        # Quem ganha. O valor reparte-se pelos adjudicatarios (c.n_adj):
+        # um contrato ganho por um agrupamento de tres nao vale tres
+        # vezes o mercado -- e ha um com 35.
+        ganha = c.execute(
+            "SELECT a.nome n, SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k "
+            "FROM contratos c JOIN contrato_adjudicatario a "
+            "  ON a.contrato_id=c.id" + onde +
+            " GROUP BY a.nome ORDER BY v DESC LIMIT 10", valores).fetchall()
+        proc = c.execute(
+            "SELECT c.tipo_procedimento p, COUNT(*) k, "
+            "SUM(c.preco_contratual) v FROM contratos c" + onde +
+            " GROUP BY p ORDER BY v DESC LIMIT 8", valores).fetchall()
+        trim = c.execute(
+            "SELECT substr(c.data_celebracao,1,4) || ' T' || "
+            "  ((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3) t, "
+            "COUNT(*) k, SUM(c.preco_contratual) v FROM contratos c" + onde +
+            " AND c.data_celebracao!='' GROUP BY t ORDER BY t", valores).fetchall()
+    return ganha, proc, trim
+
+
+def barras_h(linhas, titulo, nota=""):
+    """Barras horizontais: os nomes sao longos e nao cabem por baixo."""
+    if not linhas:
+        return ""
+    maior = max(l["v"] for l in linhas) or 1
+    corpo = []
+    for l in linhas:
+        corpo.append(
+            "<div class='bh'><span class='t' title='%s'>%s</span>"
+            "<span class='r'><i style='width:%.1f%%'></i></span>"
+            "<span class='v'>%s</span><span class='k'>%s</span></div>"
+            % (html.escape(l["n"], quote=True), html.escape(l["n"]),
+               100.0 * l["v"] / maior, euros_curto(l["v"]),
+               "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
+    return ("<div class='cx graf'><div class='rot'>%s</div>%s"
+            "<div class='barras-h'>%s</div></div>"
+            % (titulo,
+               "<div class='nota' style='margin:5px 0 12px'>%s</div>" % nota
+               if nota else "<div style='height:10px'></div>",
+               "".join(corpo)))
+
+
+def trimestre_de(quando):
+    """'2026-08-27' -> '2026 T3'. O mesmo formato que o SQL produz."""
+    return "%s T%d" % (quando.year, (quando.month + 2) // 3)
+
+
+def barras_v(linhas, titulo, nota="", parcial=""):
+    """Barras verticais para o tempo, como as dos indicadores.
+
+    O `parcial` e o periodo que ainda esta a decorrer: desenha-se as
+    riscas e diz-se que esta a meio. Sem isso, o trimestre corrente
+    aparece como uma queda a pique quando e so nao ter acabado -- e a
+    conclusao que se tirava dali ("este mercado secou") era falsa.
+    """
+    if not linhas:
+        return ""
+    maior = max(l["v"] for l in linhas) or 1
+    cols = []
+    for l in linhas:
+        meio = l["t"] == parcial
+        cols.append(
+            "<div class='col%s'><span class='v'>%s</span>"
+            "<div class='b' style='height:%.1f%%' title='%s contratos%s'>"
+            "</div><span class='l'>%s</span></div>"
+            % (" parcial" if meio else "", euros_curto(l["v"]),
+               max(2.0, 100.0 * l["v"] / maior), l["k"],
+               ", trimestre a decorrer" if meio else "",
+               html.escape(l["t"]) + (" ·" if meio else "")))
+    return ("<div class='cx graf'><div class='rot'>%s</div>%s"
+            "<div class='barras'>%s</div></div>"
+            % (titulo,
+               "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
+               if nota else "<div style='height:14px'></div>",
+               "".join(cols)))
+
+
+@app.route("/contratos/resumo")
+def contratos_resumo():
+    """Os graficos, em HTML, pedidos so quando se abre o painel.
+
+    Sao ~800 ms de consultas sem filtro: a correr a cada visita punham a
+    lista lenta para quem so quer a tabela. Devolve HTML e nao JSON de
+    proposito -- desenhar continua a ser em Python, como o resto do
+    painel, e o JS so tem de o pendurar no sitio.
+    """
+    if not ha_corpus():
+        return Response("", mimetype="text/html")
+    ganha, proc, trim = resumo_contratos(request.args)
+    if not proc:
+        return Response("<div class='nota'>Nada a resumir neste filtro.</div>",
+                        mimetype="text/html")
+    partes = [
+        barras_h(ganha, "Quem ganha",
+                 "Valor adjudicado, do maior para o menor. Um contrato "
+                 "ganho por um agrupamento reparte-se pelos membros."),
+        barras_h([{"n": p["p"], "v": p["v"], "k": p["k"]} for p in proc],
+                 "Como se compra",
+                 "Por tipo de procedimento. O que não é concurso não teve "
+                 "anúncio &mdash; não era concorrível."),
+        barras_v(trim, "Evolução",
+                 "Valor celebrado por trimestre. O trimestre a decorrer "
+                 "vai às riscas &mdash; ainda não acabou.",
+                 parcial=trimestre_de(datetime.now())),
+    ]
+    return Response("".join(partes), mimetype="text/html")
+
+
 def sem_corpus_html(titulo):
     return envolver(
         "contratos", titulo,
@@ -4028,8 +4214,18 @@ def contratos():
     else:
         faixa_cpv = ""
 
+    # Pedidos so ao abrir, como a arvore: sao ~800 ms de consultas e a
+    # tabela nao tem de esperar por eles.
+    graficos = (
+        "<details class='arvore graficos'><summary>"
+        "<span class='arv-tit'>Ver em gráficos</span>"
+        "<span class='arv-sub'>quem ganha, como se compra, evolução "
+        "&mdash; deste filtro</span></summary>"
+        "<div id='graf-corpo' class='graf-corpo'>a carregar…</div>"
+        "</details>")
+
     conteudo = ("<div class='larg'>" + filtros + faixa_cpv +
-                arvore_html(n_cpv, "contratos") +
+                arvore_html(n_cpv, "contratos") + graficos +
                 "<div class='linha-conta'>" + conta + "</div>" + tabela +
                 paginador(pagina, paginas, request.args, "/contratos") +
                 fonte + "</div>")
@@ -4038,7 +4234,7 @@ def contratos():
         "contratos", "Contratos celebrados",
         "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
         "Não são oportunidades: servem para saber com quem se concorre.",
-        conteudo, script=ARVORE_JS,
+        conteudo, script=ARVORE_JS + GRAFICOS_JS,
         migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
         titulo_aba="Contratos, Radar de Concursos")
 
@@ -4247,6 +4443,15 @@ def mil_pt(n):
 def euros(v):
     """1234567.8 -> '1 234 568 EUR'. Os centimos nao ajudam a decidir."""
     return "{:,.0f}".format(v or 0).replace(",", " ") + " €"
+
+
+def euros_curto(v):
+    """Para os graficos, onde '1 661 400 000 EUR' nao se le de relance."""
+    v = v or 0
+    for corte, sufixo in ((1e9, " mM€"), (1e6, " M€"), (1e3, " k€")):
+        if abs(v) >= corte:
+            return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
+    return "%.0f €" % v
 
 
 def mercado(a):

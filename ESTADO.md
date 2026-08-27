@@ -998,6 +998,54 @@ contrato ganho por um agrupamento aparecia uma vez por adjudicatário —
 e há um com 35 — e um contrato com vários CPV da mesma divisão aparecia
 uma vez por CPV. Verificado sobre os 404 954: zero ids repetidos.
 
+### Gráficos, e porque respondem ao filtro
+
+Pedido do Afonso: "só ter os dados não ajuda em nada". Três gráficos num
+`<details>` por cima da tabela, e o essencial do desenho é que correm
+sobre **o mesmo `WHERE` da lista**. O filtro é a pergunta ("CPV 72,
+últimos 12 meses") e os gráficos são a resposta; fixos, seriam a
+resposta a uma pergunta que ninguém fez.
+
+1. **Quem ganha** — top 10 por valor adjudicado. O valor **reparte-se
+   pelos adjudicatários** (`n_adj`): um contrato ganho por um agrupamento
+   de três não vale três vezes o mercado, e há um com 35.
+2. **Como se compra** — por tipo de procedimento. É o mais subestimado
+   e o que mais muda uma decisão, porque diz **quanto daquele mercado é
+   sequer concorrível**. Medido nos três CPV que interessam à empresa:
+
+   | divisão | o que domina |
+   |---|---|
+   | 72 (TI) | Concurso público 568 M€ > ajuste directo 254 M€ |
+   | 45 (obras) | Concurso público 8,8 mM€, folgado |
+   | 33 (saúde) | **Acordo-quadro 4,0 mM€** > ajuste directo 1,6 mM€ |
+
+   Na saúde o concurso público nem entra nos dois primeiros: compra-se
+   por acordo-quadro, e quem não está no acordo não concorre. Isso não
+   se vê numa tabela de contratos.
+3. **Evolução** — valor celebrado por trimestre.
+
+Três decisões de construção:
+
+- **Desenha-se em Python, com `<div>`s dimensionados**, como o
+  `/indicadores` já fazia (`.barras`). Sem biblioteca, sem SVG, sem CDN
+  — continua a funcionar offline e sem build step. Barras horizontais em
+  1 e 2 porque os nomes das empresas são longos e não cabem por baixo.
+- **Pedidos só ao abrir**, como a árvore. São ~800 ms de consultas sem
+  filtro; a correr a cada visita punham a lista lenta para quem só quer
+  a tabela. A rota `/contratos/resumo` devolve **HTML e não JSON**, de
+  propósito: desenhar continua em Python e o JS só tem de o pendurar.
+- **`n_adj` é coluna, não subconsulta.** Contar os adjudicatários por
+  linha levava **2,1 s** no corpus todo; em coluna, 407 ms. Enche-se na
+  importação e há migração para o que já lá estava. Foi aqui que se
+  descobriu que o `INSERT` posicional partia em silêncio ao acrescentar
+  uma coluna — passou a nomear as colunas.
+
+**O trimestre a decorrer vai às riscas.** Sem isso, o trimestre corrente
+aparecia como uma queda a pique (668 M€ contra 1,2 mM€ no anterior) e a
+conclusão que se tirava dali — "este mercado secou" — era falsa; é só
+não ter acabado. Tem legenda, tracejado próprio e a dica diz "trimestre
+a decorrer".
+
 ### O que aparece na ficha
 
 Bloco "Histórico de adjudicações", na coluna esquerda: os contratos já
