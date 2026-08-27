@@ -749,6 +749,48 @@ contar. `descricoes_cpv()` faz uma consulta e não uma por código.
 `cpv.json` é guardado em memória, invalidado pela contagem de detalhes
 lidos.
 
+### Segunda revisão, à leitura das peças
+
+Quatro correcções, todas nascidas de uma revisão ao código escrito na
+mesma noite.
+
+**O tecto diário do modelo deitava fora o que já tinha sido lido.** São
+três pedidos por concurso; quando os dois primeiros respondiam e o
+terceiro apanhava o "tokens per day", a função saía *antes* do INSERT —
+o objecto e a equipa tinham sido lidos, pagos, e eram deitados fora. E
+como devolvia `True`, o `obter_documentos()` não marcava erro nenhum (só
+o faz quando isto devolve `False`) e a ficha ainda dizia "peças lidas
+pelo modelo". Simulado sobre uma cópia da base: antes, nenhuma linha na
+`analise`; agora ficam os dois campos, e a mensagem do tecto continua a
+chegar inteira ao `--ler-pecas`.
+
+**As fontes não acompanhavam os campos.** O `juntar_leituras()` guarda o
+que se leu antes quando um pedido falha, mas o `fontes` era substituído
+pelas peças desta vez — e a nota da ficha, que passara a nomeá-las,
+dizia "objecto lido de Programa.pdf" a texto vindo do Caderno de
+Encargos. O `juntar_fontes()` é o companheiro que faltava: numa leitura
+parcial, junta as de antes.
+
+**O `e_pdf()` a ler 1 KB dava um ZIP por PDF.** Com o PDF lá dentro por
+comprimir — que é como o `zipfile` grava por omissão — o `%PDF` fica no
+byte 46. Como o `extrair_textos()` pergunta ao `e_pdf()` antes de ir ao
+`texto_do_zip()`, o pacote ia ao pypdf e nunca chegava a ser aberto.
+Nenhum dos sete ZIPs em disco é assim (são todos deflate), por isso
+ainda não tinha mordido. Rejeita-se agora o magic `PK\x03\x04`.
+
+**A caixa das peças mentia enquanto a fila trabalhava.** O botão
+"Actualizar peças" passou a pôr na fila em vez de esperar, mas o ramo
+"há documentos" vinha antes do "pendente": a lista antiga aparecia como
+se estivesse pronta, e o `obter_documentos()` apaga-a e volta a inserir.
+Falhar a actualização com peças velhas em disco também não se via em
+lado nenhum. O aviso na ligação saiu de vez: o recarregar é um
+`location.reload()` e levava a query string atrás, por isso o "a trazer
+as peças…" ficava colado à página depois de a descarga ter acabado.
+
+Ficou de fora, de propósito, a regra dos anexos a exigir a palavra por
+extenso: um `CE_e_Anexos.pdf` perderia o papel, mas não há nenhum nome
+assim no acervo e não se mexe em regras de classificação por suposição.
+
 ## Contagem de dias, e os dias da semana no calendário
 
 `conta_dias()` e `etiqueta_prazo()` tratam a contagem toda num sítio só,
@@ -900,7 +942,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 31 testes, correm em milissegundos, sem rede nem
+**`teste_radar.py`** — 118 testes, correm em milissegundos, sem rede nem
 base de dados. Não são exaustivos de propósito: cada um corresponde a um
 erro que existiu **mesmo**, e o comentário diz qual, para ninguém
 "simplificar" de volta para o erro. Cobrem o prefixo de CPV, o escape do
@@ -916,7 +958,12 @@ fora o que nunca deve entrar em histórico: `curl_*.txt` (levam o token da
 sessão do browser), `radar.db*`, `documentos/` (Cadernos de Encargos e
 propostas) e `amostras/`.
 
-**Hooks**, em `../.claude/hooks/`:
+**Hooks**, em `.claude/hooks/` — dentro do `radar/`, e não na pasta-mãe,
+onde estiveram e onde estavam inertes: as definições de projecto lêem-se
+da raiz, que é aqui, e o `$CLAUDE_PROJECT_DIR` do comando apontava para
+um caminho que não existia. Medido, não suposto: escrever um ficheiro
+chamado `curl_ensaio_do_hook.txt` — nome que casa com o padrão protegido
+— passou sem uma palavra.
 
 - `verificar_sintaxe.py` (PostToolUse) — compila o ficheiro Python
   acabado de escrever, com `-W error::SyntaxWarning`. Existe porque os
@@ -924,12 +971,53 @@ propostas) e `amostras/`.
   `"\%"` que aqui mordeu duas vezes.
 - `proteger_dados.py` (PreToolUse) — recusa escritas em `curl_*.txt` e
   `radar.db*`. Sai com código 2 para travar a ferramenta.
+- `testes_antes_do_commit.py` (PreToolUse) — trava o `git commit` com
+  testes a falhar. Só o commit; o resto do git passa.
+
+Os três olham para o `file_path` das ferramentas de escrita **e para o
+texto dos comandos** do Bash e do PowerShell. Só pelo `file_path` eram
+uma porta com a parede ao lado: um `rm radar.db` ou um `sed -i` numa
+captura passavam. No `proteger_dados.py`, recusa-se a escrita e deixa-se
+passar a leitura — um `sqlite3 radar.db "SELECT ..."` é rotina, e travar
+leituras só ensinava a desligar o hook. Fica um buraco assumido: um
+`python -c` que abra a base sem dizer "radar.db" no comando passa; contra
+isso vale o hábito de apontar o `radar.DB` a uma cópia, que é o que o
+comando tem de fazer para ser deixado passar quando traz SQL de escrita.
+
+As mensagens dos três saem em UTF-8 explícito: a consola do Windows é
+cp1252 e o português acentuado chegava estropiado do outro lado.
 
 **Skill `/estado-radar`** — o resumo que se pedia à mão várias vezes por
 sessão: quantos por ler, triagem, fases, validade das capturas, painel e
 tarefas. Lê a base em modo só-leitura e não importa o `radar.py`, por
 isso funciona mesmo com o programa a meio de uma alteração que não
 compila.
+
+**Skill `/ensaio-de-leitura <ref>`** — a ferramenta do ponto que falta
+para a v1. Põe cada linha da resposta do modelo ao lado do pedaço do
+documento que a sustenta, e marca-a: literal, reescrita (as palavras
+todas lá, mas não seguidas), ou sem apoio. A comparação é feita sobre
+texto comprimido — sem acentos, espaços nem pontuação — porque o
+extractor parte números ("1 2 meses") e um grep ingénuo produz uma
+acusação falsa de invenção. A janela mostrada é escolhida pelo sítio
+onde mais termos da linha se juntam: pela primeira ocorrência, as 20
+linhas da tabela de perfis do INFARMED apontavam todas para uma cláusula
+de acompanhamento a meio do Caderno. A fonte passa pelo `sem_indice()`,
+como no caminho que leva o texto ao modelo. Sem `--sem-modelo`, relê
+sobre uma **cópia** da base.
+
+Medido nos dois concursos vistos a fundo: INFARMED 21295/2026 dá 8
+literais, 25 reescritos, 0 sem apoio; AIMA 21508/2026 dá 6 "sem apoio"
+que são todos nominalizações do modelo ("Automatizar" → "Automatização",
+"Reduzir" → "Redução"), visíveis num relance na janela ao lado. O que o
+guião **não** sabe é se o que saiu chega para decidir — essa continua a
+ser a pergunta do Afonso.
+
+**Subagente `explorador-de-plataforma`** — investiga se as peças de uma
+plataforma sem obtentor se alcançam sem sessão iniciada, e devolve
+receita ou um "não há" fundamentado. São 30 anúncios em 5 244 com link e
+sem obtentor (anogov.com 5, miisy 2, source360.ren.pt 2, comprasnasaude
+2, e depois avulsos). Leva no briefing a armadilha do `[:n]`.
 
 ## Estrutura do código
 
