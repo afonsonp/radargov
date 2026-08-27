@@ -489,6 +489,28 @@ class TestSemIndice(unittest.TestCase):
             radar.sem_indice("Cláusula 5ª Preço . . . . . . 7"), "")
 
 
+class TestEPdf(unittest.TestCase):
+    """Pelos bytes e não pela extensão."""
+
+    def caminho(self, conteudo):
+        import tempfile
+        f = tempfile.NamedTemporaryFile(delete=False, suffix=".seja-o-que-for")
+        f.write(conteudo); f.close()
+        self.addCleanup(lambda: os.path.exists(f.name) and os.remove(f.name))
+        return f.name
+
+    def test_pdf_sem_extensao(self):
+        # a vortal entrega ficheiros sem extensão nenhuma; um anúncio
+        # trazia um "Caderno de Encargos" de 291 KB que ficava por ler
+        self.assertTrue(radar.e_pdf(self.caminho(b"%PDF-1.7 tralha")))
+
+    def test_o_que_nao_e_pdf(self):
+        self.assertFalse(radar.e_pdf(self.caminho(b"PK" + bytes(20))))
+
+    def test_ficheiro_que_nao_existe(self):
+        self.assertFalse(radar.e_pdf("nao-existe-de-certeza.pdf"))
+
+
 class TestJuntarLeituras(unittest.TestCase):
     """Uma leitura parcial não pode apagar o que já estava lido."""
 
@@ -552,6 +574,29 @@ class TestPapeisDaPeca(unittest.TestCase):
         for nome in ("Lista.pdf", "Minuta do anúncio.pdf", "Anúncio DR.pdf",
                      "419971092.pdf", "espd-request.zip", "Anuncio_JOUE.pdf"):
             self.assertEqual(radar.papeis_da_peca(nome), set(), nome)
+
+
+class TestOrcamentoDoDia(unittest.TestCase):
+    """A conta tem dois tectos e só um se vê nos cabeçalhos."""
+
+    class FalsaResposta:
+        def __init__(self, texto):
+            self.text, self.headers = texto, {}
+
+    def test_reconhece_o_tecto_do_dia(self):
+        # esperar e repetir num limite diário é tempo deitado fora:
+        # uma releitura levou uma hora a não fazer nada
+        self.assertTrue(radar.orcamento_do_dia_esgotado(self.FalsaResposta(
+            "Rate limit reached ... on tokens per day (TPD): Limit 200000")))
+
+    def test_nao_confunde_com_o_tecto_do_minuto(self):
+        # esse passa sozinho ao fim de segundos, e vale a pena esperar
+        self.assertFalse(radar.orcamento_do_dia_esgotado(self.FalsaResposta(
+            "Rate limit reached ... on tokens per minute (TPM): Limit 8000")))
+
+    def test_aguenta_resposta_vazia(self):
+        self.assertFalse(radar.orcamento_do_dia_esgotado(
+            self.FalsaResposta("")))
 
 
 class TestEsperaPedida(unittest.TestCase):

@@ -26,6 +26,7 @@ import queue
 import shlex
 import sqlite3
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -983,6 +984,50 @@ def texto_do_pdf(caminho):
     return texto, "ok"
 
 
+def e_pdf(caminho):
+    """Pelos primeiros bytes, e nao pela extensao.
+
+    A vortal entrega ficheiros sem extensao nenhuma -- um anuncio trazia
+    um "Caderno de Encargos" de 291 KB, PDF por dentro, que ficava
+    marcado como "nao e PDF" e por ler.
+    """
+    try:
+        with open(caminho, "rb") as f:
+            return f.read(4) == b"%PDF"
+    except OSError:
+        return False
+
+
+def texto_do_zip(caminho, papeis):
+    """O texto das peças que vierem dentro de um ZIP.
+
+    Ha entidades que entregam o Caderno de Encargos como
+    "1_CE_Clausulas_Juridicas_Tecnicas.zip", com as clausulas juridicas
+    num PDF e as tecnicas noutro. Sem abrir, ficavam por ler.
+    """
+    try:
+        with zipfile.ZipFile(caminho) as z:
+            dentro = [n for n in z.namelist() if n.lower().endswith(".pdf")]
+            if not dentro:
+                return "", "não é PDF"
+            # Se algum PDF de dentro for da peça que se procura, é esse
+            # que conta; senão vão todos, que o ZIP já se chama assim.
+            proprios = [n for n in dentro if papeis_da_peca(n) & papeis]
+            partes = []
+            with tempfile.TemporaryDirectory() as temporaria:
+                for nome in (proprios or dentro):
+                    alvo = os.path.join(
+                        temporaria, nome_seguro(os.path.basename(nome)))
+                    with open(alvo, "wb") as f:
+                        f.write(z.read(nome))
+                    texto, estado = texto_do_pdf(alvo)
+                    if estado == "ok":
+                        partes.append(texto)
+    except (zipfile.BadZipFile, OSError, KeyError) as erro:
+        return "", "erro: %s" % str(erro)[:80]
+    return ("\n\n".join(partes), "ok") if partes else ("", "scan")
+
+
 def extrair_textos(ref):
     """Guarda o texto dos PDFs deste anuncio. Devolve (lidos, digitalizados)."""
     with liga() as c:
@@ -992,10 +1037,15 @@ def extrair_textos(ref):
     lidos = scans = 0
     for d in docs:
         caminho = os.path.join(pasta, d["nome"])
-        if not d["nome"].lower().endswith(".pdf") or not os.path.exists(caminho):
+        papeis = papeis_da_peca(d["nome"])
+        if not os.path.exists(caminho):
             estado, texto = "não é PDF", ""
-        else:
+        elif e_pdf(caminho):
             texto, estado = texto_do_pdf(caminho)
+        elif papeis and zipfile.is_zipfile(caminho):
+            texto, estado = texto_do_zip(caminho, papeis)
+        else:
+            estado, texto = "não é PDF", ""
         with liga() as c:
             c.execute("UPDATE documentos SET texto=?, texto_estado=? WHERE id=?",
                       (texto, estado, d["id"]))
@@ -1221,7 +1271,7 @@ def _sigla(letras):
     return r"(?<![a-z0-9])" + letras + r"(?![a-z0-9])"
 
 
-RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("ce"))
+RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("(?:ce|cde)"))
 # "cp" fica de fora de proposito: e "Concurso Publico", nao "Programa".
 RX_PECA_PROGRAMA = re.compile(r"programa|procedimento|" + _sigla("pp")
                               + "|" + _sigla("pc"))
@@ -1263,6 +1313,20 @@ def limpa_campo(valor):
     """
     texto = str(valor or "").replace("\\n", "\n").replace("\\t", " ")
     return "\n".join(l for l in (x.strip() for x in texto.split("\n")) if l)
+
+
+# A conta tem dois tectos, e so um deles se ve nos cabecalhos. O de
+# tokens por minuto passa sozinho; o do DIA (200 mil) nao passa hoje.
+# Esperar e repetir num limite diario e tempo deitado fora: uma
+# releitura do acervo levou uma hora a nao fazer nada, porque cada
+# pedido gastava dois minutos de espera antes de desistir.
+SEM_ORCAMENTO_HOJE = ("o orçamento diário do modelo acabou (200 mil "
+                      "tokens); recomeça amanhã ou passa a conta a Dev Tier")
+
+
+def orcamento_do_dia_esgotado(resposta):
+    corpo = simplifica(resposta.text or "")
+    return "tokens per day" in corpo or "(tpd)" in corpo
 
 
 def espera_pedida(resposta, tecto=70):
@@ -1311,6 +1375,8 @@ def _perguntar(chave, modelo, instrucao, texto):
                                         {"role": "user", "content": texto}]})
             if r.status_code != 429 or tentativa == 3:
                 break
+            if orcamento_do_dia_esgotado(r):
+                return None, SEM_ORCAMENTO_HOJE
             # A conta tem um tecto de tokens por minuto, e sao tres
             # perguntas por concurso. Isto corre em fundo, sem ninguem a
             # ver: esperar o minuto vale mais do que desistir.
@@ -3669,6 +3735,9 @@ def main():
             print("  [%d/%d] %-14s %s (%.0fs)" % (
                 i, len(porler), ref, estado, time.time() - ini))
             lidos += 1 if ok and not porque else 0
+            if SEM_ORCAMENTO_HOJE in (porque or ""):
+                print("Parado: %s" % SEM_ORCAMENTO_HOJE)
+                break
         print("%d lido(s) por inteiro." % lidos)
         return
     if "--uma-vez" in sys.argv:
