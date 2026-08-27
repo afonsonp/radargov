@@ -47,7 +47,7 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
-   `cpv_dict`, `slots`, `estado`.
+   `cpv_dict`, `slots`, `estado`, `filtros_guardados`.
 2. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 3. **leitura** — `recolher()` pagina a pesquisa do portal;
@@ -73,6 +73,14 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
 - **Não se filtra nada à entrada.** Decisão tomada depois de uma primeira
   versão que filtrava por pontuação: entra tudo o que a parte L publicar, e
   a triagem faz-se no painel. Não reintroduzas filtros em `recolher()`.
+- **Um filtro guardado é uma query string, não SQL.** A tabela
+  `filtros_guardados` guarda o que `filtro_actual()` produz, e aplicá-lo
+  é seguir uma ligação. Duas coisas seguram isto e não se mexem: a ordem
+  de `CAMPOS_FILTRO` é fixa (é ela que deixa reconhecer o filtro em uso
+  por igualdade de texto) e o `estado` entra **sempre**, mesmo vazio —
+  ausente é "por ver", vazio é "todos", como em `condicoes()`. Campo
+  novo na lista? Acrescenta-o a `CAMPOS_FILTRO`; se for da vez e não do
+  filtro, a `CAMPOS_DA_VEZ`.
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e o token das capturas `curl_*.txt`. **O token expira** — o
   painel avisa a vermelho e o Afonso refaz a captura no DevTools (instruções

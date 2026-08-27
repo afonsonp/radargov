@@ -1234,6 +1234,69 @@ class TestModeloGuardadoNaReleitura(unittest.TestCase):
             "groq:m-groq")
 
 
+class TestFiltroCanonico(unittest.TestCase):
+    """A consulta guardada tem de ser sempre a mesma para os mesmos
+    filtros, senao o filtro guardado nunca se reconhece como o que esta
+    em uso -- e o botao de guardar nunca oferecia actualizar, so criar
+    outro com o mesmo nome.
+    """
+
+    def test_estado_ausente_e_por_ver(self):
+        # condicoes() trata a falta de estado como "novo"; se a consulta
+        # guardada nao dissesse isso, o filtro voltava como "todos"
+        self.assertEqual(radar.filtro_actual({}), "estado=novo")
+
+    def test_estado_vazio_e_todos_e_nao_se_perde(self):
+        # vazio nao e a mesma coisa que ausente, e nao se pode deixar cair
+        # por ser vazio: e a aba "Todos"
+        self.assertEqual(radar.filtro_actual({"estado": ""}), "estado=")
+
+    def test_ordem_fixa_seja_qual_for_a_ordem_da_url(self):
+        um = radar.filtro_actual({"estado": "novo", "q": "software"})
+        outro = radar.filtro_actual({"q": "software", "estado": "novo"})
+        self.assertEqual(um, outro)
+        self.assertEqual(um, "q=software&estado=novo")
+
+    def test_pagina_e_aviso_ficam_de_fora(self):
+        # guardar na pagina 3 gravava a pagina 3, e o filtro abria sempre
+        # a meio; o aviso pegava-se ao filtro e reaparecia a cada vez
+        consulta = radar.filtro_actual(
+            {"q": "software", "pag": "3", "aviso": "Filtro guardado"})
+        self.assertNotIn("pag", consulta)
+        self.assertNotIn("aviso", consulta)
+
+    def test_campos_vazios_nao_entram(self):
+        # senao "q=&ent=&cpv=" era diferente de "" e o chip nao marcava
+        self.assertEqual(radar.filtro_actual({"q": "", "ent": "  "}),
+                         "estado=novo")
+
+
+class TestArgsDaLista(unittest.TestCase):
+    """O paginador pede uma pagina e a limpeza apagava-lha a seguir: o
+    `pop` dos campos da vez corria depois do `update`, e todas as
+    ligacoes do paginador apontavam para a pagina 1.
+    """
+
+    class _Args(dict):
+        def to_dict(self):
+            return dict(self)
+
+    def test_a_pagina_pedida_sobrevive_a_limpeza(self):
+        saiu = radar.args_da_lista(self._Args({"q": "a", "pag": "1"}), pag="7")
+        self.assertEqual(saiu["pag"], "7")
+
+    def test_sem_pagina_pedida_a_pagina_cai(self):
+        # mexer num filtro volta a pagina 1: a pagina 7 do filtro anterior
+        # nao existe no filtro novo
+        saiu = radar.args_da_lista(self._Args({"q": "a", "pag": "7"}))
+        self.assertNotIn("pag", saiu)
+
+    def test_o_aviso_nao_se_arrasta(self):
+        saiu = radar.args_da_lista(self._Args({"q": "a", "aviso": "guardado"}))
+        self.assertNotIn("aviso", saiu)
+        self.assertEqual(saiu["q"], "a")
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
