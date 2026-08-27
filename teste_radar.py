@@ -998,6 +998,233 @@ class TestLimpaCampo(unittest.TestCase):
         self.assertEqual(radar.limpa_campo(None), "")
 
 
+class TestCadeiaDeFornecedores(unittest.TestCase):
+    """Quem entra na cadeia de reserva, e por que ordem.
+
+    Um fornecedor sem chave configurada custava uma volta e um 401 a
+    cada uma das três perguntas de cada concurso da fila — o contrário
+    do que a cadeia existe para fazer.
+    """
+
+    FALSOS = (
+        ("groq", "https://groq/x", "modelo-groq", ("g.txt",), "G_KEY"),
+        ("openrouter", "https://or/x", "modelo-or", ("o.txt",), "O_KEY"),
+        ("nvidia", "https://nv/x", "modelo-nv", ("n.txt",), "N_KEY"),
+    )
+
+    def setUp(self):
+        self.fornecedores, self.ler_chave = radar.FORNECEDORES, radar.ler_chave
+        radar.FORNECEDORES = self.FALSOS
+
+    def tearDown(self):
+        radar.FORNECEDORES = self.fornecedores
+        radar.ler_chave = self.ler_chave
+
+    def com_chaves(self, *quais):
+        radar.ler_chave = lambda nomes, var: ("k" if nomes[0][0] in quais
+                                              else "")
+
+    def test_so_entra_quem_tem_chave(self):
+        self.com_chaves("g", "n")
+        self.assertEqual([f[0] for f in radar.cadeia_de_fornecedores({})],
+                         ["groq", "nvidia"])
+
+    def test_a_ordem_e_a_da_lista(self):
+        # a Groq à frente por ser a única com leituras julgadas boas
+        self.com_chaves("o", "g")
+        self.assertEqual([f[0] for f in radar.cadeia_de_fornecedores({})],
+                         ["groq", "openrouter"])
+
+    def test_sem_chave_nenhuma_a_cadeia_e_vazia(self):
+        # é o que faz o analisar_pecas dizer "falta a chave da API"
+        self.com_chaves()
+        self.assertEqual(radar.cadeia_de_fornecedores({}), [])
+
+    def test_fornecedor_pecas_prende_a_um_so(self):
+        # serve para comparar leituras entre modelos sem mexer no código
+        self.com_chaves("g", "o", "n")
+        cadeia = radar.cadeia_de_fornecedores({"fornecedor_pecas": "openrouter"})
+        self.assertEqual([f[0] for f in cadeia], ["openrouter"])
+
+
+class TestModeloDoFornecedor(unittest.TestCase):
+    """O "modelo_pecas" do config antigo é da Groq, e só dela.
+
+    Aplicado à cadeia toda, escolhia o modelo do fornecedor errado: um
+    "openai/gpt-oss-120b" no config passava a pedir esse nome ao
+    OpenRouter, onde não existe.
+    """
+
+    def test_sem_config_fica_o_de_origem(self):
+        self.assertEqual(
+            radar.modelo_do_fornecedor({}, "openrouter", "origem"), "origem")
+
+    def test_o_config_antigo_so_vale_para_a_groq(self):
+        cfg = {"modelo_pecas": "outro"}
+        self.assertEqual(radar.modelo_do_fornecedor(cfg, "groq", "origem"),
+                         "outro")
+        self.assertEqual(radar.modelo_do_fornecedor(cfg, "nvidia", "origem"),
+                         "origem")
+
+    def test_o_mapa_por_fornecedor_manda(self):
+        cfg = {"modelo_pecas": "antigo", "modelos_pecas": {"groq": "novo"}}
+        self.assertEqual(radar.modelo_do_fornecedor(cfg, "groq", "origem"),
+                         "novo")
+
+    def test_valores_vazios_nao_contam(self):
+        # um "" no config não é uma escolha -- é o campo por preencher
+        cfg = {"modelo_pecas": "  ", "modelos_pecas": {"groq": ""}}
+        self.assertEqual(radar.modelo_do_fornecedor(cfg, "groq", "origem"),
+                         "origem")
+
+
+class TestOrcamentoPorFornecedor(unittest.TestCase):
+    """O tecto do dia é de cada fornecedor, não da cadeia."""
+
+    def setUp(self):
+        radar._ESGOTADOS.clear()
+
+    tearDown = setUp
+
+    def test_esgotado_e_por_dia(self):
+        # à meia-noite a data muda e a memória limpa-se sozinha
+        radar.marcar_esgotado("groq", "2026-08-27")
+        self.assertTrue(radar.esta_esgotado("groq", "2026-08-27"))
+        self.assertFalse(radar.esta_esgotado("groq", "2026-08-28"))
+
+    def test_um_esgotado_nao_esgota_a_cadeia(self):
+        # com "algum", bastava a Groq acabar para o painel dar o dia por
+        # perdido com o OpenRouter ainda a responder ao lado
+        cadeia = [("groq", "u", "m", "k"), ("openrouter", "u", "m", "k")]
+        radar.marcar_esgotado("groq")
+        self.assertFalse(radar.cadeia_esgotada(cadeia))
+
+    def test_todos_esgotados_esgotam_a_cadeia(self):
+        cadeia = [("groq", "u", "m", "k"), ("openrouter", "u", "m", "k")]
+        radar.marcar_esgotado("groq")
+        radar.marcar_esgotado("openrouter")
+        self.assertTrue(radar.cadeia_esgotada(cadeia))
+
+    def test_cadeia_vazia_nao_esta_esgotada(self):
+        # sem chaves a mensagem certa é "falta a chave", não "acabou o dia"
+        self.assertFalse(radar.cadeia_esgotada([]))
+
+
+class TestJsonDaResposta(unittest.TestCase):
+    """Os modelos gratuitos embrulham o JSON em cercas markdown.
+
+    A Groq honra o response_format; os outros nem sempre. Sem desfazer
+    a cerca, a cadeia descia para o fornecedor seguinte com a resposta
+    boa na mão.
+    """
+
+    def test_json_simples(self):
+        self.assertEqual(radar.json_da_resposta('{"a": 1}'), {"a": 1})
+
+    def test_dentro_de_cerca_com_linguagem(self):
+        self.assertEqual(
+            radar.json_da_resposta('```json' + chr(10) + '{"a": 1}' +
+                                   chr(10) + '```'), {"a": 1})
+
+    def test_dentro_de_cerca_sem_linguagem(self):
+        self.assertEqual(
+            radar.json_da_resposta('```' + chr(10) + '{"a": 1}' +
+                                   chr(10) + '```'), {"a": 1})
+
+    def test_lixo_continua_a_ser_erro(self):
+        # tem de continuar a falhar: é o ValueError que faz a cadeia
+        # descer para o fornecedor seguinte
+        with self.assertRaises(ValueError):
+            radar.json_da_resposta("desculpe, não percebi")
+
+
+class TestPerguntarDesceACadeia(unittest.TestCase):
+    """A cadeia salta para o seguinte quando um fornecedor esgota.
+
+    Era este o ponto: o tecto diário da Groq acabava a meio de uma
+    releitura do acervo e a fila ficava parada até ao dia seguinte.
+    """
+
+    def setUp(self):
+        radar._ESGOTADOS.clear()
+        self.um_pedido = radar._um_pedido
+        self.chamados = []
+
+    def tearDown(self):
+        radar._um_pedido = self.um_pedido
+        radar._ESGOTADOS.clear()
+
+    def responder(self, respostas):
+        """respostas: {nome do modelo: (dados, aviso)}."""
+        def falso(url, chave, modelo, instrucao, texto):
+            self.chamados.append(modelo)
+            return respostas.get(modelo, (None, "sem resposta"))
+        radar._um_pedido = falso
+
+    CADEIA = [("groq", "u", "m-groq", "k"),
+              ("openrouter", "u", "m-or", "k")]
+
+    def test_o_primeiro_que_responde_ganha(self):
+        self.responder({"m-groq": ({"objecto": "x"}, "")})
+        dados, aviso, usado = radar._perguntar(self.CADEIA, "i", "t")
+        self.assertEqual(dados, {"objecto": "x"})
+        self.assertEqual(usado, "groq:m-groq")
+        self.assertEqual(self.chamados, ["m-groq"])
+
+    def test_esgotado_o_primeiro_desce_para_o_segundo(self):
+        self.responder({"m-groq": (None, radar.SEM_ORCAMENTO_HOJE),
+                        "m-or": ({"objecto": "y"}, "")})
+        dados, aviso, usado = radar._perguntar(self.CADEIA, "i", "t")
+        self.assertEqual(dados, {"objecto": "y"})
+        self.assertEqual(usado, "openrouter:m-or")
+
+    def test_o_tecto_do_dia_fica_marcado_e_nao_se_repete(self):
+        # sem esta memória, cada uma das três perguntas de cada concurso
+        # voltava a bater na mesma porta fechada -- a hora deitada fora
+        # que o SEM_ORCAMENTO_HOJE veio evitar
+        self.responder({"m-groq": (None, radar.SEM_ORCAMENTO_HOJE),
+                        "m-or": ({"objecto": "y"}, "")})
+        radar._perguntar(self.CADEIA, "i", "t")
+        radar._perguntar(self.CADEIA, "i", "t")
+        self.assertTrue(radar.esta_esgotado("groq"))
+        self.assertEqual(self.chamados.count("m-groq"), 1)
+
+    def test_uma_falha_normal_nao_marca_esgotado(self):
+        # um 500 passageiro não pode encerrar o fornecedor até amanhã
+        self.responder({"m-groq": (None, "respondeu 500: ..."),
+                        "m-or": ({"objecto": "y"}, "")})
+        radar._perguntar(self.CADEIA, "i", "t")
+        self.assertFalse(radar.esta_esgotado("groq"))
+
+    def test_falhando_todos_o_aviso_diz_quem_falhou(self):
+        self.responder({})
+        dados, aviso, usado = radar._perguntar(self.CADEIA, "i", "t")
+        self.assertIsNone(dados)
+        self.assertEqual(usado, "")
+        self.assertIn("groq", aviso)
+        self.assertIn("openrouter", aviso)
+
+
+class TestModeloGuardadoNaReleitura(unittest.TestCase):
+    """A coluna analise.modelo passou a dizer quem respondeu.
+
+    Sendo agora variável, uma releitura parcial apagava o registo do
+    modelo que leu os outros campos -- o mesmo erro que o juntar_fontes
+    já tinha pago na coluna irmã, e por isso é ele que se reutiliza.
+    """
+
+    def test_releitura_parcial_guarda_o_modelo_anterior(self):
+        self.assertEqual(
+            radar.juntar_fontes(["openrouter:m-or"], "groq:m-groq", True),
+            "openrouter:m-or, groq:m-groq")
+
+    def test_leitura_completa_substitui(self):
+        # sem falhas, o que está agora é o retrato inteiro
+        self.assertEqual(
+            radar.juntar_fontes(["groq:m-groq"], "openrouter:m-or", False),
+            "groq:m-groq")
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

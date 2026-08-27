@@ -58,8 +58,9 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
    compraspt, anogov), por fila e thread de fundo. Ficam em `documentos/`
    no disco, **não na base** — para o `radar.db` ficar pequeno.
 5. **leitura das peças por modelo** — `analisar_pecas()` recorta as zonas
-   relevantes do CE/PC e faz três pedidos à Groq (um por campo), gravando
-   em `analise`.
+   relevantes do CE/PC e faz três pedidos (um por campo), gravando em
+   `analise`. Cada pedido desce a cadeia `FORNECEDORES` (Groq →
+   OpenRouter → NVIDIA) até alguém responder.
 6. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Vistas: lista (`/`), ficha (`/anuncio/<ref>`),
    quadro kanban, calendário, indicadores.
@@ -80,9 +81,24 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   `TECTO_RECORTE = 7000` caracteres e três pedidos separados em vez de um.
   Juntos, as âncoras do objecto gastavam o orçamento antes de chegar à
   tabela de perfis. Há também um tecto diário: `SEM_ORCAMENTO_HOJE`.
-- **A chave da API** lê-se de `groq_API_KEY.txt` / `chave_api.txt` ou de
-  `GROQ_API_KEY`. O `.gitignore` é deliberadamente largo (`*api_key*`,
-  `*token*`, `*secret*`) porque a chave já apareceu com nomes diferentes.
+- **Cadeia de reserva, não um fornecedor.** O tecto diário da Groq (200
+  mil tokens) acaba a meio de uma releitura do acervo. `_perguntar()`
+  desce `FORNECEDORES` até alguém responder, e `_ESGOTADOS` guarda quem
+  já bateu no tecto **nesse dia** — sem isso, cada pergunta voltava a
+  bater na porta fechada. A mensagem do tecto diário só aparece quando
+  **toda** a cadeia esgota (`cadeia_esgotada()`). Só entra quem tem
+  chave: sem chaves novas, o comportamento é o de sempre.
+- **`analise.modelo` diz quem respondeu**, não o modelo configurado
+  (`groq:openai/gpt-oss-120b`). Por ser variável, passa pelo
+  `juntar_fontes()` como as fontes — uma releitura parcial apagava o
+  registo do modelo que leu os outros campos.
+- **As chaves da API** lêem-se de `<fornecedor>_API_KEY.txt` na pasta
+  (`groq_API_KEY.txt`, `chave_api.txt`, `openrouter_API_KEY.txt`,
+  `nvidia_API_KEY.txt`) ou das variáveis `GROQ_API_KEY`,
+  `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`. O `.gitignore` é
+  deliberadamente largo (`*api_key*`, `*token*`, `*secret*`) porque a
+  chave já apareceu com nomes diferentes — e é ele que já cobre os
+  nomes novos.
 - **Só passam pelo modelo documentos públicos** (Cadernos de Encargos e
   Programas de Concurso). Propostas, CVs e trabalho próprio não.
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de

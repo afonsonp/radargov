@@ -66,9 +66,15 @@ CONFIG_INICIAL = {
     # que isto ja fechou: o CPV desses so interessa como historico, e
     # esses sao lidos quando se abre a ficha. Poe a 0 para ler tudo.
     "detalhe_dias": 60,
-    # Modelo que le o Caderno de Encargos e o Programa. Vazio = o de
-    # origem. A lista destas plataformas muda, por isso fica a jeito.
+    # Modelo que le o Caderno de Encargos e o Programa, na Groq. Vazio =
+    # o de origem. A lista destas plataformas muda, por isso fica a jeito.
     "modelo_pecas": "",
+    # Modelo por fornecedor da cadeia, p.ex. {"openrouter": "z-ai/glm-5.2:free"}.
+    # Vazio = o de origem de cada um (ver FORNECEDORES).
+    "modelos_pecas": {},
+    # Prende a leitura a um so fornecedor ("groq", "openrouter", "nvidia").
+    # Vazio = a cadeia toda, por ordem. Serve para comparar leituras.
+    "fornecedor_pecas": "",
     "por_pagina": 25,
     # Tecto de seguranca, nao um alvo: o pedido para de pedir paginas
     # assim que o portal devolver menos que uma pagina cheia. So entra
@@ -1092,6 +1098,25 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # manda no tamanho do pedido. Fica no config.json porque a lista de
 # modelos destas plataformas muda.
 GROQ_MODELO = "openai/gpt-oss-120b"
+# A cadeia de reserva. O tecto diario da Groq (200 mil tokens) chega ao
+# fim a meio de uma releitura do acervo, e ate ai a fila ficava parada
+# de um dia para o outro. Todos estes falam o dialecto da OpenAI
+# (/chat/completions, Bearer, response_format), por isso a cadeia e uma
+# lista de enderecos e nao tres clientes diferentes.
+#
+# So entra quem tiver chave: um fornecedor por configurar custava uma
+# volta e um 401 a cada pergunta. Ordem = prioridade; a Groq fica a
+# frente por ser a unica com leituras julgadas boas.
+#
+# Os nomes dos ficheiros de chave ja estao cobertos pelo .gitignore
+# (*[Aa][Pp][Ii]_[Kk][Ee][Yy]*), de proposito largo.
+FORNECEDORES = (
+    ("groq", GROQ_URL, GROQ_MODELO, NOMES_CHAVE, "GROQ_API_KEY"),
+    ("openrouter", "https://openrouter.ai/api/v1/chat/completions",
+     "z-ai/glm-5.2:free", ("openrouter_API_KEY.txt",), "OPENROUTER_API_KEY"),
+    ("nvidia", "https://integrate.api.nvidia.com/v1/chat/completions",
+     "openai/gpt-oss-120b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY"),
+)
 # Cada campo tem o seu recorte e o seu pedido. Juntos num so, as
 # ancoras do objecto gastavam o orcamento antes de se chegar a tabela de
 # perfis: num Caderno de Encargos de 167 mil caracteres ela estava na
@@ -1242,17 +1267,53 @@ LEITURAS = (
 )
 
 
-def ler_chave_api():
+def ler_chave(nomes, variavel):
     """A chave fica num ficheiro a parte, fora do git. Tambem se aceita
-    a variavel de ambiente GROQ_API_KEY."""
-    for nome in NOMES_CHAVE:
+    a variavel de ambiente."""
+    for nome in nomes:
         caminho = os.path.join(BASE_DIR, nome)
         if os.path.exists(caminho):
             with open(caminho, encoding="utf-8") as f:
                 chave = f.read().strip()
             if chave:
                 return chave
-    return (os.environ.get("GROQ_API_KEY") or "").strip()
+    return (os.environ.get(variavel) or "").strip()
+
+
+def modelo_do_fornecedor(cfg, nome, omissao):
+    """O modelo a usar num fornecedor: config, senao o de origem.
+
+    O config antigo tinha um so "modelo_pecas", e era o da Groq --
+    continua a valer para ela, senao a linha que la esta passava a
+    escolher o modelo do fornecedor errado no dia em que a cadeia
+    entrasse.
+    """
+    mapa = cfg.get("modelos_pecas") or {}
+    if isinstance(mapa, dict) and (mapa.get(nome) or "").strip():
+        return mapa[nome].strip()
+    if nome == "groq" and (cfg.get("modelo_pecas") or "").strip():
+        return cfg["modelo_pecas"].strip()
+    return omissao
+
+
+def cadeia_de_fornecedores(cfg=None):
+    """Os fornecedores com chave, por ordem de prioridade.
+
+    Devolve tuplos (nome, url, modelo, chave). Vazia quer dizer que nao
+    ha chave nenhuma configurada -- e o mesmo que o antigo
+    "falta a chave da API".
+    """
+    cfg = ler_config() if cfg is None else cfg
+    so_este = (cfg.get("fornecedor_pecas") or "").strip()
+    cadeia = []
+    for nome, url, omissao, nomes, variavel in FORNECEDORES:
+        if so_este and nome != so_este:
+            continue
+        chave = ler_chave(nomes, variavel)
+        if chave:
+            cadeia.append((nome, url, modelo_do_fornecedor(cfg, nome, omissao),
+                           chave))
+    return cadeia
 
 
 RX_MARCADOR = re.compile(r"^(clausula|artigo|anexo|capitulo|seccao|apendice)\b")
@@ -1437,6 +1498,37 @@ def orcamento_do_dia_esgotado(resposta):
     return "tokens per day" in corpo or "(tpd)" in corpo
 
 
+# Quem ja bateu no tecto do dia, e em que dia. O tecto diario nao cede
+# antes de amanha: sem esta memoria, cada um dos tres pedidos de cada
+# concurso da fila voltava a bater na mesma porta fechada -- que foi
+# exactamente a hora deitada fora que o SEM_ORCAMENTO_HOJE veio evitar.
+# Vive so enquanto o processo viver; a meia-noite a data muda e limpa-se
+# sozinha.
+_ESGOTADOS = {}
+
+
+def hoje_texto():
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def marcar_esgotado(nome, dia=None):
+    _ESGOTADOS[nome] = dia or hoje_texto()
+
+
+def esta_esgotado(nome, dia=None):
+    return _ESGOTADOS.get(nome) == (dia or hoje_texto())
+
+
+def cadeia_esgotada(cadeia):
+    """Todos os fornecedores da cadeia bateram no tecto do dia?
+
+    So entao e que a mensagem do tecto diario e verdade. Com "algum
+    esgotado" bastava a Groq acabar para o painel anunciar que o dia
+    tinha acabado, com o OpenRouter ainda a responder ao lado.
+    """
+    return bool(cadeia) and all(esta_esgotado(n) for n, _, _, _ in cadeia)
+
+
 def espera_pedida(resposta, tecto=70):
     """Quantos segundos esperar depois de um 429, segundo a propria API."""
     cabecalho = resposta.headers.get("retry-after", "")
@@ -1487,11 +1579,29 @@ def juntar_fontes(usados, anteriores, parcial):
     return ", ".join(juntas)
 
 
-def _perguntar(chave, modelo, instrucao, texto):
-    """Uma pergunta ao modelo. Devolve (dados, aviso)."""
+RX_CERCA_ABRE = re.compile(r"^```[a-zA-Z]*\s*")
+RX_CERCA_FECHA = re.compile(r"\s*```$")
+
+
+def json_da_resposta(conteudo):
+    """O JSON da resposta, mesmo vindo dentro de cercas markdown.
+
+    A Groq honra o response_format; os modelos gratuitos das outras
+    plataformas nem sempre, e devolvem a mesma coisa embrulhada em
+    ```json ... ```. Sem isto a cadeia descia para o fornecedor
+    seguinte com a resposta boa na mao.
+    """
+    conteudo = (conteudo or "").strip()
+    if conteudo.startswith("```"):
+        conteudo = RX_CERCA_FECHA.sub("", RX_CERCA_ABRE.sub("", conteudo))
+    return json.loads(conteudo)
+
+
+def _um_pedido(url, chave, modelo, instrucao, texto):
+    """Uma pergunta a um fornecedor. Devolve (dados, aviso)."""
     try:
         for tentativa in (1, 2, 3):
-            r = requests.post(GROQ_URL, timeout=180,
+            r = requests.post(url, timeout=180,
                               headers={"Authorization": "Bearer " + chave,
                                        "Content-Type": "application/json"},
                               json={"model": modelo, "temperature": 0,
@@ -1508,20 +1618,40 @@ def _perguntar(chave, modelo, instrucao, texto):
             # ver: esperar o minuto vale mais do que desistir.
             time.sleep(espera_pedida(r))
         if r.status_code != 200:
-            return None, "o modelo respondeu %d: %s" % (
-                r.status_code, r.text[:160])
-        return json.loads(r.json()["choices"][0]["message"]["content"]), ""
+            return None, "respondeu %d: %s" % (r.status_code, r.text[:160])
+        return json_da_resposta(r.json()["choices"][0]["message"]["content"]), ""
     except (requests.RequestException, ValueError, KeyError, IndexError) as erro:
         return None, "falhou a leitura pelo modelo: %s" % str(erro)[:140]
 
 
+def _perguntar(cadeia, instrucao, texto):
+    """A mesma pergunta, descendo a cadeia ate alguem responder.
+
+    Devolve (dados, aviso, usado), em que "usado" identifica quem
+    respondeu -- vai para a coluna analise.modelo, para se saber depois
+    que leitura veio de que modelo. Uma leitura da Groq e uma leitura
+    de um modelo gratuito nao valem o mesmo, e a ficha tem de o dizer.
+    """
+    avisos = []
+    for nome, url, modelo, chave in cadeia:
+        if esta_esgotado(nome):
+            avisos.append("%s: %s" % (nome, SEM_ORCAMENTO_HOJE))
+            continue
+        dados, aviso = _um_pedido(url, chave, modelo, instrucao, texto)
+        if dados is not None:
+            return dados, "", "%s:%s" % (nome, modelo)
+        if aviso == SEM_ORCAMENTO_HOJE:
+            marcar_esgotado(nome)
+        avisos.append("%s: %s" % (nome, aviso))
+    return None, "; ".join(avisos), ""
+
+
 def analisar_pecas(ref):
     """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso)."""
-    chave = ler_chave_api()
-    if not chave:
+    cadeia = cadeia_de_fornecedores()
+    if not cadeia:
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
                        "na pasta do radar")
-    modelo = ler_config().get("modelo_pecas") or GROQ_MODELO
 
     docs = documentos_com_texto(ref)
     recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
@@ -1541,17 +1671,19 @@ def analisar_pecas(ref):
                        "texto para ler" if scans else
                        "ainda não há Caderno de Encargos nem Programa em disco")
 
-    dados, usados, falhas = {}, [], []
+    dados, usados, falhas, modelos = {}, [], [], []
     for nome, (texto, fontes), instrucao in recortes:
         if not texto:
             falhas.append("%s: falta o documento" % nome)
             continue
-        resposta, aviso = _perguntar(chave, modelo, instrucao, texto)
+        resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
         if resposta is None:
             falhas.append("%s: %s" % (nome, aviso))
             continue
         dados.update(resposta)
         usados += [f for f in fontes if f not in usados]
+        if usado not in modelos:
+            modelos.append(usado)
     # O tecto do dia nao cede antes de amanha: nao ha mais nada util a
     # dizer, e a mensagem vai inteira para quem a procura no --ler-pecas.
     # Espremida no meio das outras falhas, o corte apagava-a e a fila
@@ -1560,7 +1692,10 @@ def analisar_pecas(ref):
     # fora dois campos bons, nao marcava erro nenhum (o obter_documentos
     # so o faz quando isto devolve False) e ainda dizia "pecas lidas
     # pelo modelo" a quem carregou no botao.
-    sem_orcamento = any(SEM_ORCAMENTO_HOJE in f for f in falhas)
+    # So se conta como "acabou o dia" quando a cadeia inteira bateu no
+    # tecto: com um "algum" bastava a Groq acabar para o painel dar o
+    # dia por perdido, com o fornecedor seguinte ainda a responder.
+    sem_orcamento = cadeia_esgotada(cadeia)
     if not dados:
         return False, (SEM_ORCAMENTO_HOJE if sem_orcamento
                        else "; ".join(falhas)[:200])
@@ -1569,6 +1704,13 @@ def analisar_pecas(ref):
     campos = juntar_leituras(dados, anterior)
     fontes = juntar_fontes(usados, anterior["fontes"] if anterior else "",
                            bool(falhas))
+    # Mesmo problema das fontes, e a mesma solucao: agora que esta coluna
+    # diz quem respondeu, uma releitura em que so um fornecedor entrasse
+    # apagava o registo do modelo que leu os outros campos -- e os campos
+    # ficavam (juntar_leituras guarda-os) a dizer que vinham de quem nao
+    # os leu.
+    modelos = juntar_fontes(modelos, anterior["modelo"] if anterior else "",
+                            bool(falhas))
 
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
@@ -1577,7 +1719,7 @@ def analisar_pecas(ref):
                   (ref, campos["objecto"], campos["equipa"],
                    campos["documentos_proposta"],
                    campos["preco_anormalmente_baixo"],
-                   campos["localizacao"], modelo, fontes,
+                   campos["localizacao"], modelos, fontes,
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
     if sem_orcamento:
         return True, SEM_ORCAMENTO_HOJE
@@ -1682,7 +1824,7 @@ def obter_documentos(ref):
     # doutro modo a pagina recarregava a meio e mostrava a tabela por
     # preencher. Sao segundos, ao lado de uma descarga que demora muito
     # mais; e se falhar, as pecas ficam na mesma e ha o botao a mao.
-    if ler_chave_api() and not analise_de(ref):
+    if cadeia_de_fornecedores() and not analise_de(ref):
         lido, porque = analisar_pecas(ref)
         if not lido:
             marca("analise_ultimo_erro", "%s: %s" % (ref, porque))
