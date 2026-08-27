@@ -995,12 +995,19 @@ def e_pdf(caminho):
     """
     try:
         with open(caminho, "rb") as f:
-            # A norma tolera lixo antes da assinatura, e ha ferramentas
-            # que deixam la um BOM ou uma linha em branco; o pypdf le-os
-            # na mesma, por isso nao se exige o byte 0.
-            return b"%PDF" in f.read(1024)
+            cabeca = f.read(1024)
     except OSError:
         return False
+    # Um ZIP com um PDF la dentro por comprimir traz o "%PDF" no byte 46
+    # -- e o zipfile.writestr guarda assim, por omissao. Sem esta linha
+    # o pacote dava-se por PDF: o extrair_textos pergunta aqui antes de
+    # ir ao texto_do_zip, e o ZIP nunca chegava a ser aberto.
+    if cabeca.startswith(b"PK\x03\x04"):
+        return False
+    # A norma tolera lixo antes da assinatura, e ha ferramentas que
+    # deixam la um BOM ou uma linha em branco; o pypdf le-os na mesma,
+    # por isso nao se exige o byte 0.
+    return b"%PDF" in cabeca
 
 
 def texto_do_zip(caminho, papeis):
@@ -1395,6 +1402,24 @@ def juntar_leituras(dados, anterior):
             for c in CAMPOS_DA_ANALISE}
 
 
+def juntar_fontes(usados, anteriores, parcial):
+    """As peças de onde veio o que fica guardado, e não só as desta vez.
+
+    Companheiro do juntar_leituras: se ele guarda campos lidos numa
+    leitura anterior, as fontes dessa leitura têm de ficar com eles.
+    Sem isto, uma releitura em que só o Programa respondesse punha
+    fontes="Programa.pdf" por cima, e a ficha passava a dizer "objecto
+    lido de Programa.pdf" a texto que veio do Caderno de Encargos.
+    """
+    juntas = list(usados)
+    if parcial or not juntas:
+        for f in (anteriores or "").split(","):
+            f = f.strip()
+            if f and f not in juntas:
+                juntas.append(f)
+    return ", ".join(juntas)
+
+
 def _perguntar(chave, modelo, instrucao, texto):
     """Uma pergunta ao modelo. Devolve (dados, aviso)."""
     try:
@@ -1463,16 +1488,20 @@ def analisar_pecas(ref):
     # O tecto do dia nao cede antes de amanha: nao ha mais nada util a
     # dizer, e a mensagem vai inteira para quem a procura no --ler-pecas.
     # Espremida no meio das outras falhas, o corte apagava-a e a fila
-    # continuava a moer contra um limite que nao ia ceder.
-    if any(SEM_ORCAMENTO_HOJE in f for f in falhas):
-        return bool(dados), SEM_ORCAMENTO_HOJE
+    # continuava a moer contra um limite que nao ia ceder. O que se leu
+    # antes de o tecto bater guarda-se na mesma -- sair aqui deitava
+    # fora dois campos bons, nao marcava erro nenhum (o obter_documentos
+    # so o faz quando isto devolve False) e ainda dizia "pecas lidas
+    # pelo modelo" a quem carregou no botao.
+    sem_orcamento = any(SEM_ORCAMENTO_HOJE in f for f in falhas)
     if not dados:
-        return False, "; ".join(falhas)[:200]
+        return False, (SEM_ORCAMENTO_HOJE if sem_orcamento
+                       else "; ".join(falhas)[:200])
 
     anterior = analise_de(ref)
     campos = juntar_leituras(dados, anterior)
-    if anterior and not usados:
-        usados = [anterior["fontes"]]
+    fontes = juntar_fontes(usados, anterior["fontes"] if anterior else "",
+                           bool(falhas))
 
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
@@ -1480,9 +1509,10 @@ def analisar_pecas(ref):
              modelo,fontes,quando) VALUES (?,?,?,?,?,?,?,?)""",
                   (ref, campos["objecto"], campos["equipa"],
                    campos["documentos_proposta"],
-                   campos["preco_anormalmente_baixo"], modelo,
-                   ", ".join(usados),
+                   campos["preco_anormalmente_baixo"], modelo, fontes,
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
+    if sem_orcamento:
+        return True, SEM_ORCAMENTO_HOJE
     # Leitura parcial e melhor do que nenhuma, mas tem de se saber.
     return True, ("não deu para ler tudo — " + "; ".join(falhas)[:160]
                   if falhas else "")
@@ -3177,7 +3207,16 @@ def ficha(ref):
                        (" &middot; " + html.escape(a["plataforma"])) if a["plataforma"] else "",
                        100 if passou else pct))
 
-    if docs:
+    # O 'pendente' vem antes do 'docs': ao carregar em "Actualizar peças"
+    # ja ca estao as antigas, e a caixa dizia-se pronta enquanto as novas
+    # vinham em fundo -- e o obter_documentos apaga-as e volta a inserir.
+    if a["docs_estado"] == "pendente":
+        # As peças vêm em fundo e demoram entre 1 e 10 segundos. Sem isto
+        # a página era desenhada antes de elas existirem e parecia que não
+        # tinham vindo -- só recarregando à mão é que apareciam.
+        corpo_docs = ("<div class='nota a-trazer'>A trazer as peças da "
+                      "plataforma… a página actualiza-se sozinha.</div>")
+    elif docs:
         linhas_doc = "".join(
             "<div class='doc'><a href='/documento/%s/%s'>%s</a>"
             "<span class='t'>%s</span></div>"
@@ -3190,6 +3229,12 @@ def ficha(ref):
             cabeca_docs = ("<div class='nota' style='color:#8a5307'>Só veio o "
                            "PDF do anúncio &mdash; as peças do procedimento "
                            "não foi possível trazer da plataforma.</div>")
+        elif a["docs_estado"] == "falhou":
+            # Falhar a actualizacao com peças antigas em disco nao se via
+            # em lado nenhum: a lista continuava ali e parecia recente.
+            cabeca_docs = ("<div class='nota' style='color:#8a5307'>Não foi "
+                           "possível actualizar as peças na plataforma &mdash; "
+                           "as que estão em baixo são as de antes.</div>")
         else:
             cabeca_docs = ("<div class='nota'>Guardadas em documentos/%s.</div>"
                            % html.escape(re.sub(r"[^0-9A-Za-z._-]", "-", ref)))
@@ -3201,12 +3246,6 @@ def ficha(ref):
                       "<div class='accoes' style='margin-top:14px'>%s%s</div>"
                       % (linhas_doc, botao_ler,
                          accao("/documentos/%s" % ref, "Actualizar peças")))
-    elif a["docs_estado"] == "pendente":
-        # As peças vêm em fundo e demoram entre 1 e 10 segundos. Sem isto
-        # a página era desenhada antes de elas existirem e parecia que não
-        # tinham vindo -- só recarregando à mão é que apareciam.
-        corpo_docs = ("<div class='nota a-trazer'>A trazer as peças da "
-                      "plataforma… a página actualiza-se sozinha.</div>")
     else:
         if a["docs_estado"] == "falhou":
             nota = ("Não foi possível trazer as peças automaticamente. A "
@@ -3276,10 +3315,15 @@ def trazer_documentos(ref):
     pendurado esse tempo todo. A ficha ja sabe mostrar "a trazer as
     pecas..." e recarregar-se sozinha, que e o mesmo caminho de quando
     se marca interessa.
+
+    Sem aviso na ligacao de proposito: o recarregar e um location.reload()
+    e leva a query string atras, por isso um "a trazer as pecas..." posto
+    aqui ficava colado a pagina depois de a descarga ter acabado -- ou
+    falhado. Quem diz em que pe isto vai e a caixa das pecas, que sabe o
+    estado a serio.
     """
     pedir_documentos(ref)
-    return redirect("/anuncio/" + ref + "?" + urlencode(
-        {"aviso": "a trazer as peças da plataforma…"}))
+    return redirect("/anuncio/" + ref)
 
 
 @app.route("/analisar/<path:ref>", methods=["POST"])
