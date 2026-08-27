@@ -12,6 +12,7 @@ segundo, por isso nao ha desculpa para nao os correr antes de gravar.
 Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 """
 
+import datetime
 import os
 import sys
 import unittest
@@ -1295,6 +1296,135 @@ class TestArgsDaLista(unittest.TestCase):
         saiu = radar.args_da_lista(self._Args({"q": "a", "aviso": "guardado"}))
         self.assertNotIn("aviso", saiu)
         self.assertEqual(saiu["q"], "a")
+
+
+class TestNormaEntidade(unittest.TestCase):
+    """Ligar uma entidade do radar às adjudicações dela no corpus do BASE.
+
+    O radar guarda o nome como o DR o escreve, o BASE guarda "NIF - nome".
+    Medido sobre as 898 entidades do radar contra dois anos de corpus:
+    93,7% acham-se só com esta normalização, sem uma única ambiguidade.
+    Normalizar mais (tirar EPE/SA/IP, unificar Município com Câmara
+    Municipal) acrescentava dois casos em 898 e arriscava juntar
+    entidades diferentes -- por isso NÃO se faz, e é o que estes testes
+    seguram.
+    """
+
+    def test_tira_acentos_maiusculas_e_pontuacao(self):
+        self.assertEqual(radar.norma_entidade("Município de Oeiras"),
+                         "municipio de oeiras")
+        self.assertEqual(radar.norma_entidade("MUNICÍPIO  DE  OEIRAS!"),
+                         "municipio de oeiras")
+
+    def test_e_comercial_vira_palavra(self):
+        # "Mentores & Tutores" e "Mentores e Tutores" sao a mesma entidade
+        self.assertEqual(radar.norma_entidade("Mentores & Tutores"),
+                         radar.norma_entidade("Mentores e Tutores"))
+
+    def test_nao_unifica_o_que_e_mesmo_diferente(self):
+        # de proposito: sao nomes diferentes e juntar entidades distintas
+        # e pior do que nao achar uma
+        self.assertNotEqual(radar.norma_entidade("Município de Felgueiras"),
+                            radar.norma_entidade("Câmara Municipal de Felgueiras"))
+
+    def test_nome_vazio_nao_rebenta(self):
+        # sem isto, um anuncio sem entidade ia procurar "" no corpus e
+        # trazia tudo o que tambem tivesse nome vazio
+        self.assertEqual(radar.norma_entidade(""), "")
+        self.assertEqual(radar.norma_entidade(None), "")
+
+
+class TestPrefixoCPVSozinho(unittest.TestCase):
+    """A regra do prefixo saiu de dentro da condicoes() para o corpus de
+    contratos poder procurar com o mesmo critério. Duas cópias da regra
+    divergiam -- e a de baixo de dois dígitos já custou 4592 anúncios em
+    vez de 440 uma vez.
+    """
+
+    def test_concorda_com_o_filtro_da_lista(self):
+        for codigo in ("72000000", "30000000", "45214200", "72267100-0", "03000000"):
+            with self.subTest(codigo=codigo):
+                _, valores = radar.condicoes({"cpv": codigo, "estado": ""})
+                self.assertEqual(radar.prefixo_cpv(codigo),
+                                 valores[0].rstrip("%"))
+
+    def test_sem_digitos_nao_da_prefixo(self):
+        # "" tem de ser falso, senao LIKE '%' apanhava o corpus inteiro
+        self.assertEqual(radar.prefixo_cpv("-"), "")
+        self.assertEqual(radar.prefixo_cpv(""), "")
+        self.assertEqual(radar.prefixo_cpv(None), "")
+
+
+class TestAnosPedidos(unittest.TestCase):
+    """Os anos do --contratos, lidos da linha de comando."""
+
+    HOJE = datetime.datetime(2026, 8, 27)
+
+    def test_sem_nada_traz_o_corrente_e_o_anterior(self):
+        # so o ano corrente nao servia: em Janeiro estava quase vazio
+        self.assertEqual(radar.anos_pedidos([], self.HOJE), [2025, 2026])
+
+    def test_intervalo(self):
+        self.assertEqual(radar.anos_pedidos(["2019-2022"], self.HOJE),
+                         [2019, 2020, 2021, 2022])
+
+    def test_anos_soltos_saem_ordenados_e_sem_repetir(self):
+        self.assertEqual(radar.anos_pedidos(["2026", "2024", "2024"], self.HOJE),
+                         [2024, 2026])
+
+    def test_lixo_cai_no_valor_de_origem(self):
+        self.assertEqual(radar.anos_pedidos(["ontem"], self.HOJE), [2025, 2026])
+
+
+class TestObjectosDoArray(unittest.TestCase):
+    """Um ano de contratos são 268 MB de JSON: lê-se objecto a objecto,
+    porque um json.loads disso constrói a lista toda em memória.
+    """
+
+    def test_le_um_a_um(self):
+        self.assertEqual(list(radar.objectos_do_array('[{"a":1},{"a":2}]')),
+                         [{"a": 1}, {"a": 2}])
+
+    def test_aguenta_aninhamento_e_virgulas_dentro(self):
+        # o corte ingenuo pela virgula partia os campos que sao listas,
+        # e todos os campos do BASE que interessam sao listas
+        texto = '[{"cpv":["72000000-0 - a, b"],"n":[1,2]},{"cpv":[]}]'
+        self.assertEqual(list(radar.objectos_do_array(texto)),
+                         [{"cpv": ["72000000-0 - a, b"], "n": [1, 2]},
+                          {"cpv": []}])
+
+    def test_array_vazio_e_espacos(self):
+        self.assertEqual(list(radar.objectos_do_array("  [ ]  ")), [])
+        self.assertEqual(list(radar.objectos_do_array('[\n  {"a":1}\n]')),
+                         [{"a": 1}])
+
+
+class TestPartesDoBase(unittest.TestCase):
+    """Os campos do dump do BASE, que vêm quase todos como lista."""
+
+    def test_nif_e_nome_separam_se(self):
+        self.assertEqual(radar._nif_e_nome(["503093742 - AdP - Águas, SA"]),
+                         ("503093742", "AdP - Águas, SA"))
+
+    def test_sem_nif_fica_so_o_nome(self):
+        # ha registos antigos sem NIF; nao se perde o nome por causa disso
+        self.assertEqual(radar._nif_e_nome(["Entidade Antiga"]),
+                         ("", "Entidade Antiga"))
+
+    def test_lista_vazia_nao_rebenta(self):
+        self.assertEqual(radar._nif_e_nome([]), ("", ""))
+        self.assertEqual(radar._nif_e_nome(None), ("", ""))
+
+    def test_cpv_fica_com_oito_digitos(self):
+        # o digito de controlo descola do formato guardado nos anuncios
+        self.assertEqual(radar._cpv8(["72210000-0 - Serviços", "48000000-8 - x"]),
+                         ["72210000", "48000000"])
+        self.assertEqual(radar._cpv8(None), [])
+
+    def test_data_passa_a_iso_para_ordenar_como_texto(self):
+        self.assertEqual(radar._data_iso("23/02/2026"), "2026-02-23")
+        self.assertEqual(radar._data_iso(""), "")
+        self.assertEqual(radar._data_iso("sem data"), "")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,12 @@ curl_*.txt
 radar.db
 radar.db-shm
 radar.db-wal
+# O corpus de contratos do BASE: centenas de MB e refaz-se em minutos a
+# partir do dump publico (python radar.py --contratos). Dados publicos,
+# mas o historico e para o codigo.
+contratos.db
+contratos.db-shm
+contratos.db-wal
 documentos/
 amostras/
 

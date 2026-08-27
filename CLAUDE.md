@@ -26,6 +26,7 @@ python radar.py --historico 730    # recolha extra de N dias; conta horas
 python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
+python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 ```
 
 Testes — sem rede, sem base, correm em menos de um segundo:
@@ -63,16 +64,32 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
    OpenRouter) até alguém responder. **Medido: nenhuma das reservas
    aguenta um recorte de tamanho real em rajada** — ver o ESTADO.md antes
    de contar com elas.
-6. **painel** — rotas Flask, HTML gerado por concatenação de strings
+6. **contratos celebrados (BASE)** — `importar_contratos()` traz o dump
+   semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
+   próprio. `historico_entidade()` responde ao bloco da ficha.
+7. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Vistas: lista (`/`), ficha (`/anuncio/<ref>`),
    quadro kanban, calendário, indicadores.
-7. **agendamento** — `relogio()`, thread daemon que dispara os slots.
+8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio
 
 - **Não se filtra nada à entrada.** Decisão tomada depois de uma primeira
   versão que filtrava por pontuação: entra tudo o que a parte L publicar, e
   a triagem faz-se no painel. Não reintroduzas filtros em `recolher()`.
+- **O BASE não traz anúncios novos.** Medido, e a decisão já foi tomada:
+  os "anúncios" do Portal BASE são o mesmo universo do DR (`nAnuncio` é o
+  `ref` do radar, o `url` aponta para o diariodarepublica.pt), e o dump é
+  semanal, portanto mais atrasado que o radar. **Abaixo dos limiares não
+  existe anúncio nenhum** — esses procedimentos só se vêem como contrato
+  celebrado. Não acrescentes coluna `fonte` nem mexas na deduplicação à
+  espera de uma segunda fonte de anúncios: não há. E o conjunto "OCDS" do
+  dados.gov está vazio desde 2022; o que se usa é o dump normal do IMPIC.
+- **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
+  entra no funil: são contratos assinados, não oportunidades. Cruza-se
+  com `ATTACH` (`com_corpus()`). Está no `.gitignore` — dois anos são
+  334 MB — e refaz-se com `--contratos`. O endereço do dump muda todas as
+  semanas: resolve-se sempre pela API do dados.gov, nunca se guarda.
 - **Um filtro guardado é uma query string, não SQL.** A tabela
   `filtros_guardados` guarda o que `filtro_actual()` produz, e aplicá-lo
   é seguir uma ligação. Duas coisas seguram isto e não se mexem: a ordem
