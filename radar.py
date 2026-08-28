@@ -66,6 +66,9 @@ CONFIG_INICIAL = {
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
     "copias_a_guardar": 7,
+    # Escreve o AVISOS.txt quando entra um anuncio que cai num filtro
+    # guardado. E o que faz o radar deixar de precisar de ser aberto.
+    "avisar_por_filtro": True,
     # A rotina so le o detalhe dos anuncios publicados nesta janela.
     # Entre publicacao e prazo vao ~18 dias em media, por isso mais atras
     # que isto ja fechou: o CPV desses so interessa como historico, e
@@ -221,7 +224,9 @@ def iniciar_db():
         # Migracoes idempotentes: correm sempre, nao fazem nada se ja existirem.
         for nome, tipo in (("fase_id", "INTEGER"), ("texto", "TEXT"),
                            ("pdf_url", "TEXT"), ("link_pecas", "TEXT"),
-                           ("docs_estado", "TEXT"), ("responsavel", "TEXT")):
+                           ("docs_estado", "TEXT"), ("responsavel", "TEXT"),
+                           # o NIPC da entidade, que o DR publica sempre
+                           ("nif", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         semear_fases(c)
@@ -641,8 +646,22 @@ def valor_de(seccoes, *nomes):
 def campos_do_detalhe(texto):
     """Le do texto do anuncio os campos que servem para filtrar e listar."""
     achados = {"cpv": "", "prazo": "", "preco_base": "", "plataforma": "",
-               "link_pecas": ""}
+               "link_pecas": "", "nif": ""}
     seccoes = seccoes_do_texto(texto)
+
+    # O NIPC da entidade adjudicante. Medido: o DR publica-o em **100%**
+    # dos anuncios, e e o mesmo numero por que o BASE identifica a
+    # entidade -- vale mais do que qualquer compararacao de nomes, que
+    # falhava em 6% (sub-unidades e "EPE" contra "E. P. E.").
+    nipc = valor_de(seccoes, "NIPC", "NIF", "Número de Identificação Fiscal")
+    m = re.search(r"\d{9}", nipc or "")
+    if not m:
+        # ha anuncios em que vem colado ao nome da entidade, fora das
+        # chaves numeradas
+        m = re.search(r"(?:NIPC|NIF)\D{0,20}(\d{9})", texto or "", re.I)
+        if m:
+            m = re.match(r"(\d{9})", m.group(1))
+    achados["nif"] = m.group(0) if m else ""
 
     # CPV: le-se das chaves de vocabulario, que trazem "72268000 - Servicos
     # de ...". Ha varios quando o procedimento tem lotes.
@@ -721,11 +740,11 @@ def _guardar_detalhe(ref, dados):
     campos = campos_do_detalhe(texto)
     with liga() as c:
         c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
-                     plataforma=?, texto=?, pdf_url=?, link_pecas=?,
+                     plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
                      detalhe_lido=1 WHERE ref=?""",
                   (campos["cpv"], campos["prazo"], campos["preco_base"],
                    campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
-                   campos["link_pecas"], ref))
+                   campos["link_pecas"], campos["nif"], ref))
     return texto
 
 
@@ -815,9 +834,10 @@ def reparsear(limite=None):
         for a in linhas:
             campos = campos_do_detalhe(a["texto"])
             c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
-                         plataforma=?, link_pecas=? WHERE ref=?""",
+                         plataforma=?, link_pecas=?, nif=? WHERE ref=?""",
                       (campos["cpv"], campos["prazo"], campos["preco_base"],
-                       campos["plataforma"], campos["link_pecas"], a["ref"]))
+                       campos["plataforma"], campos["link_pecas"],
+                       campos["nif"], a["ref"]))
             feitos += 1
     return feitos
 
@@ -2025,6 +2045,72 @@ def copia_de_seguranca(guardar=7):
     return destino
 
 
+def anuncios_a_avisar(desde):
+    """Anúncios novos que caem num filtro guardado.
+
+    E o passo que faz o radar deixar de precisar de ser aberto: ja havia
+    filtros guardados e ja havia recolha automatica, faltava cruzar as
+    duas coisas. O filtro guardado e uma query string, por isso aplica-se
+    com a `condicoes()` que a lista ja usa -- nao ha um segundo motor de
+    filtros a divergir do primeiro.
+
+    Devolve [(nome do filtro, [anuncios])], so com os vistos depois de
+    `desde`, para nao avisar duas vezes do mesmo.
+    """
+    with liga() as c:
+        filtros = c.execute(
+            "SELECT nome, consulta FROM filtros_guardados WHERE vista='anuncios' "
+            "ORDER BY nome COLLATE NOCASE").fetchall()
+    fora = []
+    for f in filtros:
+        args = dict(parse_qsl(f["consulta"] or "", keep_blank_values=True))
+        # o estado do filtro nao interessa aqui: o que se procura sao
+        # anuncios acabados de chegar, e esses sao todos "novo"
+        args.pop("estado", None)
+        onde, valores = condicoes(dict(args, estado=""))
+        with liga() as c:
+            linhas = c.execute(
+                "SELECT ref, titulo, entidade, data_pub, prazo FROM anuncios" +
+                onde + " AND visto_em > ? ORDER BY data_pub DESC, ref DESC "
+                "LIMIT 50", valores + [desde]).fetchall()
+        if linhas:
+            fora.append((f["nome"], linhas))
+    return fora
+
+
+def escrever_avisos(achados):
+    """Deixa os avisos num ficheiro de texto, ao lado da aplicacao.
+
+    Ficheiro e nao e-mail nem notificacao: nao ha servidor de correio
+    configurado, e uma notificacao do Windows desaparece se ninguem
+    estiver a olhar. Um ficheiro fica la ate ser lido, abre-se com dois
+    cliques e nao depende de nada.
+    """
+    if not achados:
+        return ""
+    quando = datetime.now().strftime("%Y-%m-%d %H:%M")
+    linhas = ["Anuncios novos que correspondem aos teus filtros guardados",
+              quando, ""]
+    for nome, anuncios in achados:
+        linhas.append("== %s (%d)" % (nome, len(anuncios)))
+        for a in anuncios:
+            linhas.append("   %s  %s" % (data_pt(a["data_pub"]), a["ref"]))
+            linhas.append("      %s" % (a["titulo"] or "")[:90])
+            linhas.append("      %s%s" % (
+                (a["entidade"] or "")[:70],
+                "  |  propostas ate %s" % data_pt(a["prazo"]) if a["prazo"] else ""))
+            linhas.append("      http://localhost:%d/anuncio/%s"
+                          % (PORTA, quote(a["ref"], safe="")))
+        linhas.append("")
+    corpo = "\n".join(linhas)
+    with open(AVISOS, "w", encoding="utf-8") as f:
+        f.write(corpo)
+    return corpo
+
+
+AVISOS = os.path.join(BASE_DIR, "AVISOS.txt")
+
+
 def verificar(cfg=None):
     cfg = cfg or ler_config()
     iniciar_db()
@@ -2042,6 +2128,27 @@ def verificar(cfg=None):
         if aviso:
             bem = False
             mensagem += " (%s)" % aviso
+    # Os avisos correm depois de ler os detalhes: um filtro por CPV so
+    # apanha o anuncio depois de o CPV estar lido, e ler os detalhes e a
+    # ultima coisa que a verificacao faz.
+    quantos_avisos = 0
+    if bem and cfg.get("avisar_por_filtro", True):
+        antes = le_marca("ultimo_aviso", "")
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+        try:
+            achados = anuncios_a_avisar(antes or "0000")
+            quantos_avisos = sum(len(x[1]) for x in achados)
+            if achados:
+                escrever_avisos(achados)
+                marca("ultimo_aviso_texto", "%d em %d filtro%s"
+                      % (quantos_avisos, len(achados),
+                         "" if len(achados) == 1 else "s"))
+            marca("ultimo_aviso", agora)
+        except sqlite3.Error as erro:
+            print("aviso: os avisos por filtro falharam (%s)" % erro)
+    if quantos_avisos:
+        mensagem += " &middot; %d a avisar" % quantos_avisos
+
     marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
     marca("ultima_mensagem", mensagem)
     marca("ultima_ok", "1" if bem else "0")
@@ -2589,7 +2696,7 @@ def com_corpus(c):
         return False
 
 
-def historico_entidade(entidade, cpv="", limite=25):
+def historico_entidade(entidade, cpv="", limite=25, nif=""):
     """Contratos ja celebrados por esta entidade **no CPV do anuncio**.
 
     A entidade acha-se pelo nome normalizado: o radar so guarda o nome
@@ -2608,8 +2715,8 @@ def historico_entidade(entidade, cpv="", limite=25):
         return [], 0, 0, ""
     # Pela chave e nao pelo nome: o DR escreve "Universidade do Porto" e o
     # contrato pode estar assinado por uma das 86 faculdades, todas com o
-    # mesmo NIF. Ver entidade_por_nome().
-    alvo = entidade_por_nome(entidade)
+    # mesmo NIF. Ver entidade_do_anuncio().
+    alvo = entidade_do_anuncio(nif, entidade)
     if not alvo:
         return [], 0, 0, ""
     prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
@@ -3033,6 +3140,18 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .tab-mercado tr:last-child td{border-bottom:0}
 /* a coluna do objecto pode ser longa; a tabela rola dentro da caixa em
    vez de empurrar a ficha toda para o lado */
+.ref-preco{border:1px solid var(--linha);border-radius:9px;padding:14px 16px;
+ margin-bottom:14px;background:var(--creme);
+ font:400 12.5px/1.5 var(--sans);color:var(--t3)}
+.ref-preco b.bom{color:var(--verde)}
+.ref-preco b.mau{color:var(--verm)}
+.escada{display:flex;gap:8px;margin:12px 0 4px}
+.escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
+ border-radius:6px;background:#fff;border:1px solid var(--linha);
+ font:400 10px/1 var(--sans);color:var(--t6);text-align:center}
+.escada span b{font:600 12px/1 var(--mono);color:var(--ink)}
+.escada span.med{border-color:var(--azul);background:#eef4fa}
+.escada span.med b{color:var(--azul)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
 .mercado code{font:500 11.5px/1 var(--mono);background:var(--linha2);
@@ -3964,6 +4083,20 @@ def painel():
     if porler:
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
 
+    # Os avisos da ultima verificacao. O ficheiro AVISOS.txt serve para
+    # quem nao tem o painel aberto; aqui e para quem tem, e da o caminho
+    # para o filtro em vez de o obrigar a procurar.
+    texto_avisos = le_marca("ultimo_aviso_texto", "")
+    if texto_avisos:
+        faixa_avisos = (
+            "<div class='flash'>Na última verificação entraram "
+            "<b>%s</b> guardado%s. Estão no <code>AVISOS.txt</code>, e "
+            "aparecem ao abrir o filtro aqui em cima.</div>"
+            % (html.escape(texto_avisos),
+               "" if texto_avisos.endswith("filtro") else "s"))
+    else:
+        faixa_avisos = ""
+
     mensagem = le_marca("ultima_mensagem", "ainda não verificou")
     bom = le_marca("ultima_ok", "") != "0"
     rodape = ("<div class='rodape'>"
@@ -3978,8 +4111,8 @@ def painel():
     # A ordem e sempre a mesma nas duas listas: filtros, faixa do CPV
     # activo, arvore, e so depois os filtros guardados. A arvore e onde
     # se escolhe o CPV, por isso vem antes de se guardar a escolha.
-    conteudo = ("<div class='larg'>" + filtros + faixa_cpv + arvore +
-                caixa_guardados +
+    conteudo = ("<div class='larg'>" + faixa_avisos +
+                filtros + faixa_cpv + arvore + caixa_guardados +
                 "<div class='linha-conta'>" + conta +
                 "<a href='/csv%s'>exportar CSV</a></div>"
                 % (("?" + request.query_string.decode())
@@ -4548,12 +4681,28 @@ def resumo_contratos(args):
     return ganha, compra, proc, trim, escal
 
 
-def entidade_por_nome(nome):
-    """A chave da entidade a partir de um nome escrito de qualquer
-    maneira. E o que liga o nome que o DR poe num anuncio a entidade do
-    corpus, que pode ter assinado com outro dos seus 86 nomes."""
+def entidade_do_anuncio(nif, nome):
+    """A chave da entidade de um anuncio, no corpus.
+
+    **Pelo NIPC primeiro.** O DR publica-o em praticamente todos os
+    anuncios (medido: 99,3% dos que tem detalhe lido) e e o mesmo numero
+    por que o BASE identifica a entidade -- e portanto a mesma chave, sem
+    comparacao nenhuma pelo meio.
+
+    O nome fica de reserva, para os anuncios antigos sem NIPC lido, e
+    resolve 94,3%: falha nas sub-unidades ("Centro de Emprego de Entre
+    Douro e Vouga" contra o IEFP que assina o anuncio) e nas variantes
+    ("EPE" contra "E. P. E.").
+    """
     if not ha_corpus():
         return ""
+    nif = (nif or "").strip()
+    if re.fullmatch(r"\d{9}", nif):
+        with liga_corpus() as c:
+            r = c.execute("SELECT chave FROM entidades WHERE chave=?",
+                          (nif,)).fetchone()
+        if r:
+            return nif
     norm = norma_entidade(nome)
     if not norm:
         return ""
@@ -5651,6 +5800,49 @@ def euros_curto(v):
     return "%.0f €" % v
 
 
+def euros_do_texto(texto):
+    """'175.000,00 EUR' -> 175000.0. Formato portugues: o ponto separa
+    os milhares e a virgula os centimos, ao contrario do que Python le."""
+    m = re.search(r"[\d.,]+", texto or "")
+    if not m:
+        return None
+    try:
+        return float(m.group(0).replace(".", "").replace(",", "."))
+    except ValueError:
+        return None
+
+
+def referencia_de_preco(chave, cpv, limite=200):
+    """Como e que esta entidade tem fechado contratos neste CPV.
+
+    O anuncio traz o preco base; o corpus traz o que se pagou de facto.
+    Postos lado a lado dizem se o preco base deste concurso e generoso
+    ou apertado para o que esta entidade costuma pagar -- que e a
+    pergunta que se faz antes de decidir a proposta.
+    """
+    prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
+    if not (chave and prefixos and ha_corpus()):
+        return None
+    with liga_corpus() as c:
+        precos = [r["p"] for r in c.execute(
+            "SELECT c.preco_contratual p FROM contratos c "
+            "WHERE c.adjudicante_chave=? AND c.preco_contratual > 0 AND "
+            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s) "
+            "ORDER BY c.data_celebracao DESC LIMIT ?"
+            % " OR ".join("cpv8 LIKE ?" for _ in prefixos),
+            [chave] + [p + "%" for p in prefixos] + [limite])]
+    if len(precos) < 3:                 # com dois contratos nao ha padrao
+        return None
+    ordenados = sorted(precos)
+    meio = len(ordenados) // 2
+    mediana = (ordenados[meio] if len(ordenados) % 2
+               else (ordenados[meio - 1] + ordenados[meio]) / 2.0)
+    return {"quantos": len(precos), "mediana": mediana,
+            "menor": ordenados[0], "maior": ordenados[-1],
+            "p25": ordenados[len(ordenados) // 4],
+            "p75": ordenados[(3 * len(ordenados)) // 4]}
+
+
 def _mercado_cx(nota, corpo=""):
     return ("<div class='cx mercado'>"
             "<div class='rot'>Histórico de adjudicações</div>"
@@ -5676,8 +5868,8 @@ def mercado(a):
             "<code>python radar.py --contratos</code> para o trazer do "
             "dados.gov (domínio público, sem chave).")
 
-    linhas, ao_todo, do_cpv, chave = historico_entidade(a["entidade"] or "",
-                                                        a["cpv"] or "")
+    linhas, ao_todo, do_cpv, chave = historico_entidade(
+        a["entidade"] or "", a["cpv"] or "", nif=a["nif"] or "")
     ficha_ent = ("<a href='/entidade/%s'>ficha da entidade</a>"
                  % quote(chave, safe="")) if chave else ""
     if not ao_todo:
@@ -5720,8 +5912,45 @@ def mercado(a):
                  if do_cpv > len(linhas) else "",
                  mil_pt(ao_todo), ficha_ent))
 
+    # O preco base do anuncio contra o que esta entidade tem pago neste
+    # CPV. E a informacao que nenhum portal da: diz se o preco base e
+    # generoso ou apertado antes de se gastar dias numa proposta.
+    ref_preco = ""
+    base = euros_do_texto(a["preco_base"])
+    r = referencia_de_preco(chave, a["cpv"])
+    if r:
+        if base:
+            razao = base / r["mediana"] if r["mediana"] else 0
+            if razao >= 1.25:
+                leitura = ("<b class='bom'>acima</b> do que costuma pagar "
+                           "&mdash; folga face ao histórico")
+            elif razao <= 0.8:
+                leitura = ("<b class='mau'>abaixo</b> do que costuma pagar "
+                           "&mdash; margem apertada")
+            else:
+                leitura = "<b>em linha</b> com o que costuma pagar"
+            comparacao = ("Preço base deste anúncio: <b>%s</b> &mdash; %s."
+                          % (euros(base), leitura))
+        else:
+            comparacao = ("Este anúncio ainda não tem preço base lido, "
+                          "por isso não há com que comparar.")
+        ref_preco = (
+            "<div class='ref-preco'>%s<div class='escada'>"
+            "<span>mais barato<b>%s</b></span>"
+            "<span>25%%<b>%s</b></span>"
+            "<span class='med'>mediana<b>%s</b></span>"
+            "<span>75%%<b>%s</b></span>"
+            "<span>mais caro<b>%s</b></span></div>"
+            "<div class='nota'>Sobre os %s contratos mais recentes desta "
+            "entidade neste CPV. O preço contratual é o de partida, não o "
+            "valor final &mdash; adicionais não entram.</div></div>"
+            % (comparacao, euros_curto(r["menor"]), euros_curto(r["p25"]),
+               euros_curto(r["mediana"]), euros_curto(r["p75"]),
+               euros_curto(r["maior"]), mil_pt(r["quantos"])))
+
     return _mercado_cx(
         resumo,
+        ref_preco +
         "<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
         "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
         "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"

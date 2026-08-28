@@ -1523,6 +1523,26 @@ class TestEurosCurto(unittest.TestCase):
         self.assertEqual(radar.euros_curto(None), "0 €")
 
 
+class TestEurosDoTexto(unittest.TestCase):
+    """O DR escreve "175.000,00 EUR": o ponto separa os milhares e a
+    virgula os centimos, ao contrario do que o float() de Python le. Ler
+    isto ingenuamente dava 175,0 em vez de 175 000 -- e a comparacao com
+    o mercado dizia o contrario do que devia.
+    """
+
+    def test_formato_portugues(self):
+        self.assertEqual(radar.euros_do_texto("175.000,00 EUR"), 175000.0)
+        self.assertEqual(radar.euros_do_texto("1.234.567,89 EUR"), 1234567.89)
+
+    def test_sem_milhares(self):
+        self.assertEqual(radar.euros_do_texto("500,00 EUR"), 500.0)
+
+    def test_sem_numero_nenhum(self):
+        self.assertIsNone(radar.euros_do_texto(""))
+        self.assertIsNone(radar.euros_do_texto(None))
+        self.assertIsNone(radar.euros_do_texto("a combinar"))
+
+
 class TestDataPortuguesa(unittest.TestCase):
     """Guarda-se ISO porque ordena como texto, mostra-se DD/MM/AAAA porque
     e assim que se le. Havia tabelas a mostrar uma coisa e outras a
@@ -1718,6 +1738,37 @@ class TestDestaqueNasBarras(unittest.TestCase):
                               fmt=radar.mil_pt_f)
         self.assertIn("64 313", saiu)
         self.assertNotIn("€", saiu)
+
+
+class TestNipcDoAnuncio(unittest.TestCase):
+    """O DR publica o NIPC da entidade adjudicante em praticamente todos
+    os anúncios -- medido, 99,3% dos que têm detalhe lido -- e é o mesmo
+    número por que o BASE a identifica. Ligar por aí é exacto; ligar pelo
+    nome falhava em 6% (sub-unidades e "EPE" contra "E. P. E.").
+    """
+
+    def campos(self, texto):
+        return radar.campos_do_detalhe(texto)
+
+    def test_le_o_nipc_da_chave_numerada(self):
+        texto = ("1 - Entidade adjudicante\n"
+                 "Designação: Município X\n"
+                 "NIPC: 501073655\n")
+        self.assertEqual(self.campos(texto)["nif"], "501073655")
+
+    def test_le_o_nipc_mesmo_fora_das_chaves(self):
+        # ha anúncios em que vem colado ao nome, fora das secções
+        texto = "Município de Viseu (NIPC 506697320) faz saber que..."
+        self.assertEqual(self.campos(texto)["nif"], "506697320")
+
+    def test_sem_nipc_fica_vazio_e_nao_rebenta(self):
+        self.assertEqual(self.campos("Anúncio sem número fiscal")["nif"], "")
+        self.assertEqual(self.campos("")["nif"], "")
+
+    def test_nao_apanha_numeros_que_nao_sao_nipc(self):
+        # um preço de nove dígitos não é um NIPC
+        texto = "Preço base: 123456789 EUR\nPrazo: 30 dias"
+        self.assertEqual(self.campos(texto)["nif"], "")
 
 
 class TestChaveDeEntidade(unittest.TestCase):
