@@ -3866,8 +3866,11 @@ def painel():
                  html.escape(le_marca("ultima_verificacao", "nunca")),
                  " e ".join(ler_config()["horas_verificacao"])))
 
-    conteudo = ("<div class='larg'>" + filtros + caixa_guardados +
-                faixa_cpv + arvore +
+    # A ordem e sempre a mesma nas duas listas: filtros, faixa do CPV
+    # activo, arvore, e so depois os filtros guardados. A arvore e onde
+    # se escolhe o CPV, por isso vem antes de se guardar a escolha.
+    conteudo = ("<div class='larg'>" + filtros + faixa_cpv + arvore +
+                caixa_guardados +
                 "<div class='linha-conta'>" + conta +
                 "<a href='/csv%s'>exportar CSV</a></div>"
                 % (("?" + request.query_string.decode())
@@ -4844,19 +4847,35 @@ def filtros_da_ficha(chave, d):
 
     limpar = ("<a class='limpar' href='/entidade/%s'>limpar</a>"
               % quote(chave, safe="")) if ha_filtro_na_ficha(request.args) else ""
+    cpv_agora = (request.args.get("cpv") or "").strip()
+    faixa = ""
+    if cpv_agora:
+        outros = {c: (request.args.get(c) or "").strip() for c in CAMPOS_FICHA
+                  if c != "cpv" and (request.args.get(c) or "").strip()}
+        faixa = ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
+                 "<a href='/entidade/%s?%s'>tirar</a></div>"
+                 % (html.escape(cpv_agora), quote(chave, safe=""),
+                    urlencode(outros)))
+
+    with liga() as c:
+        n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
+
+    # O campo do CPV e escondido e quem escolhe e a arvore, como nas duas
+    # listas: onde se pode procurar por CPV, pode-se escolher mais que um.
     return (
         "<form class='cx filtros ent-filtros' method='get' action='/entidade/%s'>"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
-        "<input type='text' name='cpv' value='%s' placeholder='CPV, ex. 72000000'>"
+        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
         "<input type='text' name='min' value='%s' placeholder='€ mínimo' "
         "style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>%s"
         "<div class='periodos'><span>rápido:</span>%s</div>"
-        "</form>"
+        "</form>%s%s"
         % (quote(chave, safe=""), v("q"), v("cpv"), v("de"), v("ate"),
-           v("min"), limpar, "".join(chips)))
+           v("min"), limpar, "".join(chips), faixa,
+           arvore_html(n_cpv, "contratos")))
 
 
 @app.route("/entidade/<path:chave>")
@@ -4926,7 +4945,7 @@ def entidade(chave):
         linhas_r = "".join(
             "<tr><td class='d'>%s</td><td class='o'>%s</td>"
             "<td class='g'>%s</td><td>%s</td><td class='p'>%s</td></tr>"
-            % (html.escape(r["data_celebracao"] or "—"),
+            % (data_pt(r["data_celebracao"]),
                html.escape((r["objecto"] or "")[:130]),
                liga_entidade(r["adjudicante_chave"], r["outro"]),
                html.escape(r["tipo_procedimento"] or ""),
@@ -4974,7 +4993,7 @@ def entidade(chave):
     return envolver(
         "contratos", d["nome"],
         "O que esta entidade compra e ganha, segundo o Portal BASE.",
-        conteudo,
+        conteudo, script=ARVORE_JS,
         migalhas=migalhas_de("contratos", d["nome"][:44]),
         titulo_aba="%s, Radar de Concursos" % d["nome"][:40])
 
@@ -5184,7 +5203,7 @@ def contratos():
                 "<tr><td class='d'>%s</td><td class='o'>%s</td>"
                 "<td>%s</td><td class='g'>%s</td><td>%s</td>"
                 "<td class='p'>%s</td></tr>"
-                % (html.escape(l["data_celebracao"] or "—"),
+                % (data_pt(l["data_celebracao"]),
                    html.escape((l["objecto"] or "")[:150]),
                    liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
                    venceu,
@@ -5275,8 +5294,9 @@ def contratos():
         "</details>") if ha_pergunta else ""
 
     conteudo = ("<div class='larg'>" + barra_corpus(anos) + filtros +
-                caixa_de_filtros(request.args, "contratos") + faixa_cpv +
-                arvore_html(n_cpv, "contratos") + graficos + linha_conta +
+                faixa_cpv + arvore_html(n_cpv, "contratos") +
+                caixa_de_filtros(request.args, "contratos") +
+                graficos + linha_conta +
                 tabela +
                 paginador(pagina, paginas, request.args, "/contratos") +
                 (fonte if ha_pergunta else "") + "</div>")
@@ -5418,7 +5438,8 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     if limite:
         dias, passou = dias_restantes(limite.strftime("%Y-%m-%d"))
         esclarecimentos = "%s (%s)" % (
-            limite, "já passou" if passou else conta_dias(dias))
+            limite.strftime("%d/%m/%Y"),
+            "já passou" if passou else conta_dias(dias))
         esclarec_falta = ""
         esclarec_nota = ("calculado pela regra supletiva do art. 50.º do CCP "
                          "(1.º terço do prazo); confirmar no Programa de Concurso")
@@ -5476,7 +5497,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
          "híbrido consta do Caderno de Encargos e ainda não foi lido"),
         ("Data de esclarecimentos", esclarecimentos, esclarec_falta,
          esclarec_nota),
-        ("Data de submissão da proposta", a["prazo"], "", ""),
+        ("Data de submissão da proposta", data_pt(a["prazo"], ""), "", ""),
         ("Objeto, âmbito e características", das_pecas("objecto"),
          "" if das_pecas("objecto") else FALTA_CE, nota_pecas),
         ("Equipa", das_pecas("equipa"),
@@ -5484,6 +5505,20 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
          "" if das_pecas("documentos_proposta") else FALTA_PC, nota_pecas),
     ]
+
+
+def data_pt(iso, vazio="—"):
+    """'2026-08-21' -> '21/08/2026'.
+
+    Guarda-se ISO porque ordena como texto; mostra-se a portuguesa
+    porque e assim que se le. Todo o painel passa por aqui -- havia
+    tabelas a mostrar a data em ISO e outras a mostra-la em portugues.
+    """
+    iso = (iso or "").strip()
+    try:
+        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return iso or vazio
 
 
 def mil_pt(n):
@@ -5540,7 +5575,7 @@ def mercado(a):
             "<tr class='%s'><td class='d'>%s</td><td>%s</td>"
             "<td class='g'>%s</td><td class='p'>%s</td></tr>"
             % ("docpv" if l["do_cpv"] else "",
-               html.escape(l["data_celebracao"] or "—"),
+               data_pt(l["data_celebracao"]),
                html.escape(l["tipo_procedimento"] or ""),
                venceu,
                euros(l["preco_contratual"])))
@@ -5602,13 +5637,13 @@ def ficha(ref):
     if dias is None:
         prazo_v, prazo_c = "", ""
     elif passou:
-        prazo_v, prazo_c = "%s (expirado)" % a["prazo"], "mau"
+        prazo_v, prazo_c = "%s (expirado)" % data_pt(a["prazo"]), "mau"
     else:
-        prazo_v = "%s (%s)" % (a["prazo"], conta_dias(dias))
+        prazo_v = "%s (%s)" % (data_pt(a["prazo"]), conta_dias(dias))
         prazo_c = "mau" if dias == 0 else "ok"
 
     factos = "".join((
-        _facto("Publicado", a["data_pub"]),
+        _facto("Publicado", data_pt(a["data_pub"], "")),
         _facto("Propostas até", prazo_v, prazo_c),
         _facto("Preço base", html.escape(a["preco_base"] or "")),
         _facto("Plataforma", html.escape(a["plataforma"] or "")),
@@ -5730,7 +5765,7 @@ def ficha(ref):
         prazo_cx = ("<div class='prazo-cx'><div class='r'>Propostas até</div>"
                     "<div class='d'>%s</div><div class='n'>%s%s</div>"
                     "<div class='barra-prazo'><i style='width:%d%%'></i></div></div>"
-                    % (html.escape(a["prazo"]),
+                    % (data_pt(a["prazo"]),
                        "prazo expirado" if passou else conta_dias(dias),
                        (" &middot; " + html.escape(a["plataforma"])) if a["plataforma"] else "",
                        100 if passou else pct))
