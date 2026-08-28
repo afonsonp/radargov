@@ -918,6 +918,53 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+## Um filtro só, para toda a aplicação
+
+Pedido do Afonso, e obrigou a apagar o que estava: **os filtros deixaram
+de pertencer a um separador**. Antes havia filtros de anúncios e filtros
+de contratos, em espaços separados, e um filtro por CPV — que serve as
+duas listas — tinha de ser guardado duas vezes.
+
+Agora um filtro é um **conjunto de campos**, e cada página aplica os que
+entende:
+
+| campos | anúncios | contratos | ficha de entidade |
+|---|---|---|---|
+| objecto, CPV, datas | sim | sim | sim |
+| estado, plataforma, entidade (texto) | sim | — | — |
+| quem ganhou, procedimento, valor mínimo | — | sim | procedimento e valor |
+
+**O que não pode acontecer é um campo cair em silêncio.**
+`filtro_para(consulta, vista)` devolve a parte aplicável **e os campos
+que ficaram de fora**. Onde ficam campos de fora, o chip aparece
+tracejado com a legenda "parcial" e a dica diz quais. Aplicar "ganho por
+MEO" aos anúncios, onde não há vencedor, seria alargar o filtro sem
+avisar — e num alerta isso significava e-mails com tudo.
+
+O mesmo cuidado no `registar_alertas()`: passava o filtro inteiro à
+`condicoes()`, que ignora campos que não conhece. Um alerta "CPV 72 +
+ganho por MEO" passaria a avisar de **todos** os anúncios de CPV 72.
+Agora usa só a parte dos anúncios, salta os filtros que não têm nada de
+anúncios, e o separador diz "avisa só por..." quando é parcial.
+
+### O separador dos alertas é onde se gerem os filtros
+
+`/alertas` passou a ser o centro: lista todos os filtros, liga e desliga
+o alerta de cada um, apaga, e **cria filtros ali mesmo** — com a árvore
+de CPV, sem ter de ir primeiro a uma lista. Cada filtro mostra onde se
+aplica, com ligações directas para os anúncios e para os contratos.
+
+### O e-mail configura-se no ecrã
+
+Deixou de ser preciso abrir o `config.json` — onde uma vírgula a mais
+deixa a aplicação sem configuração nenhuma. O formulário grava por
+`gravar_config()`, que junta ao que lá está em vez de reescrever tudo.
+
+**A palavra-passe continua fora dali**, em `email_senha.txt`: o
+`config.json` abre-se sem pensar, e uma palavra-passe lá dentro sai em
+qualquer captura de ecrã. O destino pode ser qualquer endereço; quem
+precisa de conta é quem envia.
+
 ## Ronda de manutenção, 28 de agosto de 2026
 
 Correctivas e evolutivas, da mais barata para a mais cara. As

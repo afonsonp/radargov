@@ -203,43 +203,29 @@ def iniciar_db():
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE)""")
-        # Conjuntos de filtros com nome. O que se guarda e a query string
-        # da lista, nao as condicoes SQL: assim um filtro guardado e uma
-        # ligacao, e o que aprender a fazer amanha na lista funciona nos
-        # filtros de ontem sem migracao nenhuma.
-        c.execute("""CREATE TABLE IF NOT EXISTS filtros_guardados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE,
-            consulta TEXT, quem TEXT, criado_em TEXT)""")
-        # Os contratos passaram a ter filtros guardados proprios, e o
-        # mesmo nome ("Software") pode servir nas duas listas. A
-        # unicidade tem de sair de `nome` para (vista, nome), e isso nao
-        # se faz com ALTER TABLE -- recria-se, uma vez so, guardando o
-        # que la esta como filtro de anuncios, que e o que era.
-        cols_f = [r["name"] for r in
-                  c.execute("PRAGMA table_info(filtros_guardados)")]
-        if "vista" not in cols_f:
-            c.execute("ALTER TABLE filtros_guardados RENAME TO _filtros_velhos")
-            c.execute("""CREATE TABLE filtros_guardados (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, vista TEXT,
-                nome TEXT, consulta TEXT, quem TEXT, criado_em TEXT,
-                UNIQUE (vista, nome))""")
-            c.execute("""INSERT INTO filtros_guardados
-                (vista, nome, consulta, quem, criado_em)
-                SELECT 'anuncios', nome, consulta, quem, criado_em
-                FROM _filtros_velhos""")
-            c.execute("DROP TABLE _filtros_velhos")
-        # Um filtro guardado que avisa. So os marcados: guardar um filtro
-        # para uma consulta pontual nao pode encher a caixa de correio.
-        # Depois da reconstrucao acima, senao perdia-se com ela.
-        if "alerta" not in [r["name"] for r in
-                            c.execute("PRAGMA table_info(filtros_guardados)")]:
-            c.execute("ALTER TABLE filtros_guardados "
-                      "ADD COLUMN alerta INTEGER DEFAULT 0")
         # O que ja foi avisado, para nao avisar duas vezes do mesmo e para
         # o separador poder mostrar o que ja saiu.
         c.execute("""CREATE TABLE IF NOT EXISTS alertas_vistos (
             filtro_id INTEGER, ref TEXT, visto_em TEXT, enviado_em TEXT,
             PRIMARY KEY (filtro_id, ref))""")
+        # Filtros com nome. O que se guarda e a query string, nao as
+        # condicoes SQL: assim um filtro e uma ligacao, e o que a lista
+        # aprender a filtrar amanha funciona nos filtros de ontem.
+        #
+        # **Um filtro nao pertence a um separador.** E um conjunto de
+        # campos, e cada pagina aplica os que entende -- um filtro por
+        # CPV serve os anuncios e os contratos, que era o que a divisao
+        # por vista impedia. Quando a tabela ainda tem a forma antiga,
+        # recria-se: os filtros de entao tinham vista e a ideia mudou.
+        cols_f = [r["name"] for r in
+                  c.execute("PRAGMA table_info(filtros_guardados)")]
+        if cols_f and ("vista" in cols_f or "alerta" not in cols_f):
+            c.execute("DROP TABLE filtros_guardados")
+            c.execute("DELETE FROM alertas_vistos")
+        c.execute("""CREATE TABLE IF NOT EXISTS filtros_guardados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE,
+            consulta TEXT, alerta INTEGER DEFAULT 0,
+            quem TEXT, criado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alertas_envio
                      ON alertas_vistos(enviado_em)""")
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
@@ -257,6 +243,25 @@ def iniciar_db():
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         semear_fases(c)
+
+
+def gravar_config(mudancas):
+    """Grava alteracoes na configuracao, sem tocar no resto.
+
+    Serve o painel: o e-mail configura-se no ecra e nao a mao num
+    ficheiro JSON, onde uma virgula a mais deixa a aplicacao sem
+    configuracao nenhuma. A palavra-passe **nao passa por aqui** -- essa
+    vive em email_senha.txt, porque o config.json abre-se sem pensar.
+    """
+    cfg = ler_config()
+    for chave, valor in mudancas.items():
+        if isinstance(valor, dict) and isinstance(cfg.get(chave), dict):
+            cfg[chave] = dict(cfg[chave], **valor)
+        else:
+            cfg[chave] = valor
+    with open(CONFIG, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    return cfg
 
 
 def ler_config():
@@ -2082,8 +2087,7 @@ def filtros_de_alerta():
     with liga() as c:
         return c.execute(
             "SELECT id, nome, consulta FROM filtros_guardados "
-            "WHERE vista='anuncios' AND alerta=1 "
-            "ORDER BY nome COLLATE NOCASE").fetchall()
+            "WHERE alerta=1 ORDER BY nome COLLATE NOCASE").fetchall()
 
 
 def registar_alertas():
@@ -2100,10 +2104,17 @@ def registar_alertas():
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     novos = 0
     for f in filtros_de_alerta():
-        args = dict(parse_qsl(f["consulta"] or "", keep_blank_values=True))
+        # So a parte que os anuncios entendem. Passar o filtro inteiro a
+        # condicoes() deixava os campos de contratos cairem em silencio,
+        # e um alerta "CPV 72 + ganho por MEO" passava a avisar de todos
+        # os anuncios de CPV 72. O separador marca esses filtros.
+        aplicavel, fora = filtro_para(f["consulta"] or "", "anuncios")
+        args = dict(parse_qsl(aplicavel, keep_blank_values=True))
         # o estado nao entra: procuram-se anuncios que correspondem, e a
         # triagem deles e outra conversa
         args.pop("estado", None)
+        if not args:
+            continue                    # nada aqui e sobre anuncios
         onde, valores = condicoes(dict(args, estado=""))
         with liga() as c:
             # Sem LIMIT: com um tecto, cada volta descobria "novos" que
@@ -3196,7 +3207,34 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .alerta .conta{font:400 11.5px/1.4 var(--sans);color:var(--t5);
  text-align:right;flex:none}
 .alerta .conta b{color:var(--azul);font-weight:600}
+.alerta .sobre b{font:600 13.5px/1.2 var(--sans);color:var(--ink)}
+.alerta.on .sobre b{color:var(--azul)}
+.alerta .onde{font:400 11px/1.3 var(--sans);color:var(--t6)}
+.alerta .onde a{color:var(--t5)}
+.alerta .onde a:hover{color:var(--azul);text-decoration:underline}
+.alerta .avisa-mal{display:block;font:400 10.5px/1.4 var(--sans);
+ color:#8a5307;margin-top:3px}
+.alerta .apagar{cursor:pointer;border:0;background:none;color:var(--t6);
+ font:500 17px/1 var(--sans);padding:0 2px}
+.alerta .apagar:hover{color:var(--verm)}
 .alerta form{display:flex;flex:none}
+.conf-email{padding:20px 22px}
+.form-email{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.form-email label{display:flex;flex-direction:column;gap:5px;
+ font:500 11px/1 var(--sans);color:var(--t5);flex:1;min-width:150px}
+.form-email input{padding:9px 12px;border:1px solid var(--linha);
+ border-radius:8px;background:var(--creme);
+ font:400 12.5px/1.2 var(--sans);color:var(--ink)}
+.form-email button{flex:none}
+.novo-filtro{padding:20px 22px}
+.novo-filtro .filtros{padding:0;margin:0;box-shadow:none;border:0;
+ background:none}
+.guardado.parcial{border-style:dashed}
+.guardado i{font:400 9.5px/1 var(--sans);font-style:normal;color:var(--t6);
+ margin-left:6px;padding-right:11px}
+.guardados .gerir{font:500 11.5px/1 var(--sans);color:var(--t5);
+ padding:8px 10px}
+.guardados .gerir:hover{color:var(--ink)}
 .interruptor{cursor:pointer;width:42px;height:24px;border-radius:99px;
  border:1px solid var(--linha);background:var(--linha2);padding:0;
  position:relative;transition:background .12s}
@@ -4319,32 +4357,45 @@ def para_like(termo):
     return termo
 
 
-# Os campos que fazem um filtro, por ordem fixa. A ordem importa: e ela
-# que deixa comparar a consulta guardada com a de agora por igualdade de
-# texto, para se saber qual dos filtros guardados esta em uso.
-CAMPOS_FILTRO = ("q", "ent", "cpv", "plat", "de", "ate", "estado")
+# TODOS os campos que um filtro pode ter, por ordem fixa. A ordem
+# importa: e ela que deixa comparar a consulta guardada com a de agora
+# por igualdade de texto, para se saber qual dos filtros esta em uso.
+#
+# **Um filtro nao pertence a um separador.** Guarda os campos que tiver,
+# e cada pagina aplica os que entende -- por isso um filtro por CPV
+# serve os anuncios, os contratos e a ficha de uma entidade.
+CAMPOS_FILTRO = ("q", "cpv", "de", "ate",            # entendem-nos todos
+                 "ent", "plat", "estado",            # so os anuncios
+                 "adj", "ganhou", "proc", "min", "entid", "vencid")
 
 # Argumentos que a lista usa mas nao definem o filtro, e por isso nao se
 # guardam nem se arrastam para as ligacoes: a pagina e onde se esta, o
 # aviso e da vez.
 CAMPOS_DA_VEZ = ("pag", "aviso")
 
+# O que cada pagina sabe fazer. Um campo que a pagina nao conhece nao se
+# aplica em silencio: o chip fica marcado como parcial e diz o que ficou
+# de fora. Aplicar "ganho por MEO" aos anuncios, onde nao ha vencedor,
+# seria alargar o filtro sem avisar.
+CAMPOS_POR_VISTA = {
+    "anuncios": ("q", "cpv", "de", "ate", "ent", "plat", "estado"),
+    "contratos": ("q", "cpv", "de", "ate", "adj", "ganhou", "proc", "min",
+                  "entid", "vencid"),
+    "entidade": ("q", "cpv", "de", "ate", "proc", "min"),
+}
+ROTA_DA_VISTA = {"anuncios": "/", "contratos": "/contratos"}
 
-# Os campos que fazem um filtro de contratos. Lista propria porque a
-# lista e outra: um anuncio nao tem vencedor nem valor final.
-CAMPOS_FILTRO_CONTRATOS = ("q", "adj", "ganhou", "cpv", "proc", "de", "ate",
-                           "min", "entid", "vencid")
 
-# (campos do filtro, rota da lista) por separador. E o que deixa os
-# filtros guardados servirem os dois sem duas copias do codigo.
-VISTAS = {"anuncios": (CAMPOS_FILTRO, "/"),
-          "contratos": (CAMPOS_FILTRO_CONTRATOS, "/contratos")}
+def campos_da_vista(vista):
+    return CAMPOS_POR_VISTA.get(vista, CAMPOS_FILTRO)
 
 
 def filtro_actual(args, vista="anuncios"):
     """A query string canonica do filtro em uso, para guardar e comparar."""
     pares = []
-    for campo in VISTAS[vista][0]:
+    for campo in CAMPOS_FILTRO:
+        if campo not in campos_da_vista(vista):
+            continue
         if campo == "estado":
             # o mesmo criterio de condicoes(): ausente e "novo", presente
             # e vazio e "todos". Sao vistas diferentes, e a diferenca tem
@@ -4360,9 +4411,21 @@ def filtro_actual(args, vista="anuncios"):
     return urlencode(pares)
 
 
-# Como se le cada campo na descricao de um filtro guardado.
-_NOMES_FILTRO = {"q": "objecto", "ent": "entidade", "cpv": "CPV",
-                 "plat": "plataforma", "de": "desde", "ate": "até",
+def filtro_para(consulta, vista):
+    """(query string aplicavel nesta vista, campos que ficaram de fora)."""
+    sabe = campos_da_vista(vista)
+    dentro, fora = [], []
+    for k, v in parse_qsl(consulta or "", keep_blank_values=True):
+        if k in sabe:
+            dentro.append((k, v))
+        elif v:
+            fora.append(k)
+    return urlencode(dentro), fora
+
+
+# Como se le cada campo na descricao de um filtro.
+_NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
+                 "ent": "entidade", "plat": "plataforma",
                  "adj": "entidade", "ganhou": "ganho por",
                  "proc": "procedimento", "min": "desde €",
                  "entid": "entidade", "vencid": "ganho por"}
@@ -4370,19 +4433,26 @@ _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
                  "descartado": "descartados", "": "todos"}
 
 
-def resumo_filtro(consulta, vista="anuncios"):
-    """Diz por palavras o que um filtro guardado apanha, para a legenda."""
+def resumo_filtro(consulta, vista=None):
+    """Diz por palavras o que um filtro apanha, para a legenda. Sem
+    vista, descreve o filtro inteiro."""
     campos = dict(parse_qsl(consulta or "", keep_blank_values=True))
+    sabe = campos_da_vista(vista) if vista else CAMPOS_FILTRO
     partes = []
-    for campo in VISTAS[vista][0]:
-        valor = campos.get(campo)
-        if valor is None:
+    for campo in CAMPOS_FILTRO:
+        if campo not in sabe or campo not in campos:
             continue
+        valor = campos[campo]
         if campo == "estado":
             partes.append(_NOMES_ESTADO.get(valor, valor))
         elif valor:
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
+
+
+def quantos_cpv():
+    with liga() as c:
+        return c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
 
 
 def arvore_html(n_cpv, de):
@@ -4496,117 +4566,117 @@ def condicoes(args):
     return (" WHERE " + " AND ".join(onde) if onde else ""), valores
 
 
-def caixa_de_filtros(args, vista, rota=None, campos=None):
+def caixa_de_filtros(args, vista, rota=None):
     """A caixa dos filtros guardados, igual em todas as paginas.
 
     Aplicar um filtro e seguir uma ligacao -- so leitura, nada muda na
     base -- mas guardar e apagar sao POST, como o resto do que escreve.
-    O que muda entre vistas e a lista de campos e a rota; o resto e o
-    mesmo, e duas copias divergiam ao primeiro arranjo.
 
-    `rota` e `campos` servem as paginas que **usam** os filtros de uma
-    vista sem serem a lista dela: a ficha da entidade aplica os filtros
-    dos contratos aos contratos daquela entidade, e por isso a ligacao
-    tem de voltar a ficha e levar so os campos que ela entende.
+    Os filtros sao os mesmos em todo o lado; o que muda e o que cada
+    pagina sabe aplicar. Um filtro com campos que esta pagina nao conhece
+    entra na mesma, com a parte que serve, e **fica marcado como
+    parcial** a dizer o que ficou de fora -- aplicar "ganho por MEO" aos
+    anuncios, onde nao ha vencedor, seria alargar o filtro em silencio.
     """
-    rota = rota or VISTAS[vista][1]
-    so_estes = set(campos) if campos else None
+    rota = rota or ROTA_DA_VISTA.get(vista, "/")
     agora = filtro_actual(args, vista)
     with liga() as c:
         guardados = c.execute(
-            "SELECT * FROM filtros_guardados WHERE vista=? "
-            "ORDER BY nome COLLATE NOCASE", (vista,)).fetchall()
+            "SELECT * FROM filtros_guardados "
+            "ORDER BY nome COLLATE NOCASE").fetchall()
 
     fichas, nome_activo = [], ""
     for f in guardados:
-        consulta = f["consulta"] or ""
-        if so_estes is not None:
-            # so os campos que esta pagina entende; os outros ja estao
-            # respondidos por ela (a entidade, na ficha)
-            consulta = urlencode([(k, v) for k, v in
-                                  parse_qsl(consulta, keep_blank_values=True)
-                                  if k in so_estes and v])
+        consulta, de_fora = filtro_para(f["consulta"] or "", vista)
         activo = consulta == agora
         if activo:
             nome_activo = f["nome"]
+        titulo = resumo_filtro(f["consulta"] or "")
+        if de_fora:
+            titulo += " — aqui não se aplica: %s" % ", ".join(
+                _NOMES_FILTRO.get(k, k) for k in de_fora)
         fichas.append(
-            "<span class='guardado%s'>"
-            "<a href='%s?%s' title='%s'>%s</a>"
-            "<form method='post' action='/filtros/%d/apagar' "
-            "onsubmit='return confirm(\"Apagar o filtro guardado &quot;%s&quot;? "
-            "Não se apaga nada além do filtro.\")'>"
-            "<input type='hidden' name='volta' value='%s'>"
-            "<button type='submit' title='apagar este filtro'>&times;</button>"
-            "</form></span>"
-            % (" on" if activo else "", rota,
-               html.escape(consulta, quote=True),
-               html.escape(resumo_filtro(f["consulta"] or "", vista),
-                           quote=True),
-               html.escape(f["nome"]), f["id"],
-               html.escape(f["nome"], quote=True),
-               html.escape(agora, quote=True)))
+            "<span class='guardado%s%s'>"
+            "<a href='%s?%s' title='%s'>%s%s</a></span>"
+            % (" on" if activo else "", " parcial" if de_fora else "",
+               rota, html.escape(consulta, quote=True),
+               html.escape(titulo, quote=True), html.escape(f["nome"]),
+               "<i>parcial</i>" if de_fora else ""))
 
-    legenda = "" if fichas else (
-        "<span class='nada'>ainda nenhum &mdash; escolhe os filtros acima e "
-        "dá-lhes um nome</span>")
+    if fichas:
+        legenda = ""
+    else:
+        legenda = ("<span class='nada'>ainda nenhum &mdash; guarda o filtro "
+                   "de agora, ou cria um em <a href='/alertas'>Alertas</a>"
+                   "</span>")
     # O nome do filtro em uso vem preenchido de proposito: gravar por cima
     # do mesmo nome e como se actualiza um filtro depois de o afinar.
     guardar = (
         "<form class='guardar' method='post' action='/filtros/guardar'>"
-        "<input type='hidden' name='vista' value='%s'>"
         "<input type='hidden' name='consulta' value='%s'>"
+        "<input type='hidden' name='volta' value='%s'>"
         "<input type='text' name='nome' required maxlength='60' value='%s' "
         "placeholder='dar nome a estes filtros…'>"
         "<button type='submit' class='bt forte'>Guardar filtro</button>"
-        "</form>" % (vista, html.escape(agora, quote=True),
+        "</form>" % (html.escape(agora, quote=True),
+                     html.escape(rota, quote=True),
                      html.escape(nome_activo, quote=True)))
 
     return ("<div class='cx guardados'><span class='rot'>"
-            "Filtros guardados</span>%s%s%s</div>"
+            "Filtros guardados</span>%s%s%s"
+            "<a class='gerir' href='/alertas'>gerir</a></div>"
             % ("".join(fichas), legenda, guardar))
 
 
-def volta_a_lista(consulta, vista="anuncios", aviso=""):
-    """Volta para a lista de onde se veio, com os filtros que estavam."""
-    rota = VISTAS.get(vista, VISTAS["anuncios"])[1]
-    partes = [p for p in (consulta, urlencode({"aviso": aviso}) if aviso else "")
-              if p]
+def volta_para(rota, consulta="", aviso=""):
+    """Volta para a pagina de onde se veio, com os filtros que estavam.
+
+    A rota vem de um campo escondido do formulario, e por isso
+    confirma-se: nunca se redirecciona para o que la vier.
+    """
+    if not (rota or "").startswith("/") or "//" in (rota or ""):
+        rota = "/"
+    partes = [x for x in (consulta, urlencode({"aviso": aviso}) if aviso else "")
+              if x]
     return redirect(rota + "?" + "&".join(partes) if partes else rota)
 
 
-def _vista_pedida(valor):
-    """Nunca deixar um valor de fora escolher uma rota a esmo."""
-    valor = (valor or "").strip()
-    return valor if valor in VISTAS else "anuncios"
+def gravar_filtro(nome, consulta, alerta=None):
+    """Guarda ou actualiza pelo nome.
+
+    Gravar por cima do mesmo nome actualiza-o -- e assim que se afina um
+    filtro sem ficar com dois quase iguais e sem saber qual esta em uso.
+    Com `alerta` a None mantem-se a marca que ja tinha: guardar de novo
+    a partir de uma lista nao pode desligar um alerta sem se dar por
+    isso. Devolve se ja existia.
+    """
+    with liga() as c:
+        antes = c.execute("SELECT id, alerta FROM filtros_guardados "
+                          "WHERE nome=?", (nome,)).fetchone()
+        manter = antes["alerta"] if antes else 0
+        c.execute("""INSERT INTO filtros_guardados
+                       (nome,consulta,alerta,quem,criado_em)
+                     VALUES (?,?,?,?,?)
+                     ON CONFLICT(nome) DO UPDATE SET
+                       consulta=excluded.consulta, alerta=excluded.alerta,
+                       quem=excluded.quem, criado_em=excluded.criado_em""",
+                  (nome, consulta,
+                   manter if alerta is None else int(bool(alerta)),
+                   quem_sou() or "(sem nome)",
+                   datetime.now().strftime("%Y-%m-%d %H:%M")))
+    return bool(antes)
 
 
 @app.route("/filtros/guardar", methods=["POST"])
 def filtro_guardar():
-    """Guarda os filtros de agora com um nome. Gravar por cima do mesmo
-    nome actualiza-o -- e assim que se afina um filtro sem ficar com dois
-    quase iguais e sem saber qual deles esta em uso.
-
-    O mesmo nome pode servir nas duas listas: a unicidade e por (vista,
-    nome), porque "Software" quer dizer coisas diferentes em cada uma.
-    """
     nome = (request.form.get("nome") or "").strip()
     consulta = (request.form.get("consulta") or "").strip()
-    vista = _vista_pedida(request.form.get("vista"))
+    volta = (request.form.get("volta") or "/").strip()
     if not nome:
-        return volta_a_lista(consulta, vista)
-    with liga() as c:
-        antes = c.execute("SELECT id FROM filtros_guardados "
-                          "WHERE vista=? AND nome=?", (vista, nome)).fetchone()
-        c.execute("""INSERT INTO filtros_guardados
-                       (vista,nome,consulta,quem,criado_em)
-                     VALUES (?,?,?,?,?)
-                     ON CONFLICT(vista,nome) DO UPDATE SET
-                       consulta=excluded.consulta, quem=excluded.quem,
-                       criado_em=excluded.criado_em""",
-                  (vista, nome, consulta, quem_sou() or "(sem nome)",
-                   datetime.now().strftime("%Y-%m-%d %H:%M")))
-    return volta_a_lista(consulta, vista, "Filtro %s: %s"
-                         % ("actualizado" if antes else "guardado", nome))
+        return volta_para(volta, consulta)
+    havia = gravar_filtro(nome, consulta)
+    return volta_para(volta, consulta, "Filtro %s: %s"
+                      % ("actualizado" if havia else "guardado", nome))
 
 
 @app.route("/filtros/<int:filtro_id>/apagar", methods=["POST"])
@@ -4614,12 +4684,12 @@ def filtro_apagar(filtro_id):
     """Apaga so o filtro. Nem os anuncios nem os contratos se mexem -- um
     filtro esconde, nao apaga, e tira-lo devolve a lista inteira."""
     with liga() as c:
-        linha = c.execute("SELECT nome, vista FROM filtros_guardados "
-                          "WHERE id=?", (filtro_id,)).fetchone()
+        linha = c.execute("SELECT nome FROM filtros_guardados WHERE id=?",
+                          (filtro_id,)).fetchone()
         c.execute("DELETE FROM filtros_guardados WHERE id=?", (filtro_id,))
-    return volta_a_lista((request.form.get("volta") or "").strip(),
-                         linha["vista"] if linha else "anuncios",
-                         "Filtro apagado: %s" % linha["nome"] if linha else "")
+        c.execute("DELETE FROM alertas_vistos WHERE filtro_id=?", (filtro_id,))
+    return volta_para((request.form.get("volta") or "/alertas").strip(), "",
+                      "Filtro apagado: %s" % linha["nome"] if linha else "")
 
 
 # {fonte: (chave de frescura, corpo JSON)} -- ver cpv_json()
@@ -4765,10 +4835,107 @@ def exportar():
 # e o que se guarda, e o que se guarda e o que avisa. Isso e o que
 # garante que o e-mail traz exactamente o que a lista mostraria.
 
+def _linha_filtro(f):
+    """Um filtro na lista de gestao: o interruptor, o que apanha, e onde
+    o aplicar. As ligacoes vao para as duas listas, porque o mesmo filtro
+    serve as duas."""
+    ligado = bool(f["alerta"])
+    onde, fora_anuncios = filtro_para(f["consulta"] or "", "anuncios")
+    onde_c, fora_contratos = filtro_para(f["consulta"] or "", "contratos")
+    aplicar = []
+    if not fora_anuncios or onde:
+        aplicar.append("<a href='/?%s'>anúncios%s</a>"
+                       % (html.escape(onde, quote=True),
+                          " (parcial)" if fora_anuncios else ""))
+    if not fora_contratos or onde_c:
+        aplicar.append("<a href='/contratos?%s'>contratos%s</a>"
+                       % (html.escape(onde_c, quote=True),
+                          " (parcial)" if fora_contratos else ""))
+    return (
+        "<div class='alerta %s'>"
+        "<form method='post' action='/alertas/%d/trocar'>"
+        "<button type='submit' class='interruptor %s' title='%s'><i></i>"
+        "</button></form>"
+        "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
+        "<span class='onde'>aplicar a: %s</span></div>"
+        "<div class='conta'>%s</div>"
+        "<form method='post' action='/filtros/%d/apagar' "
+        "onsubmit='return confirm(\"Apagar o filtro &quot;%s&quot;? "
+        "Não se apaga nada além do filtro.\")'>"
+        "<input type='hidden' name='volta' value='/alertas'>"
+        "<button type='submit' class='apagar' title='apagar'>&times;</button>"
+        "</form></div>"
+        % ("on" if ligado else "", f["id"], "on" if ligado else "",
+           "desligar o alerta" if ligado else "ligar o alerta",
+           html.escape(f["nome"]),
+           html.escape(resumo_filtro(f["consulta"] or "")),
+           " &middot; ".join(aplicar) or "sem campos",
+           ("<span class='avisa-mal'>não avisa: nada aqui é sobre "
+            "anúncios</span>" if ligado and not onde else
+            "<b>%s</b> por avisar &middot; %s avisados &middot; %s do acervo%s"
+            % (mil_pt(f["por_enviar"]), mil_pt(f["avisados"]),
+               mil_pt(f["acervo"]),
+               "<span class='avisa-mal'>avisa só por %s</span>"
+               % html.escape(resumo_filtro(onde)) if fora_anuncios else "")
+            if ligado else "não avisa"),
+           f["id"], html.escape(f["nome"], quote=True)))
+
+
+def _caixa_email(cfg):
+    """O e-mail configura-se aqui, no ecra. So a palavra-passe e que
+    fica de fora, num ficheiro -- o config.json abre-se sem pensar."""
+    e = cfg.get("email") or {}
+    tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
+    pronto = bool((e.get("para") or "").strip() and (e.get("de") or "").strip()
+                  and tem_senha)
+
+    def v(k, omissao=""):
+        return html.escape(str(e.get(k) or omissao), quote=True)
+
+    senha_linha = (
+        "<div class='l'><span class='ponto' style='background:%s'></span>"
+        "<span class='t'>Palavra-passe</span><span class='v'>%s</span></div>"
+        % ("#1e8449" if tem_senha else "#d68910",
+           "lida de email_senha.txt" if tem_senha
+           else "cria o ficheiro <code>email_senha.txt</code> na pasta"))
+    estado = le_marca("ultimo_resumo_estado", "")
+
+    return (
+        "<div class='cx conf-email'>"
+        "<div class='rot'>Resumo por e-mail</div>"
+        "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
+        "da hora marcada, e só se houver novidade. O destino pode ser "
+        "qualquer endereço; quem <b>envia</b> é que precisa de conta. No "
+        "Gmail a palavra-passe tem de ser uma <b>palavra-passe de "
+        "aplicação</b>, não a da conta.</div>"
+        "<form class='form-email' method='post' action='/alertas/email'>"
+        "<label>Enviar para<input type='email' name='para' value='%s' "
+        "placeholder='o.teu@email.pt'></label>"
+        "<label>Conta que envia<input type='email' name='de' value='%s' "
+        "placeholder='conta@gmail.com'></label>"
+        "<label>Servidor SMTP<input type='text' name='servidor' value='%s'></label>"
+        "<label>Porta<input type='text' name='porta' value='%s'></label>"
+        "<label>Hora do resumo<input type='time' name='hora_resumo' value='%s'></label>"
+        "<button type='submit' class='bt forte'>Guardar</button>"
+        "</form>%s"
+        "<div class='saude' style='margin-top:16px'>%s</div>"
+        "%s%s</div>"
+        % (v("para"), v("de"), v("servidor", "smtp.gmail.com"),
+           v("porta", "587"), v("hora_resumo", "17:00"),
+           "", senha_linha,
+           ("<div style='margin-top:14px'>%s</div>"
+            % accao("/alertas/enviar", "Enviar o resumo agora", "bt")
+            if pronto else
+            "<div class='nota' style='margin-top:14px'>Sem e-mail "
+            "configurado o radar continua a escrever o "
+            "<code>AVISOS.txt</code> na pasta.</div>"),
+           ("<div class='nota' style='margin-top:10px'>Último envio: %s</div>"
+            % html.escape(estado)) if estado else ""))
+
+
 @app.route("/alertas")
 def alertas():
     cfg = ler_config()
-    e = cfg.get("email") or {}
     with liga() as c:
         filtros = c.execute(
             "SELECT f.*, "
@@ -4778,88 +4945,45 @@ def alertas():
             " AND v.enviado_em = ?) acervo, "
             "(SELECT COUNT(*) FROM alertas_vistos v WHERE v.filtro_id=f.id "
             " AND v.enviado_em IS NOT NULL AND v.enviado_em != ?) avisados "
-            "FROM filtros_guardados f WHERE f.vista='anuncios' "
+            "FROM filtros_guardados f "
             "ORDER BY f.alerta DESC, f.nome COLLATE NOCASE",
             (ACERVO, ACERVO)).fetchall()
         ultimos = c.execute(
-            "SELECT v.ref, v.enviado_em, a.titulo, a.entidade, a.prazo, "
+            "SELECT v.ref, v.enviado_em, a.titulo, a.entidade, "
             "f.nome AS filtro FROM alertas_vistos v "
             "JOIN anuncios a ON a.ref=v.ref "
             "JOIN filtros_guardados f ON f.id=v.filtro_id "
             "WHERE v.enviado_em IS NOT NULL AND v.enviado_em != ? "
             "ORDER BY v.enviado_em DESC LIMIT 25", (ACERVO,)).fetchall()
 
-    linhas = []
-    for f in filtros:
-        ligado = bool(f["alerta"])
-        linhas.append(
-            "<div class='alerta %s'>"
-            "<form method='post' action='/alertas/%d/trocar'>"
-            "<button type='submit' class='interruptor %s' title='%s'>"
-            "<i></i></button></form>"
-            "<div class='sobre'><a href='/?%s'>%s</a>"
-            "<span class='q'>%s</span></div>"
-            "<div class='conta'>%s</div>"
-            "</div>"
-            % ("on" if ligado else "", f["id"],
-               "on" if ligado else "",
-               "desligar o alerta" if ligado else "ligar o alerta",
-               html.escape(f["consulta"] or "", quote=True),
-               html.escape(f["nome"]),
-               html.escape(resumo_filtro(f["consulta"], "anuncios")),
-               ("<b>%s</b> por avisar &middot; %s já avisados &middot; "
-                "%s do acervo"
-                % (mil_pt(f["por_enviar"]), mil_pt(f["avisados"]),
-                   mil_pt(f["acervo"]))
-                if ligado else "não avisa")))
-    if not linhas:
-        lista = ("<div class='vazio'>Ainda não guardaste nenhum filtro nos "
-                 "anúncios. Um alerta <b>é</b> um filtro guardado com a "
-                 "marca posta: vai à <a href='/'>lista dos anúncios</a>, "
-                 "afina a pesquisa, dá-lhe um nome, e ele aparece aqui.</div>")
+    if filtros:
+        lista = "<div class='alertas'>%s</div>" % "".join(
+            _linha_filtro(f) for f in filtros)
     else:
-        lista = "<div class='alertas'>%s</div>" % "".join(linhas)
+        lista = ("<div class='vazio'>Ainda não há filtros. Cria um aqui em "
+                 "baixo, ou afina a pesquisa nos <a href='/'>anúncios</a> ou "
+                 "nos <a href='/contratos'>contratos</a> e guarda-a com um "
+                 "nome &mdash; é o mesmo filtro.</div>")
 
-    # --- estado do e-mail
-    tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
-    pronto = bool((e.get("para") or "").strip() and (e.get("de") or "").strip()
-                  and tem_senha)
-    passos = [
-        ("Destino", e.get("para") or "por preencher", bool(e.get("para"))),
-        ("Conta que envia", e.get("de") or "por preencher", bool(e.get("de"))),
-        ("Servidor", "%s:%s" % (e.get("servidor") or "—", e.get("porta") or "—"),
-         bool(e.get("servidor"))),
-        ("Palavra-passe", "em email_senha.txt" if tem_senha
-         else "falta o ficheiro email_senha.txt", tem_senha),
-        ("Hora do resumo", e.get("hora_resumo") or "17:00", True),
-    ]
-    estado_envio = le_marca("ultimo_resumo_estado", "")
-    if estado_envio:
-        passos.append(("Último envio", html.escape(estado_envio),
-                       not estado_envio.startswith("por enviar")))
-
-    if pronto:
-        accao_email = accao("/alertas/enviar", "Enviar o resumo agora", "bt forte")
-    else:
-        accao_email = ""
-    caixa_email = (
-        "<div class='cx' style='padding:20px 22px'>"
-        "<div class='rot' style='margin-bottom:6px'>Resumo por e-mail</div>"
-        "<div class='nota' style='margin-bottom:16px'>Um por dia, a partir "
-        "das %s, e só se houver novidade. O destino pode ser qualquer "
-        "endereço; o que precisa de conta própria é quem envia. Configura-se "
-        "no <code>config.json</code>, e a palavra-passe fica no ficheiro "
-        "<code>email_senha.txt</code> &mdash; nunca na configuração.</div>"
-        "<div class='saude'>%s</div>%s%s</div>"
-        % (html.escape(str(e.get("hora_resumo") or "17:00")),
-           linhas_de_saude(passos, "#d68910"),
-           "<div style='margin-top:16px'>%s</div>" % accao_email
-           if accao_email else "",
-           "" if pronto else
-           "<div class='nota' style='margin-top:14px'>Sem e-mail "
-           "configurado o radar continua a escrever o "
-           "<code>AVISOS.txt</code> na pasta, e a lista aqui em baixo "
-           "mostra o mesmo.</div>"))
+    # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
+    novo = (
+        "<div class='cx novo-filtro'><div class='rot'>Novo filtro</div>"
+        "<div class='nota' style='margin:6px 0 14px'>Um filtro é um "
+        "conjunto de campos. Cada página aplica os que entende &mdash; um "
+        "filtro por CPV serve os anúncios e os contratos; um por "
+        "&ldquo;quem ganhou&rdquo; só faz sentido nos contratos, e nos "
+        "anúncios fica marcado como parcial.</div>"
+        "<form method='get' action='/alertas/criar' class='filtros'>"
+        "<input type='text' name='nome' required maxlength='60' "
+        "placeholder='nome do filtro…'>"
+        "<input type='text' name='q' placeholder='Objecto…'>"
+        "<input type='hidden' id='filtro-cpv' name='cpv' value=''>"
+        "<input type='text' name='ent' placeholder='Entidade (anúncios)…'>"
+        "<input type='text' name='ganhou' placeholder='Quem ganhou (contratos)…'>"
+        "<label>de</label><input type='date' name='de'>"
+        "<label>até</label><input type='date' name='ate'>"
+        "<button type='submit'>Criar filtro</button>"
+        "</form>%s</div>" % arvore_html(quantos_cpv(), "anuncios"))
 
     if ultimos:
         hist = "".join(
@@ -4872,22 +4996,57 @@ def alertas():
             for r in ultimos)
         historico = ("<div class='cx tab-cx'><table class='tab-contratos'>"
                      "<thead><tr><th>Avisado</th><th>Anúncio</th>"
-                     "<th>Entidade</th><th>Alerta</th></tr></thead>"
+                     "<th>Entidade</th><th>Filtro</th></tr></thead>"
                      "<tbody>%s</tbody></table></div>" % hist)
     else:
         historico = ("<div class='nota'>Ainda não saiu nenhum aviso. Sai no "
                      "resumo a seguir à próxima verificação.</div>")
 
     conteudo = ("<div class='larg'>" + lista +
-                "<div style='height:16px'></div>" + caixa_email +
+                "<div style='height:16px'></div>" + novo +
+                "<div style='height:16px'></div>" + _caixa_email(cfg) +
                 "<div class='rot' style='margin:22px 0 12px'>Últimos avisos"
                 "</div>" + historico + "</div>")
 
     return envolver(
-        "alertas", "Alertas",
-        "Os filtros guardados que te avisam quando entra um anúncio que "
-        "lhes corresponde.", conteudo,
+        "alertas", "Filtros e alertas",
+        "Os filtros são os mesmos em toda a aplicação. Os que marcares "
+        "como alerta avisam-te quando entra um anúncio que lhes "
+        "corresponde.", conteudo, script=ARVORE_JS,
         titulo_aba="Alertas, Radar de Concursos")
+
+
+@app.route("/alertas/criar")
+def alerta_criar():
+    """Cria um filtro a partir do formulario do separador. GET porque os
+    campos vem de um formulario de pesquisa; a escrita e o gravar_filtro,
+    que so acontece quando ha nome."""
+    nome = (request.args.get("nome") or "").strip()
+    if not nome:
+        return redirect("/alertas?aviso=" + quote("O filtro precisa de nome."))
+    consulta = urlencode([(k, (request.args.get(k) or "").strip())
+                          for k in CAMPOS_FILTRO
+                          if (request.args.get(k) or "").strip()])
+    if not consulta:
+        return redirect("/alertas?aviso=" +
+                        quote("Preenche pelo menos um campo."))
+    havia = gravar_filtro(nome, consulta)
+    return redirect("/alertas?aviso=" +
+                    quote("Filtro %s: %s"
+                          % ("actualizado" if havia else "criado", nome)))
+
+
+@app.route("/alertas/email", methods=["POST"])
+def alertas_email():
+    porta = (request.form.get("porta") or "587").strip()
+    gravar_config({"email": {
+        "para": (request.form.get("para") or "").strip(),
+        "de": (request.form.get("de") or "").strip(),
+        "servidor": (request.form.get("servidor") or "").strip(),
+        "porta": int(porta) if porta.isdigit() else 587,
+        "hora_resumo": (request.form.get("hora_resumo") or "17:00").strip(),
+    }})
+    return redirect("/alertas?aviso=" + quote("Configuração do e-mail guardada."))
 
 
 @app.route("/alertas/<int:filtro_id>/trocar", methods=["POST"])
@@ -4895,13 +5054,13 @@ def alerta_trocar(filtro_id):
     with liga() as c:
         c.execute("UPDATE filtros_guardados SET alerta = 1 - COALESCE(alerta,0) "
                   "WHERE id=?", (filtro_id,))
-    # ao ligar um alerta, o que ja esta na base conta como visto e nao
-    # como novidade -- senao o primeiro resumo trazia o acervo todo
+    # Ao ligar um alerta, o que ja esta na base conta como acervo e nao
+    # como novidade -- senao o primeiro resumo trazia o acervo todo.
     registar_alertas()
     with liga() as c:
-        ligou = c.execute("SELECT alerta FROM filtros_guardados WHERE id=?",
-                          (filtro_id,)).fetchone()
-        if ligou and ligou["alerta"]:
+        r = c.execute("SELECT alerta FROM filtros_guardados WHERE id=?",
+                      (filtro_id,)).fetchone()
+        if r and r["alerta"]:
             c.execute("UPDATE alertas_vistos SET enviado_em=? "
                       "WHERE filtro_id=? AND enviado_em IS NULL",
                       (ACERVO, filtro_id))
@@ -5063,7 +5222,7 @@ def entidade_do_anuncio(nif, nome):
 # Os campos que a propria ficha da entidade aceita. Sao os da lista de
 # contratos menos os que ja estao respondidos pela ficha (a entidade) e
 # menos os que nao fazem sentido aqui.
-CAMPOS_FICHA = ("q", "cpv", "proc", "de", "ate", "min")
+CAMPOS_FICHA = CAMPOS_POR_VISTA["entidade"]
 
 
 def filtro_da_ficha(args):
@@ -5484,9 +5643,8 @@ def filtros_da_ficha(chave, d):
            arvore_html(n_cpv, "contratos"),
            # os mesmos filtros guardados dos contratos, mas a voltar para
            # esta ficha e so com os campos que ela entende
-           caixa_de_filtros(request.args, "contratos",
-                            rota="/entidade/" + quote(chave, safe=""),
-                            campos=CAMPOS_FICHA)))
+           caixa_de_filtros(request.args, "entidade",
+                            rota="/entidade/" + quote(chave, safe=""))))
 
 
 @app.route("/entidade/<path:chave>")
@@ -5634,7 +5792,7 @@ def contratos_csv():
     if not ha_corpus():
         return redirect("/contratos")
     if not any((request.args.get(campo) or "").strip()
-               for campo in CAMPOS_FILTRO_CONTRATOS):
+               for campo in campos_da_vista("contratos")):
         return redirect("/contratos?aviso=" +
                         quote("Filtra primeiro: o corpus inteiro não se exporta."))
     onde, valores = condicoes_contratos(request.args)
@@ -5728,7 +5886,7 @@ def contratos():
     # Aqui a pergunta vem primeiro, ao contrario dos anuncios, onde a
     # lista inteira e o acervo por triar e faz sentido ve-la.
     ha_pergunta = any((request.args.get(campo) or "").strip()
-                      for campo in CAMPOS_FILTRO_CONTRATOS)
+                      for campo in campos_da_vista("contratos"))
 
     onde, valores = condicoes_contratos(request.args)
     correspondem = valor = 0

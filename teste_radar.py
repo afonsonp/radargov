@@ -1523,6 +1523,47 @@ class TestEurosCurto(unittest.TestCase):
         self.assertEqual(radar.euros_curto(None), "0 €")
 
 
+class TestFiltroUnicoEntreVistas(unittest.TestCase):
+    """Um filtro nao pertence a um separador: guarda os campos que tiver
+    e cada pagina aplica os que entende. O que NAO pode acontecer e um
+    campo cair em silencio -- um alerta "CPV 72 + ganho por MEO"
+    aplicado aos anuncios passaria a avisar de todos os de CPV 72.
+    """
+
+    def test_campos_comuns_servem_todas_as_paginas(self):
+        for vista in ("anuncios", "contratos", "entidade"):
+            with self.subTest(vista=vista):
+                dentro, fora = radar.filtro_para("cpv=72000000&q=obras", vista)
+                self.assertEqual(fora, [])
+                self.assertIn("cpv=72000000", dentro)
+
+    def test_campo_so_dos_contratos_nao_entra_nos_anuncios(self):
+        dentro, fora = radar.filtro_para("ganhou=MEO&min=50000", "anuncios")
+        self.assertEqual(dentro, "")
+        self.assertEqual(sorted(fora), ["ganhou", "min"])
+
+    def test_campo_so_dos_anuncios_nao_entra_nos_contratos(self):
+        dentro, fora = radar.filtro_para("estado=interessa&plat=vortal",
+                                         "contratos")
+        self.assertEqual(dentro, "")
+        self.assertEqual(sorted(fora), ["estado", "plat"])
+
+    def test_parte_aplica_se_e_o_resto_e_nomeado(self):
+        dentro, fora = radar.filtro_para("cpv=72000000&ganhou=MEO", "anuncios")
+        self.assertEqual(dentro, "cpv=72000000")
+        self.assertEqual(fora, ["ganhou"])
+
+    def test_campo_vazio_nao_conta_como_ficando_de_fora(self):
+        # "ganhou=" nao filtra nada, por isso nao ha nada a avisar
+        dentro, fora = radar.filtro_para("cpv=72&ganhou=", "anuncios")
+        self.assertEqual(fora, [])
+
+    def test_o_resumo_descreve_o_filtro_inteiro_sem_vista(self):
+        saiu = radar.resumo_filtro("cpv=72000000&ganhou=MEO")
+        self.assertIn("CPV", saiu)
+        self.assertIn("ganho por MEO", saiu)
+
+
 class TestResumoDosAlertas(unittest.TestCase):
     """O texto do resumo e o mesmo no e-mail e no AVISOS.txt: dois
     formatos divergiam ao primeiro arranjo."""
@@ -1914,11 +1955,19 @@ class TestFiltrosGuardadosNasDuasVistas(unittest.TestCase):
     ("Software") pode servir nas duas.
     """
 
-    def test_cada_vista_tem_a_sua_rota_e_os_seus_campos(self):
-        self.assertEqual(radar.VISTAS["anuncios"][1], "/")
-        self.assertEqual(radar.VISTAS["contratos"][1], "/contratos")
-        self.assertNotEqual(radar.VISTAS["anuncios"][0],
-                            radar.VISTAS["contratos"][0])
+    def test_cada_pagina_sabe_os_seus_campos(self):
+        self.assertEqual(radar.ROTA_DA_VISTA["anuncios"], "/")
+        self.assertEqual(radar.ROTA_DA_VISTA["contratos"], "/contratos")
+        self.assertNotEqual(radar.campos_da_vista("anuncios"),
+                            radar.campos_da_vista("contratos"))
+
+    def test_todos_os_campos_das_paginas_existem_no_filtro(self):
+        # um campo que uma página use e o filtro não conheça nunca se
+        # guardava, e o filtro guardado saía diferente do que estava
+        for vista in radar.CAMPOS_POR_VISTA:
+            for campo in radar.campos_da_vista(vista):
+                with self.subTest(vista=vista, campo=campo):
+                    self.assertIn(campo, radar.CAMPOS_FILTRO)
 
     def test_o_filtro_de_contratos_nao_leva_estado(self):
         # "estado" é a triagem dos anúncios; um contrato assinado não tem
@@ -1953,12 +2002,13 @@ class TestFiltrosGuardadosNasDuasVistas(unittest.TestCase):
         self.assertIn("ganho por MEO",
                       radar.resumo_filtro("ganhou=MEO", "contratos"))
 
-    def test_vista_de_fora_nao_escolhe_rota_a_esmo(self):
-        # o valor vem de um formulário; nunca pode escolher uma rota
-        for mau in ("", None, "outra", "../etc"):
+    def test_rota_de_fora_nao_manda_para_qualquer_lado(self):
+        # a rota de volta vem de um campo escondido do formulário
+        for mau in ("", None, "http://outro.site", "//outro.site", "javascript:x"):
             with self.subTest(mau=mau):
-                self.assertEqual(radar._vista_pedida(mau), "anuncios")
-        self.assertEqual(radar._vista_pedida("contratos"), "contratos")
+                self.assertEqual(radar.volta_para(mau).headers["Location"], "/")
+        self.assertTrue(radar.volta_para("/contratos")
+                        .headers["Location"].startswith("/contratos"))
 
 
 class TestPerguntaAntesDaLista(unittest.TestCase):
@@ -1974,7 +2024,7 @@ class TestPerguntaAntesDaLista(unittest.TestCase):
     def ha_pergunta(self, args):
         # a mesma condição da rota /contratos
         return any((args.get(campo) or "").strip()
-                   for campo in radar.CAMPOS_FILTRO_CONTRATOS)
+                   for campo in radar.campos_da_vista("contratos"))
 
     def test_sem_nada_nao_ha_pergunta(self):
         self.assertFalse(self.ha_pergunta({}))
@@ -1984,7 +2034,7 @@ class TestPerguntaAntesDaLista(unittest.TestCase):
         self.assertFalse(self.ha_pergunta({"q": "", "cpv": "  ", "min": ""}))
 
     def test_qualquer_campo_do_filtro_acorda_a_lista(self):
-        for campo in radar.CAMPOS_FILTRO_CONTRATOS:
+        for campo in radar.campos_da_vista("contratos"):
             with self.subTest(campo=campo):
                 self.assertTrue(self.ha_pergunta({campo: "x"}))
 
