@@ -962,6 +962,15 @@ enquanto corre — a thread põe sempre um estado terminal (`ok`/`falhou`),
 por isso isto pára. Um `Lock` não-bloqueante impede duas actualizações
 ao mesmo tempo.
 
+**A marca na base não é a verdade sobre se está a correr — o trinco é.**
+Descobriu-se ao matar o processo do painel a meio de uma actualização,
+a testar: a marca fica gravada como `a correr`, mas a thread que a limpa
+morreu com o processo, e o botão nunca mais voltava. `actualizacao_a_correr()`
+pergunta ao `_ACTUALIZAR`, que é do processo; a marca só serve para
+mostrar o passo em que ia. Quando a marca diz "a correr" e o trinco está
+livre, a página diz que ficou a meio e devolve o botão. Nada se perde:
+reimportar substitui o ano inteiro.
+
 **O botão só traz o ano corrente e o anterior.** É onde entram contratos
 novos; anos fechados não mudam, e voltar a descarregar sete anos de cada
 vez seriam 10 minutos por nada. Para anos mais antigos há a linha de
