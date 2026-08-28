@@ -918,6 +918,68 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+### Passagem de coerência a toda a aplicação
+
+Depois de o BASE entrar, metade do painel ainda falava como se só
+houvesse o DR. Correcções, todas pequenas e todas do mesmo tipo — o que
+está escrito tem de ser verdade:
+
+- **As migalhas punham tudo dentro dos anúncios.** Todas as páginas
+  começavam por `Anúncios ›`, incluindo os contratos, o quadro e os
+  indicadores, que são separadores irmãos. `migalhas_de(vista, folha)`
+  parte agora do separador em que a página vive; só as fichas penduram
+  uma folha por baixo.
+- **"Verificar agora" aparecia em todo o lado.** Vai ao DR buscar
+  anúncios — nos contratos aparecia ao lado do "Actualizar contratos" a
+  dizer outra coisa parecida, e nos indicadores não dizia nada. Fica só
+  nos anúncios, no quadro e no calendário.
+- **O cabeçalho dizia "DR II série · parte L" no separador dos
+  contratos**, o que é falso: aqueles dados vêm do BASE. Passa a
+  "Anúncios do DR · contratos do BASE", com os dois acervos contados.
+- **Os indicadores não sabiam que o corpus existia** — diziam que estava
+  tudo bem sem olhar para metade da aplicação. Têm agora um bloco
+  próprio: contratos, anos cobertos, entidades identificadas, idade da
+  importação (a amarelo passados 14 dias, que é mais do que a cadência
+  semanal do dump) e tamanho do ficheiro.
+- **A rota deixou de aparecer ao lado do nome na navegação.** Era ruído
+  de programador num painel que é para trabalhar.
+- **Os contratos não exportavam CSV** e os anúncios sim — e são os
+  contratos que dão trabalho de análise a sério. Tecto de 50 mil linhas,
+  e sem filtro não exporta: o corpus inteiro seriam 1,36 milhões de
+  linhas que ninguém queria pedir.
+- **O separador de milhares era espaço normal em quase todo o lado e
+  inquebrável no cabeçalho.** Com espaço normal o browser parte
+  "1 363 300" ao fim da linha. Os três formatadores (`mil_pt`, `euros`,
+  `euros_curto`) usam agora U+00A0, e há um teste que os obriga a
+  concordar.
+- Um `objeto` em vez de `objecto` no marcador de uma caixa de pesquisa.
+
+### Pesquisar dentro da ficha da entidade
+
+A ficha mostrava tudo o que a entidade já fez, sem forma de perguntar
+mais nada: com 2038 contratos, era preciso sair para a lista. Passa a
+ter caixa de pesquisa própria (objecto, CPV, datas, valor) que se soma à
+entidade **em todos os blocos** — KPI, gráficos e contratos recentes.
+
+Mais atalhos de período: **12 meses, 3 anos, e os últimos quatro anos
+civis**. Carregar num aplica-o, carregar outra vez tira-o. É a pergunta
+que se faz logo a seguir a abrir a ficha, e obrigar a escrever duas
+datas para isso era atrito.
+
+Duas consequências:
+
+- Os atalhos para a lista levam o filtro da ficha, senão a lista
+  mostrava outra coisa daquela que se estava a ver.
+- Um filtro que não apanha nada diz isso e oferece "ver tudo". Antes a
+  página ficava aparentemente na mesma, só com os números a zero.
+
+### O eixo do tempo passou a adaptar-se
+
+Com sete anos, o gráfico de evolução tinha 27 barras e os rótulos
+deixavam de se ler. Acima de `MAX_BARRAS_TEMPO` (16) passa a agrupar por
+ano, e a legenda diz qual das duas unidades está a usar — um gráfico que
+muda de unidade sem avisar é pior do que um gráfico apertado.
+
 ### Sete anos, e a pergunta antes da lista
 
 O corpus passou a ir de **2020 a 2026: 1 363 300 contratos, 1,2 GB**. E
