@@ -29,6 +29,11 @@ python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 ```
 
+As tarefas do Windows são três (`agendar.bat`): as duas verificações
+diárias e a do corpus, à segunda. **Se faltarem, o radar só recolhe com
+o painel aberto** — e o relógio interno recupera os slots falhados, o
+que faz a tabela `slots` parecer certa. O painel avisa a vermelho.
+
 Testes — sem rede, sem base, correm em menos de um segundo:
 
 ```bash
@@ -131,6 +136,19 @@ Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
   irmãos, não filhos dos anúncios — começar tudo por `Anúncios ›` punha
   os contratos e os indicadores dentro da lista de anúncios. E o
   "Verificar agora" só aparece onde há anúncios.
+- **A entidade de um anúncio resolve-se pelo NIPC.** O DR publica-o em
+  100% dos anúncios e é a chave do corpus — `entidade_do_anuncio(nif,
+  nome)`, com o nome de reserva para os antigos. 98,2% contra 96,2% só
+  pelo nome. A coluna `anuncios.nif` enche-se com `--reler`, sem rede.
+- **Há cópia diária da base de trabalho** em `copias/`, sete guardadas,
+  feita antes da recolha com `VACUUM INTO` (a quente, e sai compactada).
+  Copiar o ficheiro com o `.wal` ao lado dava uma cópia truncada. Só a
+  de trabalho: o corpus e os documentos refazem-se, a triagem não.
+- **Os avisos por filtro correm depois de `ler_detalhes()`** — um filtro
+  por CPV só apanha o anúncio depois do CPV estar lido — e usam a
+  `condicoes()` da lista. Nunca escrevas um segundo motor de filtros.
+- **`175.000,00 EUR` é formato português**: ponto nos milhares, vírgula
+  nos cêntimos. Usa `euros_do_texto()`; um `float()` ingénuo dá 175,0.
 - **As datas guardam-se ISO e mostram-se DD/MM/AAAA.** ISO porque ordena
   como texto; a apresentação passa toda por `data_pt()`. Nunca ponhas
   uma data em ISO no HTML.

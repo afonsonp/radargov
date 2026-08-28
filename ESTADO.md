@@ -918,6 +918,112 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+## Ronda de manutenção, 28 de agosto de 2026
+
+Correctivas e evolutivas, da mais barata para a mais cara. As
+correctivas saíram todas de medições, não de suspeitas.
+
+### A verificação automática não estava a acontecer
+
+**A mais grave, e passou semanas despercebida.** As tarefas do Windows
+nunca tinham sido criadas — procurei nas 257 tarefas da máquina e não
+havia nenhuma do radar.
+
+O que corria era o `relogio()`, que vive dentro do painel e só enquanto
+ele está aberto. E como recupera slots falhados, a tabela `slots` ficava
+preenchida e parecia que tinha corrido a horas. As horas denunciavam:
+
+| slot | correu às |
+|---|---|
+| 23/08 09:00 | **16:27** — 500 anúncios de uma vez |
+| 24/08 09:00 | 13:15 |
+| 26/08 17:00 | 20:53 |
+| 27/08 09:00 | 12:22 |
+
+Nem um bateu certo: o radar recolhia quando o Afonso abria o painel.
+O `agendar.bat` foi corrido e as três tarefas existem. E o painel passa
+a **avisar a vermelho quando faltam** — `tarefas_em_falta()` pergunta ao
+`schtasks` e guarda a resposta. Era isso que faltava para não voltar a
+acontecer em silêncio.
+
+### Cópia de segurança do radar.db
+
+Não havia nenhuma. O `contratos.db` refaz-se com `--contratos` e a pasta
+`documentos/` volta a descarregar-se, mas a **triagem, as fases do
+quadro, os responsáveis e o histórico não se recuperam de lado nenhum**
+— não estão no git, por serem uma base.
+
+`VACUUM INTO` e não copiar o ficheiro: o SQLite fá-lo a quente, com a
+base aberta e em WAL, e o que sai é uma base consistente e já
+compactada; copiar o `.db` com o `.wal` ao lado dava uma cópia truncada.
+**Uma por dia**, sete guardadas: medido, o VACUUM de 44 MB leva 37 s, e
+a cada verificação era tempo a mais.
+
+### O NIPC é a ligação certa entre o anúncio e o corpus
+
+Fui ver se o DR publicava o número fiscal da entidade. **Publica, em
+100% dos anúncios com texto guardado** — e é o mesmo número por que o
+BASE a identifica, portanto é a chave directa, sem comparação de nomes
+pelo meio.
+
+Coluna `nif` em `anuncios`, lida em `campos_do_detalhe()`, e um
+`--reler` encheu-a em 20 segundos **sem um único pedido à rede** — o
+texto já estava guardado. 99,3% dos anúncios com detalhe lido ficaram
+com NIPC.
+
+| como se resolve a entidade | acerta |
+|---|---|
+| pelo nome normalizado | 96,2% |
+| **pelo NIPC, com o nome de reserva** | **98,2%** |
+
+Os 16 que faltam são entidades que nunca adjudicaram nada nos anos
+importados: não há ali nada a corrigir.
+
+### Avisos por filtro guardado
+
+Já havia filtros guardados e já havia recolha automática; faltava cruzar
+as duas coisas, e **é isso que faz o radar deixar de precisar de ser
+aberto**.
+
+A verificação corre os filtros **depois de ler os detalhes** — um filtro
+por CPV só apanha o anúncio depois do CPV estar lido — e escreve o
+`AVISOS.txt`. Ficheiro e não e-mail nem notificação: não há servidor de
+correio configurado e uma notificação desaparece se ninguém estiver a
+olhar; um ficheiro fica lá até ser lido. Aplica os filtros com a mesma
+`condicoes()` da lista, para não haver um segundo motor de filtros a
+divergir do primeiro.
+
+### Preço base contra o mercado
+
+O anúncio traz o preço base e o corpus traz o que se pagou de facto.
+Postos lado a lado dizem se este concurso é generoso ou apertado para o
+que aquela entidade costuma pagar naquele CPV — a pergunta que se faz
+antes de decidir a proposta, e que nenhum portal responde.
+
+Só aparece com três contratos ou mais: com dois não há padrão. Dos 20
+anúncios mais recentes com preço base e CPV, 3 tinham histórico que
+chegasse — e um deles trazia preço base de 30 000 € numa entidade cuja
+mediana naquele CPV é 200 100 €.
+
+**Cuidado que valeu a pena:** o DR escreve `175.000,00 EUR`, com o ponto
+nos milhares e a vírgula nos cêntimos, ao contrário do que o `float()`
+de Python lê. Ingenuamente dava 175,0 em vez de 175 000, e a comparação
+dizia o contrário do que devia. Tem testes.
+
+### Indicadores do funil
+
+Os indicadores contavam estados parados. Passam a mostrar o movimento —
+entrados, por ver, triados, interessa — mais a taxa de conversão e as
+divisões de CPV onde a triagem tem dito que sim.
+
+Dois números que nenhum ecrã mostrava e que valem por si: **694
+anúncios por ver com prazo a menos de 10 dias, e 3 982 por ver já com o
+prazo passado.** É a fila que custa dinheiro, e estava invisível.
+
+Uma armadilha: a leitura da taxa traz um `%` e, concatenada no template,
+o `%` de baixo tentava interpretá-la como conversão. O bloco passa a ser
+montado à parte e entregue como argumento.
+
 ### O histórico da ficha restringe-se ao CPV do anúncio
 
 Pedido do Afonso a olhar para o bloco: mostrava os 25 contratos mais
