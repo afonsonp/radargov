@@ -2508,15 +2508,19 @@ def com_corpus(c):
 
 
 def historico_entidade(entidade, cpv="", limite=25):
-    """Contratos ja celebrados por esta entidade, os do CPV a frente.
+    """Contratos ja celebrados por esta entidade **no CPV do anuncio**.
 
     A entidade acha-se pelo nome normalizado: o radar so guarda o nome
     que o DR escreve, e o BASE guarda o NIF ao lado. Medido, 93,7% das
     entidades do radar acham-se assim -- ver `norma_entidade()`.
 
-    O CPV compara-se por prefixo, com o mesmo criterio do filtro da
-    lista: os zeros a direita sao estrutura, tira-los alarga do codigo
-    para o grupo. Devolve (linhas, quantos_ao_todo, quantos_do_cpv).
+    O CPV **restringe**, nao apenas ordena. Antes vinham os do CPV a
+    frente e o resto por baixo, e as 25 linhas enchiam-se de contratos
+    de limpeza e de refeicoes que nada diziam sobre o concurso em maos.
+    Sem CPV no anuncio -- ou sem nada da entidade nesse CPV -- devolve
+    vazio e quem chama diz porque.
+
+    Devolve (linhas, quantos_ao_todo, quantos_do_cpv, chave).
     """
     if not ha_corpus():
         return [], 0, 0, ""
@@ -2532,34 +2536,33 @@ def historico_entidade(entidade, cpv="", limite=25):
                             "WHERE adjudicante_chave=?", (alvo,)).fetchone()["n"]
         if not ao_todo:
             return [], 0, 0, ""
-        do_cpv = 0
-        if prefixos:
-            do_cpv = c.execute(
-                "SELECT COUNT(DISTINCT c.id) n FROM contratos c "
-                "JOIN contrato_cpv v ON v.contrato_id=c.id "
-                "WHERE c.adjudicante_chave=? AND (%s)"
-                % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos),
-                [alvo] + [p + "%" for p in prefixos]).fetchone()["n"]
-        # Os do CPV primeiro, e dentro de cada grupo os mais recentes --
-        # e o que se quer ver ao decidir se vale a pena concorrer.
-        if prefixos:
-            perto = ("(SELECT COUNT(*) FROM contrato_cpv v "
-                     "WHERE v.contrato_id=c.id AND (%s)) > 0"
-                     % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos))
-            valores = [p + "%" for p in prefixos] + [alvo] + [limite]
-        else:
-            perto, valores = "0", [alvo, limite]
+        if not prefixos:
+            return [], ao_todo, 0, alvo
+        # `IN` e nao `JOIN`: um contrato com varios CPV da mesma divisao
+        # aparecia uma vez por CPV.
+        no_cpv = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+                  % " OR ".join("cpv8 LIKE ?" for _ in prefixos))
+        como_cpv = [p + "%" for p in prefixos]
+        do_cpv = c.execute(
+            "SELECT COUNT(*) n FROM contratos c "
+            "WHERE c.adjudicante_chave=? AND " + no_cpv,
+            [alvo] + como_cpv).fetchone()["n"]
+        if not do_cpv:
+            return [], ao_todo, 0, alvo
+        valores = [alvo] + como_cpv + [limite]
         linhas = c.execute(
-            "SELECT c.*, %s AS do_cpv, "
-            "(SELECT group_concat(COALESCE(g.nome, a.nome), '|') "
-            " FROM contrato_adjudicatario a "
-            " LEFT JOIN entidades g ON g.chave=a.chave "
-            " WHERE a.contrato_id=c.id) AS ganhou, "
-            "(SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a "
-            " WHERE a.contrato_id=c.id) AS ganhou_ch "
-            "FROM contratos c WHERE c.adjudicante_chave=? "
-            "ORDER BY do_cpv DESC, c.data_celebracao DESC LIMIT ?"
-            % perto, valores).fetchall()
+            "WITH pag AS (SELECT c.* FROM contratos c "
+            " WHERE c.adjudicante_chave=? AND " + no_cpv +
+            " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ?)"
+            " SELECT p.*,"
+            " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
+            "  FROM contrato_adjudicatario a"
+            "  LEFT JOIN entidades g ON g.chave=a.chave"
+            "  WHERE a.contrato_id=p.id) AS ganhou,"
+            " (SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a"
+            "  WHERE a.contrato_id=p.id) AS ganhou_ch"
+            " FROM pag p ORDER BY p.data_celebracao DESC, p.id DESC",
+            valores).fetchall()
     return linhas, ao_todo, do_cpv, alvo
 
 
@@ -2941,9 +2944,12 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .tab-mercado td.g{color:var(--ink);font-weight:500}
 .tab-mercado th.p,.tab-mercado td.p{text-align:right;white-space:nowrap;
  font-family:var(--mono)}
-.tab-mercado tr.docpv td{background:#eef4fa}
-.tab-mercado tr.docpv td.d{color:var(--azul);font-weight:600}
+.tab-mercado td.o{color:var(--ink);max-width:300px}
 .tab-mercado tr:last-child td{border-bottom:0}
+/* a coluna do objecto pode ser longa; a tabela rola dentro da caixa em
+   vez de empurrar a ficha toda para o lado */
+.mercado-tab{overflow-x:auto}
+.mercado-tab .tab-mercado{min-width:720px}
 .mercado code{font:500 11.5px/1 var(--mono);background:var(--linha2);
  padding:2px 5px;border-radius:4px}
 .guardados{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
@@ -5542,28 +5548,52 @@ def euros_curto(v):
     return "%.0f €" % v
 
 
+def _mercado_cx(nota, corpo=""):
+    return ("<div class='cx mercado'>"
+            "<div class='rot'>Histórico de adjudicações</div>"
+            "<div class='nota' style='margin:6px 0 12px'>%s</div>%s</div>"
+            % (nota, corpo))
+
+
 def mercado(a):
-    """O que esta entidade ja adjudicou, o do mesmo CPV a frente.
+    """O que esta entidade ja adjudicou **no CPV deste anuncio**.
 
     E o cruzamento que justifica isto ser uma aplicacao e nao duas: o
     anuncio diz o que vem ai, e o corpus diz como esta entidade se tem
-    portado -- quem costuma ganhar, por quanto, e por que procedimento.
+    portado neste tipo de compra -- quem costuma ganhar, por quanto, e
+    por que procedimento.
+
+    O CPV restringe e nao so ordena: com a entidade toda, as 25 linhas
+    enchiam-se de contratos de limpeza e de refeicoes que nada diziam
+    sobre o concurso em maos.
     """
     if not ha_corpus():
-        return ("<div class='cx mercado'><div class='rot'>Histórico de "
-                "adjudicações</div><div class='nota' style='margin-top:8px'>"
-                "O corpus de contratos ainda não foi importado. Corre "
-                "<code>python radar.py --contratos</code> para o trazer do "
-                "dados.gov (domínio público, sem chave).</div></div>")
+        return _mercado_cx(
+            "O corpus de contratos ainda não foi importado. Corre "
+            "<code>python radar.py --contratos</code> para o trazer do "
+            "dados.gov (domínio público, sem chave).")
 
     linhas, ao_todo, do_cpv, chave = historico_entidade(a["entidade"] or "",
                                                         a["cpv"] or "")
+    ficha_ent = ("<a href='/entidade/%s'>ficha da entidade</a>"
+                 % quote(chave, safe="")) if chave else ""
     if not ao_todo:
-        return ("<div class='cx mercado'><div class='rot'>Histórico de "
-                "adjudicações</div><div class='nota' style='margin-top:8px'>"
-                "Não há contratos desta entidade no corpus. Ou nunca "
-                "adjudicou nada nos anos importados, ou escreve o nome de "
-                "outra maneira no Portal BASE.</div></div>")
+        return _mercado_cx(
+            "Não há contratos desta entidade no corpus. Ou nunca adjudicou "
+            "nada nos anos importados, ou escreve o nome de outra maneira "
+            "no Portal BASE.")
+    if not a["cpv"]:
+        return _mercado_cx(
+            "Este anúncio ainda não tem CPV lido, e sem ele não dá para "
+            "escolher o histórico que interessa. A entidade tem %s "
+            "contratos no corpus &middot; %s"
+            % (mil_pt(ao_todo), ficha_ent))
+    if not linhas:
+        return _mercado_cx(
+            "Esta entidade tem %s contratos no corpus, mas <b>nenhum no CPV "
+            "%s</b> &mdash; é a primeira vez que compra isto, pelo menos "
+            "nos anos importados. &middot; %s"
+            % (mil_pt(ao_todo), html.escape(a["cpv"]), ficha_ent))
 
     corpo = []
     for l in linhas:
@@ -5572,33 +5602,31 @@ def mercado(a):
         venceu = " + ".join(liga_entidade(ch, n)
                             for n, ch in zip(nomes, chaves) if n) or "—"
         corpo.append(
-            "<tr class='%s'><td class='d'>%s</td><td>%s</td>"
+            "<tr><td class='d'>%s</td><td class='o'>%s</td><td>%s</td>"
             "<td class='g'>%s</td><td class='p'>%s</td></tr>"
-            % ("docpv" if l["do_cpv"] else "",
-               data_pt(l["data_celebracao"]),
+            % (data_pt(l["data_celebracao"]),
+               html.escape((l["objecto"] or "")[:140]),
                html.escape(l["tipo_procedimento"] or ""),
                venceu,
                euros(l["preco_contratual"])))
 
-    if a["cpv"]:
-        resumo = ("%s contratos desta entidade &middot; <b>%s no CPV %s</b>, "
-                  "em cima" % (mil_pt(ao_todo), mil_pt(do_cpv),
-                               html.escape(a["cpv"])))
-    else:
-        resumo = "%s contratos desta entidade" % mil_pt(ao_todo)
-    resumo += (" &middot; <a href='/entidade/%s'>ficha da entidade</a>"
-               % quote(chave, safe=""))
+    resumo = ("<b>%s contratos desta entidade no CPV %s</b>%s &middot; "
+              "de %s ao todo &middot; %s"
+              % (mil_pt(do_cpv), html.escape(a["cpv"]),
+                 ", os %s mais recentes" % len(linhas)
+                 if do_cpv > len(linhas) else "",
+                 mil_pt(ao_todo), ficha_ent))
 
-    return ("<div class='cx mercado'>"
-            "<div class='rot'>Histórico de adjudicações</div>"
-            "<div class='nota' style='margin:6px 0 12px'>%s</div>"
-            "<table class='tab-mercado'><thead><tr><th>Celebrado</th>"
-            "<th>Procedimento</th><th>Quem ganhou</th><th class='p'>Preço</th>"
-            "</tr></thead><tbody>%s</tbody></table>"
-            "<div class='nota' style='margin-top:10px'>Contratos já "
-            "celebrados, do Portal BASE. Não são oportunidades &mdash; "
-            "servem para saber com quem se concorre.</div></div>"
-            % (resumo, "".join(corpo)))
+    return _mercado_cx(
+        resumo,
+        "<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
+        "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
+        "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
+        "<tbody>%s</tbody></table></div>"
+        "<div class='nota' style='margin-top:10px'>Contratos já celebrados "
+        "por esta entidade neste CPV, do Portal BASE. Não são oportunidades "
+        "&mdash; servem para saber com quem se concorre.</div>"
+        % "".join(corpo))
 
 
 @app.route("/anuncio/<path:ref>")

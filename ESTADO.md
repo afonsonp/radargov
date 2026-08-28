@@ -918,6 +918,32 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+### O histórico da ficha restringe-se ao CPV do anúncio
+
+Pedido do Afonso a olhar para o bloco: mostrava os 25 contratos mais
+recentes da entidade com os do CPV à frente, e o resto por baixo. Com
+uma entidade de 5 493 contratos, as linhas enchiam-se de limpeza e de
+refeições que nada diziam sobre o concurso em mãos.
+
+O CPV passa a **restringir**, não só a ordenar. E acrescentou-se a
+coluna do **objecto**, que era o que faltava para se perceber o que a
+entidade comprou de facto — "Concurso público, 358 623 €" não diz o
+que é que se comprou.
+
+São quatro estados, e cada um diz o que sabe:
+
+| situação | o que aparece |
+|---|---|
+| há contratos no CPV | a tabela, com quantos são e de quantos ao todo |
+| a entidade compra, mas nunca isto | "nenhum no CPV X — é a primeira vez que compra isto" |
+| o anúncio ainda não tem CPV lido | diz isso, e dá a ficha da entidade |
+| a entidade não está no corpus | diz isso, e porquê |
+
+O terceiro e o quarto já existiam; o segundo é novo e só aparece por o
+CPV passar a restringir. Vale por si: "esta entidade nunca comprou isto"
+é informação, e antes ficava escondida no meio de 25 linhas de outra
+coisa.
+
 ### Datas e árvore, iguais em todo o lado
 
 Três arrumações pedidas pelo Afonso, todas do mesmo feitio — o que é
