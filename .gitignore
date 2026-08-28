@@ -11,6 +11,8 @@ radar.db-wal
 contratos.db
 contratos.db-shm
 contratos.db-wal
+# Cópias de segurança do radar.db, uma por dia. São bases, não código.
+copias/
 documentos/
 amostras/
 
