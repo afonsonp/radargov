@@ -92,8 +92,17 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   nem coincidem (um anúncio não tem vencedor nem valor final). A lista
   `/` chama-se **Anúncios** e a chave interna é `"anuncios"`; os
   contratos vivem em `/contratos`, com `condicoes_contratos()` própria.
-  Nas tabelas filhas usa-se **`EXISTS`, nunca `JOIN`**: com JOIN, um
-  contrato ganho por um agrupamento repetia-se uma vez por adjudicatário.
+  Nas tabelas filhas usa-se **`IN (SELECT ...)`, nunca `JOIN`**: com
+  JOIN, um contrato ganho por um agrupamento repetia-se uma vez por
+  adjudicatário. `IN` e não `EXISTS` por velocidade — o EXISTS passa por
+  todos os contratos a perguntar por cada um (517 ms contra 183).
+- **Sem filtro, `/contratos` não mostra lista nenhuma.** São 1,36 milhões
+  de contratos e por data não dizem nada; a página levava 48 s a montar.
+  A pergunta vem primeiro — ao contrário dos anúncios, onde a lista
+  inteira é o acervo por triar. A paginação corre num CTE com o `LEFT
+  JOIN entidades` e as subconsultas dos nomes **depois do `LIMIT`**, e há
+  índice em `contratos(data_celebracao, id)`: sem ele, ordenar 1,36
+  milhões para mostrar 20 levava 6 s.
 - **Os gráficos dos contratos correm sobre o filtro da lista**, não sobre
   o corpus todo: o filtro é a pergunta. Pedidos só ao abrir o `<details>`
   (`/contratos/resumo`, ~800 ms sem filtro), e a rota devolve **HTML e
@@ -124,17 +133,31 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   onde a árvore lê e escreve. O `_CPV_CACHE` é um dicionário por fonte.
 - **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
   entra no funil: são contratos assinados, não oportunidades. Cruza-se
-  com `ATTACH` (`com_corpus()`). Está no `.gitignore` — dois anos são
-  334 MB — e refaz-se com `--contratos`. O endereço do dump muda todas as
-  semanas: resolve-se sempre pela API do dados.gov, nunca se guarda.
+  com `ATTACH` (`com_corpus()`). Está no `.gitignore` — 2020-2026 são
+  1,36 milhões de contratos e 1,2 GB — e refaz-se com `--contratos`. O
+  endereço do dump muda todas as semanas: resolve-se sempre pela API do
+  dados.gov, nunca se guarda.
 - **Um filtro guardado é uma query string, não SQL.** A tabela
   `filtros_guardados` guarda o que `filtro_actual()` produz, e aplicá-lo
   é seguir uma ligação. Duas coisas seguram isto e não se mexem: a ordem
-  de `CAMPOS_FILTRO` é fixa (é ela que deixa reconhecer o filtro em uso
-  por igualdade de texto) e o `estado` entra **sempre**, mesmo vazio —
-  ausente é "por ver", vazio é "todos", como em `condicoes()`. Campo
-  novo na lista? Acrescenta-o a `CAMPOS_FILTRO`; se for da vez e não do
-  filtro, a `CAMPOS_DA_VEZ`.
+  dos campos é fixa (é ela que deixa reconhecer o filtro em uso por
+  igualdade de texto) e o `estado` entra **sempre**, mesmo vazio —
+  ausente é "por ver", vazio é "todos", como em `condicoes()`. Cada
+  separador tem a sua lista em `VISTAS` (campos + rota), e a unicidade é
+  por `(vista, nome)`. Campo novo? Acrescenta-o à lista da vista; se for
+  da vez e não do filtro, a `CAMPOS_DA_VEZ`.
+- **Os campos de entidade dos contratos são `entid`/`vencid`.** Nos
+  anúncios `ent` é a caixa de texto da entidade — nomes iguais com
+  sentidos diferentes já estiveram a um passo de se cruzar.
+- **As colunas do importador saem de `COLS_CONTRATO`/`COLS_CPV`/
+  `COLS_ADJ`**, e `_inserir()` constrói o SQL a partir delas. Nunca
+  escrevas `VALUES (?,?,…)` à mão: acrescentar uma coluna com o INSERT
+  posicional já partiu o importador duas vezes, a segunda a meio de uma
+  importação de sete anos.
+- **O botão "Actualizar contratos" corre numa thread**, com o estado em
+  `corpus_estado` e a página a recarregar-se enquanto isso — um ano são
+  ~60 s e um pedido HTTP parado esse tempo parece o painel pendurado. Só
+  traz o ano corrente e o anterior: anos fechados não mudam.
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e o token das capturas `curl_*.txt`. **O token expira** — o
   painel avisa a vermelho e o Afonso refaz a captura no DevTools (instruções
