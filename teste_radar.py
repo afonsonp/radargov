@@ -1836,6 +1836,32 @@ class TestPerguntaAntesDaLista(unittest.TestCase):
                 self.assertTrue(self.ha_pergunta({campo: "x"}))
 
 
+class TestActualizacaoPresa(unittest.TestCase):
+    """Se o painel fechar a meio de uma actualização, a marca fica gravada
+    como "a correr" para sempre e o botão nunca mais voltava -- a thread
+    que a limpa vive no processo que morreu. O trinco é a verdade; a
+    marca só serve para mostrar o passo em que ia.
+    """
+
+    def test_trinco_livre_quer_dizer_que_nao_corre(self):
+        self.assertFalse(radar.actualizacao_a_correr())
+
+    def test_trinco_preso_quer_dizer_que_corre(self):
+        radar._ACTUALIZAR.acquire()
+        try:
+            self.assertTrue(radar.actualizacao_a_correr())
+        finally:
+            radar._ACTUALIZAR.release()
+
+    def test_perguntar_nao_fica_com_o_trinco(self):
+        # se a pergunta ficasse com ele, uma visita à página impedia a
+        # actualização seguinte
+        radar.actualizacao_a_correr()
+        radar.actualizacao_a_correr()
+        self.assertTrue(radar._ACTUALIZAR.acquire(blocking=False))
+        radar._ACTUALIZAR.release()
+
+
 class TestColunasDoImportador(unittest.TestCase):
     """As colunas do INSERT saem de uma lista só. Duas vezes se
     acrescentou uma coluna à tabela e o VALUES posicional partiu -- a

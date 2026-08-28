@@ -2446,6 +2446,21 @@ def le_marca_corpus(chave, omissao=""):
 _ACTUALIZAR = threading.Lock()
 
 
+def actualizacao_a_correr():
+    """Se ha mesmo uma actualizacao a decorrer, agora, neste processo.
+
+    Nao basta olhar para a marca na base: ela fica gravada, e a thread
+    que a limpa vive neste processo. Se o painel fechar a meio -- ou se
+    o processo morrer -- a marca fica "a correr" para sempre e o botao
+    nunca mais voltava. O trinco e a verdade; a marca so serve para
+    mostrar o passo em que ia.
+    """
+    if _ACTUALIZAR.acquire(blocking=False):
+        _ACTUALIZAR.release()
+        return False
+    return True
+
+
 def actualizar_corpus(anos=None):
     """Traz de novo os anos pedidos. Por omissao, o ano corrente e o
     anterior -- e onde entram contratos novos; os anos fechados nao
@@ -4792,7 +4807,7 @@ def espera_corpus():
     """Enquanto a actualizacao corre, a pagina volta a pedir-se sozinha.
     A thread poe sempre um estado terminal (ok/falhou), por isso isto
     para -- nao fica em ciclo."""
-    if le_marca_corpus("actualizacao", "") != "a correr":
+    if not actualizacao_a_correr():
         return ""
     return "<script>setTimeout(function(){location.reload()},4000)</script>"
 
@@ -4802,7 +4817,13 @@ def barra_corpus(anos):
     estado = le_marca_corpus("actualizacao", "")
     passo = le_marca_corpus("actualizacao_passo", "")
     quando = le_marca_corpus("ultima_importacao", "nunca")
-    if estado == "a correr":
+    a_correr = actualizacao_a_correr()
+    if not a_correr and estado == "a correr":
+        # ficou a meio quando o painel fechou: nao se perde nada (a
+        # importacao substitui o ano inteiro da proxima vez), mas o
+        # estado tem de deixar de mentir
+        estado, passo = "interrompida", ""
+    if a_correr:
         direita = ("<span class='a-correr'>a actualizar&hellip; %s</span>"
                    % html.escape(passo))
     else:
@@ -4815,6 +4836,10 @@ def barra_corpus(anos):
         aviso = ("<div class='cpv-activo' style='border-color:#f0c9c3;"
                  "background:#fbe9e6;color:var(--verm)'>A última "
                  "actualização falhou: %s</div>" % html.escape(passo))
+    elif estado == "interrompida":
+        aviso = ("<div class='cpv-activo'>A última actualização ficou a "
+                 "meio &mdash; o painel foi fechado antes de acabar. Nada "
+                 "se perdeu: carrega outra vez para a repetir.</div>")
     return ("<div class='corpus-barra'>"
             "<span>Corpus do Portal BASE (IMPIC, dados.gov) &middot; "
             "%s contratos de %s &middot; trazido em %s</span>%s</div>%s"
