@@ -39,11 +39,14 @@ python teste_radar.py TestPrefixoCPV.test_divisao_normal # um teste
 
 Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
-`agendar.bat` (cria as tarefas 09h/17h), `historico.bat` (gitk).
+`agendar.bat` (cria as tarefas 09h/17h), `reler.bat` (`--reler`),
+`ensaio.bat` (ensaio-de-leitura), `historico.bat` (gitk),
+`desinstalar.bat` (tira as tarefas agendadas). Todos passam pelo
+`_python.bat`, que escolhe o Python da pasta se existir.
 
 ## Arquitectura
 
-Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
+Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
 `# ---`. A ordem do ficheiro é a ordem do fluxo:
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
@@ -124,6 +127,14 @@ Tudo em **`radar.py`** (~3900 linhas), dividido por bandas com cabeçalho
   acaso — **17 segundos** contra 1,5 num filtro por CPV. Pela mesma
   razão, o `LEFT JOIN entidades` vai **depois do `LIMIT`**: antes eram
   68 mil buscas ao índice para mostrar 10 linhas.
+- **As migalhas são `migalhas_de(vista, folha)`.** Os separadores são
+  irmãos, não filhos dos anúncios — começar tudo por `Anúncios ›` punha
+  os contratos e os indicadores dentro da lista de anúncios. E o
+  "Verificar agora" só aparece onde há anúncios.
+- **Os números levam espaço inquebrável** (U+00A0) nos milhares, nos
+  três formatadores (`mil_pt`, `euros`, `euros_curto`). Com espaço
+  normal o browser parte "1 363 300" ao fim da linha. Há um teste que
+  os obriga a concordar.
 - **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
   põe um `data-de` no `<details>` e o JS lê dali a rota
   (`/cpv.json?de=anuncios|contratos`); `FONTES_CPV` diz de onde se conta.

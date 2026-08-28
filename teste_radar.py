@@ -1509,17 +1509,32 @@ class TestEurosCurto(unittest.TestCase):
     """Nos gráficos, "1 661 400 000 €" não se lê de relance."""
 
     def test_escalas(self):
-        self.assertEqual(radar.euros_curto(1661400000), "1,7 mM€")
-        self.assertEqual(radar.euros_curto(35800000), "35,8 M€")
-        self.assertEqual(radar.euros_curto(9500), "9,5 k€")
-        self.assertEqual(radar.euros_curto(420), "420 €")
+        self.assertEqual(radar.euros_curto(1661400000), "1,7 mM€")
+        self.assertEqual(radar.euros_curto(35800000), "35,8 M€")
+        self.assertEqual(radar.euros_curto(9500), "9,5 k€")
+        self.assertEqual(radar.euros_curto(420), "420 €")
 
     def test_virgula_decimal_a_portuguesa(self):
         self.assertNotIn(".", radar.euros_curto(35800000))
 
     def test_zero_e_none_nao_rebentam(self):
-        self.assertEqual(radar.euros_curto(0), "0 €")
-        self.assertEqual(radar.euros_curto(None), "0 €")
+        self.assertEqual(radar.euros_curto(0), "0 €")
+        self.assertEqual(radar.euros_curto(None), "0 €")
+
+
+class TestEspacoInquebravel(unittest.TestCase):
+    """Os milhares separam-se com espaco inquebravel (U+00A0), nao com um
+    espaco normal: com espaco normal o browser parte "1 363 300" ao fim
+    da linha e fica meio numero em cada uma. Os tres formatadores tem de
+    concordar -- o cabecalho usava um e o resto do painel o outro.
+    """
+
+    def test_os_tres_usam_o_inquebravel(self):
+        for saiu in (radar.mil_pt(1363300), radar.euros(1234567),
+                     radar.euros_curto(35800000)):
+            with self.subTest(saiu=saiu):
+                self.assertIn(" ", saiu)
+                self.assertNotIn(" ", saiu)
 
 
 class TestTrimestre(unittest.TestCase):
@@ -1588,11 +1603,19 @@ class TestEscaloes(unittest.TestCase):
     def test_a_mediana_e_o_escalao_que_passa_metade(self):
         # 10 + 10 = 20 de 40; a metade cai no segundo escalão
         saiu = radar.escaloes_html(self.escaloes([10, 10, 10, 10, 0, 0]))
-        self.assertIn("Metade fica em <b>5 – 25 k€</b>", saiu)
+        self.assertIn("Metade fica em <b>%s</b>" % radar.ESCALOES[1], saiu)
 
     def test_a_maioria_no_primeiro_escalao_puxa_a_mediana_para_la(self):
         saiu = radar.escaloes_html(self.escaloes([90, 5, 5, 0, 0, 0]))
-        self.assertIn("Metade fica em <b>&lt; 5 k€</b>", saiu)
+        self.assertIn("Metade fica em <b>%s</b>"
+                      % radar.ESCALOES[0].replace("<", "&lt;"), saiu)
+
+    def test_as_etiquetas_e_o_sql_tem_a_mesma_escada(self):
+        # os limites vivem em dois sítios (um é CASE, o outro é texto);
+        # mudar um sem o outro dava barras com etiquetas erradas
+        self.assertEqual(len(radar.ESCALOES), len(radar.LIMITES_ESCALAO) + 1)
+        self.assertEqual(sorted(radar.LIMITES_ESCALAO),
+                         list(radar.LIMITES_ESCALAO))
 
     def test_escaloes_em_falta_nao_rebentam(self):
         # o SQL só devolve os escalões com contratos; os vazios faltam
@@ -1668,7 +1691,7 @@ class TestDestaqueNasBarras(unittest.TestCase):
         # os escalões contam contratos, não euros
         saiu = radar.barras_v([{"t": "A", "v": 64313.0, "k": 64313}], "x",
                               fmt=radar.mil_pt_f)
-        self.assertIn("64 313", saiu)
+        self.assertIn("64 313", saiu)
         self.assertNotIn("€", saiu)
 
 

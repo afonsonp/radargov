@@ -2736,13 +2736,11 @@ aside{width:236px;flex:none;background:var(--ink);color:#fff;display:flex;
  letter-spacing:.08em;margin-top:6px;text-transform:uppercase}
 .marca .meta{font:400 10.5px/1.4 var(--mono);color:rgba(255,255,255,.3);margin-top:9px}
 aside nav{padding:14px 10px;display:flex;flex-direction:column;gap:2px}
-aside nav a{display:flex;align-items:center;justify-content:space-between;gap:10px;
+aside nav a{display:flex;align-items:center;gap:10px;
  padding:9px 12px;border-radius:7px;color:rgba(255,255,255,.62)}
 aside nav a:hover{background:rgba(255,255,255,.09);color:#fff}
 aside nav a.on{background:rgba(255,255,255,.08);color:#fff}
 aside nav a b{font:500 13.5px/1.2 var(--sans)}
-aside nav a i{font:500 9.5px/1 var(--mono);font-style:normal;color:rgba(255,255,255,.28)}
-aside nav a.on i{color:rgba(255,255,255,.55)}
 .caixa{margin:16px 14px 0;padding:12px 13px;border-radius:8px;background:rgba(255,255,255,.05)}
 .caixa .r{font:500 9.5px/1 var(--sans);color:rgba(255,255,255,.4);
  text-transform:uppercase;letter-spacing:.09em}
@@ -2865,6 +2863,14 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
  background:#fff;font:500 12px/1 var(--sans);color:var(--t3);
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .ent-atalhos a:hover{border-color:var(--ink);color:var(--ink)}
+.ent-filtros{margin-bottom:14px}
+.periodos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+ flex-basis:100%;margin-top:2px}
+.periodos span{font:400 11px/1 var(--sans);color:var(--t6);margin-right:2px}
+.periodos a{padding:6px 11px;border:1px solid var(--linha);border-radius:99px;
+ background:var(--creme);font:500 11.5px/1 var(--sans);color:var(--t4)}
+.periodos a:hover{border-color:var(--t6);color:var(--ink)}
+.periodos a.on{background:var(--azul);border-color:var(--azul);color:#fff}
 .graf-corpo.solto{padding:0}
 .bh .t a{color:var(--azul)}
 .bh .t a:hover{color:var(--ink);text-decoration:underline}
@@ -3260,8 +3266,8 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <aside>
  <div class="marca">
   <div class="logo">Radar<span>DR</span></div>
-  <div class="sub">DR II série &middot; parte L</div>
-  <div class="meta">localhost:%(porta)d &middot; %(total_fmt)s anúncios</div>
+  <div class="sub">%(fontes)s</div>
+  <div class="meta">localhost:%(porta)d &middot; %(acervo)s</div>
  </div>
  <nav>%(nav)s</nav>
  <div class="caixa">
@@ -3295,11 +3301,31 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 %(script)s
 </body></html>"""
 
-NAV = (("anuncios", "Anúncios", "/", "/"),
-       ("contratos", "Contratos", "/contratos", "/contratos"),
-       ("quadro", "Quadro", "/quadro", "/quadro"),
-       ("calendario", "Calendário", "/calendario", "/calendario"),
-       ("indicadores", "Indicadores", "/indicadores", "/indicadores"))
+# (chave da vista, etiqueta, destino). A rota deixou de aparecer ao lado
+# do nome: era ruido de programador num painel que e para trabalhar.
+NAV = (("anuncios", "Anúncios", "/"),
+       ("contratos", "Contratos", "/contratos"),
+       ("quadro", "Quadro", "/quadro"),
+       ("calendario", "Calendário", "/calendario"),
+       ("indicadores", "Indicadores", "/indicadores"))
+
+
+def migalhas_de(vista, folha=""):
+    """As migalhas de uma pagina, a partir do separador em que ela vive.
+
+    Os separadores sao irmaos, nao filhos dos anuncios: antes, todas as
+    paginas comecavam por "Anúncios ›", o que punha os contratos, o
+    quadro e os indicadores dentro da lista de anuncios. Cada pagina
+    comeca agora no seu separador, e so as fichas e que penduram uma
+    folha por baixo dele.
+    """
+    for chave, etiqueta, destino in NAV:
+        if chave == vista:
+            if not folha:
+                return "<em>%s</em>" % html.escape(etiqueta)
+            return ("<a href='%s'>%s</a><s>&rsaquo;</s><em>%s</em>"
+                    % (destino, html.escape(etiqueta), html.escape(folha)))
+    return "<em>%s</em>" % html.escape(folha or "Radar")
 
 
 def accao(destino, etiqueta, classe="bt", confirmar=""):
@@ -3330,10 +3356,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     quem = quem_sou()
 
     itens = []
-    for chave, etiqueta, destino, rota in NAV:
-        itens.append("<a class='%s' href='%s'><b>%s</b><i>%s</i></a>"
+    for chave, etiqueta, destino in NAV:
+        itens.append("<a class='%s' href='%s'><b>%s</b></a>"
                      % ("on" if chave == activo else "", destino,
-                        html.escape(etiqueta), html.escape(rota)))
+                        html.escape(etiqueta)))
 
     mensagem = le_marca("ultima_mensagem", "ainda não verificou")
     quando = le_marca("ultima_verificacao", "nunca")
@@ -3341,7 +3367,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
               if quando != "nunca" else "ainda não verificou")
 
     if not migalhas:
-        migalhas = "<a href='/'>Anúncios</a>"
+        migalhas = migalhas_de(activo)
 
     # Aviso de uma accao acabada de fazer, passado no proprio
     # redireccionamento. Nao vai para a base: e da vez, nao do sistema --
@@ -3350,10 +3376,17 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     aviso = ("<div class='flash'>%s</div>" % html.escape(texto_aviso)) \
         if texto_aviso else ""
 
+    n_corpus = ha_corpus()
     return BASE % {
         "titulo_aba": html.escape(titulo_aba or titulo),
         "css": CSS, "porta": PORTA,
-        "total_fmt": "{:,}".format(total).replace(",", " "),
+        # A aplicacao passou a ter duas fontes e o cabecalho so falava
+        # do DR: num separador de contratos, dizer "parte L" e mentira.
+        "fontes": ("Anúncios do DR &middot; contratos do BASE" if n_corpus
+                   else "DR II série &middot; parte L"),
+        "acervo": ("%s anúncios &middot; %s contratos"
+                   % (mil_pt(total), mil_pt(n_corpus)) if n_corpus
+                   else "%s anúncios" % mil_pt(total)),
         "nav": "".join(itens),
         "horas": " &middot; ".join(cfg["horas_verificacao"]),
         "ultima": ultima,
@@ -3365,12 +3398,23 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "conteudo": conteudo,
         "abas": abas or "<div class='vazio-topo'></div>",
         "aviso": aviso,
-        "accoes_topo": accao("/verificar", "Verificar agora"),
+        # "Verificar agora" vai ao DR buscar anuncios: so faz sentido
+        # onde os anuncios estao. Nos contratos aparecia ao lado do
+        # "Actualizar contratos" a dizer outra coisa parecida, e nos
+        # indicadores nao dizia nada.
+        "accoes_topo": (accao("/verificar", "Verificar agora")
+                        if activo in ("anuncios", "quadro", "calendario")
+                        else ""),
         "lista_pessoas": "".join("<option value='%s'>" % html.escape(n, quote=True)
                                  for n in listar_pessoas()),
         "script": script,
     }
 
+
+# Tecto do CSV de contratos. Um filtro largo pode apanhar centenas de
+# milhares de linhas, e a folha de calculo do outro lado tambem tem
+# limites -- mais vale um ficheiro que abre do que um que rebenta.
+TECTO_CSV = 50000
 
 # Quantas linhas a lista mostra de uma vez. E um limite de apresentacao,
 # nao da base: o filtro apanha o que apanhar, a pagina mostra 20 e o
@@ -3767,7 +3811,7 @@ def painel():
 
     filtros = (
         "<form class='cx filtros' method='get' action='/'>"
-        "<input type='text' name='q' value='%s' placeholder='Nome do concurso ou objeto…'>"
+        "<input type='text' name='q' value='%s' placeholder='Nome do concurso ou objecto…'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade adjudicante…'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<select name='plat'>%s</select>"
@@ -4359,24 +4403,34 @@ def resumo_contratos(args):
             "SELECT c.tipo_procedimento p, COUNT(*) k, "
             "SUM(c.preco_contratual) v FROM contratos c" + onde +
             " GROUP BY p ORDER BY v DESC LIMIT 8", valores).fetchall()
+        # Por trimestre enquanto couberem; com sete anos sao 27 barras e
+        # os rotulos deixam de se ler, e entao agrupa-se por ano. A
+        # legenda diz qual e -- um grafico que muda de unidade sem avisar
+        # e pior do que um grafico apertado.
         trim = c.execute(
             "SELECT substr(c.data_celebracao,1,4) || ' T' || "
             "  ((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3) t, "
             "COUNT(*) k, SUM(c.preco_contratual) v FROM contratos c" + onde +
             " AND c.data_celebracao!='' GROUP BY t ORDER BY t", valores).fetchall()
+        if len(trim) > MAX_BARRAS_TEMPO:
+            trim = c.execute(
+                "SELECT substr(c.data_celebracao,1,4) t, COUNT(*) k, "
+                "SUM(c.preco_contratual) v FROM contratos c" + onde +
+                " AND c.data_celebracao!='' GROUP BY t ORDER BY t",
+                valores).fetchall()
         # Escaloes de valor em vez da mediana exacta: ordenar 400 mil
         # precos para tirar o do meio levava 953 ms, e a pergunta a que
         # isto responde -- "ha aqui contratos do meu tamanho?" -- le-se
         # melhor na distribuicao do que num numero solto. A mediana sai
         # depois do escalao onde cai a contagem acumulada.
+        # o CASE sai dos mesmos limites que as etiquetas, para nao se
+        # mudar um sem o outro
+        escada = " ".join("WHEN c.preco_contratual < %d THEN %d" % (lim, i)
+                          for i, lim in enumerate(LIMITES_ESCALAO))
         escal = c.execute(
-            "SELECT CASE"
-            " WHEN c.preco_contratual < 5000 THEN 0"
-            " WHEN c.preco_contratual < 25000 THEN 1"
-            " WHEN c.preco_contratual < 75000 THEN 2"
-            " WHEN c.preco_contratual < 200000 THEN 3"
-            " WHEN c.preco_contratual < 1000000 THEN 4 ELSE 5 END e,"
-            " COUNT(*) k, SUM(c.preco_contratual) v FROM contratos c" + onde +
+            "SELECT CASE %s ELSE %d END e, COUNT(*) k, "
+            "SUM(c.preco_contratual) v FROM contratos c"
+            % (escada, len(LIMITES_ESCALAO)) + onde +
             " AND c.preco_contratual > 0 GROUP BY e ORDER BY e",
             valores).fetchall()
     return ganha, compra, proc, trim, escal
@@ -4397,13 +4451,41 @@ def entidade_por_nome(nome):
     return r["chave"] if r else ""
 
 
-def ficha_entidade(chave):
+# Os campos que a propria ficha da entidade aceita. Sao os da lista de
+# contratos menos os que ja estao respondidos pela ficha (a entidade) e
+# menos os que nao fazem sentido aqui.
+CAMPOS_FICHA = ("q", "cpv", "proc", "de", "ate", "min")
+
+
+def filtro_da_ficha(args):
+    """Traduz os filtros da ficha da entidade em SQL, para se somarem a
+    entidade. Reaproveita a condicoes_contratos() e tira-lhe o `1=1`."""
+    if not args:
+        return "", []
+    limpos = {c: args.get(c) for c in CAMPOS_FICHA if (args.get(c) or "").strip()}
+    if not limpos:
+        return "", []
+    onde, valores = condicoes_contratos(limpos)
+    return onde.replace(" WHERE 1=1", "", 1), valores
+
+
+def ha_filtro_na_ficha(args):
+    return any((args.get(campo) or "").strip() for campo in CAMPOS_FICHA)
+
+
+def ficha_entidade(chave, args=None):
     """Tudo o que o corpus sabe sobre uma entidade, nos dois papeis.
 
     A mesma entidade compra e ganha -- um municipio adjudica obras e
     ganha candidaturas -- e por isso a ficha tem os dois lados em vez de
     haver uma pagina de compradores e outra de fornecedores.
+
+    O `args` sao os filtros da propria ficha (objecto, CPV, procedimento,
+    datas, valor), que se somam a entidade em todos os blocos. Sem eles,
+    uma entidade com 2000 contratos obrigava a sair para a lista para
+    perguntar o que quer que fosse.
     """
+    e, ev = filtro_da_ficha(args)
     with liga_corpus() as c:
         ident = c.execute("SELECT * FROM entidades WHERE chave=?",
                           (chave,)).fetchone()
@@ -4411,77 +4493,102 @@ def ficha_entidade(chave):
             return None
         d = {"chave": chave, "nome": ident["nome"], "nif": ident["nif"],
              "variantes": ident["variantes"]}
+        # os nomes e as datas do acervo sao da entidade, nao do filtro:
+        # sao identidade, e mudarem com o filtro so confundia
         d["nomes"] = [r["nome_norm"] for r in c.execute(
             "SELECT nome_norm FROM entidade_nomes WHERE chave=? "
             "ORDER BY nome_norm LIMIT 40", (chave,))]
 
         # --- como comprador
         d["compra"] = c.execute(
-            "SELECT COUNT(*) k, COALESCE(SUM(preco_contratual),0) v, "
-            "MIN(data_celebracao) de, MAX(data_celebracao) ate "
-            "FROM contratos WHERE adjudicante_chave=?", (chave,)).fetchone()
+            "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual),0) v "
+            "FROM contratos c WHERE c.adjudicante_chave=?" + e,
+            [chave] + ev).fetchone()
         d["fornecedores"] = c.execute(
             "WITH p AS (SELECT a.chave ch, SUM(c.preco_contratual/c.n_adj) v, "
             " COUNT(*) k FROM contratos c JOIN contrato_adjudicatario a "
-            " ON a.contrato_id=c.id WHERE c.adjudicante_chave=? "
+            " ON a.contrato_id=c.id WHERE c.adjudicante_chave=?" + e +
             " GROUP BY +a.chave ORDER BY v DESC LIMIT 10) "
-            "SELECT p.ch, COALESCE(e.nome,p.ch) n, p.v, p.k FROM p "
-            "LEFT JOIN entidades e ON e.chave=p.ch ORDER BY p.v DESC",
-            (chave,)).fetchall()
+            "SELECT p.ch, COALESCE(x.nome,p.ch) n, p.v, p.k FROM p "
+            "LEFT JOIN entidades x ON x.chave=p.ch ORDER BY p.v DESC",
+            [chave] + ev).fetchall()
         d["compra_proc"] = c.execute(
-            "SELECT tipo_procedimento p, COUNT(*) k, SUM(preco_contratual) v "
-            "FROM contratos WHERE adjudicante_chave=? GROUP BY p "
-            "ORDER BY v DESC LIMIT 8", (chave,)).fetchall()
+            "SELECT c.tipo_procedimento p, COUNT(*) k, "
+            "SUM(c.preco_contratual) v FROM contratos c "
+            "WHERE c.adjudicante_chave=?" + e +
+            " GROUP BY p ORDER BY v DESC LIMIT 8", [chave] + ev).fetchall()
         d["compra_cpv"] = c.execute(
             "SELECT v.cpv8 cod, COUNT(*) k, SUM(c.preco_contratual/"
             " (SELECT COUNT(*) FROM contrato_cpv x WHERE x.contrato_id=c.id)) v "
             "FROM contratos c JOIN contrato_cpv v ON v.contrato_id=c.id "
-            "WHERE c.adjudicante_chave=? GROUP BY v.cpv8 "
-            "ORDER BY v DESC LIMIT 10", (chave,)).fetchall()
+            "WHERE c.adjudicante_chave=?" + e +
+            " GROUP BY v.cpv8 ORDER BY v DESC LIMIT 10",
+            [chave] + ev).fetchall()
 
         # --- como fornecedor
         d["ganha"] = c.execute(
-            "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual/c.n_adj),0) v, "
-            "MIN(c.data_celebracao) de, MAX(c.data_celebracao) ate "
+            "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual/c.n_adj),0) v "
             "FROM contratos c JOIN contrato_adjudicatario a "
-            "ON a.contrato_id=c.id WHERE a.chave=?", (chave,)).fetchone()
+            "ON a.contrato_id=c.id WHERE a.chave=?" + e,
+            [chave] + ev).fetchone()
         d["clientes"] = c.execute(
             "WITH p AS (SELECT c.adjudicante_chave ch, "
             " SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k "
             " FROM contratos c JOIN contrato_adjudicatario a "
-            " ON a.contrato_id=c.id WHERE a.chave=? "
+            " ON a.contrato_id=c.id WHERE a.chave=?" + e +
             " GROUP BY +c.adjudicante_chave ORDER BY v DESC LIMIT 10) "
-            "SELECT p.ch, COALESCE(e.nome,p.ch) n, p.v, p.k FROM p "
-            "LEFT JOIN entidades e ON e.chave=p.ch ORDER BY p.v DESC",
-            (chave,)).fetchall()
+            "SELECT p.ch, COALESCE(x.nome,p.ch) n, p.v, p.k FROM p "
+            "LEFT JOIN entidades x ON x.chave=p.ch ORDER BY p.v DESC",
+            [chave] + ev).fetchall()
         d["ganha_cpv"] = c.execute(
             "SELECT v.cpv8 cod, COUNT(*) k, SUM(c.preco_contratual/c.n_adj/"
             " (SELECT COUNT(*) FROM contrato_cpv x WHERE x.contrato_id=c.id)) v "
             "FROM contratos c JOIN contrato_adjudicatario a "
             " ON a.contrato_id=c.id JOIN contrato_cpv v ON v.contrato_id=c.id "
-            "WHERE a.chave=? GROUP BY v.cpv8 ORDER BY v DESC LIMIT 10",
-            (chave,)).fetchall()
-        d["ganha_trim"] = c.execute(
-            "SELECT substr(c.data_celebracao,1,4) || ' T' || "
-            " ((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3) t, "
-            "COUNT(*) k, SUM(c.preco_contratual/c.n_adj) v "
-            "FROM contratos c JOIN contrato_adjudicatario a "
-            "ON a.contrato_id=c.id WHERE a.chave=? AND c.data_celebracao!='' "
-            "GROUP BY t ORDER BY t", (chave,)).fetchall()
+            "WHERE a.chave=?" + e +
+            " GROUP BY v.cpv8 ORDER BY v DESC LIMIT 10",
+            [chave] + ev).fetchall()
+        d["ganha_trim"] = _evolucao_de(
+            c, "JOIN contrato_adjudicatario a ON a.contrato_id=c.id "
+               "WHERE a.chave=?", "c.preco_contratual/c.n_adj",
+            [chave] + ev, e)
+        d["compra_trim"] = _evolucao_de(
+            c, "WHERE c.adjudicante_chave=?", "c.preco_contratual",
+            [chave] + ev, e)
         d["recentes"] = c.execute(
             "SELECT c.id, c.data_celebracao, c.objecto, c.preco_contratual, "
             "c.tipo_procedimento, c.adjudicante_chave, "
-            "COALESCE(e.nome,c.adjudicante) outro, 'ganhou' papel "
+            "COALESCE(x.nome,c.adjudicante) outro "
             "FROM contratos c JOIN contrato_adjudicatario a "
             " ON a.contrato_id=c.id "
-            "LEFT JOIN entidades e ON e.chave=c.adjudicante_chave "
-            "WHERE a.chave=? ORDER BY c.data_celebracao DESC LIMIT 12",
-            (chave,)).fetchall()
+            "LEFT JOIN entidades x ON x.chave=c.adjudicante_chave "
+            "WHERE a.chave=?" + e +
+            " ORDER BY c.data_celebracao DESC LIMIT 12",
+            [chave] + ev).fetchall()
     return d
 
 
-ESCALOES = ("< 5 k€", "5 – 25 k€", "25 – 75 k€", "75 – 200 k€",
-            "200 k€ – 1 M€", "> 1 M€")
+def _evolucao_de(c, juncao, valor, params, extra):
+    """A serie do tempo de um lado da ficha, por trimestre ou por ano.
+    Mesma regra do resumo: acima de MAX_BARRAS_TEMPO passa a anos."""
+    base = ("SELECT %s t, COUNT(*) k, SUM(" + valor + ") v FROM contratos c "
+            + juncao + extra + " AND c.data_celebracao!='' "
+            "GROUP BY t ORDER BY t")
+    tri = ("substr(c.data_celebracao,1,4) || ' T' || "
+           "((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3)")
+    linhas = c.execute(base % tri, params).fetchall()
+    if len(linhas) > MAX_BARRAS_TEMPO:
+        linhas = c.execute(base % "substr(c.data_celebracao,1,4)",
+                           params).fetchall()
+    return linhas
+
+
+# Escaloes de valor, escolhidos pelo Afonso a olhar para o mercado que
+# lhe interessa. O SQL do resumo tem de os seguir: os limites estao nos
+# dois sitios porque um e CASE e o outro e texto, mas sao a mesma escada.
+ESCALOES = ("< 20 k€", "20 – 75 k€", "75 – 250 k€", "250 – 750 k€",
+            "750 k€ – 1 M€", "> 1 M€")
+LIMITES_ESCALAO = (20000, 75000, 250000, 750000, 1000000)
 
 
 def escaloes_html(escal):
@@ -4579,6 +4686,30 @@ def barras_h(linhas, titulo, nota="", ligar=False):
                "".join(corpo)))
 
 
+# Acima disto, o eixo do tempo passa de trimestres para anos: com sete
+# anos sao 27 barras e os rotulos deixam de se ler.
+MAX_BARRAS_TEMPO = 16
+
+
+def evolucao_html(linhas, titulo="Evolução"):
+    """O gráfico do tempo, em trimestres ou em anos conforme o que couber.
+
+    O periodo a decorrer vai as riscas nos dois casos: sem isso, o
+    trimestre (ou o ano) corrente aparece como uma queda a pique e a
+    conclusao que se tira dali -- "este mercado secou" -- e falsa.
+    """
+    if not linhas:
+        return ""
+    por_ano = len(linhas[0]["t"]) == 4      # "2026" e nao "2026 T3"
+    agora = datetime.now()
+    return barras_v(
+        linhas, titulo,
+        "Valor celebrado por %s. O %s a decorrer vai às riscas &mdash; "
+        "ainda não acabou." % (("ano", "ano") if por_ano
+                               else ("trimestre", "trimestre")),
+        parcial=str(agora.year) if por_ano else trimestre_de(agora))
+
+
 def trimestre_de(quando):
     """'2026-08-27' -> '2026 T3'. O mesmo formato que o SQL produz."""
     return "%s T%d" % (quando.year, (quando.month + 2) // 3)
@@ -4647,10 +4778,7 @@ def contratos_resumo():
                  "anúncio &mdash; não era concorrível."),
         concentracao_html(ganha),
         escaloes_html(escal),
-        barras_v(trim, "Evolução",
-                 "Valor celebrado por trimestre. O trimestre a decorrer "
-                 "vai às riscas &mdash; ainda não acabou.",
-                 parcial=trimestre_de(datetime.now())),
+        evolucao_html(trim),
     ]
     return Response("".join(partes), mimetype="text/html")
 
@@ -4676,15 +4804,71 @@ def cpv_html(linhas, titulo, nota, ligar):
     return barras_h(itens, titulo, nota, ligar=ligar)
 
 
+def periodos_rapidos():
+    """(etiqueta, de, ate) dos atalhos de tempo da ficha.
+
+    Anos inteiros mais "12 meses" e "3 anos": ver uma entidade so no ano
+    passado, ou so no que vai de ano, e a pergunta que se faz a seguir a
+    abrir a ficha, e obrigar a escrever duas datas para isso era atrito.
+    """
+    hoje = datetime.now().date()
+    fora = [("12 meses", (hoje - timedelta(days=365)).isoformat(),
+             hoje.isoformat()),
+            ("3 anos", (hoje - timedelta(days=3 * 365)).isoformat(),
+             hoje.isoformat())]
+    for ano in range(hoje.year, hoje.year - 4, -1):
+        fora.append((str(ano), "%d-01-01" % ano, "%d-12-31" % ano))
+    return fora
+
+
+def filtros_da_ficha(chave, d):
+    """A caixa de pesquisa da propria ficha, com atalhos de periodo."""
+    def v(nome):
+        return html.escape(request.args.get(nome, ""), quote=True)
+
+    de_agora = (request.args.get("de") or "").strip()
+    ate_agora = (request.args.get("ate") or "").strip()
+    chips = []
+    for etiqueta, de, ate in periodos_rapidos():
+        activo = de_agora == de and ate_agora == ate
+        args = {c: (request.args.get(c) or "").strip()
+                for c in CAMPOS_FICHA if (request.args.get(c) or "").strip()}
+        if activo:                      # carregar de novo tira o periodo
+            args.pop("de", None)
+            args.pop("ate", None)
+        else:
+            args["de"], args["ate"] = de, ate
+        chips.append("<a class='%s' href='/entidade/%s?%s'>%s</a>"
+                     % ("on" if activo else "", quote(chave, safe=""),
+                        urlencode(args), html.escape(etiqueta)))
+
+    limpar = ("<a class='limpar' href='/entidade/%s'>limpar</a>"
+              % quote(chave, safe="")) if ha_filtro_na_ficha(request.args) else ""
+    return (
+        "<form class='cx filtros ent-filtros' method='get' action='/entidade/%s'>"
+        "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
+        "<input type='text' name='cpv' value='%s' placeholder='CPV, ex. 72000000'>"
+        "<label>de</label><input type='date' name='de' value='%s'>"
+        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "<input type='text' name='min' value='%s' placeholder='€ mínimo' "
+        "style='min-width:0;width:110px;flex:none'>"
+        "<button type='submit'>Filtrar</button>%s"
+        "<div class='periodos'><span>rápido:</span>%s</div>"
+        "</form>"
+        % (quote(chave, safe=""), v("q"), v("cpv"), v("de"), v("ate"),
+           v("min"), limpar, "".join(chips)))
+
+
 @app.route("/entidade/<path:chave>")
 def entidade(chave):
     if not ha_corpus():
         return sem_corpus_html("Entidade")
-    d = ficha_entidade(chave)
+    d = ficha_entidade(chave, request.args)
     if not d:
         return ("Entidade não encontrada no corpus. "
                 "<a href='/contratos'>voltar</a>", 404)
 
+    filtrada = ha_filtro_na_ficha(request.args)
     compra, ganha = d["compra"], d["ganha"]
     kpis = []
     for etiqueta, quantos, valor, sufixo in (
@@ -4696,16 +4880,22 @@ def entidade(chave):
                     % (etiqueta, euros_curto(valor), mil_pt(quantos),
                        "" if quantos == 1 else "s", sufixo))
 
-    # Ligacoes para a lista, ja filtrada por esta entidade nos dois papeis
+    # Ligacoes para a lista, ja filtrada por esta entidade nos dois
+    # papeis. Levam tambem o filtro da ficha, senao a lista mostrava
+    # outra coisa daquela que se esta a ver.
+    def para_lista(campo):
+        args = {c: v for c, v in ((c, (request.args.get(c) or "").strip())
+                                  for c in CAMPOS_FICHA) if v}
+        args[campo] = chave
+        return "/contratos?" + urlencode(args)
+
     ligacoes = []
     if compra["k"]:
-        ligacoes.append("<a href='/contratos?entid=%s'>ver os %s contratos que "
-                        "adjudicou</a>" % (quote(chave, safe=""),
-                                           mil_pt(compra["k"])))
+        ligacoes.append("<a href='%s'>ver os %s contratos que adjudicou</a>"
+                        % (para_lista("entid"), mil_pt(compra["k"])))
     if ganha["k"]:
-        ligacoes.append("<a href='/contratos?vencid=%s'>ver os %s que "
-                        "ganhou</a>" % (quote(chave, safe=""),
-                                        mil_pt(ganha["k"])))
+        ligacoes.append("<a href='%s'>ver os %s que ganhou</a>"
+                        % (para_lista("vencid"), mil_pt(ganha["k"])))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
 
     blocos = []
@@ -4721,15 +4911,16 @@ def entidade(chave):
             "Como compra",
             "Por tipo de procedimento. O que não é concurso não teve "
             "anúncio &mdash; não era concorrível."))
+        blocos.append(evolucao_html(d["compra_trim"],
+                                    "Quanto adjudicou, ao longo do tempo"))
     if ganha["k"]:
         blocos.append(barras_h(d["clientes"], "A quem vende",
                                "As entidades que mais lhe adjudicaram.",
                                ligar=True))
         blocos.append(cpv_html(d["ganha_cpv"], "O que ganha",
                                "Por CPV, com o valor repartido.", ligar=False))
-        blocos.append(barras_v(d["ganha_trim"], "O que ganhou, por trimestre",
-                               "O trimestre a decorrer vai às riscas.",
-                               parcial=trimestre_de(datetime.now())))
+        blocos.append(evolucao_html(d["ganha_trim"],
+                                    "Quanto ganhou, ao longo do tempo"))
 
     if d["recentes"]:
         linhas_r = "".join(
@@ -4746,6 +4937,13 @@ def entidade(chave):
                     "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
                     "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
                     "<tbody>%s</tbody></table></div>" % linhas_r)
+    elif filtrada:
+        # sem isto, um filtro que nao apanha nada deixava a pagina
+        # aparentemente na mesma, so com os numeros a zero
+        recentes = ("<div class='vazio'>Esta entidade não tem contratos que "
+                    "correspondam ao filtro. "
+                    "<a href='/entidade/%s'>ver tudo</a></div>"
+                    % quote(chave, safe=""))
     else:
         recentes = ""
 
@@ -4768,7 +4966,7 @@ def entidade(chave):
                 else "sem NIF público &mdash; identificada pelo nome",
                 nomes))
 
-    conteudo = ("<div class='larg'>" + ident +
+    conteudo = ("<div class='larg'>" + ident + filtros_da_ficha(chave, d) +
                 "<div class='kpis dois'>" + "".join(kpis) + "</div>" +
                 atalhos + "<div class='graf-corpo solto'>" +
                 "".join(blocos) + "</div>" + recentes + "</div>")
@@ -4777,9 +4975,7 @@ def entidade(chave):
         "contratos", d["nome"],
         "O que esta entidade compra e ganha, segundo o Portal BASE.",
         conteudo,
-        migalhas=("<a href='/'>Anúncios</a><s>&rsaquo;</s>"
-                  "<a href='/contratos'>Contratos</a><s>&rsaquo;</s><em>%s</em>"
-                  % html.escape(d["nome"][:40])),
+        migalhas=migalhas_de("contratos", d["nome"][:44]),
         titulo_aba="%s, Radar de Concursos" % d["nome"][:40])
 
 
@@ -4793,8 +4989,50 @@ def sem_corpus_html(titulo):
         "Corre <code>python radar.py --contratos</code> para o trazer do "
         "dados.gov &mdash; domínio público, sem chave nem sessão. "
         "Dois anos são cerca de dois minutos.</div></div>",
-        migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
+        migalhas=migalhas_de("contratos"),
         titulo_aba="Contratos, Radar de Concursos")
+
+
+@app.route("/contratos/csv")
+def contratos_csv():
+    """Exporta o que o filtro apanhou. Os anuncios ja tinham isto e os
+    contratos nao -- e sao estes que dao trabalho de analise a serio.
+
+    Sem filtro nao exporta: seriam 1,36 milhoes de linhas e meio GB de
+    CSV, que nao e o que ninguem queria pedir.
+    """
+    if not ha_corpus():
+        return redirect("/contratos")
+    if not any((request.args.get(campo) or "").strip()
+               for campo in CAMPOS_FILTRO_CONTRATOS):
+        return redirect("/contratos?aviso=" +
+                        quote("Filtra primeiro: o corpus inteiro não se exporta."))
+    onde, valores = condicoes_contratos(request.args)
+    with liga_corpus() as c:
+        linhas = c.execute(
+            "SELECT c.data_celebracao, c.objecto, "
+            "COALESCE(e.nome, c.adjudicante) adjudicante, "
+            "(SELECT group_concat(COALESCE(g.nome, a.nome), ' + ') "
+            " FROM contrato_adjudicatario a "
+            " LEFT JOIN entidades g ON g.chave=a.chave "
+            " WHERE a.contrato_id=c.id) adjudicatarios, "
+            "c.tipo_procedimento, c.preco_contratual, c.preco_base, "
+            "c.cpv, c.prazo_execucao, c.local_execucao, c.n_anuncio "
+            "FROM contratos c LEFT JOIN entidades e "
+            " ON e.chave=c.adjudicante_chave" + onde +
+            " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ?",
+            valores + [TECTO_CSV]).fetchall()
+    saida = io.StringIO()
+    escritor = csv.writer(saida, delimiter=";")
+    escritor.writerow(["Celebrado", "Objecto", "Entidade adjudicante",
+                       "Quem ganhou", "Procedimento", "Preço contratual",
+                       "Preço base", "CPV", "Prazo (dias)", "Local",
+                       "Anúncio"])
+    for a in linhas:
+        escritor.writerow([a[k] for k in a.keys()])
+    return Response("﻿" + saida.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition":
+                             "attachment; filename=contratos.csv"})
 
 
 @app.route("/contratos/actualizar", methods=["POST"])
@@ -4985,7 +5223,9 @@ def contratos():
         # O somatorio e do filtro todo, nao da pagina: e o numero que diz
         # quanto vale este mercado, e por pagina nao queria dizer nada.
         conta += " &middot; <b>%s</b> no total" % euros(valor)
-        linha_conta = "<div class='linha-conta'>" + conta + "</div>"
+        linha_conta = ("<div class='linha-conta'>" + conta +
+                       "<a href='/contratos/csv?%s'>exportar CSV</a></div>"
+                       % urlencode(args_da_lista(request.args)))
     else:
         linha_conta = ""
 
@@ -5046,7 +5286,7 @@ def contratos():
         "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
         "Não são oportunidades: servem para saber com quem se concorre.",
         conteudo, script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
-        migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
+        migalhas=migalhas_de("contratos"),
         titulo_aba="Contratos, Radar de Concursos")
 
 
@@ -5247,22 +5487,24 @@ def essencial_do_anuncio(a, seccoes, analise=None):
 
 
 def mil_pt(n):
-    """65869 -> '65 869'. Espaco fino a portuguesa, nao virgula."""
-    return "{:,}".format(n).replace(",", " ")
+    """65869 -> '65 869'. A portuguesa, e com espaco inquebravel: com
+    um espaco normal, o browser parte "1 363 300" ao fim da linha e a
+    leitura fica com um numero em cada linha."""
+    return "{:,}".format(int(n)).replace(",", " ")
 
 
 def euros(v):
     """1234567.8 -> '1 234 568 EUR'. Os centimos nao ajudam a decidir."""
-    return "{:,.0f}".format(v or 0).replace(",", " ") + " €"
+    return "{:,.0f}".format(v or 0).replace(",", " ") + " €"
 
 
 def euros_curto(v):
     """Para os graficos, onde '1 661 400 000 EUR' nao se le de relance."""
     v = v or 0
-    for corte, sufixo in ((1e9, " mM€"), (1e6, " M€"), (1e3, " k€")):
+    for corte, sufixo in ((1e9, " mM€"), (1e6, " M€"), (1e3, " k€")):
         if abs(v) >= corte:
             return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
-    return "%.0f €" % v
+    return "%.0f €" % v
 
 
 def mercado(a):
@@ -5577,8 +5819,7 @@ def ficha(ref):
                 "<div class='ficha-dir'>" + prazo_cx + docs_cx + resp_cx +
                 hist_cx + "</div></div></div>")
 
-    migalhas = ("<a href='/'>Anúncios</a><s>&rsaquo;</s><em>/anuncio/%s</em>"
-                % html.escape(ref))
+    migalhas = migalhas_de("anuncios", ref)
     # Enquanto as peças não chegam, a página volta a pedir-se sozinha. O
     # trabalhador põe sempre um estado terminal (ok/parcial/falhou), por
     # isso isto pára -- não fica em ciclo.
@@ -5765,7 +6006,7 @@ def quadro():
                 "<datalist id='etiquetas-existentes'>%s</datalist>"
                 % ("".join(colunas), datalist))
 
-    migalhas = "<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Quadro</em>"
+    migalhas = migalhas_de("quadro")
     return envolver("quadro", "Quadro",
                     "Fases editáveis &middot; só anúncios marcados como "
                     "&ldquo;interessa&rdquo;.",
@@ -5787,7 +6028,7 @@ def calendario():
             "ORDER BY prazo").fetchall()
         fases_por_id = {f["id"]: f["nome"] for f in listar_fases()}
 
-    migalhas = "<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Calendário</em>"
+    migalhas = migalhas_de("calendario")
     envolve = lambda corpo: envolver(
         "calendario", "Calendário",
         "Prazos dos anúncios interessados, %d dias a partir de hoje."
@@ -5868,6 +6109,14 @@ def calendario():
 
 # --------------------------------------------------------- indicadores
 
+def linhas_de_saude(itens, cor_ma="#c0392b"):
+    """As linhas de (rotulo, valor, esta_bem) da coluna dos indicadores."""
+    return "".join(
+        "<div class='l'><span class='ponto' style='background:%s'></span>"
+        "<span class='t'>%s</span><span class='v'>%s</span></div>"
+        % ("#1e8449" if bom else cor_ma, t, v) for t, v, bom in itens)
+
+
 @app.route("/indicadores")
 def indicadores():
     """Numeros sobre a propria base. Sem servicos externos: e tudo SQL
@@ -5899,8 +6148,7 @@ def indicadores():
                                 "WHERE detalhe_lido=1").fetchone()["n"]
         n_docs = c.execute("SELECT COUNT(*) n FROM documentos").fetchone()["n"]
 
-    def mil(n):
-        return "{:,}".format(int(n)).replace(",", " ")
+    mil = mil_pt
 
     kpis = [("Anúncios na base", mil(total), "%s com detalhe lido" % mil(com_detalhe), ""),
             ("Novos hoje", mil(hoje_n), "a parte L publica ~60-70/dia", ""),
@@ -5953,10 +6201,44 @@ def indicadores():
         saude.append(("Base de dados", "%.0f MB &middot; %s" % (tam, modo.upper()), True))
     except OSError:
         pass
-    saude_html = "".join(
-        "<div class='l'><span class='ponto' style='background:%s'></span>"
-        "<span class='t'>%s</span><span class='v'>%s</span></div>"
-        % ("#1e8449" if bom else "#c0392b", t, v) for t, v, bom in saude)
+
+    # O corpus do BASE e a segunda metade da aplicacao, e estava fora
+    # desta pagina -- os indicadores diziam que estava tudo bem sem
+    # sequer olhar para ele.
+    n_corpus = ha_corpus()
+    if n_corpus:
+        with liga_corpus() as c:
+            anos_c = [r["a"] for r in
+                      c.execute("SELECT DISTINCT ano a FROM contratos ORDER BY a")]
+            n_ent = c.execute("SELECT COUNT(*) n FROM entidades").fetchone()["n"]
+        quando = le_marca_corpus("ultima_importacao", "nunca")
+        # o dump e semanal; passar de duas semanas quer dizer que ficou
+        # para tras, e e a unica coisa aqui que pode estar "mal"
+        fresco = True
+        try:
+            dias = (datetime.now()
+                    - datetime.strptime(quando[:10], "%Y-%m-%d")).days
+            fresco = dias <= 14
+            idade = ("hoje" if dias == 0 else
+                     "ontem" if dias == 1 else "há %d dias" % dias)
+        except ValueError:
+            idade = quando
+        corpus = [
+            ("Contratos no corpus", mil(n_corpus), True),
+            ("Anos cobertos", "%d a %d" % (anos_c[0], anos_c[-1])
+             if len(anos_c) > 1 else str(anos_c[0]), True),
+            ("Entidades identificadas", mil(n_ent), True),
+            ("Última importação", idade, fresco),
+            ("Ficheiro do corpus",
+             "%.0f MB" % (os.path.getsize(CORPUS) / (1024.0 * 1024)), True),
+        ]
+    else:
+        corpus = [("Corpus de contratos", "por importar", False)]
+    # o corpus avisa a amarelo e a recolha a vermelho: um corpus velho
+    # e uma coisa a fazer quando der jeito, uma captura expirada e o
+    # radar parado
+    corpus_html = linhas_de_saude(corpus, "#d68910")
+    saude_html = linhas_de_saude(saude)
 
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
@@ -5967,12 +6249,18 @@ def indicadores():
         "<div class='barras'>%s</div></div>"
         "<div class='cx' style='padding:22px 24px'>"
         "<div class='rot' style='margin-bottom:16px'>Estado da recolha</div>"
-        "<div class='saude'>%s</div></div>"
-        "</div></div>" % (kpis_html, barras, saude_html))
+        "<div class='saude'>%s</div>"
+        "<div class='rot' style='margin:22px 0 16px'>Corpus de contratos "
+        "(Portal BASE)</div><div class='saude'>%s</div>"
+        "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
+        "<code>contratos.db</code>. Actualiza-se em "
+        "<a href='/contratos'>Contratos</a>.</div></div>"
+        "</div></div>" % (kpis_html, barras, saude_html, corpus_html))
 
-    migalhas = "<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Indicadores</em>"
+    migalhas = migalhas_de("indicadores")
     return envolver("indicadores", "Indicadores",
-                    "Consultas directas ao radar.db &mdash; sem serviços externos.",
+                    "Consultas directas às duas bases &mdash; os anúncios do "
+                    "DR e o corpus do BASE. Sem serviços externos.",
                     conteudo, migalhas=migalhas,
                     titulo_aba="Indicadores, Radar de Concursos")
 
