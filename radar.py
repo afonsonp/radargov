@@ -4092,6 +4092,14 @@ function arvoreChip() {
 function arvoreAplicar() {
   var campo = document.getElementById('filtro-cpv');
   campo.value = Array.from(ARV_SEL).join('|');
+  // Numa lista, aplicar e pesquisar logo. Num formulario que ainda esta
+  // a ser preenchido -- o "novo filtro" dos alertas -- submeter aqui
+  // mandava o formulario sem o nome, e a escolha do CPV nao dava nada.
+  var det = document.querySelector('details.arvore');
+  if (det && det.dataset.submeter === 'nao') {
+    det.open = false;
+    return;
+  }
   campo.form.submit();
 }
 
@@ -4455,7 +4463,7 @@ def quantos_cpv():
         return c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
 
 
-def arvore_html(n_cpv, de):
+def arvore_html(n_cpv, de, submeter=True):
     """A arvore de CPV, igual nos dois separadores.
 
     O `de` diz de onde vem a contagem de cada codigo (anuncios ou
@@ -4465,7 +4473,7 @@ def arvore_html(n_cpv, de):
     """
     quantos = {"anuncios": "anúncios", "contratos": "contratos"}[de]
     return (
-        "<details class='arvore' data-de='%s'><summary>"
+        "<details class='arvore' data-de='%s'%s><summary>"
         "<span class='arv-tit'>Escolher CPV na árvore</span>"
         "<span class='arv-sub'>%s códigos &middot; contagens acumuladas "
         "de %s</span>"
@@ -4481,7 +4489,8 @@ def arvore_html(n_cpv, de):
         "<div class='arv-pe'>Marcar uma divisão marca visualmente os descendentes; "
         "ao filtro vai só o código do grupo &mdash; os zeros à direita apanham "
         "tudo o que está por baixo.</div>"
-        "</details>" % (de, mil_pt(n_cpv), quantos))
+        "</details>" % (de, "" if submeter else " data-submeter='nao'",
+                        mil_pt(n_cpv), quantos))
 
 
 def prefixo_cpv(pedaco):
@@ -4882,55 +4891,59 @@ def _linha_filtro(f):
 
 
 def _caixa_email(cfg):
-    """O e-mail configura-se aqui, no ecra. So a palavra-passe e que
-    fica de fora, num ficheiro -- o config.json abre-se sem pensar."""
+    """O destino e a hora configuram-se no ecra; a conta que **envia**
+    nao.
+
+    Quem envia sao tres coisas que andam juntas -- endereco, servidor e
+    porta -- e a quarta, a palavra-passe, nunca podia estar aqui. Ter
+    metade no ecra e metade num ficheiro convidava a preencher o ecra e
+    a achar que estava feito. Fica tudo do lado de fora, e o painel
+    mostra o que ja esta posto.
+    """
     e = cfg.get("email") or {}
     tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
-    pronto = bool((e.get("para") or "").strip() and (e.get("de") or "").strip()
-                  and tem_senha)
-
-    def v(k, omissao=""):
-        return html.escape(str(e.get(k) or omissao), quote=True)
-
-    senha_linha = (
-        "<div class='l'><span class='ponto' style='background:%s'></span>"
-        "<span class='t'>Palavra-passe</span><span class='v'>%s</span></div>"
-        % ("#1e8449" if tem_senha else "#d68910",
-           "lida de email_senha.txt" if tem_senha
-           else "cria o ficheiro <code>email_senha.txt</code> na pasta"))
+    tem_conta = bool((e.get("de") or "").strip() and (e.get("servidor") or "").strip())
+    pronto = bool((e.get("para") or "").strip() and tem_conta and tem_senha)
     estado = le_marca("ultimo_resumo_estado", "")
+
+    envio = [
+        ("Conta que envia", e.get("de") or "por configurar", tem_conta),
+        ("Servidor", "%s:%s" % (e.get("servidor") or "—", e.get("porta") or "—"),
+         tem_conta),
+        ("Palavra-passe",
+         "lida de email_senha.txt" if tem_senha
+         else "falta o ficheiro email_senha.txt", tem_senha),
+    ]
+    if estado:
+        envio.append(("Último envio", html.escape(estado),
+                      not estado.startswith("por enviar")))
 
     return (
         "<div class='cx conf-email'>"
         "<div class='rot'>Resumo por e-mail</div>"
         "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
-        "da hora marcada, e só se houver novidade. O destino pode ser "
-        "qualquer endereço; quem <b>envia</b> é que precisa de conta. No "
-        "Gmail a palavra-passe tem de ser uma <b>palavra-passe de "
-        "aplicação</b>, não a da conta.</div>"
+        "da hora marcada, e só se houver novidade.</div>"
         "<form class='form-email' method='post' action='/alertas/email'>"
         "<label>Enviar para<input type='email' name='para' value='%s' "
         "placeholder='o.teu@email.pt'></label>"
-        "<label>Conta que envia<input type='email' name='de' value='%s' "
-        "placeholder='conta@gmail.com'></label>"
-        "<label>Servidor SMTP<input type='text' name='servidor' value='%s'></label>"
-        "<label>Porta<input type='text' name='porta' value='%s'></label>"
-        "<label>Hora do resumo<input type='time' name='hora_resumo' value='%s'></label>"
+        "<label>Hora do resumo<input type='time' name='hora_resumo' "
+        "value='%s'></label>"
         "<button type='submit' class='bt forte'>Guardar</button>"
-        "</form>%s"
-        "<div class='saude' style='margin-top:16px'>%s</div>"
-        "%s%s</div>"
-        % (v("para"), v("de"), v("servidor", "smtp.gmail.com"),
-           v("porta", "587"), v("hora_resumo", "17:00"),
-           "", senha_linha,
-           ("<div style='margin-top:14px'>%s</div>"
+        "</form>"
+        "<div class='rot' style='margin:22px 0 6px'>Quem envia</div>"
+        "<div class='nota' style='margin-bottom:14px'>Configura-se fora do "
+        "painel, no <code>config.json</code> e no <code>email_senha.txt</code> "
+        "&mdash; uma palavra-passe não se escreve num ecrã que fica aberto.</div>"
+        "<div class='saude'>%s</div>%s</div>"
+        % (html.escape(str(e.get("para") or ""), quote=True),
+           html.escape(str(e.get("hora_resumo") or "17:00"), quote=True),
+           linhas_de_saude(envio, "#d68910"),
+           ("<div style='margin-top:16px'>%s</div>"
             % accao("/alertas/enviar", "Enviar o resumo agora", "bt")
             if pronto else
-            "<div class='nota' style='margin-top:14px'>Sem e-mail "
-            "configurado o radar continua a escrever o "
-            "<code>AVISOS.txt</code> na pasta.</div>"),
-           ("<div class='nota' style='margin-top:10px'>Último envio: %s</div>"
-            % html.escape(estado)) if estado else ""))
+            "<div class='nota' style='margin-top:14px'>Enquanto não estiver "
+            "pronto, o radar escreve o <code>AVISOS.txt</code> na pasta e a "
+            "lista aqui em baixo mostra o mesmo.</div>")))
 
 
 @app.route("/alertas")
@@ -4977,13 +4990,17 @@ def alertas():
         "<input type='text' name='nome' required maxlength='60' "
         "placeholder='nome do filtro…'>"
         "<input type='text' name='q' placeholder='Objecto…'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value=''>"
+        # a ver e nao escondido: aqui nao ha lista por baixo a mostrar o
+        # resultado, e sem isto nao se sabia o que a arvore tinha posto
+        "<input type='text' id='filtro-cpv' name='cpv' value='' readonly "
+        "placeholder='CPV — escolhe na árvore aqui em baixo'>"
         "<input type='text' name='ent' placeholder='Entidade (anúncios)…'>"
         "<input type='text' name='ganhou' placeholder='Quem ganhou (contratos)…'>"
         "<label>de</label><input type='date' name='de'>"
         "<label>até</label><input type='date' name='ate'>"
         "<button type='submit'>Criar filtro</button>"
-        "</form>%s</div>" % arvore_html(quantos_cpv(), "anuncios"))
+        "</form>%s</div>"
+        % arvore_html(quantos_cpv(), "anuncios", submeter=False))
 
     if ultimos:
         hist = "".join(
@@ -5038,12 +5055,11 @@ def alerta_criar():
 
 @app.route("/alertas/email", methods=["POST"])
 def alertas_email():
-    porta = (request.form.get("porta") or "587").strip()
+    """So o destino e a hora. A conta que envia nao passa por aqui: um
+    formulario que a aceitasse convidava a preencher meia configuracao e
+    a achar que estava feita, com a palavra-passe sempre de fora."""
     gravar_config({"email": {
         "para": (request.form.get("para") or "").strip(),
-        "de": (request.form.get("de") or "").strip(),
-        "servidor": (request.form.get("servidor") or "").strip(),
-        "porta": int(porta) if porta.isdigit() else 587,
         "hora_resumo": (request.form.get("hora_resumo") or "17:00").strip(),
     }})
     return redirect("/alertas?aviso=" + quote("Configuração do e-mail guardada."))
