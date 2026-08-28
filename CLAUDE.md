@@ -173,15 +173,23 @@ Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
   1,36 milhões de contratos e 1,2 GB — e refaz-se com `--contratos`. O
   endereço do dump muda todas as semanas: resolve-se sempre pela API do
   dados.gov, nunca se guarda.
-- **Um filtro guardado é uma query string, não SQL.** A tabela
-  `filtros_guardados` guarda o que `filtro_actual()` produz, e aplicá-lo
-  é seguir uma ligação. Duas coisas seguram isto e não se mexem: a ordem
-  dos campos é fixa (é ela que deixa reconhecer o filtro em uso por
-  igualdade de texto) e o `estado` entra **sempre**, mesmo vazio —
-  ausente é "por ver", vazio é "todos", como em `condicoes()`. Cada
-  separador tem a sua lista em `VISTAS` (campos + rota), e a unicidade é
-  por `(vista, nome)`. Campo novo? Acrescenta-o à lista da vista; se for
-  da vez e não do filtro, a `CAMPOS_DA_VEZ`.
+- **Um filtro guardado é uma query string, não SQL, e não pertence a
+  separador nenhum.** Guarda os campos que tiver (`CAMPOS_FILTRO`, ordem
+  fixa — é ela que deixa reconhecer o filtro em uso por igualdade de
+  texto), e cada página aplica os que entende (`CAMPOS_POR_VISTA`).
+  `filtro_para(consulta, vista)` devolve a parte aplicável **e os campos
+  que ficaram de fora**: esses nunca caem em silêncio — o chip fica
+  marcado como parcial e um alerta com eles avisa só pela parte que
+  serve, e diz que o faz. Aplicar "ganho por MEO" aos anúncios, onde não
+  há vencedor, seria alargar o filtro sem avisar.
+- **O `estado` entra sempre no filtro dos anúncios, mesmo vazio** —
+  ausente é "por ver", vazio é "todos", como em `condicoes()`.
+- **Um alerta é um filtro com a marca posta.** Geridos em `/alertas`, que
+  é também onde se criam e onde se configura o e-mail. `registar_alertas()`
+  anota o que corresponde e `enviar_resumo()` manda uma vez por dia — o
+  reconhecer e o enviar são separados de propósito, porque a verificação
+  corre duas vezes. Ao ligar um alerta, o acervo que já lá está fica
+  marcado como `ACERVO`, senão o primeiro resumo trazia tudo.
 - **Os campos de entidade dos contratos são `entid`/`vencid`.** Nos
   anúncios `ent` é a caixa de texto da entidade — nomes iguais com
   sentidos diferentes já estiveram a um passo de se cruzar.
