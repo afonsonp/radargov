@@ -24,6 +24,7 @@ import os
 import re
 import queue
 import shlex
+import subprocess
 import sqlite3
 import sys
 import tempfile
@@ -61,6 +62,10 @@ CONFIG_INICIAL = {
     "recuperar_slot_falhado": True,
     "abrir_browser_ao_encontrar": False,
     "detalhes_por_volta": 40,
+    # Copia do radar.db antes de cada verificacao. So a triagem e o
+    # historico e que nao se recuperam de lado nenhum.
+    "copia_de_seguranca": True,
+    "copias_a_guardar": 7,
     # A rotina so le o detalhe dos anuncios publicados nesta janela.
     # Entre publicacao e prazo vao ~18 dias em media, por isso mais atras
     # que isto ja fechou: o CPV desses so interessa como historico, e
@@ -1950,9 +1955,86 @@ def guardar(colhidos, cfg=None):
     return novos
 
 
+# As tarefas que o agendar.bat cria. Se nao existirem, o radar so
+# recolhe com o painel aberto -- e como o relogio interno recupera os
+# slots falhados, a tabela `slots` fica preenchida e parece que correu a
+# horas. Foi assim que isto passou semanas sem se notar.
+TAREFAS = ("Radar DR 09h", "Radar DR 17h")
+_TAREFAS_VISTAS = None
+
+
+def tarefas_em_falta():
+    """Quais das tarefas do Windows nao estao criadas.
+
+    A resposta guarda-se: e um subprocesso, e o painel monta paginas
+    muitas vezes. Fora do Windows devolve vazio -- nao ha o que avisar.
+    """
+    global _TAREFAS_VISTAS
+    if _TAREFAS_VISTAS is not None:
+        return _TAREFAS_VISTAS
+    if os.name != "nt":
+        _TAREFAS_VISTAS = []
+        return _TAREFAS_VISTAS
+    try:
+        r = subprocess.run(["schtasks", "/query", "/fo", "csv", "/nh"],
+                           capture_output=True, text=True, timeout=20,
+                           encoding="utf-8", errors="replace")
+        havidas = r.stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        _TAREFAS_VISTAS = []            # nao se sabe: nao se inventa aviso
+        return _TAREFAS_VISTAS
+    _TAREFAS_VISTAS = [t for t in TAREFAS if t not in havidas]
+    return _TAREFAS_VISTAS
+
+
+COPIAS = os.path.join(BASE_DIR, "copias")
+
+
+def copia_de_seguranca(guardar=7):
+    """Copia o radar.db, e deita fora as mais velhas.
+
+    So o radar.db: o contratos.db refaz-se com `--contratos` e a pasta
+    documentos/ volta a descarregar-se, mas a **triagem, as fases do
+    quadro, os responsaveis e o historico nao se recuperam de lado
+    nenhum** -- nao estao no git, por serem uma base, e nao havia copia
+    nenhuma.
+
+    `VACUUM INTO` e nao copiar o ficheiro: o SQLite fa-lo a quente, com
+    a base aberta e em WAL, e o que sai e uma base consistente e ja
+    compactada. Copiar o .db com o .wal ao lado dava uma copia
+    truncada.
+    """
+    os.makedirs(COPIAS, exist_ok=True)
+    # Uma por dia, e o nome e a data: a segunda verificacao do dia
+    # encontra o ficheiro feito e nao faz nada. Medido, o VACUUM INTO de
+    # 44 MB leva 37 s -- a cada verificacao era tempo a mais, e duas
+    # copias do mesmo dia nao valem o dobro.
+    destino = os.path.join(
+        COPIAS, "radar-%s.db" % datetime.now().strftime("%Y-%m-%d"))
+    if os.path.exists(destino):
+        return destino
+    with liga() as c:
+        c.execute("VACUUM INTO ?", (destino,))
+    velhas = sorted(f for f in os.listdir(COPIAS)
+                    if re.fullmatch(r"radar-[\d-]+\.db", f))
+    for f in velhas[:-guardar] if guardar else []:
+        try:
+            os.remove(os.path.join(COPIAS, f))
+        except OSError:
+            pass                        # o OneDrive as vezes segura o ficheiro
+    return destino
+
+
 def verificar(cfg=None):
     cfg = cfg or ler_config()
     iniciar_db()
+    # Antes de mexer na base, nao depois: se a recolha a deixar num
+    # estado mau, a copia e de antes disso.
+    if cfg.get("copia_de_seguranca", True):
+        try:
+            copia_de_seguranca(int(cfg.get("copias_a_guardar", 7)))
+        except (sqlite3.Error, OSError) as erro:
+            print("aviso: copia de seguranca falhou (%s)" % erro)
     bem, mensagem, novos = recolher(cfg)
     if bem:
         feitos, aviso = ler_detalhes(int(cfg.get("detalhes_por_volta", 40)),
@@ -2810,6 +2892,9 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .flash{background:#eef4fa;border:1px solid #cfe0ef;border-radius:9px;
  padding:11px 15px;margin-bottom:14px;font:500 12.5px/1.4 var(--sans);
  color:var(--azul)}
+.flash.mau{background:#fbe9e6;border-color:#f0c9c3;color:var(--verm)}
+.flash code{font:500 11.5px/1 var(--mono);background:rgba(0,0,0,.06);
+ padding:2px 6px;border-radius:4px}
 .tag{font:500 10.5px/1 var(--sans);padding:4px 7px;border-radius:4px;
  background:var(--linha2);color:#5c6169;white-space:nowrap}
 .tag.mono{font-family:var(--mono)}
@@ -3381,6 +3466,24 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     texto_aviso = (request.args.get("aviso") or "").strip()
     aviso = ("<div class='flash'>%s</div>" % html.escape(texto_aviso)) \
         if texto_aviso else ""
+
+    # O aviso que faltava. Sem as tarefas do Windows, o radar so recolhe
+    # com o painel aberto -- e como o relogio interno recupera os slots
+    # falhados, a tabela `slots` fica preenchida e parece que correu a
+    # horas. Foi assim que isto passou semanas sem se notar. E aviso do
+    # sistema e nao da vez, por isso nao vai pela query string.
+    faltam = tarefas_em_falta()
+    if faltam:
+        aviso += (
+            "<div class='flash mau'>O radar <b>não está a verificar "
+            "sozinho</b>: %s por criar no Agendador do Windows. Enquanto "
+            "assim for, só recolhe quando este painel está aberto. Corre "
+            "o <code>agendar.bat</code> uma vez.</div>"
+            % ("a tarefa &ldquo;%s&rdquo; está" % html.escape(faltam[0])
+               if len(faltam) == 1
+               else "as tarefas %s estão"
+               % " e ".join("&ldquo;%s&rdquo;" % html.escape(t)
+                            for t in faltam)))
 
     n_corpus = ha_corpus()
     return BASE % {
