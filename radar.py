@@ -24,6 +24,7 @@ import os
 import re
 import queue
 import shlex
+import smtplib
 import subprocess
 import sqlite3
 import sys
@@ -34,6 +35,7 @@ import unicodedata
 import webbrowser
 import zipfile
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from urllib.parse import parse_qsl, quote, unquote, urlencode
 
 try:
@@ -66,9 +68,20 @@ CONFIG_INICIAL = {
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
     "copias_a_guardar": 7,
-    # Escreve o AVISOS.txt quando entra um anuncio que cai num filtro
-    # guardado. E o que faz o radar deixar de precisar de ser aberto.
-    "avisar_por_filtro": True,
+    # Alertas: os filtros guardados marcados como alerta dao um resumo
+    # diario. E o que faz o radar deixar de precisar de ser aberto.
+    "alertas": True,
+    # A conta que **envia**. O destino ("para") pode ser qualquer um; a
+    # palavra-passe vai num ficheiro a parte (email_senha.txt), nunca
+    # aqui -- este ficheiro abre-se sem pensar. Os valores de origem sao
+    # os do Gmail, que precisa de uma palavra-passe de aplicacao.
+    "email": {
+        "para": "",
+        "de": "",
+        "servidor": "smtp.gmail.com",
+        "porta": 587,
+        "hora_resumo": "17:00",
+    },
     # A rotina so le o detalhe dos anuncios publicados nesta janela.
     # Entre publicacao e prazo vao ~18 dias em media, por isso mais atras
     # que isto ja fechou: o CPV desses so interessa como historico, e
@@ -215,6 +228,20 @@ def iniciar_db():
                 SELECT 'anuncios', nome, consulta, quem, criado_em
                 FROM _filtros_velhos""")
             c.execute("DROP TABLE _filtros_velhos")
+        # Um filtro guardado que avisa. So os marcados: guardar um filtro
+        # para uma consulta pontual nao pode encher a caixa de correio.
+        # Depois da reconstrucao acima, senao perdia-se com ela.
+        if "alerta" not in [r["name"] for r in
+                            c.execute("PRAGMA table_info(filtros_guardados)")]:
+            c.execute("ALTER TABLE filtros_guardados "
+                      "ADD COLUMN alerta INTEGER DEFAULT 0")
+        # O que ja foi avisado, para nao avisar duas vezes do mesmo e para
+        # o separador poder mostrar o que ja saiu.
+        c.execute("""CREATE TABLE IF NOT EXISTS alertas_vistos (
+            filtro_id INTEGER, ref TEXT, visto_em TEXT, enviado_em TEXT,
+            PRIMARY KEY (filtro_id, ref))""")
+        c.execute("""CREATE INDEX IF NOT EXISTS ix_alertas_envio
+                     ON alertas_vistos(enviado_em)""")
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT)""")
@@ -2045,67 +2072,194 @@ def copia_de_seguranca(guardar=7):
     return destino
 
 
-def anuncios_a_avisar(desde):
-    """Anúncios novos que caem num filtro guardado.
+# Marca posta no que ja estava na base quando o alerta foi ligado: nao
+# foi avisado, mas tambem nao e novidade -- senao o primeiro resumo
+# trazia o acervo todo.
+ACERVO = "acervo"
 
-    E o passo que faz o radar deixar de precisar de ser aberto: ja havia
-    filtros guardados e ja havia recolha automatica, faltava cruzar as
-    duas coisas. O filtro guardado e uma query string, por isso aplica-se
-    com a `condicoes()` que a lista ja usa -- nao ha um segundo motor de
-    filtros a divergir do primeiro.
 
-    Devolve [(nome do filtro, [anuncios])], so com os vistos depois de
-    `desde`, para nao avisar duas vezes do mesmo.
-    """
+def filtros_de_alerta():
     with liga() as c:
-        filtros = c.execute(
-            "SELECT nome, consulta FROM filtros_guardados WHERE vista='anuncios' "
+        return c.execute(
+            "SELECT id, nome, consulta FROM filtros_guardados "
+            "WHERE vista='anuncios' AND alerta=1 "
             "ORDER BY nome COLLATE NOCASE").fetchall()
-    fora = []
-    for f in filtros:
+
+
+def registar_alertas():
+    """Anota que anuncios caem em que alerta, sem os enviar.
+
+    Separa-se de proposito o **reconhecer** do **enviar**: a verificacao
+    corre duas vezes por dia e o resumo sai uma; e a tabela guarda o que
+    ja foi visto, por isso um anuncio nunca e avisado duas vezes, nem que
+    a verificacao corra dez vezes.
+
+    Corre depois de `ler_detalhes()`: um alerta por CPV so apanha o
+    anuncio depois do CPV estar lido.
+    """
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    novos = 0
+    for f in filtros_de_alerta():
         args = dict(parse_qsl(f["consulta"] or "", keep_blank_values=True))
-        # o estado do filtro nao interessa aqui: o que se procura sao
-        # anuncios acabados de chegar, e esses sao todos "novo"
+        # o estado nao entra: procuram-se anuncios que correspondem, e a
+        # triagem deles e outra conversa
         args.pop("estado", None)
         onde, valores = condicoes(dict(args, estado=""))
         with liga() as c:
+            # Sem LIMIT: com um tecto, cada volta descobria "novos" que
+            # eram so os seguintes da fila -- 200 na primeira, 153 na
+            # segunda, e assim ate ao fim do acervo. A clausula de
+            # exclusao ja limita isto sozinha depois da primeira volta.
+            refs = [r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios" + onde +
+                " AND ref NOT IN (SELECT ref FROM alertas_vistos WHERE filtro_id=?)"
+                " ORDER BY data_pub DESC, ref DESC",
+                valores + [f["id"]])]
+            c.executemany(
+                "INSERT OR IGNORE INTO alertas_vistos "
+                "(filtro_id, ref, visto_em) VALUES (?,?,?)",
+                [(f["id"], r, agora) for r in refs])
+        novos += len(refs)
+    return novos
+
+
+def alertas_por_enviar():
+    """[(filtro, [anuncios])] do que esta reconhecido e ainda nao saiu."""
+    fora = []
+    with liga() as c:
+        for f in filtros_de_alerta():
             linhas = c.execute(
-                "SELECT ref, titulo, entidade, data_pub, prazo FROM anuncios" +
-                onde + " AND visto_em > ? ORDER BY data_pub DESC, ref DESC "
-                "LIMIT 50", valores + [desde]).fetchall()
-        if linhas:
-            fora.append((f["nome"], linhas))
+                "SELECT a.ref, a.titulo, a.entidade, a.data_pub, a.prazo, "
+                "a.preco_base, a.cpv FROM alertas_vistos v "
+                "JOIN anuncios a ON a.ref = v.ref "
+                "WHERE v.filtro_id=? AND v.enviado_em IS NULL "
+                "ORDER BY a.prazo != '' DESC, a.prazo, a.data_pub DESC",
+                (f["id"],)).fetchall()
+            if linhas:
+                fora.append((f, linhas))
     return fora
 
 
-def escrever_avisos(achados):
-    """Deixa os avisos num ficheiro de texto, ao lado da aplicacao.
+def marcar_alertas_enviados(achados):
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with liga() as c:
+        for f, linhas in achados:
+            c.executemany(
+                "UPDATE alertas_vistos SET enviado_em=? "
+                "WHERE filtro_id=? AND ref=?",
+                [(agora, f["id"], a["ref"]) for a in linhas])
 
-    Ficheiro e nao e-mail nem notificacao: nao ha servidor de correio
-    configurado, e uma notificacao do Windows desaparece se ninguem
-    estiver a olhar. Um ficheiro fica la ate ser lido, abre-se com dois
-    cliques e nao depende de nada.
-    """
-    if not achados:
-        return ""
-    quando = datetime.now().strftime("%Y-%m-%d %H:%M")
-    linhas = ["Anuncios novos que correspondem aos teus filtros guardados",
-              quando, ""]
-    for nome, anuncios in achados:
-        linhas.append("== %s (%d)" % (nome, len(anuncios)))
-        for a in anuncios:
-            linhas.append("   %s  %s" % (data_pt(a["data_pub"]), a["ref"]))
-            linhas.append("      %s" % (a["titulo"] or "")[:90])
-            linhas.append("      %s%s" % (
-                (a["entidade"] or "")[:70],
-                "  |  propostas ate %s" % data_pt(a["prazo"]) if a["prazo"] else ""))
-            linhas.append("      http://localhost:%d/anuncio/%s"
-                          % (PORTA, quote(a["ref"], safe="")))
+
+def texto_do_resumo(achados):
+    """O resumo em texto simples, que serve de corpo do e-mail e de
+    AVISOS.txt. Um so formato: dois divergiam ao primeiro arranjo."""
+    total = sum(len(x[1]) for x in achados)
+    linhas = ["Radar de Concursos -- %d anuncio%s novo%s nos teus alertas"
+              % (total, "" if total == 1 else "s", "" if total == 1 else "s"),
+              datetime.now().strftime("%d/%m/%Y %H:%M"), ""]
+    for f, anuncios in achados:
+        linhas.append("== %s (%d)" % (f["nome"], len(anuncios)))
         linhas.append("")
-    corpo = "\n".join(linhas)
+        for a in anuncios:
+            dias, passou = dias_restantes(a["prazo"])
+            if dias is None:
+                prazo = "sem prazo lido"
+            elif passou:
+                # conta_dias() diz "termina hoje" para dias <= 0, o que
+                # num prazo de ha dois meses e mentira
+                prazo = "PRAZO EXPIRADO em %s" % data_pt(a["prazo"])
+            else:
+                prazo = "propostas ate %s (%s)" % (data_pt(a["prazo"]),
+                                                   conta_dias(dias))
+            linhas.append("  %s" % (a["titulo"] or "(sem titulo)")[:88])
+            linhas.append("    %s" % (a["entidade"] or "")[:80])
+            linhas.append("    %s | %s | %s"
+                          % (a["ref"], prazo, a["preco_base"] or "sem preco base"))
+            linhas.append("    http://localhost:%d/anuncio/%s"
+                          % (PORTA, quote(a["ref"], safe="")))
+            linhas.append("")
+    return "\n".join(linhas)
+
+
+def enviar_email(assunto, corpo, cfg=None):
+    """Manda o resumo. Devolve (correu bem, o que dizer ao utilizador).
+
+    A palavra-passe le-se de `email_senha.txt` ou da variavel
+    RADAR_EMAIL_SENHA -- nunca fica na configuracao, que e um ficheiro
+    que se abre sem pensar. O `.gitignore` ja cobre o nome.
+    """
+    cfg = cfg or ler_config()
+    e = cfg.get("email") or {}
+    para = (e.get("para") or "").strip()
+    de = (e.get("de") or "").strip()
+    servidor = (e.get("servidor") or "").strip()
+    if not (para and de and servidor):
+        return False, "e-mail por configurar"
+    senha = ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA")
+    if not senha:
+        return False, "falta a palavra-passe em email_senha.txt"
+
+    msg = EmailMessage()
+    msg["Subject"] = assunto
+    msg["From"] = de
+    msg["To"] = para
+    msg.set_content(corpo)
+    porta = int(e.get("porta") or 587)
+    try:
+        if porta == 465:
+            ligacao = smtplib.SMTP_SSL(servidor, porta, timeout=30)
+        else:
+            ligacao = smtplib.SMTP(servidor, porta, timeout=30)
+        with ligacao as smtp:
+            if porta != 465:
+                smtp.starttls()
+            smtp.login(de, senha)
+            smtp.send_message(msg)
+    except smtplib.SMTPAuthenticationError:
+        return False, ("o servidor recusou a palavra-passe. No Gmail tem de "
+                       "ser uma palavra-passe de aplicação, não a da conta")
+    except (smtplib.SMTPException, OSError) as erro:
+        return False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+    return True, "enviado para %s" % para
+
+
+def enviar_resumo(cfg=None, forcar=False):
+    """O resumo diario. Um por dia: a verificacao corre duas vezes e o
+    resumo sai uma, senao eram dois e-mails com metade das coisas."""
+    cfg = cfg or ler_config()
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    if not forcar and le_marca("ultimo_resumo", "") == hoje:
+        return False, "o resumo de hoje já saiu"
+    achados = alertas_por_enviar()
+    if not achados:
+        return False, "nada de novo para avisar"
+
+    corpo = texto_do_resumo(achados)
     with open(AVISOS, "w", encoding="utf-8") as f:
-        f.write(corpo)
-    return corpo
+        f.write(corpo)                  # fica sempre, mesmo sem e-mail
+
+    total = sum(len(x[1]) for x in achados)
+    bem, porque = enviar_email(
+        "Radar: %d anúncio%s nos teus alertas" % (total, "" if total == 1 else "s"),
+        corpo, cfg)
+
+    # Sem e-mail configurado, **o ficheiro e a entrega** -- da-se por
+    # avisado e o estado avanca. Se ficassem pendentes, o painel dizia
+    # "153 por avisar" para sempre e o mesmo resumo era reescrito a cada
+    # volta. Uma falha a serio (palavra-passe recusada, rede em baixo) e
+    # outra coisa: essa nao marca, para voltar a tentar.
+    sem_canal = porque in ("e-mail por configurar",
+                           "falta a palavra-passe em email_senha.txt")
+    entregue = bem or sem_canal
+    if entregue:
+        marcar_alertas_enviados(achados)
+        marca("ultimo_resumo", hoje)
+    marca("ultimo_resumo_estado",
+          porque if bem else
+          ("só no AVISOS.txt (%s)" % porque) if sem_canal else
+          "por enviar (%s)" % porque)
+    marca("ultimo_resumo_quantos", str(total))
+    return entregue, porque
 
 
 AVISOS = os.path.join(BASE_DIR, "AVISOS.txt")
@@ -2132,22 +2286,19 @@ def verificar(cfg=None):
     # apanha o anuncio depois de o CPV estar lido, e ler os detalhes e a
     # ultima coisa que a verificacao faz.
     quantos_avisos = 0
-    if bem and cfg.get("avisar_por_filtro", True):
-        antes = le_marca("ultimo_aviso", "")
-        agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    if bem and cfg.get("alertas", True):
         try:
-            achados = anuncios_a_avisar(antes or "0000")
-            quantos_avisos = sum(len(x[1]) for x in achados)
-            if achados:
-                escrever_avisos(achados)
-                marca("ultimo_aviso_texto", "%d em %d filtro%s"
-                      % (quantos_avisos, len(achados),
-                         "" if len(achados) == 1 else "s"))
-            marca("ultimo_aviso", agora)
-        except sqlite3.Error as erro:
-            print("aviso: os avisos por filtro falharam (%s)" % erro)
+            quantos_avisos = registar_alertas()
+            # O resumo sai uma vez por dia, a partir da hora marcada: a
+            # verificacao corre duas vezes e nao se mandam dois e-mails
+            # com metade das coisas cada.
+            hora = str((cfg.get("email") or {}).get("hora_resumo") or "17:00")
+            if datetime.now().strftime("%H:%M") >= hora:
+                enviar_resumo(cfg)
+        except (sqlite3.Error, OSError) as erro:
+            print("aviso: os alertas falharam (%s)" % erro)
     if quantos_avisos:
-        mensagem += " &middot; %d a avisar" % quantos_avisos
+        mensagem += " &middot; %d para os alertas" % quantos_avisos
 
     marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
     marca("ultima_mensagem", mensagem)
@@ -3030,6 +3181,31 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+/* separador dos alertas */
+.alertas{display:flex;flex-direction:column;gap:10px}
+.alerta{display:flex;align-items:center;gap:14px;background:#fff;
+ border:1px solid var(--linha);border-radius:10px;padding:14px 16px;
+ box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.alerta.on{border-color:#bcd4e8;background:#fbfdff}
+.alerta .sobre{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.alerta .sobre a{font:600 13.5px/1.2 var(--sans);color:var(--ink)}
+.alerta.on .sobre a{color:var(--azul)}
+.alerta .sobre a:hover{text-decoration:underline}
+.alerta .q{font:400 11.5px/1.4 var(--sans);color:var(--t5);
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alerta .conta{font:400 11.5px/1.4 var(--sans);color:var(--t5);
+ text-align:right;flex:none}
+.alerta .conta b{color:var(--azul);font-weight:600}
+.alerta form{display:flex;flex:none}
+.interruptor{cursor:pointer;width:42px;height:24px;border-radius:99px;
+ border:1px solid var(--linha);background:var(--linha2);padding:0;
+ position:relative;transition:background .12s}
+.interruptor i{position:absolute;top:2px;left:2px;width:18px;height:18px;
+ border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);
+ transition:left .12s}
+.interruptor.on{background:var(--azul);border-color:var(--azul)}
+.interruptor.on i{left:21px}
+
 /* barra do corpus, no topo dos contratos */
 .corpus-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
  margin-bottom:12px;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
@@ -3516,6 +3692,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 # (chave da vista, etiqueta, destino). A rota deixou de aparecer ao lado
 # do nome: era ruido de programador num painel que e para trabalhar.
 NAV = (("anuncios", "Anúncios", "/"),
+       ("alertas", "Alertas", "/alertas"),
        ("contratos", "Contratos", "/contratos"),
        ("quadro", "Quadro", "/quadro"),
        ("calendario", "Calendário", "/calendario"),
@@ -4088,14 +4265,12 @@ def painel():
     # Os avisos da ultima verificacao. O ficheiro AVISOS.txt serve para
     # quem nao tem o painel aberto; aqui e para quem tem, e da o caminho
     # para o filtro em vez de o obrigar a procurar.
-    texto_avisos = le_marca("ultimo_aviso_texto", "")
-    if texto_avisos:
+    por_enviar = sum(len(x[1]) for x in alertas_por_enviar())
+    if por_enviar:
         faixa_avisos = (
-            "<div class='flash'>Na última verificação entraram "
-            "<b>%s</b> guardado%s. Estão no <code>AVISOS.txt</code>, e "
-            "aparecem ao abrir o filtro aqui em cima.</div>"
-            % (html.escape(texto_avisos),
-               "" if texto_avisos.endswith("filtro") else "s"))
+            "<div class='flash'><b>%s anúncio%s</b> nos teus alertas, "
+            "por avisar. <a href='/alertas'>ver os alertas</a></div>"
+            % (mil_pt(por_enviar), "" if por_enviar == 1 else "s"))
     else:
         faixa_avisos = ""
 
@@ -4321,15 +4496,21 @@ def condicoes(args):
     return (" WHERE " + " AND ".join(onde) if onde else ""), valores
 
 
-def caixa_de_filtros(args, vista):
-    """A caixa dos filtros guardados, igual nos dois separadores.
+def caixa_de_filtros(args, vista, rota=None, campos=None):
+    """A caixa dos filtros guardados, igual em todas as paginas.
 
     Aplicar um filtro e seguir uma ligacao -- so leitura, nada muda na
     base -- mas guardar e apagar sao POST, como o resto do que escreve.
     O que muda entre vistas e a lista de campos e a rota; o resto e o
     mesmo, e duas copias divergiam ao primeiro arranjo.
+
+    `rota` e `campos` servem as paginas que **usam** os filtros de uma
+    vista sem serem a lista dela: a ficha da entidade aplica os filtros
+    dos contratos aos contratos daquela entidade, e por isso a ligacao
+    tem de voltar a ficha e levar so os campos que ela entende.
     """
-    rota = VISTAS[vista][1]
+    rota = rota or VISTAS[vista][1]
+    so_estes = set(campos) if campos else None
     agora = filtro_actual(args, vista)
     with liga() as c:
         guardados = c.execute(
@@ -4338,7 +4519,14 @@ def caixa_de_filtros(args, vista):
 
     fichas, nome_activo = [], ""
     for f in guardados:
-        activo = f["consulta"] == agora
+        consulta = f["consulta"] or ""
+        if so_estes is not None:
+            # so os campos que esta pagina entende; os outros ja estao
+            # respondidos por ela (a entidade, na ficha)
+            consulta = urlencode([(k, v) for k, v in
+                                  parse_qsl(consulta, keep_blank_values=True)
+                                  if k in so_estes and v])
+        activo = consulta == agora
         if activo:
             nome_activo = f["nome"]
         fichas.append(
@@ -4351,8 +4539,9 @@ def caixa_de_filtros(args, vista):
             "<button type='submit' title='apagar este filtro'>&times;</button>"
             "</form></span>"
             % (" on" if activo else "", rota,
-               html.escape(f["consulta"], quote=True),
-               html.escape(resumo_filtro(f["consulta"], vista), quote=True),
+               html.escape(consulta, quote=True),
+               html.escape(resumo_filtro(f["consulta"] or "", vista),
+                           quote=True),
                html.escape(f["nome"]), f["id"],
                html.escape(f["nome"], quote=True),
                html.escape(agora, quote=True)))
@@ -4567,6 +4756,163 @@ def exportar():
                              "attachment; filename=concursos.csv"})
 
 
+
+
+# -------------------------------------------------------- separador alertas
+#
+# Um alerta e um filtro guardado com a marca posta. Nao ha aqui uma
+# segunda forma de descrever o que interessa: o que se procura na lista
+# e o que se guarda, e o que se guarda e o que avisa. Isso e o que
+# garante que o e-mail traz exactamente o que a lista mostraria.
+
+@app.route("/alertas")
+def alertas():
+    cfg = ler_config()
+    e = cfg.get("email") or {}
+    with liga() as c:
+        filtros = c.execute(
+            "SELECT f.*, "
+            "(SELECT COUNT(*) FROM alertas_vistos v WHERE v.filtro_id=f.id "
+            " AND v.enviado_em IS NULL) por_enviar, "
+            "(SELECT COUNT(*) FROM alertas_vistos v WHERE v.filtro_id=f.id "
+            " AND v.enviado_em = ?) acervo, "
+            "(SELECT COUNT(*) FROM alertas_vistos v WHERE v.filtro_id=f.id "
+            " AND v.enviado_em IS NOT NULL AND v.enviado_em != ?) avisados "
+            "FROM filtros_guardados f WHERE f.vista='anuncios' "
+            "ORDER BY f.alerta DESC, f.nome COLLATE NOCASE",
+            (ACERVO, ACERVO)).fetchall()
+        ultimos = c.execute(
+            "SELECT v.ref, v.enviado_em, a.titulo, a.entidade, a.prazo, "
+            "f.nome AS filtro FROM alertas_vistos v "
+            "JOIN anuncios a ON a.ref=v.ref "
+            "JOIN filtros_guardados f ON f.id=v.filtro_id "
+            "WHERE v.enviado_em IS NOT NULL AND v.enviado_em != ? "
+            "ORDER BY v.enviado_em DESC LIMIT 25", (ACERVO,)).fetchall()
+
+    linhas = []
+    for f in filtros:
+        ligado = bool(f["alerta"])
+        linhas.append(
+            "<div class='alerta %s'>"
+            "<form method='post' action='/alertas/%d/trocar'>"
+            "<button type='submit' class='interruptor %s' title='%s'>"
+            "<i></i></button></form>"
+            "<div class='sobre'><a href='/?%s'>%s</a>"
+            "<span class='q'>%s</span></div>"
+            "<div class='conta'>%s</div>"
+            "</div>"
+            % ("on" if ligado else "", f["id"],
+               "on" if ligado else "",
+               "desligar o alerta" if ligado else "ligar o alerta",
+               html.escape(f["consulta"] or "", quote=True),
+               html.escape(f["nome"]),
+               html.escape(resumo_filtro(f["consulta"], "anuncios")),
+               ("<b>%s</b> por avisar &middot; %s já avisados &middot; "
+                "%s do acervo"
+                % (mil_pt(f["por_enviar"]), mil_pt(f["avisados"]),
+                   mil_pt(f["acervo"]))
+                if ligado else "não avisa")))
+    if not linhas:
+        lista = ("<div class='vazio'>Ainda não guardaste nenhum filtro nos "
+                 "anúncios. Um alerta <b>é</b> um filtro guardado com a "
+                 "marca posta: vai à <a href='/'>lista dos anúncios</a>, "
+                 "afina a pesquisa, dá-lhe um nome, e ele aparece aqui.</div>")
+    else:
+        lista = "<div class='alertas'>%s</div>" % "".join(linhas)
+
+    # --- estado do e-mail
+    tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
+    pronto = bool((e.get("para") or "").strip() and (e.get("de") or "").strip()
+                  and tem_senha)
+    passos = [
+        ("Destino", e.get("para") or "por preencher", bool(e.get("para"))),
+        ("Conta que envia", e.get("de") or "por preencher", bool(e.get("de"))),
+        ("Servidor", "%s:%s" % (e.get("servidor") or "—", e.get("porta") or "—"),
+         bool(e.get("servidor"))),
+        ("Palavra-passe", "em email_senha.txt" if tem_senha
+         else "falta o ficheiro email_senha.txt", tem_senha),
+        ("Hora do resumo", e.get("hora_resumo") or "17:00", True),
+    ]
+    estado_envio = le_marca("ultimo_resumo_estado", "")
+    if estado_envio:
+        passos.append(("Último envio", html.escape(estado_envio),
+                       not estado_envio.startswith("por enviar")))
+
+    if pronto:
+        accao_email = accao("/alertas/enviar", "Enviar o resumo agora", "bt forte")
+    else:
+        accao_email = ""
+    caixa_email = (
+        "<div class='cx' style='padding:20px 22px'>"
+        "<div class='rot' style='margin-bottom:6px'>Resumo por e-mail</div>"
+        "<div class='nota' style='margin-bottom:16px'>Um por dia, a partir "
+        "das %s, e só se houver novidade. O destino pode ser qualquer "
+        "endereço; o que precisa de conta própria é quem envia. Configura-se "
+        "no <code>config.json</code>, e a palavra-passe fica no ficheiro "
+        "<code>email_senha.txt</code> &mdash; nunca na configuração.</div>"
+        "<div class='saude'>%s</div>%s%s</div>"
+        % (html.escape(str(e.get("hora_resumo") or "17:00")),
+           linhas_de_saude(passos, "#d68910"),
+           "<div style='margin-top:16px'>%s</div>" % accao_email
+           if accao_email else "",
+           "" if pronto else
+           "<div class='nota' style='margin-top:14px'>Sem e-mail "
+           "configurado o radar continua a escrever o "
+           "<code>AVISOS.txt</code> na pasta, e a lista aqui em baixo "
+           "mostra o mesmo.</div>"))
+
+    if ultimos:
+        hist = "".join(
+            "<tr><td class='d'>%s</td><td class='o'>"
+            "<a href='/anuncio/%s'>%s</a></td><td>%s</td><td>%s</td></tr>"
+            % (data_pt(r["enviado_em"]), quote(r["ref"], safe=""),
+               html.escape((r["titulo"] or r["ref"])[:80]),
+               html.escape((r["entidade"] or "")[:44]),
+               html.escape(r["filtro"]))
+            for r in ultimos)
+        historico = ("<div class='cx tab-cx'><table class='tab-contratos'>"
+                     "<thead><tr><th>Avisado</th><th>Anúncio</th>"
+                     "<th>Entidade</th><th>Alerta</th></tr></thead>"
+                     "<tbody>%s</tbody></table></div>" % hist)
+    else:
+        historico = ("<div class='nota'>Ainda não saiu nenhum aviso. Sai no "
+                     "resumo a seguir à próxima verificação.</div>")
+
+    conteudo = ("<div class='larg'>" + lista +
+                "<div style='height:16px'></div>" + caixa_email +
+                "<div class='rot' style='margin:22px 0 12px'>Últimos avisos"
+                "</div>" + historico + "</div>")
+
+    return envolver(
+        "alertas", "Alertas",
+        "Os filtros guardados que te avisam quando entra um anúncio que "
+        "lhes corresponde.", conteudo,
+        titulo_aba="Alertas, Radar de Concursos")
+
+
+@app.route("/alertas/<int:filtro_id>/trocar", methods=["POST"])
+def alerta_trocar(filtro_id):
+    with liga() as c:
+        c.execute("UPDATE filtros_guardados SET alerta = 1 - COALESCE(alerta,0) "
+                  "WHERE id=?", (filtro_id,))
+    # ao ligar um alerta, o que ja esta na base conta como visto e nao
+    # como novidade -- senao o primeiro resumo trazia o acervo todo
+    registar_alertas()
+    with liga() as c:
+        ligou = c.execute("SELECT alerta FROM filtros_guardados WHERE id=?",
+                          (filtro_id,)).fetchone()
+        if ligou and ligou["alerta"]:
+            c.execute("UPDATE alertas_vistos SET enviado_em=? "
+                      "WHERE filtro_id=? AND enviado_em IS NULL",
+                      (ACERVO, filtro_id))
+    return redirect("/alertas")
+
+
+@app.route("/alertas/enviar", methods=["POST"])
+def alertas_enviar():
+    bem, porque = enviar_resumo(forcar=True)
+    return redirect("/alertas?aviso=" +
+                    quote(("Resumo %s" % porque) if bem else porque))
 
 
 # ------------------------------------------------------ separador contratos
@@ -5132,10 +5478,15 @@ def filtros_da_ficha(chave, d):
         "style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>%s"
         "<div class='periodos'><span>rápido:</span>%s</div>"
-        "</form>%s%s"
+        "</form>%s%s%s"
         % (quote(chave, safe=""), v("q"), v("cpv"), v("de"), v("ate"),
            v("min"), limpar, "".join(chips), faixa,
-           arvore_html(n_cpv, "contratos")))
+           arvore_html(n_cpv, "contratos"),
+           # os mesmos filtros guardados dos contratos, mas a voltar para
+           # esta ficha e so com os campos que ela entende
+           caixa_de_filtros(request.args, "contratos",
+                            rota="/entidade/" + quote(chave, safe=""),
+                            campos=CAMPOS_FICHA)))
 
 
 @app.route("/entidade/<path:chave>")

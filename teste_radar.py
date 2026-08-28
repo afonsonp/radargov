@@ -1523,6 +1523,60 @@ class TestEurosCurto(unittest.TestCase):
         self.assertEqual(radar.euros_curto(None), "0 €")
 
 
+class TestResumoDosAlertas(unittest.TestCase):
+    """O texto do resumo e o mesmo no e-mail e no AVISOS.txt: dois
+    formatos divergiam ao primeiro arranjo."""
+
+    class FalsoFiltro(dict):
+        pass
+
+    def anuncio(self, **k):
+        base = {"ref": "1/2026", "titulo": "Aquisicao de licencas",
+                "entidade": "Municipio X", "data_pub": "2026-08-01",
+                "prazo": "", "preco_base": "", "cpv": ""}
+        base.update(k)
+        return base
+
+    def resumo(self, anuncios):
+        return radar.texto_do_resumo([({"nome": "TI"}, anuncios)])
+
+    def test_conta_no_cabecalho(self):
+        saiu = self.resumo([self.anuncio(), self.anuncio(ref="2/2026")])
+        self.assertIn("2 anuncios novos", saiu)
+
+    def test_singular(self):
+        self.assertIn("1 anuncio novo", self.resumo([self.anuncio()]))
+
+    def test_prazo_expirado_nao_diz_termina_hoje(self):
+        # conta_dias() diz "termina hoje" para dias <= 0, o que num prazo
+        # de ha dois meses e mentira
+        saiu = self.resumo([self.anuncio(prazo="2020-01-01")])
+        self.assertIn("PRAZO EXPIRADO", saiu)
+        self.assertNotIn("termina hoje", saiu)
+
+    def test_sem_prazo_diz_que_nao_ha(self):
+        self.assertIn("sem prazo lido", self.resumo([self.anuncio()]))
+
+    def test_leva_a_ligacao_para_a_ficha(self):
+        saiu = self.resumo([self.anuncio(ref="123/2026")])
+        self.assertIn("/anuncio/123%2F2026", saiu)
+
+
+class TestEnvioSemConfiguracao(unittest.TestCase):
+    """Cada falha de envio tem de dizer o que e: "nao funciona" nao
+    chega para se saber o que preencher."""
+
+    def test_sem_nada_configurado(self):
+        bem, porque = radar.enviar_email("x", "y", {"email": {}})
+        self.assertFalse(bem)
+        self.assertIn("por configurar", porque)
+
+    def test_com_destino_mas_sem_conta_que_envia(self):
+        bem, porque = radar.enviar_email("x", "y", {"email": {"para": "a@b.pt"}})
+        self.assertFalse(bem)
+        self.assertIn("por configurar", porque)
+
+
 class TestEurosDoTexto(unittest.TestCase):
     """O DR escreve "175.000,00 EUR": o ponto separa os milhares e a
     virgula os centimos, ao contrario do que o float() de Python le. Ler
