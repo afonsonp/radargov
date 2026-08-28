@@ -13,6 +13,8 @@ contratos.db-shm
 contratos.db-wal
 # Cópias de segurança do radar.db, uma por dia. São bases, não código.
 copias/
+# Os avisos da última verificação: reescrevem-se a cada volta.
+AVISOS.txt
 documentos/
 amostras/
 
