@@ -918,6 +918,92 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+### Sete anos, e a pergunta antes da lista
+
+O corpus passou a ir de **2020 a 2026: 1 363 300 contratos, 1,2 GB**. E
+a escala partiu a página: `/contratos` sem filtro levava **48 segundos**.
+Três correcções, e a primeira foi de desenho.
+
+**A pergunta vem primeiro.** Decisão do Afonso, e é a certa: sem filtro
+não se mostra lista nenhuma, só o convite a filtrar. Um milhão e meio de
+contratos ordenados por data não é resposta a nada — ao contrário dos
+anúncios, onde a lista inteira é o acervo por triar e faz sentido vê-la.
+Os gráficos também só aparecem com filtro. Isto sozinho levou a página
+de 48 s para **248 ms**.
+
+Depois, duas de desempenho, ambas medidas:
+
+- **Índice em `contratos(data_celebracao, id)`.** Sem ele, mostrar as
+  primeiras 20 de 1,36 milhões obrigava a ordenar tudo: 6 s só nessa
+  consulta. E a paginação faz-se dentro de um CTE, com o `LEFT JOIN
+  entidades` e as subconsultas dos nomes **depois do `LIMIT`** — a
+  correrem antes, eram 45 s.
+- **`IN` e não `EXISTS` nas tabelas filhas.** As duas dão o mesmo e
+  nenhuma repete linhas (que era o problema do `JOIN`), mas o `EXISTS`
+  obriga a passar por todos os contratos a perguntar por cada um; com o
+  `IN`, a tabela filha varre-se uma vez e sai o conjunto de ids. Medido:
+  **183 ms contra 517**, e `?ganhou=MEO` foi de 5 s para 605 ms.
+
+Como está agora, com sete anos: `/contratos` vazio 248 ms, por CPV
+1,5 s, por adjudicatário 605 ms, ficha de entidade 266 ms, os seis
+gráficos 1,9 s (e só ao abrir).
+
+### Actualizar o corpus a partir do painel
+
+Faltava: o corpus só se trazia pela linha de comando, e não havia forma
+de saber quando tinha sido. Agora há uma barra no topo dos contratos com
+**quantos contratos, de que anos, e quando foram trazidos**, mais um
+botão **Actualizar contratos**.
+
+Corre **numa thread**, não no pedido: um ano são ~60 s e um pedido HTTP
+parado esse tempo parece o painel pendurado. O estado fica no
+`corpus_estado` e a página volta a pedir-se sozinha de 4 em 4 segundos
+enquanto corre — a thread põe sempre um estado terminal (`ok`/`falhou`),
+por isso isto pára. Um `Lock` não-bloqueante impede duas actualizações
+ao mesmo tempo.
+
+**O botão só traz o ano corrente e o anterior.** É onde entram contratos
+novos; anos fechados não mudam, e voltar a descarregar sete anos de cada
+vez seriam 10 minutos por nada. Para anos mais antigos há a linha de
+comando, e a barra diz isso.
+
+Reimportar um ano substitui-o, por isso carregar no botão é seguro de
+repetir. O dump do IMPIC é semanal — a barra diz isso também, para não
+se estranhar que um contrato de ontem não apareça.
+
+### Filtros guardados também nos contratos
+
+A tabela `filtros_guardados` ganhou uma coluna `vista`, e a unicidade
+passou de `nome` para **`(vista, nome)`**: "Software" quer dizer coisas
+diferentes em cada lista e tem de poder existir nas duas. Isso não se faz
+com `ALTER TABLE` — a migração recria a tabela uma vez, guardando o que
+lá estava como filtro de anúncios, que é o que era. Testada sobre uma
+cópia antes de tocar na base verdadeira, incluindo correr três vezes
+seguidas.
+
+`CAMPOS_FILTRO_CONTRATOS` é lista própria, porque os campos são outros
+(quem ganhou, preço mínimo, tipo de procedimento). O `VISTAS` junta
+campos e rota por separador, e é o que deixa `filtro_actual()`,
+`resumo_filtro()` e a caixa servirem os dois sem duas cópias do código.
+
+**Os parâmetros de entidade dos contratos chamam-se `entid`/`vencid`,
+não `ent`/`venc`.** Nos anúncios o `ent` é a caixa de texto da entidade;
+dois campos com o mesmo nome e sentidos diferentes eram um erro à espera
+de acontecer. Há um teste que segura isso.
+
+### O INSERT posicional partiu outra vez
+
+Ao acrescentar a coluna `chave` às tabelas filhas, o importador rebentou
+a meio da importação de sete anos: `table contrato_adjudicatario has 5
+columns but 4 values were supplied`. **Era o mesmo erro que já tinha
+acontecido com a `contratos`** e que se tinha corrigido só nessa tabela.
+
+A correcção desta vez não foi nomear as colunas à mão outra vez, foi
+tirar a duplicação: `COLS_CONTRATO`, `COLS_CPV` e `COLS_ADJ` são a única
+fonte da verdade, e `_inserir()` constrói o SQL e as interrogações a
+partir delas. Acrescentar uma coluna que ninguém enche passa a dar erro
+no teste, e não a meio de uma importação de dez minutos.
+
 ### O nome não é a identidade — o NIF é
 
 O Afonso reparou: "entidades que são as mesmas têm variações nos nomes".

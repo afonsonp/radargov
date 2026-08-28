@@ -189,6 +189,24 @@ def iniciar_db():
         c.execute("""CREATE TABLE IF NOT EXISTS filtros_guardados (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE,
             consulta TEXT, quem TEXT, criado_em TEXT)""")
+        # Os contratos passaram a ter filtros guardados proprios, e o
+        # mesmo nome ("Software") pode servir nas duas listas. A
+        # unicidade tem de sair de `nome` para (vista, nome), e isso nao
+        # se faz com ALTER TABLE -- recria-se, uma vez so, guardando o
+        # que la esta como filtro de anuncios, que e o que era.
+        cols_f = [r["name"] for r in
+                  c.execute("PRAGMA table_info(filtros_guardados)")]
+        if "vista" not in cols_f:
+            c.execute("ALTER TABLE filtros_guardados RENAME TO _filtros_velhos")
+            c.execute("""CREATE TABLE filtros_guardados (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, vista TEXT,
+                nome TEXT, consulta TEXT, quem TEXT, criado_em TEXT,
+                UNIQUE (vista, nome))""")
+            c.execute("""INSERT INTO filtros_guardados
+                (vista, nome, consulta, quem, criado_em)
+                SELECT 'anuncios', nome, consulta, quem, criado_em
+                FROM _filtros_velhos""")
+            c.execute("DROP TABLE _filtros_velhos")
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT)""")
@@ -2042,6 +2060,16 @@ def iniciar_corpus():
             "CREATE INDEX IF NOT EXISTS ix_ctr_norm ON contratos(adjudicante_norm)",
             "CREATE INDEX IF NOT EXISTS ix_ctr_anuncio ON contratos(n_anuncio)",
             "CREATE INDEX IF NOT EXISTS ix_ctr_ano ON contratos(ano)",
+            # A lista ordena por data de celebracao. Sem indice, mostrar
+            # as primeiras 20 de 1,36 milhoes obrigava a ordenar tudo:
+            # 6 segundos so nesta consulta. O `id` vai junto porque e o
+            # desempate, e assim o indice serve a ordenacao inteira.
+            "CREATE INDEX IF NOT EXISTS ix_ctr_data "
+            "ON contratos(data_celebracao, id)",
+            # O <select> dos procedimentos conta-os a cada visita; com
+            # indice e uma passagem pelo indice e nao pela tabela.
+            "CREATE INDEX IF NOT EXISTS ix_ctr_proc "
+            "ON contratos(tipo_procedimento)",
             "CREATE INDEX IF NOT EXISTS ix_cpv_v ON contrato_cpv(cpv8)",
             "CREATE INDEX IF NOT EXISTS ix_adj_nif ON contrato_adjudicatario(nif)",
         ):
@@ -2286,11 +2314,13 @@ def _gravar_contratos(ano, registos):
                 ", ".join(_cpv8(k.get("cpv"))),
                 k.get("fundamentacao") or "",
                 # nunca zero: e divisor no grafico de quem ganha
-                max(1, len(ganhadores))))
+                max(1, len(ganhadores)),
+                chave_entidade(nif, nome)))
             for v in _cpv8(k.get("cpv")):
                 cpvs.append((cid, v))
             for anif, anome in ganhadores:
-                adjs.append((cid, anif, anome, norma_entidade(anome)))
+                adjs.append((cid, anif, anome, norma_entidade(anome),
+                             chave_entidade(anif, anome)))
             n += 1
             if len(linhas) >= 5000:
                 _despejar(c, linhas, cpvs, adjs)
@@ -2299,22 +2329,32 @@ def _gravar_contratos(ano, registos):
     return n
 
 
+# As colunas de cada tabela, por ordem, e a unica fonte da verdade sobre
+# elas: o SQL e as suas interrogacoes saem daqui. Duas vezes ja se
+# acrescentou uma coluna e o INSERT posicional partiu em silencio -- com
+# isto, acrescentar uma coluna que ninguem enche da erro no teste, nao a
+# meio de uma importacao de meia hora.
+COLS_CONTRATO = ("id", "ano", "n_anuncio", "tipo_procedimento", "objecto",
+                 "adjudicante_nif", "adjudicante", "adjudicante_norm",
+                 "data_publicacao", "data_celebracao", "preco_contratual",
+                 "preco_base", "prazo_execucao", "local_execucao", "cpv",
+                 "fundamentacao", "n_adj", "adjudicante_chave")
+COLS_CPV = ("contrato_id", "cpv8")
+COLS_ADJ = ("contrato_id", "nif", "nome", "nome_norm", "chave")
+
+
+def _inserir(c, tabela, colunas, linhas, modo="OR IGNORE"):
+    if not linhas:
+        return
+    c.executemany("INSERT %s INTO %s (%s) VALUES (%s)"
+                  % (modo, tabela, ", ".join(colunas),
+                     ",".join("?" * len(colunas))), linhas)
+
+
 def _despejar(c, linhas, cpvs, adjs):
-    if linhas:
-        # Colunas nomeadas de proposito: com VALUES posicional, acrescentar
-        # uma coluna a tabela partia o importador em silencio.
-        c.executemany(
-            "INSERT OR REPLACE INTO contratos (id,ano,n_anuncio,"
-            "tipo_procedimento,objecto,adjudicante_nif,adjudicante,"
-            "adjudicante_norm,data_publicacao,data_celebracao,"
-            "preco_contratual,preco_base,prazo_execucao,local_execucao,"
-            "cpv,fundamentacao,n_adj) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", linhas)
-    if cpvs:
-        c.executemany("INSERT OR IGNORE INTO contrato_cpv VALUES (?,?)", cpvs)
-    if adjs:
-        c.executemany("INSERT OR IGNORE INTO contrato_adjudicatario "
-                      "VALUES (?,?,?,?)", adjs)
+    _inserir(c, "contratos", COLS_CONTRATO, linhas, "OR REPLACE")
+    _inserir(c, "contrato_cpv", COLS_CPV, cpvs)
+    _inserir(c, "contrato_adjudicatario", COLS_ADJ, adjs)
 
 
 def _preencher_chaves(c):
@@ -2380,6 +2420,52 @@ def resolver_entidades(c):
                    FROM somado)
         INSERT INTO entidade_nomes (nome_norm, chave)
         SELECT nm, chave FROM melhor WHERE pos = 1""")
+
+
+def marca_corpus(chave, valor):
+    with liga_corpus() as c:
+        c.execute("INSERT OR REPLACE INTO corpus_estado VALUES (?,?)",
+                  (chave, str(valor)))
+
+
+def le_marca_corpus(chave, omissao=""):
+    if not os.path.exists(CORPUS):
+        return omissao
+    try:
+        with liga_corpus() as c:
+            r = c.execute("SELECT valor FROM corpus_estado WHERE chave=?",
+                          (chave,)).fetchone()
+        return r["valor"] if r else omissao
+    except sqlite3.Error:
+        return omissao
+
+
+# A actualizacao corre numa thread: um ano sao ~60 s e um pedido HTTP
+# parado esse tempo parece o painel pendurado. O estado fica na base,
+# para a pagina o mostrar e voltar a pedir-se sozinha.
+_ACTUALIZAR = threading.Lock()
+
+
+def actualizar_corpus(anos=None):
+    """Traz de novo os anos pedidos. Por omissao, o ano corrente e o
+    anterior -- e onde entram contratos novos; os anos fechados nao
+    mudam. Reimportar substitui o ano, por isso e seguro repetir."""
+    if not _ACTUALIZAR.acquire(blocking=False):
+        return False                    # ja vai uma a caminho
+    def trabalho():
+        try:
+            marca_corpus("actualizacao", "a correr")
+            n = importar_contratos(anos or anos_pedidos([]),
+                                   avisar=lambda m: marca_corpus("actualizacao_passo", m))
+            marca_corpus("actualizacao", "ok")
+            marca_corpus("actualizacao_passo", "%s contratos revistos" % mil_pt(n))
+        except Exception as erro:       # rede, disco, dump mal formado
+            marca_corpus("actualizacao", "falhou")
+            marca_corpus("actualizacao_passo", str(erro)[:200])
+        finally:
+            _ACTUALIZAR.release()
+    threading.Thread(target=trabalho, daemon=True).start()
+    return True
 
 
 def ha_corpus():
@@ -2487,20 +2573,24 @@ def condicoes_contratos(args):
     # Quem ganhou vive numa tabela a parte (um contrato pode ter varios
     # adjudicatarios). EXISTS e nao JOIN: com JOIN, um contrato ganho por
     # um agrupamento de tres aparecia tres vezes na lista.
+    # `IN` e nao `EXISTS`: as duas dao o mesmo (e nenhuma repete linhas,
+    # que era o problema do JOIN), mas o EXISTS obriga a passar por todos
+    # os contratos a perguntar por cada um. Com o IN, a tabela filha
+    # varre-se uma vez e sai o conjunto de ids -- 183 ms contra 517 no
+    # corpus de sete anos, e a diferenca cresce com ele.
     ganhou = [p.strip() for p in (args.get("ganhou") or "").split("|") if p.strip()]
     if ganhou:
-        onde.append("EXISTS (SELECT 1 FROM contrato_adjudicatario a "
-                    "WHERE a.contrato_id=c.id AND (%s))"
-                    % " OR ".join("a.nome LIKE ? ESCAPE '%s'" % ESCAPE_LIKE
+        onde.append("c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
+                    "WHERE %s)"
+                    % " OR ".join("nome LIKE ? ESCAPE '%s'" % ESCAPE_LIKE
                                   for _ in ganhou))
         valores += ["%" + para_like(p) + "%" for p in ganhou]
 
     prefixos = [p for p in (prefixo_cpv(x)
                             for x in (args.get("cpv") or "").split("|")) if p]
     if prefixos:
-        onde.append("EXISTS (SELECT 1 FROM contrato_cpv v "
-                    "WHERE v.contrato_id=c.id AND (%s))"
-                    % " OR ".join("v.cpv8 LIKE ?" for _ in prefixos))
+        onde.append("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+                    % " OR ".join("cpv8 LIKE ?" for _ in prefixos))
         valores += [p + "%" for p in prefixos]
     elif (args.get("cpv") or "").strip():
         onde.append("1=0")            # codigo que nao da prefixo: vazio, nao tudo
@@ -2508,14 +2598,18 @@ def condicoes_contratos(args):
     # Por entidade, e nao por nome: e o que a ficha da entidade usa nos
     # atalhos. Filtrar pelo nome mostrava menos contratos do que o numero
     # que a ficha promete, porque a mesma entidade assina com varios.
-    ent = (args.get("ent") or "").strip()
+    #
+    # Chamam-se `entid`/`vencid` e nao `ent`/`venc` porque nos anuncios o
+    # `ent` e a caixa de texto da entidade -- dois campos com o mesmo
+    # nome e sentidos diferentes eram um erro a espera de acontecer.
+    ent = (args.get("entid") or "").strip()
     if ent:
         onde.append("c.adjudicante_chave = ?")
         valores.append(ent)
-    venc = (args.get("venc") or "").strip()
+    venc = (args.get("vencid") or "").strip()
     if venc:
-        onde.append("EXISTS (SELECT 1 FROM contrato_adjudicatario a "
-                    "WHERE a.contrato_id=c.id AND a.chave=?)")
+        onde.append("c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
+                    "WHERE chave=?)")
         valores.append(venc)
 
     proc = (args.get("proc") or "").strip()
@@ -2728,6 +2822,16 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .filtros button:hover{background:var(--ink)}
 .filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--sans);color:var(--t5)}
 .filtros a.limpar:hover{color:var(--ink)}
+/* barra do corpus, no topo dos contratos */
+.corpus-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+ margin-bottom:12px;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
+.corpus-barra .accao{margin-left:auto}
+.corpus-barra .a-correr{margin-left:auto;font:500 12px/1 var(--sans);
+ color:var(--azul);display:inline-flex;align-items:center;gap:8px}
+.corpus-barra .a-correr::before{content:'';width:9px;height:9px;flex:none;
+ border-radius:50%;background:var(--azul);animation:pisca 1.1s infinite}
+@keyframes pisca{0%,100%{opacity:1}50%{opacity:.25}}
+
 /* ficha da entidade */
 .ent-cab{padding:20px 24px;margin-bottom:14px}
 .ent-cab .n{font:600 22px/1.25 var(--sans);color:var(--ink);letter-spacing:-.3px}
@@ -2799,6 +2903,10 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
  font-family:var(--mono);color:var(--ink)}
 .vazio code,.larg>.nota code{font:500 11.5px/1 var(--mono);
  background:var(--linha2);padding:2px 6px;border-radius:4px}
+.vazio.comecar{display:flex;flex-direction:column;gap:10px;padding:48px 40px}
+.vazio.comecar b{font:600 15px/1.3 var(--sans);color:var(--ink)}
+.vazio.comecar span{max-width:620px;margin:0 auto}
+.vazio.comecar .p{font-size:11.5px;color:var(--t6)}
 
 /* historico de adjudicacoes, na ficha */
 .mercado{padding:16px 18px;margin-top:14px}
@@ -3606,8 +3714,6 @@ def painel():
             "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
             "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC",
             (SEM_PLATAFORMA,)).fetchall()
-        guardados = c.execute("SELECT * FROM filtros_guardados "
-                              "ORDER BY nome COLLATE NOCASE").fetchall()
 
     mil = mil_pt
 
@@ -3664,51 +3770,7 @@ def painel():
            html.escape(request.args.get("ate", ""), quote=True),
            html.escape(estado_actual, quote=True)))
 
-    # Filtros guardados. Aplicar um e seguir uma ligacao -- so leitura,
-    # nada muda na base -- mas guardar e apagar sao POST, como o resto do
-    # que escreve.
-    agora = filtro_actual(request.args)
-    fichas = []
-    nome_activo = ""
-    for f in guardados:
-        activo = f["consulta"] == agora
-        if activo:
-            nome_activo = f["nome"]
-        fichas.append(
-            "<span class='guardado%s'>"
-            "<a href='/?%s' title='%s'>%s</a>"
-            "<form method='post' action='/filtros/%d/apagar' "
-            "onsubmit='return confirm(\"Apagar o filtro guardado &quot;%s&quot;? "
-            "Os anúncios não se mexem.\")'>"
-            "<input type='hidden' name='volta' value='%s'>"
-            "<button type='submit' title='apagar este filtro'>&times;</button>"
-            "</form></span>"
-            % (" on" if activo else "",
-               html.escape(f["consulta"], quote=True),
-               html.escape(resumo_filtro(f["consulta"]), quote=True),
-               html.escape(f["nome"]), f["id"],
-               html.escape(f["nome"], quote=True),
-               html.escape(agora, quote=True)))
-
-    if fichas:
-        legenda = ""
-    else:
-        legenda = ("<span class='nada'>ainda nenhum &mdash; escolhe os filtros "
-                   "acima e dá-lhes um nome</span>")
-    # O nome do filtro em uso vem preenchido de proposito: gravar por cima
-    # do mesmo nome e como se actualiza um filtro depois de o afinar.
-    guardar = (
-        "<form class='guardar' method='post' action='/filtros/guardar'>"
-        "<input type='hidden' name='consulta' value='%s'>"
-        "<input type='text' name='nome' required maxlength='60' value='%s' "
-        "placeholder='dar nome a estes filtros…'>"
-        "<button type='submit' class='bt forte'>Guardar filtro</button>"
-        "</form>" % (html.escape(agora, quote=True),
-                     html.escape(nome_activo, quote=True)))
-
-    caixa_guardados = ("<div class='cx guardados'><span class='rot'>"
-                       "Filtros guardados</span>%s%s%s</div>"
-                       % ("".join(fichas), legenda, guardar))
+    caixa_guardados = caixa_de_filtros(request.args, "anuncios")
 
     arvore = arvore_html(n_cpv, "anuncios")
 
@@ -3787,10 +3849,21 @@ CAMPOS_FILTRO = ("q", "ent", "cpv", "plat", "de", "ate", "estado")
 CAMPOS_DA_VEZ = ("pag", "aviso")
 
 
-def filtro_actual(args):
+# Os campos que fazem um filtro de contratos. Lista propria porque a
+# lista e outra: um anuncio nao tem vencedor nem valor final.
+CAMPOS_FILTRO_CONTRATOS = ("q", "adj", "ganhou", "cpv", "proc", "de", "ate",
+                           "min", "entid", "vencid")
+
+# (campos do filtro, rota da lista) por separador. E o que deixa os
+# filtros guardados servirem os dois sem duas copias do codigo.
+VISTAS = {"anuncios": (CAMPOS_FILTRO, "/"),
+          "contratos": (CAMPOS_FILTRO_CONTRATOS, "/contratos")}
+
+
+def filtro_actual(args, vista="anuncios"):
     """A query string canonica do filtro em uso, para guardar e comparar."""
     pares = []
-    for campo in CAMPOS_FILTRO:
+    for campo in VISTAS[vista][0]:
         if campo == "estado":
             # o mesmo criterio de condicoes(): ausente e "novo", presente
             # e vazio e "todos". Sao vistas diferentes, e a diferenca tem
@@ -3808,16 +3881,19 @@ def filtro_actual(args):
 
 # Como se le cada campo na descricao de um filtro guardado.
 _NOMES_FILTRO = {"q": "objecto", "ent": "entidade", "cpv": "CPV",
-                 "plat": "plataforma", "de": "desde", "ate": "até"}
+                 "plat": "plataforma", "de": "desde", "ate": "até",
+                 "adj": "entidade", "ganhou": "ganho por",
+                 "proc": "procedimento", "min": "desde €",
+                 "entid": "entidade", "vencid": "ganho por"}
 _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
                  "descartado": "descartados", "": "todos"}
 
 
-def resumo_filtro(consulta):
+def resumo_filtro(consulta, vista="anuncios"):
     """Diz por palavras o que um filtro guardado apanha, para a legenda."""
     campos = dict(parse_qsl(consulta or "", keep_blank_values=True))
     partes = []
-    for campo in CAMPOS_FILTRO:
+    for campo in VISTAS[vista][0]:
         valor = campos.get(campo)
         if valor is None:
             continue
@@ -3939,45 +4015,115 @@ def condicoes(args):
     return (" WHERE " + " AND ".join(onde) if onde else ""), valores
 
 
-def volta_a_lista(consulta, aviso=""):
-    """Volta para a lista com os filtros que estavam, e um aviso da vez."""
+def caixa_de_filtros(args, vista):
+    """A caixa dos filtros guardados, igual nos dois separadores.
+
+    Aplicar um filtro e seguir uma ligacao -- so leitura, nada muda na
+    base -- mas guardar e apagar sao POST, como o resto do que escreve.
+    O que muda entre vistas e a lista de campos e a rota; o resto e o
+    mesmo, e duas copias divergiam ao primeiro arranjo.
+    """
+    rota = VISTAS[vista][1]
+    agora = filtro_actual(args, vista)
+    with liga() as c:
+        guardados = c.execute(
+            "SELECT * FROM filtros_guardados WHERE vista=? "
+            "ORDER BY nome COLLATE NOCASE", (vista,)).fetchall()
+
+    fichas, nome_activo = [], ""
+    for f in guardados:
+        activo = f["consulta"] == agora
+        if activo:
+            nome_activo = f["nome"]
+        fichas.append(
+            "<span class='guardado%s'>"
+            "<a href='%s?%s' title='%s'>%s</a>"
+            "<form method='post' action='/filtros/%d/apagar' "
+            "onsubmit='return confirm(\"Apagar o filtro guardado &quot;%s&quot;? "
+            "Não se apaga nada além do filtro.\")'>"
+            "<input type='hidden' name='volta' value='%s'>"
+            "<button type='submit' title='apagar este filtro'>&times;</button>"
+            "</form></span>"
+            % (" on" if activo else "", rota,
+               html.escape(f["consulta"], quote=True),
+               html.escape(resumo_filtro(f["consulta"], vista), quote=True),
+               html.escape(f["nome"]), f["id"],
+               html.escape(f["nome"], quote=True),
+               html.escape(agora, quote=True)))
+
+    legenda = "" if fichas else (
+        "<span class='nada'>ainda nenhum &mdash; escolhe os filtros acima e "
+        "dá-lhes um nome</span>")
+    # O nome do filtro em uso vem preenchido de proposito: gravar por cima
+    # do mesmo nome e como se actualiza um filtro depois de o afinar.
+    guardar = (
+        "<form class='guardar' method='post' action='/filtros/guardar'>"
+        "<input type='hidden' name='vista' value='%s'>"
+        "<input type='hidden' name='consulta' value='%s'>"
+        "<input type='text' name='nome' required maxlength='60' value='%s' "
+        "placeholder='dar nome a estes filtros…'>"
+        "<button type='submit' class='bt forte'>Guardar filtro</button>"
+        "</form>" % (vista, html.escape(agora, quote=True),
+                     html.escape(nome_activo, quote=True)))
+
+    return ("<div class='cx guardados'><span class='rot'>"
+            "Filtros guardados</span>%s%s%s</div>"
+            % ("".join(fichas), legenda, guardar))
+
+
+def volta_a_lista(consulta, vista="anuncios", aviso=""):
+    """Volta para a lista de onde se veio, com os filtros que estavam."""
+    rota = VISTAS.get(vista, VISTAS["anuncios"])[1]
     partes = [p for p in (consulta, urlencode({"aviso": aviso}) if aviso else "")
               if p]
-    return redirect("/?" + "&".join(partes) if partes else "/")
+    return redirect(rota + "?" + "&".join(partes) if partes else rota)
+
+
+def _vista_pedida(valor):
+    """Nunca deixar um valor de fora escolher uma rota a esmo."""
+    valor = (valor or "").strip()
+    return valor if valor in VISTAS else "anuncios"
 
 
 @app.route("/filtros/guardar", methods=["POST"])
 def filtro_guardar():
     """Guarda os filtros de agora com um nome. Gravar por cima do mesmo
     nome actualiza-o -- e assim que se afina um filtro sem ficar com dois
-    quase iguais e sem saber qual deles esta em uso."""
+    quase iguais e sem saber qual deles esta em uso.
+
+    O mesmo nome pode servir nas duas listas: a unicidade e por (vista,
+    nome), porque "Software" quer dizer coisas diferentes em cada uma.
+    """
     nome = (request.form.get("nome") or "").strip()
     consulta = (request.form.get("consulta") or "").strip()
+    vista = _vista_pedida(request.form.get("vista"))
     if not nome:
-        return volta_a_lista(consulta)
+        return volta_a_lista(consulta, vista)
     with liga() as c:
-        antes = c.execute("SELECT id FROM filtros_guardados WHERE nome=?",
-                          (nome,)).fetchone()
-        c.execute("""INSERT INTO filtros_guardados (nome,consulta,quem,criado_em)
-                     VALUES (?,?,?,?)
-                     ON CONFLICT(nome) DO UPDATE SET
+        antes = c.execute("SELECT id FROM filtros_guardados "
+                          "WHERE vista=? AND nome=?", (vista, nome)).fetchone()
+        c.execute("""INSERT INTO filtros_guardados
+                       (vista,nome,consulta,quem,criado_em)
+                     VALUES (?,?,?,?,?)
+                     ON CONFLICT(vista,nome) DO UPDATE SET
                        consulta=excluded.consulta, quem=excluded.quem,
                        criado_em=excluded.criado_em""",
-                  (nome, consulta, quem_sou() or "(sem nome)",
+                  (vista, nome, consulta, quem_sou() or "(sem nome)",
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
-    return volta_a_lista(consulta, "Filtro %s: %s"
+    return volta_a_lista(consulta, vista, "Filtro %s: %s"
                          % ("actualizado" if antes else "guardado", nome))
 
 
 @app.route("/filtros/<int:filtro_id>/apagar", methods=["POST"])
 def filtro_apagar(filtro_id):
-    """Apaga so o filtro. Os anuncios nao se mexem -- um filtro esconde,
-    nao apaga, e apagar o filtro devolve a lista inteira."""
+    """Apaga so o filtro. Nem os anuncios nem os contratos se mexem -- um
+    filtro esconde, nao apaga, e tira-lo devolve a lista inteira."""
     with liga() as c:
-        linha = c.execute("SELECT nome FROM filtros_guardados WHERE id=?",
-                          (filtro_id,)).fetchone()
+        linha = c.execute("SELECT nome, vista FROM filtros_guardados "
+                          "WHERE id=?", (filtro_id,)).fetchone()
         c.execute("DELETE FROM filtros_guardados WHERE id=?", (filtro_id,))
     return volta_a_lista((request.form.get("volta") or "").strip(),
+                         linha["vista"] if linha else "anuncios",
                          "Filtro apagado: %s" % linha["nome"] if linha else "")
 
 
@@ -4538,11 +4684,11 @@ def entidade(chave):
     # Ligacoes para a lista, ja filtrada por esta entidade nos dois papeis
     ligacoes = []
     if compra["k"]:
-        ligacoes.append("<a href='/contratos?ent=%s'>ver os %s contratos que "
+        ligacoes.append("<a href='/contratos?entid=%s'>ver os %s contratos que "
                         "adjudicou</a>" % (quote(chave, safe=""),
                                            mil_pt(compra["k"])))
     if ganha["k"]:
-        ligacoes.append("<a href='/contratos?venc=%s'>ver os %s que "
+        ligacoes.append("<a href='/contratos?vencid=%s'>ver os %s que "
                         "ganhou</a>" % (quote(chave, safe=""),
                                         mil_pt(ganha["k"])))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
@@ -4636,31 +4782,91 @@ def sem_corpus_html(titulo):
         titulo_aba="Contratos, Radar de Concursos")
 
 
+@app.route("/contratos/actualizar", methods=["POST"])
+def contratos_actualizar():
+    actualizar_corpus()
+    return redirect("/contratos?" + urlencode(args_da_lista(request.args)))
+
+
+def espera_corpus():
+    """Enquanto a actualizacao corre, a pagina volta a pedir-se sozinha.
+    A thread poe sempre um estado terminal (ok/falhou), por isso isto
+    para -- nao fica em ciclo."""
+    if le_marca_corpus("actualizacao", "") != "a correr":
+        return ""
+    return "<script>setTimeout(function(){location.reload()},4000)</script>"
+
+
+def barra_corpus(anos):
+    """Quando foi a ultima vez, e o botao de trazer o que ha de novo."""
+    estado = le_marca_corpus("actualizacao", "")
+    passo = le_marca_corpus("actualizacao_passo", "")
+    quando = le_marca_corpus("ultima_importacao", "nunca")
+    if estado == "a correr":
+        direita = ("<span class='a-correr'>a actualizar&hellip; %s</span>"
+                   % html.escape(passo))
+    else:
+        # leva os filtros de agora, para se voltar ao que se estava a ver
+        seguir = urlencode(args_da_lista(request.args))
+        direita = accao("/contratos/actualizar" + ("?" + seguir if seguir else ""),
+                        "Actualizar contratos")
+    aviso = ""
+    if estado == "falhou":
+        aviso = ("<div class='cpv-activo' style='border-color:#f0c9c3;"
+                 "background:#fbe9e6;color:var(--verm)'>A última "
+                 "actualização falhou: %s</div>" % html.escape(passo))
+    return ("<div class='corpus-barra'>"
+            "<span>Corpus do Portal BASE (IMPIC, dados.gov) &middot; "
+            "%s contratos de %s &middot; trazido em %s</span>%s</div>%s"
+            % (mil_pt(ha_corpus()),
+               "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
+               else (str(anos[0]) if anos else "—"),
+               html.escape(quando), direita, aviso))
+
+
 @app.route("/contratos")
 def contratos():
     if not ha_corpus():
         return sem_corpus_html("Contratos celebrados")
 
+    # Sem filtro nao se mostra lista nenhuma. Sao 1,36 milhoes de
+    # contratos: por data, sem mais nada, as primeiras 20 nao dizem nada
+    # a ninguem -- e era essa consulta que punha a pagina a 48 segundos.
+    # Aqui a pergunta vem primeiro, ao contrario dos anuncios, onde a
+    # lista inteira e o acervo por triar e faz sentido ve-la.
+    ha_pergunta = any((request.args.get(campo) or "").strip()
+                      for campo in CAMPOS_FILTRO_CONTRATOS)
+
     onde, valores = condicoes_contratos(request.args)
+    correspondem = valor = 0
+    paginas = pagina = 1
+    linhas = []
     with liga_corpus() as c:
-        resumo = c.execute(
-            "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
-            "FROM contratos c" + onde, valores).fetchone()
-        correspondem, valor = resumo["n"], resumo["v"]
-        paginas = max(1, -(-correspondem // POR_PAGINA))
-        pagina = min(max(1, pagina_pedida(request.args)), paginas)
-        linhas = c.execute(
-            "SELECT c.*, COALESCE(e.nome, c.adjudicante) adj_nome, "
-            "(SELECT group_concat(COALESCE(g.nome, a.nome), '|') "
-            " FROM contrato_adjudicatario a "
-            " LEFT JOIN entidades g ON g.chave=a.chave "
-            " WHERE a.contrato_id=c.id) ganhou, "
-            "(SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a "
-            " WHERE a.contrato_id=c.id) ganhou_ch "
-            "FROM contratos c LEFT JOIN entidades e "
-            " ON e.chave=c.adjudicante_chave" + onde +
-            " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ? OFFSET ?",
-            valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
+        if ha_pergunta:
+            resumo = c.execute(
+                "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
+                "FROM contratos c" + onde, valores).fetchone()
+            correspondem, valor = resumo["n"], resumo["v"]
+            paginas = max(1, -(-correspondem // POR_PAGINA))
+            pagina = min(max(1, pagina_pedida(request.args)), paginas)
+            # Escolhem-se primeiro as 20 linhas, e so depois se lhes vao
+            # buscar os nomes: com o LEFT JOIN e as subconsultas por
+            # linha a correrem antes do LIMIT, isto levava 45 segundos no
+            # corpus de sete anos. E a mesma armadilha do "quem ganha".
+            linhas = c.execute(
+                "WITH pag AS (SELECT c.* FROM contratos c" + onde +
+                " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ? OFFSET ?)"
+                " SELECT p.*, COALESCE(e.nome, p.adjudicante) adj_nome,"
+                " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
+                "  FROM contrato_adjudicatario a"
+                "  LEFT JOIN entidades g ON g.chave=a.chave"
+                "  WHERE a.contrato_id=p.id) ganhou,"
+                " (SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a"
+                "  WHERE a.contrato_id=p.id) ganhou_ch"
+                " FROM pag p LEFT JOIN entidades e"
+                "  ON e.chave=p.adjudicante_chave"
+                " ORDER BY p.data_celebracao DESC, p.id DESC",
+                valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
         procs = [r["p"] for r in c.execute(
             "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
             "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
@@ -4726,29 +4932,43 @@ def contratos():
                   "<th>Entidade</th><th>Quem ganhou</th><th>Procedimento</th>"
                   "<th class='p'>Preço</th></tr></thead><tbody>%s</tbody>"
                   "</table></div>" % "".join(corpo))
-    else:
+    elif ha_pergunta:
         tabela = ("<div class='vazio'>Nada corresponde a este filtro. "
                   "<a href='/contratos'>limpar</a></div>")
-
-    conta = "Celebrados mais recentes primeiro &middot; "
-    if correspondem > len(linhas):
-        primeiro = (pagina - 1) * POR_PAGINA + 1
-        conta += ("%s&ndash;%s de %s &middot; página %s de %s"
-                  % (mil_pt(primeiro), mil_pt(primeiro + len(linhas) - 1),
-                     mil_pt(correspondem), mil_pt(pagina), mil_pt(paginas)))
     else:
-        conta += "%s %s" % (mil_pt(correspondem),
-                            "contrato" if correspondem == 1 else "contratos")
-    # O somatorio e do filtro todo, nao da pagina: e o numero que diz
-    # quanto vale este mercado, e por pagina nao queria dizer nada.
-    conta += " &middot; <b>%s</b> no total" % euros(valor)
+        # A pergunta vem primeiro. Um milhao e meio de contratos por data
+        # nao e uma resposta a nada.
+        tabela = ("<div class='vazio comecar'>"
+                  "<b>Faz uma pergunta ao corpus.</b>"
+                  "<span>Escolhe um CPV na árvore, escreve quem ganhou ou "
+                  "que entidade comprou, aperta as datas ou o valor. Os "
+                  "gráficos e a lista respondem ao filtro que puseres.</span>"
+                  "<span class='p'>São %s contratos: sem filtro, os mais "
+                  "recentes não dizem nada sobre nada.</span></div>"
+                  % mil_pt(ha_corpus()))
 
-    fonte = ("<div class='nota' style='margin-top:14px'>Corpus do Portal "
-             "BASE (IMPIC, dados.gov), %s contratos de %s. Refaz-se com "
-             "<code>python radar.py --contratos</code>.</div>"
-             % (mil_pt(ha_corpus()),
-                "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
-                else str(anos[0]) if anos else "—"))
+    if ha_pergunta:
+        conta = "Celebrados mais recentes primeiro &middot; "
+        if correspondem > len(linhas):
+            primeiro = (pagina - 1) * POR_PAGINA + 1
+            conta += ("%s&ndash;%s de %s &middot; página %s de %s"
+                      % (mil_pt(primeiro), mil_pt(primeiro + len(linhas) - 1),
+                         mil_pt(correspondem), mil_pt(pagina), mil_pt(paginas)))
+        else:
+            conta += "%s %s" % (mil_pt(correspondem),
+                                "contrato" if correspondem == 1 else "contratos")
+        # O somatorio e do filtro todo, nao da pagina: e o numero que diz
+        # quanto vale este mercado, e por pagina nao queria dizer nada.
+        conta += " &middot; <b>%s</b> no total" % euros(valor)
+        linha_conta = "<div class='linha-conta'>" + conta + "</div>"
+    else:
+        linha_conta = ""
+
+    fonte = ("<div class='nota' style='margin-top:14px'>O dump do IMPIC é "
+             "semanal: os contratos das últimas semanas podem ainda não lá "
+             "estar. Anos fechados não mudam &mdash; o botão só volta a "
+             "trazer o ano corrente e o anterior. Para anos mais antigos, "
+             "<code>python radar.py --contratos 2015-2019</code>.</div>")
 
     # O campo do CPV e escondido, por isso um filtro activo nao se via em
     # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
@@ -4762,7 +4982,8 @@ def contratos():
                       % (html.escape(cpv_actual), urlencode(sem)))
     # A chave da entidade e opaca na URL: diz-se de quem e, e da-se a
     # ficha ao lado.
-    for campo, papel in (("ent", "adjudicadas por"), ("venc", "ganhas por")):
+    for campo, papel in (("entid", "adjudicadas por"),
+                         ("vencid", "ganhas por")):
         valor = (request.args.get(campo) or "").strip()
         if not valor:
             continue
@@ -4778,26 +4999,28 @@ def contratos():
     faixa_cpv = "".join(faixas)
 
     # Pedidos so ao abrir, como a arvore: sao ~800 ms de consultas e a
-    # tabela nao tem de esperar por eles.
+    # tabela nao tem de esperar por eles. Sem filtro nem aparecem: sobre
+    # o corpus inteiro demoravam muito e respondiam a pergunta nenhuma.
     graficos = (
         "<details class='arvore graficos'><summary>"
         "<span class='arv-tit'>Ver em gráficos</span>"
-        "<span class='arv-sub'>quem ganha, como se compra, evolução "
-        "&mdash; deste filtro</span></summary>"
+        "<span class='arv-sub'>quem ganha, quem compra, como se compra, "
+        "concentração, tamanho, evolução &mdash; deste filtro</span></summary>"
         "<div id='graf-corpo' class='graf-corpo'>a carregar…</div>"
-        "</details>")
+        "</details>") if ha_pergunta else ""
 
-    conteudo = ("<div class='larg'>" + filtros + faixa_cpv +
-                arvore_html(n_cpv, "contratos") + graficos +
-                "<div class='linha-conta'>" + conta + "</div>" + tabela +
+    conteudo = ("<div class='larg'>" + barra_corpus(anos) + filtros +
+                caixa_de_filtros(request.args, "contratos") + faixa_cpv +
+                arvore_html(n_cpv, "contratos") + graficos + linha_conta +
+                tabela +
                 paginador(pagina, paginas, request.args, "/contratos") +
-                fonte + "</div>")
+                (fonte if ha_pergunta else "") + "</div>")
 
     return envolver(
         "contratos", "Contratos celebrados",
         "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
         "Não são oportunidades: servem para saber com quem se concorre.",
-        conteudo, script=ARVORE_JS + GRAFICOS_JS,
+        conteudo, script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
         migalhas="<a href='/'>Anúncios</a><s>&rsaquo;</s><em>Contratos</em>",
         titulo_aba="Contratos, Radar de Concursos")
 

@@ -1433,17 +1433,20 @@ class TestCondicoesContratos(unittest.TestCase):
     "quem ganhou" e "desde € X" só existem aqui.
     """
 
-    def test_quem_ganhou_por_exists_e_nao_por_join(self):
+    def test_quem_ganhou_por_subconsulta_e_nunca_por_join(self):
         # com JOIN, um contrato ganho por um agrupamento de três aparecia
-        # três vezes na lista -- e há um com 35 adjudicatários
+        # três vezes na lista -- e há um com 35 adjudicatários. Vale
+        # qualquer forma que não repita linhas (hoje é `IN`, foi `EXISTS`);
+        # o que não pode voltar é o JOIN.
         onde, _ = radar.condicoes_contratos({"ganhou": "Bayer"})
-        self.assertIn("EXISTS", onde)
         self.assertNotIn("JOIN", onde.upper())
+        self.assertIn("contrato_adjudicatario", onde)
 
-    def test_cpv_por_exists_pelo_mesmo_motivo(self):
+    def test_cpv_por_subconsulta_pelo_mesmo_motivo(self):
         # um contrato pode ter vários CPV da mesma divisão
         onde, valores = radar.condicoes_contratos({"cpv": "72000000"})
-        self.assertIn("EXISTS", onde)
+        self.assertNotIn("JOIN", onde.upper())
+        self.assertIn("contrato_cpv", onde)
         self.assertIn("72%", valores)
 
     def test_cpv_sem_prefixo_nao_devolve_tudo(self):
@@ -1725,22 +1728,143 @@ class TestFiltroPorEntidade(unittest.TestCase):
     ao filtrar pelo nome."""
 
     def test_adjudicante_por_chave(self):
-        onde, valores = radar.condicoes_contratos({"ent": "501413197"})
+        onde, valores = radar.condicoes_contratos({"entid": "501413197"})
         self.assertIn("c.adjudicante_chave = ?", onde)
         self.assertIn("501413197", valores)
 
-    def test_vencedor_por_chave_usa_exists(self):
-        onde, valores = radar.condicoes_contratos({"venc": "504615947"})
-        self.assertIn("EXISTS", onde)
-        self.assertIn("a.chave=?", onde)
+    def test_vencedor_por_chave_sem_join(self):
+        onde, valores = radar.condicoes_contratos({"vencid": "504615947"})
+        self.assertNotIn("JOIN", onde.upper())
+        self.assertIn("chave=?", onde)
         self.assertIn("504615947", valores)
 
     def test_os_dois_ao_mesmo_tempo(self):
         # "o que a MEO ganhou à Universidade do Porto"
         onde, valores = radar.condicoes_contratos(
-            {"ent": "501413197", "venc": "504615947"})
+            {"entid": "501413197", "vencid": "504615947"})
         self.assertEqual(len(valores), 2)
         self.assertIn(" AND ", onde)
+
+    def test_nao_se_chamam_ent_nem_venc(self):
+        # nos anúncios o `ent` é a caixa de texto da entidade; dois campos
+        # com o mesmo nome e sentidos diferentes eram um erro à espera de
+        # acontecer, e por isso o `ent` aqui não pode filtrar nada
+        _, valores = radar.condicoes_contratos({"ent": "501413197",
+                                                "venc": "504615947"})
+        self.assertEqual(valores, [])
+
+
+class TestFiltrosGuardadosNasDuasVistas(unittest.TestCase):
+    """Os contratos passaram a ter filtros guardados próprios. As listas
+    têm campos diferentes -- um anúncio não tem vencedor nem valor final
+    -- por isso cada vista tem a sua lista de campos, e o mesmo nome
+    ("Software") pode servir nas duas.
+    """
+
+    def test_cada_vista_tem_a_sua_rota_e_os_seus_campos(self):
+        self.assertEqual(radar.VISTAS["anuncios"][1], "/")
+        self.assertEqual(radar.VISTAS["contratos"][1], "/contratos")
+        self.assertNotEqual(radar.VISTAS["anuncios"][0],
+                            radar.VISTAS["contratos"][0])
+
+    def test_o_filtro_de_contratos_nao_leva_estado(self):
+        # "estado" é a triagem dos anúncios; um contrato assinado não tem
+        consulta = radar.filtro_actual({"q": "software"}, "contratos")
+        self.assertEqual(consulta, "q=software")
+
+    def test_o_filtro_de_anuncios_continua_a_levar_estado_sempre(self):
+        self.assertEqual(radar.filtro_actual({"q": "software"}, "anuncios"),
+                         "q=software&estado=novo")
+
+    def test_campos_so_dos_contratos(self):
+        consulta = radar.filtro_actual(
+            {"ganhou": "MEO", "min": "50000", "proc": "Consulta Prévia"},
+            "contratos")
+        for pedaco in ("ganhou=MEO", "min=50000", "proc=Consulta"):
+            with self.subTest(pedaco=pedaco):
+                self.assertIn(pedaco, consulta)
+
+    def test_ordem_fixa_tambem_nos_contratos(self):
+        # é ela que deixa reconhecer o filtro em uso por igualdade de texto
+        um = radar.filtro_actual({"min": "1000", "q": "obras"}, "contratos")
+        outro = radar.filtro_actual({"q": "obras", "min": "1000"}, "contratos")
+        self.assertEqual(um, outro)
+
+    def test_a_pagina_fica_de_fora_nas_duas(self):
+        for vista in ("anuncios", "contratos"):
+            with self.subTest(vista=vista):
+                self.assertNotIn("pag", radar.filtro_actual(
+                    {"q": "x", "pag": "4"}, vista))
+
+    def test_resumo_le_os_campos_da_vista_certa(self):
+        self.assertIn("ganho por MEO",
+                      radar.resumo_filtro("ganhou=MEO", "contratos"))
+
+    def test_vista_de_fora_nao_escolhe_rota_a_esmo(self):
+        # o valor vem de um formulário; nunca pode escolher uma rota
+        for mau in ("", None, "outra", "../etc"):
+            with self.subTest(mau=mau):
+                self.assertEqual(radar._vista_pedida(mau), "anuncios")
+        self.assertEqual(radar._vista_pedida("contratos"), "contratos")
+
+
+class TestPerguntaAntesDaLista(unittest.TestCase):
+    """Nos contratos a pergunta vem primeiro: sem filtro não se mostra
+    lista nenhuma. São 1,36 milhões de contratos e por data não dizem nada
+    -- e era essa consulta que punha a página a 48 segundos.
+
+    A regra é "algum dos campos do filtro tem valor", e é por isso que
+    tem de ser exactamente a lista da vista: um campo novo que fique de
+    fora não acordava a lista, e o filtro parecia não funcionar.
+    """
+
+    def ha_pergunta(self, args):
+        # a mesma condição da rota /contratos
+        return any((args.get(campo) or "").strip()
+                   for campo in radar.CAMPOS_FILTRO_CONTRATOS)
+
+    def test_sem_nada_nao_ha_pergunta(self):
+        self.assertFalse(self.ha_pergunta({}))
+        self.assertFalse(self.ha_pergunta({"pag": "3", "aviso": "x"}))
+
+    def test_campos_vazios_nao_contam(self):
+        self.assertFalse(self.ha_pergunta({"q": "", "cpv": "  ", "min": ""}))
+
+    def test_qualquer_campo_do_filtro_acorda_a_lista(self):
+        for campo in radar.CAMPOS_FILTRO_CONTRATOS:
+            with self.subTest(campo=campo):
+                self.assertTrue(self.ha_pergunta({campo: "x"}))
+
+
+class TestColunasDoImportador(unittest.TestCase):
+    """As colunas do INSERT saem de uma lista só. Duas vezes se
+    acrescentou uma coluna à tabela e o VALUES posicional partiu -- a
+    segunda a meio de uma importação de sete anos.
+    """
+
+    def test_as_interrogacoes_saem_do_numero_de_colunas(self):
+        vistas = []
+
+        class FalsaLigacao:
+            def executemany(self, sql, linhas):
+                vistas.append(sql)
+
+        radar._inserir(FalsaLigacao(), "t", ("a", "b", "c"), [(1, 2, 3)])
+        self.assertIn("(a, b, c)", vistas[0])
+        self.assertIn("VALUES (?,?,?)", vistas[0])
+
+    def test_sem_linhas_nao_toca_na_base(self):
+        class Explode:
+            def executemany(self, *a):
+                raise AssertionError("não devia ter escrito nada")
+
+        radar._inserir(Explode(), "t", ("a",), [])
+
+    def test_as_listas_de_colunas_nao_estao_vazias(self):
+        for cols in (radar.COLS_CONTRATO, radar.COLS_CPV, radar.COLS_ADJ):
+            with self.subTest(cols=cols[:1]):
+                self.assertTrue(cols)
+                self.assertEqual(len(cols), len(set(cols)))
 
 
 if __name__ == "__main__":
