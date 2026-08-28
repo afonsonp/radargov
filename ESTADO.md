@@ -1076,6 +1076,24 @@ nos milhares e a vírgula nos cêntimos, ao contrário do que o `float()`
 de Python lê. Ingenuamente dava 175,0 em vez de 175 000, e a comparação
 dizia o contrário do que devia. Tem testes.
 
+### Dois anos de anúncios
+
+O `--historico 730` correu até ao fim: **66 009 anúncios, de 28/08/2024 a
+28/08/2026**, contra os 5 391 de 60 dias que estavam. Levou algumas
+horas, como previsto (uma página por segundo, para não castigar o
+portal).
+
+**60 589 ficam sem detalhe lido**, e é assim de propósito: o
+`detalhe_dias` limita a rotina aos últimos 60 dias, e os mais antigos
+lem-se quando se abre a ficha. Consequência a ter em conta: **um filtro
+por CPV só apanha os que têm detalhe lido**, porque é de lá que o CPV
+vem. Para o histórico servir de base a estatística, era preciso forçar a
+leitura dos detalhes — são 60 mil pedidos a um por segundo, ou seja
+umas 17 horas.
+
+Com 66 mil linhas o painel continua rápido: a lista filtrada abaixo de
+200 ms, a página 500 em 184 ms, os indicadores em 303 ms.
+
 ### Indicadores do funil
 
 Os indicadores contavam estados parados. Passam a mostrar o movimento —
