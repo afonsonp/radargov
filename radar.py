@@ -6504,6 +6504,46 @@ def calendario():
 
 # --------------------------------------------------------- indicadores
 
+def funil_anuncios():
+    """Como corre a triagem: quanto entra, quanto se olha, quanto vinga.
+
+    Os indicadores contavam estados e mais nada. O que falta saber e o
+    movimento -- quanto do que entra chega a interessar, quanto tempo
+    fica por ver, e em que CPV se descarta sempre. Isso diz onde se
+    perde tempo, que as contagens paradas nao dizem.
+    """
+    hoje = datetime.now().date()
+    d = {}
+    with liga() as c:
+        d["entrados"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ?",
+            ((hoje - timedelta(days=30)).isoformat(),)).fetchone()["n"]
+        d["triados"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios WHERE estado != 'novo'").fetchone()["n"]
+        d["interessa"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios WHERE estado='interessa'").fetchone()["n"]
+        d["descartados"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios WHERE estado='descartado'").fetchone()["n"]
+        d["total"] = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
+        # Por ver e com prazo a passar: e a fila que custa dinheiro, e
+        # nenhum ecra a mostrava.
+        d["urgentes_por_ver"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
+            "AND prazo >= ? AND prazo <= ?",
+            (hoje.isoformat(),
+             (hoje + timedelta(days=10)).isoformat())).fetchone()["n"]
+        d["expirados_por_ver"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
+            "AND prazo != '' AND prazo < ?", (hoje.isoformat(),)).fetchone()["n"]
+        # Onde a triagem tem acontecido, por divisao de CPV
+        d["por_divisao"] = c.execute(
+            "SELECT substr(cpv,1,2) div, "
+            " SUM(estado='interessa') sim, SUM(estado='descartado') nao, "
+            " COUNT(*) tudo FROM anuncios WHERE cpv != '' AND estado != 'novo' "
+            "GROUP BY div ORDER BY tudo DESC LIMIT 8").fetchall()
+    return d
+
+
 def linhas_de_saude(itens, cor_ma="#c0392b"):
     """As linhas de (rotulo, valor, esta_bem) da coluna dos indicadores."""
     return "".join(
@@ -6635,9 +6675,73 @@ def indicadores():
     corpus_html = linhas_de_saude(corpus, "#d68910")
     saude_html = linhas_de_saude(saude)
 
+    # O funil: o que entra, o que se olha, o que vinga. Os indicadores
+    # contavam estados parados e nao diziam nada sobre o movimento.
+    f = funil_anuncios()
+    porver = f["total"] - f["triados"]
+    passos = [("Entrados (30 dias)", f["entrados"], "var(--t3)"),
+              ("Por ver", porver, "#d68910"),
+              ("Triados", f["triados"], "var(--azul)"),
+              ("Interessa", f["interessa"], "var(--verde)")]
+    maior_f = max([p[1] for p in passos] + [1])
+    funil_html = "".join(
+        "<div class='col'><span class='v'>%s</span>"
+        "<div class='b' style='height:%d%%;background:%s'></div>"
+        "<span class='l'>%s</span></div>"
+        % (mil_pt(n), int(88.0 * n / maior_f) + 6, cor, etiqueta)
+        for etiqueta, n, cor in passos)
+
+    if f["triados"]:
+        taxa = 100.0 * f["interessa"] / f["triados"]
+        leitura = ("De tudo o que já triaste, <b>%.0f%%</b> ficou como "
+                   "interessa." % taxa)
+    else:
+        leitura = "Ainda não triaste nada, por isso não há taxa a mostrar."
+    alertas = []
+    if f["urgentes_por_ver"]:
+        alertas.append("<b>%s por ver com prazo a menos de 10 dias</b>"
+                       % mil_pt(f["urgentes_por_ver"]))
+    if f["expirados_por_ver"]:
+        alertas.append("%s por ver já com o prazo passado"
+                       % mil_pt(f["expirados_por_ver"]))
+    if alertas:
+        leitura += " " + " &middot; ".join(alertas) + "."
+
+    if f["por_divisao"]:
+        with liga() as c:
+            nomes_div = {r["codigo8"][:2]: r["descricao"] for r in c.execute(
+                "SELECT codigo8, descricao FROM cpv_dict WHERE codigo8 IN (%s)"
+                % ",".join("?" * len(f["por_divisao"])),
+                [r["div"] + "000000" for r in f["por_divisao"]])}
+        divisoes = "".join(
+            "<div class='l'><span class='t'>%s &mdash; %s</span>"
+            "<span class='v'>%s de %s</span></div>"
+            % (html.escape(r["div"]),
+               html.escape(nomes_div.get(r["div"], "sem descrição"))[:40],
+               mil_pt(r["sim"]), mil_pt(r["tudo"]))
+            for r in f["por_divisao"])
+        divisoes = ("<div class='rot' style='margin:22px 0 16px'>Onde a "
+                    "triagem tem dito que sim</div><div class='saude'>%s</div>"
+                    % divisoes)
+    else:
+        divisoes = ("<div class='nota' style='margin-top:16px'>Ainda não há "
+                    "triagem que chegue para dizer em que CPV costumas "
+                    "dizer que sim.</div>")
+
+    # Montado a parte e passado como argumento: a `leitura` traz um "%"
+    # (a taxa de conversao) e, concatenado no template, o `%` de baixo
+    # tentava interpreta-lo como conversao.
+    funil_cx = ("<div class='cx' style='padding:22px 24px'>"
+                "<div class='rot' style='margin-bottom:6px'>Funil da "
+                "triagem</div>"
+                "<div class='nota' style='margin-bottom:18px'>" + leitura +
+                "</div><div class='barras'>" + funil_html + "</div>" +
+                divisoes + "</div>")
+
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
         "<div class='kpis'>%s</div>"
+        "%s"
         "<div class='ind-grelha'>"
         "<div class='cx' style='padding:22px 24px'>"
         "<div class='rot' style='margin-bottom:22px'>Interessados por fase do quadro</div>"
@@ -6650,7 +6754,7 @@ def indicadores():
         "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
         "<code>contratos.db</code>. Actualiza-se em "
         "<a href='/contratos'>Contratos</a>.</div></div>"
-        "</div></div>" % (kpis_html, barras, saude_html, corpus_html))
+        "</div></div>" % (kpis_html, funil_cx, barras, saude_html, corpus_html))
 
     migalhas = migalhas_de("indicadores")
     return envolver("indicadores", "Indicadores",
