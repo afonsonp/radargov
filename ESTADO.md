@@ -954,16 +954,35 @@ o alerta de cada um, apaga, e **cria filtros ali mesmo** — com a árvore
 de CPV, sem ter de ir primeiro a uma lista. Cada filtro mostra onde se
 aplica, com ligações directas para os anúncios e para os contratos.
 
+### A árvore de CPV serve dois sitios com necessidades opostas
+
+Defeito apanhado pelo Afonso: no formulário de criar um filtro, escolher
+CPV não dava nada. A causa é que o `arvoreAplicar()` **submetia o
+formulário** — o que numa lista é exactamente o que se quer (aplicar e
+pesquisar), mas ali mandava o formulário antes de o nome estar escrito,
+e a resposta era "o filtro precisa de nome". O `form.submit()` por
+script salta a validação do `required`, por isso nem havia aviso do
+browser.
+
+`arvore_html(..., submeter=False)` põe um `data-submeter='nao'` no
+elemento e o JS lê-o: preenche o campo, fecha a árvore, e fica na
+página. E ali o campo do CPV passa a ver-se (só de leitura, escrito pela
+árvore) — nas listas há a lista por baixo a mostrar o resultado, aqui
+não havia nada que dissesse o que tinha sido escolhido.
+
 ### O e-mail configura-se no ecrã
 
 Deixou de ser preciso abrir o `config.json` — onde uma vírgula a mais
 deixa a aplicação sem configuração nenhuma. O formulário grava por
 `gravar_config()`, que junta ao que lá está em vez de reescrever tudo.
 
-**A palavra-passe continua fora dali**, em `email_senha.txt`: o
-`config.json` abre-se sem pensar, e uma palavra-passe lá dentro sai em
-qualquer captura de ecrã. O destino pode ser qualquer endereço; quem
-precisa de conta é quem envia.
+**Só o destino e a hora.** A conta que **envia** não se configura no
+painel, por decisão do Afonso e com razão: quem envia são três coisas
+que andam juntas — endereço, servidor e porta — e a quarta, a
+palavra-passe, nunca poderia estar ali. Ter metade no ecrã e metade num
+ficheiro convidava a preencher o ecrã e a achar que estava feito. Fica
+tudo do lado de fora (`config.json` e `email_senha.txt`), e o painel
+**mostra** o que já está posto, a verde ou a amarelo.
 
 ## Ronda de manutenção, 28 de agosto de 2026
 

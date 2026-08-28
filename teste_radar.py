@@ -1523,6 +1523,27 @@ class TestEurosCurto(unittest.TestCase):
         self.assertEqual(radar.euros_curto(None), "0 €")
 
 
+class TestArvoreNaoSubmeteAoCriar(unittest.TestCase):
+    """A arvore de CPV serve dois sitios com necessidades opostas.
+
+    Numa lista, "Aplicar" e pesquisar logo. No formulario de criar um
+    filtro, submeter ali mandava o formulario **antes de o nome estar
+    escrito**, e escolher CPV nao dava nada -- foi o que o Afonso
+    apanhou. O `data-submeter='nao'` e o que separa os dois casos.
+    """
+
+    def test_a_lista_submete(self):
+        self.assertNotIn("data-submeter", radar.arvore_html(9454, "anuncios"))
+
+    def test_o_formulario_de_criar_nao_submete(self):
+        saiu = radar.arvore_html(9454, "anuncios", submeter=False)
+        self.assertIn("data-submeter='nao'", saiu)
+
+    def test_o_js_le_a_marca_do_elemento(self):
+        # o JS e um so; se deixasse de ler a marca, voltava o erro
+        self.assertIn("dataset.submeter", radar.ARVORE_JS)
+
+
 class TestFiltroUnicoEntreVistas(unittest.TestCase):
     """Um filtro nao pertence a um separador: guarda os campos que tiver
     e cada pagina aplica os que entende. O que NAO pode acontecer e um
