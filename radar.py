@@ -3277,6 +3277,8 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .cabeca h2{margin:0 0 6px;font:700 22px/1.3 var(--sans);color:var(--azul);
  letter-spacing:-.4px;text-wrap:pretty}
 .cabeca .ent{font:400 13px/1.4 var(--sans);color:#6e747c;margin-bottom:20px}
+.cabeca .ent a{color:var(--azul)}
+.cabeca .ent a:hover{text-decoration:underline}
 .factos{display:flex;flex-wrap:wrap;gap:1px;background:var(--linha);
  border:1px solid var(--linha);border-radius:9px;overflow:hidden}
 .facto{background:var(--creme);padding:13px 16px;flex:1 1 30%;min-width:0}
@@ -6011,11 +6013,17 @@ def ficha(ref):
         _facto("CPV", "<br>".join(descricoes_cpv(a["cpv"])), largo=True),
     ))
 
+    # O nome da entidade leva à ficha dela quando o corpus a conhece: de
+    # um anúncio chega-se ao que aquela entidade costuma comprar sem
+    # passar pelo separador dos contratos.
+    ch_ent = entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
     cabeca = ("<div class='cx cabeca'><div class='chips'>%s</div>"
               "<h2>%s</h2><div class='ent'>%s</div>"
               "<div class='factos'>%s</div></div>"
               % ("".join(chips), html.escape(a["titulo"] or ""),
-                 html.escape(a["entidade"] or ""), factos))
+                 liga_entidade(ch_ent, a["entidade"] or "")
+                 if ch_ent else html.escape(a["entidade"] or ""),
+                 factos))
 
     # --- accoes
     accoes = []
