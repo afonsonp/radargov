@@ -918,6 +918,27 @@ vez de o remediar. A migração limpa o que já lá estava, uma vez só
 (guardada por `sqlite_master`, para não varrer 400 mil linhas a cada
 arranque).
 
+### Datas e árvore, iguais em todo o lado
+
+Três arrumações pedidas pelo Afonso, todas do mesmo feitio — o que é
+igual tem de parecer igual:
+
+- **As datas mostram-se sempre DD/MM/AAAA.** Guardam-se em ISO porque
+  ordenam como texto, e essa decisão mantém-se; o que mudou foi a
+  camada de apresentação. Havia tabelas a mostrar `2026-08-21` e outras
+  `21/08/2026`. Tudo passa por `data_pt()`, que devolve o texto como
+  está se não for uma data — o DR já escreveu datas que não são datas,
+  e mais vale mostrar o que lá está do que deitar a página abaixo.
+- **A árvore de CPV vem sempre antes dos filtros guardados**, nas três
+  páginas. A ordem é filtros → faixa do CPV activo → árvore → filtros
+  guardados: escolhe-se o CPV na árvore, e só depois se guarda a
+  escolha.
+- **Onde se pode procurar por CPV, pode-se escolher na árvore.** A ficha
+  da entidade tinha uma caixa de texto solta, onde só dava para escrever
+  um código à mão. Passou a ter a mesma árvore, com o campo escondido e
+  a faixa do filtro activo — e o "Aplicar" fica na ficha, não salta
+  para a lista.
+
 ### Passagem de coerência a toda a aplicação
 
 Depois de o BASE entrar, metade do painel ainda falava como se só

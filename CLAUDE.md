@@ -131,6 +131,13 @@ Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
   irmãos, não filhos dos anúncios — começar tudo por `Anúncios ›` punha
   os contratos e os indicadores dentro da lista de anúncios. E o
   "Verificar agora" só aparece onde há anúncios.
+- **As datas guardam-se ISO e mostram-se DD/MM/AAAA.** ISO porque ordena
+  como texto; a apresentação passa toda por `data_pt()`. Nunca ponhas
+  uma data em ISO no HTML.
+- **A árvore de CPV vem antes dos filtros guardados** e está em todas as
+  páginas onde se procura por CPV — anúncios, contratos e ficha da
+  entidade. Onde houver campo `cpv`, tem de haver árvore: a caixa de
+  texto solta só deixava escolher um código.
 - **Os números levam espaço inquebrável** (U+00A0) nos milhares, nos
   três formatadores (`mil_pt`, `euros`, `euros_curto`). Com espaço
   normal o browser parte "1 363 300" ao fim da linha. Há um teste que

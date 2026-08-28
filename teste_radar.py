@@ -409,7 +409,8 @@ Nome: Preço
         self.assertEqual(d["Nome do projeto"], "Aquisição de X")
         self.assertEqual(d["Entidade adjudicante"], "Município Y")
         self.assertEqual(d["Preço base"], "150.000,00 EUR")
-        self.assertEqual(d["Data de submissão da proposta"], "2026-09-01")
+        # a data mostra-se a portuguesa; guarda-se ISO porque ordena
+        self.assertEqual(d["Data de submissão da proposta"], "01/09/2026")
         self.assertEqual(d["Duração do contrato"], "36 MESES")
         self.assertEqual(d["Critério de adjudicação"], "Preço")
 
@@ -799,7 +800,7 @@ class TestPrazoDeEsclarecimentos(unittest.TestCase):
         linha = next(l for l in radar.essencial_do_anuncio(anuncio, [])
                      if l[0] == "Data de esclarecimentos")
         rotulo, valor, falta, nota = linha
-        self.assertIn("2026-08-22", valor)   # prazo 2026-09-01
+        self.assertIn("22/08/2026", valor)   # prazo 01/09/2026
         self.assertFalse(falta)              # deixou de estar em falta
         self.assertIn("supletiva", nota)     # mas diz que é calculado
 
@@ -1520,6 +1521,30 @@ class TestEurosCurto(unittest.TestCase):
     def test_zero_e_none_nao_rebentam(self):
         self.assertEqual(radar.euros_curto(0), "0 €")
         self.assertEqual(radar.euros_curto(None), "0 €")
+
+
+class TestDataPortuguesa(unittest.TestCase):
+    """Guarda-se ISO porque ordena como texto, mostra-se DD/MM/AAAA porque
+    e assim que se le. Havia tabelas a mostrar uma coisa e outras a
+    mostrar a outra."""
+
+    def test_converte(self):
+        self.assertEqual(radar.data_pt("2026-08-21"), "21/08/2026")
+
+    def test_data_com_hora_tambem(self):
+        self.assertEqual(radar.data_pt("2026-08-21 14:30"), "21/08/2026")
+
+    def test_vazio_da_o_tracinho(self):
+        self.assertEqual(radar.data_pt(""), "—")
+        self.assertEqual(radar.data_pt(None), "—")
+
+    def test_vazio_pode_ser_outra_coisa(self):
+        self.assertEqual(radar.data_pt("", ""), "")
+
+    def test_lixo_passa_a_letra_em_vez_de_rebentar(self):
+        # o DR ja escreveu datas que nao sao datas; melhor mostrar o que
+        # la esta do que deitar a pagina abaixo
+        self.assertEqual(radar.data_pt("sem data"), "sem data")
 
 
 class TestEspacoInquebravel(unittest.TestCase):
