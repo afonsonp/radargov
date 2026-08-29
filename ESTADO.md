@@ -2144,3 +2144,232 @@ registo, "sugerir uma mudança" na ficha para reportar campo mal extraído,
 e desactivar com explicação os campos que não se aplicam à vista (o que
 o `filtro_para()` resolve à saída, eles resolvem à entrada, e fica
 melhor).
+
+## Vistoria de utilização, 29 de agosto de 2026
+
+Passagem pela aplicação inteira do ponto de vista de quem depende dela
+todos os dias, com a base real e o painel a correr: lista, ficha,
+alertas, contratos, quadro, calendário, indicadores, árvore de CPV e as
+duas exportações. Saíram 31 problemas, e estão todos resolvidos. O
+registo fica aqui porque quase todos eram do mesmo tipo — **o ecrã dizia
+um número e entregava outro** — e é o tipo de defeito que volta.
+
+### Os quatro que enganavam
+
+**A pesquisa perdia 11% dos resultados por causa dos acentos.** O `LIKE`
+do SQLite só baixa maiúsculas de letras ASCII: para ele `Ç` e `ç` são
+letras diferentes. Escrever `aquisição` devolvia 25 868 dos 29 058
+anúncios que contêm mesmo a palavra, porque 9 383 títulos (14% da base)
+estão escritos todos em maiúsculas. Não havia nada no ecrã a dizê-lo.
+
+A correcção segue o caminho que o projecto já tinha para o NIPC: duas
+colunas novas, `titulo_norm` e `entidade_norm`, cheias por uma migração
+idempotente no `iniciar_db()` com a função `simplifica()` registada na
+ligação (`c.create_function`), e a `condicoes()` a procurar aí com o
+termo normalizado do mesmo modo. Passou a devolver 29 094.
+
+**Os índices não são opcionais.** As colunas normalizadas ficaram no fim
+da linha, depois do `texto` do anúncio inteiro, e chegar lá obrigava o
+SQLite a desserializar alguns KB por registo: a pesquisa passou de 0,4 s
+para 4,7 s. Com `ix_anuncios_titulo_norm` e `ix_anuncios_entidade_norm`
+a consulta varre o índice em vez da tabela (`SCAN USING COVERING INDEX`)
+e voltou aos 0,4 s. Um `LIKE` com `%` à frente nunca salta linhas — o
+índice aqui serve para **varrer menos bytes**, não para procurar melhor.
+
+**O selector de plataformas dizia `(nenhuma) (56)` e devolvia 60 645.**
+Os números do selector contam os anúncios com detalhe lido; o filtro
+apanhava todos os que não tinham plataforma, incluindo os 60 589 que
+ninguém tinha lido — e sem detalhe lido ainda não há plataforma nenhuma.
+São dois baldes: o `SEM_PLATAFORMA` passou a exigir `detalhe_lido=1`, e
+o balde que faltava ganhou nome (`POR_LER`) e uma opção no selector.
+Qualquer escolha ali filtrava 8% da base e apresentava o resultado como
+se fosse a base toda.
+
+**Os contadores dos separadores ignoravam o filtro.** Com CPV 72 posto
+diziam "Por ver 66 007 · Todos 66 009" por cima de uma lista de 234 — e
+as ligações dos separadores *levavam* o filtro, portanto o número e o
+destino do mesmo botão discordavam. Contam-se agora com a mesma
+`condicoes()` da lista, sem a parte do estado.
+
+**A árvore de CPV guardava selecções invisíveis.** Marcar um código,
+marcar a divisão por cima e desmarcar a divisão deixava a árvore em
+branco com o chip a dizer "1 seleccionado" — e o "Aplicar" filtrava por
+um código que não estava marcado em lado nenhum. Ao desmarcar tiram-se
+agora os descendentes do conjunto. E ao contrário: com uma divisão
+marcada, desmarcar um filho lá dentro mexia a caixa e não mudava nada,
+porque o filtro não sabe excluir. Essas caixas ficam **trancadas com
+explicação** — uma caixa que se mexe à toa é pior do que uma que não se
+mexe.
+
+### O ciclo de triagem
+
+**"Voltar à lista" voltava sempre ao princípio.** Estava preso a `/`:
+filtrar por CPV, ir à página 7, abrir um anúncio e carregar ali devolvia
+"Por ver, página 1, sem filtro". Passou a usar o `referrer`, validado
+pelo `volta_a_lista()` — só aceita caminhos desta aplicação que sejam
+mesmo listas.
+
+**Cada "interessa" ou "descartar" atirava para o topo.** É POST com
+redireccionamento, e a posição perdia-se; no décimo oitavo item isso é
+descer tudo outra vez, e como o anúncio triado desaparece do separador
+"Por ver", os de baixo sobem uma posição e o clique seguinte cai no
+anúncio errado. O `LISTA_JS` guarda o `scrollY` no `sessionStorage` ao
+submeter e repõe-no ao carregar.
+
+**Não havia como desfazer um descarte.** Os botões de cada linha eram
+sempre os mesmos dois, independentemente do estado: em Descartados o
+único caminho de volta era promover a "interessa" e depois "tirar do
+quadro". Agora dependem do estado, e a rota `/estado/<ref>/novo` já
+existia. No mesmo sítio: clicar "interessa" em quem já estava interessa
+voltava a pôr o anúncio na fila das peças e a descarregar tudo outra vez
+— o `mudar_estado()` compara com o estado anterior antes de pedir.
+
+### Três trabalhos longos, três comportamentos
+
+"Verificar agora" corria **dentro do pedido**: recolhe páginas com
+pausas, lê até 40 detalhes a um segundo cada e ainda passa os alertas —
+minutos com a página em branco, sem sinal de que tinha arrancado e sem
+nada a impedir um segundo clique de começar tudo de novo. Ao lado, no
+mesmo painel, "Actualizar contratos" já corria em thread com o estado à
+vista e "Trazer peças" numa fila.
+
+Passou a thread com trinco (`comecar_verificacao()`), com o `verificar()`
+a receber um `passo` opcional que diz em que fase vai. A barra lateral
+mostra o passo e recarrega-se sozinha; o botão do topo dá lugar a "a
+verificar…". O POST responde em 0,2 s. E volta à página de onde se
+carregou, em vez de atirar sempre para `/`.
+
+A leitura das peças pelo modelo tinha o mesmo defeito com um comentário
+a dizer o contrário ("demora poucos segundos"): são três perguntas e
+cada uma espera até 70 s quando bate no tecto por minuto. Foi para uma
+fila igual à dos documentos (`pedir_analise()`), e a caixa das peças diz
+em que pé vai. O `registar()` ganhou um `quem` explícito porque fora de
+um pedido não há cookie para ler e o `quem_sou()` rebentava.
+
+### Números que não batiam certo
+
+- **O funil misturava janelas.** "Entrados (30 dias) 2 476" seguido de
+  "Por ver 66 007" de sempre: a segunda barra maior do que a primeira,
+  o que num funil é impossível. As quatro barras passaram para a mesma
+  janela de 30 dias.
+- **Uma percentagem sobre dois casos.** "De tudo o que já triaste, 100%
+  ficou como interessa" com n=2. Abaixo de `MINIMO_PARA_TAXA` (20) diz-se
+  quantos são e não se calcula taxa.
+- **Números sem saída.** "703 por ver com prazo a menos de 10 dias" e
+  "3 982 já com o prazo passado" eram texto corrido. São ligações para a
+  lista já filtrada, o que obrigou a um filtro por prazo (ver abaixo).
+- **Denominadores diferentes lado a lado.** As percentagens das
+  plataformas são sobre os 5 492 com detalhe lido e ficavam encostadas a
+  um cartão a dizer "Sem detalhe lido 60 589": a única leitura possível
+  era a errada. Ganharam uma linha de legenda a dizer sobre o que contam.
+- **"Entidades identificadas 137 904"** prometia uma identificação que
+  45% delas não tem: 10% dos adjudicatários do dump do IMPIC vêm sem NIF
+  e agrupam-se por uma chave feita do nome. Passaram a duas linhas, com
+  NIF e só com nome. É também a razão de a Inetum aparecer duas vezes no
+  "quem ganha" — uma pelo NIF com 31 contratos, outra pelo nome com um.
+  São dados do IMPIC e não há como juntá-los, mas o `liga_entidade()`
+  marca as chaves `n:` com **sem NIF**, e uma linha explicada deixa de
+  parecer um erro de contagem.
+
+### Filtro por prazo
+
+Depois de entrarem os dois anos de histórico, 4 059 dos "por ver" já
+tinham o prazo passado — arquivo, não triagem — misturados com os de
+hoje e sem forma de os apartar. A etiqueta vermelha já existia na linha;
+faltava poder pedir a lista sem eles. O campo `prazo` aceita `aberto`,
+`urgente` e `expirado`, e o `urgente` usa o mesmo `DIAS_URGENTE` que os
+indicadores anunciam — **o número mostrado tem de dar exactamente a
+lista que a ligação abre**.
+
+### As duas exportações não concordavam uma com a outra
+
+Nos anúncios o preço saía "1.326.675,00 EUR", que o Excel lê como texto
+e não soma; nos contratos saía "7546.5", que num Excel português dá
+setenta e cinco mil. As datas iam em ISO nos dois — e a regra da casa é
+ISO na base e DD/MM à vista, sendo que um CSV é para ver. Há agora um
+`numero_csv()` e um `nome_csv()` partilhados: vírgula decimal, sem
+símbolo, sem separador de milhares, e o ficheiro com data no nome, que
+`concursos.csv`, `concursos(1).csv` e `concursos(2).csv` não distinguem
+nada. E a ligação diz quantas linhas é que saem — encostada ao "1–20 de
+66 007", exportava as 66 mil sem avisar.
+
+### O filtro único cumpria metade da promessa
+
+A página de alertas diz que "os filtros são os mesmos em toda a
+aplicação" e o formulário de criação oferecia **seis dos treze campos**:
+não dava para criar ali um filtro por plataforma, por estado, por tipo
+de procedimento nem por valor, coisas que se punham nas outras páginas e
+se guardavam de lá. Tem-nos agora todos. O `alerta_criar()` deixa passar
+o `estado` vazio, pela mesma razão que a `condicoes()` — ausente é "por
+ver", vazio é "todos", e sem a excepção escolher "todos" gravava um
+filtro sem estado, que é o contrário do que se pediu.
+
+**Duas caixas com o mesmo rótulo que não falavam uma com a outra.**
+`ent` (anúncios) e `adj` (contratos) mostravam ambas "Entidade
+adjudicante", e o aviso do parcial saía literalmente "entidade Município
+de Lisboa — aqui não se aplica: entidade". São agora "Entidade que
+publica" e "Entidade que comprou", nas caixas e no `_NOMES_FILTRO`.
+
+**O aviso do parcial vivia num `title`.** A regra é boa — um filtro
+nunca se aplica a meio em silêncio — mas o que se via era a palavra
+"parcial" em itálico e a lista dos campos só aparecia a quem deixasse o
+rato quieto em cima. O filtro em uso mostra agora, por escrito, o que
+esta página não aplica.
+
+**Gravar por cima não perguntava nada.** O campo do nome vem
+pré-preenchido com o filtro em uso, de propósito, para se afinar; mas
+por isso mesmo era fácil afinar, mudar de ideias e substituir outro
+filtro sem aviso e sem forma de voltar atrás. Confirma-se, como já se
+confirmava apagar uma fase do quadro.
+
+### Detalhes que custavam meio segundo cada
+
+- **Truncagem sem reticências.** Corte a 190 caracteres em 5 418
+  anúncios (8%), e o mesmo nos contratos, nos avisos e nas descrições de
+  CPV. "…as Base de Dado" lia-se como dado estragado. Há um `corta()`.
+- **As contagens das colunas do quadro** eram desenhadas no servidor e
+  ficavam como estavam depois de arrastar: duas colunas passavam a dizer
+  o contrário do que se via dentro delas.
+- **"Tirar do quadro" repunha o estado em "por ver"** — quem lê isso
+  espera perder a fase, não a triagem. Chama-se "voltar a por ver" e
+  confirma.
+- **Renomear a fase submetia no `onblur` mesmo sem alterações**, e o
+  nome vazio era ignorado em silêncio no servidor: a página voltava com
+  o nome antigo, o que se lê como avaria.
+- **O aviso das tarefas do Windows ficava em cache até reiniciar.**
+  Correr o `agendar.bat` com o painel aberto deixava o aviso vermelho no
+  ecrã, e apagar uma tarefa nunca chegava a ser notado — sendo que é o
+  aviso que impede o pior modo de falha desta aplicação. Vale um minuto.
+- **A etiqueta "por ver" aparecia em todas as linhas do separador "Por
+  ver"**, onde é sempre verdade e portanto não diz nada.
+- **A ficha repetia-se:** "Propostas até" na grelha e outra vez na caixa
+  preta da direita, o estado no chip e outra vez na grelha. E o subtítulo
+  mostrava `/anuncio/21804/2026`, que é para a barra do browser.
+- **O critério de adjudicação somava 200%.** O DR põe os subfactores a
+  seguir ao factor, depois de um `Subfatores:` sem valor, e iam todos na
+  mesma linha com o mesmo peso visual: "Preço 45% · Início 10% ·
+  Qualidade 45% · Plano de Trabalhos 70% · Memória Descritiva 30%". Os
+  dois últimos são subfactores da Qualidade e passaram para dentro de
+  parênteses. É o campo que decide se vale a pena concorrer.
+- **3 301 páginas e só se andava de página em página.** Há uma caixa
+  para saltar, no paginador partilhado.
+- **O 404 de um anúncio era uma linha de texto solta** — o único ecrã da
+  aplicação que não parecia a aplicação.
+- **O rodapé repetia a barra lateral.** A hora da última verificação e as
+  horas marcadas apareciam nas duas; o ponto verde/vermelho foi para a
+  barra e o rodapé saiu. A caixa "Sou", num produto de um utilizador só,
+  ocupava permanentemente o canto para uma escolha que se faz uma vez —
+  é um `<details>` fechado.
+
+### O que se decidiu não mexer
+
+A página de contratos continua a não mostrar lista nenhuma sem filtro; os
+gráficos continuam a correr sobre o filtro e não sobre o corpus; as
+legendas por baixo dos números ficam; o agrupamento por NIF fica; as
+ressalvas dos campos calculados ("calculado pela regra supletiva do art.
+50.º; confirmar no Programa de Concurso") ficam. São as decisões que
+fazem a diferença entre uma ferramenta e uma adivinha, e são exactamente
+as que uma arrumação apressada deitaria fora.
+
+Os testes passaram de 264 para 307. Cada classe nova corresponde a um
+destes defeitos, com o comentário a dizer qual.

@@ -14,6 +14,7 @@ Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 
 import datetime
 import os
+import re
 import sys
 import unittest
 
@@ -77,13 +78,13 @@ class TestCaixasDePesquisa(unittest.TestCase):
 
     def test_objecto_procura_so_no_titulo(self):
         onde, _ = radar.condicoes({"q": "software", "estado": ""})
-        self.assertIn("titulo LIKE", onde)
-        self.assertNotIn("entidade LIKE", onde)
+        self.assertIn("titulo_norm LIKE", onde)
+        self.assertNotIn("entidade_norm LIKE", onde)
 
     def test_entidade_procura_so_na_entidade(self):
         onde, _ = radar.condicoes({"ent": "Camara", "estado": ""})
-        self.assertIn("entidade LIKE", onde)
-        self.assertNotIn("titulo LIKE", onde)
+        self.assertIn("entidade_norm LIKE", onde)
+        self.assertNotIn("titulo_norm LIKE", onde)
 
     def test_as_duas_juntam_se_com_AND(self):
         onde, valores = radar.condicoes(
@@ -2115,6 +2116,320 @@ class TestColunasDoImportador(unittest.TestCase):
             with self.subTest(cols=cols[:1]):
                 self.assertTrue(cols)
                 self.assertEqual(len(cols), len(set(cols)))
+
+
+class TestPesquisaSemAcentos(unittest.TestCase):
+    """A caixa de pesquisa perdia 11% dos resultados.
+
+    O LIKE do SQLite só baixa maiúsculas de letras ASCII: para ele "Ç" e
+    "ç" são letras diferentes. Escrever "aquisição" devolvia 25 868 dos
+    29 058 anúncios que contêm mesmo a palavra, porque os 9 383 títulos
+    escritos todos em maiúsculas ficavam de fora. Procura-se em colunas
+    normalizadas e com o termo normalizado do mesmo modo.
+    """
+
+    def valor(self, args):
+        _, valores = radar.condicoes(args)
+        return valores[0]
+
+    def test_o_termo_vai_normalizado(self):
+        self.assertEqual(self.valor({"q": "Aquisição", "estado": ""}),
+                         "%aquisicao%")
+
+    def test_maiusculas_acentuadas_dao_o_mesmo_termo(self):
+        self.assertEqual(self.valor({"q": "AQUISIÇÃO", "estado": ""}),
+                         self.valor({"q": "aquisição", "estado": ""}))
+
+    def test_a_entidade_tambem(self):
+        self.assertEqual(self.valor({"ent": "MUNICÍPIO", "estado": ""}),
+                         "%municipio%")
+
+    def test_procura_se_nas_colunas_normalizadas(self):
+        onde, _ = radar.condicoes({"q": "x", "ent": "y", "estado": ""})
+        self.assertIn("titulo_norm LIKE", onde)
+        self.assertIn("entidade_norm LIKE", onde)
+
+    def test_o_escape_do_like_continua_a_valer(self):
+        # normalizar não pode desfazer o escape: "50%" tem de continuar a
+        # procurar por "50%" e não por tudo o que tem "50"
+        self.assertEqual(self.valor({"q": "50%", "estado": ""}),
+                         "%50" + radar.ESCAPE_LIKE + "%%")
+
+
+class TestBaldeSemPlataforma(unittest.TestCase):
+    """O selector dizia "(nenhuma) (56)" e a lista devolvia 60 645.
+
+    O número do rótulo conta os anúncios com detalhe lido; o filtro
+    apanhava todos os que não tinham plataforma, incluindo os 60 589 que
+    ainda ninguém tinha lido -- e sem detalhe lido ainda não há
+    plataforma nenhuma. São dois baldes diferentes.
+    """
+
+    def test_sem_plataforma_exige_detalhe_lido(self):
+        onde, _ = radar.condicoes({"plat": radar.SEM_PLATAFORMA, "estado": ""})
+        self.assertIn("detalhe_lido = 1", onde)
+
+    def test_por_ler_e_o_outro_balde(self):
+        onde, _ = radar.condicoes({"plat": radar.POR_LER, "estado": ""})
+        self.assertIn("detalhe_lido = 0", onde)
+        self.assertNotIn("plataforma", onde)
+
+    def test_uma_plataforma_a_serio_continua_igual(self):
+        onde, valores = radar.condicoes({"plat": "vortal", "estado": ""})
+        self.assertIn("plataforma = ?", onde)
+        self.assertEqual(valores, ["vortal"])
+
+    def test_os_dois_baldes_nao_sao_o_mesmo_valor(self):
+        self.assertNotEqual(radar.SEM_PLATAFORMA, radar.POR_LER)
+
+
+class TestFiltroPorPrazo(unittest.TestCase):
+    """3 982 dos "por ver" já tinham o prazo passado e não havia forma de
+    os apartar: a lista só ordenava por data de publicação e a etiqueta
+    vermelha era só uma etiqueta."""
+
+    def test_aberto_pede_prazo_daqui_para_a_frente(self):
+        onde, valores = radar.condicoes({"prazo": "aberto", "estado": ""})
+        self.assertIn("prazo >= ?", onde)
+        self.assertEqual(len(valores), 1)
+
+    def test_expirado_pede_o_contrario(self):
+        onde, _ = radar.condicoes({"prazo": "expirado", "estado": ""})
+        self.assertIn("prazo < ?", onde)
+
+    def test_urgente_e_uma_janela_com_dois_limites(self):
+        onde, valores = radar.condicoes({"prazo": "urgente", "estado": ""})
+        self.assertIn("prazo >= ?", onde)
+        self.assertIn("prazo <= ?", onde)
+        self.assertEqual(len(valores), 2)
+        # o fim da janela é o mesmo número de dias que os indicadores
+        # anunciam: o número mostrado tem de dar a lista que o link abre
+        ini = datetime.date.fromisoformat(valores[0])
+        fim = datetime.date.fromisoformat(valores[1])
+        self.assertEqual((fim - ini).days, radar.DIAS_URGENTE)
+
+    def test_o_prazo_vazio_nao_filtra_nada(self):
+        onde, _ = radar.condicoes({"prazo": "", "estado": ""})
+        self.assertNotIn("prazo", onde)
+
+    def test_valor_inventado_nao_filtra(self):
+        onde, _ = radar.condicoes({"prazo": "qualquer coisa", "estado": ""})
+        self.assertNotIn("prazo", onde)
+
+    def test_o_prazo_e_um_campo_dos_anuncios(self):
+        self.assertIn("prazo", radar.CAMPOS_FILTRO)
+        self.assertIn("prazo", radar.CAMPOS_POR_VISTA["anuncios"])
+        self.assertNotIn("prazo", radar.CAMPOS_POR_VISTA["contratos"])
+
+
+class TestCorta(unittest.TestCase):
+    """Os títulos cortavam a meio de palavra e sem reticências.
+
+    "...suporte do Hardware Oracle onde residem as Base de Dado" lia-se
+    como dado estragado e não como texto cortado.
+    """
+
+    def test_curto_fica_igual(self):
+        self.assertEqual(radar.corta("abc", 10), "abc")
+
+    def test_no_limite_nao_corta(self):
+        self.assertEqual(radar.corta("abcde", 5), "abcde")
+
+    def test_cortado_leva_reticencias(self):
+        self.assertEqual(radar.corta("abcdefgh", 5), "abcde…")
+
+    def test_nao_deixa_espaco_antes_das_reticencias(self):
+        self.assertEqual(radar.corta("abcd efgh", 5), "abcd…")
+
+    def test_vazio_e_none_nao_rebentam(self):
+        self.assertEqual(radar.corta("", 5), "")
+        self.assertEqual(radar.corta(None, 5), "")
+
+
+class TestBotoesDaLinha(unittest.TestCase):
+    """Os botões de cada linha eram sempre os mesmos dois.
+
+    Em Descartados não havia forma nenhuma de repor um descarte -- o
+    caminho era marcar interessa e depois "tirar do quadro" -- e em
+    Interessa o botão "interessa" continuava lá e não era inócuo: cada
+    clique voltava a pedir as peças e a descarregá-las outra vez.
+    """
+
+    def anuncio(self, estado):
+        return {"ref": "1/2026", "titulo": "T", "entidade": "E",
+                "data_pub": "2026-08-01", "tipo": "", "cpv": "",
+                "plataforma": "", "prazo": "", "preco_base": "",
+                "estado": estado}
+
+    def test_por_ver_oferece_os_dois_caminhos(self):
+        h = radar.linha(self.anuncio("novo"))
+        self.assertIn("/estado/1/2026/interessa", h)
+        self.assertIn("/estado/1/2026/descartado", h)
+        self.assertNotIn("/estado/1/2026/novo", h)
+
+    def test_descartado_pode_repor_se(self):
+        h = radar.linha(self.anuncio("descartado"))
+        self.assertIn("/estado/1/2026/novo", h)
+        self.assertNotIn("/estado/1/2026/descartado", h)
+
+    def test_interessa_nao_repete_o_botao_interessa(self):
+        h = radar.linha(self.anuncio("interessa"))
+        self.assertNotIn("/estado/1/2026/interessa", h)
+
+    def test_a_etiqueta_do_estado_some_na_vista_desse_estado(self):
+        # no separador "Por ver" a etiqueta "por ver" é sempre verdade,
+        # portanto não diz nada e só disputa espaço com o CPV e o prazo
+        self.assertNotIn(">por ver<", radar.linha(self.anuncio("novo"), "novo"))
+        self.assertIn(">por ver<", radar.linha(self.anuncio("novo"), ""))
+
+
+class TestSubfatoresDoCriterio(unittest.TestCase):
+    """Os pesos somavam 200%.
+
+    O DR põe os subfactores a seguir ao factor com "Subfatores:" sem
+    valor. Iam todos na mesma linha e com o mesmo peso visual: "Preço
+    45% · Início 10% · Qualidade 45% · Plano de Trabalhos 70% · Memória
+    30%" -- os dois últimos são subfactores da Qualidade.
+    """
+
+    def criterio(self, texto):
+        return radar.criterio_de_adjudicacao(radar.seccoes_do_texto(texto))
+
+    ANUNCIO = ("21 - CRITÉRIO DE ADJUDICAÇÃO\n"
+               "Multifator: Sim\n"
+               "Fator: \nNome: Preço\nPonderação: 45%\nSubfatores: Não\n"
+               "Fator: \nNome: Outros\nOutro Nome: Início da Execução\n"
+               "Ponderação: 10%\nSubfatores: Não\n"
+               "Fator: \nNome: Qualidade\nPonderação: 45%\nSubfatores: Sim\n"
+               "Subfatores: \n"
+               "Nome: Plano de Trabalhos\nPonderação : 70%; \n"
+               "Nome: Memória Descritiva\nPonderação : 30%; \n")
+
+    def test_os_de_topo_somam_cem(self):
+        c = self.criterio(self.ANUNCIO)
+        pesos = [int(p) for p in re.findall(r"(\d+)%", c.split("(")[0])]
+        self.assertEqual(sum(pesos), 100)
+
+    def test_os_subfatores_ficam_dentro_de_parenteses(self):
+        c = self.criterio(self.ANUNCIO)
+        self.assertIn("Qualidade 45% (Plano de Trabalhos 70%", c)
+        self.assertIn("Memória Descritiva 30%)", c)
+
+    def test_o_ponto_e_virgula_do_dr_nao_passa(self):
+        self.assertNotIn(";", self.criterio(self.ANUNCIO))
+
+    def test_sem_subfatores_nao_ha_parenteses(self):
+        c = self.criterio("21 - CRITÉRIO DE ADJUDICAÇÃO\nMultifator: Sim\n"
+                          "Fator: \nNome: A\nPonderação: 60%\n"
+                          "Fator: \nNome: B\nPonderação: 40%\n")
+        self.assertEqual(c, "A 60% · B 40%")
+
+
+class TestNumeroDoCSV(unittest.TestCase):
+    """As duas exportações escreviam dinheiro de maneiras diferentes e
+    nenhuma servia o Excel português: nos anúncios "1.326.675,00 EUR",
+    que é texto e não soma; nos contratos "7546.5", que em português dá
+    setenta e cinco mil."""
+
+    def test_texto_portugues_vira_numero_portugues(self):
+        self.assertEqual(radar.numero_csv("1.326.675,00 EUR"), "1326675,00")
+
+    def test_float_do_corpus_leva_virgula(self):
+        self.assertEqual(radar.numero_csv(7546.5), "7546,50")
+
+    def test_vazio_fica_vazio(self):
+        self.assertEqual(radar.numero_csv(""), "")
+        self.assertEqual(radar.numero_csv(None), "")
+
+    def test_texto_sem_numero_nao_rebenta(self):
+        self.assertEqual(radar.numero_csv("a combinar"), "")
+
+    def test_nunca_leva_separador_de_milhares(self):
+        # o ponto dos milhares faria o Excel ler outra coisa
+        self.assertNotIn(".", radar.numero_csv("1.326.675,00 EUR"))
+
+    def test_o_nome_do_ficheiro_leva_data(self):
+        nome = radar.nome_csv("anuncios")
+        self.assertTrue(nome.startswith("anuncios-"))
+        self.assertTrue(nome.endswith(".csv"))
+        datetime.date.fromisoformat(nome[len("anuncios-"):-len(".csv")])
+
+
+class TestNomesDosCamposDoFiltro(unittest.TestCase):
+    """"entidade Município de Lisboa — aqui não se aplica: entidade".
+
+    `ent` (anúncios) e `adj` (contratos) são campos diferentes e tinham
+    ambos o nome "entidade", o que produzia o aviso mais confuso da
+    aplicação. As caixas dizem agora o mesmo que estes nomes.
+    """
+
+    def test_a_entidade_dos_anuncios_e_a_dos_contratos_tem_nomes_diferentes(self):
+        self.assertNotEqual(radar._NOMES_FILTRO["ent"],
+                            radar._NOMES_FILTRO["adj"])
+
+    def test_os_dois_campos_de_entidade_dos_contratos_concordam(self):
+        # `adj` é a caixa de texto e `entid` é a chave: o mesmo sentido
+        self.assertEqual(radar._NOMES_FILTRO["adj"],
+                         radar._NOMES_FILTRO["entid"])
+
+    def test_todos_os_campos_tem_nome(self):
+        for campo in radar.CAMPOS_FILTRO:
+            if campo == "estado":
+                continue          # o estado descreve-se por _NOMES_ESTADO
+            with self.subTest(campo=campo):
+                self.assertIn(campo, radar._NOMES_FILTRO)
+
+
+class TestUmaVerificacaoDeCadaVez(unittest.TestCase):
+    """"Verificar agora" corria dentro do pedido: minutos com a página em
+    branco, sem sinal de que tinha arrancado e sem nada a impedir um
+    segundo clique de começar tudo de novo."""
+
+    def setUp(self):
+        self.antes = dict(radar._VERIFICACAO)
+
+    def tearDown(self):
+        radar._VERIFICACAO.clear()
+        radar._VERIFICACAO.update(self.antes)
+
+    def test_a_correr_recusa_a_segunda(self):
+        radar._VERIFICACAO["a_correr"] = True
+        radar._VERIFICACAO["passo"] = "a ler o detalhe"
+        arrancou, porque = radar.comecar_verificacao()
+        self.assertFalse(arrancou)
+        self.assertIn("a ler o detalhe", porque)
+
+    def test_parada_nao_diz_nada(self):
+        radar._VERIFICACAO["a_correr"] = False
+        radar._VERIFICACAO["passo"] = "a ler o detalhe"
+        self.assertEqual(radar.verificacao_a_correr(), "")
+
+    def test_a_correr_diz_em_que_passo_vai(self):
+        radar._VERIFICACAO["a_correr"] = True
+        radar._VERIFICACAO["passo"] = "a guardar a cópia"
+        self.assertEqual(radar.verificacao_a_correr(), "a guardar a cópia")
+
+
+class TestEntidadeSemNif(unittest.TestCase):
+    """A mesma empresa aparecia duas vezes no "quem ganha", sem explicação.
+
+    10% dos adjudicatários do dump do IMPIC vêm sem NIF e agrupam-se pelo
+    nome. São dados do IMPIC e não há como juntá-los, mas uma linha
+    explicada deixa de parecer um erro de contagem.
+    """
+
+    def test_chave_por_nome_fica_marcada(self):
+        h = radar.liga_entidade("n:inetum espana", "Inetum España")
+        self.assertIn("sem NIF", h)
+
+    def test_chave_com_nif_nao_leva_marca(self):
+        h = radar.liga_entidade("980079659", "INETUM ESPAÑA, S.A.")
+        self.assertNotIn("sem NIF", h)
+
+    def test_sem_chave_nao_ha_ligacao_nem_marca(self):
+        h = radar.liga_entidade("", "Alguém")
+        self.assertNotIn("<a", h)
+        self.assertNotIn("sem NIF", h)
 
 
 if __name__ == "__main__":
