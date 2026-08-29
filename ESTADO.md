@@ -2373,3 +2373,111 @@ as que uma arrumação apressada deitaria fora.
 
 Os testes passaram de 264 para 307. Cada classe nova corresponde a um
 destes defeitos, com o comentário a dizer qual.
+
+## Segunda vistoria, 29 de agosto de 2026 — catorze problemas, todos resolvidos
+
+Segunda passagem completa pela aplicação, à procura do que a primeira
+não apanhou. O padrão novo que saiu dela: **defeito corrigido numa
+vista, vivo na vista irmã**. Os três achados mais graves eram todos
+reincidências de correcções da primeira vistoria noutro sítio do ecrã.
+Estão todos corrigidos, com os testes a passarem de 307 para 340.
+
+### Os dois do corpus, que custavam dinheiro
+
+**A pesquisa dos contratos perdia 11,8%.** O mesmo defeito dos acentos
+já corrigido nos anúncios, vivo no separador onde se estuda a
+concorrência: `LIKE` cru sobre `objecto`, `adjudicante` e o `nome` dos
+adjudicatários. Medido: "aquisição" achava 511 723 de 580 986 contratos
+— 69 263 invisíveis, porque o IMPIC escreve muito em maiúsculas e o
+`LIKE` do SQLite não baixa o `Ç`. A correcção segue o caminho dos
+anúncios: coluna `objecto_norm` cheia por migração idempotente no
+`iniciar_corpus()` (com `simplifica()` registada em `liga_corpus()`),
+índice para não desserializar a linha inteira, e as caixas de entidade a
+procurar nas colunas `*_norm` que já existiam — com o termo normalizado
+pela **mesma** norma da coluna (`norma_entidade`, que troca `&` por
+" e "). A migração corre no arranque do `main()`, não só na importação:
+um corpus já em disco levava a coluna só quando se carregasse em
+"Actualizar contratos". A primeira passagem custa ~8 minutos, uma vez.
+
+**O dump do IMPIC vem escapado para HTML — às vezes duas vezes.** 5 998
+entidades tinham literalmente `&amp;` no nome ("Ramos &amp; Filhos"), o
+painel escapava outra vez ao desenhar ("Ernst &amp;amp; Young" no ecrã)
+e procurar "Ramos & Filhos" não encontrava **nada** — o segmento inteiro
+das empresas familiares impesquisável. Pior: as chaves `n:` derivadas do
+nome sujo levavam um "amp" lá dentro. O `_des_html()` desescapa à
+entrada do importador, e uma migração por marca (`html_desescapado` no
+`corpus_estado`) repara o corpus existente: texto, colunas normalizadas,
+chaves, e `resolver_entidades()` no fim. **Desescapa até estabilizar**:
+1 413 adjudicatários vinham escapados duas vezes e uma passagem única
+tirava uma capa e deixava a outra — foi preciso a segunda passagem para
+o descobrir. Depois da reparação: "ramos & filhos" passou de 0 para 300
+contratos.
+
+### A ficha deixou de mentir sobre a leitura
+
+O modelo respondia "não consta" à equipa e a ficha continuava a dizer
+"só consta do Caderno de Encargos" — mandava abrir um documento que a
+leitura já tinha visto não dizer nada, e parecia avariada exactamente
+quando funcionou. "Lido e não consta" e "ainda não lido" são respostas
+diferentes; o campo do preço anormalmente baixo já as distinguia e os
+outros três (objecto, equipa, documentos) e a nota do local passaram a
+fazer o mesmo. A subtileza que o teste antigo apanhou logo à primeira:
+uma linha de análise gravada **antes de o campo existir** não o leu, e
+"foi lido e não fixa" aí seria mentira ao contrário — daí o
+`foi_lido()`, que distingue o campo a NULL (nunca perguntado) do campo
+com resposta.
+
+### Números e regras da casa
+
+- **"2 com prazo a menos de 7 dias"** no cartão Interessa, com o
+  `DIAS_URGENTE` a 10 e sem ligação nenhuma: um limiar escrito à mão que
+  nenhuma lista confirmava. Há agora `janela_urgente()`, usada pelo
+  filtro e pelo cartão, e o número abre `/?estado=interessa&prazo=urgente`.
+- **O selector de plataformas era o único controlo fora do filtro**:
+  com a lista em 118 oferecia "acingov (2 637)". A lista das plataformas
+  continua a vir da base toda (para se poder mudar), os números contam
+  dentro do filtro sem a parte da plataforma, como os separadores.
+- **Datas ISO em três sítios**: o histórico da ficha, a barra do corpus
+  e a "última" da barra lateral. Há um `data_hora_pt()` ao lado do
+  `data_pt()`; texto livre ("nunca") passa como está.
+- **O CSV escrevia `novo`** na coluna Estado — chave interna que nenhum
+  ecrã mostra. Sai "por ver", pelo `_NOMES_ESTADO` — o mesmo dicionário
+  dos separadores.
+- **"Criar filtro" era GET** — escrevia na base contra a regra da casa,
+  com um comentário a justificar a excepção — e quando a validação
+  recusava, o redirect deitava fora os treze campos, nome incluído. É
+  POST, e a recusa leva os campos na query string; o formulário volta
+  preenchido (prefill por `request.args`).
+- **A régua de quartis com n=3** repetia o mesmo contrato em "mais
+  barato" e "25%". `MINIMO_PARA_ESCADA = 8`; a comparação com a mediana
+  e a tabela ficam, e dizem sobre quantos contam.
+- **"Novos hoje 0 · ~60-70/dia" ao sábado** lia-se como recolha
+  avariada; o cartão diz "fim-de-semana: a parte L não publica".
+
+### Silêncios e atritos
+
+- **"limpar" apontava sempre para `/`**: limpar a pesquisa nos
+  Descartados atirava para "Por ver". `href_limpar()` mantém o estado —
+  o separador é onde se está, não parte do filtro.
+- **`de=lixo` esvaziava a lista em silêncio** (texto comparado com
+  datas) enquanto o € mínimo com lixo era ignorado — dois silêncios com
+  efeitos opostos. `data_de_filtro()` só aceita ISO e as três páginas
+  (anúncios, contratos, ficha da entidade) avisam por palavras
+  (`avisos_de_datas`): data ignorada, e intervalo invertido — que
+  continua a devolver vazio, trocar as datas às escondidas seria outro
+  silêncio, mas agora diz porquê.
+- **A truncagem crua tinha sobrevivido num sítio**: a tabela da ficha da
+  entidade cortava o objecto com `[:130]` a seco ("…CENTRADA NO
+  CONHECIME"). É o `corta()`, como no resto.
+- **A árvore de CPV enterrava os ramos úteis**: filtrar por "software"
+  nos anúncios mostrava dezenas de códigos "(0)" no meio dos que têm.
+  Ficam esbatidos (classe `zero` no JS, ao aplicar as contagens) — não
+  escondidos, porque a mesma árvore conta contratos no outro separador.
+
+### O que se aprendeu
+
+A lista de defeitos já corrigidos é o melhor gerador de hipóteses para
+defeitos vivos: cada correcção da primeira vistoria devia ter sido
+procurada em todas as vistas irmãs na altura. E uma reparação de dados
+verifica-se **contando o que resta**, não confiando no que se escreveu —
+foi a contagem pós-reparação que denunciou o escape duplo.

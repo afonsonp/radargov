@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "radar",
+      "runtimeExecutable": "D:\\radar\\python\\python.exe",
+      "runtimeArgs": ["radar.py"],
+      "port": 8765
+    }
+  ]
+}

@@ -990,6 +990,12 @@ DIAS_URGENTE = 10
 # interessa" sobre dois casos e ruido com ar de conclusao.
 MINIMO_PARA_TAXA = 20
 
+# Abaixo disto nao se desenha a regua de quartis do historico de precos.
+# Com 3 contratos, "mais barato" e "25%" sao o mesmo contrato repetido:
+# quartis de meia duzia de pontos sao decoracao, nao estatistica. A
+# tabela dos proprios contratos, que fica, diz mais.
+MINIMO_PARA_ESCADA = 8
+
 # Valor que representa "o anuncio nao diz qual e", no filtro e no ecra de
 # indicadores. Nao e uma plataforma, e a ausencia de uma.
 #
@@ -2466,6 +2472,8 @@ def liga_corpus():
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA busy_timeout=30000")
+    # Como na liga(): e com ela que a migracao enche objecto_norm.
+    c.create_function("simplifica", 1, simplifica)
     return c
 
 
@@ -2568,6 +2576,11 @@ def iniciar_corpus():
             "ON contrato_adjudicatario(chave)",
         ):
             c.execute(ddl)
+        # Corpus que veio de antes do desescape: o dump do IMPIC chega
+        # escapado para HTML e 5 998 entidades chamavam-se "&amp;" no
+        # ecra e nao se encontravam na pesquisa. Corre uma vez, por
+        # marca; o importador ja desescapa a entrada.
+        _desescapar_html(c)
         # Corpus que veio de antes das chaves: enche-se o que falta e
         # resolvem-se os nomes. Idempotente -- so corre quando ha buracos.
         falta = c.execute("SELECT 1 FROM contratos "
@@ -2577,6 +2590,21 @@ def iniciar_corpus():
         if falta or (vazia and tem):
             _preencher_chaves(c)
             resolver_entidades(c)
+        # A pesquisa por objecto precisa da coluna normalizada, como os
+        # anuncios: o LIKE nao baixa o "Ç" e o IMPIC escreve muitos
+        # objectos em maiusculas -- 11,8% de cada pesquisa perdidos.
+        # Vem DEPOIS do desescape, para normalizar o texto ja limpo.
+        if "objecto_norm" not in cols:
+            c.execute("ALTER TABLE contratos ADD COLUMN objecto_norm TEXT")
+        c.execute("UPDATE contratos SET objecto_norm = simplifica(objecto) "
+                  "WHERE objecto_norm IS NULL")
+        # O indice nao e para saltar linhas (um LIKE '%...%' nunca salta):
+        # e para varrer so a coluna em vez de desserializar a linha
+        # inteira, como o ix_anuncios_titulo_norm.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_objecto_norm "
+                  "ON contratos(objecto_norm)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_adj_nome_norm "
+                  "ON contrato_adjudicatario(nome_norm)")
 
 
 def norma_entidade(nome):
@@ -2595,6 +2623,95 @@ def norma_entidade(nome):
     return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
 
 
+def _des_html(texto):
+    """Desfaz as entidades HTML que o dump do IMPIC traz por desescapar.
+
+    O dump chega com o texto escapado ("Ramos &amp; Filhos") e, guardado
+    assim, o painel escapava OUTRA vez ao desenhar -- via-se literalmente
+    "&amp;" no ecra -- e procurar "Ramos & Filhos" nao encontrava nada,
+    porque o que estava na base era outro texto. Medido: 5 998 entidades
+    e 141 objectos.
+
+    Ate estabilizar, nao uma vez so: 1 413 adjudicatarios vinham
+    escapados DUAS vezes ("&amp;amp;") e uma passagem unica tirava uma
+    capa e deixava a outra. Nenhum nome verdadeiro contem "&amp;". O
+    tecto de voltas e por prudencia, nao por necessidade medida.
+    """
+    if not texto:
+        return texto or ""
+    for _ in range(4):
+        if "&" not in texto:
+            break
+        novo = html.unescape(texto)
+        if novo == texto:
+            break
+        texto = novo
+    return texto
+
+
+# As entidades que denunciam texto escapado. "&#" apanha as numericas.
+_PADROES_ESCAPADOS = ("%&amp;%", "%&quot;%", "%&lt;%", "%&gt;%",
+                      "%&apos;%", "%&#%")
+
+
+def _desescapar_html(c):
+    """Repara um corpus importado antes do _des_html(). Uma vez, por marca.
+
+    Alem do texto, refaz as colunas derivadas dele: as normalizadas e as
+    chaves "n:" (um nome com "&amp;" normalizava com um "amp" la dentro,
+    e a mesma empresa escrita limpa noutra fonte ficava noutra chave).
+    No fim resolve as entidades de novo, porque os nomes canonicos e o
+    mapa entidade_nomes saem dessas colunas.
+    """
+    ja = c.execute("SELECT 1 FROM corpus_estado "
+                   "WHERE chave='html_desescapado'").fetchone()
+    if ja:
+        return
+    sujos = " OR ".join("%s LIKE ?" for _ in _PADROES_ESCAPADOS)
+    mexeu_nomes = False
+
+    afectados = c.execute(
+        "SELECT id, objecto, adjudicante, adjudicante_nif, local_execucao, "
+        "fundamentacao FROM contratos WHERE "
+        + " OR ".join(("(" + sujos + ")") % ((col,) * len(_PADROES_ESCAPADOS))
+                      for col in ("objecto", "adjudicante", "local_execucao",
+                                  "fundamentacao")),
+        _PADROES_ESCAPADOS * 4).fetchall()
+    arranjos = []
+    for r in afectados:
+        nome = _des_html(r["adjudicante"])
+        arranjos.append((_des_html(r["objecto"]), nome, norma_entidade(nome),
+                         chave_entidade(r["adjudicante_nif"], nome),
+                         _des_html(r["local_execucao"]),
+                         _des_html(r["fundamentacao"]), r["id"]))
+        if nome != r["adjudicante"]:
+            mexeu_nomes = True
+    c.executemany(
+        "UPDATE contratos SET objecto=?, adjudicante=?, adjudicante_norm=?, "
+        "adjudicante_chave=?, local_execucao=?, fundamentacao=? WHERE id=?",
+        arranjos)
+
+    ganhadores = c.execute(
+        "SELECT rowid, nif, nome FROM contrato_adjudicatario "
+        "WHERE " + sujos % ((("nome",) * len(_PADROES_ESCAPADOS))),
+        _PADROES_ESCAPADOS).fetchall()
+    arranjos = []
+    for r in ganhadores:
+        nome = _des_html(r["nome"])
+        arranjos.append((nome, norma_entidade(nome),
+                         chave_entidade(r["nif"], nome), r["rowid"]))
+    if arranjos:
+        mexeu_nomes = True
+    c.executemany("UPDATE contrato_adjudicatario SET nome=?, nome_norm=?, "
+                  "chave=? WHERE rowid=?", arranjos)
+
+    if mexeu_nomes:
+        resolver_entidades(c)
+    c.execute("INSERT OR REPLACE INTO corpus_estado VALUES "
+              "('html_desescapado', ?)",
+              (datetime.now().strftime("%Y-%m-%d %H:%M"),))
+
+
 def _nif_e_nome(valor):
     """O BASE escreve as partes como ['123456789 - Nome'], por vezes so
     o nome. Devolve (nif, nome) com o que houver.
@@ -2602,14 +2719,16 @@ def _nif_e_nome(valor):
     Quando o NIF nao e publico -- pessoas singulares -- o BASE escreve
     um traco no lugar dele ("- - Filomena Ferreira"). Sem tirar esse
     traco, o nome ficava com o "- - " colado e aparecia assim no painel.
+    O nome desescapa-se aqui (_des_html), por isso tudo o que dele deriva
+    -- normalizacao, chave, entidades -- ja nasce limpo.
     """
     if isinstance(valor, list):
         valor = valor[0] if valor else ""
     valor = valor or ""
     m = re.match(r"\s*(\d{9})\s*-\s*(.*)$", valor)
     if m:
-        return m.group(1), m.group(2).strip()
-    return "", re.sub(r"^\s*-\s*-\s*", "", valor).strip()
+        return m.group(1), _des_html(m.group(2).strip())
+    return "", _des_html(re.sub(r"^\s*-\s*-\s*", "", valor).strip())
 
 
 def chave_entidade(nif, nome):
@@ -2762,24 +2881,30 @@ def _gravar_contratos(ano, registos):
                 continue
             nif, nome = _nif_e_nome(k.get("adjudicante"))
             ganhadores = _partes(k.get("adjudicatarios"))
+            # o texto desescapa-se todo a entrada (_des_html): o dump
+            # vem escapado para HTML e "Ramos &amp; Filhos" nao e nome
+            objecto = _des_html(k.get("objectoContrato")
+                                or k.get("descContrato") or "")
             linhas.append((
                 cid, ano, (k.get("nAnuncio") or "").strip(),
-                k.get("tipoprocedimento") or "",
-                k.get("objectoContrato") or k.get("descContrato") or "",
+                _des_html(k.get("tipoprocedimento") or ""),
+                objecto,
                 nif, nome, norma_entidade(nome),
                 _data_iso(k.get("dataPublicacao")),
                 _data_iso(k.get("dataCelebracaoContrato")),
                 k.get("precoContratual") or 0.0,
                 k.get("precoBaseProcedimento") or 0.0,
                 k.get("prazoExecucao") or 0,
-                ", ".join(x for x in (k.get("localExecucao") or []) if x)
-                if isinstance(k.get("localExecucao"), list)
-                else (k.get("localExecucao") or ""),
+                _des_html(", ".join(x for x in (k.get("localExecucao") or [])
+                                    if x)
+                          if isinstance(k.get("localExecucao"), list)
+                          else (k.get("localExecucao") or "")),
                 ", ".join(_cpv8(k.get("cpv"))),
-                k.get("fundamentacao") or "",
+                _des_html(k.get("fundamentacao") or ""),
                 # nunca zero: e divisor no grafico de quem ganha
                 max(1, len(ganhadores)),
-                chave_entidade(nif, nome)))
+                chave_entidade(nif, nome),
+                simplifica(objecto)))
             for v in _cpv8(k.get("cpv")):
                 cpvs.append((cid, v))
             for anif, anome in ganhadores:
@@ -2802,7 +2927,8 @@ COLS_CONTRATO = ("id", "ano", "n_anuncio", "tipo_procedimento", "objecto",
                  "adjudicante_nif", "adjudicante", "adjudicante_norm",
                  "data_publicacao", "data_celebracao", "preco_contratual",
                  "preco_base", "prazo_execucao", "local_execucao", "cpv",
-                 "fundamentacao", "n_adj", "adjudicante_chave")
+                 "fundamentacao", "n_adj", "adjudicante_chave",
+                 "objecto_norm")
 COLS_CPV = ("contrato_id", "cpv8")
 COLS_ADJ = ("contrato_id", "nif", "nome", "nome_norm", "chave")
 
@@ -3030,6 +3156,43 @@ def historico_entidade(entidade, cpv="", limite=25, nif=""):
     return linhas, ao_todo, do_cpv, alvo
 
 
+def data_de_filtro(valor):
+    """So aceita AAAA-MM-DD; o resto ignora-se em vez de filtrar.
+
+    Um "de=lixo" vindo de um URL guardado comparava datas com texto e
+    esvaziava a lista em silencio -- enquanto o euro minimo com lixo era
+    ignorado. Dois silencios com efeitos opostos; agora e um so, e a
+    lista avisa (avisos_de_datas)."""
+    valor = (valor or "").strip()
+    return valor if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor) else ""
+
+
+def avisos_de_datas(args):
+    """O que ha de errado com as datas do filtro, por palavras.
+
+    Duas coisas que davam lista vazia (ou filtro nenhum) sem uma palavra:
+    uma data que nao se percebe, e um intervalo com o fim antes do
+    principio. O intervalo invertido continua a devolver vazio -- trocar
+    as datas as escondidas seria outro silencio -- mas agora diz porque."""
+    fora = []
+    de_bruto = (args.get("de") or "").strip()
+    ate_bruto = (args.get("ate") or "").strip()
+    de, ate = data_de_filtro(de_bruto), data_de_filtro(ate_bruto)
+    for bruto, limpo in ((de_bruto, de), (ate_bruto, ate)):
+        if bruto and not limpo:
+            fora.append("A data “%s” não se percebe e foi ignorada." % bruto)
+    if de and ate and de > ate:
+        fora.append("O intervalo está invertido — de %s até %s não "
+                    "apanha nada." % (data_pt(de), data_pt(ate)))
+    return fora
+
+
+def faixa_de_avisos_de_datas(args):
+    """Os avisos das datas prontos a pôr na página, ou nada."""
+    return "".join("<div class='flash mau'>%s</div>" % html.escape(a)
+                   for a in avisos_de_datas(args))
+
+
 def condicoes_contratos(args):
     """Traduz os filtros do separador dos contratos em SQL.
 
@@ -3039,18 +3202,28 @@ def condicoes_contratos(args):
     """
     onde, valores = ["1=1"], []
 
-    def procura(texto, coluna):
+    def procura(texto, coluna, norma=simplifica):
+        # Nas colunas normalizadas e com o termo normalizado do mesmo
+        # modo, como na condicoes(): o LIKE do SQLite nao baixa o "Ç", e
+        # o IMPIC escreve muitos objectos todos em maiusculas. Medido:
+        # procurar "aquisição" no objecto cru perdia 68 295 contratos
+        # (11,8%) sem aviso nenhum -- o mesmo defeito ja pago nos
+        # anuncios, vivo no separador onde se estuda a concorrencia.
         pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
         if not pedacos:
             return
         ors = []
         for p in pedacos:
             ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-            valores.append("%" + para_like(p) + "%")
+            valores.append("%" + para_like(norma(p)) + "%")
         onde.append("(" + " OR ".join(ors) + ")")
 
-    procura(args.get("q"), "c.objecto")
-    procura(args.get("adj"), "c.adjudicante")
+    # Os nomes de entidades procuram-se com a norma deles
+    # (norma_entidade): e ela que enche adjudicante_norm e nome_norm, e e
+    # ela que troca o "&" por " e " -- procurar "Ramos & Filhos" so
+    # encontra "ramos e filhos" se o termo levar o mesmo caminho.
+    procura(args.get("q"), "c.objecto_norm")
+    procura(args.get("adj"), "c.adjudicante_norm", norma_entidade)
 
     # Quem ganhou vive numa tabela a parte (um contrato pode ter varios
     # adjudicatarios). EXISTS e nao JOIN: com JOIN, um contrato ganho por
@@ -3064,9 +3237,9 @@ def condicoes_contratos(args):
     if ganhou:
         onde.append("c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
                     "WHERE %s)"
-                    % " OR ".join("nome LIKE ? ESCAPE '%s'" % ESCAPE_LIKE
+                    % " OR ".join("nome_norm LIKE ? ESCAPE '%s'" % ESCAPE_LIKE
                                   for _ in ganhou))
-        valores += ["%" + para_like(p) + "%" for p in ganhou]
+        valores += ["%" + para_like(norma_entidade(p)) + "%" for p in ganhou]
 
     prefixos = [p for p in (prefixo_cpv(x)
                             for x in (args.get("cpv") or "").split("|")) if p]
@@ -3099,11 +3272,11 @@ def condicoes_contratos(args):
         onde.append("c.tipo_procedimento = ?")
         valores.append(proc)
 
-    de = (args.get("de") or "").strip()
+    de = data_de_filtro(args.get("de"))
     if de:
         onde.append("c.data_celebracao >= ?")
         valores.append(de)
-    ate = (args.get("ate") or "").strip()
+    ate = data_de_filtro(args.get("ate"))
     if ate:
         onde.append("c.data_celebracao <= ?")
         valores.append(ate)
@@ -3607,6 +3780,11 @@ details.arvore[open]>summary::before{content:'\25BE'}
 #arvore-corpo .lbl{font:500 12px/1.35 var(--sans);color:var(--azul);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #arvore-corpo .n{font:400 10.5px/1 var(--sans);color:var(--t6);flex:none}
+/* codigo sem nada nesta fonte de contagem: escolhe-lo da lista vazia
+   garantida, por isso esbatido -- mas nao escondido, que a mesma arvore
+   conta doutras coisas no outro separador */
+#arvore-corpo .no.zero .lbl,#arvore-corpo .no.zero .cod{color:var(--t6)}
+#arvore-corpo .no.zero{opacity:.65}
 #arvore-corpo .escondido{display:none}
 .arv-pe{padding:0 18px 16px;font:400 11px/1.5 var(--sans);color:var(--t5)}
 
@@ -3991,7 +4169,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     ultima = (("<span class='ponto' style='background:%s'></span>"
                "última: %s &mdash; %s"
                % ("#1e8449" if bom else "#c0392b",
-                  html.escape(quando), html.escape(mensagem)))
+                  html.escape(data_hora_pt(quando)), html.escape(mensagem)))
               if quando != "nunca" else "ainda não verificou")
     a_verificar = verificacao_a_correr()
     if a_verificar:
@@ -4318,6 +4496,10 @@ function arvoreNo(cod, porCodigo, filhos, total) {
   var ns = document.createElement('span');
   ns.className = 'n'; ns.textContent = '(' + total[cod] + ')';
   resumo.appendChild(ns);
+  // Um codigo a zero escolhe-se na mesma (pode interessar no outro
+  // separador), mas esbatido: filtrar a arvore por "software" enterrava
+  // os ramos com anuncios no meio de dezenas de (0).
+  if (!total[cod]) resumo.classList.add('zero');
   det.appendChild(resumo);
   if (temFilhos) {
     filhos[cod].forEach(function(f) { det.appendChild(arvoreNo(f, porCodigo, filhos, total)); });
@@ -4454,6 +4636,17 @@ def sem_pagina(args, **muda):
     return "/?" + urlencode(novos) if novos else "/"
 
 
+def href_limpar(rota, estado=None):
+    """O "limpar" tira o filtro, nao muda de separador.
+
+    Apontava sempre para "/": limpar a pesquisa em Descartados atirava
+    para "Por ver". O estado e o separador onde se esta, nao parte do
+    filtro que se quer tirar. `None` e paginas sem separadores."""
+    if estado is None or estado == "novo":
+        return rota
+    return rota + "?" + urlencode([("estado", estado)])
+
+
 def paginador(pagina, paginas, args, base="/"):
     """Barra de paginas. Mostra uma janela a volta da actual em vez de
     todas -- com 65 mil anuncios sao 3300 paginas e nao cabem na linha.
@@ -4540,10 +4733,28 @@ def painel():
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
         n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
+        # A lista das plataformas que existem vem da base toda -- para se
+        # poder MUDAR de plataforma sem sair do filtro -- mas os numeros
+        # contam dentro do filtro, sem a parte da plataforma, como os
+        # separadores. Era o unico controlo do ecra com outra aritmetica:
+        # com um CPV posto e a lista em 118, oferecia "acingov (2 637)".
         plataformas = c.execute(
             "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
             "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC",
             (SEM_PLATAFORMA,)).fetchall()
+        onde_sem_plat, val_sem_plat = condicoes(
+            args_da_lista(request.args, plat=""))
+        no_filtro = c.execute("SELECT COUNT(*) n FROM anuncios"
+                              + onde_sem_plat, val_sem_plat).fetchone()["n"]
+        porler_filtro = c.execute(
+            "SELECT COUNT(*) n FROM anuncios" + onde_sem_plat +
+            (" AND" if onde_sem_plat else " WHERE") + " detalhe_lido=0",
+            val_sem_plat).fetchone()["n"]
+        conta_plat = {r["p"]: r["n"] for r in c.execute(
+            "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
+            "FROM anuncios" + onde_sem_plat +
+            (" AND" if onde_sem_plat else " WHERE") + " detalhe_lido=1 "
+            "GROUP BY p", [SEM_PLATAFORMA] + val_sem_plat)}
 
     mil = mil_pt
 
@@ -4577,12 +4788,13 @@ def painel():
     # detalhe lido, que sao 8% da base, e nao havia nada a dize-lo nem
     # forma nenhuma de pedir os outros 92%.
     opcoes_plat = ["<option value=''>todas as plataformas (%s)</option>"
-                   % mil(total)]
+                   % mil(no_filtro)]
     if porler:
         opcoes_plat.append(
             "<option value='%s'%s>ainda sem detalhe lido (%s)</option>"
             % (html.escape(POR_LER, quote=True),
-               " selected" if plat_actual == POR_LER else "", mil(porler)))
+               " selected" if plat_actual == POR_LER else "",
+               mil(porler_filtro)))
     for r in plataformas:
         etiqueta = ("sem plataforma indicada" if r["p"] == SEM_PLATAFORMA
                     else r["p"])
@@ -4590,7 +4802,7 @@ def painel():
             "<option value='%s'%s>%s (%s)</option>"
             % (html.escape(r["p"], quote=True),
                " selected" if r["p"] == plat_actual else "",
-               html.escape(etiqueta), mil(r["n"])))
+               html.escape(etiqueta), mil(conta_plat.get(r["p"], 0))))
 
     prazo_actual = (request.args.get("prazo") or "").strip()
     opcoes_prazo = "".join(
@@ -4612,7 +4824,7 @@ def painel():
         "<label>até</label><input type='date' name='ate' value='%s'>"
         "<input type='hidden' name='estado' value='%s'>"
         "<button type='submit'>Filtrar</button>"
-        "<a class='limpar' href='/'>limpar</a>"
+        "<a class='limpar' href='%s'>limpar</a>"
         "</form>"
         % (html.escape(request.args.get("q", ""), quote=True),
            html.escape(request.args.get("ent", ""), quote=True),
@@ -4620,7 +4832,8 @@ def painel():
            "".join(opcoes_plat), opcoes_prazo,
            html.escape(request.args.get("de", ""), quote=True),
            html.escape(request.args.get("ate", ""), quote=True),
-           html.escape(estado_actual, quote=True)))
+           html.escape(estado_actual, quote=True),
+           html.escape(href_limpar("/", estado_actual), quote=True)))
 
     caixa_guardados = caixa_de_filtros(request.args, "anuncios")
 
@@ -4632,7 +4845,9 @@ def painel():
                        + "</div>")
     else:
         corpo_lista = ("<div class='vazio'>Nada corresponde a este filtro. "
-                       "<a href='/'>limpar</a></div>")
+                       "<a href='%s'>limpar</a></div>"
+                       % html.escape(href_limpar("/", estado_actual),
+                                     quote=True))
 
     # a pagina mostra 20; a contagem tem de dizer quantos o filtro apanhou
     # mesmo, senao "20 de 65 869" parece um filtro que nao filtrou nada
@@ -4670,6 +4885,7 @@ def painel():
     # activo, arvore, e so depois os filtros guardados. A arvore e onde
     # se escolhe o CPV, por isso vem antes de se guardar a escolha.
     conteudo = ("<div class='larg'>" + faixa_avisos +
+                faixa_de_avisos_de_datas(request.args) +
                 filtros + faixa_cpv + arvore + caixa_guardados +
                 "<div class='linha-conta'>" + conta +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
@@ -4863,6 +5079,15 @@ def prefixo_cpv(pedaco):
     return curto if len(curto) >= 2 else digitos[:2]
 
 
+def janela_urgente(hoje):
+    """(hoje, hoje + DIAS_URGENTE), em ISO. E UMA janela so.
+
+    Usam-na o filtro prazo=urgente e o cartao "Interessa" dos
+    indicadores. Ja houve um "7" escrito a mao no cartao com o filtro a
+    10: o numero do ecra nao abria lista nenhuma que o confirmasse."""
+    return hoje.isoformat(), (hoje + timedelta(days=DIAS_URGENTE)).isoformat()
+
+
 def condicoes(args):
     """Traduz os filtros do painel em SQL. Nada e apagado, so escondido."""
     onde, valores = [], []
@@ -4922,10 +5147,12 @@ def condicoes(args):
             onde.append("detalhe_lido = 0")
         else:
             onde.append("plataforma = ?"); valores.append(plat)
-    de = (args.get("de") or "").strip()
+    # So datas a serio: "de=lixo" num URL guardado comparava texto com
+    # datas e esvaziava a lista em silencio. Ignora-se e a lista avisa.
+    de = data_de_filtro(args.get("de"))
     if de:
         onde.append("data_pub >= ?"); valores.append(de)
-    ate = (args.get("ate") or "").strip()
+    ate = data_de_filtro(args.get("ate"))
     if ate:
         onde.append("data_pub <= ?"); valores.append(ate)
     # O prazo, que separa a oportunidade do arquivo. Depois de entrarem os
@@ -4935,13 +5162,13 @@ def condicoes(args):
     # sem eles.
     prazo = (args.get("prazo") or "").strip()
     if prazo in ("aberto", "expirado", "urgente"):
-        hoje = datetime.now().date()
+        inicio, fim = janela_urgente(datetime.now().date())
         onde.append("(prazo IS NOT NULL AND prazo != '' AND prazo %s ?%s)"
                     % ("<" if prazo == "expirado" else ">=",
                        " AND prazo <= ?" if prazo == "urgente" else ""))
-        valores.append(hoje.isoformat())
+        valores.append(inicio)
         if prazo == "urgente":
-            valores.append((hoje + timedelta(days=DIAS_URGENTE)).isoformat())
+            valores.append(fim)
     estado = args.get("estado")
     if estado is None:
         estado = "novo"
@@ -5286,10 +5513,13 @@ def exportar():
         # Datas em DD/MM/AAAA como no resto da aplicacao -- o ISO e para a
         # base, e um CSV e para ver -- e o preco como um numero que o
         # Excel portugues some. "1.326.675,00 EUR" era texto para ele.
+        # O estado idem: "novo" e chave interna que nenhum ecra mostra;
+        # a coluna diz "por ver", como os separadores.
         escritor.writerow([a["ref"], data_pt(a["data_pub"]), a["tipo"],
                            a["entidade"], a["titulo"], a["cpv"],
                            data_pt(a["prazo"]), numero_csv(a["preco_base"]),
-                           a["estado"], a["url"]])
+                           _NOMES_ESTADO.get(a["estado"], a["estado"]),
+                           a["url"]])
     return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition":
                              "attachment; filename=" + nome_csv("anuncios")})
@@ -5449,6 +5679,14 @@ def alertas():
                  "nos <a href='/contratos'>contratos</a> e guarda-a com um "
                  "nome &mdash; é o mesmo filtro.</div>")
 
+    # O que se tinha escrito quando a validacao recusou: vem na query
+    # string do redirect e volta para os campos, em vez de se perder.
+    def pv(campo):
+        return html.escape(request.args.get(campo, ""), quote=True)
+
+    def marca_sel(campo, valor, omissao=""):
+        return " selected" if request.args.get(campo, omissao) == valor else ""
+
     # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
     novo = (
         "<div class='cx novo-filtro'><div class='rot'>Novo filtro</div>"
@@ -5463,45 +5701,56 @@ def alertas():
         # por valor -- coisas que se punham nas outras paginas e se
         # guardavam de la. Eram dois caminhos para a mesma coisa, e um
         # deles secretamente mais fraco do que o outro.
-        "<form method='get' action='/alertas/criar' class='filtros'>"
-        "<input type='text' name='nome' required maxlength='60' "
+        #
+        # POST, como tudo o que escreve. E os campos vem preenchidos da
+        # query string: quando a validacao recusa, o redirect traz o que
+        # se tinha escrito -- antes vinha tudo vazio, nome incluido.
+        "<form method='post' action='/alertas/criar' class='filtros'>"
+        "<input type='text' name='nome' required maxlength='60' value='%s' "
         "placeholder='nome do filtro…'>"
-        "<input type='text' name='q' placeholder='Objecto…'>"
+        "<input type='text' name='q' value='%s' placeholder='Objecto…'>"
         # a ver e nao escondido: aqui nao ha lista por baixo a mostrar o
         # resultado, e sem isto nao se sabia o que a arvore tinha posto
-        "<input type='text' id='filtro-cpv' name='cpv' value='' readonly "
+        "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
         "placeholder='CPV — escolhe na árvore aqui em baixo'>"
-        "<input type='text' name='ent' placeholder='Entidade que publica "
-        "(anúncios)…'>"
-        "<input type='text' name='adj' placeholder='Entidade que comprou "
-        "(contratos)…'>"
-        "<input type='text' name='ganhou' placeholder='Quem ganhou (contratos)…'>"
+        "<input type='text' name='ent' value='%s' placeholder='Entidade que "
+        "publica (anúncios)…'>"
+        "<input type='text' name='adj' value='%s' placeholder='Entidade que "
+        "comprou (contratos)…'>"
+        "<input type='text' name='ganhou' value='%s' "
+        "placeholder='Quem ganhou (contratos)…'>"
         "<select name='plat'>%s</select>"
         "<select name='estado'>%s</select>"
         "<select name='prazo'>%s</select>"
         "%s"
-        "<label>de</label><input type='date' name='de'>"
-        "<label>até</label><input type='date' name='ate'>"
-        "<label>desde</label><input type='text' name='min' "
+        "<label>de</label><input type='date' name='de' value='%s'>"
+        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "<label>desde</label><input type='text' name='min' value='%s' "
         "placeholder='€ mínimo (contratos)' "
         "style='min-width:0;width:150px;flex:none'>"
         "<button type='submit'>Criar filtro</button>"
         "</form>%s</div>"
-        % ("".join(["<option value=''>plataforma: qualquer uma "
+        % (pv("nome"), pv("q"), pv("cpv"), pv("ent"), pv("adj"), pv("ganhou"),
+           "".join(["<option value=''>plataforma: qualquer uma "
                     "(anúncios)</option>"]
-                   + ["<option value='%s'>%s</option>"
-                      % (html.escape(p, quote=True), html.escape(p))
+                   + ["<option value='%s'%s>%s</option>"
+                      % (html.escape(p, quote=True), marca_sel("plat", p),
+                         html.escape(p))
                       for p in plataformas]
-                   + ["<option value='%s'>sem plataforma indicada</option>"
-                      % html.escape(SEM_PLATAFORMA, quote=True),
-                      "<option value='%s'>ainda sem detalhe lido</option>"
-                      % html.escape(POR_LER, quote=True)]),
-           "".join("<option value='%s'>%s</option>" % (v, t)
+                   + ["<option value='%s'%s>sem plataforma indicada</option>"
+                      % (html.escape(SEM_PLATAFORMA, quote=True),
+                         marca_sel("plat", SEM_PLATAFORMA)),
+                      "<option value='%s'%s>ainda sem detalhe lido</option>"
+                      % (html.escape(POR_LER, quote=True),
+                         marca_sel("plat", POR_LER))]),
+           "".join("<option value='%s'%s>%s</option>"
+                   % (v, marca_sel("estado", v, omissao="novo"), t)
                    for v, t in (("novo", "estado: só os por ver"),
                                 ("", "estado: todos"),
                                 ("interessa", "estado: só os interessa"),
                                 ("descartado", "estado: só os descartados"))),
-           "".join("<option value='%s'>%s</option>" % (v, t)
+           "".join("<option value='%s'%s>%s</option>"
+                   % (v, marca_sel("prazo", v), t)
                    for v, t in (("", "prazo: tanto faz"),
                                 ("aberto", "prazo: só os que ainda dão"),
                                 ("urgente", "prazo: só os que acabam em %d "
@@ -5510,9 +5759,11 @@ def alertas():
            ("<select name='proc'>%s</select>"
             % "".join(["<option value=''>procedimento: todos "
                        "(contratos)</option>"]
-                      + ["<option value='%s'>%s</option>"
-                         % (html.escape(p, quote=True), html.escape(p))
+                      + ["<option value='%s'%s>%s</option>"
+                         % (html.escape(p, quote=True), marca_sel("proc", p),
+                            html.escape(p))
                          for p in procs])) if procs else "",
+           pv("de"), pv("ate"), pv("min"),
            arvore_html(quantos_cpv(), "anuncios", submeter=False)))
 
     if ultimos:
@@ -5546,27 +5797,35 @@ def alertas():
         titulo_aba="Alertas, Radar de Concursos")
 
 
-@app.route("/alertas/criar")
+@app.route("/alertas/criar", methods=["POST"])
 def alerta_criar():
-    """Cria um filtro a partir do formulario do separador. GET porque os
-    campos vem de um formulario de pesquisa; a escrita e o gravar_filtro,
-    que so acontece quando ha nome."""
-    nome = (request.args.get("nome") or "").strip()
-    if not nome:
-        return redirect("/alertas?aviso=" + quote("O filtro precisa de nome."))
+    """Cria um filtro a partir do formulario do separador.
+
+    POST, como tudo o que escreve -- foi GET, com a justificacao de que
+    os campos vinham de um formulario de pesquisa, mas o gravar_filtro
+    escreve na base e a regra da casa nao abre excepcoes. Quando a
+    validacao recusa, o redirect leva os campos na query string e o
+    formulario volta preenchido: perdia-se tudo, nome incluido."""
+    nome = (request.form.get("nome") or "").strip()
     # O `estado` entra mesmo vazio, como em condicoes() e em
     # filtro_actual(): ausente e "por ver", vazio e "todos". Sem esta
     # excepcao, escolher "todos" aqui gravava um filtro sem estado, que
     # e o mesmo que "por ver" -- o contrario do que se pediu.
     pares = []
     for k in CAMPOS_FILTRO:
-        valor = (request.args.get(k) or "").strip()
-        if valor or (k == "estado" and request.args.get(k) is not None):
+        valor = (request.form.get(k) or "").strip()
+        if valor or (k == "estado" and request.form.get(k) is not None):
             pares.append((k, valor))
+
+    def recusa(mensagem):
+        return redirect("/alertas?" + urlencode(
+            [("aviso", mensagem), ("nome", nome)] + pares))
+
+    if not nome:
+        return recusa("O filtro precisa de nome.")
     consulta = urlencode(pares)
     if not [k for k, v in pares if v and k != "estado"]:
-        return redirect("/alertas?aviso=" +
-                        quote("Preenche pelo menos um campo além do estado."))
+        return recusa("Preenche pelo menos um campo além do estado.")
     havia = gravar_filtro(nome, consulta)
     return redirect("/alertas?aviso=" +
                     quote("Filtro %s: %s"
@@ -6185,9 +6444,10 @@ def filtros_da_ficha(chave, d):
         "style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>%s"
         "<div class='periodos'><span>rápido:</span>%s</div>"
-        "</form>%s%s%s"
+        "</form>%s%s%s%s"
         % (quote(chave, safe=""), v("q"), v("cpv"), v("de"), v("ate"),
-           v("min"), limpar, "".join(chips), faixa,
+           v("min"), limpar, "".join(chips),
+           faixa_de_avisos_de_datas(request.args), faixa,
            arvore_html(n_cpv, "contratos"),
            # os mesmos filtros guardados dos contratos, mas a voltar para
            # esta ficha e so com os campos que ela entende
@@ -6263,7 +6523,9 @@ def entidade(chave):
             "<tr><td class='d'>%s</td><td class='o'>%s</td>"
             "<td class='g'>%s</td><td>%s</td><td class='p'>%s</td></tr>"
             % (data_pt(r["data_celebracao"]),
-               html.escape((r["objecto"] or "")[:130]),
+               # corta(), nunca [:n] cru: "…as Base de Dado" le-se como
+               # dado estragado -- era o ultimo [:n] visivel que restava
+               html.escape(corta(r["objecto"] or "", 130)),
                liga_entidade(r["adjudicante_chave"], r["outro"]),
                html.escape(r["tipo_procedimento"] or ""),
                euros(r["preco_contratual"]))
@@ -6429,7 +6691,7 @@ def barra_corpus(anos):
             % (mil_pt(ha_corpus()),
                "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
                else (str(anos[0]) if anos else "—"),
-               html.escape(quando), direita, aviso))
+               html.escape(data_hora_pt(quando)), direita, aviso))
 
 
 @app.route("/contratos")
@@ -6623,7 +6885,8 @@ def contratos():
         "<div id='graf-corpo' class='graf-corpo'>a carregar…</div>"
         "</details>") if ha_pergunta else ""
 
-    conteudo = ("<div class='larg'>" + barra_corpus(anos) + filtros +
+    conteudo = ("<div class='larg'>" + barra_corpus(anos) +
+                faixa_de_avisos_de_datas(request.args) + filtros +
                 faixa_cpv + arvore_html(n_cpv, "contratos") +
                 caixa_de_filtros(request.args, "contratos") +
                 graficos + linha_conta +
@@ -6817,6 +7080,20 @@ def essencial_do_anuncio(a, seccoes, analise=None):
             return ""
         return "" if simplifica(valor) in ("", "nao consta", "não consta") else valor
 
+    def foi_lido(campo):
+        """Se a leitura chegou a perguntar por este campo.
+
+        "Lido e nao consta" e "ainda nao lido" sao respostas diferentes e
+        a ficha diz qual e qual. Uma linha de analise gravada antes de o
+        campo existir nao o leu -- dizer "foi lido e nao fixa" ai seria
+        afirmar uma leitura que nao houve."""
+        if not analise:
+            return False
+        try:
+            return analise[campo] is not None
+        except (KeyError, IndexError):
+            return False
+
     # Nomear as pecas que foram mesmo lidas: numa leitura parcial, dizer
     # "do Caderno de Encargos e do Programa" e afirmar o que nao houve.
     nota_pecas = ("lido de %s por %s — confirmar no documento"
@@ -6827,7 +7104,8 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     # mesma coisa que ainda nao se ter ido ver.
     anormal = das_pecas("preco_anormalmente_baixo")
     anormal_falta = "" if anormal else (
-        "o Programa de Concurso não fixa nenhum" if analise else FALTA_PC)
+        "o Programa de Concurso não fixa nenhum"
+        if foi_lido("preco_anormalmente_baixo") else FALTA_PC)
 
     return [
         ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
@@ -6847,18 +7125,44 @@ def essencial_do_anuncio(a, seccoes, analise=None):
          "%s\n(%s, segundo o anúncio)" % (regime, local) if regime and local
          else (regime or local), "",
          nota_pecas if regime else
-         "localização do procedimento; o regime presencial, remoto ou "
-         "híbrido consta do Caderno de Encargos e ainda não foi lido"),
+         # A mesma distincao do preco anormalmente baixo: depois da
+         # leitura, "ainda nao foi lido" era mentira -- e mandava abrir
+         # um documento que a ferramenta ja tinha visto nao dizer nada.
+         ("localização do procedimento; o Caderno de Encargos foi lido e "
+          "não fixa o regime presencial, remoto ou híbrido"
+          if foi_lido("localizacao") else
+          "localização do procedimento; o regime presencial, remoto ou "
+          "híbrido consta do Caderno de Encargos e ainda não foi lido")),
         ("Data de esclarecimentos", esclarecimentos, esclarec_falta,
          esclarec_nota),
         ("Data de submissão da proposta", data_pt(a["prazo"], ""), "", ""),
         ("Objeto, âmbito e características", das_pecas("objecto"),
-         "" if das_pecas("objecto") else FALTA_CE, nota_pecas),
+         "" if das_pecas("objecto") else
+         ("o Caderno de Encargos foi lido e não o descreve"
+          if foi_lido("objecto") else FALTA_CE), nota_pecas),
         ("Equipa", das_pecas("equipa"),
-         "" if das_pecas("equipa") else FALTA_CE, nota_pecas),
+         "" if das_pecas("equipa") else
+         ("o Caderno de Encargos foi lido e não fixa requisitos de equipa"
+          if foi_lido("equipa") else FALTA_CE), nota_pecas),
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
-         "" if das_pecas("documentos_proposta") else FALTA_PC, nota_pecas),
+         "" if das_pecas("documentos_proposta") else
+         ("o Programa de Concurso foi lido e não os enumera"
+          if foi_lido("documentos_proposta") else FALTA_PC), nota_pecas),
     ]
+
+
+def data_hora_pt(texto, vazio="—"):
+    """"2026-08-29 18:54" -> "29/08/2026 18:54".
+
+    A regra da casa e ISO na base e DD/MM a vista, e valia em todo o lado
+    menos em tres sitios: o historico da ficha, a barra do corpus e a
+    "ultima" da barra lateral. O que nao parecer data passa como esta --
+    ha marcas antigas com texto livre ("nunca")."""
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})[ T]?(.*)$", (texto or "").strip())
+    if not m:
+        return texto or vazio
+    resto = (" " + m.group(4).strip()) if m.group(4).strip() else ""
+    return "%s/%s/%s%s" % (m.group(3), m.group(2), m.group(1), resto)
 
 
 def data_pt(iso, vazio="—"):
@@ -7030,19 +7334,27 @@ def mercado(a):
         else:
             comparacao = ("Este anúncio ainda não tem preço base lido, "
                           "por isso não há com que comparar.")
+        # A regua de quartis so com contratos que cheguem: com 3, "mais
+        # barato" e "25%" eram o mesmo contrato repetido. A comparacao
+        # com a mediana e a tabela ficam -- e dizem sobre quantos e.
+        escada = ""
+        if r["quantos"] >= MINIMO_PARA_ESCADA:
+            escada = (
+                "<div class='escada'>"
+                "<span>mais barato<b>%s</b></span>"
+                "<span>25%%<b>%s</b></span>"
+                "<span class='med'>mediana<b>%s</b></span>"
+                "<span>75%%<b>%s</b></span>"
+                "<span>mais caro<b>%s</b></span></div>"
+                % (euros_curto(r["menor"]), euros_curto(r["p25"]),
+                   euros_curto(r["mediana"]), euros_curto(r["p75"]),
+                   euros_curto(r["maior"])))
         ref_preco = (
-            "<div class='ref-preco'>%s<div class='escada'>"
-            "<span>mais barato<b>%s</b></span>"
-            "<span>25%%<b>%s</b></span>"
-            "<span class='med'>mediana<b>%s</b></span>"
-            "<span>75%%<b>%s</b></span>"
-            "<span>mais caro<b>%s</b></span></div>"
+            "<div class='ref-preco'>%s%s"
             "<div class='nota'>Sobre os %s contratos mais recentes desta "
             "entidade neste CPV. O preço contratual é o de partida, não o "
             "valor final &mdash; adicionais não entram.</div></div>"
-            % (comparacao, euros_curto(r["menor"]), euros_curto(r["p25"]),
-               euros_curto(r["mediana"]), euros_curto(r["p75"]),
-               euros_curto(r["maior"]), mil_pt(r["quantos"])))
+            % (comparacao, escada, mil_pt(r["quantos"])))
 
     return _mercado_cx(
         resumo,
@@ -7334,7 +7646,8 @@ def ficha(ref):
             "<div class='hist'><span class='t'>%s %s %s</span>"
             "<span class='q'>%s</span></div>"
             % (html.escape(p["quem"]), html.escape(p["accao"]),
-               html.escape(p["detalhe"] or ""), html.escape(p["quando"]))
+               html.escape(p["detalhe"] or ""),
+               html.escape(data_hora_pt(p["quando"])))
             for p in passos)
     else:
         linhas_hist = "<div class='nota'>Ainda não há registo de alterações.</div>"
@@ -7767,11 +8080,13 @@ def indicadores():
                            (hoje.strftime("%Y-%m-%d"),)).fetchone()["n"]
         interessa = c.execute("SELECT COUNT(*) n FROM anuncios "
                               "WHERE estado='interessa'").fetchone()["n"]
+        # A MESMA janela do filtro prazo=urgente (janela_urgente): havia
+        # aqui um 7 escrito a mao com o filtro a 10, e o numero do cartao
+        # nao abria lista nenhuma que o confirmasse.
         urgentes = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE estado='interessa' "
             "AND prazo >= ? AND prazo <= ?",
-            (hoje.strftime("%Y-%m-%d"),
-             (hoje + timedelta(days=7)).strftime("%Y-%m-%d"))).fetchone()["n"]
+            janela_urgente(hoje)).fetchone()["n"]
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
         fases = listar_fases()
@@ -7789,10 +8104,21 @@ def indicadores():
 
     mil = mil_pt
 
+    # "0 novos" ao sabado com "~60-70/dia" ao lado lia-se como recolha
+    # avariada; a parte L nao publica ao fim-de-semana e o cartao di-lo.
+    nota_hoje = ("fim-de-semana: a parte L não publica"
+                 if hoje.weekday() >= 5 else "a parte L publica ~60-70/dia")
+    # O numero dos urgentes abre a lista que o confirma -- um numero sem
+    # saida obrigava a reconstruir o filtro a mao (e com outro limiar).
+    nota_urgentes = "%s com prazo a menos de %d dias" % (mil(urgentes),
+                                                         DIAS_URGENTE)
+    if urgentes:
+        nota_urgentes = ("<a href='/?estado=interessa&amp;prazo=urgente' "
+                         "style='color:inherit;text-decoration:underline'>"
+                         "%s</a>" % nota_urgentes)
     kpis = [("Anúncios na base", mil(total), "%s com detalhe lido" % mil(com_detalhe), ""),
-            ("Novos hoje", mil(hoje_n), "a parte L publica ~60-70/dia", ""),
-            ("Interessa", mil(interessa),
-             "%s com prazo a menos de 7 dias" % mil(urgentes),
+            ("Novos hoje", mil(hoje_n), nota_hoje, ""),
+            ("Interessa", mil(interessa), nota_urgentes,
              "color:#c0392b" if urgentes else ""),
             ("Sem detalhe lido", mil(porler),
              "lidos ao abrir a ficha, ou em rotina", "color:#d68910" if porler else "")]
@@ -8087,6 +8413,12 @@ def etiqueta_tirar(ref, etiqueta_id):
 
 def main():
     iniciar_db()
+    # As migracoes do corpus tambem correm no arranque, nao so na
+    # importacao: um corpus ja em disco levava as colunas novas (o
+    # desescape do HTML, o objecto_norm da pesquisa) so quando o Afonso
+    # carregasse em "Actualizar contratos", e a pesquisa mentia ate la.
+    if os.path.exists(CORPUS):
+        iniciar_corpus()
     cfg = ler_config()
 
     if "--importar-cpv" in sys.argv:
