@@ -15,7 +15,9 @@ depende de nada da empresa.
 
 Substitui a Armilar (produto Vortal, 200 €/mês). O `ESTADO.md` é o diário
 do projecto — **lê-o antes de mexer** e actualiza-o no fim de trabalho que
-mude decisões ou números.
+mude decisões ou números. O `CONCORRENTES.md` guarda o que se observou nos
+produtos pagos deste mercado, com data: o que fazem melhor, onde se partem,
+e o que daí se aproveita.
 
 ## Comandos
 
@@ -93,8 +95,13 @@ Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
   semanal, portanto mais atrasado que o radar. **Abaixo dos limiares não
   existe anúncio nenhum** — esses procedimentos só se vêem como contrato
   celebrado. Não acrescentes coluna `fonte` nem mexas na deduplicação à
-  espera de uma segunda fonte de anúncios: não há. E o conjunto "OCDS" do
-  dados.gov está vazio desde 2022; o que se usa é o dump normal do IMPIC.
+  espera de uma segunda fonte de anúncios **vinda do BASE**: não há. E o
+  conjunto "OCDS" do dados.gov está vazio desde 2022; o que se usa é o
+  dump normal do IMPIC. **A ressalva vale só para o BASE**: as
+  plataformas (Vortal e companhia) publicam procedimentos que a parte L
+  não publica — consultas preliminares, contratos menores. Medido num
+  concorrente a 29/08/2026, ver `CONCORRENTES.md`. É premissa que mudou,
+  não decisão tomada: nada disto se implementa sem o Afonso decidir.
 - **Anúncios e contratos são separadores diferentes, de propósito.** Um
   anúncio é uma oportunidade, um contrato já está assinado; os filtros
   nem coincidem (um anúncio não tem vencedor nem valor final). A lista
