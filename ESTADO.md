@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 27 de agosto de 2026.
+Última actualização: 29 de agosto de 2026.
 
 ## O que isto é
 
@@ -2035,3 +2035,112 @@ indicam plataforma.
 A sonda (`sonda.py`, `sonda.bat`, `sonda.txt`, `sonda_detalhe.html`) foi
 apagada: respondia a duas perguntas — se a pesquisa aceitava termo vazio
 e de onde vinha o CPV — ambas respondidas há muito e documentadas aqui.
+
+## Olhar para a concorrência — Tendios, 29 de agosto de 2026
+
+O Afonso tem conta na **Tendios Bid** (`bid.tendios.com`, plano
+gratuito) e mandou ver o produto por dentro. O registo completo, com
+números e provas, está em **`CONCORRENTES.md`** — aqui fica só o que
+muda decisões deste projecto.
+
+**O que se confirmou.** Fomos ao mesmo concurso nas duas casas: o
+"Fornecimento de sensores para medição de oximetria para a ULS de São
+José", publicado a 28/08/2026. Está no radar como `21792/2026` e lá como
+`12025626`. **No que é parte L, há paridade** — não se está a perder
+anúncios para eles. E o radar corre às 09:00, contra as 10:00 a que eles
+revêem o DR.
+
+**A premissa que mudou.** O separador *Fontes* da ficha deles nomeia a
+origem: `EU_TED`, `PT_DDR_CPO`, `PT_BG_CPO` e `GLOBAL_VORTAL`. Ou seja,
+vão à **plataforma**, não só ao jornal. Daí virem coisas que a parte L
+não publica: consultas preliminares de mercado (na base do radar,
+`titulo LIKE '%Consulta preliminar%'` dá **zero**) e contratos menores.
+Continua verdade que o BASE não traz anúncios novos — isso está medido e
+não muda. O que deixa de ser verdade é a frase "não há segunda fonte":
+**há, e são as plataformas de onde o `obter_documentos()` já traz
+peças**. Fica registado como premissa, não como plano; implementar é
+decisão do Afonso, e custa uma recolha nova por plataforma.
+
+**Onde eles se partem, e porque isso interessa.** Três defeitos
+encadeados, todos com a mesma raiz:
+
+1. O concurso de cima está lá **duas vezes**, em fichas separadas. A que
+   vem da Vortal tem as peças (Programa e CE, Anexo I, ESPD); a que vem
+   do DR/TED só tem os anúncios. Quem abre a segunda não vê as peças.
+2. A razão: no directório de organismos, "Unidade Local de Saúde de São
+   José, **E. P. E.**" e "Unidade Local de Saúde de São José, **EPE**"
+   são duas entidades — **com o mesmo NIF, 508080142**, e com 6 137 e
+   1 831 adjudicações cada.
+3. E propaga-se: no top-5 de adjudicatários de telecomunicações, a MEO
+   aparece **duas vezes** (52 e 19, com um nome em maiúsculas e prefixo
+   "1 - "). Juntas seriam 71.
+
+Isto é o cenário exacto contra o qual o `chave_entidade()` foi escrito, a
+acontecer num produto pago. **A regra de agrupar sempre pelo NIF, nunca
+pelo nome, passa a ter um preço medido.** Não se mexe nela.
+
+**A IA deles não lê as peças.** Duas perguntas à "Vera", na ficha, com o
+contexto do concurso carregado e ~90 s de espera cada: os critérios de
+adjudicação e o prazo de entrega. Nas duas respondeu que *"não foi
+possível extrair automaticamente… a partir dos documentos indexados"* e
+mandou ler o PDF; na segunda ainda inferiu do título ("pelo título, o
+fornecimento decorre durante 2026"). Não é acaso: no painel de segmento,
+o gráfico "Evolução dos critérios de adjudicação" diz **"Sem dados
+disponíveis"**. Com a ressalva de que a conta é gratuita e "Análise" está
+bloqueada — mas a Vera respondeu, logo tem acesso.
+
+**É isto que o `analisar_pecas()` faz e eles não.** É a vantagem mais
+defensável que o radar tem, e a razão para não a deixar apodrecer.
+
+**Preços, para dimensionar.** 5 / 37 / 168 / 345 / 589 €/mês, e o
+**histórico é vendido a peso**: 3 meses no plano de 5 €, 4 anos só no de
+345 € — 4 140 €/ano. O radar tem 66 009 anúncios de dois anos e 1,36
+milhões de contratos desde 2020 em disco. Alertas: 5 é o tecto do plano
+de 589 €; cá não há tecto.
+
+**Portugal está encaixado à força no produto deles**, e isso é espaço a
+ocupar: taxonomia de procedimentos espanhola (*Aberto simplificado
+sumário*, *Contrato Menor*, *Instrução interna* — nada de ajuste directo
+nem consulta prévia), geografia sem distritos ("Lisboa" devolve uma
+entrada do tipo "Cidade"), **pesquisa que não ignora acentos** (`Sao
+Jose` → zero resultados; `São José` → 24), tradução automática com fugas
+("Avaliações" por adjudicações, "leilões", "Oporto", um modal em
+castelhano) e encoding partido nos títulos portugueses.
+
+### O que daqui sai para fazer
+
+Por ordem de valor, com o detalhe em `CONCORRENTES.md`:
+
+1. **Exclusões nos filtros, e escolher como se combinam.** Eles têm
+   *Incluídos* e *Excludentes* para palavras-chave e para CPV, mais duas
+   opções em português claro — "OU: pesquisa mais ampla" e "E: pesquisa
+   mais restrita". Cá é AND implícito, sem exclusões e sem explicação.
+   As exclusões são o que corta ruído sem perder cobertura.
+2. **Desconto médio por segmento.** Eles mostram, sobre o filtro da
+   lista, mín/média/máx do desconto (0,82 / 20,58 / 45,35 %). Sai já do
+   que cá há: `anuncios.preco_base` contra o valor adjudicado no
+   `contratos.db`. É o que passa o radar de "o que existe" para "vale a
+   pena ir". **Depende de ter detalhe lido** — hoje 5 420 de 66 009
+   (8,2%), pela decisão já registada acima; sem levantar isso, a métrica
+   corre só sobre a janela dos 60 dias. O número de concorrentes por
+   concurso, que eles também mostram, **não sai**: o dump do IMPIC não o
+   traz. Não prometer.
+3. **Taxa de acerto por alerta.** A ficha de alerta deles mostra *em
+   curso · guardadas · descartadas · taxa de acerto*. Um alerta com 200
+   avisos e zero guardados está mal afinado, e nada cá diz isso. Os dados
+   já existem.
+4. **Modificações no resumo diário.** O e-mail deles inclui alterações a
+   concursos já conhecidos, não só novos — uma prorrogação de prazo vale
+   tanto como um anúncio. Toca no `enviar_resumo()`.
+5. **Perguntas às peças como configuração.** A automação deles corre
+   perguntas editáveis pelo utilizador sobre as peças ("Quais são os
+   requisitos técnicos e económicos?", "Que documentos devem ser
+   apresentados?") e escreve o resultado em campos do quadro. É a
+   arquitectura do `analisar_pecas()` com as perguntas fora do código.
+
+E um punhado de detalhes pequenos que valem meia hora cada — ordenar por
+"última alteração significativa", filtrar por data de actualização do
+registo, "sugerir uma mudança" na ficha para reportar campo mal extraído,
+e desactivar com explicação os campos que não se aplicam à vista (o que
+o `filtro_para()` resolve à saída, eles resolvem à entrada, e fica
+melhor).
