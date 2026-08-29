@@ -2432,6 +2432,265 @@ class TestEntidadeSemNif(unittest.TestCase):
         self.assertNotIn("sem NIF", h)
 
 
+class TestPesquisaContratosNormalizada(unittest.TestCase):
+    """Procurar "aquisição" nos contratos perdia 68 295 (11,8%).
+
+    O IMPIC escreve muitos objectos todos em maiúsculas e o LIKE do
+    SQLite não baixa o "Ç": a pesquisa dos contratos fazia LIKE cru
+    sobre as colunas originais -- o mesmo defeito já corrigido nos
+    anúncios, vivo no separador onde se estuda a concorrência.
+    """
+
+    def test_objecto_procura_na_coluna_normalizada(self):
+        onde, valores = radar.condicoes_contratos({"q": "Aquisição"})
+        self.assertIn("objecto_norm", onde)
+        self.assertNotIn("c.objecto LIKE", onde)
+        self.assertIn("%aquisicao%", valores)
+
+    def test_quem_comprou_procura_pela_norma_de_entidade(self):
+        onde, valores = radar.condicoes_contratos({"adj": "Câmara Municipal"})
+        self.assertIn("adjudicante_norm", onde)
+        self.assertIn("%camara municipal%", valores)
+
+    def test_quem_ganhou_procura_pela_norma_de_entidade(self):
+        # "Ramos & Filhos" só encontra "ramos e filhos" se o termo levar
+        # o mesmo caminho da coluna (norma_entidade troca & por " e ")
+        onde, valores = radar.condicoes_contratos({"ganhou": "Ramos & Filhos"})
+        self.assertIn("nome_norm", onde)
+        self.assertIn("%ramos e filhos%", valores)
+
+    def test_o_importador_enche_a_coluna_normalizada(self):
+        # a coluna nova tem de estar no COLS_CONTRATO, senão o INSERT
+        # posicional parte -- já partiu duas vezes por isto
+        self.assertIn("objecto_norm", radar.COLS_CONTRATO)
+
+
+class TestDesescapeDoImportador(unittest.TestCase):
+    """5 998 entidades chamavam-se "&amp;" no ecrã e não se encontravam.
+
+    O dump do IMPIC vem escapado para HTML; guardado assim, o painel
+    escapava outra vez ao desenhar ("Ernst &amp;amp; Young") e procurar
+    "Ramos & Filhos" não encontrava nada.
+    """
+
+    def test_o_nome_desescapa_a_entrada(self):
+        nif, nome = radar._nif_e_nome("512345678 - Ramos &amp; Filhos, Lda")
+        self.assertEqual(nif, "512345678")
+        self.assertEqual(nome, "Ramos & Filhos, Lda")
+
+    def test_tambem_sem_nif(self):
+        _, nome = radar._nif_e_nome("- - Marques &amp; Marques")
+        self.assertEqual(nome, "Marques & Marques")
+
+    def test_desescapa_ate_estabilizar(self):
+        # 1 413 adjudicatários vinham escapados DUAS vezes; uma passagem
+        # única tirava uma capa e deixava a outra
+        self.assertEqual(radar._des_html("A &amp;amp; B"), "A & B")
+        self.assertEqual(radar._des_html("A &amp; B"), "A & B")
+
+    def test_texto_limpo_passa_intacto(self):
+        self.assertEqual(radar._des_html("A & B"), "A & B")
+        self.assertEqual(radar._des_html(""), "")
+        self.assertEqual(radar._des_html(None), "")
+
+    def test_a_chave_sai_do_nome_limpo(self):
+        # com "&amp;" a chave "n:" levava um "amp" lá dentro e a mesma
+        # empresa escrita limpa noutra fonte ficava noutra chave
+        _, nome = radar._nif_e_nome("- - A &amp; B Lda")
+        self.assertEqual(radar.chave_entidade("", nome),
+                         radar.chave_entidade("", "A & B Lda"))
+
+
+class TestDatasDeFiltro(unittest.TestCase):
+    """"de=lixo" num URL guardado esvaziava a lista em silêncio.
+
+    Comparar datas com texto dava sempre falso; e o € mínimo com lixo
+    era ignorado -- dois silêncios com efeitos opostos. Agora ignora-se
+    nas duas listas e a página avisa por palavras.
+    """
+
+    def test_data_valida_passa(self):
+        self.assertEqual(radar.data_de_filtro("2026-08-01"), "2026-08-01")
+
+    def test_lixo_e_ignorado(self):
+        self.assertEqual(radar.data_de_filtro("lixo"), "")
+        self.assertEqual(radar.data_de_filtro("01/08/2026"), "")
+        self.assertEqual(radar.data_de_filtro(None), "")
+
+    def test_condicoes_dos_anuncios_ignoram_a_data_invalida(self):
+        onde, _ = radar.condicoes({"de": "lixo", "estado": ""})
+        self.assertNotIn("data_pub", onde)
+
+    def test_condicoes_dos_contratos_ignoram_a_data_invalida(self):
+        onde, _ = radar.condicoes_contratos({"de": "lixo"})
+        self.assertNotIn("data_celebracao", onde)
+
+    def test_data_invalida_avisa_por_palavras(self):
+        avisos = radar.avisos_de_datas({"de": "lixo"})
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("lixo", avisos[0])
+        self.assertIn("ignorada", avisos[0])
+
+    def test_intervalo_invertido_avisa_e_diz_as_datas(self):
+        avisos = radar.avisos_de_datas({"de": "2026-08-01",
+                                        "ate": "2026-07-01"})
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("invertido", avisos[0])
+        self.assertIn("01/08/2026", avisos[0])   # DD/MM, nunca ISO
+
+    def test_intervalo_direito_nao_avisa(self):
+        self.assertEqual(radar.avisos_de_datas({"de": "2026-07-01",
+                                                "ate": "2026-08-01"}), [])
+        self.assertEqual(radar.avisos_de_datas({}), [])
+
+
+class TestJanelaUrgente(unittest.TestCase):
+    """O cartão dos indicadores dizia "7 dias" com o filtro a 10.
+
+    O número do ecrã não abria lista nenhuma que o confirmasse. A janela
+    é UMA (janela_urgente) e o filtro prazo=urgente usa exactamente ela.
+    """
+
+    def test_a_janela_usa_o_dias_urgente(self):
+        hoje = datetime.date(2026, 8, 29)
+        inicio, fim = radar.janela_urgente(hoje)
+        self.assertEqual(inicio, "2026-08-29")
+        self.assertEqual(fim, (hoje + datetime.timedelta(
+            days=radar.DIAS_URGENTE)).isoformat())
+
+    def test_o_filtro_urgente_usa_a_mesma_janela(self):
+        _, valores = radar.condicoes({"prazo": "urgente", "estado": ""})
+        inicio, fim = radar.janela_urgente(datetime.date.today())
+        self.assertIn(inicio, valores)
+        self.assertIn(fim, valores)
+
+
+class TestDataHoraPT(unittest.TestCase):
+    """O histórico da ficha, a barra do corpus e a "última" da barra
+    lateral mostravam "2026-08-29 18:54" -- ISO à vista, contra a regra
+    da casa de ISO na base e DD/MM no ecrã."""
+
+    def test_data_com_hora(self):
+        self.assertEqual(radar.data_hora_pt("2026-08-29 18:54"),
+                         "29/08/2026 18:54")
+
+    def test_data_sem_hora(self):
+        self.assertEqual(radar.data_hora_pt("2026-08-29"), "29/08/2026")
+
+    def test_texto_livre_passa_como_esta(self):
+        # há marcas antigas com texto livre ("nunca")
+        self.assertEqual(radar.data_hora_pt("nunca"), "nunca")
+        self.assertEqual(radar.data_hora_pt(""), "—")
+
+
+class TestLimparMantemEstado(unittest.TestCase):
+    """"limpar" apontava sempre para "/": limpar a pesquisa no separador
+    Descartados atirava para "Por ver". O estado é o separador onde se
+    está, não parte do filtro que se quer tirar."""
+
+    def test_por_ver_volta_a_raiz(self):
+        self.assertEqual(radar.href_limpar("/", "novo"), "/")
+
+    def test_outro_separador_fica_onde_esta(self):
+        self.assertEqual(radar.href_limpar("/", "descartado"),
+                         "/?estado=descartado")
+        self.assertEqual(radar.href_limpar("/", "interessa"),
+                         "/?estado=interessa")
+
+    def test_todos_e_estado_vazio_e_nao_ausente(self):
+        # ausente é "por ver", vazio é "todos" -- a diferença tem de
+        # sobreviver ao limpar, como em condicoes()
+        self.assertEqual(radar.href_limpar("/", ""), "/?estado=")
+
+    def test_paginas_sem_separadores_ficam_como_estavam(self):
+        self.assertEqual(radar.href_limpar("/contratos"), "/contratos")
+
+
+class TestTabelaEssencialDepoisDeLido(unittest.TestCase):
+    """"só consta do Caderno de Encargos" depois de o CE ter sido lido.
+
+    O modelo respondia "não consta" à equipa e a ficha mandava abrir um
+    documento que a leitura já tinha visto não dizer nada -- parecia a
+    leitura avariada exactamente quando funcionou. "Lido e não consta"
+    e "ainda não lido" são respostas diferentes.
+    """
+
+    LIDO_SEM_NADA = {"objecto": "- fazer X", "equipa": "não consta",
+                     "documentos_proposta": "não consta",
+                     "preco_anormalmente_baixo": "não consta",
+                     "localizacao": "não consta",
+                     "fontes": "CE.pdf, PC.pdf", "modelo": "m"}
+
+    def tabela(self, analise=None):
+        return radar.essencial_do_anuncio(
+            TestTabelaEssencial.ANUNCIO,
+            radar.seccoes_do_texto(TestTabelaEssencial.TEXTO), analise)
+
+    def campo(self, rotulo, analise=None):
+        return next(l for l in self.tabela(analise) if l[0] == rotulo)
+
+    def test_equipa_lida_diz_que_nao_fixa_e_nao_manda_abrir_o_ce(self):
+        falta = self.campo("Equipa", self.LIDO_SEM_NADA)[2]
+        self.assertIn("foi lido", falta)
+        self.assertNotIn("só consta", falta)
+
+    def test_sem_leitura_continua_a_apontar_para_o_ce(self):
+        self.assertEqual(self.campo("Equipa")[2], radar.FALTA_CE)
+
+    def test_local_lido_sem_regime_nao_diz_ainda_nao_foi_lido(self):
+        nota = self.campo("Local de prestação de serviços",
+                          self.LIDO_SEM_NADA)[3]
+        self.assertIn("foi lido", nota)
+        self.assertNotIn("ainda não foi lido", nota)
+
+    def test_analise_antiga_sem_o_campo_nao_afirma_leitura_que_nao_houve(self):
+        # linha gravada antes de o campo existir: o campo NÃO foi lido,
+        # e "foi lido e não fixa" seria mentira ao contrário
+        antiga = {k: v for k, v in self.LIDO_SEM_NADA.items()
+                  if k != "equipa"}
+        self.assertEqual(self.campo("Equipa", antiga)[2], radar.FALTA_CE)
+
+    def test_documentos_lidos_apontam_para_o_programa(self):
+        falta = self.campo("Documentos que constituem a proposta",
+                           self.LIDO_SEM_NADA)[2]
+        self.assertIn("foi lido", falta)
+        self.assertNotIn("só consta", falta)
+
+
+class TestCriarFiltroNaoPerdeOQueSeEscreveu(unittest.TestCase):
+    """A validação recusava e o redirect deitava fora os treze campos.
+
+    E o formulário era GET -- escrevia na base contra a regra da casa de
+    que tudo o que escreve é POST. A recusa agora leva os campos na
+    query string e o formulário volta preenchido.
+    """
+
+    def setUp(self):
+        self.cliente = radar.app.test_client()
+
+    def test_recusa_devolve_o_que_se_escreveu(self):
+        # nome posto mas nenhum campo de filtro: recusa sem tocar na base
+        r = self.cliente.post("/alertas/criar",
+                              data={"nome": "O meu filtro", "estado": "novo"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("aviso=", r.headers["Location"])
+        self.assertIn("nome=O+meu+filtro", r.headers["Location"])
+        self.assertIn("estado=novo", r.headers["Location"])
+
+    def test_get_ja_nao_cria(self):
+        r = self.cliente.get("/alertas/criar?nome=X&q=consultoria")
+        self.assertEqual(r.status_code, 405)
+
+
+class TestMinimoParaEscada(unittest.TestCase):
+    """Com 3 contratos, "mais barato" e "25%" eram o mesmo contrato
+    repetido: quartis de meia dúzia de pontos são decoração."""
+
+    def test_o_minimo_existe_e_e_maior_que_o_piso_da_referencia(self):
+        # referencia_de_preco devolve a partir de 3; a régua pede mais
+        self.assertGreaterEqual(radar.MINIMO_PARA_ESCADA, 5)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

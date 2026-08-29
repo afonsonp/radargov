@@ -157,8 +157,15 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
 - **`175.000,00 EUR` é formato português**: ponto nos milhares, vírgula
   nos cêntimos. Usa `euros_do_texto()`; um `float()` ingénuo dá 175,0.
 - **As datas guardam-se ISO e mostram-se DD/MM/AAAA.** ISO porque ordena
-  como texto; a apresentação passa toda por `data_pt()`. Nunca ponhas
-  uma data em ISO no HTML **nem no CSV** — um CSV também é para ver.
+  como texto; a apresentação passa por `data_pt()` e, quando leva hora,
+  por `data_hora_pt()` (histórico da ficha, barra do corpus, barra
+  lateral). Nunca ponhas uma data em ISO no HTML **nem no CSV** — um CSV
+  também é para ver. E o CSV escreve o estado pelo `_NOMES_ESTADO`
+  ("por ver"), não pela chave interna ("novo").
+- **Datas de filtro validam-se com `data_de_filtro()`** — só ISO; lixo
+  ignora-se e a página avisa (`avisos_de_datas`), incluindo o intervalo
+  invertido. Um `de=lixo` comparado com datas esvaziava a lista em
+  silêncio.
 - **A pesquisa procura em `titulo_norm` e `entidade_norm`, nunca nas
   colunas originais.** O `LIKE` do SQLite só baixa maiúsculas de letras
   ASCII: para ele `Ç` e `ç` são letras diferentes, e escrever
@@ -170,6 +177,17 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
   `ix_anuncios_entidade_norm` **não são decorativos**: as colunas ficaram
   depois do `texto` do anúncio inteiro, e sem eles o SQLite desserializa
   alguns KB por linha — 4,7 s contra 0,4.
+- **Nos contratos, a mesma regra, com a norma certa por coluna.** O
+  objecto procura-se em `objecto_norm` (termo por `simplifica()`); os
+  nomes de entidade em `adjudicante_norm`/`nome_norm`, com o termo por
+  `norma_entidade()` — é ela que enche essas colunas e que troca `&`
+  por " e ". Procurar com a norma errada volta a perder 11,8%.
+- **O dump do IMPIC vem escapado para HTML, às vezes duas vezes.** Tudo
+  o que é texto passa por `_des_html()` à entrada do importador
+  (desescapa até estabilizar), senão "Ramos &amp; Filhos" fica
+  impesquisável e o painel mostra `&amp;` — 5 998 entidades estavam
+  assim. O corpus antigo foi reparado por uma migração com marca
+  (`html_desescapado`).
 - **`(nenhuma)` e `(por ler)` são baldes diferentes.** `SEM_PLATAFORMA`
   é "detalhe lido, sem plataforma indicada" e exige `detalhe_lido=1`;
   `POR_LER` é "ainda sem detalhe lido", que é 92% da base. Sem a
@@ -182,9 +200,10 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
   de 234, e as ligações levavam o filtro atrás — o número e o destino do
   mesmo botão discordavam.
 - **O `prazo` é um filtro dos anúncios** (`aberto`, `urgente`,
-  `expirado`), e o `urgente` usa o mesmo `DIAS_URGENTE` que os
-  indicadores anunciam. O número que um ecrã mostra tem de dar
-  exactamente a lista que a ligação dele abre.
+  `expirado`), e a janela do `urgente` é UMA — `janela_urgente()`, usada
+  pelo filtro e pelo cartão dos indicadores. Já houve um "7" escrito à
+  mão no cartão com o filtro a 10. O número que um ecrã mostra tem de
+  dar exactamente a lista que a ligação dele abre.
 - **Os três trabalhos longos correm todos fora do pedido.** "Verificar
   agora" é thread com trinco (`comecar_verificacao()`, com um `passo`
   que a barra lateral mostra), "Actualizar contratos" é thread com
