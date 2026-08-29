@@ -53,7 +53,7 @@ Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 
 ## Arquitectura
 
-Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
+Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
 `# ---`. A ordem do ficheiro é a ordem do fluxo:
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
@@ -158,7 +158,51 @@ Tudo em **`radar.py`** (~6400 linhas), dividido por bandas com cabeçalho
   nos cêntimos. Usa `euros_do_texto()`; um `float()` ingénuo dá 175,0.
 - **As datas guardam-se ISO e mostram-se DD/MM/AAAA.** ISO porque ordena
   como texto; a apresentação passa toda por `data_pt()`. Nunca ponhas
-  uma data em ISO no HTML.
+  uma data em ISO no HTML **nem no CSV** — um CSV também é para ver.
+- **A pesquisa procura em `titulo_norm` e `entidade_norm`, nunca nas
+  colunas originais.** O `LIKE` do SQLite só baixa maiúsculas de letras
+  ASCII: para ele `Ç` e `ç` são letras diferentes, e escrever
+  "aquisição" perdia os 14% de títulos escritos todos em maiúsculas —
+  11% de cada pesquisa, sem aviso nenhum. As colunas enchem-se numa
+  migração idempotente do `iniciar_db()`, com `simplifica()` registada na
+  ligação (`c.create_function`), e o termo procurado normaliza-se do
+  mesmo modo. Os índices `ix_anuncios_titulo_norm` e
+  `ix_anuncios_entidade_norm` **não são decorativos**: as colunas ficaram
+  depois do `texto` do anúncio inteiro, e sem eles o SQLite desserializa
+  alguns KB por linha — 4,7 s contra 0,4.
+- **`(nenhuma)` e `(por ler)` são baldes diferentes.** `SEM_PLATAFORMA`
+  é "detalhe lido, sem plataforma indicada" e exige `detalhe_lido=1`;
+  `POR_LER` é "ainda sem detalhe lido", que é 92% da base. Sem a
+  distinção, o selector dizia "(nenhuma) (56)" e a lista devolvia 60 645.
+  Os números do selector contam sempre sobre os que têm detalhe lido, e
+  o cabeçalho di-lo.
+- **Os contadores dos separadores contam dentro do filtro**, com a mesma
+  `condicoes()` da lista e sem a parte do estado. Contavam a base
+  inteira: com um CPV posto diziam "Todos 66 009" por cima de uma lista
+  de 234, e as ligações levavam o filtro atrás — o número e o destino do
+  mesmo botão discordavam.
+- **O `prazo` é um filtro dos anúncios** (`aberto`, `urgente`,
+  `expirado`), e o `urgente` usa o mesmo `DIAS_URGENTE` que os
+  indicadores anunciam. O número que um ecrã mostra tem de dar
+  exactamente a lista que a ligação dele abre.
+- **Os três trabalhos longos correm todos fora do pedido.** "Verificar
+  agora" é thread com trinco (`comecar_verificacao()`, com um `passo`
+  que a barra lateral mostra), "Actualizar contratos" é thread com
+  estado na base, e as peças e a leitura pelo modelo são filas
+  (`pedir_documentos()`, `pedir_analise()`). Nenhum deles espera dentro
+  do pedido do browser: já esteve assim e eram minutos de página em
+  branco. Em fundo não há cookie para ler — passa o `quem` ao
+  `registar()` em vez de contar com o `quem_sou()`.
+- **Toda a truncagem visível passa por `corta()`**, que põe reticências.
+  Um `[:190]` cru corta a meio de palavra e lê-se como dado estragado.
+- **Os dois CSV escrevem números com `numero_csv()` e chamam-se pelo
+  `nome_csv()`.** Vírgula decimal, sem símbolo e sem separador de
+  milhares, que é o que o Excel português come; e data no nome, porque
+  três `concursos.csv` na pasta das descargas não se distinguem.
+- **`ent` é "Entidade que publica" e `adj` é "Entidade que comprou".**
+  Os rótulos das caixas e o `_NOMES_FILTRO` dizem o mesmo. Com os dois a
+  chamarem-se "entidade", o aviso do parcial saía "entidade Município de
+  Lisboa — aqui não se aplica: entidade".
 - **A árvore de CPV vem antes dos filtros guardados** e está em todas as
   páginas onde se procura por CPV — anúncios, contratos e ficha da
   entidade. Onde houver campo `cpv`, tem de haver árvore: a caixa de
