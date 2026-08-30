@@ -252,6 +252,46 @@ def iniciar_db():
             antes TEXT, depois TEXT, detectado_em TEXT, avisado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alteracoes_envio
                      ON alteracoes(avisado_em)""")
+        # A pesquisa nas pecas (B09): um indice FTS5 de conteudo externo
+        # sobre documentos.texto -- so o indice, o texto ja la esta e
+        # nao se duplica. Os triggers mantem-no em dia a cada escrita; a
+        # populacao inicial corre uma vez, quando o indice esta vazio.
+        # Sem FTS5 no SQLite (raro), a pesquisa nas pecas simplesmente
+        # nao aparece no formulario -- ha_fts() e quem o diz.
+        try:
+            c.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS pecas_fts
+                         USING fts5(texto, content='documentos',
+                                    content_rowid='id',
+                                    tokenize='unicode61 remove_diacritics 2')""")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS documentos_fts_ai
+                AFTER INSERT ON documentos BEGIN
+                  INSERT INTO pecas_fts(rowid, texto)
+                  VALUES (new.id, COALESCE(new.texto,''));
+                END""")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS documentos_fts_ad
+                AFTER DELETE ON documentos BEGIN
+                  INSERT INTO pecas_fts(pecas_fts, rowid, texto)
+                  VALUES ('delete', old.id, COALESCE(old.texto,''));
+                END""")
+            c.execute("""CREATE TRIGGER IF NOT EXISTS documentos_fts_au
+                AFTER UPDATE OF texto ON documentos BEGIN
+                  INSERT INTO pecas_fts(pecas_fts, rowid, texto)
+                  VALUES ('delete', old.id, COALESCE(old.texto,''));
+                  INSERT INTO pecas_fts(rowid, texto)
+                  VALUES (new.id, COALESCE(new.texto,''));
+                END""")
+            # A populacao inicial e por 'rebuild' e com marca, nao por
+            # "esta vazio?": num FTS de conteudo externo, um SELECT sem
+            # MATCH le a tabela de conteudo -- o indice parecia cheio
+            # estando vazio, e todas as pesquisas davam zero.
+            if not c.execute("SELECT 1 FROM estado "
+                             "WHERE chave='fts_povoado'").fetchone():
+                c.execute("INSERT INTO pecas_fts(pecas_fts) "
+                          "VALUES('rebuild')")
+                c.execute("INSERT OR REPLACE INTO estado "
+                          "VALUES ('fts_povoado','1')")
+        except sqlite3.OperationalError:
+            pass
         # As entidades seguidas (B10) vivem na base de trabalho e nao no
         # corpus: o corpus refaz-se com --contratos, a triagem nao. O
         # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
@@ -5308,6 +5348,30 @@ def painel():
                      ("urgente", "só os que acabam em %d dias" % DIAS_URGENTE),
                      ("expirado", "só os de prazo passado")))
 
+    # A pesquisa nas pecas (B09) so aparece quando o indice existe, e a
+    # faixa diz sobre quantos anuncios e que ela procura: cobre SO as
+    # pecas trazidas e com texto, que sao uma fraccao pequena da base --
+    # parecer que pesquisa tudo seria mentir com uma caixa de texto.
+    campo_pecas = ""
+    q_pecas_actual = (request.args.get("q_pecas") or "").strip()
+    faixa_pecas = ""
+    if ha_fts():
+        campo_pecas = ("<input type='text' name='q_pecas' value='%s' "
+                       "placeholder='Procurar nas peças…'>"
+                       % html.escape(request.args.get("q_pecas", ""),
+                                     quote=True))
+        if q_pecas_actual:
+            with liga() as c:
+                com_texto = c.execute(
+                    "SELECT COUNT(DISTINCT ref) n FROM documentos "
+                    "WHERE texto_estado='ok'").fetchone()["n"]
+            faixa_pecas = (
+                "<div class='flash'>A pesquisa nas peças só olha para os "
+                "<b>%s anúncios</b> que têm peças com texto na base &mdash; "
+                "as peças vêm ao marcar &ldquo;interessa&rdquo; ou com "
+                "&ldquo;Trazer peças&rdquo;. O resto da base não entra "
+                "nesta pesquisa.</div>" % mil_pt(com_texto))
+
     filtros = (
         "<form class='cx filtros' method='get' action='/'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do concurso ou objecto…'>"
@@ -5316,6 +5380,7 @@ def painel():
         # escreve no campo positivo, e excluir escreve-se a mao (codigos
         # ou palavras, separados por |).
         "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
+        "%s"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='text' name='cpv_excl' value='%s' "
@@ -5332,6 +5397,7 @@ def painel():
         "</form>"
         % (html.escape(request.args.get("q", ""), quote=True),
            html.escape(request.args.get("q_excl", ""), quote=True),
+           campo_pecas,
            html.escape(request.args.get("ent", ""), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
@@ -5391,7 +5457,7 @@ def painel():
     # A ordem e sempre a mesma nas duas listas: filtros, faixa do CPV
     # activo, arvore, e so depois os filtros guardados. A arvore e onde
     # se escolhe o CPV, por isso vem antes de se guardar a escolha.
-    conteudo = ("<div class='larg'>" + faixa_avisos +
+    conteudo = ("<div class='larg'>" + faixa_avisos + faixa_pecas +
                 faixa_de_avisos_de_datas(request.args) +
                 filtros + faixa_cpv + arvore + caixa_guardados +
                 "<div class='linha-conta'>" + conta +
@@ -5436,6 +5502,7 @@ CAMPOS_FILTRO = ("q", "q_excl", "cpv", "cpv_excl",   # entendem-nos todos
                  "op",                               # E/OU entre q e cpv
                  "de", "ate",
                  "ent", "plat", "estado", "prazo",   # so os anuncios
+                 "q_pecas",                          # pesquisa nas pecas
                  "adj", "ganhou", "proc", "min", "entid", "vencid")
 
 # Argumentos que a lista usa mas nao definem o filtro, e por isso nao se
@@ -5449,7 +5516,7 @@ CAMPOS_DA_VEZ = ("pag", "aviso")
 # seria alargar o filtro sem avisar.
 CAMPOS_POR_VISTA = {
     "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "ent",
-                 "plat", "estado", "prazo"),
+                 "plat", "estado", "prazo", "q_pecas"),
     "contratos": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "adj",
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
@@ -5510,7 +5577,7 @@ def filtro_para(consulta, vista):
 # rotulos das caixas dizem agora o mesmo que estes.
 _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "q_excl": "sem", "cpv_excl": "sem CPV",
-                 "op": "palavras/CPV",
+                 "op": "palavras/CPV", "q_pecas": "nas peças",
                  "ent": "entidade que publica", "plat": "plataforma",
                  "prazo": "prazo",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
@@ -5542,6 +5609,36 @@ def resumo_filtro(consulta, vista=None):
         elif valor:
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
+
+
+_HA_FTS = None
+
+
+def ha_fts():
+    """Se o indice das pecas existe. Sem FTS5 no SQLite, a caixa de
+    pesquisa nas pecas nao aparece -- oferecer um campo que rebenta era
+    pior do que nao o ter."""
+    global _HA_FTS
+    if _HA_FTS is None:
+        with liga() as c:
+            _HA_FTS = bool(c.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='pecas_fts'"
+            ).fetchone())
+    return _HA_FTS
+
+
+def termos_fts(texto):
+    """De "seguro automovel|frota" para a consulta do MATCH: dentro de
+    cada pedaco as palavras sao todas obrigatorias, entre pedacos e OU
+    -- a mesma leitura do | das outras caixas. As aspas neutralizam a
+    sintaxe do FTS: um NEAR, um * ou um AND escritos pelo utilizador
+    sao texto a procurar, nao operadores."""
+    grupos = []
+    for pedaco in (texto or "").split("|"):
+        palavras = ['"%s"' % p.replace('"', '""') for p in pedaco.split()]
+        if palavras:
+            grupos.append("(" + " ".join(palavras) + ")")
+    return " OR ".join(grupos)
 
 
 def opcoes_op(args):
@@ -5746,6 +5843,17 @@ def condicoes(args):
         # nada nao exclui nada: e um nao-filtro, nao um "1=0"
         if ors:
             onde.append("NOT (" + " OR ".join(ors) + ")")
+    # A pesquisa nas pecas (B09): o FTS responde com os documentos e
+    # daqui saem os refs. So cobre as pecas trazidas e com texto -- a
+    # lista avisa disso quando o campo esta em uso.
+    q_pecas = (args.get("q_pecas") or "").strip()
+    if q_pecas:
+        consulta_fts = termos_fts(q_pecas)
+        if consulta_fts:
+            onde.append("ref IN (SELECT ref FROM documentos WHERE id IN "
+                        "(SELECT rowid FROM pecas_fts WHERE pecas_fts "
+                        "MATCH ?))")
+            valores.append(consulta_fts)
     plat = (args.get("plat") or "").strip()
     if plat:
         if plat == SEM_PLATAFORMA:

@@ -141,6 +141,27 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
   vista partilha os campos dos contratos **menos `de`/`ate`** — dois
   eixos do tempo na mesma página confundiam. O fim é estimado e a
   página di-lo: prorrogações não constam do dump.
+- **A pesquisa nas peças é um FTS5 de conteúdo externo** sobre
+  `documentos.texto` (`pecas_fts`, campo `q_pecas`, só anúncios). Três
+  regras: a população inicial é `rebuild` com marca (`fts_povoado`) —
+  num FTS de conteúdo externo, um SELECT sem MATCH lê a tabela de
+  conteúdo e um teste "está vazio?" engana-se; o input entra no MATCH
+  sempre entre aspas (`termos_fts()`) — NEAR/AND/* do utilizador são
+  texto, não operadores; e a faixa diz sobre quantos anúncios a
+  pesquisa olha — cobre só as peças trazidas com texto, e esconder isso
+  seria mentir com uma caixa de texto.
+- **O `op` (E/OU entre palavras e CPV) é um modo, não um filtro**:
+  sozinho não conta como pergunta em /contratos nem valida um alerta.
+  Em `condicoes()`/`condicoes_contratos()`, os lados q e cpv montam-se
+  como fragmentos (sql, valores) e só se juntam no fim — é o que mantém
+  a ordem dos placeholders igual à dos valores; há um teste que conta
+  os `?`. No modo OU, um CPV sem correspondência não acrescenta nada
+  (o `1=0` é só do modo E).
+- **As leituras das peças afinam-se no config.json** (`leituras`:
+  quais/âncoras/instrução por campo, via `leituras_activas()`), com
+  validação: o inválido deixa ficar o de origem, nunca cala uma leitura
+  em silêncio. Campos novos não entram por aí — a `analise` tem colunas
+  fixas.
 - **A releitura dos marcados é vigilância, não recolha.**
   `reler_marcados()` relê por verificação até 25 anúncios
   interessa/quadro com prazo aberto; `_guardar_detalhe()` compara prazo

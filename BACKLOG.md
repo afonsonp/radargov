@@ -23,13 +23,7 @@ Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P2
 
-| ID | Item | Origem | Valor | Esforço | Confiança | Prioridade — a conta | Onde toca | Dependências | Risco |
-|---|---|---|---|---|---|---|---|---|---|
-| B06 | Taxa de acerto por alerta: em `/alertas`, por cada alerta, quantos anúncios marcou e em que estados acabaram (interessa/descartado/por ver) | Tendios (ficha do alerta: em curso · guardadas · descartadas · taxa) | 3 | 2 (~5h) | Alta — `registar_alertas()` já anota o que corresponde; falta cruzar com `estado` e mostrar | **P2**: esforço baixo mas valor 3 (há poucos alertas e um utilizador — o sinal de "alerta mal afinado" vale menos que numa equipa); não cumpre o valor 4–5 de P1 | `/alertas`, consulta sobre a tabela de correspondências + `anuncios.estado` | alertas em uso há tempo suficiente para haver números | |
-| B07 | Escolha E/OU entre palavras e CPV no filtro, com a redacção "pesquisa mais ampla / mais restrita" | Tendios (a melhor tradução de booleana para humano vista) | 3 | 2 (~4h) | Alta | **P2**: valor 3 — o AND implícito serve na maioria dos dias; ganha valor se B01 entrar (exclusões + OU compõem) | `condicoes()`, `CAMPOS_FILTRO`, formulário | B01 primeiro (partilham UI) | |
-| B08 | Perguntas às peças configuráveis: mover as `LEITURAS` (âncoras+prompt por campo) para o `config.json`, editáveis sem mexer no código; opcionalmente um 4º campo definido pelo utilizador ("que alvará exige?") | Tendios (acções editáveis + "Regras para a IA"), Armilar (Q&R livre), SpotGov (chat + uploaded docs) | 3 | 2 (~1 dia) | Alta na mecânica; média no valor — o Afonso mexe no radar.py sem medo, o ganho é para o "outro utilizador" futuro | **P2**: valor 3 e o caso de uso concreto ainda não apareceu (nenhum campo novo foi pedido desde a v1 da leitura) | `LEITURAS`, `ler_config()`, `analisar_pecas()`; validação de âncoras à entrada | orçamento do modelo aguenta um 4º campo (ver ESTADO.md: ~8 mil tokens/min) | |
-| B09 | Pesquisa full-text nas peças descarregadas: FTS5 sobre os textos extraídos (`texto_estado='ok'`), como opção "procurar nas peças" na lista | Armilar ("Incluir documentos PDF da oportunidade na pesquisa"), SpotGov ("Search in Documents") | 4 | 4 (~1 semana: tabela FTS, indexação incremental no worker das peças, UI, e o caso "só tem peças quem foi marcado") | Média — só há texto das peças descarregadas (as do interessa + pedidos manuais), logo a pesquisa cobre uma fracção pequena da base e pode enganar | **P2**: valor alto mas esforço grande E cobertura parcial que exige comunicação honesta na UI | tabela FTS nova no radar.db (ou anexa), `extrair_textos()`, `condicoes()` ou pesquisa própria | peças descarregadas em quantidade útil | [RISCO] parecer que pesquisa "tudo" quando só pesquisa o que foi trazido |
-| B10 | Seguir entidades: marca "seguir" na `/entidade/<chave>` e secção no painel/resumo com novos anúncios e contratos das seguidas | Armilar ("Empresas seguidas"), SpotGov (monitored companies) | 3 | 3 (~2 dias) | Alta na mecânica; média no valor (o filtro por `ent` guardado já faz 80% disto) | **P2**: sobreposição grande com filtros guardados+alertas que já existem — só vale se a sobreposição incomodar na prática | tabela nova (entidades_seguidas), `/entidade/`, `enviar_resumo()` | — | |
+Vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P3
 
@@ -93,6 +87,39 @@ Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
   resultados, com os termos usados à vista. Confirmado o caso Armilar:
   "Fornecimento de refeições e Serviço de bar" mostra as edições de
   2025/2023/2020 (64 975 € / 65 840 € / 70 730 €), em ~20-60 ms.
+
+- **B06 — taxa de acerto por alerta** (30/08/2026). Cada alerta em
+  `/alertas` diz agora em que estados acabou o que marcou (interessa ·
+  descartados · por ver) e o acerto sobre os triados — o sinal de
+  alerta mal afinado.
+- **B07 — E/OU entre palavras e CPV** (30/08/2026). Selector `op` nos
+  formulários ("mais restrito / mais amplo"); `condicoes()` e
+  `condicoes_contratos()` montam os dois lados como fragmentos para os
+  juntar por OR sem baralhar a ordem dos placeholders. No modo OU, um
+  CPV sem correspondência não esvazia o lado das palavras. Medido:
+  manutenção E CPV72 = 46; OU = 3 970.
+- **B08 — leituras configuráveis** (30/08/2026). `leituras_activas()`
+  põe o `config.json` por cima das `LEITURAS` (quais/âncoras/instrução,
+  campo a campo), com validação — um regex estragado deixa ficar o de
+  origem, nunca cala uma leitura. **O 4.º campo do utilizador ficou de
+  fora**: a tabela `analise` tem colunas fixas e o caso de uso ainda
+  não apareceu; reabre-se quando aparecer.
+- **B09 — pesquisa nas peças** (30/08/2026). FTS5 de conteúdo externo
+  sobre `documentos.texto` (só o índice; triggers mantêm-no, `rebuild`
+  com marca povoa-o — um SELECT sem MATCH lê o conteúdo e enganava o
+  teste de vazio). Campo "Procurar nas peças…" nos anúncios
+  (`q_pecas`), input sempre entre aspas no MATCH (sintaxe vira texto), e
+  faixa honesta a dizer sobre quantos anúncios a pesquisa olha — hoje
+  17. Acentos e maiúsculas certos pelo tokenizador (unicode61,
+  remove_diacritics), sem o defeito do LIKE.
+- **B10 — seguir entidades** (30/08/2026). Botão na ficha da entidade;
+  os anúncios novos das seguidas entram no resumo diário em secção
+  própria (reconhecer/enviar como os alertas, acervo ao começar a
+  seguir, com âmbito só dessa entidade). Casamento pelo NIPC
+  (`anuncios.nif` = chave); entidades `n:` (sem NIF) não têm aviso e a
+  ficha não oferece o botão. **Contratos novos das seguidas ficaram de
+  fora**: o corpus chega semanal e a ficha da entidade já os mostra;
+  reabre-se se fizer falta na prática.
 
 ## Não fazer, e porquê
 
