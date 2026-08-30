@@ -141,6 +141,18 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   Edita-se no painel, em `/alertas` ("Janela do urgente"), com validação
   1–90 à vista.
 
+## Anotado no esqueleto de informação de 30/08/2026
+
+- **Procura directa de entidade (nome ou NIF).** Ficou de fora do
+  esqueleto por decisão do Afonso (pergunta 11.7, opção A: chega-se à
+  ficha da entidade só por ligações — consolidar não é acrescentar),
+  **com a possibilidade registada a pedido dele**. Quando se fizer: uma
+  caixa "procurar entidade" em Mercado, a resolver por
+  `entidade_nomes` (que já mapeia qualquer grafia à chave) e a levar a
+  `/entidade/<chave>`. Os dados já existem; o custo é só de ecrã.
+  Esforço 1. O sinal de que faz falta: abrir um contrato qualquer só
+  para chegar à ficha de uma entidade.
+
 ## Anotado no saneamento de 30/08/2026 — por fazer, com âmbito pequeno
 
 - **Reter histórico de erros (C3 da auditoria).** As marcas
