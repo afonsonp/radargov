@@ -1906,6 +1906,50 @@ class TestResumoComAlterados(unittest.TestCase):
         self.assertNotIn("Alterados", saiu)
 
 
+class TestLeiturasConfiguraveis(unittest.TestCase):
+    """B08: as âncoras e a instrução de cada leitura afinam-se no
+    config.json sem mexer no código. Uma entrada estragada nunca pode
+    desligar uma leitura em silêncio — fica a de origem.
+    """
+
+    def test_sem_config_ficam_as_de_origem(self):
+        self.assertEqual(radar.leituras_activas({}), list(radar.LEITURAS))
+        self.assertEqual(radar.leituras_activas({"leituras": {}}),
+                         list(radar.LEITURAS))
+
+    def test_instrucao_substitui_se(self):
+        cfg = {"leituras": {"objecto": {"instrucao": "pergunta nova"}}}
+        saiu = dict((n, i) for n, _, _, i in radar.leituras_activas(cfg))
+        self.assertEqual(saiu["objecto"], "pergunta nova")
+        self.assertEqual(saiu["equipa"], radar.INSTRUCOES_EQUIPA)
+
+    def test_ancoras_validas_substituem(self):
+        cfg = {"leituras": {"equipa": {"ancoras": [[1, "alvara"],
+                                                   [2, "certificacao"]]}}}
+        saiu = {n: a for n, _, a, _ in radar.leituras_activas(cfg)}
+        self.assertEqual(saiu["equipa"], ((1, "alvara"), (2, "certificacao")))
+
+    def test_regex_estragado_fica_a_origem(self):
+        # "[" nao compila; calar a leitura por causa disso era pior que
+        # ignorar o config
+        cfg = {"leituras": {"equipa": {"ancoras": [[1, "["]]}}}
+        saiu = {n: a for n, _, a, _ in radar.leituras_activas(cfg)}
+        self.assertEqual(saiu["equipa"], radar.ANCORAS_EQUIPA)
+
+    def test_quais_so_dos_conhecidos(self):
+        cfg = {"leituras": {"objecto": {"quais": "propostas"}}}
+        saiu = {n: q for n, q, _, _ in radar.leituras_activas(cfg)}
+        self.assertEqual(saiu["objecto"], "encargos")
+
+    def test_campo_novo_nao_entra(self):
+        # a tabela analise tem colunas fixas; um 4.º campo fica para
+        # quando o caso de uso aparecer
+        cfg = {"leituras": {"alvara": {"quais": "programa",
+                                       "instrucao": "que alvará exige?"}}}
+        self.assertEqual([n for n, _, _, _ in radar.leituras_activas(cfg)],
+                         ["objecto", "equipa", "proposta"])
+
+
 class TestResumoComSeguidas(unittest.TestCase):
     """B10: o que as entidades seguidas publicaram vai numa secção
     própria do resumo — não é um alerta, é outra pergunta."""
