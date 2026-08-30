@@ -13,6 +13,43 @@ dentro, reavaliados à luz da Armilar, GovGo e SpotGov.
 Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 semana ·
 5 ≈ mais que isso.
 
+## Registo de pendências — fechado a 31/08/2026
+
+Tudo o que está em aberto, com **quem** decide ou age e **o que o
+dispara**. Nada aqui está a meio: ou espera uma palavra do Afonso, ou
+espera um gatilho declarado. O que não está nesta tabela está decidido
+ou feito.
+
+| # | O que falta | Estado | Espera por |
+|---|---|---|---|
+| E2 | O **primeiro envio** do resumo diário | Canal autentica desde 31/08; nunca saiu um e-mail com conteúdo | Uma ordem do Afonso — sai mesmo um e-mail, por isso não se dispara sozinho |
+| E4 | Registar **quando o token expira** | Aprovado 30/08, por implementar. Hoje sabe-se só o piso: ≥ 8 dias | Luz verde para código |
+| — | **Andamentos 1 a 4 do esqueleto** | Estrutura decidida e fechada (12/12); zero linhas escritas | Luz verde para código. O andamento 1 é o que dá mais alívio e pode parar sozinho |
+| B15 | **Exportar a triagem** para o repositório | Especificado; sem urgência — a triagem actual é toda de teste | O gatilho é a **primeira semana de triagem a sério**. Leva dentro uma sub-decisão: push manual ou tarefa semanal |
+| B14 | **Vortal e acingov** como segunda fonte | Aprovado com âmbito (só o que o DR não publica); é investigação antes de código | Ordem do Afonso, depois das pendências de casa. Pode dar «não dá» — o caminho actual parte sempre de um link vindo do DR |
+| C3 | **Histórico de erros** (as marcas são sobrescritas) | Proposto, esforço 1 | Luz verde; é o que faria o E4 valer mais, porque guarda a série em vez do último |
+| — | **Fallback morto** na detecção de plataforma | Achado a 30/08; a correcção é um `strip()` | Medir primeiro com `--reler` sobre cópia — o efeito real não está quantificado |
+| 11.7-B | **Procura directa de entidade** (nome/NIF) | Fora do esqueleto por decisão dele, registada como reabrível | O sinal: dar por si a abrir um contrato só para chegar à ficha de uma entidade |
+| — | **Visualizador de PDF na ficha**, com pesquisa lá dentro | Em «Não fazer», por decisão dele ao retirar o B09 | Ele pedir |
+
+**Dependências, e o estado de cada uma:**
+
+- **E2 → Fluxo B:** deixou de bloquear. O canal autentica; falta só
+  disparar o primeiro resumo. O cenário «sem e-mail» (secção de
+  novidades em Alertas, decisão 11.3-B) fica escrito mas deixou de ser
+  o provável.
+- **E3 → ecrãs fora do PC:** fechada. Os links do resumo ficam em
+  `localhost` por decisão; nenhum ecrã é desenhado para o telemóvel.
+- **R1 (token) → recolha:** viva, mitigada pelo aviso no painel. O E4
+  não a reduz — mede-a.
+- **R11 (volume) → `/contratos/resumo`:** viva. É a razão de a entrada
+  de Mercado ser «a pergunta primeiro», e o esqueleto proíbe qualquer
+  painel que dispare o resumo sem filtro.
+- **R2 (perda do PC) → código:** fechada a 31/08 com o remoto do
+  GitHub. **Para a triagem continua aberta**, e só o B15 a fecha.
+- **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
+  pendência, é decisão — reavaliável no andamento 3.
+
 ## P0
 
 Vazio — B01 e B02 feitos a 30/08/2026; ver «Feito», no fim.

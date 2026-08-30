@@ -387,6 +387,22 @@ custo de cada uma — **sem decisão tomada**:
 
 > **Decidido a 30/08/2026: sim, implementar.** Por fazer.
 >
+> **Pergunta dele a 31/08: «isso já era sinalizado, não?» — era, e a
+> distinção é toda.** O painel **já avisa** quando o token expira: a
+> recolha devolve «sem JSON, token expirado», o ponto fica vermelho e a
+> mensagem aparece na barra. Isso é **detecção** — responde a «está
+> partido agora?». O que não existe é **memória**: a marca é
+> sobrescrita na verificação seguinte, portanto nunca se consegue
+> responder a «de quanto em quanto tempo é que isto acontece?». O E4 é
+> só isso: guardar a data de cada episódio para a pergunta de
+> planeamento (recapturo de semana a semana, ou é ritual mensal?).
+>
+> **Consequência honesta:** o valor marginal é pequeno e só aparece à
+> segunda ou terceira expiração — antes disso são dois pontos e não uma
+> cadência. É barato (esforço 1) e é a mesma família do C3, que guarda
+> a série em vez do último erro; feitos juntos, valem mais do que
+> separados.
+>
 > **Perguntado a 31/08: «não temos essa informação, consegues ter?»
 > Retroactivamente, não — e a razão é a mesma que motivou o C3.**
 > Procurou-se em três sítios: (i) a pegada de um token expirado é o
