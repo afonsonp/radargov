@@ -24,9 +24,9 @@ Fica por resolver mesmo depois disto: o Fluxo B continua dependente da
 decisão E2 (canal de e-mail), a dívida do HTML por concatenação
 paga-se no andamento 3 e não aqui, e os riscos R1 (token) e R11
 (volume) continuam vivos com as mitigações actuais. As quatro fusões
-de vistas irmãs e onze das doze perguntas **foram decididas pelo
-Afonso a 30/08/2026** — ver a secção seguinte; falta só o âmbito por
-omissão da Triagem (11.2).
+de vistas irmãs e as doze perguntas **foram todas decididas pelo
+Afonso a 30/08/2026** — ver a secção seguinte. O documento está
+fechado como proposta: o que falta é executar.
 
 ---
 
@@ -42,7 +42,7 @@ quê e quando.
 | 6.2 | `condicoes()` vs `condicoes_contratos()` | **B — manter** | as irmãs ficam; é dívida de código, reavaliável no andamento 3 (§6.2) |
 | 6.3 | Faixa «CPV activo» em 4 páginas | **A — bloco partilhado** | andamento 3 (§6.3) |
 | 6.4 | Selector de procedimento ×3 | **A — partilhado** | andamento 3 (§6.4) |
-| 11.2 | Âmbito por omissão da Triagem | **em aberto** | é a única decisão que falta; ver §11 |
+| 11.2 | Âmbito por omissão da Triagem | **A — janela dos 60 dias (`detalhe_dias`)** | §3.1; a Triagem passa a mostrar o mesmo âmbito que a rotina lê — um conceito, não dois |
 | 11.3 | Sem e-mail, onde vivem as novidades | **B — secção em Alertas** | §8 e §3.9; consequência assumida: com E2 em «não», as novidades ficam numa página de visita ocasional |
 | 11.4 | Quadro + calendário como um item | **sim, «Em curso»** | §2, §3.4, §3.5; o Quadro abre por omissão (o que a proposta já dizia) |
 | 11.5 | Pesquisa por omissão | **B — janela com interruptor «incluir arquivo»** | §3.2; janela registada em 12 meses, ajustável |
@@ -160,13 +160,19 @@ uma intenção, não uma tabela.
 - **Quem chega, vindo de onde:** o Afonso, ao abrir a aplicação (é a
   página inicial); da zona de estado após uma verificação; das
   ligações do resumo diário (dependência E3 para fora do PC).
-- **Informação primária:** a lista de anúncios do âmbito por omissão
-  — por ver, dentro da janela de decisão (a janela dos 60 dias de
-  `detalhe_dias` e/ou prazo aberto; a escolha exacta é a pergunta
-  11.2). Ordem: mais recentes primeiro. Na ordem dos poucos milhares,
-  não 61 981 (a janela de 60 dias continha ~4 400 publicações quando
-  foi medida — ESTADO, «Quando é que o detalhe é lido»; número actual
-  não determinável pelos documentos).
+- **Informação primária:** a lista dos anúncios **por ver publicados
+  na janela de `detalhe_dias` (60 dias)** — decisão 11.2-A. Ordem:
+  mais recentes primeiro. Na ordem do milhar, não 61 981: são 1 393 os
+  que estão por ver com detalhe lido, e a janela contém-nos quase
+  todos (a mesma janela tinha ~4 400 publicações quando foi medida —
+  ESTADO, «Quando é que o detalhe é lido»; o número exacto de hoje não
+  é determinável pelos documentos).
+- **Uma consequência a declarar:** o âmbito da Triagem passa a ser
+  **o mesmo que a rotina lê**, e é o mesmo valor de configuração. Mexer
+  em `detalhe_dias` deixa de mudar só o trabalho de fundo — muda também
+  o que se vê de manhã. É o que se quis (um conceito em vez de dois),
+  mas quem lá mexer tem de saber, e a Triagem deve dizer sobre que
+  janela está a contar (P4).
 - **Informação secundária:** abas de triagem (por ver / interessa /
   descartados / todos) contando **dentro do âmbito e do filtro**
   (regra existente — auditoria §1.8, contadores); etiqueta de
@@ -880,19 +886,21 @@ pode trocar de ordem com o 3 se a decisão E2 chegar primeiro.
 
 ---
 
-## 11. Perguntas em aberto
+## 11. Perguntas e decisões
 
 Por impacto na estrutura. As decisões E1–E4 já esperam no
 SANEAMENTO.md e não se reformulam aqui.
 
-**Estado a 30/08/2026: onze respondidas, uma em aberto.** As respostas
-estão em §0 e já estão aplicadas ao corpo do documento. Ficam aqui as
-perguntas como foram postas, com a decisão ao lado — a numeração é
-referida ao longo do documento e não se mexe.
+**Estado a 30/08/2026: as doze respondidas; nenhuma em aberto.** As
+respostas estão em §0 e já estão aplicadas ao corpo do documento.
+Ficam aqui as perguntas como foram postas, com a decisão ao lado — a
+numeração é referida ao longo do documento e não se mexe, e o
+raciocínio fica escrito para se poder reabrir uma decisão daqui a
+meses sabendo o que se pesou.
 
 1. ~~**Renovações: fundir ou manter?**~~ → **A, fundir** (§6.1).
-2. **Âmbito por omissão da Triagem — EM ABERTO.** Ver a explicação
-   completa a seguir.
+2. ~~**Âmbito por omissão da Triagem**~~ → **A, a janela dos 60 dias**
+   (§3.1). O porquê fica registado a seguir.
 3. ~~**Sem e-mail: onde vivem as novidades?**~~ → **B, secção em
    Alertas** (§8, §3.9). Só ganha efeito se E2 ficar em "não".
 4. ~~**Em curso: quadro+calendário como um item?**~~ → **sim, e o nome
@@ -905,7 +913,10 @@ referida ao longo do documento e não se mexe.
 8. ~~**"Verificar agora" onde?**~~ → **A, só na Triagem** (§3.1, §3.4,
    §3.5, §9 linha 15).
 
-### 11.2 — Âmbito por omissão da Triagem (por decidir)
+### 11.2 — Âmbito por omissão da Triagem: **decidido, opção (a)**
+
+*O registo do que se pesou. A decisão está tomada — 30/08/2026, opção
+(a), a janela dos 60 dias — e o §3.1 está escrito segundo ela.*
 
 **A pergunta:** quando se abre o radar de manhã, que conjunto é que a
 Triagem mostra antes de se tocar em filtro nenhum? É a decisão que
@@ -968,6 +979,6 @@ lista quando apetecer. E os expirados dentro da janela já são tratados
 pelo `--descartar-expirados`, que hoje deixa **zero** por ver
 expirados (auditoria §1.10).
 
-*Se a resposta for (a), o documento fica como está — foi assim que
-escrevi §3.1. Se for (b) ou (c), muda a Informação primária da §3.1 e
-o estado "vazio" dela; o resto do esqueleto não se mexe.*
+**Decidido: (a).** O §3.1 fica com a janela de `detalhe_dias` como
+âmbito, com a consequência declarada lá: o valor que governa o
+trabalho de fundo passa a governar também o que se vê de manhã.
