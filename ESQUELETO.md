@@ -22,9 +22,33 @@ população; (4) um vocabulário único (anúncio, peças, leitura, triagem)
 acaba com os três sentidos de "documentos" e os dois de "estado".
 Fica por resolver mesmo depois disto: o Fluxo B continua dependente da
 decisão E2 (canal de e-mail), a dívida do HTML por concatenação
-paga-se no andamento 3 e não aqui, os riscos R1 (token) e R11 (volume)
-continuam vivos com as mitigações actuais, e quatro fusões de vistas
-irmãs ficam apresentadas para o Afonso escolher, não decididas.
+paga-se no andamento 3 e não aqui, e os riscos R1 (token) e R11
+(volume) continuam vivos com as mitigações actuais. As quatro fusões
+de vistas irmãs e onze das doze perguntas **foram decididas pelo
+Afonso a 30/08/2026** — ver a secção seguinte; falta só o âmbito por
+omissão da Triagem (11.2).
+
+---
+
+## 0. Decisões tomadas — 30 de agosto de 2026
+
+Respostas do Afonso às secções 6 e 11. O corpo do documento abaixo já
+está escrito segundo elas; esta tabela é o registo de quem decidiu o
+quê e quando.
+
+| # | Pergunta | Decisão | Efeito no documento |
+|---|---|---|---|
+| 6.1 / 11.1 | Renovações: fundir ou manter? | **A — fundir** | `/renovacoes` passa a modo «ver por: fim estimado» dos Contratos (§3.7, §9 linha 8) |
+| 6.2 | `condicoes()` vs `condicoes_contratos()` | **B — manter** | as irmãs ficam; é dívida de código, reavaliável no andamento 3 (§6.2) |
+| 6.3 | Faixa «CPV activo» em 4 páginas | **A — bloco partilhado** | andamento 3 (§6.3) |
+| 6.4 | Selector de procedimento ×3 | **A — partilhado** | andamento 3 (§6.4) |
+| 11.2 | Âmbito por omissão da Triagem | **em aberto** | é a única decisão que falta; ver §11 |
+| 11.3 | Sem e-mail, onde vivem as novidades | **B — secção em Alertas** | §8 e §3.9; consequência assumida: com E2 em «não», as novidades ficam numa página de visita ocasional |
+| 11.4 | Quadro + calendário como um item | **sim, «Em curso»** | §2, §3.4, §3.5; o Quadro abre por omissão (o que a proposta já dizia) |
+| 11.5 | Pesquisa por omissão | **B — janela com interruptor «incluir arquivo»** | §3.2; janela registada em 12 meses, ajustável |
+| 11.6 | Indicadores só pela zona de estado | **A — sim** | §2, §3.10; navegação fica com cinco itens exactos |
+| 11.7 | Porta própria para entidades | **A — só ligações**, com B documentado | §3.8, §3.11; a caixa de procura fica registada como reabrível |
+| 11.8 | «Verificar agora» onde | **A — só na Triagem** | §3.1, §3.4, §3.5, §9 linha 15; muda o comportamento actual |
 
 ---
 
@@ -90,10 +114,11 @@ uma intenção, não uma tabela.
 **O que fica fora do primeiro nível, e onde passa a viver:**
 
 - **Indicadores e saúde do sistema** — fora da navegação; entram pela
-  **zona de estado da barra lateral** (o ponto verde/vermelho da
-  última verificação passa a ligação para `/indicadores`). Ver §4.
-  Fundamento: é consulta ocasional-a-rara, e a barra já é a superfície
-  de estado permanente (auditoria §1.1, painel).
+  **zona de estado da barra lateral** (o ponto da última verificação
+  passa a ligação para `/indicadores`). Ver §4. Fundamento: é consulta
+  ocasional-a-rara, e a barra já é a superfície de estado permanente
+  (auditoria §1.1, painel). **Decisão 11.6-A**, sem atalho secundário:
+  a navegação fica com cinco itens exactos.
 - **Definições** — continuam distribuídas *por decisão já tomada*, não
   por acidente: e-mail e janela do "urgente" em Alertas (ESTADO, «O
   e-mail configura-se no ecrã»; B13), identidade no cabeçalho
@@ -180,12 +205,19 @@ uma intenção, não uma tabela.
   navegação; de um filtro guardado; da ficha ("outros anúncios deste
   CPV", §5).
 - **Informação primária:** a lista paginada (20/página,
-  `POR_PAGINA_LISTA`) sobre os 66 081, com o conjunto completo de
-  filtros: q, exclusões, entidade, CPV+árvore, op E/OU, plataforma
-  (com os baldes `(nenhuma)`/`(por ler)` distintos — auditoria §1.8),
-  prazo, datas, estado.
+  `POR_PAGINA_LISTA`) com o conjunto completo de filtros: q, exclusões,
+  entidade, CPV+árvore, op E/OU, plataforma (com os baldes
+  `(nenhuma)`/`(por ler)` distintos — auditoria §1.8), prazo, datas,
+  estado. **Abre numa janela, não no acervo todo** (decisão 11.5-B):
+  registada em **12 meses**, com um interruptor **"incluir arquivo"**
+  que alarga aos 66 081 de dois anos. Doze meses porque é a janela que
+  serve a comparação homóloga (o corpus compara ano a ano — B02/B04) e
+  porque deixa a Pesquisa distinta do âmbito da Triagem sem esconder um
+  ano de acervo; o valor é ajustável sem consequência estrutural.
 - **Informação secundária:** contagem "a mostrar X dos Y que
-  correspondem · Z na base" (existente); filtros guardados.
+  correspondem · Z na base" (existente) — com a janela em vigor dita
+  por escrito, senão a Pesquisa parecia o acervo todo e não era (P4);
+  filtros guardados.
 - **Sai daqui:** nada — é página nova que recebe o que sai da Triagem.
 - **Acções:** os mesmos interessa/descartar/repor [secundárias aqui —
   a decisão em massa é da Triagem], guardar filtro [primária],
@@ -202,7 +234,9 @@ uma intenção, não uma tabela.
     rede possível (é tudo local).
   - *Parcial:* 91,7% da base sem detalhe lido — a página declara que
     filtros por CPV/prazo/plataforma só vêem quem tem detalhe
-    (auditoria §1.2: 5 493 de 66 081).
+    (auditoria §1.2: 5 493 de 66 081). E declara a janela: com o
+    interruptor desligado, a lista **não** é o acervo todo, e o número
+    tem de o dizer.
 - **Saídas:** ficha do anúncio; Triagem (voltar ao âmbito de decisão);
   CSV.
 - **Funcionalidades/rotas:** §1.2, parte de §1.8, Fluxo D dos
@@ -258,8 +292,11 @@ uma intenção, não uma tabela.
 
 - **Propósito:** conduzir os "interessa" pelas fases até à proposta —
   a vista de trabalho do Em curso.
-- **Quem chega, vindo de onde:** navegação (item Em curso, vista por
-  omissão — pergunta 11.4); da Triagem após marcar interessa.
+- **Quem chega, vindo de onde:** navegação — é a **vista por omissão
+  do Em curso** (decisão 11.4: o item confirma-se com este nome, e o
+  quadro abre primeiro porque é a vista de trabalho; o calendário
+  responde a "quando", que é a segunda pergunta); da Triagem após
+  marcar interessa.
 - **Informação primária:** colunas = fases editáveis; cartões com
   prazo contado; soma do preço base por coluna com o "sobre quantos"
   declarado (B11).
@@ -268,8 +305,11 @@ uma intenção, não uma tabela.
 - **Sai daqui:** nada.
 - **Acções:** arrastar cartão [primária], nova fase / renomear /
   apagar (com migração de cartões) [secundárias], etiquetar
-  [secundária], Verificar agora [secundária, pergunta 11.8], tirar do
-  quadro = "voltar a por ver", com confirmação [secundária].
+  [secundária], tirar do quadro = "voltar a por ver", com confirmação
+  [secundária]. **Sem "Verificar agora"** (decisão 11.8-A): vai ao DR
+  buscar anúncios novos, e os novos aterram na Triagem — é lá que o
+  botão está. Muda o comportamento actual, que o punha aqui também
+  (auditoria §1.1).
 - **Estados:**
   - *Vazio:* sem interessa nenhum — explica que o quadro se enche a
     partir da Triagem, com ligação para lá.
@@ -297,8 +337,9 @@ uma intenção, não uma tabela.
 - **Informação secundária:** fins-de-semana e fronteiras de mês
   marcados; nota com quem ficou fora da janela.
 - **Sai daqui:** nada.
-- **Acções:** abrir a ficha pela pílula [primária], Verificar agora
-  [secundária, pergunta 11.8]. Só leitura no resto (deliberado).
+- **Acções:** abrir a ficha pela pílula [primária]. Só leitura no
+  resto (deliberado), e **sem "Verificar agora"** — decisão 11.8-A,
+  pela mesma razão do quadro.
 - **Estados:**
   - *Vazio:* sem interessa com prazo na janela — di-lo e aponta o
     quadro e a nota dos fora-da-janela.
@@ -319,6 +360,11 @@ uma intenção, não uma tabela.
 - **Quem chega, vindo de onde:** navegação (Mercado); ficha de
   entidade (atalhos com filtro); ficha do anúncio (histórico/homólogos
   apontam para cá); Alertas (ligações do filtro).
+- **Dois modos, um ecrã** (decisão 6.1-A): **ver por celebração** (o
+  que já se comprou) ou **ver por fim estimado** (o que vai acabar — as
+  antigas Renovações, §3.7). O modo é declarado por extenso no título
+  da tabela, não só num selector: era essa a única defesa contra o
+  "ecrã bifacetado" que o custo da opção A previa.
 - **Informação primária:** com filtro: a tabela (celebração, fim
   estimado, objecto, quem, valor) e a linha de contagem com o valor do
   mercado filtrado. Sem filtro: o convite a perguntar — **que é o
@@ -326,8 +372,8 @@ uma intenção, não uma tabela.
 - **Informação secundária:** os 7 gráficos sob o filtro, pedidos só ao
   abrir (`/contratos/resumo`); a barra do corpus (contagens, anos,
   idade, botão Actualizar).
-- **Sai daqui:** nada de conteúdo; a duplicação com Renovações é a
-  decisão 6.1.
+- **Sai daqui:** nada de conteúdo; **entra** o modo do fim estimado,
+  vindo das Renovações (decisão 6.1-A).
 - **Acções:** filtrar/perguntar [primária], abrir os gráficos
   [secundária], exportar CSV (exige filtro, tecto 50 000, linhas
   anunciadas) [secundária], Actualizar contratos [secundária], guardar
@@ -351,24 +397,32 @@ uma intenção, não uma tabela.
   rotas `/contratos`, `/contratos/resumo`, `/contratos/csv`,
   `/contratos/actualizar`.
 
-### 3.7 Mercado · Renovações — `/renovacoes` (pendente da decisão 6.1)
+### 3.7 Mercado · Contratos, modo «fim estimado» — `/contratos?ver=fim` (era `/renovacoes`; funde por decisão 6.1-A)
+
+Deixa de ser página irmã e passa a **modo da §3.6**. Tudo o que segue
+descreve o que muda quando o modo está activo; o resto — formulário,
+faixas, barra do corpus, paginação, gráficos — é o da §3.6, uma vez só.
 
 - **Propósito:** os contratos vistos pelo fim estimado — "o que vai
   acabar no meu mercado, e quem o tem" (B03).
-- **Quem chega, vindo de onde:** Mercado; ficha de entidade ("o que
-  desta entidade está a acabar", §5 novo).
+- **Quem chega, vindo de onde:** Mercado (trocando de modo); ficha de
+  entidade ("o que desta entidade está a acabar", §5 novo).
 - **Informação primária:** com filtro: contratos com fim na janela
   (3/6/12/24 meses, whitelist), do mais próximo ao mais distante, com
   detentor e valor. Sem filtro: o mesmo convite dos contratos.
 - **Informação secundária:** a declaração de que o fim é **estimado**
   e que prorrogações não constam do dump (existente e obrigatória).
-- **Sai daqui (se ficar página):** o formulário/faixas decalcados dos
-  contratos passam a bloco partilhado (decisão 6.3/6.4); os campos
-  `de`/`ate` continuam fora desta vista (decisão registada — dois
-  eixos de tempo confundiam, ESTADO B03).
-- **Acções:** filtrar [primária], mudar a janela [primária], guardar
-  filtro [secundária]. Exportação: não determinável pelos documentos
-  se existe CSV próprio das renovações; não se promete aqui.
+- **Sai daqui:** a página inteira — o formulário, as faixas, a barra do
+  corpus e a paginação passam a ser os da §3.6 (é isso a fusão). Os
+  campos `de`/`ate` **desactivam-se com explicação** neste modo, em vez
+  de desaparecerem: dois eixos de tempo em simultâneo confundiam
+  (ESTADO B03), mas um campo que some sem explicação é o silêncio que a
+  P3 proíbe.
+- **Acções:** trocar de modo [primária], filtrar [primária], mudar a
+  janela 3/6/12/24 meses [primária], guardar filtro [secundária].
+  Exportação: passa a ser a mesma dos contratos, com o modo aplicado —
+  resolve de caminho a dúvida que aqui estava («não determinável se
+  existe CSV próprio das renovações»), porque deixa de haver dois.
 - **Estados:**
   - *Vazio:* sem filtro = convite (81 827 contratos a acabar em 6
     meses não respondem a nada — B03); com filtro = "nada acaba nesta
@@ -377,10 +431,14 @@ uma intenção, não uma tabela.
   - *Erro:* corpus por importar — como nos contratos.
   - *Parcial:* contratos sem prazo de execução não têm fim estimado e
     ficam fora — a página deve dizê-lo (a auditoria não regista se o
-    diz hoje: não determinável; fica como requisito).
-- **Saídas:** ficha de entidade; Contratos com o mesmo filtro.
-- **Funcionalidades/rotas:** §1.8 (renovações), B03; rota
-  `/renovacoes`.
+    diz hoje: não determinável; fica como requisito). E a declaração de
+    que o fim é estimado acompanha o modo, não a página: no modo
+    celebração seria ruído, e a fusão não pode deixá-la cair.
+- **Saídas:** ficha de entidade; o outro modo, com o filtro intacto.
+- **Funcionalidades/rotas:** §1.8 (renovações), B03; a rota
+  `/renovacoes` funde em `/contratos` (§9 linha 8) — se se mantiver a
+  responder, é como redireccionamento para o modo, para não partir
+  filtros guardados e ligações antigas.
 
 ### 3.8 Ficha da entidade — `/entidade/<chave>` (mantém-se)
 
@@ -423,7 +481,12 @@ uma intenção, não uma tabela.
 - **Informação secundária:** configuração do destino e hora do resumo
   (o ecrã mostra o que está posto e o que falta — comportamento
   existente; a conta que envia fica fora do ecrã, por decisão); janela
-  do urgente (B13); histórico de avisos.
+  do urgente (B13); histórico de avisos. **E, se E2 ficar em "não": a
+  secção "novidades"** (decisão 11.3-B) — o que os alertas, as
+  seguidas e as alterações reconheceram e ainda não foi entregue,
+  vindo das filas existentes. Só existe nesse cenário: com o e-mail
+  ligado, a entrega é o e-mail, e uma segunda lista das mesmas
+  novidades seriam duas verdades sobre o mesmo facto.
 - **Sai daqui:** nada — é o centro de gestão por decisão tomada
   (ESTADO, «O separador dos alertas é onde se gerem os filtros»).
 - **Acções:** criar filtro (com árvore) [primária], ligar/desligar
@@ -500,6 +563,17 @@ uma intenção, não uma tabela.
 - **`amostras/`, `AVISOS.txt` em disco:** artefactos de diagnóstico e
   entrega, sem ecrã; o AVISOS.txt é a entrega de reserva do Fluxo B
   (ver §8, E2).
+- **Procura directa de entidade (nome/NIF) — fica de fora por decisão
+  11.7-A, e fica registada.** Hoje chega-se à ficha da entidade só por
+  ligações (da ficha do anúncio, dos gráficos, das tabelas), e essa é
+  a decisão: consolidar não é acrescentar. **A possibilidade B, para
+  quando fizer falta:** uma caixa "procurar entidade" em Mercado, que
+  aceite nome ou NIF e leve directamente a `/entidade/<chave>`, com a
+  resolução a passar por `entidade_nomes` — que é a tabela que já
+  mapeia qualquer das 87 grafias de uma entidade à sua chave (ESTADO,
+  «O nome não é a identidade»), portanto a peça de dados já existe e o
+  custo é só de ecrã. O sinal de que faz falta: dar por si a abrir um
+  contrato qualquer só para chegar à ficha de uma entidade.
 
 **Verificação de cobertura da secção 1 da auditoria:** 1.1 → Triagem +
 zona de estado; 1.2 → Triagem/Pesquisa/Ficha; 1.3 → Ficha (leitura) +
@@ -569,8 +643,8 @@ vista não entende declara-se parcial, nunca cai em silêncio (P3).
 |----|------|--------------------|------------|
 | Triagem | Pesquisa | o filtro em uso, completo | P1: sair do âmbito sem perder a pergunta |
 | Ficha do anúncio | Pesquisa por CPV | o(s) CPV do anúncio | "que mais há disto?" fecha o ciclo A→C |
-| Contratos ⇄ Renovações (se separadas) | a vista irmã | o filtro, menos `de`/`ate` (declarado parcial) | mesma população, pergunta vizinha (P2) |
-| Ficha da entidade | Renovações | `entid` + janela | "o que desta entidade está a acabar" é a pergunta comercial da ficha |
+| Contratos: modo celebração ⇄ modo fim | o outro modo | o filtro inteiro, com `de`/`ate` desactivados e explicados no modo fim | decidido em 6.1-A: deixa de ser salto entre páginas e passa a troca de modo (P2) |
+| Ficha da entidade | Contratos no modo fim | `entid` + janela | "o que desta entidade está a acabar" é a pergunta comercial da ficha |
 | Linha de contrato com `n_anuncio` na base | Ficha do anúncio | ref | o inverso do B02; só quando o ref existe (4 917 dos 5 391 comuns — ESTADO) |
 | Quadro ⇄ Calendário | a mesma linha/cartão | ref | duas vistas do mesmo conjunto (P2) |
 
@@ -578,7 +652,9 @@ vista não entende declara-se parcial, nunca cai em silêncio (P3).
 
 ## 6. Duplicações e vistas irmãs
 
-Apresentado para o Afonso escolher; nada aqui é definitivo.
+**Decidido pelo Afonso a 30/08/2026: 6.1 A · 6.2 B · 6.3 A · 6.4 A.**
+As opções ficam escritas com o raciocínio completo — é o que permite
+reabrir uma decisão daqui a meses sabendo o que se pesou.
 
 ### 6.1 `/contratos` vs `/renovacoes`
 
@@ -597,6 +673,7 @@ Apresentado para o Afonso escolher; nada aqui é definitivo.
   (auditoria §3.2).
 - **Recomendação: A** — o custo de B já está medido e pago duas vezes;
   o de A resolve-se com o modo dito por extenso no título da tabela.
+- **Decidido: A.** Ver §3.6/§3.7 e a linha 8 do mapa de migração.
 
 ### 6.2 `condicoes()` vs `condicoes_contratos()`
 
@@ -610,6 +687,7 @@ Apresentado para o Afonso escolher; nada aqui é definitivo.
   duas vezes — um bug de escape corrige-se em dois sítios (§3.2).
 - **Recomendação: B por agora** — é dívida de código, não de IA;
   reavaliar no andamento 3, junto da dívida do HTML.
+- **Decidido: B.** Os dois motores ficam; nada muda na estrutura.
 
 ### 6.3 Blocos de faixa "CPV activo" repetidos em 4 páginas
 
@@ -621,11 +699,15 @@ Apresentado para o Afonso escolher; nada aqui é definitivo.
   diferenças" (auditoria §3.2).
 - **Recomendação: A**, no andamento 3 — é exactamente o tipo de bloco
   que a extracção do esqueleto comum paga sozinha.
+- **Decidido: A**, no andamento 3.
 
 ### 6.4 Selectores de procedimento montados 3 vezes
 
 Igual a 6.3: **A** (um só selector partilhado, no andamento 3) contra
 **B** (três cópias, §3.2). **Recomendação: A**, pela mesma linha.
+**Decidido: A**, no andamento 3. Nota que a fusão 6.1 já reduz os três
+sítios a dois — o selector das renovações e o dos contratos passam a
+ser o mesmo por construção.
 
 ---
 
@@ -666,13 +748,18 @@ não é problema aberto.)
   dia por e-mail e sempre para `AVISOS.txt` (§1.9). **Tudo o que em
   §3.9 diz "dependente E2"** (destino, hora, enviar já) só ganha vida
   com a decisão do SANEAMENTO.md. **Se o Afonso decidir não ligar o
-  e-mail de todo**, a estrutura muda num ponto: a entrega passa para
-  dentro da aplicação — um bloco "novidades por ver" na Triagem,
-  alimentado pelas filas que já existem (`alertas_vistos`,
-  `alteracoes`, `seguidas_vistos` com `enviado_em` vazio — auditoria
-  §2.6), em que "entregue" passa a significar "mostrado e confirmado
-  no ecrã". É mudança de semântica da entrega e vai como pergunta 11.3;
-  não usa dados que não existam.
+  e-mail de todo**, a entrega passa para dentro da aplicação, numa
+  **secção própria em Alertas** (decisão 11.3-B), alimentada pelas
+  filas que já existem (`alertas_vistos`, `alteracoes`,
+  `seguidas_vistos` com `enviado_em` vazio — auditoria §2.6):
+  "entregue" passa a significar "mostrado no ecrã". Não usa dados que
+  não existam. **Consequência assumida, e vale dizê-la:** Alertas é,
+  por desenho, uma página de visita ocasional (§2) — pôr lá as
+  novidades mantém-nas arrumadas mas pouco vistas, e com o e-mail
+  desligado o Fluxo B fica melhor do que o `AVISOS.txt` de hoje sem
+  chegar a cumprir a promessa de "deixar de precisar de abrir o
+  radar". Se um dia isso incomodar, o caminho está identificado: o
+  mesmo bloco na Triagem, que era a opção A.
 - **E3 (links do resumo em localhost).** Nenhuma página deste
   esqueleto é desenhada para consulta fora do PC. O único artefacto
   que sai do PC é o e-mail do resumo — os links dele dependem da
@@ -718,14 +805,14 @@ Tipos: **mantém-se** (mesma função, mesmo lugar), **muda de sítio**
 | 5 | `GET /contratos` | Mercado · Contratos | mantém-se |
 | 6 | `GET /contratos/resumo` | serviço dos gráficos (só sob filtro) | mantém-se |
 | 7 | `GET /contratos/csv` | acção de Mercado · Contratos | mantém-se |
-| 8 | `GET /renovacoes` | modo "fim estimado" dos Contratos (proposta 6.1-A) | funde* |
+| 8 | `GET /renovacoes` | modo "fim estimado" dos Contratos | **funde** (decidido 6.1-A) |
 | 9 | `GET /entidade/<chave>` | Ficha da entidade | mantém-se |
 | 10 | `GET /anuncio/<ref>` | Ficha do anúncio | mantém-se |
 | 11 | `GET /documento/<ref>/<nome>` | serviço das peças (ficha) | mantém-se |
 | 12 | `GET /quadro` | Em curso · Quadro | muda de sítio |
 | 13 | `GET /calendario` | Em curso · Calendário | muda de sítio |
 | 14 | `GET /indicadores` | Indicadores, via zona de estado | muda de sítio |
-| 15 | `POST /verificar` | Triagem / Em curso | mantém-se |
+| 15 | `POST /verificar` | Triagem (só; decisão 11.8-A tira-o do Em curso) | mantém-se |
 | 16 | `POST /estado/<ref>/<novo>` | Triagem / Pesquisa / Ficha | mantém-se |
 | 17 | `POST /sou` | cabeçalho (transversal) | mantém-se |
 | 18 | `POST /responsavel/<ref>` | Ficha do anúncio | mantém-se |
@@ -748,12 +835,10 @@ Tipos: **mantém-se** (mesma função, mesmo lugar), **muda de sítio**
 | 35 | `POST /quadro/etiqueta/<ref>/tirar/<id>` | Em curso · Quadro | mantém-se |
 | — | `GET /anuncios` | Pesquisa (o acervo completo) | **nova** |
 
-*\* pendente da decisão 6.1; na opção B fica "mantém-se".*
-
-**Contagem:** mantém-se **31** · muda de sítio **3** · funde **1**
-(pendente; na opção B: mantém-se 32, funde 0) · desaparece **0** ·
-novas **1**. A leitura desta contagem é o argumento central do
-documento: o problema não são as rotas, é a hierarquia por cima delas.
+**Contagem (com as decisões de 30/08 aplicadas):** mantém-se **31** ·
+muda de sítio **3** · funde **1** · desaparece **0** · novas **1**. A
+leitura desta contagem é o argumento central do documento: o problema
+não são as rotas, é a hierarquia por cima delas.
 
 ---
 
@@ -776,9 +861,10 @@ seis atalhos propostos de §5 (cada um é uma ligação com a query
 canónica — baratos por construção, FR-15). Desbloqueia: a sensação de
 "uma aplicação" no dia-a-dia. Continua na mesma: duplicações.
 
-**Andamento 3 — fusões escolhidas e a dívida do HTML.** Muda: o que o
-Afonso decidir em §6 (renovações como modo; faixa CPV e selector de
-procedimento partilhados). **É aqui que faz sentido pagar a dívida do
+**Andamento 3 — as fusões decididas e a dívida do HTML.** Muda: o que
+o Afonso decidiu em §6 — renovações como modo dos contratos (6.1-A),
+faixa do CPV activo e selector de procedimento partilhados (6.3-A,
+6.4-A); os dois motores de filtro ficam como estão (6.2-B). **É aqui que faz sentido pagar a dívida do
 HTML por concatenação (auditoria §3.9)** — fundir vistas sem extrair o
 esqueleto comum era duplicar strings outra vez; a fusão é a ocasião
 que amortiza a extracção. (Como pagar, não é deste documento.)
@@ -786,8 +872,8 @@ Desbloqueia: o fim do "corrigido numa vista, vivo na irmã" (§3.2).
 
 **Andamento 4 — o Fluxo B inteiro (dependente E2/E3).** Muda: a
 entrega das novidades — e-mail ligado (E2) com os links resolvidos
-(E3), ou o bloco "novidades por ver" na Triagem se a decisão for sem
-e-mail (§8). Desbloqueia: a promessa central ("deixar de precisar de
+(E3), ou a secção "novidades" em Alertas se a decisão for sem e-mail
+(§8, decisão 11.3-B). Desbloqueia: a promessa central ("deixar de precisar de
 abrir o radar") pela primeira vez com conteúdo real. Continua na
 mesma: tudo o resto — este andamento é independente dos anteriores e
 pode trocar de ordem com o 3 se a decisão E2 chegar primeiro.
@@ -799,41 +885,89 @@ pode trocar de ordem com o 3 se a decisão E2 chegar primeiro.
 Por impacto na estrutura. As decisões E1–E4 já esperam no
 SANEAMENTO.md e não se reformulam aqui.
 
-1. **Renovações: fundir ou manter?** (§6.1) A: uma página com eixo
-   declarado — menos manutenção, um ecrã bifacetado. B: duas páginas —
-   mais claras uma a uma, custo de manutenção medido (§3.2). A escolha
-   define a linha 8 do mapa de migração.
-2. **Âmbito por omissão da Triagem:** (a) janela dos 60 dias de
-   `detalhe_dias` — alinha com o que a rotina lê e com "o que é
-   concorrível" (ESTADO); (b) prazo aberto, incluindo antigos com
-   prazo lido — mais completo, mistura idades; (c) "desde a última
-   visita" — o mais radical, exige definir "visita". Consequência: é o
-   número que a aba mostra todas as manhãs.
-3. **Sem e-mail (se E2 ficar em não): onde vivem as novidades?**
-   (a) bloco "novidades por ver" na Triagem — a entrega passa a ser o
-   ecrã, e "entregue" muda de sentido (§8); (b) secção em Alertas —
-   mais arrumado, menos visto; (c) fica só o `AVISOS.txt` — o Fluxo B
-   continua morto na prática (auditoria §4-B). Só se decide depois do
-   E2.
-4. **Em curso: confirma quadro+calendário como vistas do mesmo item?**
-   E qual abre por omissão — o quadro (trabalho) ou o calendário
-   (prazos)? E o nome do item: "Em curso" ou simplesmente "Quadro"?
-   Consequência: define §3.4/3.5 e as linhas 12–13 da migração.
-5. **Pesquisa por omissão: a base toda ou os últimos N?** (a) tudo —
-   honesto, com 91,7% sem detalhe declarado; (b) uma janela com
-   interruptor "incluir arquivo" — listas mais úteis, mais um conceito
-   de âmbito para além do da Triagem. Consequência: o que "Pesquisa"
-   promete.
-6. **Indicadores só pela zona de estado chega?** (a) sim — navegação
-   limpa, um clique a mais para os KPI; (b) manter também um atalho
-   visível secundário. Consequência: se (b), a navegação tem 5+1
-   itens.
-7. **Entidades precisam de porta própria?** Hoje chega-se à ficha só
-   por ligações; uma pesquisa de entidade (nome/NIF) seria
-   funcionalidade nova — não determinável pelos documentos se existe
-   procura directa. (a) só ligações, como hoje; (b) caixa de procura
-   de entidade em Mercado. Consequência: (b) acrescenta uma
-   funcionalidade ao andamento 2, fora do "consolidar sem acrescentar".
-8. **"Verificar agora" onde?** (a) só na Triagem — é lá que os novos
-   aterram; (b) Triagem + Em curso, como hoje (auditoria §1.1).
-   Consequência: quantos sítios mostram o estado "a verificar…".
+**Estado a 30/08/2026: onze respondidas, uma em aberto.** As respostas
+estão em §0 e já estão aplicadas ao corpo do documento. Ficam aqui as
+perguntas como foram postas, com a decisão ao lado — a numeração é
+referida ao longo do documento e não se mexe.
+
+1. ~~**Renovações: fundir ou manter?**~~ → **A, fundir** (§6.1).
+2. **Âmbito por omissão da Triagem — EM ABERTO.** Ver a explicação
+   completa a seguir.
+3. ~~**Sem e-mail: onde vivem as novidades?**~~ → **B, secção em
+   Alertas** (§8, §3.9). Só ganha efeito se E2 ficar em "não".
+4. ~~**Em curso: quadro+calendário como um item?**~~ → **sim, e o nome
+   é "Em curso"**; o quadro abre por omissão (§3.4, §3.5).
+5. ~~**Pesquisa por omissão: tudo ou uma janela?**~~ → **B, janela com
+   interruptor "incluir arquivo"**; registada em 12 meses (§3.2).
+6. ~~**Indicadores só pela zona de estado?**~~ → **A, sim** (§2, §3.10).
+7. ~~**Entidades precisam de porta própria?**~~ → **A, só ligações**,
+   com a opção B registada como reabrível (§3.11).
+8. ~~**"Verificar agora" onde?**~~ → **A, só na Triagem** (§3.1, §3.4,
+   §3.5, §9 linha 15).
+
+### 11.2 — Âmbito por omissão da Triagem (por decidir)
+
+**A pergunta:** quando se abre o radar de manhã, que conjunto é que a
+Triagem mostra antes de se tocar em filtro nenhum? É a decisão que
+substitui o balde único de hoje (P1) e é o número que a aba passa a
+mostrar todos os dias.
+
+**O que a base diz hoje** (contagens da auditoria §1.2/§2.6, e
+aritmética delas): 66 081 anúncios, dos quais **61 981 por ver**,
+4 097 descartados e 3 interessa. Mas dos 61 981, **60 588 nunca
+tiveram o detalhe lido** — são o arquivo dos dois anos. Sobram
+**1 393 por ver com detalhe lido** (61 981 − 60 588; aritmética minha
+sobre números documentados, não uma medição). *Este é o ponto que
+muda a leitura da pergunta:* qualquer das três opções faz o 61 981
+evaporar-se para a ordem do milhar ou menos. **A escolha não é sobre
+o tamanho — é sobre o modo como cada uma falha.**
+
+**(a) A janela dos 60 dias (`detalhe_dias`).** Mostra o que foi
+publicado nos últimos 60 dias e ainda está por ver.
+*A favor:* é o mesmo âmbito que a rotina já usa para ler detalhes — o
+que a Triagem mostra passa a ser exactamente o que o radar leu por
+inteiro, um conceito em vez de dois; e o critério tem razão medida
+(entre publicação e prazo vão ~18 dias em média, ESTADO).
+*Contra:* um anúncio publicado há 61 dias com prazo ainda aberto sai
+da Triagem — raro, e continua a um clique na Pesquisa.
+**Falha à vista:** o defeito é uma coisa a mais ou a menos na lista,
+percebe-se ao ler.
+
+**(b) Prazo aberto.** Mostra o que ainda dá para concorrer, seja qual
+for a data de publicação.
+*A favor:* é a definição semanticamente certa de "decidível".
+*Contra, e é sério:* o prazo só existe depois do detalhe lido. Os
+anúncios que acabam de chegar ainda não têm prazo — a verificação lê
+40 detalhes de cada vez (80/dia) contra as ~60-70 publicações diárias
+da parte L, por isso num dia cheio o excedente fica sem prazo até ao
+turno seguinte, e **desapareceria da Triagem justamente no dia em que
+entrou**. Pior: o R7 (o DR mudar o formato do texto) faz
+`campos_do_detalhe()` devolver campos vazios, e a auditoria §5 diz que
+essa degradação é **silenciosa** — com este critério, uma mudança de
+formato no DR esvazia a Triagem sem uma palavra.
+**Falha em silêncio**, e num ecrã cuja função é dizer "há isto para
+decidir", o silêncio é o pior modo de falhar que esta aplicação tem.
+
+**(c) "Desde a última visita".** Mostra o que chegou desde a última
+vez que se olhou.
+*A favor:* é o modelo de caixa de entrada, e é o mais próximo de "o
+que é novo para mim".
+*Contra:* é a única opção que precisa de estado novo (gravar o que é
+uma "visita"); abrir duas vezes na mesma manhã dá ecrã vazio à
+segunda; e quebra o modelo da triagem — um anúncio visto e ainda não
+decidido sai da lista, quando "por ver" quer dizer precisamente "ainda
+por decidir".
+
+**Recomendação: (a).** Não pelo tamanho — as três dão listas
+comparáveis — mas porque é a única que falha à vista, e porque alinha
+a Triagem com a janela que a rotina já lê, sem inventar um segundo
+conceito de âmbito nem estado novo. O que (b) tem de bom continua
+disponível como filtro, que já existe: `prazo=aberto` e
+`prazo=urgente` estão no motor e passam a ser a maneira de apertar a
+lista quando apetecer. E os expirados dentro da janela já são tratados
+pelo `--descartar-expirados`, que hoje deixa **zero** por ver
+expirados (auditoria §1.10).
+
+*Se a resposta for (a), o documento fica como está — foi assim que
+escrevi §3.1. Se for (b) ou (c), muda a Informação primária da §3.1 e
+o estado "vazio" dela; o resto do esqueleto não se mexe.*
