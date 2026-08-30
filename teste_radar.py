@@ -1906,6 +1906,44 @@ class TestResumoComAlterados(unittest.TestCase):
         self.assertNotIn("Alterados", saiu)
 
 
+class TestTermosFts(unittest.TestCase):
+    """B09: a pesquisa nas peças passa pelo MATCH do FTS5, e o input do
+    utilizador tem de chegar lá como texto, nunca como sintaxe — um
+    NEAR ou um * escritos na caixa são palavras a procurar.
+    """
+
+    def test_palavras_todas_obrigatorias_dentro_do_pedaco(self):
+        self.assertEqual(radar.termos_fts("seguro automóvel"),
+                         '("seguro" "automóvel")')
+
+    def test_pedacos_separados_por_ou(self):
+        self.assertEqual(radar.termos_fts("elevadores|avac"),
+                         '("elevadores") OR ("avac")')
+
+    def test_sintaxe_do_fts_vira_texto(self):
+        # AND/NEAR/* entre aspas são termos, não operadores
+        saiu = radar.termos_fts("prazo NEAR entrega")
+        self.assertEqual(saiu, '("prazo" "NEAR" "entrega")')
+
+    def test_aspas_do_utilizador_nao_partem_a_consulta(self):
+        self.assertEqual(radar.termos_fts('sistema "chave na mão"'),
+                         '("sistema" """chave" "na" "mão""")')
+
+    def test_vazio_nao_da_consulta(self):
+        self.assertEqual(radar.termos_fts(""), "")
+        self.assertEqual(radar.termos_fts(" | "), "")
+
+    def test_entra_na_condicoes_como_subconsulta(self):
+        onde, valores = radar.condicoes(
+            {"q_pecas": "penalidades", "estado": ""})
+        self.assertIn("pecas_fts MATCH ?", onde)
+        self.assertIn('("penalidades")', valores)
+
+    def test_q_pecas_vazio_nao_filtra(self):
+        onde, _ = radar.condicoes({"q_pecas": "  ", "estado": ""})
+        self.assertNotIn("pecas_fts", onde)
+
+
 class TestLeiturasConfiguraveis(unittest.TestCase):
     """B08: as âncoras e a instrução de cada leitura afinam-se no
     config.json sem mexer no código. Uma entrada estragada nunca pode

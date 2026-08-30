@@ -2641,3 +2641,96 @@ o radar não olhava duas vezes. Agora olha, com juízo sobre o custo:
 Testes novos: `TestFimEstimado`, `TestEscaloesDeDesconto`,
 `TestDiferencasDoDetalhe`, `TestResumoComAlterados` — 376 no total,
 todos verdes.
+
+## A coluna do fim, as rectificações e os cinco P2, 30 de agosto de 2026
+
+A seguir aos P1, três pedidos do Afonso e o resto do backlog.
+
+### A tabela dos contratos ganhou o "Fim estimado"
+
+A pedido: a lista `/contratos` mostrava só a celebração. A coluna nova
+vem logo a seguir, com travessão quando o dump não traz prazo — um
+contrato em curso lê-se pelo fim, não só pelo princípio.
+
+### Anulações e rectificações — a investigação
+
+Sobre 66 081 anúncios (2 anos):
+
+- **Anulações não têm formato.** 3 títulos em texto livre ("ANULAÇÃO DO
+  CONCURSO PÚBLICO PARA…"), publicados como anúncio de procedimento
+  normal, sem referência mecânica ao original. Não há nada fiável para
+  detectar — e um alerta por CPV/palavras já as traz como anúncio novo.
+  Fica registado como premissa reaberta se o DR algum dia estruturar.
+  (Cuidado com o grep: "CÂNULAS" e "Granulado" contêm "anula" — a
+  primeira contagem era falsa; a norma certa é `titulo_norm LIKE
+  '%anulacao%'`.)
+- **Rectificações são anúncios novos com o original citado no título**
+  ("Retificação ao Anúncio de procedimento n.º 19900/2026"): 6 em dois
+  anos, 4 com o ref extraível. `ligar_retificacoes()`
+  (`PADRAO_RETIFICACAO`, com teste) liga-as ao original: histórico da
+  ficha sempre, fila do resumo só quando o original está marcado.
+  Idempotente pelo próprio histórico; corre na verificação, ao lado da
+  releitura dos marcados.
+
+### B06 — taxa de acerto por alerta
+
+Cada alerta em `/alertas` diz em que estados acabou o que marcou e o
+acerto sobre os triados (interessa ÷ triados). Os por ver não contam
+para a taxa — ainda não são opinião.
+
+### B07 — E/OU entre palavras e CPV
+
+O selector `op` traduz a booleana para humano, como a Tendios: "palavras
+E CPV — mais restrito" / "palavras OU CPV — mais amplo". Por baixo,
+`condicoes()` e `condicoes_contratos()` passaram a montar o lado das
+palavras e o do CPV como fragmentos (fragmento, valores) e só depois os
+juntam — era a única forma de os unir por OR **sem baralhar a ordem dos
+placeholders**, e há um teste que conta os `?` contra os valores. No
+modo OU, um CPV que não corresponde a nada não acrescenta nada (em vez
+do `1=0` do modo E, que continua). O `op` sozinho não conta como
+pergunta em /contratos nem como filtro nos alertas — é um modo, não um
+filtro. Medido: manutenção E CPV 72 = 46 anúncios; OU = 3 970.
+
+### B08 — leituras das peças configuráveis
+
+`leituras_activas()` põe o `config.json` por cima das `LEITURAS` de
+origem — `quais`, `ancoras` (`[[prioridade, regex], …]`) e `instrucao`,
+campo a campo, com validação à entrada: um regex que não compila ou um
+`quais` desconhecido deixam ficar o de origem. **Uma entrada estragada
+nunca desliga uma leitura em silêncio.** O 4.º campo definido pelo
+utilizador ficou de fora com registo no BACKLOG: a tabela `analise` tem
+colunas fixas e o caso de uso ainda não apareceu.
+
+### B09 — pesquisa nas peças (FTS5)
+
+Índice FTS5 **de conteúdo externo** sobre `documentos.texto` — só o
+índice, o texto já vivia na base. Triggers em INSERT/UPDATE/DELETE
+mantêm-no em dia; a população inicial é `rebuild` com marca no `estado`
+(`fts_povoado`). **Armadilha paga**: num FTS de conteúdo externo, um
+SELECT sem MATCH lê a tabela de conteúdo — o teste "está vazio?" via
+linhas e saltava a população, e todas as pesquisas davam zero.
+
+No painel é o campo "Procurar nas peças…" (`q_pecas`, só anúncios). O
+input entra no MATCH sempre entre aspas: NEAR, AND e * escritos pelo
+utilizador são texto, não operadores. E a faixa diz a verdade: a
+pesquisa só olha para os anúncios com peças trazidas e com texto (17
+hoje) — parecer que pesquisa a base toda seria mentir com uma caixa de
+texto. Bónus do tokenizador (unicode61 + remove_diacritics): acentos e
+maiúsculas certos sem o defeito do LIKE. "penalidades" acha 13,
+"alvará" 2, a 0 ms.
+
+### B10 — seguir entidades
+
+Botão "Seguir esta entidade" na ficha; os anúncios novos das seguidas
+entram no resumo diário numa secção própria, com o mesmo
+reconhecer/enviar dos alertas e o acervo marcado ao começar a seguir —
+com âmbito só dessa entidade, senão engolia as novidades por enviar das
+outras. O casamento é pelo NIPC (`anuncios.nif` = chave do corpus), sem
+comparação de nomes. Entidades sem NIF (`n:`) seguem-se… não: a ficha
+nem oferece o botão, porque não haveria aviso nenhum — oferecê-lo era
+prometer em falso. Gestão visível em `/alertas`. Contratos novos das
+seguidas ficaram de fora (o corpus é semanal e a ficha já os mostra),
+registado no BACKLOG.
+
+Testes: 402, todos verdes. O backlog da análise competitiva está
+fechado de P0 a P2; sobram os P3 (cosméticos) e o «Não fazer».
