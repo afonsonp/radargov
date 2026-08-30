@@ -13,6 +13,7 @@ Arranque:  python radar.py             painel em http://localhost:8765
            python radar.py --uma-vez   verifica e sai, para as tarefas
            python radar.py --historico N   puxa N dias de historico
            python radar.py --reler     reanalisa o texto ja guardado
+           python radar.py --descartar-expirados   arruma os por ver com prazo passado
            python radar.py --importar-cpv F   carrega o vocabulario CPV
 """
 
@@ -8727,6 +8728,35 @@ def main():
                 break
         print("%d lido(s) por inteiro." % lidos)
         return
+    if "--descartar-expirados" in sys.argv:
+        # Arruma a fila de triagem: um anuncio por ver cujo prazo ja
+        # passou deixou de ser oportunidade. So os "por ver" -- um
+        # "interessa" com prazo passado e trabalho em curso (proposta
+        # entregue, a aguardar decisao) e nao se descarta por ele. E so
+        # quem tem prazo lido: sem detalhe nao ha data para julgar.
+        hoje = datetime.now().date().isoformat()
+        with liga() as c:
+            refs = [r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios WHERE estado='novo' "
+                "AND prazo IS NOT NULL AND prazo != '' AND prazo < ?",
+                (hoje,))]
+            c.execute(
+                "UPDATE anuncios SET estado='descartado' "
+                "WHERE estado='novo' AND prazo IS NOT NULL "
+                "AND prazo != '' AND prazo < ?", (hoje,))
+            # o registo vai na mesma transaccao: 4 mil registar() avulsos
+            # eram 4 mil transaccoes, e em fundo nao ha cookie -- o quem
+            # e explicito, como no resto do trabalho fora de pedido
+            quando = datetime.now().strftime("%Y-%m-%d %H:%M")
+            c.executemany(
+                "INSERT INTO historico (ref,quem,accao,detalhe,quando) "
+                "VALUES (?,?,?,?,?)",
+                [(ref, "radar", "estado", "descartado (prazo passado)",
+                  quando) for ref in refs])
+        print("%d anúncio(s) por ver com prazo passado passaram a "
+              "descartados." % len(refs))
+        return
+
     if "--uma-vez" in sys.argv:
         mensagem, novos = verificar(cfg)
         hora = min(cfg["horas_verificacao"],
