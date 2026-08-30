@@ -29,6 +29,7 @@ python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
+python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 ```
 
 As tarefas do Windows são três (`agendar.bat`): as duas verificações
