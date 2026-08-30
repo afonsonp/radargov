@@ -2217,6 +2217,97 @@ class TestColunasDoImportador(unittest.TestCase):
                 self.assertEqual(len(cols), len(set(cols)))
 
 
+class TestFimEstimado(unittest.TestCase):
+    """B03: a vista das renovações ordena e filtra pelo fim estimado
+    (celebração + prazo em dias). O dump traz prazos absurdos — há um de
+    365 milhões de dias — e datas em falta: nesses casos a resposta é
+    "", nunca uma data inventada nem uma excepção a meio da importação.
+    """
+
+    def test_conta_em_dias(self):
+        self.assertEqual(radar.fim_estimado("2020-10-21", 672), "2022-08-24")
+
+    def test_sem_prazo_ou_sem_data_nao_ha_estimativa(self):
+        self.assertEqual(radar.fim_estimado("2020-10-21", 0), "")
+        self.assertEqual(radar.fim_estimado("2020-10-21", None), "")
+        self.assertEqual(radar.fim_estimado("", 100), "")
+
+    def test_prazo_absurdo_nao_rebenta(self):
+        # 365744304 dias é o maior do dump; ano > 9999 estoura o date
+        self.assertEqual(radar.fim_estimado("2020-01-01", 365744304), "")
+
+    def test_lixo_nao_rebenta(self):
+        self.assertEqual(radar.fim_estimado("ontem", 30), "")
+        self.assertEqual(radar.fim_estimado("2020-01-01", "muito"), "")
+
+    def test_a_coluna_esta_no_importador(self):
+        # senão o INSERT posicional partia — é a regra das colunas
+        self.assertIn("fim_estimado", radar.COLS_CONTRATO)
+
+    def test_janela_so_das_oferecidas(self):
+        # o valor entra numa expressão de data do SQL: fora da lista
+        # volta à omissão, nunca à URL
+        self.assertEqual(radar.meses_pedidos({"meses": "12"}), 12)
+        self.assertEqual(radar.meses_pedidos({"meses": "7"}), 6)
+        self.assertEqual(radar.meses_pedidos({"meses": "lixo"}), 6)
+        self.assertEqual(radar.meses_pedidos({}), 6)
+
+
+class TestEscaloesDeDesconto(unittest.TestCase):
+    """B04: o desconto agrega-se por procedimento antes de dividir — a
+    média ingénua por linha dava -18,9% no corpus, porque cada lote
+    compara com a base do procedimento inteiro. Estes testes guardam a
+    parte pura: os escalões e a mediana.
+    """
+
+    def test_mediana_impar_e_par(self):
+        _, m = radar.escaloes_de_desconto([0.10, 0.20, 0.30])
+        self.assertAlmostEqual(m, 0.20)
+        _, m = radar.escaloes_de_desconto([0.10, 0.20, 0.30, 0.40])
+        self.assertAlmostEqual(m, 0.25)
+
+    def test_fronteira_cai_no_escalao_de_cima(self):
+        # 5% nao e "0–5": os cortes sao limites superiores exclusivos
+        escaloes, _ = radar.escaloes_de_desconto([0.05])
+        contagens = dict(escaloes)
+        self.assertEqual(contagens["5–10%"], 1)
+        self.assertEqual(contagens["0–5%"], 0)
+
+    def test_acima_do_ultimo_corte_vai_ao_resto(self):
+        escaloes, _ = radar.escaloes_de_desconto([0.75])
+        self.assertEqual(dict(escaloes)["50%+"], 1)
+
+    def test_vazio_nao_rebenta(self):
+        escaloes, mediana = radar.escaloes_de_desconto([])
+        self.assertEqual(escaloes, [])
+        self.assertIsNone(mediana)
+
+    def test_etiquetas_saem_dos_cortes(self):
+        escaloes, _ = radar.escaloes_de_desconto([0.01])
+        self.assertEqual(len(escaloes), len(radar.LIMITES_DESCONTO) + 1)
+
+    def test_percentagem_com_virgula(self):
+        # numeros a portuguesa, como o resto do painel
+        self.assertEqual(radar.pct_pt(0.073), "7,3%")
+        self.assertEqual(radar.pct_pt(0.5), "50,0%")
+
+    def test_a_agregacao_e_por_procedimento_e_exclui_o_ambiguo(self):
+        # o SQL tem de agrupar por n_anuncio e deitar fora os grupos com
+        # a base a variar (semantica ambigua) e a soma acima da base
+        vistos = []
+
+        class FalsaLigacao:
+            def execute(self, sql, valores):
+                vistos.append(sql)
+                return []
+
+        radar.descontos_por_procedimento(FalsaLigacao(), " WHERE 1=1", [])
+        self.assertIn("GROUP BY c.n_anuncio", vistos[0])
+        self.assertIn("MIN(c.preco_base) = MAX(c.preco_base)", vistos[0])
+        self.assertIn("SUM(c.preco_contratual) <= MAX(c.preco_base)",
+                      vistos[0])
+
+
 class TestPesquisaSemAcentos(unittest.TestCase):
     """A caixa de pesquisa perdia 11% dos resultados.
 

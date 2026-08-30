@@ -2606,6 +2606,33 @@ def iniciar_corpus():
                   "ON contratos(objecto_norm)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_adj_nome_norm "
                   "ON contrato_adjudicatario(nome_norm)")
+        # O fim estimado do contrato (celebracao + prazo em dias), em
+        # coluna e nao em expressao: e por ele que a vista das renovacoes
+        # ordena e filtra, e calcular a data em cada linha de 1,36
+        # milhoes a cada pedido nao e ordem que um indice sirva. O
+        # importador ja o traz (fim_estimado()); isto enche o corpus que
+        # veio de antes. O date() do SQLite devolve NULL para os prazos
+        # absurdos do dump (ha um de 365 milhoes de dias): fica "".
+        if "fim_estimado" not in cols:
+            c.execute("ALTER TABLE contratos ADD COLUMN fim_estimado TEXT")
+        c.execute("""UPDATE contratos SET fim_estimado = CASE
+                     WHEN data_celebracao != '' AND prazo_execucao > 0
+                     THEN COALESCE(date(data_celebracao,
+                                        '+' || prazo_execucao || ' days'), '')
+                     ELSE '' END
+                     WHERE fim_estimado IS NULL""")
+        # O `id` junto pelo mesmo motivo do ix_ctr_data: e o desempate da
+        # ordenacao, e assim o indice serve-a inteira.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_fim "
+                  "ON contratos(fim_estimado, id)")
+        # O grafico do desconto agrupa por n_anuncio so nas linhas com
+        # anuncio e com os dois precos. O indice parcial cobre a
+        # consulta inteira e poupa o varrimento da tabela: medido, 1,0 s
+        # para 0,07 no corpus todo.
+        c.execute("""CREATE INDEX IF NOT EXISTS ix_ctr_desconto ON
+                     contratos(n_anuncio, preco_base, preco_contratual)
+                     WHERE n_anuncio != '' AND preco_base > 0
+                     AND preco_contratual > 0""")
 
 
 def norma_entidade(nome):
@@ -2905,7 +2932,9 @@ def _gravar_contratos(ano, registos):
                 # nunca zero: e divisor no grafico de quem ganha
                 max(1, len(ganhadores)),
                 chave_entidade(nif, nome),
-                simplifica(objecto)))
+                simplifica(objecto),
+                fim_estimado(_data_iso(k.get("dataCelebracaoContrato")),
+                             k.get("prazoExecucao"))))
             for v in _cpv8(k.get("cpv")):
                 cpvs.append((cid, v))
             for anif, anome in ganhadores:
@@ -2919,6 +2948,27 @@ def _gravar_contratos(ano, registos):
     return n
 
 
+def fim_estimado(data_celebracao, prazo_dias):
+    """Data estimada do fim do contrato: celebracao + prazo em dias.
+
+    E o que alimenta a vista das renovacoes. "" quando nao da para
+    estimar: sem data, sem prazo, ou com um prazo absurdo do dump (ha um
+    de 365 milhoes de dias) que estourava o calendario. E estimativa e
+    di-lo na pagina -- as prorrogacoes nao constam do dump.
+    """
+    try:
+        prazo = int(prazo_dias or 0)
+    except (TypeError, ValueError):
+        return ""
+    if not data_celebracao or prazo <= 0:
+        return ""
+    try:
+        d = datetime.strptime(data_celebracao, "%Y-%m-%d").date()
+        return (d + timedelta(days=prazo)).isoformat()
+    except (ValueError, OverflowError):
+        return ""
+
+
 # As colunas de cada tabela, por ordem, e a unica fonte da verdade sobre
 # elas: o SQL e as suas interrogacoes saem daqui. Duas vezes ja se
 # acrescentou uma coluna e o INSERT posicional partiu em silencio -- com
@@ -2929,7 +2979,7 @@ COLS_CONTRATO = ("id", "ano", "n_anuncio", "tipo_procedimento", "objecto",
                  "data_publicacao", "data_celebracao", "preco_contratual",
                  "preco_base", "prazo_execucao", "local_execucao", "cpv",
                  "fundamentacao", "n_adj", "adjudicante_chave",
-                 "objecto_norm")
+                 "objecto_norm", "fim_estimado")
 COLS_CPV = ("contrato_id", "cpv8")
 COLS_ADJ = ("contrato_id", "nif", "nome", "nome_norm", "chave")
 
@@ -4131,6 +4181,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 NAV = (("anuncios", "Anúncios", "/"),
        ("alertas", "Alertas", "/alertas"),
        ("contratos", "Contratos", "/contratos"),
+       ("renovacoes", "Renovações", "/renovacoes"),
        ("quadro", "Quadro", "/quadro"),
        ("calendario", "Calendário", "/calendario"),
        ("indicadores", "Indicadores", "/indicadores"))
@@ -4983,8 +5034,15 @@ CAMPOS_POR_VISTA = {
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "de", "ate", "proc",
                  "min"),
+    # As renovacoes sao contratos vistos pelo fim e nao pelo principio:
+    # os mesmos campos, MENOS as datas de celebracao -- a pagina ja tem
+    # um eixo do tempo (a janela do fim estimado) e dois confundem. Um
+    # filtro com de/ate entra na mesma e fica marcado como parcial.
+    "renovacoes": ("q", "q_excl", "cpv", "cpv_excl", "adj", "ganhou",
+                   "proc", "min", "entid", "vencid"),
 }
-ROTA_DA_VISTA = {"anuncios": "/", "contratos": "/contratos"}
+ROTA_DA_VISTA = {"anuncios": "/", "contratos": "/contratos",
+                 "renovacoes": "/renovacoes"}
 
 
 def campos_da_vista(vista):
@@ -6071,7 +6129,10 @@ def resumo_contratos(args):
             % (escada, len(LIMITES_ESCALAO)) + onde +
             " AND c.preco_contratual > 0 GROUP BY e ORDER BY e",
             valores).fetchall()
-    return ganha, compra, proc, trim, escal
+        # O desconto agrega por procedimento, nao por linha -- ver
+        # descontos_por_procedimento(), que tambem diz o que fica de fora.
+        desc = descontos_por_procedimento(c, onde, valores)
+    return ganha, compra, proc, trim, escal, desc
 
 
 def entidade_do_anuncio(nif, nome):
@@ -6272,6 +6333,93 @@ def mil_pt_f(v):
     return mil_pt(int(round(v or 0)))
 
 
+# Escaloes do desconto sobre o preco base, em percentagem: cada corte e
+# o limite superior do escalao, e o ultimo apanha o resto. As etiquetas
+# constroem-se desta lista, para nao se mudar uma sem a outra.
+LIMITES_DESCONTO = (5, 10, 20, 30, 50)
+
+# Abaixo disto nao ha padrao, ha meia duzia de casos: nem o grafico nem
+# a linha da ficha aparecem.
+MINIMO_PARA_DESCONTO = 5
+
+
+def escaloes_de_desconto(descontos):
+    """([(etiqueta, quantos)], mediana) dos descontos por procedimento.
+
+    Os descontos vem em fraccao (0..1). A mediana e exacta -- os
+    conjuntos aqui sao pequenos, nao os 400 mil dos escaloes de valor.
+    """
+    if not descontos:
+        return [], None
+    ordenados = sorted(descontos)
+    meio = len(ordenados) // 2
+    mediana = (ordenados[meio] if len(ordenados) % 2
+               else (ordenados[meio - 1] + ordenados[meio]) / 2.0)
+    contagens = [0] * (len(LIMITES_DESCONTO) + 1)
+    for d in descontos:
+        for i, lim in enumerate(LIMITES_DESCONTO):
+            if 100.0 * d < lim:
+                contagens[i] += 1
+                break
+        else:
+            contagens[-1] += 1
+    etiquetas, baixo = [], 0
+    for lim in LIMITES_DESCONTO:
+        etiquetas.append("%d–%d%%" % (baixo, lim))
+        baixo = lim
+    etiquetas.append("%d%%+" % baixo)
+    return list(zip(etiquetas, contagens)), mediana
+
+
+def pct_pt(fraccao):
+    """0.073 -> '7,3%'. Virgula decimal, como o resto dos numeros."""
+    return ("%.1f" % (100.0 * fraccao)).replace(".", ",") + "%"
+
+
+def descontos_por_procedimento(c, onde, valores):
+    """Os descontos (0..1) sobre o preco base, POR PROCEDIMENTO.
+
+    Agregado por `n_anuncio` e nunca por linha: num procedimento com
+    lotes, cada linha traz o preco base do procedimento inteiro, e a
+    conta por linha compara um lote pequeno com a base toda -- a media
+    ingenua dava -18,9%% no corpus, um numero que mente (B04, validado
+    contra 20 casos a mao a 30/08/2026).
+
+    Fica de fora o que nao se sabe ler: procedimentos sem anuncio, sem
+    preco base, com a base a VARIAR entre lotes (5 388 grupos; ai a base
+    e por lote e a semantica e outra) e com a soma contratual acima da
+    base (4 275 grupos de ruido). Sobra o conjunto limpo: 97 130
+    procedimentos no corpus inteiro.
+    """
+    return [r["d"] for r in c.execute(
+        "SELECT 1.0 - SUM(c.preco_contratual)/MAX(c.preco_base) d"
+        " FROM contratos c" + onde +
+        " AND c.n_anuncio != '' AND c.preco_base > 0"
+        " AND c.preco_contratual > 0"
+        " GROUP BY c.n_anuncio"
+        " HAVING MIN(c.preco_base) = MAX(c.preco_base)"
+        " AND SUM(c.preco_contratual) <= MAX(c.preco_base)", valores)]
+
+
+def desconto_html(descontos):
+    """O grafico do desconto: por quanto abaixo do preco base se tem
+    fechado. E a versao honesta da 'previsao de preco' dos concorrentes:
+    sem numero inventado, so o que os pares base/contratual do dump
+    mostram."""
+    if len(descontos) < MINIMO_PARA_DESCONTO:
+        return ""
+    escaloes, mediana = escaloes_de_desconto(descontos)
+    linhas = [{"t": e, "v": float(k), "k": mil_pt(k)} for e, k in escaloes]
+    return barras_v(
+        linhas, "Desconto sobre o preço base",
+        "Por procedimento &mdash; os lotes somam-se antes de dividir, "
+        "senão o número mentia. Só onde o dump traz anúncio e preço base "
+        "sem ambiguidade: %s procedimento%s. Desconto mediano: <b>%s</b>."
+        % (mil_pt(len(descontos)), "" if len(descontos) == 1 else "s",
+           pct_pt(mediana)),
+        fmt=mil_pt_f, unidade="procedimentos")
+
+
 def concentracao_html(ganha):
     """Quanto do mercado levam os maiores.
 
@@ -6369,7 +6517,8 @@ def trimestre_de(quando):
     return "%s T%d" % (quando.year, (quando.month + 2) // 3)
 
 
-def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None):
+def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
+             unidade="contratos"):
     """Barras verticais para o tempo, como as dos indicadores.
 
     O `parcial` e o periodo que ainda esta a decorrer: desenha-se as
@@ -6389,10 +6538,10 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None):
                            " destaque" if realce else ""))
         cols.append(
             "<div class='col%s'><span class='v'>%s</span>"
-            "<div class='b' style='height:%.1f%%' title='%s contratos%s'>"
+            "<div class='b' style='height:%.1f%%' title='%s %s%s'>"
             "</div><span class='l'>%s</span></div>"
             % (classes, fmt(l["v"]),
-               max(2.0, 100.0 * l["v"] / maior), l["k"],
+               max(2.0, 100.0 * l["v"] / maior), l["k"], unidade,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
@@ -6415,7 +6564,7 @@ def contratos_resumo():
     """
     if not ha_corpus():
         return Response("", mimetype="text/html")
-    ganha, compra, proc, trim, escal = resumo_contratos(request.args)
+    ganha, compra, proc, trim, escal, desc = resumo_contratos(request.args)
     if not proc:
         return Response("<div class='nota'>Nada a resumir neste filtro.</div>",
                         mimetype="text/html")
@@ -6432,6 +6581,7 @@ def contratos_resumo():
                  "anúncio &mdash; não era concorrível."),
         concentracao_html(ganha),
         escaloes_html(escal),
+        desconto_html(desc),
         evolucao_html(trim),
     ]
     return Response("".join(partes), mimetype="text/html")
@@ -7005,6 +7155,225 @@ def contratos():
         titulo_aba="Contratos, Radar de Concursos")
 
 
+# ---------------------------------------------------- separador renovacoes
+#
+# Contratos vistos pelo fim e nao pelo principio: o que esta a acabar no
+# meu mercado vai provavelmente voltar a concurso, e quem chega antes do
+# anuncio chega a horas. E a pergunta que a Armilar vende como "Previsão
+# de Contratos" (modulo de primeira linha) e a SpotGov como "Pipeline
+# Radar" -- ver CONCORRENTES.md e o B03 do BACKLOG.md.
+#
+# O fim e ESTIMADO: celebracao + prazo de execucao do dump. As
+# prorrogacoes e as cessacoes antecipadas nao constam do IMPIC, e a
+# pagina di-lo em vez de fingir precisao.
+
+# Janelas oferecidas, em meses. Whitelist: o valor entra numa expressao
+# de data do SQL, e fora desta lista volta a omissao.
+MESES_RENOVACOES = (3, 6, 12, 24)
+
+
+def meses_pedidos(args):
+    """A janela pedida, so se for uma das oferecidas; 6 por omissao."""
+    try:
+        m = int(args.get("meses", 6))
+    except (TypeError, ValueError):
+        return 6
+    return m if m in MESES_RENOVACOES else 6
+
+
+@app.route("/renovacoes")
+def renovacoes():
+    if not ha_corpus():
+        return sem_corpus_html("Renovações")
+
+    # A pergunta vem primeiro, como nos contratos: 81 mil contratos
+    # terminam nos proximos 6 meses, e sem CPV ou entidade a lista nao
+    # responde a nada.
+    ha_pergunta = any((request.args.get(campo) or "").strip()
+                      for campo in campos_da_vista("renovacoes"))
+    meses = meses_pedidos(request.args)
+
+    # A janela vai por interpolacao e nao por parametro, mas so depois da
+    # whitelist: `meses` e um dos MESES_RENOVACOES, nunca texto da URL.
+    onde, valores = condicoes_contratos(request.args)
+    onde += (" AND c.fim_estimado >= date('now')"
+             " AND c.fim_estimado <= date('now', '+%d months')" % meses)
+
+    correspondem = valor = 0
+    paginas = pagina = 1
+    linhas = []
+    with liga_corpus() as c:
+        if ha_pergunta:
+            resumo = c.execute(
+                "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
+                "FROM contratos c" + onde, valores).fetchone()
+            correspondem, valor = resumo["n"], resumo["v"]
+            paginas = max(1, -(-correspondem // POR_PAGINA))
+            pagina = min(max(1, pagina_pedida(request.args)), paginas)
+            # O mesmo padrao dos contratos: primeiro as 20 linhas, so
+            # depois os nomes -- subconsultas antes do LIMIT eram a
+            # armadilha dos 45 segundos.
+            linhas = c.execute(
+                "WITH pag AS (SELECT c.* FROM contratos c" + onde +
+                " ORDER BY c.fim_estimado, c.id LIMIT ? OFFSET ?)"
+                " SELECT p.*, COALESCE(e.nome, p.adjudicante) adj_nome,"
+                " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
+                "  FROM contrato_adjudicatario a"
+                "  LEFT JOIN entidades g ON g.chave=a.chave"
+                "  WHERE a.contrato_id=p.id) ganhou,"
+                " (SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a"
+                "  WHERE a.contrato_id=p.id) ganhou_ch"
+                " FROM pag p LEFT JOIN entidades e"
+                "  ON e.chave=p.adjudicante_chave"
+                " ORDER BY p.fim_estimado, p.id",
+                valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
+        procs = [r["p"] for r in c.execute(
+            "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
+            "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
+        # O fim da janela vem do mesmo relogio que a filtra: e o date()
+        # do SQLite que define "+N meses", nao uma conta de dias a parte
+        # que dissesse outra data no cabecalho.
+        fim_janela = c.execute("SELECT date('now', '+%d months') f"
+                               % meses).fetchone()["f"]
+    with liga() as c:
+        n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
+
+    def v(nome):
+        return html.escape(request.args.get(nome, ""), quote=True)
+
+    proc_actual = (request.args.get("proc") or "").strip()
+    opcoes_proc = ["<option value=''>todos os procedimentos</option>"]
+    for p in procs:
+        opcoes_proc.append("<option value='%s'%s>%s</option>"
+                           % (html.escape(p, quote=True),
+                              " selected" if p == proc_actual else "",
+                              html.escape(p)))
+    opcoes_meses = "".join(
+        "<option value='%d'%s>terminam em %d meses</option>"
+        % (m, " selected" if m == meses else "", m)
+        for m in MESES_RENOVACOES)
+
+    filtros = (
+        "<form class='cx filtros' method='get' action='/renovacoes'>"
+        "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
+        "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
+        "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…'>"
+        "<input type='text' name='ganhou' value='%s' placeholder='Quem tem o contrato…'>"
+        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+        "<input type='text' name='cpv_excl' value='%s' "
+        "placeholder='Excluir CPV…' "
+        "style='min-width:0;width:130px;flex:none'>"
+        "<select name='proc'>%s</select>"
+        "<select name='meses'>%s</select>"
+        "<label>desde</label><input type='text' name='min' value='%s' "
+        "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
+        "<button type='submit'>Filtrar</button>"
+        "<a class='limpar' href='/renovacoes'>limpar</a>"
+        "</form>"
+        % (v("q"), v("q_excl"), v("adj"), v("ganhou"), v("cpv"),
+           v("cpv_excl"), "".join(opcoes_proc), opcoes_meses, v("min")))
+
+    # As mesmas faixas dos contratos: o CPV activo (o campo e escondido)
+    # e as entidades opacas da URL, ditas por nome.
+    faixas = []
+    cpv_actual = (request.args.get("cpv") or "").strip()
+    if cpv_actual:
+        sem = args_da_lista(request.args, cpv="")
+        faixas.append("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
+                      "<a href='/renovacoes?%s'>tirar</a></div>"
+                      % (html.escape(cpv_actual), urlencode(sem)))
+    for campo, papel in (("entid", "adjudicadas por"),
+                         ("vencid", "detidas por")):
+        valor_ent = (request.args.get(campo) or "").strip()
+        if not valor_ent:
+            continue
+        with liga_corpus() as c:
+            r = c.execute("SELECT nome FROM entidades WHERE chave=?",
+                          (valor_ent,)).fetchone()
+        sem = args_da_lista(request.args, **{campo: ""})
+        faixas.append("<div class='cpv-activo'>Só as %s <b>%s</b>"
+                      "<a href='/entidade/%s'>ficha</a>"
+                      "<a href='/renovacoes?%s'>tirar</a></div>"
+                      % (papel, html.escape(r["nome"] if r else valor_ent),
+                         quote(valor_ent, safe=""), urlencode(sem)))
+
+    hoje = datetime.now().date()
+    if linhas:
+        corpo = []
+        for l in linhas:
+            try:
+                dias = (datetime.strptime(l["fim_estimado"], "%Y-%m-%d").date()
+                        - hoje).days
+                falta = ("hoje" if dias <= 0 else
+                         "em %s dia%s" % (mil_pt(dias), "" if dias == 1 else "s"))
+            except ValueError:
+                falta = ""
+            nomes = (l["ganhou"] or "").split("|")
+            chaves = (l["ganhou_ch"] or "").split("|")
+            venceu = " + ".join(liga_entidade(ch, n)
+                                for n, ch in zip(nomes, chaves) if n) or "—"
+            corpo.append(
+                "<tr><td class='d'><b>%s</b><br><span class='nota'>%s</span></td>"
+                "<td class='o'>%s</td><td>%s</td><td class='g'>%s</td>"
+                "<td class='d'>%s</td><td class='p'>%s</td></tr>"
+                % (data_pt(l["fim_estimado"]), falta,
+                   html.escape(corta(l["objecto"], 150)),
+                   liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
+                   venceu, data_pt(l["data_celebracao"]),
+                   euros(l["preco_contratual"])))
+        tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
+                  "<thead><tr><th>Fim estimado</th><th>Objecto</th>"
+                  "<th>Entidade</th><th>Quem tem o contrato</th>"
+                  "<th>Celebrado</th><th class='p'>Preço</th></tr></thead>"
+                  "<tbody>%s</tbody></table></div>" % "".join(corpo))
+    elif ha_pergunta:
+        tabela = ("<div class='vazio'>Nada deste filtro termina nos "
+                  "próximos %d meses. <a href='/renovacoes'>limpar</a>"
+                  "</div>" % meses)
+    else:
+        tabela = ("<div class='vazio comecar'>"
+                  "<b>De que mercado queres ver os fins de contrato?</b>"
+                  "<span>Escolhe um CPV na árvore ou escreve uma entidade: "
+                  "a lista mostra os contratos desse mercado que terminam "
+                  "na janela, do mais próximo para o mais distante. Um "
+                  "contrato a acabar volta muitas vezes a concurso &mdash; "
+                  "quem o vê antes do anúncio prepara-se com tempo.</span>"
+                  "</div>")
+
+    if ha_pergunta:
+        conta = ("Do fim mais próximo para o mais distante &middot; "
+                 "%s contrato%s a terminar até %s &middot; <b>%s</b> no total"
+                 % (mil_pt(correspondem), "" if correspondem == 1 else "s",
+                    data_pt(fim_janela), euros(valor)))
+        if correspondem > len(linhas):
+            conta += (" &middot; página %s de %s"
+                      % (mil_pt(pagina), mil_pt(paginas)))
+        linha_conta = "<div class='linha-conta'>%s</div>" % conta
+    else:
+        linha_conta = ""
+
+    nota_estimativa = (
+        "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
+        "data de celebração mais o prazo de execução declarado ao IMPIC. "
+        "Prorrogações e cessações antecipadas não constam do dump &mdash; "
+        "confirma antes de contar com a data.</div>")
+
+    conteudo = ("<div class='larg'>" + filtros + "".join(faixas) +
+                arvore_html(n_cpv, "contratos") +
+                caixa_de_filtros(request.args, "renovacoes") +
+                linha_conta + tabela +
+                paginador(pagina, paginas, request.args, "/renovacoes") +
+                (nota_estimativa if ha_pergunta else "") + "</div>")
+
+    return envolver(
+        "renovacoes", "Renovações",
+        "Contratos do corpus que estão a chegar ao fim &mdash; o que deve "
+        "voltar a concurso no teu mercado, visto antes do anúncio.",
+        conteudo, script=ARVORE_JS,
+        migalhas=migalhas_de("renovacoes"),
+        titulo_aba="Renovações, Radar de Concursos")
+
+
 # -------------------------------------------------------- ficha do anuncio
 
 def descricoes_cpv(campo_cpv):
@@ -7314,6 +7683,21 @@ def euros_do_texto(texto):
         return None
 
 
+def descontos_da_entidade(chave, cpv):
+    """Os descontos por procedimento desta entidade neste CPV, para a
+    linha da ficha do anuncio. A mesma agregacao (e as mesmas exclusoes)
+    de descontos_por_procedimento()."""
+    prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
+    if not (chave and prefixos and ha_corpus()):
+        return []
+    onde = (" WHERE c.adjudicante_chave=? AND "
+            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+            % " OR ".join("cpv8 LIKE ?" for _ in prefixos))
+    with liga_corpus() as c:
+        return descontos_por_procedimento(
+            c, onde, [chave] + [p + "%" for p in prefixos])
+
+
 def referencia_de_preco(chave, cpv, limite=200):
     """Como e que esta entidade tem fechado contratos neste CPV.
 
@@ -7592,6 +7976,19 @@ def mercado(a):
             "entidade neste CPV. O preço contratual é o de partida, não o "
             "valor final &mdash; adicionais não entram.</div></div>"
             % (comparacao, escada, mil_pt(r["quantos"])))
+
+    # O desconto com que esta entidade tem fechado neste CPV -- por
+    # procedimento e nao por linha (B04). Diz por quanto abaixo do preco
+    # base os vencedores tem levado, que e o que se quer saber antes de
+    # pensar o preco da proposta.
+    descs = descontos_da_entidade(chave, a["cpv"])
+    if len(descs) >= MINIMO_PARA_DESCONTO:
+        _, med = escaloes_de_desconto(descs)
+        ref_preco += (
+            "<div class='nota' style='margin-top:8px'>Desconto mediano "
+            "face ao preço base, nesta entidade e CPV: <b>%s</b> &mdash; "
+            "sobre %s procedimentos com anúncio e preço base no corpus."
+            "</div>" % (pct_pt(med), mil_pt(len(descs))))
 
     return _mercado_cx(
         resumo,
