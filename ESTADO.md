@@ -2809,3 +2809,30 @@ O sítio certo é a **ficha do anúncio**, depois de as peças virem:
   excerto, não uma citação ao carácter.
 
 Testes: 413, todos verdes.
+
+## A pesquisa nas peças foi retirada, 30 de agosto de 2026
+
+O Afonso experimentou a caixa na ficha e decidiu retirar a função, e o
+argumento é melhor do que a função era: **as peças só existem depois de
+marcar "interessa" ou de as pedir à mão** — ou seja, quando há peças
+para pesquisar, a decisão que a pesquisa ajudaria a tomar já foi
+tomada. Nem na lista (onde cobria 17 anúncios em 66 mil) nem na ficha a
+função pagava o ecrã que ocupava. Saiu tudo: a caixa, o motor
+(`pesquisa_nas_pecas`, `excerto_de`, `termos_fts`, `ha_fts`) e o índice
+FTS da base (o `iniciar_db()` faz a limpeza, idempotente). Há um teste
+a impedir o regresso acidental de meio motor esquecido.
+
+O que se aproveita do trabalho: as marcas de página do B12 no extractor
+(eram partilhadas e continuam a servir as fontes com página) e o
+registo, no BACKLOG, da versão que o Afonso disse que valeria a pena —
+**ver o próprio PDF dentro da aplicação, com pesquisa lá dentro** — com
+a decisão explícita de não avançar já. Quando for pedida, o caminho
+barato é servir o PDF de `documentos/` num visualizador embebido, que o
+do browser já traz o Ctrl+F.
+
+Nota para a próxima vez: entre implementar e retirar passaram-se umas
+horas. O custo pequeno confirma a regra de construir fino primeiro —
+mas a lição verdadeira é que o B09 tinha o aviso no próprio backlog
+("cobertura parcial que exige comunicação honesta") e o que a cobertura
+parcial pedia não era comunicação, era outra pergunta: "para que serve
+pesquisar no que só existe depois de decidir?". Testes: 405, verdes.
