@@ -949,6 +949,57 @@ def ler_detalhes(limite=40, dias=None):
     return feitos, ""
 
 
+# O DR publica rectificacoes como ANUNCIOS NOVOS, com o original citado
+# no titulo ("Retificação ao Anúncio de procedimento n.º 19900/2026").
+# Medido a 30/08/2026: 6 em dois anos, 4 com o ref extraivel. Anulacoes
+# nao tem formato nenhum (3 titulos em texto livre em dois anos) e ficam
+# de fora -- ver BACKLOG.md.
+PADRAO_RETIFICACAO = re.compile(
+    r"retifica[cç][aã]o\s+(?:a|ao|do)\s+an[uú]ncio[^0-9]*?(\d+/\d{4})",
+    re.I)
+
+
+def ligar_retificacoes():
+    """Liga as rectificacoes ao anuncio original (B05).
+
+    A releitura dos marcados nao as via: uma rectificacao e um ref novo,
+    nao uma republicacao. Fica no historico do original sempre; entra na
+    fila do resumo so quando o original esta marcado -- o resto e ruido.
+    Idempotente pelo proprio historico.
+    """
+    with liga() as c:
+        candidatos = c.execute(
+            "SELECT ref, titulo FROM anuncios "
+            "WHERE titulo_norm LIKE '%retificacao%anuncio%'").fetchall()
+    ligadas = 0
+    for r in candidatos:
+        m = PADRAO_RETIFICACAO.search(r["titulo"] or "")
+        if not m:
+            continue
+        alvo = m.group(1)
+        with liga() as c:
+            original = c.execute(
+                "SELECT estado, fase_id FROM anuncios WHERE ref=?",
+                (alvo,)).fetchone()
+            ja = c.execute(
+                "SELECT 1 FROM historico WHERE ref=? AND accao='rectificado'"
+                " AND detalhe LIKE ?",
+                (alvo, "%" + r["ref"] + "%")).fetchone()
+        if not original or ja:
+            continue
+        registar(alvo, "rectificado", "pelo anúncio %s" % r["ref"],
+                 quem="DR")
+        if original["estado"] == "interessa" or original["fase_id"]:
+            with liga() as c:
+                c.execute(
+                    "INSERT INTO alteracoes (ref, campo, antes, depois,"
+                    " detectado_em) VALUES (?,?,?,?,?)",
+                    (alvo, "retificacao", "", r["ref"],
+                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+        ligadas += 1
+    return ligadas
+
+
 def reler_marcados(limite=25):
     """Rele o detalhe dos anuncios MARCADOS com prazo aberto (B05).
 
@@ -2456,10 +2507,14 @@ def texto_do_resumo(achados, alteradas=()):
             linhas.append("  %s" % (primeiro["titulo"] or "(sem titulo)")[:88])
             linhas.append("    %s" % (primeiro["entidade"] or "")[:80])
             for x in mudancas:
-                linhas.append("    %s: %s -> %s"
-                              % (rotulos.get(x["campo"], x["campo"]),
-                                 _valor_vigiado(x["campo"], x["antes"]),
-                                 _valor_vigiado(x["campo"], x["depois"])))
+                if x["campo"] == "retificacao":
+                    linhas.append("    rectificado pelo anúncio %s"
+                                  % x["depois"])
+                else:
+                    linhas.append("    %s: %s -> %s"
+                                  % (rotulos.get(x["campo"], x["campo"]),
+                                     _valor_vigiado(x["campo"], x["antes"]),
+                                     _valor_vigiado(x["campo"], x["depois"])))
             linhas.append("    http://localhost:%d/anuncio/%s"
                           % (PORTA, quote(ref, safe="")))
             linhas.append("")
@@ -2587,6 +2642,9 @@ def verificar(cfg=None, passo=None):
         diz("a reler os anúncios marcados, à procura de alterações")
         try:
             reler_marcados(int(cfg.get("relidos_por_volta", 25)))
+            # As rectificacoes chegam como anuncios novos: liga-as ao
+            # original pelo titulo. Barato (so titulos) e idempotente.
+            ligar_retificacoes()
         except (sqlite3.Error, OSError) as erro:
             print("aviso: a releitura dos marcados falhou (%s)" % erro)
     # Os avisos correm depois de ler os detalhes: um filtro por CPV so
@@ -3430,21 +3488,29 @@ def condicoes_contratos(args):
     """
     onde, valores = ["1=1"], []
 
-    def procura(texto, coluna, norma=simplifica):
+    def frag_texto(texto, coluna, norma=simplifica):
         # Nas colunas normalizadas e com o termo normalizado do mesmo
         # modo, como na condicoes(): o LIKE do SQLite nao baixa o "Ç", e
         # o IMPIC escreve muitos objectos todos em maiusculas. Medido:
         # procurar "aquisição" no objecto cru perdia 68 295 contratos
         # (11,8%) sem aviso nenhum -- o mesmo defeito ja pago nos
         # anuncios, vivo no separador onde se estuda a concorrencia.
+        # Devolve (fragmento, valores) sem tocar no onde, pela mesma
+        # razao da condicoes(): o op=ou junta-o ao do CPV.
         pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
         if not pedacos:
-            return
-        ors = []
+            return "", []
+        ors, vals = [], []
         for p in pedacos:
             ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-            valores.append("%" + para_like(norma(p)) + "%")
-        onde.append("(" + " OR ".join(ors) + ")")
+            vals.append("%" + para_like(norma(p)) + "%")
+        return "(" + " OR ".join(ors) + ")", vals
+
+    def procura(texto, coluna, norma=simplifica):
+        frag, vals = frag_texto(texto, coluna, norma)
+        if frag:
+            onde.append(frag)
+            valores.extend(vals)
 
     def exclui(texto, coluna, norma=simplifica):
         # a procura() invertida, com o mesmo COALESCE da condicoes(): um
@@ -3463,7 +3529,25 @@ def condicoes_contratos(args):
     # (norma_entidade): e ela que enche adjudicante_norm e nome_norm, e e
     # ela que troca o "&" por " e " -- procurar "Ramos & Filhos" so
     # encontra "ramos e filhos" se o termo levar o mesmo caminho.
-    procura(args.get("q"), "c.objecto_norm")
+    #
+    # O op=ou junta o objecto ao CPV, como na condicoes() (B07).
+    frag_q, vals_q = frag_texto(args.get("q"), "c.objecto_norm")
+    prefixos_cpv = [p for p in (prefixo_cpv(x)
+                                for x in (args.get("cpv") or "").split("|"))
+                    if p]
+    if prefixos_cpv:
+        frag_c = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+                  % " OR ".join("cpv8 LIKE ?" for _ in prefixos_cpv))
+        vals_c = [p + "%" for p in prefixos_cpv]
+    elif (args.get("cpv") or "").strip():
+        frag_c, vals_c = "1=0", []    # codigo sem prefixo: vazio, nao tudo
+    else:
+        frag_c, vals_c = "", []
+    juntos = ((args.get("op") or "").strip() == "ou"
+              and frag_q and frag_c and frag_c != "1=0")
+    if not juntos and frag_q:
+        onde.append(frag_q)
+        valores.extend(vals_q)
     procura(args.get("adj"), "c.adjudicante_norm", norma_entidade)
     exclui(args.get("q_excl"), "c.objecto_norm")
 
@@ -3483,14 +3567,14 @@ def condicoes_contratos(args):
                                   for _ in ganhou))
         valores += ["%" + para_like(norma_entidade(p)) + "%" for p in ganhou]
 
-    prefixos = [p for p in (prefixo_cpv(x)
-                            for x in (args.get("cpv") or "").split("|")) if p]
-    if prefixos:
-        onde.append("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-                    % " OR ".join("cpv8 LIKE ?" for _ in prefixos))
-        valores += [p + "%" for p in prefixos]
-    elif (args.get("cpv") or "").strip():
-        onde.append("1=0")            # codigo que nao da prefixo: vazio, nao tudo
+    if juntos:
+        onde.append("(%s OR %s)" % (frag_q, frag_c))
+        valores.extend(vals_q)
+        valores.extend(vals_c)
+    elif frag_c and not ((args.get("op") or "").strip() == "ou"
+                         and frag_q and frag_c == "1=0"):
+        onde.append(frag_c)
+        valores.extend(vals_c)
 
     # A exclusao por CPV, com o mesmo NOT IN sobre a tabela filha do
     # filtro positivo. Um codigo que nao da prefixo nao exclui nada --
@@ -5081,6 +5165,7 @@ def painel():
         "<input type='text' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:150px;flex:none'>"
+        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
         "<select name='plat'>%s</select>"
         "<select name='prazo'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
@@ -5094,6 +5179,7 @@ def painel():
            html.escape(request.args.get("ent", ""), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
+           opcoes_op(request.args),
            "".join(opcoes_plat), opcoes_prazo,
            html.escape(request.args.get("de", ""), quote=True),
            html.escape(request.args.get("ate", ""), quote=True),
@@ -5191,6 +5277,7 @@ def para_like(termo):
 # e cada pagina aplica os que entende -- por isso um filtro por CPV
 # serve os anuncios, os contratos e a ficha de uma entidade.
 CAMPOS_FILTRO = ("q", "q_excl", "cpv", "cpv_excl",   # entendem-nos todos
+                 "op",                               # E/OU entre q e cpv
                  "de", "ate",
                  "ent", "plat", "estado", "prazo",   # so os anuncios
                  "adj", "ganhou", "proc", "min", "entid", "vencid")
@@ -5205,17 +5292,17 @@ CAMPOS_DA_VEZ = ("pag", "aviso")
 # de fora. Aplicar "ganho por MEO" aos anuncios, onde nao ha vencedor,
 # seria alargar o filtro sem avisar.
 CAMPOS_POR_VISTA = {
-    "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "de", "ate", "ent",
+    "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "ent",
                  "plat", "estado", "prazo"),
-    "contratos": ("q", "q_excl", "cpv", "cpv_excl", "de", "ate", "adj",
+    "contratos": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "adj",
                   "ganhou", "proc", "min", "entid", "vencid"),
-    "entidade": ("q", "q_excl", "cpv", "cpv_excl", "de", "ate", "proc",
+    "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
                  "min"),
     # As renovacoes sao contratos vistos pelo fim e nao pelo principio:
     # os mesmos campos, MENOS as datas de celebracao -- a pagina ja tem
     # um eixo do tempo (a janela do fim estimado) e dois confundem. Um
     # filtro com de/ate entra na mesma e fica marcado como parcial.
-    "renovacoes": ("q", "q_excl", "cpv", "cpv_excl", "adj", "ganhou",
+    "renovacoes": ("q", "q_excl", "cpv", "cpv_excl", "op", "adj", "ganhou",
                    "proc", "min", "entid", "vencid"),
 }
 ROTA_DA_VISTA = {"anuncios": "/", "contratos": "/contratos",
@@ -5267,6 +5354,7 @@ def filtro_para(consulta, vista):
 # rotulos das caixas dizem agora o mesmo que estes.
 _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "q_excl": "sem", "cpv_excl": "sem CPV",
+                 "op": "palavras/CPV",
                  "ent": "entidade que publica", "plat": "plataforma",
                  "prazo": "prazo",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
@@ -5292,9 +5380,21 @@ def resumo_filtro(consulta, vista=None):
             partes.append(_NOMES_ESTADO.get(valor, valor))
         elif campo == "prazo" and valor:
             partes.append(_NOMES_PRAZO.get(valor, valor))
+        elif campo == "op" and valor:
+            # "op ou" nao diz nada; a legenda diz o que o modo faz
+            partes.append("palavras OU CPV" if valor == "ou" else valor)
         elif valor:
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
+
+
+def opcoes_op(args):
+    """As duas opcoes do E/OU, com a redaccao da Tendios traduzida:
+    mais restrito / mais amplo. Igual nos formularios todos."""
+    ou = (args.get("op") or "").strip() == "ou"
+    return ("<option value=''%s>palavras E CPV — mais restrito</option>"
+            "<option value='ou'%s>palavras OU CPV — mais amplo</option>"
+            % ("" if ou else " selected", " selected" if ou else ""))
 
 
 def quantos_cpv():
@@ -5368,8 +5468,11 @@ def condicoes(args):
     """Traduz os filtros do painel em SQL. Nada e apagado, so escondido."""
     onde, valores = [], []
 
-    def procura(texto, coluna):
-        """Varias palavras separadas por | -- qualquer uma serve.
+    def frag_texto(texto, coluna):
+        """(fragmento, valores) da procura por palavras -- varias
+        separadas por |, qualquer uma serve. Nao toca no onde: quem
+        chama decide onde o fragmento entra, que e o que deixa o op=ou
+        junta-lo ao do CPV sem baralhar a ordem dos placeholders.
 
         Procura-se nas colunas normalizadas (`titulo_norm`,
         `entidade_norm`) e com o termo normalizado do mesmo modo. O LIKE
@@ -5381,12 +5484,18 @@ def condicoes(args):
         """
         pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
         if not pedacos:
-            return
-        ors = []
+            return "", []
+        ors, vals = [], []
         for p in pedacos:
             ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-            valores.append("%" + para_like(simplifica(p)) + "%")
-        onde.append("(" + " OR ".join(ors) + ")")
+            vals.append("%" + para_like(simplifica(p)) + "%")
+        return "(" + " OR ".join(ors) + ")", vals
+
+    def procura(texto, coluna):
+        frag, vals = frag_texto(texto, coluna)
+        if frag:
+            onde.append(frag)
+            valores.extend(vals)
 
     def exclui(texto, coluna):
         """Como procura(), invertida: o que corresponder fica de fora.
@@ -5405,22 +5514,15 @@ def condicoes(args):
             valores.append("%" + para_like(simplifica(p)) + "%")
         onde.append("NOT (" + " OR ".join(ors) + ")")
 
-    # Duas caixas, e nao uma sobre as duas colunas: procurar "Lisboa"
-    # devolvia tanto os concursos com Lisboa no objecto como todos os da
-    # Camara de Lisboa, sem se poder separar. Entre elas e E, nao OU --
-    # serve para "software" na entidade "SPMS".
-    procura(args.get("q"), "titulo_norm")
-    procura(args.get("ent"), "entidade_norm")
-    # A exclusao por palavras: "vigilancia" sem "videovigilancia". Tres
-    # dos quatro concorrentes observados tem-na (ver CONCORRENTES.md), e
-    # sem ela um filtro largo obriga a descartar o mesmo ruido a mao
-    # todas as semanas.
-    exclui(args.get("q_excl"), "titulo_norm")
-    cpv = (args.get("cpv") or "").strip()
-    if cpv:
-        # cada pedaco e um codigo (72, 72267100-0) ou uma palavra da
-        # descricao oficial (software, manutencao); qualquer um serve
-        ors = []
+    def frag_cpv(texto):
+        """(fragmento, valores) do filtro por CPV. Cada pedaco e um
+        codigo (72, 72267100-0) ou uma palavra da descricao oficial
+        (software, manutencao); qualquer um serve. Um termo que nao
+        corresponde a nada da "1=0": mostra vazio, nao tudo."""
+        cpv = (texto or "").strip()
+        if not cpv:
+            return "", []
+        ors, vals = [], []
         for pedaco in (p.strip() for p in cpv.split("|")):
             if not pedaco:
                 continue
@@ -5431,9 +5533,40 @@ def condicoes(args):
             for prefixo in prefixos:
                 if prefixo:
                     ors.append("(cpv LIKE ? OR cpv LIKE ?)")
-                    valores += [prefixo + "%", "%, " + prefixo + "%"]
-        # termo que nao corresponde a nada: mostra vazio, nao tudo
-        onde.append("(" + " OR ".join(ors) + ")" if ors else "1=0")
+                    vals += [prefixo + "%", "%, " + prefixo + "%"]
+        return ("(" + " OR ".join(ors) + ")" if ors else "1=0"), vals
+
+    # Duas caixas, e nao uma sobre as duas colunas: procurar "Lisboa"
+    # devolvia tanto os concursos com Lisboa no objecto como todos os da
+    # Camara de Lisboa, sem se poder separar. Entre elas e E, nao OU --
+    # serve para "software" na entidade "SPMS".
+    #
+    # Entre as palavras e o CPV, o op escolhe (B07): por omissao E
+    # (pesquisa mais restrita); com op=ou, OU (mais ampla) -- e a
+    # traducao da Tendios para humano. Um CPV que nao corresponde a nada
+    # no modo OU nao acrescenta nada, em vez de esvaziar o lado das
+    # palavras com um 1=0.
+    frag_q, vals_q = frag_texto(args.get("q"), "titulo_norm")
+    frag_c, vals_c = frag_cpv(args.get("cpv"))
+    juntos = ((args.get("op") or "").strip() == "ou"
+              and frag_q and frag_c and frag_c != "1=0")
+    if not juntos and frag_q:
+        onde.append(frag_q)
+        valores.extend(vals_q)
+    procura(args.get("ent"), "entidade_norm")
+    # A exclusao por palavras: "vigilancia" sem "videovigilancia". Tres
+    # dos quatro concorrentes observados tem-na (ver CONCORRENTES.md), e
+    # sem ela um filtro largo obriga a descartar o mesmo ruido a mao
+    # todas as semanas.
+    exclui(args.get("q_excl"), "titulo_norm")
+    if juntos:
+        onde.append("(%s OR %s)" % (frag_q, frag_c))
+        valores.extend(vals_q)
+        valores.extend(vals_c)
+    elif frag_c and not ((args.get("op") or "").strip() == "ou"
+                         and frag_q and frag_c == "1=0"):
+        onde.append(frag_c)
+        valores.extend(vals_c)
     cpv_ex = (args.get("cpv_excl") or "").strip()
     if cpv_ex:
         # a mesma leitura do campo positivo -- codigos ou palavras da
@@ -5871,13 +6004,28 @@ def _linha_filtro(f):
         aplicar.append("<a href='/contratos?%s'>contratos%s</a>"
                        % (html.escape(onde_c, quote=True),
                           " (parcial)" if fora_contratos else ""))
+    # A taxa de acerto (B06), como a Tendios mostra na ficha do alerta:
+    # em que estados acabou o que este filtro marcou. So conta os
+    # triados -- por ver ainda nao e opiniao -- e so aparece quando ha
+    # historia que chegue para dizer alguma coisa.
+    triagem = ""
+    marcou = (f["interessou"] or 0) + (f["descartou"] or 0) + (f["por_triar"] or 0)
+    if marcou:
+        triados = (f["interessou"] or 0) + (f["descartou"] or 0)
+        taxa = (" &middot; acerto <b>%s</b>" % pct_pt(f["interessou"] / triados)
+                if triados else " &middot; ainda nada triado")
+        triagem = ("<span class='onde'>dos %s que marcou: %s interessa "
+                   "&middot; %s descartados &middot; %s por ver%s</span>"
+                   % (mil_pt(marcou), mil_pt(f["interessou"] or 0),
+                      mil_pt(f["descartou"] or 0), mil_pt(f["por_triar"] or 0),
+                      taxa))
     return (
         "<div class='alerta %s'>"
         "<form method='post' action='/alertas/%d/trocar'>"
         "<button type='submit' class='interruptor %s' title='%s'><i></i>"
         "</button></form>"
         "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
-        "<span class='onde'>aplicar a: %s</span></div>"
+        "<span class='onde'>aplicar a: %s</span>%s</div>"
         "<div class='conta'>%s</div>"
         "<form method='post' action='/filtros/%d/apagar' "
         "onsubmit='return confirm(\"Apagar o filtro &quot;%s&quot;? "
@@ -5890,6 +6038,7 @@ def _linha_filtro(f):
            html.escape(f["nome"]),
            html.escape(resumo_filtro(f["consulta"] or "")),
            " &middot; ".join(aplicar) or "sem campos",
+           triagem,
            ("<span class='avisa-mal'>não avisa: nada aqui é sobre "
             "anúncios</span>" if ligado and not onde else
             "<b>%s</b> por avisar &middot; %s avisados &middot; %s do acervo%s"
@@ -5968,7 +6117,19 @@ def alertas():
             "(SELECT COUNT(*) FROM alertas_vistos v WHERE v.filtro_id=f.id "
             " AND v.enviado_em = ?) acervo, "
             "(SELECT COUNT(*) FROM alertas_vistos v WHERE v.filtro_id=f.id "
-            " AND v.enviado_em IS NOT NULL AND v.enviado_em != ?) avisados "
+            " AND v.enviado_em IS NOT NULL AND v.enviado_em != ?) avisados, "
+            # A taxa de acerto (B06): em que estados acabou o que o
+            # alerta marcou. E o unico sinal de que um alerta esta mal
+            # afinado -- muitos descartados e poucos interessa.
+            "(SELECT COUNT(*) FROM alertas_vistos v JOIN anuncios a "
+            " ON a.ref=v.ref WHERE v.filtro_id=f.id "
+            " AND a.estado='interessa') interessou, "
+            "(SELECT COUNT(*) FROM alertas_vistos v JOIN anuncios a "
+            " ON a.ref=v.ref WHERE v.filtro_id=f.id "
+            " AND a.estado='descartado') descartou, "
+            "(SELECT COUNT(*) FROM alertas_vistos v JOIN anuncios a "
+            " ON a.ref=v.ref WHERE v.filtro_id=f.id "
+            " AND a.estado='novo') por_triar "
             "FROM filtros_guardados f "
             "ORDER BY f.alerta DESC, f.nome COLLATE NOCASE",
             (ACERVO, ACERVO)).fetchall()
@@ -6038,6 +6199,7 @@ def alertas():
         "placeholder='CPV — escolhe na árvore aqui em baixo'>"
         "<input type='text' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV — escreve os códigos…'>"
+        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que "
         "publica (anúncios)…'>"
         "<input type='text' name='adj' value='%s' placeholder='Entidade que "
@@ -6056,7 +6218,7 @@ def alertas():
         "<button type='submit'>Criar filtro</button>"
         "</form>%s</div>"
         % (pv("nome"), pv("q"), pv("q_excl"), pv("cpv"), pv("cpv_excl"),
-           pv("ent"), pv("adj"), pv("ganhou"),
+           opcoes_op(request.args), pv("ent"), pv("adj"), pv("ganhou"),
            "".join(["<option value=''>plataforma: qualquer uma "
                     "(anúncios)</option>"]
                    + ["<option value='%s'%s>%s</option>"
@@ -6150,7 +6312,7 @@ def alerta_criar():
     if not nome:
         return recusa("O filtro precisa de nome.")
     consulta = urlencode(pares)
-    if not [k for k, v in pares if v and k != "estado"]:
+    if not [k for k, v in pares if v and k not in ("estado", "op")]:
         return recusa("Preenche pelo menos um campo além do estado.")
     havia = gravar_filtro(nome, consulta)
     return redirect("/alertas?aviso=" +
@@ -6362,7 +6524,8 @@ def filtro_da_ficha(args):
 
 
 def ha_filtro_na_ficha(args):
-    return any((args.get(campo) or "").strip() for campo in CAMPOS_FICHA)
+    return any((args.get(campo) or "").strip() for campo in CAMPOS_FICHA
+               if campo != "op")
 
 
 def ficha_entidade(chave, args=None):
@@ -7128,8 +7291,11 @@ def contratos():
     # a ninguem -- e era essa consulta que punha a pagina a 48 segundos.
     # Aqui a pergunta vem primeiro, ao contrario dos anuncios, onde a
     # lista inteira e o acervo por triar e faz sentido ve-la.
+    # O "op" nao conta como pergunta: e um modo, nao um filtro -- sozinho
+    # nao restringe nada e abria o corpus inteiro.
     ha_pergunta = any((request.args.get(campo) or "").strip()
-                      for campo in campos_da_vista("contratos"))
+                      for campo in campos_da_vista("contratos")
+                      if campo != "op")
 
     onde, valores = condicoes_contratos(request.args)
     correspondem = valor = 0
@@ -7195,6 +7361,7 @@ def contratos():
         "<input type='text' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:130px;flex:none'>"
+        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
         "<select name='proc'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
@@ -7204,7 +7371,8 @@ def contratos():
         "<a class='limpar' href='/contratos'>limpar</a>"
         "</form>"
         % (v("q"), v("q_excl"), v("adj"), v("ganhou"), v("cpv"),
-           v("cpv_excl"), "".join(opcoes), v("de"), v("ate"), v("min")))
+           v("cpv_excl"), opcoes_op(request.args), "".join(opcoes),
+           v("de"), v("ate"), v("min")))
 
     if linhas:
         corpo = []
@@ -7217,17 +7385,23 @@ def contratos():
                 liga_entidade(ch, n) for n, ch in zip(nomes, chaves)
                 if n) or "—"
             corpo.append(
-                "<tr><td class='d'>%s</td><td class='o'>%s</td>"
+                "<tr><td class='d'>%s</td><td class='d'>%s</td>"
+                "<td class='o'>%s</td>"
                 "<td>%s</td><td class='g'>%s</td><td>%s</td>"
                 "<td class='p'>%s</td></tr>"
                 % (data_pt(l["data_celebracao"]),
+                   data_pt(l["fim_estimado"], "—"),
                    html.escape(corta(l["objecto"], 150)),
                    liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
                    venceu,
                    html.escape(l["tipo_procedimento"] or ""),
                    euros(l["preco_contratual"])))
+        # O fim estimado ao lado da celebracao, como nas renovacoes: um
+        # contrato em curso le-se pelo fim, nao so pelo principio. O
+        # travessao e "sem prazo no dump", nao zero.
         tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
-                  "<thead><tr><th>Celebrado</th><th>Objecto</th>"
+                  "<thead><tr><th>Celebrado</th><th>Fim estimado</th>"
+                  "<th>Objecto</th>"
                   "<th>Entidade</th><th>Quem ganhou</th><th>Procedimento</th>"
                   "<th class='p'>Preço</th></tr></thead><tbody>%s</tbody>"
                   "</table></div>" % "".join(corpo))
@@ -7367,7 +7541,8 @@ def renovacoes():
     # terminam nos proximos 6 meses, e sem CPV ou entidade a lista nao
     # responde a nada.
     ha_pergunta = any((request.args.get(campo) or "").strip()
-                      for campo in campos_da_vista("renovacoes"))
+                      for campo in campos_da_vista("renovacoes")
+                      if campo != "op")
     meses = meses_pedidos(request.args)
 
     # A janela vai por interpolacao e nao por parametro, mas so depois da
@@ -7440,6 +7615,7 @@ def renovacoes():
         "<input type='text' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:130px;flex:none'>"
+        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
         "<select name='proc'>%s</select>"
         "<select name='meses'>%s</select>"
         "<label>desde</label><input type='text' name='min' value='%s' "
@@ -7448,7 +7624,8 @@ def renovacoes():
         "<a class='limpar' href='/renovacoes'>limpar</a>"
         "</form>"
         % (v("q"), v("q_excl"), v("adj"), v("ganhou"), v("cpv"),
-           v("cpv_excl"), "".join(opcoes_proc), opcoes_meses, v("min")))
+           v("cpv_excl"), opcoes_op(request.args), "".join(opcoes_proc),
+           opcoes_meses, v("min")))
 
     # As mesmas faixas dos contratos: o CPV activo (o campo e escondido)
     # e as entidades opacas da URL, ditas por nome.

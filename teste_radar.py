@@ -1542,6 +1542,69 @@ class TestExclusoesNoFiltro(unittest.TestCase):
                 self.assertIn("q_excl=obras", dentro)
 
 
+class TestEOuEntrePalavrasECpv(unittest.TestCase):
+    """B07: por omissão as palavras e o CPV juntam-se por E (pesquisa
+    mais restrita); com op=ou, por OU (mais ampla). A armadilha é a
+    ordem dos placeholders: juntar os dois fragmentos não pode baralhar
+    a correspondência entre os ? do SQL e a lista de valores.
+    """
+
+    def test_por_omissao_e_E(self):
+        onde, _ = radar.condicoes({"q": "software", "cpv": "72", "estado": ""})
+        # duas condições separadas, unidas por AND
+        self.assertIn(") AND (", onde)
+
+    def test_op_ou_junta_as_duas(self):
+        onde, valores = radar.condicoes(
+            {"q": "software", "cpv": "72", "op": "ou", "estado": ""})
+        self.assertIn("') OR ((cpv LIKE ?", onde)
+        # os valores das palavras vêm antes dos do CPV, como no SQL
+        self.assertEqual(valores[0], "%software%")
+        self.assertIn("72%", valores[1:])
+
+    def test_op_ou_so_com_um_lado_nao_muda_nada(self):
+        so_q = radar.condicoes({"q": "software", "estado": ""})
+        com_op = radar.condicoes({"q": "software", "op": "ou", "estado": ""})
+        self.assertEqual(so_q, com_op)
+
+    def test_op_ou_com_cpv_sem_correspondencia_fica_so_as_palavras(self):
+        # no modo OU, um CPV que não corresponde a nada não acrescenta
+        # nada — não pode esvaziar o lado das palavras com um 1=0
+        onde, _ = radar.condicoes(
+            {"q": "software", "cpv": "-", "op": "ou", "estado": ""})
+        self.assertNotIn("1=0", onde)
+        self.assertIn("%software%", radar.condicoes(
+            {"q": "software", "cpv": "-", "op": "ou", "estado": ""})[1])
+
+    def test_sem_op_o_cpv_sem_correspondencia_continua_a_esvaziar(self):
+        # o comportamento antigo não muda: em modo E, lixo dá vazio
+        onde, _ = radar.condicoes({"q": "software", "cpv": "-", "estado": ""})
+        self.assertIn("1=0", onde)
+
+    def test_nos_contratos_tambem(self):
+        onde, valores = radar.condicoes_contratos(
+            {"q": "limpeza", "cpv": "90910000", "op": "ou"})
+        self.assertIn(" OR c.id IN (SELECT contrato_id FROM contrato_cpv",
+                      onde)
+        self.assertEqual(valores[0], "%limpeza%")
+        self.assertIn("9091%", valores)   # zeros à direita: código -> grupo
+
+    def test_a_ordem_dos_valores_segue_a_dos_pontos_de_interrogacao(self):
+        # com op=ou e mais campos no meio, cada ? tem de casar com o seu
+        onde, valores = radar.condicoes(
+            {"q": "software", "ent": "camara", "cpv": "72",
+             "op": "ou", "estado": ""})
+        self.assertEqual(onde.count("?"), len(valores))
+        # a entidade vem antes do bloco (q OR cpv) no SQL — e nos valores
+        self.assertEqual(valores[0], "%camara%")
+        self.assertEqual(valores[1], "%software%")
+
+    def test_o_op_entra_na_legenda_por_palavras(self):
+        saiu = radar.resumo_filtro("q=software&cpv=72&op=ou")
+        self.assertIn("palavras OU CPV", saiu)
+        self.assertNotIn("op ou", saiu)
+
+
 class TestTermosDoTitulo(unittest.TestCase):
     """B02: os homólogos acham-se pelos termos do título no
     objecto_norm do corpus. Sem tirar o vocabulário da contratação,
@@ -1770,6 +1833,35 @@ class TestDiferencasDoDetalhe(unittest.TestCase):
                          "100,00 EUR")
 
 
+class TestPadraoDeRetificacao(unittest.TestCase):
+    """B05: o DR publica rectificações como anúncios NOVOS, com o
+    original citado no título. O padrão tem de apanhar as quatro formas
+    vistas na base — e não pode confundir 'canulação' com 'anulação',
+    que foi o falso positivo da investigação."""
+
+    def alvo(self, titulo):
+        m = radar.PADRAO_RETIFICACAO.search(titulo)
+        return m.group(1) if m else None
+
+    def test_as_formas_vistas_na_base(self):
+        for titulo, ref in (
+            ("Retificação ao Anúncio de procedimento n.º 19900/2026, "
+             "Publicado em DR", "19900/2026"),
+            ("Retificação ao Anúncio de procedimento n.º 16831/2026; "
+             "Publicado em DR", "16831/2026"),
+            ("Requalificação da USF — 2.º Procedimento — retificação "
+             "ao anúncio n.º 17682/2026", "17682/2026"),
+        ):
+            with self.subTest(titulo=titulo[:40]):
+                self.assertEqual(self.alvo(titulo), ref)
+
+    def test_titulo_normal_nao_e_rectificacao(self):
+        self.assertIsNone(self.alvo("Aquisição de sistemas de canulação "
+                                    "da via biliar - Ano 2025"))
+        self.assertIsNone(self.alvo("Empreitada de Retificação do ramal "
+                                    "de esgoto debaixo do prédio"))
+
+
 class TestResumoComAlterados(unittest.TestCase):
     """B05: os alterados entram no resumo diário numa secção própria —
     não são novidades, são mudanças a anúncios já conhecidos."""
@@ -1797,6 +1889,13 @@ class TestResumoComAlterados(unittest.TestCase):
             [], [self.alteracao(), self.alteracao(id=2, campo="preco_base",
                                                   antes="1", depois="2")])
         self.assertIn("(1)", saiu)
+
+    def test_rectificacao_diz_o_anuncio_e_nao_a_seta(self):
+        saiu = radar.texto_do_resumo(
+            [], [self.alteracao(campo="retificacao", antes="",
+                                depois="21065/2026")])
+        self.assertIn("rectificado pelo anúncio 21065/2026", saiu)
+        self.assertNotIn("->", saiu.split("== Alterados")[1])
 
     def test_sem_alterados_o_resumo_e_o_de_sempre(self):
         saiu = radar.texto_do_resumo(
