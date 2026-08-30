@@ -725,7 +725,7 @@ Um conceito, um nome, em todo o lado. A coluna do código não muda
 | Termo no código | No ecrã hoje | Proposto |
 |---|---|---|
 | `anuncios` | "Anúncios" / "concurso" à mistura | **anúncio** — o item publicado no DR; único nome do item em listas, fichas e contagens |
-| — | "concurso" (textos, `concursos.csv`) | **concurso** só como linguagem de topo (Radar de Concursos); o CSV passa a `anuncios-<data>.csv` |
+| — | "concurso" (textos, `concursos.csv`) | **concurso** só como linguagem de topo (Radar de Concursos); o CSV passa a `anuncios-<data>.csv` — **confirmado pelo Afonso a 30/08/2026** |
 | `tipo_procedimento`, `n_anuncio` | "tipo de procedimento", "desconto por procedimento" | **procedimento** — o processo de contratação; usado em tipos e agregações, nunca como sinónimo de anúncio |
 | `documentos` (tabela), `DOCS` | "Peças do procedimento" / "Trazer peças" / "Documentos guardados" | **peças** — os ficheiros trazidos; a linha dos Indicadores passa a "Peças guardadas" |
 | `documentos_proposta` | "documentos que constituem a proposta" | **documentos da proposta** — conceito distinto (o que o concorrente entrega); mantém-se, e é o único uso de "documentos" no ecrã |

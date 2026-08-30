@@ -237,6 +237,17 @@ de paginação existentes.
 
 ### E1 — Tudo num PC, dentro do OneDrive, sem remoto git (R2/R3)
 
+> **Estado a 30/08/2026, fim do dia — metade resolvida.** O Afonso criou
+> `github.com/afonsonp/radarconcursos` (privado — confirmado: um pedido
+> anónimo dá 404) e o remoto está ligado: **72 commits fora do PC**,
+> verificados no `origin/master`. Nada de sensível foi: os 46 ficheiros
+> versionados não incluem capturas, bases, chaves, peças nem cópias.
+> **A triagem continua sem cópia externa** — ele só tem o disco `D:`, e a
+> base de trabalho está no `.gitignore` de propósito. Proposta em cima da
+> mesa: exportar só a triagem (8 330 linhas — decisões, fases, histórico,
+> filtros) para um ficheiro de texto pequeno que viaja no próprio
+> repositório, resolvendo o R2 sem disco nenhum. Por decidir.
+
 O que está em risco, por ordem de gravidade: a **triagem** (interessa/
 descartado, fases, responsáveis, histórico — declaradamente
 irrecuperável), o **código com os 68 commits**, e por fim corpus e
@@ -267,6 +278,17 @@ nuvem privada, triagem num disco físico separado). A decisão — e a
 conta GitHub/disco a usar — é tua.
 
 ### E2 — Canal de aviso morto: o que falta fornecer, passo a passo
+
+> **Estado a 30/08/2026, fim do dia — a faltar um ficheiro.** Os
+> endereços estão postos no `config.json`: envia
+> `afonso.pinto.redit@gmail.com`, recebe `[e-mail retirado]`,
+> resumo às 17:00. **Falta a palavra-passe de aplicação**: o Afonso disse
+> que já estava guardada, mas o radar não a encontra — não existe
+> `email_senha.txt` na pasta nem a variável `RADAR_EMAIL_SENHA` no
+> ambiente, que são os dois únicos sítios onde `enviar_email()` a
+> procura. Enquanto assim for, o envio falha com «falta a palavra-passe
+> em email_senha.txt». Já há 1 filtro com alerta ligado e 1 entidade
+> seguida à espera.
 
 O mecanismo está construído e testado; nunca entregou porque falta a
 última milha. Para o ligar:
@@ -322,6 +344,9 @@ custo de cada uma — **sem decisão tomada**:
    identificado no ESTADO como pré-requisito de partilha por cumprir.
 
 ### E4 — A frequência de expiração do token não está registada
+
+> **Decidido a 30/08/2026: sim, implementar.** Por fazer — fica para a
+> sessão seguinte, com o resto do trabalho de código.
 
 A forma mais simples de a passar a registar, sem ecrã novo: quando a
 recolha detecta «sem JSON, token pode ter expirado», gravar **uma linha

@@ -173,6 +173,42 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   plataforma) não está medido — medir primeiro com `--reler` sobre
   cópia, decidir depois. Esforço 1.
 
+## Aprovado pelo Afonso a 30/08/2026, por fazer
+
+- **B14 — segunda fonte de anúncios: Vortal e acingov, só o que o DR não
+  publica.** Decisão dele, a 30/08/2026, sobre o item que estava em «Não
+  fazer» à espera precisamente disto: «podemos avançar com a ligação à
+  vortal e acingov se der, apenas para procedimentos que não sejam
+  publicados em DR». É a maior lacuna medida face à Tendios/Armilar/SpotGov
+  (consultas preliminares e contratos menores — `titulo LIKE '%Consulta
+  preliminar%'` dá **zero** na base do radar).
+
+  **O âmbito, que é o que torna isto seguro de desenhar:** só entra o que
+  a parte L não publicou. Nada de duplicar o universo do DR — a regra de
+  deduplicação é a de sempre, o `ref`, e o que vier das plataformas com
+  anúncio no DR ignora-se. Isso mantém a promessa «o DR é a fonte dos
+  anúncios» intacta e faz da segunda fonte um acrescento, não um
+  concorrente.
+
+  **O «se der» é a primeira tarefa, e não é pequena.** O caminho que hoje
+  existe (`obter_documentos()`, a cadeia de 3 saltos da Vortal e o ZIP
+  directo da acingov) parte **sempre de um `link_pecas` que veio de um
+  anúncio do DR** — é obtenção de peças de um procedimento já conhecido,
+  não descoberta. Para trazer o que o DR não publica é preciso um endpoint
+  de **listagem/pesquisa** sem sessão iniciada, e **não se sabe se existe**
+  em nenhuma das duas. Antes de escrever código de ingestão, mede-se isso:
+  existe listagem anónima? paginada? com data? que campos traz? O
+  subagente `explorador-de-plataforma` foi escrito para este género de
+  investigação.
+
+  **Os avisos do item antigo mantêm-se, porque a decisão não os apaga**
+  [LEGAL] [RISCO]: são plataformas comerciais, o caminho sai do que hoje é
+  acesso anónimo a peças públicas, há atrito possível com termos de
+  utilização, e a fragilidade é a do R4/R5 multiplicada (uma mudança de
+  layout passa a parar recolha, não só peças). Recomendação de execução:
+  primeiro a medição, depois uma decisão informada sobre cada plataforma —
+  pode dar «a Vortal dá e a acingov não», e isso é resultado, não falhanço.
+
 ## Não fazer, e porquê
 
 Decisões registadas com a observação que as sustenta. Reabrem-se se a
@@ -189,14 +225,6 @@ premissa mudar — com data e números novos.
   já pesquisa com Ctrl+F); as marcas de página do B12 continuam no
   extractor para o que for preciso.
 
-- **Ingerir as plataformas (Vortal e afins) como segunda fonte de anúncios**
-  — consultas preliminares e contratos menores. É a maior lacuna real face a
-  Tendios/Armilar/SpotGov, confirmada em duas passagens. **Não se faz sem o
-  Afonso decidir** (regra registada no CLAUDE.md): implica scraping de
-  plataformas comerciais fora do caminho anónimo actual das peças, com
-  fragilidade e possível atrito de termos de utilização. [LEGAL] [RISCO]
-  Se um dia se decidir, o caminho já conhecido é a API pública da Vortal
-  (a cadeia de 3 saltos do `obter_documentos()`).
 - **Número de licitadores por concurso** — Armilar e SpotGov mostram-no;
   **não há fonte pública**: o dump do IMPIC não o traz (medido a 29/08) e o
   da Armilar vem presumivelmente dos dados internos da própria plataforma.
