@@ -1982,68 +1982,24 @@ class TestPaginasDoRecorte(unittest.TestCase):
         self.assertEqual(radar.rotulo_com_paginas("CE.pdf", []), "CE.pdf")
 
 
-class TestTermosFts(unittest.TestCase):
-    """B09: a pesquisa nas peças passa pelo MATCH do FTS5, e o input do
-    utilizador tem de chegar lá como texto, nunca como sintaxe — um
-    NEAR ou um * escritos na caixa são palavras a procurar.
-    """
-
-    def test_palavras_todas_obrigatorias_dentro_do_pedaco(self):
-        self.assertEqual(radar.termos_fts("seguro automóvel"),
-                         '("seguro" "automóvel")')
-
-    def test_pedacos_separados_por_ou(self):
-        self.assertEqual(radar.termos_fts("elevadores|avac"),
-                         '("elevadores") OR ("avac")')
-
-    def test_sintaxe_do_fts_vira_texto(self):
-        # AND/NEAR/* entre aspas são termos, não operadores
-        saiu = radar.termos_fts("prazo NEAR entrega")
-        self.assertEqual(saiu, '("prazo" "NEAR" "entrega")')
-
-    def test_aspas_do_utilizador_nao_partem_a_consulta(self):
-        self.assertEqual(radar.termos_fts('sistema "chave na mão"'),
-                         '("sistema" """chave" "na" "mão""")')
-
-    def test_vazio_nao_da_consulta(self):
-        self.assertEqual(radar.termos_fts(""), "")
-        self.assertEqual(radar.termos_fts(" | "), "")
-
-    def test_excerto_acha_sem_acentos_e_poe_negrito(self):
-        # o texto em maiúsculas e o termo com acento têm de se achar,
-        # como na pesquisa; o encontrado vai a negrito
-        saiu = radar.excerto_de(
-            "CLÁUSULA 9 — PENALIDADES CONTRATUAIS aplicam-se quando…",
-            "penalidades")
-        self.assertIn("<b>PENALIDADES</b>", saiu)
-
-    def test_excerto_ignora_as_linhas_do_indice(self):
-        # o snippet() do FTS devolvia a linha do sumário
-        # ("Penalidades ......... 7"); o excerto vem do corpo
-        texto = ("CAPÍTULO III – Penalidades ................ 7\n"
-                 "corpo do documento\n"
-                 "As penalidades contratuais são de 500 EUR por dia.\n")
-        saiu = radar.excerto_de(texto, "penalidades")
-        self.assertIn("500", saiu)
-        self.assertNotIn("....", saiu)
-
-    def test_excerto_diz_quando_corta(self):
-        saiu = radar.excerto_de("x" * 200 + " penalidades " + "y" * 200,
-                                "penalidades", raio=20)
-        self.assertTrue(saiu.startswith("…") and saiu.endswith("…"))
-
-    def test_sem_ocorrencia_nao_ha_excerto(self):
-        self.assertEqual(radar.excerto_de("nada disto aqui", "penalidades"),
-                         "")
-        self.assertEqual(radar.excerto_de("", "penalidades"), "")
+class TestPesquisaNasPecasRetirada(unittest.TestCase):
+    """B09, implementado e RETIRADO a 30/08/2026 por decisão do Afonso:
+    as peças só existem depois de marcar "interessa", por isso a
+    pesquisa chegava sempre tarde demais para ajudar a decidir. Este
+    teste impede o regresso acidental — a versão que valeria a pena
+    (ver o PDF dentro da aplicação, com pesquisa) está no BACKLOG e
+    faz-se só quando for pedida."""
 
     def test_a_lista_nao_filtra_pelas_pecas(self):
-        # a pesquisa nas peças é da FICHA (pesquisa_nas_pecas), não da
-        # lista: lá fora cobria uma fracção minúscula da base e um
-        # q_pecas na URL não pode voltar a filtrar em silêncio
         onde, _ = radar.condicoes({"q_pecas": "penalidades", "estado": ""})
         self.assertNotIn("pecas_fts", onde)
         self.assertNotIn("q_pecas", radar.CAMPOS_FILTRO)
+
+    def test_o_motor_da_pesquisa_saiu_todo(self):
+        # meio motor esquecido convidava a "só ligar outra vez"
+        for nome in ("pesquisa_nas_pecas", "excerto_de", "termos_fts",
+                     "ha_fts"):
+            self.assertFalse(hasattr(radar, nome), nome)
 
 
 class TestLeiturasConfiguraveis(unittest.TestCase):

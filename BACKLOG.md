@@ -101,18 +101,18 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   origem, nunca cala uma leitura. **O 4.º campo do utilizador ficou de
   fora**: a tabela `analise` tem colunas fixas e o caso de uso ainda
   não apareceu; reabre-se quando aparecer.
-- **B09 — pesquisa nas peças** (30/08/2026; movida para a ficha no
-  mesmo dia, por decisão do Afonso). FTS5 de conteúdo externo sobre
-  `documentos.texto` (só o índice; triggers mantêm-no, `rebuild` com
-  marca povoa-o — um SELECT sem MATCH lê o conteúdo e enganava o teste
-  de vazio). A caixa "Procurar nas peças…" vive na **ficha do
-  anúncio**, dentro de "Peças do procedimento", quando há peças com
-  texto — procura nas peças deste concurso e mostra um excerto por
-  documento com o termo a negrito (`excerto_de()`, em Python sobre o
-  texto sem índice: o `snippet()` do FTS devolvia a linha do sumário).
-  Na lista não há campo nenhum: lá cobria uma fracção minúscula da
-  base e enganava — há teste a impedir o regresso. Input sempre entre
-  aspas no MATCH; acentos e maiúsculas certos pelo tokenizador.
+- **B09 — pesquisa nas peças: implementado e RETIRADO** (30/08/2026,
+  tudo no mesmo dia). Três versões no dia: campo na lista (cobria 17
+  anúncios em 66 mil — enganava), caixa na ficha com excertos (tirava
+  a linha do sumário; corrigido com `excerto_de()`), e por fim a
+  decisão do Afonso de retirar: **as peças só existem depois de marcar
+  "interessa"**, por isso a pesquisa chegava sempre tarde demais para
+  ajudar a decidir — não se estava a ganhar nada. O índice FTS saiu da
+  base (migração de limpeza no `iniciar_db`) e há teste a impedir o
+  regresso acidental. O que ficou de útil: as marcas de página do B12
+  no extractor, que eram partilhadas. **A versão que valeria a pena**,
+  palavras dele: ver o próprio PDF dentro da aplicação, com pesquisa lá
+  dentro — está em baixo, no «Não fazer (por agora)».
 - **B10 — seguir entidades** (30/08/2026). Botão na ficha da entidade;
   os anúncios novos das seguidas entram no resumo diário em secção
   própria (reconhecer/enviar como os alertas, acervo ao começar a
@@ -145,6 +145,17 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 
 Decisões registadas com a observação que as sustenta. Reabrem-se se a
 premissa mudar — com data e números novos.
+
+- **Visualizador de PDF dentro da aplicação, com pesquisa lá dentro**
+  — a ideia do Afonso a 30/08/2026, ao retirar o B09: em vez de uma
+  caixa de pesquisa solta, abrir a própria peça na ficha e procurar
+  dentro dela. É a versão da pesquisa nas peças que valeria a pena,
+  e ele decidiu explicitamente **não avançar já** ("para já diria que
+  não estamos a ganhar nada com esta função"). Não se faz sem ele
+  pedir. Quando se fizer, o caminho barato é servir o PDF que já está
+  em `documentos/` num `<iframe>`/`<embed>` (o visualizador do browser
+  já pesquisa com Ctrl+F); as marcas de página do B12 continuam no
+  extractor para o que for preciso.
 
 - **Ingerir as plataformas (Vortal e afins) como segunda fonte de anúncios**
   — consultas preliminares e contratos menores. É a maior lacuna real face a

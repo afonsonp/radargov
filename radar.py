@@ -254,46 +254,19 @@ def iniciar_db():
             antes TEXT, depois TEXT, detectado_em TEXT, avisado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alteracoes_envio
                      ON alteracoes(avisado_em)""")
-        # A pesquisa nas pecas (B09): um indice FTS5 de conteudo externo
-        # sobre documentos.texto -- so o indice, o texto ja la esta e
-        # nao se duplica. Os triggers mantem-no em dia a cada escrita; a
-        # populacao inicial corre uma vez, quando o indice esta vazio.
-        # Sem FTS5 no SQLite (raro), a pesquisa nas pecas simplesmente
-        # nao aparece no formulario -- ha_fts() e quem o diz.
-        try:
-            c.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS pecas_fts
-                         USING fts5(texto, content='documentos',
-                                    content_rowid='id',
-                                    tokenize='unicode61 remove_diacritics 2')""")
-            c.execute("""CREATE TRIGGER IF NOT EXISTS documentos_fts_ai
-                AFTER INSERT ON documentos BEGIN
-                  INSERT INTO pecas_fts(rowid, texto)
-                  VALUES (new.id, COALESCE(new.texto,''));
-                END""")
-            c.execute("""CREATE TRIGGER IF NOT EXISTS documentos_fts_ad
-                AFTER DELETE ON documentos BEGIN
-                  INSERT INTO pecas_fts(pecas_fts, rowid, texto)
-                  VALUES ('delete', old.id, COALESCE(old.texto,''));
-                END""")
-            c.execute("""CREATE TRIGGER IF NOT EXISTS documentos_fts_au
-                AFTER UPDATE OF texto ON documentos BEGIN
-                  INSERT INTO pecas_fts(pecas_fts, rowid, texto)
-                  VALUES ('delete', old.id, COALESCE(old.texto,''));
-                  INSERT INTO pecas_fts(rowid, texto)
-                  VALUES (new.id, COALESCE(new.texto,''));
-                END""")
-            # A populacao inicial e por 'rebuild' e com marca, nao por
-            # "esta vazio?": num FTS de conteudo externo, um SELECT sem
-            # MATCH le a tabela de conteudo -- o indice parecia cheio
-            # estando vazio, e todas as pesquisas davam zero.
-            if not c.execute("SELECT 1 FROM estado "
-                             "WHERE chave='fts_povoado'").fetchone():
-                c.execute("INSERT INTO pecas_fts(pecas_fts) "
-                          "VALUES('rebuild')")
-                c.execute("INSERT OR REPLACE INTO estado "
-                          "VALUES ('fts_povoado','1')")
-        except sqlite3.OperationalError:
-            pass
+        # A pesquisa nas pecas (B09) foi implementada e RETIRADA a
+        # 30/08/2026, por decisao do Afonso: as pecas so existem depois
+        # de marcar "interessa", por isso a pesquisa chegava sempre
+        # tarde demais para ajudar a decidir -- nao se estava a ganhar
+        # nada. A versao que valeria a pena (ver o PDF dentro da
+        # aplicacao, com pesquisa la dentro) esta no BACKLOG, por fazer
+        # so quando for pedida. Isto limpa o indice de quem chegou a
+        # ter a versao retirada; DROP IF EXISTS e idempotente e gratis.
+        c.execute("DROP TRIGGER IF EXISTS documentos_fts_ai")
+        c.execute("DROP TRIGGER IF EXISTS documentos_fts_ad")
+        c.execute("DROP TRIGGER IF EXISTS documentos_fts_au")
+        c.execute("DROP TABLE IF EXISTS pecas_fts")
+        c.execute("DELETE FROM estado WHERE chave='fts_povoado'")
         # As entidades seguidas (B10) vivem na base de trabalho e nao no
         # corpus: o corpus refaz-se com --contratos, a triagem nao. O
         # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
@@ -4559,20 +4532,6 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .doc a{font:500 12.5px/1.35 var(--sans);min-width:0;overflow:hidden;
  text-overflow:ellipsis;white-space:nowrap}
 .doc .t{margin-left:auto;flex:none;font:400 11px/1 var(--mono);color:var(--t5)}
-/* pesquisa nas pecas da ficha (B09) */
-.pecas-busca{display:flex;gap:8px;margin-top:14px}
-.pecas-busca input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--linha);
- border-radius:8px;font:400 12px/1.3 var(--sans)}
-.pecas-busca button{cursor:pointer;padding:8px 13px;border-radius:8px;
- border:1px solid var(--linha);background:#fff;color:var(--t3);
- font:600 12px/1 var(--sans)}
-.pecas-busca button:hover{border-color:var(--ink);color:var(--ink)}
-.pecas-achado{margin-top:10px;padding:9px 11px;background:var(--creme);
- border-radius:8px}
-.pecas-achado .doc{display:block;border:0;padding:0;margin-bottom:4px;
- font:600 10.5px/1.3 var(--mono);color:var(--t5)}
-.pecas-achado .exc{display:block;font:400 12px/1.5 var(--sans);color:var(--t3)}
-.pecas-achado .exc b{color:var(--ink)}
 .resp{display:flex;align-items:center;gap:9px;padding:9px 12px;
  border:1px solid var(--linha);border-radius:8px;background:var(--creme)}
 .resp .av{width:24px;height:24px;border-radius:50%;background:#e6e2da;flex:none;
@@ -5704,36 +5663,6 @@ def resumo_filtro(consulta, vista=None):
         elif valor:
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
-
-
-_HA_FTS = None
-
-
-def ha_fts():
-    """Se o indice das pecas existe. Sem FTS5 no SQLite, a caixa de
-    pesquisa nas pecas nao aparece -- oferecer um campo que rebenta era
-    pior do que nao o ter."""
-    global _HA_FTS
-    if _HA_FTS is None:
-        with liga() as c:
-            _HA_FTS = bool(c.execute(
-                "SELECT 1 FROM sqlite_master WHERE name='pecas_fts'"
-            ).fetchone())
-    return _HA_FTS
-
-
-def termos_fts(texto):
-    """De "seguro automovel|frota" para a consulta do MATCH: dentro de
-    cada pedaco as palavras sao todas obrigatorias, entre pedacos e OU
-    -- a mesma leitura do | das outras caixas. As aspas neutralizam a
-    sintaxe do FTS: um NEAR, um * ou um AND escritos pelo utilizador
-    sao texto a procurar, nao operadores."""
-    grupos = []
-    for pedaco in (texto or "").split("|"):
-        palavras = ['"%s"' % p.replace('"', '""') for p in pedaco.split()]
-        if palavras:
-            grupos.append("(" + " ".join(palavras) + ")")
-    return " OR ".join(grupos)
 
 
 def opcoes_op(args):
@@ -8813,66 +8742,6 @@ def mercado(a):
         % "".join(corpo))
 
 
-def excerto_de(texto, termo, raio=90):
-    """Um excerto HTML a volta da primeira ocorrencia do termo, com o
-    encontrado a negrito. "" quando o termo nao esta no texto limpo.
-
-    Procura no texto SEM as linhas de indice (sem_indice) -- o snippet()
-    do FTS devolvia a linha do sumario ("Penalidades .......") em vez do
-    corpo -- e sem acentos nem maiusculas (simplifica), como a pesquisa.
-    E um excerto, nao uma citacao ao caracter: um PDF com ligaturas pode
-    desviar o corte umas letras, e o raio absorve-o.
-    """
-    limpo = sem_indice(texto or "").replace("\f", " ")
-    baixo = simplifica(limpo)
-    alvos = []
-    for pedaco in (p.strip() for p in (termo or "").split("|")):
-        if not pedaco:
-            continue
-        alvos.append(simplifica(pedaco))          # a frase inteira primeiro
-        alvos += [simplifica(p) for p in pedaco.split() if len(p) > 2]
-    for alvo in alvos:
-        pos = baixo.find(alvo)
-        if pos < 0:
-            continue
-        ini = max(0, pos - raio)
-        fim = min(len(limpo), pos + len(alvo) + raio)
-        antes = limpo[ini:pos].replace("\n", " ")
-        meio = limpo[pos:pos + len(alvo)].replace("\n", " ")
-        depois = limpo[pos + len(alvo):fim].replace("\n", " ")
-        return ("%s%s<b>%s</b>%s%s"
-                % ("…" if ini else "", html.escape(antes),
-                   html.escape(meio), html.escape(depois),
-                   "…" if fim < len(limpo) else ""))
-    return ""
-
-
-def pesquisa_nas_pecas(ref, termo):
-    """Os excertos das pecas DESTE anuncio que respondem ao termo (B09).
-
-    A pesquisa nas pecas vive na ficha, depois de as pecas virem -- e
-    nao na lista: la fora cobria uma fraccao minuscula da base e
-    enganava mais do que ajudava. O FTS diz QUE documentos respondem
-    (por ordem de rank); o excerto constroi-se em Python sobre o texto
-    limpo (excerto_de), porque o snippet() escolhia a linha do sumario.
-    Devolve [(nome, excerto_html)], um por documento."""
-    consulta = termos_fts(termo)
-    if not (consulta and ha_fts()):
-        return []
-    with liga() as c:
-        linhas = c.execute(
-            "SELECT d.nome, d.texto FROM pecas_fts "
-            "JOIN documentos d ON d.id = pecas_fts.rowid "
-            "WHERE pecas_fts MATCH ? AND d.ref = ? ORDER BY rank",
-            (consulta, ref)).fetchall()
-    fora = []
-    for l in linhas:
-        exc = excerto_de(l["texto"], termo)
-        if exc:
-            fora.append((l["nome"], exc))
-    return fora
-
-
 def volta_a_lista():
     """A lista de onde se veio, com o filtro e a pagina que tinha.
 
@@ -9129,40 +8998,11 @@ def ficha(ref):
         corpo_docs = ("<div class='nota'>%s</div><div style='margin-top:14px'>%s</div>"
                       % (nota, accao("/documentos/%s" % ref, "Trazer peças", "bt forte")))
 
-    # A pesquisa nas pecas deste anuncio (B09): so quando ha pecas com
-    # texto -- oferecer a caixa sem nada onde procurar era um campo
-    # morto. O resultado e um excerto por documento, com o termo a
-    # negrito, dentro da propria caixa das pecas.
-    pesquisa_cx = ""
-    if ha_fts() and any((d["texto_estado"] or "") == "ok" for d in docs):
-        pecas_q = (request.args.get("pecas_q") or "").strip()
-        resultados = ""
-        if pecas_q:
-            achados = pesquisa_nas_pecas(ref, pecas_q)
-            if achados:
-                resultados = "".join(
-                    "<div class='pecas-achado'><span class='doc'>%s</span>"
-                    "<span class='exc'>%s</span></div>"
-                    % (html.escape(corta(n, 46)), e) for n, e in achados)
-            else:
-                resultados = ("<div class='nota' style='margin-top:10px'>"
-                              "Nada com isto nas peças com texto deste "
-                              "anúncio.</div>")
-        pesquisa_cx = (
-            "<form method='get' action='/anuncio/%s' class='pecas-busca'>%s"
-            "<input type='text' name='pecas_q' value='%s' "
-            "placeholder='Procurar nas peças…'>"
-            "<button type='submit'>Procurar</button></form>%s"
-            % (quote(ref, safe=""),
-               "<input type='hidden' name='modo' value='completo'>"
-               if completo else "",
-               html.escape(pecas_q, quote=True), resultados))
-
     chip_plat = ("<span class='tag ok' style='margin-left:auto'>%s</span>"
                  % html.escape(a["plataforma"])) if a["plataforma"] else ""
     docs_cx = ("<div class='cx lado-cx'><div class='cab'>"
-               "<span class='rot'>Peças do procedimento</span>%s</div>%s%s</div>"
-               % (chip_plat, corpo_docs, pesquisa_cx))
+               "<span class='rot'>Peças do procedimento</span>%s</div>%s</div>"
+               % (chip_plat, corpo_docs))
 
     resp = a["responsavel"] or ""
     resp_cx = ("<div class='cx lado-cx'><div class='rot' style='margin-bottom:12px'>"
