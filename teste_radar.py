@@ -1479,6 +1479,105 @@ class TestCondicoesContratos(unittest.TestCase):
         self.assertEqual(valores, [])
 
 
+class TestExclusoesNoFiltro(unittest.TestCase):
+    """B01: excluir palavras e CPV do filtro. Três dos quatro
+    concorrentes observados têm-no (ver CONCORRENTES.md); sem isto, um
+    filtro largo obrigava a descartar o mesmo ruído à mão todas as
+    semanas. As armadilhas são duas: o NOT sobre NULL é NULL (a linha
+    por preencher sumia-se), e a exclusão vazia não pode virar 1=0.
+    """
+
+    def test_excluir_palavra_normaliza_como_a_pesquisa(self):
+        # a mesma norma da procura: "videovigilância" tem de excluir os
+        # títulos escritos todos em maiúsculas com "VIDEOVIGILÂNCIA"
+        onde, valores = radar.condicoes(
+            {"q_excl": "videovigilância", "estado": ""})
+        self.assertIn("NOT (", onde)
+        self.assertIn("%videovigilancia%", valores)
+
+    def test_excluir_nao_esconde_quem_nao_tem_o_campo(self):
+        # NOT (NULL LIKE x) é NULL: sem COALESCE, excluir "obras"
+        # escondia também os anúncios ainda sem título normalizado
+        onde, _ = radar.condicoes({"q_excl": "obras", "estado": ""})
+        self.assertIn("COALESCE", onde)
+        onde, _ = radar.condicoes({"cpv_excl": "72000000", "estado": ""})
+        self.assertIn("COALESCE", onde)
+
+    def test_excluir_cpv_alarga_ao_grupo_como_o_positivo(self):
+        # a mesma regra do prefixo: excluir "72000000" exclui a divisão
+        onde, valores = radar.condicoes({"cpv_excl": "72000000", "estado": ""})
+        self.assertIn("NOT (", onde)
+        self.assertIn("72%", valores)
+
+    def test_exclusao_sem_prefixo_nao_filtra_nada(self):
+        # ao contrário do positivo (que dá 1=0), excluir nada é não
+        # excluir: um "-" no campo não pode esvaziar nem esconder nada
+        onde, _ = radar.condicoes({"cpv_excl": "-", "estado": ""})
+        self.assertNotIn("1=0", onde)
+        self.assertNotIn("NOT (", onde)
+
+    def test_excluir_nos_contratos_usa_a_tabela_filha(self):
+        onde, valores = radar.condicoes_contratos(
+            {"q_excl": "limpeza", "cpv_excl": "90000000"})
+        self.assertIn("NOT (", onde)
+        self.assertIn("NOT IN", onde)
+        self.assertIn("contrato_cpv", onde)
+        self.assertIn("90%", valores)
+        self.assertIn("%limpeza%", valores)
+
+    def test_as_exclusoes_entram_no_filtro_canonico(self):
+        # senão o filtro guardado com exclusão nunca se reconhecia como
+        # o que está em uso
+        consulta = radar.filtro_actual({"q_excl": "obras"})
+        self.assertIn("q_excl=obras", consulta)
+
+    def test_todas_as_vistas_entendem_as_exclusoes(self):
+        # um filtro com exclusão não pode ficar "parcial" em página
+        # nenhuma: as três sabem excluir
+        for vista in ("anuncios", "contratos", "entidade"):
+            with self.subTest(vista=vista):
+                dentro, fora = radar.filtro_para(
+                    "q_excl=obras&cpv_excl=45", vista)
+                self.assertEqual(fora, [])
+                self.assertIn("q_excl=obras", dentro)
+
+
+class TestTermosDoTitulo(unittest.TestCase):
+    """B02: os homólogos acham-se pelos termos do título no
+    objecto_norm do corpus. Sem tirar o vocabulário da contratação,
+    "aquisição de serviços" apanhava o corpus inteiro da entidade.
+    """
+
+    def test_tira_o_vocabulario_da_contratacao(self):
+        t = radar.termos_do_titulo(
+            "Aquisição de serviços de manutenção de elevadores")
+        self.assertEqual(t, ["manutencao", "elevadores"])
+
+    def test_normaliza_como_o_objecto_norm(self):
+        # maiúsculas e acentos fora, como simplifica(): é com esta norma
+        # que o objecto_norm do corpus está escrito
+        t = radar.termos_do_titulo("VIGILÂNCIA E SEGURANÇA")
+        self.assertEqual(t, ["vigilancia", "seguranca"])
+
+    def test_numeros_soltos_e_palavras_curtas_ficam_fora(self):
+        # "2026" é um ano, "gás" tem três letras: nenhum distingue nada
+        t = radar.termos_do_titulo("Fornecimento de gás para 2026")
+        self.assertEqual(t, [])
+
+    def test_nao_repete_termos(self):
+        t = radar.termos_do_titulo("Manutenção preventiva e manutenção correctiva")
+        self.assertEqual(t.count("manutencao"), 1)
+
+    def test_no_maximo_seis(self):
+        t = radar.termos_do_titulo(
+            "alfa bravo charlie delta echo foxtrot golfe hotel")
+        self.assertEqual(len(t), 6)
+
+    def test_sem_titulo_sem_termos(self):
+        self.assertEqual(radar.termos_do_titulo(None), [])
+        self.assertEqual(radar.termos_do_titulo(""), [])
+
+
 class TestArvoreNosDoisSeparadores(unittest.TestCase):
     """A mesma árvore serve os anúncios e os contratos. O que muda é de
     onde vêm as contagens, e isso viaja no `data-de` do próprio elemento
