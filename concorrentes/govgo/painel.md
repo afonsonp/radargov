@@ -1,4 +1,14 @@
-# GovGo — painel com sessão (30/08/2026)
+# GovGo — painel com sessão (30/08/2026; reverificado no dia seguinte)
+
+**Re-observação ~24h depois da primeira passagem**, a pedido do Afonso, para
+excluir a hipótese de atraso de ingestão: "DSpace" e "Negrelos" continuam a
+zero; o DIA 28/08 continua com **as mesmas 8 entradas** (radar: 99); o total
+de procedimentos continua 141 011; os contratos continuam 574 115 com o topo
+em **23/01/2025**. Nada entrou entre as duas observações. O fim-de-semana
+desculpa a ausência de dias 29/30 nos procedimentos, mas não o dia 28
+fechado em 8/99 nem os contratos parados há ~19 meses. Conclusão reforçada:
+não é atraso curto — é lacuna de cobertura, com critério de selecção
+desconhecido.
 
 Conta trial do Afonso ("O teu período experimental está a chegar ao fim!
 Restam 14 dias"). Menu: Dashboard, Procedimentos, Contratos, Meu govgo.

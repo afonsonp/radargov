@@ -193,6 +193,11 @@ www.govgo.pt. Produto da VIPA (Madeira, 2019, CEO Pedro Paixão), lançado em
 - Contratos: 574 115 desde jan/2020 — **o radar tem 1,36 M no mesmo
   período**. E na ordenação por omissão o contrato mais recente é de
   **23/01/2025**, ~19 meses atrás.
+- **Reverificado ~24h depois** (a pedido do Afonso, para excluir atraso de
+  ingestão): as três pesquisas continuam a zero, o dia 28/08 continua com as
+  mesmas 8 entradas, e os totais (141 011 procedimentos, 574 115 contratos,
+  topo 23/01/2025) não mexeram. Não é atraso — é lacuna, com critério de
+  selecção desconhecido.
 - Total de procedimentos: 141 011 desde jan/2020 (o radar apanhou 65 819 só
   em 2 anos de parte L; os números deles não batem com cobertura completa).
 
