@@ -1906,6 +1906,82 @@ class TestResumoComAlterados(unittest.TestCase):
         self.assertNotIn("Alterados", saiu)
 
 
+class TestDiasUrgente(unittest.TestCase):
+    """B13: a janela do urgente lê-se do config.json, mas lixo, zero ou
+    negativo voltam à omissão — uma janela de 0 dias esvaziava o filtro
+    em silêncio."""
+
+    def test_config_por_cima_da_omissao(self):
+        self.assertEqual(radar.dias_urgente({"dias_urgente": 5}), 5)
+        self.assertEqual(radar.dias_urgente({}), radar.DIAS_URGENTE)
+
+    def test_lixo_e_zero_voltam_a_omissao(self):
+        self.assertEqual(radar.dias_urgente({"dias_urgente": "muitos"}),
+                         radar.DIAS_URGENTE)
+        self.assertEqual(radar.dias_urgente({"dias_urgente": 0}),
+                         radar.DIAS_URGENTE)
+        self.assertEqual(radar.dias_urgente({"dias_urgente": -3}),
+                         radar.DIAS_URGENTE)
+
+
+class TestSomaPrecosBase(unittest.TestCase):
+    """B11: o cabeçalho da coluna do quadro soma os preços base lidos e
+    diz sobre quantos é — somar uns e calar os outros parecia o valor da
+    fase inteira."""
+
+    def test_soma_e_conta_so_os_lidos(self):
+        itens = [{"preco_base": "175.000,00 EUR"},
+                 {"preco_base": ""},
+                 {"preco_base": "25.000,00 EUR"}]
+        soma, com_preco = radar.soma_precos_base(itens)
+        self.assertEqual(soma, 200000.0)
+        self.assertEqual(com_preco, 2)
+
+    def test_sem_precos_nao_ha_soma(self):
+        self.assertEqual(radar.soma_precos_base([{"preco_base": ""}]), (0, 0))
+        self.assertEqual(radar.soma_precos_base([]), (0, 0))
+
+
+class TestPaginasDoRecorte(unittest.TestCase):
+    """B12: a ficha diz de que páginas veio o recorte. As páginas saem
+    das MESMAS janelas que o texto que foi ao modelo — de outro sítio
+    qualquer, a fonte mentia."""
+
+    def texto(self):
+        # tres "paginas" separadas pela marca \f em linha propria, como
+        # o extractor as poe; o titulo com ancora esta na segunda
+        pag1 = "clausulas de rotina\n" * 5
+        pag2 = "1. Objecto do contrato\ncorpo do objecto aqui\n" + "x\n" * 5
+        pag3 = "mais rotina\n" * 5
+        return "\n\f\n".join((pag1, pag2, pag3))
+
+    def test_da_as_paginas_da_janela(self):
+        paginas = radar.paginas_do_recorte(
+            self.texto(), ((1, r"objec?to"),), tecto=4000, janela=30)
+        # a janela recua 200 antes do titulo, por isso apanha a pag. 1
+        self.assertIn(2, paginas)
+        self.assertEqual(paginas, sorted(paginas))
+
+    def test_sem_marcas_nao_inventa(self):
+        # texto extraido antes das marcas: nao ha paginas para declarar
+        paginas = radar.paginas_do_recorte(
+            "1. Objecto\ncorpo", ((1, r"objec?to"),), tecto=4000)
+        self.assertEqual(paginas, [])
+
+    def test_o_recorte_em_si_nao_mudou(self):
+        # a refactoracao nao pode ter mudado o texto que vai ao modelo
+        saiu = radar.recorte_relevante(
+            self.texto(), ((1, r"objec?to"),), tecto=4000, janela=30)
+        self.assertIn("1. Objecto do contrato", saiu)
+
+    def test_rotulo_comprime_intervalos(self):
+        self.assertEqual(radar.rotulo_com_paginas("CE.pdf", [2, 3, 4, 7]),
+                         "CE.pdf (pág. 2–4, 7)")
+        self.assertEqual(radar.rotulo_com_paginas("CE.pdf", [5]),
+                         "CE.pdf (pág. 5)")
+        self.assertEqual(radar.rotulo_com_paginas("CE.pdf", []), "CE.pdf")
+
+
 class TestTermosFts(unittest.TestCase):
     """B09: a pesquisa nas peças passa pelo MATCH do FTS5, e o input do
     utilizador tem de chegar lá como texto, nunca como sintaxe — um

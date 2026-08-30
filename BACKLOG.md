@@ -27,11 +27,8 @@ Vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P3
 
-| ID | Item | Origem | Valor | Esforço | Confiança | Prioridade — a conta | Onde toca | Dependências | Risco |
-|---|---|---|---|---|---|---|---|---|---|
-| B11 | Soma do preço base por coluna do quadro (cabeçalho da fase: "4 anúncios · 1,2 M€") | SpotGov (kanban com valor por fase) | 2 | 1 (~2h) | Alta | **P3**: agradável, não muda decisões — cosmético por definição do critério | `quadro()` (rota `/quadro`), `euros_curto()` | — | |
-| B12 | Fontes com página nas leituras do modelo: guardar em `analise` a página/offset do recorte que sustentou cada campo, e mostrar na ficha | Armilar (resumo com números de página clicáveis ao lado do PDF) | 2 | 3 | Média — o recorte atravessa páginas; mapear offset→página do PDF não é directo com o extractor actual | **P3**: premissa técnica por confirmar + valor 2 (o `ensaio-de-leitura` já cobre a auditoria a quem desenvolve) | `recorte_relevante()`, extracção de texto (guardar quebras de página), `analise`, ficha | — | |
-| B13 | Prazo do "urgente" configurável no painel (hoje `janela_urgente()` fixa) | GovGo (prazo "A findar" editável: 5 dias) | 2 | 1 (~2h) | Alta | **P3**: cosmético; a janela única já é regra do projecto, só ganharia um campo no config | `janela_urgente()`, `config.json`, cartão dos indicadores | — | |
+Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
+**O backlog da análise competitiva está fechado de P0 a P3.**
 
 ## Feito
 
@@ -120,6 +117,25 @@ Vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
   ficha não oferece o botão. **Contratos novos das seguidas ficaram de
   fora**: o corpus chega semanal e a ficha da entidade já os mostra;
   reabre-se se fizer falta na prática.
+
+- **B11 — soma do preço base por coluna do quadro** (30/08/2026). O
+  cabeçalho da fase diz "2 · 123,4 k€", com o title a dizer sobre
+  quantos anúncios com preço lido é a soma (`soma_precos_base()`) —
+  somar uns e calar os outros parecia o valor da fase inteira.
+- **B12 — fontes com página** (30/08/2026). A premissa confirmou-se: o
+  extractor lê página a página, e passou a juntá-las com `\f` em linha
+  própria. `paginas_do_recorte()` sai das MESMAS janelas do recorte
+  (`_janelas_do_recorte()` partilhado) e as fontes da análise dizem
+  "CE.pdf (pág. 1–5)" — por leitura, que objecto e equipa lêem zonas
+  diferentes. Textos antigos reextraíram-se uma vez por marca
+  (`texto_com_paginas`, 49 s); os sem ficheiro em disco ficaram como
+  estavam. Num ZIP com vários PDFs a página é do texto extraído, e a
+  nota di-lo.
+- **B13 — janela do "urgente" configurável** (30/08/2026).
+  `dias_urgente()` lê o `config.json` (lixo/zero voltam a 10) e TODOS os
+  sítios leem dela — filtro, rótulos, cartão dos indicadores, saúde.
+  Edita-se no painel, em `/alertas` ("Janela do urgente"), com validação
+  1–90 à vista.
 
 ## Não fazer, e porquê
 
