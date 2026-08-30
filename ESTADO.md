@@ -2917,3 +2917,38 @@ estão de propósito (6.2-B).
 Fluxo B continua dependente da decisão E2 do SANEAMENTO.md, e a
 procura directa de entidade ficou no BACKLOG a pedido dele, como
 possibilidade registada e não feita.
+
+## O código saiu do PC, 31 de agosto de 2026
+
+Meio dia de decisões do Afonso, sem uma linha de código novo — a
+implementação fica para quando ele der luz verde.
+
+- **Há remoto.** `github.com/afonsonp/radarconcursos`, privado
+  (confirmado: pedido anónimo dá 404), com os 72 commits empurrados.
+  Verificado antes do push que os 46 ficheiros versionados não levam
+  capturas, bases, chaves nem peças — o `.gitignore` largo fez o
+  trabalho. **Isto fecha metade do R2: o código.**
+- **A triagem ainda não saiu do PC**, e ele não tem disco externo. A
+  saída decidida é o tamanho: a parte irrecuperável são **8 330
+  linhas**, que cabem num ficheiro de texto a viajar no próprio
+  repositório. Especificado no BACKLOG como **B15**, por implementar.
+  Até lá, o R2 continua vivo para a triagem, que é justamente o que não
+  se recupera.
+- **O e-mail está configurado e ainda não envia.** Endereços postos no
+  `config.json`; o `email_senha.txt` foi criado mas a Google recusa-o
+  (**535 BadCredentials**, testado por login SMTP sem enviar mensagem
+  nenhuma). Tem 10 caracteres e uma palavra-passe de aplicação tem 16 —
+  é quase de certeza a palavra-passe normal da conta, que o Gmail não
+  aceita em SMTP. Detalhe e passos em E2 do SANEAMENTO.
+- **E3 decidido: fica como está.** Os links do resumo continuam em
+  `localhost`; o e-mail vale como aviso, e o trabalho faz-se no PC. Sem
+  VPN, sem expor o painel.
+- **E4 decidido: implementar** o registo da expiração do token. Por
+  fazer.
+- **Segunda fonte de anúncios aprovada, com âmbito** (BACKLOG **B14**):
+  Vortal e acingov, **só para procedimentos que o DR não publica**.
+  Fica escrito o que a decisão não apaga: o caminho que hoje existe
+  parte sempre de um link vindo de um anúncio do DR — é buscar peças de
+  algo já conhecido, não descobrir — e **não se sabe se existe listagem
+  anónima** em qualquer das duas plataformas. A primeira tarefa é medir
+  isso, não escrever ingestão. Os avisos [LEGAL] [RISCO] mantêm-se.

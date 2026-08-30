@@ -243,10 +243,15 @@ de paginação existentes.
 > verificados no `origin/master`. Nada de sensível foi: os 46 ficheiros
 > versionados não incluem capturas, bases, chaves, peças nem cópias.
 > **A triagem continua sem cópia externa** — ele só tem o disco `D:`, e a
-> base de trabalho está no `.gitignore` de propósito. Proposta em cima da
-> mesa: exportar só a triagem (8 330 linhas — decisões, fases, histórico,
-> filtros) para um ficheiro de texto pequeno que viaja no próprio
-> repositório, resolvendo o R2 sem disco nenhum. Por decidir.
+> base de trabalho está no `.gitignore` de propósito. **Decidido a
+> 31/08/2026:** exporta-se só a triagem (8 330 linhas — decisões, fases,
+> histórico, filtros, marcas de já-avisado) para um ficheiro de texto que
+> viaja no próprio repositório, e cada push passa a ser uma cópia fora do
+> PC, sem comprar disco nenhum. A especificação está no BACKLOG como
+> **B15**; falta implementá-la, e falta decidir lá se o push é manual ou
+> por tarefa semanal. **Enquanto isso não estiver feito, o R2 mantém-se
+> vivo para a triagem** — o remoto de hoje cobre o código, não as
+> decisões.
 
 O que está em risco, por ordem de gravidade: a **triagem** (interessa/
 descartado, fases, responsáveis, histórico — declaradamente
@@ -279,16 +284,24 @@ conta GitHub/disco a usar — é tua.
 
 ### E2 — Canal de aviso morto: o que falta fornecer, passo a passo
 
-> **Estado a 30/08/2026, fim do dia — a faltar um ficheiro.** Os
-> endereços estão postos no `config.json`: envia
+> **Estado a 31/08/2026 — a palavra-passe existe e a Google recusa-a.**
+> Os endereços estão postos no `config.json`: envia
 > `afonso.pinto.redit@gmail.com`, recebe `afonso.pinto95@hotmail.com`,
-> resumo às 17:00. **Falta a palavra-passe de aplicação**: o Afonso disse
-> que já estava guardada, mas o radar não a encontra — não existe
-> `email_senha.txt` na pasta nem a variável `RADAR_EMAIL_SENHA` no
-> ambiente, que são os dois únicos sítios onde `enviar_email()` a
-> procura. Enquanto assim for, o envio falha com «falta a palavra-passe
-> em email_senha.txt». Já há 1 filtro com alerta ligado e 1 entidade
-> seguida à espera.
+> resumo às 17:00. O `email_senha.txt` foi criado, mas **a autenticação
+> é recusada**: teste de login SMTP (sem enviar mensagem nenhuma) devolve
+> **535 5.7.8 Username and Password not accepted**. A causa provável está
+> à vista no próprio ficheiro: tem **10 caracteres**, e uma palavra-passe
+> de aplicação da Google tem **16** (quatro grupos de quatro, que se
+> colam sem espaços). O que lá está é quase de certeza a palavra-passe
+> normal da conta, e essa o Gmail não aceita em SMTP desde que exigiu
+> verificação em dois passos.
+>
+> **O que falta, em concreto:** em myaccount.google.com → Segurança →
+> Palavras-passe de aplicação (aparece só com a verificação em 2 passos
+> ligada), gerar uma para «Correio», e gravar no `email_senha.txt` as
+> **16 letras seguidas, sem espaços** e mais nada. O teste de login
+> repete-se em segundos e diz logo se ficou bom. Já há 1 filtro com
+> alerta ligado e 1 entidade seguida à espera do primeiro resumo.
 
 O mecanismo está construído e testado; nunca entregou porque falta a
 última milha. Para o ligar:
@@ -325,6 +338,14 @@ correr uns minutos depois das 17:00 — hoje corre (17:01–17:09). Se
 mudares as horas, mantém `hora_resumo` ≤ hora da última verificação.
 
 ### E3 — Links do resumo apontam para `localhost:8765`
+
+> **Decidido a 31/08/2026: opção 1 — aceitar como está.** Os links do
+> resumo continuam a apontar para `localhost:8765`: funcionam no PC, que
+> é onde o trabalho se faz, e no telemóvel o e-mail vale como aviso («há
+> isto de novo»), não como porta de entrada. Não se instala VPN nem se
+> expõe o painel. Consequência assumida: quem abrir o resumo no telemóvel
+> lê os títulos e trata deles ao chegar ao PC.
+
 
 O e-mail chega ao telemóvel; os links não abrem lá nada. Opções, com o
 custo de cada uma — **sem decisão tomada**:

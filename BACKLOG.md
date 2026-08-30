@@ -175,6 +175,50 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## Aprovado pelo Afonso a 30/08/2026, por fazer
 
+- **B15 — exportação da triagem, para a cópia externa que falta (E1).**
+  Luz verde do Afonso a 31/08/2026. O problema: o remoto do GitHub já
+  põe o **código** fora do PC, mas a **triagem** — o único dado
+  declaradamente irrecuperável — continua só no disco `D:`, porque a
+  base de trabalho está no `.gitignore` e ele não tem disco externo. A
+  saída é o tamanho: das dezenas de MB da base, a parte irrecuperável
+  são **8 330 linhas** (medido a 31/08). Isso cabe num ficheiro de texto
+  que viaja no repositório que já existe, e cada push passa a ser uma
+  cópia da triagem fora do PC, sem comprar nada.
+
+  **O que entra** (e nada mais — o resto refaz-se): de `anuncios`, só
+  `ref`, `estado`, `fase_id`, `responsavel` e `visto_em`, e só das
+  linhas triadas, com fase ou com responsável (4 107); `historico`
+  inteiro (4 150); `fases` (5); `etiquetas` e `anuncio_etiquetas`;
+  `filtros_guardados`; `entidades_seguidas`; e as marcas de já-avisado
+  (`alertas_vistos`, `seguidas_vistos`, 66) — sem elas, o primeiro
+  resumo depois de um restauro traz tudo outra vez.
+
+  **Formato, e a razão:** um registo por linha, chaves ordenadas, ordem
+  determinística. Não é estética — é o que faz o `git diff` mostrar *o
+  que mudou hoje* em vez de um ficheiro inteiro reescrito, e é isso que
+  torna o histórico do repositório uma máquina do tempo da triagem em
+  vez de um monte de versões opacas.
+
+  **Quando corre:** a seguir à cópia diária, dentro do `verificar()` —
+  são milhares de linhas, custa nada, e assim está sempre fresco.
+  **Como sai do PC:** o export torna o dado pequeno; sair daqui exige um
+  push. Ou o Afonso faz commit quando calha, ou uma tarefa semanal faz
+  commit+push se o ficheiro mudou. A segunda é a que fecha mesmo o R2,
+  com o custo de meter commits de dados no histórico do código — com
+  mensagem padronizada, é ruído tolerável. **Decisão dele, quando isto
+  se fizer.**
+
+  **Restauro:** um comando próprio, idempotente, para correr **depois**
+  de a base ser refeita pela recolha — o ficheiro guarda decisões, não
+  anúncios, e os anúncios voltam do DR. Um `ref` que ainda não exista na
+  base não se inventa: fica num relatório no fim, para se saber o que
+  ficou por repor. Sem isto o restauro parecia completo e não era.
+
+  **O que o ficheiro leva de pessoal:** as decisões dele e o histórico
+  com o nome de quem agiu. Repositório privado, dados dele — mas fica
+  dito, porque passa a estar fora do PC.
+
+
 - **B14 — segunda fonte de anúncios: Vortal e acingov, só o que o DR não
   publica.** Decisão dele, a 30/08/2026, sobre o item que estava em «Não
   fazer» à espera precisamente disto: «podemos avançar com a ligação à
