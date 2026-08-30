@@ -4559,6 +4559,20 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .doc a{font:500 12.5px/1.35 var(--sans);min-width:0;overflow:hidden;
  text-overflow:ellipsis;white-space:nowrap}
 .doc .t{margin-left:auto;flex:none;font:400 11px/1 var(--mono);color:var(--t5)}
+/* pesquisa nas pecas da ficha (B09) */
+.pecas-busca{display:flex;gap:8px;margin-top:14px}
+.pecas-busca input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--linha);
+ border-radius:8px;font:400 12px/1.3 var(--sans)}
+.pecas-busca button{cursor:pointer;padding:8px 13px;border-radius:8px;
+ border:1px solid var(--linha);background:#fff;color:var(--t3);
+ font:600 12px/1 var(--sans)}
+.pecas-busca button:hover{border-color:var(--ink);color:var(--ink)}
+.pecas-achado{margin-top:10px;padding:9px 11px;background:var(--creme);
+ border-radius:8px}
+.pecas-achado .doc{display:block;border:0;padding:0;margin-bottom:4px;
+ font:600 10.5px/1.3 var(--mono);color:var(--t5)}
+.pecas-achado .exc{display:block;font:400 12px/1.5 var(--sans);color:var(--t3)}
+.pecas-achado .exc b{color:var(--ink)}
 .resp{display:flex;align-items:center;gap:9px;padding:9px 12px;
  border:1px solid var(--linha);border-radius:8px;background:var(--creme)}
 .resp .av{width:24px;height:24px;border-radius:50%;background:#e6e2da;flex:none;
@@ -5453,30 +5467,6 @@ def painel():
                      ("urgente", "só os que acabam em %d dias" % dias_urgente()),
                      ("expirado", "só os de prazo passado")))
 
-    # A pesquisa nas pecas (B09) so aparece quando o indice existe, e a
-    # faixa diz sobre quantos anuncios e que ela procura: cobre SO as
-    # pecas trazidas e com texto, que sao uma fraccao pequena da base --
-    # parecer que pesquisa tudo seria mentir com uma caixa de texto.
-    campo_pecas = ""
-    q_pecas_actual = (request.args.get("q_pecas") or "").strip()
-    faixa_pecas = ""
-    if ha_fts():
-        campo_pecas = ("<input type='text' name='q_pecas' value='%s' "
-                       "placeholder='Procurar nas peças…'>"
-                       % html.escape(request.args.get("q_pecas", ""),
-                                     quote=True))
-        if q_pecas_actual:
-            with liga() as c:
-                com_texto = c.execute(
-                    "SELECT COUNT(DISTINCT ref) n FROM documentos "
-                    "WHERE texto_estado='ok'").fetchone()["n"]
-            faixa_pecas = (
-                "<div class='flash'>A pesquisa nas peças só olha para os "
-                "<b>%s anúncios</b> que têm peças com texto na base &mdash; "
-                "as peças vêm ao marcar &ldquo;interessa&rdquo; ou com "
-                "&ldquo;Trazer peças&rdquo;. O resto da base não entra "
-                "nesta pesquisa.</div>" % mil_pt(com_texto))
-
     filtros = (
         "<form class='cx filtros' method='get' action='/'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do concurso ou objecto…'>"
@@ -5485,7 +5475,6 @@ def painel():
         # escreve no campo positivo, e excluir escreve-se a mao (codigos
         # ou palavras, separados por |).
         "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
-        "%s"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='text' name='cpv_excl' value='%s' "
@@ -5502,7 +5491,6 @@ def painel():
         "</form>"
         % (html.escape(request.args.get("q", ""), quote=True),
            html.escape(request.args.get("q_excl", ""), quote=True),
-           campo_pecas,
            html.escape(request.args.get("ent", ""), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
@@ -5562,7 +5550,7 @@ def painel():
     # A ordem e sempre a mesma nas duas listas: filtros, faixa do CPV
     # activo, arvore, e so depois os filtros guardados. A arvore e onde
     # se escolhe o CPV, por isso vem antes de se guardar a escolha.
-    conteudo = ("<div class='larg'>" + faixa_avisos + faixa_pecas +
+    conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
                 filtros + faixa_cpv + arvore + caixa_guardados +
                 "<div class='linha-conta'>" + conta +
@@ -5607,7 +5595,6 @@ CAMPOS_FILTRO = ("q", "q_excl", "cpv", "cpv_excl",   # entendem-nos todos
                  "op",                               # E/OU entre q e cpv
                  "de", "ate",
                  "ent", "plat", "estado", "prazo",   # so os anuncios
-                 "q_pecas",                          # pesquisa nas pecas
                  "adj", "ganhou", "proc", "min", "entid", "vencid")
 
 # Argumentos que a lista usa mas nao definem o filtro, e por isso nao se
@@ -5621,7 +5608,7 @@ CAMPOS_DA_VEZ = ("pag", "aviso")
 # seria alargar o filtro sem avisar.
 CAMPOS_POR_VISTA = {
     "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "ent",
-                 "plat", "estado", "prazo", "q_pecas"),
+                 "plat", "estado", "prazo"),
     "contratos": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "adj",
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
@@ -5682,7 +5669,7 @@ def filtro_para(consulta, vista):
 # rotulos das caixas dizem agora o mesmo que estes.
 _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "q_excl": "sem", "cpv_excl": "sem CPV",
-                 "op": "palavras/CPV", "q_pecas": "nas peças",
+                 "op": "palavras/CPV",
                  "ent": "entidade que publica", "plat": "plataforma",
                  "prazo": "prazo",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
@@ -5952,17 +5939,6 @@ def condicoes(args):
         # nada nao exclui nada: e um nao-filtro, nao um "1=0"
         if ors:
             onde.append("NOT (" + " OR ".join(ors) + ")")
-    # A pesquisa nas pecas (B09): o FTS responde com os documentos e
-    # daqui saem os refs. So cobre as pecas trazidas e com texto -- a
-    # lista avisa disso quando o campo esta em uso.
-    q_pecas = (args.get("q_pecas") or "").strip()
-    if q_pecas:
-        consulta_fts = termos_fts(q_pecas)
-        if consulta_fts:
-            onde.append("ref IN (SELECT ref FROM documentos WHERE id IN "
-                        "(SELECT rowid FROM pecas_fts WHERE pecas_fts "
-                        "MATCH ?))")
-            valores.append(consulta_fts)
     plat = (args.get("plat") or "").strip()
     if plat:
         if plat == SEM_PLATAFORMA:
@@ -8837,6 +8813,66 @@ def mercado(a):
         % "".join(corpo))
 
 
+def excerto_de(texto, termo, raio=90):
+    """Um excerto HTML a volta da primeira ocorrencia do termo, com o
+    encontrado a negrito. "" quando o termo nao esta no texto limpo.
+
+    Procura no texto SEM as linhas de indice (sem_indice) -- o snippet()
+    do FTS devolvia a linha do sumario ("Penalidades .......") em vez do
+    corpo -- e sem acentos nem maiusculas (simplifica), como a pesquisa.
+    E um excerto, nao uma citacao ao caracter: um PDF com ligaturas pode
+    desviar o corte umas letras, e o raio absorve-o.
+    """
+    limpo = sem_indice(texto or "").replace("\f", " ")
+    baixo = simplifica(limpo)
+    alvos = []
+    for pedaco in (p.strip() for p in (termo or "").split("|")):
+        if not pedaco:
+            continue
+        alvos.append(simplifica(pedaco))          # a frase inteira primeiro
+        alvos += [simplifica(p) for p in pedaco.split() if len(p) > 2]
+    for alvo in alvos:
+        pos = baixo.find(alvo)
+        if pos < 0:
+            continue
+        ini = max(0, pos - raio)
+        fim = min(len(limpo), pos + len(alvo) + raio)
+        antes = limpo[ini:pos].replace("\n", " ")
+        meio = limpo[pos:pos + len(alvo)].replace("\n", " ")
+        depois = limpo[pos + len(alvo):fim].replace("\n", " ")
+        return ("%s%s<b>%s</b>%s%s"
+                % ("…" if ini else "", html.escape(antes),
+                   html.escape(meio), html.escape(depois),
+                   "…" if fim < len(limpo) else ""))
+    return ""
+
+
+def pesquisa_nas_pecas(ref, termo):
+    """Os excertos das pecas DESTE anuncio que respondem ao termo (B09).
+
+    A pesquisa nas pecas vive na ficha, depois de as pecas virem -- e
+    nao na lista: la fora cobria uma fraccao minuscula da base e
+    enganava mais do que ajudava. O FTS diz QUE documentos respondem
+    (por ordem de rank); o excerto constroi-se em Python sobre o texto
+    limpo (excerto_de), porque o snippet() escolhia a linha do sumario.
+    Devolve [(nome, excerto_html)], um por documento."""
+    consulta = termos_fts(termo)
+    if not (consulta and ha_fts()):
+        return []
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT d.nome, d.texto FROM pecas_fts "
+            "JOIN documentos d ON d.id = pecas_fts.rowid "
+            "WHERE pecas_fts MATCH ? AND d.ref = ? ORDER BY rank",
+            (consulta, ref)).fetchall()
+    fora = []
+    for l in linhas:
+        exc = excerto_de(l["texto"], termo)
+        if exc:
+            fora.append((l["nome"], exc))
+    return fora
+
+
 def volta_a_lista():
     """A lista de onde se veio, com o filtro e a pagina que tinha.
 
@@ -9093,11 +9129,40 @@ def ficha(ref):
         corpo_docs = ("<div class='nota'>%s</div><div style='margin-top:14px'>%s</div>"
                       % (nota, accao("/documentos/%s" % ref, "Trazer peças", "bt forte")))
 
+    # A pesquisa nas pecas deste anuncio (B09): so quando ha pecas com
+    # texto -- oferecer a caixa sem nada onde procurar era um campo
+    # morto. O resultado e um excerto por documento, com o termo a
+    # negrito, dentro da propria caixa das pecas.
+    pesquisa_cx = ""
+    if ha_fts() and any((d["texto_estado"] or "") == "ok" for d in docs):
+        pecas_q = (request.args.get("pecas_q") or "").strip()
+        resultados = ""
+        if pecas_q:
+            achados = pesquisa_nas_pecas(ref, pecas_q)
+            if achados:
+                resultados = "".join(
+                    "<div class='pecas-achado'><span class='doc'>%s</span>"
+                    "<span class='exc'>%s</span></div>"
+                    % (html.escape(corta(n, 46)), e) for n, e in achados)
+            else:
+                resultados = ("<div class='nota' style='margin-top:10px'>"
+                              "Nada com isto nas peças com texto deste "
+                              "anúncio.</div>")
+        pesquisa_cx = (
+            "<form method='get' action='/anuncio/%s' class='pecas-busca'>%s"
+            "<input type='text' name='pecas_q' value='%s' "
+            "placeholder='Procurar nas peças…'>"
+            "<button type='submit'>Procurar</button></form>%s"
+            % (quote(ref, safe=""),
+               "<input type='hidden' name='modo' value='completo'>"
+               if completo else "",
+               html.escape(pecas_q, quote=True), resultados))
+
     chip_plat = ("<span class='tag ok' style='margin-left:auto'>%s</span>"
                  % html.escape(a["plataforma"])) if a["plataforma"] else ""
     docs_cx = ("<div class='cx lado-cx'><div class='cab'>"
-               "<span class='rot'>Peças do procedimento</span>%s</div>%s</div>"
-               % (chip_plat, corpo_docs))
+               "<span class='rot'>Peças do procedimento</span>%s</div>%s%s</div>"
+               % (chip_plat, corpo_docs, pesquisa_cx))
 
     resp = a["responsavel"] or ""
     resp_cx = ("<div class='cx lado-cx'><div class='rot' style='margin-bottom:12px'>"

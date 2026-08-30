@@ -2009,15 +2009,41 @@ class TestTermosFts(unittest.TestCase):
         self.assertEqual(radar.termos_fts(""), "")
         self.assertEqual(radar.termos_fts(" | "), "")
 
-    def test_entra_na_condicoes_como_subconsulta(self):
-        onde, valores = radar.condicoes(
-            {"q_pecas": "penalidades", "estado": ""})
-        self.assertIn("pecas_fts MATCH ?", onde)
-        self.assertIn('("penalidades")', valores)
+    def test_excerto_acha_sem_acentos_e_poe_negrito(self):
+        # o texto em maiúsculas e o termo com acento têm de se achar,
+        # como na pesquisa; o encontrado vai a negrito
+        saiu = radar.excerto_de(
+            "CLÁUSULA 9 — PENALIDADES CONTRATUAIS aplicam-se quando…",
+            "penalidades")
+        self.assertIn("<b>PENALIDADES</b>", saiu)
 
-    def test_q_pecas_vazio_nao_filtra(self):
-        onde, _ = radar.condicoes({"q_pecas": "  ", "estado": ""})
+    def test_excerto_ignora_as_linhas_do_indice(self):
+        # o snippet() do FTS devolvia a linha do sumário
+        # ("Penalidades ......... 7"); o excerto vem do corpo
+        texto = ("CAPÍTULO III – Penalidades ................ 7\n"
+                 "corpo do documento\n"
+                 "As penalidades contratuais são de 500 EUR por dia.\n")
+        saiu = radar.excerto_de(texto, "penalidades")
+        self.assertIn("500", saiu)
+        self.assertNotIn("....", saiu)
+
+    def test_excerto_diz_quando_corta(self):
+        saiu = radar.excerto_de("x" * 200 + " penalidades " + "y" * 200,
+                                "penalidades", raio=20)
+        self.assertTrue(saiu.startswith("…") and saiu.endswith("…"))
+
+    def test_sem_ocorrencia_nao_ha_excerto(self):
+        self.assertEqual(radar.excerto_de("nada disto aqui", "penalidades"),
+                         "")
+        self.assertEqual(radar.excerto_de("", "penalidades"), "")
+
+    def test_a_lista_nao_filtra_pelas_pecas(self):
+        # a pesquisa nas peças é da FICHA (pesquisa_nas_pecas), não da
+        # lista: lá fora cobria uma fracção minúscula da base e um
+        # q_pecas na URL não pode voltar a filtrar em silêncio
+        onde, _ = radar.condicoes({"q_pecas": "penalidades", "estado": ""})
         self.assertNotIn("pecas_fts", onde)
+        self.assertNotIn("q_pecas", radar.CAMPOS_FILTRO)
 
 
 class TestLeiturasConfiguraveis(unittest.TestCase):

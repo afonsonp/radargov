@@ -2783,3 +2783,29 @@ lado. Verificado ponta a ponta: gravar 7 muda o cartão dos indicadores
 para "menos de 7 dias"; repor 10 repõe.
 
 Testes: 410, todos verdes.
+
+## A pesquisa nas peças mudou-se para a ficha, 30 de agosto de 2026
+
+Correcção pedida pelo Afonso no próprio dia: o campo "Procurar nas
+peças…" não pertencia à lista dos anúncios — lá cobria os 17 anúncios
+com peças trazidas contra 66 mil da base, e uma caixa que parece
+pesquisar tudo mas pesquisa 0,03% engana por muito que a faixa avise.
+O sítio certo é a **ficha do anúncio**, depois de as peças virem:
+"procura nas peças DESTE concurso" é uma promessa que se cumpre.
+
+- A caixa vive dentro de "Peças do procedimento", só quando há peças
+  com texto; devolve um excerto por documento, com o termo a negrito,
+  por ordem de relevância do FTS.
+- O `q_pecas` saiu de `condicoes()`, do `CAMPOS_FILTRO` e do
+  formulário, com um teste a impedir o regresso — um q_pecas numa URL
+  guardada não pode voltar a filtrar em silêncio.
+- O excerto é calculado em Python (`excerto_de()`) sobre o texto **sem
+  as linhas de índice** e com a procura sem acentos, porque o
+  `snippet()` do FTS escolhia a linha do sumário ("Penalidades .......
+  7") em vez do corpo. O FTS continua a dizer *que* documentos
+  respondem; o excerto diz *onde*.
+- Nota assumida no código: o corte do excerto é por posição no texto
+  normalizado, e um PDF com ligaturas pode desviá-lo umas letras — é um
+  excerto, não uma citação ao carácter.
+
+Testes: 413, todos verdes.
