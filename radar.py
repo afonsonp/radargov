@@ -65,6 +65,9 @@ CONFIG_INICIAL = {
     "recuperar_slot_falhado": True,
     "abrir_browser_ao_encontrar": False,
     "detalhes_por_volta": 40,
+    # Quantos anuncios marcados (interessa/quadro) se releem por
+    # verificacao, a procura de prorrogacoes e precos base novos (B05).
+    "relidos_por_volta": 25,
     # Copia do radar.db antes de cada verificacao. So a triagem e o
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
@@ -239,6 +242,16 @@ def iniciar_db():
             accao TEXT, detalhe TEXT, quando TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_historico_ref
                      ON historico(ref)""")
+        # As alteracoes que o DR fez a anuncios ja lidos (B05): a fila do
+        # resumo diario, com a marca de avisado -- o reconhecer e o
+        # enviar separados, como nos alertas. O historico da ficha conta
+        # a mesma historia, mas e para ler; esta tabela e para saber o
+        # que ainda nao foi avisado.
+        c.execute("""CREATE TABLE IF NOT EXISTS alteracoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, campo TEXT,
+            antes TEXT, depois TEXT, detectado_em TEXT, avisado_em TEXT)""")
+        c.execute("""CREATE INDEX IF NOT EXISTS ix_alteracoes_envio
+                     ON alteracoes(avisado_em)""")
         colunas = [r["name"] for r in c.execute("PRAGMA table_info(anuncios)")]
         # Migracoes idempotentes: correm sempre, nao fazem nada se ja existirem.
         for nome, tipo in (("fase_id", "INTEGER"), ("texto", "TEXT"),
@@ -791,18 +804,74 @@ def _molde_detalhe():
     return (pedido, molde), ""
 
 
+# Os campos que se vigiam entre releituras do detalhe, e como se chamam
+# no aviso. So o prazo e o preco base: sao os que mudam decisoes -- uma
+# prorrogacao da tempo, um preco base novo muda a conta da proposta.
+CAMPOS_VIGIADOS = (("prazo", "prazo de propostas"),
+                   ("preco_base", "preço base"))
+
+
+def diferencas_do_detalhe(antes, depois):
+    """[(campo, valor antigo, valor novo)] entre duas leituras.
+
+    So conta quando ha valor DOS DOIS lados: um campo que passa a vazio
+    e quase sempre o parser a tropecar num texto reformatado, e avisar
+    "o prazo desapareceu" por causa disso era o rapaz que gritava lobo
+    -- ao terceiro aviso falso ninguem lia o verdadeiro.
+    """
+    fora = []
+    for campo, _ in CAMPOS_VIGIADOS:
+        a = (antes.get(campo) or "").strip()
+        d = (depois.get(campo) or "").strip()
+        if a and d and a != d:
+            fora.append((campo, a, d))
+    return fora
+
+
+def _valor_vigiado(campo, valor):
+    """Datas a portuguesa no aviso; o resto como o DR o escreve."""
+    return data_pt(valor) if campo == "prazo" else valor
+
+
+def registar_alteracoes(ref, difs):
+    """Grava o que mudou entre leituras, em dois sitios de proposito: na
+    fila `alteracoes` (que sabe o que ja foi avisado, como os alertas) e
+    no historico da ficha (que conta a historia a quem a abre)."""
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    rotulos = dict(CAMPOS_VIGIADOS)
+    with liga() as c:
+        c.executemany(
+            "INSERT INTO alteracoes (ref, campo, antes, depois, detectado_em)"
+            " VALUES (?,?,?,?,?)",
+            [(ref, campo, a, d, agora) for campo, a, d in difs])
+    for campo, a, d in difs:
+        registar(ref, "alterou",
+                 "%s: %s → %s" % (rotulos.get(campo, campo),
+                                  _valor_vigiado(campo, a),
+                                  _valor_vigiado(campo, d)),
+                 quem="DR")
+
+
 def _guardar_detalhe(ref, dados):
     """Caminhos exactos, confirmados na resposta do DR."""
     conteudo = (dados.get("data") or {}).get("DetalheConteudo") or {}
     texto = conteudo.get("Texto") or ""
     campos = campos_do_detalhe(texto)
     with liga() as c:
+        # A leitura anterior, antes de a esmagar: e a comparacao entre
+        # as duas que da os avisos de alteracao (B05).
+        antigo = c.execute("SELECT prazo, preco_base, detalhe_lido "
+                           "FROM anuncios WHERE ref=?", (ref,)).fetchone()
         c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
                      plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
                      detalhe_lido=1 WHERE ref=?""",
                   (campos["cpv"], campos["prazo"], campos["preco_base"],
                    campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
                    campos["link_pecas"], campos["nif"], ref))
+    if antigo and antigo["detalhe_lido"]:
+        difs = diferencas_do_detalhe(dict(antigo), campos)
+        if difs:
+            registar_alteracoes(ref, difs)
     return texto
 
 
@@ -864,6 +933,50 @@ def ler_detalhes(limite=40, dias=None):
     feitos = 0
     for a in pendentes:
         variaveis["Key"] = a["url"].rsplit("/", 1)[-1]   # 21171-2026-1160416962
+        variaveis["Tipo"] = "anuncio-procedimento"
+        try:
+            r = requests.post(pedido["url"], headers=pedido["headers"],
+                              data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
+                              timeout=60)
+            if "json" not in r.headers.get("Content-Type", ""):
+                return feitos, "o detalhe respondeu sem JSON, captura expirada?"
+            dados = r.json()
+        except (requests.RequestException, ValueError):
+            break
+        _guardar_detalhe(a["ref"], dados)
+        feitos += 1
+        time.sleep(1)
+    return feitos, ""
+
+
+def reler_marcados(limite=25):
+    """Rele o detalhe dos anuncios MARCADOS com prazo aberto (B05).
+
+    Marcado = "interessa" ou com fase no quadro: e o que esta a ser
+    trabalhado, e uma prorrogacao ou um preco base novo ai muda
+    decisoes. A base toda nao se rele -- 5 mil anuncios a 1 s cada eram
+    85 minutos por verificacao a vigiar o que ninguem quer.
+
+    A comparacao com o guardado e do _guardar_detalhe(), que poe as
+    diferencas na fila `alteracoes` e no historico da ficha. Os de
+    prazo passado ficam de fora: o que muda num anuncio fechado ja nao
+    muda decisao nenhuma.
+    """
+    par, aviso = _molde_detalhe()
+    if not par:
+        return 0, aviso
+    pedido, molde = par
+    variaveis = molde["screenData"]["variables"]
+    hoje = datetime.now().date().isoformat()
+    with liga() as c:
+        marcados = c.execute(
+            "SELECT ref, url FROM anuncios WHERE detalhe_lido=1"
+            " AND (estado='interessa' OR fase_id IS NOT NULL)"
+            " AND prazo != '' AND prazo >= ?"
+            " ORDER BY prazo LIMIT ?", (hoje, limite)).fetchall()
+    feitos = 0
+    for a in marcados:
+        variaveis["Key"] = a["url"].rsplit("/", 1)[-1]
         variaveis["Tipo"] = "anuncio-procedimento"
         try:
             r = requests.post(pedido["url"], headers=pedido["headers"],
@@ -2273,12 +2386,42 @@ def marcar_alertas_enviados(achados):
                 [(agora, f["id"], a["ref"]) for a in linhas])
 
 
-def texto_do_resumo(achados):
+def alteracoes_por_avisar():
+    """As alteracoes detectadas e ainda nao avisadas, com o anuncio ao
+    lado para o resumo ter o que dizer."""
+    with liga() as c:
+        return c.execute(
+            "SELECT t.id, t.ref, t.campo, t.antes, t.depois, "
+            "a.titulo, a.entidade FROM alteracoes t "
+            "JOIN anuncios a ON a.ref = t.ref "
+            "WHERE t.avisado_em IS NULL ORDER BY t.ref, t.id").fetchall()
+
+
+def marcar_alteracoes_avisadas(alteradas):
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with liga() as c:
+        c.executemany("UPDATE alteracoes SET avisado_em=? WHERE id=?",
+                      [(agora, x["id"]) for x in alteradas])
+
+
+def texto_do_resumo(achados, alteradas=()):
     """O resumo em texto simples, que serve de corpo do e-mail e de
-    AVISOS.txt. Um so formato: dois divergiam ao primeiro arranjo."""
+    AVISOS.txt. Um so formato: dois divergiam ao primeiro arranjo.
+
+    As `alteradas` sao as linhas de alteracoes_por_avisar(): anuncios ja
+    conhecidos a que o DR mudou o prazo ou o preco base (B05). Vao numa
+    seccao propria no fim -- nao sao novidades, sao mudancas.
+    """
     total = sum(len(x[1]) for x in achados)
-    linhas = ["Radar de Concursos -- %d anuncio%s novo%s nos teus alertas"
-              % (total, "" if total == 1 else "s", "" if total == 1 else "s"),
+    n_alt = len({x["ref"] for x in alteradas})
+    cabeca = []
+    if total or not n_alt:
+        cabeca.append("%d anuncio%s novo%s nos teus alertas"
+                      % (total, "" if total == 1 else "s",
+                         "" if total == 1 else "s"))
+    if n_alt:
+        cabeca.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
+    linhas = ["Radar de Concursos -- " + " e ".join(cabeca),
               datetime.now().strftime("%d/%m/%Y %H:%M"), ""]
     for f, anuncios in achados:
         linhas.append("== %s (%d)" % (f["nome"], len(anuncios)))
@@ -2300,6 +2443,25 @@ def texto_do_resumo(achados):
                           % (a["ref"], prazo, a["preco_base"] or "sem preco base"))
             linhas.append("    http://localhost:%d/anuncio/%s"
                           % (PORTA, quote(a["ref"], safe="")))
+            linhas.append("")
+    if alteradas:
+        rotulos = dict(CAMPOS_VIGIADOS)
+        por_ref = {}
+        for x in alteradas:
+            por_ref.setdefault(x["ref"], []).append(x)
+        linhas.append("== Alterados desde a última leitura (%d)" % len(por_ref))
+        linhas.append("")
+        for ref, mudancas in por_ref.items():
+            primeiro = mudancas[0]
+            linhas.append("  %s" % (primeiro["titulo"] or "(sem titulo)")[:88])
+            linhas.append("    %s" % (primeiro["entidade"] or "")[:80])
+            for x in mudancas:
+                linhas.append("    %s: %s -> %s"
+                              % (rotulos.get(x["campo"], x["campo"]),
+                                 _valor_vigiado(x["campo"], x["antes"]),
+                                 _valor_vigiado(x["campo"], x["depois"])))
+            linhas.append("    http://localhost:%d/anuncio/%s"
+                          % (PORTA, quote(ref, safe="")))
             linhas.append("")
     return "\n".join(linhas)
 
@@ -2354,17 +2516,23 @@ def enviar_resumo(cfg=None, forcar=False):
     if not forcar and le_marca("ultimo_resumo", "") == hoje:
         return False, "o resumo de hoje já saiu"
     achados = alertas_por_enviar()
-    if not achados:
+    alteradas = alteracoes_por_avisar()
+    if not achados and not alteradas:
         return False, "nada de novo para avisar"
 
-    corpo = texto_do_resumo(achados)
+    corpo = texto_do_resumo(achados, alteradas)
     with open(AVISOS, "w", encoding="utf-8") as f:
         f.write(corpo)                  # fica sempre, mesmo sem e-mail
 
     total = sum(len(x[1]) for x in achados)
-    bem, porque = enviar_email(
-        "Radar: %d anúncio%s nos teus alertas" % (total, "" if total == 1 else "s"),
-        corpo, cfg)
+    n_alt = len({x["ref"] for x in alteradas})
+    pedacos = []
+    if total:
+        pedacos.append("%d anúncio%s nos teus alertas"
+                       % (total, "" if total == 1 else "s"))
+    if n_alt:
+        pedacos.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
+    bem, porque = enviar_email("Radar: " + " · ".join(pedacos), corpo, cfg)
 
     # Sem e-mail configurado, **o ficheiro e a entrega** -- da-se por
     # avisado e o estado avanca. Se ficassem pendentes, o painel dizia
@@ -2376,6 +2544,7 @@ def enviar_resumo(cfg=None, forcar=False):
     entregue = bem or sem_canal
     if entregue:
         marcar_alertas_enviados(achados)
+        marcar_alteracoes_avisadas(alteradas)
         marca("ultimo_resumo", hoje)
     marca("ultimo_resumo_estado",
           porque if bem else
@@ -2412,6 +2581,14 @@ def verificar(cfg=None, passo=None):
         if aviso:
             bem = False
             mensagem += " (%s)" % aviso
+    if bem:
+        # So depois dos novos: se a captura expirou, ja se soube acima e
+        # nao vale a pena bater outra vez na mesma porta.
+        diz("a reler os anúncios marcados, à procura de alterações")
+        try:
+            reler_marcados(int(cfg.get("relidos_por_volta", 25)))
+        except (sqlite3.Error, OSError) as erro:
+            print("aviso: a releitura dos marcados falhou (%s)" % erro)
     # Os avisos correm depois de ler os detalhes: um filtro por CPV so
     # apanha o anuncio depois de o CPV estar lido, e ler os detalhes e a
     # ultima coisa que a verificacao faz.

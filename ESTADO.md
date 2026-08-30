@@ -2556,3 +2556,88 @@ que é a regra da casa.
 
 Testes: `TestExclusoesNoFiltro` e `TestTermosDoTitulo`, 353 no total,
 todos verdes.
+
+## Os três P1 do backlog, 30 de agosto de 2026 — renovações, desconto, alterações
+
+No mesmo dia dos P0, os três P1 da análise competitiva. Cada um com o
+seu commit, os seus testes e a sua medição.
+
+### B03 — vista "Renovações" (`/renovacoes`)
+
+A pergunta "o que vai renovar no meu mercado?" — o que a Armilar vende
+como "Previsão de Contratos" e a SpotGov como "Pipeline Radar". É um
+separador novo, entre os contratos e o quadro: contratos do corpus com
+o fim estimado numa janela de 3/6/12/24 meses, do mais próximo para o
+mais distante, com quem o detém e por quanto.
+
+- **`fim_estimado` é coluna, não expressão**: celebração + prazo de
+  execução em dias, enchida pelo importador (`fim_estimado()`, função
+  pura com teste) e por migração idempotente no `iniciar_corpus()` (349 s
+  uma vez, para 1,36 M de linhas), com índice `(fim_estimado, id)`.
+  O dump traz prazos absurdos (um de 365 milhões de dias): esses ficam
+  "" em vez de rebentar o calendário.
+- **A pergunta vem primeiro**, como nos contratos: 81 827 contratos
+  terminam nos próximos 6 meses, e sem CPV ou entidade a lista não
+  responde a nada.
+- **A janela vai por whitelist** (`MESES_RENOVACOES`), porque entra numa
+  expressão de data do SQL. Fora da lista, volta aos 6 meses.
+- A vista `renovacoes` entra em `CAMPOS_POR_VISTA` **sem `de`/`ate`**:
+  a página já tem um eixo do tempo (a janela) e dois confundiam. Um
+  filtro guardado com datas entra na mesma, marcado como parcial.
+- A página diz, por extenso, que o fim é **estimado** e que prorrogações
+  e cessações antecipadas não constam do dump.
+
+### B04 — desconto sobre o preço base
+
+A validação veio primeiro, como o backlog exigia, e confirmou o risco
+anotado: **a média ingénua por linha dá -18,9%** — num procedimento com
+lotes, cada linha compara o seu lote com o preço base do procedimento
+inteiro. As regras que ficaram, validadas contra 20 casos à mão:
+
+- **Agrega-se por `n_anuncio`** (soma dos contratuais ÷ base) e nunca
+  por linha.
+- **Ficam de fora**: grupos com a base a variar entre lotes (5 388 — aí
+  a base é por lote e a semântica é outra) e grupos com a soma acima da
+  base (4 275, ruído). Sobra o conjunto limpo: **97 130 procedimentos**.
+- O 7º gráfico do resumo dos contratos mostra a distribuição por
+  escalões e a mediana (global 8,7%; CPV 72: 3,4%; limpeza 909100:
+  10,5%), e diz quantos procedimentos contam e porquê. Com o índice
+  parcial `ix_ctr_desconto`, a consulta caiu de 1,0 s para 0,07 s.
+- Na ficha do anúncio, ao pé da régua de preços: desconto mediano da
+  entidade neste CPV, só com 5 ou mais procedimentos.
+
+De caminho descobriu-se que o "~800 ms sem filtro" do resumo é número
+de outro corpus: com os 7 anos actuais, as cinco consultas antigas
+somam ~7 s (ganha 2,1 s, proc 1,7 s, compra e trim 1,1 s cada, escal
+0,8 s). O desconto novo custa 65 ms — a lentidão é herdada, não deste
+trabalho, e fica aqui anotada como melhoria possível.
+
+### B05 — avisos de alterações
+
+O DR republica anúncios alterados — há um em base com "Descrição das
+Alterações: Modificação do prazo para a apresentação de propostas" — e
+o radar não olhava duas vezes. Agora olha, com juízo sobre o custo:
+
+- **Só se releem os marcados** (interessa ou com fase no quadro) com
+  prazo aberto, até 25 por verificação (`reler_marcados()`,
+  `relidos_por_volta` no config). A base toda eram 85 minutos por
+  verificação a vigiar o que ninguém quer.
+- **A comparação é de valor para valor** (`diferencas_do_detalhe()`):
+  prazo e preço base, e só quando há valor dos dois lados. Um campo que
+  passa a vazio é o parser a tropeçar num texto reformatado — avisar
+  isso era o rapaz que gritava lobo.
+- **Reconhecer e enviar separados**, como nos alertas: a fila
+  `alteracoes` guarda o que ainda não foi avisado; o histórico da ficha
+  mostra "DR · alterou · prazo de propostas: 05/09/2026 → 19/09/2026";
+  o resumo diário ganha a secção "Alterados desde a última leitura", e
+  o assunto do e-mail diz "· N alterados".
+- Ensaiado sobre **cópia** da base (o padrão do ensaio-de-leitura) com
+  uma prorrogação simulada de 14 dias: detecta, regista uma vez, e
+  reler o mesmo texto não avisa segunda vez.
+- **Anulações ficaram de fora**: o formato com que o DR as republica
+  está por confirmar — era a metade de confiança média do item, e
+  prometê-la sem a ter visto era prometer em falso.
+
+Testes novos: `TestFimEstimado`, `TestEscaloesDeDesconto`,
+`TestDiferencasDoDetalhe`, `TestResumoComAlterados` — 376 no total,
+todos verdes.
