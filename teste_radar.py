@@ -3225,6 +3225,258 @@ class TestMinimoParaEscada(unittest.TestCase):
         self.assertGreaterEqual(radar.MINIMO_PARA_ESCADA, 5)
 
 
+class TestModeloComFornecedor(unittest.TestCase):
+    """A2 do saneamento de 30/08/2026: 12 das 18 análises tinham o
+    modelo no formato de antes da cadeia ("openai/gpt-oss-120b", sem
+    fornecedor), e nenhuma migração o convertia. A regra: um segmento
+    sem ":" é de antes da cadeia, e antes da cadeia só a Groq escrevia
+    — os outros fornecedores nasceram já com o prefixo posto."""
+
+    def test_sem_prefixo_ganha_groq(self):
+        self.assertEqual(radar._modelo_com_fornecedor("openai/gpt-oss-120b"),
+                         "groq:openai/gpt-oss-120b")
+
+    def test_prefixado_fica_como_esta(self):
+        self.assertEqual(
+            radar._modelo_com_fornecedor("nvidia:openai/gpt-oss-120b"),
+            "nvidia:openai/gpt-oss-120b")
+
+    def test_misto_converte_so_a_parte_nua(self):
+        # havia uma linha assim mesmo na base: a parte prefixada veio da
+        # cadeia, a nua ficara da leitura antiga (juntar_fontes preserva)
+        self.assertEqual(
+            radar._modelo_com_fornecedor(
+                "nvidia:openai/gpt-oss-120b, openai/gpt-oss-120b"),
+            "nvidia:openai/gpt-oss-120b, groq:openai/gpt-oss-120b")
+
+    def test_aplicar_duas_vezes_da_o_mesmo(self):
+        uma = radar._modelo_com_fornecedor("openai/gpt-oss-120b, nvidia:x")
+        self.assertEqual(radar._modelo_com_fornecedor(uma), uma)
+
+    def test_vazio_e_none_ficam_vazios(self):
+        self.assertEqual(radar._modelo_com_fornecedor(""), "")
+        self.assertEqual(radar._modelo_com_fornecedor(None), "")
+
+    def test_modelo_com_dois_pontos_no_nome_nao_ganha_prefixo(self):
+        # "z-ai/glm-5.2:free" leva ":" no proprio nome; um prefixo em
+        # cima era estragar um valor que nunca foi escrito sem fornecedor
+        self.assertEqual(radar._modelo_com_fornecedor("z-ai/glm-5.2:free"),
+                         "z-ai/glm-5.2:free")
+
+
+class BaseTemporaria(unittest.TestCase):
+    """Esqueleto para os testes de migração: uma base TEMPORÁRIA — nunca
+    a verdadeira —, criada e deitada fora por teste. Continua sem rede e
+    em milissegundos."""
+
+    def setUp(self):
+        import tempfile
+        self.pasta = tempfile.mkdtemp()
+        self.db_antigo = radar.DB
+        self.docs_antigo = radar.DOCS
+        radar.DB = os.path.join(self.pasta, "ensaio.db")
+        radar.DOCS = os.path.join(self.pasta, "documentos")
+        radar.iniciar_db()          # cria o esquema e põe as marcas
+
+    def tearDown(self):
+        import gc
+        import shutil
+        radar.DB = self.db_antigo
+        radar.DOCS = self.docs_antigo
+        gc.collect()                # fecha ligações penduradas do liga()
+        shutil.rmtree(self.pasta, ignore_errors=True)
+
+
+class TestMigracoesDoSaneamento(BaseTemporaria):
+    """Saneamento de 30/08/2026 (A1/A2/A3): cada migração tem de poder
+    correr duas vezes sem efeito na segunda. Foi a falta delas que
+    deixou 30 documentos presos num erro obsoleto, 12 análises no
+    formato antigo e duas chaves mortas na tabela estado."""
+
+    def test_erro_cryptography_volta_a_fila_e_uma_vez_so(self):
+        with radar.liga() as c:
+            c.execute("DELETE FROM estado WHERE chave='erros_extraccao_limpos'")
+            c.executemany(
+                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                "VALUES (?,?,?,?)",
+                [("1/2026", "CE.pdf", "",
+                  "erro: cryptography>=3.1 is required for AES algorithm"),
+                 ("1/2026", "PC.pdf", "t", "ok"),
+                 ("1/2026", "digit.pdf", "", "scan")])
+        radar.iniciar_db()
+        with radar.liga() as c:
+            estados = dict(c.execute("SELECT nome, texto_estado "
+                                     "FROM documentos"))
+        self.assertIsNone(estados["CE.pdf"])     # voltou à fila
+        self.assertEqual(estados["PC.pdf"], "ok")
+        self.assertEqual(estados["digit.pdf"], "scan")
+        # segunda passagem: a marca segura, e um erro novo com a mesma
+        # cara já não é desta migração — é do caminho de retentativa
+        with radar.liga() as c:
+            c.execute("UPDATE documentos SET texto_estado="
+                      "'erro: cryptography outra vez' WHERE nome='digit.pdf'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            fica = c.execute("SELECT texto_estado FROM documentos "
+                             "WHERE nome='digit.pdf'").fetchone()[0]
+        self.assertEqual(fica, "erro: cryptography outra vez")
+
+    def test_modelo_antigo_converte_e_duas_passagens_dao_o_mesmo(self):
+        with radar.liga() as c:
+            c.execute("DELETE FROM estado WHERE chave='modelo_com_fornecedor'")
+            c.executemany("INSERT INTO analise (ref, modelo) VALUES (?,?)",
+                          [("1/2026", "openai/gpt-oss-120b"),
+                           ("2/2026", "groq:openai/gpt-oss-120b"),
+                           ("3/2026",
+                            "nvidia:openai/gpt-oss-120b, openai/gpt-oss-120b")])
+        radar.iniciar_db()
+        with radar.liga() as c:
+            saiu = dict(c.execute("SELECT ref, modelo FROM analise"))
+        self.assertEqual(saiu["1/2026"], "groq:openai/gpt-oss-120b")
+        self.assertEqual(saiu["2/2026"], "groq:openai/gpt-oss-120b")
+        self.assertEqual(saiu["3/2026"],
+                         "nvidia:openai/gpt-oss-120b, groq:openai/gpt-oss-120b")
+        radar.iniciar_db()          # segunda vez: nada muda
+        with radar.liga() as c:
+            outra = dict(c.execute("SELECT ref, modelo FROM analise"))
+        self.assertEqual(saiu, outra)
+
+    def test_chaves_legadas_do_estado_saem(self):
+        with radar.liga() as c:
+            c.execute("INSERT OR REPLACE INTO estado VALUES ('ultimo_aviso','x')")
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('ultimo_aviso_texto','y')")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            n = c.execute("SELECT COUNT(*) FROM estado "
+                          "WHERE chave LIKE 'ultimo_aviso%'").fetchone()[0]
+        self.assertEqual(n, 0)
+
+
+class TestRetentativaDeExtraccao(BaseTemporaria):
+    """A1: extrair_textos() só processava texto_estado IS NULL, e um
+    "erro:" ficava terminal para sempre — 30 documentos presos num erro
+    de dependência que entretanto foi instalada. Um erro é falha da
+    ferramenta e retenta-se; "scan" e "não é PDF" são veredictos sobre
+    o conteúdo e esses ficam."""
+
+    def test_erro_retenta_se_veredictos_ficam(self):
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                "VALUES (?,?,?,?)",
+                [("9/2026", "a.pdf", "", "erro: qualquer coisa"),
+                 ("9/2026", "b.pdf", None, None),
+                 ("9/2026", "c.pdf", "", "scan"),
+                 ("9/2026", "d.pdf", "t", "ok"),
+                 ("9/2026", "e.zip", "", "não é PDF")])
+        # sem ficheiros em disco, o que for reavaliado sai "não é PDF" —
+        # é o bastante para se ver QUEM foi reavaliado
+        radar.extrair_textos("9/2026")
+        with radar.liga() as c:
+            estados = dict(c.execute("SELECT nome, texto_estado "
+                                     "FROM documentos WHERE ref='9/2026'"))
+        self.assertEqual(estados["a.pdf"], "não é PDF")   # erro: retentado
+        self.assertEqual(estados["b.pdf"], "não é PDF")   # NULL: como sempre
+        self.assertEqual(estados["c.pdf"], "scan")        # veredicto fica
+        self.assertEqual(estados["d.pdf"], "ok")
+        self.assertEqual(estados["e.zip"], "não é PDF")
+
+
+class TestSinonimosDePlataforma(unittest.TestCase):
+    """D3 do saneamento de 30/08/2026: a plataforma decidia-se com um
+    `if "acin" in alvo` solto, fora da lista PLATAFORMAS. Agora é um
+    sinónimo declarado ao lado da lista — e um sinónimo aponta sempre
+    para uma plataforma que existe, nunca inventa uma nova."""
+
+    def test_todo_o_sinonimo_aponta_para_uma_plataforma_da_lista(self):
+        for pista, nome in radar.SINONIMOS_PLATAFORMA.items():
+            self.assertIn(nome, radar.PLATAFORMAS, pista)
+            # um sinónimo igual a um nome da lista nunca seria testado
+            self.assertNotIn(pista, radar.PLATAFORMAS, pista)
+
+    # As pistas vêm da secção do link das peças, como num anúncio real.
+    # (O «último recurso do texto todo» está morto — o join de pistas
+    # vazias dá "  ", truthy — e isso ficou registado no BACKLOG; não é
+    # deste teste.)
+    MOLDE = ("15 - PUBLICAÇÃO\n"
+             "Link para acesso às peças do concurso (URL): %s")
+
+    def test_acin_continua_a_dar_acingov(self):
+        campos = radar.campos_do_detalhe(
+            self.MOLDE % "https://plataforma.acin.pt/abc")
+        self.assertEqual(campos["plataforma"], "acingov")
+
+    def test_o_nome_por_extenso_ganha_ao_sinonimo(self):
+        campos = radar.campos_do_detalhe(
+            self.MOLDE % "https://www.acingov.pt/abc")
+        self.assertEqual(campos["plataforma"], "acingov")
+
+
+class TestLinhasDeUltimosErros(unittest.TestCase):
+    """C1 do saneamento de 30/08/2026: `ultimo_erro_relogio`,
+    `docs_ultimo_erro` e `analise_ultimo_erro` existiam na base e não
+    apareciam em ecrã nenhum — uma avaria persistente do relógio só se
+    via por SQL. Passam a linhas na saúde dos indicadores."""
+
+    def test_sem_erros_nao_ha_linha_nenhuma(self):
+        # uma linha verde "sem erros" era ruído
+        self.assertEqual(radar.linhas_de_ultimos_erros(), [])
+        self.assertEqual(radar.linhas_de_ultimos_erros("", "  ", None), [])
+
+    def test_so_aparece_o_que_existe(self):
+        linhas = radar.linhas_de_ultimos_erros(pecas="2026-08-30 09:00 · 1/2026: 404")
+        self.assertEqual(len(linhas), 1)
+        rotulo, valor, bom = linhas[0]
+        self.assertIn("peças", rotulo)
+        self.assertIn("1/2026", valor)
+        self.assertFalse(bom)
+
+    def test_o_texto_do_erro_e_escapado(self):
+        # o erro vem de excepções — pode trazer o que calhar
+        linhas = radar.linhas_de_ultimos_erros(relogio="x <script> y")
+        self.assertNotIn("<script>", linhas[0][1])
+
+    def test_erro_comprido_e_cortado_com_reticencias(self):
+        linhas = radar.linhas_de_ultimos_erros(analise="e" * 300)
+        self.assertLess(len(linhas[0][1]), 120)
+        self.assertIn("…", linhas[0][1])
+
+
+class TestCopiaComMarca(BaseTemporaria):
+    """C2 do saneamento de 30/08/2026: a falha da cópia de segurança
+    fazia print() para uma consola que ninguém vê (pythonw). Passa a
+    marca `ultima_copia`, visível na saúde dos indicadores."""
+
+    def test_falha_grava_marca_com_data(self):
+        def rebenta(guardar=7):
+            raise OSError("disco cheio")
+        import contextlib
+        import io
+        antigo = radar.copia_de_seguranca
+        radar.copia_de_seguranca = rebenta
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertFalse(radar.copia_com_marca())
+        finally:
+            radar.copia_de_seguranca = antigo
+        valor = radar.le_marca("ultima_copia")
+        self.assertTrue(valor.startswith("falhou"))
+        self.assertIn("disco cheio", valor)
+        self.assertRegex(valor, r"\d{4}-\d{2}-\d{2}")   # diz de quando é
+
+    def test_sucesso_grava_ok_com_o_nome_do_ficheiro(self):
+        antigo = radar.copia_de_seguranca
+        radar.copia_de_seguranca = lambda guardar=7: os.path.join(
+            "copias", "radar-2026-08-30.db")
+        try:
+            self.assertTrue(radar.copia_com_marca())
+        finally:
+            radar.copia_de_seguranca = antigo
+        self.assertEqual(radar.le_marca("ultima_copia"),
+                         "ok: radar-2026-08-30.db")
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

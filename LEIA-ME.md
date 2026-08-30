@@ -4,7 +4,9 @@ Vigia a parte L da série II do Diário da República, filtra os anúncios
 que interessam ao teu portefólio e mostra-os num painel local.
 Verifica sozinho às 09:00 e às 17:00.
 
-Fonte única: o serviço de pesquisa do próprio portal do DR.
+Duas fontes: o serviço de pesquisa do próprio portal do DR (os
+anúncios) e o dump semanal do Portal BASE (os contratos celebrados, no
+separador Contratos — ver a secção 14).
 
 ---
 
@@ -20,10 +22,13 @@ movendo a pasta para fora do OneDrive.
 
 ## 2. Primeira instalação
 
-1. Duplo clique em `instalar.bat`. Instala o flask e o requests.
+1. Duplo clique em `instalar.bat`. Instala as dependências (flask,
+   requests, pypdf, cryptography).
 2. Faz a captura da secção 3.
 3. Duplo clique em `iniciar.bat`. Abre o painel em `http://localhost:8765`.
-4. Duplo clique em `agendar.bat`, uma vez só. Cria as tarefas das 09h e 17h.
+4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as
+   verificações das 09h e 17h e a actualização semanal dos contratos,
+   à segunda de manhã.
 
 ## 3. As capturas
 
@@ -80,6 +85,23 @@ No `config.json`, a única coisa que costuma valer a pena mexer é:
   entre a publicação e o prazo vão ~18 dias em média e mais atrás do
   que isso já fechou. Os mais antigos são lidos quando abres a ficha.
   Põe a `0` se quiseres mesmo que ele leia tudo — demora horas.
+- `leituras`: afina, campo a campo, o que o modelo lê das peças
+  (secção 6): em que documento procura (`quais`: `"encargos"` ou
+  `"programa"`), à volta de que títulos recorta (`ancoras`, pares
+  `[prioridade, expressão]` — prioridade mais baixa ganha) e o que se
+  lhe pede (`instrucao`). Os campos são `objecto`, `equipa` e
+  `proposta`; só se substitui o que escreveres, o resto fica o de
+  origem, e uma entrada inválida (expressão que não compila, `quais`
+  desconhecido) é ignorada em vez de calar a leitura. Exemplo, para
+  mandar a leitura da equipa procurar também em "recursos humanos":
+
+  ```json
+  "leituras": {
+    "equipa": {
+      "ancoras": [[1, "perfis"], [2, "equipa"], [3, "recursos humanos"]]
+    }
+  }
+  ```
 
 Não há atalhos pré-definidos no ficheiro de configuração (nem de
 palavra, nem de CPV) — tudo se escolhe na hora, no painel: a caixa de
@@ -135,6 +157,22 @@ nada. Podes filtrar por:
   radar consegue trazer as peças sozinho.
 - **intervalo de datas** de publicação.
 - **estado**: por ver, interessa, descartados, ou todos.
+- **prazo**: abertos, urgentes (a menos de N dias — a janela edita-se
+  em Alertas) ou expirados. Serve para apartar o arquivo da triagem do
+  dia.
+- **exclusões**: "Excluir palavras…" e "Excluir CPV…" tiram ruído sem
+  apertar o resto do filtro (`manutenção` sem `elevador|avac`).
+- **E/OU entre palavras e CPV**: "mais restrito" exige as duas coisas,
+  "mais amplo" basta uma.
+
+Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
+filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
+qualquer filtro guardado um aviso no resumo diário, configura-se o
+e-mail e a janela do "urgente". Além dos anúncios há os separadores
+**Contratos** (o que já foi adjudicado, com gráficos sobre o filtro),
+**Renovações** (contratos vistos pelo fim estimado) e a **ficha de
+cada entidade** (o que compra e o que ganha), todos com os mesmos
+filtros de CPV e datas.
 
 Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de
@@ -148,7 +186,7 @@ não a base inteira.
 
 Nota sobre o CPV e o prazo: esses campos não vêm da pesquisa, vêm da
 página de detalhe de cada anúncio. Enquanto não estiverem preenchidos
-(a coluna "Faltam ler os detalhes de N" no painel indica isso), o
+(o cartão "Sem detalhe lido" dos Indicadores diz quantos faltam), o
 filtro de CPV não devolve nada para esses anúncios em concreto.
 
 O filtro de CPV percebe tanto código como palavra da descrição oficial,
@@ -358,37 +396,66 @@ python radar.py --importar-cpv ficheiro.json
 Carrega uma versão nova do vocabulário CPV.
 
 ```bash
+python radar.py --contratos
+```
+Actualiza o corpus de contratos do Portal BASE (o ano corrente e o
+anterior). A tarefa semanal de segunda já o faz; à mão serve para anos
+mais antigos (`--contratos 2019-2026`) ou para não esperar pela
+segunda. Também há o botão "Actualizar contratos" no painel.
+
+```bash
+python radar.py --descartar-expirados
+```
+Descarta os "por ver" cujo prazo já passou — arquivo, não triagem.
+
+```bash
 python teste_radar.py
 ```
-Corre os testes — 82 verificações em menos de um segundo, sem tocar na
-rede nem na base. Vale a pena corrê-los depois de qualquer alteração ao
-`radar.py`. Se o DR mudar o formato dos anúncios, é o teste do parser
-que avisa primeiro.
+Corre os testes — 424 verificações em menos de um segundo, sem tocar
+na rede nem na base verdadeira. Vale a pena corrê-los depois de
+qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
+anúncios, é o teste do parser que avisa primeiro.
 
 ## 13. Ficheiros
 
 | Ficheiro | Para que serve |
 |---|---|
 | `radar.py` | o programa |
-| `curl_DR.txt` | a tua captura, secção 3 |
-| `config.json` | filtros e horários, criado no primeiro arranque |
-| `radar.db` | os anúncios e os estados |
+| `curl_DR.txt` / `curl_detalhe.txt` | as tuas capturas, secção 3 |
+| `config.json` | configuração e horários, criado no primeiro arranque |
+| `radar.db` | os anúncios, a triagem e o histórico |
+| `contratos.db` | o corpus de contratos do BASE (refaz-se com `--contratos`) |
+| `copias/` | cópia diária do `radar.db`, sete guardadas |
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
 | `documentos/` | as peças dos concursos que foste buscar |
+| `AVISOS.txt` | o último resumo dos alertas, quando há |
 | `instalar.bat` | instala as dependências |
 | `iniciar.bat` | abre o painel |
-| `agendar.bat` | cria as tarefas das 09h e 17h |
-| `verificar.bat` | o que as tarefas correm |
+| `agendar.bat` | cria as três tarefas agendadas |
+| `verificar.bat` | o que as tarefas das 09h/17h correm |
 | `desinstalar.bat` | remove tarefas e pacotes |
 | `historico.bat` | abre o histórico de alterações |
 | `teste_radar.py` | os testes |
 
 ## 14. Limites, para não haver surpresas
 
-O DR publica anúncios acima de certos valores. Ajustes directos e
-consultas prévias abaixo dos limiares não passam por aqui: aparecem no
-Portal BASE. Enquanto o IMPIC não te der acesso à API, essa parte fica
-de fora.
+O DR publica anúncios acima de certos valores. Abaixo dos limiares
+(ajustes directos, consultas prévias) **não existe anúncio nenhum** —
+esses procedimentos são por convite e só se tornam públicos como
+**contrato celebrado**. O radar traz esses contratos: o separador
+Contratos carrega o dump semanal do IMPIC (dados.gov, sem chave e sem
+sessão — a API que nunca respondeu deixou de fazer falta), com mais de
+um milhão de contratos desde 2020. Não são oportunidades: quando lá
+aparecem, já está tudo decidido. Servem para comparar preços, ver quem
+ganha o quê e antecipar renovações.
 
-O radar lê o anúncio, não as peças do procedimento. Para o caderno de
-encargos continuas a ir à plataforma electrónica indicada no anúncio.
+As peças do procedimento (Programa de Concurso, Caderno de Encargos,
+anexos) o radar também as traz — ver a secção 6 — nas plataformas que
+o permitem sem sessão (acingov, vortal, anogov/ComprasPT/ESPAP), e um
+modelo lê delas os campos que o anúncio não tem. Fica de fora o que a
+secção 6 diz: anexos acima de 60 MB e as raras plataformas sem acesso
+anónimo — para esses há o botão "Abrir plataforma".
+
+O que continua a não haver: número de concorrentes por concurso (não é
+público em fonte nenhuma) e o que as plataformas publicam sem passar
+pela parte L (consultas preliminares, contratos menores).

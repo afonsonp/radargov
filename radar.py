@@ -102,6 +102,19 @@ CONFIG_INICIAL = {
     # Prende a leitura a um so fornecedor ("groq", "openrouter", "nvidia").
     # Vazio = a cadeia toda, por ordem. Serve para comparar leituras.
     "fornecedor_pecas": "",
+    # Afinacao das leituras pelo modelo (B08), campo a campo: "objecto",
+    # "equipa" e "proposta", cada um com "quais" ("encargos"|"programa"),
+    # "ancoras" ([[prioridade, regex], ...]) e "instrucao". Vazio = as de
+    # origem (LEITURAS). Exemplo funcional, para copiar e afinar:
+    #   "leituras": {"equipa": {
+    #       "quais": "encargos",
+    #       "ancoras": [[1, "perfis"], [2, "equipa"], [3, "recursos humanos"]],
+    #       "instrucao": "Extrai os perfis exigidos, um por linha."}}
+    # O invalido (regex que nao compila, "quais" desconhecido) deixa
+    # ficar o de origem -- nunca cala uma leitura em silencio.
+    "leituras": {},
+    # Da RECOLHA: quantos resultados por pagina se pedem ao portal do DR.
+    # Nao confundir com POR_PAGINA_LISTA, a paginacao da lista no painel.
     "por_pagina": 25,
     # Tecto de seguranca, nao um alvo: o pedido para de pedir paginas
     # assim que o portal devolver menos que uma pagina cheia. So entra
@@ -166,6 +179,19 @@ def semear_fases(c):
         proxima += 1
 
 
+def _modelo_com_fornecedor(valor):
+    """Poe a coluna analise.modelo no formato actual, fornecedor:modelo.
+
+    Antes da cadeia de fornecedores (27/08/2026) so a Groq respondia e a
+    coluna guardava o modelo sem prefixo ("openai/gpt-oss-120b"). Um
+    segmento sem ":" e desse tempo, e foi a Groq que o escreveu -- os
+    outros fornecedores nasceram ja com o prefixo posto, por isso a
+    atribuicao nao e adivinhada. Segmentos ja prefixados ficam como
+    estao: aplicar isto duas vezes da o mesmo resultado."""
+    partes = [p.strip() for p in (valor or "").split(",") if p.strip()]
+    return ", ".join(p if ":" in p else "groq:" + p for p in partes)
+
+
 def iniciar_db():
     with liga() as c:
         c.execute("""CREATE TABLE IF NOT EXISTS anuncios (
@@ -210,6 +236,33 @@ def iniciar_db():
         for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
             if nome not in cols_doc:
                 c.execute("ALTER TABLE documentos ADD COLUMN %s %s" % (nome, tipo))
+        # Saneamento 30/08/2026 (A1): 30 documentos ficaram presos em
+        # "erro: cryptography>=3.1 is required for AES algorithm", de
+        # quando a dependencia ainda nao estava instalada. A causa ja
+        # nao existe; limpa-se o estado para voltarem a fila de
+        # extraccao (texto_estado IS NULL). Uma vez, por marca -- e o
+        # extrair_textos() passou a retentar qualquer "erro:", por isso
+        # nenhum erro de extraccao volta a ser terminal para sempre.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='erros_extraccao_limpos'").fetchone():
+            c.execute("UPDATE documentos SET texto=NULL, texto_estado=NULL "
+                      "WHERE texto_estado LIKE 'erro:%cryptography%'")
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('erros_extraccao_limpos','1')")
+        # Saneamento 30/08/2026 (A2): as analises de antes da cadeia de
+        # fornecedores guardavam o modelo sem prefixo. Converte-se para o
+        # formato actual -- a regra esta em _modelo_com_fornecedor(), que
+        # nao mexe no que ja tem prefixo. Uma vez, por marca.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='modelo_com_fornecedor'").fetchone():
+            for r in c.execute("SELECT ref, modelo FROM analise "
+                               "WHERE COALESCE(modelo,'') != ''").fetchall():
+                novo = _modelo_com_fornecedor(r["modelo"])
+                if novo != r["modelo"]:
+                    c.execute("UPDATE analise SET modelo=? WHERE ref=?",
+                              (novo, r["ref"]))
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('modelo_com_fornecedor','1')")
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -267,6 +320,12 @@ def iniciar_db():
         c.execute("DROP TRIGGER IF EXISTS documentos_fts_au")
         c.execute("DROP TABLE IF EXISTS pecas_fts")
         c.execute("DELETE FROM estado WHERE chave='fts_povoado'")
+        # Saneamento 30/08/2026 (A3): chaves do esquema de avisos antigo,
+        # que o codigo actual nao le nem escreve -- o esquema de hoje e o
+        # reconhecer/enviar de alertas_vistos. Recria-las nao tinha
+        # sentido; apagar e idempotente e gratis, como a limpeza acima.
+        c.execute("DELETE FROM estado WHERE chave IN "
+                  "('ultimo_aviso','ultimo_aviso_texto')")
         # As entidades seguidas (B10) vivem na base de trabalho e nao no
         # corpus: o corpus refaz-se com --contratos, a triagem nao. O
         # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
@@ -720,6 +779,13 @@ PLATAFORMAS = ("acingov", "anogov", "vortal", "compraspt", "saphety",
                "gatewit", "compraspublicas", "ambisig", "construlink",
                "bizgov")
 
+# Pistas de reserva para quando nenhum nome de PLATAFORMAS aparece por
+# extenso: ha anuncios em que a acingov so se denuncia pelo dominio do
+# grupo ACIN (acin.pt). Cada valor TEM de existir em PLATAFORMAS -- isto
+# e um apelido, nunca uma plataforma nova; ha um teste a garanti-lo.
+# (Era um `if "acin" in alvo` solto dentro do campos_do_detalhe.)
+SINONIMOS_PLATAFORMA = {"acin": "acingov"}
+
 
 # O texto do anuncio vem em seccoes numeradas ("13 - CONDICOES DE
 # APRESENTACAO") com linhas "Chave: Valor" dentro. Confirmado estavel:
@@ -825,8 +891,10 @@ def campos_do_detalhe(texto):
             achados["plataforma"] = nome
             break
     else:
-        if "acin" in alvo:
-            achados["plataforma"] = "acingov"
+        for pista, nome in SINONIMOS_PLATAFORMA.items():
+            if pista in alvo:
+                achados["plataforma"] = nome
+                break
     return achados
 
 
@@ -1420,8 +1488,16 @@ def texto_do_zip(caminho, papeis):
 def extrair_textos(ref):
     """Guarda o texto dos PDFs deste anuncio. Devolve (lidos, digitalizados)."""
     with liga() as c:
+        # Um "erro: ..." retenta-se: nao e um veredicto sobre o conteudo,
+        # e uma falha da ferramenta, e a causa pode ter desaparecido --
+        # 30 documentos ficaram presos num erro de dependencia em falta
+        # que ja estava instalada. "scan" e "nao e PDF" sao veredictos e
+        # esses ficam. Retenta-se aqui, e nao por botao, porque isto e
+        # local, sem rede e sem orcamento, e so corre quando alguem ja
+        # pediu as pecas ou a leitura deste anuncio.
         docs = c.execute("SELECT id,nome FROM documentos WHERE ref=? "
-                         "AND texto_estado IS NULL", (ref,)).fetchall()
+                         "AND (texto_estado IS NULL OR "
+                         "texto_estado LIKE 'erro:%')", (ref,)).fetchall()
     pasta = pasta_do_anuncio(ref)
     lidos = scans = 0
     for d in docs:
@@ -2328,7 +2404,8 @@ def obter_documentos(ref):
     if cadeia_de_fornecedores() and not analise_de(ref):
         lido, porque = analisar_pecas(ref)
         if not lido:
-            marca("analise_ultimo_erro", "%s: %s" % (ref, porque))
+            marca("analise_ultimo_erro", "%s · %s: %s"
+                  % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref, porque))
     # "parcial" quando veio alguma coisa mas as pecas falharam: o PDF
     # do anuncio vem sempre, e sozinho dava um "ok" que escondia o
     # facto de o Caderno de Encargos nao ter chegado.
@@ -2352,7 +2429,11 @@ def _servir_fila():
         try:
             n, aviso = obter_documentos(ref)
             if not n:
-                marca("docs_ultimo_erro", "%s: %s" % (ref, aviso or "sem documentos"))
+                # A data vai na marca (C1 do saneamento): sobrescrita a
+                # cada erro, ao menos diz-se DE QUANDO e o que se mostra.
+                marca("docs_ultimo_erro", "%s · %s: %s"
+                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref,
+                         aviso or "sem documentos"))
         except Exception as erro:
             # Tem de ficar num estado terminal: se ficasse "pendente", a
             # ficha esperava para sempre por peças que nunca vinham.
@@ -2360,7 +2441,9 @@ def _servir_fila():
                 with liga() as c:
                     c.execute("UPDATE anuncios SET docs_estado='falhou' WHERE ref=?",
                               (ref,))
-                marca("docs_ultimo_erro", "%s: %s" % (ref, str(erro)[:200]))
+                marca("docs_ultimo_erro", "%s · %s: %s"
+                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref,
+                         str(erro)[:200]))
             except Exception:
                 pass
         finally:
@@ -2405,10 +2488,13 @@ def _servir_analise():
                      "peças lidas" if (ok and not porque) else (porque or "falhou"),
                      quem=quem)
             if not ok:
-                marca("analise_ultimo_erro", "%s: %s" % (ref, porque))
+                marca("analise_ultimo_erro", "%s · %s: %s"
+                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref, porque))
         except Exception as erro:
             try:
-                marca("analise_ultimo_erro", "%s: %s" % (ref, str(erro)[:200]))
+                marca("analise_ultimo_erro", "%s · %s: %s"
+                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref,
+                         str(erro)[:200]))
             except Exception:
                 pass
         finally:
@@ -2535,6 +2621,25 @@ def copia_de_seguranca(guardar=7):
         except OSError:
             pass                        # o OneDrive as vezes segura o ficheiro
     return destino
+
+
+def copia_com_marca(guardar=7):
+    """A copia diaria, com o resultado numa marca que o painel mostra.
+
+    A falha fazia so print() para uma consola que ninguem ve -- as
+    tarefas correm em pythonw -- e uma copia a falhar dias seguidos
+    (OneDrive a segurar o ficheiro, disco cheio) passava em silencio,
+    exactamente no unico dado que nao se recupera de lado nenhum. A
+    marca `ultima_copia` aparece na saude dos indicadores."""
+    try:
+        destino = copia_de_seguranca(guardar)
+        marca("ultima_copia", "ok: %s" % os.path.basename(destino))
+        return True
+    except (sqlite3.Error, OSError) as erro:
+        marca("ultima_copia", "falhou a %s: %s"
+              % (datetime.now().strftime("%Y-%m-%d %H:%M"), str(erro)[:150]))
+        print("aviso: copia de seguranca falhou (%s)" % erro)
+        return False
 
 
 # Marca posta no que ja estava na base quando o alerta foi ligado: nao
@@ -2896,10 +3001,9 @@ def verificar(cfg=None, passo=None):
     # estado mau, a copia e de antes disso.
     if cfg.get("copia_de_seguranca", True):
         diz("a guardar a cópia de segurança")
-        try:
-            copia_de_seguranca(int(cfg.get("copias_a_guardar", 7)))
-        except (sqlite3.Error, OSError) as erro:
-            print("aviso: copia de seguranca falhou (%s)" % erro)
+        # O resultado fica em marca visivel (C2 do saneamento): o print
+        # de antes ia para uma consola que o pythonw nao tem.
+        copia_com_marca(int(cfg.get("copias_a_guardar", 7)))
     diz("a pedir os anúncios ao Diário da República")
     bem, mensagem, novos = recolher(cfg)
     if bem:
@@ -3079,6 +3183,13 @@ def iniciar_corpus():
             if not ja:
                 c.execute(limpeza)     # so a primeira vez, nao a cada arranque
                 c.execute(ddl)
+        # Saneamento 30/08/2026 (A3): indices de um esquema antigo que o
+        # codigo actual nao cria -- os unicos ux_cpv/ux_adj comecam por
+        # contrato_id e cobrem os mesmos acessos. Num corpus refeito de
+        # raiz nao existiam; apagar poe o corpus existente igual ao que
+        # o codigo produz, e poupa a manutencao deles na importacao.
+        c.execute("DROP INDEX IF EXISTS ix_cpv_c")
+        c.execute("DROP INDEX IF EXISTS ix_adj_c")
         for ddl in (
             "CREATE INDEX IF NOT EXISTS ix_ctr_chave "
             "ON contratos(adjudicante_chave)",
@@ -4866,7 +4977,7 @@ TECTO_CSV = 50000
 # Quantas linhas a lista mostra de uma vez. E um limite de apresentacao,
 # nao da base: o filtro apanha o que apanhar, a pagina mostra 20 e o
 # resto alcanca-se pelo paginador.
-POR_PAGINA = 20
+POR_PAGINA_LISTA = 20
 
 MESES = ("jan", "fev", "mar", "abr", "mai", "jun",
          "jul", "ago", "set", "out", "nov", "dez")
@@ -5322,12 +5433,12 @@ def painel():
         # existe -- pedir a pagina 900 de 12 devolvia uma lista vazia.
         correspondem = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
                                  valores).fetchone()["n"]
-        paginas = max(1, -(-correspondem // POR_PAGINA))
+        paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
         pagina = min(max(1, pagina_pedida(request.args)), paginas)
         linhas = c.execute("SELECT * FROM anuncios" + onde +
                            " ORDER BY data_pub DESC, ref DESC LIMIT ? OFFSET ?",
-                           valores + [POR_PAGINA,
-                                      (pagina - 1) * POR_PAGINA]).fetchall()
+                           valores + [POR_PAGINA_LISTA,
+                                      (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         # Os separadores contam DENTRO do filtro. Contavam a base inteira:
         # com CPV 72 posto diziam "Por ver 66 007 · Todos 66 009" por cima
         # de uma lista de 234, e as proprias ligacoes levavam o filtro
@@ -5477,7 +5588,7 @@ def painel():
     # a pagina mostra 20; a contagem tem de dizer quantos o filtro apanhou
     # mesmo, senao "20 de 65 869" parece um filtro que nao filtrou nada
     if correspondem > len(linhas):
-        primeiro = (pagina - 1) * POR_PAGINA + 1
+        primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
         conta = ("Mais recentes primeiro &middot; %s&ndash;%s de %s que "
                  "correspondem &middot; página %s de %s"
                  % (mil(primeiro), mil(primeiro + len(linhas) - 1),
@@ -7692,7 +7803,7 @@ def contratos():
                 "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
                 "FROM contratos c" + onde, valores).fetchone()
             correspondem, valor = resumo["n"], resumo["v"]
-            paginas = max(1, -(-correspondem // POR_PAGINA))
+            paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
             # Escolhem-se primeiro as 20 linhas, e so depois se lhes vao
             # buscar os nomes: com o LEFT JOIN e as subconsultas por
@@ -7711,7 +7822,7 @@ def contratos():
                 " FROM pag p LEFT JOIN entidades e"
                 "  ON e.chave=p.adjudicante_chave"
                 " ORDER BY p.data_celebracao DESC, p.id DESC",
-                valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
+                valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         procs = [r["p"] for r in c.execute(
             "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
             "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
@@ -7808,7 +7919,7 @@ def contratos():
     if ha_pergunta:
         conta = "Celebrados mais recentes primeiro &middot; "
         if correspondem > len(linhas):
-            primeiro = (pagina - 1) * POR_PAGINA + 1
+            primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
             conta += ("%s&ndash;%s de %s &middot; página %s de %s"
                       % (mil_pt(primeiro), mil_pt(primeiro + len(linhas) - 1),
                          mil_pt(correspondem), mil_pt(pagina), mil_pt(paginas)))
@@ -7945,7 +8056,7 @@ def renovacoes():
                 "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
                 "FROM contratos c" + onde, valores).fetchone()
             correspondem, valor = resumo["n"], resumo["v"]
-            paginas = max(1, -(-correspondem // POR_PAGINA))
+            paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
             # O mesmo padrao dos contratos: primeiro as 20 linhas, so
             # depois os nomes -- subconsultas antes do LIMIT eram a
@@ -7963,7 +8074,7 @@ def renovacoes():
                 " FROM pag p LEFT JOIN entidades e"
                 "  ON e.chave=p.adjudicante_chave"
                 " ORDER BY p.fim_estimado, p.id",
-                valores + [POR_PAGINA, (pagina - 1) * POR_PAGINA]).fetchall()
+                valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         procs = [r["p"] for r in c.execute(
             "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
             "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
@@ -8177,7 +8288,7 @@ def criterio_de_adjudicacao(seccoes):
             else nome
 
     for chave, valor in pares:
-        c = radar_chave(chave)
+        c = simplifica(chave).strip()
         if c == "fator":
             em_sub = False
             nome, outro = "", ""
@@ -8208,11 +8319,6 @@ def criterio_de_adjudicacao(seccoes):
             ("%s (%s)" % (texto, ", ".join(subs))) if subs else texto
             for texto, subs in fatores)
     return resolvido()                # monofator, ou multifator sem pesos
-
-
-def radar_chave(chave):
-    """A chave sem acentos nem maiusculas, para comparar."""
-    return simplifica(chave).strip()
 
 
 # Os campos que o Afonso quer ver ao abrir um concurso. Os cinco ultimos
@@ -9461,6 +9567,22 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
     return "".join(saida)
 
 
+def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None):
+    """As marcas de ultimo erro que so se viam por SQL (C1 do saneamento).
+
+    So aparece o que existe: sem erro gravado nao ha linha nenhuma --
+    uma linha verde "sem erros" era ruido. As marcas trazem a data de
+    quando aconteceram, e mostram-se a amarelo (quem chama passa a cor):
+    um erro antigo e diagnostico, nao um alarme de agora."""
+    linhas = []
+    for rotulo, valor in (("Último erro do relógio interno", relogio),
+                          ("Último erro ao trazer peças", pecas),
+                          ("Último erro da leitura pelo modelo", analise)):
+        if (valor or "").strip():
+            linhas.append((rotulo, html.escape(corta(valor, 80)), False))
+    return linhas
+
+
 @app.route("/indicadores")
 def indicadores():
     """Numeros sobre a propria base. Sem servicos externos: e tudo SQL
@@ -9566,6 +9688,13 @@ def indicadores():
         saude.append(("Base de dados", "%.0f MB &middot; %s" % (tam, modo.upper()), True))
     except OSError:
         pass
+    # A copia de seguranca: falhava em silencio (C2 do saneamento). So
+    # ha linha quando ja correu alguma vez; vermelho quando a ultima
+    # tentativa falhou, que e estado presente, nao historia.
+    copia = le_marca("ultima_copia", "")
+    if copia:
+        saude.append(("Cópia de segurança", html.escape(corta(copia, 80)),
+                      copia.startswith("ok")))
 
     # O corpus do BASE e a segunda metade da aplicacao, e estava fora
     # desta pagina -- os indicadores diziam que estava tudo bem sem
@@ -9612,7 +9741,13 @@ def indicadores():
     # e uma coisa a fazer quando der jeito, uma captura expirada e o
     # radar parado
     corpus_html = linhas_de_saude(corpus, "#d68910")
-    saude_html = linhas_de_saude(saude)
+    # Os ultimos erros gravados, que so se viam por SQL (C1): a amarelo,
+    # porque a marca e sobrescrita e pode ser antiga -- a data vai nela.
+    erros = linhas_de_ultimos_erros(le_marca("ultimo_erro_relogio", ""),
+                                    le_marca("docs_ultimo_erro", ""),
+                                    le_marca("analise_ultimo_erro", ""))
+    saude_html = (linhas_de_saude(saude)
+                  + linhas_de_saude(erros, "#d68910"))
 
     # O funil: o que entra, o que se olha, o que vinga. Os indicadores
     # contavam estados parados e nao diziam nada sobre o movimento.

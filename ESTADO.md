@@ -20,20 +20,23 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem ~5100 anúncios, **todos com detalhe lido**, a
-cobrir os últimos 60 dias.
+Funciona. A base tem **66 081 anúncios, dois anos deles**
+(28/08/2024–28/08/2026), trazidos pelo `--historico 730` a 28/08/2026.
+**Só 8,3% têm detalhe lido** (5 493): a rotina lê o detalhe apenas dos
+publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
+quando se abre a ficha. Consequência a ter presente: um filtro por CPV
+só apanha quem tem detalhe lido — o histórico é acervo por consultar,
+não estatística, enquanto os detalhes não forem forçados (~17 horas de
+pedidos a um por segundo).
 
-Chegou a ter 65 819 (dois anos de histórico) e o Afonso mandou apagar o
-que fosse mais antigo que 60 dias — decisão informada, com os números à
-frente: saíam 92% das linhas, mas nenhum anúncio triado, nenhum
-documento e nenhum histórico, porque nada disso existia fora da janela.
-Ficou sem cópia, por escolha dele. Para voltar a ter histórico é
-`python radar.py --historico 730`, e conta horas.
+A base já esteve cortada aos 60 dias por decisão do Afonso (~5 100
+anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
+prática. A limpeza não é automática: o que envelhece acumula.
 
-A janela é a mesma que a rotina usa (`detalhe_dias`, 60), e a razão é a
-mesma: entre a publicação e o prazo vão ~18 dias em média, por isso mais
-atrás que isso já fechou. O que ficar mais velho volta a acumular — a
-limpeza não é automática.
+*(Números de 30/08/2026. Este parágrafo já mentiu — dizia "~5 100,
+todos com detalhe lido" por cima de uma base de 66 mil a 8% — porque as
+sessões seguintes acrescentavam secções sem corrigir o topo. Quem mudar
+os números corrige-o na mesma sessão; a regra está no CLAUDE.md.)*
 
 ## A ficha do anúncio e as peças do procedimento
 
@@ -354,26 +357,25 @@ contra uma medição feita em rajada.
 
 ### O que falta verificar na cadeia
 
-Fica aqui porque **ainda não foi feito**, e é fácil dar por assente que
-foi: tudo o que está acima mediu-se chamando os fornecedores
-directamente. **A cadeia nunca correu pelo caminho normal do radar** —
-`analisar_pecas()` a escrever na base, com o painel a mostrar o
-resultado. O que falta confirmar, e como:
+**Correcção, 30 de agosto de 2026.** Esteve aqui escrito que «a cadeia
+nunca correu pelo caminho normal do radar». A base desmente: a coluna
+`analise.modelo` — que só o `analisar_pecas()` escreve — tem
+`nvidia:openai/gpt-oss-120b` em duas análises, uma delas com os dois
+rótulos juntos («groq:…, nvidia:…»), que é o `juntar_fontes()` a fazer
+pela coluna `modelo` o que já fazia pelas fontes. Ou seja: a cadeia
+desceu até ao NVIDIA **em produção**, pelo caminho normal, pelo menos
+duas vezes, e os pontos 1 a 3 da lista que aqui estava (descer em
+produção, o rótulo na coluna, os dois rótulos juntos) estão cumpridos
+sem ninguém ter dado por isso.
 
-1. Com a Groq esgotada (ou com `"fornecedor_pecas": "nvidia"` no
-   `config.json`), correr `python radar.py --ler-pecas` num concurso.
-2. Abrir a ficha e confirmar que o campo do modelo diz **`nvidia:openai/gpt-oss-120b`**
-   e não `groq:...`. É o sinal de que o `_perguntar()` desceu a cadeia e
-   de que o `usado` chega mesmo à coluna `analise.modelo`.
-3. Numa releitura em que só um fornecedor responda, confirmar que a
-   coluna guarda **os dois** rótulos, separados por vírgula — é o
-   `juntar_fontes()` a fazer pela coluna `modelo` o que já fazia pelas
-   fontes. Está nos testes, mas nunca se viu na base verdadeira.
-4. Confirmar que o ritmo normal (meia dúzia de concursos) não põe o
-   NVIDIA em fila como a rajada dos testes pôs.
+O que falta mesmo verificar:
 
-Enquanto isto não estiver feito, tratar a cadeia como **implementada e
-testada em unidade, mas não exercitada em produção**.
+1. Confirmar que o ritmo normal (meia dúzia de concursos por dia) não
+   põe o NVIDIA em fila como a rajada dos testes pôs — os 240 s de
+   `ReadTimeout` mediram-se em rajada, não em uso corrente.
+
+A cadeia está exercitada em produção; o que não está medido é o
+comportamento do NVIDIA em uso corrente.
 
 Os nomes dos ficheiros de chave já estão cobertos pelo `.gitignore`
 (`*[Aa][Pp][Ii]_[Kk][Ee][Yy]*`), de propósito largo — confirmado com
@@ -781,7 +783,9 @@ Pedido do Afonso. A lista mostrava as primeiras 500 linhas e escondia
 o resto: com 5 390 anúncios a corresponder ao filtro por omissão,
 ficavam 4 890 sem forma de lá chegar sem apertar o filtro. `POR_PAGINA
 = 20` substitui o `LIMITE_LISTA = 500`, com `LIMIT ... OFFSET` na
-consulta.
+consulta. *(A constante chama-se hoje `POR_PAGINA_LISTA`: o nome antigo
+colidia com o `por_pagina` do config, que é da recolha — saneamento de
+30/08/2026.)*
 
 O que mudou de decisão, e porquê:
 
@@ -1866,12 +1870,12 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 118 testes, correm em milissegundos, sem rede nem
-base de dados. Não são exaustivos de propósito: cada um corresponde a um
-erro que existiu **mesmo**, e o comentário diz qual, para ninguém
-"simplificar" de volta para o erro. Cobrem o prefixo de CPV, o escape do
-LIKE, as duas caixas de pesquisa, a contagem de dias, `nome_seguro()`, o
-parser de secções e a semeadora de fases.
+**`teste_radar.py`** — 424 testes a 30/08/2026 (eram 118 quando esta
+secção foi escrita), correm em menos de um segundo, sem rede nem a base
+verdadeira (as migrações ensaiam-se numa base temporária). Não são
+exaustivos de propósito: cada um corresponde a um erro que existiu
+**mesmo**, e o comentário diz qual, para ninguém "simplificar" de volta
+para o erro.
 
 Verificado que apanham regressões: reintroduzindo o bug do CPV
 (`curto or digitos` em vez do mínimo de dois dígitos), três testes falham
@@ -1945,10 +1949,9 @@ sem obtentor (anogov.com 5, miisy 2, source360.ren.pt 2, comprasnasaude
 
 ## Estrutura do código
 
-Ficheiro único, `radar.py`, sem dependências além de `flask` e
-`requests` (cresceu passado das 600 linhas originais com o dicionário
-de CPV e a árvore no painel, mas continua um ficheiro só). Blocos, por
-ordem no ficheiro:
+Ficheiro único, `radar.py`, com quatro dependências: `flask`,
+`requests`, `pypdf` e `cryptography` (cresceu passado das 600 linhas
+originais, mas continua um ficheiro só). Blocos, por ordem no ficheiro:
 
 - configuração e base de dados, `CONFIG_INICIAL`, `iniciar_db`
 - leitura das capturas, `carregar_curl`, `parse_curl`, que entende os
@@ -1988,8 +1991,8 @@ A pasta está no ambiente de trabalho, dentro do OneDrive. A sincronização
 pode bloquear o `radar.db` durante a escrita. Se aparecerem erros de base
 bloqueada, é isto, e resolve-se movendo a pasta para fora do OneDrive.
 
-O painel limita a tabela a 500 linhas por questão de apresentação. A base
-não tem limite.
+O painel pagina a lista a 20 por página (`POR_PAGINA_LISTA`; já esteve
+limitado às primeiras 500 linhas). A base não tem limite.
 
 Python 3.14 instalado pela Microsoft Store. O `flask.exe` fica fora do
 PATH, o que é indiferente porque o arranque é por `python radar.py`.
@@ -2836,3 +2839,51 @@ mas a lição verdadeira é que o B09 tinha o aviso no próprio backlog
 ("cobertura parcial que exige comunicação honesta") e o que a cobertura
 parcial pedia não era comunicação, era outra pergunta: "para que serve
 pesquisar no que só existe depois de decidir?". Testes: 405, verdes.
+
+## Saneamento pós-auditoria, 30 de agosto de 2026
+
+A `AUDITORIA.md` do mesmo dia apontou problemas de estado dos dados, de
+documentação e de visibilidade de erros; esta sessão corrigiu-os todos
+— o registo item a item, com o que ficou por fazer e porquê, está em
+**`SANEAMENTO.md`**, incluindo o bloco de decisões que são do Afonso
+(cópia externa/remoto git, canal de e-mail, links do resumo, registo da
+expiração do token). O essencial:
+
+- **Dados destravados, por migração idempotente com marca** (nunca SQL
+  à mão): os 30 documentos presos em `erro: cryptography...` voltaram à
+  fila e extraíram todos (`ok` passou de 56 para 86 — a dependência já
+  estava instalada); as 12 análises com `modelo` sem fornecedor levaram
+  o prefixo `groq:` (antes da cadeia só a Groq escrevia, por isso a
+  atribuição não é adivinhada); as chaves `ultimo_aviso*` do esquema
+  antigo saíram do `estado`; os índices legados `ix_cpv_c`/`ix_adj_c`
+  caíram do corpus.
+- **Erro de extracção deixou de ser terminal**: `extrair_textos()`
+  retenta tudo o que esteja em `erro:...` sempre que corre — é local,
+  sem rede e sem orçamento. "scan" e "não é PDF" são veredictos sobre o
+  conteúdo e esses ficam.
+- **Os erros invisíveis passaram a ver-se**: `ultimo_erro_relogio`,
+  `docs_ultimo_erro` e `analise_ultimo_erro` (agora com data na marca)
+  aparecem na saúde dos indicadores, a amarelo; a cópia de segurança
+  grava `ultima_copia` (ok/falhou) em vez de um print para consola
+  nenhuma, e a linha é vermelha quando a última tentativa falhou.
+- **Documentação posta a dizer a verdade**: o topo deste ficheiro, a
+  secção da cadeia (que JÁ correu em produção — a base prova-o), o
+  LEIA-ME (§14 reescrito: o radar lê as peças e traz o corpus do BASE;
+  §12 com a contagem certa de testes; §5 com os filtros todos), e a
+  regra nova no CLAUDE.md: quem muda comportamento corrige os números
+  da documentação no mesmo commit.
+- **Arrumação**: `painel.log`, `__pycache__/` e 4 worktrees antigas
+  apagados (o `.gitignore` cobre a reincidência); `radar_chave()`
+  deixou de duplicar `simplifica().strip()`; o `if "acin" in alvo`
+  passou a `SINONIMOS_PLATAFORMA`, com teste a garantir que um sinónimo
+  aponta sempre para uma plataforma da lista; `POR_PAGINA` (lista)
+  renomeada para `POR_PAGINA_LISTA`, que colidia com o `por_pagina` do
+  config (recolha). A chave `leituras` (B08) entrou no `CONFIG_INICIAL`
+  e no LEIA-ME, com exemplo.
+- **Um achado de caminho**: o «último recurso do texto todo» da
+  detecção de plataforma está morto desde sempre (join de pistas vazias
+  é truthy). Ficou no BACKLOG, medido antes de mexido.
+
+Verificado sobre a base real: `--reler` (21,5 s) aplicou as migrações e
+as contagens de plataforma ficaram exactamente iguais antes e depois.
+Testes: 424, verdes, em ~0,8 s.

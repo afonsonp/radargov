@@ -4,8 +4,9 @@
 
 "Correr os testes antes de gravar" era um habito, e um habito falha
 precisamente nos dias em que faz falta -- ao fim da noite, na correccao
-pequena que "nao podia ter partido nada". Sao 118 testes e menos de um
-segundo: mais barato do que a duvida.
+pequena que "nao podia ter partido nada". Sao centenas de testes em
+menos de um segundo: mais barato do que a duvida. (Ja esteve aqui um
+numero exacto; envelheceu como todos os numeros exactos em comentarios.)
 
 So trava o `git commit`. O resto do git passa: o `git add`, o `git log`,
 o `git diff` nao gravam nada e nao ha nada a proteger neles.
