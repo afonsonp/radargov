@@ -13,8 +13,8 @@
   "copias_a_guardar": 7,
   "alertas": true,
   "email": {
-    "para": "",
-    "de": "",
+    "para": "afonso.pinto95@hotmail.com",
+    "de": "afonso.pinto.redit@gmail.com",
     "servidor": "smtp.gmail.com",
     "porta": 587,
     "hora_resumo": "17:00"
