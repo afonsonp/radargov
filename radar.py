@@ -1595,6 +1595,59 @@ LEITURAS = (
 )
 
 
+def _ancoras_do_config(bruto):
+    """Valida ancoras vindas do config: lista de [prioridade, regex].
+
+    Devolve tuplos como os de origem, ou None quando algo nao serve --
+    e quem chama fica com as de origem. Um regex estragado no config
+    nao pode calar uma leitura em silencio."""
+    if not isinstance(bruto, list) or not bruto:
+        return None
+    fora = []
+    for par in bruto:
+        try:
+            prioridade = int(par[0])
+            padrao = str(par[1])
+            re.compile(padrao)
+        except (re.error, ValueError, TypeError, IndexError, KeyError):
+            return None
+        fora.append((prioridade, padrao))
+    return tuple(fora)
+
+
+def leituras_activas(cfg=None):
+    """As leituras a fazer: as de origem, com o config.json por cima.
+
+    B08: as ancoras e a instrucao de cada campo podem afinar-se sem
+    mexer no codigo, em "leituras" no config.json:
+
+        "leituras": {"objecto": {"quais": "programa",
+                                 "ancoras": [[1, "objec?to"], [2, "sla"]],
+                                 "instrucao": "..."}}
+
+    So se substitui o que la estiver escrito E valido; o resto fica o de
+    origem -- uma entrada estragada nunca desliga uma leitura. Campos
+    NOVOS nao se aceitam por aqui: a tabela `analise` tem colunas fixas,
+    e o 4o campo definido pelo utilizador fica para quando o caso de uso
+    aparecer (registado no BACKLOG).
+    """
+    cfg = ler_config() if cfg is None else cfg
+    por_cima = cfg.get("leituras")
+    if not isinstance(por_cima, dict) or not por_cima:
+        return list(LEITURAS)
+    fora = []
+    for nome, quais, ancoras, instrucao in LEITURAS:
+        muda = por_cima.get(nome)
+        if isinstance(muda, dict):
+            if muda.get("quais") in ("encargos", "programa"):
+                quais = muda["quais"]
+            ancoras = _ancoras_do_config(muda.get("ancoras")) or ancoras
+            if isinstance(muda.get("instrucao"), str) and muda["instrucao"].strip():
+                instrucao = muda["instrucao"].strip()
+        fora.append((nome, quais, ancoras, instrucao))
+    return fora
+
+
 def ler_chave(nomes, variavel):
     """A chave fica num ficheiro a parte, fora do git. Tambem se aceita
     a variavel de ambiente."""
@@ -1982,16 +2035,17 @@ def analisar_pecas(ref):
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
                        "na pasta do radar")
 
+    leituras = leituras_activas()      # as de origem, com o config por cima
     docs = documentos_com_texto(ref)
     recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
-                for nome, quais, ancoras, instrucao in LEITURAS]
+                for nome, quais, ancoras, instrucao in leituras]
     if not any(texto for _, (texto, _), _ in recortes):
         # As pecas trazidas antes de haver extracao de texto ficaram sem
         # ele. Estao em disco: extrai-se agora, sem voltar a rede.
         extrair_textos(ref)
         docs = documentos_com_texto(ref)
         recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
-                    for nome, quais, ancoras, instrucao in LEITURAS]
+                    for nome, quais, ancoras, instrucao in leituras]
     if not any(texto for _, (texto, _), _ in recortes):
         with liga() as c:
             scans = c.execute("SELECT COUNT(*) n FROM documentos WHERE ref=? "
