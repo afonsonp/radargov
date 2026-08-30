@@ -243,8 +243,18 @@ de paginação existentes.
 > verificados no `origin/master`. Nada de sensível foi: os 46 ficheiros
 > versionados não incluem capturas, bases, chaves, peças nem cópias.
 > **A triagem continua sem cópia externa** — ele só tem o disco `D:`, e a
-> base de trabalho está no `.gitignore` de propósito. **Decidido a
-> 31/08/2026:** exporta-se só a triagem (8 330 linhas — decisões, fases,
+> base de trabalho está no `.gitignore` de propósito.
+>
+> **Actualização de 31/08/2026, e muda a urgência:** o Afonso avisou que
+> **todo o histórico de actividade actual é de teste** — os 3
+> «interessa», os 4 097 descartados e as 4 150 linhas de histórico não
+> são trabalho real. O risco **estrutural** mantém-se (a triagem continua
+> a ser o único dado que não se recupera), mas o **custo de a perder hoje
+> é zero**. O B15 fica especificado e **deixa de ser urgente**; o gatilho
+> para o fazer é o dia em que a triagem passar a valer — a primeira
+> semana de decisões a sério.
+>
+> **Decidido a 31/08/2026:** exporta-se só a triagem (8 330 linhas — decisões, fases,
 > histórico, filtros, marcas de já-avisado) para um ficheiro de texto que
 > viaja no próprio repositório, e cada push passa a ser uma cópia fora do
 > PC, sem comprar disco nenhum. A especificação está no BACKLOG como
@@ -284,7 +294,16 @@ conta GitHub/disco a usar — é tua.
 
 ### E2 — Canal de aviso morto: o que falta fornecer, passo a passo
 
-> **Estado a 31/08/2026 — a palavra-passe existe e a Google recusa-a.**
+> **RESOLVIDO a 31/08/2026 — o canal autentica.** O Afonso ligou a
+> validação em dois passos (00:38), gerou a palavra-passe de aplicação e
+> gravou-a; o teste de login SMTP passa: **autenticação aceite**.
+> Detalhe que poupa dúvidas a quem repetir isto: ficou gravada com os
+> espaços dos quatro grupos (19 caracteres) e a Google aceita-a na mesma
+> — os espaços são só para leitura humana. Falta o primeiro envio
+> verdadeiro, que se faz quando ele disser, porque aí sai mesmo um
+> e-mail. O que estava escrito antes, e que explica o caminho:
+>
+> **Estado anterior — a palavra-passe existia e a Google recusava-a.**
 > Os endereços estão postos no `config.json`: envia
 > `afonso.pinto.redit@gmail.com`, recebe `afonso.pinto95@hotmail.com`,
 > resumo às 17:00. O `email_senha.txt` foi criado, mas **a autenticação
@@ -366,8 +385,24 @@ custo de cada uma — **sem decisão tomada**:
 
 ### E4 — A frequência de expiração do token não está registada
 
-> **Decidido a 30/08/2026: sim, implementar.** Por fazer — fica para a
-> sessão seguinte, com o resto do trabalho de código.
+> **Decidido a 30/08/2026: sim, implementar.** Por fazer.
+>
+> **Perguntado a 31/08: «não temos essa informação, consegues ter?»
+> Retroactivamente, não — e a razão é a mesma que motivou o C3.**
+> Procurou-se em três sítios: (i) a pegada de um token expirado é o
+> `amostras/resposta_inesperada.txt`, escrito quando o DR responde sem
+> JSON — **esse ficheiro nunca existiu**, logo nunca houve expiração
+> desde que o mecanismo existe; (ii) as marcas de estado são
+> sobrescritas, portanto não guardam história; (iii) o token é **opaco**
+> — não é um JWT e não traz validade lá dentro (verificado: zero cadeias
+> com forma de JWT nas capturas).
+>
+> **O que se afirma, medido:** as capturas são de **23/08 16:26** e
+> continuavam boas a **31/08** — o token dura **pelo menos 8 dias** e
+> ainda não expirou uma única vez. É um piso, não uma frequência. O
+> número verdadeiro só se sabe quando a primeira expiração acontecer, e
+> é para a apanhar que o E4 serve: sem ele, essa primeira vez também
+> passa sem deixar rasto.
 
 A forma mais simples de a passar a registar, sem ecrã novo: quando a
 recolha detecta «sem JSON, token pode ter expirado», gravar **uma linha

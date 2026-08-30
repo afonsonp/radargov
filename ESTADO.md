@@ -2934,12 +2934,27 @@ implementação fica para quando ele der luz verde.
   repositório. Especificado no BACKLOG como **B15**, por implementar.
   Até lá, o R2 continua vivo para a triagem, que é justamente o que não
   se recupera.
-- **O e-mail está configurado e ainda não envia.** Endereços postos no
-  `config.json`; o `email_senha.txt` foi criado mas a Google recusa-o
-  (**535 BadCredentials**, testado por login SMTP sem enviar mensagem
-  nenhuma). Tem 10 caracteres e uma palavra-passe de aplicação tem 16 —
-  é quase de certeza a palavra-passe normal da conta, que o Gmail não
-  aceita em SMTP. Detalhe e passos em E2 do SANEAMENTO.
+- **O e-mail passou a autenticar** (31/08, 00:38–01:00). A primeira
+  tentativa levava a palavra-passe normal da conta e a Google recusava-a
+  (535 BadCredentials); o Afonso ligou a validação em dois passos, gerou
+  a palavra-passe de aplicação e agora o login SMTP passa. Nota para
+  quem repetir: ela funciona **com os espaços dos quatro grupos**, que
+  a Google ignora. **Falta o primeiro envio verdadeiro**, que só se faz
+  com ordem dele — aí sai mesmo um e-mail.
+- **A triagem actual é de teste, e isso muda a urgência.** Aviso dele a
+  31/08: os 3 «interessa», os 4 097 descartados e as 4 150 linhas de
+  histórico não são trabalho real. O risco estrutural do R2 mantém-se —
+  a triagem continua a ser o único dado irrecuperável — mas o custo de a
+  perder **hoje** é zero. O B15 fica especificado e sem urgência, com o
+  gatilho declarado: a primeira semana de triagem a sério.
+- **A frequência de expiração do token não é reconstruível.** Procurada
+  a 31/08 a pedido dele, em três sítios: o `resposta_inesperada.txt`
+  **nunca existiu** (logo, nunca houve expiração desde que o mecanismo
+  existe), as marcas de estado são sobrescritas, e o token é **opaco** —
+  não é JWT, não traz validade lá dentro. O que se afirma, medido: as
+  capturas são de 23/08 16:26 e ainda funcionavam a 31/08, portanto o
+  token dura **pelo menos 8 dias**. É um piso, não uma frequência; o
+  número real só aparece com o E4 posto, e é para isso que ele serve.
 - **E3 decidido: fica como está.** Os links do resumo continuam em
   `localhost`; o e-mail vale como aviso, e o trabalho faz-se no PC. Sem
   VPN, sem expor o painel.

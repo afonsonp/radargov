@@ -176,7 +176,11 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 ## Aprovado pelo Afonso a 30/08/2026, por fazer
 
 - **B15 — exportação da triagem, para a cópia externa que falta (E1).**
-  Luz verde do Afonso a 31/08/2026. O problema: o remoto do GitHub já
+  Luz verde do Afonso a 31/08/2026, **e sem urgência**: ele avisou no
+  mesmo dia que todo o histórico de actividade actual é **de teste**,
+  portanto perder a triagem hoje não custa nada. O risco estrutural
+  mantém-se e a especificação fica pronta; **o gatilho é a primeira
+  semana de triagem a sério**, e convém não deixar passar disso. O problema: o remoto do GitHub já
   põe o **código** fora do PC, mas a **triagem** — o único dado
   declaradamente irrecuperável — continua só no disco `D:`, porque a
   base de trabalho está no `.gitignore` e ele não tem disco externo. A
@@ -220,7 +224,10 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 
 
 - **B14 — segunda fonte de anúncios: Vortal e acingov, só o que o DR não
-  publica.** Decisão dele, a 30/08/2026, sobre o item que estava em «Não
+  publica.** *(Sequência confirmada a 31/08/2026: fica para a frente,
+  como **trabalho de investigação**; só depois de saber o que dá é que
+  se tenta a implementação. Não é o próximo trabalho.)* Decisão dele,
+  a 30/08/2026, sobre o item que estava em «Não
   fazer» à espera precisamente disto: «podemos avançar com a ligação à
   vortal e acingov se der, apenas para procedimentos que não sejam
   publicados em DR». É a maior lacuna medida face à Tendios/Armilar/SpotGov
