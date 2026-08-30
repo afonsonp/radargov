@@ -141,6 +141,26 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   Edita-se no painel, em `/alertas` ("Janela do urgente"), com validação
   1–90 à vista.
 
+## Anotado no saneamento de 30/08/2026 — por fazer, com âmbito pequeno
+
+- **Reter histórico de erros (C3 da auditoria).** As marcas
+  `ultimo_erro_relogio`, `docs_ultimo_erro`, `analise_ultimo_erro` e
+  `ultima_copia` são sobrescritas — um dia mau apaga a história. A
+  forma mínima proposta, sem construir logging estruturado: uma tabela
+  `erros (quando TEXT, tipo TEXT, texto TEXT)` no `radar.db`, com o
+  `marca(...)` dos erros a fazer também um INSERT ali, e uma poda no
+  `iniciar_db()` que guarda os últimos ~200 por tipo. Leitura por SQL
+  chega para começar; um ecrã fica para quando fizer falta. Esforço 1.
+- **O «último recurso do texto todo» na detecção de plataforma está
+  morto.** Em `campos_do_detalhe()`, `pistas = " ".join((a, b, c))` com
+  os três vazios dá `"  "`, que é truthy, portanto
+  `simplifica(pistas) or simplifica(texto)` nunca cai para o texto —
+  desde sempre. Descoberto pelo primeiro teste que forçou o ramo
+  (`TestSinonimosDePlataforma`). A correcção é um `strip()`, mas mexe
+  no parser do detalhe e o efeito real (quantos anúncios ganhariam
+  plataforma) não está medido — medir primeiro com `--reler` sobre
+  cópia, decidir depois. Esforço 1.
+
 ## Não fazer, e porquê
 
 Decisões registadas com a observação que as sustenta. Reabrem-se se a

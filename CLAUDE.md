@@ -19,6 +19,21 @@ mude decisões ou números. O `CONCORRENTES.md` guarda o que se observou nos
 produtos pagos deste mercado, com data: o que fazem melhor, onde se partem,
 e o que daí se aproveita.
 
+**A documentação corrige-se na mesma sessão que muda o comportamento.**
+Antes do commit de qualquer trabalho que mude comportamento, números ou
+decisões, procura no `ESTADO.md`, no `LEIA-ME.md` e neste ficheiro as
+afirmações que o trabalho tornou falsas — contagens (testes, anúncios,
+linhas), funcionalidades descritas como inexistentes ou ao contrário,
+limites e janelas — e corrige-as **no mesmo commit**. Em particular: o
+parágrafo «Como está a correr» do ESTADO.md é o primeiro sítio onde se
+mente por omissão, porque as sessões acrescentam secções novas sem
+tocar no topo; se o teu trabalho mudou números, esse parágrafo é
+paragem obrigatória. Um commit que muda o `radar.py` sem tocar em
+nenhum `.md` é sinal para verificar, não prova de que está tudo bem.
+(A auditoria de 30/08/2026 encontrou o ESTADO.md a abrir com números
+13× errados e o LEIA-ME.md a negar funcionalidades que já existiam —
+esta regra existe para isso não voltar.)
+
 ## Comandos
 
 ```bash
@@ -47,14 +62,15 @@ python teste_radar.py TestPrefixoCPV.test_divisao_normal # um teste
 
 Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
-`agendar.bat` (cria as tarefas 09h/17h), `reler.bat` (`--reler`),
-`ensaio.bat` (ensaio-de-leitura), `historico.bat` (gitk),
-`desinstalar.bat` (tira as tarefas agendadas). Todos passam pelo
-`_python.bat`, que escolhe o Python da pasta se existir.
+`agendar.bat` (cria as três tarefas), `reler.bat` (`--reler`),
+`contratos.bat` (o que a tarefa semanal corre), `ensaio.bat`
+(ensaio-de-leitura), `historico.bat` (gitk), `desinstalar.bat` (tira as
+tarefas agendadas). Todos passam pelo `_python.bat`, que escolhe o
+Python da pasta se existir.
 
 ## Arquitectura
 
-Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
+Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 `# ---`. A ordem do ficheiro é a ordem do fluxo:
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
