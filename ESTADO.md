@@ -2734,3 +2734,52 @@ registado no BACKLOG.
 
 Testes: 402, todos verdes. O backlog da análise competitiva está
 fechado de P0 a P2; sobram os P3 (cosméticos) e o «Não fazer».
+
+## Os três P3, 30 de agosto de 2026 — o backlog fecha
+
+Com estes três, a análise competitiva de 30/08 está toda implementada
+(P0 a P3) ou registada em «Não fazer».
+
+### B11 — o valor de cada fase do quadro
+
+O cabeçalho da coluna diz "2 · 123,4 k€": soma dos preços base lidos,
+com o title a dizer sobre quantos anúncios é (`soma_precos_base()`).
+Os sem preço lido não contam e di-lo — somar uns e calar os outros
+parecia o valor da fase inteira. De caminho pagou-se (outra vez) a
+armadilha da precedência do `%`: um `+ valor +` no meio de literais
+adjacentes cola o formatador só ao último pedaço — o valor entra sempre
+como parâmetro `%s`, nunca por concatenação.
+
+### B12 — fontes com página nas leituras
+
+A premissa por confirmar confirmou-se: o `texto_do_pdf()` já lia página
+a página, e passou a juntá-las com `\f` **em linha própria** (colado à
+linha seguinte, o `sem_indice()` levava a marca junto com uma linha de
+sumário). A parte comum do recorte saiu para `_janelas_do_recorte()`:
+o texto que vai ao modelo e as páginas que a ficha declara saem DAS
+MESMAS janelas — de outro sítio, a fonte mentia. As fontes da análise
+dizem agora "Caderno_Encargos_signed.pdf (pág. 1–5)", por leitura
+(objecto e equipa lêem zonas diferentes do mesmo CE, e é isso que se
+quer declarar).
+
+Os textos antigos não tinham marcas: reextracção única por marca
+(`texto_com_paginas`, 49 s, 56 peças), só dos ficheiros que ainda
+existem em disco — apagar um texto bom por já não ter o ficheiro seria
+trocar a leitura pela cosmética. Limites assumidos: PDFs de uma página
+não têm marca (nem precisam de ponteiro); num ZIP com vários PDFs a
+página é do texto extraído, não de cada ficheiro. As páginas aparecem
+nas fichas à medida que as leituras forem refeitas pelo modelo.
+
+### B13 — a janela do "urgente" no painel
+
+`dias_urgente()` lê o `config.json` por cima da omissão (10), e lixo,
+zero ou negativo voltam à omissão — uma janela de 0 dias esvaziava o
+filtro em silêncio. Continua a ser UMA janela: o filtro, os rótulos dos
+selectores, a legenda dos filtros guardados, o cartão dos indicadores e
+a linha da saúde leem todos daqui (o `_NOMES_PRAZO` deixou de ter o
+número cozido a quente do arranque). Edita-se em `/alertas` ("Janela do
+urgente", 1–90 dias, validação à vista), e mudar lá muda em todo o
+lado. Verificado ponta a ponta: gravar 7 muda o cartão dos indicadores
+para "menos de 7 dias"; repor 10 repõe.
+
+Testes: 410, todos verdes.

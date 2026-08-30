@@ -68,6 +68,8 @@ CONFIG_INICIAL = {
     # Quantos anuncios marcados (interessa/quadro) se releem por
     # verificacao, a procura de prorrogacoes e precos base novos (B05).
     "relidos_por_volta": 25,
+    # A janela do "urgente", em dias (B13). Edita-se tambem em /alertas.
+    "dias_urgente": 10,
     # Copia do radar.db antes de cada verificacao. So a triagem e o
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
@@ -332,6 +334,27 @@ def iniciar_db():
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_entidade_norm "
                   "ON anuncios(entidade_norm)")
         semear_fases(c)
+        # B12, uma vez, por marca: os textos extraidos antes das marcas
+        # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
+        # Reextrai-se o que ainda existir em disco; o que nao existir
+        # fica como esta -- apagar um texto bom por nao ter o ficheiro
+        # seria trocar a leitura pela cosmetica. A reextraccao corre
+        # DEPOIS desta transaccao (extrair_textos abre a sua ligacao).
+        refazer = []
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='texto_com_paginas'").fetchone():
+            for d in c.execute("SELECT id, ref, nome FROM documentos "
+                               "WHERE texto_estado='ok'").fetchall():
+                caminho = os.path.join(pasta_do_anuncio(d["ref"]), d["nome"])
+                if os.path.exists(caminho):
+                    c.execute("UPDATE documentos SET texto=NULL, "
+                              "texto_estado=NULL WHERE id=?", (d["id"],))
+                    if d["ref"] not in refazer:
+                        refazer.append(d["ref"])
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('texto_com_paginas','1')")
+    for ref in refazer:
+        extrair_textos(ref)
 
 
 def gravar_config(mudancas):
@@ -1201,7 +1224,22 @@ PLATAFORMAS_COM_PECAS = ("acingov", "vortal", "compraspt", "anogov")
 # Um prazo a menos de tantos dias e "urgente". E o mesmo numero no filtro
 # da lista e no aviso dos indicadores, de proposito: o numero que os
 # indicadores mostram tem de dar exactamente a lista que a ligacao abre.
+# E a omissao; o valor em uso le-se por dias_urgente(), que aceita o
+# config.json por cima (B13).
 DIAS_URGENTE = 10
+
+
+def dias_urgente(cfg=None):
+    """A janela do "urgente", em dias: o config.json (dias_urgente) por
+    cima da omissao. Lixo, zero ou negativo voltam a omissao -- uma
+    janela de 0 dias esvaziava o filtro em silencio. Continua a ser UMA
+    janela: quem a le sao janela_urgente() e os rotulos, todos daqui."""
+    cfg = ler_config() if cfg is None else cfg
+    try:
+        n = int(cfg.get("dias_urgente", DIAS_URGENTE))
+    except (TypeError, ValueError):
+        return DIAS_URGENTE
+    return n if n >= 1 else DIAS_URGENTE
 
 # Abaixo disto nao se mostra percentagem de triagem. "100% ficou como
 # interessa" sobre dois casos e ruido com ar de conclusao.
@@ -1328,7 +1366,11 @@ def texto_do_pdf(caminho):
     try:
         leitor = PdfReader(caminho)
         paginas = len(leitor.pages)
-        texto = "\n".join((p.extract_text() or "") for p in leitor.pages)
+        # O \f em linha propria marca a fronteira de pagina (B12): e por
+        # ele que a ficha diz de que paginas veio o recorte. Linha
+        # propria de proposito -- colado a primeira linha da pagina, o
+        # sem_indice levava a marca junto com uma linha de sumario.
+        texto = "\n\f\n".join((p.extract_text() or "") for p in leitor.pages)
     except Exception as erro:
         # os PDFs do anuncio do DR vem cifrados com AES e rebentam aqui,
         # mas nao fazem falta: o texto do anuncio ja veio do portal
@@ -1391,7 +1433,10 @@ def texto_do_zip(caminho, papeis):
     except (zipfile.BadZipFile, OSError, KeyError) as erro:
         return "", "erro: %s" % str(erro)[:80]
     if partes:
-        return "\n\n".join(partes), "ok"
+        # A mesma marca de pagina entre PDFs do mesmo ZIP: a numeracao
+        # segue pelo conjunto fora, e a ficha diz "pag. N do texto
+        # extraido" -- num ZIP com varios PDFs nao ha outra verdade.
+        return "\n\f\n".join(partes), "ok"
     # Nao sai texto por duas razoes muito diferentes, e dize-las trocadas
     # manda a pessoa buscar a ferramenta errada: um PDF cifrado nao se
     # resolve com OCR.
@@ -1770,14 +1815,13 @@ def sem_indice(texto):
                       if not RX_LINHA_DE_INDICE.search(l))
 
 
-def recorte_relevante(texto, ancoras, tecto, janela=3500):
-    """As partes do documento que respondem ao que se procura.
+def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
+    """[(inicio, fim)] das zonas que o recorte leva, por ordem no texto.
 
-    Um Caderno de Encargos tem 50 mil caracteres e so uns 10 mil dizem
-    respeito ao objecto e a equipa; o resto sao clausulas de rotina
-    (forca maior, subcontratacao, penalidades). O tecto de tokens por
-    minuto da API obriga a escolher, e escolher tambem melhora a
-    leitura, por tirar ruido do caminho do modelo.
+    Vazio quando nenhuma ancora pega -- o recorte passa a ser o inicio
+    do texto. E a parte comum de recorte_relevante() e de
+    paginas_do_recorte(): o texto que vai ao modelo e as paginas que a
+    ficha declara tem de sair DAS MESMAS janelas, senao a fonte mentia.
     """
     pos, titulos = 0, []
     for linha in texto.split("\n"):
@@ -1790,7 +1834,7 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
                     break
         pos += len(linha) + 1
     if not titulos:
-        return texto[:tecto]
+        return []
 
     marca, gasto = bytearray(len(texto)), 0
     for _, p in sorted(titulos):
@@ -1809,9 +1853,64 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
         j = i
         while j < n and marca[j]:
             j += 1
-        partes.append(texto[i:j])
+        partes.append((i, j))
         i = j
-    return "\n[...]\n".join(partes)[:tecto]
+    return partes
+
+
+def recorte_relevante(texto, ancoras, tecto, janela=3500):
+    """As partes do documento que respondem ao que se procura.
+
+    Um Caderno de Encargos tem 50 mil caracteres e so uns 10 mil dizem
+    respeito ao objecto e a equipa; o resto sao clausulas de rotina
+    (forca maior, subcontratacao, penalidades). O tecto de tokens por
+    minuto da API obriga a escolher, e escolher tambem melhora a
+    leitura, por tirar ruido do caminho do modelo.
+    """
+    janelas = _janelas_do_recorte(texto, ancoras, tecto, janela)
+    if not janelas:
+        return texto[:tecto]
+    return "\n[...]\n".join(texto[i:j] for i, j in janelas)[:tecto]
+
+
+def paginas_do_recorte(texto, ancoras, tecto, janela=3500):
+    """As paginas (a contar de 1) de onde o recorte veio (B12).
+
+    So quando o texto tem as marcas de pagina (\\f) que o extractor poe:
+    os textos extraidos antes das marcas nao sabem paginas, e devolve-se
+    [] em vez de as inventar. A pagina de um offset e contar os \\f
+    antes dele."""
+    if "\f" not in texto:
+        return []
+    janelas = (_janelas_do_recorte(texto, ancoras, tecto, janela)
+               or [(0, min(len(texto), tecto))])
+    paginas = []
+    for i, j in janelas:
+        for p in range(texto.count("\f", 0, i) + 1,
+                       texto.count("\f", 0, j) + 2):
+            if p not in paginas:
+                paginas.append(p)
+    return paginas
+
+
+def rotulo_com_paginas(nome, paginas):
+    """"CE.pdf" + [2,3,4,7] -> "CE.pdf (pág. 2–4, 7)".
+
+    E o que vai para analise.fontes e dali para a ficha: diz de que
+    paginas veio o recorte que sustentou a leitura. Sem paginas fica so
+    o nome, como sempre foi."""
+    if not paginas:
+        return nome
+    grupos, inicio, anterior = [], paginas[0], paginas[0]
+    for p in paginas[1:]:
+        if p == anterior + 1:
+            anterior = p
+            continue
+        grupos.append((inicio, anterior))
+        inicio = anterior = p
+    grupos.append((inicio, anterior))
+    pedacos = ["%d" % a if a == b else "%d–%d" % (a, b) for a, b in grupos]
+    return "%s (pág. %s)" % (nome, ", ".join(pedacos))
 
 
 # As entidades gravam os ficheiros como lhes apetece.
@@ -1877,10 +1976,16 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     for d in docs:
         if quais not in papeis_da_peca(d["nome"]):
             continue
+        limpo = sem_indice(d["texto"])
         partes.append("### %s\n%s" % (
             d["nome"],
-            recorte_relevante(sem_indice(d["texto"]), ancoras, tecto)))
-        usados.append(d["nome"])
+            recorte_relevante(limpo, ancoras, tecto)))
+        # A fonte leva as paginas do recorte (B12), quando o texto tem
+        # as marcas; e por leitura, por isso o mesmo CE pode aparecer
+        # nas fontes com paginas diferentes -- objecto e equipa leem
+        # zonas diferentes, e e isso mesmo que se quer declarar.
+        usados.append(rotulo_com_paginas(
+            d["nome"], paginas_do_recorte(limpo, ancoras, tecto)))
     return "\n\n".join(partes)[:tecto * 2], usados
 
 
@@ -5345,7 +5450,7 @@ def painel():
         % (v, " selected" if v == prazo_actual else "", t)
         for v, t in (("", "prazo: tanto faz"),
                      ("aberto", "só os que ainda dão para concorrer"),
-                     ("urgente", "só os que acabam em %d dias" % DIAS_URGENTE),
+                     ("urgente", "só os que acabam em %d dias" % dias_urgente()),
                      ("expirado", "só os de prazo passado")))
 
     # A pesquisa nas pecas (B09) so aparece quando o indice existe, e a
@@ -5583,8 +5688,9 @@ _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
                  "proc": "procedimento", "min": "desde €",
                  "entid": "entidade que comprou", "vencid": "ganho por"}
-_NOMES_PRAZO = {"aberto": "prazo por fechar", "expirado": "prazo passado",
-                "urgente": "prazo a menos de %d dias" % DIAS_URGENTE}
+# O "urgente" nao esta aqui: o numero dele e configuravel (B13) e
+# resolve-se na hora, em resumo_filtro().
+_NOMES_PRAZO = {"aberto": "prazo por fechar", "expirado": "prazo passado"}
 _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
                  "descartado": "descartados", "": "todos"}
 
@@ -5602,7 +5708,9 @@ def resumo_filtro(consulta, vista=None):
         if campo == "estado":
             partes.append(_NOMES_ESTADO.get(valor, valor))
         elif campo == "prazo" and valor:
-            partes.append(_NOMES_PRAZO.get(valor, valor))
+            partes.append("prazo a menos de %d dias" % dias_urgente()
+                          if valor == "urgente"
+                          else _NOMES_PRAZO.get(valor, valor))
         elif campo == "op" and valor:
             # "op ou" nao diz nada; a legenda diz o que o modo faz
             partes.append("palavras OU CPV" if valor == "ou" else valor)
@@ -5709,12 +5817,13 @@ def prefixo_cpv(pedaco):
 
 
 def janela_urgente(hoje):
-    """(hoje, hoje + DIAS_URGENTE), em ISO. E UMA janela so.
+    """(hoje, hoje + dias_urgente()), em ISO. E UMA janela so.
 
     Usam-na o filtro prazo=urgente e o cartao "Interessa" dos
     indicadores. Ja houve um "7" escrito a mao no cartao com o filtro a
     10: o numero do ecra nao abria lista nenhuma que o confirmasse."""
-    return hoje.isoformat(), (hoje + timedelta(days=DIAS_URGENTE)).isoformat()
+    return (hoje.isoformat(),
+            (hoje + timedelta(days=dias_urgente())).isoformat())
 
 
 def condicoes(args):
@@ -6370,6 +6479,45 @@ def _caixa_email(cfg):
             "lista aqui em baixo mostra o mesmo.</div>")))
 
 
+def _caixa_urgente():
+    """A janela do "urgente", editavel no painel (B13). E UM numero,
+    usado pelo filtro, pelo cartao dos indicadores e pelos rotulos --
+    por isso edita-se num sitio so, e todos leem dias_urgente()."""
+    return ("<div class='cx novo-filtro' style='margin-top:16px'>"
+            "<div class='rot'>Janela do &ldquo;urgente&rdquo;</div>"
+            "<div class='nota' style='margin:6px 0 10px'>Um anúncio é "
+            "&ldquo;urgente&rdquo; quando o prazo acaba nos próximos N "
+            "dias. O mesmo número serve o filtro da lista, o cartão dos "
+            "indicadores e os avisos &mdash; mudar aqui muda em todo o "
+            "lado.</div>"
+            "<form method='post' action='/alertas/urgente' class='filtros'>"
+            "<label>prazos a menos de</label>"
+            "<input type='text' name='dias' value='%d' "
+            "style='min-width:0;width:70px;flex:none'>"
+            "<label>dias</label>"
+            "<button type='submit'>Guardar</button></form></div>"
+            % dias_urgente())
+
+
+@app.route("/alertas/urgente", methods=["POST"])
+def alertas_urgente():
+    """Grava a janela do urgente (B13), com a validacao a vista: um 0
+    ou lixo esvaziava o filtro sem uma palavra."""
+    bruto = (request.form.get("dias") or "").strip()
+    try:
+        n = int(bruto)
+    except ValueError:
+        return redirect("/alertas?aviso=" +
+                        quote("“%s” não é um número de dias." % bruto))
+    if not 1 <= n <= 90:
+        return redirect("/alertas?aviso=" +
+                        quote("A janela do urgente vai de 1 a 90 dias."))
+    gravar_config({"dias_urgente": n})
+    return redirect("/alertas?aviso=" +
+                    quote("Urgente passa a ser: prazo a menos de %d dias."
+                          % n))
+
+
 @app.route("/alertas")
 def alertas():
     cfg = ler_config()
@@ -6526,7 +6674,7 @@ def alertas():
                    for v, t in (("", "prazo: tanto faz"),
                                 ("aberto", "prazo: só os que ainda dão"),
                                 ("urgente", "prazo: só os que acabam em %d "
-                                            "dias" % DIAS_URGENTE),
+                                            "dias" % dias_urgente()),
                                 ("expirado", "prazo: só os passados"))),
            ("<select name='proc'>%s</select>"
             % "".join(["<option value=''>procedimento: todos "
@@ -6558,6 +6706,7 @@ def alertas():
     conteudo = ("<div class='larg'>" + lista + caixa_seguidas +
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
+                _caixa_urgente() +
                 "<div class='rot' style='margin:22px 0 12px'>Últimos avisos"
                 "</div>" + historico + "</div>")
 
@@ -9155,6 +9304,18 @@ def cartao(a, etiquetas_por_ref):
                            "anúncio à lista dos por ver. Continuar?"), dono))
 
 
+def soma_precos_base(itens):
+    """(soma, quantos com preco lido) dos precos base de uma coluna.
+
+    O preco_base e texto do DR ("175.000,00 EUR") e passa por
+    euros_do_texto(); os anuncios sem preco lido nao contam, e o
+    cabecalho diz sobre quantos e que a soma e -- somar uns e calar os
+    outros parecia o valor da fase inteira."""
+    valores = [v for v in (euros_do_texto(a["preco_base"]) for a in itens)
+               if v]
+    return sum(valores), len(valores)
+
+
 @app.route("/quadro")
 def quadro():
     fases = listar_fases()
@@ -9181,12 +9342,20 @@ def quadro():
         itens = por_fase.get(f["id"], [])
         corpo = "".join(cartao(a, etiquetas_por_ref) for a in itens) or \
             "<div class='coluna-vazia'>sem cartões, arrasta um para aqui</div>"
+        # B11: o valor da fase ao lado da contagem, como o kanban da
+        # SpotGov. So os precos base lidos contam, e o title di-lo.
+        soma, com_preco = soma_precos_base(itens)
+        valor_fase = ""
+        if soma:
+            valor_fase = (" <span title='soma dos preços base lidos: %d de "
+                          "%d anúncios têm preço'>· %s</span>"
+                          % (com_preco, len(itens), euros_curto(soma)))
         colunas.append(
             "<div class='coluna'><div class='coluna-cab'>"
             "<form method='post' action='/quadro/fase/%d/renomear'>"
             "<input class='fase-nome' type='text' name='nome' value='%s' "
             "data-antes='%s' required onblur='renomearFase(this)'></form>"
-            "<span class='coluna-conta'>%d</span>"
+            "<span class='coluna-conta'>%d%s</span>"
             "<form method='post' action='/quadro/fase/%d/apagar' "
             "onsubmit='return confirm(\"Apagar esta fase? Os cartões voltam "
             "para a primeira fase.\")'>"
@@ -9194,7 +9363,7 @@ def quadro():
             "&times;</button></form></div>"
             "<div class='coluna-corpo' data-fase='%d'>%s</div></div>"
             % (f["id"], html.escape(f["nome"], quote=True),
-               html.escape(f["nome"], quote=True), len(itens),
+               html.escape(f["nome"], quote=True), len(itens), valor_fase,
                f["id"], f["id"], corpo))
 
     datalist = "".join("<option value='%s'>" % html.escape(e["nome"], quote=True)
@@ -9356,8 +9525,7 @@ def funil_anuncios():
         d["urgentes_por_ver"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
             "AND prazo >= ? AND prazo <= ?",
-            (hoje.isoformat(),
-             (hoje + timedelta(days=DIAS_URGENTE)).isoformat())).fetchone()["n"]
+            janela_urgente(hoje)).fetchone()["n"]
         d["expirados_por_ver"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
             "AND prazo != '' AND prazo < ?", (hoje.isoformat(),)).fetchone()["n"]
@@ -9430,7 +9598,7 @@ def indicadores():
     # O numero dos urgentes abre a lista que o confirma -- um numero sem
     # saida obrigava a reconstruir o filtro a mao (e com outro limiar).
     nota_urgentes = "%s com prazo a menos de %d dias" % (mil(urgentes),
-                                                         DIAS_URGENTE)
+                                                         dias_urgente())
     if urgentes:
         nota_urgentes = ("<a href='/?estado=interessa&amp;prazo=urgente' "
                          "style='color:inherit;text-decoration:underline'>"
@@ -9578,7 +9746,7 @@ def indicadores():
         alertas.append(
             "<a href='/?estado=novo&prazo=urgente'><b>%s por ver com prazo a "
             "menos de %d dias</b></a>"
-            % (mil_pt(f["urgentes_por_ver"]), DIAS_URGENTE))
+            % (mil_pt(f["urgentes_por_ver"]), dias_urgente()))
     if f["expirados_por_ver"]:
         alertas.append("<a href='/?estado=novo&prazo=expirado'>%s por ver já "
                        "com o prazo passado</a>"

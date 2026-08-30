@@ -245,7 +245,13 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
   `expirado`), e a janela do `urgente` é UMA — `janela_urgente()`, usada
   pelo filtro e pelo cartão dos indicadores. Já houve um "7" escrito à
   mão no cartão com o filtro a 10. O número que um ecrã mostra tem de
-  dar exactamente a lista que a ligação dele abre.
+  dar exactamente a lista que a ligação dele abre. O número vem de
+  `dias_urgente()` (config.json, editável em `/alertas`); nunca uses
+  `DIAS_URGENTE` directamente num rótulo — é só a omissão.
+- **O texto extraído das peças leva `\f` em linha própria** entre
+  páginas: é por ele que as fontes da análise dizem "(pág. 1–5)". O
+  recorte e as páginas saem das mesmas janelas (`_janelas_do_recorte`);
+  um texto sem marcas não declara páginas — não se inventam.
 - **Os três trabalhos longos correm todos fora do pedido.** "Verificar
   agora" é thread com trinco (`comecar_verificacao()`, com um `passo`
   que a barra lateral mostra), "Actualizar contratos" é thread com
