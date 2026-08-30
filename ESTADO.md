@@ -2887,3 +2887,18 @@ expiração do token). O essencial:
 Verificado sobre a base real: `--reler` (21,5 s) aplicou as migrações e
 as contagens de plataforma ficaram exactamente iguais antes e depois.
 Testes: 424, verdes, em ~0,8 s.
+
+## O esqueleto de informação, 30 de agosto de 2026
+
+A seguir ao saneamento, desenhou-se em **`ESQUELETO.md`** a estrutura
+de informação que consolida o radar — só estrutura e navegação, sem
+código e sem decisões visuais (essas são da fase seguinte, por outra
+pessoa, a partir desse documento). O essencial: a navegação passa a
+cinco intenções (Triagem, Em curso, Pesquisa, Mercado, Alertas), a
+Triagem separa-se do arquivo de dois anos (era a aba de 61 981), os
+Indicadores entram pela zona de estado, e das 35 rotas 31 mantêm-se
+tal como estão — o problema era a hierarquia, não as rotas. Nada dele
+está implementado: as fusões de vistas irmãs (renovações, blocos
+repetidos) e oito perguntas de estrutura estão lá **apresentadas para
+o Afonso escolher**, e o Fluxo B continua dependente da decisão E2 do
+SANEAMENTO.md.
