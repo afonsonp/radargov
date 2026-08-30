@@ -141,15 +141,20 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
   vista partilha os campos dos contratos **menos `de`/`ate`** — dois
   eixos do tempo na mesma página confundiam. O fim é estimado e a
   página di-lo: prorrogações não constam do dump.
-- **A pesquisa nas peças é um FTS5 de conteúdo externo** sobre
-  `documentos.texto` (`pecas_fts`, campo `q_pecas`, só anúncios). Três
-  regras: a população inicial é `rebuild` com marca (`fts_povoado`) —
-  num FTS de conteúdo externo, um SELECT sem MATCH lê a tabela de
-  conteúdo e um teste "está vazio?" engana-se; o input entra no MATCH
-  sempre entre aspas (`termos_fts()`) — NEAR/AND/* do utilizador são
-  texto, não operadores; e a faixa diz sobre quantos anúncios a
-  pesquisa olha — cobre só as peças trazidas com texto, e esconder isso
-  seria mentir com uma caixa de texto.
+- **A pesquisa nas peças vive na FICHA do anúncio, não na lista.**
+  Decisão do Afonso a 30/08/2026: na lista cobria uma fracção minúscula
+  da base e enganava; na ficha procura nas peças DESTE concurso, depois
+  de descarregadas (`pesquisa_nas_pecas()`, caixa dentro de "Peças do
+  procedimento", só quando há peças com texto). Não reintroduzas um
+  `q_pecas` em `condicoes()` — há teste a guardá-lo. Por baixo é um FTS5
+  de conteúdo externo sobre `documentos.texto` (`pecas_fts`): a
+  população inicial é `rebuild` com marca (`fts_povoado`) — num FTS de
+  conteúdo externo, um SELECT sem MATCH lê a tabela de conteúdo e um
+  teste "está vazio?" engana-se; o input entra no MATCH sempre entre
+  aspas (`termos_fts()`) — NEAR/AND/* do utilizador são texto. O FTS
+  diz QUE documentos respondem; o excerto constrói-se em Python
+  (`excerto_de()`, sobre o texto sem índice) — o `snippet()` devolvia a
+  linha do sumário ("Penalidades ....... 7") em vez do corpo.
 - **O `op` (E/OU entre palavras e CPV) é um modo, não um filtro**:
   sozinho não conta como pergunta em /contratos nem valida um alerta.
   Em `condicoes()`/`condicoes_contratos()`, os lados q e cpv montam-se

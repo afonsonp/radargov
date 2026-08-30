@@ -101,14 +101,18 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   origem, nunca cala uma leitura. **O 4.º campo do utilizador ficou de
   fora**: a tabela `analise` tem colunas fixas e o caso de uso ainda
   não apareceu; reabre-se quando aparecer.
-- **B09 — pesquisa nas peças** (30/08/2026). FTS5 de conteúdo externo
-  sobre `documentos.texto` (só o índice; triggers mantêm-no, `rebuild`
-  com marca povoa-o — um SELECT sem MATCH lê o conteúdo e enganava o
-  teste de vazio). Campo "Procurar nas peças…" nos anúncios
-  (`q_pecas`), input sempre entre aspas no MATCH (sintaxe vira texto), e
-  faixa honesta a dizer sobre quantos anúncios a pesquisa olha — hoje
-  17. Acentos e maiúsculas certos pelo tokenizador (unicode61,
-  remove_diacritics), sem o defeito do LIKE.
+- **B09 — pesquisa nas peças** (30/08/2026; movida para a ficha no
+  mesmo dia, por decisão do Afonso). FTS5 de conteúdo externo sobre
+  `documentos.texto` (só o índice; triggers mantêm-no, `rebuild` com
+  marca povoa-o — um SELECT sem MATCH lê o conteúdo e enganava o teste
+  de vazio). A caixa "Procurar nas peças…" vive na **ficha do
+  anúncio**, dentro de "Peças do procedimento", quando há peças com
+  texto — procura nas peças deste concurso e mostra um excerto por
+  documento com o termo a negrito (`excerto_de()`, em Python sobre o
+  texto sem índice: o `snippet()` do FTS devolvia a linha do sumário).
+  Na lista não há campo nenhum: lá cobria uma fracção minúscula da
+  base e enganava — há teste a impedir o regresso. Input sempre entre
+  aspas no MATCH; acentos e maiúsculas certos pelo tokenizador.
 - **B10 — seguir entidades** (30/08/2026). Botão na ficha da entidade;
   os anúncios novos das seguidas entram no resumo diário em secção
   própria (reconhecer/enviar como os alertas, acervo ao começar a
