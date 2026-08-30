@@ -2897,8 +2897,23 @@ pessoa, a partir desse documento). O essencial: a navegação passa a
 cinco intenções (Triagem, Em curso, Pesquisa, Mercado, Alertas), a
 Triagem separa-se do arquivo de dois anos (era a aba de 61 981), os
 Indicadores entram pela zona de estado, e das 35 rotas 31 mantêm-se
-tal como estão — o problema era a hierarquia, não as rotas. Nada dele
-está implementado: as fusões de vistas irmãs (renovações, blocos
-repetidos) e oito perguntas de estrutura estão lá **apresentadas para
-o Afonso escolher**, e o Fluxo B continua dependente da decisão E2 do
-SANEAMENTO.md.
+tal como estão — o problema era a hierarquia, não as rotas.
+
+**As decisões estão todas tomadas** (Afonso, no mesmo dia), e o
+documento está reescrito segundo elas — a secção 0 do ESQUELETO
+regista quem decidiu o quê. As que mudam mais coisas: as **renovações
+fundem-se** nos contratos como modo «ver por: fim estimado» (6.1-A); a
+**Triagem mostra a janela de `detalhe_dias`** (11.2-A), o que significa
+que esse valor de configuração passa a governar também o que se vê de
+manhã, e não só o trabalho de fundo; a **Pesquisa abre em 12 meses**
+com interruptor para o arquivo (11.5-B); o **«Verificar agora» fica só
+na Triagem** (11.8-A), ao contrário de hoje; e a faixa do CPV e o
+selector de procedimento passam a blocos partilhados no andamento 3
+(6.3-A, 6.4-A), que é onde se paga a dívida do HTML por concatenação.
+Ficam por decidir só os dois motores de filtro, que se mantêm como
+estão de propósito (6.2-B).
+
+**Nada disto está implementado** — é proposta fechada, não código. O
+Fluxo B continua dependente da decisão E2 do SANEAMENTO.md, e a
+procura directa de entidade ficou no BACKLOG a pedido dele, como
+possibilidade registada e não feita.
