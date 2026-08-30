@@ -45,7 +45,7 @@ quê e quando.
 | 11.2 | Âmbito por omissão da Triagem | **A — janela dos 60 dias (`detalhe_dias`)** | §3.1; a Triagem passa a mostrar o mesmo âmbito que a rotina lê — um conceito, não dois |
 | 11.3 | Sem e-mail, onde vivem as novidades | **B — secção em Alertas** | §8 e §3.9; consequência assumida: com E2 em «não», as novidades ficam numa página de visita ocasional |
 | 11.4 | Quadro + calendário como um item | **sim, «Em curso»** | §2, §3.4, §3.5; o Quadro abre por omissão (o que a proposta já dizia) |
-| 11.5 | Pesquisa por omissão | **B — janela com interruptor «incluir arquivo»** | §3.2; janela registada em 12 meses, ajustável |
+| 11.5 | Pesquisa por omissão | **B — janela com interruptor «incluir arquivo»** | §3.2; janela **confirmada em 12 meses** (31/08/2026) |
 | 11.6 | Indicadores só pela zona de estado | **A — sim** | §2, §3.10; navegação fica com cinco itens exactos |
 | 11.7 | Porta própria para entidades | **A — só ligações**, com B documentado | §3.8, §3.11; a caixa de procura fica registada como reabrível |
 | 11.8 | «Verificar agora» onde | **A — só na Triagem** | §3.1, §3.4, §3.5, §9 linha 15; muda o comportamento actual |
@@ -219,7 +219,7 @@ uma intenção, não uma tabela.
   que alarga aos 66 081 de dois anos. Doze meses porque é a janela que
   serve a comparação homóloga (o corpus compara ano a ano — B02/B04) e
   porque deixa a Pesquisa distinta do âmbito da Triagem sem esconder um
-  ano de acervo; o valor é ajustável sem consequência estrutural.
+  ano de acervo. **Confirmado pelo Afonso a 31/08/2026.**
 - **Informação secundária:** contagem "a mostrar X dos Y que
   correspondem · Z na base" (existente) — com a janela em vigor dita
   por escrito, senão a Pesquisa parecia o acervo todo e não era (P4);
@@ -749,11 +749,14 @@ não é problema aberto.)
 
 ## 8. Dependências e pré-requisitos
 
-- **E2 (canal de aviso, por decidir).** O Fluxo B está desenhado assim:
-  os alertas reconhecem na verificação, o resumo entrega uma vez por
-  dia por e-mail e sempre para `AVISOS.txt` (§1.9). **Tudo o que em
-  §3.9 diz "dependente E2"** (destino, hora, enviar já) só ganha vida
-  com a decisão do SANEAMENTO.md. **Se o Afonso decidir não ligar o
+- **E2 (canal de aviso: decidido sim, por ligar).** O Fluxo B está
+  desenhado assim: os alertas reconhecem na verificação, o resumo
+  entrega uma vez por dia por e-mail e sempre para `AVISOS.txt` (§1.9).
+  **A 31/08/2026 o Afonso decidiu ligá-lo** e os endereços estão postos;
+  falta só a palavra-passe de aplicação da Google ser aceite (E2 do
+  SANEAMENTO). Ou seja: **o cenário "sem e-mail" deixou de ser o
+  provável**, mas fica escrito porque a estrutura tem de o suportar
+  enquanto o envio não passar. **Se o Afonso decidir não ligar o
   e-mail de todo**, a entrega passa para dentro da aplicação, numa
   **secção própria em Alertas** (decisão 11.3-B), alimentada pelas
   filas que já existem (`alertas_vistos`, `alteracoes`,
@@ -906,7 +909,7 @@ meses sabendo o que se pesou.
 4. ~~**Em curso: quadro+calendário como um item?**~~ → **sim, e o nome
    é "Em curso"**; o quadro abre por omissão (§3.4, §3.5).
 5. ~~**Pesquisa por omissão: tudo ou uma janela?**~~ → **B, janela com
-   interruptor "incluir arquivo"**; registada em 12 meses (§3.2).
+   interruptor "incluir arquivo"**, confirmada em **12 meses** (§3.2).
 6. ~~**Indicadores só pela zona de estado?**~~ → **A, sim** (§2, §3.10).
 7. ~~**Entidades precisam de porta própria?**~~ → **A, só ligações**,
    com a opção B registada como reabrível (§3.11).
