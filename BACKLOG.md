@@ -19,11 +19,7 @@ Vazio — B01 e B02 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P1
 
-| ID | Item | Origem | Valor | Esforço | Confiança | Prioridade — a conta | Onde toca | Dependências | Risco |
-|---|---|---|---|---|---|---|---|---|---|
-| B03 | Vista "Renovações": contratos do corpus com fim estimado (`data_celebracao + prazo_execucao`) nos próximos N meses, filtráveis por CPV/entidade — a pergunta "o que vai renovar no meu mercado?" | Armilar "Previsão de Contratos" (módulo de 1ª linha), SpotGov "Pipeline Radar" | 5 | 3 (~2 dias: consulta + vista com árvore CPV reutilizada + índice) | Alta — **verificado**: 96,6% dos 1,36 M contratos têm prazo_execucao>0; 81 827 terminam nos próximos 6 meses | **P1**: valor 5, ≤3 dias, confiança alta; não é P0 porque uma vista nova a sério passa das 8h | rota nova (ou secção em `/contratos`), `com_corpus()`, `arvore_html()` (fonte contratos), índice novo em contratos(fim estimado) ou coluna calculada na importação | — | [PRAZO] o fim estimado é estimativa: prorrogações não constam do dump |
-| B04 | Desconto por segmento e na ficha: preço base vs preço contratual, ligado por `n_anuncio = ref` e agregado por procedimento (não por linha — os lotes contaminam) | Tendios "Visão geral" (desconto méd 20,58%), Armilar Insights (0,47% estimado por concurso) | 4 | 3 (~2–3 dias) | **Média** — a ligação existe (187 489 pares com ambos os preços) mas a média ingénua dá 50%: multi-lote e multi-adjudicatário exigem agregação por procedimento antes de dividir | **P1 fronteira com P2**: valor 4 e ≤3 dias, mas a confiança é média — fica P1 porque o passo de validação está identificado (agregar por `n_anuncio` e comparar amostras à mão) e o resto é o padrão já usado nos gráficos dos contratos | `/contratos/resumo` (7º gráfico), ficha do anúncio (desconto médio do CPV), `com_corpus()` | B02 ajuda (mesma ligação) | [RISCO] se a agregação não limpar os lotes, o número mente — validar contra 20 casos à mão antes de mostrar |
-| B05 | Avisar de alterações: na releitura de detalhe da janela, comparar prazo/preço/texto com o guardado; mudanças em anúncios marcados (interessa/fases) entram no resumo diário como "alterados" | Tendios ("incluir modificações"), GovGo ("alteração ou anulação de procedimentos dos favoritos") — 2 de 4 têm | 4 | 3 (~2–3 dias: coluna de hash/versão + diff de campos + secção no e-mail) | Alta para prazo/preço (campos já parseados); a detecção de anulações depende de o DR republicar — por confirmar o formato | **P1**: valor 4, ≤3 dias, confiança alta no núcleo (prorrogações de prazo, que é o caso que importa) | `ler_detalhes()`/`reparsear()`, tabela `historico` (já existe para triagem — acrescentar eventos de fonte), `enviar_resumo()`, `registar_alertas()` | rotina diária a reler a janela (já corre) | [PRAZO] uma prorrogação perdida é pior que nenhuma promessa — só anunciar quando o diff estiver testado |
+Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P2
 
@@ -44,6 +40,38 @@ Vazio — B01 e B02 feitos a 30/08/2026; ver «Feito», no fim.
 | B13 | Prazo do "urgente" configurável no painel (hoje `janela_urgente()` fixa) | GovGo (prazo "A findar" editável: 5 dias) | 2 | 1 (~2h) | Alta | **P3**: cosmético; a janela única já é regra do projecto, só ganharia um campo no config | `janela_urgente()`, `config.json`, cartão dos indicadores | — | |
 
 ## Feito
+
+- **B03 — vista "Renovações"** (30/08/2026). Separador novo `/renovacoes`:
+  contratos do corpus com fim estimado (coluna `fim_estimado` =
+  celebração + prazo em dias, com migração idempotente e índice) numa
+  janela de 3/6/12/24 meses, filtráveis como os contratos (a vista
+  `renovacoes` partilha os campos, menos `de`/`ate` — a página já tem um
+  eixo do tempo). A pergunta vem primeiro, como em `/contratos`. A
+  página diz que o fim é estimado e que prorrogações não constam do
+  dump. Medido: 81 827 contratos terminam nos próximos 6 meses (bate
+  com a conta da análise); limpeza 6 meses ~350 ms.
+- **B04 — desconto sobre o preço base** (30/08/2026). Validado como o
+  backlog exigia: a média ingénua por linha dá **-18,9%** (cada lote
+  compara com a base do procedimento inteiro); agregado por `n_anuncio`
+  com base constante dá descontos plausíveis. Ficam de fora os grupos
+  com a base a variar entre lotes (5 388 — aí a base é por lote,
+  semântica ambígua) e a soma acima da base (4 275, ruído): sobra o
+  conjunto limpo de 97 130 procedimentos. 7º gráfico no resumo dos
+  contratos (mediana global 8,7%; CPV 72: 3,4%; limpeza: 10,5%) com
+  índice parcial (1,0 s → 0,07 s), e desconto mediano da entidade+CPV
+  na ficha do anúncio (mínimo 5 procedimentos).
+- **B05 — avisos de alterações** (30/08/2026). `reler_marcados()` relê
+  por verificação até 25 anúncios interessa/quadro com prazo aberto;
+  `_guardar_detalhe()` compara prazo e preço base com o guardado
+  (`diferencas_do_detalhe()`: só valor→valor diferente — campo que
+  desaparece é o parser a tropeçar, não se grita lobo). As mudanças vão
+  para a fila `alteracoes` (reconhecer/enviar separados, como os
+  alertas) e para o histórico da ficha ("DR · alterou · prazo de
+  propostas: 05/09/2026 → 19/09/2026"); o resumo diário ganha a secção
+  "Alterados desde a última leitura". Ensaiado sobre cópia da base com
+  uma prorrogação simulada de 14 dias; reler o mesmo texto não avisa
+  duas vezes. Anulações ficaram de fora (o formato de republicação do
+  DR está por confirmar — era a parte de confiança média do item).
 
 - **B01 — exclusões nos filtros** (30/08/2026). `q_excl` e `cpv_excl`
   em `condicoes()` e `condicoes_contratos()`, nos quatro formulários

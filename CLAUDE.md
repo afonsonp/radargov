@@ -81,8 +81,8 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
    anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
 7. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Vistas: anúncios (`/`), contratos
-   (`/contratos`), ficha (`/anuncio/<ref>`), quadro kanban, calendário,
-   indicadores.
+   (`/contratos`), renovações (`/renovacoes`), ficha (`/anuncio/<ref>`),
+   quadro kanban, calendário, indicadores.
 8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio
@@ -121,13 +121,33 @@ Tudo em **`radar.py`** (~8200 linhas), dividido por bandas com cabeçalho
   milhões para mostrar 20 levava 6 s.
 - **Os gráficos dos contratos correm sobre o filtro da lista**, não sobre
   o corpus todo: o filtro é a pergunta. Pedidos só ao abrir o `<details>`
-  (`/contratos/resumo`, ~800 ms sem filtro), e a rota devolve **HTML e
-  não JSON** — desenhar continua em Python, com `<div>`s dimensionados,
-  sem biblioteca. No "quem ganha", o valor reparte-se pelos
-  adjudicatários (`contratos.n_adj`): um agrupamento de três não vale
-  três vezes o mercado. O trimestre a decorrer vai às riscas, senão
-  parece uma queda a pique. São seis: quem ganha, quem compra, como se
-  compra, concentração, tamanho dos contratos, evolução.
+  (`/contratos/resumo`; sem filtro são ~7 s no corpus de 7 anos — o
+  "~800 ms" antigo era doutro corpus, e a lentidão vem das cinco
+  consultas de sempre, medida a 30/08/2026 no ESTADO.md), e a rota
+  devolve **HTML e não JSON** — desenhar continua em Python, com
+  `<div>`s dimensionados, sem biblioteca. No "quem ganha", o valor
+  reparte-se pelos adjudicatários (`contratos.n_adj`): um agrupamento de
+  três não vale três vezes o mercado. O trimestre a decorrer vai às
+  riscas, senão parece uma queda a pique. São sete: quem ganha, quem
+  compra, como se compra, concentração, tamanho dos contratos, desconto
+  sobre o preço base, evolução. **O desconto agrega por `n_anuncio` e
+  nunca por linha** — a média por linha dá -18,9%, porque cada lote
+  compara com a base do procedimento inteiro; as exclusões estão em
+  `descontos_por_procedimento()`.
+- **As renovações são contratos vistos pelo fim.** `/renovacoes` filtra
+  pela coluna `fim_estimado` (celebração + prazo em dias; coluna e não
+  expressão, com índice próprio), janela por whitelist
+  (`MESES_RENOVACOES`) porque entra numa expressão de data do SQL. A
+  vista partilha os campos dos contratos **menos `de`/`ate`** — dois
+  eixos do tempo na mesma página confundiam. O fim é estimado e a
+  página di-lo: prorrogações não constam do dump.
+- **A releitura dos marcados é vigilância, não recolha.**
+  `reler_marcados()` relê por verificação até 25 anúncios
+  interessa/quadro com prazo aberto; `_guardar_detalhe()` compara prazo
+  e preço base com o guardado e grava as mudanças na fila `alteracoes`
+  (reconhecer/enviar separados, como os alertas) e no histórico. Só se
+  avisa valor→valor diferente: um campo que passa a vazio é o parser a
+  tropeçar, não uma alteração — não grites lobo.
 - **O nome não é a identidade de uma entidade: o NIF é.** A Universidade
   do Porto assina com 87 nomes e a MEO com 81, todos com o mesmo NIF.
   Agrupa-se sempre por `chave` (`chave_entidade()`: o NIF, ou `n:` mais o

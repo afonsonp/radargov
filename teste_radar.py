@@ -1724,6 +1724,89 @@ class TestResumoDosAlertas(unittest.TestCase):
         self.assertIn("/anuncio/123%2F2026", saiu)
 
 
+class TestDiferencasDoDetalhe(unittest.TestCase):
+    """B05: a releitura dos marcados compara o prazo e o preço base com
+    o que estava guardado. Uma prorrogação perdida é pior que nenhuma
+    promessa — mas um aviso falso por o parser tropeçar num texto
+    reformatado é o rapaz que gritava lobo. Só se avisa quando há valor
+    dos dois lados e são diferentes.
+    """
+
+    def test_prorrogacao_de_prazo(self):
+        difs = radar.diferencas_do_detalhe(
+            {"prazo": "2026-09-10", "preco_base": "100,00 EUR"},
+            {"prazo": "2026-09-24", "preco_base": "100,00 EUR"})
+        self.assertEqual(difs, [("prazo", "2026-09-10", "2026-09-24")])
+
+    def test_sem_mudanca_sem_aviso(self):
+        difs = radar.diferencas_do_detalhe(
+            {"prazo": "2026-09-10", "preco_base": ""},
+            {"prazo": "2026-09-10", "preco_base": ""})
+        self.assertEqual(difs, [])
+
+    def test_campo_que_desaparece_nao_grita_lobo(self):
+        # o parser a falhar parece o prazo a desaparecer; nao e alteracao
+        difs = radar.diferencas_do_detalhe(
+            {"prazo": "2026-09-10"}, {"prazo": ""})
+        self.assertEqual(difs, [])
+
+    def test_campo_que_aparece_tambem_nao(self):
+        # detalhe enriquecido nao e o DR a mudar o anuncio
+        difs = radar.diferencas_do_detalhe(
+            {"prazo": ""}, {"prazo": "2026-09-10"})
+        self.assertEqual(difs, [])
+
+    def test_prazo_e_preco_juntos(self):
+        difs = radar.diferencas_do_detalhe(
+            {"prazo": "2026-09-10", "preco_base": "100,00 EUR"},
+            {"prazo": "2026-09-24", "preco_base": "120,00 EUR"})
+        self.assertEqual([c for c, _, _ in difs], ["prazo", "preco_base"])
+
+    def test_datas_no_aviso_saem_a_portuguesa(self):
+        # a regra da casa: nunca uma data ISO num texto para ler
+        self.assertEqual(radar._valor_vigiado("prazo", "2026-09-10"),
+                         "10/09/2026")
+        self.assertEqual(radar._valor_vigiado("preco_base", "100,00 EUR"),
+                         "100,00 EUR")
+
+
+class TestResumoComAlterados(unittest.TestCase):
+    """B05: os alterados entram no resumo diário numa secção própria —
+    não são novidades, são mudanças a anúncios já conhecidos."""
+
+    def alteracao(self, **k):
+        base = {"id": 1, "ref": "9/2026", "campo": "prazo",
+                "antes": "2026-09-10", "depois": "2026-09-24",
+                "titulo": "Aquisicao de licencas", "entidade": "Municipio X"}
+        base.update(k)
+        return base
+
+    def test_seccao_dos_alterados(self):
+        saiu = radar.texto_do_resumo([], [self.alteracao()])
+        self.assertIn("Alterados desde a última leitura (1)", saiu)
+        self.assertIn("prazo de propostas: 10/09/2026 -> 24/09/2026", saiu)
+        self.assertIn("/anuncio/9%2F2026", saiu)
+
+    def test_so_alterados_nao_diz_zero_novos(self):
+        saiu = radar.texto_do_resumo([], [self.alteracao()])
+        self.assertNotIn("0 anuncios novos", saiu)
+        self.assertIn("1 alterado", saiu)
+
+    def test_duas_mudancas_do_mesmo_anuncio_contam_uma_vez(self):
+        saiu = radar.texto_do_resumo(
+            [], [self.alteracao(), self.alteracao(id=2, campo="preco_base",
+                                                  antes="1", depois="2")])
+        self.assertIn("(1)", saiu)
+
+    def test_sem_alterados_o_resumo_e_o_de_sempre(self):
+        saiu = radar.texto_do_resumo(
+            [({"nome": "TI"}, [{"ref": "1/2026", "titulo": "t",
+                                "entidade": "e", "data_pub": "2026-08-01",
+                                "prazo": "", "preco_base": "", "cpv": ""}])])
+        self.assertIn("1 anuncio novo", saiu)
+        self.assertNotIn("Alterados", saiu)
+
+
 class TestEnvioSemConfiguracao(unittest.TestCase):
     """Cada falha de envio tem de dizer o que e: "nao funciona" nao
     chega para se saber o que preencher."""
