@@ -252,6 +252,18 @@ def iniciar_db():
             antes TEXT, depois TEXT, detectado_em TEXT, avisado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alteracoes_envio
                      ON alteracoes(avisado_em)""")
+        # As entidades seguidas (B10) vivem na base de trabalho e nao no
+        # corpus: o corpus refaz-se com --contratos, a triagem nao. O
+        # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
+        # identidade e a chave, como sempre.
+        c.execute("""CREATE TABLE IF NOT EXISTS entidades_seguidas (
+            chave TEXT PRIMARY KEY, nome TEXT, desde TEXT)""")
+        # A fila do resumo das seguidas, com o mesmo par
+        # reconhecer/enviar dos alertas -- e o mesmo ACERVO ao seguir,
+        # senao o primeiro resumo trazia tudo o que a entidade ja tem.
+        c.execute("""CREATE TABLE IF NOT EXISTS seguidas_vistos (
+            chave TEXT, ref TEXT, visto_em TEXT, enviado_em TEXT,
+            PRIMARY KEY (chave, ref))""")
         colunas = [r["name"] for r in c.execute("PRAGMA table_info(anuncios)")]
         # Migracoes idempotentes: correm sempre, nao fazem nada se ja existirem.
         for nome, tipo in (("fase_id", "INTEGER"), ("texto", "TEXT"),
@@ -2437,6 +2449,71 @@ def marcar_alertas_enviados(achados):
                 [(agora, f["id"], a["ref"]) for a in linhas])
 
 
+def registar_seguidas(marcar_como=None, so_chave=None):
+    """Anota que anuncios novos sao das entidades seguidas (B10).
+
+    O mesmo reconhecer/enviar dos alertas. O casamento e pelo NIPC
+    (`anuncios.nif` = chave), que o DR publica em 99,3% dos anuncios com
+    detalhe lido -- e a mesma chave do corpus, sem comparacao de nomes
+    pelo meio. Chaves "n:" (entidades sem NIF) nao casam com anuncios:
+    a ficha delas continua a mostrar os contratos, mas nao ha aviso.
+
+    `marcar_como` serve o momento de comecar a seguir: o que ja esta na
+    base entra como ACERVO, senao o primeiro resumo trazia tudo. O
+    `so_chave` limita a passagem a essa entidade -- e o que impede o
+    ACERVO de uma engolir as novidades por enviar das outras.
+    """
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    novos = 0
+    with liga() as c:
+        if so_chave:
+            seguidas = c.execute("SELECT chave FROM entidades_seguidas "
+                                 "WHERE chave=?", (so_chave,)).fetchall()
+        else:
+            seguidas = c.execute("SELECT chave FROM entidades_seguidas").fetchall()
+        for s in seguidas:
+            if s["chave"].startswith("n:"):
+                continue
+            refs = [r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios WHERE nif=? AND ref NOT IN "
+                "(SELECT ref FROM seguidas_vistos WHERE chave=?)",
+                (s["chave"], s["chave"]))]
+            c.executemany(
+                "INSERT OR IGNORE INTO seguidas_vistos "
+                "(chave, ref, visto_em, enviado_em) VALUES (?,?,?,?)",
+                [(s["chave"], r, agora, marcar_como) for r in refs])
+            novos += len(refs)
+    return novos
+
+
+def seguidas_por_avisar():
+    """[(chave, nome, [anuncios])] do que as seguidas publicaram e ainda
+    nao foi avisado."""
+    fora = []
+    with liga() as c:
+        for s in c.execute("SELECT chave, nome FROM entidades_seguidas "
+                           "ORDER BY nome COLLATE NOCASE"):
+            linhas = c.execute(
+                "SELECT a.ref, a.titulo, a.entidade, a.data_pub, a.prazo, "
+                "a.preco_base FROM seguidas_vistos v "
+                "JOIN anuncios a ON a.ref = v.ref "
+                "WHERE v.chave=? AND v.enviado_em IS NULL "
+                "ORDER BY a.data_pub DESC", (s["chave"],)).fetchall()
+            if linhas:
+                fora.append((s["chave"], s["nome"], linhas))
+    return fora
+
+
+def marcar_seguidas_enviadas(seguidas):
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with liga() as c:
+        for chave, _, linhas in seguidas:
+            c.executemany(
+                "UPDATE seguidas_vistos SET enviado_em=? "
+                "WHERE chave=? AND ref=?",
+                [(agora, chave, a["ref"]) for a in linhas])
+
+
 def alteracoes_por_avisar():
     """As alteracoes detectadas e ainda nao avisadas, com o anuncio ao
     lado para o resumo ter o que dizer."""
@@ -2455,24 +2532,29 @@ def marcar_alteracoes_avisadas(alteradas):
                       [(agora, x["id"]) for x in alteradas])
 
 
-def texto_do_resumo(achados, alteradas=()):
+def texto_do_resumo(achados, alteradas=(), seguidas=()):
     """O resumo em texto simples, que serve de corpo do e-mail e de
     AVISOS.txt. Um so formato: dois divergiam ao primeiro arranjo.
 
     As `alteradas` sao as linhas de alteracoes_por_avisar(): anuncios ja
-    conhecidos a que o DR mudou o prazo ou o preco base (B05). Vao numa
-    seccao propria no fim -- nao sao novidades, sao mudancas.
+    conhecidos a que o DR mudou o prazo ou o preco base (B05). As
+    `seguidas` vem de seguidas_por_avisar(): o que as entidades seguidas
+    publicaram (B10). Cada grupo vai na sua seccao -- sao perguntas
+    diferentes.
     """
     total = sum(len(x[1]) for x in achados)
     n_alt = len({x["ref"] for x in alteradas})
+    n_seg = sum(len(x[2]) for x in seguidas)
     cabeca = []
-    if total or not n_alt:
+    if total or not (n_alt or n_seg):
         cabeca.append("%d anuncio%s novo%s nos teus alertas"
                       % (total, "" if total == 1 else "s",
                          "" if total == 1 else "s"))
     if n_alt:
         cabeca.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
-    linhas = ["Radar de Concursos -- " + " e ".join(cabeca),
+    if n_seg:
+        cabeca.append("%d das entidades seguidas" % n_seg)
+    linhas = ["Radar de Concursos -- " + " · ".join(cabeca),
               datetime.now().strftime("%d/%m/%Y %H:%M"), ""]
     for f, anuncios in achados:
         linhas.append("== %s (%d)" % (f["nome"], len(anuncios)))
@@ -2517,6 +2599,20 @@ def texto_do_resumo(achados, alteradas=()):
                                      _valor_vigiado(x["campo"], x["depois"])))
             linhas.append("    http://localhost:%d/anuncio/%s"
                           % (PORTA, quote(ref, safe="")))
+            linhas.append("")
+    if seguidas:
+        linhas.append("== Das entidades que segues (%d)"
+                      % sum(len(x[2]) for x in seguidas))
+        linhas.append("")
+        for _, nome, anuncios in seguidas:
+            linhas.append("  %s (%d)" % ((nome or "")[:80], len(anuncios)))
+            for a in anuncios:
+                linhas.append("    %s" % (a["titulo"] or "(sem titulo)")[:84])
+                linhas.append("    publicado %s | %s"
+                              % (data_pt(a["data_pub"]),
+                                 a["preco_base"] or "sem preco base"))
+                linhas.append("    http://localhost:%d/anuncio/%s"
+                              % (PORTA, quote(a["ref"], safe="")))
             linhas.append("")
     return "\n".join(linhas)
 
@@ -2572,21 +2668,25 @@ def enviar_resumo(cfg=None, forcar=False):
         return False, "o resumo de hoje já saiu"
     achados = alertas_por_enviar()
     alteradas = alteracoes_por_avisar()
-    if not achados and not alteradas:
+    seguidas = seguidas_por_avisar()
+    if not achados and not alteradas and not seguidas:
         return False, "nada de novo para avisar"
 
-    corpo = texto_do_resumo(achados, alteradas)
+    corpo = texto_do_resumo(achados, alteradas, seguidas)
     with open(AVISOS, "w", encoding="utf-8") as f:
         f.write(corpo)                  # fica sempre, mesmo sem e-mail
 
     total = sum(len(x[1]) for x in achados)
     n_alt = len({x["ref"] for x in alteradas})
+    n_seg = sum(len(x[2]) for x in seguidas)
     pedacos = []
     if total:
         pedacos.append("%d anúncio%s nos teus alertas"
                        % (total, "" if total == 1 else "s"))
     if n_alt:
         pedacos.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
+    if n_seg:
+        pedacos.append("%d das seguidas" % n_seg)
     bem, porque = enviar_email("Radar: " + " · ".join(pedacos), corpo, cfg)
 
     # Sem e-mail configurado, **o ficheiro e a entrega** -- da-se por
@@ -2600,6 +2700,7 @@ def enviar_resumo(cfg=None, forcar=False):
     if entregue:
         marcar_alertas_enviados(achados)
         marcar_alteracoes_avisadas(alteradas)
+        marcar_seguidas_enviadas(seguidas)
         marca("ultimo_resumo", hoje)
     marca("ultimo_resumo_estado",
           porque if bem else
@@ -2655,6 +2756,7 @@ def verificar(cfg=None, passo=None):
         diz("a passar os alertas pelos anúncios novos")
         try:
             quantos_avisos = registar_alertas()
+            registar_seguidas()
             # O resumo sai uma vez por dia, a partir da hora marcada: a
             # verificacao corre duas vezes e nao se mandam dois e-mails
             # com metade das coisas cada.
@@ -6152,6 +6254,26 @@ def alertas():
                 "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC "
                 "LIMIT 25")]
 
+    # As entidades seguidas (B10), ao lado dos alertas: sao a outra fonte
+    # do resumo diario, e gere-se aqui o que se ve, segue-se na ficha.
+    with liga() as c:
+        seguidas = c.execute("SELECT chave, nome FROM entidades_seguidas "
+                             "ORDER BY nome COLLATE NOCASE").fetchall()
+    if seguidas:
+        caixa_seguidas = (
+            "<div class='cx novo-filtro' style='margin-top:16px'>"
+            "<div class='rot'>Entidades seguidas</div>"
+            "<div class='nota' style='margin:6px 0 10px'>Os anúncios "
+            "novos destas entidades entram no resumo diário. Segue-se e "
+            "deixa-se de seguir na ficha de cada uma.</div>"
+            "<div class='guardados'>%s</div></div>"
+            % "".join("<span class='guardado'><a href='/entidade/%s'>%s"
+                      "</a></span>"
+                      % (quote(s["chave"], safe=""), html.escape(s["nome"]))
+                      for s in seguidas))
+    else:
+        caixa_seguidas = ""
+
     if filtros:
         lista = "<div class='alertas'>%s</div>" % "".join(
             _linha_filtro(f) for f in filtros)
@@ -6271,7 +6393,7 @@ def alertas():
         historico = ("<div class='nota'>Ainda não saiu nenhum aviso. Sai no "
                      "resumo a seguir à próxima verificação.</div>")
 
-    conteudo = ("<div class='larg'>" + lista +
+    conteudo = ("<div class='larg'>" + lista + caixa_seguidas +
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
                 "<div class='rot' style='margin:22px 0 12px'>Últimos avisos"
@@ -7081,6 +7203,24 @@ def entidade(chave):
                         % (para_lista("vencid"), mil_pt(ganha["k"])))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
 
+    # Seguir a entidade (B10): os anuncios novos dela entram no resumo
+    # diario, ao lado dos alertas. O botao diz o estado e troca-o.
+    with liga() as c:
+        seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
+                            (chave,)).fetchone() is not None
+    if chave.startswith("n:"):
+        seguir_cx = ""     # sem NIF nao ha como casar com os anuncios
+    else:
+        seguir_cx = (
+            "<div class='ent-atalhos'>%s%s</div>"
+            % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
+                     "Deixar de seguir" if seguida else
+                     "Seguir esta entidade",
+                     "bt" if seguida else "bt forte"),
+               "<span class='nota' style='align-self:center'>"
+               "a seguir &mdash; os anúncios novos dela entram no resumo "
+               "diário</span>" if seguida else ""))
+
     blocos = []
     if compra["k"]:
         blocos.append(barras_h(d["fornecedores"], "A quem compra",
@@ -7153,7 +7293,7 @@ def entidade(chave):
 
     conteudo = ("<div class='larg'>" + ident + filtros_da_ficha(chave, d) +
                 "<div class='kpis dois'>" + "".join(kpis) + "</div>" +
-                atalhos + "<div class='graf-corpo solto'>" +
+                atalhos + seguir_cx + "<div class='graf-corpo solto'>" +
                 "".join(blocos) + "</div>" + recentes + "</div>")
 
     return envolver(
@@ -7162,6 +7302,35 @@ def entidade(chave):
         conteudo, script=ARVORE_JS,
         migalhas=migalhas_de("contratos", d["nome"][:44]),
         titulo_aba="%s, Radar de Concursos" % d["nome"][:40])
+
+
+@app.route("/entidade/<path:chave>/seguir", methods=["POST"])
+def entidade_seguir(chave):
+    """Liga ou desliga o seguimento (B10). Ao ligar, o que a entidade ja
+    tem na base entra como ACERVO -- o primeiro resumo nao traz tudo."""
+    with liga() as c:
+        seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
+                            (chave,)).fetchone()
+    if seguida:
+        with liga() as c:
+            c.execute("DELETE FROM entidades_seguidas WHERE chave=?", (chave,))
+            c.execute("DELETE FROM seguidas_vistos WHERE chave=?", (chave,))
+        aviso = "Deixaste de seguir a entidade."
+    else:
+        nome = chave
+        if ha_corpus():
+            with liga_corpus() as c:
+                r = c.execute("SELECT nome FROM entidades WHERE chave=?",
+                              (chave,)).fetchone()
+            if r:
+                nome = r["nome"]
+        with liga() as c:
+            c.execute("INSERT OR REPLACE INTO entidades_seguidas VALUES (?,?,?)",
+                      (chave, nome, datetime.now().strftime("%Y-%m-%d")))
+        registar_seguidas(marcar_como=ACERVO, so_chave=chave)
+        aviso = "A seguir. Os anúncios novos desta entidade entram no resumo diário."
+    return redirect("/entidade/%s?aviso=%s"
+                    % (quote(chave, safe=""), quote(aviso)))
 
 
 def sem_corpus_html(titulo):

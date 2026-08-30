@@ -1906,6 +1906,28 @@ class TestResumoComAlterados(unittest.TestCase):
         self.assertNotIn("Alterados", saiu)
 
 
+class TestResumoComSeguidas(unittest.TestCase):
+    """B10: o que as entidades seguidas publicaram vai numa secção
+    própria do resumo — não é um alerta, é outra pergunta."""
+
+    def seguidas(self):
+        return [("500498601", "CP - Comboios de Portugal",
+                 [{"ref": "5/2026", "titulo": "Reparação de motores",
+                   "entidade": "CP", "data_pub": "2026-08-29",
+                   "prazo": "", "preco_base": ""}])]
+
+    def test_seccao_das_seguidas(self):
+        saiu = radar.texto_do_resumo([], (), self.seguidas())
+        self.assertIn("Das entidades que segues (1)", saiu)
+        self.assertIn("CP - Comboios de Portugal (1)", saiu)
+        self.assertIn("/anuncio/5%2F2026", saiu)
+
+    def test_cabecalho_conta_as_seguidas_sem_zero_novos(self):
+        saiu = radar.texto_do_resumo([], (), self.seguidas())
+        self.assertIn("1 das entidades seguidas", saiu)
+        self.assertNotIn("0 anuncios novos", saiu)
+
+
 class TestEnvioSemConfiguracao(unittest.TestCase):
     """Cada falha de envio tem de dizer o que e: "nao funciona" nao
     chega para se saber o que preencher."""
