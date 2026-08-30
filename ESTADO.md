@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 29 de agosto de 2026.
+Última actualização: 30 de agosto de 2026.
 
 ## O que isto é
 
@@ -2481,3 +2481,78 @@ defeitos vivos: cada correcção da primeira vistoria devia ter sido
 procurada em todas as vistas irmãs na altura. E uma reparação de dados
 verifica-se **contando o que resta**, não confiando no que se escreveu —
 foi a contagem pós-reparação que denunciou o escape duplo.
+
+## Os dois P0 do backlog, 30 de agosto de 2026 — exclusões e homólogos
+
+Primeiro trabalho saído do `BACKLOG.md`: os dois itens P0 da análise
+competitiva, feitos e medidos no mesmo dia.
+
+### B01 — exclusões nos filtros (`q_excl` e `cpv_excl`)
+
+Três dos quatro concorrentes observados deixam dizer "sem isto"
+(Tendios, SpotGov, Armilar); o radar não deixava, e um filtro largo
+obrigava a descartar o mesmo ruído à mão todas as semanas. Agora há
+duas caixas novas — "Excluir palavras…" e "Excluir CPV…" — nos quatro
+formulários: anúncios, contratos, ficha da entidade e o "novo filtro"
+dos alertas. Ambas aceitam vários termos separados por `|`.
+
+Decisões que valem a pena registar:
+
+- **O NOT sobre NULL é NULL.** A exclusão usa
+  `NOT (COALESCE(coluna,'') LIKE …)`: sem o COALESCE, excluir "obras"
+  escondia também os anúncios ainda sem título normalizado, e excluir o
+  CPV 72 escondia os anúncios ainda sem CPV lido — que não são "CPV 72",
+  são desconhecidos. Há teste.
+- **A exclusão vazia é um não-filtro**, ao contrário do positivo. Um
+  `cpv=-` dá `1=0` (mostrar tudo seria fingir que o filtro pegou); um
+  `cpv_excl=-` não exclui nada — excluir nada é não excluir. Há teste.
+- **O `cpv_excl` é caixa de texto, não árvore.** O modo excluir na
+  árvore exigia tri-estado no JS partilhado pelos quatro sítios e
+  destrancava os descendentes (`arvoreTrancarFilhos` existe exactamente
+  porque "o filtro não sabe excluir" — agora sabe, mas a interacção é
+  trabalho a sério). Ficou registado no BACKLOG como reabrível.
+- **Herança de graça, confirmada:** filtros guardados, legenda
+  ("objecto manutencao · sem elevador · sem CPV 724"), alertas e os
+  dois CSV apanharam as exclusões sem uma linha a mais, porque tudo
+  passa por `condicoes()`/`condicoes_contratos()` e por
+  `CAMPOS_FILTRO`. As três vistas entendem os campos novos — nenhum
+  fica "parcial".
+
+Medido na base real: `q=manutenção` 3 781 → 3 616 com
+`q_excl=elevador|avac`; `cpv=72` 235 → 225 com `cpv_excl=72400000`;
+nos contratos, limpeza (909100) 12 156 → 11 892 sem "escolas" no
+objecto. Tempos na casa das dezenas de ms.
+
+### B02 — procedimentos homólogos na ficha do anúncio
+
+A pergunta que a Armilar responde e o radar não respondia: "quanto é
+que isto custou da última vez, e quem ganhou?". O histórico por CPV
+(`mercado()`) responde ao segmento; a caixa nova "Procedimentos
+homólogos" responde ao concurso — contratos da mesma entidade (pela
+`chave`, como sempre) cujo `objecto_norm` partilha termos do título.
+
+- `termos_do_titulo()` tira o vocabulário burocrático (`_PALAVRAS_OCAS`:
+  aquisição, fornecimento, empreitada, obra, lote…), as palavras com
+  menos de 4 letras e os números soltos, e fica com até 6 termos na
+  norma do corpus (`simplifica`).
+- Com 2+ termos exigem-se **pelo menos 2 em comum**: um só
+  ("manutenção") arrastava a manutenção toda da entidade. Ordena por
+  termos em comum e depois por data; o próprio anúncio fica de fora
+  pelo `n_anuncio`, que é o `ref` do radar.
+- A caixa só aparece quando há resultados — o estado do corpus já é
+  dito pela caixa do histórico logo abaixo — e diz os termos que usou,
+  para se saber porque é que cada contrato lá está. Quando o
+  `n_anuncio` de um homólogo existe na base do radar, a ficha dele fica
+  a um clique.
+
+Confirmado o caso que motivou o item: "Fornecimento de refeições e
+Serviço de bar" (21819/2026) mostra as edições de 2025, 2023 e 2020 —
+64 975 €, 65 840 €, 70 730 € — com o vencedor de cada uma, em ~20 ms.
+Nas obras municipais os termos de lugar ("negrelos", "roriz") fazem o
+trabalho de distinguir a estrada certa.
+
+De caminho, o `[:140]` cru na tabela do `mercado()` passou a `corta()`,
+que é a regra da casa.
+
+Testes: `TestExclusoesNoFiltro` e `TestTermosDoTitulo`, 353 no total,
+todos verdes.

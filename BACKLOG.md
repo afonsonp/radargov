@@ -15,10 +15,7 @@ Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 s
 
 ## P0
 
-| ID | Item | Origem | Valor | Esforço | Confiança | Prioridade — a conta | Onde toca | Dependências | Risco |
-|---|---|---|---|---|---|---|---|---|---|
-| B01 | Acrescentar exclusões aos filtros: `q_excl` (palavras) e `cpv_excl` (códigos), com NOT LIKE / NOT IN na consulta | Tendios (chips incl/excl), SpotGov (Exclude Keywords), Armilar (AND opcional) — 3 de 4 têm, o radar não; desvantagem medida | 5 | 2 (~6h) | Alta — mesma mecânica da `condicoes()` actual, invertida | **P0**: desvantagem medida em 3 concorrentes + esforço ≤8h | `condicoes()`, `CAMPOS_FILTRO`, formulário de filtros, árvore de CPV (modo excluir); filtros guardados e alertas herdam de graça | — | |
-| B02 | Mostrar na ficha do anúncio os procedimentos homólogos do corpus: mesma entidade (chave) e objecto parecido (`objecto_norm` com termos do título), com valor adjudicado e vencedor | Armilar (o CP/1025/2024 da ULS ao lado do concurso de 2026: 30 381 € → 122 040 €), SpotGov ("analyse past editions") | 4 | 2 (~8h) | Alta — `historico_entidade()` e `objecto_norm` já existem; é uma segunda consulta na ficha | **P0**: desvantagem medida (Armilar mostra-o na ficha) + esforço ≤8h | `ficha` (`/anuncio/<ref>`), `com_corpus()`, consulta nova ao lado de `historico_entidade()` | corpus actualizado (`--contratos`) | |
+Vazio — B01 e B02 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P1
 
@@ -45,6 +42,29 @@ Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 s
 | B11 | Soma do preço base por coluna do quadro (cabeçalho da fase: "4 anúncios · 1,2 M€") | SpotGov (kanban com valor por fase) | 2 | 1 (~2h) | Alta | **P3**: agradável, não muda decisões — cosmético por definição do critério | `quadro()` (rota `/quadro`), `euros_curto()` | — | |
 | B12 | Fontes com página nas leituras do modelo: guardar em `analise` a página/offset do recorte que sustentou cada campo, e mostrar na ficha | Armilar (resumo com números de página clicáveis ao lado do PDF) | 2 | 3 | Média — o recorte atravessa páginas; mapear offset→página do PDF não é directo com o extractor actual | **P3**: premissa técnica por confirmar + valor 2 (o `ensaio-de-leitura` já cobre a auditoria a quem desenvolve) | `recorte_relevante()`, extracção de texto (guardar quebras de página), `analise`, ficha | — | |
 | B13 | Prazo do "urgente" configurável no painel (hoje `janela_urgente()` fixa) | GovGo (prazo "A findar" editável: 5 dias) | 2 | 1 (~2h) | Alta | **P3**: cosmético; a janela única já é regra do projecto, só ganharia um campo no config | `janela_urgente()`, `config.json`, cartão dos indicadores | — | |
+
+## Feito
+
+- **B01 — exclusões nos filtros** (30/08/2026). `q_excl` e `cpv_excl`
+  em `condicoes()` e `condicoes_contratos()`, nos quatro formulários
+  (anúncios, contratos, ficha da entidade, novo filtro dos alertas) e
+  em `CAMPOS_FILTRO`/`CAMPOS_POR_VISTA` — filtros guardados, alertas e
+  CSV herdaram de graça, como previsto. O `cpv_excl` é caixa de texto
+  (códigos ou palavras, separados por `|`): o modo excluir na árvore
+  ficou de fora — exigia tri-estado no JS partilhado e destrancava os
+  descendentes (`arvoreTrancarFilhos`), que é trabalho a sério; se o
+  campo à mão incomodar, reabre-se como item próprio. Medido: `q=
+  manutenção` 3 781 → 3 616 sem `elevador|avac`; `cpv=72` 235 → 225 sem
+  `724`; nos contratos, limpeza (909100) 12 156 → 11 892 sem "escolas".
+- **B02 — procedimentos homólogos na ficha** (30/08/2026).
+  `homologos_do_anuncio()` procura contratos da mesma `chave` com
+  termos do título (`termos_do_titulo()`, sem o vocabulário burocrático)
+  no `objecto_norm`; com 2+ termos exigem-se 2 em comum, senão um só
+  "manutenção" arrastava a manutenção toda da entidade. Caixa
+  "Procedimentos homólogos" antes do histórico por CPV, só quando há
+  resultados, com os termos usados à vista. Confirmado o caso Armilar:
+  "Fornecimento de refeições e Serviço de bar" mostra as edições de
+  2025/2023/2020 (64 975 € / 65 840 € / 70 730 €), em ~20-60 ms.
 
 ## Não fazer, e porquê
 
