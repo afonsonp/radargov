@@ -135,6 +135,21 @@ de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
 
 ## 5. O painel
 
+A barra da esquerda tem cinco entradas, por ordem de uso: **Triagem**
+(a página inicial — decidir o que entrou), **Em curso** (o quadro e o
+calendário dos "interessa"), **Pesquisa** (o acervo completo dos
+anúncios), **Mercado** (os contratos e as renovações) e **Alertas**.
+Os Indicadores não estão na barra: chegam-se pelo ponto
+verde/vermelho da última verificação, em baixo à esquerda (§8).
+
+A **Triagem** abre só com os anúncios por ver **publicados nos últimos
+60 dias** — a mesma janela que a rotina lê (`detalhe_dias` no
+`config.json`) — em vez dos dois anos de arquivo. A página diz a
+janela por extenso, e a ligação "ver no acervo completo" salta para a
+Pesquisa levando o filtro que estiver posto. A **Pesquisa**
+(`/anuncios`) é a mesma lista sem esse âmbito: abre nos últimos 12
+meses e a caixa **"incluir arquivo"** alarga aos dois anos inteiros.
+
 A lista vem sempre do mais recente para o mais antigo.
 
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
@@ -168,11 +183,11 @@ nada. Podes filtrar por:
 Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
 filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
 qualquer filtro guardado um aviso no resumo diário, configura-se o
-e-mail e a janela do "urgente". Além dos anúncios há os separadores
-**Contratos** (o que já foi adjudicado, com gráficos sobre o filtro),
-**Renovações** (contratos vistos pelo fim estimado) e a **ficha de
-cada entidade** (o que compra e o que ganha), todos com os mesmos
-filtros de CPV e datas.
+e-mail e a janela do "urgente". Em **Mercado** vivem os **Contratos**
+(o que já foi adjudicado, com gráficos sobre o filtro) e as
+**Renovações** (contratos vistos pelo fim estimado), e de lá chega-se
+à **ficha de cada entidade** (o que compra e o que ganha) — todos com
+os mesmos filtros de CPV e datas.
 
 Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de
@@ -301,7 +316,9 @@ entra o login a sério.
 
 ## 8. Indicadores
 
-Botão **Indicadores**, na barra da esquerda. Números sobre o teu próprio
+Chega-se lá pelo **ponto verde/vermelho da última verificação**, em
+baixo na barra da esquerda — é a única porta, de propósito: é consulta
+ocasional, não trabalho diário. Números sobre o teu próprio
 radar: quantos anúncios tens, quantos entraram hoje, quantos marcaste
 como interessa (e destes, quantos têm prazo a menos de uma semana),
 quantos ainda estão sem detalhe lido, como estão distribuídos pelas
@@ -312,8 +329,11 @@ válidas e que percentagem de peças se consegue por plataforma.
 
 ## 9. O quadro
 
-Botão **Quadro**, na barra da esquerda. Mostra os anúncios marcados
-**interessa** organizados em colunas (fases), ao estilo Trello/kanban.
+Item **Em curso**, na barra da esquerda — o quadro é a vista que abre
+por omissão (o calendário é a segunda, §10). Mostra os anúncios
+marcados **interessa** organizados em colunas (fases), ao estilo
+Trello/kanban. O botão "Verificar agora" não está aqui: vive só na
+Triagem, que é onde os anúncios novos aterram.
 
 Começa com cinco fases — *Por analisar, A preparar proposta, Em
 revisão, Submetido, Resultado* — mas são só um ponto de partida: muda
@@ -331,12 +351,13 @@ programa não volta a tocar-lhes.
 - **Tirar do quadro** devolve o anúncio a "por ver" — sai do quadro sem
   apagar nada da base.
 
-Marcar **interessa** num anúncio, na lista principal, põe-no
+Marcar **interessa** num anúncio, na Triagem ou na Pesquisa, põe-no
 automaticamente na primeira coluna do quadro.
 
 ## 10. O calendário
 
-Uma grade só de leitura, uma linha por anúncio interessado com prazo,
+A segunda vista do **Em curso** — os mesmos "interessa" postos no
+tempo. Uma grade só de leitura, uma linha por anúncio interessado com prazo,
 uma coluna por dia (45 dias a partir de hoje). Cada coluna mostra o dia
 da semana, o dia do mês e o mês; os fins-de-semana aparecem sombreados
 e o início de cada mês tem uma linha mais marcada.

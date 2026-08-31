@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 30 de agosto de 2026.
+Última actualização: 31 de agosto de 2026.
 
 ## O que isto é
 
@@ -33,7 +33,14 @@ A base já esteve cortada aos 60 dias por decisão do Afonso (~5 100
 anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
-*(Números de 30/08/2026. Este parágrafo já mentiu — dizia "~5 100,
+Desde 31/08/2026 o acervo já não está todo à entrada: a página inicial
+é a **Triagem**, que mostra só os por ver publicados na janela de
+`detalhe_dias` — **1 374** em vez dos 61 981 de antes — e o acervo
+completo vive na **Pesquisa** (`/anuncios`, 12 meses por omissão, com
+interruptor para o arquivo). É o andamento 1 do esqueleto; a entrada
+de diário do fim conta os números todos.
+
+*(Números de 31/08/2026. Este parágrafo já mentiu — dizia "~5 100,
 todos com detalhe lido" por cima de uma base de 66 mil a 8% — porque as
 sessões seguintes acrescentavam secções sem corrigir o topo. Quem mudar
 os números corrige-o na mesma sessão; a regra está no CLAUDE.md.)*
@@ -2913,9 +2920,11 @@ selector de procedimento passam a blocos partilhados no andamento 3
 Ficam por decidir só os dois motores de filtro, que se mantêm como
 estão de propósito (6.2-B).
 
-**Nada disto está implementado** — é proposta fechada, não código. O
-Fluxo B continua dependente da decisão E2 do SANEAMENTO.md, e a
-procura directa de entidade ficou no BACKLOG a pedido dele, como
+**Quando isto se escreveu, nada estava implementado** — era proposta
+fechada, não código. O **andamento 1 foi implementado a 31/08/2026**
+(ver a entrada de diário no fim); os andamentos 2 a 4 continuam por
+fazer. O Fluxo B continua dependente da decisão E2 do SANEAMENTO.md, e
+a procura directa de entidade ficou no BACKLOG a pedido dele, como
 possibilidade registada e não feita.
 
 ## O código saiu do PC, 31 de agosto de 2026
@@ -2967,3 +2976,60 @@ implementação fica para quando ele der luz verde.
   algo já conhecido, não descobrir — e **não se sabe se existe listagem
   anónima** em qualquer das duas plataformas. A primeira tarefa é medir
   isso, não escrever ingestão. Os avisos [LEGAL] [RISCO] mantêm-se.
+
+## Andamento 1 do esqueleto implementado, 31 de agosto de 2026
+
+O primeiro trabalho de código sobre o `ESQUELETO.md`: a navegação por
+intenções e a separação da Triagem do arquivo. Zero rotas removidas,
+zero fusões, o motor de filtros intacto — como a §10 do esqueleto
+manda. Verificado a correr no painel, não só nos testes.
+
+**A navegação passou a cinco itens** (§2): Triagem `/` · Em curso ·
+Pesquisa `/anuncios` · Mercado · Alertas. "Em curso" agrupa o quadro e
+o calendário (11.4; o quadro abre por omissão), "Mercado" agrupa
+contratos e renovações (só na navegação — a fusão em modo é do
+andamento 3). As duas vistas de um item só aparecem na barra com o
+item aberto, e as migalhas dizem "Em curso › Quadro", "Mercado ›
+Contratos". Os **Indicadores saíram da barra** (11.6-A): o ponto
+verde/vermelho da última verificação, na barra lateral, é agora a
+ligação para `/indicadores` — sem atalho secundário. O **"Verificar
+agora" ficou só na Triagem** (11.8-A): a constante
+`PAGINAS_COM_VERIFICAR` guarda a decisão, com teste.
+
+**A Triagem abre na janela de `detalhe_dias`** (11.2-A), aplicada POR
+CIMA de `condicoes()` — nunca lá dentro, porque o motor serve os
+alertas e os filtros guardados (`com_ambito()` / `ambito_da_vista()`;
+há teste a guardar a armadilha). Medido a 31/08: **"Por ver" passou de
+61 981 para 1 374**; as abas contam dentro do âmbito e do filtro
+(interessa 3 · descartados 3 618 · todos 4 995). A página declara a
+janela por extenso e leva o filtro em uso para a Pesquisa pela ligação
+"ver no acervo completo". Com `detalhe_dias` a 0 a janela desliga-se,
+como na rotina — um conceito, não dois.
+
+**Nasceu a Pesquisa** (`/anuncios`, rota nova, decisão 11.5-B): a
+lista de sempre, sem o âmbito da Triagem, aberta em 12 meses (32 451
+anúncios, 28 351 por ver) com o interruptor **"incluir arquivo"** que
+alarga aos 66 081. O interruptor é o campo `arquivo` e entrou em
+`CAMPOS_FILTRO` de propósito: um filtro guardado com o arquivo
+incluído que o perdesse ao reabrir mostrava menos do que quando foi
+guardado. Triagem e Pesquisa partilham a vista `"anuncios"` de
+`CAMPOS_POR_VISTA` (uma chave nova partia os filtros guardados) e a
+mesma função `_lista_de_anuncios()` — duas cópias divergiam ao
+primeiro arranjo. O `/csv` recebe um `ambito` (campo "da vez", não do
+filtro) para exportar exactamente o que a lista mostra: "exportar as
+1 374 linhas" exporta 1 374; sem `ambito`, as ligações antigas
+continuam a exportar o filtro tal e qual.
+
+**Consequências espalhadas, todas com o mesmo motivo** (o número abre
+a lista que o confirma, FR-33): os cartões dos indicadores que contam
+sobre a base toda (urgentes, expirados por ver) passaram a abrir a
+Pesquisa com `arquivo=1` — abri-los na Triagem mostrava menos do que o
+número dizia; a ligação "anúncios" dos alertas e a rota genérica da
+vista (`ROTA_DA_VISTA`) apontam para a Pesquisa; a ficha do anúncio
+pendura-se nas migalhas da Pesquisa e o `volta_a_lista()` aceita
+`/anuncios` como lista de volta.
+
+Testes: **446** (424 + 22 novos, um por armadilha verificável), verdes
+em ~0,8 s. Verificado no painel a correr: números das abas iguais aos
+da base lida à mão, filtro a viajar da Triagem para a Pesquisa, CSV
+com âmbito a bater com a contagem da ligação.
