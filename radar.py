@@ -4848,7 +4848,9 @@ NAV = (("triagem", "Triagem", "/", ()),
        ("pesquisa", "Pesquisa", "/anuncios", ()),
        ("mercado", "Mercado", "/contratos",
         (("contratos", "Contratos", "/contratos"),
-         ("renovacoes", "Renovações", "/renovacoes"))),
+         # as renovacoes fundiram-se nos contratos como modo (6.1-A);
+         # a rota antiga /renovacoes redirecciona para ca
+         ("renovacoes", "Renovações", "/contratos?ver=fim"))),
        ("alertas", "Alertas", "/alertas", ()))
 
 # Que item da navegacao acende para cada pagina. As paginas mantem as
@@ -5635,13 +5637,8 @@ def _lista_de_anuncios(ambito):
     abas.append("</div>")
 
     cpv_actual = request.args.get("cpv", "")
-    if cpv_actual:
-        faixa_cpv = ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
-                     "<a href='%s'>tirar</a></div>"
-                     % (html.escape(cpv_actual),
-                        sem_pagina(request.args, rota, cpv="")))
-    else:
-        faixa_cpv = ""
+    faixa_cpv = faixa_cpv_activo(request.args,
+                                 sem_pagina(request.args, rota, cpv=""))
 
     # A plataforma decide se as peças se conseguem trazer, por isso vale
     # a pena poder isolá-la -- ver só acingov/vortal/compraspt é ver o que
@@ -5910,10 +5907,11 @@ CAMPOS_POR_VISTA = {
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
                  "min"),
-    # As renovacoes sao contratos vistos pelo fim e nao pelo principio:
-    # os mesmos campos, MENOS as datas de celebracao -- a pagina ja tem
-    # um eixo do tempo (a janela do fim estimado) e dois confundem. Um
-    # filtro com de/ate entra na mesma e fica marcado como parcial.
+    # A vista do modo "fim estimado" dos contratos (6.1-A; era a pagina
+    # /renovacoes): os mesmos campos, MENOS as datas de celebracao -- o
+    # modo ja tem um eixo do tempo (a janela do fim estimado) e dois
+    # confundem. Um filtro com de/ate entra na mesma e fica marcado
+    # como parcial, e o ecra explica que as datas ficaram de lado.
     "renovacoes": ("q", "q_excl", "cpv", "cpv_excl", "op", "adj", "ganhou",
                    "proc", "min", "entid", "vencid"),
 }
@@ -6276,7 +6274,34 @@ function confirmarGravar(f) {
 </script>"""
 
 
-def caixa_de_filtros(args, vista, rota=None):
+def faixa_cpv_activo(args, tirar_href):
+    """A faixa "Filtro CPV activo", UMA so para as paginas com arvore
+    (decisao 6.3-A). O campo do CPV e escondido -- quem escolhe e a
+    arvore -- e sem a faixa um CPV posto nao se via em lado nenhum.
+    Eram quatro copias "com pequenas diferencas" a divergir.
+    """
+    cpv = (args.get("cpv") or "").strip()
+    if not cpv:
+        return ""
+    return ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
+            "<a href='%s'>tirar</a></div>"
+            % (html.escape(cpv), html.escape(tirar_href, quote=True)))
+
+
+def selector_procedimento(procs, actual, vazio="todos os procedimentos"):
+    """O <select name='proc'>, UM so (decisao 6.4-A): estava montado
+    tres vezes e cada copia divergia ao primeiro arranjo. O `vazio` e o
+    rotulo da opcao sem filtro, que muda com o contexto."""
+    opcoes = ["<option value=''>%s</option>" % html.escape(vazio)]
+    for p in procs:
+        opcoes.append("<option value='%s'%s>%s</option>"
+                      % (html.escape(p, quote=True),
+                         " selected" if p == actual else "",
+                         html.escape(p)))
+    return "<select name='proc'>%s</select>" % "".join(opcoes)
+
+
+def caixa_de_filtros(args, vista, rota=None, extra=""):
     """A caixa dos filtros guardados, igual em todas as paginas.
 
     Aplicar um filtro e seguir uma ligacao -- so leitura, nada muda na
@@ -6287,9 +6312,17 @@ def caixa_de_filtros(args, vista, rota=None):
     entra na mesma, com a parte que serve, e **fica marcado como
     parcial** a dizer o que ficou de fora -- aplicar "ganho por MEO" aos
     anuncios, onde nao ha vencedor, seria alargar o filtro em silencio.
+
+    O `extra` e da vista, nao do filtro (p.ex. "ver=fim" no modo fim
+    estimado dos contratos): cola-se a frente da consulta em cada
+    ligacao, para aplicar um filtro sem sair do modo em que se esta.
     """
     rota = rota or ROTA_DA_VISTA.get(vista, "/")
     agora = filtro_actual(args, vista)
+
+    def destino(consulta):
+        pedacos = [x for x in (extra, consulta) if x]
+        return rota + ("?" + "&".join(pedacos) if pedacos else "")
     with liga() as c:
         guardados = c.execute(
             "SELECT * FROM filtros_guardados "
@@ -6308,9 +6341,9 @@ def caixa_de_filtros(args, vista, rota=None):
                 _NOMES_FILTRO.get(k, k) for k in de_fora)
         fichas.append(
             "<span class='guardado%s%s'>"
-            "<a href='%s?%s' title='%s'>%s%s</a></span>"
+            "<a href='%s' title='%s'>%s%s</a></span>"
             % (" on" if activo else "", " parcial" if de_fora else "",
-               rota, html.escape(consulta, quote=True),
+               html.escape(destino(consulta), quote=True),
                html.escape(titulo, quote=True), html.escape(f["nome"]),
                "<i>parcial</i>" if de_fora else ""))
 
@@ -6350,7 +6383,7 @@ def caixa_de_filtros(args, vista, rota=None):
         "</form>" % (html.escape(json.dumps(nomes, ensure_ascii=False),
                                  quote=True),
                      html.escape(agora, quote=True),
-                     html.escape(rota, quote=True),
+                     html.escape(destino(""), quote=True),
                      html.escape(nome_activo, quote=True)))
 
     return ("<div class='cx guardados'><span class='rot'>"
@@ -6363,13 +6396,16 @@ def volta_para(rota, consulta="", aviso=""):
     """Volta para a pagina de onde se veio, com os filtros que estavam.
 
     A rota vem de um campo escondido do formulario, e por isso
-    confirma-se: nunca se redirecciona para o que la vier.
+    confirma-se: nunca se redirecciona para o que la vier. A rota pode
+    ja trazer query string ("/contratos?ver=fim") -- ai junta-se com &,
+    senao saia "?ver=fim?consulta" e o modo perdia-se.
     """
     if not (rota or "").startswith("/") or "//" in (rota or ""):
         rota = "/"
     partes = [x for x in (consulta, urlencode({"aviso": aviso}) if aviso else "")
               if x]
-    return redirect(rota + "?" + "&".join(partes) if partes else rota)
+    separa = "&" if "?" in rota else "?"
+    return redirect(rota + separa + "&".join(partes) if partes else rota)
 
 
 def gravar_filtro(nome, consulta, alerta=None):
@@ -6949,13 +6985,10 @@ def alertas():
                                 ("urgente", "prazo: só os que acabam em %d "
                                             "dias" % dias_urgente()),
                                 ("expirado", "prazo: só os passados"))),
-           ("<select name='proc'>%s</select>"
-            % "".join(["<option value=''>procedimento: todos "
-                       "(contratos)</option>"]
-                      + ["<option value='%s'%s>%s</option>"
-                         % (html.escape(p, quote=True), marca_sel("proc", p),
-                            html.escape(p))
-                         for p in procs])) if procs else "",
+           (selector_procedimento(procs,
+                                  (request.args.get("proc") or "").strip(),
+                                  "procedimento: todos (contratos)")
+            if procs else ""),
            pv("de"), pv("ate"), pv("min"),
            arvore_html(quantos_cpv(), "anuncios", submeter=False)))
 
@@ -7102,8 +7135,13 @@ def resumo_contratos(args):
     E o que faz os graficos valerem a pena: o filtro e a pergunta ("CPV
     72, ultimos 12 meses") e estes numeros sao a resposta. Fixos, seriam
     a resposta a uma pergunta que ninguem fez.
+
+    O modo dos contratos (6.1-A) entra na conta: no modo fim estimado
+    os graficos respondem sobre os contratos a acabar na janela -- o
+    mesmo conjunto que a tabela mostra, senao o grafico e a lista
+    discordavam no mesmo ecra.
     """
-    onde, valores = condicoes_contratos(args)
+    onde, valores = filtros_dos_contratos(args)
     with liga_corpus() as c:
         # Quem ganha e a concentracao saem da mesma passagem: as duas
         # agregam por adjudicatario, e o SUM/COUNT OVER () traz o total e
@@ -7706,15 +7744,11 @@ def filtros_da_ficha(chave, d):
 
     limpar = ("<a class='limpar' href='/entidade/%s'>limpar</a>"
               % quote(chave, safe="")) if ha_filtro_na_ficha(request.args) else ""
-    cpv_agora = (request.args.get("cpv") or "").strip()
-    faixa = ""
-    if cpv_agora:
-        outros = {c: (request.args.get(c) or "").strip() for c in CAMPOS_FICHA
-                  if c != "cpv" and (request.args.get(c) or "").strip()}
-        faixa = ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
-                 "<a href='/entidade/%s?%s'>tirar</a></div>"
-                 % (html.escape(cpv_agora), quote(chave, safe=""),
-                    urlencode(outros)))
+    outros = {c: (request.args.get(c) or "").strip() for c in CAMPOS_FICHA
+              if c != "cpv" and (request.args.get(c) or "").strip()}
+    faixa = faixa_cpv_activo(request.args,
+                             "/entidade/%s?%s" % (quote(chave, safe=""),
+                                                  urlencode(outros)))
 
     with liga() as c:
         n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
@@ -7782,6 +7816,10 @@ def entidade(chave):
     if compra["k"]:
         ligacoes.append("<a href='%s'>ver os %s contratos que adjudicou</a>"
                         % (para_lista("entid"), mil_pt(compra["k"])))
+        # "o que desta entidade esta a acabar" e a pergunta comercial da
+        # ficha (atalho da §5 do ESQUELETO): o modo fim com a mesma chave
+        ligacoes.append("<a href='%s&ver=fim'>o que está a acabar "
+                        "(fim estimado)</a>" % para_lista("entid"))
     if ganha["k"]:
         ligacoes.append("<a href='%s'>ver os %s que ganhou</a>"
                         % (para_lista("vencid"), mil_pt(ganha["k"])))
@@ -7941,14 +7979,19 @@ def contratos_csv():
     """
     if not ha_corpus():
         return redirect("/contratos")
+    vista = "renovacoes" if modo_fim(request.args) else "contratos"
     if not any((request.args.get(campo) or "").strip()
-               for campo in campos_da_vista("contratos")):
+               for campo in campos_da_vista(vista)):
         return redirect("/contratos?aviso=" +
                         quote("Filtra primeiro: o corpus inteiro não se exporta."))
-    onde, valores = condicoes_contratos(request.args)
+    # O mesmo filtro E o mesmo modo da lista (6.1-A): a ligacao
+    # "exportar as N linhas" do modo fim tem de dar as mesmas N.
+    onde, valores = filtros_dos_contratos(request.args)
+    ordem = (" ORDER BY c.fim_estimado, c.id" if modo_fim(request.args)
+             else " ORDER BY c.data_celebracao DESC, c.id DESC")
     with liga_corpus() as c:
         linhas = c.execute(
-            "SELECT c.data_celebracao, c.objecto, "
+            "SELECT c.data_celebracao, c.fim_estimado, c.objecto, "
             "COALESCE(e.nome, c.adjudicante) adjudicante, "
             "(SELECT group_concat(COALESCE(g.nome, a.nome), ' + ') "
             " FROM contrato_adjudicatario a "
@@ -7958,11 +8001,12 @@ def contratos_csv():
             "c.cpv, c.prazo_execucao, c.local_execucao, c.n_anuncio "
             "FROM contratos c LEFT JOIN entidades e "
             " ON e.chave=c.adjudicante_chave" + onde +
-            " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ?",
+            ordem + " LIMIT ?",
             valores + [TECTO_CSV]).fetchall()
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=";")
-    escritor.writerow(["Celebrado", "Objecto", "Entidade que comprou",
+    escritor.writerow(["Celebrado", "Fim estimado", "Objecto",
+                       "Entidade que comprou",
                        "Quem ganhou", "Procedimento", "Preço contratual (EUR)",
                        "Preço base (EUR)", "CPV", "Prazo (dias)", "Local",
                        "Anúncio"])
@@ -7970,7 +8014,8 @@ def contratos_csv():
         # o mesmo formato do CSV dos anuncios: data portuguesa e numero
         # com virgula decimal. Eram duas exportacoes da mesma aplicacao a
         # escrever dinheiro de duas maneiras, e nenhuma servia o Excel.
-        escritor.writerow([data_pt(a["data_celebracao"]), a["objecto"],
+        escritor.writerow([data_pt(a["data_celebracao"]),
+                           data_pt(a["fim_estimado"], ""), a["objecto"],
                            a["adjudicante"], a["adjudicatarios"],
                            a["tipo_procedimento"],
                            numero_csv(a["preco_contratual"]),
@@ -8056,18 +8101,31 @@ def contratos():
     if not ha_corpus():
         return sem_corpus_html("Contratos celebrados")
 
+    # Dois modos, um ecra (decisao 6.1-A): "ver por celebracao" (o que
+    # ja se comprou) ou "ver por fim estimado" (o que vai acabar -- as
+    # antigas Renovacoes). O modo diz-se por extenso no titulo da
+    # tabela, nao so no selector: e a defesa contra o ecra bifacetado.
+    fim = modo_fim(request.args)
+    vista = "renovacoes" if fim else "contratos"
+    meses = meses_pedidos(request.args)
+
     # Sem filtro nao se mostra lista nenhuma. Sao 1,36 milhoes de
     # contratos: por data, sem mais nada, as primeiras 20 nao dizem nada
     # a ninguem -- e era essa consulta que punha a pagina a 48 segundos.
     # Aqui a pergunta vem primeiro, ao contrario dos anuncios, onde a
     # lista inteira e o acervo por triar e faz sentido ve-la.
     # O "op" nao conta como pergunta: e um modo, nao um filtro -- sozinho
-    # nao restringe nada e abria o corpus inteiro.
+    # nao restringe nada e abria o corpus inteiro. No modo fim, de/ate
+    # tambem nao contam: o modo poe-nos de lado (campos da vista).
     ha_pergunta = any((request.args.get(campo) or "").strip()
-                      for campo in campos_da_vista("contratos")
+                      for campo in campos_da_vista(vista)
                       if campo != "op")
 
-    onde, valores = condicoes_contratos(request.args)
+    onde, valores = filtros_dos_contratos(request.args)
+    ordem_c = (" ORDER BY c.fim_estimado, c.id" if fim
+               else " ORDER BY c.data_celebracao DESC, c.id DESC")
+    ordem_p = (" ORDER BY p.fim_estimado, p.id" if fim
+               else " ORDER BY p.data_celebracao DESC, p.id DESC")
     correspondem = valor = 0
     paginas = pagina = 1
     linhas = []
@@ -8085,7 +8143,7 @@ def contratos():
             # corpus de sete anos. E a mesma armadilha do "quem ganha".
             linhas = c.execute(
                 "WITH pag AS (SELECT c.* FROM contratos c" + onde +
-                " ORDER BY c.data_celebracao DESC, c.id DESC LIMIT ? OFFSET ?)"
+                ordem_c + " LIMIT ? OFFSET ?)"
                 " SELECT p.*, COALESCE(e.nome, p.adjudicante) adj_nome,"
                 " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
                 "  FROM contrato_adjudicatario a"
@@ -8094,34 +8152,46 @@ def contratos():
                 " (SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a"
                 "  WHERE a.contrato_id=p.id) ganhou_ch"
                 " FROM pag p LEFT JOIN entidades e"
-                "  ON e.chave=p.adjudicante_chave"
-                " ORDER BY p.data_celebracao DESC, p.id DESC",
+                "  ON e.chave=p.adjudicante_chave" + ordem_p,
                 valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         procs = [r["p"] for r in c.execute(
             "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
             "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
         anos = [r["a"] for r in c.execute(
             "SELECT DISTINCT ano a FROM contratos ORDER BY a")]
+        # O fim da janela vem do mesmo relogio que a filtra: e o date()
+        # do SQLite que define "+N meses", nao uma conta de dias a parte
+        # que dissesse outra data no cabecalho.
+        fim_janela = c.execute("SELECT date('now', '+%d months') f"
+                               % meses).fetchone()["f"] if fim else ""
     with liga() as c:
         n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
-
-    proc_actual = (request.args.get("proc") or "").strip()
-    opcoes = ["<option value=''>todos os procedimentos</option>"]
-    for p in procs:
-        opcoes.append("<option value='%s'%s>%s</option>"
-                      % (html.escape(p, quote=True),
-                         " selected" if p == proc_actual else "",
-                         html.escape(p)))
 
     def v(nome):
         return html.escape(request.args.get(nome, ""), quote=True)
 
+    # No modo fim, de/ate desactivam-se COM explicacao (B03: dois eixos
+    # do tempo na mesma pagina confundiam) -- um campo que some sem
+    # explicacao e o silencio que a P3 proibe. Desactivado nao submete,
+    # e o motor tambem os ignora (filtros_dos_contratos).
+    trava_datas = (" disabled title='no modo por fim estimado o eixo do "
+                   "tempo é a janela do fim — as datas de celebração não "
+                   "se aplicam'" if fim else "")
+    escondidos_modo = ("<input type='hidden' name='ver' value='fim'>"
+                       if fim else "")
+    opcoes_meses = ("<select name='meses'>%s</select>" % "".join(
+        "<option value='%d'%s>terminam em %d meses</option>"
+        % (m, " selected" if m == meses else "", m)
+        for m in MESES_RENOVACOES)) if fim else ""
+    modo_limpo = "/contratos?ver=fim" if fim else "/contratos"
+
     filtros = (
         "<form class='cx filtros' method='get' action='/contratos'>"
+        "%s"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
         "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…'>"
-        "<input type='text' name='ganhou' value='%s' placeholder='Quem ganhou…'>"
+        "<input type='text' name='ganhou' value='%s' placeholder='%s'>"
         # Escondido, como nos anuncios: quem escolhe o CPV e a arvore, e
         # uma caixa de texto ao lado dela so convidava a escrever a mao um
         # codigo que a arvore a seguir apagava. O id e o mesmo nos dois
@@ -8132,18 +8202,25 @@ def contratos():
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:130px;flex:none'>"
         "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
-        "<select name='proc'>%s</select>"
-        "<label>de</label><input type='date' name='de' value='%s'>"
-        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "%s%s"
+        "<label>de</label><input type='date' name='de' value='%s'%s>"
+        "<label>até</label><input type='date' name='ate' value='%s'%s>"
         "<label>desde</label><input type='text' name='min' value='%s' "
         "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>"
-        "<a class='limpar' href='/contratos'>limpar</a>"
+        "<a class='limpar' href='%s'>limpar</a>"
         "</form>"
-        % (v("q"), v("q_excl"), v("adj"), v("ganhou"), v("cpv"),
-           v("cpv_excl"), opcoes_op(request.args), "".join(opcoes),
-           v("de"), v("ate"), v("min")))
+        % (escondidos_modo, v("q"), v("q_excl"), v("adj"), v("ganhou"),
+           "Quem tem o contrato…" if fim else "Quem ganhou…",
+           v("cpv"), v("cpv_excl"), opcoes_op(request.args),
+           selector_procedimento(procs,
+                                 (request.args.get("proc") or "").strip()),
+           opcoes_meses,
+           "" if fim else v("de"), trava_datas,
+           "" if fim else v("ate"), trava_datas,
+           v("min"), html.escape(modo_limpo, quote=True)))
 
+    hoje = datetime.now().date()
     if linhas:
         # o inverso do B02: quando o procedimento teve anuncio no radar,
         # a linha leva a ficha dele (so os refs que existem mesmo)
@@ -8161,30 +8238,71 @@ def contratos():
             if (l["n_anuncio"] or "").strip() in com_ficha:
                 objecto += (" &middot; <a href='/anuncio/%s'>anúncio</a>"
                             % (l["n_anuncio"] or "").strip())
-            corpo.append(
-                "<tr><td class='d'>%s</td><td class='d'>%s</td>"
-                "<td class='o'>%s</td>"
-                "<td>%s</td><td class='g'>%s</td><td>%s</td>"
-                "<td class='p'>%s</td></tr>"
-                % (data_pt(l["data_celebracao"]),
-                   data_pt(l["fim_estimado"], "—"),
-                   objecto,
-                   liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
-                   venceu,
-                   html.escape(l["tipo_procedimento"] or ""),
-                   euros(l["preco_contratual"])))
-        # O fim estimado ao lado da celebracao, como nas renovacoes: um
-        # contrato em curso le-se pelo fim, nao so pelo principio. O
-        # travessao e "sem prazo no dump", nao zero.
+            if fim:
+                # o fim primeiro, com a contagem: e o eixo deste modo
+                try:
+                    dias = (datetime.strptime(l["fim_estimado"],
+                                              "%Y-%m-%d").date() - hoje).days
+                    falta = ("hoje" if dias <= 0 else
+                             "em %s dia%s" % (mil_pt(dias),
+                                              "" if dias == 1 else "s"))
+                except (TypeError, ValueError):
+                    falta = ""
+                corpo.append(
+                    "<tr><td class='d'><b>%s</b><br>"
+                    "<span class='nota'>%s</span></td>"
+                    "<td class='o'>%s</td><td>%s</td><td class='g'>%s</td>"
+                    "<td class='d'>%s</td><td class='p'>%s</td></tr>"
+                    % (data_pt(l["fim_estimado"]), falta, objecto,
+                       liga_entidade(l["adjudicante_chave"],
+                                     l["adj_nome"] or ""),
+                       venceu, data_pt(l["data_celebracao"]),
+                       euros(l["preco_contratual"])))
+            else:
+                corpo.append(
+                    "<tr><td class='d'>%s</td><td class='d'>%s</td>"
+                    "<td class='o'>%s</td>"
+                    "<td>%s</td><td class='g'>%s</td><td>%s</td>"
+                    "<td class='p'>%s</td></tr>"
+                    % (data_pt(l["data_celebracao"]),
+                       data_pt(l["fim_estimado"], "—"),
+                       objecto,
+                       liga_entidade(l["adjudicante_chave"],
+                                     l["adj_nome"] or ""),
+                       venceu,
+                       html.escape(l["tipo_procedimento"] or ""),
+                       euros(l["preco_contratual"])))
+        if fim:
+            cabecalhos = ("<th>Fim estimado</th><th>Objecto</th>"
+                          "<th>Entidade</th><th>Quem tem o contrato</th>"
+                          "<th>Celebrado</th><th class='p'>Preço</th>")
+        else:
+            # O fim estimado ao lado da celebracao: um contrato em curso
+            # le-se pelo fim, nao so pelo principio. O travessao e "sem
+            # prazo no dump", nao zero.
+            cabecalhos = ("<th>Celebrado</th><th>Fim estimado</th>"
+                          "<th>Objecto</th><th>Entidade</th>"
+                          "<th>Quem ganhou</th><th>Procedimento</th>"
+                          "<th class='p'>Preço</th>")
         tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
-                  "<thead><tr><th>Celebrado</th><th>Fim estimado</th>"
-                  "<th>Objecto</th>"
-                  "<th>Entidade</th><th>Quem ganhou</th><th>Procedimento</th>"
-                  "<th class='p'>Preço</th></tr></thead><tbody>%s</tbody>"
-                  "</table></div>" % "".join(corpo))
+                  "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
+                  "</table></div>" % (cabecalhos, "".join(corpo)))
     elif ha_pergunta:
-        tabela = ("<div class='vazio'>Nada corresponde a este filtro. "
-                  "<a href='/contratos'>limpar</a></div>")
+        tabela = ("<div class='vazio'>%s "
+                  "<a href='%s'>limpar</a></div>"
+                  % ("Nada deste filtro termina nos próximos %d meses."
+                     % meses if fim else
+                     "Nada corresponde a este filtro.",
+                     html.escape(modo_limpo, quote=True)))
+    elif fim:
+        tabela = ("<div class='vazio comecar'>"
+                  "<b>De que mercado queres ver os fins de contrato?</b>"
+                  "<span>Escolhe um CPV na árvore ou escreve uma entidade: "
+                  "a lista mostra os contratos desse mercado que terminam "
+                  "na janela, do mais próximo para o mais distante. Um "
+                  "contrato a acabar volta muitas vezes a concurso &mdash; "
+                  "quem o vê antes do anúncio prepara-se com tempo.</span>"
+                  "</div>")
     else:
         # A pergunta vem primeiro. Um milhao e meio de contratos por data
         # nao e uma resposta a nada.
@@ -8197,21 +8315,47 @@ def contratos():
                   "recentes não dizem nada sobre nada.</span></div>"
                   % mil_pt(ha_corpus()))
 
+    # O modo dito por extenso no titulo da tabela, nao so no selector:
+    # era a unica defesa contra o "ecra bifacetado" que o custo da
+    # opcao A (6.1) previa.
+    if fim:
+        titulo_tabela = ("<div class='rot' style='margin:16px 0 10px'>"
+                         "Contratos por <b>fim estimado</b> &mdash; o que "
+                         "vai acabar até %s</div>" % data_pt(fim_janela))
+    else:
+        titulo_tabela = ("<div class='rot' style='margin:16px 0 10px'>"
+                         "Contratos por <b>data de celebração</b> &mdash; "
+                         "o que já se comprou</div>")
+
     if ha_pergunta:
-        conta = "Celebrados mais recentes primeiro &middot; "
-        if correspondem > len(linhas):
-            primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
-            conta += ("%s&ndash;%s de %s &middot; página %s de %s"
-                      % (mil_pt(primeiro), mil_pt(primeiro + len(linhas) - 1),
-                         mil_pt(correspondem), mil_pt(pagina), mil_pt(paginas)))
+        if fim:
+            conta = ("Do fim mais próximo para o mais distante &middot; "
+                     "%s contrato%s a terminar até %s"
+                     % (mil_pt(correspondem),
+                        "" if correspondem == 1 else "s",
+                        data_pt(fim_janela)))
+            if correspondem > len(linhas):
+                conta += (" &middot; página %s de %s"
+                          % (mil_pt(pagina), mil_pt(paginas)))
         else:
-            conta += "%s %s" % (mil_pt(correspondem),
-                                "contrato" if correspondem == 1 else "contratos")
+            conta = "Celebrados mais recentes primeiro &middot; "
+            if correspondem > len(linhas):
+                primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
+                conta += ("%s&ndash;%s de %s &middot; página %s de %s"
+                          % (mil_pt(primeiro),
+                             mil_pt(primeiro + len(linhas) - 1),
+                             mil_pt(correspondem), mil_pt(pagina),
+                             mil_pt(paginas)))
+            else:
+                conta += "%s %s" % (mil_pt(correspondem),
+                                    "contrato" if correspondem == 1
+                                    else "contratos")
         # O somatorio e do filtro todo, nao da pagina: e o numero que diz
         # quanto vale este mercado, e por pagina nao queria dizer nada.
         conta += " &middot; <b>%s</b> no total" % euros(valor)
         # a ligacao diz quantas linhas e que saem: encostada ao "1-20"
-        # exportava as dezenas de milhares sem avisar
+        # exportava as dezenas de milhares sem avisar. Leva ver/meses,
+        # por isso o CSV exporta o mesmo modo que a lista mostra.
         linha_conta = ("<div class='linha-conta'>" + conta +
                        "<a href='/contratos/csv?%s'>exportar as %s linhas "
                        "(CSV)</a></div>"
@@ -8228,18 +8372,16 @@ def contratos():
 
     # O campo do CPV e escondido, por isso um filtro activo nao se via em
     # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
-    # esta a filtrar e da onde carregar para o tirar.
-    cpv_actual = (request.args.get("cpv") or "").strip()
-    faixas = []
-    if cpv_actual:
-        sem = args_da_lista(request.args, cpv="")
-        faixas.append("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
-                      "<a href='/contratos?%s'>tirar</a></div>"
-                      % (html.escape(cpv_actual), urlencode(sem)))
+    # esta a filtrar e da onde carregar para o tirar. As ligacoes "tirar"
+    # levam ver/meses atras (args_da_lista guarda-os): tirar um campo
+    # nao pode trocar de modo.
+    faixas = [faixa_cpv_activo(
+        request.args,
+        "/contratos?" + urlencode(args_da_lista(request.args, cpv="")))]
     # A chave da entidade e opaca na URL: diz-se de quem e, e da-se a
     # ficha ao lado.
     for campo, papel in (("entid", "adjudicadas por"),
-                         ("vencid", "ganhas por")):
+                         ("vencid", "detidas por" if fim else "ganhas por")):
         valor = (request.args.get(campo) or "").strip()
         if not valor:
             continue
@@ -8252,11 +8394,22 @@ def contratos():
                       "<a href='/contratos?%s'>tirar</a></div>"
                       % (papel, html.escape(r["nome"] if r else valor),
                          quote(valor, safe=""), urlencode(sem)))
+    # de/ate vindos de fora (um filtro guardado, uma ligacao antiga)
+    # ficam de lado no modo fim -- e diz-se, nunca em silencio (P3).
+    if fim and ((request.args.get("de") or "").strip()
+                or (request.args.get("ate") or "").strip()):
+        faixas.append("<div class='cpv-activo'>As datas de celebração do "
+                      "filtro <b>não se aplicam</b> neste modo: o eixo do "
+                      "tempo é a janela do fim estimado. Estão postas de "
+                      "lado, não perdidas &mdash; voltam no modo por "
+                      "celebração.</div>")
     faixa_cpv = "".join(faixas)
 
     # Pedidos so ao abrir, como a arvore: sao ~800 ms de consultas e a
     # tabela nao tem de esperar por eles. Sem filtro nem aparecem: sobre
     # o corpus inteiro demoravam muito e respondiam a pergunta nenhuma.
+    # O pedido leva a query string inteira, ver/meses incluidos: os
+    # graficos respondem ao mesmo conjunto que a tabela mostra.
     graficos = (
         "<details class='arvore graficos'><summary>"
         "<span class='arv-tit'>Ver em gráficos</span>"
@@ -8265,31 +8418,74 @@ def contratos():
         "<div id='graf-corpo' class='graf-corpo'>a carregar…</div>"
         "</details>") if ha_pergunta else ""
 
+    # A troca de modo e uma troca de vista, nao de pagina: leva o filtro
+    # inteiro (P3). Vai no lugar das abas, como os estados da Triagem.
+    para_celebracao = args_da_lista(request.args)
+    para_celebracao.pop("ver", None)
+    para_celebracao.pop("meses", None)
+    para_fim = args_da_lista(request.args, ver="fim")
+    abas = ("<div class='abas'>"
+            "<a class='%s' href='/contratos%s'>Por celebração</a>"
+            "<a class='%s' href='/contratos?%s'>Por fim estimado</a>"
+            "</div>"
+            % ("" if fim else "on",
+               ("?" + urlencode(para_celebracao)) if para_celebracao else "",
+               "on" if fim else "", urlencode(para_fim)))
+
+    nota_estimativa = (
+        "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
+        "data de celebração mais o prazo de execução declarado ao IMPIC. "
+        "Prorrogações e cessações antecipadas não constam do dump &mdash; "
+        "confirma antes de contar com a data.</div>") if fim else ""
+
     conteudo = ("<div class='larg'>" + barra_corpus(anos) +
-                faixa_de_avisos_de_datas(request.args) + filtros +
+                ("" if fim else faixa_de_avisos_de_datas(request.args)) +
+                filtros +
                 faixa_cpv + arvore_html(n_cpv, "contratos") +
-                caixa_de_filtros(request.args, "contratos") +
+                caixa_de_filtros(request.args, vista, "/contratos",
+                                 extra="ver=fim&meses=%d" % meses
+                                 if fim else "") +
                 graficos + linha_conta +
+                (titulo_tabela if ha_pergunta else "") +
                 tabela +
                 paginador(pagina, paginas, request.args, "/contratos") +
+                nota_estimativa +
                 (fonte if ha_pergunta else "") + "</div>")
 
+    if fim:
+        return envolver(
+            "renovacoes", "Contratos celebrados",
+            "Vistos pelo fim estimado &mdash; o que está a chegar ao fim "
+            "no teu mercado deve voltar a concurso, e quem o vê antes do "
+            "anúncio prepara-se com tempo.",
+            conteudo, abas=abas,
+            script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
+            migalhas=migalhas_de("renovacoes"),
+            titulo_aba="Renovações, Radar de Concursos")
     return envolver(
         "contratos", "Contratos celebrados",
         "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
         "Não são oportunidades: servem para saber com quem se concorre.",
-        conteudo, script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
+        conteudo, abas=abas,
+        script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
         migalhas=migalhas_de("contratos"),
         titulo_aba="Contratos, Radar de Concursos")
 
 
-# ---------------------------------------------------- separador renovacoes
+# --------------------------------- modo "fim estimado" dos contratos
 #
-# Contratos vistos pelo fim e nao pelo principio: o que esta a acabar no
-# meu mercado vai provavelmente voltar a concurso, e quem chega antes do
-# anuncio chega a horas. E a pergunta que a Armilar vende como "Previsão
-# de Contratos" (modulo de primeira linha) e a SpotGov como "Pipeline
-# Radar" -- ver CONCORRENTES.md e o B03 do BACKLOG.md.
+# As antigas Renovacoes, fundidas em /contratos por decisao 6.1-A
+# (31/08/2026): contratos vistos pelo fim e nao pelo principio -- o que
+# esta a acabar no meu mercado vai provavelmente voltar a concurso, e
+# quem chega antes do anuncio chega a horas. E a pergunta que a Armilar
+# vende como "Previsão de Contratos" e a SpotGov como "Pipeline Radar"
+# -- ver CONCORRENTES.md e o B03 do BACKLOG.md.
+#
+# Deixou de ser pagina irma (~80% decalcada, "corrigido numa, vivo na
+# outra") e passou a modo do MESMO ecra: ver=fim na query string, com o
+# modo declarado por extenso no titulo da tabela. A rota /renovacoes
+# fica a responder como redireccionamento, para nao partir filtros
+# guardados nem ligacoes antigas (§9 linha 8 do ESQUELETO).
 #
 # O fim e ESTIMADO: celebracao + prazo de execucao do dump. As
 # prorrogacoes e as cessacoes antecipadas nao constam do IMPIC, e a
@@ -8309,200 +8505,49 @@ def meses_pedidos(args):
     return m if m in MESES_RENOVACOES else 6
 
 
+def modo_fim(args):
+    """True quando os contratos estao no modo "ver por fim estimado"."""
+    return (args.get("ver") or "").strip() == "fim"
+
+
+def condicao_do_modo(args):
+    """Fragmento SQL do modo ('' no modo celebracao). A janela vai por
+    interpolacao mas SO depois da whitelist: meses_pedidos() devolve um
+    dos MESES_RENOVACOES, nunca texto da URL."""
+    if not modo_fim(args):
+        return ""
+    return (" AND c.fim_estimado >= date('now')"
+            " AND c.fim_estimado <= date('now', '+%d months')"
+            % meses_pedidos(args))
+
+
+def filtros_dos_contratos(args):
+    """(onde, valores) da lista de contratos, com o modo aplicado.
+
+    E por aqui que a lista, o CSV e os graficos filtram -- os tres com
+    a MESMA conta, senao o numero de um nao abria a lista do outro. No
+    modo fim, `de`/`ate` NAO entram: o eixo do tempo e a janela do fim,
+    e dois eixos em simultaneo confundiam (B03). A pagina desactiva os
+    campos com explicacao em vez de os deixar cair em silencio.
+    """
+    if modo_fim(args) and ((args.get("de") or "").strip()
+                           or (args.get("ate") or "").strip()):
+        limpos = dict(args.to_dict() if hasattr(args, "to_dict") else args)
+        limpos.pop("de", None)
+        limpos.pop("ate", None)
+        args = limpos
+    onde, valores = condicoes_contratos(args)
+    return onde + condicao_do_modo(args), valores
+
+
 @app.route("/renovacoes")
 def renovacoes():
-    if not ha_corpus():
-        return sem_corpus_html("Renovações")
-
-    # A pergunta vem primeiro, como nos contratos: 81 mil contratos
-    # terminam nos proximos 6 meses, e sem CPV ou entidade a lista nao
-    # responde a nada.
-    ha_pergunta = any((request.args.get(campo) or "").strip()
-                      for campo in campos_da_vista("renovacoes")
-                      if campo != "op")
-    meses = meses_pedidos(request.args)
-
-    # A janela vai por interpolacao e nao por parametro, mas so depois da
-    # whitelist: `meses` e um dos MESES_RENOVACOES, nunca texto da URL.
-    onde, valores = condicoes_contratos(request.args)
-    onde += (" AND c.fim_estimado >= date('now')"
-             " AND c.fim_estimado <= date('now', '+%d months')" % meses)
-
-    correspondem = valor = 0
-    paginas = pagina = 1
-    linhas = []
-    with liga_corpus() as c:
-        if ha_pergunta:
-            resumo = c.execute(
-                "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
-                "FROM contratos c" + onde, valores).fetchone()
-            correspondem, valor = resumo["n"], resumo["v"]
-            paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
-            pagina = min(max(1, pagina_pedida(request.args)), paginas)
-            # O mesmo padrao dos contratos: primeiro as 20 linhas, so
-            # depois os nomes -- subconsultas antes do LIMIT eram a
-            # armadilha dos 45 segundos.
-            linhas = c.execute(
-                "WITH pag AS (SELECT c.* FROM contratos c" + onde +
-                " ORDER BY c.fim_estimado, c.id LIMIT ? OFFSET ?)"
-                " SELECT p.*, COALESCE(e.nome, p.adjudicante) adj_nome,"
-                " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
-                "  FROM contrato_adjudicatario a"
-                "  LEFT JOIN entidades g ON g.chave=a.chave"
-                "  WHERE a.contrato_id=p.id) ganhou,"
-                " (SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a"
-                "  WHERE a.contrato_id=p.id) ganhou_ch"
-                " FROM pag p LEFT JOIN entidades e"
-                "  ON e.chave=p.adjudicante_chave"
-                " ORDER BY p.fim_estimado, p.id",
-                valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
-        procs = [r["p"] for r in c.execute(
-            "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
-            "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
-        # O fim da janela vem do mesmo relogio que a filtra: e o date()
-        # do SQLite que define "+N meses", nao uma conta de dias a parte
-        # que dissesse outra data no cabecalho.
-        fim_janela = c.execute("SELECT date('now', '+%d months') f"
-                               % meses).fetchone()["f"]
-    with liga() as c:
-        n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
-
-    def v(nome):
-        return html.escape(request.args.get(nome, ""), quote=True)
-
-    proc_actual = (request.args.get("proc") or "").strip()
-    opcoes_proc = ["<option value=''>todos os procedimentos</option>"]
-    for p in procs:
-        opcoes_proc.append("<option value='%s'%s>%s</option>"
-                           % (html.escape(p, quote=True),
-                              " selected" if p == proc_actual else "",
-                              html.escape(p)))
-    opcoes_meses = "".join(
-        "<option value='%d'%s>terminam em %d meses</option>"
-        % (m, " selected" if m == meses else "", m)
-        for m in MESES_RENOVACOES)
-
-    filtros = (
-        "<form class='cx filtros' method='get' action='/renovacoes'>"
-        "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
-        "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
-        "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…'>"
-        "<input type='text' name='ganhou' value='%s' placeholder='Quem tem o contrato…'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' name='cpv_excl' value='%s' "
-        "placeholder='Excluir CPV…' "
-        "style='min-width:0;width:130px;flex:none'>"
-        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
-        "<select name='proc'>%s</select>"
-        "<select name='meses'>%s</select>"
-        "<label>desde</label><input type='text' name='min' value='%s' "
-        "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
-        "<button type='submit'>Filtrar</button>"
-        "<a class='limpar' href='/renovacoes'>limpar</a>"
-        "</form>"
-        % (v("q"), v("q_excl"), v("adj"), v("ganhou"), v("cpv"),
-           v("cpv_excl"), opcoes_op(request.args), "".join(opcoes_proc),
-           opcoes_meses, v("min")))
-
-    # As mesmas faixas dos contratos: o CPV activo (o campo e escondido)
-    # e as entidades opacas da URL, ditas por nome.
-    faixas = []
-    cpv_actual = (request.args.get("cpv") or "").strip()
-    if cpv_actual:
-        sem = args_da_lista(request.args, cpv="")
-        faixas.append("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
-                      "<a href='/renovacoes?%s'>tirar</a></div>"
-                      % (html.escape(cpv_actual), urlencode(sem)))
-    for campo, papel in (("entid", "adjudicadas por"),
-                         ("vencid", "detidas por")):
-        valor_ent = (request.args.get(campo) or "").strip()
-        if not valor_ent:
-            continue
-        with liga_corpus() as c:
-            r = c.execute("SELECT nome FROM entidades WHERE chave=?",
-                          (valor_ent,)).fetchone()
-        sem = args_da_lista(request.args, **{campo: ""})
-        faixas.append("<div class='cpv-activo'>Só as %s <b>%s</b>"
-                      "<a href='/entidade/%s'>ficha</a>"
-                      "<a href='/renovacoes?%s'>tirar</a></div>"
-                      % (papel, html.escape(r["nome"] if r else valor_ent),
-                         quote(valor_ent, safe=""), urlencode(sem)))
-
-    hoje = datetime.now().date()
-    if linhas:
-        corpo = []
-        for l in linhas:
-            try:
-                dias = (datetime.strptime(l["fim_estimado"], "%Y-%m-%d").date()
-                        - hoje).days
-                falta = ("hoje" if dias <= 0 else
-                         "em %s dia%s" % (mil_pt(dias), "" if dias == 1 else "s"))
-            except ValueError:
-                falta = ""
-            nomes = (l["ganhou"] or "").split("|")
-            chaves = (l["ganhou_ch"] or "").split("|")
-            venceu = " + ".join(liga_entidade(ch, n)
-                                for n, ch in zip(nomes, chaves) if n) or "—"
-            corpo.append(
-                "<tr><td class='d'><b>%s</b><br><span class='nota'>%s</span></td>"
-                "<td class='o'>%s</td><td>%s</td><td class='g'>%s</td>"
-                "<td class='d'>%s</td><td class='p'>%s</td></tr>"
-                % (data_pt(l["fim_estimado"]), falta,
-                   html.escape(corta(l["objecto"], 150)),
-                   liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
-                   venceu, data_pt(l["data_celebracao"]),
-                   euros(l["preco_contratual"])))
-        tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
-                  "<thead><tr><th>Fim estimado</th><th>Objecto</th>"
-                  "<th>Entidade</th><th>Quem tem o contrato</th>"
-                  "<th>Celebrado</th><th class='p'>Preço</th></tr></thead>"
-                  "<tbody>%s</tbody></table></div>" % "".join(corpo))
-    elif ha_pergunta:
-        tabela = ("<div class='vazio'>Nada deste filtro termina nos "
-                  "próximos %d meses. <a href='/renovacoes'>limpar</a>"
-                  "</div>" % meses)
-    else:
-        tabela = ("<div class='vazio comecar'>"
-                  "<b>De que mercado queres ver os fins de contrato?</b>"
-                  "<span>Escolhe um CPV na árvore ou escreve uma entidade: "
-                  "a lista mostra os contratos desse mercado que terminam "
-                  "na janela, do mais próximo para o mais distante. Um "
-                  "contrato a acabar volta muitas vezes a concurso &mdash; "
-                  "quem o vê antes do anúncio prepara-se com tempo.</span>"
-                  "</div>")
-
-    if ha_pergunta:
-        conta = ("Do fim mais próximo para o mais distante &middot; "
-                 "%s contrato%s a terminar até %s &middot; <b>%s</b> no total"
-                 % (mil_pt(correspondem), "" if correspondem == 1 else "s",
-                    data_pt(fim_janela), euros(valor)))
-        if correspondem > len(linhas):
-            conta += (" &middot; página %s de %s"
-                      % (mil_pt(pagina), mil_pt(paginas)))
-        linha_conta = "<div class='linha-conta'>%s</div>" % conta
-    else:
-        linha_conta = ""
-
-    nota_estimativa = (
-        "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
-        "data de celebração mais o prazo de execução declarado ao IMPIC. "
-        "Prorrogações e cessações antecipadas não constam do dump &mdash; "
-        "confirma antes de contar com a data.</div>")
-
-    conteudo = ("<div class='larg'>" + filtros + "".join(faixas) +
-                arvore_html(n_cpv, "contratos") +
-                caixa_de_filtros(request.args, "renovacoes") +
-                linha_conta + tabela +
-                paginador(pagina, paginas, request.args, "/renovacoes") +
-                (nota_estimativa if ha_pergunta else "") + "</div>")
-
-    return envolver(
-        "renovacoes", "Renovações",
-        "Contratos do corpus que estão a chegar ao fim &mdash; o que deve "
-        "voltar a concurso no teu mercado, visto antes do anúncio.",
-        conteudo, script=ARVORE_JS,
-        migalhas=migalhas_de("renovacoes"),
-        titulo_aba="Renovações, Radar de Concursos")
+    """A pagina fundiu-se nos contratos como modo "fim estimado"
+    (decisao 6.1-A). A rota fica a responder como redireccionamento,
+    com o filtro que trouxer: um filtro guardado ou uma ligacao antiga
+    para /renovacoes continua a abrir a mesma lista."""
+    novos = args_da_lista(request.args, ver="fim")
+    return redirect("/contratos?" + urlencode(novos))
 
 
 # -------------------------------------------------------- ficha do anuncio

@@ -875,13 +875,16 @@ canónica — baratos por construção, FR-15; os dois que dependem do modo
 dos contratos entraram com o andamento 3). Desbloqueia: a sensação de
 "uma aplicação" no dia-a-dia. Continua na mesma: duplicações.
 
-**Andamento 3 — as fusões decididas e a dívida do HTML.** Muda: o que
+**Andamento 3 — as fusões decididas e a dívida do HTML. FEITO a
+31/08/2026** (entrada de diário no ESTADO.md). Muda: o que
 o Afonso decidiu em §6 — renovações como modo dos contratos (6.1-A),
 faixa do CPV activo e selector de procedimento partilhados (6.3-A,
 6.4-A); os dois motores de filtro ficam como estão (6.2-B). **É aqui que faz sentido pagar a dívida do
 HTML por concatenação (auditoria §3.9)** — fundir vistas sem extrair o
 esqueleto comum era duplicar strings outra vez; a fusão é a ocasião
-que amortiza a extracção. (Como pagar, não é deste documento.)
+que amortiza a extracção. (Pagou-se onde a fusão amortizava: o
+formulário, as faixas e a tabela dos contratos passaram a existir uma
+vez; extracção além disso não se fez.)
 Desbloqueia: o fim do "corrigido numa vista, vivo na irmã" (§3.2).
 
 **Andamento 4 — o Fluxo B inteiro (dependente E2/E3).** Muda: a

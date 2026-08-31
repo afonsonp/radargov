@@ -100,9 +100,10 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
    do ESQUELETO.md): Triagem (`/`, por ver na janela `detalhe_dias`),
    Em curso (quadro `/quadro` + calendário `/calendario`), Pesquisa
    (`/anuncios`, o acervo, 12 meses + interruptor do arquivo), Mercado
-   (contratos `/contratos` + renovações `/renovacoes`), Alertas
-   (`/alertas`). Indicadores (`/indicadores`) fora da barra, pelo ponto
-   da zona de estado. Ficha em `/anuncio/<ref>`.
+   (contratos `/contratos`, com o modo `?ver=fim` das antigas
+   renovações; `/renovacoes` redirecciona), Alertas (`/alertas`).
+   Indicadores (`/indicadores`) fora da barra, pelo ponto da zona de
+   estado. Ficha em `/anuncio/<ref>`.
 8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio
@@ -159,13 +160,19 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   nunca por linha** — a média por linha dá -18,9%, porque cada lote
   compara com a base do procedimento inteiro; as exclusões estão em
   `descontos_por_procedimento()`.
-- **As renovações são contratos vistos pelo fim.** `/renovacoes` filtra
-  pela coluna `fim_estimado` (celebração + prazo em dias; coluna e não
-  expressão, com índice próprio), janela por whitelist
-  (`MESES_RENOVACOES`) porque entra numa expressão de data do SQL. A
-  vista partilha os campos dos contratos **menos `de`/`ate`** — dois
-  eixos do tempo na mesma página confundiam. O fim é estimado e a
-  página di-lo: prorrogações não constam do dump.
+- **As renovações são um MODO dos contratos** (fundidas a 31/08/2026,
+  decisão 6.1-A): `/contratos?ver=fim` filtra pela coluna
+  `fim_estimado` (celebração + prazo em dias; coluna e não expressão,
+  com índice próprio), janela por whitelist (`MESES_RENOVACOES`/
+  `meses_pedidos()`) porque entra numa expressão de data do SQL. A
+  lista, o CSV e os gráficos filtram todos por
+  `filtros_dos_contratos()` — uma conta só. A vista de campos
+  continua a chamar-se `"renovacoes"` e exclui **`de`/`ate`** — dois
+  eixos do tempo na mesma página confundiam; no modo fim esses campos
+  desactivam-se com explicação, nunca caem em silêncio. O fim é
+  estimado e o modo di-lo: prorrogações não constam do dump.
+  `/renovacoes` redirecciona com o filtro atrás — não a removas, é o
+  que segura filtros guardados e ligações antigas.
 - **A pesquisa nas peças (B09) foi implementada e retirada no mesmo
   dia** (30/08/2026), por decisão do Afonso: as peças só existem depois
   de marcar "interessa", por isso a pesquisa chegava sempre tarde

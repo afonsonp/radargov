@@ -24,7 +24,7 @@ ou feito.
 |---|---|---|---|
 | E2 | O **primeiro envio** do resumo diário | Canal autentica desde 31/08; nunca saiu um e-mail com conteúdo | Uma ordem do Afonso — sai mesmo um e-mail, por isso não se dispara sozinho |
 | E4 | Registar **quando o token expira** | Aprovado 30/08, por implementar. Hoje sabe-se só o piso: ≥ 8 dias | Luz verde para código |
-| — | **Andamentos 2 a 4 do esqueleto** | O **andamento 1 foi feito a 31/08/2026** (navegação por intenções, Triagem na janela, Pesquisa nova — ver ESTADO.md); os restantes três continuam por escrever | Luz verde para código, andamento a andamento |
+| — | **Andamento 4 do esqueleto** (Fluxo B) | Os andamentos **1, 2 e 3 foram feitos a 31/08/2026** (navegação por intenções, vocabulário e atalhos, renovações fundidas em modo — ver ESTADO.md). Do 4 falta só o **primeiro envio** do resumo, que é o E2 | A ordem do E2 |
 | B15 | **Exportar a triagem** para o repositório | Especificado; sem urgência — a triagem actual é toda de teste | O gatilho é a **primeira semana de triagem a sério**. Leva dentro uma sub-decisão: push manual ou tarefa semanal |
 | B14 | **Vortal e acingov** como segunda fonte | Aprovado com âmbito (só o que o DR não publica); é investigação antes de código | Ordem do Afonso, depois das pendências de casa. Pode dar «não dá» — o caminho actual parte sempre de um link vindo do DR |
 | C3 | **Histórico de erros** (as marcas são sobrescritas) | Proposto, esforço 1 | Luz verde; é o que faria o E4 valer mais, porque guarda a série em vez do último |

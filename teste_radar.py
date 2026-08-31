@@ -3688,6 +3688,111 @@ class TestLigacaoContratoAnuncio(BaseTemporaria):
         self.assertEqual(radar.refs_com_anuncio(["", None]), set())
 
 
+class TestModoFimDosContratos(unittest.TestCase):
+    """Andamento 3 (decisão 6.1-A): as renovações fundiram-se nos
+    contratos como modo «ver por fim estimado». O que estes testes
+    travam: a janela entrar sem whitelist, os dois eixos do tempo
+    voltarem a andar juntos, e a lista/CSV/gráficos filtrarem com
+    contas diferentes."""
+
+    def test_o_modo_le_se_da_query(self):
+        self.assertTrue(radar.modo_fim({"ver": "fim"}))
+        self.assertFalse(radar.modo_fim({}))
+        self.assertFalse(radar.modo_fim({"ver": ""}))
+        self.assertFalse(radar.modo_fim({"ver": "celebracao"}))
+
+    def test_a_janela_passa_pela_whitelist(self):
+        # meses vem da URL e entra por interpolação: fora da whitelist
+        # volta à omissão, nunca texto no SQL
+        frag = radar.condicao_do_modo({"ver": "fim", "meses": "12"})
+        self.assertIn("+12 months", frag)
+        frag = radar.condicao_do_modo({"ver": "fim", "meses": "DROP TABLE"})
+        self.assertIn("+6 months", frag)
+        frag = radar.condicao_do_modo({"ver": "fim", "meses": "7"})
+        self.assertIn("+6 months", frag)
+
+    def test_sem_modo_nao_ha_fragmento(self):
+        self.assertEqual(radar.condicao_do_modo({}), "")
+
+    def test_no_modo_fim_as_datas_ficam_de_lado(self):
+        # dois eixos do tempo na mesma página confundiam (B03): de/ate
+        # não entram no modo fim — e o ecrã di-lo, não é silêncio
+        com_datas = radar.filtros_dos_contratos(
+            {"ver": "fim", "q": "software", "de": "2024-01-01",
+             "ate": "2025-01-01"})
+        sem_datas = radar.filtros_dos_contratos(
+            {"ver": "fim", "q": "software"})
+        self.assertEqual(com_datas, sem_datas)
+        self.assertNotIn("data_celebracao >=", com_datas[0])
+
+    def test_no_modo_celebracao_as_datas_aplicam_se(self):
+        onde, valores = radar.filtros_dos_contratos(
+            {"q": "software", "de": "2024-01-01"})
+        self.assertIn("data_celebracao", onde)
+        self.assertIn("2024-01-01", valores)
+
+    def test_placeholders_e_valores_concordam(self):
+        # a janela do modo vai por interpolação (zero placeholders):
+        # a ordem dos ? tem de continuar a bater com a dos valores
+        onde, valores = radar.filtros_dos_contratos(
+            {"ver": "fim", "q": "a|b", "cpv": "72", "min": "1000"})
+        self.assertEqual(onde.count("?"), len(valores))
+
+    def test_a_vista_do_modo_continua_sem_de_ate(self):
+        # é a vista "renovacoes" que descreve o que o modo entende
+        self.assertNotIn("de", radar.CAMPOS_POR_VISTA["renovacoes"])
+        self.assertNotIn("ate", radar.CAMPOS_POR_VISTA["renovacoes"])
+
+    def test_a_navegacao_aponta_para_o_modo(self):
+        mercado = next(n for n in radar.NAV if n[0] == "mercado")
+        destinos = {v[0]: v[2] for v in mercado[3]}
+        self.assertEqual(destinos["renovacoes"], "/contratos?ver=fim")
+
+
+class TestVoltaComModo(unittest.TestCase):
+    """O «volta» de guardar um filtro no modo fim é «/contratos?ver=fim»
+    — juntar a consulta com um segundo «?» partia a URL e o modo
+    perdia-se ao gravar."""
+
+    def test_rota_com_query_junta_com_e_comercial(self):
+        destino = radar.volta_para("/contratos?ver=fim",
+                                   consulta="q=software").headers["Location"]
+        self.assertEqual(destino, "/contratos?ver=fim&q=software")
+        self.assertEqual(destino.count("?"), 1)
+
+    def test_rota_simples_continua_igual(self):
+        destino = radar.volta_para("/contratos",
+                                   consulta="q=x").headers["Location"]
+        self.assertEqual(destino, "/contratos?q=x")
+
+
+class TestBlocosPartilhados(unittest.TestCase):
+    """Decisões 6.3-A e 6.4-A: a faixa do CPV activo e o selector de
+    procedimento passaram a UM bloco cada. Eram três/quatro cópias «com
+    pequenas diferenças» — o principal gerador de bugs do projecto."""
+
+    def test_faixa_vazia_sem_cpv(self):
+        self.assertEqual(radar.faixa_cpv_activo({}, "/x"), "")
+        self.assertEqual(radar.faixa_cpv_activo({"cpv": "  "}, "/x"), "")
+
+    def test_faixa_diz_o_cpv_e_escapa(self):
+        saiu = radar.faixa_cpv_activo({"cpv": "72<b>"}, "/contratos?a=1")
+        self.assertIn("72&lt;b&gt;", saiu)
+        self.assertIn("tirar", saiu)
+        self.assertIn("/contratos?a=1", saiu)
+
+    def test_selector_marca_o_actual_e_escapa(self):
+        saiu = radar.selector_procedimento(
+            ["Concurso público", "Ajuste <directo>"], "Concurso público")
+        self.assertIn("selected", saiu)
+        self.assertIn("Ajuste &lt;directo&gt;", saiu)
+        self.assertNotIn("Ajuste <directo>", saiu)
+
+    def test_selector_com_rotulo_proprio(self):
+        saiu = radar.selector_procedimento([], "", "procedimento: todos")
+        self.assertIn("procedimento: todos", saiu)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
