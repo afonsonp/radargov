@@ -100,14 +100,14 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
    próprio. `historico_entidade()` responde ao bloco da ficha do
    anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
 7. **painel** — rotas Flask, HTML gerado por concatenação de strings
-   (`CSS`, `BASE`, `NAV`). Navegação por cinco intenções (andamento 1
-   do ESQUELETO.md): Triagem (`/`, por ver na janela `detalhe_dias`),
-   Em curso (quadro `/quadro` + calendário `/calendario`), Pesquisa
-   (`/anuncios`, o acervo, 12 meses + interruptor do arquivo), Mercado
-   (contratos `/contratos`, com o modo `?ver=fim` das antigas
-   renovações; `/renovacoes` redirecciona), Alertas (`/alertas`).
-   Indicadores (`/indicadores`) fora da barra, pelo ponto da zona de
-   estado. Ficha em `/anuncio/<ref>`.
+   (`CSS`, `BASE`, `NAV`). Navegação por quatro intenções: Anúncios
+   (`/`, a lista única com as abas por ver / interessados /
+   abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
+   `/quadro` + calendário `/calendario`), Mercado (contratos
+   `/contratos`, com o modo `?ver=fim` das antigas renovações;
+   `/renovacoes` redirecciona), Alertas (`/alertas`). Indicadores
+   (`/indicadores`) fora da barra, pelo ponto da zona de estado. Ficha
+   em `/anuncio/<ref>`, peças em `/peca/<ref>/<nome>`.
 8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio
@@ -144,12 +144,19 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 - **Anúncios e contratos são populações diferentes, de propósito.** Um
   anúncio é uma oportunidade, um contrato já está assinado; os filtros
   nem coincidem (um anúncio não tem vencedor nem valor final). A lista
-  de anúncios serve duas páginas — a **Triagem** (`/`) e a **Pesquisa**
-  (`/anuncios`) — com a MESMA chave de vista `"anuncios"` e a mesma
-  função `_lista_de_anuncios()`: mudam só os âmbitos por cima
-  (`ambito_da_vista()`/`com_ambito()`). **A janela de uma vista nunca
-  entra em `condicoes()`** — o motor serve os alertas e os filtros
-  guardados, e a janela lá dentro cegava-os em silêncio. Os
+  de anúncios é **UMA página** (`/`, fusão de 31/08/2026 — a Triagem e
+  a Pesquisa separadas duraram um dia; `/anuncios` redirecciona) com
+  quatro abas cujo recorte vive em `condicao_da_aba()`, aplicado POR
+  CIMA do motor com `com_recorte()`: **por ver** = novo e ainda
+  respondível (prazo aberto; sem prazo lido vale a publicação dentro
+  de `detalhe_dias`), **interessados** = todos (um interessa expirado
+  é trabalho em curso), **abandonados** = descartados à mão MAIS os
+  por ver já não respondíveis — é recorte de leitura, a base não muda.
+  O `estado` da aba tira-se dos args antes de chamar `condicoes()`
+  (a aba dos abandonados é uma união que um `estado=?` não diz), mas
+  continua na consulta canónica dos filtros guardados. **Nenhum
+  recorte entra em `condicoes()`** — o motor serve os alertas e os
+  filtros guardados, e o recorte lá dentro cegava-os em silêncio. Os
   contratos vivem em `/contratos`, com `condicoes_contratos()` própria.
   Nas tabelas filhas usa-se **`IN (SELECT ...)`, nunca `JOIN`**: com
   JOIN, um contrato ganho por um agrupamento repetia-se uma vez por
@@ -234,9 +241,9 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   item da navegação em que vive (`NAV`/`ITEM_DA_PAGINA`); as vistas
   agrupadas dizem o caminho inteiro ("Em curso › Quadro", "Mercado ›
   Contratos") e as fichas penduram uma folha por baixo — a do anúncio
-  na Pesquisa. E o "Verificar agora" aparece **só na Triagem**
-  (`PAGINAS_COM_VERIFICAR`, decisão 11.8-A): os anúncios novos aterram
-  lá.
+  em Anúncios. E o "Verificar agora" aparece **só na lista dos
+  anúncios** (`PAGINAS_COM_VERIFICAR`, decisão 11.8-A): os novos
+  aterram no por ver.
 - **A entidade de um anúncio resolve-se pelo NIPC.** O DR publica-o em
   100% dos anúncios e é a chave do corpus — `entidade_do_anuncio(nif,
   nome)`, com o nome de reserva para os antigos. 98,2% contra 96,2% só

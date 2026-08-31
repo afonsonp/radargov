@@ -3319,6 +3319,9 @@ degrada para o embed com o aviso — nunca rebenta. Verificado sobre o
 Caderno de Encargos real do INFARMED: 68 páginas desenhadas, PNG
 válido, fora do intervalo dá 404.
 
+*(nota: nesta entrada "Triagem" e "Pesquisa" são as páginas de então —
+fundiram-se numa lista só nessa mesma noite, ver a última entrada)*
+
 *E o terceiro afinamento, logo a seguir:* com o visualizador próprio,
 o Ctrl+F levava ao bloco de texto e o Afonso queria o resultado **no
 PDF**. A página ganhou a caixa **"Procurar no documento"**: a mesma
@@ -3339,3 +3342,45 @@ ficha. Base a **66 145** (47 do DR de hoje + 17 da Vortal); a Triagem
 abre com 1 438 por ver. Testes: **486** (480 + 6; a bateria passou de
 <1 s para ~3-4 s por causa dos repositórios git temporários do B15 —
 continua sem rede e sem tocar na base verdadeira).
+
+## A lista é uma só: Triagem e Pesquisa fundidas, 31 de agosto de 2026
+
+O Afonso, depois de um dia a usar o esqueleto: «a triagem e a pesquisa
+não fazem sentido estarem separados. ambas são a mesma coisa. em cima
+devem [estar] por ver, interessado, abandonado, todos. todos os
+anúncios que já não é possível responder devem estar nos abandonado.»
+É ele a rever as suas decisões 11.2-A e 11.5-B com o critério que só o
+uso dá — as duas páginas separadas duraram exactamente um dia.
+
+**O que ficou:** a lista vive em `/` com o item **Anúncios** na barra
+(quatro itens agora); `/anuncios` redirecciona com o filtro atrás. As
+quatro abas fazem o trabalho que as duas páginas faziam, com o recorte
+em `condicao_da_aba()` aplicado POR CIMA do motor (`com_recorte()` —
+a armadilha de sempre mantém-se: nada disto entra em `condicoes()`,
+que serve os alertas):
+
+- **Por ver** = novo E ainda respondível — prazo aberto, ou, sem prazo
+  lido, publicado dentro de `detalhe_dias`. A antiga janela da Triagem
+  virou parte da definição da aba.
+- **Interessados** = todos os interessa. Um interessa com prazo
+  passado é trabalho em curso (proposta entregue, à espera) e não se
+  esconde — a regra antiga do `--descartar-expirados` sobrevive aqui.
+- **Abandonados** = abandonados à mão + os por ver que já não são
+  respondíveis. **É recorte de leitura, a base não muda**: um
+  expirado rectificado com prazo novo volta sozinho ao por ver, e não
+  há fila nenhuma a limpar (o alerta «expirados por ver» dos
+  indicadores morreu por definição da aba).
+- **Todos** = sem recorte.
+
+Medido na base real — a partição é exacta: **1 392 por ver + 4
+interessados + 64 749 abandonados = 66 145**. O CSV com `ambito` põe o
+mesmo recorte da aba (o por ver exporta 1 392, não os expirados); o
+interruptor do arquivo caiu (deixou de haver janela para desligar —
+um filtro guardado que o tenha fica marcado parcial, declarado); o
+vocabulário passou a «abandonar/abandonado» nos botões, etiquetas,
+abas, CSV e alertas. O rótulo do grupo continua a ser «triagem» (§7).
+
+Testes: **485** (as classes das decisões da manhã foram substituídas
+pelas da lista única, com o porquê nos comentários — reescrever testes
+quando a decisão muda é o custo certo; «simplificá-los» de volta é que
+não).
