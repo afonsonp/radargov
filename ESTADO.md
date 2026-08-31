@@ -3317,8 +3317,19 @@ servem-se como imagens (`/peca-pagina/<ref>/<nome>/<n>.png`, escala
 2×, cache de um dia, carregamento preguiçoso). Sem PyMuPDF o código
 degrada para o embed com o aviso — nunca rebenta. Verificado sobre o
 Caderno de Encargos real do INFARMED: 68 páginas desenhadas, PNG
-válido, fora do intervalo dá 404. Testes: **488** (486 + 2, a correr
-nos dois Pythons — o da pasta e o do sistema).
+válido, fora do intervalo dá 404.
+
+*E o terceiro afinamento, logo a seguir:* com o visualizador próprio,
+o Ctrl+F levava ao bloco de texto e o Afonso queria o resultado **no
+PDF**. A página ganhou a caixa **"Procurar no documento"**: a mesma
+`search_for` do PyMuPDF que sabe onde o termo está desenha os
+**destaques a amarelo nas páginas** (anotação em memória, nada se
+grava no ficheiro) e a faixa de resultados lista as páginas com salto
+por âncora. Medido na peça do INFARMED: «vigência» → 8 páginas, 10
+ocorrências, página com destaque comprovadamente diferente da sem. A
+procura é literal como está no documento (acentos contam) e a faixa
+di-lo quando não encontra. Testes: **490** (486 + 4, a correr nos dois
+Pythons — o da pasta e o do sistema).
 
 Verificado a correr: resumo enviado e filas a zero; consulta
 preliminar aberta na ficha (chip «Consulta», «Ver na Vortal», vazio

@@ -253,10 +253,11 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 - **as peças do procedimento** (Programa de Concurso, Caderno de
   Encargos, anexos) — os PDF abrem **dentro da aplicação**, numa página
   própria onde é o próprio radar que desenha o documento, página a
-  página. Abre em qualquer browser, seja qual for a configuração de
-  PDFs dele. Para pesquisar, Ctrl+F: o **texto extraído da peça** está
-  no fim da página (o browser salta para lá sozinho ao encontrar). O
-  que não for PDF descarrega-se como antes;
+  página, em qualquer browser. A **caixa "Procurar no documento"**
+  marca as ocorrências **a amarelo nas próprias páginas** e diz onde
+  estão ("aparece em 8 páginas, 10 vezes"), com salto directo para
+  cada uma. A procura é tal e qual está escrito no documento (acentos
+  contam). O que não for PDF descarrega-se como antes;
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica.
 

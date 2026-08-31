@@ -4172,24 +4172,50 @@ class TestVisualizadorDePecas(unittest.TestCase):
         self.assertEqual(radar.paginas_do_pdf_imagem("nao-existe.pdf"), 0)
         self.assertIsNone(radar.imagem_da_pagina("nao-existe.pdf", 1))
 
+    def _pdf_de_ensaio(self, pasta):
+        import pymupdf
+        caminho = os.path.join(pasta, "ensaio.pdf")
+        doc = pymupdf.open()
+        doc.new_page().insert_text((72, 72), "ensaio do visualizador")
+        doc.new_page().insert_text((72, 72), "segunda pagina, com ensaio "
+                                             "escrito duas vezes: ensaio")
+        doc.save(caminho)
+        doc.close()
+        return caminho
+
     def test_desenha_a_pagina_como_png(self):
         if not self.tem_pymupdf:
             self.skipTest("sem pymupdf no Python dos testes")
         import tempfile
-
-        import pymupdf
         with tempfile.TemporaryDirectory() as pasta:
-            caminho = os.path.join(pasta, "ensaio.pdf")
-            doc = pymupdf.open()
-            doc.new_page().insert_text((72, 72), "ensaio do visualizador")
-            doc.save(caminho)
-            doc.close()
-            self.assertEqual(radar.paginas_do_pdf_imagem(caminho), 1)
+            caminho = self._pdf_de_ensaio(pasta)
+            self.assertEqual(radar.paginas_do_pdf_imagem(caminho), 2)
             png = radar.imagem_da_pagina(caminho, 1)
             self.assertTrue(png.startswith(b"\x89PNG"))
             # fora do intervalo é None, não uma excepção
-            self.assertIsNone(radar.imagem_da_pagina(caminho, 2))
+            self.assertIsNone(radar.imagem_da_pagina(caminho, 3))
             self.assertIsNone(radar.imagem_da_pagina(caminho, 0))
+
+    def test_a_pesquisa_diz_as_paginas_e_conta_as_vezes(self):
+        # a pesquisa que o Afonso pediu a 31/08/2026: no DOCUMENTO, não
+        # no bloco de texto — a mesma search_for desenha os destaques
+        if not self.tem_pymupdf:
+            self.skipTest("sem pymupdf no Python dos testes")
+        import tempfile
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = self._pdf_de_ensaio(pasta)
+            self.assertEqual(radar.paginas_com_termo(caminho, "ensaio"),
+                             [(1, 1), (2, 2)])
+            self.assertEqual(radar.paginas_com_termo(caminho, "ENSAIO"),
+                             [(1, 1), (2, 2)])   # sem caso
+            self.assertEqual(radar.paginas_com_termo(caminho, "nabo"), [])
+            self.assertEqual(radar.paginas_com_termo(caminho, "  "), [])
+            # o destaque não parte o desenho da página
+            png = radar.imagem_da_pagina(caminho, 2, procurar="ensaio")
+            self.assertTrue(png.startswith(b"\x89PNG"))
+
+    def test_pesquisa_em_ficheiro_que_nao_abre_da_vazio(self):
+        self.assertEqual(radar.paginas_com_termo("nao-existe.pdf", "x"), [])
 
 
 if __name__ == "__main__":
