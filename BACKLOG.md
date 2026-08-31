@@ -26,7 +26,7 @@ ou feito.
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
 | — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: verificado, o Fluxo B já estava inteiro — ver ESTADO.md). O que sobra do 4 é exactamente o E2 acima | — |
 | B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**: `triagem.jsonl` (8 330 registos) escrito em cada verificação e reposto por `--repor-triagem`; ver a secção abaixo | A sub-decisão que sobra: o **push** é manual (o de agora) ou passa a tarefa semanal? Só a semanal fecha mesmo o R2 — palavra do Afonso |
-| B14 | **Vortal e acingov** como segunda fonte | Aprovado com âmbito (só o que o DR não publica); é investigação antes de código | Ordem do Afonso, depois das pendências de casa. Pode dar «não dá» — o caminho actual parte sempre de um link vindo do DR |
+| B14 | **Vortal e acingov** como segunda fonte | **A investigação está feita (31/08/2026) e deu «dá» nas duas** — listagem anónima confirmada, receitas anotadas na secção B14. A ingestão é que continua por decidir e por escrever | Decisão informada do Afonso sobre cada plataforma, com os achados à frente. Os avisos [LEGAL] [RISCO] mantêm-se |
 | C3 | ~~Histórico de erros~~ | **Feito a 31/08/2026**: tabela `erros` com poda a 200 por tipo; as marcas continuam a servir o ecrã | — |
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
 | 11.7-B | **Procura directa de entidade** (nome/NIF) | Fora do esqueleto por decisão dele, registada como reabrível | O sinal: dar por si a abrir um contrato só para chegar à ficha de uma entidade |
@@ -295,16 +295,43 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   anúncios» intacta e faz da segunda fonte um acrescento, não um
   concorrente.
 
-  **O «se der» é a primeira tarefa, e não é pequena.** O caminho que hoje
-  existe (`obter_documentos()`, a cadeia de 3 saltos da Vortal e o ZIP
-  directo da acingov) parte **sempre de um `link_pecas` que veio de um
-  anúncio do DR** — é obtenção de peças de um procedimento já conhecido,
-  não descoberta. Para trazer o que o DR não publica é preciso um endpoint
-  de **listagem/pesquisa** sem sessão iniciada, e **não se sabe se existe**
-  em nenhuma das duas. Antes de escrever código de ingestão, mede-se isso:
-  existe listagem anónima? paginada? com data? que campos traz? O
-  subagente `explorador-de-plataforma` foi escrito para este género de
-  investigação.
+  **O «se der» era a primeira tarefa — e foi medido a 31/08/2026:
+  existe listagem anónima nas DUAS plataformas.** O que se viu, sem
+  sessão iniciada e à mão (medição, não ingestão):
+
+  - **acingov**: zona pública em
+    `https://www.acingov.pt/acingovprod/2/zonaPublica/zona_publica_c/indexProcedimentos`
+    (POST `procedure_search`; é o formulário da própria homepage).
+    Paginada por `zona_publica_c/getProcedimentos/true/<offset>`, 8
+    por página; no momento da medição dizia **598 procedimentos a
+    decorrer**. Campos por linha: nº de procedimento, tipo, objecto,
+    entidade, estado — **sem data de publicação nem prazo na listagem**
+    (a confirmar no detalhe). Filtros: texto, sector de actividade,
+    concelho. Cada linha traz um botão «Descarregar Peças» com um
+    `data-id` cifrado — as peças alcançam-se da própria listagem, sem
+    passar pelo link do DR.
+  - **Vortal**: pesquisa pública «Consultas Ativas» em
+    `https://community.vortal.biz/PRODPublic/Tendering/ContractNoticeManagement/Index`
+    (ligada da página de login da vision). Campos ricos: referência,
+    comprador, tipo de consulta, preço base, estado, fase, **data de
+    publicação e data limite** com contagem de dias; filtros por texto,
+    comprador, país (também lista ES — filtrar PT), datas e estado;
+    ~108 páginas no momento. O «Detalhe» de cada linha é
+    `https://community.vortal.biz/Public/contract-notice-view/PT1.NTC.<id>/`
+    — **entrega directamente o `PT1.NTC.x`**, a peça central da cadeia
+    de 3 saltos que `obter_documentos()` já usa; a ingestão encaixaria
+    no código existente sem o salto de descodificação do link do DR.
+  - **A premissa do âmbito confirmou-se à primeira página**: a
+    listagem da Vortal mostrava três **«GovPT - Consulta Preliminar»**
+    nas primeiras sete linhas — exactamente o tipo que a parte L não
+    publica (`titulo LIKE '%Consulta preliminar%'` dá zero na base).
+
+  O que a medição NÃO responde e fica para a fase de ingestão: quanto
+  do universo das listagens duplica o DR (o cruzamento é pelo `ref`,
+  que a listagem da acingov não mostra — pode obrigar a abrir o
+  detalhe), a estabilidade dos endpoints (R4/R5), e o ritmo de
+  varrimento aceitável. **Nada disto se escreve sem decisão informada
+  do Afonso, plataforma a plataforma.**
 
   **Os avisos do item antigo mantêm-se, porque a decisão não os apaga**
   [LEGAL] [RISCO]: são plataformas comerciais, o caminho sai do que hoje é
