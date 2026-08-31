@@ -75,7 +75,8 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
-   `cpv_dict`, `slots`, `estado`, `filtros_guardados`.
+   `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
+   série dos erros que as marcas sobrescrevem; poda a 200 por tipo).
 2. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 3. **leitura** — `recolher()` pagina a pesquisa do portal;

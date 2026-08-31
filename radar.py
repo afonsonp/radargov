@@ -307,6 +307,17 @@ def iniciar_db():
             antes TEXT, depois TEXT, detectado_em TEXT, avisado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alteracoes_envio
                      ON alteracoes(avisado_em)""")
+        # C3: a serie dos erros. As marcas *_ultimo_erro sao sobrescritas
+        # e um dia mau apagava a historia; aqui guarda-se cada ocorrencia
+        # (marca_erro faz o INSERT alem da marca). Leitura por SQL chega
+        # para comecar; a poda guarda ~200 por tipo -- o suficiente para
+        # a serie dizer alguma coisa sem crescer para sempre.
+        c.execute("""CREATE TABLE IF NOT EXISTS erros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quando TEXT, tipo TEXT, texto TEXT)""")
+        c.execute("""DELETE FROM erros WHERE id NOT IN (
+            SELECT e2.id FROM erros e2 WHERE e2.tipo = erros.tipo
+            ORDER BY e2.id DESC LIMIT 200)""")
         # A pesquisa nas pecas (B09) foi implementada e RETIRADA a
         # 30/08/2026, por decisao do Afonso: as pecas so existem depois
         # de marcar "interessa", por isso a pesquisa chegava sempre
@@ -474,6 +485,51 @@ def le_marca(chave, omissao=""):
         linha = c.execute("SELECT valor FROM estado WHERE chave=?",
                           (chave,)).fetchone()
     return linha["valor"] if linha else omissao
+
+
+def marca_erro(chave, tipo, texto):
+    """C3: a marca de sempre (o ecra le-a) MAIS uma linha na serie.
+
+    As marcas *_ultimo_erro sao sobrescritas -- um dia mau apagava a
+    historia toda. A tabela `erros` guarda cada ocorrencia; a poda dos
+    ~200 por tipo vive no iniciar_db(). O registo da serie nunca pode
+    derrubar o caminho do erro: se falhar, fica so a marca.
+    """
+    marca(chave, texto)
+    try:
+        with liga() as c:
+            c.execute("INSERT INTO erros (quando, tipo, texto) "
+                      "VALUES (?,?,?)",
+                      (datetime.now().strftime("%Y-%m-%d %H:%M"), tipo,
+                       str(texto)[:500]))
+    except sqlite3.Error:
+        pass
+
+
+def registar_expiracao_token(qual, mensagem):
+    """E4: guarda QUANDO o token expirou e de quando era a captura.
+
+    A frequencia de expiracao nunca foi reconstruivel -- as marcas eram
+    sobrescritas e o token e opaco (nao traz validade). Sabe-se so o
+    piso (>= 8 dias, medido a 31/08/2026); esta serie e o instrumento
+    que ha-de dizer quanto tempo as capturas duram mesmo. O `qual` e o
+    nome-base da captura (curl_DR ou curl_detalhe): a idade dela no
+    momento da expiracao e a medida que interessa.
+    """
+    idade = ""
+    for nome in (qual + ".txt", qual + ".txt.txt"):
+        caminho = os.path.join(BASE_DIR, nome)
+        if os.path.exists(caminho):
+            try:
+                feita = datetime.fromtimestamp(os.path.getmtime(caminho))
+                idade = (" · captura de %s (%.1f dias)"
+                         % (feita.strftime("%Y-%m-%d %H:%M"),
+                            (datetime.now() - feita).total_seconds()
+                            / 86400.0))
+            except OSError:
+                pass
+            break
+    marca_erro("token_ultimo_erro", "token", mensagem + idade)
 
 
 # -------------------------------------------------------------- pessoas
@@ -719,6 +775,9 @@ def recolher(cfg):
                                 "HTTP %d, termo %s\n\n%s"
                                 % (resposta.status_code, termo,
                                    resposta.text[:3000]))
+                registar_expiracao_token(
+                    "curl_DR", "a pesquisa respondeu %d sem JSON"
+                    % resposta.status_code)
                 return False, ("o DR respondeu %d sem JSON. O token da captura "
                                "pode ter expirado, ver "
                                "amostras/resposta_inesperada.txt"
@@ -880,12 +939,16 @@ def campos_do_detalhe(texto):
         "Endereço da plataforma electrónica onde as peças estão disponíveis")
 
     # A plataforma le-se do URL de apresentacao, e so em ultimo recurso do
-    # texto todo, para nao apanhar uma mencao de passagem.
+    # texto todo, para nao apanhar uma mencao de passagem. O .strip() nao
+    # e decorativo: o join de pistas vazias da "  ", truthy, e o ultimo
+    # recurso esteve morto desde sempre -- medido a 31/08/2026, custava
+    # 28 anuncios sem plataforma (todos acingov, com a plataforma dita
+    # por extenso no texto e nenhuma mencao de passagem entre eles).
     pistas = " ".join((valor_de(seccoes, "URL para Apresentação"),
                        valor_de(seccoes, "Plataforma eletrónica utilizada "
                                           "pela entidade adjudicante"),
                        achados["link_pecas"]))
-    alvo = simplifica(pistas) or simplifica(texto)
+    alvo = simplifica(pistas).strip() or simplifica(texto)
     for nome in PLATAFORMAS:
         if nome in alvo:
             achados["plataforma"] = nome
@@ -1010,6 +1073,8 @@ def ler_detalhe_de(ref):
                           data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
                           timeout=60)
         if "json" not in r.headers.get("Content-Type", ""):
+            registar_expiracao_token("curl_detalhe",
+                                     "o detalhe respondeu sem JSON")
             return False, "o DR respondeu sem JSON, a captura pode ter expirado"
         _guardar_detalhe(ref, r.json())
         return True, ""
@@ -1055,6 +1120,8 @@ def ler_detalhes(limite=40, dias=None):
                               data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
                               timeout=60)
             if "json" not in r.headers.get("Content-Type", ""):
+                registar_expiracao_token("curl_detalhe",
+                                         "o detalhe respondeu sem JSON")
                 return feitos, "o detalhe respondeu sem JSON, captura expirada?"
             dados = r.json()
         except (requests.RequestException, ValueError):
@@ -1150,6 +1217,8 @@ def reler_marcados(limite=25):
                               data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
                               timeout=60)
             if "json" not in r.headers.get("Content-Type", ""):
+                registar_expiracao_token("curl_detalhe",
+                                         "o detalhe respondeu sem JSON")
                 return feitos, "o detalhe respondeu sem JSON, captura expirada?"
             dados = r.json()
         except (requests.RequestException, ValueError):
@@ -2404,8 +2473,9 @@ def obter_documentos(ref):
     if cadeia_de_fornecedores() and not analise_de(ref):
         lido, porque = analisar_pecas(ref)
         if not lido:
-            marca("analise_ultimo_erro", "%s · %s: %s"
-                  % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref, porque))
+            marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
+                       % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                          ref, porque))
     # "parcial" quando veio alguma coisa mas as pecas falharam: o PDF
     # do anuncio vem sempre, e sozinho dava um "ok" que escondia o
     # facto de o Caderno de Encargos nao ter chegado.
@@ -2429,11 +2499,12 @@ def _servir_fila():
         try:
             n, aviso = obter_documentos(ref)
             if not n:
-                # A data vai na marca (C1 do saneamento): sobrescrita a
-                # cada erro, ao menos diz-se DE QUANDO e o que se mostra.
-                marca("docs_ultimo_erro", "%s · %s: %s"
-                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref,
-                         aviso or "sem documentos"))
+                # A data vai na marca (C1 do saneamento) e a serie fica
+                # na tabela erros (C3): a marca diz o ultimo, a serie
+                # conta a historia.
+                marca_erro("docs_ultimo_erro", "pecas", "%s · %s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              ref, aviso or "sem documentos"))
         except Exception as erro:
             # Tem de ficar num estado terminal: se ficasse "pendente", a
             # ficha esperava para sempre por peças que nunca vinham.
@@ -2441,9 +2512,9 @@ def _servir_fila():
                 with liga() as c:
                     c.execute("UPDATE anuncios SET docs_estado='falhou' WHERE ref=?",
                               (ref,))
-                marca("docs_ultimo_erro", "%s · %s: %s"
-                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref,
-                         str(erro)[:200]))
+                marca_erro("docs_ultimo_erro", "pecas", "%s · %s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              ref, str(erro)[:200]))
             except Exception:
                 pass
         finally:
@@ -2490,13 +2561,14 @@ def _servir_analise():
                      "peças lidas" if (ok and not porque) else (porque or "falhou"),
                      quem=quem)
             if not ok:
-                marca("analise_ultimo_erro", "%s · %s: %s"
-                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref, porque))
+                marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              ref, porque))
         except Exception as erro:
             try:
-                marca("analise_ultimo_erro", "%s · %s: %s"
-                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), ref,
-                         str(erro)[:200]))
+                marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              ref, str(erro)[:200]))
             except Exception:
                 pass
         finally:
@@ -2638,8 +2710,9 @@ def copia_com_marca(guardar=7):
         marca("ultima_copia", "ok: %s" % os.path.basename(destino))
         return True
     except (sqlite3.Error, OSError) as erro:
-        marca("ultima_copia", "falhou a %s: %s"
-              % (datetime.now().strftime("%Y-%m-%d %H:%M"), str(erro)[:150]))
+        marca_erro("ultima_copia", "copia", "falhou a %s: %s"
+                   % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                      str(erro)[:150]))
         print("aviso: copia de seguranca falhou (%s)" % erro)
         return False
 
@@ -4094,8 +4167,9 @@ def relogio():
             # parecesse "ainda nao chegou a hora": o painel continuava a
             # mostrar a ultima verificacao boa, dias a fio.
             try:
-                marca("ultimo_erro_relogio", "%s: %s"
-                      % (datetime.now().strftime("%Y-%m-%d %H:%M"), str(erro)[:200]))
+                marca_erro("ultimo_erro_relogio", "relogio", "%s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              str(erro)[:200]))
             except Exception:
                 pass
         time.sleep(60)
@@ -9933,17 +10007,21 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
     return "".join(saida)
 
 
-def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None):
+def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
+                            token=None):
     """As marcas de ultimo erro que so se viam por SQL (C1 do saneamento).
 
     So aparece o que existe: sem erro gravado nao ha linha nenhuma --
     uma linha verde "sem erros" era ruido. As marcas trazem a data de
     quando aconteceram, e mostram-se a amarelo (quem chama passa a cor):
-    um erro antigo e diagnostico, nao um alarme de agora."""
+    um erro antigo e diagnostico, nao um alarme de agora. A do token
+    (E4) traz a idade da captura no momento da expiracao -- e a serie
+    completa fica na tabela `erros` (C3), por SQL."""
     linhas = []
     for rotulo, valor in (("Último erro do relógio interno", relogio),
                           ("Último erro ao trazer peças", pecas),
-                          ("Último erro da leitura pelo modelo", analise)):
+                          ("Último erro da leitura pelo modelo", analise),
+                          ("Última expiração do token", token)):
         if (valor or "").strip():
             linhas.append((rotulo, html.escape(corta(valor, 80)), False))
     return linhas
@@ -10116,7 +10194,8 @@ def indicadores():
     # porque a marca e sobrescrita e pode ser antiga -- a data vai nela.
     erros = linhas_de_ultimos_erros(le_marca("ultimo_erro_relogio", ""),
                                     le_marca("docs_ultimo_erro", ""),
-                                    le_marca("analise_ultimo_erro", ""))
+                                    le_marca("analise_ultimo_erro", ""),
+                                    le_marca("token_ultimo_erro", ""))
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "#d68910"))
 

@@ -3156,3 +3156,37 @@ Sai sozinho na primeira verificação que apanhar um anúncio do alerta
 "CPV IT", uma alteração ou uma seguida (a partir da hora do resumo) —
 ou à ordem, pelo botão, no dia em que houver conteúdo. Nenhum e-mail
 foi enviado nesta sessão.
+
+## Pendências da casa resolvidas: C3, E4 e o fallback, 31 de agosto de 2026
+
+Com o esqueleto fechado, resolveram-se as três pendências pequenas do
+registo, por ordem de dependência:
+
+- **C3 — a série dos erros.** Tabela `erros (quando, tipo, texto)` no
+  `radar.db`, migração idempotente. `marca_erro()` grava a marca de
+  sempre — o ecrã continua a lê-la — MAIS uma linha na série, nos
+  cinco caminhos de erro (relógio, peças, leitura, cópia, token). A
+  poda no `iniciar_db()` guarda os últimos **200 por tipo**, e há
+  teste a garantir que guarda os recentes e que um tipo raro não é
+  podado por um tipo falador. Leitura por SQL, como o BACKLOG
+  propunha; ecrã fica para quando fizer falta.
+- **E4 — registar quando o token expira.** Nos quatro pontos onde a
+  expiração se detecta (pesquisa sem JSON, detalhe sem JSON — na
+  rotina, na releitura e na leitura ao abrir a ficha),
+  `registar_expiracao_token()` grava o momento **e a idade da captura**
+  (mtime do `curl_*.txt`) na série do C3 e na marca
+  `token_ultimo_erro`, que os indicadores mostram como "Última
+  expiração do token". O piso «≥ 8 dias» passa a ter instrumento para
+  virar frequência — a série é que a há-de dizer.
+- **O fallback morto da plataforma — medido, e depois corrigido.**
+  Medição só de leitura sobre a base: dos 56 anúncios com detalhe e sem
+  plataforma, 18 têm pistas reais (URLs que não batem em nada — o
+  strip() não lhes toca) e **28 diziam a plataforma por extenso no
+  corpo do anúncio** ("apresentados através da plataforma eletrónica
+  acinGov"), todos acingov, nenhuma menção de passagem. Aplicado o
+  `strip()` e corrido `--reler` (5 493 reanalisados em 8,2 s):
+  **56 → 28 sem plataforma**. A protecção contra menções de passagem
+  continua de pé — pistas reais que não batem em plataforma nenhuma
+  continuam a não cair para o texto, com teste.
+
+Testes: **473** (467 + 6).

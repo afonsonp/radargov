@@ -23,12 +23,12 @@ ou feito.
 | # | O que falta | Estado | Espera por |
 |---|---|---|---|
 | E2 | O **primeiro envio** do resumo diário | Canal autentica desde 31/08; nunca saiu um e-mail com conteúdo | Uma ordem do Afonso — sai mesmo um e-mail, por isso não se dispara sozinho |
-| E4 | Registar **quando o token expira** | Aprovado 30/08, por implementar. Hoje sabe-se só o piso: ≥ 8 dias | Luz verde para código |
+| E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
 | — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: verificado, o Fluxo B já estava inteiro — ver ESTADO.md). O que sobra do 4 é exactamente o E2 acima | — |
 | B15 | **Exportar a triagem** para o repositório | Especificado; sem urgência — a triagem actual é toda de teste | O gatilho é a **primeira semana de triagem a sério**. Leva dentro uma sub-decisão: push manual ou tarefa semanal |
 | B14 | **Vortal e acingov** como segunda fonte | Aprovado com âmbito (só o que o DR não publica); é investigação antes de código | Ordem do Afonso, depois das pendências de casa. Pode dar «não dá» — o caminho actual parte sempre de um link vindo do DR |
-| C3 | **Histórico de erros** (as marcas são sobrescritas) | Proposto, esforço 1 | Luz verde; é o que faria o E4 valer mais, porque guarda a série em vez do último |
-| — | **Fallback morto** na detecção de plataforma | Achado a 30/08; a correcção é um `strip()` | Medir primeiro com `--reler` sobre cópia — o efeito real não está quantificado |
+| C3 | ~~Histórico de erros~~ | **Feito a 31/08/2026**: tabela `erros` com poda a 200 por tipo; as marcas continuam a servir o ecrã | — |
+| — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
 | 11.7-B | **Procura directa de entidade** (nome/NIF) | Fora do esqueleto por decisão dele, registada como reabrível | O sinal: dar por si a abrir um contrato só para chegar à ficha de uma entidade |
 | — | **Visualizador de PDF na ficha**, com pesquisa lá dentro | Em «Não fazer», por decisão dele ao retirar o B09 | Ele pedir |
 
@@ -41,7 +41,8 @@ ou feito.
 - **E3 → ecrãs fora do PC:** fechada. Os links do resumo ficam em
   `localhost` por decisão; nenhum ecrã é desenhado para o telemóvel.
 - **R1 (token) → recolha:** viva, mitigada pelo aviso no painel. O E4
-  não a reduz — mede-a.
+  (feito a 31/08) não a reduz — mede-a: a série na tabela `erros` é que
+  há-de dizer a frequência real.
 - **R11 (volume) → `/contratos/resumo`:** viva. É a razão de a entrada
   de Mercado ser «a pergunta primeiro», e o esqueleto proíbe qualquer
   painel que dispare o resumo sem filtro.
@@ -190,25 +191,30 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   Esforço 1. O sinal de que faz falta: abrir um contrato qualquer só
   para chegar à ficha de uma entidade.
 
-## Anotado no saneamento de 30/08/2026 — por fazer, com âmbito pequeno
+## Anotado no saneamento de 30/08/2026 — FEITO a 31/08/2026
 
-- **Reter histórico de erros (C3 da auditoria).** As marcas
-  `ultimo_erro_relogio`, `docs_ultimo_erro`, `analise_ultimo_erro` e
-  `ultima_copia` são sobrescritas — um dia mau apaga a história. A
-  forma mínima proposta, sem construir logging estruturado: uma tabela
-  `erros (quando TEXT, tipo TEXT, texto TEXT)` no `radar.db`, com o
-  `marca(...)` dos erros a fazer também um INSERT ali, e uma poda no
-  `iniciar_db()` que guarda os últimos ~200 por tipo. Leitura por SQL
-  chega para começar; um ecrã fica para quando fizer falta. Esforço 1.
-- **O «último recurso do texto todo» na detecção de plataforma está
-  morto.** Em `campos_do_detalhe()`, `pistas = " ".join((a, b, c))` com
-  os três vazios dá `"  "`, que é truthy, portanto
-  `simplifica(pistas) or simplifica(texto)` nunca cai para o texto —
-  desde sempre. Descoberto pelo primeiro teste que forçou o ramo
-  (`TestSinonimosDePlataforma`). A correcção é um `strip()`, mas mexe
-  no parser do detalhe e o efeito real (quantos anúncios ganhariam
-  plataforma) não está medido — medir primeiro com `--reler` sobre
-  cópia, decidir depois. Esforço 1.
+- **Reter histórico de erros (C3 da auditoria) — feito.** Tabela
+  `erros (quando, tipo, texto)` no `radar.db`; `marca_erro()` grava a
+  marca de sempre (o ecrã lê-a) MAIS uma linha na série, e a poda no
+  `iniciar_db()` guarda os últimos 200 por tipo — os recentes, com
+  teste a garantir que não são os primeiros. Tipos: relogio, pecas,
+  leitura, copia, token. Leitura por SQL, como proposto; o ecrã fica
+  para quando fizer falta.
+- **E4 — registar quando o token expira — feito.** Nos quatro pontos
+  onde a expiração se detecta (pesquisa e detalhe), o registo grava o
+  momento E a idade da captura (`registar_expiracao_token()`, mtime do
+  `curl_*.txt`), na série do C3 e na marca `token_ultimo_erro` — que
+  aparece nos indicadores como "Última expiração do token". É o
+  instrumento que faltava para o piso «≥ 8 dias» virar frequência.
+- **O «último recurso do texto todo» na detecção de plataforma — medido
+  e corrigido.** Medição a 31/08 (só leitura, sobre a base): dos 56 com
+  detalhe e sem plataforma, 18 tinham pistas reais (o strip() não lhes
+  toca) e **28 diziam a plataforma por extenso no corpo** — todos
+  acingov, referência directa ("apresentados através da plataforma
+  eletrónica acinGov"), nenhuma menção de passagem. Aplicado o
+  `strip()`, `--reler` (8,2 s): 56 → 28 sem plataforma, e a protecção
+  contra menções de passagem continua de pé (pistas reais que não batem
+  em nada continuam a NÃO cair para o texto — testado).
 
 ## Aprovado pelo Afonso a 30/08/2026, por fazer
 

@@ -3400,9 +3400,6 @@ class TestSinonimosDePlataforma(unittest.TestCase):
             self.assertNotIn(pista, radar.PLATAFORMAS, pista)
 
     # As pistas vêm da secção do link das peças, como num anúncio real.
-    # (O «último recurso do texto todo» está morto — o join de pistas
-    # vazias dá "  ", truthy — e isso ficou registado no BACKLOG; não é
-    # deste teste.)
     MOLDE = ("15 - PUBLICAÇÃO\n"
              "Link para acesso às peças do concurso (URL): %s")
 
@@ -3415,6 +3412,28 @@ class TestSinonimosDePlataforma(unittest.TestCase):
         campos = radar.campos_do_detalhe(
             self.MOLDE % "https://www.acingov.pt/abc")
         self.assertEqual(campos["plataforma"], "acingov")
+
+    def test_sem_pistas_o_texto_todo_serve_de_ultimo_recurso(self):
+        # O «último recurso do texto todo» esteve morto desde sempre: o
+        # join de pistas vazias dava "  ", truthy, e nunca se caía para
+        # o texto. Corrigido a 31/08/2026 com um strip(), depois de
+        # medido: 28 anúncios reais diziam a plataforma por extenso no
+        # corpo ("apresentados através da plataforma eletrónica acinGov")
+        # e ficavam sem ela.
+        campos = radar.campos_do_detalhe(
+            "6 - MODO\nOs documentos que constituem a proposta devem ser "
+            "apresentados através da plataforma eletrónica acinGov "
+            "(www.acingov.pt)")
+        self.assertEqual(campos["plataforma"], "acingov")
+
+    def test_com_pistas_reais_o_texto_nao_entra(self):
+        # a pista existe mas não bate em plataforma nenhuma: o texto
+        # todo NÃO pode entrar — era a protecção contra menções de
+        # passagem, e continua de pé
+        campos = radar.campos_do_detalhe(
+            (self.MOLDE % "https://portal-desconhecido.example.pt/x")
+            + "\nA vortal foi mencionada de passagem noutro contexto.")
+        self.assertEqual(campos["plataforma"], "")
 
 
 class TestLinhasDeUltimosErros(unittest.TestCase):
@@ -3791,6 +3810,75 @@ class TestBlocosPartilhados(unittest.TestCase):
     def test_selector_com_rotulo_proprio(self):
         saiu = radar.selector_procedimento([], "", "procedimento: todos")
         self.assertIn("procedimento: todos", saiu)
+
+
+class TestSerieDeErros(BaseTemporaria):
+    """C3: as marcas *_ultimo_erro são sobrescritas — um dia mau apagava
+    a história toda. marca_erro() guarda a marca (o ecrã lê-a) E uma
+    linha na tabela `erros`; a poda do iniciar_db() guarda os últimos
+    ~200 por tipo, e tem de guardar os RECENTES, não os primeiros."""
+
+    def test_marca_e_serie_ao_mesmo_tempo(self):
+        radar.marca_erro("x_ultimo_erro", "ensaio", "primeiro")
+        radar.marca_erro("x_ultimo_erro", "ensaio", "segundo")
+        self.assertEqual(radar.le_marca("x_ultimo_erro"), "segundo")
+        with radar.liga() as c:
+            serie = [r["texto"] for r in c.execute(
+                "SELECT texto FROM erros WHERE tipo='ensaio' ORDER BY id")]
+        self.assertEqual(serie, ["primeiro", "segundo"])
+
+    def test_a_poda_e_por_tipo_e_guarda_os_recentes(self):
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO erros (quando,tipo,texto) VALUES (?,?,?)",
+                [("2026-01-01", "a", str(i)) for i in range(250)]
+                + [("2026-01-01", "b", "único")])
+        radar.iniciar_db()          # a poda corre sempre, idempotente
+        with radar.liga() as c:
+            na = c.execute("SELECT COUNT(*) n FROM erros "
+                           "WHERE tipo='a'").fetchone()["n"]
+            nb = c.execute("SELECT COUNT(*) n FROM erros "
+                           "WHERE tipo='b'").fetchone()["n"]
+            menor = c.execute("SELECT MIN(CAST(texto AS INT)) m FROM erros "
+                              "WHERE tipo='a'").fetchone()["m"]
+        self.assertEqual(na, 200)
+        self.assertEqual(nb, 1)     # um tipo raro não é podado pelo cheio
+        self.assertEqual(menor, 50)  # caíram os 50 mais ANTIGOS
+
+
+class TestExpiracaoDoToken(BaseTemporaria):
+    """E4: a frequência de expiração do token nunca foi reconstruível —
+    marcas sobrescritas, token opaco. O registo guarda quando expirou e
+    de quando era a captura; é o instrumento de medida que faltava."""
+
+    def _com_pasta_temporaria(self, criar_captura):
+        antigo = radar.BASE_DIR
+        radar.BASE_DIR = self.pasta
+        try:
+            if criar_captura:
+                with open(os.path.join(self.pasta, "curl_DR.txt"),
+                          "w", encoding="utf-8") as f:
+                    f.write("curl 'https://exemplo'")
+            radar.registar_expiracao_token("curl_DR", "sem JSON")
+        finally:
+            radar.BASE_DIR = antigo
+
+    def test_regista_com_a_idade_da_captura(self):
+        self._com_pasta_temporaria(criar_captura=True)
+        valor = radar.le_marca("token_ultimo_erro")
+        self.assertIn("sem JSON", valor)
+        self.assertIn("captura de", valor)
+        self.assertIn("dias", valor)
+        with radar.liga() as c:
+            n = c.execute("SELECT COUNT(*) n FROM erros "
+                          "WHERE tipo='token'").fetchone()["n"]
+        self.assertEqual(n, 1)
+
+    def test_sem_captura_regista_na_mesma(self):
+        # a captura pode ter sido apagada: o registo do evento nao pode
+        # depender do ficheiro existir
+        self._com_pasta_temporaria(criar_captura=False)
+        self.assertEqual(radar.le_marca("token_ultimo_erro"), "sem JSON")
 
 
 if __name__ == "__main__":
