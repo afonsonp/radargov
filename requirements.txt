@@ -1,6 +1,10 @@
 flask
 requests
 pypdf
+# desenha as paginas das pecas no servidor (visualizador proprio do
+# painel, /peca): o <embed> do browser recusava abrir PDFs quando o
+# Chrome esta em "transferir em vez de abrir"
+pymupdf
 # destranca os PDFs de anúncio cifrados com AES -- são 19 na base, e
 # nenhum é Caderno de Encargos nem Programa, por isso não afecta a
 # leitura das peças; é só para o PDF do anúncio abrir.

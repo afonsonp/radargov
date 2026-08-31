@@ -3304,16 +3304,21 @@ várias dão escolha, nenhuma di-lo com contexto.
 das peças abrem em `/peca/<ref>/<nome>`, dentro do painel, com o
 Ctrl+F do visualizador do browser a pesquisar lá dentro — o caminho
 barato que o BACKLOG guardava. O resto (ZIPs, etc.) descarrega como
-antes. *Afinado na mesma noite:* no browser do Afonso o `<embed>`
-mostrava um cartão «Abrir» em vez do documento — os cabeçalhos do
-servidor estavam certos (`application/pdf`, `inline`; medido), a causa
-é a definição do Chrome «transferir PDFs em vez de abrir», que recusa
-renderizar em embeds. A página passou a ser robusta a isso: avisa do
-cartão (e diz onde vive a definição) e traz por baixo o **texto
-extraído da peça, por páginas** — o mesmo que alimenta a leitura pelo
-modelo — pesquisável com o Ctrl+F da própria página, funcione o
-visualizador ou não. Verificado com o test client sobre uma peça real
-(14 páginas de Programa de Procedimento).
+antes. *Afinado duas vezes na mesma noite:* no browser do Afonso o
+`<embed>` mostrava um cartão «Abrir» que só descarregava — os
+cabeçalhos do servidor estavam certos (`application/pdf`, `inline`;
+medido), a causa é a definição do Chrome «transferir PDFs em vez de
+abrir», que recusa renderizar em embeds. Primeiro a página ganhou o
+**texto extraído por páginas** (pesquisável com Ctrl+F, funcione o
+visualizador ou não); depois, porque ele quer que **abra sempre**, o
+radar ganhou um **visualizador próprio**: as páginas desenham-se no
+servidor com o **PyMuPDF** (novo em `libs/` e no `requirements.txt`) e
+servem-se como imagens (`/peca-pagina/<ref>/<nome>/<n>.png`, escala
+2×, cache de um dia, carregamento preguiçoso). Sem PyMuPDF o código
+degrada para o embed com o aviso — nunca rebenta. Verificado sobre o
+Caderno de Encargos real do INFARMED: 68 páginas desenhadas, PNG
+válido, fora do intervalo dá 404. Testes: **488** (486 + 2, a correr
+nos dois Pythons — o da pasta e o do sistema).
 
 Verificado a correr: resumo enviado e filas a zero; consulta
 preliminar aberta na ficha (chip «Consulta», «Ver na Vortal», vazio

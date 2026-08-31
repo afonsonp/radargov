@@ -9,7 +9,7 @@ if exist "%~dp0python\python.exe" (
   echo  computador.
   echo.
   echo  A confirmar que esta tudo...
-  "%PY%" -c "import flask, requests, pypdf; print('   Esta tudo. Abre o iniciar.bat.')"
+  "%PY%" -c "import flask, requests, pypdf, pymupdf; print('   Esta tudo. Abre o iniciar.bat.')"
   echo.
   pause
   exit /b

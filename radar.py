@@ -1614,6 +1614,49 @@ def texto_do_pdf(caminho):
     return texto, "ok"
 
 
+def paginas_do_pdf_imagem(caminho):
+    """Quantas paginas o visualizador proprio consegue desenhar.
+
+    0 quando nao ha PyMuPDF (vive em libs/; o import e preguicoso para
+    o resto do radar nao depender dele) ou o ficheiro nao abre -- e ai
+    a pagina da peca cai para o <embed> do browser, como antes.
+    """
+    try:
+        import pymupdf
+    except ImportError:
+        return 0
+    try:
+        with pymupdf.open(caminho) as doc:
+            return doc.page_count
+    except Exception:
+        return 0
+
+
+def imagem_da_pagina(caminho, n, escala=2.0):
+    """PNG da pagina n (1-based) do PDF, ou None se nao der.
+
+    E o visualizador proprio do radar: desenhar no servidor e a unica
+    maneira de a peca abrir SEMPRE dentro da aplicacao -- o <embed>
+    dependia da definicao do browser (com "transferir PDFs em vez de
+    abrir" ligada, o Chrome mostra um cartao e o Abrir descarrega, que
+    foi o que aconteceu ao Afonso a 31/08/2026). A escala 2x e para o
+    texto ficar nitido em ecras normais.
+    """
+    try:
+        import pymupdf
+    except ImportError:
+        return None
+    try:
+        with pymupdf.open(caminho) as doc:
+            if not 1 <= n <= doc.page_count:
+                return None
+            pix = doc[n - 1].get_pixmap(
+                matrix=pymupdf.Matrix(escala, escala))
+            return pix.tobytes("png")
+    except Exception:
+        return None
+
+
 def e_pdf(caminho):
     """Pelos primeiros bytes, e nao pela extensao.
 
@@ -10095,6 +10138,23 @@ def servir_documento(ref, nome):
                      download_name=os.path.basename(caminho))
 
 
+@app.route("/peca-pagina/<path:ref>/<nome>/<int:n>.png")
+def peca_pagina(ref, nome, n):
+    """Uma pagina da peca desenhada pelo servidor (PNG). E o que faz o
+    visualizador proprio funcionar em qualquer browser."""
+    pasta = os.path.abspath(pasta_do_anuncio(ref))
+    caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
+    if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
+        return "", 404
+    png = imagem_da_pagina(caminho, n)
+    if png is None:
+        return "", 404
+    # as pecas nao mudam depois de trazidas: o browser pode guardar as
+    # paginas um dia e poupar o desenho na visita seguinte
+    return Response(png, mimetype="image/png",
+                    headers={"Cache-Control": "max-age=86400"})
+
+
 @app.route("/peca/<path:ref>/<nome>")
 def ver_peca(ref, nome):
     """A peca aberta dentro da aplicacao, com pesquisa la dentro.
@@ -10149,23 +10209,48 @@ def ver_peca(ref, nome):
     else:
         texto_cx = ""
 
+    # O visualizador proprio: as paginas desenhadas pelo servidor, que
+    # abrem em qualquer browser -- o <embed> ficava a merce da definicao
+    # "transferir PDFs em vez de abrir" e mostrava um cartao no lugar do
+    # documento. So se cai para o embed quando o PyMuPDF nao esta (ou o
+    # ficheiro nao e um PDF que ele abra).
+    n_paginas = paginas_do_pdf_imagem(caminho)
+    if n_paginas:
+        base_img = "/peca-pagina/%s/%s" % (ref, quote(nome, safe=""))
+        visual = "".join(
+            "<img src='%s/%d.png' loading='lazy' alt='página %d' "
+            "style='display:block;width:100%%;max-width:960px;"
+            "margin:0 auto 14px;border:1px solid var(--linha);"
+            "border-radius:6px;background:#fff'>"
+            % (html.escape(base_img, quote=True), i, i)
+            for i in range(1, n_paginas + 1))
+        aviso_topo = (
+            "Documento desenhado pelo radar, página a página (%d). Para "
+            "pesquisar, usa o Ctrl+F: o texto extraído está no fim da "
+            "página e o browser abre-o sozinho ao encontrar. "
+            % n_paginas)
+    else:
+        visual = ("<embed src='%s' type='application/pdf' "
+                  "style='width:100%%;height:82vh;"
+                  "border:1px solid var(--linha);"
+                  "border-radius:8px;background:#fff'>"
+                  % html.escape(origem, quote=True))
+        aviso_topo = (
+            "Pesquisa dentro do documento com o Ctrl+F do visualizador. "
+            "Se em vez do documento vires um cartão &ldquo;Abrir&rdquo;, "
+            "o teu browser está configurado para <b>transferir PDFs em "
+            "vez de os abrir</b> &mdash; o texto extraído fica aqui em "
+            "baixo. ")
+
     corpo = (
         "<div class='larg'>"
-        "<div class='nota' style='margin-bottom:10px'>Pesquisa dentro do "
-        "documento com o Ctrl+F do visualizador. Se em vez do documento "
-        "vires um cartão &ldquo;Abrir&rdquo;, o teu browser está "
-        "configurado para <b>transferir PDFs em vez de os abrir</b> "
-        "(no Chrome: Definições &rsaquo; Privacidade &rsaquo; Definições "
-        "de sites &rsaquo; Documentos PDF) &mdash; o cartão abre o "
-        "ficheiro na mesma, e o texto extraído fica aqui em baixo. "
+        "<div class='nota' style='margin-bottom:10px'>%s"
         "<a href='%s' download>Descarregar</a> &middot; "
         "<a href='/anuncio/%s'>voltar à ficha</a></div>"
-        "<embed src='%s' type='application/pdf' "
-        "style='width:100%%;height:82vh;border:1px solid var(--linha);"
-        "border-radius:8px;background:#fff'>"
         "%s"
-        "</div>" % (html.escape(origem, quote=True), ref,
-                    html.escape(origem, quote=True), texto_cx))
+        "%s"
+        "</div>" % (aviso_topo, html.escape(origem, quote=True), ref,
+                    visual, texto_cx))
     return envolver(
         "pesquisa", nome, "Peça do anúncio %s." % html.escape(ref),
         corpo, migalhas=migalhas_de("pesquisa", ref),

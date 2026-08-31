@@ -252,13 +252,11 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   disto?";
 - **as peças do procedimento** (Programa de Concurso, Caderno de
   Encargos, anexos) — os PDF abrem **dentro da aplicação**, numa página
-  própria com o visualizador do browser, onde o Ctrl+F pesquisa dentro
-  do documento; o resto descarrega-se. Se o teu browser estiver
-  configurado para *transferir* PDFs em vez de os abrir, aparece um
-  cartão "Abrir" no lugar do documento — a página avisa, e traz por
-  baixo o **texto extraído da peça**, por páginas, pesquisável com o
-  Ctrl+F na mesma (no Chrome, a definição é Definições › Privacidade ›
-  Definições de sites › Documentos PDF);
+  própria onde é o próprio radar que desenha o documento, página a
+  página. Abre em qualquer browser, seja qual for a configuração de
+  PDFs dele. Para pesquisar, Ctrl+F: o **texto extraído da peça** está
+  no fim da página (o browser salta para lá sozinho ao encontrar). O
+  que não for PDF descarrega-se como antes;
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica.
 

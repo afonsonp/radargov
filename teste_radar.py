@@ -4144,6 +4144,54 @@ class TestConsultasPreliminares(BaseTemporaria):
         self.assertIn("GetContractNoticeDocuments", s.urls[0])
 
 
+class TestVisualizadorDePecas(unittest.TestCase):
+    """O <embed> ficava à mercê da definição do browser: com «transferir
+    PDFs em vez de abrir» ligada, o Chrome mostrava um cartão «Abrir»
+    que só descarregava (aconteceu ao Afonso a 31/08/2026). O
+    visualizador próprio desenha as páginas no servidor com o PyMuPDF,
+    que vive em libs/ — e sem ele o código degrada para o embed em vez
+    de rebentar."""
+
+    @classmethod
+    def setUpClass(cls):
+        # o Python da pasta vê o libs/ sozinho; o do sistema, que corre
+        # os testes, precisa do caminho
+        libs = os.path.join(
+            os.path.dirname(os.path.abspath(radar.__file__)), "libs")
+        if os.path.isdir(libs) and libs not in sys.path:
+            sys.path.append(libs)
+        try:
+            import pymupdf                    # noqa: F401
+            cls.tem_pymupdf = True
+        except ImportError:
+            cls.tem_pymupdf = False
+
+    def test_ficheiro_que_nao_abre_nao_rebenta(self):
+        # sem PyMuPDF ou com um caminho inválido, a resposta é a mesma:
+        # 0 páginas / None, e a página cai para o embed
+        self.assertEqual(radar.paginas_do_pdf_imagem("nao-existe.pdf"), 0)
+        self.assertIsNone(radar.imagem_da_pagina("nao-existe.pdf", 1))
+
+    def test_desenha_a_pagina_como_png(self):
+        if not self.tem_pymupdf:
+            self.skipTest("sem pymupdf no Python dos testes")
+        import tempfile
+
+        import pymupdf
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = os.path.join(pasta, "ensaio.pdf")
+            doc = pymupdf.open()
+            doc.new_page().insert_text((72, 72), "ensaio do visualizador")
+            doc.save(caminho)
+            doc.close()
+            self.assertEqual(radar.paginas_do_pdf_imagem(caminho), 1)
+            png = radar.imagem_da_pagina(caminho, 1)
+            self.assertTrue(png.startswith(b"\x89PNG"))
+            # fora do intervalo é None, não uma excepção
+            self.assertIsNone(radar.imagem_da_pagina(caminho, 2))
+            self.assertIsNone(radar.imagem_da_pagina(caminho, 0))
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
