@@ -37,8 +37,11 @@ Desde 31/08/2026 o acervo já não está todo à entrada: a página inicial
 é a **Triagem**, que mostra só os por ver publicados na janela de
 `detalhe_dias` — **1 374** em vez dos 61 981 de antes — e o acervo
 completo vive na **Pesquisa** (`/anuncios`, 12 meses por omissão, com
-interruptor para o arquivo). É o andamento 1 do esqueleto; a entrada
-de diário do fim conta os números todos.
+interruptor para o arquivo). **O esqueleto está implementado** (os
+quatro andamentos, todos a 31/08/2026): navegação por cinco intenções,
+vocabulário e atalhos, renovações como modo dos contratos, e o Fluxo B
+verificado à espera só do primeiro envio (E2). As entradas de diário
+do fim contam os números todos.
 
 *(Números de 31/08/2026. Este parágrafo já mentiu — dizia "~5 100,
 todos com detalhe lido" por cima de uma base de 66 mil a 8% — porque as
@@ -3126,3 +3129,30 @@ Testes: **467** (453 + 14), verdes em ~2 s (os novos com base
 temporária). Verificado a correr: redirect com filtro, troca de modo,
 datas postas de lado declaradas, ligação "anúncio" nas linhas com
 `n_anuncio`, atalho da entidade.
+
+## Andamento 4 verificado: o Fluxo B está armado, 31 de agosto de 2026
+
+O andamento 4 revelou-se **verificação, não código**: o Fluxo B já
+estava inteiro. Confirmado de ponta a ponta no painel a correr e na
+base (só leitura):
+
+- **O canal está pronto.** Conta que envia e destino postos, servidor
+  `smtp.gmail.com:587`, palavra-passe de aplicação lida de
+  `email_senha.txt` (o login SMTP passa desde as 00:38 de 31/08). O
+  ecrã de Alertas mostra a saúde do envio e o botão "Enviar o resumo
+  agora" está armado.
+- **A entrega automática está desenhada e ligada**: os alertas
+  reconhecem na verificação, o relógio envia o resumo uma vez por dia
+  a partir das 17:00 (`hora_resumo`), o corpo vai por e-mail E fica em
+  `AVISOS.txt`, os links ficam em `localhost` (E3, decidido). Falha a
+  sério não marca como entregue — volta a tentar.
+- **As três filas estão a zero** (alertas por enviar 0, alterações 0,
+  seguidas 0) e nunca saiu resumo nenhum (`ultimo_resumo` sem marca).
+  Disparar o envio agora devolveria "nada de novo para avisar" e não
+  sairia e-mail — o mecanismo é honesto: só envia com novidade.
+
+**O que falta é só o E2, e é do Afonso**: o primeiro envio verdadeiro.
+Sai sozinho na primeira verificação que apanhar um anúncio do alerta
+"CPV IT", uma alteração ou uma seguida (a partir da hora do resumo) —
+ou à ordem, pelo botão, no dia em que houver conteúdo. Nenhum e-mail
+foi enviado nesta sessão.

@@ -887,13 +887,17 @@ formulário, as faixas e a tabela dos contratos passaram a existir uma
 vez; extracção além disso não se fez.)
 Desbloqueia: o fim do "corrigido numa vista, vivo na irmã" (§3.2).
 
-**Andamento 4 — o Fluxo B inteiro (dependente E2/E3).** Muda: a
+**Andamento 4 — o Fluxo B inteiro (dependente E2/E3). VERIFICADO a
+31/08/2026: era verificação, não código** (entrada de diário no
+ESTADO.md). O Fluxo B já estava inteiro — canal autenticado, entrega
+automática armada, links em localhost (E3), AVISOS.txt sempre. Muda: a
 entrega das novidades — e-mail ligado (E2) com os links resolvidos
 (E3), ou a secção "novidades" em Alertas se a decisão for sem e-mail
-(§8, decisão 11.3-B). Desbloqueia: a promessa central ("deixar de precisar de
-abrir o radar") pela primeira vez com conteúdo real. Continua na
-mesma: tudo o resto — este andamento é independente dos anteriores e
-pode trocar de ordem com o 3 se a decisão E2 chegar primeiro.
+(§8, decisão 11.3-B — cenário que deixou de ser o provável). O que
+falta é só o **primeiro envio verdadeiro (E2)**, que espera a ordem do
+Afonso ou a primeira novidade nas filas. Desbloqueia: a promessa
+central ("deixar de precisar de abrir o radar") pela primeira vez com
+conteúdo real.
 
 ---
 
