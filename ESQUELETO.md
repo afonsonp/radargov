@@ -50,6 +50,17 @@ quê e quando.
 | 11.7 | Porta própria para entidades | **A — só ligações**, com B documentado | §3.8, §3.11; a caixa de procura fica registada como reabrível |
 | 11.8 | «Verificar agora» onde | **A — só na Triagem** | §3.1, §3.4, §3.5, §9 linha 15; muda o comportamento actual |
 
+**Revisto pelo Afonso a 31/08/2026, depois de um dia de uso:** as
+decisões **11.2** e **11.5** foram substituídas por uma só — a Triagem
+e a Pesquisa fundiram-se numa lista única em `/` («ambas são a mesma
+coisa»), com as abas *por ver / interessados / abandonados / todos* a
+fazer o trabalho dos dois âmbitos, e com «já não é possível responder»
+a contar como abandonado (recorte de leitura, `condicao_da_aba()`; a
+base não muda). A navegação ficou com **quatro** itens. O registo do
+que se pesou nas versões originais mantém-se abaixo — foi esse registo
+que permitiu reabrir as decisões sabendo o custo. O resto (11.4, 11.6,
+11.7, 11.8, 6.x) mantém-se como decidido.
+
 ---
 
 ## 1. Princípios

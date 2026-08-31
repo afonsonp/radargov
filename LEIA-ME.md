@@ -23,7 +23,7 @@ movendo a pasta para fora do OneDrive.
 ## 2. Primeira instalação
 
 1. Duplo clique em `instalar.bat`. Instala as dependências (flask,
-   requests, pypdf, cryptography).
+   requests, pypdf, cryptography, pymupdf).
 2. Faz a captura da secção 3.
 3. Duplo clique em `iniciar.bat`. Abre o painel em `http://localhost:8765`.
 4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as
@@ -76,7 +76,7 @@ datas entram na base, sem juízo prévio. A triagem é tua, no painel.
 
 E, desde 31/08/2026, também as **consultas preliminares da Vortal** —
 o tipo de procedimento que a parte L não publica de todo. Vêm da
-pesquisa pública da plataforma (sem sessão), entram na Triagem como
+pesquisa pública da plataforma (sem sessão), entram no Por ver como
 qualquer anúncio (com a etiqueta `vortal` e o tipo "Consulta
 preliminar") e **só esse tipo entra**: concursos públicos da Vortal já
 vêm pelo DR, e duplicá-los era mentir nas contagens. A ficha destas
@@ -146,20 +146,27 @@ de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
 
 ## 5. O painel
 
-A barra da esquerda tem cinco entradas, por ordem de uso: **Triagem**
-(a página inicial — decidir o que entrou), **Em curso** (o quadro e o
-calendário dos "interessa"), **Pesquisa** (o acervo completo dos
-anúncios), **Mercado** (os contratos e as renovações) e **Alertas**.
-Os Indicadores não estão na barra: chegam-se pelo ponto
-verde/vermelho da última verificação, em baixo à esquerda (§8).
+A barra da esquerda tem quatro entradas, por ordem de uso:
+**Anúncios** (a página inicial — a lista toda, triagem e acervo num
+sítio só), **Em curso** (o quadro e o calendário dos "interessa"),
+**Mercado** (os contratos e as renovações) e **Alertas**. Os
+Indicadores não estão na barra: chegam-se pelo ponto verde/vermelho
+da última verificação, em baixo à esquerda (§8).
 
-A **Triagem** abre só com os anúncios por ver **publicados nos últimos
-60 dias** — a mesma janela que a rotina lê (`detalhe_dias` no
-`config.json`) — em vez dos dois anos de arquivo. A página diz a
-janela por extenso, e a ligação "ver no acervo completo" salta para a
-Pesquisa levando o filtro que estiver posto. A **Pesquisa**
-(`/anuncios`) é a mesma lista sem esse âmbito: abre nos últimos 12
-meses e a caixa **"incluir arquivo"** alarga aos dois anos inteiros.
+Em cima da lista estão as quatro abas que fazem o trabalho todo:
+
+- **Por ver** — o que está por decidir **e ainda dá para responder**:
+  prazo aberto, ou, quando o prazo ainda não foi lido, publicado nos
+  últimos 60 dias (a janela `detalhe_dias`). É a aba em que a página
+  abre, e anda na ordem do milhar, não dos 60 mil.
+- **Interessados** — os teus "interessa", todos: um interessa com o
+  prazo já passado é trabalho em curso (proposta entregue, à espera de
+  decisão) e não desaparece daqui.
+- **Abandonados** — os que abandonaste à mão **mais tudo o que já não
+  é possível responder** (prazo passado, ou publicado há tanto tempo
+  que o prazo já lá vai). Passa para cá sozinho, sem mexer em nada: se
+  um anúncio for rectificado com prazo novo, volta sozinho ao Por ver.
+- **Todos** — a base inteira, sem recorte.
 
 A lista vem sempre do mais recente para o mais antigo.
 
@@ -182,7 +189,7 @@ nada. Podes filtrar por:
   que não a indicam. Serve sobretudo para isolares aquelas de que o
   radar consegue trazer as peças sozinho.
 - **intervalo de datas** de publicação.
-- **estado**: por ver, interessa, descartados, ou todos.
+- **estado**: as mesmas quatro abas, para os filtros guardados.
 - **prazo**: abertos, urgentes (a menos de N dias — a janela edita-se
   em Alertas) ou expirados. Serve para apartar o arquivo da triagem do
   dia.
@@ -209,8 +216,9 @@ Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de
 ir ao site da plataforma buscá-las.
 
-Os botões **interessa** e **descartar** servem para ires limpando a
-lista. Descartar não apaga, arquiva, e podes sempre voltar a vê-los.
+Os botões **interessa** e **abandonar** servem para ires limpando a
+lista. Abandonar não apaga, arquiva — fica na aba Abandonados, e
+podes sempre repor.
 
 O **Exportar CSV** exporta exactamente o que o filtro está a mostrar,
 não a base inteira.

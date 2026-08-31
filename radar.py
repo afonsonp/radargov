@@ -5376,11 +5376,14 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 # e a que o item abre. Os Indicadores NAO constam: saem da navegacao e
 # entram pela zona de estado da barra lateral (decisao 11.6-A, sem
 # atalho secundario).
-NAV = (("triagem", "Triagem", "/", ()),
+# A Triagem e a Pesquisa fundiram-se numa lista so a 31/08/2026, por
+# decisao do Afonso depois de usar ("ambas sao a mesma coisa"): as
+# abas por ver / interessados / abandonados / todos fazem o trabalho
+# que as duas paginas faziam, e /anuncios redirecciona para "/".
+NAV = (("anuncios", "Anúncios", "/", ()),
        ("emcurso", "Em curso", "/quadro",
         (("quadro", "Quadro", "/quadro"),
          ("calendario", "Calendário", "/calendario"))),
-       ("pesquisa", "Pesquisa", "/anuncios", ()),
        ("mercado", "Mercado", "/contratos",
         (("contratos", "Contratos", "/contratos"),
          # as renovacoes fundiram-se nos contratos como modo (6.1-A);
@@ -5391,9 +5394,8 @@ NAV = (("triagem", "Triagem", "/", ()),
 # Que item da navegacao acende para cada pagina. As paginas mantem as
 # chaves que sempre tiveram (as vistas de filtros incluidas); o item e
 # hierarquia por cima delas, nao um nome novo.
-ITEM_DA_PAGINA = {"triagem": "triagem",
+ITEM_DA_PAGINA = {"anuncios": "anuncios",
                   "quadro": "emcurso", "calendario": "emcurso",
-                  "pesquisa": "pesquisa",
                   "contratos": "mercado", "renovacoes": "mercado",
                   "alertas": "alertas"}
 
@@ -5401,11 +5403,12 @@ ITEM_DA_PAGINA = {"triagem": "triagem",
 # alcancam-se pelo ponto da ultima verificacao na barra lateral.
 PAGINAS_FORA_DA_NAV = {"indicadores": "Indicadores"}
 
-# Onde o botao "Verificar agora" aparece: SO na Triagem (decisao
-# 11.8-A). O botao vai ao DR buscar anuncios novos e os novos aterram
-# na Triagem -- e la que o resultado se ve. No quadro e no calendario
-# parecia dizer respeito ao que esta no ecra, e nao dizia.
-PAGINAS_COM_VERIFICAR = ("triagem",)
+# Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
+# (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
+# anuncios novos e os novos aterram no por ver -- e la que o resultado
+# se ve. No quadro e no calendario parecia dizer respeito ao que esta
+# no ecra, e nao dizia.
+PAGINAS_COM_VERIFICAR = ("anuncios",)
 
 
 def migalhas_de(vista, folha=""):
@@ -5651,7 +5654,7 @@ def linha(a, vista=""):
         tags.append("<span class='tag %s'>%s</span>" % (classe_prazo, texto_prazo))
     if a["estado"] != vista:
         rotulo_estado = {"novo": "por ver", "interessa": "interessa",
-                         "descartado": "descartado"}.get(a["estado"], a["estado"])
+                         "descartado": "abandonado"}.get(a["estado"], a["estado"])
         classe_estado = {"interessa": "ok",
                          "descartado": ""}.get(a["estado"], "info")
         tags.append("<span class='tag %s'>%s</span>"
@@ -5671,7 +5674,7 @@ def linha(a, vista=""):
                             "interessa", "mini verde"))
     if a["estado"] != "descartado":
         botoes.append(accao("/estado/%s/descartado" % a["ref"],
-                            "descartar", "mini"))
+                            "abandonar", "mini"))
     if a["estado"] != "novo":
         botoes.append(accao("/estado/%s/novo" % a["ref"],
                             "repor por ver", "mini"))
@@ -6032,75 +6035,101 @@ def paginador(pagina, paginas, args, base="/"):
     return "<div class='paginas'>" + "".join(pecas) + "</div>"
 
 
-def com_ambito(onde, valores, desde):
-    """Poe a janela de uma vista POR CIMA do que condicoes() deu.
+def com_recorte(onde, valores, frag, vals):
+    """Junta um fragmento de recorte POR CIMA do que condicoes() deu.
 
-    A janela e da VISTA (Triagem: detalhe_dias; Pesquisa: 12 meses sem
-    o interruptor do arquivo), nunca do motor: condicoes() serve tambem
-    os alertas (registar_alertas) e os filtros guardados, e a janela la
-    dentro fazia um alerta deixar de ver, em silencio, tudo o que hoje
-    ve. Nao a acrescentes a condicoes().
+    O recorte e da PAGINA (as abas da lista de anuncios), nunca do
+    motor: condicoes() serve tambem os alertas (registar_alertas) e os
+    filtros guardados, e um recorte la dentro fazia um alerta deixar de
+    ver, em silencio, tudo o que hoje ve. Nao o acrescentes a
+    condicoes().
     """
-    if not desde:
+    if not frag:
         return onde, valores
     if onde:
-        return onde + " AND data_pub >= ?", valores + [desde]
-    return " WHERE data_pub >= ?", valores + [desde]
+        return onde + " AND (" + frag + ")", valores + vals
+    return " WHERE (" + frag + ")", valores + vals
 
 
-def ambito_da_vista(vista, args, hoje=None, cfg=None):
-    """A data minima de publicacao do ambito de uma vista, ou None.
+def condicao_da_aba(estado, hoje=None, cfg=None):
+    """(fragmento, valores) do que cada aba da lista mostra.
 
-    Triagem (decisao 11.2-A): a MESMA janela que a rotina le
-    (detalhe_dias) -- um conceito, nao dois. Mexer no valor muda o
-    trabalho de fundo E o que se ve de manha, e a pagina di-lo; a 0,
-    como na rotina, nao ha janela. Pesquisa (11.5-B): 12 meses -- a
-    janela da comparacao homologa -- salvo com o interruptor "incluir
-    arquivo" ligado, que alarga ao acervo todo.
+    Decisao do Afonso a 31/08/2026, depois de usar, a substituir a
+    Triagem e a Pesquisa separadas (11.2-A/11.5-B revistas por ele):
+    UMA lista, e "o que ja nao e possivel responder" conta como
+    abandonado. As abas:
+
+    - por ver ('novo'): por decidir E ainda respondivel -- prazo
+      aberto; sem prazo lido, vale a data de publicacao dentro de
+      detalhe_dias (entre publicacao e prazo vao ~18 dias em media, 60
+      e folga -- e e a mesma janela que a rotina le).
+    - interessados: TODOS os interessa. Um interessa com prazo passado
+      e trabalho em curso (proposta entregue, a aguardar decisao) e
+      nao se esconde por expirar -- regra antiga da casa.
+    - abandonados ('descartado'): os descartados a mao MAIS os por ver
+      que ja nao sao respondiveis. Nada muda na base: e recorte de
+      leitura, e por isso um expirado que seja rectificado com prazo
+      novo volta sozinho ao por ver.
+    - todos (""): sem recorte.
+
+    Aplica-se por cima de condicoes() com com_recorte() -- o motor
+    nunca leva isto (alertas!).
     """
+    if estado == "interessa":
+        return "estado = ?", ["interessa"]
+    if not estado:
+        return "", []
     hoje = hoje or datetime.now().date()
-    if vista == "triagem":
-        cfg = ler_config() if cfg is None else cfg
-        try:
-            dias = int(cfg.get("detalhe_dias", 60))
-        except (TypeError, ValueError):
-            dias = 60
-        if dias <= 0:
-            return None
-        return (hoje - timedelta(days=dias)).isoformat()
-    if vista == "pesquisa" and not (args.get("arquivo") or "").strip():
-        try:
-            return hoje.replace(year=hoje.year - 1).isoformat()
-        except ValueError:                     # 29 de Fevereiro
-            return hoje.replace(year=hoje.year - 1, day=28).isoformat()
-    return None
+    cfg = ler_config() if cfg is None else cfg
+    try:
+        dias = int(cfg.get("detalhe_dias", 60)) or 60
+    except (TypeError, ValueError):
+        dias = 60
+    corte = (hoje - timedelta(days=dias)).isoformat()
+    vivo = ("((prazo IS NOT NULL AND prazo != '' AND prazo >= ?) OR "
+            "(COALESCE(prazo, '') = '' AND data_pub >= ?))")
+    if estado == "novo":
+        return "estado = 'novo' AND " + vivo, [hoje.isoformat(), corte]
+    if estado == "descartado":
+        return ("(estado = 'descartado' OR (estado = 'novo' AND NOT "
+                + vivo + "))"), [hoje.isoformat(), corte]
+    return "estado = ?", [estado]
 
 
 @app.route("/")
 def painel():
-    """Triagem: decidir o que entrou e e decidivel (P1)."""
-    return _lista_de_anuncios("triagem")
+    """A lista dos anuncios: triagem e acervo na MESMA pagina, com as
+    abas a apartar (por ver / interessados / abandonados / todos)."""
+    return _lista_de_anuncios()
 
 
 @app.route("/anuncios")
 def pesquisa():
-    """Pesquisa: o acervo completo, sem prazo de decisao."""
-    return _lista_de_anuncios("pesquisa")
+    """A Pesquisa fundiu-se na lista unica (decisao do Afonso a
+    31/08/2026). A rota redirecciona com o filtro atras, para nao
+    partir filtros guardados nem ligacoes antigas. O `arquivo` do
+    interruptor antigo cai: deixou de haver janela para desligar."""
+    novos = args_da_lista(request.args)
+    novos.pop("arquivo", None)
+    return redirect("/?" + urlencode(novos) if novos else "/")
 
 
-def _lista_de_anuncios(ambito):
-    """A lista de anuncios, que serve a Triagem ("/") e a Pesquisa
-    ("/anuncios").
+def _lista_de_anuncios():
+    """A lista de anuncios, uma so (decisao do Afonso a 31/08/2026:
+    "a triagem e a pesquisa nao fazem sentido estarem separados").
 
-    Sao a MESMA vista de filtros ("anuncios" em CAMPOS_POR_VISTA: uma
-    chave nova partia os filtros guardados que ja existem) com ambitos
-    diferentes por cima. Uma so funcao de proposito -- "corrigido numa
-    vista, vivo na vista irma" e o principal gerador de bugs da casa.
+    O estado da aba NAO vai ao motor: tira-se dos args e aplica-se por
+    cima como recorte (condicao_da_aba), porque a aba dos abandonados
+    e uma uniao (descartados + expirados) que um simples estado=? nao
+    diz. A identidade dos filtros guardados nao muda: o `estado`
+    continua na consulta canonica como sempre.
     """
-    e_triagem = ambito == "triagem"
-    rota = "/" if e_triagem else "/anuncios"
-    desde = ambito_da_vista(ambito, request.args)
-    onde, valores = com_ambito(*condicoes(request.args), desde=desde)
+    rota = "/"
+    estado_da_aba = request.args.get("estado")
+    estado_da_aba = "novo" if estado_da_aba is None else estado_da_aba.strip()
+    onde, valores = com_recorte(
+        *condicoes(args_da_lista(request.args, estado="")),
+        *condicao_da_aba(estado_da_aba))
     with liga() as c:
         # Com paginas de 20 a contagem deixa de ser dispensavel: e ela que
         # diz quantas paginas ha. Faz-se sempre, antes da consulta das
@@ -6114,22 +6143,22 @@ def _lista_de_anuncios(ambito):
                            " ORDER BY data_pub DESC, ref DESC LIMIT ? OFFSET ?",
                            valores + [POR_PAGINA_LISTA,
                                       (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
-        # Os separadores contam DENTRO do filtro. Contavam a base inteira:
-        # com CPV 72 posto diziam "Por ver 66 007 · Todos 66 009" por cima
+        # As abas contam DENTRO do filtro. Contavam a base inteira: com
+        # CPV 72 posto diziam "Por ver 66 007 · Todos 66 009" por cima
         # de uma lista de 234, e as proprias ligacoes levavam o filtro
         # atras -- o numero e o destino do mesmo botao discordavam.
-        # O ambito da vista aplica-se tambem as contagens: os numeros
-        # das abas tem de abrir exactamente a lista que os confirma.
-        onde_sem_estado, val_sem_estado = com_ambito(
-            *condicoes(args_da_lista(request.args, estado="")), desde=desde)
-        contas = {e: c.execute(
-            "SELECT COUNT(*) n FROM anuncios" + onde_sem_estado +
-            (" AND" if onde_sem_estado else " WHERE") + " estado=?",
-            val_sem_estado + [e]).fetchone()["n"]
-            for e in ("novo", "interessa", "descartado")}
-        contas[""] = c.execute("SELECT COUNT(*) n FROM anuncios"
-                               + onde_sem_estado,
-                               val_sem_estado).fetchone()["n"]
+        # Cada aba conta com o SEU recorte (condicao_da_aba): o numero
+        # tem de abrir exactamente a lista que o confirma.
+        onde_sem_estado, val_sem_estado = condicoes(
+            args_da_lista(request.args, estado=""))
+        contas = {}
+        for e in ("novo", "interessa", "descartado", ""):
+            onde_aba, val_aba = com_recorte(onde_sem_estado,
+                                            val_sem_estado,
+                                            *condicao_da_aba(e))
+            contas[e] = c.execute(
+                "SELECT COUNT(*) n FROM anuncios" + onde_aba,
+                val_aba).fetchone()["n"]
         total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
@@ -6143,8 +6172,9 @@ def _lista_de_anuncios(ambito):
             "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
             "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC",
             (SEM_PLATAFORMA,)).fetchall()
-        onde_sem_plat, val_sem_plat = com_ambito(
-            *condicoes(args_da_lista(request.args, plat="")), desde=desde)
+        onde_sem_plat, val_sem_plat = com_recorte(
+            *condicoes(args_da_lista(request.args, plat="", estado="")),
+            *condicao_da_aba(estado_da_aba))
         no_filtro = c.execute("SELECT COUNT(*) n FROM anuncios"
                               + onde_sem_plat, val_sem_plat).fetchone()["n"]
         porler_filtro = c.execute(
@@ -6159,12 +6189,17 @@ def _lista_de_anuncios(ambito):
 
     mil = mil_pt
 
-    estado_actual = request.args.get("estado", "novo")
+    # Os rotulos sao os que o Afonso pediu a 31/08/2026: por ver ·
+    # interessados · abandonados · todos. "Abandonados" junta os
+    # descartados a mao com os que expiraram por ver -- e recorte de
+    # leitura (condicao_da_aba), a base nao muda.
+    estado_actual = estado_da_aba
     abas = ["<div class='abas'>"]
-    for valor, etiqueta, quantos in (("novo", "Por ver", contas["novo"]),
-                                     ("interessa", "Interessa", contas["interessa"]),
-                                     ("descartado", "Descartados", contas["descartado"]),
-                                     ("", "Todos", contas[""])):
+    for valor, etiqueta, quantos in (
+            ("novo", "Por ver", contas["novo"]),
+            ("interessa", "Interessados", contas["interessa"]),
+            ("descartado", "Abandonados", contas["descartado"]),
+            ("", "Todos", contas[""])):
         abas.append("<a class='%s' href='%s'>%s <i>%s</i></a>"
                     % ("on" if valor == estado_actual else "",
                        sem_pagina(request.args, rota, estado=valor),
@@ -6209,18 +6244,6 @@ def _lista_de_anuncios(ambito):
                      ("urgente", "só os que acabam em %d dias" % dias_urgente()),
                      ("expirado", "só os de prazo passado")))
 
-    if e_triagem:
-        interruptor = ""
-    else:
-        # So a Pesquisa tem o interruptor: o ambito da Triagem e fixo.
-        # O estado do interruptor viaja no filtro (CAMPOS_FILTRO), por
-        # isso sobrevive a guardar e a reabrir.
-        interruptor = (
-            "<label class='op-arquivo'><input type='checkbox' "
-            "name='arquivo' value='1'%s> incluir arquivo</label>"
-            % (" checked"
-               if (request.args.get("arquivo") or "").strip() else ""))
-
     filtros = (
         "<form class='cx filtros' method='get' action='%s'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
@@ -6239,7 +6262,6 @@ def _lista_de_anuncios(ambito):
         "<select name='prazo'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
-        "%s"
         "<input type='hidden' name='estado' value='%s'>"
         "<button type='submit'>Filtrar</button>"
         "<a class='limpar' href='%s'>limpar</a>"
@@ -6254,7 +6276,6 @@ def _lista_de_anuncios(ambito):
            "".join(opcoes_plat), opcoes_prazo,
            html.escape(request.args.get("de", ""), quote=True),
            html.escape(request.args.get("ate", ""), quote=True),
-           interruptor,
            html.escape(estado_actual, quote=True),
            html.escape(href_limpar(rota, estado_actual), quote=True)))
 
@@ -6267,12 +6288,13 @@ def _lista_de_anuncios(ambito):
         corpo_lista = ("<div class='lista'>"
                        + "".join(linha(a, estado_actual) for a in linhas)
                        + "</div>")
-    elif e_triagem and filtro_em_uso == "estado=novo":
-        # O vazio proprio da Triagem: nada decidivel e diferente de um
-        # filtro que nao apanhou nada.
-        corpo_lista = ("<div class='vazio'>Não entrou nada decidível na "
-                       "janela da triagem. O acervo completo está na "
-                       "<a href='/anuncios'>Pesquisa</a>.</div>")
+    elif estado_actual == "novo" and filtro_em_uso == "estado=novo":
+        # O vazio proprio do "por ver" sem filtro: nada por decidir e
+        # diferente de um filtro que nao apanhou nada.
+        corpo_lista = ("<div class='vazio'>Nada por decidir: o que "
+                       "entrou está triado, e o que expirou passou "
+                       "sozinho para os <a href='/?estado=descartado'>"
+                       "Abandonados</a>.</div>")
     else:
         corpo_lista = ("<div class='vazio'>Nada corresponde a este filtro. "
                        "<a href='%s'>limpar</a></div>"
@@ -6294,36 +6316,17 @@ def _lista_de_anuncios(ambito):
     conta += " &middot; %s na base" % mil(total)
     if porler:
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
-
-    # Cada vista diz sobre que janela esta a contar (P4), senao a lista
-    # parecia o acervo todo e nao era. E o filtro em uso viaja inteiro
-    # para a outra vista, nunca se perde (P3/FR-15).
-    if e_triagem:
-        if desde:
-            conta += (" &middot; janela da triagem: publicados desde %s"
-                      % data_pt(desde))
-        else:
-            conta += (" &middot; janela da triagem desligada "
-                      "(<code>detalhe_dias</code> a 0)")
-        conta += (" &middot; <a href='/anuncios?%s'>ver no acervo "
-                  "completo</a>" % html.escape(filtro_em_uso, quote=True))
-    elif desde:
-        conta += (" &middot; só os últimos 12 meses &middot; "
-                  "<a href='%s'>incluir arquivo</a>"
-                  % html.escape(sem_pagina(request.args, rota, arquivo="1"),
-                                quote=True))
-    else:
-        conta += (" &middot; acervo completo, com o arquivo &middot; "
-                  "<a href='%s'>só os últimos 12 meses</a>"
-                  % html.escape(sem_pagina(request.args, rota, arquivo=""),
-                                quote=True))
+    # a aba diz o que o seu recorte faz -- o numero nao pode parecer o
+    # acervo todo sem o ser (P4)
+    if estado_actual == "novo":
+        conta += " &middot; só o que ainda dá para responder"
+    elif estado_actual == "descartado":
+        conta += " &middot; abandonados à mão e expirados"
 
     # Os avisos da ultima verificacao. O ficheiro AVISOS.txt serve para
     # quem nao tem o painel aberto; aqui e para quem tem, e da o caminho
-    # para o filtro em vez de o obrigar a procurar. So na Triagem: e a
-    # pagina do dia-a-dia, e a Pesquisa e para procurar no acervo.
-    por_enviar = (sum(len(x[1]) for x in alertas_por_enviar())
-                  if e_triagem else 0)
+    # para o filtro em vez de o obrigar a procurar.
+    por_enviar = sum(len(x[1]) for x in alertas_por_enviar())
     if por_enviar:
         faixa_avisos = (
             "<div class='flash'><b>%s anúncio%s</b> nos teus alertas, "
@@ -6336,14 +6339,14 @@ def _lista_de_anuncios(ambito):
     # marcadas saiu: era o mesmo que a barra lateral ja diz, duas vezes
     # no mesmo ecra. O ponto verde/vermelho foi para la.
 
-    # A ordem e sempre a mesma nas duas listas: filtros, faixa do CPV
-    # activo, arvore, e so depois os filtros guardados. A arvore e onde
-    # se escolhe o CPV, por isso vem antes de se guardar a escolha.
-    # O CSV leva o ambito da vista de onde saiu: a janela e da vista e
-    # nao do filtro, e sem isto o "exportar as N linhas" da Triagem
-    # exportava o acervo inteiro -- o numero da ligacao mentia.
+    # A ordem: filtros, faixa do CPV activo, arvore, e so depois os
+    # filtros guardados. A arvore e onde se escolhe o CPV, por isso vem
+    # antes de se guardar a escolha.
+    # O CSV leva a marca da lista: o recorte da aba e da pagina e nao
+    # do filtro, e sem isto o "exportar as N linhas" do por ver
+    # exportava tambem os expirados -- o numero da ligacao mentia.
     qs = request.query_string.decode()
-    qs_csv = (qs + "&" if qs else "") + urlencode({"ambito": ambito})
+    qs_csv = (qs + "&" if qs else "") + urlencode({"ambito": "anuncios"})
 
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
@@ -6356,36 +6359,14 @@ def _lista_de_anuncios(ambito):
                 corpo_lista + paginador(pagina, paginas, request.args, rota) +
                 "</div>")
 
-    if e_triagem:
-        if desde:
-            dias = (datetime.now().date()
-                    - datetime.strptime(desde, "%Y-%m-%d").date()).days
-            subtitulo = (
-                "O que entrou nos últimos %d dias e pede decisão &mdash; "
-                "a mesma janela que a rotina lê "
-                "(<code>detalhe_dias</code>). O acervo completo está na "
-                "<a href='/anuncios'>Pesquisa</a>." % dias)
-        else:
-            subtitulo = (
-                "Janela desligada (<code>detalhe_dias</code> a 0): a "
-                "triagem mostra a base inteira. O acervo também está na "
-                "<a href='/anuncios'>Pesquisa</a>.")
-        return envolver(
-            "triagem", "Triagem", subtitulo,
-            conteudo, abas="".join(abas), script=ARVORE_JS + LISTA_JS,
-            titulo_aba="Radar de Concursos, DR")
-
-    if desde:
-        subtitulo = ("O acervo dos anúncios, aberto nos últimos 12 meses "
-                     "&mdash; procurar, filtrar, exportar. O interruptor "
-                     "&laquo;incluir arquivo&raquo; alarga aos dois anos.")
-    else:
-        subtitulo = ("O acervo completo, com o arquivo incluído &mdash; "
-                     "tudo o que o radar já guardou.")
     return envolver(
-        "pesquisa", "Pesquisa", subtitulo,
+        "anuncios", "Anúncios",
+        "Entra tudo o que o DR publica &mdash; e, da Vortal, as "
+        "consultas preliminares. <b>Por ver</b> é o que ainda dá para "
+        "responder; o que expira passa sozinho para os "
+        "<b>Abandonados</b>.",
         conteudo, abas="".join(abas), script=ARVORE_JS + LISTA_JS,
-        titulo_aba="Pesquisa, Radar de Concursos")
+        titulo_aba="Radar de Concursos, DR")
 
 
 # Caractere de escape do LIKE. Usa-se "!" e nao a barra invertida de
@@ -6413,13 +6394,11 @@ CAMPOS_FILTRO = ("q", "q_excl", "cpv", "cpv_excl",   # entendem-nos todos
                  "op",                               # E/OU entre q e cpv
                  "de", "ate",
                  "ent", "plat", "estado", "prazo",   # so os anuncios
-                 # O interruptor da Pesquisa (11.5-B) faz parte da
-                 # identidade do filtro, nao e "da vez" como o pag: um
-                 # filtro guardado com o arquivo incluido que o perdesse
-                 # ao ser reaberto mostrava menos resultados do que
-                 # quando foi guardado.
-                 "arquivo",
                  "adj", "ganhou", "proc", "min", "entid", "vencid")
+# (O "arquivo" do interruptor da Pesquisa viveu aqui entre as duas
+# decisoes de 31/08/2026: entrou com a janela dos 12 meses e saiu
+# quando a lista se tornou uma so, sem janela nenhuma. Um filtro
+# guardado que o tenha fica marcado parcial, declarado.)
 
 # Argumentos que a lista usa mas nao definem o filtro, e por isso nao se
 # guardam nem se arrastam para as ligacoes: a pagina e onde se esta, o
@@ -6431,13 +6410,8 @@ CAMPOS_DA_VEZ = ("pag", "aviso", "ambito")
 # de fora. Aplicar "ganho por MEO" aos anuncios, onde nao ha vencedor,
 # seria alargar o filtro sem avisar.
 CAMPOS_POR_VISTA = {
-    # A Triagem e a Pesquisa partilham esta vista: sao a mesma lista com
-    # ambitos diferentes por cima. Uma chave nova partia os filtros
-    # guardados que ja existem. (Na Triagem o `arquivo` nao muda nada --
-    # o ambito dela e fixo -- mas entende-se, para nao marcar de parcial
-    # um filtro que a Pesquisa criou.)
     "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "ent",
-                 "plat", "estado", "prazo", "arquivo"),
+                 "plat", "estado", "prazo"),
     "contratos": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "adj",
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
@@ -6450,11 +6424,9 @@ CAMPOS_POR_VISTA = {
     "renovacoes": ("q", "q_excl", "cpv", "cpv_excl", "op", "adj", "ganhou",
                    "proc", "min", "entid", "vencid"),
 }
-# A rota generica de cada vista. A dos anuncios e a Pesquisa: aplicar
-# um filtro "aos anuncios" e uma pergunta ao acervo, nao a triagem do
-# dia -- a Triagem passa a sua rota ("/") por fora, para os filtros
-# guardados aplicados la dentro ficarem la dentro.
-ROTA_DA_VISTA = {"anuncios": "/anuncios", "contratos": "/contratos",
+# A rota generica de cada vista. Desde a fusao de 31/08/2026, a lista
+# dos anuncios e uma so e vive em "/".
+ROTA_DA_VISTA = {"anuncios": "/", "contratos": "/contratos",
                  "renovacoes": "/renovacoes"}
 
 
@@ -6508,13 +6480,12 @@ _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "prazo": "prazo",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
                  "proc": "procedimento", "min": "desde €",
-                 "entid": "entidade que comprou", "vencid": "ganho por",
-                 "arquivo": "arquivo"}
+                 "entid": "entidade que comprou", "vencid": "ganho por"}
 # O "urgente" nao esta aqui: o numero dele e configuravel (B13) e
 # resolve-se na hora, em resumo_filtro().
 _NOMES_PRAZO = {"aberto": "prazo por fechar", "expirado": "prazo passado"}
 _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
-                 "descartado": "descartados", "": "todos"}
+                 "descartado": "abandonado", "": "todos"}
 # Traducao das accoes antigas do historico para o vocabulario actual
 # (§7 do ESQUELETO: "análise" nao aparece no ecra — chama-se leitura).
 # Os registos gravados antes da mudanca ficam na base como estao; e ao
@@ -6541,9 +6512,6 @@ def resumo_filtro(consulta, vista=None):
         elif campo == "op" and valor:
             # "op ou" nao diz nada; a legenda diz o que o modo faz
             partes.append("palavras OU CPV" if valor == "ou" else valor)
-        elif campo == "arquivo" and valor:
-            # "arquivo 1" nao se le; a legenda diz o que o interruptor faz
-            partes.append("inclui o arquivo")
         elif valor:
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
@@ -7151,18 +7119,22 @@ def nome_csv(prefixo):
 
 @app.route("/csv")
 def exportar():
-    """Exporta exactamente o que o filtro esta a mostrar.
+    """Exporta exactamente o que a lista esta a mostrar.
 
-    O `ambito` diz de que vista o pedido veio (triagem ou pesquisa),
-    porque a janela e da vista e nao do filtro: sem ele, o "exportar as
-    N linhas" da Triagem exportava o acervo inteiro e o numero da
-    ligacao nao batia com o ficheiro. Sem ambito nao ha janela --
-    ligacoes antigas continuam a exportar o filtro tal e qual.
+    Com `ambito` posto (as ligacoes da lista poem-no), o CSV aplica o
+    MESMO recorte da aba que a pagina aplica (condicao_da_aba): sem
+    isto, o "exportar as N linhas" do por ver exportava tambem os
+    expirados e o numero da ligacao nao batia com o ficheiro. Sem
+    ambito (ligacoes antigas), exporta o filtro tal e qual.
     """
-    onde, valores = com_ambito(
-        *condicoes(request.args),
-        desde=ambito_da_vista((request.args.get("ambito") or "").strip(),
-                              request.args))
+    if (request.args.get("ambito") or "").strip():
+        estado = request.args.get("estado")
+        estado = "novo" if estado is None else estado.strip()
+        onde, valores = com_recorte(
+            *condicoes(args_da_lista(request.args, estado="")),
+            *condicao_da_aba(estado))
+    else:
+        onde, valores = condicoes(request.args)
     with liga() as c:
         linhas = c.execute(
             "SELECT ref,data_pub,tipo,entidade,titulo,cpv,prazo,preco_base,"
@@ -7210,9 +7182,7 @@ def _linha_filtro(f):
     onde_c, fora_contratos = filtro_para(f["consulta"] or "", "contratos")
     aplicar = []
     if not fora_anuncios or onde:
-        # a lista generica dos anuncios e a Pesquisa; a Triagem tem o
-        # seu ambito e os seus proprios chips de filtro
-        aplicar.append("<a href='/anuncios?%s'>anúncios%s</a>"
+        aplicar.append("<a href='/?%s'>anúncios%s</a>"
                        % (html.escape(onde, quote=True),
                           " (parcial)" if fora_anuncios else ""))
     if not fora_contratos or onde_c:
@@ -7512,7 +7482,7 @@ def alertas():
                    for v, t in (("novo", "triagem: só os por ver"),
                                 ("", "triagem: todos"),
                                 ("interessa", "triagem: só os interessa"),
-                                ("descartado", "triagem: só os descartados"))),
+                                ("descartado", "triagem: só os abandonados"))),
            "".join("<option value='%s'%s>%s</option>"
                    % (v, marca_sel("prazo", v), t)
                    for v, t in (("", "prazo: tanto faz"),
@@ -9801,15 +9771,14 @@ def ficha(ref):
         # ecra da aplicacao que nao parecia a aplicacao -- sem barra
         # lateral, sem navegacao e sem forma de continuar a trabalhar.
         return envolver(
-            "pesquisa", "Esse anúncio não existe",
+            "anuncios", "Esse anúncio não existe",
             "Não há nenhum anúncio com a referência "
             "<b>%s</b> nesta base." % html.escape(ref),
             "<div class='vazio'>Pode ter sido apagado numa limpeza do "
             "histórico, ou a referência estar mal escrita. "
-            "<a href='/'>Voltar à Triagem</a> ou "
-            "<a href='/anuncios?estado=&amp;arquivo=1'>procurar no acervo "
-            "completo</a>.</div>",
-            migalhas=migalhas_de("pesquisa", ref)), 404
+            "<a href='/'>Voltar à lista</a> ou "
+            "<a href='/?estado='>procurar em todos</a>.</div>",
+            migalhas=migalhas_de("anuncios", ref)), 404
 
     # Se este anuncio ainda nao foi lido, le-se agora: um pedido, ~1 seg.
     # E o mesmo principio dos documentos -- so se vai buscar o que se
@@ -9880,7 +9849,7 @@ def ficha(ref):
     if a["estado"] != "interessa":
         accoes.append(accao("/estado/%s/interessa" % ref, "Interessa", "bt verde"))
     if a["estado"] != "descartado":
-        accoes.append(accao("/estado/%s/descartado" % ref, "Descartar"))
+        accoes.append(accao("/estado/%s/descartado" % ref, "Abandonar"))
     if a["estado"] != "novo":
         accoes.append(accao("/estado/%s/novo" % ref, "Pôr por ver"))
     if a["pdf_url"]:
@@ -10109,7 +10078,7 @@ def ficha(ref):
     # A ficha pendura-se na Pesquisa: e o acervo completo que a contem
     # sempre, venha-se da Triagem, do quadro ou de um homologo. A volta
     # com contexto continua a ser a do referrer (volta_a_lista).
-    migalhas = migalhas_de("pesquisa", ref)
+    migalhas = migalhas_de("anuncios", ref)
     # Enquanto as peças não chegam, a página volta a pedir-se sozinha. O
     # trabalhador põe sempre um estado terminal (ok/parcial/falhou), por
     # isso isto pára -- não fica em ciclo.
@@ -10120,7 +10089,7 @@ def ficha(ref):
     # O subtitulo era "/anuncio/21804/2026 · Entidade": o caminho da URL
     # e para a barra do browser, e a referencia ja esta no chip logo
     # abaixo. Fica a entidade, que e o que se le.
-    return envolver("pesquisa", a["titulo"] or ref,
+    return envolver("anuncios", a["titulo"] or ref,
                     html.escape(a["entidade"] or ""),
                     conteudo, migalhas=migalhas, script=espera,
                     titulo_aba="%s, Radar de Concursos" % ref)
@@ -10206,12 +10175,12 @@ def ver_peca(ref, nome):
     caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
     if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
         return envolver(
-            "pesquisa", "Peça não encontrada",
+            "anuncios", "Peça não encontrada",
             "O ficheiro já não está na pasta dos documentos.",
             "<div class='vazio'>Volta à <a href='/anuncio/%s'>ficha do "
             "anúncio</a> e carrega em &ldquo;Actualizar peças&rdquo;."
             "</div>" % ref,
-            migalhas=migalhas_de("pesquisa", ref)), 404
+            migalhas=migalhas_de("anuncios", ref)), 404
     origem = "/documento/%s/%s" % (ref, quote(nome, safe=""))
 
     # O texto extraido (o mesmo que alimenta a leitura pelo modelo, com
@@ -10336,8 +10305,8 @@ def ver_peca(ref, nome):
         "</div>" % (aviso_topo, html.escape(origem, quote=True), ref,
                     visual, texto_cx))
     return envolver(
-        "pesquisa", nome, "Peça do anúncio %s." % html.escape(ref),
-        corpo, migalhas=migalhas_de("pesquisa", ref),
+        "anuncios", nome, "Peça do anúncio %s." % html.escape(ref),
+        corpo, migalhas=migalhas_de("anuncios", ref),
         titulo_aba="%s, Radar de Concursos" % nome)
 
 
@@ -10574,8 +10543,8 @@ def calendario():
 
     if not cartas:
         return envolve("<div class='vazio'>Sem anúncios interessados com prazo. "
-                       "Marca alguns como &ldquo;interessa&rdquo; na "
-                       "<a href='/'>Triagem</a>.</div>")
+                       "Marca alguns como &ldquo;interessa&rdquo; nos "
+                       "<a href='/'>Anúncios</a>.</div>")
 
     grelha = "grid-template-columns:260px repeat(%d,52px)" % DIAS_CALENDARIO
 
@@ -10698,9 +10667,9 @@ def funil_anuncios():
             "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
             "AND prazo >= ? AND prazo <= ?",
             janela_urgente(hoje)).fetchone()["n"]
-        d["expirados_por_ver"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
-            "AND prazo != '' AND prazo < ?", (hoje.isoformat(),)).fetchone()["n"]
+        # (o "expirados por ver" saiu a 31/08/2026: com a lista unica,
+        # um por ver expirado conta como abandonado por definicao da
+        # aba -- deixou de haver fila a mostrar)
         # Onde a triagem tem acontecido, por divisao de CPV
         d["por_divisao"] = c.execute(
             "SELECT substr(cpv,1,2) div, "
@@ -10794,8 +10763,7 @@ def indicadores():
     nota_urgentes = "%s com prazo a menos de %d dias" % (mil(urgentes),
                                                          dias_urgente())
     if urgentes:
-        nota_urgentes = ("<a href='/anuncios?estado=interessa&amp;"
-                         "prazo=urgente&amp;arquivo=1' "
+        nota_urgentes = ("<a href='/?estado=interessa&amp;prazo=urgente' "
                          "style='color:inherit;text-decoration:underline'>"
                          "%s</a>" % nota_urgentes)
     kpis = [("Anúncios na base", mil(total), "%s com detalhe lido" % mil(com_detalhe), ""),
@@ -10957,13 +10925,12 @@ def indicadores():
     alertas = []
     if f["urgentes_por_ver"]:
         alertas.append(
-            "<a href='/anuncios?estado=novo&prazo=urgente&arquivo=1'>"
+            "<a href='/?estado=novo&prazo=urgente'>"
             "<b>%s por ver com prazo a menos de %d dias</b></a>"
             % (mil_pt(f["urgentes_por_ver"]), dias_urgente()))
-    if f["expirados_por_ver"]:
-        alertas.append("<a href='/anuncios?estado=novo&prazo=expirado&"
-                       "arquivo=1'>%s por ver já com o prazo passado</a>"
-                       % mil_pt(f["expirados_por_ver"]))
+    # os "expirados por ver" deixaram de existir como alerta: desde a
+    # fusao de 31/08/2026 um por ver expirado E um abandonado, por
+    # definicao da aba -- nao ha fila a limpar nem numero a mostrar
     if alertas:
         leitura += " " + " &middot; ".join(alertas) + "."
 
