@@ -438,9 +438,26 @@ python radar.py --descartar-expirados
 Descarta os "por ver" cujo prazo já passou — arquivo, não triagem.
 
 ```bash
+python radar.py --exportar-triagem
+```
+Escreve o `triagem.jsonl` — a parte irrecuperável da base (a tua
+triagem, fases, etiquetas, histórico, filtros, seguidas) num ficheiro
+de texto que viaja no repositório do git. Corre sozinho em cada
+verificação; à mão serve antes de um commit. **Sair do PC exige um
+push** — é o commit+push que faz a cópia.
+
+```bash
+python radar.py --repor-triagem
+```
+O caminho inverso, para depois de um desastre: com a base refeita pela
+recolha (`--historico 730`), repõe as decisões do `triagem.jsonl`.
+Idempotente; os anúncios que ainda não voltaram do DR ficam listados
+para se repor outra vez mais tarde.
+
+```bash
 python teste_radar.py
 ```
-Corre os testes — 424 verificações em menos de um segundo, sem tocar
+Corre os testes — 477 verificações em cerca de um segundo, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

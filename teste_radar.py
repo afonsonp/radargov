@@ -3881,6 +3881,109 @@ class TestExpiracaoDoToken(BaseTemporaria):
         self.assertEqual(radar.le_marca("token_ultimo_erro"), "sem JSON")
 
 
+class TestExportacaoDaTriagem(BaseTemporaria):
+    """B15: a triagem é o único dado irrecuperável e vivia só no disco.
+    A exportação é determinística (é o que faz o git diff mostrar o que
+    mudou hoje), o restauro é idempotente, e um ref que ainda não
+    exista na base NÃO se inventa — fica no relatório, senão o restauro
+    parecia completo e não era."""
+
+    def _semear(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, "
+                      "responsavel) VALUES (?,?,?,?)",
+                      ("1/2026", "Um", "interessa", "Afonso"))
+            c.execute("INSERT INTO anuncios (ref, titulo, estado) "
+                      "VALUES (?,?,?)", ("2/2026", "Dois", "descartado"))
+            c.execute("INSERT INTO anuncios (ref, titulo) VALUES (?,?)",
+                      ("3/2026", "Por ver — não entra"))
+            c.execute("INSERT INTO etiquetas (id, nome, cor) "
+                      "VALUES (7, 'urgente', '#c0392b')")
+            c.execute("INSERT INTO anuncio_etiquetas (ref, etiqueta_id) "
+                      "VALUES ('1/2026', 7)")
+            c.execute("INSERT INTO historico (ref, quem, accao, detalhe, "
+                      "quando) VALUES ('1/2026', 'Afonso', 'interessa', "
+                      "'', '2026-08-31 10:00')")
+            c.execute("INSERT INTO filtros_guardados (id, nome, consulta, "
+                      "alerta, quem, criado_em) VALUES "
+                      "(3, 'CPV IT', 'cpv=72&estado=novo', 1, 'Afonso', "
+                      "'2026-08-30 10:00')")
+            c.execute("INSERT INTO alertas_vistos (filtro_id, ref, "
+                      "visto_em, enviado_em) VALUES (3, '1/2026', "
+                      "'2026-08-31', 'acervo')")
+
+    def test_exporta_deterministico_e_so_o_que_conta(self):
+        self._semear()
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        n, _ = radar.exportar_triagem(caminho)
+        with open(caminho, encoding="utf-8") as f:
+            primeira = f.read()
+        # o por ver sem fase nem responsável não entra: refaz-se do DR
+        self.assertNotIn("3/2026", primeira)
+        self.assertIn("1/2026", primeira)
+        self.assertIn("Afonso", primeira)
+        # determinístico: exportar duas vezes dá o MESMO ficheiro
+        radar.exportar_triagem(caminho)
+        with open(caminho, encoding="utf-8") as f:
+            segunda = f.read()
+        self.assertEqual(primeira, segunda)
+        self.assertGreater(n, 0)
+
+    def test_restauro_repoe_e_diz_o_que_ficou_por_repor(self):
+        self._semear()
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        radar.exportar_triagem(caminho)
+        # a "base refeita pela recolha": só um dos anúncios voltou
+        with radar.liga() as c:
+            c.execute("DELETE FROM anuncios")
+            c.execute("DELETE FROM etiquetas")
+            c.execute("DELETE FROM anuncio_etiquetas")
+            c.execute("DELETE FROM historico")
+            c.execute("DELETE FROM filtros_guardados")
+            c.execute("DELETE FROM alertas_vistos")
+            c.execute("INSERT INTO anuncios (ref, titulo) VALUES "
+                      "('1/2026', 'Um, voltado do DR')")
+        escritas, por_repor = radar.repor_triagem(caminho)
+        self.assertGreater(escritas, 0)
+        # o 2/2026 ainda não voltou do DR: fica no relatório, não se
+        # inventa
+        self.assertIn("2/2026", por_repor.get("anuncios", []))
+        with radar.liga() as c:
+            a = c.execute("SELECT estado, responsavel FROM anuncios "
+                          "WHERE ref='1/2026'").fetchone()
+            self.assertEqual(a["estado"], "interessa")
+            self.assertEqual(a["responsavel"], "Afonso")
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM anuncio_etiquetas").fetchone()["n"],
+                1)
+            f = c.execute("SELECT id, alerta FROM filtros_guardados "
+                          "WHERE nome='CPV IT'").fetchone()
+            self.assertEqual((f["id"], f["alerta"]), (3, 1))
+            # a marca de já-avisado voltou: o primeiro resumo não traz
+            # o acervo outra vez
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM alertas_vistos").fetchone()["n"], 1)
+
+    def test_restauro_e_idempotente(self):
+        self._semear()
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        radar.exportar_triagem(caminho)
+        radar.repor_triagem(caminho)
+        radar.repor_triagem(caminho)     # segunda volta: nada duplica
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM historico").fetchone()["n"], 1)
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM anuncio_etiquetas").fetchone()["n"],
+                1)
+
+    def test_sem_ficheiro_diz_o_e_nao_rebenta(self):
+        escritas, por_repor = radar.repor_triagem(
+            os.path.join(self.pasta, "nao-existe.jsonl"))
+        self.assertEqual(escritas, 0)
+        self.assertIn("ficheiro", por_repor)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

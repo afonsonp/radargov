@@ -45,6 +45,8 @@ python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as 
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
+python radar.py --exportar-triagem # B15: triagem.jsonl (tambem corre em cada verificacao)
+python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
 ```
 
 As tarefas do Windows são três (`agendar.bat`): as duas verificações
