@@ -184,10 +184,13 @@ Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
 filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
 qualquer filtro guardado um aviso no resumo diário, configura-se o
 e-mail e a janela do "urgente". Em **Mercado** vivem os **Contratos**
-(o que já foi adjudicado, com gráficos sobre o filtro) e as
-**Renovações** (contratos vistos pelo fim estimado), e de lá chega-se
-à **ficha de cada entidade** (o que compra e o que ganha) — todos com
-os mesmos filtros de CPV e datas.
+(o que já foi adjudicado, com gráficos sobre o filtro), com dois modos
+no mesmo ecrã: **por celebração** e **por fim estimado** — as antigas
+Renovações, agora uma aba que mantém o filtro e mostra o que está a
+chegar ao fim (o modo diz-se no título da tabela, e as datas de
+celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
+de cada entidade** (o que compra e o que ganha), com uma ligação
+directa a "o que está a acabar" dela.
 
 Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de

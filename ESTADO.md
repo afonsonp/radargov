@@ -3077,3 +3077,52 @@ resultado.
 
 Testes: **453** (446 + 7). Os atalhos do modo dos contratos e da ficha
 da entidade dependem da fusão 6.1-A e ficam com o andamento 3.
+
+## Andamento 3 do esqueleto implementado, 31 de agosto de 2026
+
+As fusões decididas na §6 do ESQUELETO, na mesma sessão dos andamentos
+1 e 2. Verificado no painel a correr, com o corpus real.
+
+**As renovações fundiram-se nos contratos** (6.1-A): `/contratos` tem
+agora dois modos — **por celebração** (o que já se comprou) e **por
+fim estimado** (`?ver=fim`, o que vai acabar). A troca é um par de
+abas que leva o filtro inteiro; o modo diz-se **por extenso no título
+da tabela** ("Contratos por fim estimado — o que vai acabar até
+31/08/2027"), que era a defesa contra o ecrã bifacetado que o custo da
+opção A previa. No modo fim: janela 3/6/12/24 meses (whitelist
+`meses_pedidos()`, como sempre), ordem do fim mais próximo, colunas
+próprias ("Quem tem o contrato"), nota do estimado, e **`de`/`ate`
+desactivados com explicação** — vindos de um filtro guardado ficam
+postos de lado e uma faixa di-lo, nunca em silêncio (B03/P3).
+`/renovacoes` ficou como **redireccionamento** com o filtro atrás:
+nenhum filtro guardado nem ligação antiga se parte. A vista de campos
+continua a ser `"renovacoes"` — é ela que descreve o que o modo
+entende.
+
+**Uma conta só para lista, CSV e gráficos**: `filtros_dos_contratos()`
+junta `condicoes_contratos()` ao fragmento do modo
+(`condicao_do_modo()`), e é por lá que os três passam — medido no
+painel: lista 6 229 contratos CPV 72 a acabar em 12 meses, CSV 6 229
+registos (a primeira contagem à bruta deu 6 514 por quebras de linha
+DENTRO dos objectos — CSV válido, contagem ingénua), gráficos sobre o
+mesmo conjunto. O CSV dos contratos ganhou a coluna **Fim estimado**
+nos dois modos.
+
+**Blocos partilhados** (6.3-A/6.4-A): a faixa "Filtro CPV activo" é
+uma função (`faixa_cpv_activo()`, servia 4 páginas com 4 cópias) e o
+selector de procedimento é outra (`selector_procedimento()`, 3 cópias
+→ 1). `caixa_de_filtros()` ganhou o `extra` da vista ("ver=fim") para
+os chips não trocarem de modo, e `volta_para()` aprendeu rotas que já
+têm `?` — gravar um filtro no modo fim voltava com a URL partida.
+
+**Os dois atalhos que faltavam da §5**: modo ⇄ modo com o filtro
+intacto (as abas), e ficha da entidade → "o que está a acabar (fim
+estimado)" com a chave dela. A dívida do HTML pagou-se onde a fusão a
+amortizava: o formulário, as faixas, a barra do corpus e a paginação
+dos contratos passaram a existir **uma vez**; não se fez extracção
+além disso.
+
+Testes: **467** (453 + 14), verdes em ~2 s (os novos com base
+temporária). Verificado a correr: redirect com filtro, troca de modo,
+datas postas de lado declaradas, ligação "anúncio" nas linhas com
+`n_anuncio`, atalho da entidade.
