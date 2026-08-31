@@ -3449,3 +3449,53 @@ Os pontos verde/vermelho da ultima verificacao deixaram de ser cores
 fixas no Python: sobre a barra escura o contraste conta ao contrario,
 e o verde da paleta clara desaparecia la. Passaram a `--ok-claro` e
 `--mau-claro`, que so existem para esse fundo.
+
+
+## A etiqueta de prazo tinha um 7 escrito à mão, 31 de agosto de 2026
+
+Correcção de comportamento, deliberadamente à parte da fase de desenho
+visual que corre em paralelo: aqui não se mexeu numa cor, mexeu-se em
+**quem decide a cor**.
+
+`etiqueta_prazo()` decidia o amarelo com `dias <= 7`, um limiar cozido
+no código. A janela do "urgente" da aplicação é `dias_urgente()` — lê o
+`config.json`, omissão 10, editável em `/alertas`. Resultado: um anúncio
+com prazo a **9 dias** aparecia **verde ("folgado")** na lista, no
+quadro, no calendário e na ficha, e ao mesmo tempo contava como urgente
+no filtro `prazo=urgente`, no cartão dos indicadores e nos avisos por
+filtro. Com a janela a 10 de origem, a discordância apanhava os prazos
+a 8, 9 e 10 dias — e piorava com qualquer valor que o Afonso pusesse em
+`/alertas`: a 20 dias, doze dias de anúncios diziam "folgado" a abrir
+uma lista de urgentes.
+
+É a mesma armadilha do cartão que dizia "2 com prazo a menos de 7 dias"
+com o filtro a 10, e que deu origem a `janela_urgente()`. Da primeira
+vez corrigiu-se o rótulo e esqueceu-se a cor — **a cor também é um
+número que o ecrã mostra**, e tem de dar a mesma lista.
+
+`etiqueta_prazo(prazo, urgente=None)` passa a ler `dias_urgente()`
+quando não lhe dão a janela. Quem desenha em ciclo passa-a: a lista
+(`linha(a, vista, urgente)`), o quadro (`cartao(a, etiquetas, urgente)`)
+e o calendário lêem-na **uma vez por pedido**. O custo é a razão: a
+etiqueta é chamada uma vez por anúncio e `dias_urgente()` abre e
+desserializa o `config.json` a cada chamada — sem isto era uma abertura
+de ficheiro por linha da lista. Na lista a mesma leitura serve também o
+rótulo do selector ("só os que acabam em N dias"), que já lá estava a
+chamar `dias_urgente()` à parte.
+
+A ficha ficou com a omissão: renderiza-se uma vez, não em ciclo.
+
+Testes: **490** (485 + 5 em `TestEtiquetaPrazoSegueAJanela`). Um põe a
+janela a 10 e a 7 e exige que a classe de um prazo a 9 dias mude de
+`avisa` para `ok`; outro confirma a fronteira **contra
+`janela_urgente()`** — o último dia que o filtro apanha tem de sair
+`avisa`, e o dia seguinte `ok`; outro garante que a janela passada como
+argumento manda mesmo, substituindo `ler_config` por algo que rebenta.
+O expirado e o "termina hoje" continuam vermelhos independentemente da
+janela.
+
+Documentação corrigida no mesmo commit: a regra do `prazo` no
+`CLAUDE.md` passou a incluir a etiqueta ("a cor da etiqueta é um desses
+números"), e o `LEIA-ME.md` deixou de descrever o cartão dos
+indicadores como "prazo a menos de uma semana" — dizia sete com o
+filtro a dez, exactamente o erro que esta sessão foi corrigir.
