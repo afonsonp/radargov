@@ -5148,12 +5148,45 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .rodape .e{font:500 12px/1 var(--sans);color:var(--t2)}
 .rodape .d{font:400 12px/1 var(--sans);color:var(--t5)}
 
-/* ficha */
-.ficha-topo{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-.ficha-topo .dir{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}
-.ficha{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:20px;align-items:start}
-.ficha-esq{display:flex;flex-direction:column;gap:14px;min-width:0}
-.ficha-dir{display:flex;flex-direction:column;gap:14px}
+/* Ficha: composicao em dossier (A1-C, escolha do Afonso a 31/08/2026).
+   Uma coluna so, por ordem de leitura, com o cabecalho fino e o indice
+   presos ao rolar. A coluna da direita desapareceu: esgotava-se a um
+   quinto da pagina e os outros 80% do rolo eram uma coluna unica na
+   mesma, com o texto lido pelo modelo a ocupar tudo. */
+.ficha-cab{display:flex;align-items:center;gap:10px;padding:2px 0 10px;
+ border-bottom:1px solid var(--linha)}
+.ficha-cab .volta{font:600 15px/1 var(--sans);color:var(--t3);flex:none;
+ padding:4px 2px}
+.ficha-cab .volta:hover{color:var(--ink)}
+.ficha-cab .t{flex:1;min-width:0;font:700 14.5px/1.3 var(--sans);color:var(--ink);
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ficha-cab form.accao{flex:none}
+.chip-prazo{flex:none;font:700 12px/1 var(--mono);padding:6px 9px;border-radius:5px;
+ background:var(--linha2);color:var(--t2);white-space:nowrap}
+.chip-prazo.mau{background:var(--verm-fundo);color:var(--verm)}
+.chip-prazo.avisa{background:var(--laranja-fundo);color:var(--laranja)}
+.chip-prazo.ok{background:var(--verde-fundo);color:var(--verde)}
+.ficha-indice{display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+ padding:0 0 2px}
+.ficha-indice>a{padding:10px 0;font:600 12px/1 var(--sans);color:var(--t3);
+ border-bottom:2px solid transparent;margin-bottom:-1px}
+.ficha-indice>a:hover{color:var(--ink)}
+.ficha-indice>a.on{color:var(--ink);border-bottom-color:var(--azul)}
+.ficha-indice .dir{margin-left:auto;display:flex;align-items:center;gap:12px;
+ flex-wrap:wrap}
+.ficha-indice .nota-modo{font:400 11.5px/1 var(--sans);color:var(--t4)}
+/* accoes de segunda linha: sao ligacoes, nao botoes -- competiam com o
+   "Interessa" quando eram seis caixas iguais lado a lado */
+.bt-leve{cursor:pointer;background:none;border:0;padding:0;
+ font:500 11.5px/1 var(--sans);color:var(--t3);display:inline-block}
+.bt-leve:hover{color:var(--azul);text-decoration:underline}
+.ficha-dossier{display:flex;flex-direction:column;gap:14px}
+.ficha-dossier>#mercado{display:flex;flex-direction:column;gap:14px}
+.ficha-pe{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;
+ align-items:start}
+@media (max-width:900px){.ficha-pe{grid-template-columns:minmax(0,1fr)}}
+/* um titulo vazio nao ocupa espaco: a ficha nao usa o cabecalho grande */
+h1.tit:empty,p.subtit:empty{display:none}
 .cabeca{padding:24px 26px}
 .cabeca .chips{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
 .cabeca .ref{font:500 11px/1 var(--mono);color:var(--t4)}
@@ -5162,13 +5195,18 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .cabeca .ent{font:400 13px/1.4 var(--sans);color:var(--t2);margin-bottom:20px}
 .cabeca .ent a{color:var(--azul)}
 .cabeca .ent a:hover{text-decoration:underline}
+/* Os factos repartem a linha entre os que existirem. Era `flex:1 1 30%`
+   e com cinco campos dava tres numa linha e depois duas linhas de um --
+   celulas do tamanho de um cartaz. Uma grelha de colunas fixas resolvia
+   isso e trazia o contrario: numa consulta preliminar, que so tem tres
+   factos, sobrava uma celula cinzenta vazia a parecer avaria. */
 .factos{display:flex;flex-wrap:wrap;gap:1px;background:var(--linha);
- border:1px solid var(--linha);border-radius:9px;overflow:hidden}
-.facto{background:var(--creme);padding:13px 16px;flex:1 1 30%;min-width:0}
-.facto .k{font:500 9.5px/1 var(--sans);color:var(--t5);text-transform:uppercase;
+ border:1px solid var(--linha);border-radius:8px;overflow:hidden}
+.facto{background:var(--creme);padding:12px 15px;flex:1 1 180px;min-width:0}
+.facto .k{font:600 9.5px/1 var(--sans);color:var(--t4);text-transform:uppercase;
  letter-spacing:.08em}
 .facto .v{font:600 13px/1.4 var(--sans);color:var(--ink);margin-top:6px}
-.facto.larg{flex:1 1 100%}
+.facto.larg{flex-basis:100%}
 .facto .v.ok{color:var(--verde)}
 .facto .v.mau{color:var(--verm)}
 .modos{display:flex;align-items:center;gap:8px}
@@ -5209,22 +5247,64 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
  border-radius:50%;background:var(--azul);margin-right:7px;
  animation:pulsa 1s ease-in-out infinite}
 @keyframes pulsa{0%,100%{opacity:1}50%{opacity:.25}}
-.prazo-cx{background:var(--ink);border-radius:11px;padding:22px;color:#fff}
-.prazo-cx .r{font:500 10px/1 var(--sans);color:rgba(255,255,255,.5);
- text-transform:uppercase;letter-spacing:.1em}
-.prazo-cx .d{font:700 30px/1 var(--mono);margin:10px 0 4px;letter-spacing:-1.5px}
-.prazo-cx .n{font:400 12.5px/1.4 var(--sans);color:rgba(255,255,255,.6)}
-.barra-prazo{height:5px;border-radius:3px;background:rgba(255,255,255,.15);
- margin-top:16px;overflow:hidden}
-.barra-prazo i{display:block;height:100%;background:var(--coral)}
-.lado-cx{padding:20px}
+/* A caixa preta do prazo era o melhor elemento da aplicacao e nao
+   sobreviveu a composicao em dossier -- vivia na coluna da direita. O
+   prazo passou a facto do cabecalho, e a barra do decorrido veio com
+   ele: e a mesma conta, noutro fundo. */
+.facto .conta{display:inline-block;margin-left:8px;font:600 11.5px/1 var(--sans);
+ color:var(--t3)}
+.facto .conta.mau{color:var(--verm)}
+.facto .conta.avisa{color:var(--laranja)}
+.facto .conta.ok{color:var(--verde)}
+.barra-prazo{display:block;height:4px;border-radius:2px;background:var(--linha);
+ margin-top:9px;overflow:hidden}
+.barra-prazo i{display:block;height:100%;background:var(--traco)}
+.lado-cx{padding:18px 22px}
 .lado-cx .cab{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .docs{display:flex;flex-direction:column;gap:2px;margin-top:8px}
 .doc{display:flex;align-items:center;gap:10px;padding:9px 0;
- border-top:1px solid var(--papel)}
+ border-top:1px solid var(--linha2)}
 .doc a{font:500 12.5px/1.35 var(--sans);min-width:0;overflow:hidden;
  text-overflow:ellipsis;white-space:nowrap}
-.doc .t{margin-left:auto;flex:none;font:400 11px/1 var(--mono);color:var(--t5)}
+.doc .t{margin-left:auto;flex:none;font:400 11px/1 var(--mono);color:var(--t4)}
+/* a peca que esta aberta no leitor aqui em baixo */
+.doc.aberta a{color:var(--ink);font-weight:700}
+.doc.aberta{position:relative}
+.doc.aberta::before{content:'';position:absolute;left:-22px;top:9px;bottom:9px;
+ width:3px;border-radius:2px;background:var(--azul)}
+
+/* O leitor da peca, dentro da ficha e por baixo da lista das pecas
+   (pedido do Afonso a 31/08/2026). A pagina propria /peca continua a
+   existir e usa o mesmo codigo -- ver visualizador_de_peca(). */
+.leitor{margin-top:16px;border:1px solid var(--linha);border-radius:8px;
+ overflow:hidden;background:var(--creme)}
+.leitor-cab{display:flex;align-items:center;gap:12px;padding:11px 15px;
+ border-bottom:1px solid var(--linha);background:#fff}
+.leitor-cab .n{flex:1;min-width:0;font:600 12.5px/1.3 var(--sans);color:var(--ink);
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leitor>.nota{padding:10px 15px 0}
+.leitor .filtros{margin:10px 15px;box-shadow:none}
+/* Os resultados da procura sao uma frase com ligacoes no fim, nao um
+   chip: reaproveitavam o .cpv-activo, que e flex, e cada <b> e cada
+   "pag. N" virava uma coluna -- a frase lia-se em bocados. */
+.achados{padding:10px 14px;border:1px solid var(--azul-borda);
+ background:var(--azul-fundo);border-radius:8px;margin-bottom:12px;
+ font:400 12.5px/1.9 var(--sans);color:var(--azul)}
+.achados b{font-weight:700}
+.achados a{text-decoration:underline;text-underline-offset:2px;
+ white-space:nowrap;margin-right:4px}
+.leitor .achados{margin:0 15px 12px}
+.leitor>details.sec{margin:0 15px 15px}
+.peca-folhas{padding:0 0 8px}
+/* Dentro da ficha as folhas rolam na sua propria janela: 68 paginas a
+   correr no meio do dossier empurravam o mercado e o historico para
+   longe de mais. Na pagina propria da peca o documento e a pagina, e ai
+   nao ha rolo dentro de rolo. */
+.leitor .peca-folhas{padding:0 15px 15px;max-height:78vh;overflow-y:auto;
+ background:var(--linha2)}
+.peca-pag{display:block;width:100%;max-width:960px;margin:14px auto 0;
+ border:1px solid var(--linha);border-radius:5px;background:#fff;
+ box-shadow:0 1px 3px rgba(20,24,30,.08)}
 .resp{display:flex;align-items:center;gap:9px;padding:9px 12px;
  border:1px solid var(--linha);border-radius:8px;background:var(--creme)}
 .resp .av{width:24px;height:24px;border-radius:50%;background:var(--linha);flex:none;
@@ -9850,6 +9930,10 @@ def ficha(ref):
                            "ORDER BY id DESC LIMIT 12", (ref,)).fetchall()
 
     completo = request.args.get("modo") == "completo"
+    # Qual das pecas esta aberta no leitor, por baixo da lista delas.
+    # Viaja na query string e nao em estado nenhum: a ficha com uma peca
+    # aberta e uma ligacao que se guarda e se manda a alguem.
+    peca_aberta = (request.args.get("peca") or "").strip()
     dias, passou = dias_restantes(a["prazo"])
 
     # --- cabecalho
@@ -9861,10 +9945,34 @@ def ficha(ref):
         chips.append("<span class='tag'>%s</span>" % html.escape(a["tipo"]))
     chips.append("<span class='tag %s'>%s</span>" % (classe_estado, rotulo_estado))
 
-    # Sem "Propostas até" nem "Estado": os dois apareciam duas vezes no
-    # mesmo ecra -- o prazo aqui e outra vez na caixa preta da direita, o
-    # estado aqui e outra vez no chip logo acima. Cada repeticao obriga a
-    # confirmar que e mesmo a mesma coisa.
+    # O "Propostas até" voltou aos factos. Tinha saido daqui porque
+    # aparecia duas vezes no mesmo ecra -- aqui e na caixa preta da
+    # coluna da direita; com a composicao em dossier (escolha do Afonso
+    # a 31/08/2026) essa coluna deixou de existir, e o prazo passou a
+    # estar em dois sitios com papeis diferentes: aqui e o dado da
+    # tabela, la em cima e a referencia que acompanha o rolar.
+    # "Estado" continua de fora: esse repetia-se mesmo, com o chip.
+    if dias is None:
+        facto_prazo = ""
+    else:
+        # a barra mostra quanto do prazo ja passou, contando da publicacao
+        try:
+            pub = datetime.strptime(a["data_pub"], "%Y-%m-%d").date()
+            fim = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
+            total_dias = max((fim - pub).days, 1)
+            decorrido = max(min(total_dias - dias, total_dias), 0)
+            pct = int(100.0 * decorrido / total_dias)
+        except ValueError:
+            pct = 100 if passou else 0
+        _, classe_prazo = etiqueta_prazo(a["prazo"])
+        facto_prazo = _facto(
+            "Propostas até",
+            "%s <span class='conta %s'>%s</span>"
+            "<span class='barra-prazo'><i style='width:%d%%'></i></span>"
+            % (data_pt(a["prazo"]), classe_prazo,
+               "prazo expirado" if passou else conta_dias(dias),
+               100 if passou else pct))
+
     cpv_facto = "<br>".join(descricoes_cpv(a["cpv"]))
     if cpv_facto:
         # "Que mais ha disto?" — a Pesquisa com o(s) CPV do anuncio e
@@ -9878,6 +9986,7 @@ def ficha(ref):
                                     quote=True))
     factos = "".join((
         _facto("Publicado", data_pt(a["data_pub"], "")),
+        facto_prazo,
         _facto("Preço base", html.escape(a["preco_base"] or "")),
         _facto("Plataforma", html.escape(a["plataforma"] or "")),
         _facto("CPV", cpv_facto, largo=True),
@@ -9896,32 +10005,42 @@ def ficha(ref):
                  factos))
 
     # --- accoes
-    accoes = []
+    # As duas de triagem ficam no cabecalho fino, que acompanha o rolar:
+    # sao as unicas que se querem ao alcance em qualquer ponto da ficha.
+    # As outras (as que abrem coisas fora daqui, e o repor) vao para a
+    # direita do indice, onde nao disputam o olho com o titulo.
+    decidir, sair = [], []
     if a["estado"] != "interessa":
-        accoes.append(accao("/estado/%s/interessa" % ref, "Interessa", "bt verde"))
+        decidir.append(accao("/estado/%s/interessa" % ref, "Interessa", "bt verde"))
     if a["estado"] != "descartado":
-        accoes.append(accao("/estado/%s/descartado" % ref, "Abandonar"))
+        decidir.append(accao("/estado/%s/descartado" % ref, "Abandonar"))
     if a["estado"] != "novo":
-        accoes.append(accao("/estado/%s/novo" % ref, "Pôr por ver"))
+        sair.append(accao("/estado/%s/novo" % ref, "Pôr por ver", "bt-leve"))
     if a["pdf_url"]:
-        accoes.append("<a class='bt' href='%s' target='_blank'>PDF oficial</a>"
-                      % html.escape(a["pdf_url"], quote=True))
-    accoes.append("<a class='bt' href='%s' target='_blank'>%s</a>"
-                  % (html.escape(a["url"], quote=True),
-                     "Ver no DR" if e_do_dr else "Ver na Vortal"))
+        sair.append("<a class='bt-leve' href='%s' target='_blank'>PDF oficial</a>"
+                    % html.escape(a["pdf_url"], quote=True))
+    sair.append("<a class='bt-leve' href='%s' target='_blank'>%s</a>"
+                % (html.escape(a["url"], quote=True),
+                   "Ver no DR" if e_do_dr else "Ver na Vortal"))
     if a["link_pecas"]:
-        accoes.append("<a class='bt' href='%s' target='_blank'>Abrir plataforma</a>"
-                      % html.escape(a["link_pecas"], quote=True))
+        sair.append("<a class='bt-leve' href='%s' target='_blank'>Abrir plataforma</a>"
+                    % html.escape(a["link_pecas"], quote=True))
 
     # Voltar para a lista **de onde se veio**, com o filtro e a pagina.
     # Estava preso a "/": filtrar por CPV, ir a pagina 7, abrir um anuncio
     # e carregar aqui devolvia "Por ver, pagina 1, sem filtro" -- o botao
     # estava no sitio onde se espera o caminho certo e era o errado, e ao
     # fim de duas vezes deixava de se usar.
-    topo = ("<div class='ficha-topo'>"
-            "<a class='bt' href='%s'>&larr; Voltar à lista</a>"
-            "<div class='dir'>%s</div></div>"
-            % (html.escape(volta_a_lista(), quote=True), "".join(accoes)))
+    chip_prazo = ("<span class='chip-prazo %s'>%s &middot; %s</span>"
+                  % (etiqueta_prazo(a["prazo"])[1], data_pt(a["prazo"]),
+                     "expirado" if passou else conta_dias(dias))) \
+        if dias is not None else ""
+    ficha_cab = ("<div class='ficha-cab'>"
+                 "<a class='volta' href='%s'>&larr;</a>"
+                 "<span class='t'>%s</span>%s%s</div>"
+                 % (html.escape(volta_a_lista(), quote=True),
+                    html.escape(a["titulo"] or ref), chip_prazo,
+                    "".join(decidir)))
 
     # --- seccoes do anuncio
     seccoes = seccoes_do_texto(a["texto"])
@@ -9997,35 +10116,25 @@ def ficha(ref):
                            "o DR não devolveu conteúdo."))
         nota_modo = ""
 
+    # O indice: as duas primeiras entradas trocam mesmo de vista (sao as
+    # que a barra "Texto do anúncio" era), as outras sao ancoras para os
+    # blocos que ficam todos abertos por baixo. Fica preso ao rolar, que
+    # e o que paga a composicao em dossier: numa ficha de oito mil
+    # pixeis, saber onde se esta e poder saltar vale a coluna que se
+    # perdeu.
     args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
     args_com = dict(request.args.to_dict(), modo="completo")
-    modos = ("<div class='modos'><span class='r'>Texto do anúncio:</span>"
-             "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
-             "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
-             "<span class='dir'>%s</span></div>"
-             % ("" if completo else "on", ref, urlencode(args_ess),
-                "on" if completo else "", ref, urlencode(args_com), nota_modo))
-
-    # --- coluna da direita
-    if dias is None:
-        prazo_cx = ""
-    else:
-        # a barra mostra quanto do prazo ja passou, contando da publicacao
-        try:
-            pub = datetime.strptime(a["data_pub"], "%Y-%m-%d").date()
-            fim = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
-            total_dias = max((fim - pub).days, 1)
-            decorrido = max(min(total_dias - dias, total_dias), 0)
-            pct = int(100.0 * decorrido / total_dias)
-        except ValueError:
-            pct = 100 if passou else 0
-        prazo_cx = ("<div class='prazo-cx'><div class='r'>Propostas até</div>"
-                    "<div class='d'>%s</div><div class='n'>%s%s</div>"
-                    "<div class='barra-prazo'><i style='width:%d%%'></i></div></div>"
-                    % (data_pt(a["prazo"]),
-                       "prazo expirado" if passou else conta_dias(dias),
-                       (" &middot; " + html.escape(a["plataforma"])) if a["plataforma"] else "",
-                       100 if passou else pct))
+    indice = ("<div class='ficha-indice'>"
+              "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
+              "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
+              "<a href='#pecas'>Peças</a>"
+              "<a href='#mercado'>Mercado</a>"
+              "<a href='#historico'>Histórico</a>"
+              "<span class='dir'>%s%s</span></div>"
+              % ("on" if not completo else "", ref, urlencode(args_ess),
+                 "on" if completo else "", ref, urlencode(args_com),
+                 ("<span class='nota-modo'>%s</span>" % nota_modo)
+                 if nota_modo else "", "".join(sair)))
 
     # O 'pendente' vem antes do 'docs': ao carregar em "Actualizar peças"
     # ja ca estao as antigas, e a caixa dizia-se pronta enquanto as novas
@@ -10037,18 +10146,29 @@ def ficha(ref):
         corpo_docs = ("<div class='nota a-trazer'>A trazer as peças da "
                       "plataforma… a página actualiza-se sozinha.</div>")
     elif docs:
-        # os PDFs abrem-se dentro da aplicacao (/peca), com o Ctrl+F do
-        # visualizador a fazer a pesquisa; o resto descarrega-se
-        linhas_doc = "".join(
-            "<div class='doc'><a href='%s'>%s</a>"
-            "<span class='t'>%s</span></div>"
-            % (("/peca/%s/%s" % (ref, html.escape(d["nome"], quote=True)))
-               if d["nome"].lower().endswith(".pdf")
-               else ("/documento/%s/%s"
-                     % (ref, html.escape(d["nome"], quote=True))),
-               html.escape(d["nome"]),
-               tamanho_legivel(d["tamanho"]))
-            for d in docs)
+        # Um PDF abre AQUI, por baixo desta lista (pedido do Afonso na
+        # fase de desenho, 31/08/2026): ler a peca deixou de ser sair da
+        # ficha. A rota propria /peca/<ref>/<nome> continua a responder,
+        # que e o que segura as ligacoes antigas; o que muda e para onde
+        # a lista aponta. O resto (ZIPs, etc.) descarrega-se como antes.
+        args_peca = dict(request.args.to_dict())
+        args_peca.pop("procurar", None)   # procura nova para cada peca
+        linhas_doc = []
+        for d in docs:
+            e_pdf = d["nome"].lower().endswith(".pdf")
+            if e_pdf:
+                destino = "/anuncio/%s?%s#pecas" % (
+                    ref, urlencode(dict(args_peca, peca=d["nome"])))
+            else:
+                destino = "/documento/%s/%s" % (
+                    ref, quote(d["nome"], safe=""))
+            linhas_doc.append(
+                "<div class='doc%s'><a href='%s'>%s</a>"
+                "<span class='t'>%s</span></div>"
+                % (" aberta" if e_pdf and d["nome"] == peca_aberta else "",
+                   html.escape(destino, quote=True),
+                   html.escape(d["nome"]), tamanho_legivel(d["tamanho"])))
+        linhas_doc = "".join(linhas_doc)
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
         # sozinho parecia que estava tudo trazido.
         if a["docs_estado"] == "parcial":
@@ -10089,14 +10209,48 @@ def ficha(ref):
         corpo_docs = ("<div class='nota'>%s</div><div style='margin-top:14px'>%s</div>"
                       % (nota, accao("/documentos/%s" % ref, "Trazer peças", "bt forte")))
 
+    # O leitor da peca escolhida, por baixo da lista e dentro da mesma
+    # caixa. Se o nome nao corresponder a nenhum ficheiro em disco (uma
+    # ligacao velha, uma peca que a actualizacao apagou), nao se abre
+    # nada e a lista fica como estava -- nunca uma moldura vazia.
+    leitor = ""
+    if peca_aberta:
+        pasta = os.path.abspath(pasta_do_anuncio(ref))
+        caminho = os.path.abspath(os.path.join(pasta, nome_seguro(peca_aberta)))
+        if caminho.startswith(pasta + os.sep) and os.path.exists(caminho):
+            args_fechar = dict(request.args.to_dict())
+            args_fechar.pop("peca", None); args_fechar.pop("procurar", None)
+            # O `action` vai sem query string de proposito: um GET
+            # substitui-a inteira pelos campos do formulario, e o que
+            # tem de sobreviver a procura viaja nos escondidos.
+            aviso_leitor, visual = visualizador_de_peca(
+                ref, peca_aberta, caminho,
+                "/documento/%s/%s" % (ref, quote(peca_aberta, safe="")),
+                (request.args.get("procurar") or "").strip(),
+                "/anuncio/%s#pecas" % ref,
+                ocultos=dict(args_fechar, peca=peca_aberta),
+                limpar="/anuncio/%s?%s#pecas"
+                       % (ref, urlencode(dict(args_fechar, peca=peca_aberta))))
+            leitor = (
+                "<div class='leitor'>"
+                "<div class='leitor-cab'><span class='n'>%s</span>"
+                "<a class='bt-leve' href='/documento/%s/%s' download>"
+                "Descarregar</a>"
+                "<a class='bt-leve' href='/anuncio/%s?%s#pecas'>Fechar</a>"
+                "</div><div class='nota'>%s</div>%s%s</div>"
+                % (html.escape(peca_aberta), ref,
+                   quote(peca_aberta, safe=""), ref,
+                   html.escape(urlencode(args_fechar), quote=True),
+                   aviso_leitor, visual, texto_da_peca(ref, peca_aberta)))
+
     chip_plat = ("<span class='tag ok' style='margin-left:auto'>%s</span>"
                  % html.escape(a["plataforma"])) if a["plataforma"] else ""
-    docs_cx = ("<div class='cx lado-cx'><div class='cab'>"
-               "<span class='rot'>Peças do procedimento</span>%s</div>%s</div>"
-               % (chip_plat, corpo_docs))
+    docs_cx = ("<div class='cx lado-cx' id='pecas'><div class='cab'>"
+               "<span class='rot'>Peças do procedimento</span>%s</div>%s%s</div>"
+               % (chip_plat, corpo_docs, leitor))
 
     resp = a["responsavel"] or ""
-    resp_cx = ("<div class='cx lado-cx'><div class='rot' style='margin-bottom:12px'>"
+    resp_cx = ("<div class='cx lado-cx meia'><div class='rot' style='margin-bottom:12px'>"
                "Responsável</div>"
                "<form class='resp' method='post' action='/responsavel/%s'>"
                "<div class='av'>%s</div>"
@@ -10116,15 +10270,20 @@ def ficha(ref):
             for p in passos)
     else:
         linhas_hist = "<div class='nota'>Ainda não há registo de alterações.</div>"
-    hist_cx = ("<div class='cx lado-cx'><div class='rot' style='margin-bottom:6px'>"
+    hist_cx = ("<div class='cx lado-cx meia' id='historico'>"
+               "<div class='rot' style='margin-bottom:6px'>"
                "Histórico</div>%s</div>" % linhas_hist)
 
-    conteudo = ("<div class='larg'>" + topo +
-                "<div class='ficha'>"
-                "<div class='ficha-esq'>" + cabeca + modos + seccoes_html +
-                homologos_cx(a, ch_ent) + mercado(a) + "</div>"
-                "<div class='ficha-dir'>" + prazo_cx + docs_cx + resp_cx +
-                hist_cx + "</div></div></div>")
+    # Composicao em dossier (escolha do Afonso, 31/08/2026): uma coluna
+    # so, por ordem de leitura, com o cabecalho e o indice presos ao
+    # rolar. Nenhum bloco entrou nem saiu -- os quatro que viviam na
+    # coluna da direita passaram a estar nesta, e o prazo, que era a
+    # caixa preta, e agora um facto do cabecalho mais o chip do indice.
+    conteudo = ("<div class='larg ficha-dossier'>" + cabeca + seccoes_html +
+                docs_cx +
+                "<div id='mercado'>" + homologos_cx(a, ch_ent) +
+                mercado(a) + "</div>"
+                "<div class='ficha-pe'>" + hist_cx + resp_cx + "</div></div>")
 
     # A ficha pendura-se na Pesquisa: e o acervo completo que a contem
     # sempre, venha-se da Triagem, do quadro ou de um homologo. A volta
@@ -10137,12 +10296,14 @@ def ficha(ref):
               if (a["docs_estado"] == "pendente" or analise_a_correr(ref))
               else "")
 
-    # O subtitulo era "/anuncio/21804/2026 · Entidade": o caminho da URL
-    # e para a barra do browser, e a referencia ja esta no chip logo
-    # abaixo. Fica a entidade, que e o que se le.
-    return envolver("anuncios", a["titulo"] or ref,
-                    html.escape(a["entidade"] or ""),
+    # O titulo e a entidade nao vao para o cabecalho grande da pagina:
+    # nesta composicao quem manda no topo e o cabecalho fino, que fica
+    # preso ao rolar e tem de caber numa linha. Os dois continuam a
+    # ler-se no cartao de identidade, logo por baixo -- e o titulo
+    # inteiro esta la, sem corte.
+    return envolver("anuncios", "", "",
                     conteudo, migalhas=migalhas, script=espera,
+                    abas=ficha_cab + indice,
                     titulo_aba="%s, Radar de Concursos" % ref)
 
 
@@ -10212,6 +10373,121 @@ def peca_pagina(ref, nome, n):
                     headers={"Cache-Control": "max-age=86400"})
 
 
+def texto_da_peca(ref, nome):
+    """O texto extraido da peca, por paginas, dentro de um <details>.
+
+    E o mesmo texto que alimenta a leitura pelo modelo (com as marcas de
+    pagina). Fica na pagina porque o Ctrl+F do browser pesquisa nele
+    mesmo quando o visualizador do PDF nao abre."""
+    with liga() as c:
+        d = c.execute("SELECT texto, texto_estado FROM documentos "
+                      "WHERE ref=? AND nome=?", (ref, nome)).fetchone()
+    if d and (d["texto"] or "").strip():
+        paginas_html = []
+        for i, pagina in enumerate((d["texto"] or "").split("\f"), 1):
+            if not pagina.strip():
+                continue
+            paginas_html.append(
+                "<div class='nota' style='margin:14px 0 4px'>&mdash; "
+                "pág. %d &mdash;</div>"
+                "<div style='white-space:pre-wrap;"
+                "font:400 12px/1.6 var(--mono)'>%s</div>"
+                % (i, html.escape(pagina.strip())))
+        return ("<details class='sec' style='margin-top:14px'><summary>"
+                "<span class='st'>Texto extraído da peça</span>"
+                "<span class='sh'>pesquisável com o Ctrl+F da página, mesmo "
+                "quando o visualizador não abre</span></summary>%s</details>"
+                % "".join(paginas_html))
+    if d and d["texto_estado"] == "scan":
+        return ("<div class='nota' style='margin-top:14px'>Este PDF é "
+                "uma digitalização: não tem texto extraível.</div>")
+    return ""
+
+
+def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
+                         ocultos=None, limpar=None):
+    """(aviso, html) do documento desenhado pagina a pagina.
+
+    O mesmo codigo serve dois sitios: a pagina propria da peca
+    (/peca/<ref>/<nome>, que as ligacoes antigas continuam a abrir) e o
+    bloco que abre DENTRO da ficha, por baixo das pecas -- foi ai que o
+    Afonso o quis, na fase de desenho de 31/08/2026. O que muda entre os
+    dois e o `rota`, para onde a caixa de procura submete, e os
+    `ocultos`: um GET substitui a query string inteira pelos campos do
+    formulario, e sem eles procurar dentro da ficha perdia o `peca=` --
+    a pagina voltava com a procura feita e o leitor fechado."""
+    n_paginas = paginas_do_pdf_imagem(caminho)
+    if not n_paginas:
+        # Sem PyMuPDF (ou com um ficheiro que ele nao abra) cai-se para o
+        # <embed>, que fica a merce da definicao "transferir PDFs em vez
+        # de abrir" do browser -- por isso o aviso di-lo.
+        return (
+            "Pesquisa dentro do documento com o Ctrl+F do visualizador. "
+            "Se em vez do documento vires um cartão &ldquo;Abrir&rdquo;, "
+            "o teu browser está configurado para <b>transferir PDFs em "
+            "vez de os abrir</b> &mdash; o texto extraído fica aqui em "
+            "baixo. ",
+            "<embed src='%s' type='application/pdf' "
+            "style='width:100%%;height:82vh;border:1px solid var(--linha);"
+            "border-radius:8px;background:#fff'>"
+            % html.escape(origem, quote=True))
+
+    base_img = "/peca-pagina/%s/%s" % (ref, quote(nome, safe=""))
+    sufixo = ("?" + urlencode({"procurar": procurar})) if procurar else ""
+    # cada pagina tem ancora propria: e para ela que as ligacoes da
+    # pesquisa saltam
+    paginas_img = "".join(
+        "<img id='pag-%d' src='%s/%d.png%s' loading='lazy' "
+        "alt='página %d' class='peca-pag'>"
+        % (i, html.escape(base_img, quote=True), i,
+           html.escape(sufixo, quote=True), i)
+        for i in range(1, n_paginas + 1))
+
+    # A pesquisa DENTRO do documento (pedida pelo Afonso a 31/08/2026: o
+    # Ctrl+F levava-o ao texto extraido, e ele queria o resultado no
+    # PDF). O termo marca-se a amarelo nas paginas desenhadas e a faixa
+    # lista onde ele esta, com salto directo.
+    escondidos = "".join(
+        "<input type='hidden' name='%s' value='%s'>"
+        % (html.escape(k, quote=True), html.escape(v, quote=True))
+        for k, v in sorted((ocultos or {}).items()) if v)
+    caixa = (
+        "<form class='cx filtros peca-procura' method='get' action='%s'>%s"
+        "<input type='text' name='procurar' value='%s' "
+        "placeholder='Procurar no documento…'>"
+        "<button type='submit'>Procurar</button>%s</form>"
+        % (html.escape(rota, quote=True), escondidos,
+           html.escape(procurar, quote=True),
+           ("<a class='limpar' href='%s'>limpar</a>"
+            % html.escape(limpar or rota, quote=True)) if procurar else ""))
+    if procurar:
+        achadas = paginas_com_termo(caminho, procurar)
+        if achadas:
+            saltos = " ".join(
+                "<a href='#pag-%d'>pág. %d%s</a>"
+                % (p, p, " (%d×)" % vezes if vezes > 1 else "")
+                for p, vezes in achadas)
+            resultados = (
+                "<div class='achados'>&ldquo;%s&rdquo; aparece em "
+                "<b>%d página%s</b> (%d vez%s), marcado a amarelo: %s</div>"
+                % (html.escape(procurar), len(achadas),
+                   "" if len(achadas) == 1 else "s",
+                   sum(v for _, v in achadas),
+                   "" if sum(v for _, v in achadas) == 1 else "es", saltos))
+        else:
+            resultados = (
+                "<div class='achados'>&ldquo;%s&rdquo; não aparece "
+                "no documento &mdash; a procura é tal e qual está "
+                "escrito (acentos contam).</div>" % html.escape(procurar))
+    else:
+        resultados = ""
+    return (
+        "Documento desenhado pelo radar, página a página (%d). "
+        "Procura com a caixa aqui em baixo: as ocorrências ficam "
+        "marcadas a amarelo nas páginas, com salto directo. " % n_paginas,
+        caixa + resultados + "<div class='peca-folhas'>%s</div>" % paginas_img)
+
+
 @app.route("/peca/<path:ref>/<nome>")
 def ver_peca(ref, nome):
     """A peca aberta dentro da aplicacao, com pesquisa la dentro.
@@ -10233,118 +10509,11 @@ def ver_peca(ref, nome):
             "</div>" % ref,
             migalhas=migalhas_de("anuncios", ref)), 404
     origem = "/documento/%s/%s" % (ref, quote(nome, safe=""))
-
-    # O texto extraido (o mesmo que alimenta a leitura pelo modelo, com
-    # as marcas de pagina) vai na propria pagina: se o browser estiver
-    # configurado para transferir PDFs em vez de os abrir, o <embed>
-    # mostra um cartao "Abrir" em vez do documento -- aconteceu no
-    # browser do Afonso a 31/08/2026 -- e o Ctrl+F da pagina continua a
-    # pesquisar no texto, funcione o visualizador ou nao.
-    with liga() as c:
-        d = c.execute("SELECT texto, texto_estado FROM documentos "
-                      "WHERE ref=? AND nome=?", (ref, nome)).fetchone()
-    if d and (d["texto"] or "").strip():
-        paginas_html = []
-        for i, pagina in enumerate((d["texto"] or "").split("\f"), 1):
-            if not pagina.strip():
-                continue
-            paginas_html.append(
-                "<div class='nota' style='margin:14px 0 4px'>&mdash; "
-                "pág. %d &mdash;</div>"
-                "<div style='white-space:pre-wrap;"
-                "font:400 12px/1.6 var(--mono)'>%s</div>"
-                % (i, html.escape(pagina.strip())))
-        texto_cx = (
-            "<details class='sec' style='margin-top:14px'><summary>"
-            "<span class='st'>Texto extraído da peça</span>"
-            "<span class='sh'>pesquisável com o Ctrl+F da página, mesmo "
-            "quando o visualizador não abre</span></summary>%s</details>"
-            % "".join(paginas_html))
-    elif d and d["texto_estado"] == "scan":
-        texto_cx = ("<div class='nota' style='margin-top:14px'>Este PDF é "
-                    "uma digitalização: não tem texto extraível.</div>")
-    else:
-        texto_cx = ""
-
-    # O visualizador proprio: as paginas desenhadas pelo servidor, que
-    # abrem em qualquer browser -- o <embed> ficava a merce da definicao
-    # "transferir PDFs em vez de abrir" e mostrava um cartao no lugar do
-    # documento. So se cai para o embed quando o PyMuPDF nao esta (ou o
-    # ficheiro nao e um PDF que ele abra).
-    n_paginas = paginas_do_pdf_imagem(caminho)
-    if n_paginas:
-        procurar = (request.args.get("procurar") or "").strip()
-        base_img = "/peca-pagina/%s/%s" % (ref, quote(nome, safe=""))
-        sufixo = ("?" + urlencode({"procurar": procurar})) if procurar \
-            else ""
-        # cada pagina tem ancora propria: e para ela que as ligacoes da
-        # pesquisa saltam
-        paginas_img = "".join(
-            "<img id='pag-%d' src='%s/%d.png%s' loading='lazy' "
-            "alt='página %d' "
-            "style='display:block;width:100%%;max-width:960px;"
-            "margin:0 auto 14px;border:1px solid var(--linha);"
-            "border-radius:6px;background:#fff'>"
-            % (i, html.escape(base_img, quote=True), i,
-               html.escape(sufixo, quote=True), i)
-            for i in range(1, n_paginas + 1))
-
-        # A pesquisa DENTRO do documento (pedida pelo Afonso a
-        # 31/08/2026: o Ctrl+F levava-o ao texto extraido, e ele queria
-        # o resultado no PDF). O termo marca-se a amarelo nas paginas
-        # desenhadas e a faixa lista onde ele esta, com salto directo.
-        rota_peca = "/peca/%s/%s" % (ref, quote(nome, safe=""))
-        caixa = (
-            "<form class='cx filtros' method='get' action='%s'>"
-            "<input type='text' name='procurar' value='%s' "
-            "placeholder='Procurar no documento…'>"
-            "<button type='submit'>Procurar</button>%s</form>"
-            % (html.escape(rota_peca, quote=True),
-               html.escape(procurar, quote=True),
-               ("<a class='limpar' href='%s'>limpar</a>"
-                % html.escape(rota_peca, quote=True)) if procurar else ""))
-        if procurar:
-            achadas = paginas_com_termo(caminho, procurar)
-            if achadas:
-                saltos = " ".join(
-                    "<a href='#pag-%d'>pág. %d%s</a>"
-                    % (p, p, " (%d×)" % vezes if vezes > 1 else "")
-                    for p, vezes in achadas)
-                resultados = (
-                    "<div class='cpv-activo'>&ldquo;%s&rdquo; aparece em "
-                    "<b>%d página%s</b> (%d vez%s), marcado a amarelo: "
-                    "%s</div>"
-                    % (html.escape(procurar), len(achadas),
-                       "" if len(achadas) == 1 else "s",
-                       sum(v for _, v in achadas),
-                       "" if sum(v for _, v in achadas) == 1 else "es",
-                       saltos))
-            else:
-                resultados = (
-                    "<div class='cpv-activo'>&ldquo;%s&rdquo; não aparece "
-                    "no documento &mdash; a procura é tal e qual está "
-                    "escrito (acentos contam).</div>"
-                    % html.escape(procurar))
-        else:
-            resultados = ""
-        visual = caixa + resultados + paginas_img
-        aviso_topo = (
-            "Documento desenhado pelo radar, página a página (%d). "
-            "Procura com a caixa aqui em baixo: as ocorrências ficam "
-            "marcadas a amarelo nas páginas, com salto directo. "
-            % n_paginas)
-    else:
-        visual = ("<embed src='%s' type='application/pdf' "
-                  "style='width:100%%;height:82vh;"
-                  "border:1px solid var(--linha);"
-                  "border-radius:8px;background:#fff'>"
-                  % html.escape(origem, quote=True))
-        aviso_topo = (
-            "Pesquisa dentro do documento com o Ctrl+F do visualizador. "
-            "Se em vez do documento vires um cartão &ldquo;Abrir&rdquo;, "
-            "o teu browser está configurado para <b>transferir PDFs em "
-            "vez de os abrir</b> &mdash; o texto extraído fica aqui em "
-            "baixo. ")
+    texto_cx = texto_da_peca(ref, nome)
+    aviso_topo, visual = visualizador_de_peca(
+        ref, nome, caminho, origem,
+        (request.args.get("procurar") or "").strip(),
+        "/peca/%s/%s" % (ref, quote(nome, safe="")))
 
     corpo = (
         "<div class='larg'>"
