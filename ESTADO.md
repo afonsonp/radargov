@@ -3384,3 +3384,68 @@ Testes: **485** (as classes das decisões da manhã foram substituídas
 pelas da lista única, com o porquê nos comentários — reescrever testes
 quando a decisão muda é o custo certo; «simplificá-los» de volta é que
 não).
+
+## Desenho visual: direccao "ardosia e ambar", 31 de agosto de 2026
+
+Fase de desenho puro, a seguir ao esqueleto: cor, tipografia,
+espacamento, densidade e composicao das paginas. **Zero mudancas de
+estrutura de informacao, rotas ou comportamento** -- a estrutura fechou
+nesse mesmo dia e nao se reabriu aqui.
+
+**As duas escolhas do Afonso**, por reaccao a arranjos postos lado a
+lado num canvas (o metodo dele: nao articula o que quer, escolhe entre
+opcoes contrastantes):
+
+- **Composicao da ficha: C, "dossier com indice"** -- uma coluna so,
+  tudo aberto por ordem de leitura, com um cabecalho fino (titulo,
+  prazo, interessa/abandonar) e um indice presos ao rolar. As
+  alternativas eram A ("mesa de decisao": faixa no topo e mercado
+  fechado) e B ("coluna do processo": duas colunas com a direita fixa).
+  Sacrificio assumido: nada fica lado a lado, a pagina e comprida e
+  ganha-se pelo indice. **Com uma afinacao dele: o leitor de PDF abre
+  dentro da ficha, por baixo do bloco das pecas** -- a rota
+  `/peca/<ref>/<nome>` mantem-se para ligacoes directas.
+- **Direccao visual: 1, "o actual afinado", com a paleta 3 "ardosia e
+  ambar"**. Nao muda a identidade (barra escura, Archivo + JetBrains
+  Mono) -- muda a leitura. As outras direccoes eram "imprensa" (serifa
+  Newsreader, reguas em vez de caixas) e "instrumento" (IBM Plex,
+  denso). Das quatro paletas propostas sobre a direccao 1 escolheu a
+  fria: barra ardosia azulada, papel cinzento-claro, ambar na marca e
+  nos prazos que apertam.
+
+**O diagnostico que isto corrige** (fase A0, `design:design-critique`
+sobre screenshots de todas as paginas):
+
+- os cinzentos `--t5`/`--t6` davam **2,5:1 a 2,9:1** sobre branco --
+  abaixo de AA, e justamente nos textos de 10-11px (contagens, notas,
+  datas). A escala nova nao desce abaixo de 4,5:1 **sobre `--papel`**,
+  que e o pior fundo;
+- a escala tipografica vivia toda entre 10 e 13,5px e a hierarquia
+  fazia-se so por peso e cor: numa pagina densa lia-se tudo ao mesmo
+  nivel;
+- tudo era caixa branca com a mesma borda e a mesma sombra -- um
+  filtro, um aviso e o conteudo tinham o mesmo peso visual.
+
+**Regra nova que a paleta traz:** o que e texto usa `--t1`..`--t6`, o
+que e decoracao (setas das migalhas, molduras tracejadas, separadores)
+usa `--traco` ou `--linha`. Foi a confusao entre os dois que fez
+nascer os cinzentos ilegiveis -- um `--t6` escolhido para desenhar uma
+seta acabou a escrever contagens.
+
+### A barra lateral passou de 236px para 140px
+
+Pedido dele, e nao e so uma largura: **encolher sem refazer o
+espacamento e o que a partia**. Ele proprio a puxou para 121px no
+canvas e com o padding antigo (22px de cada lado) sobravam 77px de
+conteudo. A 140 com padding de 12 sobram 116, e tudo dentro tem
+medidas proprias: a marca numa linha, as contagens do acervo **uma por
+linha** (`acervo` passou a separa-las com `<br>` -- numa linha so, "66
+205 anuncios · 1 363 300 contratos" partia em qualquer sitio menos nos
+que interessam), a caixa da verificacao sem fundo proprio e o "quem
+esta a trabalhar" reduzido a inicial mais nome. A zona principal ganha
+96px de largura util.
+
+Os pontos verde/vermelho da ultima verificacao deixaram de ser cores
+fixas no Python: sobre a barra escura o contraste conta ao contrario,
+e o verde da paleta clara desaparecia la. Passaram a `--ok-claro` e
+`--mau-claro`, que so existem para esse fundo.

@@ -4651,11 +4651,29 @@ app = Flask(__name__)
 # precisam de ser escapadas como %% e o ficheiro fica legivel.
 
 CSS = r"""
+/* Paleta "ardosia e ambar" (escolhida a 31/08/2026, fase de desenho
+   visual). Os nomes das variaveis sao os de sempre -- mudam os valores,
+   e o CSS todo vem atras. Duas regras que nao se quebram:
+   - todos os --t* passam AA (4.5:1) sobre --papel, que e o pior fundo.
+     A escala antiga descia a #b4b0a6, que dava 2.5:1 em texto de 10px;
+   - o que e decoracao (setas, separadores, molduras) usa --traco ou
+     --linha, nunca um --t*. Foi a confusao entre os dois que fez
+     nascer os cinzentos ilegiveis. */
 :root{
- --ink:#12141a; --azul:#1f4e79; --verde:#1e8449; --verm:#c0392b;
- --laranja:#d68910; --coral:#ff6b57;
- --papel:#f6f4ef; --creme:#fbfaf7; --linha:#e2ded4; --linha2:#f0eee9;
- --t1:#12141a; --t2:#4a5058; --t3:#7b8189; --t4:#8c9199; --t5:#9ba0a7; --t6:#b4b0a6;
+ --ink:#14181e; --azul:#17557f; --verde:#1a7a4d; --verm:#b0341a;
+ --laranja:#a8450e; --coral:#e08b2c;
+ --papel:#eef1f4; --creme:#f8fafb; --linha:#dbe0e6; --linha2:#eceff2;
+ --t1:#14181e; --t2:#333c46; --t3:#4d5661; --t4:#5c6570; --t5:#67707c; --t6:#69727e;
+ --traco:#b9c1cb;
+ /* fundos das notas: cada um so acompanha a cor de texto do mesmo nome */
+ --azul-fundo:#eaf2f8; --azul-borda:#cddfeb;
+ --verde-fundo:#e7f3ec; --laranja-fundo:#fbeee2; --verm-fundo:#fbe9e5;
+ /* na barra escura o contraste conta ao contrario: estes tres sao os
+    unicos claros que la vivem */
+ --barra-t1:rgba(255,255,255,.94); --barra-t2:rgba(255,255,255,.7);
+ --barra-t3:rgba(255,255,255,.55); --barra-linha:rgba(255,255,255,.14);
+ --barra-on:rgba(255,255,255,.13);
+ --ok-claro:#57c894; --mau-claro:#ff8a6a;
  --sans:Archivo,system-ui,-apple-system,'Segoe UI',sans-serif;
  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
 }
@@ -4665,54 +4683,58 @@ body{margin:0;background:var(--papel);font-family:var(--sans);color:var(--t1);
 a{color:var(--azul);text-decoration:none}
 a:hover{color:var(--ink)}
 ::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:#c9c4b8;border-radius:6px}
+::-webkit-scrollbar-thumb{background:var(--traco);border-radius:6px}
 .app{display:flex;min-height:100vh}
 
-/* barra lateral */
-aside{width:236px;flex:none;background:var(--ink);color:#fff;display:flex;
- flex-direction:column;position:sticky;top:0;height:100vh}
-.marca{padding:26px 22px 20px;border-bottom:1px solid rgba(255,255,255,.09)}
-.marca .logo{font:700 17px/1 var(--sans);letter-spacing:-.4px}
+/* Barra lateral, 140px. Era 236 e ocupava um quinto de um portatil para
+   quatro palavras; o Afonso pediu-a estreita. A 140 sobram 116px de
+   conteudo, e e por isso que aqui tudo tem medidas proprias em vez de
+   herdar as da zona principal: os textos partem-se em linhas curtas em
+   vez de encolherem. Encolher a largura sem refazer o espacamento e o
+   que a partia -- com o padding antigo de 22px sobravam 77px. */
+aside{width:140px;flex:none;background:var(--ink);color:#fff;display:flex;
+ flex-direction:column;position:sticky;top:0;height:100vh;padding:16px 12px;
+ box-sizing:border-box}
+.marca{padding:0 0 12px;border-bottom:1px solid var(--barra-linha)}
+.marca .logo{font:700 15px/1 var(--sans);letter-spacing:-.3px}
 .marca .logo span{color:var(--coral)}
-.marca .sub{font:500 10px/1.4 var(--mono);color:rgba(255,255,255,.45);
- letter-spacing:.08em;margin-top:6px;text-transform:uppercase}
-.marca .meta{font:400 10.5px/1.4 var(--mono);color:rgba(255,255,255,.3);margin-top:9px}
-aside nav{padding:14px 10px;display:flex;flex-direction:column;gap:2px}
-aside nav a{display:flex;align-items:center;gap:10px;
- padding:9px 12px;border-radius:7px;color:rgba(255,255,255,.62)}
-aside nav a:hover{background:rgba(255,255,255,.09);color:#fff}
-aside nav a.on{background:rgba(255,255,255,.08);color:#fff}
-aside nav a b{font:500 13.5px/1.2 var(--sans)}
+.marca .sub{font:500 9.5px/1.45 var(--sans);color:var(--barra-t3);margin-top:7px}
+.marca .meta{font:500 9.5px/1.6 var(--mono);color:var(--barra-t2);margin-top:7px}
+aside nav{display:flex;flex-direction:column;gap:1px;margin:12px -6px 0}
+aside nav a{display:block;padding:7px 8px;border-radius:5px;
+ color:var(--barra-t2);font:500 12.5px/1.25 var(--sans)}
+aside nav a:hover{background:var(--barra-on);color:#fff}
+aside nav a.on{background:var(--barra-on);color:#fff}
+aside nav a b{font:inherit;font-weight:600}
 /* as duas vistas de um item aberto (Em curso, Mercado) */
-aside nav a.sub{padding:6px 12px 6px 30px}
-aside nav a.sub b{font:400 12.5px/1.2 var(--sans)}
-.caixa{margin:16px 14px 0;padding:12px 13px;border-radius:8px;background:rgba(255,255,255,.05)}
-.caixa .r{font:500 9.5px/1 var(--sans);color:rgba(255,255,255,.4);
- text-transform:uppercase;letter-spacing:.09em}
-.caixa .h{font:500 11.5px/1.5 var(--mono);color:rgba(255,255,255,.72);margin-top:7px}
-.caixa .n{font:400 11px/1.5 var(--sans);color:rgba(255,255,255,.42);margin-top:4px}
+aside nav a.sub{padding:5px 8px 5px 16px}
+aside nav a.sub b{font-weight:400;font-size:11.5px}
+aside nav a.sub.on b{font-weight:600}
+.caixa{margin:16px 0 0;padding:12px 0 0;border-top:1px solid var(--barra-linha)}
+.caixa .r{font:600 8.5px/1 var(--sans);color:var(--barra-t3);
+ text-transform:uppercase;letter-spacing:.1em}
+.caixa .h{font:500 10px/1.5 var(--mono);color:var(--barra-t2);margin-top:6px}
+.caixa .n{font:400 10.5px/1.5 var(--sans);color:var(--barra-t2);margin-top:5px}
 /* o ponto da ultima verificacao e a porta dos Indicadores (11.6-A) */
 .caixa a.n{display:block}
-.caixa a.n:hover{color:rgba(255,255,255,.72)}
+.caixa a.n:hover{color:#fff}
 /* Quem esta a trabalhar. Fechado por omissao: e uma escolha que se faz
    uma vez e ocupava permanentemente o canto da barra. */
-.sou{margin-top:auto;padding:14px 22px;border-top:1px solid rgba(255,255,255,.09)}
-.sou > summary{display:flex;align-items:center;gap:8px;cursor:pointer;
- list-style:none;color:rgba(255,255,255,.5);font:500 12px/1 var(--sans)}
+.sou{margin-top:auto;padding:12px 0 0;border-top:1px solid var(--barra-linha)}
+.sou > summary{display:flex;align-items:center;gap:7px;cursor:pointer;
+ list-style:none;color:var(--barra-t3);font:500 10.5px/1.3 var(--sans)}
 .sou > summary::-webkit-details-marker{display:none}
 .sou > summary:hover{color:#fff}
-.sou .r{font:500 9.5px/1 var(--sans);color:rgba(255,255,255,.4);
- text-transform:uppercase;letter-spacing:.09em}
-.sou form{display:flex;align-items:center;gap:8px;margin-top:9px}
-.sou .av{width:26px;height:26px;border-radius:50%;background:#3a3f4a;flex:none;
- font:600 10px/26px var(--sans);color:#cfd3da;text-align:center}
+.sou form{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+.sou .av{width:22px;height:22px;border-radius:50%;background:var(--barra-on);
+ flex:none;font:600 9px/22px var(--sans);color:#fff;text-align:center}
 .sou input{flex:1;min-width:0;background:transparent;border:0;
- border-bottom:1px solid rgba(255,255,255,.18);color:#fff;
- font:500 12.5px/1.6 var(--sans);padding:2px 0}
-.sou input::placeholder{color:rgba(255,255,255,.3)}
+ border-bottom:1px solid var(--barra-linha);color:#fff;
+ font:500 11.5px/1.6 var(--sans);padding:2px 0}
+.sou input::placeholder{color:var(--barra-t3)}
 .sou input:focus{outline:none;border-bottom-color:var(--coral)}
-.sou button{background:none;border:0;color:rgba(255,255,255,.35);cursor:pointer;
- font:400 11px/1.2 var(--sans);padding:0;flex:none}
+.sou button{background:none;border:0;color:var(--barra-t3);cursor:pointer;
+ font:400 10.5px/1.2 var(--sans);padding:0;flex:none}
 .sou button:hover{color:#fff}
 
 /* zona principal */
@@ -4722,7 +4744,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
 .migalhas{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .migalhas .b{display:flex;align-items:center;gap:8px;min-width:0;
  font:500 11.5px/1 var(--sans);color:var(--t3)}
-.migalhas .b s{text-decoration:none;color:#c9c4b8}
+.migalhas .b s{text-decoration:none;color:var(--traco)}
 .migalhas .b em{font-style:normal;color:var(--ink)}
 .accoes-topo{margin-left:auto;display:flex;align-items:center;gap:8px}
 /* tudo o que altera dados e um <form method=post>; estas regras fazem
@@ -4735,42 +4757,47 @@ form.accao button{font-family:inherit}
 .bt.forte{background:var(--azul);color:#fff;border-color:var(--azul)}
 .bt.forte:hover{background:var(--ink);border-color:var(--ink);color:#fff}
 .bt.verde{background:var(--verde);color:#fff;border-color:var(--verde)}
-.bt.verde:hover{background:#16663a;color:#fff;border-color:#16663a}
-h1.tit{margin:8px 0 0;font:600 20px/1.25 var(--sans);color:var(--ink);
+.bt.verde:hover{background:#155f3c;color:#fff;border-color:#155f3c}
+/* A escala tem degraus a serio. Estava tudo entre 10 e 13,5px e a
+   hierarquia fazia-se so por peso e cor -- numa pagina densa lia-se
+   tudo ao mesmo nivel. */
+h1.tit{margin:8px 0 0;font:700 22px/1.25 var(--sans);color:var(--ink);
  letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
-p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
-.abas{display:flex;align-items:center;gap:6px;margin-top:14px}
+p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
+ max-width:820px;text-wrap:pretty}
+.abas{display:flex;align-items:center;gap:4px;margin-top:14px}
 .abas a{padding:9px 14px;border-radius:7px 7px 0 0;font:600 12.5px/1 var(--sans);
  background:transparent;color:var(--t3);border:1px solid transparent;
  border-bottom:none;margin-bottom:-1px}
-.abas a.on{background:#fff;color:var(--ink);border-color:var(--linha)}
-.abas a i{font:500 11px/1 var(--mono);font-style:normal;color:var(--t6);margin-left:3px}
-.abas a.on i{color:var(--t5)}
+.abas a:hover{color:var(--ink)}
+.abas a.on{background:#fff;color:var(--ink);border-color:var(--linha);font-weight:700}
+.abas a i{font:500 11px/1 var(--mono);font-style:normal;color:var(--t5);margin-left:4px}
+.abas a.on i{color:var(--t3)}
 .vazio-topo{height:16px}
 .corpo{padding:24px 34px 60px}
 .larg{max-width:1240px}
 
 /* pecas comuns */
-.cx{background:#fff;border:1px solid var(--linha);border-radius:11px;
- box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.rot{font:600 12px/1 var(--sans);color:var(--ink);text-transform:uppercase;
+.cx{background:#fff;border:1px solid var(--linha);border-radius:8px;
+ box-shadow:0 1px 2px rgba(20,24,30,.04)}
+.rot{font:700 11px/1 var(--sans);color:var(--t2);text-transform:uppercase;
  letter-spacing:.07em}
 .nota{font:400 11.5px/1.5 var(--sans);color:var(--t4)}
-.vazio{background:#fff;border:1px solid var(--linha);border-radius:11px;
- padding:40px;text-align:center;color:var(--t5);font:400 13px/1.5 var(--sans)}
-.flash{background:#eef4fa;border:1px solid #cfe0ef;border-radius:9px;
+.vazio{background:#fff;border:1px solid var(--linha);border-radius:8px;
+ padding:40px;text-align:center;color:var(--t4);font:400 13px/1.55 var(--sans)}
+.flash{background:var(--azul-fundo);border:1px solid var(--azul-borda);border-radius:9px;
  padding:11px 15px;margin-bottom:14px;font:500 12.5px/1.4 var(--sans);
  color:var(--azul)}
-.flash.mau{background:#fbe9e6;border-color:#f0c9c3;color:var(--verm)}
+.flash.mau{background:var(--verm-fundo);border-color:#f0cfc7;color:var(--verm)}
 .flash code{font:500 11.5px/1 var(--mono);background:rgba(0,0,0,.06);
  padding:2px 6px;border-radius:4px}
 .tag{font:500 10.5px/1 var(--sans);padding:4px 7px;border-radius:4px;
- background:var(--linha2);color:#5c6169;white-space:nowrap}
+ background:var(--linha2);color:var(--t3);white-space:nowrap}
 .tag.mono{font-family:var(--mono)}
-.tag.ok{background:#e6f2ea;color:var(--verde);font-weight:600}
-.tag.avisa{background:#fdf1de;color:#8a5307;font-weight:600}
-.tag.mau{background:#fbe3e0;color:var(--verm);font-weight:600}
-.tag.info{background:#eef4fa;color:var(--azul);font-weight:600}
+.tag.ok{background:var(--verde-fundo);color:var(--verde);font-weight:600}
+.tag.avisa{background:var(--laranja-fundo);color:var(--laranja);font-weight:600}
+.tag.mau{background:var(--verm-fundo);color:var(--verm);font-weight:600}
+.tag.info{background:var(--azul-fundo);color:var(--azul);font-weight:600}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 .caixa .n .ponto{margin-right:6px}
 .ponto.pulsa{animation:pisca 1.1s infinite}
@@ -4805,7 +4832,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .alerta{display:flex;align-items:center;gap:14px;background:#fff;
  border:1px solid var(--linha);border-radius:10px;padding:14px 16px;
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.alerta.on{border-color:#bcd4e8;background:#fbfdff}
+.alerta.on{border-color:var(--azul-borda);background:var(--creme)}
 .alerta .sobre{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 .alerta .sobre a{font:600 13.5px/1.2 var(--sans);color:var(--ink)}
 .alerta.on .sobre a{color:var(--azul)}
@@ -4821,7 +4848,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .alerta .onde a{color:var(--t5)}
 .alerta .onde a:hover{color:var(--azul);text-decoration:underline}
 .alerta .avisa-mal{display:block;font:400 10.5px/1.4 var(--sans);
- color:#8a5307;margin-top:3px}
+ color:var(--laranja);margin-top:3px}
 .alerta .apagar{cursor:pointer;border:0;background:none;color:var(--t6);
  font:500 17px/1 var(--sans);padding:0 2px}
 .alerta .apagar:hover{color:var(--verm)}
@@ -4972,7 +4999,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
  border-radius:6px;background:#fff;border:1px solid var(--linha);
  font:400 10px/1 var(--sans);color:var(--t6);text-align:center}
 .escada span b{font:600 12px/1 var(--mono);color:var(--ink)}
-.escada span.med{border-color:var(--azul);background:#eef4fa}
+.escada span.med{border-color:var(--azul);background:var(--azul-fundo)}
 .escada span.med b{color:var(--azul)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
@@ -4992,7 +5019,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
 .guardado a{padding:7px 4px 7px 13px;font:500 12.5px/1 var(--sans);color:var(--t3)}
 .guardado:hover{border-color:var(--t6)}
 .guardado:hover a{color:var(--ink)}
-.guardado.on{border-color:var(--azul);background:#eef4fa}
+.guardado.on{border-color:var(--azul);background:var(--azul-fundo)}
 .guardado.on a{color:var(--azul);font-weight:600}
 .guardado form{display:inline-flex}
 .guardado button{cursor:pointer;border:0;background:none;color:var(--t6);
@@ -5007,7 +5034,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.3 var(--sans);color:var(--t3)}
  font:600 12.5px/1 var(--sans)}
 .guardados .guardar button:hover{border-color:var(--ink);color:var(--ink)}
 .cpv-activo{display:flex;align-items:center;gap:9px;padding:10px 14px;
- border:1px solid #cfe0ef;background:#eef4fa;border-radius:9px;margin-bottom:12px;
+ border:1px solid var(--azul-borda);background:var(--azul-fundo);border-radius:9px;margin-bottom:12px;
  font:500 12px/1.3 var(--sans);color:var(--azul)}
 .cpv-activo b{font:600 12px/1.3 var(--mono)}
 .cpv-activo a{text-decoration:underline}
@@ -5033,12 +5060,12 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .arvore-topo button.claro{background:#fff;color:var(--t3);border:1px solid var(--linha)}
 #arvore-contagem{font:400 11.5px/1 var(--sans);color:var(--t5)}
 #arvore-corpo{max-height:330px;overflow-y:auto;border:1px solid var(--linha2);
- border-radius:9px;padding:8px 6px;background:#fdfcfa;margin:0 18px 14px}
+ border-radius:9px;padding:8px 6px;background:var(--creme);margin:0 18px 14px}
 #arvore-corpo details{margin-left:22px}
 #arvore-corpo summary{cursor:pointer;list-style:revert}
 #arvore-corpo .no{display:flex;align-items:center;gap:9px;padding:5px 8px;
  border-radius:6px}
-#arvore-corpo .no:hover{background:#f3f1ec}
+#arvore-corpo .no:hover{background:var(--linha2)}
 /* filho de uma divisao ja marcada: vai no filtro de qualquer maneira e
    nao se pode excluir, por isso a caixa nao finge que se pode */
 #arvore-corpo input[type=checkbox]:disabled{opacity:.4;cursor:not-allowed}
@@ -5093,7 +5120,7 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .item-titulo{font:700 14.5px/1.35 var(--sans);color:var(--azul);display:block;
  text-wrap:pretty}
 .item-titulo:hover{color:var(--ink)}
-.item-entidade{font:400 12.5px/1.4 var(--sans);color:#6e747c;margin-top:5px}
+.item-entidade{font:400 12.5px/1.4 var(--sans);color:var(--t2);margin-top:5px}
 .item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .item-lado{padding:15px 18px;border-left:1px solid var(--linha2);display:flex;
  flex-direction:column;align-items:flex-end;justify-content:center;gap:10px}
@@ -5103,7 +5130,7 @@ details.arvore[open]>summary::before{content:'\25BE'}
  border:1px solid var(--linha);color:var(--t3);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--verm);color:var(--verm)}
 .mini.verde{background:var(--verde);color:#fff;border-color:var(--verde)}
-.mini.verde:hover{background:#16663a;color:#fff;border-color:#16663a}
+.mini.verde:hover{background:#155f3c;color:#fff;border-color:#155f3c}
 .rodape{margin-top:18px;padding:12px 16px;border:1px solid var(--linha);
  border-radius:8px;background:var(--creme);display:flex;align-items:center;gap:10px}
 .rodape .e{font:500 12px/1 var(--sans);color:var(--t2)}
@@ -5120,7 +5147,7 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .cabeca .ref{font:500 11px/1 var(--mono);color:var(--t4)}
 .cabeca h2{margin:0 0 6px;font:700 22px/1.3 var(--sans);color:var(--azul);
  letter-spacing:-.4px;text-wrap:pretty}
-.cabeca .ent{font:400 13px/1.4 var(--sans);color:#6e747c;margin-bottom:20px}
+.cabeca .ent{font:400 13px/1.4 var(--sans);color:var(--t2);margin-bottom:20px}
 .cabeca .ent a{color:var(--azul)}
 .cabeca .ent a:hover{text-decoration:underline}
 .factos{display:flex;flex-wrap:wrap;gap:1px;background:var(--linha);
@@ -5188,8 +5215,8 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .doc .t{margin-left:auto;flex:none;font:400 11px/1 var(--mono);color:var(--t5)}
 .resp{display:flex;align-items:center;gap:9px;padding:9px 12px;
  border:1px solid var(--linha);border-radius:8px;background:var(--creme)}
-.resp .av{width:24px;height:24px;border-radius:50%;background:#e6e2da;flex:none;
- font:600 9.5px/24px var(--sans);color:#5c6169;text-align:center}
+.resp .av{width:24px;height:24px;border-radius:50%;background:var(--linha);flex:none;
+ font:600 9.5px/24px var(--sans);color:var(--t3);text-align:center}
 .resp input{flex:1;min-width:0;border:0;background:transparent;
  font:500 12.5px/1.4 var(--sans);color:var(--ink)}
 .resp input:focus{outline:none}
@@ -5220,8 +5247,8 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
  font:500 14px/1 var(--sans);padding:0 2px}
 .fase-apagar:hover{color:var(--verm)}
 .coluna-corpo{display:flex;flex-direction:column;gap:9px;min-height:60px}
-.coluna-corpo.sobre{outline:2px dashed #cfcabd;outline-offset:3px;border-radius:6px}
-.coluna-vazia{padding:16px 9px;border:1px dashed #cfcabd;border-radius:6px;
+.coluna-corpo.sobre{outline:2px dashed var(--traco);outline-offset:3px;border-radius:6px}
+.coluna-vazia{padding:16px 9px;border:1px dashed var(--traco);border-radius:6px;
  text-align:center;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
 .carta{background:#fff;border:1px solid var(--linha);border-radius:6px;padding:13px;
  box-shadow:0 1px 2px rgba(0,0,0,.06);cursor:grab}
@@ -5241,7 +5268,7 @@ button.etq-x:hover{opacity:1}
 button.tirar{background:none;border:0;padding:0;cursor:pointer;
  font:400 11px/1 var(--sans);color:var(--t6)}
 button.tirar:hover{color:var(--verm)}
-.etq-form input{padding:3px 7px;border-radius:4px;border:1px dashed #cfcabd;
+.etq-form input{padding:3px 7px;border-radius:4px;border:1px dashed var(--traco);
  background:transparent;font:500 10.5px/1.3 var(--sans);color:var(--t5);width:78px}
 .etq-form input:focus{outline:none;border-style:solid;border-color:var(--azul)}
 .carta-pe{display:flex;align-items:center;margin-top:11px;padding-top:9px;
@@ -5249,7 +5276,7 @@ button.tirar:hover{color:var(--verm)}
 .carta-pe a{font:400 11px/1 var(--sans);color:var(--t6)}
 .carta-pe a:hover{color:var(--verm)}
 .carta-pe .av{margin-left:auto;width:20px;height:20px;border-radius:50%;
- background:#e6e2da;font:600 9px/20px var(--sans);color:#5c6169;text-align:center}
+ background:var(--linha);font:600 9px/20px var(--sans);color:var(--t3);text-align:center}
 
 /* calendario */
 .grade-caixa{background:#fff;border:1px solid var(--linha);border-radius:8px;
@@ -5271,10 +5298,10 @@ button.tirar:hover{color:var(--verm)}
 .cel-dia .s{font:500 9px/1.2 var(--sans);color:var(--t6);text-transform:lowercase}
 .cel-dia .n{font:600 11px/1.2 var(--mono);color:var(--t4)}
 .cel-dia .m{font:400 9px/1.3 var(--sans);color:var(--t6);text-transform:uppercase}
-.cel-dia.fds{background:#f1efe9}
+.cel-dia.fds{background:var(--linha2)}
 .cel-dia.fds .s,.cel-dia.fds .n{color:var(--t5)}
 .cel-dia.mes-novo{border-left:2px solid var(--linha)}
-.cel-dia.hoje{background:#eef4fa}
+.cel-dia.hoje{background:var(--azul-fundo)}
 .cel-dia.hoje .n,.cel-dia.hoje .s{color:var(--azul);font-weight:700}
 .cel-pilula{padding:4px 3px}
 .pilula{display:block;padding:6px 4px;border-radius:5px;font:600 9.5px/1.2 var(--sans);
@@ -5307,9 +5334,9 @@ button.tirar:hover{color:var(--verm)}
 /* entidade sem NIF no corpus: agrupa-se pelo nome e pode ser a mesma
    empresa que outra linha */
 .sem-nif{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:4px;
- background:#f3efe4;color:var(--t4);font:600 9px/1.3 var(--sans);
+ background:var(--linha2);color:var(--t4);font:600 9px/1.3 var(--sans);
  text-transform:uppercase;letter-spacing:.06em;vertical-align:middle}
-.aviso-prop{padding:12px 16px;border:1px dashed #cfcabd;border-radius:8px;
+.aviso-prop{padding:12px 16px;border:1px dashed var(--traco);border-radius:8px;
  font:400 12px/1.5 var(--sans);color:var(--t4)}
 
 @media (max-width:1100px){
@@ -5332,7 +5359,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
  <div class="marca">
   <div class="logo">Radar<span>DR</span></div>
   <div class="sub">%(fontes)s</div>
-  <div class="meta">localhost:%(porta)d &middot; %(acervo)s</div>
+  <div class="meta">%(acervo)s<br>localhost:%(porta)d</div>
  </div>
  <nav>%(nav)s</nav>
  <div class="caixa">
@@ -5499,14 +5526,16 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     mensagem = le_marca("ultima_mensagem", "ainda não verificou")
     quando = le_marca("ultima_verificacao", "nunca")
     bom = le_marca("ultima_ok", "") != "0"
+    # Os pontos vivem sobre a barra escura, onde o contraste conta ao
+    # contrario: o verde e o vermelho da paleta clara desapareciam la.
     ultima = (("<span class='ponto' style='background:%s'></span>"
                "última: %s &mdash; %s"
-               % ("#1e8449" if bom else "#c0392b",
+               % ("var(--ok-claro)" if bom else "var(--mau-claro)",
                   html.escape(data_hora_pt(quando)), html.escape(mensagem)))
               if quando != "nunca" else "ainda não verificou")
     a_verificar = verificacao_a_correr()
     if a_verificar:
-        ultima = ("<span class='ponto pulsa' style='background:#b7791f'></span>"
+        ultima = ("<span class='ponto pulsa' style='background:var(--coral)'></span>"
                   "a verificar agora &mdash; %s" % html.escape(a_verificar))
 
     if not migalhas:
@@ -5545,7 +5574,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # do DR: num separador de contratos, dizer "parte L" e mentira.
         "fontes": ("Anúncios do DR &middot; contratos do BASE" if n_corpus
                    else "DR II série &middot; parte L"),
-        "acervo": ("%s anúncios &middot; %s contratos"
+        # Uma contagem por linha: na barra estreita cabem 20 caracteres,
+        # e "66 205 anuncios · 1 363 300 contratos" numa linha so partia
+        # em qualquer sitio menos nos que interessam.
+        "acervo": ("%s anúncios<br>%s contratos"
                    % (mil_pt(total), mil_pt(n_corpus)) if n_corpus
                    else "%s anúncios" % mil_pt(total)),
         "nav": "".join(itens),
