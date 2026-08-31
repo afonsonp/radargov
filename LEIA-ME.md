@@ -350,11 +350,12 @@ entra o login a sério.
 
 Chega-se lá pelo **ponto verde/vermelho da última verificação**, em
 baixo na barra da esquerda — é a única porta, de propósito: é consulta
-ocasional, não trabalho diário. Números sobre o teu próprio
-radar: quantos anúncios tens, quantos entraram hoje, quantos marcaste
-como interessa (e destes, quantos têm prazo a menos de uma semana),
-quantos ainda estão sem detalhe lido, como estão distribuídos pelas
-fases do quadro, e o estado da recolha — se as capturas ainda são
+ocasional, não trabalho diário. Números sobre o teu próprio radar:
+quantos anúncios tens, quantos entraram hoje, quantos marcaste como
+interessa (e destes, quantos estão dentro da janela do "urgente" — os
+mesmos N dias do filtro e da etiqueta cor de âmbar, editáveis em
+Alertas), quantos ainda estão sem detalhe lido, como estão distribuídos
+pelas fases do quadro, e o estado da recolha — se as capturas ainda são
 válidas e que percentagem de peças se consegue por plataforma.
 
 É tudo lido da tua base, não sai nada para fora.
