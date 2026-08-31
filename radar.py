@@ -2484,7 +2484,9 @@ def _servir_analise():
         ref, quem = _FILA_ANALISE.get()
         try:
             ok, porque = analisar_pecas(ref)
-            registar(ref, "análise",
+            # "leitura", nao "análise": e o nome que o ecra usa (§7 do
+            # ESQUELETO). Os registos antigos traduzem-se ao mostrar.
+            registar(ref, "leitura",
                      "peças lidas" if (ok and not porque) else (porque or "falhou"),
                      quem=quem)
             if not ok:
@@ -5689,7 +5691,7 @@ def _lista_de_anuncios(ambito):
 
     filtros = (
         "<form class='cx filtros' method='get' action='%s'>"
-        "<input type='text' name='q' value='%s' placeholder='Nome do concurso ou objecto…'>"
+        "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
         # As exclusoes ao lado das inclusoes: palavras a tirar e CPV a
         # tirar. O cpv_excl e caixa de texto e nao arvore -- a arvore
         # escreve no campo positivo, e excluir escreve-se a mao (codigos
@@ -5980,6 +5982,11 @@ _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
 _NOMES_PRAZO = {"aberto": "prazo por fechar", "expirado": "prazo passado"}
 _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
                  "descartado": "descartados", "": "todos"}
+# Traducao das accoes antigas do historico para o vocabulario actual
+# (§7 do ESQUELETO: "análise" nao aparece no ecra — chama-se leitura).
+# Os registos gravados antes da mudanca ficam na base como estao; e ao
+# mostrar que se traduzem.
+_NOMES_ACCAO = {"análise": "leitura"}
 
 
 def resumo_filtro(consulta, vista=None):
@@ -6592,8 +6599,11 @@ def exportar():
             " ORDER BY data_pub DESC", valores).fetchall()
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=";")
+    # "Triagem" e nao "Estado": e o rotulo do grupo por ver/interessa/
+    # descartados em todo o lado (§7 do ESQUELETO) — "estado" reserva-se
+    # para sistema e itens (peças, leitura).
     escritor.writerow(["Anúncio", "Publicado", "Tipo", "Entidade", "Objecto",
-                       "CPV", "Prazo", "Preço base (EUR)", "Estado",
+                       "CPV", "Prazo", "Preço base (EUR)", "Triagem",
                        "Endereço"])
     for a in linhas:
         # Datas em DD/MM/AAAA como no resto da aplicacao -- o ISO e para a
@@ -6924,12 +6934,14 @@ def alertas():
                       "<option value='%s'%s>ainda sem detalhe lido</option>"
                       % (html.escape(POR_LER, quote=True),
                          marca_sel("plat", POR_LER))]),
+           # "triagem" e nao "estado": e o nome do grupo por ver/
+           # interessa/descartados em todo o lado (§7 do ESQUELETO)
            "".join("<option value='%s'%s>%s</option>"
                    % (v, marca_sel("estado", v, omissao="novo"), t)
-                   for v, t in (("novo", "estado: só os por ver"),
-                                ("", "estado: todos"),
-                                ("interessa", "estado: só os interessa"),
-                                ("descartado", "estado: só os descartados"))),
+                   for v, t in (("novo", "triagem: só os por ver"),
+                                ("", "triagem: todos"),
+                                ("interessa", "triagem: só os interessa"),
+                                ("descartado", "triagem: só os descartados"))),
            "".join("<option value='%s'%s>%s</option>"
                    % (v, marca_sel("prazo", v), t)
                    for v, t in (("", "prazo: tanto faz"),
@@ -8022,6 +8034,23 @@ def barra_corpus(anos):
                html.escape(data_hora_pt(quando)), direita, aviso))
 
 
+def refs_com_anuncio(refs):
+    """Dos n_anuncio dados, quais existem mesmo como anuncios na base.
+
+    E o inverso do B02 (atalho da §5 do ESQUELETO): um contrato cujo
+    procedimento teve anuncio no radar leva a ficha dele. So quando o
+    ref existe -- 4 917 dos 5 391 comuns tinham ficha na ultima
+    medicao, e nos outros a ligacao dava um 404.
+    """
+    limpos = [r for r in {(r or "").strip() for r in refs} if r]
+    if not limpos:
+        return set()
+    with liga() as c:
+        return {r["ref"] for r in c.execute(
+            "SELECT ref FROM anuncios WHERE ref IN (%s)"
+            % ",".join("?" * len(limpos)), limpos)}
+
+
 @app.route("/contratos")
 def contratos():
     if not ha_corpus():
@@ -8116,6 +8145,9 @@ def contratos():
            v("de"), v("ate"), v("min")))
 
     if linhas:
+        # o inverso do B02: quando o procedimento teve anuncio no radar,
+        # a linha leva a ficha dele (so os refs que existem mesmo)
+        com_ficha = refs_com_anuncio([l["n_anuncio"] for l in linhas])
         corpo = []
         for l in linhas:
             # os adjudicatarios vem em duas listas paralelas (nome e
@@ -8125,6 +8157,10 @@ def contratos():
             venceu = " + ".join(
                 liga_entidade(ch, n) for n, ch in zip(nomes, chaves)
                 if n) or "—"
+            objecto = html.escape(corta(l["objecto"], 150))
+            if (l["n_anuncio"] or "").strip() in com_ficha:
+                objecto += (" &middot; <a href='/anuncio/%s'>anúncio</a>"
+                            % (l["n_anuncio"] or "").strip())
             corpo.append(
                 "<tr><td class='d'>%s</td><td class='d'>%s</td>"
                 "<td class='o'>%s</td>"
@@ -8132,7 +8168,7 @@ def contratos():
                 "<td class='p'>%s</td></tr>"
                 % (data_pt(l["data_celebracao"]),
                    data_pt(l["fim_estimado"], "—"),
-                   html.escape(corta(l["objecto"], 150)),
+                   objecto,
                    liga_entidade(l["adjudicante_chave"], l["adj_nome"] or ""),
                    venceu,
                    html.escape(l["tipo_procedimento"] or ""),
@@ -9157,11 +9193,22 @@ def ficha(ref):
     # mesmo ecra -- o prazo aqui e outra vez na caixa preta da direita, o
     # estado aqui e outra vez no chip logo acima. Cada repeticao obriga a
     # confirmar que e mesmo a mesma coisa.
+    cpv_facto = "<br>".join(descricoes_cpv(a["cpv"]))
+    if cpv_facto:
+        # "Que mais ha disto?" — a Pesquisa com o(s) CPV do anuncio e
+        # todos os estados fecha o ciclo ficha -> acervo (atalho da §5
+        # do ESQUELETO). O campo cpv aceita varios codigos por |.
+        codigos = "|".join(p.strip() for p in (a["cpv"] or "").split(",")
+                           if p.strip())
+        cpv_facto += ("<br><a href='/anuncios?%s'>ver anúncios deste CPV "
+                      "na Pesquisa</a>"
+                      % html.escape(urlencode({"cpv": codigos, "estado": ""}),
+                                    quote=True))
     factos = "".join((
         _facto("Publicado", data_pt(a["data_pub"], "")),
         _facto("Preço base", html.escape(a["preco_base"] or "")),
         _facto("Plataforma", html.escape(a["plataforma"] or "")),
-        _facto("CPV", "<br>".join(descricoes_cpv(a["cpv"])), largo=True),
+        _facto("CPV", cpv_facto, largo=True),
     ))
 
     # O nome da entidade leva à ficha dela quando o corpus a conhece: de
@@ -9371,7 +9418,8 @@ def ficha(ref):
         linhas_hist = "".join(
             "<div class='hist'><span class='t'>%s %s %s</span>"
             "<span class='q'>%s</span></div>"
-            % (html.escape(p["quem"]), html.escape(p["accao"]),
+            % (html.escape(p["quem"]),
+               html.escape(_NOMES_ACCAO.get(p["accao"], p["accao"])),
                html.escape(p["detalhe"] or ""),
                html.escape(data_hora_pt(p["quando"])))
             for p in passos)
@@ -9533,6 +9581,17 @@ def cartao(a, etiquetas_por_ref):
     texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"])
     prazo_html = ("<span class='tag %s'>&#9679; %s</span>"
                   % (classe_prazo, texto_prazo)) if texto_prazo else ""
+    # Quadro <-> Calendario sao duas vistas do mesmo conjunto (§5 do
+    # ESQUELETO): o cartao aponta para a SUA linha na grade, por ancora.
+    # So quando o prazo cabe na janela -- fora dela a ancora nao existe
+    # e a ligacao prometia o que a grade nao mostra.
+    ref_ancora = a["ref"].replace("/", "-")
+    dias, passou = dias_restantes(a["prazo"])
+    vai_calendario = ("<a href='/calendario#c-%s' "
+                      "style='margin-left:10px'>no calendário</a>"
+                      % ref_ancora
+                      if dias is not None and not passou
+                      and dias < DIAS_CALENDARIO else "")
     preco_html = ("<span class='carta-preco'>%s</span>"
                   % html.escape(a["preco_base"])) if a["preco_base"] else ""
     etiquetas_html = "".join(
@@ -9544,7 +9603,7 @@ def cartao(a, etiquetas_por_ref):
     dono = ("<span class='av'>%s</span>" % _iniciais(a["responsavel"])) \
         if a["responsavel"] else ""
     return (
-        "<div class='carta' draggable='true' data-ref='%s'>"
+        "<div class='carta' id='c-%s' draggable='true' data-ref='%s'>"
         "<a href='/anuncio/%s' class='carta-titulo'>%s</a>"
         "<div class='carta-entidade'>%s</div>"
         "<div class='carta-meta'>%s%s</div>"
@@ -9552,9 +9611,10 @@ def cartao(a, etiquetas_por_ref):
         "<form class='etq-form' method='post' action='/quadro/etiqueta/%s/nova'>"
         "<input type='text' name='nome' placeholder='+ etiqueta' "
         "list='etiquetas-existentes' maxlength='24'></form></div>"
-        "<div class='carta-pe'>%s%s</div>"
+        "<div class='carta-pe'>%s%s%s</div>"
         "</div>"
-        % (a["ref"], a["ref"], html.escape(corta(a["titulo"], 120)),
+        % (ref_ancora, a["ref"], a["ref"],
+           html.escape(corta(a["titulo"], 120)),
            html.escape(a["entidade"]), preco_html, prazo_html,
            etiquetas_html, a["ref"],
            # o botao repunha o estado em "por ver" e chamava-se "tirar do
@@ -9562,7 +9622,8 @@ def cartao(a, etiquetas_por_ref):
            # e o anuncio voltava para a caixa de entrada com 66 mil
            accao("/estado/%s/novo" % a["ref"], "voltar a por ver", "tirar",
                  confirmar="Isto tira a marca de interessa e devolve o "
-                           "anúncio à lista dos por ver. Continuar?"), dono))
+                           "anúncio à lista dos por ver. Continuar?"),
+           vai_calendario, dono))
 
 
 def soma_precos_base(itens):
@@ -9728,11 +9789,20 @@ def calendario():
                                   html.escape(fase_nome)))
             else:
                 celulas.append("<div class='%s'></div>" % classes)
-        linhas.append("<div class='linha-grade' style='%s'>"
+        # A ancora e a ligacao de volta: quadro <-> calendario sao duas
+        # vistas do mesmo conjunto, e cada linha aponta para o SEU
+        # cartao (§5 do ESQUELETO). A ligacao vai em linha propria: no
+        # .ent, o nowrap+ellipsis da entidade comia-a nos nomes longos.
+        ref_ancora = a["ref"].replace("/", "-")
+        linhas.append("<div class='linha-grade' id='c-%s' style='%s'>"
                       "<div class='cel-titulo'><a href='/anuncio/%s'>%s</a>"
-                      "<div class='ent'>%s</div></div>%s</div>"
-                      % (grelha, a["ref"], html.escape(a["titulo"][:70]),
-                         html.escape(a["entidade"]), "".join(celulas)))
+                      "<div class='ent'>%s</div>"
+                      "<div class='ent'><a href='/quadro#c-%s'>no quadro"
+                      "</a></div></div>%s</div>"
+                      % (ref_ancora, grelha, a["ref"],
+                         html.escape(corta(a["titulo"], 70)),
+                         html.escape(a["entidade"]), ref_ancora,
+                         "".join(celulas)))
 
     nota = ("<div class='nota' style='margin-top:14px'>%d anúncio(s) "
             "interessado(s) têm prazo fora da janela de %d dias e não "
@@ -9934,7 +10004,9 @@ def indicadores():
             valor = "%.1f%%%s" % (pct, "" if obtem else " sem acesso")
             bom = obtem
         saude.append((rotulo, valor, bom))
-    saude.append(("Documentos guardados", mil(n_docs), True))
+    # "Peças", como em todo o lado: "documentos" no ecra e so os da
+    # proposta (vocabulario da §7 do ESQUELETO).
+    saude.append(("Peças guardadas", mil(n_docs), True))
     try:
         tam = os.path.getsize(DB) / (1024.0 * 1024)
         with liga() as c:

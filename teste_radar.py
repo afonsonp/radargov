@@ -3623,6 +3623,71 @@ class TestInterruptorDoArquivo(unittest.TestCase):
         self.assertNotIn("ambito", radar.CAMPOS_FILTRO)
 
 
+class TestVocabularioNoEcra(unittest.TestCase):
+    """Andamento 2 do esqueleto (§7): um conceito, um nome. "análise"
+    não aparece no ecrã — chama-se leitura — e os registos antigos do
+    histórico, gravados como "análise", traduzem-se ao mostrar em vez
+    de se reescrever a base."""
+
+    def test_analise_traduz_se_para_leitura(self):
+        self.assertEqual(radar._NOMES_ACCAO.get("análise"), "leitura")
+
+    def test_accao_desconhecida_passa_como_esta(self):
+        # o histórico tem acções livres ("interessa", "rectificado"):
+        # traduzir só o que está no mapa, nunca calar o resto
+        self.assertEqual(radar._NOMES_ACCAO.get("interessa", "interessa"),
+                         "interessa")
+
+
+class TestQuadroECalendarioLigados(unittest.TestCase):
+    """Atalho da §5 do esqueleto: quadro e calendário são duas vistas do
+    mesmo conjunto, e cada cartão/linha aponta para o seu par por
+    âncora. O erro que isto trava: a ligação do cartão prometer uma
+    âncora que a grade não tem (prazo fora da janela de 45 dias)."""
+
+    def _carta(self, prazo):
+        a = {"ref": "111/2026", "prazo": prazo, "preco_base": "",
+             "titulo": "Ensaio", "entidade": "Ent", "responsavel": ""}
+        return radar.cartao(a, {})
+
+    def test_cartao_com_prazo_na_janela_aponta_para_a_grade(self):
+        prazo = (datetime.date.today()
+                 + datetime.timedelta(days=5)).isoformat()
+        html_carta = self._carta(prazo)
+        self.assertIn("id='c-111-2026'", html_carta)
+        self.assertIn("/calendario#c-111-2026", html_carta)
+
+    def test_prazo_fora_da_janela_nao_promete_ancora(self):
+        longe = (datetime.date.today()
+                 + datetime.timedelta(days=radar.DIAS_CALENDARIO + 10)
+                 ).isoformat()
+        self.assertNotIn("/calendario#", self._carta(longe))
+
+    def test_prazo_passado_ou_vazio_nao_promete_ancora(self):
+        ontem = (datetime.date.today()
+                 - datetime.timedelta(days=1)).isoformat()
+        self.assertNotIn("/calendario#", self._carta(ontem))
+        self.assertNotIn("/calendario#", self._carta(""))
+
+
+class TestLigacaoContratoAnuncio(BaseTemporaria):
+    """Atalho da §5: uma linha de contrato com n_anuncio leva à ficha do
+    anúncio — mas SÓ quando o ref existe na base (4 917 dos 5 391
+    comuns na última medição). Sem o crivo, 474 ligações davam 404."""
+
+    def test_so_os_refs_que_existem(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo) VALUES (?,?)",
+                      ("21877/2026", "Ensaio"))
+        achados = radar.refs_com_anuncio(
+            ["21877/2026", "99999/2026", "", None])
+        self.assertEqual(achados, {"21877/2026"})
+
+    def test_lista_vazia_nao_consulta_nada(self):
+        self.assertEqual(radar.refs_com_anuncio([]), set())
+        self.assertEqual(radar.refs_com_anuncio(["", None]), set())
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

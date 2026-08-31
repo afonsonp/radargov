@@ -3033,3 +3033,47 @@ Testes: **446** (424 + 22 novos, um por armadilha verificável), verdes
 em ~0,8 s. Verificado no painel a correr: números das abas iguais aos
 da base lida à mão, filtro a viajar da Triagem para a Pesquisa, CSV
 com âmbito a bater com a contagem da ligação.
+
+## Andamento 2 do esqueleto implementado, 31 de agosto de 2026
+
+Estado, vocabulário e atalhos (§4, §7 e §5 do ESQUELETO), na mesma
+sessão do andamento 1.
+
+**Estado (§4): auditado, já conforme.** O saneamento C1/C2 tinha feito
+o grosso: a barra lateral só tem o que bloqueia (ponto, "a verificar",
+tarefas em falta), os Indicadores têm a saúde completa e o diagnóstico
+datado, e não se encontrou estado de item na barra nem estado de
+sistema repetido nas fichas. Sem código novo — a auditoria é o
+resultado.
+
+**Vocabulário (§7), o que mudou de facto** — muito já estava certo
+(o CSV já saía `anuncios-<data>.csv`, "peças" já era o nome na ficha):
+
+- O placeholder da lista dizia "Nome do concurso" — passa a **"Nome do
+  anúncio ou objecto…"** (anúncio é o único nome do item).
+- Indicadores: "Documentos guardados" → **"Peças guardadas"** — no
+  ecrã, "documentos" é só os da proposta.
+- "análise" deixou de aparecer no ecrã: o histórico da ficha regista
+  **"leitura"** daqui em diante e os registos antigos traduzem-se ao
+  mostrar (`_NOMES_ACCAO`), sem reescrever a base.
+- A coluna do CSV dos anúncios passou de "Estado" a **"Triagem"**, e o
+  selector do formulário de alertas diz "triagem: só os por ver" — o
+  nome "estado" reserva-se para sistema e itens.
+
+**Atalhos (§5)** — o Triagem→Pesquisa ficara no andamento 1; agora:
+
+- **Ficha → Pesquisa por CPV**: "ver anúncios deste CPV na Pesquisa"
+  no facto do CPV, com todos os estados — fecha o "que mais há disto?".
+- **Quadro ⇄ Calendário**: cada cartão e cada linha têm âncora
+  (`c-<ref>`) e apontam para o seu par na outra vista. O cartão só
+  promete a âncora quando o prazo cabe na janela dos 45 dias — fora
+  dela a grade não tem a linha, e havia teste a garantir isso desde o
+  primeiro dia.
+- **Linha de contrato → ficha do anúncio** (o inverso do B02):
+  `refs_com_anuncio()` cruza os `n_anuncio` da página com a base e só
+  liga os que existem — sem o crivo, ~474 dos 5 391 comuns davam 404.
+- De caminho: o último `[:70]` cru visível (título no calendário)
+  passou por `corta()`, como a regra da casa manda.
+
+Testes: **453** (446 + 7). Os atalhos do modo dos contratos e da ficha
+da entidade dependem da fusão 6.1-A e ficam com o andamento 3.
