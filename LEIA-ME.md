@@ -366,7 +366,7 @@ Item **Em curso**, na barra da esquerda — o quadro é a vista que abre
 por omissão (o calendário é a segunda, §10). Mostra os anúncios
 marcados **interessa** organizados em colunas (fases), ao estilo
 Trello/kanban. O botão "Verificar agora" não está aqui: vive só na
-Triagem, que é onde os anúncios novos aterram.
+lista dos **Anúncios**, que é onde os novos aterram — na aba "por ver".
 
 Começa com cinco fases — *Por analisar, A preparar proposta, Em
 revisão, Submetido, Resultado* — mas são só um ponto de partida: muda
@@ -379,15 +379,16 @@ programa não volta a tocar-lhes.
   para a primeira coluna, não se perdem.
 - **+ etiqueta**, em cada cartão, cria ou aplica uma etiqueta (com cor
   automática). O `×` ao lado da etiqueta tira-a desse cartão.
-- Cada cartão mostra os dias até ao prazo de propostas, a verde, ou
-  "prazo expirado", a vermelho.
+- Cada cartão mostra os dias até ao prazo de propostas: a verde se há
+  folga, cor de âmbar dentro da janela do "urgente" (a mesma do filtro,
+  editável em Alertas) e a vermelho se termina hoje ou já expirou.
 - **no calendário**, no pé do cartão, salta para a linha deste anúncio
   na grade (só aparece quando o prazo cabe nos 45 dias dela).
 - **Tirar do quadro** devolve o anúncio a "por ver" — sai do quadro sem
   apagar nada da base.
 
-Marcar **interessa** num anúncio, na Triagem ou na Pesquisa, põe-no
-automaticamente na primeira coluna do quadro.
+Marcar **interessa** num anúncio, em qualquer aba da lista dos
+**Anúncios**, põe-no automaticamente na primeira coluna do quadro.
 
 ## 10. O calendário
 

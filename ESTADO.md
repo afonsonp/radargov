@@ -20,12 +20,12 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 145 anúncios, dois anos deles**
+Funciona. A base tem **66 205 anúncios, dois anos deles**
 (28/08/2024–31/08/2026): o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
-**consultas preliminares da Vortal** (17 na primeira recolha,
-`fonte='vortal'`), o tipo que a parte L não publica.
-**Só 8,3% têm detalhe lido** (5 493): a rotina lê o detalhe apenas dos
+**consultas preliminares da Vortal** (22 até agora, `fonte='vortal'`),
+o tipo que a parte L não publica.
+**Só 8,5% têm detalhe lido** (5 617): a rotina lê o detalhe apenas dos
 publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
 quando se abre a ficha. Consequência a ter presente: um filtro por CPV
 só apanha quem tem detalhe lido — o histórico é acervo por consultar,
@@ -36,20 +36,28 @@ A base já esteve cortada aos 60 dias por decisão do Afonso (~5 100
 anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
-Desde 31/08/2026 o acervo já não está todo à entrada: a página inicial
-é a **Triagem**, que mostra só os por ver publicados na janela de
-`detalhe_dias` — **1 374** em vez dos 61 981 de antes — e o acervo
-completo vive na **Pesquisa** (`/anuncios`, 12 meses por omissão, com
-interruptor para o arquivo). **O esqueleto está implementado** (os
-quatro andamentos, todos a 31/08/2026): navegação por cinco intenções,
-vocabulário e atalhos, renovações como modo dos contratos, e o Fluxo B
-verificado à espera só do primeiro envio (E2). As entradas de diário
-do fim contam os números todos.
+Desde 31/08/2026 os anúncios são **uma página só** (`/`), e o que
+aparta o acervo são as quatro abas: **por ver 1 449** (por decidir e
+ainda respondível), **interessados 7** (todos, expirados incluídos —
+um interessa expirado é trabalho em curso), **abandonados 64 749** (os
+descartados à mão mais os por ver que já não dão para responder) e
+**todos 66 205**. A partição é exacta, e é recorte de leitura: a base
+não muda. A **Triagem e a Pesquisa separadas duraram um dia** —
+`/anuncios` redirecciona com o filtro atrás, e o interruptor do arquivo
+caiu. **O esqueleto está implementado** (os quatro andamentos, todos a
+31/08/2026): navegação por **quatro** intenções — Anúncios, Em curso,
+Mercado, Alertas —, com os Indicadores fora da barra, pelo ponto da
+zona de estado; vocabulário e atalhos; renovações como modo dos
+contratos; e o Fluxo B verificado à espera só do primeiro envio (E2).
+As entradas de diário do fim contam os números todos.
 
-*(Números de 31/08/2026. Este parágrafo já mentiu — dizia "~5 100,
-todos com detalhe lido" por cima de uma base de 66 mil a 8% — porque as
-sessões seguintes acrescentavam secções sem corrigir o topo. Quem mudar
-os números corrige-o na mesma sessão; a regra está no CLAUDE.md.)*
+*(Números medidos na base a 31/08/2026. Este parágrafo já mentiu duas
+vezes: dizia "~5 100, todos com detalhe lido" por cima de uma base de
+66 mil a 8%, e descrevia a Triagem e a Pesquisa como as duas páginas
+dos anúncios um dia depois de elas terem sido fundidas — as duas vezes
+porque as sessões seguintes acrescentavam secções sem corrigir o topo.
+Quem mudar os números ou as páginas corrige-o na mesma sessão; a regra
+está no CLAUDE.md.)*
 
 ## A ficha do anúncio e as peças do procedimento
 
@@ -3499,3 +3507,30 @@ Documentação corrigida no mesmo commit: a regra do `prazo` no
 números"), e o `LEIA-ME.md` deixou de descrever o cartão dos
 indicadores como "prazo a menos de uma semana" — dizia sete com o
 filtro a dez, exactamente o erro que esta sessão foi corrigir.
+
+
+### O topo deste ficheiro estava a descrever páginas que já não existem
+
+Encontrado ao procurar o que a correcção da etiqueta tornava falso, e
+corrigido no mesmo dia porque é o mesmo tipo de erro: o parágrafo **«Como
+está a correr»** descrevia a página inicial como a **Triagem** e mandava
+o acervo para a **Pesquisa** (`/anuncios`, «12 meses por omissão, com
+interruptor para o arquivo») — as duas páginas foram fundidas numa só a
+31/08/2026, no mesmo dia, e o interruptor caiu. Dizia também «navegação
+por cinco intenções» quando `NAV` tem quatro, com os Indicadores fora da
+barra.
+
+Os números foram remedidos na base, não copiados de outra secção:
+**66 205** anúncios (dizia 66 145), **5 617 com detalhe lido = 8,5%**
+(dizia 5 493 e 8,3%), **22** consultas da Vortal, e as abas a **1 449
+por ver + 7 interessados + 64 749 abandonados**, que somam exactamente
+os 66 205 — a partição continua a fechar. As ~17 horas para forçar os
+detalhes que faltam continuam certas (60 588 a um por segundo).
+
+**As entradas de diário datadas não se tocaram**, incluindo as que falam
+da Triagem e da Pesquisa como páginas de então: são registo do que era
+verdade nessa altura, e uma delas já traz a nota a dizê-lo. O que se
+corrige é o que está escrito no presente — o topo, e três frases do
+`LEIA-ME.md` que ainda mandavam marcar «interessa» «na Triagem ou na
+Pesquisa» e diziam que o cartão do quadro é verde ou vermelho, sem o
+âmbar que esta sessão acabou de pôr a acompanhar a janela do urgente.
