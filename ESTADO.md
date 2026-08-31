@@ -3304,7 +3304,16 @@ várias dão escolha, nenhuma di-lo com contexto.
 das peças abrem em `/peca/<ref>/<nome>`, dentro do painel, com o
 Ctrl+F do visualizador do browser a pesquisar lá dentro — o caminho
 barato que o BACKLOG guardava. O resto (ZIPs, etc.) descarrega como
-antes.
+antes. *Afinado na mesma noite:* no browser do Afonso o `<embed>`
+mostrava um cartão «Abrir» em vez do documento — os cabeçalhos do
+servidor estavam certos (`application/pdf`, `inline`; medido), a causa
+é a definição do Chrome «transferir PDFs em vez de abrir», que recusa
+renderizar em embeds. A página passou a ser robusta a isso: avisa do
+cartão (e diz onde vive a definição) e traz por baixo o **texto
+extraído da peça, por páginas** — o mesmo que alimenta a leitura pelo
+modelo — pesquisável com o Ctrl+F da própria página, funcione o
+visualizador ou não. Verificado com o test client sobre uma peça real
+(14 páginas de Programa de Procedimento).
 
 Verificado a correr: resumo enviado e filas a zero; consulta
 preliminar aberta na ficha (chip «Consulta», «Ver na Vortal», vazio
