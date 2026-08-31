@@ -1632,7 +1632,7 @@ def paginas_do_pdf_imagem(caminho):
         return 0
 
 
-def imagem_da_pagina(caminho, n, escala=2.0):
+def imagem_da_pagina(caminho, n, escala=2.0, procurar=""):
     """PNG da pagina n (1-based) do PDF, ou None se nao der.
 
     E o visualizador proprio do radar: desenhar no servidor e a unica
@@ -1641,6 +1641,11 @@ def imagem_da_pagina(caminho, n, escala=2.0):
     abrir" ligada, o Chrome mostra um cartao e o Abrir descarrega, que
     foi o que aconteceu ao Afonso a 31/08/2026). A escala 2x e para o
     texto ficar nitido em ecras normais.
+
+    Com `procurar`, as ocorrencias do termo saem MARCADAS na propria
+    pagina (destaque amarelo): a pesquisa acontece no documento, nao
+    num bloco de texto a parte. A anotacao vive so nesta abertura do
+    ficheiro -- nada se grava no PDF.
     """
     try:
         import pymupdf
@@ -1650,11 +1655,40 @@ def imagem_da_pagina(caminho, n, escala=2.0):
         with pymupdf.open(caminho) as doc:
             if not 1 <= n <= doc.page_count:
                 return None
-            pix = doc[n - 1].get_pixmap(
+            pagina = doc[n - 1]
+            if procurar:
+                try:
+                    for sitio in pagina.search_for(procurar):
+                        pagina.add_highlight_annot(sitio)
+                except Exception:
+                    pass       # pesquisa que falhe nao tira a pagina
+            pix = pagina.get_pixmap(
                 matrix=pymupdf.Matrix(escala, escala))
             return pix.tobytes("png")
     except Exception:
         return None
+
+
+def paginas_com_termo(caminho, termo):
+    """[(pagina, ocorrencias)] do termo no PDF, pela mesma pesquisa que
+    desenha os destaques (case-insensitive, tal e qual esta escrito no
+    documento). Vazio quando nao ha PyMuPDF ou o ficheiro nao abre."""
+    if not (termo or "").strip():
+        return []
+    try:
+        import pymupdf
+    except ImportError:
+        return []
+    try:
+        with pymupdf.open(caminho) as doc:
+            saida = []
+            for i, pagina in enumerate(doc, 1):
+                achados = pagina.search_for(termo)
+                if achados:
+                    saida.append((i, len(achados)))
+            return saida
+    except Exception:
+        return []
 
 
 def e_pdf(caminho):
@@ -10146,11 +10180,14 @@ def peca_pagina(ref, nome, n):
     caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
     if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
         return "", 404
-    png = imagem_da_pagina(caminho, n)
+    png = imagem_da_pagina(caminho, n,
+                           procurar=(request.args.get("procurar")
+                                     or "").strip())
     if png is None:
         return "", 404
     # as pecas nao mudam depois de trazidas: o browser pode guardar as
-    # paginas um dia e poupar o desenho na visita seguinte
+    # paginas um dia e poupar o desenho na visita seguinte (o termo
+    # procurado faz parte do URL, por isso cada pesquisa tem a sua)
     return Response(png, mimetype="image/png",
                     headers={"Cache-Control": "max-age=86400"})
 
@@ -10216,18 +10253,65 @@ def ver_peca(ref, nome):
     # ficheiro nao e um PDF que ele abra).
     n_paginas = paginas_do_pdf_imagem(caminho)
     if n_paginas:
+        procurar = (request.args.get("procurar") or "").strip()
         base_img = "/peca-pagina/%s/%s" % (ref, quote(nome, safe=""))
-        visual = "".join(
-            "<img src='%s/%d.png' loading='lazy' alt='página %d' "
+        sufixo = ("?" + urlencode({"procurar": procurar})) if procurar \
+            else ""
+        # cada pagina tem ancora propria: e para ela que as ligacoes da
+        # pesquisa saltam
+        paginas_img = "".join(
+            "<img id='pag-%d' src='%s/%d.png%s' loading='lazy' "
+            "alt='página %d' "
             "style='display:block;width:100%%;max-width:960px;"
             "margin:0 auto 14px;border:1px solid var(--linha);"
             "border-radius:6px;background:#fff'>"
-            % (html.escape(base_img, quote=True), i, i)
+            % (i, html.escape(base_img, quote=True), i,
+               html.escape(sufixo, quote=True), i)
             for i in range(1, n_paginas + 1))
+
+        # A pesquisa DENTRO do documento (pedida pelo Afonso a
+        # 31/08/2026: o Ctrl+F levava-o ao texto extraido, e ele queria
+        # o resultado no PDF). O termo marca-se a amarelo nas paginas
+        # desenhadas e a faixa lista onde ele esta, com salto directo.
+        rota_peca = "/peca/%s/%s" % (ref, quote(nome, safe=""))
+        caixa = (
+            "<form class='cx filtros' method='get' action='%s'>"
+            "<input type='text' name='procurar' value='%s' "
+            "placeholder='Procurar no documento…'>"
+            "<button type='submit'>Procurar</button>%s</form>"
+            % (html.escape(rota_peca, quote=True),
+               html.escape(procurar, quote=True),
+               ("<a class='limpar' href='%s'>limpar</a>"
+                % html.escape(rota_peca, quote=True)) if procurar else ""))
+        if procurar:
+            achadas = paginas_com_termo(caminho, procurar)
+            if achadas:
+                saltos = " ".join(
+                    "<a href='#pag-%d'>pág. %d%s</a>"
+                    % (p, p, " (%d×)" % vezes if vezes > 1 else "")
+                    for p, vezes in achadas)
+                resultados = (
+                    "<div class='cpv-activo'>&ldquo;%s&rdquo; aparece em "
+                    "<b>%d página%s</b> (%d vez%s), marcado a amarelo: "
+                    "%s</div>"
+                    % (html.escape(procurar), len(achadas),
+                       "" if len(achadas) == 1 else "s",
+                       sum(v for _, v in achadas),
+                       "" if sum(v for _, v in achadas) == 1 else "es",
+                       saltos))
+            else:
+                resultados = (
+                    "<div class='cpv-activo'>&ldquo;%s&rdquo; não aparece "
+                    "no documento &mdash; a procura é tal e qual está "
+                    "escrito (acentos contam).</div>"
+                    % html.escape(procurar))
+        else:
+            resultados = ""
+        visual = caixa + resultados + paginas_img
         aviso_topo = (
-            "Documento desenhado pelo radar, página a página (%d). Para "
-            "pesquisar, usa o Ctrl+F: o texto extraído está no fim da "
-            "página e o browser abre-o sozinho ao encontrar. "
+            "Documento desenhado pelo radar, página a página (%d). "
+            "Procura com a caixa aqui em baixo: as ocorrências ficam "
+            "marcadas a amarelo nas páginas, com salto directo. "
             % n_paginas)
     else:
         visual = ("<embed src='%s' type='application/pdf' "
