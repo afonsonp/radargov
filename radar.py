@@ -10116,17 +10116,56 @@ def ver_peca(ref, nome):
             "</div>" % ref,
             migalhas=migalhas_de("pesquisa", ref)), 404
     origem = "/documento/%s/%s" % (ref, quote(nome, safe=""))
+
+    # O texto extraido (o mesmo que alimenta a leitura pelo modelo, com
+    # as marcas de pagina) vai na propria pagina: se o browser estiver
+    # configurado para transferir PDFs em vez de os abrir, o <embed>
+    # mostra um cartao "Abrir" em vez do documento -- aconteceu no
+    # browser do Afonso a 31/08/2026 -- e o Ctrl+F da pagina continua a
+    # pesquisar no texto, funcione o visualizador ou nao.
+    with liga() as c:
+        d = c.execute("SELECT texto, texto_estado FROM documentos "
+                      "WHERE ref=? AND nome=?", (ref, nome)).fetchone()
+    if d and (d["texto"] or "").strip():
+        paginas_html = []
+        for i, pagina in enumerate((d["texto"] or "").split("\f"), 1):
+            if not pagina.strip():
+                continue
+            paginas_html.append(
+                "<div class='nota' style='margin:14px 0 4px'>&mdash; "
+                "pág. %d &mdash;</div>"
+                "<div style='white-space:pre-wrap;"
+                "font:400 12px/1.6 var(--mono)'>%s</div>"
+                % (i, html.escape(pagina.strip())))
+        texto_cx = (
+            "<details class='sec' style='margin-top:14px'><summary>"
+            "<span class='st'>Texto extraído da peça</span>"
+            "<span class='sh'>pesquisável com o Ctrl+F da página, mesmo "
+            "quando o visualizador não abre</span></summary>%s</details>"
+            % "".join(paginas_html))
+    elif d and d["texto_estado"] == "scan":
+        texto_cx = ("<div class='nota' style='margin-top:14px'>Este PDF é "
+                    "uma digitalização: não tem texto extraível.</div>")
+    else:
+        texto_cx = ""
+
     corpo = (
         "<div class='larg'>"
         "<div class='nota' style='margin-bottom:10px'>Pesquisa dentro do "
-        "documento com o Ctrl+F do visualizador. "
+        "documento com o Ctrl+F do visualizador. Se em vez do documento "
+        "vires um cartão &ldquo;Abrir&rdquo;, o teu browser está "
+        "configurado para <b>transferir PDFs em vez de os abrir</b> "
+        "(no Chrome: Definições &rsaquo; Privacidade &rsaquo; Definições "
+        "de sites &rsaquo; Documentos PDF) &mdash; o cartão abre o "
+        "ficheiro na mesma, e o texto extraído fica aqui em baixo. "
         "<a href='%s' download>Descarregar</a> &middot; "
         "<a href='/anuncio/%s'>voltar à ficha</a></div>"
         "<embed src='%s' type='application/pdf' "
         "style='width:100%%;height:82vh;border:1px solid var(--linha);"
         "border-radius:8px;background:#fff'>"
+        "%s"
         "</div>" % (html.escape(origem, quote=True), ref,
-                    html.escape(origem, quote=True)))
+                    html.escape(origem, quote=True), texto_cx))
     return envolver(
         "pesquisa", nome, "Peça do anúncio %s." % html.escape(ref),
         corpo, migalhas=migalhas_de("pesquisa", ref),
