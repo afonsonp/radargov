@@ -47,3 +47,6 @@ chave_api.txt
 *.key
 *secret*
 *token*
+
+# lixo do Playwright MCP (snapshots e logs das verificacoes no browser)
+.playwright-mcp/
