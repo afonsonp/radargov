@@ -4195,6 +4195,75 @@ class TestVisualizadorDePecas(unittest.TestCase):
         self.assertEqual(radar.paginas_com_termo("nao-existe.pdf", "x"), [])
 
 
+class TestDesenhaValor(unittest.TestCase):
+    """Os campos longos do essencial ganham a forma que o texto já tem.
+
+    O diagnóstico da fase de desenho (31/08/2026): a "Equipa" do anúncio
+    do INFARMED são 3 200 caracteres em 146 linhas, e saíam como um
+    bloco corrido no mesmo corpo e peso do resto do essencial -- 80% do
+    rolo da ficha a ler-se ao mesmo nível. O texto não muda; ganha
+    degraus. Estes testes seguram as três formas e, sobretudo, o que
+    NÃO deve virar forma nenhuma.
+    """
+
+    def test_perfis_com_pares_viram_cartoes(self):
+        valor = ("Gestor de Projeto\n"
+                 "Formação: —\n"
+                 "Experiência geral: 8 anos\n"
+                 "\n"
+                 "Product Owner\n"
+                 "Formação: Agile/scrum\n"
+                 "Experiência geral: 8 anos")
+        saida = radar.desenha_valor(valor)
+        self.assertEqual(saida.count("class='perfil'"), 2)
+        self.assertIn("<b>Gestor de Projeto</b>", saida)
+        self.assertIn("<dt>Formação</dt>", saida)
+        self.assertIn("<dd>Agile/scrum</dd>", saida)
+
+    def test_travessoes_viram_lista(self):
+        valor = ("- Assegurar a boa execução do contrato.\n"
+                 "- Entregar os entregáveis em formato eletrónico.\n"
+                 "- Destinar os profissionais indicados.")
+        saida = radar.desenha_valor(valor)
+        self.assertIn("<ul class='pontos'>", saida)
+        self.assertEqual(saida.count("<li>"), 3)
+        # o travessão desenha-o o CSS; não fica no texto
+        self.assertNotIn("- Assegurar", saida)
+
+    def test_numerados_separam_nome_do_detalhe(self):
+        valor = ("1. DEUCP\n"
+                 "Condições especiais: modelo pré-preenchido em XML\n"
+                 "2. Modelo da Proposta (Anexo II)\n"
+                 "Condições especiais: conforme o Anexo II")
+        saida = radar.desenha_valor(valor)
+        self.assertIn("<ol class='numerados'>", saida)
+        self.assertIn("<b>DEUCP</b>", saida)
+        self.assertIn("modelo pré-preenchido em XML", saida)
+
+    def test_texto_corrido_fica_como_estava(self):
+        # uma frase com dois pontos a meio NÃO é um par de perfil: sem
+        # esta guarda, "Local: Lisboa, Av. do Brasil" virava tabela
+        valor = "Presencial, nas instalações do Parque de Saúde de Lisboa"
+        self.assertEqual(radar.desenha_valor(valor), radar.html.escape(valor))
+
+    def test_um_bloco_so_nao_e_grelha_de_perfis(self):
+        # dois blocos é o mínimo: um bloco com pares é um campo normal
+        valor = "Prazo\nDuração: 10 meses"
+        self.assertNotIn("perfis", radar.desenha_valor(valor))
+
+    def test_escapa_sempre(self):
+        valor = "- <script>alert(1)</script>\n- outro & mais"
+        saida = radar.desenha_valor(valor)
+        self.assertNotIn("<script>", saida)
+        self.assertIn("&lt;script&gt;", saida)
+        self.assertIn("&amp;", saida)
+
+    def test_vazio_da_vazio(self):
+        self.assertEqual(radar.desenha_valor(""), "")
+        self.assertEqual(radar.desenha_valor(None), "")
+        self.assertEqual(radar.desenha_valor("   \n  "), "")
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

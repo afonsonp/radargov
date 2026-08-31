@@ -3533,3 +3533,45 @@ escrito a mao para a cor amarela, enquanto a janela do "urgente" e
 a 9 dias aparece verde na lista e conta como urgente nos filtros e nos
 indicadores. E a armadilha registada no CLAUDE.md, esta viva, e e
 correccao de comportamento: fica para trabalho proprio.
+
+### E o que a composicao em dossier obrigava a resolver
+
+Com tudo aberto por ordem de leitura, os campos longos lidos das pecas
+deixam de ter onde se esconder -- e eram eles o achado central do
+diagnostico: **a "Equipa" deste anuncio do INFARMED sao 3 200
+caracteres em 146 linhas**, e saiam como um bloco corrido no mesmo
+corpo e peso do resto do essencial. Oitenta por cento do rolo da ficha
+lia-se ao mesmo nivel.
+
+`desenha_valor()` da a cada valor a forma que o texto **ja tem**, sem
+lhe mudar uma palavra: blocos separados por linha em branco com pares
+"Chave: valor" viram um cartao por perfil (21 neste anuncio, em tres
+colunas); linhas comecadas por travessao viram lista; "1. Nome"
+seguido de detalhe vira lista numerada. O que nao tiver forma nenhuma
+sai como sempre saiu.
+
+A guarda que interessa e a ultima: **uma frase com dois pontos a meio
+nao e um par**. Sem ela, "Presencial, nas instalacoes do Parque de
+Saude de Lisboa" virava uma linha de tabela. O `RX_PAR_PERFIL` exige
+uma chave curta (2 a 40 caracteres, sem dois-pontos la dentro) e ha
+teste a segurar cada uma das tres formas e o texto corrido
+(`TestDesenhaValor`, 7 testes). A ficha do INFARMED encurtou 12%.
+
+**Armadilha paga outra vez, a mesma do costume:** a pagina nao mostrava
+nada de novo depois de tudo estar escrito e testado. Nao era o codigo
+-- eram **duas instancias na porta 8765**, a responder a vez, com a
+mais velha a servir o CSS de antes (SO_REUSEADDR no Windows, ja
+registado aqui). Matar "o processo que esta na porta" nao chega:
+mata-se **por caminho** -- todos os python que corram da pasta do
+radar -- e confirma-se que a contagem ficou em **uma** antes de
+acreditar no que o ecra mostra. E compara-se a hora de arranque do
+processo com a da ultima gravacao do `radar.py`: foi essa comparacao
+que denunciou isto, com o processo a arrancar quatro minutos ANTES do
+ficheiro que devia estar a servir.
+
+*(nota de metodo, tambem ja registada e tambem repetida: os heredocs
+do Bash comem um nivel de escape neste ambiente. A classe de testes
+nova saiu com as quebras de linha por expandir a primeira vez, e este
+paragrafo saiu com um caminho do Windows estropiado -- ambos por
+escrever codigo com contrabarras dentro de um heredoc. Para isso
+usam-se as ferramentas de escrita, como o CLAUDE.md ja dizia.)*
