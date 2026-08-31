@@ -853,13 +853,15 @@ não são as rotas, é a hierarquia por cima delas.
 
 ## 10. Sequência de implementação
 
-**Andamento 1 — navegação e âmbito (o alívio maior, o esforço menor).**
+**Andamento 1 — navegação e âmbito (o alívio maior, o esforço menor).
+FEITO a 31/08/2026** (entrada de diário no ESTADO.md, com os números).
 Muda: a navegação passa aos cinco itens de §2; `/` abre no âmbito da
 Triagem; nasce `/anuncios` (Pesquisa); os Indicadores saem da
 navegação para a zona de estado; quadro e calendário agrupam-se sob Em
 curso. Zero rotas removidas, zero fusões, o motor de filtros intacto
 (P3). Desbloqueia: o fim do 61 981 na cara todas as manhãs (P1) e uma
-primeira navegação por intenção. Continua na mesma: todas as páginas
+primeira navegação por intenção — medido no dia: a Triagem abre com
+**1 374 por ver** em vez de 61 981. Continua na mesma: todas as páginas
 por dentro, o vocabulário, as vistas irmãs. **Parar aqui deixa a
 aplicação coerente.**
 

@@ -2421,7 +2421,11 @@ class TestFiltrosGuardadosNasDuasVistas(unittest.TestCase):
     """
 
     def test_cada_pagina_sabe_os_seus_campos(self):
-        self.assertEqual(radar.ROTA_DA_VISTA["anuncios"], "/")
+        # Desde o andamento 1 do esqueleto, a rota generica da vista dos
+        # anuncios e a Pesquisa (/anuncios): "/" passou a ser a Triagem,
+        # com um ambito proprio, e um filtro aplicado "aos anuncios" e
+        # uma pergunta ao acervo.
+        self.assertEqual(radar.ROTA_DA_VISTA["anuncios"], "/anuncios")
         self.assertEqual(radar.ROTA_DA_VISTA["contratos"], "/contratos")
         self.assertNotEqual(radar.campos_da_vista("anuncios"),
                             radar.campos_da_vista("contratos"))
@@ -3475,6 +3479,148 @@ class TestCopiaComMarca(BaseTemporaria):
             radar.copia_de_seguranca = antigo
         self.assertEqual(radar.le_marca("ultima_copia"),
                          "ok: radar-2026-08-30.db")
+
+
+class TestNavegacaoPorIntencoes(unittest.TestCase):
+    """Andamento 1 do esqueleto (31/08/2026): a navegação passou de sete
+    entradas planas a cinco intenções. O erro que isto trava: uma sessão
+    futura "arrumar" a NAV de volta aos separadores planos, ou repor os
+    Indicadores na barra — saíram por decisão (11.6-A) e entram pelo
+    ponto da zona de estado."""
+
+    def test_cinco_itens_por_ordem_de_uso(self):
+        self.assertEqual([n[0] for n in radar.NAV],
+                         ["triagem", "emcurso", "pesquisa", "mercado",
+                          "alertas"])
+
+    def test_indicadores_fora_da_navegacao(self):
+        chaves = {n[0] for n in radar.NAV}
+        chaves.update(v[0] for n in radar.NAV for v in n[3])
+        self.assertNotIn("indicadores", chaves)
+        # mas a página existe e as migalhas sabem o nome dela
+        self.assertIn("Indicadores", radar.migalhas_de("indicadores"))
+
+    def test_quadro_e_calendario_vivem_sob_em_curso(self):
+        self.assertEqual(radar.ITEM_DA_PAGINA["quadro"], "emcurso")
+        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "emcurso")
+
+    def test_contratos_e_renovacoes_vivem_sob_mercado(self):
+        # só se agrupam na navegação: a fusão em modo é do andamento 3
+        self.assertEqual(radar.ITEM_DA_PAGINA["contratos"], "mercado")
+        self.assertEqual(radar.ITEM_DA_PAGINA["renovacoes"], "mercado")
+
+    def test_migalhas_das_vistas_agrupadas(self):
+        # deixaram de ser separadores irmãos: são duas vistas de um item
+        self.assertIn("Em curso", radar.migalhas_de("quadro"))
+        self.assertIn("<em>Quadro</em>", radar.migalhas_de("quadro"))
+        self.assertIn("Em curso", radar.migalhas_de("calendario"))
+        self.assertIn("Mercado", radar.migalhas_de("contratos"))
+
+    def test_migalhas_dos_itens_simples(self):
+        self.assertEqual(radar.migalhas_de("triagem"), "<em>Triagem</em>")
+        self.assertEqual(radar.migalhas_de("pesquisa"), "<em>Pesquisa</em>")
+
+    def test_verificar_agora_so_na_triagem(self):
+        # decisão 11.8-A: o botão vai ao DR e os novos aterram na
+        # Triagem; no quadro e no calendário parecia agir sobre o ecrã
+        self.assertEqual(radar.PAGINAS_COM_VERIFICAR, ("triagem",))
+
+
+class TestAmbitoDaTriagem(unittest.TestCase):
+    """Decisão 11.2-A: a Triagem abre na janela de detalhe_dias — a
+    mesma que a rotina lê. A armadilha que mais custa se escapar: a
+    janela é da VISTA, aplicada por cima, e NUNCA de condicoes() — o
+    motor serve os alertas e os filtros guardados, e a janela lá dentro
+    fazia um alerta deixar de ver, em silêncio, tudo o que hoje vê."""
+
+    def test_condicoes_continua_sem_janela_nenhuma(self):
+        onde, _ = radar.condicoes({})
+        self.assertNotIn("data_pub", onde)
+
+    def test_a_janela_aplica_se_por_cima(self):
+        onde, valores = radar.com_ambito(*radar.condicoes({}),
+                                         desde="2026-07-02")
+        self.assertIn("data_pub >= ?", onde)
+        self.assertEqual(valores[-1], "2026-07-02")
+        # e a ordem dos placeholders bate com a dos valores
+        self.assertEqual(onde.count("?"), len(valores))
+
+    def test_sem_onde_a_janela_abre_o_where(self):
+        onde, valores = radar.com_ambito("", [], "2026-07-02")
+        self.assertTrue(onde.startswith(" WHERE"))
+        self.assertEqual(valores, ["2026-07-02"])
+
+    def test_sem_janela_nada_muda(self):
+        self.assertEqual(radar.com_ambito(" WHERE estado = ?", ["novo"],
+                                          None),
+                         (" WHERE estado = ?", ["novo"]))
+
+    def test_a_janela_da_triagem_e_a_de_detalhe_dias(self):
+        # um conceito, não dois: mexer em detalhe_dias muda o que se vê
+        hoje = datetime.date(2026, 8, 31)
+        self.assertEqual(
+            radar.ambito_da_vista("triagem", {}, hoje=hoje,
+                                  cfg={"detalhe_dias": 60}),
+            "2026-07-02")
+
+    def test_detalhe_dias_a_zero_desliga_a_janela_como_na_rotina(self):
+        hoje = datetime.date(2026, 8, 31)
+        self.assertIsNone(radar.ambito_da_vista(
+            "triagem", {}, hoje=hoje, cfg={"detalhe_dias": 0}))
+
+    def test_ambito_desconhecido_nao_poe_janela(self):
+        # o /csv sem `ambito` (ligações antigas) exporta o filtro tal e
+        # qual — uma janela surpresa mudava o ficheiro sem uma palavra
+        self.assertIsNone(radar.ambito_da_vista("", {}))
+
+
+class TestInterruptorDoArquivo(unittest.TestCase):
+    """Decisão 11.5-B: a Pesquisa abre em 12 meses com o interruptor
+    «incluir arquivo». O interruptor entra em CAMPOS_FILTRO de
+    propósito: um filtro guardado com o arquivo incluído que o perdesse
+    ao ser reaberto mostrava menos resultados do que quando foi guardado
+    — a classe de bug que este projecto passa a vida a corrigir."""
+
+    def test_faz_parte_da_identidade_do_filtro(self):
+        self.assertIn("arquivo", radar.CAMPOS_FILTRO)
+        self.assertEqual(radar.filtro_actual({"arquivo": "1"}),
+                         "estado=novo&arquivo=1")
+
+    def test_a_vista_dos_anuncios_entende_o(self):
+        self.assertIn("arquivo", radar.CAMPOS_POR_VISTA["anuncios"])
+        # e nos contratos declara-se de fora, nunca cai em silêncio
+        dentro, fora = radar.filtro_para("arquivo=1", "contratos")
+        self.assertEqual(dentro, "")
+        self.assertEqual(fora, ["arquivo"])
+
+    def test_a_pesquisa_abre_em_doze_meses(self):
+        hoje = datetime.date(2026, 8, 31)
+        self.assertEqual(radar.ambito_da_vista("pesquisa", {}, hoje=hoje),
+                         "2025-08-31")
+
+    def test_o_interruptor_desliga_a_janela(self):
+        self.assertIsNone(radar.ambito_da_vista("pesquisa",
+                                                {"arquivo": "1"}))
+
+    def test_vinte_e_nove_de_fevereiro_nao_rebenta(self):
+        hoje = datetime.date(2028, 2, 29)
+        self.assertEqual(radar.ambito_da_vista("pesquisa", {}, hoje=hoje),
+                         "2027-02-28")
+
+    def test_o_motor_ignora_o_interruptor(self):
+        # o arquivo é âmbito da vista, não filtro do motor
+        self.assertEqual(radar.condicoes({"arquivo": "1", "estado": ""}),
+                         radar.condicoes({"estado": ""}))
+
+    def test_o_resumo_diz_o_que_o_interruptor_faz(self):
+        # "arquivo 1" não se lê; a legenda diz o efeito
+        self.assertIn("inclui o arquivo", radar.resumo_filtro("arquivo=1"))
+
+    def test_o_ambito_do_csv_nao_e_filtro(self):
+        # o `ambito` das ligações de exportar é da vez, como a página:
+        # colar-se ao filtro guardado prendia a janela ao filtro
+        self.assertIn("ambito", radar.CAMPOS_DA_VEZ)
+        self.assertNotIn("ambito", radar.CAMPOS_FILTRO)
 
 
 if __name__ == "__main__":
