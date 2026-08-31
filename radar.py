@@ -4808,9 +4808,13 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .accoes-topo .a-correr::before{content:'';width:8px;height:8px;flex:none;
  border-radius:50%;background:var(--laranja);animation:pisca 1.1s infinite}
 
-/* filtros */
-.filtros{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
- padding:14px 16px;margin-bottom:12px}
+/* Filtros. A zona de controlo sao tres caixas irmas (campos, arvore de
+   CPV, filtros guardados) e todas tinham o peso do conteudo: fundo
+   branco, sombra e 14px de folga. Empilhadas antes do primeiro anuncio
+   ocupavam meio ecra. Continuam as tres -- so as duas de baixo baixam
+   de nivel, com o fundo do papel e sem sombra. */
+.filtros{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+ padding:12px 14px;margin-bottom:8px}
 .filtros input[type=text]{flex:1;min-width:220px;padding:9px 12px;
  border:1px solid var(--linha);border-radius:8px;background:var(--creme);
  font:400 12.5px/1.2 var(--sans);color:var(--ink)}
@@ -5006,7 +5010,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .mercado code{font:500 11.5px/1 var(--mono);background:var(--linha2);
  padding:2px 5px;border-radius:4px}
 .guardados{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
- padding:12px 16px;margin-bottom:12px}
+ padding:10px 14px;margin-bottom:8px;background:var(--creme);box-shadow:none}
 .guardados .rot{margin-right:4px}
 .guardados .nada{font:400 12px/1 var(--sans);color:var(--t6)}
 /* O que o filtro em uso tem e esta pagina nao aplica. Estava so no
@@ -5040,10 +5044,11 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .cpv-activo a{text-decoration:underline}
 
 /* arvore de CPV */
-details.arvore{margin-bottom:16px;overflow:hidden;background:#fff;
- border:1px solid var(--linha);border-radius:11px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+details.arvore{margin-bottom:8px;overflow:hidden;background:var(--creme);
+ border:1px solid var(--linha);border-radius:8px}
+details.arvore[open]{background:#fff}
 details.arvore>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
- padding:14px 18px;background:var(--creme);list-style:none}
+ padding:11px 16px;background:var(--creme);list-style:none}
 details.arvore>summary::-webkit-details-marker{display:none}
 details.arvore>summary::before{content:'\25B8';font:500 11px/1 var(--mono);color:var(--t3)}
 details.arvore[open]>summary::before{content:'\25BE'}
@@ -5082,9 +5087,9 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .arv-pe{padding:0 18px 16px;font:400 11px/1.5 var(--sans);color:var(--t5)}
 
 /* lista */
-.linha-conta{display:flex;align-items:center;gap:10px;margin-bottom:12px;
- font:400 12px/1 var(--sans);color:var(--t5)}
-.linha-conta a{margin-left:auto;color:var(--t5)}
+.linha-conta{display:flex;align-items:center;gap:10px;margin:12px 0;
+ font:400 12px/1.5 var(--sans);color:var(--t4)}
+.linha-conta a{margin-left:auto;color:var(--t4)}
 .linha-conta a:hover{color:var(--ink)}
 .paginas{display:flex;align-items:center;justify-content:center;gap:5px;
  flex-wrap:wrap;margin-top:16px}
@@ -5107,30 +5112,37 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .ir-pagina button{padding:7px 11px;border:1px solid var(--linha);border-radius:6px;
  background:#fff;color:var(--t4);font:500 12.5px/1 var(--sans);cursor:pointer}
 .ir-pagina button:hover{border-color:var(--t6);color:var(--ink)}
-.lista{display:flex;flex-direction:column;gap:10px}
-.item{display:grid;grid-template-columns:64px minmax(0,1fr) 210px;background:#fff;
- border:1px solid var(--linha);border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.06);
+.lista{display:flex;flex-direction:column;gap:9px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) 200px;background:#fff;
+ border:1px solid var(--linha);border-radius:7px;box-shadow:0 1px 2px rgba(20,24,30,.04);
  overflow:hidden}
-.item-data{padding:16px 0;text-align:center;border-right:1px solid var(--linha2);
- background:var(--creme)}
-.item-data .dia{font:700 21px/1 var(--mono);color:var(--ink)}
-.item-data .mes{font:500 10px/1.4 var(--sans);color:var(--t5);
- text-transform:uppercase;letter-spacing:.06em}
-.item-corpo{padding:15px 18px;min-width:0}
-.item-titulo{font:700 14.5px/1.35 var(--sans);color:var(--azul);display:block;
- text-wrap:pretty}
+.item:hover{border-color:var(--traco)}
+.item-corpo{padding:14px 17px;min-width:0}
+.item-titulo{font:700 15px/1.35 var(--sans);color:var(--azul);display:block;
+ letter-spacing:-.1px;text-wrap:pretty}
 .item-titulo:hover{color:var(--ink)}
 .item-entidade{font:400 12.5px/1.4 var(--sans);color:var(--t2);margin-top:5px}
+.item-entidade .quando{color:var(--t4)}
 .item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-.item-lado{padding:15px 18px;border-left:1px solid var(--linha2);display:flex;
- flex-direction:column;align-items:flex-end;justify-content:center;gap:10px}
-.item-preco{font:600 15px/1.2 var(--mono);color:var(--ink)}
-.item-accoes{display:flex;gap:7px}
+.item-lado{padding:14px 17px;border-left:1px solid var(--linha2);display:flex;
+ flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}
+/* O prazo e o que decide, e le-se antes do preco. As tres cores sao as
+   mesmas das etiquetas de estado (etiqueta_prazo devolve a classe): o
+   que muda e o peso -- aqui e um numero, nao um distintivo. */
+.item-prazo{font:700 13.5px/1 var(--mono);color:var(--t3)}
+.item-prazo.mau{color:var(--verm)}
+.item-prazo.avisa{color:var(--laranja)}
+.item-prazo.ok{color:var(--verde)}
+.item-preco{font:600 13px/1.2 var(--mono);color:var(--ink)}
+.item-accoes{display:flex;gap:6px}
 .mini{cursor:pointer;padding:7px 12px;border-radius:6px;font:600 11.5px/1 var(--sans);
  border:1px solid var(--linha);color:var(--t3);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--verm);color:var(--verm)}
-.mini.verde{background:var(--verde);color:#fff;border-color:var(--verde)}
-.mini.verde:hover{background:#155f3c;color:#fff;border-color:#155f3c}
+/* "interessa" em contorno e nao em bloco cheio: numa lista de vinte,
+   vinte blocos verdes puxavam o olho todo para a coluna das accoes e
+   os titulos -- o que se le para decidir -- ficavam em segundo plano. */
+.mini.verde{background:#fff;color:var(--verde);border-color:var(--verde)}
+.mini.verde:hover{background:var(--verde);color:#fff;border-color:var(--verde)}
 .rodape{margin-top:18px;padding:12px 16px;border:1px solid var(--linha);
  border-radius:8px;background:var(--creme);display:flex;align-items:center;gap:10px}
 .rodape .e{font:500 12px/1 var(--sans);color:var(--t2)}
@@ -5663,12 +5675,15 @@ def linha(a, vista=""):
     mostrar: no separador "Por ver" a etiqueta "por ver" e sempre
     verdade, portanto nao diz nada e so disputa espaco com o CPV, a
     plataforma e o prazo, que sao os que se leem."""
+    # A data de publicacao passou de bloco proprio a uma nota ao lado da
+    # entidade. Era uma coluna de 64px a repetir "31 AGO" vinte vezes na
+    # lista de um dia -- peso de titulo para o dado que menos decide,
+    # enquanto o prazo, que decide tudo, era uma etiqueta de 10px.
     try:
         data = datetime.strptime(a["data_pub"], "%Y-%m-%d")
-        data_html = ("<div class='dia'>%02d</div><div class='mes'>%s</div>"
-                     % (data.day, MESES[data.month - 1]))
+        publicado = "publicado %02d %s" % (data.day, MESES[data.month - 1])
     except ValueError:
-        data_html = "<div class='dia'>&mdash;</div>"
+        publicado = ""
 
     tags = []
     if a["cpv"]:
@@ -5681,9 +5696,12 @@ def linha(a, vista=""):
                        html.escape(a["plataforma"])))
     if a["tipo"]:
         tags.append("<span class='tag'>%s</span>" % html.escape(a["tipo"]))
+    # O prazo sai das etiquetas e sobe a numero forte na coluna da
+    # direita: e o que manda em "concorro ou nao", e no meio das outras
+    # tags lia-se ao mesmo nivel do codigo CPV.
     texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"])
-    if texto_prazo:
-        tags.append("<span class='tag %s'>%s</span>" % (classe_prazo, texto_prazo))
+    prazo_html = ("<div class='item-prazo %s'>%s</div>"
+                  % (classe_prazo, texto_prazo)) if texto_prazo else ""
     if a["estado"] != vista:
         rotulo_estado = {"novo": "por ver", "interessa": "interessa",
                          "descartado": "abandonado"}.get(a["estado"], a["estado"])
@@ -5713,16 +5731,17 @@ def linha(a, vista=""):
 
     return (
         "<div class='item' id='a-%s'>"
-        "<div class='item-data'>%s</div>"
         "<div class='item-corpo'>"
         "<a href='/anuncio/%s' class='item-titulo'>%s</a>"
-        "<div class='item-entidade'>%s</div>"
+        "<div class='item-entidade'>%s%s</div>"
         "<div class='item-meta'>%s</div></div>"
-        "<div class='item-lado'>%s<div class='item-accoes'>%s</div></div></div>"
+        "<div class='item-lado'>%s%s<div class='item-accoes'>%s</div></div></div>"
         % (html.escape(a["ref"].replace("/", "-"), quote=True),
-           data_html, a["ref"], html.escape(corta(a["titulo"], 190)),
-           html.escape(a["entidade"] or ""), "".join(tags), preco,
-           "".join(botoes)))
+           a["ref"], html.escape(corta(a["titulo"], 190)),
+           html.escape(a["entidade"] or ""),
+           (" <span class='quando'>&middot; %s</span>" % publicado)
+           if publicado else "",
+           "".join(tags), prazo_html, preco, "".join(botoes)))
 
 
 LISTA_JS = """<script>
