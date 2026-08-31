@@ -5327,14 +5327,24 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .quadro-topo input{padding:8px 12px;border:1px solid var(--linha);border-radius:7px;
  background:#fff;font:400 12.5px/1.2 var(--sans)}
 .quadro{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:14px}
-.coluna{flex:none;width:282px;background:var(--linha2);border:1px solid var(--linha);
- border-radius:8px;padding:12px}
-.coluna-cab{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.coluna-cab form{flex:1;min-width:0}
-.fase-nome{border:0;background:transparent;font:600 12.5px/1.2 var(--sans);
+/* A coluna era var(--linha2) sobre var(--papel): dois cinzentos a um
+   passo um do outro, e o quadro lia-se como cartoes soltos sem colunas
+   nenhumas -- justamente o unico sitio onde a coluna E a informacao. */
+.coluna{flex:none;width:282px;background:var(--linha2);
+ border:1px solid var(--traco);border-radius:8px;padding:12px}
+/* o cabecalho em duas linhas: o nome tinha de partilhar 282px com a
+   contagem, a soma e o botao de apagar, e saia "A preparar pr" */
+.coluna-cab{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+ margin-bottom:12px}
+/* o nome ocupa a primeira linha inteira; a contagem e o apagar ficam na
+   segunda. So o form do NOME leva a largura toda -- o do apagar e um
+   form tambem, e com o selector largo ia parar a uma linha propria */
+.coluna-cab>form:first-child{flex:1 1 100%;min-width:0}
+.coluna-cab>form:not(:first-child){flex:none;margin-left:auto}
+.fase-nome{border:0;background:transparent;font:700 13px/1.3 var(--sans);
  color:var(--ink);width:100%;padding:2px}
 .fase-nome:focus{outline:none;background:#fff;border-radius:4px}
-.coluna-conta{font:600 10.5px/1 var(--mono);color:var(--t4)}
+.coluna-conta{font:600 10.5px/1 var(--mono);color:var(--t3)}
 .fase-apagar{background:none;border:0;color:var(--t6);cursor:pointer;
  font:500 14px/1 var(--sans);padding:0 2px}
 .fase-apagar:hover{color:var(--verm)}
@@ -5386,18 +5396,23 @@ button.tirar:hover{color:var(--verm)}
  overflow:hidden;text-overflow:ellipsis}
 .cel-titulo .ent{font:400 11px/1.3 var(--sans);color:var(--t5);margin-top:3px;
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* O dia e o eixo desta pagina e era o texto mais apagado dela: o
+   numero em --t4 sobre branco, as iniciais do dia da semana em --t6. */
 .cel-dia{padding:8px 0;text-align:center;border-left:1px solid var(--linha2)}
-.cel-dia .s{font:500 9px/1.2 var(--sans);color:var(--t6);text-transform:lowercase}
-.cel-dia .n{font:600 11px/1.2 var(--mono);color:var(--t4)}
-.cel-dia .m{font:400 9px/1.3 var(--sans);color:var(--t6);text-transform:uppercase}
+.cel-dia .s{font:500 9px/1.2 var(--sans);color:var(--t4);text-transform:lowercase}
+.cel-dia .n{font:700 12px/1.3 var(--mono);color:var(--t1)}
+.cel-dia .m{font:400 9px/1.3 var(--sans);color:var(--t4);text-transform:uppercase}
 .cel-dia.fds{background:var(--linha2)}
-.cel-dia.fds .s,.cel-dia.fds .n{color:var(--t5)}
-.cel-dia.mes-novo{border-left:2px solid var(--linha)}
+.cel-dia.fds .s,.cel-dia.fds .n{color:var(--t3)}
+.cel-dia.mes-novo{border-left:2px solid var(--traco)}
 .cel-dia.hoje{background:var(--azul-fundo)}
 .cel-dia.hoje .n,.cel-dia.hoje .s{color:var(--azul);font-weight:700}
 .cel-pilula{padding:4px 3px}
-.pilula{display:block;padding:6px 4px;border-radius:5px;font:600 9.5px/1.2 var(--sans);
- text-align:center;white-space:nowrap;overflow:hidden}
+/* a pilula cortava sem reticencias e lia-se "Por analis" -- e dado
+   estragado, nao texto cortado (regra da casa: toda a truncagem
+   visivel poe reticencias) */
+.pilula{display:block;padding:6px 5px;border-radius:5px;font:600 9.5px/1.2 var(--sans);
+ text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
