@@ -5282,6 +5282,36 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .essencial dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
 .essencial dd{margin:0;font:600 13px/1.5 var(--sans);color:var(--ink);
  text-wrap:pretty;word-break:break-word;white-space:pre-line}
+/* As tres formas dos campos longos lidos das pecas (desenha_valor).
+   O texto e o mesmo -- o que muda e ter degraus: um perfil le-se como
+   um cartao, uma enumeracao le-se como lista. Em bloco corrido, os 20
+   perfis deste anuncio eram 3 200 caracteres com o peso do essencial. */
+/* A linha de um campo de perfis abre-se a toda a largura: o rotulo
+   sobe para cima e os cartoes ficam com a pagina inteira. Espremidos
+   na coluna do valor davam duas colunas de 240px, e "Certificação
+   Gestão de Projeto" partia em tres linhas. */
+.essencial .par:has(.perfis){grid-template-columns:minmax(0,1fr);gap:8px}
+.perfis{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+ gap:10px;margin-top:2px}
+.perfil{border:1px solid var(--linha);border-radius:7px;padding:11px 13px;
+ background:var(--creme)}
+.perfil>b{display:block;font:700 12.5px/1.35 var(--sans);color:var(--ink);
+ margin-bottom:7px}
+.perfil dl{display:grid;grid-template-columns:minmax(0,104px) minmax(0,1fr);
+ gap:3px 9px;margin:0}
+.perfil dt{font:400 11px/1.45 var(--sans);color:var(--t4)}
+.perfil dd{margin:0;font:500 11px/1.45 var(--sans);color:var(--t2);min-width:0}
+.pontos{margin:2px 0 0;padding:0 0 0 16px;display:flex;flex-direction:column;
+ gap:6px}
+.pontos li{font:400 12.5px/1.55 var(--sans);color:var(--t2);
+ text-wrap:pretty;padding-left:2px}
+.pontos li::marker{color:var(--traco)}
+.numerados{margin:2px 0 0;padding:0 0 0 20px;display:flex;
+ flex-direction:column;gap:8px}
+.numerados li{font:400 12.5px/1.55 var(--sans);color:var(--t2)}
+.numerados li::marker{font-family:var(--mono);font-size:11px;color:var(--t4)}
+.numerados li b{display:block;font-weight:600;color:var(--ink)}
+.numerados li span{display:block;text-wrap:pretty}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
 .nota-campo{display:block;margin-top:3px;font:400 11.5px/1.45 var(--sans);
  color:var(--t5)}
@@ -9349,6 +9379,85 @@ def tamanho_legivel(n):
     return "%d B" % n
 
 
+# Uma linha "Chave: valor" dentro de um bloco de perfil. O dois-pontos
+# tem de vir depois de uma chave curta -- senao qualquer frase com dois
+# pontos a meio virava uma linha de tabela.
+RX_PAR_PERFIL = re.compile(r"^([^:]{2,40}):\s*(.*)$")
+RX_ITEM_LISTA = re.compile(r"^\s*[-–•]\s+(.+)$")
+RX_ITEM_NUM = re.compile(r"^\s*(\d{1,2})\.\s+(.+)$")
+
+
+def desenha_valor(valor):
+    """O valor de um campo do essencial, com a estrutura que ele tiver.
+
+    Os campos lidos das pecas pelo modelo sao os mais compridos da ficha
+    -- a "Equipa" deste anuncio do INFARMED sao 3 200 caracteres em 146
+    linhas -- e sairem como um bloco corrido no mesmo corpo e peso do
+    resto era o que fazia 80% do rolo da ficha ler-se ao mesmo nivel.
+    Nada aqui muda o texto: mudam-lhe os degraus.
+
+    Tres formas, todas reconhecidas pelo que o texto ja e:
+    - blocos separados por linha em branco, com pares "Chave: valor"
+      -> um cartao por bloco (os perfis da equipa);
+    - linhas comecadas por travessao -> lista;
+    - linhas "1. Nome" seguidas de detalhe -> lista numerada.
+    O que nao tiver forma nenhuma sai como sempre saiu.
+    """
+    texto = (valor or "").strip()
+    if not texto:
+        return ""
+
+    blocos = [b for b in re.split(r"\n\s*\n", texto) if b.strip()]
+    if len(blocos) >= 2:
+        cartoes, todos_com_pares = [], True
+        for bloco in blocos:
+            linhas = [l.strip() for l in bloco.split("\n") if l.strip()]
+            pares = [RX_PAR_PERFIL.match(l) for l in linhas[1:]]
+            if len(linhas) < 2 or not all(pares):
+                todos_com_pares = False
+                break
+            cartoes.append(
+                "<div class='perfil'><b>%s</b><dl>%s</dl></div>"
+                % (html.escape(linhas[0]),
+                   "".join("<dt>%s</dt><dd>%s</dd>"
+                           % (html.escape(m.group(1)), html.escape(m.group(2)))
+                           for m in pares)))
+        if todos_com_pares and cartoes:
+            return "<div class='perfis'>%s</div>" % "".join(cartoes)
+
+    linhas = [l for l in texto.split("\n") if l.strip()]
+    itens = [RX_ITEM_LISTA.match(l) for l in linhas]
+    if len(linhas) >= 2 and all(itens):
+        return ("<ul class='pontos'>%s</ul>"
+                % "".join("<li>%s</li>" % html.escape(m.group(1))
+                          for m in itens))
+
+    # numerados: cada numero abre um item e o que vem a seguir, ate ao
+    # numero seguinte, e o detalhe dele
+    if len(linhas) >= 2 and RX_ITEM_NUM.match(linhas[0]):
+        itens, actual = [], None
+        for linha in linhas:
+            m = RX_ITEM_NUM.match(linha)
+            if m:
+                actual = [m.group(2), []]
+                itens.append(actual)
+            elif actual is not None:
+                actual[1].append(linha.strip())
+            else:
+                itens = []
+                break
+        if itens:
+            return ("<ol class='numerados'>%s</ol>"
+                    % "".join(
+                        "<li><b>%s</b>%s</li>"
+                        % (html.escape(nome),
+                           ("<span>%s</span>" % html.escape(" ".join(det)))
+                           if det else "")
+                        for nome, det in itens))
+
+    return html.escape(texto)
+
+
 def _facto(rotulo, valor, classe="", largo=False):
     if not valor:
         return ""
@@ -10122,7 +10231,7 @@ def ficha(ref):
             if em_falta:
                 celula = "<span class='em-falta'>%s</span>" % html.escape(em_falta)
             elif valor:
-                celula = html.escape(valor)
+                celula = desenha_valor(valor)
                 if nota:
                     celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
             else:

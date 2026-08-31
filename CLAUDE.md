@@ -330,6 +330,15 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   Onde quem corta é o CSS (uma pílula do calendário, um nome num
   gráfico), a regra é a mesma: `text-overflow:ellipsis` e não
   `overflow:hidden` sozinho — "Por analis" também se lê como avaria.
+- **Os campos longos do essencial ganham forma, não texto novo.**
+  `desenha_valor()` reconhece o que o valor já é — blocos com pares
+  «Chave: valor» viram cartões de perfil, linhas com travessão viram
+  lista, «1. Nome» + detalhe vira lista numerada — e o resto sai como
+  sempre saiu. **A guarda que interessa é a última:** uma frase com
+  dois pontos a meio não é um par (senão «Presencial, nas instalações
+  do Parque de Saúde de Lisboa» virava tabela); por isso o
+  `RX_PAR_PERFIL` exige chave curta. Há teste por forma
+  (`TestDesenhaValor`).
 - **Cor de texto e cor de decoração são escalas diferentes.** O texto
   usa `--t1`..`--t6`, medidos para passar AA (4,5:1) **sobre
   `--papel`**, que é o pior fundo — não sobre branco. Setas, molduras
@@ -455,6 +464,13 @@ valem sempre:
 - **Antes de dizer "a correcção não funcionou", confirma a hora de arranque
   do processo na porta 8765.** Já houve cinco instâncias em simultâneo
   (SO_REUSEADDR no Windows), a responder à vez e com código velho.
+  Aconteceu outra vez a 31/08/2026, com duas. Duas consequências
+  práticas: **matar por caminho** (todos os python que corram da pasta
+  do radar), não só "o que está na porta" — e depois **confirmar que
+  ficou um**; e comparar a hora de arranque do processo com a da
+  última gravação do `radar.py`. Foi essa comparação que denunciou o
+  caso: o processo tinha arrancado quatro minutos ANTES do ficheiro
+  que devia estar a servir.
 - **Para ver se o modelo inventou um facto, normaliza a fonte como o
   extractor a normaliza.** O PDF parte números ("1 2 meses") e um grep
   ingénuo produz uma acusação falsa. É o que o `ensaio-de-leitura` faz.
