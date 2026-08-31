@@ -3221,3 +3221,26 @@ A pendência maior do registo, feita como a especificação mandava:
   fecha mesmo o R2. Palavra do Afonso.
 
 Testes: **477** (473 + 4).
+
+## B14 medido: as duas plataformas têm listagem anónima, 31 de agosto de 2026
+
+A investigação que o B14 pedia antes de qualquer código — «existe
+listagem anónima? paginada? com data? que campos traz?» — foi feita à
+mão, no browser, sem sessão em nenhuma das duas. **Deu «dá» nas
+duas**; as receitas completas ficaram na secção B14 do BACKLOG.md. O
+essencial:
+
+- **acingov**: zona pública com 598 procedimentos a decorrer, paginada
+  a 8 por página, com filtros e um botão «Descarregar Peças» em cada
+  linha — mas sem data nem prazo na listagem.
+- **Vortal**: pesquisa pública de consultas activas com tudo — datas,
+  prazo com contagem, preço base, tipo — e o «Detalhe» entrega
+  directamente o `PT1.NTC.x` que a cadeia das peças já usa. **As
+  «GovPT - Consulta Preliminar» apareceram logo na primeira página**:
+  a premissa do B14 (as plataformas publicam o que a parte L não
+  publica) confirmou-se à vista.
+
+**Não se escreveu uma linha de ingestão** — o B14 é explícito: primeiro
+a medição, depois uma decisão informada do Afonso, plataforma a
+plataforma. O que fica por medir (duplicação com o DR pelo `ref`,
+estabilidade dos endpoints, ritmo aceitável) está anotado no BACKLOG.
