@@ -3190,3 +3190,34 @@ registo, por ordem de dependência:
   continuam a não cair para o texto, com teste.
 
 Testes: **473** (467 + 6).
+
+## B15 implementado: a triagem viaja no repositório, 31 de agosto de 2026
+
+A pendência maior do registo, feita como a especificação mandava:
+
+- **`triagem.jsonl`** — a parte irrecuperável da base num ficheiro de
+  texto versionado: das `anuncios` só ref/estado/fase/responsável/
+  visto_em das linhas triadas ou com fase/responsável, o `historico`
+  inteiro, fases, etiquetas e pares, filtros guardados (com id — o
+  `filtro_id` dos avisos aponta para ele), seguidas, e as marcas de
+  já-avisado (sem elas o primeiro resumo pós-restauro trazia o acervo
+  todo). **Primeiro export: 8 330 registos — exactamente a medição de
+  31/08.** Um registo por linha, chaves ordenadas, ordem
+  determinística (testada: exportar duas vezes dá o mesmo byte a
+  byte) — é o que faz o `git diff` mostrar o que mudou hoje. Escrita
+  por temporário + `os.replace`: um export interrompido não fica a
+  fazer de cópia.
+- **Corre sozinho** a seguir à cópia diária, dentro do `verificar()`
+  (uma falha ali regista-se na série de erros e não trava a recolha),
+  e à mão por `--exportar-triagem`.
+- **`--repor-triagem`** é o caminho de volta, para depois de a base
+  ser refeita pela recolha: idempotente (testado — segunda volta não
+  duplica histórico nem etiquetas), e um ref que ainda não voltou do
+  DR **não se inventa**: fica no relatório final, para se repor outra
+  vez mais tarde.
+- **A sub-decisão do push fica aberta, como a especificação queria**:
+  por agora é manual — cada commit leva o `triagem.jsonl` — e a
+  alternativa (tarefa semanal com commit+push automático) é a que
+  fecha mesmo o R2. Palavra do Afonso.
+
+Testes: **477** (473 + 4).

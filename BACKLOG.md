@@ -25,7 +25,7 @@ ou feito.
 | E2 | O **primeiro envio** do resumo diário | Canal autentica desde 31/08; nunca saiu um e-mail com conteúdo | Uma ordem do Afonso — sai mesmo um e-mail, por isso não se dispara sozinho |
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
 | — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: verificado, o Fluxo B já estava inteiro — ver ESTADO.md). O que sobra do 4 é exactamente o E2 acima | — |
-| B15 | **Exportar a triagem** para o repositório | Especificado; sem urgência — a triagem actual é toda de teste | O gatilho é a **primeira semana de triagem a sério**. Leva dentro uma sub-decisão: push manual ou tarefa semanal |
+| B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**: `triagem.jsonl` (8 330 registos) escrito em cada verificação e reposto por `--repor-triagem`; ver a secção abaixo | A sub-decisão que sobra: o **push** é manual (o de agora) ou passa a tarefa semanal? Só a semanal fecha mesmo o R2 — palavra do Afonso |
 | B14 | **Vortal e acingov** como segunda fonte | Aprovado com âmbito (só o que o DR não publica); é investigação antes de código | Ordem do Afonso, depois das pendências de casa. Pode dar «não dá» — o caminho actual parte sempre de um link vindo do DR |
 | C3 | ~~Histórico de erros~~ | **Feito a 31/08/2026**: tabela `erros` com poda a 200 por tipo; as marcas continuam a servir o ecrã | — |
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
@@ -216,9 +216,20 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   contra menções de passagem continua de pé (pistas reais que não batem
   em nada continuam a NÃO cair para o texto — testado).
 
-## Aprovado pelo Afonso a 30/08/2026, por fazer
+## Aprovado pelo Afonso a 30/08/2026
 
-- **B15 — exportação da triagem, para a cópia externa que falta (E1).**
+- **B15 — exportação da triagem — FEITO a 31/08/2026.** Implementado
+  como especificado abaixo: `exportar_triagem()` corre a seguir à cópia
+  diária dentro do `verificar()` (e à mão por `--exportar-triagem`),
+  escreve o **`triagem.jsonl`** — 8 330 registos no primeiro export,
+  exactamente a medição de 31/08 — com um registo por linha, chaves
+  ordenadas e ordem determinística; `--repor-triagem` é o restauro
+  idempotente com o relatório dos refs por repor. A escrita é por
+  ficheiro temporário + `os.replace`, para um export interrompido não
+  fazer de cópia. **A sub-decisão do push continua aberta** (manual ou
+  tarefa semanal): por agora é manual — cada commit da sessão leva o
+  ficheiro — e só a tarefa semanal fecha mesmo o R2. A especificação
+  original fica abaixo, como registo.
   Luz verde do Afonso a 31/08/2026, **e sem urgência**: ele avisou no
   mesmo dia que todo o histórico de actividade actual é **de teste**,
   portanto perder a triagem hoje não custa nada. O risco estrutural

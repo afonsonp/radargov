@@ -2717,6 +2717,180 @@ def copia_com_marca(guardar=7):
         return False
 
 
+# ------------------------------------------- exportacao da triagem (B15)
+#
+# O remoto do git poe o CODIGO fora do PC; a triagem -- o unico dado
+# declaradamente irrecuperavel -- vivia so no disco, porque a base esta
+# no .gitignore. A saida e o tamanho: a parte irrecuperavel cabe num
+# ficheiro de texto que viaja no repositorio, e cada push passa a ser
+# uma copia da triagem fora do PC. O ficheiro leva as decisoes dele e o
+# historico com o nome de quem agiu: repositorio privado, dados dele --
+# mas fica dito, porque passa a estar fora do PC.
+
+TRIAGEM_EXPORT = os.path.join(BASE_DIR, "triagem.jsonl")
+
+# O que entra -- e nada mais: o resto refaz-se (os anuncios voltam do
+# DR, o corpus do IMPIC, as pecas das plataformas). Cada entrada e
+# (tabela, colunas, consulta com ordem deterministica): a ordem nao e
+# estetica, e o que faz o git diff mostrar O QUE MUDOU HOJE em vez de
+# um ficheiro inteiro reescrito. As fases, etiquetas e filtros levam o
+# id porque outras linhas apontam para ele (fase_id, etiqueta_id,
+# filtro_id).
+_TABELAS_TRIAGEM = (
+    ("anuncios", ("ref", "estado", "fase_id", "responsavel", "visto_em"),
+     "SELECT ref, estado, fase_id, responsavel, visto_em FROM anuncios "
+     "WHERE estado != 'novo' OR fase_id IS NOT NULL "
+     "OR COALESCE(responsavel,'') != '' ORDER BY ref"),
+    ("fases", ("id", "nome", "ordem"),
+     "SELECT id, nome, ordem FROM fases ORDER BY id"),
+    ("etiquetas", ("id", "nome", "cor"),
+     "SELECT id, nome, cor FROM etiquetas ORDER BY id"),
+    ("anuncio_etiquetas", ("ref", "etiqueta_id"),
+     "SELECT ref, etiqueta_id FROM anuncio_etiquetas "
+     "ORDER BY ref, etiqueta_id"),
+    ("historico", ("ref", "quem", "accao", "detalhe", "quando"),
+     "SELECT ref, quem, accao, detalhe, quando FROM historico ORDER BY id"),
+    ("filtros_guardados",
+     ("id", "nome", "consulta", "alerta", "quem", "criado_em"),
+     "SELECT id, nome, consulta, alerta, quem, criado_em "
+     "FROM filtros_guardados ORDER BY id"),
+    ("entidades_seguidas", ("chave", "nome", "desde"),
+     "SELECT chave, nome, desde FROM entidades_seguidas ORDER BY chave"),
+    # as marcas de ja-avisado: sem elas, o primeiro resumo depois de um
+    # restauro trazia o acervo inteiro outra vez
+    ("alertas_vistos", ("filtro_id", "ref", "visto_em", "enviado_em"),
+     "SELECT filtro_id, ref, visto_em, enviado_em FROM alertas_vistos "
+     "ORDER BY filtro_id, ref"),
+    ("seguidas_vistos", ("chave", "ref", "visto_em", "enviado_em"),
+     "SELECT chave, ref, visto_em, enviado_em FROM seguidas_vistos "
+     "ORDER BY chave, ref"),
+)
+
+
+def exportar_triagem(caminho=None):
+    """B15: a parte irrecuperavel da base num ficheiro de texto.
+
+    Um registo por linha (JSON com chaves ordenadas), tabelas e linhas
+    em ordem deterministica. Corre a seguir a copia diaria, dentro do
+    verificar() -- sao milhares de linhas, custa nada, e assim esta
+    sempre fresco. Sair do PC exige um push; por agora e manual
+    (sub-decisao registada no BACKLOG: manual ou tarefa semanal).
+    Devolve (n registos, caminho)."""
+    caminho = caminho or TRIAGEM_EXPORT
+    linhas = []
+    with liga() as c:
+        for tabela, colunas, sql in _TABELAS_TRIAGEM:
+            for r in c.execute(sql):
+                registo = {"tabela": tabela}
+                registo.update({k: r[k] for k in colunas})
+                linhas.append(json.dumps(registo, ensure_ascii=False,
+                                         sort_keys=True))
+    # escrita por ficheiro temporario + os.replace: um export
+    # interrompido a meio nao pode deixar meio ficheiro a fazer de copia
+    tmp = caminho + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(linhas) + "\n")
+    os.replace(tmp, caminho)
+    return len(linhas), caminho
+
+
+def repor_triagem(caminho=None):
+    """B15: repoe a triagem exportada numa base ja refeita pela recolha.
+
+    Idempotente -- correr duas vezes nao duplica nada. O ficheiro
+    guarda decisoes, nao anuncios: um ref que ainda nao exista na base
+    NAO se inventa, fica no relatorio final para se saber o que ficou
+    por repor (sem isto o restauro parecia completo e nao era; os
+    anuncios em falta voltam do DR e repoe-se outra vez).
+    Devolve (n escritas, {tabela: [refs por repor]})."""
+    caminho = caminho or TRIAGEM_EXPORT
+    if not os.path.exists(caminho):
+        return 0, {"ficheiro": [caminho + " não existe"]}
+    registos = []
+    with open(caminho, encoding="utf-8") as f:
+        for linha in f:
+            linha = linha.strip()
+            if linha:
+                registos.append(json.loads(linha))
+    iniciar_db()
+    escritas = 0
+    por_repor = {}
+    with liga() as c:
+        existe = {r["ref"] for r in c.execute("SELECT ref FROM anuncios")}
+        for reg in registos:
+            t = reg.get("tabela")
+            if t == "anuncios":
+                if reg["ref"] not in existe:
+                    por_repor.setdefault(t, []).append(reg["ref"])
+                    continue
+                c.execute("UPDATE anuncios SET estado=?, fase_id=?, "
+                          "responsavel=?, visto_em=? WHERE ref=?",
+                          (reg["estado"], reg["fase_id"],
+                           reg["responsavel"], reg["visto_em"],
+                           reg["ref"]))
+                escritas += 1
+            elif t == "fases":
+                c.execute("INSERT OR REPLACE INTO fases (id, nome, ordem) "
+                          "VALUES (?,?,?)",
+                          (reg["id"], reg["nome"], reg["ordem"]))
+                escritas += 1
+            elif t == "etiquetas":
+                c.execute("INSERT OR REPLACE INTO etiquetas (id, nome, cor) "
+                          "VALUES (?,?,?)",
+                          (reg["id"], reg["nome"], reg["cor"]))
+                escritas += 1
+            elif t == "anuncio_etiquetas":
+                if reg["ref"] not in existe:
+                    por_repor.setdefault(t, []).append(reg["ref"])
+                    continue
+                c.execute("INSERT OR REPLACE INTO anuncio_etiquetas "
+                          "(ref, etiqueta_id) VALUES (?,?)",
+                          (reg["ref"], reg["etiqueta_id"]))
+                escritas += 1
+            elif t == "historico":
+                # o historico nao tem chave natural na tabela: a
+                # idempotencia e por igualdade da linha inteira
+                ja = c.execute(
+                    "SELECT 1 FROM historico WHERE ref=? AND quem=? AND "
+                    "accao=? AND COALESCE(detalhe,'')=? AND quando=?",
+                    (reg["ref"], reg["quem"], reg["accao"],
+                     reg["detalhe"] or "", reg["quando"])).fetchone()
+                if not ja:
+                    c.execute("INSERT INTO historico "
+                              "(ref, quem, accao, detalhe, quando) "
+                              "VALUES (?,?,?,?,?)",
+                              (reg["ref"], reg["quem"], reg["accao"],
+                               reg["detalhe"], reg["quando"]))
+                    escritas += 1
+            elif t == "filtros_guardados":
+                c.execute("INSERT OR REPLACE INTO filtros_guardados "
+                          "(id, nome, consulta, alerta, quem, criado_em) "
+                          "VALUES (?,?,?,?,?,?)",
+                          (reg["id"], reg["nome"], reg["consulta"],
+                           reg["alerta"], reg["quem"], reg["criado_em"]))
+                escritas += 1
+            elif t == "entidades_seguidas":
+                c.execute("INSERT OR REPLACE INTO entidades_seguidas "
+                          "(chave, nome, desde) VALUES (?,?,?)",
+                          (reg["chave"], reg["nome"], reg["desde"]))
+                escritas += 1
+            elif t == "alertas_vistos":
+                c.execute("INSERT OR REPLACE INTO alertas_vistos "
+                          "(filtro_id, ref, visto_em, enviado_em) "
+                          "VALUES (?,?,?,?)",
+                          (reg["filtro_id"], reg["ref"], reg["visto_em"],
+                           reg["enviado_em"]))
+                escritas += 1
+            elif t == "seguidas_vistos":
+                c.execute("INSERT OR REPLACE INTO seguidas_vistos "
+                          "(chave, ref, visto_em, enviado_em) "
+                          "VALUES (?,?,?,?)",
+                          (reg["chave"], reg["ref"], reg["visto_em"],
+                           reg["enviado_em"]))
+                escritas += 1
+    return escritas, por_repor
+
+
 # Marca posta no que ja estava na base quando o alerta foi ligado: nao
 # foi avisado, mas tambem nao e novidade -- senao o primeiro resumo
 # trazia o acervo todo.
@@ -3079,6 +3253,15 @@ def verificar(cfg=None, passo=None):
         # O resultado fica em marca visivel (C2 do saneamento): o print
         # de antes ia para uma consola que o pythonw nao tem.
         copia_com_marca(int(cfg.get("copias_a_guardar", 7)))
+    # B15: a exportacao da triagem, a seguir a copia -- custa nada e
+    # fica sempre fresca no triagem.jsonl. Sair do PC e o push (por
+    # agora manual). Uma falha aqui nao pode travar a recolha.
+    try:
+        exportar_triagem()
+    except (sqlite3.Error, OSError) as erro:
+        marca_erro("ultima_exportacao_triagem", "exportacao",
+                   "%s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                               str(erro)[:150]))
     diz("a pedir os anúncios ao Diário da República")
     bem, mensagem, novos = recolher(cfg)
     if bem:
@@ -10470,6 +10653,29 @@ def main():
                 break
         print("%d lido(s) por inteiro." % lidos)
         return
+    if "--exportar-triagem" in sys.argv:
+        # B15: tambem corre sozinho em cada verificacao; o comando serve
+        # para exportar a mao antes de um commit.
+        n, caminho = exportar_triagem()
+        print("%d registos de triagem em %s" % (n, os.path.basename(caminho)))
+        return
+
+    if "--repor-triagem" in sys.argv:
+        # B15: correr DEPOIS de a base ser refeita pela recolha -- o
+        # ficheiro guarda decisoes, nao anuncios. Idempotente.
+        i = sys.argv.index("--repor-triagem")
+        caminho = sys.argv[i + 1] if (i + 1 < len(sys.argv) and
+                                      not sys.argv[i + 1].startswith("--")) \
+            else None
+        escritas, por_repor = repor_triagem(caminho)
+        print("%d registo(s) repostos." % escritas)
+        for tabela, refs in sorted(por_repor.items()):
+            print("  por repor em %s (%d) — os anúncios ainda não estão "
+                  "na base; volta a correr depois da recolha: %s%s"
+                  % (tabela, len(refs), ", ".join(refs[:8]),
+                     "…" if len(refs) > 8 else ""))
+        return
+
     if "--descartar-expirados" in sys.argv:
         # Arruma a fila de triagem: um anuncio por ver cujo prazo ja
         # passou deixou de ser oportunidade. So os "por ver" -- um
