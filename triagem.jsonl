@@ -4105,6 +4105,7 @@
 {"estado": "descartado", "fase_id": null, "ref": "21777/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 09:41"}
 {"estado": "interessa", "fase_id": 1, "ref": "21811/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
 {"estado": "novo", "fase_id": 1, "ref": "21830/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
+{"estado": "interessa", "fase_id": 1, "ref": "21925/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 09:04"}
 {"id": 1, "nome": "Por analisar", "ordem": 1, "tabela": "fases"}
 {"id": 5, "nome": "A preparar proposta", "ordem": 2, "tabela": "fases"}
 {"id": 7, "nome": "Submetido", "ordem": 4, "tabela": "fases"}
@@ -8260,6 +8261,7 @@
 {"accao": "rectificado", "detalhe": "pelo anúncio 21065/2026", "quando": "2026-08-30 17:01", "quem": "DR", "ref": "19900/2026", "tabela": "historico"}
 {"accao": "rectificado", "detalhe": "pelo anúncio 20408/2026", "quando": "2026-08-30 17:01", "quem": "DR", "ref": "19900/2026", "tabela": "historico"}
 {"accao": "rectificado", "detalhe": "pelo anúncio 17931/2026", "quando": "2026-08-30 17:01", "quem": "DR", "ref": "16831/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-08-31 09:45", "quem": "Afonso Pinto", "ref": "21925/2026", "tabela": "historico"}
 {"alerta": 1, "consulta": "cpv=72000000&estado=novo&prazo=aberto", "criado_em": "2026-08-30 03:15", "id": 8, "nome": "CPV IT", "quem": "Afonso Pinto", "tabela": "filtros_guardados"}
 {"chave": "504322915", "desde": "2026-08-30", "nome": "Instituto de Informática, I. P.", "tabela": "entidades_seguidas"}
 {"enviado_em": "acervo", "filtro_id": 8, "ref": "17308/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-30 11:38"}
@@ -8318,6 +8320,7 @@
 {"enviado_em": "acervo", "filtro_id": 8, "ref": "21706/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-30 11:38"}
 {"enviado_em": "acervo", "filtro_id": 8, "ref": "21713/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-30 11:38"}
 {"enviado_em": "acervo", "filtro_id": 8, "ref": "21811/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-30 11:38"}
+{"enviado_em": "2026-08-31 09:07", "filtro_id": 8, "ref": "21925/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-31 09:05"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "16933/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "18140/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "18978/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
