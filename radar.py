@@ -4826,6 +4826,13 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
     (art.o 259.o)") e punha a pagina a rolar de lado num ecra estreito */
  max-width:100%;min-width:0}
 .filtros label{font:500 12px/1 var(--sans);color:var(--t3)}
+/* Um campo desactivado tem de o parecer. No modo "por fim estimado" o
+   de/ate desactiva-se com a explicacao no title (dois eixos do tempo na
+   mesma pagina confundiam) -- mas desenhado igual aos outros, so quem
+   tentasse escrever la e que descobria. */
+.filtros input:disabled,.filtros select:disabled{background:var(--linha2);
+ color:var(--t5);border-style:dashed;cursor:not-allowed}
+.filtros:has(input:disabled) label{color:var(--t5)}
 .filtros button{cursor:pointer;padding:10px 18px;border-radius:8px;border:0;
  background:var(--azul);color:#fff;font:600 12.5px/1 var(--sans)}
 .filtros button:hover{background:var(--ink)}
@@ -4931,7 +4938,10 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .graf-corpo>.graf:last-child{grid-column:1/-1}
 .graf{padding:16px 18px}
 .barras-h{display:flex;flex-direction:column;gap:9px}
-.bh{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(60px,2fr) 76px 84px;
+/* O nome levava 1.4fr contra 2fr da barra e saia "Capgemin…" em quase
+   todas as linhas: numa lista de quem ganha, o nome e metade do que ha
+   para ler. A barra e comparativa -- perde largura sem perder sentido. */
+.bh{display:grid;grid-template-columns:minmax(0,2fr) minmax(50px,1.3fr) 76px 84px;
  align-items:center;gap:10px}
 .bh .t{font:400 11.5px/1.3 var(--sans);color:var(--t2);overflow:hidden;
  text-overflow:ellipsis;white-space:nowrap}
@@ -4960,14 +4970,19 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .tab-contratos{width:100%;border-collapse:collapse;min-width:900px}
 .tab-contratos th{text-align:left;padding:11px 12px;background:var(--creme);
  border-bottom:1px solid var(--linha);font:600 10.5px/1 var(--sans);
- color:var(--t5);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+ color:var(--t4);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
 .tab-contratos td{padding:10px 12px;border-bottom:1px solid var(--linha2);
- font:400 12px/1.4 var(--sans);color:var(--t3);vertical-align:top}
+ font:400 12.5px/1.45 var(--sans);color:var(--t3);vertical-align:top}
 .tab-contratos tr:last-child td{border-bottom:0}
 .tab-contratos tr:hover td{background:var(--creme)}
-.tab-contratos td.d{font-family:var(--mono);white-space:nowrap;color:var(--t5)}
-.tab-contratos td.o{color:var(--ink);max-width:340px}
-.tab-contratos td.g{color:var(--ink);font-weight:500;max-width:220px}
+.tab-contratos td.d{font-family:var(--mono);white-space:nowrap;color:var(--t4)}
+/* O objecto e a coluna que responde a pergunta e era a mais apagada da
+   tabela: os nomes de entidade, sendo ligacoes azuis, puxavam o olho
+   primeiro. Invertido pelo peso, sem tirar o azul -- sao ligacoes e tem
+   de o parecer. */
+.tab-contratos td.o{color:var(--t1);font-weight:600;max-width:340px}
+.tab-contratos td.g{color:var(--t2);max-width:220px}
+.tab-contratos td a{font-weight:400}
 .tab-contratos th.p,.tab-contratos td.p{text-align:right;white-space:nowrap;
  font-family:var(--mono);color:var(--ink)}
 .vazio code,.larg>.nota code{font:500 11.5px/1 var(--mono);
