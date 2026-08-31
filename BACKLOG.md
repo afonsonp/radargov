@@ -22,22 +22,24 @@ ou feito.
 
 | # | O que falta | Estado | Espera por |
 |---|---|---|---|
-| E2 | O **primeiro envio** do resumo diário | Canal autentica desde 31/08; nunca saiu um e-mail com conteúdo | Uma ordem do Afonso — sai mesmo um e-mail, por isso não se dispara sozinho |
+| E2 | ~~O primeiro envio do resumo diário~~ | **Feito a 31/08/2026, à ordem dele**: «Resumo enviado para [e-mail retirado]», com 1 anúncio do alerta CPV IT (INFARMED, 400 930 €). Daqui em diante sai sozinho, uma vez por dia com novidade | — |
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
-| — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: verificado, o Fluxo B já estava inteiro — ver ESTADO.md). O que sobra do 4 é exactamente o E2 acima | — |
-| B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**: `triagem.jsonl` (8 330 registos) escrito em cada verificação e reposto por `--repor-triagem`; ver a secção abaixo | A sub-decisão que sobra: o **push** é manual (o de agora) ou passa a tarefa semanal? Só a semanal fecha mesmo o R2 — palavra do Afonso |
-| B14 | **Vortal e acingov** como segunda fonte | **A investigação está feita (31/08/2026) e deu «dá» nas duas** — listagem anónima confirmada, receitas anotadas na secção B14. A ingestão é que continua por decidir e por escrever | Decisão informada do Afonso sobre cada plataforma, com os achados à frente. Os avisos [LEGAL] [RISCO] mantêm-se |
+| — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: Fluxo B verificado e, com o E2, disparado — ver ESTADO.md) | — |
+| B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**, e a sub-decisão do push também: **automático** («grava logo lá consoante o uso») — `empurrar_triagem()` faz commit+push só do `triagem.jsonl` em cada verificação em que mude; push falhado retoma na volta seguinte. **Isto fecha o R2 por inteiro** | — |
+| B14 | ~~Vortal como segunda fonte~~ | **Em produção desde 31/08/2026, com o âmbito dele**: só «GovPT - Consulta Preliminar», país PT, fonte='vortal' — zero duplicação com o DR. Primeira recolha: **17 consultas** (ver a secção B14). A acingov fica de fora: a listagem dela não distingue tipos sem abrir detalhes | Alargar a outros tipos não-DR ou à acingov: palavra dele, com medição antes |
 | C3 | ~~Histórico de erros~~ | **Feito a 31/08/2026**: tabela `erros` com poda a 200 por tipo; as marcas continuam a servir o ecrã | — |
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
-| 11.7-B | **Procura directa de entidade** (nome/NIF) | Fora do esqueleto por decisão dele, registada como reabrível | O sinal: dar por si a abrir um contrato só para chegar à ficha de uma entidade |
-| — | **Visualizador de PDF na ficha**, com pesquisa lá dentro | Em «Não fazer», por decisão dele ao retirar o B09 | Ele pedir |
+| 11.7-B | ~~Procura directa de entidade~~ | **Feito a 31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado + `/entidade/procurar` — NIF vai directo, nome resolve por `entidade_nomes` (única → ficha; várias → escolha; nenhuma → di-lo) | — |
+| — | ~~Visualizador de PDF na ficha~~ | **Feito a 31/08/2026, a pedido dele** (sai do «Não fazer»): os PDF das peças abrem em `/peca/<ref>/<nome>`, dentro da aplicação, com a pesquisa do próprio visualizador (Ctrl+F) — o caminho barato que estava anotado | — |
+
+**O registo está limpo: não há pendências abertas.** O que se abrir a
+seguir entra aqui com quem decide e o que dispara, como sempre.
 
 **Dependências, e o estado de cada uma:**
 
-- **E2 → Fluxo B:** deixou de bloquear. O canal autentica; falta só
-  disparar o primeiro resumo. O cenário «sem e-mail» (secção de
-  novidades em Alertas, decisão 11.3-B) fica escrito mas deixou de ser
-  o provável.
+- **E2 → Fluxo B:** fechada a 31/08/2026 — o primeiro resumo saiu por
+  e-mail à ordem do Afonso. O cenário «sem e-mail» (11.3-B) fica
+  escrito só como registo histórico.
 - **E3 → ecrãs fora do PC:** fechada. Os links do resumo ficam em
   `localhost` por decisão; nenhum ecrã é desenhado para o telemóvel.
 - **R1 (token) → recolha:** viva, mitigada pelo aviso no painel. O E4
@@ -46,8 +48,10 @@ ou feito.
 - **R11 (volume) → `/contratos/resumo`:** viva. É a razão de a entrada
   de Mercado ser «a pergunta primeiro», e o esqueleto proíbe qualquer
   painel que dispare o resumo sem filtro.
-- **R2 (perda do PC) → código:** fechada a 31/08 com o remoto do
-  GitHub. **Para a triagem continua aberta**, e só o B15 a fecha.
+- **R2 (perda do PC):** **fechada por inteiro a 31/08/2026** — o código
+  pelo remoto do GitHub, e a triagem pelo B15 com o push automático em
+  cada verificação. O que fica em risco no disco é só o que se refaz
+  (base, corpus, peças).
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
 
@@ -181,15 +185,14 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## Anotado no esqueleto de informação de 30/08/2026
 
-- **Procura directa de entidade (nome ou NIF).** Ficou de fora do
-  esqueleto por decisão do Afonso (pergunta 11.7, opção A: chega-se à
-  ficha da entidade só por ligações — consolidar não é acrescentar),
-  **com a possibilidade registada a pedido dele**. Quando se fizer: uma
-  caixa "procurar entidade" em Mercado, a resolver por
-  `entidade_nomes` (que já mapeia qualquer grafia à chave) e a levar a
-  `/entidade/<chave>`. Os dados já existem; o custo é só de ecrã.
-  Esforço 1. O sinal de que faz falta: abrir um contrato qualquer só
-  para chegar à ficha de uma entidade.
+- ~~Procura directa de entidade (nome ou NIF)~~ — **reaberta e feita a
+  31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado e
+  rota `/entidade/procurar`, exactamente como aqui estava desenhado —
+  NIF vai directo (é a chave do corpus), nome resolve por
+  `entidade_nomes` com `norma_entidade()`; resolução única abre a
+  ficha, várias dão lista de escolha, nenhuma di-lo. Tinha ficado de
+  fora do esqueleto por decisão dele (11.7-A), com a possibilidade
+  registada — o registo serviu.
 
 ## Anotado no saneamento de 30/08/2026 — FEITO a 31/08/2026
 
@@ -277,16 +280,35 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   dito, porque passa a estar fora do PC.
 
 
-- **B14 — segunda fonte de anúncios: Vortal e acingov, só o que o DR não
-  publica.** *(Sequência confirmada a 31/08/2026: fica para a frente,
-  como **trabalho de investigação**; só depois de saber o que dá é que
-  se tenta a implementação. Não é o próximo trabalho.)* Decisão dele,
-  a 30/08/2026, sobre o item que estava em «Não
+- **B14 — segunda fonte de anúncios — EM PRODUÇÃO desde 31/08/2026,
+  com o âmbito estrito dele** («sim quero avançar mas só com consultas
+  preliminares ou com algo que não seja publicado no DR. não quero
+  duplicação de anuncios»). O que ficou a correr: `recolher_vortal()`
+  dentro de cada verificação (desliga-se com `vortal_preliminares:
+  false`), a bater no `SearchTenders` da pesquisa pública
+  (POST JSON `{"contractNoticeActive":true,"pageNumber":N,
+  "pageSize":50}`), a filtrar **país PT + tipo preliminar** — o rótulo
+  muda com o idioma da sessão («GovPT - Consulta Preliminar» /
+  «Quick Tender GovPT», verificado item a item — aceitam-se os dois —
+  e concursos públicos NUNCA entram, porque esses o DR publica. Cada
+  consulta entra como anúncio com `fonte='vortal'`, ref natural
+  `PT1.NTC.x` (nunca colide com refs do DR), `detalhe_lido=1` (não há
+  detalhe DR), prazo/preço/datas da API; as releituras do DR filtram
+  por fonte e não lhe tocam; a cadeia das peças aceita o link público
+  (o PT1.NTC vem às claras e salta-se o primeiro salto). **Primeira
+  recolha real: 17 consultas** — ULS de Santo António, São José,
+  Tâmega e Sousa, municípios — com prazos de 2 a 7 dias, na Triagem no
+  minuto seguinte. A **acingov fica de fora**: a listagem pública dela
+  não mostra tipo nem datas, e sem isso não se garante «não publicado
+  no DR» sem abrir os detalhes um a um — alargar é decisão nova, com
+  medição antes.
+
+  Decisão original dele, a 30/08/2026, sobre o item que estava em «Não
   fazer» à espera precisamente disto: «podemos avançar com a ligação à
   vortal e acingov se der, apenas para procedimentos que não sejam
   publicados em DR». É a maior lacuna medida face à Tendios/Armilar/SpotGov
   (consultas preliminares e contratos menores — `titulo LIKE '%Consulta
-  preliminar%'` dá **zero** na base do radar).
+  preliminar%'` dava **zero** na base do radar; hoje dá as da Vortal).
 
   **O âmbito, que é o que torna isto seguro de desenhar:** só entra o que
   a parte L não publicou. Nada de duplicar o universo do DR — a regra de
@@ -346,16 +368,12 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 Decisões registadas com a observação que as sustenta. Reabrem-se se a
 premissa mudar — com data e números novos.
 
-- **Visualizador de PDF dentro da aplicação, com pesquisa lá dentro**
-  — a ideia do Afonso a 30/08/2026, ao retirar o B09: em vez de uma
-  caixa de pesquisa solta, abrir a própria peça na ficha e procurar
-  dentro dela. É a versão da pesquisa nas peças que valeria a pena,
-  e ele decidiu explicitamente **não avançar já** ("para já diria que
-  não estamos a ganhar nada com esta função"). Não se faz sem ele
-  pedir. Quando se fizer, o caminho barato é servir o PDF que já está
-  em `documentos/` num `<iframe>`/`<embed>` (o visualizador do browser
-  já pesquisa com Ctrl+F); as marcas de página do B12 continuam no
-  extractor para o que for preciso.
+- ~~Visualizador de PDF dentro da aplicação~~ — **saiu do «Não fazer»
+  a 31/08/2026, a pedido dele, e está feito**: os PDF das peças abrem
+  em `/peca/<ref>/<nome>`, dentro do painel, exactamente pelo caminho
+  barato aqui anotado (um `<embed>` do ficheiro de `documentos/`; a
+  pesquisa é o Ctrl+F do visualizador do browser). A caixa de pesquisa
+  solta (B09) continua retirada — isto é a versão que ele queria.
 
 - **Número de licitadores por concurso** — Armilar e SpotGov mostram-no;
   **não há fonte pública**: o dump do IMPIC não o traz (medido a 29/08) e o

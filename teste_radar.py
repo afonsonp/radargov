@@ -3984,6 +3984,166 @@ class TestExportacaoDaTriagem(BaseTemporaria):
         self.assertIn("ficheiro", por_repor)
 
 
+class TestEmpurrarTriagem(BaseTemporaria):
+    """B15, sub-decisão fechada a 31/08/2026: commit+push automáticos
+    do triagem.jsonl em cada verificação. O erro que se trava: um push
+    falhado com o commit já feito deixava o diff limpo, e um gatilho só
+    por diff nunca mais tentava o push — a cópia externa ficava para
+    trás em silêncio. Tudo com repositórios temporários, sem rede."""
+
+    def _git(self, pasta, *args):
+        import subprocess
+        return subprocess.run(["git"] + list(args), cwd=pasta,
+                              capture_output=True)
+
+    def _repo(self, com_remoto):
+        os.makedirs(os.path.join(self.pasta, "trabalho"))
+        trabalho = os.path.join(self.pasta, "trabalho")
+        self._git(trabalho, "init", "-q", "-b", "master")
+        self._git(trabalho, "config", "user.email", "t@t")
+        self._git(trabalho, "config", "user.name", "t")
+        with open(os.path.join(trabalho, "triagem.jsonl"), "w") as f:
+            f.write("{}\n")
+        self._git(trabalho, "add", "triagem.jsonl")
+        self._git(trabalho, "commit", "-q", "-m", "inicial")
+        if com_remoto:
+            bare = os.path.join(self.pasta, "remoto.git")
+            self._git(self.pasta, "init", "-q", "--bare", "-b", "master",
+                      "remoto.git")
+            self._git(trabalho, "remote", "add", "origin", bare)
+            self._git(trabalho, "push", "-q", "-u", "origin", "master")
+        return trabalho
+
+    def _mexe(self, trabalho):
+        with open(os.path.join(trabalho, "triagem.jsonl"), "a",
+                  encoding="utf-8") as f:
+            f.write('{"tabela": "ensaio"}\n')
+
+    def test_fluxo_feliz_e_sem_mudancas(self):
+        trabalho = self._repo(com_remoto=True)
+        bem, porque = radar.empurrar_triagem(trabalho)
+        self.assertTrue(bem)
+        self.assertIn("sem mudanças", porque)
+        self._mexe(trabalho)
+        bem, porque = radar.empurrar_triagem(trabalho)
+        self.assertTrue(bem)
+        self.assertIn("empurrada", porque)
+        # o remoto tem mesmo o commit da triagem
+        bare = os.path.join(self.pasta, "remoto.git")
+        log = self._git(bare, "log", "--oneline").stdout.decode()
+        self.assertIn("triagem:", log)
+
+    def test_push_falhado_retoma_na_volta_seguinte(self):
+        # commit à frente do origin SEM mudança no ficheiro: um gatilho
+        # só por diff dizia "nada a fazer" e o remoto ficava para trás
+        trabalho = self._repo(com_remoto=True)
+        self._mexe(trabalho)
+        self._git(trabalho, "commit", "-q", "-m", "triagem: preso",
+                  "--", "triagem.jsonl")
+        bem, porque = radar.empurrar_triagem(trabalho)
+        self.assertTrue(bem)
+        self.assertIn("empurrada", porque)
+
+    def test_sem_remoto_o_commit_fica_e_o_erro_regista_se(self):
+        trabalho = self._repo(com_remoto=False)
+        self._mexe(trabalho)
+        bem, _ = radar.empurrar_triagem(trabalho)
+        self.assertFalse(bem)
+        # o commit local ficou — a exportação não se perdeu, só a cópia
+        # externa é que espera pela próxima volta
+        log = self._git(trabalho, "log", "--oneline").stdout.decode()
+        self.assertIn("triagem:", log)
+        self.assertTrue(radar.le_marca("ultimo_erro_triagem_git"))
+
+
+class TestConsultasPreliminares(BaseTemporaria):
+    """B14 (decisão do Afonso a 31/08/2026): a segunda fonte traz SÓ o
+    que a parte L não publica — consultas preliminares da pesquisa
+    pública da Vortal. O que se trava: duplicar anúncios do DR, o
+    rótulo do tipo mudar com o idioma da sessão, e as releituras do DR
+    tentarem ler uma consulta que lá não existe."""
+
+    ITEM = {"uniqueIdentifier": "PT1.NTC.999", "reference": "2026/1",
+            "description": "CONSULTA PRELIMINAR –  luvas de nitrilo ",
+            "authorityName": "ULS de Ensaio, E. P. E.", "country": "PT",
+            "publishDate": "2026-08-31T08:05:52.133Z",
+            "deadline": "2026-09-04T22:59:00Z",
+            "procedureTypeLabel": "GovPT - Consulta Preliminar",
+            "basePrice": 478500.0}
+
+    def test_entra_com_fonte_propria_e_sem_detalhe_do_dr(self):
+        self.assertEqual(radar._guardar_preliminar(dict(self.ITEM)), 1)
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios "
+                          "WHERE ref='PT1.NTC.999'").fetchone()
+        self.assertEqual(a["fonte"], "vortal")
+        self.assertEqual(a["detalhe_lido"], 1)   # nada para ler no DR
+        self.assertEqual(a["data_pub"], "2026-08-31")
+        self.assertEqual(a["prazo"], "2026-09-04")
+        self.assertEqual(a["preco_base"], "478.500,00 EUR")
+        self.assertEqual(a["plataforma"], "vortal")
+        self.assertEqual(a["tipo"], "Consulta preliminar")
+        # normalizado: é por aqui que a pesquisa e os alertas procuram
+        self.assertIn("consulta preliminar", a["titulo_norm"])
+        self.assertIn("PT1.NTC.999", a["url"])
+
+    def test_rever_a_mesma_consulta_nao_mexe_na_triagem(self):
+        radar._guardar_preliminar(dict(self.ITEM))
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET estado='interessa' "
+                      "WHERE ref='PT1.NTC.999'")
+        # a verificação seguinte volta a vê-la na listagem: OR IGNORE
+        self.assertEqual(radar._guardar_preliminar(dict(self.ITEM)), 0)
+        with radar.liga() as c:
+            a = c.execute("SELECT estado FROM anuncios "
+                          "WHERE ref='PT1.NTC.999'").fetchone()
+        self.assertEqual(a["estado"], "interessa")
+
+    def test_os_dois_rotulos_do_tipo(self):
+        # "GovPT - Consulta Preliminar" (sessão pt) e "Quick Tender
+        # GovPT" (sessão en) são o MESMO tipo — verificado item a item;
+        # filtrar só por um deles perdia metade consoante o idioma
+        for rotulo in ("GovPT - Consulta Preliminar", "Quick Tender GovPT"):
+            self.assertIn(rotulo.strip().lower(), radar.TIPOS_PRELIMINAR)
+        self.assertNotIn("concurso público", radar.TIPOS_PRELIMINAR)
+
+    def test_preco_da_api_sai_em_formato_portugues(self):
+        self.assertEqual(radar._texto_do_preco(478500), "478.500,00 EUR")
+        self.assertEqual(radar._texto_do_preco(1234567.5),
+                         "1.234.567,50 EUR")
+        self.assertEqual(radar._texto_do_preco(None), "")
+        # e o resto da aplicação lê de volta o que se escreveu
+        self.assertEqual(radar.euros_do_texto("478.500,00 EUR"), 478500.0)
+
+    def test_as_releituras_do_dr_ignoram_a_fonte_vortal(self):
+        import inspect
+        # o contrato: reler_marcados só toca na fonte do DR — uma
+        # consulta preliminar não tem página de detalhe no DR
+        self.assertIn("COALESCE(fonte,'dr')='dr'",
+                      inspect.getsource(radar.reler_marcados))
+
+    def test_o_link_com_ntc_salta_o_primeiro_salto_da_cadeia(self):
+        # o link público das consultas já traz o PT1.NTC.x às claras:
+        # a cadeia das peças vai directa aos documentos
+        class Sessao:
+            def __init__(self):
+                self.urls = []
+
+            def get(self, url, **kw):
+                self.urls.append(url)
+
+                class R:
+                    def json(self):
+                        return []
+                return R()
+        s = Sessao()
+        radar._pecas_vortal(
+            s, "https://community.vortal.biz/Public/"
+               "contract-notice-view/PT1.NTC.42/")
+        self.assertEqual(len(s.urls), 1)
+        self.assertIn("GetContractNoticeDocuments", s.urls[0])
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
