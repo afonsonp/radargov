@@ -865,11 +865,14 @@ primeira navegação por intenção — medido no dia: a Triagem abre com
 por dentro, o vocabulário, as vistas irmãs. **Parar aqui deixa a
 aplicação coerente.**
 
-**Andamento 2 — estado, vocabulário e atalhos.** Muda: os três níveis
+**Andamento 2 — estado, vocabulário e atalhos. FEITO a 31/08/2026**
+(entrada de diário no ESTADO.md). Muda: os três níveis
 de estado de §4 arrumados (nada de item na barra, nada de sistema nas
-fichas); a tabela de vocabulário de §7 aplicada aos ecrãs e CSV; os
+fichas — auditado: o saneamento C1/C2 já os tinha posto no sítio); a
+tabela de vocabulário de §7 aplicada aos ecrãs e CSV; os
 seis atalhos propostos de §5 (cada um é uma ligação com a query
-canónica — baratos por construção, FR-15). Desbloqueia: a sensação de
+canónica — baratos por construção, FR-15; os dois que dependem do modo
+dos contratos entraram com o andamento 3). Desbloqueia: a sensação de
 "uma aplicação" no dia-a-dia. Continua na mesma: duplicações.
 
 **Andamento 3 — as fusões decididas e a dívida do HTML.** Muda: o que

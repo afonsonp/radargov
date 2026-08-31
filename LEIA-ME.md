@@ -231,7 +231,9 @@ Clicar no título de um anúncio — na lista, no quadro ou no calendário —
 abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 
 - os factos de topo: prazo com contagem de dias, preço base, plataforma,
-  e o CPV já com a descrição por extenso;
+  e o CPV já com a descrição por extenso — com uma ligação **ver
+  anúncios deste CPV na Pesquisa**, para responder ao "que mais há
+  disto?";
 - **as peças do procedimento** (Programa de Concurso, Caderno de
   Encargos, anexos), para abrir sem sair da aplicação;
 - o **anúncio completo**, com contactos, critério de
@@ -348,6 +350,8 @@ programa não volta a tocar-lhes.
   automática). O `×` ao lado da etiqueta tira-a desse cartão.
 - Cada cartão mostra os dias até ao prazo de propostas, a verde, ou
   "prazo expirado", a vermelho.
+- **no calendário**, no pé do cartão, salta para a linha deste anúncio
+  na grade (só aparece quando o prazo cabe nos 45 dias dela).
 - **Tirar do quadro** devolve o anúncio a "por ver" — sai do quadro sem
   apagar nada da base.
 
@@ -363,9 +367,10 @@ da semana, o dia do mês e o mês; os fins-de-semana aparecem sombreados
 e o início de cada mês tem uma linha mais marcada.
 
 A pílula na linha, na coluna certa, mostra a fase actual desse anúncio
-no quadro — clica para abrir a ficha. Quem tem prazo já passado ou para
-lá dos 45 dias não aparece na grade (fica contado numa nota por baixo),
-mas continua no quadro.
+no quadro — clica para abrir a ficha. Cada linha tem também um **no
+quadro** que salta para o cartão correspondente. Quem tem prazo já
+passado ou para lá dos 45 dias não aparece na grade (fica contado numa
+nota por baixo), mas continua no quadro.
 
 ## 11. Histórico de alterações
 
