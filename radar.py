@@ -4874,7 +4874,15 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .form-email button{flex:none}
 .novo-filtro{padding:20px 22px}
 .novo-filtro .filtros{padding:0;margin:0;box-shadow:none;border:0;
- background:none}
+ background:none;gap:8px}
+/* Treze campos em fila davam um muro onde nenhum se destacava. Os
+   campos nao mudam nem mudam de ordem -- ganham um degrau de largura
+   (o texto livre cresce, os selectores ficam do tamanho do que
+   escolhem) e o botao corta a linha, para ser o fim de uma frase e nao
+   mais uma caixa igual as outras. */
+.novo-filtro .filtros input[type=text]{flex:1 1 200px;min-width:0}
+.novo-filtro .filtros select{flex:0 1 auto}
+.novo-filtro .filtros button{flex-basis:100%;max-width:150px;margin-top:4px}
 .guardado.parcial{border-style:dashed}
 .guardado i{font:400 9.5px/1 var(--sans);font-style:normal;color:var(--t6);
  margin-left:6px;padding-right:11px}
@@ -5446,9 +5454,16 @@ button.tirar:hover{color:var(--verm)}
 .barras .b{width:100%;border-radius:4px 4px 0 0}
 .barras .l{font:400 11px/1.2 var(--sans);color:var(--t4);text-align:center}
 .saude{display:flex;flex-direction:column;gap:12px}
-.saude .l{display:flex;align-items:center;gap:10px}
-.saude .t{font:400 12px/1.4 var(--sans);color:var(--t2);min-width:0}
-.saude .v{margin-left:auto;flex:none;font:600 11.5px/1 var(--mono);color:var(--ink)}
+/* A linha de saude tem de aguentar valores de qualquer comprimento: as
+   marcas de ultimo erro sao frases de 80 caracteres em mono, e com
+   `flex:none` no valor a linha transbordava da caixa e o rotulo partia
+   palavra a palavra a tentar dar-lhe espaco. Agora o valor encolhe,
+   quebra e, se nao couber de todo, passa para a linha de baixo. */
+.saude .l{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.saude .t{font:400 12px/1.45 var(--sans);color:var(--t2);flex:1 1 auto;min-width:0}
+.saude .v{margin-left:auto;flex:0 1 auto;min-width:0;
+ font:600 11.5px/1.5 var(--mono);color:var(--ink);text-align:right;
+ word-break:break-word;overflow-wrap:anywhere}
 /* legenda: diz sobre o que e que as linhas seguintes contam */
 .saude .legenda{margin-top:6px}
 .saude .legenda .t{font:400 11px/1.45 var(--sans);color:var(--t5);
@@ -10202,13 +10217,13 @@ def ficha(ref):
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
         # sozinho parecia que estava tudo trazido.
         if a["docs_estado"] == "parcial":
-            cabeca_docs = ("<div class='nota' style='color:#8a5307'>Só veio o "
+            cabeca_docs = ("<div class='nota' style='color:var(--laranja)'>Só veio o "
                            "PDF do anúncio &mdash; as peças do procedimento "
                            "não foi possível trazer da plataforma.</div>")
         elif a["docs_estado"] == "falhou":
             # Falhar a actualizacao com peças antigas em disco nao se via
             # em lado nenhum: a lista continuava ali e parecia recente.
-            cabeca_docs = ("<div class='nota' style='color:#8a5307'>Não foi "
+            cabeca_docs = ("<div class='nota' style='color:var(--laranja)'>Não foi "
                            "possível actualizar as peças na plataforma &mdash; "
                            "as que estão em baixo são as de antes.</div>")
         else:
@@ -11019,16 +11034,20 @@ def indicadores():
     kpis = [("Anúncios na base", mil(total), "%s com detalhe lido" % mil(com_detalhe), ""),
             ("Novos hoje", mil(hoje_n), nota_hoje, ""),
             ("Interessa", mil(interessa), nota_urgentes,
-             "color:#c0392b" if urgentes else ""),
+             "color:var(--verm)" if urgentes else ""),
             ("Sem detalhe lido", mil(porler),
-             "lidos ao abrir a ficha, ou em rotina", "color:#d68910" if porler else "")]
+             "lidos ao abrir a ficha, ou em rotina", "color:var(--laranja)" if porler else "")]
     kpis_html = "".join(
         "<div class='kpi'><div class='r'>%s</div><div class='v'>%s</div>"
         "<div class='d' style='%s'>%s</div></div>" % (r, v, estilo, d)
         for r, v, d, estilo in kpis)
 
     maior = max(list(por_fase.values()) + [1])
-    cores_barra = ("#c9c4b8", "#1f4e79", "#d68910", "#12141a", "#1e8449")
+    # As fases sao um caminho, como o funil: uma cor so, a escurecer do
+    # principio para o fim. Eram cinco cores sem sistema (bege, azul,
+    # laranja, preto, verde) e duas delas vinham das cores de estado --
+    # a coluna "Submetido" a laranja parecia um aviso e nao e.
+    cores_barra = ("#c3ced9", "#9db1c4", "#7994ae", "#5c809f", "#17557f")
     barras = "".join(
         "<div class='col'><span class='v'>%d</span>"
         "<div class='b' style='height:%d%%;background:%s'></div>"
@@ -11141,10 +11160,15 @@ def indicadores():
     # O funil: o que entra, o que se olha, o que vinga. Os indicadores
     # contavam estados parados e nao diziam nada sobre o movimento.
     f = funil_anuncios()
-    passos = [("Entrados", f["entrados"], "var(--t3)"),
-              ("Por ver", f["porver_30"], "#d68910"),
-              ("Triados", f["triados_30"], "var(--azul)"),
-              ("Interessa", f["interessa_30"], "var(--verde)")]
+    # As quatro barras sao um degrade de uma cor so, do mais claro ao
+    # mais escuro: sao passos do mesmo caminho, nao quatro categorias.
+    # Estavam em cinzento, laranja, azul e verde -- quatro cores sem
+    # sistema, e as duas ultimas roubadas as cores de estado, que aqui
+    # nao significam "bom" nem "a avisar".
+    passos = [("Entrados", f["entrados"], "#b9c6d2"),
+              ("Por ver", f["porver_30"], "#8ba3ba"),
+              ("Triados", f["triados_30"], "#5c809f"),
+              ("Interessa", f["interessa_30"], "var(--azul)")]
     maior_f = max([p[1] for p in passos] + [1])
     funil_html = "".join(
         "<div class='col'><span class='v'>%s</span>"
