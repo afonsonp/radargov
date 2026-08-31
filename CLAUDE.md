@@ -45,7 +45,7 @@ python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as 
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
-python radar.py --exportar-triagem # B15: triagem.jsonl (tambem corre em cada verificacao)
+python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
 ```
 
@@ -54,7 +54,8 @@ diárias e a do corpus, à segunda. **Se faltarem, o radar só recolhe com
 o painel aberto** — e o relógio interno recupera os slots falhados, o
 que faz a tabela `slots` parecer certa. O painel avisa a vermelho.
 
-Testes — sem rede, sem base, correm em menos de um segundo:
+Testes — sem rede e sem tocar na base verdadeira; correm em poucos
+segundos (os do B15 criam repositórios git temporários):
 
 ```bash
 python teste_radar.py                                    # todos
@@ -123,10 +124,23 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   espera de uma segunda fonte de anúncios **vinda do BASE**: não há. E o
   conjunto "OCDS" do dados.gov está vazio desde 2022; o que se usa é o
   dump normal do IMPIC. **A ressalva vale só para o BASE**: as
-  plataformas (Vortal e companhia) publicam procedimentos que a parte L
-  não publica — consultas preliminares, contratos menores. Medido num
-  concorrente a 29/08/2026, ver `CONCORRENTES.md`. É premissa que mudou,
-  não decisão tomada: nada disto se implementa sem o Afonso decidir.
+  plataformas publicam procedimentos que a parte L não publica, e essa
+  segunda fonte EXISTE desde 31/08/2026 (decisão do Afonso) — ver o
+  ponto seguinte.
+- **A segunda fonte é a Vortal, e só consultas preliminares.** O âmbito
+  é decisão dele (31/08/2026): «só consultas preliminares ou algo que
+  não seja publicado no DR — não quero duplicação». `recolher_vortal()`
+  corre em cada verificação (`vortal_preliminares` no config) contra a
+  pesquisa pública (`SearchTenders`), filtra país PT e tipo preliminar
+  — o rótulo muda com o idioma da sessão (`TIPOS_PRELIMINAR` aceita
+  «GovPT - Consulta Preliminar» E «Quick Tender GovPT», que são o mesmo
+  tipo) — e guarda com `fonte='vortal'`, ref `PT1.NTC.x` e
+  `detalhe_lido=1`. **Nunca alargues os tipos**: concursos públicos da
+  Vortal estão no DR e duplicavam. As releituras do DR filtram por
+  `COALESCE(fonte,'dr')='dr'`; a ficha destas consultas não tem texto
+  por desenho (o vazio explica-o); a cadeia das peças aceita o link
+  público porque o PT1.NTC vem às claras. A acingov ficou de fora: a
+  listagem pública dela não distingue tipos — alargar é decisão nova.
 - **Anúncios e contratos são populações diferentes, de propósito.** Um
   anúncio é uma oportunidade, um contrato já está assinado; os filtros
   nem coincidem (um anúncio não tem vencedor nem valor final). A lista
@@ -402,7 +416,7 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 
 Cada classe de `teste_radar.py` corresponde a um erro que existiu mesmo, e
 o comentário diz qual — "simplificar" um teste é normalmente voltar ao erro.
-Correm em menos de um segundo: corre-os antes de gravar.
+Correm em poucos segundos: corre-os antes de gravar.
 
 ### Armadilhas já pagas
 

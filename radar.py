@@ -88,6 +88,17 @@ CONFIG_INICIAL = {
         "porta": 587,
         "hora_resumo": "17:00",
     },
+    # B15: depois de exportar o triagem.jsonl, fazer tambem commit+push
+    # do ficheiro (so dele) em cada verificacao em que mude. Decisao do
+    # Afonso a 31/08/2026 -- e o que poe a triagem fora do PC sem
+    # ninguem se lembrar de o fazer. A False, o export continua e o
+    # push volta a ser manual.
+    "triagem_no_git": True,
+    # B14: a segunda fonte -- as consultas preliminares da pesquisa
+    # publica da Vortal, que a parte L nao publica. So esse tipo entra
+    # (zero duplicacao com o DR, decisao do Afonso a 31/08/2026).
+    # A False, a verificacao volta a ser so DR.
+    "vortal_preliminares": True,
     # A rotina so le o detalhe dos anuncios publicados nesta janela.
     # Entre publicacao e prazo vao ~18 dias em media, por isso mais atras
     # que isto ja fechou: o CPV desses so interessa como historico, e
@@ -358,7 +369,13 @@ def iniciar_db():
                            ("nif", "TEXT"),
                            # o titulo e a entidade sem acentos e em
                            # minusculas: e por aqui que a pesquisa procura
-                           ("titulo_norm", "TEXT"), ("entidade_norm", "TEXT")):
+                           ("titulo_norm", "TEXT"), ("entidade_norm", "TEXT"),
+                           # B14: de onde o anuncio veio. 'dr' e a fonte
+                           # de sempre; 'vortal' sao as consultas
+                           # preliminares, que a parte L nao publica --
+                           # e por esta coluna que as releituras do DR
+                           # sabem nao lhes tocar
+                           ("fonte", "TEXT DEFAULT 'dr'")):
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
@@ -1203,8 +1220,11 @@ def reler_marcados(limite=25):
     variaveis = molde["screenData"]["variables"]
     hoje = datetime.now().date().isoformat()
     with liga() as c:
+        # So a fonte do DR: uma consulta preliminar da Vortal (B14) nao
+        # tem pagina de detalhe no DR para reler
         marcados = c.execute(
             "SELECT ref, url FROM anuncios WHERE detalhe_lido=1"
+            " AND COALESCE(fonte,'dr')='dr'"
             " AND (estado='interessa' OR fase_id IS NOT NULL)"
             " AND prazo != '' AND prazo >= ?"
             " ORDER BY prazo LIMIT ?", (hoje, limite)).fetchall()
@@ -1247,6 +1267,103 @@ def reparsear(limite=None):
                        campos["nif"], a["ref"]))
             feitos += 1
     return feitos
+
+
+# ------------------------------------ segunda fonte: Vortal (B14)
+#
+# Decisao do Afonso a 31/08/2026: avancar, MAS so com o que a parte L
+# nao publica -- consultas preliminares -- e sem duplicar anuncios do
+# DR. A pesquisa publica da Vortal (medida nesse dia; receita completa
+# no BACKLOG, seccao B14) devolve JSON com tudo; filtra-se por tipo e
+# pais, e cada consulta entra como anuncio com fonte='vortal' e um ref
+# natural (o PT1.NTC.x), que nunca colide com os refs do DR -- e o
+# INSERT OR IGNORE garante que rever a mesma consulta nao mexe na
+# triagem dela.
+# [LEGAL] [RISCO] os avisos do BACKLOG mantem-se: endpoint nao
+# documentado, pode mudar (R4/R5). A falha e isolada -- a recolha do
+# DR nunca espera por isto -- e desliga-se com "vortal_preliminares":
+# false no config.json.
+
+VORTAL_PESQUISA = ("https://community.vortal.biz/public/api/Tendering/"
+                   "SearchTenders")
+VORTAL_FICHA = "https://community.vortal.biz/Public/contract-notice-view/%s/"
+# O rotulo do tipo muda com o idioma da sessao: "GovPT - Consulta
+# Preliminar" em pt e "Quick Tender GovPT" em en -- verificado item a
+# item a 31/08/2026 (o mesmo PT1.NTC com os dois rotulos). Compara-se
+# em minusculas e aceitam-se os dois.
+TIPOS_PRELIMINAR = ("govpt - consulta preliminar", "quick tender govpt")
+
+
+def _texto_do_preco(valor):
+    """Um float da API no formato portugues da coluna preco_base
+    ("478.500,00 EUR"), que e o que euros_do_texto() e o resto da
+    aplicacao ja sabem ler."""
+    if not valor:
+        return ""
+    s = "{:,.2f}".format(float(valor))
+    return s.replace(",", "\x00").replace(".", ",").replace("\x00", ".") + " EUR"
+
+
+def _guardar_preliminar(item):
+    """Poe uma consulta preliminar na base. Devolve 1 se era nova."""
+    ref = (item.get("uniqueIdentifier") or "").strip()
+    if not ref:
+        return 0
+    titulo = " ".join((item.get("description") or "").split())
+    entidade = (item.get("authorityName") or "").strip()
+    ligacao = VORTAL_FICHA % ref
+    with liga() as c:
+        feito = c.execute(
+            "INSERT OR IGNORE INTO anuncios (ref, titulo, entidade, "
+            "data_pub, tipo, url, prazo, preco_base, plataforma, "
+            "detalhe_lido, link_pecas, fonte, titulo_norm, entidade_norm) "
+            "VALUES (?,?,?,?,?,?,?,?,?,1,?,'vortal',?,?)",
+            (ref, titulo, entidade,
+             (item.get("publishDate") or "")[:10],
+             "Consulta preliminar", ligacao,
+             (item.get("deadline") or "")[:10],
+             _texto_do_preco(item.get("basePrice")), "vortal",
+             ligacao, simplifica(titulo), simplifica(entidade)))
+        return feito.rowcount
+
+
+def recolher_vortal(paginas=6, dias=7):
+    """Traz as consultas preliminares da pesquisa publica da Vortal.
+
+    So o tipo preliminar e o pais PT. A lista vem por data de
+    publicacao descendente: para-se quando a pagina inteira ja e mais
+    antiga que a janela de `dias`, ou no tecto de `paginas` -- com duas
+    verificacoes por dia, uma janela de 7 dias nunca deixa nada por
+    apanhar. Devolve (novas, aviso).
+    """
+    piso = (datetime.now() - timedelta(days=dias)).strftime("%Y-%m-%d")
+    sessao = requests.Session()
+    sessao.headers["User-Agent"] = NAVEGADOR
+    novas = 0
+    for pagina in range(1, paginas + 1):
+        try:
+            r = sessao.post(VORTAL_PESQUISA, timeout=60, json={
+                "contractNoticeActive": True,
+                "pageNumber": pagina, "pageSize": 50})
+            dados = r.json()
+        except (requests.RequestException, ValueError) as erro:
+            return novas, "a pesquisa da Vortal falhou: %s" % str(erro)[:120]
+        itens = dados.get("items") or []
+        if not itens:
+            break
+        for item in itens:
+            if (item.get("country") or "").strip() != "PT":
+                continue
+            tipo = (item.get("procedureTypeLabel") or "").strip().lower()
+            if tipo not in TIPOS_PRELIMINAR:
+                continue
+            if (item.get("publishDate") or "")[:10] < piso:
+                continue
+            novas += _guardar_preliminar(item)
+        if (itens[-1].get("publishDate") or "")[:10] < piso:
+            break
+        time.sleep(1)
+    return novas, ""
 
 
 # --------------------------------------------------------- documentos
@@ -1303,11 +1420,18 @@ def _pecas_acingov(sessao, link):
 
 
 def _pecas_vortal(sessao, link):
-    identificador = link.rstrip("/").rsplit("/", 1)[-1]
-    info = sessao.get(VORTAL_INFO, timeout=90, params={
-        "uniqueIdentifierEncrypted": identificador, "languageCode": "pt"}).json()
-    aviso = info.get("contractNoticeUrl") or ""
-    m = re.search(r"(PT\d+\.NTC\.\d+)", aviso)
+    # O link do DR traz um identificador cifrado, que se troca pelo
+    # PT1.NTC.x via GetPublicTenderInformation. O link das consultas
+    # preliminares (B14) ja traz o PT1.NTC.x as claras -- salta-se o
+    # primeiro salto e a cadeia e a mesma dai para a frente.
+    m = re.search(r"(PT\d+\.NTC\.\d+)", link)
+    if not m:
+        identificador = link.rstrip("/").rsplit("/", 1)[-1]
+        info = sessao.get(VORTAL_INFO, timeout=90, params={
+            "uniqueIdentifierEncrypted": identificador,
+            "languageCode": "pt"}).json()
+        aviso = info.get("contractNoticeUrl") or ""
+        m = re.search(r"(PT\d+\.NTC\.\d+)", aviso)
     if not m:
         return [], []
     lista = sessao.get(VORTAL_DOCS, timeout=90,
@@ -2794,6 +2918,59 @@ def exportar_triagem(caminho=None):
     return len(linhas), caminho
 
 
+def empurrar_triagem(pasta=None):
+    """B15, sub-decisao fechada a 31/08/2026 pelo Afonso: automatico,
+    "grava logo la consoante o uso". Depois do export, se o
+    triagem.jsonl mudou face ao que o git tem, faz commit SO desse
+    ficheiro (mensagem padronizada) e push.
+
+    O push falhado NAO se perde: o commit local fica, e a proxima
+    verificacao ve os commits a frente do origin e volta a empurrar --
+    um diff limpo sozinho nao chega para dizer "esta la fora".
+    Qualquer falha (sem git, sem rede) vai para a serie de erros e
+    espera pela proxima volta; a exportacao em si ja esta no disco.
+    Desliga-se com "triagem_no_git": false no config.json.
+    Devolve (correu bem, o que aconteceu)."""
+    pasta = pasta or BASE_DIR
+    # sem janela de consola: as tarefas correm em pythonw
+    quieto = {"cwd": pasta, "capture_output": True,
+              "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+
+    def corre(args, timeout):
+        return subprocess.run(args, timeout=timeout, **quieto)
+
+    try:
+        mudou = corre(["git", "diff", "--quiet", "HEAD", "--",
+                       "triagem.jsonl"], 30).returncode != 0
+        if mudou:
+            feito = corre(["git", "commit", "-m", "triagem: " +
+                           datetime.now().strftime("%Y-%m-%d %H:%M"),
+                           "--", "triagem.jsonl"], 60)
+            if feito.returncode != 0:
+                raise RuntimeError("git commit: %s" % (
+                    feito.stderr or feito.stdout or b"").decode(
+                        "utf-8", "ignore")[:150])
+        a_frente = corre(["git", "rev-list", "--count",
+                          "origin/master..master"], 30)
+        if a_frente.returncode != 0:
+            raise RuntimeError("git rev-list: %s" % (
+                a_frente.stderr or b"").decode("utf-8", "ignore")[:150])
+        if int(a_frente.stdout.strip() or 0) == 0:
+            return True, "sem mudanças por empurrar"
+        feito = corre(["git", "push", "origin", "master"], 180)
+        if feito.returncode != 0:
+            raise RuntimeError("git push: %s" % (
+                feito.stderr or feito.stdout or b"").decode(
+                    "utf-8", "ignore")[:150])
+        return True, "triagem empurrada para o remoto"
+    except (OSError, ValueError, RuntimeError,
+            subprocess.TimeoutExpired) as erro:
+        marca_erro("ultimo_erro_triagem_git", "triagem-git",
+                   "%s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                               str(erro)[:200]))
+        return False, str(erro)[:200]
+
+
 def repor_triagem(caminho=None):
     """B15: repoe a triagem exportada numa base ja refeita pela recolha.
 
@@ -3254,10 +3431,14 @@ def verificar(cfg=None, passo=None):
         # de antes ia para uma consola que o pythonw nao tem.
         copia_com_marca(int(cfg.get("copias_a_guardar", 7)))
     # B15: a exportacao da triagem, a seguir a copia -- custa nada e
-    # fica sempre fresca no triagem.jsonl. Sair do PC e o push (por
-    # agora manual). Uma falha aqui nao pode travar a recolha.
+    # fica sempre fresca no triagem.jsonl. Uma falha aqui nao pode
+    # travar a recolha. O commit+push automatico e a sub-decisao do
+    # Afonso (31/08/2026: "grava logo la consoante o uso").
     try:
         exportar_triagem()
+        if cfg.get("triagem_no_git", True):
+            diz("a empurrar a triagem para o remoto")
+            empurrar_triagem()
     except (sqlite3.Error, OSError) as erro:
         marca_erro("ultima_exportacao_triagem", "exportacao",
                    "%s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -3282,6 +3463,26 @@ def verificar(cfg=None, passo=None):
             ligar_retificacoes()
         except (sqlite3.Error, OSError) as erro:
             print("aviso: a releitura dos marcados falhou (%s)" % erro)
+    # B14: a segunda fonte, ANTES dos alertas -- as consultas
+    # preliminares tambem contam para eles. Falha isolada: a Vortal em
+    # baixo nao estraga a verificacao do DR.
+    if cfg.get("vortal_preliminares", True):
+        diz("a ver as consultas preliminares na Vortal")
+        try:
+            n_vortal, aviso_v = recolher_vortal()
+            if aviso_v:
+                marca_erro("vortal_ultimo_erro", "vortal", "%s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              aviso_v))
+            if n_vortal:
+                mensagem += (" &middot; %d consulta%s preliminar%s da "
+                             "Vortal" % (n_vortal,
+                                         "" if n_vortal == 1 else "s",
+                                         "" if n_vortal == 1 else "es"))
+        except Exception as erro:
+            marca_erro("vortal_ultimo_erro", "vortal", "%s: %s"
+                       % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                          str(erro)[:150]))
     # Os avisos correm depois de ler os detalhes: um filtro por CPV so
     # apanha o anuncio depois de o CPV estar lido, e ler os detalhes e a
     # ultima coisa que a verificacao faz.
@@ -7346,6 +7547,63 @@ def alerta_trocar(filtro_id):
     return redirect("/alertas")
 
 
+@app.route("/entidade/procurar")
+def entidade_procurar():
+    """11.7-B, reaberta pelo Afonso a 31/08/2026: procurar uma entidade
+    por nome ou NIF e ir directo a ficha, sem abrir um contrato
+    qualquer so para la chegar. A resolucao passa por entidade_nomes --
+    a tabela que ja mapeia qualquer das 87 grafias de uma entidade a
+    chave dela; o custo era so de ecra."""
+    if not ha_corpus():
+        return sem_corpus_html("Procurar entidade")
+    termo = (request.args.get("q") or "").strip()
+    if not termo:
+        return redirect("/contratos?aviso=" +
+                        quote("Escreve um nome ou um NIF para procurar."))
+    with liga_corpus() as c:
+        # Um NIF e a propria chave do corpus: vai directo
+        digitos = re.sub(r"\D", "", termo)
+        if digitos and digitos == termo.replace(" ", ""):
+            r = c.execute("SELECT chave FROM entidades WHERE chave=?",
+                          (digitos,)).fetchone()
+            if r:
+                return redirect("/entidade/" + quote(r["chave"], safe=""))
+        # O nome procura-se em TODAS as grafias (entidade_nomes), com a
+        # norma certa -- procurar com simplifica() perdia 11,8%
+        achadas = c.execute(
+            "SELECT DISTINCT e.chave, e.nome, e.variantes "
+            "FROM entidade_nomes n JOIN entidades e ON e.chave = n.chave "
+            "WHERE n.nome_norm LIKE ? ESCAPE '%s' "
+            "ORDER BY e.nome COLLATE NOCASE LIMIT 25" % ESCAPE_LIKE,
+            ("%" + para_like(norma_entidade(termo)) + "%",)).fetchall()
+    if len(achadas) == 1:
+        return redirect("/entidade/" + quote(achadas[0]["chave"], safe=""))
+    if achadas:
+        linhas = "".join(
+            "<div class='hist'><a href='/entidade/%s'>%s</a>%s</div>"
+            % (quote(e["chave"], safe=""), html.escape(e["nome"] or ""),
+               "<span class='sem-nif'>sem NIF</span>"
+               if e["chave"].startswith("n:") else "")
+            for e in achadas)
+        corpo = ("<div class='larg'><div class='cx lado-cx'>"
+                 "<div class='rot' style='margin-bottom:10px'>"
+                 "%d entidades respondem a &ldquo;%s&rdquo; &mdash; "
+                 "escolhe a ficha</div>%s</div></div>"
+                 % (len(achadas), html.escape(termo), linhas))
+    else:
+        corpo = ("<div class='larg'><div class='vazio'>Nenhuma entidade "
+                 "do corpus responde a &ldquo;%s&rdquo;. O corpus só "
+                 "conhece quem já assinou contratos desde %s. "
+                 "<a href='/contratos'>Voltar aos contratos</a></div></div>"
+                 % (html.escape(termo), "2020"))
+    return envolver(
+        "contratos", "Procurar entidade",
+        "Nome ou NIF; a procura cobre todas as grafias com que cada "
+        "entidade já assinou.",
+        corpo, migalhas=migalhas_de("contratos", "procurar"),
+        titulo_aba="Procurar entidade, Radar de Concursos")
+
+
 @app.route("/alertas/enviar", methods=["POST"])
 def alertas_enviar():
     bem, porque = enviar_resumo(forcar=True)
@@ -8695,7 +8953,18 @@ def contratos():
         "Prorrogações e cessações antecipadas não constam do dump &mdash; "
         "confirma antes de contar com a data.</div>") if fim else ""
 
+    # 11.7-B: a porta directa para a ficha de uma entidade, por nome ou
+    # NIF -- o sinal que a reabriu foi exactamente "abrir um contrato
+    # qualquer so para chegar a ficha".
+    procura_entidade = (
+        "<form class='cx filtros' method='get' action='/entidade/procurar'>"
+        "<label>Ficha de entidade</label>"
+        "<input type='text' name='q' value='' "
+        "placeholder='Nome ou NIF — abre a ficha directamente…'>"
+        "<button type='submit'>Procurar</button></form>")
+
     conteudo = ("<div class='larg'>" + barra_corpus(anos) +
+                procura_entidade +
                 ("" if fim else faixa_de_avisos_de_datas(request.args)) +
                 filtros +
                 faixa_cpv + arvore_html(n_cpv, "contratos") +
@@ -9466,9 +9735,12 @@ def ficha(ref):
             migalhas=migalhas_de("pesquisa", ref)), 404
 
     # Se este anuncio ainda nao foi lido, le-se agora: um pedido, ~1 seg.
-    # E o mesmo principio dos documentos -- so se vai buscar o que se abre.
+    # E o mesmo principio dos documentos -- so se vai buscar o que se
+    # abre. So a fonte do DR: uma consulta preliminar da Vortal (B14)
+    # nao tem pagina de detalhe no DR para ler.
     aviso_leitura = ""
-    if not (a["texto"] or ""):
+    e_do_dr = (a["fonte"] or "dr") == "dr"
+    if not (a["texto"] or "") and e_do_dr:
         ok, aviso_leitura = ler_detalhe_de(ref)
         if ok:
             with liga() as c:
@@ -9486,7 +9758,8 @@ def ficha(ref):
     # --- cabecalho
     rotulo_estado = {"novo": "por ver"}.get(a["estado"], a["estado"])
     classe_estado = {"interessa": "ok", "descartado": ""}.get(a["estado"], "info")
-    chips = ["<span class='ref'>Anúncio %s</span>" % html.escape(ref)]
+    chips = ["<span class='ref'>%s %s</span>"
+             % ("Anúncio" if e_do_dr else "Consulta", html.escape(ref))]
     if a["tipo"]:
         chips.append("<span class='tag'>%s</span>" % html.escape(a["tipo"]))
     chips.append("<span class='tag %s'>%s</span>" % (classe_estado, rotulo_estado))
@@ -9536,8 +9809,9 @@ def ficha(ref):
     if a["pdf_url"]:
         accoes.append("<a class='bt' href='%s' target='_blank'>PDF oficial</a>"
                       % html.escape(a["pdf_url"], quote=True))
-    accoes.append("<a class='bt' href='%s' target='_blank'>Ver no DR</a>"
-                  % html.escape(a["url"], quote=True))
+    accoes.append("<a class='bt' href='%s' target='_blank'>%s</a>"
+                  % (html.escape(a["url"], quote=True),
+                     "Ver no DR" if e_do_dr else "Ver na Vortal"))
     if a["link_pecas"]:
         accoes.append("<a class='bt' href='%s' target='_blank'>Abrir plataforma</a>"
                       % html.escape(a["link_pecas"], quote=True))
@@ -9607,6 +9881,18 @@ def ficha(ref):
         seccoes_html = "".join(blocos)
         nota_modo = ("%d secções lidas do anúncio"
                      % len([s for s in seccoes if s[2]]))
+    elif not e_do_dr:
+        # B14: uma consulta preliminar nao tem anuncio no DR -- o que se
+        # sabe dela e o que a listagem publica da Vortal deu (os factos
+        # do cabecalho) e o resto esta na plataforma.
+        seccoes_html = (
+            "<div class='vazio'>Isto é uma <b>consulta preliminar</b>, "
+            "trazida da pesquisa pública da Vortal &mdash; a parte L do "
+            "DR não a publica, por isso não há anúncio para mostrar. O "
+            "que se sabe está nos factos acima; o resto está na "
+            "<a href='%s' target='_blank'>página da consulta na Vortal"
+            "</a>.</div>" % html.escape(a["url"] or "", quote=True))
+        nota_modo = ""
     else:
         seccoes_html = ("<div class='vazio'>Não foi possível ler o texto deste "
                         "anúncio: %s</div>"
@@ -9654,10 +9940,16 @@ def ficha(ref):
         corpo_docs = ("<div class='nota a-trazer'>A trazer as peças da "
                       "plataforma… a página actualiza-se sozinha.</div>")
     elif docs:
+        # os PDFs abrem-se dentro da aplicacao (/peca), com o Ctrl+F do
+        # visualizador a fazer a pesquisa; o resto descarrega-se
         linhas_doc = "".join(
-            "<div class='doc'><a href='/documento/%s/%s'>%s</a>"
+            "<div class='doc'><a href='%s'>%s</a>"
             "<span class='t'>%s</span></div>"
-            % (ref, html.escape(d["nome"], quote=True), html.escape(d["nome"]),
+            % (("/peca/%s/%s" % (ref, html.escape(d["nome"], quote=True)))
+               if d["nome"].lower().endswith(".pdf")
+               else ("/documento/%s/%s"
+                     % (ref, html.escape(d["nome"], quote=True))),
+               html.escape(d["nome"]),
                tamanho_legivel(d["tamanho"]))
             for d in docs)
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
@@ -9801,6 +10093,44 @@ def servir_documento(ref, nome):
         return "Documento não encontrado. <a href='/anuncio/%s'>voltar</a>" % ref, 404
     return send_file(caminho, as_attachment=False,
                      download_name=os.path.basename(caminho))
+
+
+@app.route("/peca/<path:ref>/<nome>")
+def ver_peca(ref, nome):
+    """A peca aberta dentro da aplicacao, com pesquisa la dentro.
+
+    Estava em "Não fazer" desde a retirada do B09; o Afonso pediu-a a
+    31/08/2026. E a versao que ele queria da pesquisa nas pecas: em vez
+    de uma caixa solta (que chegava sempre tarde -- as pecas so existem
+    depois do "interessa"), o proprio PDF no visualizador do browser,
+    que ja pesquisa com Ctrl+F. O caminho barato do BACKLOG: um <embed>
+    do ficheiro que ja esta em documentos/."""
+    pasta = os.path.abspath(pasta_do_anuncio(ref))
+    caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
+    if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
+        return envolver(
+            "pesquisa", "Peça não encontrada",
+            "O ficheiro já não está na pasta dos documentos.",
+            "<div class='vazio'>Volta à <a href='/anuncio/%s'>ficha do "
+            "anúncio</a> e carrega em &ldquo;Actualizar peças&rdquo;."
+            "</div>" % ref,
+            migalhas=migalhas_de("pesquisa", ref)), 404
+    origem = "/documento/%s/%s" % (ref, quote(nome, safe=""))
+    corpo = (
+        "<div class='larg'>"
+        "<div class='nota' style='margin-bottom:10px'>Pesquisa dentro do "
+        "documento com o Ctrl+F do visualizador. "
+        "<a href='%s' download>Descarregar</a> &middot; "
+        "<a href='/anuncio/%s'>voltar à ficha</a></div>"
+        "<embed src='%s' type='application/pdf' "
+        "style='width:100%%;height:82vh;border:1px solid var(--linha);"
+        "border-radius:8px;background:#fff'>"
+        "</div>" % (html.escape(origem, quote=True), ref,
+                    html.escape(origem, quote=True)))
+    return envolver(
+        "pesquisa", nome, "Peça do anúncio %s." % html.escape(ref),
+        corpo, migalhas=migalhas_de("pesquisa", ref),
+        titulo_aba="%s, Radar de Concursos" % nome)
 
 
 # --------------------------------------------------------------- quadro

@@ -20,8 +20,11 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 081 anúncios, dois anos deles**
-(28/08/2024–28/08/2026), trazidos pelo `--historico 730` a 28/08/2026.
+Funciona. A base tem **66 145 anúncios, dois anos deles**
+(28/08/2024–31/08/2026): o grosso trazido pelo `--historico 730` a
+28/08/2026, mais a rotina diária — que desde 31/08 inclui as
+**consultas preliminares da Vortal** (17 na primeira recolha,
+`fonte='vortal'`), o tipo que a parte L não publica.
 **Só 8,3% têm detalhe lido** (5 493): a rotina lê o detalhe apenas dos
 publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
 quando se abre a ficha. Consequência a ter presente: um filtro por CPV
@@ -3244,3 +3247,70 @@ essencial:
 a medição, depois uma decisão informada do Afonso, plataforma a
 plataforma. O que fica por medir (duplicação com o DR pelo `ref`,
 estabilidade dos endpoints, ritmo aceitável) está anotado no BACKLOG.
+*(A decisão chegou nessa mesma noite — ver a entrada seguinte.)*
+
+## O registo ficou limpo: E2 disparado, B15 automático, B14 em produção, 31 de agosto de 2026
+
+A ordem do Afonso fechou tudo o que estava aberto, de uma vez.
+
+**E2 — o primeiro resumo saiu mesmo.** «Devemos ter algo agora para
+enviar» — e havia: a verificação da manhã tinha posto **1 anúncio** na
+fila do alerta CPV IT (o concurso do novo website do INFARMED, SPMS,
+400 930 €, prazo 07/09). Disparado pelo botão do painel: **«Resumo
+enviado para afonso.pinto95@hotmail.com»**, marcas postas
+(`ultimo_resumo` 2026-08-31), `AVISOS.txt` igual ao corpo. Daqui em
+diante sai sozinho, uma vez por dia com novidade, a partir das 17:00.
+
+**B15 — o push passou a automático**, como ele mandou («grava logo lá
+consoante o uso»): `empurrar_triagem()` corre a seguir à exportação em
+cada verificação — commit SÓ do `triagem.jsonl` com mensagem
+padronizada («triagem: AAAA-MM-DD HH:MM») e push. O gatilho do push
+não é o diff mas os commits à frente do origin: **um push falhado (sem
+rede) retoma na verificação seguinte** em vez de ficar para trás em
+silêncio — há teste exactamente para isso, com repositórios git
+temporários. Sem janela de consola (as tarefas correm em pythonw);
+desliga-se com `triagem_no_git: false`. **Isto fecha o R2 por
+inteiro.**
+
+**B14 — em produção, com o âmbito estrito dele** («só consultas
+preliminares ou algo que não seja publicado no DR; não quero
+duplicação»). `recolher_vortal()` corre em cada verificação: pesquisa
+pública da Vortal (`SearchTenders`, o endpoint JSON descoberto ao
+interceptar a própria página — o corpo é
+`{"contractNoticeActive":true,"pageNumber":N,"pageSize":50}`), filtro
+país PT + tipo preliminar. **O rótulo do tipo muda com o idioma da
+sessão** — «GovPT - Consulta Preliminar» em pt é «Quick Tender GovPT»
+em en, verificado item a item — e `TIPOS_PRELIMINAR` aceita os dois.
+Cada consulta entra com `fonte='vortal'` (coluna nova, migração
+idempotente com DEFAULT 'dr'), ref natural `PT1.NTC.x`,
+`detalhe_lido=1`; o INSERT OR IGNORE garante que rever a mesma não
+mexe na triagem dela. As releituras do DR filtram por fonte; a ficha
+diz o que a consulta é e liga à plataforma («Ver na Vortal»); a cadeia
+das peças aceita o link público (o PT1.NTC vem às claras — salta-se o
+primeiro salto). **Primeira recolha real: 17 consultas** (ULS de Santo
+António ×7, Tâmega e Sousa, São José, Coimbra, Lezíria, Cova da Beira,
+Litoral Alentejano, municípios de Elvas e Amadora), prazos de 2 a 7
+dias, na Triagem no minuto seguinte — pesquisável por «preliminar». A
+**acingov ficou de fora**: a listagem pública não distingue tipos sem
+abrir os detalhes; alargar é decisão nova.
+
+**11.7-B — a procura de entidade, reaberta e feita**: caixa «Ficha de
+entidade» em Mercado + `/entidade/procurar`. NIF vai directo (é a
+chave); nome resolve por `entidade_nomes` com `norma_entidade()` —
+única abre a ficha («municipio de lisboa» foi directo, verificado),
+várias dão escolha, nenhuma di-lo com contexto.
+
+**O visualizador de PDF saiu do «Não fazer»**, a pedido dele: os PDF
+das peças abrem em `/peca/<ref>/<nome>`, dentro do painel, com o
+Ctrl+F do visualizador do browser a pesquisar lá dentro — o caminho
+barato que o BACKLOG guardava. O resto (ZIPs, etc.) descarrega como
+antes.
+
+Verificado a correr: resumo enviado e filas a zero; consulta
+preliminar aberta na ficha (chip «Consulta», «Ver na Vortal», vazio
+explicado, e os homólogos da entidade a funcionar por cima); Caderno
+de Encargos aberto no visualizador; procura de entidade directa à
+ficha. Base a **66 145** (47 do DR de hoje + 17 da Vortal); a Triagem
+abre com 1 438 por ver. Testes: **486** (480 + 6; a bateria passou de
+<1 s para ~3-4 s por causa dos repositórios git temporários do B15 —
+continua sem rede e sem tocar na base verdadeira).

@@ -74,6 +74,17 @@ a captura pode ter expirado. Repete esta secção, leva dois minutos.
 Tudo. Todos os anúncios da parte L que o portal devolver na janela de
 datas entram na base, sem juízo prévio. A triagem é tua, no painel.
 
+E, desde 31/08/2026, também as **consultas preliminares da Vortal** —
+o tipo de procedimento que a parte L não publica de todo. Vêm da
+pesquisa pública da plataforma (sem sessão), entram na Triagem como
+qualquer anúncio (com a etiqueta `vortal` e o tipo "Consulta
+preliminar") e **só esse tipo entra**: concursos públicos da Vortal já
+vêm pelo DR, e duplicá-los era mentir nas contagens. A ficha destas
+consultas mostra o que a plataforma dá (prazo, preço base quando há) e
+liga à página da consulta; as peças trazem-se com o mesmo botão de
+sempre. Desliga-se com `"vortal_preliminares": false` no
+`config.json`.
+
 No `config.json`, a única coisa que costuma valer a pena mexer é:
 
 - `dias_catchup`: 15 dias. É a janela que o radar pede ao portal em
@@ -190,7 +201,9 @@ Renovações, agora uma aba que mantém o filtro e mostra o que está a
 chegar ao fim (o modo diz-se no título da tabela, e as datas de
 celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
 de cada entidade** (o que compra e o que ganha), com uma ligação
-directa a "o que está a acabar" dela.
+directa a "o que está a acabar" dela — e há uma caixa **"Ficha de
+entidade"** no topo que aceita nome ou NIF e abre a ficha
+directamente, cobrindo todas as grafias com que a entidade já assinou.
 
 Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de
@@ -238,7 +251,9 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   anúncios deste CPV na Pesquisa**, para responder ao "que mais há
   disto?";
 - **as peças do procedimento** (Programa de Concurso, Caderno de
-  Encargos, anexos), para abrir sem sair da aplicação;
+  Encargos, anexos) — os PDF abrem **dentro da aplicação**, numa página
+  própria com o visualizador do browser, onde o Ctrl+F pesquisa dentro
+  do documento; o resto descarrega-se;
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica.
 
@@ -442,9 +457,11 @@ python radar.py --exportar-triagem
 ```
 Escreve o `triagem.jsonl` — a parte irrecuperável da base (a tua
 triagem, fases, etiquetas, histórico, filtros, seguidas) num ficheiro
-de texto que viaja no repositório do git. Corre sozinho em cada
-verificação; à mão serve antes de um commit. **Sair do PC exige um
-push** — é o commit+push que faz a cópia.
+de texto que viaja no repositório do git. **Não precisas de fazer
+nada**: cada verificação exporta E faz commit+push sozinha quando o
+ficheiro muda (um push falhado retenta na verificação seguinte); à mão
+serve só para forçar antes de um commit teu. Desliga-se com
+`"triagem_no_git": false` no `config.json`.
 
 ```bash
 python radar.py --repor-triagem
@@ -457,7 +474,7 @@ para se repor outra vez mais tarde.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 477 verificações em cerca de um segundo, sem tocar
+Corre os testes — 486 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
