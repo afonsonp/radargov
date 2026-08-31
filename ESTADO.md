@@ -3449,3 +3449,87 @@ Os pontos verde/vermelho da ultima verificacao deixaram de ser cores
 fixas no Python: sobre a barra escura o contraste conta ao contrario,
 e o verde da paleta clara desaparecia la. Passaram a `--ok-claro` e
 `--mau-claro`, que so existem para esse fundo.
+
+### Pagina a pagina, o que mudou
+
+Um commit por pagina ou bloco coerente, com os testes verdes e uma
+passagem pelo browser antes de cada um -- sempre com os dois anuncios
+reais: o **21925/2026** (INFARMED, o mais denso que ha) e a consulta
+**PT1.NTC.3784180**, que quase nao tem nada. A composicao tinha de
+aguentar os dois extremos.
+
+- **Anuncios.** O "interessa" passou a contorno verde: cheio, vinte
+  deles puxavam o olho todo para a coluna das accoes e os titulos --
+  o que se le para decidir -- ficavam atras. O prazo saiu das
+  etiquetas e subiu a numero forte por cima do preco. A coluna da
+  data saiu: repetia "31 AGO" vinte vezes com peso de titulo, e a
+  publicacao passou a nota ao lado da entidade. As tres caixas do
+  filtro continuam tres, mas as duas de baixo baixaram de nivel.
+- **Ficha.** Ver a seccao acima -- e o trabalho maior desta fase.
+- **Peca.** O visualizador passou a funcao partilhada
+  (`visualizador_de_peca`), usada pela rota `/peca/<ref>/<nome>` e
+  pelo bloco dentro da ficha. **Armadilha paga:** o formulario da
+  procura e um GET, e um GET substitui a query string INTEIRA pelos
+  campos do formulario -- procurar dentro da ficha devolvia a pagina
+  com o leitor fechado, porque o `peca=` desaparecia. Os campos que
+  tem de sobreviver a procura viajam como `<input type=hidden>`.
+- **Em curso.** As colunas do quadro eram `--linha2` sobre `--papel`,
+  dois cinzentos a um passo um do outro: o quadro lia-se como cartoes
+  soltos, e a coluna E a informacao. O cabecalho da coluna passou a
+  duas linhas (o nome partilhava 282px com a contagem, a soma e o
+  apagar, e saia "A preparar pr"). No calendario, o dia -- o eixo da
+  pagina -- estava em `--t4`; e as pilulas cortavam sem reticencias,
+  "Por analis", que e dado estragado e nao texto cortado.
+- **Mercado.** Na tabela dos contratos o objecto era a coluna mais
+  apagada, com os nomes de entidade (ligacoes azuis) a puxar o olho
+  primeiro: invertido pelo peso, sem tirar o azul. Nos graficos o nome
+  levava 1.4fr contra 2fr da barra e saia "Capgemin…" em quase todas
+  as linhas. E no modo "por fim estimado" os campos `de`/`ate`
+  desactivam-se com a explicacao no `title`, mas eram desenhados como
+  os outros: so quem tentasse escrever la e que descobria.
+- **Indicadores.** A linha do ultimo erro **transbordava da caixa** --
+  frases de 80 caracteres em mono com `flex:none` no valor -- e o
+  rotulo partia palavra a palavra a tentar dar-lhe espaco. O funil e as
+  fases do quadro passaram de cinco cores sem sistema a um degrade de
+  azul: sao passos de um caminho, nao categorias, e duas das cores
+  antigas vinham das cores de estado (a coluna "Submetido" a laranja
+  parecia um aviso).
+- **Alertas.** Os treze campos do filtro novo ganharam um degrau de
+  largura e leem-se em linhas de tres. Os campos sao os mesmos e pela
+  mesma ordem.
+
+### Acessibilidade, medida e nao estimada
+
+A verificacao correu como script no browser sobre as **nove paginas**:
+para cada elemento com texto, a cor calculada contra o primeiro fundo
+opaco acima dele, com o limite de AA (4,5:1, ou 3:1 em texto grande).
+
+Antes: os `--t5`/`--t6` davam **2,5:1 a 2,9:1**. Depois da primeira
+passagem sobravam **seis** falhas, todas entre 4,1 e 4,43 -- e todas
+onde a intuicao nao chega: a pilula do calendario sobre o proprio
+fundo, o rotulo da mediana sobre azul-claro, o "x" de apagar fase, o
+"…" do corte da paginacao. **Hoje o pior caso das nove paginas e
+4,66:1.** A licao e o metodo: um contraste marginal nao se ve, mede-se
+-- e mede-se sobre o fundo real, nao sobre branco.
+
+O foco de teclado passou a ser um so em toda a aplicacao
+(`:focus-visible`, contorno de 2px; ambar sobre a barra escura, azul
+no resto). Havia **quatro** campos a desligar o contorno para pôr uma
+pista propria -- a pista fica, o contorno volta, e so para quem navega
+por teclado.
+
+### O que se verificou a funcionar, e nao so a parecer bem
+
+Arrastar um cartao entre fases (move e as contagens acompanham ao
+vivo), o rolo horizontal do calendario (2 600px de conteudo em 829),
+as tabelas largas a rolarem dentro da caixa sem a pagina rolar de
+lado, o leitor da peca a abrir dentro da ficha, e a procura
+"vigencia" a devolver 8 paginas com o destaque amarelo desenhado no
+sitio certo.
+
+**Nao entrou nesta fase, de proposito:** `etiqueta_prazo()` usa um `7`
+escrito a mao para a cor amarela, enquanto a janela do "urgente" e
+`dias_urgente()` (10 por omissao, editavel em /alertas) -- um anuncio
+a 9 dias aparece verde na lista e conta como urgente nos filtros e nos
+indicadores. E a armadilha registada no CLAUDE.md, esta viva, e e
+correccao de comportamento: fica para trabalho proprio.

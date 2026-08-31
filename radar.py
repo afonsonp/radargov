@@ -4678,6 +4678,16 @@ CSS = r"""
  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
+/* Foco de teclado visivel e igual em toda a aplicacao. O contorno de
+   omissao do browser sao 0,8px quase pretos, que numa lista de vinte
+   accoes nao se ve; e ha campos que o desligam para o trocar por uma
+   pista propria (o nome da fase, o responsavel, o "quem trabalha"),
+   o que deixava a aplicacao com tres ideias diferentes de foco.
+   :focus-visible e nao :focus -- so aparece a quem navega por teclado,
+   e nao a cada clique do rato. */
+:focus-visible{outline:2px solid var(--azul);outline-offset:2px;
+ border-radius:4px}
+aside :focus-visible{outline-color:var(--coral)}
 body{margin:0;background:var(--papel);font-family:var(--sans);color:var(--t1);
  -webkit-font-smoothing:antialiased}
 a{color:var(--azul);text-decoration:none}
@@ -4732,7 +4742,8 @@ aside nav a.sub.on b{font-weight:600}
  border-bottom:1px solid var(--barra-linha);color:#fff;
  font:500 11.5px/1.6 var(--sans);padding:2px 0}
 .sou input::placeholder{color:var(--barra-t3)}
-.sou input:focus{outline:none;border-bottom-color:var(--coral)}
+.sou input:focus{border-bottom-color:var(--coral)}
+.sou input:focus:not(:focus-visible){outline:none}
 .sou button{background:none;border:0;color:var(--barra-t3);cursor:pointer;
  font:400 10.5px/1.2 var(--sans);padding:0;flex:none}
 .sou button:hover{color:#fff}
@@ -4744,7 +4755,9 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
 .migalhas{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .migalhas .b{display:flex;align-items:center;gap:8px;min-width:0;
  font:500 11.5px/1 var(--sans);color:var(--t3)}
-.migalhas .b s{text-decoration:none;color:var(--traco)}
+/* o separador das migalhas e um caractere, nao um risco: leva cor de
+   texto, ainda que a mais fraca da escala */
+.migalhas .b s{text-decoration:none;color:var(--t5)}
 .migalhas .b em{font-style:normal;color:var(--ink)}
 .accoes-topo{margin-left:auto;display:flex;align-items:center;gap:8px}
 /* tudo o que altera dados e um <form method=post>; estas regras fazem
@@ -4900,7 +4913,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 
 /* barra do corpus, no topo dos contratos */
 .corpus-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
- margin-bottom:12px;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
+ margin-bottom:12px;font:400 11.5px/1.4 var(--sans);color:var(--t3)}
 .corpus-barra .accao{margin-left:auto}
 .corpus-barra .a-correr{margin-left:auto;font:500 12px/1 var(--sans);
  color:var(--azul);display:inline-flex;align-items:center;gap:8px}
@@ -5024,9 +5037,12 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .escada{display:flex;gap:8px;margin:12px 0 4px}
 .escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
  border-radius:6px;background:#fff;border:1px solid var(--linha);
- font:400 10px/1 var(--sans);color:var(--t6);text-align:center}
+ font:400 10px/1 var(--sans);color:var(--t4);text-align:center}
 .escada span b{font:600 12px/1 var(--mono);color:var(--ink)}
+/* o rotulo desta esta sobre fundo azul-claro e nao sobre branco: com
+   --t4 ficava a 4,3:1, por baixo do limite */
 .escada span.med{border-color:var(--azul);background:var(--azul-fundo)}
+.escada span.med{color:var(--t3)}
 .escada span.med b{color:var(--azul)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
@@ -5077,8 +5093,12 @@ details.arvore>summary::before{content:'\25B8';font:500 11px/1 var(--mono);color
 details.arvore[open]>summary::before{content:'\25BE'}
 .arv-tit{font:600 13px/1 var(--sans);color:var(--ink)}
 .arv-sub{font:400 12px/1 var(--sans);color:var(--t5)}
+/* --t5 sobre --linha2 dava 4,35:1 -- a unica falha de AA que sobrou da
+   passagem toda, e por pouco. Sobre um fundo que nao e branco a escala
+   perde meio ponto de contraste: e por isso que os --t* se medem sobre
+   o --papel e nao sobre o branco. */
 .arv-chip{margin-left:auto;font:600 11px/1 var(--sans);padding:4px 8px;
- border-radius:5px;background:var(--linha2);color:var(--t5)}
+ border-radius:5px;background:var(--linha2);color:var(--t3)}
 .arvore-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
  padding:14px 18px 12px;border-top:1px solid var(--linha)}
 .arvore-topo input{flex:1;min-width:220px;padding:8px 12px;border:1px solid var(--linha);
@@ -5123,13 +5143,13 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .paginas a:hover{border-color:var(--t6);color:var(--ink)}
 .paginas b.on{background:var(--ink);border:1px solid var(--ink);color:#fff;
  font-weight:600}
-.paginas .morto{border:1px solid transparent;color:var(--t6);opacity:.5}
-.paginas .corte{border:1px solid transparent;color:var(--t6);min-width:0;
+.paginas .morto{border:1px solid transparent;color:var(--t4)}
+.paginas .corte{border:1px solid transparent;color:var(--t4);min-width:0;
  padding:7px 2px}
 /* Saltar para uma pagina. Com 3300 paginas, andar de dez em dez nao la
    chega, e a unica forma de ver o meio do acervo era por filtro. */
 .ir-pagina{display:flex;align-items:center;gap:6px;margin-left:10px}
-.ir-pagina label{font:400 12px/1 var(--sans);color:var(--t5);padding:0}
+.ir-pagina label{font:400 12px/1 var(--sans);color:var(--t3);padding:0}
 .ir-pagina input{width:72px;padding:6px 8px;border:1px solid var(--linha);
  border-radius:6px;font:500 12.5px/1 var(--sans);background:#fff;color:var(--ink)}
 .ir-pagina button{padding:7px 11px;border:1px solid var(--linha);border-radius:6px;
@@ -5334,7 +5354,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
  font:600 9.5px/24px var(--sans);color:var(--t3);text-align:center}
 .resp input{flex:1;min-width:0;border:0;background:transparent;
  font:500 12.5px/1.4 var(--sans);color:var(--ink)}
-.resp input:focus{outline:none}
+.resp input:focus:not(:focus-visible){outline:none}
 .resp button{background:none;border:0;color:var(--t5);cursor:pointer;
  font:400 11.5px/1 var(--sans);flex:none}
 .resp button:hover{color:var(--ink)}
@@ -5366,15 +5386,16 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .coluna-cab>form:not(:first-child){flex:none;margin-left:auto}
 .fase-nome{border:0;background:transparent;font:700 13px/1.3 var(--sans);
  color:var(--ink);width:100%;padding:2px}
-.fase-nome:focus{outline:none;background:#fff;border-radius:4px}
+.fase-nome:focus{background:#fff;border-radius:4px}
+.fase-nome:focus:not(:focus-visible){outline:none}
 .coluna-conta{font:600 10.5px/1 var(--mono);color:var(--t3)}
-.fase-apagar{background:none;border:0;color:var(--t6);cursor:pointer;
+.fase-apagar{background:none;border:0;color:var(--t4);cursor:pointer;
  font:500 14px/1 var(--sans);padding:0 2px}
 .fase-apagar:hover{color:var(--verm)}
 .coluna-corpo{display:flex;flex-direction:column;gap:9px;min-height:60px}
 .coluna-corpo.sobre{outline:2px dashed var(--traco);outline-offset:3px;border-radius:6px}
 .coluna-vazia{padding:16px 9px;border:1px dashed var(--traco);border-radius:6px;
- text-align:center;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
+ text-align:center;font:400 11.5px/1.4 var(--sans);color:var(--t3)}
 .carta{background:#fff;border:1px solid var(--linha);border-radius:6px;padding:13px;
  box-shadow:0 1px 2px rgba(0,0,0,.06);cursor:grab}
 .carta.arrastando{opacity:.4}
@@ -5395,7 +5416,8 @@ button.tirar{background:none;border:0;padding:0;cursor:pointer;
 button.tirar:hover{color:var(--verm)}
 .etq-form input{padding:3px 7px;border-radius:4px;border:1px dashed var(--traco);
  background:transparent;font:500 10.5px/1.3 var(--sans);color:var(--t5);width:78px}
-.etq-form input:focus{outline:none;border-style:solid;border-color:var(--azul)}
+.etq-form input:focus{border-style:solid;border-color:var(--azul)}
+.etq-form input:focus:not(:focus-visible){outline:none}
 .carta-pe{display:flex;align-items:center;margin-top:11px;padding-top:9px;
  border-top:1px solid var(--papel)}
 .carta-pe a{font:400 11px/1 var(--sans);color:var(--t6)}
@@ -10836,8 +10858,11 @@ def calendario():
                             dia.day, MESES[dia.month - 1]))
     cabecalho.append("</div>")
 
-    cores = {"ok": ("#e6f2ea", "#1e8449"), "avisa": ("#fdf1de", "#8a5307"),
-             "mau": ("#fbe3e0", "#c0392b")}
+    # As cores da paleta, e nao as antigas escritas a mao: a pilula tem
+    # 9,5px e a combinacao de antes ficava a 4,1:1 sobre o proprio fundo.
+    cores = {"ok": ("var(--verde-fundo)", "var(--verde)"),
+             "avisa": ("var(--laranja-fundo)", "var(--laranja)"),
+             "mau": ("var(--verm-fundo)", "var(--verm)")}
     linhas, fora = [], 0
     for a in cartas:
         try:
@@ -10849,7 +10874,8 @@ def calendario():
             fora += 1
             continue
         _, classe = etiqueta_prazo(a["prazo"])
-        fundo, frente = cores.get(classe, ("#eef4fa", "#1f4e79"))
+        fundo, frente = cores.get(classe,
+                                  ("var(--azul-fundo)", "var(--azul)"))
         fase_nome = fases_por_id.get(a["fase_id"], "") or "prazo"
         celulas = []
         for i in range(DIAS_CALENDARIO):

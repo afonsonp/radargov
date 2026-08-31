@@ -107,7 +107,11 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
    `/contratos`, com o modo `?ver=fim` das antigas renovações;
    `/renovacoes` redirecciona), Alertas (`/alertas`). Indicadores
    (`/indicadores`) fora da barra, pelo ponto da zona de estado. Ficha
-   em `/anuncio/<ref>`, peças em `/peca/<ref>/<nome>`.
+   em `/anuncio/<ref>`, em composição de dossier: uma coluna, com o
+   cabeçalho fino e o índice presos ao rolar. Uma peça abre **dentro
+   da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
+   própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
+   duas partilham `visualizador_de_peca()`.
 8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio
@@ -202,10 +206,12 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   de marcar "interessa", por isso a pesquisa chegava sempre tarde
   demais para ajudar a decidir. Não a reintroduzas — nem `q_pecas` em
   `condicoes()` nem caixa na ficha; há teste a guardá-lo
-  (`TestPesquisaNasPecasRetirada`). A versão que ele quer, se um dia
-  pedir, é ver o próprio PDF dentro da aplicação com pesquisa lá dentro
-  — está no BACKLOG, no «Não fazer». O `iniciar_db()` limpa o índice
-  FTS de quem chegou a ter a versão retirada.
+  (`TestPesquisaNasPecasRetirada`). O `iniciar_db()` limpa o índice
+  FTS de quem chegou a ter a versão retirada. **A versão que ele
+  queria já existe e é outra coisa**: procurar DENTRO de um documento,
+  no visualizador (`visualizador_de_peca()`, com os destaques a
+  amarelo). Essa é por peça, não pelo acervo — não confundir as duas,
+  nem tomar uma como caminho para a outra.
 - **O `op` (E/OU entre palavras e CPV) é um modo, não um filtro**:
   sozinho não conta como pergunta em /contratos nem valida um alerta.
   Em `condicoes()`/`condicoes_contratos()`, os lados q e cpv montam-se
@@ -321,6 +327,19 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   `registar()` em vez de contar com o `quem_sou()`.
 - **Toda a truncagem visível passa por `corta()`**, que põe reticências.
   Um `[:190]` cru corta a meio de palavra e lê-se como dado estragado.
+  Onde quem corta é o CSS (uma pílula do calendário, um nome num
+  gráfico), a regra é a mesma: `text-overflow:ellipsis` e não
+  `overflow:hidden` sozinho — "Por analis" também se lê como avaria.
+- **Cor de texto e cor de decoração são escalas diferentes.** O texto
+  usa `--t1`..`--t6`, medidos para passar AA (4,5:1) **sobre
+  `--papel`**, que é o pior fundo — não sobre branco. Setas, molduras
+  tracejadas e separadores usam `--traco` ou `--linha`, e nunca um
+  `--t*`. Foi a confusão entre os dois que fez a escala antiga descer a
+  2,5:1 em texto de 10px. E um contraste marginal **não se vê,
+  mede-se**: a passagem de 31/08/2026 deixou seis falhas entre 4,1 e
+  4,43 que nenhuma revisão a olho tinha apanhado — a medição corre como
+  script no browser, elemento a elemento contra o primeiro fundo opaco
+  acima dele.
 - **Os dois CSV escrevem números com `numero_csv()` e chamam-se pelo
   `nome_csv()`.** Vírgula decimal, sem símbolo e sem separador de
   milhares, que é o que o Excel português come; e data no nome, porque
