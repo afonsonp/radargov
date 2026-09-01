@@ -453,6 +453,13 @@ Cada classe de `teste_radar.py` corresponde a um erro que existiu mesmo, e
 o comentário diz qual — "simplificar" um teste é normalmente voltar ao erro.
 Correm em poucos segundos: corre-os antes de gravar.
 
+E onde a documentação disser «em último recurso faz X», escreve o teste que
+força esse último recurso. A leitura do código confirma a intenção, não o
+disparo: foi um teste novo que descobriu que `" ".join(("","",""))` dá `"  "`
+— que é verdadeiro — e que o `or` de último recurso dos sinónimos de
+plataforma nunca chegava a correr. Uma auditoria por leitura integral tinha
+passado por cima dele no dia anterior.
+
 ### Armadilhas já pagas
 
 Custaram horas uma vez. O registo longo está no `ESTADO.md`; estas quatro
@@ -474,8 +481,13 @@ valem sempre:
 - **Para ver se o modelo inventou um facto, normaliza a fonte como o
   extractor a normaliza.** O PDF parte números ("1 2 meses") e um grep
   ingénuo produz uma acusação falsa. É o que o `ensaio-de-leitura` faz.
-- **Os heredocs do Bash comem um nível de escape neste ambiente.** Para
-  código com barras invertidas, usa as ferramentas de escrita.
+- **Os heredocs do Bash comem um nível de escape neste ambiente.** O
+  gatilho é o carácter, não o tipo de conteúdo: se o que vais escrever
+  tem uma contrabarra — um `\n`, um caminho do Windows, uma expressão
+  regular — usa as ferramentas de escrita, sem parar para julgar se é
+  "código" ou "só um bloco de texto". A regra já estava aqui escrita e
+  falhou duas vezes na mesma hora, nas duas por o conteúdo parecer
+  inofensivo.
 
 ## Hooks, skills e subagente
 
