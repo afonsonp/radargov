@@ -4264,6 +4264,102 @@ class TestDesenhaValor(unittest.TestCase):
         self.assertEqual(radar.desenha_valor("   \n  "), "")
 
 
+class CorpusTemporario(unittest.TestCase):
+    """Como a BaseTemporaria, mas para o contratos.db: um corpus
+    TEMPORÁRIO — nunca o verdadeiro —, criado e deitado fora por teste."""
+
+    def setUp(self):
+        import tempfile
+        self.pasta = tempfile.mkdtemp()
+        self.corpus_antigo = radar.CORPUS
+        radar.CORPUS = os.path.join(self.pasta, "ensaio-contratos.db")
+
+    def tearDown(self):
+        import gc
+        import shutil
+        radar.CORPUS = self.corpus_antigo
+        gc.collect()                # fecha ligações penduradas
+        shutil.rmtree(self.pasta, ignore_errors=True)
+
+    def poe_contrato(self, cid, ganhadores=0, n_adj=None):
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, objecto, data_celebracao, "
+                      "prazo_execucao, n_adj) VALUES (?,?,?,?,?)",
+                      (cid, "Aquisição de serviços", "2026-01-05", 30, n_adj))
+            c.executemany("INSERT INTO contrato_adjudicatario "
+                          "(contrato_id, nif, nome) VALUES (?,?,?)",
+                          [(cid, str(i), "Empresa %d" % i)
+                           for i in range(ganhadores)])
+
+    def n_adj_de(self, cid):
+        with radar.liga_corpus() as c:
+            return c.execute("SELECT n_adj FROM contratos WHERE id=?",
+                             (cid,)).fetchone()[0]
+
+    def esquece_a_marca(self):
+        """Põe o corpus como estava antes da coluna existir."""
+        with radar.liga_corpus() as c:
+            c.execute("DELETE FROM corpus_estado WHERE chave='n_adj_cheio'")
+
+
+class TestNAdjEnchePorMarca(CorpusTemporario):
+    """01/09/2026: o iniciar_corpus() corria o "UPDATE contratos SET n_adj
+    ... WHERE n_adj IS NULL" em TODOS os arranques. É a única das quatro
+    migrações desta função cujo IS NULL não tem índice que o sirva, por
+    isso varria o corpus inteiro — 1,6 GB, 38,9 s a frio na pen — para
+    encontrar zero linhas. Era o arranque do painel inteiro. Passou a
+    marca no corpus_estado, como o html_desescapado.
+
+    O que estes testes seguram: que a migração continua a encher o corpus
+    antigo, e que na segunda vez não faz nada."""
+
+    def test_enche_o_corpus_antigo(self):
+        radar.iniciar_corpus()
+        self.esquece_a_marca()
+        self.poe_contrato(7, ganhadores=3)
+        radar.iniciar_corpus()
+        self.assertEqual(self.n_adj_de(7), 3)
+
+    def test_sem_adjudicatarios_vale_um(self):
+        # nunca zero: é divisor no gráfico de quem ganha
+        radar.iniciar_corpus()
+        self.esquece_a_marca()
+        self.poe_contrato(8, ganhadores=0)
+        radar.iniciar_corpus()
+        self.assertEqual(self.n_adj_de(8), 1)
+
+    def test_nao_mexe_no_que_ja_tem_valor(self):
+        radar.iniciar_corpus()
+        self.esquece_a_marca()
+        self.poe_contrato(9, ganhadores=3, n_adj=1)
+        radar.iniciar_corpus()
+        self.assertEqual(self.n_adj_de(9), 1)
+
+    def test_deixa_a_marca(self):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            self.assertTrue(c.execute(
+                "SELECT 1 FROM corpus_estado WHERE chave='n_adj_cheio'"
+            ).fetchone())
+
+    def test_segunda_vez_nao_varre(self):
+        # É ISTO o arranque de 39 segundos. Com a marca posta, a linha
+        # deixada a NULL de propósito tem de continuar a NULL: se voltar
+        # a 2, o UPDATE correu outra vez — e num corpus a sério isso são
+        # 1,6 GB varridos a cada arranque do painel.
+        radar.iniciar_corpus()
+        self.poe_contrato(10, ganhadores=2)
+        radar.iniciar_corpus()
+        self.assertIsNone(self.n_adj_de(10))
+
+    def test_o_importador_e_que_enche_a_coluna(self):
+        # A marca só é segura porque nenhuma linha nova chega com o
+        # n_adj a NULL: o importador escreve-o sempre, por estar no
+        # COLS_CONTRATO (com max(1, len(ganhadores))). Tirá-lo de lá
+        # reabre o buraco em silêncio.
+        self.assertIn("n_adj", radar.COLS_CONTRATO)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

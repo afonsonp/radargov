@@ -382,9 +382,28 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 - **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
   entra no funil: são contratos assinados, não oportunidades. Cruza-se
   com `ATTACH` (`com_corpus()`). Está no `.gitignore` — 2020-2026 são
-  1,36 milhões de contratos e 1,2 GB — e refaz-se com `--contratos`. O
+  1,36 milhões de contratos e 1,65 GB — e refaz-se com `--contratos`. O
   endereço do dump muda todas as semanas: resolve-se sempre pela API do
   dados.gov, nunca se guarda.
+- **Uma migração do corpus sem índice que a sirva é o arranque do
+  painel.** O `iniciar_corpus()` corre a cada arranque, e um
+  `WHERE <coluna> IS NULL` sem índice varre os 1,65 GB todos — mesmo
+  para encontrar zero linhas. Foi o que o `n_adj` fez até 01/09/2026:
+  **38,9 s a frio** contra 0,00 s das outras três migrações da mesma
+  função, que têm índice. Regra: uma migração idempotente ou tem índice
+  que responda ao `IS NULL`, ou tem **marca no `corpus_estado`** (como
+  o `html_desescapado` e agora o `n_adj_cheio`) — e a marca só é segura
+  quando o importador enche sempre a coluna, o que se garante pelo
+  `COLS_CONTRATO`. E **mede-se a frio**: a quente o mesmo varrimento
+  dava 0,8 s, que foi o que escondeu isto durante meses.
+- **Isto corre de uma pen, e a pen manda nos números.** O `D:` é um
+  Samsung Flash Drive por USB, não o SSD interno: 8,7 ms para abrir um
+  ficheiro pequeno a frio, e ~42 MB/s efectivos numa varredura de
+  páginas de 4 KB (408 MB/s em sequencial puro). Daí os 216 dos 459
+  módulos que vêm de `libs/` como ficheiros soltos custarem segundos
+  no arranque, e daí uma varredura de 1,65 GB não ser um encolher de
+  ombros. Antes de culpar o código por lentidão, confirma em que
+  disco ele está (`Get-Partition -DriveLetter D | Get-Disk`).
 - **Um filtro guardado é uma query string, não SQL, e não pertence a
   separador nenhum.** Guarda os campos que tiver (`CAMPOS_FILTRO`, ordem
   fixa — é ela que deixa reconhecer o filtro em uso por igualdade de
