@@ -231,9 +231,10 @@ ir ao site da plataforma buscá-las.
 
 Os botões **interessa** e **abandonar** servem para ires limpando a
 lista. Abandonar não apaga, arquiva — fica na aba Abandonados, e
-podes sempre repor. **Abandonar pede o motivo**, ao lado do botão: um
-de três — *Preço base baixo*, *Falta de certificações*, *Falta de CV's*
-—, sem caixa de texto livre. Sem motivo escolhido não abandona. O
+podes sempre repor. **Abandonar pede o motivo**: carregas no botão e
+abre uma caixa com o nome do anúncio e três hipóteses — *Preço base
+baixo*, *Falta de certificações*, *Falta de CV's* —, sem caixa de texto
+livre. Sem motivo escolhido não abandona. O
 motivo fica na etiqueta da linha, no cabeçalho da ficha, no histórico e
 numa coluna própria do CSV; assim, daqui a um mês, a aba Abandonados
 ainda diz porque é que cada um ficou de fora. (Os que caem lá sozinhos
@@ -408,7 +409,9 @@ Submetido, Relatório preliminar, Ganho, Perdido*: o funil da casa. Podes
 mudar-lhes o nome; criar e apagar colunas já não, porque cada coluna tem
 um papel e é o papel que decide o que o cartão pergunta.
 
-**Cada fase pede o que lhe falta**, no próprio cartão:
+**Cada fase pede o que lhe falta**, no próprio cartão — e o cabeçalho
+da coluna diz o quê, para se ver sem ser preciso lá pôr um cartão
+primeiro:
 
 | Fase | O que o cartão pede |
 |---|---|
@@ -537,7 +540,7 @@ para se repor outra vez mais tarde.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 573 verificações em poucos segundos, sem tocar
+Corre os testes — 578 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

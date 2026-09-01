@@ -5731,12 +5731,33 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .item-prazo.ok{color:var(--verde)}
 .item-preco{font:600 13px/1.2 var(--mono);color:var(--ink)}
 .item-accoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-/* abandonar traz o motivo colado: sao uma accao so, e separados
-   pareciam um filtro ao lado de um botao */
-form.accao.com-motivo{display:inline-flex;gap:4px;align-items:stretch}
-form.accao.com-motivo select{font-family:inherit;font-size:11.5px;
- padding:5px 6px;border-radius:6px;border:1px solid var(--linha);
- color:var(--t3);background:#fff;max-width:150px}
+/* o motivo do abandono pergunta-se numa caixa por cima (decisao do
+   Afonso a 01/09/2026): um selector ao lado do botao punha uma pergunta
+   permanente em cada uma das vinte linhas da lista, e a lista e para
+   ler anuncios */
+dialog.modal{border:0;border-radius:12px;padding:0;max-width:440px;width:92vw;
+ box-shadow:0 18px 48px rgba(0,0,0,.28);color:var(--ink)}
+dialog.modal::backdrop{background:rgba(20,24,30,.42)}
+dialog.modal form{padding:22px 24px 18px;margin:0;display:block}
+dialog.modal h3{font:700 15px/1.3 var(--sans);color:var(--ink);margin:0 0 4px}
+dialog.modal .alvo{font:400 12.5px/1.45 var(--sans);color:var(--t3);
+ margin:0 0 12px;text-wrap:pretty}
+dialog.modal .nota{font:400 11.5px/1.5 var(--sans);color:var(--t5);
+ margin:0 0 14px}
+dialog.modal .escolhas{display:flex;flex-direction:column;gap:2px;
+ margin-bottom:18px}
+dialog.modal .escolhas label{display:flex;align-items:center;gap:9px;
+ padding:9px 10px;border-radius:7px;border:1px solid var(--linha);
+ font:500 12.5px/1.3 var(--sans);color:var(--t2);cursor:pointer}
+dialog.modal .escolhas label:hover{border-color:var(--t4);background:var(--creme)}
+dialog.modal .escolhas input{margin:0;flex:none}
+dialog.modal .modal-pe{display:flex;justify-content:flex-end;gap:8px}
+dialog.modal .modal-pe button{cursor:pointer;font:600 12px/1 var(--sans);
+ padding:10px 16px;border-radius:7px;border:1px solid var(--linha);
+ background:#fff;color:var(--t3)}
+dialog.modal .modal-pe button[type=submit]{background:var(--verm);
+ border-color:var(--verm);color:#fff}
+dialog.modal .modal-pe button[type=submit]:hover{filter:brightness(1.08)}
 .mini{cursor:pointer;padding:7px 12px;border-radius:6px;font:600 11.5px/1 var(--sans);
  border:1px solid var(--linha);color:var(--t3);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--verm);color:var(--verm)}
@@ -5976,6 +5997,9 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .fase-nome:focus{background:#fff;border-radius:4px}
 .fase-nome:focus:not(:focus-visible){outline:none}
 .coluna-conta{font:600 10.5px/1 var(--mono);color:var(--t3)}
+/* o que a coluna pergunta, para se ver sem ter de lá pôr um cartão */
+.coluna-pede{flex:1 1 100%;font:500 10.5px/1.3 var(--sans);color:var(--t5);
+ letter-spacing:.01em}
 /* o que a fase pede ao cartao: so aparece na coluna que o pede, e por
    isso e um bloco proprio e nao mais uma linha da meta */
 .carta-campos{display:flex;flex-wrap:wrap;gap:5px;align-items:center;
@@ -6246,23 +6270,68 @@ def accao(destino, etiqueta, classe="bt", confirmar=""):
             % (destino, ao_submeter, classe, etiqueta))
 
 
-def forma_abandonar(ref, classe="mini", etiqueta="abandonar"):
-    """O botao de abandonar com o motivo colado a ele.
+def forma_abandonar(ref, classe="mini", etiqueta="abandonar", titulo=""):
+    """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
 
-    Nao ha caminho para abandonar sem motivo: e um `required` num
-    selector de ambito fechado, e o servidor recusa na mesma
-    (mudar_estado) -- um `required` e uma conveniencia do browser, nao
-    uma guarda.
+    Decisao do Afonso a 01/09/2026: pop-up e nao selector ao lado. Um
+    selector colado ao botao punha a pergunta em cada uma das vinte
+    linhas da lista antes de alguem a fazer -- e a lista e para ler
+    anuncios, nao para responder a vinte perguntas por pagina.
+
+    Continua a ser um `<form>` que faz POST: o JS intercepta o submit e
+    abre a caixa. **Sem JS o pedido segue** e o servidor recusa por
+    falta de motivo, com o aviso a dizer porque -- e degradacao a dizer
+    o que se passa, nao um botao morto.
     """
-    opcoes = "".join("<option value='%s'>%s</option>"
-                     % (html.escape(m, quote=True), html.escape(m))
-                     for m in MOTIVOS_ABANDONO)
-    return ("<form class='accao com-motivo' method='post' action='/estado/%s/"
-            "descartado'>"
-            "<select name='motivo' required title='porquê que se abandona'>"
-            "<option value=''>porquê…</option>%s</select>"
+    return ("<form class='accao abandonar-js' method='post' "
+            "action='/estado/%s/descartado' data-titulo='%s'>"
             "<button type='submit' class='%s'>%s</button></form>"
-            % (ref, opcoes, classe, etiqueta))
+            % (ref, html.escape(titulo or ref, quote=True), classe, etiqueta))
+
+
+# A caixa e UMA por pagina, partilhada por todos os botoes: vinte copias
+# do mesmo dialogo numa lista de vinte linhas seria o mesmo erro dos
+# vinte selectores, com mais HTML.
+def caixa_de_abandono():
+    """O <dialog> do motivo, mais o JS que o abre. Vai nas paginas que
+    tenham botao de abandonar (a lista e a ficha)."""
+    escolhas = "".join(
+        "<label><input type='radio' name='motivo' value='%s' required>"
+        "<span>%s</span></label>"
+        % (html.escape(m, quote=True), html.escape(m))
+        for m in MOTIVOS_ABANDONO)
+    return ("<dialog class='modal' id='dlg-abandonar'>"
+            "<form method='post' class='accao' id='form-abandonar'>"
+            "<h3>Abandonar este anúncio</h3>"
+            "<p class='alvo' id='dlg-abandonar-alvo'></p>"
+            "<p class='nota'>Não apaga nada: fica nos Abandonados e "
+            "pode ser reposto. O motivo é para daqui a um mês se saber "
+            "porquê.</p>"
+            "<div class='escolhas'>%s</div>"
+            "<div class='modal-pe'>"
+            "<button type='button' id='dlg-abandonar-nao'>Cancelar</button>"
+            "<button type='submit'>Abandonar</button>"
+            "</div></form></dialog>"
+            "<script>\n"
+            "(function () {\n"
+            "  var d = document.getElementById('dlg-abandonar');\n"
+            "  if (!d || !d.showModal) return;   // sem <dialog>, o POST segue\n"
+            "  var f = document.getElementById('form-abandonar');\n"
+            "  document.addEventListener('submit', function (e) {\n"
+            "    var origem = e.target;\n"
+            "    if (!origem.classList || !origem.classList.contains('abandonar-js')) return;\n"
+            "    e.preventDefault();\n"
+            "    f.action = origem.action;\n"
+            "    document.getElementById('dlg-abandonar-alvo').textContent =\n"
+            "        origem.dataset.titulo || '';\n"
+            "    f.querySelectorAll(\"input[name='motivo']\").forEach(\n"
+            "        function (r) { r.checked = false; });\n"
+            "    d.showModal();\n"
+            "  }, true);\n"
+            "  document.getElementById('dlg-abandonar-nao').addEventListener(\n"
+            "      'click', function () { d.close(); });\n"
+            "})();\n"
+            "</script>" % escolhas)
 
 
 def _iniciais(nome):
@@ -6508,7 +6577,7 @@ def linha(a, vista="", urgente=None):
         botoes.append(accao("/estado/%s/interessa" % a["ref"],
                             "interessa", "mini verde"))
     if a["estado"] != "descartado":
-        botoes.append(forma_abandonar(a["ref"]))
+        botoes.append(forma_abandonar(a["ref"], titulo=a["titulo"] or ""))
     if a["estado"] != "novo":
         botoes.append(accao("/estado/%s/novo" % a["ref"],
                             "repor por ver", "mini"))
@@ -7376,7 +7445,8 @@ def _lista_de_anuncios():
         "consultas preliminares. <b>Por ver</b> é o que ainda dá para "
         "responder; o que expira passa sozinho para os "
         "<b>Abandonados</b>.",
-        conteudo, abas="".join(abas), script=ARVORE_JS + LISTA_JS,
+        conteudo, abas="".join(abas),
+        script=ARVORE_JS + LISTA_JS + caixa_de_abandono(),
         titulo_aba="Radar de Concursos, DR")
 
 
@@ -11200,7 +11270,8 @@ def ficha(ref):
     if a["estado"] != "interessa":
         decidir.append(accao("/estado/%s/interessa" % ref, "Interessa", "bt verde"))
     if a["estado"] != "descartado":
-        decidir.append(forma_abandonar(ref, "bt", "Abandonar"))
+        decidir.append(forma_abandonar(ref, "bt", "Abandonar",
+                                       a["titulo"] or ref))
     if a["estado"] != "novo":
         sair.append(accao("/estado/%s/novo" % ref, "Pôr por ver", "bt-leve"))
     if a["pdf_url"]:
@@ -11501,7 +11572,8 @@ def ficha(ref):
     # ler-se no cartao de identidade, logo por baixo -- e o titulo
     # inteiro esta la, sem corte.
     return envolver("anuncios", "", "",
-                    conteudo, migalhas=migalhas, script=espera,
+                    conteudo, migalhas=migalhas,
+                    script=espera + caixa_de_abandono(),
                     abas=ficha_cab + indice,
                     titulo_aba="%s, Radar de Concursos" % ref)
 
@@ -11813,6 +11885,16 @@ document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
 FASES_COM_PROPOSTO = ("submetido", "relatorio", "ganho", "perdido")
 
 
+# O que cada fase pergunta, dito no cabecalho da coluna. Existe porque
+# o campo so aparece quando ha um cartao la dentro: com o quadro vazio
+# -- ou com tudo em "Por analisar", que e o caso normal -- nao havia
+# nada no ecra a dizer que o "Submetido" pede o preco proposto, e a
+# funcionalidade parecia nao existir. Foi o que o Afonso viu.
+PEDIDO_DA_FASE = {"submetido": "pede o preço proposto",
+                  "relatorio": "pede o lugar e os três primeiros",
+                  "perdido": "pede porque se perdeu"}
+
+
 def _campos_da_fase(a, papel):
     """O que a fase pede ao cartao, em formulario.
 
@@ -11984,15 +12066,22 @@ def quadro():
                           % ("propostos" if coluna_preco == "preco_proposto"
                              else "base lidos",
                              com_preco, len(itens), euros_curto(soma)))
+        # O que a coluna pergunta, dito no cabecalho: com tudo em "Por
+        # analisar" (o caso normal) nao havia nada no ecra a dizer que o
+        # "Submetido" pede o preco proposto, e a funcionalidade parecia
+        # nao existir.
+        pede = PEDIDO_DA_FASE.get(papel, "")
         colunas.append(
             "<div class='coluna'><div class='coluna-cab'>"
             "<form method='post' action='/quadro/fase/%d/renomear'>"
             "<input class='fase-nome' type='text' name='nome' value='%s' "
             "data-antes='%s' required onblur='renomearFase(this)'></form>"
-            "<span class='coluna-conta'>%d%s</span></div>"
+            "<span class='coluna-conta'>%d%s</span>%s</div>"
             "<div class='coluna-corpo' data-fase='%d'>%s</div></div>"
             % (f["id"], html.escape(f["nome"], quote=True),
                html.escape(f["nome"], quote=True), len(itens), valor_fase,
+               ("<span class='coluna-pede'>%s</span>" % html.escape(pede))
+               if pede else "",
                f["id"], corpo))
 
     datalist = "".join("<option value='%s'>" % html.escape(e["nome"], quote=True)
