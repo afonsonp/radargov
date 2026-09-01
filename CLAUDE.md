@@ -47,6 +47,7 @@ python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
+python radar.py --importar-excel F [--ensaio] [--sem-rede] # o Excel da casa (casa.py)
 ```
 
 As tarefas do Windows são três (`agendar.bat`): as duas verificações
@@ -73,8 +74,9 @@ Python da pasta se existir.
 
 ## Arquitectura
 
-Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
-`# ---`. A ordem do ficheiro é a ordem do fluxo:
+Quase tudo em **`radar.py`** (~13 mil linhas), dividido por bandas com
+cabeçalho `# ---`; o registo da casa está em **`casa.py`** (ver abaixo).
+A ordem do ficheiro é a ordem do fluxo:
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
@@ -171,6 +173,35 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   alteração em vigor, e `mudar_estado()` recusa triar uma alteração. Os
   763 que já estavam na base ligaram-se por marca (`alteracoes_agrupadas`)
   no arranque; `--reler` volta a passar por tudo.
+- **O registo da casa vive em `casa.py`** — o primeiro módulo fora do
+  `radar.py` (02/09/2026), e a regra para os próximos: o módulo novo
+  nasce em ficheiro próprio, importa o radar **dentro das funções**
+  (o radar importa-o no topo, para as rotas), e o `radar.py` só ganha
+  as rotas, o bloco da ficha e a linha do CLI. É o Excel de análise de
+  concursos do Afonso (`Analise_Concursos_Publicos.xlsm`: 187
+  concursos vindos de uma lista do SharePoint, completados numa folha
+  por concurso e consolidados por macros VBA). Lê-se **pelas mesmas
+  âncoras que as macros usam** («TABELA B», «TABELA C», cabeçalhos
+  PERFIL e CONCORRENTE): as folhas `C_` são os registos, as tabelas
+  planas são derivadas e podem estar desactualizadas — nunca se lêem
+  essas. O id estável é a coluna K do ÍNDICE (Z1 da folha). Cada linha
+  liga-se ao **procedimento** (o anúncio original; uma alteração
+  resolve-se para a raiz) por três sinais, por esta ordem: pontuação
+  do nome no título (**contenção**, não Jaccard — o nome do Excel é
+  uma abreviatura do título do DR), o valor do 1.º lugar cruzado com o
+  `preco_contratual` do BASE (que traz o `n_anuncio`, isto é, o ref),
+  e a leitura do detalhe dos candidatos ambíguos para o preço base
+  desempatar e as republicações caírem. A triagem só se escreve quando
+  o estado do Excel é inequívoco (Não fomos → descartado com o motivo
+  mapeado; Submetido/Perdido/Ganho → interessa na fase com esse papel,
+  com preço proposto, lugar e três primeiros); «Cancelado» e «TBD»
+  ficam só no registo. **Uma decisão humana feita no radar nunca é
+  esmagada** pela importação: fica um conflito, registado uma vez no
+  histórico. Entidades espanholas não entram (`FORA_DO_PAIS`, decisão
+  dele). `--ensaio` calcula e não grava; a página `/casa` é onde se
+  liga à mão o que a importação não soube, e uma ligação manual
+  sobrevive às importações seguintes. Os dois motivos «Fora do âmbito»
+  e «Prazo curto» vieram das razões do Excel.
 - **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**
   Os 16 campos do `SearchTenders` são título, entidade, datas, estado
   e tipo — **nenhum é CPV nem NIPC**. Até 01/09/2026 guardava-se a

@@ -6,7 +6,7 @@ Verifica sozinho às 09:00 e às 17:00.
 
 Duas fontes: o serviço de pesquisa do próprio portal do DR (os
 anúncios) e o dump semanal do Portal BASE (os contratos celebrados, no
-separador Contratos — ver a secção 14).
+separador Contratos — ver a secção 15).
 
 ---
 
@@ -243,9 +243,9 @@ ir ao site da plataforma buscá-las.
 Os botões **interessa** e **abandonar** servem para ires limpando a
 lista. Abandonar não apaga, arquiva — fica na aba Abandonados, e
 podes sempre repor. **Abandonar pede o motivo**: carregas no botão e
-abre uma caixa com o nome do anúncio e três hipóteses — *Preço base
-baixo*, *Falta de certificações*, *Falta de CV's* —, sem caixa de texto
-livre. Sem motivo escolhido não abandona. O
+abre uma caixa com o nome do anúncio e cinco hipóteses — *Preço base
+baixo*, *Falta de certificações*, *Falta de CV's*, *Fora do âmbito*,
+*Prazo curto* —, sem caixa de texto livre. Sem motivo escolhido não abandona. O
 motivo fica na etiqueta da linha, no cabeçalho da ficha, no histórico e
 numa coluna própria do CSV; assim, daqui a um mês, a aba Abandonados
 ainda diz porque é que cada um ficou de fora. (Os que caem lá sozinhos
@@ -467,7 +467,43 @@ quadro** que salta para o cartão correspondente. Quem tem prazo já
 passado ou para lá dos 45 dias não aparece na grade (fica contado numa
 nota por baixo), mas continua no quadro.
 
-## 11. Histórico de alterações
+## 11. O registo da casa
+
+Em *Em curso › Registo da casa* está o teu Excel de análise de
+concursos, linha a linha, ligado aos anúncios do radar. A importação
+faz-se por comando, com o ficheiro onde ele estiver:
+
+```
+python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm" --ensaio
+python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm"
+```
+
+Com `--ensaio` calcula tudo e não grava nada — serve para veres o que
+faria. Sem caminho, repete o da última vez. O Excel **nunca é
+alterado**: o radar só o lê.
+
+O que a importação faz com cada linha:
+
+- **Liga-a ao anúncio do DR** pelo nome do concurso e pela entidade,
+  pelo valor do 1.º lugar cruzado com o contrato celebrado no BASE, e,
+  quando fica na dúvida entre vários, vai ler o detalhe desses ao DR
+  para o preço base desempatar. O que ficar por ligar aparece na
+  página com os candidatos a um clique, ou escreves lá a referência.
+  Uma ligação feita à mão fica para sempre.
+- **Escreve a triagem** quando o estado do Excel é claro: *Não fomos*
+  passa a abandonado com a razão que lá estava; *Submetido*, *Perdido*
+  e *Ganho* passam a interessa, na coluna certa do quadro, com o
+  preço proposto, o lugar e os três primeiros. *Cancelado* e *TBD*
+  ficam só no registo. **O que decidiste no radar nunca é esmagado**:
+  se o Excel discordar, fica como está e o histórico diz que discordou.
+- **Guarda o que o radar não tem**: quem concorreu e a quanto, os
+  perfis exigidos como os registaste, os preços por perfil e por
+  concorrente, o EBITDA e as notas. Tudo isso aparece na ficha do
+  anúncio, no bloco «Registo da casa».
+
+Entidades espanholas não entram, por decisão tua.
+
+## 12. Histórico de alterações
 
 Duplo clique em `historico.bat`. Abre uma janela com todas as
 alterações ao programa: à esquerda a lista, e ao clicar numa vês
@@ -485,7 +521,7 @@ Na linha de comandos, se preferires:
 git log --oneline
 ```
 
-## 12. Comandos, se precisares
+## 13. Comandos, se precisares
 
 O uso normal é o painel. Estes são para casos pontuais:
 
@@ -549,18 +585,25 @@ Idempotente; os anúncios que ainda não voltaram do DR ficam listados
 para se repor outra vez mais tarde.
 
 ```bash
+python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm" --ensaio
+```
+O registo da casa (secção 11). Com `--ensaio` só mostra o que faria;
+sem ele grava. `--sem-rede` não vai ao DR ler os candidatos ambíguos.
+
+```bash
 python teste_radar.py
 ```
-Corre os testes — 580 verificações em poucos segundos, sem tocar
+Corre os testes — 608 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
 
-## 13. Ficheiros
+## 14. Ficheiros
 
 | Ficheiro | Para que serve |
 |---|---|
 | `radar.py` | o programa |
+| `casa.py` | o registo da casa: lê o Excel e liga-o aos anúncios (secção 11) |
 | `curl_DR.txt` / `curl_detalhe.txt` | as tuas capturas, secção 3 |
 | `config.json` | configuração e horários, criado no primeiro arranque |
 | `radar.db` | os anúncios, a triagem e o histórico |
@@ -577,7 +620,7 @@ anúncios, é o teste do parser que avisa primeiro.
 | `historico.bat` | abre o histórico de alterações |
 | `teste_radar.py` | os testes |
 
-## 14. Limites, para não haver surpresas
+## 15. Limites, para não haver surpresas
 
 O DR publica anúncios acima de certos valores. Abaixo dos limiares
 (ajustes directos, consultas prévias) **não existe anúncio nenhum** —

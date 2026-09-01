@@ -9,3 +9,6 @@ pymupdf
 # nenhum é Caderno de Encargos nem Programa, por isso não afecta a
 # leitura das peças; é só para o PDF do anúncio abrir.
 cryptography
+# lê o Excel de análise de concursos da casa (--importar-excel); puro
+# Python, só se importa nesse comando
+openpyxl

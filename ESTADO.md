@@ -21,7 +21,7 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 ## Como está a correr
 
 Funciona. A base tem **66 286 anúncios, dois anos deles**
-(28/08/2024–01/09/2026) — **65 523 procedimentos**, porque 763 são
+(28/08/2024–01/09/2026) — **65 419 procedimentos**, porque 867 são
 republicações («Alteração do Anúncio de procedimento n.º …») ligadas
 ao original desde 01/09/2026 e fora de todas as listas: o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
@@ -41,14 +41,16 @@ anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
 Desde 31/08/2026 os anuncios sao **uma pagina so** (`/`), e o que
-aparta o acervo sao as quatro abas: **por ver 1 221** (por decidir e
-ainda respondivel), **interessados 3** (todos, expirados incluidos --
-um interessa expirado e trabalho em curso), **abandonados 64 299** (os
-3 728 descartados a mao mais os por ver que ja nao dao para responder)
-e **todos 65 523**. A particao e exacta sobre os procedimentos, e e
-recorte de leitura: a base nao muda -- la dentro ha 61 792 com estado
-`novo`, e as 763 alteracoes (`estado='alteracao'`) nao entram em aba
-nenhuma, nem na de todos. A **Triagem e a
+aparta o acervo sao as quatro abas: **por ver 1 167** (por decidir e
+ainda respondivel), **interessados 75** (todos, expirados incluidos --
+um interessa expirado e trabalho em curso; 72 deles vieram do Excel da
+casa a 02/09/2026: 18 submetidos, 12 ganhos e 42 perdidos, no quadro
+nas colunas certas), **abandonados 64 177** (os 3 797 descartados a
+mao mais os por ver que ja nao dao para responder) e **todos 65 419**.
+A particao e exacta sobre os procedimentos, e e recorte de leitura: a
+base nao muda -- la dentro ha 61 547 com estado `novo`, e as 867
+alteracoes (`estado='alteracao'`) nao entram em aba nenhuma, nem na de
+todos. A **Triagem e a
 Pesquisa separadas duraram um dia**: `/anuncios` redirecciona com o
 filtro atras, e o interruptor do arquivo caiu. **O esqueleto esta
 implementado** (os quatro andamentos, todos a 31/08/2026): navegacao
@@ -4640,3 +4642,103 @@ anúncio novo.
 - **`--reler` demora ~2 minutos na primeira vez** por causa da
   migração dentro do `iniciar_db()`; depois disso, 5 segundos. O
   arranque do painel paga a mesma migração uma vez, por marca.
+
+## O registo da casa: o Excel entrou no radar, 2 de setembro de 2026
+
+«Avança com a importação do Excel», disse ele, depois de os
+duplicados estarem resolvidos. O ficheiro é o
+`Analise_Concursos_Publicos.xlsm`: 187 concursos exportados de uma
+lista do SharePoint (nome, entidade, preço base, modelo, estado) e
+completados numa folha por concurso, com macros VBA a consolidar as
+tabelas planas. Antes de escrever uma linha de código leu-se o VBA
+todo — o ficheiro é uma pequena base de dados feita em Excel, com as
+folhas `C_` como registos, um ID estável na coluna K (e em Z1 da
+folha), sincronização nos dois sentidos e quatro consolidadores.
+**Decisão:** lê-se pelas mesmas âncoras que as macros usam e nunca
+pelas tabelas planas, que só estão certas depois do último
+`AtualizarTudo`.
+
+### O primeiro módulo fora do `radar.py`
+
+`casa.py`, 700 linhas. Importa o radar dentro das funções (o radar
+importa-o no topo para as rotas), e o `radar.py` ganhou só o que tinha
+de ser dele: a linha do CLI (`--importar-excel`), a página `/casa`, o
+bloco «Registo da casa» na ficha e uma entrada no `Em curso`. É a
+regra para os módulos seguintes, em vez de partir o ficheiro grande
+antes de haver um segundo módulo para ver onde as fronteiras estão.
+
+### Ligar uma linha do Excel a um anúncio
+
+Três sinais, por ordem, e a medida de cada um:
+
+1. **O nome no título, por contenção.** O nome do Excel é uma
+   abreviatura do título do DR («Plataforma Central de Deteção
+   Precoce» para «(DAG) Aquisição de serviços para evolução da
+   Plataforma Central de Deteção Precoce no âmbito…»). Com Jaccard
+   ficavam 105 linhas ambíguas; com 70% de contenção e 30% de Jaccard
+   ficaram 84. A entidade conta 0,35 e resolve-se pelo corpus (o nome
+   «SPMS» dá a chave 509540716 e o nome canónico, que é o que o DR
+   escreve por extenso); um preço base igual conta 0,5.
+2. **O contrato celebrado.** O valor do 1.º lugar da tabela C é o
+   `preco_contratual` no BASE, e o BASE guarda o `n_anuncio`, que é o
+   ref. Exige-se a entidade certa ou parentesco no título — o mesmo
+   valor aparece em suturas e em software. Ligou 5 que mais nada
+   ligava, o «GPEARI» da eSPAP incluído.
+3. **Ler o detalhe dos candidatos ambíguos ao DR.** Traz o preço base
+   para desempatar e, sobretudo, **revela as republicações**: a maior
+   parte da ambiguidade eram alterações por ler (o BIA aparecia como
+   2596, 5777 e 6734 porque as duas últimas ainda não tinham detalhe).
+   354 leituras no ensaio, ~1 s cada; passou de 97 para 149 ligadas, e
+   a base ganhou 104 alterações identificadas pelo caminho (763 → 867).
+
+Resultado: **149 das 187 ligadas** (144 pela pontuação, 5 pelo BASE),
+32 ambíguas e 5 sem nada (títulos internos como «2026_P093» ou
+«ADENE_CPr_019_2026_DITE», e dois de 2023 anteriores à base), 1 fora do
+país (Astúrias, por decisão dele). As 25 ligações de pontuação mais
+baixa foram vistas uma a uma antes de gravar: todas certas.
+
+### O que se escreveu nos anúncios
+
+Só quando o estado do Excel é inequívoco: *Não fomos* → descartado com
+o motivo mapeado (9 tinham razão; os outros 60 ficam sem motivo, como
+os expirados); *Submetido*, *Perdido* e *Ganho* → interessa na fase
+com esse papel, com preço proposto, lugar e três primeiros.
+*Cancelado* e *TBD* ficam só no registo. 146 aplicadas: o quadro tem
+agora 18 submetidos, 12 ganhos e 42 perdidos vindos do Excel, e a soma
+das colunas Ganho/Perdido é a das propostas da casa. Os dois motivos
+novos — «Fora do âmbito», «Prazo curto» — vieram das razões dele.
+
+**Uma decisão humana no radar nunca é esmagada.** Houve um conflito, e
+é um caso de lotes: o 1947/2026 da SPMS (servidor de terminologias)
+tem três linhas no Excel — dois lotes perdidos e um ganho — e o radar
+tem um estado por anúncio. Ficou «perdido» (a primeira linha) e o
+histórico diz que o Excel também diz «Ganho». Lotes com resultados
+diferentes no mesmo anúncio são uma limitação conhecida, não um erro.
+
+### O erro que só a importação a sério apanhou
+
+O ensaio correu duas vezes sem problema; a importação a sério rebentou
+com `database is locked` ao fim de 30 segundos. A importação escrevia a
+primeira linha da casa e ficava com a transacção aberta enquanto o
+`ler_detalhe_de()` gravava pela ligação dele. O ensaio não escrevia,
+por isso nunca esperou por nada. Passou a duas passagens — a primeira
+só lê (e vai ao DR), a segunda escreve — e há teste que simula a
+leitura com uma escrita por outra ligação. A base ficou intacta: a
+transacção foi abortada e as leituras de detalhe são idempotentes.
+Cópia com nome antes de gravar: `copias/radar-antes-excel-2026-09-02.db`.
+
+### O que fica
+
+- **37 linhas por ligar à mão**, em `/casa` — 32 com candidatos a um
+  clique e 5 sem nenhum. São as que o título do Excel não deixa
+  reconhecer.
+- **O Excel continua a ser onde ele escreve**, enquanto não decidir o
+  contrário. Voltar a importar é idempotente: actualiza o registo, não
+  repete histórico, e não toca no que já está ligado à mão nem no que
+  foi decidido no radar.
+- **O Zoho** é a fonte mais actual do estado e lê-se pelo browser (ele
+  não consegue exportar CSV). Fica para a próxima.
+- **O vocabulário dos estados** («Não fomos», «passou sem decisão»,
+  «cancelado») continua por decidir; a importação usou o que existe.
+- O quadro ficou com 72 cartões históricos nas colunas terminais. Se
+  incomodar, uma dobra por ano nessas colunas é pequena.

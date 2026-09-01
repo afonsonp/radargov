@@ -16,6 +16,7 @@ import contextlib
 import datetime
 import html
 import inspect
+import json
 import os
 import re
 import sys
@@ -24,6 +25,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
+import casa
 
 
 class TestPrefixoCPV(unittest.TestCase):
@@ -5718,6 +5720,332 @@ class TestAlteracoesDoDR(BaseTemporaria):
     def test_os_alertas_por_enviar_saltam_as_alteracoes(self):
         self.assertIn("a.estado != 'alteracao'",
                       inspect.getsource(radar.alertas_por_enviar))
+
+
+class TestRegistoDaCasa(BaseTemporaria):
+    """O Excel de análise de concursos da casa (02/09/2026): 187 concursos
+    exportados do SharePoint e completados numa folha por concurso, com
+    macros a consolidar. Lê-se pelas MESMAS âncoras das macros, liga-se
+    cada linha ao procedimento do radar (nunca a uma alteração) e só se
+    escreve triagem quando o estado do Excel é inequívoco. Uma decisão
+    humana feita no radar nunca é esmagada pela importação."""
+
+    CAB = ["NOME DO CONCURSO", "ENTIDADE", "MODELO", "PRAZO EXECUÇÃO (MESES)",
+           "PREÇO BASE (€)", "CRITERIO DE ADJUDICAÇÃO", "PLATAFORMA", "ANO",
+           "STATUS", "FOLHA", "ID"]
+
+    def _excel(self, indice, folhas):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "ÍNDICE"
+        ws.append(self.CAB)
+        for l in indice:
+            ws.append(l)
+        for ide, d in folhas.items():
+            w = wb.create_sheet("C_%04d" % ide)
+            w["A1"], w["B1"], w["C1"] = d["entidade"], d["nome"], ide
+            w["Z1"], w["Z2"] = ide, "ID_CONCURSO"
+            w["A2"] = "← Voltar ao ÍNDICE"
+            w["A3"] = "TABELA A — DEFINIÇÃO DO CONCURSO"
+            for i, (rot, chave) in enumerate((
+                    ("Modelo", "modelo"), ("Prazo de execução (meses)", "prazo"),
+                    ("Preço base (€)", "preco"), ("Critério de adjudicação", "criterio"),
+                    ("Plataforma", "plataforma"), ("Ano", "ano"), ("Status", "status"))):
+                w.cell(4 + i, 1, rot)
+                w.cell(4 + i, 2, d.get(chave))
+            w["A11"] = "SUBTABELA A.1 — PERFIS EXIGIDOS NO CONCURSO"
+            w.append([])
+            w.append(["PERFIL", "TECNOLOGIAS / FERRAMENTAS", "ANOS EXP.",
+                      "Nº RECURSOS", "HORAS EST.", "CERTIFICAÇÕES"])
+            for p in d.get("perfis", []):
+                w.append(list(p))
+            w.append([])
+            w.append(["TABELA B — PROPOSTA CONKORD"])
+            for rot, chave in (("Valor total da proposta (€)", "valor"),
+                               ("Lugar obtido", "lugar"), ("EBITDA (%)", "ebitda"),
+                               ("Gap para o Preço base (€)", None),
+                               ("Gap para o Preço base (%)", None),
+                               ("Gap para o 1º lugar (€)", None),
+                               ("Gap para o 1º lugar (%)", None),
+                               ("Razão de não participação", "razao"),
+                               ("Notas", "notas")):
+                w.append([rot, d.get(chave) if chave else None])
+            w.append(["TABELA C — PREÇOS DOS CONCORRENTES"])
+            conc = d.get("concorrentes", [])
+            for lugar in range(1, 6):
+                w.append(["%dº Lugar" % lugar])
+                nome, valor = conc[lugar - 1] if lugar <= len(conc) else ("", None)
+                w.append(["Nome do concorrente", nome])
+                w.append(["Valor total da proposta (€)", valor])
+            w.append(["SUBTABELA C.1 — PREÇO POR PERFIL (POR CONCORRENTE)"])
+            w.append(["CONCORRENTE", "PERFIL", "TECNOLOGIAS", "ANOS EXP.",
+                      "VALOR PERFIL (€)", "HORAS", "€/HORA"])
+            for p in d.get("precos", []):
+                w.append(list(p))
+        caminho = os.path.join(self.pasta, "casa.xlsx")
+        wb.save(caminho)
+        return caminho
+
+    INDICE = [
+        ["Plataforma Central de Deteção Precoce", "SPMS", "Turn Key", 5, 716846.64,
+         "Preço", "Vortal", 2026, "Perdido", "Abrir folha", 1],
+        ["Serviços especializados OutSystems", "IFAP", None, None, 188000,
+         None, "AnoGov", 2026, "Não fomos", "Abrir folha", 2],
+        ["Infraestructuras análisis y diseño", "Principado de Asturias", None, None,
+         50000, None, "Vortal", 2026, "Não fomos", None, 3],
+        ["Bolsa de horas de desenvolvimento", "OSAE", "Consulting", 12, 99000,
+         None, "AcinGov", 2026, "Submetido", None, 4],
+    ]
+    FOLHAS = {
+        1: {"entidade": "SPMS", "nome": "Plataforma Central de Deteção Precoce",
+            "modelo": "Turn Key", "prazo": 5, "preco": 716846.64, "criterio": "Preço",
+            "plataforma": "Vortal", "ano": 2026, "status": "Perdido",
+            "perfis": [("Desenvolvedor Fullstack", "Java", 5, 2, 1600, "PMP")],
+            "valor": 399632, "lugar": 4, "ebitda": 0.3047,
+            "concorrentes": [("Axians", 265233), ("Glintt", 300000), ("LATD", 399632)],
+            "precos": [("LATD", "Desenvolvedor Fullstack", "Java", 5, 156600, 5400, 29)]},
+        2: {"entidade": "IFAP", "nome": "Serviços especializados OutSystems",
+            "modelo": "Consulting", "prazo": 12, "preco": 188000, "criterio": "Preço",
+            "plataforma": "AnoGov", "ano": 2026, "status": "Não fomos",
+            "razao": "Fora do nosso âmbito"},
+    }
+
+    def _anuncio(self, ref, titulo, entidade, data_pub, preco="", **campos):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, url,"
+                      " estado, preco_base, titulo_norm, entidade_norm) "
+                      "VALUES (?,?,?,?,?,?,?,?,simplifica(?),simplifica(?))",
+                      (ref, titulo, entidade, data_pub, "Anúncio de procedimento",
+                       "https://dr/" + ref, "novo", preco, titulo, entidade))
+            for k, v in campos.items():
+                c.execute("UPDATE anuncios SET %s=? WHERE ref=?" % k, (v, ref))
+
+    def _le(self, ref):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+
+    def _historico(self, ref, accao=None):
+        with radar.liga() as c:
+            return [dict(p) for p in c.execute(
+                "SELECT accao, detalhe, quem FROM historico WHERE ref=?" +
+                (" AND accao=?" if accao else ""),
+                (ref, accao) if accao else (ref,))]
+
+    def _base_normal(self):
+        self._anuncio("5491/2026", "(DAG) Aquisição de serviços para evolução da "
+                      "Plataforma Central de Deteção Precoce",
+                      "Serviços Partilhados do Ministério da Saúde, EPE", "2026-03-06",
+                      "716.846,64 EUR")
+        self._anuncio("100/2026", "Aquisição de serviços especializados OutSystems",
+                      "IFAP - Instituto de Financiamento da Agricultura e Pescas, I.P.",
+                      "2026-05-02", "188.000,00 EUR")
+        self._anuncio("7/2026", "Fornecimento de refeições escolares",
+                      "Município de Exemplo", "2026-01-10")
+        # dois candidatos com o mesmo titulo e entidade, anos seguidos, sem
+        # preco base lido: ambiguo ate se ler o detalhe
+        self._anuncio("300/2025", "Aquisição de bolsa de horas de desenvolvimento",
+                      "Ordem dos Solicitadores e dos Agentes de Execução", "2025-11-03")
+        self._anuncio("301/2026", "Aquisição de bolsa de horas de desenvolvimento",
+                      "Ordem dos Solicitadores e dos Agentes de Execução", "2026-04-03")
+
+    def test_le_o_indice_e_a_folha_pelas_ancoras_das_macros(self):
+        linhas = casa.ler_excel(self._excel(self.INDICE, self.FOLHAS))
+        self.assertEqual([l["id"] for l in linhas], [1, 2, 3, 4])
+        um = linhas[0]
+        self.assertEqual((um["status"], um["valor_proposta"], um["lugar"],
+                          um["folha"]), ("Perdido", 399632.0, 4.0, "C_0001"))
+        self.assertEqual([c["nome"] for c in um["concorrentes"]],
+                         ["Axians", "Glintt", "LATD"])
+        self.assertEqual(um["perfis"][0]["perfil"], "Desenvolvedor Fullstack")
+        self.assertEqual(um["precos_perfis"][0]["hora"], 29.0)
+        dois = linhas[1]
+        # a folha completa o que o INDICE nao tem
+        self.assertEqual((dois["modelo"], dois["razao"]),
+                         ("Consulting", "Fora do nosso âmbito"))
+        self.assertEqual(linhas[3]["concorrentes"], [])      # sem folha
+        self.assertTrue(casa.fora_do_pais(linhas[2]))
+        self.assertFalse(casa.fora_do_pais(linhas[0]))
+
+    def test_estado_pretendido_traduz_o_excel(self):
+        papeis = {"submetido": 3, "perdido": 6, "ganho": 5}
+        self.assertEqual(casa.estado_pretendido(
+            {"status": "Não fomos", "razao": "Prazo de Entrega curto"}, papeis),
+            ("descartado", None, {"motivo": "Prazo curto"}))
+        self.assertEqual(casa.estado_pretendido(
+            {"status": "Não fomos", "razao": ""}, papeis),
+            ("descartado", None, {"motivo": None}))
+        e, f, campos = casa.estado_pretendido(
+            {"status": "Ganho", "valor_proposta": 78987, "lugar": None,
+             "concorrentes": [{"lugar": 1, "nome": "LATD", "valor": 78987}]}, papeis)
+        self.assertEqual((e, f, campos["posicao"], campos["preco_proposto"]),
+                         ("interessa", 5, 1, "78.987,00 EUR"))
+        self.assertIn("1.º LATD 78.987,00 EUR", campos["top3"])
+        self.assertIsNone(casa.estado_pretendido({"status": "Cancelado"}, papeis))
+        self.assertIsNone(casa.estado_pretendido({"status": "TBD"}, papeis))
+
+    def test_liga_e_aplica_a_triagem(self):
+        self._base_normal()
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
+        self.assertEqual(rel["fora"], ["Infraestructuras análisis y diseño"])
+        self.assertEqual(rel["ligadas"], 2)
+        self.assertEqual([a[1] for a in rel["ambiguas"]],
+                         ["Bolsa de horas de desenvolvimento"])
+        self.assertEqual(rel["sem"], [])
+        perdido = self._le("5491/2026")
+        with radar.liga() as c:
+            fase_perdido = c.execute("SELECT id FROM fases WHERE papel='perdido'"
+                                     ).fetchone()["id"]
+        self.assertEqual((perdido["estado"], perdido["fase_id"], perdido["posicao"],
+                          perdido["preco_proposto"]),
+                         ("interessa", fase_perdido, 4, "399.632,00 EUR"))
+        self.assertIn("1.º Axians 265.233,00 EUR", perdido["top3"])
+        nao_fomos = self._le("100/2026")
+        self.assertEqual((nao_fomos["estado"], nao_fomos["motivo"]),
+                         ("descartado", "Fora do âmbito"))
+        self.assertTrue(all(p["quem"] == "Excel" for p in self._historico("100/2026")))
+        with radar.liga() as c:
+            reg = casa.registo_de(c, "5491/2026")
+            self.assertEqual((reg["id"], reg["ligacao"], reg["resultado"]),
+                             (1, "auto", "aplicado"))
+            ambiguo = c.execute("SELECT ref, candidatos FROM casa WHERE id=4").fetchone()
+        self.assertIsNone(ambiguo["ref"])
+        self.assertEqual(sorted(json.loads(ambiguo["candidatos"])),
+                         ["300/2025", "301/2026"])
+        self.assertEqual(radar.le_marca("excel_casa_em")[:4], "2026")
+
+    def test_o_preco_base_desempata_quando_esta_lido(self):
+        self._base_normal()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET preco_base='99.000,00 EUR' WHERE ref='301/2026'")
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
+        self.assertEqual(rel["ambiguas"], [])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT ref FROM casa WHERE id=4").fetchone()["ref"],
+                             "301/2026")
+        sub = self._le("301/2026")
+        self.assertEqual(sub["estado"], "interessa")
+
+    def test_ler_o_detalhe_a_meio_da_importacao_nao_tranca_a_base(self):
+        # a importacao a serio rebentou com "database is locked": escrevia
+        # a primeira linha da casa e ficava com a transaccao aberta
+        # enquanto o ler_detalhe_de() gravava pela ligacao dele. Simula-se
+        # a leitura com uma escrita por outra ligacao, como a verdadeira.
+        self._base_normal()
+        antigo = radar.ler_detalhe_de
+
+        def falso_detalhe(ref):
+            with radar.liga() as c:
+                c.execute("UPDATE anuncios SET preco_base=?, detalhe_lido=1 WHERE ref=?",
+                          ("99.000,00 EUR" if ref == "301/2026" else "1,00 EUR", ref))
+            return True, ""
+        radar.ler_detalhe_de = falso_detalhe
+        try:
+            rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=True)
+        finally:
+            radar.ler_detalhe_de = antigo
+        self.assertEqual(rel["ambiguas"], [])
+        self.assertGreaterEqual(rel["lidos"], 1)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT ref FROM casa WHERE id=4").fetchone()["ref"],
+                             "301/2026")
+            self.assertEqual(c.execute("SELECT COUNT(*) n FROM casa").fetchone()["n"], 4)
+
+    def test_o_ensaio_nao_grava_nada(self):
+        self._base_normal()
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ensaio=True, ler=False)
+        self.assertTrue(rel["ensaio"])
+        self.assertEqual(rel["ligadas"], 2)
+        self.assertEqual(rel["aplicadas"], {"aplicado": 2})
+        self.assertEqual(self._le("5491/2026")["estado"], "novo")
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) n FROM casa").fetchone()["n"], 0)
+
+    def test_e_idempotente_e_nao_esmaga_decisao_humana(self):
+        self._base_normal()
+        # o Afonso marcou interessa no radar; o Excel diz "Não fomos"
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET estado='interessa', fase_id=1 WHERE ref='100/2026'")
+        caminho = self._excel(self.INDICE, self.FOLHAS)
+        rel = casa.importar(caminho, ler=False)
+        self.assertEqual(rel["aplicadas"], {"aplicado": 1, "conflito": 1})
+        self.assertEqual(self._le("100/2026")["estado"], "interessa")
+        rel2 = casa.importar(caminho, ler=False)
+        self.assertEqual(rel2["aplicadas"], {"igual": 1, "conflito": 1})
+        self.assertEqual(rel2["novas"], 0)
+        # uma linha de conflito, e uma so, por muitas vezes que se importe
+        conflitos = [p for p in self._historico("100/2026", "estado")
+                     if "registo da casa diz" in p["detalhe"]]
+        self.assertEqual(len(conflitos), 1)
+        self.assertEqual(len(self._historico("5491/2026", "estado")), 1)
+
+    def test_ligar_a_mao_resolve_a_alteracao_para_o_original(self):
+        self._base_normal()
+        casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
+        # 301/2026 passa a ser uma alteracao de 300/2025
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET estado='alteracao', altera='300/2025' "
+                      "WHERE ref='301/2026'")
+            ok, msg = casa.ligar_a_mao(c, 4, "301/2026", quem="Teste")
+            self.assertTrue(ok, msg)
+            self.assertEqual(c.execute("SELECT ref, ligacao FROM casa WHERE id=4"
+                                       ).fetchone()[:], ("300/2025", "manual"))
+        self.assertEqual(self._le("300/2025")["estado"], "interessa")
+        # uma ligacao manual sobrevive a importacao seguinte
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
+        self.assertEqual(rel["manuais"], 1)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT ref FROM casa WHERE id=4").fetchone()["ref"],
+                             "300/2025")
+            ok, msg = casa.ligar_a_mao(c, 4, "nada/2026")
+        self.assertFalse(ok)
+
+    def test_as_rotas_existem_e_a_pagina_vazia_explica(self):
+        cliente = radar.app.test_client()
+        r = cliente.get("/casa")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("--importar-excel", r.get_data(as_text=True))
+        r = cliente.post("/casa/ligar/1", data={"ref": ""})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("casa", radar.ITEM_DA_PAGINA)
+
+    def test_a_pontuacao_e_por_contencao_do_nome_no_titulo(self):
+        # o nome do Excel e uma abreviatura do titulo do DR: o que conta e
+        # quantas palavras do Excel la estao, nao o tamanho do titulo
+        self._base_normal()
+        with radar.liga() as c:
+            acervo = casa.Acervo(c, {2026})
+        linha = {"nome": "Plataforma Central de Deteção Precoce", "entidade": "SPMS",
+                 "ano": 2026, "preco_base": None}
+        pontos = casa.pontuar(linha, acervo)
+        self.assertEqual(pontos[0][1], "5491/2026")
+        self.assertGreaterEqual(pontos[0][0], casa.LIMIAR)
+        # uma palavra em comum nao chega
+        linha = {"nome": "Plataforma de gestão documental", "entidade": "Outra",
+                 "ano": 2026, "preco_base": None}
+        pontos = casa.pontuar(linha, acervo)
+        self.assertTrue(not pontos or pontos[0][0] < casa.LIMIAR)
+        self.assertEqual(casa.decidir(pontos)[0], "")
+
+    def test_sem_corpus_o_base_nao_liga_nada(self):
+        self._base_normal()
+        antigo = radar.ha_corpus
+        radar.ha_corpus = lambda: False
+        try:
+            with radar.liga() as c:
+                acervo = casa.Acervo(c, {2026})
+                self.assertEqual(casa.ref_pelo_base(
+                    c, {"status": "Perdido", "entidade": "SPMS", "ano": 2026,
+                        "concorrentes": [{"lugar": 1, "nome": "X", "valor": 265233}]},
+                    acervo), "")
+        finally:
+            radar.ha_corpus = antigo
+
+    def test_os_motivos_novos_existem(self):
+        self.assertIn("Fora do âmbito", radar.MOTIVOS_ABANDONO)
+        self.assertIn("Prazo curto", radar.MOTIVOS_ABANDONO)
+        self.assertEqual(set(casa.MAPA_RAZAO.values()) - set(radar.MOTIVOS_ABANDONO),
+                         set())
 
 
 if __name__ == "__main__":
