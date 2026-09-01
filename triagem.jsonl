@@ -4094,26 +4094,30 @@
 {"estado": "descartado", "fase_id": 1, "ref": "21618/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 12:16"}
 {"estado": "descartado", "fase_id": null, "ref": "21619/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 15:10"}
 {"estado": "descartado", "fase_id": null, "ref": "21620/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 20:51"}
-{"estado": "interessa", "fase_id": 1, "ref": "21631/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 20:51"}
+{"estado": "novo", "fase_id": 1, "ref": "21631/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 20:51"}
 {"estado": "novo", "fase_id": 1, "ref": "21647/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 20:51"}
 {"estado": "descartado", "fase_id": null, "ref": "21666/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-26 20:51"}
 {"estado": "descartado", "fase_id": null, "ref": "21696/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 11:56"}
 {"estado": "descartado", "fase_id": null, "ref": "21697/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 11:56"}
-{"estado": "interessa", "fase_id": 1, "ref": "21713/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 11:56"}
+{"estado": "novo", "fase_id": 1, "ref": "21713/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 11:56"}
 {"estado": "descartado", "fase_id": null, "ref": "21723/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 12:13"}
 {"estado": "descartado", "fase_id": 1, "ref": "21724/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 15:44"}
-{"estado": "interessa", "fase_id": 5, "ref": "21764/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 17:08"}
+{"estado": "novo", "fase_id": 5, "ref": "21764/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-27 17:08"}
 {"estado": "descartado", "fase_id": null, "ref": "21777/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 09:41"}
-{"estado": "interessa", "fase_id": 1, "ref": "21811/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
+{"estado": "novo", "fase_id": 1, "ref": "21811/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
 {"estado": "novo", "fase_id": 1, "ref": "21830/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
-{"estado": "interessa", "fase_id": 1, "ref": "21925/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 09:04"}
-{"estado": "interessa", "fase_id": 1, "ref": "21943/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 17:01"}
-{"estado": "interessa", "fase_id": 1, "ref": "PT1.NTC.3785562", "responsavel": null, "tabela": "anuncios", "visto_em": null}
+{"estado": "interessa", "fase_id": 1, "ref": "21924/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 17:01"}
+{"estado": "novo", "fase_id": 1, "ref": "21925/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 09:04"}
+{"estado": "novo", "fase_id": 1, "ref": "21943/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 17:01"}
+{"estado": "interessa", "fase_id": 7, "ref": "21993/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-09-01 11:03"}
+{"estado": "interessa", "fase_id": 1, "ref": "22005/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-09-01 11:03"}
+{"estado": "novo", "fase_id": 1, "ref": "PT1.NTC.3785562", "responsavel": null, "tabela": "anuncios", "visto_em": null}
 {"id": 1, "nome": "Por analisar", "ordem": 1, "tabela": "fases"}
 {"id": 5, "nome": "A preparar proposta", "ordem": 2, "tabela": "fases"}
 {"id": 7, "nome": "Submetido", "ordem": 4, "tabela": "fases"}
-{"id": 10, "nome": "Ganho", "ordem": 7, "tabela": "fases"}
-{"id": 11, "nome": "Perdido", "ordem": 8, "tabela": "fases"}
+{"id": 12, "nome": "Relatorio Preleminar", "ordem": 5, "tabela": "fases"}
+{"id": 13, "nome": "Ganho", "ordem": 6, "tabela": "fases"}
+{"id": 14, "nome": "Perdido", "ordem": 7, "tabela": "fases"}
 {"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-08-25 01:09", "quem": "Afonso Pinto", "ref": "21482/2026", "tabela": "historico"}
 {"accao": "fase", "detalhe": "Em revisão", "quando": "2026-08-25 01:09", "quem": "Afonso Pinto", "ref": "21482/2026", "tabela": "historico"}
 {"accao": "fase", "detalhe": "Submetido", "quando": "2026-08-25 01:09", "quem": "Afonso Pinto", "ref": "21482/2026", "tabela": "historico"}
@@ -8271,6 +8275,38 @@
 {"accao": "leitura", "detalhe": "ainda não há Caderno de Encargos nem Programa em disco", "quando": "2026-08-31 21:57", "quem": "Afonso Pinto", "ref": "21943/2026", "tabela": "historico"}
 {"accao": "estado", "detalhe": "interessa", "quando": "2026-08-31 22:27", "quem": "Afonso Pinto", "ref": "21631/2026", "tabela": "historico"}
 {"accao": "estado", "detalhe": "interessa", "quando": "2026-08-31 22:29", "quem": "Afonso Pinto", "ref": "PT1.NTC.3785562", "tabela": "historico"}
+{"accao": "estado", "detalhe": "descartado", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "22005/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "descartado", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "22004/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "22005/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "22004/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "PT1.NTC.3785562", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "21943/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "21925/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "21811/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "21764/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "21713/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-01 11:53", "quem": "Afonso Pinto", "ref": "21631/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-01 12:45", "quem": "Afonso Pinto", "ref": "22005/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-01 12:47", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-01 12:59", "quem": "Afonso Pinto", "ref": "21924/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-01 13:03", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-01 13:03", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-01 13:03", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Por analisar", "quando": "2026-09-01 13:03", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Relatorio Preleminar", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Ganho", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Por analisar", "quando": "2026-09-01 13:14", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-01 13:33", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-01 13:33", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Relatorio Preleminar", "quando": "2026-09-01 13:33", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-01 13:33", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Por analisar", "quando": "2026-09-01 13:33", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-01 14:09", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-01 14:09", "quem": "Afonso Pinto", "ref": "21993/2026", "tabela": "historico"}
 {"alerta": 1, "consulta": "cpv=72000000&estado=novo&prazo=aberto", "criado_em": "2026-08-30 03:15", "id": 8, "nome": "CPV IT", "quem": "Afonso Pinto", "tabela": "filtros_guardados"}
 {"chave": "504322915", "desde": "2026-08-30", "nome": "Instituto de Informática, I. P.", "tabela": "entidades_seguidas"}
 {"enviado_em": "acervo", "filtro_id": 8, "ref": "17308/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-30 11:38"}
@@ -8336,6 +8372,9 @@
 {"enviado_em": null, "filtro_id": 8, "ref": "21945/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-31 17:03"}
 {"enviado_em": null, "filtro_id": 8, "ref": "21955/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-31 17:03"}
 {"enviado_em": null, "filtro_id": 8, "ref": "21969/2026", "tabela": "alertas_vistos", "visto_em": "2026-08-31 17:03"}
+{"enviado_em": null, "filtro_id": 8, "ref": "21993/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-01 11:04"}
+{"enviado_em": null, "filtro_id": 8, "ref": "22001/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-01 11:04"}
+{"enviado_em": null, "filtro_id": 8, "ref": "22005/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-01 11:04"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "16933/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "18140/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "18978/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
