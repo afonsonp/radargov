@@ -3102,6 +3102,69 @@ class TestJanelaUrgente(unittest.TestCase):
         self.assertIn(fim, valores)
 
 
+class TestEtiquetaPrazoSegueAJanela(unittest.TestCase):
+    """A etiqueta de prazo tinha um 7 escrito à mão com o filtro a 10.
+
+    Um anúncio a 9 dias saía verde ("folgado") na lista, no quadro, no
+    calendário e na ficha, e ao mesmo tempo contava como urgente no
+    filtro prazo=urgente, no cartão dos indicadores e nos avisos. É a
+    mesma armadilha do cartão que dizia "7 dias": o número que um ecrã
+    mostra tem de dar exactamente a lista que a ligação dele abre. A
+    janela é UMA — dias_urgente() — e a etiqueta acompanha-a.
+    """
+
+    def setUp(self):
+        self.ler_config = radar.ler_config
+
+    def tearDown(self):
+        radar.ler_config = self.ler_config
+
+    def com_janela(self, dias):
+        radar.ler_config = lambda: {"dias_urgente": dias}
+
+    def daqui_a(self, dias):
+        return (datetime.date.today()
+                + datetime.timedelta(days=dias)).isoformat()
+
+    def test_a_classe_acompanha_a_janela_do_config(self):
+        # 9 dias: dentro de uma janela de 10, fora de uma de 7
+        self.com_janela(10)
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(9))[1], "avisa")
+        self.com_janela(7)
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(9))[1], "ok")
+
+    def test_janela_larga_avisa_mais_cedo(self):
+        self.com_janela(20)
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(15))[1], "avisa")
+        self.com_janela(3)
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(15))[1], "ok")
+
+    def test_a_janela_passada_manda_e_nao_le_o_config(self):
+        # quem chama em ciclo (lista, quadro, calendario) le a janela uma
+        # vez e passa-a; se o config fosse lido na mesma, era uma abertura
+        # de ficheiro por linha -- e valores diferentes no mesmo ecra
+        def rebenta():
+            raise AssertionError("etiqueta_prazo leu o config com a janela dada")
+        radar.ler_config = rebenta
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(9), 10)[1], "avisa")
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(9), 7)[1], "ok")
+
+    def test_o_expirado_e_o_hoje_nao_dependem_da_janela(self):
+        self.com_janela(1)
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(0))[1], "mau")
+        self.assertEqual(radar.etiqueta_prazo(self.daqui_a(-1))[1], "mau")
+
+    def test_a_etiqueta_e_o_filtro_concordam_na_fronteira(self):
+        # o ultimo dia da janela do filtro tem de sair "avisa" na etiqueta
+        self.com_janela(10)
+        hoje = datetime.date.today()
+        _, fim = radar.janela_urgente(hoje)
+        self.assertEqual(radar.etiqueta_prazo(fim)[1], "avisa")
+        depois = (datetime.date.fromisoformat(fim)
+                  + datetime.timedelta(days=1)).isoformat()
+        self.assertEqual(radar.etiqueta_prazo(depois)[1], "ok")
+
+
 class TestDataHoraPT(unittest.TestCase):
     """O histórico da ficha, a barra do corpus e a "última" da barra
     lateral mostravam "2026-08-29 18:54" -- ISO à vista, contra a regra

@@ -350,11 +350,12 @@ entra o login a sério.
 
 Chega-se lá pelo **ponto verde/vermelho da última verificação**, em
 baixo na barra da esquerda — é a única porta, de propósito: é consulta
-ocasional, não trabalho diário. Números sobre o teu próprio
-radar: quantos anúncios tens, quantos entraram hoje, quantos marcaste
-como interessa (e destes, quantos têm prazo a menos de uma semana),
-quantos ainda estão sem detalhe lido, como estão distribuídos pelas
-fases do quadro, e o estado da recolha — se as capturas ainda são
+ocasional, não trabalho diário. Números sobre o teu próprio radar:
+quantos anúncios tens, quantos entraram hoje, quantos marcaste como
+interessa (e destes, quantos estão dentro da janela do "urgente" — os
+mesmos N dias do filtro e da etiqueta cor de âmbar, editáveis em
+Alertas), quantos ainda estão sem detalhe lido, como estão distribuídos
+pelas fases do quadro, e o estado da recolha — se as capturas ainda são
 válidas e que percentagem de peças se consegue por plataforma.
 
 É tudo lido da tua base, não sai nada para fora.
@@ -365,7 +366,7 @@ Item **Em curso**, na barra da esquerda — o quadro é a vista que abre
 por omissão (o calendário é a segunda, §10). Mostra os anúncios
 marcados **interessa** organizados em colunas (fases), ao estilo
 Trello/kanban. O botão "Verificar agora" não está aqui: vive só na
-Triagem, que é onde os anúncios novos aterram.
+lista dos **Anúncios**, que é onde os novos aterram — na aba "por ver".
 
 Começa com cinco fases — *Por analisar, A preparar proposta, Em
 revisão, Submetido, Resultado* — mas são só um ponto de partida: muda
@@ -378,15 +379,16 @@ programa não volta a tocar-lhes.
   para a primeira coluna, não se perdem.
 - **+ etiqueta**, em cada cartão, cria ou aplica uma etiqueta (com cor
   automática). O `×` ao lado da etiqueta tira-a desse cartão.
-- Cada cartão mostra os dias até ao prazo de propostas, a verde, ou
-  "prazo expirado", a vermelho.
+- Cada cartão mostra os dias até ao prazo de propostas: a verde se há
+  folga, cor de âmbar dentro da janela do "urgente" (a mesma do filtro,
+  editável em Alertas) e a vermelho se termina hoje ou já expirou.
 - **no calendário**, no pé do cartão, salta para a linha deste anúncio
   na grade (só aparece quando o prazo cabe nos 45 dias dela).
 - **Tirar do quadro** devolve o anúncio a "por ver" — sai do quadro sem
   apagar nada da base.
 
-Marcar **interessa** num anúncio, na Triagem ou na Pesquisa, põe-no
-automaticamente na primeira coluna do quadro.
+Marcar **interessa** num anúncio, em qualquer aba da lista dos
+**Anúncios**, põe-no automaticamente na primeira coluna do quadro.
 
 ## 10. O calendário
 

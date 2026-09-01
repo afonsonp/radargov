@@ -309,10 +309,16 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 - **O `prazo` é um filtro dos anúncios** (`aberto`, `urgente`,
   `expirado`), e a janela do `urgente` é UMA — `janela_urgente()`, usada
   pelo filtro e pelo cartão dos indicadores. Já houve um "7" escrito à
-  mão no cartão com o filtro a 10. O número que um ecrã mostra tem de
-  dar exactamente a lista que a ligação dele abre. O número vem de
-  `dias_urgente()` (config.json, editável em `/alertas`); nunca uses
-  `DIAS_URGENTE` directamente num rótulo — é só a omissão.
+  mão no cartão com o filtro a 10, e outro dentro de `etiqueta_prazo()`:
+  um prazo a 9 dias saía verde ("folgado") na lista e contava como
+  urgente no filtro. O número que um ecrã mostra tem de dar exactamente
+  a lista que a ligação dele abre — **a cor da etiqueta é um desses
+  números**. Tudo vem de `dias_urgente()` (config.json, editável em
+  `/alertas`); nunca uses `DIAS_URGENTE` directamente num rótulo nem um
+  limiar à mão num teste de cor — é só a omissão. Quem desenha em ciclo
+  (lista, quadro, calendário) lê a janela uma vez por pedido e passa-a a
+  `etiqueta_prazo(prazo, urgente)`: `dias_urgente()` abre o config.json a
+  cada chamada.
 - **O texto extraído das peças leva `\f` em linha própria** entre
   páginas: é por ele que as fontes da análise dizem "(pág. 1–5)". O
   recorte e as páginas saem das mesmas janelas (`_janelas_do_recorte`);
