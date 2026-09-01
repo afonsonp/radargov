@@ -5300,6 +5300,33 @@ class TestMotivoDoAbandono(unittest.TestCase):
         self.assertNotIn("motivo", radar.accao("/estado/1/interessa", "x"))
 
 
+class TestArrastarRedesenhaOCartao(unittest.TestCase):
+    """Arrastar movia o cartão no ecrã e não o redesenhava.
+
+    O cartão que se arrasta é o MESMO nó do DOM, com o HTML da coluna de
+    onde veio -- e quem decide o que um cartão mostra é o servidor, pela
+    fase. Largá-lo no "Submetido" mudava a coluna e mais nada: o campo
+    do preço proposto não aparecia, o preço continuava a ser o base, e a
+    soma no cabeçalho das duas colunas ficava errada até alguém
+    recarregar. O Afonso arrastou um cartão para o Submetido e "não
+    aconteceu nada" -- tinha acontecido, só não no ecrã dele.
+    """
+
+    def test_o_caminho_do_sucesso_tambem_recarrega(self):
+        # o ramo do erro já recarregava; era o do sucesso que não
+        self.assertIn("guardarRolarQuadro(); location.reload();",
+                      radar.QUADRO_JS)
+
+    def test_guarda_o_rolar_antes_de_recarregar(self):
+        # o quadro rola na horizontal: sem isto, arrastar para a última
+        # coluna atirava a vista para a primeira, que se lê como "perdi
+        # o cartão"
+        js = radar.QUADRO_JS
+        self.assertIn("function guardarRolarQuadro()", js)
+        self.assertIn("scrollLeft", js)
+        self.assertIn("radar-quadro", js)
+
+
 class TestAColunaDizOQuePede(unittest.TestCase):
     """O campo só aparece quando há um cartão lá dentro.
 

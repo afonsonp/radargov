@@ -89,12 +89,24 @@ def main():
     print("\nSISTEMA")
     print("  base: %.0f MB" % (os.path.getsize(DB) / 1048576))
     print("  documentos: %s ficheiros" % mil(q("SELECT COUNT(*) FROM documentos")))
-    vivo = subprocess.run(
-        ["powershell", "-NoProfile", "-Command",
-         "if (Get-NetTCPConnection -LocalPort 8765 -ErrorAction SilentlyContinue) "
-         "{'sim'} else {'nao'}"], capture_output=True, text=True)
-    print("  painel a correr: %s" % ("sim, http://localhost:8765"
-                                     if "sim" in vivo.stdout else "não"))
+    # O `pwsh` (PowerShell 7) primeiro, o `powershell` (5.1) como reserva:
+    # o 7 nem sempre esta instalado, o 5.1 esta sempre. Pedia-se o 5.1
+    # directamente, e numa maquina com o 7 instalado era a unica coisa
+    # deste projecto a abrir o velho.
+    vivo = None
+    for exe in ("pwsh", "powershell"):
+        try:
+            vivo = subprocess.run(
+                [exe, "-NoProfile", "-Command",
+                 "if (Get-NetTCPConnection -LocalPort 8765 "
+                 "-ErrorAction SilentlyContinue) {'sim'} else {'nao'}"],
+                capture_output=True, text=True)
+            break
+        except OSError:
+            continue
+    print("  painel a correr: %s"
+          % ("sim, http://localhost:8765"
+             if vivo and "sim" in vivo.stdout else "não"))
     tarefas = subprocess.run(["schtasks", "/Query", "/TN", "Radar DR 09h"],
                              capture_output=True, text=True)
     print("  tarefas agendadas: %s"

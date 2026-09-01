@@ -1906,7 +1906,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 578 testes a 01/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 580 testes a 01/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4329,3 +4329,60 @@ o `radar.py` foi gravado às 13:40. É a armadilha que está escrita no
 CLAUDE.md, e continua a valer a pena repeti-la: **antes de dizer "não
 funciona", compara a hora de arranque do processo com a da última
 gravação do ficheiro.**
+
+
+## «Já tenho um no Submetido e não aconteceu nada», 1 de setembro de 2026
+
+Era verdade, e o diagnóstico da sessão anterior estava incompleto: eu
+tinha dito que os cartões dele estavam todos em "Por analisar" e
+acrescentado o aviso no cabeçalho da coluna. Ele moveu um para o
+Submetido, e continuou a não acontecer nada.
+
+**O servidor estava a mandar o campo.** Medido no HTML servido: a coluna
+diz "pede o preço proposto", o cartão do 21993/2026 traz
+`base 213.830,00 EUR` e o formulário com `name='preco_proposto'`. E
+numa página carregada de fresco o campo está lá, visível.
+
+O que falhava era o arrastar. O cartão que se arrasta é o **mesmo nó do
+DOM**, com o HTML que o servidor lhe deu na coluna de onde veio; o
+`drop` faz `corpo.appendChild(carta)` e um POST ao `/quadro/mover`, e
+mais nada. Quem decide o que um cartão mostra é o servidor, pela fase —
+por isso largar no "Submetido" mudava a coluna e não fazia aparecer o
+campo, não trocava o preço base pelo proposto, e deixava a soma no
+cabeçalho das duas colunas errada. Só recarregando à mão.
+
+Correcção: o caminho do **sucesso** também recarrega (o do erro já
+recarregava), guardando o rolar horizontal em `sessionStorage` — sem
+isso, arrastar para a última coluna atirava a vista para a primeira, o
+que se lê como "perdi o cartão".
+
+Verificado a sério, num painel de ensaio sobre base temporária, com um
+`drop` disparado a sério (`DataTransfer` + `DragEvent`): antes do
+largar, o cartão está em "Por analisar", sem campo, a mostrar
+`175.000,00 EUR`; depois, está em "Submetido", com o campo
+`preco_proposto`, a mostrar `base 175.000,00 EUR` **e o cabeçalho da
+coluna já em `3 · 118,5 k€`**.
+
+**A lição, e é a que interessa:** eu tinha verificado o servidor (o HTML
+sai certo) e tinha verificado o ecrã depois de um carregamento normal.
+Não tinha verificado **a transição** — o caminho por que o utilizador
+lá chega. Um render correcto e uma interacção que não o volta a pedir
+dão exactamente o sintoma de "não funciona", e nenhum dos dois testes
+que eu tinha o apanhava.
+
+580 testes. Os dois novos guardam a decisão no próprio JS: que o ramo do
+sucesso recarrega, e que guarda o rolar antes de o fazer.
+
+### A skill do estado abria a PowerShell velha
+
+À margem, mas da mesma queixa dele ("tenho a versão mais recente do
+PowerShell e abre sempre a mais antiga"): o radar não abre PowerShell
+nenhuma — os `.bat` correm em `cmd.exe` e chamam o Python directamente.
+A única coisa deste repositório que a abria era a skill `estado-radar`,
+que pedia `powershell` (o 5.1) para ver se a porta 8765 está a atender.
+Passou a tentar o `pwsh` (7) primeiro e a cair no `powershell` se ele
+não existir — o 7 nem sempre está instalado, o 5.1 está sempre.
+
+(O que faz aparecer a antiga ao abrir um terminal é outra coisa e fica
+fora do projecto: o perfil por omissão do Windows Terminal, que está em
+"Windows PowerShell" — decisão dele, não se mexeu.)
