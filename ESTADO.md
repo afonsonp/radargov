@@ -3575,3 +3575,44 @@ nova saiu com as quebras de linha por expandir a primeira vez, e este
 paragrafo saiu com um caminho do Windows estropiado -- ambos por
 escrever codigo com contrabarras dentro de um heredoc. Para isso
 usam-se as ferramentas de escrita, como o CLAUDE.md ja dizia.)*
+
+### A aplicacao passou a usar o ecra que tem, 1 de setembro de 2026
+
+Pergunta do Afonso: «e possivel fazermos com que a aplicacao se adapte
+ao ecra onde esta?». Medido antes de mexer, em nove paginas e sete
+larguras (768 a 2560), e o resultado dividiu-se em dois:
+
+- **o ecra pequeno ja estava resolvido**: nada rolava de lado, nem a
+  768px -- as tabelas largas ja rolavam dentro da propria caixa e as
+  grelhas ja quebravam;
+- **o ecra grande e que estava por usar**: com o `.larg` preso em
+  1240px, sobravam **530px vazios num monitor de 1920 e 1170 num de
+  2560** -- quase metade do ecra. A tabela dos contratos ficava a 1240
+  com a coluna do preco fora da vista, num ecra onde cabiam as sete
+  colunas a folgar.
+
+O principio da correccao: **a largura a mais da mais informacao, nao
+linhas de texto mais compridas.** Uma linha de 1500px nao se le, por
+isso o que cresce sao as grelhas e as tabelas, e o texto corrido guarda
+a sua medida.
+
+- `.larg` sobe de 1240 para 1560, e a folga lateral do corpo passa a
+  `clamp(20px, 2.4vw, 44px)` -- acompanha o ecra em vez de ser sempre 34;
+- os KPI dos indicadores e os graficos dos contratos deixam de ter um
+  numero fixo de colunas (`repeat(auto-fit, minmax(...))`): os KPI
+  passam de 2 colunas a 768 para 4 esticados a 1920; os graficos de 1
+  para 3. Os perfis da ficha, que ja eram `auto-fill`, vao de 2 a 768
+  ate 6 a 1920;
+- o texto corrido ganha tecto proprio em `ch` (86 no essencial, 88 nas
+  listas). **Medido: fica em 643px de 1366 a 2560**, enquanto a tabela
+  do mercado na mesma ficha vai de 1112 para 1522. E exactamente a
+  divisao que se queria;
+- saiu uma regra morta: o `@media (max-width:1100px)` ainda continha
+  `.ficha`, classe que deixou de existir quando a composicao passou a
+  dossier.
+
+Verificado depois: **nenhuma das nove paginas rola de lado nem
+transborda, em nenhuma das seis larguras** de 768 a 2560. O tecto de
+1560 e deliberado -- num monitor de 2560 sobram 850px de margem, que e
+o que uma aplicacao de trabalho centrada deve fazer; o que nao devia
+fazer era desperdica-los a 1920, onde agora sobram 210.

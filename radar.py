@@ -3652,13 +3652,28 @@ def iniciar_corpus():
         # grafico de quem ganha, senao um contrato de tres inflacionava o
         # mercado tres vezes -- e ha um com 35. Contar isso por subconsulta
         # a cada linha levava 2,1 s no corpus todo; em coluna e imediato.
+        #
+        # Enche-se uma vez, por marca, como o _desescapar_html(). Sem a
+        # marca isto era o arranque todo: o "WHERE n_adj IS NULL" e a
+        # unica das quatro migracoes desta funcao sem indice que a sirva,
+        # e varria os 1,6 GB do corpus a cada arranque para nao encontrar
+        # linha nenhuma. Medido a 01/09/2026, na pen: 38,9 s a frio
+        # (0,8 s a quente, que e o que escondia isto), contra 0,00 s das
+        # outras tres. O importador ja enche a coluna -- esta no
+        # COLS_CONTRATO, com max(1, len(ganhadores)) -- portanto isto so
+        # serve o corpus que veio de antes dela.
         cols = [r["name"] for r in c.execute("PRAGMA table_info(contratos)")]
         if "n_adj" not in cols:
             c.execute("ALTER TABLE contratos ADD COLUMN n_adj INTEGER")
-        c.execute("""UPDATE contratos SET n_adj =
-                     MAX(1, (SELECT COUNT(*) FROM contrato_adjudicatario a
-                             WHERE a.contrato_id = contratos.id))
-                     WHERE n_adj IS NULL""")
+        if not c.execute("SELECT 1 FROM corpus_estado "
+                         "WHERE chave='n_adj_cheio'").fetchone():
+            c.execute("""UPDATE contratos SET n_adj =
+                         MAX(1, (SELECT COUNT(*) FROM contrato_adjudicatario a
+                                 WHERE a.contrato_id = contratos.id))
+                         WHERE n_adj IS NULL""")
+            c.execute("INSERT OR REPLACE INTO corpus_estado VALUES "
+                      "('n_adj_cheio', ?)",
+                      (datetime.now().strftime("%Y-%m-%d %H:%M"),))
         # A chave da entidade: o NIF quando existe. Ver chave_entidade().
         if "adjudicante_chave" not in cols:
             c.execute("ALTER TABLE contratos ADD COLUMN adjudicante_chave TEXT")
@@ -4787,8 +4802,13 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .abas a i{font:500 11px/1 var(--mono);font-style:normal;color:var(--t5);margin-left:4px}
 .abas a.on i{color:var(--t3)}
 .vazio-topo{height:16px}
-.corpo{padding:24px 34px 60px}
-.larg{max-width:1240px}
+/* A folga lateral e o tecto do conteudo acompanham o ecra. Com o
+   .larg preso em 1240 sobravam 530px vazios num monitor de 1920 e
+   1170 num de 2560 -- quase metade do ecra por usar. O tecto
+   continua a existir: sem ele, uma linha de texto atravessava um
+   ecra largo de ponta a ponta e deixava de se ler. */
+.corpo{padding:24px clamp(20px,2.4vw,44px) 60px}
+.larg{max-width:1560px}
 
 /* pecas comuns */
 .cx{background:#fff;border:1px solid var(--linha);border-radius:8px;
@@ -4955,7 +4975,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 
 /* graficos dos contratos */
 .graf-corpo{padding:16px 18px;display:grid;
- grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+ grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
 .graf-corpo>.graf:last-child{grid-column:1/-1}
 .graf{padding:16px 18px}
 .barras-h{display:flex;flex-direction:column;gap:9px}
@@ -5281,7 +5301,11 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .essencial .par:first-child{border-top:0}
 .essencial dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
 .essencial dd{margin:0;font:600 13px/1.5 var(--sans);color:var(--ink);
- text-wrap:pretty;word-break:break-word;white-space:pre-line}
+ text-wrap:pretty;word-break:break-word;white-space:pre-line;
+ max-width:86ch}
+/* ... mas uma grelha de perfis ou uma lista nao e texto corrido:
+   essas querem toda a largura que houver */
+.essencial dd:has(.perfis){max-width:none}
 /* As tres formas dos campos longos lidos das pecas (desenha_valor).
    O texto e o mesmo -- o que muda e ter degraus: um perfil le-se como
    um cartao, uma enumeracao le-se como lista. Em bloco corrido, os 20
@@ -5304,14 +5328,14 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .pontos{margin:2px 0 0;padding:0 0 0 16px;display:flex;flex-direction:column;
  gap:6px}
 .pontos li{font:400 12.5px/1.55 var(--sans);color:var(--t2);
- text-wrap:pretty;padding-left:2px}
+ text-wrap:pretty;padding-left:2px;max-width:88ch}
 .pontos li::marker{color:var(--traco)}
 .numerados{margin:2px 0 0;padding:0 0 0 20px;display:flex;
  flex-direction:column;gap:8px}
 .numerados li{font:400 12.5px/1.55 var(--sans);color:var(--t2)}
 .numerados li::marker{font-family:var(--mono);font-size:11px;color:var(--t4)}
 .numerados li b{display:block;font-weight:600;color:var(--ink)}
-.numerados li span{display:block;text-wrap:pretty}
+.numerados li span{display:block;text-wrap:pretty;max-width:88ch}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
 .nota-campo{display:block;margin-top:3px;font:400 11.5px/1.45 var(--sans);
  color:var(--t5)}
@@ -5490,7 +5514,8 @@ button.tirar:hover{color:var(--verm)}
  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* indicadores */
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+ gap:14px}
 .kpi{background:#fff;border:1px solid var(--linha);border-radius:8px;padding:20px;
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .kpi .r{font:500 10px/1 var(--sans);color:var(--t5);text-transform:uppercase;
@@ -5529,8 +5554,6 @@ button.tirar:hover{color:var(--verm)}
  font:400 12px/1.5 var(--sans);color:var(--t4)}
 
 @media (max-width:1100px){
- .ficha{grid-template-columns:minmax(0,1fr)}
- .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
  .ind-grelha{grid-template-columns:minmax(0,1fr)}
 }
 """
