@@ -114,7 +114,13 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   (códigos ou palavras, separados por `|`): o modo excluir na árvore
   ficou de fora — exigia tri-estado no JS partilhado e destrancava os
   descendentes (`arvoreTrancarFilhos`), que é trabalho a sério; se o
-  campo à mão incomodar, reabre-se como item próprio. Medido: `q=
+  campo à mão incomodar, reabre-se como item próprio. **Reaberto e
+  feito a 01/09/2026, a pedido do Afonso**: a árvore escreve nos dois
+  campos, os descendentes deixaram de estar trancados e desmarcar um
+  código dentro de uma divisão marcada tira só esse ramo (`ARV_EXC`,
+  `arvorePintar()`, `arvoreDesexcluir()`) — a razão dele é que marcar
+  os sub-códigos um a um perde os anúncios que trazem apenas o código
+  da divisão. Ver o ESTADO.md, entrada de 01/09/2026. Medido: `q=
   manutenção` 3 781 → 3 616 sem `elevador|avac`; `cpv=72` 235 → 225 sem
   `724`; nos contratos, limpeza (909100) 12 156 → 11 892 sem "escolas".
 - **B02 — procedimentos homólogos na ficha** (30/08/2026).

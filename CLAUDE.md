@@ -105,7 +105,8 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
    abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
    `/quadro` + calendário `/calendario`), Mercado (contratos
    `/contratos`, com o modo `?ver=fim` das antigas renovações;
-   `/renovacoes` redirecciona), Alertas (`/alertas`). Indicadores
+   `/renovacoes` redirecciona), Alertas (`/alertas`, com o interesse
+   em `/alertas/interesse`). Indicadores
    (`/indicadores`) fora da barra, pelo ponto da zona de estado. Ficha
    em `/anuncio/<ref>`, em composição de dossier: uma coluna, com o
    cabeçalho fino e o índice presos ao rolar. Uma peça abre **dentro
@@ -145,13 +146,40 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   por desenho (o vazio explica-o); a cadeia das peças aceita o link
   público porque o PT1.NTC vem às claras. A acingov ficou de fora: a
   listagem pública dela não distingue tipos — alargar é decisão nova.
+- **A API da Vortal responde de DUAS formas ao mesmo pedido.**
+  `GetPublicTenderInformation` (o primeiro salto, a partir do link
+  cifrado do DR) devolve ou `contractNoticeUrl` com a `documentList`
+  vazia — e as peças saem do segundo salto,
+  `GetContractNoticeDocuments` —, ou a `documentList` já cheia e
+  **sem** `contractNoticeUrl`. `_info_vortal()` lê as duas; o código
+  só lia a primeira e, na segunda, devolvia lista vazia sem erro
+  nenhum: metade dos anúncios da Vortal trazia o anúncio e mais nada,
+  em silêncio (o Afonso deu por isso no 22005/2026). Os nomes dos
+  ficheiros também não se chamam o mesmo — `name` numa resposta,
+  `documentName` na outra. Ao mexer aqui, **mede as duas formas contra
+  anúncios reais**, não uma.
+- **"Abrir plataforma" não é o link das peças.** O DR nunca publica o
+  endereço da página do procedimento: traz a raiz da plataforma e o
+  link das peças, e o botão abria o segundo — na acingov isso
+  descarrega um ZIP. `link_do_procedimento()` decide por plataforma:
+  na Vortal é `contract-notice-view/PT1.NTC.x`, resolvido pela rota
+  `/plataforma/<ref>` e **guardado em `anuncios.link_proc`** (a ficha
+  não pode ir à rede a cada abertura); na anogov/ComprasPT/ESPAP o
+  próprio `acessoDocs.jsp` é a página do procedimento (traz referência
+  interna, objecto e tipo — não há outra, o resto da aplicação é JSF
+  por POST); **na acingov não existe** — medido a 01/09/2026, o botão
+  "consultar procedimento" da lista pública só abre "para aceder a
+  este procedimento inicie sessão" —, por isso o botão diz "Procurar
+  na acingov" e abre a pesquisa pública. Não inventes um endereço de
+  procedimento para a acingov sem voltar a medir.
 - **Anúncios e contratos são populações diferentes, de propósito.** Um
   anúncio é uma oportunidade, um contrato já está assinado; os filtros
   nem coincidem (um anúncio não tem vencedor nem valor final). A lista
   de anúncios é **UMA página** (`/`, fusão de 31/08/2026 — a Triagem e
   a Pesquisa separadas duraram um dia; `/anuncios` redirecciona) com
   quatro abas cujo recorte vive em `condicao_da_aba()`, aplicado POR
-  CIMA do motor com `com_recorte()`: **por ver** = novo e ainda
+  CIMA do motor com `com_recorte()` (e junto ao do interesse em
+  `recorte_da_lista()`, que é o que a página chama): **por ver** = novo e ainda
   respondível (prazo aberto; sem prazo lido vale a publicação dentro
   de `detalhe_dias`), **interessados** = todos (um interessa expirado
   é trabalho em curso), **abandonados** = descartados à mão MAIS os
@@ -408,6 +436,22 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   dos anúncios nos contratos — são outras (1 548 códigos têm anúncios,
   5 657 têm contratos). O campo tem `id='filtro-cpv'` nos dois, que é por
   onde a árvore lê e escreve. O `_CPV_CACHE` é um dicionário por fonte.
+- **A árvore escreve em DOIS campos, e por isso os filhos não se
+  trancam.** Marcar uma divisão inclui tudo o que está por baixo;
+  desmarcar um código lá dentro **tira só esse ramo** e escreve-o no
+  `cpv_excl` (`id='filtro-cpv-excl'`, presente nas quatro páginas com
+  árvore). As caixas estiveram desactivadas de propósito porque o
+  filtro "não sabia excluir" — sabe, e a decisão do Afonso a
+  01/09/2026 é que tem de dar: marcar só os sub-códigos em vez da
+  divisão **perde os anúncios que trazem apenas o código da divisão**,
+  e esses são oportunidades. O estado vive em `ARV_SEL`/`ARV_EXC` e as
+  caixas são um desenho dele (`arvorePintar()`, decidido por
+  `arvoreEstado()`) — nunca o contrário; com o estado espalhado pelas
+  caixas, um descendente marcado "só para se ver" acabava dentro do
+  filtro. Voltar a marcar dentro de um ramo excluído **empurra a
+  exclusão para baixo** (`arvoreDesexcluir()`, exclui os irmãos do
+  caminho): o par (cpv, cpv_excl) sabe somar e subtrair uma vez, não
+  sabe alternar.
 - **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
   entra no funil: são contratos assinados, não oportunidades. Cruza-se
   com `ATTACH` (`com_corpus()`). Está no `.gitignore` — 2020-2026 são
@@ -450,6 +494,47 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   reconhecer e o enviar são separados de propósito, porque a verificação
   corre duas vezes. Ao ligar um alerta, o acervo que já lá está fica
   marcado como `ACERVO`, senão o primeiro resumo trazia tudo.
+- **O interesse não é um alerta nem um filtro: é o recorte permanente
+  da lista.** Os CPV que a casa trabalha (`interesse_activo`,
+  `interesse_cpv`, `interesse_cpv_excl` no config.json, editados em
+  `/alertas/interesse`). Entra por `com_recorte()` como as abas — **e
+  nunca por `condicoes()`**, pela mesma razão de sempre: o motor serve
+  os alertas e os filtros guardados, e o interesse lá dentro cegava-os
+  em silêncio. Quem o aplica é `recorte_da_lista()`, chamado nas
+  QUATRO consultas da página (lista, contagem de cada aba, selector
+  das plataformas, total do filtro) e no CSV com `ambito` — um número
+  que conte com outro recorte abre uma lista diferente da que promete.
+  Ligado sem CPV escolhido **não esconde nada** (um ecrã em branco por
+  não se ter escolhido código nenhum lê-se como avaria), a lista diz
+  sempre que está limitada e quantos ficam de fora, e `?interesse=nao`
+  levanta-o. O ecrã é próprio porque a árvore é uma por página (um
+  `details.arvore`, um `#filtro-cpv`) e `/alertas` já gasta a sua no
+  "Novo filtro".
+- **Abandonar exige motivo, de âmbito fechado** (`MOTIVOS_ABANDONO`,
+  decisão do Afonso a 01/09/2026). O `required` do selector é
+  conveniência do browser; a guarda é o `mudar_estado()`, que recusa o
+  que não estiver na lista. Sair de abandonado limpa o `motivo` — um
+  motivo pendurado num anúncio que voltou ao por ver é uma mentira à
+  espera de ser lida. Os que caem nos abandonados por terem expirado
+  não têm motivo, e não se lhes inventa um. Texto livre não: ao fim de
+  um mês dá cinquenta maneiras de escrever "preço" e nenhuma conta.
+- **As fases do quadro são SEIS e fixas, e o que manda é o `papel`.**
+  Decisão do Afonso a 01/09/2026: o quadro é o funil da casa, não um
+  kanban em branco — criar e apagar fases saiu (UI e rotas). Renomear
+  fica. Cada fase tem `fases.papel` (`FASES_DE_ORIGEM`), e é por ele —
+  **nunca pelo nome** — que o cartão decide o que pede
+  (`_campos_da_fase()`): renomear a coluna não pode calar o campo. A
+  migração `atribuir_papeis()` corre a cada arranque, reconhece os
+  nomes que já existem por pedaço (`PISTAS_DE_PAPEL`: a base do Afonso
+  tem "Relatorio Preleminar" escrito assim) e cria os que faltarem, uma
+  vez só.
+- **A partir do "Submetido" o preço é o proposto** (`FASES_COM_PROPOSTO`),
+  no cartão e na soma da coluna: somar preços base numa coluna de
+  submetidos dá o tecto da entidade e não o que está em jogo, com o
+  mesmo ar de número certo. Sem proposto preenchido mostra-se o base
+  **escrito como "base"**. E o proposto grava-se pelo `_texto_do_preco()`
+  ("118.500,00 EUR"), **não pelo `euros()`**: esse põe espaço nos
+  milhares e o `euros_do_texto()` lê "118" de "118 500 €".
 - **Os campos de entidade dos contratos são `entid`/`vencid`.** Nos
   anúncios `ent` é a caixa de texto da entidade — nomes iguais com
   sentidos diferentes já estiveram a um passo de se cruzar.

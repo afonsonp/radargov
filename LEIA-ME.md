@@ -170,6 +170,16 @@ Em cima da lista estão as quatro abas que fazem o trabalho todo:
 
 A lista vem sempre do mais recente para o mais antigo.
 
+**O interesse recorta as quatro abas.** Em *Alertas › Interesse*
+escolhes, na árvore, os CPV que a casa trabalha; ligado, a lista passa
+a mostrar só o que corresponde — nas quatro abas, sem teres de pôr
+filtro nenhum. Não é um alerta: um alerta avisa-te, o interesse esconde
+o resto. A lista diz sempre que está limitada, quantos ficam de fora, e
+tem um **ver tudo** que o levanta para a vista em que estás. Nasce
+desligado; desligado, nada muda. Os alertas, os contratos e os filtros
+guardados não são tocados — o interesse é recorte de leitura da lista,
+não um filtro.
+
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
 nada. Podes filtrar por:
 
@@ -200,7 +210,8 @@ nada. Podes filtrar por:
 
 Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
 filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
-qualquer filtro guardado um aviso no resumo diário, configura-se o
+qualquer filtro guardado um aviso no resumo diário, define-se o
+**interesse** (os CPV que recortam a lista, ver §5), e configura-se o
 e-mail e a janela do "urgente". Em **Mercado** vivem os **Contratos**
 (o que já foi adjudicado, com gráficos sobre o filtro), com dois modos
 no mesmo ecrã: **por celebração** e **por fim estimado** — as antigas
@@ -218,7 +229,13 @@ ir ao site da plataforma buscá-las.
 
 Os botões **interessa** e **abandonar** servem para ires limpando a
 lista. Abandonar não apaga, arquiva — fica na aba Abandonados, e
-podes sempre repor.
+podes sempre repor. **Abandonar pede o motivo**, ao lado do botão: um
+de três — *Preço base baixo*, *Falta de certificações*, *Falta de CV's*
+—, sem caixa de texto livre. Sem motivo escolhido não abandona. O
+motivo fica na etiqueta da linha, no cabeçalho da ficha, no histórico e
+numa coluna própria do CSV; assim, daqui a um mês, a aba Abandonados
+ainda diz porque é que cada um ficou de fora. (Os que caem lá sozinhos
+por o prazo ter passado não têm motivo — não se lhes inventa um.)
 
 O **Exportar CSV** exporta exactamente o que o filtro está a mostrar,
 não a base inteira.
@@ -245,6 +262,15 @@ por `|`, e submete o formulário. Marcar um código grande (uma divisão
 ou grupo) apanha automaticamente tudo o que está por baixo dele — não
 é preciso marcar um a um.
 
+E **podes tirar de dentro**: com uma divisão marcada, desmarcar um
+código lá dentro tira só esse ramo e deixa a divisão a valer. O que
+tiraste fica riscado na árvore, com a marca "tirado", e vai parar ao
+campo **Excluir CPV** — que é o mesmo que podes escrever à mão. Isto
+importa: marcar o 72 e ficar só com os sub-códigos escolhidos perderia
+os anúncios que trazem apenas `72000000`, e esses são oportunidades a
+sério. Com a divisão marcada e dois ramos tirados, esses continuam a
+entrar.
+
 A caixa de CPV em si já não aparece — é a árvore que a preenche por
 baixo dos panos. Quando há um filtro de CPV a valer, aparece uma linha
 "Filtro CPV activo: ..." com um link para o tirar sem mexer no resto.
@@ -267,7 +293,13 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   cada uma. A procura é tal e qual está escrito no documento (acentos
   contam). O que não for PDF descarrega-se como antes;
 - o **anúncio completo**, com contactos, critério de
-  adjudicação, prazo de execução, tudo o que o DR publica.
+  adjudicação, prazo de execução, tudo o que o DR publica;
+- dois botões para sair daqui, que são coisas diferentes: **Abrir na
+  \<plataforma\>** leva à página do procedimento, e **Peças na
+  plataforma** ao endereço das peças que o anúncio indica. Na acingov
+  não há página pública do procedimento (só se vê com sessão iniciada),
+  por isso o botão diz **Procurar na acingov** e abre a pesquisa
+  pública — em vez de prometer o que não existe.
 
 **Essencial** mostra uma tabela com os doze campos que interessam para
 decidir: nome, entidade, critério de adjudicação, preço base, preço
@@ -329,7 +361,8 @@ lá nada para ir buscar automaticamente. O PDF oficial do anúncio vem sempre, s
 **Ficheiros muito grandes ficam de fora.** Alguns anúncios (sobretudo da
 Infraestruturas de Portugal) trazem anexos técnicos de centenas de MB.
 Acima de 60 MB o radar não os traz, diz-te quais são pelo nome, e marca
-o anúncio como parcial — vais buscá-los pelo botão **Abrir plataforma**.
+o anúncio como parcial — vais buscá-los pelo botão **Peças na
+plataforma**, na ficha.
 
 Não se descarrega tudo de uma vez de propósito: seriam centenas de GB.
 Assim ficas com as peças daquilo em que trabalhas mesmo.
@@ -368,15 +401,29 @@ marcados **interessa** organizados em colunas (fases), ao estilo
 Trello/kanban. O botão "Verificar agora" não está aqui: vive só na
 lista dos **Anúncios**, que é onde os novos aterram — na aba "por ver".
 
-Começa com cinco fases — *Por analisar, A preparar proposta, Em
-revisão, Submetido, Resultado* — mas são só um ponto de partida: muda
-os nomes, acrescenta e apaga à vontade. Depois de mexeres nelas o
-programa não volta a tocar-lhes.
+São **seis fases, e são estas** — *Por analisar, A preparar proposta,
+Submetido, Relatório preliminar, Ganho, Perdido*: o funil da casa. Podes
+mudar-lhes o nome; criar e apagar colunas já não, porque cada coluna tem
+um papel e é o papel que decide o que o cartão pergunta.
+
+**Cada fase pede o que lhe falta**, no próprio cartão:
+
+| Fase | O que o cartão pede |
+|---|---|
+| Por analisar | nada |
+| A preparar proposta | nada |
+| Submetido | o **preço proposto** — e passa a ser esse o preço que o cartão e a soma da coluna mostram, em vez do preço base |
+| Relatório preliminar | em que **lugar** ficaste e quem são os **três primeiros** |
+| Ganho | nada |
+| Perdido | **porquê**, à escolha de quatro: *Preço, CV's, Proposta técnica, Certificações* |
+
+Enquanto o preço proposto não estiver preenchido, o cartão mostra o preço
+base **escrito como "base"** — para não passar o tecto da entidade por
+proposta tua. Tudo o que gravas nestes campos fica também no histórico da
+ficha.
 
 - **Arrastar um cartão** para outra coluna move-o de fase.
-- **+ Nova fase** cria uma coluna. O nome de cada coluna é editável, clica
-  e escreve. O `×` no canto apaga a coluna — os cartões lá dentro voltam
-  para a primeira coluna, não se perdem.
+- O nome de cada coluna é editável, clica e escreve.
 - **+ etiqueta**, em cada cartão, cria ou aplica uma etiqueta (com cor
   automática). O `×` ao lado da etiqueta tira-a desse cartão.
 - Cada cartão mostra os dias até ao prazo de propostas: a verde se há
@@ -384,7 +431,7 @@ programa não volta a tocar-lhes.
   editável em Alertas) e a vermelho se termina hoje ou já expirou.
 - **no calendário**, no pé do cartão, salta para a linha deste anúncio
   na grade (só aparece quando o prazo cabe nos 45 dias dela).
-- **Tirar do quadro** devolve o anúncio a "por ver" — sai do quadro sem
+- **Voltar a por ver** devolve o anúncio a "por ver" — sai do quadro sem
   apagar nada da base.
 
 Marcar **interessa** num anúncio, em qualquer aba da lista dos
@@ -488,7 +535,7 @@ para se repor outra vez mais tarde.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 521 verificações em poucos segundos, sem tocar
+Corre os testes — 561 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
@@ -531,7 +578,7 @@ anexos) o radar também as traz — ver a secção 6 — nas plataformas que
 o permitem sem sessão (acingov, vortal, anogov/ComprasPT/ESPAP), e um
 modelo lê delas os campos que o anúncio não tem. Fica de fora o que a
 secção 6 diz: anexos acima de 60 MB e as raras plataformas sem acesso
-anónimo — para esses há o botão "Abrir plataforma".
+anónimo — para esses há o botão "Peças na plataforma" da ficha.
 
 O que continua a não haver: número de concorrentes por concurso (não é
 público em fonte nenhuma) e o que as plataformas publicam sem passar

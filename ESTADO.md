@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 31 de agosto de 2026.
+Última actualização: 1 de setembro de 2026.
 
 ## O que isto é
 
@@ -20,12 +20,12 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 205 anúncios, dois anos deles**
-(28/08/2024–31/08/2026): o grosso trazido pelo `--historico 730` a
+Funciona. A base tem **66 233 anúncios, dois anos deles**
+(28/08/2024–01/09/2026): o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
-**consultas preliminares da Vortal** (17 na primeira recolha, **22 até
+**consultas preliminares da Vortal** (17 na primeira recolha, **24 até
 agora**, `fonte='vortal'`), o tipo que a parte L não publica.
-**Só 8,5% têm detalhe lido** (5 617): a rotina lê o detalhe apenas dos
+**Só 8,5% têm detalhe lido** (5 645): a rotina lê o detalhe apenas dos
 publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
 quando se abre a ficha. Consequência a ter presente: um filtro por CPV
 só apanha quem tem detalhe lido — o histórico é acervo por consultar,
@@ -37,12 +37,12 @@ anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
 Desde 31/08/2026 os anuncios sao **uma pagina so** (`/`), e o que
-aparta o acervo sao as quatro abas: **por ver 1 319** (por decidir e
-ainda respondivel), **interessados 7** (todos, expirados incluidos --
+aparta o acervo sao as quatro abas: **por ver 1 353** (por decidir e
+ainda respondivel), **interessados 1** (todos, expirados incluidos --
 um interessa expirado e trabalho em curso), **abandonados 64 879** (os
 4 097 descartados a mao mais os por ver que ja nao dao para responder)
-e **todos 66 205**. A particao e exacta, e e recorte de leitura: a base
-nao muda -- la dentro ha 62 101 com estado `novo`. A **Triagem e a
+e **todos 66 233**. A particao e exacta, e e recorte de leitura: a base
+nao muda -- la dentro ha 62 135 com estado `novo`. A **Triagem e a
 Pesquisa separadas duraram um dia**: `/anuncios` redirecciona com o
 filtro atras, e o interruptor do arquivo caiu. **O esqueleto esta
 implementado** (os quatro andamentos, todos a 31/08/2026): navegacao
@@ -52,7 +52,16 @@ vocabulario e atalhos; renovacoes como modo dos contratos; e o Fluxo B
 verificado a espera so do primeiro envio (E2). **E o desenho visual
 esta aplicado** (01/09/2026): paleta "ardosia e ambar", barra lateral a
 140px, ficha em dossier com o leitor de pecas la dentro, e a largura a
-adaptar-se ao ecra. As entradas de diario do fim contam os numeros
+adaptar-se ao ecra.
+
+Por cima das abas ha, desde 01/09/2026, um recorte a mais: o
+**interesse** (Alertas › Interesse), os CPV que a casa trabalha. Com
+ele ligado a lista so mostra o que corresponde -- nas quatro abas --,
+e di-lo por cima de si mesma com a porta de saida (`?interesse=nao`).
+**Nasce desligado**, e desligado nada muda. No mesmo dia: **abandonar
+passou a exigir motivo** de ambito fechado, e o **quadro passou a ser
+o funil da casa** -- seis fases fixas, cada uma com o seu papel e com
+o campo que pede. As entradas de diario do fim contam os numeros
 todos.
 
 *(Numeros de 01/09/2026, lidos da base e das abas do proprio painel.
@@ -1895,7 +1904,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 521 testes a 01/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 561 testes a 01/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -3902,3 +3911,243 @@ corrige é o que está escrito no presente — o topo, e três frases do
 `LEIA-ME.md` que ainda mandavam marcar «interessa» «na Triagem ou na
 Pesquisa» e diziam que o cartão do quadro é verde ou vermelho, sem o
 âmbar que esta sessão acabou de pôr a acompanhar a janela do urgente.
+
+
+## Seis correcções pedidas pelo Afonso, 1 de setembro de 2026
+
+Lista de correcções vinda do uso, não de auditoria. Todas
+implementadas; a primeira, a segunda e a terceira obrigaram a medir
+antes de escrever código.
+
+### 1. A Vortal deixou de trazer as peças — e não era avaria nenhuma
+
+O Afonso reparou no **22005/2026**: o radar trazia o anúncio e mais
+nada. Antes de abrir o `radar.py`, replicou-se o pedido real com o
+identificador daquele anúncio. A resposta trazia as peças — **num
+campo que o código não lê**.
+
+`GetPublicTenderInformation`, o primeiro salto a partir do link
+cifrado que o DR publica, responde de **duas formas** ao mesmo pedido:
+
+- com `contractNoticeUrl` e a `documentList` vazia — o procedimento
+  está publicado na comunidade e as peças saem do segundo salto
+  (`GetContractNoticeDocuments`). É o caminho de sempre.
+- com a `documentList` já cheia (cada documento com o seu
+  `downloadUrl`) e **sem** `contractNoticeUrl`.
+
+O código só sabia ler a primeira. Na segunda o caminho acabava em
+`return [], []` — lista vazia, sem excepção, sem erro registado.
+Medido em quatro anúncios reais: **duas de cada forma**. Não foi uma
+mudança recente que partiu tudo; é uma forma que coexiste com a outra
+e que ninguém tinha visto.
+
+`_info_vortal()` passou a ler as duas e a devolver também o endereço
+do anúncio, que é de onde sai o link do procedimento (ver o ponto 2).
+Os nomes dos ficheiros também não se chamam o mesmo nas duas respostas
+— `name` numa, `documentName` na outra — e aceitam-se os dois.
+
+Provado contra a rede, nos três anúncios: 22005/2026 passou de 0 para
+2 peças, 22000/2026 traz 7 e 21991/2026 traz 5. E em produção: as peças
+do 22005/2026 estão na base, "Peças do procedimento CP 2298_26_Signed.pdf",
+446 KB.
+
+**Lição, escrita no CLAUDE.md:** um caminho que devolve "vazio" tanto
+para "não há" como para "não percebi a resposta" transforma uma
+mudança de formato numa avaria silenciosa. E ao mexer nesta cadeia,
+medem-se as **duas** formas, não uma.
+
+### 2. O botão da plataforma abria as peças, não o procedimento
+
+Queixa: "Abrir plataforma" devia levar ao procedimento; a acingov traz
+sempre um zip, a Vortal leva aos documentos e a anogov também.
+
+Foi preciso medir o que existe, plataforma a plataforma, porque **o DR
+nunca publica o endereço da página do procedimento**: os dois URL que
+traz são a raiz da plataforma ("URL para Apresentação", que dá sempre
+na porta de entrada) e o das peças.
+
+- **Vortal** — há página pública: `Public/contract-notice-view/PT1.NTC.x`.
+  Resolve-se pela API a partir do link cifrado.
+- **anogov / ComprasPT / ESPAP** — o `acessoDocs.jsp` **é** a página do
+  procedimento: traz referência interna, objecto e tipo por cima da
+  lista dos documentos. Não há outra; o resto da aplicação é JSF por
+  POST, sem endereço próprio (sondados sete nomes de `.jsp` prováveis,
+  todos 404).
+- **acingov — não há.** A lista pública tem um ícone "consultar
+  procedimento" que é um `href` vazio com JS: abre um modal a dizer
+  "para que possa aceder a este procedimento por favor inicie sessão".
+  O identificador do link das peças é só o id em base64 (`MTEzNTk5OA`
+  = `1135998`) e nenhuma rota o aceita fora da descarga.
+
+Então: `link_do_procedimento()` decide por plataforma, e a ficha passou
+a ter **dois botões** — "Abrir na (plataforma)" e "Peças na
+plataforma". A Vortal resolve-se pela rota `/plataforma/<ref>` e o
+resultado guarda-se em `anuncios.link_proc` (a ficha não pode ir à rede
+a cada abertura). Na acingov o botão diz **"Procurar na acingov"** e
+abre a pesquisa pública, com o title a explicar porquê — em vez de
+prometer o que não existe. Onde a Vortal não publica página do
+procedimento (é o caso do 22005/2026), a rota volta à ficha a dizê-lo.
+
+### 3. A árvore de CPV passou a deixar tirar de dentro
+
+O pedido, com o raciocínio já feito: escolher o 72000000 e poder tirar
+um ou outro que não faça sentido — porque podem vir anúncios que tenham
+apenas o 72, e se a regra for que só entram os sub-códigos escolhidos
+um a um, perdem-se oportunidades.
+
+Está certo, e o número confirma-o: com CPV 72 posto, o primeiro anúncio
+da lista é um da IMPIC com o CPV `72000000` e mais nada. Marcar os
+sub-códigos um a um perdia-o.
+
+O motor já sabia excluir — o campo `cpv_excl` existe desde 30/08. O que
+faltava era a árvore escrever nele: as caixas dos descendentes de uma
+divisão marcada estavam **desactivadas de propósito**, com o comentário
+"o filtro não sabe excluir". Sabia.
+
+O estado da árvore passou a ser dois conjuntos (`ARV_SEL` e `ARV_EXC`)
+e as caixas passaram a ser um **desenho** desse estado (`arvorePintar()`,
+decidido por `arvoreEstado()`), nunca o contrário — com o estado
+espalhado pelas caixas, um descendente marcado "só para se ver" acabava
+dentro do filtro. Quem manda num código é o antepassado mais próximo
+(ou o próprio) que apareça numa das duas listas. Voltar a marcar dentro
+de um ramo excluído **empurra a exclusão para baixo**
+(`arvoreDesexcluir()` exclui os irmãos do caminho), porque o par
+(cpv, cpv_excl) sabe somar e subtrair uma vez mas não sabe alternar.
+
+Verificado no browser: marcar `72000000` e desmarcar `72200000` deixa o
+pai marcado, risca o filho com a marca "tirado", o chip diz "1
+seleccionado · 1 tirado", e "Aplicar" escreve `cpv=72000000` e
+`cpv_excl=72200000` — a lista passa de 64 para 33 e o anúncio de CPV
+`72000000` continua lá.
+
+### 4. O interesse: os CPV que a casa trabalha
+
+Pedido: criar o interesse dentro dos alertas, para limitar a página de
+anúncios sempre aos interesses definidos, com base em CPV.
+
+É um recorte, não um filtro, e por isso entra por `com_recorte()` como
+as abas e **nunca por `condicoes()`** — o motor serve os alertas e os
+filtros guardados, e o interesse lá dentro cegava-os em silêncio. Vive
+em `recorte_da_lista()`, que junta a aba e o interesse num sítio só,
+porque o recorte é aplicado em quatro consultas da mesma página (a
+lista, a contagem de cada aba, o selector das plataformas e o total do
+filtro) e no CSV: um número que conte com outro recorte abre uma lista
+diferente da que promete. Verificado: com `72000000` posto, as abas
+passam de 1 353 / 1 / 64 879 / 66 233 para 64 / 0 / 181 / 245, e a
+lista bate com o número da aba.
+
+Três guardas, todas por a alternativa ser silêncio:
+
+- ligado **sem CPV escolhido não esconde nada** — um ecrã em branco por
+  não se ter escolhido código nenhum lê-se como avaria;
+- a lista **diz** que está limitada, por cima de si mesma, com os CPV,
+  o que foi tirado e quantos ficam de fora;
+- `?interesse=nao` levanta-o para a vista em que se está, e a faixa
+  passa a oferecer o caminho de volta.
+
+O vazio da lista também mudou de texto: "nada por decidir, o que entrou
+está triado" era uma afirmação falsa com 1 290 anúncios escondidos por
+cima da faixa que diz o contrário.
+
+O ecrã é próprio (`/alertas/interesse`, migalhas "Alertas › Interesse")
+por uma razão prática: a árvore é **uma por página** — o JS fala com um
+`details.arvore` e um `#filtro-cpv` — e `/alertas` já gasta a sua no
+"Novo filtro". Pôr duas obrigava a mexer no JS que serve quatro
+páginas. Em `/alertas` fica a caixa com o resumo e a porta.
+
+Nasce desligado. Desligado, nada muda.
+
+### 5. Abandonar passou a exigir motivo
+
+Âmbito fechado, ditado pelo Afonso: *Preço base baixo*, *Falta de
+certificações*, *Falta de CV's*. Sem texto livre — ao fim de um mês dá
+cinquenta maneiras de escrever "preço" e nenhuma conta que se possa
+fazer.
+
+O selector vai colado ao botão, na lista e na ficha, com `required`; e
+o `mudar_estado()` recusa na mesma o que não estiver na lista, porque
+um `required` é conveniência do browser e não uma guarda. Sair de
+abandonado limpa o motivo — um motivo pendurado num anúncio que voltou
+ao por ver é uma mentira à espera de ser lida. Os que caem nos
+abandonados por o prazo ter passado não têm motivo, e não se lhes
+inventa um.
+
+O motivo aparece na etiqueta da linha, no cabeçalho da ficha, no
+histórico ("descartado (Preço base baixo)") e numa **coluna nova do
+CSV**.
+
+### 6. O quadro passou a ser o funil da casa
+
+A criação de novas fases desaparece: já não é precisa. São seis, e são
+estas — *Por analisar, A preparar proposta, Submetido, Relatório
+preliminar, Ganho, Perdido*. Renomear fica; criar e apagar saiu, UI e
+rotas. Apagar saiu junto porque, sem criar, apagar uma das seis era
+irreversível e levava consigo o campo que ela pede.
+
+**O que manda é o papel, não o nome** (`fases.papel`, `FASES_DE_ORIGEM`):
+renomear uma coluna não pode calar o campo que ela pergunta. A migração
+`atribuir_papeis()` corre a cada arranque, reconhece por pedaço de nome
+(`PISTAS_DE_PAPEL`) e cria o que faltar, uma vez só. Na base do Afonso
+apanhou as seis à primeira, "Relatorio Preleminar" incluído.
+
+Cada fase pede o que lhe falta, no próprio cartão:
+
+| Fase | O que pede |
+|---|---|
+| Por analisar | nada |
+| A preparar proposta | nada |
+| Submetido | o preço proposto |
+| Relatório preliminar | o lugar e os três primeiros |
+| Ganho | nada |
+| Perdido | porquê — *Preço, CV's, Proposta técnica, Certificações* |
+
+A partir do "Submetido" o preço do cartão **e a soma da coluna** passam
+a ser o proposto: somar preços base numa coluna de submetidos dá o
+tecto da entidade e não o que está em jogo, com o mesmo ar de número
+certo. Enquanto o proposto não estiver preenchido mostra-se o base
+**escrito como "base"** — mostrá-lo calado era dar o tecto da entidade
+por proposta nossa. O que se grava fica também no histórico da ficha:
+"submetido a 118.500,00 EUR" vale mais, três meses depois, do que a
+coluna onde o cartão parou.
+
+Uma armadilha pequena e cara: o proposto grava-se pelo
+`_texto_do_preco()` ("118.500,00 EUR") e **não pelo `euros()`** — esse
+põe espaço nos milhares, e o `euros_do_texto()` lê "118" de "118 500 €".
+A soma da coluna dava 118 em vez de 118 500. Há teste a guardá-lo.
+
+### Testes e verificação
+
+**561 testes** (eram 521), todos a passar. As classes novas guardam: as
+duas formas da resposta da Vortal e o salto que se poupa quando o
+PT1.NTC vem no próprio link; o destino do botão por plataforma,
+incluindo o "não há" da acingov; o reconhecimento dos papéis das fases
+com o erro de escrita real da base; a idempotência do
+`atribuir_papeis()`; o interesse ligado, desligado, vazio, levantado e
+**fora do `condicoes()`**; a recusa de abandonar sem motivo e com
+motivo inventado; os campos por fase; e a troca do preço base pelo
+proposto, com o formato de gravação.
+
+Dois testes antigos falhavam **antes desta sessão** e não por causa
+dela: comparavam a janela do urgente com `radar.DIAS_URGENTE` (a
+omissão, 10) enquanto o config.json está a 8 — exactamente o limiar à
+mão que a regra da casa proíbe. Passaram a ler `dias_urgente()`.
+
+Verificação a correr: as páginas todas servidas, o interesse ligado e
+desligado com as abas a acompanhar, a árvore exercitada no browser, e o
+quadro com as seis fases cheias num painel de ensaio sobre base
+temporária (porta 8766, nunca a 8765).
+
+Pelo caminho, a armadilha do costume: o painel da porta 8765 tinha
+arrancado às 12:37 e o `radar.py` foi gravado às 12:39 — **estava a
+servir código velho**. Comparar a hora de arranque do processo com a da
+última gravação do ficheiro continua a ser o primeiro passo antes de
+dizer "a correcção não funcionou".
+
+### O que ficou por decidir
+
+Na acingov não há página pública do procedimento, e por isso o botão
+leva à pesquisa pública em vez de ao procedimento — é o melhor que se
+consegue sem sessão iniciada, e a acingov é ~45% dos anúncios com
+peças. Se o Afonso quiser mais do que isto, é decisão nova: implicaria
+credenciais, e a regra da casa é que o radar não depende de nada da
+empresa.
