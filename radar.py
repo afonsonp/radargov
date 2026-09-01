@@ -26,6 +26,7 @@ import re
 import queue
 import shlex
 import smtplib
+import socket
 import subprocess
 import sqlite3
 import sys
@@ -2995,6 +2996,27 @@ def exportar_triagem(caminho=None):
     return len(linhas), caminho
 
 
+def porque_do_git(feito, tecto=150):
+    """A razao de um comando git falhado, sem o cabecalho a tapa-la.
+
+    Um push recusado escreve "To <url>" na primeira linha e a razao so
+    na segunda, e o "error: failed to push some refs" na terceira nao
+    acrescenta nada. Com os 80 caracteres da linha dos indicadores, o
+    endereco do repositorio comia a mensagem inteira: lia-se
+    "git push: To https://github.com/..." e ficava-se sem saber porque
+    e que falhou -- que era o unico ponto de a gravar. Tira-se a linha
+    do endereco e o "error:" final, e junta-se o resto numa linha so,
+    que e como isto vai ser mostrado.
+    """
+    saida = (feito.stderr or feito.stdout or b"")
+    if isinstance(saida, bytes):
+        saida = saida.decode("utf-8", "ignore")
+    linhas = [l.strip() for l in saida.splitlines() if l.strip()]
+    uteis = [l for l in linhas
+             if not l.startswith("To ") and not l.startswith("error: failed")]
+    return " ".join(uteis or linhas)[:tecto]
+
+
 def empurrar_triagem(pasta=None):
     """B15, sub-decisao fechada a 31/08/2026 pelo Afonso: automatico,
     "grava logo la consoante o uso". Depois do export, se o
@@ -3024,21 +3046,16 @@ def empurrar_triagem(pasta=None):
                            datetime.now().strftime("%Y-%m-%d %H:%M"),
                            "--", "triagem.jsonl"], 60)
             if feito.returncode != 0:
-                raise RuntimeError("git commit: %s" % (
-                    feito.stderr or feito.stdout or b"").decode(
-                        "utf-8", "ignore")[:150])
+                raise RuntimeError("git commit: %s" % porque_do_git(feito))
         a_frente = corre(["git", "rev-list", "--count",
                           "origin/master..master"], 30)
         if a_frente.returncode != 0:
-            raise RuntimeError("git rev-list: %s" % (
-                a_frente.stderr or b"").decode("utf-8", "ignore")[:150])
+            raise RuntimeError("git rev-list: %s" % porque_do_git(a_frente))
         if int(a_frente.stdout.strip() or 0) == 0:
             return True, "sem mudanças por empurrar"
         feito = corre(["git", "push", "origin", "master"], 180)
         if feito.returncode != 0:
-            raise RuntimeError("git push: %s" % (
-                feito.stderr or feito.stdout or b"").decode(
-                    "utf-8", "ignore")[:150])
+            raise RuntimeError("git push: %s" % porque_do_git(feito))
         return True, "triagem empurrada para o remoto"
     except (OSError, ValueError, RuntimeError,
             subprocess.TimeoutExpired) as erro:
@@ -4597,8 +4614,13 @@ def verificacao_a_correr():
     return _VERIFICACAO["passo"] if _VERIFICACAO["a_correr"] else ""
 
 
-def comecar_verificacao():
-    """Arranca a verificacao numa thread. (arrancou, porque)."""
+def comecar_verificacao(slot=None):
+    """Arranca a verificacao numa thread. (arrancou, porque).
+
+    O `slot` e o par (dia, hora) quando quem pede e o relogio: e o que
+    marca a hora como corrida, no fim e so se correu bem. O botao do
+    painel nao passa nada -- um clique a mao nao e um slot.
+    """
     with _VERIFICACAO_TRINCO:
         if _VERIFICACAO["a_correr"]:
             return False, "já está a verificar — %s" % _VERIFICACAO["passo"]
@@ -4607,7 +4629,10 @@ def comecar_verificacao():
 
     def correr():
         try:
-            verificar(passo=lambda p: _VERIFICACAO.__setitem__("passo", p))
+            _, novos = verificar(
+                passo=lambda p: _VERIFICACAO.__setitem__("passo", p))
+            if slot:
+                registar_slot(slot[0], slot[1], novos)
         except Exception as erro:
             # A thread morre em silencio; o painel tem de ficar a saber.
             marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -4636,8 +4661,19 @@ def relogio():
                 atrasado = cfg.get("recuperar_slot_falhado", True)
                 if passou and not slot_corrido(dia, hora):
                     if agora - marcado < timedelta(minutes=5) or atrasado:
-                        _, novos = verificar(cfg)
-                        registar_slot(dia, hora, novos)
+                        # Pela mesma porta do botao "Verificar agora", e
+                        # nao pelo verificar() directo. Sao duas coisas
+                        # que faltavam: o TRINCO, porque o relogio podia
+                        # apanhar um clique a meio e por duas
+                        # verificacoes na mesma base, e o `passo`, que e
+                        # o que a barra lateral mostra. Um slot falhado
+                        # dispara isto no ARRANQUE do painel -- copia de
+                        # 93 MB, push da triagem, recolha toda, ~5
+                        # minutos -- e ate 01/09/2026 nao havia nada no
+                        # ecra a explicar a lentidao. Nao espera pelo
+                        # fim: se o trinco recusar, o slot fica por
+                        # correr e tenta-se no minuto seguinte.
+                        comecar_verificacao(slot=(dia, hora))
         except Exception as erro:
             # Engolir isto em silencio fazia com que uma avaria persistente
             # parecesse "ainda nao chegou a hora": o painel continuava a
@@ -11121,7 +11157,7 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
 
 
 def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
-                            token=None):
+                            token=None, triagem=None, vortal=None):
     """As marcas de ultimo erro que so se viam por SQL (C1 do saneamento).
 
     So aparece o que existe: sem erro gravado nao ha linha nenhuma --
@@ -11129,14 +11165,27 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
     quando aconteceram, e mostram-se a amarelo (quem chama passa a cor):
     um erro antigo e diagnostico, nao um alarme de agora. A do token
     (E4) traz a idade da captura no momento da expiracao -- e a serie
-    completa fica na tabela `erros` (C3), por SQL."""
+    completa fica na tabela `erros` (C3), por SQL.
+
+    A da triagem e a da Vortal chegaram com o B15 e o B14, DEPOIS do
+    saneamento, e ficaram a escrever para um sitio que nenhum ecra lia
+    -- exactamente o C1 outra vez. Quem acrescentar um marca_erro()
+    novo acrescenta-o tambem aqui, senao o erro so existe para quem
+    abrir a base a mao.
+    """
     linhas = []
     for rotulo, valor in (("Último erro do relógio interno", relogio),
                           ("Último erro ao trazer peças", pecas),
                           ("Último erro da leitura pelo modelo", analise),
-                          ("Última expiração do token", token)):
+                          ("Última expiração do token", token),
+                          ("Último erro a gravar a triagem no git", triagem),
+                          ("Último erro na Vortal", vortal)):
         if (valor or "").strip():
-            linhas.append((rotulo, html.escape(corta(valor, 80)), False))
+            # numa linha so antes de cortar: um erro de varias linhas
+            # gastava metade dos 80 caracteres em mudancas de linha e
+            # indentacao que o HTML nem mostra
+            limpo = re.sub(r"\s+", " ", valor).strip()
+            linhas.append((rotulo, html.escape(corta(limpo, 80)), False))
     return linhas
 
 
@@ -11311,7 +11360,9 @@ def indicadores():
     erros = linhas_de_ultimos_erros(le_marca("ultimo_erro_relogio", ""),
                                     le_marca("docs_ultimo_erro", ""),
                                     le_marca("analise_ultimo_erro", ""),
-                                    le_marca("token_ultimo_erro", ""))
+                                    le_marca("token_ultimo_erro", ""),
+                                    le_marca("ultimo_erro_triagem_git", ""),
+                                    le_marca("vortal_ultimo_erro", ""))
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "#d68910"))
 
@@ -11510,6 +11561,47 @@ def etiqueta_tirar(ref, etiqueta_id):
 
 # ------------------------------------------------------------- arranque
 
+def porta_atende(porta, espera=0.5):
+    """True se ja houver quem aceite ligacoes nesta porta do localhost.
+
+    Cuidado com o que isto custa no Windows: a uma porta onde ninguem
+    fez bind, a ligacao e recusada logo; a uma porta com bind feito mas
+    ainda SEM listen -- que e exactamente o instante em que o Flask
+    esta a arrancar -- nao vem recusa nenhuma, vem WSAEWOULDBLOCK ao
+    fim do timeout inteiro. Por isso `espera` e por tentativa e curta.
+    """
+    with socket.socket() as s:
+        s.settimeout(espera)
+        return s.connect_ex(("127.0.0.1", porta)) == 0
+
+
+def abrir_no_browser(porta=None, espera=15.0):
+    """Abre o painel no browser DEPOIS de a porta atender.
+
+    O open() era chamado antes do app.run() e chegava la antes de haver
+    servidor: medido a 01/09/2026, o browser aos 0,98 s e a porta a
+    responder aos 1,91 s. Com o browser ja aberto -- que e o caso normal
+    -- o separador novo apanhava a porta fechada e ficava num erro que
+    so um F5 tirava; parecia que o radar demorava a arrancar.
+
+    Espera pela porta em vez de adivinhar um tempo, porque o arranque
+    varia com o disco (isto corre de uma pen). Se nao atender dentro da
+    espera nao abre nada: o endereco ja foi impresso na consola, e uma
+    janela de erro nao ajuda ninguem.
+    """
+    porta = porta or PORTA
+    limite = time.time() + espera
+    while time.time() < limite:
+        if porta_atende(porta):
+            try:
+                webbrowser.open("http://localhost:%d/" % porta)
+            except Exception:
+                pass
+            return True
+        time.sleep(0.1)
+    return False
+
+
 def main():
     iniciar_db()
     # As migracoes do corpus tambem correm no arranque, nao so na
@@ -11657,10 +11749,9 @@ def main():
     print("Radar de Concursos, Diário da República")
     print("Painel em http://localhost:%d" % PORTA)
     print("Fecha esta janela para parar. Ctrl+C tambem serve.")
-    try:
-        webbrowser.open("http://localhost:%d/" % PORTA)
-    except Exception:
-        pass
+    # Em thread, e a espera da porta: o app.run() so devolve quando o
+    # painel fechar, portanto quem abre o browser tem de ser outro.
+    threading.Thread(target=abrir_no_browser, daemon=True).start()
     app.run(host="127.0.0.1", port=PORTA, debug=False)
 
 
