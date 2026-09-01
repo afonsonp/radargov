@@ -20,8 +20,10 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 233 anúncios, dois anos deles**
-(28/08/2024–01/09/2026): o grosso trazido pelo `--historico 730` a
+Funciona. A base tem **66 286 anúncios, dois anos deles**
+(28/08/2024–01/09/2026) — **65 523 procedimentos**, porque 763 são
+republicações («Alteração do Anúncio de procedimento n.º …») ligadas
+ao original desde 01/09/2026 e fora de todas as listas: o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
 **consultas preliminares da Vortal** (17 na primeira recolha, **24 até
 agora**, `fonte='vortal'`), o tipo que a parte L não publica — **todas
@@ -39,12 +41,14 @@ anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
 Desde 31/08/2026 os anuncios sao **uma pagina so** (`/`), e o que
-aparta o acervo sao as quatro abas: **por ver 1 353** (por decidir e
-ainda respondivel), **interessados 1** (todos, expirados incluidos --
-um interessa expirado e trabalho em curso), **abandonados 64 879** (os
-4 097 descartados a mao mais os por ver que ja nao dao para responder)
-e **todos 66 233**. A particao e exacta, e e recorte de leitura: a base
-nao muda -- la dentro ha 62 135 com estado `novo`. A **Triagem e a
+aparta o acervo sao as quatro abas: **por ver 1 221** (por decidir e
+ainda respondivel), **interessados 3** (todos, expirados incluidos --
+um interessa expirado e trabalho em curso), **abandonados 64 299** (os
+3 728 descartados a mao mais os por ver que ja nao dao para responder)
+e **todos 65 523**. A particao e exacta sobre os procedimentos, e e
+recorte de leitura: a base nao muda -- la dentro ha 61 792 com estado
+`novo`, e as 763 alteracoes (`estado='alteracao'`) nao entram em aba
+nenhuma, nem na de todos. A **Triagem e a
 Pesquisa separadas duraram um dia**: `/anuncios` redirecciona com o
 filtro atras, e o interruptor do arquivo caiu. **O esqueleto esta
 implementado** (os quatro andamentos, todos a 31/08/2026): navegacao
@@ -4503,3 +4507,136 @@ no computador (decisão dele); o que a pen partilharia entre projectos
   `copias/` vivem na mesma pen; se ela morrer, perde-se a triagem e
   as peças, que são o único conteúdo que não se refaz. Pequeno de
   montar, quando ele pedir.
+
+## O mesmo concurso três vezes: as alterações do DR, 1 de setembro de 2026
+
+Apareceu a medir outra coisa. Ao cruzar o Excel de análise de concursos
+do Afonso (187 concursos, exportados de uma lista do SharePoint) com a
+base, 94 das 180 linhas de 2025–2026 davam «vários anúncios com a mesma
+pontuação» — e eram sempre o mesmo procedimento publicado duas e três
+vezes: o BIA da Infraestruturas de Portugal a 4 de Fevereiro, 10 de
+Março e 18 de Março, com título igual e `ref` diferente. Em 2026 a base
+tinha 22 053 anúncios para 18 894 procedimentos distintos. Ele decidiu:
+**resolve-se isto antes de importar seja o que for.**
+
+### O que se mediu antes de desenhar
+
+- **O DR não emenda um anúncio: publica outro.** O texto da
+  republicação começa por «Alteração do Anúncio de procedimento n.º
+  18372/2026, de 2026-07-17, com o ID 419967433». Dos 5 661 textos
+  lidos, **763 (13,5%) começam assim** — e é a única forma que existe:
+  os 763 prefixos são «alteração do». É uma chave exacta, não uma
+  heurística.
+- **Título igual na mesma entidade não serve de chave.** Dos pares com
+  título igual e detalhe lido, 58 não citam anúncio nenhum: são
+  procedimentos diferentes (a Universidade do Algarve repete o mesmo
+  título todos os anos). Se se tivesse agrupado por título, tinham-se
+  fundido concursos distintos.
+- **103 das 763 citam a alteração anterior e não o original** (21505 →
+  20771 → 18372). Segue-se a cadeia.
+- **O que muda é o prazo**: nos 495 grupos todos lidos, 461 têm prazo
+  diferente entre membros e 458 têm o mesmo preço base. É a prorrogação
+  a sair como anúncio novo.
+- **O custo humano estava medido na base**: 511 das 763 alterações
+  estavam «descartado» — o Afonso descartou 511 vezes procedimentos que
+  já tinha descartado no original. E 217 dos 1 404 «por ver» eram
+  republicações de algo que já lá estava.
+
+### A decisão de desenho
+
+**O original é a ficha do procedimento.** A triagem, o quadro, as peças
+e a leitura ficam nele; a alteração fica na base com o próprio texto,
+em `estado='alteracao'`, fora de todas as listas (o `condicoes()`
+exclui-a quando `estado=""`; os outros estados nunca a apanham), e
+passa ao original o que está em vigor: prazo, preço base, CPV,
+plataforma e link das peças — **do membro mais recente da cadeia**,
+seja qual for o que acabou de ser lido, porque o `ler_detalhes()` lê do
+mais recente para o mais antigo e a ordem de chegada não pode importar.
+O original guarda `alterado_por`; a alteração guarda `altera`.
+
+A alternativa era passar a triagem para o anúncio mais recente. Mudava
+o `ref` de tudo o que já estava feito a cada republicação — peças em
+`documentos/<ref>/`, análise, cartão do quadro, histórico — e foi
+rejeitada por isso.
+
+Três guardas que não são decorativas, e cada uma tem teste:
+
+- **Reler um original já alterado não pode escrever-lhe os campos da
+  página dele.** A página do original no DR nunca muda; relê-la repunha
+  o prazo velho por cima do novo e registava uma «alteração» falsa.
+  `_guardar_detalhe()` e `reparsear()` só lhe guardam o texto.
+- **`reler_marcados()` relê pela página da alteração em vigor**, não
+  pela do original.
+- **`mudar_estado()` recusa triar uma alteração** e diz onde se decide.
+
+A ficha da alteração aponta para o original; a do original diz
+«Alterado pelo anúncio X» e mostra o texto da versão em vigor (o dela
+fica na base). O histórico do original conta o que mudou («prazo de
+propostas 13/08/2026 → 11/09/2026»). Quando o original está marcado
+(interessa ou com fase), a mudança vai também para a fila
+`alteracoes`, a do resumo diário — o mesmo critério do
+`reler_marcados()`: uma prorrogação num anúncio que ninguém quer não é
+notícia.
+
+**Se foi na alteração que alguém decidiu, a decisão passa para o
+original.** 145 heranças na migração (a maioria descartes), incluindo
+o «interessa» do 21993/2026 para o 21488/2026.
+
+### A migração, e o erro que ela apanhou
+
+Correu por marca (`alteracoes_agrupadas`) no arranque, sobre uma cópia
+com nome próprio feita antes (`copias/radar-antes-alteracoes-2026-09-01.db`,
+fora da rotação das sete). Dois minutos. Resultado: 763 alterações
+ligadas, 660 originais com `alterado_por`, 626 com campos alterados
+registados no histórico, fila do resumo a zero (a migração não avisa).
+O 18372/2026 ficou como devia: descartado, com o prazo 11/09 que veio
+do 21505.
+
+**A primeira regra de fusão estava errada num caso.** Quando a
+alteração e o original estavam ambos decididos e diferentes,
+mantinha-se o original. Aconteceu 6 vezes; em 5 a alteração era um
+«por ver» com fase (não é decisão), mas na sexta era o **«interessa»
+que o Afonso pôs no 21924/2026 às 12:59 de hoje**, por baixo de um
+descarte automático do original 19127/2026 de 30/08 («prazo passado»).
+O item dele sumiu-se dos Interessados. A regra passou a ser: uma
+decisão a sério (interessa/descartado) na alteração ganha, porque a
+alteração é a publicação mais recente e foi sobre ela que se decidiu
+por último; um «por ver» com fase continua a não ser decisão. A
+reparação fez-se pelo caminho sanccionado — `--repor-triagem` com um
+ficheiro de uma linha (a do 21924 exportada às 17:00) e `--reler` —
+depois de o hook ter recusado, e bem, um UPDATE por script à base de
+trabalho. O 19127/2026 está «interessa», fase 1, e o histórico dele
+guarda as três linhas: o descarte, a regra errada e a correcção.
+
+### Números depois
+
+| | antes | depois |
+|---|---|---|
+| Anúncios na base | 66 286 | 66 286 (65 523 procedimentos + 763 alterações) |
+| Por ver | 1 404 | 1 221 |
+| Interessados | 3 (2 eram alterações) | 3 (os originais) |
+| Abandonados | 64 879 | 64 299 |
+| Todos | 66 233 | 65 523 |
+| Descartados à mão | 4 097 | 3 728 (511 eram descartes repetidos em alterações) |
+
+Dos 1 221 por ver, 70 são originais cujo prazo foi prorrogado e que
+por isso **voltaram** ao por ver — o comportamento que o LEIA-ME já
+prometia («um anúncio rectificado com prazo novo volta sozinho») e que
+até hoje só acontecia por acaso, quando a republicação entrava como
+anúncio novo.
+
+### O que fica por fazer, e o que isto abre
+
+- **Uma etiqueta «alterado a DD/MM» na linha da lista.** A ficha e o
+  histórico dizem-no; a lista ainda não. Pequeno.
+- **A importação do Excel e do Zoho** era o objectivo e fica para a
+  próxima sessão, agora com a chave certa: uma linha do Excel liga-se
+  ao procedimento (o original), e os 94 «ambíguos» do cruzamento
+  deixam de o ser. O Zoho lê-se pelo browser (ele não consegue exportar
+  CSV); é a fonte mais actual do estado. Entidades espanholas não
+  entram. E o vocabulário dos estados («Não fomos», «passou sem
+  decisão», «cancelado») e se o radar passa a ser onde se escreve são
+  decisões dele, ainda por dar.
+- **`--reler` demora ~2 minutos na primeira vez** por causa da
+  migração dentro do `iniciar_db()`; depois disso, 5 segundos. O
+  arranque do painel paga a mesma migração uma vez, por marca.

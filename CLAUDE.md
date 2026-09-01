@@ -145,6 +145,32 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   `COALESCE(fonte,'dr')='dr'`; a cadeia das peças aceita o link
   público porque o PT1.NTC vem às claras. A acingov ficou de fora: a
   listagem pública dela não distingue tipos — alargar é decisão nova.
+- **O DR não emenda um anúncio: publica outro.** O texto da
+  republicação começa por «Alteração do Anúncio de procedimento n.º
+  18372/2026, de …» e é a única forma que existe (medido a 01/09/2026:
+  763 dos 5 661 textos lidos, 13,5%, todos com esse prefixo; 103 citam a
+  alteração anterior e não o original). Até aí cada uma entrava como
+  anúncio novo — o mesmo concurso três vezes no por ver, e 511 descartes
+  do Afonso sobre procedimentos que já tinha descartado. A regra: **o
+  original é a ficha do procedimento** (triagem, quadro, peças e leitura
+  ficam nele) e a alteração fica na base, com o próprio texto, em
+  `estado='alteracao'` e fora de todas as listas (`condicoes()` exclui-a
+  quando `estado=""`; os outros estados nunca a apanham). `campos_do_
+  detalhe()` lê o `altera`; `aplicar_alteracao()` segue a cadeia até à
+  raiz (`raiz_da_alteracao`), passa ao original o que está em vigor —
+  prazo, preço base, CPV, plataforma, link das peças — **do membro mais
+  recente da cadeia**, seja qual for o que acabou de ser lido (o
+  `ler_detalhes()` vai do mais recente para o mais antigo), e grava
+  `alterado_por` no original. Se foi na alteração que alguém decidiu, a
+  decisão passa para o original. **Título igual na mesma entidade NÃO é
+  chave**: 58 pares assim sem citação são procedimentos diferentes. Três
+  guardas que não são decorativas: a releitura de um original já
+  alterado não pode escrever-lhe os campos da página dele (é a versão
+  antiga, e repunha o prazo velho — `_guardar_detalhe()` e `reparsear()`
+  só lhe guardam o texto), o `reler_marcados()` relê pela página da
+  alteração em vigor, e `mudar_estado()` recusa triar uma alteração. Os
+  763 que já estavam na base ligaram-se por marca (`alteracoes_agrupadas`)
+  no arranque; `--reler` volta a passar por tudo.
 - **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**
   Os 16 campos do `SearchTenders` são título, entidade, datas, estado
   e tipo — **nenhum é CPV nem NIPC**. Até 01/09/2026 guardava-se a
