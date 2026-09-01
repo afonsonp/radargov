@@ -2075,6 +2075,10 @@ A sonda (`sonda.py`, `sonda.bat`, `sonda.txt`, `sonda_detalhe.html`) foi
 apagada: respondia a duas perguntas — se a pesquisa aceitava termo vazio
 e de onde vinha o CPV — ambas respondidas há muito e documentadas aqui.
 
+A pen como «hub» (Python, Node, git e chaves partilhados em `D:\comum`)
+foi planeada e fechada a 1 de setembro de 2026 sem se construir: das
+três vantagens, duas já existiam. Ver a secção própria no fim.
+
 ## Olhar para a concorrência — Tendios, 29 de agosto de 2026
 
 O Afonso tem conta na **Tendios Bid** (`bid.tendios.com`, plano
@@ -4386,3 +4390,116 @@ não existir — o 7 nem sempre está instalado, o 5.1 está sempre.
 (O que faz aparecer a antiga ao abrir um terminal é outra coisa e fica
 fora do projecto: o perfil por omissão do Windows Terminal, que está em
 "Windows PowerShell" — decisão dele, não se mexeu.)
+
+## A pen como «hub», 1 de setembro de 2026 — planeado, e fechado antes de se construir
+
+O Afonso quis que a pen deixasse de ser uma pasta com um projecto
+dentro e passasse a ser um hub: um Python, um Node e um git partilhados
+em `D:\comum`, as chaves numa pasta comum, e as skills, plugins e MCPs
+do Claude a valerem para todas as aplicações que viesse a construir,
+sem ter de escolher quais pôr em qual. Falou também em modelos de IA
+locais pequenos e em ferramentas que viu na net (claude-mem,
+OmniRoute).
+
+Já tinha havido uma primeira tentativa, na sessão anterior: construiu-se
+tudo de uma vez (motor movido, chaves movidas, configuração do Claude
+copiada, hooks reescritos, commit e push), ele viu o resultado só no
+fim, não ficou confiante, e repôs-se tudo — `git reset`, force push,
+pasta apagada. Desta vez fez-se a planta primeiro, e a planta chegou
+a esta conclusão antes de mover um ficheiro.
+
+### Porque se fechou
+
+Das três vantagens que o hub prometia, duas já existem e a terceira
+ainda não tem para quem servir:
+
+- **«A pen tem de funcionar em qualquer computador.»** Já funciona: o
+  Python está dentro de `radar\python`, e o painel abre em qualquer
+  Windows. O que falta na pen é o git, que só faz falta ao trabalhar
+  com o Claude Code — e esse tem de estar instalado nesse computador
+  de qualquer maneira (decisão dele: o Claude Code não vai para a pen).
+- **«Skills e plugins a valerem em todas as aplicações sem escolher.»**
+  Já é assim: as três skills dele e os seis plugins estão instalados
+  ao nível do utilizador (`~/.claude`), e por isso aplicam-se a
+  qualquer projecto que abra. Era o que queria, e já tinha.
+- **Poupar ~100 MB e um passo de instalação por aplicação nova.** Só
+  conta quando houver uma segunda aplicação. Há uma. E o passo é o
+  Claude que o faz.
+
+No dia-a-dia, o hub não mudava nada na forma de trabalhar — a
+complexidade ficava toda na montagem e na documentação. Trabalho e
+risco agora, para uma vantagem que hoje não existe. **Decisão dele:
+não se faz.** Quando aparecer a segunda aplicação, copia-se a receita
+do radar (uma pasta com o Python embutido dentro), que leva minutos.
+Se um dia forem quatro ou cinco aplicações e o desperdício incomodar,
+volta-se à planta abaixo.
+
+### O que a primeira tentativa mediu, e continua verdade
+
+Fica aqui para não se voltar a descobrir:
+
+- O Python embutido corre em `safe_path`: não acrescenta sozinho ao
+  `sys.path` a pasta do programa. Dentro da aplicação resolve-se com
+  um `..` no `python314._pth`; partilhado, é preciso um
+  `sitecustomize.py`.
+- O `PYTHONPATH` é ignorado quando existe um `._pth`.
+- O `sys.path` traz a pasta de pacotes do utilizador **da máquina onde
+  a pen está espetada**. É o que faz a pen correr num computador e não
+  noutro; um hub teria de a retirar.
+- `CLAUDE_CONFIG_DIR` governa tudo (`settings.json`, skills, plugins e
+  o `.claude.json` dos MCPs), mas o Claude guarda **caminhos
+  absolutos**: copiada de `C:\Users\...`, os plugins vinham apontados
+  ao disco da máquina — abre sem se queixar e sem os plugins. Uma
+  pasta nova pede `/login`. Nunca se mediu se a aplicação de
+  secretária respeita a variável.
+- O hook `testes_antes_do_commit.py` procura o Python em
+  `<projecto>\python\python.exe`: mover o motor parte-o, e foi um bug
+  que a própria primeira tentativa criou.
+- A letra da unidade não é fixa: a pen já apareceu como `E:` (há
+  registos em `.claude.json`). Qualquer atalho tem de a encontrar por
+  `%~d0`.
+- A pen é rápida em ficheiros grandes e lenta em muitos pequenos
+  (42 MB/s a 4 KB): um modelo de IA carrega bem, o Node e o Claude
+  Code arrancam mal.
+
+### A planta, para se voltar a ela
+
+`D:\CLAUDE.md` (regras comuns; o Claude Code lê os CLAUDE.md de todas
+as pastas acima do projecto) e `D:\comum\` com `python\` (motor +
+`sitecustomize.py`), `libs\` (pacotes comuns, com a `libs\` de cada
+aplicação a ganhar-lhe), `node\`, `git\`, `chaves\` e `ferramentas\`
+(`ambiente.bat`, `_python.bat` modelo). O `_python.bat` de cada
+aplicação reencaminha para `%~d0\comum\python`. Fases pequenas, o
+antigo só se apaga depois de os testes passarem com o novo, teste com
+a pen montada noutra letra por `subst`. A configuração do Claude fica
+no computador (decisão dele); o que a pen partilharia entre projectos
+é o `CLAUDE.md` da raiz e os hooks.
+
+### Sobre o que ele viu na net
+
+- **Modelos locais**: o computador tem 16 GB e gráfica integrada. Um
+  modelo de 3–8 mil milhões corre no processador a poucas palavras
+  por segundo — serve para lote (classificar de madrugada) ou como
+  reserva quando a cadeia `FORNECEDORES` esgota o dia; não substitui
+  o `gpt-oss-120b`. Ferramenta: `llama.cpp` (pasta solta) ou Ollama em
+  zip, com os modelos na pen. **Fica para depois**, decisão dele.
+- **claude-mem** (memória entre sessões): seria a quarta memória, ao
+  lado da automática, do ESTADO.md e do registo das skills — e a
+  auditoria de 30/08 já apanhou o ESTADO.md a mentir por omissão.
+  Não agora.
+- **OmniRoute** (porta única de IA com reservas entre fornecedores): o
+  radar já o faz em `_perguntar()`. Só vale quando uma segunda
+  aplicação precisar da mesma cadeia — e aí é peça de hub.
+
+### O que fica em aberto, e não é código
+
+- **BitLocker To Go** na pen, pelos passos que lhe foram dados. A
+  chave de recuperação **em ficheiro fora da pen e impressa**, não
+  «na conta Microsoft»: a sessão dele é uma conta de empresa, e a
+  chave iria para o Entra ID da empresa. Desbloqueio automático no
+  computador dele, senão as tarefas das 09:00 e das 17:00 encontram a
+  pen fechada.
+- **Uma cópia do `radar.db` fora da pen.** As sete cópias diárias de
+  `copias/` vivem na mesma pen; se ela morrer, perde-se a triagem e
+  as peças, que são o único conteúdo que não se refaz. Pequeno de
+  montar, quando ele pedir.
