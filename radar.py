@@ -15,6 +15,8 @@ Arranque:  python radar.py             painel em http://localhost:8765
            python radar.py --reler     reanalisa o texto ja guardado
            python radar.py --descartar-expirados   arruma os por ver com prazo passado
            python radar.py --importar-cpv F   carrega o vocabulario CPV
+           python radar.py --importar-excel F [--ensaio] [--sem-rede]
+                                       o Excel de analise de concursos da casa
 """
 
 import csv
@@ -37,6 +39,8 @@ import unicodedata
 import webbrowser
 import zipfile
 from datetime import datetime, timedelta
+
+import casa                      # o registo da casa (casa.py importa o radar por dentro)
 from email.message import EmailMessage
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
 
@@ -241,8 +245,10 @@ def atribuir_papeis(c):
 # maneiras de escrever "preco" e nenhuma conta que se possa fazer. Se
 # um motivo novo for preciso, acrescenta-se aqui -- e uma decisao, nao
 # um campo.
+# Os dois ultimos vieram do Excel da casa (02/09/2026): eram as razoes de
+# nao participacao que ele ja usava e que os tres primeiros nao diziam.
 MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
-                    "Falta de CV's")
+                    "Falta de CV's", "Fora do âmbito", "Prazo curto")
 MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações")
 
 
@@ -505,6 +511,7 @@ def iniciar_db():
             c.execute("ALTER TABLE fases ADD COLUMN papel TEXT")
         semear_fases(c)
         atribuir_papeis(c)
+        casa.iniciar_tabelas(c)     # o registo da casa (Excel; um dia o Zoho)
         # B12, uma vez, por marca: os textos extraidos antes das marcas
         # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
         # Reextrai-se o que ainda existir em disco; o que nao existir
@@ -6457,7 +6464,10 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 NAV = (("anuncios", "Anúncios", "/", ()),
        ("emcurso", "Em curso", "/quadro",
         (("quadro", "Quadro", "/quadro"),
-         ("calendario", "Calendário", "/calendario"))),
+         ("calendario", "Calendário", "/calendario"),
+         # o Excel de analise de concursos importado (02/09/2026): o
+         # historial da casa, ligado aos anuncios
+         ("casa", "Registo da casa", "/casa"))),
        ("mercado", "Mercado", "/contratos",
         (("contratos", "Contratos", "/contratos"),
          # as renovacoes fundiram-se nos contratos como modo (6.1-A);
@@ -6470,6 +6480,7 @@ NAV = (("anuncios", "Anúncios", "/", ()),
 # hierarquia por cima delas, nao um nome novo.
 ITEM_DA_PAGINA = {"anuncios": "anuncios",
                   "quadro": "emcurso", "calendario": "emcurso",
+                  "casa": "emcurso",
                   "contratos": "mercado", "renovacoes": "mercado",
                   "alertas": "alertas"}
 
@@ -11708,15 +11719,16 @@ def ficha(ref):
     # perdeu.
     args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
     args_com = dict(request.args.to_dict(), modo="completo")
+    casa_bloco, casa_anc = casa_cx(ref)
     indice = ("<div class='ficha-indice'>"
               "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
               "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
-              "<a href='#pecas'>Peças</a>"
+              "<a href='#pecas'>Peças</a>%s"
               "<a href='#mercado'>Mercado</a>"
               "<a href='#historico'>Histórico</a>"
               "<span class='dir'>%s%s</span></div>"
               % ("on" if not completo else "", ref, urlencode(args_ess),
-                 "on" if completo else "", ref, urlencode(args_com),
+                 "on" if completo else "", ref, urlencode(args_com), casa_anc,
                  ("<span class='nota-modo'>%s</span>" % nota_modo)
                  if nota_modo else "", "".join(sair)))
 
@@ -11865,7 +11877,7 @@ def ficha(ref):
     # caixa preta, e agora um facto do cabecalho mais o chip do indice.
     conteudo = ("<div class='larg ficha-dossier'>" + cabeca + faixa_alteracao +
                 seccoes_html +
-                docs_cx +
+                docs_cx + casa_bloco +
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
                 mercado(a) + "</div>"
                 "<div class='ficha-pe'>" + hist_cx + resp_cx + "</div></div>")
@@ -13053,6 +13065,201 @@ def quadro_campos(ref):
     return redirect(request.referrer or "/quadro")
 
 
+# ------------------------------------------------- o registo da casa
+
+def _json_da_casa(r, chave):
+    try:
+        return json.loads(r.get(chave) or "[]")
+    except ValueError:
+        return []
+
+
+def _tabela_casa(cabecas, linhas):
+    if not linhas:
+        return ""
+    return ("<div style='overflow-x:auto'><table class='tab-mercado'><thead><tr>%s"
+            "</tr></thead><tbody>%s</tbody></table></div>"
+            % ("".join("<th>%s</th>" % html.escape(h) for h in cabecas),
+               "".join("<tr>%s</tr>" % "".join(
+                   "<td>%s</td>" % (v if v is not None else "") for v in l)
+                   for l in linhas)))
+
+
+def _eur(v):
+    return euros(v) if v else ""
+
+
+def casa_cx(ref):
+    """O registo da casa na ficha: o que o Excel sabe deste concurso e o
+    radar nao -- proposta, lugar, concorrentes, precos por perfil,
+    perfis exigidos. Devolve (bloco, ancora do indice); vazios quando
+    o anuncio nao esta ligado a linha nenhuma."""
+    with liga() as c:
+        r = casa.registo_de(c, ref)
+    if not r:
+        return "", ""
+    factos = [_facto("Status", html.escape(r.get("status") or "—")),
+              _facto("Modelo", html.escape(r.get("modelo") or "—")),
+              _facto("Critério", html.escape(r.get("criterio") or "—"))]
+    if r.get("valor_proposta"):
+        factos.append(_facto("Proposta da casa", _eur(r["valor_proposta"])))
+    if r.get("lugar"):
+        factos.append(_facto("Lugar obtido", "%d.º" % int(r["lugar"])))
+    if r.get("ebitda") is not None and r.get("valor_proposta"):
+        factos.append(_facto("EBITDA", "%.1f%%" % (float(r["ebitda"]) * 100)))
+    if r.get("razao"):
+        factos.append(_facto("Razão de não participação", html.escape(r["razao"])))
+    if r.get("notas"):
+        factos.append(_facto("Notas", html.escape(r["notas"]), largo=True))
+    partes = ["<div class='factos'>%s</div>" % "".join(factos)]
+    conc = _json_da_casa(r, "concorrentes")
+    if conc:
+        partes.append("<div class='rot' style='margin:12px 0 4px'>Quem concorreu</div>")
+        partes.append(_tabela_casa(
+            ("Lugar", "Concorrente", "Proposta"),
+            [("%d.º" % (x.get("lugar") or 0), html.escape(x.get("nome") or ""),
+              _eur(x.get("valor"))) for x in conc]))
+    perfis = _json_da_casa(r, "perfis")
+    if perfis:
+        partes.append("<div class='rot' style='margin:12px 0 4px'>Perfis exigidos"
+                      " (como a casa os registou)</div>")
+        partes.append(_tabela_casa(
+            ("Perfil", "Tecnologias", "Anos", "N.º", "Horas", "Certificações"),
+            [(html.escape(p.get("perfil") or ""), html.escape(p.get("tecnologias") or ""),
+              "%g" % p["anos"] if p.get("anos") else "",
+              "%g" % p["n"] if p.get("n") else "",
+              "%g" % p["horas"] if p.get("horas") else "",
+              html.escape(p.get("certificacoes") or "")) for p in perfis]))
+    precos = _json_da_casa(r, "precos_perfis")
+    if precos:
+        partes.append(
+            "<details class='sec'><summary>Preço por perfil, por concorrente"
+            " (%d linhas)</summary>%s</details>"
+            % (len(precos), _tabela_casa(
+                ("Concorrente", "Perfil", "Tecnologias", "Anos", "Valor", "Horas",
+                 "€/hora"),
+                [(html.escape(p.get("concorrente") or ""), html.escape(p.get("perfil") or ""),
+                  html.escape(p.get("tecnologias") or ""),
+                  "%g" % p["anos"] if p.get("anos") else "", _eur(p.get("valor")),
+                  "%g" % p["horas"] if p.get("horas") else "",
+                  "%.2f" % p["hora"] if p.get("hora") else "") for p in precos])))
+    origem = ("Excel · #%s%s" % (r["id"], " · folha %s" % html.escape(r["folha"])
+                                 if r.get("folha") else ""))
+    bloco = ("<div class='cx lado-cx' id='casa'><div class='rot' "
+             "style='margin-bottom:6px'>Registo da casa <span class='nota'>%s · "
+             "<a href='/casa'>ver todos</a></span></div>%s</div>"
+             % (origem, "".join(partes)))
+    return bloco, "<a href='#casa'>Registo da casa</a>"
+
+
+@app.route("/casa")
+def registo_da_casa():
+    """O Excel importado, linha a linha: o que ficou ligado a um anuncio,
+    o que ficou por ligar (com os candidatos a um clique) e o que esta
+    fora do pais. E onde se liga a mao o que a importacao nao soube."""
+    with liga() as c:
+        casa.iniciar_tabelas(c)
+        linhas = [dict(r) for r in c.execute(
+            "SELECT * FROM casa ORDER BY ano DESC, id DESC")]
+    origem, quando = le_marca("excel_casa"), le_marca("excel_casa_em")
+    por_ligar = [l for l in linhas if not l["ref"] and not l["fora"]]
+    ligadas = [l for l in linhas if l["ref"]]
+    fora = [l for l in linhas if l["fora"]]
+    if not linhas:
+        corpo = ("<div class='vazio'>Ainda não há registo importado. Corre "
+                 "<code>python radar.py --importar-excel &lt;ficheiro.xlsm&gt;</code>"
+                 " (com <code>--ensaio</code> primeiro, para ver o que faria).</div>")
+        return envolver("casa", "Registo da casa", "O historial da casa, "
+                        "vindo do Excel de análise de concursos.",
+                        "<div class='larg'>%s</div>" % corpo,
+                        migalhas=migalhas_de("casa"))
+
+    def linha_por_ligar(l):
+        cands = _json_da_casa(l, "candidatos")
+        botoes = "".join(
+            "<form method='post' action='/casa/ligar/%d' style='display:inline'>"
+            "<input type='hidden' name='ref' value='%s'>"
+            "<a href='/anuncio/%s' target='_blank'>%s</a> "
+            "<button class='bt-leve' type='submit'>ligar</button></form> "
+            % (l["id"], html.escape(cd, quote=True), html.escape(cd, quote=True),
+               html.escape(cd)) for cd in cands)
+        forma = ("<form method='post' action='/casa/ligar/%d' style='display:inline'>"
+                 "<input type='text' name='ref' placeholder='ref do anúncio' "
+                 "style='width:9em'> <button class='bt-leve' type='submit'>ligar"
+                 "</button></form>" % l["id"])
+        return ("#%d" % l["id"], html.escape(corta(l["nome"] or "", 70)),
+                html.escape(l["entidade"] or ""), l["ano"] or "",
+                html.escape(l["status"] or ""),
+                (botoes + "<br>" if botoes else "") + forma)
+
+    def linha_ligada(l):
+        return ("#%d" % l["id"], html.escape(corta(l["nome"] or "", 70)),
+                html.escape(l["entidade"] or ""), l["ano"] or "",
+                html.escape(l["status"] or ""),
+                "<a href='/anuncio/%s'>%s</a>" % (html.escape(l["ref"], quote=True),
+                                                  html.escape(l["ref"])),
+                html.escape("%s · %s" % (l["ligacao"] or "", l["resultado"] or "")),
+                "<form method='post' action='/casa/desligar/%d' style='display:inline'>"
+                "<button class='bt-leve' type='submit'>desligar</button></form>" % l["id"])
+
+    partes = []
+    partes.append(
+        "<div class='cx'><div class='factos'>%s%s%s%s%s</div></div>"
+        % (_facto("Ficheiro", html.escape(os.path.basename(origem)) if origem else "—"),
+           _facto("Importado", html.escape(data_hora_pt(quando)) if quando else "—"),
+           _facto("Ligados", str(len(ligadas))),
+           _facto("Por ligar", str(len(por_ligar))),
+           _facto("Fora do país", str(len(fora)))))
+    if por_ligar:
+        partes.append("<div class='cx'><div class='rot' style='margin-bottom:6px'>"
+                      "Por ligar (%d) <span class='nota'>os candidatos vêm da "
+                      "importação; ou escreve a referência do anúncio</span></div>%s</div>"
+                      % (len(por_ligar), _tabela_casa(
+                          ("#", "Concurso", "Entidade", "Ano", "Status", "Ligar a"),
+                          [linha_por_ligar(l) for l in por_ligar])))
+    partes.append("<div class='cx'><div class='rot' style='margin-bottom:6px'>"
+                  "Ligados (%d)</div>%s</div>"
+                  % (len(ligadas), _tabela_casa(
+                      ("#", "Concurso", "Entidade", "Ano", "Status", "Anúncio",
+                       "Ligação · triagem", ""),
+                      [linha_ligada(l) for l in ligadas])))
+    if fora:
+        partes.append("<div class='cx'><div class='rot' style='margin-bottom:6px'>"
+                      "Fora do país (%d) <span class='nota'>não entram, por decisão"
+                      "</span></div>%s</div>"
+                      % (len(fora), _tabela_casa(
+                          ("#", "Concurso", "Entidade", "Ano"),
+                          [("#%d" % l["id"], html.escape(corta(l["nome"] or "", 70)),
+                            html.escape(l["entidade"] or ""), l["ano"] or "")
+                           for l in fora])))
+    return envolver("casa", "Registo da casa",
+                    "O historial da casa, vindo do Excel de análise de concursos, "
+                    "ligado aos anúncios do radar. A triagem e o quadro dos ligados "
+                    "vêm daqui; o que o Excel sabe a mais está na ficha de cada um.",
+                    "<div class='larg'>%s</div>" % "".join(partes),
+                    migalhas=migalhas_de("casa"))
+
+
+@app.route("/casa/ligar/<int:ide>", methods=["POST"])
+def casa_ligar(ide):
+    ref = (request.form.get("ref") or "").strip()
+    if not ref:
+        return _volta_com_aviso("Diz a que anúncio ligar.")
+    with liga() as c:
+        ok, msg = casa.ligar_a_mao(c, ide, ref, quem_sou() or "Afonso")
+    if ok:
+        registar(ref, "registo da casa", "ligado à mão ao concurso #%d" % ide)
+    return _volta_com_aviso(msg)
+
+
+@app.route("/casa/desligar/<int:ide>", methods=["POST"])
+def casa_desligar(ide):
+    with liga() as c:
+        casa.desligar(c, ide)
+    return _volta_com_aviso("Registo #%d desligado; a triagem do anúncio fica como está."
+                            % ide)
+
+
 @app.route("/quadro/etiqueta/<path:ref>/nova", methods=["POST"])
 def etiqueta_nova(ref):
     nome = (request.form.get("nome") or "").strip()
@@ -13165,6 +13372,24 @@ def main():
         cfg_historico = dict(cfg, dias_catchup=dias)
         mensagem, novos = verificar(cfg_historico)
         print(mensagem)
+        return
+
+    if "--importar-excel" in sys.argv:
+        # O Excel de analise de concursos da casa. Sem caminho, repete o
+        # da ultima importacao (marca `excel_casa`). --ensaio calcula e
+        # nao grava; --sem-rede nao vai ao DR desempatar pelo preco base.
+        i = sys.argv.index("--importar-excel")
+        caminho = (sys.argv[i + 1] if len(sys.argv) > i + 1
+                   and not sys.argv[i + 1].startswith("--") else le_marca("excel_casa"))
+        if not caminho or not os.path.exists(caminho):
+            print("Diz-me o ficheiro: python radar.py --importar-excel "
+                  "<caminho do .xlsm> [--ensaio] [--sem-rede]")
+            return
+        ini = time.time()
+        rel = casa.importar(caminho, ensaio="--ensaio" in sys.argv,
+                            ler="--sem-rede" not in sys.argv)
+        print(casa.texto_do_relatorio(rel))
+        print("(%.0f s)" % (time.time() - ini))
         return
 
     if "--reler" in sys.argv:
