@@ -172,6 +172,17 @@ Em cima da lista estão as quatro abas que fazem o trabalho todo:
 
 A lista vem sempre do mais recente para o mais antigo.
 
+**Um concurso aparece uma vez, mesmo que o DR o publique três.** O DR
+não corrige um anúncio: publica outro, com número novo, cujo texto
+começa por «Alteração do Anúncio de procedimento n.º …» — é assim que
+um prazo se prorroga ou um preço base muda. O radar reconhece essas
+republicações, passa o prazo e o preço novos para o anúncio original e
+tira-as da lista. A ficha do original diz «Alterado pelo anúncio X» e o
+histórico conta o que mudou; a ficha da alteração aponta para o
+original, que é onde se decide — um anúncio que abandonaste continua
+abandonado quando é republicado, e um por ver a que estenderam o prazo
+volta a aparecer com o prazo novo, sem mexeres em nada.
+
 **O interesse recorta as quatro abas.** Em *Alertas › Interesse*
 escolhes, na árvore, os CPV que a casa trabalha; ligado, a lista passa
 a mostrar só o que corresponde — nas quatro abas, sem teres de pôr

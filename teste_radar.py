@@ -15,6 +15,7 @@ Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 import contextlib
 import datetime
 import html
+import inspect
 import os
 import re
 import sys
@@ -5469,6 +5470,254 @@ class TestFasesNaoSeCriamNemSeApagam(unittest.TestCase):
     def test_renomear_continua_a_existir(self):
         self.assertIn("fase_renomear",
                       [r.endpoint for r in radar.app.url_map.iter_rules()])
+
+
+class TestAlteracoesDoDR(BaseTemporaria):
+    """O DR não emenda um anúncio: publica outro, com ref novo, cujo
+    texto começa por «Alteração do Anúncio de procedimento n.º X». Até
+    01/09/2026 cada republicação entrava como anúncio novo — o mesmo
+    concurso três vezes no por ver, e 511 descartes repetidos do Afonso
+    sobre procedimentos que já tinha descartado. A regra: o ORIGINAL é a
+    ficha do procedimento e fica com o prazo e o preço em vigor; a
+    alteração fica na base, fora das listas ('alteracao'). Medido: 763
+    das 5 661 lidas, 103 em cadeia (citam a alteração anterior)."""
+
+    CORPO = ("\n1 - IDENTIFICAÇÃO E CONTACTOS DA ENTIDADE ADJUDICANTE\n"
+             "Designação da entidade adjudicante: Município de Exemplo\n"
+             "NIPC: 501234567\n\n6 - OBJETO DO CONTRATO\n"
+             "Vocabulário Principal: 72268000 - Serviços de software\n"
+             "Preço base s/IVA: %s\n\n13 - CONDIÇÕES DE APRESENTAÇÃO\n"
+             "Plataforma eletrónica utilizada pela entidade adjudicante: ACIN\n"
+             "Prazo para apresentação das propostas: %s 23:59\n")
+
+    def _texto(self, prazo="13-08-2026", preco="900.000,00 EUR", altera=""):
+        cabeca = ("Alteração do Anúncio de procedimento n.º %s, de 2026-07-17, "
+                  "com o ID 419967433 " % altera) if altera else ""
+        return cabeca + self.CORPO % (preco, prazo)
+
+    def _poe(self, ref, data_pub, texto=None, estado="novo", **campos):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "tipo, url, estado) VALUES (?,?,?,?,?,?,?)",
+                      (ref, "Software", "Município de Exemplo", data_pub,
+                       "Anúncio de procedimento", "https://dr/" + ref, estado))
+            if texto is not None:
+                lidos = radar.campos_do_detalhe(texto)
+                c.execute("UPDATE anuncios SET texto=?, prazo=?, preco_base=?, "
+                          "altera=?, detalhe_lido=1 WHERE ref=?",
+                          (texto, lidos["prazo"], lidos["preco_base"],
+                           lidos["altera"], ref))
+            for k, v in campos.items():
+                c.execute("UPDATE anuncios SET %s=? WHERE ref=?" % k, (v, ref))
+
+    def _le(self, ref):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+
+    def _chega(self, ref, texto):
+        """A leitura do detalhe, como o DR a devolve."""
+        radar._guardar_detalhe(
+            ref, {"data": {"DetalheConteudo": {"Texto": texto, "URL_PDF": ""}}})
+
+    def _historico(self, ref, accao=None):
+        with radar.liga() as c:
+            return [dict(p) for p in c.execute(
+                "SELECT accao, detalhe FROM historico WHERE ref=?" +
+                (" AND accao=?" if accao else ""),
+                (ref, accao) if accao else (ref,))]
+
+    def test_reconhece_o_cabecalho_da_alteracao(self):
+        self.assertEqual(radar.anuncio_alterado(
+            "Alteração do Anúncio de procedimento n.º 18372/2026, de "
+            "2026-07-17, com o ID 419967433 1 - IDENTIFICAÇÃO"), "18372/2026")
+        self.assertEqual(radar.anuncio_alterado(
+            " alteração do anúncio de procedimento n. º 5 / 2025 ..."), "5/2025")
+        self.assertEqual(radar.anuncio_alterado(
+            "Alteração do Anúncio de concurso urgente n.º 7/2026"), "7/2026")
+        self.assertEqual(radar.anuncio_alterado(self.CORPO % ("1", "2")), "")
+        self.assertEqual(radar.anuncio_alterado(""), "")
+        # a citacao a meio do texto nao conta: so o cabecalho
+        self.assertEqual(radar.anuncio_alterado(
+            self.CORPO % ("1", "2") +
+            "Alteração do Anúncio de procedimento n.º 1/2026"), "")
+
+    def test_campos_do_detalhe_traz_o_altera(self):
+        self.assertEqual(radar.campos_do_detalhe(
+            self._texto(altera="100/2026"))["altera"], "100/2026")
+        self.assertEqual(radar.campos_do_detalhe(self._texto())["altera"], "")
+
+    def test_a_alteracao_esconde_se_e_o_original_fica_com_o_prazo_novo(self):
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14")
+        self._chega("200/2026", self._texto(prazo="11-09-2026",
+                                            altera="100/2026"))
+        alt, orig = self._le("200/2026"), self._le("100/2026")
+        self.assertEqual(alt["estado"], "alteracao")
+        self.assertEqual(alt["altera"], "100/2026")
+        self.assertEqual(orig["estado"], "novo")
+        self.assertEqual(orig["prazo"], "2026-09-11")
+        self.assertEqual(orig["alterado_por"], "200/2026")
+        alterou = self._historico("100/2026", "alterou")
+        self.assertEqual(len(alterou), 1)
+        self.assertIn("13/08/2026 → 11/09/2026", alterou[0]["detalhe"])
+        # nao marcado: o historico conta, a fila do resumo nao
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) n FROM alteracoes")
+                             .fetchone()["n"], 0)
+
+    def test_um_marcado_alterado_vai_para_a_fila_do_resumo(self):
+        self._poe("100/2026", "2026-07-17", self._texto(), estado="interessa")
+        self._poe("200/2026", "2026-08-14")
+        self._chega("200/2026", self._texto(prazo="11-09-2026",
+                                            preco="950.000,00 EUR",
+                                            altera="100/2026"))
+        with radar.liga() as c:
+            fila = c.execute("SELECT ref, campo, antes, depois FROM alteracoes "
+                             "ORDER BY campo").fetchall()
+        self.assertEqual([(f["ref"], f["campo"]) for f in fila],
+                         [("100/2026", "prazo"), ("100/2026", "preco_base")])
+        self.assertEqual(fila[1]["depois"], "950.000,00 EUR")
+
+    def test_o_descartado_fica_descartado_e_a_lista_nao_repete(self):
+        self._poe("100/2026", "2026-07-17", self._texto(), estado="descartado",
+                  motivo="Preço base baixo")
+        self._poe("200/2026", "2026-08-14")
+        self._chega("200/2026", self._texto(prazo="11-09-2026",
+                                            altera="100/2026"))
+        self.assertEqual(self._le("100/2026")["estado"], "descartado")
+        self.assertEqual(self._le("100/2026")["motivo"], "Preço base baixo")
+        # "todos" sao todos os procedimentos: a alteracao nao entra
+        onde, valores = radar.condicoes({"estado": ""})
+        with radar.liga() as c:
+            refs = [r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios" + onde, valores)]
+        self.assertEqual(refs, ["100/2026"])
+
+    def test_a_triagem_feita_na_alteracao_passa_para_o_original(self):
+        # 513 vezes antes disto: o Afonso decidiu na republicacao
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14",
+                  self._texto(prazo="11-09-2026", altera="100/2026"),
+                  estado="descartado", motivo="Falta de CV's")
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET altera=NULL")   # texto por reler
+        self.assertEqual(radar.agrupar_alteracoes(), (2, 1))
+        orig = self._le("100/2026")
+        self.assertEqual((orig["estado"], orig["motivo"]),
+                         ("descartado", "Falta de CV's"))
+        self.assertEqual(self._le("200/2026")["estado"], "alteracao")
+        self.assertTrue(any("decidido na alteração" in p["detalhe"]
+                            for p in self._historico("100/2026", "estado")))
+        # segunda passagem: nada a fazer
+        self.assertEqual(radar.agrupar_alteracoes(), (0, 0))
+
+    def test_a_decisao_na_alteracao_ganha_ao_descarte_antigo_do_original(self):
+        # aconteceu na migracao de 01/09/2026: um «interessa» do Afonso na
+        # republicacao ficou por baixo de um descarte antigo do original,
+        # e o item sumiu-se dos Interessados
+        self._poe("100/2026", "2026-07-17", self._texto(), estado="descartado",
+                  motivo="Preço base baixo")
+        self._poe("200/2026", "2026-08-14",
+                  self._texto(prazo="11-09-2026", altera="100/2026"),
+                  estado="interessa", fase_id=1)
+        radar.aplicar_alteracao("200/2026")
+        orig = self._le("100/2026")
+        self.assertEqual((orig["estado"], orig["fase_id"], orig["motivo"]),
+                         ("interessa", 1, None))
+        self.assertTrue(any("era «abandonado»" in p["detalhe"]
+                            for p in self._historico("100/2026", "estado")))
+        # mas um 'novo' com fase nao e decisao: nao desfaz um descarte
+        self._poe("300/2026", "2026-08-20",
+                  self._texto(prazo="20-09-2026", altera="100/2026"),
+                  fase_id=1)
+        self._poe("400/2026", "2026-07-01", self._texto(), estado="descartado",
+                  motivo="Falta de CV's")
+        self._poe("500/2026", "2026-08-02",
+                  self._texto(prazo="20-09-2026", altera="400/2026"), fase_id=1)
+        radar.aplicar_alteracao("500/2026")
+        self.assertEqual(self._le("400/2026")["estado"], "descartado")
+
+    def test_a_cadeia_segue_ate_a_raiz_e_o_mais_recente_manda(self):
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14")
+        self._poe("300/2026", "2026-08-25")
+        self._chega("200/2026", self._texto(prazo="21-08-2026", altera="100/2026"))
+        self._chega("300/2026", self._texto(prazo="11-09-2026", altera="200/2026"))
+        orig = self._le("100/2026")
+        self.assertEqual(orig["alterado_por"], "300/2026")
+        self.assertEqual(orig["prazo"], "2026-09-11")
+        self.assertEqual(self._le("200/2026")["estado"], "alteracao")
+        self.assertEqual(self._le("300/2026")["estado"], "alteracao")
+
+    def test_a_ordem_de_leitura_invertida_da_o_mesmo(self):
+        # ler_detalhes() le do mais recente para o mais antigo
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14")
+        self._poe("300/2026", "2026-08-25")
+        self._chega("300/2026", self._texto(prazo="11-09-2026", altera="200/2026"))
+        self._chega("200/2026", self._texto(prazo="21-08-2026", altera="100/2026"))
+        orig = self._le("100/2026")
+        self.assertEqual((orig["alterado_por"], orig["prazo"], orig["estado"]),
+                         ("300/2026", "2026-09-11", "novo"))
+        self.assertEqual(self._le("200/2026")["estado"], "alteracao")
+        self.assertEqual(self._le("300/2026")["estado"], "alteracao")
+
+    def test_sem_o_original_na_base_a_alteracao_fica_como_anuncio(self):
+        self._poe("200/2026", "2026-08-14")
+        self._chega("200/2026", self._texto(altera="999/2020"))
+        alt = self._le("200/2026")
+        self.assertEqual((alt["estado"], alt["altera"]), ("novo", "999/2020"))
+
+    def test_reler_o_original_nao_repoe_o_prazo_antigo(self):
+        # a pagina do original no DR nunca muda; rele-la escrevia o prazo
+        # velho por cima do novo e registava uma alteracao falsa
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14")
+        self._chega("200/2026", self._texto(prazo="11-09-2026", altera="100/2026"))
+        self._chega("100/2026", self._texto())
+        self.assertEqual(self._le("100/2026")["prazo"], "2026-09-11")
+        self.assertEqual(len(self._historico("100/2026", "alterou")), 1)
+        # e o --reler tambem nao
+        radar.reparsear()
+        self.assertEqual(self._le("100/2026")["prazo"], "2026-09-11")
+        self.assertEqual(self._le("100/2026")["altera"], "")
+
+    def test_reler_marcados_le_a_pagina_da_alteracao_em_vigor(self):
+        fonte = inspect.getsource(radar.reler_marcados)
+        self.assertIn("COALESCE(a.alterado_por, a.ref)", fonte)
+        self.assertIn("x.ref=a.alterado_por", fonte)
+
+    def test_a_alteracao_nao_se_tria(self):
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14")
+        self._chega("200/2026", self._texto(prazo="11-09-2026", altera="100/2026"))
+        r = radar.app.test_client().post("/estado/200%2F2026/interessa")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("aviso=", r.headers["Location"])
+        self.assertIn("100%2F2026", r.headers["Location"])
+        self.assertEqual(self._le("200/2026")["estado"], "alteracao")
+        self.assertEqual(self._le("100/2026")["estado"], "novo")
+
+    def test_a_migracao_corre_uma_vez_por_marca(self):
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14",
+                  self._texto(prazo="11-09-2026", altera="100/2026"))
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET altera=NULL")
+            c.execute("DELETE FROM estado WHERE chave='alteracoes_agrupadas'")
+        radar.iniciar_db()
+        self.assertEqual(self._le("200/2026")["estado"], "alteracao")
+        n = len(self._historico("100/2026"))
+        radar.iniciar_db()              # segunda vez: marca posta, nada muda
+        self.assertEqual(len(self._historico("100/2026")), n)
+        self.assertEqual(radar.le_marca("alteracoes_agrupadas"), "1")
+
+    def test_o_nome_do_estado_e_por_extenso(self):
+        self.assertEqual(radar._NOMES_ESTADO["alteracao"], "alteração")
+
+    def test_os_alertas_por_enviar_saltam_as_alteracoes(self):
+        self.assertIn("a.estado != 'alteracao'",
+                      inspect.getsource(radar.alertas_por_enviar))
 
 
 if __name__ == "__main__":

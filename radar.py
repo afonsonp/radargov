@@ -475,7 +475,14 @@ def iniciar_db():
                            ("posicao", "INTEGER"), ("top3", "TEXT"),
                            # Porque e que se perdeu, ambito fechado
                            # (MOTIVOS_PERDA).
-                           ("motivo_perda", "TEXT")):
+                           ("motivo_perda", "TEXT"),
+                           # A republicacao: `altera` e o ref que o texto
+                           # deste anuncio declara alterar (NULL = texto
+                           # ainda nao lido com esta regra; '' = nao e
+                           # alteracao); `alterado_por` fica no ORIGINAL
+                           # e aponta para a alteracao mais recente, cujo
+                           # prazo e preco sao os que estao em vigor.
+                           ("altera", "TEXT"), ("alterado_por", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
@@ -532,6 +539,14 @@ def iniciar_db():
                       "VALUES ('texto_com_paginas','1')")
     for ref in refazer:
         extrair_textos(ref)
+    # As alteracoes (republicacoes) que ja estavam na base antes de se
+    # saber reconhece-las: uma vez, por marca -- o WHERE que as encontra
+    # le colunas depois do `texto` e varre a tabela inteira (ver a regra
+    # das migracoes sem indice no CLAUDE.md). As que chegarem depois
+    # ligam-se ao ler o detalhe, em _guardar_detalhe().
+    if le_marca("alteracoes_agrupadas") != "1":
+        agrupar_alteracoes()
+        marca("alteracoes_agrupadas", "1")
 
 
 def gravar_config(mudancas):
@@ -1021,10 +1036,31 @@ def valor_de(seccoes, *nomes):
     return ""
 
 
+# A republicacao de um anuncio no DR. Medido a 01/09/2026 sobre os 5 661
+# textos lidos: 763 (13,5%) comecam por "Alteracao do Anuncio de
+# procedimento n.º 18372/2026, de 2026-07-17, com o ID ..." -- e e a
+# UNICA forma que aparece (os 763 prefixos sao "alteracao do"). E a
+# chave exacta do mesmo procedimento publicado outra vez, com prazo ou
+# preco novos. Ate aqui cada republicacao entrava como anuncio novo: o
+# mesmo concurso aparecia duas e tres vezes no por ver, e o Afonso
+# descartou 511 vezes procedimentos que ja tinha descartado. Titulo
+# igual na mesma entidade NAO serve de chave: 58 pares assim sem
+# citacao sao procedimentos diferentes (repetem-se todos os anos).
+RX_ALTERACAO = re.compile(
+    r"^\s*Altera[çc][ãa]o do An[úu]ncio de (?:procedimento|concurso urgente)"
+    r"\s*n\.?\s*[ºo°]?\s*(\d+)\s*/\s*(\d{4})", re.I)
+
+
+def anuncio_alterado(texto):
+    """O ref do anuncio que este texto declara alterar, ou ''."""
+    m = RX_ALTERACAO.match((texto or "")[:400])
+    return "%s/%s" % (m.group(1), m.group(2)) if m else ""
+
+
 def campos_do_detalhe(texto):
     """Le do texto do anuncio os campos que servem para filtrar e listar."""
     achados = {"cpv": "", "prazo": "", "preco_base": "", "plataforma": "",
-               "link_pecas": "", "nif": ""}
+               "link_pecas": "", "nif": "", "altera": anuncio_alterado(texto)}
     seccoes = seccoes_do_texto(texto)
 
     # O NIPC da entidade adjudicante. Medido: o DR publica-o em **100%**
@@ -1165,26 +1201,234 @@ def registar_alteracoes(ref, difs):
                  quem="DR")
 
 
+# --- as republicacoes (alteracoes) do DR
+#
+# O DR nao emenda um anuncio: publica outro, com ref novo, cujo texto
+# comeca por "Alteracao do Anuncio de procedimento n.º X". Para o radar
+# sao dois anuncios; para quem tria e o mesmo concurso. A regra da casa
+# e que o ORIGINAL e a ficha do procedimento -- e nele que vive a
+# triagem, o quadro, as pecas e a leitura -- e a alteracao fica na base
+# com o proprio texto mas fora das listas (estado 'alteracao'), depois
+# de lhe passar ao original o que mudou: prazo, preco base, CPV,
+# plataforma e link das pecas, que sao os campos que decidem. A
+# alternativa (passar a triagem para o anuncio mais recente) mudava o
+# ref de tudo o que ja estava feito a cada republicacao.
+#
+# 103 das 763 citam a alteracao anterior e nao o original (21505 ->
+# 20771 -> 18372): segue-se a cadeia ate a raiz. E a ordem de chegada
+# nao pode importar -- ler_detalhes() le do mais recente para o mais
+# antigo --, por isso o original toma sempre os campos do membro mais
+# RECENTE da cadeia, seja qual for o que acabou de ser lido.
+
+# O que e triagem de um anuncio, e passa da alteracao para o original
+# quando foi na alteracao que alguem decidiu (aconteceu 513 vezes antes
+# de haver esta ligacao: 511 descartes e 2 interessa).
+CAMPOS_DA_TRIAGEM = ("estado", "motivo", "fase_id", "responsavel",
+                     "preco_proposto", "posicao", "top3", "motivo_perda")
+CAMPOS_EM_VIGOR = ("prazo", "preco_base", "cpv", "plataforma", "link_pecas")
+
+
+def raiz_da_alteracao(c, ref, altera):
+    """O anuncio ORIGINAL de uma cadeia de alteracoes: segue `altera`
+    ate um anuncio que nao altera nenhum. Quando o citado nao esta na
+    base, a raiz e o ultimo que esta; quando nem o primeiro citado esta,
+    devolve None e o anuncio fica como esta, a representar sozinho o
+    procedimento."""
+    vistos = {ref}
+    raiz, actual = None, altera
+    while actual and actual not in vistos:
+        vistos.add(actual)
+        linha = c.execute("SELECT ref, altera FROM anuncios WHERE ref=?",
+                          (actual,)).fetchone()
+        if not linha:
+            break
+        raiz, actual = linha["ref"], (linha["altera"] or "")
+    return raiz
+
+
+def membros_da_cadeia(c, raiz):
+    """Todos os anuncios que, directa ou indirectamente, alteram a raiz."""
+    fora, fila = [], [raiz]
+    while fila:
+        actual = fila.pop()
+        for m in c.execute("SELECT ref, data_pub FROM anuncios WHERE altera=?",
+                           (actual,)):
+            if m["ref"] != raiz and m["ref"] not in [f["ref"] for f in fora]:
+                fora.append(m)
+                fila.append(m["ref"])
+    return fora
+
+
+def _decidido(a):
+    return a["estado"] != "novo" or a["fase_id"] is not None
+
+
+def aplicar_alteracao(ref, avisar=True):
+    """Liga a alteracao `ref` ao anuncio original e poe nele o que esta
+    em vigor. Devolve o ref da raiz, ou '' quando nao ha nada a ligar.
+
+    `avisar` manda os campos que mudaram para a fila `alteracoes` (o
+    resumo diario), e so quando o original esta marcado -- e o mesmo
+    criterio do reler_marcados(): uma prorrogacao num anuncio que
+    ninguem quer nao e noticia. A migracao dos 763 que ja la estavam
+    corre sem avisar; o historico da ficha fica sempre.
+    """
+    with liga() as c:
+        a = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        if not a or not a["altera"]:
+            return ""
+        raiz_ref = raiz_da_alteracao(c, ref, a["altera"])
+        if not raiz_ref or raiz_ref == ref:
+            return ""
+        r = c.execute("SELECT * FROM anuncios WHERE ref=?",
+                      (raiz_ref,)).fetchone()
+        herdou, era = "", ""
+        # Foi na alteracao que se decidiu: a decisao e do procedimento.
+        # E uma decisao a serio (interessa/descartado) na alteracao
+        # GANHA a uma diferente no original -- a alteracao e a
+        # publicacao mais recente, e foi sobre ela que se decidiu por
+        # ultimo. A migracao de 01/09/2026 nao fazia isto e deixou um
+        # «interessa» do Afonso (21924/2026) por baixo de um descarte
+        # antigo do original; o item sumiu-se dos Interessados. Um
+        # 'novo' com fase nao e decisao: copia-se so para um original
+        # por decidir.
+        decisao = a["estado"] not in ("novo", "alteracao")
+        if ((_decidido(a) and not _decidido(r))
+                or (decisao and a["estado"] != r["estado"])):
+            if _decidido(r) and r["estado"] != a["estado"]:
+                era = _NOMES_ESTADO.get(r["estado"], r["estado"])
+            c.execute("UPDATE anuncios SET %s WHERE ref=?"
+                      % ", ".join("%s=?" % k for k in CAMPOS_DA_TRIAGEM),
+                      [a[k] for k in CAMPOS_DA_TRIAGEM] + [raiz_ref])
+            c.execute("INSERT OR IGNORE INTO anuncio_etiquetas (ref, etiqueta_id)"
+                      " SELECT ?, etiqueta_id FROM anuncio_etiquetas WHERE ref=?",
+                      (raiz_ref, ref))
+            herdou = a["estado"] + (" (%s)" % a["motivo"] if a["motivo"] else "")
+        if a["estado"] != "alteracao":
+            c.execute("UPDATE anuncios SET estado='alteracao', fase_id=NULL "
+                      "WHERE ref=?", (ref,))
+        # O que esta em vigor e o membro mais recente da cadeia, que
+        # pode nao ser este (ordem de leitura invertida, ou uma segunda
+        # alteracao ja lida).
+        membros = membros_da_cadeia(c, raiz_ref)
+        recente = max(membros, key=lambda m: (m["data_pub"] or "",
+                                              _numero_do_ref(m["ref"])))
+        vigor = c.execute("SELECT ref, data_pub, texto FROM anuncios WHERE ref=?",
+                          (recente["ref"],)).fetchone()
+        campos = campos_do_detalhe(vigor["texto"])
+        difs = [(k, r[k] or "", campos[k] or "") for k in CAMPOS_EM_VIGOR
+                if (r[k] or "") != (campos[k] or "")]
+        c.execute("UPDATE anuncios SET alterado_por=?, %s WHERE ref=?"
+                  % ", ".join("%s=?" % k for k in CAMPOS_EM_VIGOR),
+                  [vigor["ref"]] + [campos[k] for k in CAMPOS_EM_VIGOR] + [raiz_ref])
+        marcado = _decidido(r) or bool(herdou)
+        # Idempotente tambem no historico: voltar a passar (--reler,
+        # --repor-triagem seguido de --reler) nao repete a linha.
+        ja_dito = c.execute("SELECT 1 FROM historico WHERE ref=? AND accao=?",
+                            (ref, "alteração")).fetchone()
+    if not ja_dito:
+        registar(ref, "alteração",
+                 "do anúncio %s, publicado a %s; a triagem faz-se lá"
+                 % (raiz_ref, data_pt(r["data_pub"], "")), quem="DR")
+    if herdou:
+        registar(raiz_ref, "estado", "%s, decidido na alteração %s%s"
+                 % (herdou, ref, " (era «%s»)" % era if era else ""),
+                 quem="DR")
+    if difs:
+        rotulos = dict(CAMPOS_VIGIADOS)
+        registar(raiz_ref, "alterou",
+                 "pelo anúncio %s de %s: %s"
+                 % (vigor["ref"], data_pt(vigor["data_pub"], ""),
+                    "; ".join("%s %s → %s" % (rotulos.get(k, k),
+                                              _valor_vigiado(k, antes) or "—",
+                                              _valor_vigiado(k, depois) or "—")
+                              for k, antes, depois in difs)), quem="DR")
+        vigiados = [(k, antes, depois) for k, antes, depois in difs
+                    if k in rotulos and antes and depois]
+        if avisar and marcado and vigiados:
+            agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+            with liga() as c:
+                c.executemany(
+                    "INSERT INTO alteracoes (ref, campo, antes, depois, "
+                    "detectado_em) VALUES (?,?,?,?,?)",
+                    [(raiz_ref, k, antes, depois, agora)
+                     for k, antes, depois in vigiados])
+    return raiz_ref
+
+
+def _numero_do_ref(ref):
+    try:
+        return int(str(ref).split("/")[0])
+    except ValueError:
+        return 0
+
+
+def agrupar_alteracoes():
+    """Reconhece e liga as alteracoes que ja estao na base: enche
+    `altera` onde o texto ainda nao foi lido com esta regra, e aplica
+    as que ainda nao estao ligadas, da mais antiga para a mais recente.
+    Idempotente -- uma alteracao ligada esta em 'alteracao' e nao volta
+    a entrar; uma cujo original nao esta na base fica como anuncio, e
+    volta a tentar-se de graca. Devolve (reconhecidas, ligadas).
+
+    Varre a tabela (as colunas ficam depois do `texto`): e para correr
+    por marca no arranque e no --reler, nao a cada pedido."""
+    with liga() as c:
+        pendentes = c.execute(
+            "SELECT ref, texto FROM anuncios WHERE altera IS NULL "
+            "AND detalhe_lido=1 AND texto IS NOT NULL AND texto != ''").fetchall()
+        for a in pendentes:
+            alvo = anuncio_alterado(a["texto"])
+            c.execute("UPDATE anuncios SET altera=? WHERE ref=?",
+                      ("" if alvo == a["ref"] else alvo, a["ref"]))
+        por_ligar = [r["ref"] for r in c.execute(
+            "SELECT ref FROM anuncios WHERE COALESCE(altera,'') != '' "
+            "AND estado != 'alteracao' ORDER BY data_pub, ref")]
+    ligadas = sum(1 for ref in por_ligar if aplicar_alteracao(ref, avisar=False))
+    return len(pendentes), ligadas
+
+
 def _guardar_detalhe(ref, dados):
     """Caminhos exactos, confirmados na resposta do DR."""
     conteudo = (dados.get("data") or {}).get("DetalheConteudo") or {}
     texto = conteudo.get("Texto") or ""
     campos = campos_do_detalhe(texto)
+    altera = campos["altera"] if campos["altera"] != ref else ""
     with liga() as c:
         # A leitura anterior, antes de a esmagar: e a comparacao entre
         # as duas que da os avisos de alteracao (B05).
-        antigo = c.execute("SELECT prazo, preco_base, detalhe_lido "
+        antigo = c.execute("SELECT prazo, preco_base, detalhe_lido, alterado_por "
                            "FROM anuncios WHERE ref=?", (ref,)).fetchone()
-        c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
-                     plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
-                     detalhe_lido=1 WHERE ref=?""",
-                  (campos["cpv"], campos["prazo"], campos["preco_base"],
-                   campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
-                   campos["link_pecas"], campos["nif"], ref))
-    if antigo and antigo["detalhe_lido"]:
+        ja_alterado = bool(antigo and antigo["alterado_por"])
+        if ja_alterado:
+            # Este anuncio ja foi alterado por outro mais recente: a
+            # pagina DELE no DR e a versao antiga, e escrever-lhe o
+            # prazo de la repunha o prazo velho por cima do que esta em
+            # vigor -- e registava uma "alteracao" falsa. Guarda-se o
+            # texto; os campos que decidem sao os da alteracao.
+            c.execute("UPDATE anuncios SET texto=?, pdf_url=?, nif=?, "
+                      "altera=?, detalhe_lido=1 WHERE ref=?",
+                      (texto, conteudo.get("URL_PDF") or "", campos["nif"],
+                       altera, ref))
+        else:
+            c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
+                         plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
+                         altera=?, detalhe_lido=1 WHERE ref=?""",
+                      (campos["cpv"], campos["prazo"], campos["preco_base"],
+                       campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
+                       campos["link_pecas"], campos["nif"], altera, ref))
+    # Daqui para baixo ja fora da transaccao: aplicar_alteracao() e
+    # registar_alteracoes() abrem a sua ligacao e tem de ver o que ficou
+    # escrito acima.
+    if antigo and antigo["detalhe_lido"] and not ja_alterado:
         difs = diferencas_do_detalhe(dict(antigo), campos)
         if difs:
             registar_alteracoes(ref, difs)
+    if altera:
+        # Pode ser uma alteracao lida DEPOIS da seguinte (ler_detalhes
+        # vai do mais recente para o mais antigo): so agora se sabe de
+        # quem e, e a raiz verdadeira fica a saber.
+        aplicar_alteracao(ref)
     return texto
 
 
@@ -1345,12 +1589,18 @@ def reler_marcados(limite=25):
     with liga() as c:
         # So a fonte do DR: uma consulta preliminar da Vortal (B14) nao
         # tem pagina de detalhe no DR para reler
+        # Um original ja alterado rele-se pela pagina da ALTERACAO mais
+        # recente, que e a versao em vigor: a pagina dele no DR nunca
+        # muda, e rele-la punha o prazo antigo por cima do novo.
         marcados = c.execute(
-            "SELECT ref, url FROM anuncios WHERE detalhe_lido=1"
+            "SELECT COALESCE(a.alterado_por, a.ref) ref,"
+            " COALESCE((SELECT x.url FROM anuncios x WHERE x.ref=a.alterado_por),"
+            " a.url) url"
+            " FROM anuncios a WHERE a.detalhe_lido=1"
             " AND COALESCE(fonte,'dr')='dr'"
-            " AND (estado='interessa' OR fase_id IS NOT NULL)"
-            " AND prazo != '' AND prazo >= ?"
-            " ORDER BY prazo LIMIT ?", (hoje, limite)).fetchall()
+            " AND (a.estado='interessa' OR a.fase_id IS NOT NULL)"
+            " AND a.prazo != '' AND a.prazo >= ?"
+            " ORDER BY a.prazo LIMIT ?", (hoje, limite)).fetchall()
     feitos = 0
     for a in marcados:
         variaveis["Key"] = a["url"].rsplit("/", 1)[-1]
@@ -1383,12 +1633,25 @@ def reparsear(limite=None):
     with liga() as c:
         for a in linhas:
             campos = campos_do_detalhe(a["texto"])
-            c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
-                         plataforma=?, link_pecas=?, nif=? WHERE ref=?""",
-                      (campos["cpv"], campos["prazo"], campos["preco_base"],
-                       campos["plataforma"], campos["link_pecas"],
-                       campos["nif"], a["ref"]))
+            altera = campos["altera"] if campos["altera"] != a["ref"] else ""
+            # Um original ja alterado fica com os campos em vigor, que
+            # sao os da alteracao e nao os do proprio texto (a mesma
+            # guarda do _guardar_detalhe); agrupar_alteracoes() volta a
+            # po-los a seguir, e este UPDATE nao os pode desfazer antes.
+            if (c.execute("SELECT alterado_por FROM anuncios WHERE ref=?",
+                          (a["ref"],)).fetchone() or {"alterado_por": None}
+                    )["alterado_por"]:
+                c.execute("UPDATE anuncios SET nif=?, altera=? WHERE ref=?",
+                          (campos["nif"], altera, a["ref"]))
+            else:
+                c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
+                             plataforma=?, link_pecas=?, nif=?, altera=?
+                             WHERE ref=?""",
+                          (campos["cpv"], campos["prazo"], campos["preco_base"],
+                           campos["plataforma"], campos["link_pecas"],
+                           campos["nif"], altera, a["ref"]))
             feitos += 1
+    agrupar_alteracoes()
     return feitos
 
 
@@ -3434,7 +3697,7 @@ TRIAGEM_EXPORT = os.path.join(BASE_DIR, "triagem.jsonl")
 _TABELAS_TRIAGEM = (
     ("anuncios", ("ref", "estado", "fase_id", "responsavel", "visto_em"),
      "SELECT ref, estado, fase_id, responsavel, visto_em FROM anuncios "
-     "WHERE estado != 'novo' OR fase_id IS NOT NULL "
+     "WHERE estado NOT IN ('novo', 'alteracao') OR fase_id IS NOT NULL "
      "OR COALESCE(responsavel,'') != '' ORDER BY ref"),
     ("fases", ("id", "nome", "ordem"),
      "SELECT id, nome, ordem FROM fases ORDER BY id"),
@@ -3722,6 +3985,7 @@ def alertas_por_enviar():
                 "a.preco_base, a.cpv FROM alertas_vistos v "
                 "JOIN anuncios a ON a.ref = v.ref "
                 "WHERE v.filtro_id=? AND v.enviado_em IS NULL "
+                "AND a.estado != 'alteracao' "
                 "ORDER BY a.prazo != '' DESC, a.prazo, a.data_pub DESC",
                 (f["id"],)).fetchall()
             if linhas:
@@ -7566,7 +7830,8 @@ _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
 # resolve-se na hora, em resumo_filtro().
 _NOMES_PRAZO = {"aberto": "prazo por fechar", "expirado": "prazo passado"}
 _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
-                 "descartado": "abandonado", "": "todos"}
+                 "descartado": "abandonado", "alteracao": "alteração",
+                 "": "todos"}
 # Traducao das accoes antigas do historico para o vocabulario actual
 # (§7 do ESQUELETO: "análise" nao aparece no ecra — chama-se leitura).
 # Os registos gravados antes da mudanca ficam na base como estao; e ao
@@ -7850,6 +8115,12 @@ def condicoes(args):
         estado = "novo"
     if estado:
         onde.append("estado = ?"); valores.append(estado)
+    else:
+        # "todos" sao todos os PROCEDIMENTOS. Uma alteracao e a
+        # republicacao de um anuncio que ja esta na lista, com o prazo
+        # e o preco dela ja postos nele; mostra-la era contar o mesmo
+        # concurso duas vezes -- e um alerta avisar dele duas vezes.
+        onde.append("estado != 'alteracao'")
     return (" WHERE " + " AND ".join(onde) if onde else ""), valores
 
 
@@ -8188,6 +8459,18 @@ def mudar_estado(ref, novo):
         motivo = (request.form.get("motivo") or "").strip()
         if novo == "descartado" and motivo not in MOTIVOS_ABANDONO:
             return _volta_com_aviso("Escolhe o motivo antes de abandonar.")
+        with liga() as c:
+            actual = c.execute("SELECT estado, altera FROM anuncios WHERE ref=?",
+                               (ref,)).fetchone()
+            if actual and actual["estado"] == "alteracao":
+                raiz = raiz_da_alteracao(c, ref, actual["altera"] or "")
+        if actual and actual["estado"] == "alteracao":
+            # A alteracao nao se tria: a decisao e do procedimento, e o
+            # procedimento e o anuncio original -- que ja tem o prazo
+            # desta.
+            return _volta_com_aviso(
+                "O anúncio %s é uma alteração do %s: decide-se na ficha dele."
+                % (ref, raiz or "original"))
         with liga() as c:
             antes = c.execute("SELECT estado FROM anuncios WHERE ref=?",
                               (ref,)).fetchone()
@@ -11183,6 +11466,35 @@ def ficha(ref):
                          (ref,)).fetchall()
         passos = c.execute("SELECT * FROM historico WHERE ref=? "
                            "ORDER BY id DESC LIMIT 12", (ref,)).fetchall()
+        # A republicacao. Numa alteracao, a ficha aponta para o original,
+        # onde a triagem se faz; num original ja alterado, o texto que
+        # se mostra e o da alteracao mais recente -- e o que esta em
+        # vigor, e os factos do cabecalho ja sao os dela.
+        raiz_ref = (raiz_da_alteracao(c, ref, _valor(a, "altera") or "")
+                    if a["estado"] == "alteracao" else "")
+        vigor = (c.execute("SELECT ref, data_pub, texto FROM anuncios WHERE ref=?",
+                           (a["alterado_por"],)).fetchone()
+                 if _valor(a, "alterado_por") else None)
+    texto_vigente = (vigor["texto"] if vigor and vigor["texto"] else a["texto"])
+    faixa_alteracao = ""
+    if a["estado"] == "alteracao":
+        faixa_alteracao = (
+            "<div class='flash'>Este anúncio é uma <b>alteração</b> do anúncio "
+            "<a href='/anuncio/%s'>%s</a>%s. O prazo e o preço daqui já estão "
+            "na ficha dele, e é lá que se decide.</div>"
+            % (html.escape(raiz_ref, quote=True), html.escape(raiz_ref),
+               "" if raiz_ref else " original, que não está nesta base")
+            if raiz_ref else
+            "<div class='flash'>Este anúncio altera o anúncio <b>%s</b>, que "
+            "não está nesta base; fica a representar o procedimento.</div>"
+            % html.escape(_valor(a, "altera") or ""))
+    elif vigor:
+        faixa_alteracao = (
+            "<div class='flash'>Alterado pelo anúncio <a href='/anuncio/%s'>%s"
+            "</a>, publicado a %s: os factos acima e o texto abaixo são os da "
+            "versão em vigor. O histórico diz o que mudou.</div>"
+            % (html.escape(vigor["ref"], quote=True), html.escape(vigor["ref"]),
+               data_pt(vigor["data_pub"], "")))
 
     completo = request.args.get("modo") == "completo"
     # Qual das pecas esta aberta no leitor, por baixo da lista delas.
@@ -11192,8 +11504,9 @@ def ficha(ref):
     dias, passou = dias_restantes(a["prazo"])
 
     # --- cabecalho
-    rotulo_estado = {"novo": "por ver"}.get(a["estado"], a["estado"])
-    classe_estado = {"interessa": "ok", "descartado": ""}.get(a["estado"], "info")
+    rotulo_estado = _NOMES_ESTADO.get(a["estado"], a["estado"])
+    classe_estado = {"interessa": "ok", "descartado": "",
+                     "alteracao": ""}.get(a["estado"], "info")
     chips = ["<span class='ref'>%s %s</span>"
              % ("Anúncio" if e_do_dr else "Consulta", html.escape(ref))]
     if a["tipo"]:
@@ -11267,12 +11580,13 @@ def ficha(ref):
     # As outras (as que abrem coisas fora daqui, e o repor) vao para a
     # direita do indice, onde nao disputam o olho com o titulo.
     decidir, sair = [], []
-    if a["estado"] != "interessa":
+    e_alteracao = a["estado"] == "alteracao"
+    if a["estado"] != "interessa" and not e_alteracao:
         decidir.append(accao("/estado/%s/interessa" % ref, "Interessa", "bt verde"))
-    if a["estado"] != "descartado":
+    if a["estado"] != "descartado" and not e_alteracao:
         decidir.append(forma_abandonar(ref, "bt", "Abandonar",
                                        a["titulo"] or ref))
-    if a["estado"] != "novo":
+    if a["estado"] != "novo" and not e_alteracao:
         sair.append(accao("/estado/%s/novo" % ref, "Pôr por ver", "bt-leve"))
     if a["pdf_url"]:
         sair.append("<a class='bt-leve' href='%s' target='_blank'>PDF oficial</a>"
@@ -11312,8 +11626,8 @@ def ficha(ref):
                     html.escape(a["titulo"] or ref), chip_prazo,
                     "".join(decidir)))
 
-    # --- seccoes do anuncio
-    seccoes = seccoes_do_texto(a["texto"])
+    # --- seccoes do anuncio (as da versao em vigor, quando foi alterado)
+    seccoes = seccoes_do_texto(texto_vigente)
 
     # No modo essencial mostra-se a tabela do que interessa para decidir,
     # e nao as seccoes em bruto: o DR espalha estes campos por meia duzia
@@ -11549,7 +11863,8 @@ def ficha(ref):
     # rolar. Nenhum bloco entrou nem saiu -- os quatro que viviam na
     # coluna da direita passaram a estar nesta, e o prazo, que era a
     # caixa preta, e agora um facto do cabecalho mais o chip do indice.
-    conteudo = ("<div class='larg ficha-dossier'>" + cabeca + seccoes_html +
+    conteudo = ("<div class='larg ficha-dossier'>" + cabeca + faixa_alteracao +
+                seccoes_html +
                 docs_cx +
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
                 mercado(a) + "</div>"
@@ -12270,14 +12585,17 @@ def funil_anuncios():
         d["porver_30"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
             "AND estado = 'novo'", (desde,)).fetchone()["n"]
+        # As alteracoes (republicacoes) nao sao triagem de ninguem: sem
+        # as tirar, 763 delas contavam como "triadas".
         d["triados_30"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado != 'novo'", (desde,)).fetchone()["n"]
+            "AND estado NOT IN ('novo', 'alteracao')", (desde,)).fetchone()["n"]
         d["interessa_30"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
             "AND estado = 'interessa'", (desde,)).fetchone()["n"]
         d["triados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado != 'novo'").fetchone()["n"]
+            "SELECT COUNT(*) n FROM anuncios "
+            "WHERE estado NOT IN ('novo', 'alteracao')").fetchone()["n"]
         d["interessa"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios WHERE estado='interessa'").fetchone()["n"]
         d["descartados"] = c.execute(
@@ -12296,7 +12614,8 @@ def funil_anuncios():
         d["por_divisao"] = c.execute(
             "SELECT substr(cpv,1,2) div, "
             " SUM(estado='interessa') sim, SUM(estado='descartado') nao, "
-            " COUNT(*) tudo FROM anuncios WHERE cpv != '' AND estado != 'novo' "
+            " COUNT(*) tudo FROM anuncios WHERE cpv != '' "
+            " AND estado NOT IN ('novo', 'alteracao') "
             "GROUP BY div ORDER BY tudo DESC LIMIT 8").fetchall()
     return d
 
@@ -12854,8 +13173,12 @@ def main():
         # ja esta guardado, uns segundos para a base toda.
         ini = time.time()
         n = reparsear()
+        with liga() as c:
+            n_alt = c.execute("SELECT COUNT(*) n FROM anuncios "
+                              "WHERE estado='alteracao'").fetchone()["n"]
         print("%d anúncios reanalisados a partir do texto guardado, "
-              "em %.1f segundos (nenhum pedido ao DR)" % (n, time.time() - ini))
+              "em %.1f segundos (nenhum pedido ao DR); %d são alterações "
+              "ligadas ao anúncio original" % (n, time.time() - ini, n_alt))
         return
 
     if "--ler-pecas" in sys.argv:
