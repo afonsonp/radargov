@@ -515,6 +515,19 @@ disparo: foi um teste novo que descobriu que `" ".join(("","",""))` dá `"  "`
 plataforma nunca chegava a correr. Uma auditoria por leitura integral tinha
 passado por cima dele no dia anterior.
 
+**Separa a condição da espera.** Quando o contrato de uma função é «espera
+até X e só então faz Y», torna o X injectável e escreve-o: `False`, `False`,
+`True`, e verifica as duas coisas — que o Y aconteceu e quantas vezes se
+perguntou. Guarda um teste pequeno que exercite o X verdadeiro contra o
+recurso verdadeiro, para a condição ficar coberta, mas não faças a asserção
+da ordem depender de concorrência real. Um teste cujo sucesso depende de um
+`sleep` numa thread aterrar antes de um prazo noutra é um teste instável que
+ainda não falhou: passou duas vezes isolado, falhou à terceira e outra vez
+dentro da bateria completa, e o que estava a medir era o escalonador do
+sistema. (Pelo caminho apareceu um facto do Windows que piora muito as
+contas: ligar a uma porta que está reservada mas ainda não à escuta não é
+recusado — bloqueia o tempo todo do timeout.)
+
 ### Armadilhas já pagas
 
 Custaram horas uma vez. O registo longo está no `ESTADO.md`; estas quatro
@@ -554,6 +567,16 @@ PowerShell -- so pelo `file_path` eram uma porta com a parede ao lado:
   `radar.db*` -- capturas e base nao se editam a maos. Nos comandos, recusa
   a escrita e deixa passar a leitura: um `sqlite3 radar.db "SELECT ..."` e
   rotina, e travar leituras so ensinava a desligar o hook.
+  **Falso positivo conhecido:** o hook procura o padrao no texto do comando
+  e nao distingue texto que executa de texto que descreve execucao, por
+  isso dispara num `git commit` cuja *mensagem* cita o SQL que foi
+  alterado. O efeito pratico nao e neutro -- obriga a escrever a mensagem
+  de commit de forma mais vaga sobre exactamente aquilo que o hook protege.
+  Estreitar o padrao (so o argumento de um cliente de base de dados, um
+  `-c`/`-e`, um redireccionamento para o stdin dele) ou isentar os comandos
+  estruturalmente incapazes de o executar (`git commit`, `git tag`) e
+  mudanca a uma guarda de seguranca: decisao do Afonso, nao se faz de
+  passagem.
 - **`testes_antes_do_commit.py`** (PreToolUse) trava o `git commit` com
   testes a falhar. So o commit; o resto do git passa.
 - **`verificar_sintaxe.py`** (PostToolUse) compila o Python escrito com
