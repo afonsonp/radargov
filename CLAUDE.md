@@ -339,6 +339,13 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   do Parque de Saúde de Lisboa» virava tabela); por isso o
   `RX_PAR_PERFIL` exige chave curta. Há teste por forma
   (`TestDesenhaValor`).
+- **A largura a mais dá mais informação, não linhas mais compridas.**
+  O `.larg` tem tecto (1560px) e a folga lateral acompanha o ecrã
+  (`clamp`); as grelhas ganham colunas com `auto-fit`/`auto-fill` em vez
+  de terem um número fixo; e o texto corrido tem tecto próprio em `ch`
+  — medido, fica em 643px de 1366 a 2560, enquanto as tabelas da mesma
+  página vão de 1112 a 1522. Antes disto, um monitor de 1920 tinha 530px
+  vazios e um de 2560 tinha 1170.
 - **Cor de texto e cor de decoração são escalas diferentes.** O texto
   usa `--t1`..`--t6`, medidos para passar AA (4,5:1) **sobre
   `--papel`**, que é o pior fundo — não sobre branco. Setas, molduras
