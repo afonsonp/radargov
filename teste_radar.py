@@ -4201,8 +4201,13 @@ class TestConsultasPreliminares(BaseTemporaria):
             a = c.execute("SELECT * FROM anuncios "
                           "WHERE ref='PT1.NTC.999'").fetchone()
         self.assertEqual(a["fonte"], "vortal")
-        self.assertEqual(a["detalhe_lido"], 1)   # nada para ler no DR
+        # por ler: a pesquisa não traz CPV nem NIPC — quem os vai
+        # buscar é ler_preliminares(). Marcar como lido aqui dizia que
+        # o anúncio estava completo sem o campo por que todos filtram
+        self.assertEqual(a["detalhe_lido"], 0)
         self.assertEqual(a["data_pub"], "2026-08-31")
+        # 22:59Z é 23:59 em Lisboa, do MESMO dia — a conversão não pode
+        # empurrar o prazo para o dia seguinte
         self.assertEqual(a["prazo"], "2026-09-04")
         self.assertEqual(a["preco_base"], "478.500,00 EUR")
         self.assertEqual(a["plataforma"], "vortal")
@@ -4266,6 +4271,260 @@ class TestConsultasPreliminares(BaseTemporaria):
                "contract-notice-view/PT1.NTC.42/")
         self.assertEqual(len(s.urls), 1)
         self.assertIn("GetContractNoticeDocuments", s.urls[0])
+
+
+class TestDetalheDaPreliminar(BaseTemporaria):
+    """01/09/2026, apanhado pelo Afonso: as consultas preliminares
+    entravam **sem se ler o que está lá dentro**. A pesquisa da Vortal
+    (SearchTenders) tem 16 campos — título, entidade, datas, estado,
+    tipo — e nenhum deles é CPV nem NIPC. Consequência medida: as 24
+    consultas na base tinham CPV vazio, o que as tornava invisíveis a
+    todo o filtro por CPV, ao recorte do interesse e aos alertas por
+    código; e sem NIPC não havia por onde cruzar a entidade com o
+    corpus de contratos.
+
+    O detalhe (GetRegionConfigurationByContractNoticeUId) responde ao
+    PT1.NTC às claras, sem sessão iniciada, e nas 24 medidas trouxe CPV
+    em 100%, NIPC em 100% e peças em 75%."""
+
+    REGIAO = {"regionConfiguration": [
+        {"name": "AA1_ManagingAuthorityCN_BusinessCard",
+         "value": {"name": "ULS de Ensaio, E. P. E.", "nif": "508080142",
+                   "location": "PORTUGAL, Lisboa"}},
+        {"name": "AE2_RequestInfoCN_RequestReference", "value": "2026/665"},
+        {"name": "AE9_RequestInfoCN_ProcedureType",
+         "value": "GovPT - Consulta Preliminar"},
+        {"name": "AG1_CPVClassificationCN_MainVocabulary",
+         "value": "33140000-3 - Material médico de consumo (CPV)"},
+        {"name": "AI1_ObjectOfContractCN_TypeOfContract",
+         "value": "Aquisição de Bens Móveis\n"},
+        {"name": "AJ7_SchedulingCN_DueDateForReceivingReplies",
+         "value": {"dateValue": "2026-09-03T22:59:00Z"}},
+        {"name": "CB1_SummaryCN_QuestionnaireHTML",
+         "value": "https://exemplo/questionario"},
+        {"name": "EA2_AvailableDocumentssCN_ContractDocuments",
+         "value": [{"name": "Consulta Preliminar 2026.pdf",
+                    "downloadUrl": "https://exemplo/doc"}]},
+    ]}
+
+    QUESTIONARIO = ("<html><head><style>#q * { font-family: sans-serif; "
+                    "color: rgba(0,0,0,0.65); }</style></head><body>"
+                    "<table><thead><th>Item</th><th>Descri&#231;&#227;o</th>"
+                    "<th>Qt</th></thead><tbody>"
+                    "<tr><td></td><td>1</td><td>Luvas de nitrilo</td>"
+                    "<td>1500,00</td><td>UNID</td></tr>"
+                    "</tbody></table></body></html>")
+
+    def _sessao(self, regiao=None, questionario=None, rebenta=False):
+        teste = self
+
+        class Sessao:
+            def __init__(self):
+                self.urls = []
+                self.headers = {}
+
+            def get(self, url, **kw):
+                self.urls.append(url)
+                if rebenta:
+                    raise radar.requests.RequestException("sem rede")
+                corpo = (teste.QUESTIONARIO if questionario is None
+                         else questionario)
+                dados = teste.REGIAO if regiao is None else regiao
+
+                class R:
+                    text = corpo
+
+                    def json(self):
+                        return dados
+                return R()
+        return Sessao()
+
+    def test_o_cpv_sai_nos_oito_digitos_que_a_coluna_usa(self):
+        # a coluna guarda "33140000", sem o dígito de controlo e sem a
+        # descrição: é o formato que prefixo_cpv() e a árvore já leem.
+        # A Vortal escreve "33140000-3 - Material médico de consumo (CPV)"
+        campos, aviso = radar.detalhe_da_preliminar(self._sessao(),
+                                                    "PT1.NTC.42")
+        self.assertEqual(aviso, "")
+        self.assertEqual(campos["cpv"], "33140000")
+        self.assertEqual(campos["nif"], "508080142")
+        self.assertEqual(campos["entidade"], "ULS de Ensaio, E. P. E.")
+
+    def test_varios_cpv_saem_separados_e_sem_repetidos(self):
+        regiao = {"regionConfiguration": [
+            {"name": "AG1_CPVClassificationCN_MainVocabulary",
+             "value": "33140000-3 - Material, 33100000-1 - Equipamento, "
+                      "33140000-3 - Material"}]}
+        campos, _ = radar.detalhe_da_preliminar(self._sessao(regiao=regiao),
+                                                "PT1.NTC.42")
+        self.assertEqual(campos["cpv"], "33140000, 33100000")
+
+    def test_a_hora_do_prazo_e_a_de_lisboa_e_nao_a_utc(self):
+        # a API dá UTC e a própria Vortal mostra 23:59: no Verão Lisboa
+        # é UTC+1. Escrever 22:59 na ficha punha o prazo uma hora mais
+        # cedo do que a plataforma diz — e um prazo é a informação pela
+        # qual se perde uma proposta
+        self.assertEqual(radar.hora_de_lisboa("2026-09-03T22:59:00Z"),
+                         "2026-09-03 23:59")
+        # em Janeiro não há hora de Verão: UTC e Lisboa coincidem
+        self.assertEqual(radar.hora_de_lisboa("2026-01-15T09:30:00Z"),
+                         "2026-01-15 09:30")
+        # as fronteiras da regra da UE: último domingo de Março (29/03
+        # em 2026) e de Outubro (25/10), às 01:00 UTC
+        self.assertEqual(radar.hora_de_lisboa("2026-03-29T00:59:00Z"),
+                         "2026-03-29 00:59")
+        self.assertEqual(radar.hora_de_lisboa("2026-03-29T01:00:00Z"),
+                         "2026-03-29 02:00")
+        self.assertEqual(radar.hora_de_lisboa("2026-10-25T00:59:00Z"),
+                         "2026-10-25 01:59")
+        self.assertEqual(radar.hora_de_lisboa("2026-10-25T01:00:00Z"),
+                         "2026-10-25 01:00")
+        # o que não for data volta como veio, sem rebentar
+        self.assertEqual(radar.hora_de_lisboa(""), "")
+        self.assertEqual(radar.hora_de_lisboa("nunca"), "nunca")
+
+    def test_o_texto_leva_as_seccoes_e_o_dicionario_nao(self):
+        campos, _ = radar.detalhe_da_preliminar(self._sessao(), "PT1.NTC.42")
+        texto = campos["texto"]
+        self.assertIn("1 - ENTIDADE ADJUDICANTE", texto)
+        self.assertIn("NIPC: 508080142", texto)
+        self.assertIn("3 - CLASSIFICAÇÃO CPV", texto)
+        self.assertIn("Referência da consulta: 2026/665", texto)
+        # a data sai formatada e em hora de Lisboa, não o dict cru
+        self.assertIn("03/09/2026 23:59", texto)
+        self.assertNotIn("dateValue", texto)
+        # e o cartão da entidade também não sai como dicionário
+        self.assertNotIn("{", texto)
+
+    def test_o_questionario_perde_o_css_e_guarda_os_artigos(self):
+        # numa consulta preliminar a lista de artigos É o conteúdo: é a
+        # única parte que diz mais do que o título. Vem com 6 KB de CSS
+        # inline, que tem de sair ANTES de se despirem as etiquetas —
+        # senão a folha de estilos entrava na ficha como se fosse texto
+        campos, _ = radar.detalhe_da_preliminar(self._sessao(), "PT1.NTC.42")
+        texto = campos["texto"]
+        self.assertIn("6 - ARTIGOS SOLICITADOS", texto)
+        self.assertIn("Luvas de nitrilo", texto)
+        self.assertIn("1500,00", texto)
+        self.assertNotIn("font-family", texto)
+        self.assertNotIn("rgba(", texto)
+        # as entidades HTML desescapam-se: "Descri&#231;&#227;o"
+        self.assertIn("Descrição", texto)
+
+    def test_um_questionario_que_falha_nao_derruba_o_detalhe(self):
+        teste = self
+
+        class Sessao:
+            headers = {}
+
+            def get(self, url, **kw):
+                if "questionario" in url:
+                    raise radar.requests.RequestException("sem rede")
+
+                class R:
+                    text = ""
+
+                    def json(self):
+                        return teste.REGIAO
+                return R()
+        campos, aviso = radar.detalhe_da_preliminar(Sessao(), "PT1.NTC.42")
+        self.assertEqual(aviso, "")
+        self.assertIn("33140000", campos["cpv"])
+        self.assertNotIn("6 - ARTIGOS SOLICITADOS", campos["texto"])
+
+    def test_uma_resposta_vazia_nao_passa_por_detalhe_lido(self):
+        campos, aviso = radar.detalhe_da_preliminar(
+            self._sessao(regiao={}), "PT1.NTC.42")
+        self.assertEqual(campos, {})
+        self.assertIn("vazio", aviso)
+        campos, aviso = radar.detalhe_da_preliminar(
+            self._sessao(rebenta=True), "PT1.NTC.42")
+        self.assertEqual(campos, {})
+        self.assertIn("falhou", aviso)
+
+    def test_ler_preliminares_enche_e_marca_como_lido(self):
+        radar._guardar_preliminar(
+            dict(TestConsultasPreliminares.ITEM))
+        # entra por ler, sem CPV
+        with radar.liga() as c:
+            a = c.execute("SELECT detalhe_lido, cpv FROM anuncios "
+                          "WHERE ref='PT1.NTC.999'").fetchone()
+        self.assertEqual(a["detalhe_lido"], 0)
+        sessao = self._sessao()
+        antigo = radar.requests.Session
+        radar.requests.Session = lambda: sessao
+        try:
+            lidas, aviso = radar.ler_preliminares()
+        finally:
+            radar.requests.Session = antigo
+        self.assertEqual((lidas, aviso), (1, ""))
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios "
+                          "WHERE ref='PT1.NTC.999'").fetchone()
+        self.assertEqual(a["detalhe_lido"], 1)
+        self.assertEqual(a["cpv"], "33140000")
+        self.assertEqual(a["nif"], "508080142")
+        self.assertIn("NIPC: 508080142", a["texto"])
+        # a entidade normalizada acompanha o nome novo: é por ela que a
+        # pesquisa procura
+        self.assertIn("uls de ensaio", a["entidade_norm"])
+        # e não se relê o que já está lido
+        self.assertEqual(radar.ler_preliminares()[0], 0)
+
+    def test_um_detalhe_que_falha_fica_por_ler_para_a_proxima(self):
+        radar._guardar_preliminar(dict(TestConsultasPreliminares.ITEM))
+        sessao = self._sessao(rebenta=True)
+        antigo = radar.requests.Session
+        radar.requests.Session = lambda: sessao
+        try:
+            lidas, aviso = radar.ler_preliminares()
+        finally:
+            radar.requests.Session = antigo
+        self.assertEqual(lidas, 0)
+        self.assertIn("falhou", aviso)
+        with radar.liga() as c:
+            a = c.execute("SELECT detalhe_lido FROM anuncios "
+                          "WHERE ref='PT1.NTC.999'").fetchone()
+        # continua por ler: marcar como lido um detalhe que não chegou
+        # dizia que o anúncio estava completo sem CPV nenhum
+        self.assertEqual(a["detalhe_lido"], 0)
+
+    def test_a_entidade_vazia_nao_apaga_a_que_ja_la_estava(self):
+        radar._guardar_preliminar(dict(TestConsultasPreliminares.ITEM))
+        regiao = {"regionConfiguration": [
+            {"name": "AG1_CPVClassificationCN_MainVocabulary",
+             "value": "33140000-3 - Material"}]}
+        sessao = self._sessao(regiao=regiao)
+        antigo = radar.requests.Session
+        radar.requests.Session = lambda: sessao
+        try:
+            radar.ler_preliminares()
+        finally:
+            radar.requests.Session = antigo
+        with radar.liga() as c:
+            a = c.execute("SELECT entidade, entidade_norm FROM anuncios "
+                          "WHERE ref='PT1.NTC.999'").fetchone()
+        # a pesquisa já tinha posto um nome bom: trocá-lo por vazio era
+        # perder informação por causa de um campo em falta no detalhe
+        self.assertEqual(a["entidade"], "ULS de Ensaio, E. P. E.")
+        self.assertIn("uls de ensaio", a["entidade_norm"])
+
+    def test_a_fila_do_dr_nao_pesca_uma_consulta_preliminar(self):
+        import inspect
+        # as duas passam por detalhe_lido=0, mas o detalhe da Vortal é
+        # outro endpoint. Sem este filtro, ler_detalhes() mandava um
+        # "PT1.NTC.42" ao portal do DR como se fosse chave dele — e a
+        # resposta sem JSON acabava a marcar o token como expirado. Um
+        # falso alarme de captura expirada é pior que não ler nada
+        fonte = inspect.getsource(radar.ler_detalhes)
+        self.assertIn("COALESCE(fonte,'dr')='dr'", fonte)
+
+    def test_a_recolha_le_o_detalhe_do_que_acabou_de_guardar(self):
+        import inspect
+        # a pesquisa dá a linha; o CPV vem do detalhe. Guardar sem ler
+        # era o erro que esta classe regista
+        self.assertIn("ler_preliminares",
+                      inspect.getsource(radar.recolher_vortal))
 
 
 class TestVisualizadorDePecas(unittest.TestCase):

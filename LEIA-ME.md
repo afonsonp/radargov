@@ -80,10 +80,12 @@ pesquisa pública da plataforma (sem sessão), entram no Por ver como
 qualquer anúncio (com a etiqueta `vortal` e o tipo "Consulta
 preliminar") e **só esse tipo entra**: concursos públicos da Vortal já
 vêm pelo DR, e duplicá-los era mentir nas contagens. A ficha destas
-consultas mostra o que a plataforma dá (prazo, preço base quando há) e
-liga à página da consulta; as peças trazem-se com o mesmo botão de
-sempre. Desliga-se com `"vortal_preliminares": false` no
-`config.json`.
+consultas é como a de qualquer outro anúncio: entidade e NIPC, CPV,
+tipo de contrato, local de execução, prazos — **e a lista dos artigos
+que a entidade quer comprar**, item a item, que numa consulta
+preliminar é a parte que diz mais do que o título. As peças trazem-se
+com o mesmo botão de sempre. Desliga-se com `"vortal_preliminares":
+false` no `config.json`.
 
 No `config.json`, a única coisa que costuma valer a pena mexer é:
 
@@ -535,7 +537,7 @@ para se repor outra vez mais tarde.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 561 verificações em poucos segundos, sem tocar
+Corre os testes — 573 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
