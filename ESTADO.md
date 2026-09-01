@@ -1906,7 +1906,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 573 testes a 01/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 578 testes a 01/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4263,3 +4263,69 @@ subir e erros a zero não distinguem «este campo não veio» de «este
 anúncio não tem esse campo». A verificação que apanha isto é uma
 consulta de uma linha — quantos é que têm a coluna vazia — e não se
 fez.
+
+
+## Duas correcções às correcções, 1 de setembro de 2026
+
+Devolvidas pelo Afonso depois de usar o que a sessão anterior entregou.
+
+### O motivo do abandono é um pop-up, não um selector na linha
+
+«O motivo do abandonar deve ser um pop-up e não um botão.» Tem razão, e
+a razão é de leitura: a lista tem vinte linhas por página, e um selector
+colado a cada botão punha **vinte perguntas no ecrã antes de alguém as
+fazer**. A lista é para ler anúncios; a pergunta é do momento em que se
+decide, não de antes.
+
+Agora: carregar em "abandonar" abre uma caixa (`<dialog>` nativo, sem
+biblioteca) com o nome do anúncio, a nota de que não apaga nada, e as
+três hipóteses em rádios. A caixa é **uma por página**
+(`caixa_de_abandono()`), partilhada por todos os botões — vinte cópias
+do mesmo diálogo seriam o mesmo erro dos vinte selectores, com mais
+HTML.
+
+O botão continua a ser `submit` de um `<form>` que faz POST, e o JS
+intercepta o submit para abrir a caixa. **Sem JS o pedido segue** e o
+servidor recusa por falta de motivo, com o aviso a dizer porquê — a
+degradação diz o que se passa, em vez de deixar um botão morto. A guarda
+continua a ser o `mudar_estado()`: o `required` dos rádios é
+conveniência do browser.
+
+Verificado no painel a correr: o clique abre a caixa com o título certo
+("Aquisição de mantas térmicas c/ cedência de equipamento") e a acção
+apontada ao anúncio certo; "Cancelar" fecha sem gravar; e a lista ficou
+limpa — nenhum selector nas linhas.
+
+### «Já testei e não vi isso a acontecer» — os campos por fase
+
+Fui ver a base antes de responder. Os três cartões dele estão todos em
+**`fase_id=1`, "Por analisar"** — a fase que, por especificação dele
+próprio, *não pede nada*. Os papéis estão todos bem atribuídos
+(`analisar, proposta, submetido, relatorio, ganho, perdido`, com o
+"Relatorio Preleminar" reconhecido apesar do erro de escrita), e o
+mecanismo funciona: num painel de ensaio com cartões nas seis colunas,
+o "Submetido" mostra o campo do preço proposto, o "Relatório
+preliminar" o lugar e os três primeiros, e o "Perdido" o motivo.
+
+Mas isto não é uma boa resposta: **o campo só existe quando lá está um
+cartão**, e com tudo em "Por analisar" — que é o estado normal de quem
+acabou de triar — não havia nada no ecrã a dizer que a coluna
+"Submetido" pede o preço proposto. Uma funcionalidade que só se
+descobre por acidente é uma funcionalidade que não existe.
+
+Correcção: **o cabeçalho de cada coluna diz o que ela pede**
+(`PEDIDO_DA_FASE`) — "pede o preço proposto", "pede o lugar e os três
+primeiros", "pede porque se perdeu". As três que não pedem nada
+continuam a não dizer nada. Há teste a obrigar as duas listas a
+concordar: uma coluna que anuncia um campo e não o mostra é pior do que
+não o anunciar.
+
+578 testes.
+
+### E outra vez o painel a servir código velho
+
+Segunda vez no mesmo dia: o processo na 8765 tinha arrancado às 13:33 e
+o `radar.py` foi gravado às 13:40. É a armadilha que está escrita no
+CLAUDE.md, e continua a valer a pena repeti-la: **antes de dizer "não
+funciona", compara a hora de arranque do processo com a da última
+gravação do ficheiro.**

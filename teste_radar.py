@@ -5260,20 +5260,73 @@ class TestMotivoDoAbandono(unittest.TestCase):
                               data={"motivo": "porque sim"})
         self.assertIn("aviso=", r.headers["Location"])
 
-    def test_a_forma_traz_os_motivos_todos_e_nenhum_por_omissao(self):
+    def test_o_botao_nao_pergunta_nada_na_linha(self):
+        # Decisão do Afonso a 01/09/2026: o motivo é pop-up e não um
+        # selector ao lado do botão -- vinte linhas na lista eram vinte
+        # perguntas antes de alguém as fazer.
+        html_ = radar.forma_abandonar("1/2026", titulo="Um anúncio")
+        self.assertNotIn("<select", html_)
+        self.assertNotIn("<option", html_)
+        self.assertIn("abandonar-js", html_)
+        self.assertIn("action='/estado/1/2026/descartado'", html_)
+        self.assertIn("Um anúncio", html_)
+
+    def test_sem_JS_o_pedido_segue_e_o_servidor_e_que_recusa(self):
+        # o botão continua a ser submit de um <form> que faz POST: sem
+        # JS o pedido segue e a recusa explica-se, em vez de o botão
+        # ficar morto
         html_ = radar.forma_abandonar("1/2026")
+        self.assertIn("<form", html_)
+        self.assertIn("method='post'", html_)
+        self.assertIn("type='submit'", html_)
+
+    def test_a_caixa_traz_os_motivos_todos_e_nenhum_por_omissao(self):
+        html_ = radar.caixa_de_abandono()
         for m in radar.MOTIVOS_ABANDONO:
             # escapado, que e como chega ao browser: "CV's" leva
-            # apostrofo e o atributo do <option> e delimitado por ele
+            # apostrofo e o atributo e delimitado por ele
             self.assertIn(html.escape(m), html_)
-        # a primeira opção é vazia e o campo é required: não se abandona
-        # a carregar no botão sem olhar
-        self.assertIn("<option value=''>", html_)
-        self.assertIn("required", html_)
+        # nenhum vem escolhido e o campo é required: não se abandona a
+        # carregar duas vezes sem olhar. Só a marcação -- o `checked` do
+        # JS é o que LIMPA a escolha anterior, e um `assertNotIn` sobre
+        # o texto todo apanhava-o e acusava o contrário do que se quer.
+        marcacao = html_.split("<script")[0]
+        self.assertNotIn("checked", marcacao)
+        self.assertIn("required", marcacao)
+        self.assertIn("<dialog", marcacao)
 
     def test_interessa_continua_a_nao_pedir_motivo(self):
         # a exigência é só de quem abandona
         self.assertNotIn("motivo", radar.accao("/estado/1/interessa", "x"))
+
+
+class TestAColunaDizOQuePede(unittest.TestCase):
+    """O campo só aparece quando há um cartão lá dentro.
+
+    Com o quadro todo em "Por analisar" -- que é o caso normal -- não
+    havia nada no ecrã a dizer que o "Submetido" pede o preço proposto,
+    e a funcionalidade parecia não existir. Foi o que o Afonso viu.
+    """
+
+    def test_as_fases_que_pedem_dizem_o_que_pedem(self):
+        for papel in ("submetido", "relatorio", "perdido"):
+            self.assertIn(papel, radar.PEDIDO_DA_FASE)
+            self.assertTrue(radar.PEDIDO_DA_FASE[papel].strip())
+
+    def test_as_que_nao_pedem_nada_nao_dizem_nada(self):
+        for papel in ("analisar", "proposta", "ganho"):
+            self.assertNotIn(papel, radar.PEDIDO_DA_FASE)
+
+    def test_quem_pede_no_cartao_e_quem_o_diz_no_cabecalho(self):
+        # as duas listas têm de concordar: uma coluna que anuncia um
+        # campo e não o mostra é pior do que não o anunciar
+        a = {"ref": "1/2026", "preco_proposto": None, "posicao": None,
+             "top3": None, "motivo_perda": None}
+        for papel in ("analisar", "proposta", "submetido", "relatorio",
+                      "ganho", "perdido"):
+            tem_campo = bool(radar._campos_da_fase(a, papel))
+            self.assertEqual(tem_campo, papel in radar.PEDIDO_DA_FASE,
+                             "desacordo na fase %s" % papel)
 
 
 class TestCamposPorFase(unittest.TestCase):

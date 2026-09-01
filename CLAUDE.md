@@ -539,7 +539,13 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   `details.arvore`, um `#filtro-cpv`) e `/alertas` já gasta a sua no
   "Novo filtro".
 - **Abandonar exige motivo, de âmbito fechado** (`MOTIVOS_ABANDONO`,
-  decisão do Afonso a 01/09/2026). O `required` do selector é
+  decisão do Afonso a 01/09/2026), e pergunta-se **num pop-up**, não
+  num selector ao lado do botão (decisão dele no mesmo dia): vinte
+  linhas na lista eram vinte perguntas antes de alguém as fazer. A
+  caixa é UMA por página (`caixa_de_abandono()`, um `<dialog>`
+  partilhado); o botão continua a ser submit de um `<form>` e o JS
+  intercepta — **sem JS o POST segue** e a recusa do servidor explica
+  porquê, em vez de o botão ficar morto. O `required` dos rádios é
   conveniência do browser; a guarda é o `mudar_estado()`, que recusa o
   que não estiver na lista. Sair de abandonado limpa o `motivo` — um
   motivo pendurado num anúncio que voltou ao por ver é uma mentira à
@@ -549,7 +555,12 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
 - **As fases do quadro são SEIS e fixas, e o que manda é o `papel`.**
   Decisão do Afonso a 01/09/2026: o quadro é o funil da casa, não um
   kanban em branco — criar e apagar fases saiu (UI e rotas). Renomear
-  fica. Cada fase tem `fases.papel` (`FASES_DE_ORIGEM`), e é por ele —
+  fica. **O cabeçalho da coluna diz o que ela pede** (`PEDIDO_DA_FASE`,
+  e há teste a obrigar as duas listas a concordar): o campo só aparece
+  quando há lá um cartão, e com tudo em "Por analisar" — o caso normal
+  — não havia nada no ecrã a dizer que o "Submetido" pede o preço
+  proposto; a funcionalidade parecia não existir, e foi o que o Afonso
+  viu. Cada fase tem `fases.papel` (`FASES_DE_ORIGEM`), e é por ele —
   **nunca pelo nome** — que o cartão decide o que pede
   (`_campos_da_fase()`): renomear a coluna não pode calar o campo. A
   migração `atribuir_papeis()` corre a cada arranque, reconhece os
