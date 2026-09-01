@@ -12,7 +12,9 @@ segundo, por isso nao ha desculpa para nao os correr antes de gravar.
 Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 """
 
+import contextlib
 import datetime
+import html
 import os
 import re
 import sys
@@ -2740,10 +2742,14 @@ class TestFiltroPorPrazo(unittest.TestCase):
         self.assertIn("prazo <= ?", onde)
         self.assertEqual(len(valores), 2)
         # o fim da janela é o mesmo número de dias que os indicadores
-        # anunciam: o número mostrado tem de dar a lista que o link abre
+        # anunciam: o número mostrado tem de dar a lista que o link abre.
+        # Contra dias_urgente() e NUNCA contra DIAS_URGENTE, que é só a
+        # omissão: com a janela posta a 8 no painel (config.json), este
+        # teste falhava sem nada estar partido -- exactamente o limiar à
+        # mão que a regra da casa proíbe.
         ini = datetime.date.fromisoformat(valores[0])
         fim = datetime.date.fromisoformat(valores[1])
-        self.assertEqual((fim - ini).days, radar.DIAS_URGENTE)
+        self.assertEqual((fim - ini).days, radar.dias_urgente())
 
     def test_o_prazo_vazio_nao_filtra_nada(self):
         onde, _ = radar.condicoes({"prazo": "", "estado": ""})
@@ -3092,8 +3098,10 @@ class TestJanelaUrgente(unittest.TestCase):
         hoje = datetime.date(2026, 8, 29)
         inicio, fim = radar.janela_urgente(hoje)
         self.assertEqual(inicio, "2026-08-29")
+        # dias_urgente() e nao DIAS_URGENTE: o segundo e a omissao, e a
+        # janela em uso vem do config.json (esta a 8, nao a 10)
         self.assertEqual(fim, (hoje + datetime.timedelta(
-            days=radar.DIAS_URGENTE)).isoformat())
+            days=radar.dias_urgente())).isoformat())
 
     def test_o_filtro_urgente_usa_a_mesma_janela(self):
         _, valores = radar.condicoes({"prazo": "urgente", "estado": ""})
@@ -4679,6 +4687,449 @@ class TestNAdjEnchePorMarca(CorpusTemporario):
         # COLS_CONTRATO (com max(1, len(ganhadores))). Tirá-lo de lá
         # reabre o buraco em silêncio.
         self.assertIn("n_adj", radar.COLS_CONTRATO)
+
+
+class TestPecasDaVortalNasDuasFormas(unittest.TestCase):
+    """A Vortal deixou de trazer peças e ninguém deu por isso.
+
+    Medido a 01/09/2026 no 22005/2026: a resposta do primeiro salto
+    (GetPublicTenderInformation) vem de DUAS formas -- com
+    `contractNoticeUrl` e `documentList` vazia (o caminho de sempre), ou
+    com `documentList` cheia e sem `contractNoticeUrl`. O radar só sabia
+    ler a primeira e, na segunda, devolvia lista vazia **sem erro
+    nenhum**: trazia o anúncio e mais nada.
+    """
+
+    class FalsaSessao:
+        """Devolve JSON por endereço. Sem rede, como todos os outros."""
+
+        def __init__(self, por_url, ficheiros=None):
+            self.por_url = por_url
+            self.ficheiros = ficheiros or {}
+            self.pedidos = []
+
+        class R:
+            def __init__(self, dados):
+                self._dados = dados
+
+            def json(self):
+                return self._dados
+
+        def get(self, url, **k):
+            self.pedidos.append(url)
+            return self.R(self.por_url[url])
+
+    def _sessao(self, info, docs=None):
+        return self.FalsaSessao({radar.VORTAL_INFO: info,
+                                 radar.VORTAL_DOCS: docs or []})
+
+    @contextlib.contextmanager
+    def sem_descarregar(self, falso):
+        """Troca _descarregar e **repoe-o**. Um `del` deixava o modulo
+        sem a funcao para os testes seguintes -- tres deles passaram a
+        rebentar com AttributeError, e o culpado nao era nenhum deles."""
+        antigo = radar._descarregar
+        radar._descarregar = falso
+        try:
+            yield
+        finally:
+            radar._descarregar = antigo
+
+    def test_documentos_no_primeiro_salto_sao_lidos(self):
+        # a forma que dava zero peças em silêncio
+        s = self._sessao({"documentList": [
+            {"documentName": "Peças.pdf", "downloadUrl": "http://x/1"}],
+            "downloadAllUrl": "http://x/tudo"})
+        baixados = []
+        with self.sem_descarregar(lambda ses, url, **k: (
+                baixados.append(url) or ("Peças.pdf", b"%PDF"))):
+            saida, grandes = radar._pecas_vortal(s, "http://v/abc")
+        self.assertEqual([n for n, _ in saida], ["Peças.pdf"])
+        self.assertEqual(baixados, ["http://x/1"])
+        # e não se foi ao segundo salto: não há PT1.NTC nenhum a pedir
+        self.assertNotIn(radar.VORTAL_DOCS, s.pedidos)
+
+    def test_sem_documentos_desce_ao_segundo_salto(self):
+        # a forma antiga tem de continuar a funcionar
+        s = self._sessao(
+            {"documentList": [],
+             "contractNoticeUrl": "https://community.vortal.biz/Public/"
+                                  "contract-notice-view/PT1.NTC.42/"},
+            [{"name": "CE.pdf", "downloadUrl": "http://x/2"}])
+        with self.sem_descarregar(lambda ses, url, **k: ("CE.pdf", b"%PDF")):
+            saida, _ = radar._pecas_vortal(s, "http://v/abc")
+        self.assertEqual([n for n, _ in saida], ["CE.pdf"])
+        self.assertIn(radar.VORTAL_DOCS, s.pedidos)
+
+    def test_link_com_pt1ntc_salta_o_primeiro_pedido(self):
+        # as consultas preliminares (B14) já trazem o PT1.NTC às claras
+        s = self._sessao({}, [{"name": "A.pdf", "downloadUrl": "http://x/3"}])
+        with self.sem_descarregar(lambda ses, url, **k: ("A.pdf", b"%PDF")):
+            saida, _ = radar._pecas_vortal(
+                s, "https://community.vortal.biz/Public/"
+                   "contract-notice-view/PT1.NTC.9/")
+        self.assertEqual(len(saida), 1)
+        self.assertNotIn(radar.VORTAL_INFO, s.pedidos)
+
+
+class TestLinkDoProcedimento(unittest.TestCase):
+    """"Abrir plataforma" abria o link das PEÇAS.
+
+    Na acingov isso descarrega um ZIP, na Vortal dá na lista dos
+    ficheiros e na anogov idem: nenhum dos três é o procedimento. O
+    botão passou a ter destino por plataforma -- e onde não há página
+    pública (acingov, verificado a 01/09/2026: "para aceder a este
+    procedimento inicie sessão") diz o que abre em vez de prometer.
+    """
+
+    @staticmethod
+    def _a(plat, link, proc=None, ref="1/2026"):
+        return {"ref": ref, "plataforma": plat, "link_pecas": link,
+                "link_proc": proc}
+
+    def test_vortal_com_pt1ntc_no_proprio_link(self):
+        destino, rotulo, _ = radar.link_do_procedimento(
+            self._a("vortal", "https://community.vortal.biz/Public/"
+                              "contract-notice-view/PT1.NTC.7/"))
+        self.assertIn("contract-notice-view/PT1.NTC.7", destino)
+        self.assertIn("Vortal", rotulo)
+
+    def test_vortal_cifrado_passa_pela_rota_que_resolve(self):
+        destino, _, _ = radar.link_do_procedimento(
+            self._a("vortal", "https://community.vortal.biz/Public/"
+                              "public-tender-documents/AbC"))
+        self.assertEqual(destino, "/plataforma/1%2F2026")
+
+    def test_vortal_ja_resolvido_nao_volta_a_rota(self):
+        destino, _, _ = radar.link_do_procedimento(
+            self._a("vortal", "https://community.vortal.biz/Public/"
+                              "public-tender-documents/AbC",
+                    proc="https://community.vortal.biz/Public/"
+                         "contract-notice-view/PT1.NTC.8/"))
+        self.assertIn("PT1.NTC.8", destino)
+
+    def test_acingov_nao_promete_o_que_nao_ha(self):
+        destino, rotulo, dica = radar.link_do_procedimento(
+            self._a("acingov", "https://www.acingov.pt/.../"
+                               "donwloadProcedurePiece/MTEz"))
+        # nunca o link do ZIP: era isso que o botão fazia
+        self.assertNotIn("donwloadProcedurePiece", destino)
+        self.assertEqual(destino, radar.ACINGOV_PESQUISA)
+        self.assertIn("Procurar", rotulo)
+        self.assertIn("sessão iniciada", dica)
+
+    def test_anogov_o_acessodocs_e_a_pagina_do_procedimento(self):
+        link = ("https://www.anogov.com/x/faces/app/acessoDocs.jsp"
+                "?codigoAcesso=ABC")
+        destino, rotulo, _ = radar.link_do_procedimento(
+            self._a("anogov", link))
+        self.assertEqual(destino, link)
+        self.assertIn("anogov", rotulo)
+
+    def test_sem_link_nenhum_nao_ha_botao(self):
+        destino, _, _ = radar.link_do_procedimento(self._a("", ""))
+        self.assertIsNone(destino)
+
+
+class TestPapeisDasFases(unittest.TestCase):
+    """O cartão muda com a coluna -- e é pelo PAPEL, não pelo nome.
+
+    A base do Afonso tem "Relatorio Preleminar" escrito assim; e
+    renomear uma coluna não pode calar o campo que ela pede.
+    """
+
+    def test_reconhece_os_nomes_em_uso_erro_de_escrita_incluido(self):
+        self.assertEqual(radar.papel_pelo_nome("Relatorio Preleminar"),
+                         "relatorio")
+        self.assertEqual(radar.papel_pelo_nome("Relatório preliminar"),
+                         "relatorio")
+        self.assertEqual(radar.papel_pelo_nome("A preparar proposta"),
+                         "proposta")
+        self.assertEqual(radar.papel_pelo_nome("Submetido"), "submetido")
+        self.assertEqual(radar.papel_pelo_nome("Perdido"), "perdido")
+        self.assertEqual(radar.papel_pelo_nome("Ganho"), "ganho")
+        self.assertEqual(radar.papel_pelo_nome("Por analisar"), "analisar")
+
+    def test_nome_do_utilizador_sem_pista_nao_ganha_papel(self):
+        self.assertEqual(radar.papel_pelo_nome("As minhas coisas"), "")
+
+    def test_as_seis_de_origem_tem_papel_e_sao_reconheciveis(self):
+        # se o nome de origem de uma fase deixar de dar o papel dela, a
+        # base nova nasce com duas colunas para o mesmo papel
+        for papel, nome in radar.FASES_DE_ORIGEM:
+            self.assertEqual(radar.papel_pelo_nome(nome), papel)
+
+
+class TestAtribuirPapeis(BaseTemporaria):
+    """A migração dos papéis corre a cada arranque e não pode duplicar."""
+
+    def _fases(self):
+        with radar.liga() as c:
+            return [(f["nome"], f["papel"]) for f in c.execute(
+                "SELECT nome, papel FROM fases ORDER BY ordem, id")]
+
+    def test_base_nova_tem_as_seis_com_papel(self):
+        self.assertEqual([p for _, p in self._fases()],
+                         [p for p, _ in radar.FASES_DE_ORIGEM])
+
+    def test_segunda_passagem_nao_acrescenta_nada(self):
+        antes = self._fases()
+        radar.atribuir_papeis_no_ficheiro = None   # só para não confundir
+        with radar.liga() as c:
+            radar.atribuir_papeis(c)
+        self.assertEqual(self._fases(), antes)
+
+    def test_nomes_antigos_ganham_papel_sem_coluna_nova(self):
+        with radar.liga() as c:
+            c.execute("UPDATE fases SET papel=NULL")
+            c.execute("UPDATE fases SET nome='Relatorio Preleminar' "
+                      "WHERE papel IS NULL AND nome LIKE 'Relat%'")
+            radar.atribuir_papeis(c)
+        papeis = [p for _, p in self._fases()]
+        self.assertEqual(len(papeis), len(radar.FASES_DE_ORIGEM))
+        self.assertIn("relatorio", papeis)
+
+    def test_papel_em_falta_e_criado_uma_vez_so(self):
+        with radar.liga() as c:
+            c.execute("DELETE FROM fases WHERE papel='perdido'")
+            radar.atribuir_papeis(c)
+            radar.atribuir_papeis(c)
+        papeis = [p for _, p in self._fases()]
+        self.assertEqual(papeis.count("perdido"), 1)
+
+
+class TestInteresse(unittest.TestCase):
+    """O interesse limita a lista de anúncios e NÃO entra em condicoes().
+
+    O motor serve também os alertas e os filtros guardados: um recorte
+    lá dentro fazia um alerta deixar de ver, em silêncio, o que vê hoje.
+    """
+
+    def test_desligado_nao_recorta(self):
+        frag, vals = radar.condicao_do_interesse(
+            args={}, cfg={"interesse_activo": False,
+                          "interesse_cpv": "72000000"})
+        self.assertEqual((frag, vals), ("", []))
+
+    def test_ligado_sem_cpv_nao_esvazia_o_ecra(self):
+        # ligado e por definir: um ecrã em branco lê-se como avaria
+        frag, _ = radar.condicao_do_interesse(
+            args={}, cfg={"interesse_activo": True, "interesse_cpv": ""})
+        self.assertEqual(frag, "")
+
+    def test_ligado_recorta_pelo_cpv(self):
+        frag, vals = radar.condicao_do_interesse(
+            args={}, cfg={"interesse_activo": True,
+                          "interesse_cpv": "72000000"})
+        self.assertIn("cpv LIKE ?", frag)
+        self.assertEqual(vals, ["72%", "%, 72%"])
+
+    def test_o_que_se_tira_entra_como_NOT(self):
+        frag, vals = radar.condicao_do_interesse(
+            args={}, cfg={"interesse_activo": True,
+                          "interesse_cpv": "72000000",
+                          "interesse_cpv_excl": "72212000"})
+        self.assertIn("NOT (", frag)
+        # o COALESCE não é decorativo: um anúncio ainda sem CPV lido não
+        # é "CPV 72212", e o NOT (NULL LIKE x) é NULL
+        self.assertIn("COALESCE(cpv,'')", frag)
+        self.assertEqual(vals, ["72%", "%, 72%", "72212%", "%, 72212%"])
+
+    def test_interesse_nao_na_url_levanta_o_recorte(self):
+        frag, _ = radar.condicao_do_interesse(
+            args={"interesse": "nao"},
+            cfg={"interesse_activo": True, "interesse_cpv": "72000000"})
+        self.assertEqual(frag, "")
+
+    def test_o_motor_dos_filtros_nao_sabe_do_interesse(self):
+        # a guarda que interessa: condicoes() serve os alertas
+        onde, _ = radar.condicoes({"estado": ""})
+        self.assertNotIn("cpv LIKE", onde)
+        self.assertNotIn("interesse", onde)
+
+
+class TestRecorteDaLista(unittest.TestCase):
+    """A aba e o interesse são UM recorte só.
+
+    Aplicado em quatro consultas da mesma página (lista, contagem de
+    cada aba, selector das plataformas, total do filtro): um número que
+    conte com outro recorte abre uma lista diferente da que promete.
+    """
+
+    def _com(self, cfg):
+        antigo = radar.ler_config
+        radar.ler_config = lambda: dict(radar.CONFIG_INICIAL, **cfg)
+        try:
+            with radar.app.test_request_context("/?estado=novo"):
+                return radar.recorte_da_lista("interessa")
+        finally:
+            radar.ler_config = antigo
+
+    def test_sem_interesse_e_so_a_aba(self):
+        frag, vals = self._com({"interesse_activo": False})
+        self.assertEqual(frag, "estado = ?")
+        self.assertEqual(vals, ["interessa"])
+
+    def test_com_interesse_junta_os_dois_com_E(self):
+        frag, vals = self._com({"interesse_activo": True,
+                                "interesse_cpv": "72000000"})
+        self.assertIn("estado = ?", frag)
+        self.assertIn("cpv LIKE ?", frag)
+        self.assertIn(") AND (", frag)
+        # a ordem dos valores tem de seguir a dos ? -- aba primeiro
+        self.assertEqual(vals, ["interessa", "72%", "%, 72%"])
+
+
+class TestMotivoDoAbandono(unittest.TestCase):
+    """Abandonar sem dizer porquê deixa a aba dos abandonados inútil.
+
+    Decisão do Afonso a 01/09/2026: âmbito fechado. O `required` do
+    selector é conveniência do browser -- a guarda é no servidor.
+    """
+
+    def setUp(self):
+        self.cliente = radar.app.test_client()
+
+    def test_sem_motivo_o_servidor_recusa(self):
+        r = self.cliente.post("/estado/1%2F2026/descartado", data={})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("aviso=", r.headers["Location"])
+        self.assertIn("motivo", r.headers["Location"])
+
+    def test_motivo_inventado_tambem_e_recusado(self):
+        r = self.cliente.post("/estado/1%2F2026/descartado",
+                              data={"motivo": "porque sim"})
+        self.assertIn("aviso=", r.headers["Location"])
+
+    def test_a_forma_traz_os_motivos_todos_e_nenhum_por_omissao(self):
+        html_ = radar.forma_abandonar("1/2026")
+        for m in radar.MOTIVOS_ABANDONO:
+            # escapado, que e como chega ao browser: "CV's" leva
+            # apostrofo e o atributo do <option> e delimitado por ele
+            self.assertIn(html.escape(m), html_)
+        # a primeira opção é vazia e o campo é required: não se abandona
+        # a carregar no botão sem olhar
+        self.assertIn("<option value=''>", html_)
+        self.assertIn("required", html_)
+
+    def test_interessa_continua_a_nao_pedir_motivo(self):
+        # a exigência é só de quem abandona
+        self.assertNotIn("motivo", radar.accao("/estado/1/interessa", "x"))
+
+
+class TestCamposPorFase(unittest.TestCase):
+    """Cada fase pede o que lhe falta, e só ela.
+
+    "Por analisar" e "A preparar proposta" não têm nada a apontar
+    (palavras do Afonso); o "Submetido" pede o preço proposto, o
+    relatório preliminar o lugar e os três primeiros, e o "Perdido" o
+    porquê, de âmbito fechado.
+    """
+
+    @staticmethod
+    def _a(**k):
+        base = {"ref": "1/2026", "preco_proposto": None, "posicao": None,
+                "top3": None, "motivo_perda": None}
+        base.update(k)
+        return base
+
+    def test_fases_sem_nada_a_apontar_nao_mostram_formulario(self):
+        for papel in ("analisar", "proposta", "ganho"):
+            self.assertEqual(radar._campos_da_fase(self._a(), papel), "")
+
+    def test_submetido_pede_o_preco_proposto(self):
+        html_ = radar._campos_da_fase(self._a(), "submetido")
+        self.assertIn("name='preco_proposto'", html_)
+        self.assertNotIn("motivo_perda", html_)
+
+    def test_relatorio_pede_lugar_e_os_tres_primeiros(self):
+        html_ = radar._campos_da_fase(self._a(posicao=2, top3="A · B · C"),
+                                      "relatorio")
+        self.assertIn("name='posicao'", html_)
+        self.assertIn("value='2'", html_)
+        self.assertIn("name='top3'", html_)
+        self.assertIn("A · B · C", html_)
+
+    def test_perdido_tem_ambito_fechado(self):
+        html_ = radar._campos_da_fase(self._a(motivo_perda="Preço"),
+                                      "perdido")
+        for m in radar.MOTIVOS_PERDA:
+            self.assertIn(html.escape(m), html_)
+        self.assertIn("required", html_)
+        # o que já lá está vem escolhido, senão gravar outra vez apagava
+        self.assertIn("selected", html_)
+
+
+class TestPrecoDoCartao(unittest.TestCase):
+    """A partir do "Submetido" o número que conta é o proposto.
+
+    E enquanto o proposto não estiver preenchido mostra-se o base
+    **dito como base**: mostrá-lo calado é dar o tecto da entidade por
+    proposta nossa.
+    """
+
+    @staticmethod
+    def _a(**k):
+        base = {"ref": "1/2026", "titulo": "T", "entidade": "E", "prazo": "",
+                "preco_base": "175.000,00 EUR", "preco_proposto": None,
+                "posicao": None, "top3": None, "motivo_perda": None,
+                "responsavel": ""}
+        base.update(k)
+        return base
+
+    def test_antes_do_submetido_e_o_preco_base(self):
+        html_ = radar.cartao(self._a(), {}, 10, "analisar")
+        self.assertIn("175.000,00 EUR", html_)
+        self.assertIn("preço base", html_)
+
+    def test_no_submetido_com_proposto_mostra_o_proposto(self):
+        html_ = radar.cartao(self._a(preco_proposto="118.500,00 EUR"),
+                             {}, 10, "submetido")
+        self.assertIn("118.500,00 EUR", html_)
+        self.assertNotIn("175.000,00 EUR", html_)
+        self.assertIn("preço proposto", html_)
+
+    def test_no_submetido_sem_proposto_o_base_vai_dito_como_base(self):
+        html_ = radar.cartao(self._a(), {}, 10, "submetido")
+        self.assertIn("base 175.000,00 EUR", html_)
+
+    def test_a_soma_da_coluna_segue_a_mesma_regra(self):
+        itens = [self._a(preco_proposto="100.000,00 EUR"),
+                 self._a(preco_proposto=None)]
+        soma, quantos = radar.soma_precos_base(itens, "preco_proposto")
+        self.assertEqual((soma, quantos), (100000.0, 1))
+        soma, quantos = radar.soma_precos_base(itens, "preco_base")
+        self.assertEqual((soma, quantos), (350000.0, 2))
+
+    def test_o_proposto_guarda_se_no_formato_que_se_sabe_ler(self):
+        # euros() põe espaço nos milhares e euros_do_texto() lê "118" de
+        # "118 500 €": a soma da coluna dava 118 em vez de 118 500
+        texto = radar._texto_do_preco(radar.euros_do_texto("118500"))
+        self.assertEqual(texto, "118.500,00 EUR")
+        self.assertEqual(radar.euros_do_texto(texto), 118500.0)
+
+
+class TestFasesNaoSeCriamNemSeApagam(unittest.TestCase):
+    """Decisão do Afonso a 01/09/2026: o quadro é o funil da casa.
+
+    Criar uma sétima coluna não teria papel nenhum, e apagar uma das
+    seis levava consigo o campo que ela pede -- sem forma de a repor.
+    """
+
+    def setUp(self):
+        self.cliente = radar.app.test_client()
+
+    def test_a_rota_de_criar_fase_deixou_de_existir(self):
+        r = self.cliente.post("/quadro/fase/nova", data={"nome": "X"})
+        self.assertEqual(r.status_code, 404)
+
+    def test_a_rota_de_apagar_fase_deixou_de_existir(self):
+        r = self.cliente.post("/quadro/fase/9/apagar")
+        self.assertEqual(r.status_code, 404)
+
+    def test_renomear_continua_a_existir(self):
+        self.assertIn("fase_renomear",
+                      [r.endpoint for r in radar.app.url_map.iter_rules()])
 
 
 if __name__ == "__main__":

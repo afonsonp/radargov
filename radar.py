@@ -71,6 +71,15 @@ CONFIG_INICIAL = {
     "relidos_por_volta": 25,
     # A janela do "urgente", em dias (B13). Edita-se tambem em /alertas.
     "dias_urgente": 10,
+    # O INTERESSE (01/09/2026): o recorte permanente da lista de
+    # anuncios, por CPV. Define-se em Alertas › Interesse. Nao e um
+    # filtro -- e o que a casa faz; um filtro guardado esquece-se de se
+    # pôr e apaga-se sem querer. Com "interesse_activo" a False, ou sem
+    # CPV escolhido, a lista volta ao acervo todo. Formato dos dois
+    # campos: codigos separados por "|", como o filtro.
+    "interesse_activo": False,
+    "interesse_cpv": "",
+    "interesse_cpv_excl": "",
     # Copia do radar.db antes de cada verificacao. So a triagem e o
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
@@ -161,10 +170,80 @@ def liga():
     return c
 
 
-# As colunas com que o quadro comeca, vindas do desenho. Nao sao fixas:
-# renomeiam-se no sitio, acrescentam-se e apagam-se no proprio quadro.
-FASES_INICIAIS = ("Por analisar", "A preparar proposta", "Em revisão",
-                  "Submetido", "Resultado")
+# As colunas do quadro. Sao SEIS e sao estas (decisao do Afonso a
+# 01/09/2026: "a criacao de novas fases desaparece, ja nao e preciso") --
+# o quadro passou a ser o funil da casa e nao um kanban em branco.
+# Renomear continua a dar; criar e apagar nao.
+#
+# Cada fase tem um PAPEL, e e o papel -- nao o nome -- que manda no que o
+# cartao pede e mostra: no "submetido" o preco e o proposto, no
+# "relatorio" pergunta-se o lugar e os tres primeiros, no "perdido"
+# pergunta-se porque. Se fosse pelo nome, renomear a coluna calava o
+# campo em silencio.
+FASES_DE_ORIGEM = (("analisar", "Por analisar"),
+                   ("proposta", "A preparar proposta"),
+                   ("submetido", "Submetido"),
+                   ("relatorio", "Relatório preliminar"),
+                   ("ganho", "Ganho"),
+                   ("perdido", "Perdido"))
+FASES_INICIAIS = tuple(nome for _, nome in FASES_DE_ORIGEM)
+
+# Como se reconhece o papel de uma fase que ja existe, pelo nome que
+# tem. Compara-se contra simplifica(nome), por isso sem acentos; sao
+# pedacos e nao nomes inteiros porque a base do Afonso tem "Relatorio
+# Preleminar" escrito assim. A ordem conta: quem apanha primeiro, fica.
+PISTAS_DE_PAPEL = (("perd", "perdido"), ("ganh", "ganho"),
+                   ("relat", "relatorio"), ("prelim", "relatorio"),
+                   ("submet", "submetido"), ("propost", "proposta"),
+                   ("analis", "analisar"))
+
+
+def papel_pelo_nome(nome):
+    """O papel que um nome de fase denuncia, ou "" se nenhum."""
+    alvo = simplifica(nome or "")
+    for pista, papel in PISTAS_DE_PAPEL:
+        if pista in alvo:
+            return papel
+    return ""
+
+
+def atribuir_papeis(c):
+    """Poe o papel em cada fase e garante que as seis existem.
+
+    Idempotente, como todas as migracoes: corre a cada arranque e nao faz
+    nada quando ja esta feito. Separada de semear_fases() de proposito --
+    essa so actua num quadro por estrear, e os papeis tem de chegar
+    tambem aos quadros que ja estao em uso.
+    """
+    fases = c.execute("SELECT id, nome, ordem, papel FROM fases "
+                      "ORDER BY ordem, id").fetchall()
+    tem = set()
+    for f in fases:
+        papel = f["papel"] or papel_pelo_nome(f["nome"])
+        if papel and papel != f["papel"]:
+            c.execute("UPDATE fases SET papel=? WHERE id=?", (papel, f["id"]))
+        if papel:
+            tem.add(papel)
+    faltam = [(papel, nome) for papel, nome in FASES_DE_ORIGEM
+              if papel not in tem]
+    if not faltam:
+        return
+    proxima = max([f["ordem"] or 0 for f in fases] or [0]) + 1
+    for papel, nome in faltam:
+        c.execute("INSERT INTO fases (nome, ordem, papel) VALUES (?,?,?)",
+                  (nome, proxima, papel))
+        proxima += 1
+
+
+# Porque e que um anuncio foi abandonado, e porque e que um concurso se
+# perdeu. Ambito FECHADO nos dois casos, por decisao do Afonso a
+# 01/09/2026: uma caixa de texto livre da, ao fim de um mes, cinquenta
+# maneiras de escrever "preco" e nenhuma conta que se possa fazer. Se
+# um motivo novo for preciso, acrescenta-se aqui -- e uma decisao, nao
+# um campo.
+MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
+                    "Falta de CV's")
+MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações")
 
 
 def semear_fases(c):
@@ -376,7 +455,27 @@ def iniciar_db():
                            # preliminares, que a parte L nao publica --
                            # e por esta coluna que as releituras do DR
                            # sabem nao lhes tocar
-                           ("fonte", "TEXT DEFAULT 'dr'")):
+                           ("fonte", "TEXT DEFAULT 'dr'"),
+                           # O endereco da PAGINA do procedimento na
+                           # plataforma, que nao e o das pecas. So a
+                           # Vortal precisa de o resolver por rede;
+                           # guarda-se para nao repetir a ida.
+                           ("link_proc", "TEXT"),
+                           # Porque e que se abandonou. Ambito fechado
+                           # (MOTIVOS_ABANDONO): sem motivo nao se
+                           # abandona, senao daqui a um mes ninguem
+                           # sabe porque e que aquele ficou de fora.
+                           ("motivo", "TEXT"),
+                           # O que se propos, que a partir do
+                           # "Submetido" e o numero que conta -- o
+                           # preco base deixa de ser noticia.
+                           ("preco_proposto", "TEXT"),
+                           # Relatorio preliminar: em que lugar
+                           # ficamos e quem sao os tres primeiros.
+                           ("posicao", "INTEGER"), ("top3", "TEXT"),
+                           # Porque e que se perdeu, ambito fechado
+                           # (MOTIVOS_PERDA).
+                           ("motivo_perda", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
@@ -394,7 +493,11 @@ def iniciar_db():
                   "ON anuncios(titulo_norm)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_entidade_norm "
                   "ON anuncios(entidade_norm)")
+        if "papel" not in [r["name"] for r in c.execute(
+                "PRAGMA table_info(fases)")]:
+            c.execute("ALTER TABLE fases ADD COLUMN papel TEXT")
         semear_fases(c)
+        atribuir_papeis(c)
         # B12, uma vez, por marca: os textos extraidos antes das marcas
         # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
         # Reextrai-se o que ainda existir em disco; o que nao existir
@@ -1425,36 +1528,143 @@ def _pecas_vortal(sessao, link):
     # PT1.NTC.x via GetPublicTenderInformation. O link das consultas
     # preliminares (B14) ja traz o PT1.NTC.x as claras -- salta-se o
     # primeiro salto e a cadeia e a mesma dai para a frente.
+    lista = []
     m = re.search(r"(PT\d+\.NTC\.\d+)", link)
     if not m:
-        identificador = link.rstrip("/").rsplit("/", 1)[-1]
-        info = sessao.get(VORTAL_INFO, timeout=90, params={
-            "uniqueIdentifierEncrypted": identificador,
-            "languageCode": "pt"}).json()
-        aviso = info.get("contractNoticeUrl") or ""
+        lista, aviso = _info_vortal(sessao, link)
         m = re.search(r"(PT\d+\.NTC\.\d+)", aviso)
-    if not m:
-        return [], []
-    lista = sessao.get(VORTAL_DOCS, timeout=90,
-                       params={"contractNoticeUId": m.group(1)}).json()
+    if not lista:
+        # Sem documentos no primeiro salto: e o anuncio publicado na
+        # comunidade, e a lista dele sai do segundo.
+        if not m:
+            return [], []
+        resposta = sessao.get(VORTAL_DOCS, timeout=90,
+                              params={"contractNoticeUId": m.group(1)}).json()
+        lista = resposta if isinstance(resposta, list) else []
     saida, grandes = [], []
-    for doc in lista if isinstance(lista, list) else []:
+    for doc in lista:
         endereco = doc.get("downloadUrl")
         if not endereco:
             continue
+        # As duas respostas nao chamam o nome do ficheiro o mesmo:
+        # "name" na do anuncio, "documentName" na do procedimento.
+        rotulo = doc.get("name") or doc.get("documentName") or ""
         nome, dados = _descarregar(sessao, endereco)
         if dados is None:
-            if doc.get("name"):
-                grandes.append(doc["name"])
+            if rotulo:
+                grandes.append(rotulo)
             continue
-        saida.append((nome_seguro(doc.get("name") or nome or "documento"), dados))
+        saida.append((nome_seguro(rotulo or nome or "documento"), dados))
     return saida, grandes
+
+
+def _info_vortal(sessao, link):
+    """(documentos, endereco do anuncio) do primeiro salto da Vortal.
+
+    O link do DR traz um identificador cifrado; GetPublicTenderInformation
+    troca-o pelo que ha. **Medido a 01/09/2026: a resposta vem de duas
+    formas** e o radar so sabia ler uma --
+
+      - com `contractNoticeUrl`, e `documentList` vazia: o procedimento
+        esta publicado na comunidade e as pecas saem do segundo salto
+        (GetContractNoticeDocuments), que e o caminho de sempre;
+      - com `documentList` cheia e **sem** `contractNoticeUrl`: as pecas
+        vem ja aqui, cada uma com o seu `downloadUrl`.
+
+    A segunda forma era metade dos anuncios da Vortal e dava zero peças
+    em silencio -- o radar trazia o anuncio e mais nada (visto no
+    22005/2026). Devolve-se tambem o endereco do anuncio porque e dele
+    que sai o link do procedimento (link_proc), o que "Abrir plataforma"
+    passou a abrir.
+    """
+    identificador = link.rstrip("/").rsplit("/", 1)[-1]
+    try:
+        info = sessao.get(VORTAL_INFO, timeout=90, params={
+            "uniqueIdentifierEncrypted": identificador,
+            "languageCode": "pt"}).json()
+    except (requests.RequestException, ValueError):
+        return [], ""
+    if not isinstance(info, dict):
+        return [], ""
+    docs = [d for d in (info.get("documentList") or [])
+            if isinstance(d, dict) and d.get("downloadUrl")]
+    return docs, (info.get("contractNoticeUrl") or "")
 
 
 # Aquelas de que se conseguem trazer as pecas sem sessao iniciada. Serve
 # tambem para o ecra de indicadores nao chamar "sem acesso" ao que se
 # obtem, nem prometer o que nao se obtem.
 PLATAFORMAS_COM_PECAS = ("acingov", "vortal", "compraspt", "anogov")
+
+# --- o procedimento na plataforma, que nao e o mesmo que as pecas
+#
+# O DR nunca publica o endereco da PAGINA do procedimento: os dois URL
+# que traz sao o da raiz da plataforma ("URL para Apresentacao", que da
+# sempre na porta de entrada) e o das pecas. "Abrir plataforma" abria o
+# segundo, e isso levava a sitios que nao sao o procedimento -- na
+# acingov descarregava um ZIP, na Vortal abria a lista dos ficheiros.
+# O que ha, medido a 01/09/2026, plataforma a plataforma:
+#
+#   vortal     ha pagina publica do procedimento
+#              (Public/contract-notice-view/PT1.NTC.x) e resolve-se pela
+#              API a partir do link cifrado das pecas. Guarda-se em
+#              anuncios.link_proc para nao se ir la duas vezes.
+#   anogov     o acessoDocs.jsp E a pagina publica do procedimento: traz
+#   compraspt  a referencia interna, o objecto e o tipo por cima da
+#              lista dos documentos. Nao existe outra -- o resto da
+#              aplicacao e JSF por POST, sem endereco proprio.
+#   acingov    **nao ha.** A lista publica tem um botao "consultar
+#              procedimento" que so abre "para aceder a este
+#              procedimento inicie sessao". O que se pode oferecer e a
+#              pesquisa publica, e o botao di-lo em vez de prometer.
+VORTAL_PROCEDIMENTO = "https://community.vortal.biz/Public/contract-notice-view/%s/"
+ACINGOV_PESQUISA = ("https://www.acingov.pt/acingovprod/2/zonaPublica/"
+                    "zona_publica_c/indexProcedimentos")
+
+
+def link_do_procedimento(a):
+    """(endereco, rotulo, dica) do botao que abre o procedimento.
+
+    Sem rede: o que precisa de rede (a Vortal) passa pela rota
+    /plataforma/<ref>, que resolve uma vez e guarda. Devolve
+    (None, "", "") quando nao ha nada que se possa abrir.
+    """
+    plat = (a["plataforma"] or "").strip()
+    link = (a["link_pecas"] or "").strip()
+    proc = (_valor(a, "link_proc") or "").strip()
+    if plat == "vortal":
+        if proc:
+            return proc, "Abrir na Vortal", "a página do procedimento"
+        if re.search(r"(PT\d+\.NTC\.\d+)", link):
+            return (VORTAL_PROCEDIMENTO % re.search(r"(PT\d+\.NTC\.\d+)",
+                                                    link).group(1),
+                    "Abrir na Vortal", "a página do procedimento")
+        if link:
+            return ("/plataforma/" + quote(a["ref"], safe=""),
+                    "Abrir na Vortal", "a página do procedimento")
+    if plat == "acingov":
+        return (ACINGOV_PESQUISA, "Procurar na acingov",
+                "a acingov não tem página pública do procedimento — só se "
+                "vê com sessão iniciada; isto abre a pesquisa pública")
+    if link:
+        # anogov, compraspt e a ESPAP: o acessoDocs e a pagina do
+        # procedimento. Para o resto, e o unico endereco que ha.
+        return (link, "Abrir na plataforma" if not plat
+                else "Abrir na " + plat, "a página do procedimento")
+    return None, "", ""
+
+
+def _valor(linha, coluna, omissao=None):
+    """Uma coluna de um sqlite3.Row que pode nao existir na base ainda.
+
+    A migracao corre no arranque, mas os testes montam bases a mao: uma
+    coluna nova nao pode rebentar quem so quer desenhar a ficha.
+    """
+    try:
+        return linha[coluna]
+    except (IndexError, KeyError):
+        return omissao
+
 
 # Um prazo a menos de tantos dias e "urgente". E o mesmo numero no filtro
 # da lista e no aviso dos indicadores, de proposito: o numero que os
@@ -5170,9 +5380,13 @@ details.arvore[open]>summary::before{content:'\25BE'}
 #arvore-corpo .no{display:flex;align-items:center;gap:9px;padding:5px 8px;
  border-radius:6px}
 #arvore-corpo .no:hover{background:var(--linha2)}
-/* filho de uma divisao ja marcada: vai no filtro de qualquer maneira e
-   nao se pode excluir, por isso a caixa nao finge que se pode */
-#arvore-corpo input[type=checkbox]:disabled{opacity:.4;cursor:not-allowed}
+/* codigo tirado a mao de dentro de um grupo marcado: fica riscado, para
+   se ver de relance o que e que a divisao apanha e o que nao */
+#arvore-corpo .no.excluido .lbl{text-decoration:line-through}
+#arvore-corpo .no.excluido .cod{text-decoration:line-through}
+#arvore-corpo .no.excluido{background:var(--linha2)}
+#arvore-corpo .no .fora{font:600 9.5px/1 var(--sans);color:var(--verm);
+ letter-spacing:.04em;text-transform:uppercase;flex:none}
 #arvore-corpo .cod{font:500 10.5px/1 var(--mono);color:var(--t5);flex:none}
 #arvore-corpo .lbl{font:500 12px/1.35 var(--sans);color:var(--azul);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -5233,7 +5447,13 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .item-prazo.avisa{color:var(--laranja)}
 .item-prazo.ok{color:var(--verde)}
 .item-preco{font:600 13px/1.2 var(--mono);color:var(--ink)}
-.item-accoes{display:flex;gap:6px}
+.item-accoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+/* abandonar traz o motivo colado: sao uma accao so, e separados
+   pareciam um filtro ao lado de um botao */
+form.accao.com-motivo{display:inline-flex;gap:4px;align-items:stretch}
+form.accao.com-motivo select{font-family:inherit;font-size:11.5px;
+ padding:5px 6px;border-radius:6px;border:1px solid var(--linha);
+ color:var(--t3);background:#fff;max-width:150px}
 .mini{cursor:pointer;padding:7px 12px;border-radius:6px;font:600 11.5px/1 var(--sans);
  border:1px solid var(--linha);color:var(--t3);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--verm);color:var(--verm)}
@@ -5456,9 +5676,6 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 /* quadro */
 .quadro-topo{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .quadro-topo .d{font:400 12.5px/1 var(--sans);color:var(--t4)}
-.quadro-topo form{margin-left:auto;display:flex;gap:8px}
-.quadro-topo input{padding:8px 12px;border:1px solid var(--linha);border-radius:7px;
- background:#fff;font:400 12.5px/1.2 var(--sans)}
 .quadro{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:14px}
 /* A coluna era var(--linha2) sobre var(--papel): dois cinzentos a um
    passo um do outro, e o quadro lia-se como cartoes soltos sem colunas
@@ -5466,22 +5683,33 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .coluna{flex:none;width:282px;background:var(--linha2);
  border:1px solid var(--traco);border-radius:8px;padding:12px}
 /* o cabecalho em duas linhas: o nome tinha de partilhar 282px com a
-   contagem, a soma e o botao de apagar, e saia "A preparar pr" */
+   contagem e a soma, e saia "A preparar pr" */
 .coluna-cab{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
  margin-bottom:12px}
-/* o nome ocupa a primeira linha inteira; a contagem e o apagar ficam na
-   segunda. So o form do NOME leva a largura toda -- o do apagar e um
-   form tambem, e com o selector largo ia parar a uma linha propria */
+/* o nome ocupa a primeira linha inteira; a contagem fica na segunda */
 .coluna-cab>form:first-child{flex:1 1 100%;min-width:0}
-.coluna-cab>form:not(:first-child){flex:none;margin-left:auto}
 .fase-nome{border:0;background:transparent;font:700 13px/1.3 var(--sans);
  color:var(--ink);width:100%;padding:2px}
 .fase-nome:focus{background:#fff;border-radius:4px}
 .fase-nome:focus:not(:focus-visible){outline:none}
 .coluna-conta{font:600 10.5px/1 var(--mono);color:var(--t3)}
-.fase-apagar{background:none;border:0;color:var(--t4);cursor:pointer;
- font:500 14px/1 var(--sans);padding:0 2px}
-.fase-apagar:hover{color:var(--verm)}
+/* o que a fase pede ao cartao: so aparece na coluna que o pede, e por
+   isso e um bloco proprio e nao mais uma linha da meta */
+.carta-campos{display:flex;flex-wrap:wrap;gap:5px;align-items:center;
+ margin-top:10px;padding-top:9px;border-top:1px dashed var(--traco)}
+.carta-campos label{font:600 9.5px/1 var(--sans);color:var(--t4);
+ letter-spacing:.04em;text-transform:uppercase;flex:none}
+.carta-campos input,.carta-campos select{font:400 11px/1.2 var(--sans);
+ padding:5px 7px;border:1px solid var(--linha);border-radius:5px;
+ background:#fff;color:var(--t2);flex:1;min-width:0}
+.carta-campos input.curto{flex:none;width:56px}
+/* numa coluna de 282px, "os três primeiros" ao lado do lugar sobrava
+   um campo de 12px: leva a linha inteira */
+.carta-campos input.largo{flex:1 1 100%}
+.carta-campos button{cursor:pointer;font:600 10.5px/1 var(--sans);
+ padding:6px 9px;border:1px solid var(--linha);border-radius:5px;
+ background:#fff;color:var(--t3);flex:none}
+.carta-campos button:hover{border-color:var(--azul);color:var(--azul)}
 .coluna-corpo{display:flex;flex-direction:column;gap:9px;min-height:60px}
 .coluna-corpo.sobre{outline:2px dashed var(--traco);outline-offset:3px;border-radius:6px}
 .coluna-vazia{padding:16px 9px;border:1px dashed var(--traco);border-radius:6px;
@@ -5735,6 +5963,25 @@ def accao(destino, etiqueta, classe="bt", confirmar=""):
             % (destino, ao_submeter, classe, etiqueta))
 
 
+def forma_abandonar(ref, classe="mini", etiqueta="abandonar"):
+    """O botao de abandonar com o motivo colado a ele.
+
+    Nao ha caminho para abandonar sem motivo: e um `required` num
+    selector de ambito fechado, e o servidor recusa na mesma
+    (mudar_estado) -- um `required` e uma conveniencia do browser, nao
+    uma guarda.
+    """
+    opcoes = "".join("<option value='%s'>%s</option>"
+                     % (html.escape(m, quote=True), html.escape(m))
+                     for m in MOTIVOS_ABANDONO)
+    return ("<form class='accao com-motivo' method='post' action='/estado/%s/"
+            "descartado'>"
+            "<select name='motivo' required title='porquê que se abandona'>"
+            "<option value=''>porquê…</option>%s</select>"
+            "<button type='submit' class='%s'>%s</button></form>"
+            % (ref, opcoes, classe, etiqueta))
+
+
 def _iniciais(nome):
     partes = [p for p in (nome or "").split() if p]
     if not partes:
@@ -5958,6 +6205,12 @@ def linha(a, vista="", urgente=None):
                          "descartado": ""}.get(a["estado"], "info")
         tags.append("<span class='tag %s'>%s</span>"
                     % (classe_estado, rotulo_estado))
+    # Porque e que foi abandonado, na propria linha: e o que faz a aba
+    # dos abandonados valer alguma coisa passado um mes. Os que caem la
+    # por terem expirado nao tem motivo -- e nao se lhes inventa um.
+    if a["estado"] == "descartado" and _valor(a, "motivo"):
+        tags.append("<span class='tag'>%s</span>"
+                    % html.escape(a["motivo"]))
 
     preco = ("<div class='item-preco'>%s</div>" % html.escape(a["preco_base"])) \
         if a["preco_base"] else ""
@@ -5972,8 +6225,7 @@ def linha(a, vista="", urgente=None):
         botoes.append(accao("/estado/%s/interessa" % a["ref"],
                             "interessa", "mini verde"))
     if a["estado"] != "descartado":
-        botoes.append(accao("/estado/%s/descartado" % a["ref"],
-                            "abandonar", "mini"))
+        botoes.append(forma_abandonar(a["ref"]))
     if a["estado"] != "novo":
         botoes.append(accao("/estado/%s/novo" % a["ref"],
                             "repor por ver", "mini"))
@@ -6017,7 +6269,15 @@ LISTA_JS = """<script>
 
 
 ARVORE_JS = """<script>
-var ARV_DADOS = null, ARV_SEL = new Set(), ARV_FILHOS = {}, ARV_CHK = {};
+// ARV_SEL e o que se escolheu; ARV_EXC e o que se tirou de dentro do
+// escolhido. As duas juntas sao o par de campos do filtro (cpv e
+// cpv_excl) -- a arvore escreve nos dois. Antes so escrevia no
+// primeiro, e por isso um filho de uma divisao marcada tinha a caixa
+// trancada: marcar o 72 obrigava a levar o 72 inteiro. Quem quer o 72
+// sem dois ramos ficava sem forma de o dizer, e tirar o 72 perdia os
+// anuncios que so trazem o codigo da divisao.
+var ARV_DADOS = null, ARV_SEL = new Set(), ARV_EXC = new Set(),
+    ARV_FILHOS = {}, ARV_PAI = {}, ARV_CHK = {};
 
 function arvoreCarregar() {
   if (ARV_DADOS) return;
@@ -6039,7 +6299,7 @@ function nivelSignificativo(cod) {
 }
 
 function arvoreConstruir(dados) {
-  var porCodigo = {}, filhos = {}, raizes = [];
+  var porCodigo = {}, filhos = {}, pais = {}, raizes = [];
   dados.forEach(function(d) { porCodigo[d.codigo8] = d; });
   dados.forEach(function(d) {
     var nivel = nivelSignificativo(d.codigo8), pai = null;
@@ -6047,12 +6307,13 @@ function arvoreConstruir(dados) {
       var candidato = d.codigo8.slice(0, L) + '0'.repeat(8 - L);
       if (candidato !== d.codigo8 && porCodigo[candidato]) { pai = candidato; break; }
     }
-    if (pai) { (filhos[pai] = filhos[pai] || []).push(d.codigo8); }
+    if (pai) { (filhos[pai] = filhos[pai] || []).push(d.codigo8); pais[d.codigo8] = pai; }
     else { raizes.push(d.codigo8); }
   });
   raizes.sort();
   Object.keys(filhos).forEach(function(k) { filhos[k].sort(); });
   ARV_FILHOS = filhos;
+  ARV_PAI = pais;
 
   var total = {};
   function acumula(cod) {
@@ -6077,12 +6338,9 @@ function arvoreMarcarSemeados() {
   // Poe as caixas de acordo com o filtro que ja esta em uso. Sem isto a
   // arvore abria em branco por cima de um filtro cheio de CPV -- e como
   // "Aplicar" escreve o que a arvore tem, aplicar limpava o filtro.
-  ARV_SEL.forEach(function(cod) {
+  var abrir = Array.from(ARV_SEL).concat(Array.from(ARV_EXC));
+  abrir.forEach(function(cod) {
     if (!ARV_CHK[cod]) return;
-    ARV_CHK[cod].checked = true;
-    arvoreDescendentes(cod).forEach(function(f) {
-      if (ARV_CHK[f]) ARV_CHK[f].checked = true;
-    });
     // abrir os antepassados: marcado dentro de um <details> fechado nao
     // se ve, e o que nao se ve parece nao estar la
     var no = ARV_CHK[cod].closest('.no-envolve');
@@ -6091,7 +6349,7 @@ function arvoreMarcarSemeados() {
       no = no.parentElement ? no.parentElement.closest('.no-envolve') : null;
     }
   });
-  arvoreTrancarFilhos();
+  arvorePintar();
 }
 
 function arvoreSemear() {
@@ -6099,11 +6357,19 @@ function arvoreSemear() {
   // que la esta, ate o que nao e codigo (o filtro tambem aceita palavras):
   // assim "Aplicar" nao deita fora o que a arvore nao sabe desenhar.
   var campo = document.getElementById('filtro-cpv');
-  if (!campo) return;
-  campo.value.split('|').forEach(function(p) {
-    p = p.trim();
-    if (p) ARV_SEL.add(p);
-  });
+  if (campo) {
+    campo.value.split('|').forEach(function(p) {
+      p = p.trim();
+      if (p) ARV_SEL.add(p);
+    });
+  }
+  var fora = document.getElementById('filtro-cpv-excl');
+  if (fora) {
+    fora.value.split('|').forEach(function(p) {
+      p = p.trim();
+      if (p) ARV_EXC.add(p);
+    });
+  }
   arvoreChip();
 }
 
@@ -6130,6 +6396,9 @@ function arvoreNo(cod, porCodigo, filhos, total) {
   var ns = document.createElement('span');
   ns.className = 'n'; ns.textContent = '(' + total[cod] + ')';
   resumo.appendChild(ns);
+  var fs = document.createElement('span');
+  fs.className = 'fora'; fs.textContent = '';
+  resumo.appendChild(fs);
   // Um codigo a zero escolhe-se na mesma (pode interessar no outro
   // separador), mas esbatido: filtrar a arvore por "software" enterrava
   // os ramos com anuncios no meio de dezenas de (0).
@@ -6150,56 +6419,116 @@ function arvoreDescendentes(cod) {
   return fora;
 }
 
+function arvoreAntepassados(cod) {
+  var fora = [], p = ARV_PAI[cod];
+  while (p) { fora.push(p); p = ARV_PAI[p]; }
+  return fora;
+}
+
+function arvoreEstado(cod) {
+  // Quem decide se um codigo esta dentro do filtro e o antepassado mais
+  // proximo (ou o proprio) que apareca numa das duas listas: se estiver
+  // nos escolhidos, entra; se estiver nos tirados, fica de fora.
+  if (ARV_EXC.has(cod)) return 'fora';
+  if (ARV_SEL.has(cod)) return 'dentro';
+  var caminho = arvoreAntepassados(cod);
+  for (var i = 0; i < caminho.length; i++) {
+    if (ARV_EXC.has(caminho[i])) return 'fora';
+    if (ARV_SEL.has(caminho[i])) return 'dentro';
+  }
+  return 'fora';
+}
+
+function arvoreDesexcluir(cod) {
+  // Tira `cod` (e o que tem por baixo) das exclusoes. Se quem estiver
+  // excluido for um ANTEPASSADO, a exclusao empurra-se para baixo:
+  // exclui-se cada irmao do caminho, e assim volta este ramo sem voltar
+  // o resto. E o unico modo de o par (cpv, cpv_excl) exprimir o que a
+  // arvore mostra -- o filtro sabe somar e sabe subtrair uma vez, nao
+  // sabe alternar.
+  ARV_EXC.delete(cod);
+  arvoreDescendentes(cod).forEach(function(f) { ARV_EXC.delete(f); });
+  var caminho = arvoreAntepassados(cod), abaixo = cod;
+  for (var i = 0; i < caminho.length; i++) {
+    var a = caminho[i];
+    if (ARV_EXC.has(a)) {
+      ARV_EXC.delete(a);
+      (ARV_FILHOS[a] || []).forEach(function(f) {
+        if (f !== abaixo) ARV_EXC.add(f);
+      });
+    }
+    abaixo = a;
+  }
+}
+
 function arvoreMudou(cod, marcado) {
   // ARV_SEL guarda so o que foi marcado directamente: o filtro ja apanha
   // os descendentes com o codigo do grupo (zeros a direita tirados no
-  // servidor), nao vale a pena mandar cada um na URL.
-  if (marcado) { ARV_SEL.add(cod); } else { ARV_SEL.delete(cod); }
-  // as caixas dos descendentes marcam-se so para se ver o que ficou
-  // incluido; .checked por script nao dispara 'change'
-  //
-  // Ao desmarcar tiram-se tambem os descendentes do conjunto. Sem isto,
-  // marcar 72610000, marcar a divisao 72 por cima e desmarcar a divisao
-  // deixava a arvore inteira em branco com o chip a dizer "1
-  // seleccionado" -- e "Aplicar" filtrava por um codigo que nao estava
-  // marcado em lado nenhum.
-  arvoreDescendentes(cod).forEach(function(f) {
-    if (ARV_CHK[f]) { ARV_CHK[f].checked = marcado; }
-    if (!marcado) { ARV_SEL.delete(f); }
-  });
-  arvoreTrancarFilhos();
-  arvoreChip();
+  // servidor), nao vale a pena mandar cada um na URL. ARV_EXC guarda o
+  // que se tirou de dentro desses grupos.
+  if (marcado) {
+    arvoreDesexcluir(cod);
+    if (arvoreEstado(cod) !== 'dentro') {
+      ARV_SEL.add(cod);
+      // marcar a divisao por cima torna o filho redundante: o codigo do
+      // grupo ja o apanha, e deixa-lo escrito enchia a URL de ruido
+      arvoreDescendentes(cod).forEach(function(f) { ARV_SEL.delete(f); });
+    }
+  } else {
+    // Ao desmarcar tiram-se tambem os descendentes do conjunto. Sem
+    // isto, marcar 72610000, marcar a divisao 72 por cima e desmarcar a
+    // divisao deixava a arvore inteira em branco com o chip a dizer "1
+    // seleccionado" -- e "Aplicar" filtrava por um codigo que nao
+    // estava marcado em lado nenhum.
+    ARV_SEL.delete(cod);
+    arvoreDescendentes(cod).forEach(function(f) {
+      ARV_SEL.delete(f);
+      ARV_EXC.delete(f);
+    });
+    // desmarcar por dentro de um grupo marcado nao apaga o grupo: tira
+    // este ramo, que e o que o Afonso pediu -- "escolher o 72 e tirar um
+    // ou outro que nao faca sentido"
+    if (arvoreEstado(cod) === 'dentro') ARV_EXC.add(cod);
+  }
+  arvorePintar();
 }
 
-function arvoreTrancarFilhos() {
-  // Uma divisao marcada apanha tudo o que esta por baixo, e o filtro nao
-  // sabe excluir: desmarcar um filho la dentro mexia a caixa e nao
-  // mudava nada no resultado. Uma caixa que se mexe a toa e pior do que
-  // uma caixa que nao se mexe, por isso essas ficam trancadas.
-  var trancados = {};
-  ARV_SEL.forEach(function(cod) {
-    arvoreDescendentes(cod).forEach(function(f) { trancados[f] = true; });
-  });
+function arvorePintar() {
+  // As caixas sao um desenho do estado, nao o estado: redesenham-se
+  // todas a cada mudanca. Com o estado espalhado pelas caixas, um
+  // descendente marcado "so para se ver" acabava dentro do filtro.
   Object.keys(ARV_CHK).forEach(function(cod) {
-    var preso = !!trancados[cod];
-    ARV_CHK[cod].disabled = preso;
-    ARV_CHK[cod].title = preso
-        ? 'incluído pela divisão marcada acima; desmarca a divisão para mexer aqui'
+    var dentro = arvoreEstado(cod) === 'dentro';
+    ARV_CHK[cod].checked = dentro;
+    ARV_CHK[cod].title = ARV_EXC.has(cod)
+        ? 'tirado à mão de dentro de um grupo marcado acima'
         : '';
+    var resumo = ARV_CHK[cod].parentElement;
+    if (!resumo) return;
+    resumo.classList.toggle('excluido', ARV_EXC.has(cod));
+    var etq = resumo.querySelector('.fora');
+    if (etq) etq.textContent = ARV_EXC.has(cod) ? 'tirado' : '';
   });
+  arvoreChip();
 }
 
 function arvoreChip() {
   var chip = document.getElementById('arvore-chip');
   if (!chip) return;
-  var n = ARV_SEL.size;
-  chip.textContent = n ? (n + (n === 1 ? ' seleccionado' : ' seleccionados'))
-                       : 'nenhum seleccionado';
+  var n = ARV_SEL.size, f = ARV_EXC.size;
+  var texto = n ? (n + (n === 1 ? ' seleccionado' : ' seleccionados'))
+                : 'nenhum seleccionado';
+  if (f) texto += ' · ' + f + (f === 1 ? ' tirado' : ' tirados');
+  chip.textContent = texto;
 }
 
 function arvoreAplicar() {
   var campo = document.getElementById('filtro-cpv');
   campo.value = Array.from(ARV_SEL).join('|');
+  // O que se tirou vai para o campo de excluir CPV, que e o mesmo que
+  // se escreve a mao -- uma so leitura no servidor, nao duas.
+  var fora = document.getElementById('filtro-cpv-excl');
+  if (fora) fora.value = Array.from(ARV_EXC).join('|');
   // Numa lista, aplicar e pesquisar logo. Num formulario que ainda esta
   // a ser preenchido -- o "novo filtro" dos alertas -- submeter aqui
   // mandava o formulario sem o nome, e a escolha do CPV nao dava nada.
@@ -6213,9 +6542,8 @@ function arvoreAplicar() {
 
 function arvoreLimpar() {
   ARV_SEL.clear();
-  document.querySelectorAll('#arvore-corpo input[type=checkbox]').forEach(
-      function(c) { c.checked = false; c.disabled = false; c.title = ''; });
-  arvoreChip();
+  ARV_EXC.clear();
+  arvorePintar();
 }
 
 function arvoreFiltra(no, alvo) {
@@ -6396,6 +6724,70 @@ def condicao_da_aba(estado, hoje=None, cfg=None):
     return "estado = ?", [estado]
 
 
+def interesse_definido(cfg=None):
+    """(ligado, cpv, cpv a tirar) do interesse. Le so o config.json."""
+    cfg = ler_config() if cfg is None else cfg
+    return (bool(cfg.get("interesse_activo")),
+            (cfg.get("interesse_cpv") or "").strip(),
+            (cfg.get("interesse_cpv_excl") or "").strip())
+
+
+def condicao_do_interesse(args=None, cfg=None):
+    """(fragmento, valores) do INTERESSE: o recorte permanente da lista
+    de anuncios, por CPV, definido em Alertas › Interesse.
+
+    Decisao do Afonso a 01/09/2026: a lista de anuncios e para ver o que
+    a casa faz, nao o que o Diario da Republica publica. Um filtro
+    guardado nao servia -- esquece-se de o pôr e volta tudo; e um filtro
+    a mais na barra e um filtro que se apaga sem querer.
+
+    E recorte de PAGINA, como as abas: entra por com_recorte() e **nao**
+    por condicoes(). O motor serve tambem os alertas e os filtros
+    guardados, e um interesse la dentro cegava-os em silencio -- um
+    alerta deixaria de ver o que ve hoje sem ninguem lhe ter tocado.
+
+    O `?interesse=nao` levanta-o para o pedido em curso: e a porta de
+    saida, e a lista di-lo por cima de si mesma. Sem interesse definido,
+    ou desligado, nao ha recorte nenhum.
+    """
+    args = request.args if args is None else args
+    if (args.get("interesse") or "").strip() == "nao":
+        return "", []
+    ligado, dentro, fora = interesse_definido(cfg)
+    if not ligado:
+        return "", []
+    frag, vals = fragmento_cpv(dentro)
+    if not frag:
+        # interesse ligado mas por definir: nao esconde nada. Um ecra em
+        # branco sem se ter escolhido codigo nenhum le-se como avaria.
+        return "", []
+    frag_fora, vals_fora = fragmento_cpv(fora, coluna="COALESCE(cpv,'')")
+    if frag_fora and frag_fora != "1=0":
+        return ("(%s) AND NOT (%s)" % (frag, frag_fora), vals + vals_fora)
+    return frag, vals
+
+
+def recorte_da_lista(estado, cfg=None):
+    """(fragmento, valores) do que a lista de anuncios mostra: a aba MAIS
+    o interesse.
+
+    Num sitio so, de proposito. O recorte aplica-se em quatro consultas
+    da mesma pagina -- a lista, a contagem de cada aba, o selector das
+    plataformas e o total do filtro -- e um numero que conte com outro
+    recorte e um numero que abre uma lista diferente da que promete.
+
+    O `cfg` passa-se de fora para o config.json se abrir UMA vez por
+    pedido: as duas condicoes leem-no, sao sete chamadas por lista, e
+    isto corre de uma pen a 8,7 ms por ficheiro pequeno a frio.
+    """
+    cfg = ler_config() if cfg is None else cfg
+    frag_a, vals_a = condicao_da_aba(estado, cfg=cfg)
+    frag_i, vals_i = condicao_do_interesse(cfg=cfg)
+    if frag_a and frag_i:
+        return "(%s) AND (%s)" % (frag_a, frag_i), vals_a + vals_i
+    return (frag_a or frag_i), (vals_a if frag_a else vals_i)
+
+
 @app.route("/")
 def painel():
     """A lista dos anuncios: triagem e acervo na MESMA pagina, com as
@@ -6425,11 +6817,14 @@ def _lista_de_anuncios():
     continua na consulta canonica como sempre.
     """
     rota = "/"
+    # UMA leitura do config.json por pedido: as condicoes da aba e do
+    # interesse leem-no as duas, e sao sete chamadas nesta funcao.
+    cfg = ler_config()
     estado_da_aba = request.args.get("estado")
     estado_da_aba = "novo" if estado_da_aba is None else estado_da_aba.strip()
     onde, valores = com_recorte(
         *condicoes(args_da_lista(request.args, estado="")),
-        *condicao_da_aba(estado_da_aba))
+        *recorte_da_lista(estado_da_aba, cfg))
     with liga() as c:
         # Com paginas de 20 a contagem deixa de ser dispensavel: e ela que
         # diz quantas paginas ha. Faz-se sempre, antes da consulta das
@@ -6455,10 +6850,23 @@ def _lista_de_anuncios():
         for e in ("novo", "interessa", "descartado", ""):
             onde_aba, val_aba = com_recorte(onde_sem_estado,
                                             val_sem_estado,
-                                            *condicao_da_aba(e))
+                                            *recorte_da_lista(e, cfg))
             contas[e] = c.execute(
                 "SELECT COUNT(*) n FROM anuncios" + onde_aba,
                 val_aba).fetchone()["n"]
+        # Quanto e que o interesse esta a tapar, nesta aba e dentro deste
+        # filtro. Um recorte permanente que nao diga quanto esconde e um
+        # recorte que se esquece: passado um mes, "nao ha nada" tanto
+        # pode ser "nao entrou nada" como "nao entrou nada disto", e
+        # nada no ecra separa os dois.
+        escondidos_interesse = 0
+        if condicao_do_interesse(cfg=cfg)[0]:
+            onde_livre, val_livre = com_recorte(
+                onde_sem_estado, val_sem_estado,
+                *condicao_da_aba(estado_da_aba, cfg=cfg))
+            escondidos_interesse = c.execute(
+                "SELECT COUNT(*) n FROM anuncios" + onde_livre,
+                val_livre).fetchone()["n"] - correspondem
         total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
@@ -6474,7 +6882,7 @@ def _lista_de_anuncios():
             (SEM_PLATAFORMA,)).fetchall()
         onde_sem_plat, val_sem_plat = com_recorte(
             *condicoes(args_da_lista(request.args, plat="", estado="")),
-            *condicao_da_aba(estado_da_aba))
+            *recorte_da_lista(estado_da_aba, cfg))
         no_filtro = c.execute("SELECT COUNT(*) n FROM anuncios"
                               + onde_sem_plat, val_sem_plat).fetchone()["n"]
         porler_filtro = c.execute(
@@ -6509,6 +6917,7 @@ def _lista_de_anuncios():
     cpv_actual = request.args.get("cpv", "")
     faixa_cpv = faixa_cpv_activo(request.args,
                                  sem_pagina(request.args, rota, cpv=""))
+    faixa_interesse = _faixa_do_interesse(rota, escondidos_interesse, cfg)
 
     # A plataforma decide se as peças se conseguem trazer, por isso vale
     # a pena poder isolá-la -- ver só acingov/vortal/compraspt é ver o que
@@ -6552,13 +6961,14 @@ def _lista_de_anuncios():
         "<form class='cx filtros' method='get' action='%s'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
         # As exclusoes ao lado das inclusoes: palavras a tirar e CPV a
-        # tirar. O cpv_excl e caixa de texto e nao arvore -- a arvore
-        # escreve no campo positivo, e excluir escreve-se a mao (codigos
-        # ou palavras, separados por |).
+        # tirar. O cpv_excl continua a aceitar o que se escreva a mao
+        # (codigos ou palavras, separados por |), mas desde 01/09/2026 e
+        # tambem onde a arvore escreve o que se desmarcou dentro de uma
+        # divisao marcada -- por isso leva id, que e por onde ela le.
         "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' name='cpv_excl' value='%s' "
+        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:150px;flex:none'>"
         "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
@@ -6592,6 +7002,19 @@ def _lista_de_anuncios():
         corpo_lista = ("<div class='lista'>"
                        + "".join(linha(a, estado_actual, urgente) for a in linhas)
                        + "</div>")
+    elif filtro_em_uso == "estado=" + estado_actual and escondidos_interesse:
+        # Sem filtro nenhum, mas com o interesse a tapar: dizer "o que
+        # entrou esta triado" com 1290 anuncios escondidos era uma
+        # afirmacao falsa por cima da faixa que diz o contrario.
+        corpo_lista = ("<div class='vazio'>Nada aqui <b>dentro do "
+                       "interesse</b> &mdash; há %s de fora dele. "
+                       "<a href='%s'>ver tudo</a> ou "
+                       "<a href='/alertas/interesse'>mudar o interesse</a>."
+                       "</div>"
+                       % (mil(escondidos_interesse),
+                          html.escape(sem_pagina(request.args, rota,
+                                                 interesse="nao"),
+                                      quote=True)))
     elif estado_actual == "novo" and filtro_em_uso == "estado=novo":
         # O vazio proprio do "por ver" sem filtro: nada por decidir e
         # diferente de um filtro que nao apanhou nada.
@@ -6654,7 +7077,8 @@ def _lista_de_anuncios():
 
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
-                filtros + faixa_cpv + arvore + caixa_guardados +
+                faixa_interesse + filtros + faixa_cpv + arvore +
+                caixa_guardados +
                 "<div class='linha-conta'>" + conta +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
                 # ao "1-20" e exportava as 66 mil sem avisar
@@ -6858,9 +7282,11 @@ def arvore_html(n_cpv, de, submeter=True):
         "<span id='arvore-contagem'></span>"
         "</div>"
         "<div id='arvore-corpo'>a carregar…</div>"
-        "<div class='arv-pe'>Marcar uma divisão marca visualmente os descendentes; "
-        "ao filtro vai só o código do grupo &mdash; os zeros à direita apanham "
-        "tudo o que está por baixo.</div>"
+        "<div class='arv-pe'>Marcar uma divisão apanha tudo o que está por "
+        "baixo dela &mdash; ao filtro vai só o código do grupo, e os zeros à "
+        "direita fazem o resto. <b>Desmarcar um código lá dentro tira só "
+        "esse</b>: vai para &ldquo;excluir CPV&rdquo; e a divisão continua a "
+        "contar, incluindo os anúncios que só trazem o código dela.</div>"
         "</details>" % (de, "" if submeter else " data-submeter='nao'",
                         mil_pt(n_cpv), quantos))
 
@@ -6896,6 +7322,35 @@ def janela_urgente(hoje):
     10: o numero do ecra nao abria lista nenhuma que o confirmasse."""
     return (hoje.isoformat(),
             (hoje + timedelta(days=dias_urgente())).isoformat())
+
+
+def fragmento_cpv(texto, coluna="cpv"):
+    """(fragmento, valores) do filtro por CPV. Cada pedaco e um codigo
+    (72, 72267100-0) ou uma palavra da descricao oficial (software,
+    manutencao); qualquer um serve. Um termo que nao corresponde a nada
+    da "1=0": mostra vazio, nao tudo.
+
+    Esta fora de condicoes() para o recorte do interesse (o limite
+    permanente da lista, definido em /alertas) usar exactamente a mesma
+    leitura de CPV que o filtro -- duas leituras divergiam ao primeiro
+    arranjo, que e o que ja aconteceu com o prefixo_cpv.
+    """
+    cpv = (texto or "").strip()
+    if not cpv:
+        return "", []
+    ors, vals = [], []
+    for pedaco in (p.strip() for p in cpv.split("|")):
+        if not pedaco:
+            continue
+        if re.fullmatch(r"[\d\-\s]+", pedaco):
+            prefixos = [prefixo_cpv(pedaco)]
+        else:
+            prefixos = cpv_por_termo(pedaco)
+        for prefixo in prefixos:
+            if prefixo:
+                ors.append("(%s LIKE ? OR %s LIKE ?)" % (coluna, coluna))
+                vals += [prefixo + "%", "%, " + prefixo + "%"]
+    return ("(" + " OR ".join(ors) + ")" if ors else "1=0"), vals
 
 
 def condicoes(args):
@@ -6948,27 +7403,7 @@ def condicoes(args):
             valores.append("%" + para_like(simplifica(p)) + "%")
         onde.append("NOT (" + " OR ".join(ors) + ")")
 
-    def frag_cpv(texto):
-        """(fragmento, valores) do filtro por CPV. Cada pedaco e um
-        codigo (72, 72267100-0) ou uma palavra da descricao oficial
-        (software, manutencao); qualquer um serve. Um termo que nao
-        corresponde a nada da "1=0": mostra vazio, nao tudo."""
-        cpv = (texto or "").strip()
-        if not cpv:
-            return "", []
-        ors, vals = [], []
-        for pedaco in (p.strip() for p in cpv.split("|")):
-            if not pedaco:
-                continue
-            if re.fullmatch(r"[\d\-\s]+", pedaco):
-                prefixos = [prefixo_cpv(pedaco)]
-            else:
-                prefixos = cpv_por_termo(pedaco)
-            for prefixo in prefixos:
-                if prefixo:
-                    ors.append("(cpv LIKE ? OR cpv LIKE ?)")
-                    vals += [prefixo + "%", "%, " + prefixo + "%"]
-        return ("(" + " OR ".join(ors) + ")" if ors else "1=0"), vals
+    frag_cpv = fragmento_cpv
 
     # Duas caixas, e nao uma sobre as duas colunas: procurar "Lisboa"
     # devolvia tanto os concursos com Lisboa no objecto como todos os da
@@ -7093,6 +7528,37 @@ def faixa_cpv_activo(args, tirar_href):
     return ("<div class='cpv-activo'>Filtro CPV activo: <b>%s</b>"
             "<a href='%s'>tirar</a></div>"
             % (html.escape(cpv), html.escape(tirar_href, quote=True)))
+
+
+def _faixa_do_interesse(rota, escondidos, cfg=None):
+    """A faixa que diz que a lista esta limitada ao interesse -- ou que
+    ele foi levantado neste pedido.
+
+    Um recorte que nao se ve e um recorte que engana: a lista mostrava
+    trinta anuncios e o Afonso nao tinha como saber se eram trinta ou
+    trezentos. Diz o que apanha, quanto tapa, e tem as duas portas --
+    levantar e voltar a pôr.
+    """
+    levantado = (request.args.get("interesse") or "").strip() == "nao"
+    ligado, dentro, fora = interesse_definido(cfg)
+    if not ligado or not dentro:
+        return ""
+    if levantado:
+        return ("<div class='cpv-activo'>Interesse levantado nesta vista "
+                "&mdash; vês o acervo todo.<a href='%s'>voltar ao interesse"
+                "</a></div>"
+                % html.escape(sem_pagina(request.args, rota, interesse=""),
+                              quote=True))
+    quantos = ("<span class='d'> &middot; %s de fora</span>"
+               % mil_pt(escondidos)) if escondidos > 0 else ""
+    return ("<div class='cpv-activo'>Limitado ao "
+            "<a href='/alertas/interesse'>interesse</a>: <b>%s</b>%s%s"
+            "<a href='%s'>ver tudo</a></div>"
+            % (html.escape(dentro),
+               (" <span class='d'>sem %s</span>" % html.escape(fora))
+               if fora else "", quantos,
+               html.escape(sem_pagina(request.args, rota, interesse="nao"),
+                           quote=True)))
 
 
 def selector_procedimento(procs, actual, vazio="todos os procedimentos"):
@@ -7348,21 +7814,44 @@ def verificar_agora():
     return redirect(volta)
 
 
+def _volta_com_aviso(texto):
+    """De volta a pagina de onde se carregou, com um aviso por cima.
+
+    O mesmo caminho do "Verificar agora": a accao vem de tres sitios
+    diferentes (lista, ficha, quadro) e cada um tem de voltar ao seu.
+    """
+    volta = request.referrer or "/"
+    junta = "&" if "?" in volta else "?"
+    return redirect(volta + junta + urlencode({"aviso": texto}))
+
+
 @app.route("/estado/<path:ref>/<novo>", methods=["POST"])
 def mudar_estado(ref, novo):
     if novo in ("novo", "interessa", "descartado"):
+        # Abandonar exige motivo, de ambito fechado (decisao do Afonso a
+        # 01/09/2026). Passado um mes, "abandonado" sozinho nao diz nada:
+        # nao se sabe se foi o preco, se foi falta de certificacoes, nem
+        # se vale a pena voltar a olhar para aquela entidade.
+        motivo = (request.form.get("motivo") or "").strip()
+        if novo == "descartado" and motivo not in MOTIVOS_ABANDONO:
+            return _volta_com_aviso("Escolhe o motivo antes de abandonar.")
         with liga() as c:
             antes = c.execute("SELECT estado FROM anuncios WHERE ref=?",
                               (ref,)).fetchone()
             ja_estava = bool(antes) and antes["estado"] == novo
             if novo == "interessa":
-                c.execute("""UPDATE anuncios SET estado=?,
+                c.execute("""UPDATE anuncios SET estado=?, motivo=NULL,
                              fase_id=COALESCE(fase_id, ?) WHERE ref=?""",
                           (novo, primeira_fase(), ref))
             else:
-                c.execute("UPDATE anuncios SET estado=? WHERE ref=?", (novo, ref))
+                # Sair de abandonado limpa o motivo: um motivo pendurado
+                # num anuncio que voltou ao por ver e uma mentira a
+                # espera de ser lida.
+                c.execute("UPDATE anuncios SET estado=?, motivo=? WHERE ref=?",
+                          (novo, motivo or None, ref))
         if not ja_estava:
-            registar(ref, "estado", novo)
+            registar(ref, "estado",
+                     "%s (%s)" % (novo, motivo) if motivo else novo)
         if novo == "interessa" and not ja_estava:
             # Marcar interessa e o sinal de que vais mesmo trabalhar isto,
             # por isso as pecas vem sozinhas -- mas por uma fila, nao uma
@@ -7374,6 +7863,44 @@ def mudar_estado(ref, novo):
             # repetido voltava a descarregar as pecas todas.
             pedir_documentos(ref)
     return redirect(request.referrer or "/")
+
+
+@app.route("/plataforma/<path:ref>")
+def abrir_procedimento(ref):
+    """Leva a pagina do procedimento na plataforma.
+
+    So a Vortal precisa desta volta: o endereco que o DR publica e o das
+    pecas, cifrado, e o do procedimento sai da API. Resolve-se UMA vez e
+    guarda-se em `link_proc` -- a ficha nao pode ir a rede de cada vez
+    que alguem a abre.
+
+    Quando nao ha pagina publica do procedimento (a Vortal tambem
+    publica anuncios que ficam so na lista das pecas), volta-se a ficha
+    a dizer porque, em vez de mandar o Afonso para uma pagina que nao e
+    o que o botao prometia.
+    """
+    with liga() as c:
+        a = c.execute("SELECT ref, plataforma, link_pecas, link_proc "
+                      "FROM anuncios WHERE ref=?", (ref,)).fetchone()
+    if not a:
+        return "Anúncio não encontrado. <a href='/'>voltar</a>", 404
+    if a["link_proc"]:
+        return redirect(a["link_proc"])
+    sessao = requests.Session()
+    sessao.headers["User-Agent"] = NAVEGADOR
+    _, anuncio = _info_vortal(sessao, a["link_pecas"] or "")
+    achado = re.search(r"(PT\d+\.NTC\.\d+)", anuncio or "")
+    if not achado:
+        return redirect(
+            "/anuncio/%s?%s"
+            % (quote(ref, safe=""),
+               urlencode({"aviso": "A Vortal não publica página deste "
+                                   "procedimento — só a lista das peças."})))
+    endereco = VORTAL_PROCEDIMENTO % achado.group(1)
+    with liga() as c:
+        c.execute("UPDATE anuncios SET link_proc=? WHERE ref=?",
+                  (endereco, ref))
+    return redirect(endereco)
 
 
 @app.route("/sou", methods=["POST"])
@@ -7426,8 +7953,8 @@ def exportar():
     """Exporta exactamente o que a lista esta a mostrar.
 
     Com `ambito` posto (as ligacoes da lista poem-no), o CSV aplica o
-    MESMO recorte da aba que a pagina aplica (condicao_da_aba): sem
-    isto, o "exportar as N linhas" do por ver exportava tambem os
+    MESMO recorte da lista que a pagina aplica (a aba e o interesse):
+    sem isto, o "exportar as N linhas" do por ver exportava tambem os
     expirados e o numero da ligacao nao batia com o ficheiro. Sem
     ambito (ligacoes antigas), exporta o filtro tal e qual.
     """
@@ -7436,13 +7963,13 @@ def exportar():
         estado = "novo" if estado is None else estado.strip()
         onde, valores = com_recorte(
             *condicoes(args_da_lista(request.args, estado="")),
-            *condicao_da_aba(estado))
+            *recorte_da_lista(estado))
     else:
         onde, valores = condicoes(request.args)
     with liga() as c:
         linhas = c.execute(
             "SELECT ref,data_pub,tipo,entidade,titulo,cpv,prazo,preco_base,"
-            "estado,url FROM anuncios" + onde +
+            "estado,motivo,url FROM anuncios" + onde +
             " ORDER BY data_pub DESC", valores).fetchall()
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=";")
@@ -7451,7 +7978,7 @@ def exportar():
     # para sistema e itens (peças, leitura).
     escritor.writerow(["Anúncio", "Publicado", "Tipo", "Entidade", "Objecto",
                        "CPV", "Prazo", "Preço base (EUR)", "Triagem",
-                       "Endereço"])
+                       "Motivo do abandono", "Endereço"])
     for a in linhas:
         # Datas em DD/MM/AAAA como no resto da aplicacao -- o ISO e para a
         # base, e um CSV e para ver -- e o preco como um numero que o
@@ -7462,7 +7989,7 @@ def exportar():
                            a["entidade"], a["titulo"], a["cpv"],
                            data_pt(a["prazo"]), numero_csv(a["preco_base"]),
                            _NOMES_ESTADO.get(a["estado"], a["estado"]),
-                           a["url"]])
+                           a["motivo"] or "", a["url"]])
     return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition":
                              "attachment; filename=" + nome_csv("anuncios")})
@@ -7476,6 +8003,128 @@ def exportar():
 # segunda forma de descrever o que interessa: o que se procura na lista
 # e o que se guarda, e o que se guarda e o que avisa. Isso e o que
 # garante que o e-mail traz exactamente o que a lista mostraria.
+#
+# Ao lado deles vive o INTERESSE, que e outra coisa e nao se confunde:
+# um alerta AVISA quando entra alguma coisa; o interesse LIMITA o que a
+# lista de anuncios mostra, sempre, sem ninguem ter de o pôr. Sao os
+# CPV que a casa faz.
+
+def _caixa_interesse():
+    """O resumo do interesse na pagina dos alertas, com a porta para o
+    ecra onde se escolhe.
+
+    O ecra e outro por uma razao pratica: a arvore de CPV e uma so por
+    pagina -- o JS fala com um `details.arvore` e um `#filtro-cpv` -- e
+    /alertas ja gasta a sua no "Novo filtro". Duas arvores na mesma
+    pagina obrigavam a mudar o JS que serve quatro paginas.
+    """
+    ligado, dentro, fora = interesse_definido()
+    if dentro:
+        estado = ("<b>ligado</b>" if ligado else
+                  "<b>desligado</b> &mdash; a lista mostra o acervo todo")
+        resumo = ("<div class='nota' style='margin:6px 0 10px'>Está %s. "
+                  "CPV: <b>%s</b>%s</div>"
+                  % (estado, html.escape(dentro),
+                     (", sem <b>%s</b>" % html.escape(fora)) if fora else ""))
+    else:
+        resumo = ("<div class='nota' style='margin:6px 0 10px'>Ainda não "
+                  "está definido: a lista de anúncios mostra tudo o que a "
+                  "parte L publica.</div>")
+    return ("<div class='cx novo-filtro' style='margin-top:16px'>"
+            "<div class='rot'>Interesse</div>"
+            "<div class='nota' style='margin:6px 0 10px'>O interesse "
+            "limita a <a href='/'>lista de anúncios</a> aos CPV que a "
+            "casa trabalha &mdash; em todas as abas e sem se ter de pôr "
+            "um filtro. Não é um alerta: um alerta avisa, o interesse "
+            "esconde o resto.</div>%s"
+            "<div class='arvore-topo' style='padding:0 0 4px'>"
+            "<a class='bt' href='/alertas/interesse'>Definir o interesse"
+            "</a></div></div>" % resumo)
+
+
+@app.route("/alertas/interesse")
+def interesse():
+    """Onde se escolhem os CPV do interesse, com a arvore."""
+    cfg = ler_config()
+    ligado, dentro, fora = interesse_definido(cfg)
+    with liga() as c:
+        n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
+        # Quanto e que este interesse apanha hoje, para nao se guardar as
+        # cegas: o numero da aba "por ver" e o da base inteira.
+        apanha_ver = apanha_tudo = None
+        frag, vals = fragmento_cpv(dentro)
+        if frag:
+            frag_fora, vals_fora = fragmento_cpv(
+                fora, coluna="COALESCE(cpv,'')")
+            if frag_fora and frag_fora != "1=0":
+                frag = "(%s) AND NOT (%s)" % (frag, frag_fora)
+                vals = vals + vals_fora
+            aba, vals_aba = condicao_da_aba("novo")
+            apanha_ver = c.execute(
+                "SELECT COUNT(*) n FROM anuncios WHERE (%s) AND (%s)"
+                % (aba, frag), vals_aba + vals).fetchone()["n"]
+            apanha_tudo = c.execute(
+                "SELECT COUNT(*) n FROM anuncios WHERE " + frag,
+                vals).fetchone()["n"]
+    if apanha_ver is None:
+        conta = ("<div class='nota'>Escolhe os códigos na árvore e carrega "
+                 "em &ldquo;Aplicar seleccionados ao filtro&rdquo; &mdash; "
+                 "depois grava aqui em baixo.</div>")
+    else:
+        conta = ("<div class='nota'>Este interesse apanha <b>%s</b> dos "
+                 "anúncios por ver e <b>%s</b> do acervo todo. (O acervo "
+                 "antigo em grande parte ainda não tem CPV lido, e sem "
+                 "CPV nenhum anúncio entra no interesse.)</div>"
+                 % (mil_pt(apanha_ver), mil_pt(apanha_tudo)))
+    formulario = (
+        "<div class='cx novo-filtro'><div class='rot'>Os CPV do "
+        "interesse</div>"
+        "<div class='nota' style='margin:6px 0 14px'>Enquanto estiver "
+        "ligado, a <a href='/'>lista de anúncios</a> só mostra o que "
+        "corresponde &mdash; nas quatro abas. A lista di-lo por cima de "
+        "si mesma e tem sempre a porta de saída (&ldquo;ver tudo&rdquo;). "
+        "Os alertas e os contratos não são tocados: o interesse é um "
+        "recorte de leitura da lista, não um filtro.</div>"
+        "<form method='post' action='/alertas/interesse' class='filtros'>"
+        "<label><input type='checkbox' name='activo' value='1'%s> "
+        "limitar a lista de anúncios a estes CPV</label>"
+        "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
+        "placeholder='CPV — escolhe na árvore aqui em baixo'>"
+        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
+        "placeholder='CPV a tirar de dentro desses…'>"
+        "<button type='submit'>Guardar o interesse</button>"
+        "</form>%s%s</div>"
+        % (" checked" if ligado else "",
+           html.escape(dentro, quote=True), html.escape(fora, quote=True),
+           conta, arvore_html(n_cpv, "anuncios", submeter=False)))
+    return envolver(
+        "alertas", "Interesse",
+        "Os CPV que a casa trabalha. A lista de anúncios passa a mostrar "
+        "só isso.",
+        "<div class='larg'>" + formulario + "</div>",
+        migalhas=migalhas_de("alertas", "Interesse"), script=ARVORE_JS,
+        titulo_aba="Interesse, Radar de Concursos")
+
+
+@app.route("/alertas/interesse", methods=["POST"])
+def interesse_gravar():
+    """Grava o interesse. Ligado sem CPV nenhum nao esconde nada -- e o
+    que condicao_do_interesse() faz --, por isso avisa-se aqui em vez de
+    deixar o Afonso a pensar que ficou a limitar."""
+    dentro = " ".join((request.form.get("cpv") or "").split())
+    fora = " ".join((request.form.get("cpv_excl") or "").split())
+    activo = bool(request.form.get("activo"))
+    gravar_config({"interesse_activo": activo, "interesse_cpv": dentro,
+                   "interesse_cpv_excl": fora})
+    if activo and not dentro:
+        aviso = ("Interesse ligado mas sem CPV escolhido — a lista "
+                 "continua a mostrar tudo.")
+    elif activo:
+        aviso = "Interesse guardado: a lista de anúncios passa a mostrar só %s." % dentro
+    else:
+        aviso = "Interesse guardado e desligado: a lista mostra tudo."
+    return redirect("/alertas/interesse?" + urlencode({"aviso": aviso}))
+
 
 def _linha_filtro(f):
     """Um filtro na lista de gestao: o interruptor, o que apanha, e onde
@@ -7745,7 +8394,7 @@ def alertas():
         # resultado, e sem isto nao se sabia o que a arvore tinha posto
         "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
         "placeholder='CPV — escolhe na árvore aqui em baixo'>"
-        "<input type='text' name='cpv_excl' value='%s' "
+        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV — escreve os códigos…'>"
         "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que "
@@ -7818,7 +8467,8 @@ def alertas():
         historico = ("<div class='nota'>Ainda não saiu nenhum aviso. Sai no "
                      "resumo a seguir à próxima verificação.</div>")
 
-    conteudo = ("<div class='larg'>" + lista + caixa_seguidas +
+    conteudo = ("<div class='larg'>" + _caixa_interesse() + lista +
+                caixa_seguidas +
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
                 _caixa_urgente() +
@@ -8627,7 +9277,7 @@ def filtros_da_ficha(chave, d):
         "<input type='text' name='q_excl' value='%s' "
         "placeholder='Excluir palavras…'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' name='cpv_excl' value='%s' "
+        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:120px;flex:none'>"
         "<label>de</label><input type='date' name='de' value='%s'>"
@@ -9064,7 +9714,7 @@ def contratos():
         # separadores -- e por ele que a arvore le e escreve. A exclusao
         # e caixa de texto: a arvore nao lhe toca.
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' name='cpv_excl' value='%s' "
+        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:130px;flex:none'>"
         "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
@@ -10196,6 +10846,8 @@ def ficha(ref):
     if a["tipo"]:
         chips.append("<span class='tag'>%s</span>" % html.escape(a["tipo"]))
     chips.append("<span class='tag %s'>%s</span>" % (classe_estado, rotulo_estado))
+    if a["estado"] == "descartado" and _valor(a, "motivo"):
+        chips.append("<span class='tag'>%s</span>" % html.escape(a["motivo"]))
 
     # O "Propostas até" voltou aos factos. Tinha saido daqui porque
     # aparecia duas vezes no mesmo ecra -- aqui e na caixa preta da
@@ -10265,7 +10917,7 @@ def ficha(ref):
     if a["estado"] != "interessa":
         decidir.append(accao("/estado/%s/interessa" % ref, "Interessa", "bt verde"))
     if a["estado"] != "descartado":
-        decidir.append(accao("/estado/%s/descartado" % ref, "Abandonar"))
+        decidir.append(forma_abandonar(ref, "bt", "Abandonar"))
     if a["estado"] != "novo":
         sair.append(accao("/estado/%s/novo" % ref, "Pôr por ver", "bt-leve"))
     if a["pdf_url"]:
@@ -10274,8 +10926,20 @@ def ficha(ref):
     sair.append("<a class='bt-leve' href='%s' target='_blank'>%s</a>"
                 % (html.escape(a["url"], quote=True),
                    "Ver no DR" if e_do_dr else "Ver na Vortal"))
-    if a["link_pecas"]:
-        sair.append("<a class='bt-leve' href='%s' target='_blank'>Abrir plataforma</a>"
+    # Duas coisas diferentes, dois botoes: o procedimento na plataforma
+    # e as pecas. Estavam no mesmo -- "Abrir plataforma" abria o link
+    # das pecas, que na acingov descarrega um ZIP e na Vortal da na
+    # lista dos ficheiros; nenhum dos dois e o procedimento.
+    destino, rotulo, dica = link_do_procedimento(a)
+    if destino:
+        sair.append("<a class='bt-leve' href='%s' target='_blank' "
+                    "title='%s'>%s</a>"
+                    % (html.escape(destino, quote=True),
+                       html.escape(dica, quote=True), html.escape(rotulo)))
+    if a["link_pecas"] and a["link_pecas"] != destino:
+        sair.append("<a class='bt-leve' href='%s' target='_blank' "
+                    "title='o endereço das peças que o anúncio indica'>"
+                    "Peças na plataforma</a>"
                     % html.escape(a["link_pecas"], quote=True))
 
     # Voltar para a lista **de onde se veio**, com o filtro e a pagina.
@@ -10858,7 +11522,62 @@ document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
 </script>"""
 
 
-def cartao(a, etiquetas_por_ref, urgente=None):
+# A partir do "Submetido" o numero que conta e o que se propos, nao o
+# preco base -- decisao do Afonso a 01/09/2026. Vale para o cartao e
+# para a soma da coluna: uma coluna de submetidos somada a precos base
+# nao e o valor que esta em jogo, e o preco base ate ja se sabe que nao
+# e o preco.
+FASES_COM_PROPOSTO = ("submetido", "relatorio", "ganho", "perdido")
+
+
+def _campos_da_fase(a, papel):
+    """O que a fase pede ao cartao, em formulario.
+
+    Cada campo pertence a uma fase e a mais nenhuma: perguntar o lugar
+    no relatorio preliminar a um cartao que ainda esta "por analisar" e
+    ruido, e perguntar o preco proposto antes de haver proposta e
+    perguntar por adivinhas. As fases sem nada a apontar ("Por
+    analisar", "A preparar proposta", "Ganho") nao mostram formulario
+    nenhum -- e o que o Afonso disse, por essas palavras.
+    """
+    accao_ = "/quadro/campos/" + a["ref"]
+    if papel == "submetido":
+        return ("<form class='carta-campos' method='post' action='%s' draggable='false'>"
+                "<label>proposto</label>"
+                "<input type='text' name='preco_proposto' value='%s' "
+                "placeholder='ex. 118.500,00'>"
+                "<button type='submit'>gravar</button></form>"
+                % (accao_,
+                   html.escape(_valor(a, "preco_proposto") or "", quote=True)))
+    if papel == "relatorio":
+        lugar = _valor(a, "posicao")
+        return ("<form class='carta-campos' method='post' action='%s' draggable='false'>"
+                "<label>lugar</label>"
+                "<input type='number' name='posicao' min='1' max='99' "
+                "value='%s' class='curto'>"
+                "<label>os três primeiros</label>"
+                "<input type='text' name='top3' value='%s' class='largo' "
+                "placeholder='1º … · 2º … · 3º …'>"
+                "<button type='submit'>gravar</button></form>"
+                % (accao_, "" if lugar is None else int(lugar),
+                   html.escape(_valor(a, "top3") or "", quote=True)))
+    if papel == "perdido":
+        actual = _valor(a, "motivo_perda") or ""
+        opcoes = "".join(
+            "<option value='%s'%s>%s</option>"
+            % (html.escape(m, quote=True), " selected" if m == actual else "",
+               html.escape(m))
+            for m in MOTIVOS_PERDA)
+        return ("<form class='carta-campos' method='post' action='%s' draggable='false'>"
+                "<label>porque se perdeu</label>"
+                "<select name='motivo_perda' required>"
+                "<option value=''>escolhe…</option>%s</select>"
+                "<button type='submit'>gravar</button></form>"
+                % (accao_, opcoes))
+    return ""
+
+
+def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
     texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
     prazo_html = ("<span class='tag %s'>&#9679; %s</span>"
                   % (classe_prazo, texto_prazo)) if texto_prazo else ""
@@ -10873,8 +11592,21 @@ def cartao(a, etiquetas_por_ref, urgente=None):
                       % ref_ancora
                       if dias is not None and not passou
                       and dias < DIAS_CALENDARIO else "")
-    preco_html = ("<span class='carta-preco'>%s</span>"
-                  % html.escape(a["preco_base"])) if a["preco_base"] else ""
+    # O preco do cartao muda de significado com a coluna. Antes do
+    # "Submetido" e o preco base (o tecto que a entidade pos); dai para a
+    # frente e o que se propos -- e enquanto o proposto nao estiver
+    # preenchido mostra-se o base **dito como base**, que e diferente de
+    # o mostrar como se fosse a proposta.
+    if papel in FASES_COM_PROPOSTO and _valor(a, "preco_proposto"):
+        texto_preco, dica_preco = a["preco_proposto"], "preço proposto"
+    elif papel in FASES_COM_PROPOSTO:
+        texto_preco = ("base " + a["preco_base"]) if a["preco_base"] else ""
+        dica_preco = "preço base — o proposto ainda não está preenchido"
+    else:
+        texto_preco, dica_preco = a["preco_base"] or "", "preço base"
+    preco_html = ("<span class='carta-preco' title='%s'>%s</span>"
+                  % (dica_preco, html.escape(texto_preco))) \
+        if texto_preco else ""
     etiquetas_html = "".join(
         "<span class='etq' style='background:%s'>%s%s</span>"
         % (e["cor"], html.escape(e["nome"]),
@@ -10887,7 +11619,7 @@ def cartao(a, etiquetas_por_ref, urgente=None):
         "<div class='carta' id='c-%s' draggable='true' data-ref='%s'>"
         "<a href='/anuncio/%s' class='carta-titulo'>%s</a>"
         "<div class='carta-entidade'>%s</div>"
-        "<div class='carta-meta'>%s%s</div>"
+        "<div class='carta-meta'>%s%s</div>%s"
         "<div class='carta-etq'>%s"
         "<form class='etq-form' method='post' action='/quadro/etiqueta/%s/nova'>"
         "<input type='text' name='nome' placeholder='+ etiqueta' "
@@ -10897,6 +11629,7 @@ def cartao(a, etiquetas_por_ref, urgente=None):
         % (ref_ancora, a["ref"], a["ref"],
            html.escape(corta(a["titulo"], 120)),
            html.escape(a["entidade"]), preco_html, prazo_html,
+           _campos_da_fase(a, papel),
            etiquetas_html, a["ref"],
            # o botao repunha o estado em "por ver" e chamava-se "tirar do
            # quadro": quem le isso espera perder a fase, nao a triagem --
@@ -10907,14 +11640,19 @@ def cartao(a, etiquetas_por_ref, urgente=None):
            vai_calendario, dono))
 
 
-def soma_precos_base(itens):
-    """(soma, quantos com preco lido) dos precos base de uma coluna.
+def soma_precos_base(itens, coluna="preco_base"):
+    """(soma, quantos com preco) de uma coluna do quadro.
 
-    O preco_base e texto do DR ("175.000,00 EUR") e passa por
-    euros_do_texto(); os anuncios sem preco lido nao contam, e o
-    cabecalho diz sobre quantos e que a soma e -- somar uns e calar os
-    outros parecia o valor da fase inteira."""
-    valores = [v for v in (euros_do_texto(a["preco_base"]) for a in itens)
+    O preco e texto ("175.000,00 EUR") e passa por euros_do_texto(); os
+    anuncios sem preco nao contam, e o cabecalho diz sobre quantos e que
+    a soma e -- somar uns e calar os outros parecia o valor da fase
+    inteira.
+
+    A `coluna` existe porque a partir do "Submetido" o valor em jogo e o
+    proposto: somar precos base numa coluna de submetidos dava o tecto
+    da entidade e nao a proposta, com o mesmo ar de numero certo.
+    """
+    valores = [v for v in (euros_do_texto(_valor(a, coluna)) for a in itens)
                if v]
     return sum(valores), len(valores)
 
@@ -10944,51 +11682,55 @@ def quadro():
     colunas = []
     for f in fases:
         itens = por_fase.get(f["id"], [])
-        corpo = "".join(cartao(a, etiquetas_por_ref, urgente) for a in itens) or \
+        papel = _valor(f, "papel") or ""
+        corpo = "".join(cartao(a, etiquetas_por_ref, urgente, papel)
+                        for a in itens) or \
             "<div class='coluna-vazia'>sem cartões, arrasta um para aqui</div>"
         # B11: o valor da fase ao lado da contagem, como o kanban da
-        # SpotGov. So os precos base lidos contam, e o title di-lo.
-        soma, com_preco = soma_precos_base(itens)
+        # SpotGov. So os precos lidos contam, e o title di-lo. A partir
+        # do "Submetido" soma-se o PROPOSTO: a soma dos precos base numa
+        # coluna de submetidos e o tecto da entidade, nao o que esta em
+        # jogo, e tinha o mesmo ar de numero certo.
+        coluna_preco = ("preco_proposto" if papel in FASES_COM_PROPOSTO
+                        else "preco_base")
+        soma, com_preco = soma_precos_base(itens, coluna_preco)
         valor_fase = ""
         if soma:
-            valor_fase = (" <span title='soma dos preços base lidos: %d de "
+            valor_fase = (" <span title='soma dos preços %s: %d de "
                           "%d anúncios têm preço'>· %s</span>"
-                          % (com_preco, len(itens), euros_curto(soma)))
+                          % ("propostos" if coluna_preco == "preco_proposto"
+                             else "base lidos",
+                             com_preco, len(itens), euros_curto(soma)))
         colunas.append(
             "<div class='coluna'><div class='coluna-cab'>"
             "<form method='post' action='/quadro/fase/%d/renomear'>"
             "<input class='fase-nome' type='text' name='nome' value='%s' "
             "data-antes='%s' required onblur='renomearFase(this)'></form>"
-            "<span class='coluna-conta'>%d%s</span>"
-            "<form method='post' action='/quadro/fase/%d/apagar' "
-            "onsubmit='return confirm(\"Apagar esta fase? Os cartões voltam "
-            "para a primeira fase.\")'>"
-            "<button type='submit' class='fase-apagar' title='apagar fase'>"
-            "&times;</button></form></div>"
+            "<span class='coluna-conta'>%d%s</span></div>"
             "<div class='coluna-corpo' data-fase='%d'>%s</div></div>"
             % (f["id"], html.escape(f["nome"], quote=True),
                html.escape(f["nome"], quote=True), len(itens), valor_fase,
-               f["id"], f["id"], corpo))
+               f["id"], corpo))
 
     datalist = "".join("<option value='%s'>" % html.escape(e["nome"], quote=True)
                        for e in todas_etiquetas)
 
+    # As seis colunas sao o funil da casa e nao se criam nem se apagam
+    # (decisao do Afonso a 01/09/2026): o formulario "+ Nova fase" saiu
+    # daqui, e o "x" de apagar saiu do cabecalho de cada coluna.
     conteudo = ("<div class='quadro-topo'>"
                 "<span class='d'>Só entram anúncios marcados como "
-                "&ldquo;interessa&rdquo; &middot; arrastar move de fase &middot; "
-                "o nome da fase edita-se no sítio</span>"
-                "<form method='post' action='/quadro/fase/nova'>"
-                "<input type='text' name='nome' placeholder='nome da nova fase' required>"
-                "<button type='submit' class='bt forte'>+ Nova fase</button>"
-                "</form></div>"
+                "&ldquo;interessa&rdquo; &middot; arrastar move de fase "
+                "&middot; o nome da fase edita-se no sítio &middot; cada "
+                "fase pede o que lhe falta</span></div>"
                 "<div class='quadro'>%s</div>"
                 "<datalist id='etiquetas-existentes'>%s</datalist>"
                 % ("".join(colunas), datalist))
 
     migalhas = migalhas_de("quadro")
     return envolver("quadro", "Quadro",
-                    "Fases editáveis &middot; só anúncios marcados como "
-                    "&ldquo;interessa&rdquo;.",
+                    "As seis fases do funil &middot; só anúncios marcados "
+                    "como &ldquo;interessa&rdquo;.",
                     conteudo, migalhas=migalhas, script=QUADRO_JS,
                     titulo_aba="Quadro, Radar de Concursos")
 
@@ -11518,14 +12260,11 @@ def quadro_mover():
     return {"ok": True}
 
 
-@app.route("/quadro/fase/nova", methods=["POST"])
-def fase_nova():
-    nome = (request.form.get("nome") or "").strip()
-    if nome:
-        with liga() as c:
-            maior = c.execute("SELECT MAX(ordem) m FROM fases").fetchone()["m"] or 0
-            c.execute("INSERT INTO fases (nome, ordem) VALUES (?,?)", (nome, maior + 1))
-    return redirect("/quadro")
+# As fases criam-se e apagam-se? Ja nao (decisao do Afonso a
+# 01/09/2026). O quadro passou a ser o funil da casa -- seis colunas com
+# papel definido, e o cartao muda com a coluna em que esta. Criar uma
+# setima coluna nao teria papel nenhum, e apagar uma das seis levaria
+# consigo o campo que ela pede. Renomear continua a dar.
 
 
 @app.route("/quadro/fase/<int:fase_id>/renomear", methods=["POST"])
@@ -11537,18 +12276,60 @@ def fase_renomear(fase_id):
     return redirect("/quadro")
 
 
-@app.route("/quadro/fase/<int:fase_id>/apagar", methods=["POST"])
-def fase_apagar(fase_id):
+@app.route("/quadro/campos/<path:ref>", methods=["POST"])
+def quadro_campos(ref):
+    """Os campos que cada fase pede, gravados a partir do cartao.
+
+    Um so caminho para os tres, e nao tres rotas quase iguais: o que
+    manda e o papel da fase em que o cartao esta, e cada campo so se
+    grava se vier no formulario. O historico fica com o que mudou --
+    "submetido a 118 500 EUR" vale mais, tres meses depois, do que a
+    coluna onde o cartao parou.
+    """
+    campos, registos = [], []
+    valores = []
+    if "preco_proposto" in request.form:
+        bruto = " ".join((request.form.get("preco_proposto") or "").split())
+        # Guarda-se no formato do preco base ("118.500,00 EUR"), que e o
+        # que euros_do_texto() e as somas do quadro ja sabem ler --
+        # **nao** no de euros(), que poe espaco nos milhares e faz o
+        # euros_do_texto() ler "118" de "118 500 €". Um numero que nao
+        # se perceba fica como foi escrito, em vez de virar zero em
+        # silencio.
+        valor = euros_do_texto(bruto)
+        texto = (_texto_do_preco(valor) if valor else bruto)
+        campos.append("preco_proposto=?")
+        valores.append(texto or None)
+        registos.append(("preço proposto", texto or "(apagado)"))
+    if "posicao" in request.form or "top3" in request.form:
+        bruto = (request.form.get("posicao") or "").strip()
+        try:
+            lugar = int(bruto) if bruto else None
+        except ValueError:
+            lugar = None
+        top3 = " ".join((request.form.get("top3") or "").split())[:300]
+        campos.append("posicao=?")
+        valores.append(lugar)
+        campos.append("top3=?")
+        valores.append(top3 or None)
+        registos.append(("relatório preliminar",
+                         "%s%s" % ("%dº lugar" % lugar if lugar else "sem lugar",
+                                   " — " + top3 if top3 else "")))
+    if "motivo_perda" in request.form:
+        motivo = (request.form.get("motivo_perda") or "").strip()
+        if motivo and motivo not in MOTIVOS_PERDA:
+            return _volta_com_aviso("Esse motivo de perda não existe.")
+        campos.append("motivo_perda=?")
+        valores.append(motivo or None)
+        registos.append(("porque se perdeu", motivo or "(apagado)"))
+    if not campos:
+        return redirect(request.referrer or "/quadro")
     with liga() as c:
-        total = c.execute("SELECT COUNT(*) n FROM fases").fetchone()["n"]
-        if total > 1:
-            sobra = c.execute(
-                "SELECT id FROM fases WHERE id != ? ORDER BY ordem, id LIMIT 1",
-                (fase_id,)).fetchone()
-            c.execute("UPDATE anuncios SET fase_id=? WHERE fase_id=?",
-                      (sobra["id"], fase_id))
-            c.execute("DELETE FROM fases WHERE id=?", (fase_id,))
-    return redirect("/quadro")
+        c.execute("UPDATE anuncios SET " + ", ".join(campos) + " WHERE ref=?",
+                  valores + [ref])
+    for accao_, detalhe in registos:
+        registar(ref, accao_, detalhe)
+    return redirect(request.referrer or "/quadro")
 
 
 @app.route("/quadro/etiqueta/<path:ref>/nova", methods=["POST"])
