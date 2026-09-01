@@ -504,6 +504,19 @@ def iniciar_db():
         # fica como esta -- apagar um texto bom por nao ter o ficheiro
         # seria trocar a leitura pela cosmetica. A reextraccao corre
         # DEPOIS desta transaccao (extrair_textos abre a sua ligacao).
+        # B14, uma vez, por marca: as consultas preliminares recolhidas
+        # antes de 01/09/2026 entraram com detalhe_lido=1 e sem CPV nem
+        # NIPC -- a pesquisa da Vortal nao os traz e ninguem ia buscar o
+        # detalhe. Voltam a por ler para ler_preliminares() as encher na
+        # verificacao seguinte. Marca e nao WHERE cpv='': ha consultas
+        # que podem mesmo nao ter CPV, e essas nao se retentam para
+        # sempre.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='preliminares_com_detalhe'").fetchone():
+            c.execute("UPDATE anuncios SET detalhe_lido=0 "
+                      "WHERE fonte='vortal' AND COALESCE(cpv,'')=''")
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('preliminares_com_detalhe','1')")
         refazer = []
         if not c.execute("SELECT 1 FROM estado "
                          "WHERE chave='texto_com_paginas'").fetchone():
@@ -1220,7 +1233,13 @@ def ler_detalhes(limite=40, dias=None):
     pedido, molde = par
     variaveis = molde["screenData"]["variables"]
 
-    condicao, valores = "detalhe_lido=0", []
+    # So a fonte do DR. As consultas preliminares da Vortal (B14)
+    # tambem passam por detalhe_lido=0, mas o detalhe delas e outro
+    # endpoint -- sem este filtro, o rsplit abaixo mandava um
+    # "PT1.NTC.3785462" ao portal do DR como se fosse uma chave dele, e
+    # a resposta sem JSON acabava a marcar o token como expirado. Um
+    # falso alarme de captura expirada e pior que nao ler nada.
+    condicao, valores = "detalhe_lido=0 AND COALESCE(fonte,'dr')='dr'", []
     if dias:
         condicao += " AND data_pub >= ?"
         valores.append((datetime.now() - timedelta(days=int(dias)))
@@ -1397,6 +1416,53 @@ VORTAL_FICHA = "https://community.vortal.biz/Public/contract-notice-view/%s/"
 # em minusculas e aceitam-se os dois.
 TIPOS_PRELIMINAR = ("govpt - consulta preliminar", "quick tender govpt")
 
+# O detalhe da consulta preliminar. Medido a 01/09/2026 nas 24 que ja
+# estavam na base: 100% com CPV, 100% com NIPC, 100% com local, 75% com
+# pecas -- e zero falhas, por requests puro, sem sessao iniciada e com o
+# PT1.NTC as claras. A pesquisa (SearchTenders) NAO traz nada disto: os
+# 16 campos dela sao titulo, entidade, datas, estado e tipo, e mais
+# nada. Sem esta segunda chamada, uma consulta preliminar entrava sem
+# CPV -- invisivel a todos os filtros por CPV, ao recorte do interesse e
+# aos alertas -- e sem NIPC, que e a chave por onde a entidade se cruza
+# com o corpus de contratos.
+#
+# Nao confundir com GetPublicTenderInformation, o primeiro salto das
+# pecas: esse so aceita o identificador cifrado que o DR publica e
+# responde 500 ao PT1.NTC (medido nos mesmos anuncios).
+VORTAL_REGIAO = ("https://community.vortal.biz/public/api/"
+                 "ContractNoticeDetail/GetRegionConfigurationByContractNoticeUId")
+
+# As seccoes do texto que se monta a partir do detalhe, na ordem em que
+# aparecem na ficha. A chave e o **nome** do campo na API e nunca o
+# rotulo: o rotulo muda com o idioma da sessao, licao que o tipo do
+# procedimento ja tinha dado (TIPOS_PRELIMINAR aceita dois rotulos do
+# mesmo tipo por causa disso).
+CAMPOS_PRELIMINAR = (
+    ("2 - CONSULTA", (
+        ("AE2_RequestInfoCN_RequestReference", "Referência da consulta"),
+        ("AE3_RequestInfoCN_RequestName", "Designação"),
+        ("AE4_RequestInfoCN_Phase", "Fase"),
+        ("AE7_RequestInfoCN_Description", "Descrição"),
+        ("AE9_RequestInfoCN_ProcedureType", "Tipo de consulta"),
+    )),
+    ("3 - CLASSIFICAÇÃO CPV", (
+        ("AG1_CPVClassificationCN_MainVocabulary", "Vocabulário principal"),
+    )),
+    ("4 - OBJECTO DO CONTRATO", (
+        ("AI1_ObjectOfContractCN_TypeOfContract", "Tipo de contrato"),
+        ("AI7_ObjectOfContractCN_FullLocation", "Local de execução"),
+    )),
+    ("5 - PRAZOS", (
+        ("AJ3_SchedulingCN_RequestOnlinePublishingDate", "Publicação"),
+        ("AJ7_SchedulingCN_DueDateForReceivingReplies",
+         "Data limite de recepção de propostas"),
+    )),
+)
+CAMPO_CARTAO = "AA1_ManagingAuthorityCN_BusinessCard"
+CAMPO_CPV = "AG1_CPVClassificationCN_MainVocabulary"
+CAMPO_DOCS = "EA2_AvailableDocumentssCN_ContractDocuments"
+CAMPO_QUESTIONARIO = "CB1_SummaryCN_QuestionnaireHTML"
+
 
 def _texto_do_preco(valor):
     """Um float da API no formato portugues da coluna preco_base
@@ -1408,6 +1474,214 @@ def _texto_do_preco(valor):
     return s.replace(",", "\x00").replace(".", ",").replace("\x00", ".") + " EUR"
 
 
+def _domingo_final(ano, mes):
+    """O ultimo domingo de um mes de 31 dias."""
+    ultimo = datetime(ano, mes, 31)
+    return ultimo - timedelta(days=(ultimo.weekday() + 1) % 7)
+
+
+def hora_de_lisboa(iso):
+    """A data/hora UTC da Vortal na hora legal de Portugal continental.
+
+    A API devolve tudo em UTC ("2026-09-03T22:59:00Z") e a propria
+    Vortal mostra 23:59 na pagina: no Verao, Lisboa e UTC+1. Escrever o
+    UTC na ficha punha o prazo uma hora mais cedo do que a plataforma
+    diz -- e um prazo e a informacao pela qual se perde uma proposta.
+
+    A regra e a da UE e nao muda: hora de Verao do ultimo domingo de
+    Marco as 01:00 UTC ao ultimo domingo de Outubro as 01:00 UTC.
+    Faz-se a conta a mao porque a biblioteca padrao so traz fusos com
+    nome a partir do zoneinfo, que depende de dados do sistema que este
+    Windows nao garante. Devolve ISO "AAAA-MM-DD HH:MM"; o que nao for
+    data volta como veio.
+    """
+    m = re.match(r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})", (iso or "").strip())
+    if not m:
+        return " ".join(str(iso or "").split())
+    quando = datetime.strptime(m.group(1) + " " + m.group(2), "%Y-%m-%d %H:%M")
+    verao = (_domingo_final(quando.year, 3) + timedelta(hours=1)
+             <= quando
+             < _domingo_final(quando.year, 10) + timedelta(hours=1))
+    if verao:
+        quando += timedelta(hours=1)
+    return quando.strftime("%Y-%m-%d %H:%M")
+
+
+def _valor_do_campo(valor):
+    """O valor de um campo do detalhe, ja como texto.
+
+    A API mistura tres formas no mesmo sitio: texto simples, uma data
+    (dict com `dateValue` em UTC) e o cartao da entidade (dict com nome,
+    NIF e localizacao). Um str() ingenuo escrevia o dicionario inteiro
+    na ficha.
+    """
+    if isinstance(valor, dict):
+        if valor.get("dateValue"):
+            return data_hora_pt(hora_de_lisboa(str(valor["dateValue"])))
+        return ""
+    return " ".join(str(valor or "").split())
+
+
+def _campos_da_preliminar(dados):
+    """A regionConfiguration achatada em {nome: valor}."""
+    if not isinstance(dados, dict):
+        return {}
+    return {x.get("name"): x.get("value")
+            for x in (dados.get("regionConfiguration") or [])
+            if isinstance(x, dict) and x.get("name")}
+
+
+def _artigos_do_questionario(sessao, endereco):
+    """As linhas da tabela de artigos do questionario publico.
+
+    Numa consulta preliminar isto E o conteudo: a entidade lista o que
+    quer comprar, item a item, com quantidade e unidade -- e e a unica
+    parte que diz mais do que o titulo. Vem em HTML com o CSS todo
+    inline (6 KB de estilos para 500 caracteres de tabela), por isso
+    tira-se o <style> ANTES de despir as etiquetas, senao o texto sai
+    com a folha de estilos dentro.
+    """
+    if not endereco:
+        return []
+    try:
+        pagina = sessao.get(endereco, timeout=60).text
+    except requests.RequestException:
+        return []
+    pagina = re.sub(r"(?is)<(style|script).*?</\1>", " ", pagina)
+    # O cabecalho da tabela vem em <th> soltos dentro do <thead>, sem
+    # <tr> nenhum -- medido no HTML que a Vortal serve. Sem esta linha,
+    # "1 | Luvas | 1500,00 | UNID" nao dizia qual dos numeros e a
+    # quantidade.
+    blocos = []
+    cabeca = re.search(r"(?is)<thead[^>]*>(.*?)</thead>", pagina)
+    if cabeca and "<tr" not in cabeca.group(1).lower():
+        blocos.append(cabeca.group(1))
+    blocos.extend(re.findall(r"(?is)<tr[^>]*>(.*?)</tr>", pagina))
+    linhas = []
+    for bruta in blocos:
+        celulas = []
+        for celula in re.findall(r"(?is)<t[dh][^>]*>(.*?)</t[dh]>", bruta):
+            limpa = html.unescape(re.sub(r"<[^>]+>", " ", celula))
+            limpa = " ".join(limpa.split())
+            if limpa:
+                celulas.append(limpa)
+        if celulas:
+            linhas.append(" | ".join(celulas))
+    return linhas
+
+
+def detalhe_da_preliminar(sessao, ref, com_artigos=True):
+    """(campos, aviso) do detalhe de uma consulta preliminar.
+
+    `campos` e o dicionario pronto a gravar (cpv, nif, entidade, texto,
+    link_pecas); `aviso` e a razao quando nao houve resposta. Nunca
+    levanta: a recolha do DR nao pode cair por causa desta segunda
+    fonte.
+    """
+    try:
+        resposta = sessao.get(VORTAL_REGIAO, timeout=60,
+                              params={"contractNoticeUId": ref,
+                                      "langCode": "pt"})
+        dados = resposta.json()
+    except (requests.RequestException, ValueError) as erro:
+        return {}, "o detalhe de %s falhou: %s" % (ref, str(erro)[:100])
+    campos = _campos_da_preliminar(dados)
+    if not campos:
+        return {}, "o detalhe de %s veio vazio" % ref
+
+    cartao = campos.get(CAMPO_CARTAO)
+    cartao = cartao if isinstance(cartao, dict) else {}
+    entidade = " ".join(str(cartao.get("name") or "").split())
+    nif = re.sub(r"\D", "", str(cartao.get("nif") or ""))[:9]
+
+    # A coluna `cpv` guarda 8 digitos sem digito de controlo, separados
+    # por ", " -- e o formato que prefixo_cpv() e a arvore ja leem. A
+    # Vortal escreve "33140000-3 - Material medico de consumo (CPV)".
+    cpv = ", ".join(dict.fromkeys(
+        re.findall(r"\b(\d{8})-\d\b",
+                   str(campos.get(CAMPO_CPV) or ""))))
+
+    partes = ["Consulta preliminar %s, na plataforma Vortal" % ref, ""]
+    partes.append("1 - ENTIDADE ADJUDICANTE")
+    if entidade:
+        partes.append("Designação da entidade adjudicante: " + entidade)
+    if nif:
+        partes.append("NIPC: " + nif)
+    if cartao.get("location"):
+        partes.append("Localização: "
+                      + " ".join(str(cartao["location"]).split()))
+    for titulo, linhas in CAMPOS_PRELIMINAR:
+        escritas = []
+        for nome, rotulo in linhas:
+            valor = _valor_do_campo(campos.get(nome))
+            if valor:
+                escritas.append("%s: %s" % (rotulo, valor))
+        if escritas:
+            partes.append("")
+            partes.append(titulo)
+            partes.extend(escritas)
+
+    if com_artigos:
+        artigos = _artigos_do_questionario(
+            sessao, _valor_do_campo(campos.get(CAMPO_QUESTIONARIO)))
+        if artigos:
+            partes.append("")
+            partes.append("6 - ARTIGOS SOLICITADOS")
+            partes.extend(artigos)
+
+    documentos = campos.get(CAMPO_DOCS)
+    documentos = documentos if isinstance(documentos, list) else []
+    if documentos:
+        partes.append("")
+        partes.append("7 - DOCUMENTOS DISPONÍVEIS")
+        for doc in documentos:
+            if isinstance(doc, dict) and doc.get("name"):
+                partes.append("Documento: " + str(doc["name"]))
+
+    return {"cpv": cpv, "nif": nif, "entidade": entidade,
+            "texto": "\n".join(partes), "documentos": len(documentos)}, ""
+
+
+def ler_preliminares(limite=25):
+    """Le o detalhe das consultas preliminares que ainda o nao tem.
+
+    Separada da recolha pela mesma razao que ler_detalhes() e separada
+    de recolher(): a pesquisa da uma linha por consulta e o detalhe e um
+    pedido por consulta. Corre sobre `detalhe_lido=0`, que e o que a
+    fila do DR usa -- e por isso ler_detalhes() filtra a fonte, senao
+    pescava um PT1.NTC para ir procurar no diariodarepublica.pt.
+
+    A entidade so se sobrescreve quando o detalhe traz nome: a pesquisa
+    ja tinha posto um, e trocar um nome bom por vazio era perder
+    informacao. Devolve (lidas, aviso).
+    """
+    with liga() as c:
+        pendentes = [r["ref"] for r in c.execute(
+            "SELECT ref FROM anuncios WHERE fonte='vortal' AND detalhe_lido=0"
+            " ORDER BY data_pub DESC LIMIT ?", (limite,)).fetchall()]
+    if not pendentes:
+        return 0, ""
+    sessao = requests.Session()
+    sessao.headers["User-Agent"] = NAVEGADOR
+    lidas, aviso = 0, ""
+    for ref in pendentes:
+        campos, falha = detalhe_da_preliminar(sessao, ref)
+        if falha:
+            aviso = aviso or falha
+            continue
+        with liga() as c:
+            c.execute(
+                "UPDATE anuncios SET cpv=?, nif=?, texto=?, detalhe_lido=1,"
+                " entidade=COALESCE(NULLIF(?,''), entidade),"
+                " entidade_norm=simplifica(COALESCE(NULLIF(?,''), entidade))"
+                " WHERE ref=?",
+                (campos["cpv"], campos["nif"], campos["texto"],
+                 campos["entidade"], campos["entidade"], ref))
+        lidas += 1
+        time.sleep(0.4)
+    return lidas, aviso
+
+
 def _guardar_preliminar(item):
     """Poe uma consulta preliminar na base. Devolve 1 se era nova."""
     ref = (item.get("uniqueIdentifier") or "").strip()
@@ -1416,16 +1690,20 @@ def _guardar_preliminar(item):
     titulo = " ".join((item.get("description") or "").split())
     entidade = (item.get("authorityName") or "").strip()
     ligacao = VORTAL_FICHA % ref
+    # detalhe_lido=0 de proposito: a pesquisa nao traz CPV nem NIPC, e
+    # quem os vai buscar e ler_preliminares(), que corre logo a seguir.
+    # Marcar como lido aqui era dizer que o anuncio esta completo quando
+    # lhe falta o campo por que toda a gente filtra.
     with liga() as c:
         feito = c.execute(
             "INSERT OR IGNORE INTO anuncios (ref, titulo, entidade, "
             "data_pub, tipo, url, prazo, preco_base, plataforma, "
             "detalhe_lido, link_pecas, fonte, titulo_norm, entidade_norm) "
-            "VALUES (?,?,?,?,?,?,?,?,?,1,?,'vortal',?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,0,?,'vortal',?,?)",
             (ref, titulo, entidade,
-             (item.get("publishDate") or "")[:10],
+             hora_de_lisboa(item.get("publishDate") or "")[:10],
              "Consulta preliminar", ligacao,
-             (item.get("deadline") or "")[:10],
+             hora_de_lisboa(item.get("deadline") or "")[:10],
              _texto_do_preco(item.get("basePrice")), "vortal",
              ligacao, simplifica(titulo), simplifica(entidade)))
         return feito.rowcount
@@ -1467,7 +1745,12 @@ def recolher_vortal(paginas=6, dias=7):
         if (itens[-1].get("publishDate") or "")[:10] < piso:
             break
         time.sleep(1)
-    return novas, ""
+    # A pesquisa da a linha; o CPV, o NIPC e o conteudo vem do detalhe,
+    # um pedido por consulta. O limite serve as que ficaram para tras
+    # quando o endpoint esteve em baixo -- com duas verificacoes por dia
+    # e ~3 consultas novas por dia, 25 apanha sempre a folga.
+    _, aviso = ler_preliminares()
+    return novas, aviso
 
 
 # --------------------------------------------------------- documentos

@@ -139,13 +139,41 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   pesquisa pública (`SearchTenders`), filtra país PT e tipo preliminar
   — o rótulo muda com o idioma da sessão (`TIPOS_PRELIMINAR` aceita
   «GovPT - Consulta Preliminar» E «Quick Tender GovPT», que são o mesmo
-  tipo) — e guarda com `fonte='vortal'`, ref `PT1.NTC.x` e
-  `detalhe_lido=1`. **Nunca alargues os tipos**: concursos públicos da
-  Vortal estão no DR e duplicavam. As releituras do DR filtram por
-  `COALESCE(fonte,'dr')='dr'`; a ficha destas consultas não tem texto
-  por desenho (o vazio explica-o); a cadeia das peças aceita o link
+  tipo) — e guarda com `fonte='vortal'` e ref `PT1.NTC.x`. **Nunca
+  alargues os tipos**: concursos públicos da Vortal estão no DR e
+  duplicavam. As releituras do DR filtram por
+  `COALESCE(fonte,'dr')='dr'`; a cadeia das peças aceita o link
   público porque o PT1.NTC vem às claras. A acingov ficou de fora: a
   listagem pública dela não distingue tipos — alargar é decisão nova.
+- **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**
+  Os 16 campos do `SearchTenders` são título, entidade, datas, estado
+  e tipo — **nenhum é CPV nem NIPC**. Até 01/09/2026 guardava-se a
+  linha com `detalhe_lido=1` e as 24 consultas na base tinham o CPV
+  vazio: invisíveis ao filtro por código, à árvore, aos alertas por
+  CPV e ao recorte do interesse, que é permanente e as escondia todas
+  sem uma palavra. `detalhe_da_preliminar()` chama
+  `GetRegionConfigurationByContractNoticeUId` (o `VORTAL_REGIAO`), que
+  responde ao `PT1.NTC` às claras e sem sessão — 100% de CPV e de NIPC
+  nas 24 medidas — e `ler_preliminares()` grava e só então marca
+  `detalhe_lido=1`. **Não confundas com o `GetPublicTenderInformation`**:
+  esse é o primeiro salto das peças, só aceita o identificador cifrado
+  do DR e responde 500 ao PT1.NTC. Por causa disto o `ler_detalhes()`
+  filtra a fonte: as duas passam por `detalhe_lido=0`, e sem o filtro
+  a fila do DR mandava um `PT1.NTC` ao portal e a resposta sem JSON
+  acabava a **marcar o token como expirado** — um falso alarme de
+  captura expirada é pior que não ler nada. O questionário público
+  (`CB1_SummaryCN_QuestionnaireHTML`) é a lista dos artigos pedidos, e
+  numa consulta preliminar é o conteúdo: tira-se o `<style>` **antes**
+  de despir as etiquetas, e o cabeçalho vem em `<th>` soltos no
+  `<thead>`, sem `<tr>`.
+- **As datas da Vortal vêm em UTC e mostram-se em hora de Lisboa.**
+  A API dá `2026-09-03T22:59:00Z` e a plataforma mostra 23:59 — no
+  Verão Lisboa é UTC+1. `hora_de_lisboa()` faz a conta pela regra da
+  UE (último domingo de Março às 01:00 UTC ao último domingo de
+  Outubro), à mão porque o `zoneinfo` depende de dados de fusos que
+  este Windows não garante. Escrever o UTC punha o prazo uma hora mais
+  cedo do que a plataforma diz. Só a Vortal precisa disto: o DR
+  publica datas já locais.
 - **A API da Vortal responde de DUAS formas ao mesmo pedido.**
   `GetPublicTenderInformation` (o primeiro salto, a partir do link
   cifrado do DR) devolve ou `contractNoticeUrl` com a `documentList`

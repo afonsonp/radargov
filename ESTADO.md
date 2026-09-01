@@ -24,7 +24,9 @@ Funciona. A base tem **66 233 anúncios, dois anos deles**
 (28/08/2024–01/09/2026): o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
 **consultas preliminares da Vortal** (17 na primeira recolha, **24 até
-agora**, `fonte='vortal'`), o tipo que a parte L não publica.
+agora**, `fonte='vortal'`), o tipo que a parte L não publica — **todas
+com CPV e NIPC desde 01/09/2026**, que é quando se passou a ler o
+detalhe delas e não só a linha da pesquisa.
 **Só 8,5% têm detalhe lido** (5 645): a rotina lê o detalhe apenas dos
 publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
 quando se abre a ficha. Consequência a ter presente: um filtro por CPV
@@ -1904,7 +1906,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 561 testes a 01/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 573 testes a 01/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -3305,7 +3307,9 @@ em en, verificado item a item — e `TIPOS_PRELIMINAR` aceita os dois.
 Cada consulta entra com `fonte='vortal'` (coluna nova, migração
 idempotente com DEFAULT 'dr'), ref natural `PT1.NTC.x`,
 `detalhe_lido=1`; o INSERT OR IGNORE garante que rever a mesma não
-mexe na triagem dela. As releituras do DR filtram por fonte; a ficha
+mexe na triagem dela. *(o `detalhe_lido=1` durou um dia: ver «O
+detalhe das consultas preliminares», 01/09/2026 — entravam sem CPV
+nem NIPC, invisíveis a todo o filtro por código.)* As releituras do DR filtram por fonte; a ficha
 diz o que a consulta é e liga à plataforma («Ver na Vortal»); a cadeia
 das peças aceita o link público (o PT1.NTC vem às claras — salta-se o
 primeiro salto). **Primeira recolha real: 17 consultas** (ULS de Santo
@@ -4151,3 +4155,111 @@ consegue sem sessão iniciada, e a acingov é ~45% dos anúncios com
 peças. Se o Afonso quiser mais do que isto, é decisão nova: implicaria
 credenciais, e a regra da casa é que o radar não depende de nada da
 empresa.
+
+## O detalhe das consultas preliminares, 1 de setembro de 2026
+
+O Afonso, ao ver a segunda fonte a funcionar: «tu não estás a fazer a
+leitura do que está dentro das consultas preliminares da Vortal — por
+exemplo a consulta preliminar vem sem CPV».
+
+Vinha mesmo. **24 em 24, com o CPV vazio.** E não era um caso de
+borda: a pesquisa pública da Vortal (`SearchTenders`) devolve
+dezasseis campos — identificador, referência, descrição, entidade,
+país, local, datas, estado, tipo, moeda, preço base — e **nenhum deles
+é CPV nem NIPC**. O B14 tomou a linha da pesquisa por anúncio inteiro
+e guardou-a com `detalhe_lido=1`, ou seja, a dizer que não havia mais
+nada para ler.
+
+O custo disto não se via em lado nenhum. A contagem subia, os erros
+estavam a zero, a consulta abria na ficha. Mas sem CPV uma consulta
+preliminar é **invisível a tudo o que filtra por código**: o filtro da
+lista, a árvore de CPV, os alertas por código e — a pior — o recorte
+do interesse, que é permanente. Com o interesse ligado, as 24
+desapareciam da lista sem uma palavra. E sem NIPC não havia por onde
+cruzar a entidade com o corpus de contratos, que é a chave (o nome
+não é a identidade de uma entidade: o NIF é).
+
+### Onde estava o que faltava
+
+Duas tentativas de adivinhar deram três HTTP 500: o
+`GetPublicTenderInformation`, que é o primeiro salto das peças, **só
+aceita o identificador cifrado que o DR publica** e recusa o
+`PT1.NTC` às claras. O que resolveu foi abrir a página pública de uma
+consulta no browser e ler os pedidos dela — a página **mostra** o CPV,
+logo alguma chamada o traz. Trazia:
+
+    /public/api/ContractNoticeDetail/
+        GetRegionConfigurationByContractNoticeUId
+        ?contractNoticeUId=PT1.NTC.x&langCode=pt
+
+Sem sessão, com o `PT1.NTC` às claras, e com tudo o que faltava:
+CPV, NIPC, nome canónico da entidade, referência interna, tipo de
+contrato, morada completa da execução, prazos e a lista de documentos.
+Medido nas 24 que já estavam na base: **CPV em 100%, NIPC em 100%,
+local em 100%, peças em 75%, zero falhas.**
+
+E mais uma coisa que não se esperava: o campo
+`CB1_SummaryCN_QuestionnaireHTML` aponta para o **questionário
+público**, que é a lista dos artigos que a entidade quer comprar, com
+quantidade e unidade. Numa consulta preliminar isso *é* o conteúdo —
+uma consulta intitulada «150 discos 2.5" SSD de 240GB» explica-se no
+título, mas a de Coimbra, intitulada «Aquisição de um computador com
+características especiais», traz onze linhas de artigos com marca e
+modelo. Entra na ficha como secção 6.
+
+### O que ficou feito
+
+`detalhe_da_preliminar()` faz o pedido e monta o texto por secções
+numeradas, como o do DR — a ficha lê-se igual, venha de onde vier.
+`ler_preliminares()` corre sobre `detalhe_lido=0`, grava e só então
+marca como lido; um detalhe que não chega deixa a consulta por ler
+para a verificação seguinte, porque marcar como lido o que não se leu
+era repetir o erro de origem. `recolher_vortal()` chama-a a seguir à
+pesquisa: a pesquisa dá a linha, o detalhe dá o conteúdo.
+
+Três coisas que a implementação obrigou a arrumar:
+
+**O `ler_detalhes()` passou a filtrar a fonte.** As duas fontes usam
+agora o mesmo `detalhe_lido=0`, e sem o filtro a fila do DR pescava um
+`PT1.NTC.3785462`, mandava-o ao portal do DR como se fosse chave dele
+e — porque a resposta não vinha em JSON — **acabava a marcar o token
+como expirado**. Um falso alarme de captura expirada é pior do que não
+ler nada: manda o Afonso refazer capturas que estão boas.
+
+**O prazo passou a ser em hora de Lisboa.** A API dá tudo em UTC
+(`2026-09-03T22:59:00Z`) e a própria Vortal mostra 23:59, porque no
+Verão Lisboa é UTC+1. Escrever o UTC na ficha punha o prazo uma hora
+mais cedo do que a plataforma diz — e um prazo é a informação pela
+qual se perde uma proposta. `hora_de_lisboa()` faz a conta pela regra
+da UE (último domingo de Março às 01:00 UTC ao último domingo de
+Outubro), à mão, porque o `zoneinfo` depende de dados de fusos que
+este Windows não garante. Há teste nas quatro fronteiras.
+
+**O questionário perde o CSS antes de perder as etiquetas.** São 6 KB
+de estilos inline para 500 caracteres de tabela; despir as etiquetas
+primeiro punha a folha de estilos na ficha como se fosse texto. E o
+cabeçalho da tabela vem em `<th>` soltos dentro do `<thead>`, **sem
+`<tr>` nenhum** — sem o tratar à parte, a linha saía «1 | Luvas |
+1500,00 | UNID» sem dizer qual dos números era a quantidade.
+
+As 24 que já estavam na base encheram-se por migração com marca
+(`preliminares_com_detalhe`), que as põe a `detalhe_lido=0` uma vez.
+Marca e não `WHERE cpv=''`: uma consulta pode mesmo não ter CPV, e
+essa não se retenta para sempre.
+
+Verificado a correr contra a Vortal verdadeira: **24 em 24 com CPV,
+NIPC e texto; zero por ler.** Treze códigos CPV distintos, com o
+33140000 (material médico de consumo) em nove — o que é de esperar de
+uma população que é quase toda de unidades locais de saúde. Testes:
+**573** (561 + 12).
+
+### O que isto ensina para a próxima fonte
+
+Uma fonte não está integrada quando responde e as linhas aparecem.
+Está integrada quando **todas as colunas por que a aplicação filtra**
+estão cheias ou declaradas indisponíveis. O B14 passou por revisão,
+testes e documentação com uma coluna 100% vazia, porque contagens a
+subir e erros a zero não distinguem «este campo não veio» de «este
+anúncio não tem esse campo». A verificação que apanha isto é uma
+consulta de uma linha — quantos é que têm a coluna vazia — e não se
+fez.
