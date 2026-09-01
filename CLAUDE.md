@@ -511,6 +511,19 @@ Duas skills e um subagente:
   plataforma que o radar ainda não sabe descarregar se alcançam sem sessão
   iniciada, e devolve receita ou um "não há" fundamentado.
 
+Fora do projecto, mas activa aqui: a skill global **`task-observer`**
+(«One Skill to Rule Them All»). **Invoca-a no início de qualquer sessão
+de trabalho** — qualquer interacção em que vais usar ferramentas e produzir
+trabalho — antes de começar. É ela que apanha, durante o trabalho, o que
+vale a pena guardar sobre as próprias skills e métodos, e escreve-o em
+`~/.claude/projects/D--radar/skill-observations/log.md`. A descrição da
+skill sozinha não chega para a disparar — é esta instrução que a torna
+fiável, e é por ela que a skill volta depois de o contexto ser comprimido.
+
+E ao carregar qualquer skill, vê nesse registo se há entradas **OPEN**
+dessa skill e aplica o que dizem ao trabalho a decorrer, mesmo que o
+ficheiro da skill ainda não tenha sido actualizado.
+
 ## Git
 
 Repositório local, sem remoto. Commit no fim de cada trabalho acabado, sem
