@@ -20,12 +20,12 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 145 anúncios, dois anos deles**
+Funciona. A base tem **66 205 anúncios, dois anos deles**
 (28/08/2024–31/08/2026): o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
-**consultas preliminares da Vortal** (17 na primeira recolha,
-`fonte='vortal'`), o tipo que a parte L não publica.
-**Só 8,3% têm detalhe lido** (5 493): a rotina lê o detalhe apenas dos
+**consultas preliminares da Vortal** (17 na primeira recolha, **22 até
+agora**, `fonte='vortal'`), o tipo que a parte L não publica.
+**Só 8,5% têm detalhe lido** (5 617): a rotina lê o detalhe apenas dos
 publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
 quando se abre a ficha. Consequência a ter presente: um filtro por CPV
 só apanha quem tem detalhe lido — o histórico é acervo por consultar,
@@ -36,20 +36,27 @@ A base já esteve cortada aos 60 dias por decisão do Afonso (~5 100
 anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
-Desde 31/08/2026 o acervo já não está todo à entrada: a página inicial
-é a **Triagem**, que mostra só os por ver publicados na janela de
-`detalhe_dias` — **1 374** em vez dos 61 981 de antes — e o acervo
-completo vive na **Pesquisa** (`/anuncios`, 12 meses por omissão, com
-interruptor para o arquivo). **O esqueleto está implementado** (os
-quatro andamentos, todos a 31/08/2026): navegação por cinco intenções,
-vocabulário e atalhos, renovações como modo dos contratos, e o Fluxo B
-verificado à espera só do primeiro envio (E2). As entradas de diário
-do fim contam os números todos.
+Desde 31/08/2026 o acervo já não está todo à entrada. A Triagem e a
+Pesquisa separadas duraram um dia: **os anúncios são UMA página**
+(`/`, com `/anuncios` a redireccionar), com quatro abas cujo recorte
+vive em `condicao_da_aba()` — **por ver 1 319**, interessados 7,
+abandonados 64 879, todos 66 205. O recorte é de leitura e não de
+base: os "abandonados" são os 4 097 descartados à mão **mais** os por
+ver cujo prazo já não dá para responder; na base há 62 101 com estado
+`novo`. **O esqueleto está implementado** (os quatro andamentos, todos
+a 31/08/2026): navegação por **quatro** intenções — Anúncios, Em
+curso, Mercado, Alertas, com os Indicadores fora da barra, pelo ponto
+da zona de estado —, vocabulário e atalhos, renovações como modo dos
+contratos, e o Fluxo B verificado à espera só do primeiro envio (E2).
+As entradas de diário do fim contam os números todos.
 
-*(Números de 31/08/2026. Este parágrafo já mentiu — dizia "~5 100,
-todos com detalhe lido" por cima de uma base de 66 mil a 8% — porque as
-sessões seguintes acrescentavam secções sem corrigir o topo. Quem mudar
-os números corrige-o na mesma sessão; a regra está no CLAUDE.md.)*
+*(Números de 01/09/2026, lidos da base e das abas do próprio painel.
+Este parágrafo já mentiu duas vezes: dizia "~5 100, todos com detalhe
+lido" por cima de uma base de 66 mil a 8%, e depois descreveu a
+Triagem e a Pesquisa como páginas separadas durante o dia inteiro em
+que já eram uma só — sempre porque as sessões acrescentavam secções
+sem corrigir o topo. Quem mudar os números corrige-o na mesma sessão;
+a regra está no CLAUDE.md.)*
 
 ## A ficha do anúncio e as peças do procedimento
 
@@ -1883,7 +1890,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 498 testes a 01/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 516 testes a 01/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -3712,3 +3719,105 @@ adjudicatários vale 1 e não 0 — é divisor no gráfico de quem ganha —,
 que **na segunda vez não faz nada** (é este o arranque de 39 s), e que
 o `n_adj` continua no `COLS_CONTRATO`, que é o que torna a marca
 segura. Os testes passaram de 492 para 498.
+
+## Os outros dois custos do arranque, e os erros que ninguém via, 1 de setembro de 2026
+
+Continuação directa da entrada anterior. A varredura de 1,65 GB era o
+custo grande; ficavam dois mais pequenos, medidos e registados nessa
+sessão mas não corrigidos. E a diagnosticar um deles apareceu um
+terceiro problema, que não era de arranque nenhum.
+
+### O browser abria antes de haver servidor
+
+O `main()` chamava `webbrowser.open()` e só depois `app.run()`. Medido:
+o browser recebia o endereço aos **0,98 s** e a porta só respondia aos
+**1,91 s**. Com o browser já aberto — que é o caso normal — o separador
+novo apanhava a porta fechada e ficava num erro de ligação que só um F5
+tirava. Lia-se exactamente como «o radar demora a arrancar».
+
+Passa a `abrir_no_browser()`, em thread, a esperar pela porta
+(`porta_atende()`) em vez de adivinhar um tempo — o arranque varia com
+o disco, e este corre de uma pen. Se ninguém atender dentro de 15 s não
+abre nada: o endereço já foi impresso na consola, e uma janela de erro
+não ajuda ninguém.
+
+**A armadilha do Windows, que custou um teste intermitente.** Ligar a
+uma porta onde ninguém fez `bind` é recusado logo. Ligar a uma porta
+com `bind` feito e **sem `listen`** — que é exactamente o instante em
+que o Flask está a arrancar — não devolve recusa nenhuma: bloqueia até
+ao timeout e devolve WSAEWOULDBLOCK (10035). O primeiro teste que
+escrevi punha um servidor a nascer meio segundo depois e comparava
+carimbos de tempo; passou duas vezes seguidas e falhou à terceira.
+Um teste de relógio a medir o escalonador não prova nada sobre esta
+função: a sonda passou a ser injectável, e o teste responde False,
+False, True e conta as sondagens. Cinco corridas seguidas, estável.
+
+### Um slot falhado disparava a verificação inteira, e em silêncio
+
+O `relogio()` chamava `verificar()` **directamente**, por fora das duas
+coisas que o botão "Verificar agora" tem: o trinco e o `passo`.
+
+Consequências, as duas reais:
+
+1. Um slot falhado dispara a verificação no **arranque** do painel —
+   cópia `VACUUM INTO` de 93 MB para a pen, push da triagem, recolha
+   toda, ~5 minutos (os slots de 31/08 levaram 09:00→09:05 e
+   17:00→17:04) — e não havia nada no ecrã a explicar a lentidão.
+2. O relógio podia apanhar um clique no botão a meio e pôr **duas
+   verificações na mesma base**.
+
+Passa por `comecar_verificacao(slot=(dia, hora))`, a mesma porta do
+botão. O `slot` é novo e é o que marca a hora como corrida — no fim, e
+só se correu bem; se o trinco recusar, o slot fica por correr e
+tenta-se no minuto seguinte. **O botão à mão não passa slot nenhum**:
+um clique às 15h não pode fazer a verificação das 17h dar-se por feita.
+
+### O push da triagem não estava a falhar — e ninguém podia saber
+
+A marca dizia `ultimo_erro_triagem_git = 2026-08-31 17:00: git push: To
+https://github.com/afonsonp/radarconcursos.git ! [remote rejected]…`.
+Duas coisas, ambas diferentes do que parecia.
+
+**Primeira: já tinha passado.** A razão completa era `cannot lock ref
+'refs/heads/master': is at 95919b5…` — uma corrida entre dois pushes,
+transitória. O reflog do `origin/master` mostra `update by push`
+sucessivos desde então, o último às 03:02 de 01/09. O mecanismo
+recuperou exactamente como o `empurrar_triagem()` diz que recupera: o
+commit local fica, e a volta seguinte vê os commits à frente do origin
+e volta a empurrar.
+
+**Segunda, e a que interessa: essa marca não aparecia em ecrã nenhum.**
+O `linhas_de_ultimos_erros()` — que nasceu no C1 do saneamento
+justamente para acabar com os erros que só se viam por SQL — lia quatro
+marcas. O B14 e o B15 acrescentaram `vortal_ultimo_erro` e
+`ultimo_erro_triagem_git` **depois** desse saneamento e não as ligaram
+lá. O C1 tinha-se desfeito por acréscimo: um "remote rejected" esteve
+um dia inteiro na base a não existir para ninguém. Passam a seis, e
+fica a regra no CLAUDE.md — quem acrescenta um `marca_erro()` acrescenta
+o rótulo aqui.
+
+E a razão passou a caber na linha. O git escreve `To <url>` primeiro e
+a razão só na segunda linha; com os 80 caracteres da linha dos
+indicadores, o endereço do repositório comia a mensagem inteira e
+lia-se «git push: To https://github.com/…» — que é precisamente não
+dizer nada. O `porque_do_git()` tira a linha do endereço e o `error:
+failed to push` final, e junta o resto numa linha só. Nunca devolve
+vazio: se só houver cabeçalho, mostra o cabeçalho.
+
+### O parágrafo do topo, outra vez
+
+O «Como está a correr» descrevia a Triagem e a Pesquisa como páginas
+separadas — durante o dia inteiro em que já eram uma só. É a segunda
+vez que este parágrafo mente, e pela mesma razão de sempre: as sessões
+acrescentam secções ao fim e não tocam no topo. Corrigido com números
+lidos da base e abas lidas do próprio painel: 66 205 anúncios, 8,5% com
+detalhe lido (5 617), 22 consultas da Vortal, e as abas a 1 319 / 7 /
+64 879 / 66 205. E quatro intenções na navegação, não cinco.
+
+**Testes:** 498 → 516. `TestBrowserEsperaPelaPorta` (5),
+`TestRelogioPassaPeloTrinco` (4, com uma volta só do ciclo — o
+`time.sleep(60)` está fora do try/except, por isso um `SystemExit` de
+um sósia do módulo `time` rebenta o `while` sem ser engolido pelo
+`except Exception`), `TestPorqueDoGit` (6) e mais dois na
+`TestUltimosErrosNoEcra`, um deles a exigir que os `/indicadores` leiam
+as seis marcas — o rótulo e a marca que o alimenta têm de andar juntos.

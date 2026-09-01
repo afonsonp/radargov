@@ -325,6 +325,29 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   do pedido do browser: já esteve assim e eram minutos de página em
   branco. Em fundo não há cookie para ler — passa o `quem` ao
   `registar()` em vez de contar com o `quem_sou()`.
+- **O `relogio()` entra pela mesma porta do botão.** Um slot falhado
+  chama `comecar_verificacao(slot=(dia, hora))`, não o `verificar()`
+  directo — só assim há trinco (senão o relógio apanhava um clique a
+  meio e punha duas verificações na mesma base) e há `passo` (senão o
+  arranque do painel ficava ~5 minutos lento, com a cópia, o push da
+  triagem e a recolha toda, sem nada no ecrã a dizer porquê). O slot
+  só se marca como corrido no fim e se correu bem; se o trinco
+  recusar, tenta-se no minuto seguinte. E o botão à mão **não** marca
+  slot: um clique às 15h não faz a verificação das 17h por feita.
+- **Um `marca_erro()` novo tem de aparecer em `linhas_de_ultimos_erros()`.**
+  É a única lista que o ecrã lê (na saúde dos `/indicadores`). O B14 e
+  o B15 acrescentaram marcas e não as ligaram lá: um "remote rejected"
+  esteve um dia inteiro na base sem existir para ninguém. E a razão de
+  um comando git passa por `porque_do_git()` — o "To &lt;url&gt;" que o
+  git escreve primeiro comia os 80 caracteres da linha e a razão nunca
+  chegava a ver-se.
+- **O browser abre-se depois de a porta atender**
+  (`abrir_no_browser()`, em thread, com `porta_atende()`). O
+  `webbrowser.open()` era chamado antes do `app.run()` e chegava lá
+  ~1 s antes de haver servidor. Atenção ao medir isto no Windows: uma
+  ligação a uma porta com bind e **sem** listen não é recusada, bloqueia
+  até ao timeout — um teste que ponha um servidor a nascer a meio é
+  intermitente, e por isso a sonda troca-se por uma falsa nos testes.
 - **Toda a truncagem visível passa por `corta()`**, que põe reticências.
   Um `[:190]` cru corta a meio de palavra e lê-se como dado estragado.
   Onde quem corta é o CSS (uma pílula do calendário, um nome num

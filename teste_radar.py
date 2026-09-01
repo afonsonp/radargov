@@ -16,6 +16,7 @@ import datetime
 import os
 import re
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -3463,6 +3464,38 @@ class TestLinhasDeUltimosErros(unittest.TestCase):
         self.assertLess(len(linhas[0][1]), 120)
         self.assertIn("…", linhas[0][1])
 
+    def test_a_triagem_e_a_vortal_tambem_se_veem(self):
+        # 01/09/2026: o B15 e o B14 acrescentaram marca_erro() novos e
+        # não os ligaram aqui — voltaram a ser erros que só existiam
+        # para quem abrisse a base à mão. Foi assim que um "remote
+        # rejected" de 31/08 esteve um dia inteiro sem aparecer em lado
+        # nenhum.
+        linhas = radar.linhas_de_ultimos_erros(
+            triagem="2026-08-31 17:00: git push: cannot lock ref",
+            vortal="2026-08-31 17:00: 503 na SearchTenders")
+        self.assertEqual(len(linhas), 2)
+        self.assertIn("triagem", linhas[0][0])
+        self.assertIn("cannot lock ref", linhas[0][1])
+        self.assertIn("Vortal", linhas[1][0])
+
+    def test_erro_de_varias_linhas_fica_numa(self):
+        # o git escreve em três linhas; metade dos 80 caracteres ia-se
+        # em mudanças de linha e indentação que o HTML nem mostra
+        linhas = radar.linhas_de_ultimos_erros(
+            triagem="git push:\n  ! [remote rejected]\n  error: x")
+        self.assertNotIn("\n", linhas[0][1])
+        self.assertIn("git push: ! [remote rejected]", linhas[0][1])
+
+    def test_os_indicadores_leem_as_seis_marcas(self):
+        # o rótulo e a marca que o alimenta têm de andar juntos: já
+        # aconteceu a função saber mostrar e ninguém lhe passar o valor
+        import inspect
+        fonte = inspect.getsource(radar.indicadores)
+        for chave in ("ultimo_erro_relogio", "docs_ultimo_erro",
+                      "analise_ultimo_erro", "token_ultimo_erro",
+                      "ultimo_erro_triagem_git", "vortal_ultimo_erro"):
+            self.assertIn(chave, fonte)
+
 
 class TestCopiaComMarca(BaseTemporaria):
     """C2 do saneamento de 30/08/2026: a falha da cópia de segurança
@@ -3961,6 +3994,49 @@ class TestExportacaoDaTriagem(BaseTemporaria):
         self.assertIn("ficheiro", por_repor)
 
 
+class TestPorqueDoGit(unittest.TestCase):
+    """01/09/2026: um push recusado ficava gravado como "git push: To
+    https://github.com/afonsonp/radarconcursos.git" — o endereço comia
+    os 80 caracteres da linha dos indicadores e a razão nunca se via.
+    Foi o que aconteceu a um "cannot lock ref" de 31/08: ficou um dia
+    inteiro na base sem ninguém poder saber o que dizia."""
+
+    class Falso:
+        def __init__(self, err=b"", out=b""):
+            self.stderr, self.stdout = err, out
+
+    def test_tira_o_endereco_e_o_error_final(self):
+        saida = (b"To https://github.com/afonsonp/radarconcursos.git\n"
+                 b" ! [remote rejected] master -> master (cannot lock ref "
+                 b"'refs/heads/master': is at 95919b5 but expected 3b53318)\n"
+                 b"error: failed to push some refs to 'https://github.com/"
+                 b"afonsonp/radarconcursos.git'\n")
+        porque = radar.porque_do_git(self.Falso(saida))
+        self.assertTrue(porque.startswith("! [remote rejected]"))
+        self.assertIn("cannot lock ref", porque)
+        self.assertNotIn("github.com", porque)
+
+    def test_fica_numa_linha_so(self):
+        porque = radar.porque_do_git(self.Falso(b"uma\nduas\ntres\n"))
+        self.assertEqual(porque, "uma duas tres")
+
+    def test_usa_o_stdout_quando_nao_ha_stderr(self):
+        self.assertEqual(radar.porque_do_git(self.Falso(b"", b"so no out")),
+                         "so no out")
+
+    def test_se_so_houver_cabecalho_mostra_o_cabecalho(self):
+        # nunca devolver vazio: uma marca de erro em branco é pior que
+        # uma marca com pouco
+        porque = radar.porque_do_git(self.Falso(b"To https://exemplo/r.git\n"))
+        self.assertIn("exemplo", porque)
+
+    def test_respeita_o_tecto(self):
+        self.assertEqual(len(radar.porque_do_git(self.Falso(b"x" * 400))), 150)
+
+    def test_sem_saida_nenhuma_da_vazio(self):
+        self.assertEqual(radar.porque_do_git(self.Falso()), "")
+
+
 class TestEmpurrarTriagem(BaseTemporaria):
     """B15, sub-decisão fechada a 31/08/2026: commit+push automáticos
     do triagem.jsonl em cada verificação. O erro que se trava: um push
@@ -4262,6 +4338,188 @@ class TestDesenhaValor(unittest.TestCase):
         self.assertEqual(radar.desenha_valor(""), "")
         self.assertEqual(radar.desenha_valor(None), "")
         self.assertEqual(radar.desenha_valor("   \n  "), "")
+
+
+class TestBrowserEsperaPelaPorta(unittest.TestCase):
+    """01/09/2026: o main() chamava webbrowser.open() ANTES do app.run().
+    Medido, o browser recebia o endereço aos 0,98 s e a porta só
+    respondia aos 1,91 s — com o browser já aberto, que é o caso normal,
+    o separador novo apanhava a porta fechada e ficava num erro que só
+    um F5 tirava. Lia-se como "o radar demora a arrancar"."""
+
+    def setUp(self):
+        self.aberto = []
+        self.open_antigo = radar.webbrowser.open
+        radar.webbrowser.open = lambda url: self.aberto.append(
+            (url, time.time()))
+
+    def tearDown(self):
+        radar.webbrowser.open = self.open_antigo
+
+    def porta_livre(self):
+        import socket
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
+    def test_porta_atende_ve_quem_esta_a_ouvir(self):
+        import socket
+        with socket.socket() as servidor:
+            servidor.bind(("127.0.0.1", 0))
+            servidor.listen(1)
+            porta = servidor.getsockname()[1]
+            self.assertTrue(radar.porta_atende(porta))
+        self.assertFalse(radar.porta_atende(self.porta_livre()))
+
+    def test_abre_quando_a_porta_atende(self):
+        import socket
+        with socket.socket() as servidor:
+            servidor.bind(("127.0.0.1", 0))
+            servidor.listen(1)
+            porta = servidor.getsockname()[1]
+            self.assertTrue(radar.abrir_no_browser(porta, espera=5))
+        self.assertEqual(len(self.aberto), 1)
+        self.assertIn(":%d/" % porta, self.aberto[0][0])
+
+    def test_nao_abre_nada_se_ninguem_atender(self):
+        # antes abria à mesma, e o browser mostrava o erro de ligação
+        self.assertFalse(radar.abrir_no_browser(self.porta_livre(),
+                                                espera=0.4))
+        self.assertEqual(self.aberto, [])
+
+    def test_espera_pela_porta_em_vez_de_adivinhar(self):
+        # É ISTO a regressão: o servidor só nasce ao fim de umas voltas,
+        # e o open() tem de vir depois. A sonda é falsa de propósito —
+        # a primeira versão deste teste punha um servidor a nascer meio
+        # segundo depois e era intermitente, porque no Windows uma
+        # ligação a uma porta com bind e sem listen não é recusada,
+        # bloqueia até ao timeout. Um teste de relógio a medir o
+        # escalonador não prova nada sobre esta função.
+        respostas = [False, False, True]
+        sondadas = []
+        antigo = radar.porta_atende
+
+        def sonda_falsa(porta, espera=0.5):
+            sondadas.append(porta)
+            # a última resposta fica a valer, se alguma vez lá chegar
+            return respostas[min(len(sondadas) - 1, len(respostas) - 1)]
+
+        radar.porta_atende = sonda_falsa
+        try:
+            self.assertTrue(radar.abrir_no_browser(4321, espera=5))
+        finally:
+            radar.porta_atende = antigo
+        self.assertEqual(sondadas, [4321, 4321, 4321])
+        self.assertEqual(len(self.aberto), 1)
+        self.assertIn(":4321/", self.aberto[0][0])
+
+    def test_desiste_sem_abrir_se_a_porta_nunca_atender(self):
+        antigo = radar.porta_atende
+        radar.porta_atende = lambda porta, espera=0.5: False
+        try:
+            self.assertFalse(radar.abrir_no_browser(4321, espera=0.3))
+        finally:
+            radar.porta_atende = antigo
+        self.assertEqual(self.aberto, [])
+
+
+class TestRelogioPassaPeloTrinco(BaseTemporaria):
+    """01/09/2026: o relogio() chamava verificar() directamente, por fora
+    do trinco e do `passo`. Duas consequências: um slot falhado disparava
+    a verificação inteira no arranque do painel — cópia de 93 MB, push da
+    triagem, recolha toda — sem nada no ecrã a dizer porquê, e podia
+    apanhar um "Verificar agora" a meio, com duas verificações na mesma
+    base."""
+
+    def setUp(self):
+        super().setUp()
+        self.verificacao_antes = dict(radar._VERIFICACAO)
+        self.config_antiga = radar.ler_config
+        self.verificar_antigo = radar.verificar
+        radar.ler_config = lambda: {"horas_verificacao": ["00:01"],
+                                    "recuperar_slot_falhado": True}
+        radar._VERIFICACAO["a_correr"] = False
+        radar._VERIFICACAO["passo"] = ""
+
+    def tearDown(self):
+        radar.ler_config = self.config_antiga
+        radar.verificar = self.verificar_antigo
+        radar._VERIFICACAO.clear()
+        radar._VERIFICACAO.update(self.verificacao_antes)
+        super().tearDown()
+
+    def uma_volta_do_relogio(self):
+        """Corre uma passagem do ciclo e sai. O time.sleep(60) está fora
+        do try/except, por isso um BaseException lá rebenta o while sem
+        ser engolido pelo `except Exception` do relógio.
+
+        O `time` do radar troca-se por um sósia, e não se mexe no módulo
+        global: o sleep de qualquer outra thread não tem nada a ver com
+        isto."""
+        class Sosia:
+            def __init__(self, real):
+                self._real = real
+
+            def __getattr__(self, nome):
+                return getattr(self._real, nome)
+
+            def sleep(self, _):
+                raise SystemExit
+
+        antigo = radar.time
+        radar.time = Sosia(antigo)
+        try:
+            with self.assertRaises(SystemExit):
+                radar.relogio()
+        finally:
+            radar.time = antigo
+
+    def test_o_slot_falhado_passa_pelo_comecar_verificacao(self):
+        pedidos = []
+        antigo = radar.comecar_verificacao
+        radar.comecar_verificacao = lambda slot=None: (
+            pedidos.append(slot), (True, ""))[1]
+        try:
+            self.uma_volta_do_relogio()
+        finally:
+            radar.comecar_verificacao = antigo
+        hoje = datetime.datetime.now().strftime("%Y-%m-%d")
+        self.assertEqual(pedidos, [(hoje, "00:01")])
+
+    def test_o_trinco_recusa_e_o_slot_fica_por_correr(self):
+        # com uma verificação a decorrer, a hora NÃO se marca como
+        # corrida: senão o slot dava-se por feito sem ninguém o fazer
+        radar._VERIFICACAO["a_correr"] = True
+        radar._VERIFICACAO["passo"] = "a ler o detalhe"
+        self.uma_volta_do_relogio()
+        hoje = datetime.datetime.now().strftime("%Y-%m-%d")
+        self.assertFalse(radar.slot_corrido(hoje, "00:01"))
+
+    def test_o_slot_marca_se_no_fim_e_com_os_novos(self):
+        radar.verificar = lambda cfg=None, passo=None: ("ok", 7)
+        radar._VERIFICACAO["a_correr"] = False
+        arrancou, _ = radar.comecar_verificacao(slot=("2026-09-01", "09:00"))
+        self.assertTrue(arrancou)
+        for _ in range(100):                    # a thread é curta
+            if radar.slot_corrido("2026-09-01", "09:00"):
+                break
+            time.sleep(0.02)
+        with radar.liga() as c:
+            linha = c.execute("SELECT novos FROM slots WHERE dia=? AND "
+                              "hora=?", ("2026-09-01", "09:00")).fetchone()
+        self.assertIsNotNone(linha)
+        self.assertEqual(linha["novos"], 7)
+
+    def test_o_botao_a_mao_nao_marca_slot_nenhum(self):
+        # um clique não é um slot: marcá-lo faria a verificação das 17h
+        # dar-se por feita porque alguém carregou no botão às 15h
+        radar.verificar = lambda cfg=None, passo=None: ("ok", 0)
+        radar._VERIFICACAO["a_correr"] = False
+        radar.comecar_verificacao()
+        time.sleep(0.3)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) n FROM slots")
+                             .fetchone()["n"], 0)
 
 
 class CorpusTemporario(unittest.TestCase):
