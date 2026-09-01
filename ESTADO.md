@@ -36,27 +36,32 @@ A base já esteve cortada aos 60 dias por decisão do Afonso (~5 100
 anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
-Desde 31/08/2026 o acervo já não está todo à entrada. A Triagem e a
-Pesquisa separadas duraram um dia: **os anúncios são UMA página**
-(`/`, com `/anuncios` a redireccionar), com quatro abas cujo recorte
-vive em `condicao_da_aba()` — **por ver 1 319**, interessados 7,
-abandonados 64 879, todos 66 205. O recorte é de leitura e não de
-base: os "abandonados" são os 4 097 descartados à mão **mais** os por
-ver cujo prazo já não dá para responder; na base há 62 101 com estado
-`novo`. **O esqueleto está implementado** (os quatro andamentos, todos
-a 31/08/2026): navegação por **quatro** intenções — Anúncios, Em
-curso, Mercado, Alertas, com os Indicadores fora da barra, pelo ponto
-da zona de estado —, vocabulário e atalhos, renovações como modo dos
-contratos, e o Fluxo B verificado à espera só do primeiro envio (E2).
-As entradas de diário do fim contam os números todos.
+Desde 31/08/2026 os anuncios sao **uma pagina so** (`/`), e o que
+aparta o acervo sao as quatro abas: **por ver 1 319** (por decidir e
+ainda respondivel), **interessados 7** (todos, expirados incluidos --
+um interessa expirado e trabalho em curso), **abandonados 64 879** (os
+4 097 descartados a mao mais os por ver que ja nao dao para responder)
+e **todos 66 205**. A particao e exacta, e e recorte de leitura: a base
+nao muda -- la dentro ha 62 101 com estado `novo`. A **Triagem e a
+Pesquisa separadas duraram um dia**: `/anuncios` redirecciona com o
+filtro atras, e o interruptor do arquivo caiu. **O esqueleto esta
+implementado** (os quatro andamentos, todos a 31/08/2026): navegacao
+por **quatro** intencoes -- Anuncios, Em curso, Mercado, Alertas --,
+com os Indicadores fora da barra, pelo ponto da zona de estado;
+vocabulario e atalhos; renovacoes como modo dos contratos; e o Fluxo B
+verificado a espera so do primeiro envio (E2). **E o desenho visual
+esta aplicado** (01/09/2026): paleta "ardosia e ambar", barra lateral a
+140px, ficha em dossier com o leitor de pecas la dentro, e a largura a
+adaptar-se ao ecra. As entradas de diario do fim contam os numeros
+todos.
 
-*(Números de 01/09/2026, lidos da base e das abas do próprio painel.
-Este parágrafo já mentiu duas vezes: dizia "~5 100, todos com detalhe
-lido" por cima de uma base de 66 mil a 8%, e depois descreveu a
-Triagem e a Pesquisa como páginas separadas durante o dia inteiro em
-que já eram uma só — sempre porque as sessões acrescentavam secções
-sem corrigir o topo. Quem mudar os números corrige-o na mesma sessão;
-a regra está no CLAUDE.md.)*
+*(Numeros de 01/09/2026, lidos da base e das abas do proprio painel.
+Este paragrafo ja mentiu duas vezes: dizia "~5 100, todos com detalhe
+lido" por cima de uma base de 66 mil a 8%, e descrevia a Triagem e a
+Pesquisa como as duas paginas dos anuncios um dia depois de elas terem
+sido fundidas -- as duas vezes porque as sessoes seguintes
+acrescentavam seccoes sem corrigir o topo. Quem mudar os numeros ou as
+paginas corrige-o na mesma sessao; a regra esta no CLAUDE.md.)*
 
 ## A ficha do anúncio e as peças do procedimento
 
@@ -3821,3 +3826,79 @@ um sósia do módulo `time` rebenta o `while` sem ser engolido pelo
 `except Exception`), `TestPorqueDoGit` (6) e mais dois na
 `TestUltimosErrosNoEcra`, um deles a exigir que os `/indicadores` leiam
 as seis marcas — o rótulo e a marca que o alimenta têm de andar juntos.
+
+## A etiqueta de prazo tinha um 7 escrito à mão, 31 de agosto de 2026
+
+Correcção de comportamento, deliberadamente à parte da fase de desenho
+visual que corre em paralelo: aqui não se mexeu numa cor, mexeu-se em
+**quem decide a cor**.
+
+`etiqueta_prazo()` decidia o amarelo com `dias <= 7`, um limiar cozido
+no código. A janela do "urgente" da aplicação é `dias_urgente()` — lê o
+`config.json`, omissão 10, editável em `/alertas`. Resultado: um anúncio
+com prazo a **9 dias** aparecia **verde ("folgado")** na lista, no
+quadro, no calendário e na ficha, e ao mesmo tempo contava como urgente
+no filtro `prazo=urgente`, no cartão dos indicadores e nos avisos por
+filtro. Com a janela a 10 de origem, a discordância apanhava os prazos
+a 8, 9 e 10 dias — e piorava com qualquer valor que o Afonso pusesse em
+`/alertas`: a 20 dias, doze dias de anúncios diziam "folgado" a abrir
+uma lista de urgentes.
+
+É a mesma armadilha do cartão que dizia "2 com prazo a menos de 7 dias"
+com o filtro a 10, e que deu origem a `janela_urgente()`. Da primeira
+vez corrigiu-se o rótulo e esqueceu-se a cor — **a cor também é um
+número que o ecrã mostra**, e tem de dar a mesma lista.
+
+`etiqueta_prazo(prazo, urgente=None)` passa a ler `dias_urgente()`
+quando não lhe dão a janela. Quem desenha em ciclo passa-a: a lista
+(`linha(a, vista, urgente)`), o quadro (`cartao(a, etiquetas, urgente)`)
+e o calendário lêem-na **uma vez por pedido**. O custo é a razão: a
+etiqueta é chamada uma vez por anúncio e `dias_urgente()` abre e
+desserializa o `config.json` a cada chamada — sem isto era uma abertura
+de ficheiro por linha da lista. Na lista a mesma leitura serve também o
+rótulo do selector ("só os que acabam em N dias"), que já lá estava a
+chamar `dias_urgente()` à parte.
+
+A ficha ficou com a omissão: renderiza-se uma vez, não em ciclo.
+
+Testes: **490** (485 + 5 em `TestEtiquetaPrazoSegueAJanela`). Um põe a
+janela a 10 e a 7 e exige que a classe de um prazo a 9 dias mude de
+`avisa` para `ok`; outro confirma a fronteira **contra
+`janela_urgente()`** — o último dia que o filtro apanha tem de sair
+`avisa`, e o dia seguinte `ok`; outro garante que a janela passada como
+argumento manda mesmo, substituindo `ler_config` por algo que rebenta.
+O expirado e o "termina hoje" continuam vermelhos independentemente da
+janela.
+
+Documentação corrigida no mesmo commit: a regra do `prazo` no
+`CLAUDE.md` passou a incluir a etiqueta ("a cor da etiqueta é um desses
+números"), e o `LEIA-ME.md` deixou de descrever o cartão dos
+indicadores como "prazo a menos de uma semana" — dizia sete com o
+filtro a dez, exactamente o erro que esta sessão foi corrigir.
+
+
+### O topo deste ficheiro estava a descrever páginas que já não existem
+
+Encontrado ao procurar o que a correcção da etiqueta tornava falso, e
+corrigido no mesmo dia porque é o mesmo tipo de erro: o parágrafo **«Como
+está a correr»** descrevia a página inicial como a **Triagem** e mandava
+o acervo para a **Pesquisa** (`/anuncios`, «12 meses por omissão, com
+interruptor para o arquivo») — as duas páginas foram fundidas numa só a
+31/08/2026, no mesmo dia, e o interruptor caiu. Dizia também «navegação
+por cinco intenções» quando `NAV` tem quatro, com os Indicadores fora da
+barra.
+
+Os números foram remedidos na base, não copiados de outra secção:
+**66 205** anúncios (dizia 66 145), **5 617 com detalhe lido = 8,5%**
+(dizia 5 493 e 8,3%), **22** consultas da Vortal, e as abas a **1 449
+por ver + 7 interessados + 64 749 abandonados**, que somam exactamente
+os 66 205 — a partição continua a fechar. As ~17 horas para forçar os
+detalhes que faltam continuam certas (60 588 a um por segundo).
+
+**As entradas de diário datadas não se tocaram**, incluindo as que falam
+da Triagem e da Pesquisa como páginas de então: são registo do que era
+verdade nessa altura, e uma delas já traz a nota a dizê-lo. O que se
+corrige é o que está escrito no presente — o topo, e três frases do
+`LEIA-ME.md` que ainda mandavam marcar «interessa» «na Triagem ou na
+Pesquisa» e diziam que o cartão do quadro é verde ou vermelho, sem o
+âmbar que esta sessão acabou de pôr a acompanhar a janela do urgente.

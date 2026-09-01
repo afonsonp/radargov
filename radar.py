@@ -5885,9 +5885,19 @@ def conta_dias(dias):
     return "%d dias" % dias
 
 
-def etiqueta_prazo(prazo):
+def etiqueta_prazo(prazo, urgente=None):
     """(texto, classe) para o distintivo de prazo. Verde folgado, amarelo
-    a menos de uma semana, vermelho expirado ou a acabar hoje."""
+    dentro da janela do urgente, vermelho expirado ou a acabar hoje.
+
+    O `urgente` e essa janela em dias; sem ele le-se de dias_urgente().
+    Esteve aqui um 7 escrito a mao com o filtro a 10: um prazo a 9 dias
+    saia verde ("folgado") na lista e na ficha e contava como urgente no
+    filtro, no cartao dos indicadores e nos avisos -- o ecra a mostrar um
+    numero que a ligacao dele nao dava. A janela e UMA so, e vem daqui.
+
+    Quem chama em ciclo (a lista, o quadro, o calendario) le a janela uma
+    vez e passa-a: dias_urgente() abre o config.json a cada chamada, e a
+    lista tem uma linha por anuncio."""
     dias, passou = dias_restantes(prazo)
     if dias is None:
         return "", ""
@@ -5895,7 +5905,9 @@ def etiqueta_prazo(prazo):
         return "prazo expirado", "mau"
     if dias == 0:
         return "termina hoje", "mau"
-    return conta_dias(dias), ("avisa" if dias <= 7 else "ok")
+    if urgente is None:
+        urgente = dias_urgente()
+    return conta_dias(dias), ("avisa" if dias <= urgente else "ok")
 
 
 def corta(texto, tecto):
@@ -5906,11 +5918,12 @@ def corta(texto, tecto):
     return texto if len(texto) <= tecto else texto[:tecto].rstrip() + "…"
 
 
-def linha(a, vista=""):
+def linha(a, vista="", urgente=None):
     """Uma linha da lista. O `vista` e o estado que a lista esta a
     mostrar: no separador "Por ver" a etiqueta "por ver" e sempre
     verdade, portanto nao diz nada e so disputa espaco com o CPV, a
-    plataforma e o prazo, que sao os que se leem."""
+    plataforma e o prazo, que sao os que se leem. O `urgente` e a janela
+    do urgente, lida uma vez por pedido por quem faz o ciclo."""
     # A data de publicacao passou de bloco proprio a uma nota ao lado da
     # entidade. Era uma coluna de 64px a repetir "31 AGO" vinte vezes na
     # lista de um dia -- peso de titulo para o dado que menos decide,
@@ -5935,7 +5948,7 @@ def linha(a, vista=""):
     # O prazo sai das etiquetas e sobe a numero forte na coluna da
     # direita: e o que manda em "concorro ou nao", e no meio das outras
     # tags lia-se ao mesmo nivel do codigo CPV.
-    texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"])
+    texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
     prazo_html = ("<div class='item-prazo %s'>%s</div>"
                   % (classe_prazo, texto_prazo)) if texto_prazo else ""
     if a["estado"] != vista:
@@ -6523,12 +6536,16 @@ def _lista_de_anuncios():
                html.escape(etiqueta), mil(conta_plat.get(r["p"], 0))))
 
     prazo_actual = (request.args.get("prazo") or "").strip()
+    # A janela do urgente le-se UMA vez por pedido: serve o rotulo do
+    # selector e a etiqueta de prazo de cada linha, e dias_urgente() abre
+    # o config.json a cada chamada.
+    urgente = dias_urgente()
     opcoes_prazo = "".join(
         "<option value='%s'%s>%s</option>"
         % (v, " selected" if v == prazo_actual else "", t)
         for v, t in (("", "prazo: tanto faz"),
                      ("aberto", "só os que ainda dão para concorrer"),
-                     ("urgente", "só os que acabam em %d dias" % dias_urgente()),
+                     ("urgente", "só os que acabam em %d dias" % urgente),
                      ("expirado", "só os de prazo passado")))
 
     filtros = (
@@ -6573,7 +6590,7 @@ def _lista_de_anuncios():
     filtro_em_uso = filtro_actual(request.args, "anuncios")
     if linhas:
         corpo_lista = ("<div class='lista'>"
-                       + "".join(linha(a, estado_actual) for a in linhas)
+                       + "".join(linha(a, estado_actual, urgente) for a in linhas)
                        + "</div>")
     elif estado_actual == "novo" and filtro_em_uso == "estado=novo":
         # O vazio proprio do "por ver" sem filtro: nada por decidir e
@@ -10841,8 +10858,8 @@ document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
 </script>"""
 
 
-def cartao(a, etiquetas_por_ref):
-    texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"])
+def cartao(a, etiquetas_por_ref, urgente=None):
+    texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
     prazo_html = ("<span class='tag %s'>&#9679; %s</span>"
                   % (classe_prazo, texto_prazo)) if texto_prazo else ""
     # Quadro <-> Calendario sao duas vistas do mesmo conjunto (§5 do
@@ -10905,6 +10922,7 @@ def soma_precos_base(itens):
 @app.route("/quadro")
 def quadro():
     fases = listar_fases()
+    urgente = dias_urgente()  # uma leitura por pedido, nao uma por cartao
     with liga() as c:
         cartas = c.execute(
             "SELECT * FROM anuncios WHERE estado='interessa' "
@@ -10926,7 +10944,7 @@ def quadro():
     colunas = []
     for f in fases:
         itens = por_fase.get(f["id"], [])
-        corpo = "".join(cartao(a, etiquetas_por_ref) for a in itens) or \
+        corpo = "".join(cartao(a, etiquetas_por_ref, urgente) for a in itens) or \
             "<div class='coluna-vazia'>sem cartões, arrasta um para aqui</div>"
         # B11: o valor da fase ao lado da contagem, como o kanban da
         # SpotGov. So os precos base lidos contam, e o title di-lo.
@@ -10983,6 +11001,7 @@ DIAS_CALENDARIO = 45
 @app.route("/calendario")
 def calendario():
     hoje = datetime.now().date()
+    urgente = dias_urgente()  # uma leitura por pedido, nao uma por linha
     with liga() as c:
         cartas = c.execute(
             "SELECT * FROM anuncios WHERE estado='interessa' AND prazo != '' "
@@ -11041,7 +11060,7 @@ def calendario():
         if posicao < 0 or posicao >= DIAS_CALENDARIO:
             fora += 1
             continue
-        _, classe = etiqueta_prazo(a["prazo"])
+        _, classe = etiqueta_prazo(a["prazo"], urgente)
         fundo, frente = cores.get(classe,
                                   ("var(--azul-fundo)", "var(--azul)"))
         fase_nome = fases_por_id.get(a["fase_id"], "") or "prazo"
