@@ -751,5 +751,22 @@ ficheiro da skill ainda não tenha sido actualizado.
 
 ## Git
 
-Repositório local, sem remoto. Commit no fim de cada trabalho acabado, sem
-esperar autorização.
+**Há remoto**, ao contrário do que este ficheiro afirmou até 01/09/2026:
+`origin` é `https://github.com/afonsonp/radarconcursos.git` e o `master`
+segue o `origin/master`. Isto não é detalhe de arrumação — é o que decide
+se um commit **sai da pen**, e escrito ao contrário levava a tratar o
+histórico como se nunca saísse daqui. O repositório é privado (medido a
+31/08/2026: um pedido anónimo dá 404 — ver o ESTADO.md, «O código saiu
+do PC»), mas privado não é o mesmo que interno: o `.gitignore` largo
+continua a ser a guarda, e é ele que mantém capturas, bases, chaves e
+peças de fora.
+
+Commit no fim de cada trabalho acabado, sem esperar autorização. **Push
+não**: quem empurra o trabalho é o Afonso, ou o próprio radar pelo B15 —
+`empurrar_triagem()` faz commit e push **só do `triagem.jsonl`** em cada
+verificação em que ele mude, e um push falhado retoma na volta seguinte
+(desliga-se com `"triagem_no_git": false`).
+
+Há também ramos `claude/*` de sessões anteriores, e um worktree em
+`.claude/worktrees/`. Trabalha-se no `master`; esses ramos não se apagam
+sem uma palavra dele.
