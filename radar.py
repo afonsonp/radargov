@@ -11869,11 +11869,41 @@ document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
       // o cartao ja foi movido no ecra; se o servidor recusou, o ecra
       // esta a mentir e tem de voltar ao que a base diz
       if (!r.ok) { alert('Não foi possível mover o cartão.'); location.reload(); }
+      // E se aceitou, recarrega-se na mesma: o cartao que foi arrastado
+      // e o MESMO no DOM, com o HTML da coluna de onde veio. Quem o
+      // desenha e o servidor, e o que ele desenha depende da fase --
+      // arrastar para "Submetido" mudava a coluna e nao fazia aparecer
+      // o campo do preco proposto, nem trocava o preco base pelo
+      // proposto, nem corrigia a soma no cabecalho das duas colunas.
+      // O Afonso arrastou um cartao para o Submetido e "nao aconteceu
+      // nada" -- e tinha acontecido, so nao no ecra dele.
+      else { guardarRolarQuadro(); location.reload(); }
     }).catch(function() {
       alert('Falhou a gravar, recarrega a página.'); location.reload();
     });
   });
 });
+
+// O quadro rola na horizontal e o recarregar punha-o outra vez no
+// principio: arrastar para a ultima coluna atirava a vista para a
+// primeira, que se le como "perdi o cartao".
+function guardarRolarQuadro() {
+  try {
+    var q = document.querySelector('.quadro');
+    sessionStorage.setItem('radar-quadro', JSON.stringify(
+        {x: q ? q.scrollLeft : 0, y: window.scrollY}));
+  } catch (e) {}
+}
+(function () {
+  try {
+    var v = JSON.parse(sessionStorage.getItem('radar-quadro') || 'null');
+    if (!v) return;
+    sessionStorage.removeItem('radar-quadro');
+    var q = document.querySelector('.quadro');
+    if (q) q.scrollLeft = v.x;
+    window.scrollTo(0, v.y);
+  } catch (e) {}
+})();
 </script>"""
 
 

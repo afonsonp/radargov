@@ -379,6 +379,17 @@ Tudo em **`radar.py`** (~10 mil linhas), dividido por bandas com cabeçalho
   páginas: é por ele que as fontes da análise dizem "(pág. 1–5)". O
   recorte e as páginas saem das mesmas janelas (`_janelas_do_recorte`);
   um texto sem marcas não declara páginas — não se inventam.
+- **Arrastar no quadro tem de recarregar.** O cartão que se arrasta é o
+  MESMO nó do DOM, e quem decide o que ele mostra é o servidor, pela
+  fase: largá-lo no "Submetido" mudava-o de coluna e mais nada — sem o
+  campo do preço proposto, com o preço base onde já devia estar o
+  proposto, e com a soma no cabeçalho das duas colunas errada até
+  alguém recarregar à mão. O `drop` faz a movimentação optimista, o
+  POST, e **no caminho do sucesso recarrega** (guardando o rolar
+  horizontal em `sessionStorage`, senão arrastar para a última coluna
+  atirava a vista para a primeira). Se um dia isto se optimizar, o
+  servidor tem de devolver o cartão redesenhado — o cliente não sabe o
+  que cada fase pede.
 - **Os três trabalhos longos correm todos fora do pedido.** "Verificar
   agora" é thread com trinco (`comecar_verificacao()`, com um `passo`
   que a barra lateral mostra), "Actualizar contratos" é thread com
