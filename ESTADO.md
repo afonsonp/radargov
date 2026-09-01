@@ -1883,8 +1883,8 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 424 testes a 30/08/2026 (eram 118 quando esta
-secção foi escrita), correm em menos de um segundo, sem rede nem a base
+**`teste_radar.py`** — 498 testes a 01/09/2026 (eram 118 quando esta
+secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
 **mesmo**, e o comentário diz qual, para ninguém "simplificar" de volta
@@ -3616,3 +3616,99 @@ transborda, em nenhuma das seis larguras** de 768 a 2560. O tecto de
 1560 e deliberado -- num monitor de 2560 sobram 850px de margem, que e
 o que uma aplicacao de trabalho centrada deve fazer; o que nao devia
 fazer era desperdica-los a 1920, onde agora sobram 210.
+
+## O arranque de 39 segundos: uma migração sem índice, 1 de setembro de 2026
+
+Pergunta do Afonso: «o iniciar.bat está a demorar muito a arrancar
+porquê?». A resposta estava numa linha de SQL — e no disco onde isto
+vive.
+
+**A causa.** O `iniciar_corpus()` corre a cada arranque do painel e
+tinha quatro migrações do género «enche o que falta». Três delas têm
+índice que responde ao `IS NULL` e custam zero:
+
+| verificação | plano | custo |
+|---|---|---|
+| `objecto_norm IS NULL` | COVERING INDEX `ix_ctr_objecto_norm` | 0,00 s |
+| `fim_estimado IS NULL` | COVERING INDEX `ix_ctr_fim` | 0,00 s |
+| `adjudicante_chave IS NULL` | COVERING INDEX `ix_ctr_chave` | 0,00 s |
+| **`n_adj IS NULL`** | **SCAN contratos** | **38,92 s** |
+
+O `n_adj` era o único sem índice. Resultado: 1 363 300 linhas, 421 949
+páginas, **1,65 GB varridos a cada arranque** — para encontrar **zero
+linhas por encher**. A migração só servia corpora anteriores à coluna;
+o importador enche-a sempre, por estar no `COLS_CONTRATO` com
+`max(1, len(ganhadores))`.
+
+**A correcção** é a que o ficheiro já usava noutro sítio: marca no
+`corpus_estado` (`n_adj_cheio`), como o `html_desescapado`. Medido no
+corpus verdadeiro: `iniciar_corpus()` passou de **18,66 s** (o
+arranque que ainda paga o varrimento e põe a marca) para **0,02 s** e
+depois 0,00 s. A frio eram 38,9.
+
+Preferiu-se a marca ao índice parcial porque o índice ainda obrigava a
+uma varredura para o construir, e a coluna nunca mais volta a ficar a
+NULL.
+
+### Porque é que a medição a quente escondia isto
+
+A primeira medição do mesmo varrimento deu **1,14 s** — suficiente para
+o descartar e ir procurar noutro lado (threads de fundo, instâncias a
+mais na porta, corrida do browser). Era uma medição a quente: uma
+consulta exploratória minutos antes tinha posto a tabela na cache do
+Windows. Mais tarde, com a cache já despejada, a consulta idêntica
+sobre os mesmos dados deu **38,92 s**.
+
+A lição, que vale para qualquer queixa de «o primeiro arranque é
+lento»: **um tempo medido depois da nossa própria exploração não é
+prova** — fomos nós que aquecemos exactamente aquilo por que o
+utilizador espera. Ou se mede a grandeza independente da cache (bytes
+movidos: `GetProcessIoCounters`), ou se mede o dispositivo por baixo
+(`FILE_FLAG_NO_BUFFERING`), ou se repete a medição mais tarde.
+
+### E o disco por baixo: isto corre de uma pen
+
+O `D:` não é o SSD interno. É um **Samsung Flash Drive, BusType USB**.
+Medido com leitura sem cache:
+
+- **408 MB/s** em sequencial puro;
+- **~42 MB/s efectivos** numa varredura de páginas de 4 KB, que é o que
+  o SQLite faz — daí 1,65 GB darem 39 s e não 4;
+- **8,7 ms para abrir um ficheiro pequeno a frio.** Dos 459 módulos que
+  o `radar.py` carrega, **216 vêm de `libs/` como ficheiros soltos** (a
+  stdlib está zipada no `python314.zip`, essa é barata). São segundos
+  de arranque só em abrir ficheiros.
+
+Sem saber isto, todos os números seguintes eram interpretados na escala
+errada. Passou a regra do CLAUDE.md: confirma em que disco o código
+está antes de o culpar.
+
+### Os outros dois custos do arranque, medidos e não corrigidos
+
+Ficam registados; nenhum foi mexido nesta sessão.
+
+1. **O browser abre antes de o Flask atender.** O `main()` chama
+   `webbrowser.open()` e só depois `app.run()`. Medido: browser aos
+   0,98 s, porta a responder aos 1,91 s. Se o browser já estiver
+   aberto, apanha a porta fechada e é preciso recarregar à mão. A
+   correcção é abrir o browser de um `threading.Timer` depois do
+   `app.run()` ter arrancado.
+2. **Um slot falhado dispara a verificação inteira no arranque.** O
+   `relogio()` corre o ciclo à cabeça: se um slot do dia não correu,
+   chama `verificar()` logo — cópia `VACUUM INTO` de 93 MB para a pen,
+   `git push` da triagem (que está a falhar, `ultimo_erro_triagem_git`
+   = `remote rejected`), e a recolha toda. Os slots de 31/08 levaram
+   ~5 minutos cada.
+
+Arranque a quente, sem nada disto: **2,5 s** do duplo-clique à
+primeira página (`import radar` 0,24 s, `iniciar_db` 0,00 s,
+`iniciar_corpus` agora 0,00 s, Flask de pé a 1,91 s, primeira página
+servida em 0,41 s).
+
+**Testes:** `TestNAdjEnchePorMarca`, seis, sobre um `CorpusTemporario`
+novo (o irmão da `BaseTemporaria`, para o `contratos.db`). O que
+seguram: que a migração continua a encher o corpus antigo, que sem
+adjudicatários vale 1 e não 0 — é divisor no gráfico de quem ganha —,
+que **na segunda vez não faz nada** (é este o arranque de 39 s), e que
+o `n_adj` continua no `COLS_CONTRATO`, que é o que torna a marca
+segura. Os testes passaram de 492 para 498.
