@@ -9699,6 +9699,10 @@
 {"accao": "alterou", "detalhe": "pelo anúncio 22061/2026 de 02/09/2026: prazo de propostas 11/09/2026 → 15/09/2026", "quando": "2026-09-02 09:43", "quem": "DR", "ref": "21788/2026", "tabela": "historico"}
 {"accao": "estado", "detalhe": "interessa", "quando": "2026-09-02 09:58", "quem": "Afonso Pinto", "ref": "22102/2026", "tabela": "historico"}
 {"accao": "estado", "detalhe": "interessa", "quando": "2026-09-02 12:41", "quem": "Afonso Pinto", "ref": "22036/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21526/2026, publicado a 25/08/2026; a triagem faz-se lá", "quando": "2026-09-02 14:12", "quem": "DR", "ref": "22027/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22027/2026 de 01/09/2026: prazo de propostas 03/09/2026 → 12/09/2026", "quando": "2026-09-02 14:12", "quem": "DR", "ref": "21526/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21547/2026, publicado a 25/08/2026; a triagem faz-se lá", "quando": "2026-09-02 14:13", "quem": "DR", "ref": "22054/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22054/2026 de 01/09/2026: prazo de propostas 03/09/2026 → 07/09/2026", "quando": "2026-09-02 14:13", "quem": "DR", "ref": "21547/2026", "tabela": "historico"}
 {"alerta": 1, "consulta": "cpv=72000000&estado=novo&prazo=aberto", "criado_em": "2026-08-30 03:15", "id": 8, "nome": "CPV IT", "quem": "Afonso Pinto", "tabela": "filtros_guardados"}
 {"chave": "504322915", "desde": "2026-08-30", "nome": "Instituto de Informática, I. P.", "tabela": "entidades_seguidas"}
 {"enviado_em": null, "filtro_id": 8, "ref": "14017/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-02 09:44"}
