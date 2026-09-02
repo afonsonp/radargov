@@ -1,23 +1,29 @@
 """Mede de onde vem o token das capturas do DR, e se se renova sem browser.
 
 Pergunta: o x-csrftoken e a versionInfo que o radar copia do curl_DR.txt
-nascem de uma sessao iniciada no browser, ou de um simples GET a pagina?
-Se for o segundo caso, a recaptura no DevTools deixa de ser precisa e
-nao ha razao para trazer um browser (Scrapling, Playwright) para a pen.
+nascem de uma sessao iniciada no browser, ou de pedidos simples que o
+requests faz? Se for o segundo caso, a recaptura no DevTools deixa de
+ser precisa e nao ha razao para trazer um browser (Scrapling,
+Playwright) para a pen.
 
-O DR e uma aplicacao OutSystems. O que se sabe de aplicacoes desse tipo,
-e que aqui se confirma ou desmente contra o portal verdadeiro:
+O DR e uma aplicacao OutSystems. A primeira volta (02/09/2026) mediu:
 
-- o primeiro GET poe um cookie `nr2Users` com `crf=<token>` la dentro,
-  e o cabecalho x-csrftoken de cada pedido e esse mesmo valor;
-- o corpo de cada pedido leva `versionInfo.moduleVersion`, que e o
-  `versionToken` do `moduleservices/moduleinfo`, e muda quando o DR
-  republica a aplicacao;
-- `versionInfo.apiVersion` vem do JS compilado do ecra, e so muda com a
-  republicacao.
+- o x-csrftoken E o `crf=` do cookie nr2Users (o `+` vem como %2b);
+- so o x-csrftoken tranca: sem cookie passa, com a moduleVersion errada
+  passa (o DR ja republicou desde a captura, `hasModuleVersionChanged`,
+  e continua a responder);
+- a apiVersion e a segunda tranca: errada, vem JSON com zero anuncios;
+- a home e a casca de 2346 bytes, sem cookies: o cookie e o moduleinfo
+  nascem dos pedidos que o JavaScript faz a seguir.
+
+A segunda volta segue essa pista: que pedido poe o cookie, se um token
+inventado passa (se passar, nao ha token nenhum a renovar), e de onde
+se tira a apiVersion sem browser (o manifesto do moduleinfo lista os
+scripts de cada ecra, e a apiVersion esta dentro do script do ecra).
 
 Corre no PC (o DR nao responde de fora), le as capturas e NUNCA as
-escreve. Escreve o relatorio em amostras/medicao_captura.txt e no ecra.
+escreve. Escreve o relatorio em amostras/medicao_captura.txt, e guarda
+em amostras/ a casca da home e o moduleinfo, para se lerem depois.
 
     python medir_captura.py        (ou medir.bat, que abre o relatorio)
 """
@@ -26,13 +32,15 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta
-from urllib.parse import unquote
+from urllib.parse import unquote, urljoin
 
 import requests
 
 import radar
 
-HOME = "https://diariodarepublica.pt/dr/home"
+RAIZ = "https://diariodarepublica.pt"
+HOME = RAIZ + "/dr/home"
+MODULEINFO = RAIZ + "/dr/moduleservices/moduleinfo"
 RELATORIO = os.path.join(radar.AMOSTRAS, "medicao_captura.txt")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
@@ -45,11 +53,20 @@ def diz(texto=""):
     linhas.append(texto)
 
 
+def guardar(nome, conteudo):
+    os.makedirs(radar.AMOSTRAS, exist_ok=True)
+    with open(os.path.join(radar.AMOSTRAS, nome), "w", encoding="utf-8") as f:
+        f.write(conteudo)
+
+
 def crf_do_cookie(cookie):
-    """O token dentro do nr2Users: 'crf%3dXXXX%3b...' ou ja descodificado."""
+    """O token dentro do nr2Users: 'crf%3dXXXX%3b...' ou ja descodificado.
+
+    O valor leva '+' e '/' (e base64), e o browser manda-os como %2b e
+    %2f: descodifica-se o pedaco inteiro ate ao ';' (ou %3b)."""
     if not cookie:
         return ""
-    m = re.search(r"crf(?:=|%3[Dd])([^;%\s]+)", cookie)
+    m = re.search(r"crf(?:=|%3[Dd])(.*?)(?:;|%3[Bb]|$)", cookie)
     return unquote(m.group(1)) if m else ""
 
 
@@ -60,9 +77,14 @@ def cabecalho(pedido, nome):
     return ""
 
 
-def sem_cabecalho(pedido, nome):
-    return {k: v for k, v in pedido["headers"].items()
-            if k.lower() != nome.lower()}
+def sem_cabecalho(headers, nome):
+    return {k: v for k, v in headers.items() if k.lower() != nome.lower()}
+
+
+def com_token(headers, token):
+    h = sem_cabecalho(headers, "x-csrftoken")
+    h["X-CSRFToken"] = token
+    return h
 
 
 def corpo_pequeno(molde):
@@ -110,14 +132,55 @@ def disparar(rotulo, url, headers, molde, sessao=None):
         vi = dados.get("versionInfo") or {}
         if isinstance(vi, dict) and vi.get("hasModuleVersionChanged"):
             excepcao = (excepcao + " | hasModuleVersionChanged").strip(" |")
+    if n == 0 and isinstance(dados, dict):
+        # Com a apiVersion errada vem JSON sem anuncios: o que mais diz?
+        guardar("medicao_resposta_vazia.json", json.dumps(dados, indent=1)[:20000])
     diz("  %-34s HTTP %d, JSON, %d anuncios%s"
         % (rotulo, r.status_code, n,
            (", excepcao: " + excepcao[:80]) if excepcao else ""))
     return "ok" if n else "vazio"
 
 
+def cookies_de(r):
+    return [c.split("=", 1)[0].strip()
+            for c in r.headers.get("Set-Cookie", "").split(",") if "=" in c]
+
+
+def pedir(s, rotulo, url):
+    """GET numa sessao, com o relatorio a dizer o que veio e que cookies pos."""
+    try:
+        r = s.get(url, timeout=60)
+    except requests.RequestException as erro:
+        diz("  %-34s rede: %s" % (rotulo, str(erro)[:70]))
+        return None
+    postos = cookies_de(r)
+    diz("  %-34s HTTP %d, %s, %d bytes%s"
+        % (rotulo, r.status_code,
+           r.headers.get("Content-Type", "?").split(";")[0], len(r.content),
+           (", poe cookies: " + ", ".join(postos)) if postos else ""))
+    return r
+
+
+def urls_da_casca(html_home):
+    """Os scripts e folhas que a casca carrega, absolutos."""
+    achados = re.findall(r'(?:src|href)="([^"]+\.(?:js|json)[^"]*)"', html_home)
+    return [urljoin(HOME, u) for u in achados]
+
+
+def procurar(texto, padrao, largura=90):
+    """Os pedacos do texto a volta de cada ocorrencia do padrao."""
+    fora = []
+    for m in re.finditer(padrao, texto):
+        a, b = max(0, m.start() - largura), min(len(texto), m.end() + largura)
+        fora.append(texto[a:b].replace("\n", " "))
+        if len(fora) >= 3:
+            break
+    return fora
+
+
 def main():
-    diz("Medicao do token do DR, %s" % datetime.now().strftime("%d/%m/%Y %H:%M"))
+    diz("Medicao do token do DR, %s (2.a volta)"
+        % datetime.now().strftime("%d/%m/%Y %H:%M"))
     diz()
 
     comando = radar.carregar_curl("curl_DR")
@@ -143,8 +206,6 @@ def main():
     diz("  os dois sao iguais:     %s" % ("SIM" if token_capt and token_capt == crf_capt else "nao"))
     diz("  moduleVersion:          %s" % versao_capt.get("moduleVersion", "(nao ha)"))
     diz("  apiVersion:             %s" % versao_capt.get("apiVersion", "(nao ha)"))
-    nomes_cookies = sorted(set(re.findall(r"(?:^|;\s*)([^=;\s]+)=", cookie_capt)))
-    diz("  cookies na captura:     %s" % (", ".join(nomes_cookies) or "(nenhum)"))
     diz()
 
     # 2. Controlo: a captura tal como esta
@@ -156,107 +217,127 @@ def main():
         return 1
     diz()
 
-    # 3. O que cada peca tranca (so faz sentido se o controlo passou)
+    # 3. O token e verificado, ou basta haver um?
+    diz("3. O token: verificado, ou basta haver um?")
     if controlo in ("ok", "vazio"):
-        diz("3. Tirar uma peca de cada vez a captura")
-        disparar("sem x-csrftoken", pedido["url"],
-                 sem_cabecalho(pedido, "x-csrftoken"), pequeno)
-        disparar("sem cookie", pedido["url"],
-                 sem_cabecalho(pedido, "cookie"), pequeno)
-        trocado = json.loads(json.dumps(pequeno))
-        trocado.setdefault("versionInfo", {})["moduleVersion"] = "0" * 32
-        disparar("moduleVersion errada", pedido["url"], pedido["headers"], trocado)
-        trocado = json.loads(json.dumps(pequeno))
-        trocado.setdefault("versionInfo", {})["apiVersion"] = "0" * 32
-        disparar("apiVersion errada", pedido["url"], pedido["headers"], trocado)
-        diz()
+        h = pedido["headers"]
+        disparar("token inventado, com cookie", pedido["url"],
+                 com_token(h, "abcdefghijklmnopqrstuv"), pequeno)
+        disparar("token inventado, sem cookie", pedido["url"],
+                 com_token(sem_cabecalho(h, "cookie"), "abcdefghijklmnopqrstuv"),
+                 pequeno)
+        disparar("token vazio", pedido["url"], com_token(h, ""), pequeno)
+        if token_capt:
+            disparar("token com um caracter trocado", pedido["url"],
+                     com_token(h, token_capt[:-1] + ("A" if token_capt[-1] != "A" else "B")),
+                     pequeno)
     else:
-        diz("3. (saltado: a captura ja nao e aceite, e o que se mede a seguir "
-            "e se uma sessao nova a substitui)")
-        diz()
+        diz("  (saltado: a captura ja nao e aceite)")
+    diz()
 
-    # 4. Sessao nova, sem browser
-    diz("4. Sessao nova por GET, sem browser")
+    # 4. Que pedido poe o cookie, sem browser
+    diz("4. Sessao nova, a seguir o caminho que o JavaScript faz")
     s = requests.Session()
     s.headers["User-Agent"] = cabecalho(pedido, "user-agent") or UA
-    try:
-        r = s.get(HOME, timeout=60)
-    except requests.RequestException as erro:
-        diz("  GET %s: %s" % (HOME, str(erro)[:70]))
+    r = pedir(s, "GET home", HOME)
+    if r is None:
         return 1
     html_home = r.text
-    diz("  GET home: HTTP %d, %d bytes" % (r.status_code, len(r.content)))
-    novos = {c.name: c.value for c in s.cookies}
-    diz("  cookies recebidos:      %s" % (", ".join(sorted(novos)) or "(nenhum)"))
-    crf_novo = crf_do_cookie(novos.get("nr2Users", ""))
-    diz("  crf= no nr2Users novo:  %s" % (crf_novo[:12] + "..." if crf_novo else "(nao ha)"))
+    guardar("medicao_casca_home.html", html_home)
+    urls = urls_da_casca(html_home)
+    diz("  a casca carrega %d ficheiros:" % len(urls))
+    for u in urls[:12]:
+        diz("    " + u.replace(RAIZ, "")[:100])
 
-    m = re.search(r"moduleservices/moduleinfo\?[0-9A-Za-z]+", html_home)
-    versao_nova = ""
-    if m:
-        url_mi = "https://diariodarepublica.pt/dr/" + m.group(0)
+    # os scripts da casca: onde falam de moduleinfo e do cookie?
+    for u in urls:
+        if not u.endswith((".js",)) and ".js?" not in u:
+            continue
         try:
-            mi = s.get(url_mi, timeout=60).json()
-            versao_nova = str(mi.get("versionToken", ""))
-        except (requests.RequestException, ValueError) as erro:
-            diz("  moduleinfo: %s" % str(erro)[:70])
-        diz("  moduleinfo versionToken: %s" % (versao_nova or "(nao veio)"))
-        diz("  igual ao da captura:    %s"
-            % ("SIM" if versao_nova and versao_nova == versao_capt.get("moduleVersion") else "nao"))
-    else:
-        diz("  a home nao referencia moduleinfo (a aplicacao mudou de forma?)")
+            js = s.get(u, timeout=60).text
+        except requests.RequestException:
+            continue
+        for padrao in (r"moduleinfo", r"nr2Users", r"X-CSRFToken", r"csrf"):
+            pedacos = procurar(js, padrao, 70)
+            if pedacos:
+                diz("  %s fala de %s:" % (u.rsplit("/", 1)[-1][:40], padrao))
+                for p in pedacos[:2]:
+                    diz("      ..." + p[:150] + "...")
+        postos = [c.name for c in s.cookies]
+        if postos:
+            diz("  depois de %s a sessao tem cookies: %s"
+                % (u.rsplit("/", 1)[-1][:40], ", ".join(postos)))
+            break
 
-    api_capt = versao_capt.get("apiVersion", "")
-    if api_capt:
-        scripts = re.findall(r'src="([^"]*Pesquisa[^"]*\.js[^"]*)"', html_home)
-        achado = False
-        for src in scripts[:6]:
-            url_js = src if src.startswith("http") else "https://diariodarepublica.pt" + (
-                src if src.startswith("/") else "/dr/" + src)
+    # o moduleinfo, com a versao da captura e sem versao
+    mi_json = None
+    for rotulo, url in (("GET moduleinfo?<moduleVersion capt>",
+                         MODULEINFO + "?" + versao_capt.get("moduleVersion", "")),
+                        ("GET moduleinfo sem versao", MODULEINFO)):
+        r = pedir(s, rotulo, url)
+        if r is not None and "json" in r.headers.get("Content-Type", ""):
+            try:
+                mi_json = r.json()
+                guardar("medicao_moduleinfo.json", json.dumps(mi_json, indent=1)[:200000])
+                break
+            except ValueError:
+                pass
+    versao_nova = ""
+    if isinstance(mi_json, dict):
+        versao_nova = str(mi_json.get("versionToken", ""))
+        diz("  moduleinfo: chaves %s" % ", ".join(list(mi_json)[:10]))
+        diz("  versionToken:           %s (captura: %s)"
+            % (versao_nova or "(nao ha)", versao_capt.get("moduleVersion", "?")))
+        # o manifesto lista os scripts de cada ecra: o da pesquisa traz a apiVersion
+        texto_mi = json.dumps(mi_json)
+        candidatos = sorted(set(re.findall(r'"([^"]*Pesquisa[^"]*\.js[^"]*)"', texto_mi)))
+        diz("  scripts com 'Pesquisa' no manifesto: %d" % len(candidatos))
+        api_capt = versao_capt.get("apiVersion", "")
+        for c in candidatos[:8]:
+            url_js = urljoin(HOME, c) if not c.startswith("http") else c
             try:
                 js = s.get(url_js, timeout=60).text
             except requests.RequestException:
                 continue
-            if api_capt in js:
-                achado = True
-                diz("  apiVersion da captura ainda esta no JS: %s" % url_js.rsplit("/", 1)[-1][:60])
-                break
-        if not achado:
-            diz("  apiVersion da captura NAO encontrada em %d scripts de Pesquisa"
-                " (republicado, ou o script vem por outro nome)" % len(scripts))
+            tem = api_capt and api_capt in js
+            outras = re.findall(r'apiVersion["\']?\s*[:=]\s*["\']([A-Za-z0-9_\-]{10,})', js)
+            diz("    %-60s %s%s"
+                % (c.rsplit("/", 1)[-1][:60],
+                   "TEM a apiVersion da captura" if tem else "nao tem a da captura",
+                   (", traz %d apiVersion" % len(set(outras))) if outras else ""))
+            if "GetPesquisas" in js:
+                for p in procurar(js, r"GetPesquisas", 120)[:1]:
+                    diz("      ..." + p[:240] + "...")
+
+    cookies_sessao = {c.name: c.value for c in s.cookies}
+    diz("  cookies na sessao no fim: %s" % (", ".join(sorted(cookies_sessao)) or "(nenhum)"))
+    crf_novo = crf_do_cookie(cookies_sessao.get("nr2Users", ""))
+    diz("  crf= no nr2Users novo:  %s" % (crf_novo[:12] + "..." if crf_novo else "(nao ha)"))
     diz()
 
-    # 5. O pedido da captura, com as pecas novas
-    diz("5. O pedido da captura com o token e a versao da sessao nova")
-    if not crf_novo:
-        diz("  sem crf novo nao ha o que testar: o token nao nasce do GET")
+    # 5. Um pedido da sessao nova
+    diz("5. O pedido da captura com o que a sessao nova deu")
+    h = sem_cabecalho(pedido["headers"], "cookie")
+    renovado = json.loads(json.dumps(pequeno))
+    if versao_nova:
+        renovado.setdefault("versionInfo", {})["moduleVersion"] = versao_nova
+    if crf_novo:
+        disparar("sessao nova, crf novo", pedido["url"], com_token(h, crf_novo),
+                 renovado, sessao=s)
     else:
-        headers = sem_cabecalho(pedido, "cookie")
-        headers = {k: v for k, v in headers.items() if k.lower() != "x-csrftoken"}
-        headers["X-CSRFToken"] = crf_novo
-        renovado = json.loads(json.dumps(pequeno))
-        if versao_nova:
-            renovado.setdefault("versionInfo", {})["moduleVersion"] = versao_nova
-        veredicto = disparar("sessao nova", pedido["url"], headers, renovado, sessao=s)
-        diz()
-        diz("Conclusao:")
-        if veredicto in ("ok", "vazio"):
-            diz("  O token renova-se com um GET e um POST, sem browser. As capturas "
-                "so fazem falta pela forma do corpo, e essa nao expira. "
-                "Scrapling nao acrescenta nada aqui.")
-        elif veredicto == "casca":
-            diz("  Um GET nao chega: ou o token exige um passo que o browser faz "
-                "(JS, segundo pedido), ou a apiVersion esta desactualizada. "
-                "Ver os pontos 3 e 4 para saber qual. So neste caso um browser "
-                "sem cabeca vale a pena medir.")
-        else:
-            diz("  Resultado inconclusivo (%s): ver as linhas acima." % veredicto)
-
-    os.makedirs(radar.AMOSTRAS, exist_ok=True)
-    with open(RELATORIO, "w", encoding="utf-8") as f:
-        f.write("\n".join(linhas) + "\n")
+        diz("  sem crf novo; o que se testa e a sessao nova com o token da captura")
+        disparar("sessao nova, token da captura", pedido["url"], h, renovado, sessao=s)
     diz()
-    diz("relatorio em %s" % os.path.relpath(RELATORIO, radar.BASE_DIR))
+
+    diz("Conclusao: ler os pontos 3 e 4. Se um token inventado passa, nao ha "
+        "token a renovar e so a apiVersion importa; se nao passa, o pedido "
+        "que poe o nr2Users esta no ponto 4 (ou nao esta, e o caminho e o "
+        "browser).")
+
+    guardar("medicao_captura.txt", "\n".join(linhas) + "\n")
+    diz()
+    diz("relatorio em %s; a casca, o moduleinfo e a resposta vazia ficaram "
+        "em amostras/" % os.path.relpath(RELATORIO, radar.BASE_DIR))
     return 0
 
 
