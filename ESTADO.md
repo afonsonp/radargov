@@ -20,8 +20,8 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 286 anúncios, dois anos deles**
-(28/08/2024–01/09/2026) — **65 419 procedimentos**, porque 867 são
+Funciona. A base tem **66 336 anúncios, dois anos deles**
+(28/08/2024–02/09/2026) — **65 465 procedimentos**, porque 871 são
 republicações («Alteração do Anúncio de procedimento n.º …») ligadas
 ao original desde 01/09/2026 e fora de todas as listas: o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
@@ -41,16 +41,17 @@ anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
 Desde 31/08/2026 os anuncios sao **uma pagina so** (`/`), e o que
-aparta o acervo sao as quatro abas: **por ver 1 167** (por decidir e
-ainda respondivel), **interessados 75** (todos, expirados incluidos --
-um interessa expirado e trabalho em curso; 72 deles vieram do Excel da
-casa a 02/09/2026: 18 submetidos, 12 ganhos e 42 perdidos, no quadro
-nas colunas certas), **abandonados 64 177** (os 3 797 descartados a
-mao mais os por ver que ja nao dao para responder) e **todos 65 419**.
-A particao e exacta sobre os procedimentos, e e recorte de leitura: a
-base nao muda -- la dentro ha 61 547 com estado `novo`, e as 867
-alteracoes (`estado='alteracao'`) nao entram em aba nenhuma, nem na de
-todos. A **Triagem e a
+aparta o acervo sao as quatro abas: **por ver 1 212** (por decidir e
+ainda respondivel), **interessados 4** (todos, expirados incluidos --
+um interessa expirado e trabalho em curso), **abandonados 64 249** (os
+3 728 descartados a mao mais os por ver que ja nao dao para responder)
+e **todos 65 465**. O Excel da casa (187 concursos, 149 ligados a
+anuncios) esta na base desde 02/09/2026 mas **nao toca em nenhum
+destes numeros nem se ve no painel**, por decisao dele -- ver a
+seccao do registo da casa. A particao e exacta sobre os
+procedimentos, e e recorte de leitura: a base nao muda -- la dentro ha
+61 733 com estado `novo`, e as 871 alteracoes (`estado='alteracao'`)
+nao entram em aba nenhuma, nem na de todos. A **Triagem e a
 Pesquisa separadas duraram um dia**: `/anuncios` redirecciona com o
 filtro atras, e o interruptor do arquivo caiu. **O esqueleto esta
 implementado** (os quatro andamentos, todos a 31/08/2026): navegacao
@@ -4727,18 +4728,56 @@ leitura com uma escrita por outra ligação. A base ficou intacta: a
 transacção foi abortada e as leituras de detalhe são idempotentes.
 Cópia com nome antes de gravar: `copias/radar-antes-excel-2026-09-02.db`.
 
+### E logo a seguir: tudo isto saiu do ecrã, por decisão dele
+
+Ao ver o resultado, o Afonso decidiu de outra maneira, e é a decisão
+que manda daqui para a frente: **«não quero ver alterações nenhumas
+no front antes de termos tudo consolidado»**. Primeiro guarda-se a
+informação e garante-se que está correcta — as ligações validadas à
+mão, os lotes resolvidos —, só depois o Zoho, e só depois disso se
+decide como o registo entra no esqueleto da aplicação.
+
+O que se desfez, na mesma sessão:
+
+- A página `/casa`, a entrada «Registo da casa» no *Em curso*, o bloco
+  da ficha e a entrada do índice **saíram do `radar.py`**. Há teste a
+  guardar que não voltam sem ele dizer (`test_o_front_nao_mudou`).
+- **A triagem aplicada aos 146 anúncios foi reposta** tal como estava
+  na cópia feita antes da importação (`--casa-desfazer
+  copias/radar-antes-excel-2026-09-02.db`): estado, fase, motivo,
+  preço proposto, lugar e três primeiros; as 213 linhas de histórico
+  escritas pelo Excel foram apagadas. O quadro voltou aos cartões de
+  antes (4: os 3 que já lá estavam mais o 22102/2026, que ele marcou
+  às 09:58 desta manhã, com o painel dele aberto), os motivos novos a
+  zero. As leituras de detalhe e as 104 alterações identificadas pelo
+  caminho ficam — são factos do DR, não triagem. Entretanto a
+  verificação das 09:00 correu: 47 anúncios publicados hoje e mais 4
+  alterações ligadas sozinhas ao original, com o prazo novo — a regra
+  de ontem a trabalhar sem ninguém olhar.
+- Os dois motivos de abandono novos saíram de `MOTIVOS_ABANDONO` (o
+  pop-up volta a ter três); ficam em `casa.MAPA_RAZAO` para o dia em
+  que a triagem se aplicar.
+- O importador passou a **não aplicar triagem por omissão**
+  (`triagem=False`; `--com-triagem` para quando for altura). Ligar à
+  mão faz-se por comando, `--casa-ligar ID REF`, sem página.
+
+O que ficou na base: a tabela `casa` com as 187 linhas e as 149
+ligações, os 311 preços por perfil e os 156 perfis exigidos. Nada
+disto se vê no painel, e é assim de propósito.
+
 ### O que fica
 
-- **37 linhas por ligar à mão**, em `/casa` — 32 com candidatos a um
-  clique e 5 sem nenhum. São as que o título do Excel não deixa
-  reconhecer.
-- **O Excel continua a ser onde ele escreve**, enquanto não decidir o
-  contrário. Voltar a importar é idempotente: actualiza o registo, não
-  repete histórico, e não toca no que já está ligado à mão nem no que
-  foi decidido no radar.
-- **O Zoho** é a fonte mais actual do estado e lê-se pelo browser (ele
-  não consegue exportar CSV). Fica para a próxima.
-- **O vocabulário dos estados** («Não fomos», «passou sem decisão»,
-  «cancelado») continua por decidir; a importação usou o que existe.
-- O quadro ficou com 72 cartões históricos nas colunas terminais. Se
-  incomodar, uma dobra por ano nessas colunas é pequena.
+- **37 linhas por ligar à mão** — 32 com candidatos e 5 sem nenhum.
+  Ele vai ajudar a identificá-las; a lista com os candidatos e os
+  títulos do DR foi-lhe entregue, e as respostas entram por
+  `--casa-ligar`.
+- **Os lotes.** O 1947/2026 da SPMS tem três linhas no Excel (dois
+  lotes perdidos, um ganho) e é um anúncio só. Há mais casos assim
+  (#7, #95, #96 são a mesma «biblioteca de arquitectura»). O modelo de
+  um estado por anúncio não os representa; é decisão de desenho a
+  tomar antes de aplicar a triagem.
+- **Depois do Zoho** (a fonte mais actual do estado, lido pelo browser
+  porque ele não consegue exportar CSV) e da validação, decide-se
+  **como isto se monta no esqueleto** — a página, o bloco da ficha, o
+  vocabulário dos estados («Não fomos», «passou sem decisão»,
+  «cancelado») e se o radar passa a ser onde se escreve.

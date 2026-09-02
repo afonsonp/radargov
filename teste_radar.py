@@ -5884,9 +5884,48 @@ class TestRegistoDaCasa(BaseTemporaria):
         self.assertIsNone(casa.estado_pretendido({"status": "Cancelado"}, papeis))
         self.assertIsNone(casa.estado_pretendido({"status": "TBD"}, papeis))
 
-    def test_liga_e_aplica_a_triagem(self):
+    def test_por_omissao_so_guarda_e_nao_toca_na_triagem(self):
+        # decisao do Afonso a 02/09/2026: nada se aplica antes de o registo
+        # estar validado -- o importador liga e guarda, e mais nada
         self._base_normal()
         rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
+        self.assertEqual(rel["ligadas"], 2)
+        self.assertEqual(rel["aplicadas"], {"guardado": 2})
+        self.assertEqual(self._le("5491/2026")["estado"], "novo")
+        self.assertEqual(self._le("100/2026")["estado"], "novo")
+        self.assertEqual(self._historico("5491/2026"), [])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT resultado FROM casa WHERE id=1"
+                                       ).fetchone()["resultado"], "guardado")
+        self.assertIn("não se aplica", casa.texto_do_relatorio(rel))
+
+    def test_desaplicar_repoe_a_triagem_da_copia(self):
+        self._base_normal()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET estado='descartado', motivo='Falta de CV''s' "
+                      "WHERE ref='100/2026'")
+        copia = os.path.join(self.pasta, "antes.db")
+        with radar.liga() as c:
+            c.execute("VACUUM INTO ?", (copia,))
+        casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False, triagem=True)
+        self.assertEqual(self._le("5491/2026")["estado"], "interessa")
+        repostos, apagadas = casa.desaplicar_da_copia(copia)
+        self.assertEqual(repostos, 2)
+        self.assertGreater(apagadas, 0)
+        self.assertEqual(self._le("5491/2026")["estado"], "novo")
+        self.assertIsNone(self._le("5491/2026")["preco_proposto"])
+        # o que ja la estava antes da importacao volta tal e qual
+        self.assertEqual((self._le("100/2026")["estado"], self._le("100/2026")["motivo"]),
+                         ("descartado", "Falta de CV's"))
+        self.assertEqual(self._historico("5491/2026"), [])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT ref, resultado FROM casa WHERE id=1"
+                                       ).fetchone()[:], ("5491/2026", "guardado"))
+
+    def test_liga_e_aplica_a_triagem(self):
+        self._base_normal()
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False,
+                            triagem=True)
         self.assertEqual(rel["fora"], ["Infraestructuras análisis y diseño"])
         self.assertEqual(rel["ligadas"], 2)
         self.assertEqual([a[1] for a in rel["ambiguas"]],
@@ -5918,7 +5957,8 @@ class TestRegistoDaCasa(BaseTemporaria):
         self._base_normal()
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET preco_base='99.000,00 EUR' WHERE ref='301/2026'")
-        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False,
+                            triagem=True)
         self.assertEqual(rel["ambiguas"], [])
         with radar.liga() as c:
             self.assertEqual(c.execute("SELECT ref FROM casa WHERE id=4").fetchone()["ref"],
@@ -5953,7 +5993,8 @@ class TestRegistoDaCasa(BaseTemporaria):
 
     def test_o_ensaio_nao_grava_nada(self):
         self._base_normal()
-        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ensaio=True, ler=False)
+        rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ensaio=True, ler=False,
+                            triagem=True)
         self.assertTrue(rel["ensaio"])
         self.assertEqual(rel["ligadas"], 2)
         self.assertEqual(rel["aplicadas"], {"aplicado": 2})
@@ -5967,10 +6008,10 @@ class TestRegistoDaCasa(BaseTemporaria):
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET estado='interessa', fase_id=1 WHERE ref='100/2026'")
         caminho = self._excel(self.INDICE, self.FOLHAS)
-        rel = casa.importar(caminho, ler=False)
+        rel = casa.importar(caminho, ler=False, triagem=True)
         self.assertEqual(rel["aplicadas"], {"aplicado": 1, "conflito": 1})
         self.assertEqual(self._le("100/2026")["estado"], "interessa")
-        rel2 = casa.importar(caminho, ler=False)
+        rel2 = casa.importar(caminho, ler=False, triagem=True)
         self.assertEqual(rel2["aplicadas"], {"igual": 1, "conflito": 1})
         self.assertEqual(rel2["novas"], 0)
         # uma linha de conflito, e uma so, por muitas vezes que se importe
@@ -5988,8 +6029,11 @@ class TestRegistoDaCasa(BaseTemporaria):
                       "WHERE ref='301/2026'")
             ok, msg = casa.ligar_a_mao(c, 4, "301/2026", quem="Teste")
             self.assertTrue(ok, msg)
-            self.assertEqual(c.execute("SELECT ref, ligacao FROM casa WHERE id=4"
-                                       ).fetchone()[:], ("300/2025", "manual"))
+            self.assertEqual(c.execute("SELECT ref, ligacao, resultado FROM casa WHERE id=4"
+                                       ).fetchone()[:], ("300/2025", "manual", "guardado"))
+        self.assertEqual(self._le("300/2025")["estado"], "novo")   # sem triagem
+        with radar.liga() as c:
+            casa.ligar_a_mao(c, 4, "301/2026", quem="Teste", triagem=True)
         self.assertEqual(self._le("300/2025")["estado"], "interessa")
         # uma ligacao manual sobrevive a importacao seguinte
         rel = casa.importar(self._excel(self.INDICE, self.FOLHAS), ler=False)
@@ -6000,14 +6044,14 @@ class TestRegistoDaCasa(BaseTemporaria):
             ok, msg = casa.ligar_a_mao(c, 4, "nada/2026")
         self.assertFalse(ok)
 
-    def test_as_rotas_existem_e_a_pagina_vazia_explica(self):
-        cliente = radar.app.test_client()
-        r = cliente.get("/casa")
-        self.assertEqual(r.status_code, 200)
-        self.assertIn("--importar-excel", r.get_data(as_text=True))
-        r = cliente.post("/casa/ligar/1", data={"ref": ""})
-        self.assertEqual(r.status_code, 302)
-        self.assertIn("casa", radar.ITEM_DA_PAGINA)
+    def test_o_front_nao_mudou(self):
+        # decisao do Afonso a 02/09/2026: nenhuma alteracao no front antes
+        # de o registo estar consolidado -- a pagina /casa e o bloco da
+        # ficha que chegaram a existir sairam, e nao voltam sem ele dizer
+        self.assertNotIn("casa", radar.ITEM_DA_PAGINA)
+        self.assertNotIn("/casa", [r.rule for r in radar.app.url_map.iter_rules()])
+        self.assertFalse(hasattr(radar, "casa_cx"))
+        self.assertEqual(len(radar.MOTIVOS_ABANDONO), 3)
 
     def test_a_pontuacao_e_por_contencao_do_nome_no_titulo(self):
         # o nome do Excel e uma abreviatura do titulo do DR: o que conta e
@@ -6041,11 +6085,11 @@ class TestRegistoDaCasa(BaseTemporaria):
         finally:
             radar.ha_corpus = antigo
 
-    def test_os_motivos_novos_existem(self):
-        self.assertIn("Fora do âmbito", radar.MOTIVOS_ABANDONO)
-        self.assertIn("Prazo curto", radar.MOTIVOS_ABANDONO)
+    def test_as_razoes_do_excel_mapeiam_para_motivos(self):
+        # os dois que ainda nao estao em MOTIVOS_ABANDONO entram la quando a
+        # triagem do registo passar a aplicar-se (ver CLAUDE.md)
         self.assertEqual(set(casa.MAPA_RAZAO.values()) - set(radar.MOTIVOS_ABANDONO),
-                         set())
+                         {"Fora do âmbito", "Prazo curto"})
 
 
 if __name__ == "__main__":

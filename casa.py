@@ -596,13 +596,18 @@ def _guardar_linha(c, linha, ref, ligacao, candidatos, fora, resultado, agora):
             resultado, agora, agora if resultado == "aplicado" else None])
 
 
-def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None):
-    """Le o Excel, liga cada linha ao procedimento e aplica a triagem.
+def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
+             triagem=False):
+    """Le o Excel, liga cada linha ao procedimento e guarda o registo.
 
     `ensaio` calcula tudo e nao grava nada. `ler` autoriza ir ao DR
     buscar o detalhe dos candidatos de uma linha ambigua (um pedido por
-    candidato, ~1 s) para o preco base desempatar. Devolve o relatorio:
-    contagens e as listas do que ficou por ligar."""
+    candidato, ~1 s) para o preco base desempatar. `triagem` escreve
+    tambem a triagem nos anuncios ligados -- DESLIGADO por omissao,
+    decisao do Afonso a 02/09/2026: enquanto as ligacoes nao estiverem
+    validadas e os lotes (varias linhas do Excel no mesmo anuncio) nao
+    tiverem solucao, guarda-se a informacao e mais nada. Devolve o
+    relatorio: contagens e as listas do que ficou por ligar."""
     import radar
     diz = relatar or (lambda _: None)
     linhas = ler_excel(caminho)
@@ -672,7 +677,9 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None):
                 resultado = "fora"
             elif ref:
                 rel["ligadas"] += 1
-                if ensaio:
+                if not triagem:
+                    resultado = "guardado"
+                elif ensaio:
                     # o que se faria, sem escrever: le-se o estado actual
                     pedido = estado_pretendido(linha, papeis)
                     a = c.execute("SELECT estado FROM anuncios WHERE ref=?",
@@ -710,6 +717,8 @@ def texto_do_relatorio(rel):
     if rel["aplicadas"]:
         linhas.append("  triagem: " + ", ".join(
             "%s %d" % (k, v) for k, v in sorted(rel["aplicadas"].items())))
+        if list(rel["aplicadas"]) == ["guardado"]:
+            linhas[-1] += " (só o registo; a triagem não se aplica sem --com-triagem)"
     if rel["lidos"]:
         linhas.append("  detalhes lidos ao DR para desempatar: %d" % rel["lidos"])
     linhas.append("  ambíguos: %d | sem correspondência: %d | fora do país: %d"
@@ -734,9 +743,10 @@ def registo_de(c, ref):
     return dict(r) if r else None
 
 
-def ligar_a_mao(c, ide, ref, quem="Afonso"):
+def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False):
     """Liga uma linha do registo a um anuncio, resolvendo uma alteracao
-    para o original. Devolve (ok, mensagem)."""
+    para o original. So escreve triagem com `triagem`. Devolve (ok,
+    mensagem)."""
     import radar
     a = c.execute("SELECT ref, estado, altera FROM anuncios WHERE ref=?",
                   (ref,)).fetchone()
@@ -755,14 +765,48 @@ def ligar_a_mao(c, ide, ref, quem="Afonso"):
             d[k] = json.loads(d.get(k) or "[]")
         except ValueError:
             d[k] = []
-    resultado = aplicar(c, d, ref, quem)
+    resultado = aplicar(c, d, ref, quem) if triagem else "guardado"
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     c.execute("UPDATE casa SET ref=?, ligacao='manual', candidatos='[]', "
               "resultado=?, aplicado_em=? WHERE id=?",
               (ref, resultado, agora if resultado == "aplicado" else None, ide))
-    return True, "ligado ao anúncio %s (%s)" % (ref, resultado)
+    return True, "#%s ligado ao anúncio %s (%s)" % (ide, ref, resultado)
 
 
 def desligar(c, ide):
     c.execute("UPDATE casa SET ref=NULL, ligacao='', resultado='', "
               "aplicado_em=NULL WHERE id=?", (ide,))
+
+
+def desaplicar_da_copia(copia):
+    """Desfaz a triagem que uma importacao escreveu nos anuncios, repondo
+    os campos de triagem tal como estao numa COPIA da base feita antes
+    dela, e apaga do historico o que a importacao la escreveu. O registo
+    (tabela casa) fica; as ligacoes ficam. Devolve (anuncios repostos,
+    linhas de historico apagadas).
+
+    Existe porque a 02/09/2026 se importou e aplicou, e o Afonso decidiu
+    a seguir que nada se aplica antes de o registo estar validado."""
+    import radar
+    import sqlite3
+    antes = sqlite3.connect("file:%s?mode=ro" % copia.replace("\\", "/"), uri=True)
+    antes.row_factory = sqlite3.Row
+    repostos = apagadas = 0
+    with radar.liga() as c:
+        refs = [r["ref"] for r in c.execute(
+            "SELECT DISTINCT ref FROM casa WHERE ref IS NOT NULL "
+            "AND resultado IN ('aplicado', 'conflito', 'igual')")]
+        for ref in refs:
+            a = antes.execute("SELECT %s FROM anuncios WHERE ref=?"
+                              % ", ".join(radar.CAMPOS_DA_TRIAGEM), (ref,)).fetchone()
+            if not a:
+                continue
+            c.execute("UPDATE anuncios SET %s WHERE ref=?"
+                      % ", ".join("%s=?" % k for k in radar.CAMPOS_DA_TRIAGEM),
+                      [a[k] for k in radar.CAMPOS_DA_TRIAGEM] + [ref])
+            repostos += 1
+        apagadas = c.execute("DELETE FROM historico WHERE quem='Excel'").rowcount
+        c.execute("UPDATE casa SET resultado='guardado', aplicado_em=NULL "
+                  "WHERE ref IS NOT NULL AND resultado != 'fora'")
+    antes.close()
+    return repostos, apagadas
