@@ -729,7 +729,7 @@ A ordem do ficheiro é a ordem do fluxo:
   com ficheiro em disco quando há motor, uma vez por documento; sem
   motor o veredicto fica. O motor carrega-se uma vez por processo
   (`motor_ocr()`) e só quando há mesmo o que ler; ~5 s por página em
-  CPU, em thread de fundo. Quem consome texto pergunta por
+  CPU aqui e **~28 s no PC** (medido), em thread de fundo. Quem consome texto pergunta por
   `IN ('ok','ocr')`, nunca só por `'ok'`. Desliga-se com `"ocr": false`.
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
