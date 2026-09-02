@@ -22,6 +22,7 @@ import re
 import sys
 import time
 import unittest
+from urllib.parse import parse_qsl, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
@@ -5687,31 +5688,308 @@ class TestMotivoDoAbandono(unittest.TestCase):
         self.assertNotIn("motivo", radar.accao("/estado/1/interessa", "x"))
 
 
-class TestArrastarRedesenhaOCartao(unittest.TestCase):
+class TestArrastarRedesenhaOCartao(BaseTemporaria):
     """Arrastar movia o cartão no ecrã e não o redesenhava.
 
     O cartão que se arrasta é o MESMO nó do DOM, com o HTML da coluna de
     onde veio -- e quem decide o que um cartão mostra é o servidor, pela
     fase. Largá-lo no "Submetido" mudava a coluna e mais nada: o campo
     do preço proposto não aparecia, o preço continuava a ser o base, e a
-    soma no cabeçalho das duas colunas ficava errada até alguém
-    recarregar. O Afonso arrastou um cartão para o Submetido e "não
-    aconteceu nada" -- tinha acontecido, só não no ecrã dele.
+    soma no cabeçalho das duas colunas ficava errada. O Afonso arrastou
+    um cartão para o Submetido e "não aconteceu nada".
+
+    A primeira resposta (01/09/2026) foi recarregar a página depois de
+    cada arrasto. A UX-Auditoria.md de 02/09/2026 classificou-a como
+    dívida: o servidor passa a devolver o cartão redesenhado e as
+    contagens das duas colunas, e o cliente troca só isso.
     """
 
-    def test_o_caminho_do_sucesso_tambem_recarrega(self):
-        # o ramo do erro já recarregava; era o do sucesso que não
-        self.assertIn("guardarRolarQuadro(); location.reload();",
-                      radar.QUADRO_JS)
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        with radar.liga() as c:
+            self.fases = {r["papel"]: r["id"] for r in
+                          c.execute("SELECT id, papel FROM fases")}
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo,"
+                      " url, estado, fase_id, preco_base, preco_proposto) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                      ("1/2026", "Bolsa de horas", "Município X", "2026-08-01",
+                       "Anúncio de procedimento", "https://dr/1", "interessa",
+                       self.fases["analisar"], "175.000,00 EUR", "118.500,00 EUR"))
 
-    def test_guarda_o_rolar_antes_de_recarregar(self):
-        # o quadro rola na horizontal: sem isto, arrastar para a última
-        # coluna atirava a vista para a primeira, que se lê como "perdi
-        # o cartão"
+    def _mover(self, papel):
+        return self.cliente.post("/quadro/mover", json={
+            "ref": "1/2026", "fase_id": self.fases[papel]})
+
+    def test_o_servidor_devolve_o_cartao_redesenhado_na_fase_nova(self):
+        r = self._mover("submetido")
+        self.assertEqual(r.status_code, 200)
+        d = r.get_json()
+        self.assertTrue(d["ok"])
+        # o cartao vem desenhado para o Submetido: pede o proposto e o
+        # preco que se le e o proposto, nao o base
+        self.assertIn("name='preco_proposto'", d["carta"])
+        self.assertIn("118.500,00 EUR", d["carta"])
+        self.assertIn("class='carta'", d["carta"])
+        self.assertIn("data-ref='1/2026'", d["carta"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT fase_id FROM anuncios WHERE ref='1/2026'")
+                             .fetchone()["fase_id"], self.fases["submetido"])
+
+    def test_devolve_as_contagens_das_duas_colunas_tocadas(self):
+        d = self._mover("submetido").get_json()
+        contas = d["contas"]
+        self.assertEqual(set(contas), {str(self.fases["analisar"]),
+                                       str(self.fases["submetido"])})
+        # a coluna de onde saiu ficou a zero; a de destino conta um e
+        # soma o PROPOSTO (e o que esta em jogo a partir do Submetido)
+        self.assertIn("<span class='coluna-conta'>0</span>",
+                      contas[str(self.fases["analisar"])])
+        destino = contas[str(self.fases["submetido"])]
+        self.assertIn("<span class='coluna-conta'>1", destino)
+        self.assertIn("propostos", destino)
+
+    def test_fase_inexistente_e_anuncio_fora_do_quadro_continuam_a_recusar(self):
+        r = self.cliente.post("/quadro/mover", json={"ref": "1/2026", "fase_id": 999})
+        self.assertEqual(r.status_code, 404)
+        r = self.cliente.post("/quadro/mover", json={"ref": "nao/existe",
+                                                     "fase_id": self.fases["ganho"]})
+        self.assertEqual(r.status_code, 404)
+
+    def test_o_js_troca_o_cartao_e_as_contagens_em_vez_de_recarregar(self):
         js = radar.QUADRO_JS
-        self.assertIn("function guardarRolarQuadro()", js)
-        self.assertIn("scrollLeft", js)
-        self.assertIn("radar-quadro", js)
+        sucesso = js[js.index("return r.json();"):js.index(".catch(")]
+        self.assertNotIn("location.reload", sucesso)
+        self.assertIn("carta.replaceWith(nova)", sucesso)
+        self.assertIn("ligarCarta(nova)", sucesso)      # senao o cartao novo nao arrasta
+        self.assertIn("d.contas", sucesso)
+        # os ramos do erro continuam a repor o ecra pelo que a base diz
+        self.assertEqual(js.count("location.reload()"), 2)
+
+
+class TestContrasteNosFundosReais(unittest.TestCase):
+    """`--papel` não é o pior fundo.
+
+    A regra da casa dizia que os --t* passavam AA sobre --papel, "que é
+    o pior fundo". As colunas do quadro são --linha2, mais escuro, e os
+    três «pede o preço proposto» de 01/09/2026 estavam a 4,35:1 (medido
+    na UX-Auditoria.md de 02/09/2026). O teste calcula os contrastes a
+    partir do próprio CSS, para a próxima cor nova não passar sem ser
+    medida.
+    """
+
+    def _cores(self):
+        return dict(re.findall(r"(--[a-z0-9-]+):(#[0-9a-fA-F]{6})", radar.CSS))
+
+    @staticmethod
+    def _contraste(a, b):
+        def lum(h):
+            r, g, b_ = (int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+            f = lambda v: v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+            return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b_)
+        la, lb = lum(a), lum(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    def _regra(self, selector):
+        m = re.search(re.escape(selector) + r"\{([^}]*)\}", radar.CSS)
+        self.assertIsNotNone(m, selector)
+        return m.group(1)
+
+    def test_o_pede_da_coluna_passa_aa_sobre_a_coluna(self):
+        cores = self._cores()
+        token = re.search(r"color:var\((--t\d)\)", self._regra(".coluna-pede")).group(1)
+        fundo = re.search(r"background:var\((--[a-z0-9]+)\)", self._regra(".coluna")).group(1)
+        self.assertGreaterEqual(self._contraste(cores[token], cores[fundo]), 4.5)
+
+    def test_t1_a_t4_passam_sobre_todos_os_fundos_claros(self):
+        cores = self._cores()
+        for token in ("--t1", "--t2", "--t3", "--t4"):
+            for fundo in ("--papel", "--linha2", "--creme"):
+                self.assertGreaterEqual(
+                    self._contraste(cores[token], cores[fundo]), 4.5,
+                    "%s sobre %s" % (token, fundo))
+
+    def test_t5_e_t6_so_servem_sobre_branco_e_creme(self):
+        # e por isso que nao podem ir para a coluna do quadro nem para
+        # o papel: a regra do CLAUDE.md diz onde cada escala pode escrever
+        cores = self._cores()
+        for token in ("--t5", "--t6"):
+            self.assertGreaterEqual(self._contraste(cores[token], "#ffffff"), 4.5)
+            self.assertGreaterEqual(self._contraste(cores[token], cores["--creme"]), 4.5)
+            self.assertLess(self._contraste(cores[token], cores["--linha2"]), 4.5)
+
+
+class TestAlvosDeTextoA24px(unittest.TestCase):
+    """A área de clique era o próprio texto de 11 px.
+
+    «voltar a por ver» 85×11, «no calendário» 75×11, «Pôr por ver»
+    63×12, «Ver no DR» 57×12, «mudar» 34×13 (UX-Auditoria.md,
+    02/09/2026). O padrão era o mesmo em todos: background:none,
+    border:0, padding:0. A regra da cor mediu-se a 31/08; a área nunca.
+    O mínimo é 24 px (WCAG 2.5.8); a letra fica como está.
+    """
+
+    ALVOS = ("button.tirar", ".carta-pe a", ".bt-leve", ".sou button",
+             "button.etq-x", ".alerta .apagar")
+
+    def test_cada_alvo_de_texto_tem_24px_de_altura(self):
+        for selector in self.ALVOS:
+            m = re.search(re.escape(selector) + r"\{([^}]*)\}", radar.CSS)
+            self.assertIsNotNone(m, selector)
+            self.assertIn("min-height:24px", m.group(1), selector)
+            self.assertIn("box-sizing:border-box", m.group(1), selector)
+
+
+class TestFontesNaoBloqueiamAPrimeiraPintura(unittest.TestCase):
+    """A folha do Google Fonts era um <link rel=stylesheet> normal, que
+    bloqueia a pintura até chegar ou falhar: 12,6 s de página branca
+    neste ambiente sem saída para o domínio, com o servidor a responder
+    em 16 ms. «Sem rede continua legível» era verdade depois do timeout,
+    não antes.
+    """
+
+    def test_a_folha_das_fontes_carrega_sem_bloquear(self):
+        links = re.findall(r"<link[^>]*fonts\.googleapis\.com/css2[^>]*>", radar.BASE)
+        self.assertEqual(len(links), 2)     # a de JS e a de reserva
+        bloqueia = [l for l in links if 'media="print"' not in l]
+        self.assertEqual(len(bloqueia), 1)
+        # a que nao bloqueia troca o media ao carregar; a que bloqueia
+        # so existe dentro de <noscript>
+        self.assertIn("onload=\"this.media='all'\"", [l for l in links if l not in bloqueia][0])
+        self.assertIn("<noscript>" + bloqueia[0], radar.BASE)
+
+
+class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
+    """Marcar «interessa» ou «abandonar» fazia o POST e o cartão
+    desaparecia da aba sem uma palavra.
+
+    Medido na UX-Auditoria.md (02/09/2026): zero avisos depois das duas
+    acções, e o caminho de volta era ir à outra aba procurar o anúncio.
+    Enganar-se no cartão de baixo em vez do de cima é o erro mais fácil
+    numa lista de vinte com dois botões por linha.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        # marcar interessa poe as pecas na fila, e a fila e uma thread
+        # que vai a rede e abre a base -- a base do teste SEGUINTE, que
+        # aparecia "locked" sem razao visivel. Aqui nao ha pecas.
+        self._pedir = radar.pedir_documentos
+        radar.pedir_documentos = lambda ref: None
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo,"
+                      " url, estado) VALUES (?,?,?,?,?,?,?)",
+                      ("2/2026", "Aquisição de serviços de consultoria",
+                       "IFAP", "2026-08-01", "Anúncio de procedimento",
+                       "https://dr/2", "novo"))
+
+    def tearDown(self):
+        radar.pedir_documentos = self._pedir
+        super().tearDown()
+
+    def _params(self, r):
+        return dict(parse_qsl(urlparse(r.headers["Location"]).query))
+
+    def test_interessa_avisa_e_oferece_desfazer(self):
+        r = self.cliente.post("/estado/2/2026/interessa",
+                              headers={"Referer": "http://localhost:8765/?estado=novo"})
+        self.assertEqual(r.status_code, 302)
+        p = self._params(r)
+        self.assertIn("marcado como interessa", p["aviso"])
+        self.assertIn("Aquisição de serviços de consultoria", p["aviso"])
+        self.assertEqual(p["desfazer"], "/estado/2/2026/novo")
+        self.assertEqual(p["estado"], "novo")     # o filtro da pagina fica
+
+    def test_abandonar_avisa_com_o_motivo_e_o_desfazer_repoe(self):
+        r = self.cliente.post("/estado/2/2026/descartado",
+                              data={"motivo": radar.MOTIVOS_ABANDONO[0]})
+        p = self._params(r)
+        self.assertIn("abandonado (%s)" % radar.MOTIVOS_ABANDONO[0], p["aviso"])
+        self.assertEqual(p["desfazer"], "/estado/2/2026/novo")
+        r = self.cliente.post(p["desfazer"])
+        self.assertIn("reposto em por ver", self._params(r)["aviso"])
+        with radar.liga() as c:
+            a = c.execute("SELECT estado, motivo FROM anuncios WHERE ref='2/2026'").fetchone()
+        self.assertEqual((a["estado"], a["motivo"]), ("novo", None))
+
+    def test_desfazer_um_interessa_sobre_um_abandonado_leva_o_motivo(self):
+        # sem o motivo na accao, o servidor recusava a reposicao
+        self.cliente.post("/estado/2/2026/descartado",
+                          data={"motivo": radar.MOTIVOS_ABANDONO[1]})
+        r = self.cliente.post("/estado/2/2026/interessa")
+        p = self._params(r)
+        self.assertTrue(p["desfazer"].startswith("/estado/2/2026/descartado?motivo="))
+        r = self.cliente.post(p["desfazer"])
+        self.assertEqual(r.status_code, 302)
+        with radar.liga() as c:
+            a = c.execute("SELECT estado, motivo FROM anuncios WHERE ref='2/2026'").fetchone()
+        self.assertEqual((a["estado"], a["motivo"]), ("descartado", radar.MOTIVOS_ABANDONO[1]))
+
+    def test_repetir_o_mesmo_estado_avisa_mas_nao_oferece_desfazer(self):
+        self.cliente.post("/estado/2/2026/interessa")
+        p = self._params(self.cliente.post("/estado/2/2026/interessa"))
+        self.assertIn("marcado como interessa", p["aviso"])
+        self.assertNotIn("desfazer", p)
+
+    def test_o_aviso_anterior_sai_da_query_string(self):
+        r = self.cliente.post("/estado/2/2026/interessa", headers={
+            "Referer": "http://localhost:8765/?aviso=velho&desfazer=/estado/x/novo&estado="})
+        q = parse_qsl(urlparse(r.headers["Location"]).query, keep_blank_values=True)
+        self.assertEqual([k for k, _ in q].count("aviso"), 1)
+        self.assertEqual([k for k, _ in q].count("desfazer"), 1)
+        self.assertIn(("estado", ""), q)
+
+    def test_envolver_desenha_o_desfazer_como_botao_post(self):
+        with radar.app.test_request_context(
+                "/?aviso=feito&desfazer=/estado/2/2026/novo"):
+            pagina = radar.envolver("anuncios", "T", "S", "")
+        self.assertIn("<form class='accao desfazer' method='post' "
+                      "action='/estado/2/2026/novo'>", pagina)
+        self.assertIn(">desfazer</button>", pagina)
+
+    def test_so_aceita_caminhos_de_estado_no_desfazer(self):
+        with radar.app.test_request_context(
+                "/?aviso=feito&desfazer=https://exemplo.pt/x"):
+            pagina = radar.envolver("anuncios", "T", "S", "")
+        self.assertNotIn("class='accao desfazer'", pagina)
+        self.assertIn("feito", pagina)
+
+
+class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
+    """O quadro pintava «prazo expirado» a vermelho em 4 dos 9 cartões,
+    todos em fases pós-submissão, onde o prazo ter passado é o estado
+    normal (UX-Auditoria.md, 02/09/2026). O vermelho é a cor de alarme
+    da lista e puxava o olho para uma coisa que não pede acção nenhuma.
+    """
+
+    def _carta(self, papel, prazo="2026-08-03"):
+        a = {"ref": "9/2026", "titulo": "T", "entidade": "E", "prazo": prazo,
+             "preco_base": "175.000,00 EUR", "preco_proposto": "", "responsavel": "",
+             "posicao": None, "top3": "", "motivo_perda": ""}
+        return radar.cartao(a, {}, urgente=8, papel=papel)
+
+    def test_antes_do_submetido_o_prazo_e_alarme(self):
+        for papel in ("analisar", "proposta"):
+            self.assertIn("prazo expirado", self._carta(papel))
+            self.assertIn("class='tag mau'", self._carta(papel))
+
+    def test_a_partir_do_submetido_e_uma_data_neutra(self):
+        for papel in radar.FASES_COM_PROPOSTO:
+            carta = self._carta(papel)
+            self.assertNotIn("prazo expirado", carta)
+            self.assertNotIn("tag mau", carta)
+            self.assertIn("prazo 03/08/2026", carta)
+
+    def test_um_prazo_ainda_aberto_tambem_e_neutro_depois_de_submeter(self):
+        # a proposta ja foi entregue: contar os dias que faltam e ruido
+        futuro = (datetime.date.today() + datetime.timedelta(days=3)).isoformat()
+        carta = self._carta("submetido", futuro)
+        self.assertNotIn("dias", carta)
+        self.assertIn("prazo " + radar.data_pt(futuro), carta)
+
+    def test_sem_prazo_nao_ha_pilula(self):
+        self.assertNotIn("prazo", self._carta("submetido", "").split("carta-meta")[1].split("</div>")[0])
 
 
 class TestAColunaDizOQuePede(unittest.TestCase):

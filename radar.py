@@ -5906,7 +5906,8 @@ aside nav a.sub.on b{font-weight:600}
 .sou input:focus{border-bottom-color:var(--coral)}
 .sou input:focus:not(:focus-visible){outline:none}
 .sou button{background:none;border:0;color:var(--barra-t3);cursor:pointer;
- font:400 10.5px/1.2 var(--sans);padding:0;flex:none}
+ font:400 10.5px/1.2 var(--sans);flex:none;
+ padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .sou button:hover{color:#fff}
 
 /* zona principal */
@@ -5968,6 +5969,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
  padding:11px 15px;margin-bottom:14px;font:500 12.5px/1.4 var(--sans);
  color:var(--azul)}
 .flash.mau{background:var(--verm-fundo);border-color:#f0cfc7;color:var(--verm)}
+.flash form.desfazer{margin-left:10px;vertical-align:middle}
 .flash code{font:500 11.5px/1 var(--mono);background:rgba(0,0,0,.06);
  padding:2px 6px;border-radius:4px}
 .tag{font:500 10.5px/1 var(--sans);padding:4px 7px;border-radius:4px;
@@ -6040,7 +6042,8 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .alerta .avisa-mal{display:block;font:400 10.5px/1.4 var(--sans);
  color:var(--laranja);margin-top:3px}
 .alerta .apagar{cursor:pointer;border:0;background:none;color:var(--t6);
- font:500 17px/1 var(--sans);padding:0 2px}
+ font:500 17px/1 var(--sans);padding:0 4px;
+ min-width:24px;min-height:24px;box-sizing:border-box}
 .alerta .apagar:hover{color:var(--verm)}
 .alerta form{display:flex;flex:none}
 .conf-email{padding:20px 22px}
@@ -6417,8 +6420,9 @@ dialog.modal .modal-pe button[type=submit]:hover{filter:brightness(1.08)}
 .ficha-indice .nota-modo{font:400 11.5px/1 var(--sans);color:var(--t4)}
 /* accoes de segunda linha: sao ligacoes, nao botoes -- competiam com o
    "Interessa" quando eram seis caixas iguais lado a lado */
-.bt-leve{cursor:pointer;background:none;border:0;padding:0;
- font:500 11.5px/1 var(--sans);color:var(--t3);display:inline-block}
+.bt-leve{cursor:pointer;background:none;border:0;
+ font:500 11.5px/1 var(--sans);color:var(--t3);display:inline-block;
+ padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .bt-leve:hover{color:var(--azul);text-decoration:underline}
 .ficha-dossier{display:flex;flex-direction:column;gap:14px}
 .ficha-dossier>#mercado{display:flex;flex-direction:column;gap:14px}
@@ -6615,7 +6619,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .fase-nome:focus:not(:focus-visible){outline:none}
 .coluna-conta{font:600 10.5px/1 var(--mono);color:var(--t3)}
 /* o que a coluna pergunta, para se ver sem ter de lá pôr um cartão */
-.coluna-pede{flex:1 1 100%;font:500 10.5px/1.3 var(--sans);color:var(--t5);
+.coluna-pede{flex:1 1 100%;font:500 10.5px/1.3 var(--sans);color:var(--t4);
  letter-spacing:.01em}
 /* o que a fase pede ao cartao: so aparece na coluna que o pede, e por
    isso e um bloco proprio e nao mais uma linha da meta */
@@ -6651,10 +6655,12 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
  color:#fff;font:600 10.5px/1.3 var(--sans)}
 .etq form.accao{display:inline-flex}
 button.etq-x{background:none;border:0;color:#fff;opacity:.6;cursor:pointer;
- padding:0;font-size:12px;line-height:1}
+ font-size:12px;line-height:1;padding:6px;margin:-6px -4px -6px 0;
+ min-width:24px;min-height:24px;box-sizing:border-box}
 button.etq-x:hover{opacity:1}
-button.tirar{background:none;border:0;padding:0;cursor:pointer;
- font:400 11px/1 var(--sans);color:var(--t6)}
+button.tirar{background:none;border:0;cursor:pointer;
+ font:400 11px/1 var(--sans);color:var(--t6);
+ padding:7px 4px;margin:-7px 0;min-height:24px;box-sizing:border-box}
 button.tirar:hover{color:var(--verm)}
 .etq-form input{padding:3px 7px;border-radius:4px;border:1px dashed var(--traco);
  background:transparent;font:500 10.5px/1.3 var(--sans);color:var(--t5);width:78px}
@@ -6662,7 +6668,8 @@ button.tirar:hover{color:var(--verm)}
 .etq-form input:focus:not(:focus-visible){outline:none}
 .carta-pe{display:flex;align-items:center;margin-top:11px;padding-top:9px;
  border-top:1px solid var(--papel)}
-.carta-pe a{font:400 11px/1 var(--sans);color:var(--t6)}
+.carta-pe a{font:400 11px/1 var(--sans);color:var(--t6);display:inline-block;
+ padding:7px 4px;margin:-7px 0;min-height:24px;box-sizing:border-box}
 .carta-pe a:hover{color:var(--verm)}
 .carta-pe .av{margin-left:auto;width:20px;height:20px;border-radius:50%;
  background:var(--linha);font:600 9px/20px var(--sans);color:var(--t3);text-align:center}
@@ -6752,7 +6759,8 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <title>%(titulo_aba)s</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
 <style>%(css)s</style></head><body>
 <div class="app">
 <aside>
@@ -7009,8 +7017,21 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     # redireccionamento. Nao vai para a base: e da vez, nao do sistema --
     # e assim nao se confunde "peças trazidas" com "verificação correu bem".
     texto_aviso = (request.args.get("aviso") or "").strip()
-    aviso = ("<div class='flash'>%s</div>" % html.escape(texto_aviso)) \
-        if texto_aviso else ""
+    desfazer = (request.args.get("desfazer") or "").strip()
+    aviso = ""
+    if texto_aviso:
+        # O "desfazer" e a segunda metade do aviso (UX-Auditoria.md,
+        # 02/09/2026): triar a linha errada numa lista de vinte com dois
+        # botoes por linha e o erro mais facil de cometer, e ate aqui o
+        # cartao desaparecia sem uma palavra -- o caminho de volta era ir
+        # a outra aba procura-lo. So se aceita um caminho de estado, nao
+        # um endereco qualquer vindo da query string.
+        volta = ""
+        if desfazer.startswith("/estado/"):
+            volta = ("<form class='accao desfazer' method='post' action='%s'>"
+                     "<button type='submit' class='mini'>desfazer</button>"
+                     "</form>" % html.escape(desfazer, quote=True))
+        aviso = "<div class='flash'>%s%s</div>" % (html.escape(texto_aviso), volta)
 
     # O aviso que faltava. Sem as tarefas do Windows, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
@@ -8791,15 +8812,24 @@ def verificar_agora():
     return redirect(volta)
 
 
-def _volta_com_aviso(texto):
+def _volta_com_aviso(texto, desfazer=None):
     """De volta a pagina de onde se carregou, com um aviso por cima.
 
     O mesmo caminho do "Verificar agora": a accao vem de tres sitios
     diferentes (lista, ficha, quadro) e cada um tem de voltar ao seu.
+
+    O `desfazer` e o caminho POST que repoe o que se acabou de fazer, e
+    envolver() desenha-o como botao dentro do aviso. O aviso anterior
+    sai da query string antes de se por o novo: quem desfaz a partir de
+    uma pagina que ja tinha ?aviso=... voltava com os dois.
     """
-    volta = request.referrer or "/"
-    junta = "&" if "?" in volta else "?"
-    return redirect(volta + junta + urlencode({"aviso": texto}))
+    partes = urlparse(request.referrer or "/")
+    fica = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
+            if k not in ("aviso", "desfazer")]
+    fica.append(("aviso", texto))
+    if desfazer:
+        fica.append(("desfazer", desfazer))
+    return redirect(partes._replace(query=urlencode(fica)).geturl())
 
 
 @app.route("/estado/<path:ref>/<novo>", methods=["POST"])
@@ -8809,7 +8839,10 @@ def mudar_estado(ref, novo):
         # 01/09/2026). Passado um mes, "abandonado" sozinho nao diz nada:
         # nao se sabe se foi o preco, se foi falta de certificacoes, nem
         # se vale a pena voltar a olhar para aquela entidade.
-        motivo = (request.form.get("motivo") or "").strip()
+        # request.values e nao request.form: o "desfazer" de um
+        # abandono reposto leva o motivo antigo na propria accao do
+        # formulario (?motivo=...), porque o aviso vem pela query string
+        motivo = (request.values.get("motivo") or "").strip()
         if novo == "descartado" and motivo not in MOTIVOS_ABANDONO:
             return _volta_com_aviso("Escolhe o motivo antes de abandonar.")
         with liga() as c:
@@ -8825,8 +8858,8 @@ def mudar_estado(ref, novo):
                 "O anúncio %s é uma alteração do %s: decide-se na ficha dele."
                 % (ref, raiz or "original"))
         with liga() as c:
-            antes = c.execute("SELECT estado FROM anuncios WHERE ref=?",
-                              (ref,)).fetchone()
+            antes = c.execute("SELECT estado, titulo, motivo FROM anuncios "
+                              "WHERE ref=?", (ref,)).fetchone()
             ja_estava = bool(antes) and antes["estado"] == novo
             if novo == "interessa":
                 c.execute("""UPDATE anuncios SET estado=?, motivo=NULL,
@@ -8851,6 +8884,21 @@ def mudar_estado(ref, novo):
             # aparecer tambem em quem ja estava interessado, cada clique
             # repetido voltava a descarregar as pecas todas.
             pedir_documentos(ref)
+        if not antes:
+            return redirect(request.referrer or "/")
+        # O aviso diz o que se fez e a quem, e traz o caminho de volta.
+        # Se o estado anterior era um abandono com motivo, o motivo vai
+        # na accao do desfazer: sem ele o servidor recusava a reposicao.
+        rotulo = {"interessa": "marcado como interessa",
+                  "descartado": "abandonado" + (" (%s)" % motivo if motivo else ""),
+                  "novo": "reposto em por ver"}[novo]
+        texto = "\u00ab%s\u00bb %s." % (corta(antes["titulo"] or ref, 70), rotulo)
+        desfazer = None
+        if not ja_estava and (antes["estado"] != "descartado" or antes["motivo"]):
+            desfazer = "/estado/%s/%s" % (ref, antes["estado"])
+            if antes["estado"] == "descartado":
+                desfazer += "?" + urlencode({"motivo": antes["motivo"]})
+        return _volta_com_aviso(texto, desfazer)
     return redirect(request.referrer or "/")
 
 
@@ -12497,7 +12545,7 @@ function renomearFase(campo) {
   campo.form.requestSubmit();
 }
 
-document.querySelectorAll('.carta').forEach(function(carta) {
+function ligarCarta(carta) {
   carta.addEventListener('dragstart', function(e) {
     e.dataTransfer.setData('text/plain', carta.dataset.ref);
     carta.classList.add('arrastando');
@@ -12505,7 +12553,8 @@ document.querySelectorAll('.carta').forEach(function(carta) {
   carta.addEventListener('dragend', function() {
     carta.classList.remove('arrastando');
   });
-});
+}
+document.querySelectorAll('.carta').forEach(ligarCarta);
 document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
   corpo.addEventListener('dragover', function(e) {
     e.preventDefault(); corpo.classList.add('sobre');
@@ -12536,42 +12585,35 @@ document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
     }).then(function(r) {
       // o cartao ja foi movido no ecra; se o servidor recusou, o ecra
       // esta a mentir e tem de voltar ao que a base diz
-      if (!r.ok) { alert('Não foi possível mover o cartão.'); location.reload(); }
-      // E se aceitou, recarrega-se na mesma: o cartao que foi arrastado
-      // e o MESMO no DOM, com o HTML da coluna de onde veio. Quem o
-      // desenha e o servidor, e o que ele desenha depende da fase --
-      // arrastar para "Submetido" mudava a coluna e nao fazia aparecer
-      // o campo do preco proposto, nem trocava o preco base pelo
-      // proposto, nem corrigia a soma no cabecalho das duas colunas.
-      // O Afonso arrastou um cartao para o Submetido e "nao aconteceu
-      // nada" -- e tinha acontecido, so nao no ecra dele.
-      else { guardarRolarQuadro(); location.reload(); }
+      if (!r.ok) { alert('Não foi possível mover o cartão.'); location.reload(); return null; }
+      return r.json();
+    }).then(function(d) {
+      if (!d) return;
+      // O cartao que foi arrastado e o MESMO no DOM, com o HTML da
+      // coluna de onde veio. Quem o desenha e o servidor, e o que ele
+      // desenha depende da fase -- arrastar para "Submetido" mudava a
+      // coluna e nao fazia aparecer o campo do preco proposto, nem
+      // trocava o preco base pelo proposto, nem corrigia a soma no
+      // cabecalho das duas colunas (o Afonso arrastou um cartao para o
+      // Submetido e "nao aconteceu nada"). Ate 02/09/2026 a resposta
+      // era recarregar a pagina; agora o servidor devolve o cartao
+      // redesenhado e as contagens das duas colunas, e troca-se so isso.
+      var molde = document.createElement('div');
+      molde.innerHTML = d.carta || '';
+      var nova = molde.firstElementChild;
+      if (nova) { carta.replaceWith(nova); ligarCarta(nova); }
+      Object.keys(d.contas || {}).forEach(function(fase) {
+        var corpo2 = document.querySelector('.coluna-corpo[data-fase="' + fase + '"]');
+        var coluna = corpo2 && corpo2.closest('.coluna');
+        var conta = coluna && coluna.querySelector('.coluna-conta');
+        if (conta) conta.outerHTML = d.contas[fase];
+      });
     }).catch(function() {
       alert('Falhou a gravar, recarrega a página.'); location.reload();
     });
   });
 });
 
-// O quadro rola na horizontal e o recarregar punha-o outra vez no
-// principio: arrastar para a ultima coluna atirava a vista para a
-// primeira, que se le como "perdi o cartao".
-function guardarRolarQuadro() {
-  try {
-    var q = document.querySelector('.quadro');
-    sessionStorage.setItem('radar-quadro', JSON.stringify(
-        {x: q ? q.scrollLeft : 0, y: window.scrollY}));
-  } catch (e) {}
-}
-(function () {
-  try {
-    var v = JSON.parse(sessionStorage.getItem('radar-quadro') || 'null');
-    if (!v) return;
-    sessionStorage.removeItem('radar-quadro');
-    var q = document.querySelector('.quadro');
-    if (q) q.scrollLeft = v.x;
-    window.scrollTo(0, v.y);
-  } catch (e) {}
-})();
 </script>"""
 
 
@@ -12641,9 +12683,20 @@ def _campos_da_fase(a, papel):
 
 
 def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
-    texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
-    prazo_html = ("<span class='tag %s'>&#9679; %s</span>"
-                  % (classe_prazo, texto_prazo)) if texto_prazo else ""
+    if papel in FASES_COM_PROPOSTO and a["prazo"]:
+        # A partir do "Submetido" o prazo ter passado e o estado normal:
+        # a proposta foi entregue. A pilula vermelha "prazo expirado" e a
+        # cor de alarme da lista, e a auditoria de 02/09/2026 encontrou-a
+        # em 4 dos 9 cartoes do quadro, todos em fases pos-submissao --
+        # a puxar o olho para uma coisa que nao pede accao nenhuma e a
+        # roubar forca ao "3 dias" laranja de quem ainda prepara proposta.
+        prazo_html = ("<span class='tag' title='prazo das propostas; a partir "
+                      "do Submetido já não é alarme'>prazo %s</span>"
+                      % data_pt(a["prazo"]))
+    else:
+        texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
+        prazo_html = ("<span class='tag %s'>&#9679; %s</span>"
+                      % (classe_prazo, texto_prazo)) if texto_prazo else ""
     # Quadro <-> Calendario sao duas vistas do mesmo conjunto (§5 do
     # ESQUELETO): o cartao aponta para a SUA linha na grade, por ancora.
     # So quando o prazo cabe na janela -- fora dela a ancora nao existe
@@ -12703,6 +12756,59 @@ def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
            vai_calendario, dono))
 
 
+def conta_da_coluna(itens, papel):
+    """O <span class='coluna-conta'> de uma coluna do quadro: quantos
+    cartoes e, se houver precos lidos, a soma.
+
+    B11: o valor da fase ao lado da contagem, como o kanban da SpotGov.
+    So os precos lidos contam, e o title di-lo. A partir do "Submetido"
+    soma-se o PROPOSTO: a soma dos precos base numa coluna de submetidos
+    e o tecto da entidade, nao o que esta em jogo, e tinha o mesmo ar de
+    numero certo.
+
+    Vive em funcao propria porque /quadro/mover a devolve para as duas
+    colunas tocadas: e assim que o quadro deixa de recarregar a pagina
+    depois de um arrasto.
+    """
+    coluna_preco = ("preco_proposto" if papel in FASES_COM_PROPOSTO
+                    else "preco_base")
+    soma, com_preco = soma_precos_base(itens, coluna_preco)
+    valor_fase = ""
+    if soma:
+        valor_fase = (" <span title='soma dos preços %s: %d de "
+                      "%d anúncios têm preço'>· %s</span>"
+                      % ("propostos" if coluna_preco == "preco_proposto"
+                         else "base lidos",
+                         com_preco, len(itens), euros_curto(soma)))
+    return "<span class='coluna-conta'>%d%s</span>" % (len(itens), valor_fase)
+
+
+def carta_e_contas(ref, fases_tocadas):
+    """Para o /quadro/mover: o cartao redesenhado na fase em que esta e
+    a contagem de cada coluna tocada, por id de fase (em texto, porque
+    vai em JSON)."""
+    urgente = dias_urgente()
+    fases = {f["id"]: f for f in listar_fases()}
+    with liga() as c:
+        a = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        etiquetas = c.execute(
+            "SELECT e.* FROM etiquetas e JOIN anuncio_etiquetas ae "
+            "ON ae.etiqueta_id = e.id WHERE ae.ref=? ORDER BY e.nome",
+            (ref,)).fetchall()
+        contas = {}
+        for fid in fases_tocadas:
+            if fid not in fases:
+                continue
+            itens = c.execute("SELECT * FROM anuncios WHERE estado='interessa' "
+                              "AND fase_id=?", (fid,)).fetchall()
+            contas[str(fid)] = conta_da_coluna(
+                itens, _valor(fases[fid], "papel") or "")
+    papel = (_valor(fases[a["fase_id"]], "papel") or "") \
+        if a and a["fase_id"] in fases else ""
+    carta = cartao(a, {ref: list(etiquetas)}, urgente, papel) if a else ""
+    return carta, contas
+
+
 def soma_precos_base(itens, coluna="preco_base"):
     """(soma, quantos com preco) de uma coluna do quadro.
 
@@ -12754,16 +12860,6 @@ def quadro():
         # do "Submetido" soma-se o PROPOSTO: a soma dos precos base numa
         # coluna de submetidos e o tecto da entidade, nao o que esta em
         # jogo, e tinha o mesmo ar de numero certo.
-        coluna_preco = ("preco_proposto" if papel in FASES_COM_PROPOSTO
-                        else "preco_base")
-        soma, com_preco = soma_precos_base(itens, coluna_preco)
-        valor_fase = ""
-        if soma:
-            valor_fase = (" <span title='soma dos preços %s: %d de "
-                          "%d anúncios têm preço'>· %s</span>"
-                          % ("propostos" if coluna_preco == "preco_proposto"
-                             else "base lidos",
-                             com_preco, len(itens), euros_curto(soma)))
         # O que a coluna pergunta, dito no cabecalho: com tudo em "Por
         # analisar" (o caso normal) nao havia nada no ecra a dizer que o
         # "Submetido" pede o preco proposto, e a funcionalidade parecia
@@ -12774,10 +12870,11 @@ def quadro():
             "<form method='post' action='/quadro/fase/%d/renomear'>"
             "<input class='fase-nome' type='text' name='nome' value='%s' "
             "data-antes='%s' required onblur='renomearFase(this)'></form>"
-            "<span class='coluna-conta'>%d%s</span>%s</div>"
+            "%s%s</div>"
             "<div class='coluna-corpo' data-fase='%d'>%s</div></div>"
             % (f["id"], html.escape(f["nome"], quote=True),
-               html.escape(f["nome"], quote=True), len(itens), valor_fase,
+               html.escape(f["nome"], quote=True),
+               conta_da_coluna(itens, papel),
                ("<span class='coluna-pede'>%s</span>" % html.escape(pede))
                if pede else "",
                f["id"], corpo))
@@ -13329,12 +13426,20 @@ def quadro_mover():
         fase = c.execute("SELECT nome FROM fases WHERE id=?", (fase_id,)).fetchone()
         if not fase:
             return {"ok": False, "erro": "fase inexistente"}, 404
-        cur = c.execute("UPDATE anuncios SET fase_id=? "
-                        "WHERE ref=? AND estado='interessa'", (fase_id, ref))
-        if not cur.rowcount:
+        antes = c.execute("SELECT fase_id FROM anuncios WHERE ref=? "
+                          "AND estado='interessa'", (ref,)).fetchone()
+        if not antes:
             return {"ok": False, "erro": "anúncio não está no quadro"}, 404
+        c.execute("UPDATE anuncios SET fase_id=? WHERE ref=?", (fase_id, ref))
     registar(ref, "fase", fase["nome"])
-    return {"ok": True}
+    # O cartao redesenhado e as contagens das duas colunas, para o
+    # cliente trocar so isso em vez de recarregar a pagina: quem decide o
+    # que o cartao mostra e o servidor, pela fase (o campo do proposto, o
+    # preco que se le, a soma no cabecalho), e ate 02/09/2026 a unica
+    # forma de o ecra ficar certo era um location.reload() depois de cada
+    # arrasto.
+    carta, contas = carta_e_contas(ref, {antes["fase_id"], fase_id})
+    return {"ok": True, "carta": carta, "contas": contas}
 
 
 # As fases criam-se e apagam-se? Ja nao (decisao do Afonso a
