@@ -1916,7 +1916,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 634 testes a 02/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 645 testes a 02/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4963,3 +4963,72 @@ existe porque o servidor não devolve o cartão redesenhado. As
 propostas e a ordem estão na Parte 4 do `UX-Auditoria.md`; cinco delas
 pedem decisão dele (filtros recolhidos, essencial encurtado, teclado)
 e o resto é meia jornada sem mudar hábitos.
+
+## As digitalizações lêem-se por OCR, 2 de setembro de 2026
+
+O buraco medido em Agosto: dos 12 Cadernos de Encargos e Programas
+reais, 2 são digitalizações sem camada de texto, ficavam em
+`texto_estado='scan'` e a leitura pelo modelo nem arrancava («os
+documentos deste concurso são digitalizações»). Um em seis, e são os
+das entidades mais pequenas.
+
+**O que se mediu antes de escrever**, num PDF sintético de duas páginas
+A4 a 150 dpi com texto português (cláusula, cedilhas, «175.000,00
+EUR»), aqui, em CPU:
+
+- **`rapidocr_onnxruntime` 1.4** (16 MB, modelos chineses/ingleses):
+  lê tudo mas perde os acentos («Clausula», «execucäo») e leu
+  **«175.oo0,00»**, que o `euros_do_texto()` não come. A 2× não
+  melhora. Não serve.
+- **`rapidocr` 3.9** (27 MB): o modelo que a própria roda traz
+  (`PP-OCRv6_rec_small`, dicionário de 18 708 caracteres com ç, ã, é,
+  õ) lê as 10 linhas em 10, acentos inteiros e o preço certo, com
+  confiança ≥ 0,98. **Não descarrega nada** — importa porque os
+  espelhos dele (ModelScope, Hugging Face, GitHub releases) estão
+  bloqueados deste ambiente, e na pen seria uma dependência da rede no
+  primeiro uso. 0,4 s a arrancar, **~5 s por página**: uma peça de 27
+  páginas são uns dois minutos, em thread de fundo.
+- O PaddleOCR inteiro nem se instalou: são os mesmos modelos, com
+  centenas de MB de framework por cima. Só se voltará a olhar para ele
+  se as tabelas dos perfis pedirem o PP-Structure.
+
+**O que mudou no `radar.py`**, banda «OCR das peças digitalizadas»:
+
+- `motor_ocr()` carrega o RapidOCR uma vez por processo, e só quando há
+  mesmo o que ler; se não estiver instalado ou não arrancar, a razão
+  fica em `ocr_ultimo_erro` (indicadores) e não se volta a tentar nesse
+  processo.
+- `texto_por_ocr()` desenha cada página com o PyMuPDF (o mesmo do
+  visualizador, a 2×), passa-a ao motor como imagem BGR e junta as
+  linhas com a marca `\f` de sempre — a ficha e a análise não sabem
+  que veio do OCR, excepto onde se diz de propósito.
+- **Os estados**: `ok` (pypdf), `ocr` (texto pelo OCR), `scan` (sem
+  camada de texto e **ainda sem OCR tentado**), `imagem` (o OCR correu
+  e não achou texto). `extrair_textos()` ganhou uma segunda passagem:
+  os `scan` com ficheiro em disco vão ao OCR quando há motor, uma vez
+  por documento; um `scan` sem ficheiro ou sem motor fica como está.
+  Os ZIPs com PDF digitalizado lá dentro também. Quem consome texto
+  (`documentos_com_texto()`) pergunta por `IN ('ok','ocr')`.
+- A ficha diz «Texto extraído da peça (por OCR)» e avisa que pode ter
+  erros; a análise, quando não há texto, distingue «OCR por instalar»
+  de «o OCR não encontrou texto»; a saúde dos indicadores tem a linha
+  «OCR das digitalizações». `"ocr": false` no config.json desliga.
+- `requirements.txt` ganhou `rapidocr` e `onnxruntime` (o rapidocr não
+  declara o onnxruntime). Uma armadilha: o `omegaconf` que ele puxa
+  compila o `antlr4` 4.9 do código fonte, e neste ambiente (setuptools
+  do Debian) a compilação falha; instalou-se à mão. Na pen é para
+  medir; se falhar, `--no-build-isolation`.
+- **Onze testes** (`TestOcrDasPecas`) com um motor falso: as páginas
+  pela marca, a imagem a cores, sem motor fica `scan`, sem texto dá
+  `imagem`, a segunda passagem só com ficheiro, o `scan` novo lê-se
+  na mesma chamada, desligado no config não faz nada, o ZIP, o que
+  conta para a análise, o que a ficha diz, a marca na saúde. **645
+  testes.** O motor verdadeiro mediu-se à parte, sobre o PDF sintético,
+  de ponta a ponta pela mesma `texto_por_ocr()`: 2 páginas, 9 s, texto
+  certo.
+
+**Por validar na pen** (não se consegue daqui): instalar
+(`python\python.exe -m pip install rapidocr onnxruntime`), o custo real
+por página no PC, e os dois CE digitalizados que estão na base — é a
+primeira leitura a sério. A vigilância da lista de peças dos marcados
+fica a seguir.
