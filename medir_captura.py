@@ -19,7 +19,7 @@ e que aqui se confirma ou desmente contra o portal verdadeiro:
 Corre no PC (o DR nao responde de fora), le as capturas e NUNCA as
 escreve. Escreve o relatorio em amostras/medicao_captura.txt e no ecra.
 
-    python medir_captura.py
+    python medir_captura.py        (ou medir.bat, que abre o relatorio)
 """
 import json
 import os
