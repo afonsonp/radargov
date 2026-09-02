@@ -23,7 +23,10 @@ O DR e uma aplicacao OutSystems. Duas voltas (02/09/2026) mediram:
 A terceira volta faz a renovacao de ponta a ponta -- token do
 OutSystems.js, versionToken e script do moduleinfo, apiVersion do
 script -- e prova-a com um pedido de pesquisa e um de detalhe feitos
-so com isso e a forma do corpo da captura.
+so com isso e a forma do corpo da captura. Provou (02/09/2026, 25
+anuncios e 1 detalhe com cabecalhos minimos), e a receita passou para
+o radar.py: renovar_pecas_dr() e perguntar_ao_dr(). Isto fica como o
+instrumento de medida, para quando o DR mudar.
 
 Corre no PC (o DR nao responde de fora), le as capturas e NUNCA as
 escreve. Relatorio em amostras/medicao_captura.txt; guarda tambem em

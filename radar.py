@@ -667,6 +667,11 @@ def marca_erro(chave, tipo, texto):
 def registar_expiracao_token(qual, mensagem):
     """E4: guarda QUANDO o token expirou e de quando era a captura.
 
+    Desde 02/09/2026 so se chega aqui quando o DR nao aceita o pedido
+    NEM depois de perguntar_ao_dr() renovar as pecas a forca: o token e
+    a apiVersion ja nao vem da captura, vem do proprio portal. O que
+    resta a captura e a forma do corpo, e e essa que se refaz.
+
     A frequencia de expiracao nunca foi reconstruivel -- as marcas eram
     sobrescritas e o token e opaco (nao traz validade). Sabe-se so o
     piso (>= 8 dias, medido a 31/08/2026); esta serie e o instrumento
@@ -834,6 +839,169 @@ def limpa_resultados(variaveis):
             pass
 
 
+# ------------------------------------ as pecas do DR renovam-se sozinhas
+#
+# Medido a 02/09/2026 (medir_captura.py, tres voltas contra o portal):
+# o "token" das capturas nao e de sessao nenhuma. O DR e uma aplicacao
+# OutSystems e o x-csrftoken e o AnonymousCSRFToken publicado, a claras,
+# em /dr/scripts/OutSystems.js -- so muda quando o DR actualiza a
+# plataforma, e foi por isso que a captura de 23/08 ainda servia a
+# 02/09. Sem cookie o DR nem o verifica (ate um inventado passa); com
+# cookie verifica-o contra o crf do cookie. A moduleVersion nao tranca:
+# o DR ja tinha republicado (hasModuleVersionChanged) e respondia na
+# mesma. A unica tranca real e a apiVersion de cada accao, que vive no
+# script compilado do ecra (dr.Pesquisas.PesquisaResultado.mvc.js), e
+# esse script esta listado, com a versao, no manifest.urlVersions do
+# moduleinfo -- que responde a um GET sem sessao. Errada, o DR responde
+# JSON vazio com versionInfo.hasApiVersionChanged=true.
+#
+# Portanto tres GETs (moduleinfo, OutSystems.js, o script do ecra)
+# renovam as tres pecas, e provou-se com pedidos de pesquisa e de
+# detalhe feitos so com cabecalhos minimos e o corpo da captura. As
+# capturas ficam a servir pela FORMA do corpo (as variaveis do ecra),
+# e essa nao expira. Quando renovar nao der (sem rede, o DR mudou de
+# forma) fica-se com a captura tal como esta, que e o comportamento
+# de sempre; o aviso de expiracao so se regista quando nem a renovacao
+# a forca salva o pedido.
+
+DR_RAIZ = "https://diariodarepublica.pt"
+DR_MODULEINFO = DR_RAIZ + "/dr/moduleservices/moduleinfo"
+DR_OUTSYSTEMS_JS = "/dr/scripts/OutSystems.js"
+VALIDADE_PECAS_DR = 6 * 3600     # segundos; a forca quando o DR o pede
+_PECAS_DR = {"quando": 0.0, "token": "", "modulo": "", "api": {}}
+_TRINCO_PECAS_DR = threading.Lock()
+
+
+def script_do_ecra(url_accao):
+    """De .../screenservices/dr/Pesquisas/PesquisaResultado/DataActionX
+    para ('/dr/scripts/dr.Pesquisas.PesquisaResultado.mvc.js', 'DataActionX').
+    E a convencao do OutSystems: o script do ecra chama-se pelo caminho
+    da accao, com pontos."""
+    partes = urlparse(url_accao).path.split("/screenservices/", 1)
+    if len(partes) != 2:
+        return "", ""
+    pedacos = partes[1].strip("/").split("/")
+    if len(pedacos) < 2:
+        return "", ""
+    return "/dr/scripts/" + ".".join(pedacos[:-1]) + ".mvc.js", pedacos[-1]
+
+
+def api_version_do_script(js, accao):
+    """A apiVersion da accao no script compilado do ecra. Lido de um
+    script real: controller.callDataAction("DataActionGetPesquisas",
+    "screenservices/dr/Pesquisas/PesquisaResultado/DataActionGetPesquisas",
+    "PRsQKjEXDVBC3ZSqkS8k6A", ...)."""
+    m = re.search(r'callDataAction\(\s*"%s"\s*,\s*"[^"]*"\s*,\s*"([^"]+)"'
+                  % re.escape(accao), js)
+    return m.group(1) if m else ""
+
+
+def renovar_pecas_dr(url_accoes, forcar=False, buscar=None):
+    """As tres pecas de cada accao do DR, renovadas por GET.
+
+    Devolve {"token", "modulo", "api": {url_accao: apiVersion}} ou None
+    quando nao da (sem rede, o DR mudou de forma) -- nunca levanta, e
+    quem chama fica com a captura tal como esta. Cache por processo
+    com validade; `forcar` ignora-a, e e o que se faz quando o DR
+    responde a casca ou hasApiVersionChanged. `buscar` e o requests.get,
+    trocavel nos testes.
+    """
+    buscar = buscar or requests.get
+    cabecalhos = {"User-Agent": NAVEGADOR, "Accept": "*/*"}
+    with _TRINCO_PECAS_DR:
+        cache = _PECAS_DR
+        faltam = [u for u in url_accoes if u not in cache["api"]]
+        fresca = time.time() - cache["quando"] < VALIDADE_PECAS_DR
+        if cache["token"] and not faltam and fresca and not forcar:
+            return {"token": cache["token"], "modulo": cache["modulo"],
+                    "api": dict(cache["api"])}
+        try:
+            manifesto = buscar(DR_MODULEINFO, headers=cabecalhos,
+                               timeout=60).json()["manifest"]
+            modulo = str(manifesto["versionToken"])
+            versoes = manifesto["urlVersions"]
+            js = buscar(DR_RAIZ + DR_OUTSYSTEMS_JS
+                        + versoes.get(DR_OUTSYSTEMS_JS, ""),
+                        headers=cabecalhos, timeout=60).text
+            m = re.search(r'AnonymousCSRFToken\s*=\s*"([^"]+)"', js)
+            if not m:
+                raise ValueError("o OutSystems.js nao traz AnonymousCSRFToken")
+            token = m.group(1)
+            api = {}
+            for url in url_accoes:
+                caminho, accao = script_do_ecra(url)
+                if caminho not in versoes:
+                    raise ValueError("%s nao esta no manifesto" % caminho)
+                js = buscar(DR_RAIZ + caminho + versoes[caminho],
+                            headers=cabecalhos, timeout=60).text
+                valor = api_version_do_script(js, accao)
+                if not valor:
+                    raise ValueError("sem apiVersion para " + accao)
+                api[url] = valor
+        except (requests.RequestException, ValueError, KeyError,
+                TypeError, AttributeError) as erro:
+            marca_erro("pecas_dr_ultimo_erro", "pecas-dr", str(erro)[:200])
+            return None
+        cache["quando"], cache["token"], cache["modulo"] = time.time(), token, modulo
+        cache["api"].update(api)
+        return {"token": token, "modulo": modulo, "api": dict(cache["api"])}
+
+
+def pedido_renovado(pedido, molde, pecas):
+    """(cabecalhos, corpo) do pedido da captura com as pecas por cima:
+    sem Cookie (com cookie o DR verifica o token contra o crf de la;
+    sem cookie aceita o token publico), o token, a moduleVersion e a
+    apiVersion da accao. Sem pecas, a captura tal como esta."""
+    if not pecas or pedido["url"] not in pecas.get("api", {}):
+        return pedido["headers"], molde
+    cabecalhos = {k: v for k, v in pedido["headers"].items()
+                  if k.lower() not in ("cookie", "x-csrftoken")}
+    cabecalhos["X-CSRFToken"] = pecas["token"]
+    corpo = json.loads(json.dumps(molde))
+    versao = corpo.setdefault("versionInfo", {})
+    versao["moduleVersion"] = pecas["modulo"]
+    versao["apiVersion"] = pecas["api"][pedido["url"]]
+    return cabecalhos, corpo
+
+
+def perguntar_ao_dr(pedido, molde, enviar=None, renovar=None):
+    """Um POST ao DR pela porta unica. (dados, erro), com erro "" quando
+    correu, "rede: ..." sem ligacao, "json" com JSON ilegivel, e "casca"
+    ou "apiVersion" quando o DR nao aceitou o pedido NEM depois de
+    renovar as pecas a forca e repetir uma vez -- so ai e que ha
+    expiracao a registar. A casca fica em amostras/resposta_inesperada.txt.
+    """
+    enviar = enviar or requests.post
+    renovar = renovar or renovar_pecas_dr
+    pecas = renovar([pedido["url"]])
+    motivo = ""
+    for tentativa in (1, 2):
+        cabecalhos, corpo = pedido_renovado(pedido, molde, pecas)
+        try:
+            r = enviar(pedido["url"], headers=cabecalhos,
+                       data=json.dumps(corpo, ensure_ascii=False).encode("utf-8"),
+                       timeout=60)
+        except requests.RequestException as erro:
+            return None, "rede: " + str(erro)[:80]
+        if "json" in r.headers.get("Content-Type", ""):
+            try:
+                dados = r.json()
+            except ValueError:
+                return None, "json"
+            versao = dados.get("versionInfo") if isinstance(dados, dict) else None
+            if not (isinstance(versao, dict) and versao.get("hasApiVersionChanged")):
+                return dados, ""
+            motivo = "apiVersion"
+        else:
+            motivo = "casca"
+            guardar_amostra("resposta_inesperada.txt",
+                            "HTTP %d, tentativa %d\n\n%s"
+                            % (r.status_code, tentativa, r.text[:3000]))
+        if tentativa == 1:
+            pecas = renovar([pedido["url"]], forcar=True) or pecas
+    return None, motivo
+
+
 # ------------------------------------------------------------- leitura
 
 def campo(origem, *nomes):
@@ -920,29 +1088,19 @@ def recolher(cfg):
 
         for pagina in range(int(cfg["paginas"])):
             variaveis["StartIndex"] = pagina * por_pagina
-            corpo = json.dumps(molde, ensure_ascii=False).encode("utf-8")
-            try:
-                resposta = requests.post(pedido["url"], headers=pedido["headers"],
-                                         data=corpo, timeout=60)
-            except requests.RequestException as erro:
-                avarias.append(str(erro)[:80])
+            dados, erro = perguntar_ao_dr(pedido, molde)
+            if erro.startswith("rede"):
+                avarias.append(erro[6:])
                 break
-
-            if "json" not in resposta.headers.get("Content-Type", ""):
-                guardar_amostra("resposta_inesperada.txt",
-                                "HTTP %d, termo %s\n\n%s"
-                                % (resposta.status_code, termo,
-                                   resposta.text[:3000]))
+            if erro in ("casca", "apiVersion"):
                 registar_expiracao_token(
-                    "curl_DR", "a pesquisa respondeu %d sem JSON"
-                    % resposta.status_code)
-                return False, ("o DR respondeu %d sem JSON. O token da captura "
-                               "pode ter expirado, ver "
-                               "amostras/resposta_inesperada.txt"
-                               % resposta.status_code), 0
-            try:
-                dados = resposta.json()
-            except ValueError:
+                    "curl_DR", "a pesquisa nao foi aceite (%s) nem depois "
+                    "de renovar as peças" % erro)
+                return False, ("o DR não aceitou a pesquisa (%s) nem depois de "
+                               "renovar as peças; ver amostras/"
+                               "resposta_inesperada.txt e refaz a captura"
+                               % erro), 0
+            if erro:
                 break
 
             registos = anuncios_da_resposta(dados)
@@ -1455,18 +1613,16 @@ def ler_detalhe_de(ref):
     variaveis = molde["screenData"]["variables"]
     variaveis["Key"] = a["url"].rsplit("/", 1)[-1]
     variaveis["Tipo"] = "anuncio-procedimento"
-    try:
-        r = requests.post(pedido["url"], headers=pedido["headers"],
-                          data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
-                          timeout=60)
-        if "json" not in r.headers.get("Content-Type", ""):
-            registar_expiracao_token("curl_detalhe",
-                                     "o detalhe respondeu sem JSON")
-            return False, "o DR respondeu sem JSON, a captura pode ter expirado"
-        _guardar_detalhe(ref, r.json())
-        return True, ""
-    except (requests.RequestException, ValueError) as erro:
-        return False, "falhou a leitura do anúncio: %s" % str(erro)[:100]
+    dados, erro = perguntar_ao_dr(pedido, molde)
+    if erro in ("casca", "apiVersion"):
+        registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+                                 "(%s) nem depois de renovar as peças" % erro)
+        return False, ("o DR não aceitou o pedido do detalhe (%s) nem depois "
+                       "de renovar as peças; refaz a captura" % erro)
+    if erro:
+        return False, "falhou a leitura do anúncio: %s" % erro[:100]
+    _guardar_detalhe(ref, dados)
+    return True, ""
 
 
 def ler_detalhes(limite=40, dias=None):
@@ -1508,16 +1664,13 @@ def ler_detalhes(limite=40, dias=None):
     for a in pendentes:
         variaveis["Key"] = a["url"].rsplit("/", 1)[-1]   # 21171-2026-1160416962
         variaveis["Tipo"] = "anuncio-procedimento"
-        try:
-            r = requests.post(pedido["url"], headers=pedido["headers"],
-                              data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
-                              timeout=60)
-            if "json" not in r.headers.get("Content-Type", ""):
-                registar_expiracao_token("curl_detalhe",
-                                         "o detalhe respondeu sem JSON")
-                return feitos, "o detalhe respondeu sem JSON, captura expirada?"
-            dados = r.json()
-        except (requests.RequestException, ValueError):
+        dados, erro = perguntar_ao_dr(pedido, molde)
+        if erro in ("casca", "apiVersion"):
+            registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+                                     "(%s) nem depois de renovar as peças" % erro)
+            return feitos, ("o DR não aceitou o detalhe (%s) nem depois de "
+                            "renovar as peças; refaz a captura" % erro)
+        if erro:
             break
         _guardar_detalhe(a["ref"], dados)
         feitos += 1
@@ -1614,16 +1767,13 @@ def reler_marcados(limite=25):
     for a in marcados:
         variaveis["Key"] = a["url"].rsplit("/", 1)[-1]
         variaveis["Tipo"] = "anuncio-procedimento"
-        try:
-            r = requests.post(pedido["url"], headers=pedido["headers"],
-                              data=json.dumps(molde, ensure_ascii=False).encode("utf-8"),
-                              timeout=60)
-            if "json" not in r.headers.get("Content-Type", ""):
-                registar_expiracao_token("curl_detalhe",
-                                         "o detalhe respondeu sem JSON")
-                return feitos, "o detalhe respondeu sem JSON, captura expirada?"
-            dados = r.json()
-        except (requests.RequestException, ValueError):
+        dados, erro = perguntar_ao_dr(pedido, molde)
+        if erro in ("casca", "apiVersion"):
+            registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+                                     "(%s) nem depois de renovar as peças" % erro)
+            return feitos, ("o DR não aceitou o detalhe (%s) nem depois de "
+                            "renovar as peças; refaz a captura" % erro)
+        if erro:
             break
         _guardar_detalhe(a["ref"], dados)
         feitos += 1
@@ -12842,7 +12992,8 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
 
 
 def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
-                            token=None, triagem=None, vortal=None):
+                            token=None, triagem=None, vortal=None,
+                            pecas_dr=None):
     """As marcas de ultimo erro que so se viam por SQL (C1 do saneamento).
 
     So aparece o que existe: sem erro gravado nao ha linha nenhuma --
@@ -12864,7 +13015,8 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
                           ("Último erro da leitura pelo modelo", analise),
                           ("Última expiração do token", token),
                           ("Último erro a gravar a triagem no git", triagem),
-                          ("Último erro na Vortal", vortal)):
+                          ("Último erro na Vortal", vortal),
+                          ("Último erro a renovar as peças do DR", pecas_dr)):
         if (valor or "").strip():
             # numa linha so antes de cortar: um erro de varias linhas
             # gastava metade dos 80 caracteres em mudancas de linha e
@@ -13047,7 +13199,8 @@ def indicadores():
                                     le_marca("analise_ultimo_erro", ""),
                                     le_marca("token_ultimo_erro", ""),
                                     le_marca("ultimo_erro_triagem_git", ""),
-                                    le_marca("vortal_ultimo_erro", ""))
+                                    le_marca("vortal_ultimo_erro", ""),
+                                    le_marca("pecas_dr_ultimo_erro", ""))
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "#d68910"))
 
