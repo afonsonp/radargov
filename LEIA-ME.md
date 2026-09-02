@@ -225,7 +225,9 @@ Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
 filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
 qualquer filtro guardado um aviso no resumo diário, define-se o
 **interesse** (os CPV que recortam a lista, ver §5), e configura-se o
-e-mail e a janela do "urgente". Em **Mercado** vivem os **Contratos**
+e-mail e a janela do "urgente". O resumo chega formatado — um cartão
+por anúncio, com o prazo colorido como na lista — e o mesmo conteúdo
+fica em texto no `AVISOS.txt`. Em **Mercado** vivem os **Contratos**
 (o que já foi adjudicado, com gráficos sobre o filtro), com dois modos
 no mesmo ecrã: **por celebração** e **por fim estimado** — as antigas
 Renovações, agora uma aba que mantém o filtro e mostra o que está a
@@ -611,7 +613,7 @@ anúncios, é o teste do parser que avisa primeiro.
 | `copias/` | cópia diária do `radar.db`, sete guardadas |
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
 | `documentos/` | as peças dos concursos que foste buscar |
-| `AVISOS.txt` | o último resumo dos alertas, quando há |
+| `AVISOS.txt` | o último resumo dos alertas em texto, quando há (o e-mail leva o mesmo, formatado) |
 | `instalar.bat` | instala as dependências |
 | `iniciar.bat` | abre o painel |
 | `agendar.bat` | cria as três tarefas agendadas |

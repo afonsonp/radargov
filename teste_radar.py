@@ -2089,6 +2089,164 @@ class TestEnvioSemConfiguracao(unittest.TestCase):
         self.assertIn("por configurar", porque)
 
 
+class TestResumoEmHtml(unittest.TestCase):
+    """O e-mail sai em duas partes (02/09/2026): o texto de sempre e um
+    HTML "bonito". O HTML tem de dizer o mesmo que o texto -- as
+    mesmas seccoes, as mesmas contagens, as mesmas ligacoes -- senao
+    voltavamos a ter dois resumos a divergir ao primeiro arranjo, que
+    foi a razao de haver um so formato. E tudo o que vem da base passa
+    por html.escape: um titulo com '&' ou '<' nao pode partir o e-mail."""
+
+    def anuncio(self, **k):
+        base = {"ref": "1/2026", "titulo": "Aquisicao de licencas",
+                "entidade": "Municipio X", "data_pub": "2026-08-01",
+                "prazo": "", "preco_base": "", "cpv": ""}
+        base.update(k)
+        return base
+
+    def alteracao(self, **k):
+        base = {"id": 1, "ref": "9/2026", "campo": "prazo",
+                "antes": "2026-09-10", "depois": "2026-09-24",
+                "titulo": "Aquisicao de licencas", "entidade": "Municipio X"}
+        base.update(k)
+        return base
+
+    def seguidas(self):
+        return [("500498601", "CP - Comboios de Portugal",
+                 [{"ref": "5/2026", "titulo": "Reparação de motores",
+                   "entidade": "CP", "data_pub": "2026-08-29",
+                   "prazo": "", "preco_base": ""}])]
+
+    def test_e_um_documento_html_com_o_cabecalho_do_texto(self):
+        saiu = radar.html_do_resumo([({"nome": "TI"}, [self.anuncio(),
+                                                      self.anuncio(ref="2/2026")])])
+        self.assertTrue(saiu.startswith("<!DOCTYPE html>"))
+        self.assertIn("2 anúncios novos nos teus alertas", saiu)
+        self.assertIn("TI <span", saiu)
+
+    def test_a_ligacao_para_a_ficha_e_um_href(self):
+        saiu = radar.html_do_resumo([({"nome": "TI"},
+                                      [self.anuncio(ref="123/2026")])])
+        self.assertIn('href="http://localhost:%d/anuncio/123%%2F2026"'
+                      % radar.PORTA, saiu)
+
+    def test_escapa_o_que_vem_da_base(self):
+        saiu = radar.html_do_resumo([({"nome": "A & B"}, [self.anuncio(
+            titulo="Suporte <urgente> & manutenção",
+            entidade="Ramos & Filhos")])])
+        self.assertNotIn("<urgente>", saiu)
+        self.assertIn("Suporte &lt;urgente&gt; &amp; manutenção", saiu)
+        self.assertIn("Ramos &amp; Filhos", saiu)
+        self.assertIn("A &amp; B", saiu)
+
+    def test_o_titulo_vai_inteiro(self):
+        # No texto corta-se aos 88; no e-mail "(SaaS" a meio era a
+        # primeira coisa que se via
+        titulo = "Subscrição de licenças de software Autodesk na modalidade " \
+                 "de Software-as-a-Service (SaaS) para a frota"
+        saiu = radar.html_do_resumo([({"nome": "TI"},
+                                      [self.anuncio(titulo=titulo)])])
+        self.assertIn(html.escape(titulo), saiu)
+
+    def test_prazo_expirado_e_sem_prazo_dizem_o_que_sao(self):
+        saiu = radar.html_do_resumo([({"nome": "TI"}, [
+            self.anuncio(prazo="2020-01-01"), self.anuncio(ref="2/2026")])])
+        self.assertIn("prazo expirado", saiu)
+        self.assertIn("propostas até 01/01/2020", saiu)
+        self.assertIn("sem prazo lido", saiu)
+        self.assertNotIn("termina hoje", saiu)
+
+    def test_prazo_aberto_leva_a_cor_da_janela_do_urgente(self):
+        # A pilula do e-mail vem de etiqueta_prazo(), com a janela de
+        # dias_urgente(): o mesmo prazo nao pode ser laranja na lista e
+        # verde no e-mail
+        dentro = (datetime.date.today() + datetime.timedelta(days=2)).isoformat()
+        fora = (datetime.date.today() + datetime.timedelta(days=radar.dias_urgente() + 30)
+                ).isoformat()
+        saiu = radar.html_do_resumo([({"nome": "TI"}, [
+            self.anuncio(prazo=dentro), self.anuncio(ref="2/2026", prazo=fora)])])
+        laranja, verde = radar._EM_CORES["avisa"][1], radar._EM_CORES["ok"][1]
+        self.assertIn(laranja, saiu)
+        self.assertIn(verde, saiu)
+
+    def test_alterados_com_o_antes_riscado_e_o_depois_a_negrito(self):
+        saiu = radar.html_do_resumo([], [self.alteracao(), self.alteracao(
+            id=2, campo="retificacao", antes="", depois="21065/2026")])
+        self.assertIn("Alterados desde a última leitura", saiu)
+        self.assertIn("<s style", saiu)
+        self.assertIn("10/09/2026</s> &rarr; <b>24/09/2026</b>", saiu)
+        self.assertIn("rectificado pelo anúncio <b>21065/2026</b>", saiu)
+        self.assertIn("1 alterado", saiu)
+        self.assertNotIn("0 anúncios novos", saiu)
+
+    def test_seguidas_com_a_data_de_publicacao(self):
+        saiu = radar.html_do_resumo([], (), self.seguidas())
+        self.assertIn("Das entidades que segues", saiu)
+        self.assertIn("CP - Comboios de Portugal", saiu)
+        self.assertIn("publicado 29/08/2026", saiu)
+        self.assertIn("/anuncio/5%2F2026", saiu)
+
+    def test_diz_o_mesmo_que_o_texto(self):
+        # As mesmas ligacoes, na mesma ordem: e o teste que segura os
+        # dois formatos juntos
+        achados = [({"nome": "TI"}, [self.anuncio(), self.anuncio(ref="2/2026")]),
+                   ({"nome": "Obras"}, [self.anuncio(ref="3/2026")])]
+        texto = radar.texto_do_resumo(achados, [self.alteracao()], self.seguidas())
+        em_html = radar.html_do_resumo(achados, [self.alteracao()], self.seguidas())
+        ligacoes = re.compile(r"http://localhost:\d+/anuncio/[^\s\"<]+")
+        self.assertEqual(ligacoes.findall(texto), ligacoes.findall(em_html))
+
+
+class TestEnvioComHtml(unittest.TestCase):
+    """A mensagem vai em multipart/alternative: o texto primeiro e o
+    HTML depois, para o cliente que nao le HTML ver o texto. Sem o
+    HTML, a mensagem e a de sempre, so texto."""
+
+    def apanhar(self, html_corpo):
+        from unittest import mock
+        apanhado = {}
+
+        class FalsoSMTP:
+            def __init__(self, *a, **k):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def starttls(self):
+                pass
+
+            def login(self, *a):
+                pass
+
+            def send_message(self, msg):
+                apanhado["msg"] = msg
+
+        cfg = {"email": {"para": "a@b.pt", "de": "c@d.pt",
+                         "servidor": "smtp.x", "porta": 587}}
+        with mock.patch.object(radar.smtplib, "SMTP", FalsoSMTP), \
+                mock.patch.object(radar, "ler_chave", lambda *a, **k: "s"):
+            bem, porque = radar.enviar_email("Assunto", "texto simples", cfg,
+                                             html_corpo)
+        self.assertTrue(bem, porque)
+        return apanhado["msg"]
+
+    def test_com_html_vai_em_duas_partes(self):
+        msg = self.apanhar("<p>bonito</p>")
+        self.assertEqual(msg.get_content_type(), "multipart/alternative")
+        tipos = [p.get_content_type() for p in msg.iter_parts()]
+        self.assertEqual(tipos, ["text/plain", "text/html"])
+        self.assertIn("texto simples", msg.get_body(("plain",)).get_content())
+        self.assertIn("bonito", msg.get_body(("html",)).get_content())
+
+    def test_sem_html_e_so_texto(self):
+        msg = self.apanhar(None)
+        self.assertEqual(msg.get_content_type(), "text/plain")
+
+
 class TestEurosDoTexto(unittest.TestCase):
     """O DR escreve "175.000,00 EUR": o ponto separa os milhares e a
     virgula os centimos, ao contrario do que o float() de Python le. Ler

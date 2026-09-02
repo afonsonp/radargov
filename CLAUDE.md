@@ -598,7 +598,16 @@ A ordem do ficheiro é a ordem do fluxo:
   anota o que corresponde e `enviar_resumo()` manda uma vez por dia — o
   reconhecer e o enviar são separados de propósito, porque a verificação
   corre duas vezes. Ao ligar um alerta, o acervo que já lá está fica
-  marcado como `ACERVO`, senão o primeiro resumo trazia tudo.
+  marcado como `ACERVO`, senão o primeiro resumo trazia tudo. **O
+  e-mail vai em duas partes** (02/09/2026): o texto de
+  `texto_do_resumo()`, que é também o `AVISOS.txt`, e o HTML de
+  `html_do_resumo()` — estilos em linha e tabelas, porque um cliente
+  de e-mail não lê o `CSS` do painel; as cores da paleta estão
+  copiadas à mão em `_EM_*`. Os dois dizem o mesmo, e há um teste que
+  compara as ligações de um e do outro (`TestResumoEmHtml`): dois
+  formatos que divergem ao primeiro arranjo foi a razão de haver um só
+  até aqui. A pílula do prazo vem de `etiqueta_prazo()` com a janela
+  de `dias_urgente()`, como a lista.
 - **O interesse não é um alerta nem um filtro: é o recorte permanente
   da lista.** Os CPV que a casa trabalha (`interesse_activo`,
   `interesse_cpv`, `interesse_cpv_excl` no config.json, editados em
