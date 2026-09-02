@@ -4912,3 +4912,54 @@ Treze testes (`TestPecasDoDR`), incluindo um que recusa um
 tinha expirado em 10 dias, e o E4 (registo da expiração) nunca disparou.
 Agora sabe-se porquê. O `medir_captura.py` e o `medir.bat` ficam como
 instrumento: se o DR mudar, é por aí que se volta a medir.
+
+## Auditoria UX pelas «leis», 2 de setembro de 2026
+
+Pedido do Afonso, a partir de uma lista genérica de vinte «leis de UX»
+que perguntou se se aproveitava. A resposta foi que sim, mas como lente
+e não como regras: as da casa são mais específicas e nasceram de erros
+reais. Ele levantou a dúvida certa («as regras que implementámos podem
+estar erradas») e a auditoria é a resposta: `UX-Auditoria.md`, com
+cada regra de interface do CLAUDE.md passada pelas leis e um veredicto
+(manter, afinar, dívida), mais os achados que nenhuma regra cobria.
+
+Feita sobre uma **base de ensaio** de 40 anúncios fictícios (nunca a
+verdadeira), num Chromium sem cabeça a 1366 e 1920, sobre 16 páginas,
+com um script a medir alvos, texto pequeno, contraste por elemento
+contra o fundo real e os fluxos de triar. **Nada mudou no código.**
+
+O que a medição apanhou e vale registar aqui:
+
+- **A regra do contraste estava incompleta.** `--papel` não é o pior
+  fundo: as colunas do quadro são `--linha2`, mais escuro, e os três
+  «pede o preço proposto» de 01/09/2026 estão a **4,35:1**. Todas as
+  outras páginas ficam entre 4,66 e 5,12. Corrigido no CLAUDE.md; a
+  cor fica para o P0 do BACKLOG.
+- **Alvos de 11 px de altura**: «voltar a por ver» (85×11), «no
+  calendário» (75×11), «Pôr por ver» (63×12), «Ver no DR» (57×12),
+  «mudar» (34×13). A regra da cor mediu-se a 31/08; a área nunca.
+- **Triar não confirma nem deixa desfazer**: zero avisos depois de
+  «interessa» e de «abandonar», e o caminho de volta é ir à outra aba.
+- **A lista abre com 60% do ecrã em filtros** a 1366×768 (o primeiro
+  cartão aos ~460 px, 11 campos, 42 alvos na dobra).
+- **O quadro pinta «prazo expirado» a vermelho** em 4 dos 9 cartões, e
+  os 4 estão em fases pós-submissão, onde é o estado normal.
+- **A folha do Google Fonts é render-blocking**: 12,6 s até ao DOM
+  neste ambiente sem saída para o domínio, com o servidor a responder
+  em 5 a 16 ms. «Sem rede continua legível» é verdade depois do
+  timeout, não antes.
+- **O «essencial» da ficha de um por ver tem 8 linhas em 12 a dizer
+  que o valor só consta das peças.**
+- **Os indicadores têm 3 ligações**: 2 dos 4 KPI ligam a listas, o
+  funil não liga a nada.
+- O que se confirmou a funcionar como escrito: estado vazio com
+  «limpar», data inválida avisa, 404 dentro da aplicação, contadores
+  das abas dentro do filtro, uma acção primária por bloco, sem JS o
+  POST segue, janela do urgente única.
+
+O arrasto do quadro sai da lista das «regras» e passa a **dívida
+assumida**: a lei do feedback tem razão, e o remendo (recarregar) só
+existe porque o servidor não devolve o cartão redesenhado. As
+propostas e a ordem estão na Parte 4 do `UX-Auditoria.md`; cinco delas
+pedem decisão dele (filtros recolhidos, essencial encurtado, teclado)
+e o resto é meia jornada sem mudar hábitos.
