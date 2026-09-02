@@ -14,8 +14,9 @@ ou **dívida** (um remendo técnico que ficou escrito como se fosse
 decisão de desenho). E onde as leis apanharam coisas que nenhuma regra
 cobria, ficam registadas como achados novos.
 
-Nada aqui foi alterado no código. Este ficheiro é a lista do que se
-mediu e do que se propõe; o que se faz e por que ordem é decisão dele.
+A passagem de medição não alterou código. Na mesma tarde, à ordem
+dele, aplicaram-se o P0 e os cinco P1 sem decisão (ver «O que já se
+fez», no fim); o resto espera a palavra dele.
 
 ## Como se mediu
 
@@ -239,6 +240,22 @@ Para não voltar a discutir o que já está decidido:
 Os P0 e P1 sem decisão são meia jornada juntos, e nenhum muda o que o
 Afonso vê de forma que precise de habituação. Os que precisam de
 decisão mudam o primeiro ecrã ou a ficha, e por isso esperam por ele.
+
+## O que já se fez (02/09/2026, à tarde)
+
+À ordem do Afonso («avança com P0 e P1»), na mesma sessão:
+
+| Item | O que mudou | Teste |
+|---|---|---|
+| P0 contraste | `.coluna-pede` passou de `--t5` para `--t4` (5,12:1 sobre `--linha2`) | `TestContrasteNosFundosReais`, que calcula os contrastes a partir do próprio CSS e fixa os dois patamares da escala |
+| P1 alvos | `button.tirar`, `.carta-pe a`, `.bt-leve`, `.sou button`, `button.etq-x`, `.alerta .apagar` com `min-height:24px` por padding e margem negativa vertical, letra igual | `TestAlvosDeTextoA24px` |
+| P1 desfazer | `mudar_estado()` volta com aviso («título» marcado como interessa / abandonado (motivo) / reposto em por ver) e um botão «desfazer» que faz o POST inverso, com o motivo antigo quando o estado anterior era um abandono | `TestTriarAvisaEDeixaDesfazer` (7 testes) |
+| P1 prazo neutro | A partir do Submetido o cartão diz «prazo 03/08/2026» sem cor; antes continua a etiqueta de alarme | `TestPrazoNeutroDepoisDeSubmetido` |
+| P1 fontes | Folha do Google Fonts com `media="print" onload`, cópia em `<noscript>` | `TestFontesNaoBloqueiamAPrimeiraPintura` |
+| P1 quadro | `/quadro/mover` devolve `{carta, contas}`; o `drop` troca o cartão e as duas contagens; `reload()` só nos erros | `TestArrastarRedesenhaOCartao` reescrita (4 testes, com cliente Flask sobre base temporária) |
+
+A medição do browser não se repetiu depois destas alterações: fica
+para a próxima passagem, junto com o que está abaixo.
 
 ## O que fica para a próxima passagem
 
