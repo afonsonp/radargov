@@ -27,9 +27,11 @@ movendo a pasta para fora do OneDrive.
    onnxruntime). O OCR é o que lê as peças digitalizadas, as que são
    só imagem, sem texto por dentro; é opcional, e sem ele o radar
    marca-as como digitalização e segue. Na pen, onde o Python vem na
-   pasta, instala-se com `python\python.exe -m pip install rapidocr
-   onnxruntime` e confirma-se com `python\python.exe -c "import
-   rapidocr, onnxruntime"`.
+   pasta e não tem pip, a receita está no ESTADO.md («Instalar na
+   pen»): o pip como ficheiro único, a instalar para `libs\`.
+   Confirma-se com `python\python.exe -c "import rapidocr, onnxruntime"`.
+   Depois, `python radar.py --ocr` lê as digitalizações que já estavam
+   na base; as novas lêem-se sozinhas.
 2. Faz a captura da secção 3.
 3. Duplo clique em `iniciar.bat`. Abre o painel em `http://localhost:8765`.
 4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as

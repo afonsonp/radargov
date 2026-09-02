@@ -4506,6 +4506,24 @@ class TestOcrDasPecas(BaseTemporaria):
         self.assertEqual(len(linhas), 1)
         self.assertIn("OCR", linhas[0][0])
 
+    def test_o_comando_ocr_le_o_acervo_e_diz_o_que_fez(self):
+        # os 'scan' anteriores ao OCR so se liam quando alguem abrisse a
+        # ficha; o --ocr passa por todos, e diz o tempo de cada um
+        self._pdf_sem_texto("14/2026", "CE_velho.pdf")
+        self._semear([("14/2026", "CE_velho.pdf", "", "scan"),
+                      ("15/2026", "PC_sumido.pdf", "", "scan")])
+        ditos = []
+        lidos, sem_texto, por_fazer = radar.ocr_pendentes(
+            motor=self.Motor(), diz=ditos.append)
+        self.assertEqual((lidos, sem_texto, por_fazer), (1, 0, 1))
+        self.assertEqual(self._estados("14/2026")["CE_velho.pdf"][0], "ocr")
+        self.assertTrue(any("2 páginas" in d and " s" in d for d in ditos), ditos)
+        self.assertTrue(any("sem ficheiro" in d for d in ditos), ditos)
+        # so um anuncio
+        ditos = []
+        radar.ocr_pendentes("15/2026", motor=self.Motor(), diz=ditos.append)
+        self.assertEqual(len([d for d in ditos if "·" in d]), 1)
+
 
 class TestExportacaoDaTriagem(BaseTemporaria):
     """B15: a triagem é o único dado irrecuperável e vivia só no disco.

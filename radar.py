@@ -2841,6 +2841,58 @@ def extrair_textos(ref, motor=None):
     return lidos, scans
 
 
+def ocr_pendentes(ref=None, motor=None, diz=print):
+    """Le pelo OCR os 'scan' com ficheiro em disco -- de um anuncio, ou
+    de todos. E o `--ocr`: a segunda passagem do extrair_textos() so
+    corre quando alguem pede as pecas ou a leitura DESSE anuncio, e os
+    'scan' que ja estavam na base antes do OCR existir ficavam a
+    espera de uma ficha aberta. Diz o que fez, documento a documento,
+    com o tempo -- e o instrumento para medir o custo por pagina no PC.
+    Devolve (lidos, sem_texto, por_fazer)."""
+    with liga() as c:
+        docs = c.execute(
+            "SELECT ref, nome FROM documentos WHERE texto_estado='scan'"
+            + (" AND ref=?" if ref else "") + " ORDER BY ref, nome",
+            (ref,) if ref else ()).fetchall()
+    if not docs:
+        diz("não há digitalizações por ler" + (" em " + ref if ref else ""))
+        return 0, 0, 0
+    if not ocr_ligado():
+        diz("o OCR está desligado no config.json (\"ocr\": false)")
+        return 0, 0, len(docs)
+    motor = motor or motor_ocr()
+    if motor is None:
+        diz("sem OCR: %s" % (_OCR["erro"] or "rapidocr por instalar"))
+        return 0, 0, len(docs)
+    lidos = sem_texto = por_fazer = 0
+    for d in docs:
+        caminho = os.path.join(pasta_do_anuncio(d["ref"]), d["nome"])
+        if not os.path.exists(caminho):
+            por_fazer += 1
+            diz("  %s · %s: sem ficheiro em disco" % (d["ref"], d["nome"]))
+            continue
+        ini = time.time()
+        extrair_textos(d["ref"], motor)
+        with liga() as c:
+            depois = c.execute("SELECT texto_estado, texto FROM documentos "
+                               "WHERE ref=? AND nome=?",
+                               (d["ref"], d["nome"])).fetchone()
+        estado = depois["texto_estado"] if depois else "?"
+        paginas = (depois["texto"] or "").count("\f") + 1 if depois and depois["texto"] else 0
+        diz("  %s · %s: %s%s, %.0f s" % (
+            d["ref"], d["nome"], estado,
+            (" (%d páginas, %d caracteres)" % (paginas, len(depois["texto"])))
+            if estado == "ocr" else "", time.time() - ini))
+        if estado == "ocr":
+            lidos += 1
+        elif estado == "imagem":
+            sem_texto += 1
+        else:
+            por_fazer += 1
+    diz("%d lidos, %d sem texto, %d por fazer" % (lidos, sem_texto, por_fazer))
+    return lidos, sem_texto, por_fazer
+
+
 # ------------------------------------------- leitura das peças por modelo
 #
 # Tres campos que o anuncio do DR nao tem e que so estao no Caderno de
@@ -13789,6 +13841,15 @@ def main():
                   "na base; volta a correr depois da recolha: %s%s"
                   % (tabela, len(refs), ", ".join(refs[:8]),
                      "…" if len(refs) > 8 else ""))
+        return
+
+    if "--ocr" in sys.argv:
+        # Le pelo OCR as digitalizacoes que ja estavam na base (as
+        # novas leem-se sozinhas quando se pedem as pecas). Com um ref a
+        # seguir, so esse anuncio.
+        i = sys.argv.index("--ocr")
+        ref = sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("--") else None
+        ocr_pendentes(ref)
         return
 
     if "--descartar-expirados" in sys.argv:
