@@ -4818,3 +4818,48 @@ ficheiro gerado pela função; **nenhum e-mail foi enviado nesta sessão**.
 A primeira leitura a sério é no Gmail, quando o próximo resumo sair —
 se o Gmail lhe torcer alguma coisa (costuma ser o `font` abreviado ou
 o `border-radius`), é aí que se afina.
+
+## Sete repositórios do Instagram, e o que daí sai para o radar, 2 de setembro de 2026
+
+Um carrossel do @sebastianhardy_ («sell these 7 free repos») posto à
+prova contra o que o radar já faz. Ficam as decisões, para não se
+voltar a avaliar o mesmo:
+
+- **trycompai/crm — não.** É um CRM de vendas B2B (pessoas, contas,
+  deals, agente de pesquisa). O quadro do radar é o próprio anúncio do
+  DR com prazo, CPV, alterações e peças; as fases pedem dados; o
+  interesse é um recorte por CPV sobre 66 mil anúncios. Nada disso cabe
+  num deal genérico. Onde um CRM faria sentido é na relação com as
+  pessoas das entidades, e isso é decisão da CONKORD, não do radar.
+- **PaddleOCR — sim, pelo RapidOCR.** Dos 12 CE/PC medidos, 2 são
+  digitalizações (`texto_estado='scan'`) e a leitura pelo modelo nem
+  arranca. O caminho já existe: `imagem_da_pagina()` renderiza a
+  página, falta OCR e a marca `\f` entre páginas. O RapidOCR corre os
+  mesmos modelos do PaddleOCR em ONNX (~50 MB, `pip install`); o
+  PaddleOCR inteiro são centenas de MB numa pen a 42 MB/s. Só se passa
+  ao PaddleOCR completo se o RapidOCR ler mal ou se as tabelas dos
+  perfis exigirem o PP-Structure. Por fazer.
+- **changedetection.io — a ideia sim, o programa não.** Para o DR o
+  `reler_marcados()` já vigia prazo e preço base dos marcados, e as
+  republicações ligam-se ao original. O que falta é vigiar a **lista
+  de documentos** na plataforma (esclarecimentos, erratas) dos
+  anúncios marcados, e isso faz-se com os obtentores que já existem e
+  a fila `alteracoes`. Do changedetection não há código a aproveitar:
+  é uma aplicação inteira (Flask, datastore em JSON, fetchers,
+  notificações por apprise) e o diff é `difflib`. Por fazer, no radar.
+- **Scrapling — só se a medição do token o justificar.** O parser
+  adaptativo serve HTML que muda, e o radar quase não parseia HTML (o
+  DR responde JSON, a Vortal é API, a acingov dá um ZIP; só as páginas
+  JSF, 9%). O único ângulo com valor é o browser sem cabeça a renovar
+  o token das capturas. **Antes disso mede-se se um GET chega**:
+  `medir_captura.py` lê o `curl_DR.txt` (nunca o escreve), dispara a
+  captura intacta como controlo, tira uma peça de cada vez
+  (x-csrftoken, cookie, moduleVersion, apiVersion) para saber qual
+  tranca, abre uma sessão nova por GET à home, lê o `crf=` do cookie
+  `nr2Users` e o `versionToken` do `moduleinfo`, e repete o pedido com
+  essas peças. O DR não responde deste ambiente: **corre no PC**,
+  `python medir_captura.py`, relatório em `amostras/medicao_captura.txt`.
+  Se a sessão nova for aceite, as capturas deixam de expirar (o corpo
+  continua a vir delas, e esse não expira) e o Scrapling sai da lista.
+  Sabe-se já que o token dura pelo menos 10 dias (captura de 23/08
+  ainda a funcionar a 02/09).
