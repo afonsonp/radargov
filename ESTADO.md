@@ -5045,6 +5045,15 @@ o pip como ficheiro único e a instalar para `libs\`, como o resto:
 
 Instalou o rapidocr 3.9.2, o onnxruntime 1.29 e o opencv 5.0 (uns
 100 MB em `libs\`) e o `import rapidocr, onnxruntime` respondeu «ok».
-**Por medir**: o custo por página no PC e os CE digitalizados da base,
-com o `--ocr`. A vigilância da lista de peças dos marcados fica a
-seguir.
+**Medido no PC, 02/09/2026, com o `--ocr`**: os três `scan` da base
+leram-se todos. O CE do 20968/2026 (20 páginas, 30 365 caracteres) e o
+Programa do mesmo anúncio (12 páginas, 24 036) levaram 896 s na mesma
+passagem, e o `[CA]_20260817_DAG-UAP_N_0696.pdf` do 21295/2026 (6
+páginas, 10 482) levou 168 s: **~28 s por página no PC**, contra 5 s
+no ambiente remoto. Um CE de 20 páginas são 10 minutos, em fundo. É
+caro mas é raro (2 em 12), e o alternativa era não ler. Se incomodar,
+o primeiro botão é o `OCR_ESCALA` (2,0 → 1,5 corta a detecção quase
+para metade), e mede-se a qualidade antes de o rodar. O aviso «text
+detection result is empty» é uma página em branco, e é inofensivo. A
+qualidade do texto lido nestes três ainda está por olhar. A vigilância
+da lista de peças dos marcados fica a seguir.
