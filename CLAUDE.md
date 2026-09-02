@@ -845,11 +845,16 @@ do PC»), mas privado não é o mesmo que interno: o `.gitignore` largo
 continua a ser a guarda, e é ele que mantém capturas, bases, chaves e
 peças de fora.
 
-Commit no fim de cada trabalho acabado, sem esperar autorização. **Push
-não**: quem empurra o trabalho é o Afonso, ou o próprio radar pelo B15 —
-`empurrar_triagem()` faz commit e push **só do `triagem.jsonl`** em cada
-verificação em que ele mude, e um push falhado retoma na volta seguinte
-(desliga-se com `"triagem_no_git": false`).
+Commit no fim de cada trabalho acabado, sem esperar autorização. Numa
+sessão local (na pen), **push não**: quem empurra é o Afonso, ou o
+próprio radar pelo B15 — `empurrar_triagem()` faz commit e push **só do
+`triagem.jsonl`** em cada verificação em que ele mude, e um push falhado
+retoma na volta seguinte (desliga-se com `"triagem_no_git": false`).
+Numa sessão remota (claude.ai/code), o trabalho vai para um ramo
+`claude/*` e o merge para o `master` **é o Claude que o faz**, por
+decisão dele a 02/09/2026 («tens de começar a ser tu a fazer»): validar
+no PC primeiro, fazer o merge do PR, e dizer-lhe os dois comandos para a
+pen apanhar o `master` (`git checkout master`, `git pull origin master`).
 
 Há também ramos `claude/*` de sessões anteriores, e um worktree em
 `.claude/worktrees/`. Trabalha-se no `master`; esses ramos não se apagam
