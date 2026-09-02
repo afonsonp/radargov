@@ -3719,7 +3719,7 @@ class TestLinhasDeUltimosErros(unittest.TestCase):
         self.assertNotIn("\n", linhas[0][1])
         self.assertIn("git push: ! [remote rejected]", linhas[0][1])
 
-    def test_os_indicadores_leem_as_sete_marcas(self):
+    def test_os_indicadores_leem_as_oito_marcas(self):
         # o rótulo e a marca que o alimenta têm de andar juntos: já
         # aconteceu a função saber mostrar e ninguém lhe passar o valor
         import inspect
@@ -3727,7 +3727,7 @@ class TestLinhasDeUltimosErros(unittest.TestCase):
         for chave in ("ultimo_erro_relogio", "docs_ultimo_erro",
                       "analise_ultimo_erro", "token_ultimo_erro",
                       "ultimo_erro_triagem_git", "vortal_ultimo_erro",
-                      "pecas_dr_ultimo_erro"):
+                      "pecas_dr_ultimo_erro", "ocr_ultimo_erro"):
             self.assertIn(chave, fonte)
 
 
@@ -4348,6 +4348,182 @@ class TestPecasDoDR(BaseTemporaria):
             fonte = inspect.getsource(getattr(radar, nome))
             self.assertIn("perguntar_ao_dr(", fonte, nome)
             self.assertNotIn("requests.post(", fonte, nome)
+
+
+class TestOcrDasPecas(BaseTemporaria):
+    """02/09/2026: 2 dos 12 CE/PC reais eram digitalizações e ficavam em
+    'scan' para sempre — a leitura pelo modelo nem arrancava. O OCR
+    (RapidOCR, modelos PP-OCR em ONNX) transforma o veredicto em texto,
+    uma vez por documento, e só quando há motor E ficheiro em disco. O
+    erro que se trava: voltar a tratar 'scan' como terminal, ou apagar o
+    veredicto sem motor nenhum. O motor é um falso: o verdadeiro custa
+    5 s por página e mediu-se à parte."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import pymupdf                    # noqa: F401
+            cls.tem_pymupdf = True
+        except ImportError:
+            cls.tem_pymupdf = False
+
+    class Motor:
+        """Um RapidOCR falso: devolve as linhas pedidas e conta as páginas."""
+
+        def __init__(self, linhas=("CADERNO DE ENCARGOS",
+                                   "Cláusula 3.ª - Objecto do contrato")):
+            self.linhas, self.chamadas = list(linhas), []
+
+        def __call__(self, imagem):
+            self.chamadas.append(imagem.shape)
+
+            class R:
+                txts = tuple(self.linhas)
+            return R()
+
+    def setUp(self):
+        super().setUp()
+        if not self.tem_pymupdf:
+            self.skipTest("sem pymupdf no Python dos testes")
+        self.ocr_antigo = dict(radar._OCR)
+        self.ligado_antigo = radar.ocr_ligado
+        radar.ocr_ligado = lambda: True
+
+    def tearDown(self):
+        radar._OCR.update(self.ocr_antigo)
+        radar.ocr_ligado = self.ligado_antigo
+        super().tearDown()
+
+    def _pdf_sem_texto(self, ref="7/2026", nome="CE_digitalizado.pdf",
+                       paginas=2):
+        """Um PDF de páginas em branco: sem camada de texto, como um scan."""
+        import pymupdf
+        pasta = radar.pasta_do_anuncio(ref)
+        os.makedirs(pasta, exist_ok=True)
+        caminho = os.path.join(pasta, nome)
+        doc = pymupdf.open()
+        for _ in range(paginas):
+            doc.new_page(width=200, height=280)
+        doc.save(caminho)
+        doc.close()
+        self.assertEqual(radar.texto_do_pdf(caminho), ("", "scan"))
+        return caminho
+
+    def test_uma_pagina_por_marca_e_a_imagem_a_cores(self):
+        caminho = self._pdf_sem_texto()
+        motor = self.Motor()
+        texto, estado = radar.texto_por_ocr(caminho, motor)
+        self.assertEqual(estado, "ocr")
+        self.assertEqual(texto.count("\f"), 1)          # 2 páginas
+        self.assertIn("Cláusula 3.ª", texto)
+        self.assertEqual(len(motor.chamadas), 2)
+        self.assertEqual(motor.chamadas[0][2], 3)         # BGR, 3 canais
+
+    def test_sem_motor_fica_scan(self):
+        caminho = self._pdf_sem_texto()
+        radar._OCR["motor"], radar._OCR["erro"] = None, "rapidocr por instalar"
+        self.assertEqual(radar.texto_por_ocr(caminho), ("", "scan"))
+
+    def test_ocr_sem_texto_e_imagem_e_nao_scan(self):
+        # o veredicto muda: ja se tentou, nao se volta a tentar
+        caminho = self._pdf_sem_texto()
+        self.assertEqual(radar.texto_por_ocr(caminho, self.Motor(())),
+                         ("", "imagem"))
+
+    def _semear(self, linhas):
+        with radar.liga() as c:
+            c.executemany("INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                          "VALUES (?,?,?,?)", linhas)
+
+    def _estados(self, ref):
+        with radar.liga() as c:
+            return {r["nome"]: (r["texto_estado"], r["texto"] or "")
+                    for r in c.execute("SELECT nome,texto_estado,texto FROM "
+                                       "documentos WHERE ref=?", (ref,))}
+
+    def test_segunda_passagem_apanha_os_scan_com_ficheiro(self):
+        self._pdf_sem_texto("7/2026", "CE_digitalizado.pdf")
+        self._semear([("7/2026", "CE_digitalizado.pdf", "", "scan"),
+                      ("7/2026", "PC_sumido.pdf", "", "scan")])
+        lidos, scans = radar.extrair_textos("7/2026", motor=self.Motor())
+        estados = self._estados("7/2026")
+        self.assertEqual(estados["CE_digitalizado.pdf"][0], "ocr")
+        self.assertIn("CADERNO DE ENCARGOS", estados["CE_digitalizado.pdf"][1])
+        self.assertEqual(estados["PC_sumido.pdf"][0], "scan")   # sem ficheiro
+        self.assertEqual(lidos, 1)
+
+    def test_um_scan_novo_le_se_na_mesma_chamada(self):
+        # a primeira passagem marca 'scan', a segunda le-o: quem pede a
+        # analise nao tem de pedir duas vezes
+        self._pdf_sem_texto("8/2026")
+        self._semear([("8/2026", "CE_digitalizado.pdf", None, None)])
+        radar.extrair_textos("8/2026", motor=self.Motor())
+        self.assertEqual(self._estados("8/2026")["CE_digitalizado.pdf"][0], "ocr")
+
+    def test_sem_motor_o_veredicto_fica_e_nao_se_carrega_nada(self):
+        self._pdf_sem_texto("9/2026")
+        self._semear([("9/2026", "CE_digitalizado.pdf", "", "scan")])
+        radar._OCR["motor"], radar._OCR["erro"] = None, "rapidocr por instalar"
+        radar.extrair_textos("9/2026")
+        self.assertEqual(self._estados("9/2026")["CE_digitalizado.pdf"][0], "scan")
+
+    def test_desligado_no_config_nao_faz_ocr(self):
+        self._pdf_sem_texto("10/2026")
+        self._semear([("10/2026", "CE_digitalizado.pdf", "", "scan")])
+        radar.ocr_ligado = lambda: False
+        motor = self.Motor()
+        radar.extrair_textos("10/2026", motor=None)
+        self.assertEqual(self._estados("10/2026")["CE_digitalizado.pdf"][0], "scan")
+        self.assertEqual(motor.chamadas, [])
+
+    def test_zip_com_digitalizacao_dentro(self):
+        import zipfile
+        caminho = self._pdf_sem_texto("11/2026", "solto.pdf")
+        pasta = radar.pasta_do_anuncio("11/2026")
+        zipado = os.path.join(pasta, "1_CE_Clausulas.zip")
+        with zipfile.ZipFile(zipado, "w") as z:
+            z.write(caminho, "CE_Clausulas.pdf")
+        self.assertEqual(radar.texto_do_zip(zipado, {"encargos"}), ("", "scan"))
+        texto, estado = radar.texto_do_zip(zipado, {"encargos"}, self.Motor())
+        self.assertEqual(estado, "ocr")
+        self.assertIn("CADERNO DE ENCARGOS", texto)
+
+    def test_o_texto_por_ocr_conta_para_a_analise(self):
+        self._semear([("12/2026", "CE.pdf", "texto por ocr", "ocr"),
+                      ("12/2026", "PC.pdf", "", "imagem")])
+        nomes = [d["nome"] for d in radar.documentos_com_texto("12/2026")]
+        self.assertEqual(nomes, ["CE.pdf"])
+
+    def test_a_ficha_diz_de_onde_veio_o_texto(self):
+        self._semear([("13/2026", "CE.pdf", "por ocr", "ocr"),
+                      ("13/2026", "PC.pdf", "", "imagem"),
+                      ("13/2026", "AN.pdf", "", "scan")])
+        self.assertIn("por OCR", radar.texto_da_peca("13/2026", "CE.pdf"))
+        self.assertIn("não encontrou texto", radar.texto_da_peca("13/2026", "PC.pdf"))
+        self.assertIn("digitalização", radar.texto_da_peca("13/2026", "AN.pdf"))
+
+    def test_a_marca_do_ocr_aparece_na_saude(self):
+        linhas = radar.linhas_de_ultimos_erros(ocr="2026-09-02 15:00: DLL load failed")
+        self.assertEqual(len(linhas), 1)
+        self.assertIn("OCR", linhas[0][0])
+
+    def test_o_comando_ocr_le_o_acervo_e_diz_o_que_fez(self):
+        # os 'scan' anteriores ao OCR so se liam quando alguem abrisse a
+        # ficha; o --ocr passa por todos, e diz o tempo de cada um
+        self._pdf_sem_texto("14/2026", "CE_velho.pdf")
+        self._semear([("14/2026", "CE_velho.pdf", "", "scan"),
+                      ("15/2026", "PC_sumido.pdf", "", "scan")])
+        ditos = []
+        lidos, sem_texto, por_fazer = radar.ocr_pendentes(
+            motor=self.Motor(), diz=ditos.append)
+        self.assertEqual((lidos, sem_texto, por_fazer), (1, 0, 1))
+        self.assertEqual(self._estados("14/2026")["CE_velho.pdf"][0], "ocr")
+        self.assertTrue(any("2 páginas" in d and " s" in d for d in ditos), ditos)
+        self.assertTrue(any("sem ficheiro" in d for d in ditos), ditos)
+        # so um anuncio
+        ditos = []
+        radar.ocr_pendentes("15/2026", motor=self.Motor(), diz=ditos.append)
+        self.assertEqual(len([d for d in ditos if "·" in d]), 1)
 
 
 class TestExportacaoDaTriagem(BaseTemporaria):

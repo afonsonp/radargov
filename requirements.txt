@@ -12,3 +12,13 @@ cryptography
 # lê o Excel de análise de concursos da casa (--importar-excel); puro
 # Python, só se importa nesse comando
 openpyxl
+# OCR das peças digitalizadas (2 em 12 CE/PC medidos não têm camada de
+# texto): os modelos PP-OCR em ONNX, sem o framework PaddlePaddle. O
+# modelo que a roda traz lê português com acentos, sem descarregar nada.
+# Opcional: sem ele o radar marca 'scan' e segue, como até aqui. O
+# rapidocr não declara o onnxruntime, por isso vai aqui nomeado. Puxa
+# opencv, numpy, shapely e omegaconf (que compila o antlr4 4.9 do código
+# fonte: é Python puro, mas se a compilação falhar repete com
+# --no-build-isolation).
+rapidocr
+onnxruntime
