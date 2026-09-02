@@ -5027,8 +5027,24 @@ EUR»), aqui, em CPU:
   de ponta a ponta pela mesma `texto_por_ocr()`: 2 páginas, 9 s, texto
   certo.
 
-**Por validar na pen** (não se consegue daqui): instalar
-(`python\python.exe -m pip install rapidocr onnxruntime`), o custo real
-por página no PC, e os dois CE digitalizados que estão na base — é a
-primeira leitura a sério. A vigilância da lista de peças dos marcados
-fica a seguir.
+**`--ocr [ref]`** lê pelo OCR os `scan` que já estavam na base (a
+segunda passagem só corre quando alguém pede as peças DESSE anúncio, e
+os antigos ficavam à espera de uma ficha aberta), e diz o tempo de
+cada documento: é o instrumento para medir o custo por página no PC.
+`ocr_pendentes()`, com teste.
+
+**Instalar na pen** (medido a 02/09/2026): o Python embutido não tem
+pip e o `._pth` ignora o `PYTHONPATH`, por isso o ambiente isolado de
+compilação do pip não vê o `setuptools` e o `antlr4` (a única
+dependência sem roda pronta) não compila. A receita que funcionou, com
+o pip como ficheiro único e a instalar para `libs\`, como o resto:
+
+    curl -o pip.pyz https://bootstrap.pypa.io/pip/pip.pyz
+    python\python.exe pip.pyz install --target libs setuptools wheel
+    python\python.exe pip.pyz install --target libs --no-build-isolation --upgrade rapidocr onnxruntime
+
+Instalou o rapidocr 3.9.2, o onnxruntime 1.29 e o opencv 5.0 (uns
+100 MB em `libs\`) e o `import rapidocr, onnxruntime` respondeu «ok».
+**Por medir**: o custo por página no PC e os CE digitalizados da base,
+com o `--ocr`. A vigilância da lista de peças dos marcados fica a
+seguir.
