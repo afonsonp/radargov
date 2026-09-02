@@ -3718,14 +3718,15 @@ class TestLinhasDeUltimosErros(unittest.TestCase):
         self.assertNotIn("\n", linhas[0][1])
         self.assertIn("git push: ! [remote rejected]", linhas[0][1])
 
-    def test_os_indicadores_leem_as_seis_marcas(self):
+    def test_os_indicadores_leem_as_sete_marcas(self):
         # o rótulo e a marca que o alimenta têm de andar juntos: já
         # aconteceu a função saber mostrar e ninguém lhe passar o valor
         import inspect
         fonte = inspect.getsource(radar.indicadores)
         for chave in ("ultimo_erro_relogio", "docs_ultimo_erro",
                       "analise_ultimo_erro", "token_ultimo_erro",
-                      "ultimo_erro_triagem_git", "vortal_ultimo_erro"):
+                      "ultimo_erro_triagem_git", "vortal_ultimo_erro",
+                      "pecas_dr_ultimo_erro"):
             self.assertIn(chave, fonte)
 
 
@@ -4121,6 +4122,231 @@ class TestExpiracaoDoToken(BaseTemporaria):
         # depender do ficheiro existir
         self._com_pasta_temporaria(criar_captura=False)
         self.assertEqual(radar.le_marca("token_ultimo_erro"), "sem JSON")
+
+
+class TestPecasDoDR(BaseTemporaria):
+    """02/09/2026: o "token" das capturas era tratado como coisa de
+    sessão que expira e obriga a refazer a captura no DevTools. Medido
+    contra o portal (medir_captura.py): é o AnonymousCSRFToken publicado
+    no OutSystems.js, a moduleVersion não tranca, e a única tranca é a
+    apiVersion, que vive no script do ecrã listado no moduleinfo. Três
+    GETs renovam tudo. O erro que se trava: voltar a ler estas peças da
+    captura, ou registar "expirou" sem antes tentar renovar."""
+
+    URL = radar.ACAO
+    MODULEINFO = {"manifest": {"versionToken": "Y0NBIj4uVIBdNjR3KejkaA",
+                               "urlVersions": {
+                                   "/dr/scripts/OutSystems.js": "?EU4N",
+                                   "/dr/scripts/dr.Pesquisas.PesquisaResultado.mvc.js": "?DQoe"}}}
+    OUTSYSTEMS = ('e.CSRFHeader="X-CSRFToken",e.AnonymousCSRFToken='
+                  '"T6C+9iB49TLra4jEsMeSckDMNhQ=",e.getCSRFToken=function')
+    SCRIPT = ('return controller.callDataAction("DataActionGetPesquisas", '
+              '"screenservices/dr/Pesquisas/PesquisaResultado/'
+              'DataActionGetPesquisas", "PRsQKjEXDVBC3ZSqkS8k6A", '
+              'function (b) {')
+    PEDIDO = {"url": URL, "headers": {"Cookie": "nr2Users=crf%3dvelho",
+                                      "x-csrftoken": "velho",
+                                      "Content-Type": "application/json"},
+              "body": ""}
+    MOLDE = {"versionInfo": {"moduleVersion": "9DeZ", "apiVersion": "PRsQ"},
+             "screenData": {"variables": {"StartIndex": 0}}}
+
+    def setUp(self):
+        super().setUp()
+        self._limpar()
+
+    def tearDown(self):
+        self._limpar()
+        super().tearDown()
+
+    def _limpar(self):
+        radar._PECAS_DR["quando"] = 0.0
+        radar._PECAS_DR["token"] = radar._PECAS_DR["modulo"] = ""
+        radar._PECAS_DR["api"].clear()
+
+    def _buscar(self, urls, rebenta=False, script=None):
+        teste = self
+
+        def buscar(url, **kw):
+            urls.append(url)
+            if rebenta:
+                raise radar.requests.RequestException("sem rede")
+
+            class R:
+                text = ""
+
+                def json(self):
+                    return teste.MODULEINFO
+            r = R()
+            if "OutSystems.js" in url:
+                r.text = teste.OUTSYSTEMS
+            elif ".mvc.js" in url:
+                r.text = teste.SCRIPT if script is None else script
+            return r
+        return buscar
+
+    def test_script_do_ecra_segue_a_convencao_do_outsystems(self):
+        self.assertEqual(
+            radar.script_do_ecra(self.URL),
+            ("/dr/scripts/dr.Pesquisas.PesquisaResultado.mvc.js",
+             "DataActionGetPesquisas"))
+        self.assertEqual(
+            radar.script_do_ecra("https://diariodarepublica.pt/dr/screenservices/"
+                                 "dr/Legislacao_Conteudos/Conteudo_Detalhe/"
+                                 "DataActionGetAllConteudoDetalheData"),
+            ("/dr/scripts/dr.Legislacao_Conteudos.Conteudo_Detalhe.mvc.js",
+             "DataActionGetAllConteudoDetalheData"))
+        self.assertEqual(radar.script_do_ecra("https://x/y"), ("", ""))
+
+    def test_api_version_le_se_do_script_real(self):
+        # o pedaco e o que o portal devolveu a 02/09/2026, tal e qual
+        self.assertEqual(radar.api_version_do_script(
+            self.SCRIPT, "DataActionGetPesquisas"), "PRsQKjEXDVBC3ZSqkS8k6A")
+        self.assertEqual(radar.api_version_do_script(self.SCRIPT, "Outra"), "")
+
+    def test_tres_gets_renovam_as_tres_pecas(self):
+        urls = []
+        pecas = radar.renovar_pecas_dr([self.URL], buscar=self._buscar(urls))
+        self.assertEqual(pecas["token"], "T6C+9iB49TLra4jEsMeSckDMNhQ=")
+        self.assertEqual(pecas["modulo"], "Y0NBIj4uVIBdNjR3KejkaA")
+        self.assertEqual(pecas["api"][self.URL], "PRsQKjEXDVBC3ZSqkS8k6A")
+        self.assertEqual(len(urls), 3)
+        # os scripts pedem-se com a versao do manifesto, senao vem a cache
+        self.assertTrue(urls[1].endswith("/dr/scripts/OutSystems.js?EU4N"))
+        self.assertTrue(urls[2].endswith("PesquisaResultado.mvc.js?DQoe"))
+
+    def test_a_cache_poupa_os_gets_e_forcar_ignora_a(self):
+        urls = []
+        radar.renovar_pecas_dr([self.URL], buscar=self._buscar(urls))
+        radar.renovar_pecas_dr([self.URL], buscar=self._buscar(urls))
+        self.assertEqual(len(urls), 3)
+        radar.renovar_pecas_dr([self.URL], forcar=True,
+                               buscar=self._buscar(urls))
+        self.assertEqual(len(urls), 6)
+
+    def test_sem_rede_da_none_e_fica_na_saude(self):
+        pecas = radar.renovar_pecas_dr([self.URL],
+                                       buscar=self._buscar([], rebenta=True))
+        self.assertIsNone(pecas)
+        marca = radar.le_marca("pecas_dr_ultimo_erro", "")
+        self.assertIn("sem rede", marca)
+        linhas = radar.linhas_de_ultimos_erros(pecas_dr=marca)
+        self.assertEqual(len(linhas), 1)
+        self.assertIn("peças do DR", linhas[0][0])
+
+    def test_script_sem_a_accao_e_erro_e_nao_peca_vazia(self):
+        pecas = radar.renovar_pecas_dr(
+            [self.URL], buscar=self._buscar([], script="var x = 1;"))
+        self.assertIsNone(pecas)
+        self.assertIn("apiVersion", radar.le_marca("pecas_dr_ultimo_erro", ""))
+
+    def test_pedido_renovado_tira_o_cookie_e_poe_as_pecas(self):
+        pecas = {"token": "NOVO", "modulo": "M2", "api": {self.URL: "A2"}}
+        cabecalhos, corpo = radar.pedido_renovado(self.PEDIDO, self.MOLDE, pecas)
+        self.assertNotIn("Cookie", cabecalhos)
+        self.assertNotIn("x-csrftoken", cabecalhos)
+        self.assertEqual(cabecalhos["X-CSRFToken"], "NOVO")
+        self.assertEqual(cabecalhos["Content-Type"], "application/json")
+        self.assertEqual(corpo["versionInfo"],
+                         {"moduleVersion": "M2", "apiVersion": "A2"})
+        # o molde de quem chama nao muda: e reutilizado pagina a pagina
+        self.assertEqual(self.MOLDE["versionInfo"]["apiVersion"], "PRsQ")
+        self.assertEqual(corpo["screenData"], self.MOLDE["screenData"])
+
+    def test_sem_pecas_o_pedido_e_a_captura_tal_como_esta(self):
+        cabecalhos, corpo = radar.pedido_renovado(self.PEDIDO, self.MOLDE, None)
+        self.assertIs(cabecalhos, self.PEDIDO["headers"])
+        self.assertIs(corpo, self.MOLDE)
+
+    def _resposta(self, tipo, dados=None, texto=""):
+        class R:
+            status_code = 200
+            headers = {"Content-Type": tipo}
+            text = texto
+
+            def json(self):
+                if dados is None:
+                    raise ValueError("nada")
+                return dados
+        return R()
+
+    def _renovar(self, registo):
+        def renovar(urls, forcar=False):
+            registo.append(forcar)
+            return {"token": "T", "modulo": "M", "api": {self.URL: "A"}}
+        return renovar
+
+    def test_hasapiversionchanged_renova_a_forca_e_repete_uma_vez(self):
+        respostas = [self._resposta("application/json",
+                                    {"versionInfo": {"hasApiVersionChanged": True},
+                                     "data": {}}),
+                     self._resposta("application/json", {"data": {"ok": 1}})]
+        enviados, forcados = [], []
+
+        def enviar(url, headers=None, data=None, timeout=None):
+            enviados.append((headers, json.loads(data)))
+            return respostas.pop(0)
+        dados, erro = radar.perguntar_ao_dr(self.PEDIDO, self.MOLDE, enviar,
+                                            self._renovar(forcados))
+        self.assertEqual(erro, "")
+        self.assertEqual(dados, {"data": {"ok": 1}})
+        self.assertEqual(forcados, [False, True])
+        self.assertEqual(len(enviados), 2)
+        for cabecalhos, corpo in enviados:
+            self.assertNotIn("Cookie", cabecalhos)
+            self.assertEqual(cabecalhos["X-CSRFToken"], "T")
+            self.assertEqual(corpo["versionInfo"]["apiVersion"], "A")
+
+    def test_a_casca_duas_vezes_e_so_ai_e_expiracao(self):
+        antigo = radar.AMOSTRAS
+        radar.AMOSTRAS = os.path.join(self.pasta, "amostras")
+        try:
+            enviados = []
+
+            def enviar(url, headers=None, data=None, timeout=None):
+                enviados.append(1)
+                return self._resposta("text/html", texto="<html>casca</html>")
+            dados, erro = radar.perguntar_ao_dr(self.PEDIDO, self.MOLDE, enviar,
+                                                self._renovar([]))
+            self.assertIsNone(dados)
+            self.assertEqual(erro, "casca")
+            self.assertEqual(len(enviados), 2)
+            with open(os.path.join(radar.AMOSTRAS, "resposta_inesperada.txt"),
+                      encoding="utf-8") as f:
+                self.assertIn("casca", f.read())
+        finally:
+            radar.AMOSTRAS = antigo
+
+    def test_sem_renovacao_manda_a_captura_e_nao_grita(self):
+        # sem rede para os GETs (ou o DR mudou de forma) o pedido segue
+        # com a captura tal como esta: e o comportamento de sempre
+        enviados = []
+
+        def enviar(url, headers=None, data=None, timeout=None):
+            enviados.append(headers)
+            return self._resposta("application/json", {"data": {"ok": 1}})
+        dados, erro = radar.perguntar_ao_dr(self.PEDIDO, self.MOLDE, enviar,
+                                            lambda urls, forcar=False: None)
+        self.assertEqual(erro, "")
+        self.assertEqual(enviados[0]["x-csrftoken"], "velho")
+        self.assertIn("Cookie", enviados[0])
+
+    def test_sem_rede_no_post_e_rede_e_nao_expiracao(self):
+        def enviar(url, headers=None, data=None, timeout=None):
+            raise radar.requests.RequestException("timeout")
+        dados, erro = radar.perguntar_ao_dr(self.PEDIDO, self.MOLDE, enviar,
+                                            self._renovar([]))
+        self.assertIsNone(dados)
+        self.assertTrue(erro.startswith("rede: timeout"))
+
+    def test_os_quatro_pedidos_ao_dr_passam_pela_porta_unica(self):
+        # e a unica forma de a renovacao valer para todos: um POST solto
+        # ao DR volta a ler o token da captura
+        for nome in ("recolher", "ler_detalhe_de", "ler_detalhes",
+                     "reler_marcados"):
+            fonte = inspect.getsource(getattr(radar, nome))
+            self.assertIn("perguntar_ao_dr(", fonte, nome)
+            self.assertNotIn("requests.post(", fonte, nome)
 
 
 class TestExportacaoDaTriagem(BaseTemporaria):
