@@ -4858,7 +4858,7 @@ voltar a avaliar o mesmo:
   tranca, abre uma sessão nova por GET à home, lê o `crf=` do cookie
   `nr2Users` e o `versionToken` do `moduleinfo`, e repete o pedido com
   essas peças. O DR não responde deste ambiente: **corre no PC**,
-  `python medir_captura.py`, relatório em `amostras/medicao_captura.txt`.
+  `medir.bat` (ou `python medir_captura.py`), relatório em `amostras/medicao_captura.txt`.
   Se a sessão nova for aceite, as capturas deixam de expirar (o corpo
   continua a vir delas, e esse não expira) e o Scrapling sai da lista.
   Sabe-se já que o token dura pelo menos 10 dias (captura de 23/08
