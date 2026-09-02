@@ -673,10 +673,19 @@ A ordem do ficheiro é a ordem do fluxo:
   ~60 s e um pedido HTTP parado esse tempo parece o painel pendurado. Só
   traz o ano corrente e o anterior: anos fechados não mudam.
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
-  cabeçalhos e o token das capturas `curl_*.txt`. **O token expira** — o
-  painel avisa a vermelho e o Afonso refaz a captura no DevTools (instruções
-  na secção 3 do `LEIA-ME.md`). Nunca edites estas capturas: um hook
-  bloqueia-o.
+  cabeçalhos e a forma do corpo das capturas `curl_*.txt`. **O token NÃO
+  expira, e não é de sessão** (medido a 02/09/2026 com `medir_captura.py`,
+  três voltas contra o portal): é o `AnonymousCSRFToken` publicado no
+  `OutSystems.js`, sem cookie o DR nem o verifica, a `moduleVersion` não
+  tranca, e a única tranca é a `apiVersion` do ecrã, que vive no script
+  listado no `moduleinfo`. `renovar_pecas_dr()` vai buscar as três por
+  GET e `perguntar_ao_dr()` é a **porta única** dos quatro pedidos ao
+  portal (recolha, detalhe, ficha, releitura): se o DR responder a casca
+  ou `hasApiVersionChanged`, renova à força e repete uma vez, e só depois
+  disso regista expiração. Nunca escrevas um `requests.post` solto ao DR
+  — há teste a guardá-lo. O que resta à captura é a forma do corpo, e é
+  só por essa que um dia se refaz (secção 3 do `LEIA-ME.md`). Nunca
+  edites estas capturas: um hook bloqueia-o.
 - **Orçamento do modelo, não contexto.** O tecto da conta Groq são 8000
   tokens/minuto, e é ele que manda no tamanho do pedido — daí
   `TECTO_RECORTE = 7000` caracteres e três pedidos separados em vez de um.

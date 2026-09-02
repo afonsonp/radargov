@@ -62,12 +62,18 @@ sem prazo e sem preço base, e o filtro de CPV não devolve nada.
 
 ### O que é aproveitado
 
-Os cabeçalhos, o token de segurança e a forma do pedido. As datas, o
-termo de pesquisa e a página são substituídos a cada verificação. Na
-captura do detalhe, o que muda é a chave do anúncio.
+Os cabeçalhos e a forma do pedido. As datas, o termo de pesquisa e a
+página são substituídos a cada verificação. Na captura do detalhe, o
+que muda é a chave do anúncio.
 
-Quando o token expirar, o painel fica com o aviso a vermelho a dizer que
-a captura pode ter expirado. Repete esta secção, leva dois minutos.
+O token de segurança e as versões que o pedido leva **já não vêm da
+captura**: desde 02/09/2026 o radar vai buscá-los ao próprio portal a
+cada verificação, com três pedidos simples, e por isso a captura não
+expira por causa deles (mediu-se que o token é público e que só a
+versão do ecrã mudava). Se um dia o DR mudar a forma do pedido, o
+painel avisa a vermelho a dizer que não aceitou a pesquisa nem depois
+de renovar as peças. Só aí é que se repete esta secção; leva dois
+minutos.
 
 ## 4. O que entra
 
