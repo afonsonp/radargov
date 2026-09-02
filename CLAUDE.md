@@ -716,6 +716,20 @@ A ordem do ficheiro é a ordem do fluxo:
   nomes novos.
 - **Só passam pelo modelo documentos públicos** (Cadernos de Encargos e
   Programas de Concurso). Propostas, CVs e trabalho próprio não.
+- **As digitalizações lêem-se por OCR, e `scan` deixou de ser
+  terminal.** 2 dos 12 CE/PC medidos não têm camada de texto. O
+  RapidOCR (modelos PP-OCR em ONNX, opcional no `requirements.txt`) lê
+  português com acentos com o modelo que a roda traz, sem descarregar
+  nada; o `rapidocr_onnxruntime` 1.4 **não serve** (perde os acentos e
+  leu «175.oo0,00»). Os estados de `texto_estado`: `ok` (pypdf), `ocr`
+  (texto pelo OCR, com as marcas `\f`), `scan` (sem camada de texto e
+  **ainda sem OCR tentado**), `imagem` (o OCR correu e não achou
+  texto). A segunda passagem de `extrair_textos()` apanha os `scan`
+  com ficheiro em disco quando há motor, uma vez por documento; sem
+  motor o veredicto fica. O motor carrega-se uma vez por processo
+  (`motor_ocr()`) e só quando há mesmo o que ler; ~5 s por página em
+  CPU, em thread de fundo. Quem consome texto pergunta por
+  `IN ('ok','ocr')`, nunca só por `'ok'`. Desliga-se com `"ocr": false`.
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.
