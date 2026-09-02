@@ -22,6 +22,7 @@ ou feito.
 
 | # | O que falta | Estado | Espera por |
 |---|---|---|---|
+| UX | Auditoria pelas «leis de UX» (`UX-Auditoria.md`, 02/09/2026) | **Medida, nada aplicado.** P0: contraste dos `.coluna-pede` (4,35:1). P1 sem decisão: alvos a 24 px, «desfazer» depois de triar, prazo neutro pós-submissão, fontes sem bloquear, quadro sem `reload()` | **Afonso** nos P2/P3 que mudam o primeiro ecrã: filtros recolhidos por omissão, essencial da ficha encurtado, teclado na lista |
 | E2 | ~~O primeiro envio do resumo diário~~ | **Feito a 31/08/2026, à ordem dele**: «Resumo enviado para [e-mail retirado]», com 1 anúncio do alerta CPV IT (INFARMED, 400 930 €). Daqui em diante sai sozinho, uma vez por dia com novidade | — |
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
 | — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: Fluxo B verificado e, com o E2, disparado — ver ESTADO.md) | — |

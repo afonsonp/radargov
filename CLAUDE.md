@@ -17,7 +17,9 @@ Substitui a Armilar (produto Vortal, 200 €/mês). O `ESTADO.md` é o diário
 do projecto — **lê-o antes de mexer** e actualiza-o no fim de trabalho que
 mude decisões ou números. O `CONCORRENTES.md` guarda o que se observou nos
 produtos pagos deste mercado, com data: o que fazem melhor, onde se partem,
-e o que daí se aproveita.
+e o que daí se aproveita. O `UX-Auditoria.md` (02/09/2026) passa as
+regras de interface da casa pelas «leis de UX», uma a uma, com medidas
+e veredicto (manter, afinar, dívida): lê-o antes de mexer no painel.
 
 **A documentação corrige-se na mesma sessão que muda o comportamento.**
 Antes do commit de qualquer trabalho que mude comportamento, números ou
@@ -517,7 +519,10 @@ A ordem do ficheiro é a ordem do fluxo:
   mede-se**: a passagem de 31/08/2026 deixou seis falhas entre 4,1 e
   4,43 que nenhuma revisão a olho tinha apanhado — a medição corre como
   script no browser, elemento a elemento contra o primeiro fundo opaco
-  acima dele.
+  acima dele. E `--papel` **não** é o pior fundo: as colunas do quadro
+  são `--linha2`, mais escuro, e a auditoria de 02/09/2026 apanhou lá
+  três textos em `--t5` a 4,35:1 — mede sobre todos os fundos que
+  existem, não só sobre o papel.
 - **Os dois CSV escrevem números com `numero_csv()` e chamam-se pelo
   `nome_csv()`.** Vírgula decimal, sem símbolo e sem separador de
   milhares, que é o que o Excel português come; e data no nome, porque
