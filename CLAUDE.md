@@ -447,17 +447,21 @@ A ordem do ficheiro é a ordem do fluxo:
   páginas: é por ele que as fontes da análise dizem "(pág. 1–5)". O
   recorte e as páginas saem das mesmas janelas (`_janelas_do_recorte`);
   um texto sem marcas não declara páginas — não se inventam.
-- **Arrastar no quadro tem de recarregar.** O cartão que se arrasta é o
-  MESMO nó do DOM, e quem decide o que ele mostra é o servidor, pela
-  fase: largá-lo no "Submetido" mudava-o de coluna e mais nada — sem o
-  campo do preço proposto, com o preço base onde já devia estar o
-  proposto, e com a soma no cabeçalho das duas colunas errada até
-  alguém recarregar à mão. O `drop` faz a movimentação optimista, o
-  POST, e **no caminho do sucesso recarrega** (guardando o rolar
-  horizontal em `sessionStorage`, senão arrastar para a última coluna
-  atirava a vista para a primeira). Se um dia isto se optimizar, o
-  servidor tem de devolver o cartão redesenhado — o cliente não sabe o
-  que cada fase pede.
+- **Arrastar no quadro NÃO recarrega: o servidor devolve o cartão.**
+  O cartão que se arrasta é o MESMO nó do DOM, e quem decide o que ele
+  mostra é o servidor, pela fase: largá-lo no "Submetido" mudava-o de
+  coluna e mais nada — sem o campo do preço proposto, com o preço base
+  onde já devia estar o proposto, e com a soma no cabeçalho das duas
+  colunas errada. A primeira resposta (01/09/2026) foi um
+  `location.reload()` no caminho do sucesso; a `UX-Auditoria.md`
+  (02/09/2026) classificou-a como dívida, e no mesmo dia `/quadro/mover`
+  passou a devolver `{carta, contas}` — o HTML do cartão redesenhado
+  (`cartao()`) e a `conta_da_coluna()` das duas colunas tocadas — e o
+  `drop` troca só isso (`carta.replaceWith`, `ligarCarta` no nó novo,
+  `outerHTML` das contagens). O `reload()` fica só nos ramos do erro,
+  para repor o ecrã pelo que a base diz. Se acrescentares ao cartão
+  algo que dependa da fase, é em `cartao()` que entra, e a resposta do
+  mover já o traz.
 - **Os três trabalhos longos correm todos fora do pedido.** "Verificar
   agora" é thread com trinco (`comecar_verificacao()`, com um `passo`
   que a barra lateral mostra), "Actualizar contratos" é thread com
@@ -489,6 +493,38 @@ A ordem do ficheiro é a ordem do fluxo:
   ligação a uma porta com bind e **sem** listen não é recusada, bloqueia
   até ao timeout — um teste que ponha um servidor a nascer a meio é
   intermitente, e por isso a sonda troca-se por uma falsa nos testes.
+- **Um alvo de texto tem 24px de altura, com a letra que tiver.**
+  «voltar a por ver» tinha 85×11, «Pôr por ver» 63×12, «mudar» 34×13:
+  `background:none;border:0;padding:0` num botão de 11px faz da área
+  de clique o próprio texto. O padrão é `padding` até aos 24px com
+  margem negativa vertical (a linha não cresce) e `min-height:24px;
+  box-sizing:border-box`; `TestAlvosDeTextoA24px` percorre os
+  selectores (`button.tirar`, `.carta-pe a`, `.bt-leve`, `.sou button`,
+  `button.etq-x`, `.alerta .apagar`) — um botão de texto novo entra
+  nessa lista. Ligações dentro de frases não contam: têm a altura da
+  linha, e a WCAG exclui-as.
+- **Triar avisa e deixa desfazer.** `mudar_estado()` volta com
+  `?aviso=«título» marcado como interessa.&desfazer=/estado/<ref>/<estado
+  anterior>` e `envolver()` desenha o `desfazer` como botão POST dentro
+  do `.flash` — só caminhos `/estado/`, nunca um endereço vindo da query
+  string. Se o estado anterior era um abandono com motivo, o motivo vai
+  em `?motivo=` na acção do desfazer (por isso `mudar_estado()` lê
+  `request.values` e não `request.form`); um abandono antigo sem motivo
+  não oferece desfazer, porque o servidor o recusaria.
+  `_volta_com_aviso()` tira o `aviso`/`desfazer` anteriores da query
+  string antes de pôr os novos. Repetir o mesmo estado avisa sem
+  desfazer.
+- **A partir do "Submetido" o prazo é uma data, não um alarme.** Em
+  `cartao()`, nas `FASES_COM_PROPOSTO` a pílula é `prazo DD/MM/AAAA`
+  sem cor: a proposta foi entregue, e o vermelho de «prazo expirado»
+  estava em 4 dos 9 cartões do quadro a puxar o olho para nada. Antes do
+  Submetido continua a ser `etiqueta_prazo()`.
+- **A folha do Google Fonts carrega sem bloquear a pintura**
+  (`media="print" onload="this.media='all'"`, com a cópia normal em
+  `<noscript>`). Como `<link rel=stylesheet>` simples era render-blocking:
+  12,6 s de página branca sem saída para o domínio, com o servidor a
+  responder em 16 ms. Sem rede, a aplicação fica legível **antes** do
+  timeout, com a letra de reserva.
 - **Toda a truncagem visível passa por `corta()`**, que põe reticências.
   Um `[:190]` cru corta a meio de palavra e lê-se como dado estragado.
   Onde quem corta é o CSS (uma pílula do calendário, um nome num
@@ -511,18 +547,19 @@ A ordem do ficheiro é a ordem do fluxo:
   página vão de 1112 a 1522. Antes disto, um monitor de 1920 tinha 530px
   vazios e um de 2560 tinha 1170.
 - **Cor de texto e cor de decoração são escalas diferentes.** O texto
-  usa `--t1`..`--t6`, medidos para passar AA (4,5:1) **sobre
-  `--papel`**, que é o pior fundo — não sobre branco. Setas, molduras
-  tracejadas e separadores usam `--traco` ou `--linha`, e nunca um
-  `--t*`. Foi a confusão entre os dois que fez a escala antiga descer a
-  2,5:1 em texto de 10px. E um contraste marginal **não se vê,
-  mede-se**: a passagem de 31/08/2026 deixou seis falhas entre 4,1 e
-  4,43 que nenhuma revisão a olho tinha apanhado — a medição corre como
-  script no browser, elemento a elemento contra o primeiro fundo opaco
-  acima dele. E `--papel` **não** é o pior fundo: as colunas do quadro
-  são `--linha2`, mais escuro, e a auditoria de 02/09/2026 apanhou lá
-  três textos em `--t5` a 4,35:1 — mede sobre todos os fundos que
-  existem, não só sobre o papel.
+  usa `--t1`..`--t6`; setas, molduras tracejadas e separadores usam
+  `--traco` ou `--linha`, e nunca um `--t*`. Foi a confusão entre os
+  dois que fez a escala antiga descer a 2,5:1 em texto de 10px. **E a
+  escala do texto tem dois patamares, medidos pelo próprio CSS**
+  (`TestContrasteNosFundosReais`, 02/09/2026): `--t1`..`--t4` passam AA
+  (4,5:1) sobre `--papel`, `--linha2` e `--creme`; `--t5` e `--t6` só
+  passam sobre branco e `--creme` — sobre `--papel` dão 4,43 e 4,30, e
+  sobre `--linha2`, que é o fundo das colunas do quadro, 4,35 e 4,22.
+  Os `.coluna-pede` estiveram em `--t5` um dia por isso. Um contraste
+  marginal **não se vê, mede-se**: a passagem de 31/08/2026 deixou seis
+  falhas entre 4,1 e 4,43 que nenhuma revisão a olho tinha apanhado, e
+  a de 02/09/2026 apanhou três dentro da coluna do quadro porque só se
+  tinha medido sobre o papel. Mede sobre todos os fundos que existem.
 - **Os dois CSV escrevem números com `numero_csv()` e chamam-se pelo
   `nome_csv()`.** Vírgula decimal, sem símbolo e sem separador de
   milhares, que é o que o Excel português come; e data no nome, porque

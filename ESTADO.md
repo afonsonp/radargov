@@ -1916,7 +1916,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 634 testes a 02/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 652 testes a 02/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4963,3 +4963,43 @@ existe porque o servidor não devolve o cartão redesenhado. As
 propostas e a ordem estão na Parte 4 do `UX-Auditoria.md`; cinco delas
 pedem decisão dele (filtros recolhidos, essencial encurtado, teclado)
 e o resto é meia jornada sem mudar hábitos.
+
+## P0 e P1 da auditoria UX aplicados, 2 de setembro de 2026
+
+À ordem do Afonso («avança com P0 e P1»), na mesma sessão da auditoria.
+Seis alterações no `radar.py`, todas pequenas e nenhuma a mudar hábitos:
+
+- **Contraste (P0).** `.coluna-pede` de `--t5` para `--t4`: 5,12:1
+  sobre a coluna do quadro. E a regra ficou escrita como é: a escala do
+  texto tem dois patamares, `--t1`..`--t4` para qualquer fundo claro,
+  `--t5`/`--t6` só para branco e `--creme`. Um teste calcula os
+  contrastes a partir do próprio `CSS`.
+- **Alvos de texto a 24px.** Seis selectores com `padding` até aos 24px
+  e margem negativa vertical, letra igual. Teste por selector.
+- **Triar avisa e deixa desfazer.** O `.flash` que já servia o
+  «Verificar agora» passa a dizer «título» marcado como interessa /
+  abandonado (motivo) / reposto em por ver, com um botão «desfazer» que
+  faz o POST inverso. Se o estado anterior era um abandono, o motivo
+  vai na acção; `mudar_estado()` lê `request.values` por isso.
+  `_volta_com_aviso()` limpa o aviso anterior da query string.
+- **Prazo neutro a partir do Submetido.** «prazo 03/08/2026» sem cor
+  nas `FASES_COM_PROPOSTO`; antes disso, a etiqueta de sempre.
+- **Fontes sem bloquear.** `media="print" onload="this.media='all'"`
+  na folha do Google Fonts, com a normal em `<noscript>`.
+- **O quadro deixou de recarregar.** `/quadro/mover` devolve o cartão
+  redesenhado (`cartao()`) e a `conta_da_coluna()` das duas colunas; o
+  `drop` troca só isso e volta a ligar o arrasto ao nó novo. O
+  guardar/repor do rolar horizontal saiu com o `reload()` que servia.
+  A classe de testes do arrasto foi reescrita: era a regressão do
+  comportamento antigo e o comportamento mudou de propósito.
+
+**652 testes, todos a passar** (621 antes; 13 vieram com o merge do
+master, 18 são destes). Uma armadilha paga a meio: um teste que marca
+«interessa» pelo cliente Flask põe as peças na fila, e a fila é uma
+thread que abre a base — a base do teste **seguinte**, que aparecia
+«locked» sem razão visível. O teste substitui `pedir_documentos` por
+nada; um teste que passe sozinho e falhe na bateria é sinal disto.
+
+Não se repetiu a medição do browser depois das alterações. O que
+espera decisão dele continua no BACKLOG (filtros recolhidos, essencial
+encurtado, teclado).
