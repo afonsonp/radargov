@@ -4180,12 +4180,203 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
     return "\n".join(linhas)
 
 
-def enviar_email(assunto, corpo, cfg=None):
+# O e-mail "bonito" (02/09/2026): o mesmo resumo em HTML, ao lado do
+# texto. Tudo em estilos em linha e em tabelas, que e o que os clientes
+# de e-mail percebem -- nem <style>, nem fontes externas, nem flex. As
+# cores sao as da paleta "ardosia e ambar" do painel, copiadas a mao
+# porque um e-mail nao le o CSS da aplicacao.
+_EM_INK = "#14181e"
+_EM_PAPEL = "#eef1f4"
+_EM_LINHA = "#dbe0e6"
+_EM_T2 = "#333c46"
+_EM_T3 = "#4d5661"
+_EM_AZUL = "#17557f"
+_EM_SANS = "Archivo,system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
+_EM_MONO = "'JetBrains Mono',Consolas,Menlo,monospace"
+_EM_CORES = {"ok": ("#e7f3ec", "#1a7a4d"),
+             "avisa": ("#fbeee2", "#a8450e"),
+             "mau": ("#fbe9e5", "#b0341a"),
+             "": ("#eceff2", "#4d5661")}
+
+
+def _em_pilula(texto, classe=""):
+    fundo, cor = _EM_CORES.get(classe, _EM_CORES[""])
+    return ("<span style=\"display:inline-block;padding:2px 8px;"
+            "border-radius:10px;background:%s;color:%s;font:600 11.5px/1.5 %s;"
+            "white-space:nowrap\">%s</span>"
+            % (fundo, cor, _EM_SANS, html.escape(texto)))
+
+
+def _em_ligacao(ref):
+    return "http://localhost:%d/anuncio/%s" % (PORTA, quote(ref, safe=""))
+
+
+def _em_prazo(prazo, urgente):
+    """[(texto, classe)] para a linha do prazo: a data e a pilula."""
+    dias, passou = dias_restantes(prazo)
+    if dias is None:
+        return "", _em_pilula("sem prazo lido")
+    if passou:
+        return ("propostas até %s" % data_pt(prazo),
+                _em_pilula("prazo expirado", "mau"))
+    texto, classe = etiqueta_prazo(prazo, urgente)
+    return "propostas até %s" % data_pt(prazo), _em_pilula(texto, classe)
+
+
+def _em_cartao(a, urgente, mostrar_prazo=True):
+    """Um anuncio: titulo com a ligacao, entidade, e a linha do ref,
+    prazo e preco base. O titulo vai inteiro -- no texto corta-se aos
+    88 caracteres e "(SaaS" a meio era a primeira coisa que se via."""
+    titulo = html.escape(a["titulo"] or "(sem título)")
+    entidade = html.escape(a["entidade"] or "")
+    preco = html.escape(a["preco_base"] or "sem preço base")
+    metas = ["<span style=\"font:500 12px/1.5 %s;color:%s\">%s</span>"
+             % (_EM_MONO, _EM_T3, html.escape(a["ref"]))]
+    if mostrar_prazo:
+        data, pilula = _em_prazo(a["prazo"], urgente)
+        if data:
+            metas.append(html.escape(data))
+        metas.append(pilula)
+    else:
+        metas.append("publicado %s" % html.escape(data_pt(a["data_pub"])))
+    metas.append("<b style=\"color:%s\">%s</b>" % (_EM_T2, preco))
+    sep = "<span style=\"color:#b9c1cb;padding:0 7px\">·</span>"
+    return ("<tr><td style=\"padding:12px 16px;border-top:1px solid %s\">"
+            "<a href=\"%s\" style=\"font:600 14.5px/1.35 %s;color:%s;"
+            "text-decoration:none\">%s</a>"
+            "<div style=\"font:400 12.5px/1.45 %s;color:%s;margin-top:2px\">%s</div>"
+            "<div style=\"font:400 12.5px/1.9 %s;color:%s;margin-top:4px\">%s</div>"
+            "</td></tr>"
+            % (_EM_LINHA, _em_ligacao(a["ref"]), _EM_SANS, _EM_INK, titulo,
+               _EM_SANS, _EM_T3, entidade,
+               _EM_SANS, _EM_T3, sep.join(metas)))
+
+
+def _em_seccao(rotulo, n, linhas):
+    """Um bloco branco com o cabecalho da seccao em cima."""
+    return ("<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
+            "cellspacing=\"0\" style=\"background:#fff;border:1px solid %s;"
+            "border-radius:8px;margin:0 0 16px;border-collapse:separate\">"
+            "<tr><td style=\"padding:11px 16px 9px;font:700 11px/1.4 %s;"
+            "color:%s;text-transform:uppercase;letter-spacing:.06em\">%s "
+            "<span style=\"color:%s;font-weight:500\">(%d)</span></td></tr>"
+            "%s</table>"
+            % (_EM_LINHA, _EM_SANS, _EM_T2, html.escape(rotulo), _EM_T3, n,
+               "".join(linhas)))
+
+
+def html_do_resumo(achados, alteradas=(), seguidas=()):
+    """O mesmo resumo de texto_do_resumo(), em HTML, para o e-mail ir
+    com as duas partes (o texto continua a ser o AVISOS.txt e a
+    alternativa para quem nao le HTML). As seccoes e as contagens sao
+    as mesmas, de proposito: um teste compara os dois."""
+    total = sum(len(x[1]) for x in achados)
+    n_alt = len({x["ref"] for x in alteradas})
+    n_seg = sum(len(x[2]) for x in seguidas)
+    urgente = dias_urgente()
+    cabeca = []
+    if total or not (n_alt or n_seg):
+        cabeca.append("%d anúncio%s novo%s nos teus alertas"
+                      % (total, "" if total == 1 else "s",
+                         "" if total == 1 else "s"))
+    if n_alt:
+        cabeca.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
+    if n_seg:
+        cabeca.append("%d das entidades seguidas" % n_seg)
+
+    blocos = []
+    for f, anuncios in achados:
+        blocos.append(_em_seccao(f["nome"], len(anuncios),
+                                 [_em_cartao(a, urgente) for a in anuncios]))
+    if alteradas:
+        rotulos = dict(CAMPOS_VIGIADOS)
+        por_ref = {}
+        for x in alteradas:
+            por_ref.setdefault(x["ref"], []).append(x)
+        linhas = []
+        for ref, mudancas in por_ref.items():
+            primeiro = mudancas[0]
+            itens = []
+            for x in mudancas:
+                if x["campo"] == "retificacao":
+                    itens.append("rectificado pelo anúncio <b>%s</b>"
+                                 % html.escape(x["depois"]))
+                else:
+                    itens.append(
+                        "%s: <s style=\"color:%s\">%s</s> &rarr; <b>%s</b>"
+                        % (html.escape(rotulos.get(x["campo"], x["campo"])),
+                           _EM_T3,
+                           html.escape(_valor_vigiado(x["campo"], x["antes"])),
+                           html.escape(_valor_vigiado(x["campo"], x["depois"]))))
+            linhas.append(
+                "<tr><td style=\"padding:12px 16px;border-top:1px solid %s\">"
+                "<a href=\"%s\" style=\"font:600 14.5px/1.35 %s;color:%s;"
+                "text-decoration:none\">%s</a>"
+                "<div style=\"font:400 12.5px/1.45 %s;color:%s;margin-top:2px\">%s</div>"
+                "<div style=\"font:400 12.5px/1.7 %s;color:%s;margin-top:4px\">%s</div>"
+                "</td></tr>"
+                % (_EM_LINHA, _em_ligacao(ref), _EM_SANS, _EM_INK,
+                   html.escape(primeiro["titulo"] or "(sem título)"),
+                   _EM_SANS, _EM_T3, html.escape(primeiro["entidade"] or ""),
+                   _EM_SANS, _EM_T2, "<br>".join(itens)))
+        blocos.append(_em_seccao("Alterados desde a última leitura",
+                                 len(por_ref), linhas))
+    if seguidas:
+        linhas = []
+        for _, nome, anuncios in seguidas:
+            linhas.append(
+                "<tr><td style=\"padding:10px 16px 2px;border-top:1px solid %s;"
+                "font:600 12.5px/1.4 %s;color:%s\">%s "
+                "<span style=\"color:%s;font-weight:500\">(%d)</span></td></tr>"
+                % (_EM_LINHA, _EM_SANS, _EM_T2, html.escape(nome or ""),
+                   _EM_T3, len(anuncios)))
+            linhas.extend(_em_cartao(a, urgente, mostrar_prazo=False)
+                          for a in anuncios)
+        blocos.append(_em_seccao("Das entidades que segues", n_seg, linhas))
+
+    return (
+        "<!DOCTYPE html><html lang=\"pt\"><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width\">"
+        "<title>Radar de Concursos</title></head>"
+        "<body style=\"margin:0;padding:0;background:%(papel)s\">"
+        "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
+        "cellspacing=\"0\" style=\"background:%(papel)s\"><tr><td align=\"center\" "
+        "style=\"padding:24px 12px\">"
+        "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
+        "cellspacing=\"0\" style=\"max-width:640px\">"
+        "<tr><td style=\"background:%(ink)s;border-radius:8px 8px 0 0;"
+        "padding:18px 20px 16px\">"
+        "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
+        "text-transform:uppercase;letter-spacing:.08em\">"
+        "<span style=\"color:#e08b2c\">&#9679;</span>&nbsp; Radar de Concursos</div>"
+        "<div style=\"font:600 18px/1.3 %(sans)s;color:#fff;margin-top:8px\">%(cabeca)s</div>"
+        "<div style=\"font:400 12px/1.4 %(sans)s;color:rgba(255,255,255,.55);"
+        "margin-top:4px\">%(quando)s</div>"
+        "</td></tr>"
+        "<tr><td style=\"padding:16px 0 0\">%(blocos)s</td></tr>"
+        "<tr><td style=\"padding:4px 4px 0;font:400 11.5px/1.5 %(sans)s;"
+        "color:%(t3)s\">As ligações abrem no PC onde o radar corre. "
+        "O mesmo resumo fica em <span style=\"font-family:%(mono)s\">AVISOS.txt</span>."
+        "</td></tr>"
+        "</table></td></tr></table></body></html>"
+        % {"papel": _EM_PAPEL, "ink": _EM_INK, "sans": _EM_SANS,
+           "mono": _EM_MONO, "t3": _EM_T3,
+           "cabeca": html.escape(" · ".join(cabeca)),
+           "quando": datetime.now().strftime("%d/%m/%Y %H:%M"),
+           "blocos": "".join(blocos)})
+
+
+def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     """Manda o resumo. Devolve (correu bem, o que dizer ao utilizador).
 
     A palavra-passe le-se de `email_senha.txt` ou da variavel
     RADAR_EMAIL_SENHA -- nunca fica na configuracao, que e um ficheiro
     que se abre sem pensar. O `.gitignore` ja cobre o nome.
+
+    Com `html_corpo`, a mensagem vai em duas partes (multipart/
+    alternative): o texto e a primeira, o HTML a segunda, e o cliente
+    mostra a que souber. O texto fica sempre -- e o AVISOS.txt e o que
+    se le num cliente sem HTML.
     """
     cfg = cfg or ler_config()
     e = cfg.get("email") or {}
@@ -4203,6 +4394,8 @@ def enviar_email(assunto, corpo, cfg=None):
     msg["From"] = de
     msg["To"] = para
     msg.set_content(corpo)
+    if html_corpo:
+        msg.add_alternative(html_corpo, subtype="html")
     porta = int(e.get("porta") or 587)
     try:
         if porta == 465:
@@ -4250,7 +4443,8 @@ def enviar_resumo(cfg=None, forcar=False):
         pedacos.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
     if n_seg:
         pedacos.append("%d das seguidas" % n_seg)
-    bem, porque = enviar_email("Radar: " + " · ".join(pedacos), corpo, cfg)
+    bem, porque = enviar_email("Radar: " + " · ".join(pedacos), corpo, cfg,
+                               html_do_resumo(achados, alteradas, seguidas))
 
     # Sem e-mail configurado, **o ficheiro e a entrega** -- da-se por
     # avisado e o estado avanca. Se ficassem pendentes, o painel dizia

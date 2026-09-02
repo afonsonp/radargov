@@ -1913,7 +1913,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 580 testes a 01/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 621 testes a 02/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4781,3 +4781,40 @@ disto se vê no painel, e é assim de propósito.
   **como isto se monta no esqueleto** — a página, o bloco da ficha, o
   vocabulário dos estados («Não fomos», «passou sem decisão»,
   «cancelado») e se o radar passa a ser onde se escreve.
+
+## O e-mail de alerta ficou «bonito», 2 de setembro de 2026
+
+O Afonso mostrou o resumo tal como chegava à caixa de correio — texto
+corrido, títulos cortados aos 88 caracteres («…Software-as-a-Service
+(SaaS» a meio), as ligações a azul do cliente — e pediu que ficasse
+bonito. Foi feito nesta sessão, sem mexer no que se avisa nem em quando.
+
+- **`html_do_resumo()`** produz o mesmo resumo em HTML: cabeçalho em
+  ardósia com a contagem e a hora, um bloco branco por secção (cada
+  alerta, os alterados, as seguidas), e um cartão por anúncio com o
+  título inteiro a ligar à ficha, a entidade, e a linha do ref, prazo e
+  preço base. O prazo leva a pílula da lista — verde folgado, laranja
+  dentro da janela do urgente, vermelho expirado ou a acabar hoje —
+  pela mesma `etiqueta_prazo()` e a mesma `dias_urgente()`, para o
+  e-mail nunca dizer uma cor diferente da do painel. Nos alterados o
+  valor antigo vai riscado e o novo a negrito.
+- **A mensagem vai em `multipart/alternative`**: o texto de sempre
+  primeiro, o HTML depois (`enviar_email(..., html_corpo=)`). O
+  `AVISOS.txt` continua a ser o texto; quem lê sem HTML vê o que via.
+- **Tudo em estilos em linha e tabelas**, sem `<style>`, fontes
+  externas nem flex — é o que os clientes de e-mail percebem. As cores
+  da paleta «ardósia e âmbar» estão copiadas à mão nas constantes
+  `_EM_*`, porque o e-mail não lê o `CSS` do painel. Tudo o que vem da
+  base passa por `html.escape`.
+- **Onze testes novos** (`TestResumoEmHtml`, `TestEnvioComHtml`): o
+  documento, as ligações em `href`, o escape, o título inteiro, os
+  três estados do prazo, a cor da janela do urgente, os alterados, as
+  seguidas, a estrutura de duas partes da mensagem (com um SMTP falso)
+  — e um que segura os dois formatos juntos, comparando as ligações do
+  texto e do HTML na mesma ordem. 621 testes, todos a passar.
+
+Verificado com dados de exemplo num browser a 760px, a partir de um
+ficheiro gerado pela função; **nenhum e-mail foi enviado nesta sessão**.
+A primeira leitura a sério é no Gmail, quando o próximo resumo sair —
+se o Gmail lhe torcer alguma coisa (costuma ser o `font` abreviado ou
+o `border-radius`), é aí que se afina.
