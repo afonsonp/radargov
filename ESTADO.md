@@ -1916,7 +1916,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 645 testes a 02/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 646 testes a 02/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -5022,7 +5022,7 @@ EUR»), aqui, em CPU:
   pela marca, a imagem a cores, sem motor fica `scan`, sem texto dá
   `imagem`, a segunda passagem só com ficheiro, o `scan` novo lê-se
   na mesma chamada, desligado no config não faz nada, o ZIP, o que
-  conta para a análise, o que a ficha diz, a marca na saúde. **645
+  conta para a análise, o que a ficha diz, a marca na saúde. **646
   testes.** O motor verdadeiro mediu-se à parte, sobre o PDF sintético,
   de ponta a ponta pela mesma `texto_por_ocr()`: 2 páginas, 9 s, texto
   certo.
