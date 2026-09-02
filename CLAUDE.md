@@ -47,7 +47,9 @@ python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
-python radar.py --importar-excel F [--ensaio] [--sem-rede] # o Excel da casa (casa.py)
+python radar.py --importar-excel F [--ensaio] [--sem-rede] [--com-triagem] # o Excel da casa (casa.py); sem --com-triagem só guarda e liga
+python radar.py --casa-ligar ID REF  # liga à mão uma linha do Excel a um anúncio
+python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
 ```
 
 As tarefas do Windows são três (`agendar.bat`): as duas verificações
@@ -191,17 +193,24 @@ A ordem do ficheiro é a ordem do fluxo:
   uma abreviatura do título do DR), o valor do 1.º lugar cruzado com o
   `preco_contratual` do BASE (que traz o `n_anuncio`, isto é, o ref),
   e a leitura do detalhe dos candidatos ambíguos para o preço base
-  desempatar e as republicações caírem. A triagem só se escreve quando
-  o estado do Excel é inequívoco (Não fomos → descartado com o motivo
-  mapeado; Submetido/Perdido/Ganho → interessa na fase com esse papel,
-  com preço proposto, lugar e três primeiros); «Cancelado» e «TBD»
-  ficam só no registo. **Uma decisão humana feita no radar nunca é
-  esmagada** pela importação: fica um conflito, registado uma vez no
-  histórico. Entidades espanholas não entram (`FORA_DO_PAIS`, decisão
-  dele). `--ensaio` calcula e não grava; a página `/casa` é onde se
-  liga à mão o que a importação não soube, e uma ligação manual
-  sobrevive às importações seguintes. Os dois motivos «Fora do âmbito»
-  e «Prazo curto» vieram das razões do Excel.
+  desempatar e as republicações caírem. **Por agora só se guarda e
+  liga: a triagem NÃO se aplica** (decisão dele a 02/09/2026 — nada
+  muda no front antes de o registo estar validado, e os lotes, várias
+  linhas do Excel no mesmo anúncio, ainda não têm solução). A página
+  `/casa` e o bloco da ficha que chegaram a existir saíram nesse dia;
+  há teste a guardá-lo (`test_o_front_nao_mudou`). Quando se aplicar
+  (`--com-triagem`, `triagem=True`): só com estado inequívoco (Não
+  fomos → descartado com o motivo mapeado; Submetido/Perdido/Ganho →
+  interessa na fase com esse papel, com preço proposto, lugar e três
+  primeiros), «Cancelado» e «TBD» ficam só no registo, **uma decisão
+  humana feita no radar nunca é esmagada** (conflito registado uma vez
+  no histórico), e os motivos «Fora do âmbito» e «Prazo curto» entram
+  então em `MOTIVOS_ABANDONO` (hoje só em `casa.MAPA_RAZAO`).
+  Entidades espanholas não entram (`FORA_DO_PAIS`, decisão dele).
+  `--ensaio` calcula e não grava; `--casa-ligar ID REF` liga à mão, e
+  uma ligação manual sobrevive às importações seguintes;
+  `--casa-desfazer CÓPIA` repõe a triagem de uma cópia anterior (foi o
+  que desfez a aplicação de 02/09/2026).
 - **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**
   Os 16 campos do `SearchTenders` são título, entidade, datas, estado
   e tipo — **nenhum é CPV nem NIPC**. Até 01/09/2026 guardava-se a
