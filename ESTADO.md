@@ -607,16 +607,19 @@ resposta é 200 com a casca HTML. Distinguir os dois casos poupa tempo.
 
 `curl_DR.txt` e `curl_detalhe.txt`, na pasta. São `Copy as cURL` do
 DevTools, sobre os dois pedidos acima. O radar aproveita delas os
-cabeçalhos, o `x-csrftoken` e a forma do corpo.
+cabeçalhos e a forma do corpo; o `x-csrftoken` e a `versionInfo` vêm
+do portal desde 02/09/2026 (ver «O token não expira», mais abaixo).
 
 Usar sempre **Copy as cURL (bash)**. O formato `cmd` escapa cada
 caractere com `^` e **come os acentos**: o filtro `parte` chegava ao
 servidor como `L - Contratos p blicos` e o DR devolvia zero sem se
 queixar. Há código a repor esse valor (`VALORES_FIXOS`), mas é remendo.
 
-O token vem da sessão do browser e há-de expirar. Quando isso acontecer,
-o painel avisa em vez de mostrar lista vazia. A recaptura leva dois
-minutos. Não há forma de evitar isto sem API.
+**Esteve aqui escrito que o token vinha da sessão do browser, que
+havia de expirar e que não havia forma de o evitar sem API.** As três
+afirmações eram falsas, medidas a 02/09/2026 — ver a secção «O token
+não expira» no fim. O painel continua a avisar se o DR não aceitar o
+pedido, mas só depois de tentar renovar as peças sozinho.
 
 ## O problema do CPV, resolvido — e um diagnóstico errado que aqui esteve
 
@@ -1913,7 +1916,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 621 testes a 02/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 634 testes a 02/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4811,7 +4814,8 @@ bonito. Foi feito nesta sessão, sem mexer no que se avisa nem em quando.
   três estados do prazo, a cor da janela do urgente, os alterados, as
   seguidas, a estrutura de duas partes da mensagem (com um SMTP falso)
   — e um que segura os dois formatos juntos, comparando as ligações do
-  texto e do HTML na mesma ordem. 621 testes, todos a passar.
+  texto e do HTML na mesma ordem. 621 testes, todos a passar (634 no
+  fim do dia, com os das peças do DR).
 
 Verificado com dados de exemplo num browser a 760px, a partir de um
 ficheiro gerado pela função; **nenhum e-mail foi enviado nesta sessão**.
@@ -4847,19 +4851,64 @@ voltar a avaliar o mesmo:
   a fila `alteracoes`. Do changedetection não há código a aproveitar:
   é uma aplicação inteira (Flask, datastore em JSON, fetchers,
   notificações por apprise) e o diff é `difflib`. Por fazer, no radar.
-- **Scrapling — só se a medição do token o justificar.** O parser
-  adaptativo serve HTML que muda, e o radar quase não parseia HTML (o
-  DR responde JSON, a Vortal é API, a acingov dá um ZIP; só as páginas
-  JSF, 9%). O único ângulo com valor é o browser sem cabeça a renovar
-  o token das capturas. **Antes disso mede-se se um GET chega**:
-  `medir_captura.py` lê o `curl_DR.txt` (nunca o escreve), dispara a
-  captura intacta como controlo, tira uma peça de cada vez
-  (x-csrftoken, cookie, moduleVersion, apiVersion) para saber qual
-  tranca, abre uma sessão nova por GET à home, lê o `crf=` do cookie
-  `nr2Users` e o `versionToken` do `moduleinfo`, e repete o pedido com
-  essas peças. O DR não responde deste ambiente: **corre no PC**,
-  `medir.bat` (ou `python medir_captura.py`), relatório em `amostras/medicao_captura.txt`.
-  Se a sessão nova for aceite, as capturas deixam de expirar (o corpo
-  continua a vir delas, e esse não expira) e o Scrapling sai da lista.
-  Sabe-se já que o token dura pelo menos 10 dias (captura de 23/08
-  ainda a funcionar a 02/09).
+- **Scrapling — não.** O parser adaptativo serve HTML que muda, e o
+  radar quase não parseia HTML (o DR responde JSON, a Vortal é API, a
+  acingov dá um ZIP; só as páginas JSF, 9%). O único ângulo com valor
+  seria o browser sem cabeça a renovar o token das capturas, e a
+  medição abaixo provou que não é preciso browser nenhum.
+
+## O token não expira: as peças do DR renovam-se sozinhas, 2 de setembro de 2026
+
+Três voltas do `medir_captura.py` (corrido no PC pelo Afonso; o DR não
+responde do ambiente remoto), contra o portal verdadeiro, com o
+`curl_DR.txt` de 23/08 como controlo. O que se mediu, por ordem:
+
+1. **Só o `x-csrftoken` tranca.** Sem ele, a casca HTML de 2346 bytes.
+   Sem cookie nenhum, passa. Com a `moduleVersion` errada, passa. O DR
+   já tinha republicado a aplicação desde a captura
+   (`hasModuleVersionChanged: true` em todas as respostas) e respondia
+   na mesma.
+2. **O token não é de sessão: é uma constante pública.** Está escrito
+   em `/dr/scripts/OutSystems.js` como
+   `AnonymousCSRFToken="T6C+9iB49TLra4jEsMeSckDMNhQ="`, e é exactamente
+   o da captura (o `crf=` do cookie `nr2Users` é o mesmo valor, com o
+   `+` escrito `%2b`). Com cookie, o DR verifica o cabeçalho contra o
+   `crf` do cookie e um token inventado cai; **sem cookie aceita até um
+   inventado**. Foi por isto que a captura de 23/08 servia a 02/09: o
+   token só muda quando o DR actualiza a plataforma OutSystems.
+3. **A `apiVersion` é a única tranca real.** Errada, o DR responde JSON
+   com `data: {}` e `versionInfo.hasApiVersionChanged: true`. Vive no
+   script compilado do ecrã (`dr.Pesquisas.PesquisaResultado.mvc.js`,
+   `callDataAction("DataActionGetPesquisas", "screenservices/…",
+   "PRsQKjEXDVBC3ZSqkS8k6A", …)`), e esse script está listado com a
+   versão em `manifest.urlVersions` do `/dr/moduleservices/moduleinfo`,
+   que responde a um GET sem sessão (176 KB; o `versionToken` já era
+   `Y0NBIj4uVIBdNjR3KejkaA` contra `9DeZ4j9NYEpfCiXfe3gDLw` da captura).
+   O detalhe é igual: `dr.Legislacao_Conteudos.Conteudo_Detalhe.mvc.js`.
+4. **A prova:** pesquisa e detalhe feitos com cabeçalhos mínimos
+   (User-Agent, Accept, Content-Type, Origin, Referer, X-CSRFToken) e
+   as três peças vindas dos GETs, sem nada da captura a não ser o corpo
+   — 25 anúncios e 1 detalhe. A `apiVersion` errada de propósito, na
+   mesma volta: zero.
+
+**O que mudou no `radar.py`:** uma banda nova, «as peças do DR
+renovam-se sozinhas». `renovar_pecas_dr()` faz os três GETs
+(moduleinfo → OutSystems.js → script do ecrã), com cache por processo
+(6 h) e `forcar`; `pedido_renovado()` tira o Cookie e põe o token, a
+`moduleVersion` e a `apiVersion` por cima da captura; e
+`perguntar_ao_dr()` é a **porta única** dos quatro POST ao portal
+(`recolher`, `ler_detalhe_de`, `ler_detalhes`, `reler_marcados`): se
+vier a casca ou `hasApiVersionChanged`, renova à força e repete uma
+vez; só se falhar as duas é que `registar_expiracao_token()` grava,
+com a razão (`casca`/`apiVersion`). Sem rede para os GETs (ou se o DR
+mudar de forma) o pedido segue com a captura tal como está — o
+comportamento de sempre —, e a falha da renovação fica em
+`pecas_dr_ultimo_erro`, ligada aos indicadores. A captura fica a servir
+pela **forma do corpo** (as variáveis do ecrã), que não expira.
+Treze testes (`TestPecasDoDR`), incluindo um que recusa um
+`requests.post` solto nas quatro funções. 634 testes.
+
+**O que já se sabia e ficava por explicar:** a captura de 23/08 nunca
+tinha expirado em 10 dias, e o E4 (registo da expiração) nunca disparou.
+Agora sabe-se porquê. O `medir_captura.py` e o `medir.bat` ficam como
+instrumento: se o DR mudar, é por aí que se volta a medir.
