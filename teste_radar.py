@@ -6960,6 +6960,159 @@ class TestRegistoDaCasa(BaseTemporaria):
                          {"Fora do âmbito", "Prazo curto"})
 
 
+class TestVigilanciaDasPecas(BaseTemporaria):
+    """03/09/2026: o reler_marcados() vigia o prazo e o preço base na
+    página do DR, mas um esclarecimento ou uma errata não passam pelo DR —
+    aparecem na lista de documentos da plataforma, e só se dava por eles
+    abrindo a plataforma à mão.
+
+    Os erros que estes testes travam, todos com custo real:
+
+    - vigiar pela via do obter_documentos(), que apaga as linhas do
+      anúncio: levava atrás o texto já extraído e os veredictos do OCR, e
+      mandava as ~7 s por página de cada digitalização outra vez;
+    - avisar a mesma peça a cada verificação — duas vezes por dia, para
+      sempre — quando ela não se conseguiu trazer;
+    - tomar uma lista vazia por «as peças desapareceram», que é a
+      plataforma em baixo e não uma novidade (a mesma regra do
+      diferencas_do_detalhe(): só se avisa o que tem valor dos dois lados);
+    - contar o «Anúncio DR.pdf», que é o radar que o acrescenta e a
+      plataforma não tem, como peça nova a cada volta."""
+
+    def _anuncio(self, ref="30/2026", **campos):
+        valores = {"estado": "interessa", "docs_estado": "ok",
+                   "link_pecas": "https://www.acingov.pt/x/donwloadProcedurePiece/A",
+                   "plataforma": "acingov",
+                   "prazo": (datetime.date.today() + datetime.timedelta(days=10)).isoformat(),
+                   "titulo": "Aquisição de serviços", "entidade": "Câmara"}
+        valores.update(campos)
+        colunas = ",".join(valores)
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref,%s) VALUES (?%s)"
+                      % (colunas, ",?" * len(valores)),
+                      [ref] + list(valores.values()))
+        return ref
+
+    def _peca(self, ref, nome, texto="texto da peça", estado="ok"):
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref,nome,ficheiro,tamanho,"
+                      "origem,obtido_em,texto,texto_estado)"
+                      " VALUES (?,?,?,?,?,?,?,?)",
+                      (ref, nome, nome, 10, "acingov", "2026-09-01 09:00",
+                       texto, estado))
+
+    def _disponiveis(self, *nomes):
+        """A lista que a plataforma daria: o conteúdo só chega se pedido.
+
+        Os bytes de propósito não são um PDF: assim o extrair_textos()
+        diz «não é PDF» e cala-se, em vez de o pypdf gritar por um EOF
+        que não existe — um teste que imprime avisos ensina a ignorá-los.
+        """
+        return [(n, (lambda n=n: b"conteudo de " + n.encode()))
+                for n in nomes]
+
+    def _alteracoes(self, ref):
+        with radar.liga() as c:
+            return [(r["campo"], r["depois"]) for r in c.execute(
+                "SELECT campo, depois FROM alteracoes WHERE ref=?", (ref,))]
+
+    def _docs(self, ref):
+        with radar.liga() as c:
+            return {r["nome"]: (r["texto_estado"], r["texto"]) for r in c.execute(
+                "SELECT nome, texto_estado, texto FROM documentos WHERE ref=?",
+                (ref,))}
+
+    def test_peca_nova_avisa_e_nao_mexe_nas_que_ja_ca_estavam(self):
+        ref = self._anuncio()
+        self._peca(ref, "Caderno de Encargos.pdf", "texto por OCR", "ocr")
+        self._peca(ref, "Anúncio DR.pdf")
+        quantas = radar._guardar_pecas_novas(
+            ref, "acingov",
+            self._disponiveis("Caderno de Encargos.pdf", "Esclarecimento 1.pdf"))
+        self.assertEqual(quantas, 1)
+        self.assertEqual(self._alteracoes(ref),
+                         [(radar.CAMPO_PECA_NOVA, "Esclarecimento 1.pdf")])
+        docs = self._docs(ref)
+        # o veredicto do OCR e o texto dele sobrevivem — que é
+        # exactamente o que a via do obter_documentos() não faria
+        self.assertEqual(docs["Caderno de Encargos.pdf"], ("ocr", "texto por OCR"))
+        self.assertIn("Esclarecimento 1.pdf", docs)
+        with radar.liga() as c:
+            h = c.execute("SELECT detalhe FROM historico WHERE ref=?",
+                          (ref,)).fetchall()
+        self.assertTrue(any("Esclarecimento 1.pdf" in x["detalhe"] for x in h), h)
+
+    def test_a_segunda_volta_nao_volta_a_avisar(self):
+        ref = self._anuncio()
+        self._peca(ref, "Caderno de Encargos.pdf")
+        pecas = self._disponiveis("Caderno de Encargos.pdf", "Errata.pdf")
+        self.assertEqual(radar._guardar_pecas_novas(ref, "acingov", pecas), 1)
+        self.assertEqual(radar._guardar_pecas_novas(ref, "acingov", pecas), 0)
+        self.assertEqual(len(self._alteracoes(ref)), 1)
+
+    def test_peca_que_nao_se_consegue_trazer_avisa_uma_vez_so(self):
+        # ficheiro acima do tecto: o buscar() devolve None. Avisar é
+        # preciso — ela existe; repetir o aviso duas vezes por dia para
+        # sempre é que não.
+        ref = self._anuncio()
+        pecas = [("Anexo enorme.zip", lambda: None)]
+        self.assertEqual(radar._guardar_pecas_novas(ref, "acingov", pecas), 1)
+        self.assertEqual(self._alteracoes(ref),
+                         [(radar.CAMPO_PECA_NOVA, "Anexo enorme.zip")])
+        self.assertEqual(self._docs(ref), {})
+        self.assertEqual(radar._guardar_pecas_novas(ref, "acingov", pecas), 0)
+
+    def test_o_anuncio_dr_nao_conta_como_peca_nova(self):
+        ref = self._anuncio()
+        self.assertEqual(radar._guardar_pecas_novas(
+            ref, "acingov", self._disponiveis("Anúncio DR.pdf")), 0)
+        self.assertEqual(self._alteracoes(ref), [])
+
+    def test_lista_vazia_nao_e_novidade_nem_desaparecimento(self):
+        ref = self._anuncio()
+        self._peca(ref, "Caderno de Encargos.pdf")
+        antigo = radar.pecas_disponiveis
+        radar.pecas_disponiveis = lambda sessao, link: ([], "")
+        try:
+            novas, aviso = radar.vigiar_pecas()
+        finally:
+            radar.pecas_disponiveis = antigo
+        self.assertEqual((novas, aviso), (0, ""))
+        self.assertEqual(self._alteracoes(ref), [])
+        self.assertEqual(list(self._docs(ref)), ["Caderno de Encargos.pdf"])
+
+    def test_so_os_marcados_com_prazo_aberto_e_com_pecas_ja_trazidas(self):
+        ontem = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        self._anuncio("31/2026", estado="novo")           # por ver
+        self._anuncio("32/2026", prazo=ontem)             # prazo fechado
+        self._anuncio("33/2026", docs_estado="")          # sem base de comparação
+        self._anuncio("34/2026", link_pecas="")           # sem link
+        self._anuncio("35/2026")                          # só este conta
+        vistos = []
+        antigo = radar.pecas_disponiveis
+
+        def espia(sessao, link):
+            vistos.append(link)
+            return [], ""
+        radar.pecas_disponiveis = espia
+        try:
+            radar.vigiar_pecas()
+        finally:
+            radar.pecas_disponiveis = antigo
+        self.assertEqual(len(vistos), 1, vistos)
+
+    def test_o_aviso_da_peca_nova_le_se_no_resumo_e_no_html(self):
+        # o `antes` é vazio: sem caso próprio saía " -> Errata 2.pdf"
+        linha = {"ref": "30/2026", "campo": radar.CAMPO_PECA_NOVA, "antes": "",
+                 "depois": "Errata 2.pdf", "titulo": "Aquisição de serviços",
+                 "entidade": "Câmara", "id": 1}
+        texto = radar.texto_do_resumo([], [linha])
+        htm = radar.html_do_resumo([], [linha])
+        self.assertIn("peça nova na plataforma: Errata 2.pdf", texto)
+        self.assertIn("peça nova na plataforma: <b>Errata 2.pdf</b>", htm)
+        self.assertNotIn("-> Errata 2.pdf", texto)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

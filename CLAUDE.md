@@ -349,6 +349,28 @@ A ordem do ficheiro é a ordem do fluxo:
   validação: o inválido deixa ficar o de origem, nunca cala uma leitura
   em silêncio. Campos novos não entram por aí — a `analise` tem colunas
   fixas.
+- **Vigiar a lista das peças não é trazer as peças.** `vigiar_pecas()`
+  (03/09/2026) faz do lado das plataformas o que o `reler_marcados()`
+  faz do lado do DR: um esclarecimento ou uma errata **não passam pelo
+  DR**, aparecem na lista de documentos do procedimento. **Nunca uses o
+  `obter_documentos()` para isto**: ele faz `DELETE FROM documentos
+  WHERE ref=?` e volta a trazer tudo — apagava o texto já extraído e os
+  veredictos do OCR, e mandava as ~7 s por página de cada digitalização
+  outra vez. Quem lista é `pecas_disponiveis()`, que devolve
+  `[(nome, buscar)]` e só chama o `buscar` das novas: na Vortal os
+  nomes vêm no JSON sem descarregar nada; na acingov **a lista é o
+  ZIP** (não há endereço de listagem sem sessão, medido a 01/09/2026);
+  na anogov/ComprasPT/ESPAP o nome só vem no `Content-Disposition`, por
+  isso `_nome_sem_corpo()` lê os cabeçalhos e não o corpo. O recorte é
+  o do `reler_marcados()` MAIS `docs_estado` em ok/parcial — sem lista
+  de partida cada peça do procedimento contava como novidade. Lista
+  vazia não é «desapareceram»: é a plataforma em baixo, e não avisa
+  nada. E uma peça **avisada** não se avisa outra vez mesmo que não se
+  consiga trazer (ficheiro acima do `MAX_FICHEIRO`) — a guarda é olhar
+  para a fila `alteracoes`, senão o mesmo anexo saía no resumo duas
+  vezes por dia para sempre. No resumo, `peca_nova` tem caso próprio no
+  texto E no HTML, como o `retificacao`: o `antes` é vazio e
+  « → Errata.pdf» não se lê.
 - **A releitura dos marcados é vigilância, não recolha.**
   `reler_marcados()` relê por verificação até 25 anúncios
   interessa/quadro com prazo aberto; `_guardar_detalhe()` compara prazo
@@ -934,6 +956,10 @@ decisão dele a 02/09/2026 («tens de começar a ser tu a fazer»): validar
 no PC primeiro, fazer o merge do PR, e dizer-lhe os dois comandos para a
 pen apanhar o `master` (`git checkout master`, `git pull origin master`).
 
-Há também ramos `claude/*` de sessões anteriores, e um worktree em
-`.claude/worktrees/`. Trabalha-se no `master`; esses ramos não se apagam
-sem uma palavra dele.
+Trabalha-se no `master`, e a 03/09/2026 é o único ramo que existe: os
+`claude/*` de sessões anteriores foram apagados a pedido dele, depois de
+se confirmar que nenhum tinha commits exclusivos (`git log
+origin/master..origin/<ramo>` vazio nos dois). O worktree que houve em
+`.claude/worktrees/` também já não existe. Um ramo `claude/*` que volte
+a aparecer é de uma sessão remota, e **não se apaga sem uma palavra
+dele** — nem depois do merge.

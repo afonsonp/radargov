@@ -2467,6 +2467,107 @@ def _pecas_jsf(sessao, link):
     return saida, grandes
 
 
+def _nome_sem_corpo(sessao, endereco):
+    """O nome que a plataforma da a um ficheiro, sem descarregar o corpo.
+
+    Abre o pedido em stream e fecha-o depois dos cabecalhos: o nome vem
+    no Content-Disposition e o corpo nunca se le. E o que deixa VIGIAR a
+    lista da anogov/ComprasPT/ESPAP, onde o nome nao esta na pagina --
+    so na resposta de cada descarga."""
+    try:
+        with sessao.get(endereco, timeout=90, stream=True) as r:
+            return _nome_da_resposta(r) if r.status_code == 200 else ""
+    except requests.RequestException:
+        return ""
+
+
+def _buscar_do_endereco(sessao, endereco):
+    """Uma funcao que descarrega este endereco quando for chamada."""
+    def buscar():
+        _, dados = _descarregar(sessao, endereco)
+        return dados
+    return buscar
+
+
+def _buscar_do_zip(bruto, dentro):
+    """Uma funcao que tira este membro do ZIP que ja esta em memoria."""
+    def buscar():
+        with zipfile.ZipFile(io.BytesIO(bruto)) as z:
+            info = z.getinfo(dentro)
+            return None if info.file_size > MAX_FICHEIRO else z.read(dentro)
+    return buscar
+
+
+def pecas_disponiveis(sessao, link):
+    """([(nome, buscar)], aviso) das pecas que a plataforma mostra AGORA.
+
+    `buscar` e uma funcao sem argumentos que devolve os bytes dessa
+    peca, ou None; so se chama para as que sao novas, e e isso que
+    deixa vigiar a lista sem trazer o procedimento inteiro a cada
+    verificacao.
+
+    **O obter_documentos() NAO serve para vigiar.** Faz
+    `DELETE FROM documentos WHERE ref=?` e volta a trazer tudo -- o que
+    apagava o texto ja extraido e os veredictos do OCR, e mandava as
+    ~7 s por pagina outra vez em cada digitalizacao. Vigiar e ler a
+    lista e trazer so o que falta.
+
+    Cada plataforma da o que da:
+      - vortal: os nomes vem na resposta JSON, sem descarregar nada;
+      - acingov: a lista E o ZIP -- nao ha endereco de listagem (a
+        pagina do procedimento exige sessao, medido a 01/09/2026), por
+        isso o ZIP vem para memoria e le-se o infolist() dele;
+      - anogov/ComprasPT/ESPAP: os enderecos estao na pagina e o nome
+        vem no cabecalho de cada um (_nome_sem_corpo).
+    """
+    link = link or ""
+    if "acingov" in link:
+        _, bruto = _descarregar(sessao, link, limite=MAX_FICHEIRO * 4)
+        if not bruto or not bruto.startswith(b"PK"):
+            return [], "o ZIP das peças não veio"
+        with zipfile.ZipFile(io.BytesIO(bruto)) as z:
+            nomes = [i.filename for i in z.infolist() if not i.is_dir()]
+        return [(nome_seguro(n), _buscar_do_zip(bruto, n)) for n in nomes], ""
+    if "vortal" in link:
+        lista = []
+        m = re.search(r"(PT\d+\.NTC\.\d+)", link)
+        if not m:
+            lista, endereco = _info_vortal(sessao, link)
+            m = re.search(r"(PT\d+\.NTC\.\d+)", endereco)
+        if not lista:
+            if not m:
+                return [], "a Vortal não deu o identificador do procedimento"
+            try:
+                resposta = sessao.get(VORTAL_DOCS, timeout=90, params={
+                    "contractNoticeUId": m.group(1)}).json()
+            except (requests.RequestException, ValueError):
+                return [], "a Vortal não respondeu à lista das peças"
+            lista = resposta if isinstance(resposta, list) else []
+        fora = []
+        for doc in lista:
+            endereco = doc.get("downloadUrl")
+            if not endereco:
+                continue
+            # As duas respostas nao chamam o nome do ficheiro o mesmo.
+            rotulo = doc.get("name") or doc.get("documentName") or "documento"
+            fora.append((nome_seguro(rotulo),
+                         _buscar_do_endereco(sessao, endereco)))
+        return fora, ""
+    if ASSINATURA_JSF in link.lower():
+        try:
+            pagina = sessao.get(link, timeout=120)
+        except requests.RequestException as erro:
+            return [], "a plataforma não respondeu (%s)" % str(erro)[:60]
+        pagina.encoding = "windows-1252"
+        fora = []
+        for endereco in docs_jsf_da_pagina(pagina.text, link):
+            nome = _nome_sem_corpo(sessao, endereco) or "documento"
+            fora.append((nome_seguro(nome),
+                         _buscar_do_endereco(sessao, endereco)))
+        return fora, ""
+    return [], ""
+
+
 # Tecto por ficheiro. A Infraestruturas de Portugal publica anexos
 # tecnicos enormes -- um anuncio real trouxe 551 MB num unico ZIP. Sem
 # isto, uma triagem de dez anuncios enche o disco e a memoria, porque o
@@ -3890,6 +3991,121 @@ def pedir_documentos(ref):
     _FILA_DOCS.put(ref)
 
 
+# --- vigiar a lista das pecas dos anuncios marcados (03/09/2026)
+#
+# O reler_marcados() vigia o prazo e o preco base na pagina do DR. Mas
+# um esclarecimento ou uma errata NAO passam pelo DR: aparecem na
+# plataforma, na lista de documentos do procedimento, e ninguem os
+# encontrava sem abrir a plataforma a mao. Isto faz o mesmo que o
+# reler_marcados(), do lado das plataformas: comparar a lista de agora
+# com a tabela `documentos` e avisar o que apareceu.
+
+CAMPO_PECA_NOVA = "peca_nova"
+
+# As pecas que o radar acrescenta e a plataforma nao tem: se nao se
+# excluissem, o "Anúncio DR.pdf" contava como peca desaparecida numa
+# ponta e nova na outra a cada verificacao.
+PECAS_DO_RADAR = ("Anúncio DR.pdf",)
+
+
+def _guardar_pecas_novas(ref, plataforma, disponiveis):
+    """Guarda e avisa as pecas que ainda nao estao na base. Devolve quantas.
+
+    Traz a peca nova e acrescenta a linha -- **sem apagar as que ja
+    estao**, que e a diferenca em relacao ao obter_documentos(). Uma
+    peca ja avisada nao se avisa outra vez mesmo que nao se consiga
+    guardar (ficheiro acima do tecto): sem essa guarda, o mesmo
+    esclarecimento saia no resumo a cada verificacao, duas vezes por
+    dia, para sempre.
+    """
+    with liga() as c:
+        tinha = {r["nome"] for r in c.execute(
+            "SELECT nome FROM documentos WHERE ref=?", (ref,))}
+        avisadas = {r["depois"] for r in c.execute(
+            "SELECT depois FROM alteracoes WHERE ref=? AND campo=?",
+            (ref, CAMPO_PECA_NOVA))}
+    pasta = pasta_do_anuncio(ref)
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    quantas = 0
+    for nome, buscar in disponiveis:
+        if nome in tinha or nome in avisadas or nome in PECAS_DO_RADAR:
+            continue
+        try:
+            dados = buscar()
+        except (requests.RequestException, ValueError, zipfile.BadZipFile,
+                KeyError, OSError):
+            dados = None
+        if dados:
+            os.makedirs(pasta, exist_ok=True)
+            with open(os.path.join(pasta, nome), "wb") as f:
+                f.write(dados)
+            with liga() as c:
+                c.execute("INSERT INTO documentos (ref,nome,ficheiro,tamanho,"
+                          "origem,obtido_em) VALUES (?,?,?,?,?,?)",
+                          (ref, nome, nome, len(dados),
+                           plataforma or "dr", agora))
+        with liga() as c:
+            c.execute("INSERT INTO alteracoes (ref, campo, antes, depois,"
+                      " detectado_em) VALUES (?,?,?,?,?)",
+                      (ref, CAMPO_PECA_NOVA, "", nome, agora))
+        registar(ref, "alterou", "peça nova na plataforma: %s%s"
+                 % (nome, "" if dados else " (não se conseguiu trazer)"),
+                 quem="plataforma")
+        quantas += 1
+    if quantas:
+        # So as novas: as outras linhas nao estao a NULL e o
+        # extrair_textos() nao lhes toca.
+        extrair_textos(ref)
+    return quantas
+
+
+def vigiar_pecas(limite=10):
+    """Peca nova (esclarecimento, errata) nos anuncios MARCADOS: avisa.
+
+    Marcado = "interessa" ou com fase no quadro, e com prazo aberto --
+    o mesmo recorte do reler_marcados(), e pela mesma razao: uma errata
+    num anuncio que ninguem quer, ou num prazo que ja fechou, nao muda
+    decisao nenhuma. So os que JA tem pecas trazidas (`docs_estado`):
+    sem uma lista de partida nao ha com que comparar, e cada peca do
+    procedimento contaria como novidade.
+
+    Uma lista vazia NAO e "as pecas desapareceram" -- e a plataforma a
+    falhar. Mesma regra do diferencas_do_detalhe(): so se avisa o que
+    tem valor dos dois lados. Devolve (quantas pecas novas, aviso).
+    """
+    hoje = datetime.now().date().isoformat()
+    with liga() as c:
+        marcados = c.execute(
+            "SELECT ref, plataforma, link_pecas FROM anuncios"
+            " WHERE (estado='interessa' OR fase_id IS NOT NULL)"
+            " AND docs_estado IN ('ok','parcial')"
+            " AND COALESCE(link_pecas,'') != ''"
+            " AND COALESCE(prazo,'') != '' AND prazo >= ?"
+            " ORDER BY prazo LIMIT ?", (hoje, limite)).fetchall()
+    if not marcados:
+        return 0, ""
+    sessao = requests.Session()
+    sessao.headers.update({"User-Agent": NAVEGADOR,
+                           "Accept": "application/json, text/plain, */*"})
+    novas, falhas = 0, []
+    for a in marcados:
+        try:
+            disponiveis, aviso = pecas_disponiveis(sessao, a["link_pecas"])
+        except (requests.RequestException, ValueError, zipfile.BadZipFile,
+                OSError) as erro:
+            disponiveis, aviso = [], str(erro)[:100]
+        if aviso or not disponiveis:
+            if aviso:
+                falhas.append("%s: %s" % (a["ref"], aviso))
+            continue
+        novas += _guardar_pecas_novas(a["ref"], a["plataforma"], disponiveis)
+    if falhas:
+        marca_erro("docs_ultimo_erro", "pecas", "%s · a vigiar peças · %s"
+                   % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                      " | ".join(falhas[:3])))
+    return novas, (" | ".join(falhas) if falhas else "")
+
+
 # A leitura pelo modelo, tambem em fila.
 #
 # Corria dentro do pedido, com o comentario a dizer "demora poucos
@@ -4545,6 +4761,11 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                 if x["campo"] == "retificacao":
                     linhas.append("    rectificado pelo anúncio %s"
                                   % x["depois"])
+                elif x["campo"] == CAMPO_PECA_NOVA:
+                    # Nao ha "antes -> depois" numa peca que apareceu:
+                    # o antes e vazio, e "-> Errata.pdf" nao se le.
+                    linhas.append("    peça nova na plataforma: %s"
+                                  % x["depois"])
                 else:
                     linhas.append("    %s: %s -> %s"
                                   % (rotulos.get(x["campo"], x["campo"]),
@@ -4690,6 +4911,9 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
             for x in mudancas:
                 if x["campo"] == "retificacao":
                     itens.append("rectificado pelo anúncio <b>%s</b>"
+                                 % html.escape(x["depois"]))
+                elif x["campo"] == CAMPO_PECA_NOVA:
+                    itens.append("peça nova na plataforma: <b>%s</b>"
                                  % html.escape(x["depois"]))
                 else:
                     itens.append(
@@ -4907,6 +5131,21 @@ def verificar(cfg=None, passo=None):
             ligar_retificacoes()
         except (sqlite3.Error, OSError) as erro:
             print("aviso: a releitura dos marcados falhou (%s)" % erro)
+    # A lista das pecas dos marcados, do lado das plataformas. Nao
+    # depende do DR nem o estraga: uma plataforma em baixo nao pode dar
+    # a verificacao por falhada (bem fica como esta), e vai antes dos
+    # alertas para as pecas novas entrarem no resumo do mesmo dia.
+    diz("a ver se apareceram peças novas nos anúncios marcados")
+    try:
+        n_pecas, _ = vigiar_pecas(int(cfg.get("pecas_vigiadas_por_volta", 10)))
+        if n_pecas:
+            mensagem += (" &middot; %d peça%s nova%s"
+                         % (n_pecas, "" if n_pecas == 1 else "s",
+                            "" if n_pecas == 1 else "s"))
+    except Exception as erro:
+        marca_erro("docs_ultimo_erro", "pecas", "%s · a vigiar peças: %s"
+                   % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                      str(erro)[:150]))
     # B14: a segunda fonte, ANTES dos alertas -- as consultas
     # preliminares tambem contam para eles. Falha isolada: a Vortal em
     # baixo nao estraga a verificacao do DR.
