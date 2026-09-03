@@ -12,6 +12,7 @@ com os cabecalhos de uma captura feita uma vez no browser (curl_DR.txt).
 Arranque:  python radar.py             painel em http://localhost:8765
            python radar.py --uma-vez   verifica e sai, para as tarefas
            python radar.py --historico N   puxa N dias de historico
+           python radar.py --detalhes [N|tudo]   le o detalhe do que falta
            python radar.py --reler     reanalisa o texto ja guardado
            python radar.py --descartar-expirados   arruma os por ver com prazo passado
            python radar.py --importar-cpv F   carrega o vocabulario CPV
@@ -753,6 +754,26 @@ def conta_dias(dias):
     return "%d dias" % dias
 
 
+def duracao_pt(segundos):
+    """10 -> '10s', 90 -> '2 min', 5400 -> '1h30', 61200 -> '17h'. Para
+    dizer quanto falta numa recolha longa.
+
+    Abaixo do minuto conta em segundos, e nao arredondado a '1 min':
+    numa corrida que comeca por ler cinco anuncios em dez segundos, o
+    '1 min decorridos' punha em duvida tudo o resto que a linha diz.
+    Acima disso arredonda os minutos PARA CIMA, pela razao simetrica --
+    'faltam 0 min' com meio minuto a faltar le-se como se tivesse
+    acabado."""
+    segundos = max(0, int(segundos or 0))
+    if segundos < 60:
+        return "%ds" % segundos
+    minutos = -(-segundos // 60)          # para cima
+    if minutos < 60:
+        return "%d min" % minutos
+    horas, resto = divmod(minutos, 60)
+    return "%dh" % horas if not resto else "%dh%02d" % (horas, resto)
+
+
 def etiqueta_prazo(prazo, urgente=None):
     """(texto, classe) para o distintivo de prazo. Verde folgado, amarelo
     dentro da janela do urgente, vermelho expirado ou a acabar hoje.
@@ -817,11 +838,15 @@ def data_de_filtro(valor):
     return valor if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor) else ""
 
 
-def mil_pt(n):
+def mil_pt(n, espaco=" "):
     """65869 -> '65 869'. A portuguesa, e com espaco inquebravel: com
     um espaco normal, o browser parte "1 363 300" ao fim da linha e a
-    leitura fica com um numero em cada linha."""
-    return "{:,}".format(int(n)).replace(",", " ")
+    leitura fica com um numero em cada linha.
+
+    Passa-se `espaco=" "` para a CONSOLA: a do Windows escreve em cp1252
+    e o inquebravel sai de la como lixo ("60?215"), o que estraga logo a
+    primeira linha de um comando que vai correr horas."""
+    return "{:,}".format(int(n)).replace(",", espaco)
 
 
 def euros_do_texto(texto):
@@ -1934,6 +1959,68 @@ def ler_detalhes(limite=40, dias=None):
         feitos += 1
         time.sleep(1)
     return feitos, ""
+
+
+# Medido a 3/09/2026 contra o portal, 20 anuncios em 29s: o
+# `time.sleep(1)` de `ler_detalhes()` mais ~0.45s de pedido. Serve
+# so para a estimativa que o comando imprime ANTES de comecar; a
+# partir da primeira volta o que se mostra e o ritmo verdadeiro.
+SEGUNDOS_POR_DETALHE = 1.45
+VOLTAS_VAZIAS = 3           # quantos blips de rede se toleram de seguida
+ESPERA_ENTRE_VAZIAS = 30    # segundos
+
+
+def detalhes_em_lote(alvo, lote, contar, ler=None, esperar=None, diz=None):
+    """Le o detalhe de `alvo` anuncios em voltas de `lote`. Devolve
+    quantos leu.
+
+    Serve o `--detalhes`, que enche o detalhe de toda a base -- horas de
+    relogio a um pedido por segundo. O contrato e ser retomavel e nao
+    desistir a primeira: `ler_detalhes()` sai do ciclo em SILENCIO
+    (`feitos` menor que o lote, aviso vazio) quando um pedido falha de
+    rede ou traz JSON ilegivel, e numa corrida de horas isso e um blip
+    -- parar ai perdia a noite por causa de um segundo. Tolera
+    VOLTAS_VAZIAS seguidas, com ESPERA_ENTRE_VAZIAS entre elas, e so
+    depois desiste.
+
+    Um aviso de `ler_detalhes()` -- captura recusada pelo portal -- para
+    logo: bater outra vez na mesma porta nao a abre.
+
+    `contar` diz quantos faltam, e e o que distingue "acabou" de "falhou
+    a rede"; `ler`, `esperar` e `diz` sao injectaveis para o teste poder
+    forcar as voltas vazias sem rede e sem sleeps de verdade."""
+    ler = ler or ler_detalhes
+    esperar = esperar or time.sleep
+    diz = diz or (lambda t: print("  " + t))
+    ini, feitos_total, vazios = time.time(), 0, 0
+    try:
+        while feitos_total < alvo:
+            feitos, aviso = ler(min(lote, alvo - feitos_total), dias=None)
+            feitos_total += feitos
+            if aviso:
+                diz("Parado: %s" % aviso)
+                break
+            if not feitos:
+                if not contar():
+                    break               # acabou de verdade
+                vazios += 1
+                if vazios >= VOLTAS_VAZIAS:
+                    diz("Parado: %d voltas seguidas sem ler nada (rede?). "
+                        "Repete o comando mais tarde." % VOLTAS_VAZIAS)
+                    break
+                diz("nada nesta volta (%d/%d); espero %ds e tento outra vez"
+                    % (vazios, VOLTAS_VAZIAS, ESPERA_ENTRE_VAZIAS))
+                esperar(ESPERA_ENTRE_VAZIAS)
+                continue
+            vazios = 0
+            decorrido = time.time() - ini
+            diz("%s/%s (%.1f%%), %s decorridos, faltam ~%s"
+                % (mil_pt(feitos_total, " "), mil_pt(alvo, " "),
+                   100.0 * feitos_total / alvo, duracao_pt(decorrido),
+                   duracao_pt((alvo - feitos_total) * decorrido / feitos_total)))
+    except KeyboardInterrupt:
+        diz("Interrompido.")
+    return feitos_total
 
 
 # O DR publica rectificacoes como ANUNCIOS NOVOS, com o original citado
@@ -13702,6 +13789,58 @@ def main():
         cfg_historico = dict(cfg, dias_catchup=dias)
         mensagem, novos = verificar(cfg_historico)
         print(mensagem)
+        return
+
+    if "--detalhes" in sys.argv:
+        # Preenche o detalhe -- CPV, prazo, preco base, plataforma, link
+        # das pecas, texto -- dos anuncios que ainda nao o tem, do mais
+        # recente para o mais antigo.
+        #
+        # Porque e que faz falta um comando: a verificacao le 40 por
+        # volta e SO os ultimos `detalhe_dias` (60) dias, de proposito
+        # -- entre a publicacao e o prazo vao ~18 dias, e o detalhe de
+        # um anuncio fechado nao muda a decisao de hoje. Mas o que ficou
+        # de tras nunca chegava a ser lido em massa (60 215 dos 66 387 a
+        # 3/09/2026), e um anuncio sem detalhe e MUDO para o filtro por
+        # CPV, para a arvore, para o preco e para os indicadores: conta
+        # na base e nao aparece em nada disso.
+        #
+        # Nao gasta modelo nenhum -- e HTTP ao portal mais parsing; o
+        # que gasta modelo e `--ler-pecas`. O que isto custa e tempo:
+        # um pedido por segundo, de proposito, para nao castigar o
+        # portal. Retomavel por construcao, porque cada anuncio fica
+        # gravado com detalhe_lido=1 assim que e lido: um Ctrl-C, um
+        # corte de rede ou um reinicio nao perdem o que ja se leu, e o
+        # comando repetido continua de onde ia.
+        i = sys.argv.index("--detalhes")
+        resto = [a for a in sys.argv[i + 1:] if not a.startswith("--")]
+        tecto = None if not resto or resto[0] == "tudo" else int(resto[0])
+        lote = int(cfg.get("detalhes_por_volta", 40))
+
+        def por_ler():
+            # A mesma condicao de ler_detalhes(): so a fonte do DR. As
+            # preliminares da Vortal tambem passam por detalhe_lido=0 e
+            # o detalhe delas e outro endpoint.
+            with liga() as c:
+                return c.execute(
+                    "SELECT COUNT(*) n FROM anuncios WHERE detalhe_lido=0 "
+                    "AND COALESCE(fonte,'dr')='dr'").fetchone()["n"]
+
+        falta = por_ler()
+        alvo = falta if tecto is None else min(tecto, falta)
+        if not alvo:
+            print("Não há anúncios do DR sem detalhe: está tudo lido.")
+            return
+        print("%s anúncio(s) do DR sem detalhe. Vou ler %s, %d por volta,\n"
+              "um pedido por segundo -- conta cerca de %s. Ctrl-C pára e\n"
+              "não perde nada: o que já foi lido está gravado."
+              % (mil_pt(falta, " "), mil_pt(alvo, " "), lote,
+                 duracao_pt(alvo * SEGUNDOS_POR_DETALHE)))
+        ini = time.time()
+        feitos_total = detalhes_em_lote(alvo, lote, contar=por_ler)
+        print("%s detalhe(s) lidos em %s; ficam %s por ler."
+              % (mil_pt(feitos_total, " "), duracao_pt(time.time() - ini),
+                 mil_pt(por_ler(), " ")))
         return
 
     if "--importar-excel" in sys.argv:

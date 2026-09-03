@@ -1794,6 +1794,131 @@ class TestResumoDosAlertas(unittest.TestCase):
         self.assertIn("/anuncio/123%2F2026", saiu)
 
 
+class TestDuracaoPt(unittest.TestCase):
+    """Duas fronteiras, com razões simétricas. Abaixo do minuto conta em
+    segundos, porque "1 min decorridos" numa volta de dez segundos punha
+    em dúvida tudo o resto que a linha diz. Acima, arredonda os minutos
+    PARA CIMA, porque "faltam 0 min" com meio minuto a faltar lê-se como
+    se tivesse acabado."""
+
+    def test_menos_de_uma_hora_em_minutos(self):
+        self.assertEqual(radar.duracao_pt(90), "2 min")
+        self.assertEqual(radar.duracao_pt(3540), "59 min")
+
+    def test_abaixo_do_minuto_conta_em_segundos(self):
+        self.assertEqual(radar.duracao_pt(1), "1s")
+        self.assertEqual(radar.duracao_pt(29), "29s")
+        self.assertEqual(radar.duracao_pt(59), "59s")
+
+    def test_a_fronteira_do_minuto_troca_de_unidade_uma_vez_so(self):
+        self.assertEqual(radar.duracao_pt(59), "59s")
+        self.assertEqual(radar.duracao_pt(60), "1 min")
+        self.assertEqual(radar.duracao_pt(61), "2 min")
+
+    def test_arredonda_para_cima_e_nunca_esconde_tempo_a_faltar(self):
+        # 59 min e 1 s arredonda a 60 min, e 60 min mostram-se como "1h":
+        # o arredondamento para cima pode fazer subir de unidade
+        self.assertEqual(radar.duracao_pt(3541), "1h")
+        self.assertEqual(radar.duracao_pt(3601), "1h01")
+        self.assertEqual(radar.duracao_pt(0), "0s")
+
+    def test_horas_redondas_sem_minutos_pendurados(self):
+        self.assertEqual(radar.duracao_pt(3600), "1h")
+        self.assertEqual(radar.duracao_pt(61200), "17h")
+
+    def test_horas_e_minutos_com_dois_digitos(self):
+        # "1h3" lia-se como uma hora e trinta; os zeros são obrigatórios
+        self.assertEqual(radar.duracao_pt(5400), "1h30")
+        self.assertEqual(radar.duracao_pt(3780), "1h03")
+
+    def test_negativo_e_nada_nao_estouram(self):
+        self.assertEqual(radar.duracao_pt(-5), "0s")
+        self.assertEqual(radar.duracao_pt(None), "0s")
+
+
+class TestDetalhesEmLote(unittest.TestCase):
+    """O ciclo do `--detalhes`, que enche o detalhe de toda a base --
+    horas de relógio a um pedido por segundo.
+
+    `ler_detalhes()` sai do ciclo EM SILÊNCIO quando um pedido falha de
+    rede ou traz JSON ilegível: devolve menos do que o lote e aviso
+    vazio. Desistir à primeira perdia a noite por causa de um segundo,
+    por isso há um último recurso -- tolerar VOLTAS_VAZIAS seguidas --,
+    e é ele que este teste força. A espera e a leitura são injectadas:
+    um teste cujo sucesso dependa de um sleep verdadeiro é um teste
+    instável que ainda não falhou.
+    """
+
+    def _correr(self, respostas, faltam, alvo=100, lote=40):
+        """Corre o ciclo com `respostas` enfileiradas. `faltam` é o que
+        o contador diz quando lhe perguntam."""
+        chamadas, esperas, ditos = [], [], []
+
+        def ler(n, dias=None):
+            chamadas.append(n)
+            return respostas.pop(0) if respostas else (0, "")
+
+        return (radar.detalhes_em_lote(
+            alvo, lote, contar=lambda: faltam, ler=ler,
+            esperar=esperas.append, diz=ditos.append),
+            chamadas, esperas, ditos)
+
+    def test_corre_por_voltas_ate_ao_alvo_e_nao_pede_mais_que_isso(self):
+        feitos, chamadas, esperas, _ = self._correr(
+            [(40, ""), (40, ""), (20, "")], faltam=1000)
+        self.assertEqual(feitos, 100)
+        # a última volta pede 20, não 40: o alvo é um tecto
+        self.assertEqual(chamadas, [40, 40, 20])
+        self.assertEqual(esperas, [])
+
+    def test_um_blip_de_rede_nao_para_a_corrida(self):
+        # volta vazia no meio, e depois continua
+        feitos, chamadas, esperas, _ = self._correr(
+            [(40, ""), (0, ""), (40, ""), (20, "")], faltam=1000)
+        self.assertEqual(feitos, 100)
+        self.assertEqual(esperas, [radar.ESPERA_ENTRE_VAZIAS])
+
+    def test_o_ultimo_recurso_dispara_as_tres_voltas_vazias(self):
+        # nunca lê nada, mas o contador insiste que faltam: desiste ao
+        # fim de VOLTAS_VAZIAS e espera entre elas -- uma vez menos que
+        # as voltas, porque a última não espera, desiste
+        feitos, chamadas, esperas, ditos = self._correr([], faltam=1000)
+        self.assertEqual(feitos, 0)
+        self.assertEqual(len(chamadas), radar.VOLTAS_VAZIAS)
+        self.assertEqual(esperas,
+                         [radar.ESPERA_ENTRE_VAZIAS] * (radar.VOLTAS_VAZIAS - 1))
+        self.assertIn("Parado", " ".join(ditos))
+
+    def test_o_contador_a_zero_para_logo_e_sem_esperar(self):
+        # é o que distingue "acabou" de "falhou a rede": sem o contador,
+        # o fim normal da fila gastava as três voltas e 60 segundos
+        feitos, chamadas, esperas, ditos = self._correr([], faltam=0)
+        self.assertEqual((feitos, len(chamadas), esperas), (0, 1, []))
+        self.assertNotIn("Parado", " ".join(ditos))
+
+    def test_um_aviso_do_portal_para_a_primeira(self):
+        # captura recusada: bater outra vez na mesma porta não a abre
+        feitos, chamadas, esperas, ditos = self._correr(
+            [(5, "o DR não aceitou o detalhe")], faltam=1000)
+        self.assertEqual((feitos, len(chamadas), esperas), (5, 1, []))
+        self.assertIn("Parado", " ".join(ditos))
+
+    def test_ctrl_c_devolve_o_que_ja_leu(self):
+        # o trabalho está gravado anúncio a anúncio; a contagem tem de o
+        # dizer em vez de estourar por cima do relatório final
+        def ler(n, dias=None):
+            if n == 40:
+                return 40, ""
+            raise KeyboardInterrupt
+
+        ditos = []
+        feitos = radar.detalhes_em_lote(100, 40, contar=lambda: 1000,
+                                        ler=ler, esperar=lambda s: None,
+                                        diz=ditos.append)
+        self.assertEqual(feitos, 80)
+        self.assertIn("Interrompido", " ".join(ditos))
+
+
 class TestDiferencasDoDetalhe(unittest.TestCase):
     """B05: a releitura dos marcados compara o prazo e o preço base com
     o que estava guardado. Uma prorrogação perdida é pior que nenhuma

@@ -71,6 +71,7 @@ arrumação.)
 python radar.py                    # painel em http://localhost:8765
 python radar.py --uma-vez          # verifica e sai (é o que as tarefas correm)
 python radar.py --historico 730    # recolha extra de N dias; conta horas
+python radar.py --detalhes [N|tudo] # le o detalhe do que falta (~1,45s cada); retomavel
 python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
@@ -162,7 +163,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 78 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
+São 80 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

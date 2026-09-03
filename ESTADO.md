@@ -62,13 +62,21 @@ parte L não publica.
 
 Os dois apertos são conhecidos e um deles é decisão tomada:
 
-- **Os 60 215 sem detalhe lido ficam assim.** A rotina lê o detalhe
-  apenas dos publicados na janela `detalhe_dias` (60 dias); os antigos
-  lêem-se quando se abre a ficha. Forçá-los seria ~17 horas de pedidos a
-  um por segundo. Decisão do Afonso a 3/09/2026: «passado é passado, e
-  nesses anúncios já não conseguimos fazer nada». Consequência a ter
-  presente: **um filtro por CPV só apanha quem tem detalhe lido** — o
-  histórico é acervo por consultar, não estatística.
+- **Os 60 215 sem detalhe vão ser lidos.** A rotina lê o detalhe apenas
+  dos publicados na janela `detalhe_dias` (60 dias) e os antigos lêem-se
+  ao abrir a ficha, o que deixava 60 215 anúncios **mudos para o filtro
+  por CPV, para a árvore, para o preço e para os indicadores** — contam
+  na base e não aparecem em nada disso. A decisão de manhã a 3/09/2026
+  foi deixá-los («passado é passado, e nesses anúncios já não
+  conseguimos fazer nada»); **ele reverteu-a à tarde**, e a razão é a
+  segunda metade da frase: não se responde a um concurso de 2024, mas o
+  CPV e o preço base dele são o corpus que diz onde é que esta casa
+  ganha. Existe desde então o `--detalhes [N|tudo]`: lê o que falta,
+  medido a **1,45 s por anúncio** (20 em 29 s contra o portal), portanto
+  **~24 horas** para os 60 190 que sobram. Retomável por construção — o
+  `detalhe_lido=1` grava-se anúncio a anúncio, um Ctrl-C ou um corte de
+  rede não perdem nada, e o comando repetido continua de onde ia. Não
+  gasta modelo nenhum: é HTTP mais parsing (quem gasta é `--ler-pecas`).
 - **Seis anúncios marcados é pouco para sustentar trabalho a jusante.**
   Foi o que fez cair o OCR e a vigilância das peças a 3/09/2026: estavam
   bem feitos e no sítio errado do funil. Ver `docs/diario/2026-09.md`.
