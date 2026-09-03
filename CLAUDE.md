@@ -904,9 +904,16 @@ peças de fora.
 
 Commit no fim de cada trabalho acabado, sem esperar autorização. Numa
 sessão local (na pen), **push não**: quem empurra é o Afonso, ou o
-próprio radar pelo B15 — `empurrar_triagem()` faz commit e push **só do
-`triagem.jsonl`** em cada verificação em que ele mude, e um push falhado
-retoma na volta seguinte (desliga-se com `"triagem_no_git": false`).
+próprio radar pelo B15 — e o B15 empurra mais do que o nome diz:
+`empurrar_triagem()` faz **commit** só do `triagem.jsonl`, mas o **push
+é do ramo inteiro** e a decisão de empurrar é `git rev-list --count
+origin/master..master`, não o diff do ficheiro. Ou seja, qualquer commit
+que fique no `master` da pen sai sozinho na verificação seguinte (09:00
+ou 17:00), tenha a triagem mudado ou não. Um push falhado retoma na
+volta seguinte (desliga-se com `"triagem_no_git": false`). Escrito ao
+contrário — «push só do triagem.jsonl» — levava a contar com um push à
+mão que já não é preciso, e a não perceber que um commit por acabar
+deixado no `master` sai para o GitHub sem mais ninguém o mandar.
 Numa sessão remota (claude.ai/code), o trabalho vai para um ramo
 `claude/*` e o merge para o `master` **é o Claude que o faz**, por
 decisão dele a 02/09/2026 («tens de começar a ser tu a fazer»): validar
