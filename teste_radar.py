@@ -6921,6 +6921,57 @@ class TestRegistoDaCasa(BaseTemporaria):
         self.assertFalse(hasattr(radar, "casa_cx"))
         self.assertEqual(len(radar.MOTIVOS_ABANDONO), 3)
 
+    LOTES = ("\n1 - IDENTIFICAÇÃO\nDesignação da entidade adjudicante: SPMS\n"
+             "Procedimento com lotes? Sim\nNº Máx. de Lotes Autorizado: 3\n\n"
+             "6 - OBJETO DO CONTRATO\nDesignação do contrato: Biblioteca\n"
+             "Preço base s/IVA: 735.889,84 EUR\nLotes: \n"
+             "Nº: LOT-0001\nDescrição do Lote: Lote 1 - Levantamento de requisitos\n"
+             "Preço base s/IVA: 53.667,20 EUR\nVocabulário Principal: 72500000\n"
+             "Nº: LOT-0002\nDescrição do Lote: Lote 2 - Front-end e back-end\n"
+             "Preço base s/IVA: 268.336,00 EUR\n"
+             "Nº: LOT-0003\nDescrição do Lote: Lote 3 - Testes\n"
+             "Valor Estimado do Lote: 26.833,60 EUR\n\n"
+             "7 - PRAZO\nPrazo para apresentação das propostas: 23-08-2026 23:59\n")
+
+    def test_le_os_lotes_do_anuncio(self):
+        lotes = radar.lotes_do_texto(self.LOTES)
+        self.assertEqual([l["n"] for l in lotes], [1, 2, 3])
+        self.assertEqual(lotes[0]["descricao"], "Lote 1 - Levantamento de requisitos")
+        self.assertEqual(lotes[1]["preco_base"], "268.336,00 EUR")
+        self.assertEqual(lotes[2]["preco_base"], "26.833,60 EUR")   # valor estimado
+        self.assertEqual(radar.lotes_do_texto(
+            self.LOTES.replace("lotes? Sim", "lotes? Não")), [])
+        self.assertEqual(radar.lotes_do_texto(""), [])
+        campos = radar.campos_do_detalhe(self.LOTES)
+        self.assertEqual(json.loads(campos["lotes"])[0]["n"], 1)
+        self.assertEqual(campos["preco_base"], "735.889,84 EUR")  # o do procedimento
+        self.assertEqual(radar.campos_do_detalhe("sem lotes")["lotes"], "")
+
+    def test_a_linha_do_excel_liga_se_ao_lote(self):
+        lotes = radar.lotes_do_texto(self.LOTES)
+        # pelo preco base do lote
+        self.assertEqual(casa.lote_da_linha({"nome": "Biblioteca", "preco_base": 26833.6},
+                                            lotes), 3)
+        # pelo nome, quando o preco nao bate
+        self.assertEqual(casa.lote_da_linha({"nome": "Bolsa de Horas - L2",
+                                             "preco_base": 1.0}, lotes), 2)
+        self.assertIsNone(casa.lote_da_linha({"nome": "Bolsa - L9", "preco_base": None},
+                                             lotes))
+        self.assertIsNone(casa.lote_da_linha({"nome": "x", "preco_base": 5.0}, []))
+        # na importacao e no ligar a mao
+        self._base_normal()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET lotes=? WHERE ref='5491/2026'",
+                      (json.dumps(lotes),))
+        indice = [list(self.INDICE[0])]
+        indice[0][4] = 53667.2                       # o preco base do lote 1
+        rel = casa.importar(self._excel(indice, {}), ler=False)
+        self.assertEqual((rel["em_lotes"], rel["com_lote"]), (1, 1))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT lote FROM casa WHERE id=1").fetchone()[0], 1)
+            ok, msg = casa.ligar_a_mao(c, 1, "5491/2026")
+        self.assertIn("lote 1 de 3", msg)
+
     def test_sem_anuncio_no_dr_fica_dito_e_nao_se_volta_a_procurar(self):
         # as respostas dele (02/09/2026): consultas previas, ajustes
         # directos e consultas preliminares nao tem anuncio no DR

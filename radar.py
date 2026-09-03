@@ -491,7 +491,10 @@ def iniciar_db():
                            # alteracao); `alterado_por` fica no ORIGINAL
                            # e aponta para a alteracao mais recente, cujo
                            # prazo e preco sao os que estao em vigor.
-                           ("altera", "TEXT"), ("alterado_por", "TEXT")):
+                           ("altera", "TEXT"), ("alterado_por", "TEXT"),
+                           # os lotes declarados no anuncio, em JSON
+                           # (lotes_do_texto); '' quando nao ha
+                           ("lotes", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
@@ -1225,10 +1228,52 @@ def anuncio_alterado(texto):
     return "%s/%s" % (m.group(1), m.group(2)) if m else ""
 
 
+# Os lotes de um procedimento. Medido a 02/09/2026: o DR escreve
+# "Procedimento com lotes? Sim", "Nº Máx. de Lotes Autorizado: N" e, no
+# objecto, um bloco "Lotes:" com "Nº: LOT-0001", "Descrição do Lote:" e o
+# preco base de cada um ("Preço base s/IVA:" ou "Valor Estimado do
+# Lote:"), ate a seccao numerada seguinte. E por aqui que uma linha do
+# Excel da casa -- que tem o preco base DO LOTE -- se liga ao lote certo.
+RX_LOTE_N = re.compile(r"^\s*N[ºo°]?\.?\s*:\s*(LOT-?\s*0*(\d+)|(\d+))\s*$", re.I)
+
+
+def lotes_do_texto(texto):
+    """[{n, id, descricao, preco_base}] dos lotes declarados no anuncio;
+    vazio quando o procedimento nao tem lotes."""
+    if not texto or not re.search(r"Procedimento com lotes\?\s*Sim", texto, re.I):
+        return []
+    m = re.search(r"^\s*Lotes:\s*$", texto, re.M)
+    if not m:
+        return []
+    fora, actual = [], None
+    for linha in texto[m.end():].split("\n"):
+        s = linha.strip()
+        if re.match(r"^\d+\s*-\s*[A-ZÀ-Ú]", s):       # a seccao seguinte
+            break
+        mn = RX_LOTE_N.match(s)
+        if mn:
+            actual = {"n": int(mn.group(2) or mn.group(3)),
+                      "id": mn.group(1).strip(), "descricao": "", "preco_base": ""}
+            fora.append(actual)
+            continue
+        if actual is None or ":" not in s:
+            continue
+        chave, _, valor = s.partition(":")
+        k = re.sub(r"[^a-z0-9]+", " ", simplifica(chave)).strip()
+        if k == "descricao do lote":
+            actual["descricao"] = valor.strip()[:200]
+        elif (k in ("preco base s iva", "valor estimado do lote", "preco base")
+              and not actual["preco_base"]):
+            actual["preco_base"] = valor.strip()[:40]
+    return fora
+
+
 def campos_do_detalhe(texto):
     """Le do texto do anuncio os campos que servem para filtrar e listar."""
+    lotes = lotes_do_texto(texto)
     achados = {"cpv": "", "prazo": "", "preco_base": "", "plataforma": "",
-               "link_pecas": "", "nif": "", "altera": anuncio_alterado(texto)}
+               "link_pecas": "", "nif": "", "altera": anuncio_alterado(texto),
+               "lotes": json.dumps(lotes, ensure_ascii=False) if lotes else ""}
     seccoes = seccoes_do_texto(texto)
 
     # O NIPC da entidade adjudicante. Medido: o DR publica-o em **100%**
@@ -1393,7 +1438,8 @@ def registar_alteracoes(ref, difs):
 # de haver esta ligacao: 511 descartes e 2 interessa).
 CAMPOS_DA_TRIAGEM = ("estado", "motivo", "fase_id", "responsavel",
                      "preco_proposto", "posicao", "top3", "motivo_perda")
-CAMPOS_EM_VIGOR = ("prazo", "preco_base", "cpv", "plataforma", "link_pecas")
+CAMPOS_EM_VIGOR = ("prazo", "preco_base", "cpv", "plataforma", "link_pecas",
+                   "lotes")
 
 
 def raiz_da_alteracao(c, ref, altera):
@@ -1581,10 +1627,11 @@ def _guardar_detalhe(ref, dados):
         else:
             c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
                          plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
-                         altera=?, detalhe_lido=1 WHERE ref=?""",
+                         altera=?, lotes=?, detalhe_lido=1 WHERE ref=?""",
                       (campos["cpv"], campos["prazo"], campos["preco_base"],
                        campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
-                       campos["link_pecas"], campos["nif"], altera, ref))
+                       campos["link_pecas"], campos["nif"], altera,
+                       campos["lotes"], ref))
     # Daqui para baixo ja fora da transaccao: aplicar_alteracao() e
     # registar_alteracoes() abrem a sua ligacao e tem de ver o que ficou
     # escrito acima.
@@ -1805,11 +1852,11 @@ def reparsear(limite=None):
                           (campos["nif"], altera, a["ref"]))
             else:
                 c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
-                             plataforma=?, link_pecas=?, nif=?, altera=?
+                             plataforma=?, link_pecas=?, nif=?, altera=?, lotes=?
                              WHERE ref=?""",
                           (campos["cpv"], campos["prazo"], campos["preco_base"],
                            campos["plataforma"], campos["link_pecas"],
-                           campos["nif"], altera, a["ref"]))
+                           campos["nif"], altera, campos["lotes"], a["ref"]))
             feitos += 1
     agrupar_alteracoes()
     return feitos
