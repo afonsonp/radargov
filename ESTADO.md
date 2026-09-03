@@ -1916,7 +1916,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 665 testes a 03/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 672 testes a 03/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4845,12 +4845,13 @@ voltar a avaliar o mesmo:
   perfis exigirem o PP-Structure. Por fazer.
 - **changedetection.io — a ideia sim, o programa não.** Para o DR o
   `reler_marcados()` já vigia prazo e preço base dos marcados, e as
-  republicações ligam-se ao original. O que falta é vigiar a **lista
-  de documentos** na plataforma (esclarecimentos, erratas) dos
-  anúncios marcados, e isso faz-se com os obtentores que já existem e
-  a fila `alteracoes`. Do changedetection não há código a aproveitar:
-  é uma aplicação inteira (Flask, datastore em JSON, fetchers,
-  notificações por apprise) e o diff é `difflib`. Por fazer, no radar.
+  republicações ligam-se ao original. Faltava vigiar a **lista de
+  documentos** na plataforma (esclarecimentos, erratas) dos anúncios
+  marcados, com os obtentores que já existem e a fila `alteracoes` —
+  **feito a 03/09/2026** (`vigiar_pecas()`, ver a secção do fim). Do
+  changedetection não havia código a aproveitar: é uma aplicação
+  inteira (Flask, datastore em JSON, fetchers, notificações por
+  apprise) e o diff é `difflib`.
 - **Scrapling — não.** O parser adaptativo serve HTML que muda, e o
   radar quase não parseia HTML (o DR responde JSON, a Vortal é API, a
   acingov dá um ZIP; só as páginas JSF, 9%). O único ângulo com valor
@@ -5197,3 +5198,93 @@ releitura: o CE do 20968/2026 tem agora o «€150 000», o «artigo
 332.º», o «Veículo Tipo Pick-Up», o «≥170» e o cabeçalho da entidade
 nas 16 páginas onde ele existe; o `[CA]` do 21295/2026 tem
 «2026.08.06» e já não tem «2036». O que a 2,0 se perdia está lá.
+
+## As peças novas na plataforma avisam-se, 3 de setembro de 2026
+
+O `reler_marcados()` vigia o prazo e o preço base na página do DR. Mas
+**um esclarecimento ou uma errata não passam pelo DR**: aparecem na
+lista de documentos do procedimento, na plataforma, e só se dava por
+eles abrindo a plataforma à mão. `vigiar_pecas()` faz do lado das
+plataformas o que o `reler_marcados()` faz do lado do DR.
+
+**Encontrou trabalho à primeira passagem, e não era um caso de
+laboratório.** O **21830/2026** — «Subscrição de licenças de software
+Microsoft (modelo CSP)», Metropolitano de Lisboa, base 158 300 €, no
+quadro em «Por analisar», **prazo 03/09/2026, ou seja o próprio dia** —
+tinha três peças na plataforma que não estavam na base:
+`Caderno de encargos - P049_2026_REV.pdf`,
+`Anexo III - Programa - P049_2026_REV.xlsx` e
+`Resposta a pedido de esclarecimentos - P049_2026.pdf`. E a resposta
+tem conteúdo: o CE indicava a referência Microsoft
+`CFQ7TTC0LF8Q:0001`, que é **Office 365 E1**; a entidade confirma que
+o que quer é **Office 365 E3 (com Teams)**, diz que a referência era um
+lapso e que foi eliminada nas peças revistas. Quem orçamentasse pelo CE
+original orçamentava o produto errado.
+
+**O `obter_documentos()` não serve para vigiar, e é a primeira coisa a
+saber.** Faz `DELETE FROM documentos WHERE ref=?` e volta a trazer
+tudo: usá-lo para comparar apagava o texto já extraído e os veredictos
+do OCR, e mandava as ~7 s por página de cada digitalização outra vez.
+Vigiar é **ler a lista e trazer só o que falta**, e por isso há
+`pecas_disponiveis()`, que devolve `[(nome, buscar)]` — o `buscar` é
+uma função que só se chama para as peças novas. Cada plataforma dá o
+que dá:
+
+- **vortal** — os nomes vêm na resposta JSON (`documentList` do
+  primeiro salto, ou o `GetContractNoticeDocuments` do segundo), sem
+  descarregar nada;
+- **acingov** — a lista **é** o ZIP: não há endereço de listagem (a
+  página do procedimento exige sessão, medido a 01/09/2026), por isso
+  o ZIP vem para memória e lê-se o `infolist()` dele. É a plataforma
+  cara de vigiar, e não há alternativa sem sessão iniciada;
+- **anogov/ComprasPT/ESPAP** — os endereços estão na página, mas o
+  nome só vem no `Content-Disposition` de cada descarga:
+  `_nome_sem_corpo()` abre o pedido em stream e fecha-o depois dos
+  cabeçalhos, sem ler o corpo.
+
+**O recorte é o mesmo do `reler_marcados()`** — «interessa» ou com fase
+no quadro, prazo aberto — e por cima disso **só os que já têm peças
+trazidas** (`docs_estado` em ok/parcial). Esta última condição não é
+arrumação: os dois refs que o Afonso deu para ensaiar (20666/2026 na
+acingov, 19127/2026 na Vortal) têm `docs_estado` a NULL, e sem a
+guarda as 12 peças deles contariam todas como novidade no primeiro
+resumo. Uma lista vazia **não** é «as peças desapareceram» — é a
+plataforma em baixo, e não avisa nada (a mesma regra do
+`diferencas_do_detalhe()`: só se avisa o que tem valor dos dois lados).
+
+**Uma peça avisada não se avisa duas vezes.** A guarda óbvia é a peça
+passar a estar na tabela `documentos`, e é o que acontece quando se
+consegue trazer. Mas um ficheiro acima do tecto (`MAX_FICHEIRO`) não se
+traz — e sem uma segunda guarda o mesmo anexo saía no resumo a cada
+verificação, duas vezes por dia, para sempre. Por isso o
+`_guardar_pecas_novas()` também olha para as linhas que já estão na
+fila `alteracoes` com `campo='peca_nova'`. Há teste para o caso do
+ficheiro que não se consegue trazer, precisamente porque é o que
+repetiria.
+
+No resumo, `peca_nova` tem caso próprio no texto **e** no HTML, como o
+`retificacao` já tinha: o `antes` é vazio e « → Errata.pdf» não se lê.
+
+**Medido na base a 03/09/2026**: dos 11 marcados que passam o recorte,
+**10 dão zero peças novas** — a comparação por nome bate exactamente, e
+a base tem sempre uma peça a mais que a plataforma, que é o
+`Anúncio DR.pdf` que o radar acrescenta e a plataforma não tem
+(`PECAS_DO_RADAR`, excluído; sem isso contava como novidade a cada
+volta). O 11.º é o 21830/2026 acima. Segunda passagem: 0 novas, fila
+com as mesmas 3 linhas.
+
+Corre na verificação, depois do `reler_marcados()` e **antes** dos
+alertas — para as peças novas entrarem no resumo do mesmo dia —, com
+falha isolada: uma plataforma em baixo não dá a verificação por
+falhada. Quantos por volta em `pecas_vigiadas_por_volta` (10 por
+omissão). Os erros vão para a marca `docs_ultimo_erro`, que os
+indicadores já mostram como «Último erro ao trazer peças» — não se
+criou marca nova sem ecrã que a leia. Sete testes
+(`TestVigilanciaDasPecas`), 672 no total.
+
+**O que fica em aberto**, e é decisão dele: a leitura pelo modelo
+**não** se repete quando chega um CE revisto — o `objecto`, a `equipa`
+e a `proposta` continuam a ser os que se leram do CE antigo, e no
+21830/2026 o CE antigo tinha a referência errada. E há três anúncios
+`descartado` com fase no quadro, que o `reler_marcados()` já vigia
+hoje: «abandonado mas no quadro» é uma contradição que ninguém decidiu.
