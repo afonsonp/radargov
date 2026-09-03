@@ -1,6 +1,6 @@
 # Backlog — melhorias saídas da análise competitiva de 30/08/2026
 
-Origem: `CONCORRENTES.md` (passagens de 29 e 30/08/2026) e a prova em
+Origem: `docs/historico/CONCORRENTES.md` (passagens de 29 e 30/08/2026) e a prova em
 `concorrentes/`. Os cinco itens identificados na Tendios a 29/08 estão cá
 dentro, reavaliados à luz da Armilar, GovGo e SpotGov.
 
@@ -23,10 +23,10 @@ ou feito.
 | # | O que falta | Estado | Espera por |
 |---|---|---|---|
 | — | Reler as peças pelo modelo quando chega um CE revisto | **Suspenso a 03/09/2026.** Dependia do `vigiar_pecas()`, que foi retirado no mesmo dia (vigiava seis anúncios). O problema é real — no 21830/2026 o CE antigo tinha a referência do produto errada, E1 em vez de E3 — mas só volta a fazer sentido quando alguma coisa voltar a avisar que a peça mudou | — |
-| UX | Auditoria pelas «leis de UX» (`UX-Auditoria.md`, 02/09/2026) | **P0 e os cinco P1 feitos a 02/09/2026** (contraste da coluna, alvos a 24 px, «desfazer» depois de triar, prazo neutro pós-submissão, fontes sem bloquear, quadro sem `reload()`). Falta repetir a medição do browser sobre o resultado | **Afonso** nos P2/P3 que mudam o primeiro ecrã: filtros recolhidos por omissão, essencial da ficha encurtado, teclado na lista; motivos em 2 gestos, KPI e funil ligados, pílula do calendário não precisam de decisão e ficam para a próxima sessão |
+| UX | Auditoria pelas «leis de UX» (`docs/historico/UX-Auditoria.md`, 02/09/2026) | **P0 e os cinco P1 feitos a 02/09/2026** (contraste da coluna, alvos a 24 px, «desfazer» depois de triar, prazo neutro pós-submissão, fontes sem bloquear, quadro sem `reload()`). Falta repetir a medição do browser sobre o resultado | **Afonso** nos P2/P3 que mudam o primeiro ecrã: filtros recolhidos por omissão, essencial da ficha encurtado, teclado na lista; motivos em 2 gestos, KPI e funil ligados, pílula do calendário não precisam de decisão e ficam para a próxima sessão |
 | E2 | ~~O primeiro envio do resumo diário~~ | **Feito a 31/08/2026, à ordem dele**: «Resumo enviado para [e-mail retirado]», com 1 anúncio do alerta CPV IT (INFARMED, 400 930 €). Daqui em diante sai sozinho, uma vez por dia com novidade | — |
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
-| — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: Fluxo B verificado e, com o E2, disparado — ver ESTADO.md) | — |
+| — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: Fluxo B verificado e, com o E2, disparado — ver `docs/diario/2026-08.md`) | — |
 | B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**, e a sub-decisão do push também: **automático** («grava logo lá consoante o uso») — `empurrar_triagem()` faz commit+push só do `triagem.jsonl` em cada verificação em que mude; push falhado retoma na volta seguinte. **Isto fecha o R2 por inteiro** | — |
 | B14 | ~~Vortal como segunda fonte~~ | **Em produção desde 31/08/2026, com o âmbito dele**: só «GovPT - Consulta Preliminar», país PT, fonte='vortal' — zero duplicação com o DR. Primeira recolha: **17 consultas** (ver a secção B14). A acingov fica de fora: a listagem dela não distingue tipos sem abrir detalhes | Alargar a outros tipos não-DR ou à acingov: palavra dele, com medição antes |
 | C3 | ~~Histórico de erros~~ | **Feito a 31/08/2026**: tabela `erros` com poda a 200 por tipo; as marcas continuam a servir o ecrã | — |
@@ -122,7 +122,7 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   código dentro de uma divisão marcada tira só esse ramo (`ARV_EXC`,
   `arvorePintar()`, `arvoreDesexcluir()`) — a razão dele é que marcar
   os sub-códigos um a um perde os anúncios que trazem apenas o código
-  da divisão. Ver o ESTADO.md, entrada de 01/09/2026. Medido: `q=
+  da divisão. Ver o `docs/diario/2026-09.md`, entrada de 01/09/2026. Medido: `q=
   manutenção` 3 781 → 3 616 sem `elevador|avac`; `cpv=72` 235 → 225 sem
   `724`; nos contratos, limpeza (909100) 12 156 → 11 892 sem "escolas".
 - **B02 — procedimentos homólogos na ficha** (30/08/2026).
@@ -394,7 +394,7 @@ premissa mudar — com data e números novos.
 - **Geração e revisão de propostas por IA** (SpotGov Plus, Tendios
   Advanced) — viola a condição de princípio do projecto: **propostas, CVs e
   trabalho próprio não passam pelo modelo** (registada desde o início no
-  ESTADO.md). Não é falta de capacidade, é decisão de âmbito.
+  docs/diario/). Não é falta de capacidade, é decisão de âmbito.
 - **Chat livre sobre as peças** (Armilar Q&R) — o orçamento de modelo do
   radar é medido ao token (8 mil/min, 200 mil/dia na Groq) e um chat torna o
   consumo imprevisível; as três leituras estruturadas + B08 (perguntas

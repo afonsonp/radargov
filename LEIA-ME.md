@@ -24,8 +24,8 @@ movendo a pasta para fora do OneDrive.
 
 1. Duplo clique em `instalar.bat`. Instala as dependências (flask,
    requests, pypdf, cryptography, pymupdf e openpyxl). Na pen, onde o
-   Python vem na pasta e não tem pip, a receita está no ESTADO.md
-   («Instalar na pen»): o pip como ficheiro único, a instalar para
+   Python vem na pasta e não tem pip, a receita está no
+   `docs/diario/2026-09.md` («Instalar na pen»): o pip como ficheiro único, a instalar para
    `libs\`. As peças que são digitalizações — só imagem, sem texto por
    dentro — ficam marcadas como tal e não se lêem: houve OCR para elas
    entre 2 e 3 de setembro de 2026 e foi retirado, porque tinha lido 8
