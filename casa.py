@@ -580,6 +580,19 @@ def iniciar_tabelas(c):
     # linhas #23 e #26, cujo preco e o total do anuncio).
     if "lote" not in colunas:
         c.execute("ALTER TABLE casa ADD COLUMN lote INTEGER")
+    # O que o Zoho diz do mesmo concurso, em coluna PROPRIA -- nao por
+    # cima do `status`, e de proposito. Medido a 03/09/2026 no
+    # cruzamento das 148 oportunidades da vista dos Negocios: em 46 das
+    # 92 linhas que cruzam, o Excel diz "Nao fomos" e o Zoho diz "Lost".
+    # O Zoho nao tem palavra para "nao concorremos", e escrever por cima
+    # apagava a distincao. Fica cada um com a sua coluna, e quem manda
+    # decide-se quando o vocabulario dos estados estiver decidido.
+    # `zoho_como` guarda por que regra a linha casou, para a ligacao ser
+    # auditavel: um cruzamento por semelhanca de nome nao e uma certeza.
+    for coluna, tipo in (("zoho_fase", "TEXT"), ("zoho_montante", "REAL"),
+                         ("zoho_como", "TEXT"), ("zoho_em", "TEXT")):
+        if coluna not in colunas:
+            c.execute("ALTER TABLE casa ADD COLUMN %s %s" % (coluna, tipo))
 
 
 RX_LOTE_NO_NOME = re.compile(r"\bL(?:ote)?\s*\.?\s*(\d{1,2})\b", re.I)

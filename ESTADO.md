@@ -114,6 +114,21 @@ mas não se vê no painel nem mexe em nenhum destes números, por decisão
 dele: nada muda no front antes de o registo estar validado. Há um
 teste a guardá-lo (`test_o_front_nao_mudou`).
 
+**O Zoho já está lido, e em coluna própria.** A 03/09/2026 leram-se
+pelo browser, na sessão dele, as **148 oportunidades** da vista dos
+Negócios (`Potentials`, org `conkord`) — o Zoho não exporta CSV. **92
+cruzam** com o registo da casa (68 por preço e nome, 24 só por nome);
+sobram 95 linhas da casa sem par e 56 negócios sem par, estes últimos
+sobretudo entidades espanholas (que o Excel não inclui de propósito) e
+pedidos de perfil, que não são concursos. O que o Zoho diz ficou em
+`casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`, e o
+`status` do Excel **não foi tocado**: em 46 das 92 o Excel diz «Não
+fomos» e o Zoho diz «Lost», porque o Zoho não tem palavra para «não
+concorremos». Escrever por cima apagava a distinção. Quem manda decide-se
+com o vocabulário dos estados, que é decisão dele e ainda está por dar.
+As 14 linhas onde o Zoho fechou e a casa ainda não estão listadas no
+diário.
+
 **Os lotes já têm solução, tirando dois casos.** A 03/09/2026 ele
 respondeu às quatro linhas que faltavam. As #23 e #26 traziam a **soma**
 dos lotes — é o total do anúncio, não está dividido por lotes: passaram
@@ -130,7 +145,10 @@ identificar — e as 2 que faltam são exactamente essas.
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 747 linhas, 56%).
 
-**As duas bases.** `radar.db` (100 MB, 19 tabelas, no git só a triagem,
+**As duas bases.** `radar.db` (era 100 MB; a 03/09/2026 às 18:14 ia em
+**328 MB** e a crescer, com o `--detalhes tudo` a correr desde as 16:34
+— o `anuncios.texto` passou de 36 MB para 207 MB, que é o detalhe de
+35 755 dos 66 483 anúncios; 19 tabelas, no git só a triagem,
 cópia diária em `copias/`) e `contratos.db` (1,65 GB, 1 363 300
 contratos, 137 898 entidades, **fora do git**, refaz-se com
 `--contratos`). **Não se cruzam em SQL**: cada uma tem a sua ligação

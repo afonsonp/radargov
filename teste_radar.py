@@ -6772,6 +6772,37 @@ class TestRegistoDaCasa(BaseTemporaria):
         self.assertTrue(casa.fora_do_pais(linhas[2]))
         self.assertFalse(casa.fora_do_pais(linhas[0]))
 
+    def test_o_que_o_zoho_diz_fica_em_coluna_propria_e_sobrevive_a_reimportacao(self):
+        # 03/09/2026: o Zoho e a fonte mais actual do estado, mas nao tem
+        # palavra para "nao fomos" -- das 92 linhas que cruzavam, 46
+        # diziam "Nao fomos" no Excel e "Lost" no Zoho. Escrever por
+        # cima do `status` apagava a distincao, por isso o Zoho tem
+        # coluna propria. E o `_guardar_linha()` usa ON CONFLICT DO
+        # UPDATE com colunas nomeadas, nao um REPLACE da linha inteira:
+        # e isso que faz o zoho_* (e o lote, e o porque_sem_ref)
+        # sobreviver a uma reimportacao do Excel. Um REPLACE apagava-os
+        # em silencio.
+        self._base_normal()
+        indice = [list(self.INDICE[0])]
+        casa.importar(self._excel(indice, {}), ler=False)
+        with radar.liga() as c:
+            colunas = [r["name"] for r in c.execute("PRAGMA table_info(casa)")]
+            for k in ("zoho_fase", "zoho_montante", "zoho_como", "zoho_em"):
+                self.assertIn(k, colunas)
+            c.execute("UPDATE casa SET zoho_fase='Lost', zoho_montante=1234.5, "
+                      "zoho_como='preço+nome', zoho_em='2026-09-03 18:14' WHERE id=1")
+            antes = dict(c.execute("SELECT status, zoho_fase FROM casa "
+                                   "WHERE id=1").fetchone())
+        self.assertNotEqual(antes["status"], "Lost")     # o Excel manda no seu
+        casa.importar(self._excel(indice, {}), ler=False)
+        with radar.liga() as c:
+            r = dict(c.execute("SELECT status, zoho_fase, zoho_montante, zoho_como "
+                               "FROM casa WHERE id=1").fetchone())
+        self.assertEqual(r["zoho_fase"], "Lost")         # nao foi apagado
+        self.assertEqual(r["zoho_montante"], 1234.5)
+        self.assertEqual(r["zoho_como"], "preço+nome")
+        self.assertEqual(r["status"], antes["status"])   # nem um esmagou o outro
+
     def test_estado_pretendido_traduz_o_excel(self):
         papeis = {"submetido": 3, "perdido": 6, "ganho": 5}
         self.assertEqual(casa.estado_pretendido(
