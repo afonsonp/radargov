@@ -553,7 +553,8 @@ pedido por página, e depois um por anúncio para os detalhes.
 ```bash
 python radar.py --detalhes tudo
 ```
-Vai buscar o detalhe — CPV, prazo, preço base, plataforma, texto — de
+(ou dois cliques no **`detalhes.bat`**, que é o mesmo com as instruções
+escritas na janela.) Vai buscar o detalhe — CPV, prazo, preço base, plataforma, texto — de
 todos os anúncios que ainda não o têm. Faz falta porque a rotina diária
 só lê o detalhe dos últimos 60 dias, e sem detalhe um anúncio **não
 aparece num filtro por CPV, nem na árvore, nem nos indicadores**: está
