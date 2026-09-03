@@ -72,11 +72,16 @@ Os dois apertos são conhecidos e um deles é decisão tomada:
   segunda metade da frase: não se responde a um concurso de 2024, mas o
   CPV e o preço base dele são o corpus que diz onde é que esta casa
   ganha. Existe desde então o `--detalhes [N|tudo]`: lê o que falta,
-  medido a **1,45 s por anúncio** (20 em 29 s contra o portal), portanto
-  **~24 horas** para os 60 190 que sobram. Retomável por construção — o
+  medido a **0,68 s por anúncio** (61 em 41 s contra o portal, com o
+  intervalo apertado — ver adiante), portanto **~11 horas** para os
+  59 214 que sobram a 3/09/2026 à tarde. Retomável por construção — o
   `detalhe_lido=1` grava-se anúncio a anúncio, um Ctrl-C ou um corte de
   rede não perdem nada, e o comando repetido continua de onde ia. Não
   gasta modelo nenhum: é HTTP mais parsing (quem gasta é `--ler-pecas`).
+  O intervalo entre pedidos começou a 1s (o mesmo da rotina diária) e
+  passou a 0,3s a meio da corrida — decisão do Afonso, depois de saber
+  que o DR não tem rate-limit conhecido mas que o risco de bloqueio de
+  IP por rajada não estava medido nem confirmado nem afastado.
 - **Seis anúncios marcados é pouco para sustentar trabalho a jusante.**
   Foi o que fez cair o OCR e a vigilância das peças a 3/09/2026: estavam
   bem feitos e no sítio errado do funil. Ver `docs/diario/2026-09.md`.
