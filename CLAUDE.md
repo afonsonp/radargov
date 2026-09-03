@@ -75,7 +75,7 @@ arrumação.)
 python radar.py                    # painel em http://localhost:8765
 python radar.py --uma-vez          # verifica e sai (é o que as tarefas correm)
 python radar.py --historico 730    # recolha extra de N dias; conta horas
-python radar.py --detalhes [N|tudo] # le o detalhe do que falta (~0,68s cada); retomavel
+python radar.py --detalhes [N|tudo] # le o detalhe do que falta (~0,19s cada, 8 em paralelo); retomavel
 python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
@@ -106,7 +106,7 @@ Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
 `agendar.bat` (cria as três tarefas), `reler.bat` (`--reler`),
 `contratos.bat` (o que a tarefa semanal corre), `detalhes.bat`
-(`--detalhes tudo`, ~11 h), `ensaio.bat` (ensaio-de-leitura),
+(`--detalhes tudo`, ~3 h), `ensaio.bat` (ensaio-de-leitura),
 `historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas). Todos passam pelo `_python.bat`, que escolhe o
 Python da pasta se existir.
 

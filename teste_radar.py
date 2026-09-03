@@ -22,6 +22,7 @@ import re
 import sys
 import time
 import unittest
+import unittest.mock
 from urllib.parse import parse_qsl, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1918,27 +1919,26 @@ class TestDetalhesEmLote(unittest.TestCase):
         self.assertEqual(feitos, 80)
         self.assertIn("Interrompido", " ".join(ditos))
 
-    def test_o_ler_por_omissao_usa_o_intervalo_pedido(self):
+    def test_o_ler_por_omissao_usa_a_concorrencia_pedida(self):
         # sem `ler` injectado, detalhes_em_lote() constroi um a partir
-        # de ler_detalhes() com o `intervalo` recebido -- e a rotina
-        # diaria (que chama ler_detalhes() directamente, sem passar por
-        # aqui) tem de continuar a 1s por omissao, seja qual for o
-        # INTERVALO_DETALHES do --detalhes
+        # de ler_detalhes_paralelo() com a `concorrencia` recebida -- e
+        # a rotina diaria (que chama ler_detalhes() sequencial
+        # directamente, sem passar por aqui) fica intocada
         vistos = []
 
-        def ler_detalhes_falso(limite, dias=None, intervalo=1):
-            vistos.append(intervalo)
+        def ler_paralelo_falso(limite, dias=None, concorrencia=8):
+            vistos.append(concorrencia)
             return 0, ""
 
-        antigo = radar.ler_detalhes
-        radar.ler_detalhes = ler_detalhes_falso
+        antigo = radar.ler_detalhes_paralelo
+        radar.ler_detalhes_paralelo = ler_paralelo_falso
         try:
             radar.detalhes_em_lote(40, 40, contar=lambda: 0,
-                                   intervalo=0.3, esperar=lambda s: None,
+                                   concorrencia=4, esperar=lambda s: None,
                                    diz=lambda t: None)
         finally:
-            radar.ler_detalhes = antigo
-        self.assertEqual(vistos, [0.3])
+            radar.ler_detalhes_paralelo = antigo
+        self.assertEqual(vistos, [4])
 
     def test_a_rotina_diaria_continua_a_um_segundo_por_omissao(self):
         # o parametro novo nao pode ter mudado o valor por omissao de
@@ -3675,6 +3675,95 @@ class BaseTemporaria(unittest.TestCase):
         radar.DOCS = self.docs_antigo
         gc.collect()                # fecha ligações penduradas do liga()
         shutil.rmtree(self.pasta, ignore_errors=True)
+
+
+class TestLerDetalhesParalelo(BaseTemporaria):
+    """ler_detalhes_paralelo() manda `concorrencia` pedidos ao DR ao
+    mesmo tempo. O risco especifico da concorrencia -- que nao existe
+    na versao sequencial -- e threads a escrever no mesmo `molde`
+    partilhado e trocarem o Key de um pedido pelo de outro a meio do
+    POST. Foi esse bug que o ensaio de 3/09/2026 expos antes de isto
+    aqui existir: cada pedido tem de levar a SUA PROPRIA copia."""
+
+    def _preparar(self, n, prefixo="ref"):
+        with radar.liga() as c:
+            for i in range(n):
+                c.execute(
+                    "INSERT INTO anuncios (ref, titulo, url, data_pub) "
+                    "VALUES (?,?,?,?)",
+                    ("%s-%03d" % (prefixo, i), "titulo %d" % i,
+                     "https://x/anuncio-procedimento/chave-%03d" % i,
+                     "2026-01-%02d" % (i % 28 + 1)))
+
+    def _falso_molde(self):
+        return (({"url": "https://dr/detalhe", "headers": {}, "body": "{}"},
+                 {"screenData": {"variables": {}}}), "")
+
+    def test_cada_pedido_grava_o_seu_proprio_ref_sem_trocar_com_outro(self):
+        # o teste que teria apanhado o bug: cada resposta falsa ecoa o
+        # Key que RECEBEU no proprio texto guardado -- se uma thread
+        # escrevesse por cima do Key de outra antes do "POST", o texto
+        # gravado nao bateria certo com o ref da linha
+        self._preparar(40)
+
+        def perguntar_falso(pedido, molde):
+            key = molde["screenData"]["variables"]["Key"]
+            time.sleep(0.01)          # dar tempo a uma troca, se houver
+            return {"data": {"DetalheConteudo": {
+                "Texto": "MARCA:" + key, "URL_PDF": ""}}}, ""
+
+        with unittest.mock.patch.object(radar, "_molde_detalhe",
+                                        side_effect=lambda: self._falso_molde()), \
+             unittest.mock.patch.object(radar, "perguntar_ao_dr",
+                                        side_effect=perguntar_falso):
+            feitos, aviso = radar.ler_detalhes_paralelo(40, concorrencia=8)
+
+        self.assertEqual((feitos, aviso), (40, ""))
+        with radar.liga() as c:
+            linhas = c.execute("SELECT ref, url, texto, detalhe_lido "
+                              "FROM anuncios").fetchall()
+        self.assertEqual(len(linhas), 40)
+        for linha in linhas:
+            chave_esperada = linha["url"].rsplit("/", 1)[-1]
+            self.assertEqual(linha["texto"], "MARCA:" + chave_esperada)
+            self.assertEqual(linha["detalhe_lido"], 1)
+
+    def test_casca_ou_apiversion_reporta_aviso_mas_guarda_os_que_deram(self):
+        self._preparar(10)
+
+        def perguntar_meio_falha(pedido, molde):
+            key = molde["screenData"]["variables"]["Key"]
+            if key.endswith(("005", "006", "007", "008", "009")):
+                return None, "casca"
+            return {"data": {"DetalheConteudo": {
+                "Texto": "MARCA:" + key, "URL_PDF": ""}}}, ""
+
+        with unittest.mock.patch.object(radar, "_molde_detalhe",
+                                        side_effect=lambda: self._falso_molde()), \
+             unittest.mock.patch.object(radar, "perguntar_ao_dr",
+                                        side_effect=perguntar_meio_falha), \
+             unittest.mock.patch.object(radar, "registar_expiracao_token"):
+            feitos, aviso = radar.ler_detalhes_paralelo(10, concorrencia=4)
+
+        self.assertEqual(feitos, 5)
+        self.assertIn("casca", aviso)
+
+    def test_sem_captura_devolve_o_aviso_sem_tocar_na_base(self):
+        with unittest.mock.patch.object(
+                radar, "_molde_detalhe",
+                side_effect=lambda: (None, "sem curl_detalhe.txt")):
+            feitos, aviso = radar.ler_detalhes_paralelo(10)
+        self.assertEqual((feitos, aviso), (0, "sem curl_detalhe.txt"))
+
+    def test_sem_pendentes_nao_manda_pedido_nenhum(self):
+        chamou = []
+        with unittest.mock.patch.object(radar, "_molde_detalhe",
+                                        side_effect=lambda: self._falso_molde()), \
+             unittest.mock.patch.object(radar, "perguntar_ao_dr",
+                                        side_effect=lambda *a: chamou.append(1)):
+            feitos, aviso = radar.ler_detalhes_paralelo(10)
+        self.assertEqual((feitos, aviso), (0, ""))
+        self.assertEqual(chamou, [])
 
 
 class TestMigracoesDoSaneamento(BaseTemporaria):
