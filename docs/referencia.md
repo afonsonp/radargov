@@ -1200,7 +1200,9 @@ terreno preparado.
 
 1. **As capturas são o verdadeiro obstáculo, não o alojamento.** O
    `curl_DR.txt` e o `curl_detalhe.txt` levam o token da sessão do
-   browser e expiram. Local, refaz-se em dois minutos. Num servidor,
+   browser. (Escreveu-se aqui que expiram; **medido a 2/09/2026, não
+   expira** — mas o portal pode mudar de forma, e aí a captura
+   refaz-se na mesma.) Local, refaz-se em dois minutos. Num servidor,
    alguém tem de refazer a captura no browser **e enviá-la para lá** —
    é preciso um ecrã para colar a captura, em vez de trocar ficheiros
    na pasta. Isto não desaparece com a cloud; é o preço de o DR não ter
