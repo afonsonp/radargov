@@ -2869,19 +2869,31 @@ def extrair_textos(ref, motor=None):
     return lidos, scans
 
 
-def ocr_pendentes(ref=None, motor=None, diz=print):
+def ocr_pendentes(ref=None, motor=None, diz=print, tudo=False):
     """Le pelo OCR os 'scan' com ficheiro em disco -- de um anuncio, ou
     de todos. E o `--ocr`: a segunda passagem do extrair_textos() so
     corre quando alguem pede as pecas ou a leitura DESSE anuncio, e os
     'scan' que ja estavam na base antes do OCR existir ficavam a
     espera de uma ficha aberta. Diz o que fez, documento a documento,
     com o tempo -- e o instrumento para medir o custo por pagina no PC.
-    Devolve (lidos, sem_texto, por_fazer)."""
+    Devolve (lidos, sem_texto, por_fazer).
+
+    Com `tudo` (o `--ocr tudo`) rele TAMBEM as que ja estao lidas
+    ('ocr') e as que ficaram 'imagem'. E o que faz uma escala nova
+    chegar ao acervo: o OCR_ESCALA muda o texto que sai da mesma
+    pagina, e sem isto as pecas lidas com a escala antiga ficavam com
+    o texto antigo para sempre -- a 2,0 uma delas tinha perdido a
+    clausula do preco base inteira. Cada documento volta a 'scan'
+    imediatamente antes de ser relido, um a um: uma interrupcao a meio
+    deixa o resto como estava, e o que ficar em 'scan' e apanhado pela
+    segunda passagem de sempre."""
+    estados = ("scan", "ocr", "imagem") if tudo else ("scan",)
     with liga() as c:
         docs = c.execute(
-            "SELECT ref, nome FROM documentos WHERE texto_estado='scan'"
+            "SELECT id, ref, nome FROM documentos WHERE texto_estado IN (%s)"
+            % ",".join("?" * len(estados))
             + (" AND ref=?" if ref else "") + " ORDER BY ref, nome",
-            (ref,) if ref else ()).fetchall()
+            estados + ((ref,) if ref else ())).fetchall()
     if not docs:
         diz("não há digitalizações por ler" + (" em " + ref if ref else ""))
         return 0, 0, 0
@@ -2900,6 +2912,14 @@ def ocr_pendentes(ref=None, motor=None, diz=print):
             diz("  %s · %s: sem ficheiro em disco" % (d["ref"], d["nome"]))
             continue
         ini = time.time()
+        if tudo:
+            # Volta a 'scan' este documento e so este: e o estado que a
+            # segunda passagem do extrair_textos() apanha, e assim a
+            # releitura passa pelo caminho de sempre em vez de ter um
+            # seu.
+            with liga() as c:
+                c.execute("UPDATE documentos SET texto_estado='scan' "
+                          "WHERE id=?", (d["id"],))
         extrair_textos(d["ref"], motor)
         with liga() as c:
             depois = c.execute("SELECT texto_estado, texto FROM documentos "
@@ -13980,9 +14000,13 @@ def main():
         # Le pelo OCR as digitalizacoes que ja estavam na base (as
         # novas leem-se sozinhas quando se pedem as pecas). Com um ref a
         # seguir, so esse anuncio.
+        # Com "tudo", rele tambem as que ja estao lidas -- e o que faz
+        # uma escala nova chegar as pecas antigas. "tudo" nao e um ref.
         i = sys.argv.index("--ocr")
-        ref = sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("--") else None
-        ocr_pendentes(ref)
+        resto = [a for a in sys.argv[i + 1:i + 3] if not a.startswith("--")]
+        tudo = "tudo" in resto
+        ref = next((a for a in resto if a != "tudo"), None)
+        ocr_pendentes(ref, tudo=tudo)
         return
 
     if "--descartar-expirados" in sys.argv:

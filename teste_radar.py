@@ -4525,6 +4525,36 @@ class TestOcrDasPecas(BaseTemporaria):
         radar.ocr_pendentes("15/2026", motor=self.Motor(), diz=ditos.append)
         self.assertEqual(len([d for d in ditos if "·" in d]), 1)
 
+    def test_ocr_tudo_rele_as_que_ja_estavam_lidas(self):
+        # 03/09/2026: o OCR_ESCALA subiu de 2,0 para 2,5 porque a 2,0 o
+        # modelo perdia a cláusula do preço base inteira. As peças já
+        # lidas ficavam com o texto da escala antiga para sempre — o
+        # `--ocr` sem mais nada só apanha os 'scan'. O erro que se
+        # trava: o `tudo` pôr um documento de volta em 'scan' e deixá-lo
+        # lá sem texto, que é pior do que o texto velho.
+        self._pdf_sem_texto("16/2026", "CE.pdf")
+        self._semear([("16/2026", "CE.pdf", "texto da escala antiga", "ocr"),
+                      ("16/2026", "PC.pdf", "", "imagem")])
+        ditos = []
+        lidos, sem_texto, por_fazer = radar.ocr_pendentes(
+            # tem de dar mais de OCR_MINIMO_POR_PAGINA por página, senão
+            # o veredicto é 'imagem' e não se está a testar nada
+            motor=self.Motor(("TEXTO NOVO, lido com a escala nova, com folga "
+                              "acima do mínimo por página",)),
+            diz=ditos.append, tudo=True)
+        estados = self._estados("16/2026")
+        self.assertEqual(estados["CE.pdf"][0], "ocr")
+        self.assertIn("TEXTO NOVO", estados["CE.pdf"][1])
+        self.assertEqual((lidos, sem_texto), (1, 0))
+        # o 'imagem' sem ficheiro em disco entra na lista e fica por fazer
+        self.assertEqual(por_fazer, 1)
+        self.assertEqual(estados["PC.pdf"][0], "imagem")
+        # e sem `tudo` a mesma peça já lida nem aparece
+        ditos = []
+        self.assertEqual(radar.ocr_pendentes("16/2026", motor=self.Motor(),
+                                             diz=ditos.append), (0, 0, 0))
+        self.assertTrue(any("não há digitalizações" in d for d in ditos), ditos)
+
 
 class TestExportacaoDaTriagem(BaseTemporaria):
     """B15: a triagem é o único dado irrecuperável e vivia só no disco.

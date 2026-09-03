@@ -44,7 +44,7 @@ python radar.py --uma-vez          # verifica e sai (é o que as tarefas correm)
 python radar.py --historico 730    # recolha extra de N dias; conta horas
 python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
-python radar.py --ocr [ref]        # lê pelo OCR as digitalizações já na base, com o tempo de cada
+python radar.py --ocr [ref] [tudo] # lê pelo OCR as digitalizações já na base, com o tempo de cada; "tudo" relê as já lidas (escala nova)
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
