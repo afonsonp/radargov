@@ -115,26 +115,33 @@ A ordem do ficheiro é a ordem do fluxo:
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
    `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
    série dos erros que as marcas sobrescrevem; poda a 200 por tipo).
-2. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
+2. **comum** — as utilidades puras: `data_pt()`, `data_hora_pt()`,
+   `mil_pt()`, `euros_do_texto()`, `conta_dias()`, `dias_restantes()`,
+   `dias_urgente()`, `janela_urgente()`, `etiqueta_prazo()`,
+   `para_like()`, `prefixo_cpv()`, `data_de_filtro()`. Não tocam na
+   base, não escrevem HTML e não dependem de nada à frente. **Um
+   formatador novo entra aqui**, não na banda que por acaso o precisou
+   primeiro — ver a regra no `docs/armadilhas.md`.
+3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
-3. **leitura** — `recolher()` pagina a pesquisa do portal;
+4. **leitura** — `recolher()` pagina a pesquisa do portal;
    `ler_detalhes()` vai à página de cada anúncio buscar CPV, prazo e preço
    base; `campos_do_detalhe()` faz o parsing por secções numeradas.
-4. **documentos** — `obter_documentos()` puxa as peças do procedimento das
+5. **documentos** — `obter_documentos()` puxa as peças do procedimento das
    plataformas que o permitem (`PLATAFORMAS_COM_PECAS`: acingov, vortal,
    compraspt, anogov), por fila e thread de fundo. Ficam em `documentos/`
    no disco, **não na base** — para o `radar.db` ficar pequeno.
-5. **leitura das peças por modelo** — `analisar_pecas()` recorta as zonas
+6. **leitura das peças por modelo** — `analisar_pecas()` recorta as zonas
    relevantes do CE/PC e faz três pedidos (um por campo), gravando em
    `analise`. Cada pedido desce a cadeia `FORNECEDORES` (Groq → NVIDIA →
    OpenRouter) até alguém responder. **Medido: nenhuma das reservas
    aguenta um recorte de tamanho real em rajada** — ver o
    `docs/referencia.md` antes de contar com elas.
-6. **contratos celebrados (BASE)** — `importar_contratos()` traz o dump
+7. **contratos celebrados (BASE)** — `importar_contratos()` traz o dump
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
    próprio. `historico_entidade()` responde ao bloco da ficha do
    anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
-7. **painel** — rotas Flask, HTML gerado por concatenação de strings
+8. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Navegação por quatro intenções: Anúncios
    (`/`, a lista única com as abas por ver / interessados /
    abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
@@ -148,7 +155,7 @@ A ordem do ficheiro é a ordem do fluxo:
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
-8. **agendamento** — `relogio()`, thread daemon que dispara os slots.
+9. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 

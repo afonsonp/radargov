@@ -117,7 +117,8 @@ tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 **As duas bases.** `radar.db` (100 MB, 19 tabelas, no git só a triagem,
 cópia diária em `copias/`) e `contratos.db` (1,65 GB, 1 363 300
 contratos, 137 898 entidades, **fora do git**, refaz-se com
-`--contratos`). Cruzam-se com `ATTACH`.
+`--contratos`). **Não se cruzam em SQL**: cada uma tem a sua ligação
+(`liga()` e `liga_corpus()`) e quem junta os resultados é o Python.
 
 ## O que não corre sozinho, e é preciso saber
 
