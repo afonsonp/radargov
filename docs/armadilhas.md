@@ -132,6 +132,29 @@ O DR, a Vortal, e como um anúncio entra na base.
   `documentName` na outra. Ao mexer aqui, **mede as duas formas contra
   anúncios reais**, não uma.
 
+- **`ler_detalhes()` desiste em SILÊNCIO, e numa corrida de horas isso
+  importa.** Um pedido que falhe de rede ou traga JSON ilegível faz
+  `break` no ciclo e a função devolve `(feitos, "")` — menos do que o
+  lote e **aviso vazio**. Na verificação diária não se nota: a volta
+  seguinte é dentro de oito horas. Mas o `--detalhes`, que enche a base
+  toda a ~1,45 s por anúncio (~24 h para os 60 mil), parava a primeira e
+  perdia a noite por causa de um segundo. `detalhes_em_lote()` tolera
+  `VOLTAS_VAZIAS` (3) seguidas com 30 s de intervalo, e o que distingue
+  «acabou» de «falhou a rede» é o **contador** — sem ele, o fim normal
+  da fila gastava as três voltas e 60 segundos a olhar para uma fila
+  vazia. Um aviso verdadeiro (captura recusada) para logo: bater outra
+  vez na mesma porta não a abre. A espera, a leitura e a escrita são
+  injectáveis, e o último recurso das três voltas tem teste próprio —
+  um teste que dependesse de sleeps verdadeiros mediria o escalonador.
+
+- **Um anúncio antigo que já não exista não entala a fila.** O
+  `detalhe_lido=1` grava-se mesmo quando o DR responde sem texto, por
+  isso a fila anda sempre para a frente. É por isso que o `--detalhes`
+  pode ser retomável de forma trivial — e é uma propriedade a não
+  perder: fazer o `detalhe_lido` depender de o texto vir preenchido
+  punha um anúncio morto a ser pedido para sempre, e a corrida de 24
+  horas nunca acabava.
+
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e a forma do corpo das capturas `curl_*.txt`. **O token NÃO
   expira, e não é de sessão** (medido a 02/09/2026 com `medir_captura.py`,

@@ -551,6 +551,28 @@ Puxa 730 dias (2 anos) de anúncios de uma vez. Demora horas — é um
 pedido por página, e depois um por anúncio para os detalhes.
 
 ```bash
+python radar.py --detalhes tudo
+```
+Vai buscar o detalhe — CPV, prazo, preço base, plataforma, texto — de
+todos os anúncios que ainda não o têm. Faz falta porque a rotina diária
+só lê o detalhe dos últimos 60 dias, e sem detalhe um anúncio **não
+aparece num filtro por CPV, nem na árvore, nem nos indicadores**: está
+na base e é como se não estivesse. A 3/09/2026 eram 60 190 anúncios.
+
+Isto **demora cerca de 24 horas** — um pedido por segundo, de propósito,
+para não castigar o portal do DR. Não gasta tokens nem dinheiro nenhum:
+é só ir buscar páginas (o que gasta modelo é o `--ler-pecas`).
+
+Deixa correr numa janela e esquece. Podes parar com Ctrl-C, fechar o
+computador, ir dormir: **não perdes nada** — cada anúncio fica gravado
+assim que é lido, e o mesmo comando outra vez continua de onde ia. Se a
+rede falhar, ele espera 30 segundos e tenta outra vez, três vezes,
+antes de desistir. Vai dizendo quantos já leu e quanto falta.
+
+Para experimentar primeiro, põe um número em vez do `tudo`:
+`python radar.py --detalhes 20` lê vinte e sai (meio minuto).
+
+```bash
 python radar.py --reler
 ```
 Reanalisa o texto que já está guardado, sem ir ao DR: recalcula CPV,
