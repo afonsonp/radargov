@@ -155,6 +155,18 @@ O DR, a Vortal, e como um anúncio entra na base.
   punha um anúncio morto a ser pedido para sempre, e a corrida de 24
   horas nunca acabava.
 
+- **`ler_detalhes()` tem dois ritmos, de propósito.** O `sleep` entre
+  pedidos é um parâmetro (`intervalo`, 1s por omissão) e não uma
+  constante fixa: a rotina diária (09h/17h) usa sempre 1s, mas o
+  `--detalhes` — que pode correr horas seguidas — usa
+  `INTERVALO_DETALHES` (0,3s), decisão do Afonso a 3/09/2026 depois de
+  lhe dizer que **o risco de bloqueio de IP por rajada não está medido
+  nem confirmado nem afastado** (o DR não tem rate-limit conhecido, mas
+  ninguém testou o que acontece com muitos pedidos seguidos). Ao mexer
+  no ritmo de qualquer um dos dois, não presumas que o outro segue: são
+  decisões separadas, com riscos diferentes (a rotina é 40 pedidos
+  espaçados por 8 horas; o `--detalhes` é dezenas de milhares seguidos).
+
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e a forma do corpo das capturas `curl_*.txt`. **O token NÃO
   expira, e não é de sessão** (medido a 02/09/2026 com `medir_captura.py`,

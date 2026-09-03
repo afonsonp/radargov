@@ -560,9 +560,11 @@ só lê o detalhe dos últimos 60 dias, e sem detalhe um anúncio **não
 aparece num filtro por CPV, nem na árvore, nem nos indicadores**: está
 na base e é como se não estivesse. A 3/09/2026 eram 60 190 anúncios.
 
-Isto **demora cerca de 24 horas** — um pedido por segundo, de propósito,
-para não castigar o portal do DR. Não gasta tokens nem dinheiro nenhum:
-é só ir buscar páginas (o que gasta modelo é o `--ler-pecas`).
+Isto **demora cerca de 11 horas** — um pedido de cada vez, com uma
+pausa curta entre eles, de propósito para não castigar o portal do DR
+(o Afonso decidiu a 3/09/2026 apertar o ritmo depois de pesar o risco;
+ver `docs/diario/2026-09.md`). Não gasta tokens nem dinheiro nenhum: é
+só ir buscar páginas (o que gasta modelo é o `--ler-pecas`).
 
 Deixa correr numa janela e esquece. Podes parar com Ctrl-C, fechar o
 computador, ir dormir: **não perdes nada** — cada anúncio fica gravado

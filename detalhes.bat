@@ -11,8 +11,9 @@ echo  os ultimos 60 dias, e sem detalhe um anuncio nao aparece num
 echo  filtro por CPV, nem na arvore, nem nos indicadores: esta na base
 echo  e e como se nao estivesse.
 echo.
-echo  DEMORA CERCA DE 24 HORAS. E um pedido por segundo, de proposito,
-echo  para nao castigar o portal do Diario da Republica.
+echo  DEMORA CERCA DE 11 HORAS. E um pedido de cada vez, com uma pausa
+echo  curta entre eles, de proposito para nao castigar o portal do
+echo  Diario da Republica.
 echo.
 echo  Nao gasta tokens nem dinheiro: e so ir buscar paginas. O que
 echo  gasta modelo e o ensaio.bat / --ler-pecas.

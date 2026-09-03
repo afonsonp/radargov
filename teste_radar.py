@@ -1918,6 +1918,35 @@ class TestDetalhesEmLote(unittest.TestCase):
         self.assertEqual(feitos, 80)
         self.assertIn("Interrompido", " ".join(ditos))
 
+    def test_o_ler_por_omissao_usa_o_intervalo_pedido(self):
+        # sem `ler` injectado, detalhes_em_lote() constroi um a partir
+        # de ler_detalhes() com o `intervalo` recebido -- e a rotina
+        # diaria (que chama ler_detalhes() directamente, sem passar por
+        # aqui) tem de continuar a 1s por omissao, seja qual for o
+        # INTERVALO_DETALHES do --detalhes
+        vistos = []
+
+        def ler_detalhes_falso(limite, dias=None, intervalo=1):
+            vistos.append(intervalo)
+            return 0, ""
+
+        antigo = radar.ler_detalhes
+        radar.ler_detalhes = ler_detalhes_falso
+        try:
+            radar.detalhes_em_lote(40, 40, contar=lambda: 0,
+                                   intervalo=0.3, esperar=lambda s: None,
+                                   diz=lambda t: None)
+        finally:
+            radar.ler_detalhes = antigo
+        self.assertEqual(vistos, [0.3])
+
+    def test_a_rotina_diaria_continua_a_um_segundo_por_omissao(self):
+        # o parametro novo nao pode ter mudado o valor por omissao de
+        # ler_detalhes(), que e o que verificar() chama sem `intervalo`
+        import inspect
+        assinatura = inspect.signature(radar.ler_detalhes)
+        self.assertEqual(assinatura.parameters["intervalo"].default, 1)
+
 
 class TestDiferencasDoDetalhe(unittest.TestCase):
     """B05: a releitura dos marcados compara o prazo e o preço base com

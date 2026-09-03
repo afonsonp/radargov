@@ -1908,7 +1908,7 @@ def ler_detalhe_de(ref):
     return True, ""
 
 
-def ler_detalhes(limite=40, dias=None):
+def ler_detalhes(limite=40, dias=None, intervalo=1):
     """Le o detalhe dos anuncios que ainda nao o tem, do mais recente
     para o mais antigo.
 
@@ -1917,6 +1917,13 @@ def ler_detalhes(limite=40, dias=None):
     vao ~18 dias em media, por isso um anuncio de ha 3 meses ja fechou e
     o CPV dele so interessa como historico. Os antigos sao lidos quando
     se abre a ficha, e nao em massa.
+
+    `intervalo` e a pausa entre pedidos, para nao castigar o portal do
+    DR -- 1s por omissao, o que a rotina diaria sempre usou. So o
+    `--detalhes` (via detalhes_em_lote()) pede um intervalo mais curto:
+    decisao do Afonso a 3/09/2026, depois de lhe dizer que o DR nao tem
+    rate-limit conhecido e que o risco de bloqueio de IP era desconhecido
+    mas nao confirmado -- ver docs/diario/2026-09.md.
 
     O texto fica na base, por isso reanalisar nunca mais precisa de rede."""
     par, aviso = _molde_detalhe()
@@ -1957,39 +1964,53 @@ def ler_detalhes(limite=40, dias=None):
             break
         _guardar_detalhe(a["ref"], dados)
         feitos += 1
-        time.sleep(1)
+        time.sleep(intervalo)
     return feitos, ""
 
 
-# Medido a 3/09/2026 contra o portal, 20 anuncios em 29s: o
-# `time.sleep(1)` de `ler_detalhes()` mais ~0.45s de pedido. Serve
-# so para a estimativa que o comando imprime ANTES de comecar; a
+# O intervalo do `--detalhes` -- mais curto que o 1s da rotina diaria
+# (ler_detalhes() por omissao). Decisao do Afonso a 3/09/2026, depois
+# de lhe dizer que o DR nao tem rate-limit conhecido (docs/armadilhas.md)
+# mas que o risco de bloqueio de IP por rajada e desconhecido, nao
+# confirmado nem afastado: ver docs/diario/2026-09.md. Ainda sequencial,
+# ainda um pedido de cada vez -- so a pausa entre eles encolheu.
+INTERVALO_DETALHES = 0.3
+
+# Medido a 3/09/2026 contra o portal, com INTERVALO_DETALHES=0.3: 61
+# anuncios em 41.2s = 0.68s cada. (A 1s de intervalo tinha dado 20 em
+# 29s = 1.45s cada -- o pedido em si custa menos do que a diferenca
+# entre as duas medicoes sugeriria; nao vale a pena decompor mais.)
+# Serve so para a estimativa que o comando imprime ANTES de comecar; a
 # partir da primeira volta o que se mostra e o ritmo verdadeiro.
-SEGUNDOS_POR_DETALHE = 1.45
+SEGUNDOS_POR_DETALHE = 0.68
 VOLTAS_VAZIAS = 3           # quantos blips de rede se toleram de seguida
 ESPERA_ENTRE_VAZIAS = 30    # segundos
 
 
-def detalhes_em_lote(alvo, lote, contar, ler=None, esperar=None, diz=None):
+def detalhes_em_lote(alvo, lote, contar, intervalo=INTERVALO_DETALHES,
+                     ler=None, esperar=None, diz=None):
     """Le o detalhe de `alvo` anuncios em voltas de `lote`. Devolve
     quantos leu.
 
     Serve o `--detalhes`, que enche o detalhe de toda a base -- horas de
-    relogio a um pedido por segundo. O contrato e ser retomavel e nao
-    desistir a primeira: `ler_detalhes()` sai do ciclo em SILENCIO
-    (`feitos` menor que o lote, aviso vazio) quando um pedido falha de
-    rede ou traz JSON ilegivel, e numa corrida de horas isso e um blip
-    -- parar ai perdia a noite por causa de um segundo. Tolera
-    VOLTAS_VAZIAS seguidas, com ESPERA_ENTRE_VAZIAS entre elas, e so
-    depois desiste.
+    relogio, um pedido de cada vez com `intervalo` segundos entre eles.
+    O contrato e ser retomavel e nao desistir a primeira: `ler_detalhes()`
+    sai do ciclo em SILENCIO (`feitos` menor que o lote, aviso vazio)
+    quando um pedido falha de rede ou traz JSON ilegivel, e numa corrida
+    de horas isso e um blip -- parar ai perdia a noite por causa de um
+    segundo. Tolera VOLTAS_VAZIAS seguidas, com ESPERA_ENTRE_VAZIAS entre
+    elas, e so depois desiste.
 
     Um aviso de `ler_detalhes()` -- captura recusada pelo portal -- para
     logo: bater outra vez na mesma porta nao a abre.
 
     `contar` diz quantos faltam, e e o que distingue "acabou" de "falhou
     a rede"; `ler`, `esperar` e `diz` sao injectaveis para o teste poder
-    forcar as voltas vazias sem rede e sem sleeps de verdade."""
-    ler = ler or ler_detalhes
+    forcar as voltas vazias sem rede e sem sleeps de verdade -- quando
+    injectado, `ler` decide o proprio intervalo e este parametro nao
+    se aplica."""
+    ler = ler or (lambda n, dias=None: ler_detalhes(n, dias=dias,
+                                                     intervalo=intervalo))
     esperar = esperar or time.sleep
     diz = diz or (lambda t: print("  " + t))
     ini, feitos_total, vazios = time.time(), 0, 0
@@ -13807,11 +13828,11 @@ def main():
         #
         # Nao gasta modelo nenhum -- e HTTP ao portal mais parsing; o
         # que gasta modelo e `--ler-pecas`. O que isto custa e tempo:
-        # um pedido por segundo, de proposito, para nao castigar o
-        # portal. Retomavel por construcao, porque cada anuncio fica
-        # gravado com detalhe_lido=1 assim que e lido: um Ctrl-C, um
-        # corte de rede ou um reinicio nao perdem o que ja se leu, e o
-        # comando repetido continua de onde ia.
+        # um pedido de cada vez, com INTERVALO_DETALHES entre eles.
+        # Retomavel por construcao, porque cada anuncio fica gravado
+        # com detalhe_lido=1 assim que e lido: um Ctrl-C, um corte de
+        # rede ou um reinicio nao perdem o que ja se leu, e o comando
+        # repetido continua de onde ia.
         i = sys.argv.index("--detalhes")
         resto = [a for a in sys.argv[i + 1:] if not a.startswith("--")]
         tecto = None if not resto or resto[0] == "tudo" else int(resto[0])
@@ -13832,10 +13853,11 @@ def main():
             print("Não há anúncios do DR sem detalhe: está tudo lido.")
             return
         print("%s anúncio(s) do DR sem detalhe. Vou ler %s, %d por volta,\n"
-              "um pedido por segundo -- conta cerca de %s. Ctrl-C pára e\n"
-              "não perde nada: o que já foi lido está gravado."
+              "um pedido de cada vez, %.1fs entre eles -- conta cerca de\n"
+              "%s. Ctrl-C pára e não perde nada: o que já foi lido está\n"
+              "gravado."
               % (mil_pt(falta, " "), mil_pt(alvo, " "), lote,
-                 duracao_pt(alvo * SEGUNDOS_POR_DETALHE)))
+                 INTERVALO_DETALHES, duracao_pt(alvo * SEGUNDOS_POR_DETALHE)))
         ini = time.time()
         feitos_total = detalhes_em_lote(alvo, lote, contar=por_ler)
         print("%s detalhe(s) lidos em %s; ficam %s por ler."

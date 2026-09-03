@@ -32,7 +32,10 @@ pede.**
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
-Duas destas merecem nome: o `docs/historico/CONCORRENTES.md` guarda o que
+Três destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
+plano para o radar sair do PC: empresas, utilizadores, login e servidor,
+por etapas — **lê-o antes de tocar em contas, sessões ou em qualquer
+coisa que separe dados por empresa**. O `docs/historico/CONCORRENTES.md` guarda o que
 se observou nos produtos pagos deste mercado, com data — **um produto
 muda, e o que lá está vale para o dia em que foi visto**. O
 `docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface
@@ -71,7 +74,7 @@ arrumação.)
 python radar.py                    # painel em http://localhost:8765
 python radar.py --uma-vez          # verifica e sai (é o que as tarefas correm)
 python radar.py --historico 730    # recolha extra de N dias; conta horas
-python radar.py --detalhes [N|tudo] # le o detalhe do que falta (~1,45s cada); retomavel
+python radar.py --detalhes [N|tudo] # le o detalhe do que falta (~0,68s cada); retomavel
 python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
@@ -102,7 +105,7 @@ Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
 `agendar.bat` (cria as três tarefas), `reler.bat` (`--reler`),
 `contratos.bat` (o que a tarefa semanal corre), `detalhes.bat`
-(`--detalhes tudo`, ~24 h), `ensaio.bat` (ensaio-de-leitura),
+(`--detalhes tudo`, ~11 h), `ensaio.bat` (ensaio-de-leitura),
 `historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas). Todos passam pelo `_python.bat`, que escolhe o
 Python da pasta se existir.
 
@@ -163,7 +166,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 80 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
+São 81 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·
