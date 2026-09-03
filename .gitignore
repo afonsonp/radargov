@@ -56,3 +56,6 @@ email_senha.txt
 
 # lixo do Playwright MCP (snapshots e logs das verificacoes no browser)
 .playwright-mcp/
+
+# ferramenta de instalacao, nao e codigo do radar
+pip.pyz
