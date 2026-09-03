@@ -1972,8 +1972,15 @@ def ler_detalhes(limite=40, dias=None, intervalo=1):
 # (ler_detalhes() por omissao). Decisao do Afonso a 3/09/2026, depois
 # de lhe dizer que o DR nao tem rate-limit conhecido (docs/armadilhas.md)
 # mas que o risco de bloqueio de IP por rajada e desconhecido, nao
-# confirmado nem afastado: ver docs/diario/2026-09.md. Ainda sequencial,
-# ainda um pedido de cada vez -- so a pausa entre eles encolheu.
+# confirmado nem afastado: ver docs/diario/2026-09.md.
+#
+# Testado a 0.1s no mesmo dia e revertido: NAO reduziu o tempo por
+# anuncio -- pelo contrario (0.78-0.82s medidos, contra 0.68s a 0.3s),
+# sem erro nenhum registado. Ou o DR estava mais lento por razoes
+# alheias, ou e o inicio de uma reaccao mais suave que um bloqueio
+# (abrandar em vez de recusar) sob carga sustentada -- nao ha como
+# distinguir com os dados que ha. Descer o intervalo so vale a pena se
+# vier acompanhado de uma medicao que mostre ganho a serio.
 INTERVALO_DETALHES = 0.3
 
 # Medido a 3/09/2026 contra o portal, com INTERVALO_DETALHES=0.3: 61

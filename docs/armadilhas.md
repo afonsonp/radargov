@@ -167,6 +167,18 @@ O DR, a Vortal, e como um anúncio entra na base.
   decisões separadas, com riscos diferentes (a rotina é 40 pedidos
   espaçados por 8 horas; o `--detalhes` é dezenas de milhares seguidos).
 
+- **Encolher o intervalo não é o mesmo que ir mais depressa.** Testado
+  a 3/09/2026: descer `INTERVALO_DETALHES` de 0,3s para 0,1s deu **mais
+  lento** (0,78-0,82s por anúncio, medido em duas janelas de 2 minutos),
+  não mais rápido que os 0,68s a 0,3s — sem erro nenhum registado, nem
+  `casca` nem `apiVersion` nem token expirado. Quem manda no tempo total
+  não é só o nosso `sleep`; é também o tempo de resposta do portal, que
+  pode variar por razões alheias ou reagir a carga sustentada de forma
+  mais suave que uma recusa — abrandando, não bloqueando. Revertido
+  para 0,3s por não haver benefício a compensar o risco. **Não presumas
+  que descer o número ajuda: mede antes e depois**, com a mesma corrida
+  em curso, não com um ensaio isolado.
+
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e a forma do corpo das capturas `curl_*.txt`. **O token NÃO
   expira, e não é de sessão** (medido a 02/09/2026 com `medir_captura.py`,
