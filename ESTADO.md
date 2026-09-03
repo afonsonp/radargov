@@ -5051,12 +5051,21 @@ Programa do mesmo anúncio (12 páginas, 24 036) levaram 896 s na mesma
 passagem, e o `[CA]_20260817_DAG-UAP_N_0696.pdf` do 21295/2026 (6
 páginas, 10 482) levou 168 s: **~28 s por página no PC**, contra 5 s
 no ambiente remoto. Um CE de 20 páginas são 10 minutos, em fundo. É
-caro mas é raro (2 em 12), e o alternativa era não ler. Se incomodar,
-o primeiro botão é o `OCR_ESCALA` (2,0 → 1,5 corta a detecção quase
-para metade), e mede-se a qualidade antes de o rodar. O aviso «text
-detection result is empty» é uma página em branco, e é inofensivo. A
-qualidade do texto lido nestes três ainda está por olhar. A vigilância
-da lista de peças dos marcados fica a seguir.
+caro mas é raro (2 em 12), e o alternativa era não ler. O aviso «text
+detection result is empty» é uma página em branco, e é inofensivo.
+
+**Estes 28 s por página não se reproduzem** (03/09/2026, no mesmo PC).
+Com o mesmo `--ocr` e numa escala *mais alta* (2,5), um Programa de 24
+páginas levou 199 s — **8,3 s por página**; isolado, só render e
+reconhecimento com o motor já carregado, são 6,0 s por página. Não sei
+o que deu os 28 s: nada no código faz trabalho a mais (o
+`extrair_textos()` só toca nos `scan`, sem reprocessar as outras peças
+do anúncio), e as causas que sobram — plano de energia, outra coisa a
+correr ao mesmo tempo, o motor a vir frio da pen — já não se
+distinguem depois do facto. Fica escrito que o número medido é 8 s por
+página pelo `--ocr` e 6 s isolado, e que o de 02/09 não se explicou.
+Um CE de 20 páginas são 2 a 3 minutos, não 10. A escolha da escala
+deixa de ter o tempo como argumento — ver a secção seguinte.
 
 ## P0 e P1 da auditoria UX aplicados, 2 de setembro de 2026
 
@@ -5097,3 +5106,79 @@ nada; um teste que passe sozinho e falhe na bateria é sinal disto.
 Não se repetiu a medição do browser depois das alterações. O que
 espera decisão dele continua no BACKLOG (filtros recolhidos, essencial
 encurtado, teclado).
+
+## A escala do OCR mede-se pelos valores, 3 de setembro de 2026
+
+Ficou o ponto A: olhar para a qualidade do texto lido pelo OCR e
+decidir se o `OCR_ESCALA` fica em 2,0 ou desce para 1,5 (o argumento
+para descer era o tempo). **A resposta é nenhuma das duas: subiu para
+2,5.** E o caminho até lá é mais útil que o número.
+
+**A qualidade a 2,0 não era uniforme.** No CE do 20968/2026 (20
+páginas), 21 de 596 linhas saíam desfeitas em letras soltas — 3,5% —, e
+no Programa do mesmo anúncio 20 de 426. Não é ruído espalhado: são
+linhas inteiras que se perdem, com o texto ao lado perfeito, acentos
+incluídos. Uma delas era a **cláusula 4, «Preço Base»**, que saiu
+`a      s          d   al / em vigor.`; outra o título da cláusula 3
+(«Ints o nas a no n so o nados»); e o cabeçalho da entidade, certo em
+17 páginas, saiu «SERS  A S ZS TO» em três.
+
+**A varredura, de 1,0 a 4,0, sobre o documento inteiro.** A métrica
+começou por ser «linhas desfeitas» (proporção de palavras de uma letra
+só), contada sobre as 20 páginas e reprodutível ao caractere — a
+releitura a 2,0 deu exactamente as mesmas 20 linhas que já estavam
+guardadas na base:
+
+    escala   s/pág   linhas desfeitas   chars   preço base   tabela «≥170 cv»
+    1,0       3,9         8 (1,4%)      30 159      ok            «110»
+    1,25      4,2        13 (2,2%)      30 214      ok            «110»
+    1,5       3,6        11 (1,9%)      30 071      ok             «10»
+    1,75      4,9        22 (3,7%)      29 543      ok       «170» (sem o ≥)
+    2,0       5,1        20 (3,4%)      29 731   PERDIDO           ok
+    2,5       6,0        22 (3,7%)      29 741      ok             ok
+    3,0       5,5        24 (4,0%)      29 409      ok             ok
+    4,0       6,0        23 (3,9%)      28 781      ok             ok
+
+Pela métrica, descer a escala melhorava tudo ao mesmo tempo: um terço
+das linhas desfeitas, mais caracteres lidos e 30% mais rápido. **A
+métrica estava a premiar o erro.** Abaixo de 2,0 o modelo não desfaz a
+linha — adivinha-a: onde a página 14 diz «Potência mínima | cv |
+≥170», o 1,0 e o 1,25 leram **110** e o 1,5 leu **10**. Confirmado a
+olho, desenhando a página a 3× e lendo-a (é a única forma de ter
+verdade num PDF sem camada de texto), e o preço base cruzado com o
+`anuncios.preco_base` do DR: 150.000,00 EUR, e o 1,5 leu «€150 000
+(cento e cinquenta mil euros)» certo. Uma linha desfeita vê-se; um
+«10 cv» lê-se como dado, passa pelo `euros_do_texto()` e pelo modelo
+sem levantar nada. **A regra que fica: a escala decide-se pelo valor
+confirmado na página, nunca pelo aspecto do texto** — uma métrica que
+conta a falha visível classifica melhor a configuração que a converte
+em erro silencioso, porque o erro silencioso não aparece nela.
+
+**Segundo documento, para o número não descansar em três linhas de um
+só.** O `[CA]_20260817_DAG-UAP_N_0696.pdf` do 21295/2026 (6 páginas)
+aponta ao mesmo: 2,5 empata ou ganha em tudo (2 linhas desfeitas, 10
+441 caracteres contra 10 257 do 2,0), e a data da assinatura digital
+sai **2026**.08.06 14.39.17 a 2,5 e **2036**.08.06 a 2,0 — outro
+número plausível e errado, e o nome do ficheiro diz 2026.
+
+**Porque 2,5.** É a escala mais baixa onde os dois documentos lêem
+certo todos os valores que se confirmaram; o 2,0 anterior perde a
+cláusula do preço base inteira, o «artigo 332.º do CCP» e o cabeçalho
+de uma página; acima de 2,5 não se ganha nada e começam a perder-se
+caracteres (28 781 a 4,0). Custa 6,0 s por página isolado e 8,3 pelo
+`--ocr`, contra 5,1/–- do 2,0: **uns 15% mais caro**, num trabalho que
+corre em thread de fundo e acontece em 2 de 12 peças. Os 664 testes
+passam — o teste do OCR usa um motor falso, e a escala é argumento por
+omissão do `texto_por_ocr()`.
+
+**Duas digitalizações novas apareceram na base** e leram-se agora, à
+escala nova: o Programa do 22001/2026 (24 páginas, 60 966 caracteres,
+199 s → 8,3 s/página) e o `2_programa_de_concurso_I.pdf` do 22102/2026
+(14 páginas, 23 045 caracteres, 107 s → 7,6 s/página). São as duas
+medidas do `--ocr` a 2,5 que sustentam os «8 s por página» acima.
+
+**O que fica por fazer, e é consequência disto:** as três peças lidas
+a 02/09 têm o texto que o 2,0 produziu, com a cláusula do preço base
+perdida numa delas, e o `--ocr` só apanha os `scan` — não relê quem já
+está em `ocr`. Para a escala nova chegar ao acervo falta um `--ocr
+tudo`, à imagem do `--ler-pecas tudo`.
