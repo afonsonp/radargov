@@ -31,7 +31,10 @@ movendo a pasta para fora do OneDrive.
    pen»): o pip como ficheiro único, a instalar para `libs\`.
    Confirma-se com `python\python.exe -c "import rapidocr, onnxruntime"`.
    Depois, `python radar.py --ocr` lê as digitalizações que já estavam
-   na base; as novas lêem-se sozinhas.
+   na base; as novas lêem-se sozinhas. Custa uns 7 segundos por
+   página, em fundo. `python radar.py --ocr tudo` volta a ler as que já
+   estavam lidas — só faz falta se a definição de leitura mudar
+   (`OCR_ESCALA`), e nesse caso o ESTADO.md di-lo.
 2. Faz a captura da secção 3.
 3. Duplo clique em `iniciar.bat`. Abre o painel em `http://localhost:8765`.
 4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as

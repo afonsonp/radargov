@@ -5027,11 +5027,13 @@ EUR»), aqui, em CPU:
   de ponta a ponta pela mesma `texto_por_ocr()`: 2 páginas, 9 s, texto
   certo.
 
-**`--ocr [ref]`** lê pelo OCR os `scan` que já estavam na base (a
-segunda passagem só corre quando alguém pede as peças DESSE anúncio, e
-os antigos ficavam à espera de uma ficha aberta), e diz o tempo de
-cada documento: é o instrumento para medir o custo por página no PC.
-`ocr_pendentes()`, com teste.
+**`--ocr [ref] [tudo]`** lê pelo OCR os `scan` que já estavam na base
+(a segunda passagem só corre quando alguém pede as peças DESSE
+anúncio, e os antigos ficavam à espera de uma ficha aberta), e diz o
+tempo de cada documento: é o instrumento para medir o custo por página
+no PC. Com `tudo` relê também as que já estão em `ocr` e as `imagem` —
+é o que faz uma escala nova chegar ao acervo (03/09/2026, ver a secção
+do fim). `ocr_pendentes()`, com teste.
 
 **Instalar na pen** (medido a 02/09/2026): o Python embutido não tem
 pip e o `._pth` ignora o `PYTHONPATH`, por isso o ambiente isolado de
@@ -5177,8 +5179,21 @@ escala nova: o Programa do 22001/2026 (24 páginas, 60 966 caracteres,
 (14 páginas, 23 045 caracteres, 107 s → 7,6 s/página). São as duas
 medidas do `--ocr` a 2,5 que sustentam os «8 s por página» acima.
 
-**O que fica por fazer, e é consequência disto:** as três peças lidas
-a 02/09 têm o texto que o 2,0 produziu, com a cláusula do preço base
-perdida numa delas, e o `--ocr` só apanha os `scan` — não relê quem já
-está em `ocr`. Para a escala nova chegar ao acervo falta um `--ocr
-tudo`, à imagem do `--ler-pecas tudo`.
+**`--ocr tudo`, para a escala nova chegar ao acervo.** Uma escala nova
+não vale nada se as peças já lidas ficarem com o texto da antiga, e o
+`--ocr` sozinho só apanha os `scan` — quem está em `ocr` nunca mais é
+relido. Com `tudo` entram também os `ocr` e os `imagem`, e cada
+documento volta a `scan` **imediatamente antes** de ser relido, um a
+um: assim a releitura passa pelo caminho de sempre (a segunda passagem
+do `extrair_textos()`) em vez de ter um seu, e uma interrupção a meio
+deixa o resto como estava. O teste
+(`test_ocr_tudo_rele_as_que_ja_estavam_lidas`) trava precisamente o
+erro que isto pode ter: o `tudo` devolver um documento a `scan` e
+deixá-lo lá sem texto, que é pior do que o texto velho.
+
+Correu sobre os 8 documentos do acervo digitalizado (94 páginas, 688 s
+→ **7,3 s/página**, a confirmar os 8 s). Verificado na base depois da
+releitura: o CE do 20968/2026 tem agora o «€150 000», o «artigo
+332.º», o «Veículo Tipo Pick-Up», o «≥170» e o cabeçalho da entidade
+nas 16 páginas onde ele existe; o `[CA]` do 21295/2026 tem
+«2026.08.06» e já não tem «2036». O que a 2,0 se perdia está lá.
