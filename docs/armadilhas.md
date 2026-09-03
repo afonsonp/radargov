@@ -9,20 +9,23 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 8
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 12
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 9
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 4
-- [O motor de filtros](#o-motor-de-filtros) &middot; 8
+- [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 7
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 10
+- [Contratos e entidades](#contratos-e-entidades) &middot; 11
 - [Alertas e interesse](#alertas-e-interesse) &middot; 3
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 7
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 8
 - [O registo da casa](#o-registo-da-casa) &middot; 1
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 5
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 3
 - [A interface](#a-interface) &middot; 9
-- [Convenções](#convencoes) &middot; 1
+- [Convenções](#convencoes) &middot; 2
+
+São 86 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — o índice
+estava a somar 78 a 3/09/2026, quatro áreas abaixo do que tinham.
 
 ---
 
@@ -511,19 +514,22 @@ Uma árvore, duas fontes de contagem, dois campos.
 
 ## Contratos e entidades
 
-O corpus do Portal BASE — 1,36 milhões de linhas, e por isso a velocidade conta.
+O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
+03/09/2026), e por isso a velocidade conta.
 
-- **Sem filtro, `/contratos` não mostra lista nenhuma.** São 1,36 milhões
+- **Sem filtro, `/contratos` não mostra lista nenhuma.** São 1,99 milhões
   de contratos e por data não dizem nada; a página levava 48 s a montar.
   A pergunta vem primeiro — ao contrário dos anúncios, onde a lista
   inteira é o acervo por triar. A paginação corre num CTE com o `LEFT
   JOIN entidades` e as subconsultas dos nomes **depois do `LIMIT`**, e há
   índice em `contratos(data_celebracao, id)`: sem ele, ordenar 1,36
-  milhões para mostrar 20 levava 6 s.
+  milhões para mostrar 20 levava 6 s — e o corpus cresceu 46% desde
+  essa medição.
 
 - **Os gráficos dos contratos correm sobre o filtro da lista**, não sobre
   o corpus todo: o filtro é a pergunta. Pedidos só ao abrir o `<details>`
-  (`/contratos/resumo`; sem filtro são ~7 s no corpus de 7 anos — o
+  (`/contratos/resumo`; sem filtro eram ~7 s no corpus de 7 anos, e o
+  corpus são 12 desde 03/09/2026 — o
   "~800 ms" antigo era doutro corpus, e a lentidão vem das cinco
   consultas de sempre, medida a 30/08/2026 no `docs/diario/`), e a rota
   devolve **HTML e não JSON** — desenhar continua em Python, com
@@ -576,8 +582,8 @@ O corpus do Portal BASE — 1,36 milhões de linhas, e por isso a velocidade con
   `liga_corpus()`) e os resultados juntam-se depois. Havia uma
   `com_corpus()` com um `ATTACH`, descrita aqui como se fosse o
   mecanismo — nunca foi chamada, e saiu a 03/09/2026. Está no
-  `.gitignore` — 2020-2026 são
-  1,36 milhões de contratos e 1,65 GB — e refaz-se com `--contratos`. O
+  `.gitignore` — 2015-2026 são
+  1 987 798 contratos e 2,47 GB — e refaz-se com `--contratos`. O
   endereço do dump muda todas as semanas: resolve-se sempre pela API do
   dados.gov, nunca se guarda.
 
@@ -590,6 +596,16 @@ O corpus do Portal BASE — 1,36 milhões de linhas, e por isso a velocidade con
   escrevas `VALUES (?,?,…)` à mão: acrescentar uma coluna com o INSERT
   posicional já partiu o importador duas vezes, a segunda a meio de uma
   importação de sete anos.
+
+- **O intervalo de anos do corpus nunca se escreve à mão.** A página
+  "procurar entidade" dizia "só conhece quem já assinou contratos desde
+  2020", com o 2020 no código; a 03/09/2026 o corpus passou a começar
+  em 2015 e a frase mentiu no mesmo dia. Sai de
+  `primeiro_ano_corpus()` (MIN(ano), imediato por `ix_ctr_ano`), como a
+  barra do corpus já fazia com o `DISTINCT ano`. E **os zips de 2012,
+  2013 e 2014 do dados.gov vêm vazios** — o conjunto anuncia-os, o
+  `Content-Length` é zero e o importador traz "0 contratos em 0 s".
+  2015 é o mais antigo que existe, e não é preciso voltar a pedi-los.
 
 - **O botão "Actualizar contratos" corre numa thread**, com o estado em
   `corpus_estado` e a página a recarregar-se enquanto isso — um ano são
@@ -838,8 +854,9 @@ SQLite, cópias, e a pen que manda nos números.
 
 - **Uma migração do corpus sem índice que a sirva é o arranque do
   painel.** O `iniciar_corpus()` corre a cada arranque, e um
-  `WHERE <coluna> IS NULL` sem índice varre os 1,65 GB todos — mesmo
-  para encontrar zero linhas. Foi o que o `n_adj` fez até 01/09/2026:
+  `WHERE <coluna> IS NULL` sem índice varre o corpus todo — 1,65 GB
+  quando isto se mediu, 2,47 GB desde 03/09/2026 — mesmo para
+  encontrar zero linhas. Foi o que o `n_adj` fez até 01/09/2026:
   **38,9 s a frio** contra 0,00 s das outras três migrações da mesma
   função, que têm índice. Regra: uma migração idempotente ou tem índice
   que responda ao `IS NULL`, ou tem **marca no `corpus_estado`** (como
@@ -853,8 +870,8 @@ SQLite, cópias, e a pen que manda nos números.
   ficheiro pequeno a frio, e ~42 MB/s efectivos numa varredura de
   páginas de 4 KB (408 MB/s em sequencial puro). Daí os 216 dos 459
   módulos que vêm de `libs/` como ficheiros soltos custarem segundos
-  no arranque, e daí uma varredura de 1,65 GB não ser um encolher de
-  ombros. Antes de culpar o código por lentidão, confirma em que
+  no arranque, e daí uma varredura do corpus (2,47 GB) não ser um
+  encolher de ombros. Antes de culpar o código por lentidão, confirma em que
   disco ele está (`Get-Partition -DriveLetter D | Get-Disk`).
 
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de

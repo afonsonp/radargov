@@ -167,7 +167,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 82 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
+São 86 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

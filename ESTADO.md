@@ -140,18 +140,18 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 13 863 linhas, `casa.py` com 918,
-`teste_radar.py` com 656 testes que correm em 26 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 14 145 linhas, `casa.py` com 931,
+`teste_radar.py` com 679 testes que correm em 34 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
-(7 747 linhas, 56%).
+(7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
 **As duas bases.** `radar.db` (era 100 MB; a 03/09/2026 às 18:14 ia em
 **328 MB** e a crescer, com o `--detalhes tudo` a correr desde as 16:34
 — o `anuncios.texto` passou de 36 MB para 207 MB, que é o detalhe de
 35 755 dos 66 483 anúncios; 19 tabelas, no git só a triagem,
-cópia diária em `copias/`) e `contratos.db` (1,65 GB, 1 363 300
-contratos, 137 898 entidades, **fora do git**, refaz-se com
-`--contratos`). **Não se cruzam em SQL**: cada uma tem a sua ligação
+cópia diária em `copias/`) e `contratos.db` (2,47 GB, 1 987 798
+contratos de 2015 a 2026, 178 978 entidades, **fora do git**, refaz-se
+com `--contratos`). **Não se cruzam em SQL**: cada uma tem a sua ligação
 (`liga()` e `liga_corpus()`) e quem junta os resultados é o Python.
 
 ## O que não corre sozinho, e é preciso saber

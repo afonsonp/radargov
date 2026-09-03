@@ -5579,6 +5579,38 @@ class TestNAdjEnchePorMarca(CorpusTemporario):
         self.assertIn("n_adj", radar.COLS_CONTRATO)
 
 
+class TestPrimeiroAnoDoCorpus(CorpusTemporario):
+    """03/09/2026: a página "procurar entidade" dizia "o corpus só conhece
+    quem já assinou contratos desde 2020" — com o 2020 escrito à mão no
+    código. No dia em que o corpus passou a começar em 2015, a frase
+    ficou a mentir ao Afonso sobre cinco anos que ele tinha em disco.
+
+    Um número que um ecrã mostra tem de sair dos dados. O que estes
+    testes seguram: que sai do MIN(ano), e que os dois casos em que não
+    há nada para ler não rebentam a página."""
+
+    def poe_ano(self, cid, ano):
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, ano) VALUES (?,?)",
+                      (cid, ano))
+
+    def test_le_o_ano_mais_antigo(self):
+        radar.iniciar_corpus()
+        self.poe_ano(1, 2019)
+        self.poe_ano(2, 2015)
+        self.poe_ano(3, 2026)
+        self.assertEqual(radar.primeiro_ano_corpus(), 2015)
+
+    def test_sem_ficheiro_da_a_omissao(self):
+        # antes de o corpus ser importado não há ficheiro nenhum
+        self.assertEqual(radar.primeiro_ano_corpus(), 2015)
+
+    def test_corpus_vazio_da_a_omissao(self):
+        # o MIN de zero linhas é NULL, e um NULL no %d rebentava a página
+        radar.iniciar_corpus()
+        self.assertEqual(radar.primeiro_ano_corpus(), 2015)
+
+
 class TestPecasDaVortalNasDuasFormas(unittest.TestCase):
     """A Vortal deixou de trazer peças e ninguém deu por isso.
 

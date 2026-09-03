@@ -675,8 +675,8 @@ O DR publica anúncios acima de certos valores. Abaixo dos limiares
 esses procedimentos são por convite e só se tornam públicos como
 **contrato celebrado**. O radar traz esses contratos: o separador
 Contratos carrega o dump semanal do IMPIC (dados.gov, sem chave e sem
-sessão — a API que nunca respondeu deixou de fazer falta), com mais de
-um milhão de contratos desde 2020. Não são oportunidades: quando lá
+sessão — a API que nunca respondeu deixou de fazer falta), com quase
+dois milhões de contratos desde 2015. Não são oportunidades: quando lá
 aparecem, já está tudo decidido. Servem para comparar preços, ver quem
 ganha o quê e antecipar renovações.
 

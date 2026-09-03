@@ -5890,6 +5890,30 @@ def ha_corpus():
             return c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
     except sqlite3.Error:
         return 0
+
+
+def primeiro_ano_corpus(omissao=2015):
+    """O ano mais antigo que o corpus conhece.
+
+    O painel dizia "desde 2020" escrito a mao. A 03/09/2026 o corpus
+    passou a comecar em 2015 e a frase ficou falsa no mesmo dia -- um
+    numero que um ecra mostra tem de sair dos dados, nao do teclado.
+    Ha indice em `ano` (ix_ctr_ano), portanto o MIN e imediato.
+
+    A omissao e 2015 e nao 2012: o conjunto do dados.gov anuncia zips
+    de 2012, 2013 e 2014, mas os tres tem zero bytes -- medido a
+    03/09/2026, e o importador trouxe "0 contratos em 0 s" nos tres.
+    """
+    if not os.path.exists(CORPUS):
+        return omissao
+    try:
+        with liga_corpus() as c:
+            r = c.execute("SELECT MIN(ano) a FROM contratos").fetchone()
+        return (r and r["a"]) or omissao
+    except sqlite3.Error:
+        return omissao
+
+
 def entidade_do_anuncio(nif, nome):
     """A chave da entidade de um anuncio, no corpus.
 
@@ -9976,7 +10000,7 @@ def entidade_procurar():
                  "do corpus responde a &ldquo;%s&rdquo;. O corpus só "
                  "conhece quem já assinou contratos desde %s. "
                  "<a href='/contratos'>Voltar aos contratos</a></div></div>"
-                 % (html.escape(termo), "2020"))
+                 % (html.escape(termo), primeiro_ano_corpus()))
     return envolver(
         "contratos", "Procurar entidade",
         "Nome ou NIF; a procura cobre todas as grafias com que cada "
@@ -11232,8 +11256,11 @@ def contratos():
     fonte = ("<div class='nota' style='margin-top:14px'>O dump do IMPIC é "
              "semanal: os contratos das últimas semanas podem ainda não lá "
              "estar. Anos fechados não mudam &mdash; o botão só volta a "
-             "trazer o ano corrente e o anterior. Para anos mais antigos, "
-             "<code>python radar.py --contratos 2015-2019</code>.</div>")
+             "trazer o ano corrente e o anterior. O corpus começa em %d "
+             "&mdash; é o mais antigo que o dados.gov chega a dar, os "
+             "zips de 2012 a 2014 vêm vazios. Para trazer um ano de "
+             "novo, <code>python radar.py --contratos %d</code>.</div>"
+             % (primeiro_ano_corpus(), primeiro_ano_corpus()))
 
     # O campo do CPV e escondido, por isso um filtro activo nao se via em
     # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
