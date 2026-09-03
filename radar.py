@@ -698,6 +698,179 @@ def registar_expiracao_token(qual, mensagem):
     marca_erro("token_ultimo_erro", "token", mensagem + idade)
 
 
+# ------------------------------------------------------------- comum
+#
+# Utilidades puras: formatar, validar e contar. Nao tocam na base, nao
+# escrevem HTML e nao dependem de nada a frente -- so o `dias_urgente()`
+# le o config, que e da banda `base`, acima.
+#
+# Vieram para aqui a 03/09/2026. Estavam espalhadas pelo painel, pela
+# ficha do anuncio e pelo quadro, e eram chamadas de fora dessas bandas:
+# o `data_pt()` por seis funcoes de quatro bandas, o `dias_restantes()`
+# a viver no quadro e a ser usado pelo resumo por e-mail. Medido no
+# grafo de chamadas: era o que fechava tres dos seis ciclos entre as
+# fatias do ficheiro -- as fontes, o mercado e a rotina estavam presas
+# ao painel por causa de formatadores, e nao por causa de painel.
+
+
+def dias_restantes(prazo):
+    """(dias que faltam, ja passou) a partir de 'YYYY-MM-DD', ou None."""
+    if not prazo:
+        return None, False
+    try:
+        alvo = datetime.strptime(prazo, "%Y-%m-%d").date()
+    except ValueError:
+        return None, False
+    delta = (alvo - datetime.now().date()).days
+    return delta, delta < 0
+
+
+def dias_urgente(cfg=None):
+    """A janela do "urgente", em dias: o config.json (dias_urgente) por
+    cima da omissao. Lixo, zero ou negativo voltam a omissao -- uma
+    janela de 0 dias esvaziava o filtro em silencio. Continua a ser UMA
+    janela: quem a le sao janela_urgente() e os rotulos, todos daqui."""
+    cfg = ler_config() if cfg is None else cfg
+    try:
+        n = int(cfg.get("dias_urgente", DIAS_URGENTE))
+    except (TypeError, ValueError):
+        return DIAS_URGENTE
+    return n if n >= 1 else DIAS_URGENTE
+
+
+def conta_dias(dias):
+    """'hoje', 'amanhã', '1 dia', 'N dias' -- com concordancia."""
+    if dias <= 0:
+        return "termina hoje"
+    if dias == 1:
+        return "amanhã"
+    return "%d dias" % dias
+
+
+def etiqueta_prazo(prazo, urgente=None):
+    """(texto, classe) para o distintivo de prazo. Verde folgado, amarelo
+    dentro da janela do urgente, vermelho expirado ou a acabar hoje.
+
+    O `urgente` e essa janela em dias; sem ele le-se de dias_urgente().
+    Esteve aqui um 7 escrito a mao com o filtro a 10: um prazo a 9 dias
+    saia verde ("folgado") na lista e na ficha e contava como urgente no
+    filtro, no cartao dos indicadores e nos avisos -- o ecra a mostrar um
+    numero que a ligacao dele nao dava. A janela e UMA so, e vem daqui.
+
+    Quem chama em ciclo (a lista, o quadro, o calendario) le a janela uma
+    vez e passa-a: dias_urgente() abre o config.json a cada chamada, e a
+    lista tem uma linha por anuncio."""
+    dias, passou = dias_restantes(prazo)
+    if dias is None:
+        return "", ""
+    if passou:
+        return "prazo expirado", "mau"
+    if dias == 0:
+        return "termina hoje", "mau"
+    if urgente is None:
+        urgente = dias_urgente()
+    return conta_dias(dias), ("avisa" if dias <= urgente else "ok")
+
+
+def data_hora_pt(texto, vazio="—"):
+    """"2026-08-29 18:54" -> "29/08/2026 18:54".
+
+    A regra da casa e ISO na base e DD/MM a vista, e valia em todo o lado
+    menos em tres sitios: o historico da ficha, a barra do corpus e a
+    "ultima" da barra lateral. O que nao parecer data passa como esta --
+    ha marcas antigas com texto livre ("nunca")."""
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})[ T]?(.*)$", (texto or "").strip())
+    if not m:
+        return texto or vazio
+    resto = (" " + m.group(4).strip()) if m.group(4).strip() else ""
+    return "%s/%s/%s%s" % (m.group(3), m.group(2), m.group(1), resto)
+
+
+def data_pt(iso, vazio="—"):
+    """'2026-08-21' -> '21/08/2026'.
+
+    Guarda-se ISO porque ordena como texto; mostra-se a portuguesa
+    porque e assim que se le. Todo o painel passa por aqui -- havia
+    tabelas a mostrar a data em ISO e outras a mostra-la em portugues.
+    """
+    iso = (iso or "").strip()
+    try:
+        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return iso or vazio
+
+
+def data_de_filtro(valor):
+    """So aceita AAAA-MM-DD; o resto ignora-se em vez de filtrar.
+
+    Um "de=lixo" vindo de um URL guardado comparava datas com texto e
+    esvaziava a lista em silencio -- enquanto o euro minimo com lixo era
+    ignorado. Dois silencios com efeitos opostos; agora e um so, e a
+    lista avisa (avisos_de_datas)."""
+    valor = (valor or "").strip()
+    return valor if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor) else ""
+
+
+def mil_pt(n):
+    """65869 -> '65 869'. A portuguesa, e com espaco inquebravel: com
+    um espaco normal, o browser parte "1 363 300" ao fim da linha e a
+    leitura fica com um numero em cada linha."""
+    return "{:,}".format(int(n)).replace(",", " ")
+
+
+def euros_do_texto(texto):
+    """'175.000,00 EUR' -> 175000.0. Formato portugues: o ponto separa
+    os milhares e a virgula os centimos, ao contrario do que Python le."""
+    m = re.search(r"[\d.,]+", texto or "")
+    if not m:
+        return None
+    try:
+        return float(m.group(0).replace(".", "").replace(",", "."))
+    except ValueError:
+        return None
+
+
+def para_like(termo):
+    """Escapa os caracteres especiais do LIKE. Sem isto, procurar "50%"
+    devolvia tudo o que tem "50", e "CP_2026" tratava o _ como coringa."""
+    for ch in (ESCAPE_LIKE, "%", "_"):
+        termo = termo.replace(ch, ESCAPE_LIKE + ch)
+    return termo
+
+
+def prefixo_cpv(pedaco):
+    """De um codigo CPV para o prefixo com que se procura.
+
+    So os 8 digitos do codigo, sem o digito de controlo, que descola do
+    formato guardado (o traco nao entra na conta). Os zeros a direita sao
+    estrutura no CPV, por isso tira-los alarga do codigo para o grupo:
+    "72000000" apanha "72267100".
+
+    Mas nunca abaixo de dois digitos, que e a largura da divisao:
+    "30000000".rstrip("0") daria "3" e apanhava as divisoes 31, 33, 34,
+    35, 37, 38 e 39 por engano -- medido, 4592 anuncios em vez de 440.
+
+    Devolve "" quando nao sobra digito nenhum. E aqui, e nao em cada
+    sitio que procura por CPV, para o corpus de contratos procurar com o
+    mesmo criterio da lista -- duas copias desta regra divergiam.
+    """
+    digitos = re.sub(r"\D", "", pedaco or "")[:8]
+    if not digitos:
+        return ""
+    curto = digitos.rstrip("0")
+    return curto if len(curto) >= 2 else digitos[:2]
+
+
+def janela_urgente(hoje):
+    """(hoje, hoje + dias_urgente()), em ISO. E UMA janela so.
+
+    Usam-na o filtro prazo=urgente e o cartao "Interessa" dos
+    indicadores. Ja houve um "7" escrito a mao no cartao com o filtro a
+    10: o numero do ecra nao abria lista nenhuma que o confirmasse."""
+    return (hoje.isoformat(),
+            (hoje + timedelta(days=dias_urgente())).isoformat())
+
+
 # -------------------------------------------------------------- pessoas
 #
 # Nao ha palavra-passe: hoje isto corre no PC de uma pessoa so, e um
@@ -751,18 +924,6 @@ def listar_fases():
 def primeira_fase():
     fases = listar_fases()
     return fases[0]["id"] if fases else None
-
-
-def dias_restantes(prazo):
-    """(dias que faltam, ja passou) a partir de 'YYYY-MM-DD', ou None."""
-    if not prazo:
-        return None, False
-    try:
-        alvo = datetime.strptime(prazo, "%Y-%m-%d").date()
-    except ValueError:
-        return None, False
-    delta = (alvo - datetime.now().date()).days
-    return delta, delta < 0
 
 
 # ------------------------------------------------------------- captura
@@ -2425,18 +2586,6 @@ def _valor(linha, coluna, omissao=None):
 # config.json por cima (B13).
 DIAS_URGENTE = 10
 
-
-def dias_urgente(cfg=None):
-    """A janela do "urgente", em dias: o config.json (dias_urgente) por
-    cima da omissao. Lixo, zero ou negativo voltam a omissao -- uma
-    janela de 0 dias esvaziava o filtro em silencio. Continua a ser UMA
-    janela: quem a le sao janela_urgente() e os rotulos, todos daqui."""
-    cfg = ler_config() if cfg is None else cfg
-    try:
-        n = int(cfg.get("dias_urgente", DIAS_URGENTE))
-    except (TypeError, ValueError):
-        return DIAS_URGENTE
-    return n if n >= 1 else DIAS_URGENTE
 
 # Abaixo disto nao se mostra percentagem de triagem. "100% ficou como
 # interessa" sobre dois casos e ruido com ar de conclusao.
@@ -4790,7 +4939,11 @@ def verificar(cfg=None, passo=None):
 # `documentos/`: o radar.db e para o trabalho do dia e tem de continuar
 # pequeno. Um ano de contratos sao ~160 mil linhas; o acervo desde 2012
 # passa o milhao, e nao tem nada que fazer ao lado de 5 mil anuncios.
-# Para cruzar os dois faz-se ATTACH (ver `com_corpus()`).
+# Os dois NAO se cruzam em SQL: cada base tem a sua ligacao
+# (liga() e liga_corpus()) e o que junta os resultados e Python.
+# Havia uma com_corpus() com um ATTACH, documentada em tres sitios
+# como se fosse o mecanismo -- nunca chegou a ser chamada, e saiu a
+# 03/09/2026. Se um dia fizer falta, esta em `git show 6b8ea69`.
 #
 # A fonte e o dump semanal do IMPIC no dados.gov, dominio publico, sem
 # token nem sessao. Nao e o conjunto "OCDS" do mesmo portal: esse esta
@@ -5494,18 +5647,37 @@ def ha_corpus():
             return c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
     except sqlite3.Error:
         return 0
+def entidade_do_anuncio(nif, nome):
+    """A chave da entidade de um anuncio, no corpus.
+
+    **Pelo NIPC primeiro.** O DR publica-o em praticamente todos os
+    anuncios (medido: 99,3% dos que tem detalhe lido) e e o mesmo numero
+    por que o BASE identifica a entidade -- e portanto a mesma chave, sem
+    comparacao nenhuma pelo meio.
+
+    O nome fica de reserva, para os anuncios antigos sem NIPC lido, e
+    resolve 94,3%: falha nas sub-unidades ("Centro de Emprego de Entre
+    Douro e Vouga" contra o IEFP que assina o anuncio) e nas variantes
+    ("EPE" contra "E. P. E.").
+    """
+    if not ha_corpus():
+        return ""
+    nif = (nif or "").strip()
+    if re.fullmatch(r"\d{9}", nif):
+        with liga_corpus() as c:
+            r = c.execute("SELECT chave FROM entidades WHERE chave=?",
+                          (nif,)).fetchone()
+        if r:
+            return nif
+    norm = norma_entidade(nome)
+    if not norm:
+        return ""
+    with liga_corpus() as c:
+        r = c.execute("SELECT chave FROM entidade_nomes WHERE nome_norm=?",
+                      (norm,)).fetchone()
+    return r["chave"] if r else ""
 
 
-def com_corpus(c):
-    """Poe o corpus ao lado da base de trabalho, como `corpus`, para se
-    poderem cruzar numa consulta so. Devolve se conseguiu."""
-    if not os.path.exists(CORPUS):
-        return False
-    try:
-        c.execute("ATTACH DATABASE ? AS corpus", (CORPUS,))
-        return True
-    except sqlite3.Error:
-        return False
 
 
 def historico_entidade(entidade, cpv="", limite=25, nif=""):
@@ -5565,17 +5737,6 @@ def historico_entidade(entidade, cpv="", limite=25, nif=""):
             " FROM pag p ORDER BY p.data_celebracao DESC, p.id DESC",
             valores).fetchall()
     return linhas, ao_todo, do_cpv, alvo
-
-
-def data_de_filtro(valor):
-    """So aceita AAAA-MM-DD; o resto ignora-se em vez de filtrar.
-
-    Um "de=lixo" vindo de um URL guardado comparava datas com texto e
-    esvaziava a lista em silencio -- enquanto o euro minimo com lixo era
-    ignorado. Dois silencios com efeitos opostos; agora e um so, e a
-    lista avisa (avisos_de_datas)."""
-    valor = (valor or "").strip()
-    return valor if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor) else ""
 
 
 def avisos_de_datas(args):
@@ -7175,40 +7336,6 @@ MESES = ("jan", "fev", "mar", "abr", "mai", "jun",
 DIAS_SEMANA = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
 
 
-def conta_dias(dias):
-    """'hoje', 'amanhã', '1 dia', 'N dias' -- com concordancia."""
-    if dias <= 0:
-        return "termina hoje"
-    if dias == 1:
-        return "amanhã"
-    return "%d dias" % dias
-
-
-def etiqueta_prazo(prazo, urgente=None):
-    """(texto, classe) para o distintivo de prazo. Verde folgado, amarelo
-    dentro da janela do urgente, vermelho expirado ou a acabar hoje.
-
-    O `urgente` e essa janela em dias; sem ele le-se de dias_urgente().
-    Esteve aqui um 7 escrito a mao com o filtro a 10: um prazo a 9 dias
-    saia verde ("folgado") na lista e na ficha e contava como urgente no
-    filtro, no cartao dos indicadores e nos avisos -- o ecra a mostrar um
-    numero que a ligacao dele nao dava. A janela e UMA so, e vem daqui.
-
-    Quem chama em ciclo (a lista, o quadro, o calendario) le a janela uma
-    vez e passa-a: dias_urgente() abre o config.json a cada chamada, e a
-    lista tem uma linha por anuncio."""
-    dias, passou = dias_restantes(prazo)
-    if dias is None:
-        return "", ""
-    if passou:
-        return "prazo expirado", "mau"
-    if dias == 0:
-        return "termina hoje", "mau"
-    if urgente is None:
-        urgente = dias_urgente()
-    return conta_dias(dias), ("avisa" if dias <= urgente else "ok")
-
-
 def corta(texto, tecto):
     """Corta e diz que cortou. Sem as reticencias, um objecto cortado a
     meio de palavra ("...suporte do Hardware Oracle onde residem as Base
@@ -8156,14 +8283,6 @@ def _lista_de_anuncios():
 ESCAPE_LIKE = "!"
 
 
-def para_like(termo):
-    """Escapa os caracteres especiais do LIKE. Sem isto, procurar "50%"
-    devolvia tudo o que tem "50", e "CP_2026" tratava o _ como coringa."""
-    for ch in (ESCAPE_LIKE, "%", "_"):
-        termo = termo.replace(ch, ESCAPE_LIKE + ch)
-    return termo
-
-
 # TODOS os campos que um filtro pode ter, por ordem fixa. A ordem
 # importa: e ela que deixa comparar a consulta guardada com a de agora
 # por igualdade de texto, para se saber qual dos filtros esta em uso.
@@ -8343,39 +8462,6 @@ def arvore_html(n_cpv, de, submeter=True):
         "contar, incluindo os anúncios que só trazem o código dela.</div>"
         "</details>" % (de, "" if submeter else " data-submeter='nao'",
                         mil_pt(n_cpv), quantos))
-
-
-def prefixo_cpv(pedaco):
-    """De um codigo CPV para o prefixo com que se procura.
-
-    So os 8 digitos do codigo, sem o digito de controlo, que descola do
-    formato guardado (o traco nao entra na conta). Os zeros a direita sao
-    estrutura no CPV, por isso tira-los alarga do codigo para o grupo:
-    "72000000" apanha "72267100".
-
-    Mas nunca abaixo de dois digitos, que e a largura da divisao:
-    "30000000".rstrip("0") daria "3" e apanhava as divisoes 31, 33, 34,
-    35, 37, 38 e 39 por engano -- medido, 4592 anuncios em vez de 440.
-
-    Devolve "" quando nao sobra digito nenhum. E aqui, e nao em cada
-    sitio que procura por CPV, para o corpus de contratos procurar com o
-    mesmo criterio da lista -- duas copias desta regra divergiam.
-    """
-    digitos = re.sub(r"\D", "", pedaco or "")[:8]
-    if not digitos:
-        return ""
-    curto = digitos.rstrip("0")
-    return curto if len(curto) >= 2 else digitos[:2]
-
-
-def janela_urgente(hoje):
-    """(hoje, hoje + dias_urgente()), em ISO. E UMA janela so.
-
-    Usam-na o filtro prazo=urgente e o cartao "Interessa" dos
-    indicadores. Ja houve um "7" escrito a mao no cartao com o filtro a
-    10: o numero do ecra nao abria lista nenhuma que o confirmasse."""
-    return (hoje.isoformat(),
-            (hoje + timedelta(days=dias_urgente())).isoformat())
 
 
 def fragmento_cpv(texto, coluna="cpv"):
@@ -9831,37 +9917,6 @@ def resumo_contratos(args):
         # descontos_por_procedimento(), que tambem diz o que fica de fora.
         desc = descontos_por_procedimento(c, onde, valores)
     return ganha, compra, proc, trim, escal, desc
-
-
-def entidade_do_anuncio(nif, nome):
-    """A chave da entidade de um anuncio, no corpus.
-
-    **Pelo NIPC primeiro.** O DR publica-o em praticamente todos os
-    anuncios (medido: 99,3% dos que tem detalhe lido) e e o mesmo numero
-    por que o BASE identifica a entidade -- e portanto a mesma chave, sem
-    comparacao nenhuma pelo meio.
-
-    O nome fica de reserva, para os anuncios antigos sem NIPC lido, e
-    resolve 94,3%: falha nas sub-unidades ("Centro de Emprego de Entre
-    Douro e Vouga" contra o IEFP que assina o anuncio) e nas variantes
-    ("EPE" contra "E. P. E.").
-    """
-    if not ha_corpus():
-        return ""
-    nif = (nif or "").strip()
-    if re.fullmatch(r"\d{9}", nif):
-        with liga_corpus() as c:
-            r = c.execute("SELECT chave FROM entidades WHERE chave=?",
-                          (nif,)).fetchone()
-        if r:
-            return nif
-    norm = norma_entidade(nome)
-    if not norm:
-        return ""
-    with liga_corpus() as c:
-        r = c.execute("SELECT chave FROM entidade_nomes WHERE nome_norm=?",
-                      (norm,)).fetchone()
-    return r["chave"] if r else ""
 
 
 # Os campos que a propria ficha da entidade aceita. Sao os da lista de
@@ -11498,41 +11553,6 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     ]
 
 
-def data_hora_pt(texto, vazio="—"):
-    """"2026-08-29 18:54" -> "29/08/2026 18:54".
-
-    A regra da casa e ISO na base e DD/MM a vista, e valia em todo o lado
-    menos em tres sitios: o historico da ficha, a barra do corpus e a
-    "ultima" da barra lateral. O que nao parecer data passa como esta --
-    ha marcas antigas com texto livre ("nunca")."""
-    m = re.match(r"(\d{4})-(\d{2})-(\d{2})[ T]?(.*)$", (texto or "").strip())
-    if not m:
-        return texto or vazio
-    resto = (" " + m.group(4).strip()) if m.group(4).strip() else ""
-    return "%s/%s/%s%s" % (m.group(3), m.group(2), m.group(1), resto)
-
-
-def data_pt(iso, vazio="—"):
-    """'2026-08-21' -> '21/08/2026'.
-
-    Guarda-se ISO porque ordena como texto; mostra-se a portuguesa
-    porque e assim que se le. Todo o painel passa por aqui -- havia
-    tabelas a mostrar a data em ISO e outras a mostra-la em portugues.
-    """
-    iso = (iso or "").strip()
-    try:
-        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
-    except ValueError:
-        return iso or vazio
-
-
-def mil_pt(n):
-    """65869 -> '65 869'. A portuguesa, e com espaco inquebravel: com
-    um espaco normal, o browser parte "1 363 300" ao fim da linha e a
-    leitura fica com um numero em cada linha."""
-    return "{:,}".format(int(n)).replace(",", " ")
-
-
 def euros(v):
     """1234567.8 -> '1 234 568 EUR'. Os centimos nao ajudam a decidir."""
     return "{:,.0f}".format(v or 0).replace(",", " ") + " €"
@@ -11545,18 +11565,6 @@ def euros_curto(v):
         if abs(v) >= corte:
             return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
     return "%.0f €" % v
-
-
-def euros_do_texto(texto):
-    """'175.000,00 EUR' -> 175000.0. Formato portugues: o ponto separa
-    os milhares e a virgula os centimos, ao contrario do que Python le."""
-    m = re.search(r"[\d.,]+", texto or "")
-    if not m:
-        return None
-    try:
-        return float(m.group(0).replace(".", "").replace(",", "."))
-    except ValueError:
-        return None
 
 
 def descontos_da_entidade(chave, cpv):

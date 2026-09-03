@@ -505,7 +505,11 @@ O corpus do Portal BASE — 1,36 milhões de linhas, e por isso a velocidade con
 
 - **O corpus de contratos é ficheiro à parte** (`contratos.db`), e não
   entra no funil: são contratos assinados, não oportunidades. Cruza-se
-  com `ATTACH` (`com_corpus()`). Está no `.gitignore` — 2020-2026 são
+  em Python, **não em SQL**: cada base tem a sua ligação (`liga()` e
+  `liga_corpus()`) e os resultados juntam-se depois. Havia uma
+  `com_corpus()` com um `ATTACH`, descrita aqui como se fosse o
+  mecanismo — nunca foi chamada, e saiu a 03/09/2026. Está no
+  `.gitignore` — 2020-2026 são
   1,36 milhões de contratos e 1,65 GB — e refaz-se com `--contratos`. O
   endereço do dump muda todas as semanas: resolve-se sempre pela API do
   dados.gov, nunca se guarda.
@@ -891,6 +895,18 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
 ---
 
 ## Convenções
+
+- **Uma utilidade pura vive na banda `comum`, não onde foi precisa
+  primeiro.** Formatar, validar e contar — nada que toque na base ou
+  escreva HTML. A 03/09/2026 o `data_pt()` vivia na banda da ficha do
+  anúncio e era chamado por seis funções de quatro bandas; o
+  `dias_restantes()` vivia no quadro e era usado pelo resumo por
+  e-mail; o `dias_urgente()` vivia na banda do procedimento na
+  plataforma. Medido no grafo de chamadas: **era isto que prendia as
+  fontes, o mercado e a rotina ao painel** — três dos seis ciclos entre
+  as fatias do ficheiro eram formatadores, não painel. Mudaram-se doze
+  para `comum` e os três ciclos caíram. Escrever um formatador na banda
+  em que se estava a trabalhar é como isto volta.
 
 - **Convenção de acentos:** comentários e docstrings do `radar.py` em ASCII,
   sem acentos; texto visível ao utilizador (HTML, prints, prompts) com

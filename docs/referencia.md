@@ -827,7 +827,7 @@ Segunda fonte, para inteligência de mercado. Vive num ficheiro próprio,
 `contratos.db`, e não no `radar.db` — pelo mesmo motivo que as peças
 vivem em `documentos/`: a base de trabalho tem 5 mil anúncios e tem de
 continuar pequena; dois anos de contratos são 405 mil linhas e 334 MB.
-Cruzam-se por `ATTACH` (`com_corpus()`).
+Cruzam-se em Python, não em SQL — ver o `docs/armadilhas.md`. (Este parágrafo dizia `ATTACH (com_corpus())`, e era falso: a função nunca foi chamada e saiu a 03/09/2026.)
 
 ### O que se descobriu antes de escrever código, e mudou o plano
 
