@@ -273,6 +273,20 @@ Orçamento, cadeia de reserva, chaves.
 
 ## O motor de filtros
 
+- **A tradução de «texto com `|`» para SQL está num só sítio**
+  (`frag_de_texto()` e `frag_de_exclusao()`, banda `comum`, desde
+  03/09/2026). Estava escrita quatro vezes — duas em cada
+  `condicoes*()` — e a regra que ela contém já se pagou **duas vezes**:
+  procurar na coluna crua em vez da normalizada custou ~11% dos
+  resultados nos anúncios e 11,8% nos contratos, das duas em silêncio.
+  A `norma` é argumento porque não é a mesma nas duas populações
+  (`simplifica` para títulos e objectos, `norma_entidade` para nomes).
+  **Isto não funde os dois motores** — continuam a ser dois, de
+  propósito; partilham a tradução, não as perguntas. E continuam a
+  devolver `(fragmento, valores)` sem tocar no `onde`: é o que deixa o
+  `op=ou` juntar o lado das palavras ao do CPV sem baralhar a ordem dos
+  placeholders.
+
 `condicoes()` serve a lista, os alertas e os filtros guardados. Nada de recortes lá dentro.
 
 - **Anúncios e contratos são populações diferentes, de propósito.** Um

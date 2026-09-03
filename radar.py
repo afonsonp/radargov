@@ -713,6 +713,12 @@ def registar_expiracao_token(qual, mensagem):
 # ao painel por causa de formatadores, e nao por causa de painel.
 
 
+def simplifica(texto):
+    """Sem acentos e em minusculas, para comparar sem surpresas."""
+    texto = unicodedata.normalize("NFKD", str(texto or ""))
+    return "".join(c for c in texto if not unicodedata.combining(c)).lower()
+
+
 def dias_restantes(prazo):
     """(dias que faltam, ja passou) a partir de 'YYYY-MM-DD', ou None."""
     if not prazo:
@@ -871,6 +877,56 @@ def janela_urgente(hoje):
             (hoje + timedelta(days=dias_urgente())).isoformat())
 
 
+
+def frag_de_texto(texto, coluna, norma=simplifica):
+    """(fragmento, valores) da procura por palavras: varias separadas
+    por |, qualquer uma serve.
+
+    **Nao toca em lista nenhuma** -- quem chama decide onde o fragmento
+    entra, que e o que deixa o `op=ou` junta-lo ao do CPV sem baralhar a
+    ordem dos placeholders (ha um teste que conta os `?`).
+
+    Procura-se sempre na coluna normalizada e com o termo normalizado
+    pela MESMA norma: o LIKE do SQLite so baixa maiusculas de letras
+    ASCII, e para ele "C" com cedilha nao e "c" com cedilha. Medido
+    duas vezes, e as duas custou ~11% dos resultados sem aviso nenhum:
+    nos anuncios (9 383 titulos escritos todos em maiusculas) e nos
+    contratos (68 295, 11,8%, porque o IMPIC escreve muito em
+    maiusculas). A `norma` e argumento porque nao e a mesma nas duas
+    populacoes: `simplifica` para titulos e objectos, `norma_entidade`
+    para nomes de entidade -- e essa troca "&" por " e ".
+
+    Estava escrita duas vezes, uma em cada condicoes(); veio para aqui
+    a 03/09/2026. As duas listas continuam a ser dois motores, de
+    proposito -- o que se partilha e so esta traducao.
+    """
+    pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
+    if not pedacos:
+        return "", []
+    ors, vals = [], []
+    for p in pedacos:
+        ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
+        vals.append("%" + para_like(norma(p)) + "%")
+    return "(" + " OR ".join(ors) + ")", vals
+
+
+def frag_de_exclusao(texto, coluna, norma=simplifica):
+    """A frag_de_texto() invertida: o que corresponder fica de fora.
+
+    O COALESCE nao e decorativo: `NOT (NULL LIKE x)` e NULL, e a linha
+    com a coluna por preencher desaparecia da lista -- excluir "obras"
+    nao pode esconder um anuncio que ainda nem titulo tem.
+    """
+    pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
+    if not pedacos:
+        return "", []
+    ors, vals = [], []
+    for p in pedacos:
+        ors.append("COALESCE(%s,'') LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
+        vals.append("%" + para_like(norma(p)) + "%")
+    return "NOT (" + " OR ".join(ors) + ")", vals
+
+
 # -------------------------------------------------------------- pessoas
 #
 # Nao ha palavra-passe: hoje isto corre no PC de uma pessoa so, e um
@@ -927,12 +983,6 @@ def primeira_fase():
 
 
 # ------------------------------------------------------------- captura
-
-def simplifica(texto):
-    """Sem acentos e em minusculas, para comparar sem surpresas."""
-    texto = unicodedata.normalize("NFKD", str(texto or ""))
-    return "".join(c for c in texto if not unicodedata.combining(c)).lower()
-
 
 def carregar_curl(nome_base="curl_DR"):
     for nome in (nome_base + ".txt", nome_base + ".txt.txt"):
@@ -5774,42 +5824,22 @@ def condicoes_contratos(args):
     """
     onde, valores = ["1=1"], []
 
-    def frag_texto(texto, coluna, norma=simplifica):
-        # Nas colunas normalizadas e com o termo normalizado do mesmo
-        # modo, como na condicoes(): o LIKE do SQLite nao baixa o "Ç", e
-        # o IMPIC escreve muitos objectos todos em maiusculas. Medido:
-        # procurar "aquisição" no objecto cru perdia 68 295 contratos
-        # (11,8%) sem aviso nenhum -- o mesmo defeito ja pago nos
-        # anuncios, vivo no separador onde se estuda a concorrencia.
-        # Devolve (fragmento, valores) sem tocar no onde, pela mesma
-        # razao da condicoes(): o op=ou junta-o ao do CPV.
-        pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
-        if not pedacos:
-            return "", []
-        ors, vals = [], []
-        for p in pedacos:
-            ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-            vals.append("%" + para_like(norma(p)) + "%")
-        return "(" + " OR ".join(ors) + ")", vals
+    # A mesma traducao da condicoes(), da banda `comum`. Aqui a `norma`
+    # importa: os nomes de entidade procuram-se com norma_entidade e nao
+    # com simplifica -- e ela que enche adjudicante_norm e nome_norm.
+    frag_texto = frag_de_texto
 
     def procura(texto, coluna, norma=simplifica):
-        frag, vals = frag_texto(texto, coluna, norma)
+        frag, vals = frag_de_texto(texto, coluna, norma)
         if frag:
             onde.append(frag)
             valores.extend(vals)
 
     def exclui(texto, coluna, norma=simplifica):
-        # a procura() invertida, com o mesmo COALESCE da condicoes(): um
-        # NOT sobre NULL e NULL, e a linha por preencher sumia-se
-        pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
-        if not pedacos:
-            return
-        ors = []
-        for p in pedacos:
-            ors.append("COALESCE(%s,'') LIKE ? ESCAPE '%s'"
-                       % (coluna, ESCAPE_LIKE))
-            valores.append("%" + para_like(norma(p)) + "%")
-        onde.append("NOT (" + " OR ".join(ors) + ")")
+        frag, vals = frag_de_exclusao(texto, coluna, norma)
+        if frag:
+            valores.extend(vals)
+            onde.append(frag)
 
     # Os nomes de entidades procuram-se com a norma deles
     # (norma_entidade): e ela que enche adjudicante_norm e nome_norm, e e
@@ -8497,51 +8527,23 @@ def condicoes(args):
     """Traduz os filtros do painel em SQL. Nada e apagado, so escondido."""
     onde, valores = [], []
 
-    def frag_texto(texto, coluna):
-        """(fragmento, valores) da procura por palavras -- varias
-        separadas por |, qualquer uma serve. Nao toca no onde: quem
-        chama decide onde o fragmento entra, que e o que deixa o op=ou
-        junta-lo ao do CPV sem baralhar a ordem dos placeholders.
-
-        Procura-se nas colunas normalizadas (`titulo_norm`,
-        `entidade_norm`) e com o termo normalizado do mesmo modo. O LIKE
-        do SQLite so baixa maiusculas de letras ASCII: escrever
-        "aquisição" devolvia 25 868 dos 29 058 anuncios que contem mesmo
-        a palavra, porque os 9 383 titulos escritos todos em maiusculas
-        tem "Ç" e para o LIKE isso nao e "ç". Eram 11% de cada pesquisa,
-        perdidos sem aviso nenhum.
-        """
-        pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
-        if not pedacos:
-            return "", []
-        ors, vals = [], []
-        for p in pedacos:
-            ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-            vals.append("%" + para_like(simplifica(p)) + "%")
-        return "(" + " OR ".join(ors) + ")", vals
+    # A traducao de "texto com |" para SQL vive na banda `comum`
+    # (frag_de_texto/frag_de_exclusao): e a mesma nas duas listas, e a
+    # regra do LIKE sem acentos ja se pagou duas vezes. O que fica aqui
+    # e so onde o fragmento entra -- e e isso que o op=ou precisa.
+    frag_texto = frag_de_texto
 
     def procura(texto, coluna):
-        frag, vals = frag_texto(texto, coluna)
+        frag, vals = frag_de_texto(texto, coluna)
         if frag:
             onde.append(frag)
             valores.extend(vals)
 
     def exclui(texto, coluna):
-        """Como procura(), invertida: o que corresponder fica de fora.
-
-        O COALESCE nao e decorativo: NOT (NULL LIKE x) e NULL, e a linha
-        com a coluna por preencher desaparecia da lista -- excluir
-        "obras" nao pode esconder um anuncio que ainda nem titulo tem.
-        """
-        pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
-        if not pedacos:
-            return
-        ors = []
-        for p in pedacos:
-            ors.append("COALESCE(%s,'') LIKE ? ESCAPE '%s'"
-                       % (coluna, ESCAPE_LIKE))
-            valores.append("%" + para_like(simplifica(p)) + "%")
-        onde.append("NOT (" + " OR ".join(ors) + ")")
+        frag, vals = frag_de_exclusao(texto, coluna)
+        if frag:
+            valores.extend(vals)
+            onde.append(frag)
 
     frag_cpv = fragmento_cpv
 
