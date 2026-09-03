@@ -14147,15 +14147,20 @@ def main():
     if "--casa-ligar" in sys.argv:
         # Liga a mao uma linha do registo da casa a um anuncio:
         # python radar.py --casa-ligar 94 4284/2026
+        # ...ou diz que nao ha anuncio no DR, com a razao:
+        # python radar.py --casa-ligar 56 nenhum "consulta prévia"
         i = sys.argv.index("--casa-ligar")
         try:
             ide, ref = int(sys.argv[i + 1]), sys.argv[i + 2]
         except (IndexError, ValueError):
-            print("Uso: python radar.py --casa-ligar <id do Excel> <ref do anúncio>")
+            print("Uso: python radar.py --casa-ligar <id do Excel> <ref | nenhum | ?> [razão]")
             return
+        porque = (sys.argv[i + 3] if len(sys.argv) > i + 3
+                  and not sys.argv[i + 3].startswith("--") else "")
         with liga() as c:
             ok, msg = casa.ligar_a_mao(c, ide, ref, quem="Afonso",
-                                       triagem="--com-triagem" in sys.argv)
+                                       triagem="--com-triagem" in sys.argv,
+                                       porque=porque)
         print(msg)
         return
 

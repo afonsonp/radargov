@@ -4770,15 +4770,22 @@ disto se vê no painel, e é assim de propósito.
 
 ### O que fica
 
-- **37 linhas por ligar à mão** — 32 com candidatos e 5 sem nenhum.
-  Ele vai ajudar a identificá-las; a lista com os candidatos e os
-  títulos do DR foi-lhe entregue, e as respostas entram por
-  `--casa-ligar`.
-- **Os lotes.** O 1947/2026 da SPMS tem três linhas no Excel (dois
-  lotes perdidos, um ganho) e é um anúncio só. Há mais casos assim
-  (#7, #95, #96 são a mesma «biblioteca de arquitectura»). O modelo de
-  um estado por anúncio não os representa; é decisão de desenho a
-  tomar antes de aplicar a triagem.
+- **As 37 linhas por ligar ficaram em 3.** Ele respondeu à lista na
+  mesma manhã: 24 referências (todas existem e batem com o nome do
+  Excel, conferidas uma a uma antes de gravar), 5 que **não têm
+  anúncio no DR** — consultas prévias, ajustes directos e consultas
+  preliminares, que a parte L não publica —, 3 «não sei» (#102, #128,
+  #134) e os de 2023 e 2024, que «não interessam». Os «nenhum» ficam
+  ditos em `porque_sem_ref` e a importação seguinte não os volta a
+  procurar. O registo está agora em 173 ligados, 10 sem anúncio, 3 por
+  saber e 1 fora do país.
+- **Os lotes, medidos.** Quatro anúncios têm mais do que uma linha do
+  Excel: 1947/2026 da SPMS (#14, #97, #98: dois lotes perdidos e um
+  ganho), 2770/2026 (#7, #95, #96, a «biblioteca de arquitectura»),
+  32366/2025 (#31, #93) e 8275/2026 (#22, #187). O modelo de um estado
+  por anúncio não os representa; é decisão de desenho a tomar antes de
+  aplicar a triagem — um cartão por lote no quadro, ou o resultado do
+  conjunto no anúncio.
 - **Depois do Zoho** (a fonte mais actual do estado, lido pelo browser
   porque ele não consegue exportar CSV) e da validação, decide-se
   **como isto se monta no esqueleto** — a página, o bloco da ficha, o
