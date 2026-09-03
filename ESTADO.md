@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 1 de setembro de 2026.
+Última actualização: 3 de setembro de 2026.
 
 ## O que isto é
 
@@ -1916,7 +1916,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 664 testes a 02/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 665 testes a 03/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -5167,11 +5167,11 @@ número plausível e errado, e o nome do ficheiro diz 2026.
 certo todos os valores que se confirmaram; o 2,0 anterior perde a
 cláusula do preço base inteira, o «artigo 332.º do CCP» e o cabeçalho
 de uma página; acima de 2,5 não se ganha nada e começam a perder-se
-caracteres (28 781 a 4,0). Custa 6,0 s por página isolado e 8,3 pelo
-`--ocr`, contra 5,1/–- do 2,0: **uns 15% mais caro**, num trabalho que
-corre em thread de fundo e acontece em 2 de 12 peças. Os 664 testes
-passam — o teste do OCR usa um motor falso, e a escala é argumento por
-omissão do `texto_por_ocr()`.
+caracteres (28 781 a 4,0). Custa 6,0 s por página isolado, contra
+5,1 s do 2,0: **uns 18% mais caro**, num trabalho que corre em thread
+de fundo e acontece em 2 de 12 peças. Os 664 testes de então passam —
+o teste do OCR usa um motor falso, e a escala é argumento por omissão
+do `texto_por_ocr()`.
 
 **Duas digitalizações novas apareceram na base** e leram-se agora, à
 escala nova: o Programa do 22001/2026 (24 páginas, 60 966 caracteres,
