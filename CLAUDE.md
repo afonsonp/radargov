@@ -101,9 +101,9 @@ python teste_radar.py TestPrefixoCPV.test_divisao_normal # um teste
 Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
 `agendar.bat` (cria as três tarefas), `reler.bat` (`--reler`),
-`contratos.bat` (o que a tarefa semanal corre), `ensaio.bat`
-(ensaio-de-leitura), `historico.bat` (gitk), `desinstalar.bat` (tira as
-tarefas agendadas). Todos passam pelo `_python.bat`, que escolhe o
+`contratos.bat` (o que a tarefa semanal corre), `detalhes.bat`
+(`--detalhes tudo`, ~24 h), `ensaio.bat` (ensaio-de-leitura),
+`historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas). Todos passam pelo `_python.bat`, que escolhe o
 Python da pasta se existir.
 
 ## Arquitectura
