@@ -155,29 +155,35 @@ O DR, a Vortal, e como um anúncio entra na base.
   punha um anúncio morto a ser pedido para sempre, e a corrida de 24
   horas nunca acabava.
 
-- **`ler_detalhes()` tem dois ritmos, de propósito.** O `sleep` entre
-  pedidos é um parâmetro (`intervalo`, 1s por omissão) e não uma
-  constante fixa: a rotina diária (09h/17h) usa sempre 1s, mas o
+- **`ler_detalhes()` e `ler_detalhes_paralelo()` têm ritmos separados,
+  de propósito.** A rotina diária (09h/17h) chama sempre
+  `ler_detalhes()` sequencial, 1s de intervalo — nunca mudou. O
   `--detalhes` — que pode correr horas seguidas — usa
-  `INTERVALO_DETALHES` (0,3s), decisão do Afonso a 3/09/2026 depois de
-  lhe dizer que **o risco de bloqueio de IP por rajada não está medido
-  nem confirmado nem afastado** (o DR não tem rate-limit conhecido, mas
-  ninguém testou o que acontece com muitos pedidos seguidos). Ao mexer
-  no ritmo de qualquer um dos dois, não presumas que o outro segue: são
-  decisões separadas, com riscos diferentes (a rotina é 40 pedidos
-  espaçados por 8 horas; o `--detalhes` é dezenas de milhares seguidos).
+  `ler_detalhes_paralelo()`, `CONCORRENCIA_DETALHES` (8) pedidos ao
+  mesmo tempo, decisão do Afonso a 3/09/2026 depois de lhe dizer que
+  **o risco de bloqueio de IP por rajada não está medido nem
+  confirmado nem afastado** (o DR não tem rate-limit conhecido, mas
+  ninguém testou o que acontece com muitos pedidos seguidos ou em
+  paralelo). Ao mexer no ritmo de qualquer um dos dois, não presumas
+  que o outro segue: são decisões separadas, com riscos diferentes (a
+  rotina é 40 pedidos espaçados por 8 horas; o `--detalhes` é dezenas
+  de milhares seguidos, agora em paralelo).
 
-- **Encolher o intervalo não é o mesmo que ir mais depressa.** Testado
-  a 3/09/2026: descer `INTERVALO_DETALHES` de 0,3s para 0,1s deu **mais
-  lento** (0,78-0,82s por anúncio, medido em duas janelas de 2 minutos),
-  não mais rápido que os 0,68s a 0,3s — sem erro nenhum registado, nem
-  `casca` nem `apiVersion` nem token expirado. Quem manda no tempo total
-  não é só o nosso `sleep`; é também o tempo de resposta do portal, que
-  pode variar por razões alheias ou reagir a carga sustentada de forma
-  mais suave que uma recusa — abrandando, não bloqueando. Revertido
-  para 0,3s por não haver benefício a compensar o risco. **Não presumas
-  que descer o número ajuda: mede antes e depois**, com a mesma corrida
-  em curso, não com um ensaio isolado.
+- **Um ensaio isolado subestima o custo do comando real.** Duas vezes
+  no mesmo dia (3/09/2026): (1) descer o intervalo sequencial de 0,3s
+  para 0,1s deu **mais lento** medido (0,78-0,82s por anúncio, contra
+  0,68s), sem erro nenhum — sinal de que o tempo total não depende só
+  do nosso `sleep`, também da resposta do portal, que pode reagir a
+  carga sustentada abrandando em vez de recusar; revertido por não
+  haver benefício. (2) Já com a concorrência integrada,
+  `ler_detalhes_paralelo()` isolado (um lote, uma `ThreadPoolExecutor`)
+  mediu 0,118s/anúncio, mas o `--detalhes` completo a correr mediu
+  0,19s — a diferença é a sobrecarga de `detalhes_em_lote()` abrir uma
+  pool de threads NOVA a cada volta de `lote` (40) e reler o
+  `curl_detalhe.txt` do disco a cada volta, custo que um ensaio de um
+  lote só nunca paga. **Não presumas que o número de um ensaio pequeno
+  vale para a corrida inteira: mede com o comando real, durante
+  minutos, não com uma amostra de segundos.**
 
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e a forma do corpo das capturas `curl_*.txt`. **O token NÃO

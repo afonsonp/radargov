@@ -71,17 +71,20 @@ Os dois apertos são conhecidos e um deles é decisão tomada:
   conseguimos fazer nada»); **ele reverteu-a à tarde**, e a razão é a
   segunda metade da frase: não se responde a um concurso de 2024, mas o
   CPV e o preço base dele são o corpus que diz onde é que esta casa
-  ganha. Existe desde então o `--detalhes [N|tudo]`: lê o que falta,
-  medido a **0,68 s por anúncio** (61 em 41 s contra o portal, com o
-  intervalo apertado — ver adiante), portanto **~11 horas** para os
-  59 214 que sobram a 3/09/2026 à tarde. Retomável por construção — o
-  `detalhe_lido=1` grava-se anúncio a anúncio, um Ctrl-C ou um corte de
-  rede não perdem nada, e o comando repetido continua de onde ia. Não
-  gasta modelo nenhum: é HTTP mais parsing (quem gasta é `--ler-pecas`).
-  O intervalo entre pedidos começou a 1s (o mesmo da rotina diária) e
-  passou a 0,3s a meio da corrida — decisão do Afonso, depois de saber
-  que o DR não tem rate-limit conhecido mas que o risco de bloqueio de
-  IP por rajada não estava medido nem confirmado nem afastado.
+  ganha. Existe desde então o `--detalhes [N|tudo]`. Três versões no
+  mesmo dia, cada uma medida contra o portal antes de ficar: sequencial
+  a 1s (~24h) → sequencial a 0,3s (~11h) → 0,1s testado e **revertido**
+  por ter dado mais lento, não mais rápido, sem erro nenhum → paralelo,
+  8 pedidos ao portal ao mesmo tempo (**`ler_detalhes_paralelo()`**),
+  ensaiado em graus 1/2/4/8 sem nenhum erro nem sinal de abrandamento,
+  e é o que ficou: **0,19 s por anúncio** medido com o comando real a
+  correr (632 em 120s) — **~3,2 horas** para o total, não as 24
+  iniciais. Retomável por construção — o `detalhe_lido=1` grava-se
+  anúncio a anúncio, um Ctrl-C ou um corte de rede não perdem nada, e
+  o comando repetido continua de onde ia. Não gasta modelo nenhum: é
+  HTTP mais parsing (quem gasta é `--ler-pecas`). Ver
+  `docs/diario/2026-09.md` para a história completa e o que o ensaio
+  de concorrência mediu.
 - **Seis anúncios marcados é pouco para sustentar trabalho a jusante.**
   Foi o que fez cair o OCR e a vigilância das peças a 3/09/2026: estavam
   bem feitos e no sítio errado do funil. Ver `docs/diario/2026-09.md`.

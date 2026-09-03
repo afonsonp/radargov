@@ -20,6 +20,7 @@ Arranque:  python radar.py             painel em http://localhost:8765
                                        o Excel de analise de concursos da casa
 """
 
+import copy
 import csv
 import html
 import io
@@ -39,6 +40,7 @@ import time
 import unicodedata
 import webbrowser
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import casa                      # o registo da casa (casa.py importa o radar por dentro)
@@ -1968,56 +1970,132 @@ def ler_detalhes(limite=40, dias=None, intervalo=1):
     return feitos, ""
 
 
-# O intervalo do `--detalhes` -- mais curto que o 1s da rotina diaria
-# (ler_detalhes() por omissao). Decisao do Afonso a 3/09/2026, depois
-# de lhe dizer que o DR nao tem rate-limit conhecido (docs/armadilhas.md)
-# mas que o risco de bloqueio de IP por rajada e desconhecido, nao
-# confirmado nem afastado: ver docs/diario/2026-09.md.
-#
-# Testado a 0.1s no mesmo dia e revertido: NAO reduziu o tempo por
-# anuncio -- pelo contrario (0.78-0.82s medidos, contra 0.68s a 0.3s),
-# sem erro nenhum registado. Ou o DR estava mais lento por razoes
-# alheias, ou e o inicio de uma reaccao mais suave que um bloqueio
-# (abrandar em vez de recusar) sob carga sustentada -- nao ha como
-# distinguir com os dados que ha. Descer o intervalo so vale a pena se
-# vier acompanhado de uma medicao que mostre ganho a serio.
-INTERVALO_DETALHES = 0.3
+def ler_detalhes_paralelo(limite=40, dias=None, concorrencia=8):
+    """Como ler_detalhes(), mas com `concorrencia` pedidos ao portal ao
+    mesmo tempo em vez de um a seguir ao outro. So serve o `--detalhes`
+    -- a rotina diaria (09h/17h) continua em ler_detalhes() sequencial,
+    a 1s de intervalo, decisao separada.
 
-# Medido a 3/09/2026 contra o portal, com INTERVALO_DETALHES=0.3: 61
-# anuncios em 41.2s = 0.68s cada. (A 1s de intervalo tinha dado 20 em
-# 29s = 1.45s cada -- o pedido em si custa menos do que a diferenca
-# entre as duas medicoes sugeriria; nao vale a pena decompor mais.)
-# Serve so para a estimativa que o comando imprime ANTES de comecar; a
-# partir da primeira volta o que se mostra e o ritmo verdadeiro.
-SEGUNDOS_POR_DETALHE = 0.68
+    Medido a 3/09/2026 contra o portal, 150 pedidos em graus 1/2/4/8:
+    zero erros e latencia estavel em todos, ~4x mais rapido que
+    sequencial a 8 threads (0,118s/anuncio de throughput contra 0,3s+
+    do sleep sequencial). Ver docs/diario/2026-09.md.
+
+    Cada pedido leva a SUA PROPRIA copia do molde, com o `Key` escrito
+    nessa copia -- ao contrario de ler_detalhes(), que reescreve o
+    mesmo `variaveis` partilhado a cada volta do ciclo (seguro porque e
+    sequencial). Em paralelo, threads a escrever no mesmo dicionario
+    trocavam o Key de um pedido pelo de outro a meio do POST -- e foi
+    exactamente esse bug que o ensaio da experiencia expos e corrigiu
+    antes de isto aqui existir.
+
+    O `_guardar_detalhe()` grava por conta propria (abre a sua ligacao);
+    threads em paralelo escrevem em anuncios DIFERENTES (um ref por
+    pedido), por isso nao ha corrida de escrita na base -- so a leitura
+    do molde precisava de isolamento.
+
+    Um "casca"/"apiVersion" nao para os pedidos ja lancados (o lote e
+    pequeno, limite normalmente 40): deixa-os acabar, e so DEPOIS
+    reporta o aviso -- detalhes_em_lote() para na volta seguinte."""
+    par, aviso = _molde_detalhe()
+    if not par:
+        return 0, aviso
+    pedido_base, molde_base = par
+
+    condicao, valores = "detalhe_lido=0 AND COALESCE(fonte,'dr')='dr'", []
+    if dias:
+        condicao += " AND data_pub >= ?"
+        valores.append((datetime.now() - timedelta(days=int(dias)))
+                       .strftime("%Y-%m-%d"))
+    valores.append(limite)
+    with liga() as c:
+        pendentes = c.execute(
+            "SELECT ref,url FROM anuncios WHERE " + condicao +
+            " ORDER BY data_pub DESC LIMIT ?", valores).fetchall()
+    if not pendentes:
+        return 0, ""
+
+    def um(ref, url):
+        molde = copy.deepcopy(molde_base)
+        variaveis = molde["screenData"]["variables"]
+        variaveis["Key"] = url.rsplit("/", 1)[-1]
+        variaveis["Tipo"] = "anuncio-procedimento"
+        return ref, perguntar_ao_dr(pedido_base, molde)
+
+    feitos, motivo = 0, ""
+    with ThreadPoolExecutor(max_workers=concorrencia) as ex:
+        futuros = [ex.submit(um, a["ref"], a["url"]) for a in pendentes]
+        for f in as_completed(futuros):
+            ref, (dados, erro) = f.result()
+            if erro in ("casca", "apiVersion"):
+                motivo = erro
+                continue
+            if erro:
+                continue
+            _guardar_detalhe(ref, dados)
+            feitos += 1
+    if motivo:
+        registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+                                 "(%s) nem depois de renovar as peças" % motivo)
+        return feitos, ("o DR não aceitou o detalhe (%s) nem depois de "
+                        "renovar as peças; refaz a captura" % motivo)
+    return feitos, ""
+
+
+# O ritmo do `--detalhes` teve tres versoes no mesmo dia (3/09/2026),
+# cada uma medida contra o portal antes de ficar:
+#   1s sequencial (o da rotina diaria) -> 0,3s sequencial -> 0,1s
+#   sequencial, REVERTIDO por nao ter dado mais rapido (0,78-0,82s
+#   medidos, PIOR que os 0,68s a 0,3s, sem erro nenhum -- ver o
+#   comentario que ficou em ler_detalhes() e o docs/diario/2026-09.md)
+#   -> concorrencia=8 (ler_detalhes_paralelo()), a versao que ficou.
+#
+# CONCORRENCIA_DETALHES: 150 pedidos de ensaio em graus 1/2/4/8, zero
+# erros e latencia estavel em todos os graus -- ver
+# ler_detalhes_paralelo(). Decisao do Afonso, sabendo que o risco de
+# bloqueio de IP por rajada nao esta medido nem confirmado nem
+# afastado (docs/armadilhas.md): o grau MAIS ALTO testado, nao um
+# meio-termo.
+CONCORRENCIA_DETALHES = 8
+
+# 0,118s no ensaio isolado (um lote so, uma ThreadPoolExecutor). O
+# --detalhes de verdade e mais lento que isso -- 632 anuncios em 120s
+# = 0,19s, medido com o comando completo a correr -- porque cada volta
+# de `lote` (40) abre a SUA PROPRIA pool de threads e le o
+# curl_detalhe.txt outra vez; o ensaio isolado nao paga essa
+# sobrecarga repetida. Serve so para a estimativa que o comando
+# imprime ANTES de comecar; a partir da primeira volta o que se mostra
+# e o ritmo verdadeiro.
+SEGUNDOS_POR_DETALHE = 0.19
 VOLTAS_VAZIAS = 3           # quantos blips de rede se toleram de seguida
 ESPERA_ENTRE_VAZIAS = 30    # segundos
 
 
-def detalhes_em_lote(alvo, lote, contar, intervalo=INTERVALO_DETALHES,
+def detalhes_em_lote(alvo, lote, contar, concorrencia=CONCORRENCIA_DETALHES,
                      ler=None, esperar=None, diz=None):
     """Le o detalhe de `alvo` anuncios em voltas de `lote`. Devolve
     quantos leu.
 
-    Serve o `--detalhes`, que enche o detalhe de toda a base -- horas de
-    relogio, um pedido de cada vez com `intervalo` segundos entre eles.
-    O contrato e ser retomavel e nao desistir a primeira: `ler_detalhes()`
-    sai do ciclo em SILENCIO (`feitos` menor que o lote, aviso vazio)
-    quando um pedido falha de rede ou traz JSON ilegivel, e numa corrida
-    de horas isso e um blip -- parar ai perdia a noite por causa de um
-    segundo. Tolera VOLTAS_VAZIAS seguidas, com ESPERA_ENTRE_VAZIAS entre
-    elas, e so depois desiste.
+    Serve o `--detalhes`, que enche o detalhe de toda a base -- por
+    omissao com `concorrencia` pedidos ao portal ao mesmo tempo
+    (`ler_detalhes_paralelo()`; ver ali a medicao que sustenta o grau).
+    O contrato e ser retomavel e nao desistir a primeira: um pedido que
+    falhe de rede ou traga JSON ilegivel nao para a volta -- so conta
+    menos "feitos" que o lote, aviso vazio --, e numa corrida de horas
+    isso e um blip: parar ai perdia a noite por causa de um segundo.
+    Tolera VOLTAS_VAZIAS seguidas, com ESPERA_ENTRE_VAZIAS entre elas,
+    e so depois desiste.
 
-    Um aviso de `ler_detalhes()` -- captura recusada pelo portal -- para
-    logo: bater outra vez na mesma porta nao a abre.
+    Um aviso -- captura recusada pelo portal -- para logo: bater outra
+    vez na mesma porta nao a abre.
 
     `contar` diz quantos faltam, e e o que distingue "acabou" de "falhou
     a rede"; `ler`, `esperar` e `diz` sao injectaveis para o teste poder
-    forcar as voltas vazias sem rede e sem sleeps de verdade -- quando
-    injectado, `ler` decide o proprio intervalo e este parametro nao
-    se aplica."""
-    ler = ler or (lambda n, dias=None: ler_detalhes(n, dias=dias,
-                                                     intervalo=intervalo))
+    forcar as voltas vazias sem rede, sem threads verdadeiras e sem
+    sleeps de verdade -- quando injectado, `ler` decide a propria
+    concorrencia e este parametro nao se aplica."""
+    ler = ler or (lambda n, dias=None: ler_detalhes_paralelo(
+        n, dias=dias, concorrencia=concorrencia))
     esperar = esperar or time.sleep
     diz = diz or (lambda t: print("  " + t))
     ini, feitos_total, vazios = time.time(), 0, 0
@@ -13835,11 +13913,11 @@ def main():
         #
         # Nao gasta modelo nenhum -- e HTTP ao portal mais parsing; o
         # que gasta modelo e `--ler-pecas`. O que isto custa e tempo:
-        # um pedido de cada vez, com INTERVALO_DETALHES entre eles.
-        # Retomavel por construcao, porque cada anuncio fica gravado
-        # com detalhe_lido=1 assim que e lido: um Ctrl-C, um corte de
-        # rede ou um reinicio nao perdem o que ja se leu, e o comando
-        # repetido continua de onde ia.
+        # CONCORRENCIA_DETALHES pedidos ao portal ao mesmo tempo
+        # (ler_detalhes_paralelo()). Retomavel por construcao, porque
+        # cada anuncio fica gravado com detalhe_lido=1 assim que e
+        # lido: um Ctrl-C, um corte de rede ou um reinicio nao perdem o
+        # que ja se leu, e o comando repetido continua de onde ia.
         i = sys.argv.index("--detalhes")
         resto = [a for a in sys.argv[i + 1:] if not a.startswith("--")]
         tecto = None if not resto or resto[0] == "tudo" else int(resto[0])
@@ -13860,11 +13938,10 @@ def main():
             print("Não há anúncios do DR sem detalhe: está tudo lido.")
             return
         print("%s anúncio(s) do DR sem detalhe. Vou ler %s, %d por volta,\n"
-              "um pedido de cada vez, %.1fs entre eles -- conta cerca de\n"
-              "%s. Ctrl-C pára e não perde nada: o que já foi lido está\n"
-              "gravado."
+              "%d pedidos ao portal ao mesmo tempo -- conta cerca de %s.\n"
+              "Ctrl-C pára e não perde nada: o que já foi lido está gravado."
               % (mil_pt(falta, " "), mil_pt(alvo, " "), lote,
-                 INTERVALO_DETALHES, duracao_pt(alvo * SEGUNDOS_POR_DETALHE)))
+                 CONCORRENCIA_DETALHES, duracao_pt(alvo * SEGUNDOS_POR_DETALHE)))
         ini = time.time()
         feitos_total = detalhes_em_lote(alvo, lote, contar=por_ler)
         print("%s detalhe(s) lidos em %s; ficam %s por ler."
