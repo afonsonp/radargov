@@ -651,6 +651,29 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
 O funil da casa, do «por ver» ao «ganho».
 
+- **O Zoho é mais actual do que o Excel e menos preciso: tem coluna
+  própria, não escreve por cima do `status`.** Medido a 03/09/2026 nas
+  148 oportunidades da vista dos Negócios: das 92 que cruzam com o
+  registo, **46 dizem «Não fomos» no Excel e «Lost» no Zoho**. O Zoho
+  não tem palavra para «não concorremos» — perdeu-se o concurso e nunca
+  se foi a ele caem os dois no mesmo sítio. Por isso o que ele diz vive
+  em `casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`, e a
+  regra de quem manda fica para quando o vocabulário dos estados estiver
+  decidido. **Uma fonte mais recente não é automaticamente a fonte
+  melhor: compara-se campo a campo antes de a deixar mandar.** O
+  `zoho_como` guarda a regra que casou a linha porque o cruzamento é por
+  semelhança de nome e preço, não por chave — não é uma certeza, e uma
+  ligação errada escreve um estado errado. E o que salva estas colunas
+  de uma reimportação do Excel é o `_guardar_linha()` usar `ON CONFLICT
+  DO UPDATE SET` com as colunas do Excel nomeadas, e não um `REPLACE` da
+  linha inteira: um `REPLACE` apagava-as, e ao `lote` e ao
+  `porque_sem_ref` também. Há teste
+  (`test_o_que_o_zoho_diz_fica_em_coluna_propria_e_sobrevive_a_reimportacao`).
+  **Lê-se pelo browser, na sessão dele** — o Zoho não exporta CSV — e a
+  aplicação é uma SPA que **não arranca com o separador escondido**:
+  fica em «A carregar» para sempre e nem chega a pedir os registos.
+  Confirma-se com `document.visibilityState`.
+
 - **Os lotes lêem-se do anúncio, e a decisão sobre eles já está
   tomada.** O DR escreve «Procedimento com lotes? Sim», «Nº Máx. de
   Lotes Autorizado: N» e um bloco «Lotes:» com «Nº: LOT-000k»,
