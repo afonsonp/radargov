@@ -28,14 +28,15 @@ pede.**
 | `docs/armadilhas.md` | O que não é óbvio, em 14 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES` | Raramente. São instantâneos, não se mantêm |
+| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE` | Raramente. São instantâneos, não se mantêm |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
 Três destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
-plano para o radar sair do PC: empresas, utilizadores, login e servidor,
-por etapas — **lê-o antes de tocar em contas, sessões ou em qualquer
-coisa que separe dados por empresa**. O `docs/historico/CONCORRENTES.md` guarda o que
+plano para o radar sair do PC: login de um utilizador, um menu de
+configurações que absorve o separador Alertas, e o servidor — **lê-o
+antes de tocar em contas, sessões, no `config.json` pelo painel ou na
+barra de navegação**. O `docs/historico/CONCORRENTES.md` guarda o que
 se observou nos produtos pagos deste mercado, com data — **um produto
 muda, e o que lá está vale para o dia em que foi visto**. O
 `docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface

@@ -408,7 +408,12 @@ premissa mudar — com data e números novos.
   catalão na lista). O radar é bom precisamente por ser só parte L, bem.
 - **Multi-utilizador a sério** (permissões, comentários, atribuição além do
   `responsavel`) — o radar é 1–2 pessoas; SpotGov e Tendios vendem equipas.
-  Reabrir quando houver equipa.
+  Reabrir quando houver equipa. **A 3/09/2026 ficou decidido que não é
+  isto que se faz**: o Afonso quer o radar online **para ele**, com
+  login para fechar a porta e as configurações num menu — o plano está
+  em `docs/historico/ONLINE.md`. Empresas e utilizadores por empresa
+  foram pensados na mesma tarde e postos de lado
+  (`docs/historico/ONLINE-empresas.md`).
 - **App móvel / push** — o e-mail diário chega ao telemóvel; um push a mais
   não muda nenhuma decisão de dia útil.
 - **Contagem decrescente ao segundo, mapas nas fichas** (GovGo, Armilar) —
