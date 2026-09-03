@@ -3736,6 +3736,7 @@
 {"estado": "descartado", "fase_id": null, "ref": "21777/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 09:41"}
 {"estado": "novo", "fase_id": 1, "ref": "21811/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
 {"estado": "novo", "fase_id": 1, "ref": "21830/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-28 17:02"}
+{"estado": "interessa", "fase_id": 1, "ref": "21969/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-08-31 17:01"}
 {"estado": "interessa", "fase_id": 1, "ref": "22005/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-09-01 11:03"}
 {"estado": "interessa", "fase_id": 1, "ref": "22036/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-09-01 17:01"}
 {"estado": "interessa", "fase_id": 1, "ref": "22102/2026", "responsavel": null, "tabela": "anuncios", "visto_em": "2026-09-02 09:42"}
@@ -9709,6 +9710,7 @@
 {"accao": "alterou", "detalhe": "pelo anúncio 22108/2026 de 02/09/2026: prazo de propostas 02/09/2026 → 02/10/2026", "quando": "2026-09-02 17:02", "quem": "DR", "ref": "18150/2026", "tabela": "historico"}
 {"accao": "alteração", "detalhe": "do anúncio 21752/2026, publicado a 27/08/2026; a triagem faz-se lá", "quando": "2026-09-02 17:02", "quem": "DR", "ref": "22132/2026", "tabela": "historico"}
 {"accao": "alterou", "detalhe": "pelo anúncio 22132/2026 de 02/09/2026: prazo de propostas 08/09/2026 → 14/09/2026", "quando": "2026-09-02 17:02", "quem": "DR", "ref": "21752/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-02 18:06", "quem": "Afonso Pinto", "ref": "21969/2026", "tabela": "historico"}
 {"alerta": 1, "consulta": "cpv=72000000&estado=novo&prazo=aberto", "criado_em": "2026-08-30 03:15", "id": 8, "nome": "CPV IT", "quem": "Afonso Pinto", "tabela": "filtros_guardados"}
 {"chave": "504322915", "desde": "2026-08-30", "nome": "Instituto de Informática, I. P.", "tabela": "entidades_seguidas"}
 {"enviado_em": "2026-09-02 17:03", "filtro_id": 8, "ref": "14017/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-02 09:44"}
@@ -9787,6 +9789,7 @@
 {"enviado_em": "2026-09-01 17:03", "filtro_id": 8, "ref": "22036/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-01 17:03"}
 {"enviado_em": "2026-09-01 17:03", "filtro_id": 8, "ref": "22037/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-01 17:03"}
 {"enviado_em": "2026-09-02 17:03", "filtro_id": 8, "ref": "22085/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-02 09:44"}
+{"enviado_em": null, "filtro_id": 8, "ref": "22143/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-02 18:08"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "10696/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "14006/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "15681/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
