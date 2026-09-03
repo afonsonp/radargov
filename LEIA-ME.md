@@ -518,6 +518,12 @@ O que a importação faz com cada linha:
 - **Guarda o que o radar não tem**: quem concorreu e a quanto, os
   perfis exigidos como os registaste, os preços por perfil e por
   concorrente, o EBITDA, a razão de não participação e as notas.
+- **Sabe a que lote cada linha pertence.** O radar lê os lotes do
+  anúncio (o DR publica-os com o preço base de cada um) e, como no teu
+  Excel cada linha de um concurso com lotes traz o preço base do lote,
+  liga a linha ao lote certo. Quando o registo chegar ao quadro, a
+  regra é a que decidiste: um cartão por anúncio, que diz a que lotes
+  se foi; no fim, em Ganho ou Perdido, os cartões separam-se por lote.
 
 Entidades espanholas não entram, por decisão tua.
 

@@ -570,8 +570,45 @@ def iniciar_tabelas(c):
     # Porque e que uma linha nao tem anuncio: "consulta previa", "antes de
     # 2025", "nao sei". Vem das respostas do Afonso (02/09/2026) e e o
     # que distingue "por ligar" de "nao ha nada para ligar".
-    if "porque_sem_ref" not in [r["name"] for r in c.execute("PRAGMA table_info(casa)")]:
+    colunas = [r["name"] for r in c.execute("PRAGMA table_info(casa)")]
+    if "porque_sem_ref" not in colunas:
         c.execute("ALTER TABLE casa ADD COLUMN porque_sem_ref TEXT")
+    # A que lote do anuncio esta linha corresponde (o Excel tem uma linha
+    # por lote; o DR um anuncio para todos). NULL = anuncio sem lotes, ou
+    # lote por identificar.
+    if "lote" not in colunas:
+        c.execute("ALTER TABLE casa ADD COLUMN lote INTEGER")
+
+
+RX_LOTE_NO_NOME = re.compile(r"\bL(?:ote)?\s*\.?\s*(\d{1,2})\b", re.I)
+
+
+def lote_da_linha(linha, lotes):
+    """O numero do lote a que a linha do Excel corresponde, ou None.
+
+    Primeiro pelo preco base: a linha traz o preco base DO LOTE (medido
+    nos quatro anuncios com varias linhas a 02/09/2026 -- #7 = 53 667,20
+    = lote 1 do 2770/2026). Depois por um "L1" ou "Lote 2" no nome."""
+    if not lotes:
+        return None
+    pb = linha.get("preco_base")
+    if pb:
+        for l in lotes:
+            v = _num(l.get("preco_base"))
+            if v and abs(v - pb) < 1:
+                return l["n"]
+    m = RX_LOTE_NO_NOME.search(linha.get("nome") or "")
+    if m and 1 <= int(m.group(1)) <= max(l["n"] for l in lotes):
+        return int(m.group(1))
+    return None
+
+
+def lotes_do_anuncio(c, ref):
+    r = c.execute("SELECT lotes FROM anuncios WHERE ref=?", (ref,)).fetchone()
+    try:
+        return json.loads(r["lotes"]) if r and r["lotes"] else []
+    except ValueError:
+        return []
 
 
 CAMPOS_EXCEL = ("nome", "entidade", "modelo", "prazo_meses", "preco_base",
@@ -619,7 +656,8 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
     linhas = [l for l in linhas if l["id"]]
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     rel = {"total": len(linhas), "fora": [], "ligadas": 0, "novas": 0,
-           "manuais": 0, "pelo_base": 0, "sem_dr": 0, "ambiguas": [], "sem": [],
+           "manuais": 0, "pelo_base": 0, "sem_dr": 0, "em_lotes": 0, "com_lote": 0,
+           "ambiguas": [], "sem": [],
            "aplicadas": {}, "conflitos": [], "lidos": 0, "ensaio": ensaio}
     _ENTIDADES.clear()
     # Duas passagens, de proposito. A primeira so LE (e vai ao DR pelos
@@ -709,6 +747,14 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
             else:
                 rel["sem"].append((linha["id"], linha["nome"], linha["entidade"],
                                    linha["ano"]))
+            if ref:
+                lotes = lotes_do_anuncio(c, ref)
+                if lotes:
+                    rel["em_lotes"] += 1
+                    lote = lote_da_linha(linha, lotes)
+                    rel["com_lote"] += bool(lote)
+                else:
+                    lote = None
             if not ensaio:
                 _guardar_linha(c, linha, ref, ligacao, candidatos, fora,
                                resultado, agora)
@@ -716,6 +762,8 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
                 if antes.get("porque_sem_ref"):
                     c.execute("UPDATE casa SET porque_sem_ref=? WHERE id=?",
                               (antes["porque_sem_ref"], linha["id"]))
+                if ref:
+                    c.execute("UPDATE casa SET lote=? WHERE id=?", (lote, linha["id"]))
         if not ensaio:
             c.execute("INSERT OR REPLACE INTO estado VALUES ('excel_casa', ?)",
                       (caminho,))
@@ -736,6 +784,9 @@ def texto_do_relatorio(rel):
             linhas[-1] += " (só o registo; a triagem não se aplica sem --com-triagem)"
     if rel["lidos"]:
         linhas.append("  detalhes lidos ao DR para desempatar: %d" % rel["lidos"])
+    if rel["em_lotes"]:
+        linhas.append("  linhas em anúncios com lotes: %d, com o lote identificado: %d"
+                      % (rel["em_lotes"], rel["com_lote"]))
     linhas.append("  ambíguos: %d | sem correspondência: %d | sem anúncio no DR: %d"
                   " | fora do país: %d"
                   % (len(rel["ambiguas"]), len(rel["sem"]), rel["sem_dr"],
@@ -799,10 +850,15 @@ def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False, porque=""):
             d[k] = []
     resultado = aplicar(c, d, ref, quem) if triagem else "guardado"
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    lotes = lotes_do_anuncio(c, ref)
+    lote = lote_da_linha(d, lotes)
     c.execute("UPDATE casa SET ref=?, ligacao='manual', candidatos='[]', "
-              "resultado=?, aplicado_em=?, porque_sem_ref=NULL WHERE id=?",
-              (ref, resultado, agora if resultado == "aplicado" else None, ide))
-    return True, "#%s ligado ao anúncio %s (%s)" % (ide, ref, resultado)
+              "resultado=?, aplicado_em=?, porque_sem_ref=NULL, lote=? WHERE id=?",
+              (ref, resultado, agora if resultado == "aplicado" else None, lote, ide))
+    return True, "#%s ligado ao anúncio %s (%s%s)" % (
+        ide, ref, resultado,
+        (", lote %d de %d" % (lote, len(lotes))) if lote else
+        (", %d lotes, lote por identificar" % len(lotes)) if lotes else "")
 
 
 def desligar(c, ide):

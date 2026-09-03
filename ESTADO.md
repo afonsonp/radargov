@@ -4779,13 +4779,26 @@ disto se vê no painel, e é assim de propósito.
   ditos em `porque_sem_ref` e a importação seguinte não os volta a
   procurar. O registo está agora em 173 ligados, 10 sem anúncio, 3 por
   saber e 1 fora do país.
-- **Os lotes, medidos.** Quatro anúncios têm mais do que uma linha do
-  Excel: 1947/2026 da SPMS (#14, #97, #98: dois lotes perdidos e um
-  ganho), 2770/2026 (#7, #95, #96, a «biblioteca de arquitectura»),
-  32366/2025 (#31, #93) e 8275/2026 (#22, #187). O modelo de um estado
-  por anúncio não os representa; é decisão de desenho a tomar antes de
-  aplicar a triagem — um cartão por lote no quadro, ou o resultado do
-  conjunto no anúncio.
+- **Os lotes: decididos e lidos, ainda não desenhados.** A decisão
+  dele (02/09/2026): «nos anúncios diz se tem lotes, podes identificar
+  por aí; um cartão por anúncio, mas os cartões que têm lotes devem
+  identificar a que lotes fomos e se fomos a todos, e no final,
+  perdido ou ganho, separam-se os cartões». Medido no DR: o anúncio
+  declara «Procedimento com lotes? Sim», o máximo autorizado e um bloco
+  «Lotes:» com número, descrição e preço base de cada um — **1 423 dos
+  6 140 anúncios lidos (23%) têm lotes**. `lotes_do_texto()` lê-os para
+  `anuncios.lotes`, e o `--reler` encheu o acervo em 7 segundos. E o
+  Excel tem o preço base **do lote** em cada linha: foi assim que 8 das
+  12 linhas em anúncios com lotes ficaram com o lote certo
+  (`casa.lote`), sem adivinhar — #95 e #96 da «biblioteca de
+  artefactos» são os lotes 4 e 5, não os 2 e 3 que o nome sugeria. Das
+  outras 4: #23 e #26 trazem o preço base do procedimento inteiro
+  (foi-se a todos os lotes, ou a linha é o conjunto); #129 e #147 têm
+  um preço base que não bate com lote nenhum — ele que diga. O #93 era
+  um duplicado do #31 (sem proposta, sem perfis, e o «preço base» dele
+  é a proposta do #31): ficou marcado como tal. O quadro continua a ter
+  um cartão por anúncio sem saber de lotes; a separação em Ganho e
+  Perdido faz-se quando o registo chegar ao ecrã.
 - **Depois do Zoho** (a fonte mais actual do estado, lido pelo browser
   porque ele não consegue exportar CSV) e da validação, decide-se
   **como isto se monta no esqueleto** — a página, o bloco da ficha, o

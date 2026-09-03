@@ -217,6 +217,20 @@ A ordem do ficheiro é a ordem do fluxo:
   sobrevivem às importações seguintes;
   `--casa-desfazer CÓPIA` repõe a triagem de uma cópia anterior (foi o
   que desfez a aplicação de 02/09/2026).
+- **Os lotes lêem-se do anúncio, e a decisão sobre eles já está
+  tomada.** O DR escreve «Procedimento com lotes? Sim», «Nº Máx. de
+  Lotes Autorizado: N» e um bloco «Lotes:» com «Nº: LOT-000k»,
+  descrição e preço base por lote (`lotes_do_texto()`, guardado em
+  `anuncios.lotes` como JSON, em vigor pela alteração mais recente como
+  os outros campos). O Excel da casa tem uma linha por lote, e o preço
+  base dessa linha é o **do lote**: é assim que `casa.lote` se
+  atribui (`lote_da_linha()`: preço base igual, senão «L1»/«Lote 2» no
+  nome). Decisão do Afonso a 02/09/2026 para quando o registo chegar
+  ao ecrã: **um cartão por anúncio**; um anúncio com lotes diz a que
+  lotes se foi e se se foi a todos; e no fim, em Ganho ou Perdido, **os
+  cartões separam-se por lote**, cada um com o seu resultado. Ainda não
+  está implementado no quadro — nada muda no front antes de o registo
+  estar validado.
 - **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**
   Os 16 campos do `SearchTenders` são título, entidade, datas, estado
   e tipo — **nenhum é CPV nem NIPC**. Até 01/09/2026 guardava-se a
