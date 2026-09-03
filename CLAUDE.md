@@ -210,8 +210,11 @@ A ordem do ficheiro é a ordem do fluxo:
   no histórico), e os motivos «Fora do âmbito» e «Prazo curto» entram
   então em `MOTIVOS_ABANDONO` (hoje só em `casa.MAPA_RAZAO`).
   Entidades espanholas não entram (`FORA_DO_PAIS`, decisão dele).
-  `--ensaio` calcula e não grava; `--casa-ligar ID REF` liga à mão, e
-  uma ligação manual sobrevive às importações seguintes;
+  `--ensaio` calcula e não grava; `--casa-ligar ID REF` liga à mão
+  (`ID nenhum "razão"` diz que não há anúncio no DR — consultas
+  prévias, ajustes directos, consultas preliminares, anteriores à base
+  —, `ID ? "razão"` só anota), e uma ligação ou um «nenhum» manual
+  sobrevivem às importações seguintes;
   `--casa-desfazer CÓPIA` repõe a triagem de uma cópia anterior (foi o
   que desfez a aplicação de 02/09/2026).
 - **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**

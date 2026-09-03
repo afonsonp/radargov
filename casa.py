@@ -567,6 +567,11 @@ def iniciar_tabelas(c):
         fora INTEGER DEFAULT 0, resultado TEXT DEFAULT '',
         importado_em TEXT, aplicado_em TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS ix_casa_ref ON casa(ref)")
+    # Porque e que uma linha nao tem anuncio: "consulta previa", "antes de
+    # 2025", "nao sei". Vem das respostas do Afonso (02/09/2026) e e o
+    # que distingue "por ligar" de "nao ha nada para ligar".
+    if "porque_sem_ref" not in [r["name"] for r in c.execute("PRAGMA table_info(casa)")]:
+        c.execute("ALTER TABLE casa ADD COLUMN porque_sem_ref TEXT")
 
 
 CAMPOS_EXCEL = ("nome", "entidade", "modelo", "prazo_meses", "preco_base",
@@ -614,7 +619,7 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
     linhas = [l for l in linhas if l["id"]]
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     rel = {"total": len(linhas), "fora": [], "ligadas": 0, "novas": 0,
-           "manuais": 0, "pelo_base": 0, "ambiguas": [], "sem": [],
+           "manuais": 0, "pelo_base": 0, "sem_dr": 0, "ambiguas": [], "sem": [],
            "aplicadas": {}, "conflitos": [], "lidos": 0, "ensaio": ensaio}
     _ENTIDADES.clear()
     # Duas passagens, de proposito. A primeira so LE (e vai ao DR pelos
@@ -629,7 +634,7 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
     with radar.liga() as c:
         acervo = Acervo(c, {l["ano"] for l in linhas})
         existentes = {r["id"]: dict(r) for r in c.execute(
-            "SELECT id, ref, ligacao FROM casa")}
+            "SELECT id, ref, ligacao, porque_sem_ref FROM casa")}
         for linha in linhas:
             antes = existentes.get(linha["id"]) or {}
             if fora_do_pais(linha):
@@ -640,6 +645,10 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
             if antes.get("ref") and antes.get("ligacao") == "manual":
                 ref, ligacao = antes["ref"], "manual"
                 rel["manuais"] += 1
+            elif antes.get("ligacao") == "nenhum":
+                # ele disse que nao ha anuncio no DR: nao se volta a procurar
+                ligacao = "nenhum"
+                rel["sem_dr"] += 1
             else:
                 pontos = pontuar(linha, acervo)
                 ref, candidatos = decidir(pontos)
@@ -692,6 +701,8 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
                 rel["aplicadas"][resultado] = rel["aplicadas"].get(resultado, 0) + 1
                 if resultado == "conflito":
                     rel["conflitos"].append((linha["nome"], ref, linha["status"]))
+            elif ligacao == "nenhum":
+                pass
             elif candidatos:
                 rel["ambiguas"].append((linha["id"], linha["nome"], linha["entidade"],
                                         linha["ano"], candidatos))
@@ -701,6 +712,10 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
             if not ensaio:
                 _guardar_linha(c, linha, ref, ligacao, candidatos, fora,
                                resultado, agora)
+                antes = existentes.get(linha["id"]) or {}
+                if antes.get("porque_sem_ref"):
+                    c.execute("UPDATE casa SET porque_sem_ref=? WHERE id=?",
+                              (antes["porque_sem_ref"], linha["id"]))
         if not ensaio:
             c.execute("INSERT OR REPLACE INTO estado VALUES ('excel_casa', ?)",
                       (caminho,))
@@ -721,8 +736,10 @@ def texto_do_relatorio(rel):
             linhas[-1] += " (só o registo; a triagem não se aplica sem --com-triagem)"
     if rel["lidos"]:
         linhas.append("  detalhes lidos ao DR para desempatar: %d" % rel["lidos"])
-    linhas.append("  ambíguos: %d | sem correspondência: %d | fora do país: %d"
-                  % (len(rel["ambiguas"]), len(rel["sem"]), len(rel["fora"])))
+    linhas.append("  ambíguos: %d | sem correspondência: %d | sem anúncio no DR: %d"
+                  " | fora do país: %d"
+                  % (len(rel["ambiguas"]), len(rel["sem"]), rel["sem_dr"],
+                     len(rel["fora"])))
     for ide, nome, ent, ano, cands in rel["ambiguas"]:
         linhas.append("    ? #%s %s — %s (%s): %s" % (ide, nome[:50], ent, ano,
                                                      ", ".join(cands)))
@@ -743,11 +760,26 @@ def registo_de(c, ref):
     return dict(r) if r else None
 
 
-def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False):
+def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False, porque=""):
     """Liga uma linha do registo a um anuncio, resolvendo uma alteracao
     para o original. So escreve triagem com `triagem`. Devolve (ok,
-    mensagem)."""
+    mensagem).
+
+    `ref` pode ser "nenhum" -- nao ha anuncio no DR (consulta previa,
+    ajuste directo, consulta preliminar, ou antes da base), com a razao
+    em `porque` -- ou "?" para so anotar a razao ("nao sei") e deixar a
+    linha por ligar."""
     import radar
+    if not c.execute("SELECT 1 FROM casa WHERE id=?", (ide,)).fetchone():
+        return False, "não há nenhum registo #%s" % ide
+    if ref.strip().lower() in ("nenhum", "-", "nao", "não"):
+        c.execute("UPDATE casa SET ref=NULL, ligacao='nenhum', candidatos='[]', "
+                  "resultado='', aplicado_em=NULL, porque_sem_ref=? WHERE id=?",
+                  (porque or "sem anúncio no DR", ide))
+        return True, "#%s sem anúncio no DR (%s)" % (ide, porque or "sem razão")
+    if ref.strip() == "?":
+        c.execute("UPDATE casa SET porque_sem_ref=? WHERE id=?", (porque or "?", ide))
+        return True, "#%s fica por ligar (%s)" % (ide, porque or "?")
     a = c.execute("SELECT ref, estado, altera FROM anuncios WHERE ref=?",
                   (ref,)).fetchone()
     if not a:
@@ -768,7 +800,7 @@ def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False):
     resultado = aplicar(c, d, ref, quem) if triagem else "guardado"
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     c.execute("UPDATE casa SET ref=?, ligacao='manual', candidatos='[]', "
-              "resultado=?, aplicado_em=? WHERE id=?",
+              "resultado=?, aplicado_em=?, porque_sem_ref=NULL WHERE id=?",
               (ref, resultado, agora if resultado == "aplicado" else None, ide))
     return True, "#%s ligado ao anúncio %s (%s)" % (ide, ref, resultado)
 

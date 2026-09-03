@@ -6921,6 +6921,32 @@ class TestRegistoDaCasa(BaseTemporaria):
         self.assertFalse(hasattr(radar, "casa_cx"))
         self.assertEqual(len(radar.MOTIVOS_ABANDONO), 3)
 
+    def test_sem_anuncio_no_dr_fica_dito_e_nao_se_volta_a_procurar(self):
+        # as respostas dele (02/09/2026): consultas previas, ajustes
+        # directos e consultas preliminares nao tem anuncio no DR
+        self._base_normal()
+        caminho = self._excel(self.INDICE, self.FOLHAS)
+        casa.importar(caminho, ler=False)
+        with radar.liga() as c:
+            ok, msg = casa.ligar_a_mao(c, 4, "nenhum", porque="consulta prévia")
+            self.assertTrue(ok)
+            ok, _ = casa.ligar_a_mao(c, 1, "?", porque="não sei")
+            self.assertTrue(ok)
+            ok, _ = casa.ligar_a_mao(c, 99, "nenhum")
+            self.assertFalse(ok)
+        rel = casa.importar(caminho, ler=False)
+        self.assertEqual(rel["sem_dr"], 1)
+        self.assertEqual(rel["ambiguas"], [])
+        with radar.liga() as c:
+            l4 = c.execute("SELECT ref, ligacao, porque_sem_ref FROM casa WHERE id=4"
+                           ).fetchone()
+            self.assertEqual(l4[:], (None, "nenhum", "consulta prévia"))
+            # a nota "nao sei" sobrevive a importacao seguinte; a ligacao
+            # automatica de #1 mantem-se
+            l1 = c.execute("SELECT ref, porque_sem_ref FROM casa WHERE id=1").fetchone()
+            self.assertEqual(l1[:], ("5491/2026", "não sei"))
+        self.assertIn("sem anúncio no DR: 1", casa.texto_do_relatorio(rel))
+
     def test_a_pontuacao_e_por_contencao_do_nome_no_titulo(self):
         # o nome do Excel e uma abreviatura do titulo do DR: o que conta e
         # quantas palavras do Excel la estao, nao o tamanho do titulo

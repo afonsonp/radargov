@@ -499,6 +499,7 @@ para todos).
 python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm" --ensaio
 python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm"
 python radar.py --casa-ligar 94 4284/2026
+python radar.py --casa-ligar 56 nenhum "consulta prévia"
 ```
 
 Com `--ensaio` calcula tudo e não grava nada. Sem caminho, repete o da
