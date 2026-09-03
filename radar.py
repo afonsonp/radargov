@@ -113,7 +113,6 @@ CONFIG_INICIAL = {
     # (zero duplicacao com o DR, decisao do Afonso a 31/08/2026).
     # A False, a verificacao volta a ser so DR.
     "vortal_preliminares": True,
-    "ocr": True,                  # digitalizacoes pelo RapidOCR, se instalado
     # A rotina so le o detalhe dos anuncios publicados nesta janela.
     # Entre publicacao e prazo vao ~18 dias em media, por isso mais atras
     # que isto ja fechou: o CPV desses so interessa como historico, e
@@ -2514,107 +2513,6 @@ def _pecas_jsf(sessao, link):
     return saida, grandes
 
 
-def _nome_sem_corpo(sessao, endereco):
-    """O nome que a plataforma da a um ficheiro, sem descarregar o corpo.
-
-    Abre o pedido em stream e fecha-o depois dos cabecalhos: o nome vem
-    no Content-Disposition e o corpo nunca se le. E o que deixa VIGIAR a
-    lista da anogov/ComprasPT/ESPAP, onde o nome nao esta na pagina --
-    so na resposta de cada descarga."""
-    try:
-        with sessao.get(endereco, timeout=90, stream=True) as r:
-            return _nome_da_resposta(r) if r.status_code == 200 else ""
-    except requests.RequestException:
-        return ""
-
-
-def _buscar_do_endereco(sessao, endereco):
-    """Uma funcao que descarrega este endereco quando for chamada."""
-    def buscar():
-        _, dados = _descarregar(sessao, endereco)
-        return dados
-    return buscar
-
-
-def _buscar_do_zip(bruto, dentro):
-    """Uma funcao que tira este membro do ZIP que ja esta em memoria."""
-    def buscar():
-        with zipfile.ZipFile(io.BytesIO(bruto)) as z:
-            info = z.getinfo(dentro)
-            return None if info.file_size > MAX_FICHEIRO else z.read(dentro)
-    return buscar
-
-
-def pecas_disponiveis(sessao, link):
-    """([(nome, buscar)], aviso) das pecas que a plataforma mostra AGORA.
-
-    `buscar` e uma funcao sem argumentos que devolve os bytes dessa
-    peca, ou None; so se chama para as que sao novas, e e isso que
-    deixa vigiar a lista sem trazer o procedimento inteiro a cada
-    verificacao.
-
-    **O obter_documentos() NAO serve para vigiar.** Faz
-    `DELETE FROM documentos WHERE ref=?` e volta a trazer tudo -- o que
-    apagava o texto ja extraido e os veredictos do OCR, e mandava as
-    ~7 s por pagina outra vez em cada digitalizacao. Vigiar e ler a
-    lista e trazer so o que falta.
-
-    Cada plataforma da o que da:
-      - vortal: os nomes vem na resposta JSON, sem descarregar nada;
-      - acingov: a lista E o ZIP -- nao ha endereco de listagem (a
-        pagina do procedimento exige sessao, medido a 01/09/2026), por
-        isso o ZIP vem para memoria e le-se o infolist() dele;
-      - anogov/ComprasPT/ESPAP: os enderecos estao na pagina e o nome
-        vem no cabecalho de cada um (_nome_sem_corpo).
-    """
-    link = link or ""
-    if "acingov" in link:
-        _, bruto = _descarregar(sessao, link, limite=MAX_FICHEIRO * 4)
-        if not bruto or not bruto.startswith(b"PK"):
-            return [], "o ZIP das peças não veio"
-        with zipfile.ZipFile(io.BytesIO(bruto)) as z:
-            nomes = [i.filename for i in z.infolist() if not i.is_dir()]
-        return [(nome_seguro(n), _buscar_do_zip(bruto, n)) for n in nomes], ""
-    if "vortal" in link:
-        lista = []
-        m = re.search(r"(PT\d+\.NTC\.\d+)", link)
-        if not m:
-            lista, endereco = _info_vortal(sessao, link)
-            m = re.search(r"(PT\d+\.NTC\.\d+)", endereco)
-        if not lista:
-            if not m:
-                return [], "a Vortal não deu o identificador do procedimento"
-            try:
-                resposta = sessao.get(VORTAL_DOCS, timeout=90, params={
-                    "contractNoticeUId": m.group(1)}).json()
-            except (requests.RequestException, ValueError):
-                return [], "a Vortal não respondeu à lista das peças"
-            lista = resposta if isinstance(resposta, list) else []
-        fora = []
-        for doc in lista:
-            endereco = doc.get("downloadUrl")
-            if not endereco:
-                continue
-            # As duas respostas nao chamam o nome do ficheiro o mesmo.
-            rotulo = doc.get("name") or doc.get("documentName") or "documento"
-            fora.append((nome_seguro(rotulo),
-                         _buscar_do_endereco(sessao, endereco)))
-        return fora, ""
-    if ASSINATURA_JSF in link.lower():
-        try:
-            pagina = sessao.get(link, timeout=120)
-        except requests.RequestException as erro:
-            return [], "a plataforma não respondeu (%s)" % str(erro)[:60]
-        pagina.encoding = "windows-1252"
-        fora = []
-        for endereco in docs_jsf_da_pagina(pagina.text, link):
-            nome = _nome_sem_corpo(sessao, endereco) or "documento"
-            fora.append((nome_seguro(nome),
-                         _buscar_do_endereco(sessao, endereco)))
-        return fora, ""
-    return [], ""
-
-
 # Tecto por ficheiro. A Infraestruturas de Portugal publica anexos
 # tecnicos enormes -- um anuncio real trouxe 551 MB num unico ZIP. Sem
 # isto, uma triagem de dez anuncios enche o disco e a memoria, porque o
@@ -2679,126 +2577,11 @@ def texto_do_pdf(caminho):
     return texto, "ok"
 
 
-# ---------------------------------------- OCR das pecas digitalizadas
+# ------------------------------ desenhar e procurar dentro do PDF
 #
-# Medido a 02/09/2026: dos 12 CE/PC reais, 2 sao digitalizacoes sem
-# camada de texto -- ficavam em 'scan' e a leitura pelo modelo nem
-# arrancava. O RapidOCR (os modelos PP-OCR em ONNX, sem o framework
-# PaddlePaddle) le portugues com acentos e cedilhas com o modelo que a
-# propria roda traz, sem descarregar nada: numa pagina sintetica A4 a
-# 150 dpi, 10 linhas em 10 e "175.000,00 EUR" certo. O modelo chines/
-# ingles do rapidocr_onnxruntime 1.4 perdia os acentos E lia
-# "175.oo0,00", que o euros_do_texto() nao come -- nao e alternativa.
-# Custa 6 s por pagina em CPU no PC, isolado, e 8 s pelo `--ocr`, que
-# tambem carrega o motor e grava (medido a 03/09/2026 a escala 2,5; o
-# "~28 s por pagina" de 02/09 NAO se reproduz, e numa escala mais alta
-# -- ver o ESTADO.md): um CE de 20 paginas sao 2 a 3 minutos, em
-# thread de fundo (a fila das pecas ou a da analise).
-#
-# O radar funciona sem o pacote, como ate aqui. Com ele, os 'scan'
-# passam a 'ocr' (texto com as marcas \f de sempre, que a ficha e a
-# analise ja entendem) ou a 'imagem' (o OCR correu e nao achou texto).
-# 'scan' passa a querer dizer "sem camada de texto e ainda sem OCR
-# tentado": e o que a segunda passagem do extrair_textos() apanha
-# quando ha motor, uma vez por documento. Desliga-se com "ocr": false
-# no config.json.
-
-# A escala mede-se pelos VALORES lidos, nunca pelo aspecto do texto.
-# Medido a 03/09/2026 nos dois digitalizados da base (o CE de 20
-# paginas do 20968/2026 e o [CA] de 6 do 21295/2026), de 1,0 a 4,0:
-#
-#   escala   s/pag   preco base   artigo 332   tabela "≥170 cv"
-#   1,0       3,9        ok           --            "110"
-#   1,25      4,2        ok           --            "110"
-#   1,5       3,6        ok           ok             "10"
-#   1,75      4,9        ok           --        "170" (sem o ≥)
-#   2,0       5,1     PERDIDO     PERDIDO             ok
-#   2,5       6,0        ok           ok              ok
-#   3,0       5,5        ok           ok              ok
-#   4,0       6,0        ok           ok              ok
-#
-# Abaixo de 2,0 o modelo nao desfaz a linha: ADIVINHA-A. Leu "110" e
-# "10" onde a pagina diz "≥170 cv" (confirmado a olho na pagina 14), e
-# no [CA] o 2,0 leu 2036.08.06 onde esta 2026.08.06. Um numero errado
-# passa pelo euros_do_texto() e pelo modelo como se fosse dado; uma
-# linha desfeita ve-se. Por isso a metrica "linhas desfeitas" mente ao
-# contrario -- premeia a escala que troca falha visivel por erro
-# silencioso -- e a decisao e sempre pelo valor confirmado na pagina.
-#
-# 2,5 e a escala mais baixa em que os dois documentos leem certo todos
-# os valores confirmados; acima nao ganha nada e comeca a perder
-# caracteres. O 2,0 anterior perdia a clausula do preco base inteira.
-OCR_ESCALA = 2.5                  # 180 dpi sobre um PDF a 72
-OCR_MINIMO_POR_PAGINA = 20        # chars por pagina; abaixo e imagem
-_OCR = {"motor": None, "erro": ""}
-
-
-def ocr_ligado():
-    return bool(ler_config().get("ocr", True))
-
-
-def ocr_instalado():
-    """Sem carregar o motor: e para a saude dos indicadores."""
-    import importlib.util
-    return importlib.util.find_spec("rapidocr") is not None
-
-
-def motor_ocr():
-    """O RapidOCR, carregado uma vez por processo (0,4 s e ~60 MB).
-
-    None quando nao esta instalado ou nao arranca; a razao fica na
-    marca `ocr_ultimo_erro`, que os indicadores mostram, e nao se volta
-    a tentar neste processo -- um import que falha a cada documento
-    era o mesmo erro repetido cem vezes.
-    """
-    if _OCR["motor"] is None and not _OCR["erro"]:
-        try:
-            from rapidocr import RapidOCR
-            _OCR["motor"] = RapidOCR(params={"Global.log_level": "warning"})
-        except ImportError:
-            _OCR["erro"] = "rapidocr por instalar"
-        except Exception as erro:
-            _OCR["erro"] = (str(erro)[:200] or type(erro).__name__)
-            marca_erro("ocr_ultimo_erro", "ocr", _OCR["erro"])
-    return _OCR["motor"]
-
-
-def texto_por_ocr(caminho, motor=None, escala=OCR_ESCALA):
-    """(texto, estado) de um PDF sem camada de texto, pelo OCR.
-
-    'ocr' com o texto por pagina (marca \f em linha propria, como o
-    pypdf), 'imagem' quando o OCR corre e nao encontra texto, 'scan'
-    quando nao ha motor nem PyMuPDF, e 'erro: ...' quando o ficheiro
-    nao se desenha. Cada pagina desenha-se com o PyMuPDF (o mesmo do
-    visualizador) e vai ao motor como imagem BGR, que e o que ele
-    espera; as linhas saem pela ordem de leitura que o detector da.
-    """
-    motor = motor or motor_ocr()
-    if motor is None:
-        return "", "scan"
-    try:
-        import numpy
-        import pymupdf
-    except ImportError:
-        return "", "scan"
-    paginas = []
-    try:
-        with pymupdf.open(caminho) as doc:
-            for pagina in doc:
-                pix = pagina.get_pixmap(matrix=pymupdf.Matrix(escala, escala),
-                                        colorspace=pymupdf.csRGB, alpha=False)
-                imagem = numpy.frombuffer(pix.samples, dtype=numpy.uint8)
-                imagem = imagem.reshape(pix.h, pix.w, pix.n)[:, :, ::-1]
-                resultado = motor(numpy.ascontiguousarray(imagem))
-                linhas = getattr(resultado, "txts", None) or ()
-                paginas.append("\n".join(l for l in linhas if l))
-    except Exception as erro:
-        return "", "erro: ocr: %s" % str(erro)[:70]
-    texto = "\n\f\n".join(paginas)
-    if not paginas or len(texto) / len(paginas) < OCR_MINIMO_POR_PAGINA:
-        return "", "imagem"
-    return texto, "ocr"
-
+# O visualizador proprio da peca: desenhar a pagina no servidor e a
+# unica maneira de ela abrir SEMPRE dentro da aplicacao, e a procura
+# por pagina e o que deixa destacar o termo la dentro.
 
 def paginas_do_pdf_imagem(caminho):
     """Quantas paginas o visualizador proprio consegue desenhar.
@@ -2901,13 +2684,12 @@ def e_pdf(caminho):
     return b"%PDF" in cabeca
 
 
-def texto_do_zip(caminho, papeis, motor=None):
+def texto_do_zip(caminho, papeis):
     """O texto das peças que vierem dentro de um ZIP.
 
     Ha entidades que entregam o Caderno de Encargos como
     "1_CE_Clausulas_Juridicas_Tecnicas.zip", com as clausulas juridicas
-    num PDF e as tecnicas noutro. Sem abrir, ficavam por ler. Com
-    `motor`, um PDF de dentro que seja digitalizacao vai ao OCR.
+    num PDF e as tecnicas noutro. Sem abrir, ficavam por ler.
     """
     try:
         with zipfile.ZipFile(caminho) as z:
@@ -2925,10 +2707,8 @@ def texto_do_zip(caminho, papeis, motor=None):
                     with open(alvo, "wb") as f:
                         f.write(z.read(nome))
                     texto, estado = texto_do_pdf(alvo)
-                    if estado == "scan" and motor is not None:
-                        texto, estado = texto_por_ocr(alvo, motor)
                     estados.append(estado)
-                    if estado in ("ok", "ocr"):
+                    if estado == "ok":
                         partes.append(texto)
     except (zipfile.BadZipFile, OSError, KeyError) as erro:
         return "", "erro: %s" % str(erro)[:80]
@@ -2936,23 +2716,20 @@ def texto_do_zip(caminho, papeis, motor=None):
         # A mesma marca de pagina entre PDFs do mesmo ZIP: a numeracao
         # segue pelo conjunto fora, e a ficha diz "pag. N do texto
         # extraido" -- num ZIP com varios PDFs nao ha outra verdade.
-        return ("\n\f\n".join(partes),
-                "ocr" if "ocr" in estados else "ok")
+        return "\n\f\n".join(partes), "ok"
     # Nao sai texto por duas razoes muito diferentes, e dize-las trocadas
-    # manda a pessoa buscar a ferramenta errada: um PDF cifrado nao se
-    # resolve com OCR.
+    # manda a pessoa buscar a ferramenta errada: um PDF cifrado nao e
+    # uma digitalizacao.
     erros = [e for e in estados if e.startswith("erro")]
     return "", (erros[0] if erros else "scan")
 
 
-def extrair_textos(ref, motor=None):
+def extrair_textos(ref):
     """Guarda o texto dos PDFs deste anuncio. Devolve (lidos, digitalizados).
 
-    Duas passagens: a de sempre (o que ainda nao tem estado, e os
-    "erro:" que se retentam) e, se houver OCR, a dos 'scan' com
-    ficheiro em disco -- e essa que transforma um veredicto de
-    digitalizacao em texto, uma vez por documento. O `motor` e o do
-    motor_ocr() por omissao; nos testes e um falso.
+    Le o que ainda nao tem estado e retenta os "erro:". Um PDF sem
+    camada de texto fica em 'scan' e ai fica: e um veredicto sobre o
+    conteudo, nao uma falha da ferramenta.
     """
     with liga() as c:
         # Um "erro: ..." retenta-se: nao e um veredicto sobre o conteudo,
@@ -2985,108 +2762,7 @@ def extrair_textos(ref, motor=None):
             lidos += 1
         elif estado == "scan":
             scans += 1
-    # Segunda passagem: os 'scan' com ficheiro, se houver OCR. O motor
-    # so se carrega quando ha mesmo o que ler -- um 'scan' sem ficheiro
-    # (documento apagado do disco) fica como esta.
-    with liga() as c:
-        digitalizados = c.execute("SELECT id,nome FROM documentos WHERE ref=? "
-                                  "AND texto_estado='scan'", (ref,)).fetchall()
-    com_ficheiro = [(d, os.path.join(pasta, d["nome"])) for d in digitalizados
-                    if os.path.exists(os.path.join(pasta, d["nome"]))]
-    if com_ficheiro and ocr_ligado():
-        motor = motor or motor_ocr()
-    else:
-        motor = None                # desligado no config: nem com motor
-    if com_ficheiro and motor is not None:
-        for d, caminho in com_ficheiro:
-            papeis = papeis_da_peca(d["nome"])
-            if e_pdf(caminho):
-                texto, estado = texto_por_ocr(caminho, motor)
-            elif papeis and zipfile.is_zipfile(caminho):
-                texto, estado = texto_do_zip(caminho, papeis, motor)
-            else:
-                continue
-            if estado == "scan":
-                continue            # sem motor afinal: o veredicto fica
-            with liga() as c:
-                c.execute("UPDATE documentos SET texto=?, texto_estado=? "
-                          "WHERE id=?", (texto, estado, d["id"]))
-            if estado == "ocr":
-                lidos += 1
-                scans = max(0, scans - 1)
     return lidos, scans
-
-
-def ocr_pendentes(ref=None, motor=None, diz=print, tudo=False):
-    """Le pelo OCR os 'scan' com ficheiro em disco -- de um anuncio, ou
-    de todos. E o `--ocr`: a segunda passagem do extrair_textos() so
-    corre quando alguem pede as pecas ou a leitura DESSE anuncio, e os
-    'scan' que ja estavam na base antes do OCR existir ficavam a
-    espera de uma ficha aberta. Diz o que fez, documento a documento,
-    com o tempo -- e o instrumento para medir o custo por pagina no PC.
-    Devolve (lidos, sem_texto, por_fazer).
-
-    Com `tudo` (o `--ocr tudo`) rele TAMBEM as que ja estao lidas
-    ('ocr') e as que ficaram 'imagem'. E o que faz uma escala nova
-    chegar ao acervo: o OCR_ESCALA muda o texto que sai da mesma
-    pagina, e sem isto as pecas lidas com a escala antiga ficavam com
-    o texto antigo para sempre -- a 2,0 uma delas tinha perdido a
-    clausula do preco base inteira. Cada documento volta a 'scan'
-    imediatamente antes de ser relido, um a um: uma interrupcao a meio
-    deixa o resto como estava, e o que ficar em 'scan' e apanhado pela
-    segunda passagem de sempre."""
-    estados = ("scan", "ocr", "imagem") if tudo else ("scan",)
-    with liga() as c:
-        docs = c.execute(
-            "SELECT id, ref, nome FROM documentos WHERE texto_estado IN (%s)"
-            % ",".join("?" * len(estados))
-            + (" AND ref=?" if ref else "") + " ORDER BY ref, nome",
-            estados + ((ref,) if ref else ())).fetchall()
-    if not docs:
-        diz("não há digitalizações por ler" + (" em " + ref if ref else ""))
-        return 0, 0, 0
-    if not ocr_ligado():
-        diz("o OCR está desligado no config.json (\"ocr\": false)")
-        return 0, 0, len(docs)
-    motor = motor or motor_ocr()
-    if motor is None:
-        diz("sem OCR: %s" % (_OCR["erro"] or "rapidocr por instalar"))
-        return 0, 0, len(docs)
-    lidos = sem_texto = por_fazer = 0
-    for d in docs:
-        caminho = os.path.join(pasta_do_anuncio(d["ref"]), d["nome"])
-        if not os.path.exists(caminho):
-            por_fazer += 1
-            diz("  %s · %s: sem ficheiro em disco" % (d["ref"], d["nome"]))
-            continue
-        ini = time.time()
-        if tudo:
-            # Volta a 'scan' este documento e so este: e o estado que a
-            # segunda passagem do extrair_textos() apanha, e assim a
-            # releitura passa pelo caminho de sempre em vez de ter um
-            # seu.
-            with liga() as c:
-                c.execute("UPDATE documentos SET texto_estado='scan' "
-                          "WHERE id=?", (d["id"],))
-        extrair_textos(d["ref"], motor)
-        with liga() as c:
-            depois = c.execute("SELECT texto_estado, texto FROM documentos "
-                               "WHERE ref=? AND nome=?",
-                               (d["ref"], d["nome"])).fetchone()
-        estado = depois["texto_estado"] if depois else "?"
-        paginas = (depois["texto"] or "").count("\f") + 1 if depois and depois["texto"] else 0
-        diz("  %s · %s: %s%s, %.0f s" % (
-            d["ref"], d["nome"], estado,
-            (" (%d páginas, %d caracteres)" % (paginas, len(depois["texto"])))
-            if estado == "ocr" else "", time.time() - ini))
-        if estado == "ocr":
-            lidos += 1
-        elif estado == "imagem":
-            sem_texto += 1
-        else:
-            por_fazer += 1
-    diz("%d lidos, %d sem texto, %d por fazer" % (lidos, sem_texto, por_fazer))
-    return lidos, sem_texto, por_fazer
 
 
 # ------------------------------------------- leitura das peças por modelo
@@ -3578,6 +3254,8 @@ def documentos_com_texto(ref):
     with liga() as c:
         return c.execute(
             "SELECT nome, texto FROM documentos WHERE ref=? "
+            # 'ocr' e legado: o OCR saiu a 03/09/2026, mas o texto
+            # que ele extraiu na altura e texto a serio e continua a servir.
             "AND texto_estado IN ('ok','ocr') "
             "AND texto != '' ORDER BY nome", (ref,)).fetchall()
 
@@ -3814,12 +3492,8 @@ def analisar_pecas(ref):
             scans = c.execute("SELECT COUNT(*) n FROM documentos WHERE ref=? "
                               "AND texto_estado IN ('scan','imagem')",
                               (ref,)).fetchone()["n"]
-        if scans and not ocr_instalado():
-            return False, ("os documentos deste concurso são digitalizações, e "
-                           "o OCR está por instalar (pip install rapidocr "
-                           "onnxruntime)")
-        return False, ("os documentos deste concurso são digitalizações em que "
-                       "o OCR não encontrou texto" if scans else
+        return False, ("os documentos deste concurso são digitalizações, sem "
+                       "texto que se possa ler" if scans else
                        "ainda não há Caderno de Encargos nem Programa em disco")
 
     dados, usados, falhas, modelos = {}, [], [], []
@@ -4036,121 +3710,6 @@ def pedir_documentos(ref):
             _TRABALHADOR = threading.Thread(target=_servir_fila, daemon=True)
             _TRABALHADOR.start()
     _FILA_DOCS.put(ref)
-
-
-# --- vigiar a lista das pecas dos anuncios marcados (03/09/2026)
-#
-# O reler_marcados() vigia o prazo e o preco base na pagina do DR. Mas
-# um esclarecimento ou uma errata NAO passam pelo DR: aparecem na
-# plataforma, na lista de documentos do procedimento, e ninguem os
-# encontrava sem abrir a plataforma a mao. Isto faz o mesmo que o
-# reler_marcados(), do lado das plataformas: comparar a lista de agora
-# com a tabela `documentos` e avisar o que apareceu.
-
-CAMPO_PECA_NOVA = "peca_nova"
-
-# As pecas que o radar acrescenta e a plataforma nao tem: se nao se
-# excluissem, o "Anúncio DR.pdf" contava como peca desaparecida numa
-# ponta e nova na outra a cada verificacao.
-PECAS_DO_RADAR = ("Anúncio DR.pdf",)
-
-
-def _guardar_pecas_novas(ref, plataforma, disponiveis):
-    """Guarda e avisa as pecas que ainda nao estao na base. Devolve quantas.
-
-    Traz a peca nova e acrescenta a linha -- **sem apagar as que ja
-    estao**, que e a diferenca em relacao ao obter_documentos(). Uma
-    peca ja avisada nao se avisa outra vez mesmo que nao se consiga
-    guardar (ficheiro acima do tecto): sem essa guarda, o mesmo
-    esclarecimento saia no resumo a cada verificacao, duas vezes por
-    dia, para sempre.
-    """
-    with liga() as c:
-        tinha = {r["nome"] for r in c.execute(
-            "SELECT nome FROM documentos WHERE ref=?", (ref,))}
-        avisadas = {r["depois"] for r in c.execute(
-            "SELECT depois FROM alteracoes WHERE ref=? AND campo=?",
-            (ref, CAMPO_PECA_NOVA))}
-    pasta = pasta_do_anuncio(ref)
-    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
-    quantas = 0
-    for nome, buscar in disponiveis:
-        if nome in tinha or nome in avisadas or nome in PECAS_DO_RADAR:
-            continue
-        try:
-            dados = buscar()
-        except (requests.RequestException, ValueError, zipfile.BadZipFile,
-                KeyError, OSError):
-            dados = None
-        if dados:
-            os.makedirs(pasta, exist_ok=True)
-            with open(os.path.join(pasta, nome), "wb") as f:
-                f.write(dados)
-            with liga() as c:
-                c.execute("INSERT INTO documentos (ref,nome,ficheiro,tamanho,"
-                          "origem,obtido_em) VALUES (?,?,?,?,?,?)",
-                          (ref, nome, nome, len(dados),
-                           plataforma or "dr", agora))
-        with liga() as c:
-            c.execute("INSERT INTO alteracoes (ref, campo, antes, depois,"
-                      " detectado_em) VALUES (?,?,?,?,?)",
-                      (ref, CAMPO_PECA_NOVA, "", nome, agora))
-        registar(ref, "alterou", "peça nova na plataforma: %s%s"
-                 % (nome, "" if dados else " (não se conseguiu trazer)"),
-                 quem="plataforma")
-        quantas += 1
-    if quantas:
-        # So as novas: as outras linhas nao estao a NULL e o
-        # extrair_textos() nao lhes toca.
-        extrair_textos(ref)
-    return quantas
-
-
-def vigiar_pecas(limite=10):
-    """Peca nova (esclarecimento, errata) nos anuncios MARCADOS: avisa.
-
-    Marcado = "interessa" ou com fase no quadro, e com prazo aberto --
-    o mesmo recorte do reler_marcados(), e pela mesma razao: uma errata
-    num anuncio que ninguem quer, ou num prazo que ja fechou, nao muda
-    decisao nenhuma. So os que JA tem pecas trazidas (`docs_estado`):
-    sem uma lista de partida nao ha com que comparar, e cada peca do
-    procedimento contaria como novidade.
-
-    Uma lista vazia NAO e "as pecas desapareceram" -- e a plataforma a
-    falhar. Mesma regra do diferencas_do_detalhe(): so se avisa o que
-    tem valor dos dois lados. Devolve (quantas pecas novas, aviso).
-    """
-    hoje = datetime.now().date().isoformat()
-    with liga() as c:
-        marcados = c.execute(
-            "SELECT ref, plataforma, link_pecas FROM anuncios"
-            " WHERE (estado='interessa' OR fase_id IS NOT NULL)"
-            " AND docs_estado IN ('ok','parcial')"
-            " AND COALESCE(link_pecas,'') != ''"
-            " AND COALESCE(prazo,'') != '' AND prazo >= ?"
-            " ORDER BY prazo LIMIT ?", (hoje, limite)).fetchall()
-    if not marcados:
-        return 0, ""
-    sessao = requests.Session()
-    sessao.headers.update({"User-Agent": NAVEGADOR,
-                           "Accept": "application/json, text/plain, */*"})
-    novas, falhas = 0, []
-    for a in marcados:
-        try:
-            disponiveis, aviso = pecas_disponiveis(sessao, a["link_pecas"])
-        except (requests.RequestException, ValueError, zipfile.BadZipFile,
-                OSError) as erro:
-            disponiveis, aviso = [], str(erro)[:100]
-        if aviso or not disponiveis:
-            if aviso:
-                falhas.append("%s: %s" % (a["ref"], aviso))
-            continue
-        novas += _guardar_pecas_novas(a["ref"], a["plataforma"], disponiveis)
-    if falhas:
-        marca_erro("docs_ultimo_erro", "pecas", "%s · a vigiar peças · %s"
-                   % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                      " | ".join(falhas[:3])))
-    return novas, (" | ".join(falhas) if falhas else "")
 
 
 # A leitura pelo modelo, tambem em fila.
@@ -4808,11 +4367,6 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                 if x["campo"] == "retificacao":
                     linhas.append("    rectificado pelo anúncio %s"
                                   % x["depois"])
-                elif x["campo"] == CAMPO_PECA_NOVA:
-                    # Nao ha "antes -> depois" numa peca que apareceu:
-                    # o antes e vazio, e "-> Errata.pdf" nao se le.
-                    linhas.append("    peça nova na plataforma: %s"
-                                  % x["depois"])
                 else:
                     linhas.append("    %s: %s -> %s"
                                   % (rotulos.get(x["campo"], x["campo"]),
@@ -4958,9 +4512,6 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
             for x in mudancas:
                 if x["campo"] == "retificacao":
                     itens.append("rectificado pelo anúncio <b>%s</b>"
-                                 % html.escape(x["depois"]))
-                elif x["campo"] == CAMPO_PECA_NOVA:
-                    itens.append("peça nova na plataforma: <b>%s</b>"
                                  % html.escape(x["depois"]))
                 else:
                     itens.append(
@@ -5178,21 +4729,6 @@ def verificar(cfg=None, passo=None):
             ligar_retificacoes()
         except (sqlite3.Error, OSError) as erro:
             print("aviso: a releitura dos marcados falhou (%s)" % erro)
-    # A lista das pecas dos marcados, do lado das plataformas. Nao
-    # depende do DR nem o estraga: uma plataforma em baixo nao pode dar
-    # a verificacao por falhada (bem fica como esta), e vai antes dos
-    # alertas para as pecas novas entrarem no resumo do mesmo dia.
-    diz("a ver se apareceram peças novas nos anúncios marcados")
-    try:
-        n_pecas, _ = vigiar_pecas(int(cfg.get("pecas_vigiadas_por_volta", 10)))
-        if n_pecas:
-            mensagem += (" &middot; %d peça%s nova%s"
-                         % (n_pecas, "" if n_pecas == 1 else "s",
-                            "" if n_pecas == 1 else "s"))
-    except Exception as erro:
-        marca_erro("docs_ultimo_erro", "pecas", "%s · a vigiar peças: %s"
-                   % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                      str(erro)[:150]))
     # B14: a segunda fonte, ANTES dos alertas -- as consultas
     # preliminares tambem contam para eles. Falha isolada: a Vortal em
     # baixo nao estraga a verificacao do DR.
@@ -12906,25 +12442,17 @@ def texto_da_peca(ref, nome):
                 "<div style='white-space:pre-wrap;"
                 "font:400 12px/1.6 var(--mono)'>%s</div>"
                 % (i, html.escape(pagina.strip())))
-        por_ocr = d["texto_estado"] == "ocr"
         return ("<details class='sec' style='margin-top:14px'><summary>"
-                "<span class='st'>Texto extraído da peça%s</span>"
+                "<span class='st'>Texto extraído da peça</span>"
                 "<span class='sh'>pesquisável com o Ctrl+F da página, mesmo "
-                "quando o visualizador não abre%s</span></summary>%s</details>"
-                % (" (por OCR)" if por_ocr else "",
-                   "; lido por OCR de uma digitalização, pode ter erros"
-                   if por_ocr else "",
-                   "".join(paginas_html)))
-    if d and d["texto_estado"] == "scan":
+                "quando o visualizador não abre</span></summary>%s</details>"
+                % "".join(paginas_html))
+    # 'imagem' e legado do OCR que saiu a 03/09/2026 e quer dizer o
+    # mesmo que 'scan': o PDF nao tem texto que se possa ler.
+    if d and d["texto_estado"] in ("scan", "imagem"):
         return ("<div class='nota' style='margin-top:14px'>Este PDF é "
-                "uma digitalização: não tem texto extraível. %s</div>"
-                % ("O OCR lê-o na próxima leitura das peças."
-                   if ocr_instalado() else
-                   "Com o OCR instalado (pip install rapidocr onnxruntime) "
-                   "o radar lê-o."))
-    if d and d["texto_estado"] == "imagem":
-        return ("<div class='nota' style='margin-top:14px'>Este PDF é "
-                "uma digitalização e o OCR não encontrou texto nela.</div>")
+                "uma digitalização: não tem texto extraível. Abre-se no "
+                "visualizador, mas não se procura lá dentro.</div>")
     return ""
 
 
@@ -13627,7 +13155,7 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
 
 def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
                             token=None, triagem=None, vortal=None,
-                            pecas_dr=None, ocr=None):
+                            pecas_dr=None):
     """As marcas de ultimo erro que so se viam por SQL (C1 do saneamento).
 
     So aparece o que existe: sem erro gravado nao ha linha nenhuma --
@@ -13650,8 +13178,8 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
                           ("Última expiração do token", token),
                           ("Último erro a gravar a triagem no git", triagem),
                           ("Último erro na Vortal", vortal),
-                          ("Último erro a renovar as peças do DR", pecas_dr),
-                          ("Último erro do OCR", ocr)):
+                          ("Último erro a renovar as peças do DR",
+                           pecas_dr)):
         if (valor or "").strip():
             # numa linha so antes de cortar: um erro de varias linhas
             # gastava metade dos 80 caracteres em mudancas de linha e
@@ -13739,13 +13267,8 @@ def indicadores():
 
     tem_dr = "válido" if carregar_curl() else "em falta"
     tem_det = "válido" if carregar_curl("curl_detalhe") else "em falta"
-    tem_ocr = ocr_instalado()
     saude = [("Captura curl_DR.txt", tem_dr, tem_dr == "válido"),
-             ("Captura curl_detalhe.txt", tem_det, tem_det == "válido"),
-             ("OCR das digitalizações",
-              ("instalado" if ocr_ligado() else "instalado, desligado no "
-               "config.json") if tem_ocr else
-              "por instalar (pip install rapidocr onnxruntime)", tem_ocr)]
+             ("Captura curl_detalhe.txt", tem_det, tem_det == "válido")]
     # O denominador, escrito. As percentagens das plataformas sao sobre
     # os anuncios com detalhe lido -- 8% da base -- e ficavam ao lado de
     # um cartao a dizer "Sem detalhe lido 60 589". Lidas em conjunto, a
@@ -13840,8 +13363,7 @@ def indicadores():
                                     le_marca("token_ultimo_erro", ""),
                                     le_marca("ultimo_erro_triagem_git", ""),
                                     le_marca("vortal_ultimo_erro", ""),
-                                    le_marca("pecas_dr_ultimo_erro", ""),
-                                    le_marca("ocr_ultimo_erro", ""))
+                                    le_marca("pecas_dr_ultimo_erro", ""))
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "#d68910"))
 
@@ -14285,19 +13807,6 @@ def main():
                   "na base; volta a correr depois da recolha: %s%s"
                   % (tabela, len(refs), ", ".join(refs[:8]),
                      "…" if len(refs) > 8 else ""))
-        return
-
-    if "--ocr" in sys.argv:
-        # Le pelo OCR as digitalizacoes que ja estavam na base (as
-        # novas leem-se sozinhas quando se pedem as pecas). Com um ref a
-        # seguir, so esse anuncio.
-        # Com "tudo", rele tambem as que ja estao lidas -- e o que faz
-        # uma escala nova chegar as pecas antigas. "tudo" nao e um ref.
-        i = sys.argv.index("--ocr")
-        resto = [a for a in sys.argv[i + 1:i + 3] if not a.startswith("--")]
-        tudo = "tudo" in resto
-        ref = next((a for a in resto if a != "tudo"), None)
-        ocr_pendentes(ref, tudo=tudo)
         return
 
     if "--descartar-expirados" in sys.argv:

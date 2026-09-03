@@ -1,6 +1,6 @@
 # Estado do projecto, para quem pegar nisto a seguir
 
-Última actualização: 3 de setembro de 2026.
+Última actualização: 3 de setembro de 2026 (a retirada do OCR e da vigilância das peças).
 
 ## O que isto é
 
@@ -20,37 +20,39 @@ antiga, e a triagem faz-se no painel, por CPV, palavras, datas e estado.
 
 ## Como está a correr
 
-Funciona. A base tem **66 336 anúncios, dois anos deles**
-(28/08/2024–02/09/2026) — **65 465 procedimentos**, porque 871 são
+Funciona. A base tem **66 387 anúncios, dois anos deles**
+(28/08/2024–03/09/2026) — **65 511 procedimentos**, porque 876 são
 republicações («Alteração do Anúncio de procedimento n.º …») ligadas
 ao original desde 01/09/2026 e fora de todas as listas: o grosso trazido pelo `--historico 730` a
 28/08/2026, mais a rotina diária — que desde 31/08 inclui as
-**consultas preliminares da Vortal** (17 na primeira recolha, **24 até
+**consultas preliminares da Vortal** (17 na primeira recolha, **32 até
 agora**, `fonte='vortal'`), o tipo que a parte L não publica — **todas
 com CPV e NIPC desde 01/09/2026**, que é quando se passou a ler o
 detalhe delas e não só a linha da pesquisa.
-**Só 8,5% têm detalhe lido** (5 645): a rotina lê o detalhe apenas dos
+**Só 9,3% têm detalhe lido** (6 172): a rotina lê o detalhe apenas dos
 publicados na janela `detalhe_dias` (60 dias), e os antigos lêem-se
 quando se abre a ficha. Consequência a ter presente: um filtro por CPV
 só apanha quem tem detalhe lido — o histórico é acervo por consultar,
 não estatística, enquanto os detalhes não forem forçados (~17 horas de
-pedidos a um por segundo).
+pedidos a um por segundo). **Decisão do Afonso a 03/09/2026: fica
+assim.** «Passado é passado, e nesses anúncios já não conseguimos fazer
+nada» — os 60 215 sem detalhe não se vão forçar.
 
 A base já esteve cortada aos 60 dias por decisão do Afonso (~5 100
 anúncios, todos com detalhe lido); o `--historico 730` reverteu isso na
 prática. A limpeza não é automática: o que envelhece acumula.
 
 Desde 31/08/2026 os anuncios sao **uma pagina so** (`/`), e o que
-aparta o acervo sao as quatro abas: **por ver 1 212** (por decidir e
-ainda respondivel), **interessados 4** (todos, expirados incluidos --
-um interessa expirado e trabalho em curso), **abandonados 64 249** (os
+aparta o acervo sao as quatro abas: **por ver 1 181** (por decidir e
+ainda respondivel), **interessados 6** (todos, expirados incluidos --
+um interessa expirado e trabalho em curso), **abandonados 64 324** (os
 3 728 descartados a mao mais os por ver que ja nao dao para responder)
-e **todos 65 465**. O Excel da casa (187 concursos, 149 ligados a
+e **todos 65 511**. O Excel da casa (187 concursos, 149 ligados a
 anuncios) esta na base desde 02/09/2026 mas **nao toca em nenhum
 destes numeros nem se ve no painel**, por decisao dele -- ver a
 seccao do registo da casa. A particao e exacta sobre os
 procedimentos, e e recorte de leitura: a base nao muda -- la dentro ha
-61 733 com estado `novo`, e as 871 alteracoes (`estado='alteracao'`)
+61 777 com estado `novo`, e as 876 alteracoes (`estado='alteracao'`)
 nao entram em aba nenhuma, nem na de todos. A **Triagem e a
 Pesquisa separadas duraram um dia**: `/anuncios` redirecciona com o
 filtro atras, e o interruptor do arquivo caiu. **O esqueleto esta
@@ -1916,7 +1918,7 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 672 testes a 03/09/2026 (eram 118 quando esta
+**`teste_radar.py`** — 655 testes a 03/09/2026 (eram 118 quando esta
 secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
@@ -4987,6 +4989,11 @@ e o resto é meia jornada sem mudar hábitos.
 
 ## As digitalizações lêem-se por OCR, 2 de setembro de 2026
 
+> **Revertido a 03/09/2026** — ver «O OCR e a vigilância das peças
+> saíram», no fim deste ficheiro. O que está aqui é o registo do que se
+> fez e mediu, e vale para quem o quiser repor; não descreve o radar de
+> hoje.
+
 O buraco medido em Agosto: dos 12 Cadernos de Encargos e Programas
 reais, 2 são digitalizações sem camada de texto, ficavam em
 `texto_estado='scan'` e a leitura pelo modelo nem arrancava («os
@@ -5132,6 +5139,11 @@ encurtado, teclado).
 
 ## A escala do OCR mede-se pelos valores, 3 de setembro de 2026
 
+> **Revertido a 03/09/2026** — ver «O OCR e a vigilância das peças
+> saíram», no fim deste ficheiro. O que está aqui é o registo do que se
+> fez e mediu, e vale para quem o quiser repor; não descreve o radar de
+> hoje.
+
 Ficou o ponto A: olhar para a qualidade do texto lido pelo OCR e
 decidir se o `OCR_ESCALA` fica em 2,0 ou desce para 1,5 (o argumento
 para descer era o tempo). **A resposta é nenhuma das duas: subiu para
@@ -5221,6 +5233,11 @@ nas 16 páginas onde ele existe; o `[CA]` do 21295/2026 tem
 
 ## As peças novas na plataforma avisam-se, 3 de setembro de 2026
 
+> **Revertido a 03/09/2026** — ver «O OCR e a vigilância das peças
+> saíram», no fim deste ficheiro. O que está aqui é o registo do que se
+> fez e mediu, e vale para quem o quiser repor; não descreve o radar de
+> hoje.
+
 O `reler_marcados()` vigia o prazo e o preço base na página do DR. Mas
 **um esclarecimento ou uma errata não passam pelo DR**: aparecem na
 lista de documentos do procedimento, na plataforma, e só se dava por
@@ -5308,3 +5325,68 @@ e a `proposta` continuam a ser os que se leram do CE antigo, e no
 21830/2026 o CE antigo tinha a referência errada. E há três anúncios
 `descartado` com fase no quadro, que o `reler_marcados()` já vigia
 hoje: «abandonado mas no quadro» é uma contradição que ninguém decidiu.
+
+
+## O OCR e a vigilância das peças saíram, 3 de setembro de 2026
+
+Decisão do Afonso, no dia a seguir a as duas terem ficado prontas.
+A pergunta que ele fez foi «acredito que não houve uma mais-valia para
+a aplicação», e a base deu-lhe razão em números:
+
+| | |
+|---|---|
+| Documentos em disco | 182 |
+| Lidos pelo OCR | **8** |
+| Anúncios que a vigilância vigiava | **6** (os `interessa`) |
+| Anúncios na base | 66 387 |
+| **Sem detalhe lido** | **60 215 (91%)** |
+
+Nenhuma das duas estava mal feita. O OCR lia português com acentos à
+escala 2,5 e tinha as medidas todas escritas; a vigilância comparava a
+lista das plataformas com a tabela `documentos` e tinha sete testes. O
+problema é onde estavam: **na ponta mais estreita de um funil que
+recebe 80 detalhes por dia e tem 60 mil por ler.** Só se chega ao OCR
+depois de trazer as peças, e só se trazem peças depois de marcar
+«interessa» — e havia seis.
+
+**O que saiu do `radar.py`** (13 863 linhas, eram 14 307):
+
+- a banda «OCR das peças digitalizadas» inteira — `motor_ocr()`,
+  `texto_por_ocr()`, `ocr_ligado()`, `ocr_instalado()`, `OCR_ESCALA`;
+- `ocr_pendentes()` e o comando `--ocr`;
+- a segunda passagem do `extrair_textos()` e o `motor` do
+  `texto_do_zip()`;
+- a banda «vigiar a lista das peças» — `vigiar_pecas()`,
+  `_guardar_pecas_novas()`, `CAMPO_PECA_NOVA`, `PECAS_DO_RADAR` — e os
+  ajudantes que só ela usava: `pecas_disponiveis()`,
+  `_nome_sem_corpo()`, `_buscar_do_endereco()`, `_buscar_do_zip()`;
+- a volta que a `verificar()` dava à vigilância, o caso `peca_nova` nos
+  dois resumos, a linha do OCR na saúde dos indicadores e a marca
+  `ocr_ultimo_erro`;
+- a chave `"ocr"` do config e o `rapidocr`/`onnxruntime` do
+  `requirements.txt`.
+
+**O que ficou de propósito.** O visualizador de peças —
+`paginas_do_pdf_imagem()`, `imagem_da_pagina()`, `paginas_com_termo()`
+— vivia debaixo do cabeçalho do OCR sem ser dele, e ganhou cabeçalho
+próprio: é o que desenha a página no servidor e o que procura dentro
+do PDF. E o `texto_estado='ocr'` continua a ser aceite por
+`documentos_com_texto()`: os 8 documentos que o OCR leu têm texto a
+sério, e apagá-lo seria perder dados por arrumação. `imagem` lê-se
+como `scan`. Não se produz mais nenhum dos dois.
+
+**Testes: 655, todos verdes em 18 s** (eram 673 com 13 saltados — os
+saltados eram os do OCR). Saíram `TestOcrDasPecas` e
+`TestVigilanciaDasPecas`; `test_os_indicadores_leem_as_oito_marcas`
+passou a `…as_sete_marcas`.
+
+**As dependências continuam instaladas em `libs/`** — o `onnxruntime`
+são 45 MB e o `rapidocr` 32 MB, mais o opencv, o numpy e o shapely que
+vieram com eles. Não se apagaram: é decisão dele, e recupera-se o
+espaço com `python\python.exe pip.pyz uninstall rapidocr onnxruntime
+opencv-python-headless shapely omegaconf --target libs`.
+
+**A lição, para quando alguma destas voltar:** o que as fazia não valer
+a pena não era o código — era não haver anúncios marcados que
+chegassem. Estão no git, com as medidas: `git show 8963251` (OCR),
+`01e13bb` (a escala), `31fd388` (vigilância).

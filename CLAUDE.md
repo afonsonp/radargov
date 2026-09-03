@@ -44,7 +44,6 @@ python radar.py --uma-vez          # verifica e sai (é o que as tarefas correm)
 python radar.py --historico 730    # recolha extra de N dias; conta horas
 python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
-python radar.py --ocr [ref] [tudo] # lê pelo OCR as digitalizações já na base, com o tempo de cada; "tudo" relê as já lidas (escala nova)
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
@@ -366,28 +365,16 @@ A ordem do ficheiro é a ordem do fluxo:
   validação: o inválido deixa ficar o de origem, nunca cala uma leitura
   em silêncio. Campos novos não entram por aí — a `analise` tem colunas
   fixas.
-- **Vigiar a lista das peças não é trazer as peças.** `vigiar_pecas()`
-  (03/09/2026) faz do lado das plataformas o que o `reler_marcados()`
-  faz do lado do DR: um esclarecimento ou uma errata **não passam pelo
-  DR**, aparecem na lista de documentos do procedimento. **Nunca uses o
-  `obter_documentos()` para isto**: ele faz `DELETE FROM documentos
-  WHERE ref=?` e volta a trazer tudo — apagava o texto já extraído e os
-  veredictos do OCR, e mandava as ~7 s por página de cada digitalização
-  outra vez. Quem lista é `pecas_disponiveis()`, que devolve
-  `[(nome, buscar)]` e só chama o `buscar` das novas: na Vortal os
-  nomes vêm no JSON sem descarregar nada; na acingov **a lista é o
-  ZIP** (não há endereço de listagem sem sessão, medido a 01/09/2026);
-  na anogov/ComprasPT/ESPAP o nome só vem no `Content-Disposition`, por
-  isso `_nome_sem_corpo()` lê os cabeçalhos e não o corpo. O recorte é
-  o do `reler_marcados()` MAIS `docs_estado` em ok/parcial — sem lista
-  de partida cada peça do procedimento contava como novidade. Lista
-  vazia não é «desapareceram»: é a plataforma em baixo, e não avisa
-  nada. E uma peça **avisada** não se avisa outra vez mesmo que não se
-  consiga trazer (ficheiro acima do `MAX_FICHEIRO`) — a guarda é olhar
-  para a fila `alteracoes`, senão o mesmo anexo saía no resumo duas
-  vezes por dia para sempre. No resumo, `peca_nova` tem caso próprio no
-  texto E no HTML, como o `retificacao`: o `antes` é vazio e
-  « → Errata.pdf» não se lê.
+- **A vigilância das peças foi retirada a 03/09/2026**, no dia a
+  seguir a ter sido feita, por decisão do Afonso. Não porque estivesse
+  errada — funcionava e tinha sete testes — mas porque **vigiava seis
+  anúncios**: só olhava para os «interessa», e só havia seis na base.
+  Foi construída na ponta mais estreita de um funil que tem 60 217
+  anúncios por ler à entrada. Saíram com ela `vigiar_pecas()`,
+  `pecas_disponiveis()`, `_nome_sem_corpo()`, o campo `peca_nova` do
+  resumo e a volta que a verificação lhe dava. **Se voltar**, volta com
+  a lição escrita: o que a fazia valer a pena não era o código, era
+  haver anúncios marcados que chegassem. Está em `git show 31fd388`.
 - **A releitura dos marcados é vigilância, não recolha.**
   `reler_marcados()` relê por verificação até 25 anúncios
   interessa/quadro com prazo aberto; `_guardar_detalhe()` compara prazo
@@ -793,34 +780,24 @@ A ordem do ficheiro é a ordem do fluxo:
   nomes novos.
 - **Só passam pelo modelo documentos públicos** (Cadernos de Encargos e
   Programas de Concurso). Propostas, CVs e trabalho próprio não.
-- **As digitalizações lêem-se por OCR, e `scan` deixou de ser
-  terminal.** 2 dos 12 CE/PC medidos não têm camada de texto. O
-  RapidOCR (modelos PP-OCR em ONNX, opcional no `requirements.txt`) lê
-  português com acentos com o modelo que a roda traz, sem descarregar
-  nada; o `rapidocr_onnxruntime` 1.4 **não serve** (perde os acentos e
-  leu «175.oo0,00»). Os estados de `texto_estado`: `ok` (pypdf), `ocr`
-  (texto pelo OCR, com as marcas `\f`), `scan` (sem camada de texto e
-  **ainda sem OCR tentado**), `imagem` (o OCR correu e não achou
-  texto). A segunda passagem de `extrair_textos()` apanha os `scan`
-  com ficheiro em disco quando há motor, uma vez por documento; sem
-  motor o veredicto fica. O motor carrega-se uma vez por processo
-  (`motor_ocr()`) e só quando há mesmo o que ler; **6 s por página
-  isolado e 8 s pelo `--ocr`** no PC (medido a 03/09/2026 à escala
-  2,5; o «~28 s» de 02/09 não se reproduz e não se explicou — ver o
-  ESTADO.md), em thread de fundo. Quem consome texto pergunta por
-  `IN ('ok','ocr')`, nunca só por `'ok'`. Desliga-se com `"ocr": false`.
-- **A escala do OCR decide-se pelo valor confirmado na página, nunca
-  pelo aspecto do texto.** `OCR_ESCALA` é 2,5 desde 03/09/2026, e a
-  medida está por cima dele no `radar.py`. Abaixo de 2,0 o modelo não
-  desfaz a linha: **adivinha-a** — leu «110» e «10» onde a página diz
-  «≥170 cv», e «2036» onde estava «2026». Uma linha desfeita vê-se; um
-  número plausível e errado passa pelo `euros_do_texto()` e pelo modelo
-  como se fosse dado. Por isso a métrica «linhas desfeitas» mente ao
-  contrário — premeia a escala que troca falha visível por erro
-  silencioso — e uma escala nova só se aprova desenhando as páginas e
-  lendo os valores, em mais do que um documento. Não desças a escala
-  para poupar tempo: o tempo já não é o problema que o ESTADO.md
-  dizia.
+- **O OCR foi retirado a 03/09/2026**, por decisão do Afonso, um dia
+  depois de entrar. Funcionava — RapidOCR, modelos PP-OCR em ONNX, à
+  escala 2,5 — mas tinha lido **8 documentos de 182**: os CE/PC sem
+  camada de texto são 2 em 12, e há 182 peças em disco porque só há
+  seis anúncios marcados. 77 MB de dependências e uma banda inteira do
+  `radar.py` por 8 documentos. Está em `git show 8963251` e `01e13bb`,
+  com as medidas todas, e o que lá está escrito sobre a escala vale
+  para quem o reponha: **abaixo de 2,0 o modelo não desfaz a linha,
+  adivinha-a** (leu «110» onde a página diz «≥170 cv», «2036» onde
+  estava «2026»), e por isso uma escala só se aprova a ler os valores
+  desenhados, nunca pelo aspecto do texto.
+- **`texto_estado` tem quatro valores, e dois são legado.** `ok` (o
+  pypdf leu), `scan` (PDF sem camada de texto — é um veredicto sobre o
+  conteúdo e fica), `erro: …` (falha da ferramenta, retenta-se), «não
+  é PDF». Os `ocr` e `imagem` que estão na base vieram do OCR que
+  saiu: o texto dos `ocr` é texto a sério e continua a servir
+  (`documentos_com_texto()` pergunta por `IN ('ok','ocr')`), e
+  `imagem` lê-se como `scan`. Não se produzem mais nenhum dos dois.
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.
