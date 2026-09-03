@@ -6766,6 +6766,41 @@ class TestRegistoDaCasa(BaseTemporaria):
             ok, msg = casa.ligar_a_mao(c, 1, "5491/2026")
         self.assertIn("lote 1 de 3", msg)
 
+    def test_o_preco_que_e_a_soma_dos_lotes_e_o_conjunto_nao_um_lote(self):
+        # As #23 e #26 do Excel traziam a soma exacta dos dois lotes e
+        # ficavam com lote=NULL, indistinguiveis das que estao mesmo por
+        # identificar -- foi o que obrigou a perguntar. A resposta dele
+        # (03/09/2026): "o preco que la esta e o total do anuncio, nao
+        # esta dividido por lotes". Zero e o conjunto; NULL continua a
+        # ser "por identificar", e a #129 (valor da nossa proposta, que
+        # nao bate com nada) tem de continuar NULL.
+        lotes = radar.lotes_do_texto(self.LOTES)
+        soma = 53667.20 + 268336.00 + 26833.60
+        self.assertEqual(casa.lote_da_linha({"nome": "Biblioteca",
+                                             "preco_base": soma}, lotes), 0)
+        # e nao se conta como lote identificado
+        self.assertFalse(casa.lote_da_linha({"nome": "Biblioteca",
+                                             "preco_base": soma}, lotes))
+        # um preco que nao bate com lote nenhum nem com a soma fica por identificar
+        self.assertIsNone(casa.lote_da_linha({"nome": "Biblioteca",
+                                              "preco_base": soma - 1000}, lotes))
+        # o nome ganha a soma: um "Lote 2" explicito nao vira conjunto
+        self.assertEqual(casa.lote_da_linha({"nome": "Biblioteca L2",
+                                             "preco_base": soma}, lotes), 2)
+        self._base_normal()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET lotes=? WHERE ref='5491/2026'",
+                      (json.dumps(lotes),))
+        indice = [list(self.INDICE[0])]
+        indice[0][4] = soma
+        rel = casa.importar(self._excel(indice, {}), ler=False)
+        self.assertEqual((rel["em_lotes"], rel["com_lote"], rel["conjunto"]), (1, 0, 1))
+        self.assertIn("pelo conjunto: 1", casa.texto_do_relatorio(rel))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT lote FROM casa WHERE id=1").fetchone()[0], 0)
+            ok, msg = casa.ligar_a_mao(c, 1, "5491/2026")
+        self.assertIn("o preço é o conjunto", msg)
+
     def test_sem_anuncio_no_dr_fica_dito_e_nao_se_volta_a_procurar(self):
         # as respostas dele (02/09/2026): consultas previas, ajustes
         # directos e consultas preliminares nao tem anuncio no DR

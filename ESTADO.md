@@ -91,16 +91,26 @@ da barra), o desenho visual «ardósia e âmbar», a ficha em dossier com o
 leitor de peças lá dentro, o quadro de seis fases, o calendário, os
 alertas por e-mail em texto e HTML, o corpus de contratos do Portal BASE
 com os sete gráficos, a exportação da triagem para o git, a segunda fonte
-(Vortal), e o registo da casa (o Excel de 187 concursos, 149 ligados).
+(Vortal), e o registo da casa (o Excel de 187 concursos, 172 ligados).
 
 **O registo da casa não toca em nada.** Está na base desde 02/09/2026
 mas não se vê no painel nem mexe em nenhum destes números, por decisão
-dele: nada muda no front antes de o registo estar validado, e os lotes
-(várias linhas do Excel no mesmo anúncio) ainda não têm solução. Há um
+dele: nada muda no front antes de o registo estar validado. Há um
 teste a guardá-lo (`test_o_front_nao_mudou`).
 
-**Código e testes.** `radar.py` com 13 864 linhas, `casa.py` com 844,
-`teste_radar.py` com 655 testes que correm em 19 segundos, sem rede e sem
+**Os lotes já têm solução, tirando dois casos.** A 03/09/2026 ele
+respondeu às quatro linhas que faltavam. As #23 e #26 traziam a **soma**
+dos lotes — é o total do anúncio, não está dividido por lotes: passaram
+a `casa.lote = 0`, «o conjunto», e a regra ficou no `lote_da_linha()`
+para valer nas importações seguintes. As #129 e #147 trazem um número
+que não bate com lote nenhum, nem com a soma, nem com o preço base de
+qualquer anúncio da base — é, provavelmente, o valor da nossa proposta;
+ficam por identificar até ele dizer o lote à mão. São 12 as linhas
+ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
+identificar — e as 2 que faltam são exactamente essas.
+
+**Código e testes.** `radar.py` com 13 863 linhas, `casa.py` com 918,
+`teste_radar.py` com 656 testes que correm em 26 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 747 linhas, 56%).
 

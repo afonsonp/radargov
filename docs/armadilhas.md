@@ -588,7 +588,22 @@ O funil da casa, do «por ver» ao «ganho».
   os outros campos). O Excel da casa tem uma linha por lote, e o preço
   base dessa linha é o **do lote**: é assim que `casa.lote` se
   atribui (`lote_da_linha()`: preço base igual, senão «L1»/«Lote 2» no
-  nome). Decisão do Afonso a 02/09/2026 para quando o registo chegar
+  nome). **Nem sempre — e o valor de `casa.lote` distingue os três
+  casos.** Quando o preço da linha é a **soma** de todos os lotes, o
+  número do Excel é o total do anúncio e a linha não está dividida por
+  lotes: `lote = 0`, «o conjunto» (resposta dele a 03/09/2026 sobre as
+  #23 e #26). `NULL` fica a significar só «por identificar», que é o
+  que era preciso: as duas coisas eram ambas `NULL` e ficavam
+  indistinguíveis, e foi isso que obrigou a perguntar. **Zero é falso
+  em Python, de propósito** — quem contava «linhas com lote» com um
+  `bool(lote)` continua a não as contar; para as contar usa-se
+  `lote == 0`. E há um quarto caso que nenhuma regra apanha: uma linha
+  cujo preço não bate com lote nenhum, nem com a soma, nem com o preço
+  base de qualquer anúncio da base (as #129 e #147) — aí o número do
+  Excel é, provavelmente, o **valor da nossa proposta** e não um preço
+  base, e a linha fica `NULL` até ele dizer o lote à mão. Não se move o
+  número para `valor_proposta` com base num «provavelmente». Decisão do
+  Afonso a 02/09/2026 para quando o registo chegar
   ao ecrã: **um cartão por anúncio**; um anúncio com lotes diz a que
   lotes se foi e se se foi a todos; e no fim, em Ganho ou Perdido, **os
   cartões separam-se por lote**, cada um com o seu resultado. Ainda não
