@@ -115,10 +115,13 @@ A ordem do ficheiro é a ordem do fluxo:
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
    `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
    série dos erros que as marcas sobrescrevem; poda a 200 por tipo).
-2. **comum** — as utilidades puras: `data_pt()`, `data_hora_pt()`,
-   `mil_pt()`, `euros_do_texto()`, `conta_dias()`, `dias_restantes()`,
-   `dias_urgente()`, `janela_urgente()`, `etiqueta_prazo()`,
-   `para_like()`, `prefixo_cpv()`, `data_de_filtro()`. Não tocam na
+2. **comum** — as utilidades puras: `simplifica()`, `data_pt()`,
+   `data_hora_pt()`, `mil_pt()`, `euros_do_texto()`, `conta_dias()`,
+   `dias_restantes()`, `dias_urgente()`, `janela_urgente()`,
+   `etiqueta_prazo()`, `para_like()`, `prefixo_cpv()`,
+   `data_de_filtro()`, e as duas primitivas do filtro de texto
+   (`frag_de_texto()` / `frag_de_exclusao()`, que as duas
+   `condicoes*()` partilham). Não tocam na
    base, não escrevem HTML e não dependem de nada à frente. **Um
    formatador novo entra aqui**, não na banda que por acaso o precisou
    primeiro — ver a regra no `docs/armadilhas.md`.
