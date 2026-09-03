@@ -765,9 +765,23 @@ A ordem do ficheiro é a ordem do fluxo:
   texto). A segunda passagem de `extrair_textos()` apanha os `scan`
   com ficheiro em disco quando há motor, uma vez por documento; sem
   motor o veredicto fica. O motor carrega-se uma vez por processo
-  (`motor_ocr()`) e só quando há mesmo o que ler; ~5 s por página em
-  CPU aqui e **~28 s no PC** (medido), em thread de fundo. Quem consome texto pergunta por
+  (`motor_ocr()`) e só quando há mesmo o que ler; **6 s por página
+  isolado e 8 s pelo `--ocr`** no PC (medido a 03/09/2026 à escala
+  2,5; o «~28 s» de 02/09 não se reproduz e não se explicou — ver o
+  ESTADO.md), em thread de fundo. Quem consome texto pergunta por
   `IN ('ok','ocr')`, nunca só por `'ok'`. Desliga-se com `"ocr": false`.
+- **A escala do OCR decide-se pelo valor confirmado na página, nunca
+  pelo aspecto do texto.** `OCR_ESCALA` é 2,5 desde 03/09/2026, e a
+  medida está por cima dele no `radar.py`. Abaixo de 2,0 o modelo não
+  desfaz a linha: **adivinha-a** — leu «110» e «10» onde a página diz
+  «≥170 cv», e «2036» onde estava «2026». Uma linha desfeita vê-se; um
+  número plausível e errado passa pelo `euros_do_texto()` e pelo modelo
+  como se fosse dado. Por isso a métrica «linhas desfeitas» mente ao
+  contrário — premeia a escala que troca falha visível por erro
+  silencioso — e uma escala nova só se aprova desenhando as páginas e
+  lendo os valores, em mais do que um documento. Não desças a escala
+  para poupar tempo: o tempo já não é o problema que o ESTADO.md
+  dizia.
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.

@@ -2541,8 +2541,11 @@ def texto_do_pdf(caminho):
 # 150 dpi, 10 linhas em 10 e "175.000,00 EUR" certo. O modelo chines/
 # ingles do rapidocr_onnxruntime 1.4 perdia os acentos E lia
 # "175.oo0,00", que o euros_do_texto() nao come -- nao e alternativa.
-# Custa ~5 s por pagina em CPU: uma peca de 27 paginas sao uns 2
-# minutos, em thread de fundo (a fila das pecas ou a da analise).
+# Custa 6 s por pagina em CPU no PC, isolado, e 8 s pelo `--ocr`, que
+# tambem carrega o motor e grava (medido a 03/09/2026 a escala 2,5; o
+# "~28 s por pagina" de 02/09 NAO se reproduz, e numa escala mais alta
+# -- ver o ESTADO.md): um CE de 20 paginas sao 2 a 3 minutos, em
+# thread de fundo (a fila das pecas ou a da analise).
 #
 # O radar funciona sem o pacote, como ate aqui. Com ele, os 'scan'
 # passam a 'ocr' (texto com as marcas \f de sempre, que a ficha e a
@@ -2552,7 +2555,32 @@ def texto_do_pdf(caminho):
 # quando ha motor, uma vez por documento. Desliga-se com "ocr": false
 # no config.json.
 
-OCR_ESCALA = 2.0                  # 144 dpi sobre um PDF a 72; chega
+# A escala mede-se pelos VALORES lidos, nunca pelo aspecto do texto.
+# Medido a 03/09/2026 nos dois digitalizados da base (o CE de 20
+# paginas do 20968/2026 e o [CA] de 6 do 21295/2026), de 1,0 a 4,0:
+#
+#   escala   s/pag   preco base   artigo 332   tabela "≥170 cv"
+#   1,0       3,9        ok           --            "110"
+#   1,25      4,2        ok           --            "110"
+#   1,5       3,6        ok           ok             "10"
+#   1,75      4,9        ok           --        "170" (sem o ≥)
+#   2,0       5,1     PERDIDO     PERDIDO             ok
+#   2,5       6,0        ok           ok              ok
+#   3,0       5,5        ok           ok              ok
+#   4,0       6,0        ok           ok              ok
+#
+# Abaixo de 2,0 o modelo nao desfaz a linha: ADIVINHA-A. Leu "110" e
+# "10" onde a pagina diz "≥170 cv" (confirmado a olho na pagina 14), e
+# no [CA] o 2,0 leu 2036.08.06 onde esta 2026.08.06. Um numero errado
+# passa pelo euros_do_texto() e pelo modelo como se fosse dado; uma
+# linha desfeita ve-se. Por isso a metrica "linhas desfeitas" mente ao
+# contrario -- premeia a escala que troca falha visivel por erro
+# silencioso -- e a decisao e sempre pelo valor confirmado na pagina.
+#
+# 2,5 e a escala mais baixa em que os dois documentos leem certo todos
+# os valores confirmados; acima nao ganha nada e comeca a perder
+# caracteres. O 2,0 anterior perdia a clausula do preco base inteira.
+OCR_ESCALA = 2.5                  # 180 dpi sobre um PDF a 72
 OCR_MINIMO_POR_PAGINA = 20        # chars por pagina; abaixo e imagem
 _OCR = {"motor": None, "erro": ""}
 
