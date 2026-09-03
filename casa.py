@@ -575,7 +575,9 @@ def iniciar_tabelas(c):
         c.execute("ALTER TABLE casa ADD COLUMN porque_sem_ref TEXT")
     # A que lote do anuncio esta linha corresponde (o Excel tem uma linha
     # por lote; o DR um anuncio para todos). NULL = anuncio sem lotes, ou
-    # lote por identificar.
+    # lote por identificar. ZERO = o conjunto: a linha e do procedimento
+    # inteiro, nao de um lote (resposta do Afonso a 03/09/2026 sobre as
+    # linhas #23 e #26, cujo preco e o total do anuncio).
     if "lote" not in colunas:
         c.execute("ALTER TABLE casa ADD COLUMN lote INTEGER")
 
@@ -584,11 +586,18 @@ RX_LOTE_NO_NOME = re.compile(r"\bL(?:ote)?\s*\.?\s*(\d{1,2})\b", re.I)
 
 
 def lote_da_linha(linha, lotes):
-    """O numero do lote a que a linha do Excel corresponde, ou None.
+    """O numero do lote a que a linha do Excel corresponde, 0 ou None.
 
     Primeiro pelo preco base: a linha traz o preco base DO LOTE (medido
     nos quatro anuncios com varias linhas a 02/09/2026 -- #7 = 53 667,20
-    = lote 1 do 2770/2026). Depois por um "L1" ou "Lote 2" no nome."""
+    = lote 1 do 2770/2026). Depois por um "L1" ou "Lote 2" no nome.
+
+    Em ultimo, ZERO -- o conjunto -- quando o preco da linha e a SOMA de
+    todos os lotes: nesse caso o numero do Excel e o total do anuncio e a
+    linha nao esta dividida por lotes (o Afonso, a 03/09/2026, sobre as
+    #23 e #26). Zero e falso em Python, e e de proposito: quem contava
+    "linhas com lote" continua a nao as contar, mas deixa de as confundir
+    com as que estao mesmo por identificar."""
     if not lotes:
         return None
     pb = linha.get("preco_base")
@@ -600,6 +609,10 @@ def lote_da_linha(linha, lotes):
     m = RX_LOTE_NO_NOME.search(linha.get("nome") or "")
     if m and 1 <= int(m.group(1)) <= max(l["n"] for l in lotes):
         return int(m.group(1))
+    if pb:
+        soma = [_num(l.get("preco_base")) for l in lotes]
+        if all(soma) and abs(sum(soma) - pb) < 1:
+            return 0
     return None
 
 
@@ -657,6 +670,7 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     rel = {"total": len(linhas), "fora": [], "ligadas": 0, "novas": 0,
            "manuais": 0, "pelo_base": 0, "sem_dr": 0, "em_lotes": 0, "com_lote": 0,
+           "conjunto": 0,
            "ambiguas": [], "sem": [],
            "aplicadas": {}, "conflitos": [], "lidos": 0, "ensaio": ensaio}
     _ENTIDADES.clear()
@@ -753,6 +767,7 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
                     rel["em_lotes"] += 1
                     lote = lote_da_linha(linha, lotes)
                     rel["com_lote"] += bool(lote)
+                    rel["conjunto"] += lote == 0
                 else:
                     lote = None
             if not ensaio:
@@ -786,7 +801,9 @@ def texto_do_relatorio(rel):
         linhas.append("  detalhes lidos ao DR para desempatar: %d" % rel["lidos"])
     if rel["em_lotes"]:
         linhas.append("  linhas em anúncios com lotes: %d, com o lote identificado: %d"
-                      % (rel["em_lotes"], rel["com_lote"]))
+                      "%s"
+                      % (rel["em_lotes"], rel["com_lote"],
+                         (", pelo conjunto: %d" % rel["conjunto"]) if rel["conjunto"] else ""))
     linhas.append("  ambíguos: %d | sem correspondência: %d | sem anúncio no DR: %d"
                   " | fora do país: %d"
                   % (len(rel["ambiguas"]), len(rel["sem"]), rel["sem_dr"],
@@ -858,6 +875,7 @@ def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False, porque=""):
     return True, "#%s ligado ao anúncio %s (%s%s)" % (
         ide, ref, resultado,
         (", lote %d de %d" % (lote, len(lotes))) if lote else
+        (", %d lotes, o preço é o conjunto" % len(lotes)) if lote == 0 else
         (", %d lotes, lote por identificar" % len(lotes)) if lotes else "")
 
 
