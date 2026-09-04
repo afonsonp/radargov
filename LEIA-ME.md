@@ -31,7 +31,7 @@ movendo a pasta para fora do OneDrive.
    entre 2 e 3 de setembro de 2026 e foi retirado, porque tinha lido 8
    documentos de 182.
 2. Faz a captura da secção 3.
-3. Duplo clique em `iniciar.bat`. Abre o painel em `http://localhost:8765`.
+3. Duplo clique em `iniciar.bat`. Abre o painel em `http://127.0.0.1:8765`.
 4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as
    verificações das 09h e 17h e a actualização semanal dos contratos,
    à segunda de manhã.

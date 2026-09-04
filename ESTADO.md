@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **3 de setembro de 2026**.
+Última actualização: **4 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**. O histórico saiu daqui no
 mesmo dia: era um ficheiro de 5 297 linhas onde o topo envelhecia a cada
@@ -24,7 +24,7 @@ sessão que só acrescentava no fim. Onde está o resto:
 Aplicação local em Python que vigia os anúncios de contratação pública
 publicados no Diário da República, série II, **parte L**. Guarda tudo
 numa base SQLite e mostra num painel web local, em
-`http://localhost:8765`. Verifica sozinha às 09:00 e às 17:00, por
+`http://127.0.0.1:8765`. Verifica sozinha às 09:00 e às 17:00, por
 tarefas do Windows.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
@@ -37,30 +37,38 @@ L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números são de **3/09/2026**, lidos das duas bases.
+Funciona. Os números são de **4/09/2026**, lidos das duas bases.
 
-**O acervo.** 66 387 anúncios, dois anos deles (28/08/2024 a
-03/09/2026) — **65 511 procedimentos**, porque 876 são republicações
+**O acervo.** 66 498 anúncios, dois anos deles (28/08/2024 a
+04/09/2026) — **58 222 procedimentos**, porque 8 276 são republicações
 («Alteração do Anúncio de procedimento n.º …») ligadas ao original e
-fora de todas as listas. O grosso veio do `--historico 730` a
-28/08/2026; a rotina diária traz ~65 por dia útil, mais as **consultas
-preliminares da Vortal** (32 até agora, `fonte='vortal'`), o tipo que a
-parte L não publica.
+fora de todas as listas. Eram 876 a 3/09: o salto não é recolha nova,
+é o `--detalhes tudo` a acabar — só quem tem o detalhe lido se sabe
+alteração, e até então 91% estavam por ler. O grosso veio do
+`--historico 730` a 28/08/2026; a rotina diária traz ~65 por dia útil,
+mais as **consultas preliminares da Vortal** (34 até agora,
+`fonte='vortal'`), o tipo que a parte L não publica.
 
 **O funil, e onde ele aperta.**
 
 | Passo | Quantos | |
 |---|---|---|
-| Na base | 66 387 | |
-| Procedimentos distintos | 65 511 | 876 são alterações |
-| **Com detalhe lido** | **6 172** | **9,3%** |
-| Por ver, ainda respondíveis | 1 181 | a aba de entrada |
+| Na base | 66 498 | |
+| Procedimentos distintos | 58 222 | 8 276 são alterações |
+| **Com detalhe lido** | **66 404** | **99,9%** — faltam 94 |
+| Por ver, ainda respondíveis | 1 247 | a aba de entrada |
 | Descartados à mão | 3 728 | com motivo |
 | **Marcados «interessa»** | **6** | |
 | Peças em disco | 182 | 32 anúncios, 206 MB |
 | Lidas pelo modelo | 29 | |
 
-Os dois apertos são conhecidos e um deles é decisão tomada:
+O aperto de cima **desapareceu a 4/09/2026**: o `--detalhes tudo`
+acabou de correr e faltam 94, não 60 215. O parágrafo abaixo fica
+porque explica a decisão e o custo; o número dele é história. E a
+conta que ele não tinha: com o detalhe lido, o `texto` do anúncio
+passou a estar em quase todas as linhas e a tabela `anuncios` cresceu
+para 438 MB — foi o que tornou o painel lento nesse dia, e o que os
+índices de 4/09 resolvem (ver o `docs/diario/2026-09.md`).
 
 - **Os 60 215 sem detalhe vão ser lidos.** A rotina lê o detalhe apenas
   dos publicados na janela `detalhe_dias` (60 dias) e os antigos lêem-se
@@ -90,12 +98,12 @@ Os dois apertos são conhecidos e um deles é decisão tomada:
   bem feitos e no sítio errado do funil. Ver `docs/diario/2026-09.md`.
 
 **A lista.** Desde 31/08/2026 os anúncios são **uma página só** (`/`), e
-o que aparta o acervo são quatro abas: **por ver 1 181** (por decidir e
+o que aparta o acervo são quatro abas: **por ver 1 247** (por decidir e
 ainda respondível), **interessados 6** (todos, expirados incluídos — um
-interessa expirado é trabalho em curso), **abandonados 64 324** (os 3 728
+interessa expirado é trabalho em curso), **abandonados 56 969** (os 3 728
 descartados à mão mais os por ver que já não dão para responder) e
-**todos 65 511**. É recorte de leitura: a base não muda — lá dentro há
-61 777 com estado `novo`.
+**todos 58 222**. É recorte de leitura: a base não muda — lá dentro há
+54 488 com estado `novo`.
 
 Por cima das abas há o **interesse** (Alertas › Interesse), os CPV que a
 casa trabalha. **Está desligado** (`interesse_activo: false`), e
@@ -152,18 +160,21 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 14 211 linhas, `casa.py` com 971,
-`teste_radar.py` com 689 testes que correm em 29 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 14 315 linhas, `casa.py` com 990,
+`teste_radar.py` com 700 testes que correm em 32 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
-**As duas bases.** `radar.db` (era 100 MB; a 03/09/2026 às 18:14 ia em
-**328 MB** e a crescer, com o `--detalhes tudo` a correr desde as 16:34
-— o `anuncios.texto` passou de 36 MB para 207 MB, que é o detalhe de
-35 755 dos 66 483 anúncios; 19 tabelas, no git só a triagem,
-cópia diária em `copias/`) e `contratos.db` (2,47 GB, 1 987 798
-contratos de 2015 a 2026, 178 978 entidades, **fora do git**, refaz-se
-com `--contratos`). **Não se cruzam em SQL**: cada uma tem a sua ligação
+**As duas bases.** `radar.db` (era 100 MB; a 04/09/2026 são **558 MB**,
+com o `--detalhes tudo` já acabado — o `anuncios.texto` passou de 36 MB
+para **377 MB**, que é o detalhe de 66 404 dos 66 498 anúncios; 19
+tabelas, no git só a triagem, cópia diária em `copias/`) e
+`contratos.db` (2,54 GB, 1 987 798 contratos de 2015 a 2026, 178 978
+entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da
+`anuncios` é um número de desempenho, não de arrumação**: cada
+varrimento dela arrasta os 438 MB do disco, e é por isso que as
+contagens do painel têm de ir por índice de cobertura — ver a
+`docs/armadilhas.md`, «A base, as migrações e o disco». **Não se cruzam em SQL**: cada uma tem a sua ligação
 (`liga()` e `liga_corpus()`) e quem junta os resultados é o Python.
 
 ## O que não corre sozinho, e é preciso saber

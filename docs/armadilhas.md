@@ -928,6 +928,39 @@ SQLite, cópias, e a pen que manda nos números.
   encolher de ombros. Antes de culpar o código por lentidão, confirma em que
   disco ele está (`Get-Partition -DriveLetter D | Get-Disk`).
 
+- **A tabela `anuncios` é LARGA, e um varrimento dela não custa
+  linhas — custa megabytes.** A 4/09/2026 são 438 MB, dos quais o
+  `texto` do anúncio sozinho são 377. Um `SCAN anuncios` seco arrasta
+  isso tudo do disco para responder a um `COUNT(*)`. Enquanto só 9%
+  tinham detalhe lido não se via; no dia em que o `--detalhes tudo`
+  acabou (66 404 de 66 498), a página inicial passou a fazer **nove
+  varrimentos por pedido** e foi de ~0,2 s para **1,57 s a quente** —
+  na pen a frio, muito pior. Regra: **uma consulta de contagem ou de
+  agrupamento sobre os anúncios tem de ter um índice que a COBRE.**
+  Existem para isso o `ix_anuncios_lista` (estado + a ordem da
+  primeira página), o `ix_anuncios_triagem` (as cinco colunas das
+  abas), o `ix_anuncios_detalhe`, o `ix_anuncios_plataforma` e o
+  `ix_anuncios_estado_cpv`. Uma coluna que falte ao índice tira-lhe o
+  «COVERING» e volta tudo atrás, em silêncio: o
+  `TestPaginasNaoVarremATabelaLarga` corre o `EXPLAIN QUERY PLAN` das
+  consultas que as rotas disparam de facto e recusa qualquer
+  `SCAN anuncios` que não seja por índice de cobertura. Os índices
+  criam-se no `iniciar_db()` e custam **~1 minuto no primeiro
+  arranque** depois de os acrescentar — é o preço de os construir na
+  pen, uma vez.
+
+- **O mesmo vale para o corpus, mas por CPU e não por disco.** O
+  `GROUP BY tipo_procedimento` sobre 1,99 milhões custa 0,17 s **mesmo
+  com o índice a cobri-lo** — agrupar texto é trabalho que o índice
+  não evita, só encurta. Uma lista que só muda quando a importação
+  semanal corre guarda-se em memória, com a **identidade do ficheiro**
+  (data e tamanho, do `.db` e do `-wal`) como chave, não com um prazo
+  de validade: um prazo mostrava números velhos exactamente depois de
+  uma importação, que é a única coisa que os muda. É o que o
+  `tipos_de_procedimento()` faz. E o `ha_corpus()` guarda-se **por
+  pedido**, no `g` do Flask: a barra, a árvore e o corpo chamavam-no
+  quatro ou cinco vezes na mesma página.
+
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.
@@ -969,6 +1002,22 @@ Nada espera dentro do pedido do browser.
   ligação a uma porta com bind e **sem** listen não é recusada, bloqueia
   até ao timeout — um teste que ponha um servidor a nascer a meio é
   intermitente, e por isso a sonda troca-se por uma falsa nos testes.
+
+- **O endereço é `127.0.0.1:8765`, nunca `localhost:8765`** — e é a
+  mesma armadilha do Windows, do lado do cliente. O `localhost` aqui
+  resolve para **`::1` antes** de `127.0.0.1`, o painel só atende em
+  IPv4, e a ligação ao IPv6 não é recusada: bloqueia. Medido a
+  04/09/2026, no browser, a mesma página: **208 ms por pedido por
+  `localhost` contra 37 ms por `127.0.0.1`** — e por curl, 0,22 s só
+  para abrir a ligação, contra 0,0008 s. É um imposto fixo em cada
+  clique, e não se vê num perfil do servidor, porque é gasto antes de
+  o pedido lá chegar. O `radar.LOCAL` é a constante que escreve o
+  endereço em todo o lado (o arranque, o browser que se abre, os
+  links dos e-mails, o rodapé), e há um teste que recusa a palavra
+  `localhost` no e-mail. **Quem tiver `localhost:8765` nos favoritos
+  continua a pagar** — troque-se o favorito. A alternativa era pôr um
+  segundo servidor a atender em `::1`; não se fez, para não ter dois
+  servidores no mesmo processo por causa de um endereço.
 
 
 ---
