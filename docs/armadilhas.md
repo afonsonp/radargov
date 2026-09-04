@@ -715,7 +715,19 @@ O funil da casa, do «por ver» ao «ganho».
 
 - **O estado que vale é o `estado_efectivo()`, nunca o `casa.status`
   cru.** A regra é dele, 04/09/2026: **o «Não fomos» do Excel prevalece,
-  e é o único**; em tudo o resto ganha o Zoho. É **derivada**, não
+  e é o único**; em tudo o resto ganha o Zoho — **excepto numa linha que
+  é um lote**, onde manda sempre o Excel. Esta segunda guarda não é um
+  detalhe: **as duas fontes contam coisas diferentes.** O Excel tem uma
+  linha por lote, o Zoho um negócio por procedimento, e um «Won» do Zoho
+  quer dizer «ganhámos pelo menos um lote» — não diz nada sobre este.
+  Medido no 1947/2026: três lotes, três linhas (#14 o L1 perdido, #97 o
+  L2 ganho, #98 o L3 perdido) e um só negócio no Zoho, «Won» com
+  169 344 € contra os 109 065,60 do L1. Sem a guarda, o #14 passava de
+  Perdido a Ganho. O `lote = 0` (o conjunto) **não é um lote** e aceita o
+  Zoho como qualquer outra linha. **Antes de deixar uma fonte decidir um
+  campo, verifica se as duas contam a mesma unidade** — aqui uma contava
+  procedimentos e a outra lotes, e o cruzamento por nome não o revela.
+  É **derivada**, não
   gravada — o `status` continua a ser o do Excel e o `zoho_fase` o do
   Zoho, cada um intacto, e por isso uma reimportação não desfaz a regra
   e mudar a regra não obriga a reescrever dados. Sobre as 187 linhas,
@@ -726,9 +738,11 @@ O funil da casa, do «por ver» ao «ganho».
   devolve, que **guarda os pontos e os hifens** — escrever
   `"2 3 negotiation"` em vez de `"2.3 - negotiation"` não casa nada e
   cai em silêncio para o estado do Excel; e a linha que vem do Excel
-  **não traz o `zoho_fase`**, que tem de ser ido buscar à base dentro do
-  `importar()`, senão um `--com-triagem` desfaz a regra exactamente no
-  caminho em que a triagem se escreve. Há teste para as duas.
+  **não traz nem o `zoho_fase` nem o `lote`**, que têm de ser idos
+  buscar à base dentro do `importar()`, senão um `--com-triagem` desfaz
+  a regra exactamente no caminho em que a triagem se escreve — e o
+  `lote` faz falta lá justamente por ser ele que **trava** o Zoho. Há
+  teste para as três.
 
 - **Os lotes lêem-se do anúncio, e a decisão sobre eles já está
   tomada.** O DR escreve «Procedimento com lotes? Sim», «Nº Máx. de

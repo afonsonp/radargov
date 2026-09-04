@@ -483,6 +483,17 @@ def estado_efectivo(linha):
     cruzam, o Excel diz "Nao fomos" e o Zoho diz "Lost". Sem a excepcao,
     metade do cruzamento perdia a distincao.
 
+    **E o Zoho tambem nao decide uma linha que e UM LOTE.** As duas
+    fontes contam coisas diferentes: o Excel tem uma linha por lote, o
+    Zoho um negocio por procedimento. Um "Won" do Zoho quer dizer
+    "ganhamos pelo menos um lote" e nao diz nada sobre este. Medido no
+    1947/2026 (04/09/2026, e a razao desta regra existir): tres lotes,
+    tres linhas -- #14 o L1 perdido, #97 o L2 ganho, #98 o L3 perdido --
+    e no Zoho um so negocio, "Won". Sem esta guarda, o #14 passava de
+    Perdido a Ganho. Uma linha de lote fica com o que o Excel diz, que e
+    a fonte fina para lotes; o `lote = 0` (o conjunto) nao e um lote e
+    aceita o Zoho como qualquer outra.
+
     Nao le a base e nao escreve nada: e derivada, de proposito. O
     `status` continua a ser o do Excel e o `zoho_fase` o do Zoho, cada
     um intacto na sua coluna -- assim uma reimportacao do Excel nao
@@ -490,6 +501,8 @@ def estado_efectivo(linha):
     """
     st = linha.get("status")
     if _norma(st) == "nao fomos":
+        return st
+    if linha.get("lote"):           # >= 1: o zero e o conjunto, e nao conta
         return st
     return TRADUCAO_ZOHO.get(_norma(linha.get("zoho_fase")), st)
 
@@ -734,7 +747,8 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
     with radar.liga() as c:
         acervo = Acervo(c, {l["ano"] for l in linhas})
         existentes = {r["id"]: dict(r) for r in c.execute(
-            "SELECT id, ref, ligacao, porque_sem_ref, zoho_fase FROM casa")}
+            "SELECT id, ref, ligacao, porque_sem_ref, zoho_fase, lote "
+            "FROM casa")}
         for linha in linhas:
             antes = existentes.get(linha["id"]) or {}
             if fora_do_pais(linha):
@@ -781,11 +795,16 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
         papeis = {r["papel"]: r["id"] for r in c.execute(
             "SELECT id, papel FROM fases WHERE papel IS NOT NULL")}
         for linha, ref, ligacao, candidatos, fora in decisoes:
-            # A linha vem do Excel e nao traz o que o Zoho diz; sem isto,
-            # uma reimportacao com --com-triagem aplicava o estado do
-            # Excel e desfazia a regra do `estado_efectivo()` em silencio.
-            linha.setdefault("zoho_fase",
-                             (existentes.get(linha["id"]) or {}).get("zoho_fase"))
+            # A linha vem do Excel e nao traz nem o que o Zoho diz nem o
+            # lote; sem isto, uma reimportacao com --com-triagem
+            # desfazia o `estado_efectivo()` em silencio -- e as duas
+            # coisas fazem falta, porque o lote e o que TRAVA o Zoho.
+            # (O lote desta passagem so se calcula mais a frente, ja
+            # depois da triagem; o que interessa aqui e o que esta
+            # guardado, que e o mesmo, e existe desde a 1.a importacao.)
+            guardado = existentes.get(linha["id"]) or {}
+            linha.setdefault("zoho_fase", guardado.get("zoho_fase"))
+            linha.setdefault("lote", guardado.get("lote"))
             resultado = ""
             if fora:
                 resultado = "fora"

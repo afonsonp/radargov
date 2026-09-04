@@ -127,18 +127,19 @@ fomos» e o Zoho diz «Lost», porque o Zoho não tem palavra para «não
 concorremos». Escrever por cima apagava a distinção.
 
 **E a regra de quem manda já está dada** (04/09/2026): **o «Não fomos»
-do Excel prevalece, e é o único**; em tudo o resto ganha o Zoho. Vive em
+do Excel prevalece, e é o único**; em tudo o resto ganha o Zoho —
+**excepto numa linha que é um lote**, onde manda sempre o Excel. As duas
+fontes contam coisas diferentes: o Excel tem uma linha por lote, o Zoho
+um negócio por procedimento, e um «Won» do Zoho quer dizer «ganhámos
+pelo menos um lote», que não diz nada sobre este. Vive em
 `casa.estado_efectivo()`, **derivada** — nenhuma das duas colunas se
-reescreve. Sobre as 187 linhas: **16 mudam de estado** (9 Submetido →
+reescreve. Sobre as 187 linhas: **15 mudam de estado** (9 Submetido →
 Perdido, 2 Submetido → Cancelado, 2 TBD → Perdido, 1 Cancelado →
-Perdido, 1 Submetido → Ganho, 1 Perdido → Ganho) e **47 ficam
-protegidas** pela excepção. O retrato efectivo passa a ser 88 Não fomos
-· 69 Perdido · 20 Ganho · 7 Submetido · 2 Cancelado · 1 vazio. O
-`estado_pretendido()` já lê por aí, portanto quando o `--com-triagem`
-correr é este o estado que chega aos anúncios. **Uma a conferir antes
-disso:** a #14 passa de Perdido a Ganho e é a única mudança vinda de um
-cruzamento só por nome, com o preço a divergir (169 344 no Zoho contra
-109 065,60 na casa).
+Perdido, 1 Submetido → Ganho) e **47 ficam protegidas** pela excepção do
+«Não fomos». O retrato efectivo passa a ser 88 Não fomos · 70 Perdido ·
+19 Ganho · 7 Submetido · 2 Cancelado · 1 vazio. O `estado_pretendido()`
+já lê por aí, portanto quando o `--com-triagem` correr é este o estado
+que chega aos anúncios.
 
 **Os lotes já têm solução, tirando dois casos.** A 03/09/2026 ele
 respondeu às quatro linhas que faltavam. As #23 e #26 traziam a **soma**
