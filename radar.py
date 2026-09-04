@@ -9,7 +9,7 @@ e apresenta-os num painel local. Verifica sozinho as 09:00 e as 17:00.
 Fonte unica: o servico de pesquisa do proprio portal do DR, chamado
 com os cabecalhos de uma captura feita uma vez no browser (curl_DR.txt).
 
-Arranque:  python radar.py             painel em http://localhost:8765
+Arranque:  python radar.py             painel em http://127.0.0.1:8765
            python radar.py --uma-vez   verifica e sai, para as tarefas
            python radar.py --historico N   puxa N dias de historico
            python radar.py --detalhes [N|tudo]   le o detalhe do que falta
@@ -49,7 +49,8 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
 
 try:
     import requests
-    from flask import Flask, redirect, request, Response, send_file
+    from flask import Flask, g, has_request_context, redirect, request, \
+        Response, send_file
 except ImportError:
     print("Falta instalar. Corre:  python -m pip install -r requirements.txt")
     sys.exit(1)
@@ -63,6 +64,22 @@ AMOSTRAS = os.path.join(BASE_DIR, "amostras")
 # armazenamento de objectos, se um dia isto sair deste PC.
 DOCS = os.path.join(BASE_DIR, "documentos")
 PORTA = 8765
+# O painel atende em 127.0.0.1 -- e o endereco escreve-se assim, e nao
+# "localhost", em todo o lado. Nao e cosmetica: neste Windows o
+# `localhost` resolve para ::1 ANTES de 127.0.0.1, e ninguem esta a
+# escutar em IPv6. Ligar a uma porta reservada e sem escuta no Windows
+# nao e recusado -- bloqueia --, portanto o browser espera pelo IPv6,
+# desiste, e so entao tenta o IPv4. Medido a 04/09/2026, no browser e
+# na mesma pagina: 208 ms por pedido por `localhost` contra 37 ms por
+# 127.0.0.1. E um imposto fixo em cada clique do painel.
+#
+# A alternativa era pôr o servidor a atender tambem em ::1, com uma
+# segunda thread. Nao se fez: o painel e local por desenho, e trocar o
+# endereco custa uma constante e nao arrisca segundos servidores no
+# mesmo processo. Quem tiver `localhost:8765` nos favoritos ganha em
+# trocar por 127.0.0.1:8765.
+ENDERECO = "127.0.0.1"
+LOCAL = "http://%s:%d" % (ENDERECO, PORTA)
 
 ACAO = ("https://diariodarepublica.pt/dr/screenservices/dr/Pesquisas/"
         "PesquisaResultado/DataActionGetPesquisas")
@@ -514,6 +531,38 @@ def iniciar_db():
                   "ON anuncios(titulo_norm)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_entidade_norm "
                   "ON anuncios(entidade_norm)")
+        # Pelo mesmo motivo, e pela mesma razao que o `ix_ctr_desconto`:
+        # a tabela `anuncios` e larga -- o `texto` do anuncio sozinho sao
+        # 377 dos 438 MB dela --, e QUALQUER varrimento arrasta o texto
+        # todo do disco. Enquanto so 9% tinham detalhe lido isso nao se
+        # via; quando o `--detalhes tudo` acabou (04/09/2026, 66 404 de
+        # 66 498) a pagina inicial passou a fazer nove varrimentos de
+        # 440 MB, e numa pen a 42 MB/s a frio isso nao e um pormenor.
+        # Estes tres cobrem as consultas todas da lista, do quadro e dos
+        # indicadores: medido numa copia, 0,74 s de SQL para 0,02 s.
+        #
+        # `_lista`: o `ORDER BY data_pub DESC, ref DESC` da primeira
+        # pagina -- com a ordem no indice nao ha B-tree temporaria
+        # (0,116 s para 0,001 s).
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_lista "
+                  "ON anuncios(estado, data_pub DESC, ref DESC)")
+        # `_triagem`: as contagens das abas e das etiquetas, que sao
+        # sempre `estado` + prazo/data_pub + detalhe_lido + plataforma.
+        # As cinco colunas estao ca para o indice COBRIR a consulta: uma
+        # que falte manda o SQLite a tabela buscar a linha inteira.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_triagem "
+                  "ON anuncios(estado, prazo, data_pub, detalhe_lido, "
+                  "plataforma)")
+        # `_detalhe`: o "quantos faltam ler" e o mapa das plataformas do
+        # acervo, que nao filtram por estado nenhum.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_detalhe "
+                  "ON anuncios(detalhe_lido, plataforma)")
+        # O `SELECT DISTINCT plataforma` da caixa dos alertas, e o
+        # `GROUP BY substr(cpv,1,2)` dos indicadores.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_plataforma "
+                  "ON anuncios(plataforma)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_estado_cpv "
+                  "ON anuncios(estado, cpv)")
         if "papel" not in [r["name"] for r in c.execute(
                 "PRAGMA table_info(fases)")]:
             c.execute("ALTER TABLE fases ADD COLUMN papel TEXT")
@@ -4805,8 +4854,8 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
             linhas.append("    %s" % (a["entidade"] or "")[:80])
             linhas.append("    %s | %s | %s"
                           % (a["ref"], prazo, a["preco_base"] or "sem preco base"))
-            linhas.append("    http://localhost:%d/anuncio/%s"
-                          % (PORTA, quote(a["ref"], safe="")))
+            linhas.append("    " + LOCAL + "/anuncio/%s"
+                          % (quote(a["ref"], safe=""),))
             linhas.append("")
     if alteradas:
         rotulos = dict(CAMPOS_VIGIADOS)
@@ -4828,8 +4877,8 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                                   % (rotulos.get(x["campo"], x["campo"]),
                                      _valor_vigiado(x["campo"], x["antes"]),
                                      _valor_vigiado(x["campo"], x["depois"])))
-            linhas.append("    http://localhost:%d/anuncio/%s"
-                          % (PORTA, quote(ref, safe="")))
+            linhas.append("    " + LOCAL + "/anuncio/%s"
+                          % (quote(ref, safe=""),))
             linhas.append("")
     if seguidas:
         linhas.append("== Das entidades que segues (%d)"
@@ -4842,8 +4891,8 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                 linhas.append("    publicado %s | %s"
                               % (data_pt(a["data_pub"]),
                                  a["preco_base"] or "sem preco base"))
-                linhas.append("    http://localhost:%d/anuncio/%s"
-                              % (PORTA, quote(a["ref"], safe="")))
+                linhas.append("    " + LOCAL + "/anuncio/%s"
+                              % (quote(a["ref"], safe=""),))
             linhas.append("")
     return "\n".join(linhas)
 
@@ -4876,7 +4925,7 @@ def _em_pilula(texto, classe=""):
 
 
 def _em_ligacao(ref):
-    return "http://localhost:%d/anuncio/%s" % (PORTA, quote(ref, safe=""))
+    return LOCAL + "/anuncio/%s" % (quote(ref, safe=""),)
 
 
 def _em_prazo(prazo, urgente):
@@ -5232,7 +5281,7 @@ def verificar(cfg=None, passo=None):
     marca("ultima_ok", "1" if bem else "0")
     if novos and cfg.get("abrir_browser_ao_encontrar"):
         try:
-            webbrowser.open("http://localhost:%d/" % PORTA)
+            webbrowser.open(LOCAL + "/")
         except Exception:
             pass
     return mensagem, novos
@@ -5455,6 +5504,12 @@ def iniciar_corpus():
                      contratos(n_anuncio, preco_base, preco_contratual)
                      WHERE n_anuncio != '' AND preco_base > 0
                      AND preco_contratual > 0""")
+        # A lista dos tipos de procedimento enche uma caixa de filtro em
+        # /contratos e outra em /alertas, e sem indice era um GROUP BY
+        # sobre os 1,99 milhoes: 0,18 s a quente em cada uma das duas
+        # paginas. O indice cobre a consulta inteira.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_tipo "
+                  "ON contratos(tipo_procedimento)")
 
 
 def norma_entidade(nome):
@@ -5948,14 +6003,29 @@ def actualizar_corpus(anos=None):
 
 def ha_corpus():
     """Se o corpus existe e tem alguma coisa la dentro. O painel usa isto
-    para nao prometer historico a quem ainda nao o importou."""
-    if not os.path.exists(CORPUS):
-        return 0
-    try:
-        with liga_corpus() as c:
-            return c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
-    except sqlite3.Error:
-        return 0
+    para nao prometer historico a quem ainda nao o importou.
+
+    A resposta guarda-se PARA O PEDIDO, no `g` do Flask: a barra, a
+    arvore e o corpo de uma pagina chamam isto quatro ou cinco vezes, e
+    cada chamada abria a ligacao ao corpus e contava 1,99 milhoes de
+    linhas -- 0,025 s a quente cada uma, e numa pen a frio muito mais.
+    Dentro do mesmo pedido o corpus nao muda; entre pedidos volta a
+    contar-se, para a importacao semanal aparecer no numero sem ninguem
+    ter de limpar nada. Fora de um pedido (o `--contratos`, as threads
+    de fundo) conta sempre, como antes."""
+    if has_request_context() and "n_corpus" in g:
+        return g.n_corpus
+    quantos = 0
+    if os.path.exists(CORPUS):
+        try:
+            with liga_corpus() as c:
+                quantos = c.execute(
+                    "SELECT COUNT(*) n FROM contratos").fetchone()["n"]
+        except sqlite3.Error:
+            quantos = 0
+    if has_request_context():
+        g.n_corpus = quantos
+    return quantos
 
 
 def primeiro_ano_corpus(omissao=2015):
@@ -5978,6 +6048,48 @@ def primeiro_ano_corpus(omissao=2015):
         return (r and r["a"]) or omissao
     except sqlite3.Error:
         return omissao
+
+
+_TIPOS_DO_CORPUS = (None, [])
+
+
+def tipos_de_procedimento():
+    """Os tipos de procedimento que o corpus conhece, do mais comum para
+    o menos, para as caixas de filtro de /contratos e de /alertas.
+
+    Estava escrito duas vezes, e as duas custava 0,17 s: agrupar 1,99
+    milhoes de linhas por uma coluna de texto e trabalho de CPU que o
+    indice `ix_ctr_tipo` cobre mas nao evita. E uma lista de uma duzia
+    de nomes que so muda quando a importacao semanal corre, portanto
+    guarda-se em memoria.
+
+    A chave da cache e a IDENTIDADE DO FICHEIRO -- data e tamanho, do
+    corpus e do `-wal` ao lado. Nao e um prazo de validade: um prazo
+    mostrava numeros velhos durante N minutos depois de uma importacao,
+    e a importacao e justamente a unica coisa que mexe nisto. Dois
+    `stat` custam microssegundos, mesmo na pen."""
+    global _TIPOS_DO_CORPUS
+    if not os.path.exists(CORPUS):
+        return []
+    marca = []
+    for f in (CORPUS, CORPUS + "-wal"):
+        try:
+            e = os.stat(f)
+            marca.append((f, e.st_mtime_ns, e.st_size))
+        except OSError:
+            marca.append((f, 0, 0))
+    marca = tuple(marca)
+    if _TIPOS_DO_CORPUS[0] == marca:
+        return _TIPOS_DO_CORPUS[1]
+    try:
+        with liga_corpus() as c:
+            tipos = [r["p"] for r in c.execute(
+                "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
+                "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
+    except sqlite3.Error:
+        return []
+    _TIPOS_DO_CORPUS = (marca, tipos)
+    return tipos
 
 
 def entidade_do_anuncio(nif, nome):
@@ -7303,7 +7415,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
  <div class="marca">
   <div class="logo">Radar<span>DR</span></div>
   <div class="sub">%(fontes)s</div>
-  <div class="meta">%(acervo)s<br>localhost:%(porta)d</div>
+  <div class="meta">%(acervo)s<br>127.0.0.1:%(porta)d</div>
  </div>
  <nav>%(nav)s</nav>
  <div class="caixa">
@@ -9791,13 +9903,7 @@ def alertas():
             "SELECT DISTINCT plataforma p FROM anuncios "
             "WHERE plataforma IS NOT NULL AND plataforma != '' ORDER BY p")]
     # Os tipos de procedimento sao do corpus, e o corpus pode nao existir.
-    procs = []
-    if ha_corpus():
-        with liga_corpus() as c:
-            procs = [r["p"] for r in c.execute(
-                "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
-                "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC "
-                "LIMIT 25")]
+    procs = tipos_de_procedimento()[:25]
 
     # As entidades seguidas (B10), ao lado dos alertas: sao a outra fonte
     # do resumo diario, e gere-se aqui o que se ve, segue-se na ficha.
@@ -11109,9 +11215,7 @@ def contratos():
                 " FROM pag p LEFT JOIN entidades e"
                 "  ON e.chave=p.adjudicante_chave" + ordem_p,
                 valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
-        procs = [r["p"] for r in c.execute(
-            "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
-            "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
+        procs = tipos_de_procedimento()
         anos = [r["a"] for r in c.execute(
             "SELECT DISTINCT ano a FROM contratos ORDER BY a")]
         # O fim da janela vem do mesmo relogio que a filtra: e o date()
@@ -13938,7 +14042,7 @@ def abrir_no_browser(porta=None, espera=15.0):
     while time.time() < limite:
         if porta_atende(porta):
             try:
-                webbrowser.open("http://localhost:%d/" % porta)
+                webbrowser.open("http://%s:%d/" % (ENDERECO, porta))
             except Exception:
                 pass
             return True
@@ -14199,12 +14303,12 @@ def main():
 
     threading.Thread(target=relogio, daemon=True).start()
     print("Radar de Concursos, Diário da República")
-    print("Painel em http://localhost:%d" % PORTA)
+    print("Painel em " + LOCAL)
     print("Fecha esta janela para parar. Ctrl+C tambem serve.")
     # Em thread, e a espera da porta: o app.run() so devolve quando o
     # painel fechar, portanto quem abre o browser tem de ser outro.
     threading.Thread(target=abrir_no_browser, daemon=True).start()
-    app.run(host="127.0.0.1", port=PORTA, debug=False)
+    app.run(host=ENDERECO, port=PORTA, debug=False)
 
 
 if __name__ == "__main__":

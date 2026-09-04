@@ -2282,8 +2282,13 @@ class TestResumoEmHtml(unittest.TestCase):
     def test_a_ligacao_para_a_ficha_e_um_href(self):
         saiu = radar.html_do_resumo([({"nome": "TI"},
                                       [self.anuncio(ref="123/2026")])])
-        self.assertIn('href="http://localhost:%d/anuncio/123%%2F2026"'
-                      % radar.PORTA, saiu)
+        # pelo IP, não por "localhost": neste Windows o `localhost`
+        # resolve primeiro para ::1, onde ninguém atende, e a ligação
+        # bloqueia até desistir — 208 ms contra 37 ms, medido a
+        # 04/09/2026. O endereço vem do `radar.LOCAL`, para o teste
+        # continuar a valer se a porta mudar.
+        self.assertIn('href="%s/anuncio/123%%2F2026"' % radar.LOCAL, saiu)
+        self.assertNotIn("localhost", saiu)
 
     def test_escapa_o_que_vem_da_base(self):
         saiu = radar.html_do_resumo([({"nome": "A & B"}, [self.anuncio(
@@ -7379,6 +7384,192 @@ class TestRegistoDaCasa(BaseTemporaria):
         # triagem do registo passar a aplicar-se (ver CLAUDE.md)
         self.assertEqual(set(casa.MAPA_RAZAO.values()) - set(radar.MOTIVOS_ABANDONO),
                          {"Fora do âmbito", "Prazo curto"})
+
+
+class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
+    """A tabela `anuncios` é LARGA: a 04/09/2026, o `texto` do anúncio
+    sozinho eram 377 dos 438 MB dela, porque o `--detalhes tudo` acabou e
+    passaram a ter detalhe lido 66 404 dos 66 498. Um `SCAN anuncios` não
+    é "ler 66 mil linhas": é arrastar 440 MB do disco — e o disco é uma
+    pen a ~42 MB/s a frio.
+
+    Enquanto só 9% tinham texto isto não se via; no dia em que passaram a
+    ter todos, a página inicial fazia nove varrimentos por pedido e
+    levava 1,6 s a quente. Os índices `ix_anuncios_lista`,
+    `_triagem`, `_detalhe`, `_plataforma` e `_estado_cpv` existem para
+    cobrir essas consultas.
+
+    O teste não olha para o texto do SQL — olha para o PLANO de cada
+    consulta que a rota dispara de facto. Uma consulta nova que não caiba
+    nos índices, ou um índice apagado, aparecem aqui como um `SCAN`."""
+
+    def _planos(self, rota):
+        """Corre a rota e devolve (sql, plano) de tudo o que ela pediu."""
+        import sqlite3 as s3
+        apanhado = []
+
+        class Cursor(s3.Cursor):
+            def execute(self, sql, *a, **k):
+                apanhado.append((sql, a[0] if a else ()))
+                return super().execute(sql, *a, **k)
+
+        class Ligacao(s3.Connection):
+            def cursor(self, factory=Cursor):
+                return super().cursor(factory)
+
+            def execute(self, sql, *a, **k):
+                return self.cursor().execute(sql, *a, **k)
+
+        antes = s3.connect
+        s3.connect = lambda *a, **k: antes(*a, factory=Ligacao,
+                                           **{x: y for x, y in k.items()
+                                              if x != "factory"})
+        try:
+            radar.app.test_client().get(rota)
+        finally:
+            s3.connect = antes
+        planos = []
+        with radar.liga() as c:
+            for sql, par in apanhado:
+                if not sql.lstrip().upper().startswith("SELECT"):
+                    continue
+                if "anuncios" not in sql:
+                    continue
+                try:
+                    passos = [r[-1] for r in c.execute(
+                        "EXPLAIN QUERY PLAN " + sql, par)]
+                except s3.Error:
+                    continue        # consulta do outro ficheiro (corpus)
+                planos.append((sql, passos))
+        return planos
+
+    def _sem_varrimento(self, rota):
+        planos = self._planos(rota)
+        self.assertTrue(planos, "a rota %s não consultou os anúncios" % rota)
+        # `SCAN anuncios USING COVERING INDEX x` é o que se quer: varre o
+        # índice, e o índice não tem o `texto` lá dentro. O que se recusa
+        # é o `SCAN anuncios` seco — esse arrasta as linhas todas — e o
+        # `SCAN ... USING INDEX` sem COVERING, que vai à tabela buscar
+        # cada linha que o índice aponta e é ainda pior.
+        maus = [(" ".join(sql.split())[:120], p)
+                for sql, passos in planos for p in passos
+                if p.startswith("SCAN anuncios") and "COVERING INDEX" not in p]
+        self.assertEqual(maus, [], "%s varre a tabela larga: %s" % (rota, maus))
+
+    def test_a_lista_nao_varre(self):
+        self._sem_varrimento("/")
+
+    def test_os_indicadores_nao_varrem(self):
+        self._sem_varrimento("/indicadores")
+
+    def test_os_alertas_nao_varrem(self):
+        self._sem_varrimento("/alertas")
+
+    def test_os_indices_existem_e_repor_e_idempotente(self):
+        # o mesmo que as migrações: correr duas vezes não muda nada
+        radar.iniciar_db()
+        with radar.liga() as c:
+            tem = {r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'")}
+        for nome in ("ix_anuncios_lista", "ix_anuncios_triagem",
+                     "ix_anuncios_detalhe", "ix_anuncios_plataforma",
+                     "ix_anuncios_estado_cpv"):
+            self.assertIn(nome, tem)
+
+    def test_o_corpus_conta_se_uma_vez_por_pedido(self):
+        """`ha_corpus()` contava 1,99 milhões de linhas quatro ou cinco
+        vezes na mesma página — a barra, a árvore e o corpo. Dentro de um
+        pedido conta-se uma vez; fora dele conta sempre."""
+        vezes = []
+        antes = radar.liga_corpus
+
+        def espia():
+            vezes.append(1)
+            return antes()
+
+        radar.liga_corpus = espia
+        try:
+            if not os.path.exists(radar.CORPUS):
+                self.skipTest("sem corpus nesta máquina")
+            radar.app.test_client().get("/quadro")
+            self.assertLessEqual(vezes.count(1), 1,
+                                 "o corpus contou-se %d vezes num pedido"
+                                 % len(vezes))
+            vezes.clear()
+            radar.ha_corpus()
+            radar.ha_corpus()
+            self.assertEqual(len(vezes), 2)     # fora do pedido, sem cache
+        finally:
+            radar.liga_corpus = antes
+
+
+class TestTiposDeProcedimentoGuardados(CorpusTemporario):
+    """`tipos_de_procedimento()` agrupava 1,99 milhões de linhas em cada
+    pedido de /contratos e de /alertas — 0,17 s por página, e a mesma
+    consulta escrita duas vezes. Guarda-se em memória, com a identidade
+    do ficheiro do corpus como chave: a lista muda quando a importação
+    semanal corre, e só aí.
+
+    O que o teste separa é a CONDIÇÃO da espera: conta quantas vezes se
+    foi ao corpus, e verifica as duas coisas — que a resposta está certa
+    e que a segunda chamada não perguntou outra vez."""
+
+    def setUp(self):
+        super().setUp()
+        radar._TIPOS_DO_CORPUS = (None, [])
+        radar.iniciar_corpus()
+        self.idas = []
+        self.liga_verdadeira = radar.liga_corpus
+
+        def espia():
+            self.idas.append(1)
+            return self.liga_verdadeira()
+
+        radar.liga_corpus = espia
+
+    def tearDown(self):
+        radar.liga_corpus = self.liga_verdadeira
+        radar._TIPOS_DO_CORPUS = (None, [])
+        super().tearDown()
+
+    _proximo = 1000
+
+    def _poe(self, tipos):
+        with self.liga_verdadeira() as c:
+            for t in tipos:
+                TestTiposDeProcedimentoGuardados._proximo += 1
+                c.execute("INSERT INTO contratos (id, objecto, "
+                          "tipo_procedimento) VALUES (?,?,?)",
+                          (self._proximo, "x", t))
+
+    def test_ordena_pelo_mais_comum_e_ignora_o_vazio(self):
+        self._poe(["Ajuste direto", "Concurso público", "Ajuste direto",
+                   "Ajuste direto", "", "Concurso público"])
+        self.assertEqual(radar.tipos_de_procedimento(),
+                         ["Ajuste direto", "Concurso público"])
+
+    def test_a_segunda_chamada_nao_vai_ao_corpus(self):
+        self._poe(["Ajuste direto"])
+        radar.tipos_de_procedimento()
+        antes = len(self.idas)
+        radar.tipos_de_procedimento()
+        radar.tipos_de_procedimento()
+        self.assertEqual(len(self.idas), antes,
+                         "foi ao corpus outra vez com o ficheiro na mesma")
+
+    def test_o_corpus_a_mudar_desfaz_a_cache(self):
+        self._poe(["Ajuste direto"])
+        self.assertEqual(radar.tipos_de_procedimento(), ["Ajuste direto"])
+        self._poe(["Concurso público", "Concurso público",
+                   "Concurso público"])
+        # o ficheiro mudou: o resultado tem de ser o novo, não o guardado
+        self.assertEqual(radar.tipos_de_procedimento(),
+                         ["Concurso público", "Ajuste direto"])
+
+    def test_sem_corpus_devolve_lista_vazia_e_nao_rebenta(self):
+        import os as _os
+        radar.CORPUS = _os.path.join(self.pasta, "nao-existe.db")
+        self.assertEqual(radar.tipos_de_procedimento(), [])
 
 
 if __name__ == "__main__":

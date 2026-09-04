@@ -9,7 +9,7 @@ Portugal — código, comentários, mensagens de commit e respostas.
 
 Aplicação local em Python que vigia os anúncios de contratação pública da
 **parte L da série II do Diário da República**, guarda-os em SQLite e
-mostra-os num painel Flask em `http://localhost:8765`. Corre no PC do
+mostra-os num painel Flask em `http://127.0.0.1:8765`. Corre no PC do
 Afonso, verifica sozinha às 09:00 e às 17:00 por tarefas do Windows, e não
 depende de nada da empresa.
 
@@ -72,7 +72,7 @@ arrumação.)
 ## Comandos
 
 ```bash
-python radar.py                    # painel em http://localhost:8765
+python radar.py                    # painel em http://127.0.0.1:8765
 python radar.py --uma-vez          # verifica e sai (é o que as tarefas correm)
 python radar.py --historico 730    # recolha extra de N dias; conta horas
 python radar.py --detalhes [N|tudo] # le o detalhe do que falta (~0,19s cada, 8 em paralelo); retomavel
@@ -112,7 +112,7 @@ Python da pasta se existir.
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~13 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~14 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da casa está em **`casa.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
 
@@ -167,7 +167,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 88 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
+São 91 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·
