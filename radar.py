@@ -6865,6 +6865,19 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .mercado-tab .tab-mercado{min-width:720px}
 .mercado code{font:500 11.5px/1 var(--mono);background:var(--linha2);
  padding:2px 5px;border-radius:4px}
+/* O somario do desfecho: os numeros que fecham o funil (contratado,
+   quem ganhou, quanto abaixo da base) lidos de relance, antes da
+   tabela dos lotes. Envolve em vez de cortar -- ha adjudicatarios com
+   nomes de setenta caracteres, e um agrupamento de tres nao cabe. */
+.desfecho-som{display:flex;flex-wrap:wrap;gap:14px 30px;
+ padding:12px 14px;background:var(--creme);border:1px solid var(--linha2);
+ border-radius:6px}
+.desfecho-som>div{display:flex;flex-direction:column;gap:4px;min-width:110px}
+.desfecho-som b{font:600 15px/1.35 var(--sans);color:var(--ink)}
+.desfecho-som b a{color:var(--azul)}
+.desfecho-som span{font:400 11px/1 var(--sans);color:var(--t4);
+ text-transform:uppercase;letter-spacing:.06em}
+.desfecho-som b span{text-transform:none;letter-spacing:0}
 .guardados{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
  padding:10px 14px;margin-bottom:8px;background:var(--creme);box-shadow:none}
 .guardados .rot{margin-right:4px}
@@ -11140,6 +11153,30 @@ def barra_corpus(anos):
                html.escape(data_hora_pt(quando)), direita, aviso))
 
 
+def ganhadores_da_linha(linha):
+    """[(chave, nome), ...] de uma linha com `ganhou`/`ganhou_ch`.
+
+    Os adjudicatarios vem em duas listas paralelas separadas por `|` (a
+    virgula ja aparece nos nomes), e ate 04/09/2026 cada sitio fazia o
+    seu `zip(nomes, chaves)`. Esse zip mentia em silencio: os dois
+    campos sao `group_concat`s, e o das chaves vem **NULL** quando
+    NENHUM adjudicatario daquele contrato tem chave. Aí
+    `"".split("|")` dava uma lista de UM, o zip truncava pelo mais
+    curto, e um agrupamento de cinco aparecia com um nome so -- sem
+    erro, sem aviso, e com ar de estar certo.
+
+    No corpus verdadeiro as chaves estao cheias (`_preencher_chaves`
+    corre na importacao), por isso isto nunca se viu no ecra; quem o
+    apanhou foi um teste do desfecho contra um corpus sem essa
+    migracao. E e por nunca se ver que tinha de deixar de depender
+    disso: os tres sitios que mostram "quem ganhou" passam por aqui.
+    """
+    nomes = [n for n in (linha["ganhou"] or "").split("|") if n]
+    chaves = (linha["ganhou_ch"] or "").split("|")
+    chaves += [""] * (len(nomes) - len(chaves))
+    return list(zip(chaves, nomes))
+
+
 def refs_com_anuncio(refs):
     """Dos n_anuncio dados, quais existem mesmo como anuncios na base.
 
@@ -11286,13 +11323,9 @@ def contratos():
         com_ficha = refs_com_anuncio([l["n_anuncio"] for l in linhas])
         corpo = []
         for l in linhas:
-            # os adjudicatarios vem em duas listas paralelas (nome e
-            # chave), separadas por | -- a virgula ja aparece nos nomes
-            nomes = (l["ganhou"] or "").split("|")
-            chaves = (l["ganhou_ch"] or "").split("|")
             venceu = " + ".join(
-                liga_entidade(ch, n) for n, ch in zip(nomes, chaves)
-                if n) or "—"
+                liga_entidade(ch, n)
+                for ch, n in ganhadores_da_linha(l)) or "—"
             objecto = html.escape(corta(l["objecto"], 150))
             if (l["n_anuncio"] or "").strip() in com_ficha:
                 objecto += (" &middot; <a href='/anuncio/%s'>anúncio</a>"
@@ -12110,10 +12143,8 @@ def homologos_cx(a, chave):
 
     corpo = []
     for l in linhas:
-        nomes = (l["ganhou"] or "").split("|")
-        chaves = (l["ganhou_ch"] or "").split("|")
         venceu = " + ".join(liga_entidade(ch, n)
-                            for n, ch in zip(nomes, chaves) if n) or "—"
+                            for ch, n in ganhadores_da_linha(l)) or "—"
         objecto = html.escape(corta(l["objecto"] or "", 140))
         if l["n_anuncio"] in conhecidos:
             objecto += (" <a href='/anuncio/%s'>anúncio</a>"
@@ -12138,6 +12169,179 @@ def homologos_cx(a, chave):
             % ("estes termos do título" if len(termos) > 1
                else "este termo do título",
                html.escape(", ".join(termos)), "".join(corpo)))
+
+
+# Do anuncio ao contrato leva tempo, e o tempo mediu-se: a 04/09/2026,
+# sobre os 38 666 anuncios da base que ja tinham contrato no corpus, a
+# distancia entre a publicacao do anuncio e a celebracao era p25 45
+# dias, mediana 68, p75 98, p90 139. E o que decide quando o silencio
+# vale a pena ser dito: um anuncio de ha um mes sem contrato nao diz
+# nada, um de ha seis meses ja diz.
+DIAS_ATE_CONTRATO = 180
+
+
+def desfecho_do_anuncio(ref):
+    """Os contratos que este anuncio deu, do corpus do Portal BASE.
+
+    Ligacao por CHAVE e nao por semelhanca: o dump do IMPIC traz o
+    numero do anuncio do DR em `n_anuncio`, no mesmo formato do `ref`
+    do radar ("13108/2026"), e ha indice (`ix_ctr_anuncio`). E o que
+    distingue isto dos homologos, que sao um palpite por termos do
+    titulo -- aqui ou e o mesmo procedimento ou nao e nada.
+
+    Varias linhas sao os lotes do mesmo procedimento, e e por isso que
+    a conta do desconto soma antes de dividir (desconto_do_desfecho).
+    """
+    if not (ref and ha_corpus()):
+        return []
+    with liga_corpus() as c:
+        return c.execute(
+            "SELECT c.id, c.data_celebracao, c.objecto, c.tipo_procedimento,"
+            " c.preco_contratual, c.preco_base, c.prazo_execucao,"
+            " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
+            "  FROM contrato_adjudicatario a"
+            "  LEFT JOIN entidades g ON g.chave=a.chave"
+            "  WHERE a.contrato_id=c.id) AS ganhou,"
+            " (SELECT group_concat(a.chave, '|') FROM contrato_adjudicatario a"
+            "  WHERE a.contrato_id=c.id) AS ganhou_ch"
+            " FROM contratos c WHERE c.n_anuncio=?"
+            " ORDER BY c.data_celebracao, c.id", (ref,)).fetchall()
+
+
+def desconto_do_desfecho(linhas, base_do_anuncio=0.0):
+    """(desconto 0..1 ou None, base usada, de onde veio a base).
+
+    A mesma regra do grafico do corpus (`descontos_por_procedimento`):
+    **o procedimento e a unidade, e os lotes somam-se ANTES de
+    dividir**. Por linha, cada lote comparava-se com a base do
+    procedimento inteiro, e a media ingenua dava -18,9% no corpus --
+    um numero que mente com ar de certo.
+
+    Devolve None quando nao se sabe ler: sem base, base a VARIAR entre
+    lotes (ai a base e por lote e a semantica e outra) e soma
+    contratual acima da base. Quando o dump nao traz base nenhuma cai
+    para a do anuncio, e diz que caiu -- sao duas fontes e o ecra tem
+    de dizer qual esta a usar.
+    """
+    bases = [l["preco_base"] or 0.0 for l in linhas]
+    soma = sum(l["preco_contratual"] or 0.0 for l in linhas)
+    base, fonte = (max(bases) if bases else 0.0), "corpus"
+    if base <= 0:
+        base, fonte = base_do_anuncio or 0.0, "anuncio"
+    if base <= 0 or soma <= 0 or soma > base:
+        return None, base, fonte
+    if fonte == "corpus" and min(bases) != max(bases):
+        return None, base, fonte
+    return 1.0 - soma / base, base, fonte
+
+
+def _dias_desde(data):
+    """Dias entre uma data ISO e hoje. Datas ilegiveis contam zero, que
+    e o lado que nao afirma nada."""
+    try:
+        return (datetime.now().date()
+                - datetime.strptime((data or "")[:10], "%Y-%m-%d").date()).days
+    except (ValueError, TypeError):
+        return 0
+
+
+def desfecho_cx(a):
+    """Como este anuncio acabou: os contratos celebrados, do Portal BASE.
+
+    E o inverso do atalho que ja existia (`refs_com_anuncio`, que leva
+    do contrato ao anuncio). Aqui a pergunta e a outra e e a que fecha
+    o funil: o procedimento que triamos deu no que, a quem, e por
+    quanto abaixo da base.
+    """
+    if not ha_corpus():
+        return ""
+    linhas = desfecho_do_anuncio(a["ref"])
+    if not linhas:
+        # Sem contrato so vale a pena dize-lo quando ja passou tempo que
+        # chegue para ele existir -- antes disso o silencio e o normal,
+        # e uma caixa a dizer "nada" em todos os anuncios recentes era
+        # ruido em 46% da lista.
+        dias = _dias_desde(a["data_pub"])
+        if dias < DIAS_ATE_CONTRATO:
+            return ""
+        return ("<div class='cx mercado' id='desfecho'>"
+                "<div class='rot'>Desfecho</div>"
+                "<div class='nota' style='margin:6px 0 0'>"
+                "Publicado há %s e <b>ainda sem contrato celebrado</b> no "
+                "Portal BASE. Passado este tempo já não costuma ser espera: "
+                "metade dos procedimentos fecha em 68 dias e nove em cada "
+                "dez em 139. Ou ficou deserto ou anulado, ou o contrato não "
+                "chegou ao dump semanal do IMPIC.</div></div>"
+                % ("%s dias" % mil_pt(dias)))
+
+    soma = sum(l["preco_contratual"] or 0.0 for l in linhas)
+    desconto, base, fonte = desconto_do_desfecho(
+        linhas, euros_do_texto(a["preco_base"] or ""))
+
+    # Os adjudicatarios do procedimento inteiro, sem repetir quem ganhou
+    # dois lotes. Pela chave e nao pelo nome, que e a regra do corpus.
+    ganhadores = {}
+    for l in linhas:
+        for chave, nome in ganhadores_da_linha(l):
+            ganhadores.setdefault(chave or "n:" + nome, nome)
+    # Com muitos lotes o somario deixava de ser um somario: o 10011/2026
+    # tem dez lotes e dez vencedores, e a lista dos nomes no cartao era
+    # um paragrafo que empurrava os numeros para fora do olho. Acima de
+    # tres conta-se, e os nomes lêem-se na tabela -- que so existe
+    # quando ha mais de uma linha. Num contrato so, um agrupamento de
+    # cinco escreve-se por extenso: nao ha outro sitio onde apareca.
+    quem = " + ".join(liga_entidade(ch, n) for ch, n in ganhadores.items())
+    if len(ganhadores) > 3 and len(linhas) > 1:
+        quem = ("%d adjudicatários <span>na tabela abaixo</span>"
+                % len(ganhadores))
+
+    somario = [("Contratado", euros(soma)),
+               ("Quem ganhou", quem or "—")]
+    if base > 0:
+        somario.append(("Preço base", euros(base)
+                        + ("" if fonte == "corpus"
+                           else " <span>do anúncio</span>")))
+    if desconto is not None:
+        somario.append(("Abaixo da base", pct_pt(desconto)))
+    somario.append(("Celebrado", data_pt(linhas[-1]["data_celebracao"])))
+
+    corpo = []
+    for l in linhas:
+        venceu = " + ".join(liga_entidade(ch, n)
+                            for ch, n in ganhadores_da_linha(l)) or "—"
+        corpo.append(
+            "<tr><td class='d'>%s</td><td class='o'>%s</td>"
+            "<td class='g'>%s</td><td class='d'>%s</td><td class='p'>%s</td></tr>"
+            % (data_pt(l["data_celebracao"]),
+               html.escape(corta(l["objecto"] or "", 140)),
+               venceu,
+               ("%s dias" % mil_pt(l["prazo_execucao"]))
+               if l["prazo_execucao"] else "—",
+               euros(l["preco_contratual"])))
+
+    # Uma linha so nao e um lote: a tabela por baixo do somario nao se
+    # desenha, porque repetia os mesmos numeros noutra forma.
+    tabela = ("<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
+              "<th>Celebrado</th><th>Objecto</th><th>Quem ganhou</th>"
+              "<th>Execução</th><th class='p'>Preço</th></tr></thead>"
+              "<tbody>%s</tbody></table></div>" % "".join(corpo)
+              ) if len(linhas) > 1 else ""
+
+    return ("<div class='cx mercado' id='desfecho'>"
+            "<div class='rot'>Desfecho</div>"
+            "<div class='nota' style='margin:6px 0 12px'>"
+            "%s, do Portal BASE. Liga-se pelo número deste anúncio "
+            "(<code>%s</code>) e não por semelhança, por isso ou é este "
+            "procedimento ou não aparece.%s</div>"
+            "<div class='desfecho-som'>%s</div>%s</div>"
+            % ("O que este procedimento deu" if len(linhas) == 1
+               else "Os %d contratos deste procedimento" % len(linhas),
+               html.escape(a["ref"]),
+               " Os lotes somam-se antes de dividir: o desconto é do "
+               "procedimento, não de cada linha." if len(linhas) > 1 else "",
+               "".join("<div><b>%s</b><span>%s</span></div>" % (v, r)
+                       for r, v in somario),
+               tabela))
 
 
 def _mercado_cx(nota, corpo=""):
@@ -12189,10 +12393,8 @@ def mercado(a):
 
     corpo = []
     for l in linhas:
-        nomes = (l["ganhou"] or "").split("|")
-        chaves = (l["ganhou_ch"] or "").split("|")
         venceu = " + ".join(liga_entidade(ch, n)
-                            for n, ch in zip(nomes, chaves) if n) or "—"
+                            for ch, n in ganhadores_da_linha(l)) or "—"
         corpo.append(
             "<tr><td class='d'>%s</td><td class='o'>%s</td><td>%s</td>"
             "<td class='g'>%s</td><td class='p'>%s</td></tr>"
@@ -12569,17 +12771,23 @@ def ficha(ref):
     # e o que paga a composicao em dossier: numa ficha de oito mil
     # pixeis, saber onde se esta e poder saltar vale a coluna que se
     # perdeu.
+    # O desfecho desenha-se aqui, antes do indice, porque e ele que diz
+    # se ha entrada no indice: um chip que salta para um bloco que nao
+    # existe e a mesma mentira de um numero que abre outra lista.
+    desfecho_html = desfecho_cx(a)
     args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
     args_com = dict(request.args.to_dict(), modo="completo")
     indice = ("<div class='ficha-indice'>"
               "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
               "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
               "<a href='#pecas'>Peças</a>"
+              "%s"
               "<a href='#mercado'>Mercado</a>"
               "<a href='#historico'>Histórico</a>"
               "<span class='dir'>%s%s</span></div>"
               % ("on" if not completo else "", ref, urlencode(args_ess),
                  "on" if completo else "", ref, urlencode(args_com),
+                 "<a href='#desfecho'>Desfecho</a>" if desfecho_html else "",
                  ("<span class='nota-modo'>%s</span>" % nota_modo)
                  if nota_modo else "", "".join(sair)))
 
@@ -12729,6 +12937,7 @@ def ficha(ref):
     conteudo = ("<div class='larg ficha-dossier'>" + cabeca + faixa_alteracao +
                 seccoes_html +
                 docs_cx +
+                desfecho_html +
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
                 mercado(a) + "</div>"
                 "<div class='ficha-pe'>" + hist_cx + resp_cx + "</div></div>")
