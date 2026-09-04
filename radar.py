@@ -1519,7 +1519,15 @@ def janelas_de_datas(de, ate, passo=PASSO_HISTORICO):
     return janelas
 
 
-def recolher_intervalo(cfg, de, ate, passo=PASSO_HISTORICO, avisar=print,
+def _diz_ja(*partes):
+    """print() que sai na hora. Numa corrida de horas, o stdout
+    redireccionado fica em buffer de 8 KB -- sessenta janelas de
+    progresso que so aparecem no fim, e ate la a corrida parece
+    pendurada. Foi o que aconteceu a 04/09/2026."""
+    print(*partes, flush=True)
+
+
+def recolher_intervalo(cfg, de, ate, passo=PASSO_HISTORICO, avisar=_diz_ja,
                        recolha=None):
     """Varre [de, ate] janela a janela, gravando cada uma.
 
