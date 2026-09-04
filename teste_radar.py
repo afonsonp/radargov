@@ -7387,11 +7387,12 @@ class TestRegistoDaCasa(BaseTemporaria):
 
 
 class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
-    """A tabela `anuncios` é LARGA: a 04/09/2026, o `texto` do anúncio
-    sozinho eram 377 dos 438 MB dela, porque o `--detalhes tudo` acabou e
-    passaram a ter detalhe lido 66 404 dos 66 498. Um `SCAN anuncios` não
-    é "ler 66 mil linhas": é arrastar 440 MB do disco — e o disco é uma
-    pen a ~42 MB/s a frio.
+    """A tabela `anuncios` é LARGA: a 05/09/2026, o `texto` do anúncio
+    sozinho são 843 MB, porque o acervo passou a onze anos e os 209 177
+    anúncios têm todos detalhe lido. Um `SCAN anuncios` não é "ler
+    duzentas mil linhas": é arrastar 843 MB do disco — e o disco é uma
+    pen a ~42 MB/s a frio. Os números deste docstring dobraram numa
+    tarde; a regra não.
 
     Enquanto só 9% tinham texto isto não se via; no dia em que passaram a
     ter todos, a página inicial fazia nove varrimentos por pedido e
@@ -7473,8 +7474,37 @@ class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
                 "SELECT name FROM sqlite_master WHERE type='index'")}
         for nome in ("ix_anuncios_lista", "ix_anuncios_triagem",
                      "ix_anuncios_detalhe", "ix_anuncios_plataforma",
-                     "ix_anuncios_estado_cpv"):
+                     "ix_anuncios_estado_cpv", "ix_anuncios_acervo"):
             self.assertIn(nome, tem)
+
+    def test_o_mapa_das_plataformas_sai_de_um_indice_de_cobertura(self):
+        """05/09/2026: o mapa das plataformas da lista custava 0,45 s.
+
+        O `ix_anuncios_detalhe(detalhe_lido, plataforma)` foi feito para
+        esta consulta quando ela nao filtrava por estado; passou a
+        filtrar (`estado != 'alteracao'`, mais o recorte), e faltando
+        colunas ao indice o SQLite ia a tabela buscar **cada linha**.
+        Com 66 mil anuncios nem se via; com 209 177 e a `anuncios` em
+        843 MB eram 0,45 s. Com o `ix_anuncios_acervo`, 0,037 s.
+
+        O `_sem_varrimento()` nao apanha isto: recusa `SCAN anuncios`
+        sem cobertura, e este plano e um **SEARCH**. Um SEARCH que
+        acerta em duzentas mil linhas custa o mesmo que um SCAN, e a
+        unica diferenca no plano e a palavra. Por isso este teste nao
+        olha para a rota: olha para a consulta, e exige a palavra
+        COVERING.
+        """
+        radar.iniciar_db()
+        sql = ("SELECT COALESCE(NULLIF(plataforma,''),'(nenhuma)') p,"
+               " COUNT(*) n FROM anuncios"
+               " WHERE estado != 'alteracao' AND detalhe_lido=1 GROUP BY p")
+        with radar.liga() as c:
+            passos = [r[-1] for r in c.execute("EXPLAIN QUERY PLAN " + sql)]
+        usa = [p for p in passos if "anuncios" in p]
+        self.assertTrue(usa, "a consulta nem sequer toca na tabela")
+        self.assertTrue(
+            all("COVERING INDEX" in p for p in usa),
+            "o mapa das plataformas vai a tabela buscar as linhas: %s" % usa)
 
     def test_o_corpus_conta_se_uma_vez_por_pedido(self):
         """`ha_corpus()` contava 1,99 milhões de linhas quatro ou cinco

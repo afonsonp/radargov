@@ -1002,12 +1002,36 @@ SQLite, cópias, e a pen que manda nos números.
   agrupamento sobre os anúncios tem de ter um índice que a COBRE.**
   Existem para isso o `ix_anuncios_lista` (estado + a ordem da
   primeira página), o `ix_anuncios_triagem` (as cinco colunas das
-  abas), o `ix_anuncios_detalhe`, o `ix_anuncios_plataforma` e o
-  `ix_anuncios_estado_cpv`. Uma coluna que falte ao índice tira-lhe o
-  «COVERING» e volta tudo atrás, em silêncio: o
-  `TestPaginasNaoVarremATabelaLarga` corre o `EXPLAIN QUERY PLAN` das
-  consultas que as rotas disparam de facto e recusa qualquer
-  `SCAN anuncios` que não seja por índice de cobertura. Os índices
+  abas), o `ix_anuncios_detalhe`, o `ix_anuncios_plataforma`, o
+  `ix_anuncios_estado_cpv` e o `ix_anuncios_acervo`. Uma coluna que
+  falte ao índice tira-lhe o «COVERING» e volta tudo atrás, em
+  silêncio: o `TestPaginasNaoVarremATabelaLarga` corre o
+  `EXPLAIN QUERY PLAN` das consultas que as rotas disparam de facto e
+  recusa qualquer `SCAN anuncios` que não seja por índice de cobertura.
+
+  **E aconteceu outra vez a 05/09/2026, de duas maneiras que valem por
+  si.** O mapa das plataformas da lista era servido pelo
+  `ix_anuncios_detalhe(detalhe_lido, plataforma)`, e o comentário dele
+  dizia «não filtram por estado nenhum» — mas a consulta passou a
+  filtrar por `estado != 'alteracao'` e pelo recorte, e o índice deixou
+  de a cobrir. Com 66 mil anúncios não se via; com 209 177 e a
+  `anuncios` em 843 MB eram **0,45 s numa página**. O
+  `ix_anuncios_acervo(detalhe_lido, estado, plataforma, cpv)` põe-nos
+  em **0,037 s**, constrói-se em 1 s e não acrescenta nada de medível
+  ao ficheiro. **Um comentário que descreve a consulta que o índice
+  serve é uma afirmação que envelhece**: quando alguém acrescenta uma
+  coluna ao WHERE, o comentário passa a mentir e o índice a não cobrir,
+  os dois em silêncio.
+
+  A segunda: **o teste não apanhou isto, e o plano dizia porquê.** Ele
+  recusa `SCAN anuncios` sem cobertura, e este plano era um
+  **`SEARCH`** — `SEARCH anuncios USING INDEX ix_anuncios_detalhe`. Um
+  SEARCH que acerta em duzentas mil linhas custa o mesmo que um SCAN, e
+  a única diferença no plano é a palavra. Não se pode recusar todo o
+  SEARCH sem cobertura (o `WHERE ref=?` é um e é o correcto), por isso
+  o que se acrescentou foi um teste **à consulta**, não à rota, a exigir
+  a palavra COVERING —
+  `test_o_mapa_das_plataformas_sai_de_um_indice_de_cobertura`. Os índices
   criam-se no `iniciar_db()` e custam **~1 minuto no primeiro
   arranque** depois de os acrescentar — é o preço de os construir na
   pen, uma vez.
