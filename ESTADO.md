@@ -120,6 +120,23 @@ alertas por e-mail em texto e HTML, o corpus de contratos do Portal BASE
 com os sete gráficos, a exportação da triagem para o git, a segunda fonte
 (Vortal), e o registo da casa (o Excel de 187 concursos, 172 ligados).
 
+**O funil fecha: a ficha diz como o anúncio acabou** (04/09/2026). O dump
+do IMPIC traz o número do anúncio do DR em `n_anuncio`, no mesmo formato
+do `ref` do radar, e é uma ligação por **chave** — ao contrário dos
+homólogos, que são um palpite por termos do título. **38 693 dos 66 498
+anúncios já têm contrato celebrado no corpus**, 58%; a caixa «Desfecho»
+mostra o contratado, quem ganhou, o preço base e quanto abaixo dele se
+fechou, com uma linha por lote quando há lotes.
+
+Os 42% que faltam não são falha: **do anúncio à celebração são 68 dias de
+mediana** (p25 45, p75 98, p90 139), medido sobre os 38 666 pares com as
+duas datas. Por isso a taxa é 68,7% nos anúncios de 2024-S2, 66,8% em
+2025 e só 40,3% em 2026 — e por isso a caixa só diz «ainda sem contrato»
+passados 180 dias (`DIAS_ATE_CONTRATO`); antes disso o silêncio é o
+normal. O patamar fica nos ~67%: o resto são procedimentos desertos,
+anulados, abaixo do limiar de publicação, ou linhas do dump sem
+`nAnuncio`.
+
 **O registo da casa não toca em nada.** Está na base desde 02/09/2026
 mas não se vê no painel nem mexe em nenhum destes números, por decisão
 dele: nada muda no front antes de o registo estar validado. Há um
@@ -163,8 +180,8 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 14 315 linhas, `casa.py` com 990,
-`teste_radar.py` com 700 testes que correm em 32 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 14 524 linhas, `casa.py` com 990,
+`teste_radar.py` com 719 testes que correm em 40 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 

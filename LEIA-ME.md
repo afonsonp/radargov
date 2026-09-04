@@ -352,6 +352,25 @@ Se abrires um anúncio que o radar ainda não tinha lido — um antigo, por
 exemplo — ele lê-o na altura, demora cerca de um segundo, e fica
 guardado. Não precisas de esperar por verificação nenhuma.
 
+### Desfecho: como o concurso acabou
+
+Mais abaixo na ficha há a caixa **Desfecho**, quando já há contrato
+assinado: quanto foi contratado, **quem ganhou**, o preço base e
+**quanto abaixo dele** se fechou. Quando o concurso tinha lotes, uma
+linha por lote, e a percentagem é a do procedimento inteiro — os lotes
+somam-se antes de dividir, senão o número mentia.
+
+Vem do Portal BASE e liga-se pelo **número deste anúncio**, não por
+parecença: ou é este concurso ou não aparece. Não confundir com os
+**Procedimentos homólogos**, logo a seguir, que são as edições
+anteriores parecidas — esses são um palpite pelo título.
+
+Contratos demoram: **metade dos concursos só assina 68 dias depois** do
+anúncio, e um em cada dez passa dos 139. Por isso num anúncio recente a
+caixa nem aparece — não há nada a dizer ainda. Só passados seis meses é
+que ela diz «ainda sem contrato celebrado», e aí já quer dizer alguma
+coisa: ficou deserto, foi anulado, ou nunca chegou ao Portal BASE.
+
 Sobre as peças: o botão **Trazer peças** vai buscá-las à plataforma
 indicada no anúncio. Também vêm sozinhas quando marcas **interessa** —
 nesse caso a ficha mostra "a trazer as peças…" e actualiza-se sozinha

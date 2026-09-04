@@ -7572,6 +7572,240 @@ class TestTiposDeProcedimentoGuardados(CorpusTemporario):
         self.assertEqual(radar.tipos_de_procedimento(), [])
 
 
+class TestDescontoDoDesfecho(unittest.TestCase):
+    """O desfecho na ficha refaz a conta do B04, e por isso podia
+    refazer o erro do B04: **num procedimento com lotes, cada linha
+    traz o preço base do procedimento inteiro**, e dividir linha a
+    linha compara um lote pequeno com a base toda — a média ingénua
+    dava -18,9% no corpus. A regra é somar antes de dividir, e é o
+    primeiro teste daqui.
+
+    Os outros guardam as exclusões: sem base, base a variar entre
+    lotes (aí a base é por lote e a semântica é outra) e soma acima da
+    base. Nesses o número não se mostra, em vez de se mostrar errado.
+    """
+
+    def linha(self, base, contratual):
+        return {"preco_base": base, "preco_contratual": contratual}
+
+    def test_os_lotes_somam_antes_de_dividir(self):
+        # tres lotes de 30 000 contra a base de 100 000 do procedimento:
+        # 10% abaixo. Linha a linha dava 70%, tres vezes.
+        lotes = [self.linha(100000.0, 30000.0) for _ in range(3)]
+        desconto, base, fonte = radar.desconto_do_desfecho(lotes)
+        self.assertAlmostEqual(desconto, 0.10)
+        self.assertEqual(base, 100000.0)
+        self.assertEqual(fonte, "corpus")
+
+    def test_base_a_variar_entre_lotes_nao_da_desconto(self):
+        # base por lote e nao do procedimento: outra semantica, e o
+        # MAX() das bases nao e o tecto de nada
+        desconto, _, _ = radar.desconto_do_desfecho(
+            [self.linha(100000.0, 30000.0), self.linha(50000.0, 20000.0)])
+        self.assertIsNone(desconto)
+
+    def test_soma_acima_da_base_nao_da_desconto(self):
+        # ruido do dump: 4 275 grupos assim no corpus inteiro
+        desconto, _, _ = radar.desconto_do_desfecho(
+            [self.linha(100000.0, 130000.0)])
+        self.assertIsNone(desconto)
+
+    def test_sem_base_no_dump_cai_para_a_do_anuncio_e_diz_que_caiu(self):
+        # 5295/2014 e companhia: preco_base a zero no IMPIC. O anuncio
+        # tem-no, e serve -- mas o ecra tem de dizer que a fonte e outra
+        desconto, base, fonte = radar.desconto_do_desfecho(
+            [self.linha(0.0, 90000.0)], base_do_anuncio=100000.0)
+        self.assertAlmostEqual(desconto, 0.10)
+        self.assertEqual(base, 100000.0)
+        self.assertEqual(fonte, "anuncio")
+
+    def test_sem_base_nenhuma_nao_inventa(self):
+        desconto, base, _ = radar.desconto_do_desfecho(
+            [self.linha(0.0, 90000.0)])
+        self.assertIsNone(desconto)
+        self.assertEqual(base, 0.0)
+
+    def test_sem_linhas_nao_rebenta(self):
+        self.assertEqual(radar.desconto_do_desfecho([]), (None, 0.0, "anuncio"))
+
+
+class TestGanhadoresDaLinha(unittest.TestCase):
+    """04/09/2026: os três sítios que mostram «quem ganhou» faziam cada
+    um o seu `zip(nomes, chaves)` sobre dois `group_concat`s. O das
+    chaves vem **NULL** quando nenhum adjudicatário daquele contrato
+    tem chave — e aí `"".split("|")` dá uma lista de UM, o zip trunca
+    pelo mais curto, e um agrupamento de cinco aparecia com um nome só.
+    Sem erro e sem aviso: só um ecrã com menos gente do que a verdade.
+
+    No corpus verdadeiro as chaves estão cheias, por isso isto nunca
+    apareceu — foi um teste do desfecho contra um corpus sem a migração
+    que o expôs. É a regra da casa: onde a documentação disser «em
+    último recurso faz X», escreve-se o teste que força esse recurso.
+    """
+
+    def test_sem_chave_nenhuma_nao_perde_ninguem(self):
+        linha = {"ganhou": "A|B|C|D|E", "ganhou_ch": None}
+        self.assertEqual([n for _, n in radar.ganhadores_da_linha(linha)],
+                         ["A", "B", "C", "D", "E"])
+        self.assertEqual({ch for ch, _ in radar.ganhadores_da_linha(linha)},
+                         {""})
+
+    def test_com_chaves_emparelha_pela_ordem(self):
+        linha = {"ganhou": "A|B", "ganhou_ch": "500|n:b"}
+        self.assertEqual(radar.ganhadores_da_linha(linha),
+                         [("500", "A"), ("n:b", "B")])
+
+    def test_menos_chaves_do_que_nomes_nao_trunca(self):
+        linha = {"ganhou": "A|B|C", "ganhou_ch": "500"}
+        self.assertEqual(radar.ganhadores_da_linha(linha),
+                         [("500", "A"), ("", "B"), ("", "C")])
+
+    def test_sem_ganhadores_da_lista_vazia(self):
+        self.assertEqual(
+            radar.ganhadores_da_linha({"ganhou": None, "ganhou_ch": None}), [])
+
+
+class TestDesfechoNaFicha(BaseTemporaria):
+    """A ligação anúncio → contrato é por CHAVE (`n_anuncio` do dump do
+    IMPIC = `ref` do radar), ao contrário dos homólogos, que são um
+    palpite por termos do título. O que estes testes seguram:
+
+    - que só vêm os contratos DESTE anúncio (um `LIKE` ou um prefixo
+      trariam o 1/2026 ao pedir o 1/202, e o corpus tem 245 931 linhas
+      com número de anúncio);
+    - a regra do silêncio: um anúncio recente sem contrato não mostra
+      caixa nenhuma, um antigo mostra — e é a mesma condição que decide
+      a entrada «Desfecho» no índice da ficha. **Um chip do índice que
+      salta para um bloco inexistente é a mesma mentira de um número
+      que abre outra lista.**
+    """
+
+    def setUp(self):
+        BaseTemporaria.setUp(self)
+        self.corpus_antigo = radar.CORPUS
+        radar.CORPUS = os.path.join(self.pasta, "ensaio-contratos.db")
+        radar.iniciar_corpus()
+
+    def tearDown(self):
+        radar.CORPUS = self.corpus_antigo
+        BaseTemporaria.tearDown(self)
+
+    def poe_anuncio(self, ref, data_pub, preco_base=""):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, url, data_pub, "
+                      "preco_base) VALUES (?,?,?,?,?)",
+                      (ref, "Aquisição de serviços", "https://x/" + ref,
+                       data_pub, preco_base))
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM anuncios WHERE ref=?",
+                             (ref,)).fetchone()
+
+    def poe_contrato(self, cid, n_anuncio, base, contratual, quem="Empresa"):
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, ano, n_anuncio, objecto, "
+                      "tipo_procedimento, data_celebracao, preco_base, "
+                      "preco_contratual, prazo_execucao) "
+                      "VALUES (?,?,?,?,?,?,?,?,?)",
+                      (cid, 2026, n_anuncio, "Aquisição de serviços",
+                       "Concurso público", "2026-02-10", base, contratual, 30))
+            c.execute("INSERT INTO contrato_adjudicatario "
+                      "(contrato_id, nif, nome) VALUES (?,?,?)",
+                      (cid, "500000000", quem))
+
+    def test_traz_so_os_contratos_deste_anuncio(self):
+        self.poe_contrato(1, "1/2026", 100000.0, 90000.0)
+        self.poe_contrato(2, "10/2026", 100000.0, 90000.0)
+        self.poe_contrato(3, "", 100000.0, 90000.0)
+        linhas = radar.desfecho_do_anuncio("1/2026")
+        self.assertEqual([l["id"] for l in linhas], [1])
+
+    def test_sem_corpus_nao_rebenta(self):
+        radar.CORPUS = os.path.join(self.pasta, "nao-existe.db")
+        self.assertEqual(radar.desfecho_do_anuncio("1/2026"), [])
+
+    def test_anuncio_recente_sem_contrato_nao_desenha_caixa(self):
+        self.poe_contrato(9, "99/2026", 100000.0, 90000.0)   # corpus nao vazio
+        hoje = datetime.date.today().isoformat()
+        a = self.poe_anuncio("1/2026", hoje)
+        self.assertEqual(radar.desfecho_cx(a), "")
+
+    def test_anuncio_antigo_sem_contrato_diz_que_nao_ha(self):
+        self.poe_contrato(9, "99/2026", 100000.0, 90000.0)   # corpus nao vazio
+        velho = (datetime.date.today()
+                 - datetime.timedelta(days=radar.DIAS_ATE_CONTRATO + 1))
+        a = self.poe_anuncio("1/2026", velho.isoformat())
+        saiu = radar.desfecho_cx(a)
+        self.assertIn("ainda sem contrato celebrado", saiu)
+        self.assertIn("id='desfecho'", saiu)
+
+    def test_o_indice_so_tem_desfecho_quando_a_caixa_existe(self):
+        # a ancora e o bloco saem da MESMA condicao: se um dia se
+        # separarem, o chip do indice salta para lado nenhum
+        self.poe_contrato(9, "99/2026", 100000.0, 90000.0)   # corpus nao vazio
+        hoje = datetime.date.today().isoformat()
+        recente = self.poe_anuncio("1/2026", hoje)
+        velho = self.poe_anuncio(
+            "2/2026", (datetime.date.today()
+                       - datetime.timedelta(days=radar.DIAS_ATE_CONTRATO + 1)
+                       ).isoformat())
+        cliente = radar.app.test_client()
+        for a, tem in ((recente, False), (velho, True)):
+            pagina = cliente.get("/anuncio/%s" % a["ref"].replace("/", "%2F"))
+            saiu = pagina.data.decode("utf-8")
+            self.assertEqual("href='#desfecho'" in saiu, tem, a["ref"])
+            self.assertEqual("id='desfecho'" in saiu, tem, a["ref"])
+
+    def test_um_contrato_nao_desenha_a_tabela_dos_lotes(self):
+        # repetia os mesmos numeros do somario noutra forma
+        self.poe_contrato(1, "1/2026", 100000.0, 90000.0)
+        a = self.poe_anuncio("1/2026", "2026-01-05")
+        saiu = radar.desfecho_cx(a)
+        self.assertIn(radar.euros(90000.0), saiu)
+        self.assertIn("10,0%", saiu)
+        self.assertNotIn("tab-mercado", saiu)
+
+    def test_varios_lotes_desenham_a_tabela_e_nao_repetem_quem_ganhou(self):
+        for i in (1, 2, 3):
+            self.poe_contrato(i, "1/2026", 100000.0, 30000.0, quem="Empresa")
+        a = self.poe_anuncio("1/2026", "2026-01-05")
+        saiu = radar.desfecho_cx(a)
+        self.assertIn("tab-mercado", saiu)
+        self.assertIn("Os 3 contratos", saiu)
+        self.assertIn("10,0%", saiu)     # somados, nao 70% tres vezes
+        # o mesmo adjudicatario ganhou os tres lotes: no somario aparece
+        # uma vez, e nao "Empresa + Empresa + Empresa"
+        somario = saiu.split("desfecho-som")[1].split("</div></div>")[0]
+        self.assertEqual(somario.count(">Empresa<"), 1)
+
+    def test_muitos_vencedores_contam_se_em_vez_de_se_listarem(self):
+        # o 10011/2026 tem dez lotes e dez vencedores: a lista de nomes
+        # no cartao era um paragrafo que empurrava os numeros para fora
+        # do olho. Os nomes ficam na tabela, que aqui existe.
+        for i in range(1, 6):
+            self.poe_contrato(i, "1/2026", 100000.0, 10000.0,
+                              quem="Empresa %d" % i)
+        a = self.poe_anuncio("1/2026", "2026-01-05")
+        saiu = radar.desfecho_cx(a)
+        somario = saiu.split("desfecho-som")[1].split("</div></div>")[0]
+        self.assertIn("5 adjudicatários", somario)
+        self.assertNotIn("Empresa 1", somario)
+        self.assertIn("Empresa 1", saiu)          # na tabela, sim
+
+    def test_agrupamento_num_contrato_so_escreve_se_por_extenso(self):
+        # sem tabela por baixo nao ha outro sitio onde os nomes apareçam:
+        # contar aqui era esconder o unico facto que a caixa tinha
+        self.poe_contrato(1, "1/2026", 100000.0, 90000.0)
+        with radar.liga_corpus() as c:
+            c.executemany("INSERT INTO contrato_adjudicatario "
+                          "(contrato_id, nif, nome) VALUES (?,?,?)",
+                          [(1, "60000000%d" % i, "Consorciada %d" % i)
+                           for i in range(1, 5)])
+        a = self.poe_anuncio("1/2026", "2026-01-05")
+        saiu = radar.desfecho_cx(a)
+        self.assertNotIn("adjudicatários", saiu)
+        self.assertIn("Consorciada 4", saiu)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -15,17 +15,19 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 7
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 11
+- [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 4
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 8
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 9
 - [O registo da casa](#o-registo-da-casa) &middot; 1
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 5
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 3
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 7
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 4
 - [A interface](#a-interface) &middot; 9
 - [Convenções](#convencoes) &middot; 2
 
-São 88 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — o índice
-estava a somar 78 a 3/09/2026, quatro áreas abaixo do que tinham.
+São 94 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+índice volta a ter de se recontar sempre que se acrescenta um ponto:
+somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
+áreas tinham.
 
 ---
 
@@ -599,6 +601,32 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   1 987 798 contratos e 2,47 GB — e refaz-se com `--contratos`. O
   endereço do dump muda todas as semanas: resolve-se sempre pela API do
   dados.gov, nunca se guarda.
+
+- **Do anúncio ao contrato liga-se por CHAVE, e o silêncio tem prazo.**
+  O dump do IMPIC traz o número do anúncio do DR em `n_anuncio`, no
+  mesmo formato do `ref` do radar (`13108/2026`), com índice
+  (`ix_ctr_anuncio`): ou é este procedimento ou não aparece. Não
+  confundir com os **homólogos** da mesma ficha, que são um palpite por
+  termos do título — os dois blocos estão lado a lado e respondem a
+  perguntas diferentes. A caixa «Desfecho» (`desfecho_cx()`) só diz
+  «ainda sem contrato» passados `DIAS_ATE_CONTRATO` (180): medido a
+  04/09/2026, do anúncio à celebração vão 68 dias de mediana e 139 no
+  p90, portanto num anúncio de há um mês a ausência não significa nada
+  e a caixa em todos eles era ruído. **O desconto agrega por
+  procedimento** (`desconto_do_desfecho()`), com as mesmas exclusões do
+  gráfico do corpus — é o B04 outra vez, e por linha voltava a mentir.
+
+- **`group_concat` das chaves vem NULL, e o `zip` truncava em
+  silêncio.** Os adjudicatários chegam em duas listas paralelas
+  separadas por `|` (`ganhou`/`ganhou_ch`), e quando NENHUM tem chave a
+  segunda vem `NULL` — `"".split("|")` dá uma lista de **um**, o `zip`
+  trunca pelo mais curto, e um agrupamento de cinco aparecia com um
+  nome só, sem erro nenhum. Os três sítios que mostram «quem ganhou»
+  (`/contratos`, os homólogos e o desfecho) passam desde 04/09/2026 por
+  `ganhadores_da_linha()`. No corpus verdadeiro as chaves estão cheias,
+  por isso isto **nunca se viu no ecrã** — quem o apanhou foi um teste
+  contra um corpus sem a migração, e é por nunca se ver que tinha de
+  deixar de depender dela.
 
 - **Os campos de entidade dos contratos são `entid`/`vencid`.** Nos
   anúncios `ent` é a caixa de texto da entidade — nomes iguais com
