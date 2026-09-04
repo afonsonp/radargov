@@ -39,39 +39,57 @@ L publicar, e a triagem faz-se no painel.
 
 Funciona. Os números são de **4/09/2026**, lidos das duas bases.
 
-**O acervo.** 66 498 anúncios, dois anos deles (28/08/2024 a
-04/09/2026) — **58 222 procedimentos**, porque 8 276 são republicações
+**O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
+04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
 («Alteração do Anúncio de procedimento n.º …») ligadas ao original e
-fora de todas as listas. Eram 876 a 3/09: o salto não é recolha nova,
-é o `--detalhes tudo` a acabar — só quem tem o detalhe lido se sabe
-alteração, e até então 91% estavam por ler. O grosso veio do
-`--historico 730` a 28/08/2026; a rotina diária traz ~65 por dia útil,
-mais as **consultas preliminares da Vortal** (34 até agora,
-`fonte='vortal'`), o tipo que a parte L não publica.
+fora de todas as listas. Eram 66 498 na manhã de 4/09/2026: o
+`--historico 2015-01-01 2024-08-19` trouxe **142 063 num varrimento de
+3h09**, 118 janelas de 30 dias, **zero falhadas**. A partir daqui a
+rotina diária traz ~65 por dia útil, mais as **consultas preliminares
+da Vortal** (36 até agora, `fonte='vortal'`), o tipo que a parte L não
+publica.
+
+**A cobertura está verificada, e conta-se por referência.** Nove meses
+espalhados por 2015, 2016, 2018, 2019, 2020, 2021, 2023 e 2024: as
+refs que o DR devolve para cada mês estão **todas** na base, 100% nos
+nove. Não se afere isto comparando totais por data — ver a armadilha
+no `docs/armadilhas.md`, que custou um falso alarme de 4 390 anúncios
+«em falta» que estavam todos lá.
 
 **O funil, e onde ele aperta.**
 
 | Passo | Quantos | |
 |---|---|---|
-| Na base | 66 498 | |
-| Procedimentos distintos | 58 222 | 8 276 são alterações |
-| **Com detalhe lido** | **66 498** | **100%** — não falta nenhum |
-| Por ver, ainda respondíveis | 1 248 | a aba de entrada |
+| Na base | 209 177 | |
+| Procedimentos distintos | 199 080 | 10 097 são alterações |
+| Com detalhe lido | 148 589 | **71%** — o resto está a ser lido |
+| Por ver, ainda respondíveis | 1 185 | a aba de entrada |
 | Descartados à mão | 3 728 | com motivo |
-| **Marcados «interessa»** | **6** | |
-| Peças em disco | 182 | 32 anúncios, 206 MB |
-| Lidas pelo modelo | 29 | |
+| **Marcados «interessa»** | **7** | |
+| Peças em disco | 187 | 206 MB |
+| Lidas pelo modelo | 30 | |
 
-O aperto de cima **fechou a 4/09/2026**: o `--detalhes tudo` acabou e
-não falta **nenhum** — 66 498 de 66 498. Os últimos 94 eram todos do
-mesmo dia, 28/08/2024, o primeiro da janela do `--historico 730`: o
-comando lê do mais recente para o mais antigo e a corrida anterior
-parou ali, sem erro nenhum. Catorze segundos a acabar. O parágrafo
-abaixo fica porque explica a decisão e o custo; o número dele é
-história. E a conta que ele não tinha: com o detalhe lido, o `texto`
-do anúncio passou a estar em todas as linhas e a tabela `anuncios`
-cresceu para 438 MB — foi o que tornou o painel lento nesse dia, e o
-que os índices de 4/09 resolvem (ver o `docs/diario/2026-09.md`).
+**O que liga aos contratos: 135 945 anúncios, 65%.** É o que o
+varrimento serviu. Do outro lado, 240 500 contratos do Portal BASE têm
+agora ficha de anúncio a que ligar — eram 65 731. A taxa é estável nos
+**65-70% em onze anos** (66,3% em 2015, 68,3% em 2022, 69,2% em 2024),
+o que confirma o patamar que dois anos de dados já sugeriam; os 40,1%
+de 2026 são só o tempo de celebração a decorrer.
+
+O aperto de cima fechou de manhã a 4/09/2026 (66 498 de 66 498) e
+**voltou a abrir à tarde**, por boa razão: o varrimento dos onze anos
+trouxe 142 063 anúncios sem detalhe. A primeira passagem do
+`--detalhes tudo` leu 81 585 em 3h11 e a segunda está a correr sobre
+os restantes ~61 000, a ~5,8 anúncios/s. **É trabalho em curso, não um
+aperto por decidir** — a decisão está tomada desde 3/09 e o comando é
+retomável.
+
+O que o detalhe custa em disco, agora medido em escala grande: o
+`anuncios.texto` são **652 MB** com 71% lido, e o `radar.db` passou de
+558 MB para **995 MB** na mesma tarde. Acabada a leitura fica perto de
+1,3 GB — foi o crescimento desta coluna que tornou o painel lento a
+4/09 de manhã, e são os índices desse dia que o seguram (ver o
+`docs/diario/2026-09.md`).
 
 - **Os 60 215 sem detalhe vão ser lidos.** A rotina lê o detalhe apenas
   dos publicados na janela `detalhe_dias` (60 dias) e os antigos lêem-se
@@ -101,12 +119,12 @@ que os índices de 4/09 resolvem (ver o `docs/diario/2026-09.md`).
   bem feitos e no sítio errado do funil. Ver `docs/diario/2026-09.md`.
 
 **A lista.** Desde 31/08/2026 os anúncios são **uma página só** (`/`), e
-o que aparta o acervo são quatro abas: **por ver 1 248** (por decidir e
-ainda respondível), **interessados 6** (todos, expirados incluídos — um
-interessa expirado é trabalho em curso), **abandonados 56 968** (os 3 728
-descartados à mão mais os por ver que já não dão para responder) e
-**todos 58 222**. É recorte de leitura: a base não muda — lá dentro há
-54 488 com estado `novo`.
+o que aparta o acervo são quatro abas: **por ver 1 185** (por decidir e
+ainda respondível), **interessados 7** (todos, expirados incluídos — um
+interessa expirado é trabalho em curso), **abandonados 197 888** (os
+3 728 descartados à mão mais os por ver que já não dão para responder) e
+**todos 199 080**. É recorte de leitura: a base não muda — lá dentro há
+195 345 com estado `novo`.
 
 Por cima das abas há o **interesse** (Alertas › Interesse), os CPV que a
 casa trabalha. **Está desligado** (`interesse_activo: false`), e
@@ -123,19 +141,20 @@ com os sete gráficos, a exportação da triagem para o git, a segunda fonte
 **O funil fecha: a ficha diz como o anúncio acabou** (04/09/2026). O dump
 do IMPIC traz o número do anúncio do DR em `n_anuncio`, no mesmo formato
 do `ref` do radar, e é uma ligação por **chave** — ao contrário dos
-homólogos, que são um palpite por termos do título. **38 693 dos 66 498
-anúncios já têm contrato celebrado no corpus**, 58%; a caixa «Desfecho»
-mostra o contratado, quem ganhou, o preço base e quanto abaixo dele se
-fechou, com uma linha por lote quando há lotes.
+homólogos, que são um palpite por termos do título. **135 945 dos
+209 177 anúncios têm contrato celebrado no corpus**, 65%; a caixa
+«Desfecho» mostra o contratado, quem ganhou, o preço base e quanto
+abaixo dele se fechou, com uma linha por lote quando há lotes.
 
-Os 42% que faltam não são falha: **do anúncio à celebração são 68 dias de
-mediana** (p25 45, p75 98, p90 139), medido sobre os 38 666 pares com as
-duas datas. Por isso a taxa é 68,7% nos anúncios de 2024-S2, 66,8% em
-2025 e só 40,3% em 2026 — e por isso a caixa só diz «ainda sem contrato»
-passados 180 dias (`DIAS_ATE_CONTRATO`); antes disso o silêncio é o
-normal. O patamar fica nos ~67%: o resto são procedimentos desertos,
-anulados, abaixo do limiar de publicação, ou linhas do dump sem
-`nAnuncio`.
+Os 35% que faltam não são falha: **do anúncio à celebração são 68 dias de
+mediana** (p25 45, p75 98, p90 139), medido sobre os 38 666 pares que
+havia quando isto se mediu. Por isso a taxa é de 66,3% em 2015, 68,3%
+em 2022 e 69,2% em 2024, mas só **40,1% em 2026** — e por isso a caixa
+só diz «ainda sem contrato» passados 180 dias (`DIAS_ATE_CONTRATO`);
+antes disso o silêncio é o normal. **O patamar dos ~65-70% aguenta onze
+anos**, o que era hipótese com dois anos de dados e passou a facto com
+onze: o resto são procedimentos desertos, anulados, abaixo do limiar de
+publicação, ou linhas do dump sem `nAnuncio`.
 
 **O registo da casa não toca em nada.** Está na base desde 02/09/2026
 mas não se vê no painel nem mexe em nenhum destes números, por decisão
@@ -180,19 +199,20 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 14 524 linhas, `casa.py` com 990,
-`teste_radar.py` com 719 testes que correm em 40 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 14 643 linhas, `casa.py` com 990,
+`teste_radar.py` com 728 testes que correm em 30 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
-**As duas bases.** `radar.db` (era 100 MB; a 04/09/2026 são **558 MB**,
-com o `--detalhes tudo` já acabado — o `anuncios.texto` passou de 36 MB
-para **377 MB**, que é o detalhe dos 66 498 anúncios, todos; 19
-tabelas, no git só a triagem, cópia diária em `copias/`) e
-`contratos.db` (2,54 GB, 1 987 798 contratos de 2015 a 2026, 178 978
+**As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
+de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
+**995 MB** e a caminho de ~1,3 GB — o `anuncios.texto` já vai em
+**652 MB** com 71% dos detalhes lidos; 19 tabelas, no git só a triagem,
+cópia diária em `copias/`) e
+`contratos.db` (2,36 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da
 `anuncios` é um número de desempenho, não de arrumação**: cada
-varrimento dela arrasta os 438 MB do disco, e é por isso que as
+varrimento dela arrasta esses 652 MB do disco, e é por isso que as
 contagens do painel têm de ir por índice de cobertura — ver a
 `docs/armadilhas.md`, «A base, as migrações e o disco». **Não se cruzam em SQL**: cada uma tem a sua ligação
 (`liga()` e `liga_corpus()`) e quem junta os resultados é o Python.
