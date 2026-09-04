@@ -11,12 +11,12 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 12
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 9
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 4
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 5
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 7
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 11
-- [Alertas e interesse](#alertas-e-interesse) &middot; 3
+- [Alertas e interesse](#alertas-e-interesse) &middot; 4
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 8
 - [O registo da casa](#o-registo-da-casa) &middot; 1
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 5
@@ -24,7 +24,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 9
 - [Convenções](#convencoes) &middot; 2
 
-São 86 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — o índice
+São 88 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — o índice
 estava a somar 78 a 3/09/2026, quatro áreas abaixo do que tinham.
 
 ---
@@ -310,6 +310,19 @@ Orçamento, cadeia de reserva, chaves.
   bater na porta fechada. A mensagem do tecto diário só aparece quando
   **toda** a cadeia esgota (`cadeia_esgotada()`). Só entra quem tem
   chave: sem chaves novas, o comportamento é o de sempre.
+
+- **«Não há peças para ler» não é erro do modelo.** `analisar_pecas()`
+  devolve `(False, razão)` em dois casos que não são falha nenhuma: não
+  há Caderno de Encargos nem Programa em disco, e os documentos são
+  digitalizações sem texto. Estão em `SEM_NADA_PARA_LER`, e quem chama
+  filtra-os com `e_falta_de_pecas()` antes de escrever a marca. Até
+  4/09/2026 iam todos para «Último erro da leitura pelo modelo»: dos
+  três que lá estavam nesse dia, um era uma **consulta preliminar**
+  (que não tem Caderno de Encargos), outro um anúncio cujo `link_pecas`
+  é a página de entrada da Vortal sem código de procedimento, e o
+  terceiro tinha sido lido com sucesso 1h25 depois. Acusavam o modelo
+  de uma coisa que é das peças. Continuam no histórico da ficha, que é
+  onde interessam.
 
 - **`analise.modelo` diz quem respondeu**, não o modelo configurado
   (`groq:openai/gpt-oss-120b`). Por ser variável, passa pelo
@@ -626,6 +639,17 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   um comando git passa por `porque_do_git()` — o "To &lt;url&gt;" que o
   git escreve primeiro comia os 80 caracteres da linha e a razão nunca
   chegava a ver-se.
+
+- **Uma marca de erro tem de se apagar quando a coisa volta a correr
+  bem** (`limpa_erro()`, no sucesso). A marca responde a «está avariado
+  agora?»; a história fica na série da tabela `erros` (C3), que é para
+  isso que existe. Sem isto a marca só crescia: a 4/09/2026 o painel
+  mostrava um push recusado a 31/08 depois de dezenas de pushes bons —
+  e, por ser anterior ao `porque_do_git()`, ainda no formato velho, com
+  o endereço a tapar a razão. Dava a impressão de uma avaria a durar
+  uma semana. **Duas não se limpam, de propósito**: a do relógio, que
+  passa a cada 60 s e apagaria a marca um minuto depois da avaria, e a
+  expiração do token, que não é um erro mas uma data.
 
 - **Um alerta é um filtro com a marca posta.** Geridos em `/alertas`, que
   é também onde se criam e onde se configura o e-mail. `registar_alertas()`

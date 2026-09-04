@@ -4810,6 +4810,98 @@ class TestEmpurrarTriagem(BaseTemporaria):
         self.assertIn("triagem:", log)
         self.assertTrue(radar.le_marca("ultimo_erro_triagem_git"))
 
+    def test_o_push_bem_sucedido_apaga_a_marca_do_erro(self):
+        # 04/09/2026: o painel mostrava um push recusado a 31/08 depois
+        # de dezenas de pushes bons. A marca escrevia-se na falha e não
+        # se apagava nunca — mandava procurar uma avaria que já não
+        # havia. A série na tabela `erros` é que guarda a história.
+        trabalho = self._repo(com_remoto=False)
+        self._mexe(trabalho)
+        radar.empurrar_triagem(trabalho)            # falha: sem remoto
+        self.assertTrue(radar.le_marca("ultimo_erro_triagem_git"))
+        bare = os.path.join(self.pasta, "remoto.git")
+        self._git(self.pasta, "init", "-q", "--bare", "-b", "master",
+                  "remoto.git")
+        self._git(trabalho, "remote", "add", "origin", bare)
+        self._git(trabalho, "push", "-q", "-u", "origin", "master")
+        bem, _ = radar.empurrar_triagem(trabalho)
+        self.assertTrue(bem)
+        self.assertEqual(radar.le_marca("ultimo_erro_triagem_git"), "")
+        # a história não se perde: continua na série
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM erros WHERE tipo='triagem-git'"
+            ).fetchone()["n"], 1)
+
+    def test_sem_nada_por_empurrar_tambem_apaga(self):
+        # o caso comum: a falha foi de rede, e na volta seguinte já não
+        # há nada para empurrar. Se só o push limpasse, a marca ficava
+        # até à próxima vez que a triagem mudasse — dias.
+        trabalho = self._repo(com_remoto=True)
+        radar.marca_erro("ultimo_erro_triagem_git", "triagem-git", "de ontem")
+        bem, porque = radar.empurrar_triagem(trabalho)
+        self.assertTrue(bem)
+        self.assertIn("sem mudanças", porque)
+        self.assertEqual(radar.le_marca("ultimo_erro_triagem_git"), "")
+
+
+class TestFaltaDePecasNaoEErroDeLeitura(unittest.TestCase):
+    """04/09/2026: os três «Último erro da leitura pelo modelo» que o
+    painel mostrava não eram do modelo. Um era uma consulta preliminar
+    (PT1.NTC.3785562), que não TEM Caderno de Encargos; outro um anúncio
+    cujo `link_pecas` é a página de entrada da Vortal, sem código de
+    procedimento; o terceiro tinha sido lido com sucesso 1h25 depois do
+    erro que continuava no ecrã.
+
+    A acusação era do sítio errado: culpava o modelo de uma coisa que é
+    das peças. O que este teste segura é a decisão — as duas razões de
+    «não há o que ler» são reconhecidas, e uma falha a sério continua a
+    ser falha."""
+
+    def test_as_duas_razoes_de_nao_haver_nada(self):
+        for porque in radar.SEM_NADA_PARA_LER:
+            self.assertTrue(radar.e_falta_de_pecas(porque), porque)
+
+    def test_a_razao_que_analisar_pecas_devolve_mesmo(self):
+        # o texto está escrito em dois sítios; se um mudar sem o outro,
+        # a falta de peças volta a contar como erro do modelo em silêncio
+        self.assertIn("ainda não há Caderno de Encargos nem Programa em "
+                      "disco", radar.SEM_NADA_PARA_LER)
+        self.assertIn("os documentos deste concurso são digitalizações, "
+                      "sem texto que se possa ler", radar.SEM_NADA_PARA_LER)
+
+    def test_uma_falha_a_serio_continua_a_ser_falha(self):
+        self.assertFalse(radar.e_falta_de_pecas(
+            "groq: 429 Too Many Requests"))
+        self.assertFalse(radar.e_falta_de_pecas(
+            "falta a chave da API: põe-na em chave_api.txt, na pasta do radar"))
+        self.assertFalse(radar.e_falta_de_pecas(""))
+        self.assertFalse(radar.e_falta_de_pecas(None))
+
+
+class TestLimpaErro(BaseTemporaria):
+    """A marca diz «está avariado agora?», a série diz «o que já correu
+    mal». Antes de 04/09/2026 a marca só sabia dizer que sim."""
+
+    def test_apaga_a_marca_e_guarda_a_serie(self):
+        radar.marca_erro("docs_ultimo_erro", "pecas", "rebentou")
+        self.assertTrue(radar.le_marca("docs_ultimo_erro"))
+        radar.limpa_erro("docs_ultimo_erro")
+        self.assertEqual(radar.le_marca("docs_ultimo_erro"), "")
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM erros WHERE tipo='pecas'"
+            ).fetchone()["n"], 1)
+
+    def test_limpar_o_que_nao_existe_nao_rebenta(self):
+        radar.limpa_erro("marca_que_nunca_existiu")
+
+    def test_a_linha_do_ecra_desaparece_com_a_marca(self):
+        # o que o Afonso vê: sem marca não há linha nenhuma no bloco
+        self.assertEqual(radar.linhas_de_ultimos_erros(triagem=""), [])
+        self.assertEqual(len(radar.linhas_de_ultimos_erros(
+            triagem="2026-08-31 17:00: git push: recusado")), 1)
+
 
 class TestConsultasPreliminares(BaseTemporaria):
     """B14 (decisão do Afonso a 31/08/2026): a segunda fonte traz SÓ o
