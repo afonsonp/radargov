@@ -6963,6 +6963,65 @@ class TestRegistoDaCasa(BaseTemporaria):
             {"status": "Não fomos", "zoho_fase": "Won", "razao": ""}, papeis),
             ("descartado", None, {"motivo": None}))          # o Zoho nao o resgata
 
+    def test_o_zoho_nao_decide_uma_linha_que_e_um_lote(self):
+        # 04/09/2026, dele: "o #14 e lotes e nos ganhamos um deles". As
+        # duas fontes contam coisas diferentes -- o Excel uma linha por
+        # lote, o Zoho um negocio por procedimento -- e um "Won" do Zoho
+        # quer dizer "ganhamos pelo menos um lote", nao "ganhamos este".
+        # O caso real: 1947/2026, tres lotes, tres linhas (#14 o L1
+        # perdido, #97 o L2 ganho, #98 o L3 perdido) e um so negocio no
+        # Zoho, "Won" com 169 344 contra os 109 065,60 do L1. Sem esta
+        # guarda o #14 passava de Perdido a Ganho.
+        efec = casa.estado_efectivo
+        l1 = {"status": "Perdido", "zoho_fase": "Won", "lote": 1,
+              "preco_base": 109065.6, "zoho_montante": 169344.0}
+        self.assertEqual(efec(l1), "Perdido")
+        # e nao e so o "Won": nenhuma fase do Zoho decide um lote
+        self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Lost",
+                               "lote": 2}), "Submetido")
+        # o conjunto (lote 0) NAO e um lote, e aceita o Zoho
+        self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Lost",
+                               "lote": 0}), "Perdido")
+        # e um anuncio sem lotes tambem
+        self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Lost",
+                               "lote": None}), "Perdido")
+        # a excepcao do "Nao fomos" continua a valer por cima de tudo
+        self.assertEqual(efec({"status": "Não fomos", "zoho_fase": "Won",
+                               "lote": 1}), "Não fomos")
+        # e a triagem segue-a
+        papeis = {"submetido": 3, "perdido": 6, "ganho": 5}
+        e, f, _ = casa.estado_pretendido(dict(l1, lugar=3), papeis)
+        self.assertEqual((e, f), ("interessa", 6))          # perdido, nao ganho
+
+    def test_a_reimportacao_leva_o_lote_e_nao_so_a_fase_do_zoho(self):
+        # O lote e o que TRAVA o Zoho, por isso tem de chegar ao
+        # estado_efectivo() no caminho da importacao tal como o
+        # zoho_fase. Sem ele, um --com-triagem numa reimportacao dava
+        # Ganho a uma linha de lote que o Excel diz Perdido.
+        self._base_normal()
+        lotes = radar.lotes_do_texto(self.LOTES)
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET lotes=? WHERE ref='5491/2026'",
+                      (json.dumps(lotes),))
+        indice = [list(self.INDICE[0])]
+        indice[0][4] = 53667.2          # o preco do lote 1
+        indice[0][9] = "Perdido"
+        casa.importar(self._excel(indice, {}), ler=False)
+        with radar.liga() as c:
+            c.execute("UPDATE casa SET zoho_fase='Won' WHERE id=1")
+            self.assertEqual(
+                c.execute("SELECT lote FROM casa WHERE id=1").fetchone()[0], 1)
+        vistos = []
+        real = casa.estado_pretendido
+        casa.estado_pretendido = lambda linha, papeis: (
+            vistos.append(casa.estado_efectivo(linha)) or real(linha, papeis))
+        try:
+            casa.importar(self._excel(indice, {}), ler=False, triagem=True,
+                          ensaio=True)
+        finally:
+            casa.estado_pretendido = real
+        self.assertEqual(vistos, ["Perdido"])   # e nao "Ganho"
+
     def test_a_reimportacao_do_excel_nao_desfaz_a_regra_do_zoho(self):
         # A linha vem do Excel e nao traz o zoho_fase. Sem o ir buscar a
         # base, um --importar-excel --com-triagem aplicava o estado do
