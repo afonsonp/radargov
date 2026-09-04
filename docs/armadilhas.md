@@ -9,7 +9,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 12
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 13
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 9
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 5
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
@@ -24,7 +24,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 9
 - [Convenções](#convencoes) &middot; 2
 
-São 94 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 95 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -38,6 +38,24 @@ O DR, a Vortal, e como um anúncio entra na base.
 - **Não se filtra nada à entrada.** Decisão tomada depois de uma primeira
   versão que filtrava por pontuação: entra tudo o que a parte L publicar, e
   a triagem faz-se no painel. Não reintroduzas filtros em `recolher()`.
+
+- **Uma recolha grande faz-se por JANELAS de datas, nunca numa janela
+  só.** Duas razões, medidas contra o portal a 04/09/2026. A primeira: o
+  `recolher()` acumula tudo em memória e **só chama o `guardar()` no
+  fim** — de 2015 a 2024 são ~6 800 páginas e horas de corrida, e um
+  corte de rede a meio não gravava nada. A segunda é pior porque é
+  silenciosa: **a ordem do DR deixa de ser cronológica nas páginas
+  fundas.** Com a janela 2015-2026 ordenada por data, StartIndex 20 000
+  devolve 2024, mas 60 000 devolve 2019 e 120 000 e 200 000 devolvem
+  2022 — repetível (três voltas, sempre o mesmo), portanto estável, mas
+  não é por data; é o que um Elasticsearch faz em profundidade sem
+  desempate. **Não há tecto de profundidade** (200 000 responde), por
+  isso o que obriga às janelas não é um limite: é a ordem e a gravação.
+  `janelas_de_datas()` parte o intervalo e `recolher_intervalo()` grava
+  cada uma. Os dois limites do filtro do DR são **inclusivos** — a
+  janela seguinte começa no dia a seguir, e um `-1` a mais perdia um dia
+  por janela, 118 dias numa recolha de dez anos, sem dar erro. Medida a
+  cobertura numa janela real: 547 anúncios pedidos, 547 na base.
 
 - **O BASE não traz anúncios novos.** Medido, e a decisão já foi tomada:
   os "anúncios" do Portal BASE são o mesmo universo do DR (`nAnuncio` é o

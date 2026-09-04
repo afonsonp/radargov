@@ -153,7 +153,20 @@ python radar.py --historico 730
 
 O número são os dias a recuar (730 ≈ 2 anos; omitido, usa 730). Isto
 não mexe no `dias_catchup` da configuração, só faz uma recolha extra,
-maior, uma vez. Para um período grande demora — uma página por segundo,
+maior, uma vez.
+
+Para trazer **anos**, dá-lhe duas datas em vez de um número:
+
+```
+python radar.py --historico 2015-01-01 2024-08-19
+```
+
+Aí o radar parte o intervalo em janelas de 30 dias e **grava cada uma
+assim que a traz**, dizendo em que vai e quanto falta. Podes parar com
+Ctrl-C sem perder nada, e voltar a correr o mesmo comando: as janelas
+que já vieram não trazem nada de novo. Se alguma falhar (rede em baixo,
+por exemplo), as outras continuam e no fim ele escreve o comando exacto
+para repetir só as que faltam. Para um período grande demora — uma página por segundo,
 para não sobrecarregar o portal — e depois os detalhes (CPV, prazo,
 preço) continuam a ser lidos aos poucos nas verificações seguintes, 40
 de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
@@ -568,6 +581,13 @@ python radar.py --historico 730
 ```
 Puxa 730 dias (2 anos) de anúncios de uma vez. Demora horas — é um
 pedido por página, e depois um por anúncio para os detalhes.
+
+```bash
+python radar.py --historico 2015-01-01 2024-08-19
+```
+O mesmo, mas para um intervalo de datas, em janelas de 30 dias que vão
+sendo gravadas à medida que chegam. É esta a forma de trazer anos: dá
+para parar a meio, e repetir não duplica nada.
 
 ```bash
 python radar.py --detalhes tudo

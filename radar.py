@@ -12,6 +12,7 @@ com os cabecalhos de uma captura feita uma vez no browser (curl_DR.txt).
 Arranque:  python radar.py             painel em http://127.0.0.1:8765
            python radar.py --uma-vez   verifica e sai, para as tarefas
            python radar.py --historico N   puxa N dias de historico
+           python radar.py --historico DE ATE   varre um intervalo, por janelas
            python radar.py --detalhes [N|tudo]   le o detalhe do que falta
            python radar.py --reler     reanalisa o texto ja guardado
            python radar.py --descartar-expirados   arruma os por ver com prazo passado
@@ -1389,10 +1390,16 @@ def recolher(cfg):
     limpa_resultados(variaveis)
     repara_filtros(filtros)
 
+    # A janela: por omissao os ultimos `dias_catchup` dias, que e o que
+    # a rotina diaria quer. O varrimento historico passa datas
+    # explicitas em `data_de`/`data_ate` -- e a razao de nao ir tudo
+    # numa janela so esta em recolher_intervalo().
     fim = datetime.now()
     inicio = fim - timedelta(days=int(cfg["dias_catchup"]))
-    filtros["dataPublicacaoDe"] = inicio.strftime("%Y-%m-%d")
-    filtros["dataPublicacaoAte"] = fim.strftime("%Y-%m-%d")
+    filtros["dataPublicacaoDe"] = (cfg.get("data_de")
+                                   or inicio.strftime("%Y-%m-%d"))
+    filtros["dataPublicacaoAte"] = (cfg.get("data_ate")
+                                    or fim.strftime("%Y-%m-%d"))
     variaveis["DataDe"] = filtros["dataPublicacaoDe"]
     variaveis["DataAte"] = filtros["dataPublicacaoAte"]
     variaveis["TipoOrdenacaoId"] = 8          # data, mais recente primeiro
@@ -1462,6 +1469,87 @@ def recolher(cfg):
     guardar_amostra("ultima_colheita.json",
                     json.dumps(colhidos[:10], ensure_ascii=False, indent=2))
     return True, "ok, %d anúncios lidos" % len(colhidos), novos
+
+
+# O varrimento historico faz-se por JANELAS de datas, e nao numa janela
+# grande. Duas razoes, as duas medidas contra o portal a 04/09/2026:
+#
+# - **o recolher() so grava no fim**, depois de percorrer todas as
+#   paginas da janela. De 2015 a 2024 sao ~6 800 paginas e mais de
+#   quatro horas; um corte de rede a meio nao gravava nada. Por janela,
+#   o que ja se trouxe esta na base.
+# - **a ordem do DR deixa de ser cronologica nas paginas fundas.** Com a
+#   janela 2015-2026 e ordenacao por data, StartIndex 20 000 devolve
+#   2024, mas 60 000 devolve 2019 e 120 000 e 200 000 devolvem 2022. E
+#   estavel (tres voltas, sempre o mesmo), mas nao e por data -- e uma
+#   ordenacao que se desfaz em profundidade, como e habitual num
+#   Elasticsearch sem desempate. Com janelas de um mes o StartIndex
+#   nunca passa das dezenas de paginas e a janela responde por si.
+#
+# Nao ha limite de profundidade (200 000 responde), portanto o que
+# obriga as janelas nao e um tecto: e a ordem e a gravacao.
+#
+# Repetir uma janela nao custa nada de errado: o guardar() e INSERT OR
+# IGNORE, por isso o comando e idempotente e retomavel de graca --
+# volta-se a corre-lo e as janelas ja trazidas nao acrescentam nada.
+PASSO_HISTORICO = 30
+
+
+def janelas_de_datas(de, ate, passo=PASSO_HISTORICO):
+    """[(de, ate), ...] a cobrir [de, ate] em pedacos de `passo` dias.
+
+    Do mais recente para o mais antigo, como o `--detalhes`: se a
+    corrida for interrompida, o que ficou por trazer e o mais velho,
+    que e o que menos falta faz.
+
+    Os dois limites sao INCLUSIVOS, como o filtro do DR -- e por isso
+    que a janela seguinte comeca no dia a seguir e nao no mesmo dia.
+    Um `passo` de 30 sobre um mes de 31 dias parte-o em dois, e nao ha
+    mal nenhum nisso; sobrepor tambem nao teria, mas perder um dia
+    teria.
+    """
+    inicio = datetime.strptime(de, "%Y-%m-%d")
+    fim = datetime.strptime(ate, "%Y-%m-%d")
+    passo = max(1, int(passo))
+    janelas = []
+    while fim >= inicio:
+        abre = max(inicio, fim - timedelta(days=passo - 1))
+        janelas.append((abre.strftime("%Y-%m-%d"), fim.strftime("%Y-%m-%d")))
+        fim = abre - timedelta(days=1)
+    return janelas
+
+
+def recolher_intervalo(cfg, de, ate, passo=PASSO_HISTORICO, avisar=print,
+                       recolha=None):
+    """Varre [de, ate] janela a janela, gravando cada uma.
+
+    Devolve (novos, janelas_por_trazer). As janelas que falharem sao
+    devolvidas em vez de rebentarem a corrida: numa recolha de horas, um
+    minuto de rede em baixo nao pode deitar fora o resto -- e como e
+    idempotente, basta voltar a correr o comando com as mesmas datas.
+
+    O `recolha` injecta-se para os testes: a condicao a provar e que
+    cada janela e pedida uma vez e gravada a seguir, e isso nao se prova
+    contra o portal.
+    """
+    recolha = recolha or recolher
+    janelas = janelas_de_datas(de, ate, passo)
+    novos_ao_todo, falhadas = 0, []
+    ini = time.time()
+    avisar("%d janelas de %d dias, de %s a %s. Ctrl-C pára e não perde "
+           "nada: cada janela fica gravada." % (len(janelas), passo, de, ate))
+    for n, (abre, fecha) in enumerate(janelas, 1):
+        ok, mensagem, novos = recolha(dict(cfg, data_de=abre, data_ate=fecha))
+        novos_ao_todo += novos
+        if not ok:
+            falhadas.append((abre, fecha, mensagem))
+        decorrido = time.time() - ini
+        avisar("  [%d/%d] %s a %s: %s (%s novos ao todo, %s decorridos, "
+               "faltam ~%s)"
+               % (n, len(janelas), abre, fecha, mensagem,
+                  mil_pt(novos_ao_todo, " "), duracao_pt(decorrido),
+                  duracao_pt(decorrido / n * (len(janelas) - n))))
+    return novos_ao_todo, falhadas
 
 
 # O DR escreve o CPV com oito digitos, as vezes com o digito de
@@ -14294,8 +14382,31 @@ def main():
         return
 
     if "--historico" in sys.argv:
+        # Duas formas. `--historico N` sao N dias a contar de hoje, numa
+        # janela so -- e o que sempre foi, e serve para recuperar dias
+        # falhados. `--historico DE ATE` varre um intervalo por janelas
+        # de 30 dias, gravando cada uma: e a forma de trazer anos, e a
+        # razao de nao ser uma janela grande esta em recolher_intervalo().
         i = sys.argv.index("--historico")
-        dias = int(sys.argv[i + 1]) if i + 1 < len(sys.argv) else 730
+        resto = [a for a in sys.argv[i + 1:] if not a.startswith("--")]
+        datas = [a for a in resto[:2] if re.match(r"^\d{4}-\d{2}-\d{2}$", a)]
+        if len(datas) == 2:
+            de, ate = sorted(datas)
+            passo = PASSO_HISTORICO
+            ini = time.time()
+            novos, falhadas = recolher_intervalo(cfg, de, ate, passo)
+            print("\n%s anúncios novos em %s."
+                  % (mil_pt(novos, " "), duracao_pt(time.time() - ini)))
+            if falhadas:
+                # Nomeadas, e nao contadas: o comando e idempotente, por
+                # isso a resposta a uma falha e voltar a corre-lo com
+                # estas datas -- mas so se souber quais sao.
+                print("%d janela(s) por trazer. Volta a correr o comando "
+                      "com estas datas:" % len(falhadas))
+                for abre, fecha, mensagem in falhadas:
+                    print("  --historico %s %s   (%s)" % (abre, fecha, mensagem))
+            return
+        dias = int(resto[0]) if resto else 730
         print("a puxar %d dias de historico, isto demora (uma pagina por "
               "segundo, para nao castigar o portal)..." % dias)
         cfg_historico = dict(cfg, dias_catchup=dias)
