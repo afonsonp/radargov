@@ -55,20 +55,23 @@ mais as **consultas preliminares da Vortal** (34 até agora,
 |---|---|---|
 | Na base | 66 498 | |
 | Procedimentos distintos | 58 222 | 8 276 são alterações |
-| **Com detalhe lido** | **66 404** | **99,9%** — faltam 94 |
-| Por ver, ainda respondíveis | 1 247 | a aba de entrada |
+| **Com detalhe lido** | **66 498** | **100%** — não falta nenhum |
+| Por ver, ainda respondíveis | 1 248 | a aba de entrada |
 | Descartados à mão | 3 728 | com motivo |
 | **Marcados «interessa»** | **6** | |
 | Peças em disco | 182 | 32 anúncios, 206 MB |
 | Lidas pelo modelo | 29 | |
 
-O aperto de cima **desapareceu a 4/09/2026**: o `--detalhes tudo`
-acabou de correr e faltam 94, não 60 215. O parágrafo abaixo fica
-porque explica a decisão e o custo; o número dele é história. E a
-conta que ele não tinha: com o detalhe lido, o `texto` do anúncio
-passou a estar em quase todas as linhas e a tabela `anuncios` cresceu
-para 438 MB — foi o que tornou o painel lento nesse dia, e o que os
-índices de 4/09 resolvem (ver o `docs/diario/2026-09.md`).
+O aperto de cima **fechou a 4/09/2026**: o `--detalhes tudo` acabou e
+não falta **nenhum** — 66 498 de 66 498. Os últimos 94 eram todos do
+mesmo dia, 28/08/2024, o primeiro da janela do `--historico 730`: o
+comando lê do mais recente para o mais antigo e a corrida anterior
+parou ali, sem erro nenhum. Catorze segundos a acabar. O parágrafo
+abaixo fica porque explica a decisão e o custo; o número dele é
+história. E a conta que ele não tinha: com o detalhe lido, o `texto`
+do anúncio passou a estar em todas as linhas e a tabela `anuncios`
+cresceu para 438 MB — foi o que tornou o painel lento nesse dia, e o
+que os índices de 4/09 resolvem (ver o `docs/diario/2026-09.md`).
 
 - **Os 60 215 sem detalhe vão ser lidos.** A rotina lê o detalhe apenas
   dos publicados na janela `detalhe_dias` (60 dias) e os antigos lêem-se
@@ -98,9 +101,9 @@ para 438 MB — foi o que tornou o painel lento nesse dia, e o que os
   bem feitos e no sítio errado do funil. Ver `docs/diario/2026-09.md`.
 
 **A lista.** Desde 31/08/2026 os anúncios são **uma página só** (`/`), e
-o que aparta o acervo são quatro abas: **por ver 1 247** (por decidir e
+o que aparta o acervo são quatro abas: **por ver 1 248** (por decidir e
 ainda respondível), **interessados 6** (todos, expirados incluídos — um
-interessa expirado é trabalho em curso), **abandonados 56 969** (os 3 728
+interessa expirado é trabalho em curso), **abandonados 56 968** (os 3 728
 descartados à mão mais os por ver que já não dão para responder) e
 **todos 58 222**. É recorte de leitura: a base não muda — lá dentro há
 54 488 com estado `novo`.
@@ -167,7 +170,7 @@ tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 
 **As duas bases.** `radar.db` (era 100 MB; a 04/09/2026 são **558 MB**,
 com o `--detalhes tudo` já acabado — o `anuncios.texto` passou de 36 MB
-para **377 MB**, que é o detalhe de 66 404 dos 66 498 anúncios; 19
+para **377 MB**, que é o detalhe dos 66 498 anúncios, todos; 19
 tabelas, no git só a triagem, cópia diária em `copias/`) e
 `contratos.db` (2,54 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da
