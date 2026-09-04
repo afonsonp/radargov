@@ -554,10 +554,24 @@ def iniciar_db():
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_triagem "
                   "ON anuncios(estado, prazo, data_pub, detalhe_lido, "
                   "plataforma)")
-        # `_detalhe`: o "quantos faltam ler" e o mapa das plataformas do
-        # acervo, que nao filtram por estado nenhum.
+        # `_detalhe`: o "quantos faltam ler", que nao filtra por estado
+        # nenhum.
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_detalhe "
                   "ON anuncios(detalhe_lido, plataforma)")
+        # `_acervo`: o mapa das plataformas da lista. Era o `_detalhe` a
+        # servi-lo, e a 05/09/2026 deixou de chegar -- **o comentario
+        # dizia "nao filtram por estado nenhum" e a consulta passou a
+        # filtrar**, com `estado != 'alteracao'` e o recorte por cima.
+        # Faltando duas colunas ao indice, o SQLite ia a tabela buscar
+        # cada linha: com 66 mil anuncios passava despercebido, com
+        # 209 177 e uma tabela de 843 MB sao 0,45 s numa pagina.
+        # Medido numa copia: **0,446 s -> 0,037 s**, e o indice
+        # constroi-se em 1 s e nao acrescenta nada de medivel ao
+        # ficheiro. A licao esta na armadilha: um indice de cobertura
+        # so cobre a consulta para que foi feito, e uma coluna nova no
+        # WHERE desfa-lo em silencio.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_acervo "
+                  "ON anuncios(detalhe_lido, estado, plataforma, cpv)")
         # O `SELECT DISTINCT plataforma` da caixa dos alertas, e o
         # `GROUP BY substr(cpv,1,2)` dos indicadores.
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_plataforma "

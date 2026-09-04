@@ -62,7 +62,7 @@ no `docs/armadilhas.md`, que custou um falso alarme de 4 390 anúncios
 |---|---|---|
 | Na base | 209 177 | |
 | Procedimentos distintos | 199 080 | 10 097 são alterações |
-| Com detalhe lido | 148 589 | **71%** — o resto está a ser lido |
+| **Com detalhe lido** | **209 177** | **100%** — não falta nenhum |
 | Por ver, ainda respondíveis | 1 185 | a aba de entrada |
 | Descartados à mão | 3 728 | com motivo |
 | **Marcados «interessa»** | **7** | |
@@ -76,20 +76,24 @@ agora ficha de anúncio a que ligar — eram 65 731. A taxa é estável nos
 o que confirma o patamar que dois anos de dados já sugeriam; os 40,1%
 de 2026 são só o tempo de celebração a decorrer.
 
-O aperto de cima fechou de manhã a 4/09/2026 (66 498 de 66 498) e
-**voltou a abrir à tarde**, por boa razão: o varrimento dos onze anos
-trouxe 142 063 anúncios sem detalhe. A primeira passagem do
-`--detalhes tudo` leu 81 585 em 3h11 e a segunda está a correr sobre
-os restantes ~61 000, a ~5,8 anúncios/s. **É trabalho em curso, não um
-aperto por decidir** — a decisão está tomada desde 3/09 e o comando é
-retomável.
+O aperto de cima fechou de manhã a 4/09/2026 (66 498 de 66 498),
+**voltou a abrir à tarde** com os 142 063 do varrimento, e **fechou
+outra vez de madrugada**: 209 177 de 209 177, zero por ler. Três
+passagens do `--detalhes tudo` — 81 585 em 3h11, 22 800 em 1h09 e
+38 208 em 1h17. A do meio **parou-se a si própria** por três voltas
+seguidas sem ler nada (falha de rede às 23h15, passageira: quinze
+minutos depois o portal respondia a 40 detalhes em 4 s). A guarda
+funcionou como devia e não deixou nada a meio.
 
 O que o detalhe custa em disco, agora medido em escala grande: o
-`anuncios.texto` são **652 MB** com 71% lido, e o `radar.db` passou de
-558 MB para **995 MB** na mesma tarde. Acabada a leitura fica perto de
-1,3 GB — foi o crescimento desta coluna que tornou o painel lento a
-4/09 de manhã, e são os índices desse dia que o seguram (ver o
-`docs/diario/2026-09.md`).
+`anuncios.texto` são **843 MB** e o `radar.db` passou de 558 MB para
+**1,23 GB** em doze horas. Foi o crescimento desta coluna que tornou o
+painel lento a 4/09 de manhã, e voltou a fazê-lo a 5/09: o mapa das
+plataformas da lista custava **0,45 s**, porque o índice que o servia
+tinha sido feito para uma versão da consulta que ainda não filtrava por
+estado. O `ix_anuncios_acervo` põe-no em **0,037 s** e a página
+`/?estado=` em 0,49 s; nenhuma página do painel passa de 0,55 s, tirando
+uma ficha com dez lotes a 1,0 s (ver o `docs/diario/2026-09.md`).
 
 - **Os 60 215 sem detalhe vão ser lidos.** A rotina lê o detalhe apenas
   dos publicados na janela `detalhe_dias` (60 dias) e os antigos lêem-se
@@ -206,13 +210,13 @@ tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
-**995 MB** e a caminho de ~1,3 GB — o `anuncios.texto` já vai em
-**652 MB** com 71% dos detalhes lidos; 19 tabelas, no git só a triagem,
+**1,23 GB**, com os onze anos e os detalhes todos lidos — o
+`anuncios.texto` sozinho são **843 MB**; 19 tabelas, no git só a triagem,
 cópia diária em `copias/`) e
 `contratos.db` (2,36 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da
 `anuncios` é um número de desempenho, não de arrumação**: cada
-varrimento dela arrasta esses 652 MB do disco, e é por isso que as
+varrimento dela arrasta esses 843 MB do disco, e é por isso que as
 contagens do painel têm de ir por índice de cobertura — ver a
 `docs/armadilhas.md`, «A base, as migrações e o disco». **Não se cruzam em SQL**: cada uma tem a sua ligação
 (`liga()` e `liga_corpus()`) e quem junta os resultados é o Python.
