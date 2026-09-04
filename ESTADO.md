@@ -124,10 +124,21 @@ pedidos de perfil, que não são concursos. O que o Zoho diz ficou em
 `casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`, e o
 `status` do Excel **não foi tocado**: em 46 das 92 o Excel diz «Não
 fomos» e o Zoho diz «Lost», porque o Zoho não tem palavra para «não
-concorremos». Escrever por cima apagava a distinção. Quem manda decide-se
-com o vocabulário dos estados, que é decisão dele e ainda está por dar.
-As 14 linhas onde o Zoho fechou e a casa ainda não estão listadas no
-diário.
+concorremos». Escrever por cima apagava a distinção.
+
+**E a regra de quem manda já está dada** (04/09/2026): **o «Não fomos»
+do Excel prevalece, e é o único**; em tudo o resto ganha o Zoho. Vive em
+`casa.estado_efectivo()`, **derivada** — nenhuma das duas colunas se
+reescreve. Sobre as 187 linhas: **16 mudam de estado** (9 Submetido →
+Perdido, 2 Submetido → Cancelado, 2 TBD → Perdido, 1 Cancelado →
+Perdido, 1 Submetido → Ganho, 1 Perdido → Ganho) e **47 ficam
+protegidas** pela excepção. O retrato efectivo passa a ser 88 Não fomos
+· 69 Perdido · 20 Ganho · 7 Submetido · 2 Cancelado · 1 vazio. O
+`estado_pretendido()` já lê por aí, portanto quando o `--com-triagem`
+correr é este o estado que chega aos anúncios. **Uma a conferir antes
+disso:** a #14 passa de Perdido a Ganho e é a única mudança vinda de um
+cruzamento só por nome, com o preço a divergir (169 344 no Zoho contra
+109 065,60 na casa).
 
 **Os lotes já têm solução, tirando dois casos.** A 03/09/2026 ele
 respondeu às quatro linhas que faltavam. As #23 e #26 traziam a **soma**
@@ -140,8 +151,8 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 14 211 linhas, `casa.py` com 931,
-`teste_radar.py` com 687 testes que correm em 31 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 14 211 linhas, `casa.py` com 971,
+`teste_radar.py` com 689 testes que correm em 29 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
