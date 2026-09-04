@@ -933,7 +933,7 @@ SQLite, cópias, e a pen que manda nos números.
   `texto` do anúncio sozinho são 377. Um `SCAN anuncios` seco arrasta
   isso tudo do disco para responder a um `COUNT(*)`. Enquanto só 9%
   tinham detalhe lido não se via; no dia em que o `--detalhes tudo`
-  acabou (66 404 de 66 498), a página inicial passou a fazer **nove
+  acabou (66 498 de 66 498), a página inicial passou a fazer **nove
   varrimentos por pedido** e foi de ~0,2 s para **1,57 s a quente** —
   na pen a frio, muito pior. Regra: **uma consulta de contagem ou de
   agrupamento sobre os anúncios tem de ter um índice que a COBRE.**
