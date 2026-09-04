@@ -6927,6 +6927,64 @@ class TestRegistoDaCasa(BaseTemporaria):
         self.assertEqual(r["zoho_como"], "preço+nome")
         self.assertEqual(r["status"], antes["status"])   # nem um esmagou o outro
 
+    def test_o_zoho_manda_no_estado_menos_no_nao_fomos(self):
+        # A regra dele, 03/09/2026, depois de ver os numeros: "o que
+        # esta no Excel como nao fomos, esse estado prevalece ao estado
+        # do Zoho, mas e o unico". A excepcao existe porque em 46 das 92
+        # linhas que cruzam o Excel diz "Nao fomos" e o Zoho diz "Lost":
+        # sem ela, metade do cruzamento perdia a distincao.
+        efec = casa.estado_efectivo
+        self.assertEqual(efec({"status": "Não fomos", "zoho_fase": "Lost"}),
+                         "Não fomos")
+        self.assertEqual(efec({"status": "Não fomos", "zoho_fase": "Won"}),
+                         "Não fomos")
+        # em tudo o resto ganha o Zoho
+        self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Lost"}),
+                         "Perdido")
+        self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Won"}), "Ganho")
+        self.assertEqual(efec({"status": "TBD", "zoho_fase": "Cancel"}), "Cancelado")
+        # o "2.3 - Negotiation" tem de casar mesmo: o _norma() guarda os
+        # pontos e os hifens, e uma chave escrita "2 3 negotiation" nao
+        # casava nada e caia em silencio para o estado do Excel
+        self.assertEqual(efec({"status": "Submetido",
+                               "zoho_fase": "2.3 - Negotiation"}), "Submetido")
+        self.assertIn("2.3 - negotiation", casa.TRADUCAO_ZOHO)
+        # sem Zoho, ou com uma fase que nao se traduz, manda o Excel
+        self.assertEqual(efec({"status": "Ganho", "zoho_fase": None}), "Ganho")
+        self.assertEqual(efec({"status": "Ganho"}), "Ganho")
+        self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Fase Nova"}),
+                         "Submetido")
+        # e a triagem segue a regra, nao o status cru
+        papeis = {"submetido": 3, "perdido": 6, "ganho": 5}
+        e, f, _ = casa.estado_pretendido(
+            {"status": "Submetido", "zoho_fase": "Lost"}, papeis)
+        self.assertEqual((e, f), ("interessa", 6))          # perdido, nao submetido
+        self.assertEqual(casa.estado_pretendido(
+            {"status": "Não fomos", "zoho_fase": "Won", "razao": ""}, papeis),
+            ("descartado", None, {"motivo": None}))          # o Zoho nao o resgata
+
+    def test_a_reimportacao_do_excel_nao_desfaz_a_regra_do_zoho(self):
+        # A linha vem do Excel e nao traz o zoho_fase. Sem o ir buscar a
+        # base, um --importar-excel --com-triagem aplicava o estado do
+        # Excel e desfazia a regra em silencio -- justamente no caminho
+        # em que a triagem se escreve nos anuncios.
+        self._base_normal()
+        indice = [list(self.INDICE[0])]
+        indice[0][9] = "Submetido"
+        casa.importar(self._excel(indice, {}), ler=False)
+        with radar.liga() as c:
+            c.execute("UPDATE casa SET zoho_fase='Lost' WHERE id=1")
+        vistos = []
+        real = casa.estado_pretendido
+        casa.estado_pretendido = lambda linha, papeis: (
+            vistos.append(casa.estado_efectivo(linha)) or real(linha, papeis))
+        try:
+            casa.importar(self._excel(indice, {}), ler=False, triagem=True,
+                          ensaio=True)
+        finally:
+            casa.estado_pretendido = real
+        self.assertEqual(vistos, ["Perdido"])   # e nao "Submetido"
+
     def test_estado_pretendido_traduz_o_excel(self):
         papeis = {"submetido": 3, "perdido": 6, "ganho": 5}
         self.assertEqual(casa.estado_pretendido(

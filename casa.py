@@ -33,6 +33,17 @@ FORA_DO_PAIS = ("asturias", "principado de", "xunta de", "junta de andalucia",
 # "TBD" ficam so no registo: nao ha estado do radar que os diga sem mentir.
 ESTADOS_COM_TRIAGEM = ("nao fomos", "submetido", "perdido", "ganho")
 
+# As fases do Zoho, no vocabulario da casa. "2.3 - Negotiation" e
+# "Ready for Proposal" nao sao um fim: a primeira ja concorremos, a
+# segunda ainda nem propusemos -- e o Excel so tem "Submetido" para o
+# meio do caminho, por isso e ai que ambas caem. Uma fase que nao esteja
+# aqui nao traduz, e a linha fica com o que o Excel diz.
+# As chaves sao o que o `_norma()` devolve -- que guarda os pontos e os
+# hifens, e por isso "2.3 - negotiation" fica assim mesmo. Ha teste.
+TRADUCAO_ZOHO = {"lost": "Perdido", "won": "Ganho", "cancel": "Cancelado",
+                 "2.3 - negotiation": "Submetido",
+                 "ready for proposal": "Submetido"}
+
 # As razoes de nao participacao do Excel, no vocabulario dos motivos de
 # abandono (MOTIVOS_ABANDONO). Chaves ja simplificadas.
 MAPA_RAZAO = {"preco base demasiado baixo": "Preço base baixo",
@@ -462,11 +473,35 @@ def _texto_top3(concorrentes):
     return " · ".join(partes)[:300]
 
 
+def estado_efectivo(linha):
+    """O estado que vale, entre o que o Excel diz e o que o Zoho diz.
+
+    A regra e dele, dada a 03/09/2026 depois de ver os numeros: **o
+    "Nao fomos" do Excel prevalece, e e o unico**; em tudo o resto ganha
+    o Zoho, que e a fonte mais actual. A excepcao existe porque o Zoho
+    nao tem palavra para "nao concorremos" -- em 46 das 92 linhas que
+    cruzam, o Excel diz "Nao fomos" e o Zoho diz "Lost". Sem a excepcao,
+    metade do cruzamento perdia a distincao.
+
+    Nao le a base e nao escreve nada: e derivada, de proposito. O
+    `status` continua a ser o do Excel e o `zoho_fase` o do Zoho, cada
+    um intacto na sua coluna -- assim uma reimportacao do Excel nao
+    desfaz a regra, e mudar a regra nao obriga a reescrever dados.
+    """
+    st = linha.get("status")
+    if _norma(st) == "nao fomos":
+        return st
+    return TRADUCAO_ZOHO.get(_norma(linha.get("zoho_fase")), st)
+
+
 def estado_pretendido(linha, papeis):
     """(estado, fase_id, campos) que o registo da casa pede para o anuncio,
-    ou None quando o estado do Excel nao se traduz em triagem."""
+    ou None quando o estado nao se traduz em triagem.
+
+    O estado vem do `estado_efectivo()`, nao do `status` cru: quem manda
+    e o Zoho, tirando o "Nao fomos"."""
     import radar
-    st = _norma(linha.get("status"))
+    st = _norma(estado_efectivo(linha))
     if st not in ESTADOS_COM_TRIAGEM:
         return None
     if st == "nao fomos":
@@ -699,7 +734,7 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
     with radar.liga() as c:
         acervo = Acervo(c, {l["ano"] for l in linhas})
         existentes = {r["id"]: dict(r) for r in c.execute(
-            "SELECT id, ref, ligacao, porque_sem_ref FROM casa")}
+            "SELECT id, ref, ligacao, porque_sem_ref, zoho_fase FROM casa")}
         for linha in linhas:
             antes = existentes.get(linha["id"]) or {}
             if fora_do_pais(linha):
@@ -746,6 +781,11 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
         papeis = {r["papel"]: r["id"] for r in c.execute(
             "SELECT id, papel FROM fases WHERE papel IS NOT NULL")}
         for linha, ref, ligacao, candidatos, fora in decisoes:
+            # A linha vem do Excel e nao traz o que o Zoho diz; sem isto,
+            # uma reimportacao com --com-triagem aplicava o estado do
+            # Excel e desfazia a regra do `estado_efectivo()` em silencio.
+            linha.setdefault("zoho_fase",
+                             (existentes.get(linha["id"]) or {}).get("zoho_fase"))
             resultado = ""
             if fora:
                 resultado = "fora"

@@ -697,10 +697,9 @@ O funil da casa, do «por ver» ao «ganho».
   registo, **46 dizem «Não fomos» no Excel e «Lost» no Zoho**. O Zoho
   não tem palavra para «não concorremos» — perdeu-se o concurso e nunca
   se foi a ele caem os dois no mesmo sítio. Por isso o que ele diz vive
-  em `casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`, e a
-  regra de quem manda fica para quando o vocabulário dos estados estiver
-  decidido. **Uma fonte mais recente não é automaticamente a fonte
-  melhor: compara-se campo a campo antes de a deixar mandar.** O
+  em `casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`.
+  **Uma fonte mais recente não é automaticamente a fonte melhor:
+  compara-se campo a campo antes de a deixar mandar.** O
   `zoho_como` guarda a regra que casou a linha porque o cruzamento é por
   semelhança de nome e preço, não por chave — não é uma certeza, e uma
   ligação errada escreve um estado errado. E o que salva estas colunas
@@ -713,6 +712,23 @@ O funil da casa, do «por ver» ao «ganho».
   aplicação é uma SPA que **não arranca com o separador escondido**:
   fica em «A carregar» para sempre e nem chega a pedir os registos.
   Confirma-se com `document.visibilityState`.
+
+- **O estado que vale é o `estado_efectivo()`, nunca o `casa.status`
+  cru.** A regra é dele, 04/09/2026: **o «Não fomos» do Excel prevalece,
+  e é o único**; em tudo o resto ganha o Zoho. É **derivada**, não
+  gravada — o `status` continua a ser o do Excel e o `zoho_fase` o do
+  Zoho, cada um intacto, e por isso uma reimportação não desfaz a regra
+  e mudar a regra não obriga a reescrever dados. Sobre as 187 linhas,
+  16 mudam de estado e 47 ficam protegidas pela excepção. **Quem lê o
+  estado do registo chama esta função**; o `estado_pretendido()` já o
+  faz, e é por aí que a triagem sai certa. Duas armadilhas medidas ao
+  escrevê-la: as chaves do `TRADUCAO_ZOHO` são o que o `_norma()`
+  devolve, que **guarda os pontos e os hifens** — escrever
+  `"2 3 negotiation"` em vez de `"2.3 - negotiation"` não casa nada e
+  cai em silêncio para o estado do Excel; e a linha que vem do Excel
+  **não traz o `zoho_fase`**, que tem de ser ido buscar à base dentro do
+  `importar()`, senão um `--com-triagem` desfaz a regra exactamente no
+  caminho em que a triagem se escreve. Há teste para as duas.
 
 - **Os lotes lêem-se do anúncio, e a decisão sobre eles já está
   tomada.** O DR escreve «Procedimento com lotes? Sim», «Nº Máx. de
