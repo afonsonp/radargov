@@ -9,7 +9,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 13
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 9
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 5
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
@@ -24,7 +24,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 9
 - [Convenções](#convencoes) &middot; 2
 
-São 95 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 96 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -56,6 +56,23 @@ O DR, a Vortal, e como um anúncio entra na base.
   janela seguinte começa no dia a seguir, e um `-1` a mais perdia um dia
   por janela, 118 dias numa recolha de dez anos, sem dar erro. Medida a
   cobertura numa janela real: 547 anúncios pedidos, 547 na base.
+
+- **A cobertura conta-se por REFERÊNCIA, nunca por data.** O DR devolve
+  **o mesmo anúncio com datas diferentes conforme a janela que se
+  pede**: o `1205/2023` vem com `2023-01-27` quando se pede Janeiro e
+  com `2023-06-01` quando se pede Junho, e como o `guardar()` é INSERT
+  OR IGNORE, fica com a data da primeira janela que o viu. Comparar o
+  total do DR num mês contra um `GROUP BY substr(data_pub,1,7)` da base
+  parece uma verificação e é uma armadilha: a 04/09/2026 acusou 4 390
+  anúncios «em falta» em 2023 que estavam todos lá, guardados noutros
+  meses. A verificação certa é pedir as **referências** da janela e ver
+  quantas existem na base — foi assim que se confirmou 100%.
+
+  E **`hits.total.value` não é o número de anúncios distintos**: é a
+  contagem de hits do Elasticsearch, e a listagem devolve menos refs
+  distintas do que ele diz (1 387 para 1 692 em Janeiro de 2023, 1 909
+  para 1 940 em Fevereiro). Serve para ordem de grandeza, não para
+  aferir cobertura.
 
 - **O BASE não traz anúncios novos.** Medido, e a decisão já foi tomada:
   os "anúncios" do Portal BASE são o mesmo universo do DR (`nAnuncio` é o
