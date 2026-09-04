@@ -7629,6 +7629,114 @@ class TestDescontoDoDesfecho(unittest.TestCase):
         self.assertEqual(radar.desconto_do_desfecho([]), (None, 0.0, "anuncio"))
 
 
+class TestJanelasDeDatas(unittest.TestCase):
+    """O varrimento histórico faz-se por janelas porque o `recolher()`
+    só grava no fim de uma janela e porque a ordem do DR se desfaz nas
+    páginas fundas (medido a 04/09/2026: com a janela 2015-2026,
+    StartIndex 60 000 devolve 2019 e 120 000 devolve 2022).
+
+    O que estes testes seguram é a cobertura: **os dois limites do
+    filtro do DR são inclusivos**, por isso a janela seguinte tem de
+    começar no dia a seguir. Um `-1` a mais e perde-se um dia por
+    janela — 118 dias numa recolha de dez anos, silenciosamente.
+    """
+
+    def dias_cobertos(self, janelas):
+        dias = set()
+        for de, ate in janelas:
+            d = datetime.datetime.strptime(de, "%Y-%m-%d").date()
+            a = datetime.datetime.strptime(ate, "%Y-%m-%d").date()
+            while d <= a:
+                dias.add(d)
+                d += datetime.timedelta(days=1)
+        return dias
+
+    def test_cobre_todos_os_dias_sem_buracos(self):
+        janelas = radar.janelas_de_datas("2019-01-01", "2019-03-31", passo=30)
+        cobertos = self.dias_cobertos(janelas)
+        self.assertEqual(len(cobertos), 90)
+        self.assertIn(datetime.date(2019, 1, 1), cobertos)
+        self.assertIn(datetime.date(2019, 3, 31), cobertos)
+
+    def test_as_janelas_nao_se_sobrepoem(self):
+        janelas = radar.janelas_de_datas("2019-01-01", "2019-03-31", passo=30)
+        soma = sum((datetime.datetime.strptime(a, "%Y-%m-%d")
+                    - datetime.datetime.strptime(d, "%Y-%m-%d")).days + 1
+                   for d, a in janelas)
+        self.assertEqual(soma, len(self.dias_cobertos(janelas)))
+
+    def test_do_mais_recente_para_o_mais_antigo(self):
+        janelas = radar.janelas_de_datas("2019-01-01", "2019-03-31", passo=30)
+        self.assertEqual(janelas[0][1], "2019-03-31")
+        self.assertEqual(janelas[-1][0], "2019-01-01")
+
+    def test_um_dia_so_da_uma_janela(self):
+        self.assertEqual(radar.janelas_de_datas("2019-01-01", "2019-01-01"),
+                         [("2019-01-01", "2019-01-01")])
+
+    def test_passo_maior_do_que_o_intervalo_nao_o_parte(self):
+        self.assertEqual(
+            radar.janelas_de_datas("2019-01-01", "2019-01-10", passo=90),
+            [("2019-01-01", "2019-01-10")])
+
+    def test_dez_anos_dao_janelas_a_conta(self):
+        janelas = radar.janelas_de_datas("2015-01-01", "2024-08-27", passo=30)
+        self.assertEqual(len(self.dias_cobertos(janelas)), 3527)
+
+
+class TestRecolherIntervalo(unittest.TestCase):
+    """Numa recolha de horas, uma janela falhada não pode deitar fora o
+    resto — e o que ficou por trazer tem de sair **nomeado**, porque a
+    resposta a uma falha é voltar a correr o comando com essas datas.
+
+    Separa-se a condição da espera, como manda a casa: a `recolha`
+    injecta-se, e verifica-se que cada janela foi pedida uma vez e que
+    as falhadas voltam identificadas.
+    """
+
+    def test_pede_cada_janela_uma_vez_e_soma_os_novos(self):
+        pedidas = []
+
+        def recolha(cfg):
+            pedidas.append((cfg["data_de"], cfg["data_ate"]))
+            return True, "ok", 10
+
+        novos, falhadas = radar.recolher_intervalo(
+            {}, "2019-01-01", "2019-03-31", passo=30,
+            avisar=lambda *_: None, recolha=recolha)
+        self.assertEqual(pedidas,
+                         radar.janelas_de_datas("2019-01-01", "2019-03-31", 30))
+        self.assertEqual(len(pedidas), len(set(pedidas)))
+        self.assertEqual(novos, 10 * len(pedidas))
+        self.assertEqual(falhadas, [])
+
+    def test_uma_janela_falhada_nao_para_as_outras_e_volta_nomeada(self):
+        janelas = radar.janelas_de_datas("2019-01-01", "2019-03-31", 31)
+        parte = janelas[1][0]            # a do meio, seja qual for
+
+        def recolha(cfg):
+            if cfg["data_de"] == parte:
+                return False, "sem ligação ao DR: timeout", 0
+            return True, "ok", 5
+
+        novos, falhadas = radar.recolher_intervalo(
+            {}, "2019-01-01", "2019-03-31", passo=31,
+            avisar=lambda *_: None, recolha=recolha)
+        self.assertEqual(len(falhadas), 1)
+        self.assertEqual(falhadas[0][0], parte)
+        self.assertIn("timeout", falhadas[0][2])
+        self.assertEqual(novos, 5 * (len(janelas) - 1))   # as outras trouxeram
+
+    def test_a_configuracao_da_casa_nao_e_mexida(self):
+        # o dict(cfg, ...) e uma copia: um data_de pendurado no cfg
+        # verdadeiro estragava a recolha seguinte, que e a diaria
+        cfg = {"dias_catchup": 15}
+        radar.recolher_intervalo(cfg, "2019-01-01", "2019-01-10", passo=30,
+                                 avisar=lambda *_: None,
+                                 recolha=lambda c: (True, "ok", 0))
+        self.assertEqual(cfg, {"dias_catchup": 15})
+
+
 class TestGanhadoresDaLinha(unittest.TestCase):
     """04/09/2026: os três sítios que mostram «quem ganhou» faziam cada
     um o seu `zip(nomes, chaves)` sobre dois `group_concat`s. O das
