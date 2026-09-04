@@ -140,8 +140,8 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 14 145 linhas, `casa.py` com 931,
-`teste_radar.py` com 679 testes que correm em 34 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 14 211 linhas, `casa.py` com 931,
+`teste_radar.py` com 687 testes que correm em 31 segundos, sem rede e sem
 tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 

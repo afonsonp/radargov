@@ -670,6 +670,36 @@ def marca_erro(chave, tipo, texto):
         pass
 
 
+def limpa_erro(chave):
+    """Apaga a marca de "ultimo erro" quando a coisa volta a correr bem.
+
+    Sem isto a marca so cresce: escrevia-se na falha e nunca mais saia
+    do ecra. A 04/09/2026 o painel mostrava um `git push` recusado a
+    31/08 -- depois de dezenas de pushes bem sucedidos, incluindo o
+    dessa manha -- e uma leitura falhada do 22005/2026 das 11:20, que
+    tinha corrido bem as 12:45 do MESMO dia. Um erro que ja nao existe
+    lido como "o ultimo erro" e pior do que erro nenhum: manda procurar
+    uma avaria que ja nao ha.
+
+    A historia NAO se perde: a serie fica na tabela `erros` (C3), que e
+    exactamente o sitio para onde ela foi mandada. A marca responde a
+    "esta alguma coisa avariada agora?"; a serie a "o que e que ja
+    correu mal?".
+
+    DUAS marcas nao se limpam, de proposito. O relogio (`relogio()`)
+    passa a cada 60 s e quase sempre nao faz nada: limpar no sucesso
+    apagava a marca um minuto depois da avaria, e ninguem chegava a
+    ve-la. E a expiracao do token nao e um erro, e uma data -- diz
+    quando a captura deixou de servir, e isso continua a ser verdade
+    depois de renovada.
+    """
+    try:
+        with liga() as c:
+            c.execute("DELETE FROM estado WHERE chave=?", (chave,))
+    except sqlite3.Error:
+        pass                            # limpar nunca pode derrubar o sucesso
+
+
 def registar_expiracao_token(qual, mensagem):
     """E4: guarda QUANDO o token expirou e de quando era a captura.
 
@@ -1185,6 +1215,7 @@ def renovar_pecas_dr(url_accoes, forcar=False, buscar=None):
             return None
         cache["quando"], cache["token"], cache["modulo"] = time.time(), token, modulo
         cache["api"].update(api)
+        limpa_erro("pecas_dr_ultimo_erro")
         return {"token": token, "modulo": modulo, "api": dict(cache["api"])}
 
 
@@ -3861,8 +3892,33 @@ def _perguntar(cadeia, instrucao, texto):
     return None, "; ".join(avisos), ""
 
 
+# As duas razoes por que a leitura nao acontece SEM que o modelo tenha
+# falhado: nao ha o que ler. Nao sao erros da leitura, sao o estado das
+# pecas -- e ate 04/09/2026 iam parar todas ao "Ultimo erro da leitura
+# pelo modelo", onde acusavam o modelo de uma coisa que era da
+# plataforma. Dos tres que la estavam nesse dia, um era uma consulta
+# preliminar (que nao TEM Caderno de Encargos), outro um anuncio cujo
+# link_pecas e a pagina de entrada da Vortal, sem codigo de
+# procedimento. Ficam no historico da ficha, que e onde interessam.
+SEM_NADA_PARA_LER = (
+    "ainda não há Caderno de Encargos nem Programa em disco",
+    "os documentos deste concurso são digitalizações, sem "
+    "texto que se possa ler",
+)
+
+
+def e_falta_de_pecas(porque):
+    """Se o "nao leu" foi por nao haver o que ler, e nao por falha."""
+    return (porque or "").strip() in SEM_NADA_PARA_LER
+
+
 def analisar_pecas(ref):
-    """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso)."""
+    """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso).
+
+    Um `aviso` de `SEM_NADA_PARA_LER` nao e falha do modelo: quem
+    chamar nao o deve registar como erro de leitura -- ver
+    `e_falta_de_pecas()`.
+    """
     cadeia = cadeia_de_fornecedores()
     if not cadeia:
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
@@ -4043,7 +4099,9 @@ def obter_documentos(ref):
     # mais; e se falhar, as pecas ficam na mesma e ha o botao a mao.
     if cadeia_de_fornecedores() and not analise_de(ref):
         lido, porque = analisar_pecas(ref)
-        if not lido:
+        if lido and not porque:
+            limpa_erro("analise_ultimo_erro")
+        elif not lido and not e_falta_de_pecas(porque):
             marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
                        % (datetime.now().strftime("%Y-%m-%d %H:%M"),
                           ref, porque))
@@ -4069,6 +4127,8 @@ def _servir_fila():
         ref = _FILA_DOCS.get()
         try:
             n, aviso = obter_documentos(ref)
+            if n and not aviso:
+                limpa_erro("docs_ultimo_erro")
             if not n:
                 # A data vai na marca (C1 do saneamento) e a serie fica
                 # na tabela erros (C3): a marca diz o ultimo, a serie
@@ -4131,7 +4191,9 @@ def _servir_analise():
             registar(ref, "leitura",
                      "peças lidas" if (ok and not porque) else (porque or "falhou"),
                      quem=quem)
-            if not ok:
+            if ok and not porque:
+                limpa_erro("analise_ultimo_erro")
+            elif not ok and not e_falta_de_pecas(porque):
                 marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
                            % (datetime.now().strftime("%Y-%m-%d %H:%M"),
                               ref, porque))
@@ -4421,10 +4483,12 @@ def empurrar_triagem(pasta=None):
         if a_frente.returncode != 0:
             raise RuntimeError("git rev-list: %s" % porque_do_git(a_frente))
         if int(a_frente.stdout.strip() or 0) == 0:
+            limpa_erro("ultimo_erro_triagem_git")
             return True, "sem mudanças por empurrar"
         feito = corre(["git", "push", "origin", "master"], 180)
         if feito.returncode != 0:
             raise RuntimeError("git push: %s" % porque_do_git(feito))
+        limpa_erro("ultimo_erro_triagem_git")
         return True, "triagem empurrada para o remoto"
     except (OSError, ValueError, RuntimeError,
             subprocess.TimeoutExpired) as erro:
@@ -5132,6 +5196,8 @@ def verificar(cfg=None, passo=None):
                 marca_erro("vortal_ultimo_erro", "vortal", "%s: %s"
                            % (datetime.now().strftime("%Y-%m-%d %H:%M"),
                               aviso_v))
+            else:
+                limpa_erro("vortal_ultimo_erro")
             if n_vortal:
                 mensagem += (" &middot; %d consulta%s preliminar%s da "
                              "Vortal" % (n_vortal,
