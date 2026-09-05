@@ -28152,6 +28152,8 @@
 {"accao": "alterou", "detalhe": "pelo anúncio 3700/2024 de 07/03/2024: prazo de propostas — → 19/03/2024; preço base — → 2.500.000,00 EUR; cpv — → 45232421; plataforma — → acingov; link_pecas — → https://www.acingov.pt/acingovprod/2/zonaPublica/zona_publica_c/donwloadProcedurePiec e/NzI5MjMx", "quando": "2026-09-04 18:35", "quem": "DR", "ref": "663/2024", "tabela": "historico"}
 {"accao": "alteração", "detalhe": "do anúncio 3494/2024, publicado a 01/03/2024; a triagem faz-se lá", "quando": "2026-09-04 18:35", "quem": "DR", "ref": "3732/2024", "tabela": "historico"}
 {"accao": "alterou", "detalhe": "pelo anúncio 3732/2024 de 07/03/2024: prazo de propostas — → 11/03/2024; preço base — → 230.985,00 EUR; cpv — → 33192000; plataforma — → compraspt; link_pecas — → https://www2.compraspt.com/", "quando": "2026-09-04 18:35", "quem": "DR", "ref": "3494/2024", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 686/2018", "quando": "2026-09-05 09:06", "quem": "DR", "ref": "2764/2018", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 9140/2017", "quando": "2026-09-05 09:06", "quem": "DR", "ref": "8986/2017", "tabela": "historico"}
 {"alerta": 1, "consulta": "cpv=72000000&estado=novo&prazo=aberto", "criado_em": "2026-08-30 03:15", "id": 8, "nome": "CPV IT", "quem": "Afonso Pinto", "tabela": "filtros_guardados"}
 {"chave": "504322915", "desde": "2026-08-30", "nome": "Instituto de Informática, I. P.", "tabela": "entidades_seguidas"}
 {"enviado_em": "2026-09-02 17:03", "filtro_id": 8, "ref": "14017/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-02 09:44"}
@@ -28234,31 +28236,110 @@
 {"enviado_em": "2026-09-03 17:05", "filtro_id": 8, "ref": "22180/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-03 17:05"}
 {"enviado_em": "2026-09-03 17:05", "filtro_id": 8, "ref": "22193/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-03 17:05"}
 {"enviado_em": "2026-09-03 17:05", "filtro_id": 8, "ref": "22220/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-03 17:05"}
+{"enviado_em": null, "filtro_id": 8, "ref": "22285/2026", "tabela": "alertas_vistos", "visto_em": "2026-09-05 09:07"}
 {"enviado_em": "2026-09-03 17:05", "filtro_id": 8, "ref": "33174/2025", "tabela": "alertas_vistos", "visto_em": "2026-09-03 17:05"}
 {"enviado_em": "2026-09-04 17:03", "filtro_id": 8, "ref": "6648/2025", "tabela": "alertas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "10003/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10239/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10292/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10428/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10445/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "10454/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "10494/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10511/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "10696/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "10736/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "10819/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "10848/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10907/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10907/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10908/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "10910/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11145/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11163/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11298/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11359/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11402/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11421/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11434/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11469/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11472/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11473/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "11536/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "11636/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11713/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11716/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "11717/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "11735/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11740/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11781/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11826/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11843/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11958/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11989/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11990/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "11991/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12079/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12115/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12116/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12166/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12234/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12314/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12315/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12365/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12399/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12479/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12661/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12669/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12718/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12818/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "12885/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "13120/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "13127/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "13128/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "13128/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "13176/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "13184/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "13245/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "13267/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "13506/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "13507/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1354/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "13655/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "13658/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "14006/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
+{"chave": "504322915", "enviado_em": null, "ref": "14036/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14087/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14281/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "14337/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "14368/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14369/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14370/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14381/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1442/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "14427/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "14461/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "14594/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14606/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14674/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14676/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1474/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "14743/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14754/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14795/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "14996/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "15009/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "15013/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "15190/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "15260/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "15279/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "15340/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "15471/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "15549/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "15638/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "15661/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "15681/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
+{"chave": "504322915", "enviado_em": null, "ref": "15903/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "16118/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "16153/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "16154/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
@@ -28266,47 +28347,72 @@
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "16340/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1655/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1660/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "16677/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "16749/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "16933/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
+{"chave": "504322915", "enviado_em": null, "ref": "17023/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17140/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17141/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17163/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17207/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17237/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17310/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17316/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1747/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1748/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "17580/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17671/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17679/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "17742/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "17896/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 17:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "1805/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "18091/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "18140/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
+{"chave": "504322915", "enviado_em": null, "ref": "18690/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "1876/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "18978/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "19106/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "19241/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "19273/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "19618/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
+{"chave": "504322915", "enviado_em": null, "ref": "20040/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "2023/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "20351/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "20352/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
+{"chave": "504322915", "enviado_em": null, "ref": "20446/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "20569/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "20711/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "20941/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "21002/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
+{"chave": "504322915", "enviado_em": null, "ref": "21155/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "21449/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "acervo", "ref": "21723/2026", "tabela": "seguidas_vistos", "visto_em": "2026-08-30 11:41"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "2196/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "22193/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "22386/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "2242/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "22584/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "22585/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "23471/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "2351/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "23749/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "23984/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "24230/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "2424/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "24648/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "24661/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "24856/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "25341/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "25342/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "25547/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "2606/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "26330/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "26432/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "26589/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "26591/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "26880/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "26883/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "2722/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "27346/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "27358/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "27460/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
@@ -28316,6 +28422,7 @@
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "2774/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "2775/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "28858/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "2950/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "29646/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "29760/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "30040/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
@@ -28325,7 +28432,9 @@
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "30368/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "3047/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "3048/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "3051/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "3051/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
+{"chave": "504322915", "enviado_em": null, "ref": "3061/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "30676/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "31183/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "31243/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
@@ -28335,27 +28444,124 @@
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "32357/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "32448/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "32508/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "3259/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "32801/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33091/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33097/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33180/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "3319/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "3326/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3345/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33470/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33628/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33629/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "33630/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "3368/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3369/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3414/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3532/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3541/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "3573/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "3624/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3759/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "3824/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "3854/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "3893/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "3960/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4040/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4041/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4086/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4093/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4096/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4163/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4354/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4516/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4590/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4626/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "4714/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "4821/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "5128/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "5398/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "5399/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "5457/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "5551/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "5577/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "5634/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "5775/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-02 17:03", "ref": "5810/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-02 09:44"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "5876/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "5983/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6016/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6134/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "6142/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "6207/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "6232/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6339/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6347/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6396/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6466/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6467/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6489/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6520/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6521/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6532/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6604/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6614/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6684/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6781/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6784/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "683/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6836/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "6926/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7039/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7040/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "7080/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "7091/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7105/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7134/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7344/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7365/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7393/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7442/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7561/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "7703/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "7704/2022", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "7704/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "7846/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "7852/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7903/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "7995/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-03 17:05", "ref": "8026/2026", "tabela": "seguidas_vistos", "visto_em": "2026-09-03 17:05"}
+{"chave": "504322915", "enviado_em": null, "ref": "8032/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8033/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8034/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8232/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8233/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8233/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
 {"chave": "504322915", "enviado_em": "2026-09-04 17:03", "ref": "8233/2025", "tabela": "seguidas_vistos", "visto_em": "2026-09-04 09:03"}
+{"chave": "504322915", "enviado_em": null, "ref": "8335/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8369/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8377/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8378/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8427/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8499/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8500/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8747/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8831/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8964/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "8965/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "908/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9148/2018", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9208/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "921/2024", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9326/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9341/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9478/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9614/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9670/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9791/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9792/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9846/2023", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9909/2020", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9989/2021", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
+{"chave": "504322915", "enviado_em": null, "ref": "9991/2019", "tabela": "seguidas_vistos", "visto_em": "2026-09-05 09:07"}
