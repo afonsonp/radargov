@@ -47,7 +47,7 @@ if "%ULTIMA%"=="" (
 )
 
 for /f "delims=" %%A in ('git rev-parse HEAD') do set "AGORA=%%A"
-for /f "delims=" %%B in ('git rev-parse %ULTIMA%^{commit^}') do set "ALVO=%%B"
+for /f "delims=" %%B in ('git rev-list -n 1 "%ULTIMA%"') do set "ALVO=%%B"
 if "%AGORA%"=="%ALVO%" (
   echo Ja esta na ultima release: %ULTIMA%
   pause
