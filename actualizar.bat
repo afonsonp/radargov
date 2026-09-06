@@ -35,7 +35,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-for /f "delims=" %%T in ('git tag --sort=-v:refname') do (
+for /f "delims=" %%T in ('git tag -l "v*" --sort=-v:refname') do (
   set "ULTIMA=%%T"
   goto encontrada
 )
