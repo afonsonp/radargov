@@ -236,6 +236,12 @@ contagens do painel têm de ir por índice de cobertura — ver a
   todo. Qualquer commit deixado no `master` da pen sai sozinho para o
   GitHub na volta seguinte, tenha a triagem mudado ou não. Desliga-se com
   `"triagem_no_git": false`.
+- **O repositório mudou a 07/09/2026**: agora é `afonsonp/Radar` (o
+  `afonsonp/radarconcursos` foi apagado). A programação passou a
+  fazer-se nas sessões remotas do Claude Code; a pen só traz código
+  novo quando o Afonso corre `actualizar.bat`, e só até à última tag
+  publicada como GitHub Release (`v1.0.1` agora) — nunca segue o
+  `master` a cada merge. Ver a secção Git do `CLAUDE.md`.
 
 ## O que fica de fora, e porquê
 
