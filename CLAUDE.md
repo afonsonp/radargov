@@ -110,7 +110,9 @@ Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `contratos.bat` (o que a tarefa semanal corre), `detalhes.bat`
 (`--detalhes tudo`, ~3 h), `ensaio.bat` (ensaio-de-leitura),
 `historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas),
-`actualizar.bat` (traz a última release do GitHub — ver a secção Git).
+`actualizar.bat` (traz a última release do GitHub — ver a secção Git),
+`publicar_dados.bat` / `trazer_dados.bat` (levam o `radar.db` de um
+computador para outro pela release "dados" — ver a secção Git).
 Todos passam pelo `_python.bat`, que escolhe o
 Python da pasta se existir.
 
@@ -340,6 +342,21 @@ mudado ou não. Um push falhado retoma sozinho (desliga-se com
 programação: continua automático e sem tocar em `radar.py`. A única
 coisa que passou a ser manual é a pen **trazer código novo** — isso só
 acontece quando o Afonso corre `actualizar.bat`.
+
+**As bases de dados não entram no histórico do git** — `radar.db` (1,3
+GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por
+ficheiro que o GitHub recusa num push normal, e o Git LFS gratuito só
+dá 1 GB/mês, insuficiente para uma base que cresce duas vezes por dia.
+Para levar o `radar.db` de um computador para outro usa-se uma release
+à parte, **`dados`** (fora da numeração `vX.Y.Z` do código, para o
+`actualizar.bat` não a confundir com uma versão): `publicar_dados.bat`
+sobe o `radar.db` como anexo dessa release (`gh release upload dados
+--clobber`), `trazer_dados.bat` descarrega-o no computador novo. É
+manual e pontual — nunca corre nas verificações agendadas, que só
+mexem no `triagem.jsonl`. **O `contratos.db` não viaja**: com 2,5 GB
+excede mesmo o limite de anexo do GitHub (2 GB), e refaz-se em minutos
+com `python radar.py --contratos` a partir do dump público do IMPIC —
+não há razão para transportar o ficheiro.
 
 Commit no fim de cada trabalho acabado, sem esperar autorização.
 `master` é o único ramo persistente; um ramo `claude/*` é sempre de uma
