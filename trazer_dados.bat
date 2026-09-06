@@ -10,7 +10,7 @@ if exist "%~dp0radar.db" (
   echo Ja ha um radar.db nesta pasta. Para nao arriscar substituir dados
   echo mais recentes por um transporte antigo, este script nao mexe nele.
   echo Se e mesmo para trazer o de fora, muda-lhe o nome a mao primeiro
-  echo (ex.: radar-antes-de-trazer.db) e volta a correr isto.
+  echo -- por exemplo radar-antes-de-trazer.db -- e volta a correr isto.
   pause
   exit /b 1
 )
@@ -19,7 +19,7 @@ echo A trazer o radar.db da release "dados" do GitHub (mais de 1 GB, demora)...
 gh release download dados --pattern "radar.db" --dir "%~dp0"
 if errorlevel 1 (
   echo Falhou. Confirma que ha uma release "dados" com o radar.db anexado
-  echo (publicar_dados.bat cria-a) e que o "gh auth status" esta bem.
+  echo -- o publicar_dados.bat cria-a -- e que o "gh auth status" esta bem.
   pause
   exit /b 1
 )
