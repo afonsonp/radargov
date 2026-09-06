@@ -109,7 +109,9 @@ Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `agendar.bat` (cria as três tarefas), `reler.bat` (`--reler`),
 `contratos.bat` (o que a tarefa semanal corre), `detalhes.bat`
 (`--detalhes tudo`, ~3 h), `ensaio.bat` (ensaio-de-leitura),
-`historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas). Todos passam pelo `_python.bat`, que escolhe o
+`historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas),
+`actualizar.bat` (traz a última release do GitHub — ver a secção Git).
+Todos passam pelo `_python.bat`, que escolhe o
 Python da pasta se existir.
 
 ## Arquitectura
@@ -304,38 +306,42 @@ ficheiro da skill ainda não tenha sido actualizado.
 
 ## Git
 
-**Há remoto**, ao contrário do que este ficheiro afirmou até 01/09/2026:
-`origin` é `https://github.com/afonsonp/radarconcursos.git` e o `master`
-segue o `origin/master`. Isto não é detalhe de arrumação — é o que decide
-se um commit **sai da pen**, e escrito ao contrário levava a tratar o
-histórico como se nunca saísse daqui. O repositório é privado (medido a
-31/08/2026: um pedido anónimo dá 404 — ver o `docs/diario/2026-08.md`,
-«O código saiu do PC»), mas privado não é o mesmo que interno: o `.gitignore` largo
-continua a ser a guarda, e é ele que mantém capturas, bases, chaves e
-peças de fora.
+**Repositório novo a 07/09/2026**: o `afonsonp/radarconcursos` foi
+apagado pelo Afonso e substituído por `origin` =
+`https://github.com/afonsonp/Radar.git`, histórico limpo (verificado
+antes do push: nenhum ficheiro de senha, chave ou token alguma vez
+entrou nos objectos git — só o `.gitignore` largo, que continua a ser a
+guarda de capturas, bases, chaves e peças). Privado, como antes.
 
-Commit no fim de cada trabalho acabado, sem esperar autorização. Numa
-sessão local (na pen), **push não**: quem empurra é o Afonso, ou o
-próprio radar pelo B15 — e o B15 empurra mais do que o nome diz:
-`empurrar_triagem()` faz **commit** só do `triagem.jsonl`, mas o **push
-é do ramo inteiro** e a decisão de empurrar é `git rev-list --count
-origin/master..master`, não o diff do ficheiro. Ou seja, qualquer commit
-que fique no `master` da pen sai sozinho na verificação seguinte (09:00
-ou 17:00), tenha a triagem mudado ou não. Um push falhado retoma na
-volta seguinte (desliga-se com `"triagem_no_git": false`). Escrito ao
-contrário — «push só do triagem.jsonl» — levava a contar com um push à
-mão que já não é preciso, e a não perceber que um commit por acabar
-deixado no `master` sai para o GitHub sem mais ninguém o mandar.
-Numa sessão remota (claude.ai/code), o trabalho vai para um ramo
-`claude/*` e o merge para o `master` **é o Claude que o faz**, por
-decisão dele a 02/09/2026 («tens de começar a ser tu a fazer»): validar
-no PC primeiro, fazer o merge do PR, e dizer-lhe os dois comandos para a
-pen apanhar o `master` (`git checkout master`, `git pull origin master`).
+**A programação faz-se nas sessões remotas do Claude Code
+(claude.ai/code)**, decisão do Afonso a 07/09/2026: um ramo `claude/*`,
+PR, e o merge para o `master` **é o Claude que o faz** — validar
+primeiro, fazer o merge do PR. A pen deixou de ser onde se escreve
+`radar.py`; sessões locais (como esta) servem para operar o radar,
+mexer em dados (`config.json`, a triagem), e para trabalho de
+infra-estrutura pontual como este.
 
-Trabalha-se no `master`, e a 03/09/2026 é o único ramo que existe: os
-`claude/*` de sessões anteriores foram apagados a pedido dele, depois de
-se confirmar que nenhum tinha commits exclusivos (`git log
-origin/master..origin/<ramo>` vazio nos dois). O worktree que houve em
-`.claude/worktrees/` também já não existe. Um ramo `claude/*` que volte
-a aparecer é de uma sessão remota, e **não se apaga sem uma palavra
-dele** — nem depois do merge.
+**A pen actualiza-se por release, não por commit.** Nunca segue o
+`master` a cada merge — só avança quando há uma tag `vX.Y.Z` publicada
+como GitHub Release, correndo **`actualizar.bat`**, que faz `git fetch
+--tags` e um `git merge --ff-only` até à tag mais recente (recusa-se a
+avançar se isso não for uma simples fast-forward, para nunca misturar
+histórico). Cortar uma release é decisão do Afonso, feita depois de
+validar o merge: `git tag -a vX.Y.Z -m "..."`, `git push origin
+vX.Y.Z`, `gh release create vX.Y.Z`. A primeira é a `v1.0.0`, criada no
+mesmo commit em que o repositório nasceu.
+
+Isto **não muda o B15**: `empurrar_triagem()` continua a fazer commit
+só do `triagem.jsonl` e a decidir empurrar por `git rev-list --count
+origin/master..master` (não pelo diff do ficheiro) — o push é do ramo
+inteiro, na verificação seguinte (09:00 ou 17:00), tenha a triagem
+mudado ou não. Um push falhado retoma sozinho (desliga-se com
+`"triagem_no_git": false`). Isso é sincronização de **dados**, não
+programação: continua automático e sem tocar em `radar.py`. A única
+coisa que passou a ser manual é a pen **trazer código novo** — isso só
+acontece quando o Afonso corre `actualizar.bat`.
+
+Commit no fim de cada trabalho acabado, sem esperar autorização.
+`master` é o único ramo persistente; um ramo `claude/*` é sempre de uma
+sessão remota em curso e **não se apaga sem uma palavra dele** — nem
+depois do merge.
