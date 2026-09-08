@@ -230,14 +230,20 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. Navegação por quatro intenções: Anúncios
+   lê da porta. Navegação por três intenções: Anúncios
    (`/`, a lista única com as abas por ver / interessados /
    abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
    `/quadro` + calendário `/calendario`), Mercado (contratos
    `/contratos`, com o modo `?ver=fim` das antigas renovações;
-   `/renovacoes` redirecciona), Alertas (`/alertas`, com o interesse
-   em `/alertas/interesse`). Indicadores
-   (`/indicadores`) fora da barra, pelo ponto da zona de estado. Ficha
+   `/renovacoes` redirecciona). Fora da barra, na zona de estado:
+   Indicadores (`/indicadores`) e **Configurações**
+   (`/configuracoes/<seccao>`, etapa 2 do `ONLINE.md`, 8/09/2026):
+   sete secções — interesse, alertas, recolha, leitura das peças,
+   capturas, cópias, conta — cada uma um formulário que grava uma
+   coisa por `gravar_config_registado()` (junta sem apagar, recusa
+   chaves que pareçam segredos, e deixa o antes/depois no
+   `historico`). Alertas saiu da barra para lá; `/alertas` e
+   `/alertas/interesse` redireccionam. Ficha
    em `/anuncio/<ref>`, em composição de dossier: uma coluna, com o
    cabeçalho fino e o índice presos ao rolar. Uma peça abre **dentro
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
@@ -247,7 +253,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 104 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
+São 105 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

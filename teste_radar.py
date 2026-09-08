@@ -23,7 +23,7 @@ import sys
 import time
 import unittest
 import unittest.mock
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import parse_qsl, quote, unquote, unquote_plus, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
@@ -4022,9 +4022,13 @@ class TestNavegacaoPorIntencoes(unittest.TestCase):
     trava: repor os Indicadores na barra (saíram por decisão 11.6-A) ou
     voltar a separar a lista em duas páginas."""
 
-    def test_quatro_itens_por_ordem_de_uso(self):
+    def test_tres_itens_por_ordem_de_uso(self):
+        # a 8/09/2026 Alertas saiu do primeiro nivel: passou a seccao de
+        # Configuracoes, que vive em baixo ao lado da zona de estado
         self.assertEqual([n[0] for n in radar.NAV],
-                         ["anuncios", "emcurso", "mercado", "alertas"])
+                         ["anuncios", "emcurso", "mercado"])
+        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        self.assertIn('href="/configuracoes"', html_)
 
     def test_indicadores_fora_da_navegacao(self):
         chaves = {n[0] for n in radar.NAV}
@@ -7466,7 +7470,7 @@ class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
         self._sem_varrimento("/indicadores")
 
     def test_os_alertas_nao_varrem(self):
-        self._sem_varrimento("/alertas")
+        self._sem_varrimento("/configuracoes/alertas")
 
     def test_os_indices_existem_e_repor_e_idempotente(self):
         # o mesmo que as migrações: correr duas vezes não muda nada
@@ -8410,6 +8414,185 @@ class TestEssencialNumaFrase(unittest.TestCase):
         saiu = radar.frase_dos_campos_em_falta([("<b>", "A & B")])
         self.assertIn("&lt;b&gt;", saiu)
         self.assertIn("A &amp; B", saiu)
+
+
+
+class TestConfiguracoes(BaseTemporaria):
+    """O menu de configurações (docs/historico/ONLINE.md, etapa 2,
+    8/09/2026): o que estava no separador Alertas, no config.json à mão
+    e em cinco ficheiros de texto passa a sete secções, cada uma um
+    formulário que grava uma coisa."""
+
+    def setUp(self):
+        super().setUp()
+        import shutil
+        self.config_antigo = radar.CONFIG
+        self.base_antiga = radar.BASE_DIR
+        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        # as chaves e as capturas escrevem-se em BASE_DIR: aponta-se para
+        # a pasta temporaria, senao o teste gravava ficheiros na pasta real
+        radar.BASE_DIR = self.pasta
+        self.cliente = radar.app.test_client()
+
+    def tearDown(self):
+        radar.CONFIG = self.config_antigo
+        radar.BASE_DIR = self.base_antiga
+        super().tearDown()
+
+    def test_as_sete_seccoes_abrem_e_as_rotas_antigas_redireccionam(self):
+        for seccao, _, _ in radar.SECCOES_CONFIG:
+            with self.subTest(seccao=seccao):
+                r = self.cliente.get("/configuracoes/" + seccao)
+                self.assertEqual(r.status_code, 200)
+                self.assertIn("class='conf-indice'", r.get_data(as_text=True))
+        r = self.cliente.get("/alertas?aviso=x")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.headers["Location"], "/configuracoes/alertas?aviso=x")
+        r = self.cliente.get("/alertas/interesse")
+        self.assertEqual(r.headers["Location"], "/configuracoes/interesse")
+        self.assertEqual(self.cliente.get("/configuracoes").headers["Location"],
+                         "/configuracoes/alertas")
+
+    def test_recolha_grava_e_rele_sem_perder_o_resto(self):
+        radar.gravar_config({"interesse_cpv": "72000000", "email": {"para": "x@y.pt"}})
+        r = self.cliente.post("/configuracoes/recolha", data={
+            "horas": "08:30, 18:00", "dias_catchup": "10", "detalhe_dias": "90",
+            "detalhes_por_volta": "50", "relidos_por_volta": "5",
+            "vortal_preliminares": "1"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("guardada", r.headers["Location"])
+        cfg = radar.ler_config()
+        self.assertEqual(cfg["horas_verificacao"], ["08:30", "18:00"])
+        self.assertEqual(cfg["detalhe_dias"], 90)
+        self.assertTrue(cfg["vortal_preliminares"])
+        self.assertFalse(cfg["recuperar_slot_falhado"])     # a caixa nao veio
+        # o que a seccao nao mostra fica como estava
+        self.assertEqual(cfg["interesse_cpv"], "72000000")
+        self.assertEqual(cfg["email"]["para"], "x@y.pt")
+        # e o formulario rele o que gravou
+        html_ = self.cliente.get("/configuracoes/recolha").get_data(as_text=True)
+        self.assertIn("value='08:30, 18:00'", html_)
+        # e fica no historico, com o antes e o depois
+        with radar.liga() as c:
+            regs = [r_["detalhe"] for r_ in c.execute(
+                "SELECT detalhe FROM historico WHERE accao='configuração'")]
+        self.assertTrue(any(d.startswith("detalhe_dias: 60 → 90") for d in regs), regs)
+
+    def test_validacao_recusa_e_nao_grava(self):
+        antes = radar.ler_config()["detalhe_dias"]
+        for dados, frase in (
+                ({"horas": "25:00"}, "não é uma hora"),
+                ({"horas": "09:00", "dias_catchup": "x"}, "não é um número"),
+                ({"horas": "09:00", "dias_catchup": "1", "detalhe_dias": "0"}, "vai de 1"),
+                ({"horas": ""}, "pelo menos uma hora")):
+            with self.subTest(dados=dados):
+                base = {"dias_catchup": "15", "detalhe_dias": "60",
+                        "detalhes_por_volta": "40", "relidos_por_volta": "25"}
+                base.update(dados)
+                r = self.cliente.post("/configuracoes/recolha", data=base)
+                self.assertEqual(r.status_code, 302)
+                self.assertIn(frase, unquote_plus(r.headers["Location"]))
+        self.assertEqual(radar.ler_config()["detalhe_dias"], antes)
+
+    def test_um_segredo_nunca_vai_para_o_config(self):
+        with self.assertRaises(ValueError):
+            radar.gravar_config_registado({"groq_api_key": "abc"})
+        with self.assertRaises(ValueError):
+            radar.gravar_config_registado({"email_senha": "abc"})
+        self.assertNotIn("groq_api_key", open(radar.CONFIG, encoding="utf-8").read()
+                         if os.path.exists(radar.CONFIG) else "")
+
+    def test_a_chave_grava_no_ficheiro_e_por_variavel_nao_se_edita(self):
+        r = self.cliente.post("/configuracoes/leitura", data={
+            "fornecedor_pecas": "nvidia", "modelo_groq": "", "modelo_nvidia": "m-x",
+            "chave_nvidia": "nv-123"})
+        self.assertEqual(r.status_code, 302)
+        cfg = radar.ler_config()
+        self.assertEqual(cfg["fornecedor_pecas"], "nvidia")
+        self.assertEqual(cfg["modelos_pecas"]["nvidia"], "m-x")
+        with open(os.path.join(self.pasta, "nvidia_API_KEY.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "nv-123")
+        self.assertNotIn("nv-123", open(radar.CONFIG, encoding="utf-8").read())
+        # por variavel de ambiente: o ecra di-lo e nao ha campo
+        with unittest.mock.patch.dict(os.environ, {"NVIDIA_API_KEY": "por-variavel"}):
+            html_ = self.cliente.get("/configuracoes/leitura").get_data(as_text=True)
+            self.assertIn("definida pela variável NVIDIA_API_KEY", html_)
+            self.assertNotIn("name='chave_nvidia'", html_)
+            self.cliente.post("/configuracoes/leitura", data={"chave_nvidia": "outra"})
+        with open(os.path.join(self.pasta, "nvidia_API_KEY.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "nv-123")     # nao escreveu por cima
+        # fornecedor desconhecido e recusado
+        r = self.cliente.post("/configuracoes/leitura", data={"fornecedor_pecas": "xpto"})
+        self.assertIn("desconhecido", unquote_plus(r.headers["Location"]))
+
+    def test_uma_captura_invalida_nao_toca_no_ficheiro(self):
+        caminho = os.path.join(self.pasta, "curl_DR.txt")
+        with open(caminho, "w", encoding="utf-8") as f:
+            f.write("curl 'https://x' -H 'a: b' --data-raw 'c'\n")
+        r = self.cliente.post("/configuracoes/capturas",
+                              data={"qual": "curl_DR", "texto": "isto nao e um curl"})
+        self.assertIn("gravei", unquote_plus(r.headers["Location"]))
+        with open(caminho, encoding="utf-8") as f:
+            self.assertIn("--data-raw 'c'", f.read())
+        # a da pesquisa sem corpo tambem nao
+        r = self.cliente.post("/configuracoes/capturas",
+                              data={"qual": "curl_DR", "texto": "curl 'https://x' -H 'a: b'"})
+        self.assertIn("corpo", unquote_plus(r.headers["Location"]))
+        # uma valida grava
+        r = self.cliente.post("/configuracoes/capturas", data={
+            "qual": "curl_detalhe", "texto": "curl 'https://y' -H 'k: v'"})
+        self.assertIn("gravada", unquote_plus(r.headers["Location"]))
+        with open(os.path.join(self.pasta, "curl_detalhe.txt"), encoding="utf-8") as f:
+            self.assertIn("https://y", f.read())
+
+    def test_copias_grava_e_lista(self):
+        r = self.cliente.post("/configuracoes/copias", data={
+            "copia_de_seguranca": "1", "copias_a_guardar": "3"})
+        self.assertEqual(r.status_code, 302)
+        cfg = radar.ler_config()
+        self.assertEqual(cfg["copias_a_guardar"], 3)
+        self.assertFalse(cfg["triagem_no_git"])
+        r = self.cliente.post("/configuracoes/copias", data={"copias_a_guardar": "0"})
+        self.assertIn("vai de 1", unquote_plus(r.headers["Location"]))
+
+    def test_remetente_grava_a_senha_no_ficheiro_e_nao_no_config(self):
+        r = self.cliente.post("/alertas/remetente", data={
+            "de": "radar@gmail.com", "servidor": "smtp.gmail.com", "porta": "587",
+            "senha": "segredo-do-email"})
+        self.assertEqual(r.headers["Location"], "/configuracoes/alertas?aviso=Conta+que+envia+guardada.")
+        cfg = radar.ler_config()
+        self.assertEqual(cfg["email"]["de"], "radar@gmail.com")
+        self.assertEqual(cfg["email"]["porta"], 587)
+        self.assertNotIn("segredo", open(radar.CONFIG, encoding="utf-8").read())
+        with open(os.path.join(self.pasta, "email_senha.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "segredo-do-email")
+        # sem senha no formulario o ficheiro fica como esta
+        self.cliente.post("/alertas/remetente", data={
+            "de": "radar@gmail.com", "servidor": "smtp.gmail.com", "porta": "465"})
+        with open(os.path.join(self.pasta, "email_senha.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "segredo-do-email")
+
+    def test_conta_muda_nome_e_palavra_passe_com_a_actual(self):
+        import contas
+        with radar.liga() as c:
+            contas.criar_utilizador(c, "admin", "senha-comprida", "Afonso")
+        # pelo acesso livre local o utilizador e o unico
+        r = self.cliente.post("/configuracoes/conta", data={"nome": "A. Pinto"})
+        self.assertIn("guardada", r.headers["Location"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT nome FROM utilizadores").fetchone()[0], "A. Pinto")
+        r = self.cliente.post("/configuracoes/conta", data={
+            "nome": "A. Pinto", "actual": "errada", "nova": "nova-senha-1", "outra": "nova-senha-1"})
+        self.assertIn("actual", unquote_plus(r.headers["Location"]))
+        r = self.cliente.post("/configuracoes/conta", data={
+            "nome": "A. Pinto", "actual": "senha-comprida", "nova": "nova-senha-1", "outra": "nova-senha-2"})
+        self.assertIn("iguais", unquote_plus(r.headers["Location"]))
+        r = self.cliente.post("/configuracoes/conta", data={
+            "nome": "A. Pinto", "actual": "senha-comprida", "nova": "nova-senha-1", "outra": "nova-senha-1"})
+        self.assertIn("guardada", r.headers["Location"])
+        with radar.liga() as c:
+            token, _ = contas.entrar(c, "admin", "nova-senha-1")
+        self.assertTrue(token)
 
 
 

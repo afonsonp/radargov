@@ -196,7 +196,7 @@ de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
 A barra da esquerda tem quatro entradas, por ordem de uso:
 **Anúncios** (a página inicial — a lista toda, triagem e acervo num
 sítio só), **Em curso** (o quadro e o calendário dos "interessa"),
-**Mercado** (os contratos e as renovações) e **Alertas**. Os
+**Mercado** (os contratos e as renovações). Os
 Indicadores não estão na barra: chegam-se pelo ponto verde/vermelho
 da última verificação, em baixo à esquerda (§8).
 
@@ -228,7 +228,7 @@ original, que é onde se decide — um anúncio que abandonaste continua
 abandonado quando é republicado, e um por ver a que estenderam o prazo
 volta a aparecer com o prazo novo, sem mexeres em nada.
 
-**O interesse recorta as quatro abas.** Em *Alertas › Interesse*
+**O interesse recorta as quatro abas.** Em *Configurações › Interesse*
 escolhes, na árvore, os CPV que a casa trabalha; ligado, a lista passa
 a mostrar só o que corresponde — nas quatro abas, sem teres de pôr
 filtro nenhum. Não é um alerta: um alerta avisa-te, o interesse esconde
@@ -263,7 +263,7 @@ aberta. Podes filtrar por:
 - **intervalo de datas** de publicação.
 - **estado**: as mesmas quatro abas, para os filtros guardados.
 - **prazo**: abertos, urgentes (a menos de N dias — a janela edita-se
-  em Alertas) ou expirados. Serve para apartar o arquivo da triagem do
+  em Configurações › Alertas) ou expirados. Serve para apartar o arquivo da triagem do
   dia.
 - **exclusões**: "Excluir palavras…" e "Excluir CPV…" tiram ruído sem
   apertar o resto do filtro (`manutenção` sem `elevador|avac`).
@@ -277,7 +277,7 @@ ficha. Não fazem nada com o cursor num campo de texto. A pista «j k i
 a ⏎» na linha da contagem é isto.
 
 Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
-filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
+filtro") e volta-se a ele com um clique; em **Configurações › Alertas** liga-se a
 qualquer filtro guardado um aviso no resumo diário, define-se o
 **interesse** (os CPV que recortam a lista, ver §5), e configura-se o
 e-mail e a janela do "urgente". O resumo chega formatado — um cartão
@@ -483,8 +483,10 @@ baixo da barra lateral está o teu nome; ao abrir há «sair» e «sair de
 todos os aparelhos», que fecha todas as sessões de uma vez — se
 perderes o telemóvel, é isso.
 
-Se te esqueceres da palavra-passe, não há «esqueci-me» por e-mail:
-é no terminal deste computador, e grava a nova por cima:
+Mudar o nome ou a palavra-passe faz-se em **Configurações › Conta**
+(pede a actual), e é lá que se vêem as sessões abertas. Se te
+esqueceres da palavra-passe, não há «esqueci-me» por e-mail: é no
+terminal deste computador, e grava a nova por cima:
 
 ```bash
 .venv/bin/python radar.py --palavra-passe admin
@@ -500,6 +502,45 @@ concurso — vês esse registo na ficha do anúncio, em baixo. Na ficha
 podes também atribuir o concurso a uma pessoa, e essa lista de nomes
 é livre: um colega sem conta pode ser responsável.
 
+## 7-A. Configurações
+
+A ligação **Configurações** está em baixo na barra lateral, ao lado
+da verificação automática (desde 8/09/2026; o separador Alertas
+passou para aqui). É onde dizes ao radar como queres que ele
+trabalhe, em sete secções, cada uma com o seu botão «Guardar» — gravar
+uma não toca nas outras, e cada gravação fica no histórico com o
+valor de antes e o de depois:
+
+- **Interesse** — os CPV que a casa trabalha, na árvore, e quantos
+  anúncios apanha.
+- **Alertas** — os filtros guardados com o interruptor de alerta e a
+  taxa de acerto, as entidades seguidas, o novo filtro, o resumo por
+  e-mail (para quem, a que hora, e agora também **quem envia**: conta,
+  servidor, porta e palavra-passe — esta grava-se no `email_senha.txt`,
+  nunca no `config.json`, e o campo fica sempre vazio), a janela do
+  urgente, «enviar já» e os últimos avisos.
+- **Recolha** — as horas da verificação (o relógio interno; os
+  temporizadores do sistema mudam com o `agendar.sh`), a janela de
+  recuperação, a janela e o ritmo do detalhe, a Vortal ligada ou não.
+  Com limites: um zero na janela do detalhe calava a recolha em
+  silêncio, por isso agora recusa.
+- **Leitura das peças** — o fornecedor em uso e o modelo de cada um,
+  e o estado de cada chave (em que ficheiro está e desde quando), com
+  um campo para colar uma nova. Uma chave posta por variável de
+  ambiente aparece como tal e não se edita.
+- **Capturas** — o estado das duas capturas (`curl_DR.txt` e
+  `curl_detalhe.txt`) e uma caixa para colar a nova; valida antes de
+  gravar, e uma colagem errada não toca no ficheiro que lá está.
+- **Cópias** — a cópia diária ligada ou não, quantas guardar, a
+  triagem no git, e a lista do que existe em `copias/`.
+- **Conta** — o nome, a palavra-passe (pede a actual), as sessões
+  abertas e «sair de todos os aparelhos».
+
+O que fica no `config.json` à mão, de propósito: os termos de pesquisa
+e de reserva, `paginas`, `por_pagina`, `abrir_browser_ao_encontrar`,
+`acesso_livre_local` e `endereco_publico` — afinação de quem mexe no
+código.
+
 ## 8. Indicadores
 
 Chega-se lá pelo **ponto verde/vermelho da última verificação**, em
@@ -508,7 +549,7 @@ ocasional, não trabalho diário. Números sobre o teu próprio radar:
 quantos anúncios tens, quantos entraram hoje, quantos marcaste como
 interessa (e destes, quantos estão dentro da janela do "urgente" — os
 mesmos N dias do filtro e da etiqueta cor de âmbar, editáveis em
-Alertas), quantos ainda estão sem detalhe lido, como estão distribuídos
+Configurações › Alertas), quantos ainda estão sem detalhe lido, como estão distribuídos
 pelas fases do quadro, e o estado da recolha — se as capturas ainda são
 válidas e que percentagem de peças se consegue por plataforma.
 
@@ -551,7 +592,7 @@ ficha.
   automática). O `×` ao lado da etiqueta tira-a desse cartão.
 - Cada cartão mostra os dias até ao prazo de propostas: a verde se há
   folga, cor de âmbar dentro da janela do "urgente" (a mesma do filtro,
-  editável em Alertas) e a vermelho se termina hoje ou já expirou.
+  editável em Configurações › Alertas) e a vermelho se termina hoje ou já expirou.
 - **no calendário**, no pé do cartão, salta para a linha deste anúncio
   na grade (só aparece quando o prazo cabe nos 45 dias dela).
 - **Voltar a por ver** devolve o anúncio a "por ver" — sai do quadro sem
@@ -741,7 +782,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 766 verificações em poucos segundos, sem tocar
+Corre os testes — 775 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

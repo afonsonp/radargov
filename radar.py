@@ -6973,6 +6973,8 @@ aside nav a.sub.on b{font-weight:600}
 /* o ponto da ultima verificacao e a porta dos Indicadores (11.6-A) */
 .caixa a.n{display:block}
 .caixa a.n:hover{color:#fff}
+.caixa a.conf{margin-top:10px;font-weight:500;color:var(--barra-t2)}
+.caixa a.conf.on{color:#fff}
 /* Quem esta a trabalhar. Fechado por omissao: e uma escolha que se faz
    uma vez e ocupava permanentemente o canto da barra. */
 .sou{margin-top:auto;padding:12px 0 0;border-top:1px solid var(--barra-linha)}
@@ -7648,6 +7650,32 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .numerados li::marker{font-family:var(--mono);font-size:11px;color:var(--t4)}
 .numerados li b{display:block;font-weight:600;color:var(--ink)}
 .numerados li span{display:block;text-wrap:pretty;max-width:88ch}
+/* Configuracoes: o indice a esquerda, preso ao rolar como o da ficha,
+   e a seccao a direita. Cada seccao e uma caixa com um formulario. */
+.conf{display:grid;grid-template-columns:200px minmax(0,1fr);gap:22px;align-items:start}
+.conf-indice{position:sticky;top:16px;display:flex;flex-direction:column;gap:2px}
+.conf-indice a{display:block;padding:8px 10px;border-radius:7px;color:var(--t2);
+ min-height:24px}
+.conf-indice a b{display:block;font:600 12.5px/1.3 var(--sans)}
+.conf-indice a i{display:block;font:400 10.5px/1.3 var(--sans);color:var(--t5);font-style:normal}
+.conf-indice a:hover{background:var(--linha2);color:var(--ink)}
+.conf-indice a.on{background:#fff;border:1px solid var(--linha);color:var(--ink)}
+.conf-cx{padding:18px 22px 22px}
+.conf-form{display:flex;flex-direction:column;gap:12px;max-width:560px}
+.conf-campo{display:flex;flex-direction:column;gap:4px;font:500 11.5px/1.4 var(--sans);color:var(--t3)}
+.conf-campo input[type=text],.conf-campo input[type=password],.conf-campo input[type=email],
+.conf-campo select,.conf-form textarea{padding:9px 12px;border:1px solid var(--linha);
+ border-radius:7px;font:400 13px/1.3 var(--sans);color:var(--t1);background:#fff}
+.conf-campo input:disabled{background:var(--linha2);color:var(--t4)}
+.conf-campo small{font:400 11px/1.4 var(--sans);color:var(--t5)}
+.conf-check{flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}
+.conf-check input{width:16px;height:16px;margin:0}
+.conf-check small{flex-basis:100%}
+.conf-form button{align-self:flex-start;margin-top:4px}
+.conf-form textarea{font-family:var(--mono);font-size:11.5px;width:100%;max-width:560px}
+.conf-forn{margin-top:18px;padding-top:16px;border-top:1px solid var(--linha2)}
+.conf-forn .saude{margin:6px 0 10px}
+@media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static;flex-direction:row;flex-wrap:wrap}}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
 .em-falta-frase{margin:0;padding:12px 22px 16px;border-top:1px solid var(--linha2);
  font:400 12.5px/1.6 var(--sans);color:var(--t4)}
@@ -7909,6 +7937,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
   <div class="r">Verificação automática</div>
   <div class="h">%(horas)s</div>
   <a class="n" href="/indicadores" title="Abrir os indicadores — a saúde completa do sistema">%(ultima)s</a>
+  <a class="n conf %(conf_on)s" href="/configuracoes" title="Interesse, alertas, recolha, leitura das peças, capturas, cópias e a conta">Configurações</a>
  </div>
  %(conta)s
 </aside>
@@ -7952,20 +7981,27 @@ NAV = (("anuncios", "Anúncios", "/", ()),
         (("contratos", "Contratos", "/contratos"),
          # as renovacoes fundiram-se nos contratos como modo (6.1-A);
          # a rota antiga /renovacoes redirecciona para ca
-         ("renovacoes", "Renovações", "/contratos?ver=fim"))),
-       ("alertas", "Alertas", "/alertas", ()))
+         ("renovacoes", "Renovações", "/contratos?ver=fim"))))
+# Alertas saiu do primeiro nivel a 8/09/2026 (docs/historico/ONLINE.md,
+# etapa 2): passou a seccao de Configuracoes, que vive em baixo, ao
+# lado da zona de estado, como os Indicadores -- e o sitio onde se vai
+# de vez em quando, nao uma intencao diaria. Reverte a decisao 11.6-A
+# do esqueleto ("nao criar pagina Definicoes"): o que era "afinar o que
+# o radar vigia" mais "o que se edita a mao no JSON" mais "cinco
+# ficheiros de chaves na pasta" deixou de caber em tres sitios quando
+# o painel passou a abrir-se de fora, onde nao se abre o Bloco de Notas.
 
 # Que item da navegacao acende para cada pagina. As paginas mantem as
 # chaves que sempre tiveram (as vistas de filtros incluidas); o item e
 # hierarquia por cima delas, nao um nome novo.
 ITEM_DA_PAGINA = {"anuncios": "anuncios",
                   "quadro": "emcurso", "calendario": "emcurso",
-                  "contratos": "mercado", "renovacoes": "mercado",
-                  "alertas": "alertas"}
+                  "contratos": "mercado", "renovacoes": "mercado"}
 
 # Paginas que vivem fora da navegacao, para as migalhas: os Indicadores
 # alcancam-se pelo ponto da ultima verificacao na barra lateral.
-PAGINAS_FORA_DA_NAV = {"indicadores": "Indicadores"}
+PAGINAS_FORA_DA_NAV = {"indicadores": "Indicadores",
+                       "configuracoes": "Configurações"}
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -8185,6 +8221,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "css": CSS, "porta": PORTA,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
+        "conf_on": "on" if activo == "configuracoes" else "",
         # A aplicacao passou a ter duas fontes e o cabecalho so falava
         # do DR: num separador de contratos, dizer "parte L" e mentira.
         "fontes": ("Anúncios do DR &middot; contratos do BASE" if n_corpus
@@ -9139,7 +9176,7 @@ def _lista_de_anuncios():
         corpo_lista = ("<div class='vazio'>Nada aqui <b>dentro do "
                        "interesse</b> &mdash; há %s de fora dele. "
                        "<a href='%s'>ver tudo</a> ou "
-                       "<a href='/alertas/interesse'>mudar o interesse</a>."
+                       "<a href='/configuracoes/interesse'>mudar o interesse</a>."
                        "</div>"
                        % (mil(escondidos_interesse),
                           html.escape(sem_pagina(request.args, rota,
@@ -9187,7 +9224,7 @@ def _lista_de_anuncios():
     if por_enviar:
         faixa_avisos = (
             "<div class='flash'><b>%s anúncio%s</b> nos teus alertas, "
-            "por avisar. <a href='/alertas'>ver os alertas</a></div>"
+            "por avisar. <a href='/configuracoes/alertas'>ver os alertas</a></div>"
             % (mil_pt(por_enviar), "" if por_enviar == 1 else "s"))
     else:
         faixa_avisos = ""
@@ -9638,7 +9675,7 @@ def _faixa_do_interesse(rota, escondidos, cfg=None):
     quantos = ("<span class='d'> &middot; %s de fora</span>"
                % mil_pt(escondidos)) if escondidos > 0 else ""
     return ("<div class='cpv-activo'>Limitado ao "
-            "<a href='/alertas/interesse'>interesse</a>: <b>%s</b>%s%s"
+            "<a href='/configuracoes/interesse'>interesse</a>: <b>%s</b>%s%s"
             "<a href='%s'>ver tudo</a></div>"
             % (html.escape(dentro),
                (" <span class='d'>sem %s</span>" % html.escape(fora))
@@ -9710,7 +9747,7 @@ def caixa_de_filtros(args, vista, rota=None, extra=""):
         legenda = ""
     else:
         legenda = ("<span class='nada'>ainda nenhum &mdash; guarda o filtro "
-                   "de agora, ou cria um em <a href='/alertas'>Alertas</a>"
+                   "de agora, ou cria um em <a href='/configuracoes/alertas'>Alertas</a>"
                    "</span>")
 
     # O que ficou de fora do filtro em uso, escrito e nao escondido. A
@@ -9814,7 +9851,7 @@ def filtro_apagar(filtro_id):
                           (filtro_id,)).fetchone()
         c.execute("DELETE FROM filtros_guardados WHERE id=?", (filtro_id,))
         c.execute("DELETE FROM alertas_vistos WHERE filtro_id=?", (filtro_id,))
-    return volta_para((request.form.get("volta") or "/alertas").strip(), "",
+    return volta_para((request.form.get("volta") or "/configuracoes/alertas").strip(), "",
                       "Filtro apagado: %s" % linha["nome"] if linha else "")
 
 
@@ -10152,12 +10189,18 @@ def _caixa_interesse():
             "um filtro. Não é um alerta: um alerta avisa, o interesse "
             "esconde o resto.</div>%s"
             "<div class='arvore-topo' style='padding:0 0 4px'>"
-            "<a class='bt' href='/alertas/interesse'>Definir o interesse"
+            "<a class='bt' href='/configuracoes/interesse'>Definir o interesse"
             "</a></div></div>" % resumo)
 
 
 @app.route("/alertas/interesse")
 def interesse():
+    """Passou a Configuracoes > Interesse (8/09/2026); redirecciona."""
+    qs = request.query_string.decode()
+    return redirect("/configuracoes/interesse" + ("?" + qs if qs else ""))
+
+
+def _conteudo_interesse():
     """Onde se escolhem os CPV do interesse, com a arvore."""
     cfg = ler_config()
     ligado, dentro, fora = interesse_definido(cfg)
@@ -10211,13 +10254,7 @@ def interesse():
         % (" checked" if ligado else "",
            html.escape(dentro, quote=True), html.escape(fora, quote=True),
            conta, arvore_html(n_cpv, "anuncios", submeter=False)))
-    return envolver(
-        "alertas", "Interesse",
-        "Os CPV que a casa trabalha. A lista de anúncios passa a mostrar "
-        "só isso.",
-        "<div class='larg'>" + formulario + "</div>",
-        migalhas=migalhas_de("alertas", "Interesse"), script=ARVORE_JS,
-        titulo_aba="Interesse, Radar de Concursos")
+    return formulario
 
 
 @app.route("/alertas/interesse", methods=["POST"])
@@ -10237,7 +10274,7 @@ def interesse_gravar():
         aviso = "Interesse guardado: a lista de anúncios passa a mostrar só %s." % dentro
     else:
         aviso = "Interesse guardado e desligado: a lista mostra tudo."
-    return redirect("/alertas/interesse?" + urlencode({"aviso": aviso}))
+    return redirect("/configuracoes/interesse?" + urlencode({"aviso": aviso}))
 
 
 def _linha_filtro(f):
@@ -10314,6 +10351,7 @@ def _caixa_email(cfg):
     """
     e = cfg.get("email") or {}
     tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
+    senha_por_variavel = bool((os.environ.get("RADAR_EMAIL_SENHA") or "").strip())
     tem_conta = bool((e.get("de") or "").strip() and (e.get("servidor") or "").strip())
     pronto = bool((e.get("para") or "").strip() and tem_conta and tem_senha)
     estado = le_marca("ultimo_resumo_estado", "")
@@ -10343,12 +10381,29 @@ def _caixa_email(cfg):
         "<button type='submit' class='bt forte'>Guardar</button>"
         "</form>"
         "<div class='rot' style='margin:22px 0 6px'>Quem envia</div>"
-        "<div class='nota' style='margin-bottom:14px'>Configura-se fora do "
-        "painel, no <code>config.json</code> e no <code>email_senha.txt</code> "
-        "&mdash; uma palavra-passe não se escreve num ecrã que fica aberto.</div>"
+        "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
+        "resumo. A palavra-passe grava-se no <code>email_senha.txt</code>, "
+        "nunca no <code>config.json</code>; o campo fica vazio de "
+        "propósito e só escreve se puseres uma nova.%s</div>"
+        "<form class='form-email' method='post' action='/alertas/remetente'>"
+        "<label>Conta que envia<input type='email' name='de' value='%s' "
+        "placeholder='o.teu@gmail.com'></label>"
+        "<label>Servidor<input type='text' name='servidor' value='%s' "
+        "placeholder='smtp.gmail.com'></label>"
+        "<label>Porta<input type='text' name='porta' value='%s'></label>"
+        "<label>Palavra-passe<input type='password' name='senha' value='' "
+        "autocomplete='new-password'%s></label>"
+        "<button type='submit' class='bt forte'>Guardar</button>"
+        "</form>"
         "<div class='saude'>%s</div>%s</div>"
         % (html.escape(str(e.get("para") or ""), quote=True),
            html.escape(str(e.get("hora_resumo") or "17:00"), quote=True),
+           (" Está definida pela variável de ambiente e não se edita aqui."
+            if senha_por_variavel else ""),
+           html.escape(str(e.get("de") or ""), quote=True),
+           html.escape(str(e.get("servidor") or ""), quote=True),
+           html.escape(str(e.get("porta") or "587"), quote=True),
+           " disabled" if senha_por_variavel else "",
            linhas_de_saude(envio, "#d68910"),
            ("<div style='margin-top:16px'>%s</div>"
             % accao("/alertas/enviar", "Enviar o resumo agora", "bt")
@@ -10386,19 +10441,27 @@ def alertas_urgente():
     try:
         n = int(bruto)
     except ValueError:
-        return redirect("/alertas?aviso=" +
+        return redirect("/configuracoes/alertas?aviso=" +
                         quote("“%s” não é um número de dias." % bruto))
     if not 1 <= n <= 90:
-        return redirect("/alertas?aviso=" +
+        return redirect("/configuracoes/alertas?aviso=" +
                         quote("A janela do urgente vai de 1 a 90 dias."))
     gravar_config({"dias_urgente": n})
-    return redirect("/alertas?aviso=" +
+    return redirect("/configuracoes/alertas?aviso=" +
                     quote("Urgente passa a ser: prazo a menos de %d dias."
                           % n))
 
 
 @app.route("/alertas")
 def alertas():
+    """A pagina passou a Configuracoes > Alertas (8/09/2026). A rota
+    fica a redireccionar com a query string atras, para os avisos dos
+    POST antigos e as ligacoes guardadas continuarem a abrir."""
+    qs = request.query_string.decode()
+    return redirect("/configuracoes/alertas" + ("?" + qs if qs else ""))
+
+
+def _conteudo_alertas():
     cfg = ler_config()
     with liga() as c:
         filtros = c.execute(
@@ -10583,12 +10646,464 @@ def alertas():
                 "<div class='rot' style='margin:22px 0 12px'>Últimos avisos"
                 "</div>" + historico + "</div>")
 
+    return conteudo
+
+
+# ------------------------------------- configuracoes (ONLINE.md, etapa 2)
+#
+# Uma rota por seccao, cada uma UM formulario que grava uma coisa e
+# volta a dizer o que ficou -- nao e um formulario unico com tudo: quem
+# grava o e-mail nao quer arriscar as horas da recolha pelo caminho.
+# Cada gravacao passa por gravar_config_registado(), que junta sem
+# apagar o resto E deixa no historico (ref='') a chave e os valores
+# antes e depois: "desde quando e que isto esta assim?" tem resposta.
+# As chaves e a palavra-passe do e-mail NUNCA vao ao config.json --
+# escrevem-se nos ficheiros de sempre (ler_chave() le-os), e quando
+# vem por variavel de ambiente o ecra di-lo e nao deixa editar.
+
+SECCOES_CONFIG = (
+    ("interesse", "Interesse", "os CPV que a casa trabalha"),
+    ("alertas", "Alertas", "filtros com alerta, entidades, o resumo por e-mail"),
+    ("recolha", "Recolha", "horas, janelas, a Vortal"),
+    ("leitura", "Leitura das peças", "fornecedor, modelo e chaves"),
+    ("capturas", "Capturas", "os dois pedidos ao DR"),
+    ("copias", "Cópias", "a cópia diária e a triagem no git"),
+    ("conta", "Conta", "nome, palavra-passe, sessões"),
+)
+
+# O que fica no config.json de proposito, sem formulario: termos de
+# pesquisa e de reserva, paginas, por_pagina, abrir_browser_ao_encontrar,
+# acesso_livre_local, endereco_publico. Sao afinacao de quem mexe no
+# codigo, e um campo para cada um seria ruido sem uso previsto.
+CHAVES_PROIBIDAS_NO_CONFIG = ("senha", "palavra_passe", "api_key", "chave",
+                              "token", "password")
+
+
+def gravar_config_registado(mudancas, quem=None):
+    """gravar_config() com o rasto: uma linha de historico por chave que
+    mudou, com o antes e o depois. Recusa chaves que parecem segredos
+    -- e a guarda contra uma palavra-passe acabar no config.json."""
+    for chave in mudancas:
+        if any(p in chave.lower() for p in CHAVES_PROIBIDAS_NO_CONFIG):
+            raise ValueError("a chave %r não pode ir para o config.json" % chave)
+    antes = ler_config()
+    depois = gravar_config(mudancas)
+    for chave, valor in mudancas.items():
+        if isinstance(valor, dict):
+            for sub, v in valor.items():
+                velho = (antes.get(chave) or {}).get(sub)
+                if velho != v:
+                    registar("", "configuração", "%s.%s: %s → %s"
+                             % (chave, sub, json.dumps(velho, ensure_ascii=False),
+                                json.dumps(v, ensure_ascii=False)), quem=quem)
+        elif antes.get(chave) != valor:
+            registar("", "configuração", "%s: %s → %s"
+                     % (chave, json.dumps(antes.get(chave), ensure_ascii=False),
+                        json.dumps(valor, ensure_ascii=False)), quem=quem)
+    return depois
+
+
+def pagina_config(seccao, conteudo, script=""):
+    """O esqueleto comum: o indice das seccoes a esquerda, preso ao
+    rolar como o da ficha, e a seccao a direita."""
+    titulo = dict((c, t) for c, t, _ in SECCOES_CONFIG)[seccao]
+    indice = "".join(
+        "<a class='%s' href='/configuracoes/%s'><b>%s</b><i>%s</i></a>"
+        % ("on" if c == seccao else "", c, html.escape(t), html.escape(d))
+        for c, t, d in SECCOES_CONFIG)
     return envolver(
-        "alertas", "Filtros e alertas",
-        "Os filtros são os mesmos em toda a aplicação. Os que marcares "
-        "como alerta avisam-te quando entra um anúncio que lhes "
-        "corresponde.", conteudo, script=ARVORE_JS,
-        titulo_aba="Alertas, Radar de Concursos")
+        "configuracoes", titulo,
+        "Dizer ao radar como quero que ele trabalhe. Cada secção grava "
+        "só o que mostra.",
+        "<div class='conf'><nav class='conf-indice'>%s</nav>"
+        "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
+        migalhas=migalhas_de("configuracoes", titulo), script=script,
+        titulo_aba="%s, Configurações" % titulo)
+
+
+def volta_config(seccao, aviso):
+    return redirect("/configuracoes/%s?%s" % (seccao, urlencode({"aviso": aviso})))
+
+
+def _campo(rotulo, nome, valor, tipo="text", nota="", extra=""):
+    return ("<label class='conf-campo'><span>%s</span>"
+            "<input type='%s' name='%s' value='%s'%s>%s</label>"
+            % (html.escape(rotulo), tipo, nome, html.escape(str(valor), quote=True),
+               (" " + extra) if extra else "",
+               ("<small>%s</small>" % nota) if nota else ""))
+
+
+def _interruptor(rotulo, nome, ligado, nota=""):
+    return ("<label class='conf-campo conf-check'><input type='checkbox' "
+            "name='%s' value='1'%s><span>%s</span>%s</label>"
+            % (nome, " checked" if ligado else "", html.escape(rotulo),
+               ("<small>%s</small>" % nota) if nota else ""))
+
+
+def _inteiro(form, nome, minimo, maximo, rotulo):
+    """Um inteiro do formulario dentro de limites, ou ValueError com a
+    frase para o ecra. Uma janela de detalhe de 0 dias cala a recolha
+    em silencio -- e por isso que ha limites e nao so int()."""
+    bruto = (form.get(nome) or "").strip()
+    try:
+        n = int(bruto)
+    except ValueError:
+        raise ValueError("«%s» não é um número (%s)." % (bruto, rotulo))
+    if not minimo <= n <= maximo:
+        raise ValueError("%s vai de %d a %d." % (rotulo, minimo, maximo))
+    return n
+
+
+@app.route("/configuracoes")
+def configuracoes():
+    return redirect("/configuracoes/alertas")
+
+
+@app.route("/configuracoes/alertas")
+def config_alertas():
+    return pagina_config("alertas", _conteudo_alertas(), script=ARVORE_JS)
+
+
+@app.route("/configuracoes/interesse")
+def config_interesse():
+    return pagina_config("interesse", _conteudo_interesse(), script=ARVORE_JS)
+
+
+@app.route("/alertas/remetente", methods=["POST"])
+def alertas_remetente():
+    """Quem envia o resumo: conta, servidor, porta para o config.json;
+    a palavra-passe para o email_senha.txt, e so se vier preenchida."""
+    de = (request.form.get("de") or "").strip()
+    servidor = (request.form.get("servidor") or "").strip()
+    try:
+        porta = _inteiro(request.form, "porta", 1, 65535, "a porta")
+    except ValueError as erro:
+        return volta_config("alertas", str(erro))
+    gravar_config_registado({"email": {"de": de, "servidor": servidor,
+                                       "porta": porta}})
+    senha = request.form.get("senha") or ""
+    if senha.strip() and not (os.environ.get("RADAR_EMAIL_SENHA") or "").strip():
+        with open(os.path.join(BASE_DIR, "email_senha.txt"), "w",
+                  encoding="utf-8") as f:
+            f.write(senha.strip() + "\n")
+        registar("", "configuração", "email_senha.txt: palavra-passe nova")
+    return volta_config("alertas", "Conta que envia guardada.")
+
+
+@app.route("/configuracoes/recolha", methods=["GET", "POST"])
+def config_recolha():
+    cfg = ler_config()
+    if request.method == "POST":
+        try:
+            horas = []
+            for h in (request.form.get("horas") or "").replace(";", ",").split(","):
+                h = h.strip()
+                if not h:
+                    continue
+                if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", h):
+                    raise ValueError("«%s» não é uma hora HH:MM." % h)
+                horas.append(h)
+            if not horas:
+                raise ValueError("É precisa pelo menos uma hora de verificação.")
+            mudancas = {
+                "horas_verificacao": sorted(set(horas)),
+                "dias_catchup": _inteiro(request.form, "dias_catchup", 0, 90,
+                                         "a janela de recuperação"),
+                "detalhe_dias": _inteiro(request.form, "detalhe_dias", 1, 3650,
+                                         "a janela do detalhe"),
+                "detalhes_por_volta": _inteiro(request.form, "detalhes_por_volta",
+                                               1, 500, "detalhes por volta"),
+                "relidos_por_volta": _inteiro(request.form, "relidos_por_volta",
+                                              0, 200, "relidos por volta"),
+                "vortal_preliminares": bool(request.form.get("vortal_preliminares")),
+                "recuperar_slot_falhado": bool(request.form.get("recuperar_slot_falhado")),
+            }
+        except ValueError as erro:
+            return volta_config("recolha", str(erro))
+        gravar_config_registado(mudancas)
+        return volta_config("recolha", "Recolha guardada. As horas novas "
+                            "valem no relógio interno já; os temporizadores "
+                            "do sistema mudam com o agendar.sh.")
+    faltam = tarefas_em_falta()
+    corpo = (
+        "<form method='post' action='/configuracoes/recolha' class='conf-form'>"
+        + _campo("Horas da verificação", "horas",
+                 ", ".join(cfg.get("horas_verificacao") or []),
+                 nota="HH:MM, separadas por vírgula. É o relógio interno do painel; "
+                      "as tarefas do sistema (systemd) têm as suas, criadas pelo agendar.sh.")
+        + _campo("Janela de recuperação (dias)", "dias_catchup", cfg.get("dias_catchup", 15),
+                 nota="quantos dias para trás o radar volta a olhar quando falha um slot")
+        + _campo("Janela do detalhe (dias)", "detalhe_dias", cfg.get("detalhe_dias", 60),
+                 nota="a rotina só lê o detalhe (CPV, prazo, preço) dos anúncios destes últimos dias")
+        + _campo("Detalhes por volta", "detalhes_por_volta", cfg.get("detalhes_por_volta", 40))
+        + _campo("Relidos por volta", "relidos_por_volta", cfg.get("relidos_por_volta", 25),
+                 nota="anúncios interessa/quadro com prazo aberto que se releem para apanhar alterações")
+        + _interruptor("Trazer as consultas preliminares da Vortal", "vortal_preliminares",
+                       cfg.get("vortal_preliminares", True))
+        + _interruptor("Recuperar um slot falhado na verificação seguinte",
+                       "recuperar_slot_falhado", cfg.get("recuperar_slot_falhado", True))
+        + "<button type='submit' class='bt forte'>Guardar</button></form>"
+        + ("<div class='flash mau' style='margin-top:16px'>As tarefas agendadas "
+           "estão por criar (%s): corre o agendar.sh.</div>"
+           % html.escape(", ".join(faltam)) if faltam else
+           "<div class='nota' style='margin-top:16px'>As tarefas agendadas do "
+           "sistema estão criadas.</div>"))
+    return pagina_config("recolha", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+def _estado_da_chave(nomes, variavel):
+    """(texto, esta_bem, por_variavel) para o ecra das chaves."""
+    if (os.environ.get(variavel) or "").strip():
+        return "definida pela variável %s" % variavel, True, True
+    for nome in nomes:
+        caminho = os.path.join(BASE_DIR, nome)
+        if os.path.exists(caminho):
+            try:
+                with open(caminho, encoding="utf-8") as f:
+                    if f.read().strip():
+                        return ("no %s desde %s" % (
+                            nome, datetime.fromtimestamp(
+                                os.path.getmtime(caminho)).strftime("%d/%m/%Y")),
+                            True, False)
+            except OSError:
+                pass
+    return "falta", False, False
+
+
+@app.route("/configuracoes/leitura", methods=["GET", "POST"])
+def config_leitura():
+    cfg = ler_config()
+    nomes_forn = [f[0] for f in FORNECEDORES]
+    if request.method == "POST":
+        forn = (request.form.get("fornecedor_pecas") or "").strip()
+        if forn and forn not in nomes_forn:
+            return volta_config("leitura", "Fornecedor desconhecido: %s" % forn)
+        modelos = dict(cfg.get("modelos_pecas") or {})
+        for nome in nomes_forn:
+            modelos[nome] = (request.form.get("modelo_" + nome) or "").strip()
+        gravar_config_registado({"fornecedor_pecas": forn, "modelos_pecas": modelos})
+        # as chaves: so as que vieram preenchidas, e nunca por cima de
+        # uma variavel de ambiente
+        escritas = []
+        for nome, _, _, ficheiros, variavel, _ in FORNECEDORES:
+            nova = (request.form.get("chave_" + nome) or "").strip()
+            if nova and not (os.environ.get(variavel) or "").strip():
+                with open(os.path.join(BASE_DIR, ficheiros[-1] if nome != "groq"
+                                       else "groq_API_KEY.txt"), "w",
+                          encoding="utf-8") as f:
+                    f.write(nova + "\n")
+                escritas.append(nome)
+                registar("", "configuração", "chave de %s: nova" % nome)
+        return volta_config("leitura", "Leitura das peças guardada%s."
+                            % (" e chave%s de %s gravada%s"
+                               % ("s" if len(escritas) > 1 else "",
+                                  ", ".join(escritas),
+                                  "s" if len(escritas) > 1 else "")
+                               if escritas else ""))
+    opcoes = "".join(
+        "<option value='%s'%s>%s</option>"
+        % (v, " selected" if v == (cfg.get("fornecedor_pecas") or "") else "", t)
+        for v, t in [("", "a cadeia, por ordem (Groq → NVIDIA → OpenRouter)")]
+        + [(n, n) for n in nomes_forn])
+    linhas = []
+    for nome, _, omissao, ficheiros, variavel, _ in FORNECEDORES:
+        texto, bem, por_var = _estado_da_chave(ficheiros, variavel)
+        linhas.append(
+            "<div class='conf-forn'><div class='rot'>%s</div>"
+            "<div class='saude'>%s</div>%s%s</div>"
+            % (html.escape(nome),
+               linhas_de_saude([("Chave", html.escape(texto), bem)], "#d68910"),
+               _campo("Modelo", "modelo_" + nome,
+                      modelo_do_fornecedor(cfg, nome, omissao),
+                      nota="de origem: %s" % html.escape(omissao)),
+               "" if por_var else
+               _campo("Chave nova", "chave_" + nome, "", tipo="password",
+                      nota="só escreve se puseres uma; fica no %s" % ficheiros[-1],
+                      extra="autocomplete='new-password'")))
+    corpo = (
+        "<form method='post' action='/configuracoes/leitura' class='conf-form'>"
+        "<label class='conf-campo'><span>Fornecedor em uso</span>"
+        "<select name='fornecedor_pecas'>%s</select>"
+        "<small>Cada pedido desce a cadeia até alguém responder; escolher "
+        "um fixa-o como primeiro.</small></label>%s"
+        "<button type='submit' class='bt forte'>Guardar</button></form>"
+        % (opcoes, "".join(linhas)))
+    return pagina_config("leitura", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+def _estado_da_captura(nome_base):
+    caminho = os.path.join(BASE_DIR, nome_base + ".txt")
+    if not os.path.exists(caminho):
+        return "em falta", False
+    texto = carregar_curl(nome_base)
+    try:
+        pedido = parse_curl(texto) if texto else None
+    except ValueError:
+        pedido = None
+    if not pedido or not pedido.get("headers"):
+        return "ilegível — refaz a captura", False
+    idade = datetime.fromtimestamp(os.path.getmtime(caminho))
+    return ("válida, de %s (%d cabeçalhos)"
+            % (idade.strftime("%d/%m/%Y"), len(pedido["headers"])), True)
+
+
+@app.route("/configuracoes/capturas", methods=["GET", "POST"])
+def config_capturas():
+    if request.method == "POST":
+        qual = (request.form.get("qual") or "").strip()
+        if qual not in ("curl_DR", "curl_detalhe"):
+            return volta_config("capturas", "Captura desconhecida.")
+        texto = (request.form.get("texto") or "").strip()
+        # valida-se ANTES de tocar no ficheiro: uma colagem a meio nao
+        # pode deixar a recolha sem captura nenhuma
+        try:
+            pedido = parse_curl(texto) if texto else None
+        except ValueError as erro:
+            pedido = None
+            porque = str(erro)
+        else:
+            porque = "não parece um «Copy as cURL»"
+        if not pedido or not pedido.get("headers"):
+            return volta_config("capturas", "Não gravei: %s." % porque)
+        if qual == "curl_DR" and not pedido.get("body"):
+            return volta_config("capturas", "Não gravei: a captura da pesquisa "
+                                "tem de trazer o corpo do pedido (--data-raw).")
+        with open(os.path.join(BASE_DIR, qual + ".txt"), "w", encoding="utf-8") as f:
+            f.write(texto + "\n")
+        registar("", "configuração", "%s.txt: captura nova (%d cabeçalhos)"
+                 % (qual, len(pedido["headers"])))
+        return volta_config("capturas", "Captura %s.txt gravada." % qual)
+    blocos = []
+    for nome_base, titulo, nota in (
+            ("curl_DR", "curl_DR.txt — a pesquisa",
+             "o pedido da lista de anúncios; leva o corpo (--data-raw)"),
+            ("curl_detalhe", "curl_detalhe.txt — o detalhe",
+             "o pedido da página de um anúncio")):
+        texto, bem = _estado_da_captura(nome_base)
+        blocos.append(
+            "<div class='conf-forn'><div class='rot'>%s</div>"
+            "<div class='nota' style='margin:6px 0 10px'>%s. Como se faz a "
+            "captura está no LEIA-ME, secção 3.</div>"
+            "<div class='saude'>%s</div>"
+            "<form method='post' action='/configuracoes/capturas' class='conf-form'>"
+            "<input type='hidden' name='qual' value='%s'>"
+            "<textarea name='texto' rows='5' placeholder='cola aqui o Copy as cURL'></textarea>"
+            "<button type='submit' class='bt forte'>Gravar esta captura</button>"
+            "</form></div>"
+            % (html.escape(titulo), html.escape(nota),
+               linhas_de_saude([("Estado", html.escape(texto), bem)]),
+               nome_base))
+    return pagina_config("capturas", "<div class='cx conf-cx'>" + "".join(blocos) + "</div>")
+
+
+@app.route("/configuracoes/copias", methods=["GET", "POST"])
+def config_copias():
+    cfg = ler_config()
+    if request.method == "POST":
+        try:
+            mudancas = {
+                "copia_de_seguranca": bool(request.form.get("copia_de_seguranca")),
+                "copias_a_guardar": _inteiro(request.form, "copias_a_guardar", 1, 60,
+                                             "cópias a guardar"),
+                "triagem_no_git": bool(request.form.get("triagem_no_git")),
+            }
+        except ValueError as erro:
+            return volta_config("copias", str(erro))
+        gravar_config_registado(mudancas)
+        return volta_config("copias", "Cópias guardadas.")
+    existentes = []
+    if os.path.isdir(COPIAS):
+        for nome in sorted(os.listdir(COPIAS), reverse=True):
+            caminho = os.path.join(COPIAS, nome)
+            if nome.endswith(".db") and os.path.isfile(caminho):
+                existentes.append(
+                    "<div class='l'><span class='t'>%s</span><span class='v'>%s MB</span></div>"
+                    % (html.escape(nome), mil_pt(os.path.getsize(caminho) // (1024 * 1024))))
+    ultima = le_marca("ultima_copia", "ainda nenhuma")
+    corpo = (
+        "<form method='post' action='/configuracoes/copias' class='conf-form'>"
+        + _interruptor("Cópia diária do radar.db", "copia_de_seguranca",
+                       cfg.get("copia_de_seguranca", True),
+                       nota="a triagem, o quadro e o histórico não se recuperam de mais lado nenhum")
+        + _campo("Cópias a guardar", "copias_a_guardar", cfg.get("copias_a_guardar", 7),
+                 nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso")
+        + _interruptor("Empurrar a triagem para o GitHub (triagem.jsonl)", "triagem_no_git",
+                       cfg.get("triagem_no_git", True),
+                       nota="commit e push em cada verificação em que mude")
+        + "<button type='submit' class='bt forte'>Guardar</button></form>"
+        + "<div class='rot' style='margin:22px 0 6px'>O que existe em copias/</div>"
+        + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
+        + "<div class='saude'>%s</div>" % ("".join(existentes) or
+                                           "<div class='nota'>nenhuma ainda</div>"))
+    return pagina_config("copias", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+@app.route("/configuracoes/conta", methods=["GET", "POST"])
+def config_conta():
+    utilizador = g.get("utilizador")
+    if not utilizador:
+        return pagina_config("conta", "<div class='cx conf-cx'><div class='nota'>"
+                             "Ainda não há conta. Na pasta do radar: "
+                             "<code>python radar.py --criar-utilizador NOME</code>."
+                             "</div></div>")
+    if request.method == "POST":
+        nome = (request.form.get("nome") or "").strip()[:60]
+        actual = request.form.get("actual") or ""
+        nova = request.form.get("nova") or ""
+        outra = request.form.get("outra") or ""
+        # o registar() fica FORA do `with`: la dentro a transaccao esta
+        # aberta e a segunda ligacao ficava a espera dela (database is
+        # locked -- apanhado pelo teste)
+        registo = ""
+        with liga() as c:
+            linha = c.execute("SELECT hash FROM utilizadores WHERE id=?",
+                              (utilizador["id"],)).fetchone()
+            if nova or outra:
+                if not contas.verifica_senha(actual, linha["hash"]):
+                    return volta_config("conta", "A palavra-passe actual não está certa.")
+                if nova != outra:
+                    return volta_config("conta", "As duas palavras-passe novas não são iguais.")
+                try:
+                    contas.criar_utilizador(c, utilizador["email"], nova, nome)
+                except ValueError as erro:
+                    return volta_config("conta", "Não gravei: %s." % erro)
+                registo = "palavra-passe mudada"
+            elif nome and nome != utilizador.get("nome"):
+                c.execute("UPDATE utilizadores SET nome=? WHERE id=?",
+                          (nome, utilizador["id"]))
+                registo = "nome: %s → %s" % (utilizador.get("nome"), nome)
+        if registo:
+            registar("", "conta", registo)
+        return volta_config("conta", "Conta guardada.")
+    with liga() as c:
+        sessoes = contas.sessoes_de(c, utilizador["id"])
+    linhas = "".join(
+        "<div class='l'><span class='ponto' style='background:%s'></span>"
+        "<span class='t'>%s%s</span><span class='v'>até %s</span></div>"
+        % ("#1e8449" if s_["token"] == g.get("sessao") else "#9db1c4",
+           html.escape((s_["agente"] or "?")[:70]),
+           " (esta)" if s_["token"] == g.get("sessao") else "",
+           html.escape(data_hora_pt(s_["expira"][:16])))
+        for s_ in sessoes) or "<div class='nota'>nenhuma sessão: estás pelo acesso livre local</div>"
+    corpo = (
+        "<form method='post' action='/configuracoes/conta' class='conf-form'>"
+        + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled",
+                 nota="muda-se por consola: --criar-utilizador NOME cria outro")
+        + _campo("Nome a mostrar", "nome", utilizador.get("nome") or "")
+        + _campo("Palavra-passe actual", "actual", "", tipo="password",
+                 extra="autocomplete='current-password'")
+        + _campo("Nova palavra-passe", "nova", "", tipo="password",
+                 nota="8 caracteres ou mais; deixa vazio para mudar só o nome",
+                 extra="autocomplete='new-password'")
+        + _campo("Outra vez", "outra", "", tipo="password",
+                 extra="autocomplete='new-password'")
+        + "<button type='submit' class='bt forte'>Guardar</button></form>"
+        + "<div class='rot' style='margin:22px 0 6px'>Sessões abertas</div>"
+        + "<div class='saude'>%s</div>" % linhas
+        + ("<div style='margin-top:14px'>%s</div>"
+           % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
+           if sessoes else ""))
+    return pagina_config("conta", "<div class='cx conf-cx'>" + corpo + "</div>")
 
 
 @app.route("/alertas/criar", methods=["POST"])
@@ -10612,7 +11127,7 @@ def alerta_criar():
             pares.append((k, valor))
 
     def recusa(mensagem):
-        return redirect("/alertas?" + urlencode(
+        return redirect("/configuracoes/alertas?" + urlencode(
             [("aviso", mensagem), ("nome", nome)] + pares))
 
     if not nome:
@@ -10621,7 +11136,7 @@ def alerta_criar():
     if not [k for k, v in pares if v and k not in ("estado", "op")]:
         return recusa("Preenche pelo menos um campo além do estado.")
     havia = gravar_filtro(nome, consulta)
-    return redirect("/alertas?aviso=" +
+    return redirect("/configuracoes/alertas?aviso=" +
                     quote("Filtro %s: %s"
                           % ("actualizado" if havia else "criado", nome)))
 
@@ -10635,7 +11150,7 @@ def alertas_email():
         "para": (request.form.get("para") or "").strip(),
         "hora_resumo": (request.form.get("hora_resumo") or "17:00").strip(),
     }})
-    return redirect("/alertas?aviso=" + quote("Configuração do e-mail guardada."))
+    return redirect("/configuracoes/alertas?aviso=" + quote("Configuração do e-mail guardada."))
 
 
 @app.route("/alertas/<int:filtro_id>/trocar", methods=["POST"])
@@ -10653,7 +11168,7 @@ def alerta_trocar(filtro_id):
             c.execute("UPDATE alertas_vistos SET enviado_em=? "
                       "WHERE filtro_id=? AND enviado_em IS NULL",
                       (ACERVO, filtro_id))
-    return redirect("/alertas")
+    return redirect("/configuracoes/alertas")
 
 
 @app.route("/entidade/procurar")
@@ -10716,7 +11231,7 @@ def entidade_procurar():
 @app.route("/alertas/enviar", methods=["POST"])
 def alertas_enviar():
     bem, porque = enviar_resumo(forcar=True)
-    return redirect("/alertas?aviso=" +
+    return redirect("/configuracoes/alertas?aviso=" +
                     quote(("Resumo %s" % porque) if bem else porque))
 
 
