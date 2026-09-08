@@ -8350,6 +8350,69 @@ class TestEnderecoPublico(unittest.TestCase):
 
 
 
+class TestListaRecolhidaETeclado(unittest.TestCase):
+    """UX-Auditoria (2/09/2026), decididos pelo Afonso a 8/09/2026: a
+    lista abria com 60% do ecrã em filtros, e não havia teclado."""
+
+    def setUp(self):
+        self.cliente = radar.app.test_client()
+
+    def test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro(self):
+        html_ = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("<details class='painel-filtros' id='painel-filtros'>", html_)
+        html_ = self.cliente.get("/?cpv=72000000").get_data(as_text=True)
+        self.assertIn("<details class='painel-filtros' id='painel-filtros' open>", html_)
+        # o resumo do filtro fica na linha, para se saber o que está posto
+        self.assertIn("CPV 72000000", html_.split("</summary>")[0])
+
+    def test_os_tres_blocos_continuam_la_dentro(self):
+        html_ = self.cliente.get("/").get_data(as_text=True)
+        dentro = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
+        self.assertIn("class='cx filtros'", dentro)
+        self.assertIn("details class='arvore'", dentro)     # o JS procura-a assim
+        self.assertIn("guardados", dentro)
+
+    def test_o_teclado_esta_na_lista_e_diz_se(self):
+        html_ = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("class='teclas'", html_)
+        self.assertIn("keydown", radar.LISTA_JS)
+        for tecla in ("'j'", "'k'", "'i'", "'a'", "'Enter'"):
+            self.assertIn("e.key === " + tecla, radar.LISTA_JS)
+        # com o foco num campo de texto as teclas escrevem, não triam
+        self.assertIn("t.tagName === 'INPUT'", radar.LISTA_JS)
+        self.assertIn(".item.foco{", radar.CSS)
+
+
+class TestEssencialNumaFrase(unittest.TestCase):
+    """O «essencial» de um por ver sem peças tinha 8 linhas em 12 a
+    dizer «só consta das peças»: saem para uma frase, agrupadas pela
+    razão, para continuar a dizer ONDE cada campo está."""
+
+    def test_agrupa_por_razao_e_mantem_a_ordem(self):
+        saiu = radar.frase_dos_campos_em_falta([
+            ("só consta do Programa de Concurso", "Preço anormalmente baixo"),
+            ("o anúncio não indica", "Duração do contrato"),
+            ("só consta do Caderno de Encargos", "Equipa"),
+            ("só consta do Programa de Concurso", "Documentos que constituem a proposta"),
+        ])
+        self.assertIn("4 campos sem valor aqui", saiu)
+        self.assertIn("<b>só consta do Programa de Concurso</b>: Preço anormalmente baixo, "
+                      "Documentos que constituem a proposta", saiu)
+        self.assertLess(saiu.index("Programa"), saiu.index("não indica"))
+        self.assertLess(saiu.index("não indica"), saiu.index("Caderno"))
+        self.assertIn("href='#pecas'", saiu)
+
+    def test_singular_e_vazio(self):
+        self.assertIn("1 campo sem valor", radar.frase_dos_campos_em_falta([("x", "Equipa")]))
+        self.assertEqual(radar.frase_dos_campos_em_falta([]), "")
+
+    def test_escapa(self):
+        saiu = radar.frase_dos_campos_em_falta([("<b>", "A & B")])
+        self.assertIn("&lt;b&gt;", saiu)
+        self.assertIn("A &amp; B", saiu)
+
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

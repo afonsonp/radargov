@@ -239,7 +239,11 @@ guardados não são tocados — o interesse é recorte de leitura da lista,
 não um filtro.
 
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
-nada. Podes filtrar por:
+nada. **Está recolhida por omissão** (desde 8/09/2026): a lista abre
+logo nos anúncios, e a linha «Filtros» diz o que está posto; carrega
+nela para abrir os campos, a árvore de CPV e os filtros guardados.
+Abre sozinha quando há um filtro aplicado, e lembra-se se a deixaste
+aberta. Podes filtrar por:
 
 - **nome do concurso ou objecto** e, em caixa separada, **entidade
   adjudicante**. Dentro de cada caixa, várias palavras separadas por `|`
@@ -265,6 +269,12 @@ nada. Podes filtrar por:
   apertar o resto do filtro (`manutenção` sem `elevador|avac`).
 - **E/OU entre palavras e CPV**: "mais restrito" exige as duas coisas,
   "mais amplo" basta uma.
+
+**Pelo teclado** (desde 8/09/2026): `j` e `k` passam ao anúncio
+seguinte e anterior (o focado fica com contorno azul), `i` marca
+interessa, `a` abre a caixa do motivo de abandono, e Enter abre a
+ficha. Não fazem nada com o cursor num campo de texto. A pista «j k i
+a ⏎» na linha da contagem é isto.
 
 Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
 filtro") e volta-se a ele com um clique; em **Alertas** liga-se a
@@ -366,7 +376,11 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 decidir: nome, entidade, critério de adjudicação, preço base, preço
 anormalmente baixo, duração, local, data de esclarecimentos, data de
 submissão, objecto, equipa e documentos que constituem a proposta.
-O botão **Anúncio completo** abre as 28 secções em bruto.
+Os que não têm valor **não ocupam linha**: ficam numa frase por baixo
+da tabela, agrupados pela razão («só consta do Programa de Concurso:
+…; só consta do Caderno de Encargos: …»), com a ligação para as peças.
+Depois de as peças serem lidas, os campos que a leitura trouxer voltam
+à tabela. O botão **Anúncio completo** abre as 28 secções em bruto.
 
 A **data de esclarecimentos** é calculada, não lida: é o primeiro terço
 do prazo das propostas, que é a regra supletiva do artigo 50.º do CCP.
@@ -727,7 +741,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 760 verificações em poucos segundos, sem tocar
+Corre os testes — 766 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
 - [Contas e a porta](#contas-e-a-porta) &middot; 5
-- [A interface](#a-interface) &middot; 9
+- [A interface](#a-interface) &middot; 10
 - [Convenções](#convencoes) &middot; 2
 
-São 103 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 104 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -1210,6 +1210,22 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   em Anúncios. E o "Verificar agora" aparece **só na lista dos
   anúncios** (`PAGINAS_COM_VERIFICAR`, decisão 11.8-A): os novos
   aterram no por ver.
+
+- **Os três blocos de filtro da lista vivem dentro de um `<details
+  class='painel-filtros'>`, recolhido por omissão** (8/09/2026, os
+  P2/P3 da UX-Auditoria que o Afonso aprovou). Abre sozinho com filtro
+  aplicado (`filtro_em_uso != "estado=" + aba`) e o JS lembra o
+  estado em `localStorage`. O JS da árvore continua a procurar
+  `details.arvore` no documento inteiro, por isso aninhá-la não a
+  parte — mas um `id` novo lá dentro tem de continuar único na página.
+  Na mesma sessão entraram o **teclado da lista** (`j k i a Enter`,
+  no `LISTA_JS`: `requestSubmit()` nos formulários da linha focada,
+  para o pop-up do abandono e a memória da posição do scroll
+  continuarem a disparar; nada dispara com o foco num campo) e a
+  **frase dos campos em falta** do essencial
+  (`frase_dos_campos_em_falta()`, agrupada pela razão). A mensagem da
+  última verificação passou a levar o ponto como carácter: era
+  `&middot;` e a barra lateral escapa-a — saía escrito.
 
 - **Um alvo de texto tem 24px de altura, com a letra que tiver.**
   «voltar a por ver» tinha 85×11, «Pôr por ver» 63×12, «mudar» 34×13:
