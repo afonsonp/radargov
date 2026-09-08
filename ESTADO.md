@@ -27,8 +27,10 @@ numa base SQLite e mostra num painel web local, em
 `http://127.0.0.1:8765`. Verifica sozinha às 09:00 e às 17:00, por
 tarefas do Windows — ou, em Linux, por temporizadores do systemd.
 
-**Desde 8/09/2026 corre também em Ubuntu**, na pasta `radar/` do disco
-«Matriz» (NTFS, montado em `/run/media/afonso/Matriz`): um `.venv`
+**Desde 8/09/2026 corre também em Ubuntu**, em
+`/home/afonso/Desktop/radar` no disco interno (esteve umas horas no
+disco «Matriz», NTFS, que só é montado ao entrar na sessão gráfica —
+mudou-se nesse mesmo dia por isso): um `.venv`
 criado pelo `instalar.sh` faz de `python/` + `libs/`, cada `.bat` tem
 o seu `.sh`, e o `agendar.sh` cria os três temporizadores e o painel
 como serviço do utilizador. É o passo antes de este computador servir
@@ -241,9 +243,10 @@ contagens do painel têm de ir por índice de cobertura — ver a
 - **Em Linux, o painel corre como serviço** (`radar-painel.service`)
   e o `iniciar.sh` não abre um segundo. Sem `loginctl enable-linger`,
   o serviço e os temporizadores morrem com o logout — o `agendar.sh`
-  tenta ligá-lo e diz se não conseguiu. E o disco «Matriz» é montado
-  pelo ambiente de trabalho ao entrar: se um dia arrancar sem sessão
-  gráfica, a pasta não está lá quando o systemd a procura.
+  tenta ligá-lo e diz se não conseguiu (a 8/09/2026 está ligado). A
+  pasta está no disco interno de propósito: num disco externo montado
+  pelo ambiente de trabalho, a pasta não estava lá quando o systemd a
+  procurava sem sessão gráfica.
 - **As capturas `curl_*.txt`** são a forma do pedido ao DR. O token não
   expira (medido a 2/09/2026), mas se o portal mudar de forma é por elas
   que se refaz — secção 3 do `LEIA-ME.md`. Não se editam à mão; um hook
