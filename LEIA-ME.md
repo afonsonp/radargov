@@ -453,11 +453,13 @@ Desde 8/09/2026 o painel tem login. A conta cria-se uma vez, num
 terminal aberto na pasta:
 
 ```bash
-.venv/bin/python radar.py --criar-utilizador o-teu@email.pt
+.venv/bin/python radar.py --criar-utilizador admin
 ```
 
-Pergunta o nome a mostrar e a palavra-passe (8 caracteres ou mais,
-escrita duas vezes, sem aparecer no ecrã). Só há uma conta, a tua.
+O nome de utilizador é o que quiseres, sem espaços — `admin` serve,
+não precisa de ser um e-mail. Pergunta o nome a mostrar e a
+palavra-passe (8 caracteres ou mais, escrita duas vezes, sem aparecer
+no ecrã). Só há uma conta, a tua.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
@@ -471,10 +473,10 @@ Se te esqueceres da palavra-passe, não há «esqueci-me» por e-mail:
 é no terminal deste computador, e grava a nova por cima:
 
 ```bash
-.venv/bin/python radar.py --palavra-passe o-teu@email.pt
+.venv/bin/python radar.py --palavra-passe admin
 ```
 
-Cinco tentativas erradas em quinze minutos, pelo mesmo e-mail ou pelo
+Cinco tentativas erradas em quinze minutos, pelo mesmo utilizador ou pelo
 mesmo IP, e a porta espera; as falhas ficam nos Indicadores, na série
 dos erros, que é como se vê se alguém anda a bater à porta.
 
@@ -773,7 +775,7 @@ e da próxima vez o endereço é outro.
 Três coisas a saber:
 
 - **Quem abre o endereço cai no ecrã de entrar** (secção 7): precisa
-  do teu e-mail e da tua palavra-passe. Sem conta criada, o ecrã diz
+  do teu utilizador e da tua palavra-passe. Sem conta criada, o ecrã diz
   que comando correr e não deixa passar ninguém.
 - Os links do e-mail de alerta continuam a apontar para
   `127.0.0.1:8765` — só abrem neste computador.

@@ -6751,7 +6751,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
  %(aviso)s
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="%(para)s">
-  <label>E-mail<input type="email" name="email" value="%(email)s" autocomplete="username" required autofocus></label>
+  <label>Utilizador<input type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></label>
   <label>Palavra-passe<input type="password" name="senha" autocomplete="current-password" required></label>
   <button type="submit" class="bt primario">Entrar</button>
  </form>
@@ -6778,7 +6778,7 @@ def entrar():
     if not ha_contas:
         return pagina_entrar(
             "Ainda não há nenhuma conta. Na pasta do radar, corre "
-            "python radar.py --criar-utilizador O-TEU-EMAIL e volta aqui.",
+            "python radar.py --criar-utilizador NOME e volta aqui.",
             para=request.values.get("para"))
     if request.method == "GET":
         return pagina_entrar(para=request.args.get("para"))
@@ -14945,12 +14945,12 @@ def main():
             import getpass
             i = sys.argv.index(bandeira)
             email = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
-            if not email or "@" not in email:
-                print("Uso: python radar.py %s EMAIL" % bandeira)
+            if not email or email.startswith("--"):
+                print("Uso: python radar.py %s UTILIZADOR" % bandeira)
                 return
             nome = ""
             if bandeira == "--criar-utilizador":
-                nome = input("Nome a mostrar (Enter para usar o e-mail): ").strip()
+                nome = input("Nome a mostrar (Enter para usar o utilizador): ").strip()
             senha = getpass.getpass("Palavra-passe (8 caracteres ou mais): ")
             if senha != getpass.getpass("Outra vez: "):
                 print("Não são iguais. Nada mudou.")

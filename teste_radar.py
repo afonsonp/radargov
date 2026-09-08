@@ -8097,7 +8097,9 @@ class TestContas(BaseTemporaria):
             with self.assertRaises(ValueError):
                 self.contas.criar_utilizador(c, "x@y.pt", "curta")
             with self.assertRaises(ValueError):
-                self.contas.criar_utilizador(c, "sem-arroba", "senha-comprida")
+                self.contas.criar_utilizador(c, "com espaco", "senha-comprida")
+            # um nome simples serve: o Afonso quer "admin", nao um e-mail
+            self.assertTrue(self.contas.criar_utilizador(c, "admin", "senha-comprida"))
 
     # -- sessoes
 

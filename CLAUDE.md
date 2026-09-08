@@ -88,8 +88,8 @@ python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempot
 python radar.py --importar-excel F [--ensaio] [--sem-rede] [--com-triagem] # o Excel da casa (casa.py); sem --com-triagem só guarda e liga
 python radar.py --casa-ligar ID REF  # liga à mão uma linha do Excel a um anúncio
 python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
-python radar.py --criar-utilizador EMAIL # a conta do painel; pede a palavra-passe por getpass
-python radar.py --palavra-passe EMAIL    # troca-a (é o "esqueci-me": por consola, não por e-mail)
+python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pede a palavra-passe por getpass
+python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
 As tarefas agendadas são três (`agendar.sh`): as duas verificações
