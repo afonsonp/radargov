@@ -22,7 +22,7 @@
     "porta": 587,
     "hora_resumo": "17:00"
   },
-  "triagem_no_git": true,
+  "triagem_no_git": false,
   "vortal_preliminares": true,
   "detalhe_dias": 60,
   "modelo_pecas": "",
