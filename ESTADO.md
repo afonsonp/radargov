@@ -50,7 +50,7 @@ Configurações em `/configuracoes/<seccao>`, sete secções (interesse,
 alertas, recolha, leitura das peças, capturas, cópias, conta), com
 Alertas a sair da barra para lá. O plano `ONLINE.md` está feito por
 inteiro, pela via B (o PC de casa exposto por túnel). A bateria de
-testes — 775 — passa inteira no Python 3.14 do Ubuntu.
+testes — 784 — passa inteira no Python 3.14 do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
@@ -216,6 +216,15 @@ Perdido, 1 Submetido → Ganho) e **47 ficam protegidas** pela excepção do
 19 Ganho · 7 Submetido · 2 Cancelado · 1 vazio. O `estado_pretendido()`
 já lê por aí, portanto quando o `--com-triagem` correr é este o estado
 que chega aos anúncios.
+
+**Os lotes estão desenhados desde 8/09/2026** (decisão de 2/09): a
+ficha tem o bloco «Lotes» (os que o anúncio declara, com o preço base
+de cada um e, quando o registo da casa os conhece, a que fomos, com
+que proposta, em que lugar e como acabou), o cartão do quadro diz a
+que lotes fomos («fomos a 2 dos 3 lotes», com uma etiqueta por lote),
+e no fim separam-se: um anúncio no Ganho com lotes perdidos ganha um
+cartão de lotes, não arrastável, na coluna Perdido — e vice-versa.
+Só a partir do registo da casa; o quadro não adivinha resultados.
 
 **Os lotes já têm solução, tirando dois casos.** A 03/09/2026 ele
 respondeu às quatro linhas que faltavam. As #23 e #26 traziam a **soma**

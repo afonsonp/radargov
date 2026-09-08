@@ -399,6 +399,19 @@ Se abrires um anúncio que o radar ainda não tinha lido — um antigo, por
 exemplo — ele lê-o na altura, demora cerca de um segundo, e fica
 guardado. Não precisas de esperar por verificação nenhuma.
 
+### Lotes
+
+Quando o anúncio diz «Procedimento com lotes? Sim» (23% dos que têm
+detalhe lido), a ficha tem um bloco **Lotes**, com entrada no índice:
+cada lote com a descrição e o preço base que o DR publica. Se o
+registo da casa (§11) tiver linhas deste concurso lote a lote, a
+coluna «A casa» diz, por lote, se fomos e como acabou — ganho,
+perdido, submetido, não fomos — com a nossa proposta e o lugar. Se
+a linha da casa for do **conjunto** (o preço é a soma dos lotes), a
+ficha di-lo por baixo em vez de o pôr num lote. Sem registo, a ficha
+diz que os lotes são os do anúncio e que a que fomos ainda não se
+sabe.
+
 ### Desfecho: como o concurso acabou
 
 Mais abaixo na ficha há a caixa **Desfecho**, quando já há contrato
@@ -567,6 +580,15 @@ São **seis fases, e são estas** — *Por analisar, A preparar proposta,
 Submetido, Relatório preliminar, Ganho, Perdido*: o funil da casa. Podes
 mudar-lhes o nome; criar e apagar colunas já não, porque cada coluna tem
 um papel e é o papel que decide o que o cartão pergunta.
+
+**Um cartão por anúncio, mesmo com lotes** — foi assim que decidiste
+a 2/09/2026. O cartão de um anúncio com lotes diz a que lotes fomos
+(«fomos a 2 dos 3 lotes», com uma etiqueta por lote: L1 perdido, L2
+ganho…) ou que não há registo. E **no fim separam-se**: um anúncio
+cujo cartão está no Ganho com lotes perdidos tem também um cartão de
+lotes na coluna Perdido, a tracejado, que não se arrasta e liga ao
+bloco dos lotes na ficha; e ao contrário. Isso vem do registo da
+casa, lote a lote — o quadro não inventa resultados.
 
 **Cada fase pede o que lhe falta**, no próprio cartão — e o cabeçalho
 da coluna diz o quê, para se ver sem ser preciso lá pôr um cartão
@@ -782,7 +804,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 775 verificações em poucos segundos, sem tocar
+Corre os testes — 784 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
