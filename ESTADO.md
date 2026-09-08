@@ -50,7 +50,7 @@ Configurações em `/configuracoes/<seccao>`, sete secções (interesse,
 alertas, recolha, leitura das peças, capturas, cópias, conta), com
 Alertas a sair da barra para lá. O plano `ONLINE.md` está feito por
 inteiro, pela via B (o PC de casa exposto por túnel). A bateria de
-testes — 802 — passa inteira no Python 3.14 do Ubuntu. **E desde a
+testes — 805 — passa inteira no Python 3.14 do Ubuntu. **E desde a
 tarde de 8/09/2026 o painel serve no telemóvel**: abaixo de 900 px a
 barra passa para cima, as grelhas de duas colunas passam a uma, e o
 que é largo (quadro, tabelas, abas, índice da ficha) rola dentro de
@@ -300,7 +300,7 @@ contagens do painel têm de ir por índice de cobertura — ver a
   todo. Qualquer commit deixado no `master` da pen sai sozinho para o
   GitHub na volta seguinte, tenha a triagem mudado ou não. Desliga-se com
   `"triagem_no_git": false`.
-- **O repositório mudou a 07/09/2026**: agora é `afonsonp/Radar` (o
+- **O repositório mudou a 07/09/2026**: agora é `afonsonp/radargov` (o
   `afonsonp/radarconcursos` foi apagado). A programação passou a
   fazer-se nas sessões remotas do Claude Code; a instalação só traz
   código novo quando o Afonso corre `actualizar.sh`, e só até à última tag

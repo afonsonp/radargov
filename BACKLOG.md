@@ -61,7 +61,22 @@ seguir entra aqui com quem decide e o que dispara, como sempre.
 
 ## P0
 
-Vazio — B01 e B02 feitos a 30/08/2026; ver «Feito», no fim.
+- **A guarda de «uma verificação de cada vez» não atravessa
+  processos.** Aberto a 8/09/2026. `comecar_verificacao()` protege-se
+  com `_VERIFICACAO`, um dicionário na memória com um trinco de
+  threads: vale dentro de **um** processo. O temporizador do systemd
+  arranca um processo à parte, que não vê o relógio de dentro do
+  painel — e a 8/09, às 17:00, correram os dois (o timer às 17:00:37,
+  o relógio às 17:00). Duas verificações inteiras sobre a mesma base
+  ao mesmo tempo. O sintoma que apareceu foi pequeno — o rascunho da
+  exportação partilhado, já corrigido com o pid no nome — mas a causa
+  não é: por baixo estão duas recolhas, duas leituras de detalhe e
+  dois `empurrar_triagem()` a competir. Precisa de um trinco que os
+  dois processos vejam (ficheiro com `O_EXCL`, ou uma linha na tabela
+  `estado` com o pid e a hora, com prazo para o caso de o processo
+  morrer a meio). **Esforço 1.** Enquanto não for feito, a tabela
+  `slots` continua a parecer certa, como já acontecia quando faltavam
+  as tarefas.
 
 ## P1
 

@@ -395,7 +395,7 @@ ficheiro da skill ainda não tenha sido actualizado.
 
 **Repositório novo a 07/09/2026**: o `afonsonp/radarconcursos` foi
 apagado pelo Afonso e substituído por `origin` =
-`https://github.com/afonsonp/Radar.git`, histórico limpo (verificado
+`https://github.com/afonsonp/radargov.git`, histórico limpo (verificado
 antes do push: nenhum ficheiro de senha, chave ou token alguma vez
 entrou nos objectos git — só o `.gitignore` largo, que continua a ser a
 guarda de capturas, bases, chaves e peças). Privado, como antes.
