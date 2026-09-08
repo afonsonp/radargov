@@ -413,7 +413,12 @@ premissa mudar — com data e números novos.
   login para fechar a porta e as configurações num menu — o plano está
   em `docs/historico/ONLINE.md`. Empresas e utilizadores por empresa
   foram pensados na mesma tarde e postos de lado
-  (`docs/historico/ONLINE-empresas.md`).
+  (`docs/historico/ONLINE-empresas.md`). **A 8/09/2026 o radar passou
+  a correr em Ubuntu** (`.sh`, `.venv`, temporizadores do systemd,
+  painel como serviço) — é o degrau antes da etapa 3 do plano, servir
+  para fora: falta o login (etapa 1), o Caddy/HTTPS à frente do Flask
+  e mover a pasta para o disco interno (o «Matriz» é montado ao entrar
+  na sessão gráfica).
 - **App móvel / push** — o e-mail diário chega ao telemóvel; um push a mais
   não muda nenhuma decisão de dia útil.
 - **Contagem decrescente ao segundo, mapas nas fichas** (GovGo, Armilar) —

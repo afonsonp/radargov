@@ -37,7 +37,13 @@ def interpretador():
     esse que manda. O hook corre no Python do sistema, que pode nao ter as
     dependencias -- e entao os testes "falhavam" todos por ImportError."""
     proprio = os.path.join(PASTA, "python", "python.exe")
-    return proprio if os.path.exists(proprio) else sys.executable
+    if os.path.exists(proprio):
+        return proprio
+    # Em Linux (8/09/2026) o equivalente e o .venv que o instalar.sh cria:
+    # o python3 do Ubuntu nao traz flask nem pymupdf, e sem isto o hook
+    # travava todos os commits por ImportError.
+    venv = os.path.join(PASTA, ".venv", "bin", "python")
+    return venv if os.path.exists(venv) else sys.executable
 
 # O `git commit` de que se fala aqui e o de gravar. O `git commit --help`
 # ou uma mensagem que por acaso contenha as palavras nao contam.

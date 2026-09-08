@@ -10,6 +10,7 @@ Fonte unica: o servico de pesquisa do proprio portal do DR, chamado
 com os cabecalhos de uma captura feita uma vez no browser (curl_DR.txt).
 
 Arranque:  python radar.py             painel em http://127.0.0.1:8765
+           python radar.py --sem-browser   o mesmo, sem abrir o browser (servico)
            python radar.py --uma-vez   verifica e sai, para as tarefas
            python radar.py --historico N   puxa N dias de historico
            python radar.py --historico DE ATE   varre um intervalo, por janelas
@@ -4413,6 +4414,12 @@ def guardar(colhidos, cfg=None):
 # slots falhados, a tabela `slots` fica preenchida e parece que correu a
 # horas. Foi assim que isto passou semanas sem se notar.
 TAREFAS = ("Radar DR 09h", "Radar DR 17h")
+# Em Linux (8/09/2026) o mesmo papel e dos temporizadores do systemd que
+# o agendar.sh cria, na sessao do utilizador. Sao os nomes das unidades,
+# procurados na saida de `systemctl --user list-timers --all`. Ate aqui
+# fora do Windows devolvia-se vazio -- "nao ha o que avisar" -- o que
+# era exactamente o modo de falha que o aviso existe para apanhar.
+TAREFAS_LINUX = ("radar-09h.timer", "radar-17h.timer")
 _TAREFAS_VISTAS = None
 _TAREFAS_QUANDO = 0.0
 # A resposta guarda-se durante um minuto e nao para sempre. Era para
@@ -4424,31 +4431,56 @@ _TAREFAS_QUANDO = 0.0
 TAREFAS_VALIDADE = 60
 
 
-def tarefas_em_falta():
-    """Quais das tarefas do Windows nao estao criadas.
+def comando_das_tarefas(sistema=None):
+    """O comando que lista as tarefas agendadas neste sistema, e os
+    nomes que la se procuram. `None` onde nao ha agendador que se saiba
+    consultar (macOS, por exemplo): ai nao se inventa aviso."""
+    sistema = sistema or ("nt" if os.name == "nt" else sys.platform)
+    if sistema == "nt":
+        return ["schtasks", "/query", "/fo", "csv", "/nh"], TAREFAS
+    if sistema.startswith("linux"):
+        return (["systemctl", "--user", "list-timers", "--all",
+                 "--no-legend", "--plain"], TAREFAS_LINUX)
+    return None, ()
+
+
+def tarefas_em_falta(listar=None, sistema=None):
+    """Quais das tarefas agendadas nao estao criadas.
 
     A resposta guarda-se por um minuto: e um subprocesso, e o painel
-    monta paginas muitas vezes. Fora do Windows devolve vazio -- nao ha
-    o que avisar.
+    monta paginas muitas vezes. `listar` e a funcao que corre o comando
+    e devolve a saida (injectavel nos testes; por omissao corre-o
+    mesmo). Onde nao ha agendador conhecido devolve vazio.
     """
     global _TAREFAS_VISTAS, _TAREFAS_QUANDO
     if (_TAREFAS_VISTAS is not None
             and time.time() - _TAREFAS_QUANDO < TAREFAS_VALIDADE):
         return _TAREFAS_VISTAS
     _TAREFAS_QUANDO = time.time()
-    if os.name != "nt":
+    comando, nomes = comando_das_tarefas(sistema)
+    if not comando:
         _TAREFAS_VISTAS = []
         return _TAREFAS_VISTAS
     try:
-        r = subprocess.run(["schtasks", "/query", "/fo", "csv", "/nh"],
-                           capture_output=True, text=True, timeout=20,
-                           encoding="utf-8", errors="replace")
-        havidas = r.stdout or ""
+        havidas = (listar or _saida_de)(comando) or ""
     except (OSError, subprocess.SubprocessError):
         _TAREFAS_VISTAS = []            # nao se sabe: nao se inventa aviso
         return _TAREFAS_VISTAS
-    _TAREFAS_VISTAS = [t for t in TAREFAS if t not in havidas]
+    _TAREFAS_VISTAS = [t for t in nomes if t not in havidas]
     return _TAREFAS_VISTAS
+
+
+def _saida_de(comando):
+    r = subprocess.run(comando, capture_output=True, text=True, timeout=20,
+                       encoding="utf-8", errors="replace")
+    return r.stdout or ""
+
+
+def como_agendar():
+    """A frase do aviso: onde e que as tarefas faltam, e o que correr."""
+    if os.name == "nt":
+        return "no Agendador do Windows", "agendar.bat"
+    return "nos temporizadores do systemd", "agendar.sh"
 
 
 COPIAS = os.path.join(BASE_DIR, "copias")
@@ -7811,16 +7843,17 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     # sistema e nao da vez, por isso nao vai pela query string.
     faltam = tarefas_em_falta()
     if faltam:
+        onde, guiao = como_agendar()
         aviso += (
             "<div class='flash mau'>O radar <b>não está a verificar "
-            "sozinho</b>: %s por criar no Agendador do Windows. Enquanto "
+            "sozinho</b>: %s por criar %s. Enquanto "
             "assim for, só recolhe quando este painel está aberto. Corre "
-            "o <code>agendar.bat</code> uma vez.</div>"
+            "o <code>%s</code> uma vez.</div>"
             % ("a tarefa &ldquo;%s&rdquo; está" % html.escape(faltam[0])
                if len(faltam) == 1
                else "as tarefas %s estão"
                % " e ".join("&ldquo;%s&rdquo;" % html.escape(t)
-                            for t in faltam)))
+                            for t in faltam), onde, guiao))
 
     n_corpus = ha_corpus()
     return BASE % {
@@ -14649,7 +14682,12 @@ def main():
     print("Fecha esta janela para parar. Ctrl+C tambem serve.")
     # Em thread, e a espera da porta: o app.run() so devolve quando o
     # painel fechar, portanto quem abre o browser tem de ser outro.
-    threading.Thread(target=abrir_no_browser, daemon=True).start()
+    # `--sem-browser` e para o painel a correr como servico (o
+    # radar-painel.service que o agendar.sh cria): ai nao ha ninguem a
+    # quem abrir uma janela, e num ambiente de trabalho com sessao
+    # aberta cada reinicio do servico abria mais um separador.
+    if "--sem-browser" not in sys.argv:
+        threading.Thread(target=abrir_no_browser, daemon=True).start()
     app.run(host=ENDERECO, port=PORTA, debug=False)
 
 

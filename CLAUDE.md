@@ -94,6 +94,13 @@ As tarefas do Windows são três (`agendar.bat`): as duas verificações
 diárias e a do corpus, à segunda. **Se faltarem, o radar só recolhe com
 o painel aberto** — e o relógio interno recupera os slots falhados, o
 que faz a tabela `slots` parecer certa. O painel avisa a vermelho.
+Em **Linux** (desde 8/09/2026) o mesmo papel é de temporizadores do
+systemd na sessão do utilizador (`agendar.sh`: `radar-09h.timer`,
+`radar-17h.timer`, `radar-contratos.timer`), mais o painel como
+serviço sempre a correr (`radar-painel.service`, que arranca o
+`radar.py --sem-browser`). O aviso vermelho lê `systemctl --user
+list-timers` e procura esses dois nomes — mudar um nome no `agendar.sh`
+sem mudar `TAREFAS_LINUX` cega o aviso.
 
 Testes — sem rede e sem tocar na base verdadeira; correm em poucos
 segundos (os do B15 criam repositórios git temporários):
@@ -103,6 +110,11 @@ python teste_radar.py                                    # todos
 python teste_radar.py TestPrefixoCPV                     # uma classe
 python teste_radar.py TestPrefixoCPV.test_divisao_normal # um teste
 ```
+
+Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
+`instalar.sh` cria: o `python3` do sistema não tem o flask nem o
+pymupdf, e a pasta não traz o `python/` embutido do Windows. O hook dos
+testes já escolhe o `.venv` sozinho.
 
 Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
@@ -115,6 +127,17 @@ Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
 computador para outro pela release "dados" — ver a secção Git).
 Todos passam pelo `_python.bat`, que escolhe o
 Python da pasta se existir.
+
+**Em Linux cada `.bat` tem o seu `.sh` com o mesmo nome** (8/09/2026),
+e mais nenhum: `instalar.sh` cria o `.venv` e instala o
+`requirements.txt`; `agendar.sh` cria os temporizadores e o serviço do
+painel (`desinstalar.sh` tira-os); `iniciar.sh` recusa-se a abrir um
+segundo painel se o serviço já estiver a correr; `actualizar.sh`
+reinstala dependências e reinicia o serviço depois do `--ff-only`.
+Todos passam pelo `_python.sh`, que escolhe o `.venv` se existir.
+Um `.sh` novo entra com o exec bit no git (`git update-index
+--chmod=+x`), porque o disco é NTFS e o `core.filemode` está a
+`false`.
 
 ## Arquitectura
 
@@ -173,7 +196,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 96 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
+São 98 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·
@@ -280,6 +303,12 @@ Atencao: estes hooks so actuam quando o **`radar/` e a pasta de trabalho**
 da sessao. A trabalhar a partir da pasta-mae, nao disparam -- corre entao
 `python teste_radar.py` a mao antes de gravar.
 
+O `settings.json` chama os hooks por `python3` (8/09/2026: em Ubuntu
+não há `python`, e as sessões remotas também são Linux), e o
+`testes_antes_do_commit.py` corre os testes no `python/python.exe` se
+existir, senão no `.venv/bin/python`, senão no interpretador do hook —
+sem isto, em Ubuntu travava todos os commits por ImportError.
+
 Duas skills e um subagente:
 
 - **`estado-radar`** lê a base em modo só-leitura e diz quantos anúncios há,
@@ -357,6 +386,12 @@ mexem no `triagem.jsonl`. **O `contratos.db` não viaja**: com 2,5 GB
 excede mesmo o limite de anexo do GitHub (2 GB), e refaz-se em minutos
 com `python radar.py --contratos` a partir do dump público do IMPIC —
 não há razão para transportar o ficheiro.
+
+**Fins de linha:** o `.gitattributes` (8/09/2026) fixa LF em tudo e
+CRLF só nos `.bat`. Antes dele, a pasta escrita pelo Windows com
+`autocrlf` aparecia em Ubuntu com 27 ficheiros «alterados» sem uma
+letra mudada. Se o `git status` mostrar o ficheiro inteiro a mudar,
+compara com `git diff --ignore-cr-at-eol` antes de acreditar.
 
 Commit no fim de cada trabalho acabado, sem esperar autorização.
 `master` é o único ramo persistente; um ramo `claude/*` é sempre de uma

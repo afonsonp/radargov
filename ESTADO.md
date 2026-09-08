@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **4 de setembro de 2026**.
+Última actualização: **8 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**. O histórico saiu daqui no
 mesmo dia: era um ficheiro de 5 297 linhas onde o topo envelhecia a cada
@@ -25,7 +25,16 @@ Aplicação local em Python que vigia os anúncios de contratação pública
 publicados no Diário da República, série II, **parte L**. Guarda tudo
 numa base SQLite e mostra num painel web local, em
 `http://127.0.0.1:8765`. Verifica sozinha às 09:00 e às 17:00, por
-tarefas do Windows.
+tarefas do Windows — ou, em Linux, por temporizadores do systemd.
+
+**Desde 8/09/2026 corre também em Ubuntu**, na pasta `radar/` do disco
+«Matriz» (NTFS, montado em `/run/media/afonso/Matriz`): um `.venv`
+criado pelo `instalar.sh` faz de `python/` + `libs/`, cada `.bat` tem
+o seu `.sh`, e o `agendar.sh` cria os três temporizadores e o painel
+como serviço do utilizador. É o passo antes de este computador servir
+o radar para fora — o plano disso é o `docs/historico/ONLINE.md`, e
+ainda não está feito: continua a atender só em `127.0.0.1`, sem login.
+A bateria de testes passa inteira no Python 3.14 do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
@@ -223,10 +232,18 @@ contagens do painel têm de ir por índice de cobertura — ver a
 
 ## O que não corre sozinho, e é preciso saber
 
-- **As três tarefas do Windows** (`agendar.bat`) são o que faz o radar
+- **As três tarefas do Windows** (`agendar.bat`) — em Linux, os
+  temporizadores do systemd do `agendar.sh` — são o que faz o radar
   verificar sem ninguém. Se faltarem, só recolhe com o painel aberto — e
   o relógio interno recupera os slots falhados, o que faz a tabela
-  `slots` parecer certa. O painel avisa a vermelho.
+  `slots` parecer certa. O painel avisa a vermelho nos dois sistemas
+  (até 8/09/2026 só no Windows: fora dele devolvia «nada em falta»).
+- **Em Linux, o painel corre como serviço** (`radar-painel.service`)
+  e o `iniciar.sh` não abre um segundo. Sem `loginctl enable-linger`,
+  o serviço e os temporizadores morrem com o logout — o `agendar.sh`
+  tenta ligá-lo e diz se não conseguiu. E o disco «Matriz» é montado
+  pelo ambiente de trabalho ao entrar: se um dia arrancar sem sessão
+  gráfica, a pasta não está lá quando o systemd a procura.
 - **As capturas `curl_*.txt`** são a forma do pedido ao DR. O token não
   expira (medido a 2/09/2026), mas se o portal mudar de forma é por elas
   que se refaz — secção 3 do `LEIA-ME.md`. Não se editam à mão; um hook
