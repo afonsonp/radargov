@@ -9030,6 +9030,53 @@ class TestLigacaoFechaAoSair(BaseTemporaria):
         self.assertLessEqual(depois - antes, 3)
 
 
+class TestPecaNaoSaiDaPasta(BaseTemporaria):
+    """8/09/2026, à noite: o painel estava na internet havia um dia e as
+    quatro rotas que servem ficheiros deixavam sair de `documentos/`.
+    A ref passava por `re.sub(r"[^0-9A-Za-z._-]", "-", ref)`, que troca
+    a barra por hífen mas deixa `..` inteiro — e as rotas recebem-na
+    como `<path:ref>`. Um GET a /peca/../radar.db dava a base (hashes
+    das palavras-passe, sessões, triagem toda); /documento/../curl_DR.txt
+    dava os cookies do portal do DR. A guarda que lá estava comparava o
+    caminho com a pasta, mas a pasta era escolhida pelo mesmo pedido.
+    Pelo caminho, o 404 dessas rotas devolvia a ref crua dentro do HTML."""
+
+    def refs_que_escapam(self):
+        return ["..", "%2e%2e", "../..", "a/../..", "."]
+
+    def test_a_ref_nunca_e_ponto_nem_ponto_ponto(self):
+        for ref in ("..", ".", "...", " .. ", "../..", "./."):
+            nome = radar.ref_de_pasta(ref)
+            self.assertNotIn(nome, (".", "..", ""),
+                             "ref %r virou a pasta %r" % (ref, nome))
+
+    def test_uma_ref_verdadeira_nao_muda(self):
+        self.assertEqual(radar.ref_de_pasta("12345/2026"), "12345-2026")
+
+    def test_o_caminho_fica_dentro_de_documentos(self):
+        for ref in self.refs_que_escapam():
+            for nome in ("radar.db", "config.json", "curl_DR.txt", "radar.py"):
+                self.assertIsNone(radar.caminho_na_pasta(ref, nome),
+                                  "/%s/%s saiu da pasta" % (ref, nome))
+
+    def test_as_rotas_recusam(self):
+        cliente = radar.app.test_client()
+        for ref in self.refs_que_escapam():
+            for nome in ("radar.db", "curl_DR.txt"):
+                for rota in ("/documento/%s/%s", "/peca/%s/%s",
+                             "/peca-pagina/%s/%s/1.png"):
+                    r = cliente.get(rota % (ref, nome))
+                    self.assertEqual(r.status_code, 404,
+                                     "%s serviu %s" % (rota % (ref, nome),
+                                                       r.status_code))
+                    self.assertNotIn(b"SQLite format", r.data)
+
+    def test_o_404_escapa_a_ref(self):
+        cliente = radar.app.test_client()
+        r = cliente.get("/documento/%3Cscript%3Ex/naoexiste")
+        self.assertNotIn(b"<script>", r.data)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

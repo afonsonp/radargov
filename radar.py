@@ -2989,8 +2989,41 @@ VORTAL_DOCS = ("https://community.vortal.biz/public/api/ContractNoticeDetail/"
                "GetContractNoticeDocuments")
 
 
+def ref_de_pasta(ref):
+    """A ref como nome de UMA pasta dentro de documentos/.
+
+    O `re.sub` sozinho nao chegava: trocava a barra por hifen, mas
+    deixava `..` passar inteiro -- e `documentos/..` e a pasta do
+    radar. Como as rotas das pecas recebem `<path:ref>`, um pedido a
+    /peca/../radar.db servia a base, o config.json ou as capturas do
+    curl a quem tivesse sessao. Os pontos das pontas caem, como em
+    nome_seguro(); uma ref verdadeira ("12345/2026") nao muda.
+    """
+    ref = re.sub(r"[^0-9A-Za-z._-]", "-", ref or "").strip(". ")
+    return ref[:150] or "anuncio"
+
+
 def pasta_do_anuncio(ref):
-    return os.path.join(DOCS, re.sub(r"[^0-9A-Za-z._-]", "-", ref))
+    return os.path.join(DOCS, ref_de_pasta(ref))
+
+
+def caminho_na_pasta(ref, nome):
+    """O ficheiro `nome` da pasta do anuncio `ref`, ou None.
+
+    None se nao existir, se o nome saltar da pasta, ou se a propria
+    pasta cair fora de documentos/ -- sem esta ultima, a guarda media
+    o caminho contra um sitio que o proprio pedido tinha escolhido.
+    E o unico sitio por onde as quatro rotas que servem ficheiros
+    chegam ao disco.
+    """
+    raiz = os.path.abspath(DOCS)
+    pasta = os.path.abspath(pasta_do_anuncio(ref))
+    caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
+    if not pasta.startswith(raiz + os.sep) and pasta != raiz:
+        return None
+    if not caminho.startswith(pasta + os.sep):
+        return None
+    return caminho if os.path.exists(caminho) else None
 
 
 def nome_seguro(nome):
@@ -14393,9 +14426,8 @@ def ficha(ref):
     # nada e a lista fica como estava -- nunca uma moldura vazia.
     leitor = ""
     if peca_aberta:
-        pasta = os.path.abspath(pasta_do_anuncio(ref))
-        caminho = os.path.abspath(os.path.join(pasta, nome_seguro(peca_aberta)))
-        if caminho.startswith(pasta + os.sep) and os.path.exists(caminho):
+        caminho = caminho_na_pasta(ref, peca_aberta)
+        if caminho:
             args_fechar = dict(request.args.to_dict())
             args_fechar.pop("peca", None); args_fechar.pop("procurar", None)
             # O `action` vai sem query string de proposito: um GET
@@ -14526,10 +14558,10 @@ def analisar(ref):
 def servir_documento(ref, nome):
     """Serve um ficheiro guardado. O nome vem da base, mas confirma-se na
     mesma que o caminho final fica dentro da pasta do anuncio."""
-    pasta = os.path.abspath(pasta_do_anuncio(ref))
-    caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
-    if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
-        return "Documento não encontrado. <a href='/anuncio/%s'>voltar</a>" % ref, 404
+    caminho = caminho_na_pasta(ref, nome)
+    if not caminho:
+        return ("Documento não encontrado. <a href='/anuncio/%s'>voltar</a>"
+                % html.escape(ref, quote=True)), 404
     return send_file(caminho, as_attachment=False,
                      download_name=os.path.basename(caminho))
 
@@ -14538,9 +14570,8 @@ def servir_documento(ref, nome):
 def peca_pagina(ref, nome, n):
     """Uma pagina da peca desenhada pelo servidor (PNG). E o que faz o
     visualizador proprio funcionar em qualquer browser."""
-    pasta = os.path.abspath(pasta_do_anuncio(ref))
-    caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
-    if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
+    caminho = caminho_na_pasta(ref, nome)
+    if not caminho:
         return "", 404
     png = imagem_da_pagina(caminho, n,
                            procurar=(request.args.get("procurar")
@@ -14682,15 +14713,14 @@ def ver_peca(ref, nome):
     depois do "interessa"), o proprio PDF no visualizador do browser,
     que ja pesquisa com Ctrl+F. O caminho barato do BACKLOG: um <embed>
     do ficheiro que ja esta em documentos/."""
-    pasta = os.path.abspath(pasta_do_anuncio(ref))
-    caminho = os.path.abspath(os.path.join(pasta, nome_seguro(nome)))
-    if not caminho.startswith(pasta + os.sep) or not os.path.exists(caminho):
+    caminho = caminho_na_pasta(ref, nome)
+    if not caminho:
         return envolver(
             "anuncios", "Peça não encontrada",
             "O ficheiro já não está na pasta dos documentos.",
             "<div class='vazio'>Volta à <a href='/anuncio/%s'>ficha do "
             "anúncio</a> e carrega em &ldquo;Actualizar peças&rdquo;."
-            "</div>" % ref,
+            "</div>" % html.escape(ref, quote=True),
             migalhas=migalhas_de("anuncios", ref)), 404
     origem = "/documento/%s/%s" % (ref, quote(nome, safe=""))
     texto_cx = texto_da_peca(ref, nome)

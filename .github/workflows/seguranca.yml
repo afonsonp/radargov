@@ -1,0 +1,31 @@
+# Revisao de seguranca a cada PR (anthropics/claude-code-security-review).
+#
+# Entrou a 8/09/2026, no dia a seguir ao painel ir para a internet em
+# radargov.pt. Le so o diff do PR e comenta nas linhas; o segredo
+# CLAUDE_API_KEY tem de existir em Settings > Secrets > Actions.
+#
+# A pasta documentos/ e as bases nao entram no git, por isso nao ha
+# nada a excluir aqui.
+name: Segurança
+
+permissions:
+  pull-requests: write
+  contents: read
+
+on:
+  pull_request:
+
+jobs:
+  revisao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - uses: anthropics/claude-code-security-review@main
+        with:
+          comment-pr: true
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          custom-security-scan-instructions: .github/seguranca-radar.md
