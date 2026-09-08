@@ -72,6 +72,6 @@ echo
 echo "  O painel está em:  $ENDERECO"
 echo
 echo "  Vale enquanto esta janela estiver aberta. Ctrl+C fecha o túnel."
-echo "  Quem o abrir entra com o e-mail e a palavra-passe da conta."
+echo "  Quem o abrir entra com o utilizador e a palavra-passe da conta."
 echo
 wait "$PID"

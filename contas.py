@@ -94,8 +94,11 @@ def criar_utilizador(c, email, senha, nome=""):
     mesmo comando que serve para recuperar o acesso pela linha de
     comandos. Devolve o id."""
     email = email_limpo(email)
-    if not email or "@" not in email:
-        raise ValueError("e-mail em falta ou sem @")
+    # Um nome de utilizador chega ("admin"): o Afonso nao quer e-mail
+    # (8/09/2026). A coluna continua a chamar-se `email` -- e o que
+    # identifica a conta, seja um e-mail ou nao.
+    if not email or " " in email or len(email) < 2:
+        raise ValueError("utilizador em falta, com espacos ou curto demais")
     if len(senha or "") < 8:
         raise ValueError("a palavra-passe tem de ter pelo menos 8 caracteres")
     linha = c.execute("SELECT id FROM utilizadores WHERE email=?",
@@ -168,7 +171,7 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
     """Tenta entrar. Devolve (token, utilizador) ou (None, porque).
 
     O `porque` e texto para o ecra: 'espera N s' quando o trinco esta
-    fechado, 'e-mail ou palavra-passe errados' no resto -- a mesma
+    fechado, 'utilizador ou palavra-passe errados' no resto -- a mesma
     frase para os dois casos, para nao dizer a quem tenta quais os
     e-mails que existem.
     """
@@ -181,7 +184,7 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
                       "WHERE email=?", (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
         registar_falha(c, email, ip, agora)
-        return None, "e-mail ou palavra-passe errados"
+        return None, "utilizador ou palavra-passe errados"
     token = secrets.token_urlsafe(32)
     c.execute("INSERT INTO sessoes VALUES (?,?,?,?,?,?)",
               (token, linha["id"], agora.strftime("%Y-%m-%d %H:%M:%S"),
