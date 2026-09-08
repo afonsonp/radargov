@@ -19,6 +19,7 @@ import inspect
 import json
 import os
 import re
+import sqlite3
 import sys
 import time
 import unittest
@@ -8983,6 +8984,50 @@ class TestEcraEstreito(unittest.TestCase):
         # o viewport esta declarado, senao o browser do telemovel finge 980px
         self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', radar.BASE)
 
+
+
+class TestLigacaoFechaAoSair(BaseTemporaria):
+    """8/09/2026, à noite: o painel a servir radargov.pt esgotou os 1024
+    descritores do processo em quatro horas — 501 ligações ao radar.db
+    abertas, porque o `with` do sqlite3 só faz commit e a ligação
+    ficava à espera do garbage collector. O accept() a falhar em ciclo
+    pôs o processo a 100% de CPU sem atender ninguém."""
+
+    def test_a_ligacao_fecha_no_fim_do_with(self):
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT 1").fetchone()[0], 1)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            c.execute("SELECT 1")
+
+    def test_e_commit_continua_a_acontecer(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO estado VALUES ('teste-fecho', '1')")
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT valor FROM estado WHERE chave='teste-fecho'")
+                             .fetchone()[0], "1")
+
+    def test_o_corpus_tambem(self):
+        self.assertIs(type(radar.liga()), radar.Ligacao)
+        corpus_antigo = radar.CORPUS
+        radar.CORPUS = os.path.join(self.pasta, "corpus.db")
+        try:
+            with radar.liga_corpus() as c:
+                pass
+            with self.assertRaises(sqlite3.ProgrammingError):
+                c.execute("SELECT 1")
+        finally:
+            radar.CORPUS = corpus_antigo
+
+    def test_cem_pedidos_nao_deixam_ligacoes_abertas(self):
+        import gc
+        cliente = radar.app.test_client()
+        gc.collect()
+        antes = len([o for o in gc.get_objects() if isinstance(o, sqlite3.Connection)])
+        for _ in range(30):
+            cliente.get("/")
+        depois = len([o for o in gc.get_objects() if isinstance(o, sqlite3.Connection)])
+        # fechadas ou nao, o que conta e que nao se acumulam por pedido
+        self.assertLessEqual(depois - antes, 3)
 
 
 if __name__ == "__main__":
