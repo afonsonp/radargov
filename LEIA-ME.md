@@ -447,17 +447,42 @@ plataforma**, na ficha.
 Não se descarrega tudo de uma vez de propósito: seriam centenas de GB.
 Assim ficas com as peças daquilo em que trabalhas mesmo.
 
-## 7. Quem está a trabalhar
+## 7. A conta, e quem está a trabalhar
 
-No canto do cabeçalho escreves o teu nome. A partir daí fica registado
-quem marcou interessa, quem moveu de fase e quem ficou responsável por
-cada concurso — vês esse registo na ficha do anúncio, em baixo.
+Desde 8/09/2026 o painel tem login. A conta cria-se uma vez, num
+terminal aberto na pasta:
 
-Na ficha podes também atribuir o concurso a uma pessoa.
+```bash
+.venv/bin/python radar.py --criar-utilizador o-teu@email.pt
+```
 
-Não há palavra-passe: isto corre no teu PC e é identificação, não
-segurança. No dia em que isto for para um servidor partilhado, é aí que
-entra o login a sério.
+Pergunta o nome a mostrar e a palavra-passe (8 caracteres ou mais,
+escrita duas vezes, sem aparecer no ecrã). Só há uma conta, a tua.
+
+**Neste computador não vês o login.** Um pedido vindo daqui entra
+como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
+`config.json`. Quem vem de fora (pelo `tunel.sh`, secção 15) cai no
+ecrã de entrar, e a sessão dura 30 dias em cada aparelho. No canto de
+baixo da barra lateral está o teu nome; ao abrir há «sair» e «sair de
+todos os aparelhos», que fecha todas as sessões de uma vez — se
+perderes o telemóvel, é isso.
+
+Se te esqueceres da palavra-passe, não há «esqueci-me» por e-mail:
+é no terminal deste computador, e grava a nova por cima:
+
+```bash
+.venv/bin/python radar.py --palavra-passe o-teu@email.pt
+```
+
+Cinco tentativas erradas em quinze minutos, pelo mesmo e-mail ou pelo
+mesmo IP, e a porta espera; as falhas ficam nos Indicadores, na série
+dos erros, que é como se vê se alguém anda a bater à porta.
+
+A partir de estares identificado fica registado quem marcou
+interessa, quem moveu de fase e quem ficou responsável por cada
+concurso — vês esse registo na ficha do anúncio, em baixo. Na ficha
+podes também atribuir o concurso a uma pessoa, e essa lista de nomes
+é livre: um colega sem conta pode ser responsável.
 
 ## 8. Indicadores
 
@@ -700,7 +725,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 737 verificações em poucos segundos, sem tocar
+Corre os testes — 757 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
@@ -731,9 +756,9 @@ anúncios, é o teste do parser que avisa primeiro.
 
 ## 15. Mostrar o painel a alguém de fora
 
-O painel só atende neste computador, e ainda não tem login. Para o
-mostrar a alguém — noutro computador, no telemóvel, sem instalar nada
-do lado de lá — corre, num terminal aberto na pasta:
+O painel só atende neste computador. Para o mostrar a alguém — noutro
+computador, no telemóvel, sem instalar nada do lado de lá — corre, num
+terminal aberto na pasta:
 
 ```bash
 ./tunel.sh
@@ -747,14 +772,14 @@ e da próxima vez o endereço é outro.
 
 Três coisas a saber:
 
-- **Quem tiver o endereço vê e mexe em tudo**, incluindo a triagem e
-  as peças descarregadas. O endereço é aleatório e não se adivinha,
-  mas só o dês a quem confias, e fecha o túnel quando acabar.
+- **Quem abre o endereço cai no ecrã de entrar** (secção 7): precisa
+  do teu e-mail e da tua palavra-passe. Sem conta criada, o ecrã diz
+  que comando correr e não deixa passar ninguém.
 - Os links do e-mail de alerta continuam a apontar para
   `127.0.0.1:8765` — só abrem neste computador.
-- Isto é para testar e mostrar. Um acesso permanente, com palavra-passe
-  e endereço fixo, é o plano do `docs/historico/ONLINE.md` e ainda
-  não está feito.
+- Isto é para testar e mostrar. O endereço fixo é o que falta para o
+  acesso permanente: uma conta na Cloudflare com um domínio teu, ou um
+  servidor — o plano está no `docs/historico/ONLINE.md`, etapa 3.
 
 ## 16. Limites, para não haver surpresas
 
