@@ -20,6 +20,14 @@ bloquear o ficheiro `radar.db` no momento em que ele está a escrever.
 Se um dia vires erros de base de dados bloqueada, é isto, e resolve-se
 movendo a pasta para fora do OneDrive.
 
+**Em Ubuntu** a mesma pasta serve, também num disco NTFS. Duas coisas
+a saber: o Windows deixa pastas e ficheiros marcados «só de leitura»
+que o Linux respeita à letra — se a instalação disser *Permission
+denied*, corre `chmod -R u+w .` dentro da pasta uma vez; e um disco
+externo só é montado quando entras no ambiente de trabalho, por isso
+um computador que arranque sem ninguém entrar não encontra a pasta.
+Para servir o radar a sério, o sítio é o disco interno.
+
 ## 2. Primeira instalação
 
 1. Duplo clique em `instalar.bat`. Instala as dependências (flask,
@@ -35,6 +43,32 @@ movendo a pasta para fora do OneDrive.
 4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as
    verificações das 09h e 17h e a actualização semanal dos contratos,
    à segunda de manhã.
+
+**Em Ubuntu** é o mesmo, com `.sh` em vez de `.bat`, num terminal
+aberto na pasta:
+
+```bash
+./instalar.sh
+```
+Cria um ambiente Python dentro da pasta (`.venv`) e instala lá as
+dependências. Se disser que falta o `python3-venv`, é
+`sudo apt install python3-venv` e voltar a correr. Depois:
+
+```bash
+./iniciar.sh
+```
+abre o painel, e
+
+```bash
+./agendar.sh
+```
+cria as tarefas — e, ao contrário do Windows, deixa também o painel a
+correr como serviço, para não ser preciso abri-lo de manhã. A partir
+daí o `iniciar.sh` só diz «já está a correr». Para ver as tarefas:
+`systemctl --user list-timers`; para o registo de uma verificação:
+`journalctl --user -u radar-verificar.service`. Para parar tudo:
+`./desinstalar.sh`. Para os comandos da secção 13, o `python` é o da
+pasta: `.venv/bin/python radar.py ...`.
 
 ## 3. As capturas
 
@@ -680,7 +714,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 655 verificações em poucos segundos, sem tocar
+Corre os testes — 737 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
@@ -705,6 +739,8 @@ anúncios, é o teste do parser que avisa primeiro.
 | `verificar.bat` | o que as tarefas das 09h/17h correm |
 | `desinstalar.bat` | remove tarefas e pacotes |
 | `historico.bat` | abre o histórico de alterações |
+| `*.sh` | o mesmo que o `.bat` com o mesmo nome, para Ubuntu; `instalar.sh` cria o `.venv/` |
+| `.venv/` | o Python e os pacotes do radar em Ubuntu (o par do `python/` e `libs/` da pen) |
 | `teste_radar.py` | os testes |
 
 ## 15. Limites, para não haver surpresas

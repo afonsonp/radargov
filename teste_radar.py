@@ -7944,6 +7944,97 @@ class TestDesfechoNaFicha(BaseTemporaria):
         self.assertIn("Consorciada 4", saiu)
 
 
+class TestTarefasEmFalta(unittest.TestCase):
+    """O aviso vermelho «o radar não está a verificar sozinho». Até
+    8/09/2026, fora do Windows `tarefas_em_falta()` devolvia vazio --
+    «não há o que avisar» -- e era exactamente o modo de falha que o
+    aviso existe para apanhar: parecer vivo sem recolher nada. Em Linux
+    lê os temporizadores do systemd que o agendar.sh cria. A listagem é
+    injectável: nada disto chama o schtasks nem o systemctl."""
+
+    SYSTEMD = (
+        "Tue 2026-09-08 17:00:00 WEST 4h left Tue 2026-09-08 09:00:12 WEST "
+        "3h ago radar-17h.timer radar-verificar.service\n"
+        "Wed 2026-09-09 09:00:00 WEST 20h left Tue 2026-09-08 09:00:12 WEST "
+        "3h ago radar-09h.timer radar-verificar.service\n"
+        "Mon 2026-09-14 08:00:00 WEST 5 days left - - "
+        "radar-contratos.timer radar-contratos.service\n")
+    SCHTASKS = ('"Radar DR 09h","09/09/2026 09:00:00","Pronto"\n'
+                '"Radar DR 17h","08/09/2026 17:00:00","Pronto"\n')
+
+    def setUp(self):
+        radar._TAREFAS_VISTAS = None
+        self.chamadas = []
+
+    def lista(self, saida):
+        def listar(comando):
+            self.chamadas.append(comando)
+            return saida
+        return listar
+
+    def test_linux_com_os_dois_timers_nao_avisa(self):
+        self.assertEqual(
+            radar.tarefas_em_falta(self.lista(self.SYSTEMD), "linux"), [])
+        self.assertEqual(self.chamadas[0][:2], ["systemctl", "--user"])
+
+    def test_linux_sem_um_timer_diz_qual(self):
+        so_um = self.SYSTEMD.replace("radar-17h.timer", "outro.timer")
+        self.assertEqual(
+            radar.tarefas_em_falta(self.lista(so_um), "linux"),
+            ["radar-17h.timer"])
+
+    def test_windows_continua_a_ler_o_schtasks(self):
+        self.assertEqual(
+            radar.tarefas_em_falta(self.lista(self.SCHTASKS), "nt"), [])
+        self.assertEqual(self.chamadas[0][0], "schtasks")
+        radar._TAREFAS_VISTAS = None
+        self.assertEqual(
+            radar.tarefas_em_falta(self.lista(""), "nt"),
+            ["Radar DR 09h", "Radar DR 17h"])
+
+    def test_sistema_sem_agendador_conhecido_nao_inventa_aviso(self):
+        self.assertEqual(
+            radar.tarefas_em_falta(self.lista(""), "darwin"), [])
+        self.assertEqual(self.chamadas, [])
+
+    def test_comando_que_falha_nao_inventa_aviso(self):
+        def rebenta(comando):
+            raise OSError("sem systemctl")
+        self.assertEqual(radar.tarefas_em_falta(rebenta, "linux"), [])
+
+    def test_a_resposta_guarda_se_um_minuto(self):
+        radar.tarefas_em_falta(self.lista(""), "linux")
+        radar.tarefas_em_falta(self.lista(""), "linux")
+        self.assertEqual(len(self.chamadas), 1)
+
+    def test_o_aviso_do_painel_manda_correr_o_guiao_deste_sistema(self):
+        onde, guiao = radar.como_agendar()
+        if os.name == "nt":
+            self.assertEqual(guiao, "agendar.bat")
+            self.assertIn("Windows", onde)
+        else:
+            self.assertEqual(guiao, "agendar.sh")
+            self.assertIn("systemd", onde)
+
+
+class TestAvisoDasTarefasNoPainel(BaseTemporaria):
+    """O aviso chega mesmo ao HTML, com o nome da tarefa em falta e o
+    guião certo -- e a lista de tarefas é a deste sistema, não a do
+    Windows por defeito."""
+
+    def test_pagina_mostra_o_aviso(self):
+        with unittest.mock.patch.object(radar, "tarefas_em_falta",
+                                        lambda: ["radar-17h.timer"]), \
+                unittest.mock.patch.object(radar, "como_agendar",
+                                           lambda: ("nos temporizadores do systemd",
+                                                    "agendar.sh")):
+            html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        self.assertIn("não está a verificar", html_)
+        self.assertIn("radar-17h.timer", html_)
+        self.assertIn("agendar.sh", html_)
+        self.assertNotIn("Windows", html_.split("não está a verificar")[1][:300])
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

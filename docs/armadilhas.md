@@ -19,12 +19,12 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [Alertas e interesse](#alertas-e-interesse) &middot; 4
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 9
 - [O registo da casa](#o-registo-da-casa) &middot; 1
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 7
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 4
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
 - [A interface](#a-interface) &middot; 9
 - [Convenções](#convencoes) &middot; 2
 
-São 96 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 98 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -1057,6 +1057,17 @@ SQLite, cópias, e a pen que manda nos números.
   bloqueada, é isso.
 
 
+- **O Windows deixa a pasta «só de leitura», e o Linux acredita.** A
+  8/09/2026 a mesma pasta NTFS, aberta em Ubuntu, tinha 138 pastas e
+  450 ficheiros sem o bit de escrita — o `.git` incluído — e o `python3
+  -m venv` morria com *Permission denied* sem dizer em quê. É o atributo
+  «read-only» do NTFS a passar por modo POSIX. Resolve-se com `chmod -R
+  u+w .` uma vez; e o `core.filemode` fica a `false`, por isso o exec
+  bit dos `.sh` só entra no git com `git update-index --chmod=+x`.
+  Também por isso existe o `.gitattributes`: o mesmo disco visto do
+  Windows tinha CRLF e o git em Linux via 27 ficheiros alterados sem
+  uma letra mudada — `git diff --ignore-cr-at-eol` antes de acreditar.
+
 ---
 
 ## Trabalhos de fundo e arranque
@@ -1105,6 +1116,20 @@ Nada espera dentro do pedido do browser.
   continua a pagar** — troque-se o favorito. A alternativa era pôr um
   segundo servidor a atender em `::1`; não se fez, para não ter dois
   servidores no mesmo processo por causa de um endereço.
+
+- **Fora do Windows, o aviso das tarefas em falta dizia «nada em
+  falta».** `tarefas_em_falta()` devolvia vazio em qualquer sistema
+  que não fosse `nt` — «não há o que avisar» — e era exactamente o modo
+  de falha que o aviso existe para apanhar: parecer vivo sem recolher.
+  Desde 8/09/2026 em Linux lê `systemctl --user list-timers --all` e
+  procura os nomes de `TAREFAS_LINUX` (`radar-09h.timer`,
+  `radar-17h.timer`); o `agendar.sh` é quem os cria, e **os nomes têm
+  de bater nos dois sítios**. A listagem é injectável
+  (`tarefas_em_falta(listar, sistema)`) e os testes cobrem os dois
+  sistemas, o sistema desconhecido (devolve vazio sem chamar nada) e o
+  comando a rebentar (vazio: não se inventa aviso). O painel como
+  serviço arranca com `--sem-browser`, senão cada reinício abria um
+  separador na sessão gráfica.
 
 
 ---

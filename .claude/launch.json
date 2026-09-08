@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "radar",
-      "runtimeExecutable": "D:\\radar\\python\\python.exe",
-      "runtimeArgs": ["radar.py"],
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["radar.py", "--sem-browser"],
       "port": 8765
     }
   ]

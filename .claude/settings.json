@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/proteger_dados.py\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/proteger_dados.py\""
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/testes_antes_do_commit.py\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/testes_antes_do_commit.py\""
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/verificar_sintaxe.py\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/verificar_sintaxe.py\""
           }
         ]
       }
