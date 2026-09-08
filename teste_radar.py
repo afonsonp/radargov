@@ -8035,6 +8035,293 @@ class TestAvisoDasTarefasNoPainel(BaseTemporaria):
         self.assertNotIn("Windows", html_.split("não está a verificar")[1][:300])
 
 
+class TestContas(BaseTemporaria):
+    """A porta do painel (docs/historico/ONLINE.md, etapa 1, 8/09/2026).
+
+    Antes disto o painel atendia em 127.0.0.1 sem palavra-passe e o
+    `tunel.sh` punha-o na internet tal como estava. E a armadilha que
+    estes testes guardam: o cloudflared liga-se ao painel A PARTIR de
+    127.0.0.1 -- so pelo IP, todos os visitantes do tunel eram locais e
+    entravam pelo acesso livre.
+    """
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        import contas
+        self.contas = contas
+        self.cfg_antigo = radar.ler_config
+        self.config_antigo = radar.CONFIG
+        # o config.json verdadeiro fica fora do alcance: um POST que grave
+        # configuracao escreve num ficheiro da pasta temporaria
+        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True)
+        radar.ler_config = lambda: dict(self.cfg)
+        self.cliente = radar.app.test_client()
+        with radar.liga() as c:
+            self.contas.criar_utilizador(c, "afonso@exemplo.pt",
+                                         "senha-comprida", "Afonso")
+
+    def tearDown(self):
+        radar.ler_config = self.cfg_antigo
+        radar.CONFIG = self.config_antigo
+        super().tearDown()
+
+    def entrar(self, cliente=None, **ambiente):
+        cliente = cliente or radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": "afonso@exemplo.pt",
+                                         "senha": "senha-comprida"},
+                         environ_base=ambiente or self.FORA)
+        return cliente, r
+
+    def token_da_pagina(self, cliente):
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        m = re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_)
+        return m.group(1) if m else ""
+
+    # -- a criptografia
+
+    def test_hash_verifica_e_nao_e_reversivel(self):
+        h = self.contas.hash_senha("segredo-1")
+        self.assertTrue(h.startswith("scrypt$"))
+        self.assertNotIn("segredo", h)
+        self.assertTrue(self.contas.verifica_senha("segredo-1", h))
+        self.assertFalse(self.contas.verifica_senha("segredo-2", h))
+        self.assertFalse(self.contas.verifica_senha("segredo-1", "lixo"))
+        self.assertFalse(self.contas.verifica_senha("segredo-1", None))
+        # dois hashes da mesma senha diferem (sal novo de cada vez)
+        self.assertNotEqual(h, self.contas.hash_senha("segredo-1"))
+
+    def test_senha_curta_e_recusada(self):
+        with radar.liga() as c:
+            with self.assertRaises(ValueError):
+                self.contas.criar_utilizador(c, "x@y.pt", "curta")
+            with self.assertRaises(ValueError):
+                self.contas.criar_utilizador(c, "sem-arroba", "senha-comprida")
+
+    # -- sessoes
+
+    def test_sessao_expira_e_desliza(self):
+        t0 = datetime.datetime(2026, 9, 8, 10, 0, 0)
+        with radar.liga() as c:
+            token, u = self.contas.entrar(c, "afonso@exemplo.pt",
+                                          "senha-comprida", agora=t0)
+            self.assertTrue(token)
+            self.assertEqual(u["nome"], "Afonso")
+            # ao dia 29 ainda vale, e o uso empurra o fim para a frente
+            dia29 = t0 + datetime.timedelta(days=29)
+            self.assertTrue(self.contas.utilizador_da_sessao(c, token, dia29))
+            dia58 = dia29 + datetime.timedelta(days=29)
+            self.assertTrue(self.contas.utilizador_da_sessao(c, token, dia58))
+            dia89 = dia58 + datetime.timedelta(days=31)
+            self.assertIsNone(self.contas.utilizador_da_sessao(c, token, dia89))
+            # e a linha expirada foi apagada ao ser encontrada
+            self.assertEqual(self.contas.sessoes_de(c, u["id"]), [])
+
+    def test_senha_errada_nao_abre_sessao_e_diz_o_mesmo_que_email_errado(self):
+        with radar.liga() as c:
+            t1, p1 = self.contas.entrar(c, "afonso@exemplo.pt", "errada-x")
+            t2, p2 = self.contas.entrar(c, "ninguem@exemplo.pt", "senha-comprida")
+        self.assertIsNone(t1)
+        self.assertIsNone(t2)
+        self.assertEqual(p1, p2)
+
+    def test_trinco_ao_quinto_erro(self):
+        t0 = datetime.datetime(2026, 9, 8, 10, 0, 0)
+        with radar.liga() as c:
+            for i in range(5):
+                token, porque = self.contas.entrar(
+                    c, "afonso@exemplo.pt", "errada", ip="1.2.3.4",
+                    agora=t0 + datetime.timedelta(seconds=i))
+                self.assertIsNone(token)
+            self.assertNotIn("espera", porque)      # a quinta ainda responde
+            # a sexta, com a senha CERTA, espera -- e diz quanto
+            token, porque = self.contas.entrar(
+                c, "afonso@exemplo.pt", "senha-comprida", ip="9.9.9.9",
+                agora=t0 + datetime.timedelta(seconds=10))
+            self.assertIsNone(token)
+            self.assertIn("espera", porque)
+            # por IP tambem: outro e-mail do mesmo IP fica preso
+            token, porque = self.contas.entrar(
+                c, "outro@exemplo.pt", "x", ip="1.2.3.4",
+                agora=t0 + datetime.timedelta(seconds=10))
+            self.assertIn("espera", porque)
+            # passados os quinze minutos abre
+            token, _ = self.contas.entrar(
+                c, "afonso@exemplo.pt", "senha-comprida", ip="1.2.3.4",
+                agora=t0 + datetime.timedelta(minutes=15, seconds=1))
+            self.assertTrue(token)
+
+    # -- a porta
+
+    def test_de_fora_sem_sessao_vai_para_entrar(self):
+        r = self.cliente.get("/?estado=novo", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].startswith("/entrar?para="))
+        self.assertIn("estado%3Dnovo", r.headers["Location"])
+        # um POST de fora sem sessao e recusado, nao redireccionado
+        r = self.cliente.post("/estado/1/novo", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+
+    def test_acesso_livre_so_de_127001_e_sem_tunel_a_meio(self):
+        local = {"REMOTE_ADDR": "127.0.0.1"}
+        self.assertEqual(self.cliente.get("/", environ_base=local).status_code, 200)
+        # o cloudflared liga-se de 127.0.0.1 -- mas traz o Host publico
+        # e os cabecalhos de proxy, e qualquer um deles chega
+        r = self.cliente.get("/", environ_base=local,
+                             headers={"Host": "abc.trycloudflare.com"})
+        self.assertEqual(r.status_code, 302)
+        r = self.cliente.get("/", environ_base=local,
+                             headers={"Cf-Connecting-Ip": "203.0.113.7"})
+        self.assertEqual(r.status_code, 302)
+        # X-Forwarded-For: o ProxyFix troca o IP e o pedido deixa de ser local
+        r = self.cliente.get("/", environ_base=local,
+                             headers={"X-Forwarded-For": "203.0.113.7"})
+        self.assertEqual(r.status_code, 302)
+        # e com o interruptor desligado nem o local entra
+        self.cfg["acesso_livre_local"] = False
+        self.assertEqual(self.cliente.get("/", environ_base=local).status_code, 302)
+
+    def test_acesso_livre_e_o_unico_utilizador(self):
+        with radar.app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            radar.porta_de_entrada()
+            self.assertEqual(radar.quem_sou(), "Afonso")
+        # com dois utilizadores "o unico" e mentira: fica sem nome
+        with radar.liga() as c:
+            self.contas.criar_utilizador(c, "outro@exemplo.pt", "senha-comprida")
+        with radar.app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            radar.porta_de_entrada()
+            self.assertEqual(radar.quem_sou(), "")
+
+    def test_entrar_abre_sessao_e_o_cookie_e_httponly(self):
+        cliente, r = self.entrar()
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.headers["Location"], "/")
+        cookie = r.headers.get("Set-Cookie", "")
+        self.assertIn("sessao=", cookie)
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=Lax", cookie)
+        # com a sessao, o pedido de fora passa e a pagina diz quem e
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("Afonso", html_)
+        self.assertIn("action='/sair'", html_)
+
+    def test_para_so_aceita_caminhos_da_aplicacao(self):
+        for para, esperado in (("/quadro", "/quadro"), ("//mal.pt/x", "/"),
+                               ("https://mal.pt", "/"), ("", "/")):
+            with self.subTest(para=para):
+                cliente = radar.app.test_client()
+                r = cliente.post("/entrar", data={"email": "afonso@exemplo.pt",
+                                                 "senha": "senha-comprida",
+                                                 "para": para},
+                                 environ_base=self.FORA)
+                self.assertEqual(r.headers["Location"], esperado)
+
+    def test_senha_errada_no_ecra_fica_no_ecra(self):
+        r = self.cliente.post("/entrar", data={"email": "afonso@exemplo.pt",
+                                              "senha": "errada-mesmo"},
+                              environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        html_ = r.get_data(as_text=True)
+        self.assertIn("errados", html_)
+        self.assertIn("afonso@exemplo.pt", html_)     # o e-mail volta preenchido
+        self.assertNotIn("Set-Cookie", r.headers)
+
+    def test_sem_conta_o_ecra_diz_o_comando(self):
+        with radar.liga() as c:
+            c.execute("DELETE FROM utilizadores")
+        html_ = self.cliente.get("/entrar", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("--criar-utilizador", html_)
+
+    def test_sair_de_todos_mata_a_outra_sessao(self):
+        a, _ = self.entrar()
+        b, _ = self.entrar()
+        self.assertEqual(b.get("/", environ_base=self.FORA).status_code, 200)
+        r = a.post("/sair-de-todos", data={"csrf": self.token_da_pagina(a)},
+                   environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(b.get("/", environ_base=self.FORA).status_code, 302)
+        self.assertEqual(a.get("/", environ_base=self.FORA).status_code, 302)
+
+    def test_sair_invalida_de_imediato(self):
+        a, _ = self.entrar()
+        a.post("/sair", data={"csrf": self.token_da_pagina(a)}, environ_base=self.FORA)
+        self.assertEqual(a.get("/", environ_base=self.FORA).status_code, 302)
+
+    # -- csrf
+
+    def test_todas_as_rotas_post_recusam_sem_token(self):
+        """Percorre o app.url_map: uma rota POST nova nao escapa."""
+        cliente, _ = self.entrar()
+        rotas = sorted(r.rule for r in radar.app.url_map.iter_rules()
+                       if "POST" in r.methods and r.rule not in ("/entrar",))
+        self.assertGreater(len(rotas), 15)
+        for regra in rotas:
+            caminho = re.sub(r"<[^>]*>", "1", regra)
+            with self.subTest(rota=regra):
+                r = cliente.post(caminho, data={"x": "1"}, environ_base=self.FORA)
+                self.assertEqual(r.status_code, 403)
+        # A outra metade -- com o token passa -- so em rotas inofensivas.
+        # A primeira versao percorria todas com o token: o /alertas/email
+        # gravou o config.json VERDADEIRO com os valores de origem, e o
+        # /verificar foi a rede. Uma rota com efeitos so se testa isolada.
+        for caminho in ("/estado/1/novo", "/responsavel/1"):
+            r = cliente.post(caminho, data={"csrf": self.token_da_pagina(cliente)},
+                             environ_base=self.FORA)
+            self.assertNotEqual(r.status_code, 403, caminho)
+
+    def test_os_formularios_da_pagina_levam_o_token(self):
+        cliente, _ = self.entrar()
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        token = self.token_da_pagina(cliente)
+        self.assertTrue(token)
+        formas = re.findall(r"<form\b[^>]*method=['\"]post['\"][^>]*>", html_, re.I)
+        self.assertGreater(len(formas), 0)
+        for f in formas:
+            self.assertIn("name='csrf' value='%s'" % token,
+                          html_[html_.index(f):html_.index(f) + len(f) + 120])
+        # no acesso livre nao ha token, e os formularios seguem sem ele
+        html_ = self.cliente.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
+        self.assertNotIn("name='csrf'", html_)
+
+    def test_o_token_e_o_da_sessao_e_o_json_do_quadro_leva_o_cabecalho(self):
+        a, _ = self.entrar()
+        b, _ = self.entrar()
+        token_de_a = self.token_da_pagina(a)
+        self.assertNotEqual(token_de_a, self.token_da_pagina(b))
+        r = b.post("/quadro/mover", json={"ref": "x", "fase_id": "1"},
+                   headers={"X-CSRF": token_de_a}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        r = b.post("/quadro/mover", json={"ref": "x", "fase_id": "1"},
+                   headers={"X-CSRF": self.token_da_pagina(b)}, environ_base=self.FORA)
+        self.assertNotEqual(r.status_code, 403)
+
+    def test_no_acesso_livre_um_post_de_outro_sitio_e_recusado(self):
+        local = {"REMOTE_ADDR": "127.0.0.1"}
+        r = self.cliente.post("/estado/1/novo", environ_base=local,
+                              headers={"Origin": "https://mal.pt"})
+        self.assertEqual(r.status_code, 403)
+        # o Referer com 127.0.0.1 e o Host com localhost sao a mesma casa
+        r = self.cliente.post("/estado/1/novo", environ_base=local,
+                              headers={"Referer": "http://127.0.0.1:8765/?estado=novo"})
+        self.assertNotEqual(r.status_code, 403)
+
+    # -- o arranque
+
+    def test_arranque_recusa_porta_aberta_com_acesso_livre(self):
+        pode, porque = radar.arranque_permitido({"acesso_livre_local": True}, "0.0.0.0")
+        self.assertFalse(pode)
+        self.assertIn("acesso_livre_local", porque)
+        self.assertTrue(radar.arranque_permitido({"acesso_livre_local": True}, "127.0.0.1")[0])
+        self.assertTrue(radar.arranque_permitido({"acesso_livre_local": False}, "0.0.0.0")[0])
+
+    def test_o_cookie_quem_e_a_rota_sou_deixaram_de_existir(self):
+        self.assertEqual(self.cliente.post("/sou", data={"nome": "X"},
+                                           environ_base={"REMOTE_ADDR": "127.0.0.1"}).status_code, 404)
+        html_ = self.cliente.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
+        self.assertNotIn("quem está a trabalhar?", html_)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

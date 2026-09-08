@@ -25,7 +25,7 @@ pede.**
 |---|---|---|
 | **este** | As regras de trabalho e a arquitectura | Sempre. É o único que se carrega inteiro |
 | `ESTADO.md` | O estado de hoje, com os números | Ao começar. São 150 linhas |
-| `docs/armadilhas.md` | O que não é óbvio, em 14 áreas | **A área que vais tocar**, antes de tocar |
+| `docs/armadilhas.md` | O que não é óbvio, em 15 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE` | Raramente. São instantâneos, não se mantêm |
@@ -88,6 +88,8 @@ python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempot
 python radar.py --importar-excel F [--ensaio] [--sem-rede] [--com-triagem] # o Excel da casa (casa.py); sem --com-triagem só guarda e liga
 python radar.py --casa-ligar ID REF  # liga à mão uma linha do Excel a um anúncio
 python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
+python radar.py --criar-utilizador EMAIL # a conta do painel; pede a palavra-passe por getpass
+python radar.py --palavra-passe EMAIL    # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
 As tarefas agendadas são três (`agendar.sh`): as duas verificações
@@ -145,24 +147,33 @@ voltar; o `radar.py` continua a saber falar de `schtasks` e de
 
 ### Acesso de fora
 
-O painel atende só em `127.0.0.1` e **não tem login** — é a etapa 1
-do `docs/historico/ONLINE.md`, por fazer. Para mostrar o painel a
-alguém que não está neste computador, sem instalar nada do lado de
-lá, há o **`tunel.sh`** (8/09/2026): um *quick tunnel* da Cloudflare,
-que dá um endereço `https://….trycloudflare.com` aleatório, válido só
-enquanto o script corre, sem conta, sem domínio e sem abrir portas
-no router. O `cloudflared` descarrega-se para `.venv/bin/` na
-primeira vez, com confirmação. É para testar e mostrar; **não é o
-acesso permanente** — esse espera pelo login, e depois por um túnel
-com nome (ou Cloudflare Access à frente) ou por um VPS. Quem tiver o
-endereço vê e mexe em tudo, e o `radar.py` não sabe do endereço
-público: os links do e-mail continuam a dizer `127.0.0.1:8765`
-(`endereco_publico` do plano, por fazer).
+O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
+(etapa 1 do `docs/historico/ONLINE.md`, feita nesse dia): o
+`contas.py` guarda utilizadores e sessões, e a «porta» do `radar.py`
+(`porta_de_entrada()`, logo a seguir ao `app`) exige sessão em tudo o
+que não seja `/entrar`. Um pedido **deste computador, sem túnel a
+meio**, entra sem login como o único utilizador — é o
+`acesso_livre_local` do `config.json`, o que mantém o desenvolvimento
+e os testes sem fazerem login a cada pedido. Lê a área «Contas e a
+porta» do `docs/armadilhas.md` antes de tocar nisto: a armadilha
+principal é que o túnel liga-se ao painel **a partir de 127.0.0.1**.
+
+Para mostrar o painel a alguém que não está neste computador, sem
+instalar nada do lado de lá, há o **`tunel.sh`**: um *quick tunnel*
+da Cloudflare, que dá um endereço `https://….trycloudflare.com`
+aleatório, válido só enquanto o script corre, sem conta, sem domínio
+e sem abrir portas no router. O `cloudflared` descarrega-se para
+`.venv/bin/` na primeira vez, com confirmação. Quem abre o endereço
+cai no `/entrar`. O que falta para o acesso permanente é um endereço
+fixo (túnel com nome, ou VPS), e o `radar.py` ainda não sabe do
+endereço público: os links do e-mail continuam a dizer
+`127.0.0.1:8765` (`endereco_publico` do plano, por fazer).
 
 ## Arquitectura
 
 Quase tudo em **`radar.py`** (~14 mil linhas), dividido por bandas com
-cabeçalho `# ---`; o registo da casa está em **`casa.py`** (ver abaixo).
+cabeçalho `# ---`; o registo da casa está em **`casa.py`** e as contas
+em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
 
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
@@ -199,7 +210,12 @@ A ordem do ficheiro é a ordem do fluxo:
    próprio. `historico_entidade()` responde ao bloco da ficha do
    anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
 8. **painel** — rotas Flask, HTML gerado por concatenação de strings
-   (`CSS`, `BASE`, `NAV`). Navegação por quatro intenções: Anúncios
+   (`CSS`, `BASE`, `NAV`). Abre com **a porta** (`porta_de_entrada()`,
+   `/entrar`, `/sair`, `/sair-de-todos`, `com_csrf()`), que exige
+   sessão em tudo; as tabelas e a criptografia dessa porta estão no
+   **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
+   disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
+   lê da porta. Navegação por quatro intenções: Anúncios
    (`/`, a lista única com as abas por ver / interessados /
    abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
    `/quadro` + calendário `/calendario`), Mercado (contratos
@@ -216,12 +232,12 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 98 pontos, cada um de um erro que existiu mesmo, em **14 áreas**:
+São 103 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·
 o registo da casa · a base, as migrações e o disco · trabalhos de fundo
-e arranque · a interface · convenções.
+e arranque · contas e a porta · a interface · convenções.
 
 **Lê a área antes de lhe mexer.** Estavam aqui até 3/09/2026 e
 carregavam-se inteiros em todas as sessões, incluindo as que só tocavam

@@ -46,6 +46,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import casa                      # o registo da casa (casa.py importa o radar por dentro)
+import contas                    # as contas e as sessoes (contas.py nao importa o radar)
 from email.message import EmailMessage
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
 
@@ -53,6 +54,7 @@ try:
     import requests
     from flask import Flask, g, has_request_context, redirect, request, \
         Response, send_file
+    from werkzeug.middleware.proxy_fix import ProxyFix
 except ImportError:
     print("Falta instalar. Corre:  python -m pip install -r requirements.txt")
     sys.exit(1)
@@ -88,6 +90,12 @@ ACAO = ("https://diariodarepublica.pt/dr/screenservices/dr/Pesquisas/"
 
 CONFIG_INICIAL = {
     "horas_verificacao": ["09:00", "17:00"],
+    # Um pedido vindo deste computador (127.0.0.1, sem tunel a meio)
+    # entra sem login, como o unico utilizador. E o que mantem o
+    # desenvolvimento e os testes sem fazerem login a cada pedido. Num
+    # servidor poe-se a False -- e o arranque recusa-se a ouvir fora
+    # do localhost com isto a True (arranque_permitido()).
+    "acesso_livre_local": True,
     "dias_catchup": 15,
     "recuperar_slot_falhado": True,
     "abrir_browser_ao_encontrar": False,
@@ -585,6 +593,7 @@ def iniciar_db():
         semear_fases(c)
         atribuir_papeis(c)
         casa.iniciar_tabelas(c)     # o registo da casa (Excel; um dia o Zoho)
+        contas.iniciar_tabelas(c)   # utilizadores, sessoes, o trinco do login
         # B12, uma vez, por marca: os textos extraidos antes das marcas
         # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
         # Reextrai-se o que ainda existir em disco; o que nao existir
@@ -1051,11 +1060,13 @@ def frag_de_exclusao(texto, coluna, norma=simplifica):
 
 # -------------------------------------------------------------- pessoas
 #
-# Nao ha palavra-passe: hoje isto corre no PC de uma pessoa so, e um
-# ecra de login seria atrito sem beneficio. O que existe e identidade,
-# para o rasto ficar registado e os concursos poderem ser atribuidos.
-# Quando isto for para um servidor partilhado, e aqui que entra a
-# autenticacao a serio -- o modelo de dados ja esta preparado.
+# Ate 8/09/2026 nao havia palavra-passe: o nome vinha de um cookie
+# `quem` que se escrevia num campo da barra lateral. Com o radar a sair
+# do PC (docs/historico/ONLINE.md, etapa 1) passou a haver conta e
+# sessao -- as tabelas e a criptografia estao no contas.py; o que e do
+# pedido HTTP (o cookie `sessao`, o `before_request`, o /entrar) esta na
+# banda do painel, em "a porta". A tabela `pessoas` fica como esta: e a
+# lista de nomes para o "responsavel", que pode ser um colega sem conta.
 
 def listar_pessoas():
     with liga() as c:
@@ -1073,9 +1084,12 @@ def criar_pessoa(nome):
 
 
 def quem_sou():
-    """Quem esta a usar a aplicacao, lido do cookie. Vazio se ninguem
-    se identificou ainda -- e valido, nada bloqueia por causa disso."""
-    return (request.cookies.get("quem") or "").strip()
+    """O nome de quem esta a usar a aplicacao, posto em `g` pela porta
+    (porta_de_entrada()). Vazio fora de um pedido, ou no acesso livre
+    local antes de haver conta -- e valido, nada bloqueia por isso."""
+    if not has_request_context():
+        return ""
+    return ((g.get("utilizador") or {}).get("nome") or "").strip()
 
 
 def registar(ref, accao, detalhe="", quem=None):
@@ -6591,6 +6605,266 @@ def relogio():
 # ---------------------------------------------------------------- painel
 
 app = Flask(__name__)
+# Atras de um tunel ou de um Caddy, o IP e o esquema (https) vem em
+# cabecalhos X-Forwarded-*: sem isto todos os visitantes eram 127.0.0.1
+# -- o que abria o acesso livre local a quem viesse pelo tunel -- e o
+# cookie da sessao nunca levava `Secure`. Um so salto de confianca.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
+# --- a porta: sessoes e login (docs/historico/ONLINE.md, etapa 1)
+#
+# Tudo o que nao seja /entrar exige sessao -- ou um pedido local com
+# "acesso_livre_local" ligado. A sessao e um cookie `sessao` com um
+# token que a tabela `sessoes` conhece; nao ha secret_key do Flask nem
+# cookie assinado, e "sair" apaga a linha e invalida de imediato.
+
+ROTAS_ABERTAS = ("/entrar",)
+LOOPBACK = ("127.0.0.1", "::1")
+
+
+def pedido_e_local():
+    """True se o pedido vem deste computador e NAO passou por um tunel.
+
+    O cloudflared liga-se ao painel a partir de 127.0.0.1: so pelo IP,
+    todos os visitantes do tunel eram locais. Por isso conta tambem o
+    que o tunel acrescenta -- os cabecalhos de proxy e o Host publico
+    -- e qualquer um deles chega para o pedido deixar de ser local.
+    """
+    if request.remote_addr not in LOOPBACK:
+        return False
+    for cabecalho in ("X-Forwarded-For", "Cf-Connecting-Ip", "X-Real-Ip",
+                      "X-Forwarded-Host"):
+        if request.headers.get(cabecalho):
+            return False
+    anfitriao = (request.host or "").lower()
+    if anfitriao.startswith("[::1]"):
+        return True
+    return anfitriao.split(":")[0] in ("127.0.0.1", "localhost", "")
+
+
+def origem_e_nossa():
+    """Para um POST sem sessao (acesso livre): se o browser disser de
+    onde vem, tem de ser daqui. Um pedido sem Origin nem Referer passa
+    -- e o caso dos testes e do curl, e nao ha sessao para roubar."""
+    origem = request.headers.get("Origin") or request.headers.get("Referer")
+    if not origem:
+        return True
+    # So o nome, sem a porta, e os tres nomes do loopback contam como
+    # um: o browser pode ter 127.0.0.1 nos favoritos e o Referer vir com
+    # localhost, e a porta ja e a mesma por definicao.
+    return (nome_de_anfitriao(urlparse(origem).hostname or "")
+            == nome_de_anfitriao((request.host or "").split(":")[0]))
+
+
+def nome_de_anfitriao(nome):
+    nome = (nome or "").lower().strip("[]")
+    return "127.0.0.1" if nome in ("localhost", "::1", "127.0.0.1") else nome
+
+
+@app.before_request
+def porta_de_entrada():
+    g.sessao = None
+    g.utilizador = None
+    g.livre = False
+    token = request.cookies.get("sessao")
+    # Uma base que ainda nao passou pelo iniciar_db() -- os testes que
+    # usam o cliente sem base propria -- nao tem as tabelas das contas;
+    # isso e "sem sessao", nao um 500 em todas as paginas.
+    # A ligacao fecha-se aqui a mao: isto corre em TODOS os pedidos, e
+    # o `with liga()` so faz commit -- deixava uma ligacao por pedido a
+    # espera do gc (os testes contavam-nas, de 327 avisos para 719).
+    c = liga()
+    try:
+        if token:
+            g.utilizador = contas.utilizador_da_sessao(c, token)
+            c.commit()
+            if g.utilizador:
+                g.sessao = token
+        if not g.utilizador and ler_config().get("acesso_livre_local", True) \
+                and pedido_e_local():
+            g.livre = True
+            g.utilizador = contas.unico_utilizador(c)   # None ate haver conta
+    except sqlite3.OperationalError:
+        g.sessao = None
+        if not g.livre and ler_config().get("acesso_livre_local", True) \
+                and pedido_e_local():
+            g.livre = True
+    finally:
+        c.close()
+    if request.path in ROTAS_ABERTAS:
+        return None
+    if not g.utilizador and not g.livre:
+        if request.method == "GET":
+            para = request.full_path.rstrip("?")
+            return redirect("/entrar?para=" + quote(para, safe=""))
+        return Response("sessão em falta", 403, mimetype="text/plain")
+    if request.method == "POST":
+        if g.sessao:
+            apresentado = (request.form.get("csrf")
+                           or request.headers.get("X-CSRF"))
+            if not contas.csrf_bate(g.sessao, apresentado):
+                return Response("pedido recusado: falta o token da sessão "
+                                "(recarrega a página e volta a tentar)",
+                                403, mimetype="text/plain")
+        elif not origem_e_nossa():
+            return Response("pedido recusado: vem de outro sítio", 403,
+                            mimetype="text/plain")
+    return None
+
+
+def csrf_da_pagina():
+    """O token que os formularios desta pagina levam. Vazio no acesso
+    livre: sem sessao nao ha de que o derivar, e a guarda e a origem."""
+    return contas.token_csrf(g.sessao) if g.get("sessao") else ""
+
+
+def com_csrf(pagina):
+    """Poe o campo escondido em TODOS os <form method=post> da pagina.
+
+    Sao 26 formularios e ha-de haver mais; um helper a chamar em cada
+    um era um formulario novo esquecido e uma accao a dar 403. Aqui e
+    um so sitio, e o teste que percorre o app.url_map garante a outra
+    metade: que o servidor recusa sem o campo.
+    """
+    token = csrf_da_pagina()
+    if not token:
+        return pagina
+    campo = "<input type='hidden' name='csrf' value='%s'>" % token
+    return re.sub(r"(<form\b[^>]*\bmethod=['\"]post['\"][^>]*>)",
+                  lambda m: m.group(1) + campo, pagina, flags=re.I)
+
+
+def destino_seguro(para):
+    """So um caminho desta aplicacao: nada de //outro.site nem http://."""
+    para = (para or "").strip()
+    if para.startswith("/") and not para.startswith("//") and "\\" not in para:
+        return para
+    return "/"
+
+
+PAGINA_ENTRAR = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar — Radar DR</title><style>%(css)s</style></head>
+<body class="entrar-fundo"><main class="entrar">
+ <div class="logo">Radar<span>DR</span></div>
+ <h1>Entrar</h1>
+ %(aviso)s
+ <form method="post" action="/entrar">
+  <input type="hidden" name="para" value="%(para)s">
+  <label>E-mail<input type="email" name="email" value="%(email)s" autocomplete="username" required autofocus></label>
+  <label>Palavra-passe<input type="password" name="senha" autocomplete="current-password" required></label>
+  <button type="submit" class="bt primario">Entrar</button>
+ </form>
+</main></body></html>"""
+
+
+def pagina_entrar(aviso="", email="", para="/", codigo=200):
+    return Response(PAGINA_ENTRAR % {
+        "css": CSS,
+        "aviso": ("<div class='flash mau'>%s</div>" % html.escape(aviso)
+                  if aviso else ""),
+        "email": html.escape(email, quote=True),
+        "para": html.escape(destino_seguro(para), quote=True),
+    }, codigo, mimetype="text/html")
+
+
+@app.route("/entrar", methods=["GET", "POST"])
+def entrar():
+    """Um ecra, uma tarefa: e-mail, palavra-passe, Entrar."""
+    if g.get("utilizador") and g.get("sessao"):
+        return redirect(destino_seguro(request.values.get("para")))
+    with liga() as c:
+        ha_contas = bool(contas.utilizadores(c))
+    if not ha_contas:
+        return pagina_entrar(
+            "Ainda não há nenhuma conta. Na pasta do radar, corre "
+            "python radar.py --criar-utilizador O-TEU-EMAIL e volta aqui.",
+            para=request.values.get("para"))
+    if request.method == "GET":
+        return pagina_entrar(para=request.args.get("para"))
+    if not origem_e_nossa():
+        return pagina_entrar("O pedido veio de outro sítio.", codigo=403)
+    email = request.form.get("email") or ""
+    with liga() as c:
+        token, resultado = contas.entrar(
+            c, email, request.form.get("senha") or "",
+            ip=request.remote_addr or "",
+            agente=request.headers.get("User-Agent") or "")
+    if not token:
+        marca_erro("login", "login", "falhou para %s de %s: %s"
+                   % (contas.email_limpo(email)[:60], request.remote_addr,
+                      resultado))
+        return pagina_entrar(resultado, email=email,
+                             para=request.form.get("para"),
+                             codigo=429 if "espera" in resultado else 200)
+    registar("", "entrou", request.remote_addr or "", quem=resultado["nome"])
+    resposta = redirect(destino_seguro(request.form.get("para")))
+    resposta.set_cookie("sessao", token,
+                        max_age=60 * 60 * 24 * contas.DIAS_DE_SESSAO,
+                        httponly=True, samesite="Lax",
+                        secure=request.is_secure)
+    return resposta
+
+
+@app.route("/sair", methods=["POST"])
+def sair():
+    if g.get("sessao"):
+        with liga() as c:
+            contas.sair(c, g.sessao)
+    resposta = redirect("/entrar")
+    resposta.delete_cookie("sessao")
+    return resposta
+
+
+@app.route("/sair-de-todos", methods=["POST"])
+def sair_de_todos():
+    n = 0
+    if g.get("sessao") and g.get("utilizador"):
+        with liga() as c:
+            n = contas.sair_de_todos(c, g.utilizador["id"])
+        registar("", "saiu de todos os aparelhos", "%d sessões" % n,
+                 quem=g.utilizador.get("nome"))
+    resposta = redirect("/entrar")
+    resposta.delete_cookie("sessao")
+    return resposta
+
+
+def bloco_da_conta():
+    """O canto da barra lateral que era o campo "quem esta a trabalhar?".
+
+    Com sessao: o nome e o "sair". No acesso livre local: o nome do
+    unico utilizador, ou a nota de que ainda nao ha conta -- sem
+    formulario, porque nao ha nada para sair.
+    """
+    utilizador = g.get("utilizador") or {}
+    nome = utilizador.get("nome") or ""
+    if g.get("sessao"):
+        return ("<details class='sou'><summary><span class='av'>%s</span>%s"
+                "</summary><form method='post' action='/sair'>"
+                "<button type='submit'>sair</button></form>"
+                "<form method='post' action='/sair-de-todos'>"
+                "<button type='submit'>sair de todos os aparelhos</button>"
+                "</form></details>"
+                % (_iniciais(nome), html.escape(nome)))
+    if nome:
+        return ("<div class='sou'><div class='so-nome'><span class='av'>%s"
+                "</span>%s</div></div>" % (_iniciais(nome), html.escape(nome)))
+    return ("<div class='sou'><div class='so-nome'><span class='av'>&mdash;"
+            "</span>sem conta ainda</div></div>")
+
+
+def arranque_permitido(cfg, endereco):
+    """(True, '') se o painel pode arrancar neste endereco; senao a
+    razao. A guarda contra por o servidor de pe com a porta aberta por
+    engano: o acesso livre local so faz sentido a ouvir no localhost."""
+    if cfg.get("acesso_livre_local", True) and endereco not in LOOPBACK \
+            and endereco != "localhost":
+        return False, ("acesso_livre_local está ligado no config.json e o "
+                       "painel ia ouvir em %s: qualquer pedido de fora entrava "
+                       "sem login. Põe \"acesso_livre_local\": false, ou ouve "
+                       "só em 127.0.0.1." % endereco)
+    return True, ""
+
 
 # A aparencia vem de um desenho feito no Claude Design ("Alertas de
 # Concursos Publicos"). Uma folha de estilo e um esqueleto unicos,
@@ -6699,6 +6973,21 @@ aside nav a.sub.on b{font-weight:600}
  font:400 10.5px/1.2 var(--sans);flex:none;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .sou button:hover{color:#fff}
+.sou .so-nome{display:flex;align-items:center;gap:7px;color:var(--barra-t3);
+ font:500 10.5px/1.3 var(--sans)}
+/* O ecra de entrar: uma tarefa, sem barra lateral. */
+.entrar-fundo{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.entrar{flex:none;display:block;width:min(360px,92vw);background:var(--creme);border:1px solid var(--linha);
+ border-radius:12px;padding:28px 28px 24px}
+.entrar .logo{font:700 15px/1 var(--sans);color:var(--ink);letter-spacing:.02em}
+.entrar .logo span{color:var(--coral)}
+.entrar h1{font:600 20px/1.2 var(--sans);margin:18px 0 14px}
+.entrar label{display:block;font:500 11.5px/1.4 var(--sans);color:var(--t3);margin:0 0 12px}
+.entrar input{display:block;width:100%;margin-top:4px;padding:9px 10px;border:1px solid var(--linha);
+ border-radius:7px;font:400 14px/1.3 var(--sans);color:var(--t1);background:#fff}
+.entrar input:focus{border-color:var(--azul)}
+.entrar .bt{width:100%;margin-top:6px;min-height:36px}
+.entrar .flash{margin:0 0 14px}
 
 /* zona principal */
 main{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -7559,6 +7848,7 @@ button.tirar:hover{color:var(--verm)}
 
 BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7578,13 +7868,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
   <div class="h">%(horas)s</div>
   <a class="n" href="/indicadores" title="Abrir os indicadores — a saúde completa do sistema">%(ultima)s</a>
  </div>
- <details class="sou">
-  <summary><span class="av">%(iniciais)s</span>%(quem_visivel)s</summary>
-  <form method="post" action="/sou">
-   <input type="text" name="nome" value="%(quem)s" list="pessoas" placeholder="o teu nome">
-   <button type="submit">mudar</button>
-  </form>
- </details>
+ %(conta)s
 </aside>
 <main>
  <div class="topo">
@@ -7777,8 +8061,6 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     cfg = ler_config()
     with liga() as c:
         total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
-    quem = quem_sou()
-
     # As vistas agrupadas so se mostram dentro do item aberto: a barra
     # tem cinco itens exactos (decisao 11.6-A), e e ao entrar em "Em
     # curso" ou "Mercado" que as duas vistas de cada um aparecem.
@@ -7856,9 +8138,11 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                             for t in faltam), onde, guiao))
 
     n_corpus = ha_corpus()
-    return BASE % {
+    return com_csrf(BASE % {
         "titulo_aba": html.escape(titulo_aba or titulo),
         "css": CSS, "porta": PORTA,
+        "csrf": csrf_da_pagina(),
+        "conta": bloco_da_conta(),
         # A aplicacao passou a ter duas fontes e o cabecalho so falava
         # do DR: num separador de contratos, dizer "parte L" e mentira.
         "fontes": ("Anúncios do DR &middot; contratos do BASE" if n_corpus
@@ -7872,9 +8156,6 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "nav": "".join(itens),
         "horas": " &middot; ".join(cfg["horas_verificacao"]),
         "ultima": ultima,
-        "iniciais": _iniciais(quem),
-        "quem": html.escape(quem, quote=True),
-        "quem_visivel": html.escape(quem) if quem else "quem está a trabalhar?",
         "migalhas": migalhas,
         "titulo": html.escape(titulo),
         "subtitulo": subtitulo,
@@ -7897,7 +8178,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # thread poe sempre um estado terminal, por isso isto para.
         "script": script + ("<script>setTimeout(function(){location.reload()},"
                             "5000)</script>" if a_verificar else ""),
-    }
+    })
 
 
 # Tecto do CSV de contratos. Um filtro largo pode apanhar centenas de
@@ -9639,17 +9920,6 @@ def abrir_procedimento(ref):
         c.execute("UPDATE anuncios SET link_proc=? WHERE ref=?",
                   (endereco, ref))
     return redirect(endereco)
-
-
-@app.route("/sou", methods=["POST"])
-def definir_quem():
-    """Guarda num cookie quem esta a trabalhar. Sem palavra-passe: e
-    identificacao, nao autenticacao, e isso e dito na interface."""
-    nome = criar_pessoa(request.form.get("nome"))
-    resposta = redirect(request.referrer or "/")
-    if nome:
-        resposta.set_cookie("quem", nome, max_age=60 * 60 * 24 * 365)
-    return resposta
 
 
 @app.route("/responsavel/<path:ref>", methods=["POST"])
@@ -13397,7 +13667,8 @@ document.querySelectorAll('.coluna-corpo').forEach(function(corpo) {
     }
     contarColunas();
     fetch('/quadro/mover', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json',
+        'X-CSRF': (document.querySelector('meta[name=csrf]') || {}).content || ''},
       body: JSON.stringify({ref: ref, fase_id: corpo.dataset.fase})
     }).then(function(r) {
       // o cartao ja foi movido no ecra; se o servidor recusou, o ecra
@@ -14665,6 +14936,35 @@ def main():
               "descartados." % len(refs))
         return
 
+    for bandeira in ("--criar-utilizador", "--palavra-passe"):
+        if bandeira in sys.argv:
+            # A mesma funcao para os dois: cria se nao existe, troca a
+            # palavra-passe se existe. Por getpass e nao por argumento,
+            # para a senha nao ficar no historico da consola. Recuperar
+            # o acesso e isto, por SSH -- nao ha "esqueci-me" por e-mail.
+            import getpass
+            i = sys.argv.index(bandeira)
+            email = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
+            if not email or "@" not in email:
+                print("Uso: python radar.py %s EMAIL" % bandeira)
+                return
+            nome = ""
+            if bandeira == "--criar-utilizador":
+                nome = input("Nome a mostrar (Enter para usar o e-mail): ").strip()
+            senha = getpass.getpass("Palavra-passe (8 caracteres ou mais): ")
+            if senha != getpass.getpass("Outra vez: "):
+                print("Não são iguais. Nada mudou.")
+                return
+            try:
+                with liga() as c:
+                    contas.criar_utilizador(c, email, senha, nome)
+            except ValueError as erro:
+                print("Não deu: %s" % erro)
+                return
+            print("Conta de %s pronta. Entra em %s/entrar."
+                  % (contas.email_limpo(email), LOCAL))
+            return
+
     if "--uma-vez" in sys.argv:
         mensagem, novos = verificar(cfg)
         hora = min(cfg["horas_verificacao"],
@@ -14676,6 +14976,10 @@ def main():
         print(mensagem)
         return
 
+    pode, porque = arranque_permitido(cfg, ENDERECO)
+    if not pode:
+        print("Não arranco: " + porque)
+        return
     threading.Thread(target=relogio, daemon=True).start()
     print("Radar de Concursos, Diário da República")
     print("Painel em " + LOCAL)

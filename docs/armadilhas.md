@@ -21,10 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da casa](#o-registo-da-casa) &middot; 1
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
+- [Contas e a porta](#contas-e-a-porta) &middot; 5
 - [A interface](#a-interface) &middot; 9
 - [Convenções](#convencoes) &middot; 2
 
-São 98 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 103 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -1136,6 +1137,67 @@ Nada espera dentro do pedido do browser.
 
 
 ---
+
+## Contas e a porta
+
+O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
+`contas.py` tem as tabelas e a criptografia, a «porta» do `radar.py`
+(`porta_de_entrada()`, logo a seguir ao `app`) tem o que é do pedido.
+`TestContas` cobre tudo isto.
+
+- **O túnel liga-se ao painel a partir de 127.0.0.1.** O `cloudflared`
+  corre neste computador e fala com o Flask por loopback: só pelo IP,
+  **todos os visitantes do túnel eram locais** e entravam pelo
+  `acesso_livre_local` sem login. `pedido_e_local()` conta também o
+  que o túnel acrescenta — o `Host` público e os cabeçalhos de proxy
+  (`X-Forwarded-For`, `Cf-Connecting-Ip`, `X-Real-Ip`) — e qualquer um
+  chega para o pedido deixar de ser local. O `ProxyFix` (um salto) faz
+  o `remote_addr` ser o IP verdadeiro e o cookie levar `Secure` por
+  trás de HTTPS. Um proxy novo à frente do painel que não ponha nenhum
+  destes cabeçalhos reabre o buraco: o teste
+  `test_acesso_livre_so_de_127001_e_sem_tunel_a_meio` é o que o apanha.
+
+- **O CSRF entra pelo `com_csrf()`, não formulário a formulário.** São
+  26 `<form method=post>` e há-de haver mais; um helper a chamar em
+  cada um era um formulário novo esquecido e uma acção a dar 403. O
+  `envolver()` passa a página inteira por uma substituição que mete o
+  campo escondido em todos, e o `test_todas_as_rotas_post_recusam_sem_
+  token` percorre o `app.url_map` para a outra metade. O que não passa
+  pelo `envolver()` tem de tratar de si: o `fetch` do `/quadro/mover`
+  manda o token no cabeçalho `X-CSRF`, lido da `<meta name="csrf">`.
+  **No acesso livre local não há token** (não há sessão de que o
+  derivar): a guarda é o `Origin`/`Referer`, e `localhost`, `127.0.0.1`
+  e `::1` contam como a mesma casa — o browser pode ter um nos
+  favoritos e mandar o outro no Referer.
+
+- **Um teste que varre as rotas POST com o token válido executa-as.**
+  A primeira versão do teste do CSRF chamava todas as rotas com token
+  para provar que passavam: o `/alertas/email` gravou o **`config.json`
+  verdadeiro** com os valores de origem (e-mail apagado, interesse
+  desligado, `triagem_no_git` ligado), e o `/verificar` foi à rede. A
+  metade «com token passa» só se testa em rotas inofensivas, e o
+  `TestContas` aponta `radar.CONFIG` para a pasta temporária. Um
+  teste que usa o cliente Flask com uma base temporária **não está
+  isolado da configuração** só por isso.
+
+- **A porta corre em todos os pedidos e fecha a ligação à mão.** O
+  `with liga() as c` do SQLite só faz commit, não fecha; na porta era
+  uma ligação por pedido à espera do garbage collector, e a bateria
+  passou de 327 para 719 avisos de «unclosed database». Um `before_
+  request` novo que abra a base fecha-a num `finally`. E tolera uma
+  base sem as tabelas das contas (`sqlite3.OperationalError`): os
+  testes que usam o cliente sem base própria batem no `radar.db`
+  verdadeiro tal como está, e isso é «sem sessão», não um 500 em
+  todas as páginas.
+
+- **`acesso_livre_local` a `true` com o painel a ouvir fora do
+  loopback é a porta aberta ao mundo.** `arranque_permitido()`
+  recusa-se a arrancar nessa combinação; hoje `ENDERECO` é uma
+  constante em `127.0.0.1` e a guarda parece supérflua — é para o dia
+  em que deixar de ser. Recuperar a palavra-passe é por consola
+  (`--palavra-passe EMAIL`, o mesmo `criar_utilizador()` que troca o
+  hash se o e-mail existir), não por e-mail, de propósito: é um fluxo
+  a menos exposto.
 
 ## A interface
 

@@ -35,9 +35,15 @@ criado pelo `instalar.sh` faz de `python/` + `libs/`, cada `.bat` tem
 o seu `.sh` (e a 8/09/2026 os `.bat` saíram do repositório: a pen do
 Windows deixou de existir), e o `agendar.sh` cria os três temporizadores e o painel
 como serviço do utilizador. É o passo antes de este computador servir
-o radar para fora — o plano disso é o `docs/historico/ONLINE.md`, e
-ainda não está feito: continua a atender só em `127.0.0.1`, sem login.
-A bateria de testes passa inteira no Python 3.14 do Ubuntu.
+o radar para fora — o plano disso é o `docs/historico/ONLINE.md`.
+**A etapa 1, o login, ficou feita a 8/09/2026** (`contas.py`; a
+conta cria-se com `--criar-utilizador`): tudo exige sessão, excepto
+um pedido vindo deste computador sem túnel a meio, que entra sem
+login (`acesso_livre_local`). O painel continua a atender só em
+`127.0.0.1`; o `tunel.sh` dá-lhe um endereço público temporário, e
+quem o abre cai no `/entrar`. Faltam as etapas 2 (configurações num
+menu) e 3 (endereço fixo, `endereco_publico` nos links do e-mail).
+A bateria de testes — 757 — passa inteira no Python 3.14 do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

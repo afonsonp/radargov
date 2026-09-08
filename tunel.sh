@@ -8,10 +8,10 @@
 # router, não precisa de conta nem de domínio, e acaba quando este
 # script acaba (Ctrl+C). O endereço muda de cada vez.
 #
-# ATENÇÃO: o painel ainda não tem login (etapa 1 do
-# docs/historico/ONLINE.md). Quem tiver o endereço vê tudo e pode
-# mudar a triagem. O endereço é aleatório e impossível de adivinhar,
-# mas só o dês a quem confias, e fecha o túnel quando acabar.
+# Quem abre o endereço cai no /entrar: precisa da conta criada com
+# `python radar.py --criar-utilizador EMAIL`. O túnel liga-se ao painel
+# a partir de 127.0.0.1, mas traz o Host público e os cabeçalhos de
+# proxy, e é por eles que o painel sabe que o pedido não é local.
 set -u
 cd "$(dirname "$0")"
 
@@ -72,6 +72,6 @@ echo
 echo "  O painel está em:  $ENDERECO"
 echo
 echo "  Vale enquanto esta janela estiver aberta. Ctrl+C fecha o túnel."
-echo "  Sem login: quem tiver o endereço vê e mexe em tudo."
+echo "  Quem o abrir entra com o e-mail e a palavra-passe da conta."
 echo
 wait "$PID"
