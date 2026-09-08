@@ -45,9 +45,12 @@ um túnel com nome da Cloudflare a correr como serviço
 (`radar-tunel.service`, do `tunel_fixo.sh`); o painel continua a
 atender só em `127.0.0.1`, e quem abre o domínio cai no `/entrar`.
 Os links do e-mail já dizem `radargov.pt` (`endereco_publico` no
-`config.json`). Falta a etapa 2 (configurações num menu, com a secção
-da conta). A bateria de testes — 766 — passa inteira no Python 3.14
-do Ubuntu.
+`config.json`). **E a etapa 2 também, ao fim da tarde**: o menu de
+Configurações em `/configuracoes/<seccao>`, sete secções (interesse,
+alertas, recolha, leitura das peças, capturas, cópias, conta), com
+Alertas a sair da barra para lá. O plano `ONLINE.md` está feito por
+inteiro, pela via B (o PC de casa exposto por túnel). A bateria de
+testes — 775 — passa inteira no Python 3.14 do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
 - [Contas e a porta](#contas-e-a-porta) &middot; 5
-- [A interface](#a-interface) &middot; 10
+- [A interface](#a-interface) &middot; 11
 - [Convenções](#convencoes) &middot; 2
 
-São 104 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 105 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -1210,6 +1210,26 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   em Anúncios. E o "Verificar agora" aparece **só na lista dos
   anúncios** (`PAGINAS_COM_VERIFICAR`, decisão 11.8-A): os novos
   aterram no por ver.
+
+- **Configurações é uma página, e Alertas deixou de ser um item da
+  barra** (8/09/2026, etapa 2 do `ONLINE.md`; reverte a decisão 11.6-A
+  do esqueleto). `NAV` tem três itens; `/alertas` e
+  `/alertas/interesse` redireccionam com a query string atrás, e os
+  `POST` antigos (`/alertas/criar`, `/alertas/email`, …) continuam a
+  existir e voltam para `/configuracoes/alertas` — mudar-lhes o
+  destino sem mudar o `redirect` deixa o aviso a aparecer numa página
+  vazia. Cada secção grava por `gravar_config_registado()`, que
+  **recusa chaves que pareçam segredos** (`senha`, `api_key`, `token`,
+  …): as chaves e a palavra-passe do e-mail escrevem-se nos ficheiros
+  de sempre, os que `ler_chave()` lê, e o campo do ecrã fica vazio de
+  propósito. Por variável de ambiente, o ecrã di-lo e não deixa
+  editar. A validação é por limites e não só `int()`: um zero na
+  janela do detalhe calava a recolha em silêncio. E `registar()` fora
+  do `with liga()` de quem grava: lá dentro a transacção está aberta e
+  a segunda ligação fica presa («database is locked», apanhado pelo
+  teste da conta). `TestConfiguracoes` aponta `radar.BASE_DIR` e
+  `radar.CONFIG` para a pasta temporária — as chaves e as capturas
+  escrevem-se em `BASE_DIR`, e sem isso o teste gravava na pasta real.
 
 - **Os três blocos de filtro da lista vivem dentro de um `<details
   class='painel-filtros'>`, recolhido por omissão** (8/09/2026, os

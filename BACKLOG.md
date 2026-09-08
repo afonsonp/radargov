@@ -416,11 +416,14 @@ premissa mudar — com data e números novos.
   (`docs/historico/ONLINE-empresas.md`). **A 8/09/2026 o radar passou
   a correr em Ubuntu** (`.sh`, `.venv`, temporizadores do systemd,
   painel como serviço) — é o degrau antes da etapa 3 do plano, servir
-  para fora. **O login (etapa 1) ficou feito no mesmo dia**
-  (`contas.py`, `/entrar`, sessões, CSRF, trinco); falta o menu de
-  configurações (etapa 2) e o endereço fixo com HTTPS (etapa 3 — o
-  `tunel.sh` já dá um temporário). A pasta já está no disco interno
-  (`~/Desktop/radar`), com o `linger` ligado.
+  para fora. **As três etapas ficaram feitas no mesmo dia**: o
+  login (`contas.py`, `/entrar`, sessões, CSRF, trinco), o endereço
+  fixo `https://radargov.pt` (túnel com nome, `tunel_fixo.sh`) e o
+  menu de Configurações (`/configuracoes/<seccao>`, sete secções;
+  Alertas saiu da barra). A pasta já está no disco interno
+  (`~/Desktop/radar`), com o `linger` ligado. O que o plano deixa em
+  aberto: o painel no telemóvel (o Afonso adiou-o a 8/09: «vai ser
+  utilizada maioritariamente no PC»).
 - **App móvel / push** — o e-mail diário chega ao telemóvel; um push a mais
   não muda nenhuma decisão de dia útil.
 - **Contagem decrescente ao segundo, mapas nas fichas** (GovGo, Armilar) —
