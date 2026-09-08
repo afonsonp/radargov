@@ -9077,6 +9077,56 @@ class TestPecaNaoSaiDaPasta(BaseTemporaria):
         self.assertNotIn(b"<script>", r.data)
 
 
+class TestExportacaoNaoChocaComOutroProcesso(BaseTemporaria):
+    """8/09/2026, às 17:00: `ultima_exportacao_triagem` guardou
+    «[Errno 2] ... triagem.jsonl.tmp -> triagem.jsonl». Correram duas
+    verificações ao mesmo tempo — o temporizador do systemd (17:00:37)
+    e o relógio de dentro do painel, que não se vêem um ao outro porque
+    a guarda de «uma verificação de cada vez» é uma variável na memória
+    de um processo. Os dois escreviam para o MESMO rascunho: o primeiro
+    mudava-lhe o nome, o segundo já não o encontrava. E como o
+    FileNotFoundError é um OSError, apanhava-o o try que no verificar()
+    envolve a exportação E o empurrar_triagem() — o envio dessa volta
+    nem chegava a ser tentado."""
+
+    def rascunhos_com_pid(self, pid):
+        """Os rascunhos por onde a exportacao passa, fingindo ser o
+        processo `pid`. Espia o os.replace em vez de correr dois
+        processos a serio: o que ha a garantir e que o NOME depende do
+        pid, e isso mede-se sem concorrencia nenhuma."""
+        alvo = os.path.join(self.pasta, "triagem.jsonl")
+        vistos = []
+        replace_verdadeiro = os.replace
+
+        def espia(origem, destino):
+            vistos.append(os.path.basename(origem))
+            return replace_verdadeiro(origem, destino)
+
+        with unittest.mock.patch.object(radar.os, "getpid", lambda: pid), \
+                unittest.mock.patch.object(radar.os, "replace", espia):
+            radar.exportar_triagem(alvo)
+        return vistos
+
+    def test_o_rascunho_tem_o_numero_do_processo(self):
+        vistos = self.rascunhos_com_pid(4242)
+        self.assertTrue(vistos, "não passou por nenhum rascunho")
+        self.assertIn("4242", vistos[0],
+                      "o rascunho %r não tem o número do processo" % vistos[0])
+
+    def test_dois_processos_nao_partilham_o_rascunho(self):
+        # e o caso das 17:00: dois processos, um rascunho so
+        self.assertNotEqual(self.rascunhos_com_pid(111),
+                            self.rascunhos_com_pid(222))
+
+    def test_o_ficheiro_final_fica_com_o_nome_pedido(self):
+        alvo = os.path.join(self.pasta, "triagem.jsonl")
+        n, caminho = radar.exportar_triagem(alvo)
+        self.assertEqual(caminho, alvo)
+        self.assertTrue(os.path.exists(alvo))
+        self.assertFalse([f for f in os.listdir(self.pasta)
+                          if f.endswith(".tmp")], "ficou rascunho para trás")
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

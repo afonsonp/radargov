@@ -4840,8 +4840,15 @@ def exportar_triagem(caminho=None):
                 linhas.append(json.dumps(registo, ensure_ascii=False,
                                          sort_keys=True))
     # escrita por ficheiro temporario + os.replace: um export
-    # interrompido a meio nao pode deixar meio ficheiro a fazer de copia
-    tmp = caminho + ".tmp"
+    # interrompido a meio nao pode deixar meio ficheiro a fazer de copia.
+    # O numero do processo no nome e o que faltava: as 17:00 correm dois
+    # (o temporizador do sistema e o relogio de dentro do painel, que
+    # nao se veem um ao outro porque a guarda de "uma verificacao de
+    # cada vez" e uma variavel na memoria de UM processo). Com um nome
+    # so, o segundo a chegar ia mudar o nome a um rascunho que o
+    # primeiro ja tinha levado -- e o FileNotFoundError, que e um
+    # OSError, saltava o empurrar_triagem() do mesmo try.
+    tmp = "%s.%d.tmp" % (caminho, os.getpid())
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(linhas) + "\n")
     os.replace(tmp, caminho)
