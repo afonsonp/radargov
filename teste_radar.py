@@ -8952,6 +8952,39 @@ class TestEstadoZero(BaseTemporaria):
         self.assertEqual(cfg["email"]["de"], "r@g.com")      # quem envia fica
 
 
+class TestEcraEstreito(unittest.TestCase):
+    """O painel no telemóvel (8/09/2026, «quero que o frontend seja
+    responsive»). Medido antes a 375 px: a barra de 140 px comia um terço
+    do ecrã, a linha da lista transbordava, o título da ficha vinha com
+    22 px numa coluna de 230. Isto guarda as regras que o desfazem."""
+
+    def bloco(self):
+        return radar.CSS.split("@media (max-width:900px){", 1)[1]
+
+    def test_ha_um_ponto_de_corte_a_900_e_a_barra_passa_para_cima(self):
+        self.assertIn("@media (max-width:900px){", radar.CSS)
+        b = self.bloco()
+        self.assertIn(".app{flex-direction:column}", b)
+        self.assertIn("aside{width:auto;height:auto;position:static;flex-direction:row", b)
+        # a navegacao numa linha propria, a rolar de lado, nunca em coluna
+        self.assertIn("aside nav{order:10;flex-basis:100%;flex-direction:row;flex-wrap:nowrap", b)
+
+    def test_as_grelhas_de_duas_colunas_passam_a_uma(self):
+        b = self.bloco()
+        self.assertIn(".item{grid-template-columns:minmax(0,1fr)}", b)
+        self.assertIn(".essencial .par{grid-template-columns:minmax(0,1fr)", b)
+        self.assertIn(".kpis{grid-template-columns:repeat(2,minmax(0,1fr))}", b)
+
+    def test_o_que_e_largo_rola_dentro_de_si_e_nao_na_pagina(self):
+        b = self.bloco()
+        for regra in (".abas{overflow-x:auto", ".ficha-indice{gap:14px;overflow-x:auto",
+                      ".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
+            self.assertIn(regra, b, regra)
+        # o viewport esta declarado, senao o browser do telemovel finge 980px
+        self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', radar.BASE)
+
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
 - [Contas e a porta](#contas-e-a-porta) &middot; 5
-- [A interface](#a-interface) &middot; 11
+- [A interface](#a-interface) &middot; 12
 - [Convenções](#convencoes) &middot; 2
 
-São 107 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 108 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -1246,6 +1246,21 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   em Anúncios. E o "Verificar agora" aparece **só na lista dos
   anúncios** (`PAGINAS_COM_VERIFICAR`, decisão 11.8-A): os novos
   aterram no por ver.
+
+- **Abaixo de 900 px a barra é uma linha em cima, e o que é largo rola
+  dentro de si — nunca a página.** (8/09/2026.) O bloco `@media
+  (max-width:900px)` no fim do `CSS` é o único sítio: `.app` em coluna,
+  `aside` em linha com a navegação numa segunda linha inteira a rolar
+  de lado (espremida ao lado da marca, empilhava-se em coluna),
+  `.item` e `.essencial .par` a uma coluna, `.abas` e `.ficha-indice`
+  com `overflow-x:auto`. A medida que apanha o resto é
+  `document.documentElement.scrollWidth` a 375 px: tem de ser 375 em
+  todas as páginas. Foi assim que apareceram a escada de preços da
+  ficha (`.escada`, cinco caixas com `flex:1` sem `min-width:0`) e as
+  barras do funil dos indicadores (`.barras .col`), que ninguém via no
+  ecrã porque o corte era de 27 e 2 px. Um bloco novo com `display:flex`
+  e filhos de largura fixa entra nessa lista; `TestEcraEstreito` guarda
+  as regras que existem, não a medida — a medida faz-se no browser.
 
 - **Configurações é uma página, e Alertas deixou de ser um item da
   barra** (8/09/2026, etapa 2 do `ONLINE.md`; reverte a decisão 11.6-A

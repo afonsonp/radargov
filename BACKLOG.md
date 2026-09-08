@@ -42,8 +42,10 @@ seguir entra aqui com quem decide e o que dispara, como sempre.
 - **E2 → Fluxo B:** fechada a 31/08/2026 — o primeiro resumo saiu por
   e-mail à ordem do Afonso. O cenário «sem e-mail» (11.3-B) fica
   escrito só como registo histórico.
-- **E3 → ecrãs fora do PC:** fechada. Os links do resumo ficam em
-  `localhost` por decisão; nenhum ecrã é desenhado para o telemóvel.
+- **E3 → ecrãs fora do PC:** fechada, e a 8/09/2026 virada ao
+  contrário: o painel está em `radargov.pt`, os links do resumo já
+  apontam para lá, e o CSS passou a ter um ponto de corte a 900 px
+  para o telemóvel (barra em cima, grelhas a uma coluna).
 - **R1 (token) → recolha:** viva, mitigada pelo aviso no painel. O E4
   (feito a 31/08) não a reduz — mede-a: a série na tabela `erros` é que
   há-de dizer a frequência real.
@@ -421,9 +423,9 @@ premissa mudar — com data e números novos.
   fixo `https://radargov.pt` (túnel com nome, `tunel_fixo.sh`) e o
   menu de Configurações (`/configuracoes/<seccao>`, sete secções;
   Alertas saiu da barra). A pasta já está no disco interno
-  (`~/Desktop/radar`), com o `linger` ligado. O que o plano deixa em
-  aberto: o painel no telemóvel (o Afonso adiou-o a 8/09: «vai ser
-  utilizada maioritariamente no PC»).
+  (`~/Desktop/radar`), com o `linger` ligado. O painel no telemóvel,
+  que ele tinha adiado de manhã («vai ser utilizada maioritariamente no
+  PC»), pediu-o à tarde: feito no mesmo dia, um ponto de corte a 900 px.
 - **App móvel / push** — o e-mail diário chega ao telemóvel; um push a mais
   não muda nenhuma decisão de dia útil.
 - **Contagem decrescente ao segundo, mapas nas fichas** (GovGo, Armilar) —

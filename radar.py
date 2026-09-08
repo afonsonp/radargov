@@ -8071,6 +8071,86 @@ button.tirar:hover{color:var(--verm)}
 @media (max-width:1100px){
  .ind-grelha{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Ecras estreitos (8/09/2026, pedido do Afonso: "quero que o frontend
+   seja responsive"). Ate aqui a barra lateral de 140px comia um terco
+   de um telemovel, a linha da lista transbordava e o titulo da ficha
+   vinha com 22px numa coluna de 230. A regra: a barra passa para cima
+   e fica so com a marca, a navegacao e a porta das Configuracoes; tudo
+   o que e grelha de duas colunas passa a uma; o que e largo por
+   natureza (quadro, tabelas, abas, indice da ficha) rola de lado
+   dentro do seu contentor, nunca a pagina. Um so ponto de corte, 900px,
+   mais um afinamento a 600 para os telemoveis mesmo pequenos. */
+@media (max-width:900px){
+ .app{flex-direction:column}
+ aside{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;
+  align-items:center;gap:6px 14px;padding:10px 14px}
+ .marca{padding:0;border:0;flex:none}
+ .marca .sub,.marca .meta{display:none}
+ /* a navegacao vai para uma segunda linha, inteira, e rola de lado se
+    nao caber: espremida ao lado da marca empilhava-se em coluna */
+ aside nav{order:10;flex-basis:100%;flex-direction:row;flex-wrap:nowrap;margin:2px 0 0;
+  gap:2px;overflow-x:auto;scrollbar-width:none}
+ aside nav a{padding:7px 9px;white-space:nowrap;flex:none}
+ aside nav a.sub{padding:7px 9px}
+ aside nav a.sub b{font-size:12px}
+ .caixa{margin:0;padding:0;border:0;display:flex;align-items:center;gap:10px;margin-left:auto}
+ .caixa .r,.caixa .h,.caixa a.n:not(.conf){display:none}
+ .caixa a.conf{margin:0;padding:7px 9px;border-radius:5px}
+ .caixa a.conf.on{background:var(--barra-on)}
+ .sou{margin:0;padding:0;border:0;flex:none}
+ .sou form{margin-top:6px}
+ .topo{padding:12px 16px 0}
+ .corpo{padding:14px 12px 44px}
+ h1.tit{font-size:19px}
+ .abas{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+ .abas a{white-space:nowrap;padding:9px 10px}
+ .linha-conta{flex-wrap:wrap}
+ .linha-conta a{margin-left:0}
+ .item{grid-template-columns:minmax(0,1fr)}
+ .item-corpo{padding:12px 14px}
+ .item-lado{border-left:0;border-top:1px solid var(--linha2);flex-direction:row;
+  flex-wrap:wrap;justify-content:space-between;align-items:center;padding:10px 14px;gap:8px}
+ .item-accoes{justify-content:flex-start}
+ .filtros input[type=text]{min-width:0;flex-basis:100%}
+ .filtros select,.filtros input[type=date]{flex:1 1 40%;min-width:0}
+ .filtros input#filtro-cpv-excl{width:auto!important;flex:1 1 40%!important}
+ details.painel-filtros .pf-sub{display:none}
+ .guardados .guardar{margin-left:0;flex-basis:100%}
+ .guardados .guardar input{min-width:0;flex:1}
+ .paginas{flex-wrap:wrap}
+ .cabeca{padding:16px 16px}
+ .cabeca h2{font-size:17px}
+ .essencial dl{padding:4px 14px 14px}
+ .essencial .par{grid-template-columns:minmax(0,1fr);gap:2px}
+ .em-falta-frase{padding:10px 14px 14px}
+ .ficha-cab{flex-wrap:wrap}
+ .ficha-cab .t{font-size:13px;flex-basis:calc(100% - 40px)}
+ .ficha-indice{gap:14px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+ .ficha-indice>a{white-space:nowrap}
+ .ficha-indice .dir{display:none}
+ .lado-cx{padding:14px}
+ .coluna{width:min(282px,86vw)}
+ .escada{flex-wrap:wrap}
+ .escada span{flex:1 1 40%;min-width:0}
+ .barras{gap:8px}
+ .barras .col{min-width:0}
+ .barras .l{white-space:normal;text-align:center;overflow-wrap:anywhere}
+ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .conf-indice a i{display:none}
+ .conf-cx{padding:14px}
+ .conf-form textarea{max-width:none}
+ dialog.modal{width:94vw}
+}
+@media (max-width:600px){
+ aside nav a{padding:7px 7px;font-size:12px}
+ h1.tit{font-size:17px}
+ .kpis{grid-template-columns:minmax(0,1fr)}
+ .filtros select,.filtros input[type=date]{flex-basis:100%}
+ .filtros input#filtro-cpv-excl{flex-basis:100%!important}
+ .entrar{padding:20px 18px 18px}
+ .carta-meta{gap:6px}
+}
 """
 
 
