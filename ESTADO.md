@@ -39,11 +39,15 @@ o radar para fora — o plano disso é o `docs/historico/ONLINE.md`.
 **A etapa 1, o login, ficou feita a 8/09/2026** (`contas.py`; a
 conta cria-se com `--criar-utilizador`): tudo exige sessão, excepto
 um pedido vindo deste computador sem túnel a meio, que entra sem
-login (`acesso_livre_local`). O painel continua a atender só em
-`127.0.0.1`; o `tunel.sh` dá-lhe um endereço público temporário, e
-quem o abre cai no `/entrar`. Faltam as etapas 2 (configurações num
-menu) e 3 (endereço fixo, `endereco_publico` nos links do e-mail).
-A bateria de testes — 757 — passa inteira no Python 3.14 do Ubuntu.
+login (`acesso_livre_local`). **E a etapa 3, o endereço fixo, também
+ficou feita nesse dia: o painel está em `https://radargov.pt`**, por
+um túnel com nome da Cloudflare a correr como serviço
+(`radar-tunel.service`, do `tunel_fixo.sh`); o painel continua a
+atender só em `127.0.0.1`, e quem abre o domínio cai no `/entrar`.
+Os links do e-mail já dizem `radargov.pt` (`endereco_publico` no
+`config.json`). Falta a etapa 2 (configurações num menu, com a secção
+da conta). A bateria de testes — 760 — passa inteira no Python 3.14
+do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

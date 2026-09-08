@@ -85,6 +85,21 @@ PORTA = 8765
 ENDERECO = "127.0.0.1"
 LOCAL = "http://%s:%d" % (ENDERECO, PORTA)
 
+
+def endereco_do_painel(cfg=None):
+    """O endereco que vai nos links do e-mail: o publico, se houver.
+
+    Com o painel a sair do PC (o tunel com nome para radargov.pt,
+    8/09/2026), um link `127.0.0.1:8765` no e-mail so abre neste
+    computador. `endereco_publico` no config.json e o que o
+    substitui; vazio, fica o local, que e o que sempre foi.
+    """
+    cfg = cfg if cfg is not None else ler_config()
+    publico = (cfg.get("endereco_publico") or "").strip().rstrip("/")
+    if publico and not publico.startswith(("http://", "https://")):
+        publico = "https://" + publico
+    return publico or LOCAL
+
 ACAO = ("https://diariodarepublica.pt/dr/screenservices/dr/Pesquisas/"
         "PesquisaResultado/DataActionGetPesquisas")
 
@@ -96,6 +111,9 @@ CONFIG_INICIAL = {
     # servidor poe-se a False -- e o arranque recusa-se a ouvir fora
     # do localhost com isto a True (arranque_permitido()).
     "acesso_livre_local": True,
+    # O endereco publico do painel (https://radargov.pt), para os links
+    # do e-mail. Vazio: 127.0.0.1:8765, que so abre neste computador.
+    "endereco_publico": "",
     "dias_catchup": 15,
     "recuperar_slot_falhado": True,
     "abrir_browser_ao_encontrar": False,
@@ -5010,7 +5028,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
             linhas.append("    %s" % (a["entidade"] or "")[:80])
             linhas.append("    %s | %s | %s"
                           % (a["ref"], prazo, a["preco_base"] or "sem preco base"))
-            linhas.append("    " + LOCAL + "/anuncio/%s"
+            linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                           % (quote(a["ref"], safe=""),))
             linhas.append("")
     if alteradas:
@@ -5033,7 +5051,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                                   % (rotulos.get(x["campo"], x["campo"]),
                                      _valor_vigiado(x["campo"], x["antes"]),
                                      _valor_vigiado(x["campo"], x["depois"])))
-            linhas.append("    " + LOCAL + "/anuncio/%s"
+            linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                           % (quote(ref, safe=""),))
             linhas.append("")
     if seguidas:
@@ -5047,7 +5065,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                 linhas.append("    publicado %s | %s"
                               % (data_pt(a["data_pub"]),
                                  a["preco_base"] or "sem preco base"))
-                linhas.append("    " + LOCAL + "/anuncio/%s"
+                linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                               % (quote(a["ref"], safe=""),))
             linhas.append("")
     return "\n".join(linhas)
@@ -5081,7 +5099,7 @@ def _em_pilula(texto, classe=""):
 
 
 def _em_ligacao(ref):
-    return LOCAL + "/anuncio/%s" % (quote(ref, safe=""),)
+    return endereco_do_painel() + "/anuncio/%s" % (quote(ref, safe=""),)
 
 
 def _em_prazo(prazo, urgente):

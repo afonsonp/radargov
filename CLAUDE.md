@@ -133,8 +133,9 @@ temporizadores e o serviço do painel), `desinstalar.sh` (tira-os),
 `actualizar.sh` (traz a última release do GitHub e reinicia o serviço
 — ver a secção Git), `publicar_dados.sh` / `trazer_dados.sh` (levam o
 `radar.db` de um computador para outro pela release "dados" — ver a
-secção Git), e `tunel.sh` (um endereço público temporário para o
-painel — ver «Acesso de fora», em baixo). Todos passam pelo
+secção Git), `tunel.sh` (um endereço público temporário para o
+painel) e `tunel_fixo.sh` (o endereço fixo, `https://radargov.pt`,
+como serviço — ver «Acesso de fora», em baixo). Todos passam pelo
 `_python.sh`, que escolhe o `.venv` se existir. Um `.sh` novo entra
 com o exec bit no git (`git update-index --chmod=+x`), porque o
 `core.filemode` esteve a `false` no disco NTFS de onde isto veio.
@@ -158,16 +159,30 @@ e os testes sem fazerem login a cada pedido. Lê a área «Contas e a
 porta» do `docs/armadilhas.md` antes de tocar nisto: a armadilha
 principal é que o túnel liga-se ao painel **a partir de 127.0.0.1**.
 
-Para mostrar o painel a alguém que não está neste computador, sem
-instalar nada do lado de lá, há o **`tunel.sh`**: um *quick tunnel*
-da Cloudflare, que dá um endereço `https://….trycloudflare.com`
-aleatório, válido só enquanto o script corre, sem conta, sem domínio
-e sem abrir portas no router. O `cloudflared` descarrega-se para
-`.venv/bin/` na primeira vez, com confirmação. Quem abre o endereço
-cai no `/entrar`. O que falta para o acesso permanente é um endereço
-fixo (túnel com nome, ou VPS), e o `radar.py` ainda não sabe do
-endereço público: os links do e-mail continuam a dizer
-`127.0.0.1:8765` (`endereco_publico` do plano, por fazer).
+**O endereço público é `https://radargov.pt`** (8/09/2026, etapa 3
+do plano, feita pela via B — o PC de casa exposto por um túnel, não
+um VPS): um túnel com nome da Cloudflare, `radar`, a correr como
+serviço do utilizador (`radar-tunel.service`, criado pelo
+**`tunel_fixo.sh`**), que se liga ao painel em `127.0.0.1:8765` e
+responde por `radargov.pt` e `www.radargov.pt`. O domínio está na
+conta da Cloudflare do Afonso (plano Free; os nameservers do
+registador apontam para lá), a autorização deste computador é o
+`~/.cloudflared/cert.pem` (feita uma vez com `cloudflared tunnel
+login`, no browser dele), e as credenciais do túnel são o
+`~/.cloudflared/<id>.json` — **nada disto está na pasta do radar nem
+no git**. O `tunel_fixo.sh` é idempotente: cria o que falta e salta o
+que já está; se o Afonso mudar de computador, é correr o `login` e
+depois o script. O painel continua a atender só em `127.0.0.1` e
+`acesso_livre_local` continua a `true`: é o `Host` público e os
+cabeçalhos do túnel que fazem um pedido de fora não ser local. O
+`config.json` leva `endereco_publico`, e `endereco_do_painel()` é o
+que os links do e-mail usam (`LOCAL` quando está vazio).
+
+Para uma demonstração sem o domínio há também o **`tunel.sh`**: um
+*quick tunnel* da Cloudflare, endereço `https://….trycloudflare.com`
+aleatório, válido só enquanto o script corre, sem conta. Foi o
+primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
+`.venv/bin/` é o mesmo que o serviço usa.
 
 ## Arquitectura
 

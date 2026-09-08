@@ -2285,9 +2285,11 @@ class TestResumoEmHtml(unittest.TestCase):
         # pelo IP, não por "localhost": neste Windows o `localhost`
         # resolve primeiro para ::1, onde ninguém atende, e a ligação
         # bloqueia até desistir — 208 ms contra 37 ms, medido a
-        # 04/09/2026. O endereço vem do `radar.LOCAL`, para o teste
-        # continuar a valer se a porta mudar.
-        self.assertIn('href="%s/anuncio/123%%2F2026"' % radar.LOCAL, saiu)
+        # 04/09/2026. O endereço vem de `endereco_do_painel()`, para o
+        # teste continuar a valer se a porta mudar -- e desde 8/09/2026
+        # o config.json verdadeiro tem `endereco_publico` (radargov.pt),
+        # que é o que o e-mail passa a levar.
+        self.assertIn('href="%s/anuncio/123%%2F2026"' % radar.endereco_do_painel(), saiu)
         self.assertNotIn("localhost", saiu)
 
     def test_escapa_o_que_vem_da_base(self):
@@ -8322,6 +8324,30 @@ class TestContas(BaseTemporaria):
                                            environ_base={"REMOTE_ADDR": "127.0.0.1"}).status_code, 404)
         html_ = self.cliente.get("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
         self.assertNotIn("quem está a trabalhar?", html_)
+
+
+class TestEnderecoPublico(unittest.TestCase):
+    """Os links do e-mail diziam 127.0.0.1:8765 mesmo com o painel em
+    radargov.pt: so abriam neste computador."""
+
+    def test_vazio_e_o_local(self):
+        self.assertEqual(radar.endereco_do_painel({}), radar.LOCAL)
+        self.assertEqual(radar.endereco_do_painel({"endereco_publico": "  "}), radar.LOCAL)
+
+    def test_publico_sem_barra_no_fim_e_com_https_por_omissao(self):
+        self.assertEqual(radar.endereco_do_painel({"endereco_publico": "https://radargov.pt/"}),
+                         "https://radargov.pt")
+        self.assertEqual(radar.endereco_do_painel({"endereco_publico": "radargov.pt"}),
+                         "https://radargov.pt")
+
+    def test_a_ligacao_do_email_usa_o_publico(self):
+        antigo = radar.ler_config
+        radar.ler_config = lambda: dict(radar.CONFIG_INICIAL, endereco_publico="https://radargov.pt")
+        try:
+            self.assertEqual(radar._em_ligacao("1/2026"), "https://radargov.pt/anuncio/1%2F2026")
+        finally:
+            radar.ler_config = antigo
+
 
 
 if __name__ == "__main__":
