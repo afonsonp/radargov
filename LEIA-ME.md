@@ -30,29 +30,15 @@ Para servir o radar a sério, o sítio é o disco interno.
 
 ## 2. Primeira instalação
 
-1. Duplo clique em `instalar.bat`. Instala as dependências (flask,
-   requests, pypdf, cryptography, pymupdf e openpyxl). Na pen, onde o
-   Python vem na pasta e não tem pip, a receita está no
-   `docs/diario/2026-09.md` («Instalar na pen»): o pip como ficheiro único, a instalar para
-   `libs\`. As peças que são digitalizações — só imagem, sem texto por
-   dentro — ficam marcadas como tal e não se lêem: houve OCR para elas
-   entre 2 e 3 de setembro de 2026 e foi retirado, porque tinha lido 8
-   documentos de 182.
-2. Faz a captura da secção 3.
-3. Duplo clique em `iniciar.bat`. Abre o painel em `http://127.0.0.1:8765`.
-4. Duplo clique em `agendar.bat`, uma vez só. Cria as três tarefas: as
-   verificações das 09h e 17h e a actualização semanal dos contratos,
-   à segunda de manhã.
-
-**Em Ubuntu** é o mesmo, com `.sh` em vez de `.bat`, num terminal
-aberto na pasta:
+Num terminal aberto na pasta:
 
 ```bash
 ./instalar.sh
 ```
 Cria um ambiente Python dentro da pasta (`.venv`) e instala lá as
 dependências. Se disser que falta o `python3-venv`, é
-`sudo apt install python3-venv` e voltar a correr. Depois:
+`sudo apt install python3-venv` e voltar a correr. Faz a captura da
+secção 3. Depois:
 
 ```bash
 ./iniciar.sh
@@ -590,7 +576,7 @@ Entidades espanholas não entram, por decisão tua.
 
 ## 12. Histórico de alterações
 
-Duplo clique em `historico.bat`. Abre uma janela com todas as
+Corre `./historico.sh`. Abre uma janela com todas as
 alterações ao programa: à esquerda a lista, e ao clicar numa vês
 exactamente que linhas mudaram, a verde e a vermelho.
 
@@ -626,7 +612,7 @@ para parar a meio, e repetir não duplica nada.
 ```bash
 python radar.py --detalhes tudo
 ```
-(ou dois cliques no **`detalhes.bat`**, que é o mesmo com as instruções
+(ou `./detalhes.sh`, que é o mesmo com as instruções
 escritas na janela.) Vai buscar o detalhe — CPV, prazo, preço base, plataforma, texto — de
 todos os anúncios que ainda não o têm. Faz falta porque a rotina diária
 só lê o detalhe dos últimos 60 dias, e sem detalhe um anúncio **não
@@ -733,17 +719,44 @@ anúncios, é o teste do parser que avisa primeiro.
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
 | `documentos/` | as peças dos concursos que foste buscar |
 | `AVISOS.txt` | o último resumo dos alertas em texto, quando há (o e-mail leva o mesmo, formatado) |
-| `instalar.bat` | instala as dependências |
-| `iniciar.bat` | abre o painel |
-| `agendar.bat` | cria as três tarefas agendadas |
-| `verificar.bat` | o que as tarefas das 09h/17h correm |
-| `desinstalar.bat` | remove tarefas e pacotes |
-| `historico.bat` | abre o histórico de alterações |
-| `*.sh` | o mesmo que o `.bat` com o mesmo nome, para Ubuntu; `instalar.sh` cria o `.venv/` |
-| `.venv/` | o Python e os pacotes do radar em Ubuntu (o par do `python/` e `libs/` da pen) |
+| `instalar.sh` | cria o `.venv/` e instala as dependências |
+| `iniciar.sh` | abre o painel (ou diz que o serviço já o tem aberto) |
+| `agendar.sh` | cria os três temporizadores e o serviço do painel |
+| `verificar.sh` | o que os temporizadores das 09h/17h correm |
+| `desinstalar.sh` | remove temporizadores e serviço |
+| `historico.sh` | abre o histórico de alterações |
+| `tunel.sh` | dá um endereço público temporário ao painel, para mostrar a alguém |
+| `.venv/` | o Python e os pacotes do radar |
 | `teste_radar.py` | os testes |
 
-## 15. Limites, para não haver surpresas
+## 15. Mostrar o painel a alguém de fora
+
+O painel só atende neste computador, e ainda não tem login. Para o
+mostrar a alguém — noutro computador, no telemóvel, sem instalar nada
+do lado de lá — corre, num terminal aberto na pasta:
+
+```bash
+./tunel.sh
+```
+
+Na primeira vez pergunta se pode descarregar o `cloudflared` (o
+programa da Cloudflare que faz o túnel, cerca de 40 MB). Depois
+escreve um endereço `https://qualquer-coisa.trycloudflare.com`: é esse
+que dás. Vale enquanto a janela estiver aberta; Ctrl+C fecha o túnel,
+e da próxima vez o endereço é outro.
+
+Três coisas a saber:
+
+- **Quem tiver o endereço vê e mexe em tudo**, incluindo a triagem e
+  as peças descarregadas. O endereço é aleatório e não se adivinha,
+  mas só o dês a quem confias, e fecha o túnel quando acabar.
+- Os links do e-mail de alerta continuam a apontar para
+  `127.0.0.1:8765` — só abrem neste computador.
+- Isto é para testar e mostrar. Um acesso permanente, com palavra-passe
+  e endereço fixo, é o plano do `docs/historico/ONLINE.md` e ainda
+  não está feito.
+
+## 16. Limites, para não haver surpresas
 
 O DR publica anúncios acima de certos valores. Abaixo dos limiares
 (ajustes directos, consultas prévias) **não existe anúncio nenhum** —
