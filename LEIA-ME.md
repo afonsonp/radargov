@@ -806,7 +806,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 793 verificações em poucos segundos, sem tocar
+Corre os testes — 797 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

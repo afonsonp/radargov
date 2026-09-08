@@ -206,8 +206,30 @@ CONFIG_INICIAL = {
 
 # ----------------------------------------------------------------- base
 
+class Ligacao(sqlite3.Connection):
+    """Uma ligacao que se FECHA ao sair do `with`.
+
+    O `with` do sqlite3 de origem so faz commit/rollback: a ligacao fica
+    aberta ate o garbage collector a apanhar, e com ciclos de
+    referencia (cursores, Rows) isso demora. Medido a 8/09/2026, no
+    painel a servir radargov.pt: 501 ligacoes abertas ao radar.db, 1024
+    descritores -- o limite do processo -- e o servidor a rodar a 100%
+    de CPU sem conseguir aceitar mais ninguem (EMFILE no accept, em
+    ciclo) durante quase quatro horas. Sao 118 `with liga() as c` e
+    24 `with liga_corpus() as c`; fechar num sitio so e o que os
+    protege a todos. Quem precisar da ligacao depois do bloco nao a
+    tem: e um ProgrammingError, alto, e nao um descritor a mais.
+    """
+
+    def __exit__(self, tipo, valor, rasto):
+        try:
+            return super().__exit__(tipo, valor, rasto)
+        finally:
+            self.close()
+
+
 def liga():
-    c = sqlite3.connect(DB, timeout=30)
+    c = sqlite3.connect(DB, timeout=30, factory=Ligacao)
     c.row_factory = sqlite3.Row
     # WAL: deixa ler enquanto outro escreve. Sem isto, o painel e a recolha
     # em fundo tropecam um no outro ("database is locked"). E persistente,
@@ -5637,7 +5659,7 @@ API_DADOS_GOV = "https://dados.gov.pt/api/1/datasets/%s/"
 
 
 def liga_corpus():
-    c = sqlite3.connect(CORPUS, timeout=30)
+    c = sqlite3.connect(CORPUS, timeout=30, factory=Ligacao)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA busy_timeout=30000")

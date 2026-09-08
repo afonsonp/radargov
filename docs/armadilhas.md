@@ -20,12 +20,12 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 10
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 6
 - [Contas e a porta](#contas-e-a-porta) &middot; 5
 - [A interface](#a-interface) &middot; 12
 - [Convenções](#convencoes) &middot; 2
 
-São 108 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 109 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -1110,6 +1110,25 @@ SQLite, cópias, e a pen que manda nos números.
 ## Trabalhos de fundo e arranque
 
 Nada espera dentro do pedido do browser.
+
+- **`with liga() as c` fecha a ligação; sem isso o painel morre em
+  silêncio ao fim de umas horas.** (8/09/2026, à noite.) O `with` do
+  `sqlite3` de origem só faz commit: a ligação fica aberta até o
+  garbage collector a apanhar, e com ciclos (cursores, Rows) não a
+  apanha. Medido no painel a servir `radargov.pt`: 501 ligações ao
+  `radar.db` abertas, 1024 descritores — o limite do processo —, o
+  `accept()` a falhar em ciclo e o processo a 100% de CPU sem atender
+  ninguém durante quase quatro horas, sem uma linha no journal. Os
+  sinais: `ss -ltnp` com a fila de espera cheia na 8765, `ls
+  /proc/PID/fd | wc -l` a bater no `Max open files` do
+  `/proc/PID/limits`, e a thread principal a gastar o CPU. A cura é a
+  classe `Ligacao` (`__exit__` fecha), usada por `liga()` e
+  `liga_corpus()`; quem usar a ligação depois do bloco tem um
+  `ProgrammingError`, alto. O `radar-painel.service` leva
+  `LimitNOFILE=16384` por cima. `TestLigacaoFechaAoSair` guarda-o, e
+  a medida a fazer depois de qualquer mudança nas ligações é a dos
+  descritores: `ls /proc/PID/fd | wc -l` antes e depois de cem pedidos
+  tem de dar o mesmo (deu 4 e 4).
 
 - **Os três trabalhos longos correm todos fora do pedido.** "Verificar
   agora" é thread com trinco (`comecar_verificacao()`, com um `passo`

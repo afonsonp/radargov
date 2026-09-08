@@ -92,6 +92,10 @@ WorkingDirectory=$AQUI
 ExecStart=$AQUI/.venv/bin/python $AQUI/radar.py --sem-browser
 Restart=on-failure
 RestartSec=10
+# 8/09/2026: com o limite de origem (1024) o painel esgotou os
+# descritores em quatro horas de radargov.pt; a fuga foi fechada no
+# liga(), isto e a folga para a proxima que aparecer
+LimitNOFILE=16384
 
 [Install]
 WantedBy=default.target
