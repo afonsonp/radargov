@@ -1,7 +1,7 @@
 ---
 name: explorador-de-plataforma
 description: Investiga se as peças de um concurso se conseguem trazer de uma plataforma que o radar ainda não sabe descarregar, e devolve receita ou um "não há" fundamentado. Usar quando aparecer um anúncio cujo link_pecas não é acingov, vortal nem a aplicação JSF, ou quando se quiser reavaliar os casos que estão marcados como sem obtentor.
-tools: Bash, Read, Grep, Glob, WebFetch, WebSearch, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_network_requests, mcp__playwright__browser_click, mcp__playwright__browser_find
+tools: Bash, Read, Grep, Glob, WebFetch, WebSearch, mcp__Claude_Browser__navigate, mcp__Claude_Browser__read_page, mcp__Claude_Browser__get_page_text, mcp__Claude_Browser__read_network_requests, mcp__Claude_Browser__computer, mcp__Claude_Browser__find, mcp__Claude_Browser__browser_batch
 ---
 
 # Explorador de plataforma
@@ -26,9 +26,15 @@ A pergunta é sempre a mesma: **as peças alcançam-se sem sessão iniciada?**
    é quase sempre "isto é o mesmo padrão de um dos que já existem, com
    outro domínio" — e nesse caso a correcção é uma linha na assinatura,
    não um obtentor novo.
-2. Abrir o link e ver o que a página faz. O que interessa é o **pedido de
-   rede que traz o ficheiro**, não o HTML: um `DecryptServlet?...`, um
-   endpoint de JSON com a lista de documentos, um ZIP directo.
+2. Abrir o link e ver o que a página faz. O browser é o painel do Claude
+   Code (`mcp__Claude_Browser__*`): `navigate` abre, `read_page` dá a
+   árvore com as referências dos elementos, `computer` carrega neles, e
+   **`read_network_requests` é o que interessa** — o que se procura é o
+   **pedido de rede que traz o ficheiro**, não o HTML: um
+   `DecryptServlet?...`, um endpoint de JSON com a lista de documentos,
+   um ZIP directo. (Até 8/09/2026 esta linha pedia ferramentas
+   `mcp__playwright__*` que nunca estiveram instaladas neste
+   computador: o subagente abria e ficava sem browser nenhum.)
 3. Reproduzir esse pedido fora do browser (`requests`, ou `curl`). Se
    funcionar sem cookies de sessão, há receita.
 

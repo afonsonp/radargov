@@ -21,7 +21,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 6
-- [Contas e a porta](#contas-e-a-porta) &middot; 5
+- [Contas e a porta](#contas-e-a-porta) &middot; 6
 - [A interface](#a-interface) &middot; 12
 - [Convenções](#convencoes) &middot; 2
 
@@ -1253,6 +1253,24 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   (`--palavra-passe EMAIL`, o mesmo `criar_utilizador()` que troca o
   hash se o e-mail existir), não por e-mail, de propósito: é um fluxo
   a menos exposto.
+
+- **A ref de um anúncio não é um nome de pasta até passar por
+  `ref_de_pasta()`.** As quatro rotas que servem ficheiros
+  (`/documento`, `/peca`, `/peca-pagina`, e o leitor dentro da ficha)
+  recebem a ref como `<path:ref>`, e o `re.sub(r"[^0-9A-Za-z._-]",
+  "-", ref)` que lá estava troca a barra por hífen mas deixa `..`
+  passar inteiro — `documentos/..` é a pasta do radar. A 8/09/2026,
+  com o painel na internet havia um dia, um GET a `/peca/../radar.db`
+  servia a base (hashes das palavras-passe, sessões, a triagem toda) e
+  `/documento/../curl_DR.txt` servia os cookies do portal do DR. A
+  guarda que lá estava — `caminho.startswith(pasta + os.sep)` — não
+  via nada, porque a `pasta` era escolhida pelo próprio pedido: media
+  o caminho contra o sítio para onde o atacante o tinha mandado.
+  **Nenhuma rota nova volta a montar o caminho à mão**: chama-se
+  `caminho_na_pasta(ref, nome)`, que devolve `None` ou um ficheiro
+  comprovadamente dentro de `documentos/`. E o 404 dessas rotas
+  devolvia a ref crua dentro do HTML — qualquer texto que venha do URL
+  passa por `html.escape()` antes de entrar numa página.
 
 ## A interface
 
