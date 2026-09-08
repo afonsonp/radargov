@@ -727,7 +727,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 757 verificações em poucos segundos, sem tocar
+Corre os testes — 760 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
@@ -752,36 +752,39 @@ anúncios, é o teste do parser que avisa primeiro.
 | `verificar.sh` | o que os temporizadores das 09h/17h correm |
 | `desinstalar.sh` | remove temporizadores e serviço |
 | `historico.sh` | abre o histórico de alterações |
-| `tunel.sh` | dá um endereço público temporário ao painel, para mostrar a alguém |
+| `tunel_fixo.sh` | monta o `https://radargov.pt` (túnel com nome, como serviço); correu uma vez |
+| `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |
 | `.venv/` | o Python e os pacotes do radar |
 | `teste_radar.py` | os testes |
 
-## 15. Mostrar o painel a alguém de fora
+## 15. O painel fora deste computador: radargov.pt
 
-O painel só atende neste computador. Para o mostrar a alguém — noutro
-computador, no telemóvel, sem instalar nada do lado de lá — corre, num
-terminal aberto na pasta:
+**O painel está em https://radargov.pt** (e `www.radargov.pt`), de
+qualquer computador ou telemóvel, sem instalar nada. Quem abre cai no
+ecrã de entrar (secção 7) e entra com o teu utilizador e a tua
+palavra-passe. Os links do e-mail de alerta apontam para lá.
+
+Como funciona, para saberes o que pode falhar: o painel continua a
+atender só neste computador; um programa da Cloudflare, o
+`cloudflared`, corre aqui como serviço (`radar-tunel.service`) e faz a
+ponte entre o teu domínio e o painel. Por isso, **se este computador
+estiver desligado, o `radargov.pt` não abre** — e se estiver ligado,
+o serviço arranca sozinho, como o do painel. Para ver se está de pé:
 
 ```bash
-./tunel.sh
+systemctl --user status radar-tunel.service
 ```
 
-Na primeira vez pergunta se pode descarregar o `cloudflared` (o
-programa da Cloudflare que faz o túnel, cerca de 40 MB). Depois
-escreve um endereço `https://qualquer-coisa.trycloudflare.com`: é esse
-que dás. Vale enquanto a janela estiver aberta; Ctrl+C fecha o túnel,
-e da próxima vez o endereço é outro.
+Foi montado uma vez com o `tunel_fixo.sh`, depois de o domínio estar
+na tua conta da Cloudflare e de autorizares este computador no
+browser. Não é preciso voltar a corrê-lo; se um dia o radar mudar de
+computador, é `.venv/bin/cloudflared tunnel login` (abre a página de
+autorização) e depois `./tunel_fixo.sh` outra vez.
 
-Três coisas a saber:
-
-- **Quem abre o endereço cai no ecrã de entrar** (secção 7): precisa
-  do teu utilizador e da tua palavra-passe. Sem conta criada, o ecrã diz
-  que comando correr e não deixa passar ninguém.
-- Os links do e-mail de alerta continuam a apontar para
-  `127.0.0.1:8765` — só abrem neste computador.
-- Isto é para testar e mostrar. O endereço fixo é o que falta para o
-  acesso permanente: uma conta na Cloudflare com um domínio teu, ou um
-  servidor — o plano está no `docs/historico/ONLINE.md`, etapa 3.
+O que continua fora: o **`tunel.sh`**, que dá um endereço
+`trycloudflare.com` aleatório e temporário, sem domínio. Serve para
+uma demonstração se o `radargov.pt` estiver em baixo por alguma razão;
+Ctrl+C fecha-o.
 
 ## 16. Limites, para não haver surpresas
 
