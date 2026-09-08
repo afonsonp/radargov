@@ -4647,6 +4647,55 @@ def copia_de_seguranca(guardar=7):
     return destino
 
 
+def copia_de_seguranca_com_nome(marca_nome):
+    """Uma copia fora da rotacao diaria, com um nome que diz porque:
+    copias/radar-<nome>-<data>.db. Nao se apaga sozinha."""
+    os.makedirs(COPIAS, exist_ok=True)
+    destino = os.path.join(COPIAS, "radar-%s-%s.db"
+                           % (marca_nome, datetime.now().strftime("%Y-%m-%d")))
+    if os.path.exists(destino):
+        os.remove(destino)
+    with liga() as c:
+        c.execute("VACUUM INTO ?", (destino,))
+    return destino
+
+
+def repor_estado_zero():
+    """A aplicacao como acabada de instalar, SEM perder o acervo.
+
+    Apaga (decisao do Afonso a 8/09/2026): a triagem (interessa e
+    abandonados voltam a por ver, com os campos do quadro), o quadro
+    (fase, etiquetas), o historico, os responsaveis e a lista de
+    pessoas, os filtros guardados e os alertas, as entidades seguidas,
+    o interesse, o registo da casa, a fila de alteracoes, e o destino
+    do resumo por e-mail. Mantem: os anuncios e os detalhes, as
+    republicacoes (estado 'alteracao'), os documentos e a analise, as
+    contas e sessoes, a recolha, quem envia o e-mail, as fases.
+    Devolve as contagens do que apagou."""
+    n = {}
+    with liga() as c:
+        n["triagem reposta"] = c.execute(
+            "SELECT COUNT(*) FROM anuncios WHERE estado IN ('interessa','descartado') "
+            "OR fase_id IS NOT NULL OR responsavel IS NOT NULL").fetchone()[0]
+        c.execute("UPDATE anuncios SET estado='novo', fase_id=NULL, motivo=NULL, "
+                  "preco_proposto=NULL, posicao=NULL, top3=NULL, motivo_perda=NULL, "
+                  "responsavel=NULL WHERE estado IN ('interessa','descartado') "
+                  "OR fase_id IS NOT NULL OR responsavel IS NOT NULL "
+                  "OR preco_proposto IS NOT NULL OR posicao IS NOT NULL")
+        for tabela in ("anuncio_etiquetas", "etiquetas", "historico", "pessoas",
+                       "filtros_guardados", "alertas_vistos", "entidades_seguidas",
+                       "seguidas_vistos", "casa", "alteracoes"):
+            try:
+                n[tabela] = c.execute("SELECT COUNT(*) FROM %s" % tabela).fetchone()[0]
+                c.execute("DELETE FROM %s" % tabela)
+            except sqlite3.OperationalError:
+                n[tabela] = "(não existe)"
+    gravar_config({"interesse_activo": False, "interesse_cpv": "", "interesse_cpv_excl": "",
+                   "email": {"para": ""}})
+    marca("ultimo_resumo_estado", "")
+    return n
+
+
 def copia_com_marca(guardar=7):
     """A copia diaria, com o resultado numa marca que o painel mostra.
 
@@ -7768,6 +7817,12 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .conf-form button{align-self:flex-start;margin-top:4px}
 .conf-form textarea{font-family:var(--mono);font-size:11.5px;width:100%;max-width:560px}
 .conf-forn{margin-top:18px;padding-top:16px;border-top:1px solid var(--linha2)}
+.conf-campo input[type=file]{font:400 12.5px/1.3 var(--sans);color:var(--t2)}
+.tab-ensaio tr.erro td{background:var(--verm-fundo)}
+.tab-ensaio td .mau{color:var(--verm);font-weight:500}
+.tab-ensaio td .aviso{color:var(--laranja)}
+.tab-ensaio td .ok{color:var(--verde);font-weight:600}
+.tab-ensaio td.n{font:500 12px/1.4 var(--mono);white-space:nowrap}
 .conf-forn .saude{margin:6px 0 10px}
 @media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static;flex-direction:row;flex-wrap:wrap}}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
@@ -10771,6 +10826,7 @@ SECCOES_CONFIG = (
     ("leitura", "Leitura das peças", "fornecedor, modelo e chaves"),
     ("capturas", "Capturas", "os dois pedidos ao DR"),
     ("copias", "Cópias", "a cópia diária e a triagem no git"),
+    ("importar", "Importar dados", "o registo da casa, pelo modelo Excel"),
     ("conta", "Conta", "nome, palavra-passe, sessões"),
 )
 
@@ -11139,6 +11195,137 @@ def config_copias():
         + "<div class='saude'>%s</div>" % ("".join(existentes) or
                                            "<div class='nota'>nenhuma ainda</div>"))
     return pagina_config("copias", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+IMPORTACOES = os.path.join(BASE_DIR, casa.PASTA_IMPORTACOES)
+
+
+def _nome_de_importacao(nome):
+    """So um nome de ficheiro dentro de importacoes/: nada de caminhos."""
+    nome = os.path.basename((nome or "").strip())
+    return nome if re.fullmatch(r"[\w.\-]+\.xlsx", nome) else ""
+
+
+def _tabela_do_ensaio(linhas):
+    corpo = []
+    for l in linhas:
+        problemas = "".join("<div class='mau'>%s</div>" % html.escape(pr) for pr in l["problemas"])
+        avisos = "".join("<div class='aviso'>%s</div>" % html.escape(av) for av in l.get("avisos", []))
+        corpo.append(
+            "<tr class='%s'><td class='d'>%d</td><td class='n'>%s</td><td class='o'>%s</td>"
+            "<td class='d'>%s</td><td>%s</td><td class='p'>%s</td><td>%s</td></tr>"
+            % ("ok" if l["ok"] else "erro", l["linha"], html.escape(l["ref"] or "—"),
+               html.escape(corta(l["titulo"] or "", 90)),
+               "L%d" % l["lote"] if l["lote"] is not None else "—",
+               html.escape(l["status"] or "—"),
+               html.escape(_texto_do_preco(l["valor_proposta"])) if l["valor_proposta"] else "—",
+               (problemas + avisos) or "<span class='ok'>liga</span>"))
+    return ("<div class='mercado-tab'><table class='tab-mercado tab-ensaio'><thead><tr>"
+            "<th>Linha</th><th>Referência</th><th>Anúncio</th><th>Lote</th><th>Estado</th>"
+            "<th class='p'>Proposta</th><th>Ensaio</th></tr></thead><tbody>%s</tbody></table></div>"
+            % "".join(corpo))
+
+
+@app.route("/configuracoes/importar", methods=["GET", "POST"])
+def config_importar():
+    """O registo da casa entra por aqui: descarregar o modelo, carregar o
+    ficheiro preenchido, ver o ensaio, confirmar. Decisao do Afonso a
+    8/09/2026 -- o Excel antigo deixou de contar para a aplicacao."""
+    if request.method == "POST":
+        ficheiro = request.files.get("ficheiro")
+        if not ficheiro or not ficheiro.filename:
+            return volta_config("importar", "Escolhe o ficheiro .xlsx preenchido.")
+        if not ficheiro.filename.lower().endswith(".xlsx"):
+            return volta_config("importar", "Só .xlsx: é o formato do modelo.")
+        os.makedirs(IMPORTACOES, exist_ok=True)
+        nome = "%s-%s" % (datetime.now().strftime("%Y%m%d-%H%M%S"),
+                          re.sub(r"[^\w.\-]+", "_", os.path.basename(ficheiro.filename))[-60:])
+        if not nome.endswith(".xlsx"):
+            nome += ".xlsx"
+        caminho = os.path.join(IMPORTACOES, nome)
+        ficheiro.save(caminho)
+        try:
+            linhas = casa.ler_modelo(caminho)
+        except Exception as erro:            # openpyxl levanta de tudo num ficheiro estragado
+            os.remove(caminho)
+            return volta_config("importar", "Não consegui ler o ficheiro: %s" % str(erro)[:120])
+        with liga() as c:
+            linhas, contagens = casa.ensaio_modelo(c, linhas)
+        if not linhas:
+            os.remove(caminho)
+            return volta_config("importar", "O ficheiro não tem linhas preenchidas na folha «Registo».")
+        confirmar = (
+            "<form method='post' action='/configuracoes/importar/confirmar' class='conf-form' "
+            "style='margin-top:16px'><input type='hidden' name='ficheiro' value='%s'>"
+            "<button type='submit' class='bt forte'%s>Confirmar: gravar %d linha%s e a triagem</button>"
+            "<small>As linhas com erro ficam de fora. Uma linha repetida (mesma referência e "
+            "lote) substitui a que já lá estava.</small></form>"
+            % (html.escape(nome, quote=True), "" if contagens["ok"] else " disabled",
+               contagens["ok"], "" if contagens["ok"] == 1 else "s"))
+        corpo = (
+            "<div class='rot'>Ensaio de %s</div>"
+            "<div class='nota' style='margin:6px 0 12px'>%d linha%s lida%s: <b>%d liga%s</b> "
+            "a %d anúncio%s, <b>%d com erro</b>. Nada foi gravado ainda.</div>%s%s"
+            % (html.escape(ficheiro.filename), contagens["total"],
+               "" if contagens["total"] == 1 else "s", "" if contagens["total"] == 1 else "s",
+               contagens["ok"], "" if contagens["ok"] == 1 else "m",
+               contagens["anuncios"], "" if contagens["anuncios"] == 1 else "s",
+               contagens["com_erro"], _tabela_do_ensaio(linhas), confirmar))
+        return pagina_config("importar", "<div class='cx conf-cx'>" + corpo + "</div>")
+    with liga() as c:
+        n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM casa "
+                             "WHERE folha='modelo'").fetchone()
+        ultima = c.execute("SELECT MAX(importado_em) FROM casa WHERE folha='modelo'").fetchone()[0]
+    corpo = (
+        "<div class='rot'>1. O modelo</div>"
+        "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o radar "
+        "precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote "
+        "quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. "
+        "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
+        "<a class='bt' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
+        "<div class='rot' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
+        "<div class='nota' style='margin-bottom:12px'>Primeiro vês um ensaio: o que liga a que "
+        "anúncio, o que não liga e porquê. Só grava quando confirmares.</div>"
+        "<form method='post' action='/configuracoes/importar' enctype='multipart/form-data' "
+        "class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span>"
+        "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
+        "<button type='submit' class='bt forte'>Ver o ensaio</button></form>"
+        "<div class='rot' style='margin:26px 0 6px'>O que já está</div>"
+        "<div class='nota'>%s</div>"
+        % ("%s linha%s do modelo, em %s anúncio%s; última importação a %s."
+           % (mil_pt(n_modelo[0]), "" if n_modelo[0] == 1 else "s", mil_pt(n_modelo[1]),
+              "" if n_modelo[1] == 1 else "s", html.escape(data_hora_pt(ultima)))
+           if n_modelo[0] else "Ainda não entrou nenhuma linha pelo modelo."))
+    return pagina_config("importar", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+@app.route("/configuracoes/importar/modelo.xlsx")
+def config_importar_modelo():
+    os.makedirs(IMPORTACOES, exist_ok=True)
+    caminho = os.path.join(IMPORTACOES, "modelo-registo-da-casa.xlsx")
+    casa.escrever_modelo(caminho)
+    return send_file(caminho, as_attachment=True,
+                     download_name="registo-da-casa.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.route("/configuracoes/importar/confirmar", methods=["POST"])
+def config_importar_confirmar():
+    nome = _nome_de_importacao(request.form.get("ficheiro"))
+    caminho = os.path.join(IMPORTACOES, nome) if nome else ""
+    if not nome or not os.path.exists(caminho):
+        return volta_config("importar", "O ficheiro do ensaio já não está cá; carrega-o outra vez.")
+    linhas = casa.ler_modelo(caminho)
+    with liga() as c:
+        linhas, contagens = casa.ensaio_modelo(c, linhas)
+        resultado = casa.aplicar_modelo(c, linhas, quem=quem_sou() or "modelo")
+    registar("", "importação", "%d linhas do modelo, %d anúncios, %d com triagem aplicada (%s)"
+             % (resultado["gravadas"], resultado["anuncios"], resultado["aplicadas"], nome))
+    return volta_config("importar", "Importado: %d linha%s em %d anúncio%s; %d com a triagem "
+                        "aplicada, %d com erro ficaram de fora."
+                        % (resultado["gravadas"], "" if resultado["gravadas"] == 1 else "s",
+                           resultado["anuncios"], "" if resultado["anuncios"] == 1 else "s",
+                           resultado["aplicadas"], contagens["com_erro"]))
 
 
 @app.route("/configuracoes/conta", methods=["GET", "POST"])
@@ -15671,43 +15858,26 @@ def main():
                  mil_pt(por_ler(), " ")))
         return
 
-    if "--importar-excel" in sys.argv:
-        # O Excel de analise de concursos da casa. Sem caminho, repete o
-        # da ultima importacao (marca `excel_casa`). --ensaio calcula e
-        # nao grava; --sem-rede nao vai ao DR desempatar pelo preco base.
-        i = sys.argv.index("--importar-excel")
-        caminho = (sys.argv[i + 1] if len(sys.argv) > i + 1
-                   and not sys.argv[i + 1].startswith("--") else le_marca("excel_casa"))
-        if not caminho or not os.path.exists(caminho):
-            print("Diz-me o ficheiro: python radar.py --importar-excel "
-                  "<caminho do .xlsm> [--ensaio] [--sem-rede]")
-            return
-        ini = time.time()
-        rel = casa.importar(caminho, ensaio="--ensaio" in sys.argv,
-                            ler="--sem-rede" not in sys.argv,
-                            triagem="--com-triagem" in sys.argv)
-        print(casa.texto_do_relatorio(rel))
-        print("(%.0f s)" % (time.time() - ini))
-        return
+    # Os comandos --importar-excel e --casa-ligar sairam a 8/09/2026: o
+    # Excel antigo deixou de contar para a aplicacao, e o registo da casa
+    # entra pelo modelo, em Configuracoes > Importar dados. O leitor
+    # antigo continua no casa.py, sem comando, com os testes dele.
 
-    if "--casa-ligar" in sys.argv:
-        # Liga a mao uma linha do registo da casa a um anuncio:
-        # python radar.py --casa-ligar 94 4284/2026
-        # ...ou diz que nao ha anuncio no DR, com a razao:
-        # python radar.py --casa-ligar 56 nenhum "consulta prévia"
-        i = sys.argv.index("--casa-ligar")
-        try:
-            ide, ref = int(sys.argv[i + 1]), sys.argv[i + 2]
-        except (IndexError, ValueError):
-            print("Uso: python radar.py --casa-ligar <id do Excel> <ref | nenhum | ?> [razão]")
-            return
-        porque = (sys.argv[i + 3] if len(sys.argv) > i + 3
-                  and not sys.argv[i + 3].startswith("--") else "")
-        with liga() as c:
-            ok, msg = casa.ligar_a_mao(c, ide, ref, quem="Afonso",
-                                       triagem="--com-triagem" in sys.argv,
-                                       porque=porque)
-        print(msg)
+    if "--estado-zero" in sys.argv:
+        # Pedido do Afonso a 8/09/2026: a aplicacao como acabada de
+        # instalar, sem perder o acervo. Faz copia antes; pede confirmacao.
+        if "--sim" not in sys.argv:
+            if input("Isto apaga a triagem, o quadro, as etiquetas, o histórico, "
+                     "os filtros, os alertas, o interesse e o registo da casa. "
+                     "Escreve ZERO para continuar: ").strip() != "ZERO":
+                print("Nada mudou.")
+                return
+        copia = copia_de_seguranca_com_nome("antes-estado-zero")
+        n = repor_estado_zero()
+        print("Cópia de antes em %s." % copia)
+        for k, v in sorted(n.items()):
+            print("  %-22s %s" % (k, v))
+        print("Estado zero. O acervo ficou.")
         return
 
     if "--casa-desfazer" in sys.argv:

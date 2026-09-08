@@ -3,20 +3,22 @@
     "09:00",
     "17:00"
   ],
+  "acesso_livre_local": true,
+  "endereco_publico": "https://radargov.pt",
   "dias_catchup": 15,
   "recuperar_slot_falhado": true,
   "abrir_browser_ao_encontrar": false,
   "detalhes_por_volta": 40,
   "relidos_por_volta": 25,
   "dias_urgente": 8,
-  "interesse_activo": true,
-  "interesse_cpv": "72000000",
+  "interesse_activo": false,
+  "interesse_cpv": "",
   "interesse_cpv_excl": "",
   "copia_de_seguranca": true,
   "copias_a_guardar": 7,
   "alertas": true,
   "email": {
-    "para": "afonso.pinto95@hotmail.com",
+    "para": "",
     "de": "afonso.pinto.redit@gmail.com",
     "servidor": "smtp.gmail.com",
     "porta": 587,
@@ -41,6 +43,5 @@
     "prestação",
     "concurso",
     "contratação"
-  ],
-  "endereco_publico": "https://radargov.pt"
+  ]
 }

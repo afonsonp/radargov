@@ -62,3 +62,6 @@ pip.pyz
 
 # O ambiente virtual do Linux (instalar.sh cria-o): e o par do python/ e libs/.
 .venv/
+
+# Os ficheiros carregados em Configurações › Importar dados (o modelo preenchido).
+importacoes/

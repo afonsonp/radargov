@@ -8728,6 +8728,230 @@ class TestLotesNoQuadroENaFicha(BaseTemporaria):
         self.assertNotIn("href='#lotes'", html_)
 
 
+class TestModeloDaCasa(BaseTemporaria):
+    """O registo da casa pelo modelo (8/09/2026): o radar dita o Excel, o
+    utilizador preenche, e a importação passa por um ensaio no painel.
+    O Excel antigo deixou de contar para a aplicação."""
+
+    def setUp(self):
+        super().setUp()
+        import io
+        self.io = io
+        self.cliente = radar.app.test_client()
+        self.imp_antigo = radar.IMPORTACOES
+        radar.IMPORTACOES = os.path.join(self.pasta, "importacoes")
+        with radar.liga() as c:
+            for ref, titulo, lotes in (("1947/2026", "Servidor de terminologias",
+                                        json.dumps(TestResumoDosLotes.LOTES)),
+                                       ("22285/2026", "Backups INFARMED", ""),
+                                       ("100/2026", "Republicação", "")):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, url, "
+                          "estado, lotes, texto, detalhe_lido) VALUES (?,?,?,?,?,?,?,?,?,1)",
+                          (ref, titulo, "SPMS", "2026-02-01", "Anúncio", "https://dr/x",
+                           "alteracao" if ref == "100/2026" else "novo", lotes, "texto"))
+
+    def tearDown(self):
+        radar.IMPORTACOES = self.imp_antigo
+        super().tearDown()
+
+    def preenchido(self, linhas):
+        """Um .xlsx a partir do modelo, com as linhas dadas (listas por coluna)."""
+        from openpyxl import load_workbook
+        caminho = os.path.join(self.pasta, "m.xlsx")
+        casa.escrever_modelo(caminho)
+        wb = load_workbook(caminho)
+        ws = wb[casa.FOLHA_MODELO]
+        for l in linhas:
+            ws.append(l)
+        wb.save(caminho)
+        return caminho
+
+    def test_o_modelo_tem_as_colunas_e_as_listas(self):
+        from openpyxl import load_workbook
+        caminho = casa.escrever_modelo(os.path.join(self.pasta, "modelo.xlsx"))
+        wb = load_workbook(caminho)
+        ws = wb[casa.FOLHA_MODELO]
+        self.assertEqual([c.value for c in ws[1]], [t for t, _ in casa.COLUNAS_MODELO])
+        validacoes = [dv.formula1 for dv in ws.data_validations.dataValidation]
+        self.assertTrue(any("Não fomos" in f and "Ganho" in f for f in validacoes))
+        self.assertTrue(any("Preço base baixo" in f for f in validacoes))
+        self.assertIn("Instruções", wb.sheetnames)
+        # sem linhas de dados: o modelo importado em branco nao entra nada
+        self.assertEqual(casa.ler_modelo(caminho), [])
+
+    def test_ler_normaliza_e_aponta_erros_de_forma(self):
+        caminho = self.preenchido([
+            ["1947-2026", 2, "ganho", None, "169.344,00", 1, "Nós; Empresa B ; Empresa C", "Afonso", "ok"],
+            [" 22285 / 2026 ", None, "Não fomos", "preco base demasiado baixo", None, None, None, None, None],
+            ["lixo", "x", "Talvez", None, None, "primeiro", None, None, None],
+        ])
+        linhas = casa.ler_modelo(caminho)
+        self.assertEqual(len(linhas), 3)
+        a, b, c_ = linhas
+        self.assertEqual((a["ref"], a["lote"], a["status"], a["valor_proposta"], a["lugar"]),
+                         ("1947/2026", 2, "Ganho", 169344.0, 1))
+        self.assertEqual([x["nome"] for x in a["concorrentes"]], ["Nós", "Empresa B", "Empresa C"])
+        self.assertEqual(a["responsavel"], "Afonso")
+        self.assertEqual((b["ref"], b["lote"], b["status"], b["razao"]),
+                         ("22285/2026", None, "Não fomos", "Preço base baixo"))
+        self.assertEqual(a["erros"], [])
+        self.assertTrue(any("ilegível" in e for e in c_["erros"]))
+        self.assertTrue(any("lote" in e for e in c_["erros"]))
+        self.assertTrue(any("estado" in e for e in c_["erros"]))
+        self.assertTrue(any("lugar" in e for e in c_["erros"]))
+
+    def test_o_ensaio_cruza_com_a_base(self):
+        caminho = self.preenchido([
+            ["1947/2026", 2, "Ganho", None, 169344, 1, None, None, None],
+            ["1947/2026", 7, "Perdido", None, None, None, None, None, None],     # lote a mais
+            ["1947/2026", 2, "Perdido", None, None, None, None, None, None],     # repetida
+            ["22285/2026", 1, "Submetido", None, None, None, None, None, None],  # sem lotes
+            ["22285/2026", None, "Não fomos", None, 5, None, None, None, None],
+            ["9999/2026", None, "Ganho", None, None, None, None, None, None],    # sem anuncio
+            ["100/2026", None, "Ganho", None, None, None, None, None, None],     # republicacao
+        ])
+        with radar.liga() as c:
+            linhas, contagens = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
+        problemas = ["; ".join(l["problemas"]) for l in linhas]
+        self.assertEqual(linhas[0]["problemas"], [])
+        self.assertEqual(linhas[0]["titulo"], "Servidor de terminologias")
+        self.assertIn("não tem o lote 7", problemas[1])
+        self.assertIn("repete a linha 2", problemas[2])
+        self.assertIn("não declara lotes", problemas[3])
+        self.assertEqual(linhas[4]["problemas"], [])
+        self.assertTrue(any("não contam" in a for a in linhas[4]["avisos"]))
+        self.assertIn("não há anúncio 9999/2026", problemas[5])
+        self.assertIn("republicação", problemas[6])
+        self.assertEqual((contagens["total"], contagens["ok"], contagens["com_erro"],
+                          contagens["anuncios"]), (7, 2, 5, 2))
+
+    def test_aplicar_grava_o_registo_e_a_triagem(self):
+        caminho = self.preenchido([
+            ["1947/2026", 1, "Perdido", None, 54432, 3, "A; B; Nós", None, None],
+            ["1947/2026", 2, "Ganho", None, 169344, 1, "Nós; B; C", "Afonso", None],
+            ["22285/2026", None, "Não fomos", "Falta de CV's", None, None, None, None, "sem equipa"],
+        ])
+        with radar.liga() as c:
+            linhas, _ = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
+            r = casa.aplicar_modelo(c, linhas, quem="teste")
+        self.assertEqual((r["gravadas"], r["anuncios"], r["aplicadas"]), (3, 2, 2))
+        with radar.liga() as c:
+            fases = {radar._valor(f, "papel"): f["id"] for f in radar.listar_fases()}
+            a = c.execute("SELECT estado, fase_id, preco_proposto, posicao, responsavel "
+                          "FROM anuncios WHERE ref='1947/2026'").fetchone()
+            # ganhamos um lote: o cartao fica no Ganho, com a proposta desse lote
+            self.assertEqual((a["estado"], a["fase_id"], a["posicao"], a["responsavel"]),
+                             ("interessa", fases["ganho"], 1, "Afonso"))
+            self.assertIn("169.344", a["preco_proposto"])
+            b = c.execute("SELECT estado, motivo FROM anuncios WHERE ref='22285/2026'").fetchone()
+            self.assertEqual((b["estado"], b["motivo"]), ("descartado", "Falta de CV's"))
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa WHERE folha='modelo'").fetchone()[0], 3)
+            self.assertEqual(c.execute("SELECT lote FROM casa WHERE ref='22285/2026'").fetchone()[0], 0)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM pessoas WHERE nome='Afonso'").fetchone()[0], 1)
+            # e a ficha dos lotes ve o registo
+            linhas_casa = casa.linhas_de_lotes(c, ["1947/2026"])["1947/2026"]
+        resumo = radar.resumo_dos_lotes(TestResumoDosLotes.LOTES, linhas_casa)
+        self.assertEqual(resumo["por_estado"], {"perdido": [1], "ganho": [2]})
+        # importar outra vez a mesma linha substitui, nao duplica
+        with radar.liga() as c:
+            linhas, _ = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
+            casa.aplicar_modelo(c, linhas, quem="teste")
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa").fetchone()[0], 3)
+
+    def test_o_fluxo_no_painel_ensaio_e_confirmar(self):
+        r = self.cliente.get("/configuracoes/importar")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Descarregar o modelo", r.get_data(as_text=True))
+        r = self.cliente.get("/configuracoes/importar/modelo.xlsx")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data[:2] == b"PK")          # e um zip: um .xlsx
+        caminho = self.preenchido([
+            ["1947/2026", 2, "Ganho", None, 169344, 1, None, None, None],
+            ["9999/2026", None, "Ganho", None, None, None, None, None, None],
+        ])
+        with open(caminho, "rb") as f:
+            r = self.cliente.post("/configuracoes/importar",
+                                  data={"ficheiro": (self.io.BytesIO(f.read()), "registo.xlsx")},
+                                  content_type="multipart/form-data")
+        self.assertEqual(r.status_code, 200)
+        html_ = r.get_data(as_text=True)
+        self.assertIn("<b>1 liga</b>", html_)
+        self.assertIn("<b>1 com erro</b>", html_)
+        self.assertIn("não há anúncio 9999/2026", html_)
+        self.assertIn("Nada foi gravado ainda", html_)
+        m = re.search(r"name='ficheiro' value='([^']+)'", html_)
+        self.assertTrue(m)
+        # nada gravado ate confirmar
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa").fetchone()[0], 0)
+        r = self.cliente.post("/configuracoes/importar/confirmar", data={"ficheiro": m.group(1)})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("Importado", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa").fetchone()[0], 1)
+            self.assertEqual(c.execute("SELECT estado FROM anuncios WHERE ref='1947/2026'").fetchone()[0],
+                             "interessa")
+        # um nome com caminho nao passa
+        r = self.cliente.post("/configuracoes/importar/confirmar", data={"ficheiro": "../radar.db"})
+        self.assertIn("carrega-o outra vez", unquote_plus(r.headers["Location"]))
+        # e um ficheiro que nao e .xlsx e recusado sem ler
+        r = self.cliente.post("/configuracoes/importar",
+                              data={"ficheiro": (self.io.BytesIO(b"x"), "lista.csv")},
+                              content_type="multipart/form-data")
+        self.assertIn("Só .xlsx", unquote_plus(r.headers["Location"]))
+
+
+class TestEstadoZero(BaseTemporaria):
+    """--estado-zero (8/09/2026): a aplicação como acabada de instalar,
+    sem perder o acervo nem as republicações."""
+
+    def setUp(self):
+        super().setUp()
+        self.config_antigo = radar.CONFIG
+        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "72000000",
+                             "email": {"para": "x@y.pt", "de": "r@g.com"}})
+        with radar.liga() as c:
+            fases = {radar._valor(f, "papel"): f["id"] for f in radar.listar_fases()}
+            for ref, estado, fase in (("1/2026", "interessa", fases["ganho"]),
+                                      ("2/2026", "descartado", None),
+                                      ("3/2026", "alteracao", None),
+                                      ("4/2026", "novo", None)):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, url, "
+                          "estado, fase_id, responsavel, motivo) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                          (ref, "t", "e", "2026-01-01", "a", "u", estado, fase,
+                           "Afonso" if estado == "interessa" else None,
+                           "Fora do âmbito" if estado == "descartado" else None))
+            c.execute("INSERT INTO etiquetas (nome, cor) VALUES ('x', '#000')")
+            c.execute("INSERT INTO historico (ref, quem, accao, detalhe, quando) VALUES ('1/2026','a','b','c','d')")
+            c.execute("INSERT INTO filtros_guardados (nome, consulta) VALUES ('f', 'q=x')")
+            c.execute("INSERT INTO casa (nome, ref) VALUES ('linha', '1/2026')")
+            c.execute("INSERT INTO pessoas (nome) VALUES ('Afonso')")
+
+    def tearDown(self):
+        radar.CONFIG = self.config_antigo
+        super().tearDown()
+
+    def test_apaga_o_que_e_do_utilizador_e_guarda_o_acervo(self):
+        n = radar.repor_estado_zero()
+        self.assertEqual(n["triagem reposta"], 2)
+        self.assertEqual(n["casa"], 1)
+        with radar.liga() as c:
+            estados = dict(c.execute("SELECT ref, estado FROM anuncios"))
+            self.assertEqual(estados, {"1/2026": "novo", "2/2026": "novo",
+                                       "3/2026": "alteracao", "4/2026": "novo"})
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM anuncios WHERE fase_id IS NOT NULL "
+                                       "OR responsavel IS NOT NULL OR motivo IS NOT NULL").fetchone()[0], 0)
+            for tabela in ("etiquetas", "historico", "filtros_guardados", "casa", "pessoas"):
+                self.assertEqual(c.execute("SELECT COUNT(*) FROM %s" % tabela).fetchone()[0], 0, tabela)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM fases").fetchone()[0], 6)
+        cfg = radar.ler_config()
+        self.assertFalse(cfg["interesse_activo"])
+        self.assertEqual(cfg["interesse_cpv"], "")
+        self.assertEqual(cfg["email"]["para"], "")
+        self.assertEqual(cfg["email"]["de"], "r@g.com")      # quem envia fica
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
