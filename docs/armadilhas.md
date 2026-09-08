@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 4
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 9
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 10
 - [O registo da casa](#o-registo-da-casa) &middot; 1
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 11
 - [Convenções](#convencoes) &middot; 2
 
-São 105 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 106 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -754,6 +754,21 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 ## Triagem, quadro e ficha
 
 O funil da casa, do «por ver» ao «ganho».
+
+- **Os lotes vêm de dois sítios e o quadro não adivinha o terceiro.**
+  O anúncio declara os lotes (`anuncios.lotes`, JSON de
+  `lotes_do_texto()`); a que fomos e como acabou só o registo da casa
+  sabe (`casa.lote` ≥ 1, lote a lote; 0 é o conjunto; NULL é por
+  identificar), e `resumo_dos_lotes()` junta os dois, puro, com
+  `casa.estado_do_lote()` — que é o `estado_efectivo()`: o Zoho
+  **não** decide um lote. A separação no fim (`carta_de_lotes()`) só
+  acontece nas colunas de papel `ganho`/`perdido` e só com lotes do
+  outro estado no registo; o cartão separado não se arrasta e não tem
+  formulários. **Um teste de ficha precisa de um anúncio com `texto`**:
+  sem texto a ficha chama `ler_detalhe_de()`, a captura verdadeira
+  existe na pasta, o pedido vai ao DR e o que volta escreve por cima
+  dos lotes de ensaio — foi assim que o primeiro teste dos lotes
+  «não encontrou» o bloco que estava lá.
 
 - **O Zoho é mais actual do que o Excel e menos preciso: tem coluna
   própria, não escreve por cima do `status`.** Medido a 03/09/2026 nas

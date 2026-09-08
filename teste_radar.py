@@ -8596,6 +8596,138 @@ class TestConfiguracoes(BaseTemporaria):
 
 
 
+class TestResumoDosLotes(unittest.TestCase):
+    """Os lotes, desenhados a 8/09/2026 (decisão do Afonso a 2/09: um
+    cartão por anúncio, mas a dizer a que lotes fomos; no fim separam-se).
+    O caso real é o 1947/2026: três lotes, L1 perdido, L2 ganho, L3
+    perdido, e um só negócio «Won» no Zoho que não decide lote nenhum."""
+    LOTES = [{"n": 1, "id": "L1", "descricao": "Pilar 4 - L1", "preco_base": "109.065,60 EUR"},
+             {"n": 2, "id": "L2", "descricao": "Pilar 4 - L2", "preco_base": "436.262,40 EUR"},
+             {"n": 3, "id": "L3", "descricao": "Pilar 4 - L3", "preco_base": "54.532,80 EUR"}]
+    CASA = [{"lote": 1, "status": "Perdido", "zoho_fase": "Won", "valor_proposta": 54432.0, "lugar": 3},
+            {"lote": 2, "status": "Ganho", "zoho_fase": None, "valor_proposta": 169344.0, "lugar": 1},
+            {"lote": 3, "status": "Perdido", "zoho_fase": None, "valor_proposta": 46368.0, "lugar": 2}]
+
+    def test_o_caso_real_lote_a_lote(self):
+        r = radar.resumo_dos_lotes(self.LOTES, self.CASA)
+        self.assertEqual([l["estado"] for l in r["lotes"]], ["perdido", "ganho", "perdido"])
+        self.assertEqual(r["fomos"], [1, 2, 3])
+        self.assertEqual(r["por_estado"], {"perdido": [1, 3], "ganho": [2]})
+        self.assertIsNone(r["conjunto"])
+        # o Zoho «Won» no L1 não o faz ganho: é o Excel que manda num lote
+        self.assertEqual(r["lotes"][0]["lugar"], 3)
+        self.assertEqual(radar.frase_dos_lotes(r), "fomos a todos os 3 lotes")
+
+    def test_a_alguns_e_a_nenhum(self):
+        r = radar.resumo_dos_lotes(self.LOTES, self.CASA[1:2])
+        self.assertEqual(r["fomos"], [2])
+        self.assertEqual(radar.frase_dos_lotes(r), "fomos a 1 dos 3 lotes")
+        chips = radar.chips_dos_lotes(r)
+        self.assertIn("L2 ganho", chips)
+        self.assertIn("lote-fora", chips)            # L1 e L3, a que não fomos
+        self.assertEqual(radar.chips_dos_lotes(r, so_estado="perdido"), "")
+        r = radar.resumo_dos_lotes(self.LOTES, [])
+        self.assertEqual(r["fomos"], [])
+        self.assertEqual(radar.frase_dos_lotes(r), "3 lotes; sem registo de a que fomos")
+
+    def test_o_conjunto_nao_e_um_lote(self):
+        # #23 e #26 (3/09/2026): o preço da linha é a soma — casa.lote = 0
+        r = radar.resumo_dos_lotes(self.LOTES[:2], [{"lote": 0, "status": "Perdido",
+                                                    "zoho_fase": "Lost"}])
+        self.assertEqual(r["fomos"], [])
+        self.assertTrue(r["conjunto"])
+        self.assertEqual(radar.frase_dos_lotes(r), "fomos ao conjunto dos 2 lotes")
+        self.assertEqual(casa.estado_do_lote(r["conjunto"]), "perdido")
+
+    def test_sem_lotes_e_none(self):
+        self.assertIsNone(radar.resumo_dos_lotes([], self.CASA))
+        self.assertEqual(radar.frase_dos_lotes(None), "")
+        self.assertEqual(radar.lotes_de({"lotes": "não é json"}), [])
+
+
+class TestLotesNoQuadroENaFicha(BaseTemporaria):
+    """A separação no fim: o cartão está no Ganho, os lotes perdidos
+    aparecem como cartão separado no Perdido. E a ficha tem o bloco."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        fases = {(radar._valor(f, "papel") or ""): f["id"] for f in radar.listar_fases()}
+        self.ganho, self.perdido = fases["ganho"], fases["perdido"]
+        with radar.liga() as c:
+            # com texto e detalhe lido: sem texto a ficha ia ao DR buscar o
+            # detalhe (e a captura verdadeira existe na pasta), e o que
+            # voltava escrevia por cima dos lotes de ensaio
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, url, "
+                      "estado, fase_id, lotes, texto, detalhe_lido) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?,1)",
+                      ("1947/2026", "Servidor de terminologias", "SPMS", "2026-02-01",
+                       "Anúncio de procedimento", "https://dr/1947", "interessa", self.ganho,
+                       json.dumps(TestResumoDosLotes.LOTES),
+                       "1 - IDENTIFICAÇÃO E CONTACTOS DA ENTIDADE ADJUDICANTE\n"
+                       "Designação da entidade adjudicante: SPMS\n"
+                       "Procedimento com lotes? Sim\n"))
+            for i, l in enumerate(TestResumoDosLotes.CASA, 1):
+                c.execute("INSERT INTO casa (id, nome, ref, lote, status, zoho_fase, "
+                          "valor_proposta, lugar, resultado) VALUES (?,?,?,?,?,?,?,?,?)",
+                          (i, "Pilar 4 - L%d" % l["lote"], "1947/2026", l["lote"], l["status"],
+                           l["zoho_fase"], l["valor_proposta"], l["lugar"], "guardado"))
+
+    def coluna(self, html_, fase_id):
+        return html_.split("data-fase='%d'>" % fase_id)[1].split("</div></div>")[0]
+
+    def test_o_cartao_diz_a_que_lotes_fomos_e_o_fim_separa(self):
+        html_ = self.cliente.get("/quadro").get_data(as_text=True)
+        ganho = self.coluna(html_, self.ganho)
+        self.assertIn("id='c-1947-2026'", ganho)
+        self.assertIn("fomos a todos os 3 lotes", ganho)
+        self.assertIn("L2 ganho", ganho)
+        self.assertIn("L1 perdido", ganho)          # o cartão principal diz tudo
+        perdido = self.coluna(html_, self.perdido)
+        self.assertIn("id='c-1947-2026-perdido'", perdido)
+        self.assertIn("2 lotes perdidos", perdido)
+        self.assertIn("L1 perdido", perdido)
+        self.assertIn("L3 perdido", perdido)
+        self.assertNotIn("L2 ganho", perdido)
+        self.assertIn("draggable='false'", perdido)
+        # e no Ganho não há cartão separado (não há lote ganho fora dele)
+        self.assertNotIn("id='c-1947-2026-ganho'", ganho)
+
+    def test_o_redesenho_depois_de_arrastar_leva_os_lotes(self):
+        carta, _ = radar.carta_e_contas("1947/2026", {self.ganho})
+        self.assertIn("carta-lotes", carta)
+        self.assertIn("L2 ganho", carta)
+
+    def test_a_ficha_tem_o_bloco_e_o_indice(self):
+        html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
+        self.assertIn("id='lotes'", html_)
+        self.assertIn("<a href='#lotes'>Lotes</a>", html_)
+        bloco = html_.split("id='lotes'")[1].split("</table>")[0]
+        self.assertIn("Fomos a todos os 3 lotes", bloco)
+        self.assertIn("436.262,40 EUR", bloco)
+        self.assertIn("ganho", bloco)
+        self.assertIn("1º lugar", bloco)
+        self.assertIn("proposta", bloco)
+
+    def test_sem_registo_da_casa_a_ficha_diz_o(self):
+        with radar.liga() as c:
+            c.execute("DELETE FROM casa")
+        html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
+        self.assertIn("sem registo de a que fomos", html_)
+        self.assertNotIn("<th>A casa</th>", html_)
+        # e no quadro nao ha separacao nenhuma
+        q = self.cliente.get("/quadro").get_data(as_text=True)
+        self.assertNotIn("c-1947-2026-perdido", q)
+        self.assertIn("3 lotes; sem registo", q)
+
+    def test_sem_lotes_nao_ha_bloco(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET lotes='' WHERE ref='1947/2026'")
+        html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
+        self.assertNotIn("id='lotes'", html_)
+        self.assertNotIn("href='#lotes'", html_)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

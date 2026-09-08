@@ -677,6 +677,36 @@ def lote_da_linha(linha, lotes):
     return None
 
 
+ESTADOS_DE_LOTE = ("ganho", "perdido", "submetido", "nao fomos")
+
+
+def estado_do_lote(linha):
+    """O estado de UMA linha da casa, como chave: 'ganho', 'perdido',
+    'submetido', 'nao fomos' ou '' quando o Excel nao diz nada de util
+    ("Cancelado", "TBD"). E o estado_efectivo() normalizado -- por isso
+    uma linha de lote fica com o que o Excel diz, e o conjunto (lote 0)
+    aceita o Zoho."""
+    st = _norma(estado_efectivo(linha))
+    return st if st in ESTADOS_DE_LOTE else ""
+
+
+def linhas_de_lotes(c, refs):
+    """{ref: [linhas da casa com `lote` preenchido]} para varios anuncios
+    de uma vez -- o quadro pede pelas suas cartas todas, nao uma a uma."""
+    refs = [r for r in refs if r]
+    if not refs:
+        return {}
+    saida = {}
+    for i in range(0, len(refs), 400):
+        pedaco = refs[i:i + 400]
+        for r in c.execute(
+                "SELECT id, ref, lote, status, zoho_fase, valor_proposta, lugar, "
+                "nome, razao FROM casa WHERE lote IS NOT NULL AND ref IN (%s) "
+                "ORDER BY lote, id" % ",".join("?" * len(pedaco)), pedaco):
+            saida.setdefault(r["ref"], []).append(dict(r))
+    return saida
+
+
 def lotes_do_anuncio(c, ref):
     r = c.execute("SELECT lotes FROM anuncios WHERE ref=?", (ref,)).fetchone()
     try:

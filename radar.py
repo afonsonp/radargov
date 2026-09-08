@@ -1136,6 +1136,100 @@ def primeira_fase():
     return fases[0]["id"] if fases else None
 
 
+# Os lotes (decisao do Afonso a 02/09/2026, desenhada a 08/09/2026): "nos
+# anuncios diz se tem lotes; um cartao por anuncio, mas os cartoes que
+# tem lotes devem identificar a que lotes fomos e se fomos a todos, e no
+# final, perdido ou ganho, separam-se os cartoes". O anuncio traz os
+# lotes (`anuncios.lotes`, lidos por lotes_do_texto()); a que lotes se
+# foi, e com que resultado, so o registo da casa sabe (`casa.lote`:
+# >= 1 e um lote, 0 e o conjunto, NULL e por identificar).
+ESTADO_DO_LOTE = {"ganho": ("ganho", "ok"), "perdido": ("perdido", "mau"),
+                  "submetido": ("submetido", "info"),
+                  "nao fomos": ("não fomos", "")}
+
+
+def lotes_de(a):
+    """A lista de lotes de um anuncio, da coluna JSON. Vazia se nao tem."""
+    try:
+        return json.loads(_valor(a, "lotes") or "[]") or []
+    except ValueError:
+        return []
+
+
+def resumo_dos_lotes(lotes, linhas_casa=()):
+    """O que se sabe de cada lote, juntando o anuncio ao registo da casa.
+
+    Devolve {"lotes": [{n, id, descricao, preco_base, estado, rotulo,
+    classe, proposta, lugar}], "fomos": [n, ...], "conjunto": linha ou
+    None, "por_estado": {estado: [n, ...]}} -- ou None se o anuncio nao
+    tem lotes. Puro: nao le a base, para se poder testar com o caso
+    real do 1947/2026 (tres lotes, L1 perdido, L2 ganho, L3 perdido).
+    """
+    if not lotes:
+        return None
+    por_n = {}
+    conjunto = None
+    for linha in linhas_casa or ():
+        lote = linha.get("lote")
+        if lote == 0:
+            conjunto = linha
+        elif lote:
+            por_n.setdefault(int(lote), linha)
+    saida, fomos, por_estado = [], [], {}
+    for l in lotes:
+        n = int(l.get("n") or 0)
+        linha = por_n.get(n)
+        estado = casa.estado_do_lote(linha) if linha else ""
+        rotulo, classe = ESTADO_DO_LOTE.get(estado, ("", ""))
+        if linha:
+            fomos.append(n)
+            if estado:
+                por_estado.setdefault(estado, []).append(n)
+        saida.append({"n": n, "id": l.get("id") or "", "descricao": l.get("descricao") or "",
+                      "preco_base": l.get("preco_base") or "",
+                      "estado": estado, "rotulo": rotulo, "classe": classe,
+                      "proposta": (linha or {}).get("valor_proposta"),
+                      "lugar": (linha or {}).get("lugar")})
+    return {"lotes": saida, "fomos": fomos, "conjunto": conjunto,
+            "por_estado": por_estado}
+
+
+def frase_dos_lotes(resumo):
+    """A frase curta: "fomos a 3 dos 8 lotes", "fomos ao conjunto dos 2
+    lotes", "8 lotes; sem registo de a que fomos"."""
+    if not resumo:
+        return ""
+    total = len(resumo["lotes"])
+    if resumo["fomos"]:
+        if total == 1:
+            return "fomos ao único lote"
+        if len(resumo["fomos"]) == total:
+            return "fomos a todos os %d lotes" % total
+        return "fomos a %d dos %d lotes" % (len(resumo["fomos"]), total)
+    if resumo["conjunto"]:
+        return "fomos ao conjunto dos %d lotes" % total
+    return "%d lote%s; sem registo de a que fomos" % (total, "" if total == 1 else "s")
+
+
+def chips_dos_lotes(resumo, so_estado=None):
+    """Os lotes como etiquetas: "L1 perdido", "L2 ganho"... Com `so_estado`
+    so os desse estado (para o cartao separado do fim)."""
+    if not resumo:
+        return ""
+    pecas = []
+    for l in resumo["lotes"]:
+        if so_estado and l["estado"] != so_estado:
+            continue
+        if l["estado"]:
+            pecas.append("<span class='tag %s' title='%s'>L%d %s</span>"
+                         % (l["classe"], html.escape(l["descricao"][:120], quote=True),
+                            l["n"], l["rotulo"]))
+        elif not so_estado:
+            pecas.append("<span class='tag lote-fora' title='%s'>L%d</span>"
+                         % (html.escape(l["descricao"][:120], quote=True), l["n"]))
+    return "".join(pecas)
+
+
 # ------------------------------------------------------------- captura
 
 def carregar_curl(nome_base="curl_DR"):
@@ -7810,6 +7904,15 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .carta-titulo{font:700 13px/1.35 var(--sans);color:var(--azul);text-wrap:pretty;
  display:block}
 .carta-entidade{font:400 11.5px/1.35 var(--sans);color:var(--t4);margin-top:5px}
+/* Os lotes no cartao: a frase e as etiquetas, uma por lote a que se
+   foi. O cartao separado do fim (carta-lote) nao se arrasta. */
+.carta-lotes{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:7px}
+.carta-lotes .lotes-frase{font:500 10.5px/1.4 var(--sans);color:var(--t4);flex-basis:100%}
+.tag.lote-fora{color:var(--t5);background:transparent;border:1px dashed var(--traco)}
+.carta.carta-lote{cursor:default;background:var(--creme);border-style:dashed}
+.tab-lotes td.n{font:600 12px/1.4 var(--mono);white-space:nowrap}
+.tab-lotes td.s{white-space:nowrap}
+.tab-lotes .lote-prop{font:400 11.5px/1.4 var(--sans);color:var(--t4)}
 .carta-meta{display:flex;align-items:center;gap:9px;margin-top:9px;flex-wrap:wrap}
 .carta-preco{font:600 11.5px/1 var(--mono);color:var(--t2)}
 .carta-etq{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;align-items:center}
@@ -12895,6 +12998,69 @@ def prazo_de_esclarecimentos(data_pub, prazo):
     return pub + timedelta(days=dias // 3)
 
 
+def lotes_cx(a):
+    """O bloco dos lotes na ficha: os que o anuncio declara, com o preco
+    base de cada um, e -- quando o registo da casa os conhece -- a que
+    fomos, com que proposta, em que lugar e como acabou. Vazio quando o
+    procedimento nao tem lotes: um bloco a dizer "sem lotes" em 77% das
+    fichas era ruido."""
+    lotes = lotes_de(a)
+    if not lotes:
+        return ""
+    with liga() as c:
+        linhas_casa = casa.linhas_de_lotes(c, [a["ref"]]).get(a["ref"], ())
+    resumo = resumo_dos_lotes(lotes, linhas_casa)
+    ha_registo = bool(resumo["fomos"] or resumo["conjunto"])
+    corpo = []
+    for l in resumo["lotes"]:
+        if ha_registo:
+            if l["estado"]:
+                situacao = ("<span class='tag %s'>%s</span>%s%s"
+                            % (l["classe"], l["rotulo"],
+                               (" <span class='lote-prop'>proposta %s</span>"
+                                % html.escape(_texto_do_preco(l["proposta"])))
+                               if l["proposta"] else "",
+                               (" <span class='lote-prop'>%dº lugar</span>" % int(l["lugar"]))
+                               if l["lugar"] else ""))
+            elif l["n"] in resumo["fomos"]:
+                situacao = "<span class='tag'>fomos, sem desfecho registado</span>"
+            elif resumo["conjunto"]:
+                situacao = "<span class='em-falta'>no conjunto</span>"
+            else:
+                situacao = "<span class='em-falta'>não fomos</span>"
+        else:
+            situacao = ""
+        corpo.append("<tr><td class='n'>L%d</td><td class='o'>%s</td>"
+                     "<td class='p'>%s</td>%s</tr>"
+                     % (l["n"], html.escape(l["descricao"] or l["id"] or "—"),
+                        html.escape(l["preco_base"] or "—"),
+                        ("<td class='s'>%s</td>" % situacao) if ha_registo else ""))
+    if resumo["conjunto"]:
+        conj = resumo["conjunto"]
+        estado = casa.estado_do_lote(conj)
+        rotulo, classe = ESTADO_DO_LOTE.get(estado, ("sem desfecho registado", ""))
+        nota_conj = ("<div class='nota' style='margin-top:10px'>O registo da casa "
+                     "tem uma linha para o <b>conjunto</b> dos lotes, não lote a "
+                     "lote: <span class='tag %s'>%s</span>%s</div>"
+                     % (classe, rotulo,
+                        (" proposta %s" % html.escape(_texto_do_preco(conj["valor_proposta"])))
+                        if conj.get("valor_proposta") else ""))
+    else:
+        nota_conj = ""
+    return ("<div class='cx lotes' id='lotes'><div class='rot'>Lotes</div>"
+            "<div class='nota' style='margin:6px 0 12px'>%s. %s</div>"
+            "<div class='mercado-tab'><table class='tab-mercado tab-lotes'><thead><tr>"
+            "<th>Lote</th><th>Descrição</th><th class='p'>Preço base</th>%s"
+            "</tr></thead><tbody>%s</tbody></table></div>%s</div>"
+            % (html.escape(frase_dos_lotes(resumo)[0].upper() + frase_dos_lotes(resumo)[1:]),
+               "O que se sabe de cada um vem do registo da casa (o Excel), "
+               "lote a lote." if ha_registo else
+               "Os lotes são os que o anúncio declara; a que fomos só o "
+               "registo da casa sabe, e ainda não tem esta linha.",
+               "<th>A casa</th>" if ha_registo else "",
+               "".join(corpo), nota_conj))
+
+
 def frase_dos_campos_em_falta(sem_valor):
     """A frase, por baixo do essencial, com os campos que nao tem valor,
     agrupados pela razao: [(razao, rotulo)] -> HTML, vazio se nao ha.
@@ -13840,11 +14006,13 @@ def ficha(ref):
     # se ha entrada no indice: um chip que salta para um bloco que nao
     # existe e a mesma mentira de um numero que abre outra lista.
     desfecho_html = desfecho_cx(a)
+    lotes_html = lotes_cx(a)
     args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
     args_com = dict(request.args.to_dict(), modo="completo")
     indice = ("<div class='ficha-indice'>"
               "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
               "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
+              "%s"
               "<a href='#pecas'>Peças</a>"
               "%s"
               "<a href='#mercado'>Mercado</a>"
@@ -13852,6 +14020,7 @@ def ficha(ref):
               "<span class='dir'>%s%s</span></div>"
               % ("on" if not completo else "", ref, urlencode(args_ess),
                  "on" if completo else "", ref, urlencode(args_com),
+                 "<a href='#lotes'>Lotes</a>" if lotes_html else "",
                  "<a href='#desfecho'>Desfecho</a>" if desfecho_html else "",
                  ("<span class='nota-modo'>%s</span>" % nota_modo)
                  if nota_modo else "", "".join(sair)))
@@ -14000,7 +14169,7 @@ def ficha(ref):
     # coluna da direita passaram a estar nesta, e o prazo, que era a
     # caixa preta, e agora um facto do cabecalho mais o chip do indice.
     conteudo = ("<div class='larg ficha-dossier'>" + cabeca + faixa_alteracao +
-                seccoes_html +
+                seccoes_html + lotes_html +
                 docs_cx +
                 desfecho_html +
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
@@ -14422,7 +14591,15 @@ def _campos_da_fase(a, papel):
     return ""
 
 
-def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
+def cartao(a, etiquetas_por_ref, urgente=None, papel="", lotes_por_ref=None):
+    # A linha dos lotes, quando o anuncio os tem: a que fomos e com que
+    # resultado, ou que nao ha registo. E a metade "identificar a que
+    # lotes fomos" da decisao; a outra metade, separar no fim, e o
+    # carta_de_lotes().
+    resumo = (lotes_por_ref or {}).get(a["ref"])
+    lotes_html = ("<div class='carta-lotes'><span class='lotes-frase'>%s</span>%s</div>"
+                  % (html.escape(frase_dos_lotes(resumo)), chips_dos_lotes(resumo))
+                  ) if resumo else ""
     if papel in FASES_COM_PROPOSTO and a["prazo"]:
         # A partir do "Submetido" o prazo ter passado e o estado normal:
         # a proposta foi entregue. A pilula vermelha "prazo expirado" e a
@@ -14474,7 +14651,7 @@ def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
     return (
         "<div class='carta' id='c-%s' draggable='true' data-ref='%s'>"
         "<a href='/anuncio/%s' class='carta-titulo'>%s</a>"
-        "<div class='carta-entidade'>%s</div>"
+        "<div class='carta-entidade'>%s</div>%s"
         "<div class='carta-meta'>%s%s</div>%s"
         "<div class='carta-etq'>%s"
         "<form class='etq-form' method='post' action='/quadro/etiqueta/%s/nova'>"
@@ -14484,7 +14661,7 @@ def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
         "</div>"
         % (ref_ancora, a["ref"], a["ref"],
            html.escape(corta(a["titulo"], 120)),
-           html.escape(a["entidade"]), preco_html, prazo_html,
+           html.escape(a["entidade"]), lotes_html, preco_html, prazo_html,
            _campos_da_fase(a, papel),
            etiquetas_html, a["ref"],
            # o botao repunha o estado em "por ver" e chamava-se "tirar do
@@ -14494,6 +14671,26 @@ def cartao(a, etiquetas_por_ref, urgente=None, papel=""):
                  confirmar="Isto tira a marca de interessa e devolve o "
                            "anúncio à lista dos por ver. Continuar?"),
            vai_calendario, dono))
+
+
+def carta_de_lotes(a, resumo, estado):
+    """O cartao separado do fim: os lotes deste anuncio que acabaram
+    no OUTRO estado terminal. Um anuncio com tres lotes, dois perdidos
+    e um ganho, tem o seu cartao numa coluna e este na outra -- e assim
+    que "no final se separam". Nao se arrasta e nao tem formularios: o
+    que manda e o registo da casa, lote a lote."""
+    ns = resumo["por_estado"].get(estado) or []
+    rotulo, _ = ESTADO_DO_LOTE[estado]
+    return (
+        "<div class='carta carta-lote' id='c-%s-%s' data-ref='%s' draggable='false'>"
+        "<a href='/anuncio/%s#lotes' class='carta-titulo'>%s</a>"
+        "<div class='carta-entidade'>%s</div>"
+        "<div class='carta-lotes'><span class='lotes-frase'>%s lote%s %s%s "
+        "&mdash; o cartão principal está na outra coluna</span>%s</div></div>"
+        % (a["ref"].replace("/", "-"), estado, a["ref"], a["ref"],
+           html.escape(corta(a["titulo"], 120)), html.escape(a["entidade"]),
+           len(ns), "" if len(ns) == 1 else "s", rotulo, "" if len(ns) == 1 else "s",
+           chips_dos_lotes(resumo, so_estado=estado)))
 
 
 def conta_da_coluna(itens, papel):
@@ -14545,7 +14742,12 @@ def carta_e_contas(ref, fases_tocadas):
                 itens, _valor(fases[fid], "papel") or "")
     papel = (_valor(fases[a["fase_id"]], "papel") or "") \
         if a and a["fase_id"] in fases else ""
-    carta = cartao(a, {ref: list(etiquetas)}, urgente, papel) if a else ""
+    lotes_por_ref = {}
+    if a and _valor(a, "lotes"):
+        with liga() as c:
+            linhas_casa = casa.linhas_de_lotes(c, [ref])
+        lotes_por_ref[ref] = resumo_dos_lotes(lotes_de(a), linhas_casa.get(ref, ()))
+    carta = cartao(a, {ref: list(etiquetas)}, urgente, papel, lotes_por_ref) if a else ""
     return carta, contas
 
 
@@ -14576,6 +14778,11 @@ def quadro():
             "ORDER BY data_pub DESC").fetchall()
         todas_etiquetas = c.execute("SELECT * FROM etiquetas ORDER BY nome").fetchall()
         pares = c.execute("SELECT * FROM anuncio_etiquetas").fetchall()
+        # os lotes: o que o anuncio declara, cruzado com o registo da casa
+        com_lotes = [a for a in cartas if _valor(a, "lotes")]
+        linhas_casa = casa.linhas_de_lotes(c, [a["ref"] for a in com_lotes])
+    lotes_por_ref = {a["ref"]: resumo_dos_lotes(lotes_de(a), linhas_casa.get(a["ref"], ()))
+                     for a in com_lotes}
 
     etiquetas_por_id = {e["id"]: e for e in todas_etiquetas}
     etiquetas_por_ref = {}
@@ -14588,12 +14795,32 @@ def quadro():
     for a in cartas:
         por_fase.setdefault(a["fase_id"], []).append(a)
 
+    # No fim, ganho ou perdido, os cartoes separam-se por lote: um
+    # anuncio cujo cartao esta no Ganho com um lote perdido ganha um
+    # cartao de lotes no Perdido, e vice-versa. So nas duas colunas
+    # terminais, e so a partir do registo da casa -- o quadro nao
+    # adivinha resultados.
+    fase_por_papel = {(_valor(f, "papel") or ""): f["id"] for f in fases}
+    separados = {}
+    for a in cartas:
+        resumo = lotes_por_ref.get(a["ref"])
+        if not resumo or not a["fase_id"]:
+            continue
+        papel_da_carta = next((_valor(f, "papel") or "" for f in fases
+                               if f["id"] == a["fase_id"]), "")
+        if papel_da_carta not in ("ganho", "perdido"):
+            continue
+        outro = "perdido" if papel_da_carta == "ganho" else "ganho"
+        if resumo["por_estado"].get(outro) and outro in fase_por_papel:
+            separados.setdefault(fase_por_papel[outro], []).append(
+                carta_de_lotes(a, resumo, outro))
+
     colunas = []
     for f in fases:
         itens = por_fase.get(f["id"], [])
         papel = _valor(f, "papel") or ""
-        corpo = "".join(cartao(a, etiquetas_por_ref, urgente, papel)
-                        for a in itens) or \
+        corpo = ("".join(cartao(a, etiquetas_por_ref, urgente, papel, lotes_por_ref)
+                         for a in itens) + "".join(separados.get(f["id"], []))) or \
             "<div class='coluna-vazia'>sem cartões, arrasta um para aqui</div>"
         # B11: o valor da fase ao lado da contagem, como o kanban da
         # SpotGov. So os precos lidos contam, e o title di-lo. A partir
