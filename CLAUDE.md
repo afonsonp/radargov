@@ -90,17 +90,20 @@ python radar.py --casa-ligar ID REF  # liga à mão uma linha do Excel a um anú
 python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
 ```
 
-As tarefas do Windows são três (`agendar.bat`): as duas verificações
+As tarefas agendadas são três (`agendar.sh`): as duas verificações
 diárias e a do corpus, à segunda. **Se faltarem, o radar só recolhe com
 o painel aberto** — e o relógio interno recupera os slots falhados, o
 que faz a tabela `slots` parecer certa. O painel avisa a vermelho.
-Em **Linux** (desde 8/09/2026) o mesmo papel é de temporizadores do
-systemd na sessão do utilizador (`agendar.sh`: `radar-09h.timer`,
-`radar-17h.timer`, `radar-contratos.timer`), mais o painel como
-serviço sempre a correr (`radar-painel.service`, que arranca o
-`radar.py --sem-browser`). O aviso vermelho lê `systemctl --user
-list-timers` e procura esses dois nomes — mudar um nome no `agendar.sh`
-sem mudar `TAREFAS_LINUX` cega o aviso.
+Desde 8/09/2026 o radar corre em **Ubuntu**, em `~/Desktop/radar`, e
+as tarefas são temporizadores do systemd na sessão do utilizador
+(`radar-09h.timer`, `radar-17h.timer`, `radar-contratos.timer`), mais
+o painel como serviço sempre a correr (`radar-painel.service`, que
+arranca o `radar.py --sem-browser`). O aviso vermelho lê `systemctl
+--user list-timers` e procura esses dois nomes — mudar um nome no
+`agendar.sh` sem mudar `TAREFAS_LINUX` cega o aviso. No Windows o
+papel era das tarefas do Agendador (`schtasks`); o `radar.py` ainda
+sabe criá-las e vigiá-las, porque esse ramo do código não custa nada
+e tem testes.
 
 Testes — sem rede e sem tocar na base verdadeira; correm em poucos
 segundos (os do B15 criam repositórios git temporários):
@@ -116,28 +119,45 @@ Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
 pymupdf, e a pasta não traz o `python/` embutido do Windows. O hook dos
 testes já escolhe o `.venv` sozinho.
 
-Os `.bat` são atalhos para o Afonso, não para desenvolvimento:
-`instalar.bat` (pip), `iniciar.bat` (painel), `verificar.bat` (`--uma-vez`),
-`agendar.bat` (cria as três tarefas), `reler.bat` (`--reler`),
-`contratos.bat` (o que a tarefa semanal corre), `detalhes.bat`
-(`--detalhes tudo`, ~3 h), `ensaio.bat` (ensaio-de-leitura),
-`historico.bat` (gitk), `desinstalar.bat` (tira as tarefas agendadas),
-`actualizar.bat` (traz a última release do GitHub — ver a secção Git),
-`publicar_dados.bat` / `trazer_dados.bat` (levam o `radar.db` de um
-computador para outro pela release "dados" — ver a secção Git).
-Todos passam pelo `_python.bat`, que escolhe o
-Python da pasta se existir.
+Os `.sh` são atalhos para o Afonso, não para desenvolvimento:
+`instalar.sh` (cria o `.venv` e instala o `requirements.txt`),
+`iniciar.sh` (painel; recusa-se a abrir um segundo se o serviço já
+estiver a correr), `verificar.sh` (`--uma-vez`), `agendar.sh` (cria os
+temporizadores e o serviço do painel), `desinstalar.sh` (tira-os),
+`reler.sh` (`--reler`), `contratos.sh` (o que a tarefa semanal corre),
+`detalhes.sh` (`--detalhes tudo`, ~3 h), `ensaio.sh`
+(ensaio-de-leitura), `historico.sh` (gitk), `medir.sh`
+(`medir_captura.py`, a medição do token das capturas),
+`actualizar.sh` (traz a última release do GitHub e reinicia o serviço
+— ver a secção Git), `publicar_dados.sh` / `trazer_dados.sh` (levam o
+`radar.db` de um computador para outro pela release "dados" — ver a
+secção Git), e `tunel.sh` (um endereço público temporário para o
+painel — ver «Acesso de fora», em baixo). Todos passam pelo
+`_python.sh`, que escolhe o `.venv` se existir. Um `.sh` novo entra
+com o exec bit no git (`git update-index --chmod=+x`), porque o
+`core.filemode` esteve a `false` no disco NTFS de onde isto veio.
 
-**Em Linux cada `.bat` tem o seu `.sh` com o mesmo nome** (8/09/2026),
-e mais nenhum: `instalar.sh` cria o `.venv` e instala o
-`requirements.txt`; `agendar.sh` cria os temporizadores e o serviço do
-painel (`desinstalar.sh` tira-os); `iniciar.sh` recusa-se a abrir um
-segundo painel se o serviço já estiver a correr; `actualizar.sh`
-reinstala dependências e reinicia o serviço depois do `--ff-only`.
-Todos passam pelo `_python.sh`, que escolhe o `.venv` se existir.
-Um `.sh` novo entra com o exec bit no git (`git update-index
---chmod=+x`), porque o disco é NTFS e o `core.filemode` está a
-`false`.
+**Os `.bat` do Windows saíram a 8/09/2026** (commit «Saem os .bat»):
+a pen do Windows deixou de ser onde o radar corre, e dezanove atalhos
+mortos à raiz eram só ruído. Estão no histórico do git se o Windows
+voltar; o `radar.py` continua a saber falar de `schtasks` e de
+`agendar.bat` no ramo do Windows, e os testes disso ficaram.
+
+### Acesso de fora
+
+O painel atende só em `127.0.0.1` e **não tem login** — é a etapa 1
+do `docs/historico/ONLINE.md`, por fazer. Para mostrar o painel a
+alguém que não está neste computador, sem instalar nada do lado de
+lá, há o **`tunel.sh`** (8/09/2026): um *quick tunnel* da Cloudflare,
+que dá um endereço `https://….trycloudflare.com` aleatório, válido só
+enquanto o script corre, sem conta, sem domínio e sem abrir portas
+no router. O `cloudflared` descarrega-se para `.venv/bin/` na
+primeira vez, com confirmação. É para testar e mostrar; **não é o
+acesso permanente** — esse espera pelo login, e depois por um túnel
+com nome (ou Cloudflare Access à frente) ou por um VPS. Quem tiver o
+endereço vê e mexe em tudo, e o `radar.py` não sabe do endereço
+público: os links do e-mail continuam a dizer `127.0.0.1:8765`
+(`endereco_publico` do plano, por fazer).
 
 ## Arquitectura
 
@@ -352,9 +372,9 @@ primeiro, fazer o merge do PR. A pen deixou de ser onde se escreve
 mexer em dados (`config.json`, a triagem), e para trabalho de
 infra-estrutura pontual como este.
 
-**A pen actualiza-se por release, não por commit.** Nunca segue o
+**A instalação actualiza-se por release, não por commit.** Nunca segue o
 `master` a cada merge — só avança quando há uma tag `vX.Y.Z` publicada
-como GitHub Release, correndo **`actualizar.bat`**, que faz `git fetch
+como GitHub Release, correndo **`actualizar.sh`**, que faz `git fetch
 --tags` e um `git merge --ff-only` até à tag mais recente (recusa-se a
 avançar se isso não for uma simples fast-forward, para nunca misturar
 histórico). Cortar uma release é decisão do Afonso, feita depois de
@@ -369,8 +389,8 @@ inteiro, na verificação seguinte (09:00 ou 17:00), tenha a triagem
 mudado ou não. Um push falhado retoma sozinho (desliga-se com
 `"triagem_no_git": false`). Isso é sincronização de **dados**, não
 programação: continua automático e sem tocar em `radar.py`. A única
-coisa que passou a ser manual é a pen **trazer código novo** — isso só
-acontece quando o Afonso corre `actualizar.bat`.
+coisa que passou a ser manual é a instalação **trazer código novo** —
+isso só acontece quando o Afonso corre `actualizar.sh`.
 
 **As bases de dados não entram no histórico do git** — `radar.db` (1,3
 GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por
@@ -378,17 +398,17 @@ ficheiro que o GitHub recusa num push normal, e o Git LFS gratuito só
 dá 1 GB/mês, insuficiente para uma base que cresce duas vezes por dia.
 Para levar o `radar.db` de um computador para outro usa-se uma release
 à parte, **`dados`** (fora da numeração `vX.Y.Z` do código, para o
-`actualizar.bat` não a confundir com uma versão): `publicar_dados.bat`
+`actualizar.sh` não a confundir com uma versão): `publicar_dados.sh`
 sobe o `radar.db` como anexo dessa release (`gh release upload dados
---clobber`), `trazer_dados.bat` descarrega-o no computador novo. É
+--clobber`), `trazer_dados.sh` descarrega-o no computador novo. É
 manual e pontual — nunca corre nas verificações agendadas, que só
 mexem no `triagem.jsonl`. **O `contratos.db` não viaja**: com 2,5 GB
 excede mesmo o limite de anexo do GitHub (2 GB), e refaz-se em minutos
 com `python radar.py --contratos` a partir do dump público do IMPIC —
 não há razão para transportar o ficheiro.
 
-**Fins de linha:** o `.gitattributes` (8/09/2026) fixa LF em tudo e
-CRLF só nos `.bat`. Antes dele, a pasta escrita pelo Windows com
+**Fins de linha:** o `.gitattributes` (8/09/2026) fixa LF em tudo (e
+CRLF nos `.bat`, que já não existem). Antes dele, a pasta escrita pelo Windows com
 `autocrlf` aparecia em Ubuntu com 27 ficheiros «alterados» sem uma
 letra mudada. Se o `git status` mostrar o ficheiro inteiro a mudar,
 compara com `git diff --ignore-cr-at-eol` antes de acreditar.

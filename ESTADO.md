@@ -32,7 +32,8 @@ tarefas do Windows — ou, em Linux, por temporizadores do systemd.
 disco «Matriz», NTFS, que só é montado ao entrar na sessão gráfica —
 mudou-se nesse mesmo dia por isso): um `.venv`
 criado pelo `instalar.sh` faz de `python/` + `libs/`, cada `.bat` tem
-o seu `.sh`, e o `agendar.sh` cria os três temporizadores e o painel
+o seu `.sh` (e a 8/09/2026 os `.bat` saíram do repositório: a pen do
+Windows deixou de existir), e o `agendar.sh` cria os três temporizadores e o painel
 como serviço do utilizador. É o passo antes de este computador servir
 o radar para fora — o plano disso é o `docs/historico/ONLINE.md`, e
 ainda não está feito: continua a atender só em `127.0.0.1`, sem login.
@@ -234,8 +235,8 @@ contagens do painel têm de ir por índice de cobertura — ver a
 
 ## O que não corre sozinho, e é preciso saber
 
-- **As três tarefas do Windows** (`agendar.bat`) — em Linux, os
-  temporizadores do systemd do `agendar.sh` — são o que faz o radar
+- **Os três temporizadores do systemd** (`agendar.sh`; no Windows
+  eram tarefas do Agendador) são o que faz o radar
   verificar sem ninguém. Se faltarem, só recolhe com o painel aberto — e
   o relógio interno recupera os slots falhados, o que faz a tabela
   `slots` parecer certa. O painel avisa a vermelho nos dois sistemas
@@ -258,8 +259,8 @@ contagens do painel têm de ir por índice de cobertura — ver a
   `"triagem_no_git": false`.
 - **O repositório mudou a 07/09/2026**: agora é `afonsonp/Radar` (o
   `afonsonp/radarconcursos` foi apagado). A programação passou a
-  fazer-se nas sessões remotas do Claude Code; a pen só traz código
-  novo quando o Afonso corre `actualizar.bat`, e só até à última tag
+  fazer-se nas sessões remotas do Claude Code; a instalação só traz
+  código novo quando o Afonso corre `actualizar.sh`, e só até à última tag
   publicada como GitHub Release (`v1.0.1` agora) — nunca segue o
   `master` a cada merge. Ver a secção Git do `CLAUDE.md`.
 
