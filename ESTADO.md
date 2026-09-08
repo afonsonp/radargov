@@ -46,7 +46,7 @@ um túnel com nome da Cloudflare a correr como serviço
 atender só em `127.0.0.1`, e quem abre o domínio cai no `/entrar`.
 Os links do e-mail já dizem `radargov.pt` (`endereco_publico` no
 `config.json`). Falta a etapa 2 (configurações num menu, com a secção
-da conta). A bateria de testes — 760 — passa inteira no Python 3.14
+da conta). A bateria de testes — 766 — passa inteira no Python 3.14
 do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por

@@ -5448,7 +5448,9 @@ def verificar(cfg=None, passo=None):
         except (sqlite3.Error, OSError) as erro:
             print("aviso: os alertas falharam (%s)" % erro)
     if quantos_avisos:
-        mensagem += " &middot; %d para os alertas" % quantos_avisos
+        # o ponto e o caracter, nao a entidade: a mensagem passa por
+        # html.escape() na barra lateral e "&middot;" saia escrito
+        mensagem += " · %d para os alertas" % quantos_avisos
 
     marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
     marca("ultima_mensagem", mensagem)
@@ -7417,6 +7419,25 @@ details.arvore[open]>summary::before{content:'\25BE'}
  font:400 12px/1.5 var(--sans);color:var(--t4)}
 .linha-conta a{margin-left:auto;color:var(--t4)}
 .linha-conta a:hover{color:var(--ink)}
+.linha-conta .teclas{font:500 11px/1 var(--mono);color:var(--t5);
+ border:1px solid var(--linha);border-radius:4px;padding:3px 6px;cursor:help}
+/* O anuncio focado pelo teclado (j/k). So o teclado o poe: o rato
+   continua a ler sem contornos. */
+.item.foco{border-color:var(--azul);box-shadow:0 0 0 2px var(--azul-borda)}
+/* Os tres blocos de filtro dentro de um <details>, recolhidos por
+   omissao. A summary tem o resumo do filtro em uso; o resto vive
+   igual la dentro. */
+details.painel-filtros{margin-bottom:10px}
+details.painel-filtros>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
+ list-style:none;padding:9px 12px;background:var(--creme);border:1px solid var(--linha);
+ border-radius:8px;min-height:24px}
+details.painel-filtros[open]>summary{margin-bottom:8px}
+details.painel-filtros>summary::-webkit-details-marker{display:none}
+details.painel-filtros>summary::before{content:'\25B8';font:500 11px/1 var(--mono);color:var(--t3)}
+details.painel-filtros[open]>summary::before{content:'\25BE'}
+details.painel-filtros .pf-tit{font:700 11px/1 var(--sans);color:var(--t2);
+ text-transform:uppercase;letter-spacing:.07em}
+details.painel-filtros .pf-sub{font:400 12px/1.4 var(--sans);color:var(--t4)}
 .paginas{display:flex;align-items:center;justify-content:center;gap:5px;
  flex-wrap:wrap;margin-top:16px}
 .paginas a,.paginas b,.paginas span{min-width:32px;padding:7px 10px;
@@ -7628,6 +7649,9 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .numerados li b{display:block;font-weight:600;color:var(--ink)}
 .numerados li span{display:block;text-wrap:pretty;max-width:88ch}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
+.em-falta-frase{margin:0;padding:12px 22px 16px;border-top:1px solid var(--linha2);
+ font:400 12.5px/1.6 var(--sans);color:var(--t4)}
+.em-falta-frase b{font-weight:600;color:var(--t3)}
 .nota-campo{display:block;margin-top:3px;font:400 11.5px/1.45 var(--sans);
  color:var(--t5)}
 .a-trazer{color:var(--azul)}
@@ -8323,6 +8347,53 @@ LISTA_JS = """<script>
     try { sessionStorage.removeItem(chave); } catch (x) {}
     window.scrollTo(0, parseInt(guardado, 10) || 0);
   }
+})();
+// O painel dos filtros lembra-se de ter ficado aberto: quem abriu os
+// filtros uma vez quer encontra-los abertos, e quem nunca abriu nao.
+(function () {
+  var d = document.getElementById('painel-filtros');
+  if (!d) return;
+  var chave = 'radar-filtros-abertos';
+  try { if (localStorage.getItem(chave) === '1') d.open = true; } catch (x) {}
+  d.addEventListener('toggle', function () {
+    try { localStorage.setItem(chave, d.open ? '1' : '0'); } catch (x) {}
+  });
+})();
+// Teclado na lista (UX-Auditoria, Parkinson): j/k anuncio seguinte e
+// anterior, i interessa, a abandonar (abre a caixa do motivo), Enter
+// abre a ficha. Triar vinte cartoes era vinte vezes levar o rato a dois
+// botoes de 25px no canto direito de cada um. Nada disto dispara com o
+// foco num campo de texto.
+(function () {
+  var itens = Array.prototype.slice.call(document.querySelectorAll('.item'));
+  if (!itens.length) return;
+  var i = -1;
+  function foca(n) {
+    if (i >= 0) itens[i].classList.remove('foco');
+    i = Math.max(0, Math.min(itens.length - 1, n));
+    itens[i].classList.add('foco');
+    itens[i].scrollIntoView({block: 'nearest'});
+  }
+  function accao(selector) {
+    if (i < 0) return;
+    var f = itens[i].querySelector(selector);
+    if (f) f.requestSubmit();
+  }
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+              t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.querySelector('dialog[open]')) return;
+    if (e.key === 'j') { foca(i + 1); e.preventDefault(); }
+    else if (e.key === 'k') { foca(i - 1); e.preventDefault(); }
+    else if (e.key === 'i') { accao("form.accao[action$='/interessa']"); }
+    else if (e.key === 'a') { accao('form.abandonar-js'); }
+    else if (e.key === 'Enter' && i >= 0) {
+      var a = itens[i].querySelector('.item-titulo');
+      if (a) location.href = a.href;
+    }
+  });
 })();
 </script>"""
 
@@ -9134,11 +9205,28 @@ def _lista_de_anuncios():
     qs = request.query_string.decode()
     qs_csv = (qs + "&" if qs else "") + urlencode({"ambito": "anuncios"})
 
+    # Os tres blocos de filtro (campos, arvore, guardados) recolhidos
+    # por omissao (UX-Auditoria, Hick/Tesler, decisao do Afonso a
+    # 8/09/2026): a lista abria com 60% do ecra em filtros e 42 alvos
+    # antes do primeiro anuncio, e a triagem e "ler o cartao, decidir".
+    # Abrem sozinhos quando ha filtro aplicado; o resumo fica na linha.
+    # O JS lembra-se de ter ficado aberto (localStorage).
+    ha_filtro = filtro_em_uso != "estado=" + estado_actual
+    painel_filtros = (
+        "<details class='painel-filtros' id='painel-filtros'%s><summary>"
+        "<span class='pf-tit'>Filtros</span>"
+        "<span class='pf-sub'>%s</span></summary>"
+        "%s</details>"
+        % (" open" if ha_filtro else "",
+           html.escape(resumo_filtro(filtro_em_uso, "anuncios")),
+           filtros + faixa_cpv + arvore + caixa_guardados))
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
-                faixa_interesse + filtros + faixa_cpv + arvore +
-                caixa_guardados +
-                "<div class='linha-conta'>" + conta +
+                faixa_interesse + painel_filtros +
+                "<div class='linha-conta'><span class='teclas' "
+                "title='j/k: anúncio seguinte/anterior · i: interessa · "
+                "a: abandonar · Enter: abrir a ficha'>j k i a &#9166;</span>"
+                + conta +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
                 # ao "1-20" e exportava as 66 mil sem avisar
                 "<a href='/csv?%s'>exportar as %s linhas (CSV)</a></div>"
@@ -12292,6 +12380,31 @@ def prazo_de_esclarecimentos(data_pub, prazo):
     return pub + timedelta(days=dias // 3)
 
 
+def frase_dos_campos_em_falta(sem_valor):
+    """A frase, por baixo do essencial, com os campos que nao tem valor,
+    agrupados pela razao: [(razao, rotulo)] -> HTML, vazio se nao ha.
+
+    Mantem a ordem em que as razoes aparecem e a dos campos dentro de
+    cada uma, para a leitura ser a da tabela que substitui."""
+    if not sem_valor:
+        return ""
+    grupos = []
+    for razao, rotulo in sem_valor:
+        for g in grupos:
+            if g[0] == razao:
+                g[1].append(rotulo)
+                break
+        else:
+            grupos.append((razao, [rotulo]))
+    partes = ["<b>%s</b>: %s" % (html.escape(razao),
+                                 ", ".join(html.escape(r) for r in rotulos))
+              for razao, rotulos in grupos]
+    n = len(sem_valor)
+    return ("<p class='em-falta-frase'>%d campo%s sem valor aqui &mdash; %s. "
+            "<a href='#pecas'>Peças</a></p>"
+            % (n, "" if n == 1 else "s", "; ".join(partes)))
+
+
 def essencial_do_anuncio(a, seccoes, analise=None):
     """[(rotulo, valor, em_falta, nota)] com o essencial para decidir.
 
@@ -13130,20 +13243,26 @@ def ficha(ref):
     # de seccoes numeradas, e a maior parte do anuncio e burocracia.
     if seccoes and not completo:
         linhas_ess = []
+        # As linhas sem valor saem da tabela para uma frase por baixo
+        # (UX-Auditoria, Miller/Pragnanz, decisao do Afonso a 8/09/2026):
+        # num "por ver" sem pecas lidas eram 8 linhas em 12 a dizer "so
+        # consta das pecas", e o bloco mais rapido de ler era o que tinha
+        # mais linhas sem conteudo. Agrupam-se por razao, para a frase
+        # continuar a dizer ONDE cada campo esta.
+        sem_valor = []
         for rotulo, valor, em_falta, nota in essencial_do_anuncio(
                 a, seccoes, analise_de(ref)):
-            if em_falta:
-                celula = "<span class='em-falta'>%s</span>" % html.escape(em_falta)
-            elif valor:
-                celula = desenha_valor(valor)
-                if nota:
-                    celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
-            else:
-                celula = "<span class='em-falta'>o anúncio não indica</span>"
+            if em_falta or not valor:
+                sem_valor.append((em_falta or "o anúncio não indica", rotulo))
+                continue
+            celula = desenha_valor(valor)
+            if nota:
+                celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
             linhas_ess.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
                               % (html.escape(rotulo), celula))
-        seccoes_html = ("<div class='cx essencial'><dl>%s</dl></div>"
-                        % "".join(linhas_ess))
+        seccoes_html = ("<div class='cx essencial'><dl>%s</dl>%s</div>"
+                        % ("".join(linhas_ess),
+                           frase_dos_campos_em_falta(sem_valor)))
         nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
     elif seccoes:
         blocos = []
