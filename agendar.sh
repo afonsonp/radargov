@@ -8,7 +8,12 @@
 #
 #   radar-09h.timer / radar-17h.timer  -> radar-verificar.service (verificar.sh)
 #   radar-contratos.timer              -> radar-contratos.service (contratos.sh)
-#   radar-painel.service               -> iniciar.sh --sem-browser
+#   radar-painel.service               -> .venv/bin/python radar.py --sem-browser
+#
+# O servico do painel chama o radar.py directamente, nao o iniciar.sh:
+# o iniciar.sh pergunta ao systemd se o servico esta activo, e visto de
+# dentro do proprio servico a resposta e sim -- saia com "ja esta a
+# correr" sem abrir nada (8/09/2026, na primeira instalacao a serio).
 #
 # Sem as verificações, o radar só recolhe com o painel aberto -- e o
 # relógio interno recupera os slots falhados, o que faz parecer que
@@ -84,7 +89,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=$AQUI
-ExecStart=$AQUI/iniciar.sh --sem-browser
+ExecStart=$AQUI/.venv/bin/python $AQUI/radar.py --sem-browser
 Restart=on-failure
 RestartSec=10
 

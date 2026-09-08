@@ -1129,7 +1129,10 @@ Nada espera dentro do pedido do browser.
   sistemas, o sistema desconhecido (devolve vazio sem chamar nada) e o
   comando a rebentar (vazio: não se inventa aviso). O painel como
   serviço arranca com `--sem-browser`, senão cada reinício abria um
-  separador na sessão gráfica.
+  separador na sessão gráfica — e arranca o `radar.py` directamente,
+  não o `iniciar.sh`: este pergunta ao systemd se o serviço está
+  activo, e de dentro do serviço a resposta é sim; saía em 44 ms com
+  «já está a correr» e o painel nunca subia.
 
 
 ---
