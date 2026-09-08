@@ -18,14 +18,14 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 4
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 10
-- [O registo da casa](#o-registo-da-casa) &middot; 1
+- [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 5
 - [Contas e a porta](#contas-e-a-porta) &middot; 5
 - [A interface](#a-interface) &middot; 11
 - [Convenções](#convencoes) &middot; 2
 
-São 106 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São 107 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham.
@@ -931,7 +931,28 @@ O funil da casa, do «por ver» ao «ganho».
 
 ## O registo da casa
 
-O Excel de análise de concursos, em `casa.py`.
+O registo da casa, em `casa.py`: desde 8/09/2026 pelo modelo do radar;
+o leitor do Excel antigo fica lá, sem comando.
+
+- **O modelo é do radar, e a chave é a referência do DR.** Decisão do
+  Afonso a 8/09/2026: em vez de adivinhar a que anúncio pertence uma
+  linha do Excel antigo (nome, entidade, preço, um pedido ao DR para
+  desempatar), o `.xlsx` sai de `casa.escrever_modelo()` com a coluna
+  «Referência do anúncio», e uma linha sem anúncio é um **erro do
+  ensaio**, não um palpite. `ler_modelo()` só normaliza (`ref_limpa()`
+  aceita `1947/2026`, `1947-2026`, com espaços); `ensaio_modelo()` cruza
+  com a base sem gravar; `aplicar_modelo()` grava em `casa` com
+  `folha='modelo'` e chama o `aplicar()` de sempre com a **melhor** linha
+  do anúncio (ganho › submetido › perdido › não fomos) — um lote ganho
+  põe o cartão no Ganho e a separação do fim mostra os perdidos. O
+  ficheiro carregado guarda-se em `importacoes/` e a confirmação lê-o
+  outra vez pelo nome, **só o nome** (`_nome_de_importacao()` recusa
+  caminhos): um `ficheiro=../radar.db` não passa. Uma razão já canónica
+  («Falta de CV's») fica como está no `estado_pretendido()`: o
+  `MAPA_RAZAO` é para as variantes do Excel antigo, e a primeira versão
+  perdia o motivo por o passar pelo mapa. `--importar-excel` e
+  `--casa-ligar` saíram; `--casa-desfazer` (repor a triagem de uma
+  cópia) ficou, porque serve para qualquer importação.
 
 - **O registo da casa vive em `casa.py`** — o primeiro módulo fora do
   `radar.py` (02/09/2026), e a regra para os próximos: o módulo novo

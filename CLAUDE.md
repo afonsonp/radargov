@@ -85,9 +85,8 @@ python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
-python radar.py --importar-excel F [--ensaio] [--sem-rede] [--com-triagem] # o Excel da casa (casa.py); sem --com-triagem só guarda e liga
-python radar.py --casa-ligar ID REF  # liga à mão uma linha do Excel a um anúncio
 python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
+python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
 python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pede a palavra-passe por getpass
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
@@ -253,7 +252,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 106 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
+São 107 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

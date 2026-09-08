@@ -639,44 +639,46 @@ nota por baixo), mas continua no quadro.
 
 ## 11. O registo da casa
 
-O teu Excel de análise de concursos entra no radar por comando, com o
-ficheiro onde ele estiver, e fica guardado na base ligado aos anúncios
-do DR. **Por agora não se vê no painel**: decidiste que nada muda no
-ecrã antes de o registo estar validado, linha a linha, e antes de os
-lotes terem solução (o Excel tem uma linha por lote, o DR um anúncio
-para todos).
+O «registo da casa» é o que a empresa fez com cada concurso: se foi,
+com que proposta, em que lugar ficou, quem eram os concorrentes. Desde
+8/09/2026 entra **pelo modelo do radar**, em **Configurações › Importar
+dados**, em três passos:
 
+1. **Descarregar o modelo.** Um Excel vazio com as colunas que o radar
+   precisa: referência do anúncio no DR (ex. `1947/2026`, tal como a
+   ficha a mostra — é o que liga a linha ao anúncio, sem adivinhar),
+   lote (só quando o concurso tem lotes e a linha é de um), estado (Não
+   fomos, Submetido, Ganho, Perdido — lista de escolha), razão de não
+   participação, valor da proposta, lugar, concorrentes (separados por
+   `;`), responsável e notas. A folha «Instruções» explica cada coluna
+   e tem um exemplo. Uma linha por concurso, ou por lote.
+2. **Carregar o ficheiro preenchido.** O radar mostra um **ensaio**:
+   linha a linha, a que anúncio liga, e o que não liga e porquê —
+   referência que não existe, republicação em vez do anúncio original,
+   lote que o anúncio não tem, estado fora da lista, linha repetida.
+   Nada é gravado nesta altura.
+3. **Confirmar.** As linhas sem erro entram no registo e **escrevem a
+   triagem**: «Não fomos» abandona o anúncio com a razão como motivo;
+   Submetido, Ganho e Perdido marcam interessa e põem o cartão na fase
+   certa, com a proposta e o lugar. Um concurso com lotes fica no
+   melhor estado dos seus lotes (ganhámos um, o cartão está no Ganho) e
+   a separação faz-se no fim do quadro (§9). O responsável fica no
+   anúncio. Uma linha repetida (mesma referência e lote) substitui a
+   anterior, por isso corrigir é preencher outra vez e voltar a
+   carregar.
+
+Os ficheiros carregados ficam em `importacoes/`, fora do git.
+
+O Excel antigo de análise de concursos (`Analise_Concursos_Publicos.xlsm`)
+**deixou de contar para a aplicação**, por decisão tua a 8/09/2026:
+fica nos documentos, e o que o radar tinha lido dele saiu com o estado
+zero desse dia. Para repor a aplicação como acabada de instalar — sem
+perder os anúncios — há o comando, que faz cópia antes e pede
+confirmação:
+
+```bash
+.venv/bin/python radar.py --estado-zero
 ```
-python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm" --ensaio
-python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm"
-python radar.py --casa-ligar 94 4284/2026
-python radar.py --casa-ligar 56 nenhum "consulta prévia"
-```
-
-Com `--ensaio` calcula tudo e não grava nada. Sem caminho, repete o da
-última vez. O Excel **nunca é alterado**: o radar só o lê. E a
-importação **não toca na triagem nem no quadro**: guarda e liga, e é
-tudo; aplicar a triagem é um passo à parte, para quando disseres.
-
-O que a importação faz com cada linha:
-
-- **Liga-a ao anúncio do DR** pelo nome do concurso e pela entidade,
-  pelo valor do 1.º lugar cruzado com o contrato celebrado no BASE, e,
-  quando fica na dúvida entre vários, vai ler o detalhe desses ao DR
-  para o preço base desempatar. O que ficar por ligar liga-se com
-  `--casa-ligar`, com o número da linha do Excel e a referência do
-  anúncio. Uma ligação feita à mão fica para sempre.
-- **Guarda o que o radar não tem**: quem concorreu e a quanto, os
-  perfis exigidos como os registaste, os preços por perfil e por
-  concorrente, o EBITDA, a razão de não participação e as notas.
-- **Sabe a que lote cada linha pertence.** O radar lê os lotes do
-  anúncio (o DR publica-os com o preço base de cada um) e, como no teu
-  Excel cada linha de um concurso com lotes traz o preço base do lote,
-  liga a linha ao lote certo. Quando o registo chegar ao quadro, a
-  regra é a que decidiste: um cartão por anúncio, que diz a que lotes
-  se foi; no fim, em Ganho ou Perdido, os cartões separam-se por lote.
-
-Entidades espanholas não entram, por decisão tua.
 
 ## 12. Histórico de alterações
 
@@ -804,7 +806,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 784 verificações em poucos segundos, sem tocar
+Corre os testes — 790 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

@@ -50,7 +50,7 @@ Configurações em `/configuracoes/<seccao>`, sete secções (interesse,
 alertas, recolha, leitura das peças, capturas, cópias, conta), com
 Alertas a sair da barra para lá. O plano `ONLINE.md` está feito por
 inteiro, pela via B (o PC de casa exposto por túnel). A bateria de
-testes — 784 — passa inteira no Python 3.14 do Ubuntu.
+testes — 790 — passa inteira no Python 3.14 do Ubuntu.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
@@ -165,7 +165,8 @@ da barra), o desenho visual «ardósia e âmbar», a ficha em dossier com o
 leitor de peças lá dentro, o quadro de seis fases, o calendário, os
 alertas por e-mail em texto e HTML, o corpus de contratos do Portal BASE
 com os sete gráficos, a exportação da triagem para o git, a segunda fonte
-(Vortal), e o registo da casa (o Excel de 187 concursos, 172 ligados).
+(Vortal), e o registo da casa — desde 8/09/2026 pelo **modelo Excel
+do radar**, em Configurações › Importar dados, com ensaio.
 
 **O funil fecha: a ficha diz como o anúncio acabou** (04/09/2026). O dump
 do IMPIC traz o número do anúncio do DR em `n_anuncio`, no mesmo formato
@@ -185,10 +186,26 @@ anos**, o que era hipótese com dois anos de dados e passou a facto com
 onze: o resto são procedimentos desertos, anulados, abaixo do limiar de
 publicação, ou linhas do dump sem `nAnuncio`.
 
-**O registo da casa não toca em nada.** Está na base desde 02/09/2026
-mas não se vê no painel nem mexe em nenhum destes números, por decisão
-dele: nada muda no front antes de o registo estar validado. Há um
-teste a guardá-lo (`test_o_front_nao_mudou`).
+**A 8/09/2026 a aplicação foi posta a zero, e o registo da casa
+mudou de fonte.** Decisão do Afonso: o Excel antigo
+(`Analise_Concursos_Publicos.xlsm`) deixa de contar para a aplicação —
+fica nos documentos, e o leitor dele fica no `casa.py` sem comando que
+o chame. Em vez disso **o radar dita o modelo**: um `.xlsx` gerado em
+Configurações › Importar dados (referência do anúncio, lote, estado,
+razão, proposta, lugar, concorrentes, responsável, notas, com listas
+de escolha), que se preenche, se carrega, se vê em ensaio e só depois
+se confirma; a confirmação escreve o registo (`casa.folha='modelo'`)
+**e a triagem** (`casa.aplicar()`, o anúncio fica no melhor estado dos
+seus lotes). O `--estado-zero` apagou a triagem (3 744 anúncios de
+volta a «por ver»), o quadro, as etiquetas, o histórico (24 443
+linhas), os filtros e alertas, as entidades seguidas, o interesse, o
+destino do resumo e as 187 linhas do Excel/Zoho; ficaram o acervo, as
+republicações, as peças, a conta, a recolha e quem envia o e-mail. A
+cópia de antes está em `copias/radar-antes-estado-zero-2026-09-08.db`.
+Os parágrafos que se seguem sobre o Excel e o Zoho são **história**:
+descrevem o que se aprendeu com a fonte antiga, e a regra do
+`estado_efectivo()` (o Zoho não decide um lote) continua a valer para
+o que o modelo traz.
 
 **O Zoho já está lido, e em coluna própria.** A 03/09/2026 leram-se
 pelo browser, na sessão dele, as **148 oportunidades** da vista dos

@@ -518,7 +518,10 @@ def estado_pretendido(linha, papeis):
     if st not in ESTADOS_COM_TRIAGEM:
         return None
     if st == "nao fomos":
-        motivo = MAPA_RAZAO.get(_norma(linha.get("razao")))
+        # a razao ja canonica (vem do modelo, ou e uma das do radar) fica
+        # como esta; o mapa e para as variantes do Excel antigo
+        razao = (linha.get("razao") or "").strip()
+        motivo = MAPA_RAZAO.get(_norma(razao)) or razao or None
         return ("descartado", None, {"motivo": motivo})
     campos = {}
     if linha.get("valor_proposta"):
@@ -1018,3 +1021,247 @@ def desaplicar_da_copia(copia):
                   "WHERE ref IS NOT NULL AND resultado != 'fora'")
     antes.close()
     return repostos, apagadas
+
+
+# ------------------------------------------ o modelo da casa (8/09/2026)
+#
+# Decisao do Afonso a 8/09/2026: em vez de o radar tentar perceber o
+# Excel antigo (Analise_Concursos_Publicos.xlsm, feito para outra coisa,
+# com folhas C_ e consolidadores VBA), **o radar dita o modelo**: um
+# .xlsx gerado aqui, com as colunas que a aplicacao precisa e listas de
+# escolha onde ha vocabulario, que o utilizador preenche e carrega em
+# Configuracoes > Importar dados, com ensaio antes de gravar. O leitor
+# do Excel antigo (ler_excel, importar, ligar_a_mao) fica acima, sem
+# comando que o chame: e historico, e os testes dele continuam a valer.
+#
+# A chave e a REFERENCIA DO ANUNCIO no DR ("1947/2026"), que a ficha
+# mostra: liga sem adivinhar, e uma linha sem anuncio e um erro que se
+# ve no ensaio, nao um palpite.
+
+COLUNAS_MODELO = (
+    ("Referência do anúncio", "ref"),
+    ("Lote", "lote"),
+    ("Estado", "status"),
+    ("Razão de não participação", "razao"),
+    ("Valor da proposta (€)", "valor_proposta"),
+    ("Lugar", "lugar"),
+    ("Concorrentes (separados por ;)", "concorrentes"),
+    ("Responsável", "responsavel"),
+    ("Notas", "notas"),
+)
+ESTADOS_MODELO = ("Não fomos", "Submetido", "Ganho", "Perdido")
+FOLHA_MODELO = "Registo"
+PASTA_IMPORTACOES = "importacoes"
+RX_REF = re.compile(r"^\s*(\d{1,6})\s*[/\-\s]\s*(\d{4})\s*$")
+
+
+def escrever_modelo(caminho):
+    """Gera o .xlsx vazio: a folha Registo com os cabecalhos e as listas
+    de escolha (Estado, Razao) ate a linha 500, e uma folha de
+    instrucoes com um exemplo. Devolve o caminho."""
+    import radar
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+    wb = Workbook()
+    ws = wb.active
+    ws.title = FOLHA_MODELO
+    larguras = (22, 8, 14, 28, 20, 8, 44, 18, 40)
+    for i, ((titulo, _), largura) in enumerate(zip(COLUNAS_MODELO, larguras), 1):
+        c = ws.cell(row=1, column=i, value=titulo)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="17557F")
+        c.alignment = Alignment(vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(i)].width = largura
+    ws.row_dimensions[1].height = 30
+    ws.freeze_panes = "A2"
+    dv_estado = DataValidation(type="list", formula1='"%s"' % ",".join(ESTADOS_MODELO),
+                               allow_blank=True, showErrorMessage=True,
+                               errorTitle="Estado", error="Escolhe um da lista.")
+    dv_razao = DataValidation(type="list",
+                              formula1='"%s"' % ",".join(radar.MOTIVOS_ABANDONO),
+                              allow_blank=True, showErrorMessage=False)
+    ws.add_data_validation(dv_estado)
+    ws.add_data_validation(dv_razao)
+    dv_estado.add("C2:C500")
+    dv_razao.add("D2:D500")
+    inst = wb.create_sheet("Instruções")
+    inst.column_dimensions["A"].width = 110
+    linhas = [
+        "Como preencher a folha «Registo» — uma linha por concurso, ou por lote quando o concurso tem lotes.",
+        "",
+        "Referência do anúncio: a referência do DR tal como a ficha do radar a mostra, ex. 1947/2026. É obrigatória e é o que liga a linha ao anúncio.",
+        "Lote: o número do lote (1, 2, 3…) quando o concurso tem lotes e a linha é de um lote. Vazio quando não há lotes ou quando se foi ao conjunto.",
+        "Estado: um da lista — Não fomos, Submetido, Ganho, Perdido.",
+        "Razão de não participação: só quando o estado é «Não fomos» — %s (ou outra, em texto livre)." % ", ".join(radar.MOTIVOS_ABANDONO),
+        "Valor da proposta (€): o que propusemos, em número (ex. 54432 ou 54432,50). Vazio se não fomos.",
+        "Lugar: a posição no relatório preliminar (1, 2, 3…). Vazio se ainda não há relatório.",
+        "Concorrentes: os nomes separados por ponto e vírgula, por ordem de classificação, ex. Empresa A; Empresa B; Empresa C.",
+        "Responsável: quem da casa acompanha este concurso (nome).",
+        "Notas: texto livre.",
+        "",
+        "Exemplo:  1947/2026 | 2 | Ganho |  | 169344 | 1 | Nós; Empresa B; Empresa C | Afonso | contrato de 24 meses",
+        "",
+        "Depois de preencher, carrega o ficheiro em Configurações › Importar dados. O radar mostra um ensaio (o que liga a que anúncio, o que não liga e porquê) e só grava quando confirmares.",
+        "Uma linha repetida (mesma referência e mesmo lote) substitui a anterior. Linhas com erro não entram; as outras entram.",
+    ]
+    for i, t in enumerate(linhas, 1):
+        inst.cell(row=i, column=1, value=t).alignment = Alignment(wrap_text=True, vertical="top")
+    inst.cell(row=1, column=1).font = Font(bold=True)
+    wb.save(caminho)
+    return caminho
+
+
+def ref_limpa(texto):
+    """"1947/2026", "1947-2026", " 1947 / 2026 " -> "1947/2026"; senao ''."""
+    m = RX_REF.match(str(texto or ""))
+    return "%s/%s" % (int(m.group(1)), m.group(2)) if m else ""
+
+
+def _celula(v):
+    if v is None:
+        return ""
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v).strip()
+
+
+def ler_modelo(caminho):
+    """Le o .xlsx preenchido: [{linha, ref, lote, status, razao,
+    valor_proposta, lugar, concorrentes, responsavel, notas, erros}].
+
+    Nao decide nada sobre a base -- isso e o ensaio_modelo(). Aqui so
+    se normaliza e se apontam os erros de forma: referencia ilegivel,
+    estado fora da lista, lote ou lugar que nao sao numeros."""
+    from openpyxl import load_workbook
+    wb = load_workbook(caminho, read_only=True, data_only=True)
+    ws = wb[FOLHA_MODELO] if FOLHA_MODELO in wb.sheetnames else wb.active
+    chaves = [c for _, c in COLUNAS_MODELO]
+    saida = []
+    for n, valores in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+        valores = list(valores or ())[:len(chaves)]
+        valores += [None] * (len(chaves) - len(valores))
+        bruto = dict(zip(chaves, valores))
+        if not any(_celula(v) for v in valores):
+            continue
+        erros = []
+        linha = {"linha": n, "erros": erros}
+        linha["ref"] = ref_limpa(bruto["ref"])
+        if not linha["ref"]:
+            erros.append("referência do anúncio ilegível (ex.: 1947/2026)")
+        lote_txt = _celula(bruto["lote"])
+        try:
+            linha["lote"] = int(float(lote_txt.replace(",", "."))) if lote_txt else None
+            if linha["lote"] is not None and linha["lote"] < 1:
+                erros.append("o lote tem de ser 1 ou mais")
+        except ValueError:
+            linha["lote"] = None
+            erros.append("lote «%s» não é um número" % lote_txt)
+        estado = _celula(bruto["status"])
+        por_norma = {_norma(e): e for e in ESTADOS_MODELO}
+        linha["status"] = por_norma.get(_norma(estado), "")
+        if not linha["status"]:
+            erros.append("estado «%s» não está na lista (%s)"
+                         % (estado, ", ".join(ESTADOS_MODELO)))
+        razao = _celula(bruto["razao"])
+        linha["razao"] = MAPA_RAZAO.get(_norma(razao), razao) if razao else ""
+        linha["valor_proposta"] = _num(bruto["valor_proposta"])
+        lugar_txt = _celula(bruto["lugar"])
+        try:
+            linha["lugar"] = int(float(lugar_txt.replace(",", "."))) if lugar_txt else None
+        except ValueError:
+            linha["lugar"] = None
+            erros.append("lugar «%s» não é um número" % lugar_txt)
+        nomes = [p.strip() for p in re.split(r"[;\n]", _celula(bruto["concorrentes"])) if p.strip()]
+        linha["concorrentes"] = [{"lugar": i, "nome": nome} for i, nome in enumerate(nomes, 1)]
+        linha["responsavel"] = _celula(bruto["responsavel"])[:60]
+        linha["notas"] = _celula(bruto["notas"])[:2000]
+        linha["nome"] = ""
+        saida.append(linha)
+    wb.close()
+    return saida
+
+
+def ensaio_modelo(c, linhas):
+    """Cruza as linhas lidas com a base, sem gravar: poe em cada uma o
+    titulo do anuncio, a lista de problemas e `ok`. Devolve (linhas,
+    contagens)."""
+    vistas = {}
+    for l in linhas:
+        problemas = list(l["erros"])
+        l["titulo"] = ""
+        a = None
+        if l["ref"]:
+            a = c.execute("SELECT ref, titulo, estado, lotes FROM anuncios WHERE ref=?",
+                          (l["ref"],)).fetchone()
+            if not a:
+                problemas.append("não há anúncio %s na base" % l["ref"])
+            else:
+                l["titulo"] = a["titulo"] or ""
+                if a["estado"] == "alteracao":
+                    problemas.append("%s é uma republicação; usa a referência do anúncio original" % l["ref"])
+                lotes = lotes_do_anuncio(c, l["ref"])
+                if l["lote"] is not None and not lotes:
+                    problemas.append("o anúncio não declara lotes; deixa o lote vazio")
+                elif l["lote"] is not None and l["lote"] not in [x["n"] for x in lotes]:
+                    problemas.append("o anúncio tem %d lotes e não tem o lote %d"
+                                     % (len(lotes), l["lote"]))
+                elif l["lote"] is None and lotes:
+                    l.setdefault("avisos", []).append(
+                        "o anúncio tem %d lotes; sem lote, a linha conta como o conjunto" % len(lotes))
+        chave = (l["ref"], l["lote"])
+        if l["ref"] and chave in vistas:
+            problemas.append("repete a linha %d (mesma referência e lote)" % vistas[chave])
+        elif l["ref"]:
+            vistas[chave] = l["linha"]
+        if _norma(l.get("status")) == "nao fomos" and (l.get("valor_proposta") or l.get("lugar")):
+            l.setdefault("avisos", []).append("«Não fomos» com proposta ou lugar: ficam guardados, mas não contam")
+        l["problemas"] = problemas
+        l["ok"] = not problemas
+    contagens = {"total": len(linhas), "ok": sum(1 for l in linhas if l["ok"]),
+                 "com_erro": sum(1 for l in linhas if not l["ok"]),
+                 "anuncios": len({l["ref"] for l in linhas if l["ok"]})}
+    return linhas, contagens
+
+
+# A prioridade quando um anuncio tem varias linhas (lotes) com estados
+# diferentes: o anuncio fica no melhor deles -- ganhamos um lote, o
+# cartao esta no Ganho, e a separacao no fim mostra os perdidos.
+_PRIORIDADE = {"ganho": 0, "submetido": 1, "perdido": 2, "nao fomos": 3}
+
+
+def aplicar_modelo(c, linhas, quem="modelo"):
+    """Grava as linhas `ok` na tabela casa (folha='modelo') e escreve a
+    triagem nos anuncios. Devolve {"gravadas", "aplicadas", "anuncios",
+    "resultados": {ref: resultado de aplicar()}}."""
+    import radar
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    por_ref = {}
+    gravadas = 0
+    for l in linhas:
+        if not l.get("ok"):
+            continue
+        c.execute("DELETE FROM casa WHERE ref=? AND folha='modelo' AND "
+                  "COALESCE(lote,0)=COALESCE(?,0)", (l["ref"], l["lote"] if l["lote"] is not None else 0))
+        c.execute(
+            "INSERT INTO casa (nome, status, razao, valor_proposta, lugar, notas, folha, "
+            "concorrentes, ref, ligacao, candidatos, fora, resultado, importado_em, "
+            "aplicado_em, lote) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (l.get("titulo") or "", l["status"], l["razao"] or None, l["valor_proposta"],
+             l["lugar"], l["notas"] or None, "modelo",
+             json.dumps(l["concorrentes"], ensure_ascii=False), l["ref"], "ref", "[]",
+             0, "aplicado", agora, agora, l["lote"] if l["lote"] is not None else 0))
+        gravadas += 1
+        por_ref.setdefault(l["ref"], []).append(l)
+    resultados = {}
+    for ref, grupo in por_ref.items():
+        melhor = sorted(grupo, key=lambda l: _PRIORIDADE.get(_norma(l["status"]), 9))[0]
+        resultados[ref] = aplicar(c, melhor, ref, quem=quem)
+        responsavel = next((l["responsavel"] for l in grupo if l.get("responsavel")), "")
+        if responsavel:
+            c.execute("INSERT OR IGNORE INTO pessoas (nome) VALUES (?)", (responsavel,))
+            c.execute("UPDATE anuncios SET responsavel=? WHERE ref=?", (responsavel, ref))
+    return {"gravadas": gravadas, "anuncios": len(por_ref),
+            "aplicadas": sum(1 for r in resultados.values() if r == "aplicado"),
+            "resultados": resultados}
