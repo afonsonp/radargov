@@ -50,7 +50,11 @@ Configurações em `/configuracoes/<seccao>`, sete secções (interesse,
 alertas, recolha, leitura das peças, capturas, cópias, conta), com
 Alertas a sair da barra para lá. O plano `ONLINE.md` está feito por
 inteiro, pela via B (o PC de casa exposto por túnel). A bateria de
-testes — 790 — passa inteira no Python 3.14 do Ubuntu.
+testes — 793 — passa inteira no Python 3.14 do Ubuntu. **E desde a
+tarde de 8/09/2026 o painel serve no telemóvel**: abaixo de 900 px a
+barra passa para cima, as grelhas de duas colunas passam a uma, e o
+que é largo (quadro, tabelas, abas, índice da ficha) rola dentro de
+si; medido a 375 px em oito páginas, nenhuma alarga a página.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

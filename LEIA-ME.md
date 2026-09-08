@@ -806,7 +806,7 @@ mão.
 ```bash
 python teste_radar.py
 ```
-Corre os testes — 790 verificações em poucos segundos, sem tocar
+Corre os testes — 793 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.
@@ -839,7 +839,9 @@ anúncios, é o teste do parser que avisa primeiro.
 ## 15. O painel fora deste computador: radargov.pt
 
 **O painel está em https://radargov.pt** (e `www.radargov.pt`), de
-qualquer computador ou telemóvel, sem instalar nada. Quem abre cai no
+qualquer computador ou telemóvel, sem instalar nada. No telemóvel a
+barra passa para cima e as listas ficam a uma coluna; o quadro e as
+tabelas largas arrastam-se de lado. Quem abre cai no
 ecrã de entrar (secção 7) e entra com o teu utilizador e a tua
 palavra-passe. Os links do e-mail de alerta apontam para lá.
 
