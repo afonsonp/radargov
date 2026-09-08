@@ -9126,6 +9126,27 @@ class TestExportacaoNaoChocaComOutroProcesso(BaseTemporaria):
         self.assertFalse([f for f in os.listdir(self.pasta)
                           if f.endswith(".tmp")], "ficou rascunho para trás")
 
+    def test_uma_exportacao_boa_limpa_a_marca_de_erro(self):
+        # a marca das 17:00 so se escrevia; ficava no painel para sempre
+        radar.marca_erro("ultima_exportacao_triagem", "exportacao",
+                         "erro de antes")
+        with radar.liga() as c:
+            self.assertTrue(c.execute(
+                "SELECT valor FROM estado WHERE chave=?",
+                ("ultima_exportacao_triagem",)).fetchone())
+        with unittest.mock.patch.object(radar, "recolher",
+                                        lambda *a, **k: (False, "sem rede", 0)), \
+                unittest.mock.patch.object(radar, "copia_com_marca",
+                                           lambda *a, **k: None), \
+                unittest.mock.patch.object(radar, "empurrar_triagem",
+                                           lambda *a, **k: (True, "")):
+            radar.verificar({"copia_de_seguranca": False})
+        with radar.liga() as c:
+            self.assertIsNone(c.execute(
+                "SELECT valor FROM estado WHERE chave=?",
+                ("ultima_exportacao_triagem",)).fetchone(),
+                "a marca de erro sobreviveu a uma exportação boa")
+
 
 if __name__ == "__main__":
 

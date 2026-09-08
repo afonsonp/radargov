@@ -5586,6 +5586,11 @@ def verificar(cfg=None, passo=None):
     # Afonso (31/08/2026: "grava logo la consoante o uso").
     try:
         exportar_triagem()
+        # Limpar a marca faz parte de a pôr: sem isto, a falha das
+        # 17:00 de 8/09/2026 ficava no painel para sempre, porque
+        # `ultima_exportacao_triagem` só se escrevia e nunca se
+        # apagava. O empurrar_triagem() já limpava a dele.
+        limpa_erro("ultima_exportacao_triagem")
         if cfg.get("triagem_no_git", True):
             diz("a empurrar a triagem para o remoto")
             empurrar_triagem()
