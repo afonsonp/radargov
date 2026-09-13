@@ -87,7 +87,7 @@ python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
 python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
-python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pede a palavra-passe por getpass
+python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
@@ -154,7 +154,13 @@ O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
 que não seja `/entrar`. Um pedido **deste computador, sem túnel a
 meio**, entra sem login como o único utilizador — é o
 `acesso_livre_local` do `config.json`, o que mantém o desenvolvimento
-e os testes sem fazerem login a cada pedido. Lê a área «Contas e a
+e os testes sem fazerem login a cada pedido. **Desde 13/09/2026 há
+dois papéis** (`utilizadores.papel`: `admin` ou `tester`): o admin vê
+tudo e cria contas em Configurações › Conta; o tester leva 403 no que
+é do sistema (`ROTAS_SO_ADMIN`: Indicadores, Capturas, Recolha,
+Leitura das peças, Cópias, o «Verificar agora» e quem envia o e-mail).
+`sou_admin()` é a pergunta; no acesso livre sem conta nenhuma a
+resposta é sim. Lê a área «Contas e a
 porta» do `docs/armadilhas.md` antes de tocar nisto: a armadilha
 principal é que o túnel liga-se ao painel **a partir de 127.0.0.1**.
 
@@ -234,15 +240,20 @@ A ordem do ficheiro é a ordem do fluxo:
    abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
    `/quadro` + calendário `/calendario`), Mercado (contratos
    `/contratos`, com o modo `?ver=fim` das antigas renovações;
-   `/renovacoes` redirecciona). Fora da barra, na zona de estado:
-   Indicadores (`/indicadores`) e **Configurações**
+   `/renovacoes` redirecciona). A barra é **horizontal, em cima**
+   (13/09/2026; `<header class="barra">`), só com a marca, os três
+   itens, **Configurações** e quem está. Configurações
    (`/configuracoes/<seccao>`, etapa 2 do `ONLINE.md`, 8/09/2026):
-   sete secções — interesse, alertas, recolha, leitura das peças,
-   capturas, cópias, conta — cada uma um formulário que grava uma
-   coisa por `gravar_config_registado()` (junta sem apagar, recusa
-   chaves que pareçam segredos, e deixa o antes/depois no
-   `historico`). Alertas saiu da barra para lá; `/alertas` e
-   `/alertas/interesse` redireccionam. Ficha
+   nove secções por esta ordem — conta, interesse, alertas, importar,
+   indicadores, capturas, recolha, leitura das peças, cópias
+   (`SECCOES_CONFIG`, com a bandeira de só-admin nas cinco últimas) —
+   cada uma um formulário que grava uma coisa por
+   `gravar_config_registado()` (junta sem apagar, recusa chaves que
+   pareçam segredos, e deixa o antes/depois no `historico`). Alertas
+   saiu da barra para lá, e os Indicadores também (13/09/2026);
+   `/alertas`, `/alertas/interesse` e `/indicadores` redireccionam.
+   **Os filtros guardados deixaram de existir** nesse dia: a tabela
+   `filtros_guardados` fica, mas só os alertas lá vivem. Ficha
    em `/anuncio/<ref>`, em composição de dossier: uma coluna, com o
    cabeçalho fino e o índice presos ao rolar. Uma peça abre **dentro
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota

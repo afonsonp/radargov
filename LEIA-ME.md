@@ -193,12 +193,11 @@ de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
 
 ## 5. O painel
 
-A barra da esquerda tem quatro entradas, por ordem de uso:
+A barra de cima tem três entradas, por ordem de uso:
 **Anúncios** (a página inicial — a lista toda, triagem e acervo num
 sítio só), **Em curso** (o quadro e o calendário dos "interessa"),
-**Mercado** (os contratos e as renovações). Os
-Indicadores não estão na barra: chegam-se pelo ponto verde/vermelho
-da última verificação, em baixo à esquerda (§8).
+**Mercado** (os contratos e as renovações). À direita, **Configurações**
+e o teu nome. Os Indicadores estão dentro das Configurações (§8).
 
 Em cima da lista estão as quatro abas que fazem o trabalho todo:
 
@@ -241,7 +240,9 @@ não um filtro.
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
 nada. **Está recolhida por omissão** (desde 8/09/2026): a lista abre
 logo nos anúncios, e a linha «Filtros» diz o que está posto; carrega
-nela para abrir os campos, a árvore de CPV e os filtros guardados.
+nela para abrir os campos e a árvore de CPV (a árvore só aparece
+enquanto não tiveres interesse definido — com ele, o CPV já está
+decidido, e a lista fica com o filtro de texto e os selectores).
 Abre sozinha quando há um filtro aplicado, e lembra-se se a deixaste
 aberta. Podes filtrar por:
 
@@ -261,7 +262,7 @@ aberta. Podes filtrar por:
   que não a indicam. Serve sobretudo para isolares aquelas de que o
   radar consegue trazer as peças sozinho.
 - **intervalo de datas** de publicação.
-- **estado**: as mesmas quatro abas, para os filtros guardados.
+- **estado**: as mesmas quatro abas, para os alertas.
 - **prazo**: abertos, urgentes (a menos de N dias — a janela edita-se
   em Configurações › Alertas) ou expirados. Serve para apartar o arquivo da triagem do
   dia.
@@ -484,20 +485,29 @@ terminal aberto na pasta:
 ```
 
 O nome de utilizador é o que quiseres, sem espaços — `admin` serve,
-não precisa de ser um e-mail. Pergunta o nome a mostrar e a
-palavra-passe (8 caracteres ou mais, escrita duas vezes, sem aparecer
-no ecrã). Só há uma conta, a tua.
+não precisa de ser um e-mail. Pergunta o tipo (admin ou tester; Enter
+é admin) e a palavra-passe (8 caracteres ou mais, escrita duas vezes,
+sem aparecer no ecrã). As contas seguintes criam-se no painel, em
+**Configurações › Conta**, por um admin.
+
+**Há dois tipos de utilizador** (desde 13/09/2026). O **admin** vê
+tudo e cria contas. O **tester** vê os anúncios, o que está em curso e
+o mercado, e nas configurações só a Conta, o Interesse, os Alertas e o
+Importar dados — não vê os Indicadores, as Capturas, a Recolha, a
+Leitura das peças nem as Cópias, não tem o botão «Verificar agora», e
+no resumo por e-mail só escolhe para quem e a que hora.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
 `config.json`. Quem vem de fora (pelo `tunel.sh`, secção 15) cai no
-ecrã de entrar, e a sessão dura 30 dias em cada aparelho. No canto de
-baixo da barra lateral está o teu nome; ao abrir há «sair» e «sair de
-todos os aparelhos», que fecha todas as sessões de uma vez — se
-perderes o telemóvel, é isso.
+ecrã de entrar, e a sessão dura 30 dias em cada aparelho. No canto
+direito da barra de cima está o teu nome; ao abrir há «a conta»,
+«sair» e «sair de todos os aparelhos», que fecha todas as sessões de
+uma vez — se perderes o telemóvel, é isso.
 
-Mudar o nome ou a palavra-passe faz-se em **Configurações › Conta**
-(pede a actual), e é lá que se vêem as sessões abertas. Se te
+Mudar a palavra-passe faz-se em **Configurações › Conta** (pede a
+actual), e é lá que se vêem as sessões abertas, cada uma pelo aparelho
+(«iPhone até 10/10/2026 14:35»). Se te
 esqueceres da palavra-passe, não há «esqueci-me» por e-mail: é no
 terminal deste computador, e grava a nova por cima:
 
@@ -517,21 +527,34 @@ podes também atribuir o concurso a uma pessoa, e essa lista de nomes
 
 ## 7-A. Configurações
 
-A ligação **Configurações** está em baixo na barra lateral, ao lado
-da verificação automática (desde 8/09/2026; o separador Alertas
-passou para aqui). É onde dizes ao radar como queres que ele
-trabalhe, em sete secções, cada uma com o seu botão «Guardar» — gravar
+A ligação **Configurações** está à direita na barra de cima (desde
+8/09/2026; o separador Alertas passou para aqui, e a 13/09/2026 os
+Indicadores também). É onde dizes ao radar como queres que ele
+trabalhe, em nove secções, cada uma com o seu botão «Guardar» — gravar
 uma não toca nas outras, e cada gravação fica no histórico com o
-valor de antes e o de depois:
+valor de antes e o de depois. As quatro primeiras são de toda a gente;
+as outras cinco só um admin as vê:
 
-- **Interesse** — os CPV que a casa trabalha, na árvore, e quantos
-  anúncios apanha.
-- **Alertas** — os filtros guardados com o interruptor de alerta e a
-  taxa de acerto, as entidades seguidas, o novo filtro, o resumo por
-  e-mail (para quem, a que hora, e agora também **quem envia**: conta,
-  servidor, porta e palavra-passe — esta grava-se no `email_senha.txt`,
-  nunca no `config.json`, e o campo fica sempre vazio), a janela do
-  urgente, «enviar já» e os últimos avisos.
+- **Conta** — a palavra-passe (pede a actual), as sessões abertas,
+  «sair de todos os aparelhos» e, para o admin, os utilizadores: quem
+  existe, de que tipo, criar outro (utilizador, palavra-passe, tipo) e
+  tirar um — a tua própria conta e o último admin não se tiram.
+- **Interesse** — só a árvore de CPV, já aberta, com o que está
+  guardado marcado. Marca e desmarca e carrega em «Guardar o
+  interesse»: com CPV fica ligado, sem nenhum fica desligado. Uma linha
+  por cima diz o que está em vigor e quantos anúncios apanha.
+- **Alertas** — os alertas com o interruptor e a taxa de acerto, as
+  entidades seguidas, o «Filtro de alertas» (o botão «Criar alerta»
+  cria-o já ligado), o resumo por e-mail (para quem e a que hora; e,
+  só para o admin, **quem envia**: conta, servidor, porta e
+  palavra-passe — esta grava-se no `email_senha.txt`, nunca no
+  `config.json`, e o campo fica sempre vazio), a janela do urgente,
+  «enviar já» e os últimos avisos. Os «filtros guardados» de antes
+  deixaram de existir: o que era guardar um filtro para o reaplicar é
+  o Interesse; o que era guardá-lo para avisar é criar um alerta.
+- **Importar dados** — o registo da casa, pelo modelo Excel (§13).
+- **Indicadores** — a saúde do sistema e os números (§8), com a
+  verificação automática e a última verificação que estavam na barra.
 - **Recolha** — as horas da verificação (o relógio interno; os
   temporizadores do sistema mudam com o `agendar.sh`), a janela de
   recuperação, a janela e o ritmo do detalhe, a Vortal ligada ou não.
@@ -546,8 +569,6 @@ valor de antes e o de depois:
   gravar, e uma colagem errada não toca no ficheiro que lá está.
 - **Cópias** — a cópia diária ligada ou não, quantas guardar, a
   triagem no git, e a lista do que existe em `copias/`.
-- **Conta** — o nome, a palavra-passe (pede a actual), as sessões
-  abertas e «sair de todos os aparelhos».
 
 O que fica no `config.json` à mão, de propósito: os termos de pesquisa
 e de reserva, `paginas`, `por_pagina`, `abrir_browser_ao_encontrar`,
@@ -556,9 +577,10 @@ código.
 
 ## 8. Indicadores
 
-Chega-se lá pelo **ponto verde/vermelho da última verificação**, em
-baixo na barra da esquerda — é a única porta, de propósito: é consulta
-ocasional, não trabalho diário. Números sobre o teu próprio radar:
+Estão em **Configurações › Indicadores**, só para o admin — é
+consulta ocasional, não trabalho diário. A verificação automática
+(as horas) e a última verificação, com o ponto verde/vermelho, estão
+lá em cima, no «Estado da recolha». Números sobre o teu próprio radar:
 quantos anúncios tens, quantos entraram hoje, quantos marcaste como
 interessa (e destes, quantos estão dentro da janela do "urgente" — os
 mesmos N dias do filtro e da etiqueta cor de âmbar, editáveis em

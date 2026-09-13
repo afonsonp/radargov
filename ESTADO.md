@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **8 de setembro de 2026**.
+Última actualização: **13 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**. O histórico saiu daqui no
 mesmo dia: era um ficheiro de 5 297 linhas onde o topo envelhecia a cada
@@ -46,15 +46,39 @@ um túnel com nome da Cloudflare a correr como serviço
 atender só em `127.0.0.1`, e quem abre o domínio cai no `/entrar`.
 Os links do e-mail já dizem `radargov.pt` (`endereco_publico` no
 `config.json`). **E a etapa 2 também, ao fim da tarde**: o menu de
-Configurações em `/configuracoes/<seccao>`, sete secções (interesse,
-alertas, recolha, leitura das peças, capturas, cópias, conta), com
-Alertas a sair da barra para lá. O plano `ONLINE.md` está feito por
-inteiro, pela via B (o PC de casa exposto por túnel). A bateria de
-testes — 806 — passa inteira no Python 3.14 do Ubuntu. **E desde a
-tarde de 8/09/2026 o painel serve no telemóvel**: abaixo de 900 px a
-barra passa para cima, as grelhas de duas colunas passam a uma, e o
-que é largo (quadro, tabelas, abas, índice da ficha) rola dentro de
-si; medido a 375 px em oito páginas, nenhuma alarga a página.
+Configurações em `/configuracoes/<seccao>`, com Alertas a sair da
+barra para lá. O plano `ONLINE.md` está feito por inteiro, pela via B
+(o PC de casa exposto por túnel). **E desde a tarde de 8/09/2026 o
+painel serve no telemóvel**: as grelhas de duas colunas passam a uma
+abaixo de 900 px, e o que é largo (quadro, tabelas, abas, índice da
+ficha) rola dentro de si; medido a 375 px em oito páginas, nenhuma
+alarga a página.
+
+**A 13/09/2026 entraram as «Mudanças na plataforma RADAR»**, o
+documento do Afonso (ramo `claude/mudancas-radar`): há **dois tipos
+de utilizador** — `admin` vê tudo e cria contas em Configurações ›
+Conta; `tester` vê os anúncios, o que está em curso, o mercado, e nas
+configurações só Conta, Interesse, Alertas e Importar dados (a porta
+dá 403 ao resto, `ROTAS_SO_ADMIN`, e o «Verificar agora» é só do
+admin). **A barra passou a horizontal, em cima, em todos os
+tamanhos**, só com a marca, os três itens, Configurações e quem está —
+as fontes, as contagens, o endereço e a última verificação saíram (a
+última verificação está nos Indicadores). As Configurações são **nove
+secções** por esta ordem: Conta, Interesse, Alertas, Importar dados,
+Indicadores, Capturas, Recolha, Leitura das peças, Cópias — as cinco
+últimas só ao admin. A Conta perdeu o «nome a mostrar» e a nota da
+consola, e as sessões dizem o aparelho («iPhone até 10/10/2026 14:35»).
+O Interesse é só a árvore, já aberta, e o botão dela «Guardar o
+interesse» grava: com CPV fica ligado, vazio fica desligado; com
+interesse definido a lista de anúncios deixa de ter árvore e «excluir
+CPV». Os Alertas perderam o bloco do interesse, o formulário chama-se
+«Filtro de alertas» e «Criar alerta» nasce ligado; **os filtros
+guardados deixaram de existir** (a caixa saiu das três listas, a rota
+`/filtros/guardar` também, e os que estavam sem alerta apagaram-se
+uma vez por migração — a tabela fica, é onde os alertas vivem). O
+resumo por e-mail mostra ao tester só o destino e a hora. Entrou o
+motivo de abandono «Não faz parte da oferta». A bateria — **819** —
+passa inteira. Ficou para o backlog o modo lista do «Em curso».
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
@@ -159,13 +183,14 @@ interessa expirado é trabalho em curso), **abandonados 197 888** (os
 **todos 199 080**. É recorte de leitura: a base não muda — lá dentro há
 195 345 com estado `novo`.
 
-Por cima das abas há o **interesse** (Alertas › Interesse), os CPV que a
-casa trabalha. **Está desligado** (`interesse_activo: false`), e
-desligado nada muda.
+Por cima das abas há o **interesse** (Configurações › Interesse), os
+CPV que a casa trabalha: está ligado quando há CPV guardado, e com ele
+definido a lista não tem árvore nem «excluir CPV».
 
-**O que está implementado.** O esqueleto de informação (quatro
-intenções: Anúncios, Em curso, Mercado, Alertas, com os Indicadores fora
-da barra), o desenho visual «ardósia e âmbar», a ficha em dossier com o
+**O que está implementado.** O esqueleto de informação (três
+intenções na barra de cima: Anúncios, Em curso, Mercado, com Alertas e
+os Indicadores dentro das Configurações), o desenho visual «ardósia e
+âmbar», a ficha em dossier com o
 leitor de peças lá dentro, o quadro de seis fases, o calendário, os
 alertas por e-mail em texto e HTML, o corpus de contratos do Portal BASE
 com os sete gráficos, a exportação da triagem para o git, a segunda fonte
