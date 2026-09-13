@@ -61,8 +61,13 @@ seguir entra aqui com quem decide e o que dispara, como sempre.
 
 ## P0
 
-- **A guarda de «uma verificação de cada vez» não atravessa
-  processos.** Aberto a 8/09/2026. `comecar_verificacao()` protege-se
+- ~~**A guarda de «uma verificação de cada vez» não atravessa
+  processos.**~~ **Feito a 14/09/2026**: `tomar_trinco()` /
+  `largar_trinco()` na tabela `estado`, com pid, hora e prazo de
+  `HORAS_DE_TRINCO`; o `--uma-vez` e o `comecar_verificacao()` passam
+  os dois por lá, e o painel diz «noutro processo» enquanto o
+  temporizador corre. O que se segue é a descrição de quando estava
+  aberto. Aberto a 8/09/2026. `comecar_verificacao()` protege-se
   com `_VERIFICACAO`, um dicionário na memória com um trinco de
   threads: vale dentro de **um** processo. O temporizador do systemd
   arranca um processo à parte, que não vê o relógio de dentro do

@@ -1155,6 +1155,21 @@ Nada espera dentro do pedido do browser.
   branco. Em fundo não há cookie para ler — passa o `quem` ao
   `registar()` em vez de contar com o `quem_sou()`.
 
+- **A guarda de «uma verificação de cada vez» tem duas metades, e a
+  segunda está na base** (14/09/2026, o P0). `_VERIFICACAO` é um
+  dicionário na memória e só vale dentro de um processo; o temporizador
+  do systemd arranca outro (`--uma-vez`), e a 8/09 às 17:00 correram os
+  dois sobre a mesma base. `tomar_trinco()` escreve o pid e a hora na
+  tabela `estado` (`verificacao_em_curso`) numa transacção IMMEDIATE, e
+  `comecar_verificacao()` e o `--uma-vez` passam os dois por lá; quem
+  chega segundo desiste, e o painel diz «noutro processo, desde as
+  17:00». Um trinco de um processo morto não prende (o pid já não
+  existe, ou passou `HORAS_DE_TRINCO`), e só o dono o larga. **No
+  Windows não se pergunta se o pid vive**: `os.kill(pid, 0)` lá chama
+  `TerminateProcess` — mata o processo em vez de o sondar — por isso
+  vale só o prazo. `TestTrincoEntreProcessos` injecta o `agora`, o `pid`
+  e o `vivo`, e um teste exercita a condição verdadeira uma vez.
+
 - **O `relogio()` entra pela mesma porta do botão.** Um slot falhado
   chama `comecar_verificacao(slot=(dia, hora))`, não o `verificar()`
   directo — só assim há trinco (senão o relógio apanhava um clique a
