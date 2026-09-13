@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **13 de setembro de 2026**.
+Última actualização: **14 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**. O histórico saiu daqui no
 mesmo dia: era um ficheiro de 5 297 linhas onde o topo envelhecia a cada
@@ -79,6 +79,10 @@ uma vez por migração — a tabela fica, é onde os alertas vivem). O
 resumo por e-mail mostra ao tester só o destino e a hora. Entrou o
 motivo de abandono «Não faz parte da oferta». A bateria — **819** —
 passa inteira. Ficou para o backlog o modo lista do «Em curso».
+**A 14/09/2026 fechou-se o P0**: a verificação tem um trinco entre
+processos na tabela `estado` (pid, hora, prazo de 3 h), e o
+temporizador e o relógio do painel já não correm os dois à mesma hora.
+A bateria vai em **825**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
