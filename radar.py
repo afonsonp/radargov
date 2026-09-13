@@ -6780,10 +6780,104 @@ def registar_slot(dia, hora, novos):
 _VERIFICACAO = {"a_correr": False, "passo": ""}
 _VERIFICACAO_TRINCO = threading.Lock()
 
+# O trinco ENTRE processos (14/09/2026, o P0 do BACKLOG). O dicionario
+# acima vale dentro de um processo; o temporizador do systemd arranca
+# outro (`--uma-vez`), que nao ve o relogio do painel -- e a 8/09, as
+# 17:00, correram os dois sobre a mesma base. Este vive na tabela
+# `estado`, que os dois leem: uma linha com o pid e a hora de arranque,
+# tomada numa transaccao IMMEDIATE (quem chega segundo espera pelo
+# busy_timeout e ve a linha do primeiro). Um trinco de um processo
+# morto nao prende ninguem: ou o pid ja nao existe, ou passou o prazo.
+TRINCO_VERIFICACAO = "verificacao_em_curso"
+HORAS_DE_TRINCO = 3
+
+
+def processo_vivo(pid):
+    """True se o processo existe. No Windows nao se pergunta: um
+    os.kill(pid, 0) la MATA o processo (chama TerminateProcess), por
+    isso vale so o prazo."""
+    if os.name == "nt":
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _le_trinco(c):
+    linha = c.execute("SELECT valor FROM estado WHERE chave=?",
+                      (TRINCO_VERIFICACAO,)).fetchone()
+    if not linha:
+        return None, None
+    try:
+        dono, desde = linha[0].split("|", 1)
+        return int(dono), datetime.strptime(desde, "%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return None, None
+
+
+def tomar_trinco(agora=None, pid=None, vivo=None):
+    """(tomou, porque). O `agora`, o `pid` e o `vivo` sao injectaveis
+    para os testes fazerem o segundo processo sem o arrancar."""
+    agora = agora or datetime.now()
+    pid = pid or os.getpid()
+    vivo = vivo or processo_vivo
+    c = liga()
+    try:
+        c.execute("BEGIN IMMEDIATE")
+        dono, desde = _le_trinco(c)
+        if dono is not None and dono != pid and vivo(dono) \
+                and agora - desde < timedelta(hours=HORAS_DE_TRINCO):
+            c.rollback()
+            return False, ("já está a verificar noutro processo (pid %d, "
+                           "desde as %s)" % (dono, desde.strftime("%H:%M")))
+        c.execute("INSERT OR REPLACE INTO estado VALUES (?,?)",
+                  (TRINCO_VERIFICACAO,
+                   "%d|%s" % (pid, agora.strftime("%Y-%m-%d %H:%M:%S"))))
+        c.commit()
+        return True, ""
+    finally:
+        c.close()
+
+
+def largar_trinco(pid=None):
+    """So o dono larga: um processo que perdeu o trinco por prazo nao
+    pode apagar o do que o tomou a seguir."""
+    pid = pid or os.getpid()
+    with liga() as c:
+        dono, _ = _le_trinco(c)
+        if dono == pid:
+            c.execute("DELETE FROM estado WHERE chave=?", (TRINCO_VERIFICACAO,))
+
+
+def verificacao_noutro_processo(agora=None, vivo=None):
+    """A hora desde que outro processo esta a verificar, ou "". E o que
+    o painel mostra quando o temporizador esta a correr a esta hora."""
+    agora = agora or datetime.now()
+    vivo = vivo or processo_vivo
+    try:
+        with liga() as c:
+            dono, desde = _le_trinco(c)
+    except sqlite3.OperationalError:
+        return ""
+    if dono is None or dono == os.getpid() or not vivo(dono) \
+            or agora - desde >= timedelta(hours=HORAS_DE_TRINCO):
+        return ""
+    return desde.strftime("%H:%M")
+
 
 def verificacao_a_correr():
-    """O passo em que vai, ou "" se nao estiver a correr."""
-    return _VERIFICACAO["passo"] if _VERIFICACAO["a_correr"] else ""
+    """O passo em que vai, ou "" se nao estiver a correr -- aqui ou
+    noutro processo (o `--uma-vez` do temporizador)."""
+    if _VERIFICACAO["a_correr"]:
+        return _VERIFICACAO["passo"]
+    desde = verificacao_noutro_processo()
+    return ("noutro processo, desde as %s" % desde) if desde else ""
 
 
 def comecar_verificacao(slot=None):
@@ -6796,6 +6890,9 @@ def comecar_verificacao(slot=None):
     with _VERIFICACAO_TRINCO:
         if _VERIFICACAO["a_correr"]:
             return False, "já está a verificar — %s" % _VERIFICACAO["passo"]
+        tomou, porque = tomar_trinco()
+        if not tomou:
+            return False, porque
         _VERIFICACAO["a_correr"] = True
         _VERIFICACAO["passo"] = "a arrancar"
 
@@ -6813,6 +6910,7 @@ def comecar_verificacao(slot=None):
         finally:
             _VERIFICACAO["a_correr"] = False
             _VERIFICACAO["passo"] = ""
+            largar_trinco()
 
     threading.Thread(target=correr, daemon=True).start()
     return True, ""
@@ -16154,7 +16252,17 @@ def main():
             return
 
     if "--uma-vez" in sys.argv:
-        mensagem, novos = verificar(cfg)
+        # O mesmo trinco do painel: se o relogio de dentro dele ja
+        # arrancou esta hora, este processo desiste em vez de correr a
+        # segunda verificacao sobre a mesma base (8/09/2026, 17:00).
+        tomou, porque = tomar_trinco()
+        if not tomou:
+            print("Não verifiquei: %s." % porque)
+            return
+        try:
+            mensagem, novos = verificar(cfg)
+        finally:
+            largar_trinco()
         hora = min(cfg["horas_verificacao"],
                    key=lambda h: abs((datetime.now()
                                       - datetime.now().replace(

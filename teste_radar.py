@@ -9447,6 +9447,84 @@ class TestMudancasDeSetembro(BaseTemporaria):
         self.assertEqual(nomes, ["vivo"])
 
 
+class TestTrincoEntreProcessos(BaseTemporaria):
+    """O P0 de 8/09/2026: às 17:00 o temporizador do systemd (um processo
+    `--uma-vez`) e o relógio de dentro do painel correram os dois, sobre
+    a mesma base, porque a guarda era um dicionário na memória de um só
+    processo. O trinco passou a viver na tabela `estado`, com pid e hora.
+    A condição («o outro está vivo e dentro do prazo») é injectável,
+    para não depender de arrancar processos a sério."""
+
+    def test_o_segundo_processo_desiste_enquanto_o_primeiro_vive(self):
+        agora = datetime.datetime(2026, 9, 8, 17, 0, 0)
+        tomou, _ = radar.tomar_trinco(agora=agora, pid=111, vivo=lambda p: True)
+        self.assertTrue(tomou)
+        tomou, porque = radar.tomar_trinco(agora=agora + datetime.timedelta(seconds=37),
+                                           pid=222, vivo=lambda p: True)
+        self.assertFalse(tomou)
+        self.assertIn("pid 111", porque)
+        self.assertIn("17:00", porque)
+        # o dono volta a tomar o seu sem se bloquear a si proprio
+        self.assertTrue(radar.tomar_trinco(agora=agora, pid=111, vivo=lambda p: True)[0])
+
+    def test_um_trinco_de_processo_morto_ou_velho_nao_prende(self):
+        agora = datetime.datetime(2026, 9, 8, 17, 0, 0)
+        radar.tomar_trinco(agora=agora, pid=111, vivo=lambda p: True)
+        # morto: o pid ja nao existe
+        self.assertTrue(radar.tomar_trinco(agora=agora, pid=222,
+                                           vivo=lambda p: False)[0])
+        # velho: vivo mas ha mais de HORAS_DE_TRINCO (um processo preso)
+        radar.tomar_trinco(agora=agora, pid=111, vivo=lambda p: True)
+        tarde = agora + datetime.timedelta(hours=radar.HORAS_DE_TRINCO, minutes=1)
+        self.assertTrue(radar.tomar_trinco(agora=tarde, pid=333,
+                                           vivo=lambda p: True)[0])
+
+    def test_so_o_dono_larga(self):
+        agora = datetime.datetime(2026, 9, 8, 17, 0, 0)
+        radar.tomar_trinco(agora=agora, pid=111, vivo=lambda p: True)
+        radar.largar_trinco(pid=222)
+        self.assertFalse(radar.tomar_trinco(agora=agora, pid=222,
+                                            vivo=lambda p: True)[0])
+        radar.largar_trinco(pid=111)
+        self.assertTrue(radar.tomar_trinco(agora=agora, pid=222,
+                                           vivo=lambda p: True)[0])
+        radar.largar_trinco(pid=222)
+
+    def test_o_painel_diz_que_e_noutro_processo(self):
+        agora = datetime.datetime(2026, 9, 8, 17, 0, 0)
+        self.assertEqual(radar.verificacao_noutro_processo(agora=agora), "")
+        radar.tomar_trinco(agora=agora, pid=os.getpid() + 100000, vivo=lambda p: True)
+        self.assertEqual(radar.verificacao_noutro_processo(
+            agora=agora + datetime.timedelta(minutes=2), vivo=lambda p: True), "17:00")
+        # o meu proprio trinco nao e "outro processo"
+        radar.tomar_trinco(agora=agora, vivo=lambda p: True)
+        self.assertEqual(radar.verificacao_noutro_processo(agora=agora), "")
+        radar.largar_trinco()
+
+    def test_comecar_verificacao_toma_e_larga_o_trinco(self):
+        # a condicao verdadeira contra o recurso verdadeiro, uma vez: o
+        # relogio do painel com o trinco de "outro processo" na base
+        agora = datetime.datetime.now()
+        radar.tomar_trinco(agora=agora, pid=os.getpid() + 100000, vivo=lambda p: True)
+        antigo = radar.processo_vivo
+        radar.processo_vivo = lambda p: True
+        try:
+            arrancou, porque = radar.comecar_verificacao()
+            self.assertFalse(arrancou)
+            self.assertIn("noutro processo", porque)
+            self.assertFalse(radar._VERIFICACAO["a_correr"])
+            self.assertIn("noutro processo", radar.verificacao_a_correr())
+        finally:
+            radar.processo_vivo = antigo
+            radar.largar_trinco(pid=os.getpid() + 100000)
+
+    def test_o_pid_zero_e_o_windows(self):
+        self.assertTrue(radar.processo_vivo(os.getpid()))
+        if os.name != "nt":
+            self.assertFalse(radar.processo_vivo(2 ** 22 - 1))
+
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
