@@ -37,12 +37,26 @@ DIAS_DE_SESSAO = 30
 FALHAS_ATE_TRINCO = 5
 MINUTOS_DE_TRINCO = 15
 
+# Os dois papeis (13/09/2026, "Mudancas na plataforma RADAR"): o admin
+# ve tudo e cria contas; o tester ve o trabalho (anuncios, em curso,
+# mercado) e as configuracoes que sao dele (conta, interesse, alertas,
+# importar dados). O que e do sistema -- indicadores, capturas, recolha,
+# leitura das pecas, copias, o "Verificar agora" -- e so do admin.
+PAPEIS = ("admin", "tester")
+
 
 def iniciar_tabelas(c):
     c.execute("""CREATE TABLE IF NOT EXISTS utilizadores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL, nome TEXT NOT NULL DEFAULT '',
-        hash TEXT NOT NULL, criado_em TEXT, ultimo_acesso TEXT)""")
+        hash TEXT NOT NULL, criado_em TEXT, ultimo_acesso TEXT,
+        papel TEXT NOT NULL DEFAULT 'admin')""")
+    # A coluna do papel entrou a 13/09/2026. Quem ja existia e admin:
+    # ate aqui so havia uma conta, e era a do Afonso.
+    cols = [r[1] for r in c.execute("PRAGMA table_info(utilizadores)")]
+    if "papel" not in cols:
+        c.execute("ALTER TABLE utilizadores ADD COLUMN papel TEXT "
+                  "NOT NULL DEFAULT 'admin'")
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes (
         token TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
         criada_em TEXT, expira TEXT, ip TEXT, agente TEXT)""")
@@ -89,11 +103,17 @@ def email_limpo(email):
 
 # --------------------------------------------------------------- utilizadores
 
-def criar_utilizador(c, email, senha, nome=""):
+def criar_utilizador(c, email, senha, nome="", papel=None):
     """Cria ou substitui a palavra-passe se o e-mail ja existir: e o
     mesmo comando que serve para recuperar o acesso pela linha de
-    comandos. Devolve o id."""
+    comandos. Devolve o id.
+
+    O `papel` a None mantem o que ja la esta (ou 'admin' numa conta
+    nova): trocar a palavra-passe nao despromove ninguem.
+    """
     email = email_limpo(email)
+    if papel is not None and papel not in PAPEIS:
+        raise ValueError("o tipo de utilizador tem de ser admin ou tester")
     # Um nome de utilizador chega ("admin"): o Afonso nao quer e-mail
     # (8/09/2026). A coluna continua a chamar-se `email` -- e o que
     # identifica a conta, seja um e-mail ou nao.
@@ -104,27 +124,48 @@ def criar_utilizador(c, email, senha, nome=""):
     linha = c.execute("SELECT id FROM utilizadores WHERE email=?",
                       (email,)).fetchone()
     if linha:
-        c.execute("UPDATE utilizadores SET hash=?, nome=COALESCE(NULLIF(?,''), nome) "
-                  "WHERE id=?", (hash_senha(senha), (nome or "").strip(), linha[0]))
+        c.execute("UPDATE utilizadores SET hash=?, nome=COALESCE(NULLIF(?,''), nome), "
+                  "papel=COALESCE(?, papel) WHERE id=?",
+                  (hash_senha(senha), (nome or "").strip(), papel, linha[0]))
         return linha[0]
-    cur = c.execute("INSERT INTO utilizadores (email, nome, hash, criado_em) "
-                    "VALUES (?,?,?,?)",
+    cur = c.execute("INSERT INTO utilizadores (email, nome, hash, criado_em, papel) "
+                    "VALUES (?,?,?,?,?)",
                     (email, (nome or "").strip() or email.split("@")[0],
-                     hash_senha(senha), _agora()))
+                     hash_senha(senha), _agora(), papel or "admin"))
     return cur.lastrowid
 
 
 def utilizadores(c):
     return [dict(r) for r in c.execute(
-        "SELECT id, email, nome, criado_em, ultimo_acesso "
+        "SELECT id, email, nome, papel, criado_em, ultimo_acesso "
         "FROM utilizadores ORDER BY id")]
+
+
+def apagar_utilizador(c, utilizador_id):
+    """Tira a conta e as sessoes dela. Recusa-se a tirar o ultimo admin:
+    sem admin ninguem volta a criar contas pelo painel."""
+    linha = c.execute("SELECT papel FROM utilizadores WHERE id=?",
+                      (utilizador_id,)).fetchone()
+    if not linha:
+        return False
+    if linha["papel"] == "admin" and c.execute(
+            "SELECT COUNT(*) FROM utilizadores WHERE papel='admin'"
+            ).fetchone()[0] <= 1:
+        raise ValueError("é o único admin; cria outro antes de o tirar")
+    c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
+    c.execute("DELETE FROM utilizadores WHERE id=?", (utilizador_id,))
+    return True
+
+
+def e_admin(utilizador):
+    return bool(utilizador) and utilizador.get("papel", "admin") == "admin"
 
 
 def unico_utilizador(c):
     """O unico utilizador, para o acesso livre local. None se nao houver
     nenhum -- ou se houver mais do que um, porque ai 'o unico' e mentira
     e o acesso livre deixa de saber quem e."""
-    linhas = c.execute("SELECT id, email, nome FROM utilizadores "
+    linhas = c.execute("SELECT id, email, nome, papel FROM utilizadores "
                        "LIMIT 2").fetchall()
     return dict(linhas[0]) if len(linhas) == 1 else None
 
@@ -180,7 +221,7 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
     espera = segundos_de_trinco(c, email, ip, agora)
     if espera:
         return None, "demasiadas tentativas; espera %d s" % espera
-    linha = c.execute("SELECT id, email, nome, hash FROM utilizadores "
+    linha = c.execute("SELECT id, email, nome, papel, hash FROM utilizadores "
                       "WHERE email=?", (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
         registar_falha(c, email, ip, agora)
@@ -193,7 +234,7 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
     c.execute("UPDATE utilizadores SET ultimo_acesso=? WHERE id=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), linha["id"]))
     return token, {"id": linha["id"], "email": linha["email"],
-                   "nome": linha["nome"]}
+                   "nome": linha["nome"], "papel": linha["papel"]}
 
 
 def utilizador_da_sessao(c, token, agora=None):
@@ -204,7 +245,7 @@ def utilizador_da_sessao(c, token, agora=None):
         return None
     agora = agora or datetime.now()
     linha = c.execute(
-        "SELECT s.expira, u.id, u.email, u.nome FROM sessoes s "
+        "SELECT s.expira, u.id, u.email, u.nome, u.papel FROM sessoes s "
         "JOIN utilizadores u ON u.id = s.utilizador_id WHERE s.token=?",
         (token,)).fetchone()
     if not linha:
@@ -216,7 +257,7 @@ def utilizador_da_sessao(c, token, agora=None):
               ((agora + timedelta(days=DIAS_DE_SESSAO)).strftime(
                   "%Y-%m-%d %H:%M:%S"), token))
     return {"id": linha["id"], "email": linha["email"],
-            "nome": linha["nome"]}
+            "nome": linha["nome"], "papel": linha["papel"]}
 
 
 def sair(c, token):
