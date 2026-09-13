@@ -715,7 +715,19 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   passa a cada 60 s e apagaria a marca um minuto depois da avaria, e a
   expiração do token, que não é um erro mas uma data.
 
-- **Um alerta é um filtro com a marca posta.** Geridos em `/alertas`, que
+- **Os filtros guardados deixaram de existir a 13/09/2026, mas a
+  tabela fica.** `filtros_guardados` é onde os alertas vivem;
+  `caixa_de_filtros()`, o `GUARDAR_JS` e a rota `/filtros/guardar`
+  saíram, e `alerta_criar()` grava com `alerta=1` e chama
+  `registar_alertas()` (o acervo fica marcado, como ao ligar o
+  interruptor). Os que estavam sem alerta apagaram-se **uma vez, por
+  marca** (`filtros_sem_alerta_apagados` em `estado`): desligar um
+  alerta depois disso deixa-o com `alerta=0`, e uma migração sem marca
+  apagava-o no arranque seguinte. `TestMudancasDeSetembro` guarda as
+  duas metades.
+
+- **Um alerta é um filtro com a marca posta.** Geridos em
+  Configurações › Alertas, que
   é também onde se criam e onde se configura o e-mail. `registar_alertas()`
   anota o que corresponde e `enviar_resumo()` manda uma vez por dia — o
   reconhecer e o enviar são separados de propósito, porque a verificação
@@ -734,7 +746,11 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 - **O interesse não é um alerta nem um filtro: é o recorte permanente
   da lista.** Os CPV que a casa trabalha (`interesse_activo`,
   `interesse_cpv`, `interesse_cpv_excl` no config.json, editados em
-  `/alertas/interesse`). Entra por `com_recorte()` como as abas — **e
+  Configurações › Interesse — desde 13/09/2026 só a árvore, já aberta,
+  e o botão dela grava: `interesse_activo` é `bool(cpv)`, não há caixa
+  de ligar). Com interesse definido a lista de anúncios **não tem
+  árvore nem «excluir CPV»** (`com_interesse` em `anuncios()`); sem
+  ele, tem. Entra por `com_recorte()` como as abas — **e
   nunca por `condicoes()`**, pela mesma razão de sempre: o motor serve
   os alertas e os filtros guardados, e o interesse lá dentro cegava-os
   em silêncio. Quem o aplica é `recorte_da_lista()`, chamado nas
@@ -1198,7 +1214,25 @@ Nada espera dentro do pedido do browser.
 O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 `contas.py` tem as tabelas e a criptografia, a «porta» do `radar.py`
 (`porta_de_entrada()`, logo a seguir ao `app`) tem o que é do pedido.
-`TestContas` cobre tudo isto.
+`TestContas` cobre tudo isto; os papéis de 13/09/2026 estão em
+`TestMudancasDeSetembro`.
+
+- **O papel decide-se na porta, por prefixo de rota, e não página a
+  página** (13/09/2026). `ROTAS_SO_ADMIN` é a lista; `so_admin()`
+  compara por igualdade ou por prefixo com barra, para os `POST` de
+  uma secção entrarem com o `GET` dela. Uma rota nova do sistema entra
+  nessa lista — esconder a ligação no índice (`seccoes_visiveis()`)
+  não é guarda nenhuma, é só o índice. E o `sou_admin()` responde
+  **sim** no acesso livre local sem conta: é o computador do Afonso
+  antes de haver contas, e sem isto nem se chegava à Conta para as
+  criar. Com duas contas o «único utilizador» do acesso livre é
+  `None` e o pedido continua a ser admin por ser livre.
+
+- **Trocar a palavra-passe não despromove.** `criar_utilizador()` com
+  `papel=None` mantém o que lá está; só o formulário do admin (e o
+  `--criar-utilizador`, que pergunta) o põe. O último admin não se
+  tira (`apagar_utilizador()` recusa), e a própria conta não se tira
+  pelo painel.
 
 - **O túnel liga-se ao painel a partir de 127.0.0.1.** O `cloudflared`
   corre neste computador e fala com o Flask por loopback: só pelo IP,
@@ -1299,9 +1333,23 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   e filhos de largura fixa entra nessa lista; `TestEcraEstreito` guarda
   as regras que existem, não a medida — a medida faz-se no browser.
 
+- **A barra é um `<header class="barra">`, horizontal, em todos os
+  tamanhos** (13/09/2026). O bloco `@media (max-width:900px)` já não
+  tem regras para a barra além de a navegação ir para uma segunda
+  linha; o que lá estava passou a ser a regra base. Nada de
+  contagens, fontes, endereço ou última verificação lá dentro — o
+  `envolver()` deixou de fazer o `COUNT(*)` por página por causa disso,
+  e a última verificação é `linha_da_ultima_verificacao()`, nos
+  Indicadores. O menu de «quem está» é um `<details>` com o `.sou-menu`
+  em `position:absolute`: aberto, cai por baixo da barra em vez de a
+  esticar.
+
 - **Configurações é uma página, e Alertas deixou de ser um item da
   barra** (8/09/2026, etapa 2 do `ONLINE.md`; reverte a decisão 11.6-A
-  do esqueleto). `NAV` tem três itens; `/alertas` e
+  do esqueleto). Desde 13/09/2026 são nove secções, `SECCOES_CONFIG`
+  tem quatro campos (o último é a bandeira de só-admin) e os
+  Indicadores são uma delas (`/indicadores` redirecciona). `NAV` tem
+  três itens; `/alertas` e
   `/alertas/interesse` redireccionam com a query string atrás, e os
   `POST` antigos (`/alertas/criar`, `/alertas/email`, …) continuam a
   existir e voltam para `/configuracoes/alertas` — mudar-lhes o

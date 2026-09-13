@@ -320,7 +320,7 @@ def atribuir_papeis(c):
 # passar a aplicar-se -- decisao do Afonso a 02/09/2026: nada muda no
 # front antes de o registo estar consolidado.
 MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
-                    "Falta de CV's")
+                    "Falta de CV's", "Não faz parte da oferta")
 MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações")
 
 
@@ -461,6 +461,18 @@ def iniciar_db():
             quem TEXT, criado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alertas_envio
                      ON alertas_vistos(enviado_em)""")
+        # 13/09/2026: os filtros guardados sem alerta deixaram de ter
+        # ecra (decisao do Afonso: apagam-se, nao se convertem). Uma vez,
+        # por marca -- desligar um alerta depois disto deixa-o na tabela
+        # com alerta=0, e nao pode ser apagado no arranque seguinte.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='filtros_sem_alerta_apagados'").fetchone():
+            c.execute("DELETE FROM alertas_vistos WHERE filtro_id IN "
+                      "(SELECT id FROM filtros_guardados "
+                      " WHERE COALESCE(alerta,0)=0)")
+            c.execute("DELETE FROM filtros_guardados WHERE COALESCE(alerta,0)=0")
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('filtros_sem_alerta_apagados','1')")
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT)""")
@@ -1096,6 +1108,22 @@ def frag_de_exclusao(texto, coluna, norma=simplifica):
         ors.append("COALESCE(%s,'') LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
         vals.append("%" + para_like(norma(p)) + "%")
     return "NOT (" + " OR ".join(ors) + ")", vals
+
+
+def aparelho_do_agente(agente):
+    """O nome do aparelho por tras de um User-Agent: "iPhone", "Android",
+    "Windows", "Mac", "Linux", ou "outro aparelho". E o que a lista das
+    sessoes mostra (13/09/2026): "Mozilla/5.0 (iPhone; CPU iPhone OS
+    18_7 like Mac OS X) AppleWebKit/605" nao diz nada a ninguem. A ordem
+    importa: um iPad diz "like Mac OS X", um Android diz "Linux"."""
+    a = (agente or "").lower()
+    for marca, nome in (("iphone", "iPhone"), ("ipad", "iPad"),
+                        ("android", "Android"), ("windows", "Windows"),
+                        ("mac os", "Mac"), ("macintosh", "Mac"),
+                        ("linux", "Linux")):
+        if marca in a:
+            return nome
+    return "outro aparelho"
 
 
 # -------------------------------------------------------------- pessoas
@@ -6851,6 +6879,34 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 ROTAS_ABERTAS = ("/entrar",)
 LOOPBACK = ("127.0.0.1", "::1")
 
+# O que so o admin abre (13/09/2026, "Mudancas na plataforma RADAR"):
+# as seccoes do sistema, os indicadores, o "Verificar agora" e a gestao
+# das contas. Por prefixo, para os POST de cada seccao entrarem com o
+# GET. Um tester que la bata leva 403 -- nao um redirect para o login,
+# que ele ja fez.
+ROTAS_SO_ADMIN = ("/indicadores", "/configuracoes/indicadores",
+                  "/configuracoes/recolha", "/configuracoes/leitura",
+                  "/configuracoes/capturas", "/configuracoes/copias",
+                  "/configuracoes/conta/utilizadores", "/verificar",
+                  "/alertas/remetente")
+
+
+def sou_admin():
+    """No acesso livre local sem conta nenhuma tambem e admin: e o
+    computador do Afonso antes de haver contas, e sem isto nem se
+    chegava a Conta para as criar."""
+    if not has_request_context():
+        return True
+    utilizador = g.get("utilizador")
+    if not utilizador:
+        return bool(g.get("livre"))
+    return contas.e_admin(utilizador)
+
+
+def so_admin(caminho):
+    return any(caminho == r or caminho.startswith(r + "/")
+               for r in ROTAS_SO_ADMIN)
+
 
 def pedido_e_local():
     """True se o pedido vem deste computador e NAO passou por um tunel.
@@ -6928,6 +6984,8 @@ def porta_de_entrada():
             para = request.full_path.rstrip("?")
             return redirect("/entrar?para=" + quote(para, safe=""))
         return Response("sessão em falta", 403, mimetype="text/plain")
+    if so_admin(request.path) and not sou_admin():
+        return Response("só o admin abre isto", 403, mimetype="text/plain")
     if request.method == "POST":
         if g.sessao:
             apresentado = (request.form.get("csrf")
@@ -7070,11 +7128,13 @@ def bloco_da_conta():
     nome = utilizador.get("nome") or ""
     if g.get("sessao"):
         return ("<details class='sou'><summary><span class='av'>%s</span>%s"
-                "</summary><form method='post' action='/sair'>"
+                "</summary><div class='sou-menu'>"
+                "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
+                "<form method='post' action='/sair'>"
                 "<button type='submit'>sair</button></form>"
                 "<form method='post' action='/sair-de-todos'>"
                 "<button type='submit'>sair de todos os aparelhos</button>"
-                "</form></details>"
+                "</form></div></details>"
                 % (_iniciais(nome), html.escape(nome)))
     if nome:
         return ("<div class='sou'><div class='so-nome'><span class='av'>%s"
@@ -7142,57 +7202,56 @@ CSS = r"""
    e nao a cada clique do rato. */
 :focus-visible{outline:2px solid var(--azul);outline-offset:2px;
  border-radius:4px}
-aside :focus-visible{outline-color:var(--coral)}
+.barra :focus-visible{outline-color:var(--coral)}
 body{margin:0;background:var(--papel);font-family:var(--sans);color:var(--t1);
  -webkit-font-smoothing:antialiased}
 a{color:var(--azul);text-decoration:none}
 a:hover{color:var(--ink)}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:var(--traco);border-radius:6px}
-.app{display:flex;min-height:100vh}
+.app{display:flex;flex-direction:column;min-height:100vh}
 
-/* Barra lateral, 140px. Era 236 e ocupava um quinto de um portatil para
-   quatro palavras; o Afonso pediu-a estreita. A 140 sobram 116px de
-   conteudo, e e por isso que aqui tudo tem medidas proprias em vez de
-   herdar as da zona principal: os textos partem-se em linhas curtas em
-   vez de encolherem. Encolher a largura sem refazer o espacamento e o
-   que a partia -- com o padding antigo de 22px sobravam 77px. */
-aside{width:140px;flex:none;background:var(--ink);color:#fff;display:flex;
- flex-direction:column;position:sticky;top:0;height:100vh;padding:16px 12px;
- box-sizing:border-box}
-.marca{padding:0 0 12px;border-bottom:1px solid var(--barra-linha)}
-.marca .logo{font:700 15px/1 var(--sans);letter-spacing:-.3px}
+/* A barra, em cima (13/09/2026, "Mudancas na plataforma RADAR"). Foi
+   lateral de 140px ate aqui; o que la vivia alem da navegacao -- as
+   fontes, as contagens, o endereco, a hora da ultima verificacao -- saiu
+   do ecra: as contagens estao nos Indicadores e a ultima verificacao
+   tambem. Fica a marca, os tres itens, Configuracoes e quem esta. E a
+   mesma barra em todos os tamanhos: o que era o bloco do telemovel
+   passou a ser a regra. */
+.barra{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;
+ gap:6px 14px;padding:10px 20px;background:var(--ink);color:#fff;
+ position:sticky;top:0;z-index:20;box-sizing:border-box}
+.marca{flex:none}
+.marca .logo{font:700 15px/1 var(--sans);letter-spacing:-.3px;color:#fff}
 .marca .logo span{color:var(--coral)}
-.marca .sub{font:500 9.5px/1.45 var(--sans);color:var(--barra-t3);margin-top:7px}
-.marca .meta{font:500 9.5px/1.6 var(--mono);color:var(--barra-t2);margin-top:7px}
-aside nav{display:flex;flex-direction:column;gap:1px;margin:12px -6px 0}
-aside nav a{display:block;padding:7px 8px;border-radius:5px;
+.barra nav{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;margin:0 0 0 8px;
+ overflow-x:auto;scrollbar-width:none;min-width:0}
+.barra nav a{display:block;padding:7px 9px;border-radius:5px;white-space:nowrap;flex:none;
  color:var(--barra-t2);font:500 12.5px/1.25 var(--sans)}
-aside nav a:hover{background:var(--barra-on);color:#fff}
-aside nav a.on{background:var(--barra-on);color:#fff}
-aside nav a b{font:inherit;font-weight:600}
+.barra nav a:hover{background:var(--barra-on);color:#fff}
+.barra nav a.on{background:var(--barra-on);color:#fff}
+.barra nav a b{font:inherit;font-weight:600}
 /* as duas vistas de um item aberto (Em curso, Mercado) */
-aside nav a.sub{padding:5px 8px 5px 16px}
-aside nav a.sub b{font-weight:400;font-size:11.5px}
-aside nav a.sub.on b{font-weight:600}
-.caixa{margin:16px 0 0;padding:12px 0 0;border-top:1px solid var(--barra-linha)}
-.caixa .r{font:600 8.5px/1 var(--sans);color:var(--barra-t3);
- text-transform:uppercase;letter-spacing:.1em}
-.caixa .h{font:500 10px/1.5 var(--mono);color:var(--barra-t2);margin-top:6px}
-.caixa .n{font:400 10.5px/1.5 var(--sans);color:var(--barra-t2);margin-top:5px}
-/* o ponto da ultima verificacao e a porta dos Indicadores (11.6-A) */
-.caixa a.n{display:block}
-.caixa a.n:hover{color:#fff}
-.caixa a.conf{margin-top:10px;font-weight:500;color:var(--barra-t2)}
-.caixa a.conf.on{color:#fff}
-/* Quem esta a trabalhar. Fechado por omissao: e uma escolha que se faz
-   uma vez e ocupava permanentemente o canto da barra. */
-.sou{margin-top:auto;padding:12px 0 0;border-top:1px solid var(--barra-linha)}
+.barra nav a.sub{padding:7px 9px}
+.barra nav a.sub b{font-weight:400;font-size:12px}
+.barra nav a.sub.on b{font-weight:600}
+.caixa{display:flex;align-items:center;gap:10px;margin-left:auto}
+.caixa a.conf{padding:7px 9px;border-radius:5px;font:500 12.5px/1.25 var(--sans);
+ color:var(--barra-t2)}
+.caixa a.conf:hover{background:var(--barra-on);color:#fff}
+.caixa a.conf.on{background:var(--barra-on);color:#fff}
+/* Quem esta. Fechado por omissao; aberto, o menu cai por baixo da barra
+   em vez de a esticar. */
+.sou{flex:none;position:relative}
 .sou > summary{display:flex;align-items:center;gap:7px;cursor:pointer;
- list-style:none;color:var(--barra-t3);font:500 10.5px/1.3 var(--sans)}
+ list-style:none;color:var(--barra-t3);font:500 10.5px/1.3 var(--sans);
+ padding:4px 0;min-height:24px;box-sizing:border-box}
 .sou > summary::-webkit-details-marker{display:none}
 .sou > summary:hover{color:#fff}
-.sou form{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+.sou .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;background:var(--ink);
+ border:1px solid var(--barra-linha);border-radius:7px;padding:8px 12px;
+ display:flex;flex-direction:column;gap:4px;min-width:190px;z-index:30}
+.sou form{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sou .av{width:22px;height:22px;border-radius:50%;background:var(--barra-on);
  flex:none;font:600 9px/22px var(--sans);color:#fff;text-align:center}
 .sou input{flex:1;min-width:0;background:transparent;border:0;
@@ -7205,6 +7264,9 @@ aside nav a.sub.on b{font-weight:600}
  font:400 10.5px/1.2 var(--sans);flex:none;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .sou button:hover{color:#fff}
+.sou .sou-menu a{color:var(--barra-t2);font:400 10.5px/1.2 var(--sans);padding:6px 5px;
+ margin:-6px 0;min-height:24px;box-sizing:border-box;display:inline-block}
+.sou .sou-menu a:hover{color:#fff}
 .sou .so-nome{display:flex;align-items:center;gap:7px;color:var(--barra-t3);
  font:500 10.5px/1.3 var(--sans)}
 /* O ecra de entrar: uma tarefa, sem barra lateral. */
@@ -7291,7 +7353,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .tag.mau{background:var(--verm-fundo);color:var(--verm);font-weight:600}
 .tag.info{background:var(--azul-fundo);color:var(--azul);font-weight:600}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
-.caixa .n .ponto{margin-right:6px}
 .ponto.pulsa{animation:pisca 1.1s infinite}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
@@ -8149,24 +8210,10 @@ button.tirar:hover{color:var(--verm)}
    dentro do seu contentor, nunca a pagina. Um so ponto de corte, 900px,
    mais um afinamento a 600 para os telemoveis mesmo pequenos. */
 @media (max-width:900px){
- .app{flex-direction:column}
- aside{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;
-  align-items:center;gap:6px 14px;padding:10px 14px}
- .marca{padding:0;border:0;flex:none}
- .marca .sub,.marca .meta{display:none}
+ .barra{padding:10px 14px}
  /* a navegacao vai para uma segunda linha, inteira, e rola de lado se
     nao caber: espremida ao lado da marca empilhava-se em coluna */
- aside nav{order:10;flex-basis:100%;flex-direction:row;flex-wrap:nowrap;margin:2px 0 0;
-  gap:2px;overflow-x:auto;scrollbar-width:none}
- aside nav a{padding:7px 9px;white-space:nowrap;flex:none}
- aside nav a.sub{padding:7px 9px}
- aside nav a.sub b{font-size:12px}
- .caixa{margin:0;padding:0;border:0;display:flex;align-items:center;gap:10px;margin-left:auto}
- .caixa .r,.caixa .h,.caixa a.n:not(.conf){display:none}
- .caixa a.conf{margin:0;padding:7px 9px;border-radius:5px}
- .caixa a.conf.on{background:var(--barra-on)}
- .sou{margin:0;padding:0;border:0;flex:none}
- .sou form{margin-top:6px}
+ .barra nav{order:10;flex-basis:100%;margin:2px 0 0}
  .topo{padding:12px 16px 0}
  .corpo{padding:14px 12px 44px}
  h1.tit{font-size:19px}
@@ -8210,7 +8257,7 @@ button.tirar:hover{color:var(--verm)}
  dialog.modal{width:94vw}
 }
 @media (max-width:600px){
- aside nav a{padding:7px 7px;font-size:12px}
+ .barra nav a{padding:7px 7px;font-size:12px}
  h1.tit{font-size:17px}
  .kpis{grid-template-columns:minmax(0,1fr)}
  .filtros select,.filtros input[type=date]{flex-basis:100%}
@@ -8231,21 +8278,14 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
 <style>%(css)s</style></head><body>
 <div class="app">
-<aside>
- <div class="marca">
-  <div class="logo">Radar<span>DR</span></div>
-  <div class="sub">%(fontes)s</div>
-  <div class="meta">%(acervo)s<br>127.0.0.1:%(porta)d</div>
- </div>
+<header class="barra">
+ <div class="marca"><a class="logo" href="/">Radar<span>DR</span></a></div>
  <nav>%(nav)s</nav>
  <div class="caixa">
-  <div class="r">Verificação automática</div>
-  <div class="h">%(horas)s</div>
-  <a class="n" href="/indicadores" title="Abrir os indicadores — a saúde completa do sistema">%(ultima)s</a>
-  <a class="n conf %(conf_on)s" href="/configuracoes" title="Interesse, alertas, recolha, leitura das peças, capturas, cópias e a conta">Configurações</a>
+  <a class="n conf %(conf_on)s" href="/configuracoes" title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
  </div>
  %(conta)s
-</aside>
+</header>
 <main>
  <div class="topo">
   <div class="migalhas">
@@ -8303,10 +8343,9 @@ ITEM_DA_PAGINA = {"anuncios": "anuncios",
                   "quadro": "emcurso", "calendario": "emcurso",
                   "contratos": "mercado", "renovacoes": "mercado"}
 
-# Paginas que vivem fora da navegacao, para as migalhas: os Indicadores
-# alcancam-se pelo ponto da ultima verificacao na barra lateral.
-PAGINAS_FORA_DA_NAV = {"indicadores": "Indicadores",
-                       "configuracoes": "Configurações"}
+# Paginas que vivem fora da navegacao, para as migalhas. (Os Indicadores
+# eram uma; desde 13/09/2026 sao uma seccao de Configuracoes.)
+PAGINAS_FORA_DA_NAV = {"configuracoes": "Configurações"}
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -8441,9 +8480,6 @@ def _iniciais(nome):
 def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
              abas="", script="", titulo_aba=None):
     """Monta uma pagina completa a partir do esqueleto partilhado."""
-    cfg = ler_config()
-    with liga() as c:
-        total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
     # As vistas agrupadas so se mostram dentro do item aberto: a barra
     # tem cinco itens exactos (decisao 11.6-A), e e ao entrar em "Em
     # curso" ou "Mercado" que as duas vistas de cada um aparecem.
@@ -8460,23 +8496,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                              % ("on" if v_chave == activo else "",
                                 v_destino, html.escape(v_etiqueta)))
 
-    # O ponto verde/vermelho vive aqui, na barra lateral, e nao num rodape
-    # a repetir a mesma coisa no fim de cada lista. Eram as mesmas tres
-    # informacoes duas vezes no mesmo ecra.
-    mensagem = le_marca("ultima_mensagem", "ainda não verificou")
-    quando = le_marca("ultima_verificacao", "nunca")
-    bom = le_marca("ultima_ok", "") != "0"
-    # Os pontos vivem sobre a barra escura, onde o contraste conta ao
-    # contrario: o verde e o vermelho da paleta clara desapareciam la.
-    ultima = (("<span class='ponto' style='background:%s'></span>"
-               "última: %s &mdash; %s"
-               % ("var(--ok-claro)" if bom else "var(--mau-claro)",
-                  html.escape(data_hora_pt(quando)), html.escape(mensagem)))
-              if quando != "nunca" else "ainda não verificou")
+    # A ultima verificacao saiu da barra a 13/09/2026: esta nos
+    # Indicadores (linha_da_ultima_verificacao()), que passaram a seccao
+    # de Configuracoes. O sinal de vida enquanto corre fica no topo.
     a_verificar = verificacao_a_correr()
-    if a_verificar:
-        ultima = ("<span class='ponto pulsa' style='background:var(--coral)'></span>"
-                  "a verificar agora &mdash; %s" % html.escape(a_verificar))
 
     if not migalhas:
         migalhas = migalhas_de(activo)
@@ -8520,26 +8543,13 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                % " e ".join("&ldquo;%s&rdquo;" % html.escape(t)
                             for t in faltam), onde, guiao))
 
-    n_corpus = ha_corpus()
     return com_csrf(BASE % {
         "titulo_aba": html.escape(titulo_aba or titulo),
-        "css": CSS, "porta": PORTA,
+        "css": CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
         "conf_on": "on" if activo == "configuracoes" else "",
-        # A aplicacao passou a ter duas fontes e o cabecalho so falava
-        # do DR: num separador de contratos, dizer "parte L" e mentira.
-        "fontes": ("Anúncios do DR &middot; contratos do BASE" if n_corpus
-                   else "DR II série &middot; parte L"),
-        # Uma contagem por linha: na barra estreita cabem 20 caracteres,
-        # e "66 205 anuncios · 1 363 300 contratos" numa linha so partia
-        # em qualquer sitio menos nos que interessam.
-        "acervo": ("%s anúncios<br>%s contratos"
-                   % (mil_pt(total), mil_pt(n_corpus)) if n_corpus
-                   else "%s anúncios" % mil_pt(total)),
         "nav": "".join(itens),
-        "horas": " &middot; ".join(cfg["horas_verificacao"]),
-        "ultima": ultima,
         "migalhas": migalhas,
         "titulo": html.escape(titulo),
         "subtitulo": subtitulo,
@@ -8554,7 +8564,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "accoes_topo": (
             ("<span class='a-correr'>a verificar&hellip;</span>"
              if a_verificar else accao("/verificar", "Verificar agora"))
-            if activo in PAGINAS_COM_VERIFICAR else ""),
+            if activo in PAGINAS_COM_VERIFICAR and sou_admin() else ""),
         "lista_pessoas": "".join("<option value='%s'>" % html.escape(n, quote=True)
                                  for n in listar_pessoas()),
         # Enquanto a verificacao correr, a pagina volta a pedir-se
@@ -9032,15 +9042,24 @@ function arvoreFiltra(no, alvo) {
   return mostra;
 }
 
-document.querySelector('details.arvore').addEventListener('toggle', function() {
-  if (this.open) arvoreCarregar();
-});
-document.getElementById('arvore-busca').addEventListener('input', function() {
-  var alvo = this.value.trim().toLowerCase();
-  Array.from(document.getElementById('arvore-corpo').children).forEach(
-      function(no) { arvoreFiltra(no, alvo); });
-});
-arvoreSemear();
+// A pagina pode nao ter arvore (a lista com interesse definido,
+// 13/09/2026): sem ela nao ha nada a ligar, e um addEventListener em
+// null era um erro na consola em todas as paginas da lista.
+var ARV_DET = document.querySelector('details.arvore');
+if (ARV_DET) {
+  ARV_DET.addEventListener('toggle', function() {
+    if (this.open) arvoreCarregar();
+  });
+  // a arvore que ja vem aberta carrega-se logo: o `toggle` de um
+  // <details open> e uma tarefa em fila, e nao se conta com ele
+  if (ARV_DET.open) arvoreCarregar();
+  document.getElementById('arvore-busca').addEventListener('input', function() {
+    var alvo = this.value.trim().toLowerCase();
+    Array.from(document.getElementById('arvore-corpo').children).forEach(
+        function(no) { arvoreFiltra(no, alvo); });
+  });
+  arvoreSemear();
+}
 </script>"""
 
 
@@ -9465,9 +9484,16 @@ def _lista_de_anuncios():
            html.escape(estado_actual, quote=True),
            html.escape(href_limpar(rota, estado_actual), quote=True)))
 
-    caixa_guardados = caixa_de_filtros(request.args, "anuncios", rota)
-
-    arvore = arvore_html(n_cpv, "anuncios")
+    # Com interesse definido a lista fica so com o filtro de texto (e os
+    # selectores): a arvore e o "excluir CPV" saem, porque o CPV ja esta
+    # decidido no Interesse (13/09/2026). Sem interesse, a arvore fica.
+    ligado_i, dentro_i, _ = interesse_definido(cfg)
+    com_interesse = bool(ligado_i and dentro_i)
+    arvore = "" if com_interesse else arvore_html(n_cpv, "anuncios")
+    if com_interesse:
+        filtros = filtros.replace(
+            "<input type='text' id='filtro-cpv-excl'",
+            "<input type='hidden' id='filtro-cpv-excl'")
 
     filtro_em_uso = filtro_actual(request.args, "anuncios")
     if linhas:
@@ -9538,16 +9564,16 @@ def _lista_de_anuncios():
     # marcadas saiu: era o mesmo que a barra lateral ja diz, duas vezes
     # no mesmo ecra. O ponto verde/vermelho foi para la.
 
-    # A ordem: filtros, faixa do CPV activo, arvore, e so depois os
-    # filtros guardados. A arvore e onde se escolhe o CPV, por isso vem
-    # antes de se guardar a escolha.
+    # A ordem: filtros, faixa do CPV activo, arvore. (Os filtros
+    # guardados sairam da lista a 13/09/2026: o que era guardar um filtro
+    # passou a ser o Interesse, e os alertas criam-se em Configuracoes.)
     # O CSV leva a marca da lista: o recorte da aba e da pagina e nao
     # do filtro, e sem isto o "exportar as N linhas" do por ver
     # exportava tambem os expirados -- o numero da ligacao mentia.
     qs = request.query_string.decode()
     qs_csv = (qs + "&" if qs else "") + urlencode({"ambito": "anuncios"})
 
-    # Os tres blocos de filtro (campos, arvore, guardados) recolhidos
+    # Os blocos de filtro (campos, arvore) recolhidos
     # por omissao (UX-Auditoria, Hick/Tesler, decisao do Afonso a
     # 8/09/2026): a lista abria com 60% do ecra em filtros e 42 alvos
     # antes do primeiro anuncio, e a triagem e "ler o cartao, decidir".
@@ -9561,7 +9587,7 @@ def _lista_de_anuncios():
         "%s</details>"
         % (" open" if ha_filtro else "",
            html.escape(resumo_filtro(filtro_em_uso, "anuncios")),
-           filtros + faixa_cpv + arvore + caixa_guardados))
+           filtros + faixa_cpv + arvore))
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
                 faixa_interesse + painel_filtros +
@@ -9583,7 +9609,7 @@ def _lista_de_anuncios():
         "responder; o que expira passa sozinho para os "
         "<b>Abandonados</b>.",
         conteudo, abas="".join(abas),
-        script=ARVORE_JS + LISTA_JS + caixa_de_abandono(),
+        script=("" if com_interesse else ARVORE_JS) + LISTA_JS + caixa_de_abandono(),
         titulo_aba="Radar de Concursos, DR")
 
 
@@ -9742,17 +9768,28 @@ def quantos_cpv():
         return c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
 
 
-def arvore_html(n_cpv, de, submeter=True):
+def arvore_html(n_cpv, de, submeter=True, aberta=False,
+                botao="Aplicar seleccionados ao filtro", rodape=True):
     """A arvore de CPV, igual nos dois separadores.
 
     O `de` diz de onde vem a contagem de cada codigo (anuncios ou
     contratos) e vai no proprio elemento, num data-*: o JS e o mesmo nos
     dois sitios e le dali a rota que ha-de pedir. Duas copias do JS
     divergiam ao primeiro arranjo.
+
+    `aberta`, `botao` e `rodape` sao do Interesse (13/09/2026): la a
+    arvore e o ecra inteiro, ja aberta, o botao chama-se "Guardar o
+    interesse" e grava logo, e o paragrafo do rodape nao entra.
     """
     quantos = {"anuncios": "anúncios", "contratos": "contratos"}[de]
+    pe = ("<div class='arv-pe'>Marcar uma divisão apanha tudo o que está por "
+          "baixo dela &mdash; ao filtro vai só o código do grupo, e os zeros à "
+          "direita fazem o resto. <b>Desmarcar um código lá dentro tira só "
+          "esse</b>: vai para &ldquo;excluir CPV&rdquo; e a divisão continua a "
+          "contar, incluindo os anúncios que só trazem o código dela.</div>"
+          if rodape else "")
     return (
-        "<details class='arvore' data-de='%s'%s><summary>"
+        "<details class='arvore' data-de='%s'%s%s><summary>"
         "<span class='arv-tit'>Escolher CPV na árvore</span>"
         "<span class='arv-sub'>%s códigos &middot; contagens acumuladas "
         "de %s</span>"
@@ -9760,18 +9797,14 @@ def arvore_html(n_cpv, de, submeter=True):
         "</summary>"
         "<div class='arvore-topo'>"
         "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software'>"
-        "<button type='button' onclick='arvoreAplicar()'>Aplicar seleccionados ao filtro</button>"
+        "<button type='button' onclick='arvoreAplicar()'>%s</button>"
         "<button type='button' class='claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
         "<span id='arvore-contagem'></span>"
         "</div>"
         "<div id='arvore-corpo'>a carregar…</div>"
-        "<div class='arv-pe'>Marcar uma divisão apanha tudo o que está por "
-        "baixo dela &mdash; ao filtro vai só o código do grupo, e os zeros à "
-        "direita fazem o resto. <b>Desmarcar um código lá dentro tira só "
-        "esse</b>: vai para &ldquo;excluir CPV&rdquo; e a divisão continua a "
-        "contar, incluindo os anúncios que só trazem o código dela.</div>"
-        "</details>" % (de, "" if submeter else " data-submeter='nao'",
-                        mil_pt(n_cpv), quantos))
+        "%s</details>" % (de, "" if submeter else " data-submeter='nao'",
+                          " open" if aberta else "",
+                          mil_pt(n_cpv), quantos, html.escape(botao), pe))
 
 
 def fragmento_cpv(texto, coluna="cpv"):
@@ -9928,22 +9961,6 @@ def condicoes(args):
     return (" WHERE " + " AND ".join(onde) if onde else ""), valores
 
 
-GUARDAR_JS = """<script>
-function confirmarGravar(f) {
-  var nomes = [];
-  try { nomes = JSON.parse(f.dataset.nomes || '[]'); } catch (x) {}
-  var nome = (f.nome.value || '').trim();
-  for (var i = 0; i < nomes.length; i++) {
-    if (nomes[i].toLowerCase() === nome.toLowerCase()) {
-      return confirm('Já existe um filtro chamado "' + nomes[i] +
-                     '". Gravar por cima substitui o que lá está.');
-    }
-  }
-  return true;
-}
-</script>"""
-
-
 def faixa_cpv_activo(args, tirar_href):
     """A faixa "Filtro CPV activo", UMA so para as paginas com arvore
     (decisao 6.3-A). O campo do CPV e escondido -- quem escolhe e a
@@ -10002,95 +10019,11 @@ def selector_procedimento(procs, actual, vazio="todos os procedimentos"):
     return "<select name='proc'>%s</select>" % "".join(opcoes)
 
 
-def caixa_de_filtros(args, vista, rota=None, extra=""):
-    """A caixa dos filtros guardados, igual em todas as paginas.
-
-    Aplicar um filtro e seguir uma ligacao -- so leitura, nada muda na
-    base -- mas guardar e apagar sao POST, como o resto do que escreve.
-
-    Os filtros sao os mesmos em todo o lado; o que muda e o que cada
-    pagina sabe aplicar. Um filtro com campos que esta pagina nao conhece
-    entra na mesma, com a parte que serve, e **fica marcado como
-    parcial** a dizer o que ficou de fora -- aplicar "ganho por MEO" aos
-    anuncios, onde nao ha vencedor, seria alargar o filtro em silencio.
-
-    O `extra` e da vista, nao do filtro (p.ex. "ver=fim" no modo fim
-    estimado dos contratos): cola-se a frente da consulta em cada
-    ligacao, para aplicar um filtro sem sair do modo em que se esta.
-    """
-    rota = rota or ROTA_DA_VISTA.get(vista, "/")
-    agora = filtro_actual(args, vista)
-
-    def destino(consulta):
-        pedacos = [x for x in (extra, consulta) if x]
-        return rota + ("?" + "&".join(pedacos) if pedacos else "")
-    with liga() as c:
-        guardados = c.execute(
-            "SELECT * FROM filtros_guardados "
-            "ORDER BY nome COLLATE NOCASE").fetchall()
-
-    fichas, nome_activo, fora_activo = [], "", ()
-    for f in guardados:
-        consulta, de_fora = filtro_para(f["consulta"] or "", vista)
-        activo = consulta == agora
-        if activo:
-            nome_activo = f["nome"]
-            fora_activo = de_fora
-        titulo = resumo_filtro(f["consulta"] or "")
-        if de_fora:
-            titulo += " — aqui não se aplica: %s" % ", ".join(
-                _NOMES_FILTRO.get(k, k) for k in de_fora)
-        fichas.append(
-            "<span class='guardado%s%s'>"
-            "<a href='%s' title='%s'>%s%s</a></span>"
-            % (" on" if activo else "", " parcial" if de_fora else "",
-               html.escape(destino(consulta), quote=True),
-               html.escape(titulo, quote=True), html.escape(f["nome"]),
-               "<i>parcial</i>" if de_fora else ""))
-
-    if fichas:
-        legenda = ""
-    else:
-        legenda = ("<span class='nada'>ainda nenhum &mdash; guarda o filtro "
-                   "de agora, ou cria um em <a href='/configuracoes/alertas'>Alertas</a>"
-                   "</span>")
-
-    # O que ficou de fora do filtro em uso, escrito e nao escondido. A
-    # regra e boa -- um filtro nunca se aplica a meio em silencio -- mas
-    # o que ficava a vista era so a palavra "parcial", e a lista dos
-    # campos vivia no `title`, que so aparece a quem deixe o rato quieto
-    # em cima e nao existe fora do rato.
-    if fora_activo:
-        legenda += (
-            "<span class='parcial-nota'>Este filtro tem campos que esta "
-            "página não aplica: <b>%s</b>. Está a filtrar só pelo resto."
-            "</span>" % html.escape(", ".join(
-                _NOMES_FILTRO.get(k, k) for k in fora_activo)))
-
-    # O nome do filtro em uso vem preenchido de proposito: gravar por cima
-    # do mesmo nome e como se actualiza um filtro depois de o afinar. Mas
-    # e por isso mesmo que se confirma: afinar um filtro, mudar de ideias
-    # e gravar substituia outro sem perguntar nada e sem forma de voltar
-    # atras -- o "Filtro actualizado" so aparecia depois de estar feito.
-    nomes = [f["nome"] for f in guardados]
-    guardar = (
-        "<form class='guardar' method='post' action='/filtros/guardar' "
-        "data-nomes='%s' onsubmit='return confirmarGravar(this)'>"
-        "<input type='hidden' name='consulta' value='%s'>"
-        "<input type='hidden' name='volta' value='%s'>"
-        "<input type='text' name='nome' required maxlength='60' value='%s' "
-        "placeholder='dar nome a estes filtros…'>"
-        "<button type='submit' class='bt forte'>Guardar filtro</button>"
-        "</form>" % (html.escape(json.dumps(nomes, ensure_ascii=False),
-                                 quote=True),
-                     html.escape(agora, quote=True),
-                     html.escape(destino(""), quote=True),
-                     html.escape(nome_activo, quote=True)))
-
-    return ("<div class='cx guardados'><span class='rot'>"
-            "Filtros guardados</span>%s%s%s%s"
-            "<a class='gerir' href='/alertas'>gerir</a></div>"
-            % ("".join(fichas), legenda, guardar, GUARDAR_JS))
+# A caixa "Filtros guardados" que vivia aqui, nas tres listas, saiu a
+# 13/09/2026 ("Mudancas na plataforma RADAR"): o que era guardar um
+# filtro para o reaplicar passou a ser o Interesse, e o que era guardar
+# um filtro para avisar passou a ser so "Criar alerta", em Configuracoes.
+# A tabela filtros_guardados fica: e onde os alertas vivem.
 
 
 def volta_para(rota, consulta="", aviso=""):
@@ -10114,9 +10047,9 @@ def gravar_filtro(nome, consulta, alerta=None):
 
     Gravar por cima do mesmo nome actualiza-o -- e assim que se afina um
     filtro sem ficar com dois quase iguais e sem saber qual esta em uso.
-    Com `alerta` a None mantem-se a marca que ja tinha: guardar de novo
-    a partir de uma lista nao pode desligar um alerta sem se dar por
-    isso. Devolve se ja existia.
+    Com `alerta` a None mantem-se a marca que ja tinha. Desde 13/09/2026
+    so o "Criar alerta" grava aqui, e grava com a marca posta -- um
+    filtro sem alerta deixou de ter ecra. Devolve se ja existia.
     """
     with liga() as c:
         antes = c.execute("SELECT id, alerta FROM filtros_guardados "
@@ -10133,18 +10066,6 @@ def gravar_filtro(nome, consulta, alerta=None):
                    quem_sou() or "(sem nome)",
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
     return bool(antes)
-
-
-@app.route("/filtros/guardar", methods=["POST"])
-def filtro_guardar():
-    nome = (request.form.get("nome") or "").strip()
-    consulta = (request.form.get("consulta") or "").strip()
-    volta = (request.form.get("volta") or "/").strip()
-    if not nome:
-        return volta_para(volta, consulta)
-    havia = gravar_filtro(nome, consulta)
-    return volta_para(volta, consulta, "Filtro %s: %s"
-                      % ("actualizado" if havia else "guardado", nome))
 
 
 @app.route("/filtros/<int:filtro_id>/apagar", methods=["POST"])
@@ -10465,39 +10386,6 @@ def exportar():
 # lista de anuncios mostra, sempre, sem ninguem ter de o pôr. Sao os
 # CPV que a casa faz.
 
-def _caixa_interesse():
-    """O resumo do interesse na pagina dos alertas, com a porta para o
-    ecra onde se escolhe.
-
-    O ecra e outro por uma razao pratica: a arvore de CPV e uma so por
-    pagina -- o JS fala com um `details.arvore` e um `#filtro-cpv` -- e
-    /alertas ja gasta a sua no "Novo filtro". Duas arvores na mesma
-    pagina obrigavam a mudar o JS que serve quatro paginas.
-    """
-    ligado, dentro, fora = interesse_definido()
-    if dentro:
-        estado = ("<b>ligado</b>" if ligado else
-                  "<b>desligado</b> &mdash; a lista mostra o acervo todo")
-        resumo = ("<div class='nota' style='margin:6px 0 10px'>Está %s. "
-                  "CPV: <b>%s</b>%s</div>"
-                  % (estado, html.escape(dentro),
-                     (", sem <b>%s</b>" % html.escape(fora)) if fora else ""))
-    else:
-        resumo = ("<div class='nota' style='margin:6px 0 10px'>Ainda não "
-                  "está definido: a lista de anúncios mostra tudo o que a "
-                  "parte L publica.</div>")
-    return ("<div class='cx novo-filtro' style='margin-top:16px'>"
-            "<div class='rot'>Interesse</div>"
-            "<div class='nota' style='margin:6px 0 10px'>O interesse "
-            "limita a <a href='/'>lista de anúncios</a> aos CPV que a "
-            "casa trabalha &mdash; em todas as abas e sem se ter de pôr "
-            "um filtro. Não é um alerta: um alerta avisa, o interesse "
-            "esconde o resto.</div>%s"
-            "<div class='arvore-topo' style='padding:0 0 4px'>"
-            "<a class='bt' href='/configuracoes/interesse'>Definir o interesse"
-            "</a></div></div>" % resumo)
-
-
 @app.route("/alertas/interesse")
 def interesse():
     """Passou a Configuracoes > Interesse (8/09/2026); redirecciona."""
@@ -10528,57 +10416,49 @@ def _conteudo_interesse():
             apanha_tudo = c.execute(
                 "SELECT COUNT(*) n FROM anuncios WHERE " + frag,
                 vals).fetchone()["n"]
+    # So a arvore, ja aberta (13/09/2026): o que esta guardado vem
+    # semeado nela, e o botao da arvore grava. Uma linha diz o que esta
+    # em vigor -- sem ela, "Guardar" nao deixava rasto nenhum no ecra.
     if apanha_ver is None:
-        conta = ("<div class='nota'>Escolhe os códigos na árvore e carrega "
-                 "em &ldquo;Aplicar seleccionados ao filtro&rdquo; &mdash; "
-                 "depois grava aqui em baixo.</div>")
+        estado = ("<div class='nota' style='margin:0 0 12px'>Ainda sem "
+                  "interesse: a <a href='/'>lista de anúncios</a> mostra "
+                  "tudo. Marca os CPV e carrega em &ldquo;Guardar o "
+                  "interesse&rdquo;.</div>")
     else:
-        conta = ("<div class='nota'>Este interesse apanha <b>%s</b> dos "
-                 "anúncios por ver e <b>%s</b> do acervo todo. (O acervo "
-                 "antigo em grande parte ainda não tem CPV lido, e sem "
-                 "CPV nenhum anúncio entra no interesse.)</div>"
-                 % (mil_pt(apanha_ver), mil_pt(apanha_tudo)))
+        estado = ("<div class='nota' style='margin:0 0 12px'>Em vigor: "
+                  "<b>%s</b>%s &mdash; apanha <b>%s</b> dos anúncios por ver "
+                  "e <b>%s</b> do acervo. A <a href='/'>lista</a> mostra só "
+                  "isto, em todas as abas.</div>"
+                  % (html.escape(dentro),
+                     (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
+                     mil_pt(apanha_ver), mil_pt(apanha_tudo)))
     formulario = (
-        "<div class='cx novo-filtro'><div class='rot'>Os CPV do "
-        "interesse</div>"
-        "<div class='nota' style='margin:6px 0 14px'>Enquanto estiver "
-        "ligado, a <a href='/'>lista de anúncios</a> só mostra o que "
-        "corresponde &mdash; nas quatro abas. A lista di-lo por cima de "
-        "si mesma e tem sempre a porta de saída (&ldquo;ver tudo&rdquo;). "
-        "Os alertas e os contratos não são tocados: o interesse é um "
-        "recorte de leitura da lista, não um filtro.</div>"
+        "<div class='cx novo-filtro'>%s"
         "<form method='post' action='/alertas/interesse' class='filtros'>"
-        "<label><input type='checkbox' name='activo' value='1'%s> "
-        "limitar a lista de anúncios a estes CPV</label>"
-        "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
-        "placeholder='CPV — escolhe na árvore aqui em baixo'>"
-        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
-        "placeholder='CPV a tirar de dentro desses…'>"
-        "<button type='submit'>Guardar o interesse</button>"
-        "</form>%s%s</div>"
-        % (" checked" if ligado else "",
-           html.escape(dentro, quote=True), html.escape(fora, quote=True),
-           conta, arvore_html(n_cpv, "anuncios", submeter=False)))
+        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        "</form>%s</div>"
+        % (estado, html.escape(dentro, quote=True), html.escape(fora, quote=True),
+           arvore_html(n_cpv, "anuncios", aberta=True,
+                       botao="Guardar o interesse", rodape=False)))
     return formulario
 
 
 @app.route("/alertas/interesse", methods=["POST"])
 def interesse_gravar():
-    """Grava o interesse. Ligado sem CPV nenhum nao esconde nada -- e o
-    que condicao_do_interesse() faz --, por isso avisa-se aqui em vez de
-    deixar o Afonso a pensar que ficou a limitar."""
+    """Grava o interesse. Desde 13/09/2026 nao ha caixa de ligar: com
+    CPV escolhido esta ligado, com a arvore vazia esta desligado. (A
+    chave `interesse_activo` fica no config.json porque e ela que
+    condicao_do_interesse() e os testes leem.)"""
     dentro = " ".join((request.form.get("cpv") or "").split())
     fora = " ".join((request.form.get("cpv_excl") or "").split())
-    activo = bool(request.form.get("activo"))
+    activo = bool(dentro)
     gravar_config({"interesse_activo": activo, "interesse_cpv": dentro,
                    "interesse_cpv_excl": fora})
-    if activo and not dentro:
-        aviso = ("Interesse ligado mas sem CPV escolhido — a lista "
-                 "continua a mostrar tudo.")
-    elif activo:
+    if activo:
         aviso = "Interesse guardado: a lista de anúncios passa a mostrar só %s." % dentro
     else:
-        aviso = "Interesse guardado e desligado: a lista mostra tudo."
+        aviso = "Interesse vazio: a lista de anúncios volta a mostrar tudo."
     return redirect("/configuracoes/interesse?" + urlencode({"aviso": aviso}))
 
 
@@ -10622,8 +10502,8 @@ def _linha_filtro(f):
         "<span class='onde'>aplicar a: %s</span>%s</div>"
         "<div class='conta'>%s</div>"
         "<form method='post' action='/filtros/%d/apagar' "
-        "onsubmit='return confirm(\"Apagar o filtro &quot;%s&quot;? "
-        "Não se apaga nada além do filtro.\")'>"
+        "onsubmit='return confirm(\"Apagar o alerta &quot;%s&quot;? "
+        "Não se apaga nada além do alerta.\")'>"
         "<input type='hidden' name='volta' value='/alertas'>"
         "<button type='submit' class='apagar' title='apagar'>&times;</button>"
         "</form></div>"
@@ -10673,6 +10553,23 @@ def _caixa_email(cfg):
         envio.append(("Último envio", html.escape(estado),
                       not estado.startswith("por enviar")))
 
+    # O tester ve so o destino e a hora (13/09/2026); a conta que envia
+    # e do sistema, e so o admin a ve -- a porta recusa-lhe o POST.
+    if not sou_admin():
+        return (
+            "<div class='cx conf-email'>"
+            "<div class='rot'>Resumo por e-mail</div>"
+            "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
+            "da hora marcada, e só se houver novidade.</div>"
+            "<form class='form-email' method='post' action='/alertas/email'>"
+            "<label>Enviar para<input type='email' name='para' value='%s' "
+            "placeholder='o.teu@email.pt'></label>"
+            "<label>Hora do resumo<input type='time' name='hora_resumo' "
+            "value='%s'></label>"
+            "<button type='submit' class='bt forte'>Guardar</button>"
+            "</form></div>"
+            % (html.escape(str(e.get("para") or ""), quote=True),
+               html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
     return (
         "<div class='cx conf-email'>"
         "<div class='rot'>Resumo por e-mail</div>"
@@ -10829,10 +10726,9 @@ def _conteudo_alertas():
         lista = "<div class='alertas'>%s</div>" % "".join(
             _linha_filtro(f) for f in filtros)
     else:
-        lista = ("<div class='vazio'>Ainda não há filtros. Cria um aqui em "
-                 "baixo, ou afina a pesquisa na <a href='/anuncios'>"
-                 "Pesquisa</a> ou nos <a href='/contratos'>contratos</a> e "
-                 "guarda-a com um nome &mdash; é o mesmo filtro.</div>")
+        lista = ("<div class='vazio'>Ainda não há alertas. Cria um aqui em "
+                 "baixo: o que entrar e corresponder vai no resumo por "
+                 "e-mail.</div>")
 
     # O que se tinha escrito quando a validacao recusou: vem na query
     # string do redirect e volta para os campos, em vez de se perder.
@@ -10844,12 +10740,12 @@ def _conteudo_alertas():
 
     # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
     novo = (
-        "<div class='cx novo-filtro'><div class='rot'>Novo filtro</div>"
-        "<div class='nota' style='margin:6px 0 14px'>Um filtro é um "
-        "conjunto de campos. Cada página aplica os que entende &mdash; um "
-        "filtro por CPV serve os anúncios e os contratos; um por "
-        "&ldquo;quem ganhou&rdquo; só faz sentido nos contratos, e nos "
-        "anúncios fica marcado como parcial.</div>"
+        "<div class='cx novo-filtro'><div class='rot'>Filtro de alertas</div>"
+        "<div class='nota' style='margin:6px 0 14px'>Um alerta é um "
+        "conjunto de campos: o que entrar e corresponder vai no resumo "
+        "por e-mail. Um alerta por CPV ou por palavras avisa dos "
+        "anúncios; os campos dos contratos (quem ganhou, valor) não "
+        "avisam de nada.</div>"
         # Os campos todos, e nao metade. O formulario oferecia seis dos
         # treze campos que um filtro tem: nao dava para criar aqui um
         # filtro por plataforma, por estado, por tipo de procedimento nem
@@ -10862,7 +10758,7 @@ def _conteudo_alertas():
         # se tinha escrito -- antes vinha tudo vazio, nome incluido.
         "<form method='post' action='/alertas/criar' class='filtros'>"
         "<input type='text' name='nome' required maxlength='60' value='%s' "
-        "placeholder='nome do filtro…'>"
+        "placeholder='nome do alerta…'>"
         "<input type='text' name='q' value='%s' placeholder='Objecto…'>"
         "<input type='text' name='q_excl' value='%s' "
         "placeholder='Excluir palavras…'>"
@@ -10888,7 +10784,7 @@ def _conteudo_alertas():
         "<label>desde</label><input type='text' name='min' value='%s' "
         "placeholder='€ mínimo (contratos)' "
         "style='min-width:0;width:150px;flex:none'>"
-        "<button type='submit'>Criar filtro</button>"
+        "<button type='submit'>Criar alerta</button>"
         "</form>%s</div>"
         % (pv("nome"), pv("q"), pv("q_excl"), pv("cpv"), pv("cpv_excl"),
            opcoes_op(request.args), pv("ent"), pv("adj"), pv("ganhou"),
@@ -10943,7 +10839,7 @@ def _conteudo_alertas():
         historico = ("<div class='nota'>Ainda não saiu nenhum aviso. Sai no "
                      "resumo a seguir à próxima verificação.</div>")
 
-    conteudo = ("<div class='larg'>" + _caixa_interesse() + lista +
+    conteudo = ("<div class='larg'>" + lista +
                 caixa_seguidas +
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
@@ -10966,16 +10862,27 @@ def _conteudo_alertas():
 # escrevem-se nos ficheiros de sempre (ler_chave() le-os), e quando
 # vem por variavel de ambiente o ecra di-lo e nao deixa editar.
 
+# (chave, titulo, descricao, so_admin). A ordem e a do documento de
+# 13/09/2026: primeiro o que e de quem usa (conta, interesse, alertas,
+# importar), depois o que e do sistema, que so o admin ve.
 SECCOES_CONFIG = (
-    ("interesse", "Interesse", "os CPV que a casa trabalha"),
-    ("alertas", "Alertas", "filtros com alerta, entidades, o resumo por e-mail"),
-    ("recolha", "Recolha", "horas, janelas, a Vortal"),
-    ("leitura", "Leitura das peças", "fornecedor, modelo e chaves"),
-    ("capturas", "Capturas", "os dois pedidos ao DR"),
-    ("copias", "Cópias", "a cópia diária e a triagem no git"),
-    ("importar", "Importar dados", "o registo da casa, pelo modelo Excel"),
-    ("conta", "Conta", "nome, palavra-passe, sessões"),
+    ("conta", "Conta", "palavra-passe, sessões, utilizadores", False),
+    ("interesse", "Interesse", "os CPV que a casa trabalha", False),
+    ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False),
+    ("importar", "Importar dados", "o registo da casa, pelo modelo Excel", False),
+    ("indicadores", "Indicadores", "a saúde do sistema e os números", True),
+    ("capturas", "Capturas", "os dois pedidos ao DR", True),
+    ("recolha", "Recolha", "horas, janelas, a Vortal", True),
+    ("leitura", "Leitura das peças", "fornecedor, modelo e chaves", True),
+    ("copias", "Cópias", "a cópia diária e a triagem no git", True),
 )
+
+
+def seccoes_visiveis():
+    """As seccoes que quem esta pode abrir: todas ao admin, as quatro
+    primeiras ao tester. A porta (ROTAS_SO_ADMIN) e quem recusa; isto
+    e so o indice."""
+    return [sc for sc in SECCOES_CONFIG if not sc[3] or sou_admin()]
 
 # O que fica no config.json de proposito, sem formulario: termos de
 # pesquisa e de reserva, paginas, por_pagina, abrir_browser_ao_encontrar,
@@ -11012,11 +10919,11 @@ def gravar_config_registado(mudancas, quem=None):
 def pagina_config(seccao, conteudo, script=""):
     """O esqueleto comum: o indice das seccoes a esquerda, preso ao
     rolar como o da ficha, e a seccao a direita."""
-    titulo = dict((c, t) for c, t, _ in SECCOES_CONFIG)[seccao]
+    titulo = dict((c, t) for c, t, _, _ in SECCOES_CONFIG)[seccao]
     indice = "".join(
         "<a class='%s' href='/configuracoes/%s'><b>%s</b><i>%s</i></a>"
         % ("on" if c == seccao else "", c, html.escape(t), html.escape(d))
-        for c, t, d in SECCOES_CONFIG)
+        for c, t, d, _ in seccoes_visiveis())
     return envolver(
         "configuracoes", titulo,
         "Dizer ao radar como quero que ele trabalhe. Cada secção grava "
@@ -11062,7 +10969,7 @@ def _inteiro(form, nome, minimo, maximo, rotulo):
 
 @app.route("/configuracoes")
 def configuracoes():
-    return redirect("/configuracoes/alertas")
+    return redirect("/configuracoes/conta")
 
 
 @app.route("/configuracoes/alertas")
@@ -11484,53 +11391,46 @@ def config_conta():
                              "<code>python radar.py --criar-utilizador NOME</code>."
                              "</div></div>")
     if request.method == "POST":
-        nome = (request.form.get("nome") or "").strip()[:60]
+        # So a palavra-passe: o "nome a mostrar" saiu a 13/09/2026 (o
+        # utilizador chega), e o utilizador em si nao se muda.
         actual = request.form.get("actual") or ""
         nova = request.form.get("nova") or ""
         outra = request.form.get("outra") or ""
         # o registar() fica FORA do `with`: la dentro a transaccao esta
         # aberta e a segunda ligacao ficava a espera dela (database is
         # locked -- apanhado pelo teste)
-        registo = ""
         with liga() as c:
             linha = c.execute("SELECT hash FROM utilizadores WHERE id=?",
                               (utilizador["id"],)).fetchone()
-            if nova or outra:
-                if not contas.verifica_senha(actual, linha["hash"]):
-                    return volta_config("conta", "A palavra-passe actual não está certa.")
-                if nova != outra:
-                    return volta_config("conta", "As duas palavras-passe novas não são iguais.")
-                try:
-                    contas.criar_utilizador(c, utilizador["email"], nova, nome)
-                except ValueError as erro:
-                    return volta_config("conta", "Não gravei: %s." % erro)
-                registo = "palavra-passe mudada"
-            elif nome and nome != utilizador.get("nome"):
-                c.execute("UPDATE utilizadores SET nome=? WHERE id=?",
-                          (nome, utilizador["id"]))
-                registo = "nome: %s → %s" % (utilizador.get("nome"), nome)
-        if registo:
-            registar("", "conta", registo)
-        return volta_config("conta", "Conta guardada.")
+            if not contas.verifica_senha(actual, linha["hash"]):
+                return volta_config("conta", "A palavra-passe actual não está certa.")
+            if nova != outra:
+                return volta_config("conta", "As duas palavras-passe novas não são iguais.")
+            try:
+                contas.criar_utilizador(c, utilizador["email"], nova)
+            except ValueError as erro:
+                return volta_config("conta", "Não gravei: %s." % erro)
+        registar("", "conta", "palavra-passe mudada")
+        return volta_config("conta", "Palavra-passe mudada.")
     with liga() as c:
         sessoes = contas.sessoes_de(c, utilizador["id"])
+        todos = contas.utilizadores(c) if sou_admin() else []
+    # "iPhone até 10/10/2026 14:35", nao o User-Agent inteiro (13/09/2026)
     linhas = "".join(
         "<div class='l'><span class='ponto' style='background:%s'></span>"
         "<span class='t'>%s%s</span><span class='v'>até %s</span></div>"
         % ("#1e8449" if s_["token"] == g.get("sessao") else "#9db1c4",
-           html.escape((s_["agente"] or "?")[:70]),
+           aparelho_do_agente(s_["agente"]),
            " (esta)" if s_["token"] == g.get("sessao") else "",
            html.escape(data_hora_pt(s_["expira"][:16])))
         for s_ in sessoes) or "<div class='nota'>nenhuma sessão: estás pelo acesso livre local</div>"
     corpo = (
         "<form method='post' action='/configuracoes/conta' class='conf-form'>"
-        + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled",
-                 nota="muda-se por consola: --criar-utilizador NOME cria outro")
-        + _campo("Nome a mostrar", "nome", utilizador.get("nome") or "")
+        + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled")
         + _campo("Palavra-passe actual", "actual", "", tipo="password",
                  extra="autocomplete='current-password'")
         + _campo("Nova palavra-passe", "nova", "", tipo="password",
-                 nota="8 caracteres ou mais; deixa vazio para mudar só o nome",
+                 nota="8 caracteres ou mais",
                  extra="autocomplete='new-password'")
         + _campo("Outra vez", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
@@ -11540,7 +11440,84 @@ def config_conta():
         + ("<div style='margin-top:14px'>%s</div>"
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
            if sessoes else ""))
+    if sou_admin():
+        corpo += _bloco_utilizadores(todos, utilizador["id"])
     return pagina_config("conta", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+def _bloco_utilizadores(todos, eu):
+    """A gestao das contas, so ao admin (13/09/2026): quem existe, de que
+    tipo, e o formulario para criar outra. Tirar uma conta e um botao
+    com confirmacao; o ultimo admin nao se tira (contas.apagar_utilizador
+    recusa)."""
+    linhas = "".join(
+        "<div class='l'><span class='ponto' style='background:%s'></span>"
+        "<span class='t'>%s%s</span><span class='v'>%s%s</span></div>"
+        % ("#1e8449" if u["papel"] == "admin" else "#9db1c4",
+           html.escape(u["email"]), " (eu)" if u["id"] == eu else "",
+           html.escape(u["papel"]),
+           "" if u["id"] == eu else
+           " &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
+                                "tirar", "mini",
+                                "Tirar a conta %s? As sessões dela fecham já."
+                                % html.escape(u["email"], quote=True)))
+        for u in todos)
+    return (
+        "<div class='rot' style='margin:26px 0 6px'>Utilizadores</div>"
+        "<div class='nota' style='margin-bottom:10px'>O <b>admin</b> vê tudo "
+        "e cria contas; o <b>tester</b> vê os anúncios, o que está em curso, "
+        "o mercado, e nas configurações só a conta, o interesse, os alertas "
+        "e o importar.</div>"
+        "<div class='saude'>%s</div>"
+        "<form method='post' action='/configuracoes/conta/utilizadores' "
+        "class='conf-form' style='margin-top:16px'>"
+        "%s%s"
+        "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
+        "<option value='tester'>tester</option>"
+        "<option value='admin'>admin</option></select></label>"
+        "<button type='submit' class='bt forte'>Criar utilizador</button></form>"
+        % (linhas,
+           _campo("Utilizador", "email", "", extra="autocomplete='off'"),
+           _campo("Palavra-passe", "senha", "", tipo="password",
+                  nota="8 caracteres ou mais",
+                  extra="autocomplete='new-password'")))
+
+
+@app.route("/configuracoes/conta/utilizadores", methods=["POST"])
+def conta_criar_utilizador():
+    email = (request.form.get("email") or "").strip()
+    papel = (request.form.get("papel") or "tester").strip()
+    with liga() as c:
+        if c.execute("SELECT 1 FROM utilizadores WHERE email=?",
+                     (contas.email_limpo(email),)).fetchone():
+            return volta_config("conta", "Já existe um utilizador %s." % email)
+        try:
+            contas.criar_utilizador(c, email, request.form.get("senha") or "",
+                                    papel=papel)
+        except ValueError as erro:
+            return volta_config("conta", "Não criei: %s." % erro)
+    registar("", "conta", "criou o utilizador %s (%s)"
+             % (contas.email_limpo(email), papel))
+    return volta_config("conta", "Utilizador %s criado, como %s."
+                        % (contas.email_limpo(email), papel))
+
+
+@app.route("/configuracoes/conta/utilizadores/<int:utilizador_id>/apagar",
+           methods=["POST"])
+def conta_apagar_utilizador(utilizador_id):
+    if utilizador_id == (g.get("utilizador") or {}).get("id"):
+        return volta_config("conta", "A tua própria conta não se tira daqui.")
+    with liga() as c:
+        linha = c.execute("SELECT email FROM utilizadores WHERE id=?",
+                          (utilizador_id,)).fetchone()
+        try:
+            houve = contas.apagar_utilizador(c, utilizador_id)
+        except ValueError as erro:
+            return volta_config("conta", "Não tirei: %s." % erro)
+    if not houve:
+        return volta_config("conta", "Essa conta já não existe.")
+    registar("", "conta", "tirou o utilizador %s" % linha["email"])
+    return volta_config("conta", "Conta %s tirada." % linha["email"])
 
 
 @app.route("/alertas/criar", methods=["POST"])
@@ -11568,13 +11545,17 @@ def alerta_criar():
             [("aviso", mensagem), ("nome", nome)] + pares))
 
     if not nome:
-        return recusa("O filtro precisa de nome.")
+        return recusa("O alerta precisa de nome.")
     consulta = urlencode(pares)
     if not [k for k, v in pares if v and k not in ("estado", "op")]:
         return recusa("Preenche pelo menos um campo além do estado.")
-    havia = gravar_filtro(nome, consulta)
+    # Nasce ligado (13/09/2026: "Criar alerta", nao "criar filtro"), e o
+    # acervo que ja la esta fica marcado como tal, como ao ligar o
+    # interruptor -- senao o primeiro resumo trazia tudo.
+    havia = gravar_filtro(nome, consulta, alerta=1)
+    registar_alertas()
     return redirect("/configuracoes/alertas?aviso=" +
-                    quote("Filtro %s: %s"
+                    quote("Alerta %s: %s"
                           % ("actualizado" if havia else "criado", nome)))
 
 
@@ -12320,11 +12301,7 @@ def filtros_da_ficha(chave, d):
            v("cpv_excl"), v("de"), v("ate"),
            v("min"), limpar, "".join(chips),
            faixa_de_avisos_de_datas(request.args), faixa,
-           arvore_html(n_cpv, "contratos"),
-           # os mesmos filtros guardados dos contratos, mas a voltar para
-           # esta ficha e so com os campos que ela entende
-           caixa_de_filtros(request.args, "entidade",
-                            rota="/entidade/" + quote(chave, safe=""))))
+           arvore_html(n_cpv, "contratos"), ""))
 
 
 @app.route("/entidade/<path:chave>")
@@ -13019,9 +12996,6 @@ def contratos():
                 ("" if fim else faixa_de_avisos_de_datas(request.args)) +
                 filtros +
                 faixa_cpv + arvore_html(n_cpv, "contratos") +
-                caixa_de_filtros(request.args, vista, "/contratos",
-                                 extra="ver=fim&meses=%d" % meses
-                                 if fim else "") +
                 graficos + linha_conta +
                 (titulo_tabela if ha_pergunta else "") +
                 tabela +
@@ -15423,6 +15397,28 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
 
 
 @app.route("/indicadores")
+def indicadores_antigo():
+    """Passou a Configuracoes > Indicadores (13/09/2026); redirecciona."""
+    return redirect("/configuracoes/indicadores")
+
+
+def linha_da_ultima_verificacao():
+    """(rotulo, valor, bom) da ultima verificacao, para a saude dos
+    Indicadores. Vivia na barra lateral ate 13/09/2026."""
+    mensagem = le_marca("ultima_mensagem", "ainda não verificou")
+    quando = le_marca("ultima_verificacao", "nunca")
+    bom = le_marca("ultima_ok", "") != "0"
+    a_correr = verificacao_a_correr()
+    if a_correr:
+        return ("Última verificação", "a verificar agora &mdash; %s"
+                % html.escape(a_correr), True)
+    if quando == "nunca":
+        return ("Última verificação", "ainda não verificou", False)
+    return ("Última verificação", "%s &mdash; %s"
+            % (html.escape(data_hora_pt(quando)), html.escape(mensagem)), bom)
+
+
+@app.route("/configuracoes/indicadores")
 def indicadores():
     """Numeros sobre a propria base. Sem servicos externos: e tudo SQL
     sobre o radar.db."""
@@ -15500,7 +15496,10 @@ def indicadores():
 
     tem_dr = "válido" if carregar_curl() else "em falta"
     tem_det = "válido" if carregar_curl("curl_detalhe") else "em falta"
-    saude = [("Captura curl_DR.txt", tem_dr, tem_dr == "válido"),
+    saude = [("Verificação automática",
+              " &middot; ".join(ler_config()["horas_verificacao"]), True),
+             linha_da_ultima_verificacao(),
+             ("Captura curl_DR.txt", tem_dr, tem_dr == "válido"),
              ("Captura curl_detalhe.txt", tem_det, tem_det == "válido")]
     # O denominador, escrito. As percentagens das plataformas sao sobre
     # os anuncios com detalhe lido -- 8% da base -- e ficavam ao lado de
@@ -15700,12 +15699,7 @@ def indicadores():
         "<a href='/contratos'>Contratos</a>.</div></div>"
         "</div></div>" % (kpis_html, funil_cx, barras, saude_html, corpus_html))
 
-    migalhas = migalhas_de("indicadores")
-    return envolver("indicadores", "Indicadores",
-                    "Consultas directas às duas bases &mdash; os anúncios do "
-                    "DR e o corpus do BASE. Sem serviços externos.",
-                    conteudo, migalhas=migalhas,
-                    titulo_aba="Indicadores, Radar de Concursos")
+    return pagina_config("indicadores", conteudo)
 
 
 @app.route("/quadro/mover", methods=["POST"])
@@ -16141,16 +16135,17 @@ def main():
             if not email or email.startswith("--"):
                 print("Uso: python radar.py %s UTILIZADOR" % bandeira)
                 return
-            nome = ""
+            nome, papel = "", None
             if bandeira == "--criar-utilizador":
-                nome = input("Nome a mostrar (Enter para usar o utilizador): ").strip()
+                papel = (input("Tipo (admin ou tester; Enter para admin): ")
+                         .strip().lower() or "admin")
             senha = getpass.getpass("Palavra-passe (8 caracteres ou mais): ")
             if senha != getpass.getpass("Outra vez: "):
                 print("Não são iguais. Nada mudou.")
                 return
             try:
                 with liga() as c:
-                    contas.criar_utilizador(c, email, senha, nome)
+                    contas.criar_utilizador(c, email, senha, nome, papel)
             except ValueError as erro:
                 print("Não deu: %s" % erro)
                 return

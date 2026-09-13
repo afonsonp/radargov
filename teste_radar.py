@@ -4035,8 +4035,9 @@ class TestNavegacaoPorIntencoes(unittest.TestCase):
         chaves = {n[0] for n in radar.NAV}
         chaves.update(v[0] for n in radar.NAV for v in n[3])
         self.assertNotIn("indicadores", chaves)
-        # mas a página existe e as migalhas sabem o nome dela
-        self.assertIn("Indicadores", radar.migalhas_de("indicadores"))
+        # desde 13/09/2026 sao uma seccao de Configuracoes (so do admin)
+        self.assertIn("indicadores", [c for c, _, _, _ in radar.SECCOES_CONFIG])
+        self.assertIn("Configurações", radar.migalhas_de("configuracoes"))
 
     def test_quadro_e_calendario_vivem_sob_em_curso(self):
         self.assertEqual(radar.ITEM_DA_PAGINA["quadro"], "emcurso")
@@ -7240,7 +7241,11 @@ class TestRegistoDaCasa(BaseTemporaria):
         self.assertNotIn("casa", radar.ITEM_DA_PAGINA)
         self.assertNotIn("/casa", [r.rule for r in radar.app.url_map.iter_rules()])
         self.assertFalse(hasattr(radar, "casa_cx"))
-        self.assertEqual(len(radar.MOTIVOS_ABANDONO), 3)
+        # quatro desde 13/09/2026: "Nao faz parte da oferta" entrou a
+        # pedido dele ("Mudancas na plataforma RADAR"); os dois do Excel
+        # continuam de fora ate o registo se aplicar
+        self.assertEqual(len(radar.MOTIVOS_ABANDONO), 4)
+        self.assertIn("Não faz parte da oferta", radar.MOTIVOS_ABANDONO)
 
     LOTES = ("\n1 - IDENTIFICAÇÃO\nDesignação da entidade adjudicante: SPMS\n"
              "Procedimento com lotes? Sim\nNº Máx. de Lotes Autorizado: 3\n\n"
@@ -7468,7 +7473,7 @@ class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
         self._sem_varrimento("/")
 
     def test_os_indicadores_nao_varrem(self):
-        self._sem_varrimento("/indicadores")
+        self._sem_varrimento("/configuracoes/indicadores")
 
     def test_os_alertas_nao_varrem(self):
         self._sem_varrimento("/configuracoes/alertas")
@@ -8370,12 +8375,14 @@ class TestListaRecolhidaETeclado(unittest.TestCase):
         # o resumo do filtro fica na linha, para se saber o que está posto
         self.assertIn("CPV 72000000", html_.split("</summary>")[0])
 
-    def test_os_tres_blocos_continuam_la_dentro(self):
+    def test_os_blocos_continuam_la_dentro_e_os_guardados_sairam(self):
         html_ = self.cliente.get("/").get_data(as_text=True)
         dentro = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
         self.assertIn("class='cx filtros'", dentro)
-        self.assertIn("details class='arvore'", dentro)     # o JS procura-a assim
-        self.assertIn("guardados", dentro)
+        # 13/09/2026: a caixa "Filtros guardados" saiu das listas; o que
+        # era guardar um filtro passou a ser o Interesse e os alertas
+        self.assertNotIn("Filtros guardados", html_)
+        self.assertNotIn("/filtros/guardar", html_)
 
     def test_o_teclado_esta_na_lista_e_diz_se(self):
         html_ = self.cliente.get("/").get_data(as_text=True)
@@ -8440,8 +8447,16 @@ class TestConfiguracoes(BaseTemporaria):
         radar.BASE_DIR = self.base_antiga
         super().tearDown()
 
-    def test_as_sete_seccoes_abrem_e_as_rotas_antigas_redireccionam(self):
-        for seccao, _, _ in radar.SECCOES_CONFIG:
+    def test_as_nove_seccoes_abrem_e_as_rotas_antigas_redireccionam(self):
+        # nove desde 13/09/2026 (Indicadores entrou), pela ordem do
+        # documento do Afonso: o que e de quem usa primeiro, o do sistema
+        # depois, marcado como so de admin
+        self.assertEqual([c for c, _, _, _ in radar.SECCOES_CONFIG],
+                         ["conta", "interesse", "alertas", "importar",
+                          "indicadores", "capturas", "recolha", "leitura", "copias"])
+        self.assertEqual([c for c, _, _, so_admin in radar.SECCOES_CONFIG if so_admin],
+                         ["indicadores", "capturas", "recolha", "leitura", "copias"])
+        for seccao, _, _, _ in radar.SECCOES_CONFIG:
             with self.subTest(seccao=seccao):
                 r = self.cliente.get("/configuracoes/" + seccao)
                 self.assertEqual(r.status_code, 200)
@@ -8452,7 +8467,9 @@ class TestConfiguracoes(BaseTemporaria):
         r = self.cliente.get("/alertas/interesse")
         self.assertEqual(r.headers["Location"], "/configuracoes/interesse")
         self.assertEqual(self.cliente.get("/configuracoes").headers["Location"],
-                         "/configuracoes/alertas")
+                         "/configuracoes/conta")
+        self.assertEqual(self.cliente.get("/indicadores").headers["Location"],
+                         "/configuracoes/indicadores")
 
     def test_recolha_grava_e_rele_sem_perder_o_resto(self):
         radar.gravar_config({"interesse_cpv": "72000000", "email": {"para": "x@y.pt"}})
@@ -8573,24 +8590,25 @@ class TestConfiguracoes(BaseTemporaria):
         with open(os.path.join(self.pasta, "email_senha.txt"), encoding="utf-8") as f:
             self.assertEqual(f.read().strip(), "segredo-do-email")
 
-    def test_conta_muda_nome_e_palavra_passe_com_a_actual(self):
+    def test_conta_muda_a_palavra_passe_com_a_actual(self):
+        # 13/09/2026: o "nome a mostrar" e a nota da consola sairam do
+        # ecra; o formulario e so a palavra-passe
         import contas
         with radar.liga() as c:
             contas.criar_utilizador(c, "admin", "senha-comprida", "Afonso")
+        html_ = self.cliente.get("/configuracoes/conta").get_data(as_text=True)
+        self.assertNotIn("Nome a mostrar", html_)
+        self.assertNotIn("--criar-utilizador", html_)
         # pelo acesso livre local o utilizador e o unico
-        r = self.cliente.post("/configuracoes/conta", data={"nome": "A. Pinto"})
-        self.assertIn("guardada", r.headers["Location"])
-        with radar.liga() as c:
-            self.assertEqual(c.execute("SELECT nome FROM utilizadores").fetchone()[0], "A. Pinto")
         r = self.cliente.post("/configuracoes/conta", data={
-            "nome": "A. Pinto", "actual": "errada", "nova": "nova-senha-1", "outra": "nova-senha-1"})
+            "actual": "errada", "nova": "nova-senha-1", "outra": "nova-senha-1"})
         self.assertIn("actual", unquote_plus(r.headers["Location"]))
         r = self.cliente.post("/configuracoes/conta", data={
-            "nome": "A. Pinto", "actual": "senha-comprida", "nova": "nova-senha-1", "outra": "nova-senha-2"})
+            "actual": "senha-comprida", "nova": "nova-senha-1", "outra": "nova-senha-2"})
         self.assertIn("iguais", unquote_plus(r.headers["Location"]))
         r = self.cliente.post("/configuracoes/conta", data={
-            "nome": "A. Pinto", "actual": "senha-comprida", "nova": "nova-senha-1", "outra": "nova-senha-1"})
-        self.assertIn("guardada", r.headers["Location"])
+            "actual": "senha-comprida", "nova": "nova-senha-1", "outra": "nova-senha-1"})
+        self.assertIn("mudada", r.headers["Location"])
         with radar.liga() as c:
             token, _ = contas.entrar(c, "admin", "nova-senha-1")
         self.assertTrue(token)
@@ -8962,13 +8980,19 @@ class TestEcraEstreito(unittest.TestCase):
     def bloco(self):
         return radar.CSS.split("@media (max-width:900px){", 1)[1]
 
-    def test_ha_um_ponto_de_corte_a_900_e_a_barra_passa_para_cima(self):
+    def test_ha_um_ponto_de_corte_a_900_e_a_barra_e_uma_linha_em_cima(self):
+        # 13/09/2026: a barra passou a horizontal em TODOS os tamanhos
+        # ("Mudancas na plataforma RADAR"); o que era o bloco do telemovel
+        # e agora a regra, e o bloco so trata do que e estreito
         self.assertIn("@media (max-width:900px){", radar.CSS)
+        base = radar.CSS.split("@media (max-width:900px){", 1)[0]
+        self.assertIn(".app{display:flex;flex-direction:column;min-height:100vh}", base)
+        self.assertIn(".barra{display:flex;flex-direction:row;flex-wrap:wrap", base)
+        self.assertIn(".barra nav{display:flex;flex-direction:row;flex-wrap:nowrap", base)
+        self.assertNotIn("aside", base)
         b = self.bloco()
-        self.assertIn(".app{flex-direction:column}", b)
-        self.assertIn("aside{width:auto;height:auto;position:static;flex-direction:row", b)
-        # a navegacao numa linha propria, a rolar de lado, nunca em coluna
-        self.assertIn("aside nav{order:10;flex-basis:100%;flex-direction:row;flex-wrap:nowrap", b)
+        # no estreito a navegacao vai para uma linha propria, a rolar de lado
+        self.assertIn(".barra nav{order:10;flex-basis:100%", b)
 
     def test_as_grelhas_de_duas_colunas_passam_a_uma(self):
         b = self.bloco()
@@ -9146,6 +9170,281 @@ class TestExportacaoNaoChocaComOutroProcesso(BaseTemporaria):
                 "SELECT valor FROM estado WHERE chave=?",
                 ("ultima_exportacao_triagem",)).fetchone(),
                 "a marca de erro sobreviveu a uma exportação boa")
+
+
+
+class TestMudancasDeSetembro(BaseTemporaria):
+    """«Mudanças na plataforma RADAR» (13/09/2026), o documento do Afonso:
+    dois tipos de utilizador, a barra em cima, o menu de configurações
+    reordenado com os Indicadores lá dentro, a Conta sem nome nem nota,
+    o Interesse só com a árvore, os Alertas sem interesse nem filtros
+    guardados, e o e-mail só com destino e hora para quem não é admin."""
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        import contas
+        self.contas = contas
+        self.cfg_antigo = radar.ler_config
+        self.config_antigo = radar.CONFIG
+        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True)
+        radar.ler_config = lambda: dict(self.cfg)
+        with radar.liga() as c:
+            self.contas.criar_utilizador(c, "admin", "senha-comprida")
+            self.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+
+    def tearDown(self):
+        radar.ler_config = self.cfg_antigo
+        radar.CONFIG = self.config_antigo
+        super().tearDown()
+
+    def entrar(self, quem):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def token(self, cliente):
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        m = re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_)
+        return m.group(1) if m else ""
+
+    # -- os papeis
+
+    def test_quem_ja_existia_e_admin_e_a_coluna_entra_por_migracao(self):
+        with radar.liga() as c:
+            c.execute("DROP TABLE utilizadores")
+            c.execute("CREATE TABLE utilizadores (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                      "email TEXT UNIQUE NOT NULL, nome TEXT NOT NULL DEFAULT '', "
+                      "hash TEXT NOT NULL, criado_em TEXT, ultimo_acesso TEXT)")
+            c.execute("INSERT INTO utilizadores (email, hash) VALUES ('afonso', 'x')")
+            self.contas.iniciar_tabelas(c)
+            self.assertEqual(self.contas.utilizadores(c)[0]["papel"], "admin")
+            # uma conta nova sem papel dito e admin; com papel, o que se disse
+            self.assertEqual(self.contas.utilizadores(c)[0]["papel"], "admin")
+            with self.assertRaises(ValueError):
+                self.contas.criar_utilizador(c, "z", "senha-comprida", papel="chefe")
+            # trocar a palavra-passe nao despromove
+            self.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+            self.contas.criar_utilizador(c, "teste", "outra-senha-1")
+            papel = c.execute("SELECT papel FROM utilizadores WHERE email='teste'").fetchone()[0]
+            self.assertEqual(papel, "tester")
+            self.assertTrue(self.contas.e_admin({"papel": "admin"}))
+            self.assertFalse(self.contas.e_admin({"papel": "tester"}))
+
+    def test_o_ultimo_admin_nao_se_tira(self):
+        with radar.liga() as c:
+            admin = [u for u in self.contas.utilizadores(c) if u["email"] == "admin"][0]
+            tester = [u for u in self.contas.utilizadores(c) if u["email"] == "teste"][0]
+            with self.assertRaises(ValueError):
+                self.contas.apagar_utilizador(c, admin["id"])
+            self.assertTrue(self.contas.apagar_utilizador(c, tester["id"]))
+            self.assertFalse(self.contas.apagar_utilizador(c, tester["id"]))
+
+    def test_a_sessao_traz_o_papel(self):
+        with radar.liga() as c:
+            token, u = self.contas.entrar(c, "teste", "senha-comprida")
+            self.assertEqual(u["papel"], "tester")
+            self.assertEqual(self.contas.utilizador_da_sessao(c, token)["papel"], "tester")
+
+    def test_o_tester_nao_abre_o_que_e_do_sistema(self):
+        tester = self.entrar("teste")
+        admin = self.entrar("admin")
+        for rota in ("/configuracoes/recolha", "/configuracoes/leitura",
+                     "/configuracoes/capturas", "/configuracoes/copias",
+                     "/configuracoes/indicadores", "/indicadores"):
+            with self.subTest(rota=rota):
+                self.assertEqual(tester.get(rota, environ_base=self.FORA).status_code, 403)
+                self.assertIn(admin.get(rota, environ_base=self.FORA).status_code, (200, 302))
+        # os POST tambem: o "Verificar agora" e quem envia o e-mail
+        for rota in ("/verificar", "/alertas/remetente", "/configuracoes/conta/utilizadores"):
+            with self.subTest(rota=rota):
+                r = tester.post(rota, data={"csrf": self.token(tester)}, environ_base=self.FORA)
+                self.assertEqual(r.status_code, 403)
+        # e o que e dele continua a abrir
+        for rota in ("/", "/quadro", "/contratos", "/configuracoes/conta",
+                     "/configuracoes/interesse", "/configuracoes/alertas",
+                     "/configuracoes/importar"):
+            with self.subTest(rota=rota):
+                self.assertEqual(tester.get(rota, environ_base=self.FORA).status_code, 200)
+
+    def test_o_indice_e_o_verificar_agora_seguem_o_papel(self):
+        tester = self.entrar("teste")
+        admin = self.entrar("admin")
+        html_t = tester.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        html_a = admin.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        for seccao in ("recolha", "leitura", "capturas", "copias", "indicadores"):
+            self.assertNotIn("href='/configuracoes/%s'" % seccao, html_t)
+            self.assertIn("href='/configuracoes/%s'" % seccao, html_a)
+        for seccao in ("conta", "interesse", "alertas", "importar"):
+            self.assertIn("href='/configuracoes/%s'" % seccao, html_t)
+        # o bloco dos utilizadores so ao admin
+        self.assertIn("Criar utilizador", html_a)
+        self.assertNotIn("Criar utilizador", html_t)
+        lista_t = tester.get("/", environ_base=self.FORA).get_data(as_text=True)
+        lista_a = admin.get("/", environ_base=self.FORA).get_data(as_text=True)
+        # (pelo formulario, nao pelo texto: o CSS da pagina cita o botao)
+        self.assertNotIn("action='/verificar'", lista_t)
+        self.assertIn("action='/verificar'", lista_a)
+        # o e-mail: o tester so ve destino e hora
+        alertas_t = tester.get("/configuracoes/alertas", environ_base=self.FORA).get_data(as_text=True)
+        alertas_a = admin.get("/configuracoes/alertas", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("name='hora_resumo'", alertas_t)
+        self.assertNotIn("Quem envia", alertas_t)
+        self.assertIn("Quem envia", alertas_a)
+
+    def test_o_admin_cria_e_tira_contas_pelo_painel(self):
+        admin = self.entrar("admin")
+        r = admin.post("/configuracoes/conta/utilizadores",
+                       data={"csrf": self.token(admin), "email": "novo",
+                             "senha": "senha-do-novo", "papel": "tester"},
+                       environ_base=self.FORA)
+        self.assertIn("criado", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            novo = [u for u in self.contas.utilizadores(c) if u["email"] == "novo"][0]
+            self.assertEqual(novo["papel"], "tester")
+            eu = [u for u in self.contas.utilizadores(c) if u["email"] == "admin"][0]
+        # repetido: recusa; curta: recusa
+        r = admin.post("/configuracoes/conta/utilizadores",
+                       data={"csrf": self.token(admin), "email": "novo",
+                             "senha": "senha-do-novo", "papel": "tester"},
+                       environ_base=self.FORA)
+        self.assertIn("existe", unquote_plus(r.headers["Location"]))
+        r = admin.post("/configuracoes/conta/utilizadores",
+                       data={"csrf": self.token(admin), "email": "outro",
+                             "senha": "curta", "papel": "admin"},
+                       environ_base=self.FORA)
+        self.assertIn("8 caracteres", unquote_plus(r.headers["Location"]))
+        # a propria conta nao se tira daqui; a do novo sim
+        r = admin.post("/configuracoes/conta/utilizadores/%d/apagar" % eu["id"],
+                       data={"csrf": self.token(admin)}, environ_base=self.FORA)
+        self.assertIn("própria", unquote_plus(r.headers["Location"]))
+        r = admin.post("/configuracoes/conta/utilizadores/%d/apagar" % novo["id"],
+                       data={"csrf": self.token(admin)}, environ_base=self.FORA)
+        self.assertIn("tirada", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            self.assertNotIn("novo", [u["email"] for u in self.contas.utilizadores(c)])
+
+    def test_as_sessoes_dizem_o_aparelho_e_nao_o_agente(self):
+        self.assertEqual(radar.aparelho_do_agente(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605"), "iPhone")
+        self.assertEqual(radar.aparelho_do_agente(
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36"), "Android")
+        self.assertEqual(radar.aparelho_do_agente(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"), "Windows")
+        self.assertEqual(radar.aparelho_do_agente(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605"), "Mac")
+        self.assertEqual(radar.aparelho_do_agente("curl/8.5"), "outro aparelho")
+        self.assertEqual(radar.aparelho_do_agente(None), "outro aparelho")
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": "admin", "senha": "senha-comprida"},
+                     environ_base=dict(self.FORA, HTTP_USER_AGENT=
+                                       "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)"))
+        html_ = cliente.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("iPhone (esta)", html_)
+        self.assertNotIn("Mozilla", html_)
+
+    # -- a barra
+
+    def test_a_barra_e_um_header_sem_contagens_nem_ultima_verificacao(self):
+        self.assertIn('<header class="barra">', radar.BASE)
+        self.assertNotIn("<aside", radar.BASE)
+        for texto in ("Verificação automática", "127.0.0.1:", "%(fontes)s",
+                      "%(acervo)s", "%(ultima)s", "%(horas)s"):
+            self.assertNotIn(texto, radar.BASE)
+        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        self.assertNotIn("Anúncios do DR", html_)
+        self.assertNotIn("anúncios<br>", html_)
+        self.assertIn('href="/configuracoes"', html_)
+        # a ultima verificacao foi para os indicadores
+        rotulo, _, _ = radar.linha_da_ultima_verificacao()
+        self.assertEqual(rotulo, "Última verificação")
+        html_ = radar.app.test_client().get("/configuracoes/indicadores").get_data(as_text=True)
+        self.assertIn("Última verificação", html_)
+        self.assertIn("Verificação automática", html_)
+        self.assertIn("class='conf-indice'", html_)
+
+    # -- o interesse
+
+    def test_o_interesse_e_so_a_arvore_aberta_e_grava_pelo_botao_dela(self):
+        html_ = radar.app.test_client().get("/configuracoes/interesse").get_data(as_text=True)
+        self.assertIn("<details class='arvore' data-de='anuncios' open>", html_)
+        self.assertIn("Guardar o interesse", html_)
+        self.assertNotIn("data-submeter", html_)         # o botao da arvore submete
+        self.assertNotIn("Marcar uma divisão apanha", html_)
+        self.assertNotIn("name='activo'", html_)
+        self.assertNotIn("Aplicar seleccionados", html_)
+        self.assertIn("<input type='hidden' id='filtro-cpv' name='cpv'", html_)
+        # a arvore ja aberta carrega-se logo, sem depender do toggle
+        self.assertIn("if (ARV_DET.open) arvoreCarregar();", radar.ARVORE_JS)
+        # com CPV fica ligado; vazio fica desligado -- nao ha caixa
+        r = radar.app.test_client().post("/alertas/interesse", data={"cpv": "72000000"})
+        self.assertIn("passa a mostrar", unquote_plus(r.headers["Location"]))
+        cfg = json.load(open(radar.CONFIG, encoding="utf-8"))
+        self.assertTrue(cfg["interesse_activo"])
+        self.assertEqual(cfg["interesse_cpv"], "72000000")
+        radar.app.test_client().post("/alertas/interesse", data={"cpv": ""})
+        cfg = json.load(open(radar.CONFIG, encoding="utf-8"))
+        self.assertFalse(cfg["interesse_activo"])
+
+    def test_com_interesse_a_lista_fica_so_com_o_filtro_de_texto(self):
+        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        self.assertIn("details class='arvore'", html_)
+        self.assertIn("<input type='text' id='filtro-cpv-excl'", html_)
+        self.cfg.update(interesse_activo=True, interesse_cpv="72000000")
+        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        self.assertNotIn("details class='arvore'", html_)
+        self.assertNotIn("<input type='text' id='filtro-cpv-excl'", html_)
+        self.assertIn("name='q'", html_)
+        # e o JS da arvore nao vai: ligava um listener a null
+        self.assertNotIn("arvoreCarregar", html_)
+        self.assertIn("if (ARV_DET) {", radar.ARVORE_JS)
+
+    # -- os alertas
+
+    def test_os_alertas_sem_interesse_e_criar_alerta_nasce_ligado(self):
+        cliente = radar.app.test_client()
+        html_ = cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        self.assertNotIn("Definir o interesse", html_)
+        self.assertNotIn("<div class='rot'>Interesse</div>", html_)
+        self.assertIn("Filtro de alertas", html_)
+        self.assertIn("Criar alerta", html_)
+        self.assertNotIn("Novo filtro", html_)
+        self.assertNotIn("Criar filtro", html_)
+        r = cliente.post("/alertas/criar", data={"nome": "IT", "cpv": "72000000", "estado": "novo"})
+        self.assertIn("Alerta criado", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT alerta FROM filtros_guardados WHERE nome='IT'")
+                             .fetchone()[0], 1)
+
+    def test_os_filtros_guardados_deixaram_de_existir(self):
+        regras = [r.rule for r in radar.app.url_map.iter_rules()]
+        self.assertNotIn("/filtros/guardar", regras)
+        self.assertFalse(hasattr(radar, "caixa_de_filtros"))
+        self.assertFalse(hasattr(radar, "GUARDAR_JS"))
+        for rota in ("/", "/contratos"):
+            html_ = radar.app.test_client().get(rota).get_data(as_text=True)
+            self.assertNotIn("Filtros guardados", html_)
+            self.assertNotIn("Guardar filtro", html_)
+
+    def test_os_filtros_sem_alerta_apagam_se_uma_vez_e_so_uma(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta) VALUES "
+                      "('velho', 'q=x', 0), ('vivo', 'q=y', 1)")
+            c.execute("DELETE FROM estado WHERE chave='filtros_sem_alerta_apagados'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            nomes = [r[0] for r in c.execute("SELECT nome FROM filtros_guardados ORDER BY nome")]
+        self.assertEqual(nomes, ["vivo"])
+        # um alerta desligado DEPOIS da migracao fica: a marca ja esta posta
+        with radar.liga() as c:
+            c.execute("UPDATE filtros_guardados SET alerta=0 WHERE nome='vivo'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            nomes = [r[0] for r in c.execute("SELECT nome FROM filtros_guardados")]
+        self.assertEqual(nomes, ["vivo"])
 
 
 if __name__ == "__main__":
