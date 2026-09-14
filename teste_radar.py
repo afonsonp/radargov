@@ -139,7 +139,7 @@ class TestNomeSeguro(unittest.TestCase):
         self.assertEqual(radar.nome_seguro(r"..\..\radar.db"), "radar.db")
         self.assertEqual(radar.nome_seguro("/etc/passwd"), "passwd")
 
-    def test_tira_caracteres_proibidos_no_windows(self):
+    def test_tira_caracteres_que_um_sistema_de_ficheiros_recusa(self):
         self.assertNotIn(":", radar.nome_seguro("a:b.pdf"))
         self.assertNotIn("?", radar.nome_seguro("a?b.pdf"))
 
@@ -7898,7 +7898,8 @@ class TestTarefasEmFalta(unittest.TestCase):
     «não há o que avisar» -- e era exactamente o modo de falha que o
     aviso existe para apanhar: parecer vivo sem recolher nada. Em Linux
     lê os temporizadores do systemd que o agendar.sh cria. A listagem é
-    injectável: nada disto chama o schtasks nem o systemctl."""
+    injectável: nada disto chama o systemctl. (O ramo do schtasks do
+    Windows saiu a 14/09/2026, com o resto do Windows.)"""
 
     SYSTEMD = (
         "Tue 2026-09-08 17:00:00 WEST 4h left Tue 2026-09-08 09:00:12 WEST "
@@ -7907,9 +7908,6 @@ class TestTarefasEmFalta(unittest.TestCase):
         "3h ago radar-09h.timer radar-verificar.service\n"
         "Mon 2026-09-14 08:00:00 WEST 5 days left - - "
         "radar-contratos.timer radar-contratos.service\n")
-    SCHTASKS = ('"Radar DR 09h","09/09/2026 09:00:00","Pronto"\n'
-                '"Radar DR 17h","08/09/2026 17:00:00","Pronto"\n')
-
     def setUp(self):
         radar._TAREFAS_VISTAS = None
         self.chamadas = []
@@ -7931,15 +7929,6 @@ class TestTarefasEmFalta(unittest.TestCase):
             radar.tarefas_em_falta(self.lista(so_um), "linux"),
             ["radar-17h.timer"])
 
-    def test_windows_continua_a_ler_o_schtasks(self):
-        self.assertEqual(
-            radar.tarefas_em_falta(self.lista(self.SCHTASKS), "nt"), [])
-        self.assertEqual(self.chamadas[0][0], "schtasks")
-        radar._TAREFAS_VISTAS = None
-        self.assertEqual(
-            radar.tarefas_em_falta(self.lista(""), "nt"),
-            ["Radar DR 09h", "Radar DR 17h"])
-
     def test_sistema_sem_agendador_conhecido_nao_inventa_aviso(self):
         self.assertEqual(
             radar.tarefas_em_falta(self.lista(""), "darwin"), [])
@@ -7955,14 +7944,10 @@ class TestTarefasEmFalta(unittest.TestCase):
         radar.tarefas_em_falta(self.lista(""), "linux")
         self.assertEqual(len(self.chamadas), 1)
 
-    def test_o_aviso_do_painel_manda_correr_o_guiao_deste_sistema(self):
+    def test_o_aviso_do_painel_manda_correr_o_agendar_sh(self):
         onde, guiao = radar.como_agendar()
-        if os.name == "nt":
-            self.assertEqual(guiao, "agendar.bat")
-            self.assertIn("Windows", onde)
-        else:
-            self.assertEqual(guiao, "agendar.sh")
-            self.assertIn("systemd", onde)
+        self.assertEqual(guiao, "agendar.sh")
+        self.assertIn("systemd", onde)
 
 
 class TestAvisoDasTarefasNoPainel(BaseTemporaria):
@@ -9484,10 +9469,9 @@ class TestTrincoEntreProcessos(BaseTemporaria):
             radar.processo_vivo = antigo
             radar.largar_trinco(pid=os.getpid() + 100000)
 
-    def test_o_pid_zero_e_o_windows(self):
+    def test_um_pid_que_nao_existe_esta_morto(self):
         self.assertTrue(radar.processo_vivo(os.getpid()))
-        if os.name != "nt":
-            self.assertFalse(radar.processo_vivo(2 ** 22 - 1))
+        self.assertFalse(radar.processo_vivo(2 ** 22 - 1))
 
 
 
@@ -9975,8 +9959,6 @@ class TestAuditoriaDeSeguranca(BaseTemporaria):
         self.assertNotIn("redirect(request.referrer", radar_fonte())
 
     def test_os_ficheiros_com_segredos_ficam_so_do_dono(self):
-        if os.name == "nt":
-            self.skipTest("sem modo POSIX")
         caminho = os.path.join(self.pasta, "segredo.txt")
         with open(caminho, "w") as f:
             f.write("x")

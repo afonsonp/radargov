@@ -47,7 +47,8 @@ import webbrowser
 import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import casa                      # o registo da casa (casa.py importa o radar por dentro)
 import contas                    # as contas e as sessoes (contas.py nao importa o radar)
@@ -72,12 +73,13 @@ AMOSTRAS = os.path.join(BASE_DIR, "amostras")
 # armazenamento de objectos, se um dia isto sair deste PC.
 DOCS = os.path.join(BASE_DIR, "documentos")
 PORTA = 8765
+LISBOA = ZoneInfo("Europe/Lisbon")
 # O painel atende em 127.0.0.1 -- e o endereco escreve-se assim, e nao
-# "localhost", em todo o lado. Nao e cosmetica: neste Windows o
-# `localhost` resolve para ::1 ANTES de 127.0.0.1, e ninguem esta a
-# escutar em IPv6. Ligar a uma porta reservada e sem escuta no Windows
-# nao e recusado -- bloqueia --, portanto o browser espera pelo IPv6,
-# desiste, e so entao tenta o IPv4. Medido a 04/09/2026, no browser e
+# "localhost", em todo o lado. Nao e cosmetica: no Windows da pen o
+# `localhost` resolvia para ::1 ANTES de 127.0.0.1, e ninguem estava a
+# escutar em IPv6; ligar a uma porta reservada e sem escuta la nao era
+# recusado -- bloqueava --, portanto o browser esperava pelo IPv6,
+# desistia, e so entao tentava o IPv4. Medido a 04/09/2026, no browser e
 # na mesma pagina: 208 ms por pedido por `localhost` contra 37 ms por
 # 127.0.0.1. E um imposto fixo em cada clique do painel.
 #
@@ -671,8 +673,7 @@ def so_o_dono(caminho):
     """Deixa o ficheiro legivel so pelo dono (0600). E para o que tem
     segredos -- a base (hashes, sessoes, a triagem), as capturas (os
     cookies do DR), as chaves e a palavra-passe do e-mail -- que estavam
-    a 644 e 755 (auditoria de 14/09/2026). No Windows nao ha modo POSIX
-    e o chmod nao faz nada de util; nao faz mal."""
+    a 644 e 755 (auditoria de 14/09/2026)."""
     try:
         os.chmod(caminho, 0o600)
     except OSError:
@@ -990,9 +991,8 @@ def mil_pt(n, espaco=" "):
     um espaco normal, o browser parte "1 363 300" ao fim da linha e a
     leitura fica com um numero em cada linha.
 
-    Passa-se `espaco=" "` para a CONSOLA: a do Windows escreve em cp1252
-    e o inquebravel sai de la como lixo ("60?215"), o que estraga logo a
-    primeira linha de um comando que vai correr horas."""
+    Passa-se `espaco=" "` para a CONSOLA, onde o inquebravel nao faz
+    falta e numa consola sem UTF-8 sai como lixo ("60?215")."""
     return "{:,}".format(int(n)).replace(",", espaco)
 
 
@@ -2702,12 +2702,6 @@ def _texto_do_preco(valor):
     return "{:,.2f}".format(float(valor)).translate(str.maketrans(",.", ".,")) + " EUR"
 
 
-def _domingo_final(ano, mes):
-    """O ultimo domingo de um mes de 31 dias."""
-    ultimo = datetime(ano, mes, 31)
-    return ultimo - timedelta(days=(ultimo.weekday() + 1) % 7)
-
-
 def hora_de_lisboa(iso):
     """A data/hora UTC da Vortal na hora legal de Portugal continental.
 
@@ -2716,23 +2710,17 @@ def hora_de_lisboa(iso):
     UTC na ficha punha o prazo uma hora mais cedo do que a plataforma
     diz -- e um prazo e a informacao pela qual se perde uma proposta.
 
-    A regra e a da UE e nao muda: hora de Verao do ultimo domingo de
-    Marco as 01:00 UTC ao ultimo domingo de Outubro as 01:00 UTC.
-    Faz-se a conta a mao porque a biblioteca padrao so traz fusos com
-    nome a partir do zoneinfo, que depende de dados do sistema que este
-    Windows nao garante. Devolve ISO "AAAA-MM-DD HH:MM"; o que nao for
-    data volta como veio.
+    A regra da hora de Verao e a da UE, e quem a sabe e o zoneinfo
+    (ate 14/09/2026 fazia-se a conta a mao, porque o Windows da pen nao
+    garantia os dados de fusos). Devolve ISO "AAAA-MM-DD HH:MM"; o que
+    nao for data volta como veio.
     """
     m = re.match(r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})", (iso or "").strip())
     if not m:
         return " ".join(str(iso or "").split())
     quando = datetime.strptime(m.group(1) + " " + m.group(2), "%Y-%m-%d %H:%M")
-    verao = (_domingo_final(quando.year, 3) + timedelta(hours=1)
-             <= quando
-             < _domingo_final(quando.year, 10) + timedelta(hours=1))
-    if verao:
-        quando += timedelta(hours=1)
-    return quando.strftime("%Y-%m-%d %H:%M")
+    return (quando.replace(tzinfo=timezone.utc).astimezone(LISBOA)
+            .strftime("%Y-%m-%d %H:%M"))
 
 
 def _valor_do_campo(valor):
@@ -4946,21 +4934,19 @@ def guardar(colhidos, cfg=None):
     return novos
 
 
-# As tarefas que o agendar.bat cria. Se nao existirem, o radar so
+# As tarefas que o agendar.sh cria: os temporizadores do systemd na
+# sessao do utilizador, procurados pelo nome da unidade na saida de
+# `systemctl --user list-timers --all`. Se nao existirem, o radar so
 # recolhe com o painel aberto -- e como o relogio interno recupera os
 # slots falhados, a tabela `slots` fica preenchida e parece que correu a
-# horas. Foi assim que isto passou semanas sem se notar.
-TAREFAS = ("Radar DR 09h", "Radar DR 17h")
-# Em Linux (8/09/2026) o mesmo papel e dos temporizadores do systemd que
-# o agendar.sh cria, na sessao do utilizador. Sao os nomes das unidades,
-# procurados na saida de `systemctl --user list-timers --all`. Ate aqui
-# fora do Windows devolvia-se vazio -- "nao ha o que avisar" -- o que
-# era exactamente o modo de falha que o aviso existe para apanhar.
+# horas. Foi assim que isto passou semanas sem se notar (no Windows, com
+# o schtasks; e ate 8/09/2026 fora do Windows devolvia-se vazio, "nao ha
+# o que avisar", que era o modo de falha que o aviso existe para apanhar).
 TAREFAS_LINUX = ("radar-09h.timer", "radar-17h.timer")
 _TAREFAS_VISTAS = None
 _TAREFAS_QUANDO = 0.0
 # A resposta guarda-se durante um minuto e nao para sempre. Era para
-# sempre: correr o agendar.bat com o painel aberto deixava o aviso
+# sempre: correr o agendar.sh com o painel aberto deixava o aviso
 # vermelho no ecra ate se reiniciar o painel, e apagar uma tarefa nunca
 # chegava a ser notado. E o aviso que impede o pior modo de falha desta
 # aplicacao -- parecer viva sem estar a recolher nada -- e era o que
@@ -4972,9 +4958,7 @@ def comando_das_tarefas(sistema=None):
     """O comando que lista as tarefas agendadas neste sistema, e os
     nomes que la se procuram. `None` onde nao ha agendador que se saiba
     consultar (macOS, por exemplo): ai nao se inventa aviso."""
-    sistema = sistema or ("nt" if os.name == "nt" else sys.platform)
-    if sistema == "nt":
-        return ["schtasks", "/query", "/fo", "csv", "/nh"], TAREFAS
+    sistema = sistema or sys.platform
     if sistema.startswith("linux"):
         return (["systemctl", "--user", "list-timers", "--all",
                  "--no-legend", "--plain"], TAREFAS_LINUX)
@@ -5015,8 +4999,6 @@ def _saida_de(comando):
 
 def como_agendar():
     """A frase do aviso: onde e que as tarefas faltam, e o que correr."""
-    if os.name == "nt":
-        return "no Agendador do Windows", "agendar.bat"
     return "nos temporizadores do systemd", "agendar.sh"
 
 
@@ -5246,9 +5228,7 @@ def empurrar_triagem(pasta=None):
     Desliga-se com "triagem_no_git": false no config.json.
     Devolve (correu bem, o que aconteceu)."""
     pasta = pasta or BASE_DIR
-    # sem janela de consola: as tarefas correm em pythonw
-    quieto = {"cwd": pasta, "capture_output": True,
-              "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    quieto = {"cwd": pasta, "capture_output": True}
 
     def corre(args, timeout):
         return subprocess.run(args, timeout=timeout, **quieto)
@@ -7151,11 +7131,9 @@ HORAS_DE_TRINCO = 3
 
 
 def processo_vivo(pid):
-    """True se o processo existe. No Windows nao se pergunta: um
-    os.kill(pid, 0) la MATA o processo (chama TerminateProcess), por
-    isso vale so o prazo."""
-    if os.name == "nt":
-        return True
+    """True se o processo existe. (Isto so vale em POSIX: no Windows um
+    os.kill(pid, 0) MATA o processo, e enquanto o radar la correu
+    valia so o prazo.)"""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -9042,7 +9020,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                      "</form>" % html.escape(desfazer, quote=True))
         aviso = "<div class='flash'>%s%s</div>" % (html.escape(texto_aviso), volta)
 
-    # O aviso que faltava. Sem as tarefas do Windows, o radar so recolhe
+    # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
     # falhados, a tabela `slots` fica preenchida e parece que correu a
     # horas. Foi assim que isto passou semanas sem se notar. E aviso do
@@ -16791,11 +16769,9 @@ def etiqueta_tirar(ref, etiqueta_id):
 def porta_atende(porta, espera=0.5):
     """True se ja houver quem aceite ligacoes nesta porta do localhost.
 
-    Cuidado com o que isto custa no Windows: a uma porta onde ninguem
-    fez bind, a ligacao e recusada logo; a uma porta com bind feito mas
-    ainda SEM listen -- que e exactamente o instante em que o Flask
-    esta a arrancar -- nao vem recusa nenhuma, vem WSAEWOULDBLOCK ao
-    fim do timeout inteiro. Por isso `espera` e por tentativa e curta.
+    `espera` e por tentativa e curta de proposito: no Windows da pen,
+    a uma porta com bind feito mas ainda sem listen -- o instante em
+    que o Flask esta a arrancar -- nao vinha recusa, vinha timeout.
     """
     with socket.socket() as s:
         s.settimeout(espera)
