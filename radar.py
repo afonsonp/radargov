@@ -9673,19 +9673,30 @@ ENTIDADES_JS = """<script>
   var campos = document.querySelectorAll("input[data-sugere='entidades']");
   if (!campos.length) return;
   var lista = document.getElementById('entidades'), pedido = 0;
+  var nifs = {};
   campos.forEach(function (campo) {
+    // o NIF vai num campo escondido do mesmo formulario: e por ele que
+    // se filtra quando a sugestao foi escolhida, e limpa-se assim que o
+    // texto deixa de ser uma sugestao (o nome escrito a mao e so texto)
+    var nif = campo.form ? campo.form.querySelector("input[name='nif']") : null;
+    function acertar() { if (nif) nif.value = nifs[campo.value.trim()] || ''; }
+    campo.addEventListener('change', acertar);
     campo.addEventListener('input', function () {
+      acertar();
       var texto = campo.value.trim();
       if (texto.length < 2) return;
       var meu = ++pedido;
       fetch('/entidades.json?q=' + encodeURIComponent(texto))
         .then(function (r) { return r.json(); })
-        .then(function (nomes) {
+        .then(function (entidades) {
           if (meu !== pedido) return;   // ja ha um pedido mais recente
           lista.innerHTML = '';
-          nomes.forEach(function (n) {
-            var o = document.createElement('option'); o.value = n; lista.appendChild(o);
+          entidades.forEach(function (e) {
+            var o = document.createElement('option');
+            o.value = e.nome; o.label = e.n + ' anúncios'; lista.appendChild(o);
+            nifs[e.nome] = e.nif || '';
           });
+          acertar();
         }).catch(function () {});
     });
   });
@@ -9700,23 +9711,37 @@ def entidades_json():
 
 
 def sugestoes_de_entidade(texto, limite=10):
-    """As entidades que publicam anuncios cujo nome contem `texto`: as que
-    comecam por ele primeiro, depois as mais frequentes. Procura pelo
-    nome normalizado (sem acentos), que e o que o filtro tambem usa."""
+    """[{nome, nif, n}] das entidades que publicam anuncios cujo nome
+    contem `texto`: as que comecam por ele primeiro, depois as mais
+    frequentes. Procura pelo nome normalizado (sem acentos), que e o
+    que o filtro tambem usa.
+
+    Agrupadas pelo NIF (14/09/2026): a SPMS tem tres grafias na base e
+    apareciam tres vezes. Uma linha por NIF, com a grafia mais
+    frequente e a soma de todas; o que nao tem NIF agrupa-se pelo nome.
+    """
     alvo = simplifica(texto or "").strip()
     if len(alvo) < 2:
         return []
     padrao = para_like(alvo)
     with liga() as c:
         linhas = c.execute(
-            "SELECT entidade, COUNT(*) n, "
-            " (entidade_norm LIKE ? ESCAPE '%s') comeca"
+            "SELECT entidade, COALESCE(nif,'') nif, COUNT(*) n, "
+            " MAX(entidade_norm LIKE ? ESCAPE '%s') comeca"
             " FROM anuncios WHERE entidade_norm LIKE ? ESCAPE '%s'"
             " AND COALESCE(entidade,'') != ''"
-            " GROUP BY entidade ORDER BY comeca DESC, n DESC LIMIT ?"
+            " GROUP BY entidade, nif ORDER BY n DESC"
             % (ESCAPE_LIKE, ESCAPE_LIKE),
-            (padrao + "%", "%" + padrao + "%", limite)).fetchall()
-    return [r["entidade"] for r in linhas]
+            (padrao + "%", "%" + padrao + "%")).fetchall()
+    grupos = {}
+    for r in linhas:
+        chave = r["nif"] or ("nome:" + r["entidade"])
+        g = grupos.setdefault(chave, {"nome": r["entidade"], "nif": r["nif"],
+                                      "n": 0, "comeca": 0})
+        g["n"] += r["n"]                   # a primeira grafia e a mais frequente
+        g["comeca"] = max(g["comeca"], r["comeca"])
+    saida = sorted(grupos.values(), key=lambda g: (-g["comeca"], -g["n"]))[:limite]
+    return [{"nome": g["nome"], "nif": g["nif"], "n": g["n"]} for g in saida]
 
 
 def sem_pagina(args, base="/", **muda):
@@ -10149,6 +10174,7 @@ def _lista_de_anuncios():
         "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…' "
         "list='entidades' autocomplete='off' data-sugere='entidades'>"
+        "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
@@ -10162,6 +10188,7 @@ def _lista_de_anuncios():
         % (html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
            html.escape(request.args.get("ent", ""), quote=True),
+           html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo")),
@@ -10314,7 +10341,7 @@ ESCAPE_LIKE = "!"
 CAMPOS_FILTRO = ("q", "q_excl", "cpv", "cpv_excl",   # entendem-nos todos
                  "op",                               # E/OU entre q e cpv
                  "de", "ate",
-                 "ent", "plat", "estado", "prazo",   # so os anuncios
+                 "ent", "nif", "plat", "estado", "prazo",   # so os anuncios
                  "adj", "ganhou", "proc", "min", "entid", "vencid")
 # (O "arquivo" do interruptor da Pesquisa viveu aqui entre as duas
 # decisoes de 31/08/2026: entrou com a janela dos 12 meses e saiu
@@ -10332,7 +10359,7 @@ CAMPOS_DA_VEZ = ("pag", "aviso", "ambito")
 # seria alargar o filtro sem avisar.
 CAMPOS_POR_VISTA = {
     "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "ent",
-                 "plat", "estado", "prazo"),
+                 "nif", "plat", "estado", "prazo"),
     "contratos": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "adj",
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
@@ -10397,7 +10424,7 @@ def filtro_para(consulta, vista):
 _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "q_excl": "sem", "cpv_excl": "sem CPV",
                  "op": "palavras/CPV",
-                 "ent": "entidade que publica", "plat": "plataforma",
+                 "ent": "entidade que publica", "nif": "NIF", "plat": "plataforma",
                  "prazo": "prazo",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
                  "proc": "procedimento", "min": "desde €",
@@ -10562,7 +10589,19 @@ def condicoes(args):
     if not juntos and frag_q:
         onde.append(frag_q)
         valores.extend(vals_q)
-    procura(args.get("ent"), "entidade_norm")
+    # A entidade pelo NIF (14/09/2026: «as entidades nao estao agrupadas
+    # por NIF?»). Quando a sugestao foi escolhida, o formulario manda o
+    # NIF e o nome; filtra-se pelo NIF -- que apanha as varias grafias
+    # -- e, para os anuncios que ainda vieram sem NIF (24%), pelas
+    # mesmas grafias que esse NIF tem na base. O texto do nome fica so
+    # para mostrar: com ele tambem, prendia-se a uma grafia so.
+    nif = re.sub(r"\D", "", args.get("nif") or "")
+    if nif:
+        onde.append("(nif = ? OR entidade IN (SELECT DISTINCT entidade "
+                    "FROM anuncios WHERE nif = ?))")
+        valores.extend([nif, nif])
+    else:
+        procura(args.get("ent"), "entidade_norm")
     # A exclusao por palavras: "vigilancia" sem "videovigilancia". Tres
     # dos quatro concorrentes observados tem-na (ver CONCORRENTES.md), e
     # sem ela um filtro largo obriga a descartar o mesmo ruido a mao
@@ -11479,13 +11518,14 @@ def _conteudo_alertas():
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que "
         "publica…' list='entidades' autocomplete='off' data-sugere='entidades'>"
+        "<input type='hidden' name='nif' value='%s'>"
         "<select name='plat'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
         "<button type='submit'>Criar alerta</button>"
         "</form><datalist id='entidades'></datalist></div>"
         % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
-           pv("nome"), pv("q"), pv("cpv"), pv("cpv_excl"), pv("ent"),
+           pv("nome"), pv("q"), pv("cpv"), pv("cpv_excl"), pv("ent"), pv("nif"),
            "".join(["<option value=''>plataforma: qualquer uma</option>"]
                    + ["<option value='%s'%s>%s</option>"
                       % (html.escape(p, quote=True), marca_sel("plat", p),

@@ -1464,7 +1464,14 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   `/entidades.json` (`sugestoes_de_entidade()`: pelo nome normalizado,
   as que começam pelo texto primeiro, depois por frequência) num
   `<datalist>` que o `ENTIDADES_JS` enche a cada tecla — uma lista
-  estática seriam dezenas de milhares de opções na página.
+  estática seriam dezenas de milhares de opções na página. **As
+  sugestões são uma por NIF e o filtro escolhido é pelo NIF** (`nif` em
+  `CAMPOS_FILTRO`, 14/09/2026): a SPMS tem três grafias na base, e 525
+  NIF têm mais do que uma. Com `nif` no pedido, `condicoes()` filtra
+  por `nif = ?` OU pelas grafias que esse NIF tem — 24% dos anúncios
+  vieram sem NIF — e **ignora o texto de `ent`**, que com ele prendia
+  a uma grafia só. O JS limpa o `nif` escondido assim que o texto deixa
+  de ser uma sugestão.
 
 - **Os blocos de filtro da lista vivem dentro de um `<details
   class='painel-filtros'>`, recolhido por omissão** (8/09/2026, os
