@@ -9412,11 +9412,9 @@ class TestMudancasDeSetembro(BaseTemporaria):
     def test_com_interesse_a_lista_fica_so_com_o_filtro_de_texto(self):
         html_ = radar.app.test_client().get("/").get_data(as_text=True)
         self.assertIn("details class='arvore'", html_)
-        self.assertIn("<input type='text' id='filtro-cpv-excl'", html_)
         self.cfg.update(interesse_activo=True, interesse_cpv="72000000")
         html_ = radar.app.test_client().get("/").get_data(as_text=True)
         self.assertNotIn("details class='arvore'", html_)
-        self.assertNotIn("<input type='text' id='filtro-cpv-excl'", html_)
         self.assertIn("name='q'", html_)
         # e o JS da arvore nao vai: ligava um listener a null
         self.assertNotIn("arvoreCarregar", html_)
@@ -9439,26 +9437,23 @@ class TestMudancasDeSetembro(BaseTemporaria):
             self.assertEqual(c.execute("SELECT alerta FROM filtros_guardados WHERE nome='IT'")
                              .fetchone()[0], 1)
 
-    def test_o_formulario_do_alerta_separa_anuncios_de_contratos(self):
-        # 14/09/2026: «os filtros para anuncios e para contratos devem
-        # estar separados, para nao ficar uma confusao»
+    def test_o_formulario_do_alerta_tem_os_campos_da_lista_e_a_arvore_em_cima(self):
+        # 14/09/2026: os mesmos campos da lista (nome ou objecto, entidade,
+        # plataforma, datas), mais o nome; a arvore por cima; sem o grupo
+        # dos contratos, que nao avisava de nada
         html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
-        form = html_.split("action='/alertas/criar'")[1].split("</form>")[0]
-        grupos = form.split("<fieldset class='alerta-grupo'>")[1:]
-        self.assertEqual(len(grupos), 3)
-        comum, anuncios, contratos = grupos
-        self.assertIn("Em comum", comum)
-        for campo in ("name='nome'", "name='q'", "name='cpv'", "name='de'"):
-            self.assertIn(campo, comum)
-        self.assertIn("Só anúncios", anuncios)
-        for campo in ("name='ent'", "name='plat'", "name='estado'", "name='prazo'"):
-            self.assertIn(campo, anuncios)
-            self.assertNotIn(campo, contratos)
-        self.assertIn("Só contratos", contratos)
-        for campo in ("name='adj'", "name='ganhou'", "name='min'"):
-            self.assertIn(campo, contratos)
-            self.assertNotIn(campo, anuncios)
-        self.assertIn("não avisam", contratos)
+        caixa = html_.split("<div class='rot'>Filtro de alertas</div>")[1].split("</form>")[0]
+        self.assertLess(caixa.index("details class='arvore'"), caixa.index("action='/alertas/criar'"))
+        form = caixa.split("action='/alertas/criar'")[1]
+        for campo in ("name='nome'", "name='q'", "name='cpv'", "name='ent'",
+                      "name='plat'", "name='de'", "name='ate'"):
+            self.assertIn(campo, form)
+        for campo in ("name='q_excl'", "name='op'", "name='estado'", "name='prazo'",
+                      "name='adj'", "name='ganhou'", "name='proc'", "name='min'"):
+            self.assertNotIn(campo, form)
+        self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
+        self.assertNotIn("Só contratos", html_)
+        self.assertIn("data-sugere='entidades'", form)
 
     def test_os_filtros_guardados_deixaram_de_existir(self):
         regras = [r.rule for r in radar.app.url_map.iter_rules()]
@@ -10202,6 +10197,65 @@ class TestPlataformasQueJaNaoExistem(BaseTemporaria):
             self.assertNotIn("value='gatewit'", html_)
             self.assertIn("value='vortal'", html_)
         self.assertIn("outras (já não existem) (2)", lista)
+
+
+class TestFiltrosSimples(BaseTemporaria):
+    """14/09/2026: «no campo de filtros dos anúncios só quero nome do
+    anúncio ou objecto; entidade; filtro de plataformas, e data x a data
+    y», a árvore de CPV por cima, e a entidade a sugerir-se enquanto se
+    escreve («se estou a escrever SP… ele deve sugerir as SP»)."""
+
+    def setUp(self):
+        super().setUp()
+        self.cfg_antigo = radar.ler_config
+        radar.ler_config = lambda: dict(radar.CONFIG_INICIAL)
+        with radar.liga() as c:
+            for i, ent in enumerate(("SPMS — Serviços Partilhados do Ministério da Saúde",
+                                     "SPMS — Serviços Partilhados do Ministério da Saúde",
+                                     "Sociedade Portuguesa de Inovação", "Câmara Municipal de Espinho",
+                                     "Hospital de Espinho")):
+                c.execute("INSERT INTO anuncios (ref,titulo,url,entidade,entidade_norm,estado,"
+                          "data_pub,detalhe_lido) VALUES (?,?,?,?,?,'novo','2026-09-01',1)",
+                          ("9%d/2026" % i, "t", "https://x/anuncio-procedimento/%d" % i,
+                           ent, radar.simplifica(ent)))
+
+    def tearDown(self):
+        radar.ler_config = self.cfg_antigo
+        super().tearDown()
+
+    def test_a_lista_tem_so_os_quatro_campos_e_a_arvore_em_cima(self):
+        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        painel = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
+        self.assertLess(painel.index("details class='arvore'"), painel.index("class='cx filtros'"))
+        form = painel.split("class='cx filtros'")[1].split("</form>")[0]
+        for campo in ("name='q'", "name='ent'", "name='plat'", "name='de'", "name='ate'"):
+            self.assertIn(campo, form)
+        for campo in ("name='q_excl'", "name='op'", "name='prazo'"):
+            self.assertNotIn(campo, form)
+        self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
+        self.assertIn("type='hidden' id='filtro-cpv'", form)
+        # o que vier pela URL passa escondido, para nao se perder
+        html_ = radar.app.test_client().get("/?prazo=urgente&op=ou").get_data(as_text=True)
+        self.assertIn("<input type='hidden' name='prazo' value='urgente'>", html_)
+        self.assertIn("<input type='hidden' name='op' value='ou'>", html_)
+        self.assertEqual(radar.campos_escondidos({"prazo": " "}, ("prazo",)), "")
+
+    def test_as_entidades_sugerem_se_pelo_inicio_primeiro(self):
+        nomes = radar.sugestoes_de_entidade("sp")
+        self.assertEqual(nomes[0], "SPMS — Serviços Partilhados do Ministério da Saúde")
+        self.assertIn("Hospital de Espinho", nomes)                  # "sp" no meio
+        self.assertNotIn("Sociedade Portuguesa de Inovação", nomes)   # "s p" com espaco nao e "sp"
+        self.assertEqual(radar.sugestoes_de_entidade("s"), [])         # menos de duas letras
+        self.assertEqual(sorted(radar.sugestoes_de_entidade("espinho")),
+                         ["Câmara Municipal de Espinho", "Hospital de Espinho"])
+        # sem acentos e sem maiusculas, como o filtro
+        self.assertEqual(radar.sugestoes_de_entidade("SAÚDE")[0],
+                         "SPMS — Serviços Partilhados do Ministério da Saúde")
+        r = radar.app.test_client().get("/entidades.json?q=esp")
+        self.assertEqual(r.mimetype, "application/json")
+        self.assertEqual(sorted(r.get_json()), ["Câmara Municipal de Espinho", "Hospital de Espinho"])
+        self.assertIn("data-sugere='entidades'", radar.app.test_client().get("/").get_data(as_text=True))
+        self.assertIn("/entidades.json", radar.ENTIDADES_JS)
 
 
 if __name__ == "__main__":

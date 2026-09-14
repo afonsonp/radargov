@@ -240,38 +240,29 @@ não um filtro.
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
 nada. **Está recolhida por omissão** (desde 8/09/2026): a lista abre
 logo nos anúncios, e a linha «Filtros» diz o que está posto; carrega
-nela para abrir os campos e a árvore de CPV (a árvore só aparece
-enquanto não tiveres interesse definido — com ele, o CPV já está
-decidido, e a lista fica com o filtro de texto e os selectores).
-Abre sozinha quando há um filtro aplicado, e lembra-se se a deixaste
-aberta. Podes filtrar por:
+nela para abrir a árvore de CPV, em cima, e os campos por baixo (a
+árvore só aparece enquanto não tiveres interesse definido — com ele,
+o CPV já está decidido). Abre sozinha quando há um filtro aplicado, e
+lembra-se se a deixaste aberta. Desde 14/09/2026 são quatro campos:
 
-- **nome do concurso ou objecto** e, em caixa separada, **entidade
-  adjudicante**. Dentro de cada caixa, várias palavras separadas por `|`
-  valem como "qualquer uma destas" (`outsystems|.net|java`); entre as
-  duas caixas é "e", por isso podes pedir software *da* Autoridade
-  Tributária sem apanhar tudo o que diz Tributária.
-
-  Nota: procura pelo nome por extenso, não pela sigla. O DR escreve
-  "Serviços Partilhados do Ministério da Saúde", nunca "SPMS".
-- **CPV**, por início do código (`72` apanha todos os serviços de TI) ou
-  por palavra da descrição oficial do CPV (`software`, `manutenção`).
-  Tal como nas palavras, várias opções separadas por `|` valem como
-  "qualquer uma": `72|manutenção de software`.
+- **nome do concurso ou objecto**. Várias palavras separadas por `|`
+  valem como "qualquer uma destas" (`outsystems|.net|java`).
+- **entidade que publica**. Enquanto escreves, o campo sugere as
+  entidades que existem na base — escreve «sp» e aparecem as que
+  começam por SP e depois as que o têm no nome. O DR escreve os nomes
+  por extenso, «Serviços Partilhados do Ministério da Saúde», e a
+  sugestão dá-te o nome certo sem o teres de saber de cor. Entre este
+  campo e o do objecto é "e".
 - **plataforma electrónica**: acingov, vortal, anogov, compraspt,
   «outras» (as que já não existem — saphety, compraspublicas, gatewit,
-  bizgov, construlink — num balde só, desde 14/09/2026) ou os que não
-  a indicam. Serve sobretudo para isolares aquelas de que o radar
-  consegue trazer as peças sozinho.
+  bizgov, construlink — num balde só) ou os que não a indicam.
 - **intervalo de datas** de publicação.
-- **estado**: as mesmas quatro abas, para os alertas.
-- **prazo**: abertos, urgentes (a menos de N dias — a janela edita-se
-  em Configurações › Alertas) ou expirados. Serve para apartar o arquivo da triagem do
-  dia.
-- **exclusões**: "Excluir palavras…" e "Excluir CPV…" tiram ruído sem
-  apertar o resto do filtro (`manutenção` sem `elevador|avac`).
-- **E/OU entre palavras e CPV**: "mais restrito" exige as duas coisas,
-  "mais amplo" basta uma.
+
+O **CPV** escolhe-se na árvore, por cima: marca uma divisão e apanha
+tudo o que está por baixo; desmarca um código lá dentro e só esse sai.
+O que saiu do ecrã continua a funcionar pela ligação — o prazo dos
+cartões dos indicadores («urgentes»), um alerta antigo com exclusões —
+e passa em campos escondidos quando voltas a filtrar.
 
 **Pelo teclado** (desde 8/09/2026): `j` e `k` passam ao anúncio
 seguinte e anterior (o focado fica com contorno azul), `i` marca

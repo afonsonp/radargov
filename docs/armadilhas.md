@@ -1453,7 +1453,20 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   `radar.CONFIG` para a pasta temporária — as chaves e as capturas
   escrevem-se em `BASE_DIR`, e sem isso o teste gravava na pasta real.
 
-- **Os três blocos de filtro da lista vivem dentro de um `<details
+- **Os filtros da lista são quatro campos a ver, e o resto continua
+  a valer na URL** (14/09/2026). Objecto, entidade, plataforma, datas;
+  o CPV e o «excluir CPV» são escondidos e é a árvore, por cima, que
+  os escreve. `q_excl`, `op` e `prazo` saíram do ecrã mas o motor
+  continua a entendê-los — a ligação dos urgentes e os alertas antigos
+  dependem disso — e `campos_escondidos()` passa-os quando vêm na URL,
+  senão perdiam-se ao voltar a filtrar. O formulário do alerta tem os
+  mesmos campos mais o nome. A entidade sugere-se por
+  `/entidades.json` (`sugestoes_de_entidade()`: pelo nome normalizado,
+  as que começam pelo texto primeiro, depois por frequência) num
+  `<datalist>` que o `ENTIDADES_JS` enche a cada tecla — uma lista
+  estática seriam dezenas de milhares de opções na página.
+
+- **Os blocos de filtro da lista vivem dentro de um `<details
   class='painel-filtros'>`, recolhido por omissão** (8/09/2026, os
   P2/P3 da UX-Auditoria que o Afonso aprovou). Abre sozinho com filtro
   aplicado (`filtro_em_uso != "estado=" + aba`) e o JS lembra o
