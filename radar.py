@@ -7465,9 +7465,9 @@ def destino_seguro(para):
 
 PAGINA_ENTRAR = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Entrar — Radar DR</title><style>%(css)s</style></head>
+<title>Entrar — RadarGov</title><style>%(css)s</style></head>
 <body class="entrar-fundo"><main class="entrar">
- <div class="logo">Radar<span>DR</span></div>
+ <div class="logo">Radar<span>Gov</span></div>
  <h1>Entrar</h1>
  %(aviso)s
  <form method="post" action="/entrar">
@@ -7622,6 +7622,9 @@ CSS = r"""
  --barra-t3:rgba(255,255,255,.55); --barra-linha:rgba(255,255,255,.14);
  --barra-on:rgba(255,255,255,.13);
  --ok-claro:#57c894; --mau-claro:#ff8a6a;
+ /* o "Gov" do logotipo: azul, a pedido dele (14/09/2026); sobre a barra
+    escura o --azul nao se le, por isso ha um claro so para la */
+ --azul-claro:#7cbcf0;
  --sans:Archivo,system-ui,-apple-system,'Segoe UI',sans-serif;
  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
 }
@@ -7656,7 +7659,7 @@ a:hover{color:var(--ink)}
  position:sticky;top:0;z-index:20;box-sizing:border-box}
 .marca{flex:none}
 .marca .logo{font:700 15px/1 var(--sans);letter-spacing:-.3px;color:#fff}
-.marca .logo span{color:var(--coral)}
+.marca .logo span{color:var(--azul-claro)}
 .barra nav{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;margin:0 0 0 8px;
  overflow-x:auto;scrollbar-width:none;min-width:0}
 .barra nav a{display:block;padding:7px 9px;border-radius:5px;white-space:nowrap;flex:none;
@@ -7707,7 +7710,7 @@ a:hover{color:var(--ink)}
 .entrar{flex:none;display:block;width:min(360px,92vw);background:var(--creme);border:1px solid var(--linha);
  border-radius:12px;padding:28px 28px 24px}
 .entrar .logo{font:700 15px/1 var(--sans);color:var(--ink);letter-spacing:.02em}
-.entrar .logo span{color:var(--coral)}
+.entrar .logo span{color:var(--azul)}
 .entrar h1{font:600 20px/1.2 var(--sans);margin:18px 0 14px}
 .entrar label{display:block;font:500 11.5px/1.4 var(--sans);color:var(--t3);margin:0 0 12px}
 .entrar input{display:block;width:100%;margin-top:4px;padding:9px 10px;border:1px solid var(--linha);
@@ -8730,7 +8733,7 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <style>%(css)s</style></head><body>
 <div class="app">
 <header class="barra">
- <div class="marca"><a class="logo" href="/">Radar<span>DR</span></a></div>
+ <div class="marca"><a class="logo" href="/">Radar<span>Gov</span></a></div>
  <nav>%(nav)s</nav>
  <div class="caixa">
   <a class="n conf %(conf_on)s" href="/configuracoes" title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
