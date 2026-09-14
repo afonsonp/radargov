@@ -262,6 +262,13 @@ lembra-se se a deixaste aberta. Desde 14/09/2026 são quatro campos:
   bizgov, construlink — num balde só) ou os que não a indicam.
 - **intervalo de datas** de publicação.
 
+No **Mercado** os campos são os mesmos por feitio: objecto, entidade
+que comprou e quem ganhou (as duas sugerem-se do corpus, uma por NIF,
+por qualquer dos nomes com que a entidade já assinou; escolhida a
+sugestão, o filtro é pela entidade e não pela grafia), procedimento,
+datas e valor mínimo. O «excluir palavras» e o E/OU saíram de lá
+também.
+
 O **CPV** escolhe-se na árvore, por cima: marca uma divisão e apanha
 tudo o que está por baixo; desmarca um código lá dentro e só esse sai.
 O que saiu do ecrã continua a funcionar pela ligação — o prazo dos

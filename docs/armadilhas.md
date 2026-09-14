@@ -1471,7 +1471,14 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   por `nif = ?` OU pelas grafias que esse NIF tem — 24% dos anúncios
   vieram sem NIF — e **ignora o texto de `ent`**, que com ele prendia
   a uma grafia só. O JS limpa o `nif` escondido assim que o texto deixa
-  de ser uma sugestão.
+  de ser uma sugestão. **No Mercado é a mesma coisa com outra tabela**:
+  `sugestoes_de_entidade_do_corpus()` procura em `entidade_nomes` (todos
+  os nomes por que a entidade já apareceu) e devolve a chave de
+  `entidades`; os campos `adj`/`ganhou` levam `data-sugere='contratos'`
+  e `data-chave-em='entid'`/`'vencid'`, e `condicoes_contratos()` ignora
+  o texto quando a chave vem. Um campo novo com sugestões diz a fonte e
+  onde fica a chave nesses dois atributos; o `ENTIDADES_JS` não sabe de
+  mais nada.
 
 - **Os blocos de filtro da lista vivem dentro de um `<details
   class='painel-filtros'>`, recolhido por omissão** (8/09/2026, os
