@@ -9434,6 +9434,27 @@ class TestMudancasDeSetembro(BaseTemporaria):
             self.assertEqual(c.execute("SELECT alerta FROM filtros_guardados WHERE nome='IT'")
                              .fetchone()[0], 1)
 
+    def test_o_formulario_do_alerta_separa_anuncios_de_contratos(self):
+        # 14/09/2026: «os filtros para anuncios e para contratos devem
+        # estar separados, para nao ficar uma confusao»
+        html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
+        form = html_.split("action='/alertas/criar'")[1].split("</form>")[0]
+        grupos = form.split("<fieldset class='alerta-grupo'>")[1:]
+        self.assertEqual(len(grupos), 3)
+        comum, anuncios, contratos = grupos
+        self.assertIn("Em comum", comum)
+        for campo in ("name='nome'", "name='q'", "name='cpv'", "name='de'"):
+            self.assertIn(campo, comum)
+        self.assertIn("Só anúncios", anuncios)
+        for campo in ("name='ent'", "name='plat'", "name='estado'", "name='prazo'"):
+            self.assertIn(campo, anuncios)
+            self.assertNotIn(campo, contratos)
+        self.assertIn("Só contratos", contratos)
+        for campo in ("name='adj'", "name='ganhou'", "name='min'"):
+            self.assertIn(campo, contratos)
+            self.assertNotIn(campo, anuncios)
+        self.assertIn("não avisam", contratos)
+
     def test_os_filtros_guardados_deixaram_de_existir(self):
         regras = [r.rule for r in radar.app.url_map.iter_rules()]
         self.assertNotIn("/filtros/guardar", regras)
