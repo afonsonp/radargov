@@ -13120,8 +13120,7 @@ def contratos_csv():
     if not ha_corpus():
         return redirect("/contratos")
     vista = "renovacoes" if modo_fim(request.args) else "contratos"
-    if not any((request.args.get(campo) or "").strip()
-               for campo in campos_da_vista(vista)):
+    if not pergunta_feita(request.args, vista):
         return redirect("/contratos?aviso=" +
                         quote("Filtra primeiro: o corpus inteiro não se exporta."))
     # O mesmo filtro E o mesmo modo da lista (6.1-A): a ligacao
@@ -13281,16 +13280,18 @@ def contratos():
     # O "op" nao conta como pergunta: e um modo, nao um filtro -- sozinho
     # nao restringe nada e abria o corpus inteiro. No modo fim, de/ate
     # tambem nao contam: o modo poe-nos de lado (campos da vista).
-    ha_pergunta = any((request.args.get(campo) or "").strip()
-                      for campo in campos_da_vista(vista)
-                      if campo != "op")
-
     cfg = ler_config()
-    onde, valores = filtros_dos_contratos(request.args, cfg=cfg)
     # com interesse definido, o Mercado fica como os anuncios: sem
     # arvore nem "excluir CPV" -- o CPV ja esta decidido no Interesse
     ligado_i, dentro_i, _ = interesse_definido(cfg)
     com_interesse = bool(ligado_i and dentro_i)
+    # A pergunta e um filtro OU o interesse (14/09/2026: «abre-se e nao
+    # se ve contrato nenhum»). Com interesse definido o Mercado abre
+    # logo com os contratos dos CPV da casa -- medido, 0,4 s a contar e
+    # a listar 72 mil; os graficos continuam a pedir-se so ao abrir.
+    ha_pergunta = pergunta_feita(request.args, vista, cfg)
+
+    onde, valores = filtros_dos_contratos(request.args, cfg=cfg)
     escondidos_interesse = 0
     ordem_c = (" ORDER BY c.fim_estimado, c.id" if fim
                else " ORDER BY c.data_celebracao DESC, c.id DESC")
@@ -13475,6 +13476,9 @@ def contratos():
                   "na janela, do mais próximo para o mais distante. Um "
                   "contrato a acabar volta muitas vezes a concurso &mdash; "
                   "quem o vê antes do anúncio prepara-se com tempo.</span>"
+                  "<span class='p'>Com o <a href='/configuracoes/interesse'>"
+                  "interesse</a> definido, esta página abre logo com os "
+                  "contratos dos teus CPV.</span>"
                   "</div>")
     else:
         # A pergunta vem primeiro. Um milhao e meio de contratos por data
@@ -13485,7 +13489,10 @@ def contratos():
                   "que entidade comprou, aperta as datas ou o valor. Os "
                   "gráficos e a lista respondem ao filtro que puseres.</span>"
                   "<span class='p'>São %s contratos: sem filtro, os mais "
-                  "recentes não dizem nada sobre nada.</span></div>"
+                  "recentes não dizem nada sobre nada. Com o "
+                  "<a href='/configuracoes/interesse'>interesse</a> definido, "
+                  "esta página abre logo com os contratos dos teus CPV.</span>"
+                  "</div>"
                   % mil_pt(ha_corpus()))
 
     # O modo dito por extenso no titulo da tabela, nao so no selector:
@@ -13642,20 +13649,25 @@ def contratos():
 
     if fim:
         return envolver(
-            "renovacoes", "Contratos celebrados",
-            "Vistos pelo fim estimado &mdash; o que está a chegar ao fim "
-            "no teu mercado deve voltar a concurso, e quem o vê antes do "
-            "anúncio prepara-se com tempo.",
+            "renovacoes", "Renovações",
+            "Os mesmos contratos do Portal BASE, vistos pelo <b>fim "
+            "estimado</b>: o que está a chegar ao fim no teu mercado deve "
+            "voltar a concurso, e quem o vê antes do anúncio prepara-se "
+            "com tempo. O fim é celebração mais prazo &mdash; as "
+            "prorrogações não constam.",
             conteudo, abas=abas,
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
             titulo_aba="Renovações, Radar de Concursos")
     return envolver(
         "contratos", "Contratos celebrados",
-        "O que já foi assinado &mdash; quem ganhou, por quanto, de quem. "
-        "Não são oportunidades: servem para saber com quem se concorre.",
+        "O que já foi assinado, do Portal BASE, pela <b>data de "
+        "celebração</b> &mdash; quem ganhou, por quanto, de quem. Não são "
+        "oportunidades: servem para saber com quem se concorre. As "
+        "<a href='/contratos?ver=fim'>Renovações</a> são estes mesmos "
+        "contratos vistos pelo fim.",
         conteudo, abas=abas,
-        script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
+        script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + espera_corpus(),
         migalhas=migalhas_de("contratos"),
         titulo_aba="Contratos, Radar de Concursos")
 
@@ -13707,6 +13719,19 @@ def condicao_do_modo(args):
     return (" AND c.fim_estimado >= date('now')"
             " AND c.fim_estimado <= date('now', '+%d months')"
             % meses_pedidos(args))
+
+
+def pergunta_feita(args, vista, cfg=None):
+    """Se o Mercado tem uma pergunta a que responder: um campo do filtro
+    preenchido (o `op` nao conta -- e um modo, nao um filtro; e no modo
+    fim as datas tambem nao, que o modo as poe de lado) OU o interesse
+    definido e nao levantado (14/09/2026). Sem pergunta nao se mostra
+    lista: sao dois milhoes de contratos, e os mais recentes por data
+    nao dizem nada a ninguem."""
+    if any((args.get(campo) or "").strip()
+           for campo in campos_da_vista(vista) if campo != "op"):
+        return True
+    return bool(condicao_do_interesse_contratos(args, cfg)[0])
 
 
 def filtros_dos_contratos(args, com_interesse=True, cfg=None):
