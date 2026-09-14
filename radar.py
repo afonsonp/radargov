@@ -3278,6 +3278,44 @@ MINIMO_PARA_ESCADA = 8
 # proprio, o de baixo, que antes nao existia em lado nenhum.
 SEM_PLATAFORMA = "(nenhuma)"
 POR_LER = "(por ler)"
+# As plataformas que ainda existem (14/09/2026, a pedido do Afonso: «as
+# que hoje ja nao tens acesso e porque ja nao existem -- juntamos todas
+# como outras»). O resto -- saphety (ultimo anuncio em 2024),
+# compraspublicas (2020), gatewit e construlink (2016), bizgov (2017)
+# -- fica na base tal como esta, mas nos selectores e um balde so,
+# OUTRAS_PLATAFORMAS. O filtro por nome continua a aceitar qualquer
+# uma: um alerta antigo com plat=saphety nao parte.
+PLATAFORMAS_ACTIVAS = ("acingov", "vortal", "anogov", "compraspt")
+OUTRAS_PLATAFORMAS = "(outras)"
+
+
+def agrupar_plataformas(contagens):
+    """{plataforma: n} -> [(plataforma, n)] para um selector: as activas
+    pela contagem, depois "outras" com a soma das que ja nao existem,
+    e a "(nenhuma)" no fim. As chaves especiais passam intactas."""
+    activas, outras, especiais = {}, 0, {}
+    for p, n in contagens.items():
+        if p in PLATAFORMAS_ACTIVAS:
+            activas[p] = n
+        elif p in (SEM_PLATAFORMA, POR_LER):
+            especiais[p] = n
+        else:
+            outras += n
+    saida = sorted(activas.items(), key=lambda x: -x[1])
+    if outras:
+        saida.append((OUTRAS_PLATAFORMAS, outras))
+    saida.extend(especiais.items())
+    return saida
+
+
+def rotulo_da_plataforma(p):
+    if p == SEM_PLATAFORMA:
+        return "sem plataforma indicada"
+    if p == POR_LER:
+        return "ainda sem detalhe lido"
+    if p == OUTRAS_PLATAFORMAS:
+        return "outras (já não existem)"
+    return p
 
 # anogov, compraspt e a plataforma da ESPAP sao a mesma aplicacao JSF,
 # do mesmo fornecedor: 'faces/app/acessoDocs.jsp' lista os documentos em
@@ -10013,14 +10051,15 @@ def _lista_de_anuncios():
             % (html.escape(POR_LER, quote=True),
                " selected" if plat_actual == POR_LER else "",
                mil(porler_filtro)))
-    for r in plataformas:
-        etiqueta = ("sem plataforma indicada" if r["p"] == SEM_PLATAFORMA
-                    else r["p"])
+    # as plataformas que ja nao existem vao num balde so, "outras"
+    # (14/09/2026); a contagem do balde e a soma delas dentro do filtro
+    conta_agrupada = dict(agrupar_plataformas(conta_plat))
+    for p, _ in agrupar_plataformas({r["p"]: r["n"] for r in plataformas}):
         opcoes_plat.append(
             "<option value='%s'%s>%s (%s)</option>"
-            % (html.escape(r["p"], quote=True),
-               " selected" if r["p"] == plat_actual else "",
-               html.escape(etiqueta), mil(conta_plat.get(r["p"], 0))))
+            % (html.escape(p, quote=True),
+               " selected" if p == plat_actual else "",
+               html.escape(rotulo_da_plataforma(p)), mil(conta_agrupada.get(p, 0))))
 
     prazo_actual = (request.args.get("prazo") or "").strip()
     # A janela do urgente le-se UMA vez por pedido: serve o rotulo do
@@ -10510,6 +10549,12 @@ def condicoes(args):
                         "(plataforma IS NULL OR plataforma = ''))")
         elif plat == POR_LER:
             onde.append("detalhe_lido = 0")
+        elif plat == OUTRAS_PLATAFORMAS:
+            # as que ja nao existem, todas num balde (14/09/2026)
+            onde.append("(detalhe_lido = 1 AND plataforma IS NOT NULL AND "
+                        "plataforma != '' AND plataforma NOT IN (%s))"
+                        % ",".join("?" for _ in PLATAFORMAS_ACTIVAS))
+            valores.extend(PLATAFORMAS_ACTIVAS)
         else:
             onde.append("plataforma = ?"); valores.append(plat)
     # So datas a serio: "de=lixo" num URL guardado comparava texto com
@@ -11297,9 +11342,10 @@ def _conteudo_alertas():
             "JOIN filtros_guardados f ON f.id=v.filtro_id "
             "WHERE v.enviado_em IS NOT NULL AND v.enviado_em != ? "
             "ORDER BY v.enviado_em DESC LIMIT 25", (ACERVO,)).fetchall()
-        plataformas = [r["p"] for r in c.execute(
-            "SELECT DISTINCT plataforma p FROM anuncios "
-            "WHERE plataforma IS NOT NULL AND plataforma != '' ORDER BY p")]
+        plataformas = [p for p, _ in agrupar_plataformas(
+            {r["p"]: r["n"] for r in c.execute(
+                "SELECT plataforma p, COUNT(*) n FROM anuncios "
+                "WHERE plataforma IS NOT NULL AND plataforma != '' GROUP BY p")})]
     # Os tipos de procedimento sao do corpus, e o corpus pode nao existir.
     procs = tipos_de_procedimento()[:25]
 
@@ -11406,7 +11452,7 @@ def _conteudo_alertas():
            "".join(["<option value=''>plataforma: qualquer uma</option>"]
                    + ["<option value='%s'%s>%s</option>"
                       % (html.escape(p, quote=True), marca_sel("plat", p),
-                         html.escape(p))
+                         html.escape(rotulo_da_plataforma(p)))
                       for p in plataformas]
                    + ["<option value='%s'%s>sem plataforma indicada</option>"
                       % (html.escape(SEM_PLATAFORMA, quote=True),
