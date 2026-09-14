@@ -10105,6 +10105,22 @@ class TestInteresseNoMercado(BaseTemporaria):
         self.assertEqual(radar.condicao_do_interesse_contratos(
             args={}, cfg=dict(self.cfg, interesse_cpv="")), ("", []))
 
+    def test_o_interesse_e_uma_pergunta(self):
+        # 14/09/2026: «abre-se e nao se ve contrato nenhum» -- com
+        # interesse definido o Mercado abre logo com os CPV da casa
+        from werkzeug.datastructures import MultiDict
+        self.assertTrue(radar.pergunta_feita(MultiDict(), "contratos", self.cfg))
+        self.assertTrue(radar.pergunta_feita(MultiDict({"ver": "fim"}), "renovacoes", self.cfg))
+        # levantado, ou sem interesse, volta a ser preciso um filtro
+        self.assertFalse(radar.pergunta_feita(MultiDict({"interesse": "nao"}), "contratos", self.cfg))
+        self.assertFalse(radar.pergunta_feita(MultiDict(), "contratos",
+                                              dict(self.cfg, interesse_activo=False)))
+        self.assertTrue(radar.pergunta_feita(MultiDict({"q": "x"}), "contratos",
+                                             dict(self.cfg, interesse_activo=False)))
+        # o `op` sozinho nao e pergunta
+        self.assertFalse(radar.pergunta_feita(MultiDict({"op": "ou"}), "contratos",
+                                              dict(self.cfg, interesse_activo=False)))
+
     def test_entra_pelos_filtros_da_pagina_e_nao_pelo_motor(self):
         from werkzeug.datastructures import MultiDict
         args = MultiDict({"q": "software"})
