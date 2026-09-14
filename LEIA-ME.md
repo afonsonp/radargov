@@ -527,6 +527,17 @@ podes também atribuir o concurso a uma pessoa, e essa lista de nomes
 
 ## 7-A. Configurações
 
+**As peças novas na plataforma.** Um esclarecimento ou uma errata
+não passam pelo DR: aparecem só na lista de documentos da plataforma.
+Desde 14/09/2026 o radar vai lá ver sozinho, nos anúncios marcados
+com peças já trazidas, em duas alturas: depois de passar a data de
+esclarecimentos (o primeiro terço do prazo, a regra supletiva do CCP)
+e sempre que o prazo ou o preço base mudam. O que aparecer de novo
+fica guardado ao lado das outras peças, no histórico da ficha e no
+resumo por e-mail. E na ficha há o botão **«Ver se há peças novas»**
+para quando queres olhar já: responde na hora com o que encontrou.
+Não confundir com «Actualizar peças», que apaga e volta a trazer tudo.
+
 A ligação **Configurações** está à direita na barra de cima (desde
 8/09/2026; o separador Alertas passou para aqui, e a 13/09/2026 os
 Indicadores também). É onde dizes ao radar como queres que ele

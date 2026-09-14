@@ -82,7 +82,12 @@ passa inteira. Ficou para o backlog o modo lista do «Em curso».
 **A 14/09/2026 fechou-se o P0**: a verificação tem um trinco entre
 processos na tabela `estado` (pid, hora, prazo de 3 h), e o
 temporizador e o relógio do painel já não correm os dois à mesma hora.
-A bateria vai em **825**.
+**E no mesmo dia voltou a vigilância das peças**, com o desenho que
+ele pediu: o radar vai à plataforma ver a lista das peças de um
+anúncio marcado quando passou a data de esclarecimentos, ou quando o
+prazo ou o preço base mudaram, e há o botão «Ver se há peças novas»
+na ficha; as novas entram no resumo por e-mail. A bateria vai em
+**836**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
