@@ -238,7 +238,8 @@ A ordem do ficheiro é a ordem do fluxo:
    lê da porta. Navegação por três intenções: Anúncios
    (`/`, a lista única com as abas por ver / interessados /
    abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
-   `/quadro` + calendário `/calendario`), Mercado (contratos
+   `/quadro` + calendário `/calendario` + lista `/lista`, a tabela
+   editável de 14/09/2026), Mercado (contratos
    `/contratos`, com o modo `?ver=fim` das antigas renovações;
    `/renovacoes` redirecciona). A barra é **horizontal, em cima**
    (13/09/2026; `<header class="barra">`), só com a marca, os três

@@ -578,7 +578,13 @@ def iniciar_db():
                            ("lotes", "TEXT"),
                            # quando se viu pela ultima vez a lista das
                            # pecas na plataforma (vigiar_pecas, 14/09/2026)
-                           ("pecas_vigiadas_em", "TEXT")):
+                           ("pecas_vigiadas_em", "TEXT"),
+                           # os campos da lista do "Em curso" (14/09/2026,
+                           # a tabela que o Afonso mandou): o que a casa
+                           # decide sobre cada concurso em curso
+                           ("tipologia", "TEXT"), ("cv", "TEXT"),
+                           ("proposta_tecnica", "TEXT"), ("notas", "TEXT"),
+                           ("coe", "TEXT")):
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
@@ -7954,6 +7960,24 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .conc-b i{display:block;height:100%}
 @media (max-width:900px){.graf-corpo{grid-template-columns:minmax(0,1fr)}}
 
+/* a lista do "Em curso": a tabela dos contratos com formularios por
+   linha; os campos sao pequenos e sem moldura para a linha ler-se
+   como uma linha, e ganham moldura ao focar */
+.tab-lista{min-width:1400px}
+.tab-lista td.o{max-width:280px}
+.tab-lista td form{display:contents}
+.tab-lista input,.tab-lista select{font:400 12px/1.3 var(--sans);color:var(--t1);
+ border:1px solid transparent;border-radius:5px;padding:5px 6px;background:transparent;
+ min-width:0;width:100%;box-sizing:border-box}
+.tab-lista input:hover,.tab-lista select:hover{border-color:var(--linha)}
+.tab-lista input:focus,.tab-lista select:focus{border-color:var(--azul);background:#fff}
+.tab-lista td.curta{width:96px}
+.tab-lista td.notas{min-width:220px}
+.tab-lista button{cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--linha);
+ background:#fff;font:500 11.5px/1 var(--sans);color:var(--t3);min-height:24px;box-sizing:border-box}
+.tab-lista button:hover{border-color:var(--ink);color:var(--ink)}
+.tab-lista td.d.esclarec{color:var(--t3)}
+
 /* separador dos contratos */
 .tab-cx{padding:0;overflow-x:auto}
 .tab-contratos{width:100%;border-collapse:collapse;min-width:900px}
@@ -8748,7 +8772,10 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 NAV = (("anuncios", "Anúncios", "/", ()),
        ("emcurso", "Em curso", "/quadro",
         (("quadro", "Quadro", "/quadro"),
-         ("calendario", "Calendário", "/calendario"))),
+         ("calendario", "Calendário", "/calendario"),
+         # a lista (14/09/2026): os mesmos interessados numa tabela,
+         # com os campos que a casa decide sobre cada um
+         ("lista", "Lista", "/lista"))),
        ("mercado", "Mercado", "/contratos",
         (("contratos", "Contratos", "/contratos"),
          # as renovacoes fundiram-se nos contratos como modo (6.1-A);
@@ -8767,7 +8794,7 @@ NAV = (("anuncios", "Anúncios", "/", ()),
 # chaves que sempre tiveram (as vistas de filtros incluidas); o item e
 # hierarquia por cima delas, nao um nome novo.
 ITEM_DA_PAGINA = {"anuncios": "anuncios",
-                  "quadro": "emcurso", "calendario": "emcurso",
+                  "quadro": "emcurso", "calendario": "emcurso", "lista": "emcurso",
                   "contratos": "mercado", "renovacoes": "mercado"}
 
 # Paginas que vivem fora da navegacao, para as migalhas. (Os Indicadores
@@ -16178,6 +16205,145 @@ def indicadores():
         "</div></div>" % (kpis_html, funil_cx, barras, saude_html, corpus_html))
 
     return pagina_config("indicadores", conteudo)
+
+
+# --- a lista do "Em curso" (14/09/2026)
+#
+# A tabela que o Afonso mandou, coluna a coluna: Title, Client, Preço,
+# Esclarecimentos (quando), Entrega (quando), Tipologia (consulting/
+# turnkey), Proposal Status, CV (sim/não), Proposta Técnica (sim/não),
+# Notes, Plataforma, CoE, Sales Responsible. O que o radar ja sabe vem
+# da base (titulo, entidade, preco base, prazo, plataforma, a fase do
+# quadro, o responsavel) e a data de esclarecimentos calcula-se; o que
+# a casa decide -- tipologia, CV, proposta tecnica, notas, CoE -- sao
+# colunas novas, editaveis linha a linha, como os campos do quadro.
+
+TIPOLOGIAS = ("consulting", "turnkey")
+SIM_NAO = ("sim", "não")
+
+COLUNAS_DA_LISTA = ("Título", "Cliente", "Preço", "Esclarecimentos", "Entrega",
+                    "Tipologia", "Estado da proposta", "CV", "Proposta técnica",
+                    "Notas", "Plataforma", "CoE", "Responsável", "")
+
+
+def _opcoes(nome, valores, actual):
+    return ("<select name='%s'><option value=''>&mdash;</option>%s</select>"
+            % (nome, "".join("<option value='%s'%s>%s</option>"
+                             % (html.escape(v, quote=True),
+                                " selected" if v == (actual or "") else "",
+                                html.escape(v)) for v in valores)))
+
+
+def linha_da_lista(a, fases_por_id, urgente, hoje):
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    esclarec = ("%s%s" % (data_pt(limite.isoformat()),
+                          "" if limite >= hoje else " (passou)")
+                if limite else "&mdash;")
+    if a["prazo"]:
+        texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
+        prazo = ("%s <span class='tag %s'>%s</span>"
+                 % (data_pt(a["prazo"]), classe_prazo, html.escape(texto_prazo)))
+    else:
+        prazo = "&mdash;"
+    return (
+        "<tr><td class='o'><a href='/anuncio/%s'>%s</a></td>"
+        "<td class='g'>%s</td><td class='p'>%s</td>"
+        "<td class='d esclarec'>%s</td><td class='d'>%s</td>"
+        "<form method='post' action='/lista/%s'>"
+        "<td class='curta'>%s</td>"
+        "<td>%s</td>"
+        "<td class='curta'>%s</td><td class='curta'>%s</td>"
+        "<td class='notas'><input type='text' name='notas' value='%s' "
+        "placeholder='notas…' maxlength='300'></td>"
+        "<td>%s</td>"
+        "<td class='curta'><input type='text' name='coe' value='%s' "
+        "placeholder='CoE' maxlength='60'></td>"
+        "<td class='curta'><input type='text' name='responsavel' value='%s' "
+        "list='pessoas' placeholder='ninguém'></td>"
+        "<td><button type='submit'>guardar</button></td></form></tr>"
+        % (quote(a["ref"], safe=""), html.escape(corta(a["titulo"] or a["ref"], 90)),
+           html.escape(corta(a["entidade"] or "", 50)),
+           html.escape(a["preco_base"] or "&mdash;") if a["preco_base"] else "&mdash;",
+           esclarec, prazo, quote(a["ref"], safe=""),
+           _opcoes("tipologia", TIPOLOGIAS, a["tipologia"]),
+           html.escape(fases_por_id.get(a["fase_id"], "sem fase")),
+           _opcoes("cv", SIM_NAO, a["cv"]),
+           _opcoes("proposta_tecnica", SIM_NAO, a["proposta_tecnica"]),
+           html.escape(a["notas"] or "", quote=True),
+           html.escape(a["plataforma"] or "&mdash;") if a["plataforma"] else "&mdash;",
+           html.escape(a["coe"] or "", quote=True),
+           html.escape(a["responsavel"] or "", quote=True)))
+
+
+@app.route("/lista")
+def lista_em_curso():
+    hoje = datetime.now().date()
+    urgente = dias_urgente()
+    with liga() as c:
+        cartas = c.execute("SELECT * FROM anuncios WHERE estado='interessa' "
+                           "ORDER BY COALESCE(NULLIF(prazo,''),'9999'), data_pub DESC"
+                           ).fetchall()
+        fases_por_id = {f["id"]: f["nome"] for f in listar_fases()}
+    migalhas = migalhas_de("lista")
+    if not cartas:
+        corpo = ("<div class='vazio'>Sem anúncios interessados. Marca alguns "
+                 "como &ldquo;interessa&rdquo; nos <a href='/'>Anúncios</a>.</div>")
+    else:
+        corpo = ("<div class='cx tab-cx'><table class='tab-contratos tab-lista'>"
+                 "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
+                 % ("".join("<th>%s</th>" % html.escape(t) for t in COLUNAS_DA_LISTA),
+                    "".join(linha_da_lista(a, fases_por_id, urgente, hoje)
+                            for a in cartas)))
+    return envolver("lista", "Lista",
+                    "Os anúncios interessados numa tabela, com o que a casa "
+                    "decide sobre cada um. Cada linha grava-se com o seu "
+                    "&ldquo;guardar&rdquo;.",
+                    "<div class='larg'>" + corpo + "</div>", migalhas=migalhas,
+                    titulo_aba="Lista, Em curso")
+
+
+@app.route("/lista/<path:ref>", methods=["POST"])
+def lista_gravar(ref):
+    """Grava os campos de uma linha. Cada campo so muda se vier no
+    formulario, e o que mudou fica no historico da ficha."""
+    campos, valores, registos = [], [], []
+    for nome, permitidos, rotulo in (("tipologia", TIPOLOGIAS, "tipologia"),
+                                     ("cv", SIM_NAO, "CV"),
+                                     ("proposta_tecnica", SIM_NAO, "proposta técnica")):
+        if nome in request.form:
+            valor = (request.form.get(nome) or "").strip()
+            if valor and valor not in permitidos:
+                return redirect("/lista?" + urlencode(
+                    {"aviso": "«%s» não é um valor de %s." % (valor, rotulo)}))
+            campos.append("%s=?" % nome)
+            valores.append(valor or None)
+            registos.append((rotulo, valor or "(apagado)"))
+    for nome, rotulo, tecto in (("notas", "notas", 300), ("coe", "CoE", 60)):
+        if nome in request.form:
+            valor = " ".join((request.form.get(nome) or "").split())[:tecto]
+            campos.append("%s=?" % nome)
+            valores.append(valor or None)
+            registos.append((rotulo, valor or "(apagado)"))
+    if "responsavel" in request.form:
+        nome = criar_pessoa(request.form.get("responsavel"))
+        campos.append("responsavel=?")
+        valores.append(nome)
+        registos.append(("responsável", nome or "(ninguém)"))
+    if not campos:
+        return redirect("/lista")
+    with liga() as c:
+        antes = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        if not antes:
+            return redirect("/lista")
+        c.execute("UPDATE anuncios SET " + ", ".join(campos) + " WHERE ref=?",
+                  valores + [ref])
+    # so o que mudou vai para o historico: gravar a linha sem tocar em
+    # nada nao e um acontecimento
+    for (rotulo, detalhe), campo, valor in zip(registos, campos, valores):
+        coluna = campo.split("=")[0]
+        if (antes[coluna] or None) != (valor or None):
+            registar(ref, rotulo, detalhe)
+    return redirect("/lista?" + urlencode({"aviso": "Linha guardada."}))
 
 
 @app.route("/quadro/mover", methods=["POST"])
