@@ -766,7 +766,15 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   e o botão dela grava: `interesse_activo` é `bool(cpv)`, não há caixa
   de ligar). Com interesse definido a lista de anúncios **não tem
   árvore nem «excluir CPV»** (`com_interesse` em `anuncios()`); sem
-  ele, tem. Entra por `com_recorte()` como as abas — **e
+  ele, tem. **E o Mercado recorta-se pelo mesmo interesse** (14/09/2026):
+  `condicao_do_interesse_contratos()` lê o mesmo `interesse_cpv` mas
+  pergunta à tabela `contrato_cpv` (um contrato tem vários CPV), e
+  entra por `filtros_dos_contratos()` — o recorte de página dos
+  contratos, por onde a lista, o CSV e os gráficos filtram os três —
+  **nunca por `condicoes_contratos()`**, que serve os alertas e a ficha
+  da entidade. A faixa é a mesma, com «ver tudo» (`?interesse=nao`) e
+  quantos ficam de fora; a árvore e o «excluir CPV» saem, como nos
+  anúncios. Entra por `com_recorte()` como as abas — **e
   nunca por `condicoes()`**, pela mesma razão de sempre: o motor serve
   os alertas e os filtros guardados, e o interesse lá dentro cegava-os
   em silêncio. Quem o aplica é `recorte_da_lista()`, chamado nas
