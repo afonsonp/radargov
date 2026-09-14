@@ -7888,6 +7888,14 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
     (art.o 259.o)") e punha a pagina a rolar de lado num ecra estreito */
  max-width:100%;min-width:0}
 .filtros label{font:500 12px/1 var(--sans);color:var(--t3)}
+/* o formulario do alerta em tres grupos: comum, so anuncios, so
+   contratos (14/09/2026) */
+.alerta-form{flex-direction:column;align-items:stretch;gap:12px}
+.alerta-grupo{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0;
+ padding:12px 14px 14px;border:1px solid var(--linha);border-radius:9px;min-width:0}
+.alerta-grupo legend{font:600 10.5px/1 var(--sans);color:var(--t4);text-transform:uppercase;
+ letter-spacing:.08em;padding:0 6px}
+.alerta-form>button{align-self:flex-start}
 /* Um campo desactivado tem de o parecer. No modo "por fim estimado" o
    de/ate desactiva-se com a explicacao no title (dois eixos do tempo na
    mesma pagina confundiam) -- mas desenhado igual aos outros, so quem
@@ -11349,7 +11357,13 @@ def _conteudo_alertas():
         # POST, como tudo o que escreve. E os campos vem preenchidos da
         # query string: quando a validacao recusa, o redirect traz o que
         # se tinha escrito -- antes vinha tudo vazio, nome incluido.
-        "<form method='post' action='/alertas/criar' class='filtros'>"
+        # Em tres grupos (14/09/2026, a pedido do Afonso: «os filtros para
+        # anuncios e para contratos devem estar separados, para nao ficar
+        # uma confusao»): o que serve os dois, o que e so dos anuncios --
+        # que e o que o alerta usa para avisar -- e o que e so dos
+        # contratos, que serve para aplicar o mesmo filtro ao Mercado.
+        "<form method='post' action='/alertas/criar' class='filtros alerta-form'>"
+        "<fieldset class='alerta-grupo'><legend>Em comum</legend>"
         "<input type='text' name='nome' required maxlength='60' value='%s' "
         "placeholder='nome do alerta…'>"
         "<input type='text' name='q' value='%s' placeholder='Objecto…'>"
@@ -11362,27 +11376,34 @@ def _conteudo_alertas():
         "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV — escreve os códigos…'>"
         "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
+        "<label>de</label><input type='date' name='de' value='%s'>"
+        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "</fieldset>"
+        "<fieldset class='alerta-grupo'><legend>Só anúncios &mdash; é por "
+        "estes que o alerta avisa</legend>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que "
-        "publica (anúncios)…'>"
-        "<input type='text' name='adj' value='%s' placeholder='Entidade que "
-        "comprou (contratos)…'>"
-        "<input type='text' name='ganhou' value='%s' "
-        "placeholder='Quem ganhou (contratos)…'>"
+        "publica…'>"
         "<select name='plat'>%s</select>"
         "<select name='estado'>%s</select>"
         "<select name='prazo'>%s</select>"
+        "</fieldset>"
+        "<fieldset class='alerta-grupo'><legend>Só contratos &mdash; para "
+        "aplicar o filtro ao Mercado; não avisam de nada</legend>"
+        "<input type='text' name='adj' value='%s' placeholder='Entidade que "
+        "comprou…'>"
+        "<input type='text' name='ganhou' value='%s' "
+        "placeholder='Quem ganhou…'>"
         "%s"
-        "<label>de</label><input type='date' name='de' value='%s'>"
-        "<label>até</label><input type='date' name='ate' value='%s'>"
         "<label>desde</label><input type='text' name='min' value='%s' "
-        "placeholder='€ mínimo (contratos)' "
+        "placeholder='€ mínimo' "
         "style='min-width:0;width:150px;flex:none'>"
+        "</fieldset>"
         "<button type='submit'>Criar alerta</button>"
         "</form>%s</div>"
         % (pv("nome"), pv("q"), pv("q_excl"), pv("cpv"), pv("cpv_excl"),
-           opcoes_op(request.args), pv("ent"), pv("adj"), pv("ganhou"),
-           "".join(["<option value=''>plataforma: qualquer uma "
-                    "(anúncios)</option>"]
+           opcoes_op(request.args), pv("de"), pv("ate"),
+           pv("ent"),
+           "".join(["<option value=''>plataforma: qualquer uma</option>"]
                    + ["<option value='%s'%s>%s</option>"
                       % (html.escape(p, quote=True), marca_sel("plat", p),
                          html.escape(p))
@@ -11408,11 +11429,12 @@ def _conteudo_alertas():
                                 ("urgente", "prazo: só os que acabam em %d "
                                             "dias" % dias_urgente()),
                                 ("expirado", "prazo: só os passados"))),
+           pv("adj"), pv("ganhou"),
            (selector_procedimento(procs,
                                   (request.args.get("proc") or "").strip(),
-                                  "procedimento: todos (contratos)")
+                                  "procedimento: todos")
             if procs else ""),
-           pv("de"), pv("ate"), pv("min"),
+           pv("min"),
            arvore_html(quantos_cpv(), "anuncios", submeter=False)))
 
     if ultimos:
