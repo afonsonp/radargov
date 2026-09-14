@@ -281,16 +281,26 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   em silêncio. Campos novos não entram por aí — a `analise` tem colunas
   fixas.
 
-- **A vigilância das peças foi retirada a 03/09/2026**, no dia a
-  seguir a ter sido feita, por decisão do Afonso. Não porque estivesse
-  errada — funcionava e tinha sete testes — mas porque **vigiava seis
-  anúncios**: só olhava para os «interessa», e só havia seis na base.
-  Foi construída na ponta mais estreita de um funil que tem 60 217
-  anúncios por ler à entrada. Saíram com ela `vigiar_pecas()`,
-  `pecas_disponiveis()`, `_nome_sem_corpo()`, o campo `peca_nova` do
-  resumo e a volta que a verificação lhe dava. **Se voltar**, volta com
-  a lição escrita: o que a fazia valer a pena não era o código, era
-  haver anúncios marcados que chegassem. Está em `git show 31fd388`.
+- **A vigilância das peças vigia por razão, não por relógio**
+  (14/09/2026). Existiu a 3/09 a olhar para todos os marcados a cada
+  verificação e saiu no dia seguinte por vigiar seis anúncios. Voltou
+  com o desenho que o Afonso pediu: `razao_para_vigiar()` só manda à
+  plataforma quando **passou a data de esclarecimentos**
+  (`prazo_de_esclarecimentos()`, a regra do primeiro terço) e ainda não
+  se olhou depois dela, ou quando **houve prorrogação do prazo ou preço
+  base novo** desde a última vez (`alteracoes` com `detectado_em`
+  posterior a `pecas_vigiadas_em`). Por isso `vigiar_pecas()` corre
+  **depois** do `reler_marcados()` no `verificar()`: é ele que descobre
+  as alterações. E há o botão «Ver se há peças novas» na ficha
+  (`/pecas-novas/<ref>`), que corre dentro do pedido de propósito — é
+  um anúncio e quem carregou quer ver a resposta. Três regras que
+  ficaram de 3/09: **o `obter_documentos()` não serve para vigiar**
+  (apaga as linhas e volta a trazer tudo, com o texto extraído atrás;
+  `_guardar_pecas_novas()` acrescenta sem apagar); **uma lista vazia é
+  a plataforma a falhar**, não «as peças desapareceram», e nesse caso
+  `pecas_vigiadas_em` não se marca — a razão fica de pé para a volta
+  seguinte; e uma peça que não se conseguiu trazer **avisa-se uma vez
+  só** (fica em `alteracoes` mesmo sem ficheiro). `TestVigilanciaDasPecas`.
 
 - **A releitura dos marcados é vigilância, não recolha.**
   `reler_marcados()` relê por verificação até 25 anúncios
