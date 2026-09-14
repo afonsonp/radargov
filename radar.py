@@ -228,7 +228,13 @@ class Ligacao(sqlite3.Connection):
             self.close()
 
 
+_BASE_PROTEGIDA = set()
+
+
 def liga():
+    if DB not in _BASE_PROTEGIDA and os.path.exists(DB):
+        _BASE_PROTEGIDA.add(DB)
+        so_o_dono(DB)
     c = sqlite3.connect(DB, timeout=30, factory=Ligacao)
     c.row_factory = sqlite3.Row
     # WAL: deixa ler enquanto outro escreve. Sem isto, o painel e a recolha
@@ -697,6 +703,18 @@ def iniciar_db():
     if le_marca("alteracoes_agrupadas") != "1":
         agrupar_alteracoes()
         marca("alteracoes_agrupadas", "1")
+
+
+def so_o_dono(caminho):
+    """Deixa o ficheiro legivel so pelo dono (0600). E para o que tem
+    segredos -- a base (hashes, sessoes, a triagem), as capturas (os
+    cookies do DR), as chaves e a palavra-passe do e-mail -- que estavam
+    a 644 e 755 (auditoria de 14/09/2026). No Windows nao ha modo POSIX
+    e o chmod nao faz nada de util; nao faz mal."""
+    try:
+        os.chmod(caminho, 0o600)
+    except OSError:
+        pass
 
 
 def gravar_config(mudancas):
@@ -7302,6 +7320,60 @@ app = Flask(__name__)
 # cookie da sessao nunca levava `Secure`. Um so salto de confianca.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
+# Tecto de um pedido (auditoria de 14/09/2026): o Excel do registo da
+# casa e a colagem das capturas eram os unicos corpos grandes e nao
+# tinham limite nenhum -- um POST de gigabytes enchia o disco antes de
+# alguem o ler. 20 MB chega para o modelo preenchido com folga.
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+
+# Os cabecalhos de seguranca, em todas as respostas (auditoria de
+# 14/09/2026). Nao havia nenhum. O CSP e o que o painel aguenta: os
+# scripts e os estilos sao em linha (unsafe-inline), a letra vem do
+# Google Fonts, o <embed> das pecas e do proprio sitio (object-src), e
+# ninguem de fora pode meter o painel numa moldura nem mandar um
+# formulario dele para outro sitio. O HSTS so por HTTPS, que e o que o
+# tunel da: em 127.0.0.1 nao faz sentido e prendia o browser ao https.
+CABECALHOS_DE_SEGURANCA = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "same-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; img-src 'self' data:; "
+        "object-src 'self'; frame-ancestors 'self'; form-action 'self'; "
+        "base-uri 'self'; connect-src 'self'"),
+}
+
+
+@app.after_request
+def cabecalhos_de_seguranca(resposta):
+    for nome, valor in CABECALHOS_DE_SEGURANCA.items():
+        resposta.headers.setdefault(nome, valor)
+    if request.is_secure:
+        resposta.headers.setdefault("Strict-Transport-Security",
+                                    "max-age=15552000")
+    return resposta
+
+
+def volta_ao_referer(omissao):
+    """Redirecciona para a pagina de onde o formulario veio, se for
+    desta aplicacao; senao para `omissao`. Um Referer e um cabecalho
+    como outro qualquer, e devolve-lo cru era um redireccionamento
+    aberto (auditoria de 14/09/2026)."""
+    vindo = request.referrer or ""
+    partes = urlparse(vindo)
+    if partes.scheme in ("http", "https") and partes.netloc and \
+            nome_de_anfitriao(partes.hostname) == nome_de_anfitriao(
+                (request.host or "").split(":")[0]):
+        caminho = partes.path or "/"
+        if partes.query:
+            caminho += "?" + partes.query
+        return redirect(destino_seguro(caminho))
+    return redirect(omissao)
+
+
 # --- a porta: sessoes e login (docs/historico/ONLINE.md, etapa 1)
 #
 # Tudo o que nao seja /entrar exige sessao -- ou um pedido local com
@@ -10693,7 +10765,7 @@ def mudar_estado(ref, novo):
             # repetido voltava a descarregar as pecas todas.
             pedir_documentos(ref)
         if not antes:
-            return redirect(request.referrer or "/")
+            return volta_ao_referer("/")
         # O aviso diz o que se fez e a quem, e traz o caminho de volta.
         # Se o estado anterior era um abandono com motivo, o motivo vai
         # na accao do desfazer: sem ele o servidor recusava a reposicao.
@@ -10707,7 +10779,7 @@ def mudar_estado(ref, novo):
             if antes["estado"] == "descartado":
                 desfazer += "?" + urlencode({"motivo": antes["motivo"]})
         return _volta_com_aviso(texto, desfazer)
-    return redirect(request.referrer or "/")
+    return volta_ao_referer("/")
 
 
 @app.route("/plataforma/<path:ref>")
@@ -10754,7 +10826,21 @@ def definir_responsavel(ref):
     with liga() as c:
         c.execute("UPDATE anuncios SET responsavel=? WHERE ref=?", (nome, ref))
     registar(ref, "responsável", nome or "(ninguém)")
-    return redirect(request.referrer or ("/anuncio/" + ref))
+    return volta_ao_referer("/anuncio/" + ref)
+
+
+def celula_csv(valor):
+    """Uma celula de texto que o Excel nao executa. Um objecto de
+    anuncio que comece por =, +, - ou @ era uma formula ao abrir o CSV
+    (auditoria de 14/09/2026): leva um apostrofo a frente, que o Excel
+    mostra como texto. Os numeros nao passam por aqui."""
+    if isinstance(valor, str) and valor[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + valor
+    return valor
+
+
+def linha_csv(escritor, valores):
+    escritor.writerow([celula_csv(v) for v in valores])
 
 
 def numero_csv(valor):
@@ -10810,7 +10896,7 @@ def exportar():
     # "Triagem" e nao "Estado": e o rotulo do grupo por ver/interessa/
     # descartados em todo o lado (§7 do ESQUELETO) — "estado" reserva-se
     # para sistema e itens (peças, leitura).
-    escritor.writerow(["Anúncio", "Publicado", "Tipo", "Entidade", "Objecto",
+    linha_csv(escritor, ["Anúncio", "Publicado", "Tipo", "Entidade", "Objecto",
                        "CPV", "Prazo", "Preço base (EUR)", "Triagem",
                        "Motivo do abandono", "Endereço"])
     for a in linhas:
@@ -10819,7 +10905,7 @@ def exportar():
         # Excel portugues some. "1.326.675,00 EUR" era texto para ele.
         # O estado idem: "novo" e chave interna que nenhum ecra mostra;
         # a coluna diz "por ver", como os separadores.
-        escritor.writerow([a["ref"], data_pt(a["data_pub"]), a["tipo"],
+        linha_csv(escritor, [a["ref"], data_pt(a["data_pub"]), a["tipo"],
                            a["entidade"], a["titulo"], a["cpv"],
                            data_pt(a["prazo"]), numero_csv(a["preco_base"]),
                            _NOMES_ESTADO.get(a["estado"], a["estado"]),
@@ -11456,6 +11542,7 @@ def alertas_remetente():
         with open(os.path.join(BASE_DIR, "email_senha.txt"), "w",
                   encoding="utf-8") as f:
             f.write(senha.strip() + "\n")
+        so_o_dono(os.path.join(BASE_DIR, "email_senha.txt"))
         registar("", "configuração", "email_senha.txt: palavra-passe nova")
     return volta_config("alertas", "Conta que envia guardada.")
 
@@ -11562,6 +11649,7 @@ def config_leitura():
                                        else "groq_API_KEY.txt"), "w",
                           encoding="utf-8") as f:
                     f.write(nova + "\n")
+                so_o_dono(f.name)
                 escritas.append(nome)
                 registar("", "configuração", "chave de %s: nova" % nome)
         return volta_config("leitura", "Leitura das peças guardada%s."
@@ -11640,6 +11728,7 @@ def config_capturas():
                                 "tem de trazer o corpo do pedido (--data-raw).")
         with open(os.path.join(BASE_DIR, qual + ".txt"), "w", encoding="utf-8") as f:
             f.write(texto + "\n")
+        so_o_dono(os.path.join(BASE_DIR, qual + ".txt"))
         registar("", "configuração", "%s.txt: captura nova (%d cabeçalhos)"
                  % (qual, len(pedido["headers"])))
         return volta_config("capturas", "Captura %s.txt gravada." % qual)
@@ -12984,7 +13073,7 @@ def contratos_csv():
             valores + [TECTO_CSV]).fetchall()
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=";")
-    escritor.writerow(["Celebrado", "Fim estimado", "Objecto",
+    linha_csv(escritor, ["Celebrado", "Fim estimado", "Objecto",
                        "Entidade que comprou",
                        "Quem ganhou", "Procedimento", "Preço contratual (EUR)",
                        "Preço base (EUR)", "CPV", "Prazo (dias)", "Local",
@@ -12993,7 +13082,7 @@ def contratos_csv():
         # o mesmo formato do CSV dos anuncios: data portuguesa e numero
         # com virgula decimal. Eram duas exportacoes da mesma aplicacao a
         # escrever dinheiro de duas maneiras, e nenhuma servia o Excel.
-        escritor.writerow([data_pt(a["data_celebracao"]),
+        linha_csv(escritor, [data_pt(a["data_celebracao"]),
                            data_pt(a["fim_estimado"], ""), a["objecto"],
                            a["adjudicante"], a["adjudicatarios"],
                            a["tipo_procedimento"],
@@ -15056,8 +15145,28 @@ def servir_documento(ref, nome):
     if not caminho:
         return ("Documento não encontrado. <a href='/anuncio/%s'>voltar</a>"
                 % html.escape(ref, quote=True)), 404
-    return send_file(caminho, as_attachment=False,
-                     download_name=os.path.basename(caminho))
+    # So o que e inofensivo abre dentro do browser. As pecas vem das
+    # plataformas, e um .html ou .svg servido em linha corria no
+    # dominio do painel, com a sessao (auditoria de 14/09/2026): o
+    # resto descarrega-se, e leva um CSP de caixa fechada por via das
+    # duvidas.
+    inofensivo = abre_no_browser(caminho)
+    resposta = send_file(caminho, as_attachment=not inofensivo,
+                         download_name=os.path.basename(caminho),
+                         mimetype=None if inofensivo else "application/octet-stream")
+    if not inofensivo:
+        resposta.headers["Content-Security-Policy"] = "sandbox"
+    return resposta
+
+
+# O que pode abrir em linha: o visualizador do browser para PDF, as
+# imagens e o texto simples. Um nome sem extensao conhecida e "outra
+# coisa" e descarrega-se.
+EXTENSOES_INOFENSIVAS = (".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt")
+
+
+def abre_no_browser(caminho):
+    return os.path.splitext(caminho)[1].lower() in EXTENSOES_INOFENSIVAS
 
 
 @app.route("/peca-pagina/<path:ref>/<nome>/<int:n>.png")
@@ -16445,13 +16554,13 @@ def quadro_campos(ref):
         valores.append(motivo or None)
         registos.append(("porque se perdeu", motivo or "(apagado)"))
     if not campos:
-        return redirect(request.referrer or "/quadro")
+        return volta_ao_referer("/quadro")
     with liga() as c:
         c.execute("UPDATE anuncios SET " + ", ".join(campos) + " WHERE ref=?",
                   valores + [ref])
     for accao_, detalhe in registos:
         registar(ref, accao_, detalhe)
-    return redirect(request.referrer or "/quadro")
+    return volta_ao_referer("/quadro")
 
 
 @app.route("/quadro/etiqueta/<path:ref>/nova", methods=["POST"])

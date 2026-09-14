@@ -9928,6 +9928,119 @@ class TestNomeRadarGov(unittest.TestCase):
         self.assertGreater(contraste, 7)
 
 
+class TestAuditoriaDeSeguranca(BaseTemporaria):
+    """A auditoria de 14/09/2026, a pedido do Afonso. O que ela apanhou e
+    aqui se trava: nenhum cabeçalho de segurança; um pedido sem tecto de
+    tamanho; as peças das plataformas servidas em linha fosse qual fosse
+    o tipo (um .html corria no domínio do painel, com a sessão); o CSV
+    a deixar passar fórmulas; redireccionamentos crus pelo Referer; e os
+    ficheiros com segredos a 644/755."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def test_os_cabecalhos_vao_em_todas_as_respostas(self):
+        for rota in ("/", "/entrar", "/quadro", "/configuracoes/conta"):
+            with self.subTest(rota=rota):
+                r = self.cliente.get(rota)
+                self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
+                self.assertEqual(r.headers["X-Frame-Options"], "SAMEORIGIN")
+                self.assertEqual(r.headers["Referrer-Policy"], "same-origin")
+                csp = r.headers["Content-Security-Policy"]
+                self.assertIn("frame-ancestors 'self'", csp)
+                self.assertIn("form-action 'self'", csp)
+                self.assertIn("object-src 'self'", csp)          # o <embed> das peças
+                self.assertIn("https://fonts.googleapis.com", csp)
+                self.assertNotIn("Strict-Transport-Security", r.headers)   # http local
+        r = self.cliente.get("/", base_url="https://localhost")
+        self.assertIn("max-age=", r.headers.get("Strict-Transport-Security", ""))
+
+    def test_um_pedido_tem_tecto(self):
+        import io
+        self.assertEqual(radar.app.config["MAX_CONTENT_LENGTH"], 20 * 1024 * 1024)
+        r = self.cliente.post("/configuracoes/importar",
+                              data={"ficheiro": (io.BytesIO(b"x" * (21 * 1024 * 1024)),
+                                                 "modelo.xlsx")},
+                              content_type="multipart/form-data")
+        self.assertEqual(r.status_code, 413)
+
+    def test_so_pdf_imagens_e_texto_abrem_no_browser(self):
+        ref = "70/2026"
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, url, texto, detalhe_lido) "
+                      "VALUES (?,?,?,?,1)", (ref, "t", "https://x/anuncio-procedimento/k", "x"))
+        pasta = radar.pasta_do_anuncio(ref)
+        os.makedirs(pasta)
+        for nome, conteudo in (("ce.pdf", b"%PDF-1.4 x"), ("nota.txt", b"ola"),
+                               ("pagina.html", b"<script>alert(1)</script>"),
+                               ("desenho.svg", b"<svg onload=alert(1)/>"),
+                               ("macro.xlsm", b"PK")):
+            with open(os.path.join(pasta, nome), "wb") as f:
+                f.write(conteudo)
+        for nome in ("ce.pdf", "nota.txt"):
+            r = self.cliente.get("/documento/%s/%s" % (quote(ref, safe=""), nome))
+            self.assertEqual(r.status_code, 200)
+            self.assertNotIn("attachment", r.headers.get("Content-Disposition", ""))
+            self.assertNotEqual(r.headers.get("Content-Security-Policy"), "sandbox")
+        for nome in ("pagina.html", "desenho.svg", "macro.xlsm"):
+            with self.subTest(nome=nome):
+                r = self.cliente.get("/documento/%s/%s" % (quote(ref, safe=""), nome))
+                self.assertEqual(r.status_code, 200)
+                self.assertIn("attachment", r.headers["Content-Disposition"])
+                self.assertEqual(r.mimetype, "application/octet-stream")
+                self.assertEqual(r.headers["Content-Security-Policy"], "sandbox")
+                self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
+
+    def test_o_csv_nao_deixa_passar_formulas(self):
+        self.assertEqual(radar.celula_csv("=1+1"), "'=1+1")
+        self.assertEqual(radar.celula_csv("+351"), "'+351")
+        self.assertEqual(radar.celula_csv("-x"), "'-x")
+        self.assertEqual(radar.celula_csv("@a"), "'@a")
+        self.assertEqual(radar.celula_csv("Aquisição"), "Aquisição")
+        self.assertEqual(radar.celula_csv(12.5), 12.5)
+        self.assertEqual(radar.celula_csv(None), None)
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, url, data_pub, estado) "
+                      "VALUES (?,?,?,?,?,?)",
+                      ("71/2026", "=HYPERLINK(\"http://mau\")", "Câmara",
+                       "https://x/anuncio-procedimento/k", "2026-09-01", "novo"))
+        csv_ = self.cliente.get("/csv?estado=").get_data(as_text=True)
+        self.assertIn("'=HYPERLINK", csv_)
+        # e nao ha writerow a saltar a guarda
+        self.assertEqual(radar_fonte().count("escritor.writerow("), 1)
+
+    def test_o_referer_so_volta_para_esta_aplicacao(self):
+        with radar.app.test_request_context("/", headers={"Referer": "https://mau.site/x"}):
+            self.assertEqual(radar.volta_ao_referer("/quadro").headers["Location"], "/quadro")
+        with radar.app.test_request_context("/", headers={"Referer": "http://localhost/lista?a=1"}):
+            self.assertEqual(radar.volta_ao_referer("/quadro").headers["Location"], "/lista?a=1")
+        with radar.app.test_request_context("/"):
+            self.assertEqual(radar.volta_ao_referer("/quadro").headers["Location"], "/quadro")
+        self.assertNotIn("redirect(request.referrer", radar_fonte())
+
+    def test_os_ficheiros_com_segredos_ficam_so_do_dono(self):
+        if os.name == "nt":
+            self.skipTest("sem modo POSIX")
+        caminho = os.path.join(self.pasta, "segredo.txt")
+        with open(caminho, "w") as f:
+            f.write("x")
+        os.chmod(caminho, 0o644)
+        radar.so_o_dono(caminho)
+        self.assertEqual(os.stat(caminho).st_mode & 0o777, 0o600)
+        # a base fica assim ao ligar (uma vez por processo)
+        radar._BASE_PROTEGIDA.discard(radar.DB)
+        os.chmod(radar.DB, 0o644)
+        with radar.liga() as c:
+            c.execute("SELECT 1")
+        self.assertEqual(os.stat(radar.DB).st_mode & 0o777, 0o600)
+
+
+def radar_fonte():
+    with open(radar.__file__, encoding="utf-8") as f:
+        return f.read()
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
