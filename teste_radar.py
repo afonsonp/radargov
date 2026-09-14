@@ -9973,12 +9973,13 @@ class TestAuditoriaDeSeguranca(BaseTemporaria):
         pasta = radar.pasta_do_anuncio(ref)
         os.makedirs(pasta)
         for nome, conteudo in (("ce.pdf", b"%PDF-1.4 x"), ("nota.txt", b"ola"),
+                               ("Caderno de Encargos", b"%PDF-1.4 sem extensao"),
                                ("pagina.html", b"<script>alert(1)</script>"),
                                ("desenho.svg", b"<svg onload=alert(1)/>"),
                                ("macro.xlsm", b"PK")):
             with open(os.path.join(pasta, nome), "wb") as f:
                 f.write(conteudo)
-        for nome in ("ce.pdf", "nota.txt"):
+        for nome in ("ce.pdf", "nota.txt", "Caderno de Encargos"):
             r = self.cliente.get("/documento/%s/%s" % (quote(ref, safe=""), nome))
             self.assertEqual(r.status_code, 200)
             self.assertNotIn("attachment", r.headers.get("Content-Disposition", ""))
