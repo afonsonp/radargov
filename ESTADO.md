@@ -25,15 +25,16 @@ Aplicação local em Python que vigia os anúncios de contratação pública
 publicados no Diário da República, série II, **parte L**. Guarda tudo
 numa base SQLite e mostra num painel web local, em
 `http://127.0.0.1:8765`. Verifica sozinha às 09:00 e às 17:00, por
-tarefas do Windows — ou, em Linux, por temporizadores do systemd.
+temporizadores do systemd.
 
 **Desde 8/09/2026 corre também em Ubuntu**, em
 `/home/afonso/Desktop/radar` no disco interno (esteve umas horas no
 disco «Matriz», NTFS, que só é montado ao entrar na sessão gráfica —
 mudou-se nesse mesmo dia por isso): um `.venv`
-criado pelo `instalar.sh` faz de `python/` + `libs/`, cada `.bat` tem
-o seu `.sh` (e a 8/09/2026 os `.bat` saíram do repositório: a pen do
-Windows deixou de existir), e o `agendar.sh` cria os três temporizadores e o painel
+criado pelo `instalar.sh` traz as dependências, os `.sh` são os
+atalhos (a 8/09/2026 os `.bat` saíram do repositório, e a 14/09/2026
+saiu o que restava do Windows no código: a pen deixou de existir), e o
+`agendar.sh` cria os três temporizadores e o painel
 como serviço do utilizador. É o passo antes de este computador servir
 o radar para fora — o plano disso é o `docs/historico/ONLINE.md`.
 **A etapa 1, o login, ficou feita a 8/09/2026** (`contas.py`; a
@@ -320,9 +321,10 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 14 643 linhas, `casa.py` com 990,
-`teste_radar.py` com 728 testes que correm em 30 segundos, sem rede e sem
-tocar na base verdadeira. **Mais de metade do `radar.py` é painel**
+**Código e testes.** `radar.py` com 17 131 linhas, `casa.py` com 1 267,
+`teste_radar.py` com 861 testes que correm em 25 segundos, sem rede e sem
+tocar na base verdadeira (contados a 14/09/2026, depois da auditoria
+ponytail, que tirou ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
@@ -340,12 +342,12 @@ contagens do painel têm de ir por índice de cobertura — ver a
 
 ## O que não corre sozinho, e é preciso saber
 
-- **Os três temporizadores do systemd** (`agendar.sh`; no Windows
-  eram tarefas do Agendador) são o que faz o radar
+- **Os três temporizadores do systemd** (`agendar.sh`) são o que faz o radar
   verificar sem ninguém. Se faltarem, só recolhe com o painel aberto — e
   o relógio interno recupera os slots falhados, o que faz a tabela
-  `slots` parecer certa. O painel avisa a vermelho nos dois sistemas
-  (até 8/09/2026 só no Windows: fora dele devolvia «nada em falta»).
+  `slots` parecer certa. O painel avisa a vermelho (até 8/09/2026 só
+  no Windows: fora dele devolvia «nada em falta»; o ramo do Windows
+  saiu a 14/09/2026).
 - **Em Linux, o painel corre como serviço** (`radar-painel.service`)
   e o `iniciar.sh` não abre um segundo. Sem `loginctl enable-linger`,
   o serviço e os temporizadores morrem com o logout — o `agendar.sh`

@@ -702,9 +702,10 @@ formato* e não os valores substituídos, as percentagens do CSS
 escapadas como `%%`**. Se um dia alguém colar CSS directamente dentro
 do `BASE`, tem de dobrar todos os `%` — não o faças, põe-no no `CSS`.
 
-Tipografia: Archivo e JetBrains Mono, do Google Fonts, com `system-ui`
-e `ui-monospace` como reserva — se a máquina estiver sem rede a
-aplicação continua legível, só muda de letra.
+Tipografia: a do sistema (`system-ui` e `ui-monospace`). Até 14/09/2026
+eram Archivo e JetBrains Mono, do Google Fonts, com estas como reserva;
+saíram na auditoria ponytail porque eram a única coisa que o painel
+pedia a outro domínio.
 
 **Armadilha encontrada:** entidades HTML (`&mdash;`) dentro de uma
 string que depois passa por `html.escape()` saem escritas tal e qual,

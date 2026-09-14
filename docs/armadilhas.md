@@ -39,6 +39,13 @@ O DR, a Vortal, e como um anúncio entra na base.
 - **Não se filtra nada à entrada.** Decisão tomada depois de uma primeira
   versão que filtrava por pontuação: entra tudo o que a parte L publicar, e
   a triagem faz-se no painel. Não reintroduzas filtros em `recolher()`.
+  A única excepção é o último recurso dos `termos_de_reserva`: se o portal
+  responder à pesquisa sem termo sem um único anúncio, varre-se pelas seis
+  palavras largas, e a mensagem diz «pelos termos de reserva» para uma
+  janela filtrada não passar por completa. Até 14/09/2026 a condição era
+  só «não colheu nada», que também é verdade num corte de rede, e o radar
+  respondia a um timeout com seis varrimentos; `TestRecuoParaTermosDeReserva`
+  força o recurso e o corte de rede. Nunca se viu disparar a sério.
 
 - **Uma recolha grande faz-se por JANELAS de datas, nunca numa janela
   só.** Duas razões, medidas contra o portal a 04/09/2026. A primeira: o
@@ -153,10 +160,10 @@ O DR, a Vortal, e como um anúncio entra na base.
 
 - **As datas da Vortal vêm em UTC e mostram-se em hora de Lisboa.**
   A API dá `2026-09-03T22:59:00Z` e a plataforma mostra 23:59 — no
-  Verão Lisboa é UTC+1. `hora_de_lisboa()` faz a conta pela regra da
-  UE (último domingo de Março às 01:00 UTC ao último domingo de
-  Outubro), à mão porque o `zoneinfo` depende de dados de fusos que
-  este Windows não garante. Escrever o UTC punha o prazo uma hora mais
+  Verão Lisboa é UTC+1. `hora_de_lisboa()` converte pelo `zoneinfo`
+  (`Europe/Lisbon`; até 14/09/2026 fazia a conta à mão pela regra da
+  UE, porque o Windows da pen não garantia os dados de fusos; o Ubuntu
+  traz o `tzdata`). Escrever o UTC punha o prazo uma hora mais
   cedo do que a plataforma diz. Só a Vortal precisa disto: o DR
   publica datas já locais.
 
@@ -1211,10 +1218,11 @@ Nada espera dentro do pedido do browser.
   `comecar_verificacao()` e o `--uma-vez` passam os dois por lá; quem
   chega segundo desiste, e o painel diz «noutro processo, desde as
   17:00». Um trinco de um processo morto não prende (o pid já não
-  existe, ou passou `HORAS_DE_TRINCO`), e só o dono o larga. **No
-  Windows não se pergunta se o pid vive**: `os.kill(pid, 0)` lá chama
-  `TerminateProcess` — mata o processo em vez de o sondar — por isso
-  vale só o prazo. `TestTrincoEntreProcessos` injecta o `agora`, o `pid`
+  existe, ou passou `HORAS_DE_TRINCO`), e só o dono o larga. (Isto
+  só vale em POSIX: no Windows `os.kill(pid, 0)` chama
+  `TerminateProcess`, mata em vez de sondar, e enquanto o radar lá
+  correu valia só o prazo; esse ramo saiu a 14/09/2026.)
+  `TestTrincoEntreProcessos` injecta o `agora`, o `pid`
   e o `vivo`, e um teste exercita a condição verdadeira uma vez.
 
 - **O `relogio()` entra pela mesma porta do botão.** Um slot falhado
@@ -1375,10 +1383,11 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   (1) `cabecalhos_de_seguranca()` põe em todas as respostas `nosniff`,
   `X-Frame-Options`, `Referrer-Policy` e um CSP com `unsafe-inline`
   (os scripts e os estilos são em linha; o que o CSP fecha é
-  `frame-ancestors`, `form-action`, `base-uri` e as origens de fora —
-  só o Google Fonts); HSTS só por HTTPS. Um recurso novo de outro
-  domínio tem de entrar no `CABECALHOS_DE_SEGURANCA`, senão o browser
-  bloqueia-o em silêncio. (2) `MAX_CONTENT_LENGTH` a 20 MB: um POST
+  `frame-ancestors`, `form-action`, `base-uri` e as origens de fora,
+  que desde 14/09/2026 são nenhumas); HSTS só por HTTPS. Um recurso
+  novo de outro domínio tem de entrar no `CABECALHOS_DE_SEGURANCA`,
+  senão o browser bloqueia-o em silêncio, e `TestPaginaSemNadaDeFora`
+  cai de propósito. (2) `MAX_CONTENT_LENGTH` a 20 MB: um POST
   maior dá 413. (3) `/documento/<ref>/<nome>` só abre em linha o que
   está em `EXTENSOES_INOFENSIVAS`; o resto descarrega-se como
   `application/octet-stream` com CSP `sandbox` — uma peça `.html` de
@@ -1507,12 +1516,14 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   nessa lista. Ligações dentro de frases não contam: têm a altura da
   linha, e a WCAG exclui-as.
 
-- **A folha do Google Fonts carrega sem bloquear a pintura**
-  (`media="print" onload="this.media='all'"`, com a cópia normal em
-  `<noscript>`). Como `<link rel=stylesheet>` simples era render-blocking:
-  12,6 s de página branca sem saída para o domínio, com o servidor a
-  responder em 16 ms. Sem rede, a aplicação fica legível **antes** do
-  timeout, com a letra de reserva.
+- **O painel não pede nada a nenhum domínio de fora** (14/09/2026,
+  auditoria ponytail). Havia uma folha do Google Fonts (Archivo e
+  JetBrains Mono): como `<link rel=stylesheet>` simples era
+  render-blocking, 12,6 s de página branca sem saída para o domínio,
+  com o servidor a responder em 16 ms; passou a carregar sem bloquear
+  e depois saiu de vez, e a letra é a do sistema (`system-ui`,
+  `ui-monospace`). O CSP diz o mesmo (`font-src 'self'`), e
+  `TestPaginaSemNadaDeFora` guarda as duas coisas.
 
 - **Toda a truncagem visível passa por `corta()`**, que põe reticências.
   Um `[:190]` cru corta a meio de palavra e lê-se como dado estragado.

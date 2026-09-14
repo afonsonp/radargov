@@ -159,7 +159,9 @@ pára aí por engano se algo estiver mesmo a repetir para sempre.
 
 Os `termos_de_pesquisa` estão a `[""]`, que quer dizer pesquisa sem
 termo, ou seja, tudo. Os `termos_de_reserva` só entram em acção se o
-portal recusar a pesquisa vazia.
+portal responder à pesquisa vazia sem um único anúncio (não num corte
+de rede, que é avaria e pára logo); quando isso acontece, a mensagem
+da verificação diz «pelos termos de reserva». Nunca se viu disparar.
 
 ## Histórico
 
@@ -853,17 +855,9 @@ Idempotente; os anúncios que ainda não voltaram do DR ficam listados
 para se repor outra vez mais tarde.
 
 ```bash
-python radar.py --importar-excel "C:\...\Analise_Concursos_Publicos.xlsm" --ensaio
-```
-O registo da casa (secção 11). Com `--ensaio` só mostra o que faria;
-sem ele guarda e liga, e não toca na triagem. `--sem-rede` não vai ao
-DR ler os candidatos ambíguos. `--casa-ligar ID REF` liga uma linha à
-mão.
-
-```bash
 python teste_radar.py
 ```
-Corre os testes — 806 verificações em poucos segundos, sem tocar
+Corre os testes — mais de 850 verificações em poucos segundos, sem tocar
 na rede nem na base verdadeira. Vale a pena corrê-los depois de
 qualquer alteração ao `radar.py`. Se o DR mudar o formato dos
 anúncios, é o teste do parser que avisa primeiro.

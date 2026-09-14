@@ -10,8 +10,6 @@
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -x "$AQUI/.venv/bin/python" ]; then
   PY="$AQUI/.venv/bin/python"
-  ONDE="o Python do .venv da pasta"
 else
   PY="python3"
-  ONDE="o Python instalado no computador"
 fi

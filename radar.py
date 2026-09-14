@@ -18,10 +18,9 @@ Arranque:  python radar.py             painel em http://127.0.0.1:8765
            python radar.py --reler     reanalisa o texto ja guardado
            python radar.py --descartar-expirados   arruma os por ver com prazo passado
            python radar.py --importar-cpv F   carrega o vocabulario CPV
-           python radar.py --importar-excel F [--ensaio] [--sem-rede]
-                                       o Excel de analise de concursos da casa
 """
 
+import bisect
 import copy
 import csv
 import html
@@ -33,6 +32,7 @@ import re
 import queue
 import shlex
 import smtplib
+import statistics
 import socket
 import subprocess
 import sqlite3
@@ -43,8 +43,10 @@ import time
 import unicodedata
 import webbrowser
 import zipfile
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import casa                      # o registo da casa (casa.py importa o radar por dentro)
 import contas                    # as contas e as sessoes (contas.py nao importa o radar)
@@ -69,12 +71,13 @@ AMOSTRAS = os.path.join(BASE_DIR, "amostras")
 # armazenamento de objectos, se um dia isto sair deste PC.
 DOCS = os.path.join(BASE_DIR, "documentos")
 PORTA = 8765
+LISBOA = ZoneInfo("Europe/Lisbon")
 # O painel atende em 127.0.0.1 -- e o endereco escreve-se assim, e nao
-# "localhost", em todo o lado. Nao e cosmetica: neste Windows o
-# `localhost` resolve para ::1 ANTES de 127.0.0.1, e ninguem esta a
-# escutar em IPv6. Ligar a uma porta reservada e sem escuta no Windows
-# nao e recusado -- bloqueia --, portanto o browser espera pelo IPv6,
-# desiste, e so entao tenta o IPv4. Medido a 04/09/2026, no browser e
+# "localhost", em todo o lado. Nao e cosmetica: no Windows da pen o
+# `localhost` resolvia para ::1 ANTES de 127.0.0.1, e ninguem estava a
+# escutar em IPv6; ligar a uma porta reservada e sem escuta la nao era
+# recusado -- bloqueava --, portanto o browser esperava pelo IPv6,
+# desistia, e so entao tentava o IPv4. Medido a 04/09/2026, no browser e
 # na mesma pagina: 208 ms por pedido por `localhost` contra 37 ms por
 # 127.0.0.1. E um imposto fixo em cada clique do painel.
 #
@@ -412,33 +415,10 @@ def iniciar_db():
         for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
             if nome not in cols_doc:
                 c.execute("ALTER TABLE documentos ADD COLUMN %s %s" % (nome, tipo))
-        # Saneamento 30/08/2026 (A1): 30 documentos ficaram presos em
-        # "erro: cryptography>=3.1 is required for AES algorithm", de
-        # quando a dependencia ainda nao estava instalada. A causa ja
-        # nao existe; limpa-se o estado para voltarem a fila de
-        # extraccao (texto_estado IS NULL). Uma vez, por marca -- e o
-        # extrair_textos() passou a retentar qualquer "erro:", por isso
-        # nenhum erro de extraccao volta a ser terminal para sempre.
-        if not c.execute("SELECT 1 FROM estado "
-                         "WHERE chave='erros_extraccao_limpos'").fetchone():
-            c.execute("UPDATE documentos SET texto=NULL, texto_estado=NULL "
-                      "WHERE texto_estado LIKE 'erro:%cryptography%'")
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('erros_extraccao_limpos','1')")
-        # Saneamento 30/08/2026 (A2): as analises de antes da cadeia de
-        # fornecedores guardavam o modelo sem prefixo. Converte-se para o
-        # formato actual -- a regra esta em _modelo_com_fornecedor(), que
-        # nao mexe no que ja tem prefixo. Uma vez, por marca.
-        if not c.execute("SELECT 1 FROM estado "
-                         "WHERE chave='modelo_com_fornecedor'").fetchone():
-            for r in c.execute("SELECT ref, modelo FROM analise "
-                               "WHERE COALESCE(modelo,'') != ''").fetchall():
-                novo = _modelo_com_fornecedor(r["modelo"])
-                if novo != r["modelo"]:
-                    c.execute("UPDATE analise SET modelo=? WHERE ref=?",
-                              (novo, r["ref"]))
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('modelo_com_fornecedor','1')")
+        # (As migracoes de uso unico do saneamento de 30/08/2026 -- A1,
+        # A2, A3 e a limpeza do indice pecas_fts -- sairam a 14/09/2026:
+        # correram em todas as instalacoes desde a v1.0.0, e uma base
+        # de antes disso ja nao existe. O diario de Agosto guarda-as.)
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -506,25 +486,6 @@ def iniciar_db():
         c.execute("""DELETE FROM erros WHERE id NOT IN (
             SELECT e2.id FROM erros e2 WHERE e2.tipo = erros.tipo
             ORDER BY e2.id DESC LIMIT 200)""")
-        # A pesquisa nas pecas (B09) foi implementada e RETIRADA a
-        # 30/08/2026, por decisao do Afonso: as pecas so existem depois
-        # de marcar "interessa", por isso a pesquisa chegava sempre
-        # tarde demais para ajudar a decidir -- nao se estava a ganhar
-        # nada. A versao que valeria a pena (ver o PDF dentro da
-        # aplicacao, com pesquisa la dentro) esta no BACKLOG, por fazer
-        # so quando for pedida. Isto limpa o indice de quem chegou a
-        # ter a versao retirada; DROP IF EXISTS e idempotente e gratis.
-        c.execute("DROP TRIGGER IF EXISTS documentos_fts_ai")
-        c.execute("DROP TRIGGER IF EXISTS documentos_fts_ad")
-        c.execute("DROP TRIGGER IF EXISTS documentos_fts_au")
-        c.execute("DROP TABLE IF EXISTS pecas_fts")
-        c.execute("DELETE FROM estado WHERE chave='fts_povoado'")
-        # Saneamento 30/08/2026 (A3): chaves do esquema de avisos antigo,
-        # que o codigo actual nao le nem escreve -- o esquema de hoje e o
-        # reconhecer/enviar de alertas_vistos. Recria-las nao tinha
-        # sentido; apagar e idempotente e gratis, como a limpeza acima.
-        c.execute("DELETE FROM estado WHERE chave IN "
-                  "('ultimo_aviso','ultimo_aviso_texto')")
         # As entidades seguidas (B10) vivem na base de trabalho e nao no
         # corpus: o corpus refaz-se com --contratos, a triagem nao. O
         # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
@@ -710,8 +671,7 @@ def so_o_dono(caminho):
     """Deixa o ficheiro legivel so pelo dono (0600). E para o que tem
     segredos -- a base (hashes, sessoes, a triagem), as capturas (os
     cookies do DR), as chaves e a palavra-passe do e-mail -- que estavam
-    a 644 e 755 (auditoria de 14/09/2026). No Windows nao ha modo POSIX
-    e o chmod nao faz nada de util; nao faz mal."""
+    a 644 e 755 (auditoria de 14/09/2026)."""
     try:
         os.chmod(caminho, 0o600)
     except OSError:
@@ -1029,9 +989,8 @@ def mil_pt(n, espaco=" "):
     um espaco normal, o browser parte "1 363 300" ao fim da linha e a
     leitura fica com um numero em cada linha.
 
-    Passa-se `espaco=" "` para a CONSOLA: a do Windows escreve em cp1252
-    e o inquebravel sai de la como lixo ("60?215"), o que estraga logo a
-    primeira linha de um comando que vai correr horas."""
+    Passa-se `espaco=" "` para a CONSOLA, onde o inquebravel nao faz
+    falta e numa consola sem UTF-8 sai como lixo ("60?215")."""
     return "{:,}".format(int(n)).replace(",", espaco)
 
 
@@ -1674,10 +1633,18 @@ def recolher(cfg):
                 break
             time.sleep(1)
 
-    if not colhidos and termos == [""] and cfg.get("termos_de_reserva"):
-        # o portal nao aceitou pesquisa sem termo: varre pelos termos largos
+    if (not colhidos and not avarias and termos == [""]
+            and cfg.get("termos_de_reserva")):
+        # O portal respondeu mas nao deu nada a pesquisa sem termo: varre
+        # pelos termos largos. Nunca se viu disparar (14/09/2026); o `not
+        # avarias` e de proposito, porque um corte de rede tambem deixa
+        # `colhidos` vazio, e responder a um timeout com seis varrimentos
+        # era o contrario de «um aviso verdadeiro para logo». O que vier
+        # por aqui diz que veio, para uma janela filtrada nao passar por
+        # uma janela completa.
         cfg = dict(cfg, termos_de_pesquisa=cfg["termos_de_reserva"])
-        return recolher(cfg)
+        ok, msg, novos = recolher(cfg)
+        return ok, msg + (" (pelos termos de reserva)" if ok else ""), novos
 
     if not colhidos:
         if avarias:
@@ -2738,14 +2705,7 @@ def _texto_do_preco(valor):
     aplicacao ja sabem ler."""
     if not valor:
         return ""
-    s = "{:,.2f}".format(float(valor))
-    return s.replace(",", "\x00").replace(".", ",").replace("\x00", ".") + " EUR"
-
-
-def _domingo_final(ano, mes):
-    """O ultimo domingo de um mes de 31 dias."""
-    ultimo = datetime(ano, mes, 31)
-    return ultimo - timedelta(days=(ultimo.weekday() + 1) % 7)
+    return "{:,.2f}".format(float(valor)).translate(str.maketrans(",.", ".,")) + " EUR"
 
 
 def hora_de_lisboa(iso):
@@ -2756,23 +2716,17 @@ def hora_de_lisboa(iso):
     UTC na ficha punha o prazo uma hora mais cedo do que a plataforma
     diz -- e um prazo e a informacao pela qual se perde uma proposta.
 
-    A regra e a da UE e nao muda: hora de Verao do ultimo domingo de
-    Marco as 01:00 UTC ao ultimo domingo de Outubro as 01:00 UTC.
-    Faz-se a conta a mao porque a biblioteca padrao so traz fusos com
-    nome a partir do zoneinfo, que depende de dados do sistema que este
-    Windows nao garante. Devolve ISO "AAAA-MM-DD HH:MM"; o que nao for
-    data volta como veio.
+    A regra da hora de Verao e a da UE, e quem a sabe e o zoneinfo
+    (ate 14/09/2026 fazia-se a conta a mao, porque o Windows da pen nao
+    garantia os dados de fusos). Devolve ISO "AAAA-MM-DD HH:MM"; o que
+    nao for data volta como veio.
     """
     m = re.match(r"(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})", (iso or "").strip())
     if not m:
         return " ".join(str(iso or "").split())
     quando = datetime.strptime(m.group(1) + " " + m.group(2), "%Y-%m-%d %H:%M")
-    verao = (_domingo_final(quando.year, 3) + timedelta(hours=1)
-             <= quando
-             < _domingo_final(quando.year, 10) + timedelta(hours=1))
-    if verao:
-        quando += timedelta(hours=1)
-    return quando.strftime("%Y-%m-%d %H:%M")
+    return (quando.replace(tzinfo=timezone.utc).astimezone(LISBOA)
+            .strftime("%Y-%m-%d %H:%M"))
 
 
 def _valor_do_campo(valor):
@@ -4986,21 +4940,19 @@ def guardar(colhidos, cfg=None):
     return novos
 
 
-# As tarefas que o agendar.bat cria. Se nao existirem, o radar so
+# As tarefas que o agendar.sh cria: os temporizadores do systemd na
+# sessao do utilizador, procurados pelo nome da unidade na saida de
+# `systemctl --user list-timers --all`. Se nao existirem, o radar so
 # recolhe com o painel aberto -- e como o relogio interno recupera os
 # slots falhados, a tabela `slots` fica preenchida e parece que correu a
-# horas. Foi assim que isto passou semanas sem se notar.
-TAREFAS = ("Radar DR 09h", "Radar DR 17h")
-# Em Linux (8/09/2026) o mesmo papel e dos temporizadores do systemd que
-# o agendar.sh cria, na sessao do utilizador. Sao os nomes das unidades,
-# procurados na saida de `systemctl --user list-timers --all`. Ate aqui
-# fora do Windows devolvia-se vazio -- "nao ha o que avisar" -- o que
-# era exactamente o modo de falha que o aviso existe para apanhar.
+# horas. Foi assim que isto passou semanas sem se notar (no Windows, com
+# o schtasks; e ate 8/09/2026 fora do Windows devolvia-se vazio, "nao ha
+# o que avisar", que era o modo de falha que o aviso existe para apanhar).
 TAREFAS_LINUX = ("radar-09h.timer", "radar-17h.timer")
 _TAREFAS_VISTAS = None
 _TAREFAS_QUANDO = 0.0
 # A resposta guarda-se durante um minuto e nao para sempre. Era para
-# sempre: correr o agendar.bat com o painel aberto deixava o aviso
+# sempre: correr o agendar.sh com o painel aberto deixava o aviso
 # vermelho no ecra ate se reiniciar o painel, e apagar uma tarefa nunca
 # chegava a ser notado. E o aviso que impede o pior modo de falha desta
 # aplicacao -- parecer viva sem estar a recolher nada -- e era o que
@@ -5012,9 +4964,7 @@ def comando_das_tarefas(sistema=None):
     """O comando que lista as tarefas agendadas neste sistema, e os
     nomes que la se procuram. `None` onde nao ha agendador que se saiba
     consultar (macOS, por exemplo): ai nao se inventa aviso."""
-    sistema = sistema or ("nt" if os.name == "nt" else sys.platform)
-    if sistema == "nt":
-        return ["schtasks", "/query", "/fo", "csv", "/nh"], TAREFAS
+    sistema = sistema or sys.platform
     if sistema.startswith("linux"):
         return (["systemctl", "--user", "list-timers", "--all",
                  "--no-legend", "--plain"], TAREFAS_LINUX)
@@ -5055,8 +5005,6 @@ def _saida_de(comando):
 
 def como_agendar():
     """A frase do aviso: onde e que as tarefas faltam, e o que correr."""
-    if os.name == "nt":
-        return "no Agendador do Windows", "agendar.bat"
     return "nos temporizadores do systemd", "agendar.sh"
 
 
@@ -5286,9 +5234,7 @@ def empurrar_triagem(pasta=None):
     Desliga-se com "triagem_no_git": false no config.json.
     Devolve (correu bem, o que aconteceu)."""
     pasta = pasta or BASE_DIR
-    # sem janela de consola: as tarefas correm em pythonw
-    quieto = {"cwd": pasta, "capture_output": True,
-              "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    quieto = {"cwd": pasta, "capture_output": True}
 
     def corre(args, timeout):
         return subprocess.run(args, timeout=timeout, **quieto)
@@ -5688,8 +5634,8 @@ _EM_LINHA = "#dbe0e6"
 _EM_T2 = "#333c46"
 _EM_T3 = "#4d5661"
 _EM_AZUL = "#17557f"
-_EM_SANS = "Archivo,system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
-_EM_MONO = "'JetBrains Mono',Consolas,Menlo,monospace"
+_EM_SANS = "system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
+_EM_MONO = "Consolas,Menlo,monospace"
 _EM_CORES = {"ok": ("#e7f3ec", "#1a7a4d"),
              "avisa": ("#fbeee2", "#a8450e"),
              "mau": ("#fbe9e5", "#b0341a"),
@@ -7191,11 +7137,9 @@ HORAS_DE_TRINCO = 3
 
 
 def processo_vivo(pid):
-    """True se o processo existe. No Windows nao se pergunta: um
-    os.kill(pid, 0) la MATA o processo (chama TerminateProcess), por
-    isso vale so o prazo."""
-    if os.name == "nt":
-        return True
+    """True se o processo existe. (Isto so vale em POSIX: no Windows um
+    os.kill(pid, 0) MATA o processo, e enquanto o radar la correu
+    valia so o prazo.)"""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -7385,8 +7329,8 @@ CABECALHOS_DE_SEGURANCA = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Content-Security-Policy": (
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self'; img-src 'self' data:; "
         "object-src 'self'; frame-ancestors 'self'; form-action 'self'; "
         "base-uri 'self'; connect-src 'self'"),
 }
@@ -7742,8 +7686,8 @@ CSS = r"""
  /* o "Gov" do logotipo: azul, a pedido dele (14/09/2026); sobre a barra
     escura o --azul nao se le, por isso ha um claro so para la */
  --azul-claro:#7cbcf0;
- --sans:Archivo,system-ui,-apple-system,'Segoe UI',sans-serif;
- --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+ --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+ --mono:ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
 /* Foco de teclado visivel e igual em toda a aplicacao. O contorno de
@@ -7906,7 +7850,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .tag.mau{background:var(--verm-fundo);color:var(--verm);font-weight:600}
 .tag.info{background:var(--azul-fundo);color:var(--azul);font-weight:600}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
-.ponto.pulsa{animation:pisca 1.1s infinite}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
 .accoes-topo .a-correr{font:500 12px/1 var(--sans);color:var(--laranja);
@@ -7996,9 +7939,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .guardado.parcial{border-style:dashed}
 .guardado i{font:400 9.5px/1 var(--sans);font-style:normal;color:var(--t6);
  margin-left:6px;padding-right:11px}
-.guardados .gerir{font:500 11.5px/1 var(--sans);color:var(--t5);
- padding:8px 10px}
-.guardados .gerir:hover{color:var(--ink)}
 .interruptor{cursor:pointer;width:42px;height:24px;border-radius:99px;
  border:1px solid var(--linha);background:var(--linha2);padding:0;
  position:relative;transition:background .12s}
@@ -8180,11 +8120,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
  padding:10px 14px;margin-bottom:8px;background:var(--creme);box-shadow:none}
 .guardados .rot{margin-right:4px}
 .guardados .nada{font:400 12px/1 var(--sans);color:var(--t6)}
-/* O que o filtro em uso tem e esta pagina nao aplica. Estava so no
-   `title` do chip: quem nao passasse o rato por cima nunca o via. */
-.parcial-nota{flex-basis:100%;order:9;font:400 12px/1.5 var(--sans);
- color:var(--t5);border-left:2px solid var(--laranja);padding:2px 0 2px 10px}
-.parcial-nota b{color:var(--t3);font-weight:600}
 .guardado{display:inline-flex;align-items:center;border:1px solid var(--linha);
  border-radius:99px;background:var(--creme);overflow:hidden}
 .guardado a{padding:7px 4px 7px 13px;font:500 12.5px/1 var(--sans);color:var(--t3)}
@@ -8767,8 +8702,6 @@ button.tirar:hover{color:var(--verm)}
 .sem-nif{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:4px;
  background:var(--linha2);color:var(--t4);font:600 9px/1.3 var(--sans);
  text-transform:uppercase;letter-spacing:.06em;vertical-align:middle}
-.aviso-prop{padding:12px 16px;border:1px dashed var(--traco);border-radius:8px;
- font:400 12px/1.5 var(--sans);color:var(--t4)}
 
 @media (max-width:1100px){
  .ind-grelha{grid-template-columns:minmax(0,1fr)}
@@ -8846,10 +8779,6 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
 <style>%(css)s</style></head><body>
 <div class="app">
 <header class="barra">
@@ -8916,13 +8845,8 @@ NAV = (("anuncios", "Anúncios", "/", ()),
 # Que item da navegacao acende para cada pagina. As paginas mantem as
 # chaves que sempre tiveram (as vistas de filtros incluidas); o item e
 # hierarquia por cima delas, nao um nome novo.
-ITEM_DA_PAGINA = {"anuncios": "anuncios",
-                  "quadro": "emcurso", "calendario": "emcurso", "lista": "emcurso",
-                  "contratos": "mercado", "renovacoes": "mercado"}
-
-# Paginas que vivem fora da navegacao, para as migalhas. (Os Indicadores
-# eram uma; desde 13/09/2026 sao uma seccao de Configuracoes.)
-PAGINAS_FORA_DA_NAV = {"configuracoes": "Configurações"}
+ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
+                  for pagina in [chave] + [v[0] for v in vistas]}
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -8953,10 +8877,11 @@ def migalhas_de(vista, folha=""):
         if passos:
             break
     if not passos:
-        nome = PAGINAS_FORA_DA_NAV.get(vista)
-        if not nome:
+        # a unica pagina fora da navegacao (os Indicadores eram outra;
+        # desde 13/09/2026 sao uma seccao de Configuracoes)
+        if vista != "configuracoes":
             return "<em>%s</em>" % html.escape(folha or "Radar")
-        passos = [(nome, "/" + vista)]
+        passos = [("Configurações", "/configuracoes")]
 
     pedacos = []
     for etiqueta, destino in passos[:-1]:
@@ -9101,7 +9026,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                      "</form>" % html.escape(desfazer, quote=True))
         aviso = "<div class='flash'>%s%s</div>" % (html.escape(texto_aviso), volta)
 
-    # O aviso que faltava. Sem as tarefas do Windows, o radar so recolhe
+    # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
     # falhados, a tabela `slots` fica preenchida e parece que correu a
     # horas. Foi assim que isto passou semanas sem se notar. E aviso do
@@ -10171,36 +10096,25 @@ def _lista_de_anuncios():
     # e devolvia 60 645: os numeros do selector saem dos anuncios com
     # detalhe lido, que sao 8% da base, e nao havia nada a dize-lo nem
     # forma nenhuma de pedir os outros 92%.
-    opcoes_plat = ["<option value=''>todas as plataformas (%s)</option>"
-                   % mil(no_filtro)]
+    opcoes_plat = [("", "todas as plataformas (%s)" % mil(no_filtro))]
     if porler:
-        opcoes_plat.append(
-            "<option value='%s'%s>ainda sem detalhe lido (%s)</option>"
-            % (html.escape(POR_LER, quote=True),
-               " selected" if plat_actual == POR_LER else "",
-               mil(porler_filtro)))
+        opcoes_plat.append((POR_LER, "ainda sem detalhe lido (%s)" % mil(porler_filtro)))
     # as plataformas que ja nao existem vao num balde so, "outras"
     # (14/09/2026); a contagem do balde e a soma delas dentro do filtro
     conta_agrupada = dict(agrupar_plataformas(conta_plat))
-    for p, _ in agrupar_plataformas({r["p"]: r["n"] for r in plataformas}):
-        opcoes_plat.append(
-            "<option value='%s'%s>%s (%s)</option>"
-            % (html.escape(p, quote=True),
-               " selected" if p == plat_actual else "",
-               html.escape(rotulo_da_plataforma(p)), mil(conta_agrupada.get(p, 0))))
+    opcoes_plat += [(p, "%s (%s)" % (rotulo_da_plataforma(p), mil(conta_agrupada.get(p, 0))))
+                    for p, _ in agrupar_plataformas({r["p"]: r["n"] for r in plataformas})]
 
     prazo_actual = (request.args.get("prazo") or "").strip()
     # A janela do urgente le-se UMA vez por pedido: serve o rotulo do
     # selector e a etiqueta de prazo de cada linha, e dias_urgente() abre
     # o config.json a cada chamada.
     urgente = dias_urgente()
-    opcoes_prazo = "".join(
-        "<option value='%s'%s>%s</option>"
-        % (v, " selected" if v == prazo_actual else "", t)
-        for v, t in (("", "prazo: tanto faz"),
-                     ("aberto", "só os que ainda dão para concorrer"),
-                     ("urgente", "só os que acabam em %d dias" % urgente),
-                     ("expirado", "só os de prazo passado")))
+    opcoes_prazo = opcoes_html(
+        (("", "prazo: tanto faz"),
+         ("aberto", "só os que ainda dão para concorrer"),
+         ("urgente", "só os que acabam em %d dias" % urgente),
+         ("expirado", "só os de prazo passado")), prazo_actual)
 
     # Quatro campos (14/09/2026, a pedido do Afonso: «so quero nome do
     # anuncio ou objecto; entidade; plataforma; e data x a data y»). O
@@ -10234,7 +10148,7 @@ def _lista_de_anuncios():
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo")),
-           "".join(opcoes_plat),
+           opcoes_html(opcoes_plat, plat_actual),
            html.escape(request.args.get("de", ""), quote=True),
            html.escape(request.args.get("ate", ""), quote=True),
            html.escape(estado_actual, quote=True),
@@ -10508,15 +10422,6 @@ def resumo_filtro(consulta, vista=None):
     return " · ".join(partes) or "sem filtro"
 
 
-def opcoes_op(args):
-    """As duas opcoes do E/OU, com a redaccao da Tendios traduzida:
-    mais restrito / mais amplo. Igual nos formularios todos."""
-    ou = (args.get("op") or "").strip() == "ou"
-    return ("<option value=''%s>palavras E CPV — mais restrito</option>"
-            "<option value='ou'%s>palavras OU CPV — mais amplo</option>"
-            % ("" if ou else " selected", " selected" if ou else ""))
-
-
 def quantos_cpv():
     with liga() as c:
         return c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
@@ -10782,13 +10687,7 @@ def selector_procedimento(procs, actual, vazio="todos os procedimentos"):
     """O <select name='proc'>, UM so (decisao 6.4-A): estava montado
     tres vezes e cada copia divergia ao primeiro arranjo. O `vazio` e o
     rotulo da opcao sem filtro, que muda com o contexto."""
-    opcoes = ["<option value=''>%s</option>" % html.escape(vazio)]
-    for p in procs:
-        opcoes.append("<option value='%s'%s>%s</option>"
-                      % (html.escape(p, quote=True),
-                         " selected" if p == actual else "",
-                         html.escape(p)))
-    return "<select name='proc'>%s</select>" % "".join(opcoes)
+    return _opcoes("proc", procs, actual, vazio)
 
 
 # A caixa "Filtros guardados" que vivia aqui, nas tres listas, saiu a
@@ -10859,16 +10758,13 @@ _CPV_CACHE = {}
 
 def _contagens_cpv_anuncios():
     """(chave de frescura, {codigo8: quantos anuncios})."""
-    contagens = {}
     with liga() as c:
         lidos = c.execute("SELECT COUNT(*) n FROM anuncios "
                           "WHERE detalhe_lido=1").fetchone()["n"]
-        for row in c.execute("SELECT cpv FROM anuncios WHERE cpv != ''"):
-            for pedaco in row["cpv"].split(","):
-                codigo8 = re.sub(r"\D", "", pedaco)[:8]
-                if len(codigo8) == 8:
-                    contagens[codigo8] = contagens.get(codigo8, 0) + 1
-    return lidos, contagens
+        codigos = [re.sub(r"\D", "", pedaco)[:8]
+                   for row in c.execute("SELECT cpv FROM anuncios WHERE cpv != ''")
+                   for pedaco in row["cpv"].split(",")]
+    return lidos, Counter(c8 for c8 in codigos if len(c8) == 8)
 
 
 def _contagens_cpv_contratos():
@@ -11153,9 +11049,7 @@ def exportar():
                            data_pt(a["prazo"]), numero_csv(a["preco_base"]),
                            _NOMES_ESTADO.get(a["estado"], a["estado"]),
                            a["motivo"] or "", a["url"]])
-    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition":
-                             "attachment; filename=" + nome_csv("anuncios")})
+    return resposta_csv(saida, "anuncios")
 
 
 
@@ -12724,18 +12618,10 @@ def escaloes_de_desconto(descontos):
     """
     if not descontos:
         return [], None
-    ordenados = sorted(descontos)
-    meio = len(ordenados) // 2
-    mediana = (ordenados[meio] if len(ordenados) % 2
-               else (ordenados[meio - 1] + ordenados[meio]) / 2.0)
+    mediana = statistics.median(descontos)
     contagens = [0] * (len(LIMITES_DESCONTO) + 1)
     for d in descontos:
-        for i, lim in enumerate(LIMITES_DESCONTO):
-            if 100.0 * d < lim:
-                contagens[i] += 1
-                break
-        else:
-            contagens[-1] += 1
+        contagens[bisect.bisect_right(LIMITES_DESCONTO, 100.0 * d)] += 1
     etiquetas, baixo = [], 0
     for lim in LIMITES_DESCONTO:
         etiquetas.append("%d–%d%%" % (baixo, lim))
@@ -13306,9 +13192,7 @@ def contratos_csv():
                            numero_csv(a["preco_base"]), a["cpv"],
                            a["prazo_execucao"], a["local_execucao"],
                            a["n_anuncio"]])
-    return Response("﻿" + saida.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition":
-                             "attachment; filename=" + nome_csv("contratos")})
+    return resposta_csv(saida, "contratos")
 
 
 @app.route("/contratos/actualizar", methods=["POST"])
@@ -14846,8 +14730,7 @@ def volta_a_lista():
     vindo = urlparse(request.referrer or "")
     if vindo.netloc and vindo.netloc != urlparse(request.host_url).netloc:
         return "/"
-    if vindo.path in ("/", "/anuncios", "/quadro", "/calendario",
-                      "/alertas"):
+    if vindo.path in ("/", "/quadro", "/calendario"):
         return vindo.path + (("?" + vindo.query) if vindo.query else "")
     return "/"
 
@@ -16206,41 +16089,29 @@ def funil_anuncios():
     """
     hoje = datetime.now().date()
     desde = (hoje - timedelta(days=30)).isoformat()
-    d = {}
+    de_, ate = janela_urgente(hoje)
     with liga() as c:
-        d["entrados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ?",
-            (desde,)).fetchone()["n"]
-        # As quatro barras do funil na MESMA janela de 30 dias. Estavam
-        # misturadas: "Entrados (30 dias) 2 476" seguido de "Por ver
-        # 66 007" de sempre, o que num funil e impossivel -- a segunda
-        # barra maior do que a primeira -- e so era possivel porque as
-        # duas mediam periodos diferentes.
-        d["porver_30"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado = 'novo'", (desde,)).fetchone()["n"]
-        # As alteracoes (republicacoes) nao sao triagem de ninguem: sem
-        # as tirar, 763 delas contavam como "triadas".
-        d["triados_30"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado NOT IN ('novo', 'alteracao')", (desde,)).fetchone()["n"]
-        d["interessa_30"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado = 'interessa'", (desde,)).fetchone()["n"]
-        d["triados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios "
-            "WHERE estado NOT IN ('novo', 'alteracao')").fetchone()["n"]
-        d["interessa"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='interessa'").fetchone()["n"]
-        d["descartados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='descartado'").fetchone()["n"]
-        d["total"] = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
-        # Por ver e com prazo a passar: e a fila que custa dinheiro, e
-        # nenhum ecra a mostrava.
-        d["urgentes_por_ver"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
-            "AND prazo >= ? AND prazo <= ?",
-            janela_urgente(hoje)).fetchone()["n"]
+        # Uma passagem pela tabela, com um SUM por barra (eram nove
+        # COUNT separados). As quatro barras do funil na MESMA janela
+        # de 30 dias: estavam misturadas, "Entrados (30 dias) 2 476"
+        # seguido de "Por ver 66 007" de sempre, o que num funil e
+        # impossivel. As alteracoes (republicacoes) nao sao triagem de
+        # ninguem: sem as tirar, 763 delas contavam como "triadas". E
+        # os urgentes por ver sao a fila que custa dinheiro, que nenhum
+        # ecra mostrava.
+        d = dict(c.execute(
+            "SELECT COUNT(*) total, "
+            " SUM(data_pub >= :d) entrados, "
+            " SUM(data_pub >= :d AND estado = 'novo') porver_30, "
+            " SUM(data_pub >= :d AND estado NOT IN ('novo','alteracao')) triados_30, "
+            " SUM(data_pub >= :d AND estado = 'interessa') interessa_30, "
+            " SUM(estado NOT IN ('novo','alteracao')) triados, "
+            " SUM(estado = 'interessa') interessa, "
+            " SUM(estado = 'descartado') descartados, "
+            " SUM(estado = 'novo' AND prazo >= :de AND prazo <= :ate) urgentes_por_ver "
+            "FROM anuncios", {"d": desde, "de": de_, "ate": ate}).fetchone())
+        # (numa base vazia o SUM da NULL; as barras querem 0)
+        d = {k: v or 0 for k, v in d.items()}
         # (o "expirados por ver" saiu a 31/08/2026: com a lista unica,
         # um por ver expirado conta como abandonado por definicao da
         # aba -- deixou de haver fila a mostrar)
@@ -16633,12 +16504,26 @@ COLUNAS_DA_LISTA = ("Título", "Cliente", "Preço", "Esclarecimentos", "Entrega"
                     "Notas", "Plataforma", "CoE", "Responsável", "")
 
 
-def _opcoes(nome, valores, actual):
-    return ("<select name='%s'><option value=''>&mdash;</option>%s</select>"
-            % (nome, "".join("<option value='%s'%s>%s</option>"
-                             % (html.escape(v, quote=True),
-                                " selected" if v == (actual or "") else "",
-                                html.escape(v)) for v in valores)))
+def opcoes_html(pares, actual):
+    """As <option> de um selector, marcada a que esta em uso. Cada par e
+    (valor, rotulo); um valor sozinho e o seu proprio rotulo."""
+    pares = [p if isinstance(p, tuple) else (p, p) for p in pares]
+    return "".join("<option value='%s'%s>%s</option>"
+                   % (html.escape(v, quote=True),
+                      " selected" if v == (actual or "") else "",
+                      html.escape(r)) for v, r in pares)
+
+
+def _opcoes(nome, valores, actual, vazio="\u2014"):
+    return ("<select name='%s'>%s</select>"
+            % (nome, opcoes_html([("", vazio)] + list(valores), actual)))
+
+
+def resposta_csv(saida, prefixo):
+    """O CSV como transferencia, com o BOM que faz o Excel ler UTF-8."""
+    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition":
+                             "attachment; filename=" + nome_csv(prefixo)})
 
 
 def linha_da_lista(a, fases_por_id, urgente, hoje):
@@ -16890,11 +16775,9 @@ def etiqueta_tirar(ref, etiqueta_id):
 def porta_atende(porta, espera=0.5):
     """True se ja houver quem aceite ligacoes nesta porta do localhost.
 
-    Cuidado com o que isto custa no Windows: a uma porta onde ninguem
-    fez bind, a ligacao e recusada logo; a uma porta com bind feito mas
-    ainda SEM listen -- que e exactamente o instante em que o Flask
-    esta a arrancar -- nao vem recusa nenhuma, vem WSAEWOULDBLOCK ao
-    fim do timeout inteiro. Por isso `espera` e por tentativa e curta.
+    `espera` e por tentativa e curta de proposito: no Windows da pen,
+    a uma porta com bind feito mas ainda sem listen -- o instante em
+    que o Flask esta a arrancar -- nao vinha recusa, vinha timeout.
     """
     with socket.socket() as s:
         s.settimeout(espera)
