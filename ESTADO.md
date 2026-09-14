@@ -92,8 +92,14 @@ curso»** (`/lista`), a tabela que ele mandou: título, cliente, preço,
 esclarecimentos, entrega, tipologia, estado da proposta, CV, proposta
 técnica, notas, plataforma, CoE, responsável — as cinco da casa são
 colunas novas, gravadas linha a linha. E a aplicação chama-se
-**RadarGov** na barra e no ecrã de entrar, com o «Gov» a azul. A
-bateria vai em **842**.
+**RadarGov** na barra e no ecrã de entrar, com o «Gov» a azul. **E
+passou por uma auditoria de segurança** (14/09/2026, a pedido dele):
+cabeçalhos em todas as respostas (CSP, `nosniff`, moldura, Referer,
+HSTS por HTTPS), tecto de 20 MB por pedido, as peças das plataformas
+só abrem em linha se forem PDF, imagem ou texto (o resto descarrega-se
+em caixa fechada), o CSV sem fórmulas, os redireccionamentos pelo
+Referer só para o próprio anfitrião, e os ficheiros com segredos a
+0600. A bateria vai em **848**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
