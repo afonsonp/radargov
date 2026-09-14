@@ -7926,14 +7926,9 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
     (art.o 259.o)") e punha a pagina a rolar de lado num ecra estreito */
  max-width:100%;min-width:0}
 .filtros label{font:500 12px/1 var(--sans);color:var(--t3)}
-/* o formulario do alerta em tres grupos: comum, so anuncios, so
-   contratos (14/09/2026) */
-.alerta-form{flex-direction:column;align-items:stretch;gap:12px}
-.alerta-grupo{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0;
- padding:12px 14px 14px;border:1px solid var(--linha);border-radius:9px;min-width:0}
-.alerta-grupo legend{font:600 10.5px/1 var(--sans);color:var(--t4);text-transform:uppercase;
- letter-spacing:.08em;padding:0 6px}
-.alerta-form>button{align-self:flex-start}
+/* a arvore por cima dos campos (14/09/2026): a caixa dos filtros
+   encosta-se a ela */
+.painel-filtros details.arvore{margin-bottom:10px}
 /* Um campo desactivado tem de o parecer. No modo "por fim estimado" o
    de/ate desactiva-se com a explicacao no title (dois eixos do tempo na
    mesma pagina confundiam) -- mas desenhado igual aos outros, so quem
@@ -9658,6 +9653,72 @@ def args_da_lista(args, **muda):
     return novos
 
 
+def campos_escondidos(args, nomes):
+    """Campos que sairam do ecra mas continuam a valer na URL (um alerta
+    antigo, a ligacao dos urgentes): passam escondidos para nao se
+    perderem ao voltar a filtrar. So os que vierem com valor."""
+    return "".join(
+        "<input type='hidden' name='%s' value='%s'>"
+        % (nome, html.escape((args.get(nome) or "").strip(), quote=True))
+        for nome in nomes if (args.get(nome) or "").strip())
+
+
+# As sugestoes de entidade (14/09/2026: «se estou a escrever SP... ele
+# deve sugerir as SP»). Um <datalist> que o JS enche a cada tecla com o
+# que /entidades.json devolve: as entidades que publicam, com o texto
+# no nome, as que COMECAM por ele primeiro e depois por quantos
+# anuncios tem. Nao e uma lista estatica: sao dezenas de milhares.
+ENTIDADES_JS = """<script>
+(function () {
+  var campos = document.querySelectorAll("input[data-sugere='entidades']");
+  if (!campos.length) return;
+  var lista = document.getElementById('entidades'), pedido = 0;
+  campos.forEach(function (campo) {
+    campo.addEventListener('input', function () {
+      var texto = campo.value.trim();
+      if (texto.length < 2) return;
+      var meu = ++pedido;
+      fetch('/entidades.json?q=' + encodeURIComponent(texto))
+        .then(function (r) { return r.json(); })
+        .then(function (nomes) {
+          if (meu !== pedido) return;   // ja ha um pedido mais recente
+          lista.innerHTML = '';
+          nomes.forEach(function (n) {
+            var o = document.createElement('option'); o.value = n; lista.appendChild(o);
+          });
+        }).catch(function () {});
+    });
+  });
+})();
+</script>"""
+
+
+@app.route("/entidades.json")
+def entidades_json():
+    return Response(json.dumps(sugestoes_de_entidade(request.args.get("q") or ""),
+                               ensure_ascii=False), mimetype="application/json")
+
+
+def sugestoes_de_entidade(texto, limite=10):
+    """As entidades que publicam anuncios cujo nome contem `texto`: as que
+    comecam por ele primeiro, depois as mais frequentes. Procura pelo
+    nome normalizado (sem acentos), que e o que o filtro tambem usa."""
+    alvo = simplifica(texto or "").strip()
+    if len(alvo) < 2:
+        return []
+    padrao = para_like(alvo)
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT entidade, COUNT(*) n, "
+            " (entidade_norm LIKE ? ESCAPE '%s') comeca"
+            " FROM anuncios WHERE entidade_norm LIKE ? ESCAPE '%s'"
+            " AND COALESCE(entidade,'') != ''"
+            " GROUP BY entidade ORDER BY comeca DESC, n DESC LIMIT ?"
+            % (ESCAPE_LIKE, ESCAPE_LIKE),
+            (padrao + "%", "%" + padrao + "%", limite)).fetchall()
+    return [r["entidade"] for r in linhas]
+
+
 def sem_pagina(args, base="/", **muda):
     """Liga da lista com os filtros de agora. Mexer num filtro volta a
     pagina 1: a pagina 7 do filtro anterior nao existe no novo. O `base`
@@ -10074,37 +10135,37 @@ def _lista_de_anuncios():
                      ("urgente", "só os que acabam em %d dias" % urgente),
                      ("expirado", "só os de prazo passado")))
 
+    # Quatro campos (14/09/2026, a pedido do Afonso: «so quero nome do
+    # anuncio ou objecto; entidade; plataforma; e data x a data y»). O
+    # CPV vem da arvore, por cima, e escreve-se num campo escondido; o
+    # "excluir CPV" fica escondido tambem, porque e onde a arvore poe o
+    # que se desmarca dentro de uma divisao. Sairam do ecra "excluir
+    # palavras", o E/OU e o prazo -- o motor continua a entende-los na
+    # URL (um alerta antigo, a ligacao do cartao dos urgentes), e o que
+    # vier por la passa em campos escondidos para nao se perder ao
+    # voltar a filtrar.
     filtros = (
         "<form class='cx filtros' method='get' action='%s'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
-        # As exclusoes ao lado das inclusoes: palavras a tirar e CPV a
-        # tirar. O cpv_excl continua a aceitar o que se escreva a mao
-        # (codigos ou palavras, separados por |), mas desde 01/09/2026 e
-        # tambem onde a arvore escreve o que se desmarcou dentro de uma
-        # divisao marcada -- por isso leva id, que e por onde ela le.
-        "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
-        "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…'>"
+        "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…' "
+        "list='entidades' autocomplete='off' data-sugere='entidades'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
-        "placeholder='Excluir CPV…' "
-        "style='min-width:0;width:150px;flex:none'>"
-        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
+        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        "%s"
         "<select name='plat'>%s</select>"
-        "<select name='prazo'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
         "<input type='hidden' name='estado' value='%s'>"
         "<button type='submit'>Filtrar</button>"
         "<a class='limpar' href='%s'>limpar</a>"
-        "</form>"
+        "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
-           html.escape(request.args.get("q_excl", ""), quote=True),
            html.escape(request.args.get("ent", ""), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
-           opcoes_op(request.args),
-           "".join(opcoes_plat), opcoes_prazo,
+           campos_escondidos(request.args, ("q_excl", "op", "prazo")),
+           "".join(opcoes_plat),
            html.escape(request.args.get("de", ""), quote=True),
            html.escape(request.args.get("ate", ""), quote=True),
            html.escape(estado_actual, quote=True),
@@ -10116,10 +10177,6 @@ def _lista_de_anuncios():
     ligado_i, dentro_i, _ = interesse_definido(cfg)
     com_interesse = bool(ligado_i and dentro_i)
     arvore = "" if com_interesse else arvore_html(n_cpv, "anuncios")
-    if com_interesse:
-        filtros = filtros.replace(
-            "<input type='text' id='filtro-cpv-excl'",
-            "<input type='hidden' id='filtro-cpv-excl'")
 
     filtro_em_uso = filtro_actual(request.args, "anuncios")
     if linhas:
@@ -10190,7 +10247,8 @@ def _lista_de_anuncios():
     # marcadas saiu: era o mesmo que a barra lateral ja diz, duas vezes
     # no mesmo ecra. O ponto verde/vermelho foi para la.
 
-    # A ordem: filtros, faixa do CPV activo, arvore. (Os filtros
+    # A ordem: a arvore em cima (14/09/2026), os campos, a faixa do CPV
+    # activo. (Os filtros
     # guardados sairam da lista a 13/09/2026: o que era guardar um filtro
     # passou a ser o Interesse, e os alertas criam-se em Configuracoes.)
     # O CSV leva a marca da lista: o recorte da aba e da pagina e nao
@@ -10213,7 +10271,7 @@ def _lista_de_anuncios():
         "%s</details>"
         % (" open" if ha_filtro else "",
            html.escape(resumo_filtro(filtro_em_uso, "anuncios")),
-           filtros + faixa_cpv + arvore))
+           arvore + filtros + faixa_cpv))
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
                 faixa_interesse + painel_filtros +
@@ -10235,7 +10293,8 @@ def _lista_de_anuncios():
         "responder; o que expira passa sozinho para os "
         "<b>Abandonados</b>.",
         conteudo, abas="".join(abas),
-        script=("" if com_interesse else ARVORE_JS) + LISTA_JS + caixa_de_abandono(),
+        script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
+        + caixa_de_abandono(),
         titulo_aba="Radar de Concursos, DR")
 
 
@@ -11403,52 +11462,30 @@ def _conteudo_alertas():
         # POST, como tudo o que escreve. E os campos vem preenchidos da
         # query string: quando a validacao recusa, o redirect traz o que
         # se tinha escrito -- antes vinha tudo vazio, nome incluido.
-        # Em tres grupos (14/09/2026, a pedido do Afonso: «os filtros para
-        # anuncios e para contratos devem estar separados, para nao ficar
-        # uma confusao»): o que serve os dois, o que e so dos anuncios --
-        # que e o que o alerta usa para avisar -- e o que e so dos
-        # contratos, que serve para aplicar o mesmo filtro ao Mercado.
-        "<form method='post' action='/alertas/criar' class='filtros alerta-form'>"
-        "<fieldset class='alerta-grupo'><legend>Em comum</legend>"
+        # Os mesmos campos da lista de anuncios (14/09/2026, a pedido do
+        # Afonso), mais o nome: e por estes que o alerta avisa. A arvore
+        # de CPV vem por cima e escreve no campo do CPV, que aqui fica a
+        # ver -- nao ha lista por baixo a mostrar o resultado. Sairam
+        # "excluir palavras", "excluir CPV" (fica escondido, e onde a
+        # arvore poe o que se desmarca), o E/OU, a triagem, o prazo e o
+        # grupo dos contratos, que nao avisava de nada.
+        "%s"
+        "<form method='post' action='/alertas/criar' class='filtros'>"
         "<input type='text' name='nome' required maxlength='60' value='%s' "
         "placeholder='nome do alerta…'>"
-        "<input type='text' name='q' value='%s' placeholder='Objecto…'>"
-        "<input type='text' name='q_excl' value='%s' "
-        "placeholder='Excluir palavras…'>"
-        # a ver e nao escondido: aqui nao ha lista por baixo a mostrar o
-        # resultado, e sem isto nao se sabia o que a arvore tinha posto
+        "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
         "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
-        "placeholder='CPV — escolhe na árvore aqui em baixo'>"
-        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
-        "placeholder='Excluir CPV — escreve os códigos…'>"
-        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
+        "placeholder='CPV — escolhe na árvore aqui em cima'>"
+        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        "<input type='text' name='ent' value='%s' placeholder='Entidade que "
+        "publica…' list='entidades' autocomplete='off' data-sugere='entidades'>"
+        "<select name='plat'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
         "<label>até</label><input type='date' name='ate' value='%s'>"
-        "</fieldset>"
-        "<fieldset class='alerta-grupo'><legend>Só anúncios &mdash; é por "
-        "estes que o alerta avisa</legend>"
-        "<input type='text' name='ent' value='%s' placeholder='Entidade que "
-        "publica…'>"
-        "<select name='plat'>%s</select>"
-        "<select name='estado'>%s</select>"
-        "<select name='prazo'>%s</select>"
-        "</fieldset>"
-        "<fieldset class='alerta-grupo'><legend>Só contratos &mdash; para "
-        "aplicar o filtro ao Mercado; não avisam de nada</legend>"
-        "<input type='text' name='adj' value='%s' placeholder='Entidade que "
-        "comprou…'>"
-        "<input type='text' name='ganhou' value='%s' "
-        "placeholder='Quem ganhou…'>"
-        "%s"
-        "<label>desde</label><input type='text' name='min' value='%s' "
-        "placeholder='€ mínimo' "
-        "style='min-width:0;width:150px;flex:none'>"
-        "</fieldset>"
         "<button type='submit'>Criar alerta</button>"
-        "</form>%s</div>"
-        % (pv("nome"), pv("q"), pv("q_excl"), pv("cpv"), pv("cpv_excl"),
-           opcoes_op(request.args), pv("de"), pv("ate"),
-           pv("ent"),
+        "</form><datalist id='entidades'></datalist></div>"
+        % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
+           pv("nome"), pv("q"), pv("cpv"), pv("cpv_excl"), pv("ent"),
            "".join(["<option value=''>plataforma: qualquer uma</option>"]
                    + ["<option value='%s'%s>%s</option>"
                       % (html.escape(p, quote=True), marca_sel("plat", p),
@@ -11460,28 +11497,7 @@ def _conteudo_alertas():
                       "<option value='%s'%s>ainda sem detalhe lido</option>"
                       % (html.escape(POR_LER, quote=True),
                          marca_sel("plat", POR_LER))]),
-           # "triagem" e nao "estado": e o nome do grupo por ver/
-           # interessa/descartados em todo o lado (§7 do ESQUELETO)
-           "".join("<option value='%s'%s>%s</option>"
-                   % (v, marca_sel("estado", v, omissao="novo"), t)
-                   for v, t in (("novo", "triagem: só os por ver"),
-                                ("", "triagem: todos"),
-                                ("interessa", "triagem: só os interessa"),
-                                ("descartado", "triagem: só os abandonados"))),
-           "".join("<option value='%s'%s>%s</option>"
-                   % (v, marca_sel("prazo", v), t)
-                   for v, t in (("", "prazo: tanto faz"),
-                                ("aberto", "prazo: só os que ainda dão"),
-                                ("urgente", "prazo: só os que acabam em %d "
-                                            "dias" % dias_urgente()),
-                                ("expirado", "prazo: só os passados"))),
-           pv("adj"), pv("ganhou"),
-           (selector_procedimento(procs,
-                                  (request.args.get("proc") or "").strip(),
-                                  "procedimento: todos")
-            if procs else ""),
-           pv("min"),
-           arvore_html(quantos_cpv(), "anuncios", submeter=False)))
+           pv("de"), pv("ate")))
 
     if ultimos:
         hist = "".join(
@@ -11635,7 +11651,7 @@ def configuracoes():
 
 @app.route("/configuracoes/alertas")
 def config_alertas():
-    return pagina_config("alertas", _conteudo_alertas(), script=ARVORE_JS)
+    return pagina_config("alertas", _conteudo_alertas(), script=ARVORE_JS + ENTIDADES_JS)
 
 
 @app.route("/configuracoes/interesse")
