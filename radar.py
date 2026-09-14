@@ -9788,6 +9788,55 @@ def condicao_do_interesse(args=None, cfg=None):
     return frag, vals
 
 
+def prefixos_do_cpv(texto):
+    """Os prefixos de CPV de um texto de filtro ("72000000|48700000",
+    ou palavras da descricao oficial), como fragmento_cpv() os le --
+    mas para a tabela contrato_cpv, que guarda o codigo de 8 digitos
+    por linha e se pergunta por prefixo."""
+    prefixos = []
+    for pedaco in (p.strip() for p in (texto or "").split("|")):
+        if not pedaco:
+            continue
+        if re.fullmatch(r"[\d\-\s]+", pedaco):
+            candidatos = [prefixo_cpv(pedaco)]
+        else:
+            candidatos = cpv_por_termo(pedaco)
+        prefixos.extend(p for p in candidatos if p)
+    return prefixos
+
+
+def condicao_do_interesse_contratos(args=None, cfg=None):
+    """(fragmento, valores) do interesse no MERCADO (14/09/2026, a
+    pedido do Afonso: «no mercado, após definir o interesse, deve também
+    só aparecer o CPV marcado, tal como nos anúncios»).
+
+    A mesma leitura do interesse que condicao_do_interesse(), mas sobre
+    a tabela contrato_cpv (um contrato tem varios CPV, um por linha), e
+    com o `?interesse=nao` a levanta-lo da mesma maneira. Entra por
+    filtros_dos_contratos(), que e o recorte de pagina dos contratos
+    (a lista, o CSV e os graficos filtram os tres por la) -- e NAO por
+    condicoes_contratos(), que serve os alertas e a ficha da entidade.
+    """
+    args = request.args if args is None else args
+    if (args.get("interesse") or "").strip() == "nao":
+        return "", []
+    ligado, dentro, fora = interesse_definido(cfg)
+    if not ligado or not dentro.strip():
+        return "", []
+    dentro_p = prefixos_do_cpv(dentro)
+    if not dentro_p:
+        return "1=0", []          # um termo que nao e nada: vazio, nao tudo
+    frag = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+            % " OR ".join("cpv8 LIKE ?" for _ in dentro_p))
+    vals = [p + "%" for p in dentro_p]
+    fora_p = prefixos_do_cpv(fora)
+    if fora_p:
+        frag += (" AND c.id NOT IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+                 % " OR ".join("cpv8 LIKE ?" for _ in fora_p))
+        vals += [p + "%" for p in fora_p]
+    return frag, vals
+
+
 def recorte_da_lista(estado, cfg=None):
     """(fragmento, valores) do que a lista de anuncios mostra: a aba MAIS
     o interesse.
@@ -13214,7 +13263,13 @@ def contratos():
                       for campo in campos_da_vista(vista)
                       if campo != "op")
 
-    onde, valores = filtros_dos_contratos(request.args)
+    cfg = ler_config()
+    onde, valores = filtros_dos_contratos(request.args, cfg=cfg)
+    # com interesse definido, o Mercado fica como os anuncios: sem
+    # arvore nem "excluir CPV" -- o CPV ja esta decidido no Interesse
+    ligado_i, dentro_i, _ = interesse_definido(cfg)
+    com_interesse = bool(ligado_i and dentro_i)
+    escondidos_interesse = 0
     ordem_c = (" ORDER BY c.fim_estimado, c.id" if fim
                else " ORDER BY c.data_celebracao DESC, c.id DESC")
     ordem_p = (" ORDER BY p.fim_estimado, p.id" if fim
@@ -13228,6 +13283,15 @@ def contratos():
                 "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
                 "FROM contratos c" + onde, valores).fetchone()
             correspondem, valor = resumo["n"], resumo["v"]
+            if com_interesse and condicao_do_interesse_contratos(cfg=cfg)[0]:
+                # quantos e que o interesse tapa dentro deste filtro: um
+                # recorte que nao diga quanto esconde e um recorte que
+                # se esquece (a mesma regra da lista de anuncios)
+                onde_livre, val_livre = filtros_dos_contratos(
+                    request.args, com_interesse=False, cfg=cfg)
+                escondidos_interesse = c.execute(
+                    "SELECT COUNT(*) n FROM contratos c" + onde_livre,
+                    val_livre).fetchone()["n"] - correspondem
             paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
             # Escolhem-se primeiro as 20 linhas, e so depois se lhes vao
@@ -13494,6 +13558,10 @@ def contratos():
                       "lado, não perdidas &mdash; voltam no modo por "
                       "celebração.</div>")
     faixa_cpv = "".join(faixas)
+    faixa_interesse = _faixa_do_interesse("/contratos", escondidos_interesse, cfg)
+    if com_interesse:
+        filtros = filtros.replace("<input type='text' id='filtro-cpv-excl'",
+                                  "<input type='hidden' id='filtro-cpv-excl'")
 
     # Pedidos so ao abrir, como a arvore: sao ~800 ms de consultas e a
     # tabela nao tem de esperar por eles. Sem filtro nem aparecem: sobre
@@ -13541,8 +13609,8 @@ def contratos():
     conteudo = ("<div class='larg'>" + barra_corpus(anos) +
                 procura_entidade +
                 ("" if fim else faixa_de_avisos_de_datas(request.args)) +
-                filtros +
-                faixa_cpv + arvore_html(n_cpv, "contratos") +
+                faixa_interesse + filtros +
+                faixa_cpv + ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
                 graficos + linha_conta +
                 (titulo_tabela if ha_pergunta else "") +
                 tabela +
@@ -13557,7 +13625,7 @@ def contratos():
             "no teu mercado deve voltar a concurso, e quem o vê antes do "
             "anúncio prepara-se com tempo.",
             conteudo, abas=abas,
-            script=ARVORE_JS + GRAFICOS_JS + espera_corpus(),
+            script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
             titulo_aba="Renovações, Radar de Concursos")
     return envolver(
@@ -13619,8 +13687,10 @@ def condicao_do_modo(args):
             % meses_pedidos(args))
 
 
-def filtros_dos_contratos(args):
-    """(onde, valores) da lista de contratos, com o modo aplicado.
+def filtros_dos_contratos(args, com_interesse=True, cfg=None):
+    """(onde, valores) da lista de contratos, com o modo e o interesse
+    aplicados. `com_interesse=False` da a mesma conta sem o interesse:
+    e o que diz quantos ficam de fora.
 
     E por aqui que a lista, o CSV e os graficos filtram -- os tres com
     a MESMA conta, senao o numero de um nao abria a lista do outro. No
@@ -13635,7 +13705,16 @@ def filtros_dos_contratos(args):
         limpos.pop("ate", None)
         args = limpos
     onde, valores = condicoes_contratos(args)
-    return onde + condicao_do_modo(args), valores
+    onde += condicao_do_modo(args)
+    # O interesse (14/09/2026), como recorte de pagina: a lista, o CSV
+    # e os graficos filtram os tres por aqui, e e por isso que entra
+    # aqui e nao em condicoes_contratos().
+    if com_interesse:
+        frag_i, vals_i = condicao_do_interesse_contratos(args, cfg)
+        if frag_i:
+            onde += " AND (%s)" % frag_i
+            valores = list(valores) + vals_i
+    return onde, valores
 
 
 @app.route("/renovacoes")
