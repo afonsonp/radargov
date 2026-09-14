@@ -4774,13 +4774,18 @@ def _sessao_das_pecas():
     return sessao
 
 
-def vigiar_anuncio(a, sessao=None, razao="a pedido"):
+def vigiar_anuncio(a, sessao=None, razao="a pedido", reler=None):
     """Vai a plataforma ver a lista das pecas DESTE anuncio e guarda as
     novas. (quantas novas, aviso). Marca `pecas_vigiadas_em` so quando a
     plataforma respondeu: uma lista vazia e a plataforma a falhar, nao
     "as pecas desapareceram" (a regra do diferencas_do_detalhe(): so se
     conta o que tem valor dos dois lados), e a razao fica de pe para a
-    volta seguinte."""
+    volta seguinte.
+
+    `reler(ref)` chama-se quando ha peca nova (decisao do Afonso a
+    14/09/2026: "se tem peça nova deve logo ser revisto pelo modelo").
+    Injectavel: a verificacao le em linha, o botao poe na fila.
+    """
     sessao = sessao or _sessao_das_pecas()
     try:
         disponiveis, aviso = pecas_disponiveis(sessao, a["link_pecas"])
@@ -4796,6 +4801,8 @@ def vigiar_anuncio(a, sessao=None, razao="a pedido"):
     if not novas:
         registar(a["ref"], "verificou as peças",
                  "nenhuma peça nova na plataforma (%s)" % razao, quem="plataforma")
+    elif reler is not None:
+        reler(a["ref"])
     return novas, ""
 
 
@@ -4808,7 +4815,10 @@ def vigiar_pecas(limite=10, hoje=None):
     sessao = _sessao_das_pecas()
     novas, falhas = 0, []
     for a, razao in escolhidos:
-        n, aviso = vigiar_anuncio(a, sessao, razao)
+        # em linha, nao pela fila: no --uma-vez a fila morria com o processo
+        n, aviso = vigiar_anuncio(
+            a, sessao, razao,
+            reler=lambda ref: ler_pecas_e_registar(ref, "plataforma"))
         if aviso:
             falhas.append("%s: %s" % (a["ref"], aviso))
         novas += n
@@ -4836,29 +4846,38 @@ def analise_a_correr(ref):
     return ref in _A_ANALISAR
 
 
+def ler_pecas_e_registar(ref, quem=""):
+    """analisar_pecas() com o rasto: a linha no historico e a marca de
+    erro. E o corpo da fila, e tambem o que a vigilancia das pecas chama
+    em linha (14/09/2026): no processo do `--uma-vez` a fila e uma
+    thread daemon que morria com o processo antes de ler."""
+    try:
+        ok, porque = analisar_pecas(ref)
+        # "leitura", nao "análise": e o nome que o ecra usa (§7 do
+        # ESQUELETO). Os registos antigos traduzem-se ao mostrar.
+        registar(ref, "leitura",
+                 "peças lidas" if (ok and not porque) else (porque or "falhou"),
+                 quem=quem)
+        if ok and not porque:
+            limpa_erro("analise_ultimo_erro")
+        elif not ok and not e_falta_de_pecas(porque):
+            marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
+                       % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                          ref, porque))
+    except Exception as erro:
+        try:
+            marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
+                       % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                          ref, str(erro)[:200]))
+        except Exception:
+            pass
+
+
 def _servir_analise():
     while True:
         ref, quem = _FILA_ANALISE.get()
         try:
-            ok, porque = analisar_pecas(ref)
-            # "leitura", nao "análise": e o nome que o ecra usa (§7 do
-            # ESQUELETO). Os registos antigos traduzem-se ao mostrar.
-            registar(ref, "leitura",
-                     "peças lidas" if (ok and not porque) else (porque or "falhou"),
-                     quem=quem)
-            if ok and not porque:
-                limpa_erro("analise_ultimo_erro")
-            elif not ok and not e_falta_de_pecas(porque):
-                marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
-                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                              ref, porque))
-        except Exception as erro:
-            try:
-                marca_erro("analise_ultimo_erro", "leitura", "%s · %s: %s"
-                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                              ref, str(erro)[:200]))
-            except Exception:
-                pass
+            ler_pecas_e_registar(ref, quem)
         finally:
             _A_ANALISAR.discard(ref)
             _FILA_ANALISE.task_done()
@@ -14965,14 +14984,16 @@ def pecas_novas(ref):
         aviso = "Traz primeiro as peças: sem elas não há com que comparar."
     else:
         antes = set(nomes_das_pecas(ref))
-        novas, erro = vigiar_anuncio(a, razao="a pedido, pela ficha")
+        quem = quem_sou() or "plataforma"
+        novas, erro = vigiar_anuncio(a, razao="a pedido, pela ficha",
+                                     reler=lambda r: pedir_analise(r, quem))
         if erro:
             aviso = "Não consegui ver a lista das peças: %s." % erro
         elif novas:
             nomes = [n for n in nomes_das_pecas(ref) if n not in antes]
-            aviso = "%d peça%s nova%s: %s." % (novas, "" if novas == 1 else "s",
-                                               "" if novas == 1 else "s",
-                                               ", ".join(nomes) or "ver a lista")
+            aviso = "%d peça%s nova%s: %s. A reler pelo modelo." % (
+                novas, "" if novas == 1 else "s", "" if novas == 1 else "s",
+                ", ".join(nomes) or "ver a lista")
         else:
             aviso = "Nenhuma peça nova na plataforma."
     return redirect("/anuncio/%s?%s" % (ref, urlencode({"aviso": aviso})))
