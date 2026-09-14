@@ -10261,10 +10261,20 @@ class TestFiltrosSimples(BaseTemporaria):
                           "estado,data_pub,detalhe_lido) VALUES (?,?,?,?,?,?,'novo','2026-09-01',1)",
                           ("8%d/2026" % i, "t", "https://x/anuncio-procedimento/8%d" % i,
                            ent, radar.simplifica(ent), "509540716"))
-        spms = [e for e in radar.sugestoes_de_entidade("partilhados") if e["nif"] == "509540716"]
+        # e a mesma grafia sem NIF (a base veio assim em 24%) dobra-se no
+        # grupo do NIF, em vez de sair uma segunda vez com o mesmo nome
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref,titulo,url,entidade,entidade_norm,nif,"
+                      "estado,data_pub,detalhe_lido) VALUES (?,?,?,?,?,'','novo','2026-09-01',1)",
+                      ("82/2026", "t", "https://x/anuncio-procedimento/82",
+                       "SPMS — Serviços Partilhados do Ministério da Saúde",
+                       radar.simplifica("SPMS — Serviços Partilhados do Ministério da Saúde")))
+        sugeridas = radar.sugestoes_de_entidade("partilhados")
+        spms = [e for e in sugeridas if e["nif"] == "509540716"]
         self.assertEqual(len(spms), 1)
         self.assertEqual(spms[0]["nome"], "SPMS — Serviços Partilhados do Ministério da Saúde")
-        self.assertEqual(spms[0]["n"], 4)
+        self.assertEqual(spms[0]["n"], 5)
+        self.assertEqual(len([e for e in sugeridas if "SPMS" in e["nome"]]), 1)
         r = radar.app.test_client().get("/entidades.json?q=esp")
         self.assertEqual(r.mimetype, "application/json")
         self.assertEqual(sorted(e["nome"] for e in r.get_json()),
