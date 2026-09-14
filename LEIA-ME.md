@@ -249,10 +249,14 @@ lembra-se se a deixaste aberta. Desde 14/09/2026 são quatro campos:
   valem como "qualquer uma destas" (`outsystems|.net|java`).
 - **entidade que publica**. Enquanto escreves, o campo sugere as
   entidades que existem na base — escreve «sp» e aparecem as que
-  começam por SP e depois as que o têm no nome. O DR escreve os nomes
-  por extenso, «Serviços Partilhados do Ministério da Saúde», e a
-  sugestão dá-te o nome certo sem o teres de saber de cor. Entre este
-  campo e o do objecto é "e".
+  começam por SP e depois as que o têm no nome, uma por NIF, com a
+  grafia mais frequente e quantos anúncios tem. O DR escreve o mesmo
+  nome de várias maneiras («SPMS - Serviços Partilhados…, E. P. E.» e
+  «Serviços Partilhados…, EPE» são a mesma casa, NIF 509540716);
+  escolhida a sugestão, o filtro é pelo NIF e apanha todas as grafias,
+  mais os anúncios antigos dessa entidade que vieram sem NIF. Se
+  escreveres à mão sem escolher, filtra pelo texto, como sempre. Entre
+  este campo e o do objecto é "e".
 - **plataforma electrónica**: acingov, vortal, anogov, compraspt,
   «outras» (as que já não existem — saphety, compraspublicas, gatewit,
   bizgov, construlink — num balde só) ou os que não a indicam.
