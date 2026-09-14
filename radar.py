@@ -7065,7 +7065,11 @@ def condicoes_contratos(args):
     if not juntos and frag_q:
         onde.append(frag_q)
         valores.extend(vals_q)
-    procura(args.get("adj"), "c.adjudicante_norm", norma_entidade)
+    # Com a chave (entid/vencid, escolhida na sugestao) o texto do nome
+    # fica so para mostrar (14/09/2026): com ele tambem, prendia-se a
+    # uma grafia so -- a mesma regra do NIF nos anuncios.
+    if not (args.get("entid") or "").strip():
+        procura(args.get("adj"), "c.adjudicante_norm", norma_entidade)
     exclui(args.get("q_excl"), "c.objecto_norm")
 
     # Quem ganhou vive numa tabela a parte (um contrato pode ter varios
@@ -7077,6 +7081,8 @@ def condicoes_contratos(args):
     # varre-se uma vez e sai o conjunto de ids -- 183 ms contra 517 no
     # corpus de sete anos, e a diferenca cresce com ele.
     ganhou = [p.strip() for p in (args.get("ganhou") or "").split("|") if p.strip()]
+    if ganhou and (args.get("vencid") or "").strip():
+        ganhou = []                      # a chave manda; o nome e so texto
     if ganhou:
         onde.append("c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
                     "WHERE %s)"
@@ -9670,30 +9676,34 @@ def campos_escondidos(args, nomes):
 # anuncios tem. Nao e uma lista estatica: sao dezenas de milhares.
 ENTIDADES_JS = """<script>
 (function () {
-  var campos = document.querySelectorAll("input[data-sugere='entidades']");
+  var campos = document.querySelectorAll("input[data-sugere]");
   if (!campos.length) return;
-  var lista = document.getElementById('entidades'), pedido = 0;
-  var nifs = {};
+  var pedido = 0;
   campos.forEach(function (campo) {
-    // o NIF vai num campo escondido do mesmo formulario: e por ele que
-    // se filtra quando a sugestao foi escolhida, e limpa-se assim que o
-    // texto deixa de ser uma sugestao (o nome escrito a mao e so texto)
-    var nif = campo.form ? campo.form.querySelector("input[name='nif']") : null;
-    function acertar() { if (nif) nif.value = nifs[campo.value.trim()] || ''; }
+    // de onde vem (anuncios ou contratos) e em que campo escondido do
+    // mesmo formulario fica a chave: e por ela que se filtra quando a
+    // sugestao foi escolhida, e limpa-se assim que o texto deixa de ser
+    // uma sugestao (o nome escrito a mao e so texto)
+    var de = campo.dataset.sugere, lista = document.getElementById(campo.getAttribute('list'));
+    var chave = campo.form ? campo.form.querySelector("input[name='" + campo.dataset.chaveEm + "']") : null;
+    var nifs = {};
+    function acertar() { if (chave) chave.value = nifs[campo.value.trim()] || ''; }
     campo.addEventListener('change', acertar);
     campo.addEventListener('input', function () {
       acertar();
       var texto = campo.value.trim();
-      if (texto.length < 2) return;
+      if (texto.length < 2 || !lista) return;
       var meu = ++pedido;
-      fetch('/entidades.json?q=' + encodeURIComponent(texto))
+      fetch('/entidades.json?de=' + de + '&q=' + encodeURIComponent(texto))
         .then(function (r) { return r.json(); })
         .then(function (entidades) {
           if (meu !== pedido) return;   // ja ha um pedido mais recente
           lista.innerHTML = '';
           entidades.forEach(function (e) {
             var o = document.createElement('option');
-            o.value = e.nome; o.label = e.n + ' anúncios'; lista.appendChild(o);
+            o.value = e.nome;
+            o.label = de === 'anuncios' ? e.n + ' anúncios' : (e.nif ? 'NIF ' + e.nif : '');
+            lista.appendChild(o);
             nifs[e.nome] = e.nif || '';
           });
           acertar();
@@ -9706,8 +9716,35 @@ ENTIDADES_JS = """<script>
 
 @app.route("/entidades.json")
 def entidades_json():
-    return Response(json.dumps(sugestoes_de_entidade(request.args.get("q") or ""),
-                               ensure_ascii=False), mimetype="application/json")
+    de = (request.args.get("de") or "anuncios").strip()
+    q = request.args.get("q") or ""
+    lista = (sugestoes_de_entidade_do_corpus(q) if de == "contratos"
+             else sugestoes_de_entidade(q))
+    return Response(json.dumps(lista, ensure_ascii=False),
+                    mimetype="application/json")
+
+
+def sugestoes_de_entidade_do_corpus(texto, limite=10):
+    """[{nome, nif, n}] das entidades do corpus (quem compra e quem
+    ganha, na mesma tabela `entidades`) cujo nome -- qualquer dos nomes
+    por que ja apareceram, `entidade_nomes` -- contem `texto`. A chave e
+    o NIF; `n` e o numero de nomes com que a entidade ja assinou, que e
+    o que a tabela tem a mao (contar contratos por entidade a cada
+    tecla era uma varredura). As que comecam pelo texto primeiro."""
+    alvo = norma_entidade(texto or "").strip()
+    if len(alvo) < 2 or not ha_corpus():
+        return []
+    padrao = para_like(alvo)
+    with liga_corpus() as c:
+        linhas = c.execute(
+            "SELECT e.chave, e.nome, COALESCE(e.variantes,1) n,"
+            " MAX(n.nome_norm LIKE ? ESCAPE '%s') comeca"
+            " FROM entidade_nomes n JOIN entidades e ON e.chave = n.chave"
+            " WHERE n.nome_norm LIKE ? ESCAPE '%s'"
+            " GROUP BY e.chave ORDER BY comeca DESC, n DESC LIMIT ?"
+            % (ESCAPE_LIKE, ESCAPE_LIKE),
+            (padrao + "%", "%" + padrao + "%", limite)).fetchall()
+    return [{"nome": r["nome"], "nif": r["chave"], "n": r["n"]} for r in linhas]
 
 
 def sugestoes_de_entidade(texto, limite=10):
@@ -10178,7 +10215,7 @@ def _lista_de_anuncios():
         "<form class='cx filtros' method='get' action='%s'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…' "
-        "list='entidades' autocomplete='off' data-sugere='entidades'>"
+        "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'>"
         "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
@@ -11522,7 +11559,8 @@ def _conteudo_alertas():
         "placeholder='CPV — escolhe na árvore aqui em cima'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que "
-        "publica…' list='entidades' autocomplete='off' data-sugere='entidades'>"
+        "publica…' list='entidades' autocomplete='off' data-sugere='anuncios' "
+        "data-chave-em='nif'>"
         "<input type='hidden' name='nif' value='%s'>"
         "<select name='plat'>%s</select>"
         "<label>de</label><input type='date' name='de' value='%s'>"
@@ -13470,23 +13508,25 @@ def contratos():
         for m in MESES_RENOVACOES)) if fim else ""
     modo_limpo = "/contratos?ver=fim" if fim else "/contratos"
 
+    # Sem "excluir palavras", sem "excluir CPV" a ver e sem o E/OU
+    # (14/09/2026, como nos anuncios); as duas entidades sugerem-se do
+    # corpus e, escolhida a sugestao, a chave (o NIF) vai em entid/vencid,
+    # que a ficha da entidade ja usava. O que vier na URL passa escondido.
     filtros = (
         "<form class='cx filtros' method='get' action='/contratos'>"
         "%s"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
-        "<input type='text' name='q_excl' value='%s' placeholder='Excluir palavras…'>"
-        "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…'>"
-        "<input type='text' name='ganhou' value='%s' placeholder='%s'>"
-        # Escondido, como nos anuncios: quem escolhe o CPV e a arvore, e
-        # uma caixa de texto ao lado dela so convidava a escrever a mao um
-        # codigo que a arvore a seguir apagava. O id e o mesmo nos dois
-        # separadores -- e por ele que a arvore le e escreve. A exclusao
-        # e caixa de texto: a arvore nao lhe toca.
+        "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…' "
+        "list='entidades-contratos' autocomplete='off' data-sugere='contratos' "
+        "data-chave-em='entid'>"
+        "<input type='hidden' name='entid' value='%s'>"
+        "<input type='text' name='ganhou' value='%s' placeholder='%s' "
+        "list='entidades-contratos' autocomplete='off' data-sugere='contratos' "
+        "data-chave-em='vencid'>"
+        "<input type='hidden' name='vencid' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
-        "placeholder='Excluir CPV…' "
-        "style='min-width:0;width:130px;flex:none'>"
-        "<select name='op' title='como juntar as palavras e o CPV'>%s</select>"
+        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        "%s"
         "%s%s"
         "<label>de</label><input type='date' name='de' value='%s'%s>"
         "<label>até</label><input type='date' name='ate' value='%s'%s>"
@@ -13494,10 +13534,11 @@ def contratos():
         "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>"
         "<a class='limpar' href='%s'>limpar</a>"
-        "</form>"
-        % (escondidos_modo, v("q"), v("q_excl"), v("adj"), v("ganhou"),
+        "</form><datalist id='entidades-contratos'></datalist>"
+        % (escondidos_modo, v("q"), v("adj"), v("entid"), v("ganhou"),
            "Quem tem o contrato…" if fim else "Quem ganhou…",
-           v("cpv"), v("cpv_excl"), opcoes_op(request.args),
+           v("vencid"), v("cpv"), v("cpv_excl"),
+           campos_escondidos(request.args, ("q_excl", "op")),
            selector_procedimento(procs,
                                  (request.args.get("proc") or "").strip()),
            opcoes_meses,
@@ -13763,7 +13804,8 @@ def contratos():
             "com tempo. O fim é celebração mais prazo &mdash; as "
             "prorrogações não constam.",
             conteudo, abas=abas,
-            script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + espera_corpus(),
+            script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
+            + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
             titulo_aba="Renovações, Radar de Concursos")
     return envolver(
@@ -13774,7 +13816,8 @@ def contratos():
         "<a href='/contratos?ver=fim'>Renovações</a> são estes mesmos "
         "contratos vistos pelo fim.",
         conteudo, abas=abas,
-        script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + espera_corpus(),
+        script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
+        + espera_corpus(),
         migalhas=migalhas_de("contratos"),
         titulo_aba="Contratos, Radar de Concursos")
 

@@ -9453,7 +9453,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
             self.assertNotIn(campo, form)
         self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
         self.assertNotIn("Só contratos", html_)
-        self.assertIn("data-sugere='entidades'", form)
+        self.assertIn("data-sugere='anuncios'", form)
 
     def test_os_filtros_guardados_deixaram_de_existir(self):
         regras = [r.rule for r in radar.app.url_map.iter_rules()]
@@ -10279,9 +10279,9 @@ class TestFiltrosSimples(BaseTemporaria):
         self.assertEqual(r.mimetype, "application/json")
         self.assertEqual(sorted(e["nome"] for e in r.get_json()),
                          ["Câmara Municipal de Espinho", "Hospital de Espinho"])
-        self.assertIn("data-sugere='entidades'", radar.app.test_client().get("/").get_data(as_text=True))
+        self.assertIn("data-sugere='anuncios'", radar.app.test_client().get("/").get_data(as_text=True))
         self.assertIn("/entidades.json", radar.ENTIDADES_JS)
-        self.assertIn("input[name='nif']", radar.ENTIDADES_JS)
+        self.assertIn("dataset.chaveEm", radar.ENTIDADES_JS)
 
     def test_o_filtro_pelo_nif_apanha_todas_as_grafias_e_as_sem_nif(self):
         with radar.liga() as c:
@@ -10309,6 +10309,80 @@ class TestFiltrosSimples(BaseTemporaria):
         self.assertIn("<input type='hidden' name='nif' value='509540716'>", html_)
         html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
         self.assertIn("name='nif'", html_.split("action='/alertas/criar'")[1].split("</form>")[0])
+
+
+class TestEntidadesNoMercado(BaseTemporaria):
+    """14/09/2026: «nos contratos isto não está a aparecer, só aparece nos
+    anúncios» — as sugestões de entidade também no Mercado, do corpus,
+    e por chave (o NIF): escolhida a sugestão, a chave vai em
+    entid/vencid e o texto deixa de prender a uma grafia. E o «excluir
+    palavras» e o E/OU saem também do formulário dos contratos."""
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+        self.corpus_antigo = radar.CORPUS
+        radar.CORPUS = os.path.join(self.pasta, "contratos.db")
+        radar.iniciar_corpus()                      # o esquema do corpus, vazio
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO entidades VALUES ('509540716','509540716',"
+                      "'SPMS - Serviços Partilhados do Ministério da Saúde, E. P. E.', 15)")
+            c.execute("INSERT INTO entidades VALUES ('500000001','500000001','Sport Lisboa e Benfica', 2)")
+            c.execute("INSERT INTO entidades VALUES ('500000002','500000002','Hospital de Espinho', 1)")
+            for norm, chave in (("spms", "509540716"),
+                                ("servicos partilhados do ministerio da saude epe", "509540716"),
+                                ("sport lisboa e benfica", "500000001"),
+                                ("hospital de espinho", "500000002")):
+                c.execute("INSERT INTO entidade_nomes VALUES (?,?)", (norm, chave))
+        self.ha_antigo = radar.ha_corpus
+        radar.ha_corpus = lambda: 1
+
+    def tearDown(self):
+        radar.CORPUS = self.corpus_antigo
+        radar.ha_corpus = self.ha_antigo
+        super().tearDown()
+
+    def test_sugere_do_corpus_uma_por_chave_e_pelo_inicio_primeiro(self):
+        nomes = radar.sugestoes_de_entidade_do_corpus("sp")
+        self.assertEqual([e["nif"] for e in nomes][:1], ["509540716"])     # "spms" comeca por sp
+        self.assertEqual(nomes[0]["nome"], "SPMS - Serviços Partilhados do Ministério da Saúde, E. P. E.")
+        self.assertIn("Sport Lisboa e Benfica", [e["nome"] for e in nomes])
+        self.assertIn("Hospital de Espinho", [e["nome"] for e in nomes])      # "espinho" tem "sp"
+        # por qualquer dos nomes por que ja apareceu, nao so o canonico
+        self.assertEqual([e["nif"] for e in radar.sugestoes_de_entidade_do_corpus("partilhados")],
+                         ["509540716"])
+        self.assertEqual(radar.sugestoes_de_entidade_do_corpus("s"), [])
+        r = radar.app.test_client().get("/entidades.json?de=contratos&q=benfica")
+        self.assertEqual([e["nif"] for e in r.get_json()], ["500000001"])
+
+    def test_com_a_chave_o_texto_nao_prende_e_sem_ela_filtra(self):
+        from werkzeug.datastructures import MultiDict
+        onde, vals = radar.condicoes_contratos(MultiDict({"adj": "SPMS", "entid": "509540716"}))
+        self.assertIn("c.adjudicante_chave = ?", onde)
+        self.assertNotIn("adjudicante_norm", onde)
+        onde, vals = radar.condicoes_contratos(MultiDict({"adj": "SPMS"}))
+        self.assertIn("adjudicante_norm", onde)
+        onde, vals = radar.condicoes_contratos(MultiDict({"ganhou": "MEO", "vencid": "500000009"}))
+        self.assertIn("WHERE chave=?", onde)
+        self.assertNotIn("nome_norm LIKE", onde)
+        onde, vals = radar.condicoes_contratos(MultiDict({"ganhou": "MEO"}))
+        self.assertIn("nome_norm LIKE", onde)
+
+    def test_o_formulario_dos_contratos_sugere_e_perdeu_as_exclusoes(self):
+        html_ = radar.app.test_client().get("/contratos").get_data(as_text=True)
+        form = html_.split("action='/contratos'")[1].split("</form>")[0]
+        self.assertIn("data-sugere='contratos' data-chave-em='entid'", form)
+        self.assertIn("data-sugere='contratos' data-chave-em='vencid'", form)
+        self.assertIn("name='entid'", form)
+        self.assertIn("name='vencid'", form)
+        for campo in ("name='q_excl'", "name='op'"):
+            self.assertNotIn(campo, form)
+        self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
+        self.assertIn("datalist id='entidades-contratos'", html_)
+        self.assertIn("/entidades.json", html_)
+        # o que vier na URL passa escondido
+        html_ = radar.app.test_client().get("/contratos?q=x&op=ou").get_data(as_text=True)
+        self.assertIn("<input type='hidden' name='op' value='ou'>", html_)
 
 
 if __name__ == "__main__":
