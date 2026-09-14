@@ -584,10 +584,13 @@ Uma árvore, duas fontes de contagem, dois campos.
 O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 03/09/2026), e por isso a velocidade conta.
 
-- **Sem filtro, `/contratos` não mostra lista nenhuma.** São 1,99 milhões
-  de contratos e por data não dizem nada; a página levava 48 s a montar.
-  A pergunta vem primeiro — ao contrário dos anúncios, onde a lista
-  inteira é o acervo por triar. A paginação corre num CTE com o `LEFT
+- **Sem pergunta, `/contratos` não mostra lista nenhuma — e o interesse
+  conta como pergunta** (`pergunta_feita()`, 14/09/2026). São 1,99
+  milhões de contratos e por data não dizem nada; a página levava 48 s
+  a montar. A pergunta vem primeiro — ao contrário dos anúncios, onde a
+  lista inteira é o acervo por triar — mas com interesse definido a
+  pergunta já lá está (medido: 0,4 s a contar e a listar 72 mil pelos
+  CPV da casa). A mesma regra serve a página e o CSV. A paginação corre num CTE com o `LEFT
   JOIN entidades` e as subconsultas dos nomes **depois do `LIMIT`**, e há
   índice em `contratos(data_celebracao, id)`: sem ele, ordenar 1,36
   milhões para mostrar 20 levava 6 s — e o corpus cresceu 46% desde
