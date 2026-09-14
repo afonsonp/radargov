@@ -9733,10 +9733,15 @@ def sugestoes_de_entidade(texto, limite=10):
             " GROUP BY entidade, nif ORDER BY n DESC"
             % (ESCAPE_LIKE, ESCAPE_LIKE),
             (padrao + "%", "%" + padrao + "%")).fetchall()
+    # Uma grafia que aparece com NIF numas linhas e sem NIF noutras (24%
+    # dos anuncios vieram sem ele) e a mesma entidade: dobra-se no grupo
+    # do NIF, senao a SPMS saia duas vezes com o mesmo nome.
+    nif_da_grafia = {r["entidade"]: r["nif"] for r in linhas if r["nif"]}
     grupos = {}
     for r in linhas:
-        chave = r["nif"] or ("nome:" + r["entidade"])
-        g = grupos.setdefault(chave, {"nome": r["entidade"], "nif": r["nif"],
+        nif = r["nif"] or nif_da_grafia.get(r["entidade"], "")
+        chave = nif or ("nome:" + r["entidade"])
+        g = grupos.setdefault(chave, {"nome": r["entidade"], "nif": nif,
                                       "n": 0, "comeca": 0})
         g["n"] += r["n"]                   # a primeira grafia e a mais frequente
         g["comeca"] = max(g["comeca"], r["comeca"])
