@@ -99,6 +99,37 @@ Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
 
 Vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
 
+### Da auditoria ponytail (14/09/2026), por decidir pelo Afonso
+
+O relatório inteiro está no diário desse dia. O que se aplicou está lá;
+estes quatro ficaram investigados e por decidir:
+
+- **Fundir `_pecas_acingov/_vortal/_jsf` em `pecas_disponiveis()`**
+  (-50 a -55 linhas, três cópias da lógica de plataforma numa só).
+  Aplicável, mas com quatro perdas assumidas: na Vortal e no JSF um
+  `None` deixa de distinguir «acima do tecto» de «rede»; um documento
+  da Vortal sem rótulo no JSON passa a chamar-se «documento»; o texto
+  dos avisos muda; no JSF paga-se um pedido extra por peça (o nome vem
+  de um HEAD à parte). Plano concreto no diário.
+- **`pypdf` e `cryptography` → `pymupdf`** (-2 dependências). Só depois
+  de medir sobre as peças reais em `documentos/`: no ensaio sintético o
+  `pymupdf` parte as linhas das tabelas em uma célula por linha, que é
+  exactamente a tabela de perfis do campo «equipa». Guião de medida no
+  diário; se for favorável, reextrair o acervo por marca e refazer as
+  análises com `--ler-pecas tudo`.
+- **O leitor do Excel antigo em `casa.py`** (~660 linhas de código e
+  ~500 de testes, 17 testes). Nada o chama desde 8/09/2026 e o git
+  guarda a história; mas foi o Afonso que decidiu guardá-lo «com os
+  testes dele». Se sair, o teste de `desaplicar_da_copia()` (comando
+  vivo, `--casa-desfazer`) tem de ser reescrito com `aplicar_modelo()`,
+  e `_num` e `_norma` ficam, que o modelo novo os usa.
+- **Não aplicar, e porquê:** as duas filas de fundo por
+  `ThreadPoolExecutor(1)`. O executor não é daemon (o `--uma-vez` do
+  temporizador ficaria à espera de descargas e leituras no `atexit`),
+  não deduplica (a fila da análise deduplica por `_A_ANALISAR`) e um
+  arranque falhado fica `BrokenThreadPool` para sempre. As filas não
+  são gémeas; o que se repete são três linhas de arranque. Fica.
+
 ## P3
 
 Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
