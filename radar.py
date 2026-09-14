@@ -15166,7 +15166,17 @@ EXTENSOES_INOFENSIVAS = (".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt
 
 
 def abre_no_browser(caminho):
-    return os.path.splitext(caminho)[1].lower() in EXTENSOES_INOFENSIVAS
+    """Pela extensao; e, sem extensao conhecida, pelos primeiros bytes:
+    as pecas da anogov/ComprasPT chegam com o nome que a plataforma da
+    ("Caderno de Encargos", sem .pdf) e sao PDF na mesma."""
+    if os.path.splitext(caminho)[1].lower() in EXTENSOES_INOFENSIVAS:
+        return True
+    try:
+        with open(caminho, "rb") as f:
+            inicio = f.read(8)
+    except OSError:
+        return False
+    return inicio.startswith((b"%PDF", b"\x89PNG", b"\xff\xd8\xff", b"GIF8"))
 
 
 @app.route("/peca-pagina/<path:ref>/<nome>/<int:n>.png")
