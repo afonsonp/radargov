@@ -7,16 +7,12 @@ correr mesmo que o programa esteja a meio de uma alteracao que nao
 compila. Nao escreve nada.
 """
 
-import io
 import os
 import socket
 import sqlite3
 import subprocess
 import sys
 from datetime import date, datetime, timedelta
-
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
 
 # .claude/skills/estado-radar/ -> tres niveis acima e a pasta do radar.
 # (Enquanto o .claude viveu na pasta de cima era preciso mais um salto e

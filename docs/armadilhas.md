@@ -153,10 +153,10 @@ O DR, a Vortal, e como um anúncio entra na base.
 
 - **As datas da Vortal vêm em UTC e mostram-se em hora de Lisboa.**
   A API dá `2026-09-03T22:59:00Z` e a plataforma mostra 23:59 — no
-  Verão Lisboa é UTC+1. `hora_de_lisboa()` faz a conta pela regra da
-  UE (último domingo de Março às 01:00 UTC ao último domingo de
-  Outubro), à mão porque o `zoneinfo` depende de dados de fusos que
-  este Windows não garante. Escrever o UTC punha o prazo uma hora mais
+  Verão Lisboa é UTC+1. `hora_de_lisboa()` converte pelo `zoneinfo`
+  (`Europe/Lisbon`; até 14/09/2026 fazia a conta à mão pela regra da
+  UE, porque o Windows da pen não garantia os dados de fusos; o Ubuntu
+  traz o `tzdata`). Escrever o UTC punha o prazo uma hora mais
   cedo do que a plataforma diz. Só a Vortal precisa disto: o DR
   publica datas já locais.
 
@@ -1211,10 +1211,11 @@ Nada espera dentro do pedido do browser.
   `comecar_verificacao()` e o `--uma-vez` passam os dois por lá; quem
   chega segundo desiste, e o painel diz «noutro processo, desde as
   17:00». Um trinco de um processo morto não prende (o pid já não
-  existe, ou passou `HORAS_DE_TRINCO`), e só o dono o larga. **No
-  Windows não se pergunta se o pid vive**: `os.kill(pid, 0)` lá chama
-  `TerminateProcess` — mata o processo em vez de o sondar — por isso
-  vale só o prazo. `TestTrincoEntreProcessos` injecta o `agora`, o `pid`
+  existe, ou passou `HORAS_DE_TRINCO`), e só o dono o larga. (Isto
+  só vale em POSIX: no Windows `os.kill(pid, 0)` chama
+  `TerminateProcess`, mata em vez de sondar, e enquanto o radar lá
+  correu valia só o prazo; esse ramo saiu a 14/09/2026.)
+  `TestTrincoEntreProcessos` injecta o `agora`, o `pid`
   e o `vivo`, e um teste exercita a condição verdadeira uma vez.
 
 - **O `relogio()` entra pela mesma porta do botão.** Um slot falhado

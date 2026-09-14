@@ -19,17 +19,11 @@ paga nada por isto.
 Nao trava nada. Escreve o erro, para ser visto e corrigido a seguir.
 """
 
-import io
 import json
 import os
 import re
 import subprocess
 import sys
-
-# A consola do Windows e cp1252 e as mensagens do py_compile citam a
-# linha do ficheiro -- que aqui vem cheia de portugues acentuado.
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
 
 RX_PY = re.compile(r"[\w./\\:\-]+\.py\b")
 

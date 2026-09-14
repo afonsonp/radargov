@@ -10,8 +10,8 @@ Portugal — código, comentários, mensagens de commit e respostas.
 Aplicação local em Python que vigia os anúncios de contratação pública da
 **parte L da série II do Diário da República**, guarda-os em SQLite e
 mostra-os num painel Flask em `http://127.0.0.1:8765`. Corre no PC do
-Afonso, verifica sozinha às 09:00 e às 17:00 por tarefas do Windows, e não
-depende de nada da empresa.
+Afonso, verifica sozinha às 09:00 e às 17:00 por temporizadores do
+systemd, e não depende de nada da empresa.
 
 Substitui a Armilar (produto Vortal, 200 €/mês).
 
@@ -101,10 +101,11 @@ as tarefas são temporizadores do systemd na sessão do utilizador
 o painel como serviço sempre a correr (`radar-painel.service`, que
 arranca o `radar.py --sem-browser`). O aviso vermelho lê `systemctl
 --user list-timers` e procura esses dois nomes — mudar um nome no
-`agendar.sh` sem mudar `TAREFAS_LINUX` cega o aviso. No Windows o
-papel era das tarefas do Agendador (`schtasks`); o `radar.py` ainda
-sabe criá-las e vigiá-las, porque esse ramo do código não custa nada
-e tem testes.
+`agendar.sh` sem mudar `TAREFAS_LINUX` cega o aviso. **O ramo do
+Windows saiu a 14/09/2026** (a aplicação está alojada em Linux, atrás
+do túnel da Cloudflare, e o Afonso decidiu que nada do Windows fica):
+o `schtasks`, o `agendar.bat`, os `creationflags`, o `python.exe` do
+hook e os testes disso. Está tudo no histórico do git.
 
 Testes — sem rede e sem tocar na base verdadeira; correm em poucos
 segundos (os do B15 criam repositórios git temporários):
@@ -117,8 +118,7 @@ python teste_radar.py TestPrefixoCPV.test_divisao_normal # um teste
 
 Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
 `instalar.sh` cria: o `python3` do sistema não tem o flask nem o
-pymupdf, e a pasta não traz o `python/` embutido do Windows. O hook dos
-testes já escolhe o `.venv` sozinho.
+pymupdf. O hook dos testes já escolhe o `.venv` sozinho.
 
 Os `.sh` são atalhos para o Afonso, não para desenvolvimento:
 `instalar.sh` (cria o `.venv` e instala o `requirements.txt`),
@@ -142,8 +142,8 @@ com o exec bit no git (`git update-index --chmod=+x`), porque o
 **Os `.bat` do Windows saíram a 8/09/2026** (commit «Saem os .bat»):
 a pen do Windows deixou de ser onde o radar corre, e dezanove atalhos
 mortos à raiz eram só ruído. Estão no histórico do git se o Windows
-voltar; o `radar.py` continua a saber falar de `schtasks` e de
-`agendar.bat` no ramo do Windows, e os testes disso ficaram.
+voltar; a 14/09/2026 saiu também o que restava dele no `radar.py`, nos
+hooks e nos testes (ver «Comandos», em cima).
 
 ### Acesso de fora
 
@@ -374,9 +374,9 @@ da sessao. A trabalhar a partir da pasta-mae, nao disparam -- corre entao
 
 O `settings.json` chama os hooks por `python3` (8/09/2026: em Ubuntu
 não há `python`, e as sessões remotas também são Linux), e o
-`testes_antes_do_commit.py` corre os testes no `python/python.exe` se
-existir, senão no `.venv/bin/python`, senão no interpretador do hook —
-sem isto, em Ubuntu travava todos os commits por ImportError.
+`testes_antes_do_commit.py` corre os testes no `.venv/bin/python` se
+existir, senão no interpretador do hook — sem isto, em Ubuntu travava
+todos os commits por ImportError.
 
 Duas skills e um subagente:
 

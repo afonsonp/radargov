@@ -27,17 +27,10 @@ Sai com codigo 2 para travar a ferramenta; o que for escrito no stderr
 volta para o Claude como explicacao.
 """
 
-import io
 import json
 import os
 import re
 import sys
-
-# A consola do Windows e cp1252 e a recusa vai escrita em portugues: sem
-# isto, "sessão" chegava ao Claude como "sess?o" -- ou pior, rebentava a
-# leitura de quem esta do outro lado.
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8",
-                              errors="replace")
 
 # (padrao do nome, porque e que nao se mexe)
 PROTEGIDOS = (
