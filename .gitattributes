@@ -1,10 +1,8 @@
 # Fins de linha (8/09/2026). O repositório guarda LF; o Windows da pen
 # via CRLF pelo autocrlf, e ao abrir a mesma pasta em Ubuntu o git via
 # 27 ficheiros "alterados" sem uma letra mudada. Com isto o resultado é
-# o mesmo em qualquer máquina: LF em tudo, excepto os .bat, que o cmd
-# lê melhor com CRLF (um `goto` num .bat só com LF já falhou).
+# o mesmo em qualquer máquina: LF em tudo. (Os .bat, que levavam CRLF,
+# saíram a 8/09/2026.)
 * text=auto eol=lf
-*.bat text eol=crlf
 *.sh text eol=lf
 *.db binary
-*.pyz binary
