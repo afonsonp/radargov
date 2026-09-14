@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Cria as tarefas do radar neste computador -- o par do agendar.bat,
-# com temporizadores do systemd na sessão do utilizador (nada de root).
+# Cria as tarefas do radar neste computador: temporizadores do systemd
+# na sessão do utilizador (nada de root).
 #
-# São as três do Windows, mais uma: o painel como serviço, sempre a
+# São as três verificações de sempre, mais uma: o painel como serviço, sempre a
 # correr, porque em Linux este computador é para ficar a servir o radar
 # e não para se abrir o painel à mão de manhã.
 #

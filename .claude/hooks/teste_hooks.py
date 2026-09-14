@@ -14,14 +14,10 @@ recusaria o comando que os corresse. Aconteceu duas vezes.
     python .claude/hooks/teste_hooks.py
 """
 
-import io
 import json
 import os
 import subprocess
 import sys
-
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                              errors="replace")
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 

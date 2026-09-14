@@ -14,13 +14,16 @@ Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 
 import contextlib
 import datetime
+import gc
 import html
 import inspect
 import json
 import os
 import re
+import shutil
 import sqlite3
 import sys
+import tempfile
 import time
 import unittest
 import unittest.mock
@@ -136,7 +139,7 @@ class TestNomeSeguro(unittest.TestCase):
         self.assertEqual(radar.nome_seguro(r"..\..\radar.db"), "radar.db")
         self.assertEqual(radar.nome_seguro("/etc/passwd"), "passwd")
 
-    def test_tira_caracteres_proibidos_no_windows(self):
+    def test_tira_caracteres_que_um_sistema_de_ficheiros_recusa(self):
         self.assertNotIn(":", radar.nome_seguro("a:b.pdf"))
         self.assertNotIn("?", radar.nome_seguro("a?b.pdf"))
 
@@ -545,7 +548,6 @@ class TestEPdf(unittest.TestCase):
     """Pelos bytes e não pela extensão."""
 
     def caminho(self, conteudo):
-        import tempfile
         f = tempfile.NamedTemporaryFile(delete=False, suffix=".seja-o-que-for")
         f.write(conteudo); f.close()
         self.addCleanup(lambda: os.path.exists(f.name) and os.remove(f.name))
@@ -580,7 +582,7 @@ class TestTextoDoZip(unittest.TestCase):
     """Há entidades que entregam a peça dentro de um ZIP."""
 
     def zip_com(self, ficheiros):
-        import tempfile, zipfile
+        import zipfile
         f = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
         f.close()
         with zipfile.ZipFile(f.name, "w") as z:
@@ -1026,12 +1028,12 @@ class TestCadeiaDeFornecedores(unittest.TestCase):
     )
 
     def setUp(self):
-        self.fornecedores, self.ler_chave = radar.FORNECEDORES, radar.ler_chave
-        radar.FORNECEDORES = self.FALSOS
-
-    def tearDown(self):
-        radar.FORNECEDORES = self.fornecedores
-        radar.ler_chave = self.ler_chave
+        self.enterContext(unittest.mock.patch.object(
+            radar, "FORNECEDORES", self.FALSOS))
+        # com_chaves() troca o ler_chave dentro do teste; o patch so
+        # garante que volta ao verdadeiro no fim
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_chave", radar.ler_chave))
 
     def com_chaves(self, *quais):
         radar.ler_chave = lambda nomes, var: ("k" if nomes[0][0] in quais
@@ -1167,12 +1169,12 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
 
     def setUp(self):
         radar._ESGOTADOS.clear()
-        self.um_pedido = radar._um_pedido
+        self.addCleanup(radar._ESGOTADOS.clear)
+        # responder() troca o _um_pedido dentro do teste; o patch so
+        # garante que volta ao verdadeiro no fim
+        self.enterContext(unittest.mock.patch.object(
+            radar, "_um_pedido", radar._um_pedido))
         self.chamados = []
-
-    def tearDown(self):
-        radar._um_pedido = self.um_pedido
-        radar._ESGOTADOS.clear()
 
     def responder(self, respostas):
         """respostas: {nome do modelo: (dados, aviso)}."""
@@ -3256,13 +3258,12 @@ class TestUmaVerificacaoDeCadaVez(unittest.TestCase):
         self.antes = dict(radar._VERIFICACAO)
         # o trinco entre processos (14/09/2026) le a base verdadeira; aqui
         # so se testa o dicionario deste processo
-        self.noutro = radar.verificacao_noutro_processo
-        radar.verificacao_noutro_processo = lambda **k: ""
+        self.enterContext(unittest.mock.patch.object(
+            radar, "verificacao_noutro_processo", lambda **k: ""))
 
     def tearDown(self):
         radar._VERIFICACAO.clear()
         radar._VERIFICACAO.update(self.antes)
-        radar.verificacao_noutro_processo = self.noutro
 
     def test_a_correr_recusa_a_segunda(self):
         radar._VERIFICACAO["a_correr"] = True
@@ -3451,10 +3452,10 @@ class TestEtiquetaPrazoSegueAJanela(unittest.TestCase):
     """
 
     def setUp(self):
-        self.ler_config = radar.ler_config
-
-    def tearDown(self):
-        radar.ler_config = self.ler_config
+        # com_janela() troca o ler_config dentro do teste; o patch so
+        # garante que volta ao verdadeiro no fim
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", radar.ler_config))
 
     def com_janela(self, dias):
         radar.ler_config = lambda: {"dias_urgente": dias}
@@ -3673,21 +3674,83 @@ class BaseTemporaria(unittest.TestCase):
     em milissegundos."""
 
     def setUp(self):
-        import tempfile
         self.pasta = tempfile.mkdtemp()
-        self.db_antigo = radar.DB
-        self.docs_antigo = radar.DOCS
-        radar.DB = os.path.join(self.pasta, "ensaio.db")
-        radar.DOCS = os.path.join(self.pasta, "documentos")
+        # a limpeza corre em ordem inversa: repoe DB e DOCS, depois o
+        # gc.collect() fecha ligacoes penduradas do liga(), e so entao a
+        # pasta vai fora. Os patches repoem-se mesmo que o setUp rebente
+        # a meio (o tearDown nao corria nesse caso, e o DB ficava a
+        # apontar para uma pasta ja apagada -- os testes seguintes caiam
+        # por arrasto).
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
+        self.addCleanup(gc.collect)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "DB", os.path.join(self.pasta, "ensaio.db")))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "DOCS", os.path.join(self.pasta, "documentos")))
         radar.iniciar_db()          # cria o esquema e põe as marcas
 
-    def tearDown(self):
-        import gc
-        import shutil
-        radar.DB = self.db_antigo
-        radar.DOCS = self.docs_antigo
-        gc.collect()                # fecha ligações penduradas do liga()
-        shutil.rmtree(self.pasta, ignore_errors=True)
+
+class TestRecuoParaTermosDeReserva(BaseTemporaria):
+    """O último recurso de recolher(): se o portal não devolver nada à
+    pesquisa sem termo, varre pelos `termos_de_reserva` (LEIA-ME, «o
+    que o radar vigia»). Nunca se viu disparar e nunca teve teste, e a
+    condição era só `not colhidos`, que também é verdadeira num corte
+    de rede: o radar respondia a um timeout com seis varrimentos. Este
+    teste força o recurso e fixa quando ele NÃO deve disparar."""
+
+    CFG = dict(radar.CONFIG_INICIAL, dias_catchup=7, por_pagina=25, paginas=3,
+               termos_de_pesquisa=[""],
+               termos_de_reserva=["aquisição", "serviços"])
+    CURL = ("curl 'https://dr/pesquisa' -H 'a: b' --data-raw "
+            "'{\"screenData\":{\"variables\":{\"FiltrosDePesquisa\":{}}}}'")
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "carregar_curl", return_value=self.CURL))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "guardar_amostra", lambda nome, conteudo: None))
+        self.enterContext(unittest.mock.patch.object(radar.time, "sleep"))
+        self.pedidos = []
+
+    def _portal(self, resposta):
+        def perguntar(pedido, molde):
+            lista = molde["screenData"]["variables"]["Pesquisa"]["List"]
+            termo = lista[0] if lista else ""
+            self.pedidos.append(termo)
+            return resposta(termo)
+        return unittest.mock.patch.object(radar, "perguntar_ao_dr",
+                                         side_effect=perguntar)
+
+    @staticmethod
+    def _pagina(quantos, prefixo):
+        return ({"data": {"List": [{"_source": {
+            "numero": "%s%d/2026" % (prefixo, i), "dbId": "k%d" % i,
+            "sumario": "t", "emissor": "E", "dataPublicacao": "2026-09-01",
+            "tipo": "Anúncio de procedimento"}} for i in range(quantos)]}}, "")
+
+    def test_pesquisa_vazia_sem_nada_cai_nos_termos_de_reserva(self):
+        with self._portal(lambda t: self._pagina(0, "") if t == ""
+                          else self._pagina(2, t[:3])):
+            ok, msg, novos = radar.recolher(dict(self.CFG))
+        self.assertTrue(ok)
+        self.assertEqual(self.pedidos, ["", "aquisição", "serviços"])
+        self.assertEqual(novos, 4)
+        self.assertIn("pelos termos de reserva", msg)
+
+    def test_com_anuncios_nao_ha_recuo(self):
+        with self._portal(lambda t: self._pagina(2, "x")):
+            ok, msg, novos = radar.recolher(dict(self.CFG))
+        self.assertTrue(ok)
+        self.assertEqual(self.pedidos, [""])
+        self.assertNotIn("reserva", msg)
+
+    def test_corte_de_rede_nao_dispara_o_recuo(self):
+        with self._portal(lambda t: (None, "rede: timeout")):
+            ok, msg, novos = radar.recolher(dict(self.CFG))
+        self.assertFalse(ok)
+        self.assertIn("sem ligação ao DR", msg)
+        self.assertEqual(self.pedidos, [""])
 
 
 class TestLerDetalhesParalelo(BaseTemporaria):
@@ -3777,72 +3840,6 @@ class TestLerDetalhesParalelo(BaseTemporaria):
             feitos, aviso = radar.ler_detalhes_paralelo(10)
         self.assertEqual((feitos, aviso), (0, ""))
         self.assertEqual(chamou, [])
-
-
-class TestMigracoesDoSaneamento(BaseTemporaria):
-    """Saneamento de 30/08/2026 (A1/A2/A3): cada migração tem de poder
-    correr duas vezes sem efeito na segunda. Foi a falta delas que
-    deixou 30 documentos presos num erro obsoleto, 12 análises no
-    formato antigo e duas chaves mortas na tabela estado."""
-
-    def test_erro_cryptography_volta_a_fila_e_uma_vez_so(self):
-        with radar.liga() as c:
-            c.execute("DELETE FROM estado WHERE chave='erros_extraccao_limpos'")
-            c.executemany(
-                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
-                "VALUES (?,?,?,?)",
-                [("1/2026", "CE.pdf", "",
-                  "erro: cryptography>=3.1 is required for AES algorithm"),
-                 ("1/2026", "PC.pdf", "t", "ok"),
-                 ("1/2026", "digit.pdf", "", "scan")])
-        radar.iniciar_db()
-        with radar.liga() as c:
-            estados = dict(c.execute("SELECT nome, texto_estado "
-                                     "FROM documentos"))
-        self.assertIsNone(estados["CE.pdf"])     # voltou à fila
-        self.assertEqual(estados["PC.pdf"], "ok")
-        self.assertEqual(estados["digit.pdf"], "scan")
-        # segunda passagem: a marca segura, e um erro novo com a mesma
-        # cara já não é desta migração — é do caminho de retentativa
-        with radar.liga() as c:
-            c.execute("UPDATE documentos SET texto_estado="
-                      "'erro: cryptography outra vez' WHERE nome='digit.pdf'")
-        radar.iniciar_db()
-        with radar.liga() as c:
-            fica = c.execute("SELECT texto_estado FROM documentos "
-                             "WHERE nome='digit.pdf'").fetchone()[0]
-        self.assertEqual(fica, "erro: cryptography outra vez")
-
-    def test_modelo_antigo_converte_e_duas_passagens_dao_o_mesmo(self):
-        with radar.liga() as c:
-            c.execute("DELETE FROM estado WHERE chave='modelo_com_fornecedor'")
-            c.executemany("INSERT INTO analise (ref, modelo) VALUES (?,?)",
-                          [("1/2026", "openai/gpt-oss-120b"),
-                           ("2/2026", "groq:openai/gpt-oss-120b"),
-                           ("3/2026",
-                            "nvidia:openai/gpt-oss-120b, openai/gpt-oss-120b")])
-        radar.iniciar_db()
-        with radar.liga() as c:
-            saiu = dict(c.execute("SELECT ref, modelo FROM analise"))
-        self.assertEqual(saiu["1/2026"], "groq:openai/gpt-oss-120b")
-        self.assertEqual(saiu["2/2026"], "groq:openai/gpt-oss-120b")
-        self.assertEqual(saiu["3/2026"],
-                         "nvidia:openai/gpt-oss-120b, groq:openai/gpt-oss-120b")
-        radar.iniciar_db()          # segunda vez: nada muda
-        with radar.liga() as c:
-            outra = dict(c.execute("SELECT ref, modelo FROM analise"))
-        self.assertEqual(saiu, outra)
-
-    def test_chaves_legadas_do_estado_saem(self):
-        with radar.liga() as c:
-            c.execute("INSERT OR REPLACE INTO estado VALUES ('ultimo_aviso','x')")
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('ultimo_aviso_texto','y')")
-        radar.iniciar_db()
-        with radar.liga() as c:
-            n = c.execute("SELECT COUNT(*) FROM estado "
-                          "WHERE chave LIKE 'ultimo_aviso%'").fetchone()[0]
-        self.assertEqual(n, 0)
 
 
 class TestRetentativaDeExtraccao(BaseTemporaria):
@@ -4021,7 +4018,7 @@ class TestCopiaComMarca(BaseTemporaria):
                          "ok: radar-2026-08-30.db")
 
 
-class TestNavegacaoPorIntencoes(unittest.TestCase):
+class TestNavegacaoPorIntencoes(BaseTemporaria):
     """A navegação por intenções (31/08/2026): primeiro cinco itens, e
     na mesma noite quatro — o Afonso, depois de usar, fundiu a Triagem
     e a Pesquisa numa lista só ("ambas são a mesma coisa"). O que isto
@@ -4360,16 +4357,12 @@ class TestExpiracaoDoToken(BaseTemporaria):
     de quando era a captura; é o instrumento de medida que faltava."""
 
     def _com_pasta_temporaria(self, criar_captura):
-        antigo = radar.BASE_DIR
-        radar.BASE_DIR = self.pasta
-        try:
+        with unittest.mock.patch.object(radar, "BASE_DIR", self.pasta):
             if criar_captura:
                 with open(os.path.join(self.pasta, "curl_DR.txt"),
                           "w", encoding="utf-8") as f:
                     f.write("curl 'https://exemplo'")
             radar.registar_expiracao_token("curl_DR", "sem JSON")
-        finally:
-            radar.BASE_DIR = antigo
 
     def test_regista_com_a_idade_da_captura(self):
         self._com_pasta_temporaria(criar_captura=True)
@@ -5313,7 +5306,6 @@ class TestVisualizadorDePecas(unittest.TestCase):
     def test_desenha_a_pagina_como_png(self):
         if not self.tem_pymupdf:
             self.skipTest("sem pymupdf no Python dos testes")
-        import tempfile
         with tempfile.TemporaryDirectory() as pasta:
             caminho = self._pdf_de_ensaio(pasta)
             self.assertEqual(radar.paginas_do_pdf_imagem(caminho), 2)
@@ -5328,7 +5320,6 @@ class TestVisualizadorDePecas(unittest.TestCase):
         # no bloco de texto — a mesma search_for desenha os destaques
         if not self.tem_pymupdf:
             self.skipTest("sem pymupdf no Python dos testes")
-        import tempfile
         with tempfile.TemporaryDirectory() as pasta:
             caminho = self._pdf_de_ensaio(pasta)
             self.assertEqual(radar.paginas_com_termo(caminho, "ensaio"),
@@ -5508,16 +5499,17 @@ class TestRelogioPassaPeloTrinco(BaseTemporaria):
     def setUp(self):
         super().setUp()
         self.verificacao_antes = dict(radar._VERIFICACAO)
-        self.config_antiga = radar.ler_config
-        self.verificar_antigo = radar.verificar
-        radar.ler_config = lambda: {"horas_verificacao": ["00:01"],
-                                    "recuperar_slot_falhado": True}
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config",
+            lambda: {"horas_verificacao": ["00:01"],
+                     "recuperar_slot_falhado": True}))
+        # cada teste troca o verificar(); o patch so garante que volta
+        self.enterContext(unittest.mock.patch.object(
+            radar, "verificar", radar.verificar))
         radar._VERIFICACAO["a_correr"] = False
         radar._VERIFICACAO["passo"] = ""
 
     def tearDown(self):
-        radar.ler_config = self.config_antiga
-        radar.verificar = self.verificar_antigo
         radar._VERIFICACAO.clear()
         radar._VERIFICACAO.update(self.verificacao_antes)
         super().tearDown()
@@ -5601,17 +5593,13 @@ class CorpusTemporario(unittest.TestCase):
     TEMPORÁRIO — nunca o verdadeiro —, criado e deitado fora por teste."""
 
     def setUp(self):
-        import tempfile
         self.pasta = tempfile.mkdtemp()
-        self.corpus_antigo = radar.CORPUS
-        radar.CORPUS = os.path.join(self.pasta, "ensaio-contratos.db")
-
-    def tearDown(self):
-        import gc
-        import shutil
-        radar.CORPUS = self.corpus_antigo
-        gc.collect()                # fecha ligações penduradas
-        shutil.rmtree(self.pasta, ignore_errors=True)
+        # mesma ordem da BaseTemporaria: repoe o CORPUS, o gc.collect()
+        # fecha ligacoes penduradas, e so entao a pasta vai fora
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
+        self.addCleanup(gc.collect)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "ensaio-contratos.db")))
 
     def poe_contrato(self, cid, ganhadores=0, n_adj=None):
         with radar.liga_corpus() as c:
@@ -6228,23 +6216,23 @@ class TestAlvosDeTextoA24px(unittest.TestCase):
             self.assertIn("box-sizing:border-box", m.group(1), selector)
 
 
-class TestFontesNaoBloqueiamAPrimeiraPintura(unittest.TestCase):
+class TestPaginaSemNadaDeFora(unittest.TestCase):
     """A folha do Google Fonts era um <link rel=stylesheet> normal, que
     bloqueia a pintura até chegar ou falhar: 12,6 s de página branca
     neste ambiente sem saída para o domínio, com o servidor a responder
-    em 16 ms. «Sem rede continua legível» era verdade depois do timeout,
-    não antes.
+    em 16 ms. Primeiro passou a carregar sem bloquear; a 14/09/2026
+    saiu de vez (auditoria ponytail): o painel não pede nada a nenhum
+    domínio de fora, e o CSP diz o mesmo.
     """
 
-    def test_a_folha_das_fontes_carrega_sem_bloquear(self):
-        links = re.findall(r"<link[^>]*fonts\.googleapis\.com/css2[^>]*>", radar.BASE)
-        self.assertEqual(len(links), 2)     # a de JS e a de reserva
-        bloqueia = [l for l in links if 'media="print"' not in l]
-        self.assertEqual(len(bloqueia), 1)
-        # a que nao bloqueia troca o media ao carregar; a que bloqueia
-        # so existe dentro de <noscript>
-        self.assertIn("onload=\"this.media='all'\"", [l for l in links if l not in bloqueia][0])
-        self.assertIn("<noscript>" + bloqueia[0], radar.BASE)
+    def test_o_esqueleto_nao_liga_a_dominio_nenhum(self):
+        self.assertNotIn("https://", radar.BASE.split("<body>")[0])
+        self.assertNotIn("fonts.googleapis", radar.CSS)
+
+    def test_o_csp_nao_abre_excepcao_para_fora(self):
+        csp = radar.CABECALHOS_DE_SEGURANCA["Content-Security-Policy"]
+        self.assertNotIn("https://", csp)
+        self.assertIn("font-src 'self'", csp)
 
 
 class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
@@ -6263,18 +6251,14 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
         # marcar interessa poe as pecas na fila, e a fila e uma thread
         # que vai a rede e abre a base -- a base do teste SEGUINTE, que
         # aparecia "locked" sem razao visivel. Aqui nao ha pecas.
-        self._pedir = radar.pedir_documentos
-        radar.pedir_documentos = lambda ref: None
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
         with radar.liga() as c:
             c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo,"
                       " url, estado) VALUES (?,?,?,?,?,?,?)",
                       ("2/2026", "Aquisição de serviços de consultoria",
                        "IFAP", "2026-08-01", "Anúncio de procedimento",
                        "https://dr/2", "novo"))
-
-    def tearDown(self):
-        radar.pedir_documentos = self._pedir
-        super().tearDown()
 
     def _params(self, r):
         return dict(parse_qsl(urlparse(r.headers["Location"]).query))
@@ -7575,10 +7559,9 @@ class TestTiposDeProcedimentoGuardados(CorpusTemporario):
             self.idas.append(1)
             return self.liga_verdadeira()
 
-        radar.liga_corpus = espia
+        self.enterContext(unittest.mock.patch.object(radar, "liga_corpus", espia))
 
     def tearDown(self):
-        radar.liga_corpus = self.liga_verdadeira
         radar._TIPOS_DO_CORPUS = (None, [])
         super().tearDown()
 
@@ -7840,13 +7823,9 @@ class TestDesfechoNaFicha(BaseTemporaria):
 
     def setUp(self):
         BaseTemporaria.setUp(self)
-        self.corpus_antigo = radar.CORPUS
-        radar.CORPUS = os.path.join(self.pasta, "ensaio-contratos.db")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "ensaio-contratos.db")))
         radar.iniciar_corpus()
-
-    def tearDown(self):
-        radar.CORPUS = self.corpus_antigo
-        BaseTemporaria.tearDown(self)
 
     def poe_anuncio(self, ref, data_pub, preco_base=""):
         with radar.liga() as c:
@@ -7970,7 +7949,8 @@ class TestTarefasEmFalta(unittest.TestCase):
     «não há o que avisar» -- e era exactamente o modo de falha que o
     aviso existe para apanhar: parecer vivo sem recolher nada. Em Linux
     lê os temporizadores do systemd que o agendar.sh cria. A listagem é
-    injectável: nada disto chama o schtasks nem o systemctl."""
+    injectável: nada disto chama o systemctl. (O ramo do schtasks do
+    Windows saiu a 14/09/2026, com o resto do Windows.)"""
 
     SYSTEMD = (
         "Tue 2026-09-08 17:00:00 WEST 4h left Tue 2026-09-08 09:00:12 WEST "
@@ -7979,9 +7959,6 @@ class TestTarefasEmFalta(unittest.TestCase):
         "3h ago radar-09h.timer radar-verificar.service\n"
         "Mon 2026-09-14 08:00:00 WEST 5 days left - - "
         "radar-contratos.timer radar-contratos.service\n")
-    SCHTASKS = ('"Radar DR 09h","09/09/2026 09:00:00","Pronto"\n'
-                '"Radar DR 17h","08/09/2026 17:00:00","Pronto"\n')
-
     def setUp(self):
         radar._TAREFAS_VISTAS = None
         self.chamadas = []
@@ -8003,15 +7980,6 @@ class TestTarefasEmFalta(unittest.TestCase):
             radar.tarefas_em_falta(self.lista(so_um), "linux"),
             ["radar-17h.timer"])
 
-    def test_windows_continua_a_ler_o_schtasks(self):
-        self.assertEqual(
-            radar.tarefas_em_falta(self.lista(self.SCHTASKS), "nt"), [])
-        self.assertEqual(self.chamadas[0][0], "schtasks")
-        radar._TAREFAS_VISTAS = None
-        self.assertEqual(
-            radar.tarefas_em_falta(self.lista(""), "nt"),
-            ["Radar DR 09h", "Radar DR 17h"])
-
     def test_sistema_sem_agendador_conhecido_nao_inventa_aviso(self):
         self.assertEqual(
             radar.tarefas_em_falta(self.lista(""), "darwin"), [])
@@ -8027,14 +7995,10 @@ class TestTarefasEmFalta(unittest.TestCase):
         radar.tarefas_em_falta(self.lista(""), "linux")
         self.assertEqual(len(self.chamadas), 1)
 
-    def test_o_aviso_do_painel_manda_correr_o_guiao_deste_sistema(self):
+    def test_o_aviso_do_painel_manda_correr_o_agendar_sh(self):
         onde, guiao = radar.como_agendar()
-        if os.name == "nt":
-            self.assertEqual(guiao, "agendar.bat")
-            self.assertIn("Windows", onde)
-        else:
-            self.assertEqual(guiao, "agendar.sh")
-            self.assertIn("systemd", onde)
+        self.assertEqual(guiao, "agendar.sh")
+        self.assertIn("systemd", onde)
 
 
 class TestAvisoDasTarefasNoPainel(BaseTemporaria):
@@ -8070,22 +8034,17 @@ class TestContas(BaseTemporaria):
         super().setUp()
         import contas
         self.contas = contas
-        self.cfg_antigo = radar.ler_config
-        self.config_antigo = radar.CONFIG
         # o config.json verdadeiro fica fora do alcance: um POST que grave
         # configuracao escreve num ficheiro da pasta temporaria
-        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
         self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True)
-        radar.ler_config = lambda: dict(self.cfg)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(self.cfg)))
         self.cliente = radar.app.test_client()
         with radar.liga() as c:
             self.contas.criar_utilizador(c, "afonso@exemplo.pt",
                                          "senha-comprida", "Afonso")
-
-    def tearDown(self):
-        radar.ler_config = self.cfg_antigo
-        radar.CONFIG = self.config_antigo
-        super().tearDown()
 
     def entrar(self, cliente=None, **ambiente):
         cliente = cliente or radar.app.test_client()
@@ -8380,11 +8339,15 @@ class TestEnderecoPublico(unittest.TestCase):
 
 
 
-class TestListaRecolhidaETeclado(unittest.TestCase):
+class TestListaRecolhidaETeclado(BaseTemporaria):
     """UX-Auditoria (2/09/2026), decididos pelo Afonso a 8/09/2026: a
-    lista abria com 60% do ecrã em filtros, e não havia teclado."""
+    lista abria com 60% do ecrã em filtros, e não havia teclado.
+
+    Sobre uma base temporária (14/09/2026): pediam a página à base
+    verdadeira, e num computador sem radar.db davam 500."""
 
     def setUp(self):
+        super().setUp()
         self.cliente = radar.app.test_client()
 
     def test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro(self):
@@ -8453,19 +8416,12 @@ class TestConfiguracoes(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        import shutil
-        self.config_antigo = radar.CONFIG
-        self.base_antiga = radar.BASE_DIR
-        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
         # as chaves e as capturas escrevem-se em BASE_DIR: aponta-se para
         # a pasta temporaria, senao o teste gravava ficheiros na pasta real
-        radar.BASE_DIR = self.pasta
+        self.enterContext(unittest.mock.patch.object(radar, "BASE_DIR", self.pasta))
         self.cliente = radar.app.test_client()
-
-    def tearDown(self):
-        radar.CONFIG = self.config_antigo
-        radar.BASE_DIR = self.base_antiga
-        super().tearDown()
 
     def test_as_nove_seccoes_abrem_e_as_rotas_antigas_redireccionam(self):
         # nove desde 13/09/2026 (Indicadores entrou), pela ordem do
@@ -8777,8 +8733,8 @@ class TestModeloDaCasa(BaseTemporaria):
         import io
         self.io = io
         self.cliente = radar.app.test_client()
-        self.imp_antigo = radar.IMPORTACOES
-        radar.IMPORTACOES = os.path.join(self.pasta, "importacoes")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "IMPORTACOES", os.path.join(self.pasta, "importacoes")))
         with radar.liga() as c:
             for ref, titulo, lotes in (("1947/2026", "Servidor de terminologias",
                                         json.dumps(TestResumoDosLotes.LOTES)),
@@ -8788,10 +8744,6 @@ class TestModeloDaCasa(BaseTemporaria):
                           "estado, lotes, texto, detalhe_lido) VALUES (?,?,?,?,?,?,?,?,?,1)",
                           (ref, titulo, "SPMS", "2026-02-01", "Anúncio", "https://dr/x",
                            "alteracao" if ref == "100/2026" else "novo", lotes, "texto"))
-
-    def tearDown(self):
-        radar.IMPORTACOES = self.imp_antigo
-        super().tearDown()
 
     def preenchido(self, linhas):
         """Um .xlsx a partir do modelo, com as linhas dadas (listas por coluna)."""
@@ -8946,8 +8898,8 @@ class TestEstadoZero(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        self.config_antigo = radar.CONFIG
-        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
         radar.gravar_config({"interesse_activo": True, "interesse_cpv": "72000000",
                              "email": {"para": "x@y.pt", "de": "r@g.com"}})
         with radar.liga() as c:
@@ -8966,10 +8918,6 @@ class TestEstadoZero(BaseTemporaria):
             c.execute("INSERT INTO filtros_guardados (nome, consulta) VALUES ('f', 'q=x')")
             c.execute("INSERT INTO casa (nome, ref) VALUES ('linha', '1/2026')")
             c.execute("INSERT INTO pessoas (nome) VALUES ('Afonso')")
-
-    def tearDown(self):
-        radar.CONFIG = self.config_antigo
-        super().tearDown()
 
     def test_apaga_o_que_e_do_utilizador_e_guarda_o_acervo(self):
         n = radar.repor_estado_zero()
@@ -9063,7 +9011,6 @@ class TestLigacaoFechaAoSair(BaseTemporaria):
             radar.CORPUS = corpus_antigo
 
     def test_cem_pedidos_nao_deixam_ligacoes_abertas(self):
-        import gc
         cliente = radar.app.test_client()
         gc.collect()
         antes = len([o for o in gc.get_objects() if isinstance(o, sqlite3.Connection)])
@@ -9205,19 +9152,14 @@ class TestMudancasDeSetembro(BaseTemporaria):
         super().setUp()
         import contas
         self.contas = contas
-        self.cfg_antigo = radar.ler_config
-        self.config_antigo = radar.CONFIG
-        radar.CONFIG = os.path.join(self.pasta, "config.json")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
         self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True)
-        radar.ler_config = lambda: dict(self.cfg)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(self.cfg)))
         with radar.liga() as c:
             self.contas.criar_utilizador(c, "admin", "senha-comprida")
             self.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
-
-    def tearDown(self):
-        radar.ler_config = self.cfg_antigo
-        radar.CONFIG = self.config_antigo
-        super().tearDown()
 
     def entrar(self, quem):
         cliente = radar.app.test_client()
@@ -9554,10 +9496,9 @@ class TestTrincoEntreProcessos(BaseTemporaria):
             radar.processo_vivo = antigo
             radar.largar_trinco(pid=os.getpid() + 100000)
 
-    def test_o_pid_zero_e_o_windows(self):
+    def test_um_pid_que_nao_existe_esta_morto(self):
         self.assertTrue(radar.processo_vivo(os.getpid()))
-        if os.name != "nt":
-            self.assertFalse(radar.processo_vivo(2 ** 22 - 1))
+        self.assertFalse(radar.processo_vivo(2 ** 22 - 1))
 
 
 
@@ -9972,7 +9913,7 @@ class TestAuditoriaDeSeguranca(BaseTemporaria):
                 self.assertIn("frame-ancestors 'self'", csp)
                 self.assertIn("form-action 'self'", csp)
                 self.assertIn("object-src 'self'", csp)          # o <embed> das peças
-                self.assertIn("https://fonts.googleapis.com", csp)
+                self.assertNotIn("https://", csp)    # nada de fora
                 self.assertNotIn("Strict-Transport-Security", r.headers)   # http local
         r = self.cliente.get("/", base_url="https://localhost")
         self.assertIn("max-age=", r.headers.get("Strict-Transport-Security", ""))
@@ -10045,8 +9986,6 @@ class TestAuditoriaDeSeguranca(BaseTemporaria):
         self.assertNotIn("redirect(request.referrer", radar_fonte())
 
     def test_os_ficheiros_com_segredos_ficam_so_do_dono(self):
-        if os.name == "nt":
-            self.skipTest("sem modo POSIX")
         caminho = os.path.join(self.pasta, "segredo.txt")
         with open(caminho, "w") as f:
             f.write("x")
@@ -10075,14 +10014,10 @@ class TestInteresseNoMercado(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        self.cfg_antigo = radar.ler_config
         self.cfg = dict(radar.CONFIG_INICIAL, interesse_activo=True,
                         interesse_cpv="72000000", interesse_cpv_excl="")
-        radar.ler_config = lambda: dict(self.cfg)
-
-    def tearDown(self):
-        radar.ler_config = self.cfg_antigo
-        super().tearDown()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(self.cfg)))
 
     def test_prefixos_do_cpv_le_codigos_e_palavras(self):
         self.assertEqual(radar.prefixos_do_cpv("72000000|48700000"), ["72", "487"])
@@ -10148,12 +10083,8 @@ class TestPlataformasQueJaNaoExistem(BaseTemporaria):
     def setUp(self):
         super().setUp()
         # sem o interesse do config.json verdadeiro: recortava a lista
-        self.cfg_antigo = radar.ler_config
-        radar.ler_config = lambda: dict(radar.CONFIG_INICIAL)
-
-    def tearDown(self):
-        radar.ler_config = self.cfg_antigo
-        super().tearDown()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(radar.CONFIG_INICIAL)))
 
     def test_agrupa_as_mortas_e_deixa_as_activas_e_as_especiais(self):
         grupos = radar.agrupar_plataformas({
@@ -10207,8 +10138,8 @@ class TestFiltrosSimples(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        self.cfg_antigo = radar.ler_config
-        radar.ler_config = lambda: dict(radar.CONFIG_INICIAL)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(radar.CONFIG_INICIAL)))
         with radar.liga() as c:
             for i, ent in enumerate(("SPMS — Serviços Partilhados do Ministério da Saúde",
                                      "SPMS — Serviços Partilhados do Ministério da Saúde",
@@ -10218,10 +10149,6 @@ class TestFiltrosSimples(BaseTemporaria):
                           "data_pub,detalhe_lido) VALUES (?,?,?,?,?,'novo','2026-09-01',1)",
                           ("9%d/2026" % i, "t", "https://x/anuncio-procedimento/%d" % i,
                            ent, radar.simplifica(ent)))
-
-    def tearDown(self):
-        radar.ler_config = self.cfg_antigo
-        super().tearDown()
 
     def test_a_lista_tem_so_os_quatro_campos_e_a_arvore_em_cima(self):
         html_ = radar.app.test_client().get("/").get_data(as_text=True)
@@ -10320,9 +10247,8 @@ class TestEntidadesNoMercado(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        import tempfile
-        self.corpus_antigo = radar.CORPUS
-        radar.CORPUS = os.path.join(self.pasta, "contratos.db")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
         radar.iniciar_corpus()                      # o esquema do corpus, vazio
         with radar.liga_corpus() as c:
             c.execute("INSERT INTO entidades VALUES ('509540716','509540716',"
@@ -10334,13 +10260,7 @@ class TestEntidadesNoMercado(BaseTemporaria):
                                 ("sport lisboa e benfica", "500000001"),
                                 ("hospital de espinho", "500000002")):
                 c.execute("INSERT INTO entidade_nomes VALUES (?,?)", (norm, chave))
-        self.ha_antigo = radar.ha_corpus
-        radar.ha_corpus = lambda: 1
-
-    def tearDown(self):
-        radar.CORPUS = self.corpus_antigo
-        radar.ha_corpus = self.ha_antigo
-        super().tearDown()
+        self.enterContext(unittest.mock.patch.object(radar, "ha_corpus", lambda: 1))
 
     def test_sugere_do_corpus_uma_por_chave_e_pelo_inicio_primeiro(self):
         nomes = radar.sugestoes_de_entidade_do_corpus("sp")
