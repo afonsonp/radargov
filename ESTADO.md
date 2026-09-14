@@ -91,7 +91,9 @@ anúncio é relido logo pelo modelo**. **E entrou a lista do «Em
 curso»** (`/lista`), a tabela que ele mandou: título, cliente, preço,
 esclarecimentos, entrega, tipologia, estado da proposta, CV, proposta
 técnica, notas, plataforma, CoE, responsável — as cinco da casa são
-colunas novas, gravadas linha a linha. A bateria vai em **841**.
+colunas novas, gravadas linha a linha. E a aplicação chama-se
+**RadarGov** na barra e no ecrã de entrar, com o «Gov» a azul. A
+bateria vai em **842**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

@@ -9898,6 +9898,24 @@ class TestListaEmCurso(BaseTemporaria):
         self.assertIn("Sem anúncios interessados", html_)
 
 
+class TestNomeRadarGov(unittest.TestCase):
+    """14/09/2026: «a aplicação diz RadarDR mas tem de dizer RadarGov e
+    Gov tem de ser a azul». O nome esta em dois sitios (a barra e o ecra
+    de entrar) e o azul da barra e um claro proprio: o --azul da paleta
+    sobre a barra escura dava 2,3:1."""
+
+    def test_o_nome_e_radargov_nos_dois_sitios_e_o_gov_e_azul(self):
+        self.assertIn('<a class="logo" href="/">Radar<span>Gov</span></a>', radar.BASE)
+        self.assertIn('<div class="logo">Radar<span>Gov</span></div>', radar.PAGINA_ENTRAR)
+        self.assertIn("RadarGov", radar.PAGINA_ENTRAR)
+        self.assertNotIn("Radar<span>DR", radar.BASE + radar.PAGINA_ENTRAR)
+        self.assertIn(".marca .logo span{color:var(--azul-claro)}", radar.CSS)
+        self.assertIn(".entrar .logo span{color:var(--azul)}", radar.CSS)
+        # o claro le-se sobre a barra: AA para texto grande e mais
+        contraste = TestContrasteNosFundosReais._contraste("#7cbcf0", "#14181e")
+        self.assertGreater(contraste, 7)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
