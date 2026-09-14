@@ -3254,10 +3254,15 @@ class TestUmaVerificacaoDeCadaVez(unittest.TestCase):
 
     def setUp(self):
         self.antes = dict(radar._VERIFICACAO)
+        # o trinco entre processos (14/09/2026) le a base verdadeira; aqui
+        # so se testa o dicionario deste processo
+        self.noutro = radar.verificacao_noutro_processo
+        radar.verificacao_noutro_processo = lambda **k: ""
 
     def tearDown(self):
         radar._VERIFICACAO.clear()
         radar._VERIFICACAO.update(self.antes)
+        radar.verificacao_noutro_processo = self.noutro
 
     def test_a_correr_recusa_a_segunda(self):
         radar._VERIFICACAO["a_correr"] = True
@@ -10137,6 +10142,66 @@ class TestInteresseNoMercado(BaseTemporaria):
         onde, _ = radar.filtros_dos_contratos(MultiDict({"q": "x", "interesse": "nao"}),
                                               cfg=self.cfg)
         self.assertNotIn("contrato_cpv", onde)
+
+
+class TestPlataformasQueJaNaoExistem(BaseTemporaria):
+    """14/09/2026: «as plataformas que hoje já não tens acesso é porque
+    já não existem — juntamos todas como outras». Saphety, compraspublicas,
+    gatewit, bizgov e construlink ficam na base, mas nos selectores são
+    um balde só; o filtro por nome continua a aceitar qualquer uma."""
+
+    def setUp(self):
+        super().setUp()
+        # sem o interesse do config.json verdadeiro: recortava a lista
+        self.cfg_antigo = radar.ler_config
+        radar.ler_config = lambda: dict(radar.CONFIG_INICIAL)
+
+    def tearDown(self):
+        radar.ler_config = self.cfg_antigo
+        super().tearDown()
+
+    def test_agrupa_as_mortas_e_deixa_as_activas_e_as_especiais(self):
+        grupos = radar.agrupar_plataformas({
+            "vortal": 50, "acingov": 40, "saphety": 9, "gatewit": 3,
+            "anogov": 20, radar.SEM_PLATAFORMA: 7})
+        self.assertEqual(grupos, [("vortal", 50), ("acingov", 40), ("anogov", 20),
+                                  (radar.OUTRAS_PLATAFORMAS, 12),
+                                  (radar.SEM_PLATAFORMA, 7)])
+        # sem mortas nao ha balde
+        self.assertEqual(radar.agrupar_plataformas({"vortal": 1}), [("vortal", 1)])
+        self.assertEqual(radar.rotulo_da_plataforma(radar.OUTRAS_PLATAFORMAS),
+                         "outras (já não existem)")
+        for p in radar.PLATAFORMAS_ACTIVAS:
+            self.assertIn(p, radar.PLATAFORMAS)
+
+    def test_o_filtro_outras_apanha_o_que_nao_e_activo_nem_vazio(self):
+        for ref, plat, lido in (("80/2026", "saphety", 1), ("81/2026", "vortal", 1),
+                                ("82/2026", "", 1), ("83/2026", "gatewit", 1),
+                                ("84/2026", "bizgov", 0)):
+            with radar.liga() as c:
+                c.execute("INSERT INTO anuncios (ref, titulo, url, plataforma, detalhe_lido,"
+                          " estado, data_pub) VALUES (?,?,?,?,?,'novo','2026-09-01')",
+                          (ref, "t", "https://x/anuncio-procedimento/" + ref, plat, lido))
+        onde, vals = radar.condicoes({"plat": radar.OUTRAS_PLATAFORMAS, "estado": ""})
+        with radar.liga() as c:
+            refs = sorted(r["ref"] for r in c.execute("SELECT ref FROM anuncios" + onde, vals))
+        self.assertEqual(refs, ["80/2026", "83/2026"])
+        # e por nome continua a servir (um alerta antigo com plat=saphety)
+        onde, vals = radar.condicoes({"plat": "saphety", "estado": ""})
+        with radar.liga() as c:
+            self.assertEqual([r["ref"] for r in c.execute("SELECT ref FROM anuncios" + onde, vals)],
+                             ["80/2026"])
+        # os dois selectores mostram "outras" e nao as mortas
+        cliente = radar.app.test_client()
+        lista = cliente.get("/?estado=").get_data(as_text=True)
+        alertas = cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        for html_ in (lista, alertas):
+            self.assertIn("value='(outras)'", html_)
+            self.assertIn("outras (já não existem)", html_)
+            self.assertNotIn("value='saphety'", html_)
+            self.assertNotIn("value='gatewit'", html_)
+            self.assertIn("value='vortal'", html_)
+        self.assertIn("outras (já não existem) (2)", lista)
 
 
 if __name__ == "__main__":

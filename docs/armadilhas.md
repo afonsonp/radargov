@@ -281,6 +281,16 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   em silêncio. Campos novos não entram por aí — a `analise` tem colunas
   fixas.
 
+- **As plataformas que já não existem são «outras» nos selectores, e
+  só lá** (14/09/2026). `PLATAFORMAS_ACTIVAS` são quatro; o resto de
+  `PLATAFORMAS` continua a ser reconhecido na leitura do detalhe e a
+  ficar na base com o nome verdadeiro — `agrupar_plataformas()` só
+  junta ao mostrar, e `condicoes()` traduz `(outras)` em «lida, com
+  plataforma, e não activa». Um filtro ou alerta antigo com
+  `plat=saphety` continua a funcionar por nome. Uma plataforma nova a
+  sério entra nas duas listas: em `PLATAFORMAS` para se reconhecer, e
+  em `PLATAFORMAS_ACTIVAS` para não cair no balde.
+
 - **A vigilância das peças vigia por razão, não por relógio**
   (14/09/2026). Existiu a 3/09 a olhar para todos os marcados a cada
   verificação e saiu no dia seguinte por vigiar seis anúncios. Voltou

@@ -107,7 +107,9 @@ dos CPV da casa** — o interesse conta como pergunta, nos dois modos e
 no CSV (14/09/2026, «abre-se e não se vê contrato nenhum»); sem
 interesse continua a pedir um filtro, e o ecrã vazio diz-o. O
 formulário do alerta ficou em três grupos — em comum, só anúncios, só
-contratos. A bateria vai em **853**.
+contratos. E as plataformas que já não existem (saphety, compraspublicas,
+gatewit, bizgov, construlink) são «outras» nos dois selectores. A
+bateria vai em **855**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

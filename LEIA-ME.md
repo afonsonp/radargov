@@ -258,9 +258,11 @@ aberta. Podes filtrar por:
   por palavra da descrição oficial do CPV (`software`, `manutenção`).
   Tal como nas palavras, várias opções separadas por `|` valem como
   "qualquer uma": `72|manutenção de software`.
-- **plataforma electrónica**: acingov, vortal, anogov, compraspt, ou os
-  que não a indicam. Serve sobretudo para isolares aquelas de que o
-  radar consegue trazer as peças sozinho.
+- **plataforma electrónica**: acingov, vortal, anogov, compraspt,
+  «outras» (as que já não existem — saphety, compraspublicas, gatewit,
+  bizgov, construlink — num balde só, desde 14/09/2026) ou os que não
+  a indicam. Serve sobretudo para isolares aquelas de que o radar
+  consegue trazer as peças sozinho.
 - **intervalo de datas** de publicação.
 - **estado**: as mesmas quatro abas, para os alertas.
 - **prazo**: abertos, urgentes (a menos de N dias — a janela edita-se
