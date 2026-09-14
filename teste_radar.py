@@ -9731,6 +9731,56 @@ class TestVigilanciaDasPecas(BaseTemporaria):
         finally:
             radar.pecas_disponiveis = antigo
 
+    def test_com_peca_nova_rele_se_pelo_modelo_e_sem_ela_nao(self):
+        ref = self._anuncio()
+        self._peca(ref, "Caderno de Encargos.pdf")
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        relidos = []
+        antigo = radar.pecas_disponiveis
+        try:
+            radar.pecas_disponiveis = lambda s, l: (
+                self._disponiveis("Caderno de Encargos.pdf"), "")
+            radar.vigiar_anuncio(a, reler=relidos.append)
+            self.assertEqual(relidos, [])
+            radar.pecas_disponiveis = lambda s, l: (
+                self._disponiveis("Caderno de Encargos.pdf", "CE revisto.pdf"), "")
+            radar.vigiar_anuncio(a, reler=relidos.append)
+            self.assertEqual(relidos, [ref])
+        finally:
+            radar.pecas_disponiveis = antigo
+
+    def test_a_verificacao_rele_em_linha_e_o_botao_pela_fila(self):
+        # no --uma-vez a fila e uma thread daemon que morre com o
+        # processo: a verificacao tem de ler em linha
+        ref = self._anuncio()
+        self._peca(ref, "Caderno de Encargos.pdf")
+        lidos, na_fila = [], []
+        antigos = (radar.pecas_disponiveis, radar.ler_pecas_e_registar,
+                   radar.pedir_analise)
+        try:
+            radar.pecas_disponiveis = lambda s, l: (
+                self._disponiveis("Caderno de Encargos.pdf", "Errata.pdf"), "")
+            radar.ler_pecas_e_registar = lambda r, quem="": lidos.append((r, quem))
+            radar.pedir_analise = lambda r, quem="": na_fila.append((r, quem))
+            with radar.liga() as c:
+                c.execute("UPDATE anuncios SET pecas_vigiadas_em='2026-09-01 09:00' "
+                          "WHERE ref=?", (ref,))
+            radar.registar_alteracoes(ref, [("prazo", "2026-09-20", "2026-09-30")])
+            self.assertEqual(radar.vigiar_pecas()[0], 1)
+            self.assertEqual(lidos, [(ref, "plataforma")])
+            self.assertEqual(na_fila, [])
+            radar.pecas_disponiveis = lambda s, l: (
+                self._disponiveis("Caderno de Encargos.pdf", "Errata.pdf",
+                                  "Esclarecimento 3.pdf"), "")
+            r = radar.app.test_client().post("/pecas-novas/" + ref)
+            self.assertIn("A reler pelo modelo", unquote_plus(r.headers["Location"]))
+            self.assertEqual(len(na_fila), 1)
+            self.assertEqual(na_fila[0][0], ref)
+        finally:
+            (radar.pecas_disponiveis, radar.ler_pecas_e_registar,
+             radar.pedir_analise) = antigos
+
     def test_o_botao_da_ficha_diz_o_que_encontrou(self):
         ref = self._anuncio()
         self._peca(ref, "Caderno de Encargos.pdf")

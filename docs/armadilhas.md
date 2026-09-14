@@ -300,7 +300,13 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   a plataforma a falhar**, não «as peças desapareceram», e nesse caso
   `pecas_vigiadas_em` não se marca — a razão fica de pé para a volta
   seguinte; e uma peça que não se conseguiu trazer **avisa-se uma vez
-  só** (fica em `alteracoes` mesmo sem ficheiro). `TestVigilanciaDasPecas`.
+  só** (fica em `alteracoes` mesmo sem ficheiro). **Com peça nova,
+  relê-se pelo modelo logo** (decisão dele, 14/09): `vigiar_anuncio()`
+  chama o `reler` que lhe derem — a verificação passa
+  `ler_pecas_e_registar()` em linha, porque no `--uma-vez` a fila da
+  análise é uma thread daemon que morre com o processo antes de ler; o
+  botão passa `pedir_analise()`, pela fila, porque no painel a fila
+  vive. `TestVigilanciaDasPecas`.
 
 - **A releitura dos marcados é vigilância, não recolha.**
   `reler_marcados()` relê por verificação até 25 anúncios
