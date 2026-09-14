@@ -1266,8 +1266,11 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   não é guarda nenhuma, é só o índice. E o `sou_admin()` responde
   **sim** no acesso livre local sem conta: é o computador do Afonso
   antes de haver contas, e sem isto nem se chegava à Conta para as
-  criar. Com duas contas o «único utilizador» do acesso livre é
-  `None` e o pedido continua a ser admin por ser livre.
+  criar. **Com mais do que uma conta, o acesso livre é o primeiro
+  admin** (`unico_utilizador()`, 14/09/2026): devolvia `None` e, no dia
+  em que a primeira conta de tester foi criada, o painel no computador
+  dele passou a dizer «sem conta ainda» e a registar tudo como «(sem
+  nome)».
 
 - **Trocar a palavra-passe não despromove.** `criar_utilizador()` com
   `papel=None` mantém o que lá está; só o formulário do admin (e o
