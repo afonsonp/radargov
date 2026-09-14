@@ -102,7 +102,8 @@ Referer só para o próprio anfitrião, e os ficheiros com segredos a
 0600. **E o Mercado recorta-se pelo interesse** como os anúncios
 (14/09/2026): com interesse definido, os contratos, o CSV e os
 gráficos mostram só os CPV marcados, com a mesma faixa e o mesmo «ver
-tudo». A bateria vai em **851**.
+tudo». O formulário do alerta ficou em três grupos — em comum, só
+anúncios, só contratos. A bateria vai em **852**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
