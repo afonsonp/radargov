@@ -1375,10 +1375,11 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   (1) `cabecalhos_de_seguranca()` põe em todas as respostas `nosniff`,
   `X-Frame-Options`, `Referrer-Policy` e um CSP com `unsafe-inline`
   (os scripts e os estilos são em linha; o que o CSP fecha é
-  `frame-ancestors`, `form-action`, `base-uri` e as origens de fora —
-  só o Google Fonts); HSTS só por HTTPS. Um recurso novo de outro
-  domínio tem de entrar no `CABECALHOS_DE_SEGURANCA`, senão o browser
-  bloqueia-o em silêncio. (2) `MAX_CONTENT_LENGTH` a 20 MB: um POST
+  `frame-ancestors`, `form-action`, `base-uri` e as origens de fora,
+  que desde 14/09/2026 são nenhumas); HSTS só por HTTPS. Um recurso
+  novo de outro domínio tem de entrar no `CABECALHOS_DE_SEGURANCA`,
+  senão o browser bloqueia-o em silêncio, e `TestPaginaSemNadaDeFora`
+  cai de propósito. (2) `MAX_CONTENT_LENGTH` a 20 MB: um POST
   maior dá 413. (3) `/documento/<ref>/<nome>` só abre em linha o que
   está em `EXTENSOES_INOFENSIVAS`; o resto descarrega-se como
   `application/octet-stream` com CSP `sandbox` — uma peça `.html` de
@@ -1507,12 +1508,14 @@ As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.
   nessa lista. Ligações dentro de frases não contam: têm a altura da
   linha, e a WCAG exclui-as.
 
-- **A folha do Google Fonts carrega sem bloquear a pintura**
-  (`media="print" onload="this.media='all'"`, com a cópia normal em
-  `<noscript>`). Como `<link rel=stylesheet>` simples era render-blocking:
-  12,6 s de página branca sem saída para o domínio, com o servidor a
-  responder em 16 ms. Sem rede, a aplicação fica legível **antes** do
-  timeout, com a letra de reserva.
+- **O painel não pede nada a nenhum domínio de fora** (14/09/2026,
+  auditoria ponytail). Havia uma folha do Google Fonts (Archivo e
+  JetBrains Mono): como `<link rel=stylesheet>` simples era
+  render-blocking, 12,6 s de página branca sem saída para o domínio,
+  com o servidor a responder em 16 ms; passou a carregar sem bloquear
+  e depois saiu de vez, e a letra é a do sistema (`system-ui`,
+  `ui-monospace`). O CSP diz o mesmo (`font-src 'self'`), e
+  `TestPaginaSemNadaDeFora` guarda as duas coisas.
 
 - **Toda a truncagem visível passa por `corta()`**, que põe reticências.
   Um `[:190]` cru corta a meio de palavra e lê-se como dado estragado.

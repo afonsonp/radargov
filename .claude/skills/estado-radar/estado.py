@@ -9,6 +9,7 @@ compila. Nao escreve nada.
 
 import io
 import os
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -89,28 +90,23 @@ def main():
     print("\nSISTEMA")
     print("  base: %.0f MB" % (os.path.getsize(DB) / 1048576))
     print("  documentos: %s ficheiros" % mil(q("SELECT COUNT(*) FROM documentos")))
-    # O `pwsh` (PowerShell 7) primeiro, o `powershell` (5.1) como reserva:
-    # o 7 nem sempre esta instalado, o 5.1 esta sempre. Pedia-se o 5.1
-    # directamente, e numa maquina com o 7 instalado era a unica coisa
-    # deste projecto a abrir o velho.
-    vivo = None
-    for exe in ("pwsh", "powershell"):
-        try:
-            vivo = subprocess.run(
-                [exe, "-NoProfile", "-Command",
-                 "if (Get-NetTCPConnection -LocalPort 8765 "
-                 "-ErrorAction SilentlyContinue) {'sim'} else {'nao'}"],
-                capture_output=True, text=True)
-            break
-        except OSError:
-            continue
-    print("  painel a correr: %s"
-          % ("sim, http://localhost:8765"
-             if vivo and "sim" in vivo.stdout else "não"))
-    tarefas = subprocess.run(["schtasks", "/Query", "/TN", "Radar DR 09h"],
-                             capture_output=True, text=True)
-    print("  tarefas agendadas: %s"
-          % ("activas" if tarefas.returncode == 0 else "não encontradas"))
+    # Desde 8/09/2026 o radar corre em Ubuntu: o painel ve-se pela porta,
+    # e as tarefas sao os temporizadores do systemd que o agendar.sh cria
+    # (os mesmos nomes que o aviso vermelho do painel procura).
+    try:
+        with socket.create_connection(("127.0.0.1", 8765), timeout=0.3):
+            vivo = True
+    except OSError:
+        vivo = False
+    print("  painel a correr: %s" % ("sim, http://localhost:8765" if vivo else "não"))
+    try:
+        timers = subprocess.run(["systemctl", "--user", "list-timers", "--all",
+                                 "--no-legend", "--plain"],
+                                capture_output=True, text=True).stdout
+    except OSError:
+        timers = ""
+    activas = all(nome in timers for nome in ("radar-09h.timer", "radar-17h.timer"))
+    print("  tarefas agendadas: %s" % ("activas" if activas else "não encontradas"))
     return 0
 
 
