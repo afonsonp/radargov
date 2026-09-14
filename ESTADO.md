@@ -321,10 +321,10 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 17 000 linhas, `casa.py` com 1 267,
-`teste_radar.py` com 858 testes que correm em 25 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 17 131 linhas, `casa.py` com 1 267,
+`teste_radar.py` com 861 testes que correm em 25 segundos, sem rede e sem
 tocar na base verdadeira (contados a 14/09/2026, depois da auditoria
-ponytail, que tirou ~330 linhas ao conjunto). **Mais de metade do `radar.py` é painel**
+ponytail, que tirou ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
