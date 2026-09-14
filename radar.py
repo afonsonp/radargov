@@ -415,33 +415,10 @@ def iniciar_db():
         for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
             if nome not in cols_doc:
                 c.execute("ALTER TABLE documentos ADD COLUMN %s %s" % (nome, tipo))
-        # Saneamento 30/08/2026 (A1): 30 documentos ficaram presos em
-        # "erro: cryptography>=3.1 is required for AES algorithm", de
-        # quando a dependencia ainda nao estava instalada. A causa ja
-        # nao existe; limpa-se o estado para voltarem a fila de
-        # extraccao (texto_estado IS NULL). Uma vez, por marca -- e o
-        # extrair_textos() passou a retentar qualquer "erro:", por isso
-        # nenhum erro de extraccao volta a ser terminal para sempre.
-        if not c.execute("SELECT 1 FROM estado "
-                         "WHERE chave='erros_extraccao_limpos'").fetchone():
-            c.execute("UPDATE documentos SET texto=NULL, texto_estado=NULL "
-                      "WHERE texto_estado LIKE 'erro:%cryptography%'")
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('erros_extraccao_limpos','1')")
-        # Saneamento 30/08/2026 (A2): as analises de antes da cadeia de
-        # fornecedores guardavam o modelo sem prefixo. Converte-se para o
-        # formato actual -- a regra esta em _modelo_com_fornecedor(), que
-        # nao mexe no que ja tem prefixo. Uma vez, por marca.
-        if not c.execute("SELECT 1 FROM estado "
-                         "WHERE chave='modelo_com_fornecedor'").fetchone():
-            for r in c.execute("SELECT ref, modelo FROM analise "
-                               "WHERE COALESCE(modelo,'') != ''").fetchall():
-                novo = _modelo_com_fornecedor(r["modelo"])
-                if novo != r["modelo"]:
-                    c.execute("UPDATE analise SET modelo=? WHERE ref=?",
-                              (novo, r["ref"]))
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('modelo_com_fornecedor','1')")
+        # (As migracoes de uso unico do saneamento de 30/08/2026 -- A1,
+        # A2, A3 e a limpeza do indice pecas_fts -- sairam a 14/09/2026:
+        # correram em todas as instalacoes desde a v1.0.0, e uma base
+        # de antes disso ja nao existe. O diario de Agosto guarda-as.)
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -509,25 +486,6 @@ def iniciar_db():
         c.execute("""DELETE FROM erros WHERE id NOT IN (
             SELECT e2.id FROM erros e2 WHERE e2.tipo = erros.tipo
             ORDER BY e2.id DESC LIMIT 200)""")
-        # A pesquisa nas pecas (B09) foi implementada e RETIRADA a
-        # 30/08/2026, por decisao do Afonso: as pecas so existem depois
-        # de marcar "interessa", por isso a pesquisa chegava sempre
-        # tarde demais para ajudar a decidir -- nao se estava a ganhar
-        # nada. A versao que valeria a pena (ver o PDF dentro da
-        # aplicacao, com pesquisa la dentro) esta no BACKLOG, por fazer
-        # so quando for pedida. Isto limpa o indice de quem chegou a
-        # ter a versao retirada; DROP IF EXISTS e idempotente e gratis.
-        c.execute("DROP TRIGGER IF EXISTS documentos_fts_ai")
-        c.execute("DROP TRIGGER IF EXISTS documentos_fts_ad")
-        c.execute("DROP TRIGGER IF EXISTS documentos_fts_au")
-        c.execute("DROP TABLE IF EXISTS pecas_fts")
-        c.execute("DELETE FROM estado WHERE chave='fts_povoado'")
-        # Saneamento 30/08/2026 (A3): chaves do esquema de avisos antigo,
-        # que o codigo actual nao le nem escreve -- o esquema de hoje e o
-        # reconhecer/enviar de alertas_vistos. Recria-las nao tinha
-        # sentido; apagar e idempotente e gratis, como a limpeza acima.
-        c.execute("DELETE FROM estado WHERE chave IN "
-                  "('ultimo_aviso','ultimo_aviso_texto')")
         # As entidades seguidas (B10) vivem na base de trabalho e nao no
         # corpus: o corpus refaz-se com --contratos, a triagem nao. O
         # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
@@ -5690,8 +5648,8 @@ _EM_LINHA = "#dbe0e6"
 _EM_T2 = "#333c46"
 _EM_T3 = "#4d5661"
 _EM_AZUL = "#17557f"
-_EM_SANS = "Archivo,system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
-_EM_MONO = "'JetBrains Mono',Consolas,Menlo,monospace"
+_EM_SANS = "system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
+_EM_MONO = "Consolas,Menlo,monospace"
 _EM_CORES = {"ok": ("#e7f3ec", "#1a7a4d"),
              "avisa": ("#fbeee2", "#a8450e"),
              "mau": ("#fbe9e5", "#b0341a"),
@@ -7387,8 +7345,8 @@ CABECALHOS_DE_SEGURANCA = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Content-Security-Policy": (
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self'; img-src 'self' data:; "
         "object-src 'self'; frame-ancestors 'self'; form-action 'self'; "
         "base-uri 'self'; connect-src 'self'"),
 }
@@ -7744,8 +7702,8 @@ CSS = r"""
  /* o "Gov" do logotipo: azul, a pedido dele (14/09/2026); sobre a barra
     escura o --azul nao se le, por isso ha um claro so para la */
  --azul-claro:#7cbcf0;
- --sans:Archivo,system-ui,-apple-system,'Segoe UI',sans-serif;
- --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+ --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+ --mono:ui-monospace,Consolas,monospace;
 }
 *{box-sizing:border-box}
 /* Foco de teclado visivel e igual em toda a aplicacao. O contorno de
@@ -8837,10 +8795,6 @@ BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
 <style>%(css)s</style></head><body>
 <div class="app">
 <header class="barra">
@@ -10158,36 +10112,25 @@ def _lista_de_anuncios():
     # e devolvia 60 645: os numeros do selector saem dos anuncios com
     # detalhe lido, que sao 8% da base, e nao havia nada a dize-lo nem
     # forma nenhuma de pedir os outros 92%.
-    opcoes_plat = ["<option value=''>todas as plataformas (%s)</option>"
-                   % mil(no_filtro)]
+    opcoes_plat = [("", "todas as plataformas (%s)" % mil(no_filtro))]
     if porler:
-        opcoes_plat.append(
-            "<option value='%s'%s>ainda sem detalhe lido (%s)</option>"
-            % (html.escape(POR_LER, quote=True),
-               " selected" if plat_actual == POR_LER else "",
-               mil(porler_filtro)))
+        opcoes_plat.append((POR_LER, "ainda sem detalhe lido (%s)" % mil(porler_filtro)))
     # as plataformas que ja nao existem vao num balde so, "outras"
     # (14/09/2026); a contagem do balde e a soma delas dentro do filtro
     conta_agrupada = dict(agrupar_plataformas(conta_plat))
-    for p, _ in agrupar_plataformas({r["p"]: r["n"] for r in plataformas}):
-        opcoes_plat.append(
-            "<option value='%s'%s>%s (%s)</option>"
-            % (html.escape(p, quote=True),
-               " selected" if p == plat_actual else "",
-               html.escape(rotulo_da_plataforma(p)), mil(conta_agrupada.get(p, 0))))
+    opcoes_plat += [(p, "%s (%s)" % (rotulo_da_plataforma(p), mil(conta_agrupada.get(p, 0))))
+                    for p, _ in agrupar_plataformas({r["p"]: r["n"] for r in plataformas})]
 
     prazo_actual = (request.args.get("prazo") or "").strip()
     # A janela do urgente le-se UMA vez por pedido: serve o rotulo do
     # selector e a etiqueta de prazo de cada linha, e dias_urgente() abre
     # o config.json a cada chamada.
     urgente = dias_urgente()
-    opcoes_prazo = "".join(
-        "<option value='%s'%s>%s</option>"
-        % (v, " selected" if v == prazo_actual else "", t)
-        for v, t in (("", "prazo: tanto faz"),
-                     ("aberto", "só os que ainda dão para concorrer"),
-                     ("urgente", "só os que acabam em %d dias" % urgente),
-                     ("expirado", "só os de prazo passado")))
+    opcoes_prazo = opcoes_html(
+        (("", "prazo: tanto faz"),
+         ("aberto", "só os que ainda dão para concorrer"),
+         ("urgente", "só os que acabam em %d dias" % urgente),
+         ("expirado", "só os de prazo passado")), prazo_actual)
 
     # Quatro campos (14/09/2026, a pedido do Afonso: «so quero nome do
     # anuncio ou objecto; entidade; plataforma; e data x a data y»). O
@@ -10221,7 +10164,7 @@ def _lista_de_anuncios():
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo")),
-           "".join(opcoes_plat),
+           opcoes_html(opcoes_plat, plat_actual),
            html.escape(request.args.get("de", ""), quote=True),
            html.escape(request.args.get("ate", ""), quote=True),
            html.escape(estado_actual, quote=True),
@@ -10760,13 +10703,7 @@ def selector_procedimento(procs, actual, vazio="todos os procedimentos"):
     """O <select name='proc'>, UM so (decisao 6.4-A): estava montado
     tres vezes e cada copia divergia ao primeiro arranjo. O `vazio` e o
     rotulo da opcao sem filtro, que muda com o contexto."""
-    opcoes = ["<option value=''>%s</option>" % html.escape(vazio)]
-    for p in procs:
-        opcoes.append("<option value='%s'%s>%s</option>"
-                      % (html.escape(p, quote=True),
-                         " selected" if p == actual else "",
-                         html.escape(p)))
-    return "<select name='proc'>%s</select>" % "".join(opcoes)
+    return _opcoes("proc", procs, actual, vazio)
 
 
 # A caixa "Filtros guardados" que vivia aqui, nas tres listas, saiu a
@@ -11128,9 +11065,7 @@ def exportar():
                            data_pt(a["prazo"]), numero_csv(a["preco_base"]),
                            _NOMES_ESTADO.get(a["estado"], a["estado"]),
                            a["motivo"] or "", a["url"]])
-    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition":
-                             "attachment; filename=" + nome_csv("anuncios")})
+    return resposta_csv(saida, "anuncios")
 
 
 
@@ -13273,9 +13208,7 @@ def contratos_csv():
                            numero_csv(a["preco_base"]), a["cpv"],
                            a["prazo_execucao"], a["local_execucao"],
                            a["n_anuncio"]])
-    return Response("﻿" + saida.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition":
-                             "attachment; filename=" + nome_csv("contratos")})
+    return resposta_csv(saida, "contratos")
 
 
 @app.route("/contratos/actualizar", methods=["POST"])
@@ -16172,41 +16105,29 @@ def funil_anuncios():
     """
     hoje = datetime.now().date()
     desde = (hoje - timedelta(days=30)).isoformat()
-    d = {}
+    de_, ate = janela_urgente(hoje)
     with liga() as c:
-        d["entrados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ?",
-            (desde,)).fetchone()["n"]
-        # As quatro barras do funil na MESMA janela de 30 dias. Estavam
-        # misturadas: "Entrados (30 dias) 2 476" seguido de "Por ver
-        # 66 007" de sempre, o que num funil e impossivel -- a segunda
-        # barra maior do que a primeira -- e so era possivel porque as
-        # duas mediam periodos diferentes.
-        d["porver_30"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado = 'novo'", (desde,)).fetchone()["n"]
-        # As alteracoes (republicacoes) nao sao triagem de ninguem: sem
-        # as tirar, 763 delas contavam como "triadas".
-        d["triados_30"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado NOT IN ('novo', 'alteracao')", (desde,)).fetchone()["n"]
-        d["interessa_30"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE data_pub >= ? "
-            "AND estado = 'interessa'", (desde,)).fetchone()["n"]
-        d["triados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios "
-            "WHERE estado NOT IN ('novo', 'alteracao')").fetchone()["n"]
-        d["interessa"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='interessa'").fetchone()["n"]
-        d["descartados"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='descartado'").fetchone()["n"]
-        d["total"] = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
-        # Por ver e com prazo a passar: e a fila que custa dinheiro, e
-        # nenhum ecra a mostrava.
-        d["urgentes_por_ver"] = c.execute(
-            "SELECT COUNT(*) n FROM anuncios WHERE estado='novo' "
-            "AND prazo >= ? AND prazo <= ?",
-            janela_urgente(hoje)).fetchone()["n"]
+        # Uma passagem pela tabela, com um SUM por barra (eram nove
+        # COUNT separados). As quatro barras do funil na MESMA janela
+        # de 30 dias: estavam misturadas, "Entrados (30 dias) 2 476"
+        # seguido de "Por ver 66 007" de sempre, o que num funil e
+        # impossivel. As alteracoes (republicacoes) nao sao triagem de
+        # ninguem: sem as tirar, 763 delas contavam como "triadas". E
+        # os urgentes por ver sao a fila que custa dinheiro, que nenhum
+        # ecra mostrava.
+        d = dict(c.execute(
+            "SELECT COUNT(*) total, "
+            " SUM(data_pub >= :d) entrados, "
+            " SUM(data_pub >= :d AND estado = 'novo') porver_30, "
+            " SUM(data_pub >= :d AND estado NOT IN ('novo','alteracao')) triados_30, "
+            " SUM(data_pub >= :d AND estado = 'interessa') interessa_30, "
+            " SUM(estado NOT IN ('novo','alteracao')) triados, "
+            " SUM(estado = 'interessa') interessa, "
+            " SUM(estado = 'descartado') descartados, "
+            " SUM(estado = 'novo' AND prazo >= :de AND prazo <= :ate) urgentes_por_ver "
+            "FROM anuncios", {"d": desde, "de": de_, "ate": ate}).fetchone())
+        # (numa base vazia o SUM da NULL; as barras querem 0)
+        d = {k: v or 0 for k, v in d.items()}
         # (o "expirados por ver" saiu a 31/08/2026: com a lista unica,
         # um por ver expirado conta como abandonado por definicao da
         # aba -- deixou de haver fila a mostrar)
@@ -16599,12 +16520,26 @@ COLUNAS_DA_LISTA = ("Título", "Cliente", "Preço", "Esclarecimentos", "Entrega"
                     "Notas", "Plataforma", "CoE", "Responsável", "")
 
 
-def _opcoes(nome, valores, actual):
-    return ("<select name='%s'><option value=''>&mdash;</option>%s</select>"
-            % (nome, "".join("<option value='%s'%s>%s</option>"
-                             % (html.escape(v, quote=True),
-                                " selected" if v == (actual or "") else "",
-                                html.escape(v)) for v in valores)))
+def opcoes_html(pares, actual):
+    """As <option> de um selector, marcada a que esta em uso. Cada par e
+    (valor, rotulo); um valor sozinho e o seu proprio rotulo."""
+    pares = [p if isinstance(p, tuple) else (p, p) for p in pares]
+    return "".join("<option value='%s'%s>%s</option>"
+                   % (html.escape(v, quote=True),
+                      " selected" if v == (actual or "") else "",
+                      html.escape(r)) for v, r in pares)
+
+
+def _opcoes(nome, valores, actual, vazio="\u2014"):
+    return ("<select name='%s'>%s</select>"
+            % (nome, opcoes_html([("", vazio)] + list(valores), actual)))
+
+
+def resposta_csv(saida, prefixo):
+    """O CSV como transferencia, com o BOM que faz o Excel ler UTF-8."""
+    return Response("\ufeff" + saida.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition":
+                             "attachment; filename=" + nome_csv(prefixo)})
 
 
 def linha_da_lista(a, fases_por_id, urgente, hoje):

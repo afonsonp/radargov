@@ -3778,72 +3778,6 @@ class TestLerDetalhesParalelo(BaseTemporaria):
         self.assertEqual(chamou, [])
 
 
-class TestMigracoesDoSaneamento(BaseTemporaria):
-    """Saneamento de 30/08/2026 (A1/A2/A3): cada migração tem de poder
-    correr duas vezes sem efeito na segunda. Foi a falta delas que
-    deixou 30 documentos presos num erro obsoleto, 12 análises no
-    formato antigo e duas chaves mortas na tabela estado."""
-
-    def test_erro_cryptography_volta_a_fila_e_uma_vez_so(self):
-        with radar.liga() as c:
-            c.execute("DELETE FROM estado WHERE chave='erros_extraccao_limpos'")
-            c.executemany(
-                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
-                "VALUES (?,?,?,?)",
-                [("1/2026", "CE.pdf", "",
-                  "erro: cryptography>=3.1 is required for AES algorithm"),
-                 ("1/2026", "PC.pdf", "t", "ok"),
-                 ("1/2026", "digit.pdf", "", "scan")])
-        radar.iniciar_db()
-        with radar.liga() as c:
-            estados = dict(c.execute("SELECT nome, texto_estado "
-                                     "FROM documentos"))
-        self.assertIsNone(estados["CE.pdf"])     # voltou à fila
-        self.assertEqual(estados["PC.pdf"], "ok")
-        self.assertEqual(estados["digit.pdf"], "scan")
-        # segunda passagem: a marca segura, e um erro novo com a mesma
-        # cara já não é desta migração — é do caminho de retentativa
-        with radar.liga() as c:
-            c.execute("UPDATE documentos SET texto_estado="
-                      "'erro: cryptography outra vez' WHERE nome='digit.pdf'")
-        radar.iniciar_db()
-        with radar.liga() as c:
-            fica = c.execute("SELECT texto_estado FROM documentos "
-                             "WHERE nome='digit.pdf'").fetchone()[0]
-        self.assertEqual(fica, "erro: cryptography outra vez")
-
-    def test_modelo_antigo_converte_e_duas_passagens_dao_o_mesmo(self):
-        with radar.liga() as c:
-            c.execute("DELETE FROM estado WHERE chave='modelo_com_fornecedor'")
-            c.executemany("INSERT INTO analise (ref, modelo) VALUES (?,?)",
-                          [("1/2026", "openai/gpt-oss-120b"),
-                           ("2/2026", "groq:openai/gpt-oss-120b"),
-                           ("3/2026",
-                            "nvidia:openai/gpt-oss-120b, openai/gpt-oss-120b")])
-        radar.iniciar_db()
-        with radar.liga() as c:
-            saiu = dict(c.execute("SELECT ref, modelo FROM analise"))
-        self.assertEqual(saiu["1/2026"], "groq:openai/gpt-oss-120b")
-        self.assertEqual(saiu["2/2026"], "groq:openai/gpt-oss-120b")
-        self.assertEqual(saiu["3/2026"],
-                         "nvidia:openai/gpt-oss-120b, groq:openai/gpt-oss-120b")
-        radar.iniciar_db()          # segunda vez: nada muda
-        with radar.liga() as c:
-            outra = dict(c.execute("SELECT ref, modelo FROM analise"))
-        self.assertEqual(saiu, outra)
-
-    def test_chaves_legadas_do_estado_saem(self):
-        with radar.liga() as c:
-            c.execute("INSERT OR REPLACE INTO estado VALUES ('ultimo_aviso','x')")
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('ultimo_aviso_texto','y')")
-        radar.iniciar_db()
-        with radar.liga() as c:
-            n = c.execute("SELECT COUNT(*) FROM estado "
-                          "WHERE chave LIKE 'ultimo_aviso%'").fetchone()[0]
-        self.assertEqual(n, 0)
-
-
 class TestRetentativaDeExtraccao(BaseTemporaria):
     """A1: extrair_textos() só processava texto_estado IS NULL, e um
     "erro:" ficava terminal para sempre — 30 documentos presos num erro
@@ -6222,23 +6156,23 @@ class TestAlvosDeTextoA24px(unittest.TestCase):
             self.assertIn("box-sizing:border-box", m.group(1), selector)
 
 
-class TestFontesNaoBloqueiamAPrimeiraPintura(unittest.TestCase):
+class TestPaginaSemNadaDeFora(unittest.TestCase):
     """A folha do Google Fonts era um <link rel=stylesheet> normal, que
     bloqueia a pintura até chegar ou falhar: 12,6 s de página branca
     neste ambiente sem saída para o domínio, com o servidor a responder
-    em 16 ms. «Sem rede continua legível» era verdade depois do timeout,
-    não antes.
+    em 16 ms. Primeiro passou a carregar sem bloquear; a 14/09/2026
+    saiu de vez (auditoria ponytail): o painel não pede nada a nenhum
+    domínio de fora, e o CSP diz o mesmo.
     """
 
-    def test_a_folha_das_fontes_carrega_sem_bloquear(self):
-        links = re.findall(r"<link[^>]*fonts\.googleapis\.com/css2[^>]*>", radar.BASE)
-        self.assertEqual(len(links), 2)     # a de JS e a de reserva
-        bloqueia = [l for l in links if 'media="print"' not in l]
-        self.assertEqual(len(bloqueia), 1)
-        # a que nao bloqueia troca o media ao carregar; a que bloqueia
-        # so existe dentro de <noscript>
-        self.assertIn("onload=\"this.media='all'\"", [l for l in links if l not in bloqueia][0])
-        self.assertIn("<noscript>" + bloqueia[0], radar.BASE)
+    def test_o_esqueleto_nao_liga_a_dominio_nenhum(self):
+        self.assertNotIn("https://", radar.BASE.split("<body>")[0])
+        self.assertNotIn("fonts.googleapis", radar.CSS)
+
+    def test_o_csp_nao_abre_excepcao_para_fora(self):
+        csp = radar.CABECALHOS_DE_SEGURANCA["Content-Security-Policy"]
+        self.assertNotIn("https://", csp)
+        self.assertIn("font-src 'self'", csp)
 
 
 class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
@@ -9968,7 +9902,7 @@ class TestAuditoriaDeSeguranca(BaseTemporaria):
                 self.assertIn("frame-ancestors 'self'", csp)
                 self.assertIn("form-action 'self'", csp)
                 self.assertIn("object-src 'self'", csp)          # o <embed> das peças
-                self.assertIn("https://fonts.googleapis.com", csp)
+                self.assertNotIn("https://", csp)    # nada de fora
                 self.assertNotIn("Strict-Transport-Security", r.headers)   # http local
         r = self.cliente.get("/", base_url="https://localhost")
         self.assertIn("max-age=", r.headers.get("Strict-Transport-Security", ""))
