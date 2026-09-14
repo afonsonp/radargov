@@ -102,8 +102,12 @@ Referer só para o próprio anfitrião, e os ficheiros com segredos a
 0600. **E o Mercado recorta-se pelo interesse** como os anúncios
 (14/09/2026): com interesse definido, os contratos, o CSV e os
 gráficos mostram só os CPV marcados, com a mesma faixa e o mesmo «ver
-tudo». O formulário do alerta ficou em três grupos — em comum, só
-anúncios, só contratos. A bateria vai em **852**.
+tudo». **Com interesse definido o Mercado abre logo com os contratos
+dos CPV da casa** — o interesse conta como pergunta, nos dois modos e
+no CSV (14/09/2026, «abre-se e não se vê contrato nenhum»); sem
+interesse continua a pedir um filtro, e o ecrã vazio diz-o. O
+formulário do alerta ficou em três grupos — em comum, só anúncios, só
+contratos. A bateria vai em **853**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do
