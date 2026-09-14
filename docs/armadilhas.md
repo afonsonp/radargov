@@ -1350,6 +1350,27 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   devolvia a ref crua dentro do HTML — qualquer texto que venha do URL
   passa por `html.escape()` antes de entrar numa página.
 
+- **A auditoria de 14/09/2026 deixou cinco guardas, e são para ficar.**
+  (1) `cabecalhos_de_seguranca()` põe em todas as respostas `nosniff`,
+  `X-Frame-Options`, `Referrer-Policy` e um CSP com `unsafe-inline`
+  (os scripts e os estilos são em linha; o que o CSP fecha é
+  `frame-ancestors`, `form-action`, `base-uri` e as origens de fora —
+  só o Google Fonts); HSTS só por HTTPS. Um recurso novo de outro
+  domínio tem de entrar no `CABECALHOS_DE_SEGURANCA`, senão o browser
+  bloqueia-o em silêncio. (2) `MAX_CONTENT_LENGTH` a 20 MB: um POST
+  maior dá 413. (3) `/documento/<ref>/<nome>` só abre em linha o que
+  está em `EXTENSOES_INOFENSIVAS`; o resto descarrega-se como
+  `application/octet-stream` com CSP `sandbox` — uma peça `.html` de
+  uma plataforma servida em linha corria no domínio do painel com a
+  sessão. (4) Todo o CSV passa por `linha_csv()`/`celula_csv()`, que põe
+  um apóstrofo à frente de `= + - @`: um objecto de anúncio começado por
+  `=` era uma fórmula no Excel. O teste conta os `writerow` do
+  ficheiro. (5) `redirect(request.referrer)` não existe: é
+  `volta_ao_referer(omissao)`, que só devolve para este anfitrião. E
+  `so_o_dono()` fecha a 0600 a base (ao ligar, uma vez por processo),
+  as capturas, as chaves e a senha do e-mail quando se escrevem.
+  `TestAuditoriaDeSeguranca`.
+
 ## A interface
 
 As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.md`.
