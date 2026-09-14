@@ -27,6 +27,7 @@ import csv
 import html
 import io
 import json
+import mimetypes
 import os
 import re
 import queue
@@ -15150,10 +15151,11 @@ def servir_documento(ref, nome):
     # dominio do painel, com a sessao (auditoria de 14/09/2026): o
     # resto descarrega-se, e leva um CSP de caixa fechada por via das
     # duvidas.
-    inofensivo = abre_no_browser(caminho)
+    tipo = abre_no_browser(caminho)
+    inofensivo = bool(tipo)
     resposta = send_file(caminho, as_attachment=not inofensivo,
                          download_name=os.path.basename(caminho),
-                         mimetype=None if inofensivo else "application/octet-stream")
+                         mimetype=tipo if inofensivo else "application/octet-stream")
     if not inofensivo:
         resposta.headers["Content-Security-Policy"] = "sandbox"
     return resposta
@@ -15166,17 +15168,24 @@ EXTENSOES_INOFENSIVAS = (".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt
 
 
 def abre_no_browser(caminho):
-    """Pela extensao; e, sem extensao conhecida, pelos primeiros bytes:
-    as pecas da anogov/ComprasPT chegam com o nome que a plataforma da
-    ("Caderno de Encargos", sem .pdf) e sao PDF na mesma."""
-    if os.path.splitext(caminho)[1].lower() in EXTENSOES_INOFENSIVAS:
-        return True
+    """O tipo MIME com que a peca pode abrir em linha, ou None. Pela
+    extensao; e, sem extensao conhecida, pelos primeiros bytes: as
+    pecas da anogov/ComprasPT chegam com o nome que a plataforma da
+    ("Caderno de Encargos", sem .pdf) e sao PDF na mesma -- e sem o tipo
+    certo o browser descarregava-as, mesmo em linha."""
+    ext = os.path.splitext(caminho)[1].lower()
+    if ext in EXTENSOES_INOFENSIVAS:
+        return mimetypes.guess_type(caminho)[0] or "application/octet-stream"
     try:
         with open(caminho, "rb") as f:
             inicio = f.read(8)
     except OSError:
-        return False
-    return inicio.startswith((b"%PDF", b"\x89PNG", b"\xff\xd8\xff", b"GIF8"))
+        return None
+    for magia, tipo in ((b"%PDF", "application/pdf"), (b"\x89PNG", "image/png"),
+                        (b"\xff\xd8\xff", "image/jpeg"), (b"GIF8", "image/gif")):
+        if inicio.startswith(magia):
+            return tipo
+    return None
 
 
 @app.route("/peca-pagina/<path:ref>/<nome>/<int:n>.png")
