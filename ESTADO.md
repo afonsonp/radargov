@@ -112,7 +112,8 @@ gatewit, bizgov, construlink) são «outras» nos dois selectores. **Os
 filtros ficaram em quatro campos** — objecto, entidade, plataforma,
 datas — com a árvore de CPV por cima, na lista e no alerta (o grupo dos
 contratos do alerta saiu), e **a entidade sugere-se enquanto se
-escreve**. A bateria vai em **858**.
+escreve**, uma por NIF, e escolhida a sugestão o filtro é pelo NIF,
+que apanha todas as grafias. A bateria vai em **858**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

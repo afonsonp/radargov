@@ -10240,22 +10240,65 @@ class TestFiltrosSimples(BaseTemporaria):
         self.assertIn("<input type='hidden' name='op' value='ou'>", html_)
         self.assertEqual(radar.campos_escondidos({"prazo": " "}, ("prazo",)), "")
 
-    def test_as_entidades_sugerem_se_pelo_inicio_primeiro(self):
-        nomes = radar.sugestoes_de_entidade("sp")
+    def test_as_entidades_sugerem_se_pelo_inicio_primeiro_e_agrupadas_por_nif(self):
+        nomes = [e["nome"] for e in radar.sugestoes_de_entidade("sp")]
         self.assertEqual(nomes[0], "SPMS — Serviços Partilhados do Ministério da Saúde")
         self.assertIn("Hospital de Espinho", nomes)                  # "sp" no meio
         self.assertNotIn("Sociedade Portuguesa de Inovação", nomes)   # "s p" com espaco nao e "sp"
         self.assertEqual(radar.sugestoes_de_entidade("s"), [])         # menos de duas letras
-        self.assertEqual(sorted(radar.sugestoes_de_entidade("espinho")),
+        self.assertEqual(sorted(e["nome"] for e in radar.sugestoes_de_entidade("espinho")),
                          ["Câmara Municipal de Espinho", "Hospital de Espinho"])
         # sem acentos e sem maiusculas, como o filtro
-        self.assertEqual(radar.sugestoes_de_entidade("SAÚDE")[0],
+        self.assertEqual(radar.sugestoes_de_entidade("SAÚDE")[0]["nome"],
                          "SPMS — Serviços Partilhados do Ministério da Saúde")
+        # 14/09/2026: «as entidades nao estao agrupadas por NIF?» -- uma
+        # linha por NIF, a grafia mais frequente, a soma de todas
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET nif='509540716' WHERE entidade LIKE 'SPMS%'")
+            for i, ent in enumerate(("Serviços Partilhados do Ministério da Saúde, EPE",
+                                     "SPMS - Servicos Partilhados, E. P. E.")):
+                c.execute("INSERT INTO anuncios (ref,titulo,url,entidade,entidade_norm,nif,"
+                          "estado,data_pub,detalhe_lido) VALUES (?,?,?,?,?,?,'novo','2026-09-01',1)",
+                          ("8%d/2026" % i, "t", "https://x/anuncio-procedimento/8%d" % i,
+                           ent, radar.simplifica(ent), "509540716"))
+        spms = [e for e in radar.sugestoes_de_entidade("partilhados") if e["nif"] == "509540716"]
+        self.assertEqual(len(spms), 1)
+        self.assertEqual(spms[0]["nome"], "SPMS — Serviços Partilhados do Ministério da Saúde")
+        self.assertEqual(spms[0]["n"], 4)
         r = radar.app.test_client().get("/entidades.json?q=esp")
         self.assertEqual(r.mimetype, "application/json")
-        self.assertEqual(sorted(r.get_json()), ["Câmara Municipal de Espinho", "Hospital de Espinho"])
+        self.assertEqual(sorted(e["nome"] for e in r.get_json()),
+                         ["Câmara Municipal de Espinho", "Hospital de Espinho"])
         self.assertIn("data-sugere='entidades'", radar.app.test_client().get("/").get_data(as_text=True))
         self.assertIn("/entidades.json", radar.ENTIDADES_JS)
+        self.assertIn("input[name='nif']", radar.ENTIDADES_JS)
+
+    def test_o_filtro_pelo_nif_apanha_todas_as_grafias_e_as_sem_nif(self):
+        with radar.liga() as c:
+            # a SPMS: duas com NIF, uma grafia sem NIF (24% da base veio assim)
+            c.execute("UPDATE anuncios SET nif='509540716' WHERE ref='90/2026'")
+            c.execute("INSERT INTO anuncios (ref,titulo,url,entidade,entidade_norm,nif,estado,"
+                      "data_pub,detalhe_lido) VALUES (?,?,?,?,?,?,'novo','2026-09-01',1)",
+                      ("85/2026", "t", "https://x/anuncio-procedimento/85",
+                       "Serviços Partilhados do Ministério da Saúde, EPE",
+                       radar.simplifica("Serviços Partilhados do Ministério da Saúde, EPE"),
+                       "509540716"))
+        onde, vals = radar.condicoes({"nif": "509540716", "ent": "SPMS — Serviços Partilhados",
+                                      "estado": ""})
+        with radar.liga() as c:
+            refs = sorted(r["ref"] for r in c.execute("SELECT ref FROM anuncios" + onde, vals))
+        # 90 e 85 pelo NIF; 91 tem a mesma grafia de 90 e nao tem NIF: entra
+        self.assertEqual(refs, ["85/2026", "90/2026", "91/2026"])
+        self.assertNotIn("entidade_norm LIKE", onde)     # o nome nao prende a uma grafia
+        # sem NIF, o texto continua a filtrar como sempre
+        onde, vals = radar.condicoes({"ent": "espinho", "estado": ""})
+        self.assertIn("entidade_norm LIKE", onde)
+        # e o NIF entra no resumo do filtro e nos formularios
+        self.assertIn("NIF 509540716", radar.resumo_filtro("nif=509540716"))
+        html_ = radar.app.test_client().get("/?nif=509540716").get_data(as_text=True)
+        self.assertIn("<input type='hidden' name='nif' value='509540716'>", html_)
+        html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
+        self.assertIn("name='nif'", html_.split("action='/alertas/criar'")[1].split("</form>")[0])
 
 
 if __name__ == "__main__":
