@@ -4042,6 +4042,9 @@ class TestNavegacaoPorIntencoes(unittest.TestCase):
     def test_quadro_e_calendario_vivem_sob_em_curso(self):
         self.assertEqual(radar.ITEM_DA_PAGINA["quadro"], "emcurso")
         self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "emcurso")
+        # e a lista, desde 14/09/2026
+        self.assertEqual(radar.ITEM_DA_PAGINA["lista"], "emcurso")
+        self.assertIn("Em curso", radar.migalhas_de("lista"))
 
     def test_contratos_e_renovacoes_vivem_sob_mercado(self):
         self.assertEqual(radar.ITEM_DA_PAGINA["contratos"], "mercado")
@@ -9817,6 +9820,82 @@ class TestVigilanciaDasPecas(BaseTemporaria):
         self.assertIn("peça nova na plataforma: <b>Errata 2.pdf</b>", htm)
         self.assertNotIn("-> Errata 2.pdf", texto)
 
+
+
+class TestListaEmCurso(BaseTemporaria):
+    """A tabela do «Em curso» (14/09/2026), com as colunas que o Afonso
+    mandou: título, cliente, preço, esclarecimentos, entrega, tipologia,
+    estado da proposta, CV, proposta técnica, notas, plataforma, CoE,
+    responsável. O que a casa decide grava-se linha a linha."""
+
+    def _anuncio(self, ref="60/2026", **campos):
+        valores = {"estado": "interessa", "titulo": "Aquisição de software",
+                   "entidade": "Câmara de Lisboa", "preco_base": "118.500,00 EUR",
+                   "plataforma": "acingov", "data_pub": "2026-09-01",
+                   "prazo": "2026-09-30", "texto": "x", "detalhe_lido": 1,
+                   "url": "https://x/anuncio-procedimento/k-60"}
+        valores.update(campos)
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref,%s) VALUES (?%s)"
+                      % (",".join(valores), ",?" * len(valores)),
+                      [ref] + list(valores.values()))
+        return ref
+
+    def test_as_colunas_e_os_valores_da_base(self):
+        fase = radar.listar_fases()[1]          # a segunda fase da base nova
+        ref = self._anuncio(fase_id=fase["id"], responsavel="Afonso", tipologia="turnkey",
+                            cv="sim", notas="pedir CVs ao João", coe="Data")
+        html_ = radar.app.test_client().get("/lista").get_data(as_text=True)
+        for coluna in ("Título", "Cliente", "Preço", "Esclarecimentos", "Entrega",
+                       "Tipologia", "Estado da proposta", "CV", "Proposta técnica",
+                       "Notas", "Plataforma", "CoE", "Responsável"):
+            self.assertIn("<th>%s</th>" % coluna, html_)
+        self.assertIn("Aquisição de software", html_)
+        self.assertIn("Câmara de Lisboa", html_)
+        self.assertIn("118.500,00 EUR", html_)
+        self.assertIn(html.escape(fase["nome"]), html_)     # a fase e o estado
+        self.assertIn("10/09/2026", html_)                   # o primeiro terço de 29 dias
+        self.assertIn("value='turnkey' selected", html_)
+        self.assertIn("value='sim' selected", html_)
+        self.assertIn("value='pedir CVs ao João'", html_)
+        self.assertIn("value='Data'", html_)
+        self.assertIn("value='Afonso'", html_)
+        self.assertIn("action='/lista/%s'" % quote(ref, safe=""), html_)
+        # so os interessados: um por ver nao entra
+        self._anuncio("61/2026", estado="novo", titulo="Fora da lista")
+        html_ = radar.app.test_client().get("/lista").get_data(as_text=True)
+        self.assertNotIn("Fora da lista", html_)
+
+    def test_gravar_uma_linha_muda_so_o_que_veio_e_regista_so_o_que_mudou(self):
+        ref = self._anuncio(coe="Data")
+        cliente = radar.app.test_client()
+        r = cliente.post("/lista/" + ref, data={
+            "tipologia": "consulting", "cv": "não", "proposta_tecnica": "sim",
+            "notas": "  ver  os  lotes ", "coe": "Data", "responsavel": "Rita"})
+        self.assertIn("guardada", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+            registos = [r_["accao"] for r_ in c.execute(
+                "SELECT accao FROM historico WHERE ref=? ORDER BY id", (ref,))]
+        self.assertEqual((a["tipologia"], a["cv"], a["proposta_tecnica"], a["notas"],
+                          a["coe"], a["responsavel"]),
+                         ("consulting", "não", "sim", "ver os lotes", "Data", "Rita"))
+        # o CoE nao mudou: nao ha registo dele
+        self.assertEqual(registos, ["tipologia", "CV", "proposta técnica", "notas",
+                                    "responsável"])
+        self.assertIn("Rita", radar.listar_pessoas())
+        # um valor fora da lista e recusado, com aviso
+        r = cliente.post("/lista/" + ref, data={"tipologia": "outra"})
+        self.assertIn("não é um valor", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT tipologia FROM anuncios WHERE ref=?",
+                                       (ref,)).fetchone()[0], "consulting")
+
+    def test_a_lista_esta_na_navegacao_do_em_curso(self):
+        vistas = [v for n in radar.NAV if n[0] == "emcurso" for v in n[3]]
+        self.assertEqual([v[0] for v in vistas], ["quadro", "calendario", "lista"])
+        html_ = radar.app.test_client().get("/lista").get_data(as_text=True)
+        self.assertIn("Sem anúncios interessados", html_)
 
 
 if __name__ == "__main__":
