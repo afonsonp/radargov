@@ -9984,6 +9984,9 @@ class TestAuditoriaDeSeguranca(BaseTemporaria):
             self.assertEqual(r.status_code, 200)
             self.assertNotIn("attachment", r.headers.get("Content-Disposition", ""))
             self.assertNotEqual(r.headers.get("Content-Security-Policy"), "sandbox")
+            self.assertNotEqual(r.mimetype, "application/octet-stream")
+        r = self.cliente.get("/documento/%s/%s" % (quote(ref, safe=""), "Caderno de Encargos"))
+        self.assertEqual(r.mimetype, "application/pdf")
         for nome in ("pagina.html", "desenho.svg", "macro.xlsm"):
             with self.subTest(nome=nome):
                 r = self.cliente.get("/documento/%s/%s" % (quote(ref, safe=""), nome))
