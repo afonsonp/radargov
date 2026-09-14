@@ -557,8 +557,10 @@ as outras cinco só um admin as vê:
   interesse»: com CPV fica ligado, sem nenhum fica desligado. Uma linha
   por cima diz o que está em vigor e quantos anúncios apanha.
 - **Alertas** — os alertas com o interruptor e a taxa de acerto, as
-  entidades seguidas, o «Filtro de alertas» (o botão «Criar alerta»
-  cria-o já ligado), o resumo por e-mail (para quem e a que hora; e,
+  entidades seguidas, o «Filtro de alertas» em três grupos — o que é
+  comum, o que é só dos anúncios (é por esses que o alerta avisa) e o
+  que é só dos contratos (serve para aplicar o filtro ao Mercado) — com
+  o botão «Criar alerta», que o cria já ligado, o resumo por e-mail (para quem e a que hora; e,
   só para o admin, **quem envia**: conta, servidor, porta e
   palavra-passe — esta grava-se no `email_senha.txt`, nunca no
   `config.json`, e o campo fica sempre vazio), a janela do urgente,
