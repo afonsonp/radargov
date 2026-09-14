@@ -89,13 +89,15 @@ Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P2
 
-- **«Em curso» em modo lista** (13/09/2026, do documento «Mudanças na
-  plataforma RADAR»; o Afonso mandou pôr aqui e não fazer já). Uma
-  terceira vista ao lado do quadro e do calendário: os interessados
-  numa tabela, com a fase numa coluna. As colunas ficam por decidir —
-  fase, anúncio, entidade, prazo, responsável é a proposta. Esforço 2.
+- ~~**«Em curso» em modo lista**~~ (13/09/2026, do documento «Mudanças
+  na plataforma RADAR»). **Feito a 14/09/2026** com as colunas que ele
+  mandou: título, cliente, preço, esclarecimentos, entrega, tipologia
+  (consulting/turnkey), estado da proposta (a fase), CV (sim/não),
+  proposta técnica (sim/não), notas, plataforma, CoE, responsável.
+  Em `/lista`, terceira vista do Em curso; as cinco colunas da casa são
+  novas na base e gravam-se linha a linha.
 
-Fora isto, vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
+Vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
 
 ## P3
 

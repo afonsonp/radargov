@@ -672,6 +672,22 @@ quadro** que salta para o cartão correspondente. Quem tem prazo já
 passado ou para lá dos 45 dias não aparece na grade (fica contado numa
 nota por baixo), mas continua no quadro.
 
+## 10-A. A lista
+
+A terceira vista do **Em curso** (desde 14/09/2026): os mesmos
+interessados numa tabela, uma linha por anúncio, ordenada pelo prazo.
+As colunas são as da tua folha: título, cliente, preço base,
+esclarecimentos (a data-limite pela regra do primeiro terço, com
+«passou» quando já foi), entrega (o prazo), tipologia (consulting ou
+turnkey), estado da proposta (a fase em que o cartão está no quadro),
+CV (sim/não), proposta técnica (sim/não), notas, plataforma, CoE e
+responsável.
+
+O que vem da base lê-se; o que a casa decide — tipologia, CV, proposta
+técnica, notas, CoE e o responsável — escreve-se na própria linha e
+grava-se com o «guardar» dela. Cada mudança fica no histórico da ficha
+do anúncio, como as do quadro.
+
 ## 11. O registo da casa
 
 O «registo da casa» é o que a empresa fez com cada concurso: se foi,
