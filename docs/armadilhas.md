@@ -39,6 +39,13 @@ O DR, a Vortal, e como um anúncio entra na base.
 - **Não se filtra nada à entrada.** Decisão tomada depois de uma primeira
   versão que filtrava por pontuação: entra tudo o que a parte L publicar, e
   a triagem faz-se no painel. Não reintroduzas filtros em `recolher()`.
+  A única excepção é o último recurso dos `termos_de_reserva`: se o portal
+  responder à pesquisa sem termo sem um único anúncio, varre-se pelas seis
+  palavras largas, e a mensagem diz «pelos termos de reserva» para uma
+  janela filtrada não passar por completa. Até 14/09/2026 a condição era
+  só «não colheu nada», que também é verdade num corte de rede, e o radar
+  respondia a um timeout com seis varrimentos; `TestRecuoParaTermosDeReserva`
+  força o recurso e o corte de rede. Nunca se viu disparar a sério.
 
 - **Uma recolha grande faz-se por JANELAS de datas, nunca numa janela
   só.** Duas razões, medidas contra o portal a 04/09/2026. A primeira: o
