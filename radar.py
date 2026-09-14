@@ -18,8 +18,6 @@ Arranque:  python radar.py             painel em http://127.0.0.1:8765
            python radar.py --reler     reanalisa o texto ja guardado
            python radar.py --descartar-expirados   arruma os por ver com prazo passado
            python radar.py --importar-cpv F   carrega o vocabulario CPV
-           python radar.py --importar-excel F [--ensaio] [--sem-rede]
-                                       o Excel de analise de concursos da casa
 """
 
 import bisect
@@ -1635,10 +1633,18 @@ def recolher(cfg):
                 break
             time.sleep(1)
 
-    if not colhidos and termos == [""] and cfg.get("termos_de_reserva"):
-        # o portal nao aceitou pesquisa sem termo: varre pelos termos largos
+    if (not colhidos and not avarias and termos == [""]
+            and cfg.get("termos_de_reserva")):
+        # O portal respondeu mas nao deu nada a pesquisa sem termo: varre
+        # pelos termos largos. Nunca se viu disparar (14/09/2026); o `not
+        # avarias` e de proposito, porque um corte de rede tambem deixa
+        # `colhidos` vazio, e responder a um timeout com seis varrimentos
+        # era o contrario de «um aviso verdadeiro para logo». O que vier
+        # por aqui diz que veio, para uma janela filtrada nao passar por
+        # uma janela completa.
         cfg = dict(cfg, termos_de_pesquisa=cfg["termos_de_reserva"])
-        return recolher(cfg)
+        ok, msg, novos = recolher(cfg)
+        return ok, msg + (" (pelos termos de reserva)" if ok else ""), novos
 
     if not colhidos:
         if avarias:

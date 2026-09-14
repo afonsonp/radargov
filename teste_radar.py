@@ -3689,6 +3689,69 @@ class BaseTemporaria(unittest.TestCase):
         shutil.rmtree(self.pasta, ignore_errors=True)
 
 
+class TestRecuoParaTermosDeReserva(BaseTemporaria):
+    """O último recurso de recolher(): se o portal não devolver nada à
+    pesquisa sem termo, varre pelos `termos_de_reserva` (LEIA-ME, «o
+    que o radar vigia»). Nunca se viu disparar e nunca teve teste, e a
+    condição era só `not colhidos`, que também é verdadeira num corte
+    de rede: o radar respondia a um timeout com seis varrimentos. Este
+    teste força o recurso e fixa quando ele NÃO deve disparar."""
+
+    CFG = dict(radar.CONFIG_INICIAL, dias_catchup=7, por_pagina=25, paginas=3,
+               termos_de_pesquisa=[""],
+               termos_de_reserva=["aquisição", "serviços"])
+    CURL = ("curl 'https://dr/pesquisa' -H 'a: b' --data-raw "
+            "'{\"screenData\":{\"variables\":{\"FiltrosDePesquisa\":{}}}}'")
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "carregar_curl", return_value=self.CURL))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "guardar_amostra", lambda nome, conteudo: None))
+        self.enterContext(unittest.mock.patch.object(radar.time, "sleep"))
+        self.pedidos = []
+
+    def _portal(self, resposta):
+        def perguntar(pedido, molde):
+            lista = molde["screenData"]["variables"]["Pesquisa"]["List"]
+            termo = lista[0] if lista else ""
+            self.pedidos.append(termo)
+            return resposta(termo)
+        return unittest.mock.patch.object(radar, "perguntar_ao_dr",
+                                         side_effect=perguntar)
+
+    @staticmethod
+    def _pagina(quantos, prefixo):
+        return ({"data": {"List": [{"_source": {
+            "numero": "%s%d/2026" % (prefixo, i), "dbId": "k%d" % i,
+            "sumario": "t", "emissor": "E", "dataPublicacao": "2026-09-01",
+            "tipo": "Anúncio de procedimento"}} for i in range(quantos)]}}, "")
+
+    def test_pesquisa_vazia_sem_nada_cai_nos_termos_de_reserva(self):
+        with self._portal(lambda t: self._pagina(0, "") if t == ""
+                          else self._pagina(2, t[:3])):
+            ok, msg, novos = radar.recolher(dict(self.CFG))
+        self.assertTrue(ok)
+        self.assertEqual(self.pedidos, ["", "aquisição", "serviços"])
+        self.assertEqual(novos, 4)
+        self.assertIn("pelos termos de reserva", msg)
+
+    def test_com_anuncios_nao_ha_recuo(self):
+        with self._portal(lambda t: self._pagina(2, "x")):
+            ok, msg, novos = radar.recolher(dict(self.CFG))
+        self.assertTrue(ok)
+        self.assertEqual(self.pedidos, [""])
+        self.assertNotIn("reserva", msg)
+
+    def test_corte_de_rede_nao_dispara_o_recuo(self):
+        with self._portal(lambda t: (None, "rede: timeout")):
+            ok, msg, novos = radar.recolher(dict(self.CFG))
+        self.assertFalse(ok)
+        self.assertIn("sem ligação ao DR", msg)
+        self.assertEqual(self.pedidos, [""])
+
+
 class TestLerDetalhesParalelo(BaseTemporaria):
     """ler_detalhes_paralelo() manda `concorrencia` pedidos ao DR ao
     mesmo tempo. O risco especifico da concorrencia -- que nao existe
