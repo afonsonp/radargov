@@ -87,7 +87,11 @@ ele pediu: o radar vai à plataforma ver a lista das peças de um
 anúncio marcado quando passou a data de esclarecimentos, ou quando o
 prazo ou o preço base mudaram, e há o botão «Ver se há peças novas»
 na ficha; as novas entram no resumo por e-mail, **e com peça nova o
-anúncio é relido logo pelo modelo**. A bateria vai em **838**.
+anúncio é relido logo pelo modelo**. **E entrou a lista do «Em
+curso»** (`/lista`), a tabela que ele mandou: título, cliente, preço,
+esclarecimentos, entrega, tipologia, estado da proposta, CV, proposta
+técnica, notas, plataforma, CoE, responsável — as cinco da casa são
+colunas novas, gravadas linha a linha. A bateria vai em **841**.
 
 Substitui a Armilar, produto da Vortal que a empresa paga a 200 euros por
 mês, com má experiência de uso e falhas de ingestão. Corre no PC do

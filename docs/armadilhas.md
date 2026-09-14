@@ -961,6 +961,16 @@ O funil da casa, do «por ver» ao «ganho».
 
 ---
 
+- **A lista do «Em curso» grava linha a linha, e cada linha é um
+  `<form>` dentro de um `<tr>`** (14/09/2026). O HTML não deixa um
+  `<form>` envolver células, por isso o formulário leva
+  `display:contents` e o browser aceita-o porque abre e fecha dentro da
+  mesma linha; um formulário que abrisse numa célula e fechasse noutra
+  linha era engolido. Os valores fechados (`TIPOLOGIAS`, `SIM_NAO`)
+  recusam-se com aviso, e só o que mudou vai para o histórico —
+  carregar em «guardar» sem tocar em nada não é um acontecimento.
+  `TestListaEmCurso`.
+
 ## O registo da casa
 
 O registo da casa, em `casa.py`: desde 8/09/2026 pelo modelo do radar;
