@@ -22,6 +22,7 @@ Arranque:  python radar.py             painel em http://127.0.0.1:8765
                                        o Excel de analise de concursos da casa
 """
 
+import bisect
 import copy
 import csv
 import html
@@ -33,6 +34,7 @@ import re
 import queue
 import shlex
 import smtplib
+import statistics
 import socket
 import subprocess
 import sqlite3
@@ -43,6 +45,7 @@ import time
 import unicodedata
 import webbrowser
 import zipfile
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
@@ -2738,8 +2741,7 @@ def _texto_do_preco(valor):
     aplicacao ja sabem ler."""
     if not valor:
         return ""
-    s = "{:,.2f}".format(float(valor))
-    return s.replace(",", "\x00").replace(".", ",").replace("\x00", ".") + " EUR"
+    return "{:,.2f}".format(float(valor)).translate(str.maketrans(",.", ".,")) + " EUR"
 
 
 def _domingo_final(ano, mes):
@@ -7906,7 +7908,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .tag.mau{background:var(--verm-fundo);color:var(--verm);font-weight:600}
 .tag.info{background:var(--azul-fundo);color:var(--azul);font-weight:600}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
-.ponto.pulsa{animation:pisca 1.1s infinite}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
 .accoes-topo .a-correr{font:500 12px/1 var(--sans);color:var(--laranja);
@@ -7996,9 +7997,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .guardado.parcial{border-style:dashed}
 .guardado i{font:400 9.5px/1 var(--sans);font-style:normal;color:var(--t6);
  margin-left:6px;padding-right:11px}
-.guardados .gerir{font:500 11.5px/1 var(--sans);color:var(--t5);
- padding:8px 10px}
-.guardados .gerir:hover{color:var(--ink)}
 .interruptor{cursor:pointer;width:42px;height:24px;border-radius:99px;
  border:1px solid var(--linha);background:var(--linha2);padding:0;
  position:relative;transition:background .12s}
@@ -8180,11 +8178,6 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
  padding:10px 14px;margin-bottom:8px;background:var(--creme);box-shadow:none}
 .guardados .rot{margin-right:4px}
 .guardados .nada{font:400 12px/1 var(--sans);color:var(--t6)}
-/* O que o filtro em uso tem e esta pagina nao aplica. Estava so no
-   `title` do chip: quem nao passasse o rato por cima nunca o via. */
-.parcial-nota{flex-basis:100%;order:9;font:400 12px/1.5 var(--sans);
- color:var(--t5);border-left:2px solid var(--laranja);padding:2px 0 2px 10px}
-.parcial-nota b{color:var(--t3);font-weight:600}
 .guardado{display:inline-flex;align-items:center;border:1px solid var(--linha);
  border-radius:99px;background:var(--creme);overflow:hidden}
 .guardado a{padding:7px 4px 7px 13px;font:500 12.5px/1 var(--sans);color:var(--t3)}
@@ -8767,8 +8760,6 @@ button.tirar:hover{color:var(--verm)}
 .sem-nif{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:4px;
  background:var(--linha2);color:var(--t4);font:600 9px/1.3 var(--sans);
  text-transform:uppercase;letter-spacing:.06em;vertical-align:middle}
-.aviso-prop{padding:12px 16px;border:1px dashed var(--traco);border-radius:8px;
- font:400 12px/1.5 var(--sans);color:var(--t4)}
 
 @media (max-width:1100px){
  .ind-grelha{grid-template-columns:minmax(0,1fr)}
@@ -8916,13 +8907,8 @@ NAV = (("anuncios", "Anúncios", "/", ()),
 # Que item da navegacao acende para cada pagina. As paginas mantem as
 # chaves que sempre tiveram (as vistas de filtros incluidas); o item e
 # hierarquia por cima delas, nao um nome novo.
-ITEM_DA_PAGINA = {"anuncios": "anuncios",
-                  "quadro": "emcurso", "calendario": "emcurso", "lista": "emcurso",
-                  "contratos": "mercado", "renovacoes": "mercado"}
-
-# Paginas que vivem fora da navegacao, para as migalhas. (Os Indicadores
-# eram uma; desde 13/09/2026 sao uma seccao de Configuracoes.)
-PAGINAS_FORA_DA_NAV = {"configuracoes": "Configurações"}
+ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
+                  for pagina in [chave] + [v[0] for v in vistas]}
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -8953,10 +8939,11 @@ def migalhas_de(vista, folha=""):
         if passos:
             break
     if not passos:
-        nome = PAGINAS_FORA_DA_NAV.get(vista)
-        if not nome:
+        # a unica pagina fora da navegacao (os Indicadores eram outra;
+        # desde 13/09/2026 sao uma seccao de Configuracoes)
+        if vista != "configuracoes":
             return "<em>%s</em>" % html.escape(folha or "Radar")
-        passos = [(nome, "/" + vista)]
+        passos = [("Configurações", "/configuracoes")]
 
     pedacos = []
     for etiqueta, destino in passos[:-1]:
@@ -10508,15 +10495,6 @@ def resumo_filtro(consulta, vista=None):
     return " · ".join(partes) or "sem filtro"
 
 
-def opcoes_op(args):
-    """As duas opcoes do E/OU, com a redaccao da Tendios traduzida:
-    mais restrito / mais amplo. Igual nos formularios todos."""
-    ou = (args.get("op") or "").strip() == "ou"
-    return ("<option value=''%s>palavras E CPV — mais restrito</option>"
-            "<option value='ou'%s>palavras OU CPV — mais amplo</option>"
-            % ("" if ou else " selected", " selected" if ou else ""))
-
-
 def quantos_cpv():
     with liga() as c:
         return c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
@@ -10859,16 +10837,13 @@ _CPV_CACHE = {}
 
 def _contagens_cpv_anuncios():
     """(chave de frescura, {codigo8: quantos anuncios})."""
-    contagens = {}
     with liga() as c:
         lidos = c.execute("SELECT COUNT(*) n FROM anuncios "
                           "WHERE detalhe_lido=1").fetchone()["n"]
-        for row in c.execute("SELECT cpv FROM anuncios WHERE cpv != ''"):
-            for pedaco in row["cpv"].split(","):
-                codigo8 = re.sub(r"\D", "", pedaco)[:8]
-                if len(codigo8) == 8:
-                    contagens[codigo8] = contagens.get(codigo8, 0) + 1
-    return lidos, contagens
+        codigos = [re.sub(r"\D", "", pedaco)[:8]
+                   for row in c.execute("SELECT cpv FROM anuncios WHERE cpv != ''")
+                   for pedaco in row["cpv"].split(",")]
+    return lidos, Counter(c8 for c8 in codigos if len(c8) == 8)
 
 
 def _contagens_cpv_contratos():
@@ -12724,18 +12699,10 @@ def escaloes_de_desconto(descontos):
     """
     if not descontos:
         return [], None
-    ordenados = sorted(descontos)
-    meio = len(ordenados) // 2
-    mediana = (ordenados[meio] if len(ordenados) % 2
-               else (ordenados[meio - 1] + ordenados[meio]) / 2.0)
+    mediana = statistics.median(descontos)
     contagens = [0] * (len(LIMITES_DESCONTO) + 1)
     for d in descontos:
-        for i, lim in enumerate(LIMITES_DESCONTO):
-            if 100.0 * d < lim:
-                contagens[i] += 1
-                break
-        else:
-            contagens[-1] += 1
+        contagens[bisect.bisect_right(LIMITES_DESCONTO, 100.0 * d)] += 1
     etiquetas, baixo = [], 0
     for lim in LIMITES_DESCONTO:
         etiquetas.append("%d–%d%%" % (baixo, lim))
@@ -14846,8 +14813,7 @@ def volta_a_lista():
     vindo = urlparse(request.referrer or "")
     if vindo.netloc and vindo.netloc != urlparse(request.host_url).netloc:
         return "/"
-    if vindo.path in ("/", "/anuncios", "/quadro", "/calendario",
-                      "/alertas"):
+    if vindo.path in ("/", "/quadro", "/calendario"):
         return vindo.path + (("?" + vindo.query) if vindo.query else "")
     return "/"
 

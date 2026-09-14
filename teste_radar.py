@@ -14,13 +14,16 @@ Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 
 import contextlib
 import datetime
+import gc
 import html
 import inspect
 import json
 import os
 import re
+import shutil
 import sqlite3
 import sys
+import tempfile
 import time
 import unittest
 import unittest.mock
@@ -545,7 +548,6 @@ class TestEPdf(unittest.TestCase):
     """Pelos bytes e não pela extensão."""
 
     def caminho(self, conteudo):
-        import tempfile
         f = tempfile.NamedTemporaryFile(delete=False, suffix=".seja-o-que-for")
         f.write(conteudo); f.close()
         self.addCleanup(lambda: os.path.exists(f.name) and os.remove(f.name))
@@ -580,7 +582,7 @@ class TestTextoDoZip(unittest.TestCase):
     """Há entidades que entregam a peça dentro de um ZIP."""
 
     def zip_com(self, ficheiros):
-        import tempfile, zipfile
+        import zipfile
         f = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
         f.close()
         with zipfile.ZipFile(f.name, "w") as z:
@@ -3673,7 +3675,6 @@ class BaseTemporaria(unittest.TestCase):
     em milissegundos."""
 
     def setUp(self):
-        import tempfile
         self.pasta = tempfile.mkdtemp()
         self.db_antigo = radar.DB
         self.docs_antigo = radar.DOCS
@@ -3682,8 +3683,6 @@ class BaseTemporaria(unittest.TestCase):
         radar.iniciar_db()          # cria o esquema e põe as marcas
 
     def tearDown(self):
-        import gc
-        import shutil
         radar.DB = self.db_antigo
         radar.DOCS = self.docs_antigo
         gc.collect()                # fecha ligações penduradas do liga()
@@ -5313,7 +5312,6 @@ class TestVisualizadorDePecas(unittest.TestCase):
     def test_desenha_a_pagina_como_png(self):
         if not self.tem_pymupdf:
             self.skipTest("sem pymupdf no Python dos testes")
-        import tempfile
         with tempfile.TemporaryDirectory() as pasta:
             caminho = self._pdf_de_ensaio(pasta)
             self.assertEqual(radar.paginas_do_pdf_imagem(caminho), 2)
@@ -5328,7 +5326,6 @@ class TestVisualizadorDePecas(unittest.TestCase):
         # no bloco de texto — a mesma search_for desenha os destaques
         if not self.tem_pymupdf:
             self.skipTest("sem pymupdf no Python dos testes")
-        import tempfile
         with tempfile.TemporaryDirectory() as pasta:
             caminho = self._pdf_de_ensaio(pasta)
             self.assertEqual(radar.paginas_com_termo(caminho, "ensaio"),
@@ -5601,14 +5598,11 @@ class CorpusTemporario(unittest.TestCase):
     TEMPORÁRIO — nunca o verdadeiro —, criado e deitado fora por teste."""
 
     def setUp(self):
-        import tempfile
         self.pasta = tempfile.mkdtemp()
         self.corpus_antigo = radar.CORPUS
         radar.CORPUS = os.path.join(self.pasta, "ensaio-contratos.db")
 
     def tearDown(self):
-        import gc
-        import shutil
         radar.CORPUS = self.corpus_antigo
         gc.collect()                # fecha ligações penduradas
         shutil.rmtree(self.pasta, ignore_errors=True)
@@ -8457,7 +8451,6 @@ class TestConfiguracoes(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        import shutil
         self.config_antigo = radar.CONFIG
         self.base_antiga = radar.BASE_DIR
         radar.CONFIG = os.path.join(self.pasta, "config.json")
@@ -9067,7 +9060,6 @@ class TestLigacaoFechaAoSair(BaseTemporaria):
             radar.CORPUS = corpus_antigo
 
     def test_cem_pedidos_nao_deixam_ligacoes_abertas(self):
-        import gc
         cliente = radar.app.test_client()
         gc.collect()
         antes = len([o for o in gc.get_objects() if isinstance(o, sqlite3.Connection)])
@@ -10324,7 +10316,6 @@ class TestEntidadesNoMercado(BaseTemporaria):
 
     def setUp(self):
         super().setUp()
-        import tempfile
         self.corpus_antigo = radar.CORPUS
         radar.CORPUS = os.path.join(self.pasta, "contratos.db")
         radar.iniciar_corpus()                      # o esquema do corpus, vazio
