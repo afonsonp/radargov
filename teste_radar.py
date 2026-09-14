@@ -8203,9 +8203,21 @@ class TestContas(BaseTemporaria):
         with radar.app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
             radar.porta_de_entrada()
             self.assertEqual(radar.quem_sou(), "Afonso")
-        # com dois utilizadores "o unico" e mentira: fica sem nome
+        # com mais utilizadores o acesso livre e o primeiro admin
+        # (14/09/2026: a primeira conta de tester deixou o computador do
+        # Afonso "sem conta ainda"); um segundo admin nao o destrona
         with radar.liga() as c:
+            self.contas.criar_utilizador(c, "tester", "senha-comprida", papel="tester")
             self.contas.criar_utilizador(c, "outro@exemplo.pt", "senha-comprida")
+        with radar.app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
+            radar.porta_de_entrada()
+            self.assertEqual(radar.quem_sou(), "Afonso")
+            self.assertTrue(radar.sou_admin())
+        # varias contas e nenhum admin: nao ha ninguem (uma so conta,
+        # seja qual for, continua a ser "o unico")
+        with radar.liga() as c:
+            self.contas.criar_utilizador(c, "tester2", "senha-comprida", papel="tester")
+            c.execute("UPDATE utilizadores SET papel='tester' WHERE papel='admin'")
         with radar.app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
             radar.porta_de_entrada()
             self.assertEqual(radar.quem_sou(), "")

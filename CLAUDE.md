@@ -152,7 +152,8 @@ O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
 `contas.py` guarda utilizadores e sessões, e a «porta» do `radar.py`
 (`porta_de_entrada()`, logo a seguir ao `app`) exige sessão em tudo o
 que não seja `/entrar`. Um pedido **deste computador, sem túnel a
-meio**, entra sem login como o único utilizador — é o
+meio**, entra sem login como o único utilizador (ou o primeiro
+admin, quando há mais contas) — é o
 `acesso_livre_local` do `config.json`, o que mantém o desenvolvimento
 e os testes sem fazerem login a cada pedido. **Desde 13/09/2026 há
 dois papéis** (`utilizadores.papel`: `admin` ou `tester`): o admin vê
