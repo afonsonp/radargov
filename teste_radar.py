@@ -4021,7 +4021,7 @@ class TestCopiaComMarca(BaseTemporaria):
                          "ok: radar-2026-08-30.db")
 
 
-class TestNavegacaoPorIntencoes(unittest.TestCase):
+class TestNavegacaoPorIntencoes(BaseTemporaria):
     """A navegação por intenções (31/08/2026): primeiro cinco itens, e
     na mesma noite quatro — o Afonso, depois de usar, fundiu a Triagem
     e a Pesquisa numa lista só ("ambas são a mesma coisa"). O que isto
@@ -8380,11 +8380,15 @@ class TestEnderecoPublico(unittest.TestCase):
 
 
 
-class TestListaRecolhidaETeclado(unittest.TestCase):
+class TestListaRecolhidaETeclado(BaseTemporaria):
     """UX-Auditoria (2/09/2026), decididos pelo Afonso a 8/09/2026: a
-    lista abria com 60% do ecrã em filtros, e não havia teclado."""
+    lista abria com 60% do ecrã em filtros, e não havia teclado.
+
+    Sobre uma base temporária (14/09/2026): pediam a página à base
+    verdadeira, e num computador sem radar.db davam 500."""
 
     def setUp(self):
+        super().setUp()
         self.cliente = radar.app.test_client()
 
     def test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro(self):
