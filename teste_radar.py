@@ -10045,6 +10045,63 @@ def radar_fonte():
         return f.read()
 
 
+class TestInteresseNoMercado(BaseTemporaria):
+    """14/09/2026: «no mercado, após definir o interesse, deve também só
+    aparecer o CPV marcado, tal como nos anúncios». O recorte entra por
+    filtros_dos_contratos() — a lista, o CSV e os gráficos filtram os
+    três por lá — e nunca por condicoes_contratos(), que serve os
+    alertas e a ficha da entidade."""
+
+    def setUp(self):
+        super().setUp()
+        self.cfg_antigo = radar.ler_config
+        self.cfg = dict(radar.CONFIG_INICIAL, interesse_activo=True,
+                        interesse_cpv="72000000", interesse_cpv_excl="")
+        radar.ler_config = lambda: dict(self.cfg)
+
+    def tearDown(self):
+        radar.ler_config = self.cfg_antigo
+        super().tearDown()
+
+    def test_prefixos_do_cpv_le_codigos_e_palavras(self):
+        self.assertEqual(radar.prefixos_do_cpv("72000000|48700000"), ["72", "487"])
+        self.assertEqual(radar.prefixos_do_cpv(""), [])
+        self.assertEqual(radar.prefixos_do_cpv("72267100-0"), ["722671"])
+
+    def test_a_condicao_usa_a_tabela_dos_cpv_e_o_nao_levanta(self):
+        frag, vals = radar.condicao_do_interesse_contratos(args={}, cfg=self.cfg)
+        self.assertIn("contrato_cpv", frag)
+        self.assertIn("cpv8 LIKE ?", frag)
+        self.assertEqual(vals, ["72%"])
+        frag, vals = radar.condicao_do_interesse_contratos(
+            args={}, cfg=dict(self.cfg, interesse_cpv_excl="72212000"))
+        self.assertIn("NOT IN", frag)
+        self.assertEqual(vals, ["72%", "72212%"])
+        self.assertEqual(radar.condicao_do_interesse_contratos(
+            args={"interesse": "nao"}, cfg=self.cfg), ("", []))
+        self.assertEqual(radar.condicao_do_interesse_contratos(
+            args={}, cfg=dict(self.cfg, interesse_activo=False)), ("", []))
+        self.assertEqual(radar.condicao_do_interesse_contratos(
+            args={}, cfg=dict(self.cfg, interesse_cpv="")), ("", []))
+
+    def test_entra_pelos_filtros_da_pagina_e_nao_pelo_motor(self):
+        from werkzeug.datastructures import MultiDict
+        args = MultiDict({"q": "software"})
+        onde, vals = radar.filtros_dos_contratos(args, cfg=self.cfg)
+        self.assertIn("contrato_cpv", onde)
+        self.assertEqual(vals[-1], "72%")
+        onde_livre, vals_livre = radar.filtros_dos_contratos(args, com_interesse=False,
+                                                              cfg=self.cfg)
+        self.assertNotIn("contrato_cpv", onde_livre)
+        # o motor dos alertas e da ficha da entidade nao leva o interesse
+        onde_motor, _ = radar.condicoes_contratos(args)
+        self.assertNotIn("contrato_cpv", onde_motor)
+        # e o ?interesse=nao levanta-o tambem aqui
+        onde, _ = radar.filtros_dos_contratos(MultiDict({"q": "x", "interesse": "nao"}),
+                                              cfg=self.cfg)
+        self.assertNotIn("contrato_cpv", onde)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
