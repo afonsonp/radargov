@@ -162,12 +162,21 @@ def e_admin(utilizador):
 
 
 def unico_utilizador(c):
-    """O unico utilizador, para o acesso livre local. None se nao houver
-    nenhum -- ou se houver mais do que um, porque ai 'o unico' e mentira
-    e o acesso livre deixa de saber quem e."""
+    """Quem e o acesso livre local: o unico utilizador se so ha um, senao
+    o primeiro admin. None so sem contas.
+
+    Ate 14/09/2026 devolvia None com mais de um utilizador ("o unico e
+    mentira") -- e no dia em que o Afonso criou a primeira conta de
+    tester, o painel no computador dele passou a dizer "sem conta
+    ainda" e a registar tudo como "(sem nome)". O acesso livre e o
+    computador dele; com varias contas, e o admin."""
     linhas = c.execute("SELECT id, email, nome, papel FROM utilizadores "
-                       "LIMIT 2").fetchall()
-    return dict(linhas[0]) if len(linhas) == 1 else None
+                       "ORDER BY id LIMIT 2").fetchall()
+    if len(linhas) == 1:
+        return dict(linhas[0])
+    admin = c.execute("SELECT id, email, nome, papel FROM utilizadores "
+                      "WHERE papel='admin' ORDER BY id LIMIT 1").fetchone()
+    return dict(admin) if admin else None
 
 
 # -------------------------------------------------------------------- trinco
