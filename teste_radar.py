@@ -10305,6 +10305,141 @@ class TestEntidadesNoMercado(BaseTemporaria):
         self.assertIn("<input type='hidden' name='op' value='ou'>", html_)
 
 
+class TestPaginasDeErro(BaseTemporaria):
+    """15/09/2026: um 404 dava a página nua do Werkzeug e um 500 dava
+    «Internal Server Error» sem ficar registado em lado nenhum. Passam
+    a ter a página da casa, e o 500 fica na marca `painel_ultimo_erro`
+    e na série `erros`, que a saúde dos Indicadores mostra."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def test_404_tem_a_pagina_da_casa(self):
+        r = self.cliente.get("/isto-nao-existe")
+        self.assertEqual(r.status_code, 404)
+        html_ = r.get_data(as_text=True)
+        self.assertIn("Não há nada aqui", html_)
+        self.assertIn("href=\"/\"", html_)
+        self.assertNotIn("Werkzeug", html_)
+
+    def test_500_fica_registado_e_tem_pagina(self):
+        # a vista da lista a rebentar, só durante este pedido: o Flask
+        # não deixa juntar rotas depois do primeiro pedido, e a lista é
+        # a página que mais se abre
+        regra = "/"
+        endpoint = next(x.endpoint for x in radar.app.url_map.iter_rules()
+                        if x.rule == regra and "GET" in x.methods)
+
+        def rebenta(*a, **kw):
+            raise ZeroDivisionError("de propósito")
+        with unittest.mock.patch.dict(radar.app.view_functions, {endpoint: rebenta}), \
+                unittest.mock.patch.dict(radar.app.config, {"PROPAGATE_EXCEPTIONS": False}):
+            r = self.cliente.get(regra)
+        self.assertEqual(r.status_code, 500)
+        html_ = r.get_data(as_text=True)
+        self.assertIn("Correu mal", html_)
+        self.assertNotIn("Internal Server Error", html_)
+        valor = radar.le_marca("painel_ultimo_erro")
+        self.assertIn("ZeroDivisionError", valor)
+        self.assertIn("GET /", valor)
+        with radar.liga() as c:
+            n = c.execute("SELECT COUNT(*) FROM erros WHERE tipo='painel'").fetchone()[0]
+        self.assertEqual(n, 1)
+
+    def test_a_saude_dos_indicadores_mostra_o_erro(self):
+        radar.marca_erro("painel_ultimo_erro", "painel", "2026-09-15 10:00 em GET /x: KeyError")
+        html_ = self.cliente.get("/configuracoes/indicadores").get_data(as_text=True)
+        self.assertIn("Último erro do painel", html_)
+        self.assertIn("KeyError", html_)
+
+
+class TestRotaDeSaude(BaseTemporaria):
+    """15/09/2026: não havia nada que alguém de fora pudesse vigiar. O
+    `/saude` responde «ok» sem sessão (senão o monitor caía no /entrar,
+    que dá sempre 200, e nunca via o painel cair), e 503 quando a base
+    não responde. Não diz nada de dentro."""
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
+        self.cliente = radar.app.test_client()
+
+    def test_responde_ok_sem_sessao_e_de_fora(self):
+        r = self.cliente.get("/saude", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_data(as_text=True), "ok")
+        self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+        self.assertIn("/saude", radar.ROTAS_ABERTAS)
+
+    def test_nao_diz_nada_de_dentro(self):
+        radar.marca("ultima_verificacao", "2026-09-15 09:00")
+        texto = self.cliente.get("/saude", environ_base=self.FORA).get_data(as_text=True)
+        self.assertNotIn("2026", texto)
+        self.assertNotIn("anúncios", texto)
+
+    def test_503_quando_a_base_nao_responde(self):
+        def liga_partida():
+            raise sqlite3.OperationalError("disco fora")
+        with unittest.mock.patch.object(radar, "liga", liga_partida):
+            r = self.cliente.get("/saude", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 503)
+
+
+class TestEnsaioDeRestauro(BaseTemporaria):
+    """15/09/2026: a cópia diária fazia-se há semanas e ninguém tinha
+    provado que se restaurava. `--ensaiar-copia` abre a última cópia só
+    de leitura, passa-lhe o integrity_check e conta contra a base viva;
+    a marca `ultimo_ensaio_copia` fica na saúde dos Indicadores e na
+    secção Cópias. Uma cópia vazia ou corrompida diz «FALHOU»."""
+
+    def setUp(self):
+        super().setUp()
+        self.copias = os.path.join(self.pasta, "copias")
+        self.enterContext(unittest.mock.patch.object(radar, "COPIAS", self.copias))
+        with radar.liga() as c:
+            for i in range(3):
+                c.execute("INSERT INTO anuncios (ref, titulo, estado) VALUES (?,?,?)",
+                          ("R%d" % i, "t%d" % i, "interessa" if i == 0 else "novo"))
+
+    def test_sem_copia_nenhuma_diz_isso(self):
+        with self.assertRaises(FileNotFoundError):
+            radar.ensaiar_copia()
+
+    def test_a_ultima_copia_serve_e_conta_contra_a_viva(self):
+        os.makedirs(self.copias)
+        velha = os.path.join(self.copias, "radar-2026-09-01.db")
+        open(velha, "wb").close()          # a mais velha nunca é escolhida
+        destino = radar.copia_de_seguranca(guardar=0)
+        self.assertEqual(radar.ultima_copia(), destino)
+        r = radar.ensaiar_copia()
+        self.assertTrue(r["serve"])
+        self.assertEqual(r["integridade"], "ok")
+        self.assertEqual(r["contagens"]["anuncios"], (3, 3))
+        self.assertEqual(r["contagens"]["triagem"], (1, 1))
+        self.assertTrue(radar.le_marca("ultimo_ensaio_copia").startswith("ok: "))
+        # nunca escreve na cópia: nem um -journal ao lado
+        self.assertFalse(os.path.exists(destino + "-journal"))
+        html_ = radar.app.test_client().get("/configuracoes/copias").get_data(as_text=True)
+        self.assertIn("Ensaio de restauro: ok:", html_)
+        html_ = radar.app.test_client().get("/configuracoes/indicadores").get_data(as_text=True)
+        self.assertIn("Ensaio de restauro", html_)
+
+    def test_uma_copia_vazia_nao_serve(self):
+        os.makedirs(self.copias)
+        vazia = os.path.join(self.copias, "radar-2026-09-10.db")
+        c = sqlite3.connect(vazia)
+        c.execute("CREATE TABLE anuncios (ref TEXT, estado TEXT)")
+        c.execute("CREATE TABLE estado (chave TEXT, valor TEXT)")
+        c.commit()
+        c.close()
+        r = radar.ensaiar_copia(vazia)
+        self.assertFalse(r["serve"])
+        self.assertEqual(r["contagens"]["anuncios"], (0, 3))
+        self.assertTrue(radar.le_marca("ultimo_ensaio_copia").startswith("FALHOU"))
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

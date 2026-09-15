@@ -86,6 +86,7 @@ python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
 python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
+python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
 python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
