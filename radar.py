@@ -751,6 +751,7 @@ def iniciar_db():
             c.execute("ALTER TABLE fases ADD COLUMN papel TEXT")
         semear_fases(c)
         atribuir_papeis(c)
+        traduzir_filtros_guardados(c)
         casa.iniciar_tabelas(c)     # o registo da casa (Excel; um dia o Zoho)
         contas.iniciar_tabelas(c)   # utilizadores, sessoes, o trinco do login
         # B12, uma vez, por marca: os textos extraidos antes das marcas
@@ -1410,6 +1411,28 @@ def chips_dos_lotes(resumo, so_estado=None):
 # "interessados" serem a mesma consulta.
 
 
+def preco_base_do_lote(a, lote):
+    """O preco base que pertence a esta proposta: o do LOTE quando ela e
+    de um lote, o do procedimento quando e do conjunto ou nao ha lotes.
+
+    A proposta do lote 2 mostrava os 212 400 EUR do procedimento inteiro
+    (visto no ecra a 15/09/2026, na etapa 2): o numero do anuncio posto
+    numa linha que representa uma parte dele. E a mentira mais cara que
+    esta tabela pode contar -- e dela que sai o desvio face ao proposto,
+    e e com ela que a etapa 4 ha-de comparar o que o Portal BASE
+    adjudicou, que tambem e por lote.
+
+    Sem preco do lote lido, fica VAZIO -- nao o do procedimento. Um
+    campo em branco pergunta-se; um numero errado acredita-se.
+    """
+    if not lote:                      # None (sem lotes) ou 0 (o conjunto)
+        return _valor(a, "preco_base") or ""
+    for l in lotes_de(a):
+        if int(l.get("n") or 0) == int(lote):
+            return l.get("preco_base") or ""
+    return ""
+
+
 def proposta(id_):
     with liga() as c:
         return c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
@@ -1453,12 +1476,12 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
                            (ref, lote)).fetchone()
             if ja:
                 return ja["id"]
-            a = c.execute("SELECT titulo, entidade, preco_base FROM anuncios "
-                          "WHERE ref=?", (ref,)).fetchone()
+            a = c.execute("SELECT titulo, entidade, preco_base, lotes "
+                          "FROM anuncios WHERE ref=?", (ref,)).fetchone()
             if a:
                 entidade = entidade or (a["entidade"] or "")
                 titulo = titulo or (a["titulo"] or "")
-                preco_base = a["preco_base"] or ""
+                preco_base = preco_base_do_lote(a, lote)
         cur = c.execute(
             "INSERT INTO propostas (ref, porque_sem_ref, lote, entidade, "
             "titulo, estado, preco_base, criada_em) VALUES (?,?,?,?,?,?,?,?)",
@@ -1491,10 +1514,103 @@ def mover_proposta(id_, estado, quem=None):
             return True, ""
         fechada = (datetime.now().strftime("%Y-%m-%d %H:%M")
                    if estado in ESTADOS_FECHADOS else None)
-        c.execute("UPDATE propostas SET estado=?, fechada_em=? WHERE id=?",
-                  (estado, fechada, id_))
+        # O motivo pertence ao ESTADO, e sai com ele. Um "Preço base
+        # baixo" pendurado numa proposta que voltou ao Submetido é uma
+        # mentira à espera de ser lida -- e foi o que a prova de fumo da
+        # etapa 2 apanhou. Limpa-se aqui, e nao em quem chama, para
+        # valer tambem ao arrastar no quadro; quem move para um estado
+        # que PEDE motivo grava-o a seguir.
+        # Guarda-se o que ainda faz sentido: as duas listas nao sao a
+        # mesma, e "Preço base baixo" (porque nao se foi) nao e resposta
+        # a "porque se perdeu".
+        motivo = (antes["motivo"]
+                  if antes["motivo"] in (MOTIVOS_DO_ESTADO.get(estado) or ())
+                  else None)
+        c.execute("UPDATE propostas SET estado=?, fechada_em=?, motivo=? "
+                  "WHERE id=?", (estado, fechada, motivo, id_))
     registar(antes["ref"] or "", "estado", rotulo, quem)
     return True, ""
+
+
+def traduzir_filtros_guardados(c):
+    """Poe o vocabulario da escada nas consultas ja guardadas.
+
+    Um filtro (ou um alerta) guardado antes de 15/09/2026 tem
+    "estado=novo" ou "estado=interessa" escrito na consulta. Duas coisas
+    partiam-se sem isto, e as duas em silencio: a consulta guardada
+    deixava de ser igual a canonica de hoje, e portanto o filtro em uso
+    nunca mais se reconhecia a si proprio (o botao de guardar so oferecia
+    criar outro com o mesmo nome); e um alerta com "estado=interessa"
+    passava a procurar por um valor que a coluna ja nao tem, sem
+    encontrar nada e sem nada no ecra a dize-lo.
+
+    Idempotente, como todas as migracoes: corre a cada arranque e nao faz
+    nada quando ja esta feito.
+    """
+    for linha in c.execute("SELECT id, consulta FROM filtros_guardados").fetchall():
+        pares = parse_qsl(linha["consulta"] or "", keep_blank_values=True)
+        mudou = False
+        novos = []
+        for chave, valor in pares:
+            if chave == "estado" and valor in ABAS_ANTIGAS:
+                valor = ABAS_ANTIGAS[valor]
+                mudou = True
+            novos.append((chave, valor))
+        if mudou:
+            c.execute("UPDATE filtros_guardados SET consulta=? WHERE id=?",
+                      (urlencode(novos), linha["id"]))
+
+
+def gravar_motivo(id_, motivo):
+    """O motivo de uma proposta, ou a limpeza dele."""
+    with liga() as c:
+        c.execute("UPDATE propostas SET motivo=? WHERE id=?",
+                  (motivo or None, id_))
+
+
+def _tirar_da_escada(ref, antes):
+    """Voltar ao "por ver": a proposta sai. Devolve o rotulo do aviso, ou
+    None se nao havia nada para tirar.
+
+    So se apaga a proposta que nao tem nada escrito. Uma com preco
+    proposto, notas, lugar ou CoE e TRABALHO, e trabalho nao se deita
+    fora com um clique de "repor" -- essa volta a "Por analisar", e o
+    aviso diz porque, senao o gesto parece nao ter funcionado.
+    """
+    if not antes:
+        return None
+    escrito = ("valor_proposta", "notas", "lugar", "top3", "coe", "ebitda")
+    if any(antes[campo] for campo in escrito):
+        mover_proposta(antes["id"], "analisar")
+        return ("reposto em «Por analisar» — tem trabalho escrito, "
+                "não se deita fora")
+    with liga() as c:
+        c.execute("DELETE FROM propostas WHERE id=?", (antes["id"],))
+    registar(ref, "estado", "voltou a por ver")
+    return "reposto em por ver"
+
+
+def gravar_campos_da_proposta(id_, campos, valores, quem=None):
+    """Grava uma lista de campos de uma proposta, e deixa no historico o
+    que MUDOU -- carregar em "gravar" sem tocar em nada nao e um
+    acontecimento, e um historico cheio disso e um historico que ninguem
+    le. Os nomes dos campos vem de listas fixas do codigo
+    (CAMPOS_EDITAVEIS_DA_PROPOSTA), nunca do formulario: interpolar um
+    nome de coluna que o browser mandou era deixar o SQL a quem pedisse.
+    """
+    if not campos:
+        return
+    seguros = set(COLUNAS_DA_PROPOSTA)
+    assert all(nome in seguros for nome in campos), campos
+    with liga() as c:
+        antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
+        if not antes:
+            return
+        c.execute("UPDATE propostas SET " + ", ".join(n + "=?" for n in campos)
+                  + " WHERE id=?", list(valores) + [id_])
+    for nome, valor in zip(campos, valores):
+        if (antes[nome] or None) != (valor or None):
+            registar(antes["ref"] or "", nome, str(valor or "(apagado)"), quem)
 
 
 def contar_propostas():
@@ -8278,6 +8394,26 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .abas a.on{background:#fff;color:var(--ink);border-color:var(--linha);font-weight:700}
 .abas a i{font:500 11px/1 var(--mono);font-style:normal;color:var(--t5);margin-left:4px}
 .abas a.on i{color:var(--t3)}
+/* A escada (15/09/2026): dez ranhuras mais o "todos" nao cabem numa
+   linha de tabuladores como as quatro abas de antes. Rolam na
+   horizontal, e as tres naturezas distinguem-se -- as duas pontas (a
+   entrada e o cemiterio) e o "todos" nao sao estados da casa, e pinta-
+   las como as oito dizia que ha dez estados quando ha dez coisas de
+   tres naturezas. O separador vertical entre a entrada e as oito e
+   onde a escada da casa comeca. */
+.abas-escada{overflow-x:auto;scrollbar-width:thin;padding-bottom:1px}
+.abas-escada a{white-space:nowrap;flex:0 0 auto}
+.abas-escada a.ponta{color:var(--t5)}
+.abas-escada a.ponta:hover{color:var(--t2)}
+.abas-escada a.entrada{border-right:1px solid var(--linha);
+ border-radius:7px 0 0 0;margin-right:6px;padding-right:16px}
+.abas-escada a.entrada.on{border-right-color:var(--linha)}
+.abas-escada a.cemiterio{margin-left:6px}
+/* As quatro fechadas (ganho, perdido, nao fomos, cancelado) sao o
+   arquivo: ja nao pedem accao, e uma escada que as pinte com o mesmo
+   peso das abertas poe o fim ao lado do que esta a acontecer. */
+.abas-escada a.fechada{color:var(--t5)}
+.abas-escada a.fechada.on{color:var(--ink)}
 .vazio-topo{height:16px}
 /* A folga lateral e o tecto do conteudo acompanham o ecra. Com o
    .larg preso em 1240 sobravam 530px vazios num monitor de 1920 e
@@ -10186,7 +10322,7 @@ def href_limpar(rota, estado=None):
     Apontava sempre para "/": limpar a pesquisa em Descartados atirava
     para "Por ver". O estado e o separador onde se esta, nao parte do
     filtro que se quer tirar. `None` e paginas sem separadores."""
-    if estado is None or estado == "novo":
+    if estado is None or estado == ENTRADA_DA_ESCADA[0]:
         return rota
     return rota + "?" + urlencode([("estado", estado)])
 
@@ -10259,34 +10395,53 @@ def com_recorte(onde, valores, frag, vals):
     return " WHERE (" + frag + ")", valores + vals
 
 
+# As abas antigas, e a ranhura da escada que hoje diz o que elas diziam.
+# As ligacoes antigas (e os filtros guardados de antes de 15/09/2026)
+# trazem `?estado=novo` e `?estado=interessa` nas query strings: em vez
+# de as deixar cair numa aba que nao existe -- e devolver a lista vazia
+# sem nada a dize-lo --, traduzem-se a entrada.
+ABAS_ANTIGAS = {"novo": "porver", "interessa": "analisar",
+                "descartado": "nao_fomos"}
+
+# Um anuncio ja tem decisao da casa quando ha uma proposta sobre ele.
+# E o que apura a entrada: um anuncio que se pos "a preparar proposta"
+# nao pode continuar a aparecer em "Por ver" a pedir triagem.
+_EXISTE_PROPOSTA = "EXISTS (SELECT 1 FROM propostas p WHERE p.ref = anuncios.ref%s)"
+SQL_TEM_PROPOSTA = _EXISTE_PROPOSTA % ""
+SQL_PROPOSTA_NO_ESTADO = _EXISTE_PROPOSTA % " AND p.estado = ?"
+
+
 def condicao_da_aba(estado, hoje=None, cfg=None):
-    """(fragmento, valores) do que cada aba da lista mostra.
+    """(fragmento, valores) do que cada aba da lista de ANUNCIOS mostra.
 
-    Decisao do Afonso a 31/08/2026, depois de usar, a substituir a
-    Triagem e a Pesquisa separadas (11.2-A/11.5-B revistas por ele):
-    UMA lista, e "o que ja nao e possivel responder" conta como
-    abandonado. As abas:
+    A escada de 15/09/2026 (D7, `docs/historico/CRM.md` §3.1). Das dez
+    ranhuras, so tres se respondem sobre a tabela dos anuncios -- as
+    duas das pontas e o "todos". As oito da casa contam anuncios com
+    proposta naquele estado, e servem so para o NUMERO da aba: a lista
+    delas e de propostas, e nao de anuncios (`_lista_de_propostas()`),
+    porque uma proposta sem anuncio do DR (D2) nao esta aqui para ser
+    encontrada.
 
-    - por ver ('novo'): por decidir E ainda respondivel -- prazo
+    - **por ver** (`porver`): por decidir E ainda respondivel -- prazo
       aberto; sem prazo lido, vale a data de publicacao dentro de
       detalhe_dias (entre publicacao e prazo vao ~18 dias em media, 60
-      e folga -- e e a mesma janela que a rotina le).
-    - interessados: TODOS os interessa. Um interessa com prazo passado
-      e trabalho em curso (proposta entregue, a aguardar decisao) e
-      nao se esconde por expirar -- regra antiga da casa.
-    - abandonados ('descartado'): os descartados a mao MAIS os por ver
-      que ja nao sao respondiveis. Nada muda na base: e recorte de
-      leitura, e por isso um expirado que seja rectificado com prazo
-      novo volta sozinho ao por ver.
-    - todos (""): sem recorte.
+      e folga, e e a mesma janela que a rotina le). E **sem proposta**:
+      decidido ja nao e por decidir.
+    - **expirou sem ver** (`expirou`): o prazo passou e ninguem olhou.
+      Nao e decisao de ninguem, e por isso nao e ranhura da casa -- a
+      15/09/2026 eram 198 305 dos 199 568, e a base nao tinha um unico
+      descarte. Nada muda na base: e recorte de leitura, e um expirado
+      que seja rectificado com prazo novo volta sozinho ao por ver.
+    - **todos** (`""`): sem recorte.
 
     Aplica-se por cima de condicoes() com com_recorte() -- o motor
     nunca leva isto (alertas!).
     """
-    if estado == "interessa":
-        return "estado = ?", ["interessa"]
+    estado = ABAS_ANTIGAS.get(estado, estado)
     if not estado:
         return "", []
+    if estado in CHAVES_DA_CASA:
+        return SQL_PROPOSTA_NO_ESTADO, [estado]
     hoje = hoje or datetime.now().date()
     cfg = ler_config() if cfg is None else cfg
     try:
@@ -10296,11 +10451,12 @@ def condicao_da_aba(estado, hoje=None, cfg=None):
     corte = (hoje - timedelta(days=dias)).isoformat()
     vivo = ("((prazo IS NOT NULL AND prazo != '' AND prazo >= ?) OR "
             "(COALESCE(prazo, '') = '' AND data_pub >= ?))")
-    if estado == "novo":
-        return "estado = 'novo' AND " + vivo, [hoje.isoformat(), corte]
-    if estado == "descartado":
-        return ("(estado = 'descartado' OR (estado = 'novo' AND NOT "
-                + vivo + "))"), [hoje.isoformat(), corte]
+    if estado == "porver":
+        return ("estado = 'novo' AND " + vivo + " AND NOT " + SQL_TEM_PROPOSTA,
+                [hoje.isoformat(), corte])
+    if estado == "expirou":
+        return ("estado = 'novo' AND NOT " + vivo + " AND NOT " + SQL_TEM_PROPOSTA,
+                [hoje.isoformat(), corte])
     return "estado = ?", [estado]
 
 
@@ -10396,6 +10552,60 @@ def condicao_do_interesse_contratos(args=None, cfg=None):
     return frag, vals
 
 
+def contar_a_escada(onde_base="", valores_base=(), cfg=None):
+    """Quantos ha em cada uma das dez ranhuras, DENTRO do filtro em uso.
+
+    As contagens eram sobre a base inteira e diziam "Por ver 66 007 ·
+    Todos 66 009" por cima de uma lista de 234 -- o numero e o destino
+    do mesmo botao discordavam. Cada ranhura conta com o SEU recorte,
+    porque a regra da casa e que um numero tem de abrir exactamente a
+    lista que o confirma.
+
+    As oito da casa contam **anuncios com proposta naquele estado**, e
+    nao propostas: e o numero que o filtro da pagina sabe responder. A
+    lista delas mostra tambem as propostas sem anuncio (D2), por isso
+    pode ter MAIS linhas do que a aba diz -- e a `_lista_de_propostas()`
+    que o explica ao pe do numero, em vez de se calar.
+    """
+    cfg = ler_config() if cfg is None else cfg
+    contas = {}
+    with liga() as c:
+        for chave, _ in ESCADA + (("", "Todos"),):
+            onde, valores = com_recorte(onde_base, list(valores_base),
+                                        *recorte_da_lista(chave, cfg))
+            contas[chave] = c.execute(
+                "SELECT COUNT(*) n FROM anuncios" + onde, valores).fetchone()["n"]
+    return contas
+
+
+def barra_das_abas(rota, actual, contas):
+    """As dez ranhuras mais o "todos", desenhadas uma vez para as duas
+    listas. Sem isto eram dois sitios a desenhar a mesma barra, e o
+    primeiro a mudar deixava o outro a mostrar abas que ja nao existem.
+
+    As duas das pontas levam classe propria: nao sao estados da casa (a
+    entrada e o cemiterio), e um ecra que as pinte como as outras oito
+    diz que sao oito estados quando sao dez coisas de tres naturezas.
+    """
+    pecas = ["<div class='abas abas-escada'>"]
+    for chave, rotulo in ESCADA + (("", "Todos"),):
+        if chave == ENTRADA_DA_ESCADA[0]:
+            classe = "ponta entrada"
+        elif chave == CEMITERIO_DA_ESCADA[0]:
+            classe = "ponta cemiterio"
+        elif not chave:
+            classe = "ponta"
+        else:
+            classe = "casa" + (" fechada" if chave in ESTADOS_FECHADOS else "")
+        if chave == actual:
+            classe += " on"
+        pecas.append("<a class='%s' href='%s'>%s <i>%s</i></a>"
+                     % (classe, sem_pagina(request.args, rota, estado=chave),
+                        html.escape(rotulo), mil_pt(contas.get(chave, 0))))
+    pecas.append("</div>")
+    return "".join(pecas)
+
+
 def recorte_da_lista(estado, cfg=None):
     """(fragmento, valores) do que a lista de anuncios mostra: a aba MAIS
     o interesse.
@@ -10417,10 +10627,33 @@ def recorte_da_lista(estado, cfg=None):
     return (frag_a or frag_i), (vals_a if frag_a else vals_i)
 
 
+def aba_pedida():
+    """A ranhura da escada que o pedido pede, ja traduzida do vocabulario
+    antigo. Sem `?estado=` nenhum, e a entrada: quem abre o painel quer
+    ver o que chegou, e nao o acervo de 199 mil."""
+    pedida = request.args.get("estado")
+    if pedida is None:
+        return ENTRADA_DA_ESCADA[0]
+    pedida = pedida.strip()
+    return ABAS_ANTIGAS.get(pedida, pedida)
+
+
 @app.route("/")
 def painel():
-    """A lista dos anuncios: triagem e acervo na MESMA pagina, com as
-    abas a apartar (por ver / interessados / abandonados / todos)."""
+    """A lista, com as dez ranhuras da escada a apartar (§3.1 do
+    docs/historico/CRM.md).
+
+    Duas listas por baixo de uma barra de abas, e nao uma: as ranhuras
+    das pontas e o "todos" mostram ANUNCIOS (o que o DR publicou, com o
+    arsenal de filtros que 199 mil linhas obrigam); as oito da casa
+    mostram PROPOSTAS (o que a casa decidiu, com as colunas que isso
+    pede). Nao e uma inconsistencia -- sao populacoes diferentes: uma
+    proposta de consulta previa nao tem anuncio nenhum para aparecer na
+    primeira, e um anuncio por ver nao tem valor proposto para mostrar
+    na segunda.
+    """
+    if aba_pedida() in CHAVES_DA_CASA:
+        return _lista_de_propostas()
     return _lista_de_anuncios()
 
 
@@ -10449,8 +10682,7 @@ def _lista_de_anuncios():
     # UMA leitura do config.json por pedido: as condicoes da aba e do
     # interesse leem-no as duas, e sao sete chamadas nesta funcao.
     cfg = ler_config()
-    estado_da_aba = request.args.get("estado")
-    estado_da_aba = "novo" if estado_da_aba is None else estado_da_aba.strip()
+    estado_da_aba = aba_pedida()
     onde, valores = com_recorte(
         *condicoes(args_da_lista(request.args, estado="")),
         *recorte_da_lista(estado_da_aba, cfg))
@@ -10475,14 +10707,6 @@ def _lista_de_anuncios():
         # tem de abrir exactamente a lista que o confirma.
         onde_sem_estado, val_sem_estado = condicoes(
             args_da_lista(request.args, estado=""))
-        contas = {}
-        for e in ("novo", "interessa", "descartado", ""):
-            onde_aba, val_aba = com_recorte(onde_sem_estado,
-                                            val_sem_estado,
-                                            *recorte_da_lista(e, cfg))
-            contas[e] = c.execute(
-                "SELECT COUNT(*) n FROM anuncios" + onde_aba,
-                val_aba).fetchone()["n"]
         # Quanto e que o interesse esta a tapar, nesta aba e dentro deste
         # filtro. Um recorte permanente que nao diga quanto esconde e um
         # recorte que se esquece: passado um mes, "nao ha nada" tanto
@@ -10526,22 +10750,11 @@ def _lista_de_anuncios():
 
     mil = mil_pt
 
-    # Os rotulos sao os que o Afonso pediu a 31/08/2026: por ver ·
-    # interessados · abandonados · todos. "Abandonados" junta os
-    # descartados a mao com os que expiraram por ver -- e recorte de
-    # leitura (condicao_da_aba), a base nao muda.
+    # A escada (15/09/2026): dez ranhuras mais o "todos", desenhadas
+    # pela barra_das_abas() para as duas listas as terem iguais.
     estado_actual = estado_da_aba
-    abas = ["<div class='abas'>"]
-    for valor, etiqueta, quantos in (
-            ("novo", "Por ver", contas["novo"]),
-            ("interessa", "Interessados", contas["interessa"]),
-            ("descartado", "Abandonados", contas["descartado"]),
-            ("", "Todos", contas[""])):
-        abas.append("<a class='%s' href='%s'>%s <i>%s</i></a>"
-                    % ("on" if valor == estado_actual else "",
-                       sem_pagina(request.args, rota, estado=valor),
-                       etiqueta, mil(quantos)))
-    abas.append("</div>")
+    contas = contar_a_escada(onde_sem_estado, val_sem_estado, cfg)
+    abas = [barra_das_abas(rota, estado_actual, contas)]
 
     cpv_actual = request.args.get("cpv", "")
     faixa_cpv = faixa_cpv_activo(request.args,
@@ -10639,13 +10852,14 @@ def _lista_de_anuncios():
                           html.escape(sem_pagina(request.args, rota,
                                                  interesse="nao"),
                                       quote=True)))
-    elif estado_actual == "novo" and filtro_em_uso == "estado=novo":
-        # O vazio proprio do "por ver" sem filtro: nada por decidir e
+    elif (estado_actual == ENTRADA_DA_ESCADA[0]
+          and filtro_em_uso == "estado=" + ENTRADA_DA_ESCADA[0]):
+        # O vazio proprio da entrada sem filtro: nada por decidir e
         # diferente de um filtro que nao apanhou nada.
         corpo_lista = ("<div class='vazio'>Nada por decidir: o que "
                        "entrou está triado, e o que expirou passou "
-                       "sozinho para os <a href='/?estado=descartado'>"
-                       "Abandonados</a>.</div>")
+                       "sozinho para o <a href='/?estado=expirou'>"
+                       "&ldquo;expirou sem ver&rdquo;</a>.</div>")
     else:
         corpo_lista = ("<div class='vazio'>Nada corresponde a este filtro. "
                        "<a href='%s'>limpar</a></div>"
@@ -10669,10 +10883,10 @@ def _lista_de_anuncios():
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
     # a aba diz o que o seu recorte faz -- o numero nao pode parecer o
     # acervo todo sem o ser (P4)
-    if estado_actual == "novo":
-        conta += " &middot; só o que ainda dá para responder"
-    elif estado_actual == "descartado":
-        conta += " &middot; abandonados à mão e expirados"
+    if estado_actual == ENTRADA_DA_ESCADA[0]:
+        conta += " &middot; só o que ainda dá para responder, e por decidir"
+    elif estado_actual == CEMITERIO_DA_ESCADA[0]:
+        conta += " &middot; o prazo passou e ninguém chegou a olhar"
 
     # Os avisos da ultima verificacao. O ficheiro AVISOS.txt serve para
     # quem nao tem o painel aberto; aqui e para quem tem, e da o caminho
@@ -10733,12 +10947,162 @@ def _lista_de_anuncios():
         "anuncios", "Anúncios",
         "Entra tudo o que o DR publica &mdash; e, da Vortal, as "
         "consultas preliminares. <b>Por ver</b> é o que ainda dá para "
-        "responder; o que expira passa sozinho para os "
-        "<b>Abandonados</b>.",
+        "responder e ainda ninguém decidiu; o que expira sem ninguém "
+        "olhar passa sozinho para o fim da escada. As oito ranhuras do "
+        "meio são o que a casa está a fazer.",
         conteudo, abas="".join(abas),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_de_abandono(),
         titulo_aba="Radar de Concursos, DR")
+
+
+# --- a lista das oito ranhuras da casa (etapa 2 do CRM, 15/09/2026)
+#
+# A vista das propostas, por baixo da mesma barra de abas da lista dos
+# anuncios. Sao tabelas diferentes de proposito (ver `painel()`): esta
+# nao tem selector de CPV nem de plataforma, e nao e esquecimento. O
+# arsenal de filtros da outra existe porque ha 199 mil anuncios e sem
+# ele nao se encontra nada; um pipeline sao dezenas de linhas, e a
+# procura por texto chega. Um selector de CPV por cima de doze linhas e
+# um controlo que ninguem usa e que ocupa o primeiro ecra.
+
+COLUNAS_DA_PIPELINE = ("Concurso", "Cliente", "Lote", "Preço base",
+                       "Proposto", "Entrega", "Responsável", "")
+
+
+def _preco_da_proposta(p):
+    """O numero que conta, e dito pelo que e. A partir do Submetido e o
+    proposto; antes disso e o preco base -- e enquanto o proposto nao
+    estiver preenchido mostra-se o base **dito como base**, que e
+    diferente de o mostrar como se fosse a proposta."""
+    if p["estado"] in ESTADOS_COM_PROPOSTO and p["valor_proposta"]:
+        return html.escape(p["valor_proposta"])
+    return "&mdash;"
+
+
+def linha_da_pipeline(p, urgente, prazos):
+    """Uma proposta na tabela. A ligacao e para a ficha do anuncio
+    quando ha anuncio, e para a propria proposta quando nao ha (D2) --
+    uma consulta previa nao tem ficha do DR para abrir."""
+    prazo = prazos.get(p["ref"] or "")
+    if prazo:
+        texto_prazo, classe_prazo = etiqueta_prazo(prazo, urgente)
+        # A partir do Submetido o prazo ter passado e o estado normal: a
+        # proposta foi entregue. A pilula vermelha e a cor de alarme da
+        # lista, e nao pode estar a puxar o olho para uma coisa que nao
+        # pede accao nenhuma.
+        if p["estado"] in ESTADOS_COM_PROPOSTO:
+            col_prazo = ("%s <span class='tag'>entregue</span>"
+                         % data_pt(prazo))
+        else:
+            col_prazo = ("%s <span class='tag %s'>%s</span>"
+                         % (data_pt(prazo), classe_prazo,
+                            html.escape(texto_prazo)))
+    else:
+        col_prazo = "&mdash;"
+    if p["ref"]:
+        alvo = "/anuncio/" + quote(p["ref"], safe="")
+        nome = corta(p["titulo"] or p["ref"], 80)
+    else:
+        alvo = "/proposta/%d" % p["id"]
+        nome = corta(p["titulo"] or "(sem título)", 80)
+    return ("<tr><td class='o'><a href='%s'>%s</a>%s</td>"
+            "<td class='g'>%s</td><td class='curta'>%s</td>"
+            "<td class='p'>%s</td><td class='p'>%s</td>"
+            "<td class='d'>%s</td><td class='curta'>%s</td>"
+            "<td class='curta'>%s</td></tr>"
+            % (alvo, html.escape(nome),
+               "" if p["ref"] else
+               " <span class='tag info' title='%s'>sem anúncio</span>"
+               % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
+               html.escape(corta(p["entidade"] or "", 45)),
+               "L%d" % p["lote"] if p["lote"] else
+               ("conjunto" if p["lote"] == 0 else "&mdash;"),
+               html.escape(p["preco_base"] or "") or "&mdash;",
+               _preco_da_proposta(p), col_prazo,
+               html.escape(p["responsavel"] or "") or "&mdash;",
+               "<a href='/proposta/%d'>abrir</a>" % p["id"]))
+
+
+def _lista_de_propostas():
+    """As propostas de uma ranhura da casa, em tabela.
+
+    O que esta lista mostra e a outra nao: as propostas **sem anuncio**
+    (D2 -- consulta previa, ajuste directo, convite) e o **lote** (D3).
+    Sao as duas razoes de a tabela `propostas` existir; se esta vista as
+    escondesse, a tabela nao servia para nada.
+    """
+    rota = "/"
+    cfg = ler_config()
+    estado_actual = aba_pedida()
+    urgente = dias_urgente()
+    procura = " ".join((request.args.get("q") or "").split())
+    onde = ["estado = ?"]
+    valores = [estado_actual]
+    if procura:
+        # Procura simples, e nao o motor: `condicoes()` serve tambem os
+        # alertas e os filtros guardados, e nao se lhe acrescenta um
+        # recorte desta vista (armadilha do motor de filtros).
+        onde.append("(titulo LIKE ? ESCAPE ? OR entidade LIKE ? ESCAPE ?)")
+        como = para_like(procura)
+        valores += [como, ESCAPE_LIKE, como, ESCAPE_LIKE]
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT * FROM propostas WHERE " + " AND ".join(onde)
+            + " ORDER BY COALESCE(fechada_em, criada_em) DESC, id DESC",
+            valores).fetchall()
+        # Os prazos vem dos anuncios, numa consulta so: um SELECT por
+        # linha dentro do ciclo do HTML e o erro que as listas deste
+        # painel ja pagaram uma vez.
+        refs = [p["ref"] for p in linhas if p["ref"]]
+        prazos = {}
+        if refs:
+            prazos = {r["ref"]: r["prazo"] for r in c.execute(
+                "SELECT ref, prazo FROM anuncios WHERE ref IN (%s)"
+                % ",".join("?" * len(refs)), refs)}
+    contas = contar_a_escada(cfg=cfg)
+    # A aba conta anuncios com proposta; esta lista traz tambem as que
+    # nao tem anuncio nenhum. Os dois numeros podem discordar, e a regra
+    # da casa manda dize-lo em vez de deixar o ecra a mentir baixinho.
+    sem_anuncio = sum(1 for p in linhas if not p["ref"])
+    if linhas:
+        corpo = ("<div class='cx tab-cx'><table class='tab-contratos tab-lista'>"
+                 "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
+                 % ("".join("<th>%s</th>" % html.escape(t)
+                            for t in COLUNAS_DA_PIPELINE),
+                    "".join(linha_da_pipeline(p, urgente, prazos)
+                            for p in linhas)))
+    else:
+        corpo = ("<div class='vazio'>Nada em &ldquo;%s&rdquo;. "
+                 "Põe um concurso aqui a partir da ficha dele, ou "
+                 "<a href='/proposta/nova'>cria uma proposta sem anúncio</a> "
+                 "(consulta prévia, ajuste directo).</div>"
+                 % html.escape(estado_da_casa(estado_actual)))
+    conta = "%s %s" % (mil_pt(len(linhas)),
+                       "proposta" if len(linhas) == 1 else "propostas")
+    if sem_anuncio:
+        conta += (" &middot; %s sem anúncio do DR (a aba conta só as que "
+                  "têm)" % mil_pt(sem_anuncio))
+    caixa = ("<form class='pf' method='get' action='/'>"
+             "<input type='hidden' name='estado' value='%s'>"
+             "<input type='search' name='q' value='%s' "
+             "placeholder='procurar no título ou no cliente…'>"
+             "<button type='submit'>procurar</button>%s</form>"
+             % (html.escape(estado_actual, quote=True),
+                html.escape(procura, quote=True),
+                (" <a href='/?estado=%s'>limpar</a>" % estado_actual)
+                if procura else ""))
+    conteudo = ("<div class='larg'>" + caixa +
+                "<div class='linha-conta'>" + conta +
+                "<a href='/proposta/nova'>nova proposta</a></div>"
+                + corpo + "</div>")
+    return envolver(
+        "anuncios", "Concursos",
+        "O que a casa está a fazer. As propostas sem anúncio do DR "
+        "&mdash; consulta prévia, ajuste directo, convite &mdash; "
+        "vivem aqui e não na lista dos anúncios.",
+        conteudo, abas=barra_das_abas(rota, estado_actual, contas),
+        titulo_aba="%s, Concursos" % estado_da_casa(estado_actual))
 
 
 # Caractere de escape do LIKE. Usa-se "!" e nao a barra invertida de
@@ -10810,7 +11174,8 @@ def filtro_actual(args, vista="anuncios"):
             # de sobreviver a ida a base -- por isso o estado entra
             # sempre, mesmo quando esta vazio.
             valor = args.get("estado")
-            valor = "novo" if valor is None else valor.strip()
+            valor = (ENTRADA_DA_ESCADA[0] if valor is None
+                     else ABAS_ANTIGAS.get(valor.strip(), valor.strip()))
         else:
             valor = (args.get(campo) or "").strip()
             if not valor:
@@ -11086,8 +11451,24 @@ def condicoes(args):
             valores.append(fim)
     estado = args.get("estado")
     if estado is None:
-        estado = "novo"
-    if estado:
+        estado = ENTRADA_DA_ESCADA[0]
+    estado = ABAS_ANTIGAS.get(estado, estado)
+    if estado in CHAVES_DA_CASA:
+        # Um filtro guardado (ou um alerta) que pede uma ranhura da casa.
+        # Traduz-se para a proposta, que e onde esse estado passou a
+        # viver a 15/09/2026. **Isto nao e o recorte da pagina** -- esse
+        # continua de fora, no condicao_da_aba(): e um campo que quem
+        # guardou o filtro escolheu, e cala-lo fazia o filtro deixar de
+        # ver o que sempre viu. Deixar cair no `estado = ?` de baixo era
+        # pior: 'interessa' ja nao e valor nenhum da coluna, e o alerta
+        # passava a nao encontrar nada, em silencio.
+        onde.append(SQL_PROPOSTA_NO_ESTADO)
+        valores.append(estado)
+    elif estado in (ENTRADA_DA_ESCADA[0], CEMITERIO_DA_ESCADA[0]):
+        # As duas pontas sao anuncios 'novo'; o que as aparta e o prazo,
+        # e isso e recorte da pagina, nao do motor.
+        onde.append("estado = 'novo'")
+    elif estado:
         onde.append("estado = ?"); valores.append(estado)
     else:
         # "todos" sao todos os PROCEDIMENTOS. Uma alteracao e a
@@ -11313,72 +11694,89 @@ def _volta_com_aviso(texto, desfazer=None):
 
 @app.route("/estado/<path:ref>/<novo>", methods=["POST"])
 def mudar_estado(ref, novo):
-    if novo in ("novo", "interessa", "descartado"):
-        # Abandonar exige motivo, de ambito fechado (decisao do Afonso a
-        # 01/09/2026). Passado um mes, "abandonado" sozinho nao diz nada:
-        # nao se sabe se foi o preco, se foi falta de certificacoes, nem
-        # se vale a pena voltar a olhar para aquela entidade.
-        # request.values e nao request.form: o "desfazer" de um
-        # abandono reposto leva o motivo antigo na propria accao do
-        # formulario (?motivo=...), porque o aviso vem pela query string
-        motivo = (request.values.get("motivo") or "").strip()
-        if novo == "descartado" and motivo not in MOTIVOS_ABANDONO:
-            return _volta_com_aviso("Escolhe o motivo antes de abandonar.")
+    """Triar um anuncio: po-lo na escada, tira-lo dela, ou dizer que nao
+    se vai.
+
+    Ate 15/09/2026 isto escrevia `anuncios.estado`. Agora **cria ou move
+    uma proposta**, e o `anuncios.estado` fica so com o que o DR diz
+    ('novo', 'alteracao'): a decisao da casa deixou de morar na linha do
+    anuncio. Os nomes antigos da accao continuam a servir, porque as
+    ligacoes e o teclado da lista os usam -- traduzem-se a entrada.
+    """
+    accao = ABAS_ANTIGAS.get(novo, novo)
+    if accao not in CHAVES_DA_CASA and accao != ENTRADA_DA_ESCADA[0]:
+        return volta_ao_referer("/")
+    # Nao ir exige motivo, de ambito fechado (decisao do Afonso a
+    # 01/09/2026). Passado um mes, "nao fomos" sozinho nao diz nada: nao
+    # se sabe se foi o preco, se foi falta de certificacoes, nem se vale
+    # a pena voltar a olhar para aquela entidade.
+    # request.values e nao request.form: o "desfazer" leva o motivo
+    # antigo na propria accao do formulario (?motivo=...), porque o aviso
+    # vem pela query string.
+    motivo = (request.values.get("motivo") or "").strip()
+    permitidos = MOTIVOS_DO_ESTADO.get(accao)
+    if permitidos and motivo not in permitidos:
+        return _volta_com_aviso("Escolhe o motivo antes de continuar.")
+    with liga() as c:
+        actual = c.execute("SELECT estado, titulo, altera FROM anuncios "
+                           "WHERE ref=?", (ref,)).fetchone()
+    if not actual:
+        return volta_ao_referer("/")
+    if actual["estado"] == "alteracao":
+        # A alteracao nao se tria: a decisao e do procedimento, e o
+        # procedimento e o anuncio original -- que ja tem o prazo desta.
         with liga() as c:
-            actual = c.execute("SELECT estado, altera FROM anuncios WHERE ref=?",
-                               (ref,)).fetchone()
-            if actual and actual["estado"] == "alteracao":
-                raiz = raiz_da_alteracao(c, ref, actual["altera"] or "")
-        if actual and actual["estado"] == "alteracao":
-            # A alteracao nao se tria: a decisao e do procedimento, e o
-            # procedimento e o anuncio original -- que ja tem o prazo
-            # desta.
-            return _volta_com_aviso(
-                "O anúncio %s é uma alteração do %s: decide-se na ficha dele."
-                % (ref, raiz or "original"))
-        with liga() as c:
-            antes = c.execute("SELECT estado, titulo, motivo FROM anuncios "
-                              "WHERE ref=?", (ref,)).fetchone()
-            ja_estava = bool(antes) and antes["estado"] == novo
-            if novo == "interessa":
-                c.execute("""UPDATE anuncios SET estado=?, motivo=NULL,
-                             fase_id=COALESCE(fase_id, ?) WHERE ref=?""",
-                          (novo, primeira_fase(), ref))
-            else:
-                # Sair de abandonado limpa o motivo: um motivo pendurado
-                # num anuncio que voltou ao por ver e uma mentira a
-                # espera de ser lida.
-                c.execute("UPDATE anuncios SET estado=?, motivo=? WHERE ref=?",
-                          (novo, motivo or None, ref))
-        if not ja_estava:
-            registar(ref, "estado",
-                     "%s (%s)" % (novo, motivo) if motivo else novo)
-        if novo == "interessa" and not ja_estava:
-            # Marcar interessa e o sinal de que vais mesmo trabalhar isto,
-            # por isso as pecas vem sozinhas -- mas por uma fila, nao uma
-            # thread por clique: triar vinte anuncios seguidos abria vinte
-            # descargas de varios MB ao mesmo tempo.
-            #
-            # E so quando o estado muda mesmo: com o botao "interessa" a
-            # aparecer tambem em quem ja estava interessado, cada clique
-            # repetido voltava a descarregar as pecas todas.
-            pedir_documentos(ref)
-        if not antes:
+            raiz = raiz_da_alteracao(c, ref, actual["altera"] or "")
+        return _volta_com_aviso(
+            "O anúncio %s é uma alteração do %s: decide-se na ficha dele."
+            % (ref, raiz or "original"))
+
+    existentes = propostas_de(ref)
+    # O que havia ANTES le-se agora: depois de mover, o estado anterior
+    # ja nao esta em lado nenhum senao no historico, e e dele que o
+    # "desfazer" precisa.
+    antes = existentes[0] if existentes else None
+    antes_estado = antes["estado"] if antes else ""
+    antes_motivo = (antes["motivo"] if antes else "") or ""
+
+    if accao == ENTRADA_DA_ESCADA[0]:
+        rotulo = _tirar_da_escada(ref, antes)
+        if rotulo is None:
             return volta_ao_referer("/")
-        # O aviso diz o que se fez e a quem, e traz o caminho de volta.
-        # Se o estado anterior era um abandono com motivo, o motivo vai
-        # na accao do desfazer: sem ele o servidor recusava a reposicao.
-        rotulo = {"interessa": "marcado como interessa",
-                  "descartado": "abandonado" + (" (%s)" % motivo if motivo else ""),
-                  "novo": "reposto em por ver"}[novo]
-        texto = "\u00ab%s\u00bb %s." % (corta(antes["titulo"] or ref, 70), rotulo)
-        desfazer = None
-        if not ja_estava and (antes["estado"] != "descartado" or antes["motivo"]):
-            desfazer = "/estado/%s/%s" % (ref, antes["estado"])
-            if antes["estado"] == "descartado":
-                desfazer += "?" + urlencode({"motivo": antes["motivo"]})
-        return _volta_com_aviso(texto, desfazer)
-    return volta_ao_referer("/")
+    else:
+        ja_estava = bool(antes) and antes_estado == accao
+        if antes:
+            ok, recado = mover_proposta(antes["id"], accao)
+            if not ok:
+                return _volta_com_aviso(recado)
+            id_ = antes["id"]
+        else:
+            id_ = criar_proposta(ref, estado=accao)
+        # Sair de um estado com motivo limpa-o: um motivo pendurado numa
+        # proposta que mudou de ranhura e uma mentira a espera de ser
+        # lida.
+        if motivo or permitidos:
+            gravar_motivo(id_, motivo)
+        if accao == "analisar" and not ja_estava:
+            # Por na escada e o sinal de que vais mesmo trabalhar isto,
+            # por isso as pecas vem sozinhas -- mas por uma fila, nao uma
+            # thread por clique: triar vinte anuncios seguidos abria
+            # vinte descargas de varios MB ao mesmo tempo. E so quando o
+            # estado muda mesmo: com o botao a aparecer tambem em quem ja
+            # la estava, cada clique repetido voltava a descarregar tudo.
+            pedir_documentos(ref)
+        rotulo = estado_da_casa(accao) + (" (%s)" % motivo if motivo else "")
+
+    texto = "«%s»: %s." % (corta(actual["titulo"] or ref, 70), rotulo)
+    # O caminho de volta. Se o estado anterior tinha motivo, o motivo vai
+    # na accao do desfazer: sem ele o servidor recusava a reposicao.
+    desfazer = None
+    if antes_estado != accao:
+        alvo = antes_estado or ENTRADA_DA_ESCADA[0]
+        desfazer = "/estado/%s/%s" % (ref, alvo)
+        if antes_motivo:
+            desfazer += "?" + urlencode({"motivo": antes_motivo})
+    return _volta_com_aviso(texto, desfazer)
 
 
 @app.route("/plataforma/<path:ref>")
@@ -11478,8 +11876,7 @@ def exportar():
     ambito (ligacoes antigas), exporta o filtro tal e qual.
     """
     if (request.args.get("ambito") or "").strip():
-        estado = request.args.get("estado")
-        estado = "novo" if estado is None else estado.strip()
+        estado = aba_pedida()
         onde, valores = com_recorte(
             *condicoes(args_da_lista(request.args, estado="")),
             *recorte_da_lista(estado))
@@ -15986,6 +16383,149 @@ def ver_peca(ref, nome):
         "anuncios", nome, "Peça do anúncio %s." % html.escape(ref),
         corpo, migalhas=migalhas_de("anuncios", ref),
         titulo_aba="%s, Radar de Concursos" % nome)
+
+
+# --- a ficha da proposta, e a proposta sem anuncio (D2)
+#
+# Um concurso do DR tem ficha propria (/anuncio/<ref>) e e la que a
+# proposta dele se trabalha -- esta pagina e para o que NAO vem do DR: a
+# consulta previa, o ajuste directo, o convite. Sem ela, a decisao D2
+# ficava escrita no plano e sem porta no ecra.
+
+CAMPOS_EDITAVEIS_DA_PROPOSTA = (
+    ("titulo", "título", 200), ("entidade", "cliente", 120),
+    ("porque_sem_ref", "porque não tem anúncio", 120),
+    ("preco_base", "preço base", 40), ("valor_proposta", "proposto", 40),
+    ("coe", "CoE", 60), ("top3", "os três primeiros", 300),
+    ("notas", "notas", 500))
+
+
+@app.route("/proposta/nova", methods=["GET", "POST"])
+def proposta_nova():
+    """Uma proposta que nao vem do Diario da Republica (D2).
+
+    Pede so o que nao se pode adivinhar -- cliente e titulo -- e o resto
+    edita-se depois na ficha. Um formulario de quinze campos para criar
+    uma linha e a maneira de ninguem a criar.
+    """
+    if request.method == "POST":
+        entidade = " ".join((request.form.get("entidade") or "").split())[:120]
+        titulo = " ".join((request.form.get("titulo") or "").split())[:200]
+        porque = " ".join((request.form.get("porque_sem_ref") or "").split())[:120]
+        if not (entidade or titulo):
+            return redirect("/proposta/nova?" + urlencode(
+                {"aviso": "Uma proposta sem cliente nem título não se "
+                          "encontra depois. Escreve pelo menos um."}))
+        id_ = criar_proposta(entidade=entidade, titulo=titulo,
+                             porque_sem_ref=porque or "não vem do DR")
+        return redirect("/proposta/%d?" % id_ + urlencode(
+            {"aviso": "Proposta criada. O resto edita-se aqui."}))
+    corpo = (
+        "<div class='cx'><form method='post' class='form-largo'>"
+        "<label>Cliente<input type='text' name='entidade' maxlength='120' "
+        "placeholder='ex. Instituto Politécnico de Leiria' autofocus></label>"
+        "<label>Título<input type='text' name='titulo' maxlength='200' "
+        "placeholder='o objecto do procedimento'></label>"
+        "<label>Porque não tem anúncio"
+        "<input type='text' name='porque_sem_ref' maxlength='120' "
+        "value='consulta prévia' list='sem-ref'></label>"
+        "<datalist id='sem-ref'>%s</datalist>"
+        "<button type='submit'>criar</button></form></div>"
+        % ("".join("<option value='%s'>" % html.escape(v, quote=True)
+                   for v in ("consulta prévia", "ajuste directo", "convite",
+                             "anterior a 2025", "não sei"))))
+    return envolver("anuncios", "Nova proposta",
+                    "O que não vem do Diário da República: consulta "
+                    "prévia, ajuste directo, convite. O que vem do DR "
+                    "põe-se na escada a partir da ficha do anúncio.",
+                    "<div class='larg'>" + corpo + "</div>",
+                    migalhas=migalhas_de("anuncios", "Nova proposta"),
+                    titulo_aba="Nova proposta")
+
+
+@app.route("/proposta/<int:id_>")
+def ficha_da_proposta(id_):
+    """A ficha de uma proposta. Para as que tem anuncio, e um atalho: a
+    ficha do procedimento e a do anuncio, e e la que esta o que decide
+    (as pecas, o CPV, o historico do cliente)."""
+    p = proposta(id_)
+    if not p:
+        return pagina_de_erro(404)
+    if p["ref"]:
+        return redirect("/anuncio/" + quote(p["ref"], safe=""))
+    escada = "".join(
+        "<option value='%s'%s>%s</option>"
+        % (ch, " selected" if ch == p["estado"] else "", html.escape(rot))
+        for ch, rot in ESTADOS_DA_CASA)
+    permitidos = MOTIVOS_DO_ESTADO.get(p["estado"])
+    motivo_html = ""
+    if permitidos:
+        motivo_html = (
+            "<label>%s<select name='motivo'>"
+            "<option value=''>escolhe…</option>%s</select></label>"
+            % (html.escape(PEDIDO_DO_ESTADO.get(p["estado"], "motivo")),
+               "".join("<option value='%s'%s>%s</option>"
+                       % (html.escape(m, quote=True),
+                          " selected" if m == (p["motivo"] or "") else "",
+                          html.escape(m)) for m in permitidos)))
+    campos = "".join(
+        "<label>%s<input type='text' name='%s' value='%s' maxlength='%d'></label>"
+        % (html.escape(rotulo), nome,
+           html.escape(p[nome] or "", quote=True), tecto)
+        for nome, rotulo, tecto in CAMPOS_EDITAVEIS_DA_PROPOSTA)
+    corpo = (
+        "<div class='cx'><form method='post' action='/proposta/%d/gravar' "
+        "class='form-largo'>"
+        "<label>Estado<select name='estado'>%s</select></label>%s%s"
+        "<label>Responsável<input type='text' name='responsavel' value='%s' "
+        "list='pessoas'></label>"
+        "<button type='submit'>gravar</button></form></div>"
+        "<p class='nota'>Sem anúncio do DR: %s. Criada a %s.%s</p>"
+        % (id_, escada, motivo_html, campos,
+           html.escape(p["responsavel"] or "", quote=True),
+           html.escape(p["porque_sem_ref"] or "não vem do DR"),
+           html.escape(p["criada_em"] or "?"),
+           " Fechada a %s." % html.escape(p["fechada_em"])
+           if p["fechada_em"] else ""))
+    nome = p["titulo"] or p["entidade"] or "proposta %d" % id_
+    return envolver("anuncios", corta(nome, 80),
+                    html.escape(p["entidade"] or ""),
+                    "<div class='larg'>" + corpo + "</div>",
+                    migalhas=migalhas_de("anuncios", corta(nome, 40)),
+                    titulo_aba=corta(nome, 60))
+
+
+@app.route("/proposta/<int:id_>/gravar", methods=["POST"])
+def proposta_gravar(id_):
+    """Grava a ficha de uma proposta sem anuncio. Cada campo so muda se
+    vier no formulario, e so o que mudou vai para o historico."""
+    p = proposta(id_)
+    if not p:
+        return pagina_de_erro(404)
+    if "estado" in request.form:
+        ok, recado = mover_proposta(id_, (request.form.get("estado") or "").strip())
+        if not ok:
+            return redirect("/proposta/%d?" % id_ + urlencode({"aviso": recado}))
+    if "motivo" in request.form:
+        motivo = (request.form.get("motivo") or "").strip()
+        permitidos = MOTIVOS_DO_ESTADO.get(
+            (request.form.get("estado") or p["estado"]).strip()) or ()
+        if motivo and motivo not in permitidos:
+            return redirect("/proposta/%d?" % id_ + urlencode(
+                {"aviso": "Esse motivo não existe para este estado."}))
+        gravar_motivo(id_, motivo)
+    campos, valores = [], []
+    for nome, _, tecto in CAMPOS_EDITAVEIS_DA_PROPOSTA:
+        if nome in request.form:
+            campos.append(nome)
+            valores.append(" ".join((request.form.get(nome) or "").split())[:tecto]
+                           or None)
+    if "responsavel" in request.form:
+        campos.append("responsavel")
+        valores.append(criar_pessoa(request.form.get("responsavel")))
+    if campos:
+        gravar_campos_da_proposta(id_, campos, valores)
+    return redirect("/proposta/%d?" % id_ + urlencode({"aviso": "Guardado."}))
 
 
 # --------------------------------------------------------------- quadro

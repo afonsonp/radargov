@@ -1256,9 +1256,21 @@ class TestFiltroCanonico(unittest.TestCase):
     """
 
     def test_estado_ausente_e_por_ver(self):
-        # condicoes() trata a falta de estado como "novo"; se a consulta
-        # guardada nao dissesse isso, o filtro voltava como "todos"
-        self.assertEqual(radar.filtro_actual({}), "estado=novo")
+        # condicoes() trata a falta de estado como a entrada da escada; se
+        # a consulta guardada nao dissesse isso, o filtro voltava como
+        # "todos". Desde 15/09/2026 a palavra e "porver" e nao "novo"
+        self.assertEqual(radar.filtro_actual({}), "estado=porver")
+
+    def test_a_consulta_guardada_fala_o_vocabulario_de_hoje(self):
+        """Um filtro guardado antes de 15/09/2026 tem "estado=novo"
+        escrito. A consulta canonica traduz-o, senao o filtro em uso
+        nunca se reconhecia a si proprio e o botao de guardar so oferecia
+        criar outro com o mesmo nome -- que e o erro que esta classe
+        inteira existe para travar."""
+        self.assertEqual(radar.filtro_actual({"estado": "novo"}),
+                         "estado=porver")
+        self.assertEqual(radar.filtro_actual({"estado": "interessa"}),
+                         "estado=analisar")
 
     def test_estado_vazio_e_todos_e_nao_se_perde(self):
         # vazio nao e a mesma coisa que ausente, e nao se pode deixar cair
@@ -1266,10 +1278,10 @@ class TestFiltroCanonico(unittest.TestCase):
         self.assertEqual(radar.filtro_actual({"estado": ""}), "estado=")
 
     def test_ordem_fixa_seja_qual_for_a_ordem_da_url(self):
-        um = radar.filtro_actual({"estado": "novo", "q": "software"})
-        outro = radar.filtro_actual({"q": "software", "estado": "novo"})
+        um = radar.filtro_actual({"estado": "porver", "q": "software"})
+        outro = radar.filtro_actual({"q": "software", "estado": "porver"})
         self.assertEqual(um, outro)
-        self.assertEqual(um, "q=software&estado=novo")
+        self.assertEqual(um, "q=software&estado=porver")
 
     def test_pagina_e_aviso_ficam_de_fora(self):
         # guardar na pagina 3 gravava a pagina 3, e o filtro abria sempre
@@ -1282,7 +1294,7 @@ class TestFiltroCanonico(unittest.TestCase):
     def test_campos_vazios_nao_entram(self):
         # senao "q=&ent=&cpv=" era diferente de "" e o chip nao marcava
         self.assertEqual(radar.filtro_actual({"q": "", "ent": "  "}),
-                         "estado=novo")
+                         "estado=porver")
 
 
 class TestArgsDaLista(unittest.TestCase):
@@ -2772,7 +2784,7 @@ class TestFiltrosGuardadosNasDuasVistas(unittest.TestCase):
 
     def test_o_filtro_de_anuncios_continua_a_levar_estado_sempre(self):
         self.assertEqual(radar.filtro_actual({"q": "software"}, "anuncios"),
-                         "q=software&estado=novo")
+                         "q=software&estado=porver")
 
     def test_campos_so_dos_contratos(self):
         consulta = radar.filtro_actual(
@@ -3527,7 +3539,7 @@ class TestLimparMantemEstado(unittest.TestCase):
     está, não parte do filtro que se quer tirar."""
 
     def test_por_ver_volta_a_raiz(self):
-        self.assertEqual(radar.href_limpar("/", "novo"), "/")
+        self.assertEqual(radar.href_limpar("/", "porver"), "/")
 
     def test_outro_separador_fica_onde_esta(self):
         self.assertEqual(radar.href_limpar("/", "descartado"),
@@ -4092,24 +4104,58 @@ class TestAbasDaListaUnica(unittest.TestCase):
         self.assertNotIn("prazo >=", onde)
 
     def test_por_ver_e_novo_e_ainda_respondivel(self):
-        frag, valores = self._aba("novo")
+        frag, valores = self._aba("porver")
         self.assertIn("estado = 'novo'", frag)
         self.assertIn("prazo >= ?", frag)          # com prazo lido
         self.assertIn("data_pub >= ?", frag)       # sem prazo: publicação
         self.assertEqual(valores, ["2026-08-31", "2026-07-02"])
         self.assertEqual(frag.count("?"), len(valores))
 
-    def test_abandonados_juntam_descartados_e_expirados(self):
-        frag, valores = self._aba("descartado")
-        self.assertIn("estado = 'descartado'", frag)
+    def test_o_cemiterio_e_so_o_que_ninguem_olhou(self):
+        """A escada de 15/09/2026 parte a antiga aba «abandonados» em
+        duas, e a distinção é o ponto todo (D6): «Não fomos» é uma
+        DECISÃO, com motivo; «expirou sem ver» é o prazo a passar sem
+        ninguém olhar. Estavam juntos, e a 15/09/2026 os 198 305
+        «abandonados» eram TODOS expirados — zero decisões na base. Um
+        número que junta as duas coisas faz o ruído do DR parecer
+        trabalho da casa."""
+        frag, valores = self._aba("expirou")
         self.assertIn("estado = 'novo' AND NOT", frag)
+        self.assertIn("NOT EXISTS", frag)     # e sem proposta: decidido não conta
+        self.assertNotIn("descartado", frag)
         self.assertEqual(frag.count("?"), len(valores))
 
-    def test_interessa_mostra_tudo_mesmo_expirado(self):
-        # um interessa com prazo passado é trabalho em curso (proposta
-        # entregue, a aguardar decisão) — não se esconde por expirar
-        frag, valores = self._aba("interessa")
-        self.assertEqual((frag, valores), ("estado = ?", ["interessa"]))
+    def test_a_entrada_exclui_o_que_ja_tem_decisao(self):
+        """Um anúncio que se pôs «a preparar proposta» não pode continuar
+        em «Por ver» a pedir triagem. Antes da escada isto vinha de
+        graça, porque o estado era do anúncio e mudava; agora a decisão
+        vive noutra tabela e a exclusão tem de ser pedida."""
+        frag, _ = self._aba("porver")
+        self.assertIn("NOT EXISTS", frag)
+        self.assertIn("propostas", frag)
+
+    def test_uma_ranhura_da_casa_conta_anuncios_com_proposta(self):
+        frag, valores = self._aba("submetido")
+        self.assertIn("EXISTS", frag)
+        self.assertNotIn("NOT EXISTS", frag)
+        self.assertEqual(valores, ["submetido"])
+
+    def test_um_submetido_com_prazo_passado_nao_se_esconde(self):
+        """A regra antiga da casa, no vocabulário novo: uma proposta
+        entregue à espera de decisão tem o prazo passado por definição, e
+        esconder-se por isso era perder de vista o trabalho em curso. A
+        ranhura da casa não leva recorte de prazo nenhum."""
+        frag, _ = self._aba("submetido")
+        self.assertNotIn("prazo", frag)
+        self.assertNotIn("data_pub", frag)
+
+    def test_as_abas_antigas_traduzem_se_a_entrada(self):
+        """As ligações antigas e os filtros guardados de antes de
+        15/09/2026 trazem `?estado=novo` e `?estado=interessa`. Cair numa
+        aba que não existe devolvia a lista vazia, sem nada a dizê-lo."""
+        self.assertEqual(self._aba("novo"), self._aba("porver"))
+        self.assertEqual(self._aba("interessa"), self._aba("analisar"))
+        self.assertEqual(self._aba("descartado"), self._aba("nao_fomos"))
 
     def test_todos_nao_recorta_nada(self):
         self.assertEqual(self._aba(""), ("", []))
@@ -4117,7 +4163,7 @@ class TestAbasDaListaUnica(unittest.TestCase):
     def test_o_recorte_aplica_se_por_cima_do_motor(self):
         onde, valores = radar.com_recorte(
             *radar.condicoes({"q": "software", "estado": ""}),
-            *self._aba("novo"))
+            *self._aba("porver"))
         self.assertIn("estado = 'novo'", onde)
         self.assertEqual(onde.count("?"), len(valores))
 
@@ -4837,6 +4883,39 @@ class TestPropostas(BaseTemporaria):
             self.assertEqual(c.execute(
                 "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 2)
 
+    def test_a_proposta_de_um_lote_leva_o_preco_do_lote(self):
+        """Visto no ecrã a 15/09/2026: a proposta do lote 2 mostrava os
+        212 400 EUR do procedimento inteiro — o número do anúncio numa
+        linha que representa uma parte dele. É a mentira mais cara que
+        esta tabela pode contar: é deste número que sai o desvio face ao
+        proposto, e é com ele que a etapa 4 há-de comparar o que o
+        Portal BASE adjudicou, que também é por lote."""
+        self._anuncio()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET lotes=? WHERE ref='60/2026'",
+                      (json.dumps([{"n": 1, "descricao": "Norte",
+                                    "preco_base": "70.000,00 EUR"},
+                                   {"n": 2, "descricao": "Sul",
+                                    "preco_base": "48.500,00 EUR"}]),))
+        l1 = radar.proposta(radar.criar_proposta("60/2026", lote=1))
+        l2 = radar.proposta(radar.criar_proposta("60/2026", lote=2))
+        self.assertEqual(l1["preco_base"], "70.000,00 EUR")
+        self.assertEqual(l2["preco_base"], "48.500,00 EUR")
+
+    def test_sem_preco_do_lote_lido_fica_vazio_e_nao_o_do_todo(self):
+        """Um campo em branco pergunta-se; um número errado acredita-se."""
+        self._anuncio()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET lotes=? WHERE ref='60/2026'",
+                      (json.dumps([{"n": 1, "descricao": "Único"}]),))
+        p = radar.proposta(radar.criar_proposta("60/2026", lote=1))
+        self.assertEqual(p["preco_base"], "")
+
+    def test_o_conjunto_e_o_anuncio_sem_lotes_levam_o_preco_do_todo(self):
+        self._anuncio()
+        conjunto = radar.proposta(radar.criar_proposta("60/2026", lote=0))
+        self.assertEqual(conjunto["preco_base"], "118.500,00 EUR")
+
     def test_fechar_carimba_e_reabrir_limpa(self):
         """O `fechada_em` é o que faz o funil esvaziar. E um «Perdido»
         que se reabre por impugnação não pode continuar a contar como
@@ -4968,6 +5047,151 @@ class TestPropostasNoB15(BaseTemporaria):
         self.assertEqual(p["valor_proposta"], "118.500,00 EUR")
         self.assertEqual((p["lugar"], p["lote"], p["coe"]), (2, 2, "Data"))
         self.assertEqual((n, t), (2, 1))
+
+
+class TestEscadaNaLista(BaseTemporaria):
+    """A escada no ecrã (etapa 2 do CRM, 15/09/2026). A pergunta do
+    Afonso era que o «Em curso» e a aba «interessados» mostravam o
+    mesmo: mostravam, porque eram a mesma consulta. Estas provas são de
+    que deixaram de ser."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, preco_base,"
+                      " data_pub, prazo, estado, detalhe_lido) VALUES "
+                      "(?,?,?,?,?,?,?,?)",
+                      ("60/2026", "Aquisição de software", "Câmara de Lisboa",
+                       "118.500,00 EUR", "2026-09-01", "2099-12-30", "novo", 1))
+            c.execute("INSERT INTO anuncios (ref, titulo, data_pub, prazo,"
+                      " estado) VALUES (?,?,?,?,?)",
+                      ("9/2020", "Velho e expirado", "2020-01-01",
+                       "2020-02-01", "novo"))
+
+    def _html(self, url="/"):
+        return self.cliente.get(url).get_data(as_text=True)
+
+    def test_a_barra_tem_as_dez_ranhuras_e_o_todos(self):
+        html_ = self._html()
+        for _, rotulo in radar.ESCADA:
+            self.assertIn(">%s <i>" % rotulo, html_, rotulo)
+        self.assertIn(">Todos <i>", html_)
+
+    def test_a_entrada_e_o_cemiterio_apartam_se(self):
+        self.assertIn("Aquisição de software", self._html())
+        self.assertNotIn("Velho e expirado", self._html())
+        cemiterio = self._html("/?estado=expirou")
+        self.assertIn("Velho e expirado", cemiterio)
+        self.assertNotIn("Aquisição de software", cemiterio)
+
+    def test_decidir_tira_o_anuncio_da_entrada(self):
+        """Um anúncio que se pôs na escada não pode continuar em «Por
+        ver» a pedir triagem — antes da escada isto vinha de graça,
+        porque o estado era do anúncio."""
+        self.cliente.post("/estado/60%2F2026/analisar")
+        self.assertNotIn("Aquisição de software", self._html())
+        self.assertIn("Aquisição de software", self._html("/?estado=analisar"))
+
+    def test_as_duas_listas_deixaram_de_ser_a_mesma_consulta(self):
+        """A pergunta que deu origem a tudo isto. A lista dos anúncios
+        mostra o que o DR publicou; a das ranhuras da casa mostra
+        propostas — e uma delas nem anúncio tem."""
+        self.cliente.post("/estado/60%2F2026/submetido")
+        radar.criar_proposta(entidade="IPL", titulo="Consulta prévia de formação",
+                             porque_sem_ref="consulta prévia", estado="submetido")
+        html_ = self._html("/?estado=submetido")
+        self.assertIn("Aquisição de software", html_)
+        self.assertIn("Consulta prévia de formação", html_)
+        # e a entrada não mostra nem uma nem outra
+        entrada = self._html()
+        self.assertNotIn("Aquisição de software", entrada)
+        self.assertNotIn("Consulta prévia de formação", entrada)
+
+    def test_a_lista_diz_quando_tem_mais_do_que_a_aba_conta(self):
+        """A aba conta anúncios com proposta; a lista traz também as que
+        não têm anúncio nenhum. Os dois números podem discordar, e a
+        regra da casa manda dizê-lo em vez de deixar o ecrã a mentir
+        baixinho."""
+        radar.criar_proposta(entidade="IPL", titulo="Consulta prévia",
+                             porque_sem_ref="consulta prévia")
+        html_ = self._html("/?estado=analisar")
+        self.assertIn("sem anúncio do DR", html_)
+        self.assertIn("a aba conta só as que têm", html_)
+
+    def test_uma_proposta_sem_anuncio_tem_ficha_propria(self):
+        """Sem esta porta, a decisão D2 ficava escrita no plano e sem
+        sítio no ecrã: uma consulta prévia não tem ficha do DR para
+        abrir."""
+        r = self.cliente.post("/proposta/nova",
+                              data={"entidade": "IPL", "titulo": "Formação",
+                                    "porque_sem_ref": "consulta prévia"})
+        self.assertEqual(r.status_code, 302)
+        html_ = self.cliente.get(r.headers["Location"]).get_data(as_text=True)
+        self.assertIn("Formação", html_)
+        self.assertIn("consulta prévia", html_)
+
+    def test_uma_proposta_sem_cliente_nem_titulo_recusa_se(self):
+        """Uma linha sem nenhum dos dois não se encontra depois."""
+        r = self.cliente.post("/proposta/nova", data={"entidade": "", "titulo": ""})
+        self.assertIn("aviso", r.headers["Location"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 0)
+
+    def test_a_ficha_de_uma_proposta_com_anuncio_leva_a_ficha_do_anuncio(self):
+        """O procedimento tem uma ficha só, e é a do anúncio: é lá que
+        estão as peças, o CPV e o histórico do cliente."""
+        id_ = radar.criar_proposta("60/2026")
+        r = self.cliente.get("/proposta/%d" % id_)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/anuncio/60", r.headers["Location"])
+
+
+class TestFiltrosGuardadosFalamAEscada(BaseTemporaria):
+    """Um filtro (ou um alerta) guardado antes de 15/09/2026 tem
+    "estado=novo" escrito. Sem a tradução partiam-se duas coisas, as
+    duas em silêncio: o filtro em uso nunca mais se reconhecia a si
+    próprio, e um alerta com "estado=interessa" procurava um valor que a
+    coluna já não tem — sem encontrar nada e sem nada no ecrã a dizê-lo.
+    """
+
+    def _guardar(self, consulta):
+        with radar.liga() as c:
+            c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta,"
+                      " quem, criado_em) VALUES (?,?,?,?,?)",
+                      ("CPV IT", consulta, 1, "Afonso", "2026-08-30 10:00"))
+
+    def _consulta(self):
+        with radar.liga() as c:
+            return c.execute("SELECT consulta FROM filtros_guardados"
+                             ).fetchone()["consulta"]
+
+    def test_a_migracao_traduz_e_e_idempotente(self):
+        self._guardar("cpv=72&estado=novo")
+        with radar.liga() as c:
+            radar.traduzir_filtros_guardados(c)
+        self.assertEqual(self._consulta(), "cpv=72&estado=porver")
+        with radar.liga() as c:
+            radar.traduzir_filtros_guardados(c)     # segunda volta
+        self.assertEqual(self._consulta(), "cpv=72&estado=porver")
+
+    def test_nao_mexe_no_que_ja_esta_certo_nem_no_todos(self):
+        self._guardar("cpv=72&estado=")
+        with radar.liga() as c:
+            radar.traduzir_filtros_guardados(c)
+        self.assertEqual(self._consulta(), "cpv=72&estado=")
+
+    def test_um_alerta_pelo_vocabulario_antigo_continua_a_ver(self):
+        """`estado=interessa` já não é valor nenhum da coluna. Deixar cair
+        no `estado = ?` fazia o alerta não encontrar nada; traduz-se para
+        a proposta, que é onde esse estado passou a viver."""
+        onde, valores = radar.condicoes({"estado": "interessa"})
+        self.assertIn("EXISTS", onde)
+        self.assertIn("propostas", onde)
+        self.assertEqual(valores, ["analisar"])
 
 
 class TestPorqueDoGit(unittest.TestCase):
@@ -6243,24 +6467,24 @@ class TestRecorteDaLista(unittest.TestCase):
         antigo = radar.ler_config
         radar.ler_config = lambda: dict(radar.CONFIG_INICIAL, **cfg)
         try:
-            with radar.app.test_request_context("/?estado=novo"):
-                return radar.recorte_da_lista("interessa")
+            with radar.app.test_request_context("/?estado=porver"):
+                return radar.recorte_da_lista("submetido")
         finally:
             radar.ler_config = antigo
 
     def test_sem_interesse_e_so_a_aba(self):
         frag, vals = self._com({"interesse_activo": False})
-        self.assertEqual(frag, "estado = ?")
-        self.assertEqual(vals, ["interessa"])
+        self.assertIn("EXISTS", frag)
+        self.assertEqual(vals, ["submetido"])
 
     def test_com_interesse_junta_os_dois_com_E(self):
         frag, vals = self._com({"interesse_activo": True,
                                 "interesse_cpv": "72000000"})
-        self.assertIn("estado = ?", frag)
+        self.assertIn("EXISTS", frag)
         self.assertIn("cpv LIKE ?", frag)
         self.assertIn(") AND (", frag)
         # a ordem dos valores tem de seguir a dos ? -- aba primeiro
-        self.assertEqual(vals, ["interessa", "72%", "%, 72%"])
+        self.assertEqual(vals, ["submetido", "72%", "%, 72%"])
 
 
 class TestMotivoDoAbandono(unittest.TestCase):
@@ -6523,70 +6747,78 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
     def _params(self, r):
         return dict(parse_qsl(urlparse(r.headers["Location"]).query))
 
-    def test_interessa_avisa_e_oferece_desfazer(self):
-        r = self.cliente.post("/estado/2/2026/interessa",
-                              headers={"Referer": "http://localhost:8765/?estado=novo"})
+    def test_por_na_escada_avisa_e_oferece_desfazer(self):
+        r = self.cliente.post(
+            "/estado/2/2026/interessa",      # o nome antigo ainda serve
+            headers={"Referer": "http://localhost:8765/?estado=porver"})
         self.assertEqual(r.status_code, 302)
         p = self._params(r)
-        self.assertIn("marcado como interessa", p["aviso"])
+        self.assertIn("Por analisar", p["aviso"])
         self.assertIn("Aquisição de serviços de consultoria", p["aviso"])
-        self.assertEqual(p["desfazer"], "/estado/2/2026/novo")
-        self.assertEqual(p["estado"], "novo")     # o filtro da pagina fica
+        self.assertEqual(p["desfazer"], "/estado/2/2026/porver")
+        self.assertEqual(p["estado"], "porver")     # o filtro da pagina fica
 
-    def test_abandonar_avisa_com_o_motivo_e_o_desfazer_repoe(self):
-        r = self.cliente.post("/estado/2/2026/descartado",
+    def test_nao_fomos_avisa_com_o_motivo_e_o_desfazer_repoe(self):
+        r = self.cliente.post("/estado/2/2026/nao_fomos",
                               data={"motivo": radar.MOTIVOS_ABANDONO[0]})
         p = self._params(r)
-        self.assertIn("abandonado (%s)" % radar.MOTIVOS_ABANDONO[0], p["aviso"])
-        self.assertEqual(p["desfazer"], "/estado/2/2026/novo")
+        self.assertIn("Não fomos (%s)" % radar.MOTIVOS_ABANDONO[0], p["aviso"])
+        self.assertEqual(p["desfazer"], "/estado/2/2026/porver")
         r = self.cliente.post(p["desfazer"])
         self.assertIn("reposto em por ver", self._params(r)["aviso"])
+        # sair da escada tira a proposta, e o anuncio fica como o DR o
+        # deixou -- a decisao da casa nao mora no anuncio desde 15/09/2026
+        self.assertEqual(radar.propostas_de("2/2026"), [])
         with radar.liga() as c:
-            a = c.execute("SELECT estado, motivo FROM anuncios WHERE ref='2/2026'").fetchone()
-        self.assertEqual((a["estado"], a["motivo"]), ("novo", None))
+            a = c.execute("SELECT estado FROM anuncios WHERE ref='2/2026'").fetchone()
+        self.assertEqual(a["estado"], "novo")
 
-    def test_desfazer_um_interessa_sobre_um_abandonado_leva_o_motivo(self):
+    def test_o_desfazer_de_um_nao_fomos_leva_o_motivo(self):
         # sem o motivo na accao, o servidor recusava a reposicao
-        self.cliente.post("/estado/2/2026/descartado",
+        self.cliente.post("/estado/2/2026/nao_fomos",
                           data={"motivo": radar.MOTIVOS_ABANDONO[1]})
-        r = self.cliente.post("/estado/2/2026/interessa")
+        r = self.cliente.post("/estado/2/2026/analisar")
         p = self._params(r)
-        self.assertTrue(p["desfazer"].startswith("/estado/2/2026/descartado?motivo="))
+        self.assertTrue(p["desfazer"].startswith("/estado/2/2026/nao_fomos?motivo="))
         r = self.cliente.post(p["desfazer"])
         self.assertEqual(r.status_code, 302)
-        with radar.liga() as c:
-            a = c.execute("SELECT estado, motivo FROM anuncios WHERE ref='2/2026'").fetchone()
-        self.assertEqual((a["estado"], a["motivo"]), ("descartado", radar.MOTIVOS_ABANDONO[1]))
+        viva = radar.propostas_de("2/2026")[0]
+        self.assertEqual((viva["estado"], viva["motivo"]),
+                         ("nao_fomos", radar.MOTIVOS_ABANDONO[1]))
 
     def test_repetir_o_mesmo_estado_avisa_mas_nao_oferece_desfazer(self):
-        self.cliente.post("/estado/2/2026/interessa")
-        p = self._params(self.cliente.post("/estado/2/2026/interessa"))
-        self.assertIn("marcado como interessa", p["aviso"])
+        self.cliente.post("/estado/2/2026/analisar")
+        p = self._params(self.cliente.post("/estado/2/2026/analisar"))
+        self.assertIn("Por analisar", p["aviso"])
         self.assertNotIn("desfazer", p)
 
-    def test_o_aviso_anterior_sai_da_query_string(self):
-        r = self.cliente.post("/estado/2/2026/interessa", headers={
-            "Referer": "http://localhost:8765/?aviso=velho&desfazer=/estado/x/novo&estado="})
-        q = parse_qsl(urlparse(r.headers["Location"]).query, keep_blank_values=True)
-        self.assertEqual([k for k, _ in q].count("aviso"), 1)
-        self.assertEqual([k for k, _ in q].count("desfazer"), 1)
-        self.assertIn(("estado", ""), q)
+    def test_repor_nao_deita_fora_trabalho_escrito(self):
+        """15/09/2026, etapa 2: «voltar ao por ver» apaga a proposta — e
+        apagar uma com preço proposto ou notas lá dentro era perder
+        trabalho com um clique, sem confirmação e sem desfazer. Essa
+        volta a «Por analisar», e o aviso diz porquê: sem uma palavra, o
+        gesto parecia não ter funcionado."""
+        self.cliente.post("/estado/2/2026/submetido")
+        id_ = radar.propostas_de("2/2026")[0]["id"]
+        radar.gravar_campos_da_proposta(id_, ["valor_proposta"],
+                                        ["118.500,00 EUR"])
+        p = self._params(self.cliente.post("/estado/2/2026/porver"))
+        self.assertIn("não se deita fora", p["aviso"])
+        viva = radar.propostas_de("2/2026")
+        self.assertEqual(len(viva), 1)
+        self.assertEqual(viva[0]["estado"], "analisar")
+        self.assertEqual(viva[0]["valor_proposta"], "118.500,00 EUR")
 
-    def test_envolver_desenha_o_desfazer_como_botao_post(self):
-        with radar.app.test_request_context(
-                "/?aviso=feito&desfazer=/estado/2/2026/novo"):
-            pagina = radar.envolver("anuncios", "T", "S", "")
-        self.assertIn("<form class='accao desfazer' method='post' "
-                      "action='/estado/2/2026/novo'>", pagina)
-        self.assertIn(">desfazer</button>", pagina)
-
-    def test_so_aceita_caminhos_de_estado_no_desfazer(self):
-        with radar.app.test_request_context(
-                "/?aviso=feito&desfazer=https://exemplo.pt/x"):
-            pagina = radar.envolver("anuncios", "T", "S", "")
-        self.assertNotIn("class='accao desfazer'", pagina)
-        self.assertIn("feito", pagina)
-
+    def test_o_motivo_nao_sobrevive_a_mudanca_de_ranhura(self):
+        """A prova de fumo da etapa 2 apanhou isto: reabrir um «Não
+        fomos» em «Submetido» deixava lá o «Preço base baixo» pendurado.
+        Um motivo numa proposta que mudou de ranhura é uma mentira à
+        espera de ser lida — a mesma regra que já valia para o abandono
+        do anúncio, agora no sítio que sabe que o estado mudou."""
+        self.cliente.post("/estado/2/2026/nao_fomos",
+                          data={"motivo": radar.MOTIVOS_ABANDONO[0]})
+        self.cliente.post("/estado/2/2026/submetido")
+        self.assertIsNone(radar.propostas_de("2/2026")[0]["motivo"])
 
 class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
     """O quadro pintava «prazo expirado» a vermelho em 4 dos 9 cartões,
