@@ -34,8 +34,12 @@ ou feito.
 | 11.7-B | ~~Procura directa de entidade~~ | **Feito a 31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado + `/entidade/procurar` — NIF vai directo, nome resolve por `entidade_nomes` (única → ficha; várias → escolha; nenhuma → di-lo) | — |
 | — | ~~Visualizador de PDF na ficha~~ | **Feito a 31/08/2026, a pedido dele** (sai do «Não fazer»): os PDF das peças abrem em `/peca/<ref>/<nome>`, dentro da aplicação, com a pesquisa do próprio visualizador (Ctrl+F) — o caminho barato que estava anotado | — |
 
-**O registo está limpo: não há pendências abertas.** O que se abrir a
-seguir entra aqui com quem decide e o que dispara, como sempre.
+| CRM | O «Em curso» não é um CRM: é a mesma consulta dos interessados | **Plano escrito a 15/09/2026** em `docs/historico/CRM.md`, a pedido dele. Sete etapas, da exportação em falta (esforço 1) ao ciclo fechado com o Portal BASE | **Afonso**, nas quatro decisões do §2: o vocabulário dos estados (radar/Excel/Zoho), se uma proposta sem anúncio entra no painel, se a granularidade é o lote, e se o Excel continua a ser fonte |
+| B15-b | Os campos do CRM não saem no `triagem.jsonl` | **Aberto a 15/09/2026** (`docs/historico/CRM.md` §1.6): o `_TABELAS_TRIAGEM` exporta do `anuncios` só `ref, estado, fase_id, responsavel, visto_em`. Ficam de fora `motivo`, `preco_proposto`, `posicao`, `top3`, `motivo_perda`, `tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe` e a tabela `casa` — tudo escrito à mão e sem fonte que o refaça. **Esforço 1** | Nada: não precisa de decisão, faz-se |
+
+**Há duas pendências abertas** (CRM e B15-b), as duas de 15/09/2026. O
+que se abrir a seguir entra aqui com quem decide e o que dispara, como
+sempre.
 
 **Dependências, e o estado de cada uma:**
 
@@ -52,10 +56,15 @@ seguir entra aqui com quem decide e o que dispara, como sempre.
 - **R11 (volume) → `/contratos/resumo`:** viva. É a razão de a entrada
   de Mercado ser «a pergunta primeiro», e o esqueleto proíbe qualquer
   painel que dispare o resumo sem filtro.
-- **R2 (perda do PC):** **fechada por inteiro a 31/08/2026** — o código
-  pelo remoto do GitHub, e a triagem pelo B15 com o push automático em
-  cada verificação. O que fica em risco no disco é só o que se refaz
-  (base, corpus, peças).
+- **R2 (perda do PC):** dada como fechada a 31/08/2026 — o código pelo
+  remoto do GitHub, e a triagem pelo B15 com o push automático em cada
+  verificação. **Reaberta a 15/09/2026, em parte** (B15-b, em cima): as
+  colunas de CRM que entraram no `anuncios` depois dessa data
+  (14/09/2026: `tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe`; e
+  antes delas `preco_proposto`, `posicao`, `top3`, `motivo_perda`,
+  `motivo`) nunca foram acrescentadas ao `_TABELAS_TRIAGEM`, e a tabela
+  `casa` também não lá está. Fora isso, o que fica em risco no disco é
+  só o que se refaz (base, corpus, peças).
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
 
