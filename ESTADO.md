@@ -143,7 +143,17 @@ restaurar (integrity_check e contagens contra a base viva; marca
 `ultimo_ensaio_copia`). **Correu na instalação a 15/09/2026, depois
 da v1.3.0: «Serve.»**, integridade ok, 209 793 anúncios na cópia contra
 209 826 na base viva (os 33 da verificação das 09:00, feita depois da
-cópia). A release **v1.3.0** é desse dia: os PR #8 a #20.
+cópia). A release **v1.3.0** é desse dia: os PR #8 a #20, e a
+**v1.3.1** logo a seguir, na mesma manhã: a saída da revisão de
+segurança automática do GitHub (as seis prioridades ficam em
+`docs/seguranca.md`) e os comentários da cópia diária sem números do
+Windows — medido nesse dia em Ubuntu, com a base nos 1,23 GB, o
+`VACUUM INTO` leva 3,4 s e 16 MB de RSS, e a razão de ser uma cópia
+por dia passou a ser o disco, não o tempo. A instalação está na
+v1.3.1. Nesse dia republicou-se também a release **`dados`** com o
+`radar.db` (1,29 GB): tinha desaparecido do GitHub com o
+repositório antigo, e as tags locais `v1.0.0`, `v1.0.1` e `dados`,
+que o remoto já não tinha, foram apagadas.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações

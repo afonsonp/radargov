@@ -430,8 +430,11 @@ como GitHub Release, correndo **`actualizar.sh`**, que faz `git fetch
 avançar se isso não for uma simples fast-forward, para nunca misturar
 histórico). Cortar uma release é decisão do Afonso, feita depois de
 validar o merge: `git tag -a vX.Y.Z -m "..."`, `git push origin
-vX.Y.Z`, `gh release create vX.Y.Z`. A primeira é a `v1.0.0`, criada no
-mesmo commit em que o repositório nasceu.
+vX.Y.Z`, `gh release create vX.Y.Z`. A primeira do repositório actual
+é a `v1.1.0`: a `v1.0.0` e a `v1.0.1` de 7/09/2026 nunca chegaram ao
+remoto e as tags locais saíram a 15/09/2026, porque uma tag que só
+existe num disco confunde o `actualizar.sh` e o `gh release create`
+(foi o que travou a republicação da release `dados` nesse dia).
 
 Isto **não muda o B15**: `empurrar_triagem()` continua a fazer commit
 só do `triagem.jsonl` e a decidir empurrar por `git rev-list --count
