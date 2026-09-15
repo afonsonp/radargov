@@ -241,7 +241,13 @@ segurança automática do GitHub (as seis prioridades ficam em
 Windows — medido nesse dia em Ubuntu, com a base nos 1,23 GB, o
 `VACUUM INTO` leva 3,4 s e 16 MB de RSS, e a razão de ser uma cópia
 por dia passou a ser o disco, não o tempo. A instalação está na
-v1.3.1. Nesse dia republicou-se também a release **`dados`** com o
+v1.4.0 — **a release do CRM**, cortada ao fim desse mesmo dia, com o
+PR #25: a escada só, as `propostas`, o ciclo fechado com o Portal BASE,
+os indicadores comerciais, a limpeza do código morto e a saída do leitor
+do Excel antigo. Fez-se cópia da base antes de a instalação arrancar com
+o código novo (`copias/radar-antes-da-escada-2026-09-15.db`), o
+`actualizar.sh` avançou por fast-forward, e o painel e o `radargov.pt`
+responderam a seguir. Nesse dia republicou-se também a release **`dados`** com o
 `radar.db` (1,29 GB): tinha desaparecido do GitHub com o
 repositório antigo, e as tags locais `v1.0.0`, `v1.0.1` e `dados`,
 que o remoto já não tinha, foram apagadas.
