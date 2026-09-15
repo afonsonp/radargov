@@ -4997,6 +4997,88 @@ class TestPropostas(BaseTemporaria):
         self.assertEqual(accoes, ["proposta criada", "estado"])
 
 
+class TestColunasVelhasFicamMasNinguemAsLe(BaseTemporaria):
+    """As doze colunas de CRM do `anuncios` ficam nas bases que já as
+    têm, e a garantia passa a ser esta classe.
+
+    A etapa 2 largava-as com `ALTER TABLE ... DROP COLUMN`. Medido a
+    15/09/2026 na base dele — 209 894 anúncios, 1,2 GB, com o
+    `anuncios.texto` a valer 843 MB desses: o SQLite reescreve a tabela
+    inteira uma vez por coluna, e ao fim de 45 s a primeira ainda não
+    tinha acabado com o WAL já acima do tamanho da própria base. Num
+    arranque do `radar-painel.service` isso lê-se como o painel
+    pendurado, e uma migração que fique sem disco a meio deixa a base num
+    estado que ninguém planeou. O que se ganhava era cosmética.
+
+    O que interessa não é a coluna não existir: é ninguém a escrever nem
+    a ler. É isso que aqui se mede.
+    """
+
+    def test_uma_base_nova_nao_as_cria(self):
+        with radar.liga() as c:
+            colunas = {r["name"] for r in c.execute("PRAGMA table_info(anuncios)")}
+        for nome in radar.COLUNAS_QUE_SAIRAM:
+            self.assertNotIn(nome, colunas, nome)
+
+    def test_uma_base_que_as_tenha_arranca_e_funciona(self):
+        """O caso da instalação dele: a base tem-nas, e o arranque não
+        pode nem rebentar nem ficar minutos a reescrever a tabela."""
+        with radar.liga() as c:
+            for nome in radar.COLUNAS_QUE_SAIRAM:
+                c.execute("ALTER TABLE anuncios ADD COLUMN %s TEXT" % nome)
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, data_pub) "
+                      "VALUES ('7/2026', 'Velho', 'novo', '2026-09-01')")
+        radar.iniciar_db()          # a migração, outra vez
+        with radar.liga() as c:
+            colunas = {r["name"] for r in c.execute("PRAGMA table_info(anuncios)")}
+        # ficaram, e não estorvam
+        self.assertIn("fase_id", colunas)
+        id_ = radar.criar_proposta("7/2026", estado="submetido")
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
+        r = radar.app.test_client().get("/?estado=submetido")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Velho", r.get_data(as_text=True))
+
+    def test_nenhuma_e_lida_ou_escrita_no_codigo(self):
+        """A guarda a sério. Uma coluna que ficou na base é um sítio onde
+        se pode voltar a escrever por distracção -- e aí ficam DOIS
+        registos do mesmo facto, que é o risco B do plano.
+
+        Procura-se o nome da coluna em SQL que fale de `anuncios`; os
+        nomes que a `propostas` também usa (motivo, notas, coe, lugar…)
+        têm de passar, e por isso mede-se a linha e não o ficheiro."""
+        suspeitas = []
+        for numero, linha in enumerate(radar_fonte().split("\n"), 1):
+            nu = linha.strip()
+            if nu.startswith("#") or "COLUNAS_QUE_SAIRAM" in nu:
+                continue
+            if "anuncios" not in nu.lower():
+                continue
+            for nome in radar.COLUNAS_QUE_SAIRAM:
+                # `a["fase_id"]`, `SET fase_id=`, `SELECT fase_id`
+                for forma in ('"%s"' % nome, "'%s'" % nome, " %s=" % nome,
+                              ",%s" % nome, " %s," % nome, " %s " % nome):
+                    if forma in nu:
+                        suspeitas.append("%d: %s" % (numero, nu[:90]))
+                        break
+        self.assertEqual(suspeitas, [], "o `anuncios` voltou a ser escrito:\n"
+                         + "\n".join(suspeitas))
+
+    def test_a_tabela_das_fases_sai_mesmo(self):
+        """Essa é seis linhas e sai num instante -- e tem de sair, e não
+        só de deixar de se criar: enquanto existisse, um restauro de um
+        `triagem.jsonl` antigo voltava a enchê-la e ficava um vocabulário
+        de fases ao lado do da casa, sem nada a dizer qual manda."""
+        with radar.liga() as c:
+            c.execute("CREATE TABLE IF NOT EXISTS fases (id INTEGER, nome TEXT)")
+            c.execute("INSERT INTO fases VALUES (1, 'Por analisar')")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            self.assertIsNone(c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                "name='fases'").fetchone())
+
+
 class TestPropostasNoB15(BaseTemporaria):
     """As propostas no `triagem.jsonl` — a parte MAIS irrecuperável de
     todas, porque o DR não devolve o preço que se propôs. Até 15/09/2026

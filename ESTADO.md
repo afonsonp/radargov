@@ -151,12 +151,22 @@ a criar propostas em vez de escrever no anúncio, o quadro nas oito
 colunas a ler propostas, o calendário para qualquer ranhura, e a
 navegação fundida num **Concursos** com lista · quadro · calendário.
 
-**As doze colunas de CRM saíram do `anuncios`**, e com elas a tabela
-`fases` e o renomear das colunas — as oito palavras são vocabulário do
+**As doze colunas de CRM deixaram de se criar** e a tabela `fases` saiu,
+com o renomear das colunas — as oito palavras são vocabulário do
 código, e uma tabela renomeável por cima disso fazia o quadro dizer uma
-palavra e as abas outra para o mesmo estado. Sem espelho nem período de
-convivência porque não havia o que proteger: a base estava no estado
-zero e a aplicação em teste (palavra dele nesse dia).
+palavra e as abas outra para o mesmo estado. Numa base que já as tenha, as colunas **ficam**: apagá-las
+custava doze reescritas de uma tabela de 1,2 GB, medido nesse dia a
+correr contra uma cópia da base dele — ao fim de 45 s a primeira ainda
+não tinha acabado, com o WAL já maior do que a base. São doze colunas a
+NULL que código nenhum lê, e a garantia passou a ser um teste em vez de
+uma migração.
+
+**Ensaiado com os dados dele nesse dia**, numa cópia da base (1,2 GB, 209
+894 anúncios) e na porta 8799, com o painel de produção de pé em 8765:
+arranca de imediato, as abas dizem **Por ver 1 325 · Expirou sem ver
+198 305 · Todos 199 631**, e as contas fecham — pôr um concurso na
+escada tirou-o do «Por ver» e pô-lo no «Por analisar», com a proposta
+na tabela e o prazo a horas.
 
 **Os lotes deixaram de precisar de truque.** O pedido dele de 2/09
 («no final, perdido ou ganho, separam-se os cartões») fazia-se com um
