@@ -3105,17 +3105,18 @@ class TestBotoesDaLinha(unittest.TestCase):
         return {"1/2026": [{"ref": "1/2026", "estado": e, "lote": None,
                             "motivo": None} for e in estados]}
 
-    def test_por_ver_oferece_o_atalho_e_a_escada(self):
-        """O «interessa» fica como atalho de um clique -- é o gesto de
-        90% das linhas do «Por ver». O «abandonar» saiu: é uma das oito
-        opções do selector, e abre exactamente a mesma caixa do motivo.
-        Três controlos na mesma linha para oito destinos era a lista a
-        pedir duas vezes o que já podia pedir uma."""
+    def test_por_ver_oferece_os_dois_botoes_e_nao_o_selector(self):
+        """Uma coisa OU a outra (decisão dele a 15/09/2026): por decidir
+        são os dois botões de sempre -- «interessa» vai directo a «Por
+        analisar», «abandonar» vai a «Não fomos» e pergunta porquê. Um
+        selector a dizer «— pôr na escada» era uma palavra inventada ao
+        lado de oito palavras a sério, e punha a dois gestos o que é o
+        gesto de 90% das linhas do «Por ver»."""
         h = radar.linha(self.anuncio(), na_escada={})
-        self.assertIn("/estado/1/2026/analisar", h)
-        self.assertIn("action='/escada/1%2F2026'", h)
-        self.assertIn("<option value='nao_fomos'>Não fomos</option>", h)
-        self.assertNotIn("abandonar-js", h)
+        self.assertIn("/estado/1%2F2026/analisar", h)
+        self.assertIn("abandonar-js", h)
+        self.assertNotIn("escada-js", h)
+        self.assertNotIn("pôr na escada", h)
 
     def test_quem_ja_esta_na_escada_tira_se_pelo_selector(self):
         """15/09/2026: os botões deram lugar ao selector, e «tirar da
@@ -5173,6 +5174,36 @@ class TestEscadaNaLista(BaseTemporaria):
 
     def _html(self, url="/"):
         return self.cliente.get(url).get_data(as_text=True)
+
+    def test_o_todos_diz_o_mesmo_nas_duas_listas(self):
+        """15/09/2026, visto no ecrã: o «Todos» dizia **209 894** na
+        lista das propostas e **199 631** na dos anúncios -- o mesmo
+        botão com dois números, que é exactamente o que a regra da casa
+        proíbe («um número que um ecrã mostra tem de dar exactamente a
+        lista que a ligação dele abre»).
+
+        A causa: sem filtro nenhum, a `contar_a_escada()` partia de uma
+        base VAZIA, e a base certa é a do motor com `estado=""` -- que
+        tira as republicações, porque «todos» são todos os
+        PROCEDIMENTOS e uma alteração é o mesmo concurso outra vez.
+        """
+        with radar.liga() as c:
+            for ref, estado in (("1/2026", "novo"), ("2/2026", "novo"),
+                                ("3/2026", "alteracao")):
+                c.execute("INSERT INTO anuncios (ref, titulo, data_pub,"
+                          " estado) VALUES (?,?,?,?)",
+                          (ref, "T", "2026-09-01", estado))
+        radar.criar_proposta("1/2026", estado="submetido")
+        with radar.app.test_request_context("/"):
+            sem_base = radar.contar_a_escada()
+            com_base = radar.contar_a_escada(
+                *radar.condicoes({"estado": ""}))
+        self.assertEqual(sem_base, com_base)
+        # e a alteração não conta: os dois do setUp mais os dois novos
+        with radar.liga() as c:
+            todos = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
+        self.assertEqual(todos, 5)
+        self.assertEqual(sem_base[""], 4)
 
     def test_a_barra_tem_as_dez_ranhuras_e_o_todos(self):
         html_ = self._html()
@@ -7369,11 +7400,30 @@ class TestSelectorDaRanhura(BaseTemporaria):
                       ("60/2026", "Aquisição de software", "IPL",
                        "2026-09-01", "Anúncio de procedimento", "https://dr/60"))
 
-    def test_o_selector_esta_na_linha_com_as_oito_palavras(self):
-        html_ = self.cliente.get("/").get_data(as_text=True)
-        self.assertIn("action='/escada/60%2F2026'", html_)
+    def test_o_selector_aparece_para_quem_ja_esta_na_escada(self):
+        """Por decidir são os dois botões; na escada é o selector."""
+        # no CORPO da lista e não na página: o JS da caixa do motivo
+        # fala do `escada-js` para lhe apanhar o `change`, e está em
+        # todas as páginas que tenham a caixa
+        def corpo(url):
+            """A página SEM os <script>: o JS da caixa do motivo fala do
+            `escada-js` para lhe apanhar o `change`, e está em todas as
+            páginas que tenham a caixa."""
+            h = self.cliente.get(url).get_data(as_text=True)
+            return re.sub(r"(?s)<script.*?</script>", "", h)
+
+        self.assertNotIn("escada-js", corpo("/"))
+        self.cliente.post("/estado/60%2F2026/analisar")
+        # na lista dos ANÚNCIOS (a aba «Todos») o selector aponta ao ref
+        self.assertIn("action='/escada/60%2F2026'", corpo("/?estado="))
+        # na das PROPOSTAS aponta à proposta, que é mais preciso: com
+        # lotes há uma por lote, e mover «a do ref» movia a primeira
+        html_ = self.cliente.get("/?estado=analisar").get_data(as_text=True)
+        id_ = radar.propostas_de("60/2026")[0]["id"]
+        self.assertIn("action='/proposta/%d/escada'" % id_, html_)
         for _, rotulo in radar.ESTADOS_DA_CASA:
             self.assertIn(">%s</option>" % html.escape(rotulo), html_)
+        self.assertIn("<option value='porver'>tirar da escada</option>", html_)
 
     def test_muda_de_ranhura_pelo_corpo_e_nao_pelo_caminho(self):
         """Um `<select>` não sabe escrever um URL. Se o estado fosse no
@@ -7397,7 +7447,8 @@ class TestSelectorDaRanhura(BaseTemporaria):
         """O JS marca o <html> com `com-js` e a folha esconde o botão. Ao
         contrário — esconder por omissão e mostrar por JS — quem não
         tivesse JS ficava com um selector que não fazia nada."""
-        html_ = self.cliente.get("/").get_data(as_text=True)
+        self.cliente.post("/estado/60%2F2026/analisar")
+        html_ = self.cliente.get("/?estado=analisar").get_data(as_text=True)
         self.assertIn("<button type='submit' class='mini'>ir</button>", html_)
         self.assertIn(".com-js .ranhura button{display:none}", radar.CSS)
         self.assertIn("classList.add('com-js')", radar.caixa_do_motivo())

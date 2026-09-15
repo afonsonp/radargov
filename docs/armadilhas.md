@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 39
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 41
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São **150** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **152** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
@@ -1098,6 +1098,23 @@ pelo Afonso e nenhuma se reabre de passagem.
   continua de fora, no `condicao_da_aba()`: é um campo que quem guardou
   o filtro escolheu, e calá-lo fazia o filtro deixar de ver o que sempre
   viu. A migração `traduzir_filtros_guardados()` corre a cada arranque.
+
+- **Um `display` numa regra derrota o `display` de outra mais fraca — e
+  o `display:contents` é o pior deles.** O `.tab-lista td form
+  {display:contents}` existia para um `<form>` poder envolver células
+  (que o HTML não deixa), na tabela do «Em curso» que morreu a
+  15/09/2026. Ficou vivo, e o que fazia era derrotar o `display:flex` do
+  selector de ranhura: o `<select>` encolhia e mostrava «A pr» onde diz
+  «A preparar proposta». Visto no ecrã. **Uma regra que serve um
+  componente morre com ele**, e uma que não morre vai bater noutro.
+
+- **O «Todos» tem de dizer o mesmo nas duas listas.** Dizia **209 894**
+  na das propostas e **199 631** na dos anúncios, porque a
+  `contar_a_escada()` partia de base vazia quando não havia filtro — e
+  a base certa é a do motor com `estado=""`, que tira as republicações
+  («todos» são todos os PROCEDIMENTOS, e uma alteração é o mesmo
+  concurso outra vez). É a regra da casa em ponto pequeno: o mesmo botão
+  com dois números. Há teste.
 
 - **O cruzamento com o Portal BASE é por CHAVE, e não por semelhança.**
   Medido a 15/09/2026 na base dele: o `contratos.n_anuncio` do dump do
