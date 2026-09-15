@@ -1076,6 +1076,20 @@ SQLite, cópias, e a pen que manda nos números.
   Copiar o ficheiro com o `.wal` ao lado dava uma cópia truncada. Só a
   de trabalho: o corpus e os documentos refazem-se, a triagem não.
 
+- **A verificação das 09:00 aparece no `journalctl` com um pico de
+  memória 25× maior do que a das 17:00, e não há avaria nenhuma.** A
+  cópia é uma por dia e o nome é a data, por isso é a primeira
+  verificação do dia que corre o `VACUUM INTO` e a segunda que encontra
+  o ficheiro feito e sai. O «memory peak» que o systemd reporta é o
+  `memory.peak` do cgroup v2, **que conta o page cache**: mover 1,23 GB
+  para fora e outro tanto para dentro enche o cache de ficheiro do
+  cgroup do serviço, e sai um número que parece consumo do processo e
+  não é. Medido a 15/09/2026 na X260: o `VACUUM INTO` leva 3,4 s e come
+  **16 MB de RSS** contra os **1,6 GB** que o journal mostrou. Para
+  medir o processo e não o cgroup, `/usr/bin/time -v` e a linha
+  «Maximum resident set size». O que aqui merece vigilância é o disco,
+  não a memória: são ~8,6 GB em `copias/`.
+
 - **Uma migração do corpus sem índice que a sirva é o arranque do
   painel.** O `iniciar_corpus()` corre a cada arranque, e um
   `WHERE <coluna> IS NULL` sem índice varre o corpus todo — 1,65 GB

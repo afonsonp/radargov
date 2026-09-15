@@ -5027,9 +5027,13 @@ def copia_de_seguranca(guardar=7):
     """
     os.makedirs(COPIAS, exist_ok=True)
     # Uma por dia, e o nome e a data: a segunda verificacao do dia
-    # encontra o ficheiro feito e nao faz nada. Medido, o VACUUM INTO de
-    # 44 MB leva 37 s -- a cada verificacao era tempo a mais, e duas
-    # copias do mesmo dia nao valem o dobro.
+    # encontra o ficheiro feito e nao faz nada. Medido a 15/09/2026, em
+    # Ubuntu e com a base nos 1,23 GB: 3,4 s e 16 MB de RSS. O numero
+    # que aqui estava -- "44 MB leva 37 s" -- era do Windows na pen, e
+    # dava a entender que uma copia a cada verificacao era tempo a
+    # mais; nao e, e o tempo deixou de ser a razao. A razao e o disco:
+    # sao 1,23 GB por copia e sete guardadas, ~8,6 GB, e duas do mesmo
+    # dia nao valem o dobro.
     destino = os.path.join(
         COPIAS, "radar-%s.db" % datetime.now().strftime("%Y-%m-%d"))
     if os.path.exists(destino):
@@ -5042,7 +5046,8 @@ def copia_de_seguranca(guardar=7):
         try:
             os.remove(os.path.join(COPIAS, f))
         except OSError:
-            pass                        # o OneDrive as vezes segura o ficheiro
+            pass                        # permissoes, disco: nao se estraga
+                                        # a copia nova por causa das velhas
     return destino
 
 
@@ -5099,8 +5104,9 @@ def copia_com_marca(guardar=7):
     """A copia diaria, com o resultado numa marca que o painel mostra.
 
     A falha fazia so print() para uma consola que ninguem ve -- as
-    tarefas correm em pythonw -- e uma copia a falhar dias seguidos
-    (OneDrive a segurar o ficheiro, disco cheio) passava em silencio,
+    tarefas correm pelo systemd, sem terminal, e o print vai para o
+    journal, onde ninguem olha todos os dias -- e uma copia a falhar
+    dias seguidos (disco cheio, permissoes) passava em silencio,
     exactamente no unico dado que nao se recupera de lado nenhum. A
     marca `ultima_copia` aparece na saude dos indicadores."""
     try:
@@ -5928,7 +5934,7 @@ def verificar(cfg=None, passo=None):
     if cfg.get("copia_de_seguranca", True):
         diz("a guardar a cópia de segurança")
         # O resultado fica em marca visivel (C2 do saneamento): o print
-        # de antes ia para uma consola que o pythonw nao tem.
+        # de antes ia parar ao journal do systemd, onde ninguem olha.
         copia_com_marca(int(cfg.get("copias_a_guardar", 7)))
     # B15: a exportacao da triagem, a seguir a copia -- custa nada e
     # fica sempre fresca no triagem.jsonl. Uma falha aqui nao pode
