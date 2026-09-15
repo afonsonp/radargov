@@ -27,6 +27,7 @@ pede.**
 | `ESTADO.md` | O estado de hoje, com os números | Ao começar. São 150 linhas |
 | `docs/armadilhas.md` | O que não é óbvio, em 15 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
+| `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE` | Raramente. São instantâneos, não se mantêm |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
