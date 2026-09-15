@@ -1075,6 +1075,15 @@ SQLite, cópias, e a pen que manda nos números.
   feita antes da recolha com `VACUUM INTO` (a quente, e sai compactada).
   Copiar o ficheiro com o `.wal` ao lado dava uma cópia truncada. Só a
   de trabalho: o corpus e os documentos refazem-se, a triagem não.
+  **Uma cópia que nunca se abriu não é uma cópia** (15/09/2026):
+  `--ensaiar-copia` abre a última em `mode=ro` (nunca deixa um
+  `-journal` ao lado), passa-lhe o `integrity_check` e conta anúncios,
+  triagem, histórico e contas contra a base viva; a marca
+  `ultimo_ensaio_copia` diz «ok» ou «FALHOU» na saúde dos Indicadores
+  e na secção Cópias. O restauro a sério é parar o serviço do painel e
+  os temporizadores, copiar o ficheiro por cima e apagar o `-wal` e o
+  `-shm` que ficaram do anterior (LEIA-ME, secção 13) — copiar só o
+  `.db` com o `-wal` velho ao lado dá uma base misturada.
 
 - **A verificação das 09:00 aparece no `journalctl` com um pico de
   memória 25× maior do que a das 17:00, e não há avaria nenhuma.** A
@@ -1321,6 +1330,13 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   tira (`apagar_utilizador()` recusa), e a própria conta não se tira
   pelo painel.
 
+- **`/saude` está em `ROTAS_ABERTAS` e não diz nada de dentro**
+  (15/09/2026). É para um vigilante de fora: «ok» se a base responde,
+  503 se não. Atrás da porta, um monitor caía no `/entrar`, que dá 200
+  sempre, e nunca veria o painel cair. E o `liga()` da porta ficou
+  dentro do `try` por isto: com a base indisponível tudo dava 500 na
+  porta, incluindo a rota que existe para dizer 503.
+
 - **O túnel liga-se ao painel a partir de 127.0.0.1.** O `cloudflared`
   corre neste computador e fala com o Flask por loopback: só pelo IP,
   **todos os visitantes do túnel eram locais** e entravam pelo
@@ -1418,6 +1434,15 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 ## A interface
 
 As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.md`.
+
+- **As páginas de erro são fora do `BASE`** (15/09/2026;
+  `PAGINA_ERRO`, o molde do `/entrar`). O `BASE` lê a sessão e monta a
+  barra, e um 500 a meio disso dava outro 500 em cima do primeiro. Os
+  `errorhandler` apanham 404, 403 e 500; as recusas explícitas da porta
+  (`Response(..., 403)`) continuam em texto, porque um POST de
+  formulário ou de `fetch` quer a frase. O do 500 regista a marca
+  `painel_ultimo_erro` dentro de um `try`: o registo nunca pode derrubar
+  a resposta.
 
 - **As migalhas são `migalhas_de(vista, folha)`.** Cada página parte do
   item da navegação em que vive (`NAV`/`ITEM_DA_PAGINA`); as vistas
