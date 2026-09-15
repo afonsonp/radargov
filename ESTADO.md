@@ -168,6 +168,27 @@ arranca de imediato, as abas dizem **Por ver 1 325 · Expirou sem ver
 escada tirou-o do «Por ver» e pô-lo no «Por analisar», com a proposta
 na tabela e o prazo a horas.
 
+**E no mesmo dia, à noite, uma segunda arrumação, também dele, a olhar
+para o ecrã:** «o quadro deixa de ser preciso tal como a lista. na
+verdade eu devo conseguir passar entre estados aqui. e a pagina do
+anuncio e sempre a mesma». **O quadro saiu por inteiro.** Oito colunas e
+oito abas eram a mesma coisa duas vezes, e a diferença era o arrastar —
+que só compensa quando se vê tudo ao mesmo tempo. A ranhura muda-se
+agora pelo **selector de cada linha** (grava ao escolher, com desfazer;
+o «Perdido» e o «Não fomos» abrem a caixa do motivo), e tudo o que o
+cartão fazia mora no bloco **«A nossa proposta»** da ficha: os campos
+que a ranhura pede, a tipologia, o CV, a proposta técnica, o CoE, as
+notas, as etiquetas e o que falta fazer. A barra ficou em **Concursos ·
+Calendário · Mercado**.
+
+**As tarefas entraram com isso** (etapa 3, encolhida): o prazo de
+esclarecimentos e o de entrega viram tarefas sozinhas quando um
+concurso entra na escada, acompanham uma prorrogação do DR e
+desaparecem quando a proposta fecha. As escritas à mão nunca são
+tocadas pela sincronização. **A vista «Hoje» não ficou** — ele escolheu
+que só o calendário sobrevive como vista —, e com ela fica por responder
+«o que tenho de fazer hoje, em todos os concursos ao mesmo tempo».
+
 **Os lotes deixaram de precisar de truque.** O pedido dele de 2/09
 («no final, perdido ou ganho, separam-se os cartões») fazia-se com um
 cartão montado a partir do registo do Excel, que não se arrastava nem
@@ -394,7 +415,7 @@ ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
 **Código e testes.** `radar.py` com 18 0xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com **900** testes que correm em ~75 segundos, sem rede e sem
+`teste_radar.py` com **904** testes que correm em ~75 segundos, sem rede e sem
 tocar na base verdadeira (contados a 15/09/2026, depois das etapas 1 e 2 do CRM; a 14/09 a auditoria
 ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
