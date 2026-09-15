@@ -876,6 +876,13 @@ ficheiro muda (um push falhado retenta na verificação seguinte); à mão
 serve só para forçar antes de um commit teu. Desliga-se com
 `"triagem_no_git": false` no `config.json`.
 
+**Atenção (15/09/2026):** o que o quadro e a lista do «Em curso» pedem
+— preço proposto, lugar no relatório, os três primeiros, motivo da
+perda, tipologia, CV, proposta técnica, notas, CoE — **ainda não vai
+neste ficheiro**, e é escrito à mão. Até isso ficar feito (B15-b no
+`BACKLOG.md`), o que te protege esses campos são as cópias em
+`copias/`, não o git.
+
 ```bash
 python radar.py --repor-triagem
 ```

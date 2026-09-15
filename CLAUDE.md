@@ -29,11 +29,11 @@ pede.**
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE` | Raramente. São instantâneos, não se mantêm |
+| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `CRM` | Raramente. São instantâneos, não se mantêm |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
-Três destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
+Quatro destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
 plano para o radar sair do PC: login de um utilizador, um menu de
 configurações que absorve o separador Alertas, e o servidor — **lê-o
 antes de tocar em contas, sessões, no `config.json` pelo painel ou na
@@ -42,7 +42,14 @@ se observou nos produtos pagos deste mercado, com data — **um produto
 muda, e o que lá está vale para o dia em que foi visto**. O
 `docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface
 da casa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
-afinar, dívida): lê-o antes de mexer no painel.
+afinar, dívida): lê-o antes de mexer no painel. O
+`docs/historico/CRM.md` (15/09/2026) é o plano para o «Em curso» deixar
+de ser a mesma consulta dos interessados: separar lead de proposta,
+promover o registo da casa a objecto do funil, e fechar o ciclo com o
+Portal BASE — **lê-o antes de tocar no quadro, no calendário, na lista
+do «Em curso» ou nas colunas de CRM do `anuncios`**. Traz quatro
+decisões por responder pelo Afonso, e um achado que não espera pelo
+plano (§1.6: os campos do CRM não saem no `triagem.jsonl`).
 
 **A documentação corrige-se na mesma sessão que muda o comportamento.**
 Antes do commit de qualquer trabalho que mude comportamento, números ou
