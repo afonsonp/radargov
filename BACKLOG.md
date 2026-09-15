@@ -33,6 +33,8 @@ ou feito.
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
 | 11.7-B | ~~Procura directa de entidade~~ | **Feito a 31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado + `/entidade/procurar` — NIF vai directo, nome resolve por `entidade_nomes` (única → ficha; várias → escolha; nenhuma → di-lo) | — |
 | — | ~~Visualizador de PDF na ficha~~ | **Feito a 31/08/2026, a pedido dele** (sai do «Não fazer»): os PDF das peças abrem em `/peca/<ref>/<nome>`, dentro da aplicação, com a pesquisa do próprio visualizador (Ctrl+F) — o caminho barato que estava anotado | — |
+| CRM | ~~O «Em curso» não é um CRM: é a mesma consulta dos interessados~~ | **Plano escrito a 15/09/2026** e **reescrito no mesmo dia com as decisões dele**: `docs/historico/CRM.md`. Seis etapas. O desenho é dele — **uma escada só** (dez ranhuras: a entrada, as oito palavras da casa, o cemitério dos expirados), com lista, quadro e calendário como três vistas dessa escada | **Feito a 15/09/2026, as seis etapas**: as tabelas, a escada nas abas, a triagem a criar propostas, o quadro (que saiu no mesmo dia, por decisão dele: a ranhura muda-se no selector da linha), o calendário para qualquer ranhura, a navegação em Concursos · Calendário · Mercado, as tarefas que seguem as datas do DR, o ciclo fechado com o Portal BASE (por chave: o `n_anuncio` é o `ref`), os indicadores comerciais e os contactos. Falta o NIF da casa, em Configurações › Conta, para o cruzamento adiantar se a adjudicação foi nossa |
+| B15-b | ~~Os campos do CRM não saem no `triagem.jsonl`~~ | **Fechado a 15/09/2026, sem trabalho próprio**: as colunas em falta são exactamente as que a etapa 1 do CRM apaga — exportá-las era escrever para deitar fora a seguir. A exportação faz-se uma vez, já sobre `propostas` e `tarefas`, dentro dessa etapa | — |
 
 **O registo está limpo: não há pendências abertas.** O que se abrir a
 seguir entra aqui com quem decide e o que dispara, como sempre.
@@ -52,9 +54,18 @@ seguir entra aqui com quem decide e o que dispara, como sempre.
 - **R11 (volume) → `/contratos/resumo`:** viva. É a razão de a entrada
   de Mercado ser «a pergunta primeiro», e o esqueleto proíbe qualquer
   painel que dispare o resumo sem filtro.
-- **R2 (perda do PC):** **fechada por inteiro a 31/08/2026** — o código
-  pelo remoto do GitHub, e a triagem pelo B15 com o push automático em
-  cada verificação. O que fica em risco no disco é só o que se refaz
+- **R2 (perda do PC):** dada como fechada a 31/08/2026 — o código pelo
+  remoto do GitHub, e a triagem pelo B15 com o push automático em cada
+  verificação. **Reaberta a 15/09/2026, em parte** (B15-b, em cima): as
+  colunas de CRM que entraram no `anuncios` depois dessa data
+  (14/09/2026: `tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe`; e
+  antes delas `preco_proposto`, `posicao`, `top3`, `motivo_perda`,
+  `motivo`) nunca foram acrescentadas ao `_TABELAS_TRIAGEM`, e a tabela
+  `casa` também não lá está. **Fechada no mesmo dia, com o CRM**: essas
+  colunas deixaram de existir e o que as substituiu — `propostas`,
+  `tarefas` e `contactos` — vai inteiro no `triagem.jsonl`. É a parte
+  mais irrecuperável de todas, porque o DR não devolve o preço que se
+  propôs. Fora isso, o que fica em risco no disco é só o que se refaz
   (base, corpus, peças).
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
@@ -117,12 +128,6 @@ estes quatro ficaram investigados e por decidir:
   exactamente a tabela de perfis do campo «equipa». Guião de medida no
   diário; se for favorável, reextrair o acervo por marca e refazer as
   análises com `--ler-pecas tudo`.
-- **O leitor do Excel antigo em `casa.py`** (~660 linhas de código e
-  ~500 de testes, 17 testes). Nada o chama desde 8/09/2026 e o git
-  guarda a história; mas foi o Afonso que decidiu guardá-lo «com os
-  testes dele». Se sair, o teste de `desaplicar_da_copia()` (comando
-  vivo, `--casa-desfazer`) tem de ser reescrito com `aplicar_modelo()`,
-  e `_num` e `_norma` ficam, que o modelo novo os usa.
 - **Não aplicar, e porquê:** as duas filas de fundo por
   `ThreadPoolExecutor(1)`. O executor não é daemon (o `--uma-vez` do
   temporizador ficaria à espera de descargas e leituras no `atexit`),

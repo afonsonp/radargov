@@ -130,6 +130,97 @@ L publicar, e a triagem faz-se no painel.
 
 Funciona. Os números são de **4/09/2026**, lidos das duas bases.
 
+**A 15/09/2026, à tarde, começou o trabalho do CRM** — a pergunta dele
+foi que o «Em curso» não é um CRM e que é estranho, porque a página dos
+anúncios já tem o que ele classificou como interesse. Tinha razão, e a
+causa é de raiz: o `/lista`, o `/quadro` e o `/calendario` partem todos
+de `estado='interessa'`, que é exactamente o que a aba «interessados»
+mostra. São o mesmo conjunto, sempre, porque há **duas escadas
+paralelas** para o mesmo percurso (a triagem e o funil) e um concurso
+sobe as duas ao mesmo tempo. O plano está em `docs/historico/CRM.md`,
+com as sete decisões dele respondidas, e o desenho é dele: **uma escada
+só**, dez ranhuras — a entrada (*por ver*), as oito palavras da casa
+(*por analisar · a preparar proposta · submetido · relatório preliminar
+· ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados
+—, com lista, quadro e calendário como três vistas dela. **As etapas 1 e 2
+estão feitas**, no mesmo dia. A 1: as tabelas `propostas` e `tarefas`, o
+vocabulário, e as duas no `triagem.jsonl` — que é o que fecha o buraco
+do R2 que ninguém tinha visto (as doze colunas de CRM em `anuncios`
+nunca tinham sido exportadas). A 2: as dez ranhuras nas abas, a triagem
+a criar propostas em vez de escrever no anúncio, o quadro nas oito
+colunas a ler propostas, o calendário para qualquer ranhura, e a
+navegação fundida num **Concursos** com lista · quadro · calendário.
+
+**As doze colunas de CRM deixaram de se criar** e a tabela `fases` saiu,
+com o renomear das colunas — as oito palavras são vocabulário do
+código, e uma tabela renomeável por cima disso fazia o quadro dizer uma
+palavra e as abas outra para o mesmo estado. Numa base que já as tenha, as colunas **ficam**: apagá-las
+custava doze reescritas de uma tabela de 1,2 GB, medido nesse dia a
+correr contra uma cópia da base dele — ao fim de 45 s a primeira ainda
+não tinha acabado, com o WAL já maior do que a base. São doze colunas a
+NULL que código nenhum lê, e a garantia passou a ser um teste em vez de
+uma migração.
+
+**Ensaiado com os dados dele nesse dia**, numa cópia da base (1,2 GB, 209
+894 anúncios) e na porta 8799, com o painel de produção de pé em 8765:
+arranca de imediato, as abas dizem **Por ver 1 325 · Expirou sem ver
+198 305 · Todos 199 631**, e as contas fecham — pôr um concurso na
+escada tirou-o do «Por ver» e pô-lo no «Por analisar», com a proposta
+na tabela e o prazo a horas.
+
+**E no mesmo dia, à noite, uma segunda arrumação, também dele, a olhar
+para o ecrã:** «o quadro deixa de ser preciso tal como a lista. na
+verdade eu devo conseguir passar entre estados aqui. e a pagina do
+anuncio e sempre a mesma». **O quadro saiu por inteiro.** Oito colunas e
+oito abas eram a mesma coisa duas vezes, e a diferença era o arrastar —
+que só compensa quando se vê tudo ao mesmo tempo. A ranhura muda-se
+agora pelo **selector de cada linha** (grava ao escolher, com desfazer;
+o «Perdido» e o «Não fomos» abrem a caixa do motivo), e tudo o que o
+cartão fazia mora no bloco **«A nossa proposta»** da ficha: os campos
+que a ranhura pede, a tipologia, o CV, a proposta técnica, o CoE, as
+notas, as etiquetas e o que falta fazer. A barra ficou em **Concursos ·
+Calendário · Mercado**.
+
+**As tarefas entraram com isso** (etapa 3, encolhida): o prazo de
+esclarecimentos e o de entrega viram tarefas sozinhas quando um
+concurso entra na escada, acompanham uma prorrogação do DR e
+desaparecem quando a proposta fecha. As escritas à mão nunca são
+tocadas pela sincronização. **A vista «Hoje» não ficou** — ele escolheu
+que só o calendário sobrevive como vista —, e com ela fica por responder
+«o que tenho de fazer hoje, em todos os concursos ao mesmo tempo».
+
+**Os lotes deixaram de precisar de truque.** O pedido dele de 2/09
+(«no final, perdido ou ganho, separam-se os cartões») fazia-se com um
+cartão montado a partir do registo do Excel, que não se arrastava nem
+se editava. Com uma proposta por lote, cada um cai sozinho na coluna
+dele e é um cartão como os outros.
+
+**As etapas 4, 5 e 6 entraram nessa noite, e o CRM ficou completo.**
+
+**O ciclo com o Portal BASE fecha-se por chave e não por palpite**, que
+foi a surpresa da medição: o `contratos.n_anuncio` do dump do IMPIC vem
+no mesmo formato do `ref` do radar («17161/2026»), e **69,4% dos
+anúncios de 2024 já têm contrato celebrado** (5,3% nos de 2026 — o ciclo
+demora meses). O plano previa o maquinário de semelhança do `casa.py`;
+não é preciso nenhum. A ficha de uma proposta ainda aberta cujo
+procedimento já foi adjudicado mostra a quem foi, por quanto, e **quanto
+a nossa proposta estava acima ou abaixo** — com dois botões, «Ganhámos»
+e «Perdemos». **Propõe, nunca decide.** Falta-lhe uma coisa para
+adiantar a resposta: o NIF da casa, em Configurações › Conta (enquanto
+estiver vazio, pergunta em vez de adivinhar).
+
+**Os indicadores ganharam o bloco «O negócio»**: o que está em jogo por
+ranhura (preço base até ao Submetido, proposto daí para a frente), a
+taxa de vitória — que **só aparece com 5 decididos ou mais**, e onde o
+«Não fomos» não entra no denominador, porque é uma decisão de não
+concorrer e não uma derrota —, o desconto médio nos ganhos, porque se
+perde e porque não se vai, e o que há mais tempo não se mexe. Cada
+número abre a lista que o confirma.
+
+**E os contactos**, que são da **entidade** e não do concurso: a pessoa
+que responde aos esclarecimentos do IPL responde aos do ano que vem
+também, e por isso aparecem em todos os concursos dela.
+
 **A 15/09/2026 entraram as três coisas que faltavam de uma lista de
 «20 coisas a proteger antes de um site ir para o público»** (as outras
 dezassete já existiam ou não se aplicam): páginas de erro da casa
@@ -282,7 +373,8 @@ publicação, ou linhas do dump sem `nAnuncio`.
 mudou de fonte.** Decisão do Afonso: o Excel antigo
 (`Analise_Concursos_Publicos.xlsm`) deixa de contar para a aplicação —
 fica nos documentos, e o leitor dele fica no `casa.py` sem comando que
-o chame. Em vez disso **o radar dita o modelo**: um `.xlsx` gerado em
+o chame (**e saiu de vez a 15/09/2026**, por decisão dele: 603 linhas de
+código e 638 de testes; está no histórico do git). Em vez disso **o radar dita o modelo**: um `.xlsx` gerado em
 Configurações › Importar dados (referência do anúncio, lote, estado,
 razão, proposta, lugar, concorrentes, responsável, notas, com listas
 de escolha), que se preenche, se carrega, se vê em ensaio e só depois
@@ -346,16 +438,35 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 17 3xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com 870 testes que correm em 25 segundos, sem rede e sem
-tocar na base verdadeira (contados a 15/09/2026; a 14/09 a auditoria
-ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
-(7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
+**Código e testes.** `radar.py` com 18 971 linhas, `casa.py` com **630**
+(eram 1 307: saiu o leitor do Excel antigo),
+`teste_radar.py` com **911** testes que correm em ~66 segundos, sem rede e sem
+tocar na base verdadeira (contados a 15/09/2026, ao fim do CRM e da limpeza do
+código morto; a 14/09 a auditoria ponytail tinha tirado ~160 linhas líquidas ao
+conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
+(10 588 linhas, 55% — da banda `# --- painel` à `# --- arranque`).
+
+**A limpeza do código morto** (15/09/2026, a pedido dele): saíram oito
+funções que só os próprios testes chamavam (`estado_aberto`,
+`_modelo_com_fornecedor`, `chips_dos_lotes`, `soma_precos_base`,
+`contar_propostas`, `CAMPOS_DA_TRIAGEM`, `_EM_AZUL`, `ROTA_DA_VISTA`) e
+três classes de CSS de 240 (`.modos`, `.tag.lote-fora`, `.carta-meta`) —
+contadas por busca literal com asserções nos limites do bloco, depois de
+três detectores por expressão regular darem 30, 104 e 81 falsos
+positivos. Duas funções das etapas 4 e 5 **não estavam mortas, estavam
+por ligar** e ligaram-se: `propostas_por_fechar()` é agora o aviso no
+topo de «O negócio», e `taxa_por_divisao_cpv()` a lista «Onde se ganha,
+por área». **O leitor do Excel antigo saiu** ao fim do dia, quando ele
+disse «corta, fica no git»: 603 linhas do `casa.py` e 638 do
+`TestRegistoDaCasa`, que encolheu para as seis provas de código vivo
+(`TestEstadoEfectivoDaCasa`). O corte destapou um erro que nenhum teste
+apanhava: o `--casa-desfazer` apagava o histórico por `quem='Excel'`, e
+já só a importação pelo modelo escreve ali — agora repõe-se pela cópia.
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
 **1,23 GB**, com os onze anos e os detalhes todos lidos — o
-`anuncios.texto` sozinho são **843 MB**; 19 tabelas, no git só a triagem,
+`anuncios.texto` sozinho são **843 MB**; 23 tabelas, no git só a triagem, as propostas, as tarefas e os contactos,
 cópia diária em `copias/`) e
 `contratos.db` (2,36 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da
