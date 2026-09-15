@@ -334,6 +334,90 @@ MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
 MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações")
 
 
+# ------------------------------------------------- a escada da casa (CRM)
+#
+# O vocabulario da casa, decidido pelo Afonso a 15/09/2026 (D1 do
+# docs/historico/CRM.md): oito palavras, e mais nenhuma. O Excel e o Zoho
+# traduzem-se para esta lista.
+#
+# As CHAVES das seis primeiras sao, de proposito, as mesmas que
+# `fases.papel` ja usava (FASES_DE_ORIGEM): assim a passagem de um
+# cartao do quadro para uma proposta e por igualdade de chave, sem mapa
+# de traducao nenhum a adivinhar. As duas ultimas ("nao_fomos",
+# "cancelado") nunca foram colunas do quadro -- o "nao fomos" e o
+# `estado='descartado'` de hoje, com nome novo e os mesmos motivos.
+ESTADOS_DA_CASA = (("analisar", "Por analisar"),
+                   ("proposta", "A preparar proposta"),
+                   ("submetido", "Submetido"),
+                   ("relatorio", "Relatório preliminar"),
+                   ("ganho", "Ganho"),
+                   ("perdido", "Perdido"),
+                   ("nao_fomos", "Não fomos"),
+                   ("cancelado", "Cancelado"))
+
+# Onde a proposta ainda se mexe, e onde ja parou. Uma proposta que entra
+# num estado fechado grava `fechada_em` -- e e isso, e nao a coluna onde
+# o cartao parou, que faz o funil esvaziar (§1.2 do plano: ate
+# 15/09/2026 um Ganho ficava `interessa` para sempre).
+ESTADOS_FECHADOS = ("ganho", "perdido", "nao_fomos", "cancelado")
+ESTADOS_ABERTOS = tuple(ch for ch, _ in ESTADOS_DA_CASA
+                        if ch not in ESTADOS_FECHADOS)
+
+# As duas ranhuras das PONTAS, que nao sao estados da casa nenhum: o
+# antes (ninguem olhou ainda) e o fora (o prazo passou e ninguem olhou).
+# Nao ha proposta nenhuma nelas -- sao recorte de leitura sobre os
+# anuncios, como as abas de hoje.
+#
+# Porque e que tem de existir, e nao chegavam as oito: a 15/09/2026 as
+# abas diziam "Por ver 1 263 · Abandonados 198 305", e os 198 305 eram
+# TODOS anuncios expirados sem ninguem olhar -- zero descartes na base.
+# Sem a entrada, os 1 263 vivos caiam em "Por analisar" e o funil
+# deixava de dizer o que diz; sem o cemiterio, 198 mil anuncios que
+# ninguem viu contavam como decisao da casa.
+ENTRADA_DA_ESCADA = ("porver", "Por ver")
+CEMITERIO_DA_ESCADA = ("expirou", "Expirou sem ver")
+
+# A escada inteira, pela ordem em que se sobe. E esta a ordem das abas.
+ESCADA = (ENTRADA_DA_ESCADA,) + ESTADOS_DA_CASA + (CEMITERIO_DA_ESCADA,)
+
+ROTULOS_DA_ESCADA = dict(ESCADA)
+CHAVES_DA_CASA = tuple(ch for ch, _ in ESTADOS_DA_CASA)
+
+# O que cada estado pede (o que era PEDIDO_DA_FASE, agora por estado).
+# Um campo pertence a um estado e a mais nenhum: perguntar o lugar no
+# relatorio a uma proposta "por analisar" e ruido, e perguntar o preco
+# proposto antes de haver proposta e perguntar por adivinhas.
+PEDIDO_DO_ESTADO = {"submetido": "pede o preço proposto",
+                    "relatorio": "pede o lugar e os três primeiros",
+                    "perdido": "pede porque se perdeu",
+                    "nao_fomos": "pede porque não se foi"}
+
+# A partir do "Submetido" o numero que conta e o que se propos, nao o
+# preco base (decisao de 01/09/2026, que se mantem). Vale para o cartao
+# e para a soma da coluna.
+ESTADOS_COM_PROPOSTO = ("submetido", "relatorio", "ganho", "perdido")
+
+# Que lista de motivos cada estado usa. Os dois sao de ambito FECHADO
+# (decisao de 01/09/2026): texto livre da, ao fim de um mes, cinquenta
+# maneiras de escrever "preco" e nenhuma conta que se possa fazer.
+MOTIVOS_DO_ESTADO = {"perdido": MOTIVOS_PERDA, "nao_fomos": MOTIVOS_ABANDONO}
+
+
+def estado_da_casa(chave):
+    """O rotulo de um estado, ou "" se a chave nao e de estado nenhum.
+
+    Pura: e por aqui que se valida o que vem de um formulario, e devolver
+    "" (em vez de rebentar) e o que deixa a rota responder com aviso."""
+    return ROTULOS_DA_ESCADA.get(chave or "", "")
+
+
+def estado_aberto(chave):
+    """Se a proposta ainda se mexe. Um estado que nao existe conta como
+    aberto: e o que evita esconder do ecra uma linha com lixo na coluna,
+    que e a maneira de o lixo nunca mais ser encontrado."""
+    return chave not in ESTADOS_FECHADOS
+
+
 def semear_fases(c):
     """Poe as fases de origem numa base que ainda nao as tenha.
 
@@ -419,6 +503,52 @@ def iniciar_db():
         # A2, A3 e a limpeza do indice pecas_fts -- sairam a 14/09/2026:
         # correram em todas as instalacoes desde a v1.0.0, e uma base
         # de antes disso ja nao existe. O diario de Agosto guarda-as.)
+        # As propostas: o que a CASA esta a fazer, que nao e o mesmo que o
+        # estado de um anuncio (etapa 1 do docs/historico/CRM.md,
+        # 15/09/2026). Existe por duas razoes que o estado do anuncio nao
+        # consegue ser, ambas decididas pelo Afonso nesse dia:
+        #
+        #   D2 -- uma consulta previa, um ajuste directo ou um convite
+        #   nao tem anuncio no DR. `ref` a NULL e um caso legitimo, e nao
+        #   um orfao: o `porque_sem_ref` diz porque.
+        #   D3 -- um concurso de tres lotes pode acabar com o L1 ganho e
+        #   o L2 perdido. Um anuncio, uma linha e um estado nao cabem
+        #   dois resultados. `lote`: >=1 um lote, 0 o conjunto, NULL um
+        #   anuncio sem lotes.
+        #
+        # E o Portal BASE adjudica POR LOTE -- sem esta granularidade a
+        # etapa 4 (o desvio real face a quem ganhou) nao tem comparacao
+        # que fazer.
+        c.execute("""CREATE TABLE IF NOT EXISTS propostas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ref TEXT, porque_sem_ref TEXT, lote INTEGER,
+            entidade TEXT DEFAULT '', titulo TEXT DEFAULT '',
+            estado TEXT DEFAULT 'analisar', motivo TEXT,
+            responsavel TEXT, tipologia TEXT, coe TEXT,
+            preco_base TEXT, valor_proposta TEXT, ebitda REAL,
+            lugar INTEGER, top3 TEXT, cv TEXT, proposta_tecnica TEXT,
+            notas TEXT, criada_em TEXT, fechada_em TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ref ON propostas(ref)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_estado "
+                  "ON propostas(estado)")
+        # Uma proposta por (anuncio, lote): sem isto, dois cliques no
+        # "preparar proposta" faziam duas linhas para o mesmo lote e o
+        # funil passava a contar o negocio duas vezes. As propostas sem
+        # anuncio (ref NULL) escapam ao indice por definicao do SQL -- em
+        # UNIQUE, dois NULL nao sao iguais -- e e o que se quer: duas
+        # consultas previas distintas nao colidem uma com a outra.
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_propostas_ref_lote "
+                  "ON propostas(ref, COALESCE(lote, -1))")
+        # As tarefas (etapa 3 do plano; a tabela nasce aqui para a
+        # exportacao do B15 nao ter de mudar duas vezes). `ref` sozinho,
+        # sem proposta, serve o que ainda nao virou negocio.
+        c.execute("""CREATE TABLE IF NOT EXISTS tarefas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proposta_id INTEGER, ref TEXT, o_que TEXT,
+            quando TEXT, quem TEXT, feita_em TEXT,
+            origem TEXT DEFAULT 'mão', criada_em TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_tarefas_quando "
+                  "ON tarefas(quando)")
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -1265,6 +1395,125 @@ def chips_dos_lotes(resumo, so_estado=None):
             pecas.append("<span class='tag lote-fora' title='%s'>L%d</span>"
                          % (html.escape(l["descricao"][:120], quote=True), l["n"]))
     return "".join(pecas)
+
+
+# ------------------------------------------------------------ propostas
+#
+# O que a casa esta a fazer com cada concurso. Etapa 1 do
+# docs/historico/CRM.md -- le o §3 antes de mexer aqui.
+#
+# A regra que manda: **a escada e o estado da PROPOSTA, nao do anuncio**.
+# O anuncio guarda o que o DR publicou, que e facto e nao muda; a
+# proposta guarda o que a casa decidiu, que muda todos os dias. Ate
+# 15/09/2026 as duas coisas viviam na mesma linha (doze colunas
+# penduradas em `anuncios`), e era isso que fazia o "Em curso" e a aba
+# "interessados" serem a mesma consulta.
+
+
+def proposta(id_):
+    with liga() as c:
+        return c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
+
+
+def propostas_de(ref):
+    """As propostas de um anuncio, por lote. Lista vazia e resposta
+    valida: quer dizer que a casa ainda nao decidiu nada sobre ele."""
+    if not ref:
+        return []
+    with liga() as c:
+        return c.execute("SELECT * FROM propostas WHERE ref=? "
+                         "ORDER BY COALESCE(lote, 0), id", (ref,)).fetchall()
+
+
+def criar_proposta(ref=None, lote=None, entidade="", titulo="",
+                   porque_sem_ref="", estado="analisar", quem=None):
+    """Poe um concurso na escada, e devolve o id.
+
+    **Idempotente por (ref, lote)**: chamar duas vezes devolve a mesma
+    proposta em vez de fazer uma segunda. Sem isto, dois cliques no
+    "preparar proposta" -- ou um duplo clique, que e o caso normal --
+    punham o mesmo negocio duas vezes no funil e a soma da coluna
+    passava a mentir. As propostas sem `ref` (D2) nao se podem comparar
+    assim e criam-se sempre: duas consultas previas distintas nao sao a
+    mesma coisa so por nenhuma ter anuncio.
+
+    Do anuncio copia-se o que a proposta precisa de ter por si (entidade,
+    titulo, preco base): uma proposta sem `ref` tem de os trazer, e uma
+    com `ref` nao pode ficar dependente de um JOIN para se mostrar numa
+    lista de mil linhas.
+    """
+    if estado not in CHAVES_DA_CASA:
+        estado = "analisar"
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    preco_base = ""
+    with liga() as c:
+        if ref:
+            ja = c.execute("SELECT id FROM propostas WHERE ref=? AND "
+                           "COALESCE(lote,-1)=COALESCE(?,-1)",
+                           (ref, lote)).fetchone()
+            if ja:
+                return ja["id"]
+            a = c.execute("SELECT titulo, entidade, preco_base FROM anuncios "
+                          "WHERE ref=?", (ref,)).fetchone()
+            if a:
+                entidade = entidade or (a["entidade"] or "")
+                titulo = titulo or (a["titulo"] or "")
+                preco_base = a["preco_base"] or ""
+        cur = c.execute(
+            "INSERT INTO propostas (ref, porque_sem_ref, lote, entidade, "
+            "titulo, estado, preco_base, criada_em) VALUES (?,?,?,?,?,?,?,?)",
+            (ref or None, porque_sem_ref or None, lote, entidade, titulo,
+             estado, preco_base, agora))
+        id_ = cur.lastrowid
+    registar(ref or "", "proposta criada",
+             "%s%s" % (estado_da_casa(estado),
+                       " — lote %d" % lote if lote else ""), quem)
+    return id_
+
+
+def mover_proposta(id_, estado, quem=None):
+    """Poe a proposta noutra ranhura da escada. Devolve (ok, recado).
+
+    Quem grava o `fechada_em` e esta funcao, e so ela: e o carimbo que
+    faz o funil esvaziar, e se ficasse a cargo de quem chama havia de
+    faltar num dos caminhos. Voltar a um estado aberto limpa-o -- um
+    "Perdido" que se reabre por impugnacao nao pode continuar a contar
+    como fechado no trimestre em que se fechou.
+    """
+    if estado not in CHAVES_DA_CASA:
+        return False, "«%s» não é um estado da casa." % (estado or "")
+    rotulo = estado_da_casa(estado)
+    with liga() as c:
+        antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
+        if not antes:
+            return False, "Essa proposta já não existe."
+        if antes["estado"] == estado:
+            return True, ""
+        fechada = (datetime.now().strftime("%Y-%m-%d %H:%M")
+                   if estado in ESTADOS_FECHADOS else None)
+        c.execute("UPDATE propostas SET estado=?, fechada_em=? WHERE id=?",
+                  (estado, fechada, id_))
+    registar(antes["ref"] or "", "estado", rotulo, quem)
+    return True, ""
+
+
+def contar_propostas():
+    """Quantas propostas ha em cada uma das OITO ranhuras da casa.
+
+    Uma passagem pela tabela, e nao oito consultas. As duas ranhuras das
+    pontas nao estao aqui: nelas nao ha proposta nenhuma, contam-se
+    sobre os anuncios e com o MESMO recorte que a aba aplica -- somar de
+    outra maneira quebrava a regra da casa de que um numero tem de dar
+    exactamente a lista que a ligacao dele abre. Quem junta as dez e a
+    banda das abas, que e onde `condicao_da_aba()` vive.
+    """
+    contas = {ch: 0 for ch in CHAVES_DA_CASA}
+    with liga() as c:
+        for r in c.execute("SELECT estado, COUNT(*) n FROM propostas "
+                           "GROUP BY estado"):
+            if r["estado"] in contas:
+                contas[r["estado"]] = r["n"]
+    return contas
 
 
 # ------------------------------------------------------------- captura
@@ -5207,11 +5456,39 @@ TRIAGEM_EXPORT = os.path.join(BASE_DIR, "triagem.jsonl")
 # um ficheiro inteiro reescrito. As fases, etiquetas e filtros levam o
 # id porque outras linhas apontam para ele (fase_id, etiqueta_id,
 # filtro_id).
+# As colunas das tabelas do CRM, numa lista so: a exportacao, a
+# reposicao e os testes leem daqui. Escritas a mao e nao por
+# PRAGMA table_info, de proposito -- uma coluna nova tem de passar por
+# uma decisao de a exportar ou nao, e um `SELECT *` fazia essa decisao
+# sozinho e ao contrario (mudava a ordem do ficheiro a cada migracao,
+# e o B15 promete um ficheiro deterministico).
+COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
+                       "titulo", "estado", "motivo", "responsavel",
+                       "tipologia", "coe", "preco_base", "valor_proposta",
+                       "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
+                       "notas", "criada_em", "fechada_em")
+COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
+                     "feita_em", "origem", "criada_em")
+
 _TABELAS_TRIAGEM = (
     ("anuncios", ("ref", "estado", "fase_id", "responsavel", "visto_em"),
      "SELECT ref, estado, fase_id, responsavel, visto_em FROM anuncios "
      "WHERE estado NOT IN ('novo', 'alteracao') OR fase_id IS NOT NULL "
      "OR COALESCE(responsavel,'') != '' ORDER BY ref"),
+    # As propostas -- o que a casa decidiu, e a parte mais irrecuperavel
+    # de todas: e escrita a mao e nao ha fonte nenhuma que a refaca (o DR
+    # nao devolve o preco que se propos). Entram INTEIRAS, colunas todas.
+    #
+    # Isto e o que faltava ao B15 ate 15/09/2026 e ninguem tinha dado por
+    # isso: as doze colunas de CRM que viviam em `anuncios` nunca foram
+    # acrescentadas aqui, e o BACKLOG dava o R2 (perda do PC) por fechado
+    # por inteiro. Quem acrescentar uma coluna a `propostas` acrescenta-a
+    # tambem a esta lista -- ou ela deixa de sair do computador, em
+    # silencio e sem nada no ecra a dize-lo.
+    ("propostas", COLUNAS_DA_PROPOSTA,
+     "SELECT " + ", ".join(COLUNAS_DA_PROPOSTA) + " FROM propostas ORDER BY id"),
+    ("tarefas", COLUNAS_DA_TAREFA,
+     "SELECT " + ", ".join(COLUNAS_DA_TAREFA) + " FROM tarefas ORDER BY id"),
     ("fases", ("id", "nome", "ordem"),
      "SELECT id, nome, ordem FROM fases ORDER BY id"),
     ("etiquetas", ("id", "nome", "cor"),
@@ -5375,6 +5652,25 @@ def repor_triagem(caminho=None):
                           (reg["estado"], reg["fase_id"],
                            reg["responsavel"], reg["visto_em"],
                            reg["ref"]))
+                escritas += 1
+            elif t in ("propostas", "tarefas"):
+                # A proposta SEM anuncio nao e um orfao: e a consulta
+                # previa, o ajuste directo, o convite (D2 do plano). Se
+                # levasse a regra das outras tabelas -- "o ref nao esta
+                # na base, fica por repor" -- perdia-se no restauro
+                # exactamente a parte do pipeline que nao vem do DR, e o
+                # relatorio final diria "reposto" na mesma, porque essas
+                # linhas nem sequer tem ref para listar. So se adia a que
+                # CITA um anuncio que ainda nao voltou.
+                colunas = (COLUNAS_DA_PROPOSTA if t == "propostas"
+                           else COLUNAS_DA_TAREFA)
+                if reg.get("ref") and reg["ref"] not in existe:
+                    por_repor.setdefault(t, []).append(reg["ref"])
+                    continue
+                c.execute("INSERT OR REPLACE INTO %s (%s) VALUES (%s)"
+                          % (t, ", ".join(colunas),
+                             ", ".join("?" * len(colunas))),
+                          [reg.get(k) for k in colunas])
                 escritas += 1
             elif t == "fases":
                 c.execute("INSERT OR REPLACE INTO fases (id, nome, ordem) "

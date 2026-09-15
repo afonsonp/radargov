@@ -130,6 +130,24 @@ L publicar, e a triagem faz-se no painel.
 
 Funciona. Os números são de **4/09/2026**, lidos das duas bases.
 
+**A 15/09/2026, à tarde, começou o trabalho do CRM** — a pergunta dele
+foi que o «Em curso» não é um CRM e que é estranho, porque a página dos
+anúncios já tem o que ele classificou como interesse. Tinha razão, e a
+causa é de raiz: o `/lista`, o `/quadro` e o `/calendario` partem todos
+de `estado='interessa'`, que é exactamente o que a aba «interessados»
+mostra. São o mesmo conjunto, sempre, porque há **duas escadas
+paralelas** para o mesmo percurso (a triagem e o funil) e um concurso
+sobe as duas ao mesmo tempo. O plano está em `docs/historico/CRM.md`,
+com as sete decisões dele respondidas, e o desenho é dele: **uma escada
+só**, dez ranhuras — a entrada (*por ver*), as oito palavras da casa
+(*por analisar · a preparar proposta · submetido · relatório preliminar
+· ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados
+—, com lista, quadro e calendário como três vistas dela. **A etapa 1
+está feita**: as tabelas `propostas` e `tarefas`, o vocabulário, e as
+duas no `triagem.jsonl` — que é o que fecha o buraco do R2 que ninguém
+tinha visto (as doze colunas de CRM em `anuncios` nunca tinham sido
+exportadas). O ecrã ainda não mudou: isso é a etapa 2.
+
 **A 15/09/2026 entraram as três coisas que faltavam de uma lista de
 «20 coisas a proteger antes de um site ir para o público»** (as outras
 dezassete já existiam ou não se aplicam): páginas de erro da casa
@@ -346,16 +364,16 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 17 3xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com 870 testes que correm em 25 segundos, sem rede e sem
-tocar na base verdadeira (contados a 15/09/2026; a 14/09 a auditoria
+**Código e testes.** `radar.py` com 17 6xx linhas, `casa.py` com 1 267,
+`teste_radar.py` com **890** testes que correm em ~80 segundos, sem rede e sem
+tocar na base verdadeira (contados a 15/09/2026, depois da etapa 1 do CRM; a 14/09 a auditoria
 ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
 **1,23 GB**, com os onze anos e os detalhes todos lidos — o
-`anuncios.texto` sozinho são **843 MB**; 19 tabelas, no git só a triagem,
+`anuncios.texto` sozinho são **843 MB**; 23 tabelas, no git só a triagem,
 cópia diária em `copias/`) e
 `contratos.db` (2,36 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da

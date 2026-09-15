@@ -10,25 +10,28 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 ## Índice
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
-- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 9
+- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 10
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 5
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 7
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
-- [Alertas e interesse](#alertas-e-interesse) &middot; 4
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 10
+- [Alertas e interesse](#alertas-e-interesse) &middot; 5
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 19
 - [O registo da casa](#o-registo-da-casa) &middot; 2
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 6
-- [Contas e a porta](#contas-e-a-porta) &middot; 6
-- [A interface](#a-interface) &middot; 12
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
+- [Contas e a porta](#contas-e-a-porta) &middot; 10
+- [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São 109 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **130** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
-áreas tinham.
+áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
+as áreas tinham 121, com sete secções por baixo do número real — as
+armadilhas do CRM desse dia entraram numa contagem que já estava errada
+antes delas.
 
 ---
 
@@ -998,6 +1001,82 @@ O funil da casa, do «por ver» ao «ganho».
   recusam-se com aviso, e só o que mudou vai para o histórico —
   carregar em «guardar» sem tocar em nada não é um acontecimento.
   `TestListaEmCurso`.
+
+---
+
+Daqui para baixo é o CRM (15/09/2026, `docs/historico/CRM.md`). **Lê o
+§2 e o §3 do plano antes de mexer**: as sete decisões estão respondidas
+pelo Afonso e nenhuma se reabre de passagem.
+
+- **A escada é o estado da PROPOSTA, não do anúncio.** O anúncio guarda
+  o que o DR publicou, que é facto e não muda; a proposta guarda o que a
+  casa decidiu, que muda todos os dias. Até 15/09/2026 as duas coisas
+  viviam na mesma linha — doze colunas penduradas em `anuncios` — e era
+  **isso** que fazia o «Em curso» e a aba «interessados» serem a mesma
+  consulta: duas escadas paralelas para o mesmo percurso, e um concurso
+  a subir as duas ao mesmo tempo. Não voltes a pendurar estado da casa
+  no `anuncios`; o sítio é a `propostas`.
+
+- **As chaves dos seis primeiros estados são, de propósito, as dos
+  `fases.papel`.** `ESTADOS_DA_CASA` começa por `analisar`, `proposta`,
+  `submetido`, `relatorio`, `ganho`, `perdido` — exactamente
+  `FASES_DE_ORIGEM` — para a passagem de um cartão do quadro a uma
+  proposta ser por igualdade de chave, sem mapa de tradução a adivinhar.
+  Renomear uma chave de um lado só parte a passagem em silêncio; há
+  teste a obrigar as duas listas a concordar.
+
+- **As duas ranhuras das pontas não são estados da casa.** `porver` e
+  `expirou` não têm proposta nenhuma — são recorte de leitura sobre os
+  anúncios, e contam-se com o **mesmo** `condicao_da_aba()` que a aba
+  aplica, nunca com um parecido (a regra da casa: um número que um ecrã
+  mostra tem de dar exactamente a lista que a ligação dele abre). Por
+  isso `contar_propostas()` dá só as oito, e quem junta as dez é a banda
+  das abas. Porque é que têm de existir, e não chegavam as oito: a
+  15/09/2026 as abas diziam «Por ver 1 263 · Abandonados 198 305», e os
+  198 305 eram **todos** anúncios expirados sem ninguém olhar — zero
+  descartes na base. Sem a entrada, os vivos caíam em «Por analisar»;
+  sem o cemitério, 198 mil anúncios que ninguém viu contavam como
+  decisão da casa.
+
+- **`criar_proposta()` é idempotente por (ref, lote), e as sem `ref` não
+  o são.** Um duplo clique no «preparar proposta» — que é o caso normal
+  — punha o mesmo negócio duas vezes no funil e a soma da coluna passava
+  a mentir; daí o índice único sobre `(ref, COALESCE(lote,-1))`. As
+  propostas sem anúncio escapam-lhe por definição do SQL (em UNIQUE,
+  dois NULL não são iguais) **e é o que se quer**: duas consultas
+  prévias distintas não são a mesma coisa só por nenhuma ter anúncio.
+
+- **`fechada_em` grava-se em `mover_proposta()`, e só aí.** É o carimbo
+  que faz o funil esvaziar — sem ele um Ganho fica no quadro para sempre,
+  que é o que acontecia até 15/09/2026 com o `estado='interessa'`. Voltar
+  a um estado aberto **limpa-o**: um Perdido que se reabra por impugnação
+  não pode continuar a contar como fechado no trimestre em que fechou.
+
+- **Uma proposta sem `ref` não é um órfão no restauro.** O
+  `repor_triagem()` adia o que cita um anúncio que ainda não voltou do
+  DR; se aplicasse essa regra às propostas sem `ref`, perdia-se no
+  restauro exactamente a parte do pipeline que não vem do DR (consulta
+  prévia, ajuste directo, convite) — e o relatório final diria «reposto»
+  na mesma, porque essas linhas nem `ref` têm para listar.
+
+- **Uma coluna nova em `propostas` tem de entrar em
+  `COLUNAS_DA_PROPOSTA`.** A lista é escrita à mão e não por
+  `PRAGMA table_info`, de propósito: exportar ou não é uma decisão, e um
+  `SELECT *` fazia-a sozinho e mudava a ordem do ficheiro a cada
+  migração (o B15 promete um ficheiro determinístico). O preço é ela
+  poder ficar para trás, em silêncio e sem nada no ecrã a dizê-lo — foi
+  exactamente o que aconteceu às doze colunas de CRM do `anuncios`, que
+  nunca lá entraram e davam o R2 por fechado sem estar. Há teste a
+  comparar a lista com o `PRAGMA`.
+
+- **O «Cancelado» automático é pequeno de propósito.** Medido a
+  15/09/2026: não existe tipo de anúncio para cancelamento (os tipos da
+  parte L são cinco), e quando aparece é texto livre — «SEM EFEITO ->»
+  num título de retificação (**1** em 209 mil), «Revogação da Decisão de
+  Contratar» (**4**), e o resto no corpo. Só o caso explícito e
+  inequívoco se marca sozinho. Procurar por texto é traiçoeiro:
+  `%anula%` dá 601 resultados e são quase todos **cânulas** e
+  «anulações de ramais».
 
 ## O registo da casa
 
