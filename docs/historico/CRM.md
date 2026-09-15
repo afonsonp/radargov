@@ -5,8 +5,11 @@ fazer algo melhor o separador em curso. aquilo não está um verdadeiro
 CRM de gestão de leads e de propostas e é estranho porque na página de
 anúncios já tenho o que classifiquei como interesse.»
 
-A segunda metade da frase é o diagnóstico inteiro. Este ficheiro mostra
-porquê, com o código à vista, e propõe o caminho.
+**Segunda versão, do mesmo dia**, depois das respostas dele. A primeira
+propunha o modelo e deixava quatro decisões em aberto; ele respondeu às
+quatro e acrescentou o desenho que dá nome a este ficheiro — **uma
+escada só**, que é o que resolve a duplicação por construção em vez de
+por filtro. O que aqui está já não tem perguntas por responder.
 
 É um plano, não trabalho feito. Quando cada etapa se fizer, corrige-se o
 `ESTADO.md`, o `docs/armadilhas.md`, o `LEIA-ME.md` e o `CLAUDE.md` no
@@ -16,326 +19,337 @@ mesmo commit; este ficheiro fica como instantâneo.
 
 ## 0. O que se mediu antes de propor
 
-Base no estado zero, a 15/09/2026: 209 826 anúncios (199 568 `novo`,
-10 258 `alteracao`), **zero `interessa`**, zero cartões em qualquer das
-seis fases, zero linhas em `casa`. Não há dados de produção a proteger —
-é o melhor momento possível para mexer no modelo, e o pior para adiar.
+Base a 15/09/2026, no estado zero: **209 826 anúncios** (199 568 `novo`,
+10 258 `alteracao`), **zero `interessa`**, **zero `descartado`**, zero
+cartões em qualquer fase, zero linhas em `casa`.
+
+Dois números que mandam no desenho:
+
+- as abas de hoje dizem **Por ver 1 263 · Abandonados 198 305 · Todos
+  199 568**. Os «abandonados» são **todos** anúncios que expiraram sem
+  ninguém olhar — não há uma única decisão de descarte na base. São
+  ruído acumulado, não história comercial;
+- a plataforma **não está em uso**, é teste. Não há dados de produção a
+  proteger, e é por isso que este plano pode ser radical sem ser
+  arriscado (§6, risco A).
 
 ## 1. O que está errado
 
 ### 1.1 «Em curso» e «interessados» são a mesma consulta
 
 O `/lista` faz `SELECT * FROM anuncios WHERE estado='interessa'`
-(`lista_em_curso()`). A aba «interessados» da lista de anúncios faz
-`estado = ?` com `"interessa"` (`condicao_da_aba()`). O `/quadro` e o
-`/calendario` partem do mesmo conjunto. **São o mesmo conjunto, sempre.**
+(`lista_em_curso()`). A aba «interessados» faz `estado = 'interessa'`
+(`condicao_da_aba()`). O `/quadro` e o `/calendario` partem do mesmo
+conjunto. **São o mesmo conjunto, sempre.**
 
-A causa não é a interface: é o campo. `anuncios.estado='interessa'` faz
-dois trabalhos ao mesmo tempo —
-
-- *«isto merece ser olhado»* — a saída da triagem;
-- *«isto é um negócio nosso»* — a entrada do funil.
-
-Num CRM são objectos distintos: **lead** e **oportunidade**. Enquanto
-forem a mesma coluna, os dois separadores mostram a mesma coisa, e
-nenhum desenho de ecrã resolve isso.
+A causa não é a interface: é haver **duas escadas paralelas** para o
+mesmo percurso. A da triagem (`anuncios.estado`: novo / interessa /
+descartado) e a do funil (`fases`: seis colunas). Um concurso sobe as
+duas ao mesmo tempo, e o topo de uma é o fundo da outra. Daí os dois
+separadores mostrarem a mesma população — e nenhum desenho de ecrã
+resolver isso.
 
 ### 1.2 O funil nunca esvazia
 
 `condicao_da_aba()` diz, por escrito: «interessados: TODOS os
-`interessa`. Um `interessa` com prazo passado é trabalho em curso». A
-regra está certa para a triagem e errada para o funil: um concurso
-**Ganho** ou **Perdido** continua com `estado='interessa'` para sempre.
-Consequências, as duas visíveis no ecrã:
-
-- as colunas Ganho e Perdido do quadro acumulam desde o primeiro dia,
-  sem janela nem arquivo — ao fim de um ano são a maior parte do quadro;
-- a aba «interessados» dos anúncios conta negócios fechados como se
-  estivessem por decidir.
+`interessa`». Está certo para a triagem e errado para o funil: um
+concurso **Ganho** ou **Perdido** fica `interessa` para sempre. As
+colunas Ganho e Perdido acumulam desde o primeiro dia, e a aba
+«interessados» conta negócios fechados como se estivessem por decidir.
 
 ### 1.3 O CRM são colunas penduradas na tabela dos anúncios
 
-Doze, hoje, em `anuncios`: `fase_id`, `responsavel`, `motivo`,
+Doze, em `anuncios`: `fase_id`, `responsavel`, `motivo`,
 `preco_proposto`, `posicao`, `top3`, `motivo_perda`, `tipologia`, `cv`,
-`proposta_tecnica`, `notas`, `coe`. Isso impõe **um anúncio = uma
-oportunidade**, e daí saem três limitações que já se sentem:
+`proposta_tecnica`, `notas`, `coe`. Isso impõe **um anúncio = um
+negócio**, e daí saem três limitações:
 
-- **Os lotes não cabem.** A decisão do Afonso (2/09/2026) é «um cartão
-  por anúncio, mas os cartões que têm lotes devem identificar a que
-  lotes fomos e se fomos a todos, e no final, perdido ou ganho,
-  separam-se os cartões». A segunda metade não está feita, e a primeira
-  só se consegue porque o `resumo_dos_lotes()` vai buscar a granularidade
-  à tabela `casa` — que é lida do Excel, não editável no painel. Um
-  concurso com L1 ganho e L2 perdido não tem onde ser dito.
-- **Não há oportunidade sem anúncio do DR.** Consulta prévia, ajuste
-  directo, convite, o que veio de antes de 2025. O `casa.porque_sem_ref`
-  existe exactamente porque isso é comum no registo dele.
+- **Os lotes não cabem.** Um concurso de 3 lotes pode acabar com o L1
+  ganho e o L2 perdido; um anúncio, uma linha, um estado — e dois
+  resultados. A decisão dele de 2/09/2026 («no final, perdido ou ganho,
+  separam-se os cartões») não tem onde ser cumprida.
+- **Não há negócio sem anúncio do DR.** Consulta prévia, ajuste directo,
+  convite, o anterior a 2025.
 - **Não há histórico por cliente.** O mesmo concurso no ano seguinte é
   outra `ref`, e nada se acumula.
 
-### 1.4 A tabela que falta já existe, e está a ser desperdiçada
+### 1.4 A tabela que falta já existe
 
-`casa` (`casa.py`, `iniciar_tabelas()`): `nome, entidade, modelo,
-prazo_meses, preco_base, criterio, plataforma, ano, status, razao,
-valor_proposta, lugar, ebitda, notas, perfis, concorrentes,
-precos_perfis, ref, lote, porque_sem_ref, zoho_fase, zoho_montante…`
+`casa` (`casa.py`) tem a granularidade do lote, a linha sem `ref`, o
+resultado, o concorrente e a margem. É só-leitura, alimentada do Excel,
+e mostra-se num bloco da ficha. O painel escreve nas outras doze
+colunas. Dois registos do mesmo facto, que não se falam.
 
-Isto **é** o objecto CRM — tem a granularidade do lote, tem a
-oportunidade sem `ref`, tem o resultado, o concorrente e a margem. Só que
-hoje é só-leitura, alimentado por importação do Excel, e mostra-se num
-bloco da ficha. O painel escreve noutro sítio (as 12 colunas), e os dois
-registos do mesmo facto não se falam.
+### 1.5 Faltam tarefas, pessoas e cronologia
 
-### 1.5 Faltam as três coisas que fazem um CRM ser um CRM
-
-- **Próxima acção.** Um CRM responde a «o que tenho de fazer hoje». O
-  quadro responde a «onde é que as coisas estão». Não há tarefa, dono,
-  nem data.
-- **Pessoas.** Não há o contacto na entidade adjudicante, nem quem cá
-  faz o quê para além de um `responsavel` por cartão.
-- **Cronologia.** Esta quase existe: o `historico` por `ref` já grava
-  quem fez o quê e quando, e o `/quadro/campos` já lá escreve «submetido
-  a 118 500 EUR». Falta desenhá-lo como cronologia na ficha.
-
-### 1.6 Achado à parte, e não é de desenho: os campos do CRM não saem do PC
-
-`_TABELAS_TRIAGEM` (B15) exporta do `anuncios` apenas `ref, estado,
-fase_id, responsavel, visto_em`. Ficam **fora** do `triagem.jsonl`:
-`motivo`, `preco_proposto`, `posicao`, `top3`, `motivo_perda`,
-`tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe` — e a tabela
-`casa` inteira. Tudo isto é escrito à mão e não se refaz a partir de
-fonte nenhuma.
-
-O BACKLOG dá o **R2 (perda do PC)** como «fechada por inteiro a
-31/08/2026». Não está: o preço proposto, o lugar no relatório e o motivo
-da perda são precisamente «a parte irrecuperável da base» que o B15 diz
-guardar. As colunas de 14/09/2026 entraram sem passar por ali.
-
-**Isto corrige-se já, independentemente deste plano** — é acrescentar
-colunas ao `_TABELAS_TRIAGEM` e ao `--repor-triagem`, com teste. Esforço
-1. Não se espera pelo CRM.
+Um CRM responde a «o que tenho de fazer hoje»; o quadro responde a «onde
+é que as coisas estão». Não há tarefa, dono nem data. Não há o contacto
+na entidade. A cronologia quase existe — o `historico` por `ref` já
+grava quem fez o quê — e falta desenhá-la.
 
 ---
 
-## 2. As decisões que são dele
+## 2. As decisões, respondidas
 
-Nada do que está abaixo se faz sem estas quatro respostas.
+Todas do Afonso, a 15/09/2026.
 
-1. **O vocabulário dos estados.** Há três a coexistir: o do radar
-   (`novo/interessa/descartado`, mais as seis fases), o do Excel
-   (`Não fomos / Submetido / Perdido / Ganho / Cancelado / TBD`) e o do
-   Zoho (`Lost / Won / 2.3 - Negotiation / Ready for Proposal…`). O
-   `casa.py` guarda o do Zoho em coluna própria de propósito, com o
-   comentário a dizer «quem manda decide-se quando o vocabulário dos
-   estados estiver decidido». É agora. Um CRM com três vocabulários não
-   dá contas.
-2. **A oportunidade sem anúncio entra no painel?** Se sim, o «Em curso»
-   deixa de ser uma vista dos anúncios e passa a ter criação própria
-   (consulta prévia, ajuste directo). Se não, o Excel continua a ser o
-   sítio dessas — e o CRM fica parcial por decisão, não por omissão.
-3. **A granularidade é o lote ou o procedimento?** A resposta desenha a
-   tabela. A recomendação abaixo é: uma proposta por lote quando há
-   lotes, com um cartão agregador — que é o que ele descreveu a
-   2/09/2026.
-4. **O Excel continua a ser fonte, ou o painel passa a ser o sítio?**
-   Enquanto forem os dois a escrever a mesma coisa, há dois registos do
-   mesmo facto. O importador do `casa.py` pode passar a ser
-   *arranque* (uma vez, para trazer o acervo) em vez de
-   *sincronização* (sempre).
+**D1 — o vocabulário da casa são estas oito palavras:** *Por analisar ·
+A preparar proposta · Submetido · Relatório preliminar · Ganho ·
+Perdido · Não fomos · Cancelado.* O Excel e o Zoho traduzem-se para
+esta lista; nenhum outro vocabulário manda.
+
+Duas notas sobre o que isto encaixa no que já existe:
+
+- **«Não fomos» é o «Abandonado» de hoje**, com nome novo. Já tem
+  motivos de lista fechada (`MOTIVOS_ABANDONO`). É renomear, não
+  construir.
+- **Faltam duas ranhuras nas pontas**, e não são estados da casa — são
+  o antes e o fora (§3.1).
+
+**D2 — uma proposta sem anúncio do DR entra no painel.** Consulta
+prévia, ajuste directo, convite. O «Em curso» passa a ser o pipeline
+todo, e não só o que vem da parte L.
+
+**D3 — a granularidade é o lote.** Uma proposta por lote; um cartão que
+os agrupa enquanto não divergem, e que se parte quando divergirem.
+
+**D4 — o painel manda.** O Excel serve **apenas** para importar
+concursos passados a que se respondeu, e o resultado deles. Deixa de ser
+sincronização; passa a ser arranque, uma vez.
+
+**D5 — o «Cancelado» marca-se sozinho quando o DR o disser**, e o DR
+quase nunca o diz. Medido a 15/09/2026: não existe tipo de anúncio para
+cancelamento (os tipos são cinco: *Anúncio de procedimento* 190 291,
+*Aviso de prorrogação* 14 931, *Declaração de retificação* 2 725,
+*Concurso urgente* 1 791, *Consulta preliminar* 84). Quando aparece, é
+texto livre e em três formas: uma retificação cujo título abre com «SEM
+EFEITO ->» (**1** em 209 mil), um anúncio cujo título diz «Revogação da
+Decisão de Contratar» (**4**), e o resto no corpo.
+
+**Regra, então: só o caso explícito e inequívoco se marca sozinho, e
+avisa.** Procurar por texto é traiçoeiro — `%anula%` dá 601 resultados
+que são quase todos **cânulas** e «anulações de ramais». O resto é botão.
+
+**D6 — os expirados sem ver saem da escada.** Aba discreta, fora da
+escada, que não conta para lado nenhum. Não são decisão de ninguém.
+
+**D7 — uma escada só, e três vistas.** É o desenho dele: as abas da
+lista de anúncios passam a ser os estados. Consequência aceite por ele:
+«vamos revolucionar a forma como o em curso aparece, inclusive o quadro,
+o calendário e as listas».
 
 ---
 
-## 3. O modelo proposto
+## 3. O desenho
 
-### 3.1 Uma tabela `propostas`
+### 3.1 A escada
 
-Uma linha por **proposta**: por lote quando há lotes, por procedimento
-quando não há.
+Dez ranhuras: as oito palavras da casa, e duas nas pontas que não são
+estados da casa nenhum — a entrada e o cemitério.
+
+| | Aba | O que é | A 15/09/2026 |
+|---|---|---|---|
+| 📥 | **Por ver** | a entrada; ainda ninguém olhou | 1 263 |
+| 1 | **Por analisar** | interessa, ainda não se decidiu se se vai | 0 |
+| 2 | **A preparar proposta** | vai-se, está a fazer-se | 0 |
+| 3 | **Submetido** | entregue, à espera | 0 |
+| 4 | **Relatório preliminar** | sabe-se o lugar, não é final | 0 |
+| 5 | **Ganho** | | 0 |
+| 6 | **Perdido** | com motivo (`MOTIVOS_PERDA`) | 0 |
+| 7 | **Não fomos** | decidiu-se não ir, com motivo (`MOTIVOS_ABANDONO`) | 0 |
+| 8 | **Cancelado** | a entidade cancelou (D5) | 0 |
+| 🗑 | **Expirou sem ver** | o prazo passou e nunca foi olhado (D6) | 198 305 |
+
+**Porque é que as duas pontas não podem ser ranhuras da escada:** sem a
+entrada, os 1 263 vivos e os ~60 que chegam por dia iam parar a «Por
+analisar», e o funil deixava de querer dizer o que diz. Sem o cemitério,
+198 305 anúncios que ninguém olhou contavam como decisão da casa.
+
+### 3.2 Três vistas sobre a mesma escada
+
+| Vista | Serve | Nota |
+|---|---|---|
+| **Lista** | tudo, incluindo a entrada e o cemitério | é a única que aguenta 199 mil linhas, e a única onde se editam dez linhas seguidas |
+| **Quadro** | as ranhuras 1 a 8 | um kanban não aguenta 198 305 cartões: a entrada e o cemitério não têm coluna |
+| **Calendário** | qualquer aba que se esteja a ver | hoje só mostra interessados; os *por ver* com prazo a chegar são a fila que custa dinheiro |
+
+O separador **Lista** do «Em curso» desaparece; a **vista** lista não —
+funde-se na lista dos anúncios.
+
+### 3.3 A navegação
+
+Com uma escada só, «Anúncios» e «Em curso» deixam de ter razão para ser
+dois sítios:
+
+```
+Concursos   ← lista · quadro · calendário, com as abas da escada
+Mercado     ← contratos (como está)
+```
+
+### 3.4 O que é uma linha
+
+A escada é o estado **do que a casa está a fazer**, não do anúncio. Na
+maior parte dos casos é um para um e não se dá por isso. As excepções
+são as duas que as decisões D2 e D3 obrigam:
+
+- uma **consulta prévia** é um caso sem anúncio por trás;
+- um concurso de **três lotes** parte-se em três quando os resultados
+  divergirem.
+
+Daí a tabela nova. Não é abstracção: é a resposta a «onde ponho o estado
+quando ele não é um por anúncio». E a etapa 4 precisa dela — **o Portal
+BASE adjudica por lote**; sem a granularidade do lote não há comparação
+para fazer.
+
+### 3.5 As tabelas
 
 ```
 propostas
-  id            INTEGER PRIMARY KEY
-  ref           TEXT     -- o anúncio do DR; NULL numa consulta prévia
-  porque_sem_ref TEXT    -- só quando ref é NULL (herdado do casa)
-  lote          INTEGER  -- >=1 um lote, 0 o conjunto, NULL sem lotes
-  entidade      TEXT     -- copiada à criação: uma proposta sem ref tem de a ter
-  titulo        TEXT
-  fase_id       INTEGER  -- as seis fases, como hoje
-  responsavel   TEXT
-  tipologia     TEXT     -- consulting / turnkey
-  coe           TEXT
-  preco_base    REAL
+  id             INTEGER PRIMARY KEY
+  ref            TEXT      -- o anúncio; NULL numa consulta prévia (D2)
+  porque_sem_ref TEXT      -- só quando ref é NULL
+  lote           INTEGER   -- >=1 um lote, 0 o conjunto, NULL sem lotes (D3)
+  entidade       TEXT      -- uma proposta sem ref tem de a trazer
+  titulo         TEXT
+  estado         TEXT      -- uma das oito palavras de D1
+  motivo         TEXT      -- porque não se foi / porque se perdeu
+  responsavel    TEXT
+  tipologia      TEXT      -- consulting / turnkey
+  coe            TEXT
+  preco_base     REAL
   valor_proposta REAL
-  ebitda        REAL
-  lugar         INTEGER
-  top3          TEXT
-  motivo_perda  TEXT
-  cv            TEXT     -- sim/não
-  proposta_tecnica TEXT  -- sim/não
-  notas         TEXT
-  fechada_em    TEXT     -- data em que entrou em Ganho/Perdido/Não fomos
-  criada_em     TEXT
-```
+  ebitda         REAL
+  lugar          INTEGER
+  top3           TEXT
+  cv             TEXT      -- sim/não
+  proposta_tecnica TEXT    -- sim/não
+  notas          TEXT
+  criada_em      TEXT
+  fechada_em     TEXT      -- entrada em Ganho/Perdido/Não fomos/Cancelado
 
-`casa` fica como está — é o registo importado do Excel, com a proveniência
-e a auditoria da ligação (`ligacao`, `candidatos`, `zoho_como`). A
-`propostas` é o que o painel escreve. A importação passa a **criar
-propostas** em vez de ficar num bloco à parte da ficha.
-
-### 3.2 Uma tabela `tarefas`
-
-```
 tarefas
   id INTEGER PRIMARY KEY
-  proposta_id INTEGER   -- ou ref, para tarefas de um anúncio ainda sem proposta
+  proposta_id INTEGER
+  ref TEXT            -- tarefa de um anúncio ainda sem proposta
   o_que TEXT
-  quando TEXT           -- data
+  quando TEXT
   quem TEXT
   feita_em TEXT
-  origem TEXT           -- 'mão' ou 'automática' (prazo de esclarecimentos, entrega)
+  origem TEXT         -- 'mão' | 'prazo' | 'esclarecimentos'
+
+contactos             -- etapa 6
+  id, entidade_chave, nome, papel, email, telefone, notas
 ```
 
-Os prazos que já se calculam — `prazo_de_esclarecimentos()` e o `prazo`
-das propostas — geram tarefas automáticas. Uma tarefa automática cuja
-data mude com uma rectificação do DR acompanha-a; uma tarefa à mão não.
+O `anuncios.estado` fica com **três** valores e mais nenhum: `novo`,
+`alteracao`, e `expirado` é recorte de leitura como hoje. O `interessa`
+e o `descartado` deixam de existir — quem os substitui é a proposta.
 
-### 3.3 Uma tabela `contactos` (etapa tardia, ver §4)
-
-Pessoa, entidade (pela chave das entidades, que já existe no
-`contratos.db`), papel, e-mail, telefone, notas. O CRM vive sem isto
-durante as primeiras etapas; não vive sem isto ao fim de um ano.
-
-### 3.4 O que acontece ao `estado='interessa'`
-
-Volta a significar **uma coisa só**: a triagem disse que sim. É o lead.
-
-A proposta cria-se por um **gesto explícito** — um botão «preparar
-proposta» na ficha e na lista — e é isso que põe o cartão no quadro. Os
-dois separadores deixam de mostrar o mesmo conjunto sem se inventar
-recorte nenhum:
-
-| | Anúncios | Em curso |
-|---|---|---|
-| O que mostra | os `anuncios` | as `propostas` |
-| Aba «interessados» | leads por converter e convertidos | — |
-| Fechados | não se escondem (são anúncios) | saem do funil para o arquivo |
-
-E a aba «interessados» ganha o que lhe falta: distinguir, com uma
-etiqueta, o lead que já virou proposta do que ainda está a marinar.
+`casa` fica como está: é o registo importado do Excel, com a
+proveniência e a auditoria da ligação. Por D4, a importação passa a
+**criar propostas** e a correr uma vez.
 
 ---
 
-## 4. As etapas, por ordem
+## 4. As etapas
 
 Esforço na escala do BACKLOG (1 ≈ ≤2 h · 2 ≈ meio dia a 1 dia ·
 3 ≈ 2–3 dias · 4 ≈ 1 semana).
 
-### Etapa 0 — o B15 leva as colunas do CRM (esforço 1)
+**A etapa 0 da primeira versão saiu.** Era exportar as doze colunas do
+CRM no `triagem.jsonl`, que não lá estavam (R2 reaberto em parte). Com o
+modelo novo essas colunas desaparecem: exportar-se-ia trabalho para o
+deitar fora a seguir. A exportação escreve-se **uma vez**, já sobre as
+tabelas novas, dentro da etapa 1. O item **B15-b** do BACKLOG fecha-se
+assim.
 
-Independente de tudo o resto, e a fazer primeiro. Fecha o §1.6.
+### Etapa 1 — as tabelas e o modelo (esforço 3)
 
-### Etapa 1 — a tabela `propostas` e a migração (esforço 3)
+`propostas` e `tarefas`, com `iniciar_tabelas()` idempotente. As funções
+que criam, movem e fecham uma proposta, e o `estado_da_escada()` que dá
+a ranhura de cada linha. `_TABELAS_TRIAGEM` e `--repor-triagem` passam a
+levá-las.
 
-Tabela nova, `iniciar_tabelas()` idempotente, migração que lê as 12
-colunas do `anuncios` e cria uma proposta por cada anúncio que tenha
-`fase_id` ou qualquer campo do CRM preenchido. **As colunas antigas
-ficam** durante uma versão, escritas em espelho, para o restauro de uma
-cópia anterior não perder nada; saem quando uma release passar.
+Por **D4** e pelo §0 (base sem dados), **as doze colunas do `anuncios`
+saem**, sem espelho nem período de convivência. Sai com elas a menção
+delas em `CAMPOS_DA_TRIAGEM`, que é o que passa a triagem de uma
+alteração para o original.
 
-O `_TABELAS_TRIAGEM` passa a exportar `propostas` inteira, e o
-`--repor-triagem` a repô-la. Teste de ida e volta.
+### Etapa 2 — a escada, e as três vistas (esforço 3)
 
-### Etapa 2 — o «Em curso» passa a ler propostas (esforço 3)
+A lista de anúncios ganha as dez abas. O quadro passa a ter as oito
+colunas e a ler propostas. O calendário deixa de ser só dos
+interessados. A navegação funde-se («Concursos»). O gesto que cria uma
+proposta a partir de um anúncio, e o que cria uma proposta do nada (D2).
+O arquivo: as ranhuras fechadas mostram o trimestre corrente por
+omissão.
 
-Quadro, calendário e lista mudam de fonte. O `/quadro/mover` e o
-`/quadro/campos` passam a escrever na `propostas`. O gesto «preparar
-proposta» nasce aqui, e com ele o cartão por lote.
+### Etapa 3 — tarefas e cronologia (esforço 2)
 
-O **arquivo**: as fases Ganho/Perdido mostram por omissão o trimestre
-corrente, com um selector de período. O funil volta a caber num ecrã.
-
-### Etapa 3 — próxima acção e cronologia (esforço 2)
-
-A tabela `tarefas`, as tarefas automáticas a partir dos prazos, uma
-coluna «o que falta fazer» no cartão, e uma vista «hoje» — que é a
-primeira coisa que um comercial abre de manhã. A cronologia na ficha, a
-partir do `historico`, que já lá está.
+A tabela em uso: tarefas automáticas a partir do prazo de
+esclarecimentos e da data de entrega, uma coluna «o que falta fazer» no
+cartão, e uma vista **hoje**. A cronologia na ficha, a partir do
+`historico`.
 
 ### Etapa 4 — fechar o ciclo com o Portal BASE (esforço 3)
 
-**Isto é o que nenhum concorrente tem, e o radar já tem metade feito.**
-Submetemos uma proposta; meses depois o `contratos.db` diz quem ganhou o
-procedimento e por quanto. Cruza-se por entidade + objecto + data, com
-o mesmo maquinário de semelhança que o `casa.py` já usa para ligar as
-linhas do Excel (`LIMIAR`, `FOLGA`, `MAX_CANDIDATOS`, e a mesma exigência
-de a ligação ser auditável).
+O `contratos.db` diz quem ganhou o procedimento e por quanto. Cruza-se
+por entidade + objecto + data **e por lote**, com o maquinário de
+semelhança do `casa.py` (`LIMIAR`, `FOLGA`, `MAX_CANDIDATOS`) e a mesma
+exigência de a ligação ser auditável.
 
-O que isso dá, sem ninguém escrever nada:
+O que dá, sem ninguém escrever nada — e é o que o Afonso aprovou por
+estas palavras:
 
-- propostas paradas em «Submetido» há meses fecham-se sozinhas, com
-  proposta de resultado a confirmar por um clique;
-- «perdeste para a X por 18% abaixo do teu preço» — o desvio real, não a
-  impressão;
-- uma tabela de concorrentes por CPV e por entidade, construída da
-  observação e não da memória.
+- propostas paradas em «Submetido» há meses fecham-se sozinhas, **com
+  confirmação dele**;
+- «perdeste para a X por 18% abaixo do teu preço» — o desvio real;
+- uma tabela de concorrentes por cliente e por área, da observação.
 
-**Regra:** o cruzamento **propõe**, nunca decide. Um contrato ligado por
-semelhança é um candidato, e a ficha diz por que regra casou — a
-armadilha do `zoho_como` foi escrita para exactamente este erro.
+**O cruzamento propõe, nunca decide** (D-C do §6, e palavra dele:
+«isto avança-se sempre com a confirmação de um humano para fechar o
+resultado»).
 
 ### Etapa 5 — indicadores comerciais (esforço 2)
 
-O `/indicadores` de hoje mede o funil da **triagem** (`funil_anuncios()`:
-quanto entra, quanto se olha, quanto vinga). Falta o do **negócio**:
-
-- pipeline em euros por fase, e ponderado pela taxa de vitória histórica;
-- taxa de vitória por CPV, por entidade, por tipologia, por CoE;
-- desconto médio face ao preço base, nos ganhos e nos perdidos;
-- motivos de perda agregados — já são vocabulário fechado
-  (`MOTIVOS_PERDA`), logo já dão contas;
-- tempo médio por fase, e quantos dias um cartão está parado.
+O `/indicadores` mede o funil da **triagem** (`funil_anuncios()`). Falta
+o do **negócio**: pipeline em euros por ranhura e ponderado pela taxa de
+vitória; taxa de vitória por CPV, entidade, tipologia e CoE; desconto
+médio face ao preço base; motivos de perda agregados; tempo por ranhura
+e dias parado.
 
 Vale a regra da casa: **um número que um ecrã mostra tem de dar
 exactamente a lista que a ligação dele abre.**
 
 ### Etapa 6 — contactos (esforço 2)
 
-A tabela `contactos`, ligada à entidade. Depois de tudo o resto, porque
-é a parte de que se sente falta mais tarde.
-
-### Arrumação de interface, a fazer com a etapa 2
-
-Quadro, Calendário e Lista são três recortes do mesmo conjunto e ocupam
-três entradas de navegação. Passam a ser um botão de vista dentro do «Em
-curso» — como as renovações passaram a `?ver=fim` dos contratos
-(decisão 6.1-A). A ficha do anúncio passa a ser a página do negócio:
-cronologia, peças, proposta, concorrentes.
+`contactos` ligada à entidade. Por último, porque é do que se sente
+falta mais tarde.
 
 ---
 
 ## 5. O que este plano **não** faz
 
-- **Não mexe na recolha, nem na triagem, nem nos alertas.** Nenhum
-  recorte novo entra em `condicoes()`.
-- **Não reintroduz fases configuráveis.** As seis são as seis, e o que
-  manda é o `papel` (decisão de 1/09/2026).
-- **Não abre texto livre onde há vocabulário fechado.** Motivos de
-  abandono e de perda continuam listas.
-- **Não põe o `contratos.db` a decidir nada.** Propõe; a confirmação é
-  de quem usa.
+- **Não toca na recolha nem nos alertas.** Entra tudo o que a parte L
+  publicar; nenhum recorte novo entra em `condicoes()` — as abas da
+  escada aplicam-se por cima, com `com_recorte()`, como as de hoje.
+- **Não devolve as fases configuráveis.** As oito ranhuras são as oito
+  (D1), e o que manda continua a ser o papel e não o nome.
+- **Não abre texto livre** onde há vocabulário fechado.
+- **Não deixa o Portal BASE fechar nada sozinho** (D5, e §4 etapa 4).
+- **Não promete detectar cancelamentos que o DR não publica** (D5).
 
 ## 6. Riscos
 
-| | O quê | Mitigação |
+| | O quê | Estado |
 |---|---|---|
-| R-A | A migração perde trabalho escrito à mão | Etapa 0 primeiro; colunas antigas em espelho durante uma versão; teste de ida e volta pelo `triagem.jsonl` |
-| R-B | Dois registos do mesmo facto (`casa` e `propostas`) | Decisão 2.4 antes da etapa 1: o Excel é arranque ou é fonte |
-| R-C | O cruzamento com o BASE liga o contrato errado | Propõe e não decide; a ficha diz a regra que casou; limiar e folga como no `casa.py` |
-| R-D | O «Em curso» fica a pedir dados que ninguém preenche | Cada campo pertence a uma fase e a mais nenhuma, como já é hoje (`_campos_da_fase()`) |
+| **A** | A mudança perder trabalho escrito à mão | **Morto.** A plataforma é teste, a base está no estado zero: não há trabalho feito. É o que permite tirar as doze colunas sem espelho |
+| **B** | Dois registos do mesmo facto (Excel e painel) | **Resolvido por D4**: o painel manda, o Excel só importa o passado e o resultado |
+| **C** | O cruzamento com o BASE ligar o contrato errado | Propõe e não decide; a ficha diz por que regra casou. Palavra dele: confirmação humana, sempre |
+| **D** | O painel pedir campos que ninguém preenche | Cada campo pertence a uma ranhura só, como já hoje (`_campos_da_fase()`) |
 
-## 7. A ordem curta, se houver pouco tempo
+## 7. A ordem
 
-**Etapa 0** (o B15, 2 h) → **etapas 1 e 2** (o modelo e o funil a sério,
-~1 semana) → **etapa 4** (o ciclo com o BASE, o que distingue este
-produto). As etapas 3, 5 e 6 melhoram; as primeiras três resolvem a
-pergunta que deu origem a este ficheiro.
+**1 → 2** (o modelo e a escada: é aqui que os dois separadores deixam
+de ser o mesmo) → **4** (o ciclo com o BASE, o que distingue este
+produto dos pagos) → 3, 5, 6.

@@ -33,13 +33,12 @@ ou feito.
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
 | 11.7-B | ~~Procura directa de entidade~~ | **Feito a 31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado + `/entidade/procurar` — NIF vai directo, nome resolve por `entidade_nomes` (única → ficha; várias → escolha; nenhuma → di-lo) | — |
 | — | ~~Visualizador de PDF na ficha~~ | **Feito a 31/08/2026, a pedido dele** (sai do «Não fazer»): os PDF das peças abrem em `/peca/<ref>/<nome>`, dentro da aplicação, com a pesquisa do próprio visualizador (Ctrl+F) — o caminho barato que estava anotado | — |
+| CRM | O «Em curso» não é um CRM: é a mesma consulta dos interessados | **Plano escrito a 15/09/2026** e **reescrito no mesmo dia com as decisões dele**: `docs/historico/CRM.md`. Seis etapas. O desenho é dele — **uma escada só** (dez ranhuras: a entrada, as oito palavras da casa, o cemitério dos expirados), com lista, quadro e calendário como três vistas dessa escada | Nada: as sete decisões estão respondidas (§2). Espera por trabalho, pela etapa 1 |
+| B15-b | ~~Os campos do CRM não saem no `triagem.jsonl`~~ | **Fechado a 15/09/2026, sem trabalho próprio**: as colunas em falta são exactamente as que a etapa 1 do CRM apaga — exportá-las era escrever para deitar fora a seguir. A exportação faz-se uma vez, já sobre `propostas` e `tarefas`, dentro dessa etapa | — |
 
-| CRM | O «Em curso» não é um CRM: é a mesma consulta dos interessados | **Plano escrito a 15/09/2026** em `docs/historico/CRM.md`, a pedido dele. Sete etapas, da exportação em falta (esforço 1) ao ciclo fechado com o Portal BASE | **Afonso**, nas quatro decisões do §2: o vocabulário dos estados (radar/Excel/Zoho), se uma proposta sem anúncio entra no painel, se a granularidade é o lote, e se o Excel continua a ser fonte |
-| B15-b | Os campos do CRM não saem no `triagem.jsonl` | **Aberto a 15/09/2026** (`docs/historico/CRM.md` §1.6): o `_TABELAS_TRIAGEM` exporta do `anuncios` só `ref, estado, fase_id, responsavel, visto_em`. Ficam de fora `motivo`, `preco_proposto`, `posicao`, `top3`, `motivo_perda`, `tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe` e a tabela `casa` — tudo escrito à mão e sem fonte que o refaça. **Esforço 1** | Nada: não precisa de decisão, faz-se |
-
-**Há duas pendências abertas** (CRM e B15-b), as duas de 15/09/2026. O
-que se abrir a seguir entra aqui com quem decide e o que dispara, como
-sempre.
+**Há uma pendência aberta** (CRM, de 15/09/2026), e não espera por
+decisão nenhuma: espera por trabalho. O que se abrir a seguir entra aqui
+com quem decide e o que dispara, como sempre.
 
 **Dependências, e o estado de cada uma:**
 
@@ -63,8 +62,12 @@ sempre.
   (14/09/2026: `tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe`; e
   antes delas `preco_proposto`, `posicao`, `top3`, `motivo_perda`,
   `motivo`) nunca foram acrescentadas ao `_TABELAS_TRIAGEM`, e a tabela
-  `casa` também não lá está. Fora isso, o que fica em risco no disco é
-  só o que se refaz (base, corpus, peças).
+  `casa` também não lá está. **Sem consequência prática hoje** — a
+  plataforma é teste e a base está no estado zero (zero `interessa`,
+  zero linhas em `casa`) — e fecha-se dentro da etapa 1 do CRM, que é
+  quem apaga essas colunas e escreve a exportação de uma vez. Fora
+  isso, o que fica em risco no disco é só o que se refaz (base, corpus,
+  peças).
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
 

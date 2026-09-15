@@ -879,9 +879,10 @@ serve só para forçar antes de um commit teu. Desliga-se com
 **Atenção (15/09/2026):** o que o quadro e a lista do «Em curso» pedem
 — preço proposto, lugar no relatório, os três primeiros, motivo da
 perda, tipologia, CV, proposta técnica, notas, CoE — **ainda não vai
-neste ficheiro**, e é escrito à mão. Até isso ficar feito (B15-b no
-`BACKLOG.md`), o que te protege esses campos são as cópias em
-`copias/`, não o git.
+neste ficheiro**, e é escrito à mão. Enquanto for assim, o que te
+protege esses campos são as cópias em `copias/`, não o git. Fica
+resolvido com o trabalho do CRM (`docs/historico/CRM.md`, etapa 1), que
+é quem substitui esses campos e escreve a exportação deles de uma vez.
 
 ```bash
 python radar.py --repor-triagem
