@@ -4710,6 +4710,266 @@ class TestExportacaoDaTriagem(BaseTemporaria):
         self.assertIn("ficheiro", por_repor)
 
 
+class TestEscadaDaCasa(unittest.TestCase):
+    """O vocabulário da casa (D1 do docs/historico/CRM.md, 15/09/2026):
+    oito palavras, e duas ranhuras nas pontas que não são estados. Nada
+    aqui toca na base — é tudo vocabulário."""
+
+    def test_as_oito_palavras_sao_as_que_ele_disse(self):
+        # a lista dele, por estas palavras e por esta ordem
+        self.assertEqual(
+            [r for _, r in radar.ESTADOS_DA_CASA],
+            ["Por analisar", "A preparar proposta", "Submetido",
+             "Relatório preliminar", "Ganho", "Perdido", "Não fomos",
+             "Cancelado"])
+
+    def test_as_chaves_das_seis_primeiras_sao_as_dos_papeis_do_quadro(self):
+        """De propósito: assim a passagem de um cartão do quadro para uma
+        proposta é por igualdade de chave, sem mapa a adivinhar. Se
+        alguém renomear uma chave de um lado só, a passagem parte-se em
+        silêncio — daí este teste."""
+        papeis = [papel for papel, _ in radar.FASES_DE_ORIGEM]
+        self.assertEqual(list(radar.CHAVES_DA_CASA[:6]), papeis)
+
+    def test_a_escada_tem_a_entrada_e_o_cemiterio_nas_pontas(self):
+        """E nenhum dos dois é estado da casa: não há proposta nenhuma
+        neles. Sem a entrada, os 1 263 por ver caíam em «Por analisar» e
+        o funil deixava de dizer o que diz; sem o cemitério, 198 305
+        anúncios que ninguém olhou contavam como decisão da casa."""
+        self.assertEqual(radar.ESCADA[0], ("porver", "Por ver"))
+        self.assertEqual(radar.ESCADA[-1], ("expirou", "Expirou sem ver"))
+        self.assertEqual(len(radar.ESCADA), 10)
+        self.assertNotIn("porver", radar.CHAVES_DA_CASA)
+        self.assertNotIn("expirou", radar.CHAVES_DA_CASA)
+
+    def test_fechados_e_abertos_cobrem_as_oito_sem_sobrar(self):
+        self.assertEqual(sorted(radar.ESTADOS_FECHADOS + radar.ESTADOS_ABERTOS),
+                         sorted(radar.CHAVES_DA_CASA))
+        self.assertEqual(set(radar.ESTADOS_FECHADOS),
+                         {"ganho", "perdido", "nao_fomos", "cancelado"})
+
+    def test_estado_invalido_devolve_vazio_em_vez_de_rebentar(self):
+        """É por aqui que se valida o que vem de um formulário: devolver
+        "" deixa a rota responder com aviso, e rebentar dava um 500."""
+        self.assertEqual(radar.estado_da_casa("inventado"), "")
+        self.assertEqual(radar.estado_da_casa(""), "")
+        self.assertEqual(radar.estado_da_casa(None), "")
+        self.assertEqual(radar.estado_da_casa("ganho"), "Ganho")
+
+    def test_o_que_nao_existe_conta_como_aberto(self):
+        """Esconder do ecrã uma linha com lixo na coluna é a maneira de
+        o lixo nunca mais ser encontrado."""
+        self.assertTrue(radar.estado_aberto("lixo"))
+        self.assertTrue(radar.estado_aberto("submetido"))
+        self.assertFalse(radar.estado_aberto("ganho"))
+
+    def test_cada_pedido_e_cada_motivo_e_de_um_estado_que_existe(self):
+        """As duas listas andam ao lado da escada e é fácil deixar lá uma
+        chave velha depois de renomear um estado — ela cala-se e o campo
+        nunca mais aparece."""
+        for chave in list(radar.PEDIDO_DO_ESTADO) + list(radar.MOTIVOS_DO_ESTADO):
+            self.assertIn(chave, radar.CHAVES_DA_CASA, chave)
+        for chave in radar.ESTADOS_COM_PROPOSTO:
+            self.assertIn(chave, radar.CHAVES_DA_CASA, chave)
+
+
+class TestPropostas(BaseTemporaria):
+    """A tabela `propostas` (etapa 1 do CRM, 15/09/2026): o que a casa
+    está a fazer, que não é o estado de um anúncio. Existe por causa dos
+    lotes (D3) e das propostas sem anúncio do DR (D2)."""
+
+    def _anuncio(self, ref="60/2026", **campos):
+        valores = {"titulo": "Aquisição de software",
+                   "entidade": "Câmara de Lisboa",
+                   "preco_base": "118.500,00 EUR", "data_pub": "2026-09-01"}
+        valores.update(campos)
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref,%s) VALUES (?%s)"
+                      % (",".join(valores), ",?" * len(valores)),
+                      [ref] + list(valores.values()))
+        return ref
+
+    def test_criar_copia_do_anuncio_o_que_a_proposta_tem_de_ter_por_si(self):
+        """Uma proposta sem `ref` tem de trazer entidade e título, e uma
+        com `ref` não pode depender de um JOIN para se mostrar numa lista
+        de mil linhas."""
+        self._anuncio()
+        p = radar.proposta(radar.criar_proposta("60/2026"))
+        self.assertEqual(p["entidade"], "Câmara de Lisboa")
+        self.assertEqual(p["titulo"], "Aquisição de software")
+        self.assertEqual(p["preco_base"], "118.500,00 EUR")
+        self.assertEqual(p["estado"], "analisar")
+
+    def test_criar_duas_vezes_o_mesmo_da_a_mesma_proposta(self):
+        """Um duplo clique no «preparar proposta» punha o mesmo negócio
+        duas vezes no funil, e a soma da coluna passava a mentir."""
+        self._anuncio()
+        um = radar.criar_proposta("60/2026")
+        dois = radar.criar_proposta("60/2026")
+        self.assertEqual(um, dois)
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 1)
+
+    def test_lotes_diferentes_do_mesmo_anuncio_sao_propostas_diferentes(self):
+        """D3: um concurso de três lotes pode acabar com o L1 ganho e o
+        L2 perdido. Um anúncio, uma linha e um estado não cabem dois
+        resultados."""
+        self._anuncio()
+        l1 = radar.criar_proposta("60/2026", lote=1)
+        l2 = radar.criar_proposta("60/2026", lote=2)
+        self.assertNotEqual(l1, l2)
+        radar.mover_proposta(l1, "ganho")
+        radar.mover_proposta(l2, "perdido")
+        estados = {p["lote"]: p["estado"] for p in radar.propostas_de("60/2026")}
+        self.assertEqual(estados, {1: "ganho", 2: "perdido"})
+
+    def test_duas_propostas_sem_anuncio_nao_colidem(self):
+        """D2: duas consultas prévias distintas não são a mesma coisa só
+        por nenhuma ter anúncio. Em UNIQUE, dois NULL não são iguais — e
+        é disso que isto depende."""
+        uma = radar.criar_proposta(entidade="IPL", titulo="Consulta prévia A",
+                                   porque_sem_ref="consulta prévia")
+        outra = radar.criar_proposta(entidade="IPL", titulo="Consulta prévia B",
+                                     porque_sem_ref="consulta prévia")
+        self.assertNotEqual(uma, outra)
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 2)
+
+    def test_fechar_carimba_e_reabrir_limpa(self):
+        """O `fechada_em` é o que faz o funil esvaziar. E um «Perdido»
+        que se reabre por impugnação não pode continuar a contar como
+        fechado no trimestre em que se fechou."""
+        self._anuncio()
+        p = radar.criar_proposta("60/2026")
+        radar.mover_proposta(p, "perdido")
+        self.assertTrue(radar.proposta(p)["fechada_em"])
+        radar.mover_proposta(p, "submetido")
+        self.assertIsNone(radar.proposta(p)["fechada_em"])
+
+    def test_estado_inventado_recusa_se_com_recado(self):
+        self._anuncio()
+        p = radar.criar_proposta("60/2026")
+        ok, recado = radar.mover_proposta(p, "quase_ganho")
+        self.assertFalse(ok)
+        self.assertIn("quase_ganho", recado)
+        self.assertEqual(radar.proposta(p)["estado"], "analisar")
+
+    def test_mover_uma_proposta_que_nao_existe_nao_rebenta(self):
+        ok, recado = radar.mover_proposta(9999, "ganho")
+        self.assertFalse(ok)
+        self.assertTrue(recado)
+
+    def test_contar_da_as_oito_ranhuras_mesmo_as_vazias(self):
+        """Uma ranhura a zero tem de aparecer: o ecrã desenha as oito
+        colunas, e uma conta em falta desenhava-as sem número."""
+        self._anuncio()
+        radar.mover_proposta(radar.criar_proposta("60/2026"), "submetido")
+        contas = radar.contar_propostas()
+        self.assertEqual(sorted(contas), sorted(radar.CHAVES_DA_CASA))
+        self.assertEqual(contas["submetido"], 1)
+        self.assertEqual(contas["ganho"], 0)
+
+    def test_o_historico_fica_com_o_percurso(self):
+        """«submetido a 118 500 EUR» vale mais, três meses depois, do que
+        a coluna onde o cartão parou."""
+        self._anuncio()
+        p = radar.criar_proposta("60/2026")
+        radar.mover_proposta(p, "submetido", quem="Afonso")
+        with radar.liga() as c:
+            accoes = [r["accao"] for r in c.execute(
+                "SELECT accao FROM historico WHERE ref='60/2026' ORDER BY id")]
+        self.assertEqual(accoes, ["proposta criada", "estado"])
+
+
+class TestPropostasNoB15(BaseTemporaria):
+    """As propostas no `triagem.jsonl` — a parte MAIS irrecuperável de
+    todas, porque o DR não devolve o preço que se propôs. Até 15/09/2026
+    as doze colunas de CRM que viviam em `anuncios` nunca tinham sido
+    acrescentadas à exportação, e o BACKLOG dava o R2 por fechado."""
+
+    def _semear(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo) VALUES (?,?)",
+                      ("1/2026", "Um"))
+        com_ref = radar.criar_proposta("1/2026", lote=2)
+        sem_ref = radar.criar_proposta(entidade="IPL", titulo="Consulta prévia",
+                                       porque_sem_ref="consulta prévia")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=?, lugar=?, "
+                      "top3=?, notas=?, coe=?, tipologia=? WHERE id=?",
+                      ("118.500,00 EUR", 2, "1º X · 2º nós", "pedir CVs",
+                       "Data", "turnkey", com_ref))
+            c.execute("INSERT INTO tarefas (proposta_id, ref, o_que, quando, "
+                      "quem, origem) VALUES (?,?,?,?,?,?)",
+                      (com_ref, "1/2026", "pedir esclarecimentos",
+                       "2026-09-22", "Afonso", "esclarecimentos"))
+        return com_ref, sem_ref
+
+    def test_exporta_as_colunas_todas_da_proposta(self):
+        """Quem acrescentar uma coluna a `propostas` acrescenta-a à lista
+        — ou ela deixa de sair do computador, em silêncio."""
+        self._semear()
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        radar.exportar_triagem(caminho)
+        with open(caminho, encoding="utf-8") as f:
+            linhas = [json.loads(l) for l in f if l.strip()]
+        propostas = [l for l in linhas if l["tabela"] == "propostas"]
+        self.assertEqual(len(propostas), 2)
+        self.assertEqual(sorted(propostas[0]),
+                         sorted(("tabela",) + radar.COLUNAS_DA_PROPOSTA))
+        self.assertTrue(any(p["valor_proposta"] == "118.500,00 EUR"
+                            for p in propostas))
+        self.assertTrue(any(l["tabela"] == "tarefas" for l in linhas))
+
+    def test_as_colunas_da_proposta_sao_as_da_tabela(self):
+        """A lista é escrita à mão de propósito (uma coluna nova tem de
+        passar por uma decisão), e é por isso que pode ficar para trás.
+        Este teste é o que a obriga a acompanhar."""
+        with radar.liga() as c:
+            na_tabela = {r["name"] for r in c.execute("PRAGMA table_info(propostas)")}
+            nas_tarefas = {r["name"] for r in c.execute("PRAGMA table_info(tarefas)")}
+        self.assertEqual(na_tabela, set(radar.COLUNAS_DA_PROPOSTA))
+        self.assertEqual(nas_tarefas, set(radar.COLUNAS_DA_TAREFA))
+
+    def test_a_proposta_sem_anuncio_repoe_se(self):
+        """Não é um órfão: é a consulta prévia, o ajuste directo, o
+        convite. Se levasse a regra das outras tabelas («o ref não está
+        na base, fica por repor»), perdia-se no restauro exactamente a
+        parte do pipeline que não vem do DR — e o relatório final dizia
+        «reposto» na mesma, porque essas linhas nem ref têm para listar."""
+        self._semear()
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        radar.exportar_triagem(caminho)
+        with radar.liga() as c:      # a base refeita: nada voltou ainda
+            c.execute("DELETE FROM propostas")
+            c.execute("DELETE FROM tarefas")
+            c.execute("DELETE FROM anuncios")
+        _, por_repor = radar.repor_triagem(caminho)
+        with radar.liga() as c:
+            vivas = c.execute("SELECT ref, titulo FROM propostas").fetchall()
+        self.assertEqual([v["titulo"] for v in vivas], ["Consulta prévia"])
+        self.assertIn("1/2026", por_repor.get("propostas", []))
+
+    def test_restauro_repoe_o_que_se_escreveu_a_mao(self):
+        self._semear()
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        radar.exportar_triagem(caminho)
+        with radar.liga() as c:
+            c.execute("DELETE FROM propostas")
+            c.execute("DELETE FROM tarefas")
+        radar.repor_triagem(caminho)
+        radar.repor_triagem(caminho)      # segunda volta: nada duplica
+        with radar.liga() as c:
+            p = c.execute("SELECT * FROM propostas WHERE ref='1/2026'").fetchone()
+            n = c.execute("SELECT COUNT(*) n FROM propostas").fetchone()["n"]
+            t = c.execute("SELECT COUNT(*) n FROM tarefas").fetchone()["n"]
+        self.assertEqual(p["valor_proposta"], "118.500,00 EUR")
+        self.assertEqual((p["lugar"], p["lote"], p["coe"]), (2, 2, "Data"))
+        self.assertEqual((n, t), (2, 1))
+
+
 class TestPorqueDoGit(unittest.TestCase):
     """01/09/2026: um push recusado ficava gravado como "git push: To
     https://github.com/afonsonp/radarconcursos.git" — o endereço comia
