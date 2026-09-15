@@ -1,6 +1,317 @@
-{"id": 1, "nome": "Por analisar", "ordem": 1, "tabela": "fases"}
-{"id": 2, "nome": "A preparar proposta", "ordem": 2, "tabela": "fases"}
-{"id": 3, "nome": "Submetido", "ordem": 3, "tabela": "fases"}
-{"id": 4, "nome": "Relatório preliminar", "ordem": 4, "tabela": "fases"}
-{"id": 5, "nome": "Ganho", "ordem": 5, "tabela": "fases"}
-{"id": 6, "nome": "Perdido", "ordem": 6, "tabela": "fases"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-08 15:56", "quem": "teste", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-08 15:56", "quem": "teste", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21105/2026, publicado a 19/08/2026; a triagem faz-se lá", "quando": "2026-09-08 17:01", "quem": "DR", "ref": "22510/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22510/2026 de 08/09/2026: prazo de propostas 09/09/2026 → 24/09/2026", "quando": "2026-09-08 17:01", "quem": "DR", "ref": "21105/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22510/2026", "quando": "2026-09-08 17:01", "quem": "DR", "ref": "21105/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22137/2026, publicado a 02/09/2026; a triagem faz-se lá", "quando": "2026-09-08 17:01", "quem": "DR", "ref": "22493/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22493/2026 de 08/09/2026: prazo de propostas 10/09/2026 → 21/09/2026", "quando": "2026-09-08 17:01", "quem": "DR", "ref": "22137/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22493/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "22137/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21748/2026, publicado a 27/08/2026; a triagem faz-se lá", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "22473/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22473/2026 de 08/09/2026: prazo de propostas 08/09/2026 → 15/09/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "21748/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22473/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "21748/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21542/2026, publicado a 25/08/2026; a triagem faz-se lá", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "22474/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22474/2026 de 08/09/2026: prazo de propostas 07/09/2026 → 11/09/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "21542/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22474/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "21542/2026", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 19561/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "17682/2026", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 21065/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "19900/2026", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 20408/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "19900/2026", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 17931/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "16831/2026", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 686/2018", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "2764/2018", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 9140/2017", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "8986/2017", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 22431/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "21772/2026", "tabela": "historico"}
+{"accao": "rectificado", "detalhe": "pelo anúncio 19561/2026", "quando": "2026-09-08 17:02", "quem": "DR", "ref": "17682/2026", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-08 23:09", "quem": "teste", "ref": "", "tabela": "historico"}
+{"accao": "conta", "detalhe": "nome: teste → admin", "quando": "2026-09-08 23:17", "quem": "teste", "ref": "", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22011/2026, publicado a 01/09/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22466/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22466/2026 de 08/09/2026: prazo de propostas 10/09/2026 → 18/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22011/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19500/2026, publicado a 30/07/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22372/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22372/2026 de 07/09/2026: prazo de propostas 04/09/2026 → 22/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "19500/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20325/2026, publicado a 10/08/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22364/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22364/2026 de 07/09/2026: prazo de propostas 05/09/2026 → 18/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "20325/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20221/2026, publicado a 07/08/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22348/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22348/2026 de 07/09/2026: prazo de propostas 08/09/2026 → 18/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "20221/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20469/2026, publicado a 11/08/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22333/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22333/2026 de 07/09/2026: prazo de propostas 07/09/2026 → 12/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "20469/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20556/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22361/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22361/2026 de 07/09/2026: prazo de propostas 09/09/2026 → 03/10/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "20556/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20351/2026, publicado a 10/08/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22353/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22353/2026 de 07/09/2026: prazo de propostas 07/09/2026 → 01/10/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "20351/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20232/2026, publicado a 07/08/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22343/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21986/2026, publicado a 01/09/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22329/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22329/2026 de 07/09/2026: prazo de propostas 07/09/2026 → 10/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "21986/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21991/2026, publicado a 01/09/2026; a triagem faz-se lá", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "22328/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22328/2026 de 07/09/2026: prazo de propostas 10/09/2026 → 17/09/2026", "quando": "2026-09-09 08:43", "quem": "DR", "ref": "21991/2026", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-09 08:53", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21757/2026, publicado a 27/08/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22423/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22423/2026 de 07/09/2026: prazo de propostas 07/09/2026 → 21/09/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "21757/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22423/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "21757/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21936/2026, publicado a 31/08/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22392/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22392/2026 de 07/09/2026: prazo de propostas 09/09/2026 → 16/09/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "21936/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22392/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "21936/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18507/2026, publicado a 20/07/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22356/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22356/2026 de 07/09/2026: prazo de propostas 23/09/2026 → 02/10/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "18507/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22356/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "18507/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20145/2026, publicado a 06/08/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22373/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22373/2026 de 07/09/2026: prazo de propostas 05/09/2026 → 12/09/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "20145/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22373/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "20145/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20339/2026, publicado a 10/08/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22371/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22371/2026 de 07/09/2026: prazo de propostas 05/09/2026 → 03/10/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "20339/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22371/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "20339/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19130/2026, publicado a 27/07/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22367/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22367/2026 de 07/09/2026: prazo de propostas 07/09/2026 → 14/09/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "19130/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22367/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "19130/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20661/2026, publicado a 13/08/2026; a triagem faz-se lá", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "22341/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22341/2026 de 07/09/2026: prazo de propostas 14/09/2026 → 06/10/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "20661/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22341/2026", "quando": "2026-09-09 09:01", "quem": "DR", "ref": "20661/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21962/2026, publicado a 31/08/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22600/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22600/2026 de 09/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "21962/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20546/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22543/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22543/2026 de 09/09/2026: prazo de propostas 12/09/2026 → 10/10/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20546/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22543/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20546/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20897/2026, publicado a 17/08/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22539/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22539/2026 de 09/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20897/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22539/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20897/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20895/2026, publicado a 17/08/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22535/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22535/2026 de 09/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20895/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22535/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20895/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20931/2026, publicado a 17/08/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22606/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22606/2026 de 09/09/2026: prazo de propostas 10/09/2026 → 14/09/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20931/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22606/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "20931/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21014/2026, publicado a 18/08/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22565/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22565/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "21014/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17859/2026, publicado a 13/07/2026; a triagem faz-se lá", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "22542/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22542/2026 de 09/09/2026: prazo de propostas 07/09/2026 → 07/10/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "17859/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22542/2026", "quando": "2026-09-09 17:01", "quem": "DR", "ref": "17859/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18731/2026, publicado a 22/07/2026; a triagem faz-se lá", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "22525/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22525/2026 de 09/09/2026: prazo de propostas 06/09/2026 → 07/09/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "18731/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22144/2026, publicado a 02/09/2026; a triagem faz-se lá", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "22514/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22514/2026 de 09/09/2026: prazo de propostas 08/09/2026 → 10/09/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "22144/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22525/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "18731/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22514/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "22144/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21489/2026, publicado a 25/08/2026; a triagem faz-se lá", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "22615/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22615/2026 de 09/09/2026: prazo de propostas 08/09/2026 → 23/09/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "21489/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22615/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "21489/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17842/2026, publicado a 13/07/2026; a triagem faz-se lá", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "22587/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22587/2026 de 09/09/2026: prazo de propostas 10/09/2026 → 26/10/2026", "quando": "2026-09-10 09:01", "quem": "DR", "ref": "17842/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22587/2026", "quando": "2026-09-10 09:02", "quem": "DR", "ref": "17842/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17929/2026, publicado a 13/07/2026; a triagem faz-se lá", "quando": "2026-09-10 09:02", "quem": "DR", "ref": "22608/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22608/2026 de 09/09/2026: prazo de propostas 21/09/2026 → 19/10/2026; preço base 4.525.187,39 EUR → 4.530.614,39 EUR", "quando": "2026-09-10 09:02", "quem": "DR", "ref": "17929/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22608/2026", "quando": "2026-09-10 09:02", "quem": "DR", "ref": "17929/2026", "tabela": "historico"}
+{"accao": "configuração", "detalhe": "detalhes_por_volta: 40 → 100", "quando": "2026-09-10 11:54", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "configuração", "detalhe": "relidos_por_volta: 25 → 50", "quando": "2026-09-10 11:54", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21057/2026, publicado a 18/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22693/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22693/2026 de 10/09/2026: prazo de propostas 17/09/2026 → 28/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "21057/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20014/2026, publicado a 05/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22669/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22669/2026 de 10/09/2026: prazo de propostas 10/09/2026 → 22/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20014/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21817/2026, publicado a 28/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22708/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22708/2026 de 10/09/2026: prazo de propostas 17/09/2026 → 23/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "21817/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20666/2026, publicado a 13/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22656/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22656/2026 de 10/09/2026: prazo de propostas 09/09/2026 → 17/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20666/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22656/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20666/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20355/2026, publicado a 10/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22644/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22644/2026 de 10/09/2026: prazo de propostas 10/09/2026 → 10/10/2026; preço base 704.978,66 EUR → 704.945,72 EUR; lotes [{\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"Lote 2\", \"preco_base\": \"136.215,00 EUR\"}, {\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"Lote 1\", \"preco_base\": \"568.763,66 EUR\"}] → [{\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"Lote 1\", \"preco_base\": \"568.730,72 EUR\"}, {\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"Lote 2\", \"preco_base\": \"136.215,00 EUR\"}]", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20355/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22644/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20355/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22334/2026, publicado a 07/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22700/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22700/2026 de 10/09/2026: prazo de propostas 14/09/2026 → 16/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22334/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22700/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22334/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22336/2026, publicado a 07/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22699/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22699/2026 de 10/09/2026: prazo de propostas 14/09/2026 → 16/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22336/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22699/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22336/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22335/2026, publicado a 07/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22701/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22701/2026 de 10/09/2026: prazo de propostas 14/09/2026 → 16/09/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22335/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22701/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22335/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20772/2026, publicado a 14/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22647/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22647/2026 de 10/09/2026: prazo de propostas 11/09/2026 → 10/10/2026; preço base 480.206,70 EUR → 477.875,00 EUR", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20772/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22647/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "20772/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21187/2026, publicado a 20/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "22639/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22639/2026 de 10/09/2026: prazo de propostas 17/09/2026 → 08/10/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "21187/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22639/2026", "quando": "2026-09-10 17:01", "quem": "DR", "ref": "21187/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19231/2026, publicado a 28/07/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22652/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22652/2026 de 10/09/2026: prazo de propostas 08/09/2026 → 21/09/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "19231/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22652/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "19231/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18461/2026, publicado a 20/07/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22632/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22632/2026 de 10/09/2026: prazo de propostas 14/09/2026 → 19/11/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "18461/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22632/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "18461/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22445/2026, publicado a 08/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22622/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22622/2026 de 10/09/2026: prazo de propostas 14/09/2026 → 18/09/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22445/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22622/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22445/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22256/2026, publicado a 04/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22709/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22709/2026 de 10/09/2026: prazo de propostas 10/09/2026 → 16/09/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22256/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22709/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22256/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22052/2026, publicado a 01/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22705/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22705/2026 de 10/09/2026: prazo de propostas 10/09/2026 → 18/09/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22052/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22705/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22052/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21990/2026, publicado a 01/09/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22674/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22674/2026 de 10/09/2026: prazo de propostas 10/09/2026 → 17/09/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "21990/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22674/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "21990/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20676/2026, publicado a 13/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22657/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22657/2026 de 10/09/2026: prazo de propostas 10/09/2026 → 22/09/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "20676/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22657/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "20676/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17435/2026, publicado a 08/07/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22633/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22633/2026 de 10/09/2026: prazo de propostas 06/10/2026 → 03/12/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "17435/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22633/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "17435/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17434/2026, publicado a 08/07/2026; a triagem faz-se lá", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "22634/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22634/2026 de 10/09/2026: prazo de propostas 06/10/2026 → 03/12/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "17434/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22634/2026", "quando": "2026-09-10 17:02", "quem": "DR", "ref": "17434/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21101/2026, publicado a 19/08/2026; a triagem faz-se lá", "quando": "2026-09-10 17:03", "quem": "DR", "ref": "22536/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-11 10:06", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21971/2026, publicado a 31/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22776/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22776/2026 de 11/09/2026: prazo de propostas 15/09/2026 → 28/09/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "21971/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18722/2026, publicado a 22/07/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22737/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22737/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 05/11/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "18722/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21164/2026, publicado a 19/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22753/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20595/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22743/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22743/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 12/10/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "20595/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19974/2026, publicado a 05/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22726/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22726/2026 de 11/09/2026: prazo de propostas 10/09/2026 → 24/09/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "19974/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17478/2026, publicado a 08/07/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22720/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22720/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 06/10/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "17478/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21817/2026, publicado a 28/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22745/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22745/2026 de 11/09/2026: prazo de propostas 23/09/2026 → 30/09/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "21817/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22745/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "21817/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21210/2026, publicado a 20/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22734/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22734/2026 de 11/09/2026: prazo de propostas 20/09/2026 → 12/10/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "21210/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22734/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "21210/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20541/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "22728/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22728/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 21/09/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "20541/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22728/2026", "quando": "2026-09-11 17:01", "quem": "DR", "ref": "20541/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22209/2026, publicado a 03/09/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22768/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22768/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22209/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20557/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22731/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22731/2026 de 11/09/2026: prazo de propostas 09/09/2026 → 18/09/2026; lotes [{\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"a) A manutenção dos LCV será executada in situ, de acordo com a lista de LCV ou, quando necessário, nas instalações do adjudicatário; b) A manutenção aplicacional do SIGET será executada na sede da AN\", \"preco_base\": \"1.818.446,57 EUR\"}, {\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"O fornecimento, instalação e manutenção dos LCVM será executada in situ, de acordo com a lista de LCV a ser disponibilizada após a assinatura do contrato, ou, quando necessário, nas instalações do adj\", \"preco_base\": \"1.815.067,67 EUR\"}] → [{\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"O fornecimento, instalação e manutenção dos LCVM será executada in situ, de acordo com a lista de LCV a ser disponibilizada após a assinatura do contrato, ou, quando necessário, nas instalações do adj\", \"preco_base\": \"1.815.067,67 EUR\"}, {\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"a) A manutenção dos LCV será executada in situ, de acordo com a lista de LCV ou, quando necessário, nas instalações do adjudicatário; b) A manutenção aplicacional do SIGET será executada na sede da AN\", \"preco_base\": \"1.818.446,57 EUR\"}]", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "20557/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22731/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "20557/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21213/2026, publicado a 20/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22725/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22725/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "21213/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20631/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22786/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22786/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 19/10/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "20631/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22786/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "20631/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22110/2026, publicado a 02/09/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22778/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22778/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22110/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22110/2026, publicado a 02/09/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22778/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22778/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 25/09/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22110/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22129/2026, publicado a 02/09/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22770/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22770/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 16/09/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22129/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22770/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22129/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20607/2026, publicado a 12/08/2026; a triagem faz-se lá", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "22742/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22742/2026 de 11/09/2026: prazo de propostas 11/09/2026 → 12/10/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "20607/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "alteracao, decidido na alteração 22742/2026", "quando": "2026-09-11 17:02", "quem": "DR", "ref": "20607/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "descartado (Preço base baixo)", "quando": "2026-09-13 21:02", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "descartado (Preço base baixo)", "quando": "2026-09-13 21:15", "quem": "admin", "ref": "22573/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-13 21:15", "quem": "admin", "ref": "21593/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-13 21:17", "quem": "admin", "ref": "22540/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-13 21:23", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-13 21:25", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "preço proposto", "detalhe": "10.000,00 EUR", "quando": "2026-09-13 21:25", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "preço proposto", "detalhe": "100.000,00 EUR", "quando": "2026-09-13 21:25", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Relatorio Preleminar", "quando": "2026-09-13 21:25", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Ganho", "quando": "2026-09-13 21:25", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Perdido", "quando": "2026-09-13 21:26", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Ganho", "quando": "2026-09-13 21:26", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-13 21:26", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-13 21:32", "quem": "admin", "ref": "22721/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-13 21:38", "quem": "admin", "ref": "22721/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-13 21:38", "quem": "admin", "ref": "22540/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-13 21:38", "quem": "admin", "ref": "21593/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-13 21:38", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-13 21:38", "quem": "admin", "ref": "22573/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-13 21:39", "quem": "admin", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "conta", "detalhe": "criou o utilizador marlene (tester)", "quando": "2026-09-13 22:45", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-13 22:46", "quem": "marlene", "ref": "", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-13 22:47", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "verificou as peças", "detalhe": "nenhuma peça nova na plataforma (a pedido, pela ficha)", "quando": "2026-09-14 11:05", "quem": "plataforma", "ref": "21593/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-14 11:29", "quem": "admin", "ref": "PT1.NTC.3795939", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-14 11:30", "quem": "admin", "ref": "PT1.NTC.3795939", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "37.28.203.57", "quando": "2026-09-14 11:41", "quem": "marlene", "ref": "", "tabela": "historico"}
+{"accao": "saiu de todos os aparelhos", "detalhe": "1 sessões", "quando": "2026-09-14 11:42", "quem": "marlene", "ref": "", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "37.28.203.57", "quando": "2026-09-14 11:59", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-14 12:41", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "A preparar proposta", "quando": "2026-09-14 12:41", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Submetido", "quando": "2026-09-14 12:41", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Relatorio Preleminar", "quando": "2026-09-14 12:41", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "fase", "detalhe": "Ganho", "quando": "2026-09-14 12:41", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20668/2026, publicado a 13/08/2026; a triagem faz-se lá", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "22818/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22818/2026 de 14/09/2026: prazo de propostas 10/09/2026 → 21/09/2026", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "20668/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19111/2026, publicado a 27/07/2026; a triagem faz-se lá", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "22806/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22806/2026 de 14/09/2026: prazo de propostas 21/10/2026 → 20/11/2026", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "19111/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21192/2026, publicado a 20/08/2026; a triagem faz-se lá", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "22831/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22831/2026 de 14/09/2026: prazo de propostas 17/09/2026 → 12/10/2026", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "21192/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21393/2026, publicado a 24/08/2026; a triagem faz-se lá", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "22824/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22824/2026 de 14/09/2026: prazo de propostas 21/09/2026 → 13/10/2026", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "21393/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19127/2026, publicado a 27/07/2026; a triagem faz-se lá", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "22812/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22812/2026 de 14/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-14 14:16", "quem": "DR", "ref": "19127/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19129/2026, publicado a 27/07/2026; a triagem faz-se lá", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "22813/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22813/2026 de 14/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "19129/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21799/2026, publicado a 28/08/2026; a triagem faz-se lá", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "22814/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22814/2026 de 14/09/2026: prazo de propostas 25/09/2026 → 08/10/2026", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "21799/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21089/2026, publicado a 19/08/2026; a triagem faz-se lá", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "22827/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22827/2026 de 14/09/2026: prazo de propostas 22/09/2026 → 03/10/2026", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "21089/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18372/2026, publicado a 17/07/2026; a triagem faz-se lá", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "22817/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22817/2026 de 14/09/2026: prazo de propostas 11/09/2026 → 21/09/2026", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "18372/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 19130/2026, publicado a 27/07/2026; a triagem faz-se lá", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "22811/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22811/2026 de 14/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "19130/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 15278/2026, publicado a 15/06/2026; a triagem faz-se lá", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "22807/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22807/2026 de 14/09/2026: prazo de propostas 14/09/2026 → 25/09/2026; preço base 8.328.714,21 EUR → 8.340.460,93 EUR", "quando": "2026-09-14 14:17", "quem": "DR", "ref": "15278/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: PROGRAMA PROCEDIMENTO 3 MESES.pdf", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: CADERNO ENCARGOS 3 MESES.pdf", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: Anexo 3 - Sinistralidade.xlsx", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: Anexo 5 mapa frota.xlsx", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: Anexo 4 - Obrigatoriedade de um reporte da sinistralidade.docx", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: Anexo 2 – Relação do Património.xlsx", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: 419972291.pdf", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "peça nova na plataforma: Resposta a Pedido de Esclarecimentos.zip", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "leitura", "detalhe": "peças lidas", "quando": "2026-09-14 14:18", "quem": "plataforma", "ref": "22460/2026", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-14 14:27", "quem": "admin", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "37.28.203.57", "quando": "2026-09-14 16:32", "quem": "marlene", "ref": "", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-14 16:33", "quem": "marlene", "ref": "PT1.NTC.3795939", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-14 16:33", "quem": "marlene", "ref": "PT1.NTC.3795750", "tabela": "historico"}
+{"accao": "estado", "detalhe": "interessa", "quando": "2026-09-14 16:33", "quem": "marlene", "ref": "PT1.NTC.3795542", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-14 16:34", "quem": "marlene", "ref": "PT1.NTC.3795939", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-14 16:34", "quem": "marlene", "ref": "PT1.NTC.3795750", "tabela": "historico"}
+{"accao": "estado", "detalhe": "novo", "quando": "2026-09-14 16:34", "quem": "marlene", "ref": "PT1.NTC.3795542", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21053/2026, publicado a 18/08/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22885/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22885/2026 de 14/09/2026: prazo de propostas 17/09/2026 → 02/10/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "21053/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22394/2026, publicado a 07/09/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22876/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22876/2026 de 14/09/2026: prazo de propostas 14/09/2026 → 21/09/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22394/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22317/2026, publicado a 04/09/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22843/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22843/2026 de 14/09/2026: prazo de propostas 17/09/2026 → 28/09/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22317/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22509/2026, publicado a 08/09/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22890/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22890/2026 de 14/09/2026: prazo de propostas 17/09/2026 → 23/09/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22509/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22554/2026, publicado a 09/09/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22861/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22861/2026 de 14/09/2026: prazo de propostas 14/09/2026 → 16/09/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22554/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20042/2026, publicado a 05/08/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22865/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22865/2026 de 14/09/2026: prazo de propostas 05/10/2026 → 13/10/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "20042/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21930/2026, publicado a 31/08/2026; a triagem faz-se lá", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "22849/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22849/2026 de 14/09/2026: prazo de propostas 15/09/2026 → 22/09/2026", "quando": "2026-09-14 17:01", "quem": "DR", "ref": "21930/2026", "tabela": "historico"}
+{"accao": "saiu de todos os aparelhos", "detalhe": "1 sessões", "quando": "2026-09-14 17:07", "quem": "marlene", "ref": "", "tabela": "historico"}
+{"accao": "verificou as peças", "detalhe": "nenhuma peça nova na plataforma (passou a data de esclarecimentos (14/09/2026))", "quando": "2026-09-15 09:01", "quem": "plataforma", "ref": "22754/2026", "tabela": "historico"}
+{"accao": "verificou as peças", "detalhe": "nenhuma peça nova na plataforma (passou a data de esclarecimentos (14/09/2026))", "quando": "2026-09-15 09:01", "quem": "plataforma", "ref": "22719/2026", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-15 09:35", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20437/2026, publicado a 11/08/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22919/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22919/2026 de 15/09/2026: prazo de propostas 11/09/2026 → 16/10/2026; lotes [{\"n\": 3, \"id\": \"LOT-0003\", \"descricao\": \"LOTE 3\", \"preco_base\": \"70.800,00 EUR\"}, {\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"LOTE 2\", \"preco_base\": \"107.650,00 EUR\"}, {\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"LOTE 1\", \"preco_base\": \"223.200,00 EUR\"}] → [{\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"LOTE 1\", \"preco_base\": \"223.200,00 EUR\"}, {\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"LOTE 2\", \"preco_base\": \"107.650,00 EUR\"}, {\"n\": 3, \"id\": \"LOT-0003\", \"descricao\": \"LOTE 3\", \"preco_base\": \"70.800,00 EUR\"}]", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "20437/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21423/2026, publicado a 24/08/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22917/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22917/2026 de 15/09/2026: prazo de propostas 20/09/2026 → 05/10/2026", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "21423/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20782/2026, publicado a 14/08/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22915/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22915/2026 de 15/09/2026: prazo de propostas 11/09/2026 → 12/10/2026", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "20782/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 20879/2026, publicado a 17/08/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22909/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22909/2026 de 15/09/2026: prazo de propostas 16/09/2026 → 06/10/2026; lotes — → [{\"n\": 3, \"id\": \"LOT-0003\", \"descricao\": \"CONSTRUÇÃO DE TRÊS EMPREENDIMENTOS DE HABITAÇÃO PÚBLICA MUNICIPAL (3 LOTES) - Lote 3 - CONSTRUÇÃO DO COMPLEXO HABITACIONAL DAS FONTAINHAS - QUINTA GRANDE\", \"preco_base\": \"1.529.924,05 EUR\"}, {\"n\": 2, \"id\": \"LOT-0002\", \"descricao\": \"CONSTRUÇÃO DE TRÊS EMPREENDIMENTOS DE HABITAÇÃO PÚBLICA MUNICIPAL (3 LOTES) Lote 2 - CONSTRUÇÃO DO COMPLEXO HABITACIONAL DO CURRAL DAS FREIRAS\", \"preco_base\": \"3.329.944,09 EUR\"}, {\"n\": 1, \"id\": \"LOT-0001\", \"descricao\": \"Construção de três empreendimentos de habitação pública municipal (3 lotes) - LOTE 1 - CONSTRUÇÃO DO COMPLEXO HABITACIONAL DO RANCHO - CÂMARA DE LOBOS\", \"preco_base\": \"7.302.828,85 EUR\"}]", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "20879/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22386/2026, publicado a 07/09/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22898/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18970/2026, publicado a 24/07/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22911/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22911/2026 de 15/09/2026: prazo de propostas 13/09/2026 → 07/10/2026", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "18970/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21000/2026, publicado a 18/08/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22916/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21599/2026, publicado a 26/08/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22914/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22914/2026 de 15/09/2026: prazo de propostas 23/09/2026 → 11/10/2026", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "21599/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17444/2026, publicado a 08/07/2026; a triagem faz-se lá", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "22923/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22923/2026 de 15/09/2026: prazo de propostas 21/09/2026 → 08/10/2026", "quando": "2026-09-15 09:37", "quem": "DR", "ref": "17444/2026", "tabela": "historico"}
+{"accao": "saiu de todos os aparelhos", "detalhe": "5 sessões", "quando": "2026-09-15 10:27", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-15 11:03", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "81.84.122.93", "quando": "2026-09-15 11:46", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "entrou", "detalhe": "2a02:26f7:cb04:5281:0:4000::", "quando": "2026-09-15 16:54", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22043/2026, publicado a 01/09/2026; a triagem faz-se lá", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22942/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22942/2026 de 15/09/2026: prazo de propostas 16/09/2026 → 06/10/2026", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22043/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 21361/2026, publicado a 21/08/2026; a triagem faz-se lá", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22962/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 17892/2026, publicado a 13/07/2026; a triagem faz-se lá", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22933/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22933/2026 de 15/09/2026: prazo de propostas 16/09/2026 → 26/10/2026", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "17892/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 22899/2026, publicado a 15/09/2026; a triagem faz-se lá", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22945/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22945/2026 de 15/09/2026: prazo de propostas 26/09/2026 → 28/09/2026", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22899/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 14358/2026, publicado a 02/06/2026; a triagem faz-se lá", "quando": "2026-09-15 17:02", "quem": "DR", "ref": "22936/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 22936/2026 de 15/09/2026: prazo de propostas 15/09/2026 → 14/11/2026", "quando": "2026-09-15 17:02", "quem": "DR", "ref": "14358/2026", "tabela": "historico"}
