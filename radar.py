@@ -18754,7 +18754,7 @@ def main():
     # Os comandos --importar-excel e --casa-ligar sairam a 8/09/2026: o
     # Excel antigo deixou de contar para a aplicacao, e o registo da casa
     # entra pelo modelo, em Configuracoes > Importar dados. O leitor
-    # antigo continua no casa.py, sem comando, com os testes dele.
+    # antigo saiu do casa.py a 15/09/2026 -- esta no historico do git.
 
     if "--estado-zero" in sys.argv:
         # Pedido do Afonso a 8/09/2026: a aplicacao como acabada de

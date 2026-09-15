@@ -734,7 +734,10 @@ Os ficheiros carregados ficam em `importacoes/`, fora do git.
 O Excel antigo de análise de concursos (`Analise_Concursos_Publicos.xlsm`)
 **deixou de contar para a aplicação**, por decisão tua a 8/09/2026:
 fica nos documentos, e o que o radar tinha lido dele saiu com o estado
-zero desse dia. Para repor a aplicação como acabada de instalar — sem
+zero desse dia. A 15/09/2026 **saiu também o leitor** — o radar já não
+sabe abrir esse ficheiro, e não precisa: o que ele tinha foi importado e
+o registo novo entra pelo modelo. Está no histórico do git, se algum dia
+voltar a ser preciso. Para repor a aplicação como acabada de instalar — sem
 perder os anúncios — há o comando, que faz cópia antes e pede
 confirmação:
 

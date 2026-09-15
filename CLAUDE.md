@@ -480,6 +480,21 @@ programação: continua automático e sem tocar em `radar.py`. A única
 coisa que passou a ser manual é a instalação **trazer código novo** —
 isso só acontece quando o Afonso corre `actualizar.sh`.
 
+**O leitor do Excel antigo saiu a 15/09/2026**, por decisão dele
+(«corta, fica no git»): as 603 linhas do `casa.py` que sabiam ler o
+`Analise_Concursos_Publicos.xlsm` do SharePoint e ligá-lo aos anúncios
+por semelhança de título (`ler_excel`, `Acervo`, `pontuar`,
+`ref_pelo_base`, `decidir`, `importar`, `ligar_a_mao`), mais as 638
+linhas do `TestRegistoDaCasa`. Uma decisão anterior tinha-o guardado
+como história; a D4 do `docs/historico/CRM.md` — o Excel serve só para
+importar o passado, **pelo modelo** — tornou-a obsoleta, e o `.xlsm` já
+tinha sido importado. O que ficou do `casa.py` é o modelo
+(`escrever_modelo` › `ler_modelo` › `ensaio_modelo` › `aplicar_modelo`),
+a tradução do estado (`estado_efectivo`, `estado_pretendido`, que ainda
+guardam a regra do Zoho e a guarda dos lotes, com testes em
+`TestEstadoEfectivoDaCasa`) e o `desaplicar_da_copia()` do
+`--casa-desfazer`.
+
 **As bases de dados não entram no histórico do git** — `radar.db` (1,3
 GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por
 ficheiro que o GitHub recusa num push normal, e o Git LFS gratuito só

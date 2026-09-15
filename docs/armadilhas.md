@@ -1288,8 +1288,16 @@ o leitor do Excel antigo fica lá, sem comando.
   («Falta de CV's») fica como está no `estado_pretendido()`: o
   `MAPA_RAZAO` é para as variantes do Excel antigo, e a primeira versão
   perdia o motivo por o passar pelo mapa. `--importar-excel` e
-  `--casa-ligar` saíram; `--casa-desfazer` (repor a triagem de uma
-  cópia) ficou, porque serve para qualquer importação.
+  `--casa-ligar` saíram; `--casa-desfazer` (repor as propostas de uma
+  cópia) ficou, porque serve para qualquer importação — e a 15/09/2026
+  teve de mudar por dentro: apagava o histórico por `quem='Excel'`, e
+  isso deixou de apanhar nada quando o leitor do Excel antigo saiu e
+  ficou só a importação pelo modelo, que escreve o nome de quem a fez.
+  **Agora repõe o histórico pela cópia**, como já fazia às propostas: as
+  linhas que a cópia não tem são as que a importação escreveu. O leitor
+  do Excel antigo (`ler_excel`, `Acervo`, `pontuar`, `ref_pelo_base`,
+  `importar`, `ligar_a_mao` — 603 linhas do `casa.py` e 638 de testes)
+  saiu nesse dia, por decisão dele; está no histórico do git.
 
 - **O registo da casa vive em `casa.py`** — o primeiro módulo fora do
   `radar.py` (02/09/2026), e a regra para os próximos: o módulo novo

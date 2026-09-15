@@ -128,12 +128,6 @@ estes quatro ficaram investigados e por decidir:
   exactamente a tabela de perfis do campo «equipa». Guião de medida no
   diário; se for favorável, reextrair o acervo por marca e refazer as
   análises com `--ler-pecas tudo`.
-- **O leitor do Excel antigo em `casa.py`** (~660 linhas de código e
-  ~500 de testes, 17 testes). Nada o chama desde 8/09/2026 e o git
-  guarda a história; mas foi o Afonso que decidiu guardá-lo «com os
-  testes dele». Se sair, o teste de `desaplicar_da_copia()` (comando
-  vivo, `--casa-desfazer`) tem de ser reescrito com `aplicar_modelo()`,
-  e `_num` e `_norma` ficam, que o modelo novo os usa.
 - **Não aplicar, e porquê:** as duas filas de fundo por
   `ThreadPoolExecutor(1)`. O executor não é daemon (o `--uma-vez` do
   temporizador ficaria à espera de descargas e leituras no `atexit`),

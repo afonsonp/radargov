@@ -430,3 +430,26 @@ nenhum comando e nenhuma rota chamam — mais as 638 linhas do
 dele, e a D4 diz que o Excel agora só importa o passado **pelo modelo**.
 O `CLAUDE.md` guardou-o de propósito («é histórico, e os testes dele
 continuam a valer»). Não se corta de passagem.
+
+### E cortou-se (15/09/2026, ao fim do dia)
+
+«Corta, fica no git.» Saíram as 603 linhas e as 20 definições, mais as
+638 do `TestRegistoDaCasa`. O `casa.py` ficou com 630 linhas de 1 307.
+
+Seis dos 23 testes daquela classe não eram do Excel — eram da regra do
+Zoho, da guarda dos lotes (nenhuma fase do Zoho decide um lote), do
+`estado_pretendido()`, dos lotes no texto do DR e da porta fechada do
+front. Ficaram, numa classe com o nome do que testam:
+`TestEstadoEfectivoDaCasa`.
+
+**E o corte destapou um erro que nenhum teste apanhava**: o
+`desaplicar_da_copia()` — o `--casa-desfazer`, código vivo — apagava o
+histórico com `DELETE FROM historico WHERE quem='Excel'`. Só o leitor
+antigo escrevia esse nome; a importação pelo modelo escreve o nome de
+quem a fez. Desfazer uma importação de hoje deixava o histórico
+sujo, em silêncio. Agora repõe-se pela **cópia**, como já se fazia às
+propostas: as linhas que a cópia não tem são as que a importação
+escreveu. É a premissa própria da função, e não precisa de convenção
+nenhuma sobre nomes.
+
+São 911 testes.
