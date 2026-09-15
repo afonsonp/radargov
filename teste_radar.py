@@ -2056,22 +2056,7 @@ class TestDiasUrgente(unittest.TestCase):
                          radar.DIAS_URGENTE)
 
 
-class TestSomaPrecosBase(unittest.TestCase):
-    """B11: o cabeçalho da coluna do quadro soma os preços base lidos e
-    diz sobre quantos é — somar uns e calar os outros parecia o valor da
-    fase inteira."""
-
-    def test_soma_e_conta_so_os_lidos(self):
-        itens = [{"preco_base": "175.000,00 EUR"},
-                 {"preco_base": ""},
-                 {"preco_base": "25.000,00 EUR"}]
-        soma, com_preco = radar.soma_precos_base(itens)
-        self.assertEqual(soma, 200000.0)
-        self.assertEqual(com_preco, 2)
-
-    def test_sem_precos_nao_ha_soma(self):
-        self.assertEqual(radar.soma_precos_base([{"preco_base": ""}]), (0, 0))
-        self.assertEqual(radar.soma_precos_base([]), (0, 0))
+# A classe TestSomaPrecosBase saiu a 15/09/2026 com o que ela testava: o `soma_precos_base()` somava colunas do quadro, e o quadro saiu nesse dia
 
 
 class TestPaginasDoRecorte(unittest.TestCase):
@@ -2718,10 +2703,9 @@ class TestFiltrosGuardadosNasDuasVistas(unittest.TestCase):
     """
 
     def test_cada_pagina_sabe_os_seus_campos(self):
-        # Desde a fusão de 31/08/2026, a lista dos anúncios é uma só e
-        # vive em "/" (a /anuncios redirecciona para lá).
-        self.assertEqual(radar.ROTA_DA_VISTA["anuncios"], "/")
-        self.assertEqual(radar.ROTA_DA_VISTA["contratos"], "/contratos")
+        # (o ROTA_DA_VISTA saiu a 15/09/2026 com os filtros guardados,
+        # que morreram a 13/09: era o mapa que levava um filtro à página
+        # dele, e deixou de haver filtros para levar)
         self.assertNotEqual(radar.campos_da_vista("anuncios"),
                             radar.campos_da_vista("contratos"))
 
@@ -3667,43 +3651,7 @@ class TestMinimoParaEscada(unittest.TestCase):
         self.assertGreaterEqual(radar.MINIMO_PARA_ESCADA, 5)
 
 
-class TestModeloComFornecedor(unittest.TestCase):
-    """A2 do saneamento de 30/08/2026: 12 das 18 análises tinham o
-    modelo no formato de antes da cadeia ("openai/gpt-oss-120b", sem
-    fornecedor), e nenhuma migração o convertia. A regra: um segmento
-    sem ":" é de antes da cadeia, e antes da cadeia só a Groq escrevia
-    — os outros fornecedores nasceram já com o prefixo posto."""
-
-    def test_sem_prefixo_ganha_groq(self):
-        self.assertEqual(radar._modelo_com_fornecedor("openai/gpt-oss-120b"),
-                         "groq:openai/gpt-oss-120b")
-
-    def test_prefixado_fica_como_esta(self):
-        self.assertEqual(
-            radar._modelo_com_fornecedor("nvidia:openai/gpt-oss-120b"),
-            "nvidia:openai/gpt-oss-120b")
-
-    def test_misto_converte_so_a_parte_nua(self):
-        # havia uma linha assim mesmo na base: a parte prefixada veio da
-        # cadeia, a nua ficara da leitura antiga (juntar_fontes preserva)
-        self.assertEqual(
-            radar._modelo_com_fornecedor(
-                "nvidia:openai/gpt-oss-120b, openai/gpt-oss-120b"),
-            "nvidia:openai/gpt-oss-120b, groq:openai/gpt-oss-120b")
-
-    def test_aplicar_duas_vezes_da_o_mesmo(self):
-        uma = radar._modelo_com_fornecedor("openai/gpt-oss-120b, nvidia:x")
-        self.assertEqual(radar._modelo_com_fornecedor(uma), uma)
-
-    def test_vazio_e_none_ficam_vazios(self):
-        self.assertEqual(radar._modelo_com_fornecedor(""), "")
-        self.assertEqual(radar._modelo_com_fornecedor(None), "")
-
-    def test_modelo_com_dois_pontos_no_nome_nao_ganha_prefixo(self):
-        # "z-ai/glm-5.2:free" leva ":" no proprio nome; um prefixo em
-        # cima era estragar um valor que nunca foi escrito sem fornecedor
-        self.assertEqual(radar._modelo_com_fornecedor("z-ai/glm-5.2:free"),
-                         "z-ai/glm-5.2:free")
+# A classe TestModeloComFornecedor saiu a 15/09/2026 com o que ela testava: o `_modelo_com_fornecedor()` era uma migração de uso único que já não corria no arranque
 
 
 class BaseTemporaria(unittest.TestCase):
@@ -4821,13 +4769,6 @@ class TestEscadaDaCasa(unittest.TestCase):
         self.assertEqual(radar.estado_da_casa(None), "")
         self.assertEqual(radar.estado_da_casa("ganho"), "Ganho")
 
-    def test_o_que_nao_existe_conta_como_aberto(self):
-        """Esconder do ecrã uma linha com lixo na coluna é a maneira de
-        o lixo nunca mais ser encontrado."""
-        self.assertTrue(radar.estado_aberto("lixo"))
-        self.assertTrue(radar.estado_aberto("submetido"))
-        self.assertFalse(radar.estado_aberto("ganho"))
-
     def test_cada_pedido_e_cada_motivo_e_de_um_estado_que_existe(self):
         """As duas listas andam ao lado da escada e é fácil deixar lá uma
         chave velha depois de renomear um estado — ela cala-se e o campo
@@ -4958,16 +4899,6 @@ class TestPropostas(BaseTemporaria):
         ok, recado = radar.mover_proposta(9999, "ganho")
         self.assertFalse(ok)
         self.assertTrue(recado)
-
-    def test_contar_da_as_oito_ranhuras_mesmo_as_vazias(self):
-        """Uma ranhura a zero tem de aparecer: o ecrã desenha as oito
-        colunas, e uma conta em falta desenhava-as sem número."""
-        self._anuncio()
-        radar.mover_proposta(radar.criar_proposta("60/2026"), "submetido")
-        contas = radar.contar_propostas()
-        self.assertEqual(sorted(contas), sorted(radar.CHAVES_DA_CASA))
-        self.assertEqual(contas["submetido"], 1)
-        self.assertEqual(contas["ganho"], 0)
 
     def test_o_historico_fica_com_o_percurso(self):
         """«submetido a 118 500 EUR» vale mais, três meses depois, do que
@@ -7500,14 +7431,6 @@ class TestPrecoDaProposta(unittest.TestCase):
             self._p("submetido", valor_proposta="118.500,00 EUR"))
         self.assertIn("118.500,00 EUR", html_)
 
-    def test_a_soma_segue_a_mesma_regra(self):
-        itens = [self._p(valor_proposta="100.000,00 EUR"),
-                 self._p(valor_proposta=None)]
-        self.assertEqual(radar.soma_precos_base(itens, "valor_proposta"),
-                         (100000.0, 1))
-        self.assertEqual(radar.soma_precos_base(itens, "preco_base"),
-                         (350000.0, 2))
-
     def test_o_proposto_guarda_se_no_formato_que_se_sabe_ler(self):
         # euros() põe espaço nos milhares e euros_do_texto() lê "118" de
         # "118 500 €": a soma dava 118 em vez de 118 500
@@ -9695,10 +9618,11 @@ class TestResumoDosLotes(unittest.TestCase):
         r = radar.resumo_dos_lotes(self.LOTES, self.CASA[1:2])
         self.assertEqual(r["fomos"], [2])
         self.assertEqual(radar.frase_dos_lotes(r), "fomos a 1 dos 3 lotes")
-        chips = radar.chips_dos_lotes(r)
-        self.assertIn("L2 ganho", chips)
-        self.assertIn("lote-fora", chips)            # L1 e L3, a que não fomos
-        self.assertEqual(radar.chips_dos_lotes(r, so_estado="perdido"), "")
+        # (as etiquetas por lote, `chips_dos_lotes()`, saíram a
+        # 15/09/2026 com o cartão do quadro; o que a ficha mostra hoje é
+        # a tabela dos lotes, e isso tem teste próprio em
+        # TestLotesNaEscadaENaFicha)
+        self.assertEqual(r["por_estado"], {"ganho": [2]})
         r = radar.resumo_dos_lotes(self.LOTES, [])
         self.assertEqual(r["fomos"], [])
         self.assertEqual(radar.frase_dos_lotes(r), "3 lotes; sem registo de a que fomos")

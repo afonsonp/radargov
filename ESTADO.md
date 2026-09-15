@@ -437,11 +437,25 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 18 8xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com **938** testes que correm em ~75 segundos, sem rede e sem
-tocar na base verdadeira (contados a 15/09/2026, depois das etapas 1 e 2 do CRM; a 14/09 a auditoria
-ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
-(7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
+**Código e testes.** `radar.py` com 18 971 linhas, `casa.py` com 1 307,
+`teste_radar.py` com **927** testes que correm em ~67 segundos, sem rede e sem
+tocar na base verdadeira (contados a 15/09/2026, ao fim do CRM e da limpeza do
+código morto; a 14/09 a auditoria ponytail tinha tirado ~160 linhas líquidas ao
+conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
+(10 588 linhas, 55% — da banda `# --- painel` à `# --- arranque`).
+
+**A limpeza do código morto** (15/09/2026, a pedido dele): saíram oito
+funções que só os próprios testes chamavam (`estado_aberto`,
+`_modelo_com_fornecedor`, `chips_dos_lotes`, `soma_precos_base`,
+`contar_propostas`, `CAMPOS_DA_TRIAGEM`, `_EM_AZUL`, `ROTA_DA_VISTA`) e
+três classes de CSS de 240 (`.modos`, `.tag.lote-fora`, `.carta-meta`) —
+contadas por busca literal com asserções nos limites do bloco, depois de
+três detectores por expressão regular darem 30, 104 e 81 falsos
+positivos. Duas funções das etapas 4 e 5 **não estavam mortas, estavam
+por ligar** e ligaram-se: `propostas_por_fechar()` é agora o aviso no
+topo de «O negócio», e `taxa_por_divisao_cpv()` a lista «Onde se ganha,
+por área». O leitor do Excel antigo do `casa.py` não se tocou — é
+decisão dele (ver o §2 do `docs/historico/CRM.md`).
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
