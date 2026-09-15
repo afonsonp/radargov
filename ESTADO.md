@@ -142,11 +142,30 @@ com as sete decisões dele respondidas, e o desenho é dele: **uma escada
 só**, dez ranhuras — a entrada (*por ver*), as oito palavras da casa
 (*por analisar · a preparar proposta · submetido · relatório preliminar
 · ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados
-—, com lista, quadro e calendário como três vistas dela. **A etapa 1
-está feita**: as tabelas `propostas` e `tarefas`, o vocabulário, e as
-duas no `triagem.jsonl` — que é o que fecha o buraco do R2 que ninguém
-tinha visto (as doze colunas de CRM em `anuncios` nunca tinham sido
-exportadas). O ecrã ainda não mudou: isso é a etapa 2.
+—, com lista, quadro e calendário como três vistas dela. **As etapas 1 e 2
+estão feitas**, no mesmo dia. A 1: as tabelas `propostas` e `tarefas`, o
+vocabulário, e as duas no `triagem.jsonl` — que é o que fecha o buraco
+do R2 que ninguém tinha visto (as doze colunas de CRM em `anuncios`
+nunca tinham sido exportadas). A 2: as dez ranhuras nas abas, a triagem
+a criar propostas em vez de escrever no anúncio, o quadro nas oito
+colunas a ler propostas, o calendário para qualquer ranhura, e a
+navegação fundida num **Concursos** com lista · quadro · calendário.
+
+**As doze colunas de CRM saíram do `anuncios`**, e com elas a tabela
+`fases` e o renomear das colunas — as oito palavras são vocabulário do
+código, e uma tabela renomeável por cima disso fazia o quadro dizer uma
+palavra e as abas outra para o mesmo estado. Sem espelho nem período de
+convivência porque não havia o que proteger: a base estava no estado
+zero e a aplicação em teste (palavra dele nesse dia).
+
+**Os lotes deixaram de precisar de truque.** O pedido dele de 2/09
+(«no final, perdido ou ganho, separam-se os cartões») fazia-se com um
+cartão montado a partir do registo do Excel, que não se arrastava nem
+se editava. Com uma proposta por lote, cada um cai sozinho na coluna
+dele e é um cartão como os outros.
+
+Falta a etapa 3 em diante: tarefas e cronologia, o ciclo com o Portal
+BASE, os indicadores comerciais e os contactos.
 
 **A 15/09/2026 entraram as três coisas que faltavam de uma lista de
 «20 coisas a proteger antes de um site ir para o público»** (as outras
@@ -364,16 +383,16 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 17 6xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com **890** testes que correm em ~80 segundos, sem rede e sem
-tocar na base verdadeira (contados a 15/09/2026, depois da etapa 1 do CRM; a 14/09 a auditoria
+**Código e testes.** `radar.py` com 18 0xx linhas, `casa.py` com 1 267,
+`teste_radar.py` com **900** testes que correm em ~75 segundos, sem rede e sem
+tocar na base verdadeira (contados a 15/09/2026, depois das etapas 1 e 2 do CRM; a 14/09 a auditoria
 ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
 **1,23 GB**, com os onze anos e os detalhes todos lidos — o
-`anuncios.texto` sozinho são **843 MB**; 23 tabelas, no git só a triagem,
+`anuncios.texto` sozinho são **843 MB**; 22 tabelas, no git só a triagem e as propostas,
 cópia diária em `copias/`) e
 `contratos.db` (2,36 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da

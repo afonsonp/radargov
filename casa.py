@@ -507,12 +507,16 @@ def estado_efectivo(linha):
     return TRADUCAO_ZOHO.get(_norma(linha.get("zoho_fase")), st)
 
 
-def estado_pretendido(linha, papeis):
-    """(estado, fase_id, campos) que o registo da casa pede para o anuncio,
-    ou None quando o estado nao se traduz em triagem.
+def estado_pretendido(linha):
+    """(estado da escada, campos) que o registo da casa pede, ou None
+    quando o estado do Excel nao se traduz em nada.
 
     O estado vem do `estado_efectivo()`, nao do `status` cru: quem manda
-    e o Zoho, tirando o "Nao fomos"."""
+    e o Zoho, tirando o "Nao fomos". Desde 15/09/2026 devolve uma das
+    oito palavras da casa (radar.ESTADOS_DA_CASA) em vez de um par
+    estado+fase: o vocabulario passou a ser um so, e "interessa" com uma
+    fase ao lado era o mesmo estado dito duas vezes.
+    """
     import radar
     st = _norma(estado_efectivo(linha))
     if st not in ESTADOS_COM_TRIAGEM:
@@ -522,77 +526,92 @@ def estado_pretendido(linha, papeis):
         # como esta; o mapa e para as variantes do Excel antigo
         razao = (linha.get("razao") or "").strip()
         motivo = MAPA_RAZAO.get(_norma(razao)) or razao or None
-        return ("descartado", None, {"motivo": motivo})
+        return ("nao_fomos", {"motivo": motivo})
     campos = {}
     if linha.get("valor_proposta"):
-        campos["preco_proposto"] = radar._texto_do_preco(linha["valor_proposta"])
+        campos["valor_proposta"] = radar._texto_do_preco(linha["valor_proposta"])
     if st == "submetido":
-        return ("interessa", papeis.get("submetido"), campos)
-    lugar = int(linha["lugar"]) if linha.get("lugar") else (1 if st == "ganho" else None)
-    campos["posicao"] = lugar
+        return ("submetido", campos)
+    campos["lugar"] = (int(linha["lugar"]) if linha.get("lugar")
+                       else (1 if st == "ganho" else None))
     campos["top3"] = _texto_top3(linha.get("concorrentes")) or None
-    return ("interessa", papeis.get(st), campos)
+    return (st, campos)
 
 
 def aplicar(c, linha, ref, quem="Excel"):
-    """Escreve a triagem do registo no anuncio ligado. Devolve 'aplicado',
-    'igual', 'sem estado' ou 'conflito'.
+    """Escreve o que o registo da casa sabe na PROPOSTA do anuncio ligado.
+    Devolve 'aplicado', 'igual', 'sem estado', 'conflito' ou 'sem anúncio'.
 
-    Nao passa por cima de uma decisao humana feita no radar: um
-    'interessa', um descartado com motivo ou um cartao com fase que
-    discordem do Excel ficam como estao, e o conflito e registado uma
-    vez no historico -- e o Zoho que decide isso, e ainda nao esta cá."""
+    Ate 15/09/2026 escrevia no `anuncios` (estado, fase_id e as colunas do
+    quadro). Agora cria ou move uma proposta -- e por decisao dele nesse
+    dia (D4 do docs/historico/CRM.md) o Excel deixou de ser fonte
+    permanente: serve para trazer os concursos passados e o resultado
+    deles. **Nao passa por cima de uma decisao humana feita no radar**:
+    uma proposta que ja esteja noutra ranhura fica como esta, e o
+    conflito e registado uma vez no historico.
+
+    O LOTE vem da linha do Excel: o Excel tem uma linha por lote e a
+    escada tem uma proposta por lote, o que finalmente e a mesma coisa.
+    """
     import radar
-    a = c.execute("SELECT estado, fase_id, motivo, preco_proposto, posicao, top3 "
-                  "FROM anuncios WHERE ref=?", (ref,)).fetchone()
-    if not a:
+    if not c.execute("SELECT 1 FROM anuncios WHERE ref=?", (ref,)).fetchone():
         return "sem anúncio"
-    papeis = {r["papel"]: r["id"] for r in c.execute(
-        "SELECT id, papel FROM fases WHERE papel IS NOT NULL")}
-    pedido = estado_pretendido(linha, papeis)
+    pedido = estado_pretendido(linha)
     if not pedido:
         return "sem estado"
-    estado, fase_id, campos = pedido
-    humano = (a["estado"] == "interessa"
-              or (a["estado"] == "descartado" and a["motivo"])
-              or a["fase_id"] is not None)
-    igual = (a["estado"] == estado
-             and (fase_id is None or a["fase_id"] == fase_id)
-             and all((a[k] or None) == (v or None) for k, v in campos.items()
-                     if k in a.keys()))
-    if igual:
-        return "igual"
-    if humano and (a["estado"] != estado
-                   or (fase_id is not None and a["fase_id"] != fase_id)):
-        aviso = ("o registo da casa diz «%s»; mantém-se a decisão do radar"
-                 % (linha.get("status") or ""))
-        if not c.execute("SELECT 1 FROM historico WHERE ref=? AND detalhe=?",
-                         (ref, aviso)).fetchone():
-            _registar(c, ref, "estado", aviso, quem)
-        return "conflito"
-    sets, vals = ["estado=?"], [estado]
-    if estado == "interessa":
-        sets.append("fase_id=?"); vals.append(fase_id)
-        sets.append("motivo=NULL")
+    estado, campos = pedido
+    lote = linha.get("lote")
+    p = c.execute("SELECT * FROM propostas WHERE ref=? AND "
+                  "COALESCE(lote,-1)=COALESCE(?,-1)", (ref, lote)).fetchone()
+    if p:
+        igual = (p["estado"] == estado
+                 and all((p[k] or None) == (v or None)
+                         for k, v in campos.items() if k in p.keys()))
+        if igual:
+            return "igual"
+        if p["estado"] != estado:
+            aviso = ("o registo da casa diz «%s»; mantém-se a decisão do radar"
+                     % (linha.get("status") or ""))
+            if not c.execute("SELECT 1 FROM historico WHERE ref=? AND detalhe=?",
+                             (ref, aviso)).fetchone():
+                _registar(c, ref, "estado", aviso, quem)
+            return "conflito"
+        id_ = p["id"]
     else:
-        sets.append("fase_id=NULL")
+        # Criada aqui e nao pelo radar.criar_proposta(): esta funcao corre
+        # DENTRO da transaccao da importacao, com a ligacao `c` aberta, e
+        # abrir uma segunda ligacao a meio trancava a base -- e um erro
+        # que este modulo ja pagou uma vez.
+        a = c.execute("SELECT titulo, entidade, preco_base, lotes FROM anuncios "
+                      "WHERE ref=?", (ref,)).fetchone()
+        cur = c.execute(
+            "INSERT INTO propostas (ref, lote, entidade, titulo, estado, "
+            "preco_base, criada_em) VALUES (?,?,?,?,?,?,?)",
+            (ref, lote, a["entidade"] or "", a["titulo"] or "", estado,
+             radar.preco_base_do_lote(a, lote),
+             datetime.now().strftime("%Y-%m-%d %H:%M")))
+        id_ = cur.lastrowid
+    sets, vals = ["estado=?"], [estado]
+    # O carimbo que faz o funil esvaziar, e a mesma regra do radar: so as
+    # ranhuras fechadas o levam, e sair delas limpa-o.
+    sets.append("fechada_em=?")
+    vals.append(datetime.now().strftime("%Y-%m-%d %H:%M")
+                if estado in radar.ESTADOS_FECHADOS else None)
+    if "motivo" not in campos:
+        sets.append("motivo=NULL")
     for k, v in campos.items():
-        sets.append("%s=?" % k); vals.append(v)
-    c.execute("UPDATE anuncios SET %s WHERE ref=?" % ", ".join(sets), vals + [ref])
-    nome_fase = ""
-    if fase_id:
-        f = c.execute("SELECT nome FROM fases WHERE id=?", (fase_id,)).fetchone()
-        nome_fase = f["nome"] if f else ""
-    detalhe = ("%s%s%s, do registo da casa"
-               % (radar._NOMES_ESTADO.get(estado, estado),
-                  " (%s)" % campos["motivo"] if campos.get("motivo") else "",
-                  " › %s" % nome_fase if nome_fase else ""))
+        sets.append("%s=?" % k)
+        vals.append(v)
+    c.execute("UPDATE propostas SET %s WHERE id=?" % ", ".join(sets), vals + [id_])
+    detalhe = ("%s%s, do registo da casa"
+               % (radar.estado_da_casa(estado),
+                  " (%s)" % campos["motivo"] if campos.get("motivo") else ""))
     _registar(c, ref, "estado", detalhe, quem)
-    if campos.get("preco_proposto"):
-        _registar(c, ref, "preço proposto", campos["preco_proposto"], quem)
-    if campos.get("posicao") or campos.get("top3"):
+    if campos.get("valor_proposta"):
+        _registar(c, ref, "preço proposto", campos["valor_proposta"], quem)
+    if campos.get("lugar") or campos.get("top3"):
         _registar(c, ref, "relatório preliminar",
-                  "%s%s" % ("%dº lugar" % campos["posicao"] if campos.get("posicao")
+                  "%s%s" % ("%dº lugar" % campos["lugar"] if campos.get("lugar")
                             else "sem lugar",
                             " — " + campos["top3"] if campos.get("top3") else ""),
                   quem)
@@ -825,8 +844,6 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
                         rel["novas"] += 1
             decisoes.append((linha, ref, ligacao, candidatos, False))
     with radar.liga() as c:
-        papeis = {r["papel"]: r["id"] for r in c.execute(
-            "SELECT id, papel FROM fases WHERE papel IS NOT NULL")}
         for linha, ref, ligacao, candidatos, fora in decisoes:
             # A linha vem do Excel e nao traz nem o que o Zoho diz nem o
             # lote; sem isto, uma reimportacao com --com-triagem
@@ -847,11 +864,17 @@ def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
                     resultado = "guardado"
                 elif ensaio:
                     # o que se faria, sem escrever: le-se o estado actual
-                    pedido = estado_pretendido(linha, papeis)
-                    a = c.execute("SELECT estado FROM anuncios WHERE ref=?",
-                                  (ref,)).fetchone()
+                    pedido = estado_pretendido(linha)
+                    # O estado a comparar e o da PROPOSTA daquele lote, e
+                    # nao o do anuncio: e la que a decisao da casa mora
+                    # desde 15/09/2026. Comparar com o do anuncio dava
+                    # "aplicado" a tudo, e o ensaio existe precisamente
+                    # para dizer o que ia mudar.
+                    p = c.execute("SELECT estado FROM propostas WHERE ref=? "
+                                  "AND COALESCE(lote,-1)=COALESCE(?,-1)",
+                                  (ref, linha.get("lote"))).fetchone()
                     resultado = ("sem estado" if not pedido else
-                                 "igual" if a and a["estado"] == pedido[0] else
+                                 "igual" if p and p["estado"] == pedido[0] else
                                  "aplicado")
                 else:
                     resultado = aplicar(c, linha, ref, quem)
@@ -990,14 +1013,21 @@ def desligar(c, ide):
 
 
 def desaplicar_da_copia(copia):
-    """Desfaz a triagem que uma importacao escreveu nos anuncios, repondo
-    os campos de triagem tal como estao numa COPIA da base feita antes
-    dela, e apaga do historico o que a importacao la escreveu. O registo
-    (tabela casa) fica; as ligacoes ficam. Devolve (anuncios repostos,
-    linhas de historico apagadas).
+    """Desfaz o que uma importacao escreveu, repondo as PROPOSTAS tal
+    como estao numa COPIA da base feita antes dela, e apaga do historico
+    o que a importacao la escreveu. O registo (tabela casa) fica; as
+    ligacoes ficam. Devolve (propostas repostas, linhas de historico
+    apagadas).
 
     Existe porque a 02/09/2026 se importou e aplicou, e o Afonso decidiu
-    a seguir que nada se aplica antes de o registo estar validado."""
+    a seguir que nada se aplica antes de o registo estar validado.
+
+    Desde 15/09/2026 repoe propostas e nao colunas do anuncio -- e por
+    isso repor tambem sabe APAGAR: uma proposta que a importacao criou
+    do nada nao estava na copia, e deixa-la la era a importacao ficar
+    meia desfeita. Uma copia de ANTES da escada nao tem a tabela, e ai
+    nao se desfaz nada: di-lo devolvendo zero, em vez de apagar tudo o
+    que encontrar."""
     import radar
     import sqlite3
     antes = sqlite3.connect("file:%s?mode=ro" % copia.replace("\\", "/"), uri=True)
@@ -1007,14 +1037,20 @@ def desaplicar_da_copia(copia):
         refs = [r["ref"] for r in c.execute(
             "SELECT DISTINCT ref FROM casa WHERE ref IS NOT NULL "
             "AND resultado IN ('aplicado', 'conflito', 'igual')")]
+        try:
+            antes.execute("SELECT 1 FROM propostas LIMIT 1")
+        except sqlite3.OperationalError:
+            refs = []
         for ref in refs:
-            a = antes.execute("SELECT %s FROM anuncios WHERE ref=?"
-                              % ", ".join(radar.CAMPOS_DA_TRIAGEM), (ref,)).fetchone()
-            if not a:
-                continue
-            c.execute("UPDATE anuncios SET %s WHERE ref=?"
-                      % ", ".join("%s=?" % k for k in radar.CAMPOS_DA_TRIAGEM),
-                      [a[k] for k in radar.CAMPOS_DA_TRIAGEM] + [ref])
+            velhas = antes.execute(
+                "SELECT %s FROM propostas WHERE ref=?"
+                % ", ".join(radar.COLUNAS_DA_PROPOSTA), (ref,)).fetchall()
+            c.execute("DELETE FROM propostas WHERE ref=?", (ref,))
+            for v in velhas:
+                c.execute("INSERT INTO propostas (%s) VALUES (%s)"
+                          % (", ".join(radar.COLUNAS_DA_PROPOSTA),
+                             ", ".join("?" * len(radar.COLUNAS_DA_PROPOSTA))),
+                          [v[k] for k in radar.COLUNAS_DA_PROPOSTA])
             repostos += 1
         apagadas = c.execute("DELETE FROM historico WHERE quem='Excel'").rowcount
         c.execute("UPDATE casa SET resultado='guardado', aplicado_em=NULL "
@@ -1261,7 +1297,11 @@ def aplicar_modelo(c, linhas, quem="modelo"):
         responsavel = next((l["responsavel"] for l in grupo if l.get("responsavel")), "")
         if responsavel:
             c.execute("INSERT OR IGNORE INTO pessoas (nome) VALUES (?)", (responsavel,))
-            c.execute("UPDATE anuncios SET responsavel=? WHERE ref=?", (responsavel, ref))
+            # Na PROPOSTA, e nao no anuncio (15/09/2026): quem trata de um
+            # concurso e quem trata da proposta, e um anuncio por ver nao
+            # tem dono porque ainda nao ha nada para tratar.
+            c.execute("UPDATE propostas SET responsavel=? WHERE ref=?",
+                      (responsavel, ref))
     return {"gravadas": gravadas, "anuncios": len(por_ref),
             "aplicadas": sum(1 for r in resultados.values() if r == "aplicado"),
             "resultados": resultados}
