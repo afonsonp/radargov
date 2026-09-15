@@ -10,25 +10,28 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 ## Índice
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
-- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 9
+- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 10
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 5
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 7
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
-- [Alertas e interesse](#alertas-e-interesse) &middot; 4
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 10
+- [Alertas e interesse](#alertas-e-interesse) &middot; 5
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 41
 - [O registo da casa](#o-registo-da-casa) &middot; 2
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 8
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 6
-- [Contas e a porta](#contas-e-a-porta) &middot; 6
-- [A interface](#a-interface) &middot; 12
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
+- [Contas e a porta](#contas-e-a-porta) &middot; 10
+- [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São 109 ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **152** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
-áreas tinham.
+áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
+as áreas tinham 121, com sete secções por baixo do número real — as
+armadilhas do CRM desse dia entraram numa contagem que já estava errada
+antes delas.
 
 ---
 
@@ -999,6 +1002,270 @@ O funil da casa, do «por ver» ao «ganho».
   carregar em «guardar» sem tocar em nada não é um acontecimento.
   `TestListaEmCurso`.
 
+---
+
+Daqui para baixo é o CRM (15/09/2026, `docs/historico/CRM.md`). **Lê o
+§2 e o §3 do plano antes de mexer**: as sete decisões estão respondidas
+pelo Afonso e nenhuma se reabre de passagem.
+
+- **A escada é o estado da PROPOSTA, não do anúncio.** O anúncio guarda
+  o que o DR publicou, que é facto e não muda; a proposta guarda o que a
+  casa decidiu, que muda todos os dias. Até 15/09/2026 as duas coisas
+  viviam na mesma linha — doze colunas penduradas em `anuncios` — e era
+  **isso** que fazia o «Em curso» e a aba «interessados» serem a mesma
+  consulta: duas escadas paralelas para o mesmo percurso, e um concurso
+  a subir as duas ao mesmo tempo. Não voltes a pendurar estado da casa
+  no `anuncios`; o sítio é a `propostas`.
+
+- **As chaves dos seis primeiros estados são, de propósito, as dos
+  `fases.papel`.** `ESTADOS_DA_CASA` começa por `analisar`, `proposta`,
+  `submetido`, `relatorio`, `ganho`, `perdido` — exactamente
+  `FASES_DE_ORIGEM` — para a passagem de um cartão do quadro a uma
+  proposta ser por igualdade de chave, sem mapa de tradução a adivinhar.
+  Renomear uma chave de um lado só parte a passagem em silêncio; há
+  teste a obrigar as duas listas a concordar.
+
+- **As duas ranhuras das pontas não são estados da casa.** `porver` e
+  `expirou` não têm proposta nenhuma — são recorte de leitura sobre os
+  anúncios, e contam-se com o **mesmo** `condicao_da_aba()` que a aba
+  aplica, nunca com um parecido (a regra da casa: um número que um ecrã
+  mostra tem de dar exactamente a lista que a ligação dele abre). Por
+  isso `contar_propostas()` dá só as oito, e quem junta as dez é a banda
+  das abas. Porque é que têm de existir, e não chegavam as oito: a
+  15/09/2026 as abas diziam «Por ver 1 263 · Abandonados 198 305», e os
+  198 305 eram **todos** anúncios expirados sem ninguém olhar — zero
+  descartes na base. Sem a entrada, os vivos caíam em «Por analisar»;
+  sem o cemitério, 198 mil anúncios que ninguém viu contavam como
+  decisão da casa.
+
+- **`criar_proposta()` é idempotente por (ref, lote), e as sem `ref` não
+  o são.** Um duplo clique no «preparar proposta» — que é o caso normal
+  — punha o mesmo negócio duas vezes no funil e a soma da coluna passava
+  a mentir; daí o índice único sobre `(ref, COALESCE(lote,-1))`. As
+  propostas sem anúncio escapam-lhe por definição do SQL (em UNIQUE,
+  dois NULL não são iguais) **e é o que se quer**: duas consultas
+  prévias distintas não são a mesma coisa só por nenhuma ter anúncio.
+
+- **`fechada_em` grava-se em `mover_proposta()`, e só aí.** É o carimbo
+  que faz o funil esvaziar — sem ele um Ganho fica no quadro para sempre,
+  que é o que acontecia até 15/09/2026 com o `estado='interessa'`. Voltar
+  a um estado aberto **limpa-o**: um Perdido que se reabra por impugnação
+  não pode continuar a contar como fechado no trimestre em que fechou.
+
+- **Uma proposta sem `ref` não é um órfão no restauro.** O
+  `repor_triagem()` adia o que cita um anúncio que ainda não voltou do
+  DR; se aplicasse essa regra às propostas sem `ref`, perdia-se no
+  restauro exactamente a parte do pipeline que não vem do DR (consulta
+  prévia, ajuste directo, convite) — e o relatório final diria «reposto»
+  na mesma, porque essas linhas nem `ref` têm para listar.
+
+- **Uma coluna nova em `propostas` tem de entrar em
+  `COLUNAS_DA_PROPOSTA`.** A lista é escrita à mão e não por
+  `PRAGMA table_info`, de propósito: exportar ou não é uma decisão, e um
+  `SELECT *` fazia-a sozinho e mudava a ordem do ficheiro a cada
+  migração (o B15 promete um ficheiro determinístico). O preço é ela
+  poder ficar para trás, em silêncio e sem nada no ecrã a dizê-lo — foi
+  exactamente o que aconteceu às doze colunas de CRM do `anuncios`, que
+  nunca lá entraram e davam o R2 por fechado sem estar. Há teste a
+  comparar a lista com o `PRAGMA`.
+
+- **A lista é DUAS listas por baixo de uma barra de abas.** As duas
+  ranhuras das pontas e o «todos» mostram anúncios, com o arsenal de
+  filtros que 199 mil linhas obrigam; as oito da casa mostram
+  **propostas**, com o lote e as que não vêm do DR. Não é
+  inconsistência: são populações diferentes — uma consulta prévia não
+  tem anúncio para aparecer na primeira, e um anúncio por ver não tem
+  valor proposto para mostrar na segunda. E a lista das propostas **não
+  leva selector de CPV nem de plataforma**, o que não é esquecimento:
+  um selector de CPV por cima de doze linhas é um controlo que ninguém
+  usa e que ocupa o primeiro ecrã.
+
+- **A aba conta anúncios com proposta; a lista pode ter mais linhas.**
+  As propostas sem anúncio (D2) não cabem numa contagem que se faz sobre
+  a tabela dos anúncios. Os dois números podem discordar, e a
+  `_lista_de_propostas()` di-lo ao pé do número («N sem anúncio do DR; a
+  aba conta só as que têm») — a regra da casa manda dizê-lo em vez de
+  deixar o ecrã a mentir baixinho.
+
+- **Um filtro guardado com `estado=novo` traduz-se em dois sítios.** A
+  consulta canónica passou de `estado=novo` para `estado=porver`
+  (`filtro_actual()`), e sem tradução um filtro guardado antes de
+  15/09/2026 nunca mais se reconhecia a si próprio — o botão de guardar
+  só oferecia criar outro com o mesmo nome. E um alerta com
+  `estado=interessa` procurava um valor que a coluna já não tem, sem
+  encontrar nada e em silêncio: o `condicoes()` traduz essas chaves para
+  um EXISTS sobre `propostas`. **Isso não é o recorte da página** — esse
+  continua de fora, no `condicao_da_aba()`: é um campo que quem guardou
+  o filtro escolheu, e calá-lo fazia o filtro deixar de ver o que sempre
+  viu. A migração `traduzir_filtros_guardados()` corre a cada arranque.
+
+- **Um `display` numa regra derrota o `display` de outra mais fraca — e
+  o `display:contents` é o pior deles.** O `.tab-lista td form
+  {display:contents}` existia para um `<form>` poder envolver células
+  (que o HTML não deixa), na tabela do «Em curso» que morreu a
+  15/09/2026. Ficou vivo, e o que fazia era derrotar o `display:flex` do
+  selector de ranhura: o `<select>` encolhia e mostrava «A pr» onde diz
+  «A preparar proposta». Visto no ecrã. **Uma regra que serve um
+  componente morre com ele**, e uma que não morre vai bater noutro.
+
+- **O «Todos» tem de dizer o mesmo nas duas listas.** Dizia **209 894**
+  na das propostas e **199 631** na dos anúncios, porque a
+  `contar_a_escada()` partia de base vazia quando não havia filtro — e
+  a base certa é a do motor com `estado=""`, que tira as republicações
+  («todos» são todos os PROCEDIMENTOS, e uma alteração é o mesmo
+  concurso outra vez). É a regra da casa em ponto pequeno: o mesmo botão
+  com dois números. Há teste.
+
+- **O cruzamento com o Portal BASE é por CHAVE, e não por semelhança.**
+  Medido a 15/09/2026 na base dele: o `contratos.n_anuncio` do dump do
+  IMPIC vem no mesmo formato do `ref` do radar («17161/2026»), e há
+  índice (`ix_ctr_anuncio`). **69,4% dos anúncios de 2024 já têm
+  contrato celebrado**, contra 5,3% dos de 2026 — que é o ciclo a
+  demorar meses, e não uma falha. O plano previa o maquinário de
+  semelhança do `casa.py` (`LIMIAR`, `FOLGA`); não é preciso nenhum —
+  ou é o mesmo procedimento ou não é nada. O `desfecho_do_anuncio()`,
+  que já existia para a ficha, faz exactamente essa junção.
+
+- **`fomos_nos()` tem TRÊS respostas, e a terceira é «não sei».** Sem o
+  NIF da casa no `config.json` não se pode saber se a adjudicação foi
+  nossa, e um `False` de quem não sabe é uma afirmação falsa — era com
+  base nela que a proposta ia fechar como perdida. Com o NIF, a ficha
+  adianta a resposta; **o gesto de fechar continua a ser de quem lê**
+  (palavra dele: «isto avança-se sempre com a confirmação de um humano
+  para fechar o resultado»). O NIF e não só o nome: um nome de empresa
+  escreve-se de cinco maneiras («LDA», «Lda.», «, S.A.»), e comparar
+  por nome sozinho dava falsos negativos nos concursos que interessam.
+
+- **O desvio face ao adjudicado soma os lotes ANTES de dividir.** A
+  mesma regra do `desconto_do_desfecho()`: o procedimento é a unidade.
+  Por linha, cada lote comparava-se com a nossa proposta inteira e dava
+  um número que mente com ar de certo.
+
+- **O «Não fomos» não entra no denominador da taxa de vitória.** É uma
+  decisão nossa de não concorrer, e metê-lo lá fazia a taxa cair por se
+  ter sido selectivo — o contrário do que ela devia dizer. O
+  «Cancelado» idem: não foi decidido por ninguém. O denominador são os
+  **decididos**: ganhos mais perdidos.
+
+- **Uma taxa abaixo de `MINIMO_PARA_TAXA` é `None`, e não um número.**
+  Com dois concursos fechados, uma «taxa de vitória de 50%» é ruído com
+  ar de facto, e as decisões que se tomam com ela custam dinheiro. O
+  `None` é como se diz «ainda não sei»; o ecrã mostra um traço e diz
+  sobre quantos é que contava.
+
+- **O `por` da `taxa_de_vitoria()` passa por lista branca.** Vem de um
+  sítio só do código, mas é um nome de coluna que entra em SQL — e uma
+  lista branca é o que separa isto de interpolar o que vier. Há teste.
+
+- **«Parado» mede-se pela última linha do histórico, não pela criação.**
+  Uma proposta que se mexeu ontem não está parada, por muito antiga que
+  seja.
+
+- **Os contactos são da ENTIDADE e não do concurso.** A pessoa que
+  responde aos esclarecimentos do IPL responde aos do ano que vem
+  também, e é por isso que aparecem em todos os concursos dela. A chave
+  é o NIF quando o anúncio o traz e o nome normalizado quando não —
+  93,7% das entidades acham-se assim (medido; ver `norma_entidade()`),
+  e uma entidade cujo NIF só apareça mais tarde continua a achar os
+  contactos que já tinha porque a procura tenta as duas.
+
+- **O quadro saiu, e o que ele fazia mora em dois sítios.** Decisão dele
+  a 15/09/2026, a olhar para o ecrã: «o quadro deixa de ser preciso tal
+  como a lista. na verdade eu devo conseguir passar entre estados aqui».
+  Oito colunas e oito abas eram a mesma coisa duas vezes, e a diferença
+  era o arrastar — que só compensa quando se vê tudo ao mesmo tempo. Com
+  uma coluna por aba não há para onde arrastar. **A ranhura muda-se pelo
+  selector da linha** (`selector_de_ranhura()`, `/escada/<ref>`), e
+  **tudo o resto vive no bloco «A nossa proposta» da ficha**
+  (`proposta_cx()`): os campos que a ranhura pede, o que a casa decide,
+  as etiquetas e o que falta fazer. A navegação ficou em Concursos ·
+  Calendário · Mercado.
+
+- **O estado do selector vai no CORPO e não no caminho.** Um `<select>`
+  não sabe escrever um URL: com o estado no caminho — como no
+  `/estado/<ref>/<novo>`, que fica para as ligações antigas e para o
+  teclado — o selector precisava de JS para funcionar de todo. Com JS
+  grava ao mudar e o botão «ir» esconde-se (o JS marca o `<html>` com
+  `com-js`, e é a folha que esconde: **ao contrário — esconder por
+  omissão e mostrar por JS — quem não tivesse JS ficava com um controlo
+  morto**).
+
+- **Um `display` numa regra ganha ao atributo `hidden`.** A caixa do
+  motivo serve os dois estados que o pedem e esconde o grupo que não é
+  o do momento pelo `hidden`; sem
+  `dialog.modal .escolhas[hidden]{display:none}`, o diálogo do
+  «Perdido» mostrava também os quatro motivos do «Não fomos» — oito
+  opções para escolher uma. Visto no ecrã a 15/09/2026, e é a mesma
+  armadilha em qualquer sítio onde se esconda por `hidden` algo que uma
+  regra pinta com `display`.
+
+- **As tarefas automáticas sincronizam-se; as escritas à mão nunca se
+  tocam.** `sincronizar_tarefas()` deriva duas datas do anúncio (o
+  prazo de esclarecimentos e o de entrega) e mantém-nas: se o DR
+  prorrogar, a tarefa acompanha; se a proposta fechar ou sair da escada,
+  desaparece. **Uma de `origem='mão'` não é tocada nem para ser
+  apagada** — uma nota de «ligar ao Dr. X» não pode evaporar-se porque o
+  prazo mudou. E uma automática já **feita** fica feita e não ressuscita
+  quando a data muda: marcar como feita é um facto, e a sincronização
+  não apaga factos.
+
+- **As doze colunas velhas do `anuncios` FICAM; só deixam de se criar.**
+  A etapa 2 largava-as com `ALTER TABLE ... DROP COLUMN`, e isso foi
+  revertido no mesmo dia por medição: o SQLite **reescreve a tabela
+  inteira**, uma vez por coluna. Na base dele — 209 894 anúncios, 1,2 GB,
+  com o `anuncios.texto` a valer 843 MB desses — ao fim de 45 s a
+  primeira ainda não tinha acabado, com o WAL já acima do tamanho da
+  própria base. Num arranque do `radar-painel.service` isso lê-se como o
+  painel pendurado, e uma migração que fique sem disco a meio deixa a
+  base num estado que ninguém planeou. O que se ganhava era cosmética:
+  doze colunas a NULL que código nenhum lê. **A garantia passou a ser um
+  teste** (`TestColunasVelhasFicamMasNinguemAsLe`), que procura os nomes
+  em SQL que fale de `anuncios` — uma coluna que ficou é um sítio onde se
+  pode voltar a escrever por distracção, e aí ficam dois registos do
+  mesmo facto. A tabela `fases` essa sai mesmo: são seis linhas, e
+  enquanto existisse um restauro de um `triagem.jsonl` antigo voltava a
+  enchê-la.
+
+- **Uma proposta criada já numa ranhura fechada leva carimbo.** O
+  `fechada_em` grava-se em `criar_proposta()` **e** em
+  `mover_proposta()`. Sem o primeiro, um concurso antigo importado do
+  Excel como «Ganho» sumia-se do quadro: as quatro colunas do fim
+  mostram o trimestre corrente, e um `fechada_em` vazio nunca cabe nele.
+  Apanhado no ecrã a 15/09/2026, e é por D4 o caso normal — o Excel
+  serve para trazer o passado.
+
+- **O preço de uma proposta de lote é o do LOTE.** `preco_base_do_lote()`
+  lê-o de `anuncios.lotes`; sem ele lido fica **vazio**, e não o do
+  procedimento. A proposta do lote 2 mostrava os 212 400 EUR do
+  procedimento inteiro (visto no ecrã nesse dia): é o número de que sai
+  o desvio face ao proposto, e com que a etapa 4 há-de comparar o que o
+  Portal BASE adjudicou — que também é por lote. Um campo em branco
+  pergunta-se; um número errado acredita-se.
+
+- **O que passa de uma alteração para o original é a PROPOSTA inteira.**
+  Eram um punhado de colunas (`CAMPOS_DA_TRIAGEM`), e agora é a linha,
+  com o preço proposto, o lugar e o motivo — o que custa mais a
+  reescrever. A do original sai primeiro: deixar as duas dava dois
+  cartões do mesmo procedimento no quadro. Uma alteração **sem** proposta
+  não é decisão nenhuma e não desfaz o «Não fomos» do original.
+
+- **O responsável é da proposta, e só dela.** Ficaram os dois campos
+  depois da etapa 2, que é o risco B do plano em ponto pequeno: dois
+  registos do mesmo facto. `anuncios.responsavel` saiu — quem trata de
+  um concurso é quem trata da proposta, e um anúncio por ver não tem
+  dono porque ainda não há nada para tratar. Atribuir um responsável a
+  um anúncio sem proposta **cria** a proposta, que é o que o gesto quer
+  dizer.
+
+- **O «Cancelado» automático é pequeno de propósito.** Medido a
+  15/09/2026: não existe tipo de anúncio para cancelamento (os tipos da
+  parte L são cinco), e quando aparece é texto livre — «SEM EFEITO ->»
+  num título de retificação (**1** em 209 mil), «Revogação da Decisão de
+  Contratar» (**4**), e o resto no corpo. Só o caso explícito e
+  inequívoco se marca sozinho. Procurar por texto é traiçoeiro:
+  `%anula%` dá 601 resultados e são quase todos **cânulas** e
+  «anulações de ramais».
+
 ## O registo da casa
 
 O registo da casa, em `casa.py`: desde 8/09/2026 pelo modelo do radar;
@@ -1021,8 +1288,16 @@ o leitor do Excel antigo fica lá, sem comando.
   («Falta de CV's») fica como está no `estado_pretendido()`: o
   `MAPA_RAZAO` é para as variantes do Excel antigo, e a primeira versão
   perdia o motivo por o passar pelo mapa. `--importar-excel` e
-  `--casa-ligar` saíram; `--casa-desfazer` (repor a triagem de uma
-  cópia) ficou, porque serve para qualquer importação.
+  `--casa-ligar` saíram; `--casa-desfazer` (repor as propostas de uma
+  cópia) ficou, porque serve para qualquer importação — e a 15/09/2026
+  teve de mudar por dentro: apagava o histórico por `quem='Excel'`, e
+  isso deixou de apanhar nada quando o leitor do Excel antigo saiu e
+  ficou só a importação pelo modelo, que escreve o nome de quem a fez.
+  **Agora repõe o histórico pela cópia**, como já fazia às propostas: as
+  linhas que a cópia não tem são as que a importação escreveu. O leitor
+  do Excel antigo (`ler_excel`, `Acervo`, `pontuar`, `ref_pelo_base`,
+  `importar`, `ligar_a_mao` — 603 linhas do `casa.py` e 638 de testes)
+  saiu nesse dia, por decisão dele; está no histórico do git.
 
 - **O registo da casa vive em `casa.py`** — o primeiro módulo fora do
   `radar.py` (02/09/2026), e a regra para os próximos: o módulo novo

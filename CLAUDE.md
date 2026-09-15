@@ -29,11 +29,11 @@ pede.**
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE` | Raramente. São instantâneos, não se mantêm |
+| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `CRM` | Raramente. São instantâneos, não se mantêm |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
-Três destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
+Quatro destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
 plano para o radar sair do PC: login de um utilizador, um menu de
 configurações que absorve o separador Alertas, e o servidor — **lê-o
 antes de tocar em contas, sessões, no `config.json` pelo painel ou na
@@ -42,7 +42,22 @@ se observou nos produtos pagos deste mercado, com data — **um produto
 muda, e o que lá está vale para o dia em que foi visto**. O
 `docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface
 da casa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
-afinar, dívida): lê-o antes de mexer no painel.
+afinar, dívida): lê-o antes de mexer no painel. O
+`docs/historico/CRM.md` (15/09/2026, reescrito nesse dia com as
+respostas dele) é o plano para o «Em curso» deixar de ser a mesma
+consulta dos interessados. O desenho é do Afonso: **uma escada só** —
+dez ranhuras, a entrada (*por ver*), as oito palavras da casa (*por
+analisar · a preparar proposta · submetido · relatório preliminar ·
+ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados —
+com o calendário como única outra vista, e a navegação num
+«Concursos». Por baixo, uma tabela `propostas` que o estado do anúncio
+não consegue ser (lotes, e propostas sem anúncio). **O quadro saiu ao
+fim do dia**, por decisão dele: oito colunas e oito abas eram a mesma
+coisa duas vezes, a ranhura muda-se no selector de cada linha, e tudo o
+que o cartão fazia vive no bloco «A nossa proposta» da ficha. **Lê-o
+antes de tocar no calendário, nas abas dos anúncios, no bloco da
+proposta ou nas colunas de CRM do `anuncios`.** As sete decisões do §2
+estão respondidas; nenhuma se reabre de passagem.
 
 **A documentação corrige-se na mesma sessão que muda o comportamento.**
 Antes do commit de qualquer trabalho que mude comportamento, números ou
@@ -202,7 +217,9 @@ A ordem do ficheiro é a ordem do fluxo:
 1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
    `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
-   série dos erros que as marcas sobrescrevem; poda a 200 por tipo).
+   série dos erros que as marcas sobrescrevem; poda a 200 por tipo),
+   `propostas`, `tarefas` e `contactos` (o CRM, 15/09/2026). São 23
+   tabelas.
 2. **comum** — as utilidades puras: `simplifica()`, `data_pt()`,
    `data_hora_pt()`, `mil_pt()`, `euros_do_texto()`, `conta_dias()`,
    `dias_restantes()`, `dias_urgente()`, `janela_urgente()`,
@@ -213,6 +230,18 @@ A ordem do ficheiro é a ordem do fluxo:
    base, não escrevem HTML e não dependem de nada à frente. **Um
    formatador novo entra aqui**, não na banda que por acaso o precisou
    primeiro — ver a regra no `docs/armadilhas.md`.
+2b. **propostas** — o CRM inteiro (`docs/historico/CRM.md`,
+   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_CASA`),
+   `criar_proposta()` / `mover_proposta()` /
+   `gravar_campos_da_proposta()` / `contar_propostas()`, as tarefas
+   (`sincronizar_tarefas()` — as automáticas seguem as datas do DR, as
+   escritas à mão nunca se tocam), o cruzamento com o Portal BASE
+   (`propostas_por_fechar()`, `fomos_nos()`, `desvio_do_proposto()` —
+   **propõe, nunca decide**), os indicadores comerciais
+   (`pipeline_em_euros()`, `taxa_de_vitoria()`) e os contactos, que são
+   da **entidade** e não do concurso. **A escada é o estado da proposta,
+   não do anúncio** — não voltes a pendurar estado da casa no
+   `anuncios`, que é de onde as doze colunas saíram.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 4. **leitura** — `recolher()` pagina a pesquisa do portal;
@@ -238,15 +267,20 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. Navegação por três intenções: Anúncios
-   (`/`, a lista única com as abas por ver / interessados /
-   abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
-   `/quadro` + calendário `/calendario` + lista `/lista`, a tabela
-   editável de 14/09/2026), Mercado (contratos
-   `/contratos`, com o modo `?ver=fim` das antigas renovações;
-   `/renovacoes` redirecciona). A barra é **horizontal, em cima**
-   (13/09/2026; `<header class="barra">`), só com a marca, os três
-   itens, **Configurações** e quem está. Configurações
+   lê da porta. Navegação por DUAS intenções desde
+   15/09/2026: **Concursos** (`/`, a lista única com as dez ranhuras da
+   escada nas abas, mais a vista calendário `/calendario`; `/anuncios`
+   e `/lista` redireccionam e `/quadro` já não existe) e **Mercado**
+   (contratos `/contratos`, com o modo `?ver=fim` das antigas
+   renovações; `/renovacoes` redirecciona). Por baixo das abas há
+   **duas listas**: as pontas mostram anúncios, as oito ranhuras da
+   casa mostram propostas. **O quadro saiu no mesmo dia**, por decisão
+   dele: a ranhura muda-se no selector de cada linha (`/escada/<ref>`),
+   e tudo o que o cartão fazia vive no bloco «A nossa proposta» da
+   ficha (`proposta_cx()`) — os campos que a ranhura pede, o que a casa
+   decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
+   (13/09/2026; `<header class="barra">`), só com a marca, os itens,
+   **Configurações** e quem está. Configurações
    (`/configuracoes/<seccao>`, etapa 2 do `ONLINE.md`, 8/09/2026):
    nove secções por esta ordem — conta, interesse, alertas, importar,
    indicadores, capturas, recolha, leitura das peças, cópias
@@ -445,6 +479,21 @@ mudado ou não. Um push falhado retoma sozinho (desliga-se com
 programação: continua automático e sem tocar em `radar.py`. A única
 coisa que passou a ser manual é a instalação **trazer código novo** —
 isso só acontece quando o Afonso corre `actualizar.sh`.
+
+**O leitor do Excel antigo saiu a 15/09/2026**, por decisão dele
+(«corta, fica no git»): as 603 linhas do `casa.py` que sabiam ler o
+`Analise_Concursos_Publicos.xlsm` do SharePoint e ligá-lo aos anúncios
+por semelhança de título (`ler_excel`, `Acervo`, `pontuar`,
+`ref_pelo_base`, `decidir`, `importar`, `ligar_a_mao`), mais as 638
+linhas do `TestRegistoDaCasa`. Uma decisão anterior tinha-o guardado
+como história; a D4 do `docs/historico/CRM.md` — o Excel serve só para
+importar o passado, **pelo modelo** — tornou-a obsoleta, e o `.xlsm` já
+tinha sido importado. O que ficou do `casa.py` é o modelo
+(`escrever_modelo` › `ler_modelo` › `ensaio_modelo` › `aplicar_modelo`),
+a tradução do estado (`estado_efectivo`, `estado_pretendido`, que ainda
+guardam a regra do Zoho e a guarda dos lotes, com testes em
+`TestEstadoEfectivoDaCasa`) e o `desaplicar_da_copia()` do
+`--casa-desfazer`.
 
 **As bases de dados não entram no histórico do git** — `radar.db` (1,3
 GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por
