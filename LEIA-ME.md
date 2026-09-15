@@ -876,13 +876,12 @@ ficheiro muda (um push falhado retenta na verificação seguinte); à mão
 serve só para forçar antes de um commit teu. Desliga-se com
 `"triagem_no_git": false` no `config.json`.
 
-**Atenção (15/09/2026):** o que o quadro e a lista do «Em curso» pedem
-— preço proposto, lugar no relatório, os três primeiros, motivo da
-perda, tipologia, CV, proposta técnica, notas, CoE — **ainda não vai
-neste ficheiro**, e é escrito à mão. Enquanto for assim, o que te
-protege esses campos são as cópias em `copias/`, não o git. Fica
-resolvido com o trabalho do CRM (`docs/historico/CRM.md`, etapa 1), que
-é quem substitui esses campos e escreve a exportação deles de uma vez.
+**Desde 15/09/2026 leva também as propostas e as tarefas** — o preço
+proposto, o lugar no relatório, os três primeiros, o motivo, a
+tipologia, o CV, a proposta técnica, as notas e o CoE. É a parte mais
+irrecuperável de todas, porque o Diário da República não te devolve o
+preço que propuseste; até esse dia não ia no ficheiro e ninguém tinha
+dado por isso.
 
 ```bash
 python radar.py --repor-triagem

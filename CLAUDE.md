@@ -226,12 +226,13 @@ A ordem do ficheiro é a ordem do fluxo:
    base, não escrevem HTML e não dependem de nada à frente. **Um
    formatador novo entra aqui**, não na banda que por acaso o precisou
    primeiro — ver a regra no `docs/armadilhas.md`.
-2b. **propostas** — o CRM (etapa 1 de `docs/historico/CRM.md`,
-   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_CASA`,
-   junto às fases que substitui) e `criar_proposta()` /
-   `mover_proposta()` / `contar_propostas()`, logo a seguir ao `quadro`.
-   **A escada é o estado da proposta, não do anúncio** — não voltes a
-   pendurar estado da casa no `anuncios`.
+2b. **propostas** — o CRM (etapas 1 e 2 de `docs/historico/CRM.md`,
+   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_CASA`) e
+   `criar_proposta()` / `mover_proposta()` /
+   `gravar_campos_da_proposta()` / `contar_propostas()`, logo a seguir
+   ao `quadro`. **A escada é o estado da proposta, não do anúncio** —
+   não voltes a pendurar estado da casa no `anuncios`, que é de onde as
+   doze colunas saíram.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 4. **leitura** — `recolher()` pagina a pesquisa do portal;
@@ -257,15 +258,16 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. Navegação por três intenções: Anúncios
-   (`/`, a lista única com as abas por ver / interessados /
-   abandonados / todos; `/anuncios` redirecciona), Em curso (quadro
-   `/quadro` + calendário `/calendario` + lista `/lista`, a tabela
-   editável de 14/09/2026), Mercado (contratos
-   `/contratos`, com o modo `?ver=fim` das antigas renovações;
-   `/renovacoes` redirecciona). A barra é **horizontal, em cima**
-   (13/09/2026; `<header class="barra">`), só com a marca, os três
-   itens, **Configurações** e quem está. Configurações
+   lê da porta. Navegação por DUAS intenções desde
+   15/09/2026: **Concursos** (`/`, a lista única com as dez ranhuras da
+   escada nas abas, mais as vistas quadro `/quadro` e calendário
+   `/calendario`; `/anuncios` e `/lista` redireccionam) e **Mercado**
+   (contratos `/contratos`, com o modo `?ver=fim` das antigas
+   renovações; `/renovacoes` redirecciona). Por baixo das abas há
+   **duas listas**: as pontas mostram anúncios, as oito ranhuras da
+   casa mostram propostas. A barra é **horizontal, em cima**
+   (13/09/2026; `<header class="barra">`), só com a marca, os itens,
+   **Configurações** e quem está. Configurações
    (`/configuracoes/<seccao>`, etapa 2 do `ONLINE.md`, 8/09/2026):
    nove secções por esta ordem — conta, interesse, alertas, importar,
    indicadores, capturas, recolha, leitura das peças, cópias

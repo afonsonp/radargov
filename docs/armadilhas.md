@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 19
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 26
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São **130** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **137** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
@@ -1068,6 +1068,67 @@ pelo Afonso e nenhuma se reabre de passagem.
   exactamente o que aconteceu às doze colunas de CRM do `anuncios`, que
   nunca lá entraram e davam o R2 por fechado sem estar. Há teste a
   comparar a lista com o `PRAGMA`.
+
+- **A lista é DUAS listas por baixo de uma barra de abas.** As duas
+  ranhuras das pontas e o «todos» mostram anúncios, com o arsenal de
+  filtros que 199 mil linhas obrigam; as oito da casa mostram
+  **propostas**, com o lote e as que não vêm do DR. Não é
+  inconsistência: são populações diferentes — uma consulta prévia não
+  tem anúncio para aparecer na primeira, e um anúncio por ver não tem
+  valor proposto para mostrar na segunda. E a lista das propostas **não
+  leva selector de CPV nem de plataforma**, o que não é esquecimento:
+  um selector de CPV por cima de doze linhas é um controlo que ninguém
+  usa e que ocupa o primeiro ecrã.
+
+- **A aba conta anúncios com proposta; a lista pode ter mais linhas.**
+  As propostas sem anúncio (D2) não cabem numa contagem que se faz sobre
+  a tabela dos anúncios. Os dois números podem discordar, e a
+  `_lista_de_propostas()` di-lo ao pé do número («N sem anúncio do DR; a
+  aba conta só as que têm») — a regra da casa manda dizê-lo em vez de
+  deixar o ecrã a mentir baixinho.
+
+- **Um filtro guardado com `estado=novo` traduz-se em dois sítios.** A
+  consulta canónica passou de `estado=novo` para `estado=porver`
+  (`filtro_actual()`), e sem tradução um filtro guardado antes de
+  15/09/2026 nunca mais se reconhecia a si próprio — o botão de guardar
+  só oferecia criar outro com o mesmo nome. E um alerta com
+  `estado=interessa` procurava um valor que a coluna já não tem, sem
+  encontrar nada e em silêncio: o `condicoes()` traduz essas chaves para
+  um EXISTS sobre `propostas`. **Isso não é o recorte da página** — esse
+  continua de fora, no `condicao_da_aba()`: é um campo que quem guardou
+  o filtro escolheu, e calá-lo fazia o filtro deixar de ver o que sempre
+  viu. A migração `traduzir_filtros_guardados()` corre a cada arranque.
+
+- **Uma proposta criada já numa ranhura fechada leva carimbo.** O
+  `fechada_em` grava-se em `criar_proposta()` **e** em
+  `mover_proposta()`. Sem o primeiro, um concurso antigo importado do
+  Excel como «Ganho» sumia-se do quadro: as quatro colunas do fim
+  mostram o trimestre corrente, e um `fechada_em` vazio nunca cabe nele.
+  Apanhado no ecrã a 15/09/2026, e é por D4 o caso normal — o Excel
+  serve para trazer o passado.
+
+- **O preço de uma proposta de lote é o do LOTE.** `preco_base_do_lote()`
+  lê-o de `anuncios.lotes`; sem ele lido fica **vazio**, e não o do
+  procedimento. A proposta do lote 2 mostrava os 212 400 EUR do
+  procedimento inteiro (visto no ecrã nesse dia): é o número de que sai
+  o desvio face ao proposto, e com que a etapa 4 há-de comparar o que o
+  Portal BASE adjudicou — que também é por lote. Um campo em branco
+  pergunta-se; um número errado acredita-se.
+
+- **O que passa de uma alteração para o original é a PROPOSTA inteira.**
+  Eram um punhado de colunas (`CAMPOS_DA_TRIAGEM`), e agora é a linha,
+  com o preço proposto, o lugar e o motivo — o que custa mais a
+  reescrever. A do original sai primeiro: deixar as duas dava dois
+  cartões do mesmo procedimento no quadro. Uma alteração **sem** proposta
+  não é decisão nenhuma e não desfaz o «Não fomos» do original.
+
+- **O responsável é da proposta, e só dela.** Ficaram os dois campos
+  depois da etapa 2, que é o risco B do plano em ponto pequeno: dois
+  registos do mesmo facto. `anuncios.responsavel` saiu — quem trata de
+  um concurso é quem trata da proposta, e um anúncio por ver não tem
+  dono porque ainda não há nada para tratar. Atribuir um responsável a
+  um anúncio sem proposta **cria** a proposta, que é o que o gesto quer
+  dizer.
 
 - **O «Cancelado» automático é pequeno de propósito.** Medido a
   15/09/2026: não existe tipo de anúncio para cancelamento (os tipos da
