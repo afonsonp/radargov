@@ -3105,16 +3105,25 @@ class TestBotoesDaLinha(unittest.TestCase):
         return {"1/2026": [{"ref": "1/2026", "estado": e, "lote": None,
                             "motivo": None} for e in estados]}
 
-    def test_por_ver_oferece_os_dois_caminhos(self):
+    def test_por_ver_oferece_o_atalho_e_a_escada(self):
+        """O «interessa» fica como atalho de um clique -- é o gesto de
+        90% das linhas do «Por ver». O «abandonar» saiu: é uma das oito
+        opções do selector, e abre exactamente a mesma caixa do motivo.
+        Três controlos na mesma linha para oito destinos era a lista a
+        pedir duas vezes o que já podia pedir uma."""
         h = radar.linha(self.anuncio(), na_escada={})
         self.assertIn("/estado/1/2026/analisar", h)
-        self.assertIn("/estado/1/2026/nao_fomos", h)
-        self.assertNotIn("/estado/1/2026/porver", h)
+        self.assertIn("action='/escada/1%2F2026'", h)
+        self.assertIn("<option value='nao_fomos'>Não fomos</option>", h)
+        self.assertNotIn("abandonar-js", h)
 
-    def test_quem_ja_esta_na_escada_pode_voltar_a_por_ver(self):
+    def test_quem_ja_esta_na_escada_tira_se_pelo_selector(self):
+        """15/09/2026: os botões deram lugar ao selector, e «tirar da
+        escada» é a última opção dele."""
         h = radar.linha(self.anuncio(), na_escada=self._na_escada("nao_fomos"))
-        self.assertIn("/estado/1/2026/porver", h)
-        self.assertNotIn("/estado/1/2026/nao_fomos", h)
+        self.assertIn("action='/escada/1%2F2026'", h)
+        self.assertIn("<option value='porver'>tirar da escada</option>", h)
+        self.assertNotIn("abandonar-js", h)     # já está nessa ranhura
 
     def test_em_analise_nao_repete_o_botao_interessa(self):
         h = radar.linha(self.anuncio(), na_escada=self._na_escada("analisar"))
@@ -3122,12 +3131,17 @@ class TestBotoesDaLinha(unittest.TestCase):
 
     def test_a_etiqueta_da_ranhura_some_na_vista_dessa_ranhura(self):
         # na aba "Submetido" a etiqueta "Submetido" é sempre verdade,
-        # portanto não diz nada e só disputa espaço com o CPV e o prazo
+        # portanto não diz nada e só disputa espaço com o CPV e o prazo.
+        # Mede-se no bloco da META e não na linha toda: o selector tem a
+        # palavra em todas as suas <option>, sempre.
         escada = self._na_escada("submetido")
-        self.assertNotIn(">Submetido<",
-                         radar.linha(self.anuncio(), "submetido", na_escada=escada))
-        self.assertIn(">Submetido<",
-                      radar.linha(self.anuncio(), "", na_escada=escada))
+
+        def meta(vista):
+            h = radar.linha(self.anuncio(), vista, na_escada=escada)
+            return h.split("item-meta'>")[1].split("</div>")[0]
+
+        self.assertNotIn("Submetido", meta("submetido"))
+        self.assertIn("Submetido", meta(""))
 
     def test_um_anuncio_com_dois_lotes_mostra_os_dois(self):
         """D3: o L1 ganho e o L2 perdido são duas etiquetas na mesma
@@ -3139,39 +3153,6 @@ class TestBotoesDaLinha(unittest.TestCase):
         self.assertIn("Ganho L1", h)
         self.assertIn("Perdido L2", h)
         self.assertIn(">Preço<", h)
-
-
-class TestQuadroECalendarioLigados(unittest.TestCase):
-    """Atalho da §5 do esqueleto: quadro e calendário são duas vistas do
-    mesmo conjunto, e cada cartão/linha aponta para o seu par por
-    âncora. O erro que isto trava: a ligação do cartão prometer uma
-    âncora que a grade não tem (prazo fora da janela de 45 dias)."""
-
-    def _carta(self, prazo):
-        p = {"id": 4, "ref": "111/2026", "titulo": "Ensaio", "entidade": "Ent",
-             "lote": None, "estado": "analisar", "motivo": None,
-             "preco_base": "", "valor_proposta": None, "lugar": None,
-             "top3": None, "responsavel": ""}
-        return radar.cartao_da_proposta(p, {}, prazos={"111/2026": prazo})
-
-    def test_cartao_com_prazo_na_janela_aponta_para_a_grade(self):
-        prazo = (datetime.date.today()
-                 + datetime.timedelta(days=5)).isoformat()
-        html_carta = self._carta(prazo)
-        self.assertIn("id='p-4'", html_carta)
-        self.assertIn("/calendario#c-111-2026", html_carta)
-
-    def test_prazo_fora_da_janela_nao_promete_ancora(self):
-        longe = (datetime.date.today()
-                 + datetime.timedelta(days=radar.DIAS_CALENDARIO + 10)
-                 ).isoformat()
-        self.assertNotIn("/calendario#", self._carta(longe))
-
-    def test_prazo_passado_ou_vazio_nao_promete_ancora(self):
-        ontem = (datetime.date.today()
-                 - datetime.timedelta(days=1)).isoformat()
-        self.assertNotIn("/calendario#", self._carta(ontem))
-        self.assertNotIn("/calendario#", self._carta(""))
 
 
 class TestListaEmCurso(unittest.TestCase):
@@ -4101,13 +4082,16 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         self.assertIn("indicadores", [c for c, _, _, _ in radar.SECCOES_CONFIG])
         self.assertIn("Configurações", radar.migalhas_de("configuracoes"))
 
-    def test_as_tres_vistas_vivem_sob_concursos(self):
-        """Lista, quadro e calendário são três maneiras de ver a mesma
-        escada -- e isso é uma vista, não um separador."""
-        for vista in ("anuncios", "quadro", "calendario"):
-            self.assertEqual(radar.ITEM_DA_PAGINA[vista], "anuncios", vista)
-        self.assertEqual([v[1] for v in radar.NAV[0][3]],
-                         ["Lista", "Quadro", "Calendário"])
+    def test_so_o_calendario_sobrevive_como_vista(self):
+        """15/09/2026, segunda arrumação do dia: o **quadro sai** e a
+        **lista deixa de ser uma vista** para ser a própria página. Oito
+        colunas e oito abas eram a mesma coisa duas vezes, e a diferença
+        era o arrastar -- que só compensa quando se vê tudo ao mesmo
+        tempo. Sobra o calendário, que é a única forma diferente de olhar
+        para o mesmo: uma grelha de dias, para ver choques de datas."""
+        self.assertEqual([v[1] for v in radar.NAV[0][3]], ["Calendário"])
+        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "anuncios")
+        self.assertNotIn("quadro", radar.ITEM_DA_PAGINA)
 
     def test_contratos_e_renovacoes_vivem_sob_mercado(self):
         self.assertEqual(radar.ITEM_DA_PAGINA["contratos"], "mercado")
@@ -4115,9 +4099,8 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
 
     def test_migalhas_das_vistas_agrupadas(self):
         # deixaram de ser separadores irmãos: são vistas de um item
-        self.assertIn("Concursos", radar.migalhas_de("quadro"))
-        self.assertIn("<em>Quadro</em>", radar.migalhas_de("quadro"))
         self.assertIn("Concursos", radar.migalhas_de("calendario"))
+        self.assertIn("<em>Calendário</em>", radar.migalhas_de("calendario"))
         self.assertIn("Mercado", radar.migalhas_de("contratos"))
 
     def test_migalhas_da_lista_unica(self):
@@ -6579,7 +6562,7 @@ class TestMotivoDoAbandono(unittest.TestCase):
         self.assertIn("type='submit'", html_)
 
     def test_a_caixa_traz_os_motivos_todos_e_nenhum_por_omissao(self):
-        html_ = radar.caixa_de_abandono()
+        html_ = radar.caixa_do_motivo()
         for m in radar.MOTIVOS_ABANDONO:
             # escapado, que e como chega ao browser: "CV's" leva
             # apostrofo e o atributo e delimitado por ele
@@ -6590,8 +6573,16 @@ class TestMotivoDoAbandono(unittest.TestCase):
         # o texto todo apanhava-o e acusava o contrário do que se quer.
         marcacao = html_.split("<script")[0]
         self.assertNotIn("checked", marcacao)
-        self.assertIn("required", marcacao)
         self.assertIn("<dialog", marcacao)
+        # o `required` passou a ser posto pelo JS, e nao na marcação
+        # (15/09/2026): a caixa serve os DOIS estados com motivo, e um
+        # grupo escondido com radios `required` travava a submissão do
+        # grupo visível sem nada no ecrã a dizer porquê. Quem recusa sem
+        # motivo continua a ser o servidor -- e isso tem teste próprio
+        # em TestSelectorDaRanhura.
+        self.assertIn("r.required = meu", html_)
+        self.assertIn("data-para='perdido'", marcacao)
+        self.assertIn("data-para='nao_fomos'", marcacao)
 
     def test_interessa_continua_a_nao_pedir_motivo(self):
         # a exigência é só de quem abandona
@@ -6626,7 +6617,14 @@ class TestContrasteNosFundosReais(unittest.TestCase):
         self.assertIsNotNone(m, selector)
         return m.group(1)
 
-    def test_o_pede_da_coluna_passa_aa_sobre_a_coluna(self):
+    def test_o_pede_da_coluna_saiu_com_a_coluna(self):
+        """A coluna do quadro saiu a 15/09/2026, e o `.coluna-pede` com
+        ela. O que a regra guardava -- um texto de 10,5 px tem de passar
+        AA sobre o fundo em que vive -- continua nas outras regras desta
+        classe."""
+        self.assertNotIn(".coluna-pede", radar.CSS)
+
+    def _morto_o_pede_da_coluna(self):
         cores = self._cores()
         token = re.search(r"color:var\((--t\d)\)", self._regra(".coluna-pede")).group(1)
         fundo = re.search(r"background:var\((--[a-z0-9]+)\)", self._regra(".coluna")).group(1)
@@ -6660,8 +6658,11 @@ class TestAlvosDeTextoA24px(unittest.TestCase):
     O mínimo é 24 px (WCAG 2.5.8); a letra fica como está.
     """
 
-    ALVOS = ("button.tirar", ".carta-pe a", ".bt-leve", ".sou button",
-             "button.etq-x", ".alerta .apagar")
+    # 15/09/2026: os alvos do cartão do quadro saíram com ele, e
+    # entraram os do selector de ranhura e os da lista de tarefas --
+    # que são os controlos novos que se carregam vinte vezes seguidas.
+    ALVOS = ("button.tirar", ".ranhura select", "button.tq", ".bt-leve",
+             ".sou button", "button.etq-x", ".alerta .apagar")
 
     def test_cada_alvo_de_texto_tem_24px_de_altura(self):
         for selector in self.ALVOS:
@@ -6804,24 +6805,25 @@ class TestARanhuraDizOQuePede(unittest.TestCase):
     no cartão e quem o diz no cabeçalho têm de ser a mesma lista.)
     """
 
-    def test_as_ranhuras_que_pedem_dizem_o_que_pedem(self):
-        for estado in ("submetido", "relatorio", "perdido", "nao_fomos"):
-            self.assertIn(estado, radar.PEDIDO_DO_ESTADO)
-            self.assertTrue(radar.PEDIDO_DO_ESTADO[estado].strip())
+    def test_so_os_dois_estados_com_motivo_tem_rotulo(self):
+        """O `PEDIDO_DO_ESTADO` era a lista do que cada coluna do quadro
+        anunciava no cabeçalho. Com o quadro fora (15/09/2026) não há
+        cabeçalho nenhum, e o que resta é o rótulo do campo do motivo --
+        que só os dois estados com motivo têm. Um rótulo que ninguém
+        mostra é uma promessa que se esquece de cumprir."""
+        self.assertEqual(sorted(radar.PEDIDO_DO_ESTADO),
+                         sorted(radar.MOTIVOS_DO_ESTADO))
+        for estado, rotulo in radar.PEDIDO_DO_ESTADO.items():
+            self.assertIn(estado, radar.CHAVES_DA_CASA, estado)
+            self.assertTrue(rotulo.strip(), estado)
 
-    def test_as_que_nao_pedem_nada_nao_dizem_nada(self):
-        for estado in ("analisar", "proposta", "ganho", "cancelado"):
-            self.assertNotIn(estado, radar.PEDIDO_DO_ESTADO)
-
-    def test_quem_pede_no_cartao_e_quem_o_diz_no_cabecalho(self):
-        # as duas listas têm de concordar: uma coluna que anuncia um
-        # campo e não o mostra é pior do que não o anunciar
-        for estado in radar.CHAVES_DA_CASA:
-            p = {"id": 1, "estado": estado, "valor_proposta": None,
-                 "lugar": None, "top3": None, "motivo": None}
-            tem_campo = bool(radar._campos_do_estado(p))
-            self.assertEqual(tem_campo, estado in radar.PEDIDO_DO_ESTADO,
-                             "desacordo na ranhura %s" % estado)
+    def test_o_rotulo_aparece_mesmo_no_campo(self):
+        for estado, rotulo in radar.PEDIDO_DO_ESTADO.items():
+            p = {"id": 1, "ref": "1/2026", "estado": estado,
+                 "valor_proposta": None, "lugar": None, "top3": None,
+                 "motivo": None}
+            self.assertIn(html.escape(rotulo),
+                          radar._campos_que_a_ranhura_pede(p), estado)
 
 
 class TestAsOitoPalavrasSaoDoCodigo(unittest.TestCase):
@@ -6853,7 +6855,9 @@ class TestAsOitoPalavrasSaoDoCodigo(unittest.TestCase):
         uma escada só."""
         pontos = [r.endpoint for r in radar.app.url_map.iter_rules()]
         self.assertNotIn("fase_renomear", pontos)
-        self.assertNotIn("renomearFase", radar.QUADRO_JS)
+        # o JS do quadro saiu com ele a 15/09/2026
+        self.assertNotIn("QUADRO_JS", radar_fonte())
+        self.assertNotIn("renomearFase", radar_fonte())
 
     def test_a_tabela_das_fases_nao_se_cria(self):
         self.assertNotIn("CREATE TABLE IF NOT EXISTS fases", radar_fonte())
@@ -6865,101 +6869,183 @@ class TestAsOitoPalavrasSaoDoCodigo(unittest.TestCase):
         self.assertEqual(len(radar.ESTADOS_DA_CASA), 8)
 
 
-class TestCamposPorRanhura(unittest.TestCase):
+class TestCamposPorRanhura(BaseTemporaria):
     """Cada ranhura pede o que lhe falta, e só ela.
 
     "Por analisar" e "A preparar proposta" não têm nada a apontar
     (palavras do Afonso); o "Submetido" pede o preço proposto, o
     relatório preliminar o lugar e os três primeiros, e o "Perdido" e o
     "Não fomos" o porquê, de âmbito fechado.
+
+    (15/09/2026, segunda arrumação do dia: o quadro saiu e estes campos
+    mudaram de casa — do cartão para o bloco «A nossa proposta» da
+    ficha. O âmbito é o mesmo, e é isso que aqui se mede.)
     """
 
-    @staticmethod
-    def _p(estado, **k):
-        base = {"id": 7, "estado": estado, "valor_proposta": None,
-                "lugar": None, "top3": None, "motivo": None}
+    def _p(self, estado, **k):
+        base = {"id": 7, "ref": "1/2026", "estado": estado,
+                "valor_proposta": None, "lugar": None, "top3": None,
+                "motivo": None}
         base.update(k)
         return base
 
-    def test_ranhuras_sem_nada_a_apontar_nao_mostram_formulario(self):
-        for estado in ("analisar", "proposta", "ganho"):
-            self.assertEqual(radar._campos_do_estado(self._p(estado)), "")
+    def test_ranhuras_sem_nada_a_apontar_nao_mostram_campos(self):
+        for estado in ("analisar", "proposta"):
+            self.assertEqual(
+                radar._campos_que_a_ranhura_pede(self._p(estado)), "", estado)
 
     def test_submetido_pede_o_preco_proposto(self):
-        html_ = radar._campos_do_estado(self._p("submetido"))
+        html_ = radar._campos_que_a_ranhura_pede(self._p("submetido"))
         self.assertIn("name='valor_proposta'", html_)
-        self.assertNotIn("motivo", html_)
+        self.assertNotIn("name='motivo'", html_)
 
     def test_relatorio_pede_lugar_e_os_tres_primeiros(self):
-        html_ = radar._campos_do_estado(
+        html_ = radar._campos_que_a_ranhura_pede(
             self._p("relatorio", lugar=2, top3="A · B · C"))
         self.assertIn("name='lugar'", html_)
         self.assertIn("value='2'", html_)
-        self.assertIn("name='top3'", html_)
         self.assertIn("A · B · C", html_)
 
     def test_perdido_e_nao_fomos_tem_ambito_fechado_e_cada_um_o_seu(self):
         """As duas listas não são a mesma: «Preço base baixo» é porque
         não se foi, e não é resposta a «porque se perdeu»."""
-        perdido = radar._campos_do_estado(self._p("perdido", motivo="Preço"))
+        perdido = radar._campos_que_a_ranhura_pede(
+            self._p("perdido", motivo="Preço"))
         for m in radar.MOTIVOS_PERDA:
             self.assertIn(html.escape(m), perdido)
-        self.assertIn("required", perdido)
-        # o que já lá está vem escolhido, senão gravar outra vez apagava
-        self.assertIn("selected", perdido)
-        nao_fomos = radar._campos_do_estado(self._p("nao_fomos"))
+        self.assertIn("selected", perdido)     # o que lá está vem escolhido
+        nao_fomos = radar._campos_que_a_ranhura_pede(self._p("nao_fomos"))
         for m in radar.MOTIVOS_ABANDONO:
             self.assertIn(html.escape(m), nao_fomos)
-        # e cada uma só a sua: "Preço base baixo" (porque não se foi) não
-        # é resposta a "porque se perdeu", e ao contrário
         self.assertNotIn("Preço base baixo", perdido)
         self.assertNotIn("Proposta técnica", nao_fomos)
 
+    def test_o_ganho_ainda_pergunta_o_lugar(self):
+        """Ganhar é ficar em primeiro, mas o lugar e os três primeiros
+        são o que se sabe da concorrência — e é disso que a etapa 4 vive.
+        Perdê-los ao mover para «Ganho» era deitar fora o que custou a
+        saber."""
+        html_ = radar._campos_que_a_ranhura_pede(self._p("ganho", lugar=1))
+        self.assertIn("name='lugar'", html_)
+        self.assertIn("name='top3'", html_)
 
-class TestPrecoDoCartao(unittest.TestCase):
+
+class TestSelectorDaRanhura(BaseTemporaria):
+    """O quadro saiu a 15/09/2026 e a escada passou a mudar-se na linha.
+
+    Palavra dele: «o quadro deixa de ser preciso tal como a lista. na
+    verdade eu devo conseguir passar entre estados aqui». Oito colunas e
+    oito abas eram a mesma coisa duas vezes, e a diferença era o
+    arrastar — que só compensa quando se vê tudo ao mesmo tempo.
+
+    O que esta classe guarda, e que o arrasto guardava antes: mudar de
+    ranhura a partir da lista tem de funcionar, tem de exigir o motivo
+    onde ele é devido, e tem de funcionar **sem JavaScript** — o que
+    degrada mal é um controlo que não faz nada com o JS desligado.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " tipo, url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      ("60/2026", "Aquisição de software", "IPL",
+                       "2026-09-01", "Anúncio de procedimento", "https://dr/60"))
+
+    def test_o_selector_esta_na_linha_com_as_oito_palavras(self):
+        html_ = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("action='/escada/60%2F2026'", html_)
+        for _, rotulo in radar.ESTADOS_DA_CASA:
+            self.assertIn(">%s</option>" % html.escape(rotulo), html_)
+
+    def test_muda_de_ranhura_pelo_corpo_e_nao_pelo_caminho(self):
+        """Um `<select>` não sabe escrever um URL. Se o estado fosse no
+        caminho, o selector precisava de JS para funcionar de todo."""
+        r = self.cliente.post("/escada/60%2F2026", data={"estado": "submetido"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(radar.propostas_de("60/2026")[0]["estado"], "submetido")
+
+    def test_sem_motivo_a_ranhura_que_o_pede_recusa_e_diz_porque(self):
+        r = self.cliente.post("/escada/60%2F2026", data={"estado": "perdido"})
+        self.assertIn("aviso", r.headers["Location"])
+        self.assertEqual(radar.propostas_de("60/2026"), [])
+
+    def test_com_motivo_grava_os_dois(self):
+        self.cliente.post("/escada/60%2F2026",
+                          data={"estado": "perdido", "motivo": "Preço"})
+        p = radar.propostas_de("60/2026")[0]
+        self.assertEqual((p["estado"], p["motivo"]), ("perdido", "Preço"))
+
+    def test_o_botao_ir_existe_para_quem_nao_tem_javascript(self):
+        """O JS marca o <html> com `com-js` e a folha esconde o botão. Ao
+        contrário — esconder por omissão e mostrar por JS — quem não
+        tivesse JS ficava com um selector que não fazia nada."""
+        html_ = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("<button type='submit' class='mini'>ir</button>", html_)
+        self.assertIn(".com-js .ranhura button{display:none}", radar.CSS)
+        self.assertIn("classList.add('com-js')", radar.caixa_do_motivo())
+
+    def test_uma_proposta_sem_anuncio_move_se_pelo_id(self):
+        """Essas não têm `ref` por onde lhes pegar (D2)."""
+        id_ = radar.criar_proposta(entidade="IPL", titulo="Consulta prévia")
+        r = self.cliente.post("/proposta/%d/escada" % id_,
+                              data={"estado": "submetido"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
+
+    def test_o_quadro_deixou_de_existir(self):
+        rotas = [r.rule for r in radar.app.url_map.iter_rules()]
+        self.assertFalse([r for r in rotas if r.startswith("/quadro")], rotas)
+        self.assertEqual(self.cliente.get("/quadro").status_code, 404)
+        self.assertNotIn("quadro", [v[0] for n in radar.NAV for v in n[3]])
+
+
+class TestPrecoDaProposta(unittest.TestCase):
     """A partir do "Submetido" o número que conta é o proposto.
 
     E enquanto o proposto não estiver preenchido mostra-se o base
     **dito como base**: mostrá-lo calado é dar o tecto da entidade por
-    proposta nossa.
+    proposta nossa. A regra vivia no cartão do quadro; com ele fora,
+    vive na linha da lista das propostas.
     """
 
     @staticmethod
     def _p(estado="analisar", **k):
         base = {"id": 3, "ref": "1/2026", "titulo": "T", "entidade": "E",
                 "lote": None, "estado": estado, "motivo": None,
+                "porque_sem_ref": None,
                 "preco_base": "175.000,00 EUR", "valor_proposta": None,
                 "lugar": None, "top3": None, "responsavel": ""}
         base.update(k)
         return base
 
-    def test_antes_do_submetido_e_o_preco_base(self):
-        html_ = radar.cartao_da_proposta(self._p("analisar"), {}, 10)
-        self.assertIn("175.000,00 EUR", html_)
-        self.assertIn("preço base", html_)
+    def _linha(self, p):
+        with radar.app.test_request_context("/"):
+            return radar.linha_da_pipeline(p, 10, {})
+
+    def test_antes_do_submetido_o_proposto_esta_vazio(self):
+        html_ = self._linha(self._p("analisar"))
+        self.assertIn("175.000,00 EUR", html_)     # o base, na coluna dele
 
     def test_no_submetido_com_proposto_mostra_o_proposto(self):
-        html_ = radar.cartao_da_proposta(
-            self._p("submetido", valor_proposta="118.500,00 EUR"), {}, 10)
+        html_ = self._linha(
+            self._p("submetido", valor_proposta="118.500,00 EUR"))
         self.assertIn("118.500,00 EUR", html_)
-        self.assertNotIn("175.000,00 EUR", html_)
-        self.assertIn("preço proposto", html_)
 
-    def test_no_submetido_sem_proposto_o_base_vai_dito_como_base(self):
-        html_ = radar.cartao_da_proposta(self._p("submetido"), {}, 10)
-        self.assertIn("base 175.000,00 EUR", html_)
-
-    def test_a_soma_da_coluna_segue_a_mesma_regra(self):
+    def test_a_soma_segue_a_mesma_regra(self):
         itens = [self._p(valor_proposta="100.000,00 EUR"),
                  self._p(valor_proposta=None)]
-        soma, quantos = radar.soma_precos_base(itens, "valor_proposta")
-        self.assertEqual((soma, quantos), (100000.0, 1))
-        soma, quantos = radar.soma_precos_base(itens, "preco_base")
-        self.assertEqual((soma, quantos), (350000.0, 2))
+        self.assertEqual(radar.soma_precos_base(itens, "valor_proposta"),
+                         (100000.0, 1))
+        self.assertEqual(radar.soma_precos_base(itens, "preco_base"),
+                         (350000.0, 2))
 
     def test_o_proposto_guarda_se_no_formato_que_se_sabe_ler(self):
         # euros() põe espaço nos milhares e euros_do_texto() lê "118" de
-        # "118 500 €": a soma da coluna dava 118 em vez de 118 500
+        # "118 500 €": a soma dava 118 em vez de 118 500
         texto = radar._texto_do_preco(radar.euros_do_texto("118500"))
         self.assertEqual(texto, "118.500,00 EUR")
         self.assertEqual(radar.euros_do_texto(texto), 118500.0)
@@ -6970,109 +7056,52 @@ class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
     todos em fases pós-submissão, onde o prazo ter passado é o estado
     normal (UX-Auditoria.md, 02/09/2026). O vermelho é a cor de alarme
     da lista e puxava o olho para uma coisa que não pede acção nenhuma.
+
+    O cartão saiu com o quadro; a regra ficou, na lista das propostas.
     """
 
-    def _carta(self, estado, prazo="2026-08-03"):
+    def _linha(self, estado, prazo="2026-08-03"):
         p = {"id": 9, "ref": "9/2026", "titulo": "T", "entidade": "E",
              "lote": None, "estado": estado, "motivo": None,
-             "preco_base": "175.000,00 EUR", "valor_proposta": "",
-             "lugar": None, "top3": "", "responsavel": ""}
-        return radar.cartao_da_proposta(p, {}, urgente=8,
-                                        prazos={"9/2026": prazo})
+             "porque_sem_ref": None, "preco_base": "175.000,00 EUR",
+             "valor_proposta": "", "lugar": None, "top3": "",
+             "responsavel": ""}
+        with radar.app.test_request_context("/"):
+            return radar.linha_da_pipeline(p, 8, {"9/2026": prazo})
 
     def test_antes_do_submetido_o_prazo_e_alarme(self):
         for estado in ("analisar", "proposta"):
-            self.assertIn("prazo expirado", self._carta(estado))
-            self.assertIn("class='tag mau'", self._carta(estado))
+            self.assertIn("prazo expirado", self._linha(estado))
+            self.assertIn("tag mau", self._linha(estado))
 
-    def test_a_partir_do_submetido_e_uma_data_neutra(self):
+    def test_a_partir_do_submetido_diz_entregue_e_nao_alarme(self):
         for estado in radar.ESTADOS_COM_PROPOSTO:
-            carta = self._carta(estado)
-            self.assertNotIn("prazo expirado", carta)
-            self.assertNotIn("tag mau", carta)
-            self.assertIn("prazo 03/08/2026", carta)
-
-    def test_um_prazo_ainda_aberto_tambem_e_neutro_depois_de_submeter(self):
-        # a proposta ja foi entregue: contar os dias que faltam e ruido
-        futuro = (datetime.date.today() + datetime.timedelta(days=3)).isoformat()
-        carta = self._carta("submetido", futuro)
-        self.assertNotIn("dias", carta)
-        self.assertIn("prazo " + radar.data_pt(futuro), carta)
+            linha = self._linha(estado)
+            self.assertNotIn("prazo expirado", linha)
+            self.assertNotIn("tag mau", linha)
+            self.assertIn("entregue", linha)
 
     def test_sem_prazo_nao_ha_pilula(self):
-        self.assertNotIn(
-            "prazo",
-            self._carta("submetido", "").split("carta-meta")[1].split("</div>")[0])
+        self.assertIn("&mdash;", self._linha("submetido", ""))
 
 
-class TestArrastarRedesenhaOCartao(BaseTemporaria):
-    """Arrastar movia o cartão no ecrã e não o redesenhava.
+class TestCalendarioLigaAEscada(unittest.TestCase):
+    """Atalho da §5 do esqueleto: o calendário e a lista são vistas do
+    mesmo conjunto, e cada linha aponta para o seu par.
 
-    O cartão que se arrasta é o MESMO nó do DOM, com o HTML da coluna de
-    onde veio -- e quem decide o que um cartão mostra é o servidor, pela
-    ranhura. Largá-lo no "Submetido" mudava a coluna e mais nada: o campo
-    do preço proposto não aparecia, o preço continuava a ser o base, e a
-    soma no cabeçalho das duas colunas ficava errada. O Afonso arrastou
-    um cartão para o Submetido e "não aconteceu nada".
-
-    A primeira resposta (01/09/2026) foi recarregar a página depois de
-    cada arrasto. A UX-Auditoria.md de 02/09/2026 classificou-a como
-    dívida: o servidor passa a devolver o cartão redesenhado e as
-    contagens das duas colunas, e o cliente troca só isso.
+    Apontava para o quadro; com ele fora, aponta para a ranhura em que a
+    proposta está — que é onde o calendário a foi buscar. Uma ligação
+    para uma página que já não existe é pior do que nenhuma.
     """
 
-    def setUp(self):
-        super().setUp()
-        self.cliente = radar.app.test_client()
-        with radar.liga() as c:
-            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo,"
-                      " url, estado, preco_base) VALUES (?,?,?,?,?,?,?,?)",
-                      ("1/2026", "Bolsa de horas", "Município X", "2026-08-01",
-                       "Anúncio de procedimento", "https://dr/1", "novo",
-                       "175.000,00 EUR"))
-        self.id_ = radar.criar_proposta("1/2026")
-        radar.gravar_campos_da_proposta(self.id_, ["valor_proposta"],
-                                        ["118.500,00 EUR"])
+    def test_a_volta_do_calendario_e_para_a_ranhura(self):
+        fonte = radar_fonte()
+        self.assertNotIn('"/quadro#p-%d"', fonte)
+        self.assertIn('"alvo": "/?estado=" + p["estado"]', fonte)
 
-    def _mover(self, estado):
-        return self.cliente.post("/quadro/mover", json={
-            "proposta": self.id_, "estado": estado})
-
-    def test_o_servidor_devolve_o_cartao_redesenhado_na_ranhura_nova(self):
-        r = self._mover("submetido")
-        self.assertEqual(r.status_code, 200)
-        d = r.get_json()
-        self.assertTrue(d["ok"])
-        # o cartao vem desenhado para o Submetido: pede o proposto e o
-        # preco que se le e o proposto, nao o base
-        self.assertIn("name='valor_proposta'", d["carta"])
-        self.assertIn("118.500,00 EUR", d["carta"])
-        self.assertIn("class='carta'", d["carta"])
-        self.assertIn("data-proposta='%d'" % self.id_, d["carta"])
-        self.assertEqual(radar.proposta(self.id_)["estado"], "submetido")
-
-    def test_devolve_as_contagens_das_duas_colunas_tocadas(self):
-        d = self._mover("submetido").get_json()
-        self.assertEqual(set(d["contas"]), {"analisar", "submetido"})
-        self.assertIn("coluna-conta", d["contas"]["submetido"])
-        self.assertIn(">1", d["contas"]["submetido"])
-        self.assertIn(">0", d["contas"]["analisar"])
-
-    def test_ranhura_inventada_e_proposta_inexistente_recusam_se(self):
-        r = self.cliente.post("/quadro/mover", json={
-            "proposta": self.id_, "estado": "quase_ganho"})
-        self.assertEqual(r.status_code, 400)
-        self.assertFalse(r.get_json()["ok"])
-        r = self.cliente.post("/quadro/mover", json={
-            "proposta": 9999, "estado": "ganho"})
-        self.assertEqual(r.status_code, 404)
-        # e o que estava, ficou
-        self.assertEqual(radar.proposta(self.id_)["estado"], "analisar")
-
-    def test_faltar_um_dos_dois_e_pedido_mal_feito(self):
-        for corpo in ({"proposta": self.id_}, {"estado": "ganho"}, {}):
-            self.assertEqual(
-                self.cliente.post("/quadro/mover", json=corpo).status_code, 400)
+    def test_nada_no_painel_liga_ao_quadro(self):
+        for pedaco in ("/quadro#", "href='/quadro'", 'href="/quadro"'):
+            self.assertNotIn(pedaco, radar_fonte(), pedaco)
 
 
 class TestAlteracoesDoDR(BaseTemporaria):
@@ -9224,7 +9253,7 @@ class TestResumoDosLotes(unittest.TestCase):
         self.assertEqual(radar.lotes_de({"lotes": "não é json"}), [])
 
 
-class TestLotesNoQuadroENaFicha(BaseTemporaria):
+class TestLotesNaEscadaENaFicha(BaseTemporaria):
     """A separação no fim, que era um truque e passou a ser o modelo.
 
     O pedido dele, a 02/09/2026: «um cartão por anúncio, mas os cartões
@@ -9268,37 +9297,39 @@ class TestLotesNoQuadroENaFicha(BaseTemporaria):
             self.por_lote[n] = radar.criar_proposta("1947/2026", lote=n,
                                                     estado=estado)
 
-    def coluna(self, html_, estado):
-        """O corpo de uma coluna: dela até à coluna seguinte. Cortar no
-        primeiro "</div></div>" apanhava só o primeiro cartão, e uma
-        coluna com dois passava por vazia."""
-        depois = html_.split("data-estado='%s'>" % estado)[1]
-        return depois.split("<div class='coluna'>")[0]
-
-    def test_cada_lote_cai_na_sua_coluna_sem_truque_nenhum(self):
-        html_ = self.cliente.get("/quadro").get_data(as_text=True)
-        ganho = self.coluna(html_, "ganho")
-        perdido = self.coluna(html_, "perdido")
-        self.assertIn("id='p-%d'" % self.por_lote[2], ganho)
-        self.assertIn("lote 2", ganho)
-        self.assertNotIn("lote 1", ganho)
+    def test_cada_lote_cai_na_sua_ranhura_sem_truque_nenhum(self):
+        """Com uma proposta por lote, a separação deixa de precisar de
+        truque: o L2 está na aba do Ganho e os outros dois na do
+        Perdido, sem nada montado à mão."""
+        ganho = self.cliente.get("/?estado=ganho").get_data(as_text=True)
+        perdido = self.cliente.get("/?estado=perdido").get_data(as_text=True)
+        self.assertIn("L2", ganho)
+        self.assertIn("/proposta/%d/escada" % self.por_lote[2], ganho)
+        self.assertNotIn("/proposta/%d/escada" % self.por_lote[1], ganho)
         for n in (1, 3):
-            self.assertIn("id='p-%d'" % self.por_lote[n], perdido)
-        self.assertNotIn("id='p-%d'" % self.por_lote[2], perdido)
+            self.assertIn("/proposta/%d/escada" % self.por_lote[n], perdido)
+        self.assertNotIn("/proposta/%d/escada" % self.por_lote[2], perdido)
 
-    def test_os_cartoes_dos_lotes_arrastam_se_como_os_outros(self):
-        """O cartão separado de antes tinha `draggable='false'` e nenhum
+    def test_cada_lote_move_se_por_si(self):
+        """O cartão separado de antes não se arrastava nem tinha
         formulário: o que mandava era o Excel, e não havia forma de
-        corrigir no painel o que ele dissesse."""
-        html_ = self.cliente.get("/quadro").get_data(as_text=True)
-        carta = html_.split("id='p-%d'" % self.por_lote[2])[1].split("</div></div>")[0]
-        self.assertNotIn("draggable='false'", carta)
-        self.assertIn("data-proposta='%d'" % self.por_lote[2], html_)
+        corrigir no painel o que ele dissesse. Agora cada lote tem o seu
+        selector, e move-se sem levar os outros."""
+        r = self.cliente.post("/proposta/%d/escada" % self.por_lote[1],
+                              data={"estado": "submetido"})
+        self.assertEqual(r.status_code, 302)
+        estados = {p["lote"]: p["estado"]
+                   for p in radar.propostas_de("1947/2026")}
+        self.assertEqual(estados, {1: "submetido", 2: "ganho", 3: "perdido"})
 
-    def test_o_redesenho_depois_de_arrastar_leva_o_lote(self):
-        carta, _ = radar.carta_e_contas(self.por_lote[2], {"ganho"})
-        self.assertIn("lote 2", carta)
-        self.assertIn("Servidor de terminologias", carta)
+    def test_a_ficha_tem_um_bloco_de_proposta_por_lote(self):
+        """«a página do anúncio é sempre a mesma» -- e com lotes há uma
+        decisão por lote, por isso há um bloco por cada."""
+        html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
+        bloco = html_.split("id='proposta'")[1].split("id='pecas'")[0]
+        for n in (1, 2, 3):
+            self.assertIn("Lote %d" % n, bloco)
+            self.assertIn("/proposta/%d/ficha" % self.por_lote[n], bloco)
 
     def test_a_ficha_tem_o_bloco_e_o_indice(self):
         html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
@@ -9846,7 +9877,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
                 r = tester.post(rota, data={"csrf": self.token(tester)}, environ_base=self.FORA)
                 self.assertEqual(r.status_code, 403)
         # e o que e dele continua a abrir
-        for rota in ("/", "/quadro", "/contratos", "/configuracoes/conta",
+        for rota in ("/", "/calendario", "/contratos", "/configuracoes/conta",
                      "/configuracoes/interesse", "/configuracoes/alertas",
                      "/configuracoes/importar"):
             with self.subTest(rota=rota):

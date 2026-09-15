@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 27
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 31
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São **138** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **142** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
@@ -1098,6 +1098,46 @@ pelo Afonso e nenhuma se reabre de passagem.
   continua de fora, no `condicao_da_aba()`: é um campo que quem guardou
   o filtro escolheu, e calá-lo fazia o filtro deixar de ver o que sempre
   viu. A migração `traduzir_filtros_guardados()` corre a cada arranque.
+
+- **O quadro saiu, e o que ele fazia mora em dois sítios.** Decisão dele
+  a 15/09/2026, a olhar para o ecrã: «o quadro deixa de ser preciso tal
+  como a lista. na verdade eu devo conseguir passar entre estados aqui».
+  Oito colunas e oito abas eram a mesma coisa duas vezes, e a diferença
+  era o arrastar — que só compensa quando se vê tudo ao mesmo tempo. Com
+  uma coluna por aba não há para onde arrastar. **A ranhura muda-se pelo
+  selector da linha** (`selector_de_ranhura()`, `/escada/<ref>`), e
+  **tudo o resto vive no bloco «A nossa proposta» da ficha**
+  (`proposta_cx()`): os campos que a ranhura pede, o que a casa decide,
+  as etiquetas e o que falta fazer. A navegação ficou em Concursos ·
+  Calendário · Mercado.
+
+- **O estado do selector vai no CORPO e não no caminho.** Um `<select>`
+  não sabe escrever um URL: com o estado no caminho — como no
+  `/estado/<ref>/<novo>`, que fica para as ligações antigas e para o
+  teclado — o selector precisava de JS para funcionar de todo. Com JS
+  grava ao mudar e o botão «ir» esconde-se (o JS marca o `<html>` com
+  `com-js`, e é a folha que esconde: **ao contrário — esconder por
+  omissão e mostrar por JS — quem não tivesse JS ficava com um controlo
+  morto**).
+
+- **Um `display` numa regra ganha ao atributo `hidden`.** A caixa do
+  motivo serve os dois estados que o pedem e esconde o grupo que não é
+  o do momento pelo `hidden`; sem
+  `dialog.modal .escolhas[hidden]{display:none}`, o diálogo do
+  «Perdido» mostrava também os quatro motivos do «Não fomos» — oito
+  opções para escolher uma. Visto no ecrã a 15/09/2026, e é a mesma
+  armadilha em qualquer sítio onde se esconda por `hidden` algo que uma
+  regra pinta com `display`.
+
+- **As tarefas automáticas sincronizam-se; as escritas à mão nunca se
+  tocam.** `sincronizar_tarefas()` deriva duas datas do anúncio (o
+  prazo de esclarecimentos e o de entrega) e mantém-nas: se o DR
+  prorrogar, a tarefa acompanha; se a proposta fechar ou sair da escada,
+  desaparece. **Uma de `origem='mão'` não é tocada nem para ser
+  apagada** — uma nota de «ligar ao Dr. X» não pode evaporar-se porque o
+  prazo mudou. E uma automática já **feita** fica feita e não ressuscita
+  quando a data muda: marcar como feita é um facto, e a sincronização
+  não apaga factos.
 
 - **As doze colunas velhas do `anuncios` FICAM; só deixam de se criar.**
   A etapa 2 largava-as com `ALTER TABLE ... DROP COLUMN`, e isso foi

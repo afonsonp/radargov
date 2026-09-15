@@ -49,12 +49,15 @@ consulta dos interessados. O desenho é do Afonso: **uma escada só** —
 dez ranhuras, a entrada (*por ver*), as oito palavras da casa (*por
 analisar · a preparar proposta · submetido · relatório preliminar ·
 ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados —
-com lista, quadro e calendário como três vistas dela, e a navegação
-fundida num «Concursos». Por baixo, uma tabela `propostas` que o estado
-do anúncio não consegue ser (lotes, e propostas sem anúncio). **Lê-o
-antes de tocar no quadro, no calendário, na lista do «Em curso», nas
-abas dos anúncios ou nas colunas de CRM do `anuncios`.** As sete
-decisões estão respondidas no §2; nenhuma se reabre de passagem.
+com o calendário como única outra vista, e a navegação num
+«Concursos». Por baixo, uma tabela `propostas` que o estado do anúncio
+não consegue ser (lotes, e propostas sem anúncio). **O quadro saiu ao
+fim do dia**, por decisão dele: oito colunas e oito abas eram a mesma
+coisa duas vezes, a ranhura muda-se no selector de cada linha, e tudo o
+que o cartão fazia vive no bloco «A nossa proposta» da ficha. **Lê-o
+antes de tocar no calendário, nas abas dos anúncios, no bloco da
+proposta ou nas colunas de CRM do `anuncios`.** As sete decisões do §2
+estão respondidas; nenhuma se reabre de passagem.
 
 **A documentação corrige-se na mesma sessão que muda o comportamento.**
 Antes do commit de qualquer trabalho que mude comportamento, números ou
@@ -260,12 +263,16 @@ A ordem do ficheiro é a ordem do fluxo:
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
    lê da porta. Navegação por DUAS intenções desde
    15/09/2026: **Concursos** (`/`, a lista única com as dez ranhuras da
-   escada nas abas, mais as vistas quadro `/quadro` e calendário
-   `/calendario`; `/anuncios` e `/lista` redireccionam) e **Mercado**
+   escada nas abas, mais a vista calendário `/calendario`; `/anuncios`
+   e `/lista` redireccionam e `/quadro` já não existe) e **Mercado**
    (contratos `/contratos`, com o modo `?ver=fim` das antigas
    renovações; `/renovacoes` redirecciona). Por baixo das abas há
    **duas listas**: as pontas mostram anúncios, as oito ranhuras da
-   casa mostram propostas. A barra é **horizontal, em cima**
+   casa mostram propostas. **O quadro saiu no mesmo dia**, por decisão
+   dele: a ranhura muda-se no selector de cada linha (`/escada/<ref>`),
+   e tudo o que o cartão fazia vive no bloco «A nossa proposta» da
+   ficha (`proposta_cx()`) — os campos que a ranhura pede, o que a casa
+   decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
    (13/09/2026; `<header class="barra">`), só com a marca, os itens,
    **Configurações** e quem está. Configurações
    (`/configuracoes/<seccao>`, etapa 2 do `ONLINE.md`, 8/09/2026):
