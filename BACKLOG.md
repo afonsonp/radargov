@@ -33,12 +33,11 @@ ou feito.
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
 | 11.7-B | ~~Procura directa de entidade~~ | **Feito a 31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado + `/entidade/procurar` — NIF vai directo, nome resolve por `entidade_nomes` (única → ficha; várias → escolha; nenhuma → di-lo) | — |
 | — | ~~Visualizador de PDF na ficha~~ | **Feito a 31/08/2026, a pedido dele** (sai do «Não fazer»): os PDF das peças abrem em `/peca/<ref>/<nome>`, dentro da aplicação, com a pesquisa do próprio visualizador (Ctrl+F) — o caminho barato que estava anotado | — |
-| CRM | O «Em curso» não é um CRM: é a mesma consulta dos interessados | **Plano escrito a 15/09/2026** e **reescrito no mesmo dia com as decisões dele**: `docs/historico/CRM.md`. Seis etapas. O desenho é dele — **uma escada só** (dez ranhuras: a entrada, as oito palavras da casa, o cemitério dos expirados), com lista, quadro e calendário como três vistas dessa escada | **Etapas 1 e 2 feitas a 15/09/2026**: as tabelas, a escada nas abas, a triagem a criar propostas, o quadro nas oito colunas, o calendário para qualquer ranhura, a navegação fundida em «Concursos», e as doze colunas de CRM fora do `anuncios`. Faltam as etapas 3 a 6 (tarefas e cronologia, o ciclo com o Portal BASE, indicadores comerciais, contactos) |
+| CRM | ~~O «Em curso» não é um CRM: é a mesma consulta dos interessados~~ | **Plano escrito a 15/09/2026** e **reescrito no mesmo dia com as decisões dele**: `docs/historico/CRM.md`. Seis etapas. O desenho é dele — **uma escada só** (dez ranhuras: a entrada, as oito palavras da casa, o cemitério dos expirados), com lista, quadro e calendário como três vistas dessa escada | **Feito a 15/09/2026, as seis etapas**: as tabelas, a escada nas abas, a triagem a criar propostas, o quadro (que saiu no mesmo dia, por decisão dele: a ranhura muda-se no selector da linha), o calendário para qualquer ranhura, a navegação em Concursos · Calendário · Mercado, as tarefas que seguem as datas do DR, o ciclo fechado com o Portal BASE (por chave: o `n_anuncio` é o `ref`), os indicadores comerciais e os contactos. Falta o NIF da casa, em Configurações › Conta, para o cruzamento adiantar se a adjudicação foi nossa |
 | B15-b | ~~Os campos do CRM não saem no `triagem.jsonl`~~ | **Fechado a 15/09/2026, sem trabalho próprio**: as colunas em falta são exactamente as que a etapa 1 do CRM apaga — exportá-las era escrever para deitar fora a seguir. A exportação faz-se uma vez, já sobre `propostas` e `tarefas`, dentro dessa etapa | — |
 
-**Há uma pendência aberta** (CRM, de 15/09/2026), e não espera por
-decisão nenhuma: espera por trabalho. O que se abrir a seguir entra aqui
-com quem decide e o que dispara, como sempre.
+**O registo está limpo: não há pendências abertas.** O que se abrir a
+seguir entra aqui com quem decide e o que dispara, como sempre.
 
 **Dependências, e o estado de cada uma:**
 
@@ -62,12 +61,12 @@ com quem decide e o que dispara, como sempre.
   (14/09/2026: `tipologia`, `cv`, `proposta_tecnica`, `notas`, `coe`; e
   antes delas `preco_proposto`, `posicao`, `top3`, `motivo_perda`,
   `motivo`) nunca foram acrescentadas ao `_TABELAS_TRIAGEM`, e a tabela
-  `casa` também não lá está. **Sem consequência prática hoje** — a
-  plataforma é teste e a base está no estado zero (zero `interessa`,
-  zero linhas em `casa`) — e fecha-se dentro da etapa 1 do CRM, que é
-  quem apaga essas colunas e escreve a exportação de uma vez. Fora
-  isso, o que fica em risco no disco é só o que se refaz (base, corpus,
-  peças).
+  `casa` também não lá está. **Fechada no mesmo dia, com o CRM**: essas
+  colunas deixaram de existir e o que as substituiu — `propostas`,
+  `tarefas` e `contactos` — vai inteiro no `triagem.jsonl`. É a parte
+  mais irrecuperável de todas, porque o DR não devolve o preço que se
+  propôs. Fora isso, o que fica em risco no disco é só o que se refaz
+  (base, corpus, peças).
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
 

@@ -218,7 +218,8 @@ A ordem do ficheiro é a ordem do fluxo:
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
    `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
    série dos erros que as marcas sobrescrevem; poda a 200 por tipo),
-   `propostas` e `tarefas` (o CRM, 15/09/2026). São 23 tabelas.
+   `propostas`, `tarefas` e `contactos` (o CRM, 15/09/2026). São 23
+   tabelas.
 2. **comum** — as utilidades puras: `simplifica()`, `data_pt()`,
    `data_hora_pt()`, `mil_pt()`, `euros_do_texto()`, `conta_dias()`,
    `dias_restantes()`, `dias_urgente()`, `janela_urgente()`,
@@ -229,13 +230,18 @@ A ordem do ficheiro é a ordem do fluxo:
    base, não escrevem HTML e não dependem de nada à frente. **Um
    formatador novo entra aqui**, não na banda que por acaso o precisou
    primeiro — ver a regra no `docs/armadilhas.md`.
-2b. **propostas** — o CRM (etapas 1 e 2 de `docs/historico/CRM.md`,
-   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_CASA`) e
+2b. **propostas** — o CRM inteiro (`docs/historico/CRM.md`,
+   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_CASA`),
    `criar_proposta()` / `mover_proposta()` /
-   `gravar_campos_da_proposta()` / `contar_propostas()`, logo a seguir
-   ao `quadro`. **A escada é o estado da proposta, não do anúncio** —
-   não voltes a pendurar estado da casa no `anuncios`, que é de onde as
-   doze colunas saíram.
+   `gravar_campos_da_proposta()` / `contar_propostas()`, as tarefas
+   (`sincronizar_tarefas()` — as automáticas seguem as datas do DR, as
+   escritas à mão nunca se tocam), o cruzamento com o Portal BASE
+   (`propostas_por_fechar()`, `fomos_nos()`, `desvio_do_proposto()` —
+   **propõe, nunca decide**), os indicadores comerciais
+   (`pipeline_em_euros()`, `taxa_de_vitoria()`) e os contactos, que são
+   da **entidade** e não do concurso. **A escada é o estado da proposta,
+   não do anúncio** — não voltes a pendurar estado da casa no
+   `anuncios`, que é de onde as doze colunas saíram.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 4. **leitura** — `recolher()` pagina a pesquisa do portal;

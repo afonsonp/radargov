@@ -5294,6 +5294,420 @@ class TestFiltrosGuardadosFalamAEscada(BaseTemporaria):
         self.assertEqual(valores, ["analisar"])
 
 
+class TestFecharOCicloComOBase(BaseTemporaria):
+    """Etapa 4 do CRM (15/09/2026): submetemos uma proposta, e meses
+    depois o Estado publica em quem caiu o procedimento e por quanto.
+
+    **A ligação é por chave e não por semelhança.** Medido nesse dia na
+    base dele: o `contratos.n_anuncio` do dump do IMPIC vem no mesmo
+    formato do `ref` do radar («17161/2026»), e 69,4% dos anúncios de
+    2024 já têm contrato celebrado (contra 5,3% dos de 2026, que é o
+    ciclo a demorar meses). O plano previa o maquinário de semelhança do
+    `casa.py`; não é preciso nenhum — ou é o mesmo procedimento ou não é
+    nada.
+
+    E **propõe, nunca decide**: palavra dele, «isto avança-se sempre com
+    a confirmação de um humano para fechar o resultado».
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
+        radar.iniciar_corpus()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " tipo, url, estado, preco_base) VALUES "
+                      "(?,?,?,?,?,?,'novo',?)",
+                      ("17161/2026", "Aquisição de testes", "ULS Santo António",
+                       "2026-03-01", "Anúncio de procedimento", "https://dr/1",
+                       "200.000,00 EUR"))
+        self.id_ = radar.criar_proposta("17161/2026", estado="submetido")
+        radar.gravar_campos_da_proposta(self.id_, ["valor_proposta"],
+                                        ["180.000,00 EUR"])
+
+    def _contrato(self, ref="17161/2026", quem="ROCHE", nif="504282921",
+                  valor=171543.0):
+        with radar.liga_corpus() as c:
+            cur = c.execute(
+                "INSERT INTO contratos (ano, n_anuncio, tipo_procedimento,"
+                " objecto, adjudicante, data_celebracao, preco_contratual,"
+                " preco_base) VALUES (2026,?,?,?,?,?,?,?)",
+                (ref, "Concurso público", "Testes", "ULS Santo António",
+                 "2026-08-27", valor, 200000.0))
+            c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif,"
+                      " nome, chave) VALUES (?,?,?,?)",
+                      (cur.lastrowid, nif, quem, nif))
+
+    def test_a_ligacao_e_por_chave_e_nao_por_semelhanca(self):
+        self._contrato()
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        self.assertEqual(len(linhas), 1)
+        self.assertIn("ROCHE", linhas[0]["ganhou"])
+        # e um ref parecido não casa: ou é o mesmo procedimento ou não é
+        self.assertEqual(radar.desfecho_do_anuncio("17162/2026"), [])
+
+    def test_uma_proposta_parada_com_contrato_aparece_por_fechar(self):
+        """São as que ficam meses em «Submetido» à espera de alguém se
+        lembrar de as fechar -- e o Estado já publicou o desfecho."""
+        self.assertEqual(radar.propostas_por_fechar(), [])
+        self._contrato()
+        por_fechar = radar.propostas_por_fechar()
+        self.assertEqual([p["id"] for p, _ in por_fechar], [self.id_])
+
+    def test_uma_proposta_ja_fechada_nao_volta_a_aparecer(self):
+        self._contrato()
+        radar.mover_proposta(self.id_, "perdido")
+        self.assertEqual(radar.propostas_por_fechar(), [])
+
+    def test_sem_o_nif_da_casa_nao_se_afirma_que_nao_fomos_nos(self):
+        """Três respostas e não duas, de propósito: um «não fomos» de
+        quem não sabe é uma afirmação falsa -- e era com base nela que a
+        proposta ia fechar."""
+        self._contrato()
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        self.assertIsNone(radar.fomos_nos(linhas))
+        radar.gravar_config({"nif_da_casa": "111111111"})
+        self.assertIs(radar.fomos_nos(linhas), False)
+        radar.gravar_config({"nif_da_casa": "504282921"})
+        self.assertIs(radar.fomos_nos(linhas), True)
+
+    def test_o_nome_da_casa_tambem_serve_mas_o_nif_e_que_e_certo(self):
+        self._contrato(quem="ROCHE SISTEMAS DE DIAGNOSTICO, LDA")
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        radar.gravar_config({"nome_da_casa": "Roche Sistemas"})
+        self.assertIs(radar.fomos_nos(linhas), True)
+
+    def test_o_desvio_compara_o_nosso_preco_com_o_adjudicado(self):
+        """«perdeste para a X por 5% abaixo do teu preço» -- o número
+        que esta etapa existe para dar."""
+        self._contrato(valor=171000.0)
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        desvio, ganhou = radar.desvio_do_proposto("180.000,00 EUR", linhas)
+        self.assertEqual(ganhou, 171000.0)
+        self.assertAlmostEqual(desvio, 0.05, places=3)
+
+    def test_com_lotes_soma_antes_de_dividir(self):
+        """A mesma regra do `desconto_do_desfecho()`: o procedimento é a
+        unidade. Por linha, cada lote comparava-se com a nossa proposta
+        inteira e dava um número que mente com ar de certo."""
+        self._contrato(valor=90000.0)
+        self._contrato(valor=81000.0, quem="OUTRA", nif="500000000")
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        desvio, ganhou = radar.desvio_do_proposto("180.000,00 EUR", linhas)
+        self.assertEqual(ganhou, 171000.0)
+        self.assertAlmostEqual(desvio, 0.05, places=3)
+
+    def test_sem_proposto_nao_se_inventa_desvio(self):
+        self._contrato()
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        self.assertEqual(radar.desvio_do_proposto(None, linhas), (None, None))
+        self.assertEqual(radar.desvio_do_proposto("180.000,00 EUR", []),
+                         (None, None))
+
+    def test_a_ficha_propoe_e_nao_decide(self):
+        """O facto fica ao lado dos dois botões, e o estado não muda
+        sozinho: palavra dele, «isto avança-se sempre com a confirmação
+        de um humano para fechar o resultado»."""
+        self._contrato()
+        html_ = self.cliente.get("/anuncio/17161%2F2026").get_data(as_text=True)
+        self.assertIn("ROCHE", html_)
+        self.assertIn("Ganhámos", html_)
+        self.assertIn("Perdemos", html_)
+        self.assertIn("falta o NIF da casa", html_)
+        # e a proposta continua onde estava
+        self.assertEqual(radar.proposta(self.id_)["estado"], "submetido")
+
+    def test_o_botao_fecha_a_proposta(self):
+        self._contrato()
+        r = self.cliente.post("/proposta/%d/escada" % self.id_,
+                              data={"estado": "perdido", "motivo": "Preço"})
+        self.assertEqual(r.status_code, 302)
+        p = radar.proposta(self.id_)
+        self.assertEqual((p["estado"], p["motivo"]), ("perdido", "Preço"))
+        self.assertTrue(p["fechada_em"])
+
+    def test_a_faixa_cala_se_quando_a_proposta_ja_esta_fechada(self):
+        self._contrato()
+        radar.mover_proposta(self.id_, "ganho")
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        self.assertEqual(
+            radar.faixa_do_desfecho(radar.proposta(self.id_), linhas), "")
+
+    def test_sem_corpus_nao_rebenta_nem_promete_nada(self):
+        with unittest.mock.patch.object(radar, "ha_corpus", lambda: False):
+            self.assertEqual(radar.propostas_por_fechar(), [])
+            self.assertEqual(radar.desfecho_do_anuncio("17161/2026"), [])
+
+
+class TestIndicadoresComerciais(BaseTemporaria):
+    """Etapa 5 do CRM (15/09/2026). Os indicadores mediam o funil da
+    TRIAGEM -- quanto entra, quanto se olha, quanto vinga. Faltava o do
+    NEGÓCIO: quanto está em jogo, quanto se ganha, e porque se perde.
+
+    A regra que esta classe guarda, e que é a da casa: **o que não se
+    pode saber diz-se**. Uma taxa de vitória sobre três concursos é
+    ruído com ar de facto, e as decisões que se tomam com ela custam
+    dinheiro.
+    """
+
+    def _p(self, ref, estado, base=None, proposto=None, motivo=None, **k):
+        with radar.liga() as c:
+            c.execute("INSERT OR IGNORE INTO anuncios (ref, titulo, entidade,"
+                      " data_pub, estado, preco_base, cpv) VALUES "
+                      "(?,?,?,?,'novo',?,?)",
+                      (ref, "T " + ref, k.get("entidade", "Câmara"),
+                       "2026-01-01", base or "", k.get("cpv", "72000000")))
+        id_ = radar.criar_proposta(ref, estado=estado)
+        campos, valores = [], []
+        if proposto:
+            campos.append("valor_proposta")
+            valores.append(proposto)
+        for nome in ("tipologia", "coe"):
+            if nome in k:
+                campos.append(nome)
+                valores.append(k[nome])
+        if campos:
+            radar.gravar_campos_da_proposta(id_, campos, valores)
+        if motivo:
+            radar.gravar_motivo(id_, motivo)
+        return id_
+
+    def test_o_pipeline_soma_base_ate_ao_submetido_e_proposto_dai_em_diante(self):
+        """Um pipeline somado a preços base é o tecto das entidades e
+        não o que está em jogo, com o mesmo ar de número certo."""
+        self._p("1/2026", "analisar", base="100.000,00 EUR")
+        self._p("2/2026", "submetido", base="200.000,00 EUR",
+                proposto="150.000,00 EUR")
+        p = radar.pipeline_em_euros()
+        self.assertEqual(p["analisar"]["euros"], 100000.0)
+        self.assertEqual(p["submetido"]["euros"], 150000.0)
+
+    def test_sem_proposto_lido_o_base_serve_e_diz_se(self):
+        self._p("3/2026", "submetido", base="200.000,00 EUR")
+        p = radar.pipeline_em_euros()
+        self.assertEqual(p["submetido"]["euros"], 200000.0)
+        self.assertEqual(p["submetido"]["sem_preco"], 1)
+
+    def test_as_ranhuras_fechadas_nao_contam_para_o_pipeline(self):
+        self._p("4/2026", "ganho", base="500.000,00 EUR")
+        self.assertNotIn("ganho", radar.pipeline_em_euros())
+
+    def test_o_nao_fomos_nao_entra_no_denominador_da_taxa(self):
+        """Um «Não fomos» é uma decisão nossa de não concorrer. Metê-lo
+        no denominador fazia a taxa cair por se ter sido selectivo, que
+        é o contrário do que ela devia dizer."""
+        for i in range(3):
+            self._p("g%d/2026" % i, "ganho")
+        for i in range(3):
+            self._p("p%d/2026" % i, "perdido")
+        for i in range(10):
+            self._p("n%d/2026" % i, "nao_fomos")
+        self._p("c/2026", "cancelado")
+        nome, ganhos, decididos, taxa = radar.taxa_de_vitoria()[0]
+        self.assertEqual((ganhos, decididos), (3, 6))
+        self.assertAlmostEqual(taxa, 0.5)
+
+    def test_abaixo_do_minimo_a_taxa_e_None_e_nao_zero(self):
+        """None é «ainda não sei»; um número seria uma afirmação."""
+        self._p("1/2026", "ganho")
+        self._p("2/2026", "perdido")
+        _, ganhos, decididos, taxa = radar.taxa_de_vitoria()[0]
+        self.assertEqual((ganhos, decididos), (1, 2))
+        self.assertIsNone(taxa)
+
+    def test_a_taxa_por_dimensao_agrupa_e_ordena_pelos_decididos(self):
+        for i in range(6):
+            self._p("t%d/2026" % i, "ganho" if i < 4 else "perdido",
+                    tipologia="turnkey")
+        self._p("c1/2026", "perdido", tipologia="consulting")
+        linhas = radar.taxa_de_vitoria("tipologia")
+        self.assertEqual(linhas[0][0], "turnkey")
+        self.assertEqual((linhas[0][1], linhas[0][2]), (4, 6))
+        self.assertAlmostEqual(linhas[0][3], 4 / 6.0)
+        self.assertIsNone(linhas[1][3])     # consulting: um só
+
+    def test_uma_coluna_inventada_nao_entra_em_SQL(self):
+        """O `por` vem de um sítio só do código, mas uma lista branca é
+        o que separa isto de interpolar um nome de coluna."""
+        self._p("1/2026", "ganho")
+        # uma coluna que não está na lista branca cai no total, e não em
+        # SQL: é isso que separa isto de interpolar um nome vindo de fora
+        self.assertEqual(radar.taxa_de_vitoria("; DROP TABLE propostas"),
+                         radar.taxa_de_vitoria())
+        self.assertEqual(radar.taxa_de_vitoria()[0][0], "total")
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 1)
+
+    def test_a_taxa_por_cpv_junta_as_duas_tabelas_e_deixa_de_fora_quem_nao_tem(self):
+        """Uma proposta sem anúncio (D2) não tem CPV, e ficar de fora é
+        diferente de contar como zero."""
+        for i in range(5):
+            self._p("x%d/2026" % i, "ganho" if i < 2 else "perdido",
+                    cpv="72000000")
+        radar.criar_proposta(entidade="IPL", titulo="Consulta prévia",
+                             estado="ganho")
+        linhas = radar.taxa_por_divisao_cpv()
+        self.assertEqual(linhas[0][0], "72")
+        self.assertEqual((linhas[0][1], linhas[0][2]), (2, 5))
+
+    def test_os_motivos_agregam_se_porque_sao_vocabulario_fechado(self):
+        self._p("1/2026", "perdido", motivo="Preço")
+        self._p("2/2026", "perdido", motivo="Preço")
+        self._p("3/2026", "perdido", motivo="CV's")
+        self._p("4/2026", "perdido")
+        linhas = radar.porque_se_perde()
+        self.assertEqual([(l["m"], l["n"]) for l in linhas][:2],
+                         [("Preço", 2), ("CV's", 1)])
+        self.assertIn(("(por dizer)", 1), [(l["m"], l["n"]) for l in linhas])
+
+    def test_os_dois_motivos_nao_se_misturam(self):
+        """«Preço base baixo» é porque não se foi; «Preço» é porque se
+        perdeu. Somá-los numa tabela só dava duas coisas com o mesmo
+        nome e nenhuma conta."""
+        self._p("1/2026", "perdido", motivo="Preço")
+        self._p("2/2026", "nao_fomos", motivo="Preço base baixo")
+        self.assertEqual([l["m"] for l in radar.porque_se_perde()], ["Preço"])
+        self.assertEqual([l["m"] for l in radar.porque_nao_se_vai()],
+                         ["Preço base baixo"])
+
+    def test_o_desconto_medio_so_conta_quem_tem_os_dois_precos(self):
+        self._p("1/2026", "ganho", base="100.000,00 EUR",
+                proposto="90.000,00 EUR")
+        self._p("2/2026", "ganho", base="200.000,00 EUR")     # sem proposto
+        desconto, sobre = radar.desconto_medio_dos_ganhos()
+        self.assertAlmostEqual(desconto, 0.10)
+        self.assertEqual(sobre, 1)
+
+    def test_sem_ganhos_o_desconto_e_None_e_nao_zero(self):
+        self._p("1/2026", "perdido", base="100.000,00 EUR",
+                proposto="90.000,00 EUR")
+        self.assertEqual(radar.desconto_medio_dos_ganhos(), (None, 0))
+
+    def test_o_parado_mede_se_pela_ultima_mexida_e_nao_pela_criacao(self):
+        """Uma proposta que se mexeu ontem não está parada, por muito
+        antiga que seja."""
+        self._p("1/2026", "submetido")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET criada_em='2026-01-01 09:00'")
+            c.execute("UPDATE historico SET quando='2026-01-01 09:00'")
+        primeiro = radar.dias_parados()[0]
+        self.assertGreater(primeiro[1], 100)
+        radar.registar("1/2026", "nota", "mexeu hoje")
+        self.assertEqual(radar.dias_parados()[0][1], 0)
+
+    def test_o_ecra_abre_e_cada_numero_leva_a_lista(self):
+        self._p("1/2026", "submetido", base="200.000,00 EUR",
+                proposto="150.000,00 EUR")
+        html_ = radar.app.test_client().get(
+            "/configuracoes/indicadores").get_data(as_text=True)
+        self.assertIn("O negócio", html_)
+        self.assertIn("em jogo", html_)
+        # a regra da casa: o número abre a lista que o confirma
+        self.assertIn("href='/?estado=submetido'", html_)
+
+
+class TestContactos(BaseTemporaria):
+    """Etapa 6 do CRM (15/09/2026): quem é a pessoa do lado de lá.
+
+    Foi a última etapa do plano de propósito -- é do que se sente falta
+    mais tarde, quando já há concursos que se repetem com o mesmo
+    cliente. E é por isso que os contactos são da **entidade** e não do
+    concurso: a pessoa que responde aos esclarecimentos do IPL responde
+    aos do ano que vem também.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        with radar.liga() as c:
+            for ref, nif in (("1/2026", "506000000"), ("2/2027", "506000000")):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, nif,"
+                          " data_pub, tipo, url, estado, texto, detalhe_lido)"
+                          " VALUES (?,?,?,?,?,?,?,'novo','x',1)",
+                          (ref, "Concurso " + ref, "Instituto Politécnico de Leiria",
+                           nif, "2026-01-01", "Anúncio de procedimento",
+                           "https://dr/" + ref))
+
+    def _a(self, ref):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+
+    def test_a_chave_e_o_nif_quando_o_ha(self):
+        self.assertEqual(radar.chave_da_entidade(self._a("1/2026")), "506000000")
+
+    def test_sem_nif_a_chave_e_o_nome_normalizado(self):
+        """93,7% das entidades do radar acham-se assim (medido; ver
+        `norma_entidade()`), e sem isto os contactos de uma entidade
+        cujo NIF o DR não publica não tinham onde viver."""
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET nif='' WHERE ref='1/2026'")
+        chave = radar.chave_da_entidade(self._a("1/2026"))
+        self.assertTrue(chave)
+        self.assertNotEqual(chave, "506000000")
+        self.assertEqual(chave, radar.norma_entidade(
+            "Instituto Politécnico de Leiria"))
+
+    def test_o_contacto_aparece_nos_OUTROS_concursos_da_mesma_entidade(self):
+        """É o ponto todo da etapa: o contacto é da entidade."""
+        radar.criar_contacto("506000000", "Maria Silva", "Júri",
+                             "maria@ipl.pt", entidade="IPL")
+        for ref in ("1/2026", "2/2027"):
+            html_ = self.cliente.get("/anuncio/%s" % quote(ref, safe="")
+                                     ).get_data(as_text=True)
+            self.assertIn("Maria Silva", html_, ref)
+            self.assertIn("maria@ipl.pt", html_, ref)
+
+    def test_um_contacto_sem_nome_nao_se_cria(self):
+        """Não se encontra depois, que é o mesmo que não existir."""
+        self.assertIsNone(radar.criar_contacto("506000000", "  "))
+        self.assertIsNone(radar.criar_contacto("", "Maria"))
+        self.assertEqual(radar.contactos_de("506000000"), [])
+
+    def test_criar_e_apagar_pela_ficha(self):
+        r = self.cliente.post("/contacto/nova", data={
+            "chave": "506000000", "entidade": "IPL", "volta": "1/2026",
+            "nome": "João Costa", "papel": "Compras",
+            "telefone": "244 000 000"})
+        self.assertEqual(r.status_code, 302)
+        linhas = radar.contactos_de("506000000")
+        self.assertEqual([l["nome"] for l in linhas], ["João Costa"])
+        self.assertEqual(linhas[0]["telefone"], "244 000 000")
+        r = self.cliente.post("/contacto/%d/apagar" % linhas[0]["id"])
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(radar.contactos_de("506000000"), [])
+
+    def test_os_contactos_vao_no_triagem_jsonl(self):
+        """Um nome e um telefone que alguém escreveu, e que fonte
+        nenhuma refaz -- a mesma razão das propostas."""
+        radar.criar_contacto("506000000", "Maria Silva", "Júri",
+                             "maria@ipl.pt", entidade="IPL")
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        radar.exportar_triagem(caminho)
+        with open(caminho, encoding="utf-8") as f:
+            linhas = [json.loads(l) for l in f if l.strip()]
+        contactos = [l for l in linhas if l["tabela"] == "contactos"]
+        self.assertEqual(len(contactos), 1)
+        self.assertEqual(sorted(contactos[0]),
+                         sorted(("tabela",) + radar.COLUNAS_DO_CONTACTO))
+        # e voltam no restauro
+        with radar.liga() as c:
+            c.execute("DELETE FROM contactos")
+        radar.repor_triagem(caminho)
+        self.assertEqual([l["nome"] for l in radar.contactos_de("506000000")],
+                         ["Maria Silva"])
+
+    def test_as_colunas_do_contacto_sao_as_da_tabela(self):
+        with radar.liga() as c:
+            na_tabela = {r["name"] for r in c.execute(
+                "PRAGMA table_info(contactos)")}
+        self.assertEqual(na_tabela, set(radar.COLUNAS_DO_CONTACTO))
+
+
 class TestPorqueDoGit(unittest.TestCase):
     """01/09/2026: um push recusado ficava gravado como "git push: To
     https://github.com/afonsonp/radarconcursos.git" — o endereço comia

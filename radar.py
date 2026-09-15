@@ -133,6 +133,12 @@ CONFIG_INICIAL = {
     # pôr e apaga-se sem querer. Com "interesse_activo" a False, ou sem
     # CPV escolhido, a lista volta ao acervo todo. Formato dos dois
     # campos: codigos separados por "|", como o filtro.
+    # Quem somos nos, para o cruzamento com o Portal BASE saber se a
+    # adjudicacao foi nossa (etapa 4). Vazios de origem, e a
+    # funcionalidade vale na mesma: sem eles o ecra mostra a quem foi
+    # adjudicado e PERGUNTA se fomos nos, que e o que ja fazia.
+    "nome_da_casa": "",
+    "nif_da_casa": "",
     "interesse_activo": False,
     "interesse_cpv": "",
     "interesse_cpv_excl": "",
@@ -530,6 +536,16 @@ def iniciar_db():
             origem TEXT DEFAULT 'mão', criada_em TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_tarefas_quando "
                   "ON tarefas(quando)")
+        # Os contactos (etapa 6): sao da ENTIDADE e nao do concurso -- a
+        # pessoa que responde aos esclarecimentos do IPL responde aos do
+        # ano que vem tambem. A chave e o NIF quando se sabe, senao o
+        # nome normalizado, que e a mesma que a ficha da entidade usa.
+        c.execute("""CREATE TABLE IF NOT EXISTS contactos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entidade_chave TEXT, entidade TEXT, nome TEXT, papel TEXT,
+            email TEXT, telefone TEXT, notas TEXT, criado_em TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_contactos_chave "
+                  "ON contactos(entidade_chave)")
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -5681,7 +5697,7 @@ def repor_estado_zero():
             "('novo','alteracao')").fetchone()[0]
         c.execute("UPDATE anuncios SET estado='novo' "
                   "WHERE estado NOT IN ('novo','alteracao')")
-        for tabela in ("propostas", "tarefas",
+        for tabela in ("propostas", "tarefas", "contactos",
                        "anuncio_etiquetas", "etiquetas", "historico", "pessoas",
                        "filtros_guardados", "alertas_vistos", "entidades_seguidas",
                        "seguidas_vistos", "casa", "alteracoes"):
@@ -5816,6 +5832,8 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "notas", "criada_em", "fechada_em")
 COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
                      "feita_em", "origem", "criada_em")
+COLUNAS_DO_CONTACTO = ("id", "entidade_chave", "entidade", "nome", "papel",
+                       "email", "telefone", "notas", "criado_em")
 
 _TABELAS_TRIAGEM = (
     # Do anuncio ja so sai o que o DR nao refaz: quem e o responsavel, e
@@ -5836,6 +5854,10 @@ _TABELAS_TRIAGEM = (
     # silencio e sem nada no ecra a dize-lo.
     ("propostas", COLUNAS_DA_PROPOSTA,
      "SELECT " + ", ".join(COLUNAS_DA_PROPOSTA) + " FROM propostas ORDER BY id"),
+    # Os contactos: um nome e um telefone que alguem escreveu, e que
+    # fonte nenhuma refaz. A mesma razao das propostas.
+    ("contactos", COLUNAS_DO_CONTACTO,
+     "SELECT " + ", ".join(COLUNAS_DO_CONTACTO) + " FROM contactos ORDER BY id"),
     ("tarefas", COLUNAS_DA_TAREFA,
      "SELECT " + ", ".join(COLUNAS_DA_TAREFA) + " FROM tarefas ORDER BY id"),
     ("etiquetas", ("id", "nome", "cor"),
@@ -5998,7 +6020,7 @@ def repor_triagem(caminho=None):
                           "WHERE ref=?",
                           (reg["estado"], reg["visto_em"], reg["ref"]))
                 escritas += 1
-            elif t in ("propostas", "tarefas"):
+            elif t in ("propostas", "tarefas", "contactos"):
                 # A proposta SEM anuncio nao e um orfao: e a consulta
                 # previa, o ajuste directo, o convite (D2 do plano). Se
                 # levasse a regra das outras tabelas -- "o ref nao esta
@@ -6007,8 +6029,9 @@ def repor_triagem(caminho=None):
                 # relatorio final diria "reposto" na mesma, porque essas
                 # linhas nem sequer tem ref para listar. So se adia a que
                 # CITA um anuncio que ainda nao voltou.
-                colunas = (COLUNAS_DA_PROPOSTA if t == "propostas"
-                           else COLUNAS_DA_TAREFA)
+                colunas = {"propostas": COLUNAS_DA_PROPOSTA,
+                           "tarefas": COLUNAS_DA_TAREFA,
+                           "contactos": COLUNAS_DO_CONTACTO}[t]
                 if reg.get("ref") and reg["ref"] not in existe:
                     por_repor.setdefault(t, []).append(reg["ref"])
                     continue
@@ -9469,6 +9492,50 @@ button.tq:hover{border-color:var(--verde);color:var(--verde)}
  background:#fff;color:var(--t2);min-height:24px;box-sizing:border-box}
 .tarefa-nova button{cursor:pointer;font-weight:600;color:var(--t3)}
 
+/* A faixa que propõe fechar uma proposta com o que o Portal BASE diz
+   (etapa 4). Cor de informação e não de alarme: é um facto que chegou,
+   não um problema -- e o vermelho desta folha é o do prazo expirado. */
+.desfecho-propoe{margin-top:14px;padding:12px 14px;border-radius:6px;
+ background:var(--azul-fundo);border:1px solid var(--linha)}
+.dp-facto{font:400 12px/1.5 var(--sans);color:var(--t2)}
+.dp-botoes{display:flex;align-items:center;gap:8px;margin-top:10px;
+ flex-wrap:wrap}
+.dp-botoes a.bt-leve{margin-left:auto}
+
+/* As barras horizontais dos motivos (etapa 5): são poucas e de nome
+   longo, e em pé ficavam com o rótulo de lado a não se ler. */
+.lh{display:flex;align-items:center;gap:10px}
+.lh .t{flex:0 0 180px;font:400 11.5px/1.3 var(--sans);color:var(--t3);
+ text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lh .bh{height:12px;border-radius:3px;background:var(--azul);min-width:3px}
+.lh .n{font:600 11px/1 var(--mono);color:var(--t3)}
+/* o subtítulo de um número do bloco do negócio: diz sobre o que é que
+   ele conta, que é o que separa um facto de um número solto */
+.desfecho-som .sub{font:400 10.5px/1.3 var(--sans);color:var(--t5);
+ text-transform:none;letter-spacing:0}
+
+/* Os contactos (etapa 6) */
+.ct{padding:9px 0;border-bottom:1px solid var(--papel);position:relative}
+.ct:last-of-type{border-bottom:0}
+.ct-nome{font:600 12.5px/1.4 var(--sans);color:var(--ink)}
+.ct-papel{font:400 11px/1 var(--sans);color:var(--t4);margin-left:6px}
+.ct-l{display:inline-block;margin-right:12px;font:400 11.5px/1.5 var(--sans);
+ color:var(--t3)}
+a.ct-l{color:var(--azul)}
+.ct-notas{font:400 11.5px/1.4 var(--sans);color:var(--t4);margin-top:3px}
+.ct-x{position:absolute;top:6px;right:0}
+.ct-x button.etq-x{color:var(--t5)}
+.ct-x button.etq-x:hover{color:var(--verm);opacity:1}
+.ct-novo{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;
+ padding-top:12px;border-top:1px dashed var(--traco)}
+.ct-novo input{flex:1 1 130px;font:400 11.5px/1.2 var(--sans);padding:6px 8px;
+ border:1px solid var(--linha);border-radius:5px;background:#fff;color:var(--t2);
+ min-height:24px;box-sizing:border-box}
+.ct-novo button{cursor:pointer;font:600 11px/1 var(--sans);padding:6px 12px;
+ border:1px solid var(--linha);border-radius:5px;background:#fff;color:var(--t3);
+ min-height:24px;box-sizing:border-box}
+.ct-novo button:hover{border-color:var(--azul);color:var(--azul)}
+
 /* calendario */
 .grade-caixa{background:#fff;border:1px solid var(--linha);border-radius:8px;
  overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06)}
@@ -9742,14 +9809,24 @@ def migalhas_de(vista, folha=""):
     return "".join(pedacos)
 
 
-def accao(destino, etiqueta, classe="bt", confirmar=""):
+def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
     """Um botao que faz POST. Tudo o que altera dados passa por aqui:
     como <a href> isto respondia a um prefetch do browser ou a qualquer
-    coisa que siga links, e ha aqui accoes que mudam a base."""
+    coisa que siga links, e ha aqui accoes que mudam a base.
+
+    Os `campos` vao como <input hidden> (15/09/2026): ha rotas que leem
+    o que fazer do CORPO e nao do caminho -- o `/escada/...`, porque um
+    <select> nao sabe escrever um URL -- e um botao que lhes chame tem
+    de as poder alimentar.
+    """
     ao_submeter = (" onsubmit=\"return confirm('%s')\"" % confirmar) if confirmar else ""
-    return ("<form class='accao' method='post' action='%s'%s>"
+    escondidos = "".join(
+        "<input type='hidden' name='%s' value='%s'>"
+        % (html.escape(k, quote=True), html.escape(str(v), quote=True))
+        for k, v in (campos or {}).items())
+    return ("<form class='accao' method='post' action='%s'%s>%s"
             "<button type='submit' class='%s'>%s</button></form>"
-            % (destino, ao_submeter, classe, etiqueta))
+            % (destino, ao_submeter, escondidos, classe, etiqueta))
 
 
 def forma_abandonar(ref, classe="mini", etiqueta="abandonar", titulo=""):
@@ -12766,7 +12843,7 @@ def _conteudo_alertas():
 # 13/09/2026: primeiro o que e de quem usa (conta, interesse, alertas,
 # importar), depois o que e do sistema, que so o admin ve.
 SECCOES_CONFIG = (
-    ("conta", "Conta", "palavra-passe, sessões, utilizadores", False),
+    ("conta", "Conta", "palavra-passe, sessões, a nossa empresa, utilizadores", False),
     ("interesse", "Interesse", "os CPV que a casa trabalha", False),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False),
     ("importar", "Importar dados", "o registo da casa, pelo modelo Excel", False),
@@ -13347,8 +13424,48 @@ def config_conta():
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
            if sessoes else ""))
     if sou_admin():
+        corpo += _bloco_da_casa()
         corpo += _bloco_utilizadores(todos, utilizador["id"])
     return pagina_config("conta", "<div class='cx conf-cx'>" + corpo + "</div>")
+
+
+def _bloco_da_casa(cfg=None):
+    """Quem somos nós, para o cruzamento com o Portal BASE.
+
+    Sem isto o radar sabe a quem o procedimento foi adjudicado mas não
+    sabe se esse alguém somos nós -- e pergunta, em vez de adivinhar. Com
+    o NIF preenchido, adianta a resposta; o gesto de fechar continua a
+    ser de quem lê (etapa 4 do `docs/historico/CRM.md`).
+
+    O NIF, e não só o nome: o dump do IMPIC traz o NIF do adjudicatário,
+    e um nome de empresa escreve-se de cinco maneiras («LDA», «Lda.»,
+    «, S.A.») -- comparar por nome sozinho dava falsos negativos
+    justamente nos concursos que interessam.
+    """
+    nome, nif = _nome_da_casa(cfg)
+    return ("<div class='rot' style='margin:22px 0 6px'>A nossa empresa</div>"
+            "<div class='nota' style='margin-bottom:10px'>Para o radar saber, "
+            "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
+            "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
+            "</div>"
+            "<form method='post' action='/configuracoes/conta/casa' "
+            "class='conf-form'>"
+            + _campo("Nome", "nome_da_casa", nome,
+                     nota="como aparece nos contratos")
+            + _campo("NIF", "nif_da_casa", nif,
+                     nota="nove dígitos; é por aqui que a ligação é certa")
+            + "<button type='submit' class='bt'>Guardar</button></form>")
+
+
+@app.route("/configuracoes/conta/casa", methods=["POST"])
+def config_casa():
+    """Grava quem somos nós. O NIF fica só com os dígitos: o dump do
+    IMPIC guarda-o assim, e um espaço ou um ponto a meio fazia a
+    comparação falhar sem nada no ecrã a dizer porquê."""
+    nome = " ".join((request.form.get("nome_da_casa") or "").split())[:120]
+    nif = re.sub(r"\D", "", request.form.get("nif_da_casa") or "")[:9]
+    gravar_config_registado({"nome_da_casa": nome, "nif_da_casa": nif})
+    return volta_config("conta", "A nossa empresa: guardada.")
 
 
 def _bloco_utilizadores(todos, eu):
@@ -16444,7 +16561,8 @@ def ficha(ref):
                 docs_cx +
                 desfecho_html +
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
-                mercado(a) + "</div>"
+                mercado(a) + "</div>" +
+                contactos_cx(a) +
                 "<div class='ficha-pe'>" + hist_cx + resp_cx + "</div></div>")
 
     # A ficha pendura-se na Pesquisa: e o acervo completo que a contem
@@ -16851,6 +16969,280 @@ def escada_da_proposta(id_):
                                estado_da_casa(estado)))
 
 
+# --- fechar o ciclo com o Portal BASE (etapa 4, 15/09/2026)
+#
+# Submetemos uma proposta; meses depois o Estado publica em quem caiu o
+# procedimento e por quanto. O radar ja tinha as duas pontas -- a
+# proposta na escada e o `contratos.db` -- e faltava liga-las.
+#
+# **A ligacao e por CHAVE, e nao por semelhanca.** Medido a 15/09/2026
+# na base dele: o `contratos.n_anuncio` do dump do IMPIC vem no mesmo
+# formato do `ref` ("17161/2026"), e 69,4% dos anuncios de 2024 ja tem
+# contrato celebrado (contra 5,3% dos de 2026, que e o ciclo a demorar
+# meses). O plano previa o maquinario de semelhanca do `casa.py`
+# (LIMIAR, FOLGA); nao e preciso nenhum -- ou e o mesmo procedimento ou
+# nao e nada. O `desfecho_do_anuncio()`, que ja existia para a ficha,
+# faz exactamente essa juncao.
+#
+# **Propoe, nunca decide** (palavra dele: "isto avanca-se sempre com a
+# confirmacao de um humano para fechar o resultado"). O que o Portal
+# BASE sabe e a quem foi adjudicado; se esse alguem somos nos, so a
+# casa sabe -- e por isso os dois botoes ficam ao lado do facto, e nao
+# um estado escrito nas nossas costas.
+
+
+def _nome_da_casa(cfg=None):
+    """(nome, nif) da empresa, do config.json. Vazios enquanto ninguem os
+    escrever -- e a funcionalidade tem de valer na mesma: sem eles, o
+    ecra mostra a quem foi adjudicado e pergunta se fomos nos."""
+    cfg = ler_config() if cfg is None else cfg
+    return ((cfg.get("nome_da_casa") or "").strip(),
+            re.sub(r"\D", "", cfg.get("nif_da_casa") or ""))
+
+
+def fomos_nos(linhas, cfg=None):
+    """Se a casa está entre os adjudicatários deste desfecho.
+
+    Devolve True, False, ou **None quando não se pode saber** -- que é o
+    caso enquanto o NIF da casa não estiver no `config.json`. Três
+    respostas e não duas de propósito: um False de quem não sabe é uma
+    afirmação falsa, e era com base nele que a proposta ia fechar.
+    """
+    nome, nif = _nome_da_casa(cfg)
+    if not (nome or nif):
+        return None
+    for l in linhas:
+        for chave in (l["ganhou_ch"] or "").split("|"):
+            if nif and re.sub(r"\D", "", chave or "") == nif:
+                return True
+        for quem in (l["ganhou"] or "").split("|"):
+            if nome and simplifica(nome) and simplifica(nome) in simplifica(quem):
+                return True
+    return False
+
+
+def propostas_por_fechar(limite=50):
+    """As propostas ainda abertas cujo procedimento JÁ foi adjudicado.
+
+    São as que ficam meses em «Submetido» à espera de alguém se lembrar
+    de as fechar -- e o Estado já publicou o desfecho. Só as das
+    ranhuras onde ainda se espera resposta: uma «A preparar proposta»
+    com contrato celebrado quer dizer que se perdeu o prazo, e isso não
+    se fecha sozinho, olha-se.
+    """
+    if not ha_corpus():
+        return []
+    with liga() as c:
+        abertas = c.execute(
+            "SELECT * FROM propostas WHERE estado IN ('submetido','relatorio') "
+            "AND ref IS NOT NULL ORDER BY COALESCE(fechada_em, criada_em)"
+        ).fetchall()
+    fora = []
+    for p in abertas:
+        linhas = desfecho_do_anuncio(p["ref"])
+        if linhas:
+            fora.append((p, linhas))
+        if len(fora) >= limite:
+            break
+    return fora
+
+
+def desvio_do_proposto(valor_proposta, linhas):
+    """(desvio 0..1, o que ganhou) entre o que propusemos e o que o
+    procedimento foi adjudicado, ou (None, None).
+
+    É o número que a etapa 4 existe para dar -- «perdeste para a X por
+    18% abaixo do teu preço» --, e é uma conta que só se pode fazer
+    quando as duas pontas são do mesmo âmbito: o nosso preço proposto e
+    a soma dos contratos daquele procedimento. Com lotes soma-se antes
+    de dividir, que é a mesma regra do `desconto_do_desfecho()`; por
+    linha, cada lote comparava-se com a nossa proposta inteira e dava um
+    número que mente com ar de certo.
+    """
+    nosso = euros_do_texto(valor_proposta)
+    if not nosso:
+        return None, None
+    ganhou = sum(l["preco_contratual"] or 0.0 for l in linhas)
+    if not ganhou:
+        return None, None
+    return (nosso - ganhou) / nosso, ganhou
+
+
+def faixa_do_desfecho(p, linhas, cfg=None):
+    """A faixa que propõe fechar uma proposta, no bloco da ficha.
+
+    Diz o facto -- a quem foi adjudicado, por quanto, quando -- e
+    oferece os dois botões. **Não decide**: quando o NIF da casa está
+    configurado adianta qual dos dois é, mas o gesto continua a ser de
+    quem lê.
+    """
+    if not linhas or p["estado"] in ESTADOS_FECHADOS:
+        return ""
+    quem = []
+    for l in linhas:
+        quem += [q for q in (l["ganhou"] or "").split("|") if q]
+    ganhou = sum(l["preco_contratual"] or 0.0 for l in linhas)
+    quando = max((l["data_celebracao"] or "") for l in linhas)
+    nosso, _ = _nome_da_casa(cfg)
+    somos = fomos_nos(linhas, cfg)
+    if somos is True:
+        veredicto = "<b>A adjudicação é nossa.</b>"
+    elif somos is False:
+        veredicto = "<b>Não fomos nós.</b>"
+    else:
+        veredicto = ("Não sei se fomos nós: falta o NIF da casa em "
+                     "<a href='/configuracoes/conta'>Configurações › Conta</a>.")
+    desvio, _ = desvio_do_proposto(p["valor_proposta"], linhas)
+    conta = ""
+    if desvio is not None and somos is not True:
+        conta = (" A nossa proposta estava <b>%s%.1f%%</b> %s."
+                 % ("+" if desvio < 0 else "", abs(desvio) * 100,
+                    "acima" if desvio > 0 else "abaixo"))
+    return ("<div class='desfecho-propoe'>"
+            "<div class='dp-facto'>O Portal BASE diz que este procedimento "
+            "foi adjudicado a <b>%s</b> por <b>%s</b>%s. %s%s</div>"
+            "<div class='dp-botoes'>%s%s<a class='bt-leve' href='#desfecho'>"
+            "ver os contratos</a></div></div>"
+            % (html.escape(" · ".join(dict.fromkeys(quem)) or "alguém"),
+               euros(ganhou) if ganhou else "valor não publicado",
+               (", a " + data_pt(quando)) if quando else "",
+               veredicto, conta,
+               accao("/proposta/%d/escada" % p["id"], "Ganhámos", "mini verde",
+                     campos={"estado": "ganho"}),
+               accao("/proposta/%d/escada" % p["id"], "Perdemos", "mini",
+                     campos={"estado": "perdido", "motivo": "Preço"})))
+
+
+# --- os contactos (etapa 6, 15/09/2026)
+#
+# Quem e a pessoa do lado de la. Foi a ultima etapa do plano de
+# proposito -- e do que se sente falta mais tarde, quando ja ha
+# concursos que se repetem com o mesmo cliente.
+#
+# Sao da ENTIDADE e nao do concurso: a pessoa que responde aos
+# esclarecimentos do IPL responde aos do ano que vem tambem. A chave e a
+# `entidade_chave` do corpus dos contratos (o NIF, quando se sabe) com
+# recurso ao nome normalizado -- a mesma que a ficha da entidade usa,
+# para os contactos e o historico de contratos falarem do mesmo cliente.
+
+
+def chave_da_entidade(a):
+    """A chave por onde os contactos de um anuncio se procuram: o NIF se
+    o anuncio o trouxer, senao o nome normalizado.
+
+    Duas fontes e uma so chave, de proposito: o radar so guarda o nome
+    que o DR escreve, e 93,7% das entidades acham-se pelo nome
+    normalizado (medido, ver `norma_entidade()`). Uma entidade cujo NIF
+    apareca so mais tarde continua a achar os contactos que ja tinha --
+    porque a procura tenta as duas.
+    """
+    nif = re.sub(r"\D", "", _valor(a, "nif") or "")
+    return nif or norma_entidade(_valor(a, "entidade") or "")
+
+
+def contactos_de(chaves):
+    """Os contactos de uma entidade, por qualquer das suas chaves."""
+    chaves = [c for c in (chaves if isinstance(chaves, (list, tuple))
+                          else [chaves]) if c]
+    if not chaves:
+        return []
+    with liga() as c:
+        return c.execute(
+            "SELECT * FROM contactos WHERE entidade_chave IN (%s) "
+            "ORDER BY nome" % ",".join("?" * len(chaves)), chaves).fetchall()
+
+
+def criar_contacto(chave, nome, papel="", email="", telefone="", notas="",
+                   entidade="", quem=None):
+    """Um contacto novo. Devolve o id, ou None sem nome -- um contacto
+    sem nome nao se encontra depois, que e o mesmo que nao existir."""
+    nome = " ".join((nome or "").split())[:120]
+    if not (nome and chave):
+        return None
+    with liga() as c:
+        cur = c.execute(
+            "INSERT INTO contactos (entidade_chave, entidade, nome, papel,"
+            " email, telefone, notas, criado_em) VALUES (?,?,?,?,?,?,?,?)",
+            (chave, " ".join((entidade or "").split())[:160], nome,
+             " ".join((papel or "").split())[:80],
+             " ".join((email or "").split())[:120],
+             " ".join((telefone or "").split())[:40],
+             " ".join((notas or "").split())[:300],
+             datetime.now().strftime("%Y-%m-%d %H:%M")))
+        id_ = cur.lastrowid
+    registar("", "contacto", "%s (%s)" % (nome, entidade or chave), quem)
+    return id_
+
+
+def contactos_cx(a):
+    """O bloco dos contactos na ficha. São da ENTIDADE: a pessoa que
+    responde aos esclarecimentos deste concurso responde aos do ano que
+    vem, e é por isso que aparecem em todos os concursos dela."""
+    chave = chave_da_entidade(a)
+    if not chave:
+        return ""
+    linhas = contactos_de(chave)
+    postos = "".join(
+        "<div class='ct'><div class='ct-nome'>%s%s</div>%s%s%s"
+        "<div class='ct-x'>%s</div></div>"
+        % (html.escape(l["nome"]),
+           " <span class='ct-papel'>%s</span>" % html.escape(l["papel"])
+           if l["papel"] else "",
+           "<a class='ct-l' href='mailto:%s'>%s</a>"
+           % (html.escape(l["email"], quote=True), html.escape(l["email"]))
+           if l["email"] else "",
+           "<span class='ct-l'>%s</span>" % html.escape(l["telefone"])
+           if l["telefone"] else "",
+           "<div class='ct-notas'>%s</div>" % html.escape(l["notas"])
+           if l["notas"] else "",
+           accao("/contacto/%d/apagar" % l["id"], "&times;", "etq-x",
+                 confirmar="Apagar o contacto «%s»?"
+                           % (l["nome"] or "").replace("'", " ")))
+        for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
+    return ("<div class='cx lado-cx' id='contactos'>"
+            "<div class='rot' style='margin-bottom:4px'>Contactos</div>"
+            "<div class='nota' style='margin-bottom:12px'>De <b>%s</b>, e "
+            "não deste concurso: aparecem em todos os que forem dela.</div>"
+            "%s"
+            "<form class='ct-novo' method='post' action='/contacto/nova'>"
+            "<input type='hidden' name='chave' value='%s'>"
+            "<input type='hidden' name='entidade' value='%s'>"
+            "<input type='hidden' name='volta' value='%s'>"
+            "<input type='text' name='nome' placeholder='nome' required "
+            "maxlength='120'>"
+            "<input type='text' name='papel' placeholder='cargo' maxlength='80'>"
+            "<input type='email' name='email' placeholder='e-mail' maxlength='120'>"
+            "<input type='text' name='telefone' placeholder='telefone' "
+            "maxlength='40'>"
+            "<button type='submit'>juntar</button></form></div>"
+            % (html.escape(a["entidade"] or "esta entidade"), postos,
+               html.escape(chave, quote=True),
+               html.escape(a["entidade"] or "", quote=True),
+               html.escape(a["ref"], quote=True)))
+
+
+@app.route("/contacto/nova", methods=["POST"])
+def contacto_novo():
+    ref = (request.form.get("volta") or "").strip()
+    criar_contacto(
+        (request.form.get("chave") or "").strip(),
+        request.form.get("nome"), request.form.get("papel"),
+        request.form.get("email"), request.form.get("telefone"),
+        request.form.get("notas"), request.form.get("entidade"))
+    return volta_ao_referer("/anuncio/" + quote(ref, safe="") if ref else "/")
+
+
+@app.route("/contacto/<int:id_>/apagar", methods=["POST"])
+def contacto_apagar(id_):
+    with liga() as c:
+        l = c.execute("SELECT * FROM contactos WHERE id=?", (id_,)).fetchone()
+        if l:
+            c.execute("DELETE FROM contactos WHERE id=?", (id_,))
+    if l:
+        registar("", "contacto", "apagado: %s" % l["nome"])
+    return volta_ao_referer("/")
+
+
 # --- o bloco "A nossa proposta" na ficha (15/09/2026)
 #
 # "e a pagina do anuncio e sempre a mesma" -- palavra dele. Com o quadro
@@ -16978,6 +17370,11 @@ def proposta_cx(a):
                 % (accao("/estado/%s/analisar" % quote(ref, safe=""),
                          "pôr na escada", "mini verde"),
                    forma_abandonar(ref, titulo=a["titulo"] or "")))
+    # O desfecho do Portal BASE, uma vez por ficha e nao uma por lote:
+    # a juncao e pelo `ref` do procedimento, e com tres lotes seriam
+    # tres consultas iguais ao corpus de 2,4 GB.
+    desfecho = desfecho_do_anuncio(ref)
+    cfg = ler_config()
     blocos = []
     for p in minhas:
         cabeca = estado_da_casa(p["estado"])
@@ -17007,7 +17404,7 @@ def proposta_cx(a):
                html.escape(p["responsavel"] or "", quote=True),
                html.escape(p["coe"] or "", quote=True),
                html.escape(p["notas"] or "", quote=True),
-               _tarefas_da_ficha(p)))
+               faixa_do_desfecho(p, desfecho, cfg) + _tarefas_da_ficha(p)))
     return ("<div class='cx lado-cx' id='proposta'>"
             "<div class='rot' style='margin-bottom:12px'>A nossa proposta</div>"
             "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
@@ -17493,6 +17890,278 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
     return linhas
 
 
+# --- os indicadores comerciais (etapa 5, 15/09/2026)
+#
+# Os indicadores mediam o funil da TRIAGEM: quanto entra, quanto se
+# olha, quanto vinga (`funil_anuncios()`). O que faltava era o do
+# NEGOCIO -- quanto esta em jogo, quanto se ganha, e porque se perde.
+#
+# Tudo o que esta aqui sai das `propostas`, e nada disto adivinha:
+# quando o numero nao se pode fazer, a funcao diz None e o ecra diz
+# porque. Uma taxa de vitoria calculada sobre tres concursos e um
+# numero com ar de certo -- ha um minimo declarado (MINIMO_PARA_TAXA).
+
+
+# Abaixo disto uma taxa nao se mostra. Com dois concursos fechados uma
+# "taxa de vitoria de 50%" e ruido com ar de facto, e as decisoes que se
+# tomam com ela custam dinheiro.
+MINIMO_PARA_TAXA = 5
+
+
+def _euros(linhas, coluna):
+    return sum(v for v in (euros_do_texto(l[coluna]) for l in linhas) if v)
+
+
+def pipeline_em_euros():
+    """Quanto está em jogo, por ranhura aberta, e o total.
+
+    O número de cada ranhura é o mesmo que a soma da coluna do quadro
+    fazia: o preço base até ao Submetido, o proposto daí para a frente.
+    Um pipeline somado a preços base é o tecto das entidades e não o que
+    está em jogo, com o mesmo ar de número certo.
+    """
+    fora = {}
+    with liga() as c:
+        for estado in ESTADOS_ABERTOS:
+            linhas = c.execute("SELECT * FROM propostas WHERE estado=?",
+                               (estado,)).fetchall()
+            coluna = ("valor_proposta" if estado in ESTADOS_COM_PROPOSTO
+                      else "preco_base")
+            soma = _euros(linhas, coluna)
+            # sem proposto lido, o base serve de aproximação -- e diz-se
+            if estado in ESTADOS_COM_PROPOSTO:
+                faltam = [l for l in linhas if not l["valor_proposta"]]
+                soma += _euros(faltam, "preco_base")
+            else:
+                faltam = [l for l in linhas if not l["preco_base"]]
+            fora[estado] = {"quantas": len(linhas), "euros": soma,
+                            "sem_preco": len(faltam)}
+    return fora
+
+
+def taxa_de_vitoria(por=None, minimo=MINIMO_PARA_TAXA):
+    """Quantos se ganham dos que se decidiram, ao todo ou por dimensão.
+
+    O denominador são os **decididos** -- ganhos mais perdidos -- e não
+    tudo o que fechou: um «Não fomos» é uma decisão nossa de não
+    concorrer, e metê-lo no denominador faz a taxa cair por se ter sido
+    selectivo, que é o contrário do que ela devia dizer. O «Cancelado»
+    idem: não foi decidido por ninguém.
+
+    `por` é o nome de uma coluna da proposta (`tipologia`, `coe`,
+    `responsavel`) ou "entidade". Devolve uma lista de
+    (nome, ganhos, decididos, taxa ou None) ordenada pelos decididos --
+    e a taxa é None abaixo do mínimo, que é como se diz «ainda não sei»
+    em vez de inventar.
+    """
+    coluna = por if por in ("tipologia", "coe", "responsavel", "entidade") else None
+    with liga() as c:
+        if coluna:
+            linhas = c.execute(
+                "SELECT COALESCE(NULLIF(%s,''),'(sem)') k,"
+                " SUM(estado='ganho') g, COUNT(*) n FROM propostas "
+                "WHERE estado IN ('ganho','perdido') GROUP BY k "
+                "ORDER BY n DESC" % coluna).fetchall()
+        else:
+            linhas = c.execute(
+                "SELECT 'total' k, SUM(estado='ganho') g, COUNT(*) n "
+                "FROM propostas WHERE estado IN ('ganho','perdido')").fetchall()
+    fora = []
+    for l in linhas:
+        if not l["n"]:
+            continue
+        taxa = (1.0 * l["g"] / l["n"]) if l["n"] >= minimo else None
+        fora.append((l["k"], l["g"], l["n"], taxa))
+    return fora
+
+
+def taxa_por_divisao_cpv(minimo=MINIMO_PARA_TAXA):
+    """A taxa de vitória por divisão de CPV -- as duas primeiras casas,
+    que é a área do negócio. O CPV está no ANÚNCIO e não na proposta, e
+    por isso isto junta as duas tabelas; uma proposta sem anúncio (D2)
+    não tem CPV e fica de fora, que é diferente de contar como zero."""
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT substr(a.cpv,1,2) d, SUM(p.estado='ganho') g, COUNT(*) n "
+            "FROM propostas p JOIN anuncios a ON a.ref = p.ref "
+            "WHERE p.estado IN ('ganho','perdido') AND a.cpv != '' "
+            "GROUP BY d ORDER BY n DESC LIMIT 10").fetchall()
+    return [(l["d"], l["g"], l["n"],
+             (1.0 * l["g"] / l["n"]) if l["n"] >= minimo else None)
+            for l in linhas]
+
+
+def porque_se_perde():
+    """Os motivos de perda agregados. São vocabulário fechado
+    (MOTIVOS_PERDA), e é por isso que dão contas -- texto livre daria,
+    ao fim de um mês, cinquenta maneiras de escrever «preço» e nenhuma
+    soma."""
+    with liga() as c:
+        return c.execute(
+            "SELECT COALESCE(NULLIF(motivo,''),'(por dizer)') m, COUNT(*) n "
+            "FROM propostas WHERE estado='perdido' GROUP BY m "
+            "ORDER BY n DESC").fetchall()
+
+
+def porque_nao_se_vai():
+    """O mesmo para o «Não fomos» (MOTIVOS_ABANDONO). Vale tanto como o
+    outro e diz outra coisa: onde é que a casa não chega -- falta de
+    certificações, falta de CV's -- é o que se pode ir corrigir."""
+    with liga() as c:
+        return c.execute(
+            "SELECT COALESCE(NULLIF(motivo,''),'(por dizer)') m, COUNT(*) n "
+            "FROM propostas WHERE estado='nao_fomos' GROUP BY m "
+            "ORDER BY n DESC").fetchall()
+
+
+def dias_parados(limite=10):
+    """As propostas abertas que há mais tempo não se mexem.
+
+    Mede-se pela última linha do histórico daquele `ref`, e não pela
+    criação: uma proposta que se mexeu ontem não está parada, por muito
+    antiga que seja. Sem histórico nenhum vale a data de criação.
+    """
+    hoje = datetime.now().date()
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT p.*, (SELECT MAX(h.quando) FROM historico h "
+            "  WHERE h.ref = p.ref) AS mexeu "
+            "FROM propostas p WHERE p.estado IN (%s)"
+            % ",".join("?" * len(ESTADOS_ABERTOS)),
+            list(ESTADOS_ABERTOS)).fetchall()
+    fora = []
+    for p in linhas:
+        quando = (p["mexeu"] or p["criada_em"] or "")[:10]
+        try:
+            dias = (hoje - datetime.strptime(quando, "%Y-%m-%d").date()).days
+        except ValueError:
+            continue
+        fora.append((p, dias))
+    fora.sort(key=lambda x: -x[1])
+    return fora[:limite]
+
+
+def desconto_medio_dos_ganhos():
+    """(desconto médio 0..1, sobre quantos) nos concursos ganhos.
+
+    Quanto abaixo do preço base é que se ganha -- o número que diz se a
+    casa está a deixar dinheiro em cima da mesa ou a comprar trabalho.
+    Só conta quem tem os dois preços lidos, e diz sobre quantos: somar
+    uns e calar os outros parecia a média de todos.
+    """
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT preco_base, valor_proposta FROM propostas "
+            "WHERE estado='ganho'").fetchall()
+    descontos = []
+    for l in linhas:
+        base = euros_do_texto(l["preco_base"])
+        nosso = euros_do_texto(l["valor_proposta"])
+        if base and nosso and nosso <= base:
+            descontos.append((base - nosso) / base)
+    if not descontos:
+        return None, 0
+    return sum(descontos) / len(descontos), len(descontos)
+
+
+def negocio_cx():
+    """O bloco dos indicadores COMERCIAIS (etapa 5, 15/09/2026).
+
+    Os indicadores mediam o funil da triagem -- quanto entra, quanto se
+    olha, quanto vinga. Faltava o do negócio: quanto está em jogo,
+    quanto se ganha, e porque se perde.
+
+    **Cada número abre a lista que o confirma**, que é a regra da casa.
+    E o que não se pode saber diz-se: uma taxa sobre três concursos é
+    ruído com ar de facto, e as decisões que se tomam com ela custam
+    dinheiro.
+    """
+    pipeline = pipeline_em_euros()
+    em_jogo = sum(v["euros"] for v in pipeline.values())
+    abertas = sum(v["quantas"] for v in pipeline.values())
+    sem_preco = sum(v["sem_preco"] for v in pipeline.values())
+    totais = taxa_de_vitoria()
+    ganhos, decididos, taxa = (totais[0][1], totais[0][2], totais[0][3]) \
+        if totais else (0, 0, None)
+    desconto, sobre = desconto_medio_dos_ganhos()
+
+    def numero(rotulo, valor, nota, destino=""):
+        valor = ("<a href='%s'>%s</a>" % (html.escape(destino, quote=True), valor)
+                 if destino else valor)
+        return ("<div><b>%s</b><span>%s</span><span class='sub'>%s</span></div>"
+                % (valor, rotulo, nota))
+
+    cabeca = "".join((
+        numero("em jogo", euros_curto(em_jogo) if em_jogo else "&mdash;",
+               "%d proposta%s aberta%s%s"
+               % (abertas, "" if abertas == 1 else "s",
+                  "" if abertas == 1 else "s",
+                  "; %d sem preço lido" % sem_preco if sem_preco else "")),
+        numero("taxa de vitória",
+               "%.0f%%" % (taxa * 100) if taxa is not None else "&mdash;",
+               ("%d de %d decididos" % (ganhos, decididos)) if decididos
+               else "ainda não há decididos"
+               if not decididos else
+               "poucos para contar (mínimo %d)" % MINIMO_PARA_TAXA),
+        numero("desconto médio",
+               "%.1f%%" % (desconto * 100) if desconto is not None else "&mdash;",
+               "nos %d ganhos com os dois preços lidos" % sobre
+               if sobre else "sem preços lidos nos ganhos")))
+
+    # o pipeline por ranhura, cada barra a abrir a sua lista
+    maior = max([v["euros"] for v in pipeline.values()] + [1.0])
+    barras = "".join(
+        "<div class='col'><span class='v'>%s</span>"
+        "<a class='b' href='/?estado=%s' style='height:%d%%' "
+        "title='%d proposta(s)'></a><span class='l'>%s</span></div>"
+        % (euros_curto(pipeline[ch]["euros"]) if pipeline[ch]["euros"] else "0",
+           ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
+           pipeline[ch]["quantas"], html.escape(estado_da_casa(ch)))
+        for ch in ESTADOS_ABERTOS)
+
+    def tabela(titulo, linhas, vazio):
+        if not linhas:
+            return ("<div class='rot' style='margin:22px 0 6px'>%s</div>"
+                    "<div class='nota'>%s</div>" % (titulo, vazio))
+        maior_n = max(l["n"] for l in linhas)
+        return ("<div class='rot' style='margin:22px 0 10px'>%s</div>"
+                "<div class='barras-h'>%s</div>"
+                % (titulo, "".join(
+                    "<div class='lh'><span class='t'>%s</span>"
+                    "<span class='bh' style='width:%d%%'></span>"
+                    "<span class='n'>%d</span></div>"
+                    % (html.escape(l["m"]), int(100.0 * l["n"] / maior_n), l["n"])
+                    for l in linhas)))
+
+    parados = dias_parados(5)
+    lista_parados = "".join(
+        "<div class='l'><span class='t'><a href='%s'>%s</a></span>"
+        "<span class='v'>%d dias</span></div>"
+        % ("/anuncio/" + quote(p["ref"], safe="") if p["ref"]
+           else "/proposta/%d" % p["id"],
+           html.escape(corta(p["titulo"] or p["entidade"] or "?", 48)), dias)
+        for p, dias in parados) or "<div class='nota'>nada parado</div>"
+
+    return ("<div class='cx' style='padding:22px 24px'>"
+            "<div class='rot' style='margin-bottom:6px'>O negócio</div>"
+            "<div class='nota' style='margin-bottom:18px'>O que está em "
+            "jogo, o que se ganha e porque se perde. Uma taxa só aparece "
+            "com %d decididos ou mais.</div>"
+            "<div class='desfecho-som'>%s</div>"
+            "<div class='rot' style='margin:22px 0 10px'>Em jogo, por "
+            "ranhura</div><div class='barras'>%s</div>"
+            "%s%s"
+            "<div class='rot' style='margin:22px 0 6px'>Há mais tempo sem "
+            "se mexerem</div><div class='saude'>%s</div>"
+            "</div>"
+            % (MINIMO_PARA_TAXA, cabeca, barras,
+               tabela("Porque se perde", porque_se_perde(),
+                      "ainda não há perdidos"),
+               tabela("Porque não se vai", porque_nao_se_vai(),
+                      "ainda não há «não fomos»"),
+               lista_parados))
+
+
 @app.route("/indicadores")
 def indicadores_antigo():
     """Passou a Configuracoes > Indicadores (13/09/2026); redirecciona."""
@@ -17792,6 +18461,10 @@ def indicadores():
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
         "<div class='kpis'>%s</div>"
+        # o bloco do negocio como ARGUMENTO e nao concatenado: o `%` de
+        # baixo aplica-se a ultima string da cadeia, e um `+` a meio
+        # partia a formatacao de tudo o que vem depois
+        "%s"
         "%s"
         "<div class='ind-grelha'>"
         "<div class='cx' style='padding:22px 24px'>"
@@ -17805,7 +18478,8 @@ def indicadores():
         "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
         "<code>contratos.db</code>. Actualiza-se em "
         "<a href='/contratos'>Contratos</a>.</div></div>"
-        "</div></div>" % (kpis_html, funil_cx, barras, saude_html, corpus_html))
+        "</div></div>" % (kpis_html, negocio_cx(), funil_cx, barras, saude_html,
+                          corpus_html))
 
     return pagina_config("indicadores", conteudo)
 
