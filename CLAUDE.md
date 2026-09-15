@@ -43,13 +43,18 @@ muda, e o que lá está vale para o dia em que foi visto**. O
 `docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface
 da casa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
 afinar, dívida): lê-o antes de mexer no painel. O
-`docs/historico/CRM.md` (15/09/2026) é o plano para o «Em curso» deixar
-de ser a mesma consulta dos interessados: separar lead de proposta,
-promover o registo da casa a objecto do funil, e fechar o ciclo com o
-Portal BASE — **lê-o antes de tocar no quadro, no calendário, na lista
-do «Em curso» ou nas colunas de CRM do `anuncios`**. Traz quatro
-decisões por responder pelo Afonso, e um achado que não espera pelo
-plano (§1.6: os campos do CRM não saem no `triagem.jsonl`).
+`docs/historico/CRM.md` (15/09/2026, reescrito nesse dia com as
+respostas dele) é o plano para o «Em curso» deixar de ser a mesma
+consulta dos interessados. O desenho é do Afonso: **uma escada só** —
+dez ranhuras, a entrada (*por ver*), as oito palavras da casa (*por
+analisar · a preparar proposta · submetido · relatório preliminar ·
+ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados —
+com lista, quadro e calendário como três vistas dela, e a navegação
+fundida num «Concursos». Por baixo, uma tabela `propostas` que o estado
+do anúncio não consegue ser (lotes, e propostas sem anúncio). **Lê-o
+antes de tocar no quadro, no calendário, na lista do «Em curso», nas
+abas dos anúncios ou nas colunas de CRM do `anuncios`.** As sete
+decisões estão respondidas no §2; nenhuma se reabre de passagem.
 
 **A documentação corrige-se na mesma sessão que muda o comportamento.**
 Antes do commit de qualquer trabalho que mude comportamento, números ou
