@@ -136,11 +136,14 @@ dezassete já existiam ou não se aplicam): páginas de erro da casa
 (404, 403 e 500, e o 500 fica na marca `painel_ultimo_erro` e na série
 `erros`, visível nos últimos erros dos Indicadores); a rota **`/saude`**,
 sem sessão, que responde «ok» ou 503 para um vigilante de fora bater
-(o UptimeRobot, por exemplo; está por ligar, é na conta do Afonso); e o
+(o UptimeRobot, ligado pelo Afonso nesse dia, na conta dele, a bater
+de 5 em 5 minutos e a avisar por e-mail); e o
 **`--ensaiar-copia`**, que prova que a última cópia se restaura sem a
 restaurar (integrity_check e contagens contra a base viva; marca
-`ultimo_ensaio_copia`). **Ainda ninguém correu o ensaio na instalação
-verdadeira**: é o passo seguinte, no computador do Afonso.
+`ultimo_ensaio_copia`). **Correu na instalação a 15/09/2026, depois
+da v1.3.0: «Serve.»**, integridade ok, 209 793 anúncios na cópia contra
+209 826 na base viva (os 33 da verificação das 09:00, feita depois da
+cópia). A release **v1.3.0** é desse dia: os PR #8 a #20.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
