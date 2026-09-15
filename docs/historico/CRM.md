@@ -353,3 +353,39 @@ falta mais tarde.
 **1 → 2** (o modelo e a escada: é aqui que os dois separadores deixam
 de ser o mesmo) → **4** (o ciclo com o BASE, o que distingue este
 produto dos pagos) → 3, 5, 6.
+
+---
+
+## 8. O que se fez, e o que o fazer mudou (15/09/2026)
+
+**As seis etapas ficaram feitas nesse dia.** Três coisas saíram
+diferentes do que aqui está escrito, e as três por medição ou por
+palavra dele:
+
+1. **O quadro saiu.** Este plano dava-o como uma das três vistas da
+   escada. Ao ver o ecrã, ele decidiu o contrário: «o quadro deixa de
+   ser preciso tal como a lista. na verdade eu devo conseguir passar
+   entre estados aqui». Oito colunas e oito abas eram a mesma coisa
+   duas vezes, e a diferença era o arrastar — que só compensa quando se
+   vê tudo ao mesmo tempo. A ranhura muda-se no selector de cada linha,
+   e o bloco «A nossa proposta» da ficha recebeu tudo o que o cartão
+   fazia. Sobra o calendário como única outra vista.
+
+2. **A etapa 4 não precisa de semelhança nenhuma.** O §4 mandava usar o
+   maquinário do `casa.py` (`LIMIAR`, `FOLGA`). Medido: o
+   `contratos.n_anuncio` do dump do IMPIC **é** o `ref` do radar, e
+   69,4% dos anúncios de 2024 já têm contrato celebrado. É uma junção
+   exacta — ou é o mesmo procedimento ou não é nada.
+
+3. **A etapa 3 encolheu.** A vista «Hoje» chegou a existir e saiu com o
+   quadro, por ele ter escolhido que só o calendário sobrevive como
+   vista. O que ficou são as tarefas na ficha, com as datas do DR a
+   entrarem sozinhas. **Fica por responder «o que tenho de fazer hoje,
+   em todos os concursos ao mesmo tempo»** — a `agenda()` que respondia
+   a isso está no histórico do git.
+
+Uma coisa fica por preencher, e não é trabalho: **o NIF da casa**, em
+Configurações › Conta. Sem ele o cruzamento com o Portal BASE mostra a
+quem o procedimento foi adjudicado e pergunta se fomos nós; com ele,
+adianta a resposta. O gesto de fechar continua a ser de quem lê, nos
+dois casos.

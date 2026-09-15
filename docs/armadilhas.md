@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 31
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 39
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São **142** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **150** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
@@ -1098,6 +1098,59 @@ pelo Afonso e nenhuma se reabre de passagem.
   continua de fora, no `condicao_da_aba()`: é um campo que quem guardou
   o filtro escolheu, e calá-lo fazia o filtro deixar de ver o que sempre
   viu. A migração `traduzir_filtros_guardados()` corre a cada arranque.
+
+- **O cruzamento com o Portal BASE é por CHAVE, e não por semelhança.**
+  Medido a 15/09/2026 na base dele: o `contratos.n_anuncio` do dump do
+  IMPIC vem no mesmo formato do `ref` do radar («17161/2026»), e há
+  índice (`ix_ctr_anuncio`). **69,4% dos anúncios de 2024 já têm
+  contrato celebrado**, contra 5,3% dos de 2026 — que é o ciclo a
+  demorar meses, e não uma falha. O plano previa o maquinário de
+  semelhança do `casa.py` (`LIMIAR`, `FOLGA`); não é preciso nenhum —
+  ou é o mesmo procedimento ou não é nada. O `desfecho_do_anuncio()`,
+  que já existia para a ficha, faz exactamente essa junção.
+
+- **`fomos_nos()` tem TRÊS respostas, e a terceira é «não sei».** Sem o
+  NIF da casa no `config.json` não se pode saber se a adjudicação foi
+  nossa, e um `False` de quem não sabe é uma afirmação falsa — era com
+  base nela que a proposta ia fechar como perdida. Com o NIF, a ficha
+  adianta a resposta; **o gesto de fechar continua a ser de quem lê**
+  (palavra dele: «isto avança-se sempre com a confirmação de um humano
+  para fechar o resultado»). O NIF e não só o nome: um nome de empresa
+  escreve-se de cinco maneiras («LDA», «Lda.», «, S.A.»), e comparar
+  por nome sozinho dava falsos negativos nos concursos que interessam.
+
+- **O desvio face ao adjudicado soma os lotes ANTES de dividir.** A
+  mesma regra do `desconto_do_desfecho()`: o procedimento é a unidade.
+  Por linha, cada lote comparava-se com a nossa proposta inteira e dava
+  um número que mente com ar de certo.
+
+- **O «Não fomos» não entra no denominador da taxa de vitória.** É uma
+  decisão nossa de não concorrer, e metê-lo lá fazia a taxa cair por se
+  ter sido selectivo — o contrário do que ela devia dizer. O
+  «Cancelado» idem: não foi decidido por ninguém. O denominador são os
+  **decididos**: ganhos mais perdidos.
+
+- **Uma taxa abaixo de `MINIMO_PARA_TAXA` é `None`, e não um número.**
+  Com dois concursos fechados, uma «taxa de vitória de 50%» é ruído com
+  ar de facto, e as decisões que se tomam com ela custam dinheiro. O
+  `None` é como se diz «ainda não sei»; o ecrã mostra um traço e diz
+  sobre quantos é que contava.
+
+- **O `por` da `taxa_de_vitoria()` passa por lista branca.** Vem de um
+  sítio só do código, mas é um nome de coluna que entra em SQL — e uma
+  lista branca é o que separa isto de interpolar o que vier. Há teste.
+
+- **«Parado» mede-se pela última linha do histórico, não pela criação.**
+  Uma proposta que se mexeu ontem não está parada, por muito antiga que
+  seja.
+
+- **Os contactos são da ENTIDADE e não do concurso.** A pessoa que
+  responde aos esclarecimentos do IPL responde aos do ano que vem
+  também, e é por isso que aparecem em todos os concursos dela. A chave
+  é o NIF quando o anúncio o traz e o nome normalizado quando não —
+  93,7% das entidades acham-se assim (medido; ver `norma_entidade()`),
+  e uma entidade cujo NIF só apareça mais tarde continua a achar os
+  contactos que já tinha porque a procura tenta as duas.
 
 - **O quadro saiu, e o que ele fazia mora em dois sítios.** Decisão dele
   a 15/09/2026, a olhar para o ecrã: «o quadro deixa de ser preciso tal

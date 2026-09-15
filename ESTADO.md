@@ -195,8 +195,31 @@ cartão montado a partir do registo do Excel, que não se arrastava nem
 se editava. Com uma proposta por lote, cada um cai sozinho na coluna
 dele e é um cartão como os outros.
 
-Falta a etapa 3 em diante: tarefas e cronologia, o ciclo com o Portal
-BASE, os indicadores comerciais e os contactos.
+**As etapas 4, 5 e 6 entraram nessa noite, e o CRM ficou completo.**
+
+**O ciclo com o Portal BASE fecha-se por chave e não por palpite**, que
+foi a surpresa da medição: o `contratos.n_anuncio` do dump do IMPIC vem
+no mesmo formato do `ref` do radar («17161/2026»), e **69,4% dos
+anúncios de 2024 já têm contrato celebrado** (5,3% nos de 2026 — o ciclo
+demora meses). O plano previa o maquinário de semelhança do `casa.py`;
+não é preciso nenhum. A ficha de uma proposta ainda aberta cujo
+procedimento já foi adjudicado mostra a quem foi, por quanto, e **quanto
+a nossa proposta estava acima ou abaixo** — com dois botões, «Ganhámos»
+e «Perdemos». **Propõe, nunca decide.** Falta-lhe uma coisa para
+adiantar a resposta: o NIF da casa, em Configurações › Conta (enquanto
+estiver vazio, pergunta em vez de adivinhar).
+
+**Os indicadores ganharam o bloco «O negócio»**: o que está em jogo por
+ranhura (preço base até ao Submetido, proposto daí para a frente), a
+taxa de vitória — que **só aparece com 5 decididos ou mais**, e onde o
+«Não fomos» não entra no denominador, porque é uma decisão de não
+concorrer e não uma derrota —, o desconto médio nos ganhos, porque se
+perde e porque não se vai, e o que há mais tempo não se mexe. Cada
+número abre a lista que o confirma.
+
+**E os contactos**, que são da **entidade** e não do concurso: a pessoa
+que responde aos esclarecimentos do IPL responde aos do ano que vem
+também, e por isso aparecem em todos os concursos dela.
 
 **A 15/09/2026 entraram as três coisas que faltavam de uma lista de
 «20 coisas a proteger antes de um site ir para o público»** (as outras
@@ -414,8 +437,8 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 18 0xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com **904** testes que correm em ~75 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 18 8xx linhas, `casa.py` com 1 267,
+`teste_radar.py` com **937** testes que correm em ~75 segundos, sem rede e sem
 tocar na base verdadeira (contados a 15/09/2026, depois das etapas 1 e 2 do CRM; a 14/09 a auditoria
 ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
@@ -423,7 +446,7 @@ ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **M
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são
 **1,23 GB**, com os onze anos e os detalhes todos lidos — o
-`anuncios.texto` sozinho são **843 MB**; 22 tabelas, no git só a triagem e as propostas,
+`anuncios.texto` sozinho são **843 MB**; 23 tabelas, no git só a triagem, as propostas, as tarefas e os contactos,
 cópia diária em `copias/`) e
 `contratos.db` (2,36 GB, 1 987 798 contratos de 2015 a 2026, 178 978
 entidades, **fora do git**, refaz-se com `--contratos`). **O tamanho da
