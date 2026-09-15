@@ -373,7 +373,8 @@ publicação, ou linhas do dump sem `nAnuncio`.
 mudou de fonte.** Decisão do Afonso: o Excel antigo
 (`Analise_Concursos_Publicos.xlsm`) deixa de contar para a aplicação —
 fica nos documentos, e o leitor dele fica no `casa.py` sem comando que
-o chame. Em vez disso **o radar dita o modelo**: um `.xlsx` gerado em
+o chame (**e saiu de vez a 15/09/2026**, por decisão dele: 603 linhas de
+código e 638 de testes; está no histórico do git). Em vez disso **o radar dita o modelo**: um `.xlsx` gerado em
 Configurações › Importar dados (referência do anúncio, lote, estado,
 razão, proposta, lugar, concorrentes, responsável, notas, com listas
 de escolha), que se preenche, se carrega, se vê em ensaio e só depois
@@ -437,8 +438,9 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 18 971 linhas, `casa.py` com 1 307,
-`teste_radar.py` com **927** testes que correm em ~67 segundos, sem rede e sem
+**Código e testes.** `radar.py` com 18 971 linhas, `casa.py` com **630**
+(eram 1 307: saiu o leitor do Excel antigo),
+`teste_radar.py` com **911** testes que correm em ~66 segundos, sem rede e sem
 tocar na base verdadeira (contados a 15/09/2026, ao fim do CRM e da limpeza do
 código morto; a 14/09 a auditoria ponytail tinha tirado ~160 linhas líquidas ao
 conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
@@ -454,8 +456,12 @@ três detectores por expressão regular darem 30, 104 e 81 falsos
 positivos. Duas funções das etapas 4 e 5 **não estavam mortas, estavam
 por ligar** e ligaram-se: `propostas_por_fechar()` é agora o aviso no
 topo de «O negócio», e `taxa_por_divisao_cpv()` a lista «Onde se ganha,
-por área». O leitor do Excel antigo do `casa.py` não se tocou — é
-decisão dele (ver o §2 do `docs/historico/CRM.md`).
+por área». **O leitor do Excel antigo saiu** ao fim do dia, quando ele
+disse «corta, fica no git»: 603 linhas do `casa.py` e 638 do
+`TestRegistoDaCasa`, que encolheu para as seis provas de código vivo
+(`TestEstadoEfectivoDaCasa`). O corte destapou um erro que nenhum teste
+apanhava: o `--casa-desfazer` apagava o histórico por `quem='Excel'`, e
+já só a importação pelo modelo escreve ali — agora repõe-se pela cópia.
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
 de 04/09/2026; ao fim dessa tarde, com os onze anos dentro, são

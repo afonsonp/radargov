@@ -1,33 +1,29 @@
 # -*- coding: utf-8 -*-
 """O registo da casa: o que a empresa fez com cada concurso.
 
-Primeira fonte: o Excel de analise de concursos do Afonso
-(Analise_Concursos_Publicos.xlsm), exportado de uma lista do SharePoint
-e completado a mao numa folha por concurso. Le-se com a MESMA logica dos
-consolidadores VBA que ele tem la dentro -- as folhas C_ sao os registos,
-as tabelas planas sao derivadas e podem estar desactualizadas.
-
-Cada linha liga-se ao PROCEDIMENTO do radar (o anuncio original, nunca
-uma alteracao) e, quando o estado e inequivoco, escreve-se a triagem e o
-quadro nesse anuncio. O que o Excel sabe e o radar nao (concorrentes,
+Entra pelo **modelo** -- a folha que o radar escreve (`escrever_modelo()`)
+e o Afonso preenche, uma linha por concurso respondido, com a ref do DR
+escrita por ele. Le-se com `ler_modelo()`, ensaia-se com
+`ensaio_modelo()` e aplica-se com `aplicar_modelo()`, que cria ou move a
+proposta na escada. O que o registo sabe e o radar nao (concorrentes,
 precos por perfil, EBITDA, perfis exigidos) fica na tabela `casa` e
 mostra-se na ficha.
+
+**O leitor do Excel antigo saiu a 15/09/2026**, por decisao dele. Era o
+`.xlsm` de analise de concursos exportado do SharePoint, lido com a
+logica dos consolidadores VBA de dentro dele, e ligado aos anuncios por
+semelhanca de titulo e entidade (`Acervo`, `pontuar`, `ref_pelo_base`,
+`decidir`, `importar`, `ligar_a_mao`): 603 linhas que nenhum comando e
+nenhuma rota chamavam desde que a D4 do `docs/historico/CRM.md` decidiu
+que o Excel so importa o passado pelo modelo. O `.xlsm` ja tinha sido
+importado. Esta no historico do git.
 
 E o primeiro modulo fora do radar.py (decisao de 01/09/2026): importa o
 radar de dentro das funcoes, porque o radar importa este para as rotas.
 """
 import json
 import re
-import time
 from datetime import datetime
-
-# Entidades que nao entram (decisao do Afonso a 01/09/2026): as espanholas.
-# O universo do radar e a parte L do DR, por isso nada disto se ligaria
-# de qualquer maneira; a regra existe para nao ficarem "por ligar" para
-# sempre a pedir atencao.
-FORA_DO_PAIS = ("asturias", "principado de", "xunta de", "junta de andalucia",
-                "generalitat", "ayuntamiento", "gobierno de", "ministerio de",
-                "comunidad de", "diputacion")
 
 # Os estados do Excel que se traduzem em triagem do radar. "Cancelado" e
 # "TBD" ficam so no registo: nao ha estado do radar que os diga sem mentir.
@@ -56,39 +52,6 @@ MAPA_RAZAO = {"preco base demasiado baixo": "Preço base baixo",
               "prazo de entrega curto": "Prazo curto",
               "prazo curto": "Prazo curto"}
 
-STOP = set("de da do das dos e a o as os em para com no na nos nas por um uma "
-           "ao aos servicos servico aquisicao contratacao prestacao fornecimento "
-           "projeto projecto desenvolvimento".split())
-
-# Nomes curtos que o Excel usa e que o corpus nao resolve sozinho.
-ALIAS = {"ipl": "instituto politecnico de leiria",
-         "tml": "transportes metropolitanos de lisboa",
-         "osae": "ordem dos solicitadores",
-         "act": "autoridade para as condicoes do trabalho",
-         "icnf": "conservacao da natureza",
-         "igefe": "gestao financeira e equipamentos",
-         "igfej": "gestao financeira e equipamentos da justica",
-         "adene": "agencia para a energia",
-         "ifap": "financiamento da agricultura",
-         "impic": "mercados publicos do imobiliario",
-         "aicep": "aicep",
-         "ipdj": "portugues do desporto e juventude",
-         "dgpj": "direcao geral da politica de justica",
-         "ipca": "instituto politecnico do cavado",
-         "ama": "modernizacao administrativa",
-         "ansr": "seguranca rodoviaria",
-         "inem": "emergencia medica",
-         "lneg": "energia e geologia",
-         "dgt": "direcao geral do territorio",
-         "u porto": "universidade do porto",
-         "emrp": "emrp"}
-
-LIMIAR = 0.6           # abaixo disto nao ha ligacao
-FOLGA = 0.15           # o segundo tem de ficar a esta distancia do primeiro
-MAX_CANDIDATOS = 5
-
-
-# ------------------------------------------------------------ o Excel
 
 def _num(v):
     if v is None or v == "":
@@ -102,363 +65,9 @@ def _num(v):
         return None
 
 
-def _txt(v):
-    return " ".join(str(v).split()) if v is not None else ""
-
-
-def _celulas(ws):
-    """A folha como lista de linhas (listas), sem depender de dimensions."""
-    return [list(r) for r in ws.iter_rows(values_only=True)]
-
-
-def _procura(linhas, texto, coluna=0, a_partir=0):
-    """Indice da primeira linha cuja coluna comeca por `texto` (maiusc.)."""
-    alvo = texto.upper()
-    for i in range(a_partir, len(linhas)):
-        cel = linhas[i][coluna] if coluna < len(linhas[i]) else None
-        if cel is not None and _txt(cel).upper().startswith(alvo):
-            return i
-    return -1
-
-
-def _valor_em(linhas, i, coluna=1):
-    if 0 <= i < len(linhas) and coluna < len(linhas[i]):
-        return linhas[i][coluna]
-    return None
-
-
-def ler_folha_concurso(ws):
-    """Uma folha C_: as tabelas A, A.1, B, C e C.1, pelas mesmas ancoras
-    que as macros usam ("TABELA B", "TABELA C", cabecalhos PERFIL e
-    CONCORRENTE)."""
-    L = _celulas(ws)
-    if not L:
-        return None
-    fora = {"entidade": _txt(_valor_em(L, 0, 0)),
-            "nome": _txt(_valor_em(L, 0, 1)),
-            "id": None, "perfis": [], "concorrentes": [], "precos_perfis": []}
-    # o id estavel fica em Z1 (coluna 26, indice 25) com a marca em Z2
-    z1 = _valor_em(L, 0, 25)
-    if isinstance(z1, (int, float)):
-        fora["id"] = int(z1)
-    else:
-        try:
-            fora["id"] = int(_txt(_valor_em(L, 0, 2)) or 0) or None
-        except ValueError:
-            pass
-    # Tabela A: rotulo na coluna A, valor na B
-    ia = _procura(L, "TABELA A")
-    rotulos = {"modelo": "modelo", "prazo de execu": "prazo_meses",
-               "preço base": "preco_base", "preco base": "preco_base",
-               "critério": "criterio", "criterio": "criterio",
-               "plataforma": "plataforma", "ano": "ano", "status": "status"}
-    if ia >= 0:
-        for i in range(ia + 1, min(ia + 12, len(L))):
-            rot = _txt(_valor_em(L, i, 0)).lower()
-            for chave, campo in rotulos.items():
-                if rot.startswith(chave):
-                    fora[campo] = _valor_em(L, i, 1)
-    # A.1: perfis exigidos, ate a linha vazia ou a TABELA B
-    ip = _procura(L, "PERFIL", 0, ia if ia >= 0 else 0)
-    if ip >= 0:
-        for i in range(ip + 1, len(L)):
-            p = _txt(_valor_em(L, i, 0))
-            if not p or p.upper().startswith("TABELA"):
-                break
-            fora["perfis"].append({
-                "perfil": p, "tecnologias": _txt(_valor_em(L, i, 1)),
-                "anos": _num(_valor_em(L, i, 2)), "n": _num(_valor_em(L, i, 3)),
-                "horas": _num(_valor_em(L, i, 4)),
-                "certificacoes": _txt(_valor_em(L, i, 5))})
-    # Tabela B: nove valores na coluna B, pela ordem do modelo
-    ib = _procura(L, "TABELA B")
-    if ib >= 0:
-        fora["valor_proposta"] = _num(_valor_em(L, ib + 1))
-        fora["lugar"] = _num(_valor_em(L, ib + 2))
-        fora["ebitda"] = _num(_valor_em(L, ib + 3))
-        fora["gap_base"] = _num(_valor_em(L, ib + 4))
-        fora["gap_base_pct"] = _num(_valor_em(L, ib + 5))
-        fora["gap_primeiro"] = _num(_valor_em(L, ib + 6))
-        fora["gap_primeiro_pct"] = _num(_valor_em(L, ib + 7))
-        fora["razao"] = _txt(_valor_em(L, ib + 8))
-        fora["notas"] = _txt(_valor_em(L, ib + 9))
-    # Tabela C: cinco lugares, tres linhas cada (titulo, nome, valor)
-    ic = _procura(L, "TABELA C")
-    if ic >= 0:
-        for lugar in range(1, 6):
-            base = ic + 1 + (lugar - 1) * 3
-            nome = _txt(_valor_em(L, base + 1))
-            if nome:
-                fora["concorrentes"].append(
-                    {"lugar": lugar, "nome": nome,
-                     "valor": _num(_valor_em(L, base + 2))})
-    # C.1: preco por perfil por concorrente
-    icc = _procura(L, "CONCORRENTE", 0, ic if ic >= 0 else 0)
-    if icc >= 0:
-        for i in range(icc + 1, len(L)):
-            conc = _txt(_valor_em(L, i, 0))
-            if not conc or conc.upper().startswith("LEGENDA"):
-                break
-            fora["precos_perfis"].append({
-                "concorrente": conc, "perfil": _txt(_valor_em(L, i, 1)),
-                "tecnologias": _txt(_valor_em(L, i, 2)),
-                "anos": _num(_valor_em(L, i, 3)), "valor": _num(_valor_em(L, i, 4)),
-                "horas": _num(_valor_em(L, i, 5)), "hora": _num(_valor_em(L, i, 6))})
-    return fora
-
-
-def ler_excel(caminho):
-    """As linhas do INDICE, completadas pela folha de cada concurso quando
-    existe. Devolve uma lista de dicionarios, um por concurso, com `id`
-    (a coluna K do INDICE, estavel) e `folha` (o nome da folha ou '')."""
-    import openpyxl
-    wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
-    if "ÍNDICE" not in wb.sheetnames:
-        raise ValueError("o ficheiro não tem a folha ÍNDICE")
-    L = _celulas(wb["ÍNDICE"])
-    cab = [_txt(c).upper() for c in (L[0] if L else [])]
-    def col(nome, omissao):
-        for i, c in enumerate(cab):
-            if c.startswith(nome):
-                return i
-        return omissao
-    ci = {"nome": col("NOME", 0), "entidade": col("ENTIDADE", 1),
-          "modelo": col("MODELO", 2), "prazo": col("PRAZO", 3),
-          "preco": col("PRE", 4), "criterio": col("CRIT", 5),
-          "plataforma": col("PLATAFORMA", 6), "ano": col("ANO", 7),
-          "status": col("STATUS", 8), "id": col("ID", 10)}
-    folhas = {}
-    for nome in wb.sheetnames:
-        if nome.startswith("C_"):
-            f = ler_folha_concurso(wb[nome])
-            if f and f["id"]:
-                f["folha"] = nome
-                folhas[f["id"]] = f
-    linhas = []
-    for r in L[1:]:
-        if not r or not _txt(r[ci["nome"]] if ci["nome"] < len(r) else None):
-            continue
-        def g(k):
-            i = ci[k]
-            return r[i] if i < len(r) else None
-        try:
-            ide = int(g("id")) if g("id") not in (None, "") else None
-        except (TypeError, ValueError):
-            ide = None
-        linha = {"id": ide, "nome": _txt(g("nome")), "entidade": _txt(g("entidade")),
-                 "modelo": _txt(g("modelo")), "prazo_meses": _num(g("prazo")),
-                 "preco_base": _num(g("preco")), "criterio": _txt(g("criterio")),
-                 "plataforma": _txt(g("plataforma")),
-                 "ano": int(_num(g("ano")) or 0) or None,
-                 "status": _txt(g("status")), "folha": "",
-                 "razao": "", "valor_proposta": None, "lugar": None,
-                 "ebitda": None, "notas": "", "perfis": [], "concorrentes": [],
-                 "precos_perfis": []}
-        f = folhas.get(ide) if ide else None
-        if f:
-            for k in ("razao", "valor_proposta", "lugar", "ebitda", "notas",
-                      "perfis", "concorrentes", "precos_perfis", "folha"):
-                if f.get(k) not in (None, "", []):
-                    linha[k] = f[k]
-            # a folha e a versao mais completa da Tabela A: se o INDICE
-            # estiver vazio num campo e a folha nao, vale a folha
-            for k in ("modelo", "criterio", "plataforma", "status"):
-                if not linha[k] and _txt(f.get(k)):
-                    linha[k] = _txt(f.get(k))
-            if linha["preco_base"] is None and _num(f.get("preco_base")):
-                linha["preco_base"] = _num(f.get("preco_base"))
-        linhas.append(linha)
-    wb.close()
-    return linhas
-
-
-def fora_do_pais(linha):
-    import radar
-    texto = radar.simplifica(" ".join((linha.get("entidade") or "",
-                                       linha.get("notas") or "")))
-    return any(p in texto for p in FORA_DO_PAIS)
-
-
-# --------------------------------------------------------- a ligacao
-
-def _toks(texto):
-    import radar
-    return {w for w in radar.simplifica(texto or "").split()
-            if w not in STOP and len(w) > 2}
-
-
 def _norma(texto):
     import radar
     return radar.simplifica(texto or "")
-
-
-class Acervo(object):
-    """Os anuncios candidatos, lidos UMA vez por importacao: so os
-    originais (nunca alteracoes), so o DR, dentro dos anos pedidos."""
-
-    def __init__(self, c, anos):
-        anos = sorted(a for a in anos if a)
-        if not anos:
-            anos = [datetime.now().year]
-        de, ate = "%d-01-01" % (min(anos) - 1), "%d-12-31" % max(anos)
-        self.linhas = []
-        for r in c.execute(
-                "SELECT ref, titulo_norm, entidade_norm, nif, preco_base, "
-                "data_pub, estado FROM anuncios WHERE data_pub BETWEEN ? AND ? "
-                "AND estado != 'alteracao' AND COALESCE(fonte,'dr')='dr'",
-                (de, ate)):
-            self.linhas.append((r["ref"],
-                                {w for w in (r["titulo_norm"] or "").split()
-                                 if w not in STOP and len(w) > 2},
-                                r["entidade_norm"] or "", r["nif"] or "",
-                                _num(r["preco_base"]), r["data_pub"] or ""))
-        self.por_ref = {l[0]: l for l in self.linhas}
-
-    def actualiza(self, c, ref):
-        """Depois de se ler o detalhe de um candidato: o preco base passa
-        a contar, e se o detalhe o revelou como alteracao de outro (o
-        _guardar_detalhe ja o ligou ao original) sai da lista -- era a
-        razao de muitas ambiguidades: republicacoes por ler."""
-        r = c.execute("SELECT ref, titulo_norm, entidade_norm, nif, preco_base, "
-                      "data_pub, estado FROM anuncios WHERE ref=?", (ref,)).fetchone()
-        if not r or r["estado"] == "alteracao":
-            self.por_ref.pop(ref, None)
-            self.linhas = [l for l in self.linhas if l[0] != ref]
-            return
-        nova = (r["ref"], {w for w in (r["titulo_norm"] or "").split()
-                           if w not in STOP and len(w) > 2},
-                r["entidade_norm"] or "", r["nif"] or "",
-                _num(r["preco_base"]), r["data_pub"] or "")
-        self.por_ref[ref] = nova
-        self.linhas = [nova if l[0] == ref else l for l in self.linhas]
-
-
-# Palavras de nome de entidade que nao distinguem ninguem.
-STOP_ENT = set("servicos instituto municipio direcao geral regional portugal "
-               "nacional autoridade agencia unidade local saude entidade publica "
-               "administracao camara municipal secretaria ministerio".split())
-
-_ENTIDADES = {}      # nome no Excel -> (chave no corpus, nome canonico norm., nome norm.)
-
-
-def _entidade(nome):
-    """(chave, canonico, norma) da entidade como o Excel a escreve. A chave
-    e o NIF no corpus (quando o nome la esta: SPMS, eSPap, INCM...); o
-    canonico e o nome mais usado por essa chave, que e o que os anuncios
-    do DR escrevem por extenso. Sem corpus fica so o nome, com alias."""
-    import radar
-    if nome in _ENTIDADES:
-        return _ENTIDADES[nome]
-    norma = _norma(nome)
-    norma = ALIAS.get(norma, norma)
-    chave, canon = "", ""
-    try:
-        chave = radar.entidade_do_anuncio("", nome or "")
-        if chave and radar.ha_corpus():
-            with radar.liga_corpus() as k:
-                r = k.execute("SELECT nome FROM entidades WHERE chave=?",
-                              (chave,)).fetchone()
-            canon = radar.simplifica(r["nome"]) if r else ""
-    except Exception:           # sem corpus (contratos.db) nao ha chave; fica o nome
-        chave, canon = "", ""
-    _ENTIDADES[nome] = (chave, canon, norma)
-    return _ENTIDADES[nome]
-
-
-def pontuar(linha, acervo):
-    """[(pontuacao, ref)] por ordem decrescente, para uma linha do Excel.
-
-    O nome no Excel e uma abreviatura do titulo do DR ("Plataforma
-    Central de Deteção Precoce" para "(DAG) Aquisição de serviços para
-    evolução da Plataforma Central de Deteção Precoce no âmbito..."):
-    conta sobretudo a CONTENCAO -- que fraccao das palavras do Excel esta
-    no titulo --, e o Jaccard so desempata. Medido a 02/09/2026: com o
-    Jaccard sozinho ficavam 105 das 187 linhas ambiguas."""
-    T = _toks(linha["nome"])
-    if not T:
-        return []
-    chave, canon, ent = _entidade(linha["entidade"])
-    palavras = [w for w in (canon or ent).split() if len(w) > 4 and w not in STOP_ENT]
-    ano = str(linha["ano"]) if linha["ano"] else ""
-    anos = {ano, str(linha["ano"] - 1)} if ano else None
-    fora = []
-    for ref, TT, EE, nif, pb, dp in acervo.linhas:
-        if anos and dp[:4] not in anos:
-            continue
-        inter = len(T & TT)
-        if not inter:
-            continue
-        sc = 0.7 * inter / float(len(T)) + 0.3 * inter / float(len(T | TT))
-        if ano and dp[:4] == ano:
-            sc += 0.05          # o ano do Excel e o da decisao; quase sempre o do DR
-        ent_ok = ((chave and nif and chave == nif)
-                  or (canon and (canon in EE or (EE and EE in canon)))
-                  or (ent and ent in EE)
-                  or (palavras and sum(w in EE for w in palavras)
-                      >= max(1, len(palavras) // 2)))
-        if ent_ok:
-            sc += 0.35
-        if linha["preco_base"] and pb and abs(pb - linha["preco_base"]) < 0.5:
-            sc += 0.5
-        fora.append((round(sc, 3), ref))
-    fora.sort(reverse=True)
-    return fora
-
-
-def ref_pelo_base(c, linha, acervo, pontos=()):
-    """O anuncio pelo contrato celebrado. O valor do 1.º lugar da tabela C
-    (ou a proposta da casa, quando ganhou) e o preco contratual no BASE, e
-    o BASE guarda o `n_anuncio`, que e o ref do DR. Medido a 01/09/2026:
-    23 dos 29 primeiros lugares com valor acham-se assim. Um valor
-    sozinho engana (o mesmo numero em suturas e em software): exige-se
-    a entidade certa ou, sem chave, algum parentesco no titulo."""
-    import radar
-    if not radar.ha_corpus():
-        return ""
-    st = _norma(linha.get("status"))
-    valores = [cc["valor"] for cc in linha.get("concorrentes") or []
-               if cc.get("lugar") == 1 and cc.get("valor")]
-    if st == "ganho" and linha.get("valor_proposta"):
-        valores.append(linha["valor_proposta"])
-    if not valores:
-        return ""
-    chave, _, _ = _entidade(linha["entidade"])
-    ano = linha.get("ano") or datetime.now().year
-    achados = {}
-    with radar.liga_corpus() as k:
-        for v in valores:
-            for r in k.execute(
-                    "SELECT n_anuncio, adjudicante_chave FROM contratos "
-                    "WHERE preco_contratual BETWEEN ? AND ? AND data_celebracao >= ? "
-                    "AND n_anuncio != ''", (v - 1, v + 1, "%d-01-01" % (ano - 1))):
-                achados[r["n_anuncio"]] = r["adjudicante_chave"] or ""
-    score = dict((r, s) for s, r in pontos)
-    refs = set()
-    for n, adj in achados.items():
-        if chave and adj and adj != chave:
-            continue
-        ref = n
-        if n not in acervo.por_ref:
-            a = c.execute("SELECT estado, altera FROM anuncios WHERE ref=?",
-                          (n,)).fetchone()
-            if not a:
-                continue
-            if a["estado"] == "alteracao":
-                ref = radar.raiz_da_alteracao(c, n, a["altera"] or "") or ""
-            if ref not in acervo.por_ref:
-                continue
-        if (chave and adj == chave) or score.get(ref, 0) >= 0.3:
-            refs.add(ref)
-    return refs.pop() if len(refs) == 1 else ""
-
-
-def decidir(pontos):
-    """(ref, candidatos): a ligacao unica, ou '' e a lista dos candidatos."""
-    if not pontos or pontos[0][0] < LIMIAR:
-        return "", [r for s, r in pontos[:MAX_CANDIDATOS] if s >= 0.3]
-    if len(pontos) > 1 and pontos[1][0] >= LIMIAR and pontos[1][0] > pontos[0][0] - FOLGA:
-        return "", [r for s, r in pontos[:MAX_CANDIDATOS] if s >= 0.3]
-    return pontos[0][1], []
 
 
 # ------------------------------------------------------- a aplicacao
@@ -538,7 +147,7 @@ def estado_pretendido(linha):
     return (st, campos)
 
 
-def aplicar(c, linha, ref, quem="Excel"):
+def aplicar(c, linha, ref, quem="registo da casa"):
     """Escreve o que o registo da casa sabe na PROPOSTA do anuncio ligado.
     Devolve 'aplicado', 'igual', 'sem estado', 'conflito' ou 'sem anúncio'.
 
@@ -668,37 +277,6 @@ def iniciar_tabelas(c):
 RX_LOTE_NO_NOME = re.compile(r"\bL(?:ote)?\s*\.?\s*(\d{1,2})\b", re.I)
 
 
-def lote_da_linha(linha, lotes):
-    """O numero do lote a que a linha do Excel corresponde, 0 ou None.
-
-    Primeiro pelo preco base: a linha traz o preco base DO LOTE (medido
-    nos quatro anuncios com varias linhas a 02/09/2026 -- #7 = 53 667,20
-    = lote 1 do 2770/2026). Depois por um "L1" ou "Lote 2" no nome.
-
-    Em ultimo, ZERO -- o conjunto -- quando o preco da linha e a SOMA de
-    todos os lotes: nesse caso o numero do Excel e o total do anuncio e a
-    linha nao esta dividida por lotes (o Afonso, a 03/09/2026, sobre as
-    #23 e #26). Zero e falso em Python, e e de proposito: quem contava
-    "linhas com lote" continua a nao as contar, mas deixa de as confundir
-    com as que estao mesmo por identificar."""
-    if not lotes:
-        return None
-    pb = linha.get("preco_base")
-    if pb:
-        for l in lotes:
-            v = _num(l.get("preco_base"))
-            if v and abs(v - pb) < 1:
-                return l["n"]
-    m = RX_LOTE_NO_NOME.search(linha.get("nome") or "")
-    if m and 1 <= int(m.group(1)) <= max(l["n"] for l in lotes):
-        return int(m.group(1))
-    if pb:
-        soma = [_num(l.get("preco_base")) for l in lotes]
-        if all(soma) and abs(sum(soma) - pb) < 1:
-            return 0
-    return None
-
-
 ESTADOS_DE_LOTE = ("ganho", "perdido", "submetido", "nao fomos")
 
 
@@ -742,274 +320,7 @@ CAMPOS_EXCEL = ("nome", "entidade", "modelo", "prazo_meses", "preco_base",
                 "valor_proposta", "lugar", "ebitda", "notas", "folha")
 
 
-def _guardar_linha(c, linha, ref, ligacao, candidatos, fora, resultado, agora):
-    vals = [linha.get(k) for k in CAMPOS_EXCEL]
-    vals = [(None if v == "" else v) for v in vals]
-    c.execute(
-        "INSERT INTO casa (id, %s, perfis, concorrentes, precos_perfis, ref, "
-        "ligacao, candidatos, fora, resultado, importado_em, aplicado_em) "
-        "VALUES (?, %s, ?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET %s, "
-        "perfis=excluded.perfis, concorrentes=excluded.concorrentes, "
-        "precos_perfis=excluded.precos_perfis, ref=excluded.ref, "
-        "ligacao=excluded.ligacao, candidatos=excluded.candidatos, "
-        "fora=excluded.fora, resultado=excluded.resultado, "
-        "importado_em=excluded.importado_em, aplicado_em=excluded.aplicado_em"
-        % (", ".join(CAMPOS_EXCEL), ", ".join("?" * len(CAMPOS_EXCEL)),
-           ", ".join("%s=excluded.%s" % (k, k) for k in CAMPOS_EXCEL)),
-        [linha["id"]] + vals + [
-            json.dumps(linha.get("perfis") or [], ensure_ascii=False),
-            json.dumps(linha.get("concorrentes") or [], ensure_ascii=False),
-            json.dumps(linha.get("precos_perfis") or [], ensure_ascii=False),
-            ref or None, ligacao, json.dumps(candidatos), int(bool(fora)),
-            resultado, agora, agora if resultado == "aplicado" else None])
-
-
-def importar(caminho, ensaio=False, ler=True, quem="Excel", relatar=None,
-             triagem=False):
-    """Le o Excel, liga cada linha ao procedimento e guarda o registo.
-
-    `ensaio` calcula tudo e nao grava nada. `ler` autoriza ir ao DR
-    buscar o detalhe dos candidatos de uma linha ambigua (um pedido por
-    candidato, ~1 s) para o preco base desempatar. `triagem` escreve
-    tambem a triagem nos anuncios ligados -- DESLIGADO por omissao,
-    decisao do Afonso a 02/09/2026: enquanto as ligacoes nao estiverem
-    validadas e os lotes (varias linhas do Excel no mesmo anuncio) nao
-    tiverem solucao, guarda-se a informacao e mais nada. Devolve o
-    relatorio: contagens e as listas do que ficou por ligar."""
-    import radar
-    diz = relatar or (lambda _: None)
-    linhas = ler_excel(caminho)
-    linhas = [l for l in linhas if l["id"]]
-    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
-    rel = {"total": len(linhas), "fora": [], "ligadas": 0, "novas": 0,
-           "manuais": 0, "pelo_base": 0, "sem_dr": 0, "em_lotes": 0, "com_lote": 0,
-           "conjunto": 0,
-           "ambiguas": [], "sem": [],
-           "aplicadas": {}, "conflitos": [], "lidos": 0, "ensaio": ensaio}
-    _ENTIDADES.clear()
-    # Duas passagens, de proposito. A primeira so LE (e vai ao DR pelos
-    # candidatos ambiguos); a segunda escreve. Com uma so, a ligacao que
-    # ja tinha escrito a primeira linha da casa segurava a base numa
-    # transaccao, e o ler_detalhe_de(), que grava pela ligacao dele,
-    # ficava a espera ate rebentar com "database is locked" -- so na
-    # importacao a serio, porque o ensaio nao escrevia nada.
-    decisoes = []
-    with radar.liga() as c:
-        iniciar_tabelas(c)
-    with radar.liga() as c:
-        acervo = Acervo(c, {l["ano"] for l in linhas})
-        existentes = {r["id"]: dict(r) for r in c.execute(
-            "SELECT id, ref, ligacao, porque_sem_ref, zoho_fase, lote "
-            "FROM casa")}
-        for linha in linhas:
-            antes = existentes.get(linha["id"]) or {}
-            if fora_do_pais(linha):
-                rel["fora"].append(linha["nome"])
-                decisoes.append((linha, "", "", [], True))
-                continue
-            ref, ligacao, candidatos = "", "", []
-            if antes.get("ref") and antes.get("ligacao") == "manual":
-                ref, ligacao = antes["ref"], "manual"
-                rel["manuais"] += 1
-            elif antes.get("ligacao") == "nenhum":
-                # ele disse que nao ha anuncio no DR: nao se volta a procurar
-                ligacao = "nenhum"
-                rel["sem_dr"] += 1
-            else:
-                pontos = pontuar(linha, acervo)
-                ref, candidatos = decidir(pontos)
-                if not ref:
-                    # o contrato celebrado sabe o ref: pelo valor do 1.º lugar
-                    ref = ref_pelo_base(c, linha, acervo, pontos)
-                    if ref:
-                        ligacao, candidatos = "base", []
-                        rel["pelo_base"] += 1
-                if not ref and candidatos and ler:
-                    # desempate pela leitura do detalhe dos candidatos que
-                    # ainda nao o tem: traz o preco base, e revela as
-                    # republicacoes (que saem da lista). Um pedido por
-                    # candidato, ~1 s, sem castigar o portal.
-                    for cand in candidatos:
-                        if acervo.por_ref.get(cand) and acervo.por_ref[cand][4] is None:
-                            ok, _ = radar.ler_detalhe_de(cand)
-                            rel["lidos"] += 1
-                            time.sleep(0.7)
-                            if not ok:
-                                break
-                            acervo.actualiza(c, cand)
-                    ref, candidatos = decidir(pontuar(linha, acervo))
-                if ref:
-                    ligacao = ligacao or "auto"
-                    if antes.get("ref") != ref:
-                        rel["novas"] += 1
-            decisoes.append((linha, ref, ligacao, candidatos, False))
-    with radar.liga() as c:
-        for linha, ref, ligacao, candidatos, fora in decisoes:
-            # A linha vem do Excel e nao traz nem o que o Zoho diz nem o
-            # lote; sem isto, uma reimportacao com --com-triagem
-            # desfazia o `estado_efectivo()` em silencio -- e as duas
-            # coisas fazem falta, porque o lote e o que TRAVA o Zoho.
-            # (O lote desta passagem so se calcula mais a frente, ja
-            # depois da triagem; o que interessa aqui e o que esta
-            # guardado, que e o mesmo, e existe desde a 1.a importacao.)
-            guardado = existentes.get(linha["id"]) or {}
-            linha.setdefault("zoho_fase", guardado.get("zoho_fase"))
-            linha.setdefault("lote", guardado.get("lote"))
-            resultado = ""
-            if fora:
-                resultado = "fora"
-            elif ref:
-                rel["ligadas"] += 1
-                if not triagem:
-                    resultado = "guardado"
-                elif ensaio:
-                    # o que se faria, sem escrever: le-se o estado actual
-                    pedido = estado_pretendido(linha)
-                    # O estado a comparar e o da PROPOSTA daquele lote, e
-                    # nao o do anuncio: e la que a decisao da casa mora
-                    # desde 15/09/2026. Comparar com o do anuncio dava
-                    # "aplicado" a tudo, e o ensaio existe precisamente
-                    # para dizer o que ia mudar.
-                    p = c.execute("SELECT estado FROM propostas WHERE ref=? "
-                                  "AND COALESCE(lote,-1)=COALESCE(?,-1)",
-                                  (ref, linha.get("lote"))).fetchone()
-                    resultado = ("sem estado" if not pedido else
-                                 "igual" if p and p["estado"] == pedido[0] else
-                                 "aplicado")
-                else:
-                    resultado = aplicar(c, linha, ref, quem)
-                rel["aplicadas"][resultado] = rel["aplicadas"].get(resultado, 0) + 1
-                if resultado == "conflito":
-                    rel["conflitos"].append((linha["nome"], ref, linha["status"]))
-            elif ligacao == "nenhum":
-                pass
-            elif candidatos:
-                rel["ambiguas"].append((linha["id"], linha["nome"], linha["entidade"],
-                                        linha["ano"], candidatos))
-            else:
-                rel["sem"].append((linha["id"], linha["nome"], linha["entidade"],
-                                   linha["ano"]))
-            if ref:
-                lotes = lotes_do_anuncio(c, ref)
-                if lotes:
-                    rel["em_lotes"] += 1
-                    lote = lote_da_linha(linha, lotes)
-                    rel["com_lote"] += bool(lote)
-                    rel["conjunto"] += lote == 0
-                else:
-                    lote = None
-            if not ensaio:
-                _guardar_linha(c, linha, ref, ligacao, candidatos, fora,
-                               resultado, agora)
-                antes = existentes.get(linha["id"]) or {}
-                if antes.get("porque_sem_ref"):
-                    c.execute("UPDATE casa SET porque_sem_ref=? WHERE id=?",
-                              (antes["porque_sem_ref"], linha["id"]))
-                if ref:
-                    c.execute("UPDATE casa SET lote=? WHERE id=?", (lote, linha["id"]))
-        if not ensaio:
-            c.execute("INSERT OR REPLACE INTO estado VALUES ('excel_casa', ?)",
-                      (caminho,))
-            c.execute("INSERT OR REPLACE INTO estado VALUES ('excel_casa_em', ?)",
-                      (agora,))
-    return rel
-
-
-def texto_do_relatorio(rel):
-    linhas = ["%d concursos no Excel%s" % (rel["total"],
-                                            " (ENSAIO: nada foi gravado)" if rel["ensaio"] else "")]
-    linhas.append("  ligados ao radar: %d (%d novos, %d à mão, %d pelo contrato no BASE)"
-                  % (rel["ligadas"], rel["novas"], rel["manuais"], rel["pelo_base"]))
-    if rel["aplicadas"]:
-        linhas.append("  triagem: " + ", ".join(
-            "%s %d" % (k, v) for k, v in sorted(rel["aplicadas"].items())))
-        if list(rel["aplicadas"]) == ["guardado"]:
-            linhas[-1] += " (só o registo; a triagem não se aplica sem --com-triagem)"
-    if rel["lidos"]:
-        linhas.append("  detalhes lidos ao DR para desempatar: %d" % rel["lidos"])
-    if rel["em_lotes"]:
-        linhas.append("  linhas em anúncios com lotes: %d, com o lote identificado: %d"
-                      "%s"
-                      % (rel["em_lotes"], rel["com_lote"],
-                         (", pelo conjunto: %d" % rel["conjunto"]) if rel["conjunto"] else ""))
-    linhas.append("  ambíguos: %d | sem correspondência: %d | sem anúncio no DR: %d"
-                  " | fora do país: %d"
-                  % (len(rel["ambiguas"]), len(rel["sem"]), rel["sem_dr"],
-                     len(rel["fora"])))
-    for ide, nome, ent, ano, cands in rel["ambiguas"]:
-        linhas.append("    ? #%s %s — %s (%s): %s" % (ide, nome[:50], ent, ano,
-                                                     ", ".join(cands)))
-    for ide, nome, ent, ano in rel["sem"]:
-        linhas.append("    - #%s %s — %s (%s)" % (ide, nome[:50], ent, ano))
-    for nome, ref, st in rel["conflitos"]:
-        linhas.append("    ! %s: o Excel diz %s, o radar decidiu outra coisa (%s)"
-                      % (nome[:50], st, ref))
-    return "\n".join(linhas)
-
-
 # ------------------------------------------------------ para o painel
-
-def registo_de(c, ref):
-    """A linha da casa ligada a este anuncio, ou None."""
-    r = c.execute("SELECT * FROM casa WHERE ref=? ORDER BY id LIMIT 1",
-                  (ref,)).fetchone()
-    return dict(r) if r else None
-
-
-def ligar_a_mao(c, ide, ref, quem="Afonso", triagem=False, porque=""):
-    """Liga uma linha do registo a um anuncio, resolvendo uma alteracao
-    para o original. So escreve triagem com `triagem`. Devolve (ok,
-    mensagem).
-
-    `ref` pode ser "nenhum" -- nao ha anuncio no DR (consulta previa,
-    ajuste directo, consulta preliminar, ou antes da base), com a razao
-    em `porque` -- ou "?" para so anotar a razao ("nao sei") e deixar a
-    linha por ligar."""
-    import radar
-    if not c.execute("SELECT 1 FROM casa WHERE id=?", (ide,)).fetchone():
-        return False, "não há nenhum registo #%s" % ide
-    if ref.strip().lower() in ("nenhum", "-", "nao", "não"):
-        c.execute("UPDATE casa SET ref=NULL, ligacao='nenhum', candidatos='[]', "
-                  "resultado='', aplicado_em=NULL, porque_sem_ref=? WHERE id=?",
-                  (porque or "sem anúncio no DR", ide))
-        return True, "#%s sem anúncio no DR (%s)" % (ide, porque or "sem razão")
-    if ref.strip() == "?":
-        c.execute("UPDATE casa SET porque_sem_ref=? WHERE id=?", (porque or "?", ide))
-        return True, "#%s fica por ligar (%s)" % (ide, porque or "?")
-    a = c.execute("SELECT ref, estado, altera FROM anuncios WHERE ref=?",
-                  (ref,)).fetchone()
-    if not a:
-        return False, "não há nenhum anúncio %s" % ref
-    if a["estado"] == "alteracao":
-        raiz = radar.raiz_da_alteracao(c, ref, a["altera"] or "")
-        if raiz:
-            ref = raiz
-    linha = c.execute("SELECT * FROM casa WHERE id=?", (ide,)).fetchone()
-    if not linha:
-        return False, "não há nenhum registo #%s" % ide
-    d = dict(linha)
-    for k in ("perfis", "concorrentes", "precos_perfis"):
-        try:
-            d[k] = json.loads(d.get(k) or "[]")
-        except ValueError:
-            d[k] = []
-    resultado = aplicar(c, d, ref, quem) if triagem else "guardado"
-    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
-    lotes = lotes_do_anuncio(c, ref)
-    lote = lote_da_linha(d, lotes)
-    c.execute("UPDATE casa SET ref=?, ligacao='manual', candidatos='[]', "
-              "resultado=?, aplicado_em=?, porque_sem_ref=NULL, lote=? WHERE id=?",
-              (ref, resultado, agora if resultado == "aplicado" else None, lote, ide))
-    return True, "#%s ligado ao anúncio %s (%s%s)" % (
-        ide, ref, resultado,
-        (", lote %d de %d" % (lote, len(lotes))) if lote else
-        (", %d lotes, o preço é o conjunto" % len(lotes)) if lote == 0 else
-        (", %d lotes, lote por identificar" % len(lotes)) if lotes else "")
-
-
-def desligar(c, ide):
-    c.execute("UPDATE casa SET ref=NULL, ligacao='', resultado='', "
-              "aplicado_em=NULL WHERE id=?", (ide,))
 
 
 def desaplicar_da_copia(copia):
@@ -1051,8 +362,20 @@ def desaplicar_da_copia(copia):
                           % (", ".join(radar.COLUNAS_DA_PROPOSTA),
                              ", ".join("?" * len(radar.COLUNAS_DA_PROPOSTA))),
                           [v[k] for k in radar.COLUNAS_DA_PROPOSTA])
+            # O historico repoe-se pela COPIA e nao por `quem`: ate
+            # 15/09/2026 apagava-se `WHERE quem='Excel'`, e isso deixou de
+            # apanhar nada no dia em que o leitor do Excel antigo saiu --
+            # a importacao pelo modelo escreve o nome de quem a fez. A
+            # copia sabe exactamente que linhas la estavam.
+            ja_estavam = {r["id"] for r in antes.execute(
+                "SELECT id FROM historico WHERE ref=?", (ref,))}
+            novas = [r["id"] for r in c.execute(
+                "SELECT id FROM historico WHERE ref=?", (ref,))
+                if r["id"] not in ja_estavam]
+            for ide in novas:
+                c.execute("DELETE FROM historico WHERE id=?", (ide,))
+            apagadas += len(novas)
             repostos += 1
-        apagadas = c.execute("DELETE FROM historico WHERE quem='Excel'").rowcount
         c.execute("UPDATE casa SET resultado='guardado', aplicado_em=NULL "
                   "WHERE ref IS NOT NULL AND resultado != 'fora'")
     antes.close()
@@ -1066,9 +389,10 @@ def desaplicar_da_copia(copia):
 # com folhas C_ e consolidadores VBA), **o radar dita o modelo**: um
 # .xlsx gerado aqui, com as colunas que a aplicacao precisa e listas de
 # escolha onde ha vocabulario, que o utilizador preenche e carrega em
-# Configuracoes > Importar dados, com ensaio antes de gravar. O leitor
-# do Excel antigo (ler_excel, importar, ligar_a_mao) fica acima, sem
-# comando que o chame: e historico, e os testes dele continuam a valer.
+# Configuracoes > Importar dados, com ensaio antes de gravar. **O leitor
+# do Excel antigo saiu a 15/09/2026**, por decisao dele: ficou uma
+# semana sem comando que o chamasse e o .xsm ja tinha sido importado.
+# Esta no historico do git.
 #
 # A chave e a REFERENCIA DO ANUNCIO no DR ("1947/2026"), que a ficha
 # mostra: liga sem adivinhar, e uma linha sem anuncio e um erro que se
