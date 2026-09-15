@@ -122,8 +122,8 @@ CONFIG_INICIAL = {
     "recuperar_slot_falhado": True,
     "abrir_browser_ao_encontrar": False,
     "detalhes_por_volta": 40,
-    # Quantos anuncios marcados (interessa/quadro) se releem por
-    # verificacao, a procura de prorrogacoes e precos base novos (B05).
+    # Quantos anuncios NA ESCADA se releem por verificacao, a procura de
+    # prorrogacoes e precos base novos (B05). Marcado = tem proposta.
     "relidos_por_volta": 25,
     # A janela do "urgente", em dias (B13). Edita-se tambem em /alertas.
     "dias_urgente": 10,
@@ -374,26 +374,6 @@ def estado_da_casa(chave):
     Pura: e por aqui que se valida o que vem de um formulario, e devolver
     "" (em vez de rebentar) e o que deixa a rota responder com aviso."""
     return ROTULOS_DA_ESCADA.get(chave or "", "")
-
-
-def estado_aberto(chave):
-    """Se a proposta ainda se mexe. Um estado que nao existe conta como
-    aberto: e o que evita esconder do ecra uma linha com lixo na coluna,
-    que e a maneira de o lixo nunca mais ser encontrado."""
-    return chave not in ESTADOS_FECHADOS
-
-
-def _modelo_com_fornecedor(valor):
-    """Poe a coluna analise.modelo no formato actual, fornecedor:modelo.
-
-    Antes da cadeia de fornecedores (27/08/2026) so a Groq respondia e a
-    coluna guardava o modelo sem prefixo ("openai/gpt-oss-120b"). Um
-    segmento sem ":" e desse tempo, e foi a Groq que o escreveu -- os
-    outros fornecedores nasceram ja com o prefixo posto, por isso a
-    atribuicao nao e adivinhada. Segmentos ja prefixados ficam como
-    estao: aplicar isto duas vezes da o mesmo resultado."""
-    partes = [p.strip() for p in (valor or "").split(",") if p.strip()]
-    return ", ".join(p if ":" in p else "groq:" + p for p in partes)
 
 
 # As colunas de CRM que viviam no `anuncios` sairam a 15/09/2026 (etapa
@@ -694,8 +674,8 @@ def iniciar_db():
         # via; quando o `--detalhes tudo` acabou (04/09/2026, 66 404 de
         # 66 498) a pagina inicial passou a fazer nove varrimentos de
         # 440 MB, e numa pen a 42 MB/s a frio isso nao e um pormenor.
-        # Estes tres cobrem as consultas todas da lista, do quadro e dos
-        # indicadores: medido numa copia, 0,74 s de SQL para 0,02 s.
+        # Estes tres cobrem as consultas todas da lista, do calendario e
+        # dos indicadores: medido numa copia, 0,74 s de SQL para 0,02 s.
         #
         # `_lista`: o `ORDER BY data_pub DESC, ref DESC` da primeira
         # pagina -- com a ordem no indice nao ha B-tree temporaria
@@ -1065,7 +1045,7 @@ def etiqueta_prazo(prazo, urgente=None):
     filtro, no cartao dos indicadores e nos avisos -- o ecra a mostrar um
     numero que a ligacao dele nao dava. A janela e UMA so, e vem daqui.
 
-    Quem chama em ciclo (a lista, o quadro, o calendario) le a janela uma
+    Quem chama em ciclo (a lista, o calendario) le a janela uma
     vez e passa-a: dias_urgente() abre o config.json a cada chamada, e a
     lista tem uma linha por anuncio."""
     dias, passou = dias_restantes(prazo)
@@ -1323,7 +1303,12 @@ def registar(ref, accao, detalhe="", quem=None):
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
 
 
-# --------------------------------------------------------------- quadro
+# ------------------------------------------------------------- lotes
+#
+# Era a banda do quadro, que saiu a 15/09/2026. O que fica é o que os
+# lotes obrigam -- a cor das etiquetas e o resumo de a que lotes se foi,
+# que a ficha mostra -- e continua antes das propostas porque é delas
+# que a escada precisa.
 
 CORES_ETIQUETA = ("#c0392b", "#d68910", "#1e8449", "#1f4e79",
                    "#6c3483", "#616a6b")
@@ -1402,25 +1387,6 @@ def frase_dos_lotes(resumo):
     if resumo["conjunto"]:
         return "fomos ao conjunto dos %d lotes" % total
     return "%d lote%s; sem registo de a que fomos" % (total, "" if total == 1 else "s")
-
-
-def chips_dos_lotes(resumo, so_estado=None):
-    """Os lotes como etiquetas: "L1 perdido", "L2 ganho"... Com `so_estado`
-    so os desse estado (para o cartao separado do fim)."""
-    if not resumo:
-        return ""
-    pecas = []
-    for l in resumo["lotes"]:
-        if so_estado and l["estado"] != so_estado:
-            continue
-        if l["estado"]:
-            pecas.append("<span class='tag %s' title='%s'>L%d %s</span>"
-                         % (l["classe"], html.escape(l["descricao"][:120], quote=True),
-                            l["n"], l["rotulo"]))
-        elif not so_estado:
-            pecas.append("<span class='tag lote-fora' title='%s'>L%d</span>"
-                         % (html.escape(l["descricao"][:120], quote=True), l["n"]))
-    return "".join(pecas)
 
 
 # ------------------------------------------------------------ propostas
@@ -1666,42 +1632,6 @@ def _prazos_das_propostas(c, propostas):
     return {r["ref"]: r["prazo"] for r in c.execute(
         "SELECT ref, prazo FROM anuncios WHERE ref IN (%s)"
         % ",".join("?" * len(refs)), refs)}
-
-
-def soma_precos_base(itens, coluna="preco_base"):
-    """(soma, quantos com preco) de uma coluna do quadro.
-
-    O preco e texto ("175.000,00 EUR") e passa por euros_do_texto(); as
-    propostas sem preco nao contam, e o cabecalho diz sobre quantas e que
-    a soma e -- somar umas e calar as outras parecia o valor da coluna
-    inteira.
-
-    A `coluna` existe porque a partir do "Submetido" o valor em jogo e o
-    proposto: somar precos base numa coluna de submetidos dava o tecto da
-    entidade e nao a proposta, com o mesmo ar de numero certo.
-    """
-    valores = [v for v in (euros_do_texto(_valor(a, coluna)) for a in itens)
-               if v]
-    return sum(valores), len(valores)
-
-
-def contar_propostas():
-    """Quantas propostas ha em cada uma das OITO ranhuras da casa.
-
-    Uma passagem pela tabela, e nao oito consultas. As duas ranhuras das
-    pontas nao estao aqui: nelas nao ha proposta nenhuma, contam-se
-    sobre os anuncios e com o MESMO recorte que a aba aplica -- somar de
-    outra maneira quebrava a regra da casa de que um numero tem de dar
-    exactamente a lista que a ligacao dele abre. Quem junta as dez e a
-    banda das abas, que e onde `condicao_da_aba()` vive.
-    """
-    contas = {ch: 0 for ch in CHAVES_DA_CASA}
-    with liga() as c:
-        for r in c.execute("SELECT estado, COUNT(*) n FROM propostas "
-                           "GROUP BY estado"):
-            if r["estado"] in contas:
-                contas[r["estado"]] = r["n"]
-    return contas
 
 
 # --- as tarefas (etapa 3 do docs/historico/CRM.md, 15/09/2026)
@@ -2638,13 +2568,9 @@ def registar_alteracoes(ref, difs):
 # O que e triagem de um anuncio, e passa da alteracao para o original
 # quando foi na alteracao que alguem decidiu (aconteceu 513 vezes antes
 # de haver esta ligacao: 511 descartes e 2 interessa).
-# Desde 15/09/2026 a decisao da casa nao mora no anuncio: mora numa
-# proposta, que aponta para o ref do ORIGINAL. Uma alteracao nunca chega
-# a ter proposta (nao se tria: `mudar_estado()` recusa-a e manda-te a
-# ficha do original), por isso nao ha nada para passar de uma para o
-# outro -- o que passava eram estas colunas, e elas sairam. Fica o
-# estado, que e o unico que a alteracao tem.
-CAMPOS_DA_TRIAGEM = ("estado",)
+# (o CAMPOS_DA_TRIAGEM viveu aqui: era a lista do que passava de uma
+# alteracao para o original. Desde 15/09/2026 o que passa e a PROPOSTA
+# inteira, e a lista deixou de ter quem a lesse.)
 CAMPOS_EM_VIGOR = ("prazo", "preco_base", "cpv", "plataforma", "link_pecas",
                    "lotes")
 
@@ -3186,7 +3112,7 @@ def ligar_retificacoes():
 def reler_marcados(limite=25):
     """Rele o detalhe dos anuncios MARCADOS com prazo aberto (B05).
 
-    Marcado = "interessa" ou com fase no quadro: e o que esta a ser
+    Marcado = tem proposta na escada: e o que esta a ser
     trabalhado, e uma prorrogacao ou um preco base novo ai muda
     decisoes. A base toda nao se rele -- 5 mil anuncios a 1 s cada eram
     85 minutos por verificacao a vigiar o que ninguem quer.
@@ -5402,7 +5328,7 @@ def _alteracoes_desde(ref, desde):
 
 def anuncios_a_vigiar(limite=10, hoje=None):
     """[(anuncio, razao)] dos marcados que tem uma razao para se ir ver
-    a plataforma. Marcado = "interessa" ou com fase no quadro, com prazo
+    a plataforma. Marcado = tem proposta na escada, com prazo
     aberto, com link das pecas e com pecas ja trazidas -- sem uma lista
     de partida nao ha com que comparar, e cada peca contaria como nova."""
     hoje = hoje or datetime.now().date()
@@ -6403,7 +6329,6 @@ _EM_PAPEL = "#eef1f4"
 _EM_LINHA = "#dbe0e6"
 _EM_T2 = "#333c46"
 _EM_T3 = "#4d5661"
-_EM_AZUL = "#17557f"
 _EM_SANS = "system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
 _EM_MONO = "Consolas,Menlo,monospace"
 _EM_CORES = {"ok": ("#e7f3ec", "#1a7a4d"),
@@ -9268,12 +9193,6 @@ h1.tit:empty,p.subtit:empty{display:none}
 .facto.larg{flex-basis:100%}
 .facto .v.ok{color:var(--verde)}
 .facto .v.mau{color:var(--verm)}
-.modos{display:flex;align-items:center;gap:8px}
-.modos .r{font:400 11.5px/1 var(--sans);color:var(--t5)}
-.modos a{padding:7px 13px;border-radius:7px;font:600 12px/1 var(--sans);
- background:#fff;color:var(--t3);border:1px solid var(--linha)}
-.modos a.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.modos .dir{margin-left:auto;font:400 11.5px/1 var(--sans);color:var(--t5)}
 details.sec{overflow:hidden;background:#fff;border:1px solid var(--linha);
  border-radius:11px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
 details.sec>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
@@ -9469,7 +9388,6 @@ button.tirar:hover{color:var(--verm)}
 .prop-etq .rot{margin-bottom:8px}
 .prop-etq .etq{display:inline-flex;margin:0 5px 5px 0}
 /* a tabela dos lotes, na ficha */
-.tag.lote-fora{color:var(--t5);background:transparent;border:1px dashed var(--traco)}
 .tab-lotes td.n{font:600 12px/1.4 var(--mono);white-space:nowrap}
 .tab-lotes td.s{white-space:nowrap}
 .tab-lotes .lote-prop{font:400 11.5px/1.4 var(--sans);color:var(--t4)}
@@ -9565,6 +9483,10 @@ button.tq:hover{border-color:var(--verde);color:var(--verde)}
    Fica mais pequeno de propósito -- é uma nota, não um facto. */
 .desfecho-som .por-haver b{font:400 12px/1.4 var(--sans);color:var(--t4)}
 .desfecho-som .por-haver{min-width:150px}
+/* As propostas por fechar, no aviso do bloco do negócio: cada uma é um
+   clique para arrumar, e por isso são ligações e não uma frase. */
+.por-fechar{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
+.por-fechar a{font:500 12px/1.4 var(--sans)}
 /* Os contactos (etapa 6) */
 .ct{padding:9px 0;border-bottom:1px solid var(--papel);position:relative}
 .ct:last-of-type{border-bottom:0}
@@ -9726,7 +9648,6 @@ a.ct-l{color:var(--azul)}
  .filtros select,.filtros input[type=date]{flex-basis:100%}
  .filtros input#filtro-cpv-excl{flex-basis:100%!important}
  .entrar{padding:20px 18px 18px}
- .carta-meta{gap:6px}
 }
 """
 
@@ -11666,10 +11587,6 @@ CAMPOS_POR_VISTA = {
     "renovacoes": ("q", "q_excl", "cpv", "cpv_excl", "op", "adj", "ganhou",
                    "proc", "min", "entid", "vencid"),
 }
-# A rota generica de cada vista. Desde a fusao de 31/08/2026, a lista
-# dos anuncios e uma so e vive em "/".
-ROTA_DA_VISTA = {"anuncios": "/", "contratos": "/contratos",
-                 "renovacoes": "/renovacoes"}
 
 
 def campos_da_vista(vista):
@@ -18041,6 +17958,25 @@ def taxa_de_vitoria(por=None, minimo=MINIMO_PARA_TAXA):
     return fora
 
 
+def nomes_das_divisoes(divisoes):
+    """{«72»: «Serviços de TI»} para as divisões pedidas (as duas
+    primeiras casas do CPV).
+
+    A tabela `cpv_dict` guarda o código a oito casas, e a divisão é o
+    código com seis zeros atrás -- «72» é «72000000». Uma divisão que a
+    tabela não conheça sai de fora, e quem chama decide o que escrever
+    no lugar dela.
+    """
+    divisoes = [d for d in dict.fromkeys(divisoes) if d]
+    if not divisoes:
+        return {}
+    with liga() as c:
+        return {r["codigo8"][:2]: r["descricao"] for r in c.execute(
+            "SELECT codigo8, descricao FROM cpv_dict WHERE codigo8 IN (%s)"
+            % ",".join("?" * len(divisoes)),
+            [d + "000000" for d in divisoes])}
+
+
 def taxa_por_divisao_cpv(minimo=MINIMO_PARA_TAXA):
     """A taxa de vitória por divisão de CPV -- as duas primeiras casas,
     que é a área do negócio. O CPV está no ANÚNCIO e não na proposta, e
@@ -18214,6 +18150,46 @@ def negocio_cx():
                     % (html.escape(l["m"]), int(100.0 * l["n"] / maior_n), l["n"])
                     for l in linhas)))
 
+    # As propostas que o Estado já fechou e nós não (etapa 4). É a
+    # pergunta mais accionável deste bloco -- cada uma é um clique para
+    # arrumar -- e por isso vem no topo e não no fim.
+    por_fechar = propostas_por_fechar(limite=6)
+    aviso_fechar = ""
+    if por_fechar:
+        aviso_fechar = (
+            "<div class='flash' style='margin:0 0 18px'>"
+            "<b>%d proposta%s</b> ainda em aberto cujo procedimento o "
+            "Portal BASE já diz adjudicado. Abre cada uma e fecha-a: o "
+            "facto está lá, a decisão é tua.<div class='por-fechar'>%s</div>"
+            "</div>"
+            % (len(por_fechar), "" if len(por_fechar) == 1 else "s",
+               "".join("<a href='/anuncio/%s'>%s</a>"
+                       % (quote(p["ref"], safe=""),
+                          html.escape(corta(p["titulo"] or p["ref"], 52)))
+                       for p, _ in por_fechar)))
+
+    # A taxa por área de CPV: onde é que a casa ganha e onde é que
+    # insiste sem ganhar. Só as divisões com decididos que cheguem --
+    # abaixo disso a `taxa_por_divisao_cpv()` devolve None, e a linha
+    # di-lo em vez de mostrar uma percentagem inventada.
+    por_cpv = taxa_por_divisao_cpv()
+    nomes = nomes_das_divisoes(d for d, _, _, _ in por_cpv)
+    cpv_html = ""
+    if por_cpv:
+        cpv_html = (
+            "<div class='rot' style='margin:22px 0 10px'>Onde se ganha, "
+            "por área</div><div class='barras-h'>%s</div>"
+            % "".join(
+                "<div class='lh'><span class='t'>%s</span>"
+                "<span class='bh' style='width:%d%%;background:%s'></span>"
+                "<span class='n'>%s</span></div>"
+                % (html.escape("%s — %s" % (d, corta(nomes.get(d, "sem descrição"), 34))),
+                   int(100.0 * (taxa if taxa is not None else 0)) or 3,
+                   "var(--verde)" if taxa else "var(--traco)",
+                   ("%.0f%% de %d" % (taxa * 100, n)) if taxa is not None
+                   else "%d de %d, poucos" % (g, n))
+                for d, g, n, taxa in por_cpv))
+
     parados = dias_parados(5)
     lista_parados = "".join(
         "<div class='l'><span class='t'><a href='%s'>%s</a></span>"
@@ -18228,18 +18204,18 @@ def negocio_cx():
             "<div class='nota' style='margin-bottom:18px'>O que está em "
             "jogo, o que se ganha e porque se perde. Uma taxa só aparece "
             "com %d decididos ou mais.</div>"
-            "<div class='desfecho-som'>%s</div>"
+            "%s<div class='desfecho-som'>%s</div>"
             "<div class='rot' style='margin:22px 0 10px'>Em jogo, por "
             "ranhura</div><div class='barras'>%s</div>"
-            "%s%s"
+            "%s%s%s"
             "<div class='rot' style='margin:22px 0 6px'>Há mais tempo sem "
             "se mexerem</div><div class='saude'>%s</div>"
             "</div>"
-            % (MINIMO_PARA_TAXA, cabeca, barras,
+            % (MINIMO_PARA_TAXA, aviso_fechar, cabeca, barras,
                tabela("Porque se perde", porque_se_perde(),
                       "ainda não há perdidos"),
                tabela("Porque não se vai", porque_nao_se_vai(),
-                      "ainda não há «não fomos»"),
+                      "ainda não há «não fomos»"), cpv_html,
                lista_parados))
 
 
@@ -18509,11 +18485,7 @@ def indicadores():
         leitura += " " + " &middot; ".join(alertas) + "."
 
     if f["por_divisao"]:
-        with liga() as c:
-            nomes_div = {r["codigo8"][:2]: r["descricao"] for r in c.execute(
-                "SELECT codigo8, descricao FROM cpv_dict WHERE codigo8 IN (%s)"
-                % ",".join("?" * len(f["por_divisao"])),
-                [r["div"] + "000000" for r in f["por_divisao"]])}
+        nomes_div = nomes_das_divisoes(r["div"] for r in f["por_divisao"])
         divisoes = "".join(
             "<div class='l'><span class='t'>%s &mdash; %s</span>"
             "<span class='v'>%s de %s</span></div>"

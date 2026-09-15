@@ -389,3 +389,44 @@ Configurações › Conta. Sem ele o cruzamento com o Portal BASE mostra a
 quem o procedimento foi adjudicado e pergunta se fomos nós; com ele,
 adianta a resposta. O gesto de fechar continua a ser de quem lê, nos
 dois casos.
+
+## 9. A limpeza do código morto (15/09/2026)
+
+Pedido dele depois das seis afinações visuais: «limpa todo o codigo
+morto. tudo o que ja nao faz sentido.»
+
+Medido, não adivinhado — e a medição desmentiu três tentativas minhas
+antes de dar a resposta certa:
+
+- **Funções vivas só pelos seus testes** (8): `estado_aberto`,
+  `_modelo_com_fornecedor`, `chips_dos_lotes`, `soma_precos_base`,
+  `contar_propostas`, `CAMPOS_DA_TRIAGEM`, `_EM_AZUL`, `ROTA_DA_VISTA`.
+  Saíram, com as classes de teste que só a elas serviam. Um teste que só
+  o seu próprio alvo morto justifica não é uma regressão.
+- **Duas funções por ligar, não mortas**: `propostas_por_fechar()` e
+  `taxa_por_divisao_cpv()`, escritas nas etapas 4 e 5, nunca chegaram a
+  um ecrã. Uma funcionalidade que ninguém alcança é pior do que código
+  morto — parece feita e não está. Ligaram-se as duas em «O negócio».
+  `nomes_das_divisoes()` subiu a função por o segundo sítio precisar do
+  mesmo SQL.
+- **CSS morto: 3 classes de 240** (`.modos`, `.tag.lote-fora`,
+  `.carta-meta`). Três detectores por expressão regular disseram 30, 104
+  e 81 — todos falsos positivos, porque metade das classes entram por
+  `%s` ou montadas em `classes_do_dia()`. A resposta veio de uma busca
+  literal do nome fora do bloco do CSS, com asserções a provar os
+  limites do bloco: se o nome não existe como texto em lado nenhum,
+  nenhuma página o pode escrever. O detector diz agora 0 de 237.
+- **Seis comentários que descreviam o presente errado**: nomeavam o
+  quadro, que saiu. Os que **contam história** ficaram — é a regra da
+  casa. Os que descrevem o presente e nomeiam o que já não existe são
+  armadilhas: quem os lê procura um quadro que não há.
+
+### O que ficou à espera de uma palavra dele
+
+O **leitor do Excel antigo do `casa.py`**: 20 funções, 603 linhas de
+1 307, alcançáveis só a partir de `importar()` e `ligar_a_mao()`, que
+nenhum comando e nenhuma rota chamam — mais as 638 linhas do
+`TestRegistoDaCasa`. É o único caminho que sabe ler o `.xlsm` legado
+dele, e a D4 diz que o Excel agora só importa o passado **pelo modelo**.
+O `CLAUDE.md` guardou-o de propósito («é histórico, e os testes dele
+continuam a valer»). Não se corta de passagem.
