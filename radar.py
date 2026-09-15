@@ -5115,6 +5115,73 @@ def copia_com_marca(guardar=7):
         return False
 
 
+def ultima_copia():
+    """O ficheiro mais recente da rotacao diaria em copias/, ou None."""
+    if not os.path.isdir(COPIAS):
+        return None
+    nomes = sorted(f for f in os.listdir(COPIAS)
+                   if re.fullmatch(r"radar-[\d-]+\.db", f))
+    return os.path.join(COPIAS, nomes[-1]) if nomes else None
+
+
+TABELAS_DO_ENSAIO = ("anuncios", "historico", "utilizadores", "etiquetas")
+
+
+def ensaiar_copia(copia=None):
+    """Prova que a copia se restaura, sem a restaurar: abre-a so de
+    leitura, passa-lhe o integrity_check, e conta o que nela ha contra
+    a base viva -- os anuncios, a triagem (interessa + descartado), o
+    historico, as contas. Uma copia que abre mas tem 0 anuncios, ou um
+    integrity_check que nao diz «ok», e uma copia que nao serve, e
+    isso queria-se saber ANTES do dia em que e precisa.
+
+    Devolve um dicionario: ficheiro, integridade, e por cada contagem
+    o par (copia, viva). A marca `ultimo_ensaio_copia` fica com o
+    resultado, para a saude dos Indicadores.
+
+    Nao e um restauro: esse e parar o servico, copiar o ficheiro por
+    cima do radar.db e arrancar -- esta no LEIA-ME, seccao 13. Isto e
+    o que se corre uma vez por mes para saber que esse dia corre bem.
+    """
+    copia = copia or ultima_copia()
+    if not copia or not os.path.exists(copia):
+        raise FileNotFoundError("não há cópia nenhuma em %s" % COPIAS)
+    contagens = {}
+
+    def conta(c):
+        n = {}
+        for t in TABELAS_DO_ENSAIO:
+            try:
+                n[t] = c.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0]
+            except sqlite3.OperationalError:
+                n[t] = None
+        n["triagem"] = c.execute(
+            "SELECT COUNT(*) FROM anuncios "
+            "WHERE estado IN ('interessa','descartado')").fetchone()[0]
+        return n
+
+    # mode=ro: o ensaio nunca escreve na copia -- nem um -journal ao lado
+    uri = "file:%s?mode=ro" % os.path.abspath(copia).replace("?", "%3F")
+    lida = sqlite3.connect(uri, uri=True)
+    try:
+        integridade = lida.execute("PRAGMA integrity_check").fetchone()[0]
+        da_copia = conta(lida)
+    finally:
+        lida.close()
+    with liga() as c:
+        da_viva = conta(c)
+    for chave in da_copia:
+        contagens[chave] = (da_copia[chave], da_viva[chave])
+    serve = integridade == "ok" and (da_copia["anuncios"] or 0) > 0
+    resultado = {"ficheiro": copia, "integridade": integridade,
+                 "serve": serve, "contagens": contagens}
+    marca("ultimo_ensaio_copia", "%s: %s a %s (%s anúncios, %s na triagem)"
+          % ("ok" if serve else "FALHOU", os.path.basename(copia),
+             datetime.now().strftime("%Y-%m-%d %H:%M"),
+             mil_pt(da_copia["anuncios"] or 0), mil_pt(da_copia["triagem"])))
+    return resultado
+
+
 # ------------------------------------------- exportacao da triagem (B15)
 #
 # O remoto do git poe o CODIGO fora do PC; a triagem -- o unico dado
@@ -7370,7 +7437,7 @@ def volta_ao_referer(omissao):
 # token que a tabela `sessoes` conhece; nao ha secret_key do Flask nem
 # cookie assinado, e "sair" apaga a linha e invalida de imediato.
 
-ROTAS_ABERTAS = ("/entrar",)
+ROTAS_ABERTAS = ("/entrar", "/saude")   # /saude: a rota do vigilante de fora
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o admin abre (13/09/2026, "Mudancas na plataforma RADAR"):
@@ -7453,8 +7520,11 @@ def porta_de_entrada():
     # A ligacao fecha-se aqui a mao: isto corre em TODOS os pedidos, e
     # o `with liga()` so faz commit -- deixava uma ligacao por pedido a
     # espera do gc (os testes contavam-nas, de 327 avisos para 719).
-    c = liga()
+    # E o liga() fica dentro do try (15/09/2026): com a base indisponivel
+    # tudo dava 500 aqui, incluindo o /saude, que existe para dizer 503.
+    c = None
     try:
+        c = liga()
         if token:
             g.utilizador = contas.utilizador_da_sessao(c, token)
             c.commit()
@@ -7470,7 +7540,8 @@ def porta_de_entrada():
                 and pedido_e_local():
             g.livre = True
     finally:
-        c.close()
+        if c is not None:
+            c.close()
     if request.path in ROTAS_ABERTAS:
         return None
     if not g.utilizador and not g.livre:
@@ -7492,6 +7563,93 @@ def porta_de_entrada():
             return Response("pedido recusado: vem de outro sítio", 403,
                             mimetype="text/plain")
     return None
+
+
+# ------------------------------------------- os erros, e a saude
+#
+# 15/09/2026, da lista «20 coisas a proteger antes de um site vibecoded
+# ir para o publico»: das vinte, tres faltavam mesmo -- uma pagina de
+# erro propria, uma rota de saude para alguem de fora vigiar, e um
+# ensaio de restauro da copia (esse esta em baixo, ao pe das copias).
+#
+# A pagina de erro e fora do BASE de proposito: o BASE le a sessao e a
+# barra, e um 500 a meio disso dava outro 500 em cima do primeiro. E o
+# molde do /entrar, com um titulo e uma linha.
+
+PAGINA_ERRO = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>%(titulo)s — RadarGov</title><style>%(css)s</style></head>
+<body class="entrar-fundo"><main class="entrar">
+ <div class="logo">Radar<span>Gov</span></div>
+ <h1>%(titulo)s</h1>
+ <p class="nota">%(texto)s</p>
+ <p><a class="bt primario" href="/">Voltar aos anúncios</a></p>
+</main></body></html>"""
+
+ERROS_DO_PAINEL = {
+    403: ("Não é para aqui", "Esta página é só do admin, ou o pedido veio "
+                              "de outro sítio."),
+    404: ("Não há nada aqui", "A ligação está errada ou a página deixou "
+                              "de existir."),
+    500: ("Correu mal", "O painel deu um erro. Ficou registado nos "
+                        "Indicadores; se voltar a acontecer, diz."),
+}
+
+
+def pagina_de_erro(codigo):
+    titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
+    return Response(PAGINA_ERRO % {"css": CSS, "titulo": titulo, "texto": texto},
+                    codigo, mimetype="text/html")
+
+
+@app.errorhandler(404)
+def nao_encontrado(_erro):
+    return pagina_de_erro(404)
+
+
+@app.errorhandler(403)
+def recusado(_erro):
+    # So os abort(403): as recusas da porta continuam em texto, porque
+    # um POST de formulario ou de fetch quer a frase, nao um ecra.
+    return pagina_de_erro(403)
+
+
+@app.errorhandler(500)
+def rebentou(_erro):
+    """Um 500 mostrava a pagina nua do Werkzeug e nao ficava em lado
+    nenhum: o Afonso via «Internal Server Error» e ninguem mais sabia.
+    Passa a marca `painel_ultimo_erro` (a saude dos Indicadores le-a)
+    mais a linha na serie, e uma pagina da casa. O registo nunca pode
+    derrubar a resposta: se a base e que esta mal, fica so a pagina."""
+    causa = getattr(_erro, "original_exception", None) or _erro
+    try:
+        marca_erro("painel_ultimo_erro", "painel",
+                   "%s em %s %s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                        request.method, request.path[:80],
+                                        ("%s: %s" % (type(causa).__name__, causa))[:200]))
+    except Exception:
+        pass
+    return pagina_de_erro(500)
+
+
+@app.route("/saude")
+def saude():
+    """Para um vigilante de fora (o UptimeRobot, ou o que for) bater de
+    cinco em cinco minutos: sem sessao, e sem dizer nada de dentro. So
+    «ok» se a base abre e responde, 503 se nao -- e o que um monitor
+    de disponibilidade sabe ler. Esta em ROTAS_ABERTAS porque um ping
+    que caia no /entrar dava sempre 200, e o monitor nunca veria o
+    painel cair de facto."""
+    try:
+        c = liga()
+        try:
+            c.execute("SELECT 1 FROM estado LIMIT 1").fetchall()
+        finally:
+            c.close()
+    except sqlite3.Error:
+        return Response("base indisponível", 503, mimetype="text/plain")
+    return Response("ok", 200, mimetype="text/plain",
+                    headers={"Cache-Control": "no-store"})
 
 
 def csrf_da_pagina():
@@ -11903,6 +12061,9 @@ def config_copias():
         + "<button type='submit' class='bt forte'>Guardar</button></form>"
         + "<div class='rot' style='margin:22px 0 6px'>O que existe em copias/</div>"
         + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
+        + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s "
+          "<span style='color:var(--t5)'>(python radar.py --ensaiar-copia)</span></div>"
+          % html.escape(le_marca("ultimo_ensaio_copia", "ainda nenhum"))
         + "<div class='saude'>%s</div>" % ("".join(existentes) or
                                            "<div class='nota'>nenhuma ainda</div>"))
     return pagina_config("copias", "<div class='cx conf-cx'>" + corpo + "</div>")
@@ -16145,7 +16306,7 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
 
 def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
                             token=None, triagem=None, vortal=None,
-                            pecas_dr=None):
+                            pecas_dr=None, painel=None):
     """As marcas de ultimo erro que so se viam por SQL (C1 do saneamento).
 
     So aparece o que existe: sem erro gravado nao ha linha nenhuma --
@@ -16169,7 +16330,8 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
                           ("Último erro a gravar a triagem no git", triagem),
                           ("Último erro na Vortal", vortal),
                           ("Último erro a renovar as peças do DR",
-                           pecas_dr)):
+                           pecas_dr),
+                          ("Último erro do painel", painel)):
         if (valor or "").strip():
             # numa linha so antes de cortar: um erro de varias linhas
             # gastava metade dos 80 caracteres em mudancas de linha e
@@ -16324,6 +16486,12 @@ def indicadores():
     if copia:
         saude.append(("Cópia de segurança", html.escape(corta(copia, 80)),
                       copia.startswith("ok")))
+    # 15/09/2026: o ensaio de restauro (--ensaiar-copia); so aparece
+    # depois de correr uma vez. O 500 do painel esta nos ultimos erros.
+    ensaio = le_marca("ultimo_ensaio_copia", "")
+    if ensaio:
+        saude.append(("Ensaio de restauro", html.escape(corta(ensaio, 80)),
+                      ensaio.startswith("ok")))
 
     # O corpus do BASE e a segunda metade da aplicacao, e estava fora
     # desta pagina -- os indicadores diziam que estava tudo bem sem
@@ -16378,7 +16546,8 @@ def indicadores():
                                     le_marca("token_ultimo_erro", ""),
                                     le_marca("ultimo_erro_triagem_git", ""),
                                     le_marca("vortal_ultimo_erro", ""),
-                                    le_marca("pecas_dr_ultimo_erro", ""))
+                                    le_marca("pecas_dr_ultimo_erro", ""),
+                                    le_marca("painel_ultimo_erro", ""))
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "#d68910"))
 
@@ -16950,6 +17119,25 @@ def main():
         for k, v in sorted(n.items()):
             print("  %-22s %s" % (k, v))
         print("Estado zero. O acervo ficou.")
+        return
+
+    if "--ensaiar-copia" in sys.argv:
+        # 15/09/2026: prova que a ultima copia (ou a que se indicar) se
+        # restaura, sem tocar em nada. Sai com 1 se nao servir.
+        i = sys.argv.index("--ensaiar-copia")
+        qual = sys.argv[i + 1] if len(sys.argv) > i + 1 else None
+        try:
+            r = ensaiar_copia(qual)
+        except FileNotFoundError as erro:
+            print("aviso: %s" % erro)
+            sys.exit(1)
+        print("Cópia: %s" % r["ficheiro"])
+        print("Integridade: %s" % r["integridade"])
+        for chave, (na_copia, na_viva) in r["contagens"].items():
+            print("  %-14s cópia %-9s viva %s" % (chave, na_copia, na_viva))
+        print("Serve." if r["serve"] else "NÃO SERVE: não restaures esta cópia.")
+        if not r["serve"]:
+            sys.exit(1)
         return
 
     if "--casa-desfazer" in sys.argv:
