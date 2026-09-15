@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 26
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 27
 - [O registo da casa](#o-registo-da-casa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 15
 - [Convenções](#convencoes) &middot; 2
 
-São **137** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
+São **138** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
 índice volta a ter de se recontar sempre que se acrescenta um ponto:
 somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
 áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
@@ -1098,6 +1098,23 @@ pelo Afonso e nenhuma se reabre de passagem.
   continua de fora, no `condicao_da_aba()`: é um campo que quem guardou
   o filtro escolheu, e calá-lo fazia o filtro deixar de ver o que sempre
   viu. A migração `traduzir_filtros_guardados()` corre a cada arranque.
+
+- **As doze colunas velhas do `anuncios` FICAM; só deixam de se criar.**
+  A etapa 2 largava-as com `ALTER TABLE ... DROP COLUMN`, e isso foi
+  revertido no mesmo dia por medição: o SQLite **reescreve a tabela
+  inteira**, uma vez por coluna. Na base dele — 209 894 anúncios, 1,2 GB,
+  com o `anuncios.texto` a valer 843 MB desses — ao fim de 45 s a
+  primeira ainda não tinha acabado, com o WAL já acima do tamanho da
+  própria base. Num arranque do `radar-painel.service` isso lê-se como o
+  painel pendurado, e uma migração que fique sem disco a meio deixa a
+  base num estado que ninguém planeou. O que se ganhava era cosmética:
+  doze colunas a NULL que código nenhum lê. **A garantia passou a ser um
+  teste** (`TestColunasVelhasFicamMasNinguemAsLe`), que procura os nomes
+  em SQL que fale de `anuncios` — uma coluna que ficou é um sítio onde se
+  pode voltar a escrever por distracção, e aí ficam dois registos do
+  mesmo facto. A tabela `fases` essa sai mesmo: são seis linhas, e
+  enquanto existisse um restauro de um `triagem.jsonl` antigo voltava a
+  enchê-la.
 
 - **Uma proposta criada já numa ranhura fechada leva carimbo.** O
   `fechada_em` grava-se em `criar_proposta()` **e** em

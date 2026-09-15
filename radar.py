@@ -389,27 +389,36 @@ def _modelo_com_fornecedor(valor):
 # O que uma base com dados teria de fazer, se alguma vez isto correr num
 # disco onde alguem triou: ler as colunas ANTES de as largar e criar uma
 # proposta por cada anuncio que tenha fase ou qualquer campo preenchido.
+# As colunas que a escada substituiu. Numa base NOVA nao se criam; numa
+# que ja as tenha, **ficam onde estao** -- e a lista existe para se saber
+# quais sao e para o teste provar que nenhuma e lida.
+#
+# Porque e que nao se apagam, que era o que este ficheiro dizia primeiro:
+# o `ALTER TABLE ... DROP COLUMN` do SQLite **reescreve a tabela
+# inteira**, uma vez por coluna. Medido a 15/09/2026 na base dele (209
+# 894 anuncios, 1,2 GB, com o `anuncios.texto` a valer 843 MB desses):
+# doze colunas sao doze reescritas de 1,2 GB, e ao fim de 45 s a primeira
+# ainda nao tinha acabado com o WAL ja acima do tamanho da propria base.
+# Num arranque do `radar-painel.service` isso le-se como o painel
+# pendurado; e uma migracao que pode ficar sem disco a meio deixa a base
+# num estado que ninguem planeou.
+#
+# O que se ganhava era cosmetica: doze colunas a NULL em cada linha, que
+# codigo nenhum le. O que se perdia era o arranque. Ficam.
 COLUNAS_QUE_SAIRAM = ("fase_id", "motivo", "preco_proposto", "posicao",
                       "top3", "motivo_perda", "tipologia", "cv",
                       "proposta_tecnica", "notas", "coe", "responsavel")
 
 
 def largar_o_que_a_escada_substituiu(c):
-    """Tira as colunas velhas e a tabela `fases`. Idempotente: corre a
-    cada arranque e nao faz nada quando ja esta feito.
+    """Tira a tabela `fases`, que a escada substituiu. Idempotente.
 
-    O SQLite so sabe largar uma coluna de cada vez, e desde a 3.35; numa
-    versao mais antiga o ALTER rebenta e o radar nao arranca por causa de
-    uma arrumacao. Por isso vai em try: uma coluna a mais que fique na
-    base nao estorva ninguem -- ja nao a le codigo nenhum.
+    Sao seis linhas: sai num instante, ao contrario das colunas (ver o
+    comentario em COLUNAS_QUE_SAIRAM). E tem de sair mesmo, e nao so de
+    deixar de se criar: enquanto existisse, um restauro de um
+    `triagem.jsonl` antigo voltava a enche-la e ficava um vocabulario
+    de fases ao lado do da casa, sem nada a dizer qual manda.
     """
-    colunas = {r["name"] for r in c.execute("PRAGMA table_info(anuncios)")}
-    for nome in COLUNAS_QUE_SAIRAM:
-        if nome in colunas:
-            try:
-                c.execute("ALTER TABLE anuncios DROP COLUMN " + nome)
-            except sqlite3.OperationalError:
-                pass
     try:
         c.execute("DROP TABLE IF EXISTS fases")
     except sqlite3.OperationalError:
@@ -627,13 +636,11 @@ def iniciar_db():
                            ("lotes", "TEXT"),
                            # quando se viu pela ultima vez a lista das
                            # pecas na plataforma (vigiar_pecas, 14/09/2026)
-                           ("pecas_vigiadas_em", "TEXT"),
-                           # os campos da lista do "Em curso" (14/09/2026,
-                           # a tabela que o Afonso mandou): o que a casa
-                           # decide sobre cada concurso em curso
-                           ("tipologia", "TEXT"), ("cv", "TEXT"),
-                           ("proposta_tecnica", "TEXT"), ("notas", "TEXT"),
-                           ("coe", "TEXT")):
+                           ("pecas_vigiadas_em", "TEXT")):
+                           # (a tipologia, o CV, a proposta tecnica, as
+                           # notas e o CoE viveram aqui um dia -- 14 a
+                           # 15/09/2026 -- e sao da proposta, como as
+                           # outras sete de COLUNAS_QUE_SAIRAM)
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
@@ -10959,7 +10966,7 @@ def _lista_de_anuncios():
                 "</div>")
 
     return envolver(
-        "anuncios", "Anúncios",
+        "anuncios", "Concursos",
         "Entra tudo o que o DR publica &mdash; e, da Vortal, as "
         "consultas preliminares. <b>Por ver</b> é o que ainda dá para "
         "responder e ainda ninguém decidiu; o que expira sem ninguém "
