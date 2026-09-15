@@ -607,7 +607,10 @@ interessa (e destes, quantos estão dentro da janela do "urgente" — os
 mesmos N dias do filtro e da etiqueta cor de âmbar, editáveis em
 Configurações › Alertas), quantos ainda estão sem detalhe lido, como estão distribuídos
 pelas fases do quadro, e o estado da recolha — se as capturas ainda são
-válidas e que percentagem de peças se consegue por plataforma.
+válidas e que percentagem de peças se consegue por plataforma. Na saúde
+aparecem também a última cópia, o último ensaio de restauro
+(`--ensaiar-copia`, secção 13) e, se houver, o último erro que o painel
+deu (uma página a dizer «Correu mal» fica aqui registada).
 
 É tudo lido da tua base, não sai nada para fora.
 
@@ -836,6 +839,33 @@ python radar.py --descartar-expirados
 Descarta os "por ver" cujo prazo já passou — arquivo, não triagem.
 
 ```bash
+.venv/bin/python radar.py --ensaiar-copia
+```
+Prova que a última cópia de `copias/` se restaura, sem a restaurar:
+abre-a só de leitura, verifica a integridade e conta os anúncios, a
+triagem, o histórico e as contas contra a base viva. Diz «Serve.» ou
+«NÃO SERVE». Corre-o uma vez por mês; o resultado fica na secção
+Cópias e nos Indicadores. Podes indicar outra cópia a seguir ao
+comando.
+
+**Se um dia for preciso restaurar de verdade** (a base corrompeu-se,
+uma importação estragou a triagem), é isto, por esta ordem, na pasta
+do radar:
+
+```bash
+systemctl --user stop radar-painel.service radar-09h.timer radar-17h.timer
+.venv/bin/python radar.py --ensaiar-copia copias/radar-AAAA-MM-DD.db
+cp radar.db radar-estragada.db          # guarda a que lá está, por via das dúvidas
+rm -f radar.db-wal radar.db-shm         # o resto da base antiga; sem isto misturam-se
+cp copias/radar-AAAA-MM-DD.db radar.db
+systemctl --user start radar-painel.service radar-09h.timer radar-17h.timer
+```
+
+Perde-se o que entrou depois dessa cópia: a recolha seguinte traz os
+anúncios outra vez, mas a triagem desses dias não volta (a do
+`triagem.jsonl` no git repõe-se com `--repor-triagem`).
+
+```bash
 python radar.py --exportar-triagem
 ```
 Escreve o `triagem.jsonl` — a parte irrecuperável da base (a tua
@@ -906,6 +936,14 @@ o serviço arranca sozinho, como o do painel. Para ver se está de pé:
 ```bash
 systemctl --user status radar-tunel.service
 ```
+
+E para não teres de ser tu a reparar que caiu: **`https://radargov.pt/saude`**
+responde «ok» sem login quando o painel e a base estão de pé (e 503
+quando a base não responde). Serve para pôr um vigilante gratuito a
+bater lá de cinco em cinco minutos e a mandar-te e-mail quando falha:
+o UptimeRobot (uptimerobot.com, plano Free) ou equivalente, um monitor
+do tipo HTTP com esse endereço. Não está ligado: é na tua conta, não
+na pasta do radar.
 
 Foi montado uma vez com o `tunel_fixo.sh`, depois de o domínio estar
 na tua conta da Cloudflare e de autorizares este computador no

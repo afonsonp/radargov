@@ -130,6 +130,18 @@ L publicar, e a triagem faz-se no painel.
 
 Funciona. Os números são de **4/09/2026**, lidos das duas bases.
 
+**A 15/09/2026 entraram as três coisas que faltavam de uma lista de
+«20 coisas a proteger antes de um site ir para o público»** (as outras
+dezassete já existiam ou não se aplicam): páginas de erro da casa
+(404, 403 e 500, e o 500 fica na marca `painel_ultimo_erro` e na série
+`erros`, visível nos últimos erros dos Indicadores); a rota **`/saude`**,
+sem sessão, que responde «ok» ou 503 para um vigilante de fora bater
+(o UptimeRobot, por exemplo; está por ligar, é na conta do Afonso); e o
+**`--ensaiar-copia`**, que prova que a última cópia se restaura sem a
+restaurar (integrity_check e contagens contra a base viva; marca
+`ultimo_ensaio_copia`). **Ainda ninguém correu o ensaio na instalação
+verdadeira**: é o passo seguinte, no computador do Afonso.
+
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
 («Alteração do Anúncio de procedimento n.º …») ligadas ao original e
@@ -321,10 +333,10 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 17 131 linhas, `casa.py` com 1 267,
-`teste_radar.py` com 861 testes que correm em 25 segundos, sem rede e sem
-tocar na base verdadeira (contados a 14/09/2026, depois da auditoria
-ponytail, que tirou ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
+**Código e testes.** `radar.py` com 17 3xx linhas, `casa.py` com 1 267,
+`teste_radar.py` com 870 testes que correm em 25 segundos, sem rede e sem
+tocar na base verdadeira (contados a 15/09/2026; a 14/09 a auditoria
+ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
