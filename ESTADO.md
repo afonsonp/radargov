@@ -438,7 +438,7 @@ ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
 **Código e testes.** `radar.py` com 18 8xx linhas, `casa.py` com 1 267,
-`teste_radar.py` com **937** testes que correm em ~75 segundos, sem rede e sem
+`teste_radar.py` com **938** testes que correm em ~75 segundos, sem rede e sem
 tocar na base verdadeira (contados a 15/09/2026, depois das etapas 1 e 2 do CRM; a 14/09 a auditoria
 ponytail tinha tirado ~160 linhas líquidas ao conjunto e ~360 ao radar.py). **Mais de metade do `radar.py` é painel**
 (7 569 linhas, 54% — da banda `# --- painel` à `# --- arranque`).

@@ -1108,6 +1108,37 @@ def data_pt(iso, vazio="—"):
         return iso or vazio
 
 
+def data_do_texto(escrito):
+    """'21/08/2026' -> '2026-08-21'. O inverso do `data_pt()`.
+
+    Guarda-se ISO porque ordena como texto; escreve-se a portuguesa
+    porque e assim que se le -- e ate 15/09/2026 so METADE disso estava
+    feita: o painel mostrava sempre dd/mm/aaaa e a unica caixa que pedia
+    uma data era um `<input type=date>`, que cada browser desenha na
+    lingua DELE. Num Chrome em ingles saia "mm/dd/yyyy" no meio de uma
+    aplicacao inteira em portugues. Palavra dele: "a data deve ser
+    sempre dd/mm/aaaa".
+
+    Aceita 1 ou 2 digitos no dia e no mes ("1/9/2026"), e devolve ""
+    para o que nao se perceba -- que e o que faz uma data mal escrita
+    ficar por preencher em vez de ir para a base como lixo. E aceita ISO
+    tal e qual, para quem colar de outro sitio.
+    """
+    escrito = (escrito or "").strip()
+    if not escrito:
+        return ""
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", escrito):
+        return escrito
+    m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", escrito)
+    if not m:
+        return ""
+    dia, mes, ano = (int(x) for x in m.groups())
+    try:
+        return datetime(ano, mes, dia).strftime("%Y-%m-%d")
+    except ValueError:
+        return ""
+
+
 def data_de_filtro(valor):
     """So aceita AAAA-MM-DD; o resto ignora-se em vez de filtrar.
 
@@ -8663,8 +8694,18 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
    las como as oito dizia que ha dez estados quando ha dez coisas de
    tres naturezas. O separador vertical entre a entrada e as oito e
    onde a escada da casa comeca. */
-.abas-escada{overflow-x:auto;scrollbar-width:thin;padding-bottom:1px}
-.abas-escada a{white-space:nowrap;flex:0 0 auto}
+/* Onze abas -- dez ranhuras mais o "Todos" -- nao cabem numa linha num
+   ecra normal, e rolar de lado com a barra de rolamento a vista era a
+   coisa mais feia do ecra (palavra dele). Passam a QUEBRAR: a fila
+   continua, mais abaixo, e nao ha nada a esconder-se. O tipo desce de
+   12,5 para 11,5 px e o espaco aperta, que e o que faz caber uma linha
+   so na maior parte dos ecras -- em 900 px vao a duas, e e essa a
+   intencao.
+   A nota da UX-Auditoria mantem-se: o alvo continua acima de 24 px de
+   altura, que e o que a regra da casa exige. */
+.abas-escada{flex-wrap:wrap;row-gap:0;padding-bottom:1px}
+.abas-escada a{white-space:nowrap;flex:0 0 auto;padding:8px 10px;
+ font-size:11.5px}
 .abas-escada a.ponta{color:var(--t5)}
 .abas-escada a.ponta:hover{color:var(--t2)}
 .abas-escada a.entrada{border-right:1px solid var(--linha);
@@ -8881,22 +8922,18 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .conc-b i{display:block;height:100%}
 @media (max-width:900px){.graf-corpo{grid-template-columns:minmax(0,1fr)}}
 
-/* a lista do "Em curso": a tabela dos contratos com formularios por
-   linha; os campos sao pequenos e sem moldura para a linha ler-se
-   como uma linha, e ganham moldura ao focar */
-.tab-lista{min-width:1400px}
+/* A lista das propostas (era a do "Em curso", que se fundiu na escada a
+   15/09/2026). O `min-width` de 1400 px era para as treze colunas de
+   entao; hoje sao nove, e um minimo dessa largura punha a rolar de lado
+   uma tabela que cabe.
+   E saiu o `.tab-lista td form{display:contents}`: existia para um
+   `<form>` poder envolver celulas, que e coisa que o HTML nao deixa --
+   e com os formularios por linha fora, o que ele fazia era derrotar o
+   `display:flex` do selector de ranhura, que ficava espremido a mostrar
+   "A pr" onde diz "A preparar proposta". Visto no ecra nessa noite. */
+.tab-lista{min-width:900px}
 .tab-lista td.o{max-width:280px}
-.tab-lista td form{display:contents}
-.tab-lista input,.tab-lista select{font:400 12px/1.3 var(--sans);color:var(--t1);
- border:1px solid transparent;border-radius:5px;padding:5px 6px;background:transparent;
- min-width:0;width:100%;box-sizing:border-box}
-.tab-lista input:hover,.tab-lista select:hover{border-color:var(--linha)}
-.tab-lista input:focus,.tab-lista select:focus{border-color:var(--azul);background:#fff}
 .tab-lista td.curta{width:96px}
-.tab-lista td.notas{min-width:220px}
-.tab-lista button{cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--linha);
- background:#fff;font:500 11.5px/1 var(--sans);color:var(--t3);min-height:24px;box-sizing:border-box}
-.tab-lista button:hover{border-color:var(--ink);color:var(--ink)}
 .tab-lista td.d.esclarec{color:var(--t3)}
 
 /* separador dos contratos */
@@ -9441,10 +9478,18 @@ button.tirar:hover{color:var(--verm)}
    Com o quadro fora, é este o controlo que move um concurso na escada:
    oito destinos não cabem em botões, e dois botões de avançar/recuar
    davam vários gestos a qualquer salto -- e saltar é o caso. */
+/* Na mesma linha dos botoes e nao por baixo deles: a linha da lista
+   ficava com duas alturas, e vinte linhas assim sao um ecra a mais. */
+.item-accoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+ justify-content:flex-end}
 .ranhura{display:flex;align-items:center;gap:4px}
+/* A coluna da ranhura tem de caber a palavra mais comprida ("A
+   preparar proposta"): numa `td.curta` o select encolhia e mostrava "A
+   prep", que nao diz o estado nenhum. Visto no ecra a 15/09/2026. */
+td.celula-ranhura{white-space:nowrap;width:1%}
 .ranhura select{font:400 11.5px/1.2 var(--sans);padding:5px 7px;
  border:1px solid var(--linha);border-radius:5px;background:#fff;
- color:var(--t2);max-width:150px;min-height:24px;box-sizing:border-box}
+ color:var(--t2);min-height:24px;box-sizing:border-box}
 .ranhura select:hover{border-color:var(--azul)}
 /* o botão «ir» é para quem não tem JS: com JS o select grava sozinho ao
    mudar, e um botão a mais em cada uma de vinte linhas é ruído. O
@@ -9514,6 +9559,12 @@ button.tq:hover{border-color:var(--verde);color:var(--verde)}
 .desfecho-som .sub{font:400 10.5px/1.3 var(--sans);color:var(--t5);
  text-transform:none;letter-spacing:0}
 
+/* Um número que ainda não existe diz-se por extenso, e não com um
+   travessão: com a base quase vazia o bloco ficava a ser três
+   travessões seguidos, o que dá ar de avariado em vez de «ainda não».
+   Fica mais pequeno de propósito -- é uma nota, não um facto. */
+.desfecho-som .por-haver b{font:400 12px/1.4 var(--sans);color:var(--t4)}
+.desfecho-som .por-haver{min-width:150px}
 /* Os contactos (etapa 6) */
 .ct{padding:9px 0;border-bottom:1px solid var(--papel);position:relative}
 .ct:last-of-type{border-bottom:0}
@@ -9866,8 +9917,15 @@ def _opcoes(nome, valores, actual, vazio="\u2014"):
             % (nome, opcoes_html([("", vazio)] + list(valores), actual)))
 
 
-def selector_de_ranhura(accao, actual, titulo="", fora_da_escada=False):
+def selector_de_ranhura(accao, actual, titulo=""):
     """O `<select>` das oito palavras, com o «tirar da escada» no fim.
+
+    **Só para quem já está na escada** (decisão dele a 15/09/2026). Para
+    um concurso por decidir há os dois botões de sempre -- «interessa»,
+    que vai directo a «Por analisar», e «abandonar», que vai a «Não
+    fomos» e pergunta porquê. Um selector a dizer «— pôr na escada» era
+    uma palavra inventada ao lado de oito palavras a sério, e punha a
+    dois gestos o que é o gesto de 90% das linhas do «Por ver».
 
     O `data-motivos` diz ao JS quais das opcoes pedem motivo, para ele
     abrir a caixa em vez de gravar logo. Sem JS o `<select>` muda e o
@@ -9875,15 +9933,12 @@ def selector_de_ranhura(accao, actual, titulo="", fora_da_escada=False):
     degradacao a dizer o que se passa, e nao um controlo morto.
     """
     opcoes = []
-    if fora_da_escada:
-        opcoes.append("<option value='' selected>&mdash; pôr na escada</option>")
     for chave, rotulo in ESTADOS_DA_CASA:
         opcoes.append("<option value='%s'%s>%s</option>"
                       % (chave, " selected" if chave == actual else "",
                          html.escape(rotulo)))
-    if not fora_da_escada:
-        opcoes.append("<option value='%s'>tirar da escada</option>"
-                      % ENTRADA_DA_ESCADA[0])
+    opcoes.append("<option value='%s'>tirar da escada</option>"
+                  % ENTRADA_DA_ESCADA[0])
     return ("<form class='ranhura escada-js' method='post' action='%s' "
             "data-titulo='%s' data-motivos='%s'>"
             "<select name='estado'>%s</select>"
@@ -10172,21 +10227,22 @@ def linha(a, vista="", urgente=None, na_escada=None):
     # "abandonar" cobriam duas das oito palavras. O "interessa" fica ao
     # lado enquanto nao ha decisao nenhuma, porque e o gesto de 90% das
     # linhas do "Por ver" e nao se troca um clique por dois.
+    # Uma coisa OU a outra, nunca as duas (decisao dele a 15/09/2026):
+    # por decidir, os dois botoes de sempre -- o "interessa" vai directo
+    # a "Por analisar" e o "abandonar" a "Nao fomos", a perguntar
+    # porque; ja na escada, o selector das oito palavras. Um selector a
+    # dizer "pôr na escada" era uma palavra inventada ao lado de oito
+    # palavras a serio.
     aqui = list((na_escada or {}).get(a["ref"], ()))
     botoes = []
     if not aqui:
-        # O "interessa" fica, e so ele: e o gesto de 90% das linhas do
-        # "Por ver", e nao se troca um clique por dois. O "abandonar"
-        # saiu -- e uma das oito opcoes do selector ("Nao fomos"), e
-        # abre exactamente a mesma caixa do motivo. Tres controlos na
-        # mesma linha para oito destinos era a lista a pedir duas vezes
-        # o que ja podia pedir uma.
-        botoes.append(accao("/estado/%s/analisar" % a["ref"],
+        botoes.append(accao("/estado/%s/analisar" % quote(a["ref"], safe=""),
                             "interessa", "mini verde"))
-    botoes.append(selector_de_ranhura(
-        "/escada/" + quote(a["ref"], safe=""),
-        aqui[0]["estado"] if aqui else "",
-        titulo=a["titulo"] or a["ref"], fora_da_escada=not aqui))
+        botoes.append(forma_abandonar(a["ref"], titulo=a["titulo"] or ""))
+    else:
+        botoes.append(selector_de_ranhura(
+            "/escada/" + quote(a["ref"], safe=""), aqui[0]["estado"],
+            titulo=a["titulo"] or a["ref"]))
     if len(aqui) > 1:
         # Com lotes ha uma proposta por lote e o selector move a
         # primeira: dizer qual, e mandar a ficha, e melhor do que mover
@@ -10983,7 +11039,7 @@ def condicao_do_interesse_contratos(args=None, cfg=None):
     return frag, vals
 
 
-def contar_a_escada(onde_base="", valores_base=(), cfg=None):
+def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
     """Quantos ha em cada uma das dez ranhuras, DENTRO do filtro em uso.
 
     As contagens eram sobre a base inteira e diziam "Por ver 66 007 ·
@@ -10999,6 +11055,14 @@ def contar_a_escada(onde_base="", valores_base=(), cfg=None):
     que o explica ao pe do numero, em vez de se calar.
     """
     cfg = ler_config() if cfg is None else cfg
+    if onde_base is None:
+        # Sem filtro nenhum, a base NAO e vazia: e a mesma do motor com
+        # `estado=""` -- que tira as alteracoes, porque "todos" sao todos
+        # os PROCEDIMENTOS e uma republicacao e o mesmo concurso outra
+        # vez. Sem isto o "Todos" dizia 209 894 na lista das propostas e
+        # 199 631 na dos anuncios: o mesmo botao com dois numeros, que e
+        # exactamente o que a regra da casa proibe. Visto no ecra.
+        onde_base, valores_base = condicoes({"estado": ""})
     contas = {}
     with liga() as c:
         for chave, _ in ESCADA + (("", "Todos"),):
@@ -11454,7 +11518,7 @@ def linha_da_pipeline(p, urgente, prazos):
             "<td class='g'>%s</td><td class='curta'>%s</td>"
             "<td class='p'>%s</td><td class='p'>%s</td>"
             "<td class='d'>%s</td><td class='curta'>%s</td>"
-            "<td class='curta'>%s</td><td class='curta'>%s</td></tr>"
+            "<td class='celula-ranhura'>%s</td><td class='curta'>%s</td></tr>"
             % (alvo, html.escape(nome),
                "" if p["ref"] else
                " <span class='tag info' title='%s'>sem anúncio</span>"
@@ -16899,7 +16963,7 @@ def tarefa_nova():
     except ValueError:
         proposta_id = None
     criar_tarefa(request.form.get("o_que"),
-                 (request.form.get("quando") or "").strip(),
+                 data_do_texto(request.form.get("quando")),
                  proposta_id=proposta_id, ref=ref)
     return volta_ao_referer("/anuncio/" + (ref or ""))
 
@@ -17318,7 +17382,9 @@ def _tarefas_da_ficha(p):
               "<input type='hidden' name='proposta_id' value='%d'>"
               "<input type='text' name='o_que' maxlength='200' required "
               "placeholder='o que falta fazer…'>"
-              "<input type='date' name='quando'>"
+              "<input type='text' name='quando' inputmode='numeric' "
+              "placeholder='dd/mm/aaaa' maxlength='10' "
+              "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
               "<button type='submit'>juntar</button></form>"
               % (html.escape(p["ref"] or "", quote=True), p["id"]))
     return ("<div class='prop-tarefas'><div class='rot'>O que falta fazer"
@@ -18085,28 +18151,43 @@ def negocio_cx():
         if totais else (0, 0, None)
     desconto, sobre = desconto_medio_dos_ganhos()
 
-    def numero(rotulo, valor, nota, destino=""):
-        valor = ("<a href='%s'>%s</a>" % (html.escape(destino, quote=True), valor)
-                 if destino else valor)
+    def numero(rotulo, valor, nota):
+        """Um número do cabeçalho -- ou, quando ainda não há que contar,
+        a frase que o diz.
+
+        **Sem número não se põe um travessão** (arranjo pedido por ele a
+        15/09/2026): com a base quase vazia o bloco ficava a ser três
+        travessões seguidos com legendas compridas por baixo, o que dá ar
+        de avariado em vez de «ainda não». A frase ocupa o lugar do
+        número, mais pequena, e diz o que falta para ele existir.
+        """
+        if valor is None:
+            return ("<div class='por-haver'><b>%s</b><span>%s</span></div>"
+                    % (nota, rotulo))
         return ("<div><b>%s</b><span>%s</span><span class='sub'>%s</span></div>"
                 % (valor, rotulo, nota))
 
     cabeca = "".join((
-        numero("em jogo", euros_curto(em_jogo) if em_jogo else "&mdash;",
-               "%d proposta%s aberta%s%s"
-               % (abertas, "" if abertas == 1 else "s",
-                  "" if abertas == 1 else "s",
-                  "; %d sem preço lido" % sem_preco if sem_preco else "")),
+        numero("em jogo",
+               euros_curto(em_jogo) if em_jogo else None,
+               ("%d proposta%s aberta%s%s"
+                % (abertas, "" if abertas == 1 else "s",
+                   "" if abertas == 1 else "s",
+                   "; %d sem preço lido" % sem_preco if sem_preco else ""))
+               if em_jogo else
+               ("as %d abertas ainda não têm preço lido" % abertas
+                if abertas else "ainda não há propostas abertas")),
         numero("taxa de vitória",
-               "%.0f%%" % (taxa * 100) if taxa is not None else "&mdash;",
-               ("%d de %d decididos" % (ganhos, decididos)) if decididos
-               else "ainda não há decididos"
-               if not decididos else
-               "poucos para contar (mínimo %d)" % MINIMO_PARA_TAXA),
+               "%.0f%%" % (taxa * 100) if taxa is not None else None,
+               ("%d de %d decididos" % (ganhos, decididos)) if taxa is not None
+               else ("%d decidido%s: faltam %d para contar"
+                     % (decididos, "" if decididos == 1 else "s",
+                        MINIMO_PARA_TAXA - decididos)) if decididos
+               else "ainda não há decididos"),
         numero("desconto médio",
-               "%.1f%%" % (desconto * 100) if desconto is not None else "&mdash;",
-               "nos %d ganhos com os dois preços lidos" % sobre
-               if sobre else "sem preços lidos nos ganhos")))
+               "%.1f%%" % (desconto * 100) if desconto is not None else None,
+               "nos %d ganhos com os dois preços lidos" % sobre if sobre
+               else "ainda não há ganhos com os dois preços lidos")))
 
     # o pipeline por ranhura, cada barra a abrir a sua lista
     maior = max([v["euros"] for v in pipeline.values()] + [1.0])
