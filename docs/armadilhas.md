@@ -1736,6 +1736,29 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **A abertura é `/` e a lista é `LISTA` (`/concursos`)** (16/09/2026,
+  fase 4 do `docs/design.md`). A lista mudou de endereço e o endereço é
+  uma **constante**, não um literal: eram 56 sítios a escrever `"/"` e
+  nem todos queriam dizer a lista — uns queriam dizer «volta ao
+  princípio», que agora é outra página. Um `redirect("/")` depois de
+  uma acção manda para a abertura; se o que se quer é a lista, é
+  `LISTA`. A barra tem **três** itens (Hoje · Concursos · Mercado) e o
+  Calendário é vista do **segundo**, não do primeiro — `NAV[1][3]`.
+
+- **A página de abertura lê só a tabela `tarefas`.** Os prazos dos
+  anúncios **não** se somam por cima: as tarefas automáticas já os
+  trazem (`sincronizar_tarefas()`), e juntar os mil «por ver» afogava
+  as dez que são mesmo trabalho. E o «Para fazer» conta as linhas que
+  mostra, com âncora para elas — esteve a contar seis de oito e a ligar
+  ao `/calendario`, que é outra população.
+
+- **Um `assertNotIn` sobre um nome de classe dá sempre falso positivo.**
+  O CSS vai embutido em todas as páginas e cita os próprios selectores,
+  por isso `"abas-escada"` está no HTML da abertura, que não tem abas
+  nenhumas. Mede-se a **marcação** (`"<div class='abas abas-escada'>"`),
+  como o `test_o_indice_e_o_verificar_agora_seguem_o_papel` já fazia
+  para o «Verificar agora».
+
 - **O texto que explica uma página vive dentro do `<summary>` do
   título** (16/09/2026, fase 2 do `docs/design.md`). O `<h1>` vai
   **dentro** do `<summary>` — o modelo de conteúdo do `summary` aceita

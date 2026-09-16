@@ -268,8 +268,10 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. Navegação por DUAS intenções desde
-   15/09/2026: **Concursos** (`/`, a lista única com as dez ranhuras da
+   lê da porta. Navegação por TRÊS intenções desde
+   16/09/2026: **Hoje** (`/`, a abertura — o estado do negócio e o que
+   há para fazer), **Concursos** (**`LISTA`** = `/concursos`, que é
+   constante e não literal, a lista única com as dez ranhuras da
    escada nas abas, mais a vista calendário `/calendario`; `/anuncios`
    e `/lista` redireccionam e `/quadro` já não existe) e **Mercado**
    (contratos `/contratos`, com o modo `?ver=fim` das antigas
@@ -298,6 +300,10 @@ A ordem do ficheiro é a ordem do fluxo:
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
+8a. **a abertura** — `/` (16/09/2026, fase 4 do `docs/design.md`): o
+   estado do negócio e o que há para fazer. Lê só a tabela `tarefas`;
+   os prazos dos anúncios não se somam por cima, que as automáticas já
+   os trazem.
 8b. **a amostra do desenho** — `/amostra` (16/09/2026, fase 0 do
    `docs/design.md`): os componentes todos num sítio, com um selector
    de letra e de pele, para ele ver e decidir antes de um ecrã mudar.

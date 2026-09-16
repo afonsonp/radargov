@@ -8,7 +8,7 @@ Este ficheiro é a decisão. O que se vê está em **`/amostra`**, que
 mostra os componentes todos num sítio e deixa trocar o lettering e a
 pele para comparar.
 
-**As fases 0, 1, 2 e 3 estão feitas** (16/09/2026): ele viu a amostra,
+**As fases 0 a 4 estão feitas** (16/09/2026): ele viu a amostra,
 escolheu a letra («prefiro a segunda, a do IBM») e disse «avança». A
 camada está aplicada aos ecrãs todos. O diagnóstico da §1 descreve o
 que **estava** antes disso — é o registo do que se mediu, não o estado
@@ -476,19 +476,46 @@ Isto mexe em mais coisas do que parece — `NAV`, `ITEM_DA_PAGINA`,
 `/anuncios` e `/lista` que apontam para `/`. Por isso é uma fase
 própria (§11, fase 4) e não um efeito lateral do aspecto.
 
-O desenho proposto, para ele ver antes:
+**Feita a 16/09/2026** (fase 4). `/` é a abertura, a lista vive em
+`LISTA` (`/concursos`) e a barra ganhou um primeiro item, **Hoje** —
+que é a primeira intenção: chegar e ver como está.
 
-1. **Quatro números do negócio**, que são os que já existem em
-   Indicadores: em jogo (€), taxa de vitória, por decidir, a fechar
-   esta semana. Cada um liga à lista que o produz — a regra da casa.
-2. **O que tenho de fazer**, que é o `agenda()` que está no histórico
-   do git: as tarefas das propostas mais os prazos a chegar, num só
-   sítio, por dia. Atrasadas primeiro.
-3. **O que entrou desde a última vez** — uma linha, com a ligação para
-   o por ver.
+1. **Quatro números**: em jogo (€), taxa de vitória, por decidir, para
+   fazer.
+2. **O que tenho de fazer**, em **quatro baldes** e não por data:
+   atrasadas · hoje · nos próximos 7 dias · mais para a frente. Uma
+   lista ordenada só por data põe o atrasado de ontem a seguir ao de
+   hoje, o que é verdade e não ajuda — o que está atrasado é outra
+   categoria, não um dia pior.
+3. **O que entrou desde a última vez** — uma linha, com a última
+   verificação.
 
-A lista dos concursos passa a ter endereço próprio e continua a ser o
-primeiro item da barra.
+Três decisões que se tomaram a fazê-la:
+
+- **Só a tabela `tarefas`, e não os prazos dos anúncios por cima.** As
+  tarefas automáticas já trazem os prazos do DR
+  (`sincronizar_tarefas()`), por isso somá-los aqui era contá-los duas
+  vezes — e juntar os mil «por ver» afogava as dez que são mesmo
+  trabalho. A pressão do «por ver» está no KPI que lhe é próprio.
+- **O «Para fazer» conta as linhas que mostra, e o destino é elas.**
+  Esteve a contar só as dos próximos dias (6 de 8) e a ligar ao
+  `/calendario`, que mostra **prazos** e não tarefas: duas avarias
+  numa, e a mesma que se apanhou no «+N» do calendário no mesmo dia. O
+  destino passou a ser uma âncora para a lista que está na própria
+  página.
+- **A saudação acompanha a hora.** «Bom dia» às 14h está errado, e um
+  título errado metade do dia é pior do que nenhum.
+
+O «Em jogo» aponta aos Indicadores e não a uma lista: é a soma de
+quatro ranhuras e não há lista única que o dê. Apontar a uma parecida
+seria pior — a regra é apontar ao ecrã que o **decompõe**, e a nota
+di-lo.
+
+A lista dos concursos continua a ser o item a seguir ao Hoje, e
+`/anuncios` e `/lista` redireccionam para o endereço novo. O endereço
+entrou como **constante** `LISTA` e não como literal: eram 56 sítios a
+escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
+«volta ao princípio», que agora é outra página.
 
 ---
 
@@ -500,7 +527,7 @@ primeiro item da barra.
 | **1** | Aplicar a camada: fontes, tokens, escala, botões | Todos, ao mesmo tempo | **feita** 16/09 |
 | **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | **feita** 16/09 |
 | **3** | O calendário (§8) | Um | **feita** 16/09 |
-| **4** | A abertura (§10) | Um novo, e a navegação | |
+| **4** | A abertura (§10) | Um novo, e a navegação | **feita** 16/09 |
 | **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | |
 
 **Cada fase corre na instalação dele antes de se dizer que está
