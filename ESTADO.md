@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **14 de setembro de 2026**.
+Última actualização: **16 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**. O histórico saiu daqui no
 mesmo dia: era um ficheiro de 5 297 linhas onde o topo envelhecia a cada
@@ -333,7 +333,45 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**954 testes**.
+**969 testes**.
+
+**Ao fim do dia, a aplicação foi povoada com três meses de uso** — 73
+propostas espalhadas pelas oito ranhuras (13 ganhos, 16 perdidos, 8
+submetidos, 5 em relatório preliminar), 70 tarefas, 26 contactos, com
+preços propostos, lugares, os três primeiros e motivos —, e depois
+percorrida como quem trabalha nela. Com o funil cheio apareceram
+**seis avarias que a base vazia escondia**, e um pedido dele:
+
+1. **A seta de voltar da ficha levava ao Hoje.** Palavra dele: «vejo a
+   folha de concurso e se eu carregar na seta para trás vou para o
+   Hoje». O `volta_a_lista()` ficou preso ao `/` quando a abertura lho
+   tomou. Com ela, mais duas do mesmo género que a varredura da fase 4
+   não podia apanhar: o **`action`** do formulário da procura (não é um
+   `href`) e quatro `<a href='/'>` cujo texto diz «lista».
+2. **O `/configuracoes/interesse` deu 500** — a armadilha do `%` outra
+   vez, cometida a corrigir o ponto 1. Ficou o `TestNenhumEcraDa500`,
+   que abre todas as páginas sem parâmetros percorrendo o `app.url_map`.
+3. **A procura dentro de uma ranhura nunca funcionou.** Faltavam os
+   `%` à volta do `para_like()`: só encontrava um título escrito por
+   inteiro. E o vazio dizia «Nada em Ganho» por baixo de uma aba a
+   dizer 13.
+4. **A aba dizia «Por analisar 7» por cima de uma lista de 11.** As
+   oito ranhuras contavam anúncios e a lista mostra propostas. Passaram
+   a contar propostas.
+5. **As barras do «Em jogo, por ranhura» não se viam** — a cor vinha de
+   `.graf .barras .b` e elas estão fora do `.graf` — e, nas que se viam,
+   **tudo acima de 76% desenhava a mesma altura**: 94% e 78% davam
+   136,8px os dois.
+6. **As migalhas e o «Verificar agora» desapareciam ao rolar**, debaixo
+   da barra escura: `.topo` e `.barra` estavam os dois em `top:0`.
+
+E o vocabulário mudou, por decisão dele: **a «casa» diz-se «empresa»**
+no ecrã, e as entidades do Portal BASE passaram a dizer o que são —
+**Cliente** ou **Concorrente**, pelo peso do que compram contra o que
+vendem (`papel_da_entidade()`; 3× de folga, e pelo meio são as duas
+coisas). O **Hoje saiu da barra e passou a ser o logótipo**, também a
+pedido dele: eram dois botões para o mesmo destino a 30px um do outro.
+São **969 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito

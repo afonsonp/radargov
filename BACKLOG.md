@@ -36,8 +36,22 @@ ou feito.
 | CRM | ~~O «Em curso» não é um CRM: é a mesma consulta dos interessados~~ | **Plano escrito a 15/09/2026** e **reescrito no mesmo dia com as decisões dele**: `docs/historico/CRM.md`. Seis etapas. O desenho é dele — **uma escada só** (dez ranhuras: a entrada, as oito palavras da casa, o cemitério dos expirados), com lista, quadro e calendário como três vistas dessa escada | **Feito a 15/09/2026, as seis etapas**: as tabelas, a escada nas abas, a triagem a criar propostas, o quadro (que saiu no mesmo dia, por decisão dele: a ranhura muda-se no selector da linha), o calendário para qualquer ranhura, a navegação em Concursos · Calendário · Mercado, as tarefas que seguem as datas do DR, o ciclo fechado com o Portal BASE (por chave: o `n_anuncio` é o `ref`), os indicadores comerciais e os contactos. Falta o NIF da casa, em Configurações › Conta, para o cruzamento adiantar se a adjudicação foi nossa |
 | B15-b | ~~Os campos do CRM não saem no `triagem.jsonl`~~ | **Fechado a 15/09/2026, sem trabalho próprio**: as colunas em falta são exactamente as que a etapa 1 do CRM apaga — exportá-las era escrever para deitar fora a seguir. A exportação faz-se uma vez, já sobre `propostas` e `tarefas`, dentro dessa etapa | — |
 
-**O registo está limpo: não há pendências abertas.** O que se abrir a
-seguir entra aqui com quem decide e o que dispara, como sempre.
+### Reaberto a 16/09/2026, pela visita com três meses de uso a fingir
+
+Corrigiu-se o que era avaria. Fica o que **não** se corrigiu, por ser
+decisão dele ou trabalho de outra dimensão:
+
+| # | O que falta | Estado | Espera por |
+|---|---|---|---|
+| M1 | **O `/contratos/resumo` leva 92 s a frio** (14,8 s quente) | Agrega os 2 milhões de contratos do corpus a cada pedido, sem índice de apoio nem cache, e sem nada no ecrã a dizer que está a trabalhar. É a única página da aplicação que demora isso — está de fora do `TestNenhumEcraDa500` com o nome à vista | **Afonso**: vale uma tabela de agregados refeita com o corpus (semanal), ou chega pôr um sinal de espera? |
+| V1 | **«Casa» ainda é o vocabulário do código** | As doze cadeias que se lêem no ecrã dizem «empresa» desde 16/09/2026. Os identificadores não: `ESTADOS_DA_CASA`, `CHAVES_DA_CASA`, `estado_da_casa()`, o módulo `casa.py`, e a documentação antiga | **Afonso**: renomear são centenas de sítios em 20 mil linhas mais 12 mil de testes, com zero efeito visível. Só se ele quiser a casa arrumada por dentro também |
+| V2 | **O papel da entidade só aparece na ficha dela** | `papel_da_entidade()` diz Cliente / Concorrente / as duas coisas. Falta-lhe aparecer na coluna «Quem ganhou» do Mercado e no bloco dos homólogos da ficha do anúncio, que é onde se olha para a concorrência | **gatilho**: primeira vez que ele quiser saber com quem concorre sem sair da ficha |
+| U1 | **A procura da lista das propostas não ignora acentos** | Procura em `propostas.titulo` cru; a lista dos anúncios procura em `titulo_norm`. «manutencao» não encontra «manutenção» | **gatilho**: a tabela `propostas` não tem coluna normalizada; entra quando houver outra razão para lhe tocar |
+| U2 | **A linha da lista das propostas tem 90 px de altura** | A coluna «Concurso» é estreita e parte os títulos em cinco linhas, enquanto «Lote» e «Entrega» sobram. Vêem-se quatro propostas por ecrã | **Afonso**: é medida de desenho, e a §11f já passou por este ecrã uma vez |
+| U3 | **Os campos de data mostram `mm/dd/yyyy`** | São `<input type="date">`, e o formato é o da configuração do browser, não do HTML. Num browser em inglês lê-se ao contrário numa aplicação escrita em português | **gatilho**: só se resolve trocando por campos de texto com máscara, que é pior em telemóvel. Fica anotado |
+
+O que se abrir a seguir entra aqui com quem decide e o que dispara,
+como sempre.
 
 **Dependências, e o estado de cada uma:**
 

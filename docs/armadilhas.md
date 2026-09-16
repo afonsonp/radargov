@@ -1857,8 +1857,111 @@ botões ou no calendário.
   nem todos queriam dizer a lista — uns queriam dizer «volta ao
   princípio», que agora é outra página. Um `redirect("/")` depois de
   uma acção manda para a abertura; se o que se quer é a lista, é
-  `LISTA`. A barra tem **três** itens (Hoje · Concursos · Mercado) e o
-  Calendário é vista do **segundo**, não do primeiro — `NAV[1][3]`.
+  `LISTA`. A barra tem **dois** itens (Concursos · Mercado) e o
+  Calendário é vista do **primeiro** — `NAV[0][3]`; o Hoje saiu para o
+  logótipo no mesmo dia (ver a armadilha a seguir).
+
+- **O Hoje é o logótipo, e o logótipo acende.** Decisão dele a
+  16/09/2026, horas depois de a fase 4 lhe ter dado um item próprio: a
+  marca já levava a `/` desde que há barra, e um botão «Hoje» a 30px
+  dela era o mesmo destino duas vezes — a barra a anunciar três
+  intenções quando há duas. O que isto obriga: a página `inicio` deixa
+  de estar no `NAV` e as migalhas dela vêm do **`FORA_DA_BARRA`**
+  (`migalhas_de()` caía no recurso e escrevia «Radar», que é o nome da
+  aplicação e não o da página); e o logótipo leva a classe de aceso
+  (`%(inicio_on)s`) e um `title`, porque um logótipo sem sinal de estado
+  lê-se como decoração e ninguém carrega em decorações.
+
+- **As ligações que a mudança de endereço deixou atrás, segunda ronda.**
+  A varredura da fase 4 procurou `href` e apanhou nove. Ficaram três,
+  cada uma de uma forma diferente de escrever um endereço, e as três
+  levavam ao Hoje em vez de à lista:
+  - **`volta_a_lista()`** — a seta de voltar da ficha. Era a queixa
+    dele: «vejo a folha de concurso e se eu carregar na seta para trás
+    vou para o Hoje». A função aceitava `/` como lista de onde se veio e
+    devolvia `/` por omissão.
+  - **o `action` do formulário da procura** da lista das propostas. Um
+    `action` não é um `href`: escrever no campo e carregar em «procurar»
+    dava na abertura, com a pergunta na barra de endereço e nenhuma
+    resposta no ecrã.
+  - **quatro `<a href='/'>`** que diziam «lista» no texto (o 404 da
+    ficha, o «voltar» da rota da plataforma, e duas notas do Interesse).
+  A prova é o `TestCaminhoDeVoltaDaFicha`, e a prova de que não voltam é
+  o passeio (a seguir).
+
+- **Nenhum ecrã pode dar 500, e há um teste que os abre todos.** A
+  armadilha do `%` (`"a" + LISTA + "b %s" % x` aplica a formatação só ao
+  último pedaço) parte a linha **em tempo de execução**, não de
+  importação: está escrita aqui desde a fase 4 e foi cometida outra vez
+  a 16/09/2026, a corrigir as ligações acima. O
+  `/configuracoes/interesse` passou a dar 500 e as 968 provas passaram
+  todas, porque nenhuma abria essa secção com o interesse ligado. O
+  `TestNenhumEcraDa500` percorre o `app.url_map` — uma página nova entra
+  lá sozinha — e a única excluída é o `/contratos/resumo`, com o nome à
+  vista: agrega o corpus inteiro e leva 92 s a frio. **Quando um
+  endereço entra num molde de formatação vai no TUPLO**, nunca
+  concatenado com `+`.
+
+- **As oito ranhuras da escada contam PROPOSTAS, e não anúncios com
+  proposta.** Contavam anúncios, e por isso o número da aba discordava
+  da lista que o botão abre por três razões de uma vez: a base do motor
+  tira as republicações (uma proposta feita sobre uma alteração do DR
+  não contava), o interesse por CPV escondia propostas da própria
+  empresa, e as propostas sem anúncio (D2) nunca lá estiveram. Visto no
+  ecrã com três meses de uso: a aba dizia «Por analisar 7» por cima de
+  uma lista de 11. A lista destas ranhuras é a `_lista_de_propostas()`,
+  que não tem filtro de CPV nem de plataforma nenhum — por isso a conta
+  certa é a mais simples que há. A ressalva «a aba conta só as que têm»
+  saiu com a avaria; o «X sem anúncio do DR» fica, que é um facto sobre
+  a lista e não um desconto no número.
+
+- **A procura dentro de uma ranhura nunca funcionou.** O `para_like()`
+  só **escapa** os caracteres especiais do LIKE — os coringas põe-nos
+  quem procura, e os outros quatro sítios que o chamam põem-nos. Na
+  `_lista_de_propostas()` faltavam, e por isso só encontrava um título
+  escrito por inteiro, letra por letra: procurar «manuten» numa ranhura
+  com cinco títulos que o contêm dava zero. E o vazio dizia «Nada em
+  Ganho» por baixo de uma aba a dizer 13 — o ecrã a discordar de si
+  próprio a dois centímetros de distância. A ranhura pode estar cheia:
+  o que está vazio é a **resposta**, e é isso que se diz.
+
+- **As barras de um gráfico precisam de uma faixa com altura própria.**
+  A `.col` era uma coluna flex, e o `height:N%` da barra resolvia-se
+  contra os 180px do grupo e depois era travado pelo espaço que sobrava
+  depois do valor e do rótulo — 137px, ou 76%. **Qualquer valor acima de
+  76% desenhava a mesma altura**: medido no «Em jogo, por ranhura», com
+  94% e 78% a darem 136,8px os dois, um gráfico a dizer que duas coisas
+  diferentes são iguais. Passou a grelha de três faixas
+  (`auto 1fr auto`), e a do meio tem altura definida. Na mesma passagem:
+  a cor das barras vinha de `.graf .barras .b`, e as que saíram para a
+  abertura ficaram **transparentes** — altura certa, cor nenhuma. A cor
+  de omissão está agora em `.barras .b`.
+
+- **O `.topo` prende-se por baixo da barra, e não em cima dela.** Os dois
+  estavam em `sticky;top:0`, e o `.topo` (z-index 5) ficava escondido
+  atrás da barra escura (z-index 20): o que se perdia ao rolar eram as
+  migalhas e o «Verificar agora» e, na ficha, metade do título com a
+  seta de voltar. O `--barra-h` é **medido em JS** e não fixado em CSS
+  porque a barra **dobra** (`flex-wrap`): 50px em ecrã largo, 87px a
+  375px. O 50px do `var(--barra-h,50px)` é o recurso para quando o
+  script não corre.
+
+- **«Casa» diz-se «empresa» no ecrã, e as outras são clientes ou
+  concorrentes** (16/09/2026, decisão dele). A troca foi nas **cadeias
+  que se lêem**, doze delas; o vocabulário do código
+  (`ESTADOS_DA_CASA`, `CHAVES_DA_CASA`, o `casa.py`, esta documentação
+  antiga) fica como está — renomear centenas de identificadores em 20
+  mil linhas mais 12 mil de testes é outro trabalho, e não se vê.
+  A distinção entre cliente e concorrente sai do **peso de cada lado**
+  no corpus do Portal BASE (`papel_da_entidade()`): o BASE não tem campo
+  nenhum a dizer o que uma entidade é, tem os contratos dos dois lados.
+  Compra ≥ 3× o que vende → cliente; vende ≥ 3× o que compra →
+  concorrente; pelo meio são **as duas coisas** (uma ULS compra
+  informática e ganha candidaturas), e dizer só um dos lados era
+  escolher qual mentir. Os dois totais são **sem o filtro da ficha**:
+  o papel é identidade, como os nomes por que a entidade assina, e
+  filtrar por um CPV em que ela só ganha não faz de um município um
+  concorrente.
 
 - **A página de abertura lê só a tabela `tarefas`.** Os prazos dos
   anúncios **não** se somam por cima: as tarefas automáticas já os
