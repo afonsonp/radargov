@@ -55,8 +55,8 @@ from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
 
 try:
     import requests
-    from flask import Flask, g, has_request_context, redirect, request, \
-        Response, send_file
+    from flask import abort, Flask, g, has_request_context, redirect, \
+        request, Response, send_file
     from werkzeug.middleware.proxy_fix import ProxyFix
 except ImportError:
     print("Falta instalar. Corre:  python -m pip install -r requirements.txt")
@@ -8073,7 +8073,11 @@ def volta_ao_referer(omissao):
 # token que a tabela `sessoes` conhece; nao ha secret_key do Flask nem
 # cookie assinado, e "sair" apaga a linha e invalida de imediato.
 
-ROTAS_ABERTAS = ("/entrar", "/saude")   # /saude: a rota do vigilante de fora
+# /saude: a rota do vigilante de fora. /tipo: os ficheiros das fontes,
+# que a propria pagina de entrar precisa de carregar antes de haver
+# sessao -- sao fontes de licenca aberta, e a lista branca em TIPOS e o
+# que impede que "/tipo/<nome>" chegue a outro ficheiro qualquer.
+ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o admin abre (13/09/2026, "Mudancas na plataforma RADAR"):
@@ -8178,7 +8182,10 @@ def porta_de_entrada():
     finally:
         if c is not None:
             c.close()
-    if request.path in ROTAS_ABERTAS:
+    # As fontes sao "/tipo/<nome>", e por isso esta e por prefixo e nao
+    # por igualdade -- a lista branca de TIPOS e que fecha a porta la,
+    # nao esta linha.
+    if request.path in ROTAS_ABERTAS or request.path.startswith("/tipo/"):
         return None
     if not g.utilizador and not g.livre:
         if request.method == "GET":
@@ -9649,6 +9656,112 @@ a.ct-l{color:var(--azul)}
  .filtros input#filtro-cpv-excl{flex-basis:100%!important}
  .entrar{padding:20px 18px 18px}
 }
+"""
+
+# A camada nova de aspecto (docs/design.md, 16/09/2026). Vive a parte do
+# CSS de cima e esta TODA dentro de [data-pele=novo] / [data-tipo=*], que
+# hoje so a /amostra carimba: assim ele ve a direccao inteira sem que um
+# unico ecra mude antes de ele dizer que serve (pedido dele, ponto 2).
+#
+# A fase 1 e carimbar `data-pele="novo" data-tipo="inter"` no <html> do
+# BASE e mais nada -- o truque e os tokens ANTIGOS (--papel, --creme,
+# --linha2) apontarem para os valores novos, o que faz as 1196 linhas de
+# CSS de cima herdarem a paleta sem se tocar numa regra.
+#
+# Os @font-face ficam fora do ambito de proposito: declarar uma familia
+# nao a carrega (o browser so pede o ficheiro quando alguma coisa a usa),
+# e assim o mesmo bloco serve as tres opcoes do selector.
+CSS_NOVO = r"""
+@font-face{font-family:'Inter';src:url('/tipo/inter.woff2') format('woff2');
+ font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Sans';src:url('/tipo/plex-sans.woff2') format('woff2');
+ font-weight:100 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/tipo/plex-mono-400.woff2') format('woff2');
+ font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/tipo/plex-mono-600.woff2') format('woff2');
+ font-weight:600;font-style:normal;font-display:swap}
+
+[data-tipo=inter]{--sans:'Inter',system-ui,sans-serif;
+ --mono:'Plex Mono',ui-monospace,Consolas,monospace}
+[data-tipo=plex]{--sans:'Plex Sans',system-ui,sans-serif;
+ --mono:'Plex Mono',ui-monospace,Consolas,monospace}
+/* data-tipo=sistema nao redefine nada: fica o que o CSS de cima diz */
+
+/* A paleta. Medida sobre TODOS os fundos que existem, nao so sobre o
+   papel: pior caso 4,52 (docs/design.md §4). A escala de texto passou a
+   ter cinco degraus, todos AA sobre tudo -- o --t6 aponta para o --t5
+   porque um sexto cinzento que so funciona em metade dos fundos e uma
+   armadilha, e foi o que ja partiu as .coluna-pede a 2/09. */
+[data-pele=novo]{
+ --fundo:#f5f6f8; --sup:#ffffff; --sup2:#eef0f4;
+ --papel:#f5f6f8; --creme:#ffffff; --linha2:#eef0f4;
+ --linha:#e3e6eb; --traco:#c3c9d2; --ink:#111418;
+ --t1:#111418; --t2:#343a42; --t3:#4a515b; --t4:#5a626d;
+ --t5:#646d7a; --t6:#646d7a;
+ --azul:#1b5fc1; --verde:#12704a; --verm:#b3261e; --laranja:#9a4a06;
+ --coral:#e08b2c;
+ --azul-fundo:#e8f0fd; --azul-borda:#cfe0fb;
+ --verde-fundo:#e4f2ea; --laranja-fundo:#fcefe1; --verm-fundo:#fdeae8;
+ --azul-claro:#79b4f5;
+ --barra-t1:rgba(255,255,255,.95); --barra-t2:#c3c9d2; --barra-t3:#98a1ae;
+ --barra-linha:rgba(255,255,255,.13); --barra-on:rgba(255,255,255,.11);
+ /* a escala: seis degraus, no lugar dos dezanove tamanhos soltos */
+ --f1:11px; --f2:12px; --f3:13px; --f4:14.5px; --f5:17px; --f6:24px;
+ --r:8px;
+ --sombra:0 1px 2px rgba(17,20,24,.04), 0 1px 3px rgba(17,20,24,.05);
+}
+/* Regra 4: os numeros alinham por algarismo. Dinheiro, prazos, datas,
+   referencias e CPV sao metade do que este ecra mostra, e sem isto uma
+   coluna de precos nao se compara de relance. */
+[data-pele=novo] body{background:var(--fundo);
+ font-variant-numeric:tabular-nums}
+
+/* Regra 3: as superficies separam-se por tom, nao por risco. */
+[data-pele=novo] .item,[data-pele=novo] .cx,[data-pele=novo] .sec,
+[data-pele=novo] .kpi,[data-pele=novo] .conf-cx,[data-pele=novo] .prop{
+ border-color:var(--linha);border-radius:var(--r);box-shadow:var(--sombra)}
+
+/* Regra 1: hierarquia pelo tamanho e pelo peso. */
+[data-pele=novo] h1.tit{font:680 var(--f6)/1.2 var(--sans);letter-spacing:-.6px}
+[data-pele=novo] .item-titulo{font:620 var(--f5)/1.3 var(--sans);
+ letter-spacing:-.2px}
+[data-pele=novo] .abas a,[data-pele=novo] .bt{font-size:var(--f3)}
+
+/* Regra d do diagnostico: as maiusculas espacadas saem. Um rotulo de
+   bloco passa a caixa normal, peso 600, --f2 -- le-se melhor, ocupa
+   menos, e deixa de obrigar a letra a descer a 9px para caber. */
+[data-pele=novo] .rot,[data-pele=novo] .kpi .r,[data-pele=novo] .facto .k,
+[data-pele=novo] details.sec .st,[data-pele=novo] .prop-campos label,
+[data-pele=novo] .tab-contratos th,[data-pele=novo] .tab-mercado th,
+[data-pele=novo] details.painel-filtros .pf-tit,
+[data-pele=novo] .desfecho-som span{
+ text-transform:none;letter-spacing:0;font-size:var(--f2);font-weight:600;
+ color:var(--t4)}
+
+/* Os botoes (docs/design.md §5). Cinco classes, e a funcao ve-se pela
+   cor e pelo preenchimento antes de se ler a palavra.
+   Os dois perigosos comecam em contorno e so se enchem ao passar ou ao
+   receber foco: um botao vermelho cheio numa lista de vinte linhas e um
+   alvo -- puxa o olho e convida ao clique errado, que e o contrario do
+   que uma accao irreversivel quer. */
+[data-pele=novo] .bt{border-radius:6px;font-weight:600;
+ background:var(--sup);border-color:var(--traco);color:var(--t2)}
+[data-pele=novo] .bt:hover{border-color:var(--t3);color:var(--t1)}
+[data-pele=novo] .bt.forte{background:var(--azul);border-color:var(--azul);
+ color:#fff}
+[data-pele=novo] .bt.forte:hover{background:#17509f;border-color:#17509f}
+[data-pele=novo] .bt.ok,[data-pele=novo] .bt.verde{background:var(--verde);
+ border-color:var(--verde);color:#fff}
+[data-pele=novo] .bt.ok:hover,[data-pele=novo] .bt.verde:hover{
+ background:#0e5c3c;border-color:#0e5c3c;color:#fff}
+[data-pele=novo] .bt.cuidado{background:var(--sup);color:var(--laranja);
+ border-color:#e0b48a}
+[data-pele=novo] .bt.cuidado:hover,[data-pele=novo] .bt.cuidado:focus-visible{
+ background:var(--laranja);border-color:var(--laranja);color:#fff}
+[data-pele=novo] .bt.perigo{background:var(--sup);color:var(--verm);
+ border-color:#e5a9a2}
+[data-pele=novo] .bt.perigo:hover,[data-pele=novo] .bt.perigo:focus-visible{
+ background:var(--verm);border-color:var(--verm);color:#fff}
 """
 
 
@@ -18589,6 +18702,289 @@ def proposta_apagar(id_):
     registar("", "proposta apagada", p["titulo"] or p["entidade"] or str(id_))
     return redirect("/?" + urlencode({"estado": p["estado"],
                                       "aviso": "Proposta apagada."}))
+
+
+# --------------------------------- a amostra do desenho (docs/design.md)
+#
+# Uma pagina que mostra os componentes todos num sitio, para ele ver e
+# decidir antes de um ecra mudar (pedido dele a 16/09/2026, ponto 2).
+# Nao passa pelo BASE de proposito: e a unica pagina que carimba
+# `data-pele` e `data-tipo` no <html>, e e isso que lhe deixa desenhar a
+# direccao inteira sem mexer no resto da aplicacao.
+
+# As fontes sao servidas daqui e de mais lado nenhum: a regra da casa e
+# que o painel nao pede nada a nenhum dominio de fora, e o CSP diz
+# `font-src 'self'`. Lista branca de nomes -- nao ha caminho nenhum a
+# juntar a mao, e por isso nao ha travessia possivel.
+TIPOS = {"inter.woff2", "plex-sans.woff2",
+         "plex-mono-400.woff2", "plex-mono-600.woff2"}
+
+
+@app.route("/tipo/<nome>")
+def tipo(nome):
+    if nome not in TIPOS:
+        abort(404)
+    caminho = os.path.join(BASE_DIR, "tipo", nome)
+    if not os.path.exists(caminho):
+        abort(404)
+    resposta = send_file(caminho, mimetype="font/woff2")
+    # uma fonte com a licenca OFL nao muda; o browser nao tem de a voltar
+    # a pedir a cada pagina
+    resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resposta
+
+
+# (chave, rotulo, o que se ganha, o que se perde) -- o selector de letra.
+LETTERINGS = (
+    ("inter", "Inter + Plex Mono",
+     "desenhada para interface a 11–14px; algarismos tabulares; variável",
+     "é comum: não tem voz própria"),
+    ("plex", "IBM Plex Sans + Plex Mono",
+     "mais institucional, e uma família só para texto e números",
+     "mais larga: perde-se densidade horizontal"),
+    ("sistema", "Sistema (o de hoje)",
+     "não pede ficheiro nenhum",
+     "muda de computador para computador"),
+)
+
+AMOSTRA_PAGINA = """<!doctype html>
+<html lang="pt" data-pele="%(pele)s" data-tipo="%(tipo)s">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amostra do desenho</title>
+<style>%(css)s</style><style>%(css_novo)s</style>
+<style>
+/* O selector fica preso e o `.topo` nao: sao dois irmaos ambos em
+   `position:sticky;top:0`, e o segundo tapava o primeiro assim que se
+   rolava -- numa pagina que existe para comparar, o comparador tem de
+   estar sempre a mao. So aqui: o `.topo` das outras paginas nao muda. */
+.am-topo{display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+ padding:12px 34px;background:var(--creme);border-bottom:1px solid var(--linha);
+ position:sticky;top:44px;z-index:12}
+.topo{position:static}
+.am-topo .g{display:flex;align-items:center;gap:7px}
+.am-topo label{font:600 11.5px/1 var(--sans);color:var(--t4)}
+.am-topo a{padding:6px 10px;border-radius:6px;border:1px solid var(--linha);
+ font:600 12px/1 var(--sans);color:var(--t3);background:var(--creme)}
+.am-topo a.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.am-sec{margin:0 0 30px}
+.am-sec > h2{font:650 15px/1.3 var(--sans);color:var(--ink);margin:0 0 4px}
+.am-sec > p{font:400 12.5px/1.5 var(--sans);color:var(--t4);margin:0 0 12px;
+ max-width:760px}
+.am-cx{background:var(--creme);border:1px solid var(--linha);border-radius:9px;
+ padding:18px}
+.am-fila{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.am-grelha{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+ gap:12px}
+.am-bt{display:flex;flex-direction:column;gap:5px}
+.am-bt small{font:400 11px/1.4 var(--sans);color:var(--t4)}
+.am-cor{display:flex;align-items:center;gap:9px;font:500 11.5px/1.3 var(--sans);
+ color:var(--t3)}
+.am-cor i{width:26px;height:26px;border-radius:6px;flex:none;
+ border:1px solid rgba(0,0,0,.08)}
+.am-cor code{font:500 11px/1 var(--mono);color:var(--t4)}
+.am-prova{font:400 20px/1.5 var(--sans);color:var(--t1);margin:0 0 10px;
+ text-wrap:pretty}
+.am-num{font:500 15px/1.6 var(--mono);color:var(--t2)}
+.am-esc div{margin:0 0 7px;color:var(--t1)}
+.am-esc span{font:500 10.5px/1 var(--mono);color:var(--t5);margin-left:10px}
+</style></head><body>
+<div class="app">
+<header class="barra">
+ <div class="marca"><a class="logo" href="/">Radar<span>Gov</span></a></div>
+ <nav><a class="on"><b>Concursos</b></a><a><b>Mercado</b></a></nav>
+ <div class="caixa"><a class="conf">Configurações</a></div>
+</header>
+<main>
+ <div class="am-topo">
+  <div class="g"><label>Letra</label>%(sel_tipo)s</div>
+  <div class="g"><label>Pele</label>%(sel_pele)s</div>
+  <div class="g" style="margin-left:auto"><a href="/">voltar ao painel</a></div>
+ </div>
+ <div class="topo">
+  <div class="migalhas"><div class="b"><em>Amostra</em></div>
+   <div class="accoes-topo"><button class="bt forte">Acção principal</button></div>
+  </div>
+  <h1 class="tit">Amostra do desenho</h1>
+  <p class="subtit">Os componentes todos num sítio, para decidir antes de
+   um ecrã mudar. O caminho está escrito em <code>docs/design.md</code>.</p>
+ </div>
+ <div class="corpo"><div class="larg">%(corpo)s</div></div>
+</main>
+</div>
+</body></html>"""
+
+
+def _am_seccao(titulo, nota, corpo):
+    return ("<section class='am-sec'><h2>%s</h2><p>%s</p>"
+            "<div class='am-cx'>%s</div></section>" % (titulo, nota, corpo))
+
+
+@app.route("/amostra")
+def amostra():
+    tipo_ = request.args.get("tipo", "inter")
+    if tipo_ not in {ch for ch, _, _, _ in LETTERINGS}:
+        tipo_ = "inter"
+    pele = "novo" if request.args.get("pele", "novo") != "velho" else ""
+
+    def botoes(nome, valores, actual):
+        saida = []
+        for chave, rotulo in valores:
+            args = {"tipo": tipo_, "pele": "novo" if pele else "velho"}
+            args[nome] = chave
+            saida.append("<a class='%s' href='/amostra?%s'>%s</a>"
+                         % ("on" if chave == actual else "",
+                            html.escape(urlencode(args), quote=True),
+                            html.escape(rotulo)))
+        return "".join(saida)
+
+    sel_tipo = botoes("tipo", [(ch, ro) for ch, ro, _, _ in LETTERINGS], tipo_)
+    sel_pele = botoes("pele", [("novo", "Nova"), ("velho", "A de hoje")],
+                      "novo" if pele else "velho")
+
+    partes = []
+
+    # --- o lettering -------------------------------------------------
+    escolhido = next(l for l in LETTERINGS if l[0] == tipo_)
+    partes.append(_am_seccao(
+        "A letra", "Ganha: %s. Perde: %s. A frase de prova leva os "
+        "diacríticos todos do português &mdash; uma cedilha em falta no "
+        "subconjunto «latin» só se vê no dia em que aparece um "
+        "«Direcção-Geral»." % (escolhido[2], escolhido[3]),
+        "<p class='am-prova'>Aquisição de serviços de manutenção "
+        "à Direcção-Geral: prevenção, câmaras, órgãos e ação. "
+        "ãõçáéíóúàâêô ÃÕÇÁÉÍÓÚÀÂÊÔ</p>"
+        "<p class='am-num'>23012/2026 &nbsp; 71318100 &nbsp; "
+        "174.950,00 EUR &nbsp; 16/09/2026 &nbsp; 0123456789 Il1 O0</p>"
+        "<div class='am-esc' style='margin-top:16px'>" + "".join(
+            "<div style='font:%s var(--f%d)/1.3 var(--sans)'>%s"
+            "<span>--f%d &middot; %s</span></div>"
+            % (peso, n, texto, n, onde)
+            for n, peso, texto, onde in (
+                (6, "680", "Título da página", "24px"),
+                (5, "620", "Título de anúncio ou de bloco", "17px"),
+                (4, "400", "Texto corrido e valores da ficha", "14,5px"),
+                (3, "500", "Interface: botões, abas, linhas", "13px"),
+                (2, "500", "Metadados: entidade, data, plataforma", "12px"),
+                (1, "550", "Etiquetas, contadores, pílulas", "11px")))
+        + "</div>"))
+
+    # --- a cor -------------------------------------------------------
+    # O segundo token de cada superficie e o nome antigo: na pele "a de
+    # hoje" os tres novos nao existem, e a amostra desenhava tres
+    # quadrados vazios que se leem como avaria em vez de comparacao.
+    cores = (("--azul", "", "Podes fazer isto: acção, ligação, seleccionado"),
+             ("--verde", "", "Correu bem, ou avança no negócio"),
+             ("--laranja", "", "Atenção sem ser erro; sai do fluxo sem apagar"),
+             ("--verm", "", "Perdeu-se, ou destrói"),
+             ("--t1", "", "Texto principal"), ("--t3", "", "Texto secundário"),
+             ("--t5", "", "O cinzento mais fraco que ainda passa AA"),
+             ("--fundo", "--papel", "O fundo da página"),
+             ("--sup", "--creme", "Cartões e linhas"),
+             ("--sup2", "--linha2", "Encaixes: cabeçalho de tabela, campo"),
+             ("--linha", "", "O fio entre dados"),
+             ("--traco", "", "Decoração: setas, molduras"))
+    partes.append(_am_seccao(
+        "A cor", "Uma cor só entra quando quer dizer alguma coisa. Toda a "
+        "escala de texto passa AA sobre todos os fundos que existem &mdash; "
+        "pior caso 4,52, medido e não estimado.",
+        "<div class='am-grelha'>" + "".join(
+            "<div class='am-cor'><i style='background:var(%s)'></i>"
+            "<div><code>%s</code><br>%s</div></div>"
+            % (t + (",var(%s)" % velho if velho else ""), t, o)
+            for t, velho, o in cores) + "</div>"))
+
+    # --- os botoes ---------------------------------------------------
+    bts = (("bt forte", "Filtrar", "A acção principal do bloco. Uma por bloco"),
+           ("bt ok", "Interessa", "Confirma e avança no negócio"),
+           ("bt", "Limpar", "Secundário: cancelar, voltar, alternativas"),
+           ("bt cuidado", "Abandonar", "Sai do fluxo, mas não apaga nada"),
+           ("bt perigo", "Apagar contacto", "Irreversível: destrói dados"))
+    partes.append(_am_seccao(
+        "Os botões", "Vê-se o que cada um faz pela cor e pelo "
+        "preenchimento, antes de se ler a palavra. Os dois perigosos "
+        "começam em contorno e só se enchem ao passar por cima ou ao "
+        "receber o foco &mdash; um botão vermelho cheio numa lista de vinte "
+        "linhas é um alvo, e convida ao clique errado. <b>Passa por cima "
+        "dos dois últimos.</b>",
+        "<div class='am-grelha'>" + "".join(
+            "<div class='am-bt'><div><button class='%s'>%s</button></div>"
+            "<small>%s</small></div>" % (c, r, o) for c, r, o in bts)
+        + "</div>"))
+
+    # --- etiquetas e pilulas -----------------------------------------
+    partes.append(_am_seccao(
+        "Etiquetas e prazos", "As mesmas classes da lista. A cor do prazo "
+        "sai da janela única (<code>dias_urgente()</code>), e a etiqueta "
+        "conta pela mesma conta que o número que a abre.",
+        "<div class='am-fila'>"
+        "<span class='chip-prazo ok'>31 dias</span>"
+        "<span class='chip-prazo avisa'>3 dias</span>"
+        "<span class='chip-prazo mau'>expirado</span>"
+        "<span class='chip-prazo'>prazo 03/08/2026</span>"
+        "<span class='tag'>71318100</span><span class='tag'>vortal</span>"
+        "<span class='tag'>Anúncio de procedimento</span>"
+        "<span class='etq'>obra</span><span class='etq'>lote 2</span>"
+        "</div>"))
+
+    # --- o selector da ranhura ---------------------------------------
+    partes.append(_am_seccao(
+        "O selector da ranhura", "É este o controlo que move um concurso "
+        "na escada, desde que o quadro saiu. O botão «ir» só aparece a "
+        "quem não tem JS.",
+        "<div class='am-fila'>%s</div>"
+        % selector_de_ranhura("/amostra", "preparar", "Amostra")))
+
+    # --- a tabela ----------------------------------------------------
+    linhas = (("30/11/2023", "Iluminação decorativa de Natal 2023",
+               "Concurso público", "Impactplan Unipessoal, Lda", "72 750 €"),
+              ("27/11/2023", "Iluminação decorativa de Natal 2023",
+               "Concurso público", "CASTROS, ILUMINAÇÕES FESTIVAS, S.A.",
+               "66 050 €"),
+              ("25/11/2022", "Iluminação decorativa de Natal 2022",
+               "Concurso público", "Impactplan Unipessoal, Lda", "64 934 €"))
+    partes.append(_am_seccao(
+        "A tabela", "Os números alinham por algarismo e o dinheiro alinha à "
+        "direita &mdash; é a diferença entre uma coluna que se compara de "
+        "relance e uma que se lê linha a linha.",
+        "<table class='tab-contratos'><thead><tr><th>Celebrado</th>"
+        "<th>Objecto</th><th>Procedimento</th><th>Quem ganhou</th>"
+        "<th class='dir'>Preço</th></tr></thead><tbody>" + "".join(
+            "<tr><td>%s</td><td>%s</td><td>%s</td>"
+            "<td><a href='#'>%s</a></td><td class='dir'>%s</td></tr>" % l
+            for l in linhas) + "</tbody></table>"))
+
+    # --- formularios -------------------------------------------------
+    partes.append(_am_seccao(
+        "Os formulários", "Os mesmos campos da lista: objecto, entidade, "
+        "plataforma e as duas datas.",
+        "<div class='filtros'>"
+        "<input placeholder='Nome do anúncio ou objecto…'>"
+        "<input placeholder='Entidade que publica…'>"
+        "<select><option>todas as plataformas (1 269)</option></select>"
+        "<input type='date'><input type='date'>"
+        "<button class='bt forte'>Filtrar</button>"
+        "<a class='bt-leve' href='#'>limpar</a></div>"))
+
+    # --- avisos ------------------------------------------------------
+    partes.append(_am_seccao(
+        "Os avisos e os estados vazios", "O aviso da vez, o do sistema, e "
+        "o que um ecrã diz quando não tem nada. Um estado vazio tem sempre "
+        "uma saída.",
+        "<div class='flash'>«Iluminação decorativa da Quadra Natalícia» "
+        "marcado como interessa<form class='accao desfazer'>"
+        "<button class='mini'>desfazer</button></form></div>"
+        "<div class='flash mau'>As tarefas agendadas não estão criadas: o "
+        "radar só recolhe com o painel aberto.</div>"
+        "<div class='nota' style='margin:12px 0'>3 contratos desta entidade "
+        "neste CPV &mdash; de 3 983 ao todo.</div>"
+        "<div class='vazio'>Nada corresponde a este filtro. "
+        "<a href='#'>limpar</a></div>"))
+
+    return AMOSTRA_PAGINA % {
+        "pele": pele, "tipo": tipo_, "css": CSS, "css_novo": CSS_NOVO,
+        "sel_tipo": sel_tipo, "sel_pele": sel_pele,
+        "corpo": "".join(partes)}
 
 
 # ------------------------------------------------------------- arranque
