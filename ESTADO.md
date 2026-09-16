@@ -268,9 +268,19 @@ Plex, e mesmo ao mesmo tamanho óptico (a Plex tem altura-de-x 52
 contra 54) a Plex continua 1,8% mais estreita. Das três é a que cabe
 mais texto por linha. A consequência é a escala subir meio pixel —
 11,5 / 12,5 / 13,5 / 15 / 17,5 / 25 — para repor o tamanho aparente.
-**Nenhum ecrã mudou**: a camada nova vive toda dentro de
-`[data-pele=novo]`, que só a amostra carimba, e `TestPeleNova` guarda
-isso. As fontes são servidas da própria aplicação (`tipo/`, 124 KB,
+**A fase 1 entrou no mesmo dia** («avança», palavra dele): os **três**
+moldes — `BASE`, `PAGINA_ENTRAR` e `PAGINA_ERRO` — carimbam
+`data-pele="novo" data-tipo="plex"` no `<html>`, e mais nada mudou. Os
+tokens antigos (`--papel`, `--creme`, `--linha2`) apontam para os
+valores novos, e por isso as 1196 linhas de CSS herdaram a paleta
+inteira sem se tocar numa regra; apagar os dois atributos repõe o
+aspecto de antes, e `TestPeleNova` falha se alguma regra da pele
+escapar desse âmbito. **Os botões passaram a ter significado**: cinco
+classes (`forte` azul, `ok` verde, neutro, `cuidado` laranja, `perigo`
+vermelho), e o `.mini` da linha deixou de ficar vermelho ao passar por
+cima — ficava, em todos, o que destapou um erro escondido: o botão que
+**apaga uma conta** era um `.mini` simples e só parecia certo por
+acidente. As fontes são servidas da própria aplicação (`tipo/`, 124 KB,
 rota `/tipo/<nome>` com lista branca) — a regra de não pedir nada a
 domínio nenhum de fora mantém-se. Dois números do diagnóstico, medidos
 no browser sobre a base verdadeira: o CSS declara **dezanove tamanhos

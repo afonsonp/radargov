@@ -8219,7 +8219,7 @@ def porta_de_entrada():
 # barra, e um 500 a meio disso dava outro 500 em cima do primeiro. E o
 # molde do /entrar, com um titulo e uma linha.
 
-PAGINA_ERRO = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
+PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%(titulo)s — RadarGov</title><style>%(css)s</style></head>
 <body class="entrar-fundo"><main class="entrar">
@@ -8241,7 +8241,8 @@ ERROS_DO_PAINEL = {
 
 def pagina_de_erro(codigo):
     titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
-    return Response(PAGINA_ERRO % {"css": CSS, "titulo": titulo, "texto": texto},
+    return Response(PAGINA_ERRO % {"css": CSS_TUDO, "titulo": titulo,
+                                   "texto": texto},
                     codigo, mimetype="text/html")
 
 
@@ -8325,7 +8326,7 @@ def destino_seguro(para):
     return "/"
 
 
-PAGINA_ENTRAR = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
+PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entrar — RadarGov</title><style>%(css)s</style></head>
 <body class="entrar-fundo"><main class="entrar">
@@ -8343,7 +8344,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
 
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
     return Response(PAGINA_ENTRAR % {
-        "css": CSS,
+        "css": CSS_TUDO,
         "aviso": ("<div class='flash mau'>%s</div>" % html.escape(aviso)
                   if aviso else ""),
         "email": html.escape(email, quote=True),
@@ -9659,14 +9660,20 @@ a.ct-l{color:var(--azul)}
 """
 
 # A camada nova de aspecto (docs/design.md, 16/09/2026). Vive a parte do
-# CSS de cima e esta TODA dentro de [data-pele=novo] / [data-tipo=*], que
-# hoje so a /amostra carimba: assim ele ve a direccao inteira sem que um
-# unico ecra mude antes de ele dizer que serve (pedido dele, ponto 2).
+# CSS de cima e esta TODA dentro de [data-pele=novo] / [data-tipo=*].
 #
-# A fase 1 e carimbar `data-pele="novo" data-tipo="inter"` no <html> do
-# BASE e mais nada -- o truque e os tokens ANTIGOS (--papel, --creme,
-# --linha2) apontarem para os valores novos, o que faz as 1196 linhas de
-# CSS de cima herdarem a paleta sem se tocar numa regra.
+# **Fase 1, aplicada a 16/09/2026** ("avanca", palavra dele): os tres
+# moldes -- BASE, PAGINA_ERRO e PAGINA_ENTRAR -- carimbam
+# `data-pele="novo" data-tipo="plex"` no <html>, e mais nada mudou. O
+# truque e os tokens ANTIGOS (--papel, --creme, --linha2) apontarem para
+# os valores novos, o que faz as 1196 linhas de CSS de cima herdarem a
+# paleta inteira sem se tocar numa regra. Tirar os dois atributos repoe
+# o aspecto de antes -- e por isso que o `CSS` fica como estava e os
+# testes que medem a paleta antiga continuam a medi-la.
+#
+# A /amostra continua a servir para comparar: e a unica pagina que
+# escolhe a pele e a letra pela query string, e por isso e a unica que
+# nao passa pelo envolver().
 #
 # Os @font-face ficam fora do ambito de proposito: declarar uma familia
 # nao a carrega (o browser so pede o ficheiro quando alguma coisa a usa),
@@ -9768,10 +9775,55 @@ CSS_NOVO = r"""
  border-color:#e5a9a2}
 [data-pele=novo] .bt.perigo:hover,[data-pele=novo] .bt.perigo:focus-visible{
  background:var(--verm);border-color:var(--verm);color:#fff}
+
+/* O `.mini` e o botao DA LINHA, e o `.bt` e o botao DA PAGINA. A
+   diferenca nao e so o tamanho: numa lista de vinte linhas com dois
+   botoes cada, encher quarenta botoes de cor faz quarenta alvos e
+   nenhuma hierarquia. Por isso a regra do `.mini` e a mesma que a dos
+   perigosos: **contorno com a cor do significado, e enche ao passar ou
+   ao receber o foco**. O `.bt.forte` e o `.bt.ok` continuam cheios,
+   porque sao um por bloco.
+
+   E o `.mini` deixa de ficar VERMELHO ao passar por cima. Ficava, em
+   todos -- no "ir" do selector, no "desfazer", no "X lotes" --, o que e
+   o ponto (c) do diagnostico em estado puro: a cor de alarme a sair em
+   coisas que nao alarmam nada, e por isso a nao querer dizer nada onde
+   devia. Quem apaga mesmo leva `.mini.perigo`. */
+[data-pele=novo] .mini{border-radius:6px;font-size:var(--f1);
+ background:var(--sup);border-color:var(--traco);color:var(--t3)}
+[data-pele=novo] .mini:hover{border-color:var(--t3);color:var(--t1);
+ background:var(--sup)}
+[data-pele=novo] .mini.verde,[data-pele=novo] .mini.ok{color:var(--verde);
+ border-color:#9ac4ae}
+[data-pele=novo] .mini.verde:hover,[data-pele=novo] .mini.ok:hover,
+[data-pele=novo] .mini.verde:focus-visible,[data-pele=novo] .mini.ok:focus-visible{
+ background:var(--verde);border-color:var(--verde);color:#fff}
+[data-pele=novo] .mini.cuidado{color:var(--laranja);border-color:#e0b48a}
+[data-pele=novo] .mini.cuidado:hover,
+[data-pele=novo] .mini.cuidado:focus-visible{
+ background:var(--laranja);border-color:var(--laranja);color:#fff}
+[data-pele=novo] .mini.perigo{color:var(--verm);border-color:#e5a9a2}
+[data-pele=novo] .mini.perigo:hover,
+[data-pele=novo] .mini.perigo:focus-visible{
+ background:var(--verm);border-color:var(--verm);color:#fff}
+
+/* O separador de milhares e um espaco INQUEBRAVEL (mil_pt), e faz falta:
+   com um normal, o browser parte "1 363 300" ao fim da linha. Mas a
+   30px, na Plex, esse espaco tem a largura de um algarismo e "209 903"
+   le-se como dois numeros. Aperta-se so aqui, no numero de display --
+   a 11 ou 12px o espaco esta certo e nao se toca. Nao se troca o
+   caractere: o mil_pt serve tambem a consola e os dois CSV. */
+[data-pele=novo] .kpi .v{word-spacing:-.3em}
 """
 
+# As duas folhas juntas uma vez so, e nao a cada pedido: os tres moldes
+# (BASE, PAGINA_ERRO, PAGINA_ENTRAR) recebem esta. O `CSS` fica como
+# estava de proposito -- e a paleta de recurso se o `data-pele` sair do
+# <html>, e os testes que a medem continuam a medi-la.
+CSS_TUDO = CSS + CSS_NOVO
 
-BASE = """<!doctype html><html lang="pt"><head><meta charset="utf-8">
+
+BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
@@ -9920,7 +9972,8 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
             % (destino, ao_submeter, escondidos, classe, etiqueta))
 
 
-def forma_abandonar(ref, classe="mini", etiqueta="abandonar", titulo=""):
+def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
+                    titulo=""):
     """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
 
     Decisao do Afonso a 01/09/2026: pop-up e nao selector ao lado. Um
@@ -10148,7 +10201,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
 
     return com_csrf(BASE % {
         "titulo_aba": html.escape(titulo_aba or titulo),
-        "css": CSS,
+        "css": CSS_TUDO,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
         "conf_on": "on" if activo == "configuracoes" else "",
@@ -13581,7 +13634,7 @@ def _bloco_utilizadores(todos, eu):
            html.escape(u["papel"]),
            "" if u["id"] == eu else
            " &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
-                                "tirar", "mini",
+                                "tirar", "mini perigo",
                                 "Tirar a conta %s? As sessões dela fecham já."
                                 % html.escape(u["email"], quote=True)))
         for u in todos)
@@ -16342,7 +16395,7 @@ def ficha(ref):
     if not propostas_de(ref) and not e_alteracao:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
                              "Interessa", "bt verde"))
-        decidir.append(forma_abandonar(ref, "bt", "Abandonar",
+        decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
                                        a["titulo"] or ref))
     if a["pdf_url"]:
         sair.append("<a class='bt-leve' href='%s' target='_blank'>PDF oficial</a>"

@@ -7120,15 +7120,30 @@ class TestPeleNova(unittest.TestCase):
         cores = self._cores()
         self.assertEqual(cores["--t6"], cores["--t5"])
 
-    def test_a_pele_nova_nao_mexe_em_ecra_nenhum_ainda(self):
-        """Fase 0: ele vê e decide antes de um ecrã mudar. Tudo o que
-        pinta está dentro de [data-pele=novo] / [data-tipo=*], e o BASE
-        ainda não carimba nenhum dos dois."""
-        self.assertNotIn("data-pele", radar.BASE)
+    def test_tudo_o_que_pinta_esta_dentro_do_ambito(self):
+        """Uma regra do CSS_NOVO fora de [data-pele=novo] / [data-tipo=*]
+        pinta mesmo com os atributos tirados do <html>, e isso tira o
+        caminho de volta: a fase 1 tem de se desfazer apagando dois
+        atributos, e mais nada."""
         for regra in re.findall(r"^([^@\s/][^{]*)\{", radar.CSS_NOVO, re.M):
             self.assertTrue(
                 "[data-pele=novo]" in regra or "[data-tipo=" in regra,
-                "regra fora do âmbito da amostra: %r" % regra.strip())
+                "regra fora do âmbito da pele: %r" % regra.strip())
+
+    def test_os_tres_moldes_carimbam_a_pele_e_a_letra(self):
+        """Fase 1 (16/09/2026). São três e não um: a página de entrar e
+        as de erro vivem fora do BASE de propósito -- o BASE lê a sessão
+        e monta a barra, e um 500 a meio disso dava outro 500 em cima do
+        primeiro. Carimbar só o BASE deixava o login e os erros com o
+        aspecto antigo, que é o género de coisa que ninguém vê até ao
+        dia em que vê."""
+        for molde in (radar.BASE, radar.PAGINA_ERRO, radar.PAGINA_ENTRAR):
+            self.assertIn('data-pele="novo"', molde)
+            self.assertIn('data-tipo="plex"', molde)
+            # e a folha que carimbam tem de ser a que traz a pele
+            self.assertIn("%(css)s", molde)
+        self.assertTrue(radar.CSS_TUDO.endswith(radar.CSS_NOVO))
+        self.assertTrue(radar.CSS_TUDO.startswith(radar.CSS))
 
     def test_as_fontes_vem_da_propria_aplicacao(self):
         self.assertNotIn("https://", radar.CSS_NOVO)
@@ -7161,6 +7176,36 @@ class TestPeleNova(unittest.TestCase):
         self.assertIn('data-tipo="plex"',
                       cliente.get("/amostra?tipo=inventado").get_data(
                           as_text=True))
+
+    def test_o_mini_deixou_de_ficar_vermelho_em_tudo(self):
+        """O `.mini` é o botão DA LINHA, e ficava vermelho ao passar por
+        cima -- em todos: no «ir» do selector, no «desfazer», no «X
+        lotes». A cor de alarme a sair em coisas que não alarmam nada é
+        o ponto (c) do diagnóstico, e faz o vermelho não querer dizer
+        nada onde devia."""
+        m = re.search(r"\[data-pele=novo\] \.mini:hover\{([^}]*)\}",
+                      radar.CSS_NOVO)
+        self.assertIsNotNone(m, "o .mini:hover da pele nova desapareceu")
+        self.assertNotIn("--verm", m.group(1))
+
+    def test_quem_apaga_uma_conta_leva_a_classe_do_perigo(self):
+        """Estava em `.mini` simples e **só parecia certo** porque o
+        `.mini` ficava vermelho ao passar -- em tudo. Tirado esse
+        vermelho sem querer, o botão que apaga uma conta ficava igual ao
+        «desfazer». O que o marca agora é a classe, não um acidente."""
+        self.assertIn('"tirar", "mini perigo"',
+                      inspect.getsource(radar._bloco_utilizadores))
+
+    def test_abandonar_e_laranja_e_nao_vermelho(self):
+        """Abandonar **não apaga nada** -- a própria aplicação o diz no
+        pop-up do motivo, e repõe-se numa linha. Pintar de vermelho uma
+        coisa reversível gasta o vermelho, e depois não sobra cor para o
+        que apaga mesmo (design.md §5)."""
+        # o botao da linha, pela omissao do forma_abandonar()
+        self.assertIn('classe="mini cuidado"',
+                      inspect.getsource(radar.forma_abandonar))
+        # e o botao grande da ficha, que passa a classe a mao
+        self.assertIn('"bt cuidado"', inspect.getsource(radar.ficha))
 
     def test_os_cinco_botoes_existem_e_os_perigosos_comecam_em_contorno(self):
         """A regra do design.md §5: um botão vermelho cheio numa lista de
