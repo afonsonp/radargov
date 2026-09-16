@@ -8654,6 +8654,14 @@ form.accao button{font-family:inherit}
 details.porque > summary{display:flex;align-items:baseline;gap:9px;
  cursor:pointer;list-style:none}
 details.porque > summary::-webkit-details-marker{display:none}
+/* O mesmo "?" dentro da ficha, ao lado do rotulo de um bloco. O
+   rotulo e mais pequeno que o titulo da pagina, e por isso o circulo
+   tambem: 16px em vez de 19. */
+details.porque-bloco > summary{gap:7px}
+details.porque-bloco > summary > i{width:16px;height:16px;
+ font:600 10px/14px var(--sans)}
+details.porque-bloco .rot{margin:0}
+details.porque-bloco > .nota{margin:6px 0 12px}
 details.porque > summary > i{flex:none;font-style:normal;align-self:center;
  width:19px;height:19px;border-radius:50%;border:1px solid var(--traco);
  color:var(--t4);font:600 11px/17px var(--sans);text-align:center}
@@ -15702,18 +15710,24 @@ def lotes_cx(a):
                         if conj.get("valor_proposta") else ""))
     else:
         nota_conj = ""
-    return ("<div class='cx lotes' id='lotes'><div class='rot'>Lotes</div>"
-            "<div class='nota' style='margin:6px 0 12px'>%s. %s</div>"
-            "<div class='mercado-tab'><table class='tab-mercado tab-lotes'><thead><tr>"
-            "<th>Lote</th><th>Descrição</th><th class='p'>Preço base</th>%s"
-            "</tr></thead><tbody>%s</tbody></table></div>%s</div>"
-            % (html.escape(frase_dos_lotes(resumo)[0].upper() + frase_dos_lotes(resumo)[1:]),
-               "O que se sabe de cada um vem do registo da casa (o Excel), "
-               "lote a lote." if ha_registo else
-               "Os lotes são os que o anúncio declara; a que fomos só o "
-               "registo da casa sabe, e ainda não tem esta linha.",
-               "<th>A casa</th>" if ha_registo else "",
-               "".join(corpo), nota_conj))
+    # «2 lotes; sem registo de a que fomos» e um FACTO e fica no ecra;
+    # de onde vem cada coluna e explicacao e vai para o "?".
+    return ("<div class='cx lotes' id='lotes'>"
+            + rot_com_porque(
+                "Lotes",
+                "O que se sabe de cada um vem do registo da casa (o Excel), "
+                "lote a lote." if ha_registo else
+                "Os lotes são os que o anúncio declara; a que fomos só o "
+                "registo da casa sabe, e ainda não tem esta linha.")
+            + ("<div class='nota' style='margin:6px 0 12px'>%s.</div>"
+               "<div class='mercado-tab'>"
+               "<table class='tab-mercado tab-lotes'><thead><tr>"
+               "<th>Lote</th><th>Descrição</th><th class='p'>Preço base</th>%s"
+               "</tr></thead><tbody>%s</tbody></table></div>%s</div>"
+               % (html.escape(frase_dos_lotes(resumo)[0].upper()
+                              + frase_dos_lotes(resumo)[1:]),
+                  "<th>A casa</th>" if ha_registo else "",
+                  "".join(corpo), nota_conj)))
 
 
 def frase_dos_campos_em_falta(sem_valor):
@@ -16037,18 +16051,22 @@ def homologos_cx(a, chave):
                venceu, euros(l["preco_contratual"])))
 
     return ("<div class='cx mercado'>"
-            "<div class='rot'>Procedimentos homólogos</div>"
-            "<div class='nota' style='margin:6px 0 12px'>"
-            "Contratos desta entidade com objecto parecido com o deste "
-            "anúncio &mdash; as edições anteriores, com quem ganhou e por "
-            "quanto. Parecido = tem em comum %s: <b>%s</b>.</div>"
-            "<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
-            "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
-            "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
-            "<tbody>%s</tbody></table></div></div>"
-            % ("estes termos do título" if len(termos) > 1
-               else "este termo do título",
-               html.escape(", ".join(termos)), "".join(corpo)))
+            + rot_com_porque(
+                "Procedimentos homólogos",
+                "Contratos desta entidade com objecto parecido com o deste "
+                "anúncio &mdash; as edições anteriores, com quem ganhou e "
+                "por quanto.")
+            # o "Parecido = <termos>" fica no ecra: diz COMO a lista foi
+            # feita, e sem ele o bloco e uma tabela sem criterio
+            + ("<div class='nota' style='margin:6px 0 12px'>"
+               "Parecido = tem em comum %s: <b>%s</b>.</div>"
+               "<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
+               "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
+               "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
+               "<tbody>%s</tbody></table></div></div>"
+               % ("estes termos do título" if len(termos) > 1
+                  else "este termo do título",
+                  html.escape(", ".join(termos)), "".join(corpo))))
 
 
 # Do anuncio ao contrato leva tempo, e o tempo mediu-se: a 04/09/2026,
@@ -16224,10 +16242,38 @@ def desfecho_cx(a):
                tabela))
 
 
+def rot_com_porque(titulo, porque=""):
+    """O rotulo de um bloco, e o "?" que guarda o que ele e.
+
+    A fase 2 (16/09/2026) tirou do ecra o paragrafo que explicava cada
+    PAGINA; dentro da ficha ficaram onze notas a explicar cada BLOCO. O
+    criterio e o do docs/design.md §9, e nao "tirar tudo":
+
+      - **fica no ecra** o que diz de onde vem um numero ou o que ele
+        nao inclui ("3 contratos desta entidade no CPV X, de 3 983 ao
+        todo", "o preco contratual e o de partida, nao o valor final").
+        Isso e um dado, nao uma explicacao;
+      - **vai para o "?"** o que diz o que o bloco E ou para que serve;
+      - **apaga-se** o que descreve o que ja se ve.
+
+    Sem `porque` devolve o rotulo de sempre -- um "?" que abre nada e um
+    controlo morto, a mesma regra do titulo da pagina.
+    """
+    if not porque:
+        return "<div class='rot'>%s</div>" % titulo
+    return ("<details class='porque porque-bloco'><summary>"
+            "<span class='rot'>%s</span><i title='O que é este bloco'>?</i>"
+            "</summary><div class='nota'>%s</div></details>" % (titulo, porque))
+
+
 def _mercado_cx(nota, corpo=""):
     return ("<div class='cx mercado'>"
-            "<div class='rot'>Histórico de adjudicações</div>"
-            "<div class='nota' style='margin:6px 0 12px'>%s</div>%s</div>"
+            + rot_com_porque(
+                "Histórico de adjudicações",
+                "Contratos já celebrados por esta entidade neste CPV, do "
+                "Portal BASE. Não são oportunidades &mdash; servem para "
+                "saber com quem se concorre.")
+            + "<div class='nota' style='margin:6px 0 12px'>%s</div>%s</div>"
             % (nota, corpo))
 
 
@@ -16355,9 +16401,6 @@ def mercado(a):
         "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
         "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
         "<tbody>%s</tbody></table></div>"
-        "<div class='nota' style='margin-top:10px'>Contratos já celebrados "
-        "por esta entidade neste CPV, do Portal BASE. Não são oportunidades "
-        "&mdash; servem para saber com quem se concorre.</div>"
         % "".join(corpo))
 
 
@@ -16542,9 +16585,15 @@ def ficha(ref):
     if a["pdf_url"]:
         sair.append("<a class='bt-leve' href='%s' target='_blank'>PDF oficial</a>"
                     % html.escape(a["pdf_url"], quote=True))
-    sair.append("<a class='bt-leve' href='%s' target='_blank'>%s</a>"
-                % (html.escape(a["url"], quote=True),
-                   "Ver no DR" if e_do_dr else "Ver na Vortal"))
+    # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a ficha
+    # inteira com um 500. Na base dele todos os anuncios tem url, e por
+    # isso nunca se viu -- mas um NULL numa coluna que ninguem garante
+    # nao pode derrubar a pagina toda (apanhado a 16/09/2026, pelo teste
+    # do indice da ficha).
+    if a["url"]:
+        sair.append("<a class='bt-leve' href='%s' target='_blank'>%s</a>"
+                    % (html.escape(a["url"], quote=True),
+                       "Ver no DR" if e_do_dr else "Ver na Vortal"))
     # Duas coisas diferentes, dois botoes: o procedimento na plataforma
     # e as pecas. Estavam no mesmo -- "Abrir plataforma" abria o link
     # das pecas, que na acingov descarrega um ZIP e na Vortal da na
@@ -16670,13 +16719,21 @@ def ficha(ref):
     lotes_html = lotes_cx(a)
     args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
     args_com = dict(request.args.to_dict(), modo="completo")
+    # **O indice tem de cobrir a pagina.** Ate 16/09/2026 prometia seis
+    # destinos e a pagina tinha oito blocos com ancora: faltavam o
+    # "#proposta" -- que e onde vive o trabalho da casa, o bloco mais
+    # importante da ficha -- e o "#contactos". Um indice que salta por
+    # cima de um bloco e a mesma mentira de um numero que abre outra
+    # lista: promete o mapa da pagina e nao o e.
     indice = ("<div class='ficha-indice'>"
               "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
               "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
+              "<a href='#proposta'>A nossa proposta</a>"
               "%s"
               "<a href='#pecas'>Peças</a>"
               "%s"
               "<a href='#mercado'>Mercado</a>"
+              "<a href='#contactos'>Contactos</a>"
               "<a href='#historico'>Histórico</a>"
               "<span class='dir'>%s%s</span></div>"
               % ("on" if not completo else "", ref, urlencode(args_ess),
@@ -16757,9 +16814,7 @@ def ficha(ref):
                     "depois da data de esclarecimentos e quando o prazo ou o "
                     "preço base mudam.</div>" % html.escape(data_hora_pt(vigiadas)))
                    if vigiadas else
-                   "<div class='nota' style='margin-top:8px'>O radar vai à "
-                   "plataforma ver se há peças novas depois da data de "
-                   "esclarecimentos e quando o prazo ou o preço base mudam.</div>"))
+                   ""))
         corpo_docs = (cabeca_docs + "<div class='docs'>%s</div>%s"
                       % (linhas_doc, accoes_docs))
     else:
@@ -16807,9 +16862,17 @@ def ficha(ref):
 
     chip_plat = ("<span class='tag ok' style='margin-left:auto'>%s</span>"
                  % html.escape(a["plataforma"])) if a["plataforma"] else ""
+    # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
+    # explicava foi para o "?" e NAO se apagou. A data em que o radar la
+    # foi da ultima vez e um facto, e essa fica no corpo.
     docs_cx = ("<div class='cx lado-cx' id='pecas'><div class='cab'>"
-               "<span class='rot'>Peças do procedimento</span>%s</div>%s%s</div>"
-               % (chip_plat, corpo_docs, leitor))
+               "%s%s</div>%s%s</div>"
+               % (rot_com_porque(
+                      "Peças do procedimento",
+                      "O radar vai à plataforma ver se há peças novas "
+                      "depois da data de esclarecimentos e quando o prazo "
+                      "ou o preço base mudam."),
+                  chip_plat, corpo_docs, leitor))
 
     # O responsavel e da proposta; com lotes, todos os cartoes do mesmo
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
@@ -17495,10 +17558,15 @@ def contactos_cx(a):
                            % (l["nome"] or "").replace("'", " ")))
         for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
     return ("<div class='cx lado-cx' id='contactos'>"
-            "<div class='rot' style='margin-bottom:4px'>Contactos</div>"
-            "<div class='nota' style='margin-bottom:12px'>De <b>%s</b>, e "
-            "não deste concurso: aparecem em todos os que forem dela.</div>"
-            "%s"
+            # o nome da entidade entra AQUI e nao no `%` la em baixo: o
+            # operador so alcanca o grupo que o segue, e um %s deixado
+            # deste lado saia escrito no ecra
+            + rot_com_porque(
+                "Contactos",
+                "De <b>%s</b>, e não deste concurso: aparecem em todos os "
+                "que forem dela." % html.escape(a["entidade"]
+                                                or "esta entidade"))
+            + ("%s"
             "<form class='ct-novo' method='post' action='/contacto/nova'>"
             "<input type='hidden' name='chave' value='%s'>"
             "<input type='hidden' name='entidade' value='%s'>"
@@ -17510,10 +17578,10 @@ def contactos_cx(a):
             "<input type='text' name='telefone' placeholder='telefone' "
             "maxlength='40'>"
             "<button type='submit'>juntar</button></form></div>"
-            % (html.escape(a["entidade"] or "esta entidade"), postos,
+            % (postos,
                html.escape(chave, quote=True),
                html.escape(a["entidade"] or "", quote=True),
-               html.escape(a["ref"], quote=True)))
+               html.escape(a["ref"], quote=True))))
 
 
 @app.route("/contacto/nova", methods=["POST"])

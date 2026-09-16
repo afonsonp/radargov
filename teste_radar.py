@@ -7726,6 +7726,114 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
             self.assertNotIn(pedaco, radar_fonte(), pedaco)
 
 
+class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
+    """O índice da ficha prometia seis destinos e a página tinha oito
+    blocos com âncora (fase 5, 16/09/2026).
+
+    Faltavam o **`#proposta`** — que é onde vive o trabalho da casa, o
+    bloco mais importante da ficha — e o `#contactos`. Um índice que
+    salta por cima de um bloco é a mesma mentira de um número que abre
+    outra lista: promete o mapa da página e não o é.
+
+    O teste não fixa a lista de entradas (essa muda), fixa a
+    **propriedade**: toda a âncora que a página tem está no índice.
+    """
+
+    # os blocos que o índice tem de cobrir quando existem na página
+    BLOCOS = ("proposta", "lotes", "pecas", "mercado", "contactos",
+              "historico", "desfecho")
+
+    def _ficha(self):
+        with radar.liga() as c:
+            # o `texto` tem de vir preenchido: sem ele a ficha vai à
+            # rede buscar o detalhe, e os testes correm sem rede
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo, preco_base, cpv, texto) VALUES "
+                      "('60/2026','Software','CML','novo','2026-09-01',"
+                      "'2026-12-01','118.500,00 EUR','72000000',"
+                      "'6 - OBJETO DO CONTRATO')")
+        r = radar.app.test_client().get("/anuncio/60%2F2026")
+        self.assertEqual(r.status_code, 200)
+        return r.get_data(as_text=True)
+
+    def test_toda_a_ancora_da_pagina_esta_no_indice(self):
+        corpo = self._ficha()
+        indice = corpo.split("<div class='ficha-indice'>")[1].split("</div>")[0]
+        for bloco in self.BLOCOS:
+            if "id='%s'" % bloco not in corpo:
+                continue                      # esse bloco não está nesta ficha
+            self.assertIn("href='#%s'" % bloco, indice,
+                          "o bloco «%s» existe na página e não no índice"
+                          % bloco)
+
+    def test_um_anuncio_sem_url_nao_derruba_a_ficha(self):
+        """Apanhado por este teste, a 16/09/2026: o `html.escape(None)`
+        do «Ver no DR» dava 500 na ficha inteira.
+
+        Na base dele todos os anúncios têm `url`, e por isso nunca se
+        viu — mas um NULL numa coluna que ninguém garante não pode
+        derrubar a página toda. Sem `url` não há ligação, e o resto da
+        ficha desenha-se."""
+        corpo = self._ficha()          # o fixture não põe `url`
+        self.assertIn("id='proposta'", corpo)
+        self.assertNotIn(">Ver no DR<", corpo)
+
+    def test_o_bloco_da_proposta_esta_no_indice(self):
+        """O que se perdeu antes, nomeado: é o bloco onde ele trabalha."""
+        corpo = self._ficha()
+        self.assertIn("id='proposta'", corpo)
+        self.assertIn("href='#proposta'", corpo)
+
+    def test_o_indice_nao_promete_um_bloco_que_nao_existe(self):
+        """A recíproca, que já estava certa e tem de continuar: o
+        «Desfecho» e os «Lotes» só entram quando há bloco. Um chip que
+        salta para um bloco que não existe é a mesma mentira ao
+        contrário."""
+        corpo = self._ficha()
+        indice = corpo.split("<div class='ficha-indice'>")[1].split("</div>")[0]
+        for bloco in self.BLOCOS:
+            if "href='#%s'" % bloco in indice:
+                self.assertIn("id='%s'" % bloco, corpo, bloco)
+
+
+class TestBlocoComPorque(unittest.TestCase):
+    """O «?» de bloco, dentro da ficha (fase 5, 16/09/2026).
+
+    O critério é o do `docs/design.md` §9 e **não** «tirar tudo»: fica no
+    ecrã o que diz de onde vem um número ou o que ele não inclui; vai
+    para o «?» o que diz o que o bloco É; apaga-se o que descreve o que
+    já se vê.
+    """
+
+    def test_sem_explicacao_nao_ha_controlo_nenhum(self):
+        """Um «?» que abre nada é um controlo morto — a mesma regra do
+        título da página."""
+        self.assertEqual(radar.rot_com_porque("Histórico"),
+                         "<div class='rot'>Histórico</div>")
+        self.assertNotIn("<details", radar.rot_com_porque("Histórico"))
+
+    def test_com_explicacao_o_rotulo_vira_summary(self):
+        saida = radar.rot_com_porque("Lotes", "vêm do anúncio")
+        self.assertIn("<details class='porque porque-bloco'>", saida)
+        self.assertIn("<span class='rot'>Lotes</span>", saida)
+        self.assertIn("vêm do anúncio", saida)
+
+    def test_o_facto_fica_no_corpo_e_a_explicacao_dentro_do_porque(self):
+        """A prova de que a triagem foi feita e não uma limpeza cega.
+
+        Mede-se sobre o que sai: o `<details>` fecha antes do corpo do
+        bloco, por isso o que está **dentro** dele é o que só se vê ao
+        abrir o «?», e o que vem depois é o que se lê sempre.
+        """
+        saida = (radar.rot_com_porque("Procedimentos homólogos",
+                                      "as edições anteriores")
+                 + "<div class='nota'>Parecido = tem em comum isto.</div>")
+        dentro, fora = saida.split("</details>")
+        self.assertIn("as edições anteriores", dentro)
+        self.assertNotIn("Parecido", dentro)
+        self.assertIn("Parecido", fora)
+
+
 class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
     """A abertura deixou de ser a lista (fase 4 do `docs/design.md`,
     16/09/2026): «hoje a abertura é a lista dos concursos; eu quero

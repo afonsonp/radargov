@@ -1736,6 +1736,28 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **O índice da ficha tem de cobrir a página, e só ela.** Prometia seis
+  destinos quando havia oito blocos com âncora — faltava o
+  `#proposta`, que é o bloco onde o trabalho vive. A regra vale nos
+  dois sentidos e há teste para ambos: toda a âncora da página está no
+  índice, **e** o índice não oferece nenhuma que não exista (o
+  «Desfecho» e os «Lotes» só entram quando há bloco). Um bloco novo na
+  ficha entra nas duas listas.
+
+- **Dentro da ficha, o «?» é por bloco (`rot_com_porque()`).** Mesmo
+  critério da §9 do `docs/design.md`: **fica no ecrã** o que diz de
+  onde vem um número ou o que ele não inclui; vai para o «?» o que diz
+  o que o bloco **é**; e **nada se apaga** — a primeira versão desta
+  passagem apagou a nota da vigilância das peças, que explica um
+  comportamento invisível em mais lado nenhum. Sem explicação,
+  `rot_com_porque()` devolve o rótulo de sempre: um «?» que abre nada é
+  um controlo morto.
+
+- **A ficha tolera um `url` a NULL.** O `html.escape(None)` do «Ver no
+  DR» dava 500 na página inteira. Na base dele todos os anúncios têm
+  `url`, e por isso só apareceu quando um teste criou um sem ele — um
+  NULL numa coluna que ninguém garante não pode derrubar a página.
+
 - **A abertura é `/` e a lista é `LISTA` (`/concursos`)** (16/09/2026,
   fase 4 do `docs/design.md`). A lista mudou de endereço e o endereço é
   uma **constante**, não um literal: eram 56 sítios a escrever `"/"` e
