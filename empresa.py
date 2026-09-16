@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""O registo da casa: o que a empresa fez com cada concurso.
+"""O registo da empresa: o que a empresa fez com cada concurso.
 
 Entra pelo **modelo** -- a folha que o radar escreve (`escrever_modelo()`)
 e o Afonso preenche, uma linha por concurso respondido, com a ref do DR
 escrita por ele. Le-se com `ler_modelo()`, ensaia-se com
 `ensaio_modelo()` e aplica-se com `aplicar_modelo()`, que cria ou move a
 proposta na escada. O que o registo sabe e o radar nao (concorrentes,
-precos por perfil, EBITDA, perfis exigidos) fica na tabela `casa` e
+precos por perfil, EBITDA, perfis exigidos) fica na tabela `empresa` e
 mostra-se na ficha.
 
 **O leitor do Excel antigo saiu a 15/09/2026**, por decisao dele. Era o
@@ -29,7 +29,7 @@ from datetime import datetime
 # "TBD" ficam so no registo: nao ha estado do radar que os diga sem mentir.
 ESTADOS_COM_TRIAGEM = ("nao fomos", "submetido", "perdido", "ganho")
 
-# As fases do Zoho, no vocabulario da casa. "2.3 - Negotiation" e
+# As fases do Zoho, no vocabulario da empresa. "2.3 - Negotiation" e
 # "Ready for Proposal" nao sao um fim: a primeira ja concorremos, a
 # segunda ainda nem propusemos -- e o Excel so tem "Submetido" para o
 # meio do caminho, por isso e ai que ambas caem. Uma fase que nao esteja
@@ -117,12 +117,12 @@ def estado_efectivo(linha):
 
 
 def estado_pretendido(linha):
-    """(estado da escada, campos) que o registo da casa pede, ou None
+    """(estado da escada, campos) que o registo da empresa pede, ou None
     quando o estado do Excel nao se traduz em nada.
 
     O estado vem do `estado_efectivo()`, nao do `status` cru: quem manda
     e o Zoho, tirando o "Nao fomos". Desde 15/09/2026 devolve uma das
-    oito palavras da casa (radar.ESTADOS_DA_CASA) em vez de um par
+    oito palavras da empresa (radar.ESTADOS_DA_EMPRESA) em vez de um par
     estado+fase: o vocabulario passou a ser um so, e "interessa" com uma
     fase ao lado era o mesmo estado dito duas vezes.
     """
@@ -147,8 +147,8 @@ def estado_pretendido(linha):
     return (st, campos)
 
 
-def aplicar(c, linha, ref, quem="registo da casa"):
-    """Escreve o que o registo da casa sabe na PROPOSTA do anuncio ligado.
+def aplicar(c, linha, ref, quem="registo da empresa"):
+    """Escreve o que o registo da empresa sabe na PROPOSTA do anuncio ligado.
     Devolve 'aplicado', 'igual', 'sem estado', 'conflito' ou 'sem anúncio'.
 
     Ate 15/09/2026 escrevia no `anuncios` (estado, fase_id e as colunas do
@@ -179,7 +179,7 @@ def aplicar(c, linha, ref, quem="registo da casa"):
         if igual:
             return "igual"
         if p["estado"] != estado:
-            aviso = ("o registo da casa diz «%s»; mantém-se a decisão do radar"
+            aviso = ("o registo da empresa diz «%s»; mantém-se a decisão do radar"
                      % (linha.get("status") or ""))
             if not c.execute("SELECT 1 FROM historico WHERE ref=? AND detalhe=?",
                              (ref, aviso)).fetchone():
@@ -212,8 +212,8 @@ def aplicar(c, linha, ref, quem="registo da casa"):
         sets.append("%s=?" % k)
         vals.append(v)
     c.execute("UPDATE propostas SET %s WHERE id=?" % ", ".join(sets), vals + [id_])
-    detalhe = ("%s%s, do registo da casa"
-               % (radar.estado_da_casa(estado),
+    detalhe = ("%s%s, do registo da empresa"
+               % (radar.estado_da_empresa(estado),
                   " (%s)" % campos["motivo"] if campos.get("motivo") else ""))
     _registar(c, ref, "estado", detalhe, quem)
     if campos.get("valor_proposta"):
@@ -236,7 +236,17 @@ def _registar(c, ref, accao, detalhe, quem):
 # --------------------------------------------------------- a tabela
 
 def iniciar_tabelas(c):
-    c.execute("""CREATE TABLE IF NOT EXISTS casa (
+    # A tabela chamou-se `casa` ate 16/09/2026, quando o vocabulario
+    # passou a «empresa». Renomear ANTES do CREATE, senao o CREATE IF
+    # NOT EXISTS fazia uma `empresa` vazia ao lado da `casa` cheia e o
+    # registo desaparecia sem uma palavra. Idempotente: a condicao e a
+    # propria pergunta -- ha uma `casa` e ainda nao ha `empresa`.
+    tabelas = {r["name"] for r in c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    if "casa" in tabelas and "empresa" not in tabelas:
+        c.execute("DROP INDEX IF EXISTS ix_casa_ref")
+        c.execute("ALTER TABLE casa RENAME TO empresa")
+    c.execute("""CREATE TABLE IF NOT EXISTS empresa (
         id INTEGER PRIMARY KEY, nome TEXT, entidade TEXT, modelo TEXT,
         prazo_meses REAL, preco_base REAL, criterio TEXT, plataforma TEXT,
         ano INTEGER, status TEXT, razao TEXT, valor_proposta REAL,
@@ -245,20 +255,20 @@ def iniciar_tabelas(c):
         ref TEXT, ligacao TEXT DEFAULT '', candidatos TEXT DEFAULT '[]',
         fora INTEGER DEFAULT 0, resultado TEXT DEFAULT '',
         importado_em TEXT, aplicado_em TEXT)""")
-    c.execute("CREATE INDEX IF NOT EXISTS ix_casa_ref ON casa(ref)")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_empresa_ref ON empresa(ref)")
     # Porque e que uma linha nao tem anuncio: "consulta previa", "antes de
     # 2025", "nao sei". Vem das respostas do Afonso (02/09/2026) e e o
     # que distingue "por ligar" de "nao ha nada para ligar".
-    colunas = [r["name"] for r in c.execute("PRAGMA table_info(casa)")]
+    colunas = [r["name"] for r in c.execute("PRAGMA table_info(empresa)")]
     if "porque_sem_ref" not in colunas:
-        c.execute("ALTER TABLE casa ADD COLUMN porque_sem_ref TEXT")
+        c.execute("ALTER TABLE empresa ADD COLUMN porque_sem_ref TEXT")
     # A que lote do anuncio esta linha corresponde (o Excel tem uma linha
     # por lote; o DR um anuncio para todos). NULL = anuncio sem lotes, ou
     # lote por identificar. ZERO = o conjunto: a linha e do procedimento
     # inteiro, nao de um lote (resposta do Afonso a 03/09/2026 sobre as
     # linhas #23 e #26, cujo preco e o total do anuncio).
     if "lote" not in colunas:
-        c.execute("ALTER TABLE casa ADD COLUMN lote INTEGER")
+        c.execute("ALTER TABLE empresa ADD COLUMN lote INTEGER")
     # O que o Zoho diz do mesmo concurso, em coluna PROPRIA -- nao por
     # cima do `status`, e de proposito. Medido a 03/09/2026 no
     # cruzamento das 148 oportunidades da vista dos Negocios: em 46 das
@@ -271,7 +281,7 @@ def iniciar_tabelas(c):
     for coluna, tipo in (("zoho_fase", "TEXT"), ("zoho_montante", "REAL"),
                          ("zoho_como", "TEXT"), ("zoho_em", "TEXT")):
         if coluna not in colunas:
-            c.execute("ALTER TABLE casa ADD COLUMN %s %s" % (coluna, tipo))
+            c.execute("ALTER TABLE empresa ADD COLUMN %s %s" % (coluna, tipo))
 
 
 RX_LOTE_NO_NOME = re.compile(r"\bL(?:ote)?\s*\.?\s*(\d{1,2})\b", re.I)
@@ -281,7 +291,7 @@ ESTADOS_DE_LOTE = ("ganho", "perdido", "submetido", "nao fomos")
 
 
 def estado_do_lote(linha):
-    """O estado de UMA linha da casa, como chave: 'ganho', 'perdido',
+    """O estado de UMA linha da empresa, como chave: 'ganho', 'perdido',
     'submetido', 'nao fomos' ou '' quando o Excel nao diz nada de util
     ("Cancelado", "TBD"). E o estado_efectivo() normalizado -- por isso
     uma linha de lote fica com o que o Excel diz, e o conjunto (lote 0)
@@ -291,7 +301,7 @@ def estado_do_lote(linha):
 
 
 def linhas_de_lotes(c, refs):
-    """{ref: [linhas da casa com `lote` preenchido]} para varios anuncios
+    """{ref: [linhas da empresa com `lote` preenchido]} para varios anuncios
     de uma vez -- o quadro pede pelas suas cartas todas, nao uma a uma."""
     refs = [r for r in refs if r]
     if not refs:
@@ -301,7 +311,7 @@ def linhas_de_lotes(c, refs):
         pedaco = refs[i:i + 400]
         for r in c.execute(
                 "SELECT id, ref, lote, status, zoho_fase, valor_proposta, lugar, "
-                "nome, razao FROM casa WHERE lote IS NOT NULL AND ref IN (%s) "
+                "nome, razao FROM empresa WHERE lote IS NOT NULL AND ref IN (%s) "
                 "ORDER BY lote, id" % ",".join("?" * len(pedaco)), pedaco):
             saida.setdefault(r["ref"], []).append(dict(r))
     return saida
@@ -326,7 +336,7 @@ CAMPOS_EXCEL = ("nome", "entidade", "modelo", "prazo_meses", "preco_base",
 def desaplicar_da_copia(copia):
     """Desfaz o que uma importacao escreveu, repondo as PROPOSTAS tal
     como estao numa COPIA da base feita antes dela, e apaga do historico
-    o que a importacao la escreveu. O registo (tabela casa) fica; as
+    o que a importacao la escreveu. O registo (tabela empresa) fica; as
     ligacoes ficam. Devolve (propostas repostas, linhas de historico
     apagadas).
 
@@ -346,7 +356,7 @@ def desaplicar_da_copia(copia):
     repostos = apagadas = 0
     with radar.liga() as c:
         refs = [r["ref"] for r in c.execute(
-            "SELECT DISTINCT ref FROM casa WHERE ref IS NOT NULL "
+            "SELECT DISTINCT ref FROM empresa WHERE ref IS NOT NULL "
             "AND resultado IN ('aplicado', 'conflito', 'igual')")]
         try:
             antes.execute("SELECT 1 FROM propostas LIMIT 1")
@@ -376,13 +386,13 @@ def desaplicar_da_copia(copia):
                 c.execute("DELETE FROM historico WHERE id=?", (ide,))
             apagadas += len(novas)
             repostos += 1
-        c.execute("UPDATE casa SET resultado='guardado', aplicado_em=NULL "
+        c.execute("UPDATE empresa SET resultado='guardado', aplicado_em=NULL "
                   "WHERE ref IS NOT NULL AND resultado != 'fora'")
     antes.close()
     return repostos, apagadas
 
 
-# ------------------------------------------ o modelo da casa (8/09/2026)
+# ------------------------------------------ o modelo da empresa (8/09/2026)
 #
 # Decisao do Afonso a 8/09/2026: em vez de o radar tentar perceber o
 # Excel antigo (Analise_Concursos_Publicos.xlsm, feito para outra coisa,
@@ -458,7 +468,7 @@ def escrever_modelo(caminho):
         "Valor da proposta (€): o que propusemos, em número (ex. 54432 ou 54432,50). Vazio se não fomos.",
         "Lugar: a posição no relatório preliminar (1, 2, 3…). Vazio se ainda não há relatório.",
         "Concorrentes: os nomes separados por ponto e vírgula, por ordem de classificação, ex. Empresa A; Empresa B; Empresa C.",
-        "Responsável: quem da casa acompanha este concurso (nome).",
+        "Responsável: quem da empresa acompanha este concurso (nome).",
         "Notas: texto livre.",
         "",
         "Exemplo:  1947/2026 | 2 | Ganho |  | 169344 | 1 | Nós; Empresa B; Empresa C | Afonso | contrato de 24 meses",
@@ -592,7 +602,7 @@ _PRIORIDADE = {"ganho": 0, "submetido": 1, "perdido": 2, "nao fomos": 3}
 
 
 def aplicar_modelo(c, linhas, quem="modelo"):
-    """Grava as linhas `ok` na tabela casa (folha='modelo') e escreve a
+    """Grava as linhas `ok` na tabela empresa (folha='modelo') e escreve a
     triagem nos anuncios. Devolve {"gravadas", "aplicadas", "anuncios",
     "resultados": {ref: resultado de aplicar()}}."""
     import radar
@@ -602,10 +612,10 @@ def aplicar_modelo(c, linhas, quem="modelo"):
     for l in linhas:
         if not l.get("ok"):
             continue
-        c.execute("DELETE FROM casa WHERE ref=? AND folha='modelo' AND "
+        c.execute("DELETE FROM empresa WHERE ref=? AND folha='modelo' AND "
                   "COALESCE(lote,0)=COALESCE(?,0)", (l["ref"], l["lote"] if l["lote"] is not None else 0))
         c.execute(
-            "INSERT INTO casa (nome, status, razao, valor_proposta, lugar, notas, folha, "
+            "INSERT INTO empresa (nome, status, razao, valor_proposta, lugar, notas, folha, "
             "concorrentes, ref, ligacao, candidatos, fora, resultado, importado_em, "
             "aplicado_em, lote) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (l.get("titulo") or "", l["status"], l["razao"] or None, l["valor_proposta"],

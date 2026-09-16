@@ -1287,7 +1287,7 @@ propostas) e `amostras/`.
 onde estiveram e onde estavam inertes: as definições de projecto lêem-se
 da raiz, que é aqui, e o `$CLAUDE_PROJECT_DIR` do comando apontava para
 um caminho que não existia. Medido, não suposto: escrever um ficheiro
-chamado `curl_ensaio_do_hook.txt` — nome que casa com o padrão protegido
+chamado `curl_ensaio_do_hook.txt` — nome que empresa com o padrão protegido
 — passou sem uma palavra.
 
 - `verificar_sintaxe.py` (PostToolUse) — compila o ficheiro Python

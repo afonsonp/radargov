@@ -31,7 +31,7 @@ from urllib.parse import parse_qsl, quote, unquote, unquote_plus, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
-import casa
+import empresa
 
 
 class TestPrefixoCPV(unittest.TestCase):
@@ -525,7 +525,7 @@ Nome: Preço
 
 
 class TestSemIndice(unittest.TestCase):
-    """O sumário casa com todas as âncoras e não diz nada."""
+    """O sumário empresa com todas as âncoras e não diz nada."""
 
     def test_tira_as_linhas_pontilhadas(self):
         d = ("Artigo 1.º | Objeto ............................ 2" + chr(10) +
@@ -881,7 +881,7 @@ class TestETitulo(unittest.TestCase):
 
 class TestAncorasDoRecorte(unittest.TestCase):
 
-    def casa(self, linha, ancoras):
+    def empresa(self, linha, ancoras):
         import re
         curta = radar.simplifica(linha)
         return any(re.search(padrao, curta) for _, padrao in ancoras)
@@ -889,18 +889,18 @@ class TestAncorasDoRecorte(unittest.TestCase):
     def test_resolucao_nao_e_solucao(self):
         # "Clausula 24a - Resolucao do contrato" casava com "solucao" por
         # nao haver fronteira de palavra, e comia o orcamento todo
-        self.assertFalse(self.casa("Cláusula 24ª - Resolução do contrato",
+        self.assertFalse(self.empresa("Cláusula 24ª - Resolução do contrato",
                                    radar.ANCORAS_OBJECTO))
-        self.assertFalse(self.casa("Cláusula 35ª - Resolução de litígios",
+        self.assertFalse(self.empresa("Cláusula 35ª - Resolução de litígios",
                                    radar.ANCORAS_OBJECTO))
-        self.assertTrue(self.casa("1. Objeto da Solução Tecnológica",
+        self.assertTrue(self.empresa("1. Objeto da Solução Tecnológica",
                                   radar.ANCORAS_OBJECTO))
 
-    def test_o_que_interessa_casa(self):
-        self.assertTrue(self.casa("3. Equipa", radar.ANCORAS_EQUIPA))
-        self.assertTrue(self.casa("Cláusula 39ª Profissionais",
+    def test_o_que_interessa_empresa(self):
+        self.assertTrue(self.empresa("3. Equipa", radar.ANCORAS_EQUIPA))
+        self.assertTrue(self.empresa("Cláusula 39ª Profissionais",
                                   radar.ANCORAS_EQUIPA))
-        self.assertTrue(self.casa("Artigo 9.º - Documentos da proposta",
+        self.assertTrue(self.empresa("Artigo 9.º - Documentos da proposta",
                                   radar.ANCORAS_PROGRAMA))
 
 
@@ -1958,7 +1958,7 @@ class TestDiferencasDoDetalhe(unittest.TestCase):
         self.assertEqual([c for c, _, _ in difs], ["prazo", "preco_base"])
 
     def test_datas_no_aviso_saem_a_portuguesa(self):
-        # a regra da casa: nunca uma data ISO num texto para ler
+        # a regra da empresa: nunca uma data ISO num texto para ler
         self.assertEqual(radar._valor_vigiado("prazo", "2026-09-10"),
                          "10/09/2026")
         self.assertEqual(radar._valor_vigiado("preco_base", "100,00 EUR"),
@@ -3024,7 +3024,7 @@ class TestFiltroPorPrazo(unittest.TestCase):
         # Contra dias_urgente() e NUNCA contra DIAS_URGENTE, que é só a
         # omissão: com a janela posta a 8 no painel (config.json), este
         # teste falhava sem nada estar partido -- exactamente o limiar à
-        # mão que a regra da casa proíbe.
+        # mão que a regra da empresa proíbe.
         ini = datetime.date.fromisoformat(valores[0])
         fim = datetime.date.fromisoformat(valores[1])
         self.assertEqual((fim - ini).days, radar.dias_urgente())
@@ -3147,7 +3147,7 @@ class TestListaEmCurso(unittest.TestCase):
     esclarecimentos, entrega, tipologia, estado, CV, proposta técnica,
     notas, plataforma, CoE, responsável -- e a escada absorveu-a: os
     mesmos interessados numa tabela são exactamente a lista das ranhuras
-    da casa, e um separador próprio era a mesma página com outro nome.
+    da empresa, e um separador próprio era a mesma página com outro nome.
 
     O que esta classe guarda agora é que as ligações antigas não se
     partem por uma arrumação nossa.
@@ -3167,7 +3167,7 @@ class TestListaEmCurso(unittest.TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertIn("/anuncio/60", r.headers["Location"])
 
-    def test_as_colunas_que_a_casa_decide_estao_na_proposta(self):
+    def test_as_colunas_que_a_empresa_decide_estao_na_proposta(self):
         """Cada uma delas tem de ter sítio: a tabela saiu, os campos não."""
         for coluna in ("tipologia", "cv", "proposta_tecnica", "notas", "coe",
                        "responsavel", "valor_proposta", "lugar", "top3"):
@@ -3554,7 +3554,7 @@ class TestEtiquetaPrazoSegueAJanela(unittest.TestCase):
 class TestDataHoraPT(unittest.TestCase):
     """O histórico da ficha, a barra do corpus e a "última" da barra
     lateral mostravam "2026-08-29 18:54" -- ISO à vista, contra a regra
-    da casa de ISO na base e DD/MM no ecrã."""
+    da empresa de ISO na base e DD/MM no ecrã."""
 
     def test_data_com_hora(self):
         self.assertEqual(radar.data_hora_pt("2026-08-29 18:54"),
@@ -3646,7 +3646,7 @@ class TestTabelaEssencialDepoisDeLido(unittest.TestCase):
 class TestCriarFiltroNaoPerdeOQueSeEscreveu(unittest.TestCase):
     """A validação recusava e o redirect deitava fora os treze campos.
 
-    E o formulário era GET -- escrevia na base contra a regra da casa de
+    E o formulário era GET -- escrevia na base contra a regra da empresa de
     que tudo o que escreve é POST. A recusa agora leva os campos na
     query string e o formulário volta preenchido.
     """
@@ -4168,7 +4168,7 @@ class TestAbasDaListaUnica(unittest.TestCase):
         ninguém olhar. Estavam juntos, e a 15/09/2026 os 198 305
         «abandonados» eram TODOS expirados — zero decisões na base. Um
         número que junta as duas coisas faz o ruído do DR parecer
-        trabalho da casa."""
+        trabalho da empresa."""
         frag, valores = self._aba("expirou")
         self.assertIn("estado = 'novo' AND NOT", frag)
         self.assertIn("NOT EXISTS", frag)     # e sem proposta: decidido não conta
@@ -4184,17 +4184,17 @@ class TestAbasDaListaUnica(unittest.TestCase):
         self.assertIn("NOT EXISTS", frag)
         self.assertIn("propostas", frag)
 
-    def test_uma_ranhura_da_casa_conta_anuncios_com_proposta(self):
+    def test_uma_ranhura_da_empresa_conta_anuncios_com_proposta(self):
         frag, valores = self._aba("submetido")
         self.assertIn("EXISTS", frag)
         self.assertNotIn("NOT EXISTS", frag)
         self.assertEqual(valores, ["submetido"])
 
     def test_um_submetido_com_prazo_passado_nao_se_esconde(self):
-        """A regra antiga da casa, no vocabulário novo: uma proposta
+        """A regra antiga da empresa, no vocabulário novo: uma proposta
         entregue à espera de decisão tem o prazo passado por definição, e
         esconder-se por isso era perder de vista o trabalho em curso. A
-        ranhura da casa não leva recorte de prazo nenhum."""
+        ranhura da empresa não leva recorte de prazo nenhum."""
         frag, _ = self._aba("submetido")
         self.assertNotIn("prazo", frag)
         self.assertNotIn("data_pub", frag)
@@ -4717,7 +4717,7 @@ class TestExportacaoDaTriagem(BaseTemporaria):
                                 ("3/2026", "Por ver — não entra")):
                 c.execute("INSERT INTO anuncios (ref, titulo) VALUES (?,?)",
                           (ref, titulo))
-        # a decisão da casa mora na proposta desde 15/09/2026, e é ela a
+        # a decisão da empresa mora na proposta desde 15/09/2026, e é ela a
         # parte irrecuperável: o DR não devolve o preço que se propôs
         um = radar.criar_proposta("1/2026", estado="submetido")
         radar.gravar_campos_da_proposta(um, ["responsavel", "valor_proposta"],
@@ -4819,15 +4819,15 @@ class TestExportacaoDaTriagem(BaseTemporaria):
         self.assertIn("ficheiro", por_repor)
 
 
-class TestEscadaDaCasa(unittest.TestCase):
-    """O vocabulário da casa (D1 do docs/historico/CRM.md, 15/09/2026):
+class TestEscadaDaEmpresa(unittest.TestCase):
+    """O vocabulário da empresa (D1 do docs/historico/CRM.md, 15/09/2026):
     oito palavras, e duas ranhuras nas pontas que não são estados. Nada
     aqui toca na base — é tudo vocabulário."""
 
     def test_as_oito_palavras_sao_as_que_ele_disse(self):
         # a lista dele, por estas palavras e por esta ordem
         self.assertEqual(
-            [r for _, r in radar.ESTADOS_DA_CASA],
+            [r for _, r in radar.ESTADOS_DA_EMPRESA],
             ["Por analisar", "A preparar proposta", "Submetido",
              "Relatório preliminar", "Ganho", "Perdido", "Não fomos",
              "Cancelado"])
@@ -4839,47 +4839,47 @@ class TestEscadaDaCasa(unittest.TestCase):
         mas as chaves ficam -- são o que um `triagem.jsonl` de antes traz
         escrito, e mudá-las agora era partir o restauro em silêncio."""
         self.assertEqual(
-            list(radar.CHAVES_DA_CASA[:6]),
+            list(radar.CHAVES_DA_EMPRESA[:6]),
             ["analisar", "proposta", "submetido", "relatorio", "ganho",
              "perdido"])
 
     def test_a_escada_tem_a_entrada_e_o_cemiterio_nas_pontas(self):
-        """E nenhum dos dois é estado da casa: não há proposta nenhuma
+        """E nenhum dos dois é estado da empresa: não há proposta nenhuma
         neles. Sem a entrada, os 1 263 por ver caíam em «Por analisar» e
         o funil deixava de dizer o que diz; sem o cemitério, 198 305
-        anúncios que ninguém olhou contavam como decisão da casa."""
+        anúncios que ninguém olhou contavam como decisão da empresa."""
         self.assertEqual(radar.ESCADA[0], ("porver", "Por ver"))
         self.assertEqual(radar.ESCADA[-1], ("expirou", "Expirou sem ver"))
         self.assertEqual(len(radar.ESCADA), 10)
-        self.assertNotIn("porver", radar.CHAVES_DA_CASA)
-        self.assertNotIn("expirou", radar.CHAVES_DA_CASA)
+        self.assertNotIn("porver", radar.CHAVES_DA_EMPRESA)
+        self.assertNotIn("expirou", radar.CHAVES_DA_EMPRESA)
 
     def test_fechados_e_abertos_cobrem_as_oito_sem_sobrar(self):
         self.assertEqual(sorted(radar.ESTADOS_FECHADOS + radar.ESTADOS_ABERTOS),
-                         sorted(radar.CHAVES_DA_CASA))
+                         sorted(radar.CHAVES_DA_EMPRESA))
         self.assertEqual(set(radar.ESTADOS_FECHADOS),
                          {"ganho", "perdido", "nao_fomos", "cancelado"})
 
     def test_estado_invalido_devolve_vazio_em_vez_de_rebentar(self):
         """É por aqui que se valida o que vem de um formulário: devolver
         "" deixa a rota responder com aviso, e rebentar dava um 500."""
-        self.assertEqual(radar.estado_da_casa("inventado"), "")
-        self.assertEqual(radar.estado_da_casa(""), "")
-        self.assertEqual(radar.estado_da_casa(None), "")
-        self.assertEqual(radar.estado_da_casa("ganho"), "Ganho")
+        self.assertEqual(radar.estado_da_empresa("inventado"), "")
+        self.assertEqual(radar.estado_da_empresa(""), "")
+        self.assertEqual(radar.estado_da_empresa(None), "")
+        self.assertEqual(radar.estado_da_empresa("ganho"), "Ganho")
 
     def test_cada_pedido_e_cada_motivo_e_de_um_estado_que_existe(self):
         """As duas listas andam ao lado da escada e é fácil deixar lá uma
         chave velha depois de renomear um estado — ela cala-se e o campo
         nunca mais aparece."""
         for chave in list(radar.PEDIDO_DO_ESTADO) + list(radar.MOTIVOS_DO_ESTADO):
-            self.assertIn(chave, radar.CHAVES_DA_CASA, chave)
+            self.assertIn(chave, radar.CHAVES_DA_EMPRESA, chave)
         for chave in radar.ESTADOS_COM_PROPOSTO:
-            self.assertIn(chave, radar.CHAVES_DA_CASA, chave)
+            self.assertIn(chave, radar.CHAVES_DA_EMPRESA, chave)
 
 
 class TestPropostas(BaseTemporaria):
-    """A tabela `propostas` (etapa 1 do CRM, 15/09/2026): o que a casa
+    """A tabela `propostas` (etapa 1 do CRM, 15/09/2026): o que a empresa
     está a fazer, que não é o estado de um anúncio. Existe por causa dos
     lotes (D3) e das propostas sem anúncio do DR (D2)."""
 
@@ -5132,7 +5132,7 @@ class TestColunasVelhasFicamMasNinguemAsLe(BaseTemporaria):
         """Essa é seis linhas e sai num instante -- e tem de sair, e não
         só de deixar de se criar: enquanto existisse, um restauro de um
         `triagem.jsonl` antigo voltava a enchê-la e ficava um vocabulário
-        de fases ao lado do da casa, sem nada a dizer qual manda."""
+        de fases ao lado do da empresa, sem nada a dizer qual manda."""
         with radar.liga() as c:
             c.execute("CREATE TABLE IF NOT EXISTS fases (id INTEGER, nome TEXT)")
             c.execute("INSERT INTO fases VALUES (1, 'Por analisar')")
@@ -5381,6 +5381,102 @@ class TestNenhumEcraDa500(BaseTemporaria):
         self.assertGreater(len(caminhos), 20)
 
 
+class TestCasaPassouAEmpresa(BaseTemporaria):
+    """«a "casa" deve ser na verdade "empresa"» — ele, a 16/09/2026.
+
+    As cadeias do ecrã mudaram nesse dia; o vocabulário do código a
+    seguir, a pedido dele. O que isso arrasta são **duas migrações**,
+    porque duas das coisas com esse nome estão gravadas: as chaves do
+    `config.json` e uma tabela do `radar.db`. Nenhuma das duas pode
+    perder o que lá estava — a do config leva o NIF com que o
+    cruzamento do Portal BASE diz se a adjudicação foi nossa."""
+
+    def test_a_tabela_muda_de_nome_sem_perder_as_linhas(self):
+        with radar.liga() as c:
+            c.execute("DROP TABLE IF EXISTS empresa")
+            c.execute("CREATE TABLE casa (id INTEGER PRIMARY KEY, nome TEXT, "
+                      "ref TEXT, folha TEXT, importado_em TEXT)")
+            c.execute("CREATE INDEX ix_casa_ref ON casa(ref)")
+            c.execute("INSERT INTO casa (nome, ref, folha) "
+                      "VALUES ('Concurso velho','60/2026','modelo')")
+            empresa.iniciar_tabelas(c)
+            tabelas = {r["name"] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            self.assertIn("empresa", tabelas)
+            self.assertNotIn("casa", tabelas)
+            linhas = c.execute("SELECT nome FROM empresa").fetchall()
+        self.assertEqual([l["nome"] for l in linhas], ["Concurso velho"])
+
+    def test_renomear_a_tabela_corre_antes_do_create(self):
+        """A ordem é o ponto todo: um `CREATE TABLE IF NOT EXISTS` feito
+        primeiro criava uma `empresa` vazia ao lado da `casa` cheia, e o
+        registo desaparecia **sem uma palavra** — a tabela existia, só
+        não tinha lá nada."""
+        with radar.liga() as c:
+            c.execute("DROP TABLE IF EXISTS empresa")
+            c.execute("CREATE TABLE casa (id INTEGER PRIMARY KEY, nome TEXT, "
+                      "ref TEXT, folha TEXT)")
+            c.execute("INSERT INTO casa (nome) VALUES ('uma linha')")
+            empresa.iniciar_tabelas(c)
+            empresa.iniciar_tabelas(c)      # idempotente
+            n = c.execute("SELECT COUNT(*) n FROM empresa").fetchone()["n"]
+        self.assertEqual(n, 1)
+
+    def test_as_chaves_do_config_levam_o_valor(self):
+        radar.gravar_config({"nome_da_casa": "LATD DIGITAL ENABLERS, LDA",
+                             "nif_da_casa": "516241362"})
+        levadas = radar.renomear_chaves_do_config()
+        self.assertEqual(levadas, {"nome_da_casa": "nome_da_empresa",
+                                   "nif_da_casa": "nif_da_empresa"})
+        cfg = radar.ler_config()
+        self.assertEqual(cfg["nome_da_empresa"], "LATD DIGITAL ENABLERS, LDA")
+        self.assertEqual(cfg["nif_da_empresa"], "516241362")
+        # e a velha sai mesmo do ficheiro, senão ficava resíduo a
+        # confundir quem lá fosse ver
+        with open(radar.CONFIG, encoding="utf-8") as f:
+            self.assertNotIn("nome_da_casa", json.load(f))
+        # idempotente: correr outra vez não tem o que levar
+        self.assertEqual(radar.renomear_chaves_do_config(), {})
+
+    def test_a_chave_nova_manda_quando_as_duas_existem(self):
+        """Quer dizer que já se gravou pelo painel depois da mudança: o
+        que está no ecrã é o que vale, e a velha é o que ficou para
+        trás."""
+        radar.gravar_config({"nome_da_casa": "Nome velho",
+                             "nome_da_empresa": "Nome novo"})
+        radar.renomear_chaves_do_config()
+        self.assertEqual(radar.ler_config()["nome_da_empresa"], "Nome novo")
+
+    def test_o_vocabulario_do_codigo_nao_tem_casa(self):
+        """Nenhum nome nem nenhuma cadeia diz «casa» — fora dos
+        COMENTÁRIOS, onde dizer o nome velho é o que explica a migração
+        a quem a encontrar daqui a um ano.
+
+        Mede-se com o `tokenize` e não por linha: é a única forma de
+        separar o que corre do que se lê ao lado. O que fica com «casa»
+        na língua — «casar», «casamento», as «casas» de um código CPV —
+        vive todo em comentários e docstrings, e por isso não entra."""
+        import tokenize
+        for ficheiro in (radar.__file__, empresa.__file__):
+            soltas = []
+            with tokenize.open(ficheiro) as f:
+                for tok in tokenize.generate_tokens(f.readline):
+                    if tok.type in (tokenize.COMMENT, tokenize.STRING):
+                        continue    # comentário e docstring são prosa
+                    if re.search(r"(?i)\bcasas?\b", tok.string):
+                        soltas.append("%s:%d %s"
+                                      % (ficheiro, tok.start[0], tok.string))
+            self.assertEqual(soltas, [], ficheiro)
+        self.assertTrue(hasattr(radar, "ESTADOS_DA_EMPRESA"))
+        self.assertFalse(hasattr(radar, "ESTADOS_DA_CASA"))
+        # e o que se LÊ também não: aí nem comentário há para explicar
+        legendas = " ".join(l for _, _, l, _, _ in radar.SECCOES_CONFIG)
+        self.assertIn("a nossa empresa", legendas)
+        self.assertNotIn("casa", legendas)
+        self.assertNotIn("casa", " ".join(
+            r for _, r in radar.ESTADOS_DA_EMPRESA))
+
+
 class TestMercadoDepressa(BaseTemporaria):
     """Os gráficos do Mercado levavam 92 s a frio e 14,8 s quentes, numa
     página que faz seis agregações sobre o corpus (2 000 340 contratos).
@@ -5446,7 +5542,7 @@ class TestMercadoDepressa(BaseTemporaria):
 
 
 class TestClienteOuConcorrente(unittest.TestCase):
-    """«a "casa" deve ser na verdade "empresa" todas as outras são
+    """«a "empresa" deve ser na verdade "empresa" todas as outras são
     concorrentes. ou clientes. deves fazer a diferenciação entre
     clientes e concorrentes através da quantidade de compra e de venda»
     — ele, a 16/09/2026.
@@ -5512,7 +5608,7 @@ class TestEscadaNaLista(BaseTemporaria):
     def test_o_todos_diz_o_mesmo_nas_duas_listas(self):
         """15/09/2026, visto no ecrã: o «Todos» dizia **209 894** na
         lista das propostas e **199 631** na dos anúncios -- o mesmo
-        botão com dois números, que é exactamente o que a regra da casa
+        botão com dois números, que é exactamente o que a regra da empresa
         proíbe («um número que um ecrã mostra tem de dar exactamente a
         lista que a ligação dele abre»).
 
@@ -5562,7 +5658,7 @@ class TestEscadaNaLista(BaseTemporaria):
 
     def test_as_duas_listas_deixaram_de_ser_a_mesma_consulta(self):
         """A pergunta que deu origem a tudo isto. A lista dos anúncios
-        mostra o que o DR publicou; a das ranhuras da casa mostra
+        mostra o que o DR publicou; a das ranhuras da empresa mostra
         propostas — e uma delas nem anúncio tem."""
         self.cliente.post("/estado/60%2F2026/submetido")
         radar.criar_proposta(entidade="IPL", titulo="Consulta prévia de formação",
@@ -5681,7 +5777,7 @@ class TestFecharOCicloComOBase(BaseTemporaria):
     formato do `ref` do radar («17161/2026»), e 69,4% dos anúncios de
     2024 já têm contrato celebrado (contra 5,3% dos de 2026, que é o
     ciclo a demorar meses). O plano previa o maquinário de semelhança do
-    `casa.py`; não é preciso nenhum — ou é o mesmo procedimento ou não é
+    `empresa.py`; não é preciso nenhum — ou é o mesmo procedimento ou não é
     nada.
 
     E **propõe, nunca decide**: palavra dele, «isto avança-se sempre com
@@ -5725,7 +5821,7 @@ class TestFecharOCicloComOBase(BaseTemporaria):
         linhas = radar.desfecho_do_anuncio("17161/2026")
         self.assertEqual(len(linhas), 1)
         self.assertIn("ROCHE", linhas[0]["ganhou"])
-        # e um ref parecido não casa: ou é o mesmo procedimento ou não é
+        # e um ref parecido não empresa: ou é o mesmo procedimento ou não é
         self.assertEqual(radar.desfecho_do_anuncio("17162/2026"), [])
 
     def test_uma_proposta_parada_com_contrato_aparece_por_fechar(self):
@@ -5741,22 +5837,22 @@ class TestFecharOCicloComOBase(BaseTemporaria):
         radar.mover_proposta(self.id_, "perdido")
         self.assertEqual(radar.propostas_por_fechar(), [])
 
-    def test_sem_o_nif_da_casa_nao_se_afirma_que_nao_fomos_nos(self):
+    def test_sem_o_nif_da_empresa_nao_se_afirma_que_nao_fomos_nos(self):
         """Três respostas e não duas, de propósito: um «não fomos» de
         quem não sabe é uma afirmação falsa -- e era com base nela que a
         proposta ia fechar."""
         self._contrato()
         linhas = radar.desfecho_do_anuncio("17161/2026")
         self.assertIsNone(radar.fomos_nos(linhas))
-        radar.gravar_config({"nif_da_casa": "111111111"})
+        radar.gravar_config({"nif_da_empresa": "111111111"})
         self.assertIs(radar.fomos_nos(linhas), False)
-        radar.gravar_config({"nif_da_casa": "504282921"})
+        radar.gravar_config({"nif_da_empresa": "504282921"})
         self.assertIs(radar.fomos_nos(linhas), True)
 
-    def test_o_nome_da_casa_tambem_serve_mas_o_nif_e_que_e_certo(self):
+    def test_o_nome_da_empresa_tambem_serve_mas_o_nif_e_que_e_certo(self):
         self._contrato(quem="ROCHE SISTEMAS DE DIAGNOSTICO, LDA")
         linhas = radar.desfecho_do_anuncio("17161/2026")
-        radar.gravar_config({"nome_da_casa": "Roche Sistemas"})
+        radar.gravar_config({"nome_da_empresa": "Roche Sistemas"})
         self.assertIs(radar.fomos_nos(linhas), True)
 
     def test_o_desvio_compara_o_nosso_preco_com_o_adjudicado(self):
@@ -5826,7 +5922,7 @@ class TestIndicadoresComerciais(BaseTemporaria):
     TRIAGEM -- quanto entra, quanto se olha, quanto vinga. Faltava o do
     NEGÓCIO: quanto está em jogo, quanto se ganha, e porque se perde.
 
-    A regra que esta classe guarda, e que é a da casa: **o que não se
+    A regra que esta classe guarda, e que é a da empresa: **o que não se
     pode saber diz-se**. Uma taxa de vitória sobre três concursos é
     ruído com ar de facto, e as decisões que se tomam com ela custam
     dinheiro.
@@ -5992,7 +6088,7 @@ class TestIndicadoresComerciais(BaseTemporaria):
             "/configuracoes/indicadores").get_data(as_text=True)
         self.assertNotIn("O negócio", sistema)
         self.assertIn("Estado da recolha", sistema)
-        # a regra da casa: o número abre a lista que o confirma
+        # a regra da empresa: o número abre a lista que o confirma
         # o endereço da lista: até 16/09/2026 este teste pedia
         # "href='/?estado=submetido'", que é a abertura e não a lista --
         # e assim pregava a ligação errada no lugar
@@ -7394,7 +7490,7 @@ class TestMotivoDoAbandono(unittest.TestCase):
 class TestContrasteNosFundosReais(unittest.TestCase):
     """`--papel` não é o pior fundo.
 
-    A regra da casa dizia que os --t* passavam AA sobre --papel, "que é
+    A regra da empresa dizia que os --t* passavam AA sobre --papel, "que é
     o pior fundo". As colunas do quadro são --linha2, mais escuro, e os
     três «pede o preço proposto» de 01/09/2026 estavam a 4,35:1 (medido
     na UX-Auditoria.md de 02/09/2026). O teste calcula os contrastes a
@@ -7699,7 +7795,7 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
         r = self.cliente.post(p["desfazer"])
         self.assertIn("reposto em por ver", self._params(r)["aviso"])
         # sair da escada tira a proposta, e o anuncio fica como o DR o
-        # deixou -- a decisao da casa nao mora no anuncio desde 15/09/2026
+        # deixou -- a decisao da empresa nao mora no anuncio desde 15/09/2026
         self.assertEqual(radar.propostas_de("2/2026"), [])
         with radar.liga() as c:
             a = c.execute("SELECT estado FROM anuncios WHERE ref='2/2026'").fetchone()
@@ -7774,7 +7870,7 @@ class TestARanhuraDizOQuePede(unittest.TestCase):
         self.assertEqual(sorted(radar.PEDIDO_DO_ESTADO),
                          sorted(radar.MOTIVOS_DO_ESTADO))
         for estado, rotulo in radar.PEDIDO_DO_ESTADO.items():
-            self.assertIn(estado, radar.CHAVES_DA_CASA, estado)
+            self.assertIn(estado, radar.CHAVES_DA_EMPRESA, estado)
             self.assertTrue(rotulo.strip(), estado)
 
     def test_o_rotulo_aparece_mesmo_no_campo(self):
@@ -7825,8 +7921,8 @@ class TestAsOitoPalavrasSaoDoCodigo(unittest.TestCase):
     def test_o_vocabulario_nao_se_edita_por_dados(self):
         """As oito vêm de uma constante, e é isso que faz o quadro, as
         abas, o calendário e os indicadores falarem a mesma língua."""
-        self.assertIsInstance(radar.ESTADOS_DA_CASA, tuple)
-        self.assertEqual(len(radar.ESTADOS_DA_CASA), 8)
+        self.assertIsInstance(radar.ESTADOS_DA_EMPRESA, tuple)
+        self.assertEqual(len(radar.ESTADOS_DA_EMPRESA), 8)
 
 
 class TestCamposPorRanhura(BaseTemporaria):
@@ -7838,7 +7934,7 @@ class TestCamposPorRanhura(BaseTemporaria):
     "Não fomos" o porquê, de âmbito fechado.
 
     (15/09/2026, segunda arrumação do dia: o quadro saiu e estes campos
-    mudaram de casa — do cartão para o bloco «A nossa proposta» da
+    mudaram de empresa — do cartão para o bloco «A nossa proposta» da
     ficha. O âmbito é o mesmo, e é isso que aqui se mede.)
     """
 
@@ -7937,7 +8033,7 @@ class TestSelectorDaRanhura(BaseTemporaria):
         html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
         id_ = radar.propostas_de("60/2026")[0]["id"]
         self.assertIn("action='/proposta/%d/escada'" % id_, html_)
-        for _, rotulo in radar.ESTADOS_DA_CASA:
+        for _, rotulo in radar.ESTADOS_DA_EMPRESA:
             self.assertIn(">%s</option>" % html.escape(rotulo), html_)
         self.assertIn("<option value='porver'>tirar da escada</option>", html_)
 
@@ -8164,7 +8260,7 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
     """O índice da ficha prometia seis destinos e a página tinha oito
     blocos com âncora (fase 5, 16/09/2026).
 
-    Faltavam o **`#proposta`** — que é onde vive o trabalho da casa, o
+    Faltavam o **`#proposta`** — que é onde vive o trabalho da empresa, o
     bloco mais importante da ficha — e o `#contactos`. Um índice que
     salta por cima de um bloco é a mesma mentira de um número que abre
     outra lista: promete o mapa da página e não o é.
@@ -8355,7 +8451,7 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
             self.assertIn(radar.LISTA, r.headers["Location"], antiga)
 
     def test_o_para_fazer_conta_exactamente_as_linhas_que_mostra(self):
-        """A regra da casa: um número que um ecrã mostra tem de dar
+        """A regra da empresa: um número que um ecrã mostra tem de dar
         exactamente o que a ligação dele abre.
 
         Esteve errado: contava só as dos próximos dias (6 de 8) e ligava
@@ -8496,7 +8592,7 @@ class TestCalendarioEPorDiaENaoUmGantt(BaseTemporaria):
 
     def test_um_dia_sem_nada_e_um_dia_e_nao_um_erro(self):
         """Sem `?estado=` o calendário mostra as propostas em aberto, que
-        numa casa que ainda não abriu nenhuma são zero. A grade desenha-se
+        numa empresa que ainda não abriu nenhuma são zero. A grade desenha-se
         na mesma, e as abas por cima são a saída — antes era um beco, em
         que a única forma de ver outra coisa era escrever `?estado=` na
         barra de endereços."""
@@ -8679,7 +8775,7 @@ class TestAlteracoesDoDR(BaseTemporaria):
                             for p in self._historico("100/2026", "estado")))
         # mas uma alteração SEM proposta não é decisão nenhuma, e não
         # pode desfazer o "Não fomos" do original: uma republicação que
-        # ninguém triou é o DR a falar, não a casa
+        # ninguém triou é o DR a falar, não a empresa
         self._poe("400/2026", "2026-07-01", self._texto())
         antigo = radar.criar_proposta("400/2026", estado="nao_fomos")
         radar.gravar_motivo(antigo, "Falta de CV's")
@@ -8773,17 +8869,17 @@ class TestAlteracoesDoDR(BaseTemporaria):
                       inspect.getsource(radar.alertas_por_enviar))
 
 
-class TestEstadoEfectivoDaCasa(BaseTemporaria):
-    """O que o registo da casa DIZ sobre um concurso, e como isso se
+class TestEstadoEfectivoDaEmpresa(BaseTemporaria):
+    """O que o registo da empresa DIZ sobre um concurso, e como isso se
     traduz numa das oito palavras da escada (02-04/09/2026, com as
     decisões dele depois de ver os números).
 
-    Era o `TestRegistoDaCasa`, 638 linhas: o leitor do Excel antigo
+    Era o `TestRegistoDaEmpresa`, 638 linhas: o leitor do Excel antigo
     (`.xlsm` do SharePoint, ligado por semelhança de título) saiu a
     15/09/2026 e levou 17 testes com ele. Estes seis não eram dele --
     são da regra do Zoho, da guarda dos lotes, dos lotes no texto do DR
     e da porta que ficou fechada no front. O teste do
-    `desaplicar_da_copia()` mudou-se para o `TestModeloDaCasa`, que é
+    `desaplicar_da_copia()` mudou-se para o `TestModeloDaEmpresa`, que é
     por onde uma importação passa hoje."""
 
     def test_o_zoho_manda_no_estado_menos_no_nao_fomos(self):
@@ -8792,7 +8888,7 @@ class TestEstadoEfectivoDaCasa(BaseTemporaria):
         # do Zoho, mas e o unico". A excepcao existe porque em 46 das 92
         # linhas que cruzam o Excel diz "Nao fomos" e o Zoho diz "Lost":
         # sem ela, metade do cruzamento perdia a distincao.
-        efec = casa.estado_efectivo
+        efec = empresa.estado_efectivo
         self.assertEqual(efec({"status": "Não fomos", "zoho_fase": "Lost"}),
                          "Não fomos")
         self.assertEqual(efec({"status": "Não fomos", "zoho_fase": "Won"}),
@@ -8807,17 +8903,17 @@ class TestEstadoEfectivoDaCasa(BaseTemporaria):
         # casava nada e caia em silencio para o estado do Excel
         self.assertEqual(efec({"status": "Submetido",
                                "zoho_fase": "2.3 - Negotiation"}), "Submetido")
-        self.assertIn("2.3 - negotiation", casa.TRADUCAO_ZOHO)
+        self.assertIn("2.3 - negotiation", empresa.TRADUCAO_ZOHO)
         # sem Zoho, ou com uma fase que nao se traduz, manda o Excel
         self.assertEqual(efec({"status": "Ganho", "zoho_fase": None}), "Ganho")
         self.assertEqual(efec({"status": "Ganho"}), "Ganho")
         self.assertEqual(efec({"status": "Submetido", "zoho_fase": "Fase Nova"}),
                          "Submetido")
         # e a triagem segue a regra, nao o status cru
-        estado, _ = casa.estado_pretendido(
+        estado, _ = empresa.estado_pretendido(
             {"status": "Submetido", "zoho_fase": "Lost"})
         self.assertEqual(estado, "perdido")        # perdido, nao submetido
-        self.assertEqual(casa.estado_pretendido(
+        self.assertEqual(empresa.estado_pretendido(
             {"status": "Não fomos", "zoho_fase": "Won", "razao": ""}),
             ("nao_fomos", {"motivo": None}))        # o Zoho nao o resgata
 
@@ -8830,7 +8926,7 @@ class TestEstadoEfectivoDaCasa(BaseTemporaria):
         # perdido, #97 o L2 ganho, #98 o L3 perdido) e um so negocio no
         # Zoho, "Won" com 169 344 contra os 109 065,60 do L1. Sem esta
         # guarda o #14 passava de Perdido a Ganho.
-        efec = casa.estado_efectivo
+        efec = empresa.estado_efectivo
         l1 = {"status": "Perdido", "zoho_fase": "Won", "lote": 1,
               "preco_base": 109065.6, "zoho_montante": 169344.0}
         self.assertEqual(efec(l1), "Perdido")
@@ -8847,38 +8943,38 @@ class TestEstadoEfectivoDaCasa(BaseTemporaria):
         self.assertEqual(efec({"status": "Não fomos", "zoho_fase": "Won",
                                "lote": 1}), "Não fomos")
         # e a triagem segue-a
-        estado, _ = casa.estado_pretendido(dict(l1, lugar=3))
+        estado, _ = empresa.estado_pretendido(dict(l1, lugar=3))
         self.assertEqual(estado, "perdido")        # perdido, nao ganho
 
     def test_estado_pretendido_traduz_o_excel(self):
-        """Desde 15/09/2026 devolve uma das oito palavras da casa, e não
+        """Desde 15/09/2026 devolve uma das oito palavras da empresa, e não
         um par estado+fase: o vocabulário passou a ser um só, e
         "interessa" com uma fase ao lado era o mesmo estado dito duas
         vezes."""
-        self.assertEqual(casa.estado_pretendido(
+        self.assertEqual(empresa.estado_pretendido(
             {"status": "Não fomos", "razao": "Prazo de Entrega curto"}),
             ("nao_fomos", {"motivo": "Prazo curto"}))
-        self.assertEqual(casa.estado_pretendido(
+        self.assertEqual(empresa.estado_pretendido(
             {"status": "Não fomos", "razao": ""}),
             ("nao_fomos", {"motivo": None}))
-        estado, campos = casa.estado_pretendido(
+        estado, campos = empresa.estado_pretendido(
             {"status": "Ganho", "valor_proposta": 78987, "lugar": None,
              "concorrentes": [{"lugar": 1, "nome": "LATD", "valor": 78987}]})
         self.assertEqual((estado, campos["lugar"], campos["valor_proposta"]),
                          ("ganho", 1, "78.987,00 EUR"))
         self.assertIn("1.º LATD 78.987,00 EUR", campos["top3"])
         # as oito palavras, e mais nenhuma
-        self.assertIn(estado, radar.CHAVES_DA_CASA)
-        self.assertIsNone(casa.estado_pretendido({"status": "Cancelado"}))
-        self.assertIsNone(casa.estado_pretendido({"status": "TBD"}))
+        self.assertIn(estado, radar.CHAVES_DA_EMPRESA)
+        self.assertIsNone(empresa.estado_pretendido({"status": "Cancelado"}))
+        self.assertIsNone(empresa.estado_pretendido({"status": "TBD"}))
 
     def test_o_front_nao_mudou(self):
         # decisao do Afonso a 02/09/2026: nenhuma alteracao no front antes
-        # de o registo estar consolidado -- a pagina /casa e o bloco da
+        # de o registo estar consolidado -- a pagina /empresa e o bloco da
         # ficha que chegaram a existir sairam, e nao voltam sem ele dizer
-        self.assertNotIn("casa", radar.ITEM_DA_PAGINA)
-        self.assertNotIn("/casa", [r.rule for r in radar.app.url_map.iter_rules()])
-        self.assertFalse(hasattr(radar, "casa_cx"))
+        self.assertNotIn("empresa", radar.ITEM_DA_PAGINA)
+        self.assertNotIn("/empresa", [r.rule for r in radar.app.url_map.iter_rules()])
+        self.assertFalse(hasattr(radar, "empresa_cx"))
         # quatro desde 13/09/2026: "Nao faz parte da oferta" entrou a
         # pedido dele ("Mudancas na plataforma RADAR"); os dois do Excel
         # continuam de fora ate o registo se aplicar
@@ -8914,7 +9010,7 @@ class TestEstadoEfectivoDaCasa(BaseTemporaria):
     def test_as_razoes_do_excel_mapeiam_para_motivos(self):
         # os dois que ainda nao estao em MOTIVOS_ABANDONO entram la quando a
         # triagem do registo passar a aplicar-se (ver CLAUDE.md)
-        self.assertEqual(set(casa.MAPA_RAZAO.values()) - set(radar.MOTIVOS_ABANDONO),
+        self.assertEqual(set(empresa.MAPA_RAZAO.values()) - set(radar.MOTIVOS_ABANDONO),
                          {"Fora do âmbito", "Prazo curto"})
 
 
@@ -9250,7 +9346,7 @@ class TestRecolherIntervalo(unittest.TestCase):
     resto — e o que ficou por trazer tem de sair **nomeado**, porque a
     resposta a uma falha é voltar a correr o comando com essas datas.
 
-    Separa-se a condição da espera, como manda a casa: a `recolha`
+    Separa-se a condição da espera, como manda a empresa: a `recolha`
     injecta-se, e verifica-se que cada janela foi pedida uma vez e que
     as falhadas voltam identificadas.
     """
@@ -9288,7 +9384,7 @@ class TestRecolherIntervalo(unittest.TestCase):
         self.assertIn("timeout", falhadas[0][2])
         self.assertEqual(novos, 5 * (len(janelas) - 1))   # as outras trouxeram
 
-    def test_a_configuracao_da_casa_nao_e_mexida(self):
+    def test_a_configuracao_da_empresa_nao_e_mexida(self):
         # o dict(cfg, ...) e uma copia: um data_de pendurado no cfg
         # verdadeiro estragava a recolha seguinte, que e a diaria
         cfg = {"dias_catchup": 15}
@@ -9308,7 +9404,7 @@ class TestGanhadoresDaLinha(unittest.TestCase):
 
     No corpus verdadeiro as chaves estão cheias, por isso isto nunca
     apareceu — foi um teste do desfecho contra um corpus sem a migração
-    que o expôs. É a regra da casa: onde a documentação disser «em
+    que o expôs. É a regra da empresa: onde a documentação disser «em
     último recurso faz X», escreve-se o teste que força esse recurso.
     """
 
@@ -9822,7 +9918,7 @@ class TestContas(BaseTemporaria):
         r = self.cliente.post("/estado/1/novo", environ_base=local,
                               headers={"Origin": "https://mal.pt"})
         self.assertEqual(r.status_code, 403)
-        # o Referer com 127.0.0.1 e o Host com localhost sao a mesma casa
+        # o Referer com 127.0.0.1 e o Host com localhost sao a mesma empresa
         r = self.cliente.post("/estado/1/novo", environ_base=local,
                               headers={"Referer": "http://127.0.0.1:8765/?estado=novo"})
         self.assertNotEqual(r.status_code, 403)
@@ -10195,12 +10291,12 @@ class TestResumoDosLotes(unittest.TestCase):
     LOTES = [{"n": 1, "id": "L1", "descricao": "Pilar 4 - L1", "preco_base": "109.065,60 EUR"},
              {"n": 2, "id": "L2", "descricao": "Pilar 4 - L2", "preco_base": "436.262,40 EUR"},
              {"n": 3, "id": "L3", "descricao": "Pilar 4 - L3", "preco_base": "54.532,80 EUR"}]
-    CASA = [{"lote": 1, "status": "Perdido", "zoho_fase": "Won", "valor_proposta": 54432.0, "lugar": 3},
+    EMPRESA = [{"lote": 1, "status": "Perdido", "zoho_fase": "Won", "valor_proposta": 54432.0, "lugar": 3},
             {"lote": 2, "status": "Ganho", "zoho_fase": None, "valor_proposta": 169344.0, "lugar": 1},
             {"lote": 3, "status": "Perdido", "zoho_fase": None, "valor_proposta": 46368.0, "lugar": 2}]
 
     def test_o_caso_real_lote_a_lote(self):
-        r = radar.resumo_dos_lotes(self.LOTES, self.CASA)
+        r = radar.resumo_dos_lotes(self.LOTES, self.EMPRESA)
         self.assertEqual([l["estado"] for l in r["lotes"]], ["perdido", "ganho", "perdido"])
         self.assertEqual(r["fomos"], [1, 2, 3])
         self.assertEqual(r["por_estado"], {"perdido": [1, 3], "ganho": [2]})
@@ -10210,7 +10306,7 @@ class TestResumoDosLotes(unittest.TestCase):
         self.assertEqual(radar.frase_dos_lotes(r), "fomos a todos os 3 lotes")
 
     def test_a_alguns_e_a_nenhum(self):
-        r = radar.resumo_dos_lotes(self.LOTES, self.CASA[1:2])
+        r = radar.resumo_dos_lotes(self.LOTES, self.EMPRESA[1:2])
         self.assertEqual(r["fomos"], [2])
         self.assertEqual(radar.frase_dos_lotes(r), "fomos a 1 dos 3 lotes")
         # (as etiquetas por lote, `chips_dos_lotes()`, saíram a
@@ -10223,16 +10319,16 @@ class TestResumoDosLotes(unittest.TestCase):
         self.assertEqual(radar.frase_dos_lotes(r), "3 lotes; sem registo de a que fomos")
 
     def test_o_conjunto_nao_e_um_lote(self):
-        # #23 e #26 (3/09/2026): o preço da linha é a soma — casa.lote = 0
+        # #23 e #26 (3/09/2026): o preço da linha é a soma — empresa.lote = 0
         r = radar.resumo_dos_lotes(self.LOTES[:2], [{"lote": 0, "status": "Perdido",
                                                     "zoho_fase": "Lost"}])
         self.assertEqual(r["fomos"], [])
         self.assertTrue(r["conjunto"])
         self.assertEqual(radar.frase_dos_lotes(r), "fomos ao conjunto dos 2 lotes")
-        self.assertEqual(casa.estado_do_lote(r["conjunto"]), "perdido")
+        self.assertEqual(empresa.estado_do_lote(r["conjunto"]), "perdido")
 
     def test_sem_lotes_e_none(self):
-        self.assertIsNone(radar.resumo_dos_lotes([], self.CASA))
+        self.assertIsNone(radar.resumo_dos_lotes([], self.EMPRESA))
         self.assertEqual(radar.frase_dos_lotes(None), "")
         self.assertEqual(radar.lotes_de({"lotes": "não é json"}), [])
 
@@ -10250,7 +10346,7 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
     Com uma proposta por lote (D3), a separação deixa de precisar de
     truque: cada lote é a sua proposta, com o seu estado, e cai sozinho
     na coluna dele -- arrastável e editável como qualquer outro cartão.
-    O bloco dos lotes na ficha continua a vir do registo da casa, que é
+    O bloco dos lotes na ficha continua a vir do registo da empresa, que é
     quem sabe o preço e o lugar de cada um.
     """
 
@@ -10270,8 +10366,8 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
                        "1 - IDENTIFICAÇÃO E CONTACTOS DA ENTIDADE ADJUDICANTE\n"
                        "Designação da entidade adjudicante: SPMS\n"
                        "Procedimento com lotes? Sim\n"))
-            for i, l in enumerate(TestResumoDosLotes.CASA, 1):
-                c.execute("INSERT INTO casa (id, nome, ref, lote, status, zoho_fase, "
+            for i, l in enumerate(TestResumoDosLotes.EMPRESA, 1):
+                c.execute("INSERT INTO empresa (id, nome, ref, lote, status, zoho_fase, "
                           "valor_proposta, lugar, resultado) VALUES (?,?,?,?,?,?,?,?,?)",
                           (i, "Pilar 4 - L%d" % l["lote"], "1947/2026", l["lote"], l["status"],
                            l["zoho_fase"], l["valor_proposta"], l["lugar"], "guardado"))
@@ -10326,12 +10422,12 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
         self.assertIn("1º lugar", bloco)
         self.assertIn("proposta", bloco)
 
-    def test_sem_registo_da_casa_a_ficha_diz_o(self):
+    def test_sem_registo_da_empresa_a_ficha_diz_o(self):
         with radar.liga() as c:
-            c.execute("DELETE FROM casa")
+            c.execute("DELETE FROM empresa")
         html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
         self.assertIn("sem registo de a que fomos", html_)
-        self.assertNotIn("<th>A casa</th>", html_)
+        self.assertNotIn("<th>A empresa</th>", html_)
 
     def test_sem_lotes_nao_ha_bloco(self):
         with radar.liga() as c:
@@ -10341,8 +10437,8 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
         self.assertNotIn("href='#lotes'", html_)
 
 
-class TestModeloDaCasa(BaseTemporaria):
-    """O registo da casa pelo modelo (8/09/2026): o radar dita o Excel, o
+class TestModeloDaEmpresa(BaseTemporaria):
+    """O registo da empresa pelo modelo (8/09/2026): o radar dita o Excel, o
     utilizador preenche, e a importação passa por um ensaio no painel.
     O Excel antigo deixou de contar para a aplicação."""
 
@@ -10367,9 +10463,9 @@ class TestModeloDaCasa(BaseTemporaria):
         """Um .xlsx a partir do modelo, com as linhas dadas (listas por coluna)."""
         from openpyxl import load_workbook
         caminho = os.path.join(self.pasta, "m.xlsx")
-        casa.escrever_modelo(caminho)
+        empresa.escrever_modelo(caminho)
         wb = load_workbook(caminho)
-        ws = wb[casa.FOLHA_MODELO]
+        ws = wb[empresa.FOLHA_MODELO]
         for l in linhas:
             ws.append(l)
         wb.save(caminho)
@@ -10377,16 +10473,16 @@ class TestModeloDaCasa(BaseTemporaria):
 
     def test_o_modelo_tem_as_colunas_e_as_listas(self):
         from openpyxl import load_workbook
-        caminho = casa.escrever_modelo(os.path.join(self.pasta, "modelo.xlsx"))
+        caminho = empresa.escrever_modelo(os.path.join(self.pasta, "modelo.xlsx"))
         wb = load_workbook(caminho)
-        ws = wb[casa.FOLHA_MODELO]
-        self.assertEqual([c.value for c in ws[1]], [t for t, _ in casa.COLUNAS_MODELO])
+        ws = wb[empresa.FOLHA_MODELO]
+        self.assertEqual([c.value for c in ws[1]], [t for t, _ in empresa.COLUNAS_MODELO])
         validacoes = [dv.formula1 for dv in ws.data_validations.dataValidation]
         self.assertTrue(any("Não fomos" in f and "Ganho" in f for f in validacoes))
         self.assertTrue(any("Preço base baixo" in f for f in validacoes))
         self.assertIn("Instruções", wb.sheetnames)
         # sem linhas de dados: o modelo importado em branco nao entra nada
-        self.assertEqual(casa.ler_modelo(caminho), [])
+        self.assertEqual(empresa.ler_modelo(caminho), [])
 
     def test_ler_normaliza_e_aponta_erros_de_forma(self):
         caminho = self.preenchido([
@@ -10394,7 +10490,7 @@ class TestModeloDaCasa(BaseTemporaria):
             [" 22285 / 2026 ", None, "Não fomos", "preco base demasiado baixo", None, None, None, None, None],
             ["lixo", "x", "Talvez", None, None, "primeiro", None, None, None],
         ])
-        linhas = casa.ler_modelo(caminho)
+        linhas = empresa.ler_modelo(caminho)
         self.assertEqual(len(linhas), 3)
         a, b, c_ = linhas
         self.assertEqual((a["ref"], a["lote"], a["status"], a["valor_proposta"], a["lugar"]),
@@ -10420,7 +10516,7 @@ class TestModeloDaCasa(BaseTemporaria):
             ["100/2026", None, "Ganho", None, None, None, None, None, None],     # republicacao
         ])
         with radar.liga() as c:
-            linhas, contagens = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
+            linhas, contagens = empresa.ensaio_modelo(c, empresa.ler_modelo(caminho))
         problemas = ["; ".join(l["problemas"]) for l in linhas]
         self.assertEqual(linhas[0]["problemas"], [])
         self.assertEqual(linhas[0]["titulo"], "Servidor de terminologias")
@@ -10441,8 +10537,8 @@ class TestModeloDaCasa(BaseTemporaria):
             ["22285/2026", None, "Não fomos", "Falta de CV's", None, None, None, None, "sem equipa"],
         ])
         with radar.liga() as c:
-            linhas, _ = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
-            r = casa.aplicar_modelo(c, linhas, quem="teste")
+            linhas, _ = empresa.ensaio_modelo(c, empresa.ler_modelo(caminho))
+            r = empresa.aplicar_modelo(c, linhas, quem="teste")
         self.assertEqual((r["gravadas"], r["anuncios"], r["aplicadas"]), (3, 2, 2))
         with radar.liga() as c:
             # ganhamos um lote: desde 15/09/2026 o cartao E do lote, e nao
@@ -10457,21 +10553,21 @@ class TestModeloDaCasa(BaseTemporaria):
                           "WHERE ref='22285/2026'").fetchone()
             self.assertEqual((b["estado"], b["motivo"]),
                              ("nao_fomos", "Falta de CV's"))
-            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa WHERE folha='modelo'").fetchone()[0], 3)
-            self.assertEqual(c.execute("SELECT lote FROM casa WHERE ref='22285/2026'").fetchone()[0], 0)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM empresa WHERE folha='modelo'").fetchone()[0], 3)
+            self.assertEqual(c.execute("SELECT lote FROM empresa WHERE ref='22285/2026'").fetchone()[0], 0)
             self.assertEqual(c.execute("SELECT COUNT(*) FROM pessoas WHERE nome='Afonso'").fetchone()[0], 1)
             # e a ficha dos lotes ve o registo
-            linhas_casa = casa.linhas_de_lotes(c, ["1947/2026"])["1947/2026"]
-        resumo = radar.resumo_dos_lotes(TestResumoDosLotes.LOTES, linhas_casa)
+            linhas_empresa = empresa.linhas_de_lotes(c, ["1947/2026"])["1947/2026"]
+        resumo = radar.resumo_dos_lotes(TestResumoDosLotes.LOTES, linhas_empresa)
         self.assertEqual(resumo["por_estado"], {"perdido": [1], "ganho": [2]})
         # importar outra vez a mesma linha substitui, nao duplica
         with radar.liga() as c:
-            linhas, _ = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
-            casa.aplicar_modelo(c, linhas, quem="teste")
-            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa").fetchone()[0], 3)
+            linhas, _ = empresa.ensaio_modelo(c, empresa.ler_modelo(caminho))
+            empresa.aplicar_modelo(c, linhas, quem="teste")
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM empresa").fetchone()[0], 3)
 
     def test_desaplicar_repoe_as_propostas_da_copia(self):
-        """O `--casa-desfazer`: desfaz uma importação repondo as propostas
+        """O `--empresa-desfazer`: desfaz uma importação repondo as propostas
         tal como estão numa cópia de antes dela.
 
         Repor também sabe APAGAR (15/09/2026): uma proposta que a
@@ -10489,8 +10585,8 @@ class TestModeloDaCasa(BaseTemporaria):
             ["22285/2026", None, "Perdido", None, None, 3, None, None, None],
         ])
         with radar.liga() as c:
-            linhas, _ = casa.ensaio_modelo(c, casa.ler_modelo(caminho))
-            casa.aplicar_modelo(c, linhas, quem="Afonso")
+            linhas, _ = empresa.ensaio_modelo(c, empresa.ler_modelo(caminho))
+            empresa.aplicar_modelo(c, linhas, quem="Afonso")
         # a do lote nasceu da importação; a outra é um conflito com a
         # decisão humana, e o conflito escreve uma linha no histórico
         self.assertEqual(radar.propostas_de("1947/2026")[0]["estado"], "ganho")
@@ -10499,7 +10595,7 @@ class TestModeloDaCasa(BaseTemporaria):
                 "SELECT COUNT(*) FROM historico WHERE ref='1947/2026'"
                 ).fetchone()[0], 0)
 
-        repostos, apagadas = casa.desaplicar_da_copia(copia)
+        repostos, apagadas = empresa.desaplicar_da_copia(copia)
         self.assertEqual(repostos, 2)
         self.assertGreater(apagadas, 0)
         # a que a importação criou do nada desaparece
@@ -10514,7 +10610,7 @@ class TestModeloDaCasa(BaseTemporaria):
                 ).fetchone()[0], 0)
             # o registo fica: é o que a importação trouxe, e não se perde
             self.assertEqual(c.execute(
-                "SELECT resultado FROM casa WHERE ref='1947/2026'"
+                "SELECT resultado FROM empresa WHERE ref='1947/2026'"
                 ).fetchone()[0], "guardado")
 
     def test_o_fluxo_no_painel_ensaio_e_confirmar(self):
@@ -10542,12 +10638,12 @@ class TestModeloDaCasa(BaseTemporaria):
         self.assertTrue(m)
         # nada gravado ate confirmar
         with radar.liga() as c:
-            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa").fetchone()[0], 0)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM empresa").fetchone()[0], 0)
         r = self.cliente.post("/configuracoes/importar/confirmar", data={"ficheiro": m.group(1)})
         self.assertEqual(r.status_code, 302)
         self.assertIn("Importado", unquote_plus(r.headers["Location"]))
         with radar.liga() as c:
-            self.assertEqual(c.execute("SELECT COUNT(*) FROM casa").fetchone()[0], 1)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM empresa").fetchone()[0], 1)
         # a decisão mora na proposta desde 15/09/2026
         self.assertEqual(radar.propostas_de("1947/2026")[0]["estado"], "ganho")
         # um nome com caminho nao passa
@@ -10576,7 +10672,7 @@ class TestEstadoZero(BaseTemporaria):
                 c.execute("INSERT INTO anuncios (ref, titulo, entidade, "
                           "data_pub, tipo, url, estado) VALUES (?,?,?,?,?,?,?)",
                           (ref, "t", "e", "2026-01-01", "a", "u", estado))
-        # a decisão da casa mora na escada desde 15/09/2026
+        # a decisão da empresa mora na escada desde 15/09/2026
         ganho = radar.criar_proposta("1/2026", estado="ganho")
         radar.gravar_campos_da_proposta(ganho, ["responsavel"], ["Afonso"])
         nao_fomos = radar.criar_proposta("2/2026", estado="nao_fomos")
@@ -10588,21 +10684,21 @@ class TestEstadoZero(BaseTemporaria):
             c.execute("INSERT INTO etiquetas (nome, cor) VALUES ('x', '#000')")
             c.execute("INSERT INTO historico (ref, quem, accao, detalhe, quando) VALUES ('1/2026','a','b','c','d')")
             c.execute("INSERT INTO filtros_guardados (nome, consulta) VALUES ('f', 'q=x')")
-            c.execute("INSERT INTO casa (nome, ref) VALUES ('linha', '1/2026')")
+            c.execute("INSERT INTO empresa (nome, ref) VALUES ('linha', '1/2026')")
             c.execute("INSERT INTO pessoas (nome) VALUES ('Afonso')")
 
     def test_apaga_o_que_e_do_utilizador_e_guarda_o_acervo(self):
         n = radar.repor_estado_zero()
         self.assertEqual(n["propostas"], 2)
         self.assertEqual(n["tarefas"], 1)
-        self.assertEqual(n["casa"], 1)
+        self.assertEqual(n["empresa"], 1)
         with radar.liga() as c:
             estados = dict(c.execute("SELECT ref, estado FROM anuncios"))
             # o acervo fica, e as republicações continuam escondidas
             self.assertEqual(estados, {"1/2026": "novo", "2/2026": "novo",
                                        "3/2026": "alteracao", "4/2026": "novo"})
             for tabela in ("propostas", "tarefas", "etiquetas", "historico",
-                           "filtros_guardados", "casa", "pessoas"):
+                           "filtros_guardados", "empresa", "pessoas"):
                 self.assertEqual(c.execute("SELECT COUNT(*) FROM %s" % tabela).fetchone()[0], 0, tabela)
         cfg = radar.ler_config()
         self.assertFalse(cfg["interesse_activo"])
@@ -11660,7 +11756,7 @@ class TestInteresseNoMercado(BaseTemporaria):
 
     def test_o_interesse_e_uma_pergunta(self):
         # 14/09/2026: «abre-se e nao se ve contrato nenhum» -- com
-        # interesse definido o Mercado abre logo com os CPV da casa
+        # interesse definido o Mercado abre logo com os CPV da empresa
         from werkzeug.datastructures import MultiDict
         self.assertTrue(radar.pergunta_feita(MultiDict(), "contratos", self.cfg))
         self.assertTrue(radar.pergunta_feita(MultiDict({"ver": "fim"}), "renovacoes", self.cfg))
@@ -11869,10 +11965,16 @@ class TestEntidadesNoMercado(BaseTemporaria):
             radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
         radar.iniciar_corpus()                      # o esquema do corpus, vazio
         with radar.liga_corpus() as c:
-            c.execute("INSERT INTO entidades VALUES ('509540716','509540716',"
-                      "'SPMS - Serviços Partilhados do Ministério da Saúde, E. P. E.', 15)")
-            c.execute("INSERT INTO entidades VALUES ('500000001','500000001','Sport Lisboa e Benfica', 2)")
-            c.execute("INSERT INTO entidades VALUES ('500000002','500000002','Hospital de Espinho', 1)")
+            # com as colunas nomeadas: um VALUES sem elas parte-se
+            # quando a tabela ganha uma coluna, e foi o que aconteceu com
+            # a `compra`/`ganha` do papel (16/09/2026)
+            for chave, nome, variantes in (
+                    ("509540716", "SPMS - Serviços Partilhados do Ministério "
+                                  "da Saúde, E. P. E.", 15),
+                    ("500000001", "Sport Lisboa e Benfica", 2),
+                    ("500000002", "Hospital de Espinho", 1)):
+                c.execute("INSERT INTO entidades (chave, nif, nome, variantes)"
+                          " VALUES (?,?,?,?)", (chave, chave, nome, variantes))
             for norm, chave in (("spms", "509540716"),
                                 ("servicos partilhados do ministerio da saude epe", "509540716"),
                                 ("sport lisboa e benfica", "500000001"),
@@ -11926,14 +12028,14 @@ class TestEntidadesNoMercado(BaseTemporaria):
 class TestPaginasDeErro(BaseTemporaria):
     """15/09/2026: um 404 dava a página nua do Werkzeug e um 500 dava
     «Internal Server Error» sem ficar registado em lado nenhum. Passam
-    a ter a página da casa, e o 500 fica na marca `painel_ultimo_erro`
+    a ter a página da empresa, e o 500 fica na marca `painel_ultimo_erro`
     e na série `erros`, que a saúde dos Indicadores mostra."""
 
     def setUp(self):
         super().setUp()
         self.cliente = radar.app.test_client()
 
-    def test_404_tem_a_pagina_da_casa(self):
+    def test_404_tem_a_pagina_da_empresa(self):
         r = self.cliente.get("/isto-nao-existe")
         self.assertEqual(r.status_code, 404)
         html_ = r.get_data(as_text=True)

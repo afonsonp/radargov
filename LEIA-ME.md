@@ -230,7 +230,7 @@ abandonado quando é republicado, e um por ver a que estenderam o prazo
 volta a aparecer com o prazo novo, sem mexeres em nada.
 
 **O interesse recorta as quatro abas.** Em *Configurações › Interesse*
-escolhes, na árvore, os CPV que a casa trabalha; ligado, a lista passa
+escolhes, na árvore, os CPV que a empresa trabalha; ligado, a lista passa
 a mostrar só o que corresponde — nas quatro abas, sem teres de pôr
 filtro nenhum. Não é um alerta: um alerta avisa-te, o interesse esconde
 o resto. A lista diz sempre que está limitada, quantos ficam de fora, e
@@ -254,7 +254,7 @@ lembra-se se a deixaste aberta. Desde 14/09/2026 são quatro campos:
   começam por SP e depois as que o têm no nome, uma por NIF, com a
   grafia mais frequente e quantos anúncios tem. O DR escreve o mesmo
   nome de várias maneiras («SPMS - Serviços Partilhados…, E. P. E.» e
-  «Serviços Partilhados…, EPE» são a mesma casa, NIF 509540716);
+  «Serviços Partilhados…, EPE» são a mesma empresa, NIF 509540716);
   escolhida a sugestão, o filtro é pelo NIF e apanha todas as grafias,
   mais os anúncios antigos dessa entidade que vieram sem NIF. Se
   escreveres à mão sem escolher, filtra pelo texto, como sempre. Entre
@@ -411,10 +411,10 @@ guardado. Não precisas de esperar por verificação nenhuma.
 Quando o anúncio diz «Procedimento com lotes? Sim» (23% dos que têm
 detalhe lido), a ficha tem um bloco **Lotes**, com entrada no índice:
 cada lote com a descrição e o preço base que o DR publica. Se o
-registo da casa (§11) tiver linhas deste concurso lote a lote, a
-coluna «A casa» diz, por lote, se fomos e como acabou — ganho,
+registo da empresa (§11) tiver linhas deste concurso lote a lote, a
+coluna «A empresa» diz, por lote, se fomos e como acabou — ganho,
 perdido, submetido, não fomos — com a nossa proposta e o lugar. Se
-a linha da casa for do **conjunto** (o preço é a soma dos lotes), a
+a linha da empresa for do **conjunto** (o preço é a soma dos lotes), a
 ficha di-lo por baixo em vez de o pôr num lote. Sem registo, a ficha
 diz que os lotes são os do anúncio e que a que fomos ainda não se
 sabe.
@@ -573,7 +573,7 @@ as outras cinco só um admin as vê:
   «enviar já» e os últimos avisos. Os «filtros guardados» de antes
   deixaram de existir: o que era guardar um filtro para o reaplicar é
   o Interesse; o que era guardá-lo para avisar é criar um alerta.
-- **Importar dados** — o registo da casa, pelo modelo Excel (§13).
+- **Importar dados** — o registo da empresa, pelo modelo Excel (§13).
 - **Indicadores** — a saúde do sistema e os números (§8), com a
   verificação automática e a última verificação que estavam na barra.
 - **Recolha** — as horas da verificação (o relógio interno; os
@@ -623,7 +623,7 @@ Trello/kanban. O botão "Verificar agora" não está aqui: vive só na
 lista dos **Anúncios**, que é onde os novos aterram — na aba "por ver".
 
 São **seis fases, e são estas** — *Por analisar, A preparar proposta,
-Submetido, Relatório preliminar, Ganho, Perdido*: o funil da casa. Podes
+Submetido, Relatório preliminar, Ganho, Perdido*: o funil da empresa. Podes
 mudar-lhes o nome; criar e apagar colunas já não, porque cada coluna tem
 um papel e é o papel que decide o que o cartão pergunta.
 
@@ -634,7 +634,7 @@ ganho…) ou que não há registo. E **no fim separam-se**: um anúncio
 cujo cartão está no Ganho com lotes perdidos tem também um cartão de
 lotes na coluna Perdido, a tracejado, que não se arrasta e liga ao
 bloco dos lotes na ficha; e ao contrário. Isso vem do registo da
-casa, lote a lote — o quadro não inventa resultados.
+empresa, lote a lote — o quadro não inventa resultados.
 
 **Cada fase pede o que lhe falta**, no próprio cartão — e o cabeçalho
 da coluna diz o quê, para se ver sem ser preciso lá pôr um cartão
@@ -694,14 +694,14 @@ turnkey), estado da proposta (a fase em que o cartão está no quadro),
 CV (sim/não), proposta técnica (sim/não), notas, plataforma, CoE e
 responsável.
 
-O que vem da base lê-se; o que a casa decide — tipologia, CV, proposta
+O que vem da base lê-se; o que a empresa decide — tipologia, CV, proposta
 técnica, notas, CoE e o responsável — escreve-se na própria linha e
 grava-se com o «guardar» dela. Cada mudança fica no histórico da ficha
 do anúncio, como as do quadro.
 
-## 11. O registo da casa
+## 11. O registo da empresa
 
-O «registo da casa» é o que a empresa fez com cada concurso: se foi,
+O «registo da empresa» é o que a empresa fez com cada concurso: se foi,
 com que proposta, em que lugar ficou, quem eram os concorrentes. Desde
 8/09/2026 entra **pelo modelo do radar**, em **Configurações › Importar
 dados**, em três passos:
@@ -907,7 +907,7 @@ anúncios, é o teste do parser que avisa primeiro.
 | Ficheiro | Para que serve |
 |---|---|
 | `radar.py` | o programa |
-| `casa.py` | o registo da casa: lê o Excel e liga-o aos anúncios, sem tocar no painel (secção 11) |
+| `empresa.py` | o registo da empresa: lê o Excel e liga-o aos anúncios, sem tocar no painel (secção 11) |
 | `curl_DR.txt` / `curl_detalhe.txt` | as tuas capturas, secção 3 |
 | `config.json` | configuração e horários, criado no primeiro arranque |
 | `radar.db` | os anúncios, a triagem e o histórico |

@@ -48,7 +48,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-import casa                      # o registo da casa (casa.py importa o radar por dentro)
+import empresa                      # o registo da empresa (empresa.py importa o radar por dentro)
 import contas                    # as contas e as sessoes (contas.py nao importa o radar)
 from email.message import EmailMessage
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
@@ -129,7 +129,7 @@ CONFIG_INICIAL = {
     "dias_urgente": 10,
     # O INTERESSE (01/09/2026): o recorte permanente da lista de
     # anuncios, por CPV. Define-se em Alertas › Interesse. Nao e um
-    # filtro -- e o que a casa faz; um filtro guardado esquece-se de se
+    # filtro -- e o que a empresa faz; um filtro guardado esquece-se de se
     # pôr e apaga-se sem querer. Com "interesse_activo" a False, ou sem
     # CPV escolhido, a lista volta ao acervo todo. Formato dos dois
     # campos: codigos separados por "|", como o filtro.
@@ -137,8 +137,8 @@ CONFIG_INICIAL = {
     # adjudicacao foi nossa (etapa 4). Vazios de origem, e a
     # funcionalidade vale na mesma: sem eles o ecra mostra a quem foi
     # adjudicado e PERGUNTA se fomos nos, que e o que ja fazia.
-    "nome_da_casa": "",
-    "nif_da_casa": "",
+    "nome_da_empresa": "",
+    "nif_da_empresa": "",
     "interesse_activo": False,
     "interesse_cpv": "",
     "interesse_cpv_excl": "",
@@ -262,8 +262,8 @@ def liga():
 
 # As seis colunas do quadro viveram aqui, com a tabela `fases`, os
 # papeis e o semeador que as punha numa base por estrear. Sairam a
-# 15/09/2026 (etapa 2 do docs/historico/CRM.md): o vocabulario da casa
-# sao as oito palavras de ESTADOS_DA_CASA, escritas no codigo, e uma
+# 15/09/2026 (etapa 2 do docs/historico/CRM.md): o vocabulario da empresa
+# sao as oito palavras de ESTADOS_DA_EMPRESA, escritas no codigo, e uma
 # tabela de fases renomeaveis por cima disso fazia o quadro dizer uma
 # palavra e as abas outra para o mesmo estado. As chaves das seis
 # primeiras palavras sao, de proposito, as que `fases.papel` usava.
@@ -277,15 +277,15 @@ def liga():
 # maneiras de escrever "preco" e nenhuma conta que se possa fazer. Se
 # um motivo novo for preciso, acrescenta-se aqui -- e uma decisao, nao
 # um campo.
-# O Excel da casa traz mais duas razoes ("Fora do ambito", "Prazo curto",
-# em casa.MAPA_RAZAO); entram aqui quando a triagem do registo da casa
+# O Excel da empresa traz mais duas razoes ("Fora do ambito", "Prazo curto",
+# em empresa.MAPA_RAZAO); entram aqui quando a triagem do registo da empresa
 # passar a aplicar-se -- decisao do Afonso a 02/09/2026: nada muda no
 # front antes de o registo estar consolidado.
 MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
                     "Falta de CV's", "Não faz parte da oferta")
 MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações")
 
-# O que a casa decide sobre cada concurso, de ambito fechado como os
+# O que a empresa decide sobre cada concurso, de ambito fechado como os
 # motivos: "consulting" ou "turnkey", e sim/nao para o CV e a proposta
 # tecnica. Vieram da tabela que o Afonso mandou a 14/09/2026 e ficaram
 # quando ela se fundiu na escada.
@@ -293,9 +293,9 @@ TIPOLOGIAS = ("consulting", "turnkey")
 SIM_NAO = ("sim", "não")
 
 
-# ------------------------------------------------- a escada da casa (CRM)
+# ------------------------------------------------- a escada da empresa (CRM)
 #
-# O vocabulario da casa, decidido pelo Afonso a 15/09/2026 (D1 do
+# O vocabulario da empresa, decidido pelo Afonso a 15/09/2026 (D1 do
 # docs/historico/CRM.md): oito palavras, e mais nenhuma. O Excel e o Zoho
 # traduzem-se para esta lista.
 #
@@ -305,7 +305,7 @@ SIM_NAO = ("sim", "não")
 # de traducao nenhum a adivinhar. As duas ultimas ("nao_fomos",
 # "cancelado") nunca foram colunas do quadro -- o "nao fomos" e o
 # `estado='descartado'` de hoje, com nome novo e os mesmos motivos.
-ESTADOS_DA_CASA = (("analisar", "Por analisar"),
+ESTADOS_DA_EMPRESA = (("analisar", "Por analisar"),
                    ("proposta", "A preparar proposta"),
                    ("submetido", "Submetido"),
                    ("relatorio", "Relatório preliminar"),
@@ -319,10 +319,10 @@ ESTADOS_DA_CASA = (("analisar", "Por analisar"),
 # o cartao parou, que faz o funil esvaziar (§1.2 do plano: ate
 # 15/09/2026 um Ganho ficava `interessa` para sempre).
 ESTADOS_FECHADOS = ("ganho", "perdido", "nao_fomos", "cancelado")
-ESTADOS_ABERTOS = tuple(ch for ch, _ in ESTADOS_DA_CASA
+ESTADOS_ABERTOS = tuple(ch for ch, _ in ESTADOS_DA_EMPRESA
                         if ch not in ESTADOS_FECHADOS)
 
-# As duas ranhuras das PONTAS, que nao sao estados da casa nenhum: o
+# As duas ranhuras das PONTAS, que nao sao estados da empresa nenhum: o
 # antes (ninguem olhou ainda) e o fora (o prazo passou e ninguem olhou).
 # Nao ha proposta nenhuma nelas -- sao recorte de leitura sobre os
 # anuncios, como as abas de hoje.
@@ -332,15 +332,15 @@ ESTADOS_ABERTOS = tuple(ch for ch, _ in ESTADOS_DA_CASA
 # TODOS anuncios expirados sem ninguem olhar -- zero descartes na base.
 # Sem a entrada, os 1 263 vivos caiam em "Por analisar" e o funil
 # deixava de dizer o que diz; sem o cemiterio, 198 mil anuncios que
-# ninguem viu contavam como decisao da casa.
+# ninguem viu contavam como decisao da empresa.
 ENTRADA_DA_ESCADA = ("porver", "Por ver")
 CEMITERIO_DA_ESCADA = ("expirou", "Expirou sem ver")
 
 # A escada inteira, pela ordem em que se sobe. E esta a ordem das abas.
-ESCADA = (ENTRADA_DA_ESCADA,) + ESTADOS_DA_CASA + (CEMITERIO_DA_ESCADA,)
+ESCADA = (ENTRADA_DA_ESCADA,) + ESTADOS_DA_EMPRESA + (CEMITERIO_DA_ESCADA,)
 
 ROTULOS_DA_ESCADA = dict(ESCADA)
-CHAVES_DA_CASA = tuple(ch for ch, _ in ESTADOS_DA_CASA)
+CHAVES_DA_EMPRESA = tuple(ch for ch, _ in ESTADOS_DA_EMPRESA)
 
 # Como se pergunta o motivo, por estado. Era a lista do que cada coluna
 # do quadro anunciava no cabecalho ("pede o preco proposto"); com o
@@ -368,7 +368,7 @@ ESTADOS_COM_PROPOSTO = ("submetido", "relatorio", "ganho", "perdido")
 MOTIVOS_DO_ESTADO = {"perdido": MOTIVOS_PERDA, "nao_fomos": MOTIVOS_ABANDONO}
 
 
-def estado_da_casa(chave):
+def estado_da_empresa(chave):
     """O rotulo de um estado, ou "" se a chave nao e de estado nenhum.
 
     Pura: e por aqui que se valida o que vem de um formulario, e devolver
@@ -377,9 +377,9 @@ def estado_da_casa(chave):
 
 
 # As colunas de CRM que viviam no `anuncios` sairam a 15/09/2026 (etapa
-# 2 do docs/historico/CRM.md): o que a casa decide mora agora na
-# `propostas`. A `fases` sai com elas -- as oito palavras da casa sao
-# vocabulario do codigo (ESTADOS_DA_CASA), e uma tabela de fases
+# 2 do docs/historico/CRM.md): o que a empresa decide mora agora na
+# `propostas`. A `fases` sai com elas -- as oito palavras da empresa sao
+# vocabulario do codigo (ESTADOS_DA_EMPRESA), e uma tabela de fases
 # renomeaveis por cima disso fazia o quadro dizer uma palavra e as abas
 # outra para o mesmo estado.
 #
@@ -416,7 +416,7 @@ def largar_o_que_a_escada_substituiu(c):
     comentario em COLUNAS_QUE_SAIRAM). E tem de sair mesmo, e nao so de
     deixar de se criar: enquanto existisse, um restauro de um
     `triagem.jsonl` antigo voltava a enche-la e ficava um vocabulario
-    de fases ao lado do da casa, sem nada a dizer qual manda.
+    de fases ao lado do da empresa, sem nada a dizer qual manda.
     """
     try:
         c.execute("DROP TABLE IF EXISTS fases")
@@ -470,7 +470,7 @@ def iniciar_db():
         # A2, A3 e a limpeza do indice pecas_fts -- sairam a 14/09/2026:
         # correram em todas as instalacoes desde a v1.0.0, e uma base
         # de antes disso ja nao existe. O diario de Agosto guarda-as.)
-        # As propostas: o que a CASA esta a fazer, que nao e o mesmo que o
+        # As propostas: o que a EMPRESA esta a fazer, que nao e o mesmo que o
         # estado de um anuncio (etapa 1 do docs/historico/CRM.md,
         # 15/09/2026). Existe por duas razoes que o estado do anuncio nao
         # consegue ser, ambas decididas pelo Afonso nesse dia:
@@ -723,7 +723,7 @@ def iniciar_db():
                   "ON anuncios(estado, cpv)")
         largar_o_que_a_escada_substituiu(c)
         traduzir_filtros_guardados(c)
-        casa.iniciar_tabelas(c)     # o registo da casa (Excel; um dia o Zoho)
+        empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)
         contas.iniciar_tabelas(c)   # utilizadores, sessoes, o trinco do login
         # B12, uma vez, por marca: os textos extraidos antes das marcas
         # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
@@ -767,6 +767,10 @@ def iniciar_db():
     if le_marca("alteracoes_agrupadas") != "1":
         agrupar_alteracoes()
         marca("alteracoes_agrupadas", "1")
+    # O vocabulario do config.json segue o do resto (16/09/2026): a
+    # «casa» passou a «empresa». Idempotente, e barato -- so abre o
+    # ficheiro para escrever quando a chave velha la esta.
+    renomear_chaves_do_config()
 
 
 def so_o_dono(caminho):
@@ -778,6 +782,46 @@ def so_o_dono(caminho):
         os.chmod(caminho, 0o600)
     except OSError:
         pass
+
+
+# As chaves do config.json que mudaram de nome, e para o quê. A «casa»
+# passou a «empresa» a 16/09/2026 -- primeiro no ecrã, depois no código.
+CHAVES_RENOMEADAS = {"nome_da_casa": "nome_da_empresa",
+                     "nif_da_casa": "nif_da_empresa"}
+
+
+def renomear_chaves_do_config():
+    """Passa as chaves antigas do `config.json` para os nomes novos.
+
+    Uma vez, e **só quando há o que levar**: a condição é a própria
+    pergunta (a chave velha está no ficheiro?) e não uma marca a dizer
+    que já correu -- uma marca mente depois de um restauro de cópia.
+    Corre no `iniciar_db()` e não no `ler_config()`, que é chamado a
+    cada página: uma migração que escreve o ficheiro a cada leitura não
+    é uma migração, é um ciclo.
+
+    Se as duas existirem, **a nova manda**: quer dizer que já se gravou
+    pelo painel depois da mudança, e o que está no ecrã é o que vale.
+    """
+    if not os.path.exists(CONFIG):
+        return {}
+    try:
+        with open(CONFIG, encoding="utf-8") as f:
+            guardada = json.load(f)
+    except (ValueError, OSError):
+        return {}                   # o ler_config() trata do estragado
+    levadas = {}
+    for velha, nova in CHAVES_RENOMEADAS.items():
+        if velha not in guardada:
+            continue
+        valor = guardada.pop(velha)
+        if not (guardada.get(nova) or "").strip():
+            guardada[nova] = valor
+        levadas[velha] = nova
+    if levadas:
+        with open(CONFIG, "w", encoding="utf-8") as f:
+            json.dump(guardada, f, ensure_ascii=False, indent=2)
+    return levadas
 
 
 def gravar_config(mudancas):
@@ -1071,7 +1115,7 @@ def etiqueta_prazo(prazo, urgente=None):
 def data_hora_pt(texto, vazio="—"):
     """"2026-08-29 18:54" -> "29/08/2026 18:54".
 
-    A regra da casa e ISO na base e DD/MM a vista, e valia em todo o lado
+    A regra da empresa e ISO na base e DD/MM a vista, e valia em todo o lado
     menos em tres sitios: o historico da ficha, a barra do corpus e a
     "ultima" da barra lateral. O que nao parecer data passa como esta --
     ha marcas antigas com texto livre ("nunca")."""
@@ -1380,7 +1424,7 @@ CORES_ETIQUETA = ("#c0392b", "#d68910", "#1e8449", "#1f4e79",
 # tem lotes devem identificar a que lotes fomos e se fomos a todos, e no
 # final, perdido ou ganho, separam-se os cartoes". O anuncio traz os
 # lotes (`anuncios.lotes`, lidos por lotes_do_texto()); a que lotes se
-# foi, e com que resultado, so o registo da casa sabe (`casa.lote`:
+# foi, e com que resultado, so o registo da empresa sabe (`empresa.lote`:
 # >= 1 e um lote, 0 e o conjunto, NULL e por identificar).
 ESTADO_DO_LOTE = {"ganho": ("ganho", "ok"), "perdido": ("perdido", "mau"),
                   "submetido": ("submetido", "info"),
@@ -1395,8 +1439,8 @@ def lotes_de(a):
         return []
 
 
-def resumo_dos_lotes(lotes, linhas_casa=()):
-    """O que se sabe de cada lote, juntando o anuncio ao registo da casa.
+def resumo_dos_lotes(lotes, linhas_empresa=()):
+    """O que se sabe de cada lote, juntando o anuncio ao registo da empresa.
 
     Devolve {"lotes": [{n, id, descricao, preco_base, estado, rotulo,
     classe, proposta, lugar}], "fomos": [n, ...], "conjunto": linha ou
@@ -1408,7 +1452,7 @@ def resumo_dos_lotes(lotes, linhas_casa=()):
         return None
     por_n = {}
     conjunto = None
-    for linha in linhas_casa or ():
+    for linha in linhas_empresa or ():
         lote = linha.get("lote")
         if lote == 0:
             conjunto = linha
@@ -1418,7 +1462,7 @@ def resumo_dos_lotes(lotes, linhas_casa=()):
     for l in lotes:
         n = int(l.get("n") or 0)
         linha = por_n.get(n)
-        estado = casa.estado_do_lote(linha) if linha else ""
+        estado = empresa.estado_do_lote(linha) if linha else ""
         rotulo, classe = ESTADO_DO_LOTE.get(estado, ("", ""))
         if linha:
             fomos.append(n)
@@ -1452,12 +1496,12 @@ def frase_dos_lotes(resumo):
 
 # ------------------------------------------------------------ propostas
 #
-# O que a casa esta a fazer com cada concurso. Etapa 1 do
+# O que a empresa esta a fazer com cada concurso. Etapa 1 do
 # docs/historico/CRM.md -- le o §3 antes de mexer aqui.
 #
 # A regra que manda: **a escada e o estado da PROPOSTA, nao do anuncio**.
 # O anuncio guarda o que o DR publicou, que e facto e nao muda; a
-# proposta guarda o que a casa decidiu, que muda todos os dias. Ate
+# proposta guarda o que a empresa decidiu, que muda todos os dias. Ate
 # 15/09/2026 as duas coisas viviam na mesma linha (doze colunas
 # penduradas em `anuncios`), e era isso que fazia o "Em curso" e a aba
 # "interessados" serem a mesma consulta.
@@ -1492,7 +1536,7 @@ def proposta(id_):
 
 def propostas_de(ref):
     """As propostas de um anuncio, por lote. Lista vazia e resposta
-    valida: quer dizer que a casa ainda nao decidiu nada sobre ele."""
+    valida: quer dizer que a empresa ainda nao decidiu nada sobre ele."""
     if not ref:
         return []
     with liga() as c:
@@ -1517,7 +1561,7 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
     com `ref` nao pode ficar dependente de um JOIN para se mostrar numa
     lista de mil linhas.
     """
-    if estado not in CHAVES_DA_CASA:
+    if estado not in CHAVES_DA_EMPRESA:
         estado = "analisar"
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     preco_base = ""
@@ -1537,7 +1581,7 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
         # Nascer JA numa ranhura fechada leva carimbo: sem ele a proposta
         # some-se do quadro, porque as quatro colunas do fim mostram o
         # trimestre e um `fechada_em` vazio nunca cabe nele. Acontece
-        # sempre que o registo da casa importa um concurso antigo -- que
+        # sempre que o registo da empresa importa um concurso antigo -- que
         # e, por D4, para que serve o Excel.
         fechada = agora if estado in ESTADOS_FECHADOS else None
         cur = c.execute(
@@ -1548,7 +1592,7 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
              estado, preco_base, agora, fechada))
         id_ = cur.lastrowid
     registar(ref or "", "proposta criada",
-             "%s%s" % (estado_da_casa(estado),
+             "%s%s" % (estado_da_empresa(estado),
                        " — lote %d" % lote if lote else ""), quem)
     # as datas do DR viram tarefas na hora, e nao so na verificacao
     # seguinte: por um concurso na escada e o momento em que se quer ver
@@ -1562,7 +1606,7 @@ def apagar_propostas(c, onde, valores):
     """Apaga propostas E as tarefas delas, na mesma transaccao.
 
     Existe porque as `tarefas` nao tem chave estrangeira com ON DELETE
-    CASCADE: po-la agora obrigava a reescrever a tabela, e a casa ja
+    CASCADE: po-la agora obrigava a reescrever a tabela, e a empresa ja
     recusou esse custo uma vez (as doze colunas de CRM, 15/09/2026, 45 s
     por coluna numa base de 1,2 GB). Sao TRES os sitios que apagam
     propostas -- o "voltar a por ver", a republicacao do DR que herda o
@@ -1592,9 +1636,9 @@ def mover_proposta(id_, estado, quem=None):
     "Perdido" que se reabre por impugnacao nao pode continuar a contar
     como fechado no trimestre em que se fechou.
     """
-    if estado not in CHAVES_DA_CASA:
+    if estado not in CHAVES_DA_EMPRESA:
         return False, "«%s» não é um estado da empresa." % (estado or "")
-    rotulo = estado_da_casa(estado)
+    rotulo = estado_da_empresa(estado)
     with liga() as c:
         antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
         if not antes:
@@ -2451,7 +2495,7 @@ def anuncio_alterado(texto):
 # objecto, um bloco "Lotes:" com "Nº: LOT-0001", "Descrição do Lote:" e o
 # preco base de cada um ("Preço base s/IVA:" ou "Valor Estimado do
 # Lote:"), ate a seccao numerada seguinte. E por aqui que uma linha do
-# Excel da casa -- que tem o preco base DO LOTE -- se liga ao lote certo.
+# Excel da empresa -- que tem o preco base DO LOTE -- se liga ao lote certo.
 RX_LOTE_N = re.compile(r"^\s*N[ºo°]?\.?\s*:\s*(LOT-?\s*0*(\d+)|(\d+))\s*$", re.I)
 
 
@@ -2636,7 +2680,7 @@ def registar_alteracoes(ref, difs):
 #
 # O DR nao emenda um anuncio: publica outro, com ref novo, cujo texto
 # comeca por "Alteracao do Anuncio de procedimento n.º X". Para o radar
-# sao dois anuncios; para quem tria e o mesmo concurso. A regra da casa
+# sao dois anuncios; para quem tria e o mesmo concurso. A regra da empresa
 # e que o ORIGINAL e a ficha do procedimento -- e nele que vive a
 # triagem, o quadro, as pecas e a leitura -- e a alteracao fica na base
 # com o proprio texto mas fora das listas (estado 'alteracao'), depois
@@ -2693,7 +2737,7 @@ def membros_da_cadeia(c, raiz):
 
 
 def _decidido(a, c=None):
-    """Se a casa ja decidiu alguma coisa sobre este anuncio.
+    """Se a empresa ja decidiu alguma coisa sobre este anuncio.
 
     Era `estado != 'novo' or fase_id`, quando a decisao morava na linha
     do anuncio. Desde 15/09/2026 mora numa proposta, e a pergunta passa
@@ -2753,7 +2797,7 @@ def aplicar_alteracao(ref, avisar=True):
         if da_alteracao and (not do_original
                              or da_alteracao[0]["estado"] != do_original[0]["estado"]):
             if do_original:
-                era = estado_da_casa(do_original[0]["estado"])
+                era = estado_da_empresa(do_original[0]["estado"])
             # A do original sai: a mais recente e a que vale, e deixar as
             # duas dava dois cartoes do mesmo procedimento no quadro.
             apagar_propostas(c, "ref=?", (raiz_ref,))
@@ -2761,7 +2805,7 @@ def aplicar_alteracao(ref, avisar=True):
             c.execute("INSERT OR IGNORE INTO anuncio_etiquetas (ref, etiqueta_id)"
                       " SELECT ?, etiqueta_id FROM anuncio_etiquetas WHERE ref=?",
                       (raiz_ref, ref))
-            herdou = (estado_da_casa(da_alteracao[0]["estado"])
+            herdou = (estado_da_empresa(da_alteracao[0]["estado"])
                       + (" (%s)" % da_alteracao[0]["motivo"]
                          if da_alteracao[0]["motivo"] else ""))
         elif a["estado"] not in ("novo", "alteracao") and r["estado"] == "novo":
@@ -4660,7 +4704,7 @@ def e_titulo(crua, curta):
 
 
 # As primeiras paginas de um Caderno de Encargos sao o indice, e o
-# indice casa com todas as ancoras: "Artigo 1.o | Objeto ....... 2".
+# indice empresa com todas as ancoras: "Artigo 1.o | Objeto ....... 2".
 # Sem isto, o recorte do 21275/2026 era o sumario -- e o modelo
 # respondia "nao consta" com o documento inteiro por ler ao lado.
 # Sao 2% das linhas do acervo; as unicas que nao sao indice sao os
@@ -5724,7 +5768,7 @@ def repor_estado_zero():
     propostas e as tarefas -- tudo volta a "por ver"), as etiquetas, o
     historico, os responsaveis e a lista de pessoas, os filtros
     guardados e os alertas, as entidades seguidas, o interesse, o
-    registo da casa, a fila de alteracoes, e o destino do resumo por
+    registo da empresa, a fila de alteracoes, e o destino do resumo por
     e-mail. Mantem: os anuncios e os detalhes, as republicacoes (estado
     'alteracao'), os documentos e a analise, as contas e sessoes, a
     recolha, e quem envia o e-mail.
@@ -5743,7 +5787,7 @@ def repor_estado_zero():
         for tabela in ("propostas", "tarefas", "contactos",
                        "anuncio_etiquetas", "etiquetas", "historico", "pessoas",
                        "filtros_guardados", "alertas_vistos", "entidades_seguidas",
-                       "seguidas_vistos", "casa", "alteracoes"):
+                       "seguidas_vistos", "empresa", "alteracoes"):
             try:
                 n[tabela] = c.execute("SELECT COUNT(*) FROM %s" % tabela).fetchone()[0]
                 c.execute("DELETE FROM %s" % tabela)
@@ -5880,12 +5924,12 @@ COLUNAS_DO_CONTACTO = ("id", "entidade_chave", "entidade", "nome", "papel",
 
 _TABELAS_TRIAGEM = (
     # Do anuncio ja so sai o que o DR nao refaz: quem e o responsavel, e
-    # um estado que nao seja o de origem. A decisao da casa saiu daqui
+    # um estado que nao seja o de origem. A decisao da empresa saiu daqui
     # para a `propostas`, que vai inteira (15/09/2026).
     ("anuncios", ("ref", "estado", "visto_em"),
      "SELECT ref, estado, visto_em FROM anuncios "
      "WHERE estado NOT IN ('novo', 'alteracao') ORDER BY ref"),
-    # As propostas -- o que a casa decidiu, e a parte mais irrecuperavel
+    # As propostas -- o que a empresa decidiu, e a parte mais irrecuperavel
     # de todas: e escrita a mao e nao ha fonte nenhuma que a refaca (o DR
     # nao devolve o preco que se propos). Entram INTEIRAS, colunas todas.
     #
@@ -6931,8 +6975,20 @@ def iniciar_corpus():
         # Nome canonico por entidade: o mais usado. Medido, e o unico
         # criterio que da o nome certo -- o mais curto dava "Servicos
         # Centrais" para o IEFP e "CP" para os comboios.
+        # `compra` e `ganha` sao os dois totais de sempre, guardados aqui
+        # (16/09/2026): e deles que sai o papel -- cliente ou concorrente
+        # (papel_da_entidade). Calculam-se com o corpus e nao a cada
+        # pedido, porque o selo aparece numa LISTA: vinte contratos sao
+        # vinte adjudicatarios, e duas somas sobre 2 milhoes de linhas
+        # por cada um nao e uma pagina, e uma espera.
         c.execute("""CREATE TABLE IF NOT EXISTS entidades (
-            chave TEXT PRIMARY KEY, nif TEXT, nome TEXT, variantes INTEGER)""")
+            chave TEXT PRIMARY KEY, nif TEXT, nome TEXT, variantes INTEGER,
+            compra REAL DEFAULT 0, ganha REAL DEFAULT 0)""")
+        cols_e = [r["name"] for r in c.execute("PRAGMA table_info(entidades)")]
+        for coluna in ("compra", "ganha"):   # corpus de antes do papel
+            if coluna not in cols_e:
+                c.execute("ALTER TABLE entidades ADD COLUMN %s REAL DEFAULT 0"
+                          % coluna)
         # Todos os nomes por que uma entidade ja apareceu, normalizados.
         # E por aqui que o nome que o DR escreve num anuncio chega a
         # entidade do corpus -- a `entidades` so tem o nome canonico, e
@@ -7020,6 +7076,15 @@ def iniciar_corpus():
         if falta or (vazia and tem):
             _preencher_chaves(c)
             resolver_entidades(c)
+        elif tem and not c.execute(
+                "SELECT 1 FROM entidades WHERE COALESCE(compra,0) > 0 "
+                "OR COALESCE(ganha,0) > 0 LIMIT 1").fetchone():
+            # Corpus que veio de antes do papel: as duas colunas novas
+            # existem e estao a zero. Enche-se sem refazer os nomes, que
+            # e o caro -- e a condicao e a propria pergunta ("nenhuma
+            # entidade tem lado nenhum"), nao uma marca a dizer que ja
+            # correu: uma marca mente depois de um restauro de copia.
+            somar_os_dois_lados(c)
         # A pesquisa por objecto precisa da coluna normalizada, como os
         # anuncios: o LIKE nao baixa o "Ç" e o IMPIC escreve muitos
         # objectos em maiusculas -- 11,8% de cada pesquisa perdidos.
@@ -7446,6 +7511,31 @@ def _preencher_chaves(c):
               " WHERE chave IS NULL" % digitos)
 
 
+def somar_os_dois_lados(c):
+    """Enche `entidades.compra` e `entidades.ganha`, de que sai o papel.
+
+    Duas varreduras do corpus, feitas COM o corpus e não a cada pedido:
+    o selo (cliente / concorrente) aparece numa lista de vinte
+    adjudicatários, e perguntar por cada um eram quarenta somas sobre
+    dois milhões de linhas por página.
+
+    O que a entidade **ganha** reparte-se pelos adjudicatários do
+    contrato (`n_adj`), como em todo o resto do Mercado: um contrato
+    ganho por um agrupamento de três não vale três vezes o mercado — e
+    há um com 35.
+    """
+    c.execute("""
+        UPDATE entidades SET compra = COALESCE((
+            SELECT SUM(preco_contratual) FROM contratos
+            WHERE adjudicante_chave = entidades.chave), 0)""")
+    c.execute("""
+        UPDATE entidades SET ganha = COALESCE((
+            SELECT SUM(c.preco_contratual / c.n_adj)
+            FROM contrato_adjudicatario a JOIN contratos c
+              ON c.id = a.contrato_id
+            WHERE a.chave = entidades.chave), 0)""")
+
+
 def resolver_entidades(c):
     """Escolhe o nome por que cada entidade fica conhecida.
 
@@ -7477,6 +7567,8 @@ def resolver_entidades(c):
             FROM somado)
         INSERT INTO entidades (chave, nif, nome, variantes)
         SELECT chave, nif, nome, variantes FROM melhor WHERE pos = 1""")
+
+    somar_os_dois_lados(c)
 
     # E agora o caminho inverso: de qualquer nome para a entidade. Um
     # nome normalizado pode servir duas entidades com NIF diferente
@@ -8116,7 +8208,7 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 # Tecto de um pedido (auditoria de 14/09/2026): o Excel do registo da
-# casa e a colagem das capturas eram os unicos corpos grandes e nao
+# empresa e a colagem das capturas eram os unicos corpos grandes e nao
 # tinham limite nenhum -- um POST de gigabytes enchia o disco antes de
 # alguem o ler. 20 MB chega para o modelo preenchido com folga.
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
@@ -8366,7 +8458,7 @@ def rebentou(_erro):
     """Um 500 mostrava a pagina nua do Werkzeug e nao ficava em lado
     nenhum: o Afonso via «Internal Server Error» e ninguem mais sabia.
     Passa a marca `painel_ultimo_erro` (a saude dos Indicadores le-a)
-    mais a linha na serie, e uma pagina da casa. O registo nunca pode
+    mais a linha na serie, e uma pagina da empresa. O registo nunca pode
     derrubar a resposta: se a base e que esta mal, fica so a pagina."""
     causa = getattr(_erro, "original_exception", None) or _erro
     try:
@@ -8765,10 +8857,10 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 /* A escada (15/09/2026): dez ranhuras mais o "todos" nao cabem numa
    linha de tabuladores como as quatro abas de antes. Rolam na
    horizontal, e as tres naturezas distinguem-se -- as duas pontas (a
-   entrada e o cemiterio) e o "todos" nao sao estados da casa, e pinta-
+   entrada e o cemiterio) e o "todos" nao sao estados da empresa, e pinta-
    las como as oito dizia que ha dez estados quando ha dez coisas de
    tres naturezas. O separador vertical entre a entrada e as oito e
-   onde a escada da casa comeca. */
+   onde a escada da empresa comeca. */
 /* Onze abas -- dez ranhuras mais o "Todos" -- nao cabem numa linha num
    ecra normal, e rolar de lado com a barra de rolamento a vista era a
    coisa mais feia do ecra (palavra dele). Passam a QUEBRAR: a fila
@@ -8777,7 +8869,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
    so na maior parte dos ecras -- em 900 px vao a duas, e e essa a
    intencao.
    A nota da UX-Auditoria mantem-se: o alvo continua acima de 24 px de
-   altura, que e o que a regra da casa exige. */
+   altura, que e o que a regra da empresa exige. */
 .abas-escada{flex-wrap:wrap;row-gap:0;padding-bottom:1px}
 .abas-escada a{white-space:nowrap;flex:0 0 auto;padding:8px 10px;
  font-size:11.5px}
@@ -8956,6 +9048,13 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
  white-space:nowrap}
 .ent-papel.cliente{color:var(--verde);border-color:var(--verde)}
 .ent-papel.concorrente{color:var(--laranja);border-color:var(--laranja)}
+/* O da LISTA é só a inicial: numa coluna de nomes o selo é um sinal e
+   não uma etiqueta, e a palavra por extenso ao lado de cada nome
+   dobrava a largura da coluna mais cheia da tabela. O `title` diz a
+   palavra e o porquê. */
+.ent-papel.curto{margin-left:5px;padding:1px 5px;text-align:center;
+ font:600 9.5px/1.5 var(--sans);letter-spacing:.3px;vertical-align:1px;
+ text-transform:uppercase}
 .ent-nomes{margin-top:12px}
 .ent-nomes summary{cursor:pointer;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
 .ent-nomes summary:hover{color:var(--ink)}
@@ -9608,7 +9707,7 @@ td.celula-ranhura{white-space:nowrap;width:1%}
    JS a folha sozinha tem de o deixar visível. */
 .com-js .ranhura button{display:none}
 
-/* o bloco «A nossa proposta» na ficha: a casa do que o cartão fazia */
+/* o bloco «A nossa proposta» na ficha: a empresa do que o cartão fazia */
 .prop{border:1px solid var(--linha);border-radius:6px;padding:14px;
  margin-bottom:12px;background:var(--linha2)}
 .prop:last-child{margin-bottom:0}
@@ -9746,10 +9845,10 @@ a.ct-l{color:var(--azul)}
 .cal-it i{display:block;font:400 10px/1.3 var(--sans);color:var(--t5);
  font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cal-it:hover b{color:var(--azul)}
-.cal-it.casa{border-left-color:var(--azul)}
+.cal-it.empresa{border-left-color:var(--azul)}
 /* "+23" abre no sitio. NAO e uma ligacao para a lista com ?de=&ate=:
    esses dois filtram por data_pub e nao por prazo, e um numero que abre
-   uma lista diferente da que promete e a avaria que a regra da casa
+   uma lista diferente da que promete e a avaria que a regra da empresa
    proibe. */
 .cal-mais{margin-top:1px}
 .cal-mais > summary{cursor:pointer;list-style:none;
@@ -9904,7 +10003,7 @@ a.ct-l{color:var(--azul)}
  .conf-indice a i{display:none}
  /* Sete colunas em 375px dao 49px cada, e o titulo sai "Ex...". E a
     mesma avaria do calendario antigo, que mostrava "A pr..." numa celula
-    de 52px. A regra da casa e rolar DENTRO de si e nunca alargar a
+    de 52px. A regra da empresa e rolar DENTRO de si e nunca alargar a
     pagina: 120px por coluna e o minimo em que o titulo diz alguma
     coisa. */
  .cal{min-width:840px}
@@ -10350,7 +10449,7 @@ def selector_de_ranhura(accao, actual, titulo=""):
     degradacao a dizer o que se passa, e nao um controlo morto.
     """
     opcoes = []
-    for chave, rotulo in ESTADOS_DA_CASA:
+    for chave, rotulo in ESTADOS_DA_EMPRESA:
         opcoes.append("<option value='%s'%s>%s</option>"
                       % (chave, " selected" if chave == actual else "",
                          html.escape(rotulo)))
@@ -10385,7 +10484,7 @@ def caixa_do_motivo():
                    % (html.escape(m, quote=True), html.escape(m))
                    for m in motivos))
         for estado, motivos in MOTIVOS_DO_ESTADO.items())
-    titulos = json.dumps({e: estado_da_casa(e) for e in MOTIVOS_DO_ESTADO})
+    titulos = json.dumps({e: estado_da_empresa(e) for e in MOTIVOS_DO_ESTADO})
     return ("<dialog class='modal' id='dlg-motivo'>"
             "<form method='post' class='accao' id='form-motivo'>"
             "<input type='hidden' name='estado' id='dlg-motivo-estado'>"
@@ -10537,7 +10636,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "migalhas": migalhas,
         # O titulo, e o "?" so quando ha texto para ele guardar. Sem
         # subtitulo o <details> era um "?" que abria nada -- um controlo
-        # morto, que a casa nao poe no ecra.
+        # morto, que a empresa nao poe no ecra.
         "titulo_e_porque": (
             ("<details class='porque'><summary>"
              "<h1 class='tit'>%s</h1><i title='O que e esta pagina'>?</i>"
@@ -10625,7 +10724,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
     prazo_html = ("<div class='item-prazo %s'>%s</div>"
                   % (classe_prazo, texto_prazo)) if texto_prazo else ""
     # Em que ranhura da escada esta, quando nao e a que se esta a ver.
-    # Sai da PROPOSTA -- a decisao da casa deixou de morar no anuncio a
+    # Sai da PROPOSTA -- a decisao da empresa deixou de morar no anuncio a
     # 15/09/2026 -- e vem de um mapa montado uma vez por pagina, nao de
     # uma consulta por linha.
     for p in (na_escada or {}).get(a["ref"], ()):
@@ -10633,7 +10732,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
             continue
         tags.append("<span class='tag %s'>%s%s</span>"
                     % ("" if p["estado"] in ESTADOS_FECHADOS else "ok",
-                       html.escape(estado_da_casa(p["estado"])),
+                       html.escape(estado_da_empresa(p["estado"])),
                        " L%d" % p["lote"] if p["lote"] else ""))
         # Porque e que nao se foi, ou porque se perdeu, na propria
         # linha: e o que faz a ranhura valer alguma coisa passado um
@@ -11321,7 +11420,7 @@ def com_recorte(onde, valores, frag, vals):
 ABAS_ANTIGAS = {"novo": "porver", "interessa": "analisar",
                 "descartado": "nao_fomos"}
 
-# Um anuncio ja tem decisao da casa quando ha uma proposta sobre ele.
+# Um anuncio ja tem decisao da empresa quando ha uma proposta sobre ele.
 # E o que apura a entrada: um anuncio que se pos "a preparar proposta"
 # nao pode continuar a aparecer em "Por ver" a pedir triagem.
 _EXISTE_PROPOSTA = "EXISTS (SELECT 1 FROM propostas p WHERE p.ref = anuncios.ref%s)"
@@ -11334,7 +11433,7 @@ def condicao_da_aba(estado, hoje=None, cfg=None):
 
     A escada de 15/09/2026 (D7, `docs/historico/CRM.md` §3.1). Das dez
     ranhuras, so tres se respondem sobre a tabela dos anuncios -- as
-    duas das pontas e o "todos". As oito da casa contam anuncios com
+    duas das pontas e o "todos". As oito da empresa contam anuncios com
     proposta naquele estado, e servem so para o NUMERO da aba: a lista
     delas e de propostas, e nao de anuncios (`_lista_de_propostas()`),
     porque uma proposta sem anuncio do DR (D2) nao esta aqui para ser
@@ -11346,7 +11445,7 @@ def condicao_da_aba(estado, hoje=None, cfg=None):
       e folga, e e a mesma janela que a rotina le). E **sem proposta**:
       decidido ja nao e por decidir.
     - **expirou sem ver** (`expirou`): o prazo passou e ninguem olhou.
-      Nao e decisao de ninguem, e por isso nao e ranhura da casa -- a
+      Nao e decisao de ninguem, e por isso nao e ranhura da empresa -- a
       15/09/2026 eram 198 305 dos 199 568, e a base nao tinha um unico
       descarte. Nada muda na base: e recorte de leitura, e um expirado
       que seja rectificado com prazo novo volta sozinho ao por ver.
@@ -11358,7 +11457,7 @@ def condicao_da_aba(estado, hoje=None, cfg=None):
     estado = ABAS_ANTIGAS.get(estado, estado)
     if not estado:
         return "", []
-    if estado in CHAVES_DA_CASA:
+    if estado in CHAVES_DA_EMPRESA:
         return SQL_PROPOSTA_NO_ESTADO, [estado]
     hoje = hoje or datetime.now().date()
     cfg = ler_config() if cfg is None else cfg
@@ -11391,7 +11490,7 @@ def condicao_do_interesse(args=None, cfg=None):
     de anuncios, por CPV, definido em Alertas › Interesse.
 
     Decisao do Afonso a 01/09/2026: a lista de anuncios e para ver o que
-    a casa faz, nao o que o Diario da Republica publica. Um filtro
+    a empresa faz, nao o que o Diario da Republica publica. Um filtro
     guardado nao servia -- esquece-se de o pôr e volta tudo; e um filtro
     a mais na barra e um filtro que se apaga sem querer.
 
@@ -11477,10 +11576,10 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
     As contagens eram sobre a base inteira e diziam "Por ver 66 007 ·
     Todos 66 009" por cima de uma lista de 234 -- o numero e o destino
     do mesmo botao discordavam. Cada ranhura conta com o SEU recorte,
-    porque a regra da casa e que um numero tem de abrir exactamente a
+    porque a regra da empresa e que um numero tem de abrir exactamente a
     lista que o confirma.
 
-    As oito da casa contam **propostas**, porque e de propostas que a
+    As oito da empresa contam **propostas**, porque e de propostas que a
     lista delas e feita (`_lista_de_propostas()`). Contaram anuncios com
     proposta ate 16/09/2026, e isso fazia o numero discordar da lista
     sempre que houvesse uma proposta sobre uma republicacao do DR, uma
@@ -11493,19 +11592,19 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
         # os PROCEDIMENTOS e uma republicacao e o mesmo concurso outra
         # vez. Sem isto o "Todos" dizia 209 894 na lista das propostas e
         # 199 631 na dos anuncios: o mesmo botao com dois numeros, que e
-        # exactamente o que a regra da casa proibe. Visto no ecra.
+        # exactamente o que a regra da empresa proibe. Visto no ecra.
         onde_base, valores_base = condicoes({"estado": ""})
     contas = {}
     with liga() as c:
         for chave, _ in ESCADA + (("", "Todos"),):
-            if chave in CHAVES_DA_CASA:
-                # **As oito da casa contam PROPOSTAS, e nao anuncios com
+            if chave in CHAVES_DA_EMPRESA:
+                # **As oito da empresa contam PROPOSTAS, e nao anuncios com
                 # proposta** (16/09/2026). Contavam anuncios, e por isso
                 # o numero discordava da lista que o botao abre por tres
                 # razoes de uma vez: a base do motor tira as
                 # republicacoes (uma proposta feita sobre uma alteracao
                 # do DR nao contava), o interesse por CPV escondia
-                # propostas da propria casa, e as propostas sem anuncio
+                # propostas da propria empresa, e as propostas sem anuncio
                 # (D2) nunca la estiveram. Visto no ecra: a aba dizia
                 # "Por analisar 7" por cima de uma lista de 11.
                 #
@@ -11528,7 +11627,7 @@ def barra_das_abas(rota, actual, contas=None):
     listas. Sem isto eram dois sitios a desenhar a mesma barra, e o
     primeiro a mudar deixava o outro a mostrar abas que ja nao existem.
 
-    As duas das pontas levam classe propria: nao sao estados da casa (a
+    As duas das pontas levam classe propria: nao sao estados da empresa (a
     entrada e o cemiterio), e um ecra que as pinte como as outras oito
     diz que sao oito estados quando sao dez coisas de tres naturezas.
 
@@ -11537,7 +11636,7 @@ def barra_das_abas(rota, actual, contas=None):
     ranhura mas quantos tem prazo dentro das seis semanas -- outra
     conta, onze vezes por pedido. Entre mostrar um numero que abre uma
     coisa diferente do que promete e nao mostrar numero nenhum, a regra
-    da casa escolhe o segundo.
+    da empresa escolhe o segundo.
     """
     pecas = ["<div class='abas abas-escada'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
@@ -11548,7 +11647,7 @@ def barra_das_abas(rota, actual, contas=None):
         elif not chave:
             classe = "ponta"
         else:
-            classe = "casa" + (" fechada" if chave in ESTADOS_FECHADOS else "")
+            classe = "empresa" + (" fechada" if chave in ESTADOS_FECHADOS else "")
         if chave == actual:
             classe += " on"
         numero = ("" if contas is None
@@ -11599,14 +11698,14 @@ def painel():
 
     Duas listas por baixo de uma barra de abas, e nao uma: as ranhuras
     das pontas e o "todos" mostram ANUNCIOS (o que o DR publicou, com o
-    arsenal de filtros que 199 mil linhas obrigam); as oito da casa
-    mostram PROPOSTAS (o que a casa decidiu, com as colunas que isso
+    arsenal de filtros que 199 mil linhas obrigam); as oito da empresa
+    mostram PROPOSTAS (o que a empresa decidiu, com as colunas que isso
     pede). Nao e uma inconsistencia -- sao populacoes diferentes: uma
     proposta de consulta previa nao tem anuncio nenhum para aparecer na
     primeira, e um anuncio por ver nao tem valor proposto para mostrar
     na segunda.
     """
-    if aba_pedida() in CHAVES_DA_CASA:
+    if aba_pedida() in CHAVES_DA_EMPRESA:
         return _lista_de_propostas()
     return _lista_de_anuncios()
 
@@ -11925,7 +12024,7 @@ def _lista_de_anuncios():
         titulo_aba="Radar de Concursos, DR")
 
 
-# --- a lista das oito ranhuras da casa (etapa 2 do CRM, 15/09/2026)
+# --- a lista das oito ranhuras da empresa (etapa 2 do CRM, 15/09/2026)
 #
 # A vista das propostas, por baixo da mesma barra de abas da lista dos
 # anuncios. Sao tabelas diferentes de proposito (ver `painel()`): esta
@@ -12038,7 +12137,7 @@ def linha_da_pipeline(p, urgente, prazos):
 
 
 def _lista_de_propostas():
-    """As propostas de uma ranhura da casa, em tabela.
+    """As propostas de uma ranhura da empresa, em tabela.
 
     O que esta lista mostra e a outra nao: as propostas **sem anuncio**
     (D2 -- consulta previa, ajuste directo, convite) e o **lote** (D3).
@@ -12113,7 +12212,7 @@ def _lista_de_propostas():
         corpo = ("<div class='vazio'>Nada em &ldquo;%s&rdquo; com "
                  "&ldquo;%s&rdquo;. <a href='%s?estado=%s'>Ver as %s</a>."
                  "</div>"
-                 % (html.escape(estado_da_casa(estado_actual)),
+                 % (html.escape(estado_da_empresa(estado_actual)),
                     html.escape(procura), LISTA, estado_actual,
                     mil_pt(contas.get(estado_actual, 0))))
     else:
@@ -12121,7 +12220,7 @@ def _lista_de_propostas():
                  "Põe um concurso aqui a partir da ficha dele, ou "
                  "<a href='/proposta/nova'>cria uma proposta sem anúncio</a> "
                  "(consulta prévia, ajuste directo).</div>"
-                 % html.escape(estado_da_casa(estado_actual)))
+                 % html.escape(estado_da_empresa(estado_actual)))
     conta = "%s %s" % (mil_pt(len(linhas)),
                        "proposta" if len(linhas) == 1 else "propostas")
     if sem_anuncio:
@@ -12151,7 +12250,7 @@ def _lista_de_propostas():
         "vivem aqui e não na lista dos anúncios.",
         conteudo, abas=barra_das_abas(rota, estado_actual, contas),
         script=caixa_do_motivo(),
-        titulo_aba="%s, Concursos" % estado_da_casa(estado_actual))
+        titulo_aba="%s, Concursos" % estado_da_empresa(estado_actual))
 
 
 # Caractere de escape do LIKE. Usa-se "!" e nao a barra invertida de
@@ -12504,8 +12603,8 @@ def condicoes(args):
     if estado is None:
         estado = ENTRADA_DA_ESCADA[0]
     estado = ABAS_ANTIGAS.get(estado, estado)
-    if estado in CHAVES_DA_CASA:
-        # Um filtro guardado (ou um alerta) que pede uma ranhura da casa.
+    if estado in CHAVES_DA_EMPRESA:
+        # Um filtro guardado (ou um alerta) que pede uma ranhura da empresa.
         # Traduz-se para a proposta, que e onde esse estado passou a
         # viver a 15/09/2026. **Isto nao e o recorte da pagina** -- esse
         # continua de fora, no condicao_da_aba(): e um campo que quem
@@ -12750,12 +12849,12 @@ def mudar_estado(ref, novo):
 
     Ate 15/09/2026 isto escrevia `anuncios.estado`. Agora **cria ou move
     uma proposta**, e o `anuncios.estado` fica so com o que o DR diz
-    ('novo', 'alteracao'): a decisao da casa deixou de morar na linha do
+    ('novo', 'alteracao'): a decisao da empresa deixou de morar na linha do
     anuncio. Os nomes antigos da accao continuam a servir, porque as
     ligacoes e o teclado da lista os usam -- traduzem-se a entrada.
     """
     accao = ABAS_ANTIGAS.get(novo, novo)
-    if accao not in CHAVES_DA_CASA and accao != ENTRADA_DA_ESCADA[0]:
+    if accao not in CHAVES_DA_EMPRESA and accao != ENTRADA_DA_ESCADA[0]:
         return volta_ao_referer("/")
     # Nao ir exige motivo, de ambito fechado (decisao do Afonso a
     # 01/09/2026). Passado um mes, "nao fomos" sozinho nao diz nada: nao
@@ -12816,7 +12915,7 @@ def mudar_estado(ref, novo):
             # estado muda mesmo: com o botao a aparecer tambem em quem ja
             # la estava, cada clique repetido voltava a descarregar tudo.
             pedir_documentos(ref)
-        rotulo = estado_da_casa(accao) + (" (%s)" % motivo if motivo else "")
+        rotulo = estado_da_empresa(accao) + (" (%s)" % motivo if motivo else "")
 
     texto = "«%s»: %s." % (corta(actual["titulo"] or ref, 70), rotulo)
     # O caminho de volta. Se o estado anterior tinha motivo, o motivo vai
@@ -12951,7 +13050,7 @@ def exportar():
             "SELECT ref,data_pub,tipo,entidade,titulo,cpv,prazo,preco_base,"
             "estado,url, (SELECT p.estado || COALESCE(' (' || p.motivo || ')','')"
             " FROM propostas p WHERE p.ref = anuncios.ref ORDER BY p.id LIMIT 1)"
-            " AS na_casa FROM anuncios" + onde +
+            " AS na_empresa FROM anuncios" + onde +
             " ORDER BY data_pub DESC", valores).fetchall()
     saida = io.StringIO()
     escritor = csv.writer(saida, delimiter=";")
@@ -12970,9 +13069,9 @@ def exportar():
         linha_csv(escritor, [a["ref"], data_pt(a["data_pub"]), a["tipo"],
                            a["entidade"], a["titulo"], a["cpv"],
                            data_pt(a["prazo"]), numero_csv(a["preco_base"]),
-                           estado_da_casa((a["na_casa"] or "").split(" (")[0])
+                           estado_da_empresa((a["na_empresa"] or "").split(" (")[0])
                            or _NOMES_ESTADO.get(a["estado"], a["estado"]),
-                           (a["na_casa"] or "").partition(" (")[2].rstrip(")"),
+                           (a["na_empresa"] or "").partition(" (")[2].rstrip(")"),
                            a["url"]])
     return resposta_csv(saida, "anuncios")
 
@@ -12989,7 +13088,7 @@ def exportar():
 # Ao lado deles vive o INTERESSE, que e outra coisa e nao se confunde:
 # um alerta AVISA quando entra alguma coisa; o interesse LIMITA o que a
 # lista de anuncios mostra, sempre, sem ninguem ter de o pôr. Sao os
-# CPV que a casa faz.
+# CPV que a empresa faz.
 
 @app.route("/alertas/interesse")
 def interesse():
@@ -13857,7 +13956,7 @@ def config_copias():
     return pagina_config("copias", "<div class='cx conf-cx'>" + corpo + "</div>")
 
 
-IMPORTACOES = os.path.join(BASE_DIR, casa.PASTA_IMPORTACOES)
+IMPORTACOES = os.path.join(BASE_DIR, empresa.PASTA_IMPORTACOES)
 
 
 def _nome_de_importacao(nome):
@@ -13888,7 +13987,7 @@ def _tabela_do_ensaio(linhas):
 
 @app.route("/configuracoes/importar", methods=["GET", "POST"])
 def config_importar():
-    """O registo da casa entra por aqui: descarregar o modelo, carregar o
+    """O registo da empresa entra por aqui: descarregar o modelo, carregar o
     ficheiro preenchido, ver o ensaio, confirmar. Decisao do Afonso a
     8/09/2026 -- o Excel antigo deixou de contar para a aplicacao."""
     if request.method == "POST":
@@ -13905,12 +14004,12 @@ def config_importar():
         caminho = os.path.join(IMPORTACOES, nome)
         ficheiro.save(caminho)
         try:
-            linhas = casa.ler_modelo(caminho)
+            linhas = empresa.ler_modelo(caminho)
         except Exception as erro:            # openpyxl levanta de tudo num ficheiro estragado
             os.remove(caminho)
             return volta_config("importar", "Não consegui ler o ficheiro: %s" % str(erro)[:120])
         with liga() as c:
-            linhas, contagens = casa.ensaio_modelo(c, linhas)
+            linhas, contagens = empresa.ensaio_modelo(c, linhas)
         if not linhas:
             os.remove(caminho)
             return volta_config("importar", "O ficheiro não tem linhas preenchidas na folha «Registo».")
@@ -13933,9 +14032,9 @@ def config_importar():
                contagens["com_erro"], _tabela_do_ensaio(linhas), confirmar))
         return pagina_config("importar", "<div class='cx conf-cx'>" + corpo + "</div>")
     with liga() as c:
-        n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM casa "
+        n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM empresa "
                              "WHERE folha='modelo'").fetchone()
-        ultima = c.execute("SELECT MAX(importado_em) FROM casa WHERE folha='modelo'").fetchone()[0]
+        ultima = c.execute("SELECT MAX(importado_em) FROM empresa WHERE folha='modelo'").fetchone()[0]
     corpo = (
         "<div class='rot'>1. O modelo</div>"
         "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o radar "
@@ -13962,10 +14061,10 @@ def config_importar():
 @app.route("/configuracoes/importar/modelo.xlsx")
 def config_importar_modelo():
     os.makedirs(IMPORTACOES, exist_ok=True)
-    caminho = os.path.join(IMPORTACOES, "modelo-registo-da-casa.xlsx")
-    casa.escrever_modelo(caminho)
+    caminho = os.path.join(IMPORTACOES, "modelo-registo-da-empresa.xlsx")
+    empresa.escrever_modelo(caminho)
     return send_file(caminho, as_attachment=True,
-                     download_name="registo-da-casa.xlsx",
+                     download_name="registo-da-empresa.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
@@ -13975,10 +14074,10 @@ def config_importar_confirmar():
     caminho = os.path.join(IMPORTACOES, nome) if nome else ""
     if not nome or not os.path.exists(caminho):
         return volta_config("importar", "O ficheiro do ensaio já não está cá; carrega-o outra vez.")
-    linhas = casa.ler_modelo(caminho)
+    linhas = empresa.ler_modelo(caminho)
     with liga() as c:
-        linhas, contagens = casa.ensaio_modelo(c, linhas)
-        resultado = casa.aplicar_modelo(c, linhas, quem=quem_sou() or "modelo")
+        linhas, contagens = empresa.ensaio_modelo(c, linhas)
+        resultado = empresa.aplicar_modelo(c, linhas, quem=quem_sou() or "modelo")
     registar("", "importação", "%d linhas do modelo, %d anúncios, %d com triagem aplicada (%s)"
              % (resultado["gravadas"], resultado["anuncios"], resultado["aplicadas"], nome))
     return volta_config("importar", "Importado: %d linha%s em %d anúncio%s; %d com a triagem "
@@ -14047,12 +14146,12 @@ def config_conta():
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
            if sessoes else ""))
     if sou_admin():
-        corpo += _bloco_da_casa()
+        corpo += _bloco_da_empresa()
         corpo += _bloco_utilizadores(todos, utilizador["id"])
     return pagina_config("conta", "<div class='cx conf-cx'>" + corpo + "</div>")
 
 
-def _bloco_da_casa(cfg=None):
+def _bloco_da_empresa(cfg=None):
     """Quem somos nós, para o cruzamento com o Portal BASE.
 
     Sem isto o radar sabe a quem o procedimento foi adjudicado mas não
@@ -14065,29 +14164,29 @@ def _bloco_da_casa(cfg=None):
     «, S.A.») -- comparar por nome sozinho dava falsos negativos
     justamente nos concursos que interessam.
     """
-    nome, nif = _nome_da_casa(cfg)
+    nome, nif = _nome_da_empresa(cfg)
     return ("<div class='rot' style='margin:22px 0 6px'>A nossa empresa</div>"
             "<div class='nota' style='margin-bottom:10px'>Para o radar saber, "
             "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
             "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
             "</div>"
-            "<form method='post' action='/configuracoes/conta/casa' "
+            "<form method='post' action='/configuracoes/conta/empresa' "
             "class='conf-form'>"
-            + _campo("Nome", "nome_da_casa", nome,
+            + _campo("Nome", "nome_da_empresa", nome,
                      nota="como aparece nos contratos")
-            + _campo("NIF", "nif_da_casa", nif,
+            + _campo("NIF", "nif_da_empresa", nif,
                      nota="nove dígitos; é por aqui que a ligação é certa")
             + "<button type='submit' class='bt'>Guardar</button></form>")
 
 
-@app.route("/configuracoes/conta/casa", methods=["POST"])
-def config_casa():
+@app.route("/configuracoes/conta/empresa", methods=["POST"])
+def config_empresa():
     """Grava quem somos nós. O NIF fica só com os dígitos: o dump do
     IMPIC guarda-o assim, e um espaço ou um ponto a meio fazia a
     comparação falhar sem nada no ecrã a dizer porquê."""
-    nome = " ".join((request.form.get("nome_da_casa") or "").split())[:120]
-    nif = re.sub(r"\D", "", request.form.get("nif_da_casa") or "")[:9]
-    gravar_config_registado({"nome_da_casa": nome, "nif_da_casa": nif})
+    nome = " ".join((request.form.get("nome_da_empresa") or "").split())[:120]
+    nif = re.sub(r"\D", "", request.form.get("nif_da_empresa") or "")[:9]
+    gravar_config_registado({"nome_da_empresa": nome, "nif_da_empresa": nif})
     return volta_config("conta", "A nossa empresa: guardada.")
 
 
@@ -14172,7 +14271,7 @@ def alerta_criar():
 
     POST, como tudo o que escreve -- foi GET, com a justificacao de que
     os campos vinham de um formulario de pesquisa, mas o gravar_filtro
-    escreve na base e a regra da casa nao abre excepcoes. Quando a
+    escreve na base e a regra da empresa nao abre excepcoes. Quando a
     validacao recusa, o redirect leva os campos na query string e o
     formulario volta preenchido: perdia-se tudo, nome incluido."""
     nome = (request.form.get("nome") or "").strip()
@@ -14483,6 +14582,57 @@ def papel_da_entidade(compra_v, ganha_v):
             "lados conforme o concurso")
 
 
+# Como o selo se escreve quando nao ha espaco para a palavra. **Nao e a
+# inicial**: "Cliente" e "Concorrente" comecam os dois por C, e uma
+# lista com um "C" verde ao lado de um "C" laranja pedia que a cor
+# fizesse o trabalho da palavra -- que e o que nao se faz, porque a cor
+# nao se le em voz alta nem sobrevive a daltonia. Visto no ecra a
+# 16/09/2026, na propria lista para que isto foi feito.
+PAPEL_ABREVIADO = {"cliente": "cli", "concorrente": "conc", "ambos": "c+c"}
+
+
+def papeis_de(chaves):
+    """{chave: (classe, rótulo, porquê)} de várias entidades, numa
+    consulta só.
+
+    É o que põe o selo numa LISTA: vinte contratos são vinte
+    adjudicatários, e uma consulta por linha dentro do ciclo do HTML é o
+    erro que este painel já pagou uma vez. As somas já estão na tabela
+    (`somar_os_dois_lados`), por isso isto lê e não conta.
+    """
+    chaves = sorted({c for c in (chaves or []) if c})
+    if not chaves or not ha_corpus():
+        return {}
+    fora = {}
+    with liga_corpus() as c:
+        for r in c.execute(
+                "SELECT chave, compra, ganha FROM entidades WHERE chave IN (%s)"
+                % ",".join("?" * len(chaves)), chaves):
+            papel = papel_da_entidade(r["compra"], r["ganha"])
+            if papel[0]:
+                fora[r["chave"]] = papel
+    return fora
+
+
+def selo_do_papel(papel, curto=False):
+    """O selo de «Cliente» ou «Concorrente». "" quando não há papel.
+
+    `curto=True` é o da lista: a palavra abreviada (`PAPEL_ABREVIADO`),
+    porque numa coluna de nomes o selo é um sinal e não uma etiqueta — a
+    palavra inteira ao lado de cada nome dobrava a largura da coluna mais
+    cheia da tabela. **Abreviada e não reduzida à inicial**: «Cliente» e
+    «Concorrente» começam os dois por C. O `title` diz a palavra e o
+    porquê.
+    """
+    classe, rotulo, porque = papel
+    if not classe:
+        return ""
+    return ("<span class='ent-papel %s%s' title='%s — %s'>%s</span>"
+            % (classe, " curto" if curto else "",
+               html.escape(rotulo, quote=True), html.escape(porque, quote=True),
+               html.escape(PAPEL_ABREVIADO[classe] if curto else rotulo)))
+
+
 def ficha_entidade(chave, args=None):
     """Tudo o que o corpus sabe sobre uma entidade, nos dois papeis.
 
@@ -14510,16 +14660,12 @@ def ficha_entidade(chave, args=None):
             "ORDER BY nome_norm LIMIT 40", (chave,))]
 
         # Os dois totais SEM o filtro da ficha, so para o papel
-        # (papel_da_entidade). E identidade como os nomes acima: filtrar
-        # por um CPV em que a entidade so ganha nao faz de um municipio
-        # um concorrente. Duas somas, e nao a ficha inteira outra vez.
-        d["compra_total"] = c.execute(
-            "SELECT COALESCE(SUM(preco_contratual),0) v FROM contratos "
-            "WHERE adjudicante_chave=?", (chave,)).fetchone()["v"]
-        d["ganha_total"] = c.execute(
-            "SELECT COALESCE(SUM(c.preco_contratual/c.n_adj),0) v "
-            "FROM contratos c JOIN contrato_adjudicatario a "
-            "ON a.contrato_id=c.id WHERE a.chave=?", (chave,)).fetchone()["v"]
+        # (papel_da_entidade): vem da propria linha, ja somados com o
+        # corpus (somar_os_dois_lados). E identidade como os nomes
+        # acima -- filtrar por um CPV em que a entidade so ganha nao faz
+        # de um municipio um concorrente.
+        d["compra_total"] = ident["compra"] or 0
+        d["ganha_total"] = ident["ganha"] or 0
 
         # --- como comprador
         d["compra"] = c.execute(
@@ -14886,7 +15032,7 @@ def contratos_resumo():
     return Response("".join(partes), mimetype="text/html")
 
 
-def liga_entidade(chave, nome, classe=""):
+def liga_entidade(chave, nome, classe="", papeis=None):
     """O nome de uma entidade, a levar para a ficha dela.
 
     Quem nao tem NIF fica marcado. 10% dos adjudicatarios do dump do
@@ -14895,15 +15041,21 @@ def liga_entidade(chave, nome, classe=""):
     contratos, e outra pelo nome, com um. Sao dados do IMPIC e nao ha
     como junta-los, mas uma linha explicada deixa de parecer um erro de
     contagem.
+
+    Com `papeis` (de `papeis_de()`), leva o selo de cliente ou
+    concorrente. E opcional de proposito: quem nao passa o mapa nao paga
+    a consulta, e ha sitios onde o papel nao acrescenta nada -- na ficha
+    da entidade, por exemplo, ele ja esta em cima ao pe do nome.
     """
     if not chave:
         return html.escape(nome or "—")
     sem_nif = ("<span class='sem-nif' title='este contrato veio do IMPIC sem "
                "NIF; agrupa-se pelo nome e pode ser a mesma empresa que "
                "outra linha'>sem NIF</span>") if chave.startswith("n:") else ""
-    return ("<a class='%s' href='/entidade/%s'>%s</a>%s"
+    selo = selo_do_papel((papeis or {}).get(chave, ("", "", "")), curto=True)
+    return ("<a class='%s' href='/entidade/%s'>%s</a>%s%s"
             % (classe, quote(chave, safe=""), html.escape(nome or chave),
-               sem_nif))
+               selo, sem_nif))
 
 
 def cpv_html(linhas, titulo, nota, ligar):
@@ -15128,11 +15280,8 @@ def entidade(chave):
     # Sem o filtro da ficha por cima: o papel e identidade da entidade,
     # como os nomes por que assina. Filtrar por um CPV em que ela so
     # ganha nao faz de um municipio um concorrente.
-    chave_papel, rotulo_papel, porque_papel = papel_da_entidade(
-        d["compra_total"], d["ganha_total"])
-    selo = ("<span class='ent-papel %s' title='%s'>%s</span>"
-            % (chave_papel, html.escape(porque_papel, quote=True),
-               html.escape(rotulo_papel))) if chave_papel else ""
+    selo = selo_do_papel(papel_da_entidade(d["compra_total"],
+                                           d["ganha_total"]))
 
     ident = ("<div class='cx ent-cab'><div class='n'>%s%s</div>"
              "<div class='m'>%s</div>%s</div>"
@@ -15373,7 +15522,7 @@ def contratos():
     com_interesse = bool(ligado_i and dentro_i)
     # A pergunta e um filtro OU o interesse (14/09/2026: «abre-se e nao
     # se ve contrato nenhum»). Com interesse definido o Mercado abre
-    # logo com os contratos dos CPV da casa -- medido, 0,4 s a contar e
+    # logo com os contratos dos CPV da empresa -- medido, 0,4 s a contar e
     # a listar 72 mil; os graficos continuam a pedir-se so ao abrir.
     ha_pergunta = pergunta_feita(request.args, vista, cfg)
 
@@ -15496,10 +15645,18 @@ def contratos():
         # o inverso do B02: quando o procedimento teve anuncio no radar,
         # a linha leva a ficha dele (so os refs que existem mesmo)
         com_ficha = refs_com_anuncio([l["n_anuncio"] for l in linhas])
+        # Quem ganhou e quem comprou, com o LADO DA MESA dito por um
+        # selo (16/09/2026): esta e a lista onde a pergunta "isto e um
+        # cliente ou um concorrente?" se faz vinte vezes seguidas. Um
+        # mapa para as duas colunas, numa consulta so -- uma por linha
+        # dentro do ciclo do HTML e o erro que este painel ja pagou.
+        papeis = papeis_de(
+            [l["adjudicante_chave"] for l in linhas]
+            + [ch for l in linhas for ch, _ in ganhadores_da_linha(l)])
         corpo = []
         for l in linhas:
             venceu = " + ".join(
-                liga_entidade(ch, n)
+                liga_entidade(ch, n, papeis=papeis)
                 for ch, n in ganhadores_da_linha(l)) or "—"
             objecto = html.escape(corta(l["objecto"], 150))
             if (l["n_anuncio"] or "").strip() in com_ficha:
@@ -15522,7 +15679,7 @@ def contratos():
                     "<td class='d'>%s</td><td class='p'>%s</td></tr>"
                     % (data_pt(l["fim_estimado"]), falta, objecto,
                        liga_entidade(l["adjudicante_chave"],
-                                     l["adj_nome"] or ""),
+                                     l["adj_nome"] or "", papeis=papeis),
                        venceu, data_pt(l["data_celebracao"]),
                        euros(l["preco_contratual"])))
             else:
@@ -15535,7 +15692,7 @@ def contratos():
                        data_pt(l["fim_estimado"], "—"),
                        objecto,
                        liga_entidade(l["adjudicante_chave"],
-                                     l["adj_nome"] or ""),
+                                     l["adj_nome"] or "", papeis=papeis),
                        venceu,
                        html.escape(l["tipo_procedimento"] or ""),
                        euros(l["preco_contratual"])))
@@ -16077,7 +16234,7 @@ FALTA_PC = "só consta do Programa de Concurso"
 
 def lotes_cx(a):
     """O bloco dos lotes na ficha: os que o anuncio declara, com o preco
-    base de cada um, e -- quando o registo da casa os conhece -- a que
+    base de cada um, e -- quando o registo da empresa os conhece -- a que
     fomos, com que proposta, em que lugar e como acabou. Vazio quando o
     procedimento nao tem lotes: um bloco a dizer "sem lotes" em 77% das
     fichas era ruido."""
@@ -16085,8 +16242,8 @@ def lotes_cx(a):
     if not lotes:
         return ""
     with liga() as c:
-        linhas_casa = casa.linhas_de_lotes(c, [a["ref"]]).get(a["ref"], ())
-    resumo = resumo_dos_lotes(lotes, linhas_casa)
+        linhas_empresa = empresa.linhas_de_lotes(c, [a["ref"]]).get(a["ref"], ())
+    resumo = resumo_dos_lotes(lotes, linhas_empresa)
     ha_registo = bool(resumo["fomos"] or resumo["conjunto"])
     corpo = []
     for l in resumo["lotes"]:
@@ -16114,7 +16271,7 @@ def lotes_cx(a):
                         ("<td class='s'>%s</td>" % situacao) if ha_registo else ""))
     if resumo["conjunto"]:
         conj = resumo["conjunto"]
-        estado = casa.estado_do_lote(conj)
+        estado = empresa.estado_do_lote(conj)
         rotulo, classe = ESTADO_DO_LOTE.get(estado, ("sem desfecho registado", ""))
         nota_conj = ("<div class='nota' style='margin-top:10px'>O registo da empresa "
                      "tem uma linha para o <b>conjunto</b> dos lotes, não lote a "
@@ -16366,7 +16523,7 @@ def termos_do_titulo(titulo, maximo=6):
     """Os termos do titulo com que se procuram procedimentos homologos.
 
     Sem acentos e em minusculas (simplifica), como o objecto_norm do
-    corpus -- e a regra da casa: procurar com a norma da coluna. So
+    corpus -- e a regra da empresa: procurar com a norma da coluna. So
     palavras com 4 ou mais letras, sem o vocabulario da contratacao e
     sem numeros soltos (anos, referencias), que nada distinguem.
     """
@@ -16449,8 +16606,14 @@ def homologos_cx(a, chave):
                 % ",".join("?" * len(refs)), refs)}
 
     corpo = []
+    # O selo de cliente / concorrente ao lado de cada nome: este bloco
+    # existe para se saber com quem se concorre, e sem ele um nome era
+    # so um nome (16/09/2026). Um mapa para as linhas todas, e nao uma
+    # consulta por nome dentro do ciclo.
+    papeis = papeis_de([ch for l in linhas
+                        for ch, _ in ganhadores_da_linha(l)])
     for l in linhas:
-        venceu = " + ".join(liga_entidade(ch, n)
+        venceu = " + ".join(liga_entidade(ch, n, papeis=papeis)
                             for ch, n in ganhadores_da_linha(l)) or "—"
         objecto = html.escape(corta(l["objecto"] or "", 140))
         if l["n_anuncio"] in conhecidos:
@@ -16601,7 +16764,9 @@ def desfecho_cx(a):
     # tres conta-se, e os nomes lêem-se na tabela -- que so existe
     # quando ha mais de uma linha. Num contrato so, um agrupamento de
     # cinco escreve-se por extenso: nao ha outro sitio onde apareca.
-    quem = " + ".join(liga_entidade(ch, n) for ch, n in ganhadores.items())
+    papeis_do_somario = papeis_de(ganhadores)
+    quem = " + ".join(liga_entidade(ch, n, papeis=papeis_do_somario)
+                      for ch, n in ganhadores.items())
     if len(ganhadores) > 3 and len(linhas) > 1:
         quem = ("%d adjudicatários <span>na tabela abaixo</span>"
                 % len(ganhadores))
@@ -16617,8 +16782,14 @@ def desfecho_cx(a):
     somario.append(("Celebrado", data_pt(linhas[-1]["data_celebracao"])))
 
     corpo = []
+    # O selo de cliente / concorrente ao lado de cada nome: este bloco
+    # existe para se saber com quem se concorre, e sem ele um nome era
+    # so um nome (16/09/2026). Um mapa para as linhas todas, e nao uma
+    # consulta por nome dentro do ciclo.
+    papeis = papeis_de([ch for l in linhas
+                        for ch, _ in ganhadores_da_linha(l)])
     for l in linhas:
-        venceu = " + ".join(liga_entidade(ch, n)
+        venceu = " + ".join(liga_entidade(ch, n, papeis=papeis)
                             for ch, n in ganhadores_da_linha(l)) or "—"
         corpo.append(
             "<tr><td class='d'>%s</td><td class='o'>%s</td>"
@@ -16731,8 +16902,14 @@ def mercado(a):
             % (mil_pt(ao_todo), html.escape(a["cpv"]), ficha_ent))
 
     corpo = []
+    # O selo de cliente / concorrente ao lado de cada nome: este bloco
+    # existe para se saber com quem se concorre, e sem ele um nome era
+    # so um nome (16/09/2026). Um mapa para as linhas todas, e nao uma
+    # consulta por nome dentro do ciclo.
+    papeis = papeis_de([ch for l in linhas
+                        for ch, _ in ganhadores_da_linha(l)])
     for l in linhas:
-        venceu = " + ".join(liga_entidade(ch, n)
+        venceu = " + ".join(liga_entidade(ch, n, papeis=papeis)
                             for ch, n in ganhadores_da_linha(l)) or "—"
         corpo.append(
             "<tr><td class='d'>%s</td><td class='o'>%s</td><td>%s</td>"
@@ -16922,7 +17099,7 @@ def ficha(ref):
     for p in propostas_de(a["ref"]):
         chips.append("<span class='tag %s'>%s%s</span>"
                      % ("" if p["estado"] in ESTADOS_FECHADOS else "ok",
-                        html.escape(estado_da_casa(p["estado"])),
+                        html.escape(estado_da_empresa(p["estado"])),
                         " L%d" % p["lote"] if p["lote"] else ""))
         if p["motivo"]:
             chips.append("<span class='tag'>%s</span>" % html.escape(p["motivo"]))
@@ -17141,7 +17318,7 @@ def ficha(ref):
     args_com = dict(request.args.to_dict(), modo="completo")
     # **O indice tem de cobrir a pagina.** Ate 16/09/2026 prometia seis
     # destinos e a pagina tinha oito blocos com ancora: faltavam o
-    # "#proposta" -- que e onde vive o trabalho da casa, o bloco mais
+    # "#proposta" -- que e onde vive o trabalho da empresa, o bloco mais
     # importante da ficha -- e o "#contactos". Um indice que salta por
     # cima de um bloco e a mesma mentira de um numero que abre outra
     # lista: promete o mapa da pagina e nao o e.
@@ -17750,7 +17927,7 @@ def escada_da_proposta(id_):
         gravar_motivo(id_, motivo)
     return _volta_com_aviso("«%s»: %s."
                             % (corta(p["titulo"] or p["entidade"] or "", 70),
-                               estado_da_casa(estado)))
+                               estado_da_empresa(estado)))
 
 
 # --- fechar o ciclo com o Portal BASE (etapa 4, 15/09/2026)
@@ -17763,7 +17940,7 @@ def escada_da_proposta(id_):
 # na base dele: o `contratos.n_anuncio` do dump do IMPIC vem no mesmo
 # formato do `ref` ("17161/2026"), e 69,4% dos anuncios de 2024 ja tem
 # contrato celebrado (contra 5,3% dos de 2026, que e o ciclo a demorar
-# meses). O plano previa o maquinario de semelhanca do `casa.py`
+# meses). O plano previa o maquinario de semelhanca do `empresa.py`
 # (LIMIAR, FOLGA); nao e preciso nenhum -- ou e o mesmo procedimento ou
 # nao e nada. O `desfecho_do_anuncio()`, que ja existia para a ficha,
 # faz exactamente essa juncao.
@@ -17771,28 +17948,28 @@ def escada_da_proposta(id_):
 # **Propoe, nunca decide** (palavra dele: "isto avanca-se sempre com a
 # confirmacao de um humano para fechar o resultado"). O que o Portal
 # BASE sabe e a quem foi adjudicado; se esse alguem somos nos, so a
-# casa sabe -- e por isso os dois botoes ficam ao lado do facto, e nao
+# empresa sabe -- e por isso os dois botoes ficam ao lado do facto, e nao
 # um estado escrito nas nossas costas.
 
 
-def _nome_da_casa(cfg=None):
+def _nome_da_empresa(cfg=None):
     """(nome, nif) da empresa, do config.json. Vazios enquanto ninguem os
     escrever -- e a funcionalidade tem de valer na mesma: sem eles, o
     ecra mostra a quem foi adjudicado e pergunta se fomos nos."""
     cfg = ler_config() if cfg is None else cfg
-    return ((cfg.get("nome_da_casa") or "").strip(),
-            re.sub(r"\D", "", cfg.get("nif_da_casa") or ""))
+    return ((cfg.get("nome_da_empresa") or "").strip(),
+            re.sub(r"\D", "", cfg.get("nif_da_empresa") or ""))
 
 
 def fomos_nos(linhas, cfg=None):
-    """Se a casa está entre os adjudicatários deste desfecho.
+    """Se a empresa está entre os adjudicatários deste desfecho.
 
     Devolve True, False, ou **None quando não se pode saber** -- que é o
-    caso enquanto o NIF da casa não estiver no `config.json`. Três
+    caso enquanto o NIF da empresa não estiver no `config.json`. Três
     respostas e não duas de propósito: um False de quem não sabe é uma
     afirmação falsa, e era com base nele que a proposta ia fechar.
     """
-    nome, nif = _nome_da_casa(cfg)
+    nome, nif = _nome_da_empresa(cfg)
     if not (nome or nif):
         return None
     for l in linhas:
@@ -17856,7 +18033,7 @@ def faixa_do_desfecho(p, linhas, cfg=None):
     """A faixa que propõe fechar uma proposta, no bloco da ficha.
 
     Diz o facto -- a quem foi adjudicado, por quanto, quando -- e
-    oferece os dois botões. **Não decide**: quando o NIF da casa está
+    oferece os dois botões. **Não decide**: quando o NIF da empresa está
     configurado adianta qual dos dois é, mas o gesto continua a ser de
     quem lê.
     """
@@ -17867,7 +18044,7 @@ def faixa_do_desfecho(p, linhas, cfg=None):
         quem += [q for q in (l["ganhou"] or "").split("|") if q]
     ganhou = sum(l["preco_contratual"] or 0.0 for l in linhas)
     quando = max((l["data_celebracao"] or "") for l in linhas)
-    nosso, _ = _nome_da_casa(cfg)
+    nosso, _ = _nome_da_empresa(cfg)
     somos = fomos_nos(linhas, cfg)
     if somos is True:
         veredicto = "<b>A adjudicação é nossa.</b>"
@@ -18035,14 +18212,14 @@ def contacto_apagar(id_):
 # --- o bloco "A nossa proposta" na ficha (15/09/2026)
 #
 # "e a pagina do anuncio e sempre a mesma" -- palavra dele. Com o quadro
-# fora, este bloco e a casa de tudo o que o cartao fazia: a ranhura, os
-# campos que ela pede, o que a casa decide (tipologia, CV, proposta
+# fora, este bloco e a empresa de tudo o que o cartao fazia: a ranhura, os
+# campos que ela pede, o que a empresa decide (tipologia, CV, proposta
 # tecnica, CoE, notas), as etiquetas e o que falta fazer.
 #
 # Com LOTES ha uma proposta por lote (D3), e por isso ha um destes por
 # cada: e o mesmo procedimento, e sao decisoes diferentes.
 
-CAMPOS_DA_CASA = (("tipologia", "Tipologia", TIPOLOGIAS),
+CAMPOS_DA_EMPRESA = (("tipologia", "Tipologia", TIPOLOGIAS),
                   ("cv", "CV", SIM_NAO),
                   ("proposta_tecnica", "Proposta técnica", SIM_NAO))
 
@@ -18117,7 +18294,7 @@ def _tarefas_da_ficha(p):
 
 
 def _etiquetas_da_ficha(ref):
-    """As etiquetas viviam no cartão do quadro; com o quadro fora, a casa
+    """As etiquetas viviam no cartão do quadro; com o quadro fora, a empresa
     delas é a ficha. Sem isto a funcionalidade ficava na base e sem
     porta nenhuma no ecrã."""
     if not ref:
@@ -18168,7 +18345,7 @@ def proposta_cx(a):
     cfg = ler_config()
     blocos = []
     for p in minhas:
-        cabeca = estado_da_casa(p["estado"])
+        cabeca = estado_da_empresa(p["estado"])
         if p["lote"]:
             cabeca = "Lote %d &middot; %s" % (p["lote"], cabeca)
         elif p["lote"] == 0:
@@ -18191,7 +18368,7 @@ def proposta_cx(a):
                p["id"], _campos_que_a_ranhura_pede(p),
                "".join("<label>%s%s</label>"
                        % (rotulo, _opcoes(nome, valores, p[nome]))
-                       for nome, rotulo, valores in CAMPOS_DA_CASA),
+                       for nome, rotulo, valores in CAMPOS_DA_EMPRESA),
                html.escape(p["responsavel"] or "", quote=True),
                html.escape(p["coe"] or "", quote=True),
                html.escape(p["notas"] or "", quote=True),
@@ -18229,7 +18406,7 @@ def proposta_da_ficha(id_):
             campos.append(nome)
             valores.append(" ".join((request.form.get(nome) or "").split())[:tecto]
                            or None)
-    for nome, _, permitidos in CAMPOS_DA_CASA:
+    for nome, _, permitidos in CAMPOS_DA_EMPRESA:
         if nome in request.form:
             valor = (request.form.get(nome) or "").strip()
             if valor and valor not in permitidos:
@@ -18349,7 +18526,7 @@ def ficha_da_proposta(id_):
     escada = "".join(
         "<option value='%s'%s>%s</option>"
         % (ch, " selected" if ch == p["estado"] else "", html.escape(rot))
-        for ch, rot in ESTADOS_DA_CASA)
+        for ch, rot in ESTADOS_DA_EMPRESA)
     permitidos = MOTIVOS_DO_ESTADO.get(p["estado"])
     motivo_html = ""
     if permitidos:
@@ -18434,7 +18611,7 @@ def _linhas_do_calendario(estado):
     """(linhas, o que se esta a ver) da grade, para a ranhura pedida.
 
     "Calendário para tudo" (palavra dele a 15/09/2026): a grade deixa de
-    ser só dos interessados. Sem `?estado=`, mostra o que a casa tem em
+    ser só dos interessados. Sem `?estado=`, mostra o que a empresa tem em
     aberto -- as quatro ranhuras que ainda se mexem --, que e a pergunta
     que um calendario responde. Com `?estado=porver` mostra a entrada, e
     os por ver com prazo a chegar sao a fila que custa dinheiro: era o
@@ -18445,7 +18622,7 @@ def _linhas_do_calendario(estado):
     dois quase iguais que divergem ao primeiro conserto.
     """
     with liga() as c:
-        if estado in CHAVES_DA_CASA or not estado:
+        if estado in CHAVES_DA_EMPRESA or not estado:
             alvo = [estado] if estado else list(ESTADOS_ABERTOS)
             propostas = c.execute(
                 "SELECT * FROM propostas WHERE estado IN (%s) AND ref IS NOT NULL"
@@ -18454,9 +18631,9 @@ def _linhas_do_calendario(estado):
             linhas = [{"ref": p["ref"], "titulo": p["titulo"],
                        "entidade": p["entidade"],
                        "prazo": prazos.get(p["ref"]) or "",
-                       "rotulo": estado_da_casa(p["estado"])}
+                       "rotulo": estado_da_empresa(p["estado"])}
                       for p in propostas]
-            o_que = (("as propostas em «%s»" % estado_da_casa(estado))
+            o_que = (("as propostas em «%s»" % estado_da_empresa(estado))
                      if estado else "o que a empresa tem em aberto")
         else:
             frag, vals = condicao_da_aba(estado)
@@ -18530,7 +18707,7 @@ def calendario():
         segunda = rotulo if rotulo and rotulo != "prazo" else (a["entidade"] or "")
         return ("<a class='cal-it%s' href='/anuncio/%s' title='%s'>"
                 "<b>%s</b><i>%s</i></a>"
-                % (" casa" if rotulo and rotulo != "prazo" else "",
+                % (" empresa" if rotulo and rotulo != "prazo" else "",
                    quote(a["ref"], safe=""),
                    html.escape(a["titulo"] or a["ref"], quote=True),
                    html.escape(corta(a["titulo"] or a["ref"], 60)),
@@ -18834,7 +19011,7 @@ def porque_se_perde():
 
 def porque_nao_se_vai():
     """O mesmo para o «Não fomos» (MOTIVOS_ABANDONO). Vale tanto como o
-    outro e diz outra coisa: onde é que a casa não chega -- falta de
+    outro e diz outra coisa: onde é que a empresa não chega -- falta de
     certificações, falta de CV's -- é o que se pode ir corrigir."""
     with liga() as c:
         return c.execute(
@@ -18874,7 +19051,7 @@ def desconto_medio_dos_ganhos():
     """(desconto médio 0..1, sobre quantos) nos concursos ganhos.
 
     Quanto abaixo do preço base é que se ganha -- o número que diz se a
-    casa está a deixar dinheiro em cima da mesa ou a comprar trabalho.
+    empresa está a deixar dinheiro em cima da mesa ou a comprar trabalho.
     Só conta quem tem os dois preços lidos, e diz sobre quantos: somar
     uns e calar os outros parecia a média de todos.
     """
@@ -18900,7 +19077,7 @@ def negocio_cx():
     olha, quanto vinga. Faltava o do negócio: quanto está em jogo,
     quanto se ganha, e porque se perde.
 
-    **Cada número abre a lista que o confirma**, que é a regra da casa.
+    **Cada número abre a lista que o confirma**, que é a regra da empresa.
     E o que não se pode saber diz-se: uma taxa sobre três concursos é
     ruído com ar de facto, e as decisões que se tomam com ela custam
     dinheiro.
@@ -18963,7 +19140,7 @@ def negocio_cx():
         "title='%d proposta(s)'></a><span class='l'>%s</span></div>"
         % (euros_curto(pipeline[ch]["euros"]) if pipeline[ch]["euros"] else "0",
            ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
-           pipeline[ch]["quantas"], html.escape(estado_da_casa(ch)))
+           pipeline[ch]["quantas"], html.escape(estado_da_empresa(ch)))
         for ch in ESTADOS_ABERTOS)
 
     def tabela(titulo, linhas, vazio):
@@ -18998,7 +19175,7 @@ def negocio_cx():
                           html.escape(corta(p["titulo"] or p["ref"], 52)))
                        for p, _ in por_fechar)))
 
-    # A taxa por área de CPV: onde é que a casa ganha e onde é que
+    # A taxa por área de CPV: onde é que a empresa ganha e onde é que
     # insiste sem ganhar. Só as divisões com decididos que cheguem --
     # abaixo disso a `taxa_por_divisao_cpv()` devolve None, e a linha
     # di-lo em vez de mostrar uma percentagem inventada.
@@ -19176,7 +19353,7 @@ def numeros_do_negocio():
     propostas (dezenas de linhas) mais o funil_anuncios().
     """
     with liga() as c:
-        por_estado = {ch: 0 for ch in CHAVES_DA_CASA}
+        por_estado = {ch: 0 for ch in CHAVES_DA_EMPRESA}
         for r in c.execute("SELECT estado, COUNT(*) n FROM propostas "
                            "GROUP BY estado"):
             if r["estado"] in por_estado:
@@ -19192,7 +19369,7 @@ def ranhuras_cx_html(por_estado):
     # As ranhuras sao um caminho, como o funil: uma cor so, a escurecer
     # do principio para o fim.
     cores_barra = ("#c3ced9", "#9db1c4", "#7994ae", "#5c809f", "#17557f")
-    # Cada barra abre a lista que a confirma: a regra da casa e que um
+    # Cada barra abre a lista que a confirma: a regra da empresa e que um
     # numero que um ecra mostra tem de dar exactamente a lista que a
     # ligacao dele abre.
     barras = "".join(
@@ -19204,7 +19381,7 @@ def ranhuras_cx_html(por_estado):
            int(88.0 * por_estado[ch] / maior) + 6,
            cores_barra[i % len(cores_barra)], por_estado[ch],
            html.escape(rotulo))
-        for i, (ch, rotulo) in enumerate(ESTADOS_DA_CASA))
+        for i, (ch, rotulo) in enumerate(ESTADOS_DA_EMPRESA))
     return ("<div class='cx' style='padding:22px 24px'>"
             "<div class='rot' style='margin-bottom:22px'>Propostas por "
             "ranhura</div><div class='barras'>%s</div></div>" % barras)
@@ -19408,8 +19585,8 @@ def indicadores():
 # cliente, preco, esclarecimentos, entrega, tipologia, estado, CV,
 # proposta tecnica, notas, plataforma, CoE, responsavel -- e durou um
 # dia. Com a escada, os mesmos interessados numa tabela e exactamente a
-# lista das ranhuras da casa (`_lista_de_propostas()`), e um separador
-# proprio era a mesma pagina com outro nome. As colunas que a casa
+# lista das ranhuras da empresa (`_lista_de_propostas()`), e um separador
+# proprio era a mesma pagina com outro nome. As colunas que a empresa
 # decide passaram todas para a `propostas`.
 #
 # A rota fica: as ligacoes antigas e o marcador do browser dele nao se
@@ -19465,7 +19642,7 @@ def proposta_apagar(id_):
 # `data-pele` e `data-tipo` no <html>, e e isso que lhe deixa desenhar a
 # direccao inteira sem mexer no resto da aplicacao.
 
-# As fontes sao servidas daqui e de mais lado nenhum: a regra da casa e
+# As fontes sao servidas daqui e de mais lado nenhum: a regra da empresa e
 # que o painel nao pede nada a nenhum dominio de fora, e o CSP diz
 # `font-src 'self'`. Lista branca de nomes -- nao ha caminho nenhum a
 # juntar a mao, e por isso nao ha travessia possivel.
@@ -19624,7 +19801,7 @@ def amostra():
         # partir do que o CSS calculou. Escrito a mao, ficou a dizer
         # "13px" no minuto em que a escala subiu meio pixel para a Plex
         # -- e um numero que o ecra mostra e nao se pode comparar com o
-        # que ele descreve e a mesma avaria que a regra da casa proibe
+        # que ele descreve e a mesma avaria que a regra da empresa proibe
         # nas listas.
         "<div class='am-esc' style='margin-top:16px'>" + "".join(
             "<div style='font:%s var(--f%d)/1.3 var(--sans)'>%s"
@@ -19843,7 +20020,7 @@ def inicio():
 
     def kpi(rotulo, valor, nota, alvo, estilo=""):
         """Cada numero abre exactamente a lista que o produz -- a regra da
-        casa. Onde nao ha lista unica que o de (o "em jogo" e a soma de
+        empresa. Onde nao ha lista unica que o de (o "em jogo" e a soma de
         quatro ranhuras), aponta-se ao ecra que o DECOMPOE, e a nota
         di-lo; o que nao se faz e apontar a uma lista parecida."""
         return ("<a class='kpi' href='%s'><div class='r'>%s</div>"
@@ -19872,7 +20049,7 @@ def inicio():
         # a ligar ao /calendario -- que mostra PRAZOS e nao tarefas, e
         # com um numero que nao era o das linhas que se viam. Um numero
         # que abre uma coisa diferente do que promete e a avaria que a
-        # regra da casa proibe, e ja foi apanhada hoje no "+N" do
+        # regra da empresa proibe, e ja foi apanhada hoje no "+N" do
         # calendario. Aqui a lista esta na propria pagina, e por isso o
         # destino e uma ancora.
         kpi("Para fazer", mil_pt(len(tarefas)),
@@ -20108,10 +20285,10 @@ def main():
                  mil_pt(por_ler(), " ")))
         return
 
-    # Os comandos --importar-excel e --casa-ligar sairam a 8/09/2026: o
-    # Excel antigo deixou de contar para a aplicacao, e o registo da casa
+    # Os comandos --importar-excel e --empresa-ligar sairam a 8/09/2026: o
+    # Excel antigo deixou de contar para a aplicacao, e o registo da empresa
     # entra pelo modelo, em Configuracoes > Importar dados. O leitor
-    # antigo saiu do casa.py a 15/09/2026 -- esta no historico do git.
+    # antigo saiu do empresa.py a 15/09/2026 -- esta no historico do git.
 
     if "--estado-zero" in sys.argv:
         # Pedido do Afonso a 8/09/2026: a aplicacao como acabada de
@@ -20149,15 +20326,15 @@ def main():
             sys.exit(1)
         return
 
-    if "--casa-desfazer" in sys.argv:
+    if "--empresa-desfazer" in sys.argv:
         # Desfaz a triagem que uma importacao escreveu, a partir de uma
         # copia da base feita antes dela (copias/radar-antes-excel-*.db).
-        i = sys.argv.index("--casa-desfazer")
+        i = sys.argv.index("--empresa-desfazer")
         copia = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
         if not copia or not os.path.exists(copia):
-            print("Uso: python radar.py --casa-desfazer <cópia da base de antes>")
+            print("Uso: python radar.py --empresa-desfazer <cópia da base de antes>")
             return
-        repostos, apagadas = casa.desaplicar_da_copia(copia)
+        repostos, apagadas = empresa.desaplicar_da_copia(copia)
         print("%d anúncios com a triagem reposta como estava na cópia; "
               "%d linhas de histórico do Excel apagadas" % (repostos, apagadas))
         return
