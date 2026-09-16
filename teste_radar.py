@@ -5673,12 +5673,22 @@ class TestIndicadoresComerciais(BaseTemporaria):
     def test_o_ecra_abre_e_cada_numero_leva_a_lista(self):
         self._p("1/2026", "submetido", base="200.000,00 EUR",
                 proposto="150.000,00 EUR")
-        html_ = radar.app.test_client().get(
-            "/configuracoes/indicadores").get_data(as_text=True)
+        # Os números do negócio mudaram-se para a ABERTURA a 16/09/2026,
+        # por decisão dele: «põe os indicadores no hoje, à excepção dos
+        # indicadores da curl, plataformas, BASE, DR». Em Configurações
+        # ficou a saúde da máquina.
+        html_ = radar.app.test_client().get("/").get_data(as_text=True)
         self.assertIn("O negócio", html_)
         self.assertIn("em jogo", html_)
+        sistema = radar.app.test_client().get(
+            "/configuracoes/indicadores").get_data(as_text=True)
+        self.assertNotIn("O negócio", sistema)
+        self.assertIn("Estado da recolha", sistema)
         # a regra da casa: o número abre a lista que o confirma
-        self.assertIn("href='/?estado=submetido'", html_)
+        # o endereço da lista: até 16/09/2026 este teste pedia
+        # "href='/?estado=submetido'", que é a abertura e não a lista --
+        # e assim pregava a ligação errada no lugar
+        self.assertIn("href='/concursos?estado=submetido'", html_)
 
 
 class TestContactos(BaseTemporaria):
@@ -7757,7 +7767,10 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
     def test_a_volta_do_calendario_e_para_a_ranhura(self):
         fonte = inspect.getsource(radar.calendario)
         self.assertNotIn("/quadro", fonte)
-        self.assertIn('"/?estado=" + estado', fonte)
+        # o endereço da lista, e não o "/" que passou a ser a abertura:
+        # este teste estava a PREGAR a ligação errada no lugar, e foi
+        # por isso que as nove partidas passaram 952 testes (16/09/2026)
+        self.assertIn('LISTA + "?estado=" + estado', fonte)
 
     def test_o_calendario_nao_promete_uma_lista_que_nao_abre(self):
         """O «+N» de um dia cheio **não** liga a `/?de=X&ate=X`: esses
@@ -7994,6 +8007,39 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         self.assertIn("<div class='abas abas-escada'>",
                       self.cliente.get(radar.LISTA).get_data(as_text=True))
 
+    def test_nenhuma_ligacao_manda_para_a_lista_pelo_endereco_antigo(self):
+        """O teste que faltava na fase 4, e que só se descobriu a fazer
+        outra coisa (16/09/2026).
+
+        A lista mudou de `/` para `LISTA`, e ficaram **nove** ligações a
+        apontar para `/?estado=…` — nas barras dos indicadores, no
+        «limpar» do filtro, no «procurar em todos» da ficha inexistente,
+        no «ver em lista» do calendário, nos alertas. **Nenhuma dava
+        erro**: `/` responde 200, e por isso os 952 testes passaram. Uma
+        ligação que abre a página **errada** é silenciosa — abre a
+        abertura com um `?estado=` que ela ignora, e quem clicou não
+        percebe porque não chegou à lista.
+
+        O que se guarda é a propriedade, não a lista dos nove sítios:
+        **nada no código escreve uma ligação para `/` com query string.**
+        """
+        # Onde o endereço entra num molde de formatação vai como
+        # LITERAL e não como `LISTA`: o `%` tem precedência sobre o `+`,
+        # e `"a" + LISTA + "b %d" % x` lê-se como
+        # `"a" + LISTA + ("b %d" % x)` — a formatação do resto da cadeia
+        # parte-se. (O ficheiro já avisava disto no `negocio_cx()`, e eu
+        # cometi-o de novo ao corrigir estas nove ligações.) É este
+        # `assertEqual` que impede o literal e a constante de divergirem.
+        self.assertEqual(radar.LISTA, "/concursos")
+        fonte = radar_fonte()
+        for forma in ("href='/?", 'href="/?', '"/?estado=', "'/?estado="):
+            self.assertNotIn(forma, fonte, forma)
+        # e o mesmo no HTML que sai, que é onde o utilizador clica
+        for pagina in ("/", radar.LISTA, "/calendario",
+                       "/configuracoes/indicadores"):
+            corpo = self.cliente.get(pagina).get_data(as_text=True)
+            self.assertNotIn("href='/?", corpo, pagina)
+
     def test_as_rotas_antigas_da_lista_apontam_para_o_endereco_novo(self):
         for antiga in ("/anuncios", "/lista"):
             r = self.cliente.get(antiga)
@@ -8042,6 +8088,31 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertIn("Nada por fazer", corpo)
         self.assertIn(radar.LISTA + "?estado=porver", corpo)
+
+    def test_a_mensagem_da_verificacao_nao_leva_entidades_html(self):
+        """A `ultima_mensagem` é uma marca na base, e quem a mostra
+        escapa-a: uma entidade HTML lá dentro **sai escrita**.
+
+        Estava assim desde a entrada da Vortal — «1108 anúncios lidos
+        &middot; 6 consultas preliminares» — e só se viu quando a
+        mensagem passou para a abertura, que é a página onde ele aterra
+        (16/09/2026). É a mesma armadilha que a barra lateral já tinha
+        tido e que o `docs/armadilhas.md` já documentava: guarda-se o
+        **carácter**, não a entidade.
+        """
+        # Sem os comentários: os que explicam esta armadilha citam a
+        # entidade de propósito, e são três na mesma função -- o ponto
+        # das peças novas e o dos alertas já estavam certos, e o da
+        # Vortal foi o que escapou.
+        codigo = "\n".join(l for l in inspect.getsource(radar.verificar)
+                           .splitlines() if not l.strip().startswith("#"))
+        self.assertNotIn("&middot;", codigo)
+        # e o que sai no ecrã não tem a entidade escrita
+        radar.marca("ultima_mensagem", "ok, 3 lidos · 1 da Vortal")
+        radar.marca("ultima_verificacao", "2026-09-16 17:04")
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("1 da Vortal", corpo)
+        self.assertNotIn("&amp;middot;", corpo)
 
     def test_a_saudacao_acompanha_a_hora(self):
         """«Bom dia» às 14h está errado, e um título errado metade do dia

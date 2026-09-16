@@ -6734,7 +6734,13 @@ def verificar(cfg=None, passo=None):
             else:
                 limpa_erro("vortal_ultimo_erro")
             if n_vortal:
-                mensagem += (" &middot; %d consulta%s preliminar%s da "
+                # O CARACTER e nao a entidade: esta mensagem vai para a
+                # marca `ultima_mensagem`, e quem a mostra escapa-a --
+                # com "&middot;" saia escrito, tal e qual, no ecra. E a
+                # mesma armadilha que a barra lateral ja tinha tido, e
+                # que o docs/armadilhas.md ja documentava; voltou por
+                # aqui e ficou a vista na abertura (16/09/2026).
+                mensagem += (" · %d consulta%s preliminar%s da "
                              "Vortal" % (n_vortal,
                                          "" if n_vortal == 1 else "s",
                                          "" if n_vortal == 1 else "es"))
@@ -11452,7 +11458,7 @@ def _lista_de_anuncios():
     diz. A identidade dos filtros guardados nao muda: o `estado`
     continua na consulta canonica como sempre.
     """
-    rota = "/"
+    rota = LISTA
     # UMA leitura do config.json por pedido: as condicoes da aba e do
     # interesse leem-no as duas, e sao sete chamadas nesta funcao.
     cfg = ler_config()
@@ -11645,7 +11651,7 @@ def _lista_de_anuncios():
         # diferente de um filtro que nao apanhou nada.
         corpo_lista = ("<div class='vazio'>Nada por decidir: o que "
                        "entrou está triado, e o que expirou passou "
-                       "sozinho para o <a href='/?estado=expirou'>"
+                       "sozinho para o <a href='/concursos?estado=expirou'>"
                        "&ldquo;expirou sem ver&rdquo;</a>.</div>")
     else:
         corpo_lista = ("<div class='vazio'>Nada corresponde a este filtro. "
@@ -11856,7 +11862,7 @@ def _lista_de_propostas():
     Sao as duas razoes de a tabela `propostas` existir; se esta vista as
     escondesse, a tabela nao servia para nada.
     """
-    rota = "/"
+    rota = LISTA
     cfg = ler_config()
     estado_actual = aba_pedida()
     urgente = dias_urgente()
@@ -11914,7 +11920,7 @@ def _lista_de_propostas():
              "<button type='submit'>procurar</button>%s</form>"
              % (html.escape(estado_actual, quote=True),
                 html.escape(procura, quote=True),
-                (" <a href='/?estado=%s'>limpar</a>" % estado_actual)
+                (" <a href='%s?estado=%s'>limpar</a>" % (LISTA, estado_actual))
                 if procura else ""))
     conteudo = ("<div class='larg'>" + caixa +
                 "<div class='linha-conta'>" + conta +
@@ -12845,7 +12851,7 @@ def _linha_filtro(f):
     onde_c, fora_contratos = filtro_para(f["consulta"] or "", "contratos")
     aplicar = []
     if not fora_anuncios or onde:
-        aplicar.append("<a href='/?%s'>anúncios%s</a>"
+        aplicar.append("<a href='/concursos?%s'>anúncios%s</a>"
                        % (html.escape(onde, quote=True),
                           " (parcial)" if fora_anuncios else ""))
     if not fora_contratos or onde_c:
@@ -13226,7 +13232,7 @@ SECCOES_CONFIG = (
     ("interesse", "Interesse", "os CPV que a casa trabalha", False, True),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
     ("importar", "Importar dados", "o registo da casa, pelo modelo Excel", False, True),
-    ("indicadores", "Indicadores", "a saúde do sistema e os números", True, False),
+    ("indicadores", "Indicadores", "as capturas, a recolha e o corpus", True, False),
     ("capturas", "Capturas", "os dois pedidos ao DR", True, True),
     ("recolha", "Recolha", "horas, janelas, a Vortal", True, True),
     ("leitura", "Leitura das peças", "fornecedor, modelo e chaves", True, True),
@@ -16539,7 +16545,7 @@ def ficha(ref):
             "<div class='vazio'>Pode ter sido apagado numa limpeza do "
             "histórico, ou a referência estar mal escrita. "
             "<a href='/'>Voltar à lista</a> ou "
-            "<a href='/?estado='>procurar em todos</a>.</div>",
+            "<a href='/concursos?estado='>procurar em todos</a>.</div>",
             migalhas=migalhas_de("anuncios", ref)), 404
 
     # Se este anuncio ainda nao foi lido, le-se agora: um pedido, ~1 seg.
@@ -18266,7 +18272,7 @@ def calendario():
                   data_pt(fim.isoformat()),
                   ("<span>%s com prazo fora destas seis semanas &mdash; "
                    "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
-                  html.escape("/?estado=" + estado, quote=True)))
+                  html.escape(LISTA + "?estado=" + estado, quote=True)))
 
     # As mesmas abas da lista, e sem numeros (ver barra_das_abas). Sem
     # elas o calendario por omissao mostra as propostas em aberto, que
@@ -18636,7 +18642,7 @@ def negocio_cx():
     maior = max([v["euros"] for v in pipeline.values()] + [1.0])
     barras = "".join(
         "<div class='col'><span class='v'>%s</span>"
-        "<a class='b' href='/?estado=%s' style='height:%d%%' "
+        "<a class='b' href='/concursos?estado=%s' style='height:%d%%' "
         "title='%d proposta(s)'></a><span class='l'>%s</span></div>"
         % (euros_curto(pipeline[ch]["euros"]) if pipeline[ch]["euros"] else "0",
            ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
@@ -18748,10 +18754,154 @@ def linha_da_ultima_verificacao():
             % (html.escape(data_hora_pt(quando)), html.escape(mensagem)), bom)
 
 
+def funil_cx_html():
+    """O funil da triagem: o que entra, o que se olha, o que vinga.
+
+    Saiu de dentro do `indicadores()` para a abertura a 16/09/2026:
+    e um numero do NEGOCIO e nao da maquina.
+    """
+    # O funil: o que entra, o que se olha, o que vinga. Os indicadores
+    # contavam estados parados e nao diziam nada sobre o movimento.
+    f = funil_anuncios()
+    # As quatro barras sao um degrade de uma cor so, do mais claro ao
+    # mais escuro: sao passos do mesmo caminho, nao quatro categorias.
+    # Estavam em cinzento, laranja, azul e verde -- quatro cores sem
+    # sistema, e as duas ultimas roubadas as cores de estado, que aqui
+    # nao significam "bom" nem "a avisar".
+    passos = [("Entrados", f["entrados"], "#b9c6d2"),
+              ("Por ver", f["porver_30"], "#8ba3ba"),
+              ("Triados", f["triados_30"], "#5c809f"),
+              ("Interessa", f["interessa_30"], "var(--azul)")]
+    maior_f = max([p[1] for p in passos] + [1])
+    funil_html = "".join(
+        "<div class='col'><span class='v'>%s</span>"
+        "<div class='b' style='height:%d%%;background:%s'></div>"
+        "<span class='l'>%s</span></div>"
+        % (mil_pt(n), int(88.0 * n / maior_f) + 6, cor, etiqueta)
+        for etiqueta, n, cor in passos)
+
+    # Uma percentagem sobre dois casos e ruido com ar de conclusao: "de
+    # tudo o que ja triaste, 100% ficou como interessa" com n=2 nao diz
+    # nada sobre nada.
+    if f["triados"] >= MINIMO_PARA_TAXA:
+        taxa = 100.0 * f["interessa"] / f["triados"]
+        leitura = ("De tudo o que já triaste, <b>%.0f%%</b> ficou como "
+                   "interessa." % taxa)
+    elif f["triados"]:
+        leitura = ("Só %s anúncio%s triado%s até agora &mdash; poucos para "
+                   "uma percentagem dizer alguma coisa."
+                   % (mil_pt(f["triados"]), "" if f["triados"] == 1 else "s",
+                      "" if f["triados"] == 1 else "s"))
+    else:
+        leitura = "Ainda não triaste nada, por isso não há taxa a mostrar."
+
+    # Os numeros levam ao sitio: eram duas contagens numa frase corrida,
+    # sem forma de chegar aos anuncios que contavam. A saida e a
+    # Pesquisa com o arquivo: as contas sao sobre a base toda, e a
+    # Triagem so mostra a janela dos detalhe_dias.
+    alertas = []
+    if f["urgentes_por_ver"]:
+        alertas.append(
+            "<a href='/concursos?estado=novo&prazo=urgente'>"
+            "<b>%s por ver com prazo a menos de %d dias</b></a>"
+            % (mil_pt(f["urgentes_por_ver"]), dias_urgente()))
+    # os "expirados por ver" deixaram de existir como alerta: desde a
+    # fusao de 31/08/2026 um por ver expirado E um abandonado, por
+    # definicao da aba -- nao ha fila a limpar nem numero a mostrar
+    if alertas:
+        leitura += " " + " &middot; ".join(alertas) + "."
+
+    if f["por_divisao"]:
+        nomes_div = nomes_das_divisoes(r["div"] for r in f["por_divisao"])
+        divisoes = "".join(
+            "<div class='l'><span class='t'>%s &mdash; %s</span>"
+            "<span class='v'>%s de %s</span></div>"
+            % (html.escape(r["div"]),
+               html.escape(corta(nomes_div.get(r["div"], "sem descrição"), 40)),
+               mil_pt(r["sim"]), mil_pt(r["tudo"]))
+            for r in f["por_divisao"])
+        divisoes = ("<div class='rot' style='margin:22px 0 16px'>Onde a "
+                    "triagem tem dito que sim</div><div class='saude'>%s</div>"
+                    % divisoes)
+    else:
+        divisoes = ("<div class='nota' style='margin-top:16px'>Ainda não há "
+                    "triagem que chegue para dizer em que CPV costumas "
+                    "dizer que sim.</div>")
+
+    # Montado a parte e passado como argumento: a `leitura` traz um "%"
+    # (a taxa de conversao) e, concatenado no template, o `%` de baixo
+    # tentava interpreta-lo como conversao.
+    funil_cx = ("<div class='cx' style='padding:22px 24px'>"
+                "<div class='rot' style='margin-bottom:6px'>Funil da "
+                "triagem</div>"
+                "<div class='nota' style='margin-bottom:18px'>" + leitura +
+                "</div><div class='barras'>" + funil_html + "</div>" +
+                divisoes + "</div>")
+
+    return funil_cx
+
+
+def numeros_do_negocio():
+    """Os blocos do NEGOCIO, para a abertura (16/09/2026, palavra dele:
+    "poe os indicadores no hoje, a exceccao dos indicadores de a curl,
+    plataformas, base, DR etc").
+
+    A divisao e essa: o que diz como vai o negocio -- o que esta em jogo,
+    porque se perde, o funil da triagem, as propostas por ranhura -- vive
+    onde ele chega; o que diz se a MAQUINA esta boa -- as capturas, as
+    plataformas, o estado da recolha do DR, o corpus do Portal BASE --
+    fica em Configuracoes, que e onde se vai de vez em quando.
+
+    Funcao propria e com as SUAS consultas, e nao a metade de uma que
+    calcula as duas: a abertura e a pagina em que ele aterra duas vezes
+    por dia, e fazer-lhe as contas do estado das plataformas para nao as
+    mostrar era pagar o que nao se usa. O que isto pede e um GROUP BY nas
+    propostas (dezenas de linhas) mais o funil_anuncios().
+    """
+    with liga() as c:
+        por_estado = {ch: 0 for ch in CHAVES_DA_CASA}
+        for r in c.execute("SELECT estado, COUNT(*) n FROM propostas "
+                           "GROUP BY estado"):
+            if r["estado"] in por_estado:
+                por_estado[r["estado"]] = r["n"]
+    return (negocio_cx() + funil_cx_html() + ranhuras_cx_html(por_estado))
+
+
+def ranhuras_cx_html(por_estado):
+    """As oito ranhuras em barras. O rotulo dizia "Interessados por fase
+    do quadro" -- e o quadro saiu a 15/09/2026, e nao sao interessados,
+    sao propostas."""
+    maior = max(list(por_estado.values()) + [1])
+    # As ranhuras sao um caminho, como o funil: uma cor so, a escurecer
+    # do principio para o fim.
+    cores_barra = ("#c3ced9", "#9db1c4", "#7994ae", "#5c809f", "#17557f")
+    # Cada barra abre a lista que a confirma: a regra da casa e que um
+    # numero que um ecra mostra tem de dar exactamente a lista que a
+    # ligacao dele abre.
+    barras = "".join(
+        "<div class='col'><span class='v'>%d</span>"
+        "<a class='b' href='/concursos?estado=%s' style='height:%d%%;"
+        "background:%s' title='ver as %d'></a>"
+        "<span class='l'>%s</span></div>"
+        % (por_estado[ch], ch,
+           int(88.0 * por_estado[ch] / maior) + 6,
+           cores_barra[i % len(cores_barra)], por_estado[ch],
+           html.escape(rotulo))
+        for i, (ch, rotulo) in enumerate(ESTADOS_DA_CASA))
+    return ("<div class='cx' style='padding:22px 24px'>"
+            "<div class='rot' style='margin-bottom:22px'>Propostas por "
+            "ranhura</div><div class='barras'>%s</div></div>" % barras)
+
+
 @app.route("/configuracoes/indicadores")
 def indicadores():
-    """Numeros sobre a propria base. Sem servicos externos: e tudo SQL
-    sobre o radar.db."""
+    """A saude da MAQUINA: as capturas, as plataformas, a recolha do DR e
+    o corpus do Portal BASE.
+
+    Os numeros do negocio sairam daqui para a abertura a 16/09/2026 (ver
+    numeros_do_negocio()). O que fica e o que se vai ver de vez em
+    quando, para saber se o radar esta a recolher -- nao para saber como
+    vai o trabalho."""
     hoje = datetime.now().date()
     with liga() as c:
         total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
@@ -18769,11 +18919,6 @@ def indicadores():
             list(janela_urgente(hoje)) + list(ESTADOS_ABERTOS)).fetchone()["n"]
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
-        por_estado = {ch: 0 for ch in CHAVES_DA_CASA}
-        for r in c.execute("SELECT estado, COUNT(*) n FROM propostas "
-                           "GROUP BY estado"):
-            if r["estado"] in por_estado:
-                por_estado[r["estado"]] = r["n"]
         plataformas = c.execute(
             "SELECT COALESCE(NULLIF(plataforma,''),'(nenhuma)') p, COUNT(*) n "
             "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC").fetchall()
@@ -18794,7 +18939,7 @@ def indicadores():
     nota_urgentes = "%s com prazo a menos de %d dias" % (mil(urgentes),
                                                          dias_urgente())
     if urgentes:
-        nota_urgentes = ("<a href='/?estado=interessa&amp;prazo=urgente' "
+        nota_urgentes = ("<a href='/concursos?estado=interessa&amp;prazo=urgente' "
                          "style='color:inherit;text-decoration:underline'>"
                          "%s</a>" % nota_urgentes)
     kpis = [("Anúncios na base", mil(total), "%s com detalhe lido" % mil(com_detalhe), ""),
@@ -18807,26 +18952,6 @@ def indicadores():
         "<div class='kpi'><div class='r'>%s</div><div class='v'>%s</div>"
         "<div class='d' style='%s'>%s</div></div>" % (r, v, estilo, d)
         for r, v, d, estilo in kpis)
-
-    maior = max(list(por_estado.values()) + [1])
-    # As ranhuras sao um caminho, como o funil: uma cor so, a escurecer
-    # do principio para o fim. Eram cinco cores sem sistema (bege, azul,
-    # laranja, preto, verde) e duas delas vinham das cores de estado --
-    # a coluna "Submetido" a laranja parecia um aviso e nao e.
-    cores_barra = ("#c3ced9", "#9db1c4", "#7994ae", "#5c809f", "#17557f")
-    # Cada barra abre a lista que a confirma: a regra da casa e que um
-    # numero que um ecra mostra tem de dar exactamente a lista que a
-    # ligacao dele abre, e ate 15/09/2026 estas nao abriam nada.
-    barras = "".join(
-        "<div class='col'><span class='v'>%d</span>"
-        "<a class='b' href='/?estado=%s' style='height:%d%%;background:%s'"
-        " title='ver as %d'></a>"
-        "<span class='l'>%s</span></div>"
-        % (por_estado[ch], ch,
-           int(88.0 * por_estado[ch] / maior) + 6,
-           cores_barra[i % len(cores_barra)], por_estado[ch],
-           html.escape(rotulo))
-        for i, (ch, rotulo) in enumerate(ESTADOS_DA_CASA))
 
     tem_dr = "válido" if carregar_curl() else "em falta"
     tem_det = "válido" if carregar_curl("curl_detalhe") else "em falta"
@@ -18940,96 +19065,10 @@ def indicadores():
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "#d68910"))
 
-    # O funil: o que entra, o que se olha, o que vinga. Os indicadores
-    # contavam estados parados e nao diziam nada sobre o movimento.
-    f = funil_anuncios()
-    # As quatro barras sao um degrade de uma cor so, do mais claro ao
-    # mais escuro: sao passos do mesmo caminho, nao quatro categorias.
-    # Estavam em cinzento, laranja, azul e verde -- quatro cores sem
-    # sistema, e as duas ultimas roubadas as cores de estado, que aqui
-    # nao significam "bom" nem "a avisar".
-    passos = [("Entrados", f["entrados"], "#b9c6d2"),
-              ("Por ver", f["porver_30"], "#8ba3ba"),
-              ("Triados", f["triados_30"], "#5c809f"),
-              ("Interessa", f["interessa_30"], "var(--azul)")]
-    maior_f = max([p[1] for p in passos] + [1])
-    funil_html = "".join(
-        "<div class='col'><span class='v'>%s</span>"
-        "<div class='b' style='height:%d%%;background:%s'></div>"
-        "<span class='l'>%s</span></div>"
-        % (mil_pt(n), int(88.0 * n / maior_f) + 6, cor, etiqueta)
-        for etiqueta, n, cor in passos)
-
-    # Uma percentagem sobre dois casos e ruido com ar de conclusao: "de
-    # tudo o que ja triaste, 100% ficou como interessa" com n=2 nao diz
-    # nada sobre nada.
-    if f["triados"] >= MINIMO_PARA_TAXA:
-        taxa = 100.0 * f["interessa"] / f["triados"]
-        leitura = ("De tudo o que já triaste, <b>%.0f%%</b> ficou como "
-                   "interessa." % taxa)
-    elif f["triados"]:
-        leitura = ("Só %s anúncio%s triado%s até agora &mdash; poucos para "
-                   "uma percentagem dizer alguma coisa."
-                   % (mil_pt(f["triados"]), "" if f["triados"] == 1 else "s",
-                      "" if f["triados"] == 1 else "s"))
-    else:
-        leitura = "Ainda não triaste nada, por isso não há taxa a mostrar."
-
-    # Os numeros levam ao sitio: eram duas contagens numa frase corrida,
-    # sem forma de chegar aos anuncios que contavam. A saida e a
-    # Pesquisa com o arquivo: as contas sao sobre a base toda, e a
-    # Triagem so mostra a janela dos detalhe_dias.
-    alertas = []
-    if f["urgentes_por_ver"]:
-        alertas.append(
-            "<a href='/?estado=novo&prazo=urgente'>"
-            "<b>%s por ver com prazo a menos de %d dias</b></a>"
-            % (mil_pt(f["urgentes_por_ver"]), dias_urgente()))
-    # os "expirados por ver" deixaram de existir como alerta: desde a
-    # fusao de 31/08/2026 um por ver expirado E um abandonado, por
-    # definicao da aba -- nao ha fila a limpar nem numero a mostrar
-    if alertas:
-        leitura += " " + " &middot; ".join(alertas) + "."
-
-    if f["por_divisao"]:
-        nomes_div = nomes_das_divisoes(r["div"] for r in f["por_divisao"])
-        divisoes = "".join(
-            "<div class='l'><span class='t'>%s &mdash; %s</span>"
-            "<span class='v'>%s de %s</span></div>"
-            % (html.escape(r["div"]),
-               html.escape(corta(nomes_div.get(r["div"], "sem descrição"), 40)),
-               mil_pt(r["sim"]), mil_pt(r["tudo"]))
-            for r in f["por_divisao"])
-        divisoes = ("<div class='rot' style='margin:22px 0 16px'>Onde a "
-                    "triagem tem dito que sim</div><div class='saude'>%s</div>"
-                    % divisoes)
-    else:
-        divisoes = ("<div class='nota' style='margin-top:16px'>Ainda não há "
-                    "triagem que chegue para dizer em que CPV costumas "
-                    "dizer que sim.</div>")
-
-    # Montado a parte e passado como argumento: a `leitura` traz um "%"
-    # (a taxa de conversao) e, concatenado no template, o `%` de baixo
-    # tentava interpreta-lo como conversao.
-    funil_cx = ("<div class='cx' style='padding:22px 24px'>"
-                "<div class='rot' style='margin-bottom:6px'>Funil da "
-                "triagem</div>"
-                "<div class='nota' style='margin-bottom:18px'>" + leitura +
-                "</div><div class='barras'>" + funil_html + "</div>" +
-                divisoes + "</div>")
-
+    # So o sistema: o negocio saiu para a abertura (numeros_do_negocio()).
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
         "<div class='kpis'>%s</div>"
-        # o bloco do negocio como ARGUMENTO e nao concatenado: o `%` de
-        # baixo aplica-se a ultima string da cadeia, e um `+` a meio
-        # partia a formatacao de tudo o que vem depois
-        "%s"
-        "%s"
-        "<div class='ind-grelha'>"
-        "<div class='cx' style='padding:22px 24px'>"
-        "<div class='rot' style='margin-bottom:22px'>Interessados por fase do quadro</div>"
-        "<div class='barras'>%s</div></div>"
         "<div class='cx' style='padding:22px 24px'>"
         "<div class='rot' style='margin-bottom:16px'>Estado da recolha</div>"
         "<div class='saude'>%s</div>"
@@ -19038,8 +19077,10 @@ def indicadores():
         "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
         "<code>contratos.db</code>. Actualiza-se em "
         "<a href='/contratos'>Contratos</a>.</div></div>"
-        "</div></div>" % (kpis_html, negocio_cx(), funil_cx, barras, saude_html,
-                          corpus_html))
+        "<div class='nota'>Os números do negócio &mdash; o que está em "
+        "jogo, o funil da triagem, as propostas por ranhura &mdash; vivem "
+        "em <a href='/'>Hoje</a>.</div>"
+        "</div>" % (kpis_html, saude_html, corpus_html))
 
     return pagina_config("indicadores", conteudo)
 
@@ -19493,10 +19534,13 @@ def inicio():
                 % (html.escape(alvo, quote=True), rotulo, estilo, valor, nota))
 
     kpis = "".join((
+        # Deixou de apontar aos Indicadores: o bloco que o decompoe
+        # mudou-se para esta pagina, e um numero que sai do ecra para
+        # explicar-se e um numero que manda o leitor embora.
         kpi("Em jogo", euros_curto(em_jogo),
             ("%s propostas abertas" % mil_pt(abertas)) if abertas
             else "ainda não há propostas abertas",
-            "/configuracoes/indicadores"),
+            "#negocio"),
         kpi("Taxa de vitória",
             ("%d%%" % round(valor_taxa * 100)) if valor_taxa is not None else "—",
             ("%s de %s decididos" % (mil_pt(ganhos), mil_pt(decididos)))
@@ -19576,8 +19620,14 @@ def inicio():
         "concurso entra na escada.",
         "<div class='larg'><div class='kpis'>%s</div>%s"
         "<div class='cx hoje' id='fazer'><h2>O que tenho de fazer</h2>%s</div>"
+        # Os numeros do negocio, que vieram dos Indicadores a 16/09/2026
+        # (palavra dele). Vem DEPOIS do que ha para fazer: chegar e ver o
+        # que tem de fazer e a primeira pergunta; como vai o negocio e a
+        # segunda.
+        "<div id='negocio' style='display:flex;flex-direction:column;"
+        "gap:18px;margin-top:18px'>%s</div>"
         "</div>"
-        % (kpis, entrada, fazer),
+        % (kpis, entrada, fazer, numeros_do_negocio()),
         titulo_aba="Radar de Concursos, DR")
 
 
