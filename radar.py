@@ -45,7 +45,7 @@ import webbrowser
 import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import casa                      # o registo da casa (casa.py importa o radar por dentro)
@@ -1128,14 +1128,46 @@ def data_do_texto(escrito):
 
 
 def data_de_filtro(valor):
-    """So aceita AAAA-MM-DD; o resto ignora-se em vez de filtrar.
+    """A data de um filtro em ISO, ou "" se nao se le.
 
-    Um "de=lixo" vindo de um URL guardado comparava datas com texto e
-    esvaziava a lista em silencio -- enquanto o euro minimo com lixo era
-    ignorado. Dois silencios com efeitos opostos; agora e um so, e a
-    lista avisa (avisos_de_datas)."""
+    Aceita as DUAS escritas: o `AAAA-MM-DD` de sempre -- que e o que os
+    atalhos de periodo poem no endereco e o que o SQL compara -- e o
+    `DD/MM/AAAA` que os campos passaram a pedir a 16/09/2026. O resto
+    ignora-se em vez de filtrar: um "de=lixo" vindo de um endereco
+    guardado comparava datas com texto e esvaziava a lista em silencio,
+    enquanto o euro minimo com lixo era ignorado. Dois silencios com
+    efeitos opostos; agora e um so, e a lista avisa (avisos_de_datas).
+
+    Porque e que ha duas: o `<input type="date">` desenha-se no idioma
+    do BROWSER, nao no da pagina -- num browser em ingles os campos
+    diziam `mm/dd/yyyy` numa aplicacao escrita em portugues, e nao ha
+    atributo nenhum que o mude. Os campos passaram a texto com
+    `dd/mm/aaaa`, como o da data das tarefas ja era; o endereco continua
+    em ISO quando vem dos atalhos, e por isso esta funcao tem de ler os
+    dois.
+    """
     valor = (valor or "").strip()
-    return valor if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor) else ""
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor):
+        return valor
+    pt = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", valor)
+    if not pt:
+        return ""
+    dia, mes, ano = (int(p) for p in pt.groups())
+    try:
+        return date(ano, mes, dia).isoformat()
+    except ValueError:              # 31/02: nao e data, e nao se filtra
+        return ""
+
+
+def data_para_campo(valor):
+    """O que se escreve num campo de data: `dd/mm/aaaa`.
+
+    O que nao se le passa COMO ESTA, e nao vazio -- o campo é onde o
+    erro se corrige, e apagar o que a pessoa escreveu tira-lhe o que
+    havia para corrigir. Quem se queixa é a `faixa_de_avisos_de_datas`.
+    """
+    iso = data_de_filtro(valor)
+    return data_pt(iso) if iso else (valor or "").strip()
 
 
 def mil_pt(n, espaco=" "):
@@ -1189,6 +1221,27 @@ def prefixo_cpv(pedaco):
         return ""
     curto = digitos.rstrip("0")
     return curto if len(curto) >= 2 else digitos[:2]
+
+
+def prefixos_em_cpv8(prefixos):
+    """(fragmento, valores) de «o `cpv8` começa por um destes».
+
+    **GLOB e não LIKE**, e a diferença são 94× (16/09/2026). O `LIKE
+    'x%'` do SQLite é insensível a maiúsculas e por isso **não usa o
+    índice**: varre o `ix_cpv_v` inteiro, 2 033 368 linhas. O `GLOB
+    'x*'` é sensível, e o planeador traduz o prefixo numa gama
+    (`cpv8>? AND cpv8<?`). Medido no corpus dele, «72 ou 48»: **2,83 s
+    contra 0,03 s**, com o mesmo resultado (96 576 linhas).
+
+    O que torna a troca segura é os prefixos virem SEMPRE do
+    `prefixo_cpv()`, que só devolve dígitos: as duas diferenças do GLOB
+    -- ser sensível a maiúsculas, e tratar `*`, `?` e `[` como coringas
+    -- não tocam num código CPV. Um prefixo com letras entraria aqui
+    como um GLOB diferente do LIKE que era; por isso é aqui, num sítio
+    só, e não copiado pelos sete sítios que perguntam isto.
+    """
+    return (" OR ".join("cpv8 GLOB ?" for _ in prefixos),
+            [p + "*" for p in prefixos])
 
 
 def janela_urgente(hoje):
@@ -6940,6 +6993,17 @@ def iniciar_corpus():
             "ON contratos(adjudicante_chave)",
             "CREATE INDEX IF NOT EXISTS ix_adj_chave "
             "ON contrato_adjudicatario(chave)",
+            # **De cobertura**, e é o que faz os gráficos do Mercado
+            # (16/09/2026). O «Quem ganha» junta cada contrato do
+            # recorte aos adjudicatários dele e agrupa por `chave`; com
+            # o `ux_adj` (contrato_id, nif, nome) o SQLite achava a
+            # linha pelo índice e ia buscar a `chave` à TABELA, uma
+            # busca ao acaso por cada um dos 95 680 contratos. Medido no
+            # corpus dele: 6,19 s contra **1,02 s**, e a frio era a
+            # diferença entre 92 s e 15 s na página inteira. Custa 2,74 s
+            # a construir na importação.
+            "CREATE INDEX IF NOT EXISTS ix_adj_ctr_chave "
+            "ON contrato_adjudicatario(contrato_id, chave)",
         ):
             c.execute(ddl)
         # Corpus que veio de antes do desescape: o dump do IMPIC chega
@@ -7652,9 +7716,9 @@ def historico_entidade(entidade, cpv="", limite=25, nif=""):
             return [], ao_todo, 0, alvo
         # `IN` e nao `JOIN`: um contrato com varios CPV da mesma divisao
         # aparecia uma vez por CPV.
+        frag_cpv, como_cpv = prefixos_em_cpv8(prefixos)
         no_cpv = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-                  % " OR ".join("cpv8 LIKE ?" for _ in prefixos))
-        como_cpv = [p + "%" for p in prefixos]
+                  % frag_cpv)
         do_cpv = c.execute(
             "SELECT COUNT(*) n FROM contratos c "
             "WHERE c.adjudicante_chave=? AND " + no_cpv,
@@ -7741,9 +7805,9 @@ def condicoes_contratos(args):
                                 for x in (args.get("cpv") or "").split("|"))
                     if p]
     if prefixos_cpv:
+        dentro, vals_c = prefixos_em_cpv8(prefixos_cpv)
         frag_c = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-                  % " OR ".join("cpv8 LIKE ?" for _ in prefixos_cpv))
-        vals_c = [p + "%" for p in prefixos_cpv]
+                  % dentro)
     elif (args.get("cpv") or "").strip():
         frag_c, vals_c = "1=0", []    # codigo sem prefixo: vazio, nao tudo
     else:
@@ -7794,10 +7858,10 @@ def condicoes_contratos(args):
                             for x in (args.get("cpv_excl") or "").split("|"))
                 if p]
     if fora_cpv:
+        excluir, vals_excl = prefixos_em_cpv8(fora_cpv)
         onde.append("c.id NOT IN (SELECT contrato_id FROM contrato_cpv "
-                    "WHERE %s)"
-                    % " OR ".join("cpv8 LIKE ?" for _ in fora_cpv))
-        valores += [p + "%" for p in fora_cpv]
+                    "WHERE %s)" % excluir)
+        valores += vals_excl
 
     # Por entidade, e nao por nome: e o que a ficha da entidade usa nos
     # atalhos. Filtrar pelo nome mostrava menos contratos do que o numero
@@ -8777,8 +8841,18 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .filtros input[type=text]{flex:1;min-width:220px;padding:9px 12px;
  border:1px solid var(--linha);border-radius:8px;background:var(--creme);
  font:400 12.5px/1.2 var(--sans);color:var(--ink)}
-.filtros input[type=date]{padding:9px 12px;border:1px solid var(--linha);
- border-radius:8px;background:var(--creme);font:500 12.5px/1.2 var(--mono);color:var(--ink)}
+/* A data e um campo de TEXTO com `dd/mm/aaaa` e nao um
+   `<input type=date>` (16/09/2026): o nativo desenha-se no idioma do
+   BROWSER e nao no da pagina, e num browser em ingles dizia
+   `mm/dd/yyyy` numa aplicacao escrita em portugues. Nao ha atributo
+   que o mude -- o `lang` da pagina e do proprio campo nao contam. O
+   campo da data das tarefas na ficha ja era assim; os atalhos de
+   periodo (12 meses, 3 anos, 2026...) continuam a ser o caminho
+   rapido, e `data_de_filtro()` le as duas escritas. */
+.filtros input.campo-data{padding:9px 12px;border:1px solid var(--linha);
+ border-radius:8px;background:var(--creme);font:500 12.5px/1.2 var(--mono);
+ color:var(--ink);width:110px;min-width:0;flex:none}
+.filtros input.campo-data:invalid{border-color:var(--verm)}
 .filtros select{padding:9px 12px;border:1px solid var(--linha);border-radius:8px;
  background:var(--creme);font:400 12.5px/1.2 var(--sans);color:var(--ink);
  /* o select cresce com a opcao mais longa ("Ao abrigo de acordo-quadro
@@ -8952,8 +9026,23 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
    e com os formularios por linha fora, o que ele fazia era derrotar o
    `display:flex` do selector de ranhura, que ficava espremido a mostrar
    "A pr" onde diz "A preparar proposta". Visto no ecra nessa noite. */
+/* As larguras das duas colunas que quebram, postas a mao (16/09/2026).
+   Com `max-width` sozinho, a repartição automática dá primeiro o que
+   pedem as colunas que não quebram -- lote, preço, entrega, ranhura, e
+   são quatro -- e o que sobra para o título é a largura MÍNIMA dele.
+   Medido com três meses de uso: a coluna «Concurso» ficava a 110 px, os
+   títulos partiam-se em cinco linhas e a linha da tabela tinha 90 px de
+   altura. Vêem-se quatro propostas por ecrã numa lista feita para se
+   correr o olho. Com um mínimo declarado são ~48 px e nove. */
 .tab-lista{min-width:900px}
-.tab-lista td.o{max-width:280px}
+.tab-lista td.o{max-width:340px;min-width:180px}
+.tab-lista td.g{max-width:200px;min-width:105px}
+/* E o título corta-se a DUAS linhas, para a altura da linha ser a mesma
+   em todas: com um título de 80 caracteres e outro de 20, uma lista de
+   dez linhas tinha dez alturas diferentes e nenhuma coluna alinhada
+   para baixo. O `title` da ligação leva o texto inteiro. */
+.tab-lista td.o a,.tab-lista td.g span{display:-webkit-box;-webkit-line-clamp:2;
+ -webkit-box-orient:vertical;overflow:hidden}
 .tab-lista td.curta{width:96px}
 .tab-lista td.d.esclarec{color:var(--t3)}
 
@@ -9788,7 +9877,7 @@ a.ct-l{color:var(--azul)}
   flex-wrap:wrap;justify-content:space-between;align-items:center;padding:10px 14px;gap:8px}
  .item-accoes{justify-content:flex-start}
  .filtros input[type=text]{min-width:0;flex-basis:100%}
- .filtros select,.filtros input[type=date]{flex:1 1 40%;min-width:0}
+ .filtros select,.filtros input.campo-data{flex:1 1 40%;min-width:0}
  .filtros input#filtro-cpv-excl{width:auto!important;flex:1 1 40%!important}
  details.painel-filtros .pf-sub{display:none}
  .guardados .guardar{margin-left:0;flex-basis:100%}
@@ -9827,7 +9916,7 @@ a.ct-l{color:var(--azul)}
  .barra nav a{padding:7px 7px;font-size:12px}
  h1.tit{font-size:17px}
  .kpis{grid-template-columns:minmax(0,1fr)}
- .filtros select,.filtros input[type=date]{flex-basis:100%}
+ .filtros select,.filtros input.campo-data{flex-basis:100%}
  .filtros input#filtro-cpv-excl{flex-basis:100%!important}
  .entrar{padding:20px 18px 18px}
 }
@@ -11370,14 +11459,15 @@ def condicao_do_interesse_contratos(args=None, cfg=None):
     dentro_p = prefixos_do_cpv(dentro)
     if not dentro_p:
         return "1=0", []          # um termo que nao e nada: vazio, nao tudo
+    dentro_frag, vals = prefixos_em_cpv8(dentro_p)
     frag = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-            % " OR ".join("cpv8 LIKE ?" for _ in dentro_p))
-    vals = [p + "%" for p in dentro_p]
+            % dentro_frag)
     fora_p = prefixos_do_cpv(fora)
     if fora_p:
+        fora_frag, fora_vals = prefixos_em_cpv8(fora_p)
         frag += (" AND c.id NOT IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-                 % " OR ".join("cpv8 LIKE ?" for _ in fora_p))
-        vals += [p + "%" for p in fora_p]
+                 % fora_frag)
+        vals += fora_vals
     return frag, vals
 
 
@@ -11684,8 +11774,8 @@ def _lista_de_anuncios():
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         "<select name='plat'>%s</select>"
-        "<label>de</label><input type='date' name='de' value='%s'>"
-        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<input type='hidden' name='estado' value='%s'>"
         "<button type='submit'>Filtrar</button>"
         "<a class='limpar' href='%s'>limpar</a>"
@@ -11698,8 +11788,8 @@ def _lista_de_anuncios():
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo")),
            opcoes_html(opcoes_plat, plat_actual),
-           html.escape(request.args.get("de", ""), quote=True),
-           html.escape(request.args.get("ate", ""), quote=True),
+           html.escape(data_para_campo(request.args.get("de")), quote=True),
+           html.escape(data_para_campo(request.args.get("ate")), quote=True),
            html.escape(estado_actual, quote=True),
            html.escape(href_limpar(rota, estado_actual), quote=True)))
 
@@ -11912,15 +12002,24 @@ def linha_da_pipeline(p, urgente, prazos):
     # a celula do proposto sai com a coluna (ver colunas_da_ranhura)
     cel_proposto = ("<td class='p'>%s</td>" % _preco_da_proposta(p)
                     if p["estado"] in ESTADOS_COM_PROPOSTO else "")
-    return ("<tr><td class='o'><a href='%s'>%s</a>%s</td>"
-            "<td class='g'>%s</td><td class='curta'>%s</td>"
+    # O `title` leva o titulo INTEIRO: a celula corta-o a duas linhas
+    # (`.tab-lista td.o a`), e um corte sem forma de ver o resto e uma
+    # lista que esconde o que promete mostrar. A ficha tem-no por
+    # extenso, e isto poupa la ir so para o ler.
+    return ("<tr><td class='o'><a href='%s' title='%s'>%s</a>%s</td>"
+            "<td class='g'><span title='%s'>%s</span></td>"
+            "<td class='curta'>%s</td>"
             "<td class='p'>%s</td>%s"
             "<td class='d'>%s</td><td class='curta'>%s</td>"
             "<td class='celula-ranhura'>%s</td><td class='curta'>%s</td></tr>"
-            % (alvo, html.escape(nome),
+            % (alvo,
+               html.escape(p["titulo"] or p["ref"] or "(sem título)",
+                           quote=True),
+               html.escape(nome),
                "" if p["ref"] else
                " <span class='tag info' title='%s'>sem anúncio</span>"
                % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
+               html.escape(p["entidade"] or "", quote=True),
                html.escape(corta(p["entidade"] or "", 45)),
                "L%d" % p["lote"] if p["lote"] else
                ("conjunto" if p["lote"] == 0 else "&mdash;"),
@@ -11957,15 +12056,27 @@ def _lista_de_propostas():
         # Procura simples, e nao o motor: `condicoes()` serve tambem os
         # alertas e os filtros guardados, e nao se lhe acrescenta um
         # recorte desta vista (armadilha do motor de filtros).
-        onde.append("(titulo LIKE ? ESCAPE ? OR entidade LIKE ? ESCAPE ?)")
-        # **Com os `%`**. O `para_like()` so ESCAPA os caracteres
-        # especiais -- quem procura poe os coringas, e os outros quatro
-        # sitios que o chamam poem-nos. Aqui faltavam, e por isso esta
+        # **Sem acentos e com os `%`.** Duas avarias no mesmo sitio:
+        #
+        # Os coringas -- o `para_like()` so ESCAPA os caracteres
+        # especiais, e quem procura poe os `%`, como os outros quatro
+        # sitios que o chamam fazem. Aqui faltavam, e por isso esta
         # procura so encontrava um titulo escrito por inteiro, letra por
-        # letra: procurar "manuten" numa ranhura com cinco titulos que o
-        # contem dava zero, com o ecra a dizer "Nada em Ganho" por baixo
-        # de uma aba a dizer 13. Nunca funcionou (16/09/2026).
-        como = "%" + para_like(procura) + "%"
+        # letra: "manuten" numa ranhura com cinco titulos que o contem
+        # dava zero, com o ecra a dizer "Nada em Ganho" por baixo de uma
+        # aba a dizer 13.
+        #
+        # E os acentos -- o LIKE do SQLite so baixa maiusculas ASCII, e
+        # a lista dos anuncios procura ha muito na coluna normalizada
+        # (`titulo_norm`). A `propostas` nao tem coluna dessas e nao
+        # precisa de ter: sao dezenas de linhas, e o `simplifica()` esta
+        # registado como funcao da ligacao (ver `liga()`) -- uma
+        # varredura com uma chamada Python por linha custa menos do que
+        # duas colunas para manter em cada escrita e uma migracao para
+        # as encher.
+        onde.append("(simplifica(titulo) LIKE ? ESCAPE ? OR "
+                    "simplifica(entidade) LIKE ? ESCAPE ?)")
+        como = "%" + para_like(simplifica(procura)) + "%"
         valores += [como, ESCAPE_LIKE, como, ESCAPE_LIKE]
     with liga() as c:
         linhas = c.execute(
@@ -12177,6 +12288,12 @@ def resumo_filtro(consulta, vista=None):
             # "op ou" nao diz nada; a legenda diz o que o modo faz
             partes.append("palavras OU CPV" if valor == "ou" else valor)
         elif valor:
+            # As datas dizem-se como se escrevem (16/09/2026): a legenda
+            # mostrava "desde 2026-01-01" por cima de um campo a dizer
+            # "01/01/2026" -- o mesmo filtro escrito de duas maneiras no
+            # mesmo ecra, e a que se lia era a de dentro da base.
+            if campo in ("de", "ate"):
+                valor = data_para_campo(valor)
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
 
@@ -13269,8 +13386,8 @@ def _conteudo_alertas():
         "data-chave-em='nif'>"
         "<input type='hidden' name='nif' value='%s'>"
         "<select name='plat'>%s</select>"
-        "<label>de</label><input type='date' name='de' value='%s'>"
-        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<button type='submit'>Criar alerta</button>"
         "</form><datalist id='entidades'></datalist></div>"
         % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
@@ -13286,7 +13403,8 @@ def _conteudo_alertas():
                       "<option value='%s'%s>ainda sem detalhe lido</option>"
                       % (html.escape(POR_LER, quote=True),
                          marca_sel("plat", POR_LER))]),
-           pv("de"), pv("ate")))
+           html.escape(data_para_campo(request.args.get("de")), quote=True),
+           html.escape(data_para_campo(request.args.get("ate")), quote=True)))
 
     if ultimos:
         hist = "".join(
@@ -14861,15 +14979,17 @@ def filtros_da_ficha(chave, d):
         "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
         "placeholder='Excluir CPV…' "
         "style='min-width:0;width:120px;flex:none'>"
-        "<label>de</label><input type='date' name='de' value='%s'>"
-        "<label>até</label><input type='date' name='ate' value='%s'>"
+        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<input type='text' name='min' value='%s' placeholder='€ mínimo' "
         "style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>%s"
         "<div class='periodos'><span>rápido:</span>%s</div>"
         "</form>%s%s%s%s"
         % (quote(chave, safe=""), v("q"), v("q_excl"), v("cpv"),
-           v("cpv_excl"), v("de"), v("ate"),
+           v("cpv_excl"),
+           html.escape(data_para_campo(request.args.get("de")), quote=True),
+           html.escape(data_para_campo(request.args.get("ate")), quote=True),
            v("min"), limpar, "".join(chips),
            faixa_de_avisos_de_datas(request.args), faixa,
            arvore_html(n_cpv, "contratos"), ""))
@@ -15349,8 +15469,8 @@ def contratos():
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         "%s%s"
-        "<label>de</label><input type='date' name='de' value='%s'%s>"
-        "<label>até</label><input type='date' name='ate' value='%s'%s>"
+        "<label>de</label><input type='text' name='de' value='%s'%s inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "<label>até</label><input type='text' name='ate' value='%s'%s inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<label>desde</label><input type='text' name='min' value='%s' "
         "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>"
@@ -15363,8 +15483,12 @@ def contratos():
            selector_procedimento(procs,
                                  (request.args.get("proc") or "").strip()),
            opcoes_meses,
-           "" if fim else v("de"), trava_datas,
-           "" if fim else v("ate"), trava_datas,
+           "" if fim else html.escape(
+               data_para_campo(request.args.get("de")), quote=True),
+           trava_datas,
+           "" if fim else html.escape(
+               data_para_campo(request.args.get("ate")), quote=True),
+           trava_datas,
            v("min"), html.escape(modo_limpo, quote=True)))
 
     hoje = datetime.now().date()
@@ -16183,12 +16307,11 @@ def descontos_da_entidade(chave, cpv):
     prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
     if not (chave and prefixos and ha_corpus()):
         return []
+    frag, vals = prefixos_em_cpv8(prefixos)
     onde = (" WHERE c.adjudicante_chave=? AND "
-            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-            % " OR ".join("cpv8 LIKE ?" for _ in prefixos))
+            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)" % frag)
     with liga_corpus() as c:
-        return descontos_por_procedimento(
-            c, onde, [chave] + [p + "%" for p in prefixos])
+        return descontos_por_procedimento(c, onde, [chave] + vals)
 
 
 def referencia_de_preco(chave, cpv, limite=200):
@@ -16202,14 +16325,14 @@ def referencia_de_preco(chave, cpv, limite=200):
     prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
     if not (chave and prefixos and ha_corpus()):
         return None
+    frag, vals = prefixos_em_cpv8(prefixos)
     with liga_corpus() as c:
         precos = [r["p"] for r in c.execute(
             "SELECT c.preco_contratual p FROM contratos c "
             "WHERE c.adjudicante_chave=? AND c.preco_contratual > 0 AND "
             "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s) "
-            "ORDER BY c.data_celebracao DESC LIMIT ?"
-            % " OR ".join("cpv8 LIKE ?" for _ in prefixos),
-            [chave] + [p + "%" for p in prefixos] + [limite])]
+            "ORDER BY c.data_celebracao DESC LIMIT ?" % frag,
+            [chave] + vals + [limite])]
     if len(precos) < 3:                 # com dois contratos nao ha padrao
         return None
     ordenados = sorted(precos)

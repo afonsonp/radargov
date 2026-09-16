@@ -512,6 +512,23 @@ Orçamento, cadeia de reserva, chaves.
 
 ## Datas, números e texto
 
+- **Os campos de data dos filtros são de TEXTO, e não
+  `<input type="date">`** (16/09/2026). O nativo desenha-se no idioma do
+  **browser** e não no da página: num browser em inglês os quatro
+  formulários de filtro diziam `mm/dd/yyyy` numa aplicação escrita em
+  português, e **não há atributo que o mude** — nem o `lang` da página
+  nem o do próprio campo. Passaram a `type=text` com
+  `placeholder='dd/mm/aaaa'` e `pattern`, como o campo da data das
+  tarefas na ficha já era. O que isto obriga: o `data_de_filtro()` lê as
+  **duas** escritas (os atalhos de período continuam a pôr ISO no
+  endereço) e recusa um dia que não existe — «31/02/2026» escreve-se e
+  não é um dia; e o `data_para_campo()` é o que escreve o valor de volta
+  no campo, deixando **passar como está** o que não se lê, porque o
+  campo é onde o erro se corrige. A legenda do filtro
+  (`resumo_filtro()`) também diz `dd/mm/aaaa`: dizia «desde 2026-01-01»
+  por cima de um campo a dizer «01/01/2026», o mesmo filtro escrito de
+  duas maneiras no mesmo ecrã.
+
 Formatos portugueses, normalização e o que o SQLite não sabe fazer.
 
 - **`175.000,00 EUR` é formato português**: ponto nos milhares, vírgula
@@ -600,6 +617,44 @@ Uma árvore, duas fontes de contagem, dois campos.
 ---
 
 ## Contratos e entidades
+
+- **Um prefixo de CPV pergunta-se com `GLOB`, nunca com `LIKE`, e são
+  94×** (16/09/2026). O `LIKE 'x%'` do SQLite é insensível a maiúsculas
+  e por isso **não usa o índice**: varre o `ix_cpv_v` inteiro, 2 033 368
+  linhas. O `GLOB 'x*'` é sensível, e o planeador traduz o prefixo numa
+  gama (`cpv8>? AND cpv8<?`). Medido no corpus dele, «72 ou 48»:
+  **2,83 s contra 0,03 s**, com as mesmas 96 576 linhas. A troca só é
+  segura porque os prefixos vêm sempre do `prefixo_cpv()`, que devolve
+  **dígitos** — as duas diferenças do GLOB (ser sensível a maiúsculas, e
+  tratar `*`, `?` e `[` como coringas) não tocam num código CPV. A regra
+  vive no **`prefixos_em_cpv8()`** e em mais lado nenhum: eram sete
+  sítios a copiá-la, e o primeiro a mudar deixava os outros seis a
+  varrer a tabela **sem erro nenhum, só mais lentos**.
+
+- **O «Quem ganha» precisa de um índice que cubra a `chave`.** O
+  `ux_adj` começa por `contrato_id` mas não tem a `chave`, e por isso o
+  SQLite achava a linha pelo índice e ia buscar a `chave` à **tabela** —
+  uma busca ao acaso por cada um dos 95 680 contratos do recorte. Com o
+  `ix_adj_ctr_chave(contrato_id, chave)` o plano passa a `COVERING
+  INDEX`: **6,19 s → 1,02 s**, e a página inteira de 92 s (a frio) para
+  ~5 s. Custa 2,74 s a construir na importação. A ordem das colunas é o
+  que o faz cobrir; trocá-las desfaz isto sem nada acusar.
+
+- **O `/contratos/resumo` faz SEIS agregações sobre o corpus, e é por
+  isso que é a página mais cara da aplicação.** Cada uma repete o mesmo
+  `c.id IN (SELECT …)` e varre as ~96 mil linhas do recorte: com as duas
+  correcções acima são ~0,7 s cada, ~5 s ao todo. Fica **atrás de um
+  `<details>`** e é pedida por `fetch` com um «a carregar…» no lugar —
+  não se paga ao abrir a lista. É a única página fora do
+  `TestNenhumEcraDa500`, com o nome à vista.
+
+- **O papel da entidade (Cliente / Concorrente) conta com os totais SEM
+  o filtro da ficha.** São duas somas próprias no `ficha_entidade()`
+  (`compra_total`, `ganha_total`), e não os `compra`/`ganha` que os
+  cartões mostram: o papel é **identidade**, como os nomes por que a
+  entidade assina, e filtrar por um CPV em que ela só ganha não faz de
+  um município um concorrente. Duas somas custam 0,01 s; refazer a ficha
+  inteira para as ter custava a ficha inteira.
 
 O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 03/09/2026), e por isso a velocidade conta.
@@ -1945,6 +2000,31 @@ botões ou no calendário.
   porque a barra **dobra** (`flex-wrap`): 50px em ecrã largo, 87px a
   375px. O 50px do `var(--barra-h,50px)` é o recurso para quando o
   script não corre.
+
+- **Uma tabela desta lista corta o texto a duas linhas, e não o deixa
+  correr.** Com `max-width` sozinho, a repartição automática dá primeiro
+  o que pedem as colunas que não quebram — lote, preço, entrega, ranhura,
+  e são quatro — e o que sobra para o título é a largura **mínima** dele.
+  Medido com três meses de uso: a coluna «Concurso» ficava a 110 px, os
+  títulos partiam-se em cinco linhas e a linha tinha **90 px**; viam-se
+  quatro propostas por ecrã numa lista feita para se correr o olho. Com
+  um `min-width` declarado e `-webkit-line-clamp:2` no título e no
+  cliente, são **57 px e nove propostas** — e, o que conta mais, **todas
+  iguais**: com um título de 80 caracteres e outro de 20, dez linhas
+  tinham dez alturas e nenhuma coluna alinhava. O texto inteiro vai no
+  `title` da ligação. Nos quatro separadores que têm coluna «Proposto»
+  (Submetido, Relatório, Ganho, Perdido) a tabela passa a rolar 122 px
+  dentro de si — o que fica de fora é o «abrir», que é o mesmo destino
+  do título na mesma linha.
+
+- **A procura da lista das propostas ignora acentos pelo
+  `simplifica()`, e não por uma coluna normalizada.** O LIKE do SQLite
+  só baixa maiúsculas ASCII, e a lista dos anúncios procura há muito em
+  `titulo_norm`. A `propostas` **não** ganha colunas dessas: são dezenas
+  de linhas, o `simplifica()` já está registado como função da ligação
+  (ver `liga()`), e uma varredura com uma chamada Python por linha custa
+  menos do que duas colunas para manter em cada escrita mais uma
+  migração para as encher.
 
 - **«Casa» diz-se «empresa» no ecrã, e as outras são clientes ou
   concorrentes** (16/09/2026, decisão dele). A troca foi nas **cadeias

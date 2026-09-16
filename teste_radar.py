@@ -1428,7 +1428,7 @@ class TestCondicoesContratos(unittest.TestCase):
         onde, valores = radar.condicoes_contratos({"cpv": "72000000"})
         self.assertNotIn("JOIN", onde.upper())
         self.assertIn("contrato_cpv", onde)
-        self.assertIn("72%", valores)
+        self.assertIn("72*", valores)
 
     def test_cpv_sem_prefixo_nao_devolve_tudo(self):
         # "-" não dá prefixo; sem o 1=0, o filtro caía e mostrava o
@@ -1501,7 +1501,7 @@ class TestExclusoesNoFiltro(unittest.TestCase):
         self.assertIn("NOT (", onde)
         self.assertIn("NOT IN", onde)
         self.assertIn("contrato_cpv", onde)
-        self.assertIn("90%", valores)
+        self.assertIn("90*", valores)
         self.assertIn("%limpeza%", valores)
 
     def test_as_exclusoes_entram_no_filtro_canonico(self):
@@ -1566,7 +1566,7 @@ class TestEOuEntrePalavrasECpv(unittest.TestCase):
         self.assertIn(" OR c.id IN (SELECT contrato_id FROM contrato_cpv",
                       onde)
         self.assertEqual(valores[0], "%limpeza%")
-        self.assertIn("9091%", valores)   # zeros à direita: código -> grupo
+        self.assertIn("9091*", valores)   # zeros à direita: código -> grupo
 
     def test_a_ordem_dos_valores_segue_a_dos_pontos_de_interrogacao(self):
         # com op=ou e mais campos no meio, cada ? tem de casar com o seu
@@ -3409,8 +3409,34 @@ class TestDatasDeFiltro(unittest.TestCase):
 
     def test_lixo_e_ignorado(self):
         self.assertEqual(radar.data_de_filtro("lixo"), "")
-        self.assertEqual(radar.data_de_filtro("01/08/2026"), "")
         self.assertEqual(radar.data_de_filtro(None), "")
+
+    def test_a_escrita_portuguesa_tambem_passa(self):
+        """Os campos deixaram de ser `<input type=date>` a 16/09/2026: o
+        nativo desenha-se no idioma do BROWSER e não no da página, e num
+        browser em inglês dizia `mm/dd/yyyy` numa aplicação escrita em
+        português. Passaram a texto com `dd/mm/aaaa`, e por isso esta
+        função tem de ler as duas escritas — os atalhos de período
+        continuam a pôr ISO no endereço."""
+        self.assertEqual(radar.data_de_filtro("01/08/2026"), "2026-08-01")
+        self.assertEqual(radar.data_de_filtro("1/8/2026"), "2026-08-01")
+        self.assertEqual(radar.data_de_filtro(" 31/12/2025 "), "2025-12-31")
+
+    def test_um_dia_que_nao_existe_nao_e_data(self):
+        """31 de Fevereiro escreve-se e não é um dia. Sem esta guarda
+        entrava no SQL como "2026-02-31" e comparava-se com datas a
+        sério, que é o silêncio que esta classe existe para travar."""
+        self.assertEqual(radar.data_de_filtro("31/02/2026"), "")
+        self.assertEqual(radar.data_de_filtro("32/01/2026"), "")
+
+    def test_o_campo_escreve_se_em_portugues(self):
+        """O que o campo mostra é `dd/mm/aaaa`, venha de onde vier — do
+        atalho de período (ISO) ou do que se escreveu. O que não se lê
+        passa como está: o campo é onde o erro se corrige."""
+        self.assertEqual(radar.data_para_campo("2026-08-01"), "01/08/2026")
+        self.assertEqual(radar.data_para_campo("01/08/2026"), "01/08/2026")
+        self.assertEqual(radar.data_para_campo("lixo"), "lixo")
+        self.assertEqual(radar.data_para_campo(None), "")
 
     def test_condicoes_dos_anuncios_ignoram_a_data_invalida(self):
         onde, _ = radar.condicoes({"de": "lixo", "estado": ""})
@@ -5271,6 +5297,19 @@ class TestCaminhoDeVoltaDaFicha(BaseTemporaria):
             radar.LISTA + "?estado=ganho&q=IP").get_data(as_text=True)
         self.assertIn("Aquisição de consultoria", html_)
 
+    def test_procurar_sem_acentos_encontra_o_que_os_tem(self):
+        """O LIKE do SQLite só baixa maiúsculas ASCII: para ele «Ç» e «ç»
+        são letras diferentes. A lista dos anúncios procura há muito na
+        coluna normalizada; esta procurava no título cru, e «aquisicao»
+        não encontrava «Aquisição». A `propostas` não ganha coluna
+        normalizada para isto — são dezenas de linhas, e o `simplifica()`
+        está registado como função da ligação."""
+        radar.criar_proposta(ref="70/2026", estado="ganho")
+        for termo in ("aquisicao", "AQUISIÇÃO", "Aquisição", "consultoria"):
+            html_ = self.cliente.get(
+                radar.LISTA + "?estado=ganho&q=" + termo).get_data(as_text=True)
+            self.assertIn("Aquisição de consultoria", html_, termo)
+
     def test_procura_sem_resultados_nao_diz_que_a_ranhura_esta_vazia(self):
         """A ranhura pode estar cheia: o que está vazio é a RESPOSTA.
         «Nada em Ganho» por baixo de uma aba a dizer 13 é o ecrã a
@@ -5340,6 +5379,70 @@ class TestNenhumEcraDa500(BaseTemporaria):
         # e o passeio é mesmo um passeio: se um dia a app ficar sem
         # rotas, isto não pode passar por vazio
         self.assertGreater(len(caminhos), 20)
+
+
+class TestMercadoDepressa(BaseTemporaria):
+    """Os gráficos do Mercado levavam 92 s a frio e 14,8 s quentes, numa
+    página que faz seis agregações sobre o corpus (2 000 340 contratos).
+    16/09/2026, a pedido dele. Duas causas, e as duas mediram-se:
+
+    1. **O recorte por CPV varria a tabela inteira.** O `LIKE 'x%'` do
+       SQLite é insensível a maiúsculas e por isso NÃO usa o índice; o
+       `GLOB 'x*'` é sensível e o planeador traduz o prefixo numa gama.
+       2,83 s → 0,03 s, mesmo resultado.
+    2. **O «Quem ganha» ia buscar a `chave` à tabela**, uma vez por cada
+       um dos 95 680 contratos do recorte: o `ux_adj` começa por
+       `contrato_id` mas não cobre a `chave`. Com um índice que a cobre,
+       6,19 s → 1,02 s.
+
+    Estes testes não medem tempo — um teste cronometrado num portátil é
+    um teste instável. Medem as duas propriedades de que o tempo depende.
+    """
+
+    def test_o_recorte_por_cpv_e_glob_e_nao_like(self):
+        frag, vals = radar.prefixos_em_cpv8(["72", "48"])
+        self.assertEqual(frag, "cpv8 GLOB ? OR cpv8 GLOB ?")
+        self.assertEqual(vals, ["72*", "48*"])
+        self.assertNotIn("LIKE", frag)
+
+    def test_o_glob_da_o_mesmo_que_o_like_em_codigos_cpv(self):
+        """A troca só é segura porque os prefixos vêm do `prefixo_cpv()`,
+        que devolve DÍGITOS: as duas diferenças do GLOB — ser sensível a
+        maiúsculas, e tratar `*`, `?` e `[` como coringas — não tocam num
+        código CPV. Isto prova-o contra o SQLite, e não por leitura."""
+        c = sqlite3.connect(":memory:")
+        c.execute("CREATE TABLE t (cpv8 TEXT)")
+        c.executemany("INSERT INTO t VALUES (?)",
+                      [("72000000",), ("72267100",), ("48190000",),
+                       ("30000000",), ("7200",), ("",)])
+        frag, vals = radar.prefixos_em_cpv8(["72", "48"])
+        por_glob = {r[0] for r in c.execute(
+            "SELECT cpv8 FROM t WHERE " + frag, vals)}
+        por_like = {r[0] for r in c.execute(
+            "SELECT cpv8 FROM t WHERE cpv8 LIKE ? OR cpv8 LIKE ?",
+            ["72%", "48%"])}
+        self.assertEqual(por_glob, por_like)
+        self.assertEqual(por_glob, {"72000000", "72267100", "48190000", "7200"})
+
+    def test_os_sitios_todos_perguntam_pelo_mesmo_sitio(self):
+        """A regra vive numa função só. Sete sítios copiavam o mesmo
+        `" OR ".join("cpv8 LIKE ?" ...)`, e o primeiro a mudar deixava os
+        outros seis a varrer a tabela em silêncio — sem erro nenhum, só
+        mais lento."""
+        with open(radar.__file__, encoding="utf-8") as f:
+            fonte = f.read()
+        self.assertNotIn("cpv8 LIKE", fonte)
+        self.assertGreaterEqual(fonte.count("prefixos_em_cpv8("), 7)
+
+    def test_o_corpus_leva_o_indice_que_cobre_a_chave(self):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            linha = c.execute("SELECT sql FROM sqlite_master WHERE type='index'"
+                              " AND name='ix_adj_ctr_chave'").fetchone()
+        self.assertIsNotNone(linha, "falta o índice de cobertura do «Quem ganha»")
+        # a ordem é o que o faz cobrir: procura-se por contrato_id e
+        # lê-se a chave sem ir à tabela
+        self.assertIn("(contrato_id, chave)", linha["sql"])
 
 
 class TestClienteOuConcorrente(unittest.TestCase):
@@ -11542,12 +11645,12 @@ class TestInteresseNoMercado(BaseTemporaria):
     def test_a_condicao_usa_a_tabela_dos_cpv_e_o_nao_levanta(self):
         frag, vals = radar.condicao_do_interesse_contratos(args={}, cfg=self.cfg)
         self.assertIn("contrato_cpv", frag)
-        self.assertIn("cpv8 LIKE ?", frag)
-        self.assertEqual(vals, ["72%"])
+        self.assertIn("cpv8 GLOB ?", frag)
+        self.assertEqual(vals, ["72*"])
         frag, vals = radar.condicao_do_interesse_contratos(
             args={}, cfg=dict(self.cfg, interesse_cpv_excl="72212000"))
         self.assertIn("NOT IN", frag)
-        self.assertEqual(vals, ["72%", "72212%"])
+        self.assertEqual(vals, ["72*", "72212*"])
         self.assertEqual(radar.condicao_do_interesse_contratos(
             args={"interesse": "nao"}, cfg=self.cfg), ("", []))
         self.assertEqual(radar.condicao_do_interesse_contratos(
@@ -11576,7 +11679,7 @@ class TestInteresseNoMercado(BaseTemporaria):
         args = MultiDict({"q": "software"})
         onde, vals = radar.filtros_dos_contratos(args, cfg=self.cfg)
         self.assertIn("contrato_cpv", onde)
-        self.assertEqual(vals[-1], "72%")
+        self.assertEqual(vals[-1], "72*")
         onde_livre, vals_livre = radar.filtros_dos_contratos(args, com_interesse=False,
                                                               cfg=self.cfg)
         self.assertNotIn("contrato_cpv", onde_livre)

@@ -31,6 +31,7 @@ pede.**
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `CRM` | Raramente. São instantâneos, não se mantêm |
+| `docs/arquitectura.html`<br>`docs/processo-*.html` | Seis diagramas interactivos (16/09/2026, pela skill `archify`): a arquitectura, e por dentro da recolha, das peças, da porta, da escada e do corpus | Para ver a forma de uma coisa antes de lhe mexer. **São instantâneos: mudar o código não os muda** |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
@@ -318,7 +319,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 185 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
+São 192 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·
