@@ -1708,7 +1708,42 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 
 ## A interface
 
-As regras de desenho da casa. As medidas estão em `docs/historico/UX-Auditoria.md`.
+As regras de desenho da casa. As medidas estão em
+`docs/historico/UX-Auditoria.md`, e **o caminho do aspecto está em
+`docs/design.md`** (16/09/2026) — lê-o antes de mexer em cor, letra,
+botões ou no calendário.
+
+- **A camada nova de aspecto está toda dentro de `[data-pele=novo]`, e
+  só a `/amostra` a carimba** (16/09/2026, fase 0 do `docs/design.md`).
+  O `CSS_NOVO` vive a seguir ao `CSS` e **nenhuma regra dele pode ficar
+  fora desse âmbito** — `TestPeleNova` percorre-as e falha se alguma
+  escapar, porque uma regra solta mudava os ecrãs todos antes de ele
+  ter decidido. A fase 1 é carimbar `data-pele="novo"` no `<html>` do
+  `BASE` e mais nada: o truque é os tokens **antigos** (`--papel`,
+  `--creme`, `--linha2`) apontarem para os valores novos, o que faz as
+  1196 linhas do `CSS` herdarem a paleta sem se tocar numa regra. A
+  amostra não passa pelo `envolver()` de propósito — é a única página
+  que precisa de escrever atributos no `<html>`. E leva um
+  `.topo{position:static}` na folha dela: `.am-topo` e `.topo` são dois
+  irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
+  que se rolava.
+
+- **As fontes são servidas de `tipo/`, por lista branca, e a rota é
+  aberta.** `/tipo/<nome>` está nas `ROTAS_ABERTAS` **por prefixo** e
+  não por igualdade (a página de entrar precisa da letra antes de haver
+  sessão), e quem fecha a porta é o `TIPOS` — quatro nomes exactos, sem
+  caminho nenhum a juntar à mão. Um ficheiro novo entra lá, não no
+  `startswith`. A regra de não pedir nada a domínio nenhum de fora
+  mantém-se, e o CSP continua em `font-src 'self'`.
+
+- **A escala de texto nova tem um patamar só.** A antiga tinha dois —
+  `--t1..--t4` passavam AA em todo o lado e `--t5`/`--t6` só nalguns —
+  e isso partiu o contraste duas vezes (as seis falhas de 31/08 e os
+  `.coluna-pede` a 4,35 de 02/09), sempre porque quem escrevia um
+  `--t5` novo não sabia sobre que fundo ele ia cair. Na pele nova
+  **tudo passa AA sobre tudo**, pior caso 4,52, e o `--t6` aponta para
+  o mesmo valor do `--t5`. `TestPeleNova` mede as nove tintas contra os
+  sete fundos que existem, os quatro fundos de nota incluídos.
 
 - **As páginas de erro são fora do `BASE`** (15/09/2026;
   `PAGINA_ERRO`, o molde do `/entrar`). O `BASE` lê a sessão e monta a

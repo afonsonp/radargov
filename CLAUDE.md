@@ -26,6 +26,7 @@ pede.**
 | **este** | As regras de trabalho e a arquitectura | Sempre. É o único que se carrega inteiro |
 | `ESTADO.md` | O estado de hoje, com os números | Ao começar. São 150 linhas |
 | `docs/armadilhas.md` | O que não é óbvio, em 15 áreas | **A área que vais tocar**, antes de tocar |
+| `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões, a escala | **Antes de mexer em cor, letra, botões ou no calendário**. O que ele vê está em `/amostra` |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
@@ -209,7 +210,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~14 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~19 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da casa está em **`casa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
@@ -297,6 +298,13 @@ A ordem do ficheiro é a ordem do fluxo:
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
+8b. **a amostra do desenho** — `/amostra` (16/09/2026, fase 0 do
+   `docs/design.md`): os componentes todos num sítio, com um selector
+   de letra e de pele, para ele ver e decidir antes de um ecrã mudar.
+   É a **única** página que não passa pelo `envolver()`, porque é a
+   única que precisa de carimbar `data-pele` e `data-tipo` no `<html>`.
+   O `CSS_NOVO` está todo dentro desse âmbito e as fontes servem-se de
+   `/tipo/<nome>`, por lista branca (`TIPOS`).
 9. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio está em `docs/armadilhas.md`

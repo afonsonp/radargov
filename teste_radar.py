@@ -7067,6 +7067,119 @@ class TestPaginaSemNadaDeFora(unittest.TestCase):
         self.assertIn("font-src 'self'", csp)
 
 
+class TestPeleNova(unittest.TestCase):
+    """A camada de aspecto de 16/09/2026 (`docs/design.md`).
+
+    Três coisas, e cada uma tem uma avaria por trás:
+
+    - **O contraste mede-se sobre TODOS os fundos.** A escala antiga
+      tinha dois patamares e isso já partiu duas vezes: as seis falhas
+      entre 4,1 e 4,43 de 31/08, e os `.coluna-pede` a 4,35 de 02/09,
+      que passaram porque só se tinha medido sobre `--papel`. A escala
+      nova tem um patamar só -- tudo passa AA sobre tudo --, e é isso
+      que este teste fixa. Um `--t*` novo que não chegue lá falha aqui.
+    - **As fontes são servidas da aplicação e de mais lado nenhum.** A
+      regra é que o painel não pede nada a nenhum domínio de fora, e o
+      CSP diz `font-src 'self'`.
+    - **`/tipo/<nome>` é uma lista branca.** Serve ficheiros do disco a
+      quem ainda não fez login (a página de entrar precisa da letra),
+      e por isso o que lá entra tem de ser exactamente um dos quatro
+      nomes.
+    """
+
+    _contraste = staticmethod(TestContrasteNosFundosReais._contraste)
+
+    def _cores(self):
+        """Os tokens do bloco [data-pele=novo], que são os que contam --
+        o CSS antigo continua a declarar os seus, e apanhar os dois
+        misturava duas paletas."""
+        m = re.search(r"\[data-pele=novo\]\{(.*?)\}", radar.CSS_NOVO, re.S)
+        self.assertIsNotNone(m, "o bloco [data-pele=novo] desapareceu")
+        return dict(re.findall(r"(--[a-z0-9-]+):\s*(#[0-9a-fA-F]{6})",
+                               m.group(1)))
+
+    # todos os fundos que existem: os três níveis de superfície e os
+    # quatro fundos de nota. É a lista que faltava em agosto e setembro.
+    FUNDOS = ("--fundo", "--sup", "--sup2", "--azul-fundo", "--verde-fundo",
+              "--laranja-fundo", "--verm-fundo")
+    TINTAS = ("--t1", "--t2", "--t3", "--t4", "--t5",
+              "--azul", "--verde", "--verm", "--laranja")
+
+    def test_toda_a_escala_passa_aa_sobre_todos_os_fundos(self):
+        cores = self._cores()
+        for token in self.TINTAS:
+            for fundo in self.FUNDOS:
+                c = self._contraste(cores[token], cores[fundo])
+                self.assertGreaterEqual(
+                    c, 4.5, "%s sobre %s dá %.2f" % (token, fundo, c))
+
+    def test_a_escala_de_texto_tem_um_patamar_so(self):
+        """O `--t6` aponta para o mesmo valor do `--t5`: um sexto
+        cinzento que só funciona em metade dos fundos é uma armadilha,
+        não um degrau, e foi o que partiu as `.coluna-pede`."""
+        cores = self._cores()
+        self.assertEqual(cores["--t6"], cores["--t5"])
+
+    def test_a_pele_nova_nao_mexe_em_ecra_nenhum_ainda(self):
+        """Fase 0: ele vê e decide antes de um ecrã mudar. Tudo o que
+        pinta está dentro de [data-pele=novo] / [data-tipo=*], e o BASE
+        ainda não carimba nenhum dos dois."""
+        self.assertNotIn("data-pele", radar.BASE)
+        for regra in re.findall(r"^([^@\s/][^{]*)\{", radar.CSS_NOVO, re.M):
+            self.assertTrue(
+                "[data-pele=novo]" in regra or "[data-tipo=" in regra,
+                "regra fora do âmbito da amostra: %r" % regra.strip())
+
+    def test_as_fontes_vem_da_propria_aplicacao(self):
+        self.assertNotIn("https://", radar.CSS_NOVO)
+        for nome in radar.TIPOS:
+            self.assertIn("/tipo/" + nome, radar.CSS_NOVO)
+
+    def test_tipo_serve_a_lista_branca_e_recusa_o_resto(self):
+        cliente = radar.app.test_client()
+        for nome in radar.TIPOS:
+            r = cliente.get("/tipo/" + nome)
+            self.assertEqual(r.status_code, 200, nome)
+            self.assertEqual(r.headers["Content-Type"], "font/woff2")
+            r.close()   # o send_file deixa o ficheiro aberto senão
+        for fora in ("radar.py", "..%2Fradar.py", "config.json",
+                     "inter.woff2.bak", "inter.WOFF2"):
+            self.assertEqual(cliente.get("/tipo/" + fora).status_code, 404,
+                             fora)
+
+    def test_a_amostra_desenha_se(self):
+        cliente = radar.app.test_client()
+        for pedido in ("/amostra", "/amostra?tipo=plex",
+                       "/amostra?tipo=sistema&pele=velho",
+                       "/amostra?tipo=inventado"):
+            r = cliente.get(pedido)
+            self.assertEqual(r.status_code, 200, pedido)
+            corpo = r.get_data(as_text=True)
+            self.assertIn("Amostra do desenho", corpo)
+            self.assertNotIn("https://", corpo)
+        # o `tipo` inventado cai no de omissão em vez de ir para o HTML
+        self.assertIn('data-tipo="inter"',
+                      cliente.get("/amostra?tipo=inventado").get_data(
+                          as_text=True))
+
+    def test_os_cinco_botoes_existem_e_os_perigosos_comecam_em_contorno(self):
+        """A regra do design.md §5: um botão vermelho cheio numa lista de
+        vinte linhas é um alvo. Os dois que saem do fluxo começam em
+        contorno sobre a superfície e só se enchem ao passar ou ao
+        receber o foco."""
+        for classe in (".bt.forte", ".bt.ok", ".bt.cuidado", ".bt.perigo"):
+            self.assertIn("[data-pele=novo] " + classe, radar.CSS_NOVO, classe)
+        for classe in ("cuidado", "perigo"):
+            repouso = re.search(
+                r"\[data-pele=novo\] \.bt\.%s\{([^}]*)\}" % classe,
+                radar.CSS_NOVO).group(1)
+            self.assertIn("background:var(--sup)", repouso, classe)
+            self.assertIn(
+                "[data-pele=novo] .bt.%s:hover,"
+                "[data-pele=novo] .bt.%s:focus-visible" % (classe, classe),
+                radar.CSS_NOVO.replace("\n", ""), classe)
+
+
 class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
     """Marcar «interessa» ou «abandonar» fazia o POST e o cartão
     desaparecia da aba sem uma palavra.

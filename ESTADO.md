@@ -252,6 +252,27 @@ responderam a seguir. Nesse dia republicou-se também a release **`dados`** com 
 repositório antigo, e as tags locais `v1.0.0`, `v1.0.1` e `dados`,
 que o remoto já não tinha, foram apagadas.
 
+**A 16/09/2026 começou o trabalho do aspecto** («a aplicação tem
+aspecto de 2002 e eu quero 2026»). O caminho está escrito em
+**`docs/design.md`** e o que se vê está em **`/amostra`**, uma página
+que mostra os componentes todos num sítio — a letra, a paleta, a
+escala, os cinco botões, as etiquetas, a tabela, os formulários, os
+avisos e o selector da ranhura — com um selector para trocar entre
+**três letras** (Inter + Plex Mono, IBM Plex Sans + Plex Mono, e a do
+sistema, que é a de hoje) e entre a pele nova e a de hoje.
+**Nenhum ecrã mudou**: a camada nova vive toda dentro de
+`[data-pele=novo]`, que só a amostra carimba, e `TestPeleNova` guarda
+isso. As fontes são servidas da própria aplicação (`tipo/`, 124 KB,
+rota `/tipo/<nome>` com lista branca) — a regra de não pedir nada a
+domínio nenhum de fora mantém-se. Dois números do diagnóstico, medidos
+no browser sobre a base verdadeira: o CSS declara **dezanove tamanhos
+de letra** entre 9 e 34px sem escala nenhuma, e o `/calendario` desenha
+**48 870 células para mostrar 1 086 factos** — 2 MB de HTML e 87 000 px
+de altura, 98% vazios. A paleta nova está medida sobre **todos** os
+fundos que existem, não só sobre o papel: pior caso **4,52**, e a
+escala de texto passou a ter um patamar só em vez de dois, que era a
+armadilha que já partiu o contraste duas vezes. São **918 testes**.
+
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
 («Alteração do Anúncio de procedimento n.º …») ligadas ao original e
