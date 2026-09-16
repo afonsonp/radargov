@@ -258,8 +258,16 @@ aspecto de 2002 e eu quero 2026»). O caminho está escrito em
 que mostra os componentes todos num sítio — a letra, a paleta, a
 escala, os cinco botões, as etiquetas, a tabela, os formulários, os
 avisos e o selector da ranhura — com um selector para trocar entre
-**três letras** (Inter + Plex Mono, IBM Plex Sans + Plex Mono, e a do
-sistema, que é a de hoje) e entre a pele nova e a de hoje.
+**três letras** e entre a pele nova e a de hoje. **A letra está
+escolhida: IBM Plex Sans + IBM Plex Mono**, decisão dele nesse dia
+depois de ver as três. A proposta escrita tinha sido a Inter, e o
+argumento que eu usei contra a Plex — «mais larga, perde-se
+densidade» — **estava errado**: medida com as duas fontes mesmo
+carregadas, a mesma frase a 13px dá 637,3px em Inter contra 602,6px em
+Plex, e mesmo ao mesmo tamanho óptico (a Plex tem altura-de-x 52
+contra 54) a Plex continua 1,8% mais estreita. Das três é a que cabe
+mais texto por linha. A consequência é a escala subir meio pixel —
+11,5 / 12,5 / 13,5 / 15 / 17,5 / 25 — para repor o tamanho aparente.
 **Nenhum ecrã mudou**: a camada nova vive toda dentro de
 `[data-pele=novo]`, que só a amostra carimba, e `TestPeleNova` guarda
 isso. As fontes são servidas da própria aplicação (`tipo/`, 124 KB,

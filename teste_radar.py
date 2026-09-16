@@ -7158,7 +7158,7 @@ class TestPeleNova(unittest.TestCase):
             self.assertIn("Amostra do desenho", corpo)
             self.assertNotIn("https://", corpo)
         # o `tipo` inventado cai no de omissão em vez de ir para o HTML
-        self.assertIn('data-tipo="inter"',
+        self.assertIn('data-tipo="plex"',
                       cliente.get("/amostra?tipo=inventado").get_data(
                           as_text=True))
 
