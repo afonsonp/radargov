@@ -10519,17 +10519,20 @@ LISTA_JS = """<script>
     window.scrollTo(0, parseInt(guardado, 10) || 0);
   }
 })();
-// O painel dos filtros lembra-se de ter ficado aberto: quem abriu os
-// filtros uma vez quer encontra-los abertos, e quem nunca abriu nao.
-(function () {
-  var d = document.getElementById('painel-filtros');
-  if (!d) return;
-  var chave = 'radar-filtros-abertos';
-  try { if (localStorage.getItem(chave) === '1') d.open = true; } catch (x) {}
-  d.addEventListener('toggle', function () {
-    try { localStorage.setItem(chave, d.open ? '1' : '0'); } catch (x) {}
-  });
-})();
+// O painel dos filtros NAO se lembra de ter ficado aberto (16/09/2026,
+// fase 5). Lembrava-se, em `localStorage`, para sempre e em todas as
+// abas: bastava filtrar uma vez, num dia qualquer, para a lista abrir
+// com o painel aberto todos os dias a partir dai. Medido na instalacao
+// dele: com a marca posta o primeiro cartao comecava aos 409px, e sem
+// ela aos 284 -- 125px, mais do que um cartao inteiro, por uma marca que
+// ninguem sabia que tinha.
+//
+// O sinal certo ja existe e e do servidor: o painel abre quando HA
+// filtro aplicado (`filtro_em_uso != "estado=" + aba`). Uma memoria por
+// cima disso nunca ajuda -- so desfaz o recolhimento que a
+// UX-Auditoria pediu, que existia precisamente porque a lista abria com
+// 60% do ecra em filtros. E a mesma razao por que o "?" do titulo
+// tambem nao tem memoria (fase 2).
 // Teclado na lista (UX-Auditoria, Parkinson): j/k anuncio seguinte e
 // anterior, i interessa, a abandonar (abre a caixa do motivo), Enter
 // abre a ficha. Triar vinte cartoes era vinte vezes levar o rato a dois
@@ -11632,12 +11635,14 @@ def _lista_de_anuncios():
     conta += " &middot; %s na base" % mil(total)
     if porler:
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
-    # a aba diz o que o seu recorte faz -- o numero nao pode parecer o
-    # acervo todo sem o ser (P4)
-    if estado_actual == ENTRADA_DA_ESCADA[0]:
-        conta += " &middot; só o que ainda dá para responder, e por decidir"
-    elif estado_actual == CEMITERIO_DA_ESCADA[0]:
-        conta += " &middot; o prazo passou e ninguém chegou a olhar"
+    # A DEFINICAO da aba saiu desta linha a 16/09/2026 (fase 5): estava
+    # aqui e outra vez no "?" do titulo, quase palavra por palavra, e a
+    # fase 2 decidiu que o texto que explica vive num sitio so.
+    #
+    # O que o P4 da UX-Auditoria pedia continua cumprido pelo "%s na
+    # base" que vem imediatamente antes: e esse que impede o 1 268 de
+    # parecer o acervo todo. Era a definicao que estava a mais, nao o
+    # denominador.
 
     # Os avisos da ultima verificacao. O ficheiro AVISOS.txt serve para
     # quem nao tem o painel aberto; aqui e para quem tem, e da o caminho

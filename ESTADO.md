@@ -333,7 +333,7 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**945 testes**.
+**946 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
@@ -344,6 +344,18 @@ registo de a que fomos», «Parecido = tem em comum estes termos», «de
 3 983 ao todo», «o preço contratual é o de partida». Saiu também um
 erro latente que o teste destapou: um anúncio sem `url` derrubava a
 ficha inteira com um 500.
+
+**E o segundo ecrã da fase 5, a lista dos concursos, onde o maior ganho
+foi apagar código.** O painel de filtros lembrava-se em `localStorage`
+de ter ficado aberto — para sempre e em todas as abas —, e isso desfazia
+o recolhimento que a UX-Auditoria pediu: medido, **409 px até ao
+primeiro cartão com a marca posta e 284 sem ela**, 125 px e mais do que
+um cartão inteiro. O sinal certo já era o do servidor (abre quando há
+filtro). Saiu também a definição da aba da linha do resumo, que estava
+lá e outra vez no «?» do título. Duas coisas foram medidas e **não**
+mexidas: as etiquetas do cartão não são ruído (o tipo são 12 «Anúncio
+de procedimento» e 8 «Consulta preliminar» em 20) e o teclado
+`j k i a Enter` não se partiu com a mudança de endereço.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
