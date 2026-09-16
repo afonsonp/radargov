@@ -6,8 +6,13 @@ dá-me um caminho, não uma opinião por ecrã».
 
 Este ficheiro é a decisão. O que se vê está em **`/amostra`**, que
 mostra os componentes todos num sítio e deixa trocar o lettering e a
-pele para comparar. **Nenhum ecrã muda enquanto ele não disser qual
-serve.**
+pele para comparar.
+
+**As fases 0 e 1 estão feitas** (16/09/2026): ele viu a amostra,
+escolheu a letra («prefiro a segunda, a do IBM») e disse «avança». A
+camada está aplicada aos ecrãs todos. O diagnóstico da §1 descreve o
+que **estava** antes disso — é o registo do que se mediu, não o estado
+de hoje. A ordem do que falta está na §11.
 
 As medidas de interface anteriores estão em
 `docs/historico/UX-Auditoria.md` (2/09/2026) e as regras que já
@@ -256,6 +261,29 @@ por bloco** (Von Restorff, medido na UX-Auditoria). Com cinco classes é
 mais fácil quebrá-la por distracção, por isso: `.bt.forte` e `.bt.ok`
 são os únicos cheios, e **num bloco só pode haver um cheio**.
 
+### O `.mini` é o botão da linha, e tem as mesmas cinco classes
+
+`.bt` é o botão **da página**; `.mini` é o botão **da linha**. A
+diferença não é só o tamanho: numa lista de vinte linhas com dois
+botões cada, encher quarenta botões de cor faz quarenta alvos e
+hierarquia nenhuma. Por isso **no `.mini` a regra dos perigosos vale
+para todos**: contorno com a cor do significado, e enche ao passar por
+cima ou ao receber o foco. Cheio só o `.bt.forte` e o `.bt.ok`, que são
+um por bloco.
+
+E o `.mini` **deixou de ficar vermelho ao passar por cima**. Ficava, em
+todos — no «ir» do selector de ranhura, no «desfazer», no «X lotes» —,
+que é o ponto (c) do diagnóstico em estado puro: a cor de alarme a sair
+em coisas que não alarmam nada, e por isso a não querer dizer nada onde
+devia.
+
+Isso destapou um erro escondido. O botão que **apaga uma conta** em
+Configurações › Conta era um `.mini` simples, e só *parecia* certo
+porque o `.mini` ficava vermelho em tudo. Tirado esse vermelho, ficava
+igual ao «desfazer». Leva agora `.mini.perigo`, e o que o marca é a
+classe e não um acidente — com teste
+(`test_quem_apaga_uma_conta_leva_a_classe_do_perigo`).
+
 ---
 
 ## 6. A escala tipográfica
@@ -425,18 +453,29 @@ primeiro item da barra.
 
 ## 11. A ordem de trabalho
 
-| Fase | O que é | Muda ecrãs? |
-|---|---|---|
-| **0** | `docs/design.md` e `/amostra` — as fontes, a paleta, os botões, a escala | **Não** |
-| **1** | Aplicar a camada: fontes, tokens, escala, botões. Uma bandeira que se liga de uma vez | Todos, ao mesmo tempo |
-| **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` |
-| **3** | O calendário (§8) | Um |
-| **4** | A abertura (§10) | Um novo, e a navegação |
-| **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez |
+| Fase | O que é | Muda ecrãs? | Estado |
+|---|---|---|---|
+| **0** | `docs/design.md` e `/amostra` — as fontes, a paleta, os botões, a escala | **Não** | **feita** 16/09 |
+| **1** | Aplicar a camada: fontes, tokens, escala, botões | Todos, ao mesmo tempo | **feita** 16/09 |
+| **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | a seguir |
+| **3** | O calendário (§8) | Um | |
+| **4** | A abertura (§10) | Um novo, e a navegação | |
+| **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | |
 
-A fase 0 é o que está feito. **Cada fase corre na instalação dele
-antes de se dizer que está feita** — com os 209 895 anúncios, não com
-três linhas de ensaio.
+**Cada fase corre na instalação dele antes de se dizer que está
+feita** — com os 209 895 anúncios, não com três linhas de ensaio.
+
+A **fase 1** foi três linhas de código e não uma: os moldes são
+**três**, não um. O `BASE` monta a barra e lê a sessão, mas a página de
+entrar (`PAGINA_ENTRAR`) e as de erro (`PAGINA_ERRO`) vivem fora dele
+de propósito — um 500 a meio do `BASE` dava outro 500 em cima do
+primeiro. Carimbar só o `BASE` deixava o login e os erros com o aspecto
+antigo, que é o género de coisa que ninguém vê até ao dia em que vê.
+`TestPeleNova` passou a exigir os três.
+
+E a fase 1 desfaz-se apagando dois atributos: é por isso que o `CSS`
+antigo fica como estava, com os testes que o medem intactos, e que
+nenhuma regra do `CSS_NOVO` pode ficar fora do âmbito.
 
 ---
 

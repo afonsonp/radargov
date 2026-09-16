@@ -11,6 +11,8 @@
   "detalhes_por_volta": 100,
   "relidos_por_volta": 50,
   "dias_urgente": 8,
+  "nome_da_casa": "",
+  "nif_da_casa": "",
   "interesse_activo": false,
   "interesse_cpv": "",
   "interesse_cpv_excl": "",
@@ -24,7 +26,7 @@
     "porta": 587,
     "hora_resumo": "17:00"
   },
-  "triagem_no_git": false,
+  "triagem_no_git": true,
   "vortal_preliminares": true,
   "detalhe_dias": 60,
   "modelo_pecas": "",

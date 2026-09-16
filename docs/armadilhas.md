@@ -1714,16 +1714,24 @@ As regras de desenho da casa. As medidas estão em
 botões ou no calendário.
 
 - **A camada nova de aspecto está toda dentro de `[data-pele=novo]`, e
-  só a `/amostra` a carimba** (16/09/2026, fase 0 do `docs/design.md`).
+  os moldes que a carimbam são TRÊS** (16/09/2026, fases 0 e 1 do
+  `docs/design.md`): `BASE`, `PAGINA_ENTRAR` e `PAGINA_ERRO`. As duas
+  últimas vivem fora do `BASE` de propósito — um 500 a meio dele dava
+  outro 500 em cima do primeiro —, e por isso carimbar só o `BASE`
+  deixava o login e os erros com o aspecto antigo. `TestPeleNova` exige
+  os três. A folha que os três recebem é o `CSS_TUDO` (`CSS` +
+  `CSS_NOVO`), juntado uma vez e não a cada pedido.
   O `CSS_NOVO` vive a seguir ao `CSS` e **nenhuma regra dele pode ficar
   fora desse âmbito** — `TestPeleNova` percorre-as e falha se alguma
-  escapar, porque uma regra solta mudava os ecrãs todos antes de ele
-  ter decidido. A fase 1 é carimbar `data-pele="novo"` no `<html>` do
-  `BASE` e mais nada: o truque é os tokens **antigos** (`--papel`,
-  `--creme`, `--linha2`) apontarem para os valores novos, o que faz as
-  1196 linhas do `CSS` herdarem a paleta sem se tocar numa regra. A
-  amostra não passa pelo `envolver()` de propósito — é a única página
-  que precisa de escrever atributos no `<html>`. E leva um
+  escapar, porque uma regra solta pinta na mesma com os atributos
+  tirados, e isso tira o caminho de volta: a fase 1 tem de se desfazer
+  apagando dois atributos, e mais nada. O truque é os tokens
+  **antigos** (`--papel`, `--creme`, `--linha2`) apontarem para os
+  valores novos, o que faz as 1196 linhas do `CSS` herdarem a paleta
+  sem se tocar numa regra — e é por isso que o `CSS` antigo fica como
+  estava, com os testes que o medem intactos. A amostra não passa pelo
+  `envolver()` de propósito — é a única página que escolhe a pele e a
+  letra pela query string. E leva um
   `.topo{position:static}` na folha dela: `.am-topo` e `.topo` são dois
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
@@ -1735,6 +1743,26 @@ botões ou no calendário.
   caminho nenhum a juntar à mão. Um ficheiro novo entra lá, não no
   `startswith`. A regra de não pedir nada a domínio nenhum de fora
   mantém-se, e o CSP continua em `font-src 'self'`.
+
+- **O `.mini` é o botão da LINHA, e não fica vermelho ao passar por
+  cima.** Ficava, em todos — no «ir» do selector, no «desfazer», no «X
+  lotes» —, e isso escondeu um erro: o botão que **apaga uma conta**
+  era um `.mini` simples, e só parecia certo por acidente. Leva agora
+  `.mini.perigo`. A regra do `.mini` é a dos perigosos aplicada a
+  todos: **contorno com a cor do significado, enche ao passar ou ao
+  receber o foco** — cheio só o `.bt.forte` e o `.bt.ok`, que são um
+  por bloco. Numa lista de vinte linhas com dois botões cada, quarenta
+  botões cheios são quarenta alvos e hierarquia nenhuma. Um botão de
+  linha novo escolhe uma das cinco classes; `.mini` sem sufixo quer
+  dizer «não tem significado», não «ainda não decidi».
+
+- **O separador de milhares aperta-se no número grande, e o caractere
+  não se troca.** O `mil_pt()` usa um espaço inquebrável de propósito
+  (com um normal, o browser parte «1 363 300» ao fim da linha), mas a
+  30px esse espaço tem a largura de um algarismo e «209 903» lê-se como
+  dois números. O `.kpi .v` leva `word-spacing:-.3em`, e mais nada: a
+  11 ou 12px o espaço está certo, e o `mil_pt()` serve também a consola
+  e os dois CSV.
 
 - **A escala de texto nova tem um patamar só.** A antiga tinha dois —
   `--t1..--t4` passavam AA em todo o lado e `--t5`/`--t6` só nalguns —
