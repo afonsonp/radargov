@@ -1736,6 +1736,25 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **As colunas da lista das propostas seguem a RANHURA.** A regra é do
+  CRM — um campo pertence a um estado e a mais nenhum — e a lista não a
+  seguia. O «Proposto» antes do Submetido não está vazio por falta de
+  preenchimento: é **impossível** (`ESTADOS_COM_PROPOSTO`), e uma coluna
+  de travessões que nunca poderá ter nada é uma pergunta sem resposta.
+  «Lote» e «Responsável» **ficam**: estão vazios por não estarem
+  preenchidos, e esconder a coluna tirava o sítio onde se vê que faltam.
+  Uma coluna que saia do cabeçalho tem de sair da linha — desalinha a
+  tabela toda e não dá erro nenhum; há teste que conta os dois.
+
+- **Nenhum teste lê o `config.json` verdadeiro.** O `BaseTemporaria`
+  aponta o `CONFIG` e o `BASE_DIR` para a pasta temporária. Sem isso o
+  **uso normal da aplicação parte a bateria**: apanhado a 16/09/2026,
+  quando ele ligou o Interesse no painel e três testes da escada
+  passaram a contar 0 em vez de 4, porque o recorte por CPV escondia os
+  fixtures. E não é só um vermelho — o hook `testes_antes_do_commit.py`
+  trava o commit, com a causa num ficheiro que ninguém associa aos
+  testes.
+
 - **O `SECCOES_CONFIG` tem cinco colunas, e a quinta diz se a secção
   GRAVA alguma coisa.** Os Indicadores não gravam nada — zero campos —
   e ficam apartados no fim do menu por um risco. A ordem do menu é a do

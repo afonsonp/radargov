@@ -8,7 +8,7 @@ Este ficheiro é a decisão. O que se vê está em **`/amostra`**, que
 mostra os componentes todos num sítio e deixa trocar o lettering e a
 pele para comparar.
 
-**As fases 0 a 4 estão feitas** (16/09/2026): ele viu a amostra,
+**As seis fases estão feitas** (16/09/2026): ele viu a amostra,
 escolheu a letra («prefiro a segunda, a do IBM») e disse «avança». A
 camada está aplicada aos ecrãs todos. O diagnóstico da §1 descreve o
 que **estava** antes disso — é o registo do que se mediu, não o estado
@@ -528,7 +528,7 @@ escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
 | **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | **feita** 16/09 |
 | **3** | O calendário (§8) | Um | **feita** 16/09 |
 | **4** | A abertura (§10) | Um novo, e a navegação | **feita** 16/09 |
-| **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | a decorrer |
+| **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | **feita** 16/09 |
 
 ### Fase 5 · os ecrãs, um a um
 
@@ -538,6 +538,7 @@ escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
 | **Lista dos concursos** | 16/09 | Saiu a memória do painel de filtros (−125px); a definição da aba saiu da linha do resumo |
 | **Mercado** | 16/09 | Saiu a duplicação barra/abas; a pergunta dobra-se quando já foi feita (−182px) |
 | **Configurações** | 16/09 | Os Indicadores deixaram de ser tratados como afinação; o subtítulo era falso |
+| **Lista das propostas** | 16/09 | As colunas seguem a ranhura; os testes deixaram de ler o `config.json` dele |
 
 **Cada fase corre na instalação dele antes de se dizer que está
 feita** — com os 209 895 anúncios, não com três linhas de ensaio.
@@ -726,6 +727,49 @@ carrega os quatro números do negócio e aponta aos Indicadores para os
 decompor, os Indicadores talvez pertençam ao **Hoje** e não às
 Configurações. É uma mudança de navegação, não de aspecto, e por isso
 não se fez de passagem.
+
+## 11f. A lista das propostas (fase 5, quinto ecrã)
+
+**As mesmas oito colunas nas oito ranhuras**, e a regra que faltava era
+do próprio CRM: um campo pertence a um estado e a mais nenhum
+(`_campos_que_a_ranhura_pede()`, que a ficha já seguia).
+
+O caso que importa é o **«Proposto» antes do Submetido**. Não está vazio
+por falta de preenchimento — é **impossível**: o `ESTADOS_COM_PROPOSTO`
+diz que o preço proposto só existe a partir do Submetido, e o
+`docs/historico/CRM.md` escreve que «perguntar o preço proposto antes de
+haver proposta é perguntar por adivinhas». Uma coluna de travessões que
+nunca poderá ter nada é uma pergunta sem resposta possível, repetida em
+cada linha. Passa a aparecer só de Submetido para a frente.
+
+O que **não** se esconde: «Lote» e «Responsável» estão vazios por não
+estarem *preenchidos*, e isso é outra coisa — podem ter valor, e
+esconder a coluna tirava o sítio onde se vê que faltam.
+
+### E um defeito na bateria, que apareceu por acidente
+
+A meio deste ecrã três testes da escada começaram a falhar, e o diff não
+os podia ter tocado. A causa: **os testes liam o `config.json`
+verdadeiro dele**. Ele estava a usar o painel ao mesmo tempo — ligou o
+Interesse — e o recorte por CPV passou a esconder os anúncios dos
+fixtures, que não têm CPV nenhum. Três testes a contar 0 em vez de 4.
+
+Não é um teste frágil, é pior: o hook `testes_antes_do_commit.py` trava
+o commit com testes a falhar, e a causa está num ficheiro que ninguém
+associa aos testes. **O uso normal da aplicação podia bloquear o
+trabalho no código.**
+
+O `BaseTemporaria` passou a apontar o `CONFIG` e o `BASE_DIR` para a
+pasta temporária, como a `TestConfiguracoes` já fazia por si. Agora é de
+todos, e nenhum teste depende dos dados dele.
+
+### E a armadilha do processo velho, outra vez
+
+A primeira verificação no ecrã mostrou a coluna «Proposto» ainda lá, em
+«Não fomos». A tentação era procurar o erro no código. O `CLAUDE.md`
+manda outra coisa: **comparar a hora de arranque do processo com a da
+última gravação do ficheiro.** Processo às 16:09, ficheiro às 16:50 — eu
+não tinha reiniciado o painel. Reiniciado, correcto.
 
 ---
 
