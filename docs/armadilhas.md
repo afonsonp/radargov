@@ -1736,6 +1736,23 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **O calendário é por DIA, e as células são sempre 42** (16/09/2026,
+  fase 3 do `docs/design.md`). Era uma grade de «uma linha por concurso
+  × uma coluna por dia» — a forma de um Gantt, que serve para
+  **intervalos**; um prazo é um dia. Medido: 48 870 células para
+  mostrar 1 086 factos, 2,0 MB, 86 915 px. A propriedade que impede a
+  forma antiga de voltar é **as células não dependerem do número de
+  linhas**, e é o que `TestCalendarioEPorDiaENaoUmGantt` fixa. Três
+  coisas a não desfazer: a grade **começa sempre a uma segunda** (a
+  janela é um número inteiro de semanas, não «45 dias a partir de
+  hoje»); a **urgência é do dia** e não de cada linha, porque no mesmo
+  dia todas são igualmente urgentes; e o **«+N» abre no sítio** com um
+  `<details>` e **não liga a `/?de=X&ate=X`** — esses dois filtros são
+  por `data_pub` e não por `prazo`, e a lista que abriam não era a que
+  o número prometia. Abaixo de 900px a grade rola dentro de si
+  (`min-width:840px`): sete colunas em 375px dão 49px e o título sai
+  «Ex…», que é a mesma avaria do calendário antigo.
+
 - **As fontes são servidas de `tipo/`, por lista branca, e a rota é
   aberta.** `/tipo/<nome>` está nas `ROTAS_ABERTAS` **por prefixo** e
   não por igualdade (a página de entrar precisa da letra antes de haver
