@@ -373,6 +373,26 @@ coisas). O **Hoje saiu da barra e passou a ser o logótipo**, também a
 pedido dele: eram dois botões para o mesmo destino a 30px um do outro.
 São **969 testes**.
 
+**E depois ele disse «corrige todos esses»**, sobre as quatro coisas que
+tinham ficado por corrigir. As quatro fecharam-se no mesmo dia:
+
+- **O Mercado em gráficos levava 92 s a frio.** Duas causas, medidas: o
+  recorte por CPV usava `LIKE 'x%'`, que é insensível a maiúsculas e por
+  isso **não usa o índice** (2,83 s de varredura contra **0,03 s** com
+  `GLOB 'x*'`, mesmo resultado); e o «Quem ganha» ia buscar a `chave` à
+  tabela uma vez por cada um dos 95 680 contratos, por o `ux_adj` não a
+  cobrir (6,19 s → **1,02 s** com um índice `(contrato_id, chave)`).
+  **92 s → ~5 s**, e sem cache nenhuma a envelhecer.
+- **A procura das propostas ignora acentos**, pelo `simplifica()` que já
+  estava registado como função da ligação — sem coluna normalizada nova.
+- **A linha da lista passou de 90 px a 57 px**, e todas iguais: são nove
+  propostas por ecrã em vez de quatro.
+- **Os campos de data dizem `dd/mm/aaaa`** em qualquer browser. O
+  `<input type="date">` desenha-se no idioma do browser e não há
+  atributo que o mude; passaram a texto, como o das tarefas já era.
+
+São **976 testes**.
+
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
 blocos com âncora — faltavam o **«A nossa proposta»**, que é onde o
