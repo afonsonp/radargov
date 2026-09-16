@@ -4027,25 +4027,40 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
     trava: repor os Indicadores na barra (saíram por decisão 11.6-A) ou
     voltar a separar a lista em duas páginas."""
 
-    def test_tres_itens_por_ordem_de_uso(self):
+    def test_dois_itens_por_ordem_de_uso(self):
         # a 8/09/2026 Alertas saiu do primeiro nivel: passou a seccao de
         # Configuracoes, que vive em baixo ao lado da zona de estado.
         # A 15/09/2026 "Anuncios" e "Em curso" fundiram-se em Concursos:
         # eram dois itens sobre a mesma escada, e enquanto o "Em curso"
         # foi `estado='interessa'`, sobre a mesma populacao -- que e a
         # pergunta que deu origem ao CRM.
-        # A 16/09/2026 entrou o "Hoje" (fase 4 do docs/design.md): a
-        # abertura deixou de ser a lista, e a lista passou a viver em
-        # radar.LISTA. O "Hoje" e a PRIMEIRA intencao -- chegar e ver o
-        # estado do negocio -- e por isso e o primeiro item e o "/".
-        self.assertEqual([n[0] for n in radar.NAV],
-                         ["inicio", "anuncios", "mercado"])
-        self.assertEqual([n[1] for n in radar.NAV],
-                         ["Hoje", "Concursos", "Mercado"])
-        self.assertEqual(radar.NAV[0][2], "/")
-        self.assertEqual(radar.NAV[1][2], radar.LISTA)
+        # A 16/09/2026 entrou o "Hoje" (fase 4 do docs/design.md) e SAIU
+        # no mesmo dia, por decisao dele: a abertura fica onde estava, e
+        # quem la leva e o logotipo. Um item ao lado da marca era o
+        # mesmo destino duas vezes a 30px de distancia.
+        self.assertEqual([n[0] for n in radar.NAV], ["anuncios", "mercado"])
+        self.assertEqual([n[1] for n in radar.NAV], ["Concursos", "Mercado"])
+        self.assertEqual(radar.NAV[0][2], radar.LISTA)
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertIn('href="/configuracoes"', html_)
+        # e o "Hoje" nao volta a ser um botao da barra
+        self.assertNotIn(">Hoje<", html_.split("</header>")[0])
+
+    def test_o_logotipo_e_o_hoje_e_acende_la(self):
+        """O caminho para a abertura e a marca (16/09/2026, decisao
+        dele). Como e o unico, tem de se ver que e um: leva o `title` que
+        diz o que e, e acende quando se esta la -- senao um logotipo e
+        uma decoracao, e ninguem carrega em decoracoes."""
+        cliente = radar.app.test_client()
+        cabeca = cliente.get("/").get_data(as_text=True).split("</header>")[0]
+        self.assertIn('class="logo on"', cabeca)
+        self.assertIn('title="Hoje', cabeca)
+        # e noutra pagina apaga-se
+        cabeca = (cliente.get(radar.LISTA).get_data(as_text=True)
+                  .split("</header>")[0])
+        self.assertIn('class="logo "', cabeca)
+        # as migalhas da abertura dizem "Hoje", e nao "Radar"
+        self.assertIn("<em>Hoje</em>", radar.migalhas_de("inicio"))
 
     def test_indicadores_fora_da_navegacao(self):
         chaves = {n[0] for n in radar.NAV}
@@ -4062,9 +4077,9 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         era o arrastar -- que só compensa quando se vê tudo ao mesmo
         tempo. Sobra o calendário, que é a única forma diferente de olhar
         para o mesmo: uma grelha de dias, para ver choques de datas."""
-        # o Calendário é vista do item Concursos, que desde 16/09/2026
-        # é o SEGUNDO da barra (o primeiro é o Hoje)
-        self.assertEqual([v[1] for v in radar.NAV[1][3]], ["Calendário"])
+        # o Calendário é vista do item Concursos, que é o primeiro da
+        # barra desde que o Hoje passou para o logotipo (16/09/2026)
+        self.assertEqual([v[1] for v in radar.NAV[0][3]], ["Calendário"])
         self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "anuncios")
         self.assertNotIn("quadro", radar.ITEM_DA_PAGINA)
 
@@ -5189,6 +5204,183 @@ class TestPropostasNoB15(BaseTemporaria):
         self.assertEqual((n, t), (2, 1))
 
 
+class TestCaminhoDeVoltaDaFicha(BaseTemporaria):
+    """A queixa dele, a 16/09/2026: «eu vejo a folha de concurso e se eu
+    carregar na seta para trás vou para o Hoje».
+
+    Não era um 404 nem um erro — `/` responde 200 —, era o botão do
+    caminho de volta a levar a outro sítio depois de a abertura ter
+    tomado o `/` na fase 4. É a avaria que se usa duas vezes e depois
+    não se usa mais, e por isso não aparece em teste nenhum de estado."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " prazo, estado, detalhe_lido, texto, url) VALUES "
+                      "(?,?,?,?,?,?,?,?,?)",
+                      ("70/2026", "Aquisição de consultoria", "IPL",
+                       "2026-09-01", "2099-12-30", "novo", 1, "1 - Objecto",
+                       "https://exemplo/70"))
+
+    def _volta(self, referrer):
+        with radar.app.test_request_context(
+                "/anuncio/70%2F2026",
+                headers={"Referer": referrer} if referrer else {}):
+            return radar.volta_a_lista()
+
+    def test_sem_referrer_volta_a_lista_e_nao_a_abertura(self):
+        self.assertEqual(self._volta(None), radar.LISTA)
+
+    def test_o_referrer_da_lista_traz_o_filtro_e_a_pagina(self):
+        self.assertEqual(
+            self._volta("http://localhost/concursos?estado=ganho&pag=3"),
+            radar.LISTA + "?estado=ganho&pag=3")
+
+    def test_o_calendario_tambem_e_lista_de_onde_se_veio(self):
+        self.assertEqual(self._volta("http://localhost/calendario"), "/calendario")
+
+    def test_vindo_da_abertura_a_seta_leva_a_lista(self):
+        """O Hoje não é uma lista: quem lá clicou numa tarefa e carrega
+        na seta quer os concursos, não voltar ao sítio de onde veio —
+        para isso há o botão do browser."""
+        self.assertEqual(self._volta("http://localhost/"), radar.LISTA)
+
+    def test_a_seta_da_ficha_aponta_mesmo_para_ali(self):
+        html_ = self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
+        self.assertIn("<a class='volta' href='%s'>" % radar.LISTA, html_)
+
+    def test_procurar_dentro_de_uma_ranhura_encontra_por_pedaco(self):
+        """O `para_like()` só ESCAPA os caracteres especiais — os
+        coringas põe-nos quem procura, e os outros quatro sítios que o
+        chamam põem-nos. Aqui faltavam, e por isso esta procura só
+        encontrava um título escrito por inteiro, letra por letra:
+        procurar «consult» numa ranhura com o título «Aquisição de
+        consultoria» dava zero, e o ecrã dizia «Nada em Ganho» por baixo
+        de uma aba a dizer 1."""
+        radar.criar_proposta(ref="70/2026", estado="ganho")
+        html_ = self.cliente.get(
+            radar.LISTA + "?estado=ganho&q=consult").get_data(as_text=True)
+        self.assertIn("1 proposta", html_)
+        self.assertIn("Aquisição de consultoria", html_)
+        # e pelo cliente também, que é o outro campo que a caixa promete
+        html_ = self.cliente.get(
+            radar.LISTA + "?estado=ganho&q=IP").get_data(as_text=True)
+        self.assertIn("Aquisição de consultoria", html_)
+
+    def test_procura_sem_resultados_nao_diz_que_a_ranhura_esta_vazia(self):
+        """A ranhura pode estar cheia: o que está vazio é a RESPOSTA.
+        «Nada em Ganho» por baixo de uma aba a dizer 13 é o ecrã a
+        discordar de si próprio a dois centímetros de distância."""
+        radar.criar_proposta(ref="70/2026", estado="ganho")
+        html_ = self.cliente.get(
+            radar.LISTA + "?estado=ganho&q=zzzz").get_data(as_text=True)
+        self.assertIn("zzzz", html_)
+        self.assertIn("Ver as 1", html_)
+        self.assertNotIn("Põe um concurso aqui a partir da ficha dele", html_)
+
+    def test_procurar_numa_ranhura_nao_salta_para_a_abertura(self):
+        """O `action` do formulário da procura ficou em `/` na mudança de
+        endereço: escrever no campo e carregar em «procurar» dava na
+        abertura, com a pergunta na barra de endereço e nenhuma resposta
+        no ecrã. Um `action` não é um `href` e por isso escapou à
+        varredura das nove ligações."""
+        radar.criar_proposta(ref="70/2026", estado="submetido")
+        html_ = self.cliente.get(
+            radar.LISTA + "?estado=submetido").get_data(as_text=True)
+        self.assertIn("<form class='pf' method='get' action='%s'>" % radar.LISTA,
+                      html_)
+        self.assertNotIn("<form class='pf' method='get' action='/'>", html_)
+
+
+class TestNenhumEcraDa500(BaseTemporaria):
+    """Abre TODAS as páginas sem parâmetros e exige que nenhuma dê 500.
+
+    Existe por causa da armadilha do `%`: `"a" + LISTA + "b %s" % x`
+    aplica a formatação só ao último pedaço, e a linha parte-se em
+    tempo de execução — não de importação. Está escrita nas armadilhas
+    desde a fase 4 e foi cometida **outra vez** a 16/09/2026, a corrigir
+    as ligações que apontavam para a abertura: o
+    `/configuracoes/interesse` passou a dar 500 e as 968 provas passaram
+    todas, porque nenhuma abria essa secção com o interesse ligado.
+
+    Não fixa a lista de rotas: percorre o `app.url_map`, e por isso uma
+    página nova entra aqui sozinha."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        # com o interesse LIGADO: era essa a metade que faltava, e a
+        # secção só monta a frase do «em vigor» quando ele existe
+        radar.gravar_config({"interesse_cpv": "72000000|48000000",
+                             "interesse_ligado": True})
+
+    # A única que fica de fora, e com o nome à vista para não se
+    # esquecer: o `/contratos/resumo` agrega o corpus inteiro do Portal
+    # BASE (2 milhões de contratos, 2,5 GB) e leva 92 s a frio — sozinha
+    # valia mais do que a bateria toda. É também a única página da
+    # aplicação que demora isso, e isso é um problema dela e não deste
+    # teste; está apontado no BACKLOG.
+    LENTAS = ("/contratos/resumo",)
+
+    def test_nenhuma_pagina_sem_parametros_da_500(self):
+        caminhos = sorted({r.rule for r in radar.app.url_map.iter_rules()
+                           if "GET" in (r.methods or ())
+                           and "<" not in r.rule
+                           and r.rule not in self.LENTAS})
+        maus = []
+        for caminho in caminhos:
+            resposta = self.cliente.get(caminho)
+            if resposta.status_code >= 500:
+                maus.append((caminho, resposta.status_code))
+        self.assertEqual(maus, [])
+        # e o passeio é mesmo um passeio: se um dia a app ficar sem
+        # rotas, isto não pode passar por vazio
+        self.assertGreater(len(caminhos), 20)
+
+
+class TestClienteOuConcorrente(unittest.TestCase):
+    """«a "casa" deve ser na verdade "empresa" todas as outras são
+    concorrentes. ou clientes. deves fazer a diferenciação entre
+    clientes e concorrentes através da quantidade de compra e de venda»
+    — ele, a 16/09/2026.
+
+    O Portal BASE não tem campo nenhum a dizer o que uma entidade é: tem
+    os contratos dos dois lados, e é do peso de cada lado que o papel
+    sai. A função é pura de propósito — dois números entram, um papel
+    sai — para se poder provar sem corpus."""
+
+    def test_quem_compra_e_cliente(self):
+        # o Município de Lagos, medido na base dele: 263,9 M€ comprados
+        # contra 824 € ganhos
+        self.assertEqual(radar.papel_da_entidade(263_900_000, 824)[0],
+                         "cliente")
+
+    def test_quem_vende_e_concorrente(self):
+        self.assertEqual(radar.papel_da_entidade(0, 1_200_000)[0],
+                         "concorrente")
+
+    def test_quem_faz_as_duas_coisas_nao_leva_lado(self):
+        """Uma ULS compra informática e ganha candidaturas. Dizer só um
+        dos lados era escolher qual mentir."""
+        self.assertEqual(radar.papel_da_entidade(1_000_000, 900_000)[0],
+                         "ambos")
+
+    def test_a_fronteira_e_a_folga_e_nao_o_maior(self):
+        folga = radar.FOLGA_DO_PAPEL
+        self.assertEqual(radar.papel_da_entidade(100 * folga, 100)[0],
+                         "cliente")
+        self.assertEqual(radar.papel_da_entidade(100 * folga - 1, 100)[0],
+                         "ambos")
+
+    def test_sem_contratos_nenhuns_nao_se_inventa_papel(self):
+        self.assertEqual(radar.papel_da_entidade(0, 0), ("", "", ""))
+        self.assertEqual(radar.papel_da_entidade(None, None)[0], "")
+
+
 class TestEscadaNaLista(BaseTemporaria):
     """A escada no ecrã (etapa 2 do CRM, 15/09/2026). A pergunta do
     Afonso era que o «Em curso» e a aba «interessados» mostravam o
@@ -5280,16 +5472,29 @@ class TestEscadaNaLista(BaseTemporaria):
         self.assertNotIn("Aquisição de software", entrada)
         self.assertNotIn("Consulta prévia de formação", entrada)
 
-    def test_a_lista_diz_quando_tem_mais_do_que_a_aba_conta(self):
-        """A aba conta anúncios com proposta; a lista traz também as que
-        não têm anúncio nenhum. Os dois números podem discordar, e a
-        regra da casa manda dizê-lo em vez de deixar o ecrã a mentir
-        baixinho."""
+    def test_a_aba_conta_exactamente_a_lista_que_abre(self):
+        """A aba contava ANÚNCIOS com proposta e a lista mostra
+        PROPOSTAS. Discordavam por três razões de uma vez — as propostas
+        feitas sobre uma republicação do DR (que a base do motor tira),
+        as que caem fora do interesse por CPV, e as que nem anúncio têm.
+        Visto no ecrã a 16/09/2026: «Por analisar 7» por cima de uma
+        lista de 11. A regra da empresa é que um número abre exactamente
+        a lista que o confirma."""
         radar.criar_proposta(entidade="IPL", titulo="Consulta prévia",
                              porque_sem_ref="consulta prévia")
         html_ = self._html(radar.LISTA + "?estado=analisar")
+        # a lista continua a dizer quais não vêm do DR: é um facto sobre
+        # ela, e não um desconto no número
         self.assertIn("sem anúncio do DR", html_)
-        self.assertIn("a aba conta só as que têm", html_)
+        self.assertNotIn("a aba conta só as que têm", html_)
+        with radar.liga() as c:
+            quantas = c.execute("SELECT COUNT(*) n FROM propostas "
+                                "WHERE estado='analisar'").fetchone()["n"]
+        with radar.app.test_request_context(radar.LISTA):
+            self.assertEqual(radar.contar_a_escada()["analisar"], quantas)
+        # e o número da aba é o número que a lista escreve no topo
+        self.assertIn("%d proposta%s" % (quantas, "" if quantas == 1 else "s"),
+                      html_)
 
     def test_uma_proposta_sem_anuncio_tem_ficha_propria(self):
         """Sem esta porta, a decisão D2 ficava escrita no plano e sem
@@ -5487,7 +5692,7 @@ class TestFecharOCicloComOBase(BaseTemporaria):
         self.assertIn("ROCHE", html_)
         self.assertIn("Ganhámos", html_)
         self.assertIn("Perdemos", html_)
-        self.assertIn("falta o NIF da casa", html_)
+        self.assertIn("falta o NIF da empresa", html_)
         # e a proposta continua onde estava
         self.assertEqual(radar.proposta(self.id_)["estado"], "submetido")
 
@@ -11186,7 +11391,10 @@ class TestNomeRadarGov(unittest.TestCase):
     sobre a barra escura dava 2,3:1."""
 
     def test_o_nome_e_radargov_nos_dois_sitios_e_o_gov_e_azul(self):
-        self.assertIn('<a class="logo" href="/">Radar<span>Gov</span></a>', radar.BASE)
+        # o logotipo ganhou a classe do estado aceso e o title a
+        # 16/09/2026, quando passou a ser o caminho para o Hoje
+        self.assertIn('Radar<span>Gov</span></a>', radar.BASE)
+        self.assertIn('class="logo %(inicio_on)s" href="/"', radar.BASE)
         self.assertIn('<div class="logo">Radar<span>Gov</span></div>', radar.PAGINA_ENTRAR)
         self.assertIn("RadarGov", radar.PAGINA_ENTRAR)
         self.assertNotIn("Radar<span>DR", radar.BASE + radar.PAGINA_ENTRAR)

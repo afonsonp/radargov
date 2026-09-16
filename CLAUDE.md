@@ -268,9 +268,12 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. Navegação por TRÊS intenções desde
-   16/09/2026: **Hoje** (`/`, a abertura — o estado do negócio e o que
-   há para fazer), **Concursos** (**`LISTA`** = `/concursos`, que é
+   lê da porta. Navegação por DUAS intenções mais
+   o logótipo, desde 16/09/2026. O **Hoje** (`/`, a abertura — o estado
+   do negócio e o que há para fazer) **não é um separador: é a marca**
+   («não quero um separador de hoje, quero que esse hoje esteja no
+   radargov, no logo» — ele, no mesmo dia em que a abertura nasceu). Os
+   dois itens são **Concursos** (**`LISTA`** = `/concursos`, que é
    constante e não literal, a lista única com as dez ranhuras da
    escada nas abas, mais a vista calendário `/calendario`; `/anuncios`
    e `/lista` redireccionam e `/quadro` já não existe) e **Mercado**
@@ -315,7 +318,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 110 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
+São 185 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

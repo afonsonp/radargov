@@ -1540,7 +1540,7 @@ def mover_proposta(id_, estado, quem=None):
     como fechado no trimestre em que se fechou.
     """
     if estado not in CHAVES_DA_CASA:
-        return False, "«%s» não é um estado da casa." % (estado or "")
+        return False, "«%s» não é um estado da empresa." % (estado or "")
     rotulo = estado_da_casa(estado)
     with liga() as c:
         antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
@@ -8560,8 +8560,14 @@ a:hover{color:var(--ink)}
  gap:6px 14px;padding:10px 20px;background:var(--ink);color:#fff;
  position:sticky;top:0;z-index:20;box-sizing:border-box}
 .marca{flex:none}
-.marca .logo{font:700 15px/1 var(--sans);letter-spacing:-.3px;color:#fff}
+/* O logotipo E o Hoje (16/09/2026, decisao dele). Leva a mesma pastilha
+   dos itens da barra quando esta aceso: sem ela, o unico caminho de
+   volta a abertura nao se distingue de uma marca decorativa, e quem la
+   esta nao sabe que ja la esta. */
+.marca .logo{display:block;padding:6px 8px;margin:-6px -8px;border-radius:5px;
+ font:700 15px/1 var(--sans);letter-spacing:-.3px;color:#fff}
 .marca .logo span{color:var(--azul-claro)}
+.marca .logo:hover,.marca .logo.on{background:var(--barra-on)}
 .barra nav{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;margin:0 0 0 8px;
  overflow-x:auto;scrollbar-width:none;min-width:0}
 .barra nav a{display:block;padding:7px 9px;border-radius:5px;white-space:nowrap;flex:none;
@@ -8623,8 +8629,14 @@ a:hover{color:var(--ink)}
 
 /* zona principal */
 main{flex:1;min-width:0;display:flex;flex-direction:column}
+/* O topo prende-se POR BAIXO da barra, e nao em cima dela: os dois em
+   `top:0` faziam o topo ficar escondido atras da barra escura (z-index
+   20 contra 5), e o que se perdia eram as migalhas e o "Verificar
+   agora" -- e, na ficha, metade do titulo com a seta de voltar. O
+   `--barra-h` e medido em JS porque a barra dobra em ecra estreito; o
+   50px e o recurso para quando o script nao corre. */
 .topo{padding:16px 34px 0;border-bottom:1px solid var(--linha);background:var(--creme);
- position:sticky;top:0;z-index:5}
+ position:sticky;top:var(--barra-h,50px);z-index:5}
 .migalhas{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .migalhas .b{display:flex;align-items:center;gap:8px;min-width:0;
  font:500 11.5px/1 var(--sans);color:var(--t3)}
@@ -8860,6 +8872,16 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
 .ent-cab{padding:20px 24px;margin-bottom:14px}
 .ent-cab .n{font:600 22px/1.25 var(--sans);color:var(--ink);letter-spacing:-.3px}
 .ent-cab .m{font:500 12px/1 var(--mono);color:var(--t5);margin-top:7px}
+/* Cliente ou concorrente. Duas cores e nao uma: o que se quer distinguir
+   ao correr o olho e o LADO DA MESA, e um selo neutro para os dois
+   obrigava a ler a palavra para saber qual e. O terceiro caso -- as que
+   sao as duas coisas -- fica sem cor de propósito: nao ha lado. */
+.ent-papel{display:inline-block;vertical-align:middle;margin-left:10px;
+ padding:4px 9px;border-radius:999px;border:1px solid var(--traco);
+ font:600 11px/1 var(--sans);letter-spacing:.2px;color:var(--t3);
+ white-space:nowrap}
+.ent-papel.cliente{color:var(--verde);border-color:var(--verde)}
+.ent-papel.concorrente{color:var(--laranja);border-color:var(--laranja)}
 .ent-nomes{margin-top:12px}
 .ent-nomes summary{cursor:pointer;font:400 11.5px/1.4 var(--sans);color:var(--t5)}
 .ent-nomes summary:hover{color:var(--ink)}
@@ -9446,6 +9468,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .hist{display:flex;gap:10px;align-items:baseline;padding:9px 0;
  border-top:1px solid var(--papel)}
 .hist .t{font:400 12px/1.4 var(--sans);color:var(--t2);min-width:0}
+.hist .t b{font-weight:600;color:var(--ink)}
 .hist .q{margin-left:auto;flex:none;font:400 10.5px/1 var(--mono);color:var(--t5)}
 
 /* As etiquetas: viviam no cartão do quadro e, com ele fora, vivem no
@@ -9695,11 +9718,23 @@ a.ct-l{color:var(--azul)}
 .kpi .d{font:500 11.5px/1.4 var(--sans);color:var(--t4)}
 .ind-grelha{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;
  align-items:start}
-.barras{display:flex;align-items:flex-end;gap:16px;height:180px}
-.barras .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:9px;
- height:100%;justify-content:flex-end}
+/* A coluna e uma GRELHA de tres faixas -- valor, barra, rotulo -- e nao
+   uma coluna flex (16/09/2026). Em flex, o `height:N%` da barra
+   resolvia-se contra os 180px do grupo e depois era travado pelo espaco
+   que sobrava depois do valor e do rotulo (137px, ou 76%): **qualquer
+   valor acima de 76% desenhava a mesma altura**. Medido no ecra da
+   abertura, com 94% e 78% a darem 136,8px os dois -- um grafico a
+   dizer que duas coisas diferentes sao iguais. Com `1fr` a faixa do
+   meio tem altura definida e a percentagem volta a ser proporcional. */
+.barras{display:flex;align-items:stretch;gap:16px;height:180px}
+.barras .col{flex:1;display:grid;grid-template-rows:auto 1fr auto;gap:9px;
+ justify-items:center;height:100%}
 .barras .v{font:600 12px/1 var(--mono);color:var(--ink)}
-.barras .b{width:100%;border-radius:4px 4px 0 0}
+/* A cor tinha de vir de `.graf .barras .b`, e havia barras fora do
+   `.graf` -- as do "Em jogo, por ranhura", que sairam para a abertura a
+   16/09/2026 e ficaram transparentes: altura certa, cor nenhuma. */
+.barras .b{width:100%;border-radius:4px 4px 0 0;align-self:end;
+ background:var(--azul)}
 .barras .l{font:400 11px/1.2 var(--sans);color:var(--t4);text-align:center}
 .saude{display:flex;flex-direction:column;gap:12px}
 /* A linha de saude tem de aguentar valores de qualquer comprimento: as
@@ -9969,7 +10004,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head
 <style>%(css)s</style></head><body>
 <div class="app">
 <header class="barra">
- <div class="marca"><a class="logo" href="/">Radar<span>Gov</span></a></div>
+ <div class="marca"><a class="logo %(inicio_on)s" href="/" title="Hoje &mdash; o estado do negócio e o que há para fazer">Radar<span>Gov</span></a></div>
  <nav>%(nav)s</nav>
  <div class="caixa">
   <a class="n conf %(conf_on)s" href="/configuracoes" title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
@@ -9989,6 +10024,18 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head
 </main>
 </div>
 <datalist id="pessoas">%(lista_pessoas)s</datalist>
+<script>
+/* A barra e o topo estavam os DOIS em sticky;top:0, e o topo ficava por
+   baixo: as migalhas e o "Verificar agora" desapareciam debaixo da
+   barra escura assim que se rolava, e na ficha o titulo com a seta de
+   voltar ficava a meio. Nao da para fixar a altura em CSS porque a
+   barra **dobra** (flex-wrap): 50px em ecra largo, 87px a 375px.
+   Mede-se, e o CSS usa a medida. */
+(function(){var b=document.querySelector('.barra');if(!b)return;
+ var p=function(){document.documentElement.style.setProperty(
+   '--barra-h', b.getBoundingClientRect().height + 'px')};
+ p(); addEventListener('resize', p);})();
+</script>
 %(script)s
 </body></html>"""
 
@@ -10028,8 +10075,15 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head
 # agora e outra pagina.
 LISTA = "/concursos"
 
-NAV = (("inicio", "Hoje", "/", ()),
-       ("anuncios", "Concursos", LISTA,
+# **O Hoje nao e um separador: e o logotipo** (16/09/2026, decisao dele
+# no mesmo dia em que a abertura nasceu -- "nao quero um separador de
+# hoje, quero que esse hoje esteja no radargov, no logo"). A abertura ja
+# era o destino da marca desde que ha barra; ter tambem um item ao lado
+# dela era o mesmo destino duas vezes a 30px de distancia, e fazia a
+# barra anunciar tres intencoes quando ha duas -- os concursos e o
+# mercado. A pagina `inicio` fica como esta, com o mesmo endereco; o que
+# sai e o botao. As migalhas dela vem do FORA_DA_BARRA.
+NAV = (("anuncios", "Concursos", LISTA,
         (("calendario", "Calendário", "/calendario"),)),
        # **O Mercado nao tem vistas agrupadas na barra** (16/09/2026,
        # fase 5). Tinha "Contratos" e "Renovacoes", que sao os MESMOS
@@ -10066,6 +10120,14 @@ ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
 # "Radar". A barra e hierarquia por cima das paginas, nao um nome novo
 # para elas.
 ITEM_DA_PAGINA.update({"contratos": "mercado", "renovacoes": "mercado"})
+
+# As paginas que NAO vivem em item nenhum da barra, e o nome com que se
+# apresentam nas migalhas. Sao duas e sao as duas de propositio: o Hoje
+# e o logotipo (ver o comentario do NAV) e as Configuracoes vivem no
+# canto oposto. Sem esta lista, `migalhas_de()` cai no recurso e escreve
+# "Radar" -- que e o nome da aplicacao, nao o desta pagina.
+FORA_DA_BARRA = {"inicio": ("Hoje", "/"),
+                 "configuracoes": ("Configurações", "/configuracoes")}
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -10106,11 +10168,11 @@ def migalhas_de(vista, folha=""):
                 passos = [(etiqueta, destino)]
                 break
     if not passos:
-        # a unica pagina fora da navegacao (os Indicadores eram outra;
-        # desde 13/09/2026 sao uma seccao de Configuracoes)
-        if vista != "configuracoes":
+        # as paginas fora da navegacao (FORA_DA_BARRA): as Configuracoes
+        # desde 13/09/2026, o Hoje desde que passou a ser o logotipo
+        if vista not in FORA_DA_BARRA:
             return "<em>%s</em>" % html.escape(folha or "Radar")
-        passos = [("Configurações", "/configuracoes")]
+        passos = [FORA_DA_BARRA[vista]]
 
     pedacos = []
     for etiqueta, destino in passos[:-1]:
@@ -10378,6 +10440,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
         "conf_on": "on" if activo == "configuracoes" else "",
+        # o logotipo E o Hoje, e acende como qualquer item da barra:
+        # sem sinal de estar aceso, o unico caminho de volta a abertura
+        # nao se distingue de uma marca decorativa
+        "inicio_on": "on" if activo == "inicio" else "",
         "nav": "".join(itens),
         "migalhas": migalhas,
         # O titulo, e o "?" so quando ha texto para ele guardar. Sem
@@ -11324,11 +11390,11 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
     porque a regra da casa e que um numero tem de abrir exactamente a
     lista que o confirma.
 
-    As oito da casa contam **anuncios com proposta naquele estado**, e
-    nao propostas: e o numero que o filtro da pagina sabe responder. A
-    lista delas mostra tambem as propostas sem anuncio (D2), por isso
-    pode ter MAIS linhas do que a aba diz -- e a `_lista_de_propostas()`
-    que o explica ao pe do numero, em vez de se calar.
+    As oito da casa contam **propostas**, porque e de propostas que a
+    lista delas e feita (`_lista_de_propostas()`). Contaram anuncios com
+    proposta ate 16/09/2026, e isso fazia o numero discordar da lista
+    sempre que houvesse uma proposta sobre uma republicacao do DR, uma
+    fora do interesse por CPV, ou uma sem anuncio nenhum (D2).
     """
     cfg = ler_config() if cfg is None else cfg
     if onde_base is None:
@@ -11342,6 +11408,24 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
     contas = {}
     with liga() as c:
         for chave, _ in ESCADA + (("", "Todos"),):
+            if chave in CHAVES_DA_CASA:
+                # **As oito da casa contam PROPOSTAS, e nao anuncios com
+                # proposta** (16/09/2026). Contavam anuncios, e por isso
+                # o numero discordava da lista que o botao abre por tres
+                # razoes de uma vez: a base do motor tira as
+                # republicacoes (uma proposta feita sobre uma alteracao
+                # do DR nao contava), o interesse por CPV escondia
+                # propostas da propria casa, e as propostas sem anuncio
+                # (D2) nunca la estiveram. Visto no ecra: a aba dizia
+                # "Por analisar 7" por cima de uma lista de 11.
+                #
+                # A lista desta ranhura e `_lista_de_propostas()`, que
+                # nao tem filtro de CPV nem de plataforma nenhum -- e por
+                # isso a conta certa e a mais simples que ha.
+                contas[chave] = c.execute(
+                    "SELECT COUNT(*) n FROM propostas WHERE estado=?",
+                    (chave,)).fetchone()["n"]
+                continue
             onde, valores = com_recorte(onde_base, list(valores_base),
                                         *recorte_da_lista(chave, cfg))
             contas[chave] = c.execute(
@@ -11744,7 +11828,7 @@ def _lista_de_anuncios():
         "consultas preliminares. <b>Por ver</b> é o que ainda dá para "
         "responder e ainda ninguém decidiu; o que expira sem ninguém "
         "olhar passa sozinho para o fim da escada. As oito ranhuras do "
-        "meio são o que a casa está a fazer.",
+        "meio são o que a empresa está a fazer.",
         conteudo, abas="".join(abas),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_do_motivo(),
@@ -11874,7 +11958,14 @@ def _lista_de_propostas():
         # alertas e os filtros guardados, e nao se lhe acrescenta um
         # recorte desta vista (armadilha do motor de filtros).
         onde.append("(titulo LIKE ? ESCAPE ? OR entidade LIKE ? ESCAPE ?)")
-        como = para_like(procura)
+        # **Com os `%`**. O `para_like()` so ESCAPA os caracteres
+        # especiais -- quem procura poe os coringas, e os outros quatro
+        # sitios que o chamam poem-nos. Aqui faltavam, e por isso esta
+        # procura so encontrava um titulo escrito por inteiro, letra por
+        # letra: procurar "manuten" numa ranhura com cinco titulos que o
+        # contem dava zero, com o ecra a dizer "Nada em Ganho" por baixo
+        # de uma aba a dizer 13. Nunca funcionou (16/09/2026).
+        como = "%" + para_like(procura) + "%"
         valores += [como, ESCAPE_LIKE, como, ESCAPE_LIKE]
     with liga() as c:
         linhas = c.execute(
@@ -11891,9 +11982,10 @@ def _lista_de_propostas():
                 "SELECT ref, prazo FROM anuncios WHERE ref IN (%s)"
                 % ",".join("?" * len(refs)), refs)}
     contas = contar_a_escada(cfg=cfg)
-    # A aba conta anuncios com proposta; esta lista traz tambem as que
-    # nao tem anuncio nenhum. Os dois numeros podem discordar, e a regra
-    # da casa manda dize-lo em vez de deixar o ecra a mentir baixinho.
+    # A aba conta propostas desde 16/09/2026, e por isso o numero dela e
+    # o numero desta lista -- sem ressalva nenhuma a fazer. As sem
+    # anuncio (D2) continuam a dizer-se, que e um facto sobre a lista e
+    # nao um desconto no numero.
     sem_anuncio = sum(1 for p in linhas if not p["ref"])
     if linhas:
         corpo = ("<div class='cx tab-cx'><table class='tab-contratos tab-lista'>"
@@ -11902,6 +11994,17 @@ def _lista_de_propostas():
                             for t in colunas_da_ranhura(estado_actual)),
                     "".join(linha_da_pipeline(p, urgente, prazos)
                             for p in linhas)))
+    elif procura:
+        # A ranhura pode estar cheia: o que esta vazio e a RESPOSTA. Dizer
+        # "Nada em Ganho" por baixo de uma aba a dizer 13 e o ecra a
+        # discordar de si proprio a dois centimetros de distancia, e
+        # manda arrumar o que esta arrumado em vez de apagar a procura.
+        corpo = ("<div class='vazio'>Nada em &ldquo;%s&rdquo; com "
+                 "&ldquo;%s&rdquo;. <a href='%s?estado=%s'>Ver as %s</a>."
+                 "</div>"
+                 % (html.escape(estado_da_casa(estado_actual)),
+                    html.escape(procura), LISTA, estado_actual,
+                    mil_pt(contas.get(estado_actual, 0))))
     else:
         corpo = ("<div class='vazio'>Nada em &ldquo;%s&rdquo;. "
                  "Põe um concurso aqui a partir da ficha dele, ou "
@@ -11911,14 +12014,18 @@ def _lista_de_propostas():
     conta = "%s %s" % (mil_pt(len(linhas)),
                        "proposta" if len(linhas) == 1 else "propostas")
     if sem_anuncio:
-        conta += (" &middot; %s sem anúncio do DR (a aba conta só as que "
-                  "têm)" % mil_pt(sem_anuncio))
-    caixa = ("<form class='pf' method='get' action='/'>"
+        conta += (" &middot; %s sem anúncio do DR" % mil_pt(sem_anuncio))
+    # O `action` e a LISTA, e ficou a apontar para "/" na mudanca de
+    # endereco da fase 4: procurar dentro de uma ranhura levava a
+    # abertura, com a pergunta escrita na barra de endereco e nenhuma
+    # resposta no ecra. Um `action` nao e um `href` e por isso escapou a
+    # varredura das nove ligacoes (16/09/2026).
+    caixa = ("<form class='pf' method='get' action='%s'>"
              "<input type='hidden' name='estado' value='%s'>"
              "<input type='search' name='q' value='%s' "
              "placeholder='procurar no título ou no cliente…'>"
              "<button type='submit'>procurar</button>%s</form>"
-             % (html.escape(estado_actual, quote=True),
+             % (LISTA, html.escape(estado_actual, quote=True),
                 html.escape(procura, quote=True),
                 (" <a href='%s?estado=%s'>limpar</a>" % (LISTA, estado_actual))
                 if procura else ""))
@@ -11928,7 +12035,7 @@ def _lista_de_propostas():
                 + corpo + "</div>")
     return envolver(
         "anuncios", "Concursos",
-        "O que a casa está a fazer. As propostas sem anúncio do DR "
+        "O que a empresa está a fazer. As propostas sem anúncio do DR "
         "&mdash; consulta prévia, ajuste directo, convite &mdash; "
         "vivem aqui e não na lista dos anúncios.",
         conteudo, abas=barra_das_abas(rota, estado_actual, contas),
@@ -12624,7 +12731,8 @@ def abrir_procedimento(ref):
         a = c.execute("SELECT ref, plataforma, link_pecas, link_proc "
                       "FROM anuncios WHERE ref=?", (ref,)).fetchone()
     if not a:
-        return "Anúncio não encontrado. <a href='/'>voltar</a>", 404
+        return ("Anúncio não encontrado. <a href='%s'>voltar</a>"
+                % LISTA), 404
     if a["link_proc"]:
         return redirect(a["link_proc"])
     sessao = requests.Session()
@@ -12801,17 +12909,21 @@ def _conteudo_interesse():
     # em vigor -- sem ela, "Guardar" nao deixava rasto nenhum no ecra.
     if apanha_ver is None:
         estado = ("<div class='nota' style='margin:0 0 12px'>Ainda sem "
-                  "interesse: a <a href='/'>lista de anúncios</a> mostra "
+                  "interesse: a <a href='" + LISTA + "'>lista de anúncios</a> mostra "
                   "tudo. Marca os CPV e carrega em &ldquo;Guardar o "
                   "interesse&rdquo;.</div>")
     else:
+        # o endereco vai no TUPLO e nao concatenado ao molde: o `%` tem
+        # precedencia sobre o `+`, e `"a" + LISTA + "b %s" % x` aplica a
+        # formatacao so ao ultimo pedaco (armadilha ja escrita, cometida
+        # outra vez a corrigir isto -- deu 500 no /configuracoes/interesse)
         estado = ("<div class='nota' style='margin:0 0 12px'>Em vigor: "
                   "<b>%s</b>%s &mdash; apanha <b>%s</b> dos anúncios por ver "
-                  "e <b>%s</b> do acervo. A <a href='/'>lista</a> mostra só "
+                  "e <b>%s</b> do acervo. A <a href='%s'>lista</a> mostra só "
                   "isto, em todas as abas.</div>"
                   % (html.escape(dentro),
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
-                     mil_pt(apanha_ver), mil_pt(apanha_tudo)))
+                     mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
     formulario = (
         "<div class='cx novo-filtro'>%s"
         "<form method='post' action='/alertas/interesse' class='filtros'>"
@@ -13229,9 +13341,9 @@ def _conteudo_alertas():
 # serve; o que estava errado era chamar-lhes configuracao.
 SECCOES_CONFIG = (
     ("conta", "Conta", "palavra-passe, sessões, a nossa empresa, utilizadores", False, True),
-    ("interesse", "Interesse", "os CPV que a casa trabalha", False, True),
+    ("interesse", "Interesse", "os CPV que a empresa trabalha", False, True),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
-    ("importar", "Importar dados", "o registo da casa, pelo modelo Excel", False, True),
+    ("importar", "Importar dados", "o registo da empresa, pelo modelo Excel", False, True),
     ("indicadores", "Indicadores", "as capturas, a recolha e o corpus", True, False),
     ("capturas", "Capturas", "os dois pedidos ao DR", True, True),
     ("recolha", "Recolha", "horas, janelas, a Vortal", True, True),
@@ -14214,6 +14326,45 @@ def ha_filtro_na_ficha(args):
                if campo != "op")
 
 
+# Quantas vezes um lado tem de ser maior que o outro para a entidade ser
+# so de um papel. Tres nao e magia nenhuma -- e a folga a partir da qual
+# o lado pequeno deixa de mudar o que se faz com ela: um municipio que
+# compre 264 M EUR e ganhe 824 EUR e um cliente, ponto. Abaixo disso sao
+# mesmo as duas coisas (uma ULS compra informatica e ganha candidaturas),
+# e dizer so uma delas era escolher qual mentir.
+FOLGA_DO_PAPEL = 3
+
+
+def papel_da_entidade(compra_v, ganha_v):
+    """(chave, rotulo, explicacao) do que esta entidade e para nos, pelo
+    que ela **compra** contra o que ela **vende**. "" quando o corpus
+    nao tem nenhum dos dois.
+
+    A pergunta e do Afonso (16/09/2026): «deves fazer a diferenciacao
+    entre clientes e concorrentes atraves da quantidade de compra e de
+    venda». E a unica maneira honesta de a responder -- o Portal BASE
+    nao tem campo nenhum a dizer o que uma entidade e, tem os contratos
+    dos dois lados, e e do peso de cada lado que o papel sai.
+
+    Pura de proposito: recebe dois numeros e nao toca em base nenhuma,
+    que e o que a deixa testar-se sem corpus.
+    """
+    compra_v, ganha_v = float(compra_v or 0), float(ganha_v or 0)
+    if not compra_v and not ganha_v:
+        return ("", "", "")
+    if ganha_v * FOLGA_DO_PAPEL <= compra_v:
+        return ("cliente", "Cliente",
+                "compra muito mais do que vende: é deste lado da mesa "
+                "que se lhe apresenta proposta")
+    if compra_v * FOLGA_DO_PAPEL <= ganha_v:
+        return ("concorrente", "Concorrente",
+                "vende muito mais do que compra: é com ela que se "
+                "concorre, não é a ela que se vende")
+    return ("ambos", "Cliente e concorrente",
+            "compra e vende em valores da mesma ordem: aparece dos dois "
+            "lados conforme o concurso")
+
+
 def ficha_entidade(chave, args=None):
     """Tudo o que o corpus sabe sobre uma entidade, nos dois papeis.
 
@@ -14239,6 +14390,18 @@ def ficha_entidade(chave, args=None):
         d["nomes"] = [r["nome_norm"] for r in c.execute(
             "SELECT nome_norm FROM entidade_nomes WHERE chave=? "
             "ORDER BY nome_norm LIMIT 40", (chave,))]
+
+        # Os dois totais SEM o filtro da ficha, so para o papel
+        # (papel_da_entidade). E identidade como os nomes acima: filtrar
+        # por um CPV em que a entidade so ganha nao faz de um municipio
+        # um concorrente. Duas somas, e nao a ficha inteira outra vez.
+        d["compra_total"] = c.execute(
+            "SELECT COALESCE(SUM(preco_contratual),0) v FROM contratos "
+            "WHERE adjudicante_chave=?", (chave,)).fetchone()["v"]
+        d["ganha_total"] = c.execute(
+            "SELECT COALESCE(SUM(c.preco_contratual/c.n_adj),0) v "
+            "FROM contratos c JOIN contrato_adjudicatario a "
+            "ON a.contrato_id=c.id WHERE a.chave=?", (chave,)).fetchone()["v"]
 
         # --- como comprador
         d["compra"] = c.execute(
@@ -14836,9 +14999,24 @@ def entidade(chave):
     else:
         nomes = ""
 
-    ident = ("<div class='cx ent-cab'><div class='n'>%s</div>"
+    # Cliente ou concorrente, dito pelo peso de cada lado (16/09/2026).
+    # Fica **ao lado do nome** e nao ao pe dos dois numeros: e a primeira
+    # coisa que se quer saber ao abrir uma entidade -- se e a quem se
+    # vende ou com quem se disputa -- e os numeros que a sustentam vem
+    # logo a seguir, no par Compra/Ganha, com a mesma leitura.
+    #
+    # Sem o filtro da ficha por cima: o papel e identidade da entidade,
+    # como os nomes por que assina. Filtrar por um CPV em que ela so
+    # ganha nao faz de um municipio um concorrente.
+    chave_papel, rotulo_papel, porque_papel = papel_da_entidade(
+        d["compra_total"], d["ganha_total"])
+    selo = ("<span class='ent-papel %s' title='%s'>%s</span>"
+            % (chave_papel, html.escape(porque_papel, quote=True),
+               html.escape(rotulo_papel))) if chave_papel else ""
+
+    ident = ("<div class='cx ent-cab'><div class='n'>%s%s</div>"
              "<div class='m'>%s</div>%s</div>"
-             % (html.escape(d["nome"]),
+             % (html.escape(d["nome"]), selo,
                 ("NIF %s" % html.escape(d["nif"])) if d["nif"]
                 else "sem NIF público &mdash; identificada pelo nome",
                 nomes))
@@ -15814,7 +15992,7 @@ def lotes_cx(a):
         conj = resumo["conjunto"]
         estado = casa.estado_do_lote(conj)
         rotulo, classe = ESTADO_DO_LOTE.get(estado, ("sem desfecho registado", ""))
-        nota_conj = ("<div class='nota' style='margin-top:10px'>O registo da casa "
+        nota_conj = ("<div class='nota' style='margin-top:10px'>O registo da empresa "
                      "tem uma linha para o <b>conjunto</b> dos lotes, não lote a "
                      "lote: <span class='tag %s'>%s</span>%s</div>"
                      % (classe, rotulo,
@@ -15827,10 +16005,10 @@ def lotes_cx(a):
     return ("<div class='cx lotes' id='lotes'>"
             + rot_com_porque(
                 "Lotes",
-                "O que se sabe de cada um vem do registo da casa (o Excel), "
+                "O que se sabe de cada um vem do registo da empresa (o Excel), "
                 "lote a lote." if ha_registo else
                 "Os lotes são os que o anúncio declara; a que fomos só o "
-                "registo da casa sabe, e ainda não tem esta linha.")
+                "registo da empresa sabe, e ainda não tem esta linha.")
             + ("<div class='nota' style='margin:6px 0 12px'>%s.</div>"
                "<div class='mercado-tab'>"
                "<table class='tab-mercado tab-lotes'><thead><tr>"
@@ -15838,7 +16016,7 @@ def lotes_cx(a):
                "</tr></thead><tbody>%s</tbody></table></div>%s</div>"
                % (html.escape(frase_dos_lotes(resumo)[0].upper()
                               + frase_dos_lotes(resumo)[1:]),
-                  "<th>A casa</th>" if ha_registo else "",
+                  "<th>A empresa</th>" if ha_registo else "",
                   "".join(corpo), nota_conj)))
 
 
@@ -16521,13 +16699,20 @@ def volta_a_lista():
 
     So aceita caminhos desta aplicacao que sejam mesmo listas: um
     `referrer` de outro sitio, ou de uma ficha, nao serve de volta.
+
+    **A lista e `LISTA`, nao "/"** (16/09/2026). Isto ficou para tras na
+    mudanca de endereco da fase 4 e era a queixa dele: abrir a folha de
+    um concurso e carregar na seta de voltar dava no Hoje. Nao era um
+    404 nem um erro nenhum -- "/" responde 200 -- era o botao do caminho
+    de volta a levar a outro sitio, que e a avaria que se usa duas vezes
+    e depois nao se usa mais.
     """
     vindo = urlparse(request.referrer or "")
     if vindo.netloc and vindo.netloc != urlparse(request.host_url).netloc:
-        return "/"
-    if vindo.path in ("/", "/calendario"):
+        return LISTA
+    if vindo.path in (LISTA, "/calendario"):
         return vindo.path + (("?" + vindo.query) if vindo.query else "")
-    return "/"
+    return LISTA
 
 
 @app.route("/anuncio/<path:ref>")
@@ -16544,7 +16729,7 @@ def ficha(ref):
             "<b>%s</b> nesta base." % html.escape(ref),
             "<div class='vazio'>Pode ter sido apagado numa limpeza do "
             "histórico, ou a referência estar mal escrita. "
-            "<a href='/'>Voltar à lista</a> ou "
+            "<a href='" + LISTA + "'>Voltar à lista</a> ou "
             "<a href='/concursos?estado='>procurar em todos</a>.</div>",
             migalhas=migalhas_de("anuncios", ref)), 404
 
@@ -17001,11 +17186,17 @@ def ficha(ref):
 
     if passos:
         linhas_hist = "".join(
-            "<div class='hist'><span class='t'>%s %s %s</span>"
+            # QUEM, o que fez, e o quê — três coisas, e os três separados
+            # por espaços davam uma frase que não é frase: «Afonso Pinto
+            # proposta criada Por analisar». Quem fica destacado (é a
+            # coluna por que se lê) e o detalhe entra em aspas, que é o
+            # que o separa da acção.
+            "<div class='hist'><span class='t'><b>%s</b> %s%s</span>"
             "<span class='q'>%s</span></div>"
             % (html.escape(p["quem"]),
                html.escape(_NOMES_ACCAO.get(p["accao"], p["accao"])),
-               html.escape(p["detalhe"] or ""),
+               (" &mdash; %s" % html.escape(p["detalhe"]))
+               if p["detalhe"] else "",
                html.escape(data_hora_pt(p["quando"])))
             for p in passos)
     else:
@@ -17560,7 +17751,7 @@ def faixa_do_desfecho(p, linhas, cfg=None):
     elif somos is False:
         veredicto = "<b>Não fomos nós.</b>"
     else:
-        veredicto = ("Não sei se fomos nós: falta o NIF da casa em "
+        veredicto = ("Não sei se fomos nós: falta o NIF da empresa em "
                      "<a href='/configuracoes/conta'>Configurações › Conta</a>.")
     desvio, _ = desvio_do_proposto(p["valor_proposta"], linhas)
     conta = ""
@@ -18143,7 +18334,7 @@ def _linhas_do_calendario(estado):
                        "rotulo": estado_da_casa(p["estado"])}
                       for p in propostas]
             o_que = (("as propostas em «%s»" % estado_da_casa(estado))
-                     if estado else "o que a casa tem em aberto")
+                     if estado else "o que a empresa tem em aberto")
         else:
             frag, vals = condicao_da_aba(estado)
             onde, valores = com_recorte("", [], frag, vals)
@@ -18634,7 +18825,10 @@ def negocio_cx():
                         MINIMO_PARA_TAXA - decididos)) if decididos
                else "ainda não há decididos"),
         numero("desconto médio",
-               "%.1f%%" % (desconto * 100) if desconto is not None else None,
+               # com virgula: e o unico numero decimal do ecra e estava
+               # a sair "13.2%" ao lado de precos escritos "121.951,00"
+               ("%.1f%%" % (desconto * 100)).replace(".", ",")
+               if desconto is not None else None,
                "nos %d ganhos com os dois preços lidos" % sobre if sobre
                else "ainda não há ganhos com os dois preços lidos")))
 
@@ -19801,7 +19995,7 @@ def main():
         # instalar, sem perder o acervo. Faz copia antes; pede confirmacao.
         if "--sim" not in sys.argv:
             if input("Isto apaga a triagem, o quadro, as etiquetas, o histórico, "
-                     "os filtros, os alertas, o interesse e o registo da casa. "
+                     "os filtros, os alertas, o interesse e o registo da empresa. "
                      "Escreve ZERO para continuar: ").strip() != "ZERO":
                 print("Nada mudou.")
                 return
