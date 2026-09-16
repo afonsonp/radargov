@@ -30,7 +30,8 @@ pede.**
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `CRM` | Raramente. São instantâneos, não se mantêm |
+| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `CRM`, `CICLOS` | Raramente. São instantâneos, não se mantêm |
+| `docs/historico/CICLOS.md` | O plano de 16/09/2026 para fechar os ciclos (tarefas, entidade, proposta sem anúncio, peças) e arrumar esta documentação, com as decisões dele respondidas e a fase 5 ficheiro a ficheiro | **Antes de tocar nas tarefas, no Hoje, na ficha da entidade ou em qualquer `.md` desta tabela**, enquanto as cinco fases não estiverem no §9 dele |
 | `docs/arquitectura.html`<br>`docs/processo-*.html` | Seis diagramas interactivos (16/09/2026, pela skill `archify`): a arquitectura, e por dentro da recolha, das peças, da porta, da escada e do corpus | Para ver a forma de uma coisa antes de lhe mexer. **São instantâneos: mudar o código não os muda** |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
