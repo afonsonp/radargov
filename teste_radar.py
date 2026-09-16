@@ -4011,16 +4011,24 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
     trava: repor os Indicadores na barra (saíram por decisão 11.6-A) ou
     voltar a separar a lista em duas páginas."""
 
-    def test_dois_itens_por_ordem_de_uso(self):
+    def test_tres_itens_por_ordem_de_uso(self):
         # a 8/09/2026 Alertas saiu do primeiro nivel: passou a seccao de
         # Configuracoes, que vive em baixo ao lado da zona de estado.
         # A 15/09/2026 "Anuncios" e "Em curso" fundiram-se em Concursos:
         # eram dois itens sobre a mesma escada, e enquanto o "Em curso"
         # foi `estado='interessa'`, sobre a mesma populacao -- que e a
         # pergunta que deu origem ao CRM.
-        self.assertEqual([n[0] for n in radar.NAV], ["anuncios", "mercado"])
-        self.assertEqual([n[1] for n in radar.NAV], ["Concursos", "Mercado"])
-        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        # A 16/09/2026 entrou o "Hoje" (fase 4 do docs/design.md): a
+        # abertura deixou de ser a lista, e a lista passou a viver em
+        # radar.LISTA. O "Hoje" e a PRIMEIRA intencao -- chegar e ver o
+        # estado do negocio -- e por isso e o primeiro item e o "/".
+        self.assertEqual([n[0] for n in radar.NAV],
+                         ["inicio", "anuncios", "mercado"])
+        self.assertEqual([n[1] for n in radar.NAV],
+                         ["Hoje", "Concursos", "Mercado"])
+        self.assertEqual(radar.NAV[0][2], "/")
+        self.assertEqual(radar.NAV[1][2], radar.LISTA)
+        html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertIn('href="/configuracoes"', html_)
 
     def test_indicadores_fora_da_navegacao(self):
@@ -4038,7 +4046,9 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         era o arrastar -- que só compensa quando se vê tudo ao mesmo
         tempo. Sobra o calendário, que é a única forma diferente de olhar
         para o mesmo: uma grelha de dias, para ver choques de datas."""
-        self.assertEqual([v[1] for v in radar.NAV[0][3]], ["Calendário"])
+        # o Calendário é vista do item Concursos, que desde 16/09/2026
+        # é o SEGUNDO da barra (o primeiro é o Hoje)
+        self.assertEqual([v[1] for v in radar.NAV[1][3]], ["Calendário"])
         self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "anuncios")
         self.assertNotIn("quadro", radar.ITEM_DA_PAGINA)
 
@@ -5000,7 +5010,7 @@ class TestColunasVelhasFicamMasNinguemAsLe(BaseTemporaria):
         self.assertIn("fase_id", colunas)
         id_ = radar.criar_proposta("7/2026", estado="submetido")
         self.assertEqual(radar.proposta(id_)["estado"], "submetido")
-        r = radar.app.test_client().get("/?estado=submetido")
+        r = radar.app.test_client().get(radar.LISTA + "?estado=submetido")
         self.assertEqual(r.status_code, 200)
         self.assertIn("Velho", r.get_data(as_text=True))
 
@@ -5153,8 +5163,8 @@ class TestEscadaNaLista(BaseTemporaria):
                       ("9/2020", "Velho e expirado", "2020-01-01",
                        "2020-02-01", "novo"))
 
-    def _html(self, url="/"):
-        return self.cliente.get(url).get_data(as_text=True)
+    def _html(self, url=None):
+        return self.cliente.get(url or radar.LISTA).get_data(as_text=True)
 
     def test_o_todos_diz_o_mesmo_nas_duas_listas(self):
         """15/09/2026, visto no ecrã: o «Todos» dizia **209 894** na
@@ -5195,7 +5205,7 @@ class TestEscadaNaLista(BaseTemporaria):
     def test_a_entrada_e_o_cemiterio_apartam_se(self):
         self.assertIn("Aquisição de software", self._html())
         self.assertNotIn("Velho e expirado", self._html())
-        cemiterio = self._html("/?estado=expirou")
+        cemiterio = self._html(radar.LISTA + "?estado=expirou")
         self.assertIn("Velho e expirado", cemiterio)
         self.assertNotIn("Aquisição de software", cemiterio)
 
@@ -5205,7 +5215,7 @@ class TestEscadaNaLista(BaseTemporaria):
         porque o estado era do anúncio."""
         self.cliente.post("/estado/60%2F2026/analisar")
         self.assertNotIn("Aquisição de software", self._html())
-        self.assertIn("Aquisição de software", self._html("/?estado=analisar"))
+        self.assertIn("Aquisição de software", self._html(radar.LISTA + "?estado=analisar"))
 
     def test_as_duas_listas_deixaram_de_ser_a_mesma_consulta(self):
         """A pergunta que deu origem a tudo isto. A lista dos anúncios
@@ -5214,7 +5224,7 @@ class TestEscadaNaLista(BaseTemporaria):
         self.cliente.post("/estado/60%2F2026/submetido")
         radar.criar_proposta(entidade="IPL", titulo="Consulta prévia de formação",
                              porque_sem_ref="consulta prévia", estado="submetido")
-        html_ = self._html("/?estado=submetido")
+        html_ = self._html(radar.LISTA + "?estado=submetido")
         self.assertIn("Aquisição de software", html_)
         self.assertIn("Consulta prévia de formação", html_)
         # e a entrada não mostra nem uma nem outra
@@ -5229,7 +5239,7 @@ class TestEscadaNaLista(BaseTemporaria):
         baixinho."""
         radar.criar_proposta(entidade="IPL", titulo="Consulta prévia",
                              porque_sem_ref="consulta prévia")
-        html_ = self._html("/?estado=analisar")
+        html_ = self._html(radar.LISTA + "?estado=analisar")
         self.assertIn("sem anúncio do DR", html_)
         self.assertIn("a aba conta só as que têm", html_)
 
@@ -7551,13 +7561,14 @@ class TestSelectorDaRanhura(BaseTemporaria):
             h = self.cliente.get(url).get_data(as_text=True)
             return re.sub(r"(?s)<script.*?</script>", "", h)
 
-        self.assertNotIn("escada-js", corpo("/"))
+        self.assertNotIn("escada-js", corpo(radar.LISTA))
         self.cliente.post("/estado/60%2F2026/analisar")
         # na lista dos ANÚNCIOS (a aba «Todos») o selector aponta ao ref
-        self.assertIn("action='/escada/60%2F2026'", corpo("/?estado="))
+        self.assertIn("action='/escada/60%2F2026'",
+                      corpo(radar.LISTA + "?estado="))
         # na das PROPOSTAS aponta à proposta, que é mais preciso: com
         # lotes há uma por lote, e mover «a do ref» movia a primeira
-        html_ = self.cliente.get("/?estado=analisar").get_data(as_text=True)
+        html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
         id_ = radar.propostas_de("60/2026")[0]["id"]
         self.assertIn("action='/proposta/%d/escada'" % id_, html_)
         for _, rotulo in radar.ESTADOS_DA_CASA:
@@ -7587,7 +7598,7 @@ class TestSelectorDaRanhura(BaseTemporaria):
         contrário — esconder por omissão e mostrar por JS — quem não
         tivesse JS ficava com um selector que não fazia nada."""
         self.cliente.post("/estado/60%2F2026/analisar")
-        html_ = self.cliente.get("/?estado=analisar").get_data(as_text=True)
+        html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
         self.assertIn("<button type='submit' class='mini'>ir</button>", html_)
         self.assertIn(".com-js .ranhura button{display:none}", radar.CSS)
         self.assertIn("classList.add('com-js')", radar.caixa_do_motivo())
@@ -7713,6 +7724,114 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
     def test_nada_no_painel_liga_ao_quadro(self):
         for pedaco in ("/quadro#", "href='/quadro'", 'href="/quadro"'):
             self.assertNotIn(pedaco, radar_fonte(), pedaco)
+
+
+class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
+    """A abertura deixou de ser a lista (fase 4 do `docs/design.md`,
+    16/09/2026): «hoje a abertura é a lista dos concursos; eu quero
+    chegar e ver o estado do negócio e o que tenho de fazer».
+
+    Ressuscita o que o `/hoje` fazia antes de sair a 15/09, e responde ao
+    que ficou por responder nessa noite: «o que tenho de fazer hoje, em
+    todos os concursos ao mesmo tempo».
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def _proposta_com_tarefas(self, dias):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo) VALUES ('60/2026','Software','CML',"
+                      "'novo','2026-09-01','2026-12-01')")
+        id_ = radar.criar_proposta("60/2026", estado="proposta")
+        hoje = datetime.date.today()
+        with radar.liga() as c:
+            c.execute("DELETE FROM tarefas")
+            for n, d in enumerate(dias):
+                quando = ("" if d is None
+                          else (hoje + datetime.timedelta(days=d)).isoformat())
+                c.execute("INSERT INTO tarefas (proposta_id, ref, o_que, "
+                          "quando) VALUES (?,?,?,?)",
+                          (id_, "60/2026", "tarefa %d" % n, quando))
+        return id_
+
+    def test_a_abertura_e_o_negocio_e_a_lista_mudou_de_endereco(self):
+        r = self.cliente.get("/")
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("O que tenho de fazer", corpo)
+        # E NAO é a lista. Mede-se a MARCAÇÃO e não o texto: o CSS vai
+        # embutido em todas as páginas e cita os próprios selectores
+        # (`.abas-escada{...}`), por isso um `assertNotIn("abas-escada")`
+        # dava sempre falso positivo. É a mesma armadilha que o
+        # test_o_indice_e_o_verificar_agora_seguem_o_papel já anotava.
+        self.assertNotIn("<div class='abas abas-escada'>", corpo)
+        self.assertNotIn("<details class='painel-filtros'", corpo)
+        # a lista continua a existir, noutro endereço
+        self.assertIn("<div class='abas abas-escada'>",
+                      self.cliente.get(radar.LISTA).get_data(as_text=True))
+
+    def test_as_rotas_antigas_da_lista_apontam_para_o_endereco_novo(self):
+        for antiga in ("/anuncios", "/lista"):
+            r = self.cliente.get(antiga)
+            self.assertIn(r.status_code, (301, 302, 303), antiga)
+            self.assertIn(radar.LISTA, r.headers["Location"], antiga)
+
+    def test_o_para_fazer_conta_exactamente_as_linhas_que_mostra(self):
+        """A regra da casa: um número que um ecrã mostra tem de dar
+        exactamente o que a ligação dele abre.
+
+        Esteve errado: contava só as dos próximos dias (6 de 8) e ligava
+        ao `/calendario`, que mostra **prazos** e não tarefas. Duas
+        avarias numa: o número não era o das linhas, e o destino era
+        outra população. É a mesma que se apanhou no «+N» do calendário,
+        no mesmo dia.
+        """
+        self._proposta_com_tarefas([-6, -1, 0, 3, 40, None])
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        # o KPI diz 6, que são as seis linhas desenhadas
+        self.assertIn(">6</div>", corpo)
+        self.assertEqual(corpo.count("class='hj-l'"), 6)
+        # e o destino é a própria lista, aqui em baixo
+        self.assertIn("href='#fazer'", corpo)
+        self.assertIn("id='fazer'", corpo)
+        self.assertNotIn("href='/calendario'", corpo)
+
+    def test_as_atrasadas_sao_outra_categoria_e_nao_um_dia_pior(self):
+        """Um «o que tenho de fazer» ordenado só por data põe o atrasado
+        de ontem a seguir ao de hoje, o que é verdade e não ajuda."""
+        self._proposta_com_tarefas([-6, 0, 3, 40])
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        for rotulo in ("Atrasadas", "Hoje", "Nos próximos", "Mais para a frente"):
+            self.assertIn(rotulo, corpo, rotulo)
+        # e as atrasadas vêm primeiro, seja qual for a data
+        self.assertLess(corpo.index("Atrasadas"), corpo.index(">Hoje "))
+
+    def test_uma_tarefa_sem_data_nao_parte_a_ordenacao(self):
+        self._proposta_com_tarefas([None])
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("sem data", corpo)
+        self.assertEqual(corpo.count("class='hj-l'"), 1)
+
+    def test_sem_nada_por_fazer_o_ecra_diz_por_onde_se_comeca(self):
+        """O estado vazio da abertura é o que ele vê no primeiro dia, e
+        um «0» não diz nada. Diz de onde nascem as tarefas e tem saída."""
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("Nada por fazer", corpo)
+        self.assertIn(radar.LISTA + "?estado=porver", corpo)
+
+    def test_a_saudacao_acompanha_a_hora(self):
+        """«Bom dia» às 14h está errado, e um título errado metade do dia
+        é pior do que nenhum."""
+        for hora, espera in ((9, "Bom dia"), (15, "Boa tarde"), (22, "Boa noite")):
+            falso = datetime.datetime(2026, 9, 16, hora, 0)
+            with unittest.mock.patch.object(radar, "datetime") as dt:
+                dt.now.return_value = falso
+                dt.strptime = datetime.datetime.strptime
+                corpo = self.cliente.get("/").get_data(as_text=True)
+            self.assertIn(espera, corpo, "%dh" % hora)
 
 
 class TestCalendarioEPorDiaENaoUmGantt(BaseTemporaria):
@@ -8821,7 +8940,7 @@ class TestAvisoDasTarefasNoPainel(BaseTemporaria):
                 unittest.mock.patch.object(radar, "como_agendar",
                                            lambda: ("nos temporizadores do systemd",
                                                     "agendar.sh")):
-            html_ = radar.app.test_client().get("/").get_data(as_text=True)
+            html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertIn("não está a verificar", html_)
         self.assertIn("radar-17h.timer", html_)
         self.assertIn("agendar.sh", html_)
@@ -8945,7 +9064,7 @@ class TestContas(BaseTemporaria):
     # -- a porta
 
     def test_de_fora_sem_sessao_vai_para_entrar(self):
-        r = self.cliente.get("/?estado=novo", environ_base=self.FORA)
+        r = self.cliente.get(radar.LISTA + "?estado=novo", environ_base=self.FORA)
         self.assertEqual(r.status_code, 302)
         self.assertTrue(r.headers["Location"].startswith("/entrar?para="))
         self.assertIn("estado%3Dnovo", r.headers["Location"])
@@ -9160,9 +9279,9 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         self.cliente = radar.app.test_client()
 
     def test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro(self):
-        html_ = self.cliente.get("/").get_data(as_text=True)
+        html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         self.assertIn("<details class='painel-filtros' id='painel-filtros'>", html_)
-        html_ = self.cliente.get("/?cpv=72000000").get_data(as_text=True)
+        html_ = self.cliente.get(radar.LISTA + "?cpv=72000000").get_data(as_text=True)
         self.assertIn("<details class='painel-filtros' id='painel-filtros' open>", html_)
         # O resumo do filtro fica na linha, para se saber o que está
         # posto. Recorta-se o <summary> DOS FILTROS e não o primeiro da
@@ -9173,7 +9292,7 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         self.assertIn("CPV 72000000", dos_filtros.split("</summary>")[0])
 
     def test_os_blocos_continuam_la_dentro_e_os_guardados_sairam(self):
-        html_ = self.cliente.get("/").get_data(as_text=True)
+        html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         dentro = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
         self.assertIn("class='cx filtros'", dentro)
         # 13/09/2026: a caixa "Filtros guardados" saiu das listas; o que
@@ -9182,7 +9301,7 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         self.assertNotIn("/filtros/guardar", html_)
 
     def test_o_teclado_esta_na_lista_e_diz_se(self):
-        html_ = self.cliente.get("/").get_data(as_text=True)
+        html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         self.assertIn("class='teclas'", html_)
         self.assertIn("keydown", radar.LISTA_JS)
         for tecla in ("'j'", "'k'", "'i'", "'a'", "'Enter'"):
@@ -9503,8 +9622,8 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
         """Com uma proposta por lote, a separação deixa de precisar de
         truque: o L2 está na aba do Ganho e os outros dois na do
         Perdido, sem nada montado à mão."""
-        ganho = self.cliente.get("/?estado=ganho").get_data(as_text=True)
-        perdido = self.cliente.get("/?estado=perdido").get_data(as_text=True)
+        ganho = self.cliente.get(radar.LISTA + "?estado=ganho").get_data(as_text=True)
+        perdido = self.cliente.get(radar.LISTA + "?estado=perdido").get_data(as_text=True)
         self.assertIn("L2", ganho)
         self.assertIn("/proposta/%d/escada" % self.por_lote[2], ganho)
         self.assertNotIn("/proposta/%d/escada" % self.por_lote[1], ganho)
@@ -9905,7 +10024,7 @@ class TestLigacaoFechaAoSair(BaseTemporaria):
         gc.collect()
         antes = len([o for o in gc.get_objects() if isinstance(o, sqlite3.Connection)])
         for _ in range(30):
-            cliente.get("/")
+            cliente.get(radar.LISTA)
         depois = len([o for o in gc.get_objects() if isinstance(o, sqlite3.Connection)])
         # fechadas ou nao, o que conta e que nao se acumulam por pedido
         self.assertLessEqual(depois - antes, 3)
@@ -10145,8 +10264,10 @@ class TestMudancasDeSetembro(BaseTemporaria):
         # o bloco dos utilizadores so ao admin
         self.assertIn("Criar utilizador", html_a)
         self.assertNotIn("Criar utilizador", html_t)
-        lista_t = tester.get("/", environ_base=self.FORA).get_data(as_text=True)
-        lista_a = admin.get("/", environ_base=self.FORA).get_data(as_text=True)
+        lista_t = tester.get(radar.LISTA,
+                             environ_base=self.FORA).get_data(as_text=True)
+        lista_a = admin.get(radar.LISTA,
+                            environ_base=self.FORA).get_data(as_text=True)
         # (pelo formulario, nao pelo texto: o CSS da pagina cita o botao)
         self.assertNotIn("action='/verificar'", lista_t)
         self.assertIn("action='/verificar'", lista_a)
@@ -10216,7 +10337,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         for texto in ("Verificação automática", "127.0.0.1:", "%(fontes)s",
                       "%(acervo)s", "%(ultima)s", "%(horas)s"):
             self.assertNotIn(texto, radar.BASE)
-        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertNotIn("Anúncios do DR", html_)
         self.assertNotIn("anúncios<br>", html_)
         self.assertIn('href="/configuracoes"', html_)
@@ -10252,10 +10373,10 @@ class TestMudancasDeSetembro(BaseTemporaria):
         self.assertFalse(cfg["interesse_activo"])
 
     def test_com_interesse_a_lista_fica_so_com_o_filtro_de_texto(self):
-        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertIn("details class='arvore'", html_)
         self.cfg.update(interesse_activo=True, interesse_cpv="72000000")
-        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertNotIn("details class='arvore'", html_)
         self.assertIn("name='q'", html_)
         # e o JS da arvore nao vai: ligava um listener a null
@@ -10950,7 +11071,7 @@ class TestPlataformasQueJaNaoExistem(BaseTemporaria):
                              ["80/2026"])
         # os dois selectores mostram "outras" e nao as mortas
         cliente = radar.app.test_client()
-        lista = cliente.get("/?estado=").get_data(as_text=True)
+        lista = cliente.get(radar.LISTA + "?estado=").get_data(as_text=True)
         alertas = cliente.get("/configuracoes/alertas").get_data(as_text=True)
         for html_ in (lista, alertas):
             self.assertIn("value='(outras)'", html_)
@@ -10982,7 +11103,7 @@ class TestFiltrosSimples(BaseTemporaria):
                            ent, radar.simplifica(ent)))
 
     def test_a_lista_tem_so_os_quatro_campos_e_a_arvore_em_cima(self):
-        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         painel = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
         self.assertLess(painel.index("details class='arvore'"), painel.index("class='cx filtros'"))
         form = painel.split("class='cx filtros'")[1].split("</form>")[0]
@@ -10993,7 +11114,7 @@ class TestFiltrosSimples(BaseTemporaria):
         self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
         self.assertIn("type='hidden' id='filtro-cpv'", form)
         # o que vier pela URL passa escondido, para nao se perder
-        html_ = radar.app.test_client().get("/?prazo=urgente&op=ou").get_data(as_text=True)
+        html_ = radar.app.test_client().get(radar.LISTA + "?prazo=urgente&op=ou").get_data(as_text=True)
         self.assertIn("<input type='hidden' name='prazo' value='urgente'>", html_)
         self.assertIn("<input type='hidden' name='op' value='ou'>", html_)
         self.assertEqual(radar.campos_escondidos({"prazo": " "}, ("prazo",)), "")
@@ -11037,7 +11158,7 @@ class TestFiltrosSimples(BaseTemporaria):
         self.assertEqual(r.mimetype, "application/json")
         self.assertEqual(sorted(e["nome"] for e in r.get_json()),
                          ["Câmara Municipal de Espinho", "Hospital de Espinho"])
-        self.assertIn("data-sugere='anuncios'", radar.app.test_client().get("/").get_data(as_text=True))
+        self.assertIn("data-sugere='anuncios'", radar.app.test_client().get(radar.LISTA).get_data(as_text=True))
         self.assertIn("/entidades.json", radar.ENTIDADES_JS)
         self.assertIn("dataset.chaveEm", radar.ENTIDADES_JS)
 
@@ -11063,7 +11184,7 @@ class TestFiltrosSimples(BaseTemporaria):
         self.assertIn("entidade_norm LIKE", onde)
         # e o NIF entra no resumo do filtro e nos formularios
         self.assertIn("NIF 509540716", radar.resumo_filtro("nif=509540716"))
-        html_ = radar.app.test_client().get("/?nif=509540716").get_data(as_text=True)
+        html_ = radar.app.test_client().get(radar.LISTA + "?nif=509540716").get_data(as_text=True)
         self.assertIn("<input type='hidden' name='nif' value='509540716'>", html_)
         html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
         self.assertIn("name='nif'", html_.split("action='/alertas/criar'")[1].split("</form>")[0])

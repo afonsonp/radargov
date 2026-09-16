@@ -9630,6 +9630,39 @@ a.ct-l{color:var(--azul)}
 .cal-legenda{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
  margin:0 0 12px;font:400 var(--f2,12px)/1.4 var(--sans);color:var(--t4)}
 
+/* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`
+   porque `tq` ja e o botao de marcar uma tarefa feita (button.tq). */
+.kpis a.kpi{display:block;color:inherit}
+.kpis a.kpi:hover{border-color:var(--traco);box-shadow:0 2px 6px rgba(17,20,24,.08)}
+.kpis a.kpi:hover .r{color:var(--azul)}
+.entrada-hoje{margin:14px 0 18px}
+.entrada-hoje.mau{color:var(--verm)}
+.cx.hoje > h2{font:620 var(--f5,17px)/1.3 var(--sans);color:var(--ink);
+ margin:0 0 14px;letter-spacing:-.2px}
+/* Quatro baldes e nao uma ordem por data: o atrasado de ontem e outra
+   categoria e nao um dia pior, e uma lista so por data poe-no a seguir
+   ao de hoje como se fosse a mesma coisa. */
+.hj-g{margin:0 0 16px}
+.hj-g:last-child{margin-bottom:0}
+.hj-t{display:flex;align-items:baseline;gap:7px;margin:0 0 6px;
+ font:600 var(--f2,12px)/1 var(--sans);color:var(--t4)}
+.hj-t i{font:500 10.5px/1 var(--mono);font-style:normal;color:var(--t5)}
+.hj-g.mau .hj-t{color:var(--verm)}
+.hj-g.avisa .hj-t{color:var(--laranja)}
+.hj-l{display:grid;grid-template-columns:96px minmax(0,1fr) minmax(0,1fr);
+ gap:12px;align-items:baseline;padding:7px 9px;border-radius:6px;
+ border-left:2px solid var(--traco);color:inherit}
+.hj-l:hover{background:var(--sup2,var(--linha2))}
+.hj-g.mau .hj-l{border-left-color:var(--verm)}
+.hj-g.avisa .hj-l{border-left-color:var(--laranja)}
+.hj-q{font:600 var(--f1,11px)/1.4 var(--mono);color:var(--t3)}
+.hj-q.vago{color:var(--t5);font-weight:400}
+.hj-o{font:500 var(--f3,13px)/1.4 var(--sans);color:var(--t1);min-width:0}
+.hj-l:hover .hj-o{color:var(--azul)}
+.hj-c{font:400 var(--f2,12px)/1.4 var(--sans);color:var(--t5);min-width:0;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:900px){.hj-l{grid-template-columns:minmax(0,1fr);gap:2px}}
+
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
  gap:14px}
@@ -9966,7 +9999,16 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head
 # coluna por aba nao ha para onde arrastar, e a ranhura muda-se no
 # selector da linha. Sobra o calendario, que e a unica forma diferente
 # de olhar para o mesmo: uma grelha de dias, para ver choques de datas.
-NAV = (("anuncios", "Concursos", "/",
+# O endereco da lista. A abertura mudou para "/" a 16/09/2026 (fase 4
+# do docs/design.md: "quero chegar e ver o estado do negocio e o que
+# tenho de fazer"), e a lista passou a ter endereco proprio. Como
+# constante e nao literal: eram 56 sitios a escrever "/" e nem todos
+# queriam dizer a lista -- uns queriam dizer "volta ao principio", que
+# agora e outra pagina.
+LISTA = "/concursos"
+
+NAV = (("inicio", "Hoje", "/", ()),
+       ("anuncios", "Concursos", LISTA,
         (("calendario", "Calendário", "/calendario"),)),
        ("mercado", "Mercado", "/contratos",
         (("contratos", "Contratos", "/contratos"),
@@ -11326,7 +11368,7 @@ def aba_pedida():
     return ABAS_ANTIGAS.get(pedida, pedida)
 
 
-@app.route("/")
+@app.route(LISTA)
 def painel():
     """A lista, com as dez ranhuras da escada a apartar (§3.1 do
     docs/historico/CRM.md).
@@ -11353,7 +11395,7 @@ def pesquisa():
     interruptor antigo cai: deixou de haver janela para desligar."""
     novos = args_da_lista(request.args)
     novos.pop("arquivo", None)
-    return redirect("/?" + urlencode(novos) if novos else "/")
+    return redirect(LISTA + "?" + urlencode(novos) if novos else LISTA)
 
 
 def _lista_de_anuncios():
@@ -18852,7 +18894,7 @@ def resposta_csv(saida, prefixo):
 def lista_em_curso():
     """Redirecciona para a escada. A lista das propostas e a mesma coisa
     que esta era, e com o lote e as que nao vem do DR por cima."""
-    return redirect("/?estado=analisar")
+    return redirect(LISTA + "?estado=analisar")
 
 
 @app.route("/lista/<path:ref>", methods=["POST"])
@@ -19181,6 +19223,188 @@ def amostra():
         "pele": pele, "tipo": tipo_, "css": CSS, "css_novo": CSS_NOVO,
         "sel_tipo": sel_tipo, "sel_pele": sel_pele,
         "corpo": "".join(partes)}
+
+
+# --------------------------------- a abertura (fase 4 do docs/design.md)
+#
+# "Hoje a abertura e a lista dos concursos; eu quero chegar e ver o
+# estado do negocio e o que tenho de fazer" (16/09/2026). A lista passou
+# a ter endereco proprio -- LISTA -- e o "/" e esta pagina.
+#
+# Isto ressuscita o que o `/hoje` fazia antes de sair a 15/09, e responde
+# ao que ficou por responder nessa noite: "o que tenho de fazer hoje, em
+# todos os concursos ao mesmo tempo".
+
+# Quantos dias a frente conta como "a fechar em breve" nos KPI. E a
+# semana de trabalho e nao a janela do urgente (dias_urgente(), que sao
+# oito): aqui a pergunta e "o que me cai em cima esta semana".
+DIAS_A_FECHAR = 7
+
+
+def _tarefas_por_fazer():
+    """As tarefas abertas, as mais atrasadas primeiro.
+
+    Le a tabela `tarefas` e mais nada: as automaticas ja trazem os prazos
+    do DR (sincronizar_tarefas()), por isso somar aqui os prazos dos
+    anuncios era contar duas vezes o que esta na escada -- e juntar os
+    mil "por ver" afogava as dez que sao mesmo trabalho.
+    """
+    with liga() as c:
+        return c.execute(
+            "SELECT t.*, p.estado, p.titulo AS p_titulo, p.entidade "
+            "FROM tarefas t LEFT JOIN propostas p ON p.id = t.proposta_id "
+            "WHERE t.feita_em IS NULL "
+            "ORDER BY COALESCE(NULLIF(t.quando,''),'9999'), t.id").fetchall()
+
+
+def _grupos_das_tarefas(tarefas, hoje):
+    """As tarefas em quatro baldes, por ordem de quem grita mais alto.
+
+    Um "o que tenho de fazer" ordenado so por data poe o atrasado de
+    ontem a seguir ao de hoje e antes do da proxima semana, o que e
+    verdade e nao ajuda: o que esta atrasado e outra categoria, nao um
+    dia pior.
+    """
+    baldes = [("atrasadas", "Atrasadas", "mau"), ("hoje", "Hoje", "avisa"),
+              ("semana", "Nos próximos %d dias" % DIAS_A_FECHAR, ""),
+              ("depois", "Mais para a frente", "")]
+    fora = {chave: [] for chave, _, _ in baldes}
+    limite = hoje + timedelta(days=DIAS_A_FECHAR)
+    for t in tarefas:
+        quando = data_de_filtro(t["quando"]) if t["quando"] else ""
+        if not quando:
+            fora["depois"].append((t, None))
+            continue
+        dia = datetime.strptime(quando, "%Y-%m-%d").date()
+        if dia < hoje:
+            fora["atrasadas"].append((t, dia))
+        elif dia == hoje:
+            fora["hoje"].append((t, dia))
+        elif dia <= limite:
+            fora["semana"].append((t, dia))
+        else:
+            fora["depois"].append((t, dia))
+    return baldes, fora
+
+
+@app.route("/")
+def inicio():
+    hoje = datetime.now().date()
+    cfg = ler_config()
+
+    # 1. os quatro numeros do negocio -----------------------------------
+    pipeline = pipeline_em_euros()
+    em_jogo = sum(d["euros"] for d in pipeline.values())
+    abertas = sum(d["quantas"] for d in pipeline.values())
+    taxa = taxa_de_vitoria()
+    _, ganhos, decididos, valor_taxa = (taxa[0] if taxa
+                                        else ("total", 0, 0, None))
+
+    onde, valores = com_recorte("", [], *recorte_da_lista("porver", cfg))
+    with liga() as c:
+        por_ver = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
+                            valores).fetchone()["n"]
+
+    tarefas = _tarefas_por_fazer()
+    baldes, grupos = _grupos_das_tarefas(tarefas, hoje)
+    a_fechar = len(grupos["atrasadas"]) + len(grupos["hoje"]) + len(grupos["semana"])
+
+    def kpi(rotulo, valor, nota, alvo, estilo=""):
+        """Cada numero abre exactamente a lista que o produz -- a regra da
+        casa. Onde nao ha lista unica que o de (o "em jogo" e a soma de
+        quatro ranhuras), aponta-se ao ecra que o DECOMPOE, e a nota
+        di-lo; o que nao se faz e apontar a uma lista parecida."""
+        return ("<a class='kpi' href='%s'><div class='r'>%s</div>"
+                "<div class='v' style='%s'>%s</div><div class='d'>%s</div></a>"
+                % (html.escape(alvo, quote=True), rotulo, estilo, valor, nota))
+
+    kpis = "".join((
+        kpi("Em jogo", euros_curto(em_jogo),
+            ("%s propostas abertas" % mil_pt(abertas)) if abertas
+            else "ainda não há propostas abertas",
+            "/configuracoes/indicadores"),
+        kpi("Taxa de vitória",
+            ("%d%%" % round(valor_taxa * 100)) if valor_taxa is not None else "—",
+            ("%s de %s decididos" % (mil_pt(ganhos), mil_pt(decididos)))
+            if decididos else "ainda não há decididos",
+            LISTA + "?estado=ganho"),
+        kpi("Por decidir", mil_pt(por_ver),
+            "anúncios em «Por ver» que ainda dá para responder",
+            LISTA + "?estado=porver",
+            "color:var(--laranja)" if por_ver else ""),
+        # O numero e TODAS as tarefas por fazer, e o destino e a lista
+        # delas aqui em baixo. Esteve a contar so as dos proximos dias e
+        # a ligar ao /calendario -- que mostra PRAZOS e nao tarefas, e
+        # com um numero que nao era o das linhas que se viam. Um numero
+        # que abre uma coisa diferente do que promete e a avaria que a
+        # regra da casa proibe, e ja foi apanhada hoje no "+N" do
+        # calendario. Aqui a lista esta na propria pagina, e por isso o
+        # destino e uma ancora.
+        kpi("Para fazer", mil_pt(len(tarefas)),
+            ("%s atrasadas &middot; %s até %d dias"
+             % (mil_pt(len(grupos["atrasadas"])), mil_pt(a_fechar),
+                DIAS_A_FECHAR)) if grupos["atrasadas"]
+            else ("%s nos próximos %d dias" % (mil_pt(a_fechar), DIAS_A_FECHAR))
+            if a_fechar else "nada com data à vista",
+            "#fazer",
+            "color:var(--verm)" if grupos["atrasadas"] else ""),
+    ))
+
+    # 2. o que tenho de fazer -------------------------------------------
+    def linha_da_tarefa(t, dia):
+        quando = ("<span class='hj-q'>%s</span>" % data_pt(dia.isoformat())
+                  if dia else "<span class='hj-q vago'>sem data</span>")
+        onde_ = t["p_titulo"] or t["entidade"] or t["ref"] or ""
+        alvo = ("/anuncio/" + quote(t["ref"], safe="")) if t["ref"] else LISTA
+        return ("<a class='hj-l' href='%s'>%s<span class='hj-o'>%s</span>"
+                "<span class='hj-c'>%s</span></a>"
+                % (html.escape(alvo, quote=True), quando,
+                   html.escape(t["o_que"] or ""),
+                   html.escape(corta(onde_, 70))))
+
+    if tarefas:
+        blocos = []
+        for chave, rotulo, classe in baldes:
+            aqui = grupos[chave]
+            if not aqui:
+                continue
+            blocos.append(
+                "<div class='hj-g %s'><div class='hj-t'>%s <i>%s</i></div>%s</div>"
+                % (classe, html.escape(rotulo), mil_pt(len(aqui)),
+                   "".join(linha_da_tarefa(t, d) for t, d in aqui)))
+        fazer = "".join(blocos)
+    else:
+        # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
+        fazer = ("<div class='vazio'>Nada por fazer. As tarefas nascem "
+                 "sozinhas quando um concurso entra na escada — os prazos "
+                 "de esclarecimentos e de entrega vêm do anúncio.<br>"
+                 "<a href='%s'>ver o que está por decidir</a></div>"
+                 % (LISTA + "?estado=porver"))
+
+    # 3. o que entrou desde a ultima vez --------------------------------
+    with liga() as c:
+        novos = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
+                          (hoje.isoformat(),)).fetchone()["n"]
+    _, quando_verif, verif_ok = linha_da_ultima_verificacao()
+    entrada = ("<div class='nota entrada-hoje%s'>"
+               "<b>%s</b> %s hoje &middot; última verificação: %s</div>"
+               % ("" if verif_ok else " mau", mil_pt(novos),
+                  "anúncio novo" if novos == 1 else "anúncios novos",
+                  quando_verif))
+
+    hora = datetime.now().hour
+    saudacao = ("Bom dia" if hora < 13 else
+                "Boa tarde" if hora < 20 else "Boa noite")
+    return envolver(
+        "inicio", saudacao,
+        "O estado do negócio e o que há para fazer. Os números abrem a "
+        "lista que os produz; as tarefas nascem sozinhas quando um "
+        "concurso entra na escada.",
+        "<div class='larg'><div class='kpis'>%s</div>%s"
+        "<div class='cx hoje' id='fazer'><h2>O que tenho de fazer</h2>%s</div>"
+        "</div>"
+        % (kpis, entrada, fazer),
+        titulo_aba="Radar de Concursos, DR")
 
 
 # ------------------------------------------------------------- arranque

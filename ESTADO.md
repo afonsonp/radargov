@@ -289,7 +289,7 @@ de letra** entre 9 e 34px sem escala nenhuma, e o `/calendario` desenha
 de altura, 98% vazios. A paleta nova está medida sobre **todos** os
 fundos que existem, não só sobre o papel: pior caso **4,52**, e a
 escala de texto passou a ter um patamar só em vez de dois, que era a
-armadilha que já partiu o contraste duas vezes. São **931 testes**.
+armadilha que já partiu o contraste duas vezes.
 
 **E a fase 3, o calendário, no mesmo dia.** Era uma grade de «uma
 linha por concurso × uma coluna por dia» — a forma de um Gantt, que
@@ -319,6 +319,21 @@ tocar nas escritas à mão). Importa porque a página de abertura lê essa
 tabela: uma tarefa órfã aparecia lá como trabalho de uma proposta que
 não existe. Saiu também um `volta_ao_referer("/quadro")` que apontava
 para a página que desapareceu a 15/09.
+
+**E a fase 4, a abertura.** «Hoje a abertura é a lista dos concursos;
+eu quero chegar e ver o estado do negócio e o que tenho de fazer.» O
+`/` passou a ser essa página e a lista mudou para **`/concursos`**; a
+barra ganhou um primeiro item, **Hoje**. Quatro números (em jogo, taxa
+de vitória, por decidir, para fazer), o que há para fazer em **quatro
+baldes** — atrasadas · hoje · próximos 7 dias · mais para a frente, que
+não é o mesmo que ordenar por data — e uma linha com o que entrou hoje
+e a última verificação. A saudação acompanha a hora. Ressuscita o que o
+`/hoje` fazia antes de sair a 15/09, e fecha o «o que tenho de fazer
+hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
+responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
+seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
+única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
+**938 testes**.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
