@@ -3673,6 +3673,22 @@ class BaseTemporaria(unittest.TestCase):
             radar, "DB", os.path.join(self.pasta, "ensaio.db")))
         self.enterContext(unittest.mock.patch.object(
             radar, "DOCS", os.path.join(self.pasta, "documentos")))
+        # E o `config.json` TAMBÉM (16/09/2026). Sem isto os testes liam
+        # o config verdadeiro dele, e o uso normal da aplicação partia a
+        # bateria: apanhado nesta sessão, quando ele ligou o Interesse no
+        # painel e três testes da escada passaram a contar 0 em vez de 4
+        # — o recorte por CPV escondia os anúncios do fixture, que não
+        # têm CPV nenhum. Pior do que um teste vermelho: o hook
+        # `testes_antes_do_commit.py` trava o commit, e a causa está num
+        # ficheiro que ninguém associa aos testes.
+        #
+        # O `BASE_DIR` vai atrás porque é dele que saem as chaves e as
+        # capturas, e um teste que grave lá escrevia na pasta real (a
+        # `TestConfiguracoes` já o fazia por si; agora é de todos).
+        self.enterContext(unittest.mock.patch.object(
+            radar, "BASE_DIR", self.pasta))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
         radar.iniciar_db()          # cria o esquema e põe as marcas
 
 
@@ -7756,6 +7772,71 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
     def test_nada_no_painel_liga_ao_quadro(self):
         for pedaco in ("/quadro#", "href='/quadro'", 'href="/quadro"'):
             self.assertNotIn(pedaco, radar_fonte(), pedaco)
+
+
+class TestColunasSeguemARanhura(BaseTemporaria):
+    """A lista das propostas mostrava as **oito colunas nas oito
+    ranhuras** (fase 5, 16/09/2026).
+
+    A regra já existia e é do próprio CRM — um campo pertence a um estado
+    e a mais nenhum (`_campos_que_a_ranhura_pede()`, que a ficha segue) —
+    e a lista não a seguia.
+
+    O caso que importa é o **«Proposto» antes do Submetido**: não está
+    vazio por falta de preenchimento, é **impossível**. O
+    `ESTADOS_COM_PROPOSTO` diz que o preço proposto só existe a partir do
+    Submetido, e o `docs/historico/CRM.md` escreve que «perguntar o preço
+    proposto antes de haver proposta é perguntar por adivinhas». Uma
+    coluna de travessões que nunca poderá ter nada é uma pergunta sem
+    resposta possível, repetida em cada linha.
+    """
+
+    def _proposta(self, estado):
+        # o mesmo anúncio serve as várias ranhuras, uma de cada vez: o
+        # `ref` é único, e sem o OR IGNORE a segunda chamada rebentava
+        with radar.liga() as c:
+            c.execute("DELETE FROM propostas")
+            c.execute("INSERT OR IGNORE INTO anuncios (ref, titulo, entidade,"
+                      " estado, data_pub, prazo, preco_base) VALUES "
+                      "('60/2026','Soft','CML','novo','2026-09-01',"
+                      "'2026-12-01','118.500,00 EUR')")
+        return radar.criar_proposta("60/2026", estado=estado)
+
+    def _colunas(self, estado):
+        corpo = radar.app.test_client().get(
+            radar.LISTA + "?estado=" + estado).get_data(as_text=True)
+        cabeca = corpo.split("<thead><tr>")[1].split("</tr>")[0]
+        return re.findall(r"<th>([^<]*)</th>", cabeca), corpo
+
+    def test_o_proposto_so_aparece_de_submetido_para_a_frente(self):
+        for estado in ("analisar", "proposta"):
+            self._proposta(estado)
+            colunas, _ = self._colunas(estado)
+            self.assertNotIn("Proposto", colunas, estado)
+        for estado in radar.ESTADOS_COM_PROPOSTO:
+            self._proposta(estado)
+            colunas, _ = self._colunas(estado)
+            self.assertIn("Proposto", colunas, estado)
+
+    def test_as_celulas_batem_com_os_cabecalhos(self):
+        """Uma coluna que sai do cabeçalho e não da linha desalinha a
+        tabela toda, e isso não dá erro nenhum — vê-se, e mal."""
+        for estado in ("analisar", "submetido"):
+            self._proposta(estado)
+            colunas, corpo = self._colunas(estado)
+            linha = corpo.split("<tbody>")[1].split("</tbody>")[0]
+            self.assertEqual(linha.count("<td"), len(colunas),
+                             "%s: %d cabeçalhos, %d células"
+                             % (estado, len(colunas), linha.count("<td")))
+
+    def test_o_lote_e_o_responsavel_nao_se_escondem(self):
+        """Estão vazios por não estarem **preenchidos**, e isso é outra
+        coisa: podem ter valor, e esconder a coluna tirava o sítio onde
+        se vê que faltam."""
+        self._proposta("analisar")
+        colunas, _ = self._colunas("analisar")
+        self.assertIn("Lote", colunas)
+        self.assertIn("Responsável", colunas)
 
 
 class TestIndiceDaFichaCobreAPagina(BaseTemporaria):

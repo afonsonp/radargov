@@ -11759,6 +11759,30 @@ COLUNAS_DA_PIPELINE = ("Concurso", "Cliente", "Lote", "Preço base",
                        "Proposto", "Entrega", "Responsável", "Ranhura", "")
 
 
+def colunas_da_ranhura(estado):
+    """As colunas que ESTA ranhura pode ter (16/09/2026, fase 5).
+
+    A regra e a mesma que a ficha ja seguia -- um campo pertence a um
+    estado e a mais nenhum (`_campos_que_a_ranhura_pede()`) -- e a lista
+    nao a seguia: mostrava as oito colunas nas oito ranhuras.
+
+    A coluna "Proposto" antes do Submetido nao esta vazia por falta de
+    preenchimento: e **impossivel**. `ESTADOS_COM_PROPOSTO` diz que o
+    preco proposto so existe a partir do Submetido, e o proprio
+    docs/historico/CRM.md escreve que "perguntar o preco proposto antes
+    de haver proposta e perguntar por adivinhas". Uma coluna de
+    travessoes que nunca podera ter nada e uma pergunta sem resposta
+    possivel, repetida em cada linha.
+
+    O que NAO se esconde: "Lote" e "Responsavel" estao vazios por nao
+    estarem preenchidos, e isso e outra coisa -- podem ter valor, e
+    esconde-los tirava o sitio onde se ve que faltam.
+    """
+    if estado in ESTADOS_COM_PROPOSTO:
+        return COLUNAS_DA_PIPELINE
+    return tuple(c for c in COLUNAS_DA_PIPELINE if c != "Proposto")
+
+
 def _preco_da_proposta(p):
     """O numero que conta, e dito pelo que e. A partir do Submetido e o
     proposto; antes disso e o preco base -- e enquanto o proposto nao
@@ -11795,9 +11819,12 @@ def linha_da_pipeline(p, urgente, prazos):
     else:
         alvo = "/proposta/%d" % p["id"]
         nome = corta(p["titulo"] or "(sem título)", 80)
+    # a celula do proposto sai com a coluna (ver colunas_da_ranhura)
+    cel_proposto = ("<td class='p'>%s</td>" % _preco_da_proposta(p)
+                    if p["estado"] in ESTADOS_COM_PROPOSTO else "")
     return ("<tr><td class='o'><a href='%s'>%s</a>%s</td>"
             "<td class='g'>%s</td><td class='curta'>%s</td>"
-            "<td class='p'>%s</td><td class='p'>%s</td>"
+            "<td class='p'>%s</td>%s"
             "<td class='d'>%s</td><td class='curta'>%s</td>"
             "<td class='celula-ranhura'>%s</td><td class='curta'>%s</td></tr>"
             % (alvo, html.escape(nome),
@@ -11808,7 +11835,10 @@ def linha_da_pipeline(p, urgente, prazos):
                "L%d" % p["lote"] if p["lote"] else
                ("conjunto" if p["lote"] == 0 else "&mdash;"),
                html.escape(p["preco_base"] or "") or "&mdash;",
-               _preco_da_proposta(p), col_prazo,
+               # pelo tuplo e nao concatenada ao molde: o valor ja vem
+               # substituido, e um "%" la dentro rebentava o `%` de fora
+               cel_proposto,
+               col_prazo,
                html.escape(p["responsavel"] or "") or "&mdash;",
                # a mesma escada da outra lista, e pela proposta: uma sem
                # anuncio nao tem `ref` por onde lhe pegar
@@ -11863,7 +11893,7 @@ def _lista_de_propostas():
         corpo = ("<div class='cx tab-cx'><table class='tab-contratos tab-lista'>"
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
                  % ("".join("<th>%s</th>" % html.escape(t)
-                            for t in COLUNAS_DA_PIPELINE),
+                            for t in colunas_da_ranhura(estado_actual)),
                     "".join(linha_da_pipeline(p, urgente, prazos)
                             for p in linhas)))
     else:

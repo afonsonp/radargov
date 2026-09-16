@@ -333,7 +333,7 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**949 testes**.
+**952 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
@@ -377,6 +377,29 @@ campos ficaram todas**: numa página de configuração o texto está ao
 lado do controlo que governa, e a regra da §9 é sobre páginas que se
 descrevem, não sobre rótulos de campo. Fica por decidir se os
 Indicadores pertencem ao **Hoje** agora que a abertura os aponta.
+
+**E o quinto ecrã fechou a fase 5: a lista das propostas.** Mostrava
+as mesmas oito colunas nas oito ranhuras, e a regra que faltava era do
+próprio CRM — um campo pertence a um estado e a mais nenhum. O
+**«Proposto» antes do Submetido não está vazio por falta de
+preenchimento: é impossível**, e uma coluna de travessões que nunca
+poderá ter nada é uma pergunta sem resposta. Passa a aparecer só de
+Submetido para a frente; o «Lote» e o «Responsável» ficam, que esses
+podem ter valor.
+
+**E apareceu um defeito na bateria, por acidente.** Três testes da
+escada começaram a falhar sem o diff os poder ter tocado: **os testes
+liam o `config.json` verdadeiro dele**. Ele estava a usar o painel ao
+mesmo tempo — ligou o Interesse —, e o recorte por CPV passou a
+esconder os anúncios dos fixtures. Não é um teste frágil, é pior: o
+hook `testes_antes_do_commit.py` trava o commit, e a causa está num
+ficheiro que ninguém associa aos testes — **o uso normal da aplicação
+podia bloquear o trabalho no código**. O `BaseTemporaria` passou a
+apontar o `CONFIG` e o `BASE_DIR` para a pasta temporária.
+
+**O NIF da casa está preenchido** desde as 16:47 desse dia, por ele:
+«LATD DIGITAL ENABLERS, LDA», NIF 516241362. O cruzamento com o Portal
+BASE deixa de perguntar e passa a dizer quando a adjudicação é nossa.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
