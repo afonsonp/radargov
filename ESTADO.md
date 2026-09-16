@@ -289,7 +289,20 @@ de letra** entre 9 e 34px sem escala nenhuma, e o `/calendario` desenha
 de altura, 98% vazios. A paleta nova está medida sobre **todos** os
 fundos que existem, não só sobre o papel: pior caso **4,52**, e a
 escala de texto passou a ter um patamar só em vez de dois, que era a
-armadilha que já partiu o contraste duas vezes. São **918 testes**.
+armadilha que já partiu o contraste duas vezes. São **928 testes**.
+
+**E a fase 3, o calendário, no mesmo dia.** Era uma grade de «uma
+linha por concurso × uma coluna por dia» — a forma de um Gantt, que
+serve para intervalos; um prazo é um dia. A unidade passou a ser o
+**dia**: seis semanas, sete colunas, e dentro de cada dia o que fecha
+nesse dia. Medido na mesma página e na mesma base, antes e depois:
+**48 870 células → 42**, 2,2% cheias → 88% (37 dos 42 dias), **2,0 MB
+→ 380 KB**, **86 915 px → 1 254 px**, e deixou de rolar nos dois eixos
+para caber num ecrã (66 ms no servidor). A célula diz o título e a
+entidade, e não «prazo» 1 086 vezes. Entraram as **abas da escada**,
+sem números — sem elas o calendário por omissão mostra as propostas em
+aberto, que hoje são zero, e a única saída era escrever `?estado=` na
+barra de endereços. Abaixo de 900px a grade rola dentro de si.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações

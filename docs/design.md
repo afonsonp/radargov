@@ -8,7 +8,7 @@ Este ficheiro é a decisão. O que se vê está em **`/amostra`**, que
 mostra os componentes todos num sítio e deixa trocar o lettering e a
 pele para comparar.
 
-**As fases 0 e 1 estão feitas** (16/09/2026): ele viu a amostra,
+**As fases 0, 1 e 3 estão feitas** (16/09/2026): ele viu a amostra,
 escolheu a letra («prefiro a segunda, a do IBM») e disse «avança». A
 camada está aplicada aos ecrãs todos. O diagnóstico da §1 descreve o
 que **estava** antes disso — é o registo do que se mediu, não o estado
@@ -383,21 +383,51 @@ três coisas em vez de uma.
 
 O que isso resolve, ponto por ponto:
 
-| Hoje | Depois |
-|---|---|
-| 48 870 células, 2,2% cheias | 42 células, e só se desenha o que existe |
-| 87 000 px, rola nos dois eixos | cabe num ecrã, sem rolagem lateral |
-| A pílula diz «prazo» | a célula diz o título e a entidade |
-| Ordenado por data = uma lista | o dia é a unidade, e a carga do dia vê-se |
-| Vazio por omissão | um dia sem nada é um dia, não um erro |
+**Feito a 16/09/2026** (fase 3). Medido na mesma base, na mesma
+página, antes e depois:
 
-Um dia com mais coisas do que cabem mostra as três primeiras e «+4»,
-que abre o dia. E mantém-se o que já estava certo: sábados e domingos
-distinguem-se, hoje marca-se, e cada linha liga à ficha.
+| | Antes | Depois |
+|---|---|---|
+| Células desenhadas | 48 870 | **42** |
+| Cheias | 2,2% | **88%** (37 dos 42 dias) |
+| HTML | 2,0 MB | **380 KB** |
+| Altura | 86 915 px | **1 254 px** |
+| Rolagem | vertical **e** horizontal | cabe num ecrã |
+| A célula diz | «prazo», 1 086 vezes | o título e a entidade |
+| Servidor | — | 66 ms |
 
-**Isto é um ecrã, e por isso espera pela ordem dele** — está aqui
-escrito para ele decidir, como ele pediu («diz-me o que lhe está
-errado antes de o refazeres»).
+**As células são sempre 42**, venham dez linhas ou dez mil — é essa a
+propriedade que impede a forma antiga de voltar por distracção, e é o
+que `TestCalendarioEPorDiaENaoUmGantt` fixa.
+
+Quatro decisões que se tomaram a fazê-lo:
+
+- **A grade começa na segunda-feira desta semana**, não em «hoje». Uma
+  grade de semanas que comece a uma quarta não se lê como um
+  calendário. Os dias já passados desta semana ficam lá, apagados: um
+  prazo de terça que hoje é quinta ainda explica o que aconteceu.
+- **A urgência é do dia e não de cada linha.** No mesmo dia todas as
+  linhas são igualmente urgentes, e por isso a cor está no número do
+  dia e não em vinte e seis pílulas iguais. A conta é a mesma do resto
+  da aplicação (`dias_urgente()`, janela única), para a cor aqui e a
+  etiqueta da lista nunca discordarem sobre o mesmo prazo.
+- **O «+N» abre no sítio, com um `<details>`, e não liga à lista.**
+  A tentação era `/?de=<dia>&ate=<dia>` — mas esses dois filtros são
+  por **`data_pub`** e não por `prazo`: a lista que abriam não era a
+  que o número prometia, que é exactamente a avaria que a regra da casa
+  proíbe. Nada se perde: o que não cabe está no `<details>`, e há teste.
+- **As abas da escada entraram**, sem números. Sem elas, o calendário
+  por omissão mostra as propostas em aberto — que hoje são zero — e a
+  única saída era escrever `?estado=` na barra de endereços. Sem
+  números porque o número que faria sentido aqui não é o total da
+  ranhura mas quantos têm prazo dentro das seis semanas: outra conta,
+  onze vezes por pedido. Entre um número que abre outra coisa e nenhum
+  número, a regra da casa escolhe o segundo.
+
+E abaixo de 900px **a grade rola dentro de si** (`min-width:840px`,
+120px por coluna). Sete colunas em 375px dão 49px e o título sai
+«Ex…» — a mesma avaria do calendário antigo, que mostrava «A pr…» numa
+célula de 52px. Medido: a página fica em 375, a célula em 119.
 
 ---
 
@@ -458,7 +488,7 @@ primeiro item da barra.
 | **0** | `docs/design.md` e `/amostra` — as fontes, a paleta, os botões, a escala | **Não** | **feita** 16/09 |
 | **1** | Aplicar a camada: fontes, tokens, escala, botões | Todos, ao mesmo tempo | **feita** 16/09 |
 | **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | a seguir |
-| **3** | O calendário (§8) | Um | |
+| **3** | O calendário (§8) | Um | **feita** 16/09 |
 | **4** | A abertura (§10) | Um novo, e a navegação | |
 | **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | |
 

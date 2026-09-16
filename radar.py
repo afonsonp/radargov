@@ -9517,39 +9517,66 @@ a.ct-l{color:var(--azul)}
  min-height:24px;box-sizing:border-box}
 .ct-novo button:hover{border-color:var(--azul);color:var(--azul)}
 
-/* calendario */
-.grade-caixa{background:#fff;border:1px solid var(--linha);border-radius:8px;
- overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.grade-rolo{overflow-x:auto}
-.linha-grade{display:grid;border-bottom:1px solid var(--papel);align-items:center;
- min-width:max-content}
-.linha-grade.cab{background:var(--creme);border-bottom:1px solid var(--linha)}
-.cel-titulo{padding:13px 16px;position:sticky;left:0;background:#fff;z-index:2;
- border-right:1px solid var(--linha2);min-width:0}
-.linha-grade.cab .cel-titulo{background:var(--creme);
- font:600 10px/1 var(--sans);color:var(--t5);text-transform:uppercase;
- letter-spacing:.09em;padding:11px 16px}
-.cel-titulo a{font:600 12.5px/1.3 var(--sans);display:block;white-space:nowrap;
- overflow:hidden;text-overflow:ellipsis}
-.cel-titulo .ent{font:400 11px/1.3 var(--sans);color:var(--t5);margin-top:3px;
- white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* O dia e o eixo desta pagina e era o texto mais apagado dela: o
-   numero em --t4 sobre branco, as iniciais do dia da semana em --t6. */
-.cel-dia{padding:8px 0;text-align:center;border-left:1px solid var(--linha2)}
-.cel-dia .s{font:500 9px/1.2 var(--sans);color:var(--t4);text-transform:lowercase}
-.cel-dia .n{font:700 12px/1.3 var(--mono);color:var(--t1)}
-.cel-dia .m{font:400 9px/1.3 var(--sans);color:var(--t4);text-transform:uppercase}
-.cel-dia.fds{background:var(--linha2)}
-.cel-dia.fds .s,.cel-dia.fds .n{color:var(--t3)}
-.cel-dia.mes-novo{border-left:2px solid var(--traco)}
-.cel-dia.hoje{background:var(--azul-fundo)}
-.cel-dia.hoje .n,.cel-dia.hoje .s{color:var(--azul);font-weight:700}
-.cel-pilula{padding:4px 3px}
-/* a pilula cortava sem reticencias e lia-se "Por analis" -- e dado
-   estragado, nao texto cortado (regra da casa: toda a truncagem
-   visivel poe reticencias) */
-.pilula{display:block;padding:6px 5px;border-radius:5px;font:600 9.5px/1.2 var(--sans);
- text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* O calendario (16/09/2026, fase 3 do docs/design.md). Era uma grade de
+   "uma linha por concurso x uma coluna por dia", que e a forma de um
+   Gantt -- serve para INTERVALOS. Um prazo nao e um intervalo, e um
+   dia. Medido na base verdadeira: 48 870 celulas desenhadas para
+   mostrar 1 086 factos (2,2% cheias), 2,0 MB de HTML e 86 915 px de
+   altura, e a pilula dizia "prazo" 1 086 vezes.
+   Agora a unidade e o DIA: seis semanas, sete colunas, e dentro de cada
+   dia o que fecha nesse dia. O choque de datas -- a razao de ser da
+   pagina -- ve-se por a celula ter tres coisas em vez de uma. */
+.cal-rolo{overflow-x:auto}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;
+ background:var(--linha);border:1px solid var(--linha);border-radius:9px;
+ overflow:hidden;box-shadow:var(--sombra,0 1px 2px rgba(0,0,0,.06))}
+.cal-cab{background:var(--creme);padding:8px 10px;
+ font:600 var(--f1,11px)/1 var(--sans);color:var(--t4)}
+.cal-dia{background:#fff;padding:7px 8px 9px;min-height:104px;
+ display:flex;flex-direction:column;gap:4px;min-width:0}
+/* Sabado e domingo distinguem-se: um prazo ao fim-de-semana importa,
+   e sem isto a grade e uma tira de numeros onde nao se separa um
+   sabado de uma terca. */
+.cal-dia.fds{background:var(--linha2)}
+/* o que ja passou nesta semana continua a ver-se, apagado: um prazo de
+   terca que hoje e quinta ainda explica o que aconteceu */
+.cal-dia.passou{background:var(--creme)}
+.cal-dia.passou .cal-n{color:var(--t5)}
+.cal-n{font:600 var(--f2,12px)/1 var(--mono);color:var(--t2);
+ display:flex;align-items:baseline;gap:5px;margin-bottom:2px}
+.cal-n span{font:500 9.5px/1 var(--sans);color:var(--t5);
+ text-transform:none;letter-spacing:0}
+/* O dia e o eixo da pagina, e a urgencia e uma funcao DELE e nao de
+   cada linha: no mesmo dia todas as linhas sao igualmente urgentes.
+   Por isso a cor esta aqui e nao em 26 pilulas iguais. */
+.cal-dia.hoje{background:var(--azul-fundo)}
+.cal-dia.hoje .cal-n{color:var(--azul);font-weight:700}
+.cal-dia.avisa .cal-n{color:var(--laranja)}
+.cal-dia.mau .cal-n{color:var(--verm)}
+.cal-dia.mes-novo .cal-n span{color:var(--t2);font-weight:700}
+.cal-it{display:block;border-left:2px solid var(--traco);padding:2px 0 2px 6px;
+ min-width:0}
+.cal-it b{display:block;font:600 var(--f1,11px)/1.3 var(--sans);color:var(--t1);
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-it i{display:block;font:400 10px/1.3 var(--sans);color:var(--t5);
+ font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-it:hover b{color:var(--azul)}
+.cal-it.casa{border-left-color:var(--azul)}
+/* "+23" abre no sitio. NAO e uma ligacao para a lista com ?de=&ate=:
+   esses dois filtram por data_pub e nao por prazo, e um numero que abre
+   uma lista diferente da que promete e a avaria que a regra da casa
+   proibe. */
+.cal-mais{margin-top:1px}
+.cal-mais > summary{cursor:pointer;list-style:none;
+ font:600 10px/1 var(--sans);color:var(--t4);padding:5px 4px;margin:-5px -4px;
+ min-height:24px;box-sizing:border-box;display:flex;align-items:center}
+.cal-mais > summary::-webkit-details-marker{display:none}
+.cal-mais > summary:hover{color:var(--azul)}
+.cal-mais[open] > summary{color:var(--t3)}
+.cal-mais .cal-it{margin-top:4px}
+/* a semana e a unidade de leitura: um risco mais forte entre elas */
+.cal-legenda{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+ margin:0 0 12px;font:400 var(--f2,12px)/1.4 var(--sans);color:var(--t4)}
 
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
@@ -9645,6 +9672,12 @@ a.ct-l{color:var(--azul)}
  .barras .l{white-space:normal;text-align:center;overflow-wrap:anywhere}
  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
  .conf-indice a i{display:none}
+ /* Sete colunas em 375px dao 49px cada, e o titulo sai "Ex...". E a
+    mesma avaria do calendario antigo, que mostrava "A pr..." numa celula
+    de 52px. A regra da casa e rolar DENTRO de si e nunca alargar a
+    pagina: 120px por coluna e o minimo em que o titulo diz alguma
+    coisa. */
+ .cal{min-width:840px}
  .conf-cx{padding:14px}
  .conf-form textarea{max-width:none}
  dialog.modal{width:94vw}
@@ -11166,7 +11199,7 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
     return contas
 
 
-def barra_das_abas(rota, actual, contas):
+def barra_das_abas(rota, actual, contas=None):
     """As dez ranhuras mais o "todos", desenhadas uma vez para as duas
     listas. Sem isto eram dois sitios a desenhar a mesma barra, e o
     primeiro a mudar deixava o outro a mostrar abas que ja nao existem.
@@ -11174,6 +11207,13 @@ def barra_das_abas(rota, actual, contas):
     As duas das pontas levam classe propria: nao sao estados da casa (a
     entrada e o cemiterio), e um ecra que as pinte como as outras oito
     diz que sao oito estados quando sao dez coisas de tres naturezas.
+
+    `contas=None` desenha a barra SEM numeros, e e o que o calendario
+    pede (16/09/2026). La o numero que faria sentido nao e o total da
+    ranhura mas quantos tem prazo dentro das seis semanas -- outra
+    conta, onze vezes por pedido. Entre mostrar um numero que abre uma
+    coisa diferente do que promete e nao mostrar numero nenhum, a regra
+    da casa escolhe o segundo.
     """
     pecas = ["<div class='abas abas-escada'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
@@ -11187,9 +11227,11 @@ def barra_das_abas(rota, actual, contas):
             classe = "casa" + (" fechada" if chave in ESTADOS_FECHADOS else "")
         if chave == actual:
             classe += " on"
-        pecas.append("<a class='%s' href='%s'>%s <i>%s</i></a>"
+        numero = ("" if contas is None
+                  else " <i>%s</i>" % mil_pt(contas.get(chave, 0)))
+        pecas.append("<a class='%s' href='%s'>%s%s</a>"
                      % (classe, sem_pagina(request.args, rota, estado=chave),
-                        html.escape(rotulo), mil_pt(contas.get(chave, 0))))
+                        html.escape(rotulo), numero))
     pecas.append("</div>")
     return "".join(pecas)
 
@@ -17787,7 +17829,11 @@ def proposta_gravar(id_):
 
 # ----------------------------------------------------------- calendario
 
-DIAS_CALENDARIO = 45
+# Seis semanas, e nao 45 dias soltos: a grade comeca sempre a uma
+# segunda, e por isso a janela e um numero inteiro de semanas.
+SEMANAS_CALENDARIO = 6
+# Quantas linhas cabem num dia antes de o resto ir para o "+N".
+CABEM_NO_DIA = 3
 
 
 def _linhas_do_calendario(estado):
@@ -17814,12 +17860,7 @@ def _linhas_do_calendario(estado):
             linhas = [{"ref": p["ref"], "titulo": p["titulo"],
                        "entidade": p["entidade"],
                        "prazo": prazos.get(p["ref"]) or "",
-                       "rotulo": estado_da_casa(p["estado"]),
-                       # o quadro saiu a 15/09/2026: a volta e para a
-                       # ranhura em que a proposta esta, que e onde o
-                       # calendario a foi buscar
-                       "alvo": "/?estado=" + p["estado"],
-                       "volta": "na lista"}
+                       "rotulo": estado_da_casa(p["estado"])}
                       for p in propostas]
             o_que = (("as propostas em «%s»" % estado_da_casa(estado))
                      if estado else "o que a casa tem em aberto")
@@ -17832,8 +17873,9 @@ def _linhas_do_calendario(estado):
                 valores).fetchall()
             linhas = [{"ref": a["ref"], "titulo": a["titulo"],
                        "entidade": a["entidade"], "prazo": a["prazo"],
-                       "rotulo": "prazo", "alvo": "/?estado=" + estado,
-                       "volta": "na lista"}
+                       # o rotulo dos anuncios era a palavra "prazo",
+                       # igual nas 1 086 linhas: a celula diz a entidade
+                       "rotulo": ""}
                       for a in anuncios]
             o_que = "os anúncios em «%s»" % (ROTULOS_DA_ESCADA.get(estado)
                                              or "todos")
@@ -17844,104 +17886,123 @@ def _linhas_do_calendario(estado):
 
 @app.route("/calendario")
 def calendario():
+    """Seis semanas, o dia como unidade (fase 3 do docs/design.md).
+
+    O que estava aqui era uma grade de "uma linha por concurso x uma
+    coluna por dia" -- a forma de um Gantt, que serve para mostrar
+    INTERVALOS. Um prazo de concurso nao e um intervalo, e um dia, e
+    desenhar um ponto numa grade de 45 colunas gasta 44 celulas para nao
+    dizer nada. Medido na base verdadeira, em ?estado=porver: 1 086
+    linhas x 45 = 48 870 celulas, das quais 1 086 tinham alguma coisa
+    (2,2%); 2,0 MB de HTML; 86 915 px de altura; e a pilula dizia
+    "prazo" as 1 086 vezes, porque a unica informacao da celula era a
+    POSICAO -- que ja estava no cabecalho da coluna.
+
+    E nao respondia a pergunta de um calendario. Ordenado por prazo, uma
+    linha por concurso, aquilo era uma lista por data com 48 000 celulas
+    desenhadas a volta; a pergunta e a inversa -- "que dia esta
+    carregado?", "ha dois a fechar na mesma manha?" --, e essa le-se por
+    dia.
+    """
     hoje = datetime.now().date()
-    urgente = dias_urgente()  # uma leitura por pedido, nao uma por linha
+    urgente = dias_urgente()       # uma leitura por pedido, nao uma por dia
     estado = request.args.get("estado")
     estado = "" if estado is None else ABAS_ANTIGAS.get(estado.strip(),
                                                         estado.strip())
     cartas, o_que = _linhas_do_calendario(estado)
 
-    migalhas = migalhas_de("calendario")
-    envolve = lambda corpo: envolver(
-        "calendario", "Calendário",
-        "Prazos de %s, %d dias a partir de hoje."
-        % (o_que, DIAS_CALENDARIO), corpo, migalhas=migalhas,
-        titulo_aba="Calendário, Em curso")
+    # A grade comeca na SEGUNDA desta semana e nao em hoje: uma grade de
+    # semanas que comece a uma quarta nao se le como um calendario. Os
+    # dias ja passados desta semana ficam la, apagados -- um prazo de
+    # terca que hoje e quinta ainda explica o que aconteceu.
+    principio = hoje - timedelta(days=hoje.weekday())
+    fim = principio + timedelta(days=SEMANAS_CALENDARIO * 7 - 1)
 
-    if not cartas:
-        return envolve("<div class='vazio'>Nada com prazo em %s. "
-                       "<a href='/'>ver a lista</a>.</div>" % html.escape(o_que))
-
-    grelha = "grid-template-columns:260px repeat(%d,52px)" % DIAS_CALENDARIO
-
-    def classes_do_dia(i, dia):
-        """Sem isto a grade e uma tira de 45 numeros onde nao se distingue
-        um sabado de uma terca -- e um prazo ao fim-de-semana importa."""
-        cs = ["cel-dia"]
-        if i == 0:
-            cs.append("hoje")
-        if dia.weekday() >= 5:
-            cs.append("fds")
-        if dia.day == 1 and i:
-            cs.append("mes-novo")
-        return " ".join(cs)
-
-    cabecalho = ["<div class='linha-grade cab' style='%s'>"
-                 "<div class='cel-titulo'>Concurso &middot; %d dias a partir de hoje</div>"
-                 % (grelha, DIAS_CALENDARIO)]
-    for i in range(DIAS_CALENDARIO):
-        dia = hoje + timedelta(days=i)
-        cabecalho.append("<div class='%s'><div class='s'>%s</div>"
-                         "<div class='n'>%02d</div><div class='m'>%s</div></div>"
-                         % (classes_do_dia(i, dia), DIAS_SEMANA[dia.weekday()],
-                            dia.day, MESES[dia.month - 1]))
-    cabecalho.append("</div>")
-
-    # As cores da paleta, e nao as antigas escritas a mao: a pilula tem
-    # 9,5px e a combinacao de antes ficava a 4,1:1 sobre o proprio fundo.
-    cores = {"ok": ("var(--verde-fundo)", "var(--verde)"),
-             "avisa": ("var(--laranja-fundo)", "var(--laranja)"),
-             "mau": ("var(--verm-fundo)", "var(--verm)")}
-    linhas, fora = [], 0
+    por_dia, fora = {}, 0
     for a in cartas:
         try:
-            alvo = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
+            dia = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
         except ValueError:
             continue
-        posicao = (alvo - hoje).days
-        if posicao < 0 or posicao >= DIAS_CALENDARIO:
+        if principio <= dia <= fim:
+            por_dia.setdefault(dia, []).append(a)
+        else:
             fora += 1
-            continue
-        _, classe = etiqueta_prazo(a["prazo"], urgente)
-        fundo, frente = cores.get(classe, ("var(--azul-fundo)", "var(--azul)"))
-        celulas = []
-        for i in range(DIAS_CALENDARIO):
-            classes = classes_do_dia(i, hoje + timedelta(days=i))
-            if i == posicao:
-                celulas.append("<div class='%s cel-pilula'>"
-                               "<a class='pilula' style='background:%s;color:%s' "
-                               "href='/anuncio/%s' title='%s'>%s</a></div>"
-                               % (classes, fundo, frente,
-                                  quote(a["ref"], safe=""),
-                                  html.escape(a["prazo"], quote=True),
-                                  html.escape(a["rotulo"])))
-            else:
-                celulas.append("<div class='%s'></div>" % classes)
-        # A ancora e a ligacao de volta: quadro <-> calendario sao duas
-        # vistas do mesmo conjunto, e cada linha aponta para o SEU cartao
-        # (§5 do ESQUELETO). A ligacao vai em linha propria: no .ent, o
-        # nowrap+ellipsis da entidade comia-a nos nomes longos.
-        ref_ancora = a["ref"].replace("/", "-")
-        linhas.append("<div class='linha-grade' id='c-%s' style='%s'>"
-                      "<div class='cel-titulo'><a href='/anuncio/%s'>%s</a>"
-                      "<div class='ent'>%s</div>"
-                      "<div class='ent'><a href='%s'>%s</a></div></div>%s</div>"
-                      % (ref_ancora, grelha, quote(a["ref"], safe=""),
-                         html.escape(corta(a["titulo"] or a["ref"], 70)),
-                         html.escape(a["entidade"] or ""),
-                         html.escape(a["alvo"], quote=True),
-                         html.escape(a["volta"]), "".join(celulas)))
 
-    nota = ("<div class='nota' style='margin-top:14px'>%d com prazo fora da "
-            "janela de %d dias, que não aparecem na grade &mdash; continuam "
-            "na lista.</div>"
-            % (fora, DIAS_CALENDARIO)) if fora else ""
+    def item(a):
+        rotulo = (a["rotulo"] or "").strip()
+        # o rotulo dos anuncios era a palavra "prazo", igual em todas as
+        # linhas; o que diz alguma coisa e a entidade
+        segunda = rotulo if rotulo and rotulo != "prazo" else (a["entidade"] or "")
+        return ("<a class='cal-it%s' href='/anuncio/%s' title='%s'>"
+                "<b>%s</b><i>%s</i></a>"
+                % (" casa" if rotulo and rotulo != "prazo" else "",
+                   quote(a["ref"], safe=""),
+                   html.escape(a["titulo"] or a["ref"], quote=True),
+                   html.escape(corta(a["titulo"] or a["ref"], 60)),
+                   html.escape(corta(segunda, 40))))
 
-    return envolve("<div class='larg'><div class='grade-caixa'>"
-                   "<div class='grade-rolo'>%s%s</div></div>%s</div>"
-                   % ("".join(cabecalho), "".join(linhas), nota))
+    def celula(dia):
+        classes = ["cal-dia"]
+        if dia == hoje:
+            classes.append("hoje")
+        elif dia < hoje:
+            classes.append("passou")
+        if dia.weekday() >= 5:
+            classes.append("fds")
+        if dia.day == 1:
+            classes.append("mes-novo")
+        # A urgencia e do DIA e nao de cada linha: no mesmo dia todas sao
+        # igualmente urgentes. A conta e a mesma do resto da aplicacao
+        # (janela unica, dias_urgente()), para a cor aqui e a etiqueta da
+        # lista nunca discordarem sobre o mesmo prazo.
+        aqui = por_dia.get(dia, [])
+        if aqui and dia >= hoje:
+            _, classe = etiqueta_prazo(dia.isoformat(), urgente)
+            if classe in ("avisa", "mau"):
+                classes.append(classe)
+        elif aqui:
+            classes.append("mau")
 
+        cabeca = ("<div class='cal-n'>%d%s</div>"
+                  % (dia.day,
+                     "<span>%s</span>" % MESES[dia.month - 1]
+                     if dia.day == 1 or dia == principio else ""))
+        visiveis = "".join(item(a) for a in aqui[:CABEM_NO_DIA])
+        resto = aqui[CABEM_NO_DIA:]
+        mais = ("<details class='cal-mais'><summary>+%d</summary>%s</details>"
+                % (len(resto), "".join(item(a) for a in resto))) if resto else ""
+        return "<div class='%s'>%s%s%s</div>" % (" ".join(classes), cabeca,
+                                                 visiveis, mais)
 
+    grade = ["<div class='cal-rolo'><div class='cal'>"]
+    grade += ["<div class='cal-cab'>%s</div>" % d for d in DIAS_SEMANA]
+    grade += [celula(principio + timedelta(days=i))
+              for i in range(SEMANAS_CALENDARIO * 7)]
+    grade.append("</div></div>")
+
+    # A ligacao de volta a lista e da PAGINA e ja nao de cada linha: com
+    # o dia como unidade, uma linha e uma linha dentro de uma celula e
+    # nao ha la sitio para um segundo destino. O par mantem-se (§5 do
+    # esqueleto: as duas sao vistas do mesmo conjunto) e e a mesma
+    # ranhura que esta a ser vista.
+    legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
+               "%s.</span>%s<a href='%s'>ver em lista</a></div>"
+               % (html.escape(o_que), data_pt(principio.isoformat()),
+                  data_pt(fim.isoformat()),
+                  ("<span>%s com prazo fora destas seis semanas &mdash; "
+                   "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
+                  html.escape("/?estado=" + estado, quote=True)))
+
+    # As mesmas abas da lista, e sem numeros (ver barra_das_abas). Sem
+    # elas o calendario por omissao mostra as propostas em aberto, que
+    # quando sao zero dava um beco: a unica saida era escrever ?estado=
+    # na barra de enderecos.
+    return envolver("calendario", "Calendário", "",
+                    "<div class='larg'>%s%s</div>" % (legenda, "".join(grade)),
+                    migalhas=migalhas_de("calendario"),
+                    abas=barra_das_abas("/calendario", estado),
+                    titulo_aba="Calendário, Concursos")
 # --------------------------------------------------------- indicadores
 
 def funil_anuncios():

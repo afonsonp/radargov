@@ -7633,21 +7633,114 @@ class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
 
 class TestCalendarioLigaAEscada(unittest.TestCase):
     """Atalho da §5 do esqueleto: o calendário e a lista são vistas do
-    mesmo conjunto, e cada linha aponta para o seu par.
+    mesmo conjunto, e há sempre por onde passar de uma à outra.
 
-    Apontava para o quadro; com ele fora, aponta para a ranhura em que a
-    proposta está — que é onde o calendário a foi buscar. Uma ligação
-    para uma página que já não existe é pior do que nenhuma.
+    Apontou para o quadro; com ele fora (15/09/2026) passou a apontar
+    para a ranhura em que a proposta está. A 16/09/2026, com o dia a ser
+    a unidade da grade, a ligação **subiu de nível**: uma linha passou a
+    ser uma linha dentro de uma célula de 119px e não há lá sítio para
+    um segundo destino, por isso o par mantém-se na legenda da página —
+    e aponta para a ranhura que está a ser vista. Uma ligação para uma
+    página que já não existe é pior do que nenhuma; nenhuma ligação é
+    pior do que uma que esteja no sítio certo.
     """
 
     def test_a_volta_do_calendario_e_para_a_ranhura(self):
-        fonte = radar_fonte()
-        self.assertNotIn('"/quadro#p-%d"', fonte)
-        self.assertIn('"alvo": "/?estado=" + p["estado"]', fonte)
+        fonte = inspect.getsource(radar.calendario)
+        self.assertNotIn("/quadro", fonte)
+        self.assertIn('"/?estado=" + estado', fonte)
+
+    def test_o_calendario_nao_promete_uma_lista_que_nao_abre(self):
+        """O «+N» de um dia cheio **não** liga a `/?de=X&ate=X`: esses
+        dois filtros são por `data_pub` e não por `prazo`, e a lista que
+        abriam não era a que o número prometia. Abre no sítio, com um
+        `<details>`."""
+        fonte = inspect.getsource(radar.calendario)
+        self.assertIn("cal-mais", fonte)
+        self.assertNotIn("&ate=", fonte)
+        self.assertNotIn("ate=%s", fonte)
 
     def test_nada_no_painel_liga_ao_quadro(self):
         for pedaco in ("/quadro#", "href='/quadro'", 'href="/quadro"'):
             self.assertNotIn(pedaco, radar_fonte(), pedaco)
+
+
+class TestCalendarioEPorDiaENaoUmGantt(BaseTemporaria):
+    """O calendário era uma grade de «uma linha por concurso × uma coluna
+    por dia» — a forma de um Gantt, que serve para **intervalos**.
+
+    Um prazo não é um intervalo, é um dia. Medido na base verdadeira, em
+    `?estado=porver`: **48 870 células desenhadas para mostrar 1 086
+    factos** (2,2% cheias), 2,0 MB de HTML e 86 915 px de altura. E a
+    pílula dizia «prazo» as 1 086 vezes, porque a única informação da
+    célula era a POSIÇÃO — que já estava no cabeçalho da coluna.
+
+    O que este teste fixa é a inversão: **as células são sempre 42**,
+    venham dez linhas ou dez mil. É essa a propriedade que impede a
+    forma antiga de voltar por distracção.
+    """
+
+    def _por_ver(self, quantos, dia):
+        with radar.liga() as c:
+            for n in range(quantos):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, "
+                          "estado, data_pub, prazo) VALUES (?,?,?,?,?,?)",
+                          ("%d/2026" % n, "Anúncio %d" % n, "Município %d" % n,
+                           "novo", dia.isoformat(), dia.isoformat()))
+
+    def _grade(self):
+        r = radar.app.test_client().get("/calendario?estado=porver")
+        self.assertEqual(r.status_code, 200)
+        return r.get_data(as_text=True)
+
+    def test_as_celulas_sao_sempre_42_venham_dez_ou_dez_mil(self):
+        hoje = datetime.date.today()
+        dia = hoje + datetime.timedelta(days=3)
+        for quantos in (0, 1, 200):
+            with radar.liga() as c:
+                c.execute("DELETE FROM anuncios")
+            self._por_ver(quantos, dia)
+            self.assertEqual(self._grade().count("class='cal-dia"), 42,
+                             "com %d anúncios" % quantos)
+
+    def test_a_grade_comeca_sempre_a_uma_segunda(self):
+        """Uma grade de semanas que comece a uma quarta não se lê como um
+        calendário. E é por isso que a janela é um número inteiro de
+        semanas e não «45 dias a partir de hoje»."""
+        hoje = datetime.date.today()
+        self._por_ver(1, hoje + datetime.timedelta(days=2))
+        corpo = self._grade()
+        principio = hoje - datetime.timedelta(days=hoje.weekday())
+        self.assertEqual(principio.weekday(), 0)
+        self.assertIn(radar.data_pt(principio.isoformat()), corpo)
+
+    def test_nenhum_se_perde_no_mais_n(self):
+        """O que não cabe na célula vai para o `<details>`, e **está lá**.
+        Um «+86» que esconda oitenta e seis para sempre é pior do que não
+        os mostrar."""
+        dia = datetime.date.today() + datetime.timedelta(days=2)
+        self._por_ver(radar.CABEM_NO_DIA + 5, dia)
+        corpo = self._grade()
+        self.assertIn("+5", corpo)
+        for n in range(radar.CABEM_NO_DIA + 5):
+            self.assertIn("Anúncio %d<" % n, corpo)
+
+    def test_um_dia_sem_nada_e_um_dia_e_nao_um_erro(self):
+        """Sem `?estado=` o calendário mostra as propostas em aberto, que
+        numa casa que ainda não abriu nenhuma são zero. A grade desenha-se
+        na mesma, e as abas por cima são a saída — antes era um beco, em
+        que a única forma de ver outra coisa era escrever `?estado=` na
+        barra de endereços."""
+        r = radar.app.test_client().get("/calendario")
+        corpo = r.get_data(as_text=True)
+        self.assertEqual(corpo.count("class='cal-dia"), 42)
+        self.assertIn("abas-escada", corpo)
+
+    def test_o_que_fica_fora_da_janela_diz_se(self):
+        hoje = datetime.date.today()
+        self._por_ver(1, hoje + datetime.timedelta(days=120))
+        corpo = self._grade()
+        self.assertIn("fora destas seis semanas", corpo)
 
 
 class TestAlteracoesDoDR(BaseTemporaria):
