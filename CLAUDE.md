@@ -43,12 +43,12 @@ barra de navegação**. O `docs/historico/CONCORRENTES.md` guarda o que
 se observou nos produtos pagos deste mercado, com data — **um produto
 muda, e o que lá está vale para o dia em que foi visto**. O
 `docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface
-da casa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
+da empresa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
 afinar, dívida): lê-o antes de mexer no painel. O
 `docs/historico/CRM.md` (15/09/2026, reescrito nesse dia com as
 respostas dele) é o plano para o «Em curso» deixar de ser a mesma
 consulta dos interessados. O desenho é do Afonso: **uma escada só** —
-dez ranhuras, a entrada (*por ver*), as oito palavras da casa (*por
+dez ranhuras, a entrada (*por ver*), as oito palavras da empresa (*por
 analisar · a preparar proposta · submetido · relatório preliminar ·
 ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados —
 com o calendário como única outra vista, e a navegação num
@@ -103,7 +103,7 @@ python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
-python radar.py --casa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
+python radar.py --empresa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
 python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
 python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass
@@ -185,7 +185,7 @@ porta» do `docs/armadilhas.md` antes de tocar nisto: a armadilha
 principal é que o túnel liga-se ao painel **a partir de 127.0.0.1**.
 
 **O endereço público é `https://radargov.pt`** (8/09/2026, etapa 3
-do plano, feita pela via B — o PC de casa exposto por um túnel, não
+do plano, feita pela via B — o PC de empresa exposto por um túnel, não
 um VPS): um túnel com nome da Cloudflare, `radar`, a correr como
 serviço do utilizador (`radar-tunel.service`, criado pelo
 **`tunel_fixo.sh`**), que se liga ao painel em `127.0.0.1:8765` e
@@ -212,7 +212,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 ## Arquitectura
 
 Quase tudo em **`radar.py`** (~19 mil linhas), dividido por bandas com
-cabeçalho `# ---`; o registo da casa está em **`casa.py`** e as contas
+cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
 
@@ -233,7 +233,7 @@ A ordem do ficheiro é a ordem do fluxo:
    formatador novo entra aqui**, não na banda que por acaso o precisou
    primeiro — ver a regra no `docs/armadilhas.md`.
 2b. **propostas** — o CRM inteiro (`docs/historico/CRM.md`,
-   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_CASA`),
+   15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_EMPRESA`),
    `criar_proposta()` / `mover_proposta()` /
    `gravar_campos_da_proposta()` / `contar_propostas()`, as tarefas
    (`sincronizar_tarefas()` — as automáticas seguem as datas do DR, as
@@ -242,7 +242,7 @@ A ordem do ficheiro é a ordem do fluxo:
    **propõe, nunca decide**), os indicadores comerciais
    (`pipeline_em_euros()`, `taxa_de_vitoria()`) e os contactos, que são
    da **entidade** e não do concurso. **A escada é o estado da proposta,
-   não do anúncio** — não voltes a pendurar estado da casa no
+   não do anúncio** — não voltes a pendurar estado da empresa no
    `anuncios`, que é de onde as doze colunas saíram.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
@@ -281,10 +281,10 @@ A ordem do ficheiro é a ordem do fluxo:
    (contratos `/contratos`, com o modo `?ver=fim` das antigas
    renovações; `/renovacoes` redirecciona). Por baixo das abas há
    **duas listas**: as pontas mostram anúncios, as oito ranhuras da
-   casa mostram propostas. **O quadro saiu no mesmo dia**, por decisão
+   empresa mostram propostas. **O quadro saiu no mesmo dia**, por decisão
    dele: a ranhura muda-se no selector de cada linha (`/escada/<ref>`),
    e tudo o que o cartão fazia vive no bloco «A nossa proposta» da
-   ficha (`proposta_cx()`) — os campos que a ranhura pede, o que a casa
+   ficha (`proposta_cx()`) — os campos que a ranhura pede, o que a empresa
    decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
    (13/09/2026; `<header class="barra">`), só com a marca, os itens,
    **Configurações** e quem está. Configurações
@@ -319,11 +319,11 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 192 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
+São 195 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·
-o registo da casa · a base, as migrações e o disco · trabalhos de fundo
+o registo da empresa · a base, as migrações e o disco · trabalhos de fundo
 e arranque · contas e a porta · a interface · convenções.
 
 **Lê a área antes de lhe mexer.** Estavam aqui até 3/09/2026 e
@@ -499,19 +499,19 @@ coisa que passou a ser manual é a instalação **trazer código novo** —
 isso só acontece quando o Afonso corre `actualizar.sh`.
 
 **O leitor do Excel antigo saiu a 15/09/2026**, por decisão dele
-(«corta, fica no git»): as 603 linhas do `casa.py` que sabiam ler o
+(«corta, fica no git»): as 603 linhas do `empresa.py` que sabiam ler o
 `Analise_Concursos_Publicos.xlsm` do SharePoint e ligá-lo aos anúncios
 por semelhança de título (`ler_excel`, `Acervo`, `pontuar`,
 `ref_pelo_base`, `decidir`, `importar`, `ligar_a_mao`), mais as 638
-linhas do `TestRegistoDaCasa`. Uma decisão anterior tinha-o guardado
+linhas do `TestRegistoDaEmpresa`. Uma decisão anterior tinha-o guardado
 como história; a D4 do `docs/historico/CRM.md` — o Excel serve só para
 importar o passado, **pelo modelo** — tornou-a obsoleta, e o `.xlsm` já
-tinha sido importado. O que ficou do `casa.py` é o modelo
+tinha sido importado. O que ficou do `empresa.py` é o modelo
 (`escrever_modelo` › `ler_modelo` › `ensaio_modelo` › `aplicar_modelo`),
 a tradução do estado (`estado_efectivo`, `estado_pretendido`, que ainda
 guardam a regra do Zoho e a guarda dos lotes, com testes em
-`TestEstadoEfectivoDaCasa`) e o `desaplicar_da_copia()` do
-`--casa-desfazer`.
+`TestEstadoEfectivoDaEmpresa`) e o `desaplicar_da_copia()` do
+`--empresa-desfazer`.
 
 **As bases de dados não entram no histórico do git** — `radar.db` (1,3
 GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por

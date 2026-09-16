@@ -9,7 +9,7 @@ sessão que só acrescentava no fim. Onde está o resto:
 | Onde | O quê |
 |---|---|
 | `LEIA-ME.md` | O manual: instalar, correr, refazer as capturas |
-| `CLAUDE.md` | As regras da casa, para quem trabalha no código |
+| `CLAUDE.md` | As regras da empresa, para quem trabalha no código |
 | `docs/armadilhas.md` | O que não é óbvio, por área — **lê a área antes de lhe mexer** |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim |
 | `docs/diario/2026-08.md` | As sessões de 28 a 31 de agosto |
@@ -49,7 +49,7 @@ Os links do e-mail já dizem `radargov.pt` (`endereco_publico` no
 `config.json`). **E a etapa 2 também, ao fim da tarde**: o menu de
 Configurações em `/configuracoes/<seccao>`, com Alertas a sair da
 barra para lá. O plano `ONLINE.md` está feito por inteiro, pela via B
-(o PC de casa exposto por túnel). **E desde a tarde de 8/09/2026 o
+(o PC de empresa exposto por túnel). **E desde a tarde de 8/09/2026 o
 painel serve no telemóvel**: as grelhas de duas colunas passam a uma
 abaixo de 900 px, e o que é largo (quadro, tabelas, abas, índice da
 ficha) rola dentro de si; medido a 375 px em oito páginas, nenhuma
@@ -91,7 +91,7 @@ na ficha; as novas entram no resumo por e-mail, **e com peça nova o
 anúncio é relido logo pelo modelo**. **E entrou a lista do «Em
 curso»** (`/lista`), a tabela que ele mandou: título, cliente, preço,
 esclarecimentos, entrega, tipologia, estado da proposta, CV, proposta
-técnica, notas, plataforma, CoE, responsável — as cinco da casa são
+técnica, notas, plataforma, CoE, responsável — as cinco da empresa são
 colunas novas, gravadas linha a linha. E a aplicação chama-se
 **RadarGov** na barra e no ecrã de entrar, com o «Gov» a azul. **E
 passou por uma auditoria de segurança** (14/09/2026, a pedido dele):
@@ -104,7 +104,7 @@ Referer só para o próprio anfitrião, e os ficheiros com segredos a
 (14/09/2026): com interesse definido, os contratos, o CSV e os
 gráficos mostram só os CPV marcados, com a mesma faixa e o mesmo «ver
 tudo». **Com interesse definido o Mercado abre logo com os contratos
-dos CPV da casa** — o interesse conta como pergunta, nos dois modos e
+dos CPV da empresa** — o interesse conta como pergunta, nos dois modos e
 no CSV (14/09/2026, «abre-se e não se vê contrato nenhum»); sem
 interesse continua a pedir um filtro, e o ecrã vazio diz-o. O
 formulário do alerta ficou em três grupos — em comum, só anúncios, só
@@ -139,7 +139,7 @@ mostra. São o mesmo conjunto, sempre, porque há **duas escadas
 paralelas** para o mesmo percurso (a triagem e o funil) e um concurso
 sobe as duas ao mesmo tempo. O plano está em `docs/historico/CRM.md`,
 com as sete decisões dele respondidas, e o desenho é dele: **uma escada
-só**, dez ranhuras — a entrada (*por ver*), as oito palavras da casa
+só**, dez ranhuras — a entrada (*por ver*), as oito palavras da empresa
 (*por analisar · a preparar proposta · submetido · relatório preliminar
 · ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados
 —, com lista, quadro e calendário como três vistas dela. **As etapas 1 e 2
@@ -201,12 +201,12 @@ dele e é um cartão como os outros.
 foi a surpresa da medição: o `contratos.n_anuncio` do dump do IMPIC vem
 no mesmo formato do `ref` do radar («17161/2026»), e **69,4% dos
 anúncios de 2024 já têm contrato celebrado** (5,3% nos de 2026 — o ciclo
-demora meses). O plano previa o maquinário de semelhança do `casa.py`;
+demora meses). O plano previa o maquinário de semelhança do `empresa.py`;
 não é preciso nenhum. A ficha de uma proposta ainda aberta cujo
 procedimento já foi adjudicado mostra a quem foi, por quanto, e **quanto
 a nossa proposta estava acima ou abaixo** — com dois botões, «Ganhámos»
 e «Perdemos». **Propõe, nunca decide.** Falta-lhe uma coisa para
-adiantar a resposta: o NIF da casa, em Configurações › Conta (enquanto
+adiantar a resposta: o NIF da empresa, em Configurações › Conta (enquanto
 estiver vazio, pergunta em vez de adivinhar).
 
 **Os indicadores ganharam o bloco «O negócio»**: o que está em jogo por
@@ -223,7 +223,7 @@ também, e por isso aparecem em todos os concursos dela.
 
 **A 15/09/2026 entraram as três coisas que faltavam de uma lista de
 «20 coisas a proteger antes de um site ir para o público»** (as outras
-dezassete já existiam ou não se aplicam): páginas de erro da casa
+dezassete já existiam ou não se aplicam): páginas de erro da empresa
 (404, 403 e 500, e o 500 fica na marca `painel_ultimo_erro` e na série
 `erros`, visível nos últimos erros dos Indicadores); a rota **`/saude`**,
 sem sessão, que responde «ok» ou 503 para um vigilante de fora bater
@@ -365,7 +365,7 @@ percorrida como quem trabalha nela. Com o funil cheio apareceram
 6. **As migalhas e o «Verificar agora» desapareciam ao rolar**, debaixo
    da barra escura: `.topo` e `.barra` estavam os dois em `top:0`.
 
-E o vocabulário mudou, por decisão dele: **a «casa» diz-se «empresa»**
+E o vocabulário mudou, por decisão dele: **a «empresa» diz-se «empresa»**
 no ecrã, e as entidades do Portal BASE passaram a dizer o que são —
 **Cliente** ou **Concorrente**, pelo peso do que compram contra o que
 vendem (`papel_da_entidade()`; 3× de folga, e pelo meio são as duas
@@ -392,6 +392,28 @@ tinham ficado por corrigir. As quatro fecharam-se no mesmo dia:
   atributo que o mude; passaram a texto, como o das tarefas já era.
 
 São **976 testes**.
+
+**E as duas que tinham ficado como decisão dele fizeram-se a seguir**,
+quando disse «faz as duas que ficaram»:
+
+- **O selo de Cliente / Concorrente entrou nas listas** — as duas
+  colunas do Mercado e os três blocos da ficha que listam
+  adjudicatários, que é onde se olha para a concorrência. Para o pagar,
+  os dois totais passaram a viver na tabela `entidades`, somados **com
+  o corpus**: vinte contratos são vinte adjudicatários, e perguntar por
+  cada um eram quarenta somas sobre 2 milhões de linhas por página. Na
+  lista o selo é abreviado (`CLI` · `CONC` · `C+C`) e **não é a
+  inicial** — «Cliente» e «Concorrente» começam os dois por C, e deixar
+  a cor fazer o trabalho da palavra não se lê em voz alta.
+- **O vocabulário do código passou a «empresa»**: identificadores, o
+  módulo (`casa.py` → `empresa.py`), a rota, a bandeira da consola e a
+  documentação viva. Com **duas migrações**, porque duas das coisas com
+  esse nome estavam gravadas — as chaves `nome_da_casa`/`nif_da_casa`
+  do `config.json` (que levam o NIF do cruzamento com o Portal BASE) e
+  a tabela `casa` do `radar.db`. As duas idempotentes, guardadas pela
+  própria pergunta e não por uma marca, e com teste.
+
+São **982 testes**, e o registo de pendências está outra vez limpo.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
@@ -461,7 +483,7 @@ ficheiro que ninguém associa aos testes — **o uso normal da aplicação
 podia bloquear o trabalho no código**. O `BaseTemporaria` passou a
 apontar o `CONFIG` e o `BASE_DIR` para a pasta temporária.
 
-**O NIF da casa está preenchido** desde as 16:47 desse dia, por ele:
+**O NIF da empresa está preenchido** desde as 16:47 desse dia, por ele:
 «LATD DIGITAL ENABLERS, LDA», NIF 516241362. O cruzamento com o Portal
 BASE deixa de perguntar e passa a dizer quando a adjudicação é nossa.
 
@@ -545,7 +567,7 @@ uma ficha com dez lotes a 1,0 s (ver o `docs/diario/2026-09.md`).
   foi deixá-los («passado é passado, e nesses anúncios já não
   conseguimos fazer nada»); **ele reverteu-a à tarde**, e a razão é a
   segunda metade da frase: não se responde a um concurso de 2024, mas o
-  CPV e o preço base dele são o corpus que diz onde é que esta casa
+  CPV e o preço base dele são o corpus que diz onde é que esta empresa
   ganha. Existe desde então o `--detalhes [N|tudo]`. Três versões no
   mesmo dia, cada uma medida contra o portal antes de ficar: sequencial
   a 1s (~24h) → sequencial a 0,3s (~11h) → 0,1s testado e **revertido**
@@ -573,7 +595,7 @@ interessa expirado é trabalho em curso), **abandonados 197 888** (os
 195 345 com estado `novo`.
 
 Por cima das abas há o **interesse** (Configurações › Interesse), os
-CPV que a casa trabalha: está ligado quando há CPV guardado, e com ele
+CPV que a empresa trabalha: está ligado quando há CPV guardado, e com ele
 definido a lista não tem árvore nem «excluir CPV».
 
 **O que está implementado.** O esqueleto de informação (três
@@ -583,7 +605,7 @@ os Indicadores dentro das Configurações), o desenho visual «ardósia e
 leitor de peças lá dentro, o quadro de seis fases, o calendário, os
 alertas por e-mail em texto e HTML, o corpus de contratos do Portal BASE
 com os sete gráficos, a exportação da triagem para o git, a segunda fonte
-(Vortal), e o registo da casa — desde 8/09/2026 pelo **modelo Excel
+(Vortal), e o registo da empresa — desde 8/09/2026 pelo **modelo Excel
 do radar**, em Configurações › Importar dados, com ensaio.
 
 **O funil fecha: a ficha diz como o anúncio acabou** (04/09/2026). O dump
@@ -604,17 +626,17 @@ anos**, o que era hipótese com dois anos de dados e passou a facto com
 onze: o resto são procedimentos desertos, anulados, abaixo do limiar de
 publicação, ou linhas do dump sem `nAnuncio`.
 
-**A 8/09/2026 a aplicação foi posta a zero, e o registo da casa
+**A 8/09/2026 a aplicação foi posta a zero, e o registo da empresa
 mudou de fonte.** Decisão do Afonso: o Excel antigo
 (`Analise_Concursos_Publicos.xlsm`) deixa de contar para a aplicação —
-fica nos documentos, e o leitor dele fica no `casa.py` sem comando que
+fica nos documentos, e o leitor dele fica no `empresa.py` sem comando que
 o chame (**e saiu de vez a 15/09/2026**, por decisão dele: 603 linhas de
 código e 638 de testes; está no histórico do git). Em vez disso **o radar dita o modelo**: um `.xlsx` gerado em
 Configurações › Importar dados (referência do anúncio, lote, estado,
 razão, proposta, lugar, concorrentes, responsável, notas, com listas
 de escolha), que se preenche, se carrega, se vê em ensaio e só depois
-se confirma; a confirmação escreve o registo (`casa.folha='modelo'`)
-**e a triagem** (`casa.aplicar()`, o anúncio fica no melhor estado dos
+se confirma; a confirmação escreve o registo (`empresa.folha='modelo'`)
+**e a triagem** (`empresa.aplicar()`, o anúncio fica no melhor estado dos
 seus lotes). O `--estado-zero` apagou a triagem (3 744 anúncios de
 volta a «por ver»), o quadro, as etiquetas, o histórico (24 443
 linhas), os filtros e alertas, as entidades seguidas, o interesse, o
@@ -629,11 +651,11 @@ o que o modelo traz.
 **O Zoho já está lido, e em coluna própria.** A 03/09/2026 leram-se
 pelo browser, na sessão dele, as **148 oportunidades** da vista dos
 Negócios (`Potentials`, org `conkord`) — o Zoho não exporta CSV. **92
-cruzam** com o registo da casa (68 por preço e nome, 24 só por nome);
-sobram 95 linhas da casa sem par e 56 negócios sem par, estes últimos
+cruzam** com o registo da empresa (68 por preço e nome, 24 só por nome);
+sobram 95 linhas da empresa sem par e 56 negócios sem par, estes últimos
 sobretudo entidades espanholas (que o Excel não inclui de propósito) e
 pedidos de perfil, que não são concursos. O que o Zoho diz ficou em
-`casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`, e o
+`empresa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`, e o
 `status` do Excel **não foi tocado**: em 46 das 92 o Excel diz «Não
 fomos» e o Zoho diz «Lost», porque o Zoho não tem palavra para «não
 concorremos». Escrever por cima apagava a distinção.
@@ -644,7 +666,7 @@ do Excel prevalece, e é o único**; em tudo o resto ganha o Zoho —
 fontes contam coisas diferentes: o Excel tem uma linha por lote, o Zoho
 um negócio por procedimento, e um «Won» do Zoho quer dizer «ganhámos
 pelo menos um lote», que não diz nada sobre este. Vive em
-`casa.estado_efectivo()`, **derivada** — nenhuma das duas colunas se
+`empresa.estado_efectivo()`, **derivada** — nenhuma das duas colunas se
 reescreve. Sobre as 187 linhas: **15 mudam de estado** (9 Submetido →
 Perdido, 2 Submetido → Cancelado, 2 TBD → Perdido, 1 Cancelado →
 Perdido, 1 Submetido → Ganho) e **47 ficam protegidas** pela excepção do
@@ -655,17 +677,17 @@ que chega aos anúncios.
 
 **Os lotes estão desenhados desde 8/09/2026** (decisão de 2/09): a
 ficha tem o bloco «Lotes» (os que o anúncio declara, com o preço base
-de cada um e, quando o registo da casa os conhece, a que fomos, com
+de cada um e, quando o registo da empresa os conhece, a que fomos, com
 que proposta, em que lugar e como acabou), o cartão do quadro diz a
 que lotes fomos («fomos a 2 dos 3 lotes», com uma etiqueta por lote),
 e no fim separam-se: um anúncio no Ganho com lotes perdidos ganha um
 cartão de lotes, não arrastável, na coluna Perdido — e vice-versa.
-Só a partir do registo da casa; o quadro não adivinha resultados.
+Só a partir do registo da empresa; o quadro não adivinha resultados.
 
 **Os lotes já têm solução, tirando dois casos.** A 03/09/2026 ele
 respondeu às quatro linhas que faltavam. As #23 e #26 traziam a **soma**
 dos lotes — é o total do anúncio, não está dividido por lotes: passaram
-a `casa.lote = 0`, «o conjunto», e a regra ficou no `lote_da_linha()`
+a `empresa.lote = 0`, «o conjunto», e a regra ficou no `lote_da_linha()`
 para valer nas importações seguintes. As #129 e #147 trazem um número
 que não bate com lote nenhum, nem com a soma, nem com o preço base de
 qualquer anúncio da base — é, provavelmente, o valor da nossa proposta;
@@ -673,7 +695,7 @@ ficam por identificar até ele dizer o lote à mão. São 12 as linhas
 ligadas a anúncios com lotes: 8 com o lote, 2 o conjunto, 2 por
 identificar — e as 2 que faltam são exactamente essas.
 
-**Código e testes.** `radar.py` com 18 971 linhas, `casa.py` com **630**
+**Código e testes.** `radar.py` com 18 971 linhas, `empresa.py` com **630**
 (eram 1 307: saiu o leitor do Excel antigo),
 `teste_radar.py` com **911** testes que correm em ~66 segundos, sem rede e sem
 tocar na base verdadeira (contados a 15/09/2026, ao fim do CRM e da limpeza do
@@ -692,10 +714,10 @@ positivos. Duas funções das etapas 4 e 5 **não estavam mortas, estavam
 por ligar** e ligaram-se: `propostas_por_fechar()` é agora o aviso no
 topo de «O negócio», e `taxa_por_divisao_cpv()` a lista «Onde se ganha,
 por área». **O leitor do Excel antigo saiu** ao fim do dia, quando ele
-disse «corta, fica no git»: 603 linhas do `casa.py` e 638 do
-`TestRegistoDaCasa`, que encolheu para as seis provas de código vivo
-(`TestEstadoEfectivoDaCasa`). O corte destapou um erro que nenhum teste
-apanhava: o `--casa-desfazer` apagava o histórico por `quem='Excel'`, e
+disse «corta, fica no git»: 603 linhas do `empresa.py` e 638 do
+`TestRegistoDaEmpresa`, que encolheu para as seis provas de código vivo
+(`TestEstadoEfectivoDaEmpresa`). O corte destapou um erro que nenhum teste
+apanhava: o `--empresa-desfazer` apagava o histórico por `quem='Excel'`, e
 já só a importação pelo modelo escreve ali — agora repõe-se pela cópia.
 
 **As duas bases.** `radar.db` (era 100 MB em Agosto e 558 MB na manhã
@@ -755,7 +777,7 @@ contagens do painel têm de ir por índice de cobertura — ver a
 - **O OCR das digitalizações e a vigilância das peças** saíram a
   3/09/2026. Ver `docs/diario/2026-09.md`.
 - **Criar e apagar fases do quadro** saiu a 1/09/2026: o quadro é o funil
-  da casa, não um kanban em branco. Renomear ficou.
+  da empresa, não um kanban em branco. Renomear ficou.
 - **Só passam pelo modelo documentos públicos** — Cadernos de Encargos e
   Programas de Concurso. Propostas, CVs e trabalho próprio não.
 

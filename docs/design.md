@@ -148,7 +148,7 @@ O resto do que a recomenda:
 
 - **Uma família só** cobre o texto e os números. A Plex Mono é a irmã
   desenhada da Plex Sans, e a referência (`23012/2026`), o CPV e o
-  preço deixam de ser de outra casa.
+  preço deixam de ser de outra empresa.
 - **Tem voz, e é a voz certa.** Ligeiramente institucional, de
   engenharia — assenta num radar de contratação pública melhor do que
   a neutralidade da Inter.
@@ -370,7 +370,7 @@ Os números estão na §1f. O que eles significam, na prática:
   como unidade.
 - **E o ecrã por omissão está vazio.** Sem `?estado=`, mostra as
   propostas em aberto — que hoje são zero. O calendário que ele abre
-  diz «Nada com prazo em o que a casa tem em aberto» (com o «em o»
+  diz «Nada com prazo em o que a empresa tem em aberto» (com o «em o»
   incluído).
 
 ### O que o substitui
@@ -414,7 +414,7 @@ Quatro decisões que se tomaram a fazê-lo:
 - **O «+N» abre no sítio, com um `<details>`, e não liga à lista.**
   A tentação era `/?de=<dia>&ate=<dia>` — mas esses dois filtros são
   por **`data_pub`** e não por `prazo`: a lista que abriam não era a
-  que o número prometia, que é exactamente a avaria que a regra da casa
+  que o número prometia, que é exactamente a avaria que a regra da empresa
   proíbe. Nada se perde: o que não cabe está no `<details>`, e há teste.
 - **As abas da escada entraram**, sem números. Sem elas, o calendário
   por omissão mostra as propostas em aberto — que hoje são zero — e a
@@ -422,7 +422,7 @@ Quatro decisões que se tomaram a fazê-lo:
   números porque o número que faria sentido aqui não é o total da
   ranhura mas quantos têm prazo dentro das seis semanas: outra conta,
   onze vezes por pedido. Entre um número que abre outra coisa e nenhum
-  número, a regra da casa escolhe o segundo.
+  número, a regra da empresa escolhe o segundo.
 
 E abaixo de 900px **a grade rola dentro de si** (`min-width:840px`,
 120px por coluna). Sete colunas em 375px dão 49px e o título sai
@@ -451,7 +451,7 @@ Duas decisões dentro disto:
   que isto vem tirar. Fechado por omissão, sempre.
 - **Sem subtítulo não há «?».** Algumas páginas passam `""` — a ficha
   do anúncio, por exemplo. Um `<details>` que abre nada é um controlo
-  morto, e a casa não põe controlos mortos no ecrã.
+  morto, e a empresa não põe controlos mortos no ecrã.
 
 Os 68 blocos `.nota` dentro das páginas tratam-se um a um, na passagem
 ecrã a ecrã (§11), com este critério:
@@ -561,7 +561,7 @@ nenhuma regra do `CSS_NOVO` pode ficar fora do âmbito.
 
 **O índice não cobria a página.** Prometia seis destinos e a ficha tinha
 oito blocos com âncora. Faltavam o **`#proposta`** — que é onde vive o
-trabalho da casa, o bloco mais importante do ecrã — e o `#contactos`. Um
+trabalho da empresa, o bloco mais importante do ecrã — e o `#contactos`. Um
 índice que salta por cima de um bloco é a mesma mentira de um número que
 abre outra lista: promete o mapa da página e não o é. O teste não fixa a
 lista de entradas, fixa a **propriedade**: toda a âncora que a página tem

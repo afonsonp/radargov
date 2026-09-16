@@ -18,7 +18,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [Contratos e entidades](#contratos-e-entidades) &middot; 13
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 41
-- [O registo da casa](#o-registo-da-casa) &middot; 2
+- [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
 - [Contas e a porta](#contas-e-a-porta) &middot; 10
@@ -648,6 +648,24 @@ Uma árvore, duas fontes de contagem, dois campos.
   não se paga ao abrir a lista. É a única página fora do
   `TestNenhumEcraDa500`, com o nome à vista.
 
+- **Os dois totais do papel vivem na tabela `entidades`, somados com o
+  corpus.** São o `compra` e o `ganha`, enchidos pelo
+  `somar_os_dois_lados()` — que corre no `resolver_entidades()` e, num
+  corpus de antes disto, uma vez pela própria pergunta («nenhuma
+  entidade tem lado nenhum») e **não por uma marca**: uma marca mente
+  depois de um restauro de cópia. Não se perguntam por pedido porque o
+  selo aparece numa **lista**: vinte contratos são vinte
+  adjudicatários, e duas somas sobre dois milhões de linhas por cada um
+  não é uma página, é uma espera. Quem põe o selo numa lista usa o
+  `papeis_de()`, que lê os vinte numa consulta só.
+
+- **O selo abreviado não é a inicial.** «Cliente» e «Concorrente»
+  começam os dois por C, e uma lista com um «C» verde ao lado de um «C»
+  laranja pede que a **cor** faça o trabalho da palavra — que não se lê
+  em voz alta nem sobrevive à daltonia. São `CLI`, `CONC` e `C+C`
+  (`PAPEL_ABREVIADO`), com a palavra e o porquê no `title`. Visto no
+  ecrã a 16/09/2026, na própria lista para que isto foi feito.
+
 - **O papel da entidade (Cliente / Concorrente) conta com os totais SEM
   o filtro da ficha.** São duas somas próprias no `ficha_entidade()`
   (`compra_total`, `ganha_total`), e não os `compra`/`ganha` que os
@@ -665,7 +683,7 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   a montar. A pergunta vem primeiro — ao contrário dos anúncios, onde a
   lista inteira é o acervo por triar — mas com interesse definido a
   pergunta já lá está (medido: 0,4 s a contar e a listar 72 mil pelos
-  CPV da casa). A mesma regra serve a página e o CSV. A paginação corre num CTE com o `LEFT
+  CPV da empresa). A mesma regra serve a página e o CSV. A paginação corre num CTE com o `LEFT
   JOIN entidades` e as subconsultas dos nomes **depois do `LIMIT`**, e há
   índice em `contratos(data_celebracao, id)`: sem ele, ordenar 1,36
   milhões para mostrar 20 levava 6 s — e o corpus cresceu 46% desde
@@ -838,7 +856,7 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   de `dias_urgente()`, como a lista.
 
 - **O interesse não é um alerta nem um filtro: é o recorte permanente
-  da lista.** Os CPV que a casa trabalha (`interesse_activo`,
+  da lista.** Os CPV que a empresa trabalha (`interesse_activo`,
   `interesse_cpv`, `interesse_cpv_excl` no config.json, editados em
   Configurações › Interesse — desde 13/09/2026 só a árvore, já aberta,
   e o botão dela grava: `interesse_activo` é `bool(cpv)`, não há caixa
@@ -871,14 +889,14 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
 ## Triagem, quadro e ficha
 
-O funil da casa, do «por ver» ao «ganho».
+O funil da empresa, do «por ver» ao «ganho».
 
 - **Os lotes vêm de dois sítios e o quadro não adivinha o terceiro.**
   O anúncio declara os lotes (`anuncios.lotes`, JSON de
-  `lotes_do_texto()`); a que fomos e como acabou só o registo da casa
-  sabe (`casa.lote` ≥ 1, lote a lote; 0 é o conjunto; NULL é por
+  `lotes_do_texto()`); a que fomos e como acabou só o registo da empresa
+  sabe (`empresa.lote` ≥ 1, lote a lote; 0 é o conjunto; NULL é por
   identificar), e `resumo_dos_lotes()` junta os dois, puro, com
-  `casa.estado_do_lote()` — que é o `estado_efectivo()`: o Zoho
+  `empresa.estado_do_lote()` — que é o `estado_efectivo()`: o Zoho
   **não** decide um lote. A separação no fim (`carta_de_lotes()`) só
   acontece nas colunas de papel `ganho`/`perdido` e só com lotes do
   outro estado no registo; o cartão separado não se arrasta e não tem
@@ -894,7 +912,7 @@ O funil da casa, do «por ver» ao «ganho».
   registo, **46 dizem «Não fomos» no Excel e «Lost» no Zoho**. O Zoho
   não tem palavra para «não concorremos» — perdeu-se o concurso e nunca
   se foi a ele caem os dois no mesmo sítio. Por isso o que ele diz vive
-  em `casa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`.
+  em `empresa.zoho_fase` / `zoho_montante` / `zoho_como` / `zoho_em`.
   **Uma fonte mais recente não é automaticamente a fonte melhor:
   compara-se campo a campo antes de a deixar mandar.** O
   `zoho_como` guarda a regra que casou a linha porque o cruzamento é por
@@ -910,7 +928,7 @@ O funil da casa, do «por ver» ao «ganho».
   fica em «A carregar» para sempre e nem chega a pedir os registos.
   Confirma-se com `document.visibilityState`.
 
-- **O estado que vale é o `estado_efectivo()`, nunca o `casa.status`
+- **O estado que vale é o `estado_efectivo()`, nunca o `empresa.status`
   cru.** A regra é dele, 04/09/2026: **o «Não fomos» do Excel prevalece,
   e é o único**; em tudo o resto ganha o Zoho — **excepto numa linha que
   é um lote**, onde manda sempre o Excel. Esta segunda guarda não é um
@@ -933,7 +951,7 @@ O funil da casa, do «por ver» ao «ganho».
   faz, e é por aí que a triagem sai certa. Duas armadilhas medidas ao
   escrevê-la: as chaves do `TRADUCAO_ZOHO` são o que o `_norma()`
   devolve, que **guarda os pontos e os hifens** — escrever
-  `"2 3 negotiation"` em vez de `"2.3 - negotiation"` não casa nada e
+  `"2 3 negotiation"` em vez de `"2.3 - negotiation"` não empresa nada e
   cai em silêncio para o estado do Excel; e a linha que vem do Excel
   **não traz nem o `zoho_fase` nem o `lote`**, que têm de ser idos
   buscar à base dentro do `importar()`, senão um `--com-triagem` desfaz
@@ -946,10 +964,10 @@ O funil da casa, do «por ver» ao «ganho».
   Lotes Autorizado: N» e um bloco «Lotes:» com «Nº: LOT-000k»,
   descrição e preço base por lote (`lotes_do_texto()`, guardado em
   `anuncios.lotes` como JSON, em vigor pela alteração mais recente como
-  os outros campos). O Excel da casa tem uma linha por lote, e o preço
-  base dessa linha é o **do lote**: é assim que `casa.lote` se
+  os outros campos). O Excel da empresa tem uma linha por lote, e o preço
+  base dessa linha é o **do lote**: é assim que `empresa.lote` se
   atribui (`lote_da_linha()`: preço base igual, senão «L1»/«Lote 2» no
-  nome). **Nem sempre — e o valor de `casa.lote` distingue os três
+  nome). **Nem sempre — e o valor de `empresa.lote` distingue os três
   casos.** Quando o preço da linha é a **soma** de todos os lotes, o
   número do Excel é o total do anúncio e a linha não está dividida por
   lotes: `lote = 0`, «o conjunto» (resposta dele a 03/09/2026 sobre as
@@ -1021,7 +1039,7 @@ O funil da casa, do «por ver» ao «ganho».
   um mês dá cinquenta maneiras de escrever "preço" e nenhuma conta.
 
 - **As fases do quadro são SEIS e fixas, e o que manda é o `papel`.**
-  Decisão do Afonso a 01/09/2026: o quadro é o funil da casa, não um
+  Decisão do Afonso a 01/09/2026: o quadro é o funil da empresa, não um
   kanban em branco — criar e apagar fases saiu (UI e rotas). Renomear
   fica. **O cabeçalho da coluna diz o que ela pede** (`PEDIDO_DA_FASE`,
   e há teste a obrigar as duas listas a concordar): o campo só aparece
@@ -1065,25 +1083,25 @@ pelo Afonso e nenhuma se reabre de passagem.
 
 - **A escada é o estado da PROPOSTA, não do anúncio.** O anúncio guarda
   o que o DR publicou, que é facto e não muda; a proposta guarda o que a
-  casa decidiu, que muda todos os dias. Até 15/09/2026 as duas coisas
+  empresa decidiu, que muda todos os dias. Até 15/09/2026 as duas coisas
   viviam na mesma linha — doze colunas penduradas em `anuncios` — e era
   **isso** que fazia o «Em curso» e a aba «interessados» serem a mesma
   consulta: duas escadas paralelas para o mesmo percurso, e um concurso
-  a subir as duas ao mesmo tempo. Não voltes a pendurar estado da casa
+  a subir as duas ao mesmo tempo. Não voltes a pendurar estado da empresa
   no `anuncios`; o sítio é a `propostas`.
 
 - **As chaves dos seis primeiros estados são, de propósito, as dos
-  `fases.papel`.** `ESTADOS_DA_CASA` começa por `analisar`, `proposta`,
+  `fases.papel`.** `ESTADOS_DA_EMPRESA` começa por `analisar`, `proposta`,
   `submetido`, `relatorio`, `ganho`, `perdido` — exactamente
   `FASES_DE_ORIGEM` — para a passagem de um cartão do quadro a uma
   proposta ser por igualdade de chave, sem mapa de tradução a adivinhar.
   Renomear uma chave de um lado só parte a passagem em silêncio; há
   teste a obrigar as duas listas a concordar.
 
-- **As duas ranhuras das pontas não são estados da casa.** `porver` e
+- **As duas ranhuras das pontas não são estados da empresa.** `porver` e
   `expirou` não têm proposta nenhuma — são recorte de leitura sobre os
   anúncios, e contam-se com o **mesmo** `condicao_da_aba()` que a aba
-  aplica, nunca com um parecido (a regra da casa: um número que um ecrã
+  aplica, nunca com um parecido (a regra da empresa: um número que um ecrã
   mostra tem de dar exactamente a lista que a ligação dele abre). Por
   isso `contar_propostas()` dá só as oito, e quem junta as dez é a banda
   das abas. Porque é que têm de existir, e não chegavam as oito: a
@@ -1091,7 +1109,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   198 305 eram **todos** anúncios expirados sem ninguém olhar — zero
   descartes na base. Sem a entrada, os vivos caíam em «Por analisar»;
   sem o cemitério, 198 mil anúncios que ninguém viu contavam como
-  decisão da casa.
+  decisão da empresa.
 
 - **`criar_proposta()` é idempotente por (ref, lote), e as sem `ref` não
   o são.** Um duplo clique no «preparar proposta» — que é o caso normal
@@ -1126,7 +1144,7 @@ pelo Afonso e nenhuma se reabre de passagem.
 
 - **A lista é DUAS listas por baixo de uma barra de abas.** As duas
   ranhuras das pontas e o «todos» mostram anúncios, com o arsenal de
-  filtros que 199 mil linhas obrigam; as oito da casa mostram
+  filtros que 199 mil linhas obrigam; as oito da empresa mostram
   **propostas**, com o lote e as que não vêm do DR. Não é
   inconsistência: são populações diferentes — uma consulta prévia não
   tem anúncio para aparecer na primeira, e um anúncio por ver não tem
@@ -1139,7 +1157,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   As propostas sem anúncio (D2) não cabem numa contagem que se faz sobre
   a tabela dos anúncios. Os dois números podem discordar, e a
   `_lista_de_propostas()` di-lo ao pé do número («N sem anúncio do DR; a
-  aba conta só as que têm») — a regra da casa manda dizê-lo em vez de
+  aba conta só as que têm») — a regra da empresa manda dizê-lo em vez de
   deixar o ecrã a mentir baixinho.
 
 - **Um filtro guardado com `estado=novo` traduz-se em dois sítios.** A
@@ -1168,7 +1186,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   `contar_a_escada()` partia de base vazia quando não havia filtro — e
   a base certa é a do motor com `estado=""`, que tira as republicações
   («todos» são todos os PROCEDIMENTOS, e uma alteração é o mesmo
-  concurso outra vez). É a regra da casa em ponto pequeno: o mesmo botão
+  concurso outra vez). É a regra da empresa em ponto pequeno: o mesmo botão
   com dois números. Há teste.
 
 - **O cruzamento com o Portal BASE é por CHAVE, e não por semelhança.**
@@ -1177,12 +1195,12 @@ pelo Afonso e nenhuma se reabre de passagem.
   índice (`ix_ctr_anuncio`). **69,4% dos anúncios de 2024 já têm
   contrato celebrado**, contra 5,3% dos de 2026 — que é o ciclo a
   demorar meses, e não uma falha. O plano previa o maquinário de
-  semelhança do `casa.py` (`LIMIAR`, `FOLGA`); não é preciso nenhum —
+  semelhança do `empresa.py` (`LIMIAR`, `FOLGA`); não é preciso nenhum —
   ou é o mesmo procedimento ou não é nada. O `desfecho_do_anuncio()`,
   que já existia para a ficha, faz exactamente essa junção.
 
 - **`fomos_nos()` tem TRÊS respostas, e a terceira é «não sei».** Sem o
-  NIF da casa no `config.json` não se pode saber se a adjudicação foi
+  NIF da empresa no `config.json` não se pode saber se a adjudicação foi
   nossa, e um `False` de quem não sabe é uma afirmação falsa — era com
   base nela que a proposta ia fechar como perdida. Com o NIF, a ficha
   adianta a resposta; **o gesto de fechar continua a ser de quem lê**
@@ -1232,7 +1250,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   uma coluna por aba não há para onde arrastar. **A ranhura muda-se pelo
   selector da linha** (`selector_de_ranhura()`, `/escada/<ref>`), e
   **tudo o resto vive no bloco «A nossa proposta» da ficha**
-  (`proposta_cx()`): os campos que a ranhura pede, o que a casa decide,
+  (`proposta_cx()`): os campos que a ranhura pede, o que a empresa decide,
   as etiquetas e o que falta fazer. A navegação ficou em Concursos ·
   Calendário · Mercado.
 
@@ -1321,19 +1339,19 @@ pelo Afonso e nenhuma se reabre de passagem.
   `%anula%` dá 601 resultados e são quase todos **cânulas** e
   «anulações de ramais».
 
-## O registo da casa
+## O registo da empresa
 
-O registo da casa, em `casa.py`: desde 8/09/2026 pelo modelo do radar;
+O registo da empresa, em `empresa.py`: desde 8/09/2026 pelo modelo do radar;
 o leitor do Excel antigo fica lá, sem comando.
 
 - **O modelo é do radar, e a chave é a referência do DR.** Decisão do
   Afonso a 8/09/2026: em vez de adivinhar a que anúncio pertence uma
   linha do Excel antigo (nome, entidade, preço, um pedido ao DR para
-  desempatar), o `.xlsx` sai de `casa.escrever_modelo()` com a coluna
+  desempatar), o `.xlsx` sai de `empresa.escrever_modelo()` com a coluna
   «Referência do anúncio», e uma linha sem anúncio é um **erro do
   ensaio**, não um palpite. `ler_modelo()` só normaliza (`ref_limpa()`
   aceita `1947/2026`, `1947-2026`, com espaços); `ensaio_modelo()` cruza
-  com a base sem gravar; `aplicar_modelo()` grava em `casa` com
+  com a base sem gravar; `aplicar_modelo()` grava em `empresa` com
   `folha='modelo'` e chama o `aplicar()` de sempre com a **melhor** linha
   do anúncio (ganho › submetido › perdido › não fomos) — um lote ganho
   põe o cartão no Ganho e a separação do fim mostra os perdidos. O
@@ -1343,7 +1361,7 @@ o leitor do Excel antigo fica lá, sem comando.
   («Falta de CV's») fica como está no `estado_pretendido()`: o
   `MAPA_RAZAO` é para as variantes do Excel antigo, e a primeira versão
   perdia o motivo por o passar pelo mapa. `--importar-excel` e
-  `--casa-ligar` saíram; `--casa-desfazer` (repor as propostas de uma
+  `--empresa-ligar` saíram; `--empresa-desfazer` (repor as propostas de uma
   cópia) ficou, porque serve para qualquer importação — e a 15/09/2026
   teve de mudar por dentro: apagava o histórico por `quem='Excel'`, e
   isso deixou de apanhar nada quando o leitor do Excel antigo saiu e
@@ -1351,10 +1369,10 @@ o leitor do Excel antigo fica lá, sem comando.
   **Agora repõe o histórico pela cópia**, como já fazia às propostas: as
   linhas que a cópia não tem são as que a importação escreveu. O leitor
   do Excel antigo (`ler_excel`, `Acervo`, `pontuar`, `ref_pelo_base`,
-  `importar`, `ligar_a_mao` — 603 linhas do `casa.py` e 638 de testes)
+  `importar`, `ligar_a_mao` — 603 linhas do `empresa.py` e 638 de testes)
   saiu nesse dia, por decisão dele; está no histórico do git.
 
-- **O registo da casa vive em `casa.py`** — o primeiro módulo fora do
+- **O registo da empresa vive em `empresa.py`** — o primeiro módulo fora do
   `radar.py` (02/09/2026), e a regra para os próximos: o módulo novo
   nasce em ficheiro próprio, importa o radar **dentro das funções**
   (o radar importa-o no topo, para as rotas), e o `radar.py` só ganha
@@ -1376,7 +1394,7 @@ o leitor do Excel antigo fica lá, sem comando.
   liga: a triagem NÃO se aplica** (decisão dele a 02/09/2026 — nada
   muda no front antes de o registo estar validado, e os lotes, várias
   linhas do Excel no mesmo anúncio, ainda não têm solução). A página
-  `/casa` e o bloco da ficha que chegaram a existir saíram nesse dia;
+  `/empresa` e o bloco da ficha que chegaram a existir saíram nesse dia;
   há teste a guardá-lo (`test_o_front_nao_mudou`). Quando se aplicar
   (`--com-triagem`, `triagem=True`): só com estado inequívoco (Não
   fomos → descartado com o motivo mapeado; Submetido/Perdido/Ganho →
@@ -1384,14 +1402,14 @@ o leitor do Excel antigo fica lá, sem comando.
   primeiros), «Cancelado» e «TBD» ficam só no registo, **uma decisão
   humana feita no radar nunca é esmagada** (conflito registado uma vez
   no histórico), e os motivos «Fora do âmbito» e «Prazo curto» entram
-  então em `MOTIVOS_ABANDONO` (hoje só em `casa.MAPA_RAZAO`).
+  então em `MOTIVOS_ABANDONO` (hoje só em `empresa.MAPA_RAZAO`).
   Entidades espanholas não entram (`FORA_DO_PAIS`, decisão dele).
-  `--ensaio` calcula e não grava; `--casa-ligar ID REF` liga à mão
+  `--ensaio` calcula e não grava; `--empresa-ligar ID REF` liga à mão
   (`ID nenhum "razão"` diz que não há anúncio no DR — consultas
   prévias, ajustes directos, consultas preliminares, anteriores à base
   —, `ID ? "razão"` só anota), e uma ligação ou um «nenhum» manual
   sobrevivem às importações seguintes;
-  `--casa-desfazer CÓPIA` repõe a triagem de uma cópia anterior (foi o
+  `--empresa-desfazer CÓPIA` repõe a triagem de uma cópia anterior (foi o
   que desfez a aplicação de 02/09/2026).
 
 
@@ -1689,7 +1707,7 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   manda o token no cabeçalho `X-CSRF`, lido da `<meta name="csrf">`.
   **No acesso livre local não há token** (não há sessão de que o
   derivar): a guarda é o `Origin`/`Referer`, e `localhost`, `127.0.0.1`
-  e `::1` contam como a mesma casa — o browser pode ter um nos
+  e `::1` contam como a mesma empresa — o browser pode ter um nos
   favoritos e mandar o outro no Referer.
 
 - **Um teste que varre as rotas POST com o token válido executa-as.**
@@ -1763,7 +1781,7 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 
 ## A interface
 
-As regras de desenho da casa. As medidas estão em
+As regras de desenho da empresa. As medidas estão em
 `docs/historico/UX-Auditoria.md`, e **o caminho do aspecto está em
 `docs/design.md`** (16/09/2026) — lê-o antes de mexer em cor, letra,
 botões ou no calendário.
@@ -2026,10 +2044,10 @@ botões ou no calendário.
   menos do que duas colunas para manter em cada escrita mais uma
   migração para as encher.
 
-- **«Casa» diz-se «empresa» no ecrã, e as outras são clientes ou
+- **«Empresa» diz-se «empresa» no ecrã, e as outras são clientes ou
   concorrentes** (16/09/2026, decisão dele). A troca foi nas **cadeias
   que se lêem**, doze delas; o vocabulário do código
-  (`ESTADOS_DA_CASA`, `CHAVES_DA_CASA`, o `casa.py`, esta documentação
+  (`ESTADOS_DA_EMPRESA`, `CHAVES_DA_EMPRESA`, o `empresa.py`, esta documentação
   antiga) fica como está — renomear centenas de identificadores em 20
   mil linhas mais 12 mil de testes é outro trabalho, e não se vê.
   A distinção entre cliente e concorrente sai do **peso de cada lado**
@@ -2073,7 +2091,7 @@ botões ou no calendário.
 - **Apagar uma proposta apaga as tarefas dela — pelo
   `apagar_propostas()`, e não por um `DELETE` à mão** (16/09/2026). As
   `tarefas` não têm chave estrangeira com `ON DELETE CASCADE` (pô-la
-  obrigava a reescrever a tabela, e a casa já recusou esse custo com as
+  obrigava a reescrever a tabela, e a empresa já recusou esse custo com as
   doze colunas de CRM), e são **três** os sítios que apagam propostas: o
   «voltar a por ver», a republicação do DR que herda o estado, e o
   apagar de uma proposta sem anúncio. Os três deixavam as tarefas
@@ -2318,6 +2336,34 @@ botões ou no calendário.
 ---
 
 ## Convenções
+
+- **O vocabulário é «empresa»** (16/09/2026, decisão dele). Primeiro as
+  cadeias do ecrã, horas depois o código inteiro:
+  `ESTADOS_DA_EMPRESA`, `CHAVES_DA_EMPRESA`, `estado_da_empresa()`, o
+  módulo `empresa.py`, a rota `/configuracoes/conta/empresa`, a bandeira
+  `--empresa-desfazer`. O que isto arrastou, e é a parte que interessa:
+  **duas coisas com esse nome estavam gravadas**, e por isso são duas
+  migrações —
+  - as chaves `nome_da_casa`/`nif_da_casa` do `config.json`
+    (`renomear_chaves_do_config()`), que levam o NIF com que o
+    cruzamento do Portal BASE diz se a adjudicação foi nossa. Corre no
+    `iniciar_db()` e **não** no `ler_config()`, que é chamado a cada
+    página: uma migração que escreve o ficheiro a cada leitura não é uma
+    migração, é um ciclo;
+  - a tabela `casa` do `radar.db` (`empresa.iniciar_tabelas()`), com o
+    `ALTER TABLE ... RENAME TO` **antes** do `CREATE TABLE IF NOT
+    EXISTS` — pela outra ordem ficava uma `empresa` vazia ao lado de uma
+    `casa` cheia, e o registo desaparecia sem uma palavra.
+
+  As duas são guardadas pela **própria pergunta** («a chave velha está
+  lá?», «há uma `casa` e ainda não há `empresa`?») e não por uma marca,
+  que mente depois de um restauro de cópia. O que fica com «casa» é
+  português: «casar», «casamento», e as «casas» de um código CPV — o
+  `test_o_vocabulario_do_codigo_nao_tem_casa` mede-o com o `tokenize`,
+  e não por linha, porque é a única forma de separar o que corre do que
+  se lê ao lado. **As páginas de história ficam como estão**
+  (`docs/diario/`, `docs/historico/`): são registo do que se disse no
+  dia, e reescrevê-las era apagar a data.
 
 - **Uma utilidade pura vive na banda `comum`, não onde foi precisa
   primeiro.** Formatar, validar e contar — nada que toque na base ou
