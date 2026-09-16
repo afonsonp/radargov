@@ -1736,6 +1736,31 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **O texto que explica uma página vive dentro do `<summary>` do
+  título** (16/09/2026, fase 2 do `docs/design.md`). O `<h1>` vai
+  **dentro** do `<summary>` — o modelo de conteúdo do `summary` aceita
+  um elemento de cabeçalho —, e o «?» fica ao lado. **Fechado por
+  omissão e sem memória**: um «?» que se lembra de estar aberto volta a
+  pôr o parágrafo no ecrã todos os dias. Sem subtítulo não há
+  `<details>` nenhum, que um «?» que abre nada é um controlo morto.
+  Consequência para quem escreve testes: **há agora um `</summary>` na
+  página antes do dos filtros** — um `html.split("</summary>")[0]`
+  passou a medir o título, e foi assim que o
+  `test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro` partiu.
+  Recorta pelo `id` do bloco, não pelo primeiro `</summary>`.
+
+- **Apagar uma proposta apaga as tarefas dela — pelo
+  `apagar_propostas()`, e não por um `DELETE` à mão** (16/09/2026). As
+  `tarefas` não têm chave estrangeira com `ON DELETE CASCADE` (pô-la
+  obrigava a reescrever a tabela, e a casa já recusou esse custo com as
+  doze colunas de CRM), e são **três** os sítios que apagam propostas: o
+  «voltar a por ver», a republicação do DR que herda o estado, e o
+  apagar de uma proposta sem anúncio. Os três deixavam as tarefas
+  automáticas atrás. Não é só lixo: a página de abertura lê esta tabela,
+  e uma tarefa órfã aparece lá como trabalho de uma proposta que não
+  existe. O `iniciar_db()` limpa as que já existiam, e **não toca nas
+  escritas à mão** (`proposta_id` NULL), que não são órfãs.
+
 - **O calendário é por DIA, e as células são sempre 42** (16/09/2026,
   fase 3 do `docs/design.md`). Era uma grade de «uma linha por concurso
   × uma coluna por dia» — a forma de um Gantt, que serve para

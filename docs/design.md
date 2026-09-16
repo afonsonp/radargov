@@ -8,7 +8,7 @@ Este ficheiro é a decisão. O que se vê está em **`/amostra`**, que
 mostra os componentes todos num sítio e deixa trocar o lettering e a
 pele para comparar.
 
-**As fases 0, 1 e 3 estão feitas** (16/09/2026): ele viu a amostra,
+**As fases 0, 1, 2 e 3 estão feitas** (16/09/2026): ele viu a amostra,
 escolheu a letra («prefiro a segunda, a do IBM») e disse «avança». A
 camada está aplicada aos ecrãs todos. O diagnóstico da §1 descreve o
 que **estava** antes disso — é o registo do que se mediu, não o estado
@@ -436,11 +436,22 @@ célula de 52px. Medido: a página fica em 375, a célula em 119.
 Saem do ecrã e **não se apagam**. O texto é bom e um utilizador novo
 — um tester, quando isto for multi-empresa — precisa dele.
 
-A mecânica é uma só, aplicada no `envolver()`, que serve as 17
-páginas: o `p.subtit` passa a viver dentro de um `<details
-class='porque'>` cujo resumo é um **«?»** ao lado do título. Fechado
-por omissão; o browser lembra-se por página (`localStorage`), como já
-faz com os filtros.
+**Feito a 16/09/2026** (fase 2). A mecânica é uma só, aplicada no
+`envolver()`, que serve as 17 páginas: o `<h1>` vai **dentro** do
+`<summary>` — que o HTML permite, porque o modelo de conteúdo do
+`summary` aceita um elemento de cabeçalho — e leva um «?» ao lado. A
+linha inteira do título alterna, e o texto aparece por baixo. Nativo,
+sem JS.
+
+Duas decisões dentro disto:
+
+- **Sem memória.** A ideia escrita aqui era lembrar por página, como os
+  filtros fazem. Está errada: um «?» que se lembra de estar aberto
+  volta a pôr o parágrafo no ecrã todos os dias, que é exactamente o
+  que isto vem tirar. Fechado por omissão, sempre.
+- **Sem subtítulo não há «?».** Algumas páginas passam `""` — a ficha
+  do anúncio, por exemplo. Um `<details>` que abre nada é um controlo
+  morto, e a casa não põe controlos mortos no ecrã.
 
 Os 68 blocos `.nota` dentro das páginas tratam-se um a um, na passagem
 ecrã a ecrã (§11), com este critério:
@@ -487,7 +498,7 @@ primeiro item da barra.
 |---|---|---|---|
 | **0** | `docs/design.md` e `/amostra` — as fontes, a paleta, os botões, a escala | **Não** | **feita** 16/09 |
 | **1** | Aplicar a camada: fontes, tokens, escala, botões | Todos, ao mesmo tempo | **feita** 16/09 |
-| **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | a seguir |
+| **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | **feita** 16/09 |
 | **3** | O calendário (§8) | Um | **feita** 16/09 |
 | **4** | A abertura (§10) | Um novo, e a navegação | |
 | **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | |

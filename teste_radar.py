@@ -4795,6 +4795,56 @@ class TestPropostas(BaseTemporaria):
                       [ref] + list(valores.values()))
         return ref
 
+    def _tarefas(self):
+        with radar.liga() as c:
+            return c.execute("SELECT COUNT(*) n FROM tarefas").fetchone()["n"]
+
+    def test_apagar_uma_proposta_leva_as_tarefas_dela(self):
+        """As `tarefas` não têm chave estrangeira com ON DELETE CASCADE, e
+        até 16/09/2026 os **três** sítios que apagam propostas deixavam
+        as tarefas automáticas atrás.
+
+        Apanhado a desfazer duas propostas criadas por engano na base
+        dele: as propostas foram-se e duas tarefas ficaram a apontar para
+        um `proposta_id` que já não existe. Não é só lixo — a página de
+        abertura lê esta tabela, e uma tarefa órfã aparecia lá como
+        trabalho de uma proposta que não há.
+        """
+        ref = self._anuncio(prazo="2026-10-20")
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        radar.sincronizar_tarefas(id_)
+        self.assertGreater(self._tarefas(), 0, "a sincronização não criou nada")
+        with radar.liga() as c:
+            radar.apagar_propostas(c, "id=?", (id_,))
+        self.assertEqual(self._tarefas(), 0)
+
+    def test_o_voltar_a_por_ver_nao_deixa_tarefas_atras(self):
+        """O caminho por onde o erro apareceu: o selector da linha em
+        «tirar da escada»."""
+        ref = self._anuncio(prazo="2026-10-20")
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        radar.sincronizar_tarefas(id_)
+        self.assertGreater(self._tarefas(), 0)
+        r = radar.app.test_client().post("/escada/" + ref,
+                                         data={"estado": "porver"})
+        self.assertIn(r.status_code, (302, 303))
+        self.assertEqual(self._tarefas(), 0)
+
+    def test_o_arranque_limpa_as_orfas_que_ja_existiam(self):
+        """A base dele já as tinha. A limpeza é no `iniciar_db()`, é
+        idempotente, e **não** toca nas tarefas escritas à mão sem
+        proposta (`proposta_id` NULL), que não são órfãs."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO tarefas (proposta_id, ref, o_que, quando) "
+                      "VALUES (999, '1/2026', 'órfã', '2026-10-01')")
+            c.execute("INSERT INTO tarefas (proposta_id, ref, o_que, quando) "
+                      "VALUES (NULL, '1/2026', 'à mão', '2026-10-01')")
+        self.assertEqual(self._tarefas(), 2)
+        radar.iniciar_db()
+        with radar.liga() as c:
+            ficaram = [r["o_que"] for r in c.execute("SELECT o_que FROM tarefas")]
+        self.assertEqual(ficaram, ["à mão"])
+
     def test_criar_copia_do_anuncio_o_que_a_proposta_tem_de_ter_por_si(self):
         """Uma proposta sem `ref` tem de trazer entidade e título, e uma
         com `ref` não pode depender de um JOIN para se mostrar numa lista
@@ -9114,8 +9164,13 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         self.assertIn("<details class='painel-filtros' id='painel-filtros'>", html_)
         html_ = self.cliente.get("/?cpv=72000000").get_data(as_text=True)
         self.assertIn("<details class='painel-filtros' id='painel-filtros' open>", html_)
-        # o resumo do filtro fica na linha, para se saber o que está posto
-        self.assertIn("CPV 72000000", html_.split("</summary>")[0])
+        # O resumo do filtro fica na linha, para se saber o que está
+        # posto. Recorta-se o <summary> DOS FILTROS e não o primeiro da
+        # página: desde 16/09/2026 há o «?» do título antes dele
+        # (fase 2 do docs/design.md), e um split pelo primeiro
+        # "</summary>" passou a medir o título.
+        dos_filtros = html_.split("id='painel-filtros' open>")[1]
+        self.assertIn("CPV 72000000", dos_filtros.split("</summary>")[0])
 
     def test_os_blocos_continuam_la_dentro_e_os_guardados_sairam(self):
         html_ = self.cliente.get("/").get_data(as_text=True)
