@@ -108,52 +108,58 @@ do contraste e da cor com significado — não de afastar as coisas.
 
 ## 3. O lettering
 
-### O que se escolheu, e porquê
+### O que ele escolheu
 
-**Inter Variable** para a interface, **IBM Plex Mono** para números,
-referências e códigos. As duas de licença aberta (OFL), servidas **da
-própria aplicação** — a regra «o painel não pede nada a nenhum domínio
-de fora» (armadilha de 14/09/2026, com o CSP a dizer `font-src 'self'`)
-mantém-se intacta: os ficheiros vivem em `tipo/` e são 124 KB ao todo.
+**IBM Plex Sans** para a interface, **IBM Plex Mono** para números,
+referências e códigos — **decisão dele a 16/09/2026**, depois de ver as
+três na amostra («prefiro a segunda, a do IBM»). As duas de licença
+aberta (OFL), servidas **da própria aplicação** — a regra «o painel não
+pede nada a nenhum domínio de fora» (armadilha de 14/09/2026, com o CSP
+a dizer `font-src 'self'`) mantém-se intacta: os ficheiros vivem em
+`tipo/` e são 124 KB ao todo.
 
-Porquê a Inter, em três razões que se verificam:
+A proposta escrita aqui tinha sido a Inter, e a escolha dele é melhor
+do que o argumento que eu tinha usado contra ela — que estava
+**errado**. Medido no browser, com as duas fontes mesmo carregadas (a
+primeira medição comparou a Plex com uma substituta, porque
+`document.fonts.ready` não descarrega uma família que a página não usa
+— é preciso `document.fonts.load()`):
 
-- **Foi desenhada para isto.** Não é uma letra de texto adaptada a
-  ecrã: é uma letra de interface, feita para tamanhos de 11 a 14px,
-  que é onde esta aplicação vive. Tem altura-de-x alta, aberturas
-  largas e formas que não se confundem em corpo pequeno — o `1`, o
-  `l` e o `I` são três desenhos diferentes, que numa lista de
-  referências como `23012/2026` interessa.
-- **Tem algarismos tabulares a sério** (`tnum`), que é a regra 4.
-- **É variável.** Um ficheiro de 48 KB cobre todos os pesos de 100 a
-  900, e isso deixa usar 550 ou 620 onde hoje se usa 600 porque só há
-  600.
-
-E uma razão honesta que não é técnica: a Inter **é** o que uma
-aplicação de 2026 parece. É ubíqua, e aqui isso é a favor — ele não
-pediu uma marca, pediu que não pareça de 2002.
-
-O **IBM Plex Mono** faz o trabalho onde a identidade se nota: a
-referência do anúncio, o CPV, o preço base, o prazo. É uma mono com
-carácter (ligeiramente institucional, que assenta num radar de
-contratação pública) e o desenho é largo o suficiente para se ler a
-11px.
-
-### O que ele vai ver
-
-`/amostra` tem um selector com **três opções**, a desenhar os mesmos
-componentes:
-
-| Opção | O que é | O argumento contra |
+| a 13px, a mesma frase | largura | altura-de-x |
 |---|---|---|
-| **Inter + Plex Mono** | A proposta | Comum; não tem voz própria |
-| **IBM Plex Sans + Plex Mono** | Mais institucional, uma família só | Mais larga: perde-se densidade horizontal |
-| **Sistema** | O que está hoje | Muda de computador para computador |
+| Inter | 637,3 px | 54 |
+| **IBM Plex Sans** | **602,6 px** | 52 |
+| Sistema | 593,8 px | 52 |
+
+A Plex **não é mais larga: é 5,4% mais estreita** do que a Inter. O que
+ela tem a menos é altura-de-x, e por isso lê-se 3,8% mais pequena ao
+mesmo tamanho. Corrigido isso — Plex a 13,5px contra Inter a 13px, o
+mesmo tamanho óptico — dá 625,7 contra 637,3: **continua 1,8% mais
+estreita**. Das três, é a que cabe mais texto por linha ao mesmo
+tamanho aparente, que na regra 6 (a densidade não se toca) é o
+argumento que conta.
+
+O resto do que a recomenda:
+
+- **Uma família só** cobre o texto e os números. A Plex Mono é a irmã
+  desenhada da Plex Sans, e a referência (`23012/2026`), o CPV e o
+  preço deixam de ser de outra casa.
+- **Tem voz, e é a voz certa.** Ligeiramente institucional, de
+  engenharia — assenta num radar de contratação pública melhor do que
+  a neutralidade da Inter.
+- **É variável**: 46 KB cobrem todos os pesos, o que deixa usar 550 ou
+  620 onde hoje se usa 600 porque só há 600.
+
+A consequência prática está na §6: **a escala sobe meio pixel**, porque
+a escala tinha sido desenhada para a altura-de-x da Inter.
 
 A frase de prova da amostra leva os diacríticos todos do português —
 `ã õ ç á é í ó ú à â ê ô` — porque o subconjunto «latin» de uma fonte
 web não é sempre o que promete, e uma cedilha em falta só se vê no dia
 em que aparece um «Direcção-Geral».
+
+A `/amostra` mantém as três opções, para se poder voltar a comparar; a
+escolhida é a que abre.
 
 ---
 
@@ -256,14 +262,27 @@ são os únicos cheios, e **num bloco só pode haver um cheio**.
 
 Dezanove tamanhos passam a **seis**, com razão entre degraus.
 
-| Degrau | Tamanho / altura | Peso | Onde |
+| Degrau | Tamanho | Peso | Onde |
 |---|---|---|---|
-| `--f6` | 24 / 1.2 | 680 | O título da página |
-| `--f5` | 17 / 1.3 | 620 | Título de anúncio, título de bloco |
-| `--f4` | 14.5 / 1.45 | 400 | Texto corrido, valores da ficha |
-| `--f3` | 13 / 1.4 | 500 | O texto da interface: botões, abas, linhas de lista |
-| `--f2` | 12 / 1.4 | 500 | Metadados: entidade, data, plataforma |
-| `--f1` | 11 / 1.35 | 550 | Etiquetas, contadores, pílulas |
+| `--f6` | 25 | 680 | O título da página |
+| `--f5` | 17.5 | 620 | Título de anúncio, título de bloco |
+| `--f4` | 15 | 400 | Texto corrido, valores da ficha |
+| `--f3` | 13.5 | 500 | O texto da interface: botões, abas, linhas de lista |
+| `--f2` | 12.5 | 500 | Metadados: entidade, data, plataforma |
+| `--f1` | 11.5 | 550 | Etiquetas, contadores, pílulas |
+
+**Os valores são os da Plex, não os da Inter.** A primeira versão desta
+escala era 11 / 12 / 13 / 14.5 / 17 / 24, desenhada para a altura-de-x
+da Inter (54). A Plex tem 52, e ao mesmo tamanho lê-se 3,8% mais
+pequena — a 11px uma etiqueta perdia legibilidade onde ela é mais
+apertada. Subir meio pixel repõe o tamanho óptico e **não custa
+densidade**: a §3 mede que a Plex a 13,5px é 1,8% mais estreita do que
+a Inter a 13px.
+
+Meio pixel dentro de uma escala de seis valores não é o «ruído de meio
+pixel» do diagnóstico (§1a). Lá eram dezanove valores sem relação
+nenhuma entre si; aqui são seis degraus com razão, deslocados todos
+pela mesma razão e por um motivo medido.
 
 **As maiúsculas espaçadas saem.** Um rótulo de bloco passa a ser `--f2`
 em `--t4`, caixa normal, com peso 600. Lê-se melhor, ocupa menos, e

@@ -9705,8 +9705,14 @@ CSS_NOVO = r"""
  --azul-claro:#79b4f5;
  --barra-t1:rgba(255,255,255,.95); --barra-t2:#c3c9d2; --barra-t3:#98a1ae;
  --barra-linha:rgba(255,255,255,.13); --barra-on:rgba(255,255,255,.11);
- /* a escala: seis degraus, no lugar dos dezanove tamanhos soltos */
- --f1:11px; --f2:12px; --f3:13px; --f4:14.5px; --f5:17px; --f6:24px;
+ /* A escala: seis degraus, no lugar dos dezanove tamanhos soltos.
+    Os valores sao os da Plex Sans, que e a letra escolhida (decisao
+    dele a 16/09/2026). A Plex tem altura-de-x 52 contra 54 da Inter --
+    le-se 3,8% mais pequena ao mesmo tamanho --, e por isso a escala
+    sobe meio pixel em vez de se copiar a da Inter. Nao custa densidade:
+    medido, a mesma frase a 13,5px em Plex da 625,7px contra 637,3px a
+    13px em Inter, que e 1,8% MAIS estreita ao mesmo tamanho optico. */
+ --f1:11.5px; --f2:12.5px; --f3:13.5px; --f4:15px; --f5:17.5px; --f6:25px;
  --r:8px;
  --sombra:0 1px 2px rgba(17,20,24,.04), 0 1px 3px rgba(17,20,24,.05);
 }
@@ -18736,12 +18742,14 @@ def tipo(nome):
 
 # (chave, rotulo, o que se ganha, o que se perde) -- o selector de letra.
 LETTERINGS = (
+    ("plex", "IBM Plex Sans + Plex Mono",
+     "a escolhida: institucional, uma família só para texto e números, e a "
+     "mais estreita das três (5,4% menos que a Inter, na mesma frase a 13px)",
+     "altura-de-x 52 contra 54 da Inter: lê-se 3,8% mais pequena ao mesmo "
+     "tamanho, e é por isso que a escala sobe meio pixel"),
     ("inter", "Inter + Plex Mono",
      "desenhada para interface a 11–14px; algarismos tabulares; variável",
-     "é comum: não tem voz própria"),
-    ("plex", "IBM Plex Sans + Plex Mono",
-     "mais institucional, e uma família só para texto e números",
-     "mais larga: perde-se densidade horizontal"),
+     "é comum, não tem voz própria, e é a mais larga das três"),
     ("sistema", "Sistema (o de hoje)",
      "não pede ficheiro nenhum",
      "muda de computador para computador"),
@@ -18812,6 +18820,15 @@ AMOSTRA_PAGINA = """<!doctype html>
  <div class="corpo"><div class="larg">%(corpo)s</div></div>
 </main>
 </div>
+<script>
+// cada degrau diz o tamanho que o CSS lhe deu, e nao o que alguem
+// escreveu ao lado -- a escala muda e a legenda acompanha sozinha
+var raiz = getComputedStyle(document.documentElement);
+document.querySelectorAll('[data-degrau]').forEach(function (b) {
+  b.textContent = raiz.getPropertyValue(b.dataset.degrau).trim()
+                      .replace('.', ',') || '(a pele de hoje não tem escala)';
+});
+</script>
 </body></html>"""
 
 
@@ -18822,9 +18839,9 @@ def _am_seccao(titulo, nota, corpo):
 
 @app.route("/amostra")
 def amostra():
-    tipo_ = request.args.get("tipo", "inter")
+    tipo_ = request.args.get("tipo", "plex")
     if tipo_ not in {ch for ch, _, _, _ in LETTERINGS}:
-        tipo_ = "inter"
+        tipo_ = "plex"
     pele = "novo" if request.args.get("pele", "novo") != "velho" else ""
 
     def botoes(nome, valores, actual):
@@ -18856,17 +18873,23 @@ def amostra():
         "ãõçáéíóúàâêô ÃÕÇÁÉÍÓÚÀÂÊÔ</p>"
         "<p class='am-num'>23012/2026 &nbsp; 71318100 &nbsp; "
         "174.950,00 EUR &nbsp; 16/09/2026 &nbsp; 0123456789 Il1 O0</p>"
+        # O tamanho de cada degrau NAO se escreve aqui: escreve-o o JS a
+        # partir do que o CSS calculou. Escrito a mao, ficou a dizer
+        # "13px" no minuto em que a escala subiu meio pixel para a Plex
+        # -- e um numero que o ecra mostra e nao se pode comparar com o
+        # que ele descreve e a mesma avaria que a regra da casa proibe
+        # nas listas.
         "<div class='am-esc' style='margin-top:16px'>" + "".join(
             "<div style='font:%s var(--f%d)/1.3 var(--sans)'>%s"
-            "<span>--f%d &middot; %s</span></div>"
-            % (peso, n, texto, n, onde)
-            for n, peso, texto, onde in (
-                (6, "680", "Título da página", "24px"),
-                (5, "620", "Título de anúncio ou de bloco", "17px"),
-                (4, "400", "Texto corrido e valores da ficha", "14,5px"),
-                (3, "500", "Interface: botões, abas, linhas", "13px"),
-                (2, "500", "Metadados: entidade, data, plataforma", "12px"),
-                (1, "550", "Etiquetas, contadores, pílulas", "11px")))
+            "<span>--f%d &middot; <b data-degrau='--f%d'></b></span></div>"
+            % (peso, n, texto, n, n)
+            for n, peso, texto in (
+                (6, "680", "Título da página"),
+                (5, "620", "Título de anúncio ou de bloco"),
+                (4, "400", "Texto corrido e valores da ficha"),
+                (3, "500", "Interface: botões, abas, linhas"),
+                (2, "500", "Metadados: entidade, data, plataforma"),
+                (1, "550", "Etiquetas, contadores, pílulas")))
         + "</div>"))
 
     # --- a cor -------------------------------------------------------
