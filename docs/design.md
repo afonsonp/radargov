@@ -528,7 +528,13 @@ escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
 | **2** | Os descritivos para trás do «?» (§9) | Todos, uma linha no `envolver()` | **feita** 16/09 |
 | **3** | O calendário (§8) | Um | **feita** 16/09 |
 | **4** | A abertura (§10) | Um novo, e a navegação | **feita** 16/09 |
-| **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | |
+| **5** | Passagem ecrã a ecrã, um de cada vez, com antes e depois | Um de cada vez | a decorrer |
+
+### Fase 5 · os ecrãs, um a um
+
+| Ecrã | Quando | O que mudou |
+|---|---|---|
+| **Ficha do anúncio** | 16/09 | O índice passou a cobrir a página; cinco blocos ganharam «?» |
 
 **Cada fase corre na instalação dele antes de se dizer que está
 feita** — com os 209 895 anúncios, não com três linhas de ensaio.
@@ -544,6 +550,43 @@ antigo, que é o género de coisa que ninguém vê até ao dia em que vê.
 E a fase 1 desfaz-se apagando dois atributos: é por isso que o `CSS`
 antigo fica como estava, com os testes que o medem intactos, e que
 nenhuma regra do `CSS_NOVO` pode ficar fora do âmbito.
+
+---
+
+## 11b. A ficha do anúncio (fase 5, primeiro ecrã)
+
+**O índice não cobria a página.** Prometia seis destinos e a ficha tinha
+oito blocos com âncora. Faltavam o **`#proposta`** — que é onde vive o
+trabalho da casa, o bloco mais importante do ecrã — e o `#contactos`. Um
+índice que salta por cima de um bloco é a mesma mentira de um número que
+abre outra lista: promete o mapa da página e não o é. O teste não fixa a
+lista de entradas, fixa a **propriedade**: toda a âncora que a página tem
+está no índice, e o índice não promete nenhuma que não exista.
+
+**Onze notas a explicar cada bloco**, e a triagem foi a da §9, não uma
+limpeza cega. Cinco blocos ganharam «?» — Lotes, Peças, Procedimentos
+homólogos, Histórico de adjudicações, Contactos — e três não, por não
+terem explicação a esconder. O que **ficou no ecrã**:
+
+- «2 lotes; sem registo de a que fomos» — é um facto.
+- «Parecido = tem em comum estes termos do título: …» — diz **como** a
+  lista foi feita; sem ele o bloco é uma tabela sem critério.
+- «3 contratos desta entidade no CPV X · de 3 983 ao todo» — de onde vem.
+- «O preço contratual é o de partida, não o valor final» — o que o
+  número **não** inclui.
+- «Guardadas em documentos/…» — de onde vem.
+
+O que foi para o «?» diz o que o bloco **é**: «as edições anteriores, com
+quem ganhou e por quanto», «não são oportunidades — servem para saber com
+quem se concorre», «de <entidade>, e não deste concurso», «o radar vai à
+plataforma ver se há peças novas…». Nada se apagou — a primeira versão
+desta passagem **apagou** a nota da vigilância das peças, que explica um
+comportamento que não se vê em mais lado nenhum; foi reposta no «?».
+
+**E um erro latente saiu com o teste**: um anúncio sem `url` derrubava a
+ficha inteira com um 500 (`html.escape(None)` no «Ver no DR»). Na base
+dele todos têm `url` e por isso nunca se viu, mas um NULL numa coluna que
+ninguém garante não pode derrubar a página toda.
 
 ---
 

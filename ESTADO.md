@@ -333,7 +333,17 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**938 testes**.
+**945 testes**.
+
+**E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
+do anúncio.** O índice prometia seis destinos e a página tinha oito
+blocos com âncora — faltavam o **«A nossa proposta»**, que é onde o
+trabalho vive, e os «Contactos». Cinco blocos passaram a ter o «?» com
+o que eles são, e o que ficou no ecrã foi o que é facto: «2 lotes; sem
+registo de a que fomos», «Parecido = tem em comum estes termos», «de
+3 983 ao todo», «o preço contratual é o de partida». Saiu também um
+erro latente que o teste destapou: um anúncio sem `url` derrubava a
+ficha inteira com um 500.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
