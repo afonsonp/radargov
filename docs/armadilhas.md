@@ -1736,6 +1736,21 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **O painel dos filtros não se lembra de ter ficado aberto.** Lembrava-
+  se, em `localStorage`, para sempre e em todas as abas: bastava filtrar
+  uma vez para a lista abrir com o painel aberto todos os dias a partir
+  daí. Medido: **409 px até ao primeiro cartão com a marca posta, 284
+  sem ela** — 125 px, mais do que um cartão. O sinal certo é o do
+  servidor (`filtro_em_uso != "estado=" + aba`), e uma memória por cima
+  dele só desfaz o recolhimento que a UX-Auditoria pediu. Mesma razão
+  por que o «?» do título também não tem memória.
+
+- **A definição de uma aba vive num sítio só.** Estava na linha do
+  resumo da lista *e* no «?» do título, quase palavra por palavra. O que
+  o P4 pedia — que o `1 268` não pareça o acervo todo — é o «209 903 na
+  base» que vem antes, e esse fica: era a definição que estava a mais,
+  não o denominador.
+
 - **O índice da ficha tem de cobrir a página, e só ela.** Prometia seis
   destinos quando havia oito blocos com âncora — faltava o
   `#proposta`, que é o bloco onde o trabalho vive. A regra vale nos

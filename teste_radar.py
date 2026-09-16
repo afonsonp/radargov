@@ -9386,6 +9386,27 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         super().setUp()
         self.cliente = radar.app.test_client()
 
+    def test_o_painel_dos_filtros_nao_se_lembra_de_ter_ficado_aberto(self):
+        """A memória em `localStorage` desfazia o recolhimento (16/09/2026,
+        fase 5).
+
+        Lembrava-se para sempre e em todas as abas: bastava filtrar uma
+        vez, num dia qualquer, para a lista abrir com o painel aberto
+        todos os dias a partir daí. **Medido na instalação dele: com a
+        marca posta o primeiro cartão começava aos 409px, e sem ela aos
+        284** — 125px, mais do que um cartão inteiro, por uma marca que
+        ninguém sabia que tinha.
+
+        O sinal certo é o do servidor, e está no teste a seguir: o painel
+        abre quando HÁ filtro aplicado. Uma memória por cima disso nunca
+        ajuda — só desfaz o recolhimento que a UX-Auditoria pediu, que
+        existia precisamente porque a lista abria com 60% do ecrã em
+        filtros. É a mesma razão por que o «?» do título também não tem
+        memória (fase 2).
+        """
+        self.assertNotIn("radar-filtros-abertos", radar.LISTA_JS)
+        self.assertNotIn("getElementById('painel-filtros')", radar.LISTA_JS)
+
     def test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro(self):
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         self.assertIn("<details class='painel-filtros' id='painel-filtros'>", html_)

@@ -535,6 +535,7 @@ escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
 | Ecrã | Quando | O que mudou |
 |---|---|---|
 | **Ficha do anúncio** | 16/09 | O índice passou a cobrir a página; cinco blocos ganharam «?» |
+| **Lista dos concursos** | 16/09 | Saiu a memória do painel de filtros (−125px); a definição da aba saiu da linha do resumo |
 
 **Cada fase corre na instalação dele antes de se dizer que está
 feita** — com os 209 895 anúncios, não com três linhas de ensaio.
@@ -587,6 +588,51 @@ comportamento que não se vê em mais lado nenhum; foi reposta no «?».
 ficha inteira com um 500 (`html.escape(None)` no «Ver no DR»). Na base
 dele todos têm `url` e por isso nunca se viu, mas um NULL numa coluna que
 ninguém garante não pode derrubar a página toda.
+
+## 11c. A lista dos concursos (fase 5, segundo ecrã)
+
+**O maior ganho deste ecrã foi apagar código.** O painel de filtros
+lembrava-se, em `localStorage`, de ter ficado aberto — para sempre e em
+todas as abas. Bastava filtrar uma vez, num dia qualquer, para a lista
+abrir com o painel aberto todos os dias a partir daí. Medido na
+instalação dele:
+
+| | Com a marca | Sem ela |
+|---|---|---|
+| O primeiro cartão começa aos | **409 px** | **284 px** |
+| Alvos na primeira dobra | 47 | 50¹ |
+| Cartões por ecrã (1440×950) | 9,2 | 9,2 |
+
+¹ sobem porque entram mais cartões no ecrã — cada um traz dois botões.
+
+São **125 px, mais do que um cartão inteiro**, por uma marca que ninguém
+sabia que tinha. E o recolhimento existia precisamente porque a
+UX-Auditoria mediu «a lista abre com 60% do ecrã em filtros».
+
+O sinal certo já existia e é do servidor: o painel abre quando **há
+filtro aplicado**. Uma memória por cima disso nunca ajuda — é a mesma
+razão por que o «?» do título também não tem memória (§9). Verificado
+nos dois sentidos: com `?cpv=` abre, sem filtro fecha, e não fica marca
+nenhuma guardada.
+
+**E a definição da aba saiu da linha do resumo.** Dizia «só o que ainda
+dá para responder, e por decidir», que é quase palavra por palavra o que
+o «?» do título diz. O que o P4 da UX-Auditoria pedia — que o `1 268`
+não pareça o acervo todo — continua cumprido pelo «209 903 na base» que
+vem imediatamente antes: era a definição que estava a mais, não o
+denominador. A linha ficou só com factos: ordem, intervalo, página,
+denominador.
+
+**Duas coisas que verifiquei e não mexi**, por a medição as ter
+desmentido:
+
+- **As etiquetas do cartão não são ruído.** Parecia que «Anúncio de
+  procedimento» estava em todos; medido, são 12 de 20, e as outras 8 são
+  «Consulta preliminar». A plataforma varia do mesmo modo (14 de 20). As
+  três dizem alguma coisa.
+- **O teclado (`j k i a Enter`) não se partiu** com a mudança de
+  endereço da lista — confirmado no browser, dois `j` movem o foco dois
+  cartões.
 
 ---
 
