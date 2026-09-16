@@ -315,3 +315,6 @@
 {"accao": "alterou", "detalhe": "pelo anúncio 22945/2026 de 15/09/2026: prazo de propostas 26/09/2026 → 28/09/2026", "quando": "2026-09-15 17:01", "quem": "DR", "ref": "22899/2026", "tabela": "historico"}
 {"accao": "alteração", "detalhe": "do anúncio 14358/2026, publicado a 02/06/2026; a triagem faz-se lá", "quando": "2026-09-15 17:02", "quem": "DR", "ref": "22936/2026", "tabela": "historico"}
 {"accao": "alterou", "detalhe": "pelo anúncio 22936/2026 de 15/09/2026: prazo de propostas 15/09/2026 → 14/11/2026", "quando": "2026-09-15 17:02", "quem": "DR", "ref": "14358/2026", "tabela": "historico"}
+{"accao": "alteração", "detalhe": "do anúncio 18607/2026, publicado a 21/07/2026; a triagem faz-se lá", "quando": "2026-09-16 09:01", "quem": "DR", "ref": "23006/2026", "tabela": "historico"}
+{"accao": "alterou", "detalhe": "pelo anúncio 23006/2026 de 16/09/2026: prazo de propostas 15/09/2026 → 02/10/2026", "quando": "2026-09-16 09:01", "quem": "DR", "ref": "18607/2026", "tabela": "historico"}
+{"accao": "configuração", "detalhe": "triagem_no_git: false → true", "quando": "2026-09-16 13:16", "quem": "admin", "ref": "", "tabela": "historico"}
