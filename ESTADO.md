@@ -333,7 +333,7 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**946 testes**.
+**947 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
@@ -356,6 +356,16 @@ lá e outra vez no «?» do título. Duas coisas foram medidas e **não**
 mexidas: as etiquetas do cartão não são ruído (o tipo são 12 «Anúncio
 de procedimento» e 8 «Consulta preliminar» em 20) e o teclado
 `j k i a Enter` não se partiu com a mudança de endereço.
+
+**E o terceiro ecrã, o Mercado**, onde a mesma escolha estava no ecrã
+duas vezes: a barra dizia `Contratos · Renovações` e as abas `Por
+celebração · Por fim estimado` — os mesmos dois modos, a 40px de
+distância e com nomes diferentes. As sub-vistas saíram da barra, e a
+regra que fica é a distinção: uma sub-vista é uma **forma diferente de
+olhar** (o Calendário), dois modos da mesma tabela são **abas**. A
+pergunta passou a dobrar-se quando já foi feita, que é o **inverso** da
+lista (lá os filtros são a excepção; aqui, sem filtro, os campos são a
+página): **700 px até ao primeiro contrato, agora 518**.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações

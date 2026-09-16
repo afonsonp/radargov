@@ -1736,6 +1736,24 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **O Mercado não tem vistas agrupadas na barra, e a razão é a
+  distinção.** Uma sub-vista na barra é uma **forma diferente de olhar**
+  (o Calendário, uma grelha de dias); **dois modos da mesma tabela são
+  abas**. «Contratos · Renovações» na barra eram os mesmos dois modos
+  que as abas já ofereciam, a 40px de distância e com nomes diferentes.
+  Tirá-las destapou que o `ITEM_DA_PAGINA` e o `migalhas_de()` eram
+  derivados das sub-vistas — sem o recuo pelo `ITEM_DA_PAGINA`, a barra
+  não acende e as migalhas dizem «Radar». Uma página nova que viva num
+  item sem ser vista dele entra nesse mapa.
+
+- **No Mercado a pergunta dobra-se quando JÁ FOI feita — ao contrário
+  da lista.** Não é a mesma regra aplicada duas vezes: são duas páginas
+  com o oposto por omissão. A lista abre com 1 268 anúncios para triar e
+  os filtros são o caso excepcional, por isso fecham; o Mercado não
+  mostra nada sem pergunta, e sem filtro os campos **são** a página.
+  Medido: 700 px até ao primeiro contrato com os campos abertos, 518
+  dobrados.
+
 - **O painel dos filtros não se lembra de ter ficado aberto.** Lembrava-
   se, em `localStorage`, para sempre e em todas as abas: bastava filtrar
   uma vez para a lista abrir com o painel aberto todos os dias a partir

@@ -536,6 +536,7 @@ escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
 |---|---|---|
 | **Ficha do anúncio** | 16/09 | O índice passou a cobrir a página; cinco blocos ganharam «?» |
 | **Lista dos concursos** | 16/09 | Saiu a memória do painel de filtros (−125px); a definição da aba saiu da linha do resumo |
+| **Mercado** | 16/09 | Saiu a duplicação barra/abas; a pergunta dobra-se quando já foi feita (−182px) |
 
 **Cada fase corre na instalação dele antes de se dizer que está
 feita** — com os 209 895 anúncios, não com três linhas de ensaio.
@@ -633,6 +634,49 @@ desmentido:
 - **O teclado (`j k i a Enter`) não se partiu** com a mudança de
   endereço da lista — confirmado no browser, dois `j` movem o foco dois
   cartões.
+
+## 11d. O Mercado (fase 5, terceiro ecrã)
+
+**A mesma escolha estava no ecrã duas vezes, a 40px de distância e com
+nomes diferentes.** A barra dizia `Mercado › Contratos · Renovações` e
+as abas da página diziam `Por celebração · Por fim estimado` — são os
+**mesmos dois modos**, e com rótulos distintos liam-se como quatro
+opções quando são duas. E as sub-vistas da barra só aparecem depois de
+se entrar no Mercado, que é exactamente onde as abas também estão: não
+eram atalho de lado nenhum.
+
+Saíram da barra. A distinção que fica, e que é coerente:
+
+- uma **sub-vista na barra** é uma *forma diferente de olhar* — o
+  Calendário dos Concursos, que é uma grelha de dias;
+- **dois modos da mesma tabela** são abas.
+
+Tirá-las destapou que o `ITEM_DA_PAGINA` e as migalhas eram derivados
+das sub-vistas: a barra deixou de acender e as migalhas passaram a dizer
+«Radar». A barra é hierarquia **por cima** das páginas, não um nome novo
+para elas, e agora há um recuo para as páginas que vivem num item sem
+serem vista dele.
+
+**E a pergunta dobra-se quando já foi feita** — o **inverso** da lista
+dos anúncios, e não a mesma regra aplicada duas vezes:
+
+| | Lista dos anúncios | Mercado |
+|---|---|---|
+| Sem filtro | 1 268 anúncios para triar → filtros **fechados** | não mostra nada → campos **abertos** |
+| Com filtro | os filtros continuam fechados; abre-os quem quer | a resposta é o que interessa → campos **dobrados** |
+
+Medido na instalação dele, com `?cpv=71318100`:
+
+| | Antes | Depois |
+|---|---|---|
+| O primeiro contrato começa aos | **700 px** | **518 px** |
+| (a lista dos anúncios, para comparar) | — | 284 px |
+
+São **182 px** de nove campos e uma caixa de pesquisa já respondidos,
+com o CPV activo declarado na sua própria banda logo abaixo. O resumo
+fica no `<summary>`: «Perguntar outra coisa · CPV 71318100».
+
+Verificado nos dois modos e a 375px.
 
 ---
 
