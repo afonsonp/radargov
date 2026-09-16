@@ -10018,11 +10018,20 @@ LISTA = "/concursos"
 NAV = (("inicio", "Hoje", "/", ()),
        ("anuncios", "Concursos", LISTA,
         (("calendario", "Calendário", "/calendario"),)),
-       ("mercado", "Mercado", "/contratos",
-        (("contratos", "Contratos", "/contratos"),
-         # as renovacoes fundiram-se nos contratos como modo (6.1-A);
-         # a rota antiga /renovacoes redirecciona para ca
-         ("renovacoes", "Renovações", "/contratos?ver=fim"))))
+       # **O Mercado nao tem vistas agrupadas na barra** (16/09/2026,
+       # fase 5). Tinha "Contratos" e "Renovacoes", que sao os MESMOS
+       # dois modos que as abas da pagina ja oferecem como "Por
+       # celebracao" e "Por fim estimado" -- a mesma escolha duas vezes,
+       # a 40px de distancia e com nomes diferentes, o que a fazia ler
+       # como quatro opcoes quando sao duas. E as sub-vistas so aparecem
+       # depois de se entrar no Mercado, que e onde as abas tambem
+       # estao: nao eram atalho de lado nenhum.
+       #
+       # A distincao que fica: uma sub-vista na barra e uma FORMA
+       # DIFERENTE de olhar (o Calendario dos Concursos, uma grelha de
+       # dias); dois modos da mesma tabela sao abas. A rota antiga
+       # /renovacoes continua a redireccionar.
+       ("mercado", "Mercado", "/contratos", ()))
 # Alertas saiu do primeiro nivel a 8/09/2026 (docs/historico/ONLINE.md,
 # etapa 2): passou a seccao de Configuracoes, que vive em baixo, ao
 # lado da zona de estado, como os Indicadores -- e o sitio onde se vai
@@ -10037,6 +10046,13 @@ NAV = (("inicio", "Hoje", "/", ()),
 # hierarquia por cima delas, nao um nome novo.
 ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
                   for pagina in [chave] + [v[0] for v in vistas]}
+# Paginas que VIVEM num item sem serem vista dele na barra. Os dois modos
+# do Mercado sao abas da mesma tabela e sairam da barra a 16/09/2026, mas
+# as paginas continuam a chamar-se `contratos` e `renovacoes` -- e sem
+# isto o item da barra deixava de acender e as migalhas caiam para
+# "Radar". A barra e hierarquia por cima das paginas, nao um nome novo
+# para elas.
+ITEM_DA_PAGINA.update({"contratos": "mercado", "renovacoes": "mercado"})
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -10066,6 +10082,16 @@ def migalhas_de(vista, folha=""):
                 break
         if passos:
             break
+    if not passos:
+        # Uma pagina que vive num item sem ser vista dele na barra (os
+        # dois modos do Mercado, desde 16/09/2026). Sem este recuo as
+        # migalhas caiam para "Radar" e a barra nao acendia -- apanhado
+        # ao tirar as sub-vistas do Mercado.
+        item = ITEM_DA_PAGINA.get(vista)
+        for chave, etiqueta, destino, _ in NAV:
+            if chave == item:
+                passos = [(etiqueta, destino)]
+                break
     if not passos:
         # a unica pagina fora da navegacao (os Indicadores eram outra;
         # desde 13/09/2026 sao uma seccao de Configuracoes)
@@ -15341,10 +15367,32 @@ def contratos():
         "placeholder='Nome ou NIF — abre a ficha directamente…'>"
         "<button type='submit'>Procurar</button></form>")
 
+    # Os dois blocos de pergunta dobram-se quando JA HA pergunta, e e o
+    # INVERSO da lista dos anuncios (16/09/2026, fase 5).
+    #
+    # Nao e a mesma regra aplicada duas vezes: sao duas paginas com o
+    # oposto por omissao. A lista abre com 1 268 anuncios para triar e os
+    # filtros sao o caso excepcional -- por isso fecham. O Mercado nao
+    # mostra nada sem pergunta: sem filtro os campos SAO a pagina, e por
+    # isso abrem. Com filtro posto, o que interessa e a resposta.
+    #
+    # Medido na instalacao dele: o primeiro contrato estava aos 700px
+    # (na lista, 284), e 213 desses eram os nove campos mais a caixa da
+    # ficha de entidade -- ja respondidos, com o CPV activo declarado na
+    # sua propria banda logo abaixo.
+    pergunta = (procura_entidade
+                + ("" if fim else faixa_de_avisos_de_datas(request.args))
+                + faixa_interesse + filtros)
+    if ha_pergunta:
+        pergunta = ("<details class='painel-filtros' id='painel-filtros'>"
+                    "<summary><span class='pf-tit'>Perguntar outra coisa</span>"
+                    "<span class='pf-sub'>%s</span></summary>%s</details>"
+                    % (html.escape(resumo_filtro(
+                           filtro_actual(request.args, vista), vista)),
+                       pergunta))
+
     conteudo = ("<div class='larg'>" + barra_corpus(anos) +
-                procura_entidade +
-                ("" if fim else faixa_de_avisos_de_datas(request.args)) +
-                faixa_interesse + filtros +
+                pergunta +
                 faixa_cpv + ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
                 graficos + linha_conta +
                 (titulo_tabela if ha_pergunta else "") +

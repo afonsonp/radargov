@@ -4275,10 +4275,42 @@ class TestModoFimDosContratos(unittest.TestCase):
         self.assertNotIn("de", radar.CAMPOS_POR_VISTA["renovacoes"])
         self.assertNotIn("ate", radar.CAMPOS_POR_VISTA["renovacoes"])
 
-    def test_a_navegacao_aponta_para_o_modo(self):
+    def test_os_dois_modos_estao_nas_abas_e_nao_tambem_na_barra(self):
+        """A 16/09/2026 (fase 5) as sub-vistas do Mercado saíram da barra.
+
+        «Contratos» e «Renovações» na barra eram os **mesmos** dois modos
+        que as abas da página já ofereciam como «Por celebração» e «Por
+        fim estimado» — a mesma escolha duas vezes, a 40px de distância e
+        com nomes diferentes, o que a fazia ler como quatro opções quando
+        são duas. E as sub-vistas só apareciam depois de se entrar no
+        Mercado, que é onde as abas também estão: não eram atalho de
+        lado nenhum.
+
+        A distinção que fica: uma sub-vista na barra é uma **forma
+        diferente de olhar** (o Calendário dos Concursos, uma grelha de
+        dias); dois modos da mesma tabela são abas.
+        """
         mercado = next(n for n in radar.NAV if n[0] == "mercado")
-        destinos = {v[0]: v[2] for v in mercado[3]}
-        self.assertEqual(destinos["renovacoes"], "/contratos?ver=fim")
+        self.assertEqual(mercado[3], ())
+        # o Calendário continua a ser vista de barra, que é o caso oposto
+        concursos = next(n for n in radar.NAV if n[0] == "anuncios")
+        self.assertEqual([v[0] for v in concursos[3]], ["calendario"])
+        # e os dois modos continuam alcançáveis, pelas abas da página
+        corpo = radar.app.test_client().get("/contratos").get_data(as_text=True)
+        self.assertIn("ver=fim", corpo)
+        self.assertIn("Por fim estimado", corpo)
+        self.assertIn("Por celebração", corpo)
+
+    def test_a_pagina_do_mercado_continua_a_acender_o_item_da_barra(self):
+        """O `ITEM_DA_PAGINA` derivava das sub-vistas: tirá-las deixou a
+        barra sem acender e as migalhas a dizer «Radar». A barra é
+        hierarquia por cima das páginas, não um nome novo para elas."""
+        self.assertEqual(radar.ITEM_DA_PAGINA["contratos"], "mercado")
+        self.assertEqual(radar.ITEM_DA_PAGINA["renovacoes"], "mercado")
+        self.assertIn("Mercado", radar.migalhas_de("contratos"))
+        self.assertIn("Mercado", radar.migalhas_de("renovacoes"))
+        # e uma folha continua a pendurar-se por baixo
+        self.assertIn("procurar", radar.migalhas_de("contratos", "procurar"))
 
 
 class TestVoltaComModo(unittest.TestCase):
