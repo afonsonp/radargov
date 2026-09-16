@@ -537,6 +537,7 @@ escrever `"/"` e nem todos queriam dizer a lista — uns queriam dizer
 | **Ficha do anúncio** | 16/09 | O índice passou a cobrir a página; cinco blocos ganharam «?» |
 | **Lista dos concursos** | 16/09 | Saiu a memória do painel de filtros (−125px); a definição da aba saiu da linha do resumo |
 | **Mercado** | 16/09 | Saiu a duplicação barra/abas; a pergunta dobra-se quando já foi feita (−182px) |
+| **Configurações** | 16/09 | Os Indicadores deixaram de ser tratados como afinação; o subtítulo era falso |
 
 **Cada fase corre na instalação dele antes de se dizer que está
 feita** — com os 209 895 anúncios, não com três linhas de ensaio.
@@ -677,6 +678,54 @@ com o CPV activo declarado na sua própria banda logo abaixo. O resumo
 fica no `<summary>`: «Perguntar outra coisa · CPV 71318100».
 
 Verificado nos dois modos e a 375px.
+
+## 11e. As Configurações (fase 5, quarto ecrã)
+
+Medidas as nove secções antes de olhar para alguma, e o que saltou não
+foi o aspecto: **uma das nove não é uma configuração.**
+
+| Secção | Campos | Letras |
+|---|---|---|
+| Alertas | 17 | 1 786 |
+| **Indicadores** | **0** | 1 981 |
+| Conta | 9 | 721 |
+| Recolha · Leitura | 7 · 7 | 603 · 622 |
+| Cópias | 3 | 901 |
+| Capturas | 4 | 364 |
+| Interesse | 3 | 236 |
+| Importar | 1 | 480 |
+
+Os **Indicadores não têm um único campo de formulário** — são nove
+blocos de números — e estavam debaixo de um subtítulo que prometia «cada
+secção grava só o que mostra». Uma página de **leitura** num menu de
+afinação, com o ecrã a dizer o contrário do que ela faz. Vieram da barra
+a 13/09 e o sítio serve; o que estava errado era chamar-lhes
+configuração.
+
+Duas correcções, as duas pequenas:
+
+- **O subtítulo perdeu a metade falsa.** «Cada secção grava só o que
+  mostra» descrevia o que já se vê (§9) e, pior, era **mentira** para
+  uma das nove.
+- **O `SECCOES_CONFIG` ganhou uma quinta coluna**, «grava alguma
+  coisa», e a que só lê fica apartada no fim do menu, por um risco. Um
+  menu que as pinte iguais diz que os Indicadores são uma coisa que se
+  afina.
+
+**E aqui parei de aplicar o critério da §9**, de propósito. As notas por
+baixo de cada campo — «um por dia, a partir da hora marcada», «os campos
+dos contratos não avisam de nada», «enquanto estiver vazio, a ficha
+pergunta» — **ficam todas**. Numa página de configuração o texto está ao
+lado do controlo que governa, e é no momento de mexer nele que faz
+falta: não é a página a descrever-se, é o campo a dizer o que faz, e
+algumas avisam de coisas que não se adivinham. A §9 é sobre páginas e
+blocos que se explicam, não sobre rótulos de campo.
+
+A questão maior fica **por decidir por ele**: agora que a abertura
+carrega os quatro números do negócio e aponta aos Indicadores para os
+decompor, os Indicadores talvez pertençam ao **Hoje** e não às
+Configurações. É uma mudança de navegação, não de aspecto, e por isso
+não se fez de passagem.
 
 ---
 

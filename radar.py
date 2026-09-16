@@ -9329,6 +9329,13 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .conf-indice a i{display:block;font:400 10.5px/1.3 var(--sans);color:var(--t5);font-style:normal}
 .conf-indice a:hover{background:var(--linha2);color:var(--ink)}
 .conf-indice a.on{background:#fff;border:1px solid var(--linha);color:var(--ink)}
+/* A seccao que so LE, apartada das que gravam (16/09/2026, fase 5). Os
+   Indicadores nao tem um campo de formulario: pinta-los como as outras
+   oito dizia que sao uma coisa que se afina, e nao sao. O risco em cima
+   e a separacao; a folga por baixo dele e o que a faz ler-se. */
+.conf-indice a.so-le{margin-top:12px;padding-top:14px;
+ border-top:1px solid var(--linha)}
+.conf-indice a.so-le.on{margin-top:12px;border-top-color:var(--linha)}
 .conf-cx{padding:18px 22px 22px}
 .conf-form{display:flex;flex-direction:column;gap:12px;max-width:560px}
 .conf-campo{display:flex;flex-direction:column;gap:4px;font:500 11.5px/1.4 var(--sans);color:var(--t3)}
@@ -13176,16 +13183,24 @@ def _conteudo_alertas():
 # (chave, titulo, descricao, so_admin). A ordem e a do documento de
 # 13/09/2026: primeiro o que e de quem usa (conta, interesse, alertas,
 # importar), depois o que e do sistema, que so o admin ve.
+# (chave, nome, o que e, so-admin, grava-alguma-coisa).
+#
+# A quinta coluna entrou a 16/09/2026 (fase 5): os **Indicadores nao
+# gravam nada** -- zero campos de formulario, nove blocos de numeros --,
+# e estavam debaixo de um subtitulo que prometia "cada seccao grava so o
+# que mostra". Uma pagina de LEITURA num menu de afinacao, com o ecra a
+# dizer o contrario do que ela faz. Vieram da barra a 13/09 e o sitio
+# serve; o que estava errado era chamar-lhes configuracao.
 SECCOES_CONFIG = (
-    ("conta", "Conta", "palavra-passe, sessões, a nossa empresa, utilizadores", False),
-    ("interesse", "Interesse", "os CPV que a casa trabalha", False),
-    ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False),
-    ("importar", "Importar dados", "o registo da casa, pelo modelo Excel", False),
-    ("indicadores", "Indicadores", "a saúde do sistema e os números", True),
-    ("capturas", "Capturas", "os dois pedidos ao DR", True),
-    ("recolha", "Recolha", "horas, janelas, a Vortal", True),
-    ("leitura", "Leitura das peças", "fornecedor, modelo e chaves", True),
-    ("copias", "Cópias", "a cópia diária e a triagem no git", True),
+    ("conta", "Conta", "palavra-passe, sessões, a nossa empresa, utilizadores", False, True),
+    ("interesse", "Interesse", "os CPV que a casa trabalha", False, True),
+    ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
+    ("importar", "Importar dados", "o registo da casa, pelo modelo Excel", False, True),
+    ("indicadores", "Indicadores", "a saúde do sistema e os números", True, False),
+    ("capturas", "Capturas", "os dois pedidos ao DR", True, True),
+    ("recolha", "Recolha", "horas, janelas, a Vortal", True, True),
+    ("leitura", "Leitura das peças", "fornecedor, modelo e chaves", True, True),
+    ("copias", "Cópias", "a cópia diária e a triagem no git", True, True),
 )
 
 
@@ -13194,6 +13209,7 @@ def seccoes_visiveis():
     primeiras ao tester. A porta (ROTAS_SO_ADMIN) e quem recusa; isto
     e so o indice."""
     return [sc for sc in SECCOES_CONFIG if not sc[3] or sou_admin()]
+
 
 # O que fica no config.json de proposito, sem formulario: termos de
 # pesquisa e de reserva, paginas, por_pagina, abrir_browser_ao_encontrar,
@@ -13230,15 +13246,22 @@ def gravar_config_registado(mudancas, quem=None):
 def pagina_config(seccao, conteudo, script=""):
     """O esqueleto comum: o indice das seccoes a esquerda, preso ao
     rolar como o da ficha, e a seccao a direita."""
-    titulo = dict((c, t) for c, t, _, _ in SECCOES_CONFIG)[seccao]
+    titulo = dict((c, t) for c, t, _, _, _ in SECCOES_CONFIG)[seccao]
+    # As que gravam primeiro, e as que so leem apartadas por um risco: um
+    # menu que as pinte iguais diz que os Indicadores sao uma coisa que
+    # se afina, e nao sao.
     indice = "".join(
-        "<a class='%s' href='/configuracoes/%s'><b>%s</b><i>%s</i></a>"
-        % ("on" if c == seccao else "", c, html.escape(t), html.escape(d))
-        for c, t, d, _ in seccoes_visiveis())
+        "<a class='%s%s' href='/configuracoes/%s'><b>%s</b><i>%s</i></a>"
+        % ("on " if c == seccao else "", "" if grava else "so-le",
+           c, html.escape(t), html.escape(d))
+        for c, t, d, _, grava in sorted(seccoes_visiveis(),
+                                        key=lambda sc: not sc[4]))
     return envolver(
         "configuracoes", titulo,
-        "Dizer ao radar como quero que ele trabalhe. Cada secção grava "
-        "só o que mostra.",
+        # "Cada seccao grava so o que mostra" saiu a 16/09/2026: descrevia
+        # o que ja se ve (§9) e, pior, era FALSO para os Indicadores, que
+        # nao gravam nada.
+        "Dizer ao radar como quero que ele trabalhe.",
         "<div class='conf'><nav class='conf-indice'>%s</nav>"
         "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
         migalhas=migalhas_de("configuracoes", titulo), script=script,

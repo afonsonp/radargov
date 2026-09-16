@@ -4036,7 +4036,7 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         chaves.update(v[0] for n in radar.NAV for v in n[3])
         self.assertNotIn("indicadores", chaves)
         # desde 13/09/2026 sao uma seccao de Configuracoes (so do admin)
-        self.assertIn("indicadores", [c for c, _, _, _ in radar.SECCOES_CONFIG])
+        self.assertIn("indicadores", [c for c, _, _, _, _ in radar.SECCOES_CONFIG])
         self.assertIn("Configurações", radar.migalhas_de("configuracoes"))
 
     def test_so_o_calendario_sobrevive_como_vista(self):
@@ -9521,12 +9521,20 @@ class TestConfiguracoes(BaseTemporaria):
         # nove desde 13/09/2026 (Indicadores entrou), pela ordem do
         # documento do Afonso: o que e de quem usa primeiro, o do sistema
         # depois, marcado como so de admin
-        self.assertEqual([c for c, _, _, _ in radar.SECCOES_CONFIG],
+        self.assertEqual([c for c, _, _, _, _ in radar.SECCOES_CONFIG],
                          ["conta", "interesse", "alertas", "importar",
                           "indicadores", "capturas", "recolha", "leitura", "copias"])
-        self.assertEqual([c for c, _, _, so_admin in radar.SECCOES_CONFIG if so_admin],
+        self.assertEqual([c for c, _, _, so_admin, _ in radar.SECCOES_CONFIG
+                          if so_admin],
                          ["indicadores", "capturas", "recolha", "leitura", "copias"])
-        for seccao, _, _, _ in radar.SECCOES_CONFIG:
+        # A quinta coluna diz se a seccao GRAVA alguma coisa (16/09/2026,
+        # fase 5). Os Indicadores nao gravam nada -- zero campos, nove
+        # blocos de numeros -- e estavam debaixo de um subtitulo que
+        # prometia "cada seccao grava so o que mostra". O subtitulo
+        # perdeu essa metade, que era falsa para eles.
+        self.assertEqual([c for c, _, _, _, grava in radar.SECCOES_CONFIG
+                          if not grava], ["indicadores"])
+        for seccao, _, _, _, _ in radar.SECCOES_CONFIG:
             with self.subTest(seccao=seccao):
                 r = self.cliente.get("/configuracoes/" + seccao)
                 self.assertEqual(r.status_code, 200)
@@ -9540,6 +9548,40 @@ class TestConfiguracoes(BaseTemporaria):
                          "/configuracoes/conta")
         self.assertEqual(self.cliente.get("/indicadores").headers["Location"],
                          "/configuracoes/indicadores")
+
+    def test_a_seccao_que_so_le_esta_apartada_e_o_subtitulo_nao_mente(self):
+        """Os **Indicadores não gravam nada** — zero campos de formulário,
+        nove blocos de números — e estavam debaixo de um subtítulo que
+        prometia «cada secção grava só o que mostra».
+
+        Uma página de leitura num menu de afinação, com o ecrã a dizer o
+        contrário do que ela faz. Vieram da barra a 13/09 e o sítio
+        serve; o que estava errado era chamar-lhes configuração. Ficam
+        apartadas por um risco, no fim do menu, e o subtítulo perdeu a
+        metade falsa.
+        """
+        corpo = self.cliente.get("/configuracoes/conta").get_data(as_text=True)
+        indice = corpo.split("class='conf-indice'")[1].split("</nav>")[0]
+        self.assertIn("so-le", indice)
+        # e é a última do menu, não uma do meio
+        self.assertTrue(indice.rstrip().endswith("</a>"))
+        self.assertLess(indice.index("conta"), indice.index("so-le"))
+        # o subtítulo perdeu a metade que era falsa
+        self.assertNotIn("grava só o que mostra", corpo)
+        self.assertIn("Dizer ao radar como quero que ele trabalhe", corpo)
+
+    def test_as_notas_dos_campos_ficam_onde_estao(self):
+        """O critério da §9 do `docs/design.md` **não** se aplica aqui do
+        mesmo modo: numa página de configuração o texto está ao lado do
+        controlo que governa, e é no momento de mexer no controlo que ele
+        faz falta. Não é a página a descrever-se — é o campo a dizer o
+        que faz, e uma avisa de uma coisa que não se adivinha.
+        """
+        corpo = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        # não é a página a descrever-se: é o campo a avisar de uma coisa
+        # que não se adivinha antes de o preencher
+        self.assertIn("não avisam de nada", corpo)
+        self.assertIn("Um por dia, a partir da hora marcada", corpo)
 
     def test_recolha_grava_e_rele_sem_perder_o_resto(self):
         radar.gravar_config({"interesse_cpv": "72000000", "email": {"para": "x@y.pt"}})

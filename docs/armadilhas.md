@@ -1736,6 +1736,20 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **O `SECCOES_CONFIG` tem cinco colunas, e a quinta diz se a secção
+  GRAVA alguma coisa.** Os Indicadores não gravam nada — zero campos —
+  e ficam apartados no fim do menu por um risco. A ordem do menu é a do
+  documento dele, com as que só lêem no fim; quem desempacota a tupla
+  desempacota **cinco**. E o subtítulo das Configurações não diz «cada
+  secção grava só o que mostra»: era falso para uma das nove.
+
+- **As notas por baixo dos campos das Configurações não vão para o «?».**
+  O critério da §9 do `docs/design.md` é sobre páginas e blocos que se
+  **descrevem**; numa página de configuração o texto está ao lado do
+  controlo que governa e é no momento de mexer nele que faz falta —
+  algumas avisam de coisas que não se adivinham («os campos dos
+  contratos não avisam de nada»). Ficam onde estão.
+
 - **O Mercado não tem vistas agrupadas na barra, e a razão é a
   distinção.** Uma sub-vista na barra é uma **forma diferente de olhar**
   (o Calendário, uma grelha de dias); **dois modos da mesma tabela são

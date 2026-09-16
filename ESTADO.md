@@ -333,7 +333,7 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**947 testes**.
+**949 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
@@ -366,6 +366,17 @@ olhar** (o Calendário), dois modos da mesma tabela são **abas**. A
 pergunta passou a dobrar-se quando já foi feita, que é o **inverso** da
 lista (lá os filtros são a excepção; aqui, sem filtro, os campos são a
 página): **700 px até ao primeiro contrato, agora 518**.
+
+**E o quarto ecrã, as Configurações**, onde o que saltou não foi o
+aspecto: **uma das nove secções não é uma configuração.** Os
+Indicadores não têm um único campo de formulário — são nove blocos de
+números — e estavam debaixo de um subtítulo que prometia «cada secção
+grava só o que mostra». O subtítulo perdeu a metade falsa e a secção
+que só lê ficou apartada no fim do menu. **As notas por baixo dos
+campos ficaram todas**: numa página de configuração o texto está ao
+lado do controlo que governa, e a regra da §9 é sobre páginas que se
+descrevem, não sobre rótulos de campo. Fica por decidir se os
+Indicadores pertencem ao **Hoje** agora que a abertura os aponta.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
