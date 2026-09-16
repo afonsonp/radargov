@@ -722,11 +722,34 @@ falta: não é a página a descrever-se, é o campo a dizer o que faz, e
 algumas avisam de coisas que não se adivinham. A §9 é sobre páginas e
 blocos que se explicam, não sobre rótulos de campo.
 
-A questão maior fica **por decidir por ele**: agora que a abertura
-carrega os quatro números do negócio e aponta aos Indicadores para os
-decompor, os Indicadores talvez pertençam ao **Hoje** e não às
-Configurações. É uma mudança de navegação, não de aspecto, e por isso
-não se fez de passagem.
+**Decidido por ele no mesmo dia** («põe os indicadores no hoje, à
+excepção dos indicadores da curl, plataformas, BASE, DR»). A divisão é
+essa, e é boa:
+
+| Vai para **Hoje** | Fica em **Configurações** |
+|---|---|
+| O negócio (em jogo, taxa, desconto) | Estado da recolha (as duas capturas cURL, a última verificação, as horas) |
+| Em jogo, por ranhura | As plataformas, em percentagem do que tem detalhe lido |
+| Porque se perde · Porque não se vai | Corpus de contratos (Portal BASE) |
+| Há mais tempo sem se mexerem | Os quatro números do acervo |
+| Funil da triagem | |
+| Propostas por ranhura | |
+
+O critério: **como vai o negócio** vive onde ele chega; **se a máquina
+está boa** fica onde se vai de vez em quando.
+
+Três consequências:
+
+- O KPI «Em jogo» **deixou de sair da página**: apontava aos
+  Indicadores para se decompor, e o bloco que o decompõe está agora na
+  mesma página (`#negocio`). Um número que manda o leitor para outro
+  ecrã para se explicar é um número que o manda embora.
+- O `numeros_do_negocio()` é **função própria com as suas consultas**, e
+  não metade de uma que calcula as duas: a abertura é a página em que
+  ele aterra duas vezes por dia, e fazer-lhe as contas do estado das
+  plataformas para não as mostrar era pagar o que não se usa.
+- A etiqueta «Interessados por fase do **quadro**» passou a «Propostas
+  por ranhura» — o quadro saiu a 15/09, e não são interessados.
 
 ## 11f. A lista das propostas (fase 5, quinto ecrã)
 

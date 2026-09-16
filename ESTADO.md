@@ -333,7 +333,7 @@ hoje, em todos os concursos ao mesmo tempo» que tinha ficado por
 responder. **Ensaiado numa cópia da base** (1,26 GB, porta 8801) com
 seis propostas e oito tarefas espalhadas pelos quatro baldes, que é a
 única forma de ver o ecrã com conteúdo sem mexer na base a sério. São
-**952 testes**.
+**954 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
@@ -375,8 +375,14 @@ grava só o que mostra». O subtítulo perdeu a metade falsa e a secção
 que só lê ficou apartada no fim do menu. **As notas por baixo dos
 campos ficaram todas**: numa página de configuração o texto está ao
 lado do controlo que governa, e a regra da §9 é sobre páginas que se
-descrevem, não sobre rótulos de campo. Fica por decidir se os
-Indicadores pertencem ao **Hoje** agora que a abertura os aponta.
+descrevem, não sobre rótulos de campo. **E ficou decidido no mesmo dia**: «põe os indicadores no hoje, à
+excepção dos indicadores da curl, plataformas, BASE, DR». Os números
+do negócio — o que está em jogo, porque se perde, o funil da triagem,
+as propostas por ranhura — vivem agora na **abertura**; em
+Configurações ficou a saúde da máquina: as duas capturas cURL, o
+estado da recolha, as plataformas e o corpus do Portal BASE. O KPI «Em
+jogo» deixou de sair da página, porque o bloco que o decompõe passou a
+estar nela.
 
 **E o quinto ecrã fechou a fase 5: a lista das propostas.** Mostrava
 as mesmas oito colunas nas oito ranhuras, e a regra que faltava era do
@@ -400,6 +406,22 @@ apontar o `CONFIG` e o `BASE_DIR` para a pasta temporária.
 **O NIF da casa está preenchido** desde as 16:47 desse dia, por ele:
 «LATD DIGITAL ENABLERS, LDA», NIF 516241362. O cruzamento com o Portal
 BASE deixa de perguntar e passa a dizer quando a adjudicação é nossa.
+
+**E ao fazer isso apareceram nove ligações partidas pela própria fase
+4**: a lista mudou de `/` para `/concursos` e ficaram nove `href='/?…'`
+— nas barras dos indicadores, no «limpar» do filtro, no «procurar em
+todos», no «ver em lista» do calendário, nos alertas. **Nenhuma dava
+erro**: `/` responde 200 e ignora a query string, e por isso 952 testes
+passaram — **dois deles pregavam o endereço errado no lugar**. Há agora
+um teste que guarda a propriedade em vez da lista dos sítios. E a
+corrigi-las cometi o erro que o próprio ficheiro avisa: o `%` tem
+precedência sobre o `+`, e um `+` a meio de um molde parte a formatação
+do resto.
+
+**Saiu também uma entidade HTML que estava à vista**: a
+`ultima_mensagem` guardava `&middot;` e quem a mostra escapa-a, por
+isso lia-se «&middot;» no ecrã. Guardava-se assim desde a entrada da
+Vortal, e só se viu quando a mensagem passou para a abertura.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações

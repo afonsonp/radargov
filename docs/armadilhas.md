@@ -1736,6 +1736,33 @@ botões ou no calendário.
   irmãos ambos em `sticky;top:0`, e o segundo tapava o selector assim
   que se rolava.
 
+- **Uma entidade HTML dentro de uma MARCA sai escrita.** A
+  `ultima_mensagem` é um valor na tabela `estado`, e quem a mostra
+  escapa-a: com `&middot;` lá dentro lê-se «&middot;» no ecrã. Está
+  documentado desde a barra lateral e voltou pela linha das consultas
+  preliminares da Vortal, onde ficou meses até a mensagem passar para a
+  abertura (16/09/2026) e ficar à vista. **Guarda-se o carácter.** O
+  `verificar()` tem três sítios assim; os outros dois já estavam certos.
+
+- **As nove ligações que a mudança de endereço deixou atrás.** A lista
+  passou de `/` para `LISTA` a 16/09/2026, e ficaram nove `href='/?…'`
+  — nas barras dos indicadores, no «limpar», no «procurar em todos», no
+  «ver em lista» do calendário, nos alertas. **Nenhuma dava erro**: `/`
+  responde 200 e ignora a query string, e por isso 952 testes passaram;
+  **dois deles pregavam o endereço errado no lugar**. Onde o endereço
+  entra num molde de formatação vai como **literal** e não como a
+  constante: o `%` tem precedência sobre o `+`, e `"a" + LISTA + "b %d"
+  % x` lê-se `"a" + LISTA + ("b %d" % x)` — parte a formatação do resto
+  da cadeia (o `negocio_cx()` já avisava disto, e cometi-o a corrigir
+  isto). O `test_nenhuma_ligacao_manda_para_a_lista_pelo_endereco_antigo`
+  guarda a propriedade e fixa `LISTA == "/concursos"`.
+
+- **Os números do negócio vivem na abertura; a saúde da máquina, em
+  Configurações** (16/09/2026, decisão dele). O `numeros_do_negocio()`
+  faz as SUAS consultas e não é metade de uma que calcula as duas: a
+  abertura é a página de aterragem, e calcular o estado das plataformas
+  para não o mostrar era pagar o que não se usa.
+
 - **As colunas da lista das propostas seguem a RANHURA.** A regra é do
   CRM — um campo pertence a um estado e a mais nenhum — e a lista não a
   seguia. O «Proposto» antes do Submetido não está vazio por falta de
