@@ -516,6 +516,14 @@ def iniciar_db():
             origem TEXT DEFAULT 'mão', criada_em TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_tarefas_quando "
                   "ON tarefas(quando)")
+        # As tarefas que ficaram de propostas ja apagadas. Ate 16/09/2026
+        # os tres sitios que apagam uma proposta deixavam-nas atras (ver
+        # apagar_propostas()), e uma tarefa orfa nao e so lixo: a pagina
+        # de abertura le esta tabela, e ela aparecia la como trabalho de
+        # uma proposta que nao existe. As escritas a mao sem proposta
+        # (proposta_id NULL) nao sao orfas e nao se tocam.
+        c.execute("DELETE FROM tarefas WHERE proposta_id IS NOT NULL "
+                  "AND proposta_id NOT IN (SELECT id FROM propostas)")
         # Os contactos (etapa 6): sao da ENTIDADE e nao do concurso -- a
         # pessoa que responde aos esclarecimentos do IPL responde aos do
         # ano que vem tambem. A chave e o NIF quando se sabe, senao o
@@ -1497,6 +1505,31 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
     return id_
 
 
+def apagar_propostas(c, onde, valores):
+    """Apaga propostas E as tarefas delas, na mesma transaccao.
+
+    Existe porque as `tarefas` nao tem chave estrangeira com ON DELETE
+    CASCADE: po-la agora obrigava a reescrever a tabela, e a casa ja
+    recusou esse custo uma vez (as doze colunas de CRM, 15/09/2026, 45 s
+    por coluna numa base de 1,2 GB). Sao TRES os sitios que apagam
+    propostas -- o "voltar a por ver", a republicacao do DR que herda o
+    estado, e o apagar de uma proposta sem anuncio -- e os tres deixavam
+    as tarefas automaticas atras. Apanhado a 16/09/2026 a desfazer duas
+    propostas criadas por engano: as propostas foram-se e duas tarefas
+    ficaram a apontar para um `proposta_id` que ja nao existe.
+
+    Nao e so lixo acumulado: a pagina de abertura (fase 4 do
+    docs/design.md) le esta tabela para dizer o que ha para fazer, e uma
+    tarefa orfa aparecia la como trabalho de uma proposta que nao ha.
+
+    As tarefas PRIMEIRO, que e enquanto as propostas ainda existem para
+    serem escolhidas pelo subselect.
+    """
+    c.execute("DELETE FROM tarefas WHERE proposta_id IN "
+              "(SELECT id FROM propostas WHERE %s)" % onde, valores)
+    c.execute("DELETE FROM propostas WHERE " + onde, valores)
+
+
 def mover_proposta(id_, estado, quem=None):
     """Poe a proposta noutra ranhura da escada. Devolve (ok, recado).
 
@@ -1594,7 +1627,7 @@ def _tirar_da_escada(ref, antes):
         return ("reposto em «Por analisar» — tem trabalho escrito, "
                 "não se deita fora")
     with liga() as c:
-        c.execute("DELETE FROM propostas WHERE id=?", (antes["id"],))
+        apagar_propostas(c, "id=?", (antes["id"],))
     registar(ref, "estado", "voltou a por ver")
     return "reposto em por ver"
 
@@ -2670,7 +2703,7 @@ def aplicar_alteracao(ref, avisar=True):
                 era = estado_da_casa(do_original[0]["estado"])
             # A do original sai: a mais recente e a que vale, e deixar as
             # duas dava dois cartoes do mesmo procedimento no quadro.
-            c.execute("DELETE FROM propostas WHERE ref=?", (raiz_ref,))
+            apagar_propostas(c, "ref=?", (raiz_ref,))
             c.execute("UPDATE propostas SET ref=? WHERE ref=?", (raiz_ref, ref))
             c.execute("INSERT OR IGNORE INTO anuncio_etiquetas (ref, etiqueta_id)"
                       " SELECT ?, etiqueta_id FROM anuncio_etiquetas WHERE ref=?",
@@ -8608,6 +8641,25 @@ form.accao button{font-family:inherit}
 /* A escala tem degraus a serio. Estava tudo entre 10 e 13,5px e a
    hierarquia fazia-se so por peso e cor -- numa pagina densa lia-se
    tudo ao mesmo nivel. */
+/* Fase 2 do docs/design.md (16/09/2026): o texto que explica a pagina
+   sai do meio do que se usa. Eram 17 paginas a abrir com um paragrafo a
+   dizer o que a pagina e -- util a quem chega uma vez, uma linha de
+   ruido todos os dias a quem abre isto duas vezes por dia.
+   O <h1> vai DENTRO do <summary>, que o HTML permite (o modelo de
+   conteudo do summary aceita um elemento de cabecalho): assim o titulo e
+   o "?" ficam na mesma linha, a linha toda alterna, e o texto aparece
+   por baixo. Sem JS, nativo. Fechado por omissao e SEM memoria: um "?"
+   que se lembra de estar aberto volta a por o paragrafo no ecra todos os
+   dias, que e o que isto vem tirar. */
+details.porque > summary{display:flex;align-items:baseline;gap:9px;
+ cursor:pointer;list-style:none}
+details.porque > summary::-webkit-details-marker{display:none}
+details.porque > summary > i{flex:none;font-style:normal;align-self:center;
+ width:19px;height:19px;border-radius:50%;border:1px solid var(--traco);
+ color:var(--t4);font:600 11px/17px var(--sans);text-align:center}
+details.porque > summary:hover > i{border-color:var(--azul);color:var(--azul)}
+details.porque[open] > summary > i{background:var(--azul);color:#fff;
+ border-color:var(--azul)}
 h1.tit{margin:8px 0 0;font:700 22px/1.25 var(--sans);color:var(--ink);
  letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
 p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
@@ -9876,8 +9928,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head
    <div class="b">%(migalhas)s</div>
    <div class="accoes-topo">%(accoes_topo)s</div>
   </div>
-  <h1 class="tit">%(titulo)s</h1>
-  <p class="subtit">%(subtitulo)s</p>
+  %(titulo_e_porque)s
   %(abas)s
  </div>
  <div class="corpo">%(aviso)s%(conteudo)s</div>
@@ -10240,8 +10291,15 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "conf_on": "on" if activo == "configuracoes" else "",
         "nav": "".join(itens),
         "migalhas": migalhas,
-        "titulo": html.escape(titulo),
-        "subtitulo": subtitulo,
+        # O titulo, e o "?" so quando ha texto para ele guardar. Sem
+        # subtitulo o <details> era um "?" que abria nada -- um controlo
+        # morto, que a casa nao poe no ecra.
+        "titulo_e_porque": (
+            ("<details class='porque'><summary>"
+             "<h1 class='tit'>%s</h1><i title='O que e esta pagina'>?</i>"
+             "</summary><p class='subtit'>%s</p></details>"
+             % (html.escape(titulo), subtitulo)) if subtitulo.strip()
+            else "<h1 class='tit'>%s</h1>" % html.escape(titulo)),
         "conteudo": conteudo,
         "abas": abas or "<div class='vazio-topo'></div>",
         "aviso": aviso,
@@ -18812,13 +18870,14 @@ def proposta_apagar(id_):
     gesto possivel e apagar."""
     p = proposta(id_)
     if not p:
-        return volta_ao_referer("/quadro")
+        # era "/quadro", que saiu a 15/09/2026 -- apanhado de passagem
+        return volta_ao_referer("/")
     if p["ref"]:
         return _volta_com_aviso(
             "Esta proposta veio do DR: tira-se da escada com «voltar a "
             "por ver», e o anúncio volta à lista.")
     with liga() as c:
-        c.execute("DELETE FROM propostas WHERE id=?", (id_,))
+        apagar_propostas(c, "id=?", (id_,))
     registar("", "proposta apagada", p["titulo"] or p["entidade"] or str(id_))
     return redirect("/?" + urlencode({"estado": p["estado"],
                                       "aviso": "Proposta apagada."}))

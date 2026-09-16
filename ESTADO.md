@@ -289,7 +289,7 @@ de letra** entre 9 e 34px sem escala nenhuma, e o `/calendario` desenha
 de altura, 98% vazios. A paleta nova está medida sobre **todos** os
 fundos que existem, não só sobre o papel: pior caso **4,52**, e a
 escala de texto passou a ter um patamar só em vez de dois, que era a
-armadilha que já partiu o contraste duas vezes. São **928 testes**.
+armadilha que já partiu o contraste duas vezes. São **931 testes**.
 
 **E a fase 3, o calendário, no mesmo dia.** Era uma grade de «uma
 linha por concurso × uma coluna por dia» — a forma de um Gantt, que
@@ -303,6 +303,22 @@ entidade, e não «prazo» 1 086 vezes. Entraram as **abas da escada**,
 sem números — sem elas o calendário por omissão mostra as propostas em
 aberto, que hoje são zero, e a única saída era escrever `?estado=` na
 barra de endereços. Abaixo de 900px a grade rola dentro de si.
+
+**E a fase 2, os descritivos.** Eram 17 páginas a abrir com um
+parágrafo a dizer o que a página é. O `<h1>` passou a ir **dentro** do
+`<summary>` de um `<details>`, com um «?» ao lado: a linha do título
+alterna e o texto aparece por baixo, nativo e sem JS. **Fechado por
+omissão e sem memória** — um «?» que se lembra de estar aberto volta a
+pôr o parágrafo no ecrã todos os dias, que é o que isto vem tirar.
+
+**Um erro do CRM apanhado pelo caminho**: as `tarefas` não têm chave
+estrangeira com `ON DELETE CASCADE`, e os **três** sítios que apagam
+propostas deixavam as tarefas automáticas atrás. Passaram a ir pelo
+`apagar_propostas()`, e o `iniciar_db()` limpa as que já existiam (sem
+tocar nas escritas à mão). Importa porque a página de abertura lê essa
+tabela: uma tarefa órfã aparecia lá como trabalho de uma proposta que
+não existe. Saiu também um `volta_ao_referer("/quadro")` que apontava
+para a página que desapareceu a 15/09.
 
 **O acervo.** **209 177 anúncios, onze anos deles** (06/01/2015 a
 04/09/2026) — **199 080 procedimentos**, porque 10 097 são republicações
