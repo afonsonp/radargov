@@ -31,6 +31,7 @@ pede.**
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `ONLINE-empresas`, `CRM`, `CICLOS` | Raramente. **Todos abrem com o aviso de instantâneo** (17/09/2026): descrevem o dia em que foram escritos e não se editam |
+| `docs/historico/REDESENHO.md` | O pacote de desenho «Radar Gov UI redesign» (17/09/2026): o Hoje, o Ponto de situação, as Entidades, a ficha da entidade e os estados vazios, ecrã a ecrã. É instantâneo: descreve o que se **pediu**, não o que ficou | **Antes de mexer na abertura, no `/situacao` ou nas entidades** |
 | `docs/historico/CICLOS.md` | O plano de 16/09/2026 para fechar os ciclos (tarefas, entidade, proposta sem anúncio, peças) e arrumar esta documentação. **As cinco fases ficaram feitas a 17/09/2026**, cada uma com a sua linha no §9 — e cada linha diz o que saiu diferente do plano | Para perceber uma decisão destas quatro áreas. É instantâneo: o que vale hoje está aqui e nas armadilhas |
 | `docs/arquitectura.html`<br>`docs/processo-*.html` | Seis diagramas interactivos (16/09/2026, pela skill `archify`). **Cinco dos seis contradizem o código de hoje** e estão por regenerar (BACKLOG, D4): a escada desenha oito ranhuras em vez de dez e nenhuma seta de retorno, a arquitectura diz «única fonte» com a Vortal e o BASE a existirem, a recolha não tem o passo da Vortal, a porta atribui ao CSRF o que é do `origem_e_nossa()`, e as peças não têm a seta de retorno do «sem orçamento». Só o do corpus está certo | Para ver a **forma** de uma coisa, com a data em mente. **São instantâneos: mudar o código não os muda** |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
@@ -212,7 +213,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~21 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~22,7 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
@@ -346,18 +347,37 @@ A ordem do ficheiro é a ordem do fluxo:
 8a. **a abertura** — `/` (16/09/2026, fase 4 do `docs/design.md`): o
    estado do negócio e o que há para fazer. Lê a tabela `tarefas`; os
    prazos dos anúncios não se somam por cima, que as automáticas já os
-   trazem. Desde 17/09/2026 (fase 1 do `docs/historico/CICLOS.md`) são
-   **cinco baldes**, e o primeiro é **«prazo passou sem decisão»**
-   (`propostas_sem_decisao()`): as propostas abertas cujo prazo do DR já
-   passou. **Nada se move sozinho** (D2) — as automáticas dessas
-   propostas escondem-se dos outros baldes para não se contarem duas
-   vezes, e quem escolhe a ranhura é a pessoa, no selector da linha. As
-   tarefas agrupam-se **por proposta** dentro de cada balde, o cabeçalho
-   é o concurso (ref, ranhura, entidade) e cada linha resolve-se ali:
-   feita, desfazer, adiar e atribuir (`/tarefa/<id>/gravar`, uma rota
-   para os três gestos). O número do KPI conta as **linhas desenhadas**,
-   e não `len(tarefas)`.
-8b. **a amostra do desenho** — `/amostra` (16/09/2026, fase 0 do
+   trazem. São **cinco baldes**, e o primeiro é **«prazo passou sem
+   decisão»** (`propostas_sem_decisao()`): as propostas abertas cujo
+   prazo do DR já passou. **Nada se move sozinho** (D2) — as automáticas
+   dessas propostas escondem-se dos outros baldes para não se contarem
+   duas vezes, e quem escolhe a ranhura é a pessoa, no selector da
+   linha.
+   **Redesenhada a 17/09/2026** (`docs/historico/REDESENHO.md` §1):
+   o título é a **data** (`dia_por_extenso()`) e não uma saudação; os
+   quatro cartões `.kpi` deram lugar a uma **linha de factos** na
+   ranhura das abas; entrou a **fita da semana** (`_fita_da_semana()`,
+   sete células — clicar num dia muda o balde do meio, `?dia=`); e o
+   corpo passou a **duas colunas**, com «O que mudou», «Prazos a chegar»
+   e «Paradas há mais tempo» à direita. O agrupamento por proposta
+   **saiu**: o concurso é uma coluna de cada `.hj-row`. A linha tem
+   caixa de ✓, dono e entrega, e **risca-se no sítio** — o
+   `_volta_com_aviso(..., ancora="t<id>")` traz de volta à linha, que
+   era a queixa dele («concluo a tarefa e volto para o início da
+   página»). Filtra-se por pessoa (`?quem=`; **ausente = todos, vazio =
+   sem dono**) e escondem-se as feitas (`?feitas=esconder`); nada disto
+   se guarda em lado nenhum — o que está no ecrã está no endereço. O
+   número do facto conta as **linhas desenhadas**, e não `len(tarefas)`.
+8b. **o ponto de situação** — `/situacao` (17/09/2026, §2 do
+   redesenho): como vai o negócio. É o bloco `#negocio` que vivia no fim
+   da abertura, agora com casa própria, três abas (Negócio · Triagem ·
+   Por área CPV) e um **período** (`janelas_do_periodo()`: este mês ·
+   este trimestre, que é a omissão · 12 meses · tudo), com a comparação
+   com o período anterior **do mesmo tamanho**. O período conta pela
+   `fechada_em` — a data em que a proposta se **decidiu**; o «em jogo» é
+   uma fotografia de agora e **não leva seta**, porque a base não guarda
+   o pipeline de ontem.
+8c. **a amostra do desenho** — `/amostra` (16/09/2026, fase 0 do
    `docs/design.md`): os componentes todos num sítio, com um selector
    de letra e de pele, para ele ver e decidir antes de um ecrã mudar.
    É a **única** página que não passa pelo `envolver()`, porque é a
@@ -368,7 +388,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **210 pontos** (contados a 17/09/2026), cada um de um erro que
+São **218 pontos** (contados a 17/09/2026), cada um de um erro que
 existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

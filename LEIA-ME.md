@@ -196,33 +196,62 @@ de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
 
 ### A abertura: o que há para fazer
 
-O endereço `/` é o **Hoje** — o logótipo leva-lhe de volta. Em cima,
-quatro números (em jogo, taxa de vitória, por decidir, para fazer), e
-cada um abre exactamente a lista que o produz. Por baixo, o que há para
-fazer, em **cinco baldes**:
+O endereço `/` é o **Hoje** — o logótipo leva-lhe de volta. O título é a
+data. Logo por baixo, numa linha, **quatro números** (em jogo, taxa de
+vitória, por decidir, para fazer), e cada um abre exactamente a lista
+que o produz; ao fim da linha, a saída para o **Ponto de situação**.
+
+A seguir vem a **fita da semana**: sete células, segunda a domingo. Cada
+uma diz quantas tarefas tem nesse dia, quantas já estão feitas e quantas
+entregas fecham; o dia de hoje diz também quantas atrasadas arrasta.
+**Clica num dia** para o veres — a lista por baixo muda para esse dia, e
+as setas andam de semana em semana.
+
+Por baixo, duas colunas.
+
+**À esquerda, o que há para fazer**, em cinco baldes:
 
 1. **Prazo passou sem decisão** — os concursos em «Por analisar» ou «A
    preparar proposta» cujo prazo do Diário da República já passou. **O
    radar não mexe em nenhum**: mostra-os e põe o selector da ranhura ao
    lado, e quem escolhe és tu. Foi pedido teu — «posso não ter passado
    para submetido por esquecimento».
-2. **Atrasadas** · 3. **Hoje** · 4. **Nos próximos 7 dias** ·
-   5. **Mais para a frente**.
+2. **Atrasadas** — com um «adiar todas p/ hoje», que pergunta antes
+   (não há desfazer: cada tarefa tinha a sua data).
+3. **O dia escolhido na fita** (por omissão, hoje).
+4. **Resto da semana** · 5. **Mais para a frente** — estes dois dobram.
 
-As tarefas vêm **agrupadas por concurso**: o cabeçalho do grupo diz a
-referência, em que ranhura está e a entidade, e cada linha por baixo é
-uma tarefa, com a data, quantos dias faltam, quem a tem e se é
-automática (vem das datas do DR) ou escrita à mão.
+Cada linha é uma tarefa e diz tudo de uma vez: a caixa de ✓, o texto, o
+dia, **de que concurso é** (referência e entidade), de quem é (o
+círculo com as iniciais; tracejado quer dizer sem dono) e quando o
+concurso entrega. Um concurso cujas automáticas estão no primeiro balde
+não as repete nas atrasadas.
 
-Cada linha resolve-se ali, sem ir à ficha: **✓** risca a tarefa (e o
-aviso que aparece a seguir traz o **desfazer**), e o campo da data e o
-do nome, com **gravar**, **adiam** e **atribuem**. Os campos que
-deixares em branco não apagam nada. Um concurso cujas automáticas estão
-no primeiro balde não as repete nas atrasadas — o que ficas a ver é a
-decisão que falta, não a tarefa que já não se pode fazer.
+**A tarefa risca-se ali e a página fica onde está** — a linha não
+desaparece: fica riscada, com o **desfazer** ao lado. Em cima podes
+**filtrar por pessoa** e **esconder as feitas**. Para adiar ou atribuir,
+abre a ficha do concurso: o bloco «A nossa proposta» tem os campos.
+
+**À direita**, três caixas: **O que mudou** desde a última verificação
+(anúncios novos, quantos caem no teu interesse, peças novas, prazos
+alterados e as propostas que o Portal BASE já diz adjudicadas),
+**Prazos a chegar · 7 dias** e **Paradas há mais tempo**.
 
 As tarefas de uma proposta sem anúncio (consulta prévia, ajuste
 directo) riscam-se na página dela, `/proposta/<n>`.
+
+### O Ponto de situação: como vai o negócio
+
+O endereço `/situacao`, a partir da linha de números do Hoje. É o que
+antes estava no fim da abertura, agora com casa própria e três abas —
+**Negócio**, **Triagem** e **Por área CPV**.
+
+Em cima escolhe-se o **período**: este mês, este trimestre (o que abre
+por omissão), 12 meses ou tudo. Cada número traz a comparação com o
+período anterior do mesmo tamanho. O período conta pela data em que a
+proposta se **decidiu**; o «em jogo» é o que está aberto **agora**, e
+por isso não tem comparação — o radar não guarda o que estava em jogo no
+trimestre passado.
 
 ### A ficha de uma entidade
 

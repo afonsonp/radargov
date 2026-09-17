@@ -6101,8 +6101,11 @@ class TestIndicadoresComerciais(BaseTemporaria):
         # Os números do negócio mudaram-se para a ABERTURA a 16/09/2026,
         # por decisão dele: «põe os indicadores no hoje, à excepção dos
         # indicadores da curl, plataformas, BASE, DR». Em Configurações
-        # ficou a saúde da máquina.
-        html_ = radar.app.test_client().get("/").get_data(as_text=True)
+        # ficou a saúde da máquina. A 17/09/2026 saíram da abertura para
+        # o **Ponto de situação**, página própria: são a segunda
+        # pergunta de quem chega, não a primeira, e a abertura ficava
+        # com duas páginas empilhadas.
+        html_ = radar.app.test_client().get("/situacao").get_data(as_text=True)
         self.assertIn("O negócio", html_)
         self.assertIn("em jogo", html_)
         sistema = radar.app.test_client().get(
@@ -8443,7 +8446,10 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         r = self.cliente.get("/")
         self.assertEqual(r.status_code, 200)
         corpo = r.get_data(as_text=True)
-        self.assertIn("O que tenho de fazer", corpo)
+        # «Para fazer» desde o redesenho de 17/09/2026 -- era «O que
+        # tenho de fazer», e o cabeçalho passou a ter as pílulas de
+        # pessoa ao lado, onde a frase comprida não cabia.
+        self.assertIn("Para fazer", corpo)
         # E NAO é a lista. Mede-se a MARCAÇÃO e não o texto: o CSS vai
         # embutido em todas as páginas e cita os próprios selectores
         # (`.abas-escada{...}`), por isso um `assertNotIn("abas-escada")`
@@ -8480,13 +8486,20 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         # `assertEqual` que impede o literal e a constante de divergirem.
         self.assertEqual(radar.LISTA, "/concursos")
         fonte = radar_fonte()
-        for forma in ("href='/?", 'href="/?', '"/?estado=', "'/?estado="):
+        # A propriedade é sobre `?estado=`, e não sobre qualquer query
+        # string: desde o redesenho de 17/09/2026 a abertura tem
+        # parâmetros SEUS (`?dia=`, `?quem=`, `?feitas=`) e escreve-os
+        # nas suas próprias ligações. O que continua proibido -- e é o
+        # que custou as nove ligações silenciosas -- é mandar alguém
+        # para a LISTA pelo endereço da abertura.
+        for forma in ("href='/?estado=", 'href="/?estado=',
+                      '"/?estado=', "'/?estado="):
             self.assertNotIn(forma, fonte, forma)
         # e o mesmo no HTML que sai, que é onde o utilizador clica
         for pagina in ("/", radar.LISTA, "/calendario",
                        "/configuracoes/indicadores"):
             corpo = self.cliente.get(pagina).get_data(as_text=True)
-            self.assertNotIn("href='/?", corpo, pagina)
+            self.assertNotIn("href='/?estado=", corpo, pagina)
 
     def test_as_rotas_antigas_da_lista_apontam_para_o_endereco_novo(self):
         for antiga in ("/anuncios", "/lista"):
@@ -8506,29 +8519,41 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         """
         self._proposta_com_tarefas([-6, -1, 0, 3, 40, None])
         corpo = self.cliente.get("/").get_data(as_text=True)
-        # o KPI diz 6, que são as seis linhas desenhadas
-        self.assertIn(">6</div>", corpo)
-        self.assertEqual(corpo.count("class='hj-l'"), 6)
-        # e o destino é a própria lista, aqui em baixo
+        # o facto diz 6, que são as seis linhas desenhadas (os quatro
+        # cartões `.kpi` deram lugar à linha de factos a 17/09/2026)
+        self.assertIn("6 para fazer", corpo)
+        self.assertEqual(corpo.count("class='hj-row"), 6)
+        # e o destino é a própria lista, aqui em baixo -- e NÃO o
+        # calendário, que mostra prazos e não tarefas
         self.assertIn("href='#fazer'", corpo)
         self.assertIn("id='fazer'", corpo)
-        self.assertNotIn("href='/calendario'", corpo)
+        # «para fazer» aparece antes disto no title do logótipo -- é o
+        # facto que se quer, e por isso procura-se o número junto dele
+        facto = corpo[corpo.index("6 para fazer") - 400:
+                      corpo.index("6 para fazer")]
+        self.assertIn("href='#fazer'", facto)
+        self.assertNotIn("/calendario", facto)
 
     def test_as_atrasadas_sao_outra_categoria_e_nao_um_dia_pior(self):
         """Um «o que tenho de fazer» ordenado só por data põe o atrasado
         de ontem a seguir ao de hoje, o que é verdade e não ajuda."""
         self._proposta_com_tarefas([-6, 0, 3, 40])
         corpo = self.cliente.get("/").get_data(as_text=True)
-        for rotulo in ("Atrasadas", "Hoje", "Nos próximos", "Mais para a frente"):
+        # Os rótulos mudaram no redesenho de 17/09/2026: o balde do meio
+        # é o DIA ESCOLHIDO na fita (por omissão, hoje) e o «Nos
+        # próximos N dias» passou a «Resto da semana». Estes três são os
+        # que não dependem do dia da semana em que o teste corre.
+        for rotulo in ("Atrasadas", "Hoje &middot;", "Mais para a frente"):
             self.assertIn(rotulo, corpo, rotulo)
         # e as atrasadas vêm primeiro, seja qual for a data
-        self.assertLess(corpo.index("Atrasadas"), corpo.index(">Hoje "))
+        self.assertLess(corpo.index("Atrasadas"),
+                        corpo.index("Hoje &middot;"))
 
     def test_uma_tarefa_sem_data_nao_parte_a_ordenacao(self):
         self._proposta_com_tarefas([None])
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertIn("sem data", corpo)
-        self.assertEqual(corpo.count("class='hj-l'"), 1)
+        self.assertEqual(corpo.count("class='hj-row"), 1)
 
     def test_sem_nada_por_fazer_o_ecra_diz_por_onde_se_comeca(self):
         """O estado vazio da abertura é o que ele vê no primeiro dia, e
@@ -8562,16 +8587,31 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         self.assertIn("1 da Vortal", corpo)
         self.assertNotIn("&amp;middot;", corpo)
 
-    def test_a_saudacao_acompanha_a_hora(self):
-        """«Bom dia» às 14h está errado, e um título errado metade do dia
-        é pior do que nenhum."""
-        for hora, espera in ((9, "Bom dia"), (15, "Boa tarde"), (22, "Boa noite")):
+    def test_o_titulo_e_a_data_e_nao_uma_saudacao(self):
+        """A saudação saiu no redesenho de 17/09/2026: é a DATA que
+        titula a abertura.
+
+        O teste que estava aqui guardava «Bom dia às 14h está errado, e
+        um título errado metade do dia é pior do que nenhum» — e a
+        resposta a isso deixou de ser acertar a hora: «Bom dia» não diz
+        nada que o relógio do computador não diga melhor, e o dia da
+        semana é metade da pergunta que esta página responde.
+
+        Fica a mesma propriedade, invertida: o título **não muda com a
+        hora**, e muda com o dia.
+        """
+        vistos = set()
+        for hora in (9, 15, 22):
             falso = datetime.datetime(2026, 9, 16, hora, 0)
             with unittest.mock.patch.object(radar, "datetime") as dt:
                 dt.now.return_value = falso
                 dt.strptime = datetime.datetime.strptime
                 corpo = self.cliente.get("/").get_data(as_text=True)
-            self.assertIn(espera, corpo, "%dh" % hora)
+            self.assertIn("Quarta, 16 de setembro", corpo, "%dh" % hora)
+            for saudacao in ("Bom dia", "Boa tarde", "Boa noite"):
+                self.assertNotIn(saudacao, corpo, saudacao)
+            vistos.add(corpo[corpo.index("<h1 class='tit'>"):][:60])
+        self.assertEqual(len(vistos), 1, "o título mudou com a hora")
 
 
 class TestCalendarioEPorDiaENaoUmGantt(BaseTemporaria):
@@ -12343,6 +12383,197 @@ class TestPrazoPassadoNaoMexeEmNada(CicloDasTarefas):
         self.assertEqual(radar.propostas_sem_decisao(self.hoje), [])
 
 
+class TestAberturaRedesenhada(CicloDasTarefas):
+    """O redesenho de 17/09/2026 («Radar Gov UI redesign», §1).
+
+    Cada teste desta classe é um erro que o desenho antigo tinha e que
+    este veio resolver -- ou uma armadilha que o novo desenho abriu e
+    que se apanhou a escrevê-lo.
+    """
+
+    def _uma(self, quando=0, quem="", o_que="pedir os CVs"):
+        ref = self._anuncio(entidade="Câmara de Leiria")
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        with radar.liga() as c:
+            c.execute("DELETE FROM tarefas")
+        t = radar.criar_tarefa(o_que, self._dia(quando),
+                               proposta_id=id_, ref=ref)
+        if quem:
+            radar.gravar_tarefa(t, quem=quem)
+        return ref, id_, t
+
+    def test_riscar_uma_tarefa_volta_a_linha_e_nao_ao_topo(self):
+        """**A queixa principal** dele sobre a abertura: «concluo a
+        tarefa e volto para o início da página».
+
+        Numa lista de cinquenta tarefas, reencontrar onde se ia custa
+        mais do que o gesto que se fez. A resposta é a âncora `#t<id>`
+        no redireccionamento -- e vale para o «feita» e para o
+        «desfazer», que é o mesmo gesto ao contrário.
+        """
+        _, _, t = self._uma()
+        for caminho in ("feita", "por-fazer"):
+            r = self.cliente.post("/tarefa/%d/%s" % (t, caminho),
+                                  headers={"Referer": "http://localhost/"})
+            self.assertIn(r.status_code, (301, 302, 303), caminho)
+            self.assertTrue(r.headers["Location"].endswith("#t%d" % t),
+                            "%s: %s" % (caminho, r.headers["Location"]))
+
+    def test_a_linha_feita_fica_no_sitio_riscada_e_com_desfazer(self):
+        """Antes, marcar uma tarefa fazia-a desaparecer: o gesto ficava
+        sem confirmação e sem volta, que é o erro mais fácil de cometer
+        numa lista grande."""
+        _, _, t = self._uma()
+        radar.marcar_tarefa(t, True)
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("class='hj-row feita' id='t%d'" % t, corpo)
+        self.assertIn("/tarefa/%d/por-fazer" % t, corpo)
+        # e com «esconder as feitas» sai do ecrã, sem deixar de existir
+        escondido = self.cliente.get(
+            "/?feitas=esconder").get_data(as_text=True)
+        self.assertNotIn("id='t%d'" % t, escondido)
+
+    def test_o_dia_escolhido_na_fita_muda_o_balde_do_meio(self):
+        """A fita veio comprar exactamente isto: ver a quinta-feira sem
+        sair da página nem ir ao calendário."""
+        ref, id_, hoje_t = self._uma(quando=0, o_que="a de hoje")
+        t = radar.criar_tarefa("a de daqui a dois dias", self._dia(2),
+                               proposta_id=id_, ref=ref)
+        # hoje, a tarefa de daqui a dois dias não está no balde do meio
+        hoje = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("Hoje &middot;", hoje)
+        meio = hoje[hoje.index("Hoje &middot;"):]
+        meio = meio[:meio.index("</div>", meio.index("id='t"))]
+        self.assertIn("id='t%d'" % hoje_t, meio)
+        self.assertNotIn("id='t%d'" % t, meio)
+        # escolhendo o dia dela, o balde do meio passa a ser esse dia
+        escolhido = self.cliente.get(
+            "/?dia=" + self._dia(2)).get_data(as_text=True)
+        self.assertIn(radar.dia_por_extenso(
+            self.hoje + datetime.timedelta(days=2)), escolhido)
+        self.assertIn("id='t%d'" % t, escolhido)
+
+    def test_um_dia_estragado_volta_a_hoje_em_vez_de_rebentar(self):
+        """Um `?dia=` que não é uma data chega por um link colado ou por
+        um dedo enganado, e não é erro: a página é do dia de hoje."""
+        for mau in ("ontem", "2026-13-45", "", "0000"):
+            r = self.cliente.get("/?dia=" + mau)
+            self.assertEqual(r.status_code, 200, mau)
+            self.assertIn(radar.dia_por_extenso(self.hoje),
+                          r.get_data(as_text=True), mau)
+
+    def test_o_filtro_por_pessoa_distingue_todos_de_sem_dono(self):
+        """São três respostas e não duas: ausente = todos, `?quem=` =
+        sem dono, `?quem=X` = do X. Um `or ""` a meio disto fazia o «sem
+        dono» mostrar tudo."""
+        ref = self._anuncio(entidade="Câmara de Leiria")
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        with radar.liga() as c:
+            c.execute("DELETE FROM tarefas")
+        da_ana = radar.criar_tarefa("com dono", self._dia(0),
+                                    proposta_id=id_, ref=ref)
+        radar.gravar_tarefa(da_ana, quem="Ana")
+        sozinha = radar.criar_tarefa("sem dono", self._dia(0),
+                                     proposta_id=id_, ref=ref)
+
+        todos = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("id='t%d'" % da_ana, todos)
+        self.assertIn("id='t%d'" % sozinha, todos)
+
+        so_ana = self.cliente.get("/?quem=Ana").get_data(as_text=True)
+        self.assertIn("id='t%d'" % da_ana, so_ana)
+        self.assertNotIn("id='t%d'" % sozinha, so_ana)
+
+        vagas = self.cliente.get("/?quem=").get_data(as_text=True)
+        self.assertNotIn("id='t%d'" % da_ana, vagas)
+        self.assertIn("id='t%d'" % sozinha, vagas)
+
+    def test_mudar_de_dia_nao_perde_o_filtro_da_pessoa(self):
+        """Os dois controlos reescrevem o MESMO endereço, e cada um só
+        mexe no seu parâmetro: sem isso, escolher um dia deitava fora o
+        filtro da pessoa e ninguém percebia porquê."""
+        self._uma(quem="Ana")
+        corpo = self.cliente.get("/?quem=Ana").get_data(as_text=True)
+        self.assertIn("quem=Ana", corpo)
+        # a fita reescreve só o `dia=` e leva o `quem=` que já lá estava
+        self.assertIn("/?quem=Ana&amp;dia=%s" % self._dia(0), corpo)
+        # e o «esconder as feitas» faz o mesmo com o seu
+        self.assertIn("/?quem=Ana&amp;feitas=esconder", corpo)
+
+    def test_a_dica_do_concurso_nao_leva_entidades_escritas(self):
+        """Apanhado a escrever isto: o `&middot;` da coluna ia para o
+        `title=` já escapado, e a dica dizia «60/2026 &amp;middot;
+        Câmara». É a mesma armadilha do `ultima_mensagem` -- guarda-se o
+        carácter, não a entidade."""
+        self._uma()
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertNotIn("&amp;middot;", corpo)
+        self.assertIn("title='60/2026 · Câmara de Leiria'", corpo)
+
+    def test_adiar_todas_pergunta_antes_e_so_mexe_nas_atrasadas(self):
+        """Doze linhas vermelhas de ontem, cada uma com o seu
+        formulário, eram doze viagens para dizer a mesma coisa. Mas não
+        há desfazer -- cada tarefa tinha a sua data --, e por isso
+        pergunta-se."""
+        ref = self._anuncio(entidade="Câmara de Leiria")
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        with radar.liga() as c:
+            c.execute("DELETE FROM tarefas")
+        velha = radar.criar_tarefa("de ontem", self._dia(-1),
+                                   proposta_id=id_, ref=ref)
+        futura = radar.criar_tarefa("da semana que vem", self._dia(7),
+                                    proposta_id=id_, ref=ref)
+        pergunta = self.cliente.get("/tarefas/adiar").get_data(as_text=True)
+        self.assertIn("Não há desfazer", pergunta)
+        self.cliente.post("/tarefas/adiar")
+        with radar.liga() as c:
+            datas = {r["id"]: r["quando"] for r in
+                     c.execute("SELECT id, quando FROM tarefas")}
+        self.assertEqual(datas[velha], self._dia(0))
+        self.assertEqual(datas[futura], self._dia(7))
+
+    def test_o_periodo_do_ponto_de_situacao_recorta_mesmo(self):
+        """Um período que não recorta nada é um selector decorativo: a
+        taxa contava tudo desde sempre em qualquer das quatro opções."""
+        ref = self._anuncio()
+        id_ = radar.criar_proposta(ref, estado="ganho")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET fechada_em='2020-01-15 09:00' "
+                      "WHERE id=?", (id_,))
+        # sem janela conta; numa janela recente, não
+        self.assertEqual(radar.taxa_de_vitoria()[0][2], 1)
+        janela, _, _ = radar.janelas_do_periodo("mes", self.hoje)
+        self.assertEqual(radar.taxa_de_vitoria(janela=janela), [])
+        self.assertEqual(radar.ganho_no_periodo(janela)[1], 0)
+        # e "tudo" não tem janela nenhuma, por desenho
+        self.assertEqual(radar.janelas_do_periodo("tudo", self.hoje)[0], None)
+
+    def test_o_periodo_anterior_tem_o_mesmo_tamanho(self):
+        """Comparar um trimestre com o ano todo daria um «▼» garantido e
+        sem significado."""
+        hoje = datetime.date(2026, 9, 17)
+        janela, antes, _ = radar.janelas_do_periodo("mes", hoje)
+        self.assertEqual(janela, ("2026-09-01", "2026-09-17"))
+        self.assertEqual(antes, ("2026-08-01", "2026-08-31"))
+        janela, antes, _ = radar.janelas_do_periodo("trimestre", hoje)
+        self.assertEqual(janela, ("2026-07-01", "2026-09-17"))
+        self.assertEqual(antes, ("2026-04-01", "2026-06-30"))
+
+    def test_a_data_e_o_dia_dizem_se_em_portugues(self):
+        """O `strftime("%A")` responde na língua do SISTEMA -- num
+        servidor em inglês saía «Wednesday» no meio de uma aplicação
+        inteira em português, que é a mesma avaria do `<input
+        type=date>` corrigida a 15/09/2026."""
+        d = datetime.date(2026, 9, 16)
+        self.assertEqual(radar.dia_por_extenso(d), "Quarta, 16 de setembro")
+        self.assertEqual(radar.data_curta(d), "16 set")
+        self.assertEqual(radar.data_curta("2026-12-01"), "1 dez")
+        self.assertEqual(radar.data_curta("nada", vazio="—"), "nada")
+        self.assertEqual(radar.iniciais("Afonso Pinto"), "AP")
+        self.assertEqual(radar.iniciais("Ana"), "AN")
+        self.assertEqual(radar.iniciais(""), "")
+
+
 class TestHojeAgrupaSemDecisao(CicloDasTarefas):
     """O balde «prazo passou sem decisão» (fase 1). Sem ele, as dezasseis
     automáticas de Julho e Agosto apareciam nas «atrasadas» a dizer
@@ -12362,9 +12593,11 @@ class TestHojeAgrupaSemDecisao(CicloDasTarefas):
         paradas = radar.propostas_sem_decisao(self.hoje)
         _, grupos = radar._grupos_das_tarefas(tarefas, self.hoje, paradas)
         self.assertEqual([p["id"] for p, _ in grupos["sem_decisao"]], [id_])
-        # nas atrasadas fica SÓ a escrita à mão
-        atrasadas = [t["id"] for _, itens in grupos["atrasadas"]
-                     for t, _ in itens]
+        # nas atrasadas fica SÓ a escrita à mão. O balde deixou de
+        # agrupar por proposta a 17/09/2026 -- o concurso passou a ser
+        # uma COLUNA da linha, e um cabeçalho de grupo por cima de uma
+        # linha só era mais altura do que informação.
+        atrasadas = [t["id"] for t, _ in grupos["atrasadas"]]
         self.assertEqual(atrasadas, [a_mao])
 
     def test_o_balde_desenha_se_com_o_selector_da_ranhura(self):
@@ -12384,8 +12617,8 @@ class TestHojeAgrupaSemDecisao(CicloDasTarefas):
         radar.criar_tarefa("ligar ao Dr. X", self._dia(-1),
                            proposta_id=id_, ref=ref)
         corpo = self.cliente.get("/").get_data(as_text=True)
-        self.assertEqual(corpo.count("class='hj-l'"), 1)
-        self.assertIn(">1</div>", corpo)
+        self.assertEqual(corpo.count("class='hj-row"), 1)
+        self.assertIn("1 para fazer", corpo)
 
 
 class TestLinhaDaTarefaDizOConcurso(CicloDasTarefas):
@@ -12404,12 +12637,25 @@ class TestLinhaDaTarefaDizOConcurso(CicloDasTarefas):
         radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana"])
         radar.sincronizar_tarefas(ref)
         corpo = self.cliente.get("/").get_data(as_text=True)
-        for pedaco in ("60/2026", "A preparar proposta", "Câmara de Leiria",
-                       "Ana"):
+        # A ranhura saiu da linha no redesenho de 17/09/2026 (era do
+        # cabeçalho do grupo, que deixou de existir): o que a queixa
+        # pedia -- «mal consigo perceber o concurso que cada uma delas
+        # é» -- é a ref e a entidade, e essas estão na própria linha,
+        # mais o avatar de quem.
+        for pedaco in ("60/2026", "Câmara de Leiria", "AN"):
             self.assertIn(pedaco, corpo, pedaco)
+        self.assertIn("title='Ana'", corpo)
 
-    def test_as_tarefas_do_mesmo_concurso_vem_juntas(self):
-        ref = self._anuncio()
+    def test_cada_linha_diz_o_concurso_sem_cabecalho_de_grupo(self):
+        """O agrupamento por proposta deu lugar a uma COLUNA do concurso
+        em cada linha (redesenho de 17/09/2026).
+
+        A queixa que o agrupamento resolvia -- «mal consigo perceber o
+        concurso que cada uma delas é» -- continua resolvida, e sem o
+        cabeçalho: três tarefas do mesmo concurso eram quatro linhas de
+        altura para três de trabalho.
+        """
+        ref = self._anuncio(entidade="Câmara de Leiria")
         id_ = radar.criar_proposta(ref, estado="proposta")
         with radar.liga() as c:
             c.execute("DELETE FROM tarefas")
@@ -12417,12 +12663,13 @@ class TestLinhaDaTarefaDizOConcurso(CicloDasTarefas):
             radar.criar_tarefa("tarefa %d" % n, self._dia(2),
                                proposta_id=id_, ref=ref)
         corpo = self.cliente.get("/").get_data(as_text=True)
-        # um cabeçalho de grupo por balde, e não um por tarefa
-        bloco = corpo[corpo.index("Nos próximos"):]
-        bloco = bloco[:bloco.index("</div></div>")]
-        self.assertEqual(bloco.count("class='hj-p'"), 1)
+        self.assertEqual(corpo.count("class='hj-row"), 3)
+        # o cabeçalho de grupo já não existe
+        self.assertNotIn("class='hj-p'", corpo)
+        # e as três linhas dizem, cada uma, de que concurso são
+        self.assertEqual(corpo.count("60/2026 &middot; Câmara de Leiria"), 3)
         for n in range(3):
-            self.assertIn("tarefa %d" % n, bloco)
+            self.assertIn("tarefa %d" % n, corpo)
 
 
 class TestTarefaResolveSeDeQualquerPagina(CicloDasTarefas):
@@ -13121,7 +13368,10 @@ class TestOFunilContaPropostasENaoOEstadoDoAnuncio(BaseTemporaria):
             self.assertNotIn(palavra, codigo, palavra)
 
     def test_a_abertura_mostra_os_numeros_e_nao_zeros(self):
-        corpo = radar.app.test_client().get("/").get_data(as_text=True)
+        # O funil da triagem é a aba «Triagem» do Ponto de situação
+        # desde 17/09/2026; até aí vivia no fim da abertura.
+        corpo = radar.app.test_client().get(
+            "/situacao?ver=triagem").get_data(as_text=True)
         bloco = corpo[corpo.index("Entrados"):]
         bloco = bloco[:bloco.index("</div></div>") + 12]
         self.assertIn("Triados", bloco)

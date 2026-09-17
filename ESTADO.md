@@ -53,11 +53,11 @@ Funciona. Os números são de **17/09/2026**, lidos das duas bases.
 | Corpus do Portal BASE | 2 000 340 contratos, 179 823 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
-| Rotas Flask | 77 |
+| Rotas Flask | 80 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 049**, em ~87 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 21 625 linhas · `teste_radar.py` 13 224 · `empresa.py` 641 · `contas.py` 302 |
+| Testes | **1 060**, em ~89 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 22 714 linhas · `teste_radar.py` 13 477 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -75,12 +75,21 @@ contagens do painel vão por índice de cobertura.
 
 ## O que está implementado
 
-- **Hoje** (`/`, e é o logótipo que lá leva): o estado do negócio em
-  quatro números que abrem a lista que os produz, e o que há para fazer
-  em **cinco baldes** — prazo passou sem decisão · atrasadas · hoje ·
-  próximos 7 dias · mais para a frente. As tarefas agrupam-se por
-  concurso e resolvem-se na linha: feita, desfazer, adiar, atribuir.
-  **Nada muda de ranhura sozinho.**
+- **Hoje** (`/`, e é o logótipo que lá leva), **redesenhado a
+  17/09/2026**: o título é a data; quatro **factos** numa linha, cada um
+  a abrir a lista que o produz; a **fita da semana** (sete dias, com as
+  tarefas, as feitas e as entregas de cada um — clicar num dia muda o
+  balde do meio); e duas colunas — o que há para fazer à esquerda, e à
+  direita «O que mudou», «Prazos a chegar · 7 dias» e «Paradas há mais
+  tempo». Cinco baldes — prazo passou sem decisão · atrasadas · o dia
+  escolhido · resto da semana · mais para a frente. Cada linha diz de
+  que concurso é e resolve-se ali: ✓, desfazer, e a linha **fica no
+  sítio, riscada** — a página volta à linha e não ao topo. Filtra-se por
+  pessoa e escondem-se as feitas. **Nada muda de ranhura sozinho.**
+- **Ponto de situação** (`/situacao`, 17/09/2026): como vai o negócio,
+  em três abas (Negócio · Triagem · Por área CPV) e com **período**
+  (este mês · este trimestre · 12 meses · tudo), comparado com o período
+  anterior do mesmo tamanho. Era o bloco do fim da abertura.
 - **Concursos** (`/concursos`): a lista única, com as **dez ranhuras da
   escada** nas abas — a entrada («por ver»), as oito palavras da empresa
   e o cemitério dos expirados. As pontas mostram anúncios, as oito
