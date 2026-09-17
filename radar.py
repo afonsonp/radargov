@@ -5419,6 +5419,72 @@ def analise_de(ref):
         return c.execute("SELECT * FROM analise WHERE ref=?", (ref,)).fetchone()
 
 
+# --- as leituras que ficaram a meio (fase 4 do CICLOS.md, 17/09/2026)
+#
+# O terceiro beco sem saída das peças: «o tecto do dia bateu» grava a
+# leitura parcial em `analise` e **ninguém volta a tentar**. O
+# `--ler-pecas` só escolhia quem não tem linha nenhuma em `analise`
+# (`WHERE a.ref IS NULL`), e a verificação nunca relia. Uma leitura que
+# apanhou o objecto e perdeu a equipa ficava assim para sempre.
+#
+# Os outros dois becos ficam: sem plataforma conhecida é manual, e sem
+# texto extraível não há nada. Esses são limites das fontes, não do
+# radar.
+
+# Os três campos que o modelo lê. O `preco_anormalmente_baixo` e a
+# `localizacao` não entram: são condicionais -- há concursos que não os
+# têm, e exigi-los fazia todos os anúncios parecerem incompletos.
+CAMPOS_LIDOS_PELO_MODELO = ("objecto", "equipa", "documentos_proposta")
+
+
+def analise_incompleta(linha):
+    """True quando algum dos três campos lidos está por preencher."""
+    if not linha:
+        return False
+    return any(not (_valor(linha, nome) or "").strip()
+               for nome in CAMPOS_LIDOS_PELO_MODELO)
+
+
+def refs_com_leitura_incompleta(limite=None, so_na_escada=True):
+    """Os concursos cuja leitura ficou a meio, os mais recentes primeiro.
+
+    `so_na_escada` limita ao que a empresa está mesmo a trabalhar: gastar
+    o orçamento do dia a reler um concurso que ninguém olhou é tirá-lo a
+    um que se vai entregar.
+    """
+    sql = ("SELECT a.ref FROM analise a WHERE (%s)"
+           % " OR ".join("COALESCE(a.%s,'') = ''" % n
+                         for n in CAMPOS_LIDOS_PELO_MODELO))
+    if so_na_escada:
+        sql += " AND a.ref IN (SELECT ref FROM propostas WHERE ref IS NOT NULL)"
+    sql += " ORDER BY a.quando DESC"
+    if limite:
+        sql += " LIMIT %d" % int(limite)
+    with liga() as c:
+        return [r["ref"] for r in c.execute(sql)]
+
+
+def reler_incompletas(limite=5, so_na_escada=True):
+    """Volta a tentar as leituras que ficaram a meio. (quantas, aviso).
+
+    **Só quando há orçamento**: com a cadeia inteira no tecto do dia não
+    se chama o modelo nenhuma vez -- seria moer contra um limite que não
+    vai ceder antes de amanhã. E pára ao primeiro «sem orçamento», pela
+    mesma razão.
+    """
+    cadeia = cadeia_de_fornecedores()
+    if not cadeia or cadeia_esgotada(cadeia):
+        return 0, (SEM_ORCAMENTO_HOJE if cadeia else "")
+    feitas = 0
+    for ref in refs_com_leitura_incompleta(limite, so_na_escada):
+        ok, porque = analisar_pecas(ref)
+        if ok:
+            feitas += 1
+        if SEM_ORCAMENTO_HOJE in (porque or ""):
+            return feitas, SEM_ORCAMENTO_HOJE
+    return feitas, ""
+
+
 def _nome_da_resposta(r):
     """O nome do ficheiro que o servidor anuncia, se anunciar algum."""
     disp = r.headers.get("Content-Disposition") or ""
@@ -7042,6 +7108,23 @@ def verificar(cfg=None, passo=None):
                             "" if n_pecas == 1 else "s"))
     except Exception as erro:
         marca_erro("docs_ultimo_erro", "pecas", "%s · a vigiar peças: %s"
+                   % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                      str(erro)[:150]))
+    # As leituras que ficaram a meio por o tecto do dia ter batido
+    # (fase 4 do docs/historico/CICLOS.md): ninguem voltava a tenta-las.
+    # Aqui e nao no fim porque as pecas novas de cima podem ser
+    # exactamente o que faltava, e antes dos alertas porque o que se ler
+    # entra no resumo do mesmo dia.
+    try:
+        n_releu, _ = reler_incompletas(
+            int(cfg.get("relidas_incompletas_por_volta", 5)))
+        if n_releu:
+            mensagem += (" · %d leitura%s completada%s"
+                         % (n_releu, "" if n_releu == 1 else "s",
+                            "" if n_releu == 1 else "s"))
+    except Exception as erro:
+        marca_erro("docs_ultimo_erro", "pecas",
+                   "%s · a reler incompletas: %s"
                    % (datetime.now().strftime("%Y-%m-%d %H:%M"),
                       str(erro)[:150]))
     # B14: a segunda fonte, ANTES dos alertas -- as consultas
@@ -21243,6 +21326,15 @@ def main():
                 "SELECT DISTINCT d.ref ref FROM documentos d "
                 "LEFT JOIN analise a ON a.ref = d.ref" +
                 ("" if tudo else " WHERE a.ref IS NULL"))]
+        if not tudo:
+            # **E as que ficaram a meio** (fase 4 do CICLOS.md): sem
+            # isto, uma leitura que apanhou o objecto e perdeu a equipa
+            # por o tecto do dia ter batido nunca mais era escolhida --
+            # o `a.ref IS NULL` de cima só apanha quem não tem linha
+            # nenhuma. Sem limite e sem o recorte da escada: quem corre
+            # isto à mão está a pedir que se leia o que falta.
+            porler += [r for r in refs_com_leitura_incompleta(so_na_escada=False)
+                       if r not in porler]
         print("%d concurso(s) com peças por ler." % len(porler))
         lidos = 0
         for i, ref in enumerate(porler, 1):

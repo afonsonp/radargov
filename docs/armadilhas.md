@@ -371,6 +371,26 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
 
 Orçamento, cadeia de reserva, chaves.
 
+- **Uma leitura que ficou a meio volta a tentar-se sozinha — e só ela.**
+  Era o terceiro beco sem saída das peças: «o tecto do dia bateu»
+  gravava a leitura parcial em `analise` e **ninguém voltava a tentar**.
+  O `--ler-pecas` só escolhia quem não tem linha nenhuma
+  (`WHERE a.ref IS NULL`), e a verificação nunca relia: uma leitura que
+  apanhou o objecto e perdeu a equipa ficava assim para sempre.
+  `analise_incompleta()` é «algum dos **três** campos lidos está vazio» —
+  o `preco_anormalmente_baixo` e a `localizacao` ficam de fora porque
+  são condicionais, e exigi-los fazia todos os anúncios parecerem
+  incompletos. A verificação chama `reler_incompletas()` depois de
+  `vigiar_pecas()` (as peças novas podem ser exactamente o que faltava)
+  e antes dos alertas (para o que se ler entrar no resumo do mesmo dia).
+  **Só quando há orçamento e só o que está na escada**: com a cadeia
+  inteira no tecto não se chama o modelo nenhuma vez, e reler um
+  concurso que ninguém olhou é tirar o orçamento do dia a um que se vai
+  entregar. O `--ler-pecas` à mão não tem esse recorte — quem corre o
+  comando está a pedir que se leia o que falta.
+  **Os outros dois becos ficam**: sem plataforma conhecida é manual, sem
+  texto extraível não há nada. São limites das fontes, não do radar.
+
 - **Orçamento do modelo, não contexto.** O tecto da conta Groq são 8000
   tokens/minuto, e é ele que manda no tamanho do pedido — daí
   `TECTO_RECORTE = 7000` caracteres e três pedidos separados em vez de um.

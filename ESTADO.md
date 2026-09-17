@@ -474,6 +474,18 @@ gravam-se antes de se verificar; foi isso que obrigou os três caminhos
 que movem uma proposta a passarem o motivo por lá, porque gravá-lo
 depois de mover passou a ser tarde. São **1 029 testes**.
 
+**E a fase 4, as peças que ficaram a meio.** Era o terceiro beco sem
+saída da leitura pelo modelo: «o tecto do dia bateu» gravava a leitura
+parcial e **ninguém voltava a tentar** — o `--ler-pecas` só escolhia
+quem não tem linha nenhuma em `analise`, e a verificação nunca relia.
+Agora a verificação chama `reler_incompletas()` depois de vigiar as
+peças e antes dos alertas, só com orçamento e só sobre o que está na
+escada, e pára ao primeiro «sem orçamento»; o `--ler-pecas` à mão
+escolhe também as incompletas, sem esse recorte. Os outros dois becos
+ficam como estão — sem plataforma conhecida é manual, sem texto
+extraível não há nada: são limites das fontes, não do radar. São
+**1 034 testes**.
+
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
 blocos com âncora — faltavam o **«A nossa proposta»**, que é onde o

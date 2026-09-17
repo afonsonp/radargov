@@ -531,6 +531,15 @@ segundos, se vale a pena abrir os PDF.
 Quando o Programa não fixa limiar de preço anormalmente baixo — o que é
 o caso na maioria — a tabela di-lo em vez de te mandar procurar.
 
+**Uma leitura que fique a meio volta a tentar-se sozinha.** O modelo tem
+um tecto de uso por dia; quando ele bate a meio de um concurso, os
+campos que já tinham sido lidos ficam gravados e o resto ficava por
+preencher — para sempre, até 17/09/2026. Agora a verificação das 09:00 e
+das 17:00 volta a essas, cinco de cada vez, e só às dos concursos que
+estão na escada: gastar o tecto do dia num que ninguém olhou é tirá-lo a
+um que se vai entregar. À mão, `python radar.py --ler-pecas` também as
+apanha, e sem esse limite.
+
 **Precisa de uma chave.** Um ficheiro `groq_API_KEY.txt` na pasta do
 radar, com a chave lá dentro e mais nada. Sem ele os quatro campos
 ficam simplesmente assinalados como antes, e o resto funciona na mesma.
