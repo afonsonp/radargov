@@ -7694,8 +7694,16 @@ class TestPeleNova(unittest.TestCase):
             self.assertIn('data-tipo="plex"', molde)
             # e a folha que carimbam tem de ser a que traz a pele
             self.assertIn("%(css)s", molde)
+        # A ORDEM é o que importa, e não por onde começa: o que é nosso
+        # vem depois do que é de terceiros (para nos podermos sobrepor às
+        # curvas do Open Props), e a pele vem por último de todas (para
+        # ganhar ao CSS de base). A 17/09/2026 isto pregava
+        # `startswith(CSS)` e passou a falhar quando os `estilo/*.css`
+        # entraram à frente — que é exactamente onde têm de estar.
         self.assertTrue(radar.CSS_TUDO.endswith(radar.CSS_NOVO))
-        self.assertTrue(radar.CSS_TUDO.startswith(radar.CSS))
+        self.assertIn(radar.CSS, radar.CSS_TUDO)
+        self.assertLess(radar.CSS_TUDO.index(radar.CSS),
+                        radar.CSS_TUDO.index(radar.CSS_NOVO))
 
     def test_as_fontes_vem_da_propria_aplicacao(self):
         self.assertNotIn("https://", radar.CSS_NOVO)
@@ -13040,6 +13048,99 @@ class TestLeituraIncompletaVoltaATentar(BaseTemporaria):
         self.assertFalse(radar.cadeia_esgotada(cadeia))
         radar.marcar_esgotado("groq")
         self.assertTrue(radar.cadeia_esgotada(cadeia))
+
+
+class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
+    """17/09/2026: o CSS estava embutido num `<style>` em **todas** as
+    páginas — 85 KB, 58% de cada resposta, e o browser não o podia
+    guardar. Localmente não se notava; pelo túnel do `radargov.pt`, cada
+    navegação voltava a arrastá-lo.
+
+    Passou a `/estilo/<etiqueta>.css`, com a etiqueta a ser o resumo do
+    próprio conteúdo: o browser guarda-o para sempre, e mudar uma linha
+    de CSS muda o endereço — não há cache velha possível.
+    """
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def test_a_pagina_deixou_de_levar_o_css_dentro(self):
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn(radar.FOLHA_CSS, corpo)
+        self.assertNotIn("<style>", corpo)
+        # a folha inteira não pode estar lá dentro: procura-se uma regra
+        # que só existe no CSS, não a marcação
+        self.assertNotIn(".hj-l{display:grid", corpo)
+
+    def test_a_folha_serve_se_com_cache_para_sempre(self):
+        r = self.cliente.get(radar.FOLHA_CSS)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.headers["Content-Type"].startswith("text/css"))
+        self.assertIn("immutable", r.headers["Cache-Control"])
+        self.assertEqual(r.get_data(as_text=True), radar.CSS_TUDO)
+
+    def test_uma_etiqueta_velha_da_404_e_nao_o_css_novo(self):
+        """Senão um endereço guardado apontava para conteúdo mudado, que
+        é exactamente o que o resumo no nome existe para impedir."""
+        self.assertEqual(
+            self.cliente.get("/estilo/aaaaaaaaaaaa.css").status_code, 404)
+
+    def test_a_etiqueta_muda_quando_o_css_muda(self):
+        outra = radar.hashlib.sha256(
+            (radar.CSS_TUDO + "\n.x{color:red}").encode("utf-8")
+        ).hexdigest()[:12]
+        self.assertNotEqual(outra, radar.ETIQUETA_CSS)
+
+    def test_o_movimento_vem_da_pasta_e_nao_de_um_dominio_de_fora(self):
+        """As curvas e os keyframes são do Open Props, alojados em
+        `estilo/`. Um `@import` de CDN morria à chegada: o painel envia
+        `default-src 'self'`."""
+        self.assertIn("--ease-3:", radar.CSS_TUDO)
+        self.assertIn("@keyframes fade-in", radar.CSS_TUDO)
+        self.assertNotIn("@import", radar.CSS_TUDO)
+        self.assertNotIn("https://", radar.CSS_TUDO)
+
+    def test_quem_pede_menos_movimento_nao_recebe_nenhum(self):
+        """O bloco está DENTRO do `prefers-reduced-motion:
+        no-preference`, e não desligado a seguir: assim quem pediu menos
+        movimento nunca chega a receber um fotograma."""
+        marca = "@media (prefers-reduced-motion: no-preference)"
+        self.assertIn(marca, radar.CSS_TUDO)
+        # o `rindex` e não o `index`: o comentário que explica a regra
+        # cita-a acima dela, e um `split()[1]` ingénuo apanhava o
+        # comentário em vez do bloco (foi o que aconteceu ao escrever
+        # isto). O bloco é o ÚLTIMO, que é o que o browser lê.
+        depois = radar.CSS_TUDO[radar.CSS_TUDO.rindex(marca):]
+        bloco = depois[:depois.index("\n}")]
+        for regra in (".flash{animation:", "dialog.modal[open]{animation:"):
+            self.assertIn(regra, bloco, regra)
+        # e nenhuma delas pode existir FORA do bloco
+        self.assertEqual(radar.CSS_TUDO.count(".flash{animation:"), 1)
+
+    def test_sem_a_pasta_o_painel_serve_na_mesma(self):
+        """Perde-se a suavidade, não a página: os `estilo/*.css` são um
+        acrescento, e o `BASE_DIR` dos testes é uma pasta temporária que
+        não os tem — é esse o caso que isto exercita."""
+        self.assertEqual(radar.carregar_estilos_de_terceiros(), "")
+        self.assertEqual(self.cliente.get("/").status_code, 200)
+
+    def test_a_folha_abre_sem_sessao(self):
+        """O ecrã de entrar precisa dela **antes** de haver sessão. Sem
+        isto aparecia em branco e sem letra — e é o primeiro ecrã de
+        quem abre o radargov.pt de fora."""
+        import contas
+        with radar.liga() as c:
+            contas.criar_utilizador(c, "afonso", "palavra-passe-comprida",
+                                    "admin")
+        anonimo = radar.app.test_client()
+        r = anonimo.get(radar.FOLHA_CSS, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        # e o ecrã de entrar aponta-lhe
+        entrar = anonimo.get("/entrar", environ_base=self.FORA)
+        self.assertIn(radar.FOLHA_CSS, entrar.get_data(as_text=True))
 
 
 if __name__ == "__main__":

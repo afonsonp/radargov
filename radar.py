@@ -23,6 +23,7 @@ Arranque:  python radar.py             painel em http://127.0.0.1:8765
 import bisect
 import copy
 import csv
+import hashlib
 import html
 import io
 import json
@@ -8730,6 +8731,11 @@ def volta_ao_referer(omissao):
 # sessao -- sao fontes de licenca aberta, e a lista branca em TIPOS e o
 # que impede que "/tipo/<nome>" chegue a outro ficheiro qualquer.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo")
+# Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
+# (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
+# que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
+# eles o próprio ecrã de entrar aparecia em branco e sem letra.
+PREFIXOS_ABERTOS = ("/tipo/", "/estilo/")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o admin abre (13/09/2026, "Mudancas na plataforma RADAR"):
@@ -8834,10 +8840,12 @@ def porta_de_entrada():
     finally:
         if c is not None:
             c.close()
-    # As fontes sao "/tipo/<nome>", e por isso esta e por prefixo e nao
-    # por igualdade -- a lista branca de TIPOS e que fecha a porta la,
+    # As fontes sao "/tipo/<nome>" e a folha e "/estilo/<etiqueta>.css",
+    # e por isso estas sao por PREFIXO e nao por igualdade -- quem fecha
+    # a porta la e a lista branca de TIPOS e a conferencia da etiqueta,
     # nao esta linha.
-    if request.path in ROTAS_ABERTAS or request.path.startswith("/tipo/"):
+    if request.path in ROTAS_ABERTAS \
+            or request.path.startswith(PREFIXOS_ABERTOS):
         return None
     if not g.utilizador and not g.livre:
         if request.method == "GET":
@@ -8873,7 +8881,7 @@ def porta_de_entrada():
 
 PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%(titulo)s — RadarGov</title><style>%(css)s</style></head>
+<title>%(titulo)s — RadarGov</title>%(css)s</head>
 <body class="entrar-fundo"><main class="entrar">
  <div class="logo">Radar<span>Gov</span></div>
  <h1>%(titulo)s</h1>
@@ -8893,7 +8901,7 @@ ERROS_DO_PAINEL = {
 
 def pagina_de_erro(codigo):
     titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
-    return Response(PAGINA_ERRO % {"css": CSS_TUDO, "titulo": titulo,
+    return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
                                    "texto": texto},
                     codigo, mimetype="text/html")
 
@@ -8980,7 +8988,7 @@ def destino_seguro(para):
 
 PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Entrar — RadarGov</title><style>%(css)s</style></head>
+<title>Entrar — RadarGov</title>%(css)s</head>
 <body class="entrar-fundo"><main class="entrar">
  <div class="logo">Radar<span>Gov</span></div>
  <h1>Entrar</h1>
@@ -8996,7 +9004,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="pl
 
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
     return Response(PAGINA_ENTRAR % {
-        "css": CSS_TUDO,
+        "css": LIGACAO_CSS,
         "aviso": ("<div class='flash mau'>%s</div>" % html.escape(aviso)
                   if aviso else ""),
         "email": html.escape(email, quote=True),
@@ -10365,6 +10373,39 @@ a.ct-l{color:var(--azul)}
 .hj-l .hj-bts input[type=text]{width:88px;font:400 11px/1.4 var(--sans);
  padding:2px 4px}
 .hj-l .hj-bts input[name=quem]{width:76px}
+
+/* --- movimento (17/09/2026)
+   As curvas e os keyframes vêm do Open Props, em `estilo/` -- ver o
+   LEIA-ME de lá. Havia DUAS regras de transition em 21 mil linhas, e a
+   aplicação saltava de estado em estado sem dizer que tinha mudado.
+
+   Três regras, e mais nenhuma: o que muda **por si** (o aviso) entra, o
+   que muda **por causa do rato** acompanha, e o que se abre abre. Uma
+   interface de trabalho não é um sítio para efeitos -- isto é para o
+   olho não perder o fio, não para se ver.
+
+   **`prefers-reduced-motion` desliga tudo**, e é por isso que o bloco
+   está escrito dentro do `@media (prefers-reduced-motion: no-preference)`
+   em vez de se desligar depois: quem pediu menos movimento nunca chega
+   a receber nenhum, nem no primeiro fotograma. */
+@media (prefers-reduced-motion: no-preference){
+ /* O aviso é a única coisa que aparece sozinha depois de um gesto. Sem
+    entrada, ele pisca no sítio e lê-se como se já lá estivesse. */
+ /* as duas juntas: o deslizar sozinho vem de -100% da própria altura e
+    passa por cima do que está acima; com o esbater, não se nota */
+ .flash{animation:slide-in-down .18s var(--ease-out-3),
+  fade-in .18s var(--ease-3)}
+ /* O que responde ao rato ou ao teclado acompanha, em vez de trocar de
+    cor de um fotograma para o outro. .12s é o que as duas transitions
+    que já existiam usavam -- segue-se o que a casa já tinha. */
+ .hj-l,.hj-p a,.ent-num,.hist a,.kpis a.kpi{
+  transition:background .12s var(--ease-3),color .12s var(--ease-3)}
+ .bt,.mini,button{transition:background .12s var(--ease-3),
+  border-color .12s var(--ease-3),color .12s var(--ease-3)}
+ /* O diálogo do motivo e o <details> do apagar: abrem, não aparecem. */
+ dialog.modal[open]{animation:scale-up .14s var(--ease-out-3)}
+ details.perigo[open] > *:not(summary){animation:fade-in .18s var(--ease-3)}
+}
 /* O que destrói dados vive fechado dentro de um <details>: um botão de
    apagar ao lado dos outros pede-se por engano. */
 details.perigo{margin:16px 0 0;border-top:1px solid var(--linha);
@@ -10665,14 +10706,76 @@ CSS_NOVO = r"""
 # (BASE, PAGINA_ERRO, PAGINA_ENTRAR) recebem esta. O `CSS` fica como
 # estava de proposito -- e a paleta de recurso se o `data-pele` sair do
 # <html>, e os testes que a medem continuam a medi-la.
-CSS_TUDO = CSS + CSS_NOVO
+def carregar_estilos_de_terceiros():
+    """As curvas e os `@keyframes` do Open Props, de `estilo/`.
+
+    **Só os easings e as animações** (8,8 KB dos 28,9 do pacote todo): o
+    resto são cores, gradientes e escalas tipográficas, e disso o radar
+    já tem o seu, escolhido e medido no `docs/design.md`. Trazer as
+    cores dele era pôr duas paletas a discutir. O que faltava era
+    movimento -- havia **duas** regras de `transition` em 21 mil linhas.
+
+    Vêm da pasta e não de um CDN porque o painel envia `default-src
+    'self'` e não pede nada a domínio nenhum de fora. E **se faltarem, o
+    painel serve na mesma**: as regras que os usam caem para os valores
+    de omissão do browser, e perde-se a suavidade, não a página. Por
+    isso isto devolve "" em vez de rebentar no arranque.
+
+    A ordem importa: as animações citam `var(--ease-3)`, por isso os
+    easings entram primeiro.
+    """
+    pedacos = []
+    for nome in ("easings.min.css", "animations.min.css"):
+        caminho = os.path.join(BASE_DIR, "estilo", nome)
+        try:
+            with open(caminho, encoding="utf-8") as f:
+                pedacos.append(f.read())
+        except OSError:
+            pass
+    return "\n".join(pedacos)
+
+
+CSS_TUDO = carregar_estilos_de_terceiros() + CSS + CSS_NOVO
+
+# --- o CSS deixa de viajar em cada clique (17/09/2026)
+#
+# Estava embutido num `<style>` em todas as páginas: **85 KB, 58% de
+# cada resposta, e o browser não o podia guardar**. Localmente não se
+# notava; pelo túnel, cada navegação voltava a arrastá-lo.
+#
+# Servido em `/estilo/<etiqueta>.css`, onde a etiqueta é o resumo do
+# próprio conteúdo. Isso dá as duas coisas ao mesmo tempo: o browser
+# pode guardá-lo **para sempre** (`immutable`), e mudar uma linha de CSS
+# muda o endereço, por isso não há cache velha possível. É o mesmo
+# desenho do `/tipo/<nome>` das fontes, e a mesma razão.
+ETIQUETA_CSS = hashlib.sha256(CSS_TUDO.encode("utf-8")).hexdigest()[:12]
+FOLHA_CSS = "/estilo/%s.css" % ETIQUETA_CSS
+LIGACAO_CSS = '<link rel="stylesheet" href="%s">' % FOLHA_CSS
+
+
+@app.route("/estilo/<etiqueta>.css")
+def estilo(etiqueta):
+    """A folha de estilo, guardável para sempre.
+
+    A etiqueta tem de bater certo: um endereço antigo (de uma versão
+    anterior do CSS) devolve 404 em vez de servir o CSS novo com um nome
+    velho -- assim ninguém fica com uma etiqueta a apontar para conteúdo
+    que já mudou. **Não exige sessão**, como as fontes: é uma folha de
+    estilo, não tem dados lá dentro, e sem ela o próprio ecrã de entrar
+    aparecia em branco.
+    """
+    if etiqueta != ETIQUETA_CSS:
+        abort(404)
+    resposta = Response(CSS_TUDO, mimetype="text/css")
+    resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resposta
 
 
 BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
-<style>%(css)s</style></head><body>
+%(css)s</head><body>
 <div class="app">
 <header class="barra">
  <div class="marca"><a class="logo %(inicio_on)s" href="/" title="Hoje &mdash; o estado do negócio e o que há para fazer">Radar<span>Gov</span></a></div>
@@ -11134,7 +11237,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
 
     return com_csrf(BASE % {
         "titulo_aba": html.escape(titulo_aba or titulo),
-        "css": CSS_TUDO,
+        "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
         "conf_on": "on" if activo == "configuracoes" else "",
