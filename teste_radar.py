@@ -4981,8 +4981,12 @@ class TestPropostas(BaseTemporaria):
         l1 = radar.criar_proposta("60/2026", lote=1)
         l2 = radar.criar_proposta("60/2026", lote=2)
         self.assertNotEqual(l1, l2)
-        radar.mover_proposta(l1, "ganho")
-        radar.mover_proposta(l2, "perdido")
+        # o preco proposto e o motivo viajam no mesmo pedido: a ranhura
+        # exige-os (D4 do docs/historico/CICLOS.md)
+        radar.mover_proposta(l1, "ganho", campos={"valor_proposta": "118.500,00 EUR"})
+        radar.mover_proposta(l2, "perdido",
+                             campos={"valor_proposta": "118.500,00 EUR",
+                                     "motivo": radar.MOTIVOS_PERDA[0]})
         estados = {p["lote"]: p["estado"] for p in radar.propostas_de("60/2026")}
         self.assertEqual(estados, {1: "ganho", 2: "perdido"})
 
@@ -5038,7 +5042,9 @@ class TestPropostas(BaseTemporaria):
         fechado no trimestre em que se fechou."""
         self._anuncio()
         p = radar.criar_proposta("60/2026")
-        radar.mover_proposta(p, "perdido")
+        radar.mover_proposta(p, "perdido",
+                             campos={"valor_proposta": "118.500,00 EUR",
+                                     "motivo": radar.MOTIVOS_PERDA[0]})
         self.assertTrue(radar.proposta(p)["fechada_em"])
         radar.mover_proposta(p, "submetido")
         self.assertIsNone(radar.proposta(p)["fechada_em"])
@@ -5061,11 +5067,15 @@ class TestPropostas(BaseTemporaria):
         a coluna onde o cartão parou."""
         self._anuncio()
         p = radar.criar_proposta("60/2026")
-        radar.mover_proposta(p, "submetido", quem="Afonso")
+        radar.mover_proposta(p, "submetido", quem="Afonso", campos={"valor_proposta": "118.500,00 EUR"})
         with radar.liga() as c:
             accoes = [r["accao"] for r in c.execute(
                 "SELECT accao FROM historico WHERE ref='60/2026' ORDER BY id")]
-        self.assertEqual(accoes, ["proposta criada", "estado"])
+        # o `valor_proposta` no meio é a condicionante da escada (D4):
+        # os campos que a ranhura exige gravam-se ANTES de ela mudar, e
+        # ficam no histórico como o que são — trabalho escrito
+        self.assertEqual(accoes,
+                         ["proposta criada", "valor_proposta", "estado"])
 
 
 class TestColunasVelhasFicamMasNinguemAsLe(BaseTemporaria):
@@ -5667,7 +5677,9 @@ class TestEscadaNaLista(BaseTemporaria):
         """A pergunta que deu origem a tudo isto. A lista dos anúncios
         mostra o que o DR publicou; a das ranhuras da empresa mostra
         propostas — e uma delas nem anúncio tem."""
-        self.cliente.post("/estado/60%2F2026/submetido")
+        # o preço vai no mesmo pedido: «Submetido» exige-o (D4)
+        self.cliente.post("/estado/60%2F2026/submetido",
+                          data={"valor_proposta": "1.000,00 EUR"})
         radar.criar_proposta(entidade="IPL", titulo="Consulta prévia de formação",
                              porque_sem_ref="consulta prévia", estado="submetido")
         html_ = self._html(radar.LISTA + "?estado=submetido")
@@ -5841,7 +5853,9 @@ class TestFecharOCicloComOBase(BaseTemporaria):
 
     def test_uma_proposta_ja_fechada_nao_volta_a_aparecer(self):
         self._contrato()
-        radar.mover_proposta(self.id_, "perdido")
+        radar.mover_proposta(self.id_, "perdido",
+                             campos={"valor_proposta": "118.500,00 EUR",
+                                     "motivo": radar.MOTIVOS_PERDA[0]})
         self.assertEqual(radar.propostas_por_fechar(), [])
 
     def test_sem_o_nif_da_empresa_nao_se_afirma_que_nao_fomos_nos(self):
@@ -7842,7 +7856,8 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
         trabalho com um clique, sem confirmação e sem desfazer. Essa
         volta a «Por analisar», e o aviso diz porquê: sem uma palavra, o
         gesto parecia não ter funcionado."""
-        self.cliente.post("/estado/2/2026/submetido")
+        self.cliente.post("/estado/2/2026/submetido",
+                          data={"valor_proposta": "1.000,00 EUR"})
         id_ = radar.propostas_de("2/2026")[0]["id"]
         radar.gravar_campos_da_proposta(id_, ["valor_proposta"],
                                         ["118.500,00 EUR"])
@@ -7861,7 +7876,8 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
         do anúncio, agora no sítio que sabe que o estado mudou."""
         self.cliente.post("/estado/2/2026/nao_fomos",
                           data={"motivo": radar.MOTIVOS_ABANDONO[0]})
-        self.cliente.post("/estado/2/2026/submetido")
+        self.cliente.post("/estado/2/2026/submetido",
+                          data={"valor_proposta": "1.000,00 EUR"})
         self.assertIsNone(radar.propostas_de("2/2026")[0]["motivo"])
 
 class TestARanhuraDizOQuePede(unittest.TestCase):
@@ -8056,7 +8072,9 @@ class TestSelectorDaRanhura(BaseTemporaria):
     def test_muda_de_ranhura_pelo_corpo_e_nao_pelo_caminho(self):
         """Um `<select>` não sabe escrever um URL. Se o estado fosse no
         caminho, o selector precisava de JS para funcionar de todo."""
-        r = self.cliente.post("/escada/60%2F2026", data={"estado": "submetido"})
+        r = self.cliente.post("/escada/60%2F2026",
+                              data={"estado": "submetido",
+                                    "valor_proposta": "1.000,00 EUR"})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(radar.propostas_de("60/2026")[0]["estado"], "submetido")
 
@@ -8067,7 +8085,8 @@ class TestSelectorDaRanhura(BaseTemporaria):
 
     def test_com_motivo_grava_os_dois(self):
         self.cliente.post("/escada/60%2F2026",
-                          data={"estado": "perdido", "motivo": "Preço"})
+                          data={"estado": "perdido", "motivo": "Preço",
+                                "valor_proposta": "1.000,00 EUR"})
         p = radar.propostas_de("60/2026")[0]
         self.assertEqual((p["estado"], p["motivo"]), ("perdido", "Preço"))
 
@@ -8085,7 +8104,8 @@ class TestSelectorDaRanhura(BaseTemporaria):
         """Essas não têm `ref` por onde lhes pegar (D2)."""
         id_ = radar.criar_proposta(entidade="IPL", titulo="Consulta prévia")
         r = self.cliente.post("/proposta/%d/escada" % id_,
-                              data={"estado": "submetido"})
+                              data={"estado": "submetido",
+                                    "valor_proposta": "9.000,00 EUR"})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(radar.proposta(id_)["estado"], "submetido")
 
@@ -10412,7 +10432,8 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
         corrigir no painel o que ele dissesse. Agora cada lote tem o seu
         selector, e move-se sem levar os outros."""
         r = self.cliente.post("/proposta/%d/escada" % self.por_lote[1],
-                              data={"estado": "submetido"})
+                              data={"estado": "submetido",
+                                    "valor_proposta": "118.500,00 EUR"})
         self.assertEqual(r.status_code, 302)
         estados = {p["lote"]: p["estado"]
                    for p in radar.propostas_de("1947/2026")}
@@ -12274,7 +12295,7 @@ class TestPrazoPassadoNaoMexeEmNada(CicloDasTarefas):
         paradas = radar.propostas_sem_decisao(self.hoje)
         self.assertEqual([p["id"] for p in paradas], [id_])
         # uma já decidida não aparece, mesmo com o prazo passado
-        radar.mover_proposta(id_, "submetido")
+        radar.mover_proposta(id_, "submetido", campos={"valor_proposta": "118.500,00 EUR"})
         self.assertEqual(radar.propostas_sem_decisao(self.hoje), [])
 
 
@@ -12522,8 +12543,11 @@ class TestFichaDaEntidadeDizOLadoDaEmpresa(CicloDaEntidade):
     def test_as_propostas_aparecem_e_a_taxa_diz_de_quantos_e(self):
         self._anuncio("60/2026")
         self._anuncio("61/2026", titulo="Manutenção")
-        radar.mover_proposta(radar.criar_proposta("60/2026"), "ganho")
-        radar.mover_proposta(radar.criar_proposta("61/2026"), "perdido")
+        radar.mover_proposta(radar.criar_proposta("60/2026"), "ganho",
+                             campos={"valor_proposta": "10.000,00 EUR"})
+        radar.mover_proposta(radar.criar_proposta("61/2026"), "perdido",
+                             campos={"valor_proposta": "9.000,00 EUR",
+                                     "motivo": radar.MOTIVOS_PERDA[0]})
         corpo = self.cliente.get("/entidade/506000000").get_data(as_text=True)
         self.assertIn("As nossas propostas", corpo)
         self.assertIn("Software", corpo)
@@ -12535,8 +12559,10 @@ class TestFichaDaEntidadeDizOLadoDaEmpresa(CicloDaEntidade):
     def test_com_decididos_que_cheguem_a_taxa_aparece(self):
         for n in range(radar.MINIMO_COM_ENTIDADE):
             ref = self._anuncio("%d/2026" % (70 + n))
-            radar.mover_proposta(radar.criar_proposta(ref),
-                                 "ganho" if n else "perdido")
+            radar.mover_proposta(
+                radar.criar_proposta(ref), "ganho" if n else "perdido",
+                campos={"valor_proposta": "10.000,00 EUR",
+                        "motivo": radar.MOTIVOS_PERDA[0]})
         d = radar.lado_da_empresa("506000000", "IPLeiria")
         self.assertEqual(d["decididos"], radar.MINIMO_COM_ENTIDADE)
         self.assertIsNotNone(d["taxa"])
@@ -12672,6 +12698,205 @@ class TestPropostaGuardaAChaveDaEntidade(CicloDaEntidade):
             nas_propostas = {r["name"] for r in
                              c.execute("PRAGMA table_info(propostas)")}
         self.assertEqual(nas_propostas, set(radar.COLUNAS_DA_PROPOSTA))
+
+
+class TestEscadaExigeOQueARanhuraPede(CicloDaEntidade):
+    """A condicionante da informação em falta (D4 do
+    `docs/historico/CICLOS.md`), palavra dele a 16/09/2026: «eu não posso
+    passar um por analisar directo para ganho porque há informação que
+    não foi preenchida».
+
+    Qualquer par de ranhuras continua permitido — não há percurso
+    obrigatório, e voltar atrás é reabrir. O que trava é o campo que faz
+    a ranhura ser verdade.
+    """
+
+    def _p(self):
+        self._anuncio("60/2026")
+        return radar.criar_proposta("60/2026")
+
+    def test_sem_o_preco_o_ganho_recusa_e_diz_o_que_falta(self):
+        p = self._p()
+        ok, recado = radar.mover_proposta(p, "ganho")
+        self.assertFalse(ok)
+        self.assertIn("preço proposto", recado)
+        self.assertEqual(radar.proposta(p)["estado"], "analisar")
+
+    def test_com_o_campo_no_mesmo_pedido_passa(self):
+        p = self._p()
+        ok, recado = radar.mover_proposta(
+            p, "ganho", campos={"valor_proposta": "118.500,00 EUR"})
+        self.assertTrue(ok, recado)
+        self.assertEqual(radar.proposta(p)["estado"], "ganho")
+        self.assertEqual(radar.proposta(p)["valor_proposta"],
+                         "118.500,00 EUR")
+
+    def test_reabrir_nao_pede_nada(self):
+        """Voltar a uma ranhura aberta é reabrir, e reabrir não é
+        afirmar coisa nenhuma."""
+        p = self._p()
+        radar.mover_proposta(p, "ganho",
+                             campos={"valor_proposta": "118.500,00 EUR"})
+        ok, _ = radar.mover_proposta(p, "analisar")
+        self.assertTrue(ok)
+        self.assertEqual(radar.proposta(p)["estado"], "analisar")
+        self.assertIsNone(radar.proposta(p)["fechada_em"])
+
+    def test_o_relatorio_pede_dois_e_o_recado_di_lo(self):
+        p = self._p()
+        ok, recado = radar.mover_proposta(p, "relatorio")
+        self.assertFalse(ok)
+        self.assertIn("preço proposto", recado)
+        self.assertIn("lugar", recado)
+        # com um só continua a faltar o outro
+        ok, recado = radar.mover_proposta(
+            p, "relatorio", campos={"valor_proposta": "1.000,00 EUR"})
+        self.assertFalse(ok)
+        self.assertIn("lugar", recado)
+        ok, _ = radar.mover_proposta(p, "relatorio", campos={"lugar": 2})
+        self.assertTrue(ok)
+
+    def test_um_motivo_da_outra_ranhura_nao_serve(self):
+        """As duas listas não são a mesma: «Preço base baixo» é porque
+        não se foi, e não é resposta a «porque se perdeu»."""
+        p = self._p()
+        radar.gravar_motivo(p, radar.MOTIVOS_ABANDONO[0])
+        ok, recado = radar.mover_proposta(
+            p, "perdido", campos={"valor_proposta": "1.000,00 EUR"})
+        self.assertFalse(ok)
+        self.assertIn("motivo", recado)
+        ok, _ = radar.mover_proposta(
+            p, "perdido", campos={"motivo": radar.MOTIVOS_PERDA[0]})
+        self.assertTrue(ok)
+
+    def test_qualquer_par_de_ranhuras_e_permitido(self):
+        """A escada é livre: não há percurso obrigatório. O que trava é
+        a informação, e não a ordem."""
+        p = self._p()
+        ok, _ = radar.mover_proposta(
+            p, "ganho", campos={"valor_proposta": "1.000,00 EUR"})
+        self.assertTrue(ok)          # analisar -> ganho, sem passar pelo meio
+        ok, _ = radar.mover_proposta(
+            p, "nao_fomos", campos={"motivo": radar.MOTIVOS_ABANDONO[0]})
+        self.assertTrue(ok)          # e de ganho para não fomos
+
+    def test_entrar_na_escada_de_uma_vez_tambem_passa_pela_regra(self):
+        """Apanhado pela revisão de código a 17/09/2026: sem proposta
+        prévia, o `mudar_estado()` criava-a já na ranhura pedida e nunca
+        passava pelo `mover_proposta()`. Um `POST /estado/<ref>/ganho`
+        num anúncio por ver punha um «Ganho» sem preço proposto,
+        contornando em silêncio a regra que esta fase introduziu.
+
+        E a recusa **não deixa a proposta criada**: uma linha a mais por
+        um gesto que não passou é pior do que a recusa."""
+        self._anuncio("60/2026")
+        r = self.cliente.post("/estado/60%2F2026/ganho",
+                              headers={"Referer": "http://localhost/"})
+        self.assertIn("aviso", r.headers["Location"])
+        self.assertEqual(radar.propostas_de("60/2026"), [])
+        # com o campo, passa — e o campo fica gravado
+        self.cliente.post("/estado/60%2F2026/ganho",
+                          data={"valor_proposta": "118.500,00 EUR"},
+                          headers={"Referer": "http://localhost/"})
+        p = radar.propostas_de("60/2026")[0]
+        self.assertEqual((p["estado"], p["valor_proposta"]),
+                         ("ganho", "118.500,00 EUR"))
+
+    def test_uma_aspa_no_titulo_nao_sai_do_atributo_do_confirm(self):
+        """Também da revisão: o `confirmar` do `accao()` era interpolado
+        cru dentro de `onsubmit="return confirm('…')"`, com os chamadores
+        a trocarem só a plica. Uma aspa dupla num nome escrito pelo
+        utilizador — o título de uma proposta, o nome de um contacto —
+        fechava o atributo."""
+        mau = 'Consulta " onmouseover=alert(1) x="'
+        p = radar.criar_proposta(entidade="IPL", titulo=mau)
+        corpo = self.cliente.get("/proposta/%d" % p).get_data(as_text=True)
+        # o texto aparece — escapado. O que não pode aparecer é a aspa
+        # CRUA a fechar um atributo antes dele.
+        self.assertIn("onmouseover", corpo)
+        self.assertNotIn('" onmouseover=alert(1)', corpo)
+        self.assertNotIn("' onmouseover=alert(1)", corpo)
+        # e a função em si: nada de aspas nem de plicas por escapar
+        saida = radar.accao("/x", "ok", confirmar="a\"b'c")
+        self.assertNotIn('"a"b', saida)
+        self.assertIn("&quot;", saida)
+
+    def test_o_selector_da_linha_pode_trazer_os_campos(self):
+        p = self._p()
+        r = self.cliente.post("/proposta/%d/escada" % p,
+                              data={"estado": "submetido",
+                                    "valor_proposta": "118.500,00 EUR"},
+                              headers={"Referer": "http://localhost/"})
+        self.assertIn(r.status_code, (301, 302, 303))
+        self.assertEqual(radar.proposta(p)["estado"], "submetido")
+
+
+class TestPropostaSemAnuncioTemPaginaInteira(CicloDaEntidade):
+    """A página de uma proposta sem anúncio era só o formulário que o
+    `/proposta/<id>/gravar` recebe: sem tarefas, sem contactos, sem
+    histórico. E o `/proposta/<id>/apagar` existia sem que HTML nenhum o
+    desenhasse."""
+
+    def _p(self):
+        return radar.criar_proposta(entidade="IPLeiria", titulo="Consulta",
+                                    porque_sem_ref="consulta prévia")
+
+    def test_a_pagina_tem_o_bloco_inteiro(self):
+        p = self._p()
+        radar.criar_tarefa("preparar a consulta", "2026-12-01", proposta_id=p)
+        radar.criar_contacto(radar.chave_entidade("", "IPLeiria"), "Maria",
+                             entidade="IPLeiria")
+        corpo = self.cliente.get("/proposta/%d" % p).get_data(as_text=True)
+        self.assertIn("A nossa proposta", corpo)
+        self.assertIn("/proposta/%d/escada" % p, corpo)   # selector da ranhura
+        self.assertIn("preparar a consulta", corpo)       # tarefas
+        self.assertIn("Maria", corpo)                     # contactos
+        self.assertIn("Cronologia", corpo)                # histórico
+        self.assertIn("/proposta/%d/apagar" % p, corpo)   # o apagar existe
+
+    def test_o_apagar_volta_a_ranhura_de_onde_veio(self):
+        p = self._p()
+        estado = radar.proposta(p)["estado"]
+        r = self.cliente.post("/proposta/%d/apagar" % p,
+                              headers={"Referer": "http://localhost/"})
+        self.assertIn(r.status_code, (301, 302, 303))
+        destino = r.headers["Location"]
+        self.assertIn(radar.LISTA, destino)
+        self.assertIn("estado=" + estado, destino)
+        self.assertIsNone(radar.proposta(p))
+
+    def test_a_ligacao_para_a_ficha_da_entidade(self):
+        p = self._p()
+        corpo = self.cliente.get("/proposta/%d" % p).get_data(as_text=True)
+        self.assertIn("/entidade/" + quote(
+            radar.chave_entidade("", "IPLeiria"), safe=""), corpo)
+
+
+class TestHistoricoDaPropostaSemRef(CicloDaEntidade):
+    """O `historico` de uma proposta sem `ref` gravava-se com `ref=""` e
+    perdia-se: nada o voltava a encontrar, e a cronologia dela estava a
+    ser escrita para o vazio."""
+
+    def test_a_mudanca_de_ranhura_fica_com_proposta_id(self):
+        p = radar.criar_proposta(entidade="IPLeiria", titulo="Consulta")
+        radar.mover_proposta(p, "submetido",
+                             campos={"valor_proposta": "1.000,00 EUR"})
+        with radar.liga() as c:
+            linhas = c.execute("SELECT * FROM historico WHERE proposta_id=? "
+                               "ORDER BY id", (p,)).fetchall()
+        self.assertIn("estado", [l["accao"] for l in linhas])
+        self.assertIn("proposta criada", [l["accao"] for l in linhas])
+        corpo = self.cliente.get("/proposta/%d" % p).get_data(as_text=True)
+        self.assertIn("Cronologia", corpo)
+        self.assertIn("Submetido", corpo)
+
+    def test_a_migracao_da_coluna_e_idempotente(self):
+        for _ in range(2):
+            radar.iniciar_db()
+        with radar.liga() as c:
+            colunas = {r["name"] for r in
+                       c.execute("PRAGMA table_info(historico)")}
+        self.assertIn("proposta_id", colunas)
 
 
 if __name__ == "__main__":

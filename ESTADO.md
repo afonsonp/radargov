@@ -456,6 +456,24 @@ A `propostas` ganhou a coluna `entidade_chave`. **Nenhum recorte novo
 entrou no `condicoes()`** — o filtro dos anúncios de uma entidade usa o
 `nif` ou o `ent` que o motor já tinha. São **1 015 testes**.
 
+**E a fase 3, a proposta sem anúncio e a regra da escada.** A página de
+uma proposta sem anúncio era só o formulário que o `/gravar` recebe:
+sem tarefas, sem contactos, sem histórico — e o `/proposta/<id>/apagar`
+existia sem que HTML nenhum o desenhasse. Passou a ter o **bloco
+inteiro**, o mesmo da ficha do anúncio, mais os contactos da entidade, a
+cronologia e o apagar (fechado dentro de um `<details>`, que é o que
+destrói dados). O histórico dela gravava-se com `ref=""` e **perdia-se**:
+nada o voltava a encontrar, e a cronologia estava a ser escrita para o
+vazio; há agora `historico.proposta_id`. **E a escada ganhou a
+condicionante da informação em falta** (D4, palavra dele: «não posso
+passar um por analisar directo para ganho porque há informação que não
+foi preenchida»): qualquer par de ranhuras continua permitido — não há
+percurso obrigatório — mas entrar numa exige o mínimo que a faz ser
+verdade, e a recusa diz o que falta. Os campos viajam no mesmo pedido, e
+gravam-se antes de se verificar; foi isso que obrigou os três caminhos
+que movem uma proposta a passarem o motivo por lá, porque gravá-lo
+depois de mover passou a ser tarde. São **1 029 testes**.
+
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
 blocos com âncora — faltavam o **«A nossa proposta»**, que é onde o

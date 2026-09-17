@@ -242,6 +242,30 @@ a aparecer em todos os concursos dela. E o do **Portal BASE**: o que ela
 compra, o que ganha, a quem, e como isso evoluiu. Se o Portal BASE não a
 conhecer, a ficha di-lo e mostra só o nosso lado.
 
+### Mudar de ranhura, e o que cada uma pede
+
+A ranhura muda-se no selector de cada linha, e **qualquer salto é
+permitido** — não tens de passar pelo meio, e voltar atrás é reabrir.
+
+O que o radar não deixa é entrar numa ranhura sem a informação que a faz
+ser verdade. **Submetido**, **Ganho** e **Perdido** pedem o preço
+proposto; **Relatório preliminar** pede o preço e o lugar; **Perdido** e
+**Não fomos** pedem o motivo. Se faltar, o gesto é recusado e o aviso diz
+exactamente o que falta — preenche no bloco «A nossa proposta» e escolhe
+outra vez. Foi pedido teu: «não posso passar um por analisar directo
+para ganho porque há informação que não foi preenchida».
+
+### As propostas sem anúncio
+
+Uma consulta prévia, um ajuste directo ou um convite não saem no Diário
+da República. Criam-se em **Nova proposta**, e a página delas
+(`/proposta/<n>`) tem tudo o que a ficha de um anúncio tem do nosso
+lado: a ranhura, os campos que ela pede, as etiquetas, o que falta
+fazer, os contactos do cliente, a cronologia — e o **apagar**, dobrado
+dentro de «Apagar esta proposta» porque não tem volta. Uma proposta que
+tenha vindo do DR não se apaga aí: tira-se da escada, e o anúncio volta
+à lista.
+
 ### A barra
 
 A barra de cima tem três entradas, por ordem de uso:

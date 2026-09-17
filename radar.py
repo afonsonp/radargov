@@ -367,6 +367,61 @@ ESTADOS_COM_PROPOSTO = ("submetido", "relatorio", "ganho", "perdido")
 # maneiras de escrever "preco" e nenhuma conta que se possa fazer.
 MOTIVOS_DO_ESTADO = {"perdido": MOTIVOS_PERDA, "nao_fomos": MOTIVOS_ABANDONO}
 
+# **A escada é livre, com a condicionante da informação em falta** (D4 do
+# `docs/historico/CICLOS.md`, palavra dele a 16/09/2026: «eu não posso
+# passar um por analisar directo para ganho porque há informação que não
+# foi preenchida»).
+#
+# Qualquer par de ranhuras continua permitido -- não há percurso
+# obrigatório, e voltar atrás é reabrir. O que trava é o campo em falta:
+# entrar numa ranhura exige o mínimo que a faz ser verdade. Um «Ganho»
+# sem preço proposto não é um ganho registado, é uma linha que não soma
+# no funil nem na taxa.
+#
+# É um SUBCONJUNTO do que a ranhura PEDE (`_campos_que_a_ranhura_pede()`,
+# que desenha o formulário): pedir é oferecer o campo, exigir é não
+# deixar entrar sem ele. O «Os três primeiros» pede-se e não se exige --
+# é contexto, não é o facto.
+CAMPOS_QUE_A_RANHURA_EXIGE = {
+    "submetido": ("valor_proposta",),
+    "relatorio": ("valor_proposta", "lugar"),
+    "ganho": ("valor_proposta",),
+    "perdido": ("valor_proposta", "motivo"),
+    "nao_fomos": ("motivo",),
+}
+ROTULO_DO_CAMPO = {"valor_proposta": "preço proposto", "lugar": "lugar",
+                   "motivo": "motivo"}
+
+
+def recado_do_que_falta(estado, falta):
+    """A recusa da condicionante, dita como se diz. Uma só, para os dois
+    caminhos que a aplicam — mover uma proposta, e criar uma já numa
+    ranhura que exige campos."""
+    return ("«%s» pede %s, e falta%s. Preenche no bloco «A nossa "
+            "proposta» e volta a escolher."
+            % (estado_da_empresa(estado),
+               " e ".join(ROTULO_DO_CAMPO.get(n, n) for n in falta),
+               "" if len(falta) == 1 else "m"))
+
+
+def falta_para_a_ranhura(p, estado):
+    """Os campos que a ranhura exige e que a proposta ainda não tem.
+
+    Puro: recebe a linha e devolve nomes. O motivo conta como em falta
+    também quando existe mas é de OUTRA ranhura -- «Preço base baixo»
+    (porque não se foi) não é resposta a «porque se perdeu», e as duas
+    listas não são a mesma.
+    """
+    fora = []
+    for nome in CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ()):
+        valor = _valor(p, nome)
+        if nome == "motivo":
+            if valor not in (MOTIVOS_DO_ESTADO.get(estado) or ()):
+                fora.append(nome)
+        elif valor is None or (isinstance(valor, str) and not valor.strip()):
+            fora.append(nome)
+    return fora
+
 
 def estado_da_empresa(chave):
     """O rotulo de um estado, ou "" se a chave nao e de estado nenhum.
@@ -606,9 +661,19 @@ def iniciar_db():
                       "VALUES ('filtros_sem_alerta_apagados','1')")
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
-            accao TEXT, detalhe TEXT, quando TEXT)""")
+            accao TEXT, detalhe TEXT, quando TEXT, proposta_id INTEGER)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_historico_ref
                      ON historico(ref)""")
+        # O histórico de uma proposta SEM anúncio gravava-se com `ref=""`
+        # e perdia-se: nada o voltava a encontrar (fase 3 do
+        # `docs/historico/CICLOS.md`, 17/09/2026). `ALTER TABLE ADD
+        # COLUMN` é instantâneo; as linhas antigas ficam a NULL, porque
+        # a `ref=""` não diz de que proposta era.
+        cols_h = [r["name"] for r in c.execute("PRAGMA table_info(historico)")]
+        if "proposta_id" not in cols_h:
+            c.execute("ALTER TABLE historico ADD COLUMN proposta_id INTEGER")
+        c.execute("""CREATE INDEX IF NOT EXISTS ix_historico_proposta
+                     ON historico(proposta_id)""")
         # As alteracoes que o DR fez a anuncios ja lidos (B05): a fila do
         # resumo diario, com a marca de avisado -- o reconhecer e o
         # enviar separados, como nos alertas. O historico da ficha conta
@@ -1441,14 +1506,20 @@ def quem_sou():
     return ((g.get("utilizador") or {}).get("nome") or "").strip()
 
 
-def registar(ref, accao, detalhe="", quem=None):
+def registar(ref, accao, detalhe="", quem=None, proposta_id=None):
     """O `quem` explicito serve o trabalho em fundo: fora de um pedido do
-    browser nao ha cookie nenhum para ler, e quem_sou() rebentava."""
+    browser nao ha cookie nenhum para ler, e quem_sou() rebentava.
+
+    O `proposta_id` e para o que NAO tem `ref` (fase 3 do CICLOS.md): uma
+    proposta sem anuncio gravava com `ref=""` e nada a voltava a
+    encontrar -- a cronologia dela estava a ser escrita para o vazio.
+    """
     with liga() as c:
-        c.execute("""INSERT INTO historico (ref,quem,accao,detalhe,quando)
-                     VALUES (?,?,?,?,?)""",
+        c.execute("""INSERT INTO historico
+                     (ref,quem,accao,detalhe,quando,proposta_id)
+                     VALUES (?,?,?,?,?,?)""",
                   (ref, quem or quem_sou() or "(sem nome)", accao, detalhe,
-                   datetime.now().strftime("%Y-%m-%d %H:%M")))
+                   datetime.now().strftime("%Y-%m-%d %H:%M"), proposta_id))
 
 
 # ------------------------------------------------------------- lotes
@@ -1645,7 +1716,8 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
         id_ = cur.lastrowid
     registar(ref or "", "proposta criada",
              "%s%s" % (estado_da_empresa(estado),
-                       " — lote %d" % lote if lote else ""), quem)
+                       " — lote %d" % lote if lote else ""), quem,
+             proposta_id=id_)
     # as datas do DR viram tarefas na hora, e nao so na verificacao
     # seguinte: por um concurso na escada e o momento em que se quer ver
     # o que falta fazer
@@ -1679,7 +1751,7 @@ def apagar_propostas(c, onde, valores):
     c.execute("DELETE FROM propostas WHERE " + onde, valores)
 
 
-def mover_proposta(id_, estado, quem=None):
+def mover_proposta(id_, estado, quem=None, campos=None):
     """Poe a proposta noutra ranhura da escada. Devolve (ok, recado).
 
     Quem grava o `fechada_em` e esta funcao, e so ela: e o carimbo que
@@ -1691,12 +1763,23 @@ def mover_proposta(id_, estado, quem=None):
     if estado not in CHAVES_DA_EMPRESA:
         return False, "«%s» não é um estado da empresa." % (estado or "")
     rotulo = estado_da_empresa(estado)
+    # Os campos que vierem no MESMO pedido gravam-se ANTES de verificar
+    # (D4): o gesto é um só -- escolher a ranhura e trazer o que ela pede.
+    if campos:
+        gravar_campos_da_proposta(id_, list(campos), list(campos.values()),
+                                  quem)
     with liga() as c:
         antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
         if not antes:
             return False, "Essa proposta já não existe."
         if antes["estado"] == estado:
             return True, ""
+    # A condicionante da informação em falta. Qualquer par de ranhuras é
+    # permitido; o que trava é o campo que faz a ranhura ser verdade.
+    falta = falta_para_a_ranhura(antes, estado)
+    if falta:
+        return False, recado_do_que_falta(estado, falta)
+    with liga() as c:
         fechada = (datetime.now().strftime("%Y-%m-%d %H:%M")
                    if estado in ESTADOS_FECHADOS else None)
         # O motivo pertence ao ESTADO, e sai com ele. Um "Preço base
@@ -1713,7 +1796,7 @@ def mover_proposta(id_, estado, quem=None):
                   else None)
         c.execute("UPDATE propostas SET estado=?, fechada_em=?, motivo=? "
                   "WHERE id=?", (estado, fechada, motivo, id_))
-    registar(antes["ref"] or "", "estado", rotulo, quem)
+    registar(antes["ref"] or "", "estado", rotulo, quem, proposta_id=id_)
     # Fechar uma proposta tira as tarefas que ainda lhe restavam: um
     # "entregar a proposta" pendurado num concurso perdido e a mesma
     # mentira que o motivo pendurado, na vista que menos a tolera -- a
@@ -1801,7 +1884,8 @@ def gravar_campos_da_proposta(id_, campos, valores, quem=None):
                   + " WHERE id=?", list(valores) + [id_])
     for nome, valor in zip(campos, valores):
         if (antes[nome] or None) != (valor or None):
-            registar(antes["ref"] or "", nome, str(valor or "(apagado)"), quem)
+            registar(antes["ref"] or "", nome, str(valor or "(apagado)"), quem,
+                     proposta_id=id_)
 
 
 def _prazos_das_propostas(c, propostas):
@@ -10181,6 +10265,18 @@ a.ct-l{color:var(--azul)}
 .hj-l .hj-bts input[type=text]{width:88px;font:400 11px/1.4 var(--sans);
  padding:2px 4px}
 .hj-l .hj-bts input[name=quem]{width:76px}
+/* O que destrói dados vive fechado dentro de um <details>: um botão de
+   apagar ao lado dos outros pede-se por engano. */
+details.perigo{margin:16px 0 0;border-top:1px solid var(--linha);
+ padding-top:12px}
+details.perigo > summary{cursor:pointer;font:500 var(--f2,12px)/1.5
+ var(--sans);color:var(--t5)}
+details.perigo[open] > summary{color:var(--verm)}
+/* a cronologia e as propostas da ficha da entidade */
+.ent-num{display:inline-block;margin:0 0 10px;color:inherit}
+.ent-num:hover{color:var(--azul)}
+.ent-nossas{margin-top:10px}
+.ent-nossas .rot i{font-style:normal;color:var(--t5)}
 
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
@@ -10679,7 +10775,17 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
     <select> nao sabe escrever um URL -- e um botao que lhes chame tem
     de as poder alimentar.
     """
-    ao_submeter = (" onsubmit=\"return confirm('%s')\"" % confirmar) if confirmar else ""
+    # O `confirmar` vai como LITERAL de JavaScript dentro de um atributo
+    # HTML, e por isso leva as duas escapagens: o `json.dumps()` faz dele
+    # uma cadeia JS válida (aspas, contrabarras, quebras de linha) e o
+    # `html.escape(quote=True)` fecha o atributo. Estava a ser
+    # interpolado cru, com os chamadores a trocarem a plica à mão — uma
+    # aspa dupla num nome escrito pelo utilizador (o título de uma
+    # proposta, o nome de um contacto) fechava o atributo. Apanhado pela
+    # revisão de código a 17/09/2026, na fase 3 do CICLOS.
+    ao_submeter = ((" onsubmit=\"return confirm(%s)\""
+                    % html.escape(json.dumps(confirmar), quote=True))
+                   if confirmar else "")
     escondidos = "".join(
         "<input type='hidden' name='%s' value='%s'>"
         % (html.escape(k, quote=True), html.escape(str(v), quote=True))
@@ -10750,12 +10856,17 @@ def selector_de_ranhura(accao, actual, titulo=""):
     opcoes.append("<option value='%s'>tirar da escada</option>"
                   % ENTRADA_DA_ESCADA[0])
     return ("<form class='ranhura escada-js' method='post' action='%s' "
-            "data-titulo='%s' data-motivos='%s'>"
+            "data-titulo='%s' data-motivos='%s' data-exige='%s'>"
             "<select name='estado'>%s</select>"
             "<button type='submit' class='mini'>ir</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
                " ".join(MOTIVOS_DO_ESTADO),
+               # a condicionante da informacao em falta (D4), so para o
+               # ecra que ha-de pedir os campos no acto -- hoje o
+               # servidor recusa e diz o que falta, que e degradacao a
+               # dizer o que se passa e nao um controlo morto
+               html.escape(" ".join(CAMPOS_QUE_A_RANHURA_EXIGE), quote=True),
                "".join(opcoes)))
 
 
@@ -13141,6 +13252,41 @@ def _volta_com_aviso(texto, desfazer=None):
     return redirect(partes._replace(query=urlencode(fica)).geturl())
 
 
+def _campos_exigidos_do_pedido(estado, motivo=""):
+    """Os campos que a ranhura EXIGE e que vêm no mesmo pedido (D4).
+
+    O selector da linha já mandava o `motivo`; passou a poder mandar
+    também o preço proposto e o lugar, para o gesto ser um só — escolher
+    a ranhura e trazer o que ela pede. O que não vier fica de fora, e a
+    recusa do `mover_proposta()` diz o que falta.
+
+    `request.values` e não `request.form`: o «desfazer» leva os campos na
+    própria acção do formulário (`?motivo=…`), porque o aviso vem pela
+    query string.
+    """
+    campos = {}
+    exigidos = CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ())
+    if "motivo" in exigidos and motivo:
+        campos["motivo"] = motivo
+    if "valor_proposta" in exigidos:
+        # No formato do preco base ("118.500,00 EUR"), que e o que o
+        # euros_do_texto() e as somas sabem ler -- a mesma leitura do
+        # proposta_da_ficha(), e nao a do euros().
+        bruto = " ".join((request.values.get("valor_proposta") or "").split())
+        if bruto:
+            valor = euros_do_texto(bruto)
+            campos["valor_proposta"] = (_texto_do_preco(valor) if valor
+                                        else bruto)
+    if "lugar" in exigidos:
+        bruto = (request.values.get("lugar") or "").strip()
+        if bruto:
+            try:
+                campos["lugar"] = int(bruto)
+            except ValueError:
+                pass
+    return campos
+
+
 @app.route("/estado/<path:ref>/<novo>", methods=["POST"])
 def mudar_estado(ref, novo):
     """Triar um anuncio: po-lo na escada, tira-lo dela, ou dizer que nao
@@ -13195,12 +13341,33 @@ def mudar_estado(ref, novo):
     else:
         ja_estava = bool(antes) and antes_estado == accao
         if antes:
-            ok, recado = mover_proposta(antes["id"], accao)
+            # Os campos que a ranhura EXIGE (D4) viajam no mesmo pedido:
+            # o motivo daqui, e o que o formulario mandar. Gravar depois
+            # de mover era tarde -- a condicionante lia a linha antiga e
+            # recusava um "Nao fomos" que trazia o motivo consigo.
+            ok, recado = mover_proposta(antes["id"], accao,
+                                        campos=_campos_exigidos_do_pedido(
+                                            accao, motivo))
             if not ok:
                 return _volta_com_aviso(recado)
             id_ = antes["id"]
         else:
+            # **A condicionante vale também a quem entra na escada de
+            # uma vez** (apanhado pela revisão a 17/09/2026): sem
+            # proposta, este ramo criava-a já na ranhura pedida e nunca
+            # passava pelo `mover_proposta()` -- um POST de
+            # `/estado/<ref>/ganho` num anúncio por ver punha um «Ganho»
+            # sem preço proposto, contornando em silêncio a regra que a
+            # fase 3 introduziu. Verifica-se ANTES de criar, sobre o que
+            # o pedido traz: uma proposta criada e depois recusada era
+            # uma linha a mais por um gesto que não passou.
+            traz = _campos_exigidos_do_pedido(accao, motivo)
+            falta = falta_para_a_ranhura(traz, accao)
+            if falta:
+                return _volta_com_aviso(recado_do_que_falta(accao, falta))
             id_ = criar_proposta(ref, estado=accao)
+            if traz:
+                gravar_campos_da_proposta(id_, list(traz), list(traz.values()))
         # Sair de um estado com motivo limpa-o: um motivo pendurado numa
         # proposta que mudou de ranhura e uma mentira a espera de ser
         # lida.
@@ -18421,7 +18588,9 @@ def escada_da_proposta(id_):
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos and motivo not in permitidos:
         return _volta_com_aviso("Escolhe o motivo antes de continuar.")
-    ok, recado = mover_proposta(id_, estado)
+    ok, recado = mover_proposta(id_, estado,
+                                campos=_campos_exigidos_do_pedido(estado,
+                                                                  motivo))
     if not ok:
         return _volta_com_aviso(recado)
     if motivo or permitidos:
@@ -18874,15 +19043,30 @@ def proposta_cx(a):
     # tres consultas iguais ao corpus de 2,4 GB.
     desfecho = desfecho_do_anuncio(ref)
     cfg = ler_config()
-    blocos = []
-    for p in minhas:
-        cabeca = estado_da_empresa(p["estado"])
-        if p["lote"]:
-            cabeca = "Lote %d &middot; %s" % (p["lote"], cabeca)
-        elif p["lote"] == 0:
-            cabeca = "Conjunto &middot; %s" % cabeca
-        blocos.append(
-            "<div class='prop'><div class='prop-topo'>"
+    blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg)
+              for p in minhas]
+    return ("<div class='cx lado-cx' id='proposta'>"
+            "<div class='rot' style='margin-bottom:12px'>A nossa proposta</div>"
+            "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
+
+
+def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None):
+    """Uma proposta: o selector da ranhura, os campos que ela pede, o que
+    a empresa decide, o desfecho do Portal BASE e o que falta fazer.
+
+    Saiu de dentro do `proposta_cx()` a 17/09/2026 (fase 3 do
+    `docs/historico/CICLOS.md`) para a **página de uma proposta sem
+    anúncio** poder usar exactamente o mesmo bloco: era um formulário de
+    quatro campos, sem tarefas, sem contactos e sem histórico, e o que o
+    trabalho precisa está todo aqui.
+    """
+    cfg = ler_config() if cfg is None else cfg
+    cabeca = estado_da_empresa(p["estado"])
+    if p["lote"]:
+        cabeca = "Lote %d &middot; %s" % (p["lote"], cabeca)
+    elif p["lote"] == 0:
+        cabeca = "Conjunto &middot; %s" % cabeca
+    return ("<div class='prop'><div class='prop-topo'>"
             "<span class='prop-nome'>%s</span>%s</div>"
             "<form class='prop-campos' method='post' action='/proposta/%d/ficha'>"
             "%s%s"
@@ -18895,7 +19079,7 @@ def proposta_cx(a):
             "<button type='submit'>gravar</button></form>%s</div>"
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
-                                   p["estado"], titulo=a["titulo"] or ref),
+                                   p["estado"], titulo=titulo),
                p["id"], _campos_que_a_ranhura_pede(p),
                "".join("<label>%s%s</label>"
                        % (rotulo, _opcoes(nome, valores, p[nome]))
@@ -18904,9 +19088,6 @@ def proposta_cx(a):
                html.escape(p["coe"] or "", quote=True),
                html.escape(p["notas"] or "", quote=True),
                faixa_do_desfecho(p, desfecho, cfg) + _tarefas_da_ficha(p)))
-    return ("<div class='cx lado-cx' id='proposta'>"
-            "<div class='rot' style='margin-bottom:12px'>A nossa proposta</div>"
-            "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
 
 
 @app.route("/proposta/<int:id_>/ficha", methods=["POST"])
@@ -19054,50 +19235,74 @@ def ficha_da_proposta(id_):
         return pagina_de_erro(404)
     if p["ref"]:
         return redirect("/anuncio/" + quote(p["ref"], safe=""))
-    escada = "".join(
-        "<option value='%s'%s>%s</option>"
-        % (ch, " selected" if ch == p["estado"] else "", html.escape(rot))
-        for ch, rot in ESTADOS_DA_EMPRESA)
-    permitidos = MOTIVOS_DO_ESTADO.get(p["estado"])
-    motivo_html = ""
-    if permitidos:
-        motivo_html = (
-            "<label>%s<select name='motivo'>"
-            "<option value=''>escolhe…</option>%s</select></label>"
-            % (html.escape(PEDIDO_DO_ESTADO.get(p["estado"], "motivo")),
-               "".join("<option value='%s'%s>%s</option>"
-                       % (html.escape(m, quote=True),
-                          " selected" if m == (p["motivo"] or "") else "",
-                          html.escape(m)) for m in permitidos)))
-    campos = "".join(
-        "<label>%s<input type='text' name='%s' value='%s' maxlength='%d'></label>"
-        % (html.escape(rotulo), nome,
-           html.escape(p[nome] or "", quote=True), tecto)
-        for nome, rotulo, tecto in CAMPOS_EDITAVEIS_DA_PROPOSTA)
-    corpo = (
-        "<div class='cx'><form method='post' action='/proposta/%d/gravar' "
-        "class='form-largo'>"
-        "<label>Estado<select name='estado'>%s</select></label>%s%s"
-        "<label>Responsável<input type='text' name='responsavel' value='%s' "
-        "list='pessoas'></label>"
-        "<button type='submit'>gravar</button></form>%s</div>"
-        "<p class='nota'>Sem anúncio do DR: %s. Criada a %s.%s</p>"
-        # As tarefas de uma proposta sem anúncio não tinham onde se
-        # riscar: esta página não chamava o `_tarefas_da_ficha()`, e o
-        # atalho da ficha do anúncio não existe para quem não tem `ref`.
-        % (id_, escada, motivo_html, campos,
-           html.escape(p["responsavel"] or "", quote=True),
-           _tarefas_da_ficha(p),
-           html.escape(p["porque_sem_ref"] or "não vem do DR"),
-           html.escape(p["criada_em"] or "?"),
-           " Fechada a %s." % html.escape(p["fechada_em"])
-           if p["fechada_em"] else ""))
     nome = p["titulo"] or p["entidade"] or "proposta %d" % id_
+    # O bloco inteiro, o mesmo da ficha do anúncio (fase 3 do
+    # `docs/historico/CICLOS.md`): era um formulário de quatro campos,
+    # sem tarefas, sem contactos e sem histórico. O que o trabalho pede
+    # não depende de o concurso ter saído no DR.
+    bloco = ("<div class='cx lado-cx' id='proposta'>"
+             "<div class='rot' style='margin-bottom:12px'>A nossa proposta"
+             "</div>%s</div>" % _bloco_de_uma_proposta(p, nome))
+    # Os contactos são da ENTIDADE, e uma consulta prévia tem entidade.
+    contactos = contactos_cx({"ref": "", "nif": "",
+                              "entidade": p["entidade"] or ""}) \
+        if (p["entidade"] or "").strip() else ""
+    ligacao_a_entidade = ""
+    if p["entidade_chave"]:
+        ligacao_a_entidade = (
+            "<p class='nota'>Cliente: <a href='/entidade/%s'>%s</a></p>"
+            % (quote(p["entidade_chave"], safe=""),
+               html.escape(p["entidade"] or p["entidade_chave"])))
+    # O apagar é perigo, e por isso vive dentro de um <details> — a mesma
+    # forma do apagar de conta. Era uma rota que nenhum HTML desenhava.
+    apagar = (
+        "<details class='perigo'><summary>Apagar esta proposta</summary>"
+        "<p class='nota'>Apaga a proposta e as tarefas dela. Não há volta. "
+        "Uma que tenha vindo do DR não se apaga aqui: tira-se da escada, e "
+        "o anúncio volta à lista.</p>%s</details>"
+        % accao("/proposta/%d/apagar" % id_, "apagar", "mini cuidado",
+                confirmar="Apagar «%s»? Não há volta."
+                          % (nome or "").replace("'", " ")))
+    corpo = (bloco
+             + "<p class='nota'>Sem anúncio do DR: %s. Criada a %s.%s</p>"
+             % (html.escape(p["porque_sem_ref"] or "não vem do DR"),
+                html.escape(p["criada_em"] or "?"),
+                " Fechada a %s." % html.escape(p["fechada_em"])
+                if p["fechada_em"] else "")
+             + ligacao_a_entidade + contactos
+             + cronologia_da_proposta(p) + apagar)
     return envolver("anuncios", corta(nome, 80),
                     html.escape(p["entidade"] or ""),
                     "<div class='larg'>" + corpo + "</div>",
+                    script=caixa_do_motivo(),
                     migalhas=migalhas_de("anuncios", corta(nome, 40)),
                     titulo_aba=corta(nome, 60))
+
+
+def cronologia_da_proposta(p):
+    """O histórico de uma proposta, por `ref` **ou** por `proposta_id`.
+
+    Uma proposta sem anúncio gravava com `ref=""` e nada a voltava a
+    encontrar: a cronologia dela estava a ser escrita para o vazio. A
+    coluna `historico.proposta_id` entrou a 17/09/2026; as linhas
+    anteriores a essa data ficam sem ela, porque a `ref=""` não diz de
+    que proposta eram.
+    """
+    with liga() as c:
+        passos = c.execute(
+            "SELECT * FROM historico WHERE proposta_id=? OR "
+            "(COALESCE(?,'') != '' AND ref=?) ORDER BY id DESC LIMIT 20",
+            (p["id"], p["ref"], p["ref"])).fetchall()
+    if not passos:
+        return ""
+    return ("<div class='cx lado-cx'><div class='rot' "
+            "style='margin-bottom:10px'>Cronologia</div>%s</div>"
+            % "".join("<div class='hist'><b>%s</b> %s <i>%s</i> %s</div>"
+                      % (data_hora_pt(h["quando"]),
+                         html.escape(_NOMES_ACCAO.get(h["accao"] or "", h["accao"] or "")),
+                         html.escape(corta(h["detalhe"] or "", 80)),
+                         html.escape(h["quem"] or ""))
+                      for h in passos))
 
 
 @app.route("/proposta/<int:id_>/gravar", methods=["POST"])
@@ -19108,7 +19313,13 @@ def proposta_gravar(id_):
     if not p:
         return pagina_de_erro(404)
     if "estado" in request.form:
-        ok, recado = mover_proposta(id_, (request.form.get("estado") or "").strip())
+        novo = (request.form.get("estado") or "").strip()
+        # os campos que a ranhura exige vão no mesmo pedido (D4): este
+        # formulário tem-nos todos à vista
+        ok, recado = mover_proposta(
+            id_, novo,
+            campos=_campos_exigidos_do_pedido(
+                novo, (request.form.get("motivo") or "").strip()))
         if not ok:
             return redirect("/proposta/%d?" % id_ + urlencode({"aviso": recado}))
     if "motivo" in request.form:
@@ -20165,8 +20376,11 @@ def proposta_apagar(id_):
     with liga() as c:
         apagar_propostas(c, "id=?", (id_,))
     registar("", "proposta apagada", p["titulo"] or p["entidade"] or str(id_))
-    return redirect("/?" + urlencode({"estado": p["estado"],
-                                      "aviso": "Proposta apagada."}))
+    # Volta à ranhura de onde veio, e não a `/`: a abertura deixou de ser
+    # a lista a 16/09/2026 e ignora o `?estado=` — quem apagava ficava a
+    # olhar para o Hoje sem perceber para onde tinha ido.
+    return redirect(LISTA + "?" + urlencode({"estado": p["estado"],
+                                             "aviso": "Proposta apagada."}))
 
 
 # --------------------------------- a amostra do desenho (docs/design.md)
