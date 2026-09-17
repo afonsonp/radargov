@@ -744,4 +744,6 @@ utilizador e do projecto ficam acima das skills).
   `_tarefas_da_ficha()`, e por isso a ficha do **anúncio** ganhou-o de
   graça. Nada mudou na D2: `sincronizar_tarefas()` já não tocava numa
   automática com o prazo passado — o que faltava era o teste que o
-  prova e o balde que a mostra. 982 → 997 testes.
+  prova e o balde que a mostra. 982 → 998 testes. O `code-reviewer`
+  apanhou um HIGH: a garantia de não apagar o prazo em silêncio estava
+  no chamador e não na `gravar_tarefa()`.
