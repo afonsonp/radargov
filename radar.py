@@ -1266,6 +1266,63 @@ def data_pt(iso, vazio="—"):
         return iso or vazio
 
 
+# Os dias e os meses por extenso. Entram na banda COMUM e nao na
+# abertura que por acaso os precisou primeiro (a regra das armadilhas):
+# a fita da semana, o titulo do dia e as datas curtas dos prazos usam os
+# tres. E sao uma tabela escrita a mao e nao `strftime("%A")`, que
+# responde na lingua do SISTEMA -- num servidor em ingles saia
+# "Wednesday" no meio de uma aplicacao inteira em portugues, que e a
+# mesma avaria do `<input type=date>` corrigida a 15/09/2026.
+DIAS_CURTOS = ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")
+DIAS_LONGOS = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta",
+               "Sábado", "Domingo")
+MESES_CURTOS = ("jan", "fev", "mar", "abr", "mai", "jun",
+                "jul", "ago", "set", "out", "nov", "dez")
+MESES_LONGOS = ("janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                "julho", "agosto", "setembro", "outubro", "novembro",
+                "dezembro")
+
+
+def dia_por_extenso(d):
+    """date -> 'Quarta, 17 de setembro'. O titulo da abertura.
+
+    E a DATA e nao uma saudacao: "Bom dia" nao diz nada que o relogio do
+    computador nao diga melhor, e o dia da semana e metade da pergunta
+    que a abertura responde (redesenho de 17/09/2026)."""
+    return "%s, %d de %s" % (DIAS_LONGOS[d.weekday()], d.day,
+                             MESES_LONGOS[d.month - 1])
+
+
+def data_curta(quando, vazio="—"):
+    """'2026-09-24' (ou um date) -> '24 set'. A data de uma celula estreita.
+
+    O `data_pt()` continua a ser a forma canonica -- dd/mm/aaaa, palavra
+    dele. Esta e so para onde dez caracteres nao cabem (a fita, a coluna
+    da entrega, os prazos a chegar), e por isso nunca leva ano."""
+    if isinstance(quando, str):
+        try:
+            quando = datetime.strptime(quando[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return quando or vazio
+    if not quando:
+        return vazio
+    return "%d %s" % (quando.day, MESES_CURTOS[quando.month - 1])
+
+
+def iniciais(nome):
+    """'Afonso Pinto' -> 'AF'. As duas letras do avatar da linha.
+
+    Duas letras e nao uma: numa equipa pequena ha sempre dois nomes com
+    a mesma inicial, e um circulo com 'A' que tanto pode ser o Afonso
+    como a Ana nao identifica ninguem."""
+    partes = [p for p in (nome or "").split() if p]
+    if not partes:
+        return ""
+    if len(partes) == 1:
+        return partes[0][:2].upper()
+    return (partes[0][0] + partes[-1][0]).upper()
+
+
 def data_do_texto(escrito):
     """'21/08/2026' -> '2026-08-21'. O inverso do `data_pt()`.
 
@@ -10700,6 +10757,200 @@ CSS_NOVO = r"""
    a 11 ou 12px o espaco esta certo e nao se toca. Nao se troca o
    caractere: o mil_pt serve tambem a consola e os dois CSV. */
 [data-pele=novo] .kpi .v{word-spacing:-.3em}
+
+/* --------------------------------------------------------------------
+   A ABERTURA REDESENHADA (17/09/2026, pacote «Radar Gov UI redesign»,
+   design_handoff_radar/README.md §1).
+
+   Quatro cartoes `.kpi` ocupavam 120px de altura para dizerem quatro
+   numeros; a linha de factos diz os mesmos quatro numa linha de 20px, e
+   o que sobra e a fita da semana -- que responde a "o que fecha esta
+   semana" sem ninguem ter de ir ao calendario. */
+
+/* A linha de factos vai na ranhura das abas, logo por baixo do titulo:
+   e onde uma barra de separadores estaria, e por isso nao empurra nada.
+   Cada facto abre a lista que o produz -- a regra da empresa. */
+[data-pele=novo] .factos-linha{display:flex;flex-wrap:wrap;
+ align-items:baseline;gap:6px 22px;padding:2px 0 12px}
+[data-pele=novo] .factos-linha a{color:var(--t4);
+ font:500 var(--f2)/1.5 var(--sans)}
+[data-pele=novo] .factos-linha a:hover{color:var(--azul)}
+[data-pele=novo] .factos-linha b{font:600 var(--f4)/1 var(--mono);
+ color:var(--ink);margin-right:4px;word-spacing:-.3em}
+[data-pele=novo] .factos-linha b.avisa{color:var(--laranja)}
+[data-pele=novo] .factos-linha b.mau{color:var(--verm)}
+[data-pele=novo] .factos-linha .adiante{margin-left:auto;color:var(--t3)}
+
+/* A fita da semana: sete celulas, 1px de intervalo sobre a linha -- a
+   separacao e o fundo a aparecer, nao um risco desenhado (regra 3). */
+[data-pele=novo] .fita{display:grid;
+ grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;
+ background:var(--linha);border:1px solid var(--linha);border-radius:9px;
+ overflow:hidden;box-shadow:var(--sombra)}
+[data-pele=novo] .fita a{display:flex;flex-direction:column;gap:3px;
+ padding:8px 10px 10px;min-height:66px;background:var(--sup);
+ color:var(--t4);font:400 var(--f1)/1.35 var(--sans)}
+[data-pele=novo] .fita a:hover{background:var(--sup2)}
+[data-pele=novo] .fita .d{font:600 var(--f2)/1 var(--mono);color:var(--t2)}
+[data-pele=novo] .fita .passou{opacity:.7}
+[data-pele=novo] .fita .fds{background:var(--linha2)}
+[data-pele=novo] .fita .e{color:var(--laranja)}
+[data-pele=novo] .fita .m{color:var(--verm)}
+[data-pele=novo] .fita .hoje{background:var(--azul-fundo);opacity:1}
+[data-pele=novo] .fita .hoje .d{color:var(--azul);font-weight:700}
+[data-pele=novo] .fita .on{outline:2px solid var(--azul);outline-offset:-2px}
+[data-pele=novo] .fita-nav{display:flex;gap:18px;margin:8px 0 16px;
+ flex-wrap:wrap;font:500 var(--f2)/1.4 var(--sans);color:var(--t4)}
+[data-pele=novo] .fita-nav a{color:var(--t3)}
+[data-pele=novo] .fita-nav .adiante{margin-left:auto}
+
+/* Duas colunas: as tarefas a esquerda, o que mudou a direita. */
+[data-pele=novo] .dois{display:grid;
+ grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:18px;
+ align-items:start}
+[data-pele=novo] .lado{display:flex;flex-direction:column;gap:14px}
+[data-pele=novo] .lado .cx{padding:14px 18px}
+
+/* O cabecalho do "Para fazer": o rotulo, as pilhas de pessoa e o
+   "esconder as feitas". */
+[data-pele=novo] .fazer-topo{display:flex;align-items:center;gap:8px 12px;
+ padding:12px 16px;border-bottom:1px solid var(--linha);flex-wrap:wrap}
+[data-pele=novo] .fazer-topo .periodos{margin:0 0 0 6px}
+[data-pele=novo] .fazer-topo .esconder{margin-left:auto;display:flex;gap:6px;
+ align-items:center;font:400 var(--f2)/1 var(--sans);color:var(--t4)}
+[data-pele=novo] .periodos .av{margin-right:5px;width:16px;height:16px;
+ line-height:16px;font-size:8px}
+[data-pele=novo] .periodos a.on .av{background:rgba(255,255,255,.28);
+ color:#fff}
+[data-pele=novo] .periodos i{font:500 10.5px/1 var(--mono);font-style:normal;
+ opacity:.8;margin-left:4px}
+[data-pele=novo] .fazer-fundo{display:flex;gap:18px;padding:12px 16px;
+ border-top:1px solid var(--linha);flex-wrap:wrap;
+ font:500 var(--f2)/1.4 var(--sans);color:var(--t4)}
+[data-pele=novo] .fazer-fundo .adiante{margin-left:auto}
+
+/* Os baldes dobram com o <details> do browser -- nao ha JS nenhum a
+   guardar isto, e por isso tambem nao ha estado escondido para
+   divergir do que o servidor manda. */
+[data-pele=novo] .hj-g{padding:4px 10px 8px;margin:0;
+ border-top:1px solid var(--linha2)}
+[data-pele=novo] .hj-g:first-child{border-top:0}
+[data-pele=novo] details.hj-g > summary{list-style:none}
+[data-pele=novo] details.hj-g > summary::-webkit-details-marker{display:none}
+[data-pele=novo] details.hj-g > summary .hj-t{cursor:pointer;
+ padding:10px 8px 4px;margin:0}
+[data-pele=novo] details.hj-g > summary .seta::before{content:'\25b8';
+ font:500 10px/1 var(--mono);color:var(--t5)}
+[data-pele=novo] details.hj-g[open] > summary .seta::before{content:'\25be'}
+[data-pele=novo] .hj-t .direita{margin-left:auto;font-weight:400;
+ font-size:var(--f1);color:var(--t5)}
+[data-pele=novo] .hj-t .feitas{font:400 var(--f1)/1 var(--sans);
+ color:var(--t5)}
+
+/* A LINHA DE TAREFA. Rica-se no sitio: a queixa dele era "concluo a
+   tarefa e volto para o inicio da pagina". */
+[data-pele=novo] .hj-row{display:grid;
+ grid-template-columns:20px minmax(0,1fr) 64px minmax(120px,220px) 20px 96px;
+ gap:10px;align-items:center;padding:6px 8px;border-radius:6px;
+ border-left:2px solid var(--traco)}
+[data-pele=novo] .hj-row:hover{background:var(--sup2)}
+[data-pele=novo] .hj-g.mau .hj-row{border-left-color:var(--verm)}
+[data-pele=novo] .hj-g.avisa .hj-row{border-left-color:var(--laranja)}
+[data-pele=novo] .hj-row form.accao{display:flex;margin:0}
+[data-pele=novo] .hj-row .fim{justify-self:end;text-align:right;
+ font:400 var(--f2)/1.4 var(--sans);color:var(--t4)}
+[data-pele=novo] .hj-row.feita{background:var(--sup2)}
+[data-pele=novo] .hj-row.feita .hj-o{color:var(--t5);
+ text-decoration:line-through}
+[data-pele=novo] .hj-row .hj-q.avisa{color:var(--laranja)}
+[data-pele=novo] .hj-row .hj-q.mau{color:var(--verm)}
+[data-pele=novo] .hj-sem{display:grid;grid-template-columns:minmax(0,1fr) auto;
+ gap:10px;align-items:center;padding:7px 8px 7px 16px;border-radius:6px;
+ border-left:2px solid var(--verm)}
+[data-pele=novo] .hj-sem > div > a{font:600 var(--f3)/1.35 var(--sans);
+ color:var(--t1)}
+[data-pele=novo] .hj-sem .hj-c{white-space:normal}
+
+/* A caixa de ✓ e um <button> de um POST, e nao um <input type=checkbox>:
+   sem JS uma caixa nao submete nada, e este gesto tem de valer sem JS. */
+[data-pele=novo] .chk{width:16px;height:16px;padding:0;flex:none;
+ position:relative;border:1px solid var(--traco);border-radius:4px;
+ background:var(--sup);cursor:pointer}
+[data-pele=novo] .chk:hover{border-color:var(--verde)}
+[data-pele=novo] .chk.on{background:var(--verde);border-color:var(--verde)}
+[data-pele=novo] .chk.on::after{content:'';position:absolute;left:4px;top:1px;
+ width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;
+ transform:rotate(45deg)}
+
+/* O avatar de quem e a tarefa. Sem dono e um circulo tracejado -- um
+   lugar vazio a dizer que falta alguem, e nao a ausencia de marca. */
+[data-pele=novo] .av{width:20px;height:20px;border-radius:50%;flex:none;
+ display:inline-block;background:var(--sup2);color:var(--t3);
+ font:600 9px/20px var(--sans);text-align:center}
+[data-pele=novo] .av.eu{background:var(--azul);color:#fff}
+[data-pele=novo] .av.vago{background:transparent;
+ border:1px dashed var(--traco)}
+
+/* "O que mudou", "Prazos a chegar" e "Paradas ha mais tempo". */
+[data-pele=novo] .mudou-n{display:flex;gap:12px;margin:12px 0 10px}
+[data-pele=novo] .mudou-n a{flex:1;display:flex;flex-direction:column;gap:2px;
+ color:inherit}
+[data-pele=novo] .mudou-n b{font:600 22px/1 var(--mono);color:var(--ink)}
+[data-pele=novo] .mudou-n b.azul{color:var(--azul)}
+[data-pele=novo] .feed{display:flex;flex-direction:column;
+ border-top:1px solid var(--linha2)}
+[data-pele=novo] .feed .l{display:grid;
+ grid-template-columns:44px minmax(0,1fr);gap:10px;padding:8px 0;
+ border-bottom:1px solid var(--linha2)}
+[data-pele=novo] .feed .l:last-child{border-bottom:0}
+[data-pele=novo] .feed .l p{margin:0;font:500 var(--f2)/1.45 var(--sans);
+ color:var(--t1)}
+[data-pele=novo] .prazos{display:flex;flex-direction:column;margin-top:8px}
+[data-pele=novo] .prazos a{display:grid;
+ grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:baseline;
+ padding:6px 0;border-top:1px solid var(--linha2);color:inherit}
+[data-pele=novo] .prazos a .hj-c{color:var(--t1);font-weight:500}
+[data-pele=novo] .prazos .hj-q.avisa{color:var(--laranja)}
+
+/* Abaixo de 1180 a linha parte-se em duas: caixa + texto + dono +
+   accao em cima, quando + concurso por baixo com o recuo da caixa. O
+   alvo continua a ser >= 24px, que e o que a regra pede. */
+@media (max-width:1180px){
+ [data-pele=novo] .hj-row{display:flex;flex-wrap:wrap;gap:3px 10px}
+ [data-pele=novo] .hj-row .hj-o{flex:1 1 100%;max-width:calc(100% - 150px);
+  order:1}
+ [data-pele=novo] .hj-row form.accao{order:0}
+ [data-pele=novo] .hj-row .av{order:2}
+ [data-pele=novo] .hj-row .fim{order:3;margin-left:auto}
+ [data-pele=novo] .hj-row .hj-q{order:4;flex:0 0 auto;margin-left:26px}
+ [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}}
+@media (max-width:900px){
+ [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
+
+/* O PONTO DE SITUACAO (redesenho §2). Os quatro numeros sao uma grelha
+   de celulas separadas por 1px de fundo, e nao quatro cartoes: dentro
+   de uma caixa que ja e um cartao, quatro cartoes sao cinco caixas. */
+[data-pele=novo] .sit-numeros{display:grid;
+ grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
+ background:var(--linha);border:1px solid var(--linha);border-radius:var(--r);
+ overflow:hidden}
+[data-pele=novo] .sit-n{background:var(--sup);padding:16px 18px;
+ display:flex;flex-direction:column;gap:6px}
+[data-pele=novo] .sit-n .r{font:600 var(--f2)/1 var(--sans);color:var(--t4)}
+[data-pele=novo] .sit-n b{font:600 28px/1 var(--mono);color:var(--ink);
+ letter-spacing:-1px;word-spacing:-.3em}
+[data-pele=novo] .sit-n .d{font:400 var(--f1)/1.45 var(--sans);
+ color:var(--t5)}
+[data-pele=novo] .sit-n.por-haver b{font:400 var(--f2)/1.45 var(--sans);
+ color:var(--t5);letter-spacing:0}
+[data-pele=novo] .delta{font:600 var(--f2)/1 var(--mono)}
+[data-pele=novo] .delta.sobe{color:var(--verde)}
+[data-pele=novo] .delta.desce{color:var(--verm)}
+[data-pele=novo] .delta.igual,[data-pele=novo] .delta.vago{color:var(--t5);
+ font-weight:400}
+@media (max-width:760px){
+ [data-pele=novo] .fita a{min-height:52px;padding:6px}
+ [data-pele=novo] .fita .nota-dia{display:none}}
 """
 
 # As duas folhas juntas uma vez so, e nao a cada pedido: os tres moldes
@@ -13435,7 +13686,7 @@ def verificar_agora():
     return redirect(volta)
 
 
-def _volta_com_aviso(texto, desfazer=None):
+def _volta_com_aviso(texto, desfazer=None, ancora=""):
     """De volta a pagina de onde se carregou, com um aviso por cima.
 
     O mesmo caminho do "Verificar agora": a accao vem de tres sitios
@@ -13445,6 +13696,11 @@ def _volta_com_aviso(texto, desfazer=None):
     envolver() desenha-o como botao dentro do aviso. O aviso anterior
     sai da query string antes de se por o novo: quem desfaz a partir de
     uma pagina que ja tinha ?aviso=... voltava com os dois.
+
+    A `ancora` traz de volta a LINHA e nao ao topo (17/09/2026). Era a
+    queixa principal dele sobre a abertura -- "concluo a tarefa e volto
+    para o inicio da pagina" --, e numa lista de cinquenta tarefas
+    reencontrar onde se ia custa mais do que o gesto que se fez.
     """
     partes = urlparse(request.referrer or "/")
     fica = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
@@ -13452,7 +13708,8 @@ def _volta_com_aviso(texto, desfazer=None):
     fica.append(("aviso", texto))
     if desfazer:
         fica.append(("desfazer", desfazer))
-    return redirect(partes._replace(query=urlencode(fica)).geturl())
+    return redirect(partes._replace(query=urlencode(fica),
+                                    fragment=ancora or "").geturl())
 
 
 def _campos_exigidos_do_pedido(estado, motivo=""):
@@ -18719,8 +18976,11 @@ def tarefa_feita(id_):
     t = marcar_tarefa(id_, True)
     if not t:
         return volta_ao_referer("/")
+    # A âncora traz de volta à linha, e não ao topo: a linha risca-se no
+    # sítio e a página fica onde estava (redesenho de 17/09/2026).
     return _volta_com_aviso("«%s» feita." % corta(t["o_que"], 60),
-                            "/tarefa/%d/por-fazer" % id_)
+                            "/tarefa/%d/por-fazer" % id_,
+                            ancora="t%d" % id_)
 
 
 @app.route("/tarefa/<int:id_>/gravar", methods=["POST"])
@@ -18748,9 +19008,15 @@ def tarefa_gravar(id_):
 @app.route("/tarefa/<int:id_>/por-fazer", methods=["POST"])
 def tarefa_por_fazer(id_):
     """O desfazer do «feita». Sem ele, riscar a tarefa errada numa lista
-    de vinte não tinha volta -- e é o erro mais fácil de cometer."""
-    marcar_tarefa(id_, False)
-    return volta_ao_referer("/")
+    de vinte não tinha volta -- e é o erro mais fácil de cometer.
+
+    Volta à ÂNCORA da linha como o «feita»: desfazer e ficar no topo da
+    página era metade do gesto."""
+    t = marcar_tarefa(id_, False)
+    if not t:
+        return volta_ao_referer("/")
+    return _volta_com_aviso("«%s» outra vez por fazer."
+                            % corta(t["o_que"], 60), ancora="t%d" % id_)
 
 
 # --- mudar de ranhura a partir da linha (15/09/2026, decisao dele)
@@ -19171,8 +19437,11 @@ def _tarefas_da_ficha(p):
                if t["origem"] in ORIGENS_AUTOMATICAS else "",
                ("<span class='tag'>%s</span>" % html.escape(t["quem"]))
                if t["quem"] else "",
-               # adiar e atribuir, as mesmas acções do Hoje: a tarefa
-               # resolve-se onde se lê, e não só na página onde nasceu
+               # adiar e atribuir. **É aqui que vivem desde 17/09/2026**:
+               # a linha do Hoje ficou com o ✓ e o desfazer, e mais nada
+               # (o redesenho dá-lhe seis colunas e nenhuma para dois
+               # campos de texto). Está no BACKLOG, R2: se fizerem falta
+               # lá, a rota nunca saiu daqui.
                "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
                "<input type='text' name='quando' inputmode='numeric' "
                "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
@@ -19905,7 +20174,23 @@ def pipeline_em_euros():
     return fora
 
 
-def taxa_de_vitoria(por=None, minimo=MINIMO_PARA_TAXA):
+def _fragmento_da_janela(janela, coluna="fechada_em"):
+    """(fragmento SQL, valores) que recorta uma consulta a um periodo.
+
+    `janela` e `(desde, ate)` em ISO, ou None para "tudo". A coluna de
+    omissao e a `fechada_em`, que e a data em que a proposta se DECIDIU
+    -- e a unica que responde a "quanto se ganhou no 3.o trimestre". Uma
+    proposta ainda aberta nao tem essa data e fica de fora de qualquer
+    periodo, que e o correcto: nao se decidiu em nenhum.
+    """
+    if not janela:
+        return "", []
+    desde, ate = janela
+    return (" AND substr(COALESCE(%s,''),1,10) BETWEEN ? AND ?" % coluna,
+            [desde, ate])
+
+
+def taxa_de_vitoria(por=None, minimo=MINIMO_PARA_TAXA, janela=None):
     """Quantos se ganham dos que se decidiram, ao todo ou por dimensão.
 
     O denominador são os **decididos** -- ganhos mais perdidos -- e não
@@ -19921,17 +20206,19 @@ def taxa_de_vitoria(por=None, minimo=MINIMO_PARA_TAXA):
     em vez de inventar.
     """
     coluna = por if por in ("tipologia", "coe", "responsavel", "entidade") else None
+    recorte, vals = _fragmento_da_janela(janela)
     with liga() as c:
         if coluna:
             linhas = c.execute(
                 "SELECT COALESCE(NULLIF(%s,''),'(sem)') k,"
                 " SUM(estado='ganho') g, COUNT(*) n FROM propostas "
-                "WHERE estado IN ('ganho','perdido') GROUP BY k "
-                "ORDER BY n DESC" % coluna).fetchall()
+                "WHERE estado IN ('ganho','perdido')%s GROUP BY k "
+                "ORDER BY n DESC" % (coluna, recorte), vals).fetchall()
         else:
             linhas = c.execute(
                 "SELECT 'total' k, SUM(estado='ganho') g, COUNT(*) n "
-                "FROM propostas WHERE estado IN ('ganho','perdido')").fetchall()
+                "FROM propostas WHERE estado IN ('ganho','perdido')" + recorte,
+                vals).fetchall()
     fora = []
     for l in linhas:
         if not l["n"]:
@@ -20026,7 +20313,7 @@ def dias_parados(limite=10):
     return fora[:limite]
 
 
-def desconto_medio_dos_ganhos():
+def desconto_medio_dos_ganhos(janela=None):
     """(desconto médio 0..1, sobre quantos) nos concursos ganhos.
 
     Quanto abaixo do preço base é que se ganha -- o número que diz se a
@@ -20034,10 +20321,11 @@ def desconto_medio_dos_ganhos():
     Só conta quem tem os dois preços lidos, e diz sobre quantos: somar
     uns e calar os outros parecia a média de todos.
     """
+    recorte, vals = _fragmento_da_janela(janela)
     with liga() as c:
         linhas = c.execute(
             "SELECT preco_base, valor_proposta FROM propostas "
-            "WHERE estado='ganho'").fetchall()
+            "WHERE estado='ganho'" + recorte, vals).fetchall()
     descontos = []
     for l in linhas:
         base = euros_do_texto(l["preco_base"])
@@ -20047,6 +20335,35 @@ def desconto_medio_dos_ganhos():
     if not descontos:
         return None, 0
     return sum(descontos) / len(descontos), len(descontos)
+
+
+def cpv_html_bloco():
+    """As barras do «Onde se ganha, por área» -- a taxa de vitória por
+    divisão de CPV.
+
+    Saiu de dentro do `negocio_cx()` a 17/09/2026 para poder ser a
+    terceira aba do «Ponto de situação» sem se desenhar duas vezes na
+    mesma página. Só as divisões com decididos que cheguem: abaixo disso
+    a `taxa_por_divisao_cpv()` devolve None, e a linha di-lo em vez de
+    mostrar uma percentagem inventada.
+    """
+    por_cpv = taxa_por_divisao_cpv()
+    if not por_cpv:
+        return ""
+    nomes = nomes_das_divisoes(d for d, _, _, _ in por_cpv)
+    return ("<div class='rot' style='margin:22px 0 10px'>Onde se ganha, "
+            "por área</div><div class='barras-h'>%s</div>"
+            % "".join(
+                "<div class='lh'><span class='t'>%s</span>"
+                "<span class='bh' style='width:%d%%;background:%s'></span>"
+                "<span class='n'>%s</span></div>"
+                % (html.escape("%s — %s"
+                               % (d, corta(nomes.get(d, "sem descrição"), 34))),
+                   int(100.0 * (taxa if taxa is not None else 0)) or 3,
+                   "var(--verde)" if taxa else "var(--traco)",
+                   ("%.0f%% de %d" % (taxa * 100, n)) if taxa is not None
+                   else "%d de %d, poucos" % (g, n))
+                for d, g, n, taxa in por_cpv))
 
 
 def negocio_cx():
@@ -20154,27 +20471,7 @@ def negocio_cx():
                           html.escape(corta(p["titulo"] or p["ref"], 52)))
                        for p, _ in por_fechar)))
 
-    # A taxa por área de CPV: onde é que a empresa ganha e onde é que
-    # insiste sem ganhar. Só as divisões com decididos que cheguem --
-    # abaixo disso a `taxa_por_divisao_cpv()` devolve None, e a linha
-    # di-lo em vez de mostrar uma percentagem inventada.
-    por_cpv = taxa_por_divisao_cpv()
-    nomes = nomes_das_divisoes(d for d, _, _, _ in por_cpv)
-    cpv_html = ""
-    if por_cpv:
-        cpv_html = (
-            "<div class='rot' style='margin:22px 0 10px'>Onde se ganha, "
-            "por área</div><div class='barras-h'>%s</div>"
-            % "".join(
-                "<div class='lh'><span class='t'>%s</span>"
-                "<span class='bh' style='width:%d%%;background:%s'></span>"
-                "<span class='n'>%s</span></div>"
-                % (html.escape("%s — %s" % (d, corta(nomes.get(d, "sem descrição"), 34))),
-                   int(100.0 * (taxa if taxa is not None else 0)) or 3,
-                   "var(--verde)" if taxa else "var(--traco)",
-                   ("%.0f%% de %d" % (taxa * 100, n)) if taxa is not None
-                   else "%d de %d, poucos" % (g, n))
-                for d, g, n, taxa in por_cpv))
+    cpv_html = cpv_html_bloco()
 
     parados = dias_parados(5)
     lista_parados = "".join(
@@ -20203,6 +20500,264 @@ def negocio_cx():
                tabela("Porque não se vai", porque_nao_se_vai(),
                       "ainda não há «não fomos»"), cpv_html,
                lista_parados))
+
+
+# --- o «Ponto de situação» (17/09/2026, redesenho §2)
+#
+# O bloco do negocio vivia no fim da abertura, e a abertura ficava com
+# duas perguntas empilhadas: "o que tenho de fazer hoje" e "como vai o
+# negocio". A segunda nao e diaria -- ve-se ao fim da semana, ou quando
+# alguem pergunta --, e por isso passou a pagina propria, com a saida na
+# linha de factos da abertura.
+#
+# O que a pagina traz de novo alem da mudanca de casa e o PERIODO: um
+# numero de negocio sem periodo e a soma de tudo desde sempre, e essa
+# nao responde a "como e que este trimestre correu". Cada numero traz a
+# comparacao com o periodo anterior do mesmo tamanho.
+
+PERIODOS_DA_SITUACAO = (("mes", "este mês"), ("trimestre", "este trimestre"),
+                        ("12m", "12 meses"), ("tudo", "tudo"))
+# O de omissao e o trimestre: um mes de decididos numa empresa que
+# decide dezenas por ano fica quase sempre abaixo do MINIMO_PARA_TAXA, e
+# uma pagina que abre com "ainda nao sei" tres vezes nao serve.
+PERIODO_DE_OMISSAO = "trimestre"
+
+
+def janelas_do_periodo(chave, hoje):
+    """((desde, ate), (desde_antes, ate_antes), rotulo) do periodo pedido.
+
+    O periodo anterior tem o MESMO tamanho e acaba na vespera do actual:
+    comparar um trimestre com o ano todo daria um "▼" garantido e sem
+    significado. Com "tudo" nao ha anterior -- devolve None, e quem
+    desenha diz "sem comparação" em vez de inventar uma seta.
+    """
+    if chave == "mes":
+        desde = hoje.replace(day=1)
+        fim_antes = desde - timedelta(days=1)
+        antes = (fim_antes.replace(day=1), fim_antes)
+        rotulo = "o mês anterior"
+    elif chave == "12m":
+        desde = hoje - timedelta(days=365)
+        antes = (desde - timedelta(days=365), desde - timedelta(days=1))
+        rotulo = "os 12 meses de antes"
+    elif chave == "tudo":
+        return None, None, ""
+    else:
+        # trimestre: o que corre, do primeiro dia do mes que o abre
+        mes = 3 * ((hoje.month - 1) // 3) + 1
+        desde = hoje.replace(month=mes, day=1)
+        fim_antes = desde - timedelta(days=1)
+        mes_antes = 3 * ((fim_antes.month - 1) // 3) + 1
+        antes = (fim_antes.replace(month=mes_antes, day=1), fim_antes)
+        rotulo = "o trimestre anterior"
+    return ((desde.isoformat(), hoje.isoformat()),
+            (antes[0].isoformat(), antes[1].isoformat()), rotulo)
+
+
+def ganho_no_periodo(janela=None):
+    """(euros, quantos) ganhos no periodo.
+
+    O valor e o PROPOSTO, que e o que se factura; sem ele lido, o preco
+    base serve de aproximacao -- a mesma regra do `pipeline_em_euros()`,
+    para os dois numeros da mesma pagina nao se contradizerem."""
+    recorte, vals = _fragmento_da_janela(janela)
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT preco_base, valor_proposta FROM propostas "
+            "WHERE estado='ganho'" + recorte, vals).fetchall()
+    euros = sum(euros_do_texto(l["valor_proposta"])
+                or euros_do_texto(l["preco_base"]) or 0.0 for l in linhas)
+    return euros, len(linhas)
+
+
+def _propostas_por_estado():
+    """{ranhura: quantas} para as barras das ranhuras."""
+    with liga() as c:
+        por_estado = {ch: 0 for ch in CHAVES_DA_EMPRESA}
+        for r in c.execute("SELECT estado, COUNT(*) n FROM propostas "
+                           "GROUP BY estado"):
+            if r["estado"] in por_estado:
+                por_estado[r["estado"]] = r["n"]
+    return por_estado
+
+
+def _delta_html(agora, antes, unidade=" pp", decimais=0):
+    """A seta da comparacao com o periodo anterior.
+
+    Sem periodo anterior, ou sem numero de um dos lados, **nao se desenha
+    seta nenhuma**: um "▲" contra um zero que so quer dizer "nao havia
+    dados" e a maneira mais rapida de uma pagina de indicadores mentir.
+    """
+    if agora is None or antes is None:
+        return "<span class='delta vago'>sem comparação</span>"
+    dif = agora - antes
+    if abs(dif) < (10.0 ** -decimais) / 2:
+        return "<span class='delta igual'>= igual</span>"
+    forma = "%%+.%df%s" % (decimais, unidade)
+    return ("<span class='delta %s'>%s %s</span>"
+            % ("sobe" if dif > 0 else "desce",
+               "&#9650;" if dif > 0 else "&#9660;",
+               (forma % dif).replace(".", ",")))
+
+
+def _numero_da_situacao(rotulo, valor, delta, nota):
+    """Uma celula dos quatro numeros. Sem numero nao se poe um travessao:
+    a frase ocupa o lugar dele e diz o que falta para existir (o mesmo
+    arranjo que ele pediu a 15/09/2026 para o `negocio_cx()`)."""
+    if valor is None:
+        return ("<div class='sit-n por-haver'><span class='r'>%s</span>"
+                "<b>%s</b></div>" % (rotulo, nota))
+    return ("<div class='sit-n'><span class='r'>%s</span><b>%s</b>%s"
+            "<span class='d'>%s</span></div>"
+            % (rotulo, valor, delta, nota))
+
+
+@app.route("/situacao")
+def situacao():
+    """O ponto de situação: como vai o negócio, num período.
+
+    Três abas -- Negócio, Triagem, Por área CPV -- porque são três
+    perguntas diferentes, e empilhá-las dá uma página de rolar sem fim,
+    que era exactamente o que o bloco no fim da abertura tinha.
+    """
+    hoje = datetime.now().date()
+    ver = request.args.get("ver") or "negocio"
+    if ver not in ("negocio", "triagem", "cpv"):
+        ver = "negocio"
+    periodo = request.args.get("periodo") or PERIODO_DE_OMISSAO
+    if periodo not in dict(PERIODOS_DA_SITUACAO):
+        periodo = PERIODO_DE_OMISSAO
+    janela, antes, rotulo_antes = janelas_do_periodo(periodo, hoje)
+
+    abas = "<div class='abas'>%s</div>" % "".join(
+        "<a class='%s' href='/situacao?%s'>%s</a>"
+        % ("on" if ver == chave else "",
+           urlencode([("ver", chave), ("periodo", periodo)]),
+           html.escape(rotulo))
+        for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),
+                              ("cpv", "Por área CPV")))
+
+    selector = ("<div class='periodos'><span>Período</span>%s</div>"
+                % "".join(
+                    "<a class='%s' href='/situacao?%s'>%s</a>"
+                    % ("on" if periodo == chave else "",
+                       urlencode([("ver", ver), ("periodo", chave)]),
+                       html.escape(rotulo))
+                    for chave, rotulo in PERIODOS_DA_SITUACAO))
+
+    if ver == "triagem":
+        corpo = funil_cx_html()
+    elif ver == "cpv":
+        bloco = cpv_html_bloco()
+        corpo = ("<div class='cx' style='padding:22px 24px'>"
+                 "<div class='rot'>Por área de CPV</div>"
+                 "<div class='nota' style='margin:6px 0 0'>A taxa de "
+                 "vitória por divisão do vocabulário CPV — as duas "
+                 "primeiras casas, que são a área do negócio. Uma taxa "
+                 "só aparece com %d decididos ou mais.</div>%s</div>"
+                 % (MINIMO_PARA_TAXA,
+                    bloco or "<div class='nota' style='margin-top:14px'>"
+                    "Ainda não há decididos com CPV lido.</div>"))
+    else:
+        pipeline = pipeline_em_euros()
+        em_jogo = sum(d["euros"] for d in pipeline.values())
+        abertas = sum(d["quantas"] for d in pipeline.values())
+        sem_preco = sum(d["sem_preco"] for d in pipeline.values())
+
+        taxa = taxa_de_vitoria(janela=janela)
+        _, ganhos, decididos, valor_taxa = (taxa[0] if taxa
+                                            else ("total", 0, 0, None))
+        taxa_antes = taxa_de_vitoria(janela=antes) if antes else []
+        valor_antes = taxa_antes[0][3] if taxa_antes else None
+
+        euros_ganhos, quantos_ganhos = ganho_no_periodo(janela)
+        euros_antes = ganho_no_periodo(antes)[0] if antes else None
+
+        desconto, sobre = desconto_medio_dos_ganhos(janela)
+        desconto_antes = (desconto_medio_dos_ganhos(antes)[0] if antes
+                          else None)
+
+        if em_jogo:
+            n_em_jogo = _numero_da_situacao(
+                "Em jogo", euros_curto(em_jogo),
+                # O pipeline e uma FOTOGRAFIA de agora e nao um total do
+                # periodo: comparar o que esta em jogo hoje com o que
+                # estava em jogo no trimestre passado pedia um historico
+                # que a base nao guarda, e uma seta inventada era pior
+                # do que nenhuma.
+                "<span class='delta vago'>de agora</span>",
+                "%s aberta%s%s" % (mil_pt(abertas),
+                                   "" if abertas == 1 else "s",
+                                   "; %s sem preço lido" % mil_pt(sem_preco)
+                                   if sem_preco else ""))
+        else:
+            n_em_jogo = _numero_da_situacao(
+                "Em jogo", None, "",
+                "as %s abertas ainda não têm preço lido" % mil_pt(abertas)
+                if abertas else "ainda não há propostas abertas")
+
+        n_ganho = (_numero_da_situacao(
+            "Ganho", euros_curto(euros_ganhos),
+            "<span class='delta vago'>sem comparação</span>"
+            if euros_antes is None else
+            "<span class='delta vago'>era %s</span>"
+            % euros_curto(euros_antes or 0),
+            "%s concurso%s" % (mil_pt(quantos_ganhos),
+                               "" if quantos_ganhos == 1 else "s"))
+            if euros_ganhos else _numero_da_situacao(
+                "Ganho", None, "", "ainda não há ganhos neste período"))
+
+        numeros = "".join((
+            n_em_jogo,
+            _numero_da_situacao(
+                "Taxa de vitória",
+                "%.0f%%" % (valor_taxa * 100) if valor_taxa is not None
+                else None,
+                _delta_html(valor_taxa * 100 if valor_taxa is not None
+                            else None,
+                            valor_antes * 100 if valor_antes is not None
+                            else None),
+                "%s de %s decididos" % (mil_pt(ganhos), mil_pt(decididos))
+                if valor_taxa is not None else
+                ("%s decidido%s: faltam %s para contar"
+                 % (mil_pt(decididos), "" if decididos == 1 else "s",
+                    mil_pt(MINIMO_PARA_TAXA - decididos)) if decididos
+                 else "ainda não há decididos neste período")),
+            n_ganho,
+            _numero_da_situacao(
+                "Desconto médio nos ganhos",
+                ("%.1f%%" % (desconto * 100)).replace(".", ",")
+                if desconto is not None else None,
+                _delta_html(desconto * 100 if desconto is not None else None,
+                            desconto_antes * 100 if desconto_antes is not None
+                            else None, "pp", 1),
+                "sobre %s com os dois preços lidos" % mil_pt(sobre)
+                if desconto is not None
+                else "ainda não há ganhos com os dois preços lidos"),
+        ))
+
+        nota_periodo = (
+            "<div class='nota' style='margin:16px 0 0'>Os números do "
+            "período contam pela data em que a proposta se <b>decidiu</b>. "
+            "«Em jogo» é uma fotografia de agora — o que está aberto não "
+            "se decidiu em período nenhum.%s</div>"
+            % ("" if not rotulo_antes
+               else " A comparação é com %s." % rotulo_antes))
+
+        corpo = ("<div class='cx' style='padding:22px 24px'>"
+                 "<div class='sit-numeros'>%s</div>%s</div>%s%s"
+                 % (numeros, nota_periodo, negocio_cx(),
+                    ranhuras_cx_html(_propostas_por_estado())))
+
+    return envolver(
+        "inicio", "Ponto de situação",
+        "Como vai o negócio: o que está em jogo, o que se ganha e porque "
+        "se perde. Uma taxa só aparece com %d decididos ou mais."
+        % MINIMO_PARA_TAXA,
+        "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
+        "gap:18px'>%s</div></div>" % (selector, corpo),
+        migalhas=migalhas_de("inicio", "Ponto de situação"),
+        abas=abas, titulo_aba="Ponto de situação, Radar de Concursos")
 
 
 @app.route("/indicadores")
@@ -20925,11 +21480,58 @@ def amostra():
 # Isto ressuscita o que o `/hoje` fazia antes de sair a 15/09, e responde
 # ao que ficou por responder nessa noite: "o que tenho de fazer hoje, em
 # todos os concursos ao mesmo tempo".
+#
+# **REDESENHADA a 17/09/2026**, pelo pacote «Radar Gov UI redesign»
+# (docs/historico/REDESENHO.md, seccao 1). Quatro coisas mudaram:
+#
+#   1. Os quatro cartoes `.kpi` deram lugar a uma LINHA de factos, na
+#      ranhura das abas. Os numeros sao os mesmos e continuam a abrir a
+#      lista que os produz; o que sai sao os 120px de altura que quatro
+#      caixas gastavam para dizer quatro numeros.
+#   2. Entrou a FITA DA SEMANA -- sete celulas, seg a dom --, que
+#      responde a "o que fecha esta semana" sem ninguem ir ao
+#      calendario. Clicar num dia muda o balde do meio.
+#   3. O "para fazer" passou a DUAS COLUNAS: as tarefas a esquerda, e a
+#      direita o que mudou desde a ultima verificacao, os prazos a
+#      chegar e o que esta parado ha mais tempo.
+#   4. A linha de tarefa ganhou a caixa de ✓, o dono e a entrega, e
+#      **risca-se no sitio**. Era a queixa principal dele: "concluo a
+#      tarefa e volto para o inicio da pagina".
+#
+# O bloco do negocio saiu daqui para pagina propria (`/situacao`).
 
-# Quantos dias a frente conta como "a fechar em breve" nos KPI. E a
-# semana de trabalho e nao a janela do urgente (dias_urgente(), que sao
-# oito): aqui a pergunta e "o que me cai em cima esta semana".
+# Quantos dias a frente conta como "a fechar em breve". E a semana de
+# trabalho e nao a janela do urgente (dias_urgente(), que sao oito):
+# aqui a pergunta e "o que me cai em cima esta semana".
 DIAS_A_FECHAR = 7
+
+# Quantas linhas mostram os blocos da coluna da direita. Sao vistas de
+# relance e nao listas: cada uma acaba numa saida para o ecra que tem
+# tudo.
+CABEM_NO_LADO = 5
+
+
+def _tarefas_da_abertura(desde, ate):
+    """As tarefas que a abertura desenha: as abertas todas, mais as
+    FEITAS da janela da fita.
+
+    As feitas entram porque a linha riscada **fica no sitio**. Sem elas,
+    marcar uma tarefa fazia-a desaparecer -- o gesto ficava sem
+    confirmacao e sem volta, que e o erro mais facil de cometer numa
+    lista de cinquenta. A janela e a da fita e nao o historico todo: uma
+    tarefa feita em Julho nao ajuda a decidir nada hoje.
+    """
+    with liga() as c:
+        return c.execute(
+            "SELECT t.*, p.estado, p.titulo AS p_titulo, p.entidade, "
+            "p.responsavel AS p_responsavel, a.entidade AS a_entidade, "
+            "a.titulo AS a_titulo, a.prazo AS a_prazo "
+            "FROM tarefas t LEFT JOIN propostas p ON p.id = t.proposta_id "
+            "LEFT JOIN anuncios a ON a.ref = t.ref "
+            "WHERE t.feita_em IS NULL "
+            "   OR substr(t.feita_em,1,10) BETWEEN ? AND ? "
+            "ORDER BY COALESCE(NULLIF(t.quando,''),'9999'), t.id",
+            (desde.isoformat(), ate.isoformat())).fetchall()
 
 
 def _tarefas_por_fazer():
@@ -20951,20 +21553,90 @@ def _tarefas_por_fazer():
             "ORDER BY COALESCE(NULLIF(t.quando,''),'9999'), t.id").fetchall()
 
 
-def _quantas(grupos_do_balde):
-    """Quantas TAREFAS ha num balde ja agrupado por proposta.
+def _dia_da_tarefa(t):
+    """A data de uma tarefa, ja em `date`, ou None se nao tiver."""
+    quando = data_de_filtro(t["quando"]) if t["quando"] else ""
+    if not quando:
+        return None
+    try:
+        return datetime.strptime(quando, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
-    Existe porque `len(balde)` passou a contar GRUPOS, e o KPI "Para
-    fazer" tem de continuar a dar exactamente o numero de linhas
-    desenhadas -- a regra da empresa, que este mesmo numero ja quebrou
-    uma vez (contava seis de oito e ligava ao calendario).
+
+def _e_minha(quem, eu):
+    """Se a tarefa e de quem esta a ver. Compara pelo `simplifica()` --
+    "Afonso" e "afonso pinto" sao a mesma pessoa a escrever o nome de
+    duas maneiras, e um avatar "eu" que falhe por causa do apelido nao
+    identifica ninguem."""
+    if not quem or not eu:
+        return False
+    a, b = simplifica(quem), simplifica(eu)
+    return a == b or a.startswith(b) or b.startswith(a)
+
+
+def _avatar_html(quem, eu=""):
+    """O circulo de quem e a tarefa. Sem dono e um circulo TRACEJADO --
+    um lugar vazio a dizer que falta alguem, e nao a ausencia de marca:
+    seis tarefas sem dono numa lista de cinquenta passavam despercebidas
+    quando a coluna ficava simplesmente em branco."""
+    if not quem:
+        return "<span class='av vago' title='sem dono'></span>"
+    return ("<span class='av%s' title='%s'>%s</span>"
+            % (" eu" if _e_minha(quem, eu) else "",
+               html.escape(quem, quote=True), html.escape(iniciais(quem))))
+
+
+def _quem_pedido():
+    """O dono por quem se esta a filtrar.
+
+    Tres respostas diferentes, e por isso nao chega um `or ""`: ausente
+    = todos, `?quem=` = sem dono, `?quem=X` = do X. E nao se guarda em
+    lado nenhum (regra do §9 do design.md): o que esta no ecra esta no
+    endereco, e um endereco colado a outra pessoa mostra-lhe o mesmo."""
+    return request.args.get("quem")
+
+
+def _pilhas_das_pessoas(tarefas, escolhido, eu, base):
+    """As pilhas de pessoa do cabecalho: Todos, cada dono, e sem dono.
+
+    Saem das TAREFAS que ha, e nao da lista de nomes das Configuracoes:
+    uma pilha de alguem sem nada para fazer e um filtro que da lista
+    vazia, e quem escreveu o nome a mao sem estar na lista desaparecia
+    do ecra.
     """
-    return sum(len(ts) for _, ts in grupos_do_balde)
+    contas, sem_dono, total = {}, 0, 0
+    for t in tarefas:
+        if t["feita_em"]:
+            continue
+        total += 1
+        quem = (t["quem"] or "").strip()
+        if quem:
+            contas[quem] = contas.get(quem, 0) + 1
+        else:
+            sem_dono += 1
+    pilhas = [("Todos", None, total, "")]
+    for quem, n in sorted(contas.items(), key=lambda p: (-p[1], p[0])):
+        pilhas.append((quem, quem, n, quem))
+    if sem_dono:
+        pilhas.append(("sem dono", "", sem_dono, ""))
+
+    fora = []
+    for rotulo, valor, n, com_avatar in pilhas:
+        alvo = base if valor is None else (
+            base + ("&" if "?" in base else "?") + "quem=" + quote(valor))
+        fora.append(
+            "<a class='pill%s' href='%s'>%s%s <i>%s</i></a>"
+            % (" on" if valor == escolhido else "",
+               html.escape(alvo + "#fazer", quote=True),
+               _avatar_html(com_avatar, eu) if com_avatar else "",
+               html.escape(rotulo), mil_pt(n)))
+    return "<div class='periodos'>%s</div>" % "".join(fora)
 
 
-def _grupos_das_tarefas(tarefas, hoje, sem_decisao=()):
-    """As tarefas em cinco baldes, por ordem de quem grita mais alto, e
-    agrupadas por proposta dentro de cada um.
+def _grupos_das_tarefas(tarefas, hoje, sem_decisao=(), dia_escolhido=None,
+                        fim_da_semana=None):
+    """As tarefas em cinco baldes, por ordem de quem grita mais alto.
 
     Um "o que tenho de fazer" ordenado so por data poe o atrasado de
     ontem a seguir ao de hoje e antes do da proxima semana, o que e
@@ -20979,53 +21651,389 @@ def _grupos_das_tarefas(tarefas, hoje, sem_decisao=()):
     As escritas a mao dessas propostas continuam onde a data as poe --
     "ligar ao Dr. X" nao deixa de fazer sentido por o prazo ter passado.
 
-    `sem_decisao` sao linhas de `propostas` (propostas_sem_decisao()), e
-    por isso este balde traz `(proposta, [])`; os outros trazem
-    `(primeira tarefa do grupo, [(tarefa, dia), ...])`.
+    O balde do meio e o DIA ESCOLHIDO na fita (por omissao, hoje) -- foi
+    o que a fita veio comprar: ver a quarta-feira sem sair da pagina.
+
+    `sem_decisao` sao linhas de `propostas` (propostas_sem_decisao()); os
+    outros baldes sao listas de `(tarefa, dia)`, ja sem agrupamento por
+    proposta: o concurso passou a ser uma COLUNA da linha, e um cabecalho
+    de grupo por cima de uma linha so era mais altura do que informacao.
     """
+    dia_escolhido = dia_escolhido or hoje
+    if fim_da_semana is None:
+        fim_da_semana = dia_escolhido + timedelta(
+            days=6 - dia_escolhido.weekday())
+    rotulo_do_meio = ("Hoje &middot; %s %d" % (DIAS_CURTOS[hoje.weekday()],
+                                               hoje.day)
+                      if dia_escolhido == hoje
+                      else html.escape(dia_por_extenso(dia_escolhido)))
     baldes = [("sem_decisao", "Prazo passou sem decisão", "mau"),
-              ("atrasadas", "Atrasadas", "mau"), ("hoje", "Hoje", "avisa"),
-              ("semana", "Nos próximos %d dias" % DIAS_A_FECHAR, ""),
+              ("atrasadas", "Atrasadas", "mau"),
+              ("dia", rotulo_do_meio, "avisa"),
+              ("semana", "Resto da semana", ""),
               ("depois", "Mais para a frente", "")]
     fora = {chave: [] for chave, _, _ in baldes}
-    fora["sem_decisao"] = [(p, []) for p in sem_decisao]
+    fora["sem_decisao"] = [(p, None) for p in sem_decisao]
     paradas = {p["id"] for p in sem_decisao}
-    limite = hoje + timedelta(days=DIAS_A_FECHAR)
-    # Agrupar preservando a ordem por data: o primeiro grupo de cada
-    # balde e o do concurso que grita mais alto.
-    ordem = {chave: {} for chave, _, _ in baldes}
     for t in tarefas:
         if t["proposta_id"] in paradas and t["origem"] in ORIGENS_AUTOMATICAS:
             continue
-        quando = data_de_filtro(t["quando"]) if t["quando"] else ""
-        dia = (datetime.strptime(quando, "%Y-%m-%d").date() if quando else None)
+        dia = _dia_da_tarefa(t)
         if dia is None:
             chave = "depois"
+        elif dia == dia_escolhido:
+            chave = "dia"
         elif dia < hoje:
             chave = "atrasadas"
-        elif dia == hoje:
-            chave = "hoje"
-        elif dia <= limite:
+        elif dia <= fim_da_semana:
             chave = "semana"
         else:
             chave = "depois"
-        # o grupo e a proposta; uma tarefa sem proposta agrupa-se pelo
-        # anuncio, e uma sem nenhum dos dois fica sozinha (id da tarefa)
-        grupo = (("p", t["proposta_id"]) if t["proposta_id"]
-                 else ("r", t["ref"]) if t["ref"] else ("t", t["id"]))
-        if grupo not in ordem[chave]:
-            ordem[chave][grupo] = (t, [])
-            fora[chave].append(ordem[chave][grupo])
-        ordem[chave][grupo][1].append((t, dia))
+        fora[chave].append((t, dia))
     return baldes, fora
+
+
+def _quantas(balde):
+    """Quantas tarefas POR FAZER ha num balde.
+
+    Existe porque as feitas passaram a ficar no sitio (riscadas), e o
+    numero do cabecalho tem de continuar a ser o do trabalho que falta --
+    a regra da empresa, que este mesmo numero ja quebrou uma vez
+    (contava seis de oito e ligava ao calendario)."""
+    return sum(1 for t, _ in balde if not t["feita_em"])
+
+
+def _com_dia(base, d):
+    """O mesmo endereco com outro `?dia=`. O `quem` e o `feitas` que ja
+    la estejam ficam: mudar de dia nao e razao para perder o filtro da
+    pessoa."""
+    return base + ("&" if "?" in base else "?") + "dia=" + d.isoformat()
+
+
+def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
+    """Os sete dias da semana do dia escolhido, com o que cada um tem.
+
+    A fita responde a "o que fecha esta semana" -- a pergunta que
+    obrigava a ir ao calendario e voltar. Cada celula diz quantas
+    tarefas tem e quantas ja estao feitas; as entregas (os prazos do DR
+    das propostas abertas) vao a laranja, e o dia de hoje leva tambem as
+    atrasadas que arrasta, porque sao trabalho de hoje ainda que a data
+    diga outra coisa.
+    """
+    segunda = dia_escolhido - timedelta(days=dia_escolhido.weekday())
+    domingo = segunda + timedelta(days=6)
+    por_dia, feitas_no_dia, atrasadas, depois = {}, {}, 0, 0
+    for t in tarefas:
+        dia = _dia_da_tarefa(t)
+        if t["feita_em"]:
+            if dia:
+                feitas_no_dia[dia] = feitas_no_dia.get(dia, 0) + 1
+            continue
+        if dia is None or dia > domingo:
+            depois += 1
+        if dia:
+            por_dia[dia] = por_dia.get(dia, 0) + 1
+            if dia < hoje:
+                atrasadas += 1
+
+    celulas = []
+    for i in range(7):
+        d = segunda + timedelta(days=i)
+        classes = []
+        if d < hoje:
+            classes.append("passou")
+        if d.weekday() >= 5:
+            classes.append("fds")
+        if d == hoje:
+            classes.append("hoje")
+        if d == dia_escolhido:
+            classes.append("on")
+        n, feitas = por_dia.get(d, 0), feitas_no_dia.get(d, 0)
+        notas = ["<span class='nota-dia'>%s%s</span>"
+                 % ("%s tarefa%s" % (mil_pt(n), "" if n == 1 else "s")
+                    if n else "sem tarefas",
+                    " &middot; %s feita%s" % (mil_pt(feitas),
+                                              "" if feitas == 1 else "s")
+                    if feitas else "")]
+        n_entregas = len(prazos.get(d, ()))
+        if n_entregas:
+            notas.append("<span class='e'>%s entrega%s</span>"
+                         % (mil_pt(n_entregas), "" if n_entregas == 1 else "s"))
+        if d == hoje and atrasadas:
+            notas.append("<span class='m'>%s atrasada%s arrasta%s</span>"
+                         % (mil_pt(atrasadas), "" if atrasadas == 1 else "s",
+                            "" if atrasadas == 1 else "m"))
+        celulas.append(
+            "<a class='%s' href='%s'><span class='d'>%s %d</span>%s</a>"
+            % (" ".join(classes),
+               html.escape(_com_dia(base, d) + "#fazer", quote=True),
+               DIAS_CURTOS[d.weekday()], d.day, "".join(notas)))
+
+    # A navegacao da fita. O "mais para a frente" e o numero do balde do
+    # fim -- sem ele, quem anda para a frente na fita nao sabe quando
+    # parar.
+    nav = ("<div class='fita-nav'>"
+           "<a href='%s'>&larr; semana passada</a>"
+           "<a href='%s'>próxima semana &rarr;</a>"
+           "<span class='adiante'>mais para a frente: %s</span></div>"
+           % (html.escape(_com_dia(base, dia_escolhido - timedelta(days=7)),
+                          quote=True),
+              html.escape(_com_dia(base, dia_escolhido + timedelta(days=7)),
+                          quote=True),
+              mil_pt(depois)))
+    return "<div class='fita'>%s</div>%s" % ("".join(celulas), nav)
+
+
+def _prazos_da_janela(desde, ate):
+    """{date: [linhas]} -- as entregas que caem na janela, vindas das
+    propostas ABERTAS.
+
+    Sao os prazos do DR e nao as tarefas automaticas que deles nascem:
+    uma proposta pode ter a tarefa de entrega ja feita e o prazo
+    continua a ser o dia em que o concurso fecha."""
+    fora = {}
+    with liga() as c:
+        for r in c.execute(
+                "SELECT p.ref, p.estado, "
+                "  COALESCE(NULLIF(p.titulo,''),a.titulo) AS titulo, "
+                "  COALESCE(NULLIF(p.entidade,''),a.entidade) AS entidade, "
+                "  a.prazo "
+                "FROM propostas p JOIN anuncios a ON a.ref = p.ref "
+                "WHERE p.estado IN (%s) AND a.prazo BETWEEN ? AND ? "
+                "ORDER BY a.prazo, p.id"
+                % ",".join("?" * len(ESTADOS_ABERTOS)),
+                list(ESTADOS_ABERTOS) + [desde.isoformat(), ate.isoformat()]):
+            try:
+                d = datetime.strptime(r["prazo"][:10], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            fora.setdefault(d, []).append(r)
+    return fora
+
+
+def _o_que_mudou(hoje, cfg):
+    """O bloco "O que mudou": tres numeros e o que entrou desde a ultima
+    verificacao.
+
+    Responde a terceira das quatro perguntas da abertura. Ate aqui era
+    uma linha de texto com o numero de anuncios novos, e o que
+    interessava mesmo -- quais deles caem no nosso interesse, que pecas
+    chegaram, que prazos mudaram -- obrigava a ir a lista procura-los.
+    """
+    hoje_iso = hoje.isoformat()
+    frag, vals = condicao_do_interesse(cfg=cfg)
+    onde, valores = com_recorte(" WHERE data_pub=?", [hoje_iso], frag, vals)
+    with liga() as c:
+        novos = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
+                          (hoje_iso,)).fetchone()["n"]
+        no_interesse = c.execute(
+            "SELECT ref, titulo, entidade, preco_base, prazo FROM anuncios"
+            + onde + " ORDER BY ref DESC LIMIT ?",
+            valores + [CABEM_NO_LADO]).fetchall()
+        quantos_interesse = c.execute(
+            "SELECT COUNT(*) n FROM anuncios" + onde, valores).fetchone()["n"]
+        pecas = c.execute(
+            "SELECT COUNT(*) n FROM documentos WHERE substr(obtido_em,1,10)=?",
+            (hoje_iso,)).fetchone()["n"]
+        # As alteracoes que o DR fez a anuncios ja lidos: um prazo que
+        # muda por republicacao e a coisa mais cara de nao se saber.
+        mudou = c.execute(
+            "SELECT a.ref, a.campo, a.antes, a.depois, n.titulo "
+            "FROM alteracoes a LEFT JOIN anuncios n ON n.ref = a.ref "
+            "WHERE substr(a.detectado_em,1,10) >= ? "
+            "ORDER BY a.id DESC LIMIT ?",
+            ((hoje - timedelta(days=1)).isoformat(),
+             CABEM_NO_LADO)).fetchall()
+
+    _, quando_verif, verif_ok = linha_da_ultima_verificacao()
+
+    numeros = (
+        "<div class='mudou-n'>"
+        "<a href='%s'><b>%s</b><span class='nota'>anúncio%s novo%s</span></a>"
+        "<a href='%s'><b class='azul'>%s</b>"
+        "<span class='nota'>no interesse</span></a>"
+        "<a href='%s'><b>%s</b><span class='nota'>peça%s nova%s</span></a>"
+        "</div>"
+        % (LISTA + "?estado=porver", mil_pt(novos),
+           "" if novos == 1 else "s", "" if novos == 1 else "s",
+           LISTA + "?estado=porver", mil_pt(quantos_interesse),
+           LISTA + "?estado=porver", mil_pt(pecas),
+           "" if pecas == 1 else "s", "" if pecas == 1 else "s"))
+
+    linhas = []
+    if no_interesse:
+        itens = "".join(
+            "<a class='cal-it empresa' href='/anuncio/%s'><b>%s</b>"
+            "<i>%s</i></a>"
+            % (quote(a["ref"], safe=""),
+               html.escape(corta(a["titulo"] or a["ref"], 58)),
+               " &middot; ".join(
+                   html.escape(p) for p in (
+                       corta(a["entidade"] or "", 34),
+                       euros_curto(euros_do_texto(a["preco_base"]))
+                       if euros_do_texto(a["preco_base"]) else "",
+                       "prazo %s" % data_curta(a["prazo"])
+                       if a["prazo"] else "") if p))
+            for a in no_interesse)
+        if quantos_interesse > len(no_interesse):
+            itens += ("<a class='nota' href='%s'>ver os %s no interesse "
+                      "&rarr;</a>" % (LISTA + "?estado=porver",
+                                      mil_pt(quantos_interesse)))
+        linhas.append("<div class='l'><span class='hj-q'>%s</span>"
+                      "<div>%s</div></div>"
+                      % (html.escape(quando_verif), itens))
+    for m in mudou:
+        linhas.append(
+            "<div class='l'><span class='hj-q'>%s</span><div>"
+            "<span class='tag avisa'>%s alterado</span> "
+            "<a href='/anuncio/%s'>%s</a>"
+            "<div class='nota'>%s &rarr; %s</div></div></div>"
+            % (data_curta(hoje), html.escape(m["campo"] or "campo"),
+               quote(m["ref"], safe=""),
+               html.escape(corta(m["titulo"] or m["ref"], 52)),
+               html.escape(corta(m["antes"] or "—", 28)),
+               html.escape(corta(m["depois"] or "—", 28))))
+    # As propostas que o Estado ja fechou e nos nao. E a linha mais
+    # accionavel do bloco: o facto esta no Portal BASE, a decisao e dele.
+    for p, contratos in propostas_por_fechar(limite=3):
+        quanto = sum(l["preco_contratual"] or 0.0 for l in contratos)
+        quem = ""
+        for l in contratos:
+            quem = (l["ganhou"] or "").split("|")[0] or quem
+        linhas.append(
+            "<div class='l'><span class='hj-q'>BASE</span><div>"
+            "<span class='tag'>adjudicado</span> "
+            "<a href='/anuncio/%s'>%s</a><div class='nota'>%s%s &mdash; "
+            "a nossa está em «%s»; fecha-a</div></div></div>"
+            % (quote(p["ref"], safe=""),
+               html.escape(corta(p["titulo"] or p["ref"], 52)),
+               html.escape(corta(quem, 34)) if quem else "adjudicado",
+               (", %s" % euros_curto(quanto)) if quanto else "",
+               html.escape(estado_da_empresa(p["estado"]))))
+
+    if not linhas:
+        linhas.append("<div class='l'><span class='hj-q'>%s</span>"
+                      "<div class='nota'>Nada de novo desde a última "
+                      "verificação.</div></div>" % html.escape(quando_verif))
+
+    return ("<div class='cx'><div class='rot' style='display:flex;gap:8px;"
+            "align-items:baseline'>O que mudou"
+            "<span class='direita'%s>%s</span></div>%s"
+            "<div class='feed'>%s</div></div>"
+            % ("" if verif_ok else " style='color:var(--verm)'",
+               html.escape(quando_verif), numeros, "".join(linhas)))
+
+
+def _prazos_a_chegar(hoje, prazos):
+    """Os prazos que caem nos proximos dias, da mais proxima para a mais
+    longe.
+
+    Le o mesmo dicionario que a fita desenha -- e a mesma pergunta em
+    duas formas, e duas consultas para o mesmo facto era a maneira certa
+    de as duas discordarem um dia."""
+    linhas = []
+    for i in range(DIAS_A_FECHAR + 1):
+        if len(linhas) >= CABEM_NO_LADO:
+            break
+        d = hoje + timedelta(days=i)
+        for r in prazos.get(d, ()):
+            if len(linhas) >= CABEM_NO_LADO:
+                break
+            linhas.append(
+                "<a href='/anuncio/%s'><span class='hj-q%s'>%s</span>"
+                "<span class='hj-c'>%s</span>"
+                "<span class='tag'>%s</span></a>"
+                % (quote(r["ref"], safe=""), " avisa" if i == 0 else "",
+                   "hoje" if i == 0
+                   else "%s %d" % (DIAS_CURTOS[d.weekday()], d.day),
+                   html.escape(corta(r["titulo"] or r["ref"], 44)),
+                   html.escape(estado_da_empresa(r["estado"]))))
+    if not linhas:
+        linhas.append("<div class='nota' style='padding:8px 0'>Nada a fechar "
+                      "nos próximos %d dias.</div>" % DIAS_A_FECHAR)
+    return ("<div class='cx'><div class='rot'>Prazos a chegar &middot; %d "
+            "dias</div><div class='prazos'>%s</div>"
+            "<a class='nota' href='/calendario' style='display:block;"
+            "margin-top:8px'>calendário &rarr;</a></div>"
+            % (DIAS_A_FECHAR, "".join(linhas)))
+
+
+def _paradas_ha_mais_tempo(hoje, quantas=3):
+    """As propostas abertas que ha mais tempo nao se mexem.
+
+    "Parada" conta-se do ULTIMO movimento -- a ultima linha do historico
+    da proposta, ou a data em que foi criada se nunca se mexeu. Uma
+    proposta aberta ha quarenta dias sem uma linha de historico nao esta
+    a correr mal: esta esquecida, que e diferente, e e o unico sinal que
+    nenhum outro bloco desta pagina da."""
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT p.id, p.ref, p.estado, "
+            "  COALESCE(NULLIF(p.titulo,''),a.titulo) AS titulo, "
+            "  COALESCE(MAX(h.quando), p.criada_em) AS mexido "
+            "FROM propostas p "
+            "LEFT JOIN anuncios a ON a.ref = p.ref "
+            "LEFT JOIN historico h ON h.proposta_id = p.id "
+            "  OR (p.ref IS NOT NULL AND h.ref = p.ref) "
+            "WHERE p.estado IN (%s) "
+            "GROUP BY p.id ORDER BY mexido LIMIT ?"
+            % ",".join("?" * len(ESTADOS_ABERTOS)),
+            list(ESTADOS_ABERTOS) + [quantas]).fetchall()
+
+    fora = []
+    for p in linhas:
+        try:
+            quando = datetime.strptime((p["mexido"] or "")[:10],
+                                       "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        dias = (hoje - quando).days
+        fora.append(
+            "<div class='l'><span class='t'><a href='%s'>%s</a></span>"
+            "<span class='v'%s>%s dia%s</span></div>"
+            % (("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
+               else "/proposta/%d" % p["id"],
+               html.escape(corta(p["titulo"] or p["ref"]
+                                 or "(sem título)", 52)),
+               " style='color:var(--laranja)'" if dias > 30 else "",
+               mil_pt(dias), "" if dias == 1 else "s"))
+    if not fora:
+        return ""
+    return ("<div class='cx'><div class='rot'>Paradas há mais tempo</div>"
+            "<div class='saude' style='margin-top:8px;gap:7px'>%s</div></div>"
+            % "".join(fora))
 
 
 @app.route("/")
 def inicio():
     hoje = datetime.now().date()
     cfg = ler_config()
+    eu = quem_sou() or ""
 
-    # 1. os quatro numeros do negocio -----------------------------------
+    # O dia escolhido na fita. Um `?dia=` estragado nao e erro: volta a
+    # hoje, que e o que a pagina e.
+    dia_escolhido = hoje
+    pedido = (request.args.get("dia") or "").strip()
+    if pedido:
+        try:
+            dia_escolhido = datetime.strptime(pedido[:10], "%Y-%m-%d").date()
+        except ValueError:
+            dia_escolhido = hoje
+    segunda = dia_escolhido - timedelta(days=dia_escolhido.weekday())
+    domingo = segunda + timedelta(days=6)
+
+    quem = _quem_pedido()
+    esconder = request.args.get("feitas") == "esconder"
+
+    # O endereco desta pagina sem os parametros que cada controlo muda --
+    # e o que as pilhas, a fita e o "esconder" reescrevem. Sem isto,
+    # escolher um dia perdia o filtro da pessoa e vice-versa.
+    def base_sem(*fora):
+        fica = [(k, v) for k, v in request.args.items(multi=True)
+                if k not in fora and k not in ("aviso", "desfazer")]
+        return "/" + ("?" + urlencode(fica) if fica else "")
+
+    # 1. os quatro factos -----------------------------------------------
     pipeline = pipeline_em_euros()
     em_jogo = sum(d["euros"] for d in pipeline.values())
     abertas = sum(d["quantas"] for d in pipeline.values())
@@ -21038,202 +22046,286 @@ def inicio():
         por_ver = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
                             valores).fetchone()["n"]
 
-    tarefas = _tarefas_por_fazer()
+    todas = _tarefas_da_abertura(segunda - timedelta(days=7), domingo)
+    pilhas = _pilhas_das_pessoas(todas, quem, eu, base_sem("quem", "dia"))
+    if quem is None:
+        minhas = list(todas)
+    else:
+        minhas = [t for t in todas
+                  if (t["quem"] or "").strip() == quem.strip()]
+
     sem_decisao = propostas_sem_decisao(hoje)
-    baldes, grupos = _grupos_das_tarefas(tarefas, hoje, sem_decisao)
-    quantas = {ch: _quantas(grupos[ch]) for ch, _, _ in baldes}
-    # O numero do KPI e o das LINHAS de tarefa desenhadas, e nao o
+    baldes, grupos = _grupos_das_tarefas(minhas, hoje, sem_decisao,
+                                         dia_escolhido, domingo)
+    # O balde do «prazo passou sem decisão» traz linhas de `propostas` e
+    # não de `tarefas`: contam-se à parte, que é o que o `_quantas()`
+    # não pode fazer (uma proposta não tem `feita_em`).
+    quantas = {ch: _quantas(grupos[ch]) for ch, _, _ in baldes
+               if ch != "sem_decisao"}
+    quantas["sem_decisao"] = len(grupos["sem_decisao"])
+    # O numero do facto e o das LINHAS de tarefa desenhadas, e nao o
     # len(tarefas): as automaticas das propostas sem decisao nao se
     # desenham, e um numero maior do que a lista e a avaria que a regra
     # da empresa proibe.
     por_fazer = sum(n for ch, n in quantas.items() if ch != "sem_decisao")
-    a_fechar = quantas["atrasadas"] + quantas["hoje"] + quantas["semana"]
 
-    def kpi(rotulo, valor, nota, alvo, estilo=""):
-        """Cada numero abre exactamente a lista que o produz -- a regra da
-        empresa. Onde nao ha lista unica que o de (o "em jogo" e a soma de
-        quatro ranhuras), aponta-se ao ecra que o DECOMPOE, e a nota
-        di-lo; o que nao se faz e apontar a uma lista parecida."""
-        return ("<a class='kpi' href='%s'><div class='r'>%s</div>"
-                "<div class='v' style='%s'>%s</div><div class='d'>%s</div></a>"
-                % (html.escape(alvo, quote=True), rotulo, estilo, valor, nota))
+    def facto(valor, texto, alvo, classe=""):
+        """Um facto da linha do topo. Cada um abre exactamente a lista
+        que o produz -- a regra da empresa. Onde nao ha lista unica que o
+        de (o "em jogo" e a soma de quatro ranhuras), aponta-se ao ecra
+        que o DECOMPOE, e o texto di-lo. O `texto` e HTML da casa e nao
+        do utilizador: leva as entidades do &middot; ja escritas."""
+        return ("<a href='%s'><b%s>%s</b>%s</a>"
+                % (html.escape(alvo, quote=True),
+                   (" class='%s'" % classe) if classe else "", valor, texto))
 
-    kpis = "".join((
-        # Deixou de apontar aos Indicadores: o bloco que o decompoe
-        # mudou-se para esta pagina, e um numero que sai do ecra para
-        # explicar-se e um numero que manda o leitor embora.
-        kpi("Em jogo", euros_curto(em_jogo),
-            ("%s propostas abertas" % mil_pt(abertas)) if abertas
-            else "ainda não há propostas abertas",
-            "#negocio"),
-        kpi("Taxa de vitória",
-            ("%d%%" % round(valor_taxa * 100)) if valor_taxa is not None else "—",
-            ("%s de %s decididos" % (mil_pt(ganhos), mil_pt(decididos)))
-            if decididos else "ainda não há decididos",
-            LISTA + "?estado=ganho"),
-        kpi("Por decidir", mil_pt(por_ver),
-            "anúncios em «Por ver» que ainda dá para responder",
-            LISTA + "?estado=porver",
-            "color:var(--laranja)" if por_ver else ""),
-        # O numero e TODAS as tarefas por fazer, e o destino e a lista
-        # delas aqui em baixo. Esteve a contar so as dos proximos dias e
-        # a ligar ao /calendario -- que mostra PRAZOS e nao tarefas, e
-        # com um numero que nao era o das linhas que se viam. Um numero
-        # que abre uma coisa diferente do que promete e a avaria que a
-        # regra da empresa proibe, e ja foi apanhada hoje no "+N" do
-        # calendario. Aqui a lista esta na propria pagina, e por isso o
-        # destino e uma ancora.
-        kpi("Para fazer", mil_pt(por_fazer),
-            ("%s atrasadas &middot; %s até %d dias"
-             % (mil_pt(quantas["atrasadas"]), mil_pt(a_fechar),
-                DIAS_A_FECHAR)) if quantas["atrasadas"]
-            else ("%s nos próximos %d dias" % (mil_pt(a_fechar), DIAS_A_FECHAR))
-            if a_fechar else "nada com data à vista",
-            "#fazer",
-            "color:var(--verm)" if quantas["atrasadas"] else ""),
+    factos = "".join((
+        facto(euros_curto(em_jogo) if em_jogo else "—",
+              ("em jogo &middot; %s aberta%s"
+               % (mil_pt(abertas), "" if abertas == 1 else "s"))
+              if abertas else "em jogo", "/situacao"),
+        facto(("%d%%" % round(valor_taxa * 100))
+              if valor_taxa is not None else "—",
+              ("de vitória &middot; %s de %s"
+               % (mil_pt(ganhos), mil_pt(decididos))) if decididos
+              else "de vitória", LISTA + "?estado=ganho"),
+        facto(mil_pt(por_ver), "por decidir", LISTA + "?estado=porver",
+              "avisa" if por_ver else ""),
+        facto(mil_pt(quantas["atrasadas"]),
+              "atrasadas &middot; %s para fazer" % mil_pt(por_fazer),
+              "#fazer", "mau" if quantas["atrasadas"] else ""),
+        "<a class='adiante' href='/situacao'>Ponto de situação &rarr;</a>",
     ))
 
-    # 2. o que tenho de fazer -------------------------------------------
-    #
-    # A linha diz de QUE CONCURSO e a tarefa e deixa resolve-la ali
-    # (fase 1 do CICLOS.md): ate 16/09/2026 mostrava a data, o texto e o
-    # titulo, e concluir so existia na ficha do anuncio -- 55 linhas
-    # iguais e uma viagem por cada uma.
-    def cabeca_do_grupo(ref, titulo, estado, entidade, id_proposta=None,
-                        selector=False, nota=""):
-        alvo = ("/anuncio/" + quote(ref, safe="")) if ref else (
-            "/proposta/%d" % id_proposta if id_proposta else LISTA)
-        etiquetas = ""
-        if ref:
-            etiquetas += "<span class='tag'>%s</span>" % html.escape(ref)
-        if estado:
-            etiquetas += ("<span class='tag'>%s</span>"
-                          % html.escape(estado_da_empresa(estado)))
-        if entidade:
-            etiquetas += ("<span class='hj-c'>%s</span>"
-                          % html.escape(corta(entidade, 50)))
-        if nota:
-            etiquetas += "<span class='tag mau'>%s</span>" % html.escape(nota)
-        manda = ("/proposta/%d/escada" % id_proposta if id_proposta
-                 else "/escada/" + quote(ref, safe="")) if selector else ""
-        return ("<div class='hj-p'><a href='%s'>%s</a>%s%s</div>"
-                % (html.escape(alvo, quote=True),
-                   html.escape(corta(titulo or ref or "(sem título)", 70)),
-                   etiquetas,
-                   selector_de_ranhura(manda, estado, titulo=titulo or ref or "")
-                   if manda else ""))
+    # 2. a fita da semana -----------------------------------------------
+    prazos = _prazos_da_janela(min(segunda, hoje),
+                               max(domingo, hoje + timedelta(days=DIAS_A_FECHAR)))
+    fita = _fita_da_semana(hoje, dia_escolhido, minhas, prazos,
+                           base_sem("dia"))
 
-    def quantos_dias(dif):
-        """Os dias que faltam, ditos como se dizem. O `conta_dias()` da
-        banda comum nao serve aqui: ele responde a "quanto falta para um
-        prazo" e devolve "termina hoje" para tudo o que ja passou, e uma
-        tarefa atrasada tem de dizer HA QUANTO."""
-        if dif == 0:
-            return "hoje"
-        if dif == 1:
-            return "amanhã"
-        if dif == -1:
-            return "ontem"
-        return ("há %d dias" % -dif) if dif < 0 else conta_dias(dif)
-
+    # 3. o que tenho de fazer -------------------------------------------
     def linha_da_tarefa(t, dia):
-        quando = ("<span class='hj-q'>%s &middot; %s</span>"
-                  % (data_pt(dia.isoformat()), quantos_dias((dia - hoje).days))
-                  if dia else "<span class='hj-q vago'>sem data</span>")
-        quem = t["quem"] or ""
-        # As accoes valem de QUALQUER pagina: o `volta_ao_referer()` das
-        # rotas traz de volta a esta, e o desfazer vem no aviso.
-        botoes = (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq")
-                  + "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
-                    "<input type='text' name='quando' inputmode='numeric' "
-                    "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
-                    "<input type='text' name='quem' maxlength='60' "
-                    "list='pessoas' value='%s' placeholder='quem'>"
-                    "<button type='submit' class='mini'>gravar</button></form>"
-                  % (t["id"], html.escape(quem, quote=True)))
-        return ("<div class='hj-l'>%s<span class='hj-o'>%s</span>"
-                "<span class='hj-c'>%s%s</span>"
-                "<span class='hj-bts'>%s</span></div>"
-                % (quando, html.escape(t["o_que"] or ""),
+        feita = bool(t["feita_em"])
+        # A CAIXA e um <button> de um POST e nao um <input type=checkbox>:
+        # sem JS uma caixa nao submete nada, e este gesto tem de valer
+        # sem JS. A rota volta a ANCORA desta linha (#t<id>), que e a
+        # queixa que este redesenho veio resolver.
+        caixa = accao("/tarefa/%d/%s" % (t["id"],
+                                         "por-fazer" if feita else "feita"),
+                      "", "chk on" if feita else "chk")
+        # Duas formas do mesmo: a de LER, com o `&middot;` já escrito, e
+        # a do `title=`, em texto simples. Escapar a primeira outra vez
+        # para o atributo dava «60/2026 &amp;middot; Câmara», que é o que
+        # a dica mostrava ao passar por cima.
+        pedacos = [p for p in (t["ref"] or "",
+                               corta(t["a_entidade"] or t["entidade"] or "",
+                                     30)) if p]
+        concurso = " &middot; ".join(html.escape(p) for p in pedacos)
+        concurso_cru = " · ".join(pedacos)
+        fim = ""
+        if t["a_prazo"]:
+            try:
+                d_prazo = datetime.strptime(t["a_prazo"][:10],
+                                            "%Y-%m-%d").date()
+            except ValueError:
+                d_prazo = None
+            if d_prazo == hoje:
+                fim = "<span class='chip-prazo avisa fim'>fecha hoje</span>"
+            elif d_prazo:
+                fim = ("<span class='fim'>entrega %s</span>"
+                       % data_curta(d_prazo))
+        if feita:
+            fim = ("<span class='fim'>%s</span>"
+                   % accao("/tarefa/%d/por-fazer" % t["id"], "desfazer",
+                           "mini"))
+        classe_q = ""
+        if dia and not feita:
+            classe_q = " mau" if dia < hoje else " avisa" if dia == hoje else ""
+        return ("<div class='hj-row%s' id='t%d'>%s"
+                "<span class='hj-o'>%s%s</span>"
+                "<span class='hj-q%s'>%s</span>"
+                "<span class='hj-c' title='%s'>%s</span>%s%s</div>"
+                % (" feita" if feita else "", t["id"], caixa,
+                   html.escape(t["o_que"] or ""),
                    ("<span class='tag' title='vem das datas do DR e "
                     "acompanha-as'>automática</span>"
                     if t["origem"] in ORIGENS_AUTOMATICAS else ""),
-                   (" " + html.escape(quem)) if quem else "",
-                   botoes))
+                   classe_q,
+                   data_curta(dia) if dia else "sem data",
+                   html.escape(concurso_cru, quote=True), concurso,
+                   _avatar_html(t["quem"], eu), fim))
 
-    def bloco_do_balde(chave, aqui):
-        pedacos = []
-        for cabeca, itens in aqui:
-            if chave == "sem_decisao":
-                # `cabeca` e uma linha de `propostas`
-                pedacos.append(cabeca_do_grupo(
-                    cabeca["ref"], cabeca["titulo"], cabeca["estado"],
-                    cabeca["entidade"] or cabeca["a_entidade"],
-                    id_proposta=cabeca["id"], selector=True,
-                    nota="prazo a %s" % data_pt(cabeca["a_prazo"])))
-                continue
-            pedacos.append(cabeca_do_grupo(
-                cabeca["ref"], cabeca["p_titulo"], cabeca["estado"],
-                cabeca["a_entidade"] or cabeca["entidade"],
-                id_proposta=cabeca["proposta_id"]))
-            pedacos.extend(linha_da_tarefa(t, d) for t, d in itens)
-        return "".join(pedacos)
+    def linha_sem_decisao(p):
+        """Uma proposta cujo prazo passou e que continua por decidir. Nao
+        tem caixa de ✓ -- nao e uma tarefa, e uma decisao por tomar --,
+        tem o selector da ranhura."""
+        alvo = ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"] \
+            else "/proposta/%d" % p["id"]
+        return ("<div class='hj-sem'><div><a href='%s'>%s</a>"
+                "<div class='hj-c'><span class='tag'>%s</span> %s &middot; %s "
+                "&middot; <span style='color:var(--verm)'>prazo a %s</span>"
+                "</div></div>%s</div>"
+                % (html.escape(alvo, quote=True),
+                   html.escape(corta(p["titulo"] or p["ref"]
+                                     or "(sem título)", 62)),
+                   html.escape(estado_da_empresa(p["estado"])),
+                   html.escape(p["ref"] or ""),
+                   html.escape(corta(p["entidade"] or p["a_entidade"]
+                                     or "", 34)),
+                   data_pt(p["a_prazo"]),
+                   selector_de_ranhura("/proposta/%d/escada" % p["id"],
+                                       p["estado"],
+                                       titulo=p["titulo"] or p["ref"] or "")))
 
-    if any(grupos[ch] for ch, _, _ in baldes):
-        blocos = []
-        for chave, rotulo, classe in baldes:
-            aqui = grupos[chave]
-            if not aqui:
-                continue
+    def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui):
+        direita = ""
+        if chave == "sem_decisao":
+            direita = ("<span class='direita'>o radar não mexe — escolhe a "
+                       "ranhura</span>")
+        elif chave == "atrasadas":
+            direita = ("<a class='mini direita' href='%s'>adiar todas p/ "
+                       "hoje</a>"
+                       % html.escape("/tarefas/adiar" + (
+                           "?" + urlencode([("quem", quem)])
+                           if quem is not None else ""), quote=True))
+        return ("<div class='hj-t'><span class='seta'></span>"
+                "<span>%s</span><i>%s</i>%s%s</div>"
+                % (rotulo, mil_pt(por_fazer_aqui),
+                   (" <span class='feitas'>&middot; %s feita%s</span>"
+                    % (mil_pt(feitas_aqui), "" if feitas_aqui == 1 else "s"))
+                   if feitas_aqui else "", direita))
+
+    blocos = []
+    for chave, rotulo, classe in baldes:
+        aqui = grupos[chave]
+        if not aqui:
+            continue
+        if chave == "sem_decisao":
+            cabeca = cabeca_do_balde(chave, rotulo, len(aqui), 0)
+            corpo = "".join(linha_sem_decisao(p) for p, _ in aqui)
+        else:
+            feitas_aqui = len(aqui) - quantas[chave]
+            cabeca = cabeca_do_balde(chave, rotulo, quantas[chave], feitas_aqui)
+            corpo = "".join(linha_da_tarefa(t, d) for t, d in aqui
+                            if not (esconder and t["feita_em"]))
+        if chave in ("sem_decisao", "atrasadas", "dia"):
+            # Os tres que gritam nao dobram: dobrar o que esta atrasado e
+            # a maneira mais limpa de o esquecer.
+            blocos.append("<div class='hj-g %s'>%s%s</div>"
+                          % (classe, cabeca, corpo))
+        else:
+            # `<details>` do browser, e nao JS com estado guardado: um
+            # balde aberto de um lado e fechado do outro e a maneira de
+            # o ecra deixar de dizer o que o servidor mandou.
             blocos.append(
-                "<div class='hj-g %s'><div class='hj-t'>%s <i>%s</i></div>%s</div>"
-                % (classe, html.escape(rotulo),
-                   mil_pt(len(aqui) if chave == "sem_decisao"
-                          else _quantas(aqui)),
-                   bloco_do_balde(chave, aqui)))
+                "<details class='hj-g %s'%s><summary>%s</summary>%s</details>"
+                % (classe, " open" if chave == "semana" else "",
+                   cabeca, corpo))
+
+    if blocos:
         fazer = "".join(blocos)
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
-        fazer = ("<div class='vazio'>Nada por fazer. As tarefas nascem "
+        fazer = ("<div class='vazio'>Nada por fazer ainda. As tarefas nascem "
                  "sozinhas quando um concurso entra na escada — os prazos "
-                 "de esclarecimentos e de entrega vêm do anúncio.<br>"
-                 "<a href='%s'>ver o que está por decidir</a></div>"
-                 % (LISTA + "?estado=porver"))
+                 "de esclarecimentos e de entrega vêm do anúncio.<br><br>"
+                 "<a class='bt forte' href='%s'>ver os %s por decidir</a> "
+                 "<a href='/proposta/nova'>ou cria uma proposta sem "
+                 "anúncio</a></div>"
+                 % (LISTA + "?estado=porver", mil_pt(por_ver)))
 
-    # 3. o que entrou desde a ultima vez --------------------------------
-    with liga() as c:
-        novos = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
-                          (hoje.isoformat(),)).fetchone()["n"]
-    _, quando_verif, verif_ok = linha_da_ultima_verificacao()
-    entrada = ("<div class='nota entrada-hoje%s'>"
-               "<b>%s</b> %s hoje &middot; última verificação: %s</div>"
-               % ("" if verif_ok else " mau", mil_pt(novos),
-                  "anúncio novo" if novos == 1 else "anúncios novos",
-                  quando_verif))
+    sem_feitas = base_sem("feitas")
+    alvo_esconder = sem_feitas if esconder else (
+        sem_feitas + ("&" if "?" in sem_feitas else "?") + "feitas=esconder")
+    cabecalho = (
+        "<div class='fazer-topo'><span class='rot'>Para fazer</span>%s"
+        "<a class='esconder' href='%s'><span class='chk%s'></span>"
+        "esconder as feitas</a></div>"
+        % (pilhas, html.escape(alvo_esconder + "#fazer", quote=True),
+           " on" if esconder else ""))
+    rodape = ("<div class='fazer-fundo'><span>✓ risca no sítio &middot; "
+              "desfazer na linha &middot; a página fica onde está</span>"
+              "<a class='adiante' href='/calendario'>calendário &rarr;</a>"
+              "</div>")
 
-    hora = datetime.now().hour
-    saudacao = ("Bom dia" if hora < 13 else
-                "Boa tarde" if hora < 20 else "Boa noite")
     return envolver(
-        "inicio", saudacao,
+        "inicio", dia_por_extenso(hoje),
         "O estado do negócio e o que há para fazer. Os números abrem a "
         "lista que os produz; as tarefas nascem sozinhas quando um "
         "concurso entra na escada.",
-        "<div class='larg'><div class='kpis'>%s</div>%s"
-        "<div class='cx hoje' id='fazer'><h2>O que tenho de fazer</h2>%s</div>"
-        # Os numeros do negocio, que vieram dos Indicadores a 16/09/2026
-        # (palavra dele). Vem DEPOIS do que ha para fazer: chegar e ver o
-        # que tem de fazer e a primeira pergunta; como vai o negocio e a
-        # segunda.
-        "<div id='negocio' style='display:flex;flex-direction:column;"
-        "gap:18px;margin-top:18px'>%s</div>"
-        "</div>"
-        % (kpis, entrada, fazer, numeros_do_negocio()),
+        "<div class='larg'>%s<div class='dois'>"
+        "<div class='cx' id='fazer' style='padding:0'>%s%s%s</div>"
+        "<div class='lado'>%s%s%s</div></div></div>"
+        % (fita, cabecalho, fazer, rodape,
+           _o_que_mudou(hoje, cfg), _prazos_a_chegar(hoje, prazos),
+           _paradas_ha_mais_tempo(hoje)),
+        abas="<div class='factos-linha'>%s</div>" % factos,
         # O selector de ranhura do balde «prazo passou sem decisão» pede
         # motivo em duas das oito palavras, e sem a caixa o gesto ficava
         # a meio (o servidor recusa e diz porquê, mas aqui há JS).
         script=caixa_do_motivo(),
         titulo_aba="Radar de Concursos, DR")
+
+
+def _atrasadas_de(quem, hoje):
+    """As tarefas por fazer com data anterior a hoje, do dono pedido.
+
+    `quem` a None e "de toda a gente"; `quem` vazio e "sem dono" -- as
+    mesmas tres respostas do filtro da abertura, porque o botao "adiar
+    todas" tem de adiar exactamente o que a lista mostra."""
+    return [t for t in _tarefas_por_fazer()
+            if (_dia_da_tarefa(t) or hoje) < hoje
+            and (quem is None or (t["quem"] or "").strip() == quem.strip())]
+
+
+@app.route("/tarefas/adiar")
+def tarefas_adiar():
+    """A pergunta do "adiar todas p/ hoje". Doze linhas vermelhas de
+    ontem, cada uma com o seu formulario, eram doze viagens para dizer a
+    mesma coisa.
+
+    A pagina so PERGUNTA: quem muda a base e o POST, como tudo o resto
+    (accao()). E pergunta porque nao ha desfazer para isto -- cada
+    tarefa tinha a sua data, e um unico "desfazer" nao sabe repo-las."""
+    hoje = datetime.now().date()
+    quem = _quem_pedido()
+    atrasadas = _atrasadas_de(quem, hoje)
+    corpo = ("<div class='cx' style='padding:22px 24px'>"
+             "<div class='rot'>Adiar as atrasadas</div>"
+             "<p class='nota'>São <b>%s</b> tarefa%s com data anterior a "
+             "hoje%s. Adiar passa-as todas para %s; o texto, o dono e o "
+             "concurso ficam como estão. <b>Não há desfazer</b>: cada uma "
+             "tinha a sua data.</p><div style='display:flex;gap:8px'>%s"
+             "<a class='bt' href='/'>voltar sem mexer</a></div></div>"
+             % (mil_pt(len(atrasadas)), "" if len(atrasadas) == 1 else "s",
+                "" if quem is None else
+                (" sem dono" if not quem.strip()
+                 else " de %s" % html.escape(quem)),
+                data_pt(hoje.isoformat()),
+                accao("/tarefas/adiar",
+                      "adiar %s para hoje" % mil_pt(len(atrasadas)),
+                      "bt forte",
+                      campos={} if quem is None else {"quem": quem})
+                if atrasadas else ""))
+    return envolver("inicio", "Adiar as atrasadas",
+                    "Passa para hoje as tarefas com data anterior.",
+                    "<div class='larg'>%s</div>" % corpo,
+                    titulo_aba="Adiar as atrasadas, Radar de Concursos")
+
+
+@app.route("/tarefas/adiar", methods=["POST"])
+def tarefas_adiar_fazer():
+    """O POST do "adiar todas p/ hoje"."""
+    hoje = datetime.now().date()
+    quem = request.form.get("quem")
+    quantas = 0
+    for t in _atrasadas_de(quem, hoje):
+        ok, _ = gravar_tarefa(t["id"], quando=hoje.isoformat())
+        quantas += 1 if ok else 0
+    return redirect(destino_seguro("/?" + urlencode(
+        [("aviso", "%s tarefa%s adiada%s para hoje."
+          % (mil_pt(quantas), "" if quantas == 1 else "s",
+             "" if quantas == 1 else "s"))])) + "#fazer")
 
 
 # ------------------------------------------------------------- arranque

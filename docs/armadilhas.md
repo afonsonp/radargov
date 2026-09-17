@@ -2507,6 +2507,68 @@ botões ou no calendário.
   chamarem-se "entidade", o aviso do parcial saía "entidade Município de
   Lisboa — aqui não se aplica: entidade".
 
+- **Um `@media` do `CSS_NOVO` não pode fechar com o `}` sozinho no
+  início de uma linha** (17/09/2026). O
+  `test_tudo_o_que_pinta_esta_dentro_do_ambito` lê a folha com
+  `^([^@\s/][^{]*)\{` para provar que toda a regra está dentro de
+  `[data-pele=novo]`, e um `}` em coluna 1 é engolido como início de
+  selector, levando o `@media` seguinte atrás dele. Fecha-se o bloco
+  colado à última regra (`…min-width:0}}`). Só apareceu quando o
+  `CSS_NOVO` passou a ter `@media`, que foi com a abertura redesenhada.
+
+- **Um formulário que vai dentro de uma grelha CSS é DOIS elementos, não
+  um.** A caixa de ✓ da linha de tarefa é um `<button>` dentro do
+  `<form>` do `accao()` — tem de ser, porque um `<input type=checkbox>`
+  não submete nada sem JS e este gesto vale sem JS. Na grelha, quem
+  ocupa a célula é o `<form>`, e por isso ele leva `display:flex` e o
+  botão leva o tamanho; estilizar só o `.chk` deixava a célula com a
+  altura do formulário e a caixa encostada ao canto.
+
+- **Um texto que já traz `&middot;` não se volta a escapar para dentro
+  de um `title=`** (17/09/2026, apanhado a escrever a linha nova). A
+  coluna do concurso tem duas formas — a de ler, com as entidades HTML
+  escritas, e a do atributo, em texto simples. Passar a primeira por
+  `html.escape()` outra vez punha «60/2026 &amp;middot; Câmara» na dica.
+  É a mesma armadilha do `ultima_mensagem`: guarda-se o **carácter**.
+
+- **A abertura tem parâmetros SEUS na query string desde 17/09/2026**
+  (`?dia=`, `?quem=`, `?feitas=`), e por isso a propriedade que o
+  `test_nenhuma_ligacao_manda_para_a_lista_pelo_endereco_antigo` guarda
+  estreitou-se de «nada escreve `href='/?`» para «nada escreve
+  `href='/?estado=`». O que continua proibido é o que custou as nove
+  ligações silenciosas: mandar alguém para a **lista** pelo endereço da
+  abertura. Uma ligação dessas não dá erro — a abertura responde 200 e
+  ignora o `?estado=`.
+
+- **`?quem=` tem três respostas e não duas.** Ausente é «todos», vazio é
+  «sem dono», com valor é «desta pessoa». Um `request.args.get("quem")
+  or ""` a meio disto faz o «sem dono» mostrar tudo — e é a diferença
+  entre um filtro e um botão que não faz nada. Vale para qualquer filtro
+  futuro em que o vazio signifique alguma coisa.
+
+- **Nada do que a abertura mostra se guarda no browser.** O dia
+  escolhido, a pessoa e o «esconder as feitas» vivem no endereço, e cada
+  controlo reescreve **só o seu** parâmetro (`base_sem()`): sem isso,
+  escolher um dia deitava fora o filtro da pessoa. É a regra do §9 do
+  `docs/design.md` — o que está no ecrã está no endereço, e um endereço
+  colado a outra pessoa mostra-lhe o mesmo.
+
+- **Uma acção que muda uma linha volta à ÂNCORA dessa linha.** O
+  `_volta_com_aviso(..., ancora="t<id>")` (17/09/2026) existe por causa
+  da queixa dele: «concluo a tarefa e volto para o início da página».
+  Numa lista de cinquenta, reencontrar onde se ia custa mais do que o
+  gesto que se fez. Quem acrescentar uma acção de linha nova passa a
+  âncora — não é enfeite, é metade do gesto.
+
+- **«Em jogo» não leva seta de comparação.** O pipeline é uma
+  fotografia de agora; comparar o que está em jogo hoje com o que estava
+  no trimestre passado pedia um histórico que a base não guarda. O
+  `_delta_html()` devolve «sem comparação» sempre que falta um dos dois
+  lados — uma seta contra um zero que só quer dizer «não havia dados» é
+  a maneira mais rápida de uma página de indicadores mentir. E o período
+  conta pela `fechada_em`: uma proposta ainda aberta não se decidiu em
+  período nenhum, e metê-la num fazia a taxa mexer sem nada ter mudado.
+
 
 ---
 
