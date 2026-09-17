@@ -55,8 +55,9 @@ Funciona. Os números são de **17/09/2026**, lidos das duas bases.
 | Contas | 2 |
 | Rotas Flask | 77 |
 | Tabelas em `radar.db` | 23 |
-| Testes | **1 034**, em ~85 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 21 475 linhas · `teste_radar.py` 13 011 · `empresa.py` 641 · `contas.py` 302 |
+| Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
+| Testes | **1 036**, em ~90 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 21 492 linhas · `teste_radar.py` 13 011 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
 
 **As duas bases não se cruzam em SQL**: cada uma tem a sua ligação
@@ -127,7 +128,7 @@ contagens do painel vão por índice de cobertura.
   `"triagem_no_git": false`.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a `v1.1.0`.
+  — nunca segue o `master` a cada merge. A última é a **`v1.7.0`**, de 17/09/2026.
 - **As migrações das fases 2 e 3** (`propostas.entidade_chave`,
   `historico.proposta_id`, o prefixo `n:` nos contactos) correm no
   primeiro arranque depois do `actualizar.sh`. São `ALTER TABLE ADD

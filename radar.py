@@ -829,6 +829,23 @@ def iniciar_db():
                   "ON anuncios(plataforma)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_estado_cpv "
                   "ON anuncios(estado, cpv)")
+        # O filtro por entidade (`condicoes()`, campo `nif`), que é
+        # `nif = ? OR entidade IN (SELECT DISTINCT entidade WHERE nif=?)`
+        # -- as duas metades, porque só com uma delas indexada o SQLite
+        # não usa a optimização MULTI-INDEX OR e varre a tabela larga na
+        # mesma. **São precisos os dois.** Medido a 17/09/2026 na base
+        # dele, a contar os 1 617 anúncios da Santa Casa: sem índice
+        # nenhum 1,36 s (dois `SCAN anuncios`), só com o do `nif` 0,66 s,
+        # com os dois **0,01 s**. Custam 22 MB numa base de 1,29 GB e
+        # ~1,3 s a construir, uma vez.
+        #
+        # O `nif` leva a `entidade` atrás para a subconsulta se servir do
+        # índice sem ir à tabela (COVERING INDEX) -- e é isso que evita
+        # arrastar os 840 MB de `texto` para responder a um COUNT.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_nif "
+                  "ON anuncios(nif, entidade)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_entidade "
+                  "ON anuncios(entidade)")
         largar_o_que_a_escada_substituiu(c)
         traduzir_filtros_guardados(c)
         empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)

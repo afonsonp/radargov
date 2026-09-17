@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 19
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 53
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 54
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 50
 - [Convenções](#convencoes) &middot; 3
 
-São **208** ao todo, contados a 17/09/2026. Contam-se por secção com
+São **209** ao todo, contados a 17/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1307,6 +1307,23 @@ pelo Afonso e nenhuma se reabre de passagem.
   procura-se pelas duas**: `chaves_da_entidade()` tenta o NIF e o nome,
   para um contacto criado quando o anúncio ainda não trazia NIPC
   continuar a aparecer depois.
+
+- **O filtro por entidade precisa de DOIS índices, e só juntos.** O
+  campo `nif` do `condicoes()` traduz-se em `nif = ? OR entidade IN
+  (SELECT DISTINCT entidade FROM anuncios WHERE nif=?)`, e até
+  17/09/2026 **nenhuma das metades tinha índice**: eram dois `SCAN
+  anuncios` sobre a tabela larga. Medido na base dele, a contar os 1 617
+  anúncios da Santa Casa: **1,36 s** sem índice nenhum, **0,66 s** só
+  com o do `nif`, **0,01 s** com os dois. Com um só, o SQLite não usa a
+  optimização **MULTI-INDEX OR** e varre na mesma — é por isso que
+  `ix_anuncios_nif(nif, entidade)` e `ix_anuncios_entidade(entidade)`
+  andam aos pares, e é o erro fácil de cometer a limpar índices «que
+  ninguém usa». Custam 22 MB numa base de 1,29 GB e 1,3 s a construir,
+  uma vez. **Foi ele que o apanhou a usar a aplicação** («parece-me que
+  está muito lenta»), e não a bateria: a ficha da entidade passou de
+  0,33 s para 1,63 s quando a fase 2 lhe pôs o lado da empresa, e nada
+  no teste disso falhava. Agora falha
+  (`test_a_ficha_da_entidade_nao_varre`).
 
 - **A ficha de uma entidade existe sem corpus.** Uma entidade sem
   contrato celebrado dava 404, e é a mais provável de interessar — o
