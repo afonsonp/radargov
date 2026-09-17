@@ -9130,6 +9130,42 @@ class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
     def test_os_alertas_nao_varrem(self):
         self._sem_varrimento("/configuracoes/alertas")
 
+    def test_a_ficha_da_entidade_nao_varre(self):
+        """17/09/2026, e apanhado por ele a usar a aplicação: «parece-me
+        que está muito lenta».
+
+        A fase 2 pôs o lado da empresa na ficha da entidade, e o número
+        dos anúncios dela sai do filtro `nif` do `condicoes()` —
+        `nif = ? OR entidade IN (SELECT DISTINCT entidade WHERE nif=?)`.
+        **Nenhuma das duas metades tinha índice**, e por isso a página
+        fazia dois `SCAN anuncios`: 0,33 s na v1.6.0 contra 1,63 s na
+        v1.7.0, medido lado a lado sobre a mesma base.
+        """
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, nif, "
+                      "estado, data_pub, prazo, titulo_norm, entidade_norm) "
+                      "VALUES ('90/2026','Software','CML','506000000','novo',"
+                      "'2026-09-01','2026-12-01','software','cml')")
+        self._sem_varrimento("/entidade/506000000")
+
+    def test_os_dois_indices_da_entidade_sao_precisos_juntos(self):
+        """A regra que o `_sem_varrimento()` não consegue dizer: qual dos
+        dois índices é que faltava. Só com o do `nif`, o SQLite não usa a
+        optimização MULTI-INDEX OR e varre na mesma — 1,36 s sem nenhum,
+        0,66 s só com o do `nif`, 0,01 s com os dois (medido). É o erro
+        fácil de cometer a limpar índices «que ninguém usa»."""
+        with radar.liga() as c:
+            tem = {r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'")}
+        self.assertIn("ix_anuncios_nif", tem)
+        self.assertIn("ix_anuncios_entidade", tem)
+        onde, vals = radar.condicoes({"nif": "506000000", "estado": ""})
+        with radar.liga() as c:
+            passos = [r[-1] for r in c.execute(
+                "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM anuncios" + onde,
+                vals)]
+        self.assertTrue(any("MULTI-INDEX OR" in p for p in passos), passos)
+
     def test_os_indices_existem_e_repor_e_idempotente(self):
         # o mesmo que as migrações: correr duas vezes não muda nada
         radar.iniciar_db()
