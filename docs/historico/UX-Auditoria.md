@@ -1,5 +1,9 @@
 # UX-Auditoria.md
 
+> **Instantâneo de 02/09/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Auditoria das regras de interface do radar, passadas pela lente das
 vinte «leis de UX» (Hick, Fitts, Jakob, Miller, Doherty, Von Restorff,
 Postel, Peak-End, Zeigarnik, Prägnanz, Tesler, Goal-Gradient e as

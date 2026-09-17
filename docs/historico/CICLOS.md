@@ -1,5 +1,9 @@
 # Plano: fechar os ciclos da plataforma, e arrumar a documentação
 
+> **Instantâneo de 16/09/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Escrito a **16 de setembro de 2026**, à noite, a pedido do Afonso: «a
 aplicação está a ganhar funcionalidades mas parece-me que os caminhos
 não estão fechados. Para abrir a folha de uma entidade tenho de procurar
@@ -785,3 +789,21 @@ utilizador e do projecto ficam acima das skills).
   `preco_anormalmente_baixo` e a `localizacao` são condicionais, e
   exigi-los fazia toda a base parecer incompleta e mandava reler tudo
   contra o mesmo tecto. 1 029 → 1 034 testes.
+- **17/09/2026 — fase 5, a documentação.** Feita, com uma excepção
+  declarada: **os diagramas não se regeneraram** (D7). Cinco dos seis
+  contradizem o código, e a lista exacta do que cada um diz de errado
+  ficou na tabela de documentos do `CLAUDE.md` e no `BACKLOG.md` (D4),
+  para se fazer numa sessão com a skill `archify`. Regenerá-los aqui era
+  trabalho de outra natureza e teria ficado a meio, que é pior do que
+  ficar por fazer com o defeito escrito.
+  O resto saiu como planeado: o `ESTADO.md` de 860 para 156 linhas com a
+  narrativa inteira no diário, o `BACKLOG.md` com seis pendências
+  abertas (incluindo a dívida do HTML por concatenação, que não estava
+  escrita em lado nenhum vivo), o `LEIA-ME.md` sem o quadro nem as
+  quatro abas, o `docs/referencia.md` com a nota de «já não é assim» em
+  sete secções, o índice das armadilhas recontado (**208**, contra os
+  152 que ele dizia — a quarta vez que mentiu), e o aviso de instantâneo
+  nos oito ficheiros de `docs/historico/`, este incluído.
+
+**As cinco fases ficaram feitas a 17/09/2026.** Este ficheiro fecha como
+instantâneo.

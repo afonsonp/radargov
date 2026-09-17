@@ -15,18 +15,17 @@ separador Contratos — ver a secção 15).
 No ambiente de trabalho, como tinhas. Guarda tudo na mesma pasta:
 o programa, a captura, a configuração e a base de dados.
 
-Nota: se a pasta ficar dentro do OneDrive, a sincronização pode
-bloquear o ficheiro `radar.db` no momento em que ele está a escrever.
-Se um dia vires erros de base de dados bloqueada, é isto, e resolve-se
-movendo a pasta para fora do OneDrive.
+**Hoje está em `~/Desktop/radar`, no disco interno, em Ubuntu** — e é
+esse o sítio certo. Duas razões, as duas pagas: um disco externo só é
+montado quando entras no ambiente de trabalho, por isso um computador
+que arranque sem ninguém entrar não encontra a pasta (e os
+temporizadores falham em silêncio); e uma pasta dentro do OneDrive tem
+a sincronização a bloquear o `radar.db` a meio de uma escrita.
 
-**Em Ubuntu** a mesma pasta serve, também num disco NTFS. Duas coisas
-a saber: o Windows deixa pastas e ficheiros marcados «só de leitura»
-que o Linux respeita à letra — se a instalação disser *Permission
-denied*, corre `chmod -R u+w .` dentro da pasta uma vez; e um disco
-externo só é montado quando entras no ambiente de trabalho, por isso
-um computador que arranque sem ninguém entrar não encontra a pasta.
-Para servir o radar a sério, o sítio é o disco interno.
+Se algum dia voltares a pôr isto num disco vindo do Windows: o Windows
+deixa pastas e ficheiros marcados «só de leitura» que o Linux respeita à
+letra — se a instalação disser *Permission denied*, corre
+`chmod -R u+w .` dentro da pasta uma vez.
 
 ## 2. Primeira instalação
 
@@ -268,28 +267,34 @@ tenha vindo do DR não se apaga aí: tira-se da escada, e o anúncio volta
 
 ### A barra
 
-A barra de cima tem três entradas, por ordem de uso:
-**Anúncios** (a página inicial — a lista toda, triagem e acervo num
-sítio só), **Em curso** (o quadro e o calendário dos "interessa"),
-**Mercado** (os contratos e as renovações). À direita, **Configurações**
-e o teu nome. Os Indicadores estão dentro das Configurações (§8).
+A barra é **horizontal, em cima**, e tem a marca à esquerda — o
+**RadarGov** é o Hoje, e é por ele que se volta à abertura — e **dois
+itens**: **Concursos** (a lista, com a vista **Calendário**) e
+**Mercado** (os contratos, com a vista **Entidades**). À direita,
+**Configurações** e o teu nome. Os Indicadores estão dentro das
+Configurações (§8).
 
-Em cima da lista estão as quatro abas que fazem o trabalho todo:
+Em cima da lista estão as **dez ranhuras da escada**, por ordem:
 
 - **Por ver** — o que está por decidir **e ainda dá para responder**:
   prazo aberto, ou, quando o prazo ainda não foi lido, publicado nos
   últimos 60 dias (a janela `detalhe_dias`). É a aba em que a página
-  abre, e anda na ordem do milhar, não dos 60 mil.
-- **Interessados** — os teus "interessa", todos: um interessa com o
-  prazo já passado é trabalho em curso (proposta entregue, à espera de
-  decisão) e não desaparece daqui.
-- **Abandonados** — os que abandonaste à mão **mais tudo o que já não
-  é possível responder** (prazo passado, ou publicado há tanto tempo
-  que o prazo já lá vai). Passa para cá sozinho, sem mexer em nada: se
-  um anúncio for rectificado com prazo novo, volta sozinho ao Por ver.
-- **Todos** — a base inteira, sem recorte.
+  abre, e anda na ordem do milhar, não dos 200 mil.
+- As **oito palavras da empresa** — *por analisar · a preparar proposta
+  · submetido · relatório preliminar · ganho · perdido · não fomos ·
+  cancelado*. Estas oito mostram **propostas**, não anúncios: com lotes
+  há uma proposta por lote, e há propostas que nem anúncio têm.
+- **Expirou sem ver** — o que já não é possível responder e ninguém
+  chegou a olhar. Passa para cá sozinho: se um anúncio for rectificado
+  com prazo novo, volta ao Por ver.
 
-A lista vem sempre do mais recente para o mais antigo.
+As duas pontas mostram **anúncios**; as oito do meio, propostas. A lista
+vem sempre do mais recente para o mais antigo.
+
+**O quadro saiu a 15/09/2026**, por decisão tua: oito colunas e oito
+abas eram a mesma coisa duas vezes. A ranhura muda-se no selector de
+cada linha, e tudo o que o cartão fazia vive no bloco «A nossa proposta»
+da ficha.
 
 **Um concurso aparece uma vez, mesmo que o DR o publique três.** O DR
 não corrige um anúncio: publica outro, com número novo, cujo texto
@@ -356,11 +361,11 @@ interessa, `a` abre a caixa do motivo de abandono, e Enter abre a
 ficha. Não fazem nada com o cursor num campo de texto. A pista «j k i
 a ⏎» na linha da contagem é isto.
 
-Um filtro que valha a pena repetir guarda-se com nome (botão "guardar
-filtro") e volta-se a ele com um clique; em **Configurações › Alertas** liga-se a
-qualquer filtro guardado um aviso no resumo diário, define-se o
-**interesse** (os CPV que recortam a lista, ver §5), e configura-se o
-e-mail e a janela do "urgente". O resumo chega formatado — um cartão
+**Os filtros guardados deixaram de existir a 13/09/2026**: o que há é
+**Criar alerta**, em cima do filtro em uso. Em **Configurações ›
+Alertas** gerem-se os alertas e configura-se o e-mail e a janela do
+«urgente»; o **interesse** (os CPV que recortam a lista, ver §5) tem
+secção própria. O resumo chega formatado — um cartão
 por anúncio, com o prazo colorido como na lista — e o mesmo conteúdo
 fica em texto no `AVISOS.txt`. Em **Mercado** vivem os **Contratos**
 (o que já foi adjudicado, com gráficos sobre o filtro), com dois modos
@@ -368,10 +373,11 @@ no mesmo ecrã: **por celebração** e **por fim estimado** — as antigas
 Renovações, agora uma aba que mantém o filtro e mostra o que está a
 chegar ao fim (o modo diz-se no título da tabela, e as datas de
 celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
-de cada entidade** (o que compra e o que ganha), com uma ligação
-directa a "o que está a acabar" dela — e há uma caixa **"Ficha de
-entidade"** no topo que aceita nome ou NIF e abre a ficha
-directamente, cobrindo todas as grafias com que a entidade já assinou.
+de cada entidade**, com uma ligação directa a «o que está a acabar»
+dela — e há a vista **Entidades** na barra, com a procura por nome ou
+NIF (que cobre todas as grafias com que a entidade já assinou) e quatro
+atalhos: com quem trabalhamos, seguidas, clientes que mais compram,
+concorrentes que mais ganham.
 
 Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de
@@ -428,13 +434,13 @@ baixo dos panos. Quando há um filtro de CPV a valer, aparece uma linha
 
 ## 6. A ficha do anúncio
 
-Clicar no título de um anúncio — na lista, no quadro ou no calendário —
+Clicar no título de um anúncio — na lista, no Hoje ou no calendário —
 abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 
 - os factos de topo: prazo com contagem de dias, preço base, plataforma,
   e o CPV já com a descrição por extenso — com uma ligação **ver
-  anúncios deste CPV na Pesquisa**, para responder ao "que mais há
-  disto?";
+  anúncios deste CPV**, que abre a lista já filtrada — para responder ao
+  «que mais há disto?»;
 - **as peças do procedimento** (Programa de Concurso, Caderno de
   Encargos, anexos) — os PDF abrem **dentro da aplicação**, numa página
   própria onde é o próprio radar que desenha o documento, página a
@@ -687,8 +693,7 @@ lá em cima, no «Estado da recolha». Números sobre o teu próprio radar:
 quantos anúncios tens, quantos entraram hoje, quantos marcaste como
 interessa (e destes, quantos estão dentro da janela do "urgente" — os
 mesmos N dias do filtro e da etiqueta cor de âmbar, editáveis em
-Configurações › Alertas), quantos ainda estão sem detalhe lido, como estão distribuídos
-pelas fases do quadro, e o estado da recolha — se as capturas ainda são
+Configurações › Alertas), quantos ainda estão sem detalhe lido, e o estado da recolha — se as capturas ainda são
 válidas e que percentagem de peças se consegue por plataforma. Na saúde
 aparecem também a última cópia, o último ensaio de restauro
 (`--ensaiar-copia`, secção 13) e, se houver, o último erro que o painel
@@ -696,90 +701,53 @@ deu (uma página a dizer «Correu mal» fica aqui registada).
 
 É tudo lido da tua base, não sai nada para fora.
 
-## 9. O quadro
+## 9. A escada, e o bloco «A nossa proposta»
 
-Item **Em curso**, na barra da esquerda — o quadro é a vista que abre
-por omissão (o calendário é a segunda, §10). Mostra os anúncios
-marcados **interessa** organizados em colunas (fases), ao estilo
-Trello/kanban. O botão "Verificar agora" não está aqui: vive só na
-lista dos **Anúncios**, que é onde os novos aterram — na aba "por ver".
+**O quadro saiu a 15/09/2026, e o «Em curso» com ele.** O que faziam
+mora em dois sítios.
 
-São **seis fases, e são estas** — *Por analisar, A preparar proposta,
-Submetido, Relatório preliminar, Ganho, Perdido*: o funil da empresa. Podes
-mudar-lhes o nome; criar e apagar colunas já não, porque cada coluna tem
-um papel e é o papel que decide o que o cartão pergunta.
+**A ranhura muda-se na linha.** Em qualquer lista — a dos Concursos, a
+do Hoje — cada linha tem um selector com as oito palavras da empresa
+mais «tirar da escada». Escolhe e carrega em «ir». Onde a ranhura pede
+um motivo («Perdido», «Não fomos») abre-se uma caixa a perguntar
+porquê; e onde ela exige um campo que ainda não está preenchido, o
+gesto é recusado e o aviso diz o que falta (§5, «Mudar de ranhura»).
 
-**Um cartão por anúncio, mesmo com lotes** — foi assim que decidiste
-a 2/09/2026. O cartão de um anúncio com lotes diz a que lotes fomos
-(«fomos a 2 dos 3 lotes», com uma etiqueta por lote: L1 perdido, L2
-ganho…) ou que não há registo. E **no fim separam-se**: um anúncio
-cujo cartão está no Ganho com lotes perdidos tem também um cartão de
-lotes na coluna Perdido, a tracejado, que não se arrasta e liga ao
-bloco dos lotes na ficha; e ao contrário. Isso vem do registo da
-empresa, lote a lote — o quadro não inventa resultados.
+**Tudo o resto vive no bloco «A nossa proposta»**, na ficha do anúncio —
+e há um bloco por lote, quando há lotes. Lá dentro: a ranhura, os campos
+que ela pede (preço proposto, lugar, os três primeiros, o motivo), o que
+a empresa decide (tipologia, CV, proposta técnica), o responsável, o
+CoE, as notas, as etiquetas, o que falta fazer, e o desfecho do Portal
+BASE quando já há contrato celebrado.
 
-**Cada fase pede o que lhe falta**, no próprio cartão — e o cabeçalho
-da coluna diz o quê, para se ver sem ser preciso lá pôr um cartão
-primeiro:
-
-| Fase | O que o cartão pede |
-|---|---|
-| Por analisar | nada |
-| A preparar proposta | nada |
-| Submetido | o **preço proposto** — e passa a ser esse o preço que o cartão e a soma da coluna mostram, em vez do preço base |
-| Relatório preliminar | em que **lugar** ficaste e quem são os **três primeiros** |
-| Ganho | nada |
-| Perdido | **porquê**, à escolha de quatro: *Preço, CV's, Proposta técnica, Certificações* |
-
-Enquanto o preço proposto não estiver preenchido, o cartão mostra o preço
-base **escrito como "base"** — para não passar o tecto da entidade por
-proposta tua. Tudo o que gravas nestes campos fica também no histórico da
-ficha.
-
-- **Arrastar um cartão** para outra coluna move-o de fase.
-- O nome de cada coluna é editável, clica e escreve.
-- **+ etiqueta**, em cada cartão, cria ou aplica uma etiqueta (com cor
-  automática). O `×` ao lado da etiqueta tira-a desse cartão.
-- Cada cartão mostra os dias até ao prazo de propostas: a verde se há
-  folga, cor de âmbar dentro da janela do "urgente" (a mesma do filtro,
-  editável em Configurações › Alertas) e a vermelho se termina hoje ou já expirou.
-- **no calendário**, no pé do cartão, salta para a linha deste anúncio
-  na grade (só aparece quando o prazo cabe nos 45 dias dela).
-- **Voltar a por ver** devolve o anúncio a "por ver" — sai do quadro sem
-  apagar nada da base.
-
-Marcar **interessa** num anúncio, em qualquer aba da lista dos
-**Anúncios**, põe-no automaticamente na primeira coluna do quadro.
+**Marcar interessa** num anúncio põe-no em «Por analisar» — e é o sinal
+que manda o radar ir buscar as peças. **Voltar a por ver** tira-o da
+escada; se a proposta já tiver trabalho escrito (preço, notas, lugar,
+CoE), volta a «Por analisar» em vez de se apagar, e o aviso diz porquê.
 
 ## 10. O calendário
 
-A segunda vista do **Em curso** — os mesmos "interessa" postos no
-tempo. Uma grade só de leitura, uma linha por anúncio interessado com prazo,
-uma coluna por dia (45 dias a partir de hoje). Cada coluna mostra o dia
-da semana, o dia do mês e o mês; os fins-de-semana aparecem sombreados
-e o início de cada mês tem uma linha mais marcada.
+A segunda vista dos **Concursos** — os prazos postos no tempo, **por
+dia** e não numa grade de colunas. Seis semanas a partir de hoje, um
+quadrado por dia, e dentro de cada um os concursos cujo prazo cai nele.
+Um «+N» quando não cabem todos, que abre exactamente esses N.
 
-A pílula na linha, na coluna certa, mostra a fase actual desse anúncio
-no quadro — clica para abrir a ficha. Cada linha tem também um **no
-quadro** que salta para o cartão correspondente. Quem tem prazo já
-passado ou para lá dos 45 dias não aparece na grade (fica contado numa
-nota por baixo), mas continua no quadro.
+Vale para **qualquer ranhura**, e não só para os interessados: o que o
+calendário mostra é o recorte que estiver escolhido.
 
 ## 10-A. A lista
 
-A terceira vista do **Em curso** (desde 14/09/2026): os mesmos
-interessados numa tabela, uma linha por anúncio, ordenada pelo prazo.
-As colunas são as da tua folha: título, cliente, preço base,
-esclarecimentos (a data-limite pela regra do primeiro terço, com
-«passou» quando já foi), entrega (o prazo), tipologia (consulting ou
-turnkey), estado da proposta (a fase em que o cartão está no quadro),
-CV (sim/não), proposta técnica (sim/não), notas, plataforma, CoE e
-responsável.
+Já não é uma vista à parte. **É a própria lista dos Concursos**: as
+oito ranhuras da empresa mostram propostas em vez de anúncios, com as
+colunas da tua folha — título, cliente, preço, esclarecimentos,
+entrega, tipologia, estado, lote, responsável. O `/lista` redirecciona
+para lá.
 
-O que vem da base lê-se; o que a empresa decide — tipologia, CV, proposta
-técnica, notas, CoE e o responsável — escreve-se na própria linha e
-grava-se com o «guardar» dela. Cada mudança fica no histórico da ficha
-do anúncio, como as do quadro.
+O que a empresa decide já não se escreve na linha: escreve-se no bloco
+«A nossa proposta» da ficha, que é onde vive tudo o que é da proposta.
+A coluna «Proposto» só aparece de «Submetido» para a frente — antes
+disso não está por preencher, é impossível, e uma coluna de travessões
+que nunca poderá ter nada é uma pergunta sem resposta.
 
 ## 11. O registo da empresa
 
@@ -804,10 +772,10 @@ dados**, em três passos:
 3. **Confirmar.** As linhas sem erro entram no registo e **escrevem a
    triagem**: «Não fomos» abandona o anúncio com a razão como motivo;
    Submetido, Ganho e Perdido marcam interessa e põem o cartão na fase
-   certa, com a proposta e o lugar. Um concurso com lotes fica no
-   melhor estado dos seus lotes (ganhámos um, o cartão está no Ganho) e
-   a separação faz-se no fim do quadro (§9). O responsável fica no
-   anúncio. Uma linha repetida (mesma referência e lote) substitui a
+   certa, com a proposta e o lugar. Cada lote é uma proposta sua, com a
+   sua ranhura: um concurso com três lotes tem três blocos «A nossa
+   proposta» na ficha, e cada um move-se sozinho. O responsável é da
+   proposta. Uma linha repetida (mesma referência e lote) substitui a
    anterior, por isso corrigir é preencher outra vez e voltar a
    carregar.
 
@@ -1012,9 +980,9 @@ anúncios, é o teste do parser que avisa primeiro.
 ## 15. O painel fora deste computador: radargov.pt
 
 **O painel está em https://radargov.pt** (e `www.radargov.pt`), de
-qualquer computador ou telemóvel, sem instalar nada. No telemóvel a
-barra passa para cima e as listas ficam a uma coluna; o quadro e as
-tabelas largas arrastam-se de lado. Quem abre cai no
+qualquer computador ou telemóvel, sem instalar nada. No telemóvel as
+listas ficam a uma coluna e as tabelas largas arrastam-se de lado (a
+barra já é em cima em todos os tamanhos, desde 13/09/2026). Quem abre cai no
 ecrã de entrar (secção 7) e entra com o teu utilizador e a tua
 palavra-passe. Os links do e-mail de alerta apontam para lá.
 

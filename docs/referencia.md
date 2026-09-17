@@ -7,6 +7,16 @@ assim. Saíram para aqui a 3/09/2026, sem uma palavra mudada.
 Se procuras uma regra a seguir, o `docs/armadilhas.md` é mais
 curto e está a par. Isto é o contexto por trás dela.
 
+> **Aviso, 17/09/2026.** Este ficheiro é **contexto histórico**, e
+> várias secções descrevem um mundo que já não existe: a aplicação
+> corria de uma pen com Windows e OneDrive, não tinha login, tinha um
+> quadro de fases com `anuncios.fase_id` e um calendário em grade de 45
+> colunas. Nada disso é verdade desde 8 a 16/09/2026. **Onde uma
+> secção descreve o mundo antigo, está marcada com uma nota como esta**;
+> as correcções anteriores que o ficheiro já guardava («esteve aqui
+> escrito que…») ficam, que é a regra da casa. Para o que vale hoje, o
+> `ESTADO.md` e o `docs/armadilhas.md`.
+
 ## A ficha do anúncio e as peças do procedimento
 
 Mudança de rumo pedida pelo Afonso: clicar num anúncio deixou de abrir
@@ -418,7 +428,9 @@ não tinha o que ler — a ficha mostrava "só consta do Caderno de
 Encargos" com o Caderno de Encargos ali ao lado, o que parece um erro de
 leitura e não é. `analisar_pecas()` extrai o texto na hora quando falta,
 sem voltar à rede, e `python radar.py --ler-pecas` percorre os que
-faltam (6 de 7 recuperados; o outro é digitalização, fica para o OCR).
+faltam (6 de 7 recuperados; o outro é digitalização, fica para o OCR — **que
+saiu a 3/09/2026**, por decisão dele: uma digitalização sem camada de
+texto fica por ler, e a ficha di-lo).
 
 Sintoma parecido, causa diferente: **o painel a correr código antigo.**
 Aconteceu — duas instâncias de ontem agarradas à porta 8765 (é o
@@ -644,6 +656,9 @@ browser em JavaScript simples, sem framework:
   servidor, como descrito acima. Marcar `.checked` por script não
   dispara `change`, por isso os descendentes marcados por cascata não
   entram em `ARV_SEL` por engano.
+- (**Hoje há dois conjuntos**: o `ARV_SEL` do que se escolheu e o
+  `ARV_EXC` do que se tirou de dentro de um grupo escolhido. Esta
+  secção só conhecia o primeiro.)
 - "Aplicar" escreve `Array.from(ARV_SEL).join('|')` no campo escondido
   e submete o formulário — reaproveita a `condicoes()` que já existia,
   nenhuma rota nova para aplicar o filtro.
@@ -678,6 +693,11 @@ devolve só `"ok"` no sucesso; `verificar()` já não lhe apend a
 continuam com texto completo, esses importam. Quem quiser números tem
 os contadores "Por ver / Interessa / Descartados / Todos" na barra de
 cima, que já eram ao vivo.
+
+> **Duas coisas mudaram de nome e de sítio.** Não há «barra de baixo»
+> desde 13/09/2026 — a barra é horizontal, em cima, e o sinal de vida da
+> verificação vive no topo da página. E os quatro contadores são hoje as
+> **dez ranhuras da escada** nas abas da lista.
 
 ## A aparência, e o esqueleto partilhado
 
@@ -716,9 +736,16 @@ carácter.
 
 Ecrã novo, **`/indicadores`**, que vinha no desenho marcado como
 proposta. Tudo o que mostra sai de SQL sobre o `radar.db`: contagens
-por estado, prazos a menos de 7 dias, distribuição por fase do quadro,
-percentagem de peças obtidas por plataforma, tamanho e modo da base.
-Sem serviços externos.
+por estado, prazos dentro da janela do «urgente» (`dias_urgente()`, que
+é configurável e esteve aqui escrito como um 7 fixo), distribuição por
+fase do quadro, percentagem de peças obtidas por plataforma, tamanho e
+modo da base. Sem serviços externos.
+
+> **Mudou duas vezes.** A 13/09/2026 os Indicadores passaram a secção
+> de Configurações (`/indicadores` redirecciona), e a 16/09 os números
+> do **negócio** saíram de lá para a abertura, por decisão dele — em
+> Configurações ficou a saúde da máquina. A «distribuição por fase do
+> quadro» é hoje por **ranhura da escada**: o quadro saiu a 15/09.
 
 A contagem da lista distingue agora o que o filtro apanhou do que está
 guardado ("a mostrar 500 dos 598 que correspondem · 65 869 na base").
@@ -781,6 +808,13 @@ O que mudou de decisão, e porquê:
   é ignorado por `condicoes()`.
 
 ## Filtros guardados
+
+> **Saíram a 13/09/2026** (pedido dele, «Mudanças na plataforma RADAR»).
+> A tabela `filtros_guardados` fica, mas só os **alertas** lá vivem; o
+> que há em cima do filtro em uso é «Criar alerta», e a rota
+> `/filtros/guardar` deixou de existir. Tudo o que se segue descreve o
+> que eles foram — e o `filtro_actual()`, com as três regras da forma
+> canónica, continua vivo e a servir os alertas.
 
 Pedido do Afonso: "seleciono um conjunto de CPV e tenho um botão que
 diz guardar filtro, e sempre que seleciono ele volta onde estava".
@@ -970,6 +1004,12 @@ prazo. Decidiu-se conscientemente **não** replicar a pesquisa "Search
 with AI" do SpotGov, para o radar continuar 100% local sem depender de
 nenhum serviço externo.
 
+> **O quadro saiu a 15/09/2026**, e com ele a tabela `fases` e o
+> `anuncios.fase_id`. O que se segue é como ele foi feito, e vale como
+> história. As oito palavras da empresa estão escritas no código
+> (`ESTADOS_DA_EMPRESA`) e não numa tabela que o utilizador edita — foi
+> essa a mudança de fundo.
+
 **As fases de origem** vêm do desenho: *Por analisar, A preparar
 proposta, Em revisão, Submetido, Resultado*. Estão em `FASES_INICIAIS`
 e são semeadas por `semear_fases()`, chamada de `iniciar_db()`.
@@ -1128,6 +1168,11 @@ porque estava errada em três pontos ao mesmo tempo:
 passa por `conta_dias()`. Se acrescentares outro sítio que mostre
 prazos, usa a mesma função em vez de formatar `%d dias` à mão.
 
+> **O calendário deixou de ser uma grade a 16/09/2026**: é por **dia**,
+> seis semanas, um quadrado por dia com os concursos que lhe caem — e
+> não uma linha por concurso × uma coluna por dia, que é a forma de um
+> Gantt e serve para intervalos. O que se segue descreve a grade.
+
 O **calendário ganhou os dias da semana**. Sem eles a grade era uma
 tira de 45 números onde não se distinguia um sábado de uma terça, e um
 prazo ao fim-de-semana muda o que se faz na sexta. Agora cada coluna
@@ -1163,6 +1208,12 @@ um dia isso fizer falta (portefólio com muitos prazos a mais de 45 dias),
 
 ## Tarefas agendadas
 
+> **Já não é assim (8/09/2026).** São **temporizadores do systemd** na
+> sessão do utilizador (`radar-09h.timer`, `radar-17h.timer`,
+> `radar-contratos.timer`), criados pelo `agendar.sh`, mais o painel
+> como serviço (`radar-painel.service`). O ramo do Windows saiu a
+> 14/09/2026, os `.bat` a 8/09.
+
 Criadas nesta sessão via `schtasks`, equivalente ao que o `agendar.bat`
 faz (o próprio `.bat` não se corre bem sem consola interactiva, por
 causa do `pause` no fim): "Radar DR 09h" e "Radar DR 17h", diárias,
@@ -1196,6 +1247,10 @@ terreno preparado.
   responsável. **Não há palavra-passe de propósito**: hoje isto corre
   no PC de uma pessoa, e um ecrã de login seria atrito puro. O modelo de
   dados é que fica pronto — histórico não se inventa depois.
+  (**Deixou de ser verdade a 8/09/2026**: há login, sessões e dois
+  papéis, em `contas.py`; o que se manteve foi o «acesso livre local»,
+  que é esta mesma ideia reduzida a um pedido deste computador sem
+  túnel a meio. Ver `docs/historico/ONLINE.md`.)
 
 **O que falta mesmo para pôr isto num servidor partilhado**, por ordem:
 
@@ -1267,8 +1322,8 @@ lá dos 500.
 
 ## Testes, controlo de versões e automatismos
 
-**`teste_radar.py`** — 655 testes a 03/09/2026 (eram 118 quando esta
-secção foi escrita), correm em poucos segundos, sem rede nem a base
+**`teste_radar.py`** — 655 testes a 03/09/2026, **1 034 a 17/09/2026**
+(eram 118 quando esta secção foi escrita), correm em poucos segundos, sem rede nem a base
 verdadeira (as migrações ensaiam-se numa base temporária). Não são
 exaustivos de propósito: cada um corresponde a um erro que existiu
 **mesmo**, e o comentário diz qual, para ninguém "simplificar" de volta
@@ -1348,7 +1403,10 @@ sem obtentor (anogov.com 5, miisy 2, source360.ren.pt 2, comprasnasaude
 
 Ficheiro único, `radar.py`, com quatro dependências: `flask`,
 `requests`, `pypdf` e `cryptography` (cresceu passado das 600 linhas
-originais, mas continua um ficheiro só). Blocos, por ordem no ficheiro:
+originais, mas continua um ficheiro só). (**A 17/09/2026 são três
+módulos** — `radar.py`, `empresa.py`, `contas.py` — e o
+`requirements.txt` tem mais do que quatro nomes, com o `pymupdf` a
+desenhar as páginas das peças.) Blocos, por ordem no ficheiro:
 
 - configuração e base de dados, `CONFIG_INICIAL`, `iniciar_db`
 - leitura das capturas, `carregar_curl`, `parse_curl`, que entende os
@@ -1374,6 +1432,13 @@ serve de deduplicação. Campos `cpv`, `prazo`, `preco_base`, `plataforma`,
 `descartado`. Tabelas `fases`, `etiquetas`, `anuncio_etiquetas` para o
 quadro, e `documentos` para o índice dos ficheiros em disco.
 
+> **Já não é assim (15/09/2026).** O estado da empresa saiu do
+> `anuncios` para a tabela **`propostas`**, e o `anuncios.estado` ficou
+> só com o que o DR diz (`novo`, `alteracao`). As oito palavras da
+> escada substituíram o `novo`/`interessa`/`descartado`, a tabela
+> `fases` saiu com o quadro, e o `fase_id` deixou de se escrever.
+> Ver `docs/historico/CRM.md`.
+
 As migrações de esquema estão em `iniciar_db()`, com `PRAGMA
 table_info` + `ALTER TABLE` só se a coluna faltar. Correm sempre, não
 fazem nada se já estiver tudo lá — é seguro chamar a qualquer momento.
@@ -1387,12 +1452,17 @@ vez, com um segundo de pausa entre pedidos. Configurável em
 A pasta está no ambiente de trabalho, dentro do OneDrive. A sincronização
 pode bloquear o `radar.db` durante a escrita. Se aparecerem erros de base
 bloqueada, é isto, e resolve-se movendo a pasta para fora do OneDrive.
+(**Feito a 8/09/2026**: a pasta está em `~/Desktop/radar`, no disco
+interno, em Ubuntu, fora de qualquer sincronização.)
 
 O painel pagina a lista a 20 por página (`POR_PAGINA_LISTA`; já esteve
 limitado às primeiras 500 linhas). A base não tem limite.
 
 Python 3.14 instalado pela Microsoft Store. O `flask.exe` fica fora do
 PATH, o que é indiferente porque o arranque é por `python radar.py`.
+(**Já não**: em Ubuntu o interpretador é o `.venv/bin/python` que o
+`instalar.sh` cria — o `python3` do sistema não tem o flask nem o
+pymupdf.)
 
 O servidor de desenvolvimento do Flask, no Windows, às vezes deixa duas
 instâncias ligarem-se à mesma porta 8765 sem se queixar (`SO_REUSEADDR`),

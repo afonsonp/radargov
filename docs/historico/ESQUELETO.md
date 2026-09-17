@@ -1,5 +1,9 @@
 # Esqueleto de informação do Radar — 30 de agosto de 2026
 
+> **Instantâneo de 30/08/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Proposta de estrutura de informação e navegação, a partir da
 `AUDITORIA.md` (30/08) corrigida pelo `SANEAMENTO.md` (30/08, que
 prevalece onde divergem), do `ESTADO.md` e do `BACKLOG.md`. Sem

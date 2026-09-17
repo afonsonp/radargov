@@ -1,5 +1,9 @@
 # Plano: o «Em curso» como CRM a sério
 
+> **Instantâneo de 15/09/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Escrito a **15 de setembro de 2026**, a pedido do Afonso: «precisamos de
 fazer algo melhor o separador em curso. aquilo não está um verdadeiro
 CRM de gestão de leads e de propostas e é estranho porque na página de

@@ -11,27 +11,27 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 10
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 5
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 6
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 7
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 8
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 13
+- [Contratos e entidades](#contratos-e-entidades) &middot; 19
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 41
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 53
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
 - [Contas e a porta](#contas-e-a-porta) &middot; 10
-- [A interface](#a-interface) &middot; 15
-- [Convenções](#convencoes) &middot; 2
+- [A interface](#a-interface) &middot; 50
+- [Convenções](#convencoes) &middot; 3
 
-São **152** ao todo. Contam-se com `grep -c '^- \*\*'` por secção — e o
-índice volta a ter de se recontar sempre que se acrescenta um ponto:
-somava 78 a 3/09/2026 e 88 a 4/09/2026, as duas vezes abaixo do que as
-áreas tinham. **Voltou a acontecer**: a 15/09/2026 o índice dizia 109 e
-as áreas tinham 121, com sete secções por baixo do número real — as
-armadilhas do CRM desse dia entraram numa contagem que já estava errada
-antes delas.
+São **208** ao todo, contados a 17/09/2026. Contam-se por secção com
+`grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
+que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
+15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
+tinham**, e a última por 56. Um número no índice que ninguém reconta é
+um número errado à espera de acontecer; se acrescentares um ponto e não
+recontares aqui, acabas de o fazer pela quinta vez.
 
 ---
 
@@ -363,6 +363,9 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   saiu: o texto dos `ocr` é texto a sério e continua a servir
   (`documentos_com_texto()` pergunta por `IN ('ok','ocr')`), e
   `imagem` lê-se como `scan`. Não se produzem mais nenhum dos dois.
+  **Contados a 17/09/2026 na base dele**: 214 `ok`, 42 «não é PDF»,
+  **8 `ocr`** e 1 `scan` — zero `imagem`. Os oito são reais, e é por
+  isso que o `IN ('ok','ocr')` não se pode simplificar.
 
 
 ---
@@ -1541,13 +1544,11 @@ o leitor do Excel antigo fica lá, sem comando.
   no histórico), e os motivos «Fora do âmbito» e «Prazo curto» entram
   então em `MOTIVOS_ABANDONO` (hoje só em `empresa.MAPA_RAZAO`).
   Entidades espanholas não entram (`FORA_DO_PAIS`, decisão dele).
-  `--ensaio` calcula e não grava; `--empresa-ligar ID REF` liga à mão
-  (`ID nenhum "razão"` diz que não há anúncio no DR — consultas
-  prévias, ajustes directos, consultas preliminares, anteriores à base
-  —, `ID ? "razão"` só anota), e uma ligação ou um «nenhum» manual
-  sobrevivem às importações seguintes;
-  `--empresa-desfazer CÓPIA` repõe a triagem de uma cópia anterior (foi o
-  que desfez a aplicação de 02/09/2026).
+  `--ensaio` calcula e não grava. (**O `--empresa-ligar` saiu** com o
+  leitor do Excel antigo, a 15/09/2026; o que restou está descrito acima.
+  Esta lista descrevia-o como vivo em dois sítios — corrigido a
+  17/09/2026.) `--empresa-desfazer CÓPIA` repõe a triagem de uma cópia
+  anterior (foi o que desfez a aplicação de 02/09/2026).
 
 
 ---
@@ -1597,14 +1598,16 @@ SQLite, cópias, e a pen que manda nos números.
   `COLS_CONTRATO`. E **mede-se a frio**: a quente o mesmo varrimento
   dava 0,8 s, que foi o que escondeu isto durante meses.
 
-- **Isto corre de uma pen, e a pen manda nos números.** O `D:` é um
-  Samsung Flash Drive por USB, não o SSD interno: 8,7 ms para abrir um
-  ficheiro pequeno a frio, e ~42 MB/s efectivos numa varredura de
-  páginas de 4 KB (408 MB/s em sequencial puro). Daí os 216 dos 459
-  módulos que vêm de `libs/` como ficheiros soltos custarem segundos
-  no arranque, e daí uma varredura do corpus (2,47 GB) não ser um
-  encolher de ombros. Antes de culpar o código por lentidão, confirma em que
-  disco ele está (`Get-Partition -DriveLetter D | Get-Disk`).
+- **O disco manda nos números — e o disco mudou.** Até 8/09/2026 isto
+  corria de uma pen (um Samsung Flash Drive por USB: 8,7 ms para abrir
+  um ficheiro pequeno a frio, ~42 MB/s numa varredura de páginas de
+  4 KB), e era essa a razão de metade das lentidões medidas. **Hoje
+  corre do SSD interno**, em `~/Desktop/radar`, e os números de
+  desempenho de antes dessa data não se comparam com os de agora. O que
+  fica da armadilha é a regra: antes de culpar o código por lentidão,
+  confirma em que disco ele está e **mede a frio** — a quente o mesmo
+  varrimento dava 0,8 s, e foi isso que escondeu o problema durante
+  meses.
 
 - **A tabela `anuncios` é LARGA, e um varrimento dela não custa
   linhas — custa megabytes.** A 4/09/2026 são 438 MB, dos quais o
@@ -1667,9 +1670,12 @@ SQLite, cópias, e a pen que manda nos números.
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.
 
-- **OneDrive.** A pasta está dentro do OneDrive; a sincronização pode
-  bloquear o `radar.db` a meio de uma escrita. Se aparecerem erros de base
-  bloqueada, é isso.
+- **~~OneDrive~~ — já não se aplica.** A pasta esteve dentro do
+  OneDrive até 8/09/2026, e a sincronização podia bloquear o `radar.db`
+  a meio de uma escrita. Hoje está no disco interno, fora de qualquer
+  pasta sincronizada. Fica escrito porque «base bloqueada» continua a
+  aparecer por outras razões — ver o trinco entre processos, na área dos
+  trabalhos de fundo — e a primeira hipótese deixou de ser esta.
 
 
 - **O Windows deixa a pasta «só de leitura», e o Linux acredita.** A
