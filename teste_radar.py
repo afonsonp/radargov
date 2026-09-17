@@ -12160,6 +12160,269 @@ class TestEnsaioDeRestauro(BaseTemporaria):
         self.assertEqual(r["contagens"]["anuncios"], (0, 3))
         self.assertTrue(radar.le_marca("ultimo_ensaio_copia").startswith("FALHOU"))
 
+class CicloDasTarefas(BaseTemporaria):
+    """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
+    (17/09/2026): um anúncio, uma proposta, e as datas do DR a virarem
+    tarefas."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.hoje = datetime.date.today()
+
+    def _dia(self, delta):
+        return (self.hoje + datetime.timedelta(days=delta)).isoformat()
+
+    def _anuncio(self, ref="60/2026", pub=-30, prazo=30, entidade="CML"):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo) VALUES (?,?,?,?,?,?)",
+                      (ref, "Software de gestão", entidade, "novo",
+                       self._dia(pub), self._dia(prazo)))
+        return ref
+
+    def _tarefas(self, ref="60/2026"):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM tarefas WHERE ref=? ORDER BY id",
+                             (ref,)).fetchall()
+
+
+class TestAutomaticaHerdaOResponsavel(CicloDasTarefas):
+    """As 36 tarefas automáticas da base de 16/09/2026 tinham **zero**
+    responsáveis, mesmo quando a proposta tinha um: o INSERT do
+    `sincronizar_tarefas()` não escrevia a coluna `quem`. Uma lista de
+    «o que há para fazer» onde nada diz de quem é não distribui trabalho
+    nenhum.
+
+    E a outra metade da regra (D-b): uma tarefa a que alguém já pôs nome
+    **não se reescreve**. Se herdasse sempre, mudar o responsável da
+    proposta apagava em silêncio a atribuição feita à mão.
+    """
+
+    def test_nasce_com_o_responsavel_da_proposta(self):
+        ref = self._anuncio()
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana"])
+        radar.sincronizar_tarefas(ref)
+        self.assertTrue(self._tarefas())
+        for t in self._tarefas():
+            self.assertEqual(t["quem"], "Ana", t["o_que"])
+
+    def test_uma_tarefa_com_nome_nao_se_reescreve(self):
+        ref = self._anuncio()
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        primeira = self._tarefas()[0]["id"]
+        radar.gravar_tarefa(primeira, quem="Maria")
+        radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana"])
+        radar.sincronizar_tarefas(ref)
+        donos = {t["id"]: t["quem"] for t in self._tarefas()}
+        self.assertEqual(donos[primeira], "Maria")
+        self.assertEqual(set(donos.values()), {"Maria", "Ana"})
+
+    def test_continua_idempotente(self):
+        """Herdar o dono não pode fazer a sincronização deixar de ser
+        idempotente: a segunda volta tem de dar (0, 0, 0)."""
+        ref = self._anuncio()
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana"])
+        radar.sincronizar_tarefas(ref)
+        self.assertEqual(radar.sincronizar_tarefas(ref), (0, 0, 0))
+
+
+class TestPrazoPassadoNaoMexeEmNada(CicloDasTarefas):
+    """A prova da D2 do `CICLOS.md`, palavra dele: «tenho receio com essas
+    tarefas assim automáticas; posso não ter passado para submetido por
+    esquecimento e ele vai passar para não fomos».
+
+    Uma automática cujo prazo já passou, numa proposta que continua na
+    escada, **não se apaga, não se fecha e não move a proposta**. Só o
+    Hoje a mostra num balde próprio, e quem decide é a pessoa.
+    """
+
+    def test_nada_se_move_nem_se_apaga(self):
+        ref = self._anuncio(pub=-60, prazo=-3)
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        antes = self._tarefas()
+        self.assertTrue(antes)
+        self.assertEqual(radar.sincronizar_tarefas(ref), (0, 0, 0))
+        depois = self._tarefas()
+        self.assertEqual([t["id"] for t in depois], [t["id"] for t in antes])
+        for t in depois:
+            self.assertIsNone(t["feita_em"], t["o_que"])
+        self.assertEqual(radar.proposta(id_)["estado"], "analisar")
+        self.assertIsNone(radar.proposta(id_)["fechada_em"])
+
+    def test_a_consulta_encontra_a_proposta_e_nao_lhe_toca(self):
+        ref = self._anuncio(pub=-60, prazo=-3)
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        paradas = radar.propostas_sem_decisao(self.hoje)
+        self.assertEqual([p["id"] for p in paradas], [id_])
+        # uma já decidida não aparece, mesmo com o prazo passado
+        radar.mover_proposta(id_, "submetido")
+        self.assertEqual(radar.propostas_sem_decisao(self.hoje), [])
+
+
+class TestHojeAgrupaSemDecisao(CicloDasTarefas):
+    """O balde «prazo passou sem decisão» (fase 1). Sem ele, as dezasseis
+    automáticas de Julho e Agosto apareciam nas «atrasadas» a dizer
+    «entregar a proposta» um mês depois do prazo -- trabalho que já não
+    existe a tapar o que existe.
+
+    As escritas à mão dessas propostas continuam onde a data as põe:
+    «ligar ao Dr. X» não deixa de fazer sentido por o prazo ter passado.
+    """
+
+    def test_a_automatica_nao_aparece_duas_vezes(self):
+        ref = self._anuncio(pub=-60, prazo=-3)
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        a_mao = radar.criar_tarefa("ligar ao Dr. X", self._dia(-1),
+                                   proposta_id=id_, ref=ref)
+        tarefas = radar._tarefas_por_fazer()
+        paradas = radar.propostas_sem_decisao(self.hoje)
+        _, grupos = radar._grupos_das_tarefas(tarefas, self.hoje, paradas)
+        self.assertEqual([p["id"] for p, _ in grupos["sem_decisao"]], [id_])
+        # nas atrasadas fica SÓ a escrita à mão
+        atrasadas = [t["id"] for _, itens in grupos["atrasadas"]
+                     for t, _ in itens]
+        self.assertEqual(atrasadas, [a_mao])
+
+    def test_o_balde_desenha_se_com_o_selector_da_ranhura(self):
+        ref = self._anuncio(pub=-60, prazo=-3)
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("Prazo passou sem decisão", corpo)
+        # a ranhura muda-se ali, sem ir à ficha
+        self.assertIn("/proposta/%d/escada" % id_, corpo)
+
+    def test_o_numero_do_kpi_conta_as_linhas_que_se_desenham(self):
+        """A regra da empresa. Com as automáticas escondidas, um KPI que
+        continuasse a contar `len(tarefas)` prometia mais linhas do que
+        as que a âncora abre."""
+        ref = self._anuncio(pub=-60, prazo=-3)
+        id_ = radar.criar_proposta(ref, estado="analisar")
+        radar.criar_tarefa("ligar ao Dr. X", self._dia(-1),
+                           proposta_id=id_, ref=ref)
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertEqual(corpo.count("class='hj-l'"), 1)
+        self.assertIn(">1</div>", corpo)
+
+
+class TestLinhaDaTarefaDizOConcurso(CicloDasTarefas):
+    """«Tenho lá 30 tarefas, mal consigo perceber o concurso que cada uma
+    delas é» (16/09/2026). A linha mostrava a data, o texto e o título,
+    e mais nada -- nem a referência, nem a ranhura, nem a entidade, nem
+    quem.
+
+    E agrupam-se por proposta (D-c): 55 tarefas são ~25 concursos, e o
+    cabeçalho do grupo é o concurso.
+    """
+
+    def test_a_linha_traz_ref_ranhura_entidade_e_quem(self):
+        ref = self._anuncio(entidade="Câmara de Leiria")
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana"])
+        radar.sincronizar_tarefas(ref)
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        for pedaco in ("60/2026", "A preparar proposta", "Câmara de Leiria",
+                       "Ana"):
+            self.assertIn(pedaco, corpo, pedaco)
+
+    def test_as_tarefas_do_mesmo_concurso_vem_juntas(self):
+        ref = self._anuncio()
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        with radar.liga() as c:
+            c.execute("DELETE FROM tarefas")
+        for n in range(3):
+            radar.criar_tarefa("tarefa %d" % n, self._dia(2),
+                               proposta_id=id_, ref=ref)
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        # um cabeçalho de grupo por balde, e não um por tarefa
+        bloco = corpo[corpo.index("Nos próximos"):]
+        bloco = bloco[:bloco.index("</div></div>")]
+        self.assertEqual(bloco.count("class='hj-p'"), 1)
+        for n in range(3):
+            self.assertIn("tarefa %d" % n, bloco)
+
+
+class TestTarefaResolveSeDeQualquerPagina(CicloDasTarefas):
+    """Concluir uma tarefa só existia na ficha do anúncio, e o «desfazer»
+    do `/tarefa/<id>/feita` **nunca apareceu**: o `envolver()` só
+    desenhava o botão para caminhos que começassem por `/estado/`.
+
+    Adiar e atribuir não existiam de todo.
+    """
+
+    def _uma(self):
+        ref = self._anuncio()
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        return radar.criar_tarefa("escrever o esclarecimento", self._dia(2),
+                                  proposta_id=id_, ref=ref)
+
+    def test_feita_a_partir_da_abertura_volta_com_o_desfazer(self):
+        t = self._uma()
+        r = self.cliente.post("/tarefa/%d/feita" % t,
+                              headers={"Referer": "http://localhost/"})
+        self.assertIn(r.status_code, (301, 302, 303))
+        destino = r.headers["Location"]
+        self.assertIn("desfazer=%2Ftarefa%2F", destino)
+        corpo = self.cliente.get(destino).get_data(as_text=True)
+        self.assertIn("/tarefa/%d/por-fazer" % t, corpo)
+        self.assertIn(">desfazer<", corpo)
+
+    def test_adiar_e_atribuir_sao_a_mesma_rota(self):
+        t = self._uma()
+        self.cliente.post("/tarefa/%d/gravar" % t,
+                          data={"quando": "31/12/2026"},
+                          headers={"Referer": "http://localhost/"})
+        self.cliente.post("/tarefa/%d/gravar" % t, data={"quem": "Ana"},
+                          headers={"Referer": "http://localhost/"})
+        with radar.liga() as c:
+            linha = c.execute("SELECT * FROM tarefas WHERE id=?",
+                              (t,)).fetchone()
+        self.assertEqual(linha["quando"], "2026-12-31")
+        self.assertEqual(linha["quem"], "Ana")
+
+    def test_data_ilegivel_recusa_e_nao_apaga_o_prazo(self):
+        t = self._uma()
+        antes = self._tarefas()[-1]["quando"]
+        ok, recado = radar.gravar_tarefa(t, quando="amanhã")
+        self.assertFalse(ok)
+        self.assertIn("não é uma data", recado)
+        with radar.liga() as c:
+            linha = c.execute("SELECT quando FROM tarefas WHERE id=?",
+                              (t,)).fetchone()
+        self.assertEqual(linha["quando"], antes)
+
+    def test_um_campo_vazio_no_formulario_nao_apaga_nada(self):
+        """O formulário da linha tem sempre os dois campos desenhados, e
+        manda-os vazios quando não se escreve neles."""
+        t = self._uma()
+        antes = self._tarefas()[-1]["quando"]
+        self.cliente.post("/tarefa/%d/gravar" % t,
+                          data={"quando": "", "quem": ""},
+                          headers={"Referer": "http://localhost/"})
+        with radar.liga() as c:
+            linha = c.execute("SELECT quando FROM tarefas WHERE id=?",
+                              (t,)).fetchone()
+        self.assertEqual(linha["quando"], antes)
+
+
+class TestPropostaSemAnuncioTemTarefas(CicloDasTarefas):
+    """Uma tarefa de uma proposta sem anúncio não tinha onde se riscar: o
+    `/proposta/<id>` não chamava o `_tarefas_da_ficha()`, e o atalho da
+    ficha do anúncio não existe para quem não tem `ref`."""
+
+    def test_a_ficha_mostra_a_tarefa_e_o_botao_de_feita(self):
+        id_ = radar.criar_proposta(entidade="IPLeiria", titulo="Consulta",
+                                   porque_sem_ref="consulta prévia")
+        t = radar.criar_tarefa("preparar a consulta", self._dia(3),
+                               proposta_id=id_)
+        corpo = self.cliente.get("/proposta/%d" % id_).get_data(as_text=True)
+        self.assertIn("preparar a consulta", corpo)
+        self.assertIn("/tarefa/%d/feita" % t, corpo)
+        self.assertIn("/tarefa/%d/gravar" % t, corpo)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

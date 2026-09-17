@@ -195,6 +195,38 @@ de cada vez (`detalhes_por_volta`), até não sobrar nada por ler.
 
 ## 5. O painel
 
+### A abertura: o que há para fazer
+
+O endereço `/` é o **Hoje** — o logótipo leva-lhe de volta. Em cima,
+quatro números (em jogo, taxa de vitória, por decidir, para fazer), e
+cada um abre exactamente a lista que o produz. Por baixo, o que há para
+fazer, em **cinco baldes**:
+
+1. **Prazo passou sem decisão** — os concursos em «Por analisar» ou «A
+   preparar proposta» cujo prazo do Diário da República já passou. **O
+   radar não mexe em nenhum**: mostra-os e põe o selector da ranhura ao
+   lado, e quem escolhe és tu. Foi pedido teu — «posso não ter passado
+   para submetido por esquecimento».
+2. **Atrasadas** · 3. **Hoje** · 4. **Nos próximos 7 dias** ·
+   5. **Mais para a frente**.
+
+As tarefas vêm **agrupadas por concurso**: o cabeçalho do grupo diz a
+referência, em que ranhura está e a entidade, e cada linha por baixo é
+uma tarefa, com a data, quantos dias faltam, quem a tem e se é
+automática (vem das datas do DR) ou escrita à mão.
+
+Cada linha resolve-se ali, sem ir à ficha: **✓** risca a tarefa (e o
+aviso que aparece a seguir traz o **desfazer**), e o campo da data e o
+do nome, com **gravar**, **adiam** e **atribuem**. Os campos que
+deixares em branco não apagam nada. Um concurso cujas automáticas estão
+no primeiro balde não as repete nas atrasadas — o que ficas a ver é a
+decisão que falta, não a tarefa que já não se pode fazer.
+
+As tarefas de uma proposta sem anúncio (consulta prévia, ajuste
+directo) riscam-se na página dela, `/proposta/<n>`.
+
+### A barra
+
 A barra de cima tem três entradas, por ordem de uso:
 **Anúncios** (a página inicial — a lista toda, triagem e acervo num
 sítio só), **Em curso** (o quadro e o calendário dos "interessa"),

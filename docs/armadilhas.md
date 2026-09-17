@@ -1282,6 +1282,46 @@ pelo Afonso e nenhuma se reabre de passagem.
   quando a data muda: marcar como feita é um facto, e a sincronização
   não apaga factos.
 
+- **Uma automática com o prazo passado não se toca; é o balde do Hoje
+  que a mostra.** D2 do `docs/historico/CICLOS.md`, palavra dele:
+  «tenho receio com essas tarefas assim automáticas; posso não ter
+  passado para submetido por esquecimento e ele vai passar para não
+  fomos». Uma proposta que continua em «por analisar» ou «a preparar»
+  com o prazo do DR já passado **não fecha, não se apaga e não muda de
+  ranhura** — a abertura junta-as no balde «prazo passou sem decisão»
+  (`propostas_sem_decisao()`), com o selector da ranhura em cada linha,
+  e quem decide é a pessoa. É a regra do CRM outra vez: **propõe, nunca
+  decide**. Eram dezasseis, de Julho e Agosto, na base de 16/09/2026, e
+  apareciam nas «atrasadas» a dizer «entregar a proposta» um mês depois
+  do prazo. **As automáticas dessas propostas escondem-se dos outros
+  baldes** para não serem a mesma coisa duas vezes; as escritas à mão
+  continuam onde a data as põe. Teste:
+  `TestPrazoPassadoNaoMexeEmNada`.
+
+- **A automática herda o responsável da proposta só quando não tem
+  nenhum.** D-b do mesmo plano. Se herdasse sempre, mudar o responsável
+  da proposta apagava em silêncio a atribuição feita à mão. As 36
+  automáticas de 16/09/2026 tinham **zero** donos: o `INSERT` do
+  `sincronizar_tarefas()` nunca escrevia a coluna `quem`. E herdar não
+  pode quebrar a idempotência — a segunda volta continua a dar
+  `(0, 0, 0)`.
+
+- **Um número do Hoje conta as linhas desenhadas, não as linhas da
+  tabela.** Com as automáticas das propostas sem decisão escondidas,
+  `len(tarefas)` passou a ser maior do que a lista que a âncora abre —
+  exactamente a avaria que a regra da empresa proíbe, e que este mesmo
+  KPI já cometeu uma vez (contava seis de oito e ligava ao calendário).
+  O `_quantas()` existe para isso: `len(balde)` conta **grupos**, desde
+  que as tarefas se agrupam por proposta.
+
+- **O «desfazer» do aviso só conhecia `/estado/`.** O
+  `/tarefa/<id>/feita` mandava o caminho do desfazer desde que nasceu e
+  o botão **nunca apareceu**: o `if` do `envolver()` só aceitava
+  caminhos de estado. Riscar a tarefa errada numa lista de cinquenta não
+  tinha volta. Um caminho novo de desfazer tem de entrar nessa lista
+  branca — e continua a ser lista branca, que o valor vem da query
+  string.
+
 - **As doze colunas velhas do `anuncios` FICAM; só deixam de se criar.**
   A etapa 2 largava-as com `ALTER TABLE ... DROP COLUMN`, e isso foi
   revertido no mesmo dia por medição: o SQLite **reescreve a tabela
