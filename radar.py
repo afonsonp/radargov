@@ -19745,29 +19745,59 @@ def funil_anuncios():
         # ninguem: sem as tirar, 763 delas contavam como "triadas". E
         # os urgentes por ver sao a fila que custa dinheiro, que nenhum
         # ecra mostrava.
+        # **A triagem mora nas `propostas`, não no `anuncios.estado`**
+        # (17/09/2026). Este bloco contava `estado='interessa'` e
+        # `estado='descartado'`, e essas palavras saíram do `anuncios` a
+        # 15/09 quando a decisão da empresa passou para a `propostas`: a
+        # coluna só tem `novo` e `alteracao`. Resultado — «Triados 0 ·
+        # Interessa 0» na abertura, todos os dias, e o bloco por CPV
+        # vazio. Zeros são plausíveis, e foi por isso que ninguém viu.
+        #
+        # Os anúncios respondem ao que é do DR (quantos entraram, quantos
+        # ainda ninguém tocou); as propostas respondem ao que é decisão
+        # nossa. É a mesma divisão do `contar_a_escada()`.
         d = dict(c.execute(
             "SELECT COUNT(*) total, "
             " SUM(data_pub >= :d) entrados, "
-            " SUM(data_pub >= :d AND estado = 'novo') porver_30, "
-            " SUM(data_pub >= :d AND estado NOT IN ('novo','alteracao')) triados_30, "
-            " SUM(data_pub >= :d AND estado = 'interessa') interessa_30, "
-            " SUM(estado NOT IN ('novo','alteracao')) triados, "
-            " SUM(estado = 'interessa') interessa, "
-            " SUM(estado = 'descartado') descartados, "
-            " SUM(estado = 'novo' AND prazo >= :de AND prazo <= :ate) urgentes_por_ver "
+            " SUM(estado = 'novo' AND prazo >= :de AND prazo <= :ate) "
+            "  urgentes_por_ver "
             "FROM anuncios", {"d": desde, "de": de_, "ate": ate}).fetchone())
+        # Triado é ter proposta; «interessa» é estar numa ranhura aberta
+        # (ainda se trabalha), e descartado é «não fomos». São dezenas de
+        # linhas, não duzentas mil.
+        abertos = ",".join("'%s'" % e for e in ESTADOS_ABERTOS)
+        p = dict(c.execute(
+            "SELECT COUNT(*) triados, "
+            " SUM(estado IN (%s)) interessa, "
+            " SUM(estado = 'nao_fomos') descartados, "
+            " SUM(criada_em >= :d) triados_30, "
+            " SUM(criada_em >= :d AND estado IN (%s)) interessa_30 "
+            "FROM propostas" % (abertos, abertos), {"d": desde}).fetchone())
+        d.update(p)
+        # «Por ver» na janela: os que entraram e ainda não têm proposta.
+        d["porver_30"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios a WHERE a.data_pub >= :d "
+            "AND a.estado = 'novo' AND NOT EXISTS "
+            "(SELECT 1 FROM propostas p WHERE p.ref = a.ref)",
+            {"d": desde}).fetchone()["n"]
         # (numa base vazia o SUM da NULL; as barras querem 0)
         d = {k: v or 0 for k, v in d.items()}
         # (o "expirados por ver" saiu a 31/08/2026: com a lista unica,
         # um por ver expirado conta como abandonado por definicao da
         # aba -- deixou de haver fila a mostrar)
         # Onde a triagem tem acontecido, por divisao de CPV
+        # Idem: o CPV é do anúncio, a decisão é da proposta. A junção é
+        # pela `ref` e sobre as dezenas de propostas, não sobre os 210
+        # mil anúncios -- antes varria a tabela larga para devolver uma
+        # lista sempre vazia.
         d["por_divisao"] = c.execute(
-            "SELECT substr(cpv,1,2) div, "
-            " SUM(estado='interessa') sim, SUM(estado='descartado') nao, "
-            " COUNT(*) tudo FROM anuncios WHERE cpv != '' "
-            " AND estado NOT IN ('novo', 'alteracao') "
-            "GROUP BY div ORDER BY tudo DESC LIMIT 8").fetchall()
+            "SELECT substr(a.cpv,1,2) div, "
+            " SUM(p.estado IN (%s)) sim, "
+            " SUM(p.estado = 'nao_fomos') nao, "
+            " COUNT(*) tudo "
+            "FROM propostas p JOIN anuncios a ON a.ref = p.ref "
+            "WHERE COALESCE(a.cpv,'') != '' "
+            "GROUP BY div ORDER BY tudo DESC LIMIT 8" % abertos).fetchall()
     return d
 
 

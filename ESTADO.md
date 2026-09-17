@@ -56,9 +56,16 @@ Funciona. Os números são de **17/09/2026**, lidos das duas bases.
 | Rotas Flask | 77 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 036**, em ~90 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 21 492 linhas · `teste_radar.py` 13 011 · `empresa.py` 641 · `contas.py` 302 |
+| Testes | **1 049**, em ~87 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 21 625 linhas · `teste_radar.py` 13 224 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
+
+**O CSS não viaja em cada clique** desde 17/09/2026: está em
+`/estilo/<etiqueta>.css`, guardado para sempre pelo browser, e a
+etiqueta é o resumo do conteúdo — mudar uma linha muda o endereço. A
+abertura passou de 144 KB para 60 KB, e cinco ecrãs de ~590 KB para
+179 KB. O movimento (curvas e `@keyframes`) vem do Open Props alojado
+em `estilo/`, e desliga-se inteiro com `prefers-reduced-motion`.
 
 **As duas bases não se cruzam em SQL**: cada uma tem a sua ligação
 (`liga()` e `liga_corpus()`) e quem junta os resultados é o Python. O

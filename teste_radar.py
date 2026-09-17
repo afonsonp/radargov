@@ -13050,6 +13050,85 @@ class TestLeituraIncompletaVoltaATentar(BaseTemporaria):
         self.assertTrue(radar.cadeia_esgotada(cadeia))
 
 
+class TestOFunilContaPropostasENaoOEstadoDoAnuncio(BaseTemporaria):
+    """17/09/2026, encontrado a medir porque é que a abertura demorava.
+
+    O funil da triagem contava `anuncios.estado IN ('interessa',
+    'descartado')` — e essas palavras **saíram do `anuncios` a
+    15/09/2026**, quando a decisão da empresa passou para a tabela
+    `propostas`. A coluna só tem `novo` e `alteracao`.
+
+    Resultado: «Triados 0 · Interessa 0» na abertura, todos os dias, e o
+    bloco por CPV vazio. **Zeros são plausíveis**, e foi por isso que
+    ninguém viu durante dois dias. E custava 0,22 s por carregamento —
+    86% da página — a varrer 210 mil anúncios para devolver zeros.
+
+    O que cada lado responde: os anúncios dizem o que é do DR (quantos
+    entraram, quantos ninguém tocou); as propostas dizem o que é decisão
+    nossa. É a mesma divisão do `contar_a_escada()`.
+    """
+
+    def setUp(self):
+        super().setUp()
+        hoje = datetime.date.today()
+        with radar.liga() as c:
+            for n in range(4):
+                c.execute(
+                    "INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                    "data_pub, prazo, cpv, titulo_norm, entidade_norm) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    ("%d/2026" % (60 + n), "Software", "CML", "novo",
+                     hoje.isoformat(),
+                     (hoje + datetime.timedelta(days=30)).isoformat(),
+                     "72000000", "software", "cml"))
+        # duas na escada aberta, uma «não fomos», uma por ver
+        radar.mover_proposta(radar.criar_proposta("60/2026"), "submetido",
+                             campos={"valor_proposta": "1.000,00 EUR"})
+        radar.criar_proposta("61/2026")
+        radar.mover_proposta(radar.criar_proposta("62/2026"), "nao_fomos",
+                             campos={"motivo": radar.MOTIVOS_ABANDONO[0]})
+
+    def _funil(self):
+        with radar.app.test_request_context("/"):
+            return radar.funil_anuncios()
+
+    def test_os_triados_sao_os_que_tem_proposta(self):
+        f = self._funil()
+        self.assertEqual(f["triados"], 3)          # 60, 61 e 62
+        self.assertEqual(f["entrados"], 4)         # o DR publicou quatro
+        self.assertEqual(f["porver_30"], 1)        # só o 63 ficou por ver
+
+    def test_interessa_e_estar_numa_ranhura_aberta(self):
+        f = self._funil()
+        self.assertEqual(f["interessa"], 2)        # submetido e por analisar
+        self.assertEqual(f["descartados"], 1)      # o «não fomos»
+
+    def test_o_bloco_por_cpv_deixa_de_vir_vazio(self):
+        """Era `WHERE estado NOT IN ('novo','alteracao')` sobre o
+        `anuncios` — uma condição que nenhuma linha satisfaz."""
+        f = self._funil()
+        self.assertEqual([dict(r) for r in f["por_divisao"]],
+                         [{"div": "72", "sim": 2, "nao": 1, "tudo": 3}])
+
+    def test_nenhuma_consulta_do_funil_procura_o_vocabulario_antigo(self):
+        """A garantia contra a reincidência: o `anuncios.estado` só tem
+        `novo` e `alteracao`, e qualquer comparação com as palavras da
+        empresa nesta função é um zero à espera de acontecer."""
+        fonte = inspect.getsource(radar.funil_anuncios)
+        codigo = "\n".join(l for l in fonte.splitlines()
+                           if not l.strip().startswith("#"))
+        for palavra in ("'interessa'", "'descartado'"):
+            self.assertNotIn(palavra, codigo, palavra)
+
+    def test_a_abertura_mostra_os_numeros_e_nao_zeros(self):
+        corpo = radar.app.test_client().get("/").get_data(as_text=True)
+        bloco = corpo[corpo.index("Entrados"):]
+        bloco = bloco[:bloco.index("</div></div>") + 12]
+        self.assertIn("Triados", bloco)
+        # o valor do «Triados» é o 3, e não um 0
+        self.assertNotIn("<span class='v'>0</span>", bloco)
+
+
 class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
     """17/09/2026: o CSS estava embutido num `<style>` em **todas** as
     páginas — 85 KB, 58% de cada resposta, e o browser não o podia

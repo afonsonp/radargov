@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 19
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 54
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 55
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 50
 - [Convenções](#convencoes) &middot; 3
 
-São **209** ao todo, contados a 17/09/2026. Contam-se por secção com
+São **210** ao todo, contados a 17/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1264,6 +1264,21 @@ pelo Afonso e nenhuma se reabre de passagem.
   93,7% das entidades acham-se assim (medido; ver `norma_entidade()`),
   e uma entidade cujo NIF só apareça mais tarde continua a achar os
   contactos que já tinha porque a procura tenta as duas.
+
+- **Um número que conta `anuncios.estado` com as palavras da empresa é
+  um zero à espera de acontecer.** A 15/09/2026 a decisão passou para a
+  tabela `propostas` e o `anuncios.estado` ficou só com o que o DR diz
+  (`novo`, `alteracao`). O funil da abertura continuou a contar
+  `estado='interessa'` e `estado='descartado'` — e a mostrar **«Triados
+  0 · Interessa 0» todos os dias**, com o bloco por CPV vazio, durante
+  dois dias, **sem nenhum teste a falhar**. Zeros são plausíveis: é essa
+  a razão de ninguém ver. E custava **0,22 s por carregamento**, 86% da
+  página, a varrer 210 mil anúncios para devolver zeros.
+  A divisão que fica: **os anúncios respondem ao que é do DR** (quantos
+  entraram, quantos ninguém tocou), **as propostas respondem ao que é
+  decisão nossa** — a mesma do `contar_a_escada()`. Depois de corrigido,
+  a abertura passou de 0,29 s a 0,115 s. Há teste que procura as duas
+  palavras no código da função (`TestOFunilContaPropostasENaoOEstadoDoAnuncio`).
 
 - **A escada é livre; o que trava é o campo em falta.** D4 do
   `docs/historico/CICLOS.md`, palavra dele: «eu não posso passar um por
