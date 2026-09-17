@@ -1242,6 +1242,36 @@ pelo Afonso e nenhuma se reabre de passagem.
   e uma entidade cujo NIF só apareça mais tarde continua a achar os
   contactos que já tinha porque a procura tenta as duas.
 
+- **A escada é livre; o que trava é o campo em falta.** D4 do
+  `docs/historico/CICLOS.md`, palavra dele: «eu não posso passar um por
+  analisar directo para ganho porque há informação que não foi
+  preenchida». Qualquer par de ranhuras continua permitido — não há
+  percurso obrigatório, e voltar atrás é reabrir, que não exige nada.
+  O que `mover_proposta()` recusa é entrar numa ranhura sem o mínimo que
+  a faz ser verdade (`CAMPOS_QUE_A_RANHURA_EXIGE`): um «Ganho» sem preço
+  proposto não é um ganho registado, é uma linha que não soma no funil
+  nem na taxa. **É um subconjunto do que a ranhura PEDE** — pedir é
+  oferecer o campo (`_campos_que_a_ranhura_pede()`), exigir é não deixar
+  entrar sem ele; «Os três primeiros» pede-se e não se exige.
+
+- **Os campos que a ranhura exige gravam-se ANTES de se verificar, e têm
+  de viajar no mesmo pedido.** É o que faz o gesto ser um só. E é a
+  armadilha: quem chamar `mover_proposta()` e gravar o campo **a seguir**
+  leva recusa, porque a condicionante lê a linha como ela está. Foi o que
+  aconteceu ao `motivo` — o `mudar_estado()`, o `escada_da_proposta()` e
+  o `proposta_gravar()` gravavam-no depois de mover, e um «Não fomos» que
+  trazia o motivo consigo passou a ser recusado. Os três passam-no agora
+  por `_campos_exigidos_do_pedido()`. **Um caminho novo que mova uma
+  proposta tem de fazer o mesmo.**
+
+- **O histórico de uma proposta sem `ref` gravava-se para o vazio.**
+  `registar(antes["ref"] or "", …)` punha `ref=""`, e nada o voltava a
+  encontrar: a cronologia de uma consulta prévia estava a ser escrita e
+  nunca lida. A coluna `historico.proposta_id` entrou a 17/09/2026 e o
+  `registar()` recebe-a; `cronologia_da_proposta()` lê por uma **ou**
+  pela outra. As linhas anteriores ficam sem ela — a `ref=""` não diz de
+  que proposta eram, e inventá-lo era pior do que a falta.
+
 - **A chave de uma entidade é UMA só, e tem o prefixo `n:` quando não há
   NIF.** Até 17/09/2026 eram duas escritas do mesmo facto: o corpus
   guardava `chave_entidade()` (o NIF, ou `n:<nome normalizado>`) e os

@@ -764,3 +764,17 @@ utilizador e do projecto ficam acima das skills).
   teve de passar a guardar a regra em vez do valor
   (`mercado[3] == ()`). 998 → 1 015 testes; revisão de código sem
   achados.
+- **17/09/2026 — fase 3, a proposta sem anúncio e a regra da escada.**
+  Feita como planeada. O que o plano não previa: pôr a condicionante
+  obrigou os **três** caminhos que movem uma proposta
+  (`mudar_estado()`, `escada_da_proposta()`, `proposta_gravar()`) a
+  passarem o `motivo` no mesmo pedido — gravavam-no *depois* de mover, e
+  a verificação lê a linha como ela está, por isso um «Não fomos» que
+  trazia o motivo consigo passou a ser recusado. Ficou o
+  `_campos_exigidos_do_pedido()`, e a armadilha escrita. Dez testes
+  antigos ficaram vermelhos e nenhum se simplificou: passaram a trazer o
+  campo que a ranhura exige, que é o gesto que a D4 descreve. 1 015 → 1 029 testes. A revisão apanhou dois HIGH: a
+  condicionante era contornável por quem entrava na escada de uma vez
+  (o ramo sem proposta prévia não passava pelo `mover_proposta()`), e o
+  `confirmar` do `accao()` era interpolado cru dentro do `onsubmit`.
+  Os dois corrigidos com teste.

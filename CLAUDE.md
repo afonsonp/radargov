@@ -245,6 +245,18 @@ A ordem do ficheiro é a ordem do fluxo:
    da **entidade** e não do concurso. **A escada é o estado da proposta,
    não do anúncio** — não voltes a pendurar estado da empresa no
    `anuncios`, que é de onde as doze colunas saíram.
+   **Desde 17/09/2026 (fase 3 do `docs/historico/CICLOS.md`) a escada
+   tem a condicionante da informação em falta** (D4): qualquer par de
+   ranhuras é permitido, mas entrar numa exige os campos que a fazem ser
+   verdade (`CAMPOS_QUE_A_RANHURA_EXIGE`, `falta_para_a_ranhura()`), e
+   esses **gravam-se antes de se verificar** — quem mover uma proposta e
+   gravar o campo a seguir leva recusa, e por isso os três caminhos que
+   movem passam-nos por `_campos_exigidos_do_pedido()`. O histórico de
+   uma proposta sem `ref` grava-se por `historico.proposta_id`, e a
+   `cronologia_da_proposta()` lê por uma ou pela outra. A página
+   `/proposta/<id>` passou a ter o bloco inteiro
+   (`_bloco_de_uma_proposta()`, o mesmo da ficha do anúncio), os
+   contactos, a cronologia e o apagar.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 4. **leitura** — `recolher()` pagina a pesquisa do portal;
