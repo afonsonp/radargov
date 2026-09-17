@@ -197,7 +197,9 @@ superfície, encaixe e os quatro fundos de nota:
 
 Pior caso de toda a paleta: **4,52**. O `--t6` desaparece: um sexto tom
 de cinzento que só funciona em metade dos fundos é uma armadilha, não
-um degrau.
+um degrau. (**Na prática foi aliasado ao `--t5`, não removido**: a
+variável continua definida, para as regras que já a citavam não caírem
+para o tom de omissão do browser. Corrigido aqui a 17/09/2026.)
 
 As superfícies:
 
@@ -476,9 +478,12 @@ Isto mexe em mais coisas do que parece — `NAV`, `ITEM_DA_PAGINA`,
 `/anuncios` e `/lista` que apontam para `/`. Por isso é uma fase
 própria (§11, fase 4) e não um efeito lateral do aspecto.
 
-**Feita a 16/09/2026** (fase 4). `/` é a abertura, a lista vive em
-`LISTA` (`/concursos`) e a barra ganhou um primeiro item, **Hoje** —
-que é a primeira intenção: chegar e ver como está.
+**Feita a 16/09/2026** (fase 4). `/` é a abertura e a lista vive em
+`LISTA` (`/concursos`). **O Hoje não ficou na barra**: é o logótipo,
+decisão dele no mesmo dia — «não quero um separador de hoje, quero que
+esse hoje esteja no radargov, no logo». A barra tem dois itens, e o
+logótipo acende como qualquer um deles. (Esta frase dizia o contrário;
+corrigida a 17/09/2026.)
 
 1. **Quatro números**: em jogo (€), taxa de vitória, por decidir, para
    fazer.

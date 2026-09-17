@@ -1,5 +1,9 @@
 # Saneamento pós-auditoria — 30 de agosto de 2026
 
+> **Instantâneo de 30/08/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Sessão de correcção dos problemas de estado dos dados, operação e
 documentação apontados pela `AUDITORIA.md` do mesmo dia. Sem
 reestruturação, sem decisões visuais, sem refactor de fundo; toda a

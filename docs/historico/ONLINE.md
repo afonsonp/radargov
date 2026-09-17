@@ -1,5 +1,9 @@
 # Plano: o radar online, com login e um menu de configurações
 
+> **Instantâneo de 03/09/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Escrito a **3 de setembro de 2026**, à tarde, a pedido do Afonso. A
 primeira versão deste ficheiro, da mesma tarde, planeava empresas,
 utilizadores por empresa e um super-admin; **ele pôs isso de lado

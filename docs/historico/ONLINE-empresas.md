@@ -1,5 +1,9 @@
 # Plano posto de lado: o radar online com empresas e utilizadores
 
+> **Instantâneo de 03/09/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Escrito a **3 de setembro de 2026**, de manhã para a tarde, a pedido do
 Afonso: «criação de user e pass e gestão dos mesmos por empresas; a
 conta ADMIN Pinto LDA é criada e a partir daí cria-se a gestão dos user

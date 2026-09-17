@@ -24,15 +24,15 @@ pede.**
 | Ficheiro | O que é | Quando se lê |
 |---|---|---|
 | **este** | As regras de trabalho e a arquitectura | Sempre. É o único que se carrega inteiro |
-| `ESTADO.md` | O estado de hoje, com os números | Ao começar. São 150 linhas |
+| `ESTADO.md` | O estado de hoje, com os números | Ao começar. São ~156 linhas, e **é para isso que serve o formato**: sempre que voltar a crescer para diário, o que ele contava vai inteiro para o `docs/diario/` e este volta ao formato (já aconteceu a 3/09 e a 17/09/2026) |
 | `docs/armadilhas.md` | O que não é óbvio, em 15 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões, a escala | **Antes de mexer em cor, letra, botões ou no calendário**. O que ele vê está em `/amostra` |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `CRM`, `CICLOS` | Raramente. São instantâneos, não se mantêm |
-| `docs/historico/CICLOS.md` | O plano de 16/09/2026 para fechar os ciclos (tarefas, entidade, proposta sem anúncio, peças) e arrumar esta documentação, com as decisões dele respondidas e a fase 5 ficheiro a ficheiro | **Antes de tocar nas tarefas, no Hoje, na ficha da entidade ou em qualquer `.md` desta tabela**, enquanto as cinco fases não estiverem no §9 dele |
-| `docs/arquitectura.html`<br>`docs/processo-*.html` | Seis diagramas interactivos (16/09/2026, pela skill `archify`): a arquitectura, e por dentro da recolha, das peças, da porta, da escada e do corpus | Para ver a forma de uma coisa antes de lhe mexer. **São instantâneos: mudar o código não os muda** |
+| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `ONLINE-empresas`, `CRM`, `CICLOS` | Raramente. **Todos abrem com o aviso de instantâneo** (17/09/2026): descrevem o dia em que foram escritos e não se editam |
+| `docs/historico/CICLOS.md` | O plano de 16/09/2026 para fechar os ciclos (tarefas, entidade, proposta sem anúncio, peças) e arrumar esta documentação. **As cinco fases ficaram feitas a 17/09/2026**, cada uma com a sua linha no §9 — e cada linha diz o que saiu diferente do plano | Para perceber uma decisão destas quatro áreas. É instantâneo: o que vale hoje está aqui e nas armadilhas |
+| `docs/arquitectura.html`<br>`docs/processo-*.html` | Seis diagramas interactivos (16/09/2026, pela skill `archify`). **Cinco dos seis contradizem o código de hoje** e estão por regenerar (BACKLOG, D4): a escada desenha oito ranhuras em vez de dez e nenhuma seta de retorno, a arquitectura diz «única fonte» com a Vortal e o BASE a existirem, a recolha não tem o passo da Vortal, a porta atribui ao CSRF o que é do `origem_e_nossa()`, e as peças não têm a seta de retorno do «sem orçamento». Só o do corpus está certo | Para ver a **forma** de uma coisa, com a data em mente. **São instantâneos: mudar o código não os muda** |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
@@ -221,8 +221,8 @@ A ordem do ficheiro é a ordem do fluxo:
    `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
    `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
    série dos erros que as marcas sobrescrevem; poda a 200 por tipo),
-   `propostas`, `tarefas` e `contactos` (o CRM, 15/09/2026). São 23
-   tabelas.
+   `propostas`, `tarefas` e `contactos` (o CRM, 15/09/2026). São **23
+   tabelas**, contadas a 17/09/2026 na base dele.
 2. **comum** — as utilidades puras: `simplifica()`, `data_pt()`,
    `data_hora_pt()`, `mil_pt()`, `euros_do_texto()`, `conta_dias()`,
    `dias_restantes()`, `dias_urgente()`, `janela_urgente()`,
@@ -368,7 +368,8 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São 195 pontos, cada um de um erro que existiu mesmo, em **15 áreas**:
+São **208 pontos** (contados a 17/09/2026), cada um de um erro que
+existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

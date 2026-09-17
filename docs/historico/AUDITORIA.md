@@ -1,5 +1,9 @@
 # Auditoria completa ao Radar — 30 de agosto de 2026
 
+> **Instantâneo de 30/08/2026.** Descreve o que se planeou ou mediu
+> nesse dia. O que mudou depois está no `ESTADO.md` e no
+> `docs/diario/`. Não se edita.
+
 Inventário e avaliação do que existe hoje, feito por leitura integral do
 código (`radar.py`, 9 938 linhas; `teste_radar.py`, 3 230; hooks, skills
 e `.bat`), da documentação (`ESTADO.md`, `CONCORRENTES.md`, `BACKLOG.md`,
