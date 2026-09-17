@@ -731,3 +731,17 @@ utilizador e do projecto ficam acima das skills).
 - **16/09/2026, à noite:** o plano; `email.para` posto; o
   `proximo-prompt.md` apagado; a linha deste ficheiro no `CLAUDE.md` e
   no `BACKLOG.md`. Nenhuma fase começada.
+- **17/09/2026 — fase 1, as tarefas.** Feita como planeada, com três
+  desvios pequenos. (a) O KPI «Para fazer» teve de passar a contar as
+  **linhas desenhadas** e não `len(tarefas)`: esconder as automáticas
+  das propostas sem decisão quebrava a regra do número que abre a
+  lista, o que o plano não tinha previsto (`_quantas()`). (b) Os dias
+  que faltam não vieram do `conta_dias()` da banda comum como o §3.1
+  dizia — ele devolve «termina hoje» para tudo o que já passou, e uma
+  tarefa atrasada tem de dizer há quanto; ficou uma função local, para
+  não mudar o contrato de uma função que serve as etiquetas de prazo.
+  (c) O campo de adiar e atribuir entrou também no
+  `_tarefas_da_ficha()`, e por isso a ficha do **anúncio** ganhou-o de
+  graça. Nada mudou na D2: `sincronizar_tarefas()` já não tocava numa
+  automática com o prazo passado — o que faltava era o teste que o
+  prova e o balde que a mostra. 982 → 997 testes.

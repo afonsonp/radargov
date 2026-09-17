@@ -1833,8 +1833,8 @@ def sincronizar_tarefas(ref=None):
         if ref:
             onde, vals = " WHERE p.ref = ?", [ref]
         linhas = c.execute(
-            "SELECT p.id, p.ref, p.estado, a.data_pub, a.prazo "
-            "FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
+            "SELECT p.id, p.ref, p.estado, p.responsavel, a.data_pub, "
+            "a.prazo FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
             vals).fetchall()
         # As que existem, para nao ser uma consulta por proposta
         ids = [l["id"] for l in linhas]
@@ -1854,19 +1854,30 @@ def sincronizar_tarefas(ref=None):
             for origem in ORIGENS_AUTOMATICAS:
                 tem = actuais.get((l["id"], origem))
                 data = quer.get(origem)
+                dono = (l["responsavel"] or "").strip() or None
                 if data and not tem:
                     c.execute(
                         "INSERT INTO tarefas (proposta_id, ref, o_que, quando,"
-                        " origem, criada_em) VALUES (?,?,?,?,?,?)",
+                        " quem, origem, criada_em) VALUES (?,?,?,?,?,?,?)",
                         (l["id"], l["ref"], TEXTO_AUTOMATICO[origem], data,
-                         origem, agora))
+                         dono, origem, agora))
                     criadas += 1
-                elif data and tem and tem["quando"] != data and not tem["feita_em"]:
-                    # o DR prorrogou: a tarefa acompanha. Uma ja feita
-                    # fica como esta -- marcar como feita e um facto.
-                    c.execute("UPDATE tarefas SET quando=? WHERE id=?",
-                              (data, tem["id"]))
-                    mudadas += 1
+                elif data and tem:
+                    if tem["quando"] != data and not tem["feita_em"]:
+                        # o DR prorrogou: a tarefa acompanha. Uma ja feita
+                        # fica como esta -- marcar como feita e um facto.
+                        c.execute("UPDATE tarefas SET quando=? WHERE id=?",
+                                  (data, tem["id"]))
+                        mudadas += 1
+                    # O dono herda-se da proposta so quando a tarefa nao
+                    # tem nenhum (D-b do CICLOS.md): uma tarefa a que
+                    # alguem ja pos nome nao se reescreve por o
+                    # responsavel da proposta ter mudado.
+                    if dono and not (tem["quem"] or "").strip() \
+                            and not tem["feita_em"]:
+                        c.execute("UPDATE tarefas SET quem=? WHERE id=?",
+                                  (dono, tem["id"]))
+                        mudadas += 1
                 elif not data and tem and not tem["feita_em"]:
                     # a proposta fechou, saiu da escada, ou o anuncio
                     # perdeu a data: deixa de haver o que fazer
@@ -1911,6 +1922,77 @@ def marcar_tarefa(id_, feita=True, quem=None):
     registar(t["ref"] or "", "tarefa",
              "%s: %s" % ("feita" if feita else "por fazer", t["o_que"]), quem)
     return t
+
+
+def gravar_tarefa(id_, **campos):
+    """Adiar, atribuir ou reescrever uma tarefa. Devolve (ok, recado).
+
+    Uma rota só para os três gestos (CICLOS.md, fase 1): o formulário da
+    linha manda o que mudou, e duas rotas para «adiar» e «atribuir» eram
+    a mesma coisa escrita duas vezes.
+
+    O `quando` vem como a pessoa o escreve (dd/mm/aaaa ou ISO) e grava-se
+    em ISO, que é o que a ordenação e os baldes comparam. Data ilegível
+    **recusa** em vez de gravar vazio: apagar o prazo de uma tarefa por
+    se ter escrito "amanhã" é perder trabalho em silêncio -- a mesma
+    armadilha do `data_de_filtro()`, que já custou uma lista vazia.
+    """
+    nomes, valores = [], []
+    for nome in ("quando", "quem", "o_que"):
+        if nome not in campos:
+            continue
+        bruto = campos[nome]
+        if nome == "quando":
+            bruto = (bruto or "").strip()
+            iso = data_de_filtro(bruto) if bruto else ""
+            if bruto and not iso:
+                return False, ("«%s» não é uma data (dd/mm/aaaa)."
+                               % corta(bruto, 20))
+            valores.append(iso or None)
+        elif nome == "o_que":
+            texto = " ".join((bruto or "").split())[:200]
+            if not texto:
+                return False, "Uma tarefa sem texto não é uma tarefa."
+            valores.append(texto)
+        else:
+            valores.append(" ".join((bruto or "").split())[:60] or None)
+        nomes.append(nome)
+    if not nomes:
+        return True, ""
+    with liga() as c:
+        t = c.execute("SELECT * FROM tarefas WHERE id=?", (id_,)).fetchone()
+        if not t:
+            return False, "Essa tarefa já não existe."
+        c.execute("UPDATE tarefas SET " + ", ".join(n + "=?" for n in nomes)
+                  + " WHERE id=?", valores + [id_])
+    mudou = [n for n, v in zip(nomes, valores) if (t[n] or None) != (v or None)]
+    if mudou:
+        registar(t["ref"] or "", "tarefa",
+                 "%s: %s" % (corta(t["o_que"] or "", 60),
+                             ", ".join(sorted(mudou))))
+    return True, ""
+
+
+def propostas_sem_decisao(hoje=None):
+    """As propostas cujo prazo do DR passou e que continuam por decidir.
+
+    **Não se mexe em nenhuma** (D2 do `docs/historico/CICLOS.md`, palavra
+    dele: «posso não ter passado para submetido por esquecimento e ele
+    vai passar para não fomos»). Isto é uma CONSULTA: quem decide é a
+    pessoa, no selector de ranhura. A abertura mostra-as num balde
+    próprio para deixarem de andar misturadas com as tarefas atrasadas,
+    que é onde apareciam a dizer «entregar a proposta» um mês depois do
+    prazo -- dezasseis delas, de Julho e Agosto, na base de 16/09/2026.
+    """
+    hoje = hoje or datetime.now().date()
+    with liga() as c:
+        return c.execute(
+            "SELECT p.*, a.prazo AS a_prazo, a.entidade AS a_entidade "
+            "FROM propostas p JOIN anuncios a ON a.ref = p.ref "
+            "WHERE p.estado IN (%s) AND COALESCE(a.prazo,'') != '' "
+            "AND a.prazo < ? ORDER BY a.prazo, p.id"
+            % ",".join("?" * len(ESTADOS_COM_TAREFAS)),
+            list(ESTADOS_COM_TAREFAS) + [hoje.isoformat()]).fetchall()
 
 
 def tarefas_por_proposta(ids):
@@ -9894,6 +9976,20 @@ a.ct-l{color:var(--azul)}
 .hj-c{font:400 var(--f2,12px)/1.4 var(--sans);color:var(--t5);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:900px){.hj-l{grid-template-columns:minmax(0,1fr);gap:2px}}
+/* O cabecalho do grupo: as tarefas agrupam-se por PROPOSTA e nao por
+   data dentro do balde (D-c do CICLOS.md) -- 55 tarefas sao ~25
+   concursos, e uma lista de 55 linhas iguais nao diz de que concurso
+   cada uma e. */
+.hj-p{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
+ margin:10px 0 3px;padding:0 9px}
+.hj-p a{font:600 var(--f2,12px)/1.4 var(--sans);color:var(--t2)}
+.hj-p a:hover{color:var(--azul)}
+.hj-p .tag{font:500 10.5px/1.5 var(--sans)}
+.hj-p form.ranhura{margin-left:auto}
+.hj-l .hj-bts{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.hj-l .hj-bts input[type=text]{width:88px;font:400 11px/1.4 var(--sans);
+ padding:2px 4px}
+.hj-l .hj-bts input[name=quem]{width:76px}
 
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
@@ -10597,7 +10693,12 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # a outra aba procura-lo. So se aceita um caminho de estado, nao
         # um endereco qualquer vindo da query string.
         volta = ""
-        if desfazer.startswith("/estado/"):
+        # `/tarefa/` entrou a 17/09/2026 (fase 1 do CICLOS.md): o
+        # `/tarefa/<id>/feita` já mandava o caminho do desfazer desde
+        # que nasceu, e o botão **nunca apareceu** -- este `if` só
+        # conhecia `/estado/`. Riscar a tarefa errada numa lista de
+        # cinquenta não tinha volta, que é o erro mais fácil de cometer.
+        if desfazer.startswith("/estado/") or desfazer.startswith("/tarefa/"):
             volta = ("<form class='accao desfazer' method='post' action='%s'>"
                      "<button type='submit' class='mini'>desfazer</button>"
                      "</form>" % html.escape(desfazer, quote=True))
@@ -17874,6 +17975,28 @@ def tarefa_feita(id_):
                             "/tarefa/%d/por-fazer" % id_)
 
 
+@app.route("/tarefa/<int:id_>/gravar", methods=["POST"])
+def tarefa_gravar(id_):
+    """Adiar, atribuir ou reescrever, numa rota só: o formulário da linha
+    manda o que mudou (fase 1 do `docs/historico/CICLOS.md`).
+
+    Os campos vazios não se gravam -- o formulário da linha do Hoje tem
+    sempre os dois `<input>` desenhados, e um «quando» em branco a
+    apagar o prazo da tarefa era perder trabalho por não se ter escrito
+    nada nele.
+    """
+    campos = {}
+    for nome in ("quando", "quem", "o_que"):
+        if nome in request.form and (request.form.get(nome) or "").strip():
+            campos[nome] = request.form.get(nome)
+    if not campos:
+        return volta_ao_referer("/")
+    ok, recado = gravar_tarefa(id_, **campos)
+    if not ok:
+        return _volta_com_aviso(recado)
+    return _volta_com_aviso("Tarefa actualizada.")
+
+
 @app.route("/tarefa/<int:id_>/por-fazer", methods=["POST"])
 def tarefa_por_fazer(id_):
     """O desfazer do «feita». Sem ele, riscar a tarefa errada numa lista
@@ -18268,7 +18391,7 @@ def _tarefas_da_ficha(p):
     for t in por_fazer:
         texto_prazo, classe = etiqueta_prazo(t["quando"], dias_urgente())
         linhas.append(
-            "<li>%s<span class='t'>%s</span>%s%s</li>"
+            "<li>%s<span class='t'>%s</span>%s%s%s%s</li>"
             % (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq"),
                html.escape(t["o_que"]),
                ("<span class='tag %s'>%s</span>"
@@ -18276,7 +18399,18 @@ def _tarefas_da_ficha(p):
                if t["quando"] else "",
                "<span class='tag' title='vem das datas do DR e "
                "acompanha-as'>automática</span>"
-               if t["origem"] in ORIGENS_AUTOMATICAS else ""))
+               if t["origem"] in ORIGENS_AUTOMATICAS else "",
+               ("<span class='tag'>%s</span>" % html.escape(t["quem"]))
+               if t["quem"] else "",
+               # adiar e atribuir, as mesmas acções do Hoje: a tarefa
+               # resolve-se onde se lê, e não só na página onde nasceu
+               "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
+               "<input type='text' name='quando' inputmode='numeric' "
+               "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
+               "<input type='text' name='quem' maxlength='60' list='pessoas' "
+               "placeholder='quem'>"
+               "<button type='submit' class='mini'>gravar</button></form>"
+               % t["id"]))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
     juntar = ("<form class='tarefa-nova' method='post' action='/tarefa/nova'>"
@@ -18549,10 +18683,14 @@ def ficha_da_proposta(id_):
         "<label>Estado<select name='estado'>%s</select></label>%s%s"
         "<label>Responsável<input type='text' name='responsavel' value='%s' "
         "list='pessoas'></label>"
-        "<button type='submit'>gravar</button></form></div>"
+        "<button type='submit'>gravar</button></form>%s</div>"
         "<p class='nota'>Sem anúncio do DR: %s. Criada a %s.%s</p>"
+        # As tarefas de uma proposta sem anúncio não tinham onde se
+        # riscar: esta página não chamava o `_tarefas_da_ficha()`, e o
+        # atalho da ficha do anúncio não existe para quem não tem `ref`.
         % (id_, escada, motivo_html, campos,
            html.escape(p["responsavel"] or "", quote=True),
+           _tarefas_da_ficha(p),
            html.escape(p["porque_sem_ref"] or "não vem do DR"),
            html.escape(p["criada_em"] or "?"),
            " Fechada a %s." % html.escape(p["fechada_em"])
@@ -19960,39 +20098,81 @@ def _tarefas_por_fazer():
     """
     with liga() as c:
         return c.execute(
-            "SELECT t.*, p.estado, p.titulo AS p_titulo, p.entidade "
+            "SELECT t.*, p.estado, p.titulo AS p_titulo, p.entidade, "
+            "p.responsavel AS p_responsavel, a.entidade AS a_entidade, "
+            "a.prazo AS a_prazo "
             "FROM tarefas t LEFT JOIN propostas p ON p.id = t.proposta_id "
+            "LEFT JOIN anuncios a ON a.ref = t.ref "
             "WHERE t.feita_em IS NULL "
             "ORDER BY COALESCE(NULLIF(t.quando,''),'9999'), t.id").fetchall()
 
 
-def _grupos_das_tarefas(tarefas, hoje):
-    """As tarefas em quatro baldes, por ordem de quem grita mais alto.
+def _quantas(grupos_do_balde):
+    """Quantas TAREFAS ha num balde ja agrupado por proposta.
+
+    Existe porque `len(balde)` passou a contar GRUPOS, e o KPI "Para
+    fazer" tem de continuar a dar exactamente o numero de linhas
+    desenhadas -- a regra da empresa, que este mesmo numero ja quebrou
+    uma vez (contava seis de oito e ligava ao calendario).
+    """
+    return sum(len(ts) for _, ts in grupos_do_balde)
+
+
+def _grupos_das_tarefas(tarefas, hoje, sem_decisao=()):
+    """As tarefas em cinco baldes, por ordem de quem grita mais alto, e
+    agrupadas por proposta dentro de cada um.
 
     Um "o que tenho de fazer" ordenado so por data poe o atrasado de
     ontem a seguir ao de hoje e antes do da proxima semana, o que e
     verdade e nao ajuda: o que esta atrasado e outra categoria, nao um
     dia pior.
+
+    O primeiro balde e o "prazo passou sem decisao" (D2 do CICLOS.md): as
+    propostas abertas cujo prazo do DR ja passou. Nada se move sozinho --
+    quem escolhe a ranhura e a pessoa. As AUTOMATICAS dessas propostas
+    ficam de fora dos outros baldes: um "entregar a proposta" de Julho na
+    coluna das atrasadas e a mesma coisa duas vezes, e a que menos ajuda.
+    As escritas a mao dessas propostas continuam onde a data as poe --
+    "ligar ao Dr. X" nao deixa de fazer sentido por o prazo ter passado.
+
+    `sem_decisao` sao linhas de `propostas` (propostas_sem_decisao()), e
+    por isso este balde traz `(proposta, [])`; os outros trazem
+    `(primeira tarefa do grupo, [(tarefa, dia), ...])`.
     """
-    baldes = [("atrasadas", "Atrasadas", "mau"), ("hoje", "Hoje", "avisa"),
+    baldes = [("sem_decisao", "Prazo passou sem decisão", "mau"),
+              ("atrasadas", "Atrasadas", "mau"), ("hoje", "Hoje", "avisa"),
               ("semana", "Nos próximos %d dias" % DIAS_A_FECHAR, ""),
               ("depois", "Mais para a frente", "")]
     fora = {chave: [] for chave, _, _ in baldes}
+    fora["sem_decisao"] = [(p, []) for p in sem_decisao]
+    paradas = {p["id"] for p in sem_decisao}
     limite = hoje + timedelta(days=DIAS_A_FECHAR)
+    # Agrupar preservando a ordem por data: o primeiro grupo de cada
+    # balde e o do concurso que grita mais alto.
+    ordem = {chave: {} for chave, _, _ in baldes}
     for t in tarefas:
-        quando = data_de_filtro(t["quando"]) if t["quando"] else ""
-        if not quando:
-            fora["depois"].append((t, None))
+        if t["proposta_id"] in paradas and t["origem"] in ORIGENS_AUTOMATICAS:
             continue
-        dia = datetime.strptime(quando, "%Y-%m-%d").date()
-        if dia < hoje:
-            fora["atrasadas"].append((t, dia))
+        quando = data_de_filtro(t["quando"]) if t["quando"] else ""
+        dia = (datetime.strptime(quando, "%Y-%m-%d").date() if quando else None)
+        if dia is None:
+            chave = "depois"
+        elif dia < hoje:
+            chave = "atrasadas"
         elif dia == hoje:
-            fora["hoje"].append((t, dia))
+            chave = "hoje"
         elif dia <= limite:
-            fora["semana"].append((t, dia))
+            chave = "semana"
         else:
-            fora["depois"].append((t, dia))
+            chave = "depois"
+        # o grupo e a proposta; uma tarefa sem proposta agrupa-se pelo
+        # anuncio, e uma sem nenhum dos dois fica sozinha (id da tarefa)
+        grupo = (("p", t["proposta_id"]) if t["proposta_id"]
+                 else ("r", t["ref"]) if t["ref"] else ("t", t["id"]))
+        if grupo not in ordem[chave]:
+            ordem[chave][grupo] = (t, [])
+            fora[chave].append(ordem[chave][grupo])
+        ordem[chave][grupo][1].append((t, dia))
     return baldes, fora
 
 
@@ -20015,8 +20195,15 @@ def inicio():
                             valores).fetchone()["n"]
 
     tarefas = _tarefas_por_fazer()
-    baldes, grupos = _grupos_das_tarefas(tarefas, hoje)
-    a_fechar = len(grupos["atrasadas"]) + len(grupos["hoje"]) + len(grupos["semana"])
+    sem_decisao = propostas_sem_decisao(hoje)
+    baldes, grupos = _grupos_das_tarefas(tarefas, hoje, sem_decisao)
+    quantas = {ch: _quantas(grupos[ch]) for ch, _, _ in baldes}
+    # O numero do KPI e o das LINHAS de tarefa desenhadas, e nao o
+    # len(tarefas): as automaticas das propostas sem decisao nao se
+    # desenham, e um numero maior do que a lista e a avaria que a regra
+    # da empresa proibe.
+    por_fazer = sum(n for ch, n in quantas.items() if ch != "sem_decisao")
+    a_fechar = quantas["atrasadas"] + quantas["hoje"] + quantas["semana"]
 
     def kpi(rotulo, valor, nota, alvo, estilo=""):
         """Cada numero abre exactamente a lista que o produz -- a regra da
@@ -20052,29 +20239,103 @@ def inicio():
         # regra da empresa proibe, e ja foi apanhada hoje no "+N" do
         # calendario. Aqui a lista esta na propria pagina, e por isso o
         # destino e uma ancora.
-        kpi("Para fazer", mil_pt(len(tarefas)),
+        kpi("Para fazer", mil_pt(por_fazer),
             ("%s atrasadas &middot; %s até %d dias"
-             % (mil_pt(len(grupos["atrasadas"])), mil_pt(a_fechar),
-                DIAS_A_FECHAR)) if grupos["atrasadas"]
+             % (mil_pt(quantas["atrasadas"]), mil_pt(a_fechar),
+                DIAS_A_FECHAR)) if quantas["atrasadas"]
             else ("%s nos próximos %d dias" % (mil_pt(a_fechar), DIAS_A_FECHAR))
             if a_fechar else "nada com data à vista",
             "#fazer",
-            "color:var(--verm)" if grupos["atrasadas"] else ""),
+            "color:var(--verm)" if quantas["atrasadas"] else ""),
     ))
 
     # 2. o que tenho de fazer -------------------------------------------
-    def linha_da_tarefa(t, dia):
-        quando = ("<span class='hj-q'>%s</span>" % data_pt(dia.isoformat())
-                  if dia else "<span class='hj-q vago'>sem data</span>")
-        onde_ = t["p_titulo"] or t["entidade"] or t["ref"] or ""
-        alvo = ("/anuncio/" + quote(t["ref"], safe="")) if t["ref"] else LISTA
-        return ("<a class='hj-l' href='%s'>%s<span class='hj-o'>%s</span>"
-                "<span class='hj-c'>%s</span></a>"
-                % (html.escape(alvo, quote=True), quando,
-                   html.escape(t["o_que"] or ""),
-                   html.escape(corta(onde_, 70))))
+    #
+    # A linha diz de QUE CONCURSO e a tarefa e deixa resolve-la ali
+    # (fase 1 do CICLOS.md): ate 16/09/2026 mostrava a data, o texto e o
+    # titulo, e concluir so existia na ficha do anuncio -- 55 linhas
+    # iguais e uma viagem por cada uma.
+    def cabeca_do_grupo(ref, titulo, estado, entidade, id_proposta=None,
+                        selector=False, nota=""):
+        alvo = ("/anuncio/" + quote(ref, safe="")) if ref else (
+            "/proposta/%d" % id_proposta if id_proposta else LISTA)
+        etiquetas = ""
+        if ref:
+            etiquetas += "<span class='tag'>%s</span>" % html.escape(ref)
+        if estado:
+            etiquetas += ("<span class='tag'>%s</span>"
+                          % html.escape(estado_da_empresa(estado)))
+        if entidade:
+            etiquetas += ("<span class='hj-c'>%s</span>"
+                          % html.escape(corta(entidade, 50)))
+        if nota:
+            etiquetas += "<span class='tag mau'>%s</span>" % html.escape(nota)
+        manda = ("/proposta/%d/escada" % id_proposta if id_proposta
+                 else "/escada/" + quote(ref, safe="")) if selector else ""
+        return ("<div class='hj-p'><a href='%s'>%s</a>%s%s</div>"
+                % (html.escape(alvo, quote=True),
+                   html.escape(corta(titulo or ref or "(sem título)", 70)),
+                   etiquetas,
+                   selector_de_ranhura(manda, estado, titulo=titulo or ref or "")
+                   if manda else ""))
 
-    if tarefas:
+    def quantos_dias(dif):
+        """Os dias que faltam, ditos como se dizem. O `conta_dias()` da
+        banda comum nao serve aqui: ele responde a "quanto falta para um
+        prazo" e devolve "termina hoje" para tudo o que ja passou, e uma
+        tarefa atrasada tem de dizer HA QUANTO."""
+        if dif == 0:
+            return "hoje"
+        if dif == 1:
+            return "amanhã"
+        if dif == -1:
+            return "ontem"
+        return ("há %d dias" % -dif) if dif < 0 else conta_dias(dif)
+
+    def linha_da_tarefa(t, dia):
+        quando = ("<span class='hj-q'>%s &middot; %s</span>"
+                  % (data_pt(dia.isoformat()), quantos_dias((dia - hoje).days))
+                  if dia else "<span class='hj-q vago'>sem data</span>")
+        quem = t["quem"] or ""
+        # As accoes valem de QUALQUER pagina: o `volta_ao_referer()` das
+        # rotas traz de volta a esta, e o desfazer vem no aviso.
+        botoes = (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq")
+                  + "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
+                    "<input type='text' name='quando' inputmode='numeric' "
+                    "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
+                    "<input type='text' name='quem' maxlength='60' "
+                    "list='pessoas' value='%s' placeholder='quem'>"
+                    "<button type='submit' class='mini'>gravar</button></form>"
+                  % (t["id"], html.escape(quem, quote=True)))
+        return ("<div class='hj-l'>%s<span class='hj-o'>%s</span>"
+                "<span class='hj-c'>%s%s</span>"
+                "<span class='hj-bts'>%s</span></div>"
+                % (quando, html.escape(t["o_que"] or ""),
+                   ("<span class='tag' title='vem das datas do DR e "
+                    "acompanha-as'>automática</span>"
+                    if t["origem"] in ORIGENS_AUTOMATICAS else ""),
+                   (" " + html.escape(quem)) if quem else "",
+                   botoes))
+
+    def bloco_do_balde(chave, aqui):
+        pedacos = []
+        for cabeca, itens in aqui:
+            if chave == "sem_decisao":
+                # `cabeca` e uma linha de `propostas`
+                pedacos.append(cabeca_do_grupo(
+                    cabeca["ref"], cabeca["titulo"], cabeca["estado"],
+                    cabeca["entidade"] or cabeca["a_entidade"],
+                    id_proposta=cabeca["id"], selector=True,
+                    nota="prazo a %s" % data_pt(cabeca["a_prazo"])))
+                continue
+            pedacos.append(cabeca_do_grupo(
+                cabeca["ref"], cabeca["p_titulo"], cabeca["estado"],
+                cabeca["a_entidade"] or cabeca["entidade"],
+                id_proposta=cabeca["proposta_id"]))
+            pedacos.extend(linha_da_tarefa(t, d) for t, d in itens)
+        return "".join(pedacos)
+
+    if any(grupos[ch] for ch, _, _ in baldes):
         blocos = []
         for chave, rotulo, classe in baldes:
             aqui = grupos[chave]
@@ -20082,8 +20343,10 @@ def inicio():
                 continue
             blocos.append(
                 "<div class='hj-g %s'><div class='hj-t'>%s <i>%s</i></div>%s</div>"
-                % (classe, html.escape(rotulo), mil_pt(len(aqui)),
-                   "".join(linha_da_tarefa(t, d) for t, d in aqui)))
+                % (classe, html.escape(rotulo),
+                   mil_pt(len(aqui) if chave == "sem_decisao"
+                          else _quantas(aqui)),
+                   bloco_do_balde(chave, aqui)))
         fazer = "".join(blocos)
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
@@ -20122,6 +20385,10 @@ def inicio():
         "gap:18px;margin-top:18px'>%s</div>"
         "</div>"
         % (kpis, entrada, fazer, numeros_do_negocio()),
+        # O selector de ranhura do balde «prazo passou sem decisão» pede
+        # motivo em duas das oito palavras, e sem a caixa o gesto ficava
+        # a meio (o servidor recusa e diz porquê, mas aqui há JS).
+        script=caixa_do_motivo(),
         titulo_aba="Radar de Concursos, DR")
 
 

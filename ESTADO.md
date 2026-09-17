@@ -415,6 +415,26 @@ quando disse «faz as duas que ficaram»:
 
 São **982 testes**, e o registo de pendências está outra vez limpo.
 
+**A 17/09/2026 começou o `docs/historico/CICLOS.md`, e a fase 1 fechou
+o ciclo do trabalho.** O Hoje mostrava tarefas e não deixava
+resolvê-las: a linha dizia a data, o texto e o título, concluir só
+existia na ficha do anúncio, não havia adiar nem atribuir, e o
+«desfazer» do `/tarefa/<id>/feita` **nunca apareceu** — o `envolver()`
+só o desenhava para caminhos `/estado/`. Agora são **cinco baldes**, e
+o primeiro é **«prazo passou sem decisão»**: as propostas abertas cujo
+prazo do DR já passou (eram dezasseis, de Julho e Agosto). **Nada se
+move sozinho** — D2, palavra dele: «posso não ter passado para
+submetido por esquecimento e ele vai passar para não fomos» — e as
+automáticas dessas propostas escondem-se dos outros baldes para não
+serem a mesma coisa duas vezes. As tarefas agrupam-se **por proposta**,
+o cabeçalho do grupo é o concurso (ref, ranhura, entidade), e cada
+linha resolve-se ali: feita, desfazer, adiar e atribuir
+(`/tarefa/<id>/gravar`, uma rota para os três gestos). As automáticas
+passaram a **herdar o responsável** da proposta quando não têm nenhum
+(eram zero em 36), e uma tarefa com nome não se reescreve. E a página
+de uma proposta sem anúncio passou a mostrar as tarefas dela. São
+**997 testes**.
+
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
 blocos com âncora — faltavam o **«A nossa proposta»**, que é onde o

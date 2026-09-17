@@ -306,9 +306,19 @@ A ordem do ficheiro é a ordem do fluxo:
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
 8a. **a abertura** — `/` (16/09/2026, fase 4 do `docs/design.md`): o
-   estado do negócio e o que há para fazer. Lê só a tabela `tarefas`;
-   os prazos dos anúncios não se somam por cima, que as automáticas já
-   os trazem.
+   estado do negócio e o que há para fazer. Lê a tabela `tarefas`; os
+   prazos dos anúncios não se somam por cima, que as automáticas já os
+   trazem. Desde 17/09/2026 (fase 1 do `docs/historico/CICLOS.md`) são
+   **cinco baldes**, e o primeiro é **«prazo passou sem decisão»**
+   (`propostas_sem_decisao()`): as propostas abertas cujo prazo do DR já
+   passou. **Nada se move sozinho** (D2) — as automáticas dessas
+   propostas escondem-se dos outros baldes para não se contarem duas
+   vezes, e quem escolhe a ranhura é a pessoa, no selector da linha. As
+   tarefas agrupam-se **por proposta** dentro de cada balde, o cabeçalho
+   é o concurso (ref, ranhura, entidade) e cada linha resolve-se ali:
+   feita, desfazer, adiar e atribuir (`/tarefa/<id>/gravar`, uma rota
+   para os três gestos). O número do KPI conta as **linhas desenhadas**,
+   e não `len(tarefas)`.
 8b. **a amostra do desenho** — `/amostra` (16/09/2026, fase 0 do
    `docs/design.md`): os componentes todos num sítio, com um selector
    de letra e de pele, para ele ver e decidir antes de um ecrã mudar.
