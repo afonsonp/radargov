@@ -27,7 +27,7 @@ import tempfile
 import time
 import unittest
 import unittest.mock
-from urllib.parse import parse_qsl, quote, unquote, unquote_plus, urlparse
+from urllib.parse import parse_qsl, quote, unquote, unquote_plus, urlencode, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
@@ -4348,7 +4348,14 @@ class TestModoFimDosContratos(unittest.TestCase):
         dias); dois modos da mesma tabela são abas.
         """
         mercado = next(n for n in radar.NAV if n[0] == "mercado")
-        self.assertEqual(mercado[3], ())
+        # O que se guarda é a REGRA, e não o tuplo vazio: a 17/09/2026 o
+        # Mercado ganhou a vista **Entidades** (fase 2 do
+        # `docs/historico/CICLOS.md`), que passa nesta distinção — é
+        # olhar para o mesmo mercado por quem, e não por contrato. Pregar
+        # o `()` fazia este teste falhar por uma vista que ele devia
+        # deixar passar.
+        self.assertNotIn("renovacoes", [v[0] for v in mercado[3]])
+        self.assertNotIn("contratos", [v[0] for v in mercado[3]])
         # o Calendário continua a ser vista de barra, que é o caso oposto
         concursos = next(n for n in radar.NAV if n[0] == "anuncios")
         self.assertEqual([v[0] for v in concursos[3]], ["calendario"])
@@ -6127,14 +6134,23 @@ class TestContactos(BaseTemporaria):
     def test_sem_nif_a_chave_e_o_nome_normalizado(self):
         """93,7% das entidades do radar acham-se assim (medido; ver
         `norma_entidade()`), e sem isto os contactos de uma entidade
-        cujo NIF o DR não publica não tinham onde viver."""
+        cujo NIF o DR não publica não tinham onde viver.
+
+        **Com o prefixo `n:` desde 17/09/2026** (fase 2 do
+        `docs/historico/CICLOS.md`): é a mesma chave do corpus
+        (`chave_entidade()`). Este teste pregava a escrita antiga, sem
+        prefixo, e eram duas escritas do mesmo facto — a ficha da
+        entidade não achava os contactos dela.
+        """
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET nif='' WHERE ref='1/2026'")
         chave = radar.chave_da_entidade(self._a("1/2026"))
         self.assertTrue(chave)
         self.assertNotEqual(chave, "506000000")
-        self.assertEqual(chave, radar.norma_entidade(
+        self.assertEqual(chave, "n:" + radar.norma_entidade(
             "Instituto Politécnico de Leiria"))
+        self.assertEqual(chave, radar.chave_entidade(
+            "", "Instituto Politécnico de Leiria"))
 
     def test_o_contacto_aparece_nos_OUTROS_concursos_da_mesma_entidade(self):
         """É o ponto todo da etapa: o contacto é da entidade."""
@@ -12438,6 +12454,224 @@ class TestPropostaSemAnuncioTemTarefas(CicloDasTarefas):
         self.assertIn("preparar a consulta", corpo)
         self.assertIn("/tarefa/%d/feita" % t, corpo)
         self.assertIn("/tarefa/%d/gravar" % t, corpo)
+
+
+class CicloDaEntidade(BaseTemporaria):
+    """Esqueleto das classes da fase 2 do `docs/historico/CICLOS.md`
+    (17/09/2026): a ficha da entidade deixa de ser só do Portal BASE."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        # **Sem corpus, de propósito.** A `BaseTemporaria` não aponta o
+        # `CORPUS` para a pasta temporária, e por isso o `ha_corpus()`
+        # lia o `contratos.db` verdadeiro dele (2,5 GB) — o resultado
+        # destes testes passava a depender do que lá está. É a mesma
+        # armadilha do `config.json`, apanhada a 16/09/2026.
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ha_corpus", lambda: 0))
+
+    def _anuncio(self, ref, nif="506000000", entidade="IPLeiria",
+                 titulo="Software"):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, nif, "
+                      "estado, data_pub, prazo, titulo_norm, entidade_norm) "
+                      "VALUES (?,?,?,?,?,?,?,?,?)",
+                      (ref, titulo, entidade, nif, "novo", "2026-09-01",
+                       "2026-12-01", radar.simplifica(titulo),
+                       radar.simplifica(entidade)))
+        return ref
+
+
+class TestEntidadeSemCorpusTemFicha(CicloDaEntidade):
+    """Uma entidade sem contrato celebrado no corpus dava **404**, mesmo
+    com dezenas de anúncios no Diário da República — e é a mais provável
+    de interessar, porque o concurso ainda não foi adjudicado. O
+    `entidade()` começava por `ha_corpus()` e nunca chegava a olhar para
+    a base do radar.
+
+    D3 do plano, palavra dele: «todas as entidades e empresas devem ter
+    ficha».
+    """
+
+    def test_a_ficha_existe_so_com_anuncios(self):
+        self._anuncio("60/2026")
+        r = self.cliente.get("/entidade/506000000")
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("IPLeiria", corpo)
+        self.assertIn("O Portal BASE não conhece esta entidade", corpo)
+
+    def test_uma_chave_que_nao_existe_em_lado_nenhum_da_404(self):
+        self.assertEqual(
+            self.cliente.get("/entidade/999999999").status_code, 404)
+
+    def test_o_nome_do_anuncio_leva_sempre_a_ficha(self):
+        """Sem corpus o nome saía como texto, e não havia caminho
+        nenhum para a entidade."""
+        self._anuncio("60/2026")
+        corpo = self.cliente.get("/anuncio/60%2F2026").get_data(as_text=True)
+        self.assertIn("/entidade/506000000", corpo)
+
+
+class TestFichaDaEntidadeDizOLadoDaEmpresa(CicloDaEntidade):
+    """A ficha não mostrava os anúncios do DR dessa entidade, nem as
+    nossas propostas com ela, nem os contactos — que são «da entidade»
+    por desenho e só se viam dentro de um anúncio."""
+
+    def test_as_propostas_aparecem_e_a_taxa_diz_de_quantos_e(self):
+        self._anuncio("60/2026")
+        self._anuncio("61/2026", titulo="Manutenção")
+        radar.mover_proposta(radar.criar_proposta("60/2026"), "ganho")
+        radar.mover_proposta(radar.criar_proposta("61/2026"), "perdido")
+        corpo = self.cliente.get("/entidade/506000000").get_data(as_text=True)
+        self.assertIn("As nossas propostas", corpo)
+        self.assertIn("Software", corpo)
+        self.assertIn("Manutenção", corpo)
+        # dois decididos não chegam para uma taxa, e o ecrã di-lo
+        self.assertIn("a taxa diz-se a partir de %d"
+                      % radar.MINIMO_COM_ENTIDADE, corpo)
+
+    def test_com_decididos_que_cheguem_a_taxa_aparece(self):
+        for n in range(radar.MINIMO_COM_ENTIDADE):
+            ref = self._anuncio("%d/2026" % (70 + n))
+            radar.mover_proposta(radar.criar_proposta(ref),
+                                 "ganho" if n else "perdido")
+        d = radar.lado_da_empresa("506000000", "IPLeiria")
+        self.assertEqual(d["decididos"], radar.MINIMO_COM_ENTIDADE)
+        self.assertIsNotNone(d["taxa"])
+
+    def test_o_numero_dos_anuncios_abre_exactamente_essa_lista(self):
+        """A regra da empresa: o número e a ligação têm de dar a mesma
+        população. Aqui é por construção — o filtro é o mesmo objecto
+        nos dois sítios (`filtro_dos_anuncios_da_entidade()`)."""
+        self._anuncio("60/2026")
+        self._anuncio("61/2026")
+        self._anuncio("62/2026", nif="500000001", entidade="Outra")
+        d = radar.lado_da_empresa("506000000", "IPLeiria")
+        self.assertEqual(d["anuncios"], 2)
+        corpo = self.cliente.get("/entidade/506000000").get_data(as_text=True)
+        self.assertIn("<b>2</b> anúncios", corpo)
+        # e a lista que a ligação abre tem exactamente esses dois
+        lista = self.cliente.get(
+            radar.LISTA + "?" + urlencode(dict(d["filtro"], estado=""))
+        ).get_data(as_text=True)
+        self.assertIn("60/2026", lista)
+        self.assertIn("61/2026", lista)
+        self.assertNotIn("62/2026", lista)
+
+
+class TestContactoNasceNaEntidade(CicloDaEntidade):
+    """Os contactos são da ENTIDADE por desenho, e até 17/09/2026 só se
+    viam e criavam dentro de um anúncio dela."""
+
+    def test_criado_na_ficha_da_entidade_aparece_no_anuncio(self):
+        self._anuncio("60/2026")
+        r = self.cliente.post("/contacto/nova",
+                              data={"chave": "506000000", "nome": "Maria",
+                                    "email": "maria@ipl.pt",
+                                    "entidade": "IPLeiria"},
+                              headers={"Referer": "http://localhost/"})
+        self.assertIn(r.status_code, (301, 302, 303))
+        for pagina in ("/entidade/506000000", "/anuncio/60%2F2026"):
+            corpo = self.cliente.get(pagina).get_data(as_text=True)
+            self.assertIn("Maria", corpo, pagina)
+
+    def test_a_chave_de_um_contacto_sem_nif_e_a_mesma_do_corpus(self):
+        """Eram duas escritas do mesmo facto: o corpus guardava
+        `n:<nome>` e os contactos guardavam o nome sem prefixo. A ficha
+        da entidade não achava os contactos dela, e um NIF que chegasse
+        mais tarde partia a ligação em silêncio."""
+        a = {"nif": "", "entidade": "Junta de Freguesia de Anos"}
+        self.assertEqual(radar.chave_da_entidade(a),
+                         radar.chave_entidade("", a["entidade"]))
+        self.assertTrue(radar.chave_da_entidade(a).startswith("n:"))
+        # e quem PROCURA tenta as duas: o NIF e o nome
+        com_nif = {"nif": "506000000", "entidade": "IPLeiria"}
+        self.assertEqual(radar.chaves_da_entidade(com_nif),
+                         ["506000000", "n:" + radar.norma_entidade("IPLeiria")])
+
+    def test_a_migracao_poe_o_prefixo_e_e_idempotente(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO contactos (entidade_chave, entidade, nome) "
+                      "VALUES (?,?,?)", ("junta de freguesia de anos",
+                                         "Junta de Anos", "Rui"))
+            c.execute("INSERT INTO contactos (entidade_chave, entidade, nome) "
+                      "VALUES (?,?,?)", ("506000000", "IPLeiria", "Ana"))
+        for _ in range(2):
+            radar.iniciar_db()
+        with radar.liga() as c:
+            chaves = sorted(r["entidade_chave"] for r in
+                            c.execute("SELECT entidade_chave FROM contactos"))
+        self.assertEqual(chaves, ["506000000", "n:junta de freguesia de anos"])
+
+
+class TestListaDeEntidades(CicloDaEntidade):
+    """Não havia lista de entidades. À ficha de uma só se chegava por três
+    caminhos, e o formulário «Ficha de entidade» não era `href` de lado
+    nenhum."""
+
+    def test_a_lista_existe_e_mostra_com_quem_trabalhamos(self):
+        self._anuncio("60/2026")
+        radar.criar_proposta("60/2026")
+        r = self.cliente.get("/entidades")
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("Com quem trabalhamos", corpo)
+        self.assertIn("IPLeiria", corpo)
+        self.assertIn("/entidade/506000000", corpo)
+        self.assertIn("1 proposta", corpo)
+
+    def test_e_uma_vista_do_mercado_na_barra(self):
+        mercado = next(n for n in radar.NAV if n[0] == "mercado")
+        self.assertIn("entidades", [v[0] for v in mercado[3]])
+        self.assertEqual(radar.ITEM_DA_PAGINA["entidades"], "mercado")
+
+    def test_a_procura_sem_termo_vai_para_a_lista(self):
+        r = self.cliente.get("/entidade/procurar")
+        self.assertIn(r.status_code, (301, 302, 303))
+        self.assertIn("/entidades", r.headers["Location"])
+
+    def test_sem_corpus_a_procura_acha_o_nosso_lado(self):
+        self._anuncio("60/2026")
+        radar.criar_proposta("60/2026")
+        r = self.cliente.get("/entidade/procurar?q=IPLeiria")
+        self.assertIn(r.status_code, (301, 302, 303))
+        self.assertIn("/entidade/506000000", r.headers["Location"])
+
+
+class TestPropostaGuardaAChaveDaEntidade(CicloDaEntidade):
+    """É o que liga uma proposta à ficha da entidade e aos contactos dela
+    sem comparar nomes — e uma proposta sem anúncio (D2) não tem `ref`
+    por onde lá chegar."""
+
+    def test_criar_proposta_preenche_a_chave(self):
+        self._anuncio("60/2026")
+        p = radar.proposta(radar.criar_proposta("60/2026"))
+        self.assertEqual(p["entidade_chave"], "506000000")
+
+    def test_uma_proposta_sem_anuncio_tira_a_chave_do_nome(self):
+        p = radar.proposta(radar.criar_proposta(entidade="Junta de Anos",
+                                                titulo="Consulta"))
+        self.assertEqual(p["entidade_chave"],
+                         radar.chave_entidade("", "Junta de Anos"))
+
+    def test_a_migracao_enche_as_antigas_e_e_idempotente(self):
+        self._anuncio("60/2026")
+        id_ = radar.criar_proposta("60/2026")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET entidade_chave=NULL")
+        for _ in range(2):
+            radar.iniciar_db()
+        self.assertEqual(radar.proposta(id_)["entidade_chave"], "506000000")
+
+    def test_a_coluna_entra_na_exportacao_da_triagem(self):
+        """O B15 exporta as propostas coluna a coluna; uma coluna nova
+        que fique de fora perde-se num restauro."""
+        with radar.liga() as c:
+            nas_propostas = {r["name"] for r in
+                             c.execute("PRAGMA table_info(propostas)")}
+        self.assertEqual(nas_propostas, set(radar.COLUNAS_DA_PROPOSTA))
 
 
 if __name__ == "__main__":

@@ -494,8 +494,21 @@ def iniciar_db():
             responsavel TEXT, tipologia TEXT, coe TEXT,
             preco_base TEXT, valor_proposta TEXT, ebitda REAL,
             lugar INTEGER, top3 TEXT, cv TEXT, proposta_tecnica TEXT,
-            notas TEXT, criada_em TEXT, fechada_em TEXT)""")
+            notas TEXT, criada_em TEXT, fechada_em TEXT,
+            entidade_chave TEXT)""")
+        # A chave da entidade na propria proposta (fase 2 do
+        # docs/historico/CICLOS.md, 17/09/2026). E o que liga uma
+        # proposta a ficha da entidade e aos contactos dela sem comparar
+        # nomes -- e as propostas sem anuncio (D2) nao tem `ref` por onde
+        # la chegar. `ALTER TABLE ADD COLUMN` e instantaneo; o
+        # preenchimento e sobre dezenas de linhas, nao sobre os 209 mil
+        # anuncios (ver a armadilha das doze colunas).
+        cols_p = [r["name"] for r in c.execute("PRAGMA table_info(propostas)")]
+        if "entidade_chave" not in cols_p:
+            c.execute("ALTER TABLE propostas ADD COLUMN entidade_chave TEXT")
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ref ON propostas(ref)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ent "
+                  "ON propostas(entidade_chave)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_estado "
                   "ON propostas(estado)")
         # Uma proposta por (anuncio, lote): sem isto, dois cliques no
@@ -534,6 +547,22 @@ def iniciar_db():
             email TEXT, telefone TEXT, notas TEXT, criado_em TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_contactos_chave "
                   "ON contactos(entidade_chave)")
+        # **A chave da entidade é UMA só** (fase 2 do
+        # docs/historico/CICLOS.md, 17/09/2026). Havia duas escritas do
+        # mesmo facto: a do corpus (`chave_entidade()`, com o prefixo
+        # `n:` quando não há NIF) e a dos contactos, que guardava o nome
+        # normalizado sem prefixo. Com duas, a ficha da entidade não
+        # achava os contactos dela e um NIF que aparecesse mais tarde
+        # partia a ligação em silêncio. São dezenas de linhas, e a
+        # migração é idempotente pela própria pergunta: só toca no que
+        # não é nem um NIF de nove dígitos nem já tem prefixo.
+        c.execute("UPDATE contactos SET entidade_chave = 'n:' || entidade_chave "
+                  "WHERE COALESCE(entidade_chave,'') != '' "
+                  "AND entidade_chave NOT LIKE 'n:%' "
+                  "AND entidade_chave NOT GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'")
+        # (a chave das propostas enche-se mais abaixo, depois das
+        # colunas do `anuncios`: o `nif` é uma delas, e aqui ainda não
+        # existe numa base antiga)
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -665,6 +694,20 @@ def iniciar_db():
         # migracoes. A primeira vez sao uns segundos para a base inteira.
         c.execute("UPDATE anuncios SET titulo_norm=simplifica(titulo), "
                   "entidade_norm=simplifica(entidade) WHERE titulo_norm IS NULL")
+        # A chave da entidade das propostas que ainda não a têm (fase 2
+        # do `docs/historico/CICLOS.md`): do anúncio pela `ref`, e do
+        # nome que a própria proposta guarda quando não há anúncio
+        # nenhum. Aqui e não lá em cima porque o `anuncios.nif` é uma das
+        # colunas que a migração acabou de criar. São dezenas de linhas.
+        for p in c.execute(
+                "SELECT p.id, p.entidade, a.nif, a.entidade AS a_entidade "
+                "FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref "
+                "WHERE COALESCE(p.entidade_chave,'') = ''").fetchall():
+            chave = chave_entidade(p["nif"] or "",
+                                   p["a_entidade"] or p["entidade"] or "")
+            if chave and chave != "n:":
+                c.execute("UPDATE propostas SET entidade_chave=? WHERE id=?",
+                          (chave, p["id"]))
         # Indices para a pesquisa. Nao servem para saltar linhas -- um
         # LIKE com % a frente varre sempre --, servem para varrer o
         # indice em vez da tabela: as colunas normalizadas ficaram no fim
@@ -1565,6 +1608,7 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
         estado = "analisar"
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     preco_base = ""
+    nif_da_entidade = ""
     with liga() as c:
         if ref:
             ja = c.execute("SELECT id FROM propostas WHERE ref=? AND "
@@ -1572,12 +1616,20 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
                            (ref, lote)).fetchone()
             if ja:
                 return ja["id"]
-            a = c.execute("SELECT titulo, entidade, preco_base, lotes "
+            a = c.execute("SELECT titulo, entidade, nif, preco_base, lotes "
                           "FROM anuncios WHERE ref=?", (ref,)).fetchone()
             if a:
                 entidade = entidade or (a["entidade"] or "")
                 titulo = titulo or (a["titulo"] or "")
+                nif_da_entidade = a["nif"] or ""
                 preco_base = preco_base_do_lote(a, lote)
+        # A chave da entidade grava-se AQUI, e nao se adivinha depois por
+        # comparacao de nomes: e ela que liga esta proposta a ficha da
+        # entidade e aos contactos dela, e uma proposta sem anuncio (D2)
+        # nao tem `ref` por onde la chegar.
+        chave_ent = chave_entidade(nif_da_entidade, entidade)
+        if chave_ent == "n:":
+            chave_ent = ""
         # Nascer JA numa ranhura fechada leva carimbo: sem ele a proposta
         # some-se do quadro, porque as quatro colunas do fim mostram o
         # trimestre e um `fechada_em` vazio nunca cabe nele. Acontece
@@ -1586,10 +1638,10 @@ def criar_proposta(ref=None, lote=None, entidade="", titulo="",
         fechada = agora if estado in ESTADOS_FECHADOS else None
         cur = c.execute(
             "INSERT INTO propostas (ref, porque_sem_ref, lote, entidade, "
-            "titulo, estado, preco_base, criada_em, fechada_em) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (ref or None, porque_sem_ref or None, lote, entidade, titulo,
-             estado, preco_base, agora, fechada))
+            "entidade_chave, titulo, estado, preco_base, criada_em, "
+            "fechada_em) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (ref or None, porque_sem_ref or None, lote, entidade,
+             chave_ent or None, titulo, estado, preco_base, agora, fechada))
         id_ = cur.lastrowid
     registar(ref or "", "proposta criada",
              "%s%s" % (estado_da_empresa(estado),
@@ -6003,6 +6055,7 @@ TRIAGEM_EXPORT = os.path.join(BASE_DIR, "triagem.jsonl")
 # sozinho e ao contrario (mudava a ordem do ficheiro a cada migracao,
 # e o B15 promete um ficheiro deterministico).
 COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
+                       "entidade_chave",
                        "titulo", "estado", "motivo", "responsavel",
                        "tipologia", "coe", "preco_base", "valor_proposta",
                        "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
@@ -7863,6 +7916,136 @@ def entidade_do_anuncio(nif, nome):
     return r["chave"] if r else ""
 
 
+
+
+# --- o lado da EMPRESA de uma entidade (fase 2 do CICLOS.md, 17/09/2026)
+#
+# A ficha da entidade era só o Portal BASE: o que ela compra, o que ela
+# ganha, a quem. Não dizia nada do nosso lado -- quantos anúncios dela
+# estão na base, que propostas lhe fizemos, como correram, quem lá
+# conhecemos. E uma entidade sem contrato no corpus dava 404, mesmo com
+# dezenas de anúncios no DR.
+#
+# **Todas as entidades têm ficha** (D3, palavra dele: «clientes de
+# clientes, concorrentes de concorrentes»): as do corpus e as que só
+# existem no DR.
+
+# Quantas decisões chegam para dizer uma taxa de vitória COM UMA
+# entidade. É muito menor do que o MINIMO_PARA_TAXA global (20), e tem
+# de ser: uma entidade com vinte concursos decididos é rara, e sem um
+# mínimo próprio a taxa por entidade nunca aparecia. Cinco é pouco, e
+# por isso o ecrã escreve de quantos é.
+MINIMO_COM_ENTIDADE = 5
+
+
+def nome_da_entidade(chave):
+    """O nome por que se mostra uma entidade, com corpus ou sem ele.
+
+    A chave `n:` é um nome já normalizado -- sem acentos, sem
+    pontuação --, e mostrá-la assim era escrever «instituto politecnico
+    de leiria» numa aplicação em português. Procura-se o nome como
+    alguém o escreveu: no corpus, nas nossas propostas, nos contactos, e
+    por fim nos anúncios (só pelo NIF, que é o único caminho indexado).
+    """
+    chave = (chave or "").strip()
+    if not chave:
+        return ""
+    if ha_corpus():
+        with liga_corpus() as c:
+            r = c.execute("SELECT nome FROM entidades WHERE chave=?",
+                          (chave,)).fetchone()
+        if r and (r["nome"] or "").strip():
+            return r["nome"]
+    with liga() as c:
+        for sql in ("SELECT entidade n FROM propostas WHERE entidade_chave=? "
+                    "AND COALESCE(entidade,'') != '' LIMIT 1",
+                    "SELECT entidade n FROM contactos WHERE entidade_chave=? "
+                    "AND COALESCE(entidade,'') != '' LIMIT 1"):
+            r = c.execute(sql, (chave,)).fetchone()
+            if r and (r["n"] or "").strip():
+                return r["n"]
+        if re.fullmatch(r"\d{9}", chave):
+            r = c.execute("SELECT entidade n FROM anuncios WHERE nif=? "
+                          "AND COALESCE(entidade,'') != '' LIMIT 1",
+                          (chave,)).fetchone()
+            if r and (r["n"] or "").strip():
+                return r["n"]
+    return chave[2:] if chave.startswith("n:") else chave
+
+
+def filtro_dos_anuncios_da_entidade(chave, nome=""):
+    """O filtro do painel que dá EXACTAMENTE os anúncios desta entidade.
+
+    **Não entra nenhum recorte novo no `condicoes()`** (regra da casa):
+    o que se usa são os dois campos que o motor já tem -- `nif`, que
+    apanha todas as grafias do mesmo número, e `ent`, que procura pelo
+    nome. É o mesmo filtro com que o número se conta e com que a ligação
+    abre a lista, e é por construção que os dois batem certo.
+
+    O plano previa um `entid=<chave>`; não é preciso, e um campo novo no
+    motor é um campo a mais para os alertas e para os filtros guardados
+    entenderem.
+    """
+    if re.fullmatch(r"\d{9}", (chave or "").strip()):
+        return {"nif": chave}
+    nome = nome or (chave[2:] if (chave or "").startswith("n:") else chave)
+    return {"ent": nome or ""}
+
+
+def lado_da_empresa(chave, nome=""):
+    """O que NÓS sabemos desta entidade: anúncios, propostas, taxa,
+    contactos. Não toca no corpus -- funciona sem ele.
+    """
+    filtro = filtro_dos_anuncios_da_entidade(chave, nome)
+    # `estado=""` é a base do motor para «Todos»: tira as republicações,
+    # que são o mesmo concurso outra vez. É o que a lista mostra, e por
+    # isso é o que o número tem de contar.
+    onde, valores = condicoes(dict(filtro, estado=""))
+    with liga() as c:
+        quantos = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
+                            valores).fetchone()["n"]
+        propostas = c.execute(
+            "SELECT * FROM propostas WHERE entidade_chave=? "
+            "ORDER BY COALESCE(fechada_em, criada_em) DESC, id DESC",
+            (chave,)).fetchall()
+    ganhos = sum(1 for p in propostas if p["estado"] == "ganho")
+    decididos = sum(1 for p in propostas
+                    if p["estado"] in ("ganho", "perdido"))
+    chaves = [chave]
+    if nome:
+        pelo_nome = "n:" + norma_entidade(nome)
+        if pelo_nome != "n:" and pelo_nome not in chaves:
+            chaves.append(pelo_nome)
+    return {"chave": chave, "nome": nome, "filtro": filtro,
+            "anuncios": quantos, "propostas": propostas,
+            "ganhos": ganhos, "decididos": decididos,
+            "taxa": (1.0 * ganhos / decididos
+                     if decididos >= MINIMO_COM_ENTIDADE else None),
+            "contactos": contactos_de(chaves)}
+
+
+def entidades_com_proposta():
+    """As entidades a quem já fizemos propostas, as de mais primeiro."""
+    with liga() as c:
+        return c.execute(
+            "SELECT entidade_chave chave, "
+            "MAX(COALESCE(NULLIF(entidade,''), entidade_chave)) nome, "
+            "COUNT(*) k, SUM(estado='ganho') g "
+            "FROM propostas WHERE COALESCE(entidade_chave,'') != '' "
+            "GROUP BY entidade_chave ORDER BY k DESC, nome LIMIT 200").fetchall()
+
+
+def entidades_top(papel, quantas=25):
+    """As que mais compram (clientes) ou as que mais ganham
+    (concorrentes), do corpus. Vazio sem corpus."""
+    coluna = "ganha" if papel == "concorrente" else "compra"
+    if not ha_corpus():
+        return []
+    with liga_corpus() as c:
+        return c.execute(
+            "SELECT chave, nome, compra, ganha FROM entidades "
+            "WHERE %s > 0 ORDER BY %s DESC LIMIT ?" % (coluna, coluna),
+            (quantas,)).fetchall()
 
 
 def historico_entidade(entidade, cpv="", limite=25, nif=""):
@@ -10390,7 +10573,14 @@ NAV = (("anuncios", "Concursos", LISTA,
        # DIFERENTE de olhar (o Calendario dos Concursos, uma grelha de
        # dias); dois modos da mesma tabela sao abas. A rota antiga
        # /renovacoes continua a redireccionar.
-       ("mercado", "Mercado", "/contratos", ()))
+       # As **Entidades** são uma vista agrupada do Mercado desde
+       # 17/09/2026 (fase 2 do docs/historico/CICLOS.md), e passam na
+       # distinção acima: é uma forma diferente de olhar para o mesmo
+       # mercado -- por quem, e não por contrato. Até aí não havia lista
+       # nenhuma delas, e à ficha de uma entidade só se chegava por um
+       # nome dentro de um anúncio ou de uma tabela.
+       ("mercado", "Mercado", "/contratos",
+        (("entidades", "Entidades", "/entidades"),)))
 # Alertas saiu do primeiro nivel a 8/09/2026 (docs/historico/ONLINE.md,
 # etapa 2): passou a seccao de Configuracoes, que vive em baixo, ao
 # lado da zona de estado, como os Indicadores -- e o sitio onde se vai
@@ -14450,12 +14640,29 @@ def entidade_procurar():
     qualquer so para la chegar. A resolucao passa por entidade_nomes --
     a tabela que ja mapeia qualquer das 87 grafias de uma entidade a
     chave dela; o custo era so de ecra."""
-    if not ha_corpus():
-        return sem_corpus_html("Procurar entidade")
     termo = (request.args.get("q") or "").strip()
     if not termo:
-        return redirect("/contratos?aviso=" +
+        # A lista das entidades é onde a procura vive desde 17/09/2026
+        # (fase 2 do CICLOS.md); até aí este formulário estava dentro do
+        # Mercado e não era `href` de lado nenhum.
+        return redirect("/entidades?aviso=" +
                         quote("Escreve um nome ou um NIF para procurar."))
+    if not ha_corpus():
+        # Sem corpus procura-se no NOSSO lado, que existe na mesma: as
+        # entidades das propostas e dos contactos. **Uma entidade sem
+        # contrato celebrado é a mais provável de interessar** -- o
+        # concurso ainda não foi adjudicado.
+        with liga() as c:
+            r = c.execute(
+                "SELECT entidade_chave k FROM propostas "
+                "WHERE entidade_chave=? OR simplifica(entidade) LIKE ? "
+                "ESCAPE '%s' LIMIT 1" % ESCAPE_LIKE,
+                (termo, "%" + para_like(simplifica(termo)) + "%")).fetchone()
+        if r and r["k"]:
+            return redirect("/entidade/" + quote(r["k"], safe=""))
+        return redirect("/entidades?aviso=" +
+                        quote("Não há nenhuma entidade assim. O corpus do "
+                              "Portal BASE não está carregado."))
     with liga_corpus() as c:
         # Um NIF e a propria chave do corpus: vai directo
         digitos = re.sub(r"\D", "", termo)
@@ -15256,14 +15463,163 @@ def filtros_da_ficha(chave, d):
            arvore_html(n_cpv, "contratos"), ""))
 
 
+def nosso_lado_cx(nosso):
+    """O lado da EMPRESA da ficha de uma entidade: os anúncios dela na
+    base, as nossas propostas, a taxa com ela, e os contactos.
+
+    O número dos anúncios abre exactamente a lista que o produz -- é o
+    mesmo filtro nos dois sítios (`filtro_dos_anuncios_da_entidade()`).
+    As propostas não se contam para uma ligação: mostram-se aqui, uma a
+    uma, porque a lista das ranhuras não filtra por entidade e um número
+    que abrisse a lista inteira seria a avaria que a regra da empresa
+    proíbe.
+    """
+    chave, nome = nosso["chave"], nosso["nome"]
+    lista = LISTA + "?" + urlencode(dict(nosso["filtro"], estado=""))
+    pedacos = ["<a class='ent-num' href='%s'><b>%s</b> %s no Diário da "
+               "República</a>"
+               % (html.escape(lista, quote=True), mil_pt(nosso["anuncios"]),
+                  "anúncio" if nosso["anuncios"] == 1 else "anúncios")]
+    if nosso["propostas"]:
+        linhas = []
+        for p in nosso["propostas"]:
+            alvo = ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"] \
+                else "/proposta/%d" % p["id"]
+            linhas.append(
+                "<tr><td class='o'><a href='%s'>%s</a></td>"
+                "<td>%s</td><td class='p'>%s</td></tr>"
+                % (html.escape(alvo, quote=True),
+                   html.escape(corta(p["titulo"] or p["ref"] or "(sem título)",
+                                     90)),
+                   html.escape(estado_da_empresa(p["estado"])
+                               + (" — lote %d" % p["lote"] if p["lote"] else "")),
+                   html.escape(p["valor_proposta"] or "—")))
+        taxa = ""
+        if nosso["taxa"] is not None:
+            taxa = (" &middot; ganhámos <b>%d%%</b> dos %s decididos"
+                    % (round(nosso["taxa"] * 100), mil_pt(nosso["decididos"])))
+        elif nosso["decididos"]:
+            # não se inventa uma taxa com dois concursos: diz-se de
+            # quantos é preciso, que é a mesma honestidade do
+            # taxa_de_vitoria() global
+            taxa = (" &middot; %s decidido%s — a taxa diz-se a partir de %d"
+                    % (mil_pt(nosso["decididos"]),
+                       "" if nosso["decididos"] == 1 else "s",
+                       MINIMO_COM_ENTIDADE))
+        pedacos.append(
+            "<div class='ent-nossas'><div class='rot'>As nossas propostas "
+            "<i>%s</i>%s</div><table class='tab-contratos'><tbody>%s</tbody>"
+            "</table></div>"
+            % (mil_pt(len(nosso["propostas"])), taxa, "".join(linhas)))
+    else:
+        pedacos.append("<p class='nota'>Ainda não lhe fizemos nenhuma "
+                       "proposta.</p>")
+    corpo = ("<div class='cx lado-cx' id='nosso'>"
+             + rot_com_porque(
+                 "O nosso lado",
+                 "O que o radar e a empresa sabem desta entidade, por "
+                 "oposição ao que o Portal BASE diz. O número dos anúncios "
+                 "abre exactamente essa lista.")
+             + "".join(pedacos) + "</div>")
+    # Os contactos são da ENTIDADE (etapa 6 do CRM), e até hoje só se
+    # viam e criavam dentro de um anúncio dela. A caixa é a mesma.
+    return corpo + contactos_cx({"ref": "", "nif": chave if re.fullmatch(
+        r"\d{9}", chave or "") else "", "entidade": nome})
+
+
+@app.route("/entidades")
+def entidades():
+    """A lista das entidades: uma procura e quatro atalhos.
+
+    Não é uma tabela de 180 mil linhas -- é a pergunta («quem?») mais os
+    quatro caminhos que se fazem a sério: com quem trabalhamos, quem
+    seguimos, quem mais compra, quem mais ganha. Até 17/09/2026 só se
+    chegava a uma ficha de entidade por três caminhos, e o formulário de
+    procura não era `href` de lado nenhum.
+    """
+    procura = ("<form class='cx filtros' method='get' "
+               "action='/entidade/procurar'>"
+               "<label>Nome ou NIF<input type='text' name='q' "
+               "placeholder='ex. 506000000, ou Politécnico de Leiria' "
+               "autofocus></label>"
+               "<button type='submit'>procurar</button></form>")
+
+    def bloco(titulo, porque, linhas, vazio):
+        if not linhas:
+            return ("<div class='cx lado-cx'>%s<p class='nota'>%s</p></div>"
+                    % (rot_com_porque(titulo, porque), vazio))
+        return ("<div class='cx lado-cx'>%s%s</div>"
+                % (rot_com_porque(titulo, porque),
+                   "".join("<div class='hist'><a href='/entidade/%s'>%s</a>"
+                           "<span class='sem-nif'>%s</span></div>"
+                           % (quote(l[0], safe=""), html.escape(l[1] or l[0]),
+                              html.escape(l[2])) for l in linhas)))
+
+    nossas = [(e["chave"], e["nome"],
+               "%s proposta%s%s" % (mil_pt(e["k"]), "" if e["k"] == 1 else "s",
+                                    " · %s ganha" % mil_pt(e["g"])
+                                    if e["g"] else ""))
+              for e in entidades_com_proposta()]
+    with liga() as c:
+        seguidas = [(s["chave"], s["nome"] or nome_da_entidade(s["chave"]),
+                     "seguida")
+                    for s in c.execute("SELECT chave, nome FROM "
+                                       "entidades_seguidas ORDER BY nome")]
+    clientes = [(e["chave"], e["nome"], euros_curto(e["compra"]))
+                for e in entidades_top("cliente")]
+    concorrentes = [(e["chave"], e["nome"], euros_curto(e["ganha"]))
+                    for e in entidades_top("concorrente")]
+    corpo = (procura
+             + bloco("Com quem trabalhamos",
+                     "As entidades sobre que já há uma proposta nossa.",
+                     nossas, "Ainda não há propostas com entidade nenhuma.")
+             + bloco("Seguidas",
+                     "Os anúncios novos delas entram no resumo diário.",
+                     seguidas, "Não segues nenhuma entidade. Segue-se na "
+                     "ficha de cada uma.")
+             + bloco("Clientes que mais compram",
+                     "Do Portal BASE, por valor adjudicado a outros.",
+                     clientes, "Sem o corpus do Portal BASE não há esta "
+                     "lista. Traz-se com «Actualizar contratos».")
+             + bloco("Concorrentes que mais ganham",
+                     "Do Portal BASE, por valor adjudicado a si.",
+                     concorrentes, "Sem o corpus do Portal BASE não há esta "
+                     "lista."))
+    return envolver("entidades", "Entidades",
+                    "Quem compra, quem ganha, e com quem já trabalhámos. "
+                    "Toda a entidade tem ficha — as do Portal BASE e as que "
+                    "só existem no Diário da República.",
+                    "<div class='larg'>" + corpo + "</div>",
+                    migalhas=migalhas_de("entidades"),
+                    titulo_aba="Entidades, Radar de Concursos")
+
+
 @app.route("/entidade/<path:chave>")
 def entidade(chave):
-    if not ha_corpus():
-        return sem_corpus_html("Entidade")
-    d = ficha_entidade(chave, request.args)
+    # **A ficha existe sem corpus** (D3 do CICLOS.md): uma entidade com
+    # dezenas de anúncios no DR e nenhum contrato celebrado dava 404 até
+    # 17/09/2026, e era a mais provável de interessar -- o concurso ainda
+    # não foi adjudicado.
+    d = ficha_entidade(chave, request.args) if ha_corpus() else None
+    nome = d["nome"] if d else nome_da_entidade(chave)
+    nosso = lado_da_empresa(chave, nome)
     if not d:
-        return ("Entidade não encontrada no corpus. "
-                "<a href='/contratos'>voltar</a>", 404)
+        if not (nosso["anuncios"] or nosso["propostas"] or nosso["contactos"]):
+            return pagina_de_erro(404)
+        ident = ("<div class='cx ent-cab'><div class='n'>%s</div>"
+                 "<div class='m'>%s</div></div>"
+                 % (html.escape(nome),
+                    ("NIF %s &middot; " % html.escape(chave))
+                    if re.fullmatch(r"\d{9}", chave or "") else "")
+                 + "<p class='nota'>O Portal BASE não conhece esta entidade: "
+                   "não tem contratos celebrados no corpus. O que se segue é "
+                   "o nosso lado.</p>")
+        return envolver(
+            "entidades", nome,
+            "O que sabemos desta entidade. O Portal BASE não a conhece.",
+            "<div class='larg'>" + ident + nosso_lado_cx(nosso) + "</div>",
+            migalhas=migalhas_de("entidades", corta(nome, 44)),
+            titulo_aba="%s, Radar de Concursos" % corta(nome, 40))
 
     filtrada = ha_filtro_na_ficha(request.args)
     compra, ganha = d["compra"], d["ganha"]
@@ -15401,14 +15757,19 @@ def entidade(chave):
 
     conteudo = ("<div class='larg'>" + ident + filtros_da_ficha(chave, d) +
                 "<div class='kpis dois'>" + "".join(kpis) + "</div>" +
-                atalhos + seguir_cx + "<div class='graf-corpo solto'>" +
+                atalhos + seguir_cx +
+                # o nosso lado vem ANTES dos gráficos do BASE: a primeira
+                # pergunta ao abrir uma entidade é o que já lhe fizemos
+                nosso_lado_cx(nosso) +
+                "<div class='graf-corpo solto'>" +
                 "".join(blocos) + "</div>" + recentes + "</div>")
 
     return envolver(
-        "contratos", d["nome"],
-        "O que esta entidade compra e ganha, segundo o Portal BASE.",
+        "entidades", d["nome"],
+        "O que esta entidade compra e ganha, segundo o Portal BASE, e o "
+        "que nós já lhe fizemos.",
         conteudo, script=ARVORE_JS,
-        migalhas=migalhas_de("contratos", d["nome"][:44]),
+        migalhas=migalhas_de("entidades", d["nome"][:44]),
         titulo_aba="%s, Radar de Concursos" % d["nome"][:40])
 
 
@@ -15986,13 +16347,17 @@ def contratos():
 
     # 11.7-B: a porta directa para a ficha de uma entidade, por nome ou
     # NIF -- o sinal que a reabriu foi exactamente "abrir um contrato
-    # qualquer so para chegar a ficha".
+    # qualquer so para chegar a ficha". Desde 17/09/2026 vive tambem em
+    # /entidades, que e a vista da barra; este continua aqui porque e
+    # daqui que a pergunta se faz a meio de uma consulta.
     procura_entidade = (
         "<form class='cx filtros' method='get' action='/entidade/procurar'>"
         "<label>Ficha de entidade</label>"
         "<input type='text' name='q' value='' "
         "placeholder='Nome ou NIF — abre a ficha directamente…'>"
-        "<button type='submit'>Procurar</button></form>")
+        "<button type='submit'>Procurar</button>"
+        "<a class='nota' href='/entidades' style='align-self:center'>"
+        "ou ver a lista das entidades</a></form>")
 
     # Os dois blocos de pergunta dobram-se quando JA HA pergunta, e e o
     # INVERSO da lista dos anuncios (16/09/2026, fase 5).
@@ -17260,16 +17625,21 @@ def ficha(ref):
         _facto("CPV", cpv_facto, largo=True),
     ))
 
-    # O nome da entidade leva à ficha dela quando o corpus a conhece: de
-    # um anúncio chega-se ao que aquela entidade costuma comprar sem
-    # passar pelo separador dos contratos.
-    ch_ent = entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
+    # O nome da entidade leva **sempre** à ficha dela (D3 do CICLOS.md,
+    # 17/09/2026): até aí só quando o corpus a conhecia, e uma entidade
+    # sem contrato celebrado — a mais provável de interessar, porque o
+    # concurso ainda não foi adjudicado — ficava sem caminho nenhum.
+    # A chave do corpus tem precedência quando existe: é a que agrupa as
+    # 84 grafias de uma universidade sob o mesmo NIF.
+    ch_ent = (entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
+              or chave_da_entidade(a))
     cabeca = ("<div class='cx cabeca'><div class='chips'>%s</div>"
               "<h2>%s</h2><div class='ent'>%s</div>"
               "<div class='factos'>%s</div></div>"
               % ("".join(chips), html.escape(a["titulo"] or ""),
                  liga_entidade(ch_ent, a["entidade"] or "")
-                 if ch_ent else html.escape(a["entidade"] or ""),
+                 if ch_ent and ch_ent != "n:"
+                 else html.escape(a["entidade"] or ""),
                  factos))
 
     # --- accoes
@@ -18219,17 +18589,35 @@ def faixa_do_desfecho(p, linhas, cfg=None):
 
 
 def chave_da_entidade(a):
-    """A chave por onde os contactos de um anuncio se procuram: o NIF se
-    o anuncio o trouxer, senao o nome normalizado.
+    """A chave de uma entidade vista de um anuncio (ou de uma proposta).
 
-    Duas fontes e uma so chave, de proposito: o radar so guarda o nome
-    que o DR escreve, e 93,7% das entidades acham-se pelo nome
-    normalizado (medido, ver `norma_entidade()`). Uma entidade cujo NIF
-    apareca so mais tarde continua a achar os contactos que ja tinha --
-    porque a procura tenta as duas.
+    **E a mesma chave do corpus** (`chave_entidade()`, fase 2 do
+    `docs/historico/CICLOS.md`): o NIF quando o ha, `n:<nome
+    normalizado>` quando nao. Ate 17/09/2026 esta devolvia o nome sem o
+    prefixo, e havia duas escritas do mesmo facto -- a ficha da entidade
+    nao achava os contactos dela, e um NIF que aparecesse mais tarde
+    partia a ligacao em silencio. A migracao do `iniciar_db()` poe o
+    prefixo nas linhas antigas dos `contactos`.
+
+    Uma entidade cujo NIF apareca so mais tarde continua a achar os
+    contactos que ja tinha: quem procura tenta as duas chaves
+    (`chaves_da_entidade()`).
     """
-    nif = re.sub(r"\D", "", _valor(a, "nif") or "")
-    return nif or norma_entidade(_valor(a, "entidade") or "")
+    return chave_entidade(_valor(a, "nif") or "", _valor(a, "entidade") or "")
+
+
+def chaves_da_entidade(a):
+    """As duas chaves possiveis de uma entidade, para PROCURAR.
+
+    Guarda-se uma (a de `chave_da_entidade()`), mas procura-se pelas
+    duas: o NIF e o nome. O radar so guarda o nome que o DR escreve, e
+    93,7% das entidades acham-se assim (ver `norma_entidade()`) -- um
+    contacto criado quando o anuncio ainda nao trazia NIPC continua a
+    aparecer depois de o NIPC chegar.
+    """
+    nif = chave_entidade(_valor(a, "nif") or "", "")
+    pelo_nome = "n:" + norma_entidade(_valor(a, "entidade") or "")
+    return [c for c in dict.fromkeys([nif, pelo_nome]) if c and c != "n:"]
 
 
 def contactos_de(chaves):
@@ -18271,9 +18659,10 @@ def contactos_cx(a):
     responde aos esclarecimentos deste concurso responde aos do ano que
     vem, e é por isso que aparecem em todos os concursos dela."""
     chave = chave_da_entidade(a)
-    if not chave:
+    if not chave or chave == "n:":
         return ""
-    linhas = contactos_de(chave)
+    # grava-se numa chave e procura-se pelas duas: ver chaves_da_entidade()
+    linhas = contactos_de(chaves_da_entidade(a))
     postos = "".join(
         "<div class='ct'><div class='ct-nome'>%s%s</div>%s%s%s"
         "<div class='ct-x'>%s</div></div>"

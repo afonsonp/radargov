@@ -747,3 +747,20 @@ utilizador e do projecto ficam acima das skills).
   prova e o balde que a mostra. 982 → 998 testes. O `code-reviewer`
   apanhou um HIGH: a garantia de não apagar o prazo em silêncio estava
   no chamador e não na `gravar_tarefa()`.
+- **17/09/2026 — fase 2, a entidade.** Feita, com três desvios ao §3.2.
+  (a) **Não entrou nenhum `entid=<chave>` no `condicoes()`**: aquele
+  motor serve também os alertas, e o que se usa são os campos `nif` e
+  `ent` que já lá estavam, embrulhados num
+  `filtro_dos_anuncios_da_entidade()` que é o mesmo objecto com que o
+  número se conta e com que a ligação abre a lista. (b) As propostas de
+  uma entidade **não** são uma contagem por ranhura com ligação: a lista
+  das ranhuras não filtra por entidade, e um número que abrisse a lista
+  inteira era a avaria que a regra da empresa proíbe — mostram-se na
+  própria ficha, uma a uma. (c) O bloco chama-se `nosso_lado_cx()` e não
+  `empresa_cx()`: esse nome está reservado pela decisão de 2/09/2026
+  sobre o registo da empresa, com teste a guardá-lo. Duas funções do
+  plano colapsaram numa: `chave_da_entidade_do_anuncio()` é a própria
+  `chave_da_entidade()`, agora que a chave é uma só. Um teste antigo
+  teve de passar a guardar a regra em vez do valor
+  (`mercado[3] == ()`). 998 → 1 015 testes; revisão de código sem
+  achados.

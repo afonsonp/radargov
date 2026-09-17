@@ -1242,6 +1242,53 @@ pelo Afonso e nenhuma se reabre de passagem.
   e uma entidade cujo NIF só apareça mais tarde continua a achar os
   contactos que já tinha porque a procura tenta as duas.
 
+- **A chave de uma entidade é UMA só, e tem o prefixo `n:` quando não há
+  NIF.** Até 17/09/2026 eram duas escritas do mesmo facto: o corpus
+  guardava `chave_entidade()` (o NIF, ou `n:<nome normalizado>`) e os
+  contactos guardavam o nome **sem** prefixo. A ficha da entidade não
+  achava os contactos dela, e um NIF que aparecesse mais tarde partia a
+  ligação em silêncio. A `chave_da_entidade()` passou a devolver a
+  mesma, e o `iniciar_db()` põe o prefixo nas linhas antigas dos
+  `contactos` — idempotente pela própria pergunta (só toca no que não é
+  nem nove dígitos nem já tem prefixo). **Grava-se uma chave e
+  procura-se pelas duas**: `chaves_da_entidade()` tenta o NIF e o nome,
+  para um contacto criado quando o anúncio ainda não trazia NIPC
+  continuar a aparecer depois.
+
+- **A ficha de uma entidade existe sem corpus.** Uma entidade sem
+  contrato celebrado dava 404, e é a mais provável de interessar — o
+  concurso ainda não foi adjudicado. `entidade()` já não começa por
+  `ha_corpus()`: monta o lado do Portal BASE se houver, e o **nosso**
+  sempre. Só dá 404 quando a chave não existe nem em `anuncios`, nem em
+  `propostas`, nem em `contactos`.
+
+- **Os anúncios de uma entidade filtram-se com os campos que o motor já
+  tem, e não com um `entid` novo.** O plano previa um recorte novo; não
+  se fez, e a regra da casa é a razão — o `condicoes()` serve também os
+  alertas, e um campo a mais lá dentro é um campo a mais para eles
+  entenderem. `filtro_dos_anuncios_da_entidade()` devolve `{"nif": …}`
+  ou `{"ent": …}`, e é o **mesmo objecto** com que o número se conta e
+  com que a ligação abre a lista: os dois batem certo por construção, e
+  não por coincidência.
+
+- **`propostas.entidade_chave` grava-se ao criar, não se adivinha
+  depois.** É o que liga uma proposta à ficha da entidade e aos
+  contactos dela sem comparar nomes, e uma proposta sem anúncio (D2) não
+  tem `ref` por onde lá chegar. A migração que enche as antigas corre
+  **depois** das colunas do `anuncios`, e não com as outras da
+  `propostas`: o `nif` é uma delas, e numa base antiga ainda não existe
+  nesse ponto do `iniciar_db()` (custou um `no such column: a.nif` em
+  todos os testes). E é sobre dezenas de linhas — **nunca um UPDATE ao
+  `anuncios`**, que reescreve 209 mil linhas com os 843 MB de `texto`
+  atrás.
+
+- **A taxa de vitória com uma entidade tem mínimo próprio.** O
+  `MINIMO_PARA_TAXA` global é 20, e uma entidade com vinte concursos
+  decididos é rara: com o mínimo global a taxa por entidade nunca
+  apareceria. `MINIMO_COM_ENTIDADE` é cinco, e por ser pouco o ecrã
+  escreve de quantos é — é a mesma honestidade do `taxa_de_vitoria()`,
+  que diz «ainda não sei» em vez de inventar.
+
 - **O quadro saiu, e o que ele fazia mora em dois sítios.** Decisão dele
   a 15/09/2026, a olhar para o ecrã: «o quadro deixa de ser preciso tal
   como a lista. na verdade eu devo conseguir passar entre estados aqui».

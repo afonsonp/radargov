@@ -435,6 +435,27 @@ passaram a **herdar o responsável** da proposta quando não têm nenhum
 de uma proposta sem anúncio passou a mostrar as tarefas dela. São
 **998 testes**.
 
+**E a fase 2 fechou o ciclo da entidade, no mesmo dia.** A ficha era só
+do Portal BASE: não dizia os anúncios dela na base, nem as nossas
+propostas, nem os contactos — que são «da entidade» por desenho e só se
+viam dentro de um anúncio. E uma entidade **sem contrato celebrado dava
+404**, que é precisamente a mais provável de interessar: o concurso
+ainda não foi adjudicado. Agora toda a entidade tem ficha (D3,
+«clientes de clientes, concorrentes de concorrentes»), com dois lados —
+o do BASE, quando o corpus a conhece, e o **nosso**: o número de
+anúncios dela (que abre exactamente essa lista), as propostas com o
+estado e o preço, a taxa com ela a partir de cinco decididos, e os
+contactos, que passaram a criar-se ali. **Há lista de entidades**,
+`/entidades`, vista do Mercado na barra: a procura por nome ou NIF —
+que estava dentro do Mercado e não era ligação de lado nenhum — mais
+quatro atalhos. **A chave da entidade passou a ser uma só**: havia duas
+escritas do mesmo facto, a do corpus com o prefixo `n:` e a dos
+contactos sem ele, e por isso a ficha não achava os contactos dela; a
+migração é idempotente e grava-se uma chave mas procura-se pelas duas.
+A `propostas` ganhou a coluna `entidade_chave`. **Nenhum recorte novo
+entrou no `condicoes()`** — o filtro dos anúncios de uma entidade usa o
+`nif` ou o `ent` que o motor já tinha. São **1 015 testes**.
+
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito
 blocos com âncora — faltavam o **«A nossa proposta»**, que é onde o
