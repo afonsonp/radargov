@@ -272,6 +272,13 @@ A ordem do ficheiro é a ordem do fluxo:
    OpenRouter) até alguém responder. **Medido: nenhuma das reservas
    aguenta um recorte de tamanho real em rajada** — ver o
    `docs/referencia.md` antes de contar com elas.
+   **Desde 17/09/2026 (fase 4 do `docs/historico/CICLOS.md`) uma leitura
+   que ficou a meio volta a tentar-se sozinha**: `analise_incompleta()`
+   é «algum dos três `CAMPOS_LIDOS_PELO_MODELO` está vazio», e
+   `reler_incompletas()` corre na verificação depois de `vigiar_pecas()`
+   e antes dos alertas — só com orçamento (`cadeia_esgotada()` falso),
+   só sobre o que está na escada, e pára ao primeiro «sem orçamento». O
+   `--ler-pecas` à mão escolhe-as também, sem esse recorte.
 7. **contratos celebrados (BASE)** — `importar_contratos()` traz o dump
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
    próprio. `historico_entidade()` responde ao bloco da ficha do

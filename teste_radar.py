@@ -12899,6 +12899,113 @@ class TestHistoricoDaPropostaSemRef(CicloDaEntidade):
         self.assertIn("proposta_id", colunas)
 
 
+class TestLeituraIncompletaVoltaATentar(BaseTemporaria):
+    """O terceiro beco sem saída das peças (fase 4 do
+    `docs/historico/CICLOS.md`): «o tecto do dia bateu» gravava a leitura
+    parcial em `analise` e **ninguém voltava a tentar**. O `--ler-pecas`
+    só escolhia quem não tem linha nenhuma em `analise` (`a.ref IS
+    NULL`), e a verificação nunca relia. Uma leitura que apanhou o
+    objecto e perdeu a equipa ficava assim para sempre.
+
+    E a condição separa-se da espera, como o `CLAUDE.md` manda: o
+    fornecedor é um duplo que conta chamadas, e a asserção é sobre
+    **quantas vezes** se chamou — não sobre um `sleep` aterrar a tempo.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado) "
+                      "VALUES ('60/2026','Software','novo')")
+            c.execute("INSERT INTO anuncios (ref, titulo, estado) "
+                      "VALUES ('61/2026','Manutenção','novo')")
+            # uma a meio, na escada; uma completa, na escada
+            c.execute("INSERT INTO analise (ref, objecto, equipa, "
+                      "documentos_proposta, quando) VALUES "
+                      "('60/2026','o objecto','', 'os documentos','2026-09-10')")
+            c.execute("INSERT INTO analise (ref, objecto, equipa, "
+                      "documentos_proposta, quando) VALUES "
+                      "('61/2026','o objecto','a equipa','os docs','2026-09-10')")
+        radar.criar_proposta("60/2026")
+        radar.criar_proposta("61/2026")
+
+    def test_a_incompleta_e_escolhida_e_a_completa_nao(self):
+        self.assertEqual(radar.refs_com_leitura_incompleta(), ["60/2026"])
+        with radar.liga() as c:
+            linhas = {r["ref"]: r for r in c.execute("SELECT * FROM analise")}
+        self.assertTrue(radar.analise_incompleta(linhas["60/2026"]))
+        self.assertFalse(radar.analise_incompleta(linhas["61/2026"]))
+
+    def test_so_o_que_esta_na_escada_gasta_orcamento(self):
+        """Reler um concurso que ninguém olhou é tirar o orçamento do dia
+        a um que se vai entregar."""
+        with radar.liga() as c:
+            c.execute("DELETE FROM propostas WHERE ref='60/2026'")
+        self.assertEqual(radar.refs_com_leitura_incompleta(), [])
+        # à mão (`--ler-pecas`) não há esse recorte: quem corre o comando
+        # está a pedir que se leia o que falta
+        self.assertEqual(
+            radar.refs_com_leitura_incompleta(so_na_escada=False), ["60/2026"])
+
+    def test_com_a_cadeia_esgotada_nao_se_chama_o_modelo(self):
+        vezes = []
+
+        def falso(ref):
+            vezes.append(ref)
+            return True, ""
+
+        with unittest.mock.patch.object(radar, "analisar_pecas", falso), \
+             unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: [("groq", "k", "m")]), \
+             unittest.mock.patch.object(radar, "cadeia_esgotada",
+                                        lambda cadeia: True):
+            feitas, aviso = radar.reler_incompletas()
+        self.assertEqual(vezes, [])
+        self.assertEqual(feitas, 0)
+        self.assertEqual(aviso, radar.SEM_ORCAMENTO_HOJE)
+
+    def test_com_orcamento_rele_e_para_ao_primeiro_sem_orcamento(self):
+        """Três incompletas, e a segunda responde «sem orçamento»: a
+        terceira não se chega a pedir."""
+        with radar.liga() as c:
+            for n in (62, 63):
+                c.execute("INSERT INTO anuncios (ref, titulo, estado) "
+                          "VALUES (?,?,'novo')", ("%d/2026" % n, "t"))
+                c.execute("INSERT INTO analise (ref, objecto, equipa, "
+                          "documentos_proposta, quando) VALUES (?,?,?,?,?)",
+                          ("%d/2026" % n, "", "", "", "2026-09-09"))
+        # fora do `with`: o `criar_proposta()` abre a sua própria ligação,
+        # e a base fica trancada contra si mesma
+        for n in (62, 63):
+            radar.criar_proposta("%d/2026" % n)
+        vezes = []
+
+        def falso(ref):
+            vezes.append(ref)
+            return (False, radar.SEM_ORCAMENTO_HOJE) if len(vezes) == 2 \
+                else (True, "")
+
+        with unittest.mock.patch.object(radar, "analisar_pecas", falso), \
+             unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: [("groq", "k", "m")]), \
+             unittest.mock.patch.object(radar, "cadeia_esgotada",
+                                        lambda cadeia: False):
+            feitas, aviso = radar.reler_incompletas()
+        self.assertEqual(len(vezes), 2)
+        self.assertEqual(feitas, 1)
+        self.assertEqual(aviso, radar.SEM_ORCAMENTO_HOJE)
+
+    def test_a_condicao_verdadeira_contra_o_recurso_verdadeiro(self):
+        """O teste pequeno que exercita o `cadeia_esgotada()` a sério,
+        para a condição ficar coberta e não só o duplo dela."""
+        radar._ESGOTADOS.clear()
+        self.addCleanup(radar._ESGOTADOS.clear)
+        cadeia = [("groq", "k", "m")]
+        self.assertFalse(radar.cadeia_esgotada(cadeia))
+        radar.marcar_esgotado("groq")
+        self.assertTrue(radar.cadeia_esgotada(cadeia))
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -778,3 +778,10 @@ utilizador e do projecto ficam acima das skills).
   (o ramo sem proposta prévia não passava pelo `mover_proposta()`), e o
   `confirmar` do `accao()` era interpolado cru dentro do `onsubmit`.
   Os dois corrigidos com teste.
+- **17/09/2026 — fase 4, as peças que ficaram a meio.** Feita como
+  planeada. A única decisão que o plano deixava em aberto era o que
+  conta como «incompleta»: ficaram os **três** campos que o modelo lê
+  (`CAMPOS_LIDOS_PELO_MODELO`), e não os cinco da tabela — o
+  `preco_anormalmente_baixo` e a `localizacao` são condicionais, e
+  exigi-los fazia toda a base parecer incompleta e mandava reler tudo
+  contra o mesmo tecto. 1 029 → 1 034 testes.
