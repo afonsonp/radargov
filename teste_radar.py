@@ -12406,6 +12406,23 @@ class TestTarefaResolveSeDeQualquerPagina(CicloDasTarefas):
                               (t,)).fetchone()
         self.assertEqual(linha["quando"], antes)
 
+    def test_a_garantia_e_da_funcao_e_nao_do_chamador(self):
+        """Apanhado pelo `code-reviewer` a 17/09/2026: a rota filtrava os
+        campos vazios, mas `gravar_tarefa(id_, quando="")` gravava NULL —
+        apagava o prazo em silêncio, que é exactamente o que o docstring
+        dela diz que não faz. Um chamador novo (outra rota, um script de
+        manutenção) herdava a avaria."""
+        t = self._uma()
+        antes = self._tarefas()[-1]
+        self.assertTrue(antes["quando"])
+        ok, _ = radar.gravar_tarefa(t, quando="", quem="   ")
+        self.assertTrue(ok)
+        with radar.liga() as c:
+            linha = c.execute("SELECT quando, quem FROM tarefas WHERE id=?",
+                              (t,)).fetchone()
+        self.assertEqual(linha["quando"], antes["quando"])
+        self.assertEqual(linha["quem"], antes["quem"])
+
 
 class TestPropostaSemAnuncioTemTarefas(CicloDasTarefas):
     """Uma tarefa de uma proposta sem anúncio não tinha onde se riscar: o

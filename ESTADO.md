@@ -433,7 +433,7 @@ linha resolve-se ali: feita, desfazer, adiar e atribuir
 passaram a **herdar o responsável** da proposta quando não têm nenhum
 (eram zero em 36), e uma tarefa com nome não se reescreve. E a página
 de uma proposta sem anúncio passou a mostrar as tarefas dela. São
-**997 testes**.
+**998 testes**.
 
 **E começou a fase 5, a passagem ecrã a ecrã: o primeiro foi a ficha
 do anúncio.** O índice prometia seis destinos e a página tinha oito

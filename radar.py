@@ -1936,26 +1936,34 @@ def gravar_tarefa(id_, **campos):
     **recusa** em vez de gravar vazio: apagar o prazo de uma tarefa por
     se ter escrito "amanhã" é perder trabalho em silêncio -- a mesma
     armadilha do `data_de_filtro()`, que já custou uma lista vazia.
+
+    **Um campo vazio não é uma ordem para apagar: é um campo que não se
+    preencheu.** O formulário da linha do Hoje tem sempre os dois
+    `<input>` desenhados e manda-os vazios; a rota já os filtrava, mas a
+    garantia tem de estar AQUI -- a primeira escrita que chamasse
+    `gravar_tarefa(id_, quando="")` apagava o prazo sem dizer nada, e é
+    exactamente a perda em silêncio que o parágrafo de cima proíbe.
     """
     nomes, valores = [], []
     for nome in ("quando", "quem", "o_que"):
         if nome not in campos:
             continue
         bruto = campos[nome]
+        if not (bruto or "").strip():
+            continue
         if nome == "quando":
-            bruto = (bruto or "").strip()
-            iso = data_de_filtro(bruto) if bruto else ""
-            if bruto and not iso:
+            bruto = bruto.strip()
+            iso = data_de_filtro(bruto)
+            if not iso:
                 return False, ("«%s» não é uma data (dd/mm/aaaa)."
                                % corta(bruto, 20))
-            valores.append(iso or None)
+            valores.append(iso)
         elif nome == "o_que":
-            texto = " ".join((bruto or "").split())[:200]
-            if not texto:
-                return False, "Uma tarefa sem texto não é uma tarefa."
-            valores.append(texto)
+            # não pode sair vazio: o campo já foi filtrado em cima, e
+            # uma tarefa sem texto não se encontra depois
+            valores.append(" ".join(bruto.split())[:200])
         else:
-            valores.append(" ".join((bruto or "").split())[:60] or None)
+            valores.append(" ".join(bruto.split())[:60])
         nomes.append(nome)
     if not nomes:
         return True, ""
