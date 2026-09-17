@@ -225,6 +225,23 @@ decisão que falta, não a tarefa que já não se pode fazer.
 As tarefas de uma proposta sem anúncio (consulta prévia, ajuste
 directo) riscam-se na página dela, `/proposta/<n>`.
 
+### A ficha de uma entidade
+
+**Toda a entidade tem ficha** — as que o Portal BASE conhece e as que só
+existem no Diário da República. Clica no nome da entidade em qualquer
+anúncio, ou vai a **Mercado › Entidades**, onde há a procura por nome ou
+NIF e quatro listas: com quem trabalhamos, seguidas, os clientes que
+mais compram e os concorrentes que mais ganham.
+
+A ficha tem dois lados. O **nosso**: quantos anúncios dela estão na base
+(o número abre exactamente essa lista), as propostas que lhe fizemos com
+o estado e o preço de cada uma, quantos ganhámos dos decididos — a
+percentagem só aparece a partir de cinco decididos, e abaixo disso o
+ecrã diz de quantos precisa — e os contactos, que se criam ali e passam
+a aparecer em todos os concursos dela. E o do **Portal BASE**: o que ela
+compra, o que ganha, a quem, e como isso evoluiu. Se o Portal BASE não a
+conhecer, a ficha di-lo e mostra só o nosso lado.
+
 ### A barra
 
 A barra de cima tem três entradas, por ordem de uso:

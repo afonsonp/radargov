@@ -212,7 +212,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~19 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~21 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
@@ -264,6 +264,24 @@ A ordem do ficheiro é a ordem do fluxo:
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
    próprio. `historico_entidade()` responde ao bloco da ficha do
    anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
+   **Desde 17/09/2026 (fase 2 do `docs/historico/CICLOS.md`) toda a
+   entidade tem ficha**, com corpus ou sem ele (D3): `entidade()` já não
+   começa por `ha_corpus()`, e só dá 404 quando a chave não existe nem
+   em `anuncios`, nem em `propostas`, nem em `contactos`. A ficha tem
+   dois lados — o do Portal BASE e o **nosso** (`nosso_lado_cx()` sobre
+   `lado_da_empresa()`): os anúncios dela na base, as nossas propostas,
+   a taxa com ela (`MINIMO_COM_ENTIDADE`, cinco decididos) e os
+   contactos, que passaram a poder criar-se ali. A lista é `/entidades`,
+   vista do Mercado na barra. **A chave da entidade é UMA só**
+   (`chave_entidade()`, com o prefixo `n:` quando não há NIF): a
+   `chave_da_entidade()` devolvia-a sem prefixo e eram duas escritas do
+   mesmo facto — há migração dos `contactos` no `iniciar_db()`, e quem
+   procura tenta as duas (`chaves_da_entidade()`). A `propostas` ganhou
+   a coluna `entidade_chave`. **Nenhum recorte novo entrou no
+   `condicoes()`**: a ligação para os anúncios de uma entidade usa os
+   campos que o motor já tem (`nif` ou `ent`), por
+   `filtro_dos_anuncios_da_entidade()`, que é o mesmo objecto com que o
+   número se conta.
 8. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Abre com **a porta** (`porta_de_entrada()`,
    `/entrar`, `/sair`, `/sair-de-todos`, `com_csrf()`), que exige
@@ -280,7 +298,8 @@ A ordem do ficheiro é a ordem do fluxo:
    escada nas abas, mais a vista calendário `/calendario`; `/anuncios`
    e `/lista` redireccionam e `/quadro` já não existe) e **Mercado**
    (contratos `/contratos`, com o modo `?ver=fim` das antigas
-   renovações; `/renovacoes` redirecciona). Por baixo das abas há
+   renovações e a vista **Entidades**, `/entidades`, desde 17/09/2026;
+   `/renovacoes` redirecciona). Por baixo das abas há
    **duas listas**: as pontas mostram anúncios, as oito ranhuras da
    empresa mostram propostas. **O quadro saiu no mesmo dia**, por decisão
    dele: a ranhura muda-se no selector de cada linha (`/escada/<ref>`),
