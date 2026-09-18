@@ -213,7 +213,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~22,7 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~23,2 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
@@ -297,7 +297,21 @@ A ordem do ficheiro é a ordem do fluxo:
    `chave_da_entidade()` devolvia-a sem prefixo e eram duas escritas do
    mesmo facto — há migração dos `contactos` no `iniciar_db()`, e quem
    procura tenta as duas (`chaves_da_entidade()`). A `propostas` ganhou
-   a coluna `entidade_chave`. **Nenhum recorte novo entrou no
+   a coluna `entidade_chave`.
+   **Redesenhadas a 17/09/2026** (§3 e §4 do
+   `docs/historico/REDESENHO.md`): a lista `/entidades` passou a ter
+   **cinco abas** (`ABAS_DAS_ENTIDADES`, com «Contratos a acabar · 90
+   dias» a mais) e uma tabela só — o papel, o que compra, o que ganha, a
+   fita do «connosco» (`_fita_connosco()`, um quadrado por proposta com
+   a cor do desfecho), a taxa com ela e o que lhe acaba
+   (`a_acabar_por_entidade()`); marcando duas linhas, comparam-se lado a
+   lado (`_bloco_de_comparacao()`). A ficha abre com **seis factos**
+   (`factos_da_entidade()`) e tem duas colunas: o nosso lado à esquerda,
+   o Portal BASE à direita. **Sem corpus diz «sem BASE» e não zero.** O
+   «a acabar» corre pelo `ix_ctr_chave_fim(adjudicante_chave,
+   fim_estimado)`, que substituiu o `ix_ctr_chave` estreito — e que
+   **entra depois da migração que cria a coluna**, senão um corpus novo
+   dá «no such column». **Nenhum recorte novo entrou no
    `condicoes()`**: a ligação para os anúncios de uma entidade usa os
    campos que o motor já tem (`nif` ou `ent`), por
    `filtro_dos_anuncios_da_entidade()`, que é o mesmo objecto com que o
@@ -388,7 +402,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **218 pontos** (contados a 17/09/2026), cada um de um erro que
+São **222 pontos** (contados a 17/09/2026), cada um de um erro que
 existiu mesmo, em **15 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

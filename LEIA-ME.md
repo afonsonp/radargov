@@ -257,18 +257,34 @@ trimestre passado.
 
 **Toda a entidade tem ficha** — as que o Portal BASE conhece e as que só
 existem no Diário da República. Clica no nome da entidade em qualquer
-anúncio, ou vai a **Mercado › Entidades**, onde há a procura por nome ou
-NIF e quatro listas: com quem trabalhamos, seguidas, os clientes que
-mais compram e os concorrentes que mais ganham.
+anúncio, ou vai a **Mercado › Entidades**.
 
-A ficha tem dois lados. O **nosso**: quantos anúncios dela estão na base
-(o número abre exactamente essa lista), as propostas que lhe fizemos com
-o estado e o preço de cada uma, quantos ganhámos dos decididos — a
-percentagem só aparece a partir de cinco decididos, e abaixo disso o
-ecrã diz de quantos precisa — e os contactos, que se criam ali e passam
-a aparecer em todos os concursos dela. E o do **Portal BASE**: o que ela
-compra, o que ganha, a quem, e como isso evoluiu. Se o Portal BASE não a
-conhecer, a ficha di-lo e mostra só o nosso lado.
+A lista tem uma procura por nome ou NIF e **cinco abas**: com quem
+trabalhamos · seguidas · clientes que mais compram · concorrentes que
+mais ganham · **contratos a acabar nos próximos 90 dias**. Cada linha
+diz o papel da entidade, o que compra, o que ganha, a **fita do
+«connosco»** — um quadrado por proposta nossa, verde se se ganhou,
+vermelho se se perdeu, azul se está em curso —, a taxa com ela e o que
+lhe acaba na janela. **Marca duas e carrega em «comparar as marcadas»**
+para as ver lado a lado.
+
+A ficha abre com **seis números**: o que ela comprou nos últimos 24
+meses, quanto disso cai no teu CPV, a que desconto costuma fechar,
+quantas propostas já lhe fizemos, a taxa com ela e o que lhe acaba nos
+próximos 90 dias.
+
+Por baixo, dois lados. À esquerda o **nosso**: quantos anúncios dela
+estão na base (o número abre exactamente essa lista), as propostas que
+lhe fizemos com o estado e o preço de cada uma, quantos ganhámos dos
+decididos — a percentagem só aparece a partir de cinco decididos, e
+abaixo disso o ecrã diz de quantos precisa — e os contactos, que se
+criam ali e passam a aparecer em todos os concursos dela. À direita o do
+**Portal BASE**: o que ela compra, o que ganha, a quem, e como isso
+evoluiu.
+
+**Sem o corpus do Portal BASE** as colunas do mercado dizem «sem BASE» e
+não zero — zero era uma afirmação sobre o mercado, e a verdadeira é «não
+sei». A lista diz-te onde o trazer.
 
 ### Mudar de ranhura, e o que cada uma pede
 

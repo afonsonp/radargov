@@ -12957,6 +12957,114 @@ class TestListaDeEntidades(CicloDaEntidade):
         self.assertIn("/entidade/506000000", r.headers["Location"])
 
 
+class TestEntidadesRedesenhadas(CicloDaEntidade):
+    """O redesenho de 17/09/2026, §3 e §4 («Radar Gov UI redesign»).
+
+    Eram quatro blocos empilhados de nomes soltos, e comparar duas
+    entidades obrigava a abrir duas fichas em separadores. Estas classes
+    correm **sem corpus** (ver `CicloDaEntidade`): é o caso em que mais
+    fácil era a página parecer avariada, e é o que o §5 cobre.
+    """
+
+    def _com_propostas(self, estados):
+        """Propostas em estados escolhidos, escritos à mão na base.
+
+        Não pelo `mover_proposta()`: a condicionante da informação em
+        falta (D4) exige campos para entrar em «Ganho» e «Perdido», e o
+        que estes testes medem é o que a lista DESENHA, não a escada."""
+        self._anuncio("60/2026")
+        for n, estado in enumerate(estados):
+            id_ = radar.criar_proposta("60/2026", lote=n + 1)
+            with radar.liga() as c:
+                c.execute("UPDATE propostas SET estado=? WHERE id=?",
+                          (estado, id_))
+        return "506000000"
+
+    def test_as_cinco_abas_existem_e_a_ver_escolhe(self):
+        self._anuncio("60/2026")
+        radar.criar_proposta("60/2026")
+        corpo = self.cliente.get("/entidades").get_data(as_text=True)
+        for _, rotulo in radar.ABAS_DAS_ENTIDADES:
+            self.assertIn(rotulo, corpo, rotulo)
+        # a aba pedida acende, e uma inventada volta à primeira
+        seguidas = self.cliente.get(
+            "/entidades?ver=seguidas").get_data(as_text=True)
+        self.assertIn("class='on' href='/entidades?ver=seguidas'", seguidas)
+        self.assertIn("Não segues nenhuma entidade", seguidas)
+        inventada = self.cliente.get("/entidades?ver=xpto")
+        self.assertEqual(inventada.status_code, 200)
+        self.assertIn("class='on' href='/entidades?ver=nossas'",
+                      inventada.get_data(as_text=True))
+
+    def test_a_fita_tem_um_quadrado_por_proposta_e_a_cor_do_desfecho(self):
+        """«6 propostas» não diz se correram bem; seis quadrados dizem-no
+        antes de se ler a taxa."""
+        self._com_propostas(["ganho", "perdido", "submetido"])
+        corpo = self.cliente.get("/entidades").get_data(as_text=True)
+        fita = corpo[corpo.index("ent-fita"):]
+        fita = fita[:fita.index("</span>")]
+        self.assertEqual(fita.count("<i style="), 3)
+        self.assertIn("var(--verde)", fita)
+        self.assertIn("var(--verm)", fita)
+        self.assertIn("3 propostas", corpo)
+        self.assertIn("1 em curso", corpo)
+
+    def test_a_taxa_connosco_cala_se_abaixo_do_minimo(self):
+        """Uma taxa sobre dois concursos é ruído com ar de facto -- a
+        mesma regra do `MINIMO_COM_ENTIDADE` na ficha."""
+        self._com_propostas(["ganho", "perdido"])
+        corpo = self.cliente.get("/entidades").get_data(as_text=True)
+        self.assertIn("1 de 2 — poucos", corpo)
+        self.assertNotIn("50%", corpo)
+
+    def test_sem_corpus_diz_sem_base_e_o_caminho_para_o_trazer(self):
+        """Um «0» nas colunas do mercado é uma afirmação sobre o mercado;
+        a afirmação verdadeira é «não sei» (redesenho §5)."""
+        self._anuncio("60/2026")
+        radar.criar_proposta("60/2026")
+        corpo = self.cliente.get("/entidades").get_data(as_text=True)
+        self.assertIn("sem BASE", corpo)
+        self.assertIn("Actualizar contratos", corpo)
+        self.assertIn("/configuracoes/indicadores", corpo)
+        self.assertEqual(radar.a_acabar_por_entidade(), {})
+
+    def test_comparar_precisa_de_duas_marcadas(self):
+        """A comparação é entre DUAS: com uma só, ou com três, não se
+        desenha nada -- um painel de comparação com uma coluna é um
+        controlo que mente sobre o que faz."""
+        self._anuncio("60/2026")
+        radar.criar_proposta("60/2026")
+        self._anuncio("61/2026", nif="500000002", entidade="Hospital")
+        radar.criar_proposta("61/2026")
+        uma = self.cliente.get(
+            "/entidades?vs=506000000").get_data(as_text=True)
+        self.assertNotIn("A comparar", uma)
+        duas = self.cliente.get(
+            "/entidades?vs=506000000&vs=500000002").get_data(as_text=True)
+        self.assertIn("A comparar", duas)
+        self.assertIn("A quem compra", duas)
+        self.assertIn("deixar de comparar", duas)
+
+    def test_a_ficha_abre_com_seis_factos(self):
+        """Eram dois cartões, «Compra» e «Ganha», e os dois diziam o
+        acervo inteiro. A pergunta comercial é sobre a janela recente,
+        sobre o nosso CPV e sobre o que já fizemos com ela."""
+        self._com_propostas(["ganho", "perdido"])
+        corpo = self.cliente.get(
+            "/entidade/506000000").get_data(as_text=True)
+        for rotulo in ("Compra · 24 m", "No nosso CPV", "Fecha a",
+                       "Connosco", "Taxa connosco", "A acabar · 90 d"):
+            self.assertIn(rotulo, corpo, rotulo)
+        # seis células, e não o `sit-numeros` que as embrulha -- o
+        # `count("sit-n")` apanhava as duas coisas e dava sete
+        self.assertEqual(corpo.count("<span class='r'>"), 6)
+        # sem corpus, os três do mercado dizem-no
+        self.assertIn("sem BASE", corpo)
+        # e a taxa não se inventa
+        self.assertIn("a taxa diz-se a partir de %d" % radar.MINIMO_COM_ENTIDADE,
+                      corpo)
+
+
 class TestPropostaGuardaAChaveDaEntidade(CicloDaEntidade):
     """É o que liga uma proposta à ficha da entidade e aos contactos dela
     sem comparar nomes — e uma proposta sem anúncio (D2) não tem `ref`

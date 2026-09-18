@@ -56,8 +56,8 @@ Funciona. Os números são de **17/09/2026**, lidos das duas bases.
 | Rotas Flask | 80 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 060**, em ~89 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 22 714 linhas · `teste_radar.py` 13 477 · `empresa.py` 641 · `contas.py` 302 |
+| Testes | **1 066**, em ~90 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 23 175 linhas · `teste_radar.py` 13 585 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -95,17 +95,26 @@ contagens do painel vão por índice de cobertura.
   e o cemitério dos expirados. As pontas mostram anúncios, as oito
   ranhuras mostram propostas. Vista **calendário** por dia.
 - **Mercado** (`/contratos`): o corpus do Portal BASE, com o modo «por
-  fim estimado», e a vista **Entidades** (`/entidades`) — procura mais
-  quatro atalhos.
+  fim estimado», e a vista **Entidades** (`/entidades`), **redesenhada a
+  17/09/2026**: uma procura, **cinco abas** (com quem trabalhamos ·
+  seguidas · clientes que mais compram · concorrentes que mais ganham ·
+  contratos a acabar · 90 dias) e uma tabela com o papel, o que compra,
+  o que ganha, a **fita do «connosco»** (um quadrado por proposta, com a
+  cor do desfecho), a taxa com ela e o que lhe acaba na janela. Marcando
+  duas linhas, **comparam-se lado a lado**.
 - **Ficha do anúncio** (`/anuncio/<ref>`), em composição de dossier: os
   factos do DR, as peças (que abrem dentro da ficha), a leitura pelo
   modelo, o histórico do cliente, os contactos, e o bloco **«A nossa
   proposta»** — a ranhura, os campos que ela pede, as etiquetas e o que
   falta fazer.
 - **Ficha da entidade** (`/entidade/<chave>`), para **todas** as
-  entidades: o lado do Portal BASE quando o corpus a conhece, e o nosso
-  sempre — os anúncios dela, as propostas, a taxa de vitória com ela e
-  os contactos.
+  entidades, em **duas colunas** desde 17/09/2026: o nosso lado à
+  esquerda (os anúncios dela, as propostas, a taxa com ela, os
+  contactos) e o Portal BASE à direita. Abre com **seis factos** —
+  compra a 24 meses, quanto disso cai no nosso CPV, a que desconto
+  fecha, quantas propostas já lhe fizemos, a taxa com ela e o que lhe
+  acaba nos próximos 90 dias. Sem corpus, os três do mercado dizem «sem
+  BASE» e não zero.
 - **Ficha da proposta sem anúncio** (`/proposta/<id>`): consulta prévia,
   ajuste directo, convite. Tem o bloco inteiro, os contactos, a
   cronologia e o apagar.

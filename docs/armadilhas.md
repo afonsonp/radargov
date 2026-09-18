@@ -2560,6 +2560,37 @@ botões ou no calendário.
   gesto que se fez. Quem acrescentar uma acção de linha nova passa a
   âncora — não é enfeite, é metade do gesto.
 
+- **Um índice de duas colunas onde a consulta tem duas condições**
+  (17/09/2026). A coluna «a acabar · 90 dias» da lista das entidades
+  pergunta «destas 60 entidades, o que acaba na janela»; com o
+  `ix_ctr_chave(adjudicante_chave)` o SQLite achava cada entidade e
+  lia-lhe os contratos **todos** para comparar a data — 0,67 s, e a
+  página em 0,80 s. Com `ix_ctr_chave_fim(adjudicante_chave,
+  fim_estimado)` é um intervalo dentro de cada chave: página a 0,20 s, e
+  a aba «a acabar» de 2,33 s a 0,31 s. O estreito saiu, por ser prefixo
+  do largo. **O índice novo entra depois da migração que cria a coluna**
+  — `fim_estimado` nasce de um `ALTER TABLE` a meio do
+  `iniciar_corpus()`, e pô-lo mais acima dava «no such column» num
+  corpus novo, com 35 testes a falhar de uma vez.
+
+- **Um número do corpus não é zero quando não há corpus: é «sem BASE».**
+  Zero é uma afirmação sobre o mercado, e a afirmação verdadeira é «não
+  sei». Vale nas colunas da lista das entidades, nos seis factos da
+  ficha e nas abas que só existem com corpus — essas dizem o que fazer
+  para o trazer, em vez de ficarem vazias com ar de avariadas.
+
+- **Um contador de aba conta-se, não se constrói.** O
+  `_contas_das_abas()` chamava o `a_acabar_por_entidade()` só para lhe
+  medir o comprimento, e isso punha o agrupamento dos 90 dias em
+  **todas** as abas, incluindo as que não usam esse número. Um
+  `COUNT(DISTINCT)` sobre o mesmo índice custa a leitura.
+
+- **`count("sit-n")` apanha o `sit-numeros` que embrulha as células.**
+  Um teste que conte as seis células dá sete. É a mesma família do
+  `assertNotIn("abas-escada")`, que dava sempre falso positivo por o CSS
+  citar os próprios selectores: quando se conta marcação, conta-se um
+  pedaço que só existe no que se quer contar.
+
 - **«Em jogo» não leva seta de comparação.** O pipeline é uma
   fotografia de agora; comparar o que está em jogo hoje com o que estava
   no trimestre passado pedia um histórico que a base não guarda. O
