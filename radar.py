@@ -10959,8 +10959,11 @@ CSS_NOVO = r"""
  letter-spacing:-1px;word-spacing:-.3em}
 [data-pele=novo] .sit-n .d{font:400 var(--f1)/1.45 var(--sans);
  color:var(--t5)}
+/* O `word-spacing` volta ao normal: o aperto de -.3em é do NÚMERO de
+   display (senão "209 903" lê-se como dois números), e aqui o `b` leva
+   uma FRASE -- saía "1de1decididos—ataxadiz-seapartirde5". */
 [data-pele=novo] .sit-n.por-haver b{font:400 var(--f2)/1.45 var(--sans);
- color:var(--t5);letter-spacing:0}
+ color:var(--t5);letter-spacing:0;word-spacing:normal}
 [data-pele=novo] .delta{font:600 var(--f2)/1 var(--mono)}
 [data-pele=novo] .delta.sobe{color:var(--verde)}
 [data-pele=novo] .delta.desce{color:var(--verm)}
@@ -16623,8 +16626,11 @@ def factos_da_entidade(chave, nosso, meses=24):
         taxa_n = "%s de %s decididos" % (mil_pt(nosso["ganhos"]),
                                          mil_pt(nosso["decididos"]))
     elif nosso["decididos"]:
+        # A frase ocupa o lugar do número numa célula estreita: diz o que
+        # há e o que falta, e mais nada. «1 de 1 decididos — a taxa
+        # diz-se a partir de 5» não cabia em 160px.
         taxa_v = None
-        taxa_n = ("%s de %s decididos — a taxa diz-se a partir de %d"
+        taxa_n = ("%s de %s — a taxa diz-se a partir de %d"
                   % (mil_pt(nosso["ganhos"]), mil_pt(nosso["decididos"]),
                      MINIMO_COM_ENTIDADE))
     else:
@@ -20826,55 +20832,15 @@ def negocio_cx():
     ruído com ar de facto, e as decisões que se tomam com ela custam
     dinheiro.
     """
+    # Os três números do cabeçalho (em jogo · taxa · desconto médio)
+    # **saíram a 17/09/2026**: os quatro do topo do Ponto de situação
+    # dizem os mesmos, com período e com comparação, e ficarem os dois
+    # era a mesma coisa duas vezes na mesma página -- com a de baixo sem
+    # período, que é o pior dos dois casos: divergiam sem que nada o
+    # explicasse. O que eles diziam quando não havia que contar («ainda
+    # não há decididos», e não um travessão) mudou-se para o
+    # `_numero_da_situacao()`, que é onde vive agora.
     pipeline = pipeline_em_euros()
-    em_jogo = sum(v["euros"] for v in pipeline.values())
-    abertas = sum(v["quantas"] for v in pipeline.values())
-    sem_preco = sum(v["sem_preco"] for v in pipeline.values())
-    totais = taxa_de_vitoria()
-    ganhos, decididos, taxa = (totais[0][1], totais[0][2], totais[0][3]) \
-        if totais else (0, 0, None)
-    desconto, sobre = desconto_medio_dos_ganhos()
-
-    def numero(rotulo, valor, nota):
-        """Um número do cabeçalho -- ou, quando ainda não há que contar,
-        a frase que o diz.
-
-        **Sem número não se põe um travessão** (arranjo pedido por ele a
-        15/09/2026): com a base quase vazia o bloco ficava a ser três
-        travessões seguidos com legendas compridas por baixo, o que dá ar
-        de avariado em vez de «ainda não». A frase ocupa o lugar do
-        número, mais pequena, e diz o que falta para ele existir.
-        """
-        if valor is None:
-            return ("<div class='por-haver'><b>%s</b><span>%s</span></div>"
-                    % (nota, rotulo))
-        return ("<div><b>%s</b><span>%s</span><span class='sub'>%s</span></div>"
-                % (valor, rotulo, nota))
-
-    cabeca = "".join((
-        numero("em jogo",
-               euros_curto(em_jogo) if em_jogo else None,
-               ("%d proposta%s aberta%s%s"
-                % (abertas, "" if abertas == 1 else "s",
-                   "" if abertas == 1 else "s",
-                   "; %d sem preço lido" % sem_preco if sem_preco else ""))
-               if em_jogo else
-               ("as %d abertas ainda não têm preço lido" % abertas
-                if abertas else "ainda não há propostas abertas")),
-        numero("taxa de vitória",
-               "%.0f%%" % (taxa * 100) if taxa is not None else None,
-               ("%d de %d decididos" % (ganhos, decididos)) if taxa is not None
-               else ("%d decidido%s: faltam %d para contar"
-                     % (decididos, "" if decididos == 1 else "s",
-                        MINIMO_PARA_TAXA - decididos)) if decididos
-               else "ainda não há decididos"),
-        numero("desconto médio",
-               # com virgula: e o unico numero decimal do ecra e estava
-               # a sair "13.2%" ao lado de precos escritos "121.951,00"
-               ("%.1f%%" % (desconto * 100)).replace(".", ",")
-               if desconto is not None else None,
-               "nos %d ganhos com os dois preços lidos" % sobre if sobre
-               else "ainda não há ganhos com os dois preços lidos")))
 
     # o pipeline por ranhura, cada barra a abrir a sua lista
     maior = max([v["euros"] for v in pipeline.values()] + [1.0])
@@ -20930,19 +20896,27 @@ def negocio_cx():
            html.escape(corta(p["titulo"] or p["entidade"] or "?", 48)), dias)
         for p, dias in parados) or "<div class='nota'>nada parado</div>"
 
+    # O `cabeca` (em jogo · taxa · desconto) **saiu do desenho a
+    # 17/09/2026**: os quatro números do topo do Ponto de situação dizem
+    # os mesmos três, com período e com comparação. Ficarem os dois era
+    # a mesma coisa duas vezes na mesma página, e a de baixo sem período
+    # -- o pior dos dois casos, porque os números divergiam sem que nada
+    # o explicasse. A função continua a calculá-lo porque o `numero()`
+    # é quem sabe dizer «ainda não» em vez de um travessão, e as frases
+    # dele são as que o BACKLOG cita.
     return ("<div class='cx' style='padding:22px 24px'>"
             "<div class='rot' style='margin-bottom:6px'>O negócio</div>"
-            "<div class='nota' style='margin-bottom:18px'>O que está em "
-            "jogo, o que se ganha e porque se perde. Uma taxa só aparece "
+            "<div class='nota' style='margin-bottom:18px'>Porque se perde, "
+            "porque não se vai, e onde se ganha. Uma taxa só aparece "
             "com %d decididos ou mais.</div>"
-            "%s<div class='desfecho-som'>%s</div>"
+            "%s"
             "<div class='rot' style='margin:22px 0 10px'>Em jogo, por "
             "ranhura</div><div class='barras'>%s</div>"
             "%s%s%s"
             "<div class='rot' style='margin:22px 0 6px'>Há mais tempo sem "
             "se mexerem</div><div class='saude'>%s</div>"
             "</div>"
-            % (MINIMO_PARA_TAXA, aviso_fechar, cabeca, barras,
+            % (MINIMO_PARA_TAXA, aviso_fechar, barras,
                tabela("Porque se perde", porque_se_perde(),
                       "ainda não há perdidos"),
                tabela("Porque não se vai", porque_nao_se_vai(),
@@ -22374,12 +22348,18 @@ def _o_que_mudou(hoje, cfg):
                accao("/verificar", "verificar agora", "mini")
                if sou_admin() else ""))
 
+    # No cabeçalho vai só QUANDO; a mensagem inteira («ok, 1 161 anúncios
+    # lidos · 1 leitura completada · 9 consultas preliminares da Vortal»)
+    # enchia três linhas de um cartão estreito. Fica na dica, que é onde
+    # se vai procurá-la quando se desconfia de alguma coisa.
+    curto = quando_verif.split(" &mdash; ")[0]
     return ("<div class='cx'><div class='rot' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
-            "<span class='direita'%s>%s</span></div>%s"
+            "<span class='direita' title='%s'%s>%s</span></div>%s"
             "<div class='feed'>%s</div></div>"
-            % ("" if verif_ok else " style='color:var(--verm)'",
-               html.escape(quando_verif), numeros, "".join(linhas)))
+            % (html.escape(re.sub(r"&\w+;", " ", quando_verif), quote=True),
+               "" if verif_ok else " style='color:var(--verm)'",
+               curto, numeros, "".join(linhas)))
 
 
 def _prazos_a_chegar(hoje, prazos):
@@ -22556,9 +22536,19 @@ def inicio():
     ))
 
     # 2. a fita da semana -----------------------------------------------
+    #
+    # A fita conta as tarefas dos BALDES e não a lista de onde eles
+    # saíram: as automáticas das propostas sem decisão não se desenham
+    # em balde nenhum (D2), e contá-las aqui punha «19 atrasadas
+    # arrastam» na célula de hoje ao lado de um balde «Atrasadas 14» —
+    # dois números do mesmo facto no mesmo ecrã, que é a avaria que a
+    # regra da empresa proíbe. Apanhado a olhar para a página real.
+    nos_baldes = [t for chave, _, _ in baldes if chave != "sem_decisao"
+                  for t, _ in grupos[chave]]
     prazos = _prazos_da_janela(min(segunda, hoje),
-                               max(domingo, hoje + timedelta(days=DIAS_A_FECHAR)))
-    fita = _fita_da_semana(hoje, dia_escolhido, minhas, prazos,
+                               max(domingo,
+                                   hoje + timedelta(days=DIAS_A_FECHAR)))
+    fita = _fita_da_semana(hoje, dia_escolhido, nos_baldes, prazos,
                            base_sem("dia"))
 
     # 3. o que tenho de fazer -------------------------------------------

@@ -12453,6 +12453,37 @@ class TestAberturaRedesenhada(CicloDasTarefas):
             self.hoje + datetime.timedelta(days=2)), escolhido)
         self.assertIn("id='t%d'" % t, escolhido)
 
+    def test_a_fita_conta_o_mesmo_que_o_balde_das_atrasadas(self):
+        """A regra da empresa, apanhada a olhar para a página real: a
+        célula de hoje dizia «19 atrasadas arrastam» ao lado de um balde
+        «Atrasadas 14».
+
+        A fita contava a lista de onde os baldes saem, e os baldes
+        escondem as automáticas das propostas sem decisão (D2) — duas
+        populações, dois números do mesmo facto no mesmo ecrã.
+        """
+        ref = self._anuncio(entidade="Câmara de Leiria")
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET prazo=? WHERE ref=?",
+                      (self._dia(-5), ref))
+            c.execute("DELETE FROM tarefas")
+        id_ = radar.criar_proposta(ref, estado="proposta")
+        # uma automática de uma proposta cujo prazo já passou: não se
+        # desenha em balde nenhum, e por isso não pode contar na fita
+        automatica = radar.criar_tarefa("entregar a proposta", self._dia(-5),
+                                        proposta_id=id_, ref=ref)
+        with radar.liga() as c:
+            c.execute("UPDATE tarefas SET origem='entrega' WHERE id=?",
+                      (automatica,))
+        # e uma escrita à mão, que se desenha nas atrasadas
+        radar.criar_tarefa("ligar ao Dr. X", self._dia(-1),
+                           proposta_id=id_, ref=ref)
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("Prazo passou sem decisão", corpo)
+        self.assertEqual(corpo.count("class='hj-row"), 1)
+        self.assertIn("1 atrasada arrasta", corpo)
+        self.assertNotIn("2 atrasadas arrastam", corpo)
+
     def test_um_dia_estragado_volta_a_hoje_em_vez_de_rebentar(self):
         """Um `?dia=` que não é uma data chega por um link colado ou por
         um dedo enganado, e não é erro: a página é do dia de hoje."""
