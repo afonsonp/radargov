@@ -7504,6 +7504,24 @@ def iniciar_corpus():
         # ordenacao, e assim o indice serve-a inteira.
         c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_fim "
                   "ON contratos(fim_estimado, id)")
+        # **Duas colunas e não uma** (17/09/2026, redesenho §3). A coluna
+        # «a acabar · 90 dias» da lista das entidades pergunta «destas 60
+        # entidades, o que acaba na janela»; com o índice só na chave, o
+        # SQLite achava cada entidade e lia-lhe os contratos TODOS para
+        # comparar a data — medido, 0,67 s, e a página inteira em 0,80 s.
+        # Com a data no índice é um intervalo dentro de cada chave: a
+        # página passou a **0,20 s**, e a aba «a acabar» de 2,33 s a
+        # 0,31 s. Custa 5,5 s a construir uma vez no corpus de 2 milhões.
+        #
+        # Fica **aqui e não com os outros índices da chave**: o
+        # `fim_estimado` é uma coluna que uma migração acrescenta, e mais
+        # acima ainda não existe — um corpus novo dava «no such column».
+        # O `ix_ctr_chave` estreito sai a seguir: é prefixo deste, e
+        # ficarem os dois é manter duas escritas por contrato importado
+        # para servir os mesmos acessos.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_chave_fim "
+                  "ON contratos(adjudicante_chave, fim_estimado)")
+        c.execute("DROP INDEX IF EXISTS ix_ctr_chave")
         # O grafico do desconto agrupa por n_anuncio so nas linhas com
         # anuncio e com os dois precos. O indice parcial cobre a
         # consulta inteira e poupa o varrimento da tabela: medido, 1,0 s
@@ -10948,6 +10966,43 @@ CSS_NOVO = r"""
 [data-pele=novo] .delta.desce{color:var(--verm)}
 [data-pele=novo] .delta.igual,[data-pele=novo] .delta.vago{color:var(--t5);
  font-weight:400}
+
+/* AS ENTIDADES (redesenho §3). A fita do "connosco": um quadrado por
+   proposta, com a cor do desfecho. Seis quadrados dizem se correram bem
+   antes de se ler a taxa; "6 propostas" nao diz nada disso. */
+[data-pele=novo] .ent-fita{display:flex;gap:2px;flex-wrap:wrap;
+ margin-bottom:3px}
+[data-pele=novo] .ent-fita i{width:8px;height:8px;border-radius:2px;
+ display:block}
+[data-pele=novo] .tab-pe{display:flex;gap:12px;align-items:center;
+ flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--linha)}
+[data-pele=novo] .tab-pe .nota{flex:1 1 320px}
+[data-pele=novo] .comparar{border-color:var(--azul-borda);padding:0;
+ margin-bottom:18px}
+[data-pele=novo] .comparar .cab{display:grid;
+ grid-template-columns:180px 1fr 1fr;gap:12px;padding:12px 16px;
+ background:var(--azul-fundo);border-bottom:1px solid var(--azul-borda);
+ font:600 var(--f3)/1.3 var(--sans)}
+[data-pele=novo] .comparar .grelha{display:grid;
+ grid-template-columns:180px 1fr 1fr;gap:10px 12px;padding:14px 16px;
+ font:400 var(--f2)/1.5 var(--sans);color:var(--t2)}
+[data-pele=novo] .comparar .grelha .r{font-weight:600;color:var(--t4)}
+[data-pele=novo] .comparar > a{display:block;padding:0 16px 14px}
+@media (max-width:760px){
+ [data-pele=novo] .comparar .cab,[data-pele=novo] .comparar .grelha{
+  grid-template-columns:minmax(0,1fr)}}
+
+/* A ficha da entidade (redesenho §4): os seis factos, e o NOSSO lado à
+   esquerda. Empilhados, o que já fizemos com ela ficava debaixo de seis
+   gráficos do mercado -- e é a primeira pergunta ao abrir uma ficha. */
+[data-pele=novo] .sit-numeros.seis{margin:0 0 14px;
+ grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+[data-pele=novo] .sit-numeros.seis .sit-n b{font-size:22px}
+[data-pele=novo] .ent-dois{grid-template-columns:minmax(0,360px) minmax(0,1fr);
+ margin-top:14px}
+[data-pele=novo] .ent-dois .lado-nosso > .cx{margin:0}
+@media (max-width:900px){
+ [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:760px){
  [data-pele=novo] .fita a{min-height:52px;padding:6px}
  [data-pele=novo] .fita .nota-dia{display:none}}
@@ -16154,71 +16209,459 @@ def nosso_lado_cx(nosso):
         r"\d{9}", chave or "") else "", "entidade": nome})
 
 
+# --- a lista das entidades, com abas (17/09/2026, redesenho §3)
+#
+# Eram quatro blocos empilhados, cada um com o seu titulo e a sua lista
+# de nomes soltos: para comparar duas entidades era preciso abrir as
+# duas fichas em separadores. Passaram a **abas de uma tabela so**, com
+# as colunas que se querem comparar de relance -- o papel, o que compra,
+# o que ganha, o que ja fizemos com ela e o que lhe acaba nos proximos
+# 90 dias.
+
+ABAS_DAS_ENTIDADES = (("nossas", "Com quem trabalhamos"),
+                      ("seguidas", "Seguidas"),
+                      ("clientes", "Clientes que mais compram"),
+                      ("concorrentes", "Concorrentes que mais ganham"),
+                      ("acabar", "Contratos a acabar"))
+
+# A janela do "a acabar". Sao os 90 dias do documento e nao os
+# `dias_urgente()`: a pergunta aqui nao e "o que fecha para responder",
+# e "o que volta a concurso e me da tempo de me preparar".
+DIAS_A_ACABAR = 90
+
+# Quantas linhas por aba. As duas do corpus ja vinham limitadas a 25 no
+# `entidades_top()`; as nossas sao dezenas.
+CABEM_NA_LISTA = 60
+
+
+def _propostas_por_entidade(chaves):
+    """{chave: [estados, do mais recente para o mais antigo]}.
+
+    E a **fita do «connosco»**: um quadrado por proposta, com a cor do
+    desfecho. Uma consulta so sobre dezenas de linhas -- as propostas
+    sao o que a empresa fez, nao o acervo."""
+    chaves = [c for c in dict.fromkeys(chaves) if c]
+    if not chaves:
+        return {}
+    fora = {}
+    with liga() as c:
+        for r in c.execute(
+                "SELECT entidade_chave ch, estado FROM propostas "
+                "WHERE entidade_chave IN (%s) "
+                "ORDER BY COALESCE(fechada_em, criada_em) DESC, id DESC"
+                % ",".join("?" * len(chaves)), chaves):
+            fora.setdefault(r["ch"], []).append(r["estado"])
+    return fora
+
+
+def _identidades_do_corpus(chaves):
+    """{chave: linha da `entidades`} -- o nome canonico, o NIF e os dois
+    totais que dizem o papel. Vazio sem corpus, e quem desenha diz «sem
+    BASE» em vez de zero."""
+    chaves = [c for c in dict.fromkeys(chaves) if c]
+    if not chaves or not ha_corpus():
+        return {}
+    with liga_corpus() as c:
+        return {r["chave"]: r for r in c.execute(
+            "SELECT chave, nif, nome, compra, ganha FROM entidades "
+            "WHERE chave IN (%s)" % ",".join("?" * len(chaves)), chaves)}
+
+
+def a_acabar_por_entidade(dias=DIAS_A_ACABAR, chaves=None, quantas=None):
+    """{chave: (quantos, euros)} dos contratos que acabam na janela.
+
+    Corre pelo indice `(fim_estimado, id)` -- e um intervalo de datas e
+    nao um varrimento dos dois milhoes. **O fim e ESTIMADO** (celebração
+    mais o prazo declarado ao IMPIC): prorrogações e cessações
+    antecipadas não constam do dump, e por isso isto é um sinal para
+    olhar, não um facto.
+    """
+    if not ha_corpus():
+        return {}
+    hoje = datetime.now().date()
+    ate = (hoje + timedelta(days=dias)).isoformat()
+    onde, vals = "", [hoje.isoformat(), ate]
+    if chaves is not None:
+        chaves = [c for c in dict.fromkeys(chaves) if c]
+        if not chaves:
+            return {}
+        onde = " AND adjudicante_chave IN (%s)" % ",".join("?" * len(chaves))
+        vals += chaves
+    with liga_corpus() as c:
+        linhas = c.execute(
+            "SELECT adjudicante_chave ch, COUNT(*) k, "
+            "  COALESCE(SUM(preco_contratual),0) v FROM contratos "
+            "WHERE fim_estimado BETWEEN ? AND ?" + onde +
+            " GROUP BY adjudicante_chave ORDER BY k DESC"
+            + (" LIMIT %d" % int(quantas) if quantas else ""),
+            vals).fetchall()
+    return {r["ch"]: (r["k"], r["v"]) for r in linhas if r["ch"]}
+
+
+def _fita_connosco(estados):
+    """Os quadradinhos do «connosco»: um por proposta, com a cor do
+    desfecho. Um numero sozinho («6 propostas») nao diz se correram bem;
+    seis quadrados dizem-no antes de se ler a taxa."""
+    cores = {"ganho": "var(--verde)", "perdido": "var(--verm)",
+             "nao_fomos": "var(--traco)", "cancelado": "var(--traco)"}
+    quadros = "".join(
+        "<i style='background:%s' title='%s'></i>"
+        % (cores.get(e, "var(--azul)"), html.escape(estado_da_empresa(e)))
+        for e in estados[:24])
+    em_curso = sum(1 for e in estados if e in ESTADOS_ABERTOS)
+    return ("<span class='ent-fita'>%s</span><span class='nota'>%s%s</span>"
+            % (quadros,
+               "%s proposta%s" % (mil_pt(len(estados)),
+                                  "" if len(estados) == 1 else "s"),
+               " &middot; %s em curso" % mil_pt(em_curso) if em_curso else ""))
+
+
+def _linhas_da_aba(aba):
+    """[(chave, nome)] da aba pedida, pela ordem em que se mostram."""
+    if aba == "seguidas":
+        with liga() as c:
+            return [(s["chave"], s["nome"] or nome_da_entidade(s["chave"]))
+                    for s in c.execute("SELECT chave, nome FROM "
+                                       "entidades_seguidas ORDER BY nome")]
+    if aba == "clientes":
+        return [(e["chave"], e["nome"]) for e in entidades_top("cliente")]
+    if aba == "concorrentes":
+        return [(e["chave"], e["nome"]) for e in entidades_top("concorrente")]
+    if aba == "acabar":
+        acabam = a_acabar_por_entidade(quantas=CABEM_NA_LISTA)
+        nomes = _identidades_do_corpus(list(acabam))
+        return [(ch, (nomes[ch]["nome"] if ch in nomes else ch))
+                for ch in acabam]
+    return [(e["chave"], e["nome"]) for e in entidades_com_proposta()]
+
+
+def _contas_das_abas():
+    """O numero de cada aba. Sao contagens e nao as listas inteiras: um
+    numero que a aba mostra tem de dar exactamente a lista que ela abre
+    -- a regra da empresa --, e por isso conta-se o mesmo que se
+    desenha."""
+    contas = {}
+    with liga() as c:
+        contas["nossas"] = c.execute(
+            "SELECT COUNT(DISTINCT entidade_chave) n FROM propostas "
+            "WHERE COALESCE(entidade_chave,'') != ''").fetchone()["n"]
+        contas["seguidas"] = c.execute(
+            "SELECT COUNT(*) n FROM entidades_seguidas").fetchone()["n"]
+    contas["clientes"] = len(entidades_top("cliente"))
+    contas["concorrentes"] = len(entidades_top("concorrente"))
+    # **Conta-se, não se constrói.** O `a_acabar_por_entidade()` devolve
+    # o dicionário inteiro da janela, e chamá-lo só para lhe medir o
+    # comprimento punha o agrupamento dos 90 dias em TODAS as abas:
+    # medido, 0,82 s na aba de omissão, que não usa esse número para mais
+    # nada. Um COUNT(DISTINCT) sobre o mesmo índice custa a leitura.
+    contas["acabar"] = 0
+    if ha_corpus():
+        hoje = datetime.now().date()
+        with liga_corpus() as c:
+            contas["acabar"] = c.execute(
+                "SELECT COUNT(DISTINCT adjudicante_chave) n FROM contratos "
+                "WHERE fim_estimado BETWEEN ? AND ?",
+                (hoje.isoformat(),
+                 (hoje + timedelta(days=DIAS_A_ACABAR)).isoformat())
+            ).fetchone()["n"]
+    return contas
+
+
+def _bloco_de_comparacao(chaves):
+    """As duas entidades lado a lado, quando se marcam duas na tabela.
+
+    Cada coluna e o que o corpus sabe (`ficha_entidade()`) mais o nosso
+    lado (`lado_da_empresa()`) -- as mesmas duas fontes da ficha, para
+    as duas paginas nunca discordarem. Com uma so, ou com mais de duas,
+    isto nao se desenha: a comparacao e entre duas.
+    """
+    if len(chaves) != 2:
+        return ""
+    colunas, cabecas = [], []
+    acabam = a_acabar_por_entidade(chaves=chaves)
+    for ch in chaves:
+        nome = nome_da_entidade(ch) or ch
+        nosso = lado_da_empresa(ch, nome)
+        f = ficha_entidade(ch) if ha_corpus() else None
+        cabecas.append("<a href='/entidade/%s'>%s</a>"
+                       % (quote(ch, safe=""), html.escape(corta(nome, 44))))
+        fornece = "<br>".join(
+            "%s &mdash; %s" % (html.escape(corta(r["n"] or "", 30)),
+                               euros_curto(r["v"] or 0))
+            for r in (f["fornecedores"][:4] if f and f["fornecedores"]
+                      else []))
+        if f is None:
+            compra = "sem BASE"
+        else:
+            compra = ("%s contrato%s &middot; %s"
+                      % (mil_pt(f["compra"]["k"]),
+                         "" if f["compra"]["k"] == 1 else "s",
+                         euros_curto(f["compra"]["v"] or 0)))
+        if nosso["taxa"] is not None:
+            com_ela = ("%.0f%% de %s decididos"
+                       % (nosso["taxa"] * 100, mil_pt(nosso["decididos"])))
+        elif nosso["decididos"]:
+            com_ela = ("%s de %s — poucos para uma taxa"
+                       % (mil_pt(nosso["ganhos"]), mil_pt(nosso["decididos"])))
+        else:
+            com_ela = "ainda não há decididos"
+        k, v = acabam.get(ch, (0, 0.0))
+        colunas.append([
+            ("O que compra", compra),
+            ("A quem compra", fornece or "—"),
+            ("Connosco",
+             "%s proposta%s &middot; %s"
+             % (mil_pt(len(nosso["propostas"])),
+                "" if len(nosso["propostas"]) == 1 else "s", com_ela)),
+            ("Anúncios dela na base", mil_pt(nosso["anuncios"])),
+            ("A acabar · %d dias" % DIAS_A_ACABAR,
+             ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—"),
+        ])
+
+    linhas = "".join(
+        "<div class='r'>%s</div><div>%s</div><div>%s</div>"
+        % (html.escape(colunas[0][i][0]), colunas[0][i][1], colunas[1][i][1])
+        for i in range(len(colunas[0])))
+    return ("<div class='cx comparar'><div class='cab'>"
+            "<span class='rot'>A comparar</span><div>%s</div><div>%s</div>"
+            "</div><div class='grelha'>%s</div>"
+            "<a class='nota' href='/entidades'>deixar de comparar</a></div>"
+            % (cabecas[0], cabecas[1], linhas))
+
+
+def _vazio_da_aba(aba):
+    """(título, explicação) do estado vazio de cada aba. Um «0» não diz
+    o que fazer a seguir (redesenho §5)."""
+    if aba == "seguidas":
+        return ("Não segues nenhuma entidade",
+                "Os anúncios novos de uma entidade seguida entram no resumo "
+                "diário. Segue-se na ficha de cada uma, no botão «seguir».")
+    if aba in ("clientes", "concorrentes", "acabar"):
+        return ("Sem o corpus do Portal BASE não há esta lista",
+                "São dois milhões de contratos celebrados, que se trazem com "
+                "«Actualizar contratos» em Configurações › Indicadores. "
+                "Demora minutos e refaz-se sozinho à segunda-feira.")
+    return ("Ainda não há propostas com entidade nenhuma",
+            "Uma entidade entra aqui quando um concurso dela passa a uma "
+            "ranhura da escada — basta carregar em «interessa» num anúncio.")
+
+
 @app.route("/entidades")
 def entidades():
-    """A lista das entidades: uma procura e quatro atalhos.
+    """A lista das entidades: uma procura, cinco abas e uma tabela.
 
-    Não é uma tabela de 180 mil linhas -- é a pergunta («quem?») mais os
-    quatro caminhos que se fazem a sério: com quem trabalhamos, quem
-    seguimos, quem mais compra, quem mais ganha. Até 17/09/2026 só se
-    chegava a uma ficha de entidade por três caminhos, e o formulário de
-    procura não era `href` de lado nenhum.
+    Não é uma tabela de 180 mil linhas -- são os cinco caminhos que se
+    fazem a sério: com quem trabalhamos, quem seguimos, quem mais
+    compra, quem mais ganha, e a quem acaba um contrato nos próximos 90
+    dias. Até 17/09/2026 eram quatro blocos empilhados de nomes soltos,
+    e comparar duas entidades obrigava a abrir duas fichas.
     """
+    aba = request.args.get("ver") or ABAS_DAS_ENTIDADES[0][0]
+    if aba not in dict(ABAS_DAS_ENTIDADES):
+        aba = ABAS_DAS_ENTIDADES[0][0]
+    marcadas = [c for c in request.args.getlist("vs") if c][:2]
+
+    contas = _contas_das_abas()
+    abas = "<div class='abas'>%s</div>" % "".join(
+        "<a class='%s' href='/entidades?ver=%s'>%s <i>%s</i></a>"
+        % ("on" if aba == chave else "", chave,
+           html.escape(rotulo + (" · %d dias" % DIAS_A_ACABAR
+                                 if chave == "acabar" else "")),
+           mil_pt(contas.get(chave, 0)))
+        for chave, rotulo in ABAS_DAS_ENTIDADES)
+
     procura = ("<form class='cx filtros' method='get' "
                "action='/entidade/procurar'>"
                "<label>Nome ou NIF<input type='text' name='q' "
-               "placeholder='ex. 506000000, ou Politécnico de Leiria' "
-               "autofocus></label>"
+               "placeholder='ex. 506000000, ou Politécnico de Leiria'></label>"
                "<button type='submit'>procurar</button></form>")
 
-    def bloco(titulo, porque, linhas, vazio):
-        if not linhas:
-            return ("<div class='cx lado-cx'>%s<p class='nota'>%s</p></div>"
-                    % (rot_com_porque(titulo, porque), vazio))
-        return ("<div class='cx lado-cx'>%s%s</div>"
-                % (rot_com_porque(titulo, porque),
-                   "".join("<div class='hist'><a href='/entidade/%s'>%s</a>"
-                           "<span class='sem-nif'>%s</span></div>"
-                           % (quote(l[0], safe=""), html.escape(l[1] or l[0]),
-                              html.escape(l[2])) for l in linhas)))
+    # Sem corpus, três das cinco abas não têm o que mostrar e as colunas
+    # do BASE dizem «sem BASE». O aviso diz o caminho em vez de deixar a
+    # página a parecer avariada (redesenho §5).
+    if not ha_corpus():
+        procura = ("<div class='flash'>Sem o corpus do Portal BASE, as "
+                   "colunas do mercado dizem «sem BASE» e três destas abas "
+                   "ficam vazias. Traz-se em <a href='/configuracoes/"
+                   "indicadores'>Configurações › Indicadores</a>, com "
+                   "«Actualizar contratos» — demora minutos e refaz-se "
+                   "sozinho à segunda-feira.</div>") + procura
 
-    nossas = [(e["chave"], e["nome"],
-               "%s proposta%s%s" % (mil_pt(e["k"]), "" if e["k"] == 1 else "s",
-                                    " · %s ganha" % mil_pt(e["g"])
-                                    if e["g"] else ""))
-              for e in entidades_com_proposta()]
+    linhas = _linhas_da_aba(aba)[:CABEM_NA_LISTA]
+    chaves = [ch for ch, _ in linhas]
+    ident = _identidades_do_corpus(chaves)
+    nossas = _propostas_por_entidade(chaves)
+    acabam = a_acabar_por_entidade(chaves=chaves)
     with liga() as c:
-        seguidas = [(s["chave"], s["nome"] or nome_da_entidade(s["chave"]),
-                     "seguida")
-                    for s in c.execute("SELECT chave, nome FROM "
-                                       "entidades_seguidas ORDER BY nome")]
-    clientes = [(e["chave"], e["nome"], euros_curto(e["compra"]))
-                for e in entidades_top("cliente")]
-    concorrentes = [(e["chave"], e["nome"], euros_curto(e["ganha"]))
-                    for e in entidades_top("concorrente")]
-    corpo = (procura
-             + bloco("Com quem trabalhamos",
-                     "As entidades sobre que já há uma proposta nossa.",
-                     nossas, "Ainda não há propostas com entidade nenhuma.")
-             + bloco("Seguidas",
-                     "Os anúncios novos delas entram no resumo diário.",
-                     seguidas, "Não segues nenhuma entidade. Segue-se na "
-                     "ficha de cada uma.")
-             + bloco("Clientes que mais compram",
-                     "Do Portal BASE, por valor adjudicado a outros.",
-                     clientes, "Sem o corpus do Portal BASE não há esta "
-                     "lista. Traz-se com «Actualizar contratos».")
-             + bloco("Concorrentes que mais ganham",
-                     "Do Portal BASE, por valor adjudicado a si.",
-                     concorrentes, "Sem o corpus do Portal BASE não há esta "
-                     "lista."))
+        seguidas = {r["chave"] for r in c.execute(
+            "SELECT chave FROM entidades_seguidas")}
+
+    corpo = []
+    for ch, nome in linhas:
+        e = ident.get(ch)
+        compra = (e["compra"] or 0) if e else 0
+        ganha = (e["ganha"] or 0) if e else 0
+        propostas = nossas.get(ch, [])
+        ganhos = sum(1 for x in propostas if x == "ganho")
+        decididos = sum(1 for x in propostas if x in ("ganho", "perdido"))
+        # A taxa só a partir do mínimo, e abaixo dele diz-se quantos são:
+        # uma taxa sobre dois concursos é ruído com ar de facto.
+        if decididos >= MINIMO_COM_ENTIDADE:
+            taxa = "%.0f%%" % (100.0 * ganhos / decididos)
+        elif decididos:
+            taxa = ("<span class='nota'>%s de %s — poucos</span>"
+                    % (mil_pt(ganhos), mil_pt(decididos)))
+        else:
+            taxa = "—"
+        k, v = acabam.get(ch, (0, 0.0))
+        corpo.append(
+            "<tr><td><input type='checkbox' name='vs' value='%s'%s></td>"
+            "<td><a href='/entidade/%s'>%s</a>%s</td>"
+            "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
+            "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
+            "<td>%s</td></tr>"
+            % (html.escape(ch, quote=True),
+               " checked" if ch in marcadas else "",
+               quote(ch, safe=""),
+               html.escape(corta(nome or ch, 46)),
+               ("<div class='nota'>%s</div>"
+                % html.escape(e["nif"] or "sem NIF")) if e else
+               "<div class='nota'>só no DR</div>",
+               selo_do_papel(papel_da_entidade(compra, ganha), curto=True)
+               if e else "",
+               euros_curto(compra) if e
+               else "<span class='nota'>sem BASE</span>",
+               euros_curto(ganha) if e else "",
+               _fita_connosco(propostas) if propostas
+               else "<span class='nota'>ainda nenhuma</span>",
+               taxa,
+               ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—",
+               "<span class='tag ok'>seguida</span>" if ch in seguidas
+               else "<a class='nota' href='/entidade/%s'>abrir</a>"
+               % quote(ch, safe="")))
+
+    if corpo:
+        tabela = (
+            "<form method='get' action='/entidades'>"
+            "<input type='hidden' name='ver' value='%s'>"
+            "<div class='cx tab-cx'><table class='tab-contratos'>"
+            "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
+            "<th class='p'>Compra</th><th class='p'>Ganha</th>"
+            "<th>Connosco</th><th class='p'>Taxa connosco</th>"
+            "<th class='p'>A acabar · %d d</th><th></th></tr></thead>"
+            "<tbody>%s</tbody></table>"
+            "<div class='tab-pe'><button type='submit' class='bt'>comparar "
+            "as marcadas</button><span class='nota'>Marca duas. "
+            "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
+            "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
+            "prazo declarado, sem prorrogações. A taxa connosco só se diz "
+            "a partir de %d decididos.</span></div></div></form>"
+            % (html.escape(aba, quote=True), DIAS_A_ACABAR, "".join(corpo),
+               MINIMO_COM_ENTIDADE))
+    else:
+        titulo_vazio, porque = _vazio_da_aba(aba)
+        tabela = ("<div class='vazio comecar'><b>%s</b><span>%s</span></div>"
+                  % (html.escape(titulo_vazio), porque))
+
     return envolver("entidades", "Entidades",
                     "Quem compra, quem ganha, e com quem já trabalhámos. "
                     "Toda a entidade tem ficha — as do Portal BASE e as que "
                     "só existem no Diário da República.",
-                    "<div class='larg'>" + corpo + "</div>",
-                    migalhas=migalhas_de("entidades"),
+                    "<div class='larg'>%s%s%s</div>"
+                    % (procura, _bloco_de_comparacao(marcadas), tabela),
+                    migalhas=migalhas_de("entidades"), abas=abas,
                     titulo_aba="Entidades, Radar de Concursos")
+
+
+def factos_da_entidade(chave, nosso, meses=24):
+    """Os seis factos do topo da ficha de uma entidade (redesenho §4).
+
+    Substituem os dois cartões «Compra» e «Ganha». Não é enfeite: os
+    dois diziam o acervo inteiro, e a pergunta comercial é sobre a
+    janela recente, sobre o **nosso** CPV e sobre o que já fizemos com
+    ela. Cada um é uma consulta sobre os contratos DESTA entidade, pelo
+    índice `ix_ctr_chave_fim` -- não sobre os dois milhões.
+
+    Sem corpus os três primeiros dizem «sem BASE» em vez de zero: zero é
+    uma afirmação sobre o mercado, e a afirmação verdadeira é «não sei».
+    """
+    desde = (datetime.now().date()
+             - timedelta(days=int(30.44 * meses))).isoformat()
+    compra_k = compra_v = no_cpv = 0
+    desconto = None
+    if ha_corpus():
+        frag, vals = condicao_do_interesse_contratos(args={})
+        with liga_corpus() as c:
+            r = c.execute(
+                "SELECT COUNT(*) k, COALESCE(SUM(preco_contratual),0) v "
+                "FROM contratos c WHERE c.adjudicante_chave=? "
+                "AND c.data_celebracao >= ?", (chave, desde)).fetchone()
+            compra_k, compra_v = r["k"], r["v"]
+            if frag and compra_k:
+                no_cpv = c.execute(
+                    "SELECT COUNT(*) k FROM contratos c "
+                    "WHERE c.adjudicante_chave=? AND c.data_celebracao >= ? "
+                    "AND (%s)" % frag, [chave, desde] + vals).fetchone()["k"]
+            # A que desconto fecha: a média sobre os contratos com os
+            # DOIS preços lidos. Diz sobre quantos -- somar uns e calar
+            # os outros parecia a média de todos.
+            d = c.execute(
+                "SELECT COUNT(*) k, "
+                "  AVG((preco_base - preco_contratual) / preco_base) m "
+                "FROM contratos WHERE adjudicante_chave=? "
+                "AND data_celebracao >= ? AND preco_base > 0 "
+                "AND preco_contratual > 0 "
+                "AND preco_contratual <= preco_base",
+                (chave, desde)).fetchone()
+            if d["k"]:
+                desconto = (d["m"], d["k"])
+    acabam = a_acabar_por_entidade(chaves=[chave]).get(chave, (0, 0.0))
+
+    propostas = len(nosso["propostas"])
+    if nosso["taxa"] is not None:
+        taxa_v = "%.0f%%" % (nosso["taxa"] * 100)
+        taxa_n = "%s de %s decididos" % (mil_pt(nosso["ganhos"]),
+                                         mil_pt(nosso["decididos"]))
+    elif nosso["decididos"]:
+        taxa_v = None
+        taxa_n = ("%s de %s decididos — a taxa diz-se a partir de %d"
+                  % (mil_pt(nosso["ganhos"]), mil_pt(nosso["decididos"]),
+                     MINIMO_COM_ENTIDADE))
+    else:
+        taxa_v, taxa_n = None, "ainda não há decididos com ela"
+
+    seis = (
+        ("Compra · %d m" % meses,
+         euros_curto(compra_v) if compra_k else None,
+         "%s contrato%s" % (mil_pt(compra_k), "" if compra_k == 1 else "s")
+         if compra_k else ("sem BASE" if not ha_corpus()
+                           else "nada celebrado nesta janela")),
+        ("No nosso CPV", mil_pt(no_cpv) if no_cpv else None,
+         "dos %s contratos da janela" % mil_pt(compra_k) if no_cpv else
+         ("sem BASE" if not ha_corpus()
+          else "nada da janela cai no interesse")),
+        ("Fecha a",
+         ("−%.1f%%" % (desconto[0] * 100)).replace(".", ",")
+         if desconto else None,
+         "abaixo do preço base, em %s contratos" % mil_pt(desconto[1])
+         if desconto else ("sem BASE" if not ha_corpus()
+                           else "nenhum contrato tem os dois preços")),
+        ("Connosco", mil_pt(propostas) if propostas else None,
+         "proposta%s nossa%s" % ("" if propostas == 1 else "s",
+                                 "" if propostas == 1 else "s")
+         if propostas else "ainda não lhe fizemos nenhuma"),
+        ("Taxa connosco", taxa_v, taxa_n),
+        ("A acabar · %d d" % DIAS_A_ACABAR,
+         mil_pt(acabam[0]) if acabam[0] else None,
+         euros_curto(acabam[1]) if acabam[0] else
+         ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
+    )
+    return ("<div class='sit-numeros seis'>%s</div>" % "".join(
+        _numero_da_situacao(rotulo, valor, "",
+                            "<span class='sub'>%s</span>" % nota)
+        if valor is not None
+        else _numero_da_situacao(rotulo, None, "", nota)
+        for rotulo, valor, nota in seis))
 
 
 @app.route("/entidade/<path:chave>")
@@ -16244,21 +16687,20 @@ def entidade(chave):
         return envolver(
             "entidades", nome,
             "O que sabemos desta entidade. O Portal BASE não a conhece.",
-            "<div class='larg'>" + ident + nosso_lado_cx(nosso) + "</div>",
+            "<div class='larg'>" + ident
+            + factos_da_entidade(chave, nosso)
+            + nosso_lado_cx(nosso) + "</div>",
             migalhas=migalhas_de("entidades", corta(nome, 44)),
             titulo_aba="%s, Radar de Concursos" % corta(nome, 40))
 
     filtrada = ha_filtro_na_ficha(request.args)
     compra, ganha = d["compra"], d["ganha"]
-    kpis = []
-    for etiqueta, quantos, valor, sufixo in (
-            ("Compra", compra["k"], compra["v"], "adjudicado a outros"),
-            ("Ganha", ganha["k"], ganha["v"], "adjudicado a si")):
-        kpis.append("<div class='cx kpi'><div class='r'>%s</div>"
-                    "<div class='v'>%s</div><div class='d'>%s contrato%s "
-                    "&middot; %s</div></div>"
-                    % (etiqueta, euros_curto(valor), mil_pt(quantos),
-                       "" if quantos == 1 else "s", sufixo))
+    # Os dois cartões «Compra» e «Ganha» deram lugar a SEIS factos
+    # (17/09/2026, redesenho §4): os dois diziam o acervo inteiro, e a
+    # pergunta comercial é sobre a janela recente, sobre o nosso CPV e
+    # sobre o que já fizemos com ela. Os dois totais continuam a ler-se
+    # nos atalhos, que são o caminho para a lista que os confirma.
+    factos = factos_da_entidade(chave, nosso)
 
     # Ligacoes para a lista, ja filtrada por esta entidade nos dois
     # papeis. Levam tambem o filtro da ficha, senao a lista mostrava
@@ -16382,14 +16824,20 @@ def entidade(chave):
                 else "sem NIF público &mdash; identificada pelo nome",
                 nomes))
 
-    conteudo = ("<div class='larg'>" + ident + filtros_da_ficha(chave, d) +
-                "<div class='kpis dois'>" + "".join(kpis) + "</div>" +
-                atalhos + seguir_cx +
-                # o nosso lado vem ANTES dos gráficos do BASE: a primeira
-                # pergunta ao abrir uma entidade é o que já lhe fizemos
-                nosso_lado_cx(nosso) +
-                "<div class='graf-corpo solto'>" +
-                "".join(blocos) + "</div>" + recentes + "</div>")
+    # Duas colunas (redesenho §4): **o nosso lado à esquerda** e o
+    # Portal BASE à direita. Empilhados, o que já lhe fizemos ficava
+    # debaixo de seis gráficos do mercado, e a primeira pergunta ao
+    # abrir uma entidade é o que já lhe fizemos -- não quanto ela compra.
+    conteudo = ("<div class='larg'>" + ident + filtros_da_ficha(chave, d)
+                + factos + atalhos + seguir_cx
+                + "<div class='dois ent-dois'><div class='lado-nosso'>"
+                + nosso_lado_cx(nosso) + "</div><div class='lado-base'>"
+                + "<div class='graf-corpo solto'>" + "".join(blocos)
+                # A tabela dos contratos recentes fica em LARGURA TODA,
+                # por baixo das duas colunas: são cinco colunas de texto
+                # e dentro de meia página rolava dentro de si a cada
+                # linha.
+                + "</div></div></div>" + recentes + "</div>")
 
     return envolver(
         "entidades", d["nome"],
@@ -21912,9 +22360,19 @@ def _o_que_mudou(hoje, cfg):
                html.escape(estado_da_empresa(p["estado"]))))
 
     if not linhas:
-        linhas.append("<div class='l'><span class='hj-q'>%s</span>"
-                      "<div class='nota'>Nada de novo desde a última "
-                      "verificação.</div></div>" % html.escape(quando_verif))
+        # O estado vazio diz o que fazer a seguir, e não «nada»
+        # (redesenho §5): no primeiro dia, quem chega às 10:00 não sabe
+        # que a verificação seguinte é às 17:00 nem que há um botão.
+        linhas.append(
+            "<div class='l'><span class='hj-q'>%s</span>"
+            "<div class='nota'>%s %s</div></div>"
+            % (html.escape(quando_verif),
+               "Nada de novo desde a última verificação."
+               if verif_ok and le_marca("ultima_verificacao", "nunca") != "nunca"
+               else "Ainda não houve uma verificação. O radar verifica "
+                    "sozinho às 09:00 e às 17:00.",
+               accao("/verificar", "verificar agora", "mini")
+               if sou_admin() else ""))
 
     return ("<div class='cx'><div class='rot' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
