@@ -11,6 +11,7 @@ volta ao formato. Onde está o resto:
 |---|---|
 | `LEIA-ME.md` | O manual: instalar, correr, refazer as capturas |
 | `CLAUDE.md` | As regras da empresa, para quem trabalha no código |
+| `docs/FUNCIONAL.md` | **O documento funcional**: os dados, os conceitos, os ecrãs, as regras, e o que ainda se pode fazer com o que há |
 | `docs/armadilhas.md` | O que não é óbvio, por área — **lê a área antes de lhe mexer** |
 | `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim |
