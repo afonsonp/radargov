@@ -25,6 +25,7 @@ pede.**
 |---|---|---|
 | **este** | As regras de trabalho e a arquitectura | Sempre. É o único que se carrega inteiro |
 | `ESTADO.md` | O estado de hoje, com os números | Ao começar. São ~156 linhas, e **é para isso que serve o formato**: sempre que voltar a crescer para diário, o que ele contava vai inteiro para o `docs/diario/` e este volta ao formato (já aconteceu a 3/09 e a 17/09/2026) |
+| `docs/FUNCIONAL.md` | **O documento funcional**: os dados que existem (tabela a tabela, com o que está cheio e o que está vazio), os conceitos, os ecrãs, as acções, as regras — e o que ainda se pode fazer com os dados que há. **Não é instantâneo: corrige-se quando o comportamento muda** | Ao desenhar ou propor um ecrã novo; ao explicar a aplicação a alguém |
 | `docs/armadilhas.md` | O que não é óbvio, em 15 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões, a escala | **Antes de mexer em cor, letra, botões ou no calendário**. O que ele vê está em `/amostra` |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |

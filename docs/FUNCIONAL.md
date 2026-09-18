@@ -1,0 +1,613 @@
+# Documento funcional — RadarGov
+
+> **Última revisão: 18 de setembro de 2026**, sobre a `v1.8.0`. Este
+> ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
+> corrige-se quando o comportamento muda. Os números são medidos, não
+> estimados — a data em cima diz de quando.
+
+Serve duas leituras:
+
+- **§1 a §6** — o que a aplicação **é e faz hoje**. É o que tens de
+  respeitar ao desenhar: os conceitos, os ecrãs, as acções e as regras.
+- **§7 a §9** — o que **ainda se pode fazer** com os dados que já estão
+  na base, o que precisaria de dados novos, e o que está construído e
+  não se usa.
+
+Ao desenhar um ecrã novo, o §2 (os dados) e o §6 (as regras) são os
+dois que decidem se ele é possível como está desenhado.
+
+---
+
+## 1. O que a aplicação é
+
+Uma aplicação local em Python (Flask + SQLite) que **vigia os anúncios
+de contratação pública da parte L da série II do Diário da República**,
+guarda-os, e serve-os num painel.
+
+Corre em Ubuntu, em `~/Desktop/radar`. Verifica sozinha às **09:00 e às
+17:00** (temporizadores do systemd), e responde em
+`http://127.0.0.1:8765` e, por um túnel da Cloudflare, em
+**`https://radargov.pt`**, com login.
+
+Substitui a Armilar (produto Vortal, 200 €/mês).
+
+**O princípio de desenho, decidido depois de uma primeira versão que
+filtrava por pontuação: não se filtra nada à entrada.** Entra tudo o que
+a parte L publicar; a triagem faz-se no painel. Isto é a razão de haver
+210 mil anúncios e não mil — e é o que dá valor ao §7.
+
+A aplicação faz três coisas que se sobrepõem:
+
+1. **Vigiar** — recolher, ler o detalhe, trazer as peças, detectar
+   alterações, avisar.
+2. **Decidir** — a escada: por ver → analisar → propor → ganhar ou
+   perder, com tarefas e prazos.
+3. **Conhecer o mercado** — o corpus de 2 milhões de contratos
+   celebrados do Portal BASE, e o que ele diz sobre entidades,
+   concorrentes e preços.
+
+---
+
+## 2. Os dados que existem
+
+É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
+
+### 2.1 `radar.db` — o trabalho (1,32 GB, 23 tabelas)
+
+| Tabela | Linhas | O que é |
+|---|---|---|
+| `anuncios` | **210 172** | Um por anúncio do DR (mais 107 da Vortal). Desde **2015** |
+| `documentos` | 265 | As peças do procedimento em disco, de 42 concursos |
+| `analise` | 42 | O que o modelo leu das peças |
+| `propostas` | 77 | O que a **empresa** está a fazer — a escada |
+| `tarefas` | 64 | O que falta fazer, por proposta |
+| `contactos` | 26 | As pessoas do lado de lá, **por entidade** |
+| `historico` | 539 | Cada movimento: quem, o quê, quando |
+| `alteracoes` | 10 | O que o DR mudou num anúncio já lido |
+| `cpv_dict` | 9 454 | O vocabulário CPV, com descrição |
+| `slots` | 51 | Cada verificação que correu, e quantos trouxe |
+| `erros` | 28 | A série dos erros, por tipo (poda a 200) |
+| `utilizadores` · `sessoes` | 2 · 3 | A porta |
+| `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
+| `estado` | 18 | Marcas do sistema (última verificação, migrações feitas) |
+| `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |
+| `filtros_guardados` | **0** | Hoje só os alertas lá vivem |
+| `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
+| `alertas_vistos` | **0** | — |
+| `empresa` | **0** | Resto do importador de Excel, já corrido |
+| `entradas_falhadas` | 1 | Tentativas de login falhadas |
+
+**As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
+
+| Coluna | Cheia | Nota |
+|---|---|---|
+| `ref` | 100% | «21296/2026» — é a chave, e é a mesma do Portal BASE |
+| `titulo`, `entidade`, `data_pub` | 100% | |
+| `texto` | **88,1%** | **O anúncio inteiro em texto.** ~840 MB. Nunca foi explorado |
+| `cpv` | 87,1% | |
+| `plataforma` | 87,0% | vortal 80 k · acingov 68 k · anogov 15 k · saphety 13 k · … |
+| `nif` | 76,1% | O NIF da entidade que publica — liga ao corpus |
+| `preco_base` | 53,5% | |
+| `prazo` | 38,2% | Data-limite de entrega |
+| `link_pecas` | 39,2% | |
+| `lotes` | 10,3% | |
+| `altera` | 5,0% | Republicações ligadas ao original |
+| `detalhe_lido` | **100%** | Não há fila por ler |
+
+**Onze colunas de `anuncios` estão a 0%**: `responsavel`, `tipologia`,
+`cv`, `proposta_tecnica`, `coe`, `notas`, `motivo`, `preco_proposto`,
+`posicao`, `top3`, `motivo_perda`. São as colunas de CRM que saíram para
+`propostas` a 15/09/2026 — **não as uses: estão mortas.**
+
+**As colunas de `propostas`, e quantas das 77 estão preenchidas:**
+
+| Coluna | Cheias | Nota |
+|---|---|---|
+| `ref`, `entidade`, `titulo`, `preco_base`, `entidade_chave` | 77 | |
+| `responsavel` | 72 | Quem a tem |
+| `tipologia` | 72 | **Nenhum ecrã a mostra agrupada** |
+| `coe` | 58 | idem |
+| `cv`, `proposta_tecnica` | 49 | Quem entrou na proposta |
+| `valor_proposta`, `ebitda` | 42 | **O `ebitda` não aparece em ecrã nenhum** |
+| `fechada_em` | 48 | A data da decisão — é o que o período do `/situacao` usa |
+| `notas` | 38 | |
+| `lugar`, `top3` | 34 | Em que posição ficámos, e quem ficou à frente |
+| `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
+| `lote` | 0 | Existe, ainda não se usou |
+| `porque_sem_ref` | 0 | Propostas sem anúncio: existe, ainda não se usou |
+
+### 2.2 `contratos.db` — o mercado (2,66 GB, 6 tabelas)
+
+O dump semanal do IMPIC, do dados.gov. **Refaz-se em minutos e não
+viaja**: não está no git.
+
+| Tabela | Linhas | O que é |
+|---|---|---|
+| `contratos` | **2 000 340** | Cada contrato celebrado. Desde 2015 |
+| `contrato_adjudicatario` | 2 032 592 | Quem ganhou (um contrato pode ter vários) |
+| `contrato_cpv` | 2 033 368 | Os CPV de cada contrato |
+| `entidades` | **179 823** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
+| `entidade_nomes` | 255 987 | Todas as grafias por que uma entidade já apareceu |
+
+Colunas de `contratos` que interessam: `n_anuncio` (**é o `ref` do
+radar** — é por aqui que se fecha o ciclo), `adjudicante_chave`,
+`objecto`, `cpv`, `preco_base`, `preco_contratual`, `data_celebracao`,
+`prazo_execucao`, `fim_estimado`, `tipo_procedimento`, `local_execucao`,
+`fundamentacao`, `n_adj`.
+
+**`fim_estimado`** = celebração + prazo declarado. É **estimado**:
+prorrogações e cessações antecipadas não constam do dump. Trata-se como
+sinal para olhar, nunca como facto.
+
+### 2.3 O que a aplicação sabe sem pedir nada a ninguém
+
+- **Dez anos de anúncios** (2015→), todos com detalhe lido.
+- **O texto integral** de 185 mil deles.
+- **Dez anos de contratos celebrados**, ligáveis ao anúncio pela `ref`.
+- **Quem compra o quê, a quem, a que preço** — 180 mil entidades.
+- **O que a empresa fez**, com preços propostos, desfechos e motivos.
+
+### 2.4 O que **não** existe (não desenhes isto)
+
+- **Não há histórico do pipeline.** Não se sabe o que estava em jogo no
+  trimestre passado — só o que está agora. Por isso o «em jogo» não leva
+  comparação.
+- **Não há preços dos concorrentes antes da adjudicação.** Só depois, e
+  só o vencedor: o BASE não publica as propostas perdedoras.
+- **Não há quem concorreu e perdeu.** O `top3` da proposta é escrito à
+  mão por nós, quando se sabe.
+- **Não há datas de esclarecimentos fiáveis** — são derivadas do prazo
+  pelo prazo supletivo do CCP, não lidas do anúncio.
+- **Não há notificações em tempo real.** A recolha é 2× por dia.
+- **Não há mais do que 2 papéis.** Não há equipas, nem permissões por
+  concurso.
+- **O corpus não tem o texto das peças** — só o objecto do contrato.
+
+---
+
+## 3. Os conceitos
+
+Cinco ideias explicam todos os ecrãs.
+
+### 3.1 A escada — dez ranhuras
+
+Desenho do Afonso (15/09/2026). **Uma escada só**, não um quadro:
+
+```
+Por ver → Por analisar → A preparar proposta → Submetido
+        → Relatório preliminar → Ganho | Perdido | Não fomos | Cancelado
+                                                    (+ Expirou sem ver)
+```
+
+- **As duas pontas** (`Por ver`, `Expirou sem ver`) são **anúncios**.
+- **As oito do meio** são **propostas** — o que a empresa decidiu fazer.
+- **Qualquer salto é permitido**, e voltar atrás é reabrir.
+- **Entrar numa ranhura exige o que a faz ser verdade**:
+
+| Ranhura | Exige |
+|---|---|
+| Submetido | valor proposto |
+| Relatório preliminar | valor proposto + lugar |
+| Ganho | valor proposto |
+| Perdido | valor proposto + motivo |
+| Não fomos | motivo |
+
+Os motivos são **vocabulário fechado** (é o que os faz dar contas):
+perda — *Preço · CV's · Proposta técnica · Certificações*; não fomos —
+*Preço base baixo · Falta de certificações · Falta de CV's · Não faz
+parte da oferta*.
+
+### 3.2 Anúncio ≠ proposta
+
+Tabelas separadas, por duas razões que o estado do anúncio não consegue
+ser:
+
+- **Lotes** — um concurso de três lotes pode acabar com o L1 ganho e o
+  L2 perdido. Uma linha não cabe dois resultados.
+- **Propostas sem anúncio** — consulta prévia, ajuste directo, convite.
+  `ref` a NULL é legítimo; o `porque_sem_ref` diz porquê.
+
+### 3.3 O interesse
+
+Uma lista de CPV que a empresa trabalha (e outra de exclusões), em
+Configurações. Recorta **a lista, os alertas e o Mercado**. Levanta-se
+com `?interesse=nao`.
+
+### 3.4 A entidade, e a chave
+
+**A chave é uma só**: o NIF quando existe, `n:` + nome normalizado
+quando não. O nome **não** é a identidade — a Universidade do Porto
+aparece com 84 nomes, a MEO com 81, todos com o mesmo NIF.
+
+**Toda a entidade tem ficha**, tenha ou não contratos no corpus.
+
+### 3.5 As tarefas
+
+Duas origens:
+
+- **Automáticas** (`esclarecimentos`, `entrega`) — nascem das datas do
+  DR quando um concurso entra na escada, e **acompanham-nas**.
+- **Escritas à mão** — nunca se tocam.
+
+**Nada se move sozinho.** Um prazo que passa não muda ranhura nenhuma:
+aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
+
+---
+
+## 4. O que já está feito, ecrã a ecrã
+
+**80 rotas.** A navegação tem **duas intenções mais o logótipo**:
+
+- **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
+- **Concursos** → `/concursos` · vista **Calendário** `/calendario`
+- **Mercado** → `/contratos` · vista **Entidades** `/entidades`
+- **Configurações** → `/configuracoes` (9 secções)
+
+### 4.1 Hoje — `/`
+
+Responde a quatro perguntas em três segundos: *o que tenho de fazer
+hoje · o que fecha esta semana · o que mudou · o que está parado.*
+
+1. **Título** = a data por extenso («Sexta, 18 de setembro»).
+2. **Linha de factos** — em jogo · taxa de vitória · por decidir ·
+   atrasadas/para fazer, mais a saída para o Ponto de situação. **Cada
+   um abre exactamente a lista que o produz.**
+3. **Fita da semana** — sete células, seg→dom. Cada uma: nº de tarefas,
+   nº de feitas, entregas (laranja); a de hoje diz também quantas
+   atrasadas arrasta (vermelho). **Clicar num dia muda o balde do
+   meio.** Setas para a semana anterior e seguinte.
+4. **Para fazer** (coluna esquerda), em cinco baldes:
+   - **Prazo passou sem decisão** — propostas abertas cujo prazo do DR
+     passou, com o selector de ranhura ao lado. Não dobra.
+   - **Atrasadas** — com «adiar todas p/ hoje» (pergunta antes; não há
+     desfazer). Não dobra.
+   - **O dia escolhido** na fita (por omissão, hoje). Não dobra.
+   - **Resto da semana** · **Mais para a frente** — dobram.
+
+   **A linha de tarefa**: caixa de ✓ · texto (+ etiqueta «automática») ·
+   dia · **de que concurso é** (ref · entidade) · avatar de quem
+   (tracejado = sem dono) · entrega, ou «fecha hoje».
+
+   **Risca-se no sítio**: a linha fica, riscada, com «desfazer» — e a
+   página volta à linha (`#t<id>`), não ao topo.
+
+   No cabeçalho: **pílulas de pessoa** (Todos · cada dono · sem dono) e
+   **esconder as feitas**. Tudo vive no endereço (`?dia=`, `?quem=`,
+   `?feitas=`); nada se guarda no browser.
+5. **Coluna direita**, três caixas:
+   - **O que mudou** — três números (anúncios novos · no interesse ·
+     peças novas) e um feed: os novos que caem no interesse, peças
+     novas, **prazos alterados por republicação**, e as propostas que o
+     Portal BASE **já diz adjudicadas** e nós não fechámos.
+   - **Prazos a chegar · 7 dias**
+   - **Paradas há mais tempo** — dias desde o último movimento (laranja
+     acima de 30).
+
+### 4.2 Ponto de situação — `/situacao`
+
+Como vai o negócio. **Três abas** (Negócio · Triagem · Por área CPV) e
+um **período** (este mês · este trimestre · 12 meses · tudo), com
+comparação com o período anterior **do mesmo tamanho**.
+
+- **Quatro números**: em jogo · taxa de vitória · ganho (€ e nº) ·
+  desconto médio nos ganhos.
+- **Negócio**: aviso das propostas por fechar · em jogo por ranhura ·
+  porque se perde · porque não se vai · onde se ganha por área CPV · há
+  mais tempo sem se mexerem · propostas por ranhura.
+- **Triagem**: o funil — entrados · por ver · triados · interessa.
+- **Por área CPV**: taxa de vitória por divisão.
+
+O período conta pela **`fechada_em`**. Uma taxa só se diz a partir de
+**5 decididos**; abaixo disso diz-se por extenso quantos faltam.
+
+### 4.3 Concursos — `/concursos` (a lista única)
+
+**As dez ranhuras da escada nas abas.** As duas pontas mostram
+**anúncios**; as oito do meio mostram **propostas**.
+
+Filtros (painel recolhível): objecto (com E/OU e exclusões) · CPV (com
+árvore de 9 454 códigos e exclusões) · entidade que publica · NIF ·
+plataforma · prazo · datas · preço mínimo. O filtro compõe-se com o
+interesse.
+
+Por linha: triar («interessa» / «abandonar», que pergunta o motivo),
+**mudar de ranhura no selector**, abrir a ficha. Exporta para CSV.
+
+**Vista Calendário** — `/calendario`: os prazos por dia, seis semanas,
+para qualquer ranhura.
+
+### 4.4 Ficha do anúncio — `/anuncio/<ref>`
+
+Em composição de dossier: uma coluna, com o cabeçalho fino e o índice
+presos ao rolar. Tem:
+
+- Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes)
+- O **texto** do anúncio
+- As **peças** do procedimento, que **abrem dentro da ficha** (PDF, com
+  pesquisa)
+- A **leitura pelo modelo**: objecto · equipa exigida · documentos da
+  proposta (+ preço anormalmente baixo, localização)
+- O **histórico do cliente** — contratos dela no mesmo CPV, do corpus
+- Os **contactos** da entidade
+- O **desfecho** do Portal BASE, quando existe: quem ganhou, por quanto,
+  e o desvio face ao nosso preço
+- O bloco **«A nossa proposta»** — a ranhura, os campos que ela exige,
+  as etiquetas, e **o que falta fazer** (as tarefas, com adiar e
+  atribuir)
+
+### 4.5 Ficha da proposta — `/proposta/<id>`
+
+Para as propostas **sem anúncio** (consulta prévia, ajuste directo,
+convite) e para qualquer proposta. Tem o bloco inteiro, os contactos, a
+cronologia e o apagar. `/proposta/nova` cria uma.
+
+### 4.6 Mercado — `/contratos`
+
+O corpus do Portal BASE. Lista com filtros (objecto, CPV, entidade que
+comprou, quem ganhou, procedimento, datas, preço), CSV, e **modo «por
+fim estimado»** — o que está a acabar, que é o que volta a concurso.
+
+`/contratos/resumo`: seis agregações — quem compra, quem ganha, por CPV,
+por procedimento, descontos, evolução.
+
+### 4.7 Entidades — `/entidades` e `/entidade/<chave>`
+
+**Cinco abas**: com quem trabalhamos · seguidas · clientes que mais
+compram · concorrentes que mais ganham · **contratos a acabar · 90
+dias**.
+
+Tabela: entidade (nome + NIF) · papel (cliente / concorrente / ambos) ·
+compra · ganha · **fita do «connosco»** (um quadrado por proposta, com a
+cor do desfecho) · taxa connosco · a acabar · abrir. **Marcando duas
+linhas, comparam-se lado a lado.**
+
+**A ficha** abre com **seis factos** — compra a 24 meses · quanto disso
+cai no nosso CPV · a que desconto fecha · quantas propostas lhe fizemos
+· a taxa com ela · o que lhe acaba em 90 dias — e tem duas colunas: o
+**nosso lado** à esquerda (anúncios dela, propostas, taxa, contactos,
+seguir) e o **Portal BASE** à direita (o que compra, a quem, como, ao
+longo do tempo). **Sem corpus diz «sem BASE», não zero.**
+
+### 4.8 Configurações — `/configuracoes/<secção>`
+
+Nove secções, por esta ordem. **As cinco últimas só ao admin.**
+
+| Secção | O que faz |
+|---|---|
+| **conta** | palavra-passe, sessões, a nossa empresa (nome + NIF), utilizadores |
+| **interesse** | os CPV que a empresa trabalha, e as exclusões |
+| **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
+| **importar** | o registo da empresa, pelo modelo Excel |
+| indicadores | as capturas, a recolha, o corpus — a saúde da máquina |
+| capturas | os dois pedidos cURL ao DR |
+| recolha | horas, janelas, a Vortal |
+| leitura | fornecedor, modelo e chaves do modelo que lê as peças |
+| cópias | a cópia diária e a triagem no git |
+
+### 4.9 A porta
+
+Login obrigatório em tudo menos `/entrar`. **Dois papéis**: `admin` (vê
+tudo, cria contas) e `tester` (403 no que é do sistema). Um pedido deste
+computador, sem túnel a meio, entra sem login (`acesso_livre_local`).
+
+### 4.10 O que corre sozinho
+
+- **Recolha** 2×/dia (09:00, 17:00): pagina a pesquisa do DR, lê o
+  detalhe de cada anúncio novo, detecta **republicações** e o que
+  mudou, traz as peças das plataformas que o permitem (acingov, vortal,
+  compraspt, anogov), **relê as leituras que ficaram a meio**, dispara
+  alertas e o resumo diário.
+- **Corpus** à segunda-feira: traz o dump do IMPIC.
+- **Cópia de segurança** diária do `radar.db`.
+- **Triagem no git**: `triagem.jsonl`, commit + push automáticos.
+- **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
+  a cadeia Groq → NVIDIA → OpenRouter até alguém responder.
+
+---
+
+## 5. As acções — tudo o que muda dados
+
+Todas por **POST**, todas com CSRF, e todas **voltam à página de onde
+vieram**.
+
+| Acção | Onde |
+|---|---|
+| Triar um anúncio (interessa / abandonar + motivo) | lista, ficha |
+| Mudar de ranhura (+ os campos que ela exige) | lista, Hoje, ficha |
+| Gravar campos da proposta | ficha, ficha da proposta |
+| Criar / apagar proposta | ficha, `/proposta/nova` |
+| Criar tarefa · marcar feita · desfazer · adiar · atribuir | Hoje, ficha |
+| Adiar todas as atrasadas | Hoje |
+| Criar / apagar contacto | ficha, ficha da entidade |
+| Seguir / deixar de seguir entidade | ficha da entidade |
+| Etiquetar / desetiquetar um anúncio | ficha |
+| Trazer as peças · verificar peças novas | ficha |
+| Criar / ligar / apagar alerta · enviar resumo | Configurações |
+| Verificar agora · actualizar contratos | Configurações |
+| Gravar qualquer configuração | Configurações |
+| Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
+
+---
+
+## 6. As regras que qualquer ecrã novo tem de respeitar
+
+Não são gosto: cada uma é um erro que já aconteceu.
+
+1. **Um número que um ecrã mostra tem de dar exactamente a lista que a
+   ligação dele abre.** Inclui a cor de uma etiqueta. (Falhou 3×.)
+2. **Não se filtra nada à entrada.** A triagem é no painel.
+3. **Nenhum recorte novo entra no motor de filtros** — ele serve também
+   os alertas; um recorte lá cega-os em silêncio.
+4. **Sem número não se põe um travessão**: escreve-se a frase que diz o
+   que falta para ele existir.
+5. **Uma taxa só a partir de 5 decididos.** Abaixo disso diz-se
+   «N de M — poucos».
+6. **Zero ≠ «não sei».** Sem corpus diz-se «sem BASE».
+7. **Nada se move sozinho.** Um prazo que passa não muda ranhura.
+8. **O que está no ecrã está no endereço.** Nada se guarda no browser.
+9. **Uma acção de linha volta à âncora dessa linha.**
+10. **Tudo o que muda dados é POST**, e tem desfazer quando é fácil
+    errar.
+11. **Alvos ≥ 24 px**, contraste AA sobre **todos** os fundos, e cor só
+    com significado: azul = acção / em curso · verde = ganho / feito ·
+    laranja = a chegar, atenção · vermelho = atrasado, perdido.
+12. **Nada de fora**: CSP `default-src 'self'`. Sem CDN, sem fontes
+    externas, sem analytics.
+
+---
+
+## 7. O que ainda se pode fazer com os dados que existem
+
+Nada aqui precisa de uma fonte nova. Ordenado por **o que os dados já
+suportam**, não por prioridade.
+
+### 7.1 Com os 210 mil anúncios
+
+- **Sazonalidade.** Dez anos de `data_pub` × `cpv` × `preco_base`:
+  *quando é que o teu mercado publica?* Um calendário anual diria
+  «Setembro e Março são 40% do ano» — e isso muda quando se contrata
+  equipa.
+- **Preços-base de referência por CPV.** 112 mil anúncios com preço
+  base: a distribuição por divisão de CPV e por entidade. *«Este
+  concurso a 80 k€ está no percentil 20 do que o IPL costuma pôr.»*
+- **Quem publica onde.** 87% têm plataforma: que entidades usam que
+  plataforma, e o que isso implica em esforço de submissão.
+- **Pesquisa no texto integral.** 185 mil anúncios com o corpo todo, e
+  ninguém lá procura. Uma pesquisa por expressão sobre o texto (não só
+  sobre o título) acha exigências que o CPV não classifica — «ISO
+  27001», «OutSystems», «bolsa de horas».
+- **Um perfil do que a empresa deixa passar.** Os que caem no interesse
+  e ficam «por ver» até expirar: quantos, de quem, e de que valor. É o
+  custo de oportunidade, e hoje não se mede.
+- **Republicações como sinal.** 10 417 anúncios com `altera`: que
+  procedimentos se republicam mais, e que entidades o fazem —
+  republicar muito é sinal de peças mal feitas e de prazos que
+  escorregam.
+
+### 7.2 Com os 2 milhões de contratos
+
+- **Um radar de renovações a sério.** O `fim_estimado` já dá a lista;
+  falta a **antecipação**. «Costuma voltar ao DR 2–4 meses antes do fim»
+  é uma regra que se pode **medir**: cruzar o `fim_estimado` de um
+  contrato com a `data_pub` do anúncio seguinte da mesma entidade no
+  mesmo CPV. Dá um alerta com meses de antecedência.
+- **Quem é que nos ganha, e onde.** Por CPV e por entidade: os
+  concorrentes que aparecem nos procedimentos em que também estamos.
+  Hoje só se vê quem ganhou um contrato de cada vez.
+- **A que desconto se fecha, por entidade e por CPV.** Já existe na
+  ficha (−39,4% na SPMS); falta o **comparativo** — o desconto médio do
+  mercado nesse CPV, para se saber se o nosso preço é agressivo ou
+  ingénuo.
+- **Fornecedores como pistas de parceria.** Quem mais recebe de uma
+  entidade em CPV vizinhos do nosso é candidato a consórcio.
+- **Concentração de mercado.** Por CPV: quantos fornecedores dividem 80%
+  do valor. Um CPV com dois donos não vale o esforço.
+- **Contratos sem anúncio.** Ajustes directos e consultas prévias no
+  corpus cujo `n_anuncio` é vazio: é o mercado que **nunca** passa pelo
+  DR, e por isso é invisível ao radar — mas está todo aqui.
+
+### 7.3 Com as 77 propostas (os campos que ninguém mostra)
+
+É a gaveta mais rica em relação ao esforço.
+
+- **`ebitda`** (42 preenchidos) — **não aparece em ecrã nenhum.** Margem
+  por concurso, por tipologia, por cliente. «Ganhámos 2,8 M€» sem margem
+  não diz se foi bom negócio.
+- **`lugar` e `top3`** (34) — *quão perto se perde.* Perder em 2.º por
+  2% é outra coisa que perder em 7.º. Um gráfico de posições diz se o
+  problema é preço ou proposta.
+- **`tipologia`** (72) e **`coe`** (58) — taxa de vitória e margem por
+  tipologia. O motor existe (`taxa_de_vitoria(por=…)`), **falta o
+  ecrã**.
+- **`cv` e `proposta_tecnica`** (49) — quem entra nas propostas que se
+  ganham. Carga por pessoa, e que perfis fazem falta.
+- **Ciclo de decisão.** `criada_em` → `fechada_em`: quanto tempo leva
+  cada ranhura, e onde é que as propostas encalham.
+- **Preço proposto vs. preço base vs. adjudicado** — as três pontas
+  existem para 42 propostas. Dá a curva «a que desconto se ganha».
+
+### 7.4 Com as tarefas e o histórico
+
+- **Carga por pessoa ao longo do tempo** — o `historico` tem 539
+  movimentos com `quem` e `quando`.
+- **Tarefas que se adiam sempre.** Uma tarefa adiada quatro vezes é uma
+  tarefa que ninguém vai fazer; hoje nada o diz.
+- **Tempo de resposta.** Entre a publicação e a primeira triagem: o
+  radar recolhe às 09:00, e o que interessa é quanto tempo fica parado
+  depois disso.
+
+### 7.5 Com as peças e o modelo
+
+- **Só 42 leituras, de 265 documentos.** O maior ganho aqui não é ecrã
+  novo — é **julgar se as leituras prestam** (a skill
+  `ensaio-de-leitura` existe para isso e nunca correu a sério).
+- **Campos novos, sem mudar a mecânica:** a leitura já extrai objecto,
+  equipa e documentos; podia extrair **critérios de adjudicação e
+  pesos**, **visitas obrigatórias**, **garantias**, **penalidades** — o
+  texto já está em disco e o modelo já é chamado três vezes.
+- **Um «o que este concurso exige de nós»** cruzando a equipa exigida
+  com os CV que a empresa tem.
+
+### 7.6 Construído e por usar
+
+Estas já têm código, tabela e ecrã — falta **usá-las**:
+
+| O quê | Estado |
+|---|---|
+| **Alertas** | 0 ligados. O e-mail funciona; o resumo diário não tem o que dizer |
+| **Entidades seguidas** | 0. O botão está na ficha |
+| **Etiquetas** | 0. Tabela e ecrã existem |
+| **Filtros guardados** | Tabela existe; hoje só os alertas lá vivem |
+| **Lotes** | Coluna existe; nenhuma proposta a usa |
+| **Propostas sem anúncio** | Rota e ficha existem; nenhuma criada |
+
+---
+
+## 8. O que precisaria de dados novos
+
+Para não desenhares o que não se pode fazer:
+
+- **Quem mais concorreu** (não só quem ganhou) — não está em lado nenhum
+  público.
+- **Preços das propostas perdedoras** — idem.
+- **Relatórios preliminares e finais** — só chegam a quem concorre, pela
+  plataforma, com sessão iniciada.
+- **Impugnações e recursos** — não constam do dump.
+- **Execução do contrato** (prorrogações, adendas, rescisões) — o BASE
+  publica a celebração, não a vida do contrato.
+- **Notificação imediata** — exigiria interrogar o DR de minuto a
+  minuto.
+- **Peças de saphety, compraspublicas e gatewit** — ~17 mil anúncios sem
+  peças, por não haver receita de descarga sem sessão iniciada.
+
+---
+
+## 9. Vocabulário
+
+| Palavra | Quer dizer |
+|---|---|
+| **anúncio** | Uma publicação da parte L do DR. Tem `ref` («21296/2026») |
+| **proposta** | O que a empresa decidiu fazer sobre um anúncio (ou sem ele) |
+| **ranhura** | Um degrau da escada |
+| **escada** | As dez ranhuras, da entrada ao desfecho |
+| **interesse** | Os CPV que a empresa trabalha |
+| **corpus** | O `contratos.db` — os contratos celebrados do Portal BASE |
+| **entidade** | Quem publica, ou quem ganha. Identificada por chave |
+| **peças** | Os documentos do procedimento (caderno de encargos, programa) |
+| **empresa** | Nós. (Era «casa» até 16/09/2026) |
+| **triagem** | Decidir se um anúncio interessa |
+
+---
+
+## Onde está o resto
+
+| Ficheiro | O que é |
+|---|---|
+| `CLAUDE.md` | As regras de trabalho e a arquitectura do código |
+| `ESTADO.md` | O estado de hoje, com os números |
+| `docs/armadilhas.md` | O que não é óbvio, em 15 áreas — **lê a área antes de lhe mexer** |
+| `docs/design.md` | O caminho do aspecto: letra, cor, botões, escala |
+| `docs/historico/REDESENHO.md` | O pacote de desenho de 17/09/2026, ecrã a ecrã |
+| `docs/historico/CRM.md` | Porque é que a escada é assim |
+| `BACKLOG.md` | O que falta, com prioridade e com quem decide |
+| `LEIA-ME.md` | O manual de quem opera |
