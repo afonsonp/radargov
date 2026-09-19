@@ -1936,7 +1936,7 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   (`/documento`, `/peca`, `/peca-pagina`, e o leitor dentro da ficha)
   recebem a ref como `<path:ref>`, e o `re.sub(r"[^0-9A-Za-z._-]",
   "-", ref)` que lá estava troca a barra por hífen mas deixa `..`
-  passar inteiro — `documentos/..` é a pasta do radar. A 8/09/2026,
+  passar inteiro — `pecas/..` é a pasta do radar. A 8/09/2026,
   com o painel na internet havia um dia, um GET a `/peca/../radar.db`
   servia a base (hashes das palavras-passe, sessões, a triagem toda) e
   `/documento/../curl_DR.txt` servia os cookies do portal do DR. A
@@ -1945,7 +1945,7 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   o caminho contra o sítio para onde o atacante o tinha mandado.
   **Nenhuma rota nova volta a montar o caminho à mão**: chama-se
   `caminho_na_pasta(ref, nome)`, que devolve `None` ou um ficheiro
-  comprovadamente dentro de `documentos/`. E o 404 dessas rotas
+  comprovadamente dentro de `pecas/`. E o 404 dessas rotas
   devolvia a ref crua dentro do HTML — qualquer texto que venha do URL
   passa por `html.escape()` antes de entrar numa página.
 

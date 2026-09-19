@@ -13,17 +13,36 @@ dentro, reavaliados à luz da Armilar, GovGo e SpotGov.
 Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 semana ·
 5 ≈ mais que isso.
 
-## Registo de pendências — fechado a 31/08/2026
 
-Tudo o que está em aberto, com **quem** decide ou age e **o que o
-dispara**. Nada aqui está a meio: ou espera uma palavra do Afonso, ou
-espera um gatilho declarado. O que não está nesta tabela está decidido
-ou feito.
+## O que está ABERTO
+
+**Oito.** Tudo o resto neste ficheiro é história — está feito, ou
+está na lista do que não se faz. Invertido a 19/09/2026, a pedido
+dele: «o Backlog começa por coisas que já estão terminadas».
+
+| # | O que falta | Estado | Espera por |
+|---|---|---|---|
+| UX | Auditoria pelas «leis de UX» (`docs/historico/UX-Auditoria.md`, 02/09/2026) | **P0 e os cinco P1 feitos a 02/09/2026** (contraste da coluna, alvos a 24 px, «desfazer» depois de triar, prazo neutro pós-submissão, fontes sem bloquear, quadro sem `reload()`). Falta repetir a medição do browser sobre o resultado | **Afonso** nos P2/P3 que mudam o primeiro ecrã: filtros recolhidos por omissão, essencial da ficha encurtado, teclado na lista; motivos em 2 gestos, KPI e funil ligados, pílula do calendário não precisam de decisão e ficam para a próxima sessão |
+| V1 | **Ligar um alerta ao interesse, e seguir entidades** | O `email.para` tem destino desde 16/09/2026 e o SMTP autentica, mas há **zero** alertas ligados e **zero** entidades seguidas: o resumo diário não tem o que dizer. É um gesto de duas Configurações — Alertas e a ficha de uma entidade | **Afonso.** Nada no código o impede |
+| V2 | **Julgar as 42 leituras com o `ensaio-de-leitura`** — o ponto que falta para a v1 | A ferramenta existe desde 3/09/2026 e continua por correr a sério. Oito das 42 estão incompletas e voltam a tentar-se sozinhas desde 17/09; o que falta é passar as completas a pente e dizer se prestam | **Uma sessão**, com o `--sem-modelo` para não gastar orçamento |
+| D1 | **O HTML por concatenação de strings** | 21 475 linhas no `radar.py`, mais de metade painel. É a maior dívida estrutural e está identificada desde a `AUDITORIA §3.9`; não era de nenhum plano e não estava escrita em lado nenhum vivo. Não é urgente — é o que torna cada ecrã novo mais caro que o anterior | **Afonso**, porque é trabalho de dias e não muda nada ao que se vê |
+| D2 | **Fundir os `_pecas_*` e trocar o `pypdf` pelo `pymupdf`** | Duas das três da auditoria ponytail de 14/09/2026, por decidir | **Afonso** |
+| D3 | **Repetir a medição do browser da `UX-Auditoria`** | Está por fazer desde 2/09/2026: os P0 e os cinco P1 foram corrigidos e ninguém voltou a medir o resultado | **Uma sessão** |
+| R2 | **O que o redesenho deixou cair de propósito, e é preciso olhar** | Três coisas, todas por decisão do documento e não por esquecimento: a **ranhura saiu da linha de tarefa** (era do cabeçalho do grupo, que deixou de existir; a linha mostra ref · entidade · dono · entrega); o **adiar e o atribuir saíram da linha** para a ficha e para o `/tarefa/<id>/gravar` (a linha ficou com ✓ e desfazer); e o **balde «Resto da semana» fica vazio ao sábado e ao domingo**, por a semana acabar ao domingo | **Afonso**, ao usar. Se alguma fizer falta, volta — a rota do `gravar` nunca saiu |
+| D6 | **As cinco propostas de `docs/historico/CAMADAS.md`** (19/09/2026) | A documentação medida contra o ICM: a camada 0 (`CLAUDE.md`) está **14× acima** do alvo do paper (~11 000 tokens contra ~800) e mistura três camadas; `docs/` junta 86 k de receita com 216 k de arquivo sem fronteira; e **este ficheiro** é estado de execução a fingir-se de referência — 32 linhas de tabela, **21 riscadas**, as seis primeiras todas feitas. **C1, C3 e C5 são baratos e independentes**; C2 e C4 mudam o mapa mental de quem trabalha aqui | **Afonso**, uma a uma. O C3 é este ficheiro: inverter, aberto primeiro |
+
+---
+
+## O que está FEITO, e o arquivo
+### Registo de pendências — fechado a 31/08/2026
+
+O que se fechou até 31/08/2026, com **quem** decidiu e **o que o
+disparou**. (Era a lista do que estava em aberto; passou a história a
+19/09/2026, quando o que resta subiu para o topo.)
 
 | # | O que falta | Estado | Espera por |
 |---|---|---|---|
 | — | ~~Reler as peças pelo modelo quando chega um CE revisto~~ | **Feito a 14/09/2026**: a vigilância das peças voltou, por razão (data de esclarecimentos passada, prorrogação ou preço base novo) e por botão na ficha, avisa no resumo, e **com peça nova relê logo pelo modelo** (em linha na verificação, pela fila no botão) | — |
-| UX | Auditoria pelas «leis de UX» (`docs/historico/UX-Auditoria.md`, 02/09/2026) | **P0 e os cinco P1 feitos a 02/09/2026** (contraste da coluna, alvos a 24 px, «desfazer» depois de triar, prazo neutro pós-submissão, fontes sem bloquear, quadro sem `reload()`). Falta repetir a medição do browser sobre o resultado | **Afonso** nos P2/P3 que mudam o primeiro ecrã: filtros recolhidos por omissão, essencial da ficha encurtado, teclado na lista; motivos em 2 gestos, KPI e funil ligados, pílula do calendário não precisam de decisão e ficam para a próxima sessão |
 | E2 | ~~O primeiro envio do resumo diário~~ | **Feito a 31/08/2026, à ordem dele**: «Resumo enviado para [e-mail retirado]», com 1 anúncio do alerta CPV IT (INFARMED, 400 930 €). **Mas esta linha esteve errada de 8/09 a 16/09/2026**: o `--estado-zero` desse dia apagou o `email.para`, e o resumo deixou de sair para ninguém sem nada o dizer — reposto a 16/09 (D5 do `docs/historico/CICLOS.md`). Continuam **zero** alertas ligados e zero entidades seguidas: sem um deles, o resumo não tem o que dizer | — |
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
 | — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: Fluxo B verificado e, com o E2, disparado — ver `docs/diario/2026-08.md`) | — |
@@ -36,7 +55,7 @@ ou feito.
 | CRM | ~~O «Em curso» não é um CRM: é a mesma consulta dos interessados~~ | **Plano escrito a 15/09/2026** e **reescrito no mesmo dia com as decisões dele**: `docs/historico/CRM.md`. Seis etapas. O desenho é dele — **uma escada só** (dez ranhuras: a entrada, as oito palavras da casa, o cemitério dos expirados), com lista, quadro e calendário como três vistas dessa escada | **Feito a 15/09/2026, as seis etapas**: as tabelas, a escada nas abas, a triagem a criar propostas, o quadro (que saiu no mesmo dia, por decisão dele: a ranhura muda-se no selector da linha), o calendário para qualquer ranhura, a navegação em Concursos · Calendário · Mercado, as tarefas que seguem as datas do DR, o ciclo fechado com o Portal BASE (por chave: o `n_anuncio` é o `ref`), os indicadores comerciais e os contactos. ~~Falta o NIF da casa~~ — **posto a 16/09/2026 por ele**: «LATD DIGITAL ENABLERS, LDA», NIF 516241362. O cruzamento com o Portal BASE deixou de perguntar e passou a dizer quando a adjudicação é nossa |
 | B15-b | ~~Os campos do CRM não saem no `triagem.jsonl`~~ | **Fechado a 15/09/2026, sem trabalho próprio**: as colunas em falta são exactamente as que a etapa 1 do CRM apaga — exportá-las era escrever para deitar fora a seguir. A exportação faz-se uma vez, já sobre `propostas` e `tarefas`, dentro dessa etapa | — |
 
-### Reaberto a 16/09/2026, pela visita com três meses de uso a fingir
+#### Reaberto a 16/09/2026, pela visita com três meses de uso a fingir
 
 Corrigiu-se o que era avaria. Fica o que **não** se corrigiu, por ser
 decisão dele ou trabalho de outra dimensão:
@@ -51,23 +70,16 @@ decisão dele ou trabalho de outra dimensão:
 | CICLOS | **Os caminhos não fecham**: o Hoje mostra 55 tarefas que só se resolvem uma a uma na ficha do anúncio; a ficha da entidade só existe pelo corpus e só se chega lá por um contrato; a proposta sem anúncio é só um formulário; a leitura que bateu no tecto do dia nunca se repete; e a documentação viva descreve o quadro, as quatro abas e a pen | **Plano escrito a 16/09/2026**, à noite, com as nove decisões dele respondidas: `docs/historico/CICLOS.md`. Cinco fases, um PR cada: tarefas · entidade · proposta e a condicionante da escada · peças · documentação. O `email.para` ficou posto nessa noite (estava vazio desde o estado zero de 8/09, e a linha do E2 acima dava-o como feito) | ~~A sessão seguinte~~ — **as cinco fases feitas a 17/09/2026**, cada uma com o seu commit e a sua linha no §9 do plano. Ver o `docs/diario/2026-09.md` desse dia |
 | U3 | ~~Os campos de data mostram `mm/dd/yyyy`~~ | **Feito a 16/09/2026**: os quatro formulários passaram a campo de texto com `dd/mm/aaaa` e `pattern`, como o da data das tarefas já era. O `data_de_filtro()` lê as duas escritas (os atalhos de período continuam a pôr ISO no endereço) e recusa um dia que não existe; a legenda do filtro também deixou de dizer «desde 2026-01-01». **O que se perdeu foi o selector nativo** — os atalhos «12 meses · 3 anos · 2026…» são o caminho rápido e ficam | — |
 
-### Aberto a 17/09/2026, depois das cinco fases do CICLOS
+#### Aberto a 17/09/2026, depois das cinco fases do CICLOS
 
 O que ficou por fazer, com **quem** decide e **o que o dispara**.
 
 | # | O que falta | Estado | Espera por |
 |---|---|---|---|
-| V1 | **Ligar um alerta ao interesse, e seguir entidades** | O `email.para` tem destino desde 16/09/2026 e o SMTP autentica, mas há **zero** alertas ligados e **zero** entidades seguidas: o resumo diário não tem o que dizer. É um gesto de duas Configurações — Alertas e a ficha de uma entidade | **Afonso.** Nada no código o impede |
-| V2 | **Julgar as 42 leituras com o `ensaio-de-leitura`** — o ponto que falta para a v1 | A ferramenta existe desde 3/09/2026 e continua por correr a sério. Oito das 42 estão incompletas e voltam a tentar-se sozinhas desde 17/09; o que falta é passar as completas a pente e dizer se prestam | **Uma sessão**, com o `--sem-modelo` para não gastar orçamento |
-| D1 | **O HTML por concatenação de strings** | 21 475 linhas no `radar.py`, mais de metade painel. É a maior dívida estrutural e está identificada desde a `AUDITORIA §3.9`; não era de nenhum plano e não estava escrita em lado nenhum vivo. Não é urgente — é o que torna cada ecrã novo mais caro que o anterior | **Afonso**, porque é trabalho de dias e não muda nada ao que se vê |
-| D2 | **Fundir os `_pecas_*` e trocar o `pypdf` pelo `pymupdf`** | Duas das três da auditoria ponytail de 14/09/2026, por decidir | **Afonso** |
-| D3 | **Repetir a medição do browser da `UX-Auditoria`** | Está por fazer desde 2/09/2026: os P0 e os cinco P1 foram corrigidos e ninguém voltou a medir o resultado | **Uma sessão** |
 | M2 | ~~A ficha de uma entidade com muitos anúncios leva ~1,3 s~~ | **Corrigido a 17/09/2026, na origem.** Ele apanhou-o a usar a aplicação («parece-me que está muito lenta»), e a medição lado a lado disse que era regressão minha: 0,33 s na v1.6.0 contra 1,63 s na v1.7.0. Faltavam os índices do filtro por entidade — **os dois**, porque com um só o SQLite não usa o MULTI-INDEX OR. 1,36 s → 0,01 s na consulta, e a página de volta aos 0,33 s. Ganha também a lista quando se filtra por entidade | — |
 | R1 | ~~As Entidades, a ficha da entidade e os estados vazios do redesenho~~ | **Feitos a 17/09/2026, com os outros dois**: os cinco ecrãs do `docs/historico/REDESENHO.md` estão feitos — Hoje (§1), Ponto de situação (§2), Entidades (§3), ficha da entidade (§4) e os estados vazios (§5). O que ficou de fora do §3, por medida e não por esquecimento: as janelas de **24 meses** nas colunas «Compra» e «Ganha» da lista (são os totais de sempre, e dizê-lo na legenda custa menos do que uma agregação por entidade a cada página) e a coluna **«último anúncio»** (um `MAX(data_pub)` agrupado sobre 210 mil linhas por página). Na ficha, o «compra 24 m» existe — aí é uma entidade só | **Afonso**, se as duas colunas fizerem falta na lista |
-| R2 | **O que o redesenho deixou cair de propósito, e é preciso olhar** | Três coisas, todas por decisão do documento e não por esquecimento: a **ranhura saiu da linha de tarefa** (era do cabeçalho do grupo, que deixou de existir; a linha mostra ref · entidade · dono · entrega); o **adiar e o atribuir saíram da linha** para a ficha e para o `/tarefa/<id>/gravar` (a linha ficou com ✓ e desfazer); e o **balde «Resto da semana» fica vazio ao sábado e ao domingo**, por a semana acabar ao domingo | **Afonso**, ao usar. Se alguma fizer falta, volta — a rota do `gravar` nunca saiu |
 | D4 | ~~**Os diagramas de `docs/`**~~ | **Resolvido a 19/09/2026 por decisão dele: apagados os seis.** Não era dívida de conteúdo, era de formato — 4,86 MB para 24 KB de conteúdo (**0,5%**; o resto é a biblioteca de desenho embutida em cada ficheiro), e cinco dos seis contradiziam o código **três dias** depois de gerados: a escada dizia «as oito palavras» no título quando são dez, a arquitectura rotulava o DR «a única fonte» havendo três, a recolha não tinha o passo da Vortal, e a porta não mencionava `origem_e_nossa()` uma única vez. Estão no histórico do git, o `.gitignore` trava o regresso, e o `CLAUDE.md` perdeu as seis linhas que avisavam do erro de cada um. **Geram-se quando se precisa, não se guardam** | — |
 
-| D6 | **As cinco propostas de `docs/historico/CAMADAS.md`** (19/09/2026) | A documentação medida contra o ICM: a camada 0 (`CLAUDE.md`) está **14× acima** do alvo do paper (~11 000 tokens contra ~800) e mistura três camadas; `docs/` junta 86 k de receita com 216 k de arquivo sem fronteira; e **este ficheiro** é estado de execução a fingir-se de referência — 32 linhas de tabela, **21 riscadas**, as seis primeiras todas feitas. **C1, C3 e C5 são baratos e independentes**; C2 e C4 mudam o mapa mental de quem trabalha aqui | **Afonso**, uma a uma. O C3 é este ficheiro: inverter, aberto primeiro |
 
 O que se abrir a seguir entra aqui com quem decide e o que dispara,
 como sempre.
@@ -104,7 +116,7 @@ como sempre.
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
 
-## P0
+### P0
 
 - ~~**A guarda de «uma verificação de cada vez» não atravessa
   processos.**~~ **Feito a 14/09/2026**: `tomar_trinco()` /
@@ -128,11 +140,11 @@ como sempre.
   `slots` continua a parecer certa, como já acontecia quando faltavam
   as tarefas.
 
-## P1
+### P1
 
 Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
 
-## P2
+### P2
 
 - ~~**«Em curso» em modo lista**~~ (13/09/2026, do documento «Mudanças
   na plataforma RADAR»). **Feito a 14/09/2026** com as colunas que ele
@@ -144,7 +156,7 @@ Vazio — B03, B04 e B05 feitos a 30/08/2026; ver «Feito», no fim.
 
 Vazio — B06 a B10 feitos a 30/08/2026; ver «Feito», no fim.
 
-### Da auditoria ponytail (14/09/2026), por decidir pelo Afonso
+#### Da auditoria ponytail (14/09/2026), por decidir pelo Afonso
 
 O relatório inteiro está no diário desse dia. O que se aplicou está lá;
 estes quatro ficaram investigados e por decidir:
@@ -157,7 +169,7 @@ estes quatro ficaram investigados e por decidir:
   dos avisos muda; no JSF paga-se um pedido extra por peça (o nome vem
   de um HEAD à parte). Plano concreto no diário.
 - **`pypdf` e `cryptography` → `pymupdf`** (-2 dependências). Só depois
-  de medir sobre as peças reais em `documentos/`: no ensaio sintético o
+  de medir sobre as peças reais em `pecas/`: no ensaio sintético o
   `pymupdf` parte as linhas das tabelas em uma célula por linha, que é
   exactamente a tabela de perfis do campo «equipa». Guião de medida no
   diário; se for favorável, reextrair o acervo por marca e refazer as
@@ -169,12 +181,12 @@ estes quatro ficaram investigados e por decidir:
   arranque falhado fica `BrokenThreadPool` para sempre. As filas não
   são gémeas; o que se repete são três linhas de arranque. Fica.
 
-## P3
+### P3
 
 Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
 **O backlog da análise competitiva está fechado de P0 a P3.**
 
-## Feito
+### Feito
 
 - **B03 — vista "Renovações"** (30/08/2026). Separador novo `/renovacoes`:
   contratos do corpus com fim estimado (coluna `fim_estimado` =
@@ -291,7 +303,7 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   Edita-se no painel, em `/alertas` ("Janela do urgente"), com validação
   1–90 à vista.
 
-## Anotado no esqueleto de informação de 30/08/2026
+### Anotado no esqueleto de informação de 30/08/2026
 
 > O documento saiu a 19/09/2026 (estava no arquivo, citado por
 > ninguém, e descrevia um `radar.py` com 9 938 linhas). Está no
@@ -306,7 +318,7 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   fora do esqueleto por decisão dele (11.7-A), com a possibilidade
   registada — o registo serviu.
 
-## Anotado no saneamento de 30/08/2026 — FEITO a 31/08/2026
+### Anotado no saneamento de 30/08/2026 — FEITO a 31/08/2026
 
 - **Reter histórico de erros (C3 da auditoria) — feito.** Tabela
   `erros (quando, tipo, texto)` no `radar.db`; `marca_erro()` grava a
@@ -331,7 +343,7 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   contra menções de passagem continua de pé (pistas reais que não batem
   em nada continuam a NÃO cair para o texto — testado).
 
-## Aprovado pelo Afonso a 30/08/2026
+### Aprovado pelo Afonso a 30/08/2026
 
 - **B15 — exportação da triagem — FEITO a 31/08/2026.** Implementado
   como especificado abaixo: `exportar_triagem()` corre a seguir à cópia
@@ -475,7 +487,12 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   primeiro a medição, depois uma decisão informada sobre cada plataforma —
   pode dar «a Vortal dá e a acingov não», e isso é resultado, não falhanço.
 
+---
+
 ## Não fazer, e porquê
+
+> **Isto não é história: é regra.** Cada linha é uma coisa que
+> alguém vai propor outra vez, com a razão por que não se faz.
 
 Decisões registadas com a observação que as sustenta. Reabrem-se se a
 premissa mudar — com data e números novos.
@@ -483,7 +500,7 @@ premissa mudar — com data e números novos.
 - ~~Visualizador de PDF dentro da aplicação~~ — **saiu do «Não fazer»
   a 31/08/2026, a pedido dele, e está feito**: os PDF das peças abrem
   em `/peca/<ref>/<nome>`, dentro do painel, exactamente pelo caminho
-  barato aqui anotado (um `<embed>` do ficheiro de `documentos/`; a
+  barato aqui anotado (um `<embed>` do ficheiro de `pecas/`; a
   pesquisa é o Ctrl+F do visualizador do browser). A caixa de pesquisa
   solta (B09) continua retirada — isto é a versão que ele queria.
 

@@ -281,7 +281,7 @@ Concurso, anexos. Vêm em duas metades, e convém não as confundir.
 **Trazer.** Só das plataformas que o permitem sem sessão iniciada:
 `acingov`, `vortal`, `compraspt`, `anogov` (`PLATAFORMAS_COM_PECAS`).
 Dispara ao pôr um concurso em «Por analisar» — é esse o sinal de que se
-vai trabalhar nele. **Os ficheiros ficam em disco (`documentos/`), não
+vai trabalhar nele. **Os ficheiros ficam em disco (`pecas/`), não
 na base**, para o `radar.db` não crescer com PDF.
 
 **Ler.** Um modelo lê o CE e o PC e preenche **três campos**:
