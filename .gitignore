@@ -69,3 +69,10 @@ importacoes/
 # A folha com todos os ecrãs (ferramentas/ecrans.py). É gerada, tem
 # 0,7 MB de CSS e fontes embutidos, e fica velha assim que um ecrã muda.
 ecrans-radargov.html
+
+# Os diagramas da skill `archify`. Saíram a 19/09/2026, por decisão
+# dele: seis ficheiros, 4,86 MB para 24 KB de conteúdo (0,5% — o resto
+# é a biblioteca de desenho embutida em cada um), e cinco dos seis
+# contradiziam o código três dias depois de gerados. **Geram-se quando
+# se precisa, não se guardam**; estão no histórico do git.
+docs/*.html
