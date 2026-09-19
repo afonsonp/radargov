@@ -31,33 +31,34 @@ pede.**
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | Auditorias e propostas com data fechada: `AUDITORIA`, `SANEAMENTO`, `ESQUELETO`, `UX-Auditoria`, `CONCORRENTES`, `ONLINE`, `ONLINE-empresas`, `CRM`, `CICLOS`, `CAMADAS` | Raramente. **Todos abrem com o aviso de instantâneo** (17/09/2026): descrevem o dia em que foram escritos e não se editam |
-| `docs/historico/REDESENHO.md` | O pacote de desenho «Radar Gov UI redesign» (17/09/2026): o Hoje, o Ponto de situação, as Entidades, a ficha da entidade e os estados vazios, ecrã a ecrã. É instantâneo: descreve o que se **pediu**, não o que ficou | **Antes de mexer na abertura, no `/situacao` ou nas entidades** |
-| `docs/historico/CICLOS.md` | O plano de 16/09/2026 para fechar os ciclos (tarefas, entidade, proposta sem anúncio, peças) e arrumar esta documentação. **As cinco fases ficaram feitas a 17/09/2026**, cada uma com a sua linha no §9 — e cada linha diz o que saiu diferente do plano | Para perceber uma decisão destas quatro áreas. É instantâneo: o que vale hoje está aqui e nas armadilhas |
+| `docs/historico/` | **O arquivo**: oito instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `REDESENHO`, `CICLOS`, `CAMADAS`. **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
-Quatro destas merecem nome. O `docs/historico/ONLINE.md` (3/09/2026) é o
-plano para o radar sair do PC: login de um utilizador, um menu de
-configurações que absorve o separador Alertas, e o servidor — **lê-o
-antes de tocar em contas, sessões, no `config.json` pelo painel ou na
-barra de navegação**. O `docs/historico/CONCORRENTES.md` guarda o que
-se observou nos produtos pagos deste mercado, com data — **um produto
-muda, e o que lá está vale para o dia em que foi visto**. O
-`docs/historico/UX-Auditoria.md` (2/09/2026) passa as regras de interface
-da empresa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
-afinar, dívida): lê-o antes de mexer no painel. O
-`docs/historico/CRM.md` (15/09/2026, reescrito nesse dia com as
-respostas dele) é o plano para o «Em curso» deixar de ser a mesma
-consulta dos interessados. O desenho é do Afonso: **uma escada só**
-(as dez ranhuras estão no `docs/FUNCIONAL.md` §3.1), com o calendário
-como única outra vista e a navegação num «Concursos». Por baixo, uma
-tabela `propostas` que o estado do anúncio não consegue ser (lotes, e
-propostas sem anúncio). **O quadro saiu ao fim do mesmo dia**, por
-decisão dele — o que ficou em vez dele está na banda 8, mais abaixo.
-**Lê-o antes de tocar no calendário, nas abas dos anúncios, no bloco da
-proposta ou nas colunas de CRM do `anuncios`.** As sete decisões do §2
-estão respondidas; nenhuma se reabre de passagem.
+**Nenhum destes é leitura obrigatória, e isso mudou a 19/09/2026.**
+Quatro deles diziam «lê-o antes de tocar em X» — mas a regra da casa é
+que um instantâneo **não se edita**, e um ficheiro que é obrigatório e
+não se corrige é uma contradição. Provou-se nesse dia: o `CICLOS.md`
+tinha seis referências a diagramas apagados uma hora antes, e não
+podia ser corrigido.
+
+**O que é preciso antes de tocar no código está nos donos vivos.** O
+histórico responde a outra pergunta — **porquê, e em que dia**:
+
+| Para saber… | Lê |
+|---|---|
+| o que a escada é, e o que cada ranhura exige | `docs/FUNCIONAL.md` §3.1 |
+| como a porta funciona | `docs/FUNCIONAL.md` §4.9 |
+| a abertura, o `/situacao`, as entidades | `docs/FUNCIONAL.md` §4.1, §4.2, §4.7 |
+| o aspecto: cor, letra, botões | `docs/design.md` |
+| o que não é óbvio na área que vais tocar | `docs/armadilhas.md` |
+| **porque é que ficou assim, e quando** | `docs/historico/` |
+
+Dois avisos sobre o arquivo. O `CONCORRENTES.md` guarda o que se
+observou nos produtos pagos deste mercado — **um produto muda, e o que
+lá está vale para o dia em que foi visto**. E o `REDESENHO.md` descreve
+o que se **pediu**, não o que ficou: para saber o que ficou, é o
+`FUNCIONAL`.
 
 **Um facto tem um DONO, e os outros apontam** (19/09/2026). **A tabela
 dos donos, e o que se mediu para chegar a ela, estão no

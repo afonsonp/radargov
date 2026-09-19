@@ -85,8 +85,9 @@ como sempre.
   (feito a 31/08) não a reduz — mede-a: a série na tabela `erros` é que
   há-de dizer a frequência real.
 - **R11 (volume) → `/contratos/resumo`:** viva. É a razão de a entrada
-  de Mercado ser «a pergunta primeiro», e o esqueleto proíbe qualquer
-  painel que dispare o resumo sem filtro.
+  de Mercado ser «a pergunta primeiro»: **nenhum painel dispara o
+  resumo sem filtro** — regra de 30/08/2026, que sobreviveu ao
+  documento que a escreveu.
 - **R2 (perda do PC):** dada como fechada a 31/08/2026 — o código pelo
   remoto do GitHub, e a triagem pelo B15 com o push automático em cada
   verificação. **Reaberta a 15/09/2026, em parte** (B15-b, em cima): as
@@ -291,6 +292,10 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   1–90 à vista.
 
 ## Anotado no esqueleto de informação de 30/08/2026
+
+> O documento saiu a 19/09/2026 (estava no arquivo, citado por
+> ninguém, e descrevia um `radar.py` com 9 938 linhas). Está no
+> histórico do git; o que dele vale hoje é o que está nesta lista.
 
 - ~~Procura directa de entidade (nome ou NIF)~~ — **reaberta e feita a
   31/08/2026, a pedido dele**: caixa «Ficha de entidade» em Mercado e
