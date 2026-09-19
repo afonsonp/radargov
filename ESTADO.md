@@ -76,64 +76,19 @@ contagens do painel vão por índice de cobertura.
 
 ## O que está implementado
 
-- **Hoje** (`/`, e é o logótipo que lá leva), **redesenhado a
-  17/09/2026**: o título é a data; quatro **factos** numa linha, cada um
-  a abrir a lista que o produz; a **fita da semana** (sete dias, com as
-  tarefas, as feitas e as entregas de cada um — clicar num dia muda o
-  balde do meio); e duas colunas — o que há para fazer à esquerda, e à
-  direita «O que mudou», «Prazos a chegar · 7 dias» e «Paradas há mais
-  tempo». Cinco baldes — prazo passou sem decisão · atrasadas · o dia
-  escolhido · resto da semana · mais para a frente. Cada linha diz de
-  que concurso é e resolve-se ali: ✓, desfazer, e a linha **fica no
-  sítio, riscada** — a página volta à linha e não ao topo. Filtra-se por
-  pessoa e escondem-se as feitas. **Nada muda de ranhura sozinho.**
-- **Ponto de situação** (`/situacao`, 17/09/2026): como vai o negócio,
-  em três abas (Negócio · Triagem · Por área CPV) e com **período**
-  (este mês · este trimestre · 12 meses · tudo), comparado com o período
-  anterior do mesmo tamanho. Era o bloco do fim da abertura.
-- **Concursos** (`/concursos`): a lista única, com as **dez ranhuras da
-  escada** nas abas — a entrada («por ver»), as oito palavras da empresa
-  e o cemitério dos expirados. As pontas mostram anúncios, as oito
-  ranhuras mostram propostas. Vista **calendário** por dia.
-- **Mercado** (`/contratos`): o corpus do Portal BASE, com o modo «por
-  fim estimado», e a vista **Entidades** (`/entidades`), **redesenhada a
-  17/09/2026**: uma procura, **cinco abas** (com quem trabalhamos ·
-  seguidas · clientes que mais compram · concorrentes que mais ganham ·
-  contratos a acabar · 90 dias) e uma tabela com o papel, o que compra,
-  o que ganha, a **fita do «connosco»** (um quadrado por proposta, com a
-  cor do desfecho), a taxa com ela e o que lhe acaba na janela. Marcando
-  duas linhas, **comparam-se lado a lado**.
-- **Ficha do anúncio** (`/anuncio/<ref>`), em composição de dossier: os
-  factos do DR, as peças (que abrem dentro da ficha), a leitura pelo
-  modelo, o histórico do cliente, os contactos, e o bloco **«A nossa
-  proposta»** — a ranhura, os campos que ela pede, as etiquetas e o que
-  falta fazer.
-- **Ficha da entidade** (`/entidade/<chave>`), para **todas** as
-  entidades, em **duas colunas** desde 17/09/2026: o nosso lado à
-  esquerda (os anúncios dela, as propostas, a taxa com ela, os
-  contactos) e o Portal BASE à direita. Abre com **seis factos** —
-  compra a 24 meses, quanto disso cai no nosso CPV, a que desconto
-  fecha, quantas propostas já lhe fizemos, a taxa com ela e o que lhe
-  acaba nos próximos 90 dias. Sem corpus, os três do mercado dizem «sem
-  BASE» e não zero.
-- **Ficha da proposta sem anúncio** (`/proposta/<id>`): consulta prévia,
-  ajuste directo, convite. Tem o bloco inteiro, os contactos, a
-  cronologia e o apagar.
-- **A escada é livre, com a condicionante da informação em falta**:
-  qualquer par de ranhuras é permitido, mas entrar numa exige os campos
-  que a fazem ser verdade, e a recusa diz o que falta.
-- **Configurações** (`/configuracoes/<seccao>`): nove secções — conta,
-  interesse, alertas, importar dados, indicadores, capturas, recolha,
-  leitura das peças, cópias. As cinco últimas só ao admin.
-- **Alertas e resumo diário** por e-mail, com o interesse por CPV e as
-  entidades seguidas.
-- **As peças** vêm sozinhas das plataformas que o permitem (acingov,
-  vortal, compraspt, anogov) e um modelo lê o Caderno de Encargos e o
-  Programa. Uma leitura que fique a meio volta a tentar-se.
-- **Segunda fonte**: as consultas preliminares da Vortal, que a parte L
-  não publica.
-- **Cópia diária** da base, com ensaio de restauro, e a triagem
-  exportada e empurrada para o git a cada verificação.
+**Está no `docs/FUNCIONAL.md`, ecrã a ecrã (§4), e só lá.** Esta secção
+era uma segunda contagem da mesma coisa — treze pontos que repetiam as
+dez subsecções de lá —, e foi por repetições assim que o manual chegou
+a descrever um quadro que já tinha saído. Este ficheiro guarda os
+**números medidos**; o que a aplicação faz tem dono.
+
+Em duas linhas, para não teres de abrir: **Hoje** (`/`) · **Ponto de
+situação** (`/situacao`) · **Concursos** (`/concursos`, as dez ranhuras
+e o calendário) · **Mercado** (`/contratos`) e **Entidades**
+(`/entidades`) · as fichas do anúncio, da entidade e da proposta ·
+**Configurações** em nove secções · alertas e resumo diário · as peças
+lidas pelo modelo · a Vortal como segunda fonte · cópia diária com
+ensaio de restauro.
 
 ## O que não corre sozinho, e é preciso saber
 

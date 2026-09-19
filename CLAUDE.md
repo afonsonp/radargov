@@ -50,19 +50,33 @@ da empresa pelas «leis de UX», uma a uma, com medidas e veredicto (manter,
 afinar, dívida): lê-o antes de mexer no painel. O
 `docs/historico/CRM.md` (15/09/2026, reescrito nesse dia com as
 respostas dele) é o plano para o «Em curso» deixar de ser a mesma
-consulta dos interessados. O desenho é do Afonso: **uma escada só** —
-dez ranhuras, a entrada (*por ver*), as oito palavras da empresa (*por
-analisar · a preparar proposta · submetido · relatório preliminar ·
-ganho · perdido · não fomos · cancelado*) e o cemitério dos expirados —
-com o calendário como única outra vista, e a navegação num
-«Concursos». Por baixo, uma tabela `propostas` que o estado do anúncio
-não consegue ser (lotes, e propostas sem anúncio). **O quadro saiu ao
+consulta dos interessados. O desenho é do Afonso: **uma escada só**
+(as dez ranhuras estão no `docs/FUNCIONAL.md` §3.1), com o calendário
+como única outra vista e a navegação num «Concursos». Por baixo, uma
+tabela `propostas` que o estado do anúncio não consegue ser (lotes, e
+propostas sem anúncio). **O quadro saiu ao
 fim do dia**, por decisão dele: oito colunas e oito abas eram a mesma
 coisa duas vezes, a ranhura muda-se no selector de cada linha, e tudo o
 que o cartão fazia vive no bloco «A nossa proposta» da ficha. **Lê-o
 antes de tocar no calendário, nas abas dos anúncios, no bloco da
 proposta ou nas colunas de CRM do `anuncios`.** As sete decisões do §2
 estão respondidas; nenhuma se reabre de passagem.
+
+**Um facto tem um DONO, e os outros apontam** (19/09/2026). Medido nesse
+dia: os nove assuntos da aplicação estavam contados nos **oito**
+ficheiros vivos ao mesmo tempo — a escada 140 vezes, as entidades 236.
+A causa não era desleixo: os ficheiros estão divididos por **género**
+(as regras, o manual, as armadilhas, o porquê), e isso obriga a contar
+cada assunto uma vez por género. **A tabela dos donos está no
+`docs/FUNCIONAL.md`, logo a seguir ao cabeçalho.** Antes de escreveres
+aqui o que uma ranhura exige, ou no manual o que a aplicação faz,
+pergunta de quem é o facto: se não é deste ficheiro, escreve-se lá e
+aqui fica uma ligação.
+
+(O caso que fundou a regra: a 17/09 escrevi a condicionante da escada no
+`LEIA-ME` §5, e a 19/09 escrevi-a outra vez no §9 **sem apagar a
+primeira**. Duas secções do mesmo ficheiro a dizer a mesma coisa, com
+dois dias de intervalo e a mesma mão.)
 
 **A documentação corrige-se na mesma sessão que muda o comportamento.**
 Antes do commit de qualquer trabalho que mude comportamento, números ou
@@ -248,21 +262,19 @@ A ordem do ficheiro é a ordem do fluxo:
    (`propostas_por_fechar()`, `fomos_nos()`, `desvio_do_proposto()` —
    **propõe, nunca decide**), os indicadores comerciais
    (`pipeline_em_euros()`, `taxa_de_vitoria()`) e os contactos, que são
-   da **entidade** e não do concurso. **A escada é o estado da proposta,
-   não do anúncio** — não voltes a pendurar estado da empresa no
-   `anuncios`, que é de onde as doze colunas saíram.
-   **Desde 17/09/2026 (fase 3 do `docs/historico/CICLOS.md`) a escada
-   tem a condicionante da informação em falta** (D4): qualquer par de
-   ranhuras é permitido, mas entrar numa exige os campos que a fazem ser
-   verdade (`CAMPOS_QUE_A_RANHURA_EXIGE`, `falta_para_a_ranhura()`), e
-   esses **gravam-se antes de se verificar** — quem mover uma proposta e
-   gravar o campo a seguir leva recusa, e por isso os três caminhos que
-   movem passam-nos por `_campos_exigidos_do_pedido()`. O histórico de
-   uma proposta sem `ref` grava-se por `historico.proposta_id`, e a
-   `cronologia_da_proposta()` lê por uma ou pela outra. A página
-   `/proposta/<id>` passou a ter o bloco inteiro
-   (`_bloco_de_uma_proposta()`, o mesmo da ficha do anúncio), os
-   contactos, a cronologia e o apagar.
+   da **entidade** e não do concurso. A condicionante da escada vive em
+   `CAMPOS_QUE_A_RANHURA_EXIGE` / `falta_para_a_ranhura()` /
+   `recado_do_que_falta()`; o histórico de uma proposta sem `ref` em
+   `historico.proposta_id` (`cronologia_da_proposta()` lê pelas duas); e
+   a página `/proposta/<id>` monta-se com `_bloco_de_uma_proposta()`, o
+   mesmo bloco da ficha do anúncio.
+   **O que a escada É lê-se no `docs/FUNCIONAL.md` §3.1** — as dez
+   ranhuras, o que cada uma exige, o vocabulário fechado dos motivos.
+   Aqui ficam só os nomes no código.
+   A regra de trabalho que este mapa guarda, e que não está em mais
+   lado nenhum: **a escada é o estado da proposta, não do anúncio** —
+   não voltes a pendurar estado da empresa no `anuncios`, que é de onde
+   as doze colunas saíram.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
 4. **leitura** — `recolher()` pagina a pesquisa do portal;
