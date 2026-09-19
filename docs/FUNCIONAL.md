@@ -290,6 +290,40 @@ O que sai vem marcado com o nome do modelo e um aviso para confirmar no
 documento: **é para decidir se vale a pena abrir os PDF, não para
 assinar por baixo.**
 
+
+### 3.7 De onde vêm os anúncios
+
+Duas fontes, e nenhuma tem API pública.
+
+**O Diário da República, parte L** é a fonte principal. O radar faz os
+mesmos dois pedidos que o browser faria: a pesquisa, e o detalhe de cada
+anúncio. Para os saber fazer precisa de duas **capturas** cURL, tiradas à
+mão uma vez no DevTools — o gesto está no `LEIA-ME.md` §3. Sem a do
+detalhe recolhe na mesma, mas fica sem CPV, sem prazo e sem preço base.
+
+**A Vortal** dá só as **consultas preliminares** de mercado, que o DR não
+publica (`recolher_vortal()`, desde 31/08/2026). É pesquisa pública: não
+leva captura nenhuma. Entram no «Por ver» como qualquer anúncio, com a
+etiqueta `vortal`, e **só esse tipo entra** (`TIPOS_PRELIMINAR`) — os
+concursos públicos da Vortal já vêm pelo DR, e trazê-los outra vez era
+mentir nas contagens.
+
+Três coisas que mudam o que se pode desenhar:
+
+- **O que a captura ainda dá é a forma do pedido, não a credencial.**
+  Desde 2/09/2026 o token e a `apiVersion` vêm do próprio portal a cada
+  verificação — o `perguntar_ao_dr()` renova-os à força e repete uma vez
+  antes de declarar expiração. Uma captura «expirada» é hoje uma captura
+  cujo **corpo** deixou de servir: refaz-se, não se renova.
+- **Não se filtra nada à entrada, e isso é uma escolha.** O termo de
+  pesquisa existe no pedido e está **vazio** (`termos_de_pesquisa: [""]`);
+  a janela são os últimos 15 dias (`dias_catchup`); a triagem faz-se toda
+  no painel. Há `termos_de_reserva` para o caso de a pesquisa sem termo
+  devolver zero — nunca disparou.
+- **Entra tudo o que a parte L publicar.** É por isso que há 210 mil
+  anúncios e não os mil que interessam: o recorte é do ecrã, nunca da
+  recolha.
+
 ---
 
 ## 4. O que já está feito, ecrã a ecrã
@@ -451,10 +485,11 @@ computador, sem túnel a meio, entra sem login (`acesso_livre_local`).
 ### 4.10 O que corre sozinho
 
 - **Recolha** 2×/dia (09:00, 17:00): pagina a pesquisa do DR, lê o
-  detalhe de cada anúncio novo, detecta **republicações** e o que
-  mudou, traz as peças das plataformas que o permitem (acingov, vortal,
-  compraspt, anogov), **relê as leituras que ficaram a meio**, dispara
-  alertas e o resumo diário.
+  detalhe de cada anúncio novo, traz as **consultas preliminares** da
+  Vortal (as duas fontes estão no §3.7), detecta **republicações** e o
+  que mudou, traz as peças das plataformas que o permitem (acingov,
+  vortal, compraspt, anogov), **relê as leituras que ficaram a meio**,
+  dispara alertas e o resumo diário.
 - **Corpus** à segunda-feira: traz o dump do IMPIC.
 - **Cópia de segurança** diária do `radar.db`.
 - **Triagem no git**: `triagem.jsonl`, commit + push automáticos.

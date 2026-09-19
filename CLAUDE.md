@@ -277,9 +277,14 @@ A ordem do ficheiro é a ordem do fluxo:
    as doze colunas saíram.
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
+   **De onde vêm os anúncios, e o que a captura ainda dá, está no
+   `docs/FUNCIONAL.md` §3.7** — o token e a `apiVersion` já não vêm dela
+   desde 2/09/2026, vêm do portal (`perguntar_ao_dr()`).
 4. **leitura** — `recolher()` pagina a pesquisa do portal;
    `ler_detalhes()` vai à página de cada anúncio buscar CPV, prazo e preço
    base; `campos_do_detalhe()` faz o parsing por secções numeradas.
+   A segunda fonte é a Vortal (`recolher_vortal()`), só consultas
+   preliminares, sem captura.
 5. **documentos** — `obter_documentos()` puxa as peças do procedimento das
    plataformas que o permitem (`PLATAFORMAS_COM_PECAS`: acingov, vortal,
    compraspt, anogov), por fila e thread de fundo. Ficam em `documentos/`
