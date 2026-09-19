@@ -13647,6 +13647,32 @@ class TestADocumentacaoNaoApontaParaOVazio(unittest.TestCase):
                           % (t, tok, porque, onde[0][0], onde[0][1])
                           for t, tok, onde, porque in sorted(faltam)[:20])))
 
+    def test_as_contagens_derivaveis_batem_certo(self):
+        """A segunda família, e a mais silenciosa: um número que era
+        verdade no dia em que se escreveu.
+
+        Medido a 19/09/2026, ao escrever isto: três estavam erradas —
+        «80 rotas» eram 81, «15 áreas» eram 16 em dois ficheiros, e
+        «223 pontos» eram 222. **Este último estraguei-o nesse mesmo
+        dia**, ao fundir duas armadilhas numa sem recontar. Um número
+        que ninguém deriva apodrece à velocidade do trabalho.
+
+        Só entram aqui as contagens que se **derivam**. Quantos
+        anúncios ou quantos MB mede-se, e isso vive no `ESTADO.md`,
+        com data.
+        """
+        import importlib.util
+        caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "ferramentas", "valida_docs.py")
+        spec = importlib.util.spec_from_file_location("valida_docs", caminho)
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        maus = modulo.valida_numeros()
+        if maus:
+            self.fail("%d contagens não batem:\n%s" % (
+                len(maus),
+                "\n".join("  %s (%s): diz %s, é %s" % m for m in maus)))
+
 
 class TestAsPecasMudamDePastaSozinhas(unittest.TestCase):
     """19/09/2026: `documentos/` passou a `pecas/`, por queixa dele —

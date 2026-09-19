@@ -173,6 +173,88 @@ NAO_SAO_NOSSAS = {
 }
 
 
+# --------------------------------------------------------- os números
+#
+# A segunda família de apodrecimento, e a mais silenciosa: uma contagem
+# que era verdade no dia em que se escreveu. Aqui ficam só as que se
+# **derivam** — o resto (quantos anúncios, quantos MB) mede-se e vai
+# para o `ESTADO.md` com data, que é o dono desses.
+#
+# Medido a 19/09/2026, ao escrever isto: três estavam erradas. As
+# «80 rotas» eram 81, as «15 áreas» eram 16 em dois ficheiros, e os
+# «223 pontos» eram 222 — este último **estragado nesse mesmo dia**,
+# por eu ter fundido duas armadilhas numa e não ter recontado.
+#
+# Cada entrada é (rótulo, ficheiro, expressão com UM grupo, como se
+# sabe a verdade).
+def _conta_no_ficheiro(caminho, padrao):
+    return len(re.findall(padrao, io.open(
+        os.path.join(RAIZ, caminho), encoding="utf-8").read(), re.M))
+
+
+def NUMEROS():
+    import sqlite3
+    sys.path.insert(0, RAIZ)
+    import radar
+
+    def tabelas():
+        base = os.path.join(RAIZ, "radar.db")
+        if not os.path.exists(base):
+            return None                      # sem base, não se julga
+        c = sqlite3.connect("file:%s?mode=ro" % base, uri=True)
+        try:
+            return c.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table'"
+                " AND name NOT LIKE 'sqlite_%'").fetchone()[0]
+        finally:
+            c.close()
+
+    return [
+        ("tabelas em radar.db", "docs/FUNCIONAL.md",
+         r"(\d+) tabelas\)", tabelas),
+        ("rotas registadas", "docs/FUNCIONAL.md",
+         r"\*\*(\d+) rotas\.?\*\*",
+         lambda: len(list(radar.app.url_map.iter_rules()))),
+        ("áreas nas armadilhas", "CLAUDE.md",
+         r"em \*\*(\d+) áreas\*\*",
+         lambda: _conta_no_ficheiro("docs/armadilhas.md", r"^## ")),
+        ("pontos nas armadilhas", "CLAUDE.md",
+         r"São \*\*(\d+) pontos\*\*",
+         lambda: _conta_no_ficheiro("docs/armadilhas.md", r"^- \*\*")),
+        ("secções de configurações", "CLAUDE.md",
+         r"(\w+) secções por esta ordem",
+         lambda: len(radar.SECCOES_CONFIG)),
+    ]
+
+
+PALAVRA_NUMERO = {"uma": 1, "duas": 2, "três": 3, "quatro": 4, "cinco": 5,
+                  "seis": 6, "sete": 7, "oito": 8, "nove": 9, "dez": 10,
+                  "onze": 11, "doze": 12, "treze": 13, "catorze": 14,
+                  "quinze": 15, "dezasseis": 16}
+
+
+def valida_numeros():
+    """[(rótulo, ficheiro, o que diz, o que é)] das que não batem."""
+    maus = []
+    for rotulo, ficheiro, padrao, verdade in NUMEROS():
+        p = os.path.join(RAIZ, ficheiro)
+        if not os.path.exists(p):
+            continue
+        m = re.search(padrao, io.open(p, encoding="utf-8").read())
+        if not m:
+            maus.append((rotulo, ficheiro, "não encontrado", "—"))
+            continue
+        bruto = m.group(1).replace(" ", "").replace(" ", "")
+        diz = (int(bruto) if bruto.isdigit()
+               else PALAVRA_NUMERO.get(bruto.lower()))
+        real = verdade()
+        if real is None or diz is None:
+            continue
+        if diz != real:
+            maus.append((rotulo, ficheiro, diz, real))
+    return maus
+
+
 def sem_codigo(t):
     return re.sub(r"```.*?```", "", t, flags=re.S)
 

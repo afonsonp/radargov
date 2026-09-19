@@ -58,7 +58,7 @@ salvo os testes e as linhas de código, remedidos a 19/09.
 | Rotas Flask | 80 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 075**, em ~88 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 076**, em ~76 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 165 linhas · `teste_radar.py` 13 765 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
 
