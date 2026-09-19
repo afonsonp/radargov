@@ -1825,6 +1825,19 @@ Nada espera dentro do pedido do browser.
   não o `iniciar.sh`: este pergunta ao systemd se o serviço está
   activo, e de dentro do serviço a resposta é sim; saía em 44 ms com
   «já está a correr» e o painel nunca subia.
+- **O painel lê o `radar.py` ao arrancar e mais nunca.** Mexer no
+  ficheiro não muda o que está no ar — e nesta pasta a armadilha tinha
+  um cúmplice: o `actualizar.sh` saía com `exit 0` no «já está na
+  última release», antes da linha do reinício. Como o código se escreve
+  aqui, nunca há nada a trazer, por isso **o reinício nunca acontecia**
+  e o guião dizia-te que estava tudo em dia. Apanhado a 19/09/2026: o
+  serviço corria desde 18/09 às 07:53 com um `radar.py` de 19/09 à
+  01:09, dezassete horas de diferença. Corrigido (o reinício é sempre,
+  e passa a haver um ramo «à frente da release»), com a regressão em
+  `TestOActualizarReiniciaSempreOPainel`, que lê o guião e exige que
+  nenhum `exit 0` venha antes do `try-restart`. **A verificação manual
+  continua a valer**: compara `systemctl --user show radar-painel.service
+  -p ActiveEnterTimestamp` com a data do `radar.py`.
 
 
 ---

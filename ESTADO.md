@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **17 de setembro de 2026**.
+Última actualização: **19 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -40,7 +40,8 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números são de **17/09/2026**, lidos das duas bases.
+Funciona. Os números são de **17/09/2026**, lidos das duas bases —
+salvo os testes e as linhas de código, remedidos a 19/09.
 
 | O quê | Quanto |
 |---|---|
@@ -57,8 +58,8 @@ Funciona. Os números são de **17/09/2026**, lidos das duas bases.
 | Rotas Flask | 80 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 067**, em ~86 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 23 165 linhas · `teste_radar.py` 13 616 · `empresa.py` 641 · `contas.py` 302 |
+| Testes | **1 070**, em ~75 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 23 165 linhas · `teste_radar.py` 13 673 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -109,8 +110,9 @@ ensaio de restauro.
   `"triagem_no_git": false`.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.8.0`**,
-  de 18/09/2026.
+  — nunca segue o `master` a cada merge. A última é a **`v1.8.1`**,
+  de 19/09/2026. **Reinicia sempre o painel**, mesmo quando não há
+  nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 17/09/2026** — as colunas novas da
   `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre
   210 mil anúncios, porque nenhuma toca na tabela `anuncios`. (As
