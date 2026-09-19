@@ -40,27 +40,26 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números são de **17/09/2026**, lidos das duas bases —
-salvo os testes e as linhas de código, remedidos a 19/09.
+Funciona. Os números são de **19/09/2026**, lidos das duas bases.
 
 | O quê | Quanto |
 |---|---|
-| Anúncios | 210 004 (**199 731 procedimentos**; a diferença são republicações ligadas ao original) |
-| Com detalhe lido | 185 079 |
-| Propostas na escada | **77** — perdido 16 · não fomos 14 · ganho 13 · por analisar 10 · submetido 8 · a preparar 7 · relatório 5 · cancelado 4 |
-| Tarefas por fazer | 52 |
+| Anúncios | 210 245 (**199 813 procedimentos**; a diferença são republicações ligadas ao original) |
+| Com o texto integral | 185 320. O `detalhe_lido` está a **100%**: não há fila por ler |
+| Propostas na escada | **78** — perdido 16 · não fomos 15 · ganho 13 · por analisar 11 · submetido 8 · a preparar 6 · relatório 5 · cancelado 4 |
+| Tarefas por fazer | 46 |
 | Contactos | 26 |
-| Peças em disco | 265 documentos, de 42 concursos |
-| Leituras pelo modelo | 42, das quais **8 incompletas** (voltam a tentar-se sozinhas) |
+| Peças em disco | 269 documentos, de 49 concursos (em `pecas/`, 277 MB) |
+| Leituras pelo modelo | 43, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 000 340 contratos, 179 823 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
-| Rotas Flask | 80 |
+| Rotas Flask | 81 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 076**, em ~76 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 197 linhas · `teste_radar.py` 13 791 · `empresa.py` 641 · `contas.py` 302 |
-| As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
+| As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,66 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
 `/estilo/<etiqueta>.css`, guardado para sempre pelo browser, e a
@@ -138,5 +137,5 @@ ensaio de restauro.
 
 Julgar se a leitura das peças pelo modelo presta. A ferramenta existe
 (`ensaio-de-leitura <ref>`, que põe cada linha da resposta ao lado do
-pedaço do documento que a sustenta) e há 42 leituras feitas, 8 delas
+pedaço do documento que a sustenta) e há 43 leituras feitas, 7 delas
 incompletas. Falta passá-las a pente.
