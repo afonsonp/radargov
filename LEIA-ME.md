@@ -559,35 +559,31 @@ quando elas chegam, o que leva alguns segundos.
 
 ### As peças lidas
 
-Assim que as peças chegam, um modelo lê o Caderno de Encargos e o
-Programa e preenche os quatro campos que faltavam. Leva cerca de cinco
-segundos, corre em fundo, e a ficha só deixa de dizer "a trazer as
-peças…" quando já lá está tudo. Se preferires accionar à mão, ou se
-falhar, há o botão **Ler peças**.
+> **O que o modelo lê, e porquê em três pedidos**, está no
+> `docs/FUNCIONAL.md` §3.6. Aqui fica o que tu fazes e o que te pode
+> surpreender.
+
+Assim que as peças chegam, o modelo lê e preenche sozinho. Leva cerca
+de cinco segundos, corre em fundo, e a ficha só deixa de dizer «a
+trazer as peças…» quando já lá está tudo. Se preferires accionar à mão,
+ou se falhar, há o botão **Ler peças**.
 
 O que sai vem marcado com o nome do modelo e um aviso para confirmares
-no documento. Não é para assinar por baixo: é para saberes, em cinco
+no documento. **Não é para assinar por baixo**: é para saberes, em cinco
 segundos, se vale a pena abrir os PDF.
 
 Quando o Programa não fixa limiar de preço anormalmente baixo — o que é
 o caso na maioria — a tabela di-lo em vez de te mandar procurar.
 
-**Uma leitura que fique a meio volta a tentar-se sozinha.** O modelo tem
-um tecto de uso por dia; quando ele bate a meio de um concurso, os
-campos que já tinham sido lidos ficam gravados e o resto ficava por
-preencher — para sempre, até 17/09/2026. Agora a verificação das 09:00 e
-das 17:00 volta a essas, cinco de cada vez, e só às dos concursos que
-estão na escada: gastar o tecto do dia num que ninguém olhou é tirá-lo a
-um que se vai entregar. À mão, `python radar.py --ler-pecas` também as
-apanha, e sem esse limite.
+**Uma leitura que fique a meio volta a tentar-se sozinha**, cinco por
+verificação, e só às dos concursos que estão na escada: gastar o tecto
+do dia num que ninguém olhou é tirá-lo a um que se vai entregar. À mão,
+`python radar.py --ler-pecas` também as apanha, e sem esse limite.
 
 **Precisa de uma chave.** Um ficheiro `groq_API_KEY.txt` na pasta do
-radar, com a chave lá dentro e mais nada. Sem ele os quatro campos
-ficam simplesmente assinalados como antes, e o resto funciona na mesma.
+radar, com a chave lá dentro e mais nada. Sem ele os campos
+ficam simplesmente por preencher, e o resto funciona na mesma.
 O ficheiro está fora do controlo de versões, de propósito.
-
-Só saem daqui documentos que já são públicos — Cadernos de Encargos e
-Programas. Propostas, CVs e trabalho teu não passam por lá.
 
 Funciona nas plataformas que aparecem na base — acingov, vortal,
 anogov, ComprasPT e a plataforma da ESPAP — o que cobre 99% dos

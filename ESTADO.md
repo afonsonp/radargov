@@ -128,10 +128,10 @@ ensaio de restauro.
   interesse, por isso chegava sempre tarde para ajudar a decidir. A
   procura **dentro** de um documento existe e é outra coisa.
 - **O OCR das digitalizações** saiu a 3/09/2026.
-- **Dois becos das peças ficam**: sem plataforma conhecida é manual, sem
-  texto extraível não há nada. São limites das fontes, não do radar.
-- **Só passam pelo modelo documentos públicos** — Cadernos de Encargos e
-  Programas de Concurso. Propostas, CVs e trabalho próprio não.
+- **Dois becos das peças ficam, e só passam pelo modelo documentos
+  públicos** — as duas regras estão no `docs/FUNCIONAL.md` §3.6. Ficam
+  nesta lista porque são **limites de âmbito**, e é isso que esta
+  secção inventaria; o que elas dizem lê-se lá.
 
 ## O ponto que falta para a v1
 
