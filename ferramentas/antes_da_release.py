@@ -35,7 +35,7 @@ que só se sabe a correr.
 ## O que confere
 
 1. A árvore está limpa (nada por gravar).
-2. A tag ainda não existe.
+2. A tag ainda não foi publicada no GitHub.
 3. Os testes passam, todos.
 4. O `valida_docs.py` dá zero, nas referências e nas contagens.
 5. Os números **medidos** do `ESTADO.md` batem certo.
@@ -132,11 +132,16 @@ def main():
     else:
         print("  ok   a árvore está limpa")
 
-    if versao in git("tag", "-l").split():
-        problemas.append(("a tag %s já existe" % versao,
-                          "escolhe outra versão, ou apaga a tag"))
+    # **No REMOTO, e não aqui.** A primeira versão perguntava se a tag
+    # existia localmente, e isso parecia certo enquanto o portão se
+    # corria à mão — antes de a criar. Como hook do `pre-push` está
+    # sempre errado: para empurrar uma tag, ela tem de existir. A
+    # pergunta que serve nos dois casos é se **já foi publicada**.
+    if git("ls-remote", "--tags", "origin", "refs/tags/" + versao):
+        problemas.append(("a %s já está publicada no GitHub" % versao,
+                          "escolhe outra versão"))
     else:
-        print("  ok   a tag %s está livre" % versao)
+        print("  ok   a %s ainda não está publicada" % versao)
 
     r = subprocess.run([sys.executable, "teste_radar.py"], cwd=RAIZ,
                        capture_output=True, text=True)

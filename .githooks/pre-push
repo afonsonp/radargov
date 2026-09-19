@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# O portao da release, automatico: corre quando se empurra uma TAG.
+#
+# 19/09/2026, a pedido dele -- "quero que seja automatico essa revisao
+# de documentos antes do push". Ate aqui o
+# `ferramentas/antes_da_release.py` existia e alguem tinha de se
+# lembrar de o correr, que e exactamente o problema que ele resolve.
+#
+# **So nas tags, e isso nao e preguica: e obrigatorio.** O
+# `empurrar_triagem()` do radar.py faz `git push origin master` sozinho
+# DUAS VEZES POR DIA, na verificacao das 09h e das 17h. Um hook que
+# corresse a bateria em cada push acrescentava ~80 s a cada uma e,
+# muito pior, uma falha qualquer TRAVAVA A SINCRONIZACAO DOS DADOS --
+# a triagem deixava de viajar, em silencio, por causa de um numero
+# velho num .md. O commit ja tem o seu proprio portao
+# (`testes_antes_do_commit.py`, e o validador da documentacao dentro da
+# bateria); aqui trata-se so do que e novo numa release.
+#
+# O git passa em cada linha do stdin:
+#   <ref local> <sha local> <ref remota> <sha remoto>
+# Uma tag vem como `refs/tags/v1.8.6`.
+#
+# Para saltar o portao uma vez -- e ha razoes legitimas, como
+# republicar a release "dados" ou uma emergencia --, `--no-verify`.
+
+set -u
+RAIZ="$(git rev-parse --show-toplevel)"
+PYTHON="$RAIZ/.venv/bin/python"
+[ -x "$PYTHON" ] || PYTHON="$(command -v python3 || command -v python)"
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/tags/v*)
+      versao="${remote_ref#refs/tags/}"
+      echo
+      echo " ── O portão da release, antes de empurrar a $versao ──"
+      echo
+      if ! "$PYTHON" "$RAIZ/ferramentas/antes_da_release.py" "$versao"; then
+        echo
+        echo " A tag $versao NÃO foi empurrada."
+        echo " Resolve o que está acima, ou usa --no-verify se souberes"
+        echo " porque é que o portão está errado."
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+exit 0

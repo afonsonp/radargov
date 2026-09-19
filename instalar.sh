@@ -19,4 +19,15 @@ echo " A instalar o que falta (flask, requests, pypdf, pymupdf, cryptography, op
 "$PY" -m pip install --quiet --upgrade pip
 "$PY" -m pip install --quiet -r requirements.txt || exit 1
 echo
+
+# O portao da release (19/09/2026). Os hooks do git vivem em
+# `.git/hooks/`, que NAO viaja no repositorio -- por isso o nosso esta
+# em `.githooks/`, versionado, e aqui diz-se ao git para o usar. Sem
+# esta linha, uma instalacao nova empurrava tags sem conferir nada, e
+# o portao existia so no computador de quem o escreveu.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git config core.hooksPath .githooks
+  echo " Portão da release ligado (corre ao empurrar uma tag vX.Y.Z)."
+fi
+
 "$PY" -c "import flask, requests, pypdf, pymupdf, cryptography, openpyxl; print('   Está tudo. Corre agora o iniciar.sh.')"
