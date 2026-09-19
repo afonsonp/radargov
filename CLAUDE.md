@@ -188,22 +188,25 @@ hooks e nos testes (ver «Comandos», em cima).
 ### Acesso de fora
 
 O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
-(etapa 1 do `docs/historico/ONLINE.md`, feita nesse dia): o
-`contas.py` guarda utilizadores e sessões, e a «porta» do `radar.py`
-(`porta_de_entrada()`, logo a seguir ao `app`) exige sessão em tudo o
-que não seja `/entrar`. Um pedido **deste computador, sem túnel a
-meio**, entra sem login como o único utilizador (ou o primeiro
-admin, quando há mais contas) — é o
-`acesso_livre_local` do `config.json`, o que mantém o desenvolvimento
-e os testes sem fazerem login a cada pedido. **Desde 13/09/2026 há
-dois papéis** (`utilizadores.papel`: `admin` ou `tester`): o admin vê
-tudo e cria contas em Configurações › Conta; o tester leva 403 no que
-é do sistema (`ROTAS_SO_ADMIN`: Indicadores, Capturas, Recolha,
-Leitura das peças, Cópias, o «Verificar agora» e quem envia o e-mail).
-`sou_admin()` é a pergunta; no acesso livre sem conta nenhuma a
-resposta é sim. Lê a área «Contas e a
-porta» do `docs/armadilhas.md` antes de tocar nisto: a armadilha
-principal é que o túnel liga-se ao painel **a partir de 127.0.0.1**.
+(etapa 1 do `docs/historico/ONLINE.md`), com **dois papéis** desde
+13/09/2026.
+
+**O que a porta É — os três estados, o que fica aberto sem sessão, as
+duas guardas do POST e o trinco — está no `docs/FUNCIONAL.md` §4.9.**
+Aqui ficam os nomes no código: `porta_de_entrada()` (um
+`before_request`, logo a seguir ao `app`), `pedido_e_local()`,
+`origem_e_nossa()`, `sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN`,
+`ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
+inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`;
+`scrypt`; `token_csrf()` / `csrf_bate()`), que **não importa o radar**.
+
+Duas regras de trabalho que não estão em mais lado nenhum: um POST
+protege-se **por sessão ou por origem, nunca por nenhuma das duas** —
+se acrescentares um caminho que dispensa a porta, diz qual é a guarda;
+e **`ROTAS_ABERTAS` é por igualdade, `PREFIXOS_ABERTOS` por prefixo**,
+porque quem fecha a porta nas fontes e na folha é a lista branca
+`TIPOS` e a conferência da etiqueta, não a linha da porta. Lê a área
+«Contas e a porta» do `docs/armadilhas.md` antes de tocar nisto.
 
 **O endereço público é `https://radargov.pt`** (8/09/2026, etapa 3
 do plano, feita pela via B — o PC de empresa exposto por um túnel, não

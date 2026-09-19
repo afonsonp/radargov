@@ -478,9 +478,54 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 
 ### 4.9 A porta
 
-Login obrigatório em tudo menos `/entrar`. **Dois papéis**: `admin` (vê
-tudo, cria contas) e `tester` (403 no que é do sistema). Um pedido deste
-computador, sem túnel a meio, entra sem login (`acesso_livre_local`).
+Tudo passa por um só sítio antes de qualquer rota: o
+`porta_de_entrada()`, logo a seguir ao `app`. As tabelas e a
+criptografia estão no **`contas.py`**, que não importa o radar.
+
+**Quem entra.** Três estados, por esta ordem:
+
+1. **Com sessão** — o cookie `sessao`, válido 30 dias
+   (`DIAS_DE_SESSAO`). A senha guarda-se em `scrypt`, nunca em claro.
+2. **Acesso livre local** — um pedido deste computador **que não passou
+   por um túnel** entra como o único utilizador, ou como o primeiro
+   admin quando há mais contas (`acesso_livre_local`, a `true`). É o que
+   mantém o desenvolvimento e os testes sem login a cada pedido.
+3. **Nem um nem outro** — um GET é reencaminhado para `/entrar?para=…`,
+   um POST leva 403.
+
+**O que fica aberto sem sessão** não é só o `/entrar`: também o
+`/saude`, e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
+e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
+ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
+
+**Dois papéis** (`utilizadores.papel`). O **admin** vê tudo e cria
+contas; o **tester** leva 403 nas nove rotas do sistema
+(`ROTAS_SO_ADMIN`: Indicadores, Capturas, Recolha, Leitura das peças,
+Cópias, a gestão de utilizadores, o «Verificar agora» e quem envia o
+e-mail). `sou_admin()` é a pergunta — e no acesso livre **sem conta
+nenhuma** a resposta é sim, senão não se chegava a Conta para criar a
+primeira.
+
+**Duas guardas diferentes para um POST**, e confundi-las é o erro que os
+diagramas ainda têm:
+
+- **Com sessão**, o token CSRF, derivado da sessão por HMAC e não
+  guardado em lado nenhum (`csrf_bate()`) — um cookie roubado sem o
+  token não serve para um POST de outro sítio.
+- **Sem sessão** (acesso livre), o `origem_e_nossa()`: se o browser
+  disser de onde vem, tem de ser daqui. Um pedido sem `Origin` nem
+  `Referer` passa — é o caso dos testes e do `curl`, e não há sessão
+  para roubar.
+
+**O túnel é a razão de «local» não ser o IP.** O `cloudflared` liga-se
+ao painel a partir de `127.0.0.1`: só pelo endereço, todos os visitantes
+de `radargov.pt` eram locais. O `pedido_e_local()` conta também os
+cabeçalhos de proxy e o `Host` público — qualquer um deles chega para o
+pedido deixar de ser local.
+
+**Cinco falhas em quinze minutos fecham o trinco**, por e-mail **ou** por
+IP (`FALHAS_ATE_TRINCO`, `MINUTOS_DE_TRINCO`). Não há recuperação por
+e-mail: a senha troca-se por consola, com `--palavra-passe NOME`.
 
 ### 4.10 O que corre sozinho
 
