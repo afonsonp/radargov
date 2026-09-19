@@ -13611,6 +13611,63 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         self.assertIn(radar.FOLHA_CSS, entrar.get_data(as_text=True))
 
 
+class TestOActualizarReiniciaSempreOPainel(unittest.TestCase):
+    """19/09/2026: o painel esteve dezassete horas a servir código velho.
+
+    O `actualizar.sh` saía com `exit 0` no «já está na última release»,
+    **antes** da linha que reinicia o serviço. Nesta pasta é o caso
+    normal — programa-se aqui, por isso nunca há nada a trazer — e o
+    reinício nunca acontecia. O serviço tinha arrancado a 18/09 às
+    07:53 e o `radar.py` fora gravado a 19/09 à 01:09.
+
+    É a armadilha que o CLAUDE.md já mandava verificar («compara a hora
+    de arranque do processo com a da última gravação do radar.py»), e
+    que um guião ajudava a esconder ao dizer «já está na última
+    release».
+    """
+
+    GUIAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "actualizar.sh")
+
+    def setUp(self):
+        with open(self.GUIAO, encoding="utf-8") as f:
+            self.linhas = f.read().splitlines()
+
+    def _linha_de(self, agulha):
+        for i, l in enumerate(self.linhas):
+            if agulha in l and not l.strip().startswith("#"):
+                return i
+        self.fail("não encontrei %r no actualizar.sh" % agulha)
+
+    def test_nenhuma_saida_boa_salta_o_reinicio(self):
+        """A regra, e não o texto: todo o `exit 0` — se algum voltar —
+        tem de vir **depois** do reinício. É isto que falhava."""
+        reinicio = self._linha_de("try-restart radar-painel.service")
+        for i, l in enumerate(self.linhas):
+            if l.strip() == "exit 0":
+                self.assertGreater(
+                    i, reinicio,
+                    "linha %d: um `exit 0` antes do reinício deixa o "
+                    "painel a servir código velho" % (i + 1))
+
+    def test_o_caminho_sem_nada_a_trazer_chega_ao_reinicio(self):
+        """O ramo «já está na última release» não pode terminar o
+        guião: é o ramo que corre todos os dias nesta pasta."""
+        ja_esta = self._linha_de("Já está na última release")
+        reinicio = self._linha_de("try-restart radar-painel.service")
+        self.assertLess(ja_esta, reinicio)
+        seguintes = self.linhas[ja_esta + 1:reinicio]
+        self.assertNotIn("exit 0", [l.strip() for l in seguintes])
+
+    def test_diz_a_verdade_quando_a_pasta_esta_a_frente(self):
+        """Dizia «a pasta está agora na release vX.Y.Z» quando estava à
+        frente dela — o `git merge --ff-only` para um antepassado
+        devolve «Already up to date» e sai bem."""
+        self._linha_de("merge-base --is-ancestor")
+        junto = "\n".join(self.linhas)
+        self.assertIn("à frente da release", junto)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

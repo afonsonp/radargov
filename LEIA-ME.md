@@ -861,8 +861,10 @@ correres, na pasta:
 ./actualizar.sh
 ```
 
-Traz a última versão publicada, instala o que for preciso e reinicia o
-painel. Demora segundos. Três coisas a saber:
+Traz a última versão publicada, instala o que for preciso e **reinicia
+sempre o painel** — mesmo quando não havia nada a trazer, porque o
+painel só lê o código ao arrancar. Demora segundos. Três coisas a
+saber:
 
 - **Nunca traz trabalho a meio.** Só avança até uma versão *publicada*
   (uma «release»), nunca até ao último remendo que alguém gravou.
@@ -875,12 +877,13 @@ painel. Demora segundos. Três coisas a saber:
 Para saber em que versão estás, a ligação no canto da barra; ou, na
 pasta, `git describe --tags`.
 
-> **Sabe-se uma coisa que ele diz mal** (19/09/2026): quando a pasta já
-> está *à frente* da última versão publicada — que é o que acontece
-> enquanto se trabalha nela — o `actualizar.sh` termina com «a pasta
-> está agora na release vX.Y.Z», e não está: está mais à frente. Não
-> estraga nada, mas não acredites na linha final; o `git describe` diz
-> a verdade.
+> **Corrigido a 19/09/2026, e vale a pena saber porquê.** O guião saía
+> no «já está na última release» **antes** de reiniciar o painel — e
+> nesta pasta esse é o caso de todos os dias, porque o código escreve-se
+> aqui e não há nada para trazer. Resultado: o painel esteve dezassete
+> horas a servir código antigo sem nada o dizer. Agora o reinício é
+> sempre, e a linha final distingue «está na release» de «está à frente
+> dela».
 
 ## 13. Comandos, se precisares
 
