@@ -22268,6 +22268,14 @@ def _o_que_mudou(hoje, cfg):
              CABEM_NO_LADO)).fetchall()
 
     _, quando_verif, verif_ok = linha_da_ultima_verificacao()
+    # **Já vem escapado** daquela função, e traz a mensagem inteira
+    # («18/09/2026 17:03 &mdash; ok, 1 174 anúncios lidos · 3 consultas
+    # preliminares»). As duas coisas davam avaria: escapá-lo outra vez
+    # punha «&mdash;» escrito no ecrã, e a mensagem inteira numa coluna
+    # de 44px rebentava a caixa. No ecrã vai só a hora; a mensagem fica
+    # na dica. Apanhado a olhar para a folha de todos os ecrãs.
+    so_a_hora = quando_verif.split(" &mdash; ")[0]
+    dica_verif = html.escape(re.sub(r"&\w+;", "—", quando_verif), quote=True)
 
     numeros = (
         "<div class='mudou-n'>"
@@ -22301,9 +22309,9 @@ def _o_que_mudou(hoje, cfg):
             itens += ("<a class='nota' href='%s'>ver os %s no interesse "
                       "&rarr;</a>" % (LISTA + "?estado=porver",
                                       mil_pt(quantos_interesse)))
-        linhas.append("<div class='l'><span class='hj-q'>%s</span>"
-                      "<div>%s</div></div>"
-                      % (html.escape(quando_verif), itens))
+        linhas.append("<div class='l'><span class='hj-q' title='%s'>%s"
+                      "</span><div>%s</div></div>"
+                      % (dica_verif, so_a_hora, itens))
     for m in mudou:
         linhas.append(
             "<div class='l'><span class='hj-q'>%s</span><div>"
@@ -22338,9 +22346,9 @@ def _o_que_mudou(hoje, cfg):
         # (redesenho §5): no primeiro dia, quem chega às 10:00 não sabe
         # que a verificação seguinte é às 17:00 nem que há um botão.
         linhas.append(
-            "<div class='l'><span class='hj-q'>%s</span>"
+            "<div class='l'><span class='hj-q' title='%s'>%s</span>"
             "<div class='nota'>%s %s</div></div>"
-            % (html.escape(quando_verif),
+            % (dica_verif, so_a_hora,
                "Nada de novo desde a última verificação."
                if verif_ok and le_marca("ultima_verificacao", "nunca") != "nunca"
                else "Ainda não houve uma verificação. O radar verifica "
@@ -22348,18 +22356,13 @@ def _o_que_mudou(hoje, cfg):
                accao("/verificar", "verificar agora", "mini")
                if sou_admin() else ""))
 
-    # No cabeçalho vai só QUANDO; a mensagem inteira («ok, 1 161 anúncios
-    # lidos · 1 leitura completada · 9 consultas preliminares da Vortal»)
-    # enchia três linhas de um cartão estreito. Fica na dica, que é onde
-    # se vai procurá-la quando se desconfia de alguma coisa.
-    curto = quando_verif.split(" &mdash; ")[0]
     return ("<div class='cx'><div class='rot' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
             "<span class='direita' title='%s'%s>%s</span></div>%s"
             "<div class='feed'>%s</div></div>"
-            % (html.escape(re.sub(r"&\w+;", " ", quando_verif), quote=True),
+            % (dica_verif,
                "" if verif_ok else " style='color:var(--verm)'",
-               curto, numeros, "".join(linhas)))
+               so_a_hora, numeros, "".join(linhas)))
 
 
 def _prazos_a_chegar(hoje, prazos):

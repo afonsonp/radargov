@@ -65,3 +65,7 @@ pip.pyz
 
 # Os ficheiros carregados em Configurações › Importar dados (o modelo preenchido).
 importacoes/
+
+# A folha com todos os ecrãs (ferramentas/ecrans.py). É gerada, tem
+# 0,7 MB de CSS e fontes embutidos, e fica velha assim que um ecrã muda.
+ecrans-radargov.html

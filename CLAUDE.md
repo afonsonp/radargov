@@ -110,6 +110,10 @@ python radar.py --empresa-desfazer COPIA # repõe a triagem tal como está numa 
 python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
 python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass
+python ferramentas/ecrans.py       # todos os ecrãs num HTML só, para os ver
+                                   # lado a lado: o HTML verdadeiro de cada
+                                   # rota, com o CSS e as fontes embutidos.
+                                   # Gerado e ignorado pelo git; refaz-se
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
