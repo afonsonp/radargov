@@ -14,16 +14,33 @@ mudanças de sistema porque **um `.md` não falha**: ninguém o corre.
 O `repetido.py` pergunta «isto está escrito duas vezes?». Este pergunta
 outra coisa, e é a que faltava: **«isto que aqui está escrito existe?»**
 
-Confere sete famílias de referência, e só as que têm resposta
+Confere nove famílias de referência, e só as que têm resposta
 mecânica:
 
-  `funcao()`     está definida no radar.py, contas.py ou empresa.py?
-  `CONSTANTE`    é atribuída ao nível do módulo?
-  `--bandeira`   o programa aceita-a?
+  `funcao()`     está definida no nosso código?
+  `CONSTANTE`    aparece em ficheiro de código nenhum?
+  `--bandeira`   o programa, uma skill ou uma ferramenta aceita-a?
   `/rota`        está registada no Flask?
   `ficheiro.ext` existe no disco?
   `pasta/`       existe no disco?
   `§N.N`         a secção existe no ficheiro apontado?
+  a skill X      existe em .claude/skills, .claude/agents ou no perfil?
+  `~/caminho`    existe?
+
+E as contagens deriváveis (`valida_numeros()`): rotas, tabelas, áreas
+e pontos das armadilhas, secções das configurações.
+
+**As duas últimas famílias entraram depois, e é a parte que interessa.**
+A 19/09/2026 parti o `CLAUDE.md` de propósito, com quatro mentiras do
+mesmo feitio das do `task-observer`: uma função, uma rota, uma skill e
+um caminho `~/`. A ferramenta apanhou **duas** — e as duas que
+escaparam eram exactamente as do `task-observer`. **A ferramenta que
+nasceu dele não o teria apanhado.** Só depois de as acrescentar é que
+a prova deu quatro em quatro.
+
+Se acrescentares uma família, parte a documentação de propósito e vê
+se ela cai. Um verificador que nunca falhou não está provado — está
+por experimentar.
 
 **O que NÃO confere: se a frase é verdadeira.** «O prazo é 15 dias»
 tem um número que este programa não sabe ler. Para esses vale a regra
@@ -138,6 +155,9 @@ ISENTOS = {
     "curl_ensaio_do_hook.txt": "ficheiro de ensaio do hook, apagado",
     "verificar.bat": "os .bat saíram a 8/09/2026",
     "radar/": "«a pasta do radar», genérico",
+    # a skill que nunca existiu: o CLAUDE.md fala dela para dizer
+    # que saiu, e é dela que esta ferramenta nasceu
+    "task-observer": "saiu a 19/09/2026; nunca existiu",
 }
 
 
@@ -285,12 +305,25 @@ def refs_dos_docs():
                     k = "ficheiro"
                 elif re.fullmatch(r"[\w/-]+/", s):
                     k = "pasta"
+                elif re.fullmatch(r"~/[\w./-]+", s):
+                    k = "caminho_de_casa"
                 else:
                     continue
                 achados[k][s].append((f, n))
             for sec in re.findall(
                     r"`([\w./-]+\.md)`[^`\n]{0,40}?§(\d+(?:\.\d+)?)", linha):
                 achados["seccao"]["%s§%s" % sec].append((f, n))
+            # **A família que faltava**, e é a que fundou a ferramenta:
+            # a instrução do `task-observer` dizia «a skill global
+            # `task-observer`» e escrevia em `~/.claude/projects/…`.
+            # A primeira versão disto não conferia nem uma coisa nem
+            # outra — apanhava a função e a rota inventadas, e deixava
+            # passar exactamente o erro que a motivou. Provado a
+            # 19/09/2026 partindo o `CLAUDE.md` de propósito.
+            for m in re.finditer(
+                    r"(?:skill|subagente|agente)s?\s+(?:global\s+)?"
+                    r"\*{0,2}`([\w-]+)`", linha, re.I):
+                achados["skill"][m.group(1)].append((f, n))
     return achados
 
 
@@ -331,6 +364,26 @@ def o_que_o_codigo_tem():
                                                               ast.Name):
                 constantes.add(no.target.id)
     return funcoes, constantes
+
+
+def skill_existe(nome):
+    """Uma skill ou subagente com este nome, aqui ou no perfil global.
+
+    Procura nos três sítios de onde o Claude Code as carrega. Foi a
+    ausência desta pergunta que deixou o `task-observer` — que não
+    existia em nenhum deles — a mandar em todas as sessões durante
+    semanas.
+    """
+    for pasta in (os.path.join(RAIZ, ".claude", "skills"),
+                  os.path.join(RAIZ, ".claude", "agents"),
+                  os.path.expanduser("~/.claude/skills"),
+                  os.path.expanduser("~/.claude/agents")):
+        if not os.path.isdir(pasta):
+            continue
+        for entrada in os.listdir(pasta):
+            if entrada == nome or entrada == nome + ".md":
+                return True
+    return False
 
 
 def o_que_o_flask_tem():
@@ -423,6 +476,14 @@ def valida():
     for tok, onde in refs["pasta"].items():
         if not os.path.isdir(os.path.join(RAIZ, tok.rstrip("/"))):
             erro("pasta", tok, onde, "não existe no disco")
+    for tok, onde in refs["skill"].items():
+        if not skill_existe(tok):
+            erro("skill", tok, onde,
+                 "não existe em .claude/skills, .claude/agents nem "
+                 "~/.claude/skills")
+    for tok, onde in refs["caminho_de_casa"].items():
+        if not os.path.exists(os.path.expanduser(tok)):
+            erro("caminho", tok, onde, "não existe")
     for tok, onde in refs["seccao"].items():
         alvo, sec = tok.split("§")
         for base in ("", "docs"):
