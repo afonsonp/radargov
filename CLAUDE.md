@@ -301,38 +301,19 @@ A ordem do ficheiro é a ordem do fluxo:
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
    próprio. `historico_entidade()` responde ao bloco da ficha do
    anúncio, `ficha_entidade()` à página `/entidade/<chave>`.
-   **Desde 17/09/2026 (fase 2 do `docs/historico/CICLOS.md`) toda a
-   entidade tem ficha**, com corpus ou sem ele (D3): `entidade()` já não
-   começa por `ha_corpus()`, e só dá 404 quando a chave não existe nem
-   em `anuncios`, nem em `propostas`, nem em `contactos`. A ficha tem
-   dois lados — o do Portal BASE e o **nosso** (`nosso_lado_cx()` sobre
-   `lado_da_empresa()`): os anúncios dela na base, as nossas propostas,
-   a taxa com ela (`MINIMO_COM_ENTIDADE`, cinco decididos) e os
-   contactos, que passaram a poder criar-se ali. A lista é `/entidades`,
-   vista do Mercado na barra. **A chave da entidade é UMA só**
-   (`chave_entidade()`, com o prefixo `n:` quando não há NIF): a
-   `chave_da_entidade()` devolvia-a sem prefixo e eram duas escritas do
-   mesmo facto — há migração dos `contactos` no `iniciar_db()`, e quem
-   procura tenta as duas (`chaves_da_entidade()`). A `propostas` ganhou
-   a coluna `entidade_chave`.
-   **Redesenhadas a 17/09/2026** (§3 e §4 do
-   `docs/historico/REDESENHO.md`): a lista `/entidades` passou a ter
-   **cinco abas** (`ABAS_DAS_ENTIDADES`, com «Contratos a acabar · 90
-   dias» a mais) e uma tabela só — o papel, o que compra, o que ganha, a
-   fita do «connosco» (`_fita_connosco()`, um quadrado por proposta com
-   a cor do desfecho), a taxa com ela e o que lhe acaba
-   (`a_acabar_por_entidade()`); marcando duas linhas, comparam-se lado a
-   lado (`_bloco_de_comparacao()`). A ficha abre com **seis factos**
-   (`factos_da_entidade()`) e tem duas colunas: o nosso lado à esquerda,
-   o Portal BASE à direita. **Sem corpus diz «sem BASE» e não zero.** O
-   «a acabar» corre pelo `ix_ctr_chave_fim(adjudicante_chave,
-   fim_estimado)`, que substituiu o `ix_ctr_chave` estreito — e que
-   **entra depois da migração que cria a coluna**, senão um corpus novo
-   dá «no such column». **Nenhum recorte novo entrou no
-   `condicoes()`**: a ligação para os anúncios de uma entidade usa os
-   campos que o motor já tem (`nif` ou `ent`), por
-   `filtro_dos_anuncios_da_entidade()`, que é o mesmo objecto com que o
-   número se conta.
+   **O que as entidades SÃO** — a chave única, os dois lados da ficha,
+   as cinco abas, os seis factos — está no `docs/FUNCIONAL.md` §3.4 e
+   §4.7. Os nomes no código: `chave_entidade()` / `chave_da_entidade()`
+   / `chaves_da_entidade()` (grava-se uma, procura-se pelas duas),
+   `nome_da_entidade()`, `lado_da_empresa()` e `nosso_lado_cx()`,
+   `factos_da_entidade()`, `ABAS_DAS_ENTIDADES` e `_linhas_da_aba()`,
+   `_fita_connosco()`, `a_acabar_por_entidade()`,
+   `_bloco_de_comparacao()`, `filtro_dos_anuncios_da_entidade()`,
+   `MINIMO_COM_ENTIDADE`. A `propostas` tem a coluna `entidade_chave`.
+   As três armadilhas desta área — a chave com prefixo, o índice
+   `ix_ctr_chave_fim` que entra **depois** da migração que cria a
+   coluna, e o filtro que não acrescenta recorte ao `condicoes()` —
+   estão no `docs/armadilhas.md`, «Contratos e entidades».
 8. **painel** — rotas Flask, HTML gerado por concatenação de strings
    (`CSS`, `BASE`, `NAV`). Abre com **a porta** (`porta_de_entrada()`,
    `/entrar`, `/sair`, `/sair-de-todos`, `com_csrf()`), que exige
