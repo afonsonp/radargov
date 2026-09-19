@@ -16,6 +16,30 @@ Serve duas leituras:
 Ao desenhar um ecrã novo, o §2 (os dados) e o §6 (as regras) são os
 dois que decidem se ele é possível como está desenhado.
 
+> **Este ficheiro é o DONO de «o que a aplicação é e faz».** Decidido a
+> 19/09/2026, depois de se medir que os nove assuntos da aplicação
+> estavam contados nos **oito** ficheiros vivos ao mesmo tempo — a
+> escada 140 vezes, as entidades 236. Não era desleixo: os ficheiros
+> estavam divididos por **género** (as regras, o manual, as armadilhas,
+> o porquê), e uma divisão por género obriga a contar cada assunto uma
+> vez por género. Corrigir um facto passava por seis sítios, e a 17/09 o
+> manual ainda descrevia um quadro que tinha saído dois dias antes.
+>
+> A regra que fica: **um facto tem um dono, e os outros apontam.**
+>
+> | Dono de | Ficheiro |
+> |---|---|
+> | o que a aplicação **é e faz** | **este** |
+> | como se **opera** (instalar, correr, refazer capturas) | `LEIA-ME.md` |
+> | as **armadilhas**, por área | `docs/armadilhas.md` |
+> | as **regras de trabalho** e o mapa do código | `CLAUDE.md` |
+> | os **números medidos** de hoje | `ESTADO.md` |
+> | o que está **em aberto** | `BACKLOG.md` |
+> | o **porquê**, com data | `docs/referencia.md`, `docs/historico/` |
+>
+> Se estás a escrever aqui uma coisa que é de outro dono, ela vai para
+> lá e fica aqui uma ligação. E ao contrário.
+
 ---
 
 ## 1. O que a aplicação é

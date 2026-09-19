@@ -286,18 +286,11 @@ evoluiu.
 não zero — zero era uma afirmação sobre o mercado, e a verdadeira é «não
 sei». A lista diz-te onde o trazer.
 
-### Mudar de ranhura, e o que cada uma pede
+### Mudar de ranhura
 
-A ranhura muda-se no selector de cada linha, e **qualquer salto é
-permitido** — não tens de passar pelo meio, e voltar atrás é reabrir.
-
-O que o radar não deixa é entrar numa ranhura sem a informação que a faz
-ser verdade. **Submetido**, **Ganho** e **Perdido** pedem o preço
-proposto; **Relatório preliminar** pede o preço e o lugar; **Perdido** e
-**Não fomos** pedem o motivo. Se faltar, o gesto é recusado e o aviso diz
-exactamente o que falta — preenche no bloco «A nossa proposta» e escolhe
-outra vez. Foi pedido teu: «não posso passar um por analisar directo
-para ganho porque há informação que não foi preenchida».
+O gesto está no **§9**, e o que cada ranhura exige no
+`docs/FUNCIONAL.md` §3.1. (Esta secção repetia os dois, palavra por
+palavra — saiu a 19/09/2026.)
 
 ### As propostas sem anúncio
 
@@ -325,10 +318,10 @@ Em cima da lista estão as **dez ranhuras da escada**, por ordem:
   prazo aberto, ou, quando o prazo ainda não foi lido, publicado nos
   últimos 60 dias (a janela `detalhe_dias`). É a aba em que a página
   abre, e anda na ordem do milhar, não dos 200 mil.
-- As **oito palavras da empresa** — *por analisar · a preparar proposta
-  · submetido · relatório preliminar · ganho · perdido · não fomos ·
-  cancelado*. Estas oito mostram **propostas**, não anúncios: com lotes
-  há uma proposta por lote, e há propostas que nem anúncio têm.
+- As **oito palavras da empresa**, por ordem (estão no
+  `docs/FUNCIONAL.md` §3.1). Estas oito mostram **propostas**, não
+  anúncios: com lotes há uma proposta por lote, e há propostas que nem
+  anúncio têm.
 - **Expirou sem ver** — o que já não é possível responder e ninguém
   chegou a olhar. Passa para cá sozinho: se um anúncio for rectificado
   com prazo novo, volta ao Por ver.
@@ -748,22 +741,27 @@ deu (uma página a dizer «Correu mal» fica aqui registada).
 
 ## 9. A escada, e o bloco «A nossa proposta»
 
-**O quadro saiu a 15/09/2026, e o «Em curso» com ele.** O que faziam
-mora em dois sítios.
+> **O que a escada é** — as dez ranhuras, o que cada uma exige para se
+> entrar nela, e as listas fechadas de motivos — está no
+> `docs/FUNCIONAL.md` §3.1, e só lá. Aqui fica o que tu fazes com ela.
 
 **A ranhura muda-se na linha.** Em qualquer lista — a dos Concursos, a
-do Hoje — cada linha tem um selector com as oito palavras da empresa
-mais «tirar da escada». Escolhe e carrega em «ir». Onde a ranhura pede
-um motivo («Perdido», «Não fomos») abre-se uma caixa a perguntar
-porquê; e onde ela exige um campo que ainda não está preenchido, o
-gesto é recusado e o aviso diz o que falta (§5, «Mudar de ranhura»).
+do Hoje — cada linha tem um selector com as oito palavras mais «tirar
+da escada». Escolhe e carrega em «ir».
+
+Duas coisas podem travar-te, e as duas dizem porquê:
+
+- se a ranhura pedir **motivo** («Perdido», «Não fomos»), abre-se uma
+  caixa a perguntar, com a lista à escolha;
+- se faltar um **campo** que ela exige — o preço proposto, o lugar —, o
+  gesto é recusado e o aviso diz exactamente o que falta. Preenche no
+  bloco «A nossa proposta» e escolhe outra vez.
 
 **Tudo o resto vive no bloco «A nossa proposta»**, na ficha do anúncio —
 e há um bloco por lote, quando há lotes. Lá dentro: a ranhura, os campos
-que ela pede (preço proposto, lugar, os três primeiros, o motivo), o que
-a empresa decide (tipologia, CV, proposta técnica), o responsável, o
-CoE, as notas, as etiquetas, o que falta fazer, e o desfecho do Portal
-BASE quando já há contrato celebrado.
+que ela pede, o que a empresa decide (tipologia, CV, proposta técnica),
+o responsável, o CoE, as notas, as etiquetas, o que falta fazer, e o
+desfecho do Portal BASE quando já há contrato celebrado.
 
 **Marcar interessa** num anúncio põe-no em «Por analisar» — e é o sinal
 que manda o radar ir buscar as peças. **Voltar a por ver** tira-o da
