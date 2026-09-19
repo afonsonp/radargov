@@ -1443,8 +1443,12 @@ pelo Afonso e nenhuma se reabre de passagem.
   `len(tarefas)` passou a ser maior do que a lista que a âncora abre —
   exactamente a avaria que a regra da empresa proíbe, e que este mesmo
   KPI já cometeu uma vez (contava seis de oito e ligava ao calendário).
-  O `_quantas()` existe para isso: `len(balde)` conta **grupos**, desde
-  que as tarefas se agrupam por proposta.
+  O `_quantas()` existe para isso. (Nasceu porque `len(balde)` contava
+  **grupos** enquanto as tarefas se agrupavam por proposta; o
+  agrupamento saiu a 18/09/2026 — o concurso é hoje uma coluna da
+  linha —, e a função fica porque a **razão** continua: o que se conta
+  é o que se desenha, e o balde «prazo passou sem decisão» esconde as
+  automáticas dos outros baldes.)
 
 - **O «desfazer» do aviso só conhecia `/estado/`.** O
   `/tarefa/<id>/feita` mandava o caminho do desfazer desde que nasceu e

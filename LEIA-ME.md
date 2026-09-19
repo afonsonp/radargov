@@ -209,23 +209,21 @@ as setas andam de semana em semana.
 
 Por baixo, duas colunas.
 
-**À esquerda, o que há para fazer**, em cinco baldes:
+**À esquerda, o que há para fazer**, em cinco baldes — a lista deles e
+o que cada linha mostra estão no `docs/FUNCIONAL.md` §4.1. Três coisas
+que só se sabem a usar:
 
-1. **Prazo passou sem decisão** — os concursos em «Por analisar» ou «A
-   preparar proposta» cujo prazo do Diário da República já passou. **O
-   radar não mexe em nenhum**: mostra-os e põe o selector da ranhura ao
-   lado, e quem escolhe és tu. Foi pedido teu — «posso não ter passado
-   para submetido por esquecimento».
-2. **Atrasadas** — com um «adiar todas p/ hoje», que pergunta antes
-   (não há desfazer: cada tarefa tinha a sua data).
-3. **O dia escolhido na fita** (por omissão, hoje).
-4. **Resto da semana** · 5. **Mais para a frente** — estes dois dobram.
-
-Cada linha é uma tarefa e diz tudo de uma vez: a caixa de ✓, o texto, o
-dia, **de que concurso é** (referência e entidade), de quem é (o
-círculo com as iniciais; tracejado quer dizer sem dono) e quando o
-concurso entrega. Um concurso cujas automáticas estão no primeiro balde
-não as repete nas atrasadas.
+- **O primeiro balde não é trabalho teu: é decisão tua.** São os
+  concursos em «Por analisar» ou «A preparar proposta» cujo prazo já
+  passou. **O radar não mexe em nenhum** — mostra-os com o selector da
+  ranhura ao lado, e quem escolhe és tu. Foi pedido teu: «posso não ter
+  passado para submetido por esquecimento».
+- **O «adiar todas p/ hoje» das atrasadas pergunta antes, e não tem
+  desfazer** — cada tarefa tinha a sua data, e depois de as juntar num
+  dia não há como as devolver.
+- **Um concurso cujas automáticas estão no primeiro balde não as repete
+  nas atrasadas.** Se procuras uma tarefa e não a vês, é aí que ela
+  está.
 
 **A tarefa risca-se ali e a página fica onde está** — a linha não
 desaparece: fica riscada, com o **desfazer** ao lado. Em cima podes
