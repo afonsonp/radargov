@@ -255,36 +255,36 @@ trimestre passado.
 
 ### A ficha de uma entidade
 
-**Toda a entidade tem ficha** — as que o Portal BASE conhece e as que só
-existem no Diário da República. Clica no nome da entidade em qualquer
+> **O que a lista e a ficha mostram** — as cinco abas, as colunas da
+> tabela, os seis factos do topo — está no `docs/FUNCIONAL.md` §3.4 e
+> §4.7, e só lá. Aqui fica o que tu fazes.
+
+**Toda a entidade tem ficha**, tenha ou não contratos no Portal BASE.
+Chega-se por dois caminhos: **clica no nome da entidade** em qualquer
 anúncio, ou vai a **Mercado › Entidades**.
 
-A lista tem uma procura por nome ou NIF e **cinco abas**: com quem
-trabalhamos · seguidas · clientes que mais compram · concorrentes que
-mais ganham · **contratos a acabar nos próximos 90 dias**. Cada linha
-diz o papel da entidade, o que compra, o que ganha, a **fita do
-«connosco»** — um quadrado por proposta nossa, verde se se ganhou,
-vermelho se se perdeu, azul se está em curso —, a taxa com ela e o que
-lhe acaba na janela. **Marca duas e carrega em «comparar as marcadas»**
-para as ver lado a lado.
+Na lista, três gestos:
 
-A ficha abre com **seis números**: o que ela comprou nos últimos 24
-meses, quanto disso cai no teu CPV, a que desconto costuma fechar,
-quantas propostas já lhe fizemos, a taxa com ela e o que lhe acaba nos
-próximos 90 dias.
+- **procura** por nome ou NIF — apanha todas as grafias com que a
+  entidade já assinou, por isso não tens de acertar no nome;
+- **as abas** mudam a pergunta, não o filtro: com quem trabalhamos,
+  quem segues, quem mais compra, quem mais ganha, e a quem acaba um
+  contrato em breve;
+- **marca duas linhas e carrega em «comparar as marcadas»** para as ver
+  lado a lado.
 
-Por baixo, dois lados. À esquerda o **nosso**: quantos anúncios dela
-estão na base (o número abre exactamente essa lista), as propostas que
-lhe fizemos com o estado e o preço de cada uma, quantos ganhámos dos
-decididos — a percentagem só aparece a partir de cinco decididos, e
-abaixo disso o ecrã diz de quantos precisa — e os contactos, que se
-criam ali e passam a aparecer em todos os concursos dela. À direita o do
-**Portal BASE**: o que ela compra, o que ganha, a quem, e como isso
-evoluiu.
+Na ficha, o teu lado está à esquerda e o do mercado à direita. Duas
+coisas que vale a pena saber ao usar:
 
-**Sem o corpus do Portal BASE** as colunas do mercado dizem «sem BASE» e
-não zero — zero era uma afirmação sobre o mercado, e a verdadeira é «não
-sei». A lista diz-te onde o trazer.
+- **os contactos criam-se ali**, e passam a aparecer em todos os
+  concursos dessa entidade — são dela, não do concurso;
+- **a taxa com ela só aparece a partir de cinco decididos**; abaixo
+  disso o ecrã diz de quantos precisa, em vez de inventar uma
+  percentagem sobre dois casos.
+
+**Sem o corpus do Portal BASE** as colunas do mercado dizem «sem BASE»
+e não zero — zero era uma afirmação sobre o mercado, e a verdadeira é
+«não sei». O ecrã diz-te onde o trazer.
 
 ### Mudar de ranhura
 
@@ -412,10 +412,9 @@ Renovações, agora uma aba que mantém o filtro e mostra o que está a
 chegar ao fim (o modo diz-se no título da tabela, e as datas de
 celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
 de cada entidade**, com uma ligação directa a «o que está a acabar»
-dela — e há a vista **Entidades** na barra, com a procura por nome ou
-NIF (que cobre todas as grafias com que a entidade já assinou) e quatro
-atalhos: com quem trabalhamos, seguidas, clientes que mais compram,
-concorrentes que mais ganham.
+dela — e há a vista **Entidades** na barra, descrita no §5, «A ficha de
+uma entidade». (Estava aqui a lista das abas outra vez, e ainda dizia
+«quatro atalhos» quando já são cinco desde 18/09 — saiu a 19/09/2026.)
 
 Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
 quando as peças se conseguem automaticamente, a cinzento quando tens de
