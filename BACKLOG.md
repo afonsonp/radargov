@@ -540,7 +540,7 @@ premissa mudar — com data e números novos.
   para fora. **As três etapas ficaram feitas no mesmo dia**: o
   login (`contas.py`, `/entrar`, sessões, CSRF, trinco), o endereço
   fixo `https://radargov.pt` (túnel com nome, `tunel_fixo.sh`) e o
-  menu de Configurações (`/configuracoes/<seccao>`, sete secções;
+  menu de Configurações (`/configuracoes/…`, sete secções;
   Alertas saiu da barra). A pasta já está no disco interno
   (`~/Desktop/radar`), com o `linger` ligado. O painel no telemóvel,
   que ele tinha adiado de manhã («vai ser utilizada maioritariamente no

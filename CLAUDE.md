@@ -273,7 +273,7 @@ A ordem do ficheiro é a ordem do fluxo:
 2b. **propostas** — o CRM inteiro (`docs/historico/CRM.md`,
    15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_EMPRESA`),
    `criar_proposta()` / `mover_proposta()` /
-   `gravar_campos_da_proposta()` / `contar_propostas()`, as tarefas
+   `gravar_campos_da_proposta()` / `_propostas_por_estado()`, as tarefas
    (`sincronizar_tarefas()`; as duas origens estão no
    `docs/FUNCIONAL.md` §3.5), o cruzamento com o Portal BASE
    (`propostas_por_fechar()`, `fomos_nos()`, `desvio_do_proposto()` —
@@ -358,7 +358,9 @@ A ordem do ficheiro é a ordem do fluxo:
    decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
    (13/09/2026; `<header class="barra">`), só com a marca, os itens,
    **Configurações** e quem está. Configurações
-   (`/configuracoes/<seccao>`, etapa 2 do `ONLINE.md`, 8/09/2026):
+   (`/configuracoes/…`, etapa 2 do `ONLINE.md`, 8/09/2026 — **nove
+   rotas literais**, não um `<seccao>`: procura-se pelo nome de cada
+   uma):
    nove secções por esta ordem — conta, interesse, alertas, importar,
    indicadores, capturas, recolha, leitura das peças, cópias
    (`SECCOES_CONFIG`, com a bandeira de só-admin nas cinco últimas) —
