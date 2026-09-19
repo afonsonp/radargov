@@ -240,12 +240,31 @@ cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
 
-1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. SQLite, tabelas
-   `anuncios`, `documentos`, `analise`, `fases`, `etiquetas`, `historico`,
-   `cpv_dict`, `slots`, `estado`, `filtros_guardados`, `erros` (C3: a
-   série dos erros que as marcas sobrescrevem; poda a 200 por tipo),
-   `propostas`, `tarefas` e `contactos` (o CRM, 15/09/2026). São **23
-   tabelas**, contadas a 17/09/2026 na base dele.
+1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. **As tabelas,
+   com o que cada uma tem lá dentro e quantas linhas, estão no
+   `docs/FUNCIONAL.md` §2.1**; os números medidos de hoje no
+   `ESTADO.md`.
+
+   **Como as migrações funcionam — o `iniciar_db()` a correr a cada
+   arranque, sem ficheiros nem versões — está no `docs/FUNCIONAL.md`
+   §2.1.** Daí saem quatro regras de trabalho, que são o que este
+   ficheiro guarda:
+
+   - **A ordem dentro do `iniciar_db()` é contrato, não arrumação.** Um
+     passo que leia uma coluna tem de vir depois do `ALTER` que a cria.
+     Aconteceu a 17/09/2026: o enchimento do `propostas.entidade_chave`
+     estava antes dos `ALTER` do `anuncios` e rebentava numa base antiga
+     com `no such column: a.nif`.
+   - **Um índice entra depois da migração que cria a coluna dele** — o
+     `ix_ctr_chave_fim` é o caso, e está nas armadilhas.
+   - **Uma release que traga migrações pede cópia antes.** O
+     `iniciar_db()` **não** faz cópia nenhuma; a rotina diária faz, mas
+     pode ser de ontem. Quando a migração for maior do que acrescentar
+     uma coluna, **ensaia-a numa cópia** antes de a deixar chegar à base
+     de 1,3 GB.
+   - **Uma cópia que nunca se ensaiou não é uma cópia.** É o que o
+     `--ensaiar-copia` faz: `integrity_check` mais as contagens da cópia
+     contra a base viva, e sai com 1 se não servir.
 2. **comum** — as utilidades puras: `simplifica()`, `data_pt()`,
    `data_hora_pt()`, `mil_pt()`, `euros_do_texto()`, `conta_dias()`,
    `dias_restantes()`, `dias_urgente()`, `janela_urgente()`,
@@ -281,8 +300,7 @@ A ordem do ficheiro é a ordem do fluxo:
 3. **captura** — `carregar_curl()` / `parse_curl()` lêem `curl_DR.txt` e
    `curl_detalhe.txt`, capturas cURL feitas à mão no DevTools.
    **De onde vêm os anúncios, e o que a captura ainda dá, está no
-   `docs/FUNCIONAL.md` §3.7** — o token e a `apiVersion` já não vêm dela
-   desde 2/09/2026, vêm do portal (`perguntar_ao_dr()`).
+   `docs/FUNCIONAL.md` §3.7.**
 4. **leitura** — `recolher()` pagina a pesquisa do portal;
    `ler_detalhes()` vai à página de cada anúncio buscar CPV, prazo e preço
    base; `campos_do_detalhe()` faz o parsing por secções numeradas.
@@ -423,7 +441,11 @@ num sítio. Três que valem sempre, seja qual for a área:
 - **Nenhum recorte entra em `condicoes()`.** Esse motor serve também os
   alertas e os filtros guardados; um recorte lá dentro cega-os em
   silêncio. As abas e o interesse aplicam-se por cima, com
-  `com_recorte()`.
+  `com_recorte()`. E no sentido inverso: **um filtro que vá virar
+  alerta passa primeiro por `filtro_para(…, "anuncios")`** — sem isso,
+  os campos de contratos caem em silêncio e o alerta avisa de muito
+  mais do que prometeu (o que o alerta É está no `docs/FUNCIONAL.md`
+  §3.8).
 - **Um número que um ecrã mostra tem de dar exactamente a lista que a
   ligação dele abre** — e a cor de uma etiqueta é um desses números.
 

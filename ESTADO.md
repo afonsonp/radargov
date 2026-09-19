@@ -111,12 +111,11 @@ ensaio de restauro.
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
   — nunca segue o `master` a cada merge. A última é a **`v1.8.0`**,
   de 18/09/2026.
-- **Uma release que traga migrações pede cópia da base antes.** As
-  últimas — as colunas novas da `propostas` e do `historico` — correram
-  a 17/09/2026 e demoraram menos de 0,1 s sobre 210 mil anúncios,
-  porque nenhuma toca na tabela `anuncios`. A regra fica: **cópia
-  antes**, e ensaiar numa cópia quando a migração for maior do que
-  acrescentar uma coluna.
+- **As últimas migrações correram a 17/09/2026** — as colunas novas da
+  `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre
+  210 mil anúncios, porque nenhuma toca na tabela `anuncios`. (As
+  regras de quando fazer cópia e quando ensaiar estão no `CLAUDE.md`,
+  banda 1.)
 
 ## O que fica de fora, e porquê
 
