@@ -78,6 +78,16 @@ A aplicação faz três coisas que se sobrepõem:
 
 ### 2.1 `radar.db` — o trabalho (1,32 GB, 23 tabelas)
 
+**A base muda-se sozinha, a cada arranque.** Não há ficheiros de
+migração nem números de versão: é o `iniciar_db()`, e cada passo é
+idempotente — `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT
+EXISTS`, um `ALTER TABLE ADD COLUMN` apanhado pela `OperationalError`,
+ou um `UPDATE` cuja própria pergunta o torna irrepetível. Consequência
+para quem desenha: **acrescentar uma coluna é barato e imediato**
+(menos de 0,1 s sobre 210 mil anúncios); reescrever uma tabela não é, e
+o `DROP COLUMN` do SQLite reescreve-a inteira. As regras de quando
+fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
+
 | Tabela | Linhas | O que é |
 |---|---|---|
 | `anuncios` | **210 172** | Um por anúncio do DR (mais 107 da Vortal). Desde **2015** |
@@ -362,7 +372,7 @@ por CPV só apanha o anúncio depois de o CPV estar lido.
 | os anúncios **alterados** | a tabela `alteracoes`, da releitura dos marcados |
 | as novidades das **entidades seguidas** | casadas pelo **NIPC**, nunca por nome |
 
-Quatro regras que decidem o que se vê:
+Quatro comportamentos que decidem o que chega:
 
 - **Só a parte do filtro que os anúncios entendem é que alerta.** Um
   filtro que mistura campos de contratos passa por `filtro_para(…,
@@ -378,11 +388,10 @@ Quatro regras que decidem o que se vê:
 - **Uma entidade que se começa a seguir entra com o acervo marcado como
   já visto**, senão o primeiro resumo trazia dez anos de uma vez.
 
-**Medido a 19/09/2026: zero alertas e zero entidades seguidas.** O canal
-funciona — o último resumo saiu a 17/09 para o e-mail dele — mas leva só
-alterações, porque não há um único alerta criado. **A maquinaria toda
-está construída e por estrear**, e é isso que o BACKLOG pede como gesto
-dele: ligar um alerta, seguir uma entidade, e ver o que chega.
+**A maquinaria está construída e por estrear**: o canal funciona, mas
+nunca se criou um alerta, e por isso o resumo leva só alterações. As
+contagens estão no §7.6, e o gesto que falta — ligar um alerta, seguir
+uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ---
 
@@ -596,7 +605,13 @@ e-mail: a senha troca-se por consola, com `--palavra-passe NOME`.
   vortal, compraspt, anogov), **relê as leituras que ficaram a meio**,
   dispara alertas e o resumo diário.
 - **Corpus** à segunda-feira: traz o dump do IMPIC.
-- **Cópia de segurança** diária do `radar.db`.
+- **Cópia de segurança** diária do `radar.db`, por `VACUUM INTO` (a
+  quente, com a base em WAL), sete guardadas. **Só o `radar.db`**: o
+  `contratos.db` refaz-se com `--contratos` e as peças voltam a
+  descarregar-se, mas a triagem, os responsáveis, a escada e o
+  histórico **não se recuperam de mais lado nenhum** — não estão no
+  git, por serem uma base. Uma cópia que nunca se ensaiou não conta:
+  `--ensaiar-copia` prova que se restaura.
 - **Triagem no git**: `triagem.jsonl`, commit + push automáticos.
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
   a cadeia Groq → NVIDIA → OpenRouter até alguém responder.
