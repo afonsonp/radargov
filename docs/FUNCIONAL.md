@@ -95,9 +95,9 @@ A aplicação faz três coisas que se sobrepõem:
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
 | `estado` | 18 | Marcas do sistema (última verificação, migrações feitas) |
 | `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |
-| `filtros_guardados` | **0** | Hoje só os alertas lá vivem |
+| `filtros_guardados` | **0** | Hoje só os alertas lá vivem (§3.8) |
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
-| `alertas_vistos` | **0** | — |
+| `alertas_vistos` | **0** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
 
@@ -234,8 +234,15 @@ ser:
 ### 3.3 O interesse
 
 Uma lista de CPV que a empresa trabalha (e outra de exclusões), em
-Configurações. Recorta **a lista, os alertas e o Mercado**. Levanta-se
-com `?interesse=nao`.
+Configurações. Recorta **a lista, o Hoje, o Mercado e a ficha da
+entidade**. Levanta-se com `?interesse=nao`.
+
+**Não recorta os alertas, e é de propósito.** O interesse é recorte de
+**página** (entra por `com_recorte()`), não de motor — um interesse
+dentro do `condicoes()` cegava os alertas e os filtros guardados em
+silêncio: um alerta deixaria de ver o que vê hoje sem ninguém lhe ter
+tocado. **O interesse esconde, o alerta avisa** (§3.8); são coisas
+diferentes e não se recortam uma à outra.
 
 ### 3.4 A entidade, e a chave
 
@@ -323,6 +330,59 @@ Três coisas que mudam o que se pode desenhar:
 - **Entra tudo o que a parte L publicar.** É por isso que há 210 mil
   anúncios e não os mil que interessam: o recorte é do ecrã, nunca da
   recolha.
+
+---
+
+### 3.8 Os alertas, e o resumo que sai
+
+A contrapartida de não se filtrar à entrada: se entra tudo, alguém tem
+de avisar. **O interesse esconde, o alerta avisa** — são coisas
+diferentes (§3.3).
+
+**Reconhecer não é enviar, e essa separação é o desenho.** A
+verificação corre 2×/dia e o resumo sai 1×/dia; se fossem o mesmo
+passo, saíam dois e-mails com metade das coisas cada um.
+
+1. **Reconhecer** (`registar_alertas()`, `registar_seguidas()`, a cada
+   verificação): anota na `alertas_vistos` que anúncios caem em que
+   alerta. A tabela é a memória — **um anúncio nunca é avisado duas
+   vezes**, nem que a verificação corra dez.
+2. **Enviar** (`enviar_resumo()`, a partir da `hora_resumo`): junta o
+   que está reconhecido e ainda não saiu, manda um e-mail e só então
+   marca como enviado.
+
+**Corre depois de `ler_detalhes()`, e isso não é arrumação:** um alerta
+por CPV só apanha o anúncio depois de o CPV estar lido.
+
+**Três coisas entram no resumo**, e só a primeira precisa de um alerta:
+
+| | De onde vem |
+|---|---|
+| os anúncios que caíram nos teus alertas | `filtros_guardados` com `alerta=1` |
+| os anúncios **alterados** | a tabela `alteracoes`, da releitura dos marcados |
+| as novidades das **entidades seguidas** | casadas pelo **NIPC**, nunca por nome |
+
+Quatro regras que decidem o que se vê:
+
+- **Só a parte do filtro que os anúncios entendem é que alerta.** Um
+  filtro que mistura campos de contratos passa por `filtro_para(…,
+  "anuncios")`; sem isso, um alerta «CPV 72 + ganho pela concorrência»
+  avisava de **todos** os anúncios de CPV 72.
+- **O estado não entra.** Procuram-se anúncios que correspondem; a
+  triagem deles é outra conversa.
+- **Sem e-mail configurado, o ficheiro é a entrega.** O resumo escreve-se
+  sempre no `AVISOS.txt`, e nesse caso dá-se por avisado — senão o painel
+  dizia «153 por avisar» para sempre e reescrevia o mesmo resumo a cada
+  volta. Uma falha a sério (senha recusada, rede em baixo) **não** marca,
+  para voltar a tentar.
+- **Uma entidade que se começa a seguir entra com o acervo marcado como
+  já visto**, senão o primeiro resumo trazia dez anos de uma vez.
+
+**Medido a 19/09/2026: zero alertas e zero entidades seguidas.** O canal
+funciona — o último resumo saiu a 17/09 para o e-mail dele — mas leva só
+alterações, porque não há um único alerta criado. **A maquinaria toda
+está construída e por estrear**, e é isso que o BACKLOG pede como gesto
+dele: ligar um alerta, seguir uma entidade, e ver o que chega.
 
 ---
 
@@ -692,7 +752,7 @@ Estas já têm código, tabela e ecrã — falta **usá-las**:
 
 | O quê | Estado |
 |---|---|
-| **Alertas** | 0 ligados. O e-mail funciona; o resumo diário não tem o que dizer |
+| **Alertas** | 0 ligados. O e-mail funciona — o último resumo saiu a 17/09 —, mas leva só alterações (§3.8) |
 | **Entidades seguidas** | 0. O botão está na ficha |
 | **Etiquetas** | 0. Tabela e ecrã existem |
 | **Filtros guardados** | Tabela existe; hoje só os alertas lá vivem |

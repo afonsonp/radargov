@@ -343,15 +343,18 @@ original, que é onde se decide — um anúncio que abandonaste continua
 abandonado quando é republicado, e um por ver a que estenderam o prazo
 volta a aparecer com o prazo novo, sem mexeres em nada.
 
-**O interesse recorta as quatro abas.** Em *Configurações › Interesse*
+**O interesse recorta a lista inteira.** Em *Configurações › Interesse*
 escolhes, na árvore, os CPV que a empresa trabalha; ligado, a lista passa
-a mostrar só o que corresponde — nas quatro abas, sem teres de pôr
+a mostrar só o que corresponde — em todas as abas, sem teres de pôr
 filtro nenhum. Não é um alerta: um alerta avisa-te, o interesse esconde
 o resto. A lista diz sempre que está limitada, quantos ficam de fora, e
 tem um **ver tudo** que o levanta para a vista em que estás. Nasce
-desligado; desligado, nada muda. Os alertas, os contratos e os filtros
-guardados não são tocados — o interesse é recorte de leitura da lista,
-não um filtro.
+desligado; desligado, nada muda.
+
+Recorta também o **Hoje**, o **Mercado** e a ficha da entidade. **Não
+recorta os alertas nem os filtros guardados**, e isso é de propósito:
+pô-lo lá dentro fazia um alerta deixar de te avisar do que te avisa
+hoje, sem tu lhe teres tocado.
 
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
 nada. **Está recolhida por omissão** (desde 8/09/2026): a lista abre
