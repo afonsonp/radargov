@@ -54,24 +54,24 @@ consulta dos interessados. O desenho é do Afonso: **uma escada só**
 (as dez ranhuras estão no `docs/FUNCIONAL.md` §3.1), com o calendário
 como única outra vista e a navegação num «Concursos». Por baixo, uma
 tabela `propostas` que o estado do anúncio não consegue ser (lotes, e
-propostas sem anúncio). **O quadro saiu ao
-fim do dia**, por decisão dele: oito colunas e oito abas eram a mesma
-coisa duas vezes, a ranhura muda-se no selector de cada linha, e tudo o
-que o cartão fazia vive no bloco «A nossa proposta» da ficha. **Lê-o
-antes de tocar no calendário, nas abas dos anúncios, no bloco da
+propostas sem anúncio). **O quadro saiu ao fim do mesmo dia**, por
+decisão dele — o que ficou em vez dele está na banda 8, mais abaixo.
+**Lê-o antes de tocar no calendário, nas abas dos anúncios, no bloco da
 proposta ou nas colunas de CRM do `anuncios`.** As sete decisões do §2
 estão respondidas; nenhuma se reabre de passagem.
 
-**Um facto tem um DONO, e os outros apontam** (19/09/2026). Medido nesse
-dia: os nove assuntos da aplicação estavam contados nos **oito**
-ficheiros vivos ao mesmo tempo — a escada 140 vezes, as entidades 236.
-A causa não era desleixo: os ficheiros estão divididos por **género**
-(as regras, o manual, as armadilhas, o porquê), e isso obriga a contar
-cada assunto uma vez por género. **A tabela dos donos está no
-`docs/FUNCIONAL.md`, logo a seguir ao cabeçalho.** Antes de escreveres
+**Um facto tem um DONO, e os outros apontam** (19/09/2026). **A tabela
+dos donos, e o que se mediu para chegar a ela, estão no
+`docs/FUNCIONAL.md`, logo a seguir ao cabeçalho.** A regra de trabalho
+que daí sai, e que é o que este ficheiro guarda: antes de escreveres
 aqui o que uma ranhura exige, ou no manual o que a aplicação faz,
-pergunta de quem é o facto: se não é deste ficheiro, escreve-se lá e
-aqui fica uma ligação.
+pergunta **de quem é o facto** — se não é deste ficheiro, escreve-se lá
+e aqui fica uma ligação.
+
+E o critério que separa as duas metades de um assunto: **o facto
+responde a «o que é?», a regra responde a «o que faço antes de
+gravar?»**. Um assunto com as duas parte-se; não se escolhe um dono
+para o conjunto.
 
 (O caso que fundou a regra: a 17/09 escrevi a condicionante da escada no
 `LEIA-ME` §5, e a 19/09 escrevi-a outra vez no §9 **sem apagar a
@@ -501,14 +501,14 @@ valem sempre:
 
 ## Hooks, skills e subagente
 
-Tres hooks, em `.claude/settings.json`. Os tres olham para o `file_path` das
-ferramentas de escrita **e para o texto dos comandos** do Bash e do
-PowerShell -- so pelo `file_path` eram uma porta com a parede ao lado:
+Tres hooks, em `.claude/settings.json`. **Porque e que olham tambem
+para o texto dos comandos, e o buraco que fica assumido, estao no
+`docs/referencia.md`.** Aqui: o que cada um recusa, e o que isso te
+obriga a fazer.
 
 - **`proteger_dados.py`** (PreToolUse) recusa escritas em `curl_*.txt` e
   `radar.db*` -- capturas e base nao se editam a maos. Nos comandos, recusa
-  a escrita e deixa passar a leitura: um `sqlite3 radar.db "SELECT ..."` e
-  rotina, e travar leituras so ensinava a desligar o hook.
+  a escrita e deixa passar a leitura.
   **Falso positivo conhecido:** o hook procura o padrao no texto do comando
   e nao distingue texto que executa de texto que descreve execucao, por
   isso dispara num `git commit` cuja *mensagem* cita o SQL que foi

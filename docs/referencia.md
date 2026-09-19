@@ -255,8 +255,7 @@ outro modelo e é o único que já recusou por falta de vaga, fica em
 
 Todos falam o dialecto da OpenAI (`/chat/completions`, `Bearer`,
 `response_format`), por isso a cadeia é uma lista de endereços e não
-três clientes. O NVIDIA serve **o mesmo modelo** que a Groq — é a
-reserva que não muda a qualidade da leitura.
+três clientes.
 
 Três decisões que valem a pena guardar:
 
