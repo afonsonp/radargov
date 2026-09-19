@@ -160,24 +160,19 @@ Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
 `instalar.sh` cria: o `python3` do sistema não tem o flask nem o
 pymupdf. O hook dos testes já escolhe o `.venv` sozinho.
 
-Os `.sh` são atalhos para o Afonso, não para desenvolvimento:
-`instalar.sh` (cria o `.venv` e instala o `requirements.txt`),
-`iniciar.sh` (painel; recusa-se a abrir um segundo se o serviço já
-estiver a correr), `verificar.sh` (`--uma-vez`), `agendar.sh` (cria os
-temporizadores e o serviço do painel), `desinstalar.sh` (tira-os),
-`reler.sh` (`--reler`), `contratos.sh` (o que a tarefa semanal corre),
-`detalhes.sh` (`--detalhes tudo`, ~3 h), `ensaio.sh`
-(ensaio-de-leitura), `historico.sh` (gitk), `medir.sh`
-(`medir_captura.py`, a medição do token das capturas),
-`actualizar.sh` (traz a última release do GitHub e reinicia o serviço
-— ver a secção Git), `publicar_dados.sh` / `trazer_dados.sh` (levam o
-`radar.db` de um computador para outro pela release "dados" — ver a
-secção Git), `tunel.sh` (um endereço público temporário para o
-painel) e `tunel_fixo.sh` (o endereço fixo, `https://radargov.pt`,
-como serviço — ver «Acesso de fora», em baixo). Todos passam pelo
-`_python.sh`, que escolhe o `.venv` se existir. Um `.sh` novo entra
-com o exec bit no git (`git update-index --chmod=+x`), porque o
-`core.filemode` esteve a `false` no disco NTFS de onde isto veio.
+**Os `.sh` são atalhos para o Afonso, não para desenvolvimento.** São
+dezasseis, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
+manual dele, e um script que exista sem lá estar é um script que ele
+não sabe que tem (aconteceu ao `actualizar.sh`, que é o gesto mais
+importante que ele faz e faltava no manual até 19/09/2026). Dois que
+tocam neste ficheiro: `actualizar.sh` (a secção Git, em baixo) e
+`tunel_fixo.sh` («Acesso de fora», em cima).
+
+Duas regras: todos passam pelo **`_python.sh`**, que escolhe o `.venv`
+se existir — um `.sh` novo que chame o `python` directamente parte-se
+em Ubuntu. E um `.sh` novo **entra com o exec bit no git**
+(`git update-index --chmod=+x`), porque o `core.filemode` esteve a
+`false` no disco NTFS de onde isto veio.
 
 **Os `.bat` do Windows saíram a 8/09/2026** (commit «Saem os .bat»):
 a pen do Windows deixou de ser onde o radar corre, e dezanove atalhos

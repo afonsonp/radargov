@@ -852,6 +852,36 @@ Na linha de comandos, se preferires:
 git log --oneline
 ```
 
+## 12-A. Trazer uma versão nova
+
+O radar **não se actualiza sozinho**. Fica na versão que tem até tu
+correres, na pasta:
+
+```bash
+./actualizar.sh
+```
+
+Traz a última versão publicada, instala o que for preciso e reinicia o
+painel. Demora segundos. Três coisas a saber:
+
+- **Nunca traz trabalho a meio.** Só avança até uma versão *publicada*
+  (uma «release»), nunca até ao último remendo que alguém gravou.
+- **Recusa-se se tiveres alterações por gravar.** A mais provável é o
+  `config.json`, que o painel mexe quando mudas uma definição. Ele
+  diz-te o que é.
+- **Recusa-se se não puder avançar em linha recta.** Se isso acontecer
+  não mexeu em nada — é caso para me dizeres, não para forçares.
+
+Para saber em que versão estás, a ligação no canto da barra; ou, na
+pasta, `git describe --tags`.
+
+> **Sabe-se uma coisa que ele diz mal** (19/09/2026): quando a pasta já
+> está *à frente* da última versão publicada — que é o que acontece
+> enquanto se trabalha nela — o `actualizar.sh` termina com «a pasta
+> está agora na release vX.Y.Z», e não está: está mais à frente. Não
+> estraga nada, mas não acredites na linha final; o `git describe` diz
+> a verdade.
+
 ## 13. Comandos, se precisares
 
 O uso normal é o painel. Estes são para casos pontuais:
@@ -1009,8 +1039,13 @@ anúncios, é o teste do parser que avisa primeiro.
 | `iniciar.sh` | abre o painel (ou diz que o serviço já o tem aberto) |
 | `agendar.sh` | cria os três temporizadores e o serviço do painel |
 | `verificar.sh` | o que os temporizadores das 09h/17h correm |
+| `actualizar.sh` | traz a última versão publicada, secção 12-A |
 | `desinstalar.sh` | remove temporizadores e serviço |
 | `historico.sh` | abre o histórico de alterações |
+| `contratos.sh` | o que o temporizador de segunda corre: refaz o corpus do BASE |
+| `detalhes.sh` | vai buscar o detalhe de tudo o que ainda não o tem (~3 h), secção 13 |
+| `reler.sh` | manda o modelo reler as peças já guardadas, sem ir à rede |
+| `publicar_dados.sh` / `trazer_dados.sh` | levam o `radar.db` deste computador para outro, secção 15-A |
 | `tunel_fixo.sh` | monta o `https://radargov.pt` (túnel com nome, como serviço); correu uma vez |
 | `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |
 | `.venv/` | o Python e os pacotes do radar |
@@ -1055,6 +1090,31 @@ O que continua fora: o **`tunel.sh`**, que dá um endereço
 `trycloudflare.com` aleatório e temporário, sem domínio. Serve para
 uma demonstração se o `radargov.pt` estiver em baixo por alguma razão;
 Ctrl+C fecha-o.
+
+## 15-A. Mudar o radar de computador
+
+**Para o usares noutro sítio não precisas disto** — o
+`https://radargov.pt` responde de qualquer lado, e é sempre a mesma
+base. Isto é para o dia em que o radar passar a **correr** noutro
+computador.
+
+Cinco passos, nesta ordem:
+
+1. **Neste**, publicar a base: `./publicar_dados.sh`. Sobe o `radar.db`
+   para o GitHub, à parte do código. Precisa do `gh` instalado e com
+   sessão iniciada.
+2. **No novo**, trazer a pasta do GitHub e correr `./instalar.sh`.
+3. `./trazer_dados.sh` — desce a base, para não teres de recolher onze
+   anos outra vez.
+4. `python radar.py --contratos` (ou `./contratos.sh`) — o corpus do
+   BASE **não viaja**: são 2,5 GB e refaz-se em minutos.
+5. `./agendar.sh`, e as capturas da secção 3, que são deste browser.
+
+O túnel é à parte, e está na secção 15: `cloudflared tunnel login` e
+depois `./tunel_fixo.sh`.
+
+**As peças que já descarregaste não vão** — voltam a descarregar-se
+quando forem precisas.
 
 ## 16. Limites, para não haver surpresas
 
