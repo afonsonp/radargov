@@ -26,7 +26,7 @@ pede.**
 | **este** | As regras de trabalho e a arquitectura | Sempre. É o único que se carrega inteiro |
 | `ESTADO.md` | O estado de hoje, com os números | Ao começar. São ~156 linhas, e **é para isso que serve o formato**: sempre que voltar a crescer para diário, o que ele contava vai inteiro para o `docs/diario/` e este volta ao formato (já aconteceu a 3/09 e a 17/09/2026) |
 | `docs/FUNCIONAL.md` | **O documento funcional**: os dados que existem (tabela a tabela, com o que está cheio e o que está vazio), os conceitos, os ecrãs, as acções, as regras — e o que ainda se pode fazer com os dados que há. **Não é instantâneo: corrige-se quando o comportamento muda** | Ao desenhar ou propor um ecrã novo; ao explicar a aplicação a alguém |
-| `docs/armadilhas.md` | O que não é óbvio, em 15 áreas | **A área que vais tocar**, antes de tocar |
+| `docs/armadilhas.md` | O que não é óbvio, em 16 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões, a escala | **Antes de mexer em cor, letra, botões ou no calendário**. O que ele vê está em `/amostra` |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
@@ -92,6 +92,48 @@ tocada do `docs/armadilhas.md`**, e a **lista de comandos** aqui em
 baixo. Um commit que muda o `radar.py` sem tocar em nenhum `.md` é sinal
 para verificar, não prova de que está tudo bem.
 
+### Duas partes disto já não dependem de ninguém se lembrar
+
+**Um `.md` não falha — ninguém o corre.** Foi assim que uma instrução
+para invocar uma skill inexistente sobreviveu a duas mudanças de
+sistema, no ficheiro que se carrega inteiro em todas as sessões. Desde
+19/09/2026 há duas ferramentas, e a primeira corre na bateria de
+testes:
+
+| Ferramenta | A pergunta | Onde corre |
+|---|---|---|
+| `ferramentas/valida_docs.py` | o que está escrito **existe**? e as contagens deriváveis **batem**? | na bateria (`TestADocumentacaoNaoApontaParaOVazio`) — **trava o commit** |
+| `ferramentas/repetido.py` | está escrito **duas vezes**? | à mão; a duplicação precisa de julgamento humano |
+
+**O que elas cobrem:** funções, constantes, bandeiras, rotas,
+ficheiros, pastas e secções citadas; e as contagens que se derivam do
+código ou da base (rotas, tabelas, áreas e pontos das armadilhas,
+secções de configurações).
+
+**O que elas NÃO cobrem, e continua a ser teu:**
+
+- **Se a frase é verdadeira.** «O interesse recorta os alertas» tinha
+  todos os nomes certos e estava ao contrário. Isso mediu-se a ler o
+  código, e é a regra de sempre: **confirma antes de escrever**.
+- **Os números medidos** — anúncios, MB, tempos. Não se derivam;
+  medem-se, e vivem no `ESTADO.md` com a data ao lado.
+- **A duplicação**, que tem ferramenta mas não teste: duas afirmações
+  do mesmo facto para públicos diferentes são legítimas, e isso um
+  programa não sabe.
+
+Quando o teste falhar há dois caminhos, e só um é o certo: ou a
+documentação envelheceu e corrige-se, ou a referência é legítima — algo
+que saiu, um exemplo de ataque, um caminho externo — e entra no
+`ISENTOS` **com a razão escrita**. Uma isenção sem razão é o princípio
+de um saco onde se esconde o que incomoda.
+
+E a lição que custou duas vezes ao escrever a ferramenta: **quando ela
+discorda da realidade, confere-se a ferramenta primeiro.** Acusou o
+`--sem-modelo` (é bandeira de uma skill) e dez nomes em maiúsculas (são
+variáveis JavaScript e palavras em comentários). «Corrigir» a
+documentação nesses casos era estragar texto certo, com um relatório a
+dar razão.
+
 O **diário é acrescento, não correcção**: uma sessão nova escreve uma
 secção nova em `docs/diario/2026-MM.md`, e o que ela tornou falso
 corrige-se nos três sítios acima. Uma secção do diário que descreva algo
@@ -128,6 +170,11 @@ python ferramentas/ecrans.py       # todos os ecrãs num HTML só, para os ver
                                    # lado a lado: o HTML verdadeiro de cada
                                    # rota, com o CSS e as fontes embutidos.
                                    # Gerado e ignorado pelo git; refaz-se
+python ferramentas/valida_docs.py  # o que a documentação cita existe? e as
+                                   # contagens deriváveis batem? (também corre
+                                   # na bateria de testes, e trava o commit)
+python ferramentas/repetido.py     # o que está escrito duas vezes, com
+                                   # ficheiro e linha dos dois lados
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
@@ -420,8 +467,8 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **223 pontos** (contados a 19/09/2026), cada um de um erro que
-existiu mesmo, em **15 áreas**:
+São **222 pontos** (contados a 19/09/2026), cada um de um erro que
+existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
 contratos e entidades · alertas e interesse · triagem, quadro e ficha ·

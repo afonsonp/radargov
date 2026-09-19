@@ -397,7 +397,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**80 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**81 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
 - **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`
@@ -818,7 +818,7 @@ Para não desenhares o que não se pode fazer:
 |---|---|
 | `CLAUDE.md` | As regras de trabalho e a arquitectura do código |
 | `ESTADO.md` | O estado de hoje, com os números |
-| `docs/armadilhas.md` | O que não é óbvio, em 15 áreas — **lê a área antes de lhe mexer** |
+| `docs/armadilhas.md` | O que não é óbvio, em 16 áreas — **lê a área antes de lhe mexer** |
 | `docs/design.md` | O caminho do aspecto: letra, cor, botões, escala |
 | `docs/historico/REDESENHO.md` | O pacote de desenho de 17/09/2026, ecrã a ecrã |
 | `docs/historico/CRM.md` | Porque é que a escada é assim |
