@@ -2248,10 +2248,8 @@ botões ou no calendário.
   Compra ≥ 3× o que vende → cliente; vende ≥ 3× o que compra →
   concorrente; pelo meio são **as duas coisas** (uma ULS compra
   informática e ganha candidaturas), e dizer só um dos lados era
-  escolher qual mentir. Os dois totais são **sem o filtro da ficha**:
-  o papel é identidade, como os nomes por que a entidade assina, e
-  filtrar por um CPV em que ela só ganha não faz de um município um
-  concorrente.
+  escolher qual mentir. **Os dois totais são sem o filtro da ficha** —
+  o porquê está na área «Contratos e entidades», que é a dona disto.
 
 - **A página de abertura lê só a tabela `tarefas`.** Os prazos dos
   anúncios **não** se somam por cima: as tarefas automáticas já os
