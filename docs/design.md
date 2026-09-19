@@ -583,7 +583,7 @@ terem explicação a esconder. O que **ficou no ecrã**:
 - «3 contratos desta entidade no CPV X · de 3 983 ao todo» — de onde vem.
 - «O preço contratual é o de partida, não o valor final» — o que o
   número **não** inclui.
-- «Guardadas em documentos/…» — de onde vem.
+- «Guardadas em pecas/…» — de onde vem.
 
 O que foi para o «?» diz o que o bloco **é**: «as edições anteriores, com
 quem ganhou e por quanto», «não são oportunidades — servem para saber com

@@ -303,7 +303,7 @@ A ordem do ficheiro é a ordem do fluxo:
    preliminares, sem captura.
 5. **documentos** — `obter_documentos()` puxa as peças do procedimento das
    plataformas que o permitem (`PLATAFORMAS_COM_PECAS`: acingov, vortal,
-   compraspt, anogov), por fila e thread de fundo. Ficam em `documentos/`
+   compraspt, anogov), por fila e thread de fundo. Ficam em `pecas/`
    no disco, **não na base** — para o `radar.db` ficar pequeno.
 6. **leitura das peças por modelo** — o que se lê e porque são três
    pedidos está no `docs/FUNCIONAL.md` §3.6. Aqui: `analisar_pecas()`

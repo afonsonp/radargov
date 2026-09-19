@@ -159,7 +159,7 @@ casos, sem autenticação, e é sempre trazido.
 
 ### Onde ficam os ficheiros
 
-Em `documentos/<ref>/`, no disco — **não** dentro do SQLite. Blobs na
+Em `pecas/<ref>/`, no disco — **não** dentro do SQLite. Blobs na
 base fariam-na crescer para dezenas de GB e tornavam lento tudo o resto;
 em ficheiro, o `radar.db` fica pequeno e a pasta migra bem para um
 servidor ou para armazenamento de objectos, se isto sair deste PC (que
@@ -859,7 +859,7 @@ actualizar em vez de duplicar, e apagar. Mais o ciclo completo por
 
 Segunda fonte, para inteligência de mercado. Vive num ficheiro próprio,
 `contratos.db`, e não no `radar.db` — pelo mesmo motivo que as peças
-vivem em `documentos/`: a base de trabalho tem 5 mil anúncios e tem de
+vivem em `pecas/`: a base de trabalho tem 5 mil anúncios e tem de
 continuar pequena; dois anos de contratos são 405 mil linhas e 334 MB.
 Cruzam-se em Python, não em SQL — ver o `docs/armadilhas.md`. (Este parágrafo dizia `ATTACH (com_corpus())`, e era falso: a função nunca foi chamada e saiu a 03/09/2026.)
 
@@ -1271,14 +1271,14 @@ terreno preparado.
    thread dentro da app; com vários trabalhadores passavam a existir
    verificações duplicadas. Vai para um processo próprio (ou uma tarefa
    do sistema, como já existe no Windows).
-5. **Disco persistente** para `documentos/`. Em plataformas de sistema
+5. **Disco persistente** para `pecas/`. Em plataformas de sistema
    de ficheiros efémero (Cloud Run, Heroku) os ficheiros desaparecem a
    cada arranque.
 
 Para 2-3 pessoas **SQLite com WAL chega bem** — não é preciso Postgres,
 e trocar de base de dados agora seria complicar sem ganho. Dimensões
 medidas: `radar.db` a 32 MB, projectado ~400 MB com todo o texto;
-`documentos/` cresce com o uso.
+`pecas/` cresce com o uso.
 
 Alojamento recomendado quando for a altura: um VPS pequeno (Hetzner,
 DigitalOcean, ~5-10€/mês), que dá disco persistente e controlo, em vez
@@ -1334,7 +1334,7 @@ com a mensagem certa (`['3'] != ['30']`).
 
 **Git** — o repositório começa aqui, com um `.gitignore` que deixa de
 fora o que nunca deve entrar em histórico: `curl_*.txt` (levam o token da
-sessão do browser), `radar.db*`, `documentos/` (Cadernos de Encargos e
+sessão do browser), `radar.db*`, `pecas/` (Cadernos de Encargos e
 propostas) e `amostras/`.
 
 **Hooks**, em `.claude/hooks/` — dentro do `radar/`, e não na pasta-mãe,

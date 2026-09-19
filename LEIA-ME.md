@@ -844,7 +844,7 @@ Fica tudo **no teu PC**, dentro da pasta `.git`. Não há nada online e
 não sai nada para lado nenhum.
 
 Ficam de fora do histórico, de propósito: as capturas (levam o token da
-tua sessão), a base de dados e a pasta `documentos/`.
+tua sessão), a base de dados e a pasta `pecas/`.
 
 Na linha de comandos, se preferires:
 
@@ -1036,7 +1036,7 @@ anúncios, é o teste do parser que avisa primeiro.
 | `contratos.db` | o corpus de contratos do BASE (refaz-se com `--contratos`) |
 | `copias/` | cópia diária do `radar.db`, sete guardadas |
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
-| `documentos/` | as peças dos concursos que foste buscar |
+| `pecas/` | as peças dos concursos que foste buscar |
 | `AVISOS.txt` | o último resumo dos alertas em texto, quando há (o e-mail leva o mesmo, formatado) |
 | `instalar.sh` | cria o `.venv/` e instala as dependências |
 | `iniciar.sh` | abre o painel (ou diz que o serviço já o tem aberto) |

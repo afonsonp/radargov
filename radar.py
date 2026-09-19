@@ -67,10 +67,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(BASE_DIR, "radar.db")
 CONFIG = os.path.join(BASE_DIR, "config.json")
 AMOSTRAS = os.path.join(BASE_DIR, "amostras")
-# Os documentos ficam em ficheiro, nao na base: mantem o radar.db pequeno
-# e rapido, e e o que se leva melhor para um servidor ou para
+# As pecas ficam em ficheiro, nao na base: mantem o radar.db pequeno e
+# rapido, e e o que se leva melhor para um servidor ou para
 # armazenamento de objectos, se um dia isto sair deste PC.
-DOCS = os.path.join(BASE_DIR, "documentos")
+#
+# Chamava-se `documentos/` ate 19/09/2026. Mudou por queixa dele --
+# "temos uma pasta que e docs outra que e documentos" --, e a queixa
+# estava certa: `docs/` e documentacao, esta sao **dados**, as pecas
+# dos concursos. O nome passou a ser o que a casa lhes chama em todo o
+# lado. A pasta antiga renomeia-se sozinha ao arrancar, em
+# `arrumar_pecas()`.
+DOCS = os.path.join(BASE_DIR, "pecas")
+DOCS_ANTIGO = os.path.join(BASE_DIR, "documentos")
 PORTA = 8765
 LISBOA = ZoneInfo("Europe/Lisbon")
 # O painel atende em 127.0.0.1 -- e o endereco escreve-se assim, e nao
@@ -480,7 +488,28 @@ def largar_o_que_a_escada_substituiu(c):
         pass
 
 
+def arrumar_pecas():
+    """`documentos/` passa a `pecas/`. Idempotente, corre sempre.
+
+    E migracao de DISCO e nao de base, mas mora aqui pela mesma razao
+    que as outras: corre a cada arranque e pergunta antes de fazer. Sem
+    ela, o `actualizar.sh` traz o codigo novo e as pecas de 42
+    concursos desaparecem do painel sem nada o dizer -- ficam no disco,
+    com o nome que o codigo ja nao procura.
+
+    So renomeia se a nova NAO existir. Com as duas presentes nao se
+    adivinha qual vale: fica a nova, e a antiga espera por uma mao.
+    """
+    if os.path.isdir(DOCS_ANTIGO) and not os.path.exists(DOCS):
+        try:
+            os.rename(DOCS_ANTIGO, DOCS)
+        except OSError as erro:            # noutro disco, ou em uso
+            print("aviso: não consegui renomear documentos/ para pecas/"
+                  " (%s). As peças continuam a ser lidas de pecas/." % erro)
+
+
 def iniciar_db():
+    arrumar_pecas()
     with liga() as c:
         c.execute("""CREATE TABLE IF NOT EXISTS anuncios (
             ref TEXT PRIMARY KEY, titulo TEXT, entidade TEXT,
@@ -3998,10 +4027,10 @@ VORTAL_DOCS = ("https://community.vortal.biz/public/api/ContractNoticeDetail/"
 
 
 def ref_de_pasta(ref):
-    """A ref como nome de UMA pasta dentro de documentos/.
+    """A ref como nome de UMA pasta dentro de pecas/.
 
     O `re.sub` sozinho nao chegava: trocava a barra por hifen, mas
-    deixava `..` passar inteiro -- e `documentos/..` e a pasta do
+    deixava `..` passar inteiro -- e `pecas/..` e a pasta do
     radar. Como as rotas das pecas recebem `<path:ref>`, um pedido a
     /peca/../radar.db servia a base, o config.json ou as capturas do
     curl a quem tivesse sessao. Os pontos das pontas caem, como em
@@ -4019,7 +4048,7 @@ def caminho_na_pasta(ref, nome):
     """O ficheiro `nome` da pasta do anuncio `ref`, ou None.
 
     None se nao existir, se o nome saltar da pasta, ou se a propria
-    pasta cair fora de documentos/ -- sem esta ultima, a guarda media
+    pasta cair fora de pecas/ -- sem esta ultima, a guarda media
     o caminho contra um sitio que o proprio pedido tinha escolhido.
     E o unico sitio por onde as quatro rotas que servem ficheiros
     chegam ao disco.
@@ -6079,7 +6108,7 @@ def copia_de_seguranca(guardar=7):
     """Copia o radar.db, e deita fora as mais velhas.
 
     So o radar.db: o contratos.db refaz-se com `--contratos` e a pasta
-    documentos/ volta a descarregar-se, mas a **triagem, as fases do
+    pecas/ volta a descarregar-se, mas a **triagem, as fases do
     quadro, os responsaveis e o historico nao se recuperam de lado
     nenhum** -- nao estao no git, por serem uma base, e nao havia copia
     nenhuma.
@@ -7270,7 +7299,7 @@ def verificar(cfg=None, passo=None):
 # assinados -- e por isso nao entram na tabela `anuncios` nem no funil.
 #
 # Vive num ficheiro proprio, pelo mesmo motivo que as pecas vivem em
-# `documentos/`: o radar.db e para o trabalho do dia e tem de continuar
+# `pecas/`: o radar.db e para o trabalho do dia e tem de continuar
 # pequeno. Um ano de contratos sao ~160 mil linhas; o acervo desde 2012
 # passa o milhao, e nao tem nada que fazer ao lado de 5 mil anuncios.
 # Os dois NAO se cruzam em SQL: cada base tem a sua ligacao
@@ -18946,7 +18975,7 @@ def ficha(ref):
                            "possível actualizar as peças na plataforma &mdash; "
                            "as que estão em baixo são as de antes.</div>")
         else:
-            cabeca_docs = ("<div class='nota'>Guardadas em documentos/%s.</div>"
+            cabeca_docs = ("<div class='nota'>Guardadas em pecas/%s.</div>"
                            % html.escape(re.sub(r"[^0-9A-Za-z._-]", "-", ref)))
         analise = analise_de(ref)
         if analise_a_correr(ref):
@@ -19377,7 +19406,7 @@ def ver_peca(ref, nome):
     de uma caixa solta (que chegava sempre tarde -- as pecas so existem
     depois do "interessa"), o proprio PDF no visualizador do browser,
     que ja pesquisa com Ctrl+F. O caminho barato do BACKLOG: um <embed>
-    do ficheiro que ja esta em documentos/."""
+    do ficheiro que ja esta em pecas/."""
     caminho = caminho_na_pasta(ref, nome)
     if not caminho:
         return envolver(

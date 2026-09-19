@@ -15,6 +15,10 @@ contratos.db-wal
 copias/
 # Os avisos da última verificação: reescrevem-se a cada volta.
 AVISOS.txt
+pecas/
+# `documentos/` era o nome desta pasta até 19/09/2026. Fica ignorado
+# porque uma instalação que ainda não arrancou com o código novo
+# tem-na no disco; o `arrumar_pecas()` renomeia-a no arranque.
 documentos/
 amostras/
 

@@ -13611,6 +13611,61 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         self.assertIn(radar.FOLHA_CSS, entrar.get_data(as_text=True))
 
 
+class TestAsPecasMudamDePastaSozinhas(unittest.TestCase):
+    """19/09/2026: `documentos/` passou a `pecas/`, por queixa dele —
+    «temos uma pasta que é docs outra que é documentos».
+
+    Sem a migração, o `actualizar.sh` traz o código novo e as peças de
+    42 concursos desaparecem do painel **sem nada o dizer**: ficam no
+    disco, com o nome que o código já não procura. É o mesmo silêncio
+    do painel a servir código velho, que custou dezassete horas nesse
+    mesmo dia.
+    """
+
+    def setUp(self):
+        self.pasta = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.pasta, ignore_errors=True)
+        self.nova = os.path.join(self.pasta, "pecas")
+        self.velha = os.path.join(self.pasta, "documentos")
+        self.enterContext(unittest.mock.patch.object(radar, "DOCS", self.nova))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "DOCS_ANTIGO", self.velha))
+
+    def _peca(self, raiz, texto="conteudo"):
+        os.makedirs(os.path.join(raiz, "21296-2026"), exist_ok=True)
+        with open(os.path.join(raiz, "21296-2026", "CE.pdf"), "w") as f:
+            f.write(texto)
+
+    def test_a_pasta_antiga_passa_a_nova_com_o_que_tem_dentro(self):
+        self._peca(self.velha)
+        radar.arrumar_pecas()
+        self.assertFalse(os.path.exists(self.velha))
+        with open(os.path.join(self.nova, "21296-2026", "CE.pdf")) as f:
+            self.assertEqual(f.read(), "conteudo")
+
+    def test_correr_outra_vez_nao_faz_nada(self):
+        """Corre a cada arranque: tem de ser idempotente."""
+        self._peca(self.velha)
+        radar.arrumar_pecas()
+        radar.arrumar_pecas()
+        with open(os.path.join(self.nova, "21296-2026", "CE.pdf")) as f:
+            self.assertEqual(f.read(), "conteudo")
+
+    def test_sem_pasta_antiga_nao_inventa_nada(self):
+        radar.arrumar_pecas()
+        self.assertFalse(os.path.exists(self.nova))
+
+    def test_com_as_duas_nao_se_adivinha_qual_vale(self):
+        """A nova manda, e a antiga fica à espera de uma mão — apagá-la
+        ou fundi-la é decisão de quem olha, não de um arranque."""
+        self._peca(self.velha, "a antiga")
+        self._peca(self.nova, "a nova")
+        radar.arrumar_pecas()
+        self.assertTrue(os.path.isdir(self.velha))
+        with open(os.path.join(self.nova, "21296-2026", "CE.pdf")) as f:
+            self.assertEqual(f.read(), "a nova")
+
+
 class TestOActualizarReiniciaSempreOPainel(unittest.TestCase):
     """19/09/2026: o painel esteve dezassete horas a servir código velho.
 
