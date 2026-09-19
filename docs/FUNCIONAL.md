@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 18 de setembro de 2026**, sobre a `v1.8.0`. Este
+> **Última revisão: 19 de setembro de 2026**, sobre a `v1.8.5`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -90,18 +90,18 @@ fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `anuncios` | **210 172** | Um por anúncio do DR (mais 107 da Vortal). Desde **2015** |
-| `documentos` | 265 | As peças do procedimento em disco, de 42 concursos |
-| `analise` | 42 | O que o modelo leu das peças |
-| `propostas` | 77 | O que a **empresa** está a fazer — a escada |
-| `tarefas` | 64 | O que falta fazer, por proposta |
+| `anuncios` | **210 245** | Um por anúncio do DR (mais 110 da Vortal). Desde **2015** |
+| `documentos` | 269 | As peças do procedimento em disco, de 42 concursos |
+| `analise` | 43 | O que o modelo leu das peças |
+| `propostas` | 78 | O que a **empresa** está a fazer — a escada |
+| `tarefas` | 66 | O que falta fazer, por proposta |
 | `contactos` | 26 | As pessoas do lado de lá, **por entidade** |
-| `historico` | 539 | Cada movimento: quem, o quê, quando |
+| `historico` | 572 | Cada movimento: quem, o quê, quando |
 | `alteracoes` | 10 | O que o DR mudou num anúncio já lido |
 | `cpv_dict` | 9 454 | O vocabulário CPV, com descrição |
-| `slots` | 51 | Cada verificação que correu, e quantos trouxe |
+| `slots` | 53 | Cada verificação que correu, e quantos trouxe |
 | `erros` | 28 | A série dos erros, por tipo (poda a 200) |
-| `utilizadores` · `sessoes` | 2 · 3 | A porta |
+| `utilizadores` · `sessoes` | 2 · 5 | A porta |
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
 | `estado` | 18 | Marcas do sistema (última verificação, migrações feitas) |
 | `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |
@@ -133,11 +133,11 @@ fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 `posicao`, `top3`, `motivo_perda`. São as colunas de CRM que saíram para
 `propostas` a 15/09/2026 — **não as uses: estão mortas.**
 
-**As colunas de `propostas`, e quantas das 77 estão preenchidas:**
+**As colunas de `propostas`, e quantas das 78 estão preenchidas:**
 
 | Coluna | Cheias | Nota |
 |---|---|---|
-| `ref`, `entidade`, `titulo`, `preco_base`, `entidade_chave` | 77 | |
+| `ref`, `entidade`, `titulo`, `preco_base`, `entidade_chave` | 78 | |
 | `responsavel` | 72 | Quem a tem |
 | `tipologia` | 72 | **Nenhum ecrã a mostra agrupada** |
 | `coe` | 58 | idem |
@@ -719,7 +719,7 @@ suportam**, não por prioridade.
   corpus cujo `n_anuncio` é vazio: é o mercado que **nunca** passa pelo
   DR, e por isso é invisível ao radar — mas está todo aqui.
 
-### 7.3 Com as 77 propostas (os campos que ninguém mostra)
+### 7.3 Com as 78 propostas (os campos que ninguém mostra)
 
 É a gaveta mais rica em relação ao esforço.
 
@@ -751,7 +751,7 @@ suportam**, não por prioridade.
 
 ### 7.5 Com as peças e o modelo
 
-- **Só 42 leituras, de 265 documentos.** O maior ganho aqui não é ecrã
+- **Só 43 leituras, de 269 documentos.** O maior ganho aqui não é ecrã
   novo — é **julgar se as leituras prestam** (a skill
   `ensaio-de-leitura` existe para isso e nunca correu a sério).
 - **Campos novos, sem mudar a mecânica:** a leitura já extrai objecto,
