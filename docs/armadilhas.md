@@ -884,7 +884,7 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   Configurações › Interesse — desde 13/09/2026 só a árvore, já aberta,
   e o botão dela grava: `interesse_activo` é `bool(cpv)`, não há caixa
   de ligar). Com interesse definido a lista de anúncios **não tem
-  árvore nem «excluir CPV»** (`com_interesse` em `anuncios()`); sem
+  árvore nem «excluir CPV»** (`com_interesse` em `_lista_de_anuncios()`); sem
   ele, tem. **E o Mercado recorta-se pelo mesmo interesse** (14/09/2026):
   `condicao_do_interesse_contratos()` lê o mesmo `interesse_cpv` mas
   pergunta à tabela `contrato_cpv` (um contrato tem vários CPV), e
@@ -913,6 +913,23 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 ## Triagem, quadro e ficha
 
 O funil da empresa, do «por ver» ao «ganho».
+
+> **Duas coisas desta área saíram, e algumas armadilhas descrevem-nas
+> por dentro** (verificado a 19/09/2026 com o
+> `ferramentas/valida_docs.py`):
+>
+> - **O quadro e a tabela `fases`**, a 15/09/2026. Ver a armadilha
+>   própria, mais abaixo.
+> - **O leitor do Excel antigo**, no mesmo dia — 603 linhas do
+>   `empresa.py`. Foram-se com ele o `importar()`, o
+>   `_guardar_linha()`, o `lote_da_linha()` e o `carta_de_lotes()`,
+>   que aparecem abaixo a explicar **como funcionavam**. O que ficou
+>   é o modelo (`escrever_modelo` › `ler_modelo` › `ensaio_modelo` ›
+>   `aplicar_modelo`) e a tradução do estado (`estado_efectivo()`,
+>   `estado_pretendido()`), que continuam vivos e são o que as regras
+>   à volta deles dizem.
+>
+> **Uma armadilha que cite um destes nomes é história, não instrução.**
 
 - **Os lotes vêm de dois sítios e o quadro não adivinha o terceiro.**
   O anúncio declara os lotes (`anuncios.lotes`, JSON de
@@ -1012,22 +1029,6 @@ O funil da empresa, do «por ver» ao «ganho».
   está implementado no quadro — nada muda no front antes de o registo
   estar validado.
 
-- **Arrastar no quadro NÃO recarrega: o servidor devolve o cartão.**
-  O cartão que se arrasta é o MESMO nó do DOM, e quem decide o que ele
-  mostra é o servidor, pela fase: largá-lo no "Submetido" mudava-o de
-  coluna e mais nada — sem o campo do preço proposto, com o preço base
-  onde já devia estar o proposto, e com a soma no cabeçalho das duas
-  colunas errada. A primeira resposta (01/09/2026) foi um
-  `location.reload()` no caminho do sucesso; a `docs/historico/UX-Auditoria.md`
-  (02/09/2026) classificou-a como dívida, e no mesmo dia `/quadro/mover`
-  passou a devolver `{carta, contas}` — o HTML do cartão redesenhado
-  (`cartao()`) e a `conta_da_coluna()` das duas colunas tocadas — e o
-  `drop` troca só isso (`carta.replaceWith`, `ligarCarta` no nó novo,
-  `outerHTML` das contagens). O `reload()` fica só nos ramos do erro,
-  para repor o ecrã pelo que a base diz. Se acrescentares ao cartão
-  algo que dependa da fase, é em `cartao()` que entra, e a resposta do
-  mover já o traz.
-
 - **Triar avisa e deixa desfazer.** `mudar_estado()` volta com
   `?aviso=«título» marcado como interessa.&desfazer=/estado/<ref>/<estado
   anterior>` e `envolver()` desenha o `desfazer` como botão POST dentro
@@ -1050,7 +1051,7 @@ O funil da empresa, do «por ver» ao «ganho».
   decisão do Afonso a 01/09/2026), e pergunta-se **num pop-up**, não
   num selector ao lado do botão (decisão dele no mesmo dia): vinte
   linhas na lista eram vinte perguntas antes de alguém as fazer. A
-  caixa é UMA por página (`caixa_de_abandono()`, um `<dialog>`
+  caixa é UMA por página (`forma_abandonar()`, um `<dialog>`
   partilhado); o botão continua a ser submit de um `<form>` e o JS
   intercepta — **sem JS o POST segue** e a recusa do servidor explica
   porquê, em vez de o botão ficar morto. O `required` dos rádios é
@@ -1061,22 +1062,11 @@ O funil da empresa, do «por ver» ao «ganho».
   não têm motivo, e não se lhes inventa um. Texto livre não: ao fim de
   um mês dá cinquenta maneiras de escrever "preço" e nenhuma conta.
 
-- **As fases do quadro são SEIS e fixas, e o que manda é o `papel`.**
-  Decisão do Afonso a 01/09/2026: o quadro é o funil da empresa, não um
-  kanban em branco — criar e apagar fases saiu (UI e rotas). Renomear
-  fica. **O cabeçalho da coluna diz o que ela pede** (`PEDIDO_DA_FASE`,
-  e há teste a obrigar as duas listas a concordar): o campo só aparece
-  quando há lá um cartão, e com tudo em "Por analisar" — o caso normal
-  — não havia nada no ecrã a dizer que o "Submetido" pede o preço
-  proposto; a funcionalidade parecia não existir, e foi o que o Afonso
-  viu. Cada fase tem `fases.papel` (`FASES_DE_ORIGEM`), e é por ele —
-  **nunca pelo nome** — que o cartão decide o que pede
-  (`_campos_da_fase()`): renomear a coluna não pode calar o campo. A
-  migração `atribuir_papeis()` corre a cada arranque, reconhece os
-  nomes que já existem por pedaço (`PISTAS_DE_PAPEL`: a base do Afonso
-  tem "Relatorio Preleminar" escrito assim) e cria os que faltarem, uma
-  vez só.
+- **O quadro e a tabela `fases` saíram, e com eles um subsistema inteiro.** 15/09/2026, por decisão dele: «oito colunas e oito abas eram a mesma coisa duas vezes». Foram-se o arrastar entre colunas e a resposta `{carta, contas}` do `/quadro/mover`, os seis estados fixos com `papel`, a migração que lhes atribuía o papel pelos nomes já escritos, e a tabela `fases`. **Hoje a base tem 23 tabelas e nenhuma é a `fases`** — confirmado a 19/09/2026.
 
+  O que ficou no lugar: a ranhura muda-se no selector de cada linha (`/escada/<ref>`), e o que o cartão pedia vive no bloco «A nossa proposta» da ficha. **O que a escada é, e o que cada ranhura exige, está no `docs/FUNCIONAL.md` §3.1.**
+
+  E fica a lição, que não morreu com o quadro: **um ecrã não pode decidir o que pede pelo NOME de um estado** — o nome muda, e o campo cala-se em silêncio. Hoje o vocabulário é fechado (`ESCADA`, `ESTADOS_DA_EMPRESA`) e a condicionante vive em `CAMPOS_QUE_A_RANHURA_EXIGE`, que é a mesma ideia sem o nome pelo meio.
 - **A partir do "Submetido" o preço é o proposto** (`FASES_COM_PROPOSTO`),
   no cartão e na soma da coluna: somar preços base numa coluna de
   submetidos dá o tecto da entidade e não o que está em jogo, com o
@@ -1126,7 +1116,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   anúncios, e contam-se com o **mesmo** `condicao_da_aba()` que a aba
   aplica, nunca com um parecido (a regra da empresa: um número que um ecrã
   mostra tem de dar exactamente a lista que a ligação dele abre). Por
-  isso `contar_propostas()` dá só as oito, e quem junta as dez é a banda
+  isso `_propostas_por_estado()` dá só as oito, e quem junta as dez é a banda
   das abas. Porque é que têm de existir, e não chegavam as oito: a
   15/09/2026 as abas diziam «Por ver 1 263 · Abandonados 198 305», e os
   198 305 eram **todos** anúncios expirados sem ninguém olhar — zero

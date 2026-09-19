@@ -529,7 +529,7 @@ cai no nosso CPV · a que desconto fecha · quantas propostas lhe fizemos
 seguir) e o **Portal BASE** à direita (o que compra, a quem, como, ao
 longo do tempo). **Sem corpus diz «sem BASE», não zero.**
 
-### 4.8 Configurações — `/configuracoes/<secção>`
+### 4.8 Configurações — `/configuracoes/…`
 
 Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 

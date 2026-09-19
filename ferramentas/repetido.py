@@ -41,9 +41,16 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Os ficheiros VIVOS. O arquivo (docs/diario/, docs/historico/) fica de
 # fora de propósito: são instantâneos, repetem-se entre si por
 # definição, e não se editam.
+# O `docs/referencia.md` **não** está aqui, e é decisão de
+# 19/09/2026. Ele próprio se declara «contexto histórico» no
+# cabeçalho, escreve no passado («havia quatro documentos HTML») e a
+# tabela dos donos põe-no ao lado do `docs/historico/` — é o «porquê,
+# com data». Conferi-lo contra o código de hoje dava ~15 falsos
+# positivos permanentes, e uma ferramenta que acusa sempre o mesmo
+# deixa de se ler.
 VIVOS = ["CLAUDE.md", "ESTADO.md", "BACKLOG.md", "LEIA-ME.md",
          "docs/FUNCIONAL.md", "docs/armadilhas.md", "docs/design.md",
-         "docs/referencia.md", "docs/seguranca.md"]
+         "docs/seguranca.md"]
 
 N = 12               # palavras por janela
 MIN_PALAVRAS = 14    # só se reporta uma passagem a partir daqui

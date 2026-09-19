@@ -13611,6 +13611,43 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         self.assertIn(radar.FOLHA_CSS, entrar.get_data(as_text=True))
 
 
+class TestADocumentacaoNaoApontaParaOVazio(unittest.TestCase):
+    """19/09/2026, do pedido dele: «valida toda a documentação».
+
+    O que o motivou: o `CLAUDE.md` mandava invocar, no início de
+    **todas** as sessões, uma skill `task-observer` que não existia, e
+    escrever num caminho do Windows de antes da mudança de 8/09.
+    Sobreviveu a duas mudanças de sistema porque **um `.md` não
+    falha** — ninguém o corre.
+
+    Este teste corre-o. Passa a `ferramentas/valida_docs.py` pelos
+    ficheiros vivos e exige **zero** referências a funções, constantes,
+    bandeiras, rotas, ficheiros, pastas ou secções que não existam.
+
+    Quando falhar, há dois caminhos e só um é o certo: ou a
+    documentação ficou velha e corrige-se, ou a referência é legítima
+    (algo que saiu, um exemplo de ataque, um caminho externo) e entra
+    no `ISENTOS` **com a razão escrita**. Uma isenção sem razão é o
+    princípio de um saco onde se esconde o que incomoda.
+    """
+
+    def test_tudo_o_que_a_documentacao_cita_existe(self):
+        import importlib.util
+        caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "ferramentas", "valida_docs.py")
+        spec = importlib.util.spec_from_file_location("valida_docs", caminho)
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        faltam, refs = modulo.valida()
+        self.assertTrue(refs, "o validador não leu nada — caminho errado?")
+        if faltam:
+            self.fail("%d referências apontam para o vazio:\n%s" % (
+                len(faltam),
+                "\n".join("  %s `%s` (%s) — %s:%d"
+                          % (t, tok, porque, onde[0][0], onde[0][1])
+                          for t, tok, onde, porque in sorted(faltam)[:20])))
+
+
 class TestAsPecasMudamDePastaSozinhas(unittest.TestCase):
     """19/09/2026: `documentos/` passou a `pecas/`, por queixa dele —
     «temos uma pasta que é docs outra que é documentos».
