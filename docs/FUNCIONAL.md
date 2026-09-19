@@ -256,6 +256,40 @@ Duas origens:
 **Nada se move sozinho.** Um prazo que passa não muda ranhura nenhuma:
 aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
+### 3.6 As peças, e o que o modelo lê
+
+Os documentos do procedimento — Caderno de Encargos, Programa de
+Concurso, anexos. Vêm em duas metades, e convém não as confundir.
+
+**Trazer.** Só das plataformas que o permitem sem sessão iniciada:
+`acingov`, `vortal`, `compraspt`, `anogov` (`PLATAFORMAS_COM_PECAS`).
+Dispara ao pôr um concurso em «Por analisar» — é esse o sinal de que se
+vai trabalhar nele. **Os ficheiros ficam em disco (`documentos/`), não
+na base**, para o `radar.db` não crescer com PDF.
+
+**Ler.** Um modelo lê o CE e o PC e preenche **três campos**:
+`objecto`, `equipa`, `documentos_proposta` (`CAMPOS_LIDOS_PELO_MODELO`).
+São **três pedidos, um por campo** — não um pedido grande —, porque o
+tecto da conta é por minuto e manda no tamanho do recorte
+(`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` (Groq →
+NVIDIA → OpenRouter) até alguém responder.
+
+Três regras que decidem o que se vê:
+
+- **Uma leitura que ficou a meio volta a tentar-se sozinha.** Incompleta
+  = algum dos três campos vazio. A verificação relê, mas só com
+  orçamento e só sobre o que está na escada.
+- **Dois becos ficam por fechar, e são das fontes e não do radar**: sem
+  plataforma conhecida, as peças trazem-se à mão; sem texto extraível
+  (uma digitalização), não há nada a ler. A ficha di-lo em vez de
+  fingir.
+- **Só documentos públicos passam pelo modelo** — Cadernos de Encargos e
+  Programas. Propostas, CV e trabalho próprio nunca.
+
+O que sai vem marcado com o nome do modelo e um aviso para confirmar no
+documento: **é para decidir se vale a pena abrir os PDF, não para
+assinar por baixo.**
+
 ---
 
 ## 4. O que já está feito, ecrã a ecrã

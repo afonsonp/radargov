@@ -284,19 +284,16 @@ A ordem do ficheiro é a ordem do fluxo:
    plataformas que o permitem (`PLATAFORMAS_COM_PECAS`: acingov, vortal,
    compraspt, anogov), por fila e thread de fundo. Ficam em `documentos/`
    no disco, **não na base** — para o `radar.db` ficar pequeno.
-6. **leitura das peças por modelo** — `analisar_pecas()` recorta as zonas
-   relevantes do CE/PC e faz três pedidos (um por campo), gravando em
-   `analise`. Cada pedido desce a cadeia `FORNECEDORES` (Groq → NVIDIA →
-   OpenRouter) até alguém responder. **Medido: nenhuma das reservas
-   aguenta um recorte de tamanho real em rajada** — ver o
-   `docs/referencia.md` antes de contar com elas.
-   **Desde 17/09/2026 (fase 4 do `docs/historico/CICLOS.md`) uma leitura
-   que ficou a meio volta a tentar-se sozinha**: `analise_incompleta()`
-   é «algum dos três `CAMPOS_LIDOS_PELO_MODELO` está vazio», e
-   `reler_incompletas()` corre na verificação depois de `vigiar_pecas()`
-   e antes dos alertas — só com orçamento (`cadeia_esgotada()` falso),
-   só sobre o que está na escada, e pára ao primeiro «sem orçamento». O
-   `--ler-pecas` à mão escolhe-as também, sem esse recorte.
+6. **leitura das peças por modelo** — o que se lê e porque são três
+   pedidos está no `docs/FUNCIONAL.md` §3.6. Aqui: `analisar_pecas()`
+   recorta as zonas relevantes do CE/PC e grava em `analise`;
+   `analise_incompleta()` / `refs_com_leitura_incompleta()` /
+   `reler_incompletas()` são a releitura, que corre na verificação
+   **depois** de `vigiar_pecas()` (as peças novas podem ser o que
+   faltava) e **antes** dos alertas (para o que se ler entrar no resumo
+   do mesmo dia). **Medido: nenhuma das reservas aguenta um recorte de
+   tamanho real em rajada** — ver o `docs/referencia.md` antes de
+   contar com elas.
 7. **contratos celebrados (BASE)** — `importar_contratos()` traz o dump
    semanal do IMPIC do dados.gov para o **`contratos.db`**, ficheiro
    próprio. `historico_entidade()` responde ao bloco da ficha do
