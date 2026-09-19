@@ -257,8 +257,8 @@ A ordem do ficheiro é a ordem do fluxo:
    15/09/2026): o vocabulário da escada (`ESCADA`, `ESTADOS_DA_EMPRESA`),
    `criar_proposta()` / `mover_proposta()` /
    `gravar_campos_da_proposta()` / `contar_propostas()`, as tarefas
-   (`sincronizar_tarefas()` — as automáticas seguem as datas do DR, as
-   escritas à mão nunca se tocam), o cruzamento com o Portal BASE
+   (`sincronizar_tarefas()`; as duas origens estão no
+   `docs/FUNCIONAL.md` §3.5), o cruzamento com o Portal BASE
    (`propostas_por_fechar()`, `fomos_nos()`, `desvio_do_proposto()` —
    **propõe, nunca decide**), os indicadores comerciais
    (`pipeline_em_euros()`, `taxa_de_vitoria()`) e os contactos, que são
@@ -356,15 +356,15 @@ A ordem do ficheiro é a ordem do fluxo:
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
-8a. **a abertura** — `/` (16/09/2026, fase 4 do `docs/design.md`): o
-   estado do negócio e o que há para fazer. Lê a tabela `tarefas`; os
-   prazos dos anúncios não se somam por cima, que as automáticas já os
-   trazem. São **cinco baldes**, e o primeiro é **«prazo passou sem
-   decisão»** (`propostas_sem_decisao()`): as propostas abertas cujo
-   prazo do DR já passou. **Nada se move sozinho** (D2) — as automáticas
-   dessas propostas escondem-se dos outros baldes para não se contarem
-   duas vezes, e quem escolhe a ranhura é a pessoa, no selector da
-   linha.
+8a. **a abertura** — `/` (16/09/2026, fase 4 do `docs/design.md`).
+   **O que o ecrã mostra está no `docs/FUNCIONAL.md` §4.1**, e as
+   tarefas no §3.5. Aqui: lê a tabela `tarefas` e os prazos dos anúncios
+   **não se somam por cima** — as automáticas já os trazem, e somá-los
+   contava duas vezes o que está na escada e afogava as dez que são
+   mesmo trabalho nos mil «por ver». Os nomes:
+   `_tarefas_por_fazer()`, `_grupos_das_tarefas()`,
+   `propostas_sem_decisao()`, `_quantas()`, `sincronizar_tarefas()`,
+   `gravar_tarefa()`.
    **Redesenhada a 17/09/2026** (`docs/historico/REDESENHO.md` §1):
    o título é a **data** (`dia_por_extenso()`) e não uma saudação; os
    quatro cartões `.kpi` deram lugar a uma **linha de factos** na
