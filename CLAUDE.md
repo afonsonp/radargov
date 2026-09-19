@@ -175,6 +175,9 @@ python ferramentas/valida_docs.py  # o que a documentação cita existe? e as
                                    # na bateria de testes, e trava o commit)
 python ferramentas/repetido.py     # o que está escrito duas vezes, com
                                    # ficheiro e linha dos dois lados
+python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar
+                                   # uma release: árvore, testes, documentação
+                                   # e os números medidos do ESTADO.md
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
@@ -634,8 +637,31 @@ como GitHub Release, correndo **`actualizar.sh`**, que faz `git fetch
 --tags` e um `git merge --ff-only` até à tag mais recente (recusa-se a
 avançar se isso não for uma simples fast-forward, para nunca misturar
 histórico). Cortar uma release é decisão do Afonso, feita depois de
-validar o merge: `git tag -a vX.Y.Z -m "..."`, `git push origin
-vX.Y.Z`, `gh release create vX.Y.Z`. A primeira do repositório actual
+validar o merge.
+
+**Antes de cortar, corre o portão** (19/09/2026):
+
+```bash
+python ferramentas/antes_da_release.py vX.Y.Z
+```
+
+Confere seis coisas e **diz o que falta**, não só que falta: a árvore
+limpa, a tag livre, os testes, o validador da documentação, os
+**números medidos** do `ESTADO.md`, e a data. Só depois é que
+`git tag -a vX.Y.Z -m "..."`, `git push origin vX.Y.Z`,
+`gh release create vX.Y.Z`.
+
+**Porque é que existe:** a bateria já trava um commit com uma
+referência morta ou uma contagem derivável errada. Mas os **números
+medidos** — quantos testes há, quantas linhas tem o `radar.py`, qual é
+a última release — só se sabem correndo, e por isso ficam fora dela.
+Medido no dia em que se escreveu isto, **com cinco releases cortadas
+nesse mesmo dia**: o `radar.py` dizia 23 165 linhas e tinha 23 197, e
+a linha da última release dizia `v1.8.1` — **quatro releases seguidas
+sem ninguém reparar**. A mesma linha já estivera errada a 18/09
+(dizia `v1.7.0` quando era a `v1.8.0`).
+
+A primeira do repositório actual
 é a `v1.1.0`: a `v1.0.0` e a `v1.0.1` de 7/09/2026 nunca chegaram ao
 remoto e as tags locais saíram a 15/09/2026, porque uma tag que só
 existe num disco confunde o `actualizar.sh` e o `gh release create`

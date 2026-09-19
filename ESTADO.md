@@ -59,7 +59,7 @@ salvo os testes e as linhas de código, remedidos a 19/09.
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 076**, em ~76 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 23 165 linhas · `teste_radar.py` 13 765 · `empresa.py` 641 · `contas.py` 302 |
+| Código | `radar.py` 23 197 linhas · `teste_radar.py` 13 791 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,29 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,6 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -110,8 +110,8 @@ ensaio de restauro.
   `"triagem_no_git": false`.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.8.1`**,
-  de 19/09/2026. **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v1.8.6`**,
+  de 19/09/2026 — a sexta do dia. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 17/09/2026** — as colunas novas da
   `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre
