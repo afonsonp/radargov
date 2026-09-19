@@ -645,9 +645,14 @@ validar o merge.
 python ferramentas/antes_da_release.py vX.Y.Z
 ```
 
-Confere seis coisas e **diz o que falta**, não só que falta: a árvore
-limpa, a tag livre, os testes, o validador da documentação, os
-**números medidos** do `ESTADO.md`, e a data. Só depois é que
+Confere sete coisas e **diz o que falta**, não só que falta: a árvore
+limpa, a tag por publicar, os testes, o validador da documentação, os
+**números medidos** do `ESTADO.md`, a data, e as **contagens do
+`docs/FUNCIONAL.md`** §2.1 e §2.2 contra as bases — cada secção contra
+a sua. **É automático**: o `.githooks/pre-push` corre-o ao empurrar
+uma tag `vX.Y.Z`, e recusa o push. Num push de `master` não faz nada,
+e isso é obrigatório: o `empurrar_triagem()` empurra sozinho duas
+vezes por dia, e uma falha aqui travava a sincronização dos dados. Só depois é que
 `git tag -a vX.Y.Z -m "..."`, `git push origin vX.Y.Z`,
 `gh release create vX.Y.Z`.
 

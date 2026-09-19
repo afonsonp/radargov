@@ -40,6 +40,9 @@ que só se sabe a correr.
 4. O `valida_docs.py` dá zero, nas referências e nas contagens.
 5. Os números **medidos** do `ESTADO.md` batem certo.
 6. O `ESTADO.md` já diz a versão que se vai cortar, e a data é de hoje.
+7. As contagens do `docs/FUNCIONAL.md` §2.1 e §2.2 batem com as bases —
+   cada secção contra a **sua** —, e, se o ficheiro mudou nesta
+   release, a data do cabeçalho dele é de hoje.
 
 ## O que NÃO confere, e continua a ser de quem escreve
 
@@ -102,6 +105,90 @@ def medidos(versao):
         elif _numero(d) != _numero(r):
             maus.append((rotulo, d.strip(), r))
     return maus
+
+
+def funcional_medido():
+    """As contagens do `docs/FUNCIONAL.md` §2.1, contra a base.
+
+    **Deriva a tabela inteira em vez de listar as linhas à mão.** Cada
+    linha da forma `| \\`tabela\\` | N | …` é uma promessa conferível, e
+    uma tabela nova fica coberta sem ninguém se lembrar de a
+    acrescentar aqui — que é o erro que esta ferramenta toda existe
+    para não repetir.
+
+    Medido a 19/09/2026, quando ele perguntou se o funcional estava
+    actualizado: **sete das doze contagens estavam velhas**, todas
+    porque a aplicação tinha corrido às 09:00. Não é desleixo — é a
+    natureza de um número medido, e por isso precisa de máquina.
+    """
+    import sqlite3
+    maus = []
+    texto = _ficheiro("docs/FUNCIONAL.md")
+    # **Cada secção contra a SUA base.** A primeira versão varria o
+    # ficheiro todo e acusava `contrato_cpv` de não existir no
+    # radar.db (está no contratos.db) e `responsavel` de não ser uma
+    # tabela (é uma coluna, da tabela das colunas de `propostas`).
+    # Doze falsos positivos, e o achado verdadeiro — um `slots`
+    # desactualizado — perdido no meio. Por isso o âmbito é explícito.
+    for marca, ficheiro in (("### 2.1 ", "radar.db"),
+                            ("### 2.2 ", "contratos.db")):
+        base = os.path.join(RAIZ, ficheiro)
+        if marca not in texto or not os.path.exists(base):
+            continue
+        bloco = texto.split(marca, 1)[1]
+        # a tabela das TABELAS acaba onde começa a das colunas
+        bloco = re.split(r"\n\*\*As colunas|\n### ", bloco)[0]
+        c = sqlite3.connect("file:%s?mode=ro" % base, uri=True)
+        try:
+            existem = {r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            for linha in bloco.splitlines():
+                m = re.match(r"\|\s*((?:`\w+`\s*·?\s*)+)\|\s*([\d\s*·\u00a0]+)\|",
+                             linha)
+                if not m:
+                    continue
+                tabelas = re.findall(r"`(\w+)`", m.group(1))
+                numeros = [_numero(x) for x in
+                           re.split(r"·", m.group(2).replace("*", ""))]
+                numeros = [x for x in numeros if x and x.isdigit()]
+                if len(tabelas) != len(numeros):
+                    continue
+                for tabela, diz in zip(tabelas, numeros):
+                    if tabela not in existem:
+                        maus.append(("`%s`, citada no %s" % (tabela, marca.strip()),
+                                     "existe na doc", "não existe no " + ficheiro))
+                    elif int(diz) != c.execute(
+                            "SELECT count(*) FROM %s" % tabela).fetchone()[0]:
+                        real = c.execute(
+                            "SELECT count(*) FROM %s" % tabela).fetchone()[0]
+                        maus.append(("`%s` no %s" % (tabela, marca.strip()),
+                                     diz, str(real)))
+        finally:
+            c.close()
+    return maus
+
+
+def data_do_funcional():
+    """A data do `FUNCIONAL`, **se ele mudou desde a última release**.
+
+    Não se exige que a data mexa em todas as releases: se o ficheiro
+    não foi tocado, a data dele continua verdadeira. Exige-se quando
+    foi — e a 19/09/2026 levou nove commits num dia com o cabeçalho a
+    dizer «última revisão: 18 de setembro».
+    """
+    ultima = git("describe", "--tags", "--abbrev=0", "HEAD")
+    if ultima and not git("diff", "--name-only", ultima + "..HEAD",
+                          "--", "docs/FUNCIONAL.md"):
+        return None                            # não mudou; a data vale
+    m = re.search(r"Última revisão: (\d{1,2}) de (\w+) de (\d{4})",
+                  _ficheiro("docs/FUNCIONAL.md"))
+    if not m:
+        return "não encontrada"
+    hoje = date.today()
+    if (int(m.group(1)), m.group(2).lower(), int(m.group(3))) == (
+            hoje.day, MESES[hoje.month - 1], hoje.year):
+        return None
+    return "%s de %s de %s" % m.groups()
 
 
 def data_velha_no_estado():
@@ -184,6 +271,25 @@ def main():
                           "põe a de hoje, ou confirma que nada mudou"))
     else:
         print("  ok   a data do ESTADO.md é de hoje")
+
+    # O documento funcional, a pedido dele a 19/09/2026: «quero que o
+    # funcional faça parte dos docs actualizados antes de um push».
+    fun = funcional_medido()
+    if fun:
+        problemas.append(
+            ("%d contagens do docs/FUNCIONAL.md §2.1 estão velhas" % len(fun),
+             "\n".join("       %s: diz «%s», é «%s»" % m for m in fun)))
+    else:
+        print("  ok   as contagens do FUNCIONAL §2.1 batem com a base")
+
+    velha_f = data_do_funcional()
+    if velha_f:
+        problemas.append(
+            ("o FUNCIONAL mudou nesta release e a data dele é de %s"
+             % velha_f,
+             "põe a de hoje no cabeçalho, e a versão que vais cortar"))
+    else:
+        print("  ok   a data do FUNCIONAL está de acordo com o que mudou")
 
     if not problemas:
         print("\n Pronto para cortar a %s:\n" % versao)
