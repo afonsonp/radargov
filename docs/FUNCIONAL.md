@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 19 de setembro de 2026**, sobre a `v1.8.5`. Este
+> **Última revisão: 20 de setembro de 2026**, sobre a `v1.8.6`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -91,8 +91,8 @@ fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 | Tabela | Linhas | O que é |
 |---|---|---|
 | `anuncios` | **210 245** | Um por anúncio do DR (mais 110 da Vortal). Desde **2015** |
-| `documentos` | 269 | As peças do procedimento em disco, de 42 concursos |
-| `analise` | 43 | O que o modelo leu das peças |
+| `documentos` | 274 | As peças do procedimento em disco, de 42 concursos |
+| `analise` | 44 | O que o modelo leu das peças |
 | `propostas` | 78 | O que a **empresa** está a fazer — a escada |
 | `tarefas` | 66 | O que falta fazer, por proposta |
 | `contactos` | 26 | As pessoas do lado de lá, **por entidade** |
@@ -751,7 +751,7 @@ suportam**, não por prioridade.
 
 ### 7.5 Com as peças e o modelo
 
-- **Só 43 leituras, de 269 documentos.** O maior ganho aqui não é ecrã
+- **Só 44 leituras, de 274 documentos.** O maior ganho aqui não é ecrã
   novo — é **julgar se as leituras prestam** (a skill
   `ensaio-de-leitura` existe para isso e nunca correu a sério).
 - **Campos novos, sem mudar a mecânica:** a leitura já extrai objecto,

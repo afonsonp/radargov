@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **19 de setembro de 2026**.
+Última actualização: **20 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -40,7 +40,7 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números são de **19/09/2026**, lidos das duas bases.
+Funciona. Os números são de **20/09/2026**, lidos das duas bases.
 
 | O quê | Quanto |
 |---|---|
@@ -49,8 +49,8 @@ Funciona. Os números são de **19/09/2026**, lidos das duas bases.
 | Propostas na escada | **78** — perdido 16 · não fomos 15 · ganho 13 · por analisar 11 · submetido 8 · a preparar 6 · relatório 5 · cancelado 4 |
 | Tarefas por fazer | 46 |
 | Contactos | 26 |
-| Peças em disco | 269 documentos, de 49 concursos (em `pecas/`, 277 MB) |
-| Leituras pelo modelo | 43, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
+| Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
+| Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 000 340 contratos, 179 823 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
@@ -109,8 +109,8 @@ ensaio de restauro.
   `"triagem_no_git": false`.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.8.6`**,
-  de 19/09/2026 — a sexta do dia. **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v1.8.6`**, de
+  20/09/2026. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 17/09/2026** — as colunas novas da
   `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre
@@ -137,5 +137,5 @@ ensaio de restauro.
 
 Julgar se a leitura das peças pelo modelo presta. A ferramenta existe
 (`ensaio-de-leitura <ref>`, que põe cada linha da resposta ao lado do
-pedaço do documento que a sustenta) e há 43 leituras feitas, 7 delas
+pedaço do documento que a sustenta) e há 44 leituras feitas, 7 delas
 incompletas. Falta passá-las a pente.
