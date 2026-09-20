@@ -740,3 +740,4 @@
 {"accao": "entrou", "detalhe": "2001:818:e78a:a600:4c6b:46f4:4c06:c86c", "quando": "2026-09-19 00:09", "quem": "admin", "ref": "", "tabela": "historico"}
 {"accao": "proposta criada", "detalhe": "Por analisar", "quando": "2026-09-19 00:10", "quem": "admin", "ref": "23265/2026", "tabela": "historico"}
 {"accao": "entrou", "detalhe": "2001:818:e78a:a600:8190:63a2:f741:529c", "quando": "2026-09-19 00:47", "quem": "admin", "ref": "", "tabela": "historico"}
+{"accao": "verificou as peças", "detalhe": "nenhuma peça nova na plataforma (passou a data de esclarecimentos (19/09/2026))", "quando": "2026-09-20 09:01", "quem": "plataforma", "ref": "22956/2026", "tabela": "historico"}
