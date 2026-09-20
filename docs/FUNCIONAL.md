@@ -96,10 +96,10 @@ fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 | `propostas` | 78 | O que a **empresa** está a fazer — a escada |
 | `tarefas` | 66 | O que falta fazer, por proposta |
 | `contactos` | 26 | As pessoas do lado de lá, **por entidade** |
-| `historico` | 572 | Cada movimento: quem, o quê, quando |
+| `historico` | 573 | Cada movimento: quem, o quê, quando |
 | `alteracoes` | 10 | O que o DR mudou num anúncio já lido |
 | `cpv_dict` | 9 454 | O vocabulário CPV, com descrição |
-| `slots` | 54 | Cada verificação que correu, e quantos trouxe |
+| `slots` | 55 | Cada verificação que correu, e quantos trouxe |
 | `erros` | 28 | A série dos erros, por tipo (poda a 200) |
 | `utilizadores` · `sessoes` | 2 · 5 | A porta |
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
