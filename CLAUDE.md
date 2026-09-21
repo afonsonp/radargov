@@ -27,7 +27,8 @@ pede.**
 | `ESTADO.md` | O estado de hoje, com os números | Ao começar. São ~156 linhas, e **é para isso que serve o formato**: sempre que voltar a crescer para diário, o que ele contava vai inteiro para o `docs/diario/` e este volta ao formato (já aconteceu a 3/09 e a 17/09/2026) |
 | `docs/FUNCIONAL.md` | **O documento funcional**: os dados que existem (tabela a tabela, com o que está cheio e o que está vazio), os conceitos, os ecrãs, as acções, as regras — e o que ainda se pode fazer com os dados que há. **Não é instantâneo: corrige-se quando o comportamento muda** | Ao desenhar ou propor um ecrã novo; ao explicar a aplicação a alguém |
 | `docs/armadilhas.md` | O que não é óbvio, em 16 áreas | **A área que vais tocar**, antes de tocar |
-| `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões, a escala | **Antes de mexer em cor, letra, botões ou no calendário**. O que ele vê está em `/amostra` |
+| `docs/design.md` | O caminho do aspecto **até 20/09/2026**: a direcção, a letra, a cor, os botões, a escala. A paleta e a letra que ele descreve (Plex, ardósia) **saíram a 21/09** — o que vale hoje é o sistema de desenho | Para perceber uma decisão de aspecto antiga |
+| `docs/historico/MIGRACAO.md` | O plano de migração para o sistema de desenho (21/09/2026): o mapa das 44 variáveis, o mapa das classes `.rg-*`, e as três fases. **A fase 1 está feita**; o aviso no topo diz as duas coisas do plano que não se seguiram, e porquê | **Antes de mexer em cor, letra, botões, ou nas classes de um ecrã** |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
@@ -466,11 +467,28 @@ A ordem do ficheiro é a ordem do fluxo:
    única que precisa de carimbar `data-pele` e `data-tipo` no `<html>`.
    O `CSS_NOVO` está todo dentro desse âmbito e as fontes servem-se de
    `/tipo/<nome>`, por lista branca (`TIPOS`).
+8d. **o sistema de desenho** — três folhas em `estilo/`, do pacote
+   `radargov-migracao` (**fase 1 feita a 21/09/2026**;
+   `docs/historico/MIGRACAO.md`): `radargov-tokens.css` (24 variáveis,
+   três temas — claro, escuro, contraste), `radargov-pontes.css` (as 44
+   variáveis **antigas** apontadas às novas, para o CSS de 23 mil linhas
+   mudar de paleta sem se tocar numa regra) e
+   `radargov-componentes.css` (as classes `.rg-*`, **inertes** até à
+   fase 2: está tudo dentro de `.rg`, e nenhum molde carimba essa classe
+   ainda). Entram por `ler_estilo()`, e **se faltarem o painel serve na
+   mesma**.
+   **A ordem do `CSS_TUDO` não é a que o plano diz, e a razão está
+   medida**: `terceiros + CSS + CSS_NOVO + tokens + pontes +
+   componentes` — o que **define** variáveis vai todo para o fim, senão
+   o bloco `[data-pele=novo]{--azul:…}` do `CSS_NOVO` ganha-lhes e nada
+   muda de cor. Os três moldes carimbam `data-theme="claro"` (o
+   `data-tipo` saiu). Ver a área «A interface» das armadilhas antes de
+   mexer nisto.
 9. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **222 pontos** (contados a 19/09/2026), cada um de um erro que
+São **225 pontos** (contados a 21/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

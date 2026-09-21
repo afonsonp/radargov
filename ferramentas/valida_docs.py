@@ -296,8 +296,14 @@ def refs_dos_docs():
                     if s in NAO_SAO_CONSTANTES:
                         continue
                     k = "constante"
-                elif re.fullmatch(r"--[a-z-]+", s):
-                    k = "bandeira"
+                elif re.fullmatch(r"--[a-z0-9-]+", s):
+                    # `--x` é bandeira do programa OU variável de CSS, e
+                    # a documentação fala das duas. Distinguem-se pelo
+                    # que existe: desde 21/09/2026 a documentação cita
+                    # `--ink`, `--azul`, `--surface` e companhia a
+                    # propósito da migração, e o validador acusava-as de
+                    # serem bandeiras que o programa não aceita.
+                    k = "variavel" if s in variaveis_css() else "bandeira"
                 elif re.fullmatch(r"/[\w/<>:.-]*", s) and len(s) > 1:
                     k = "rota"
                 elif re.fullmatch(
@@ -337,6 +343,36 @@ def _fontes():
             fontes += [os.path.join(raiz, f) for f in ficheiros
                        if f.endswith(".py")]
     return [p for p in fontes if os.path.exists(p)]
+
+
+_VARIAVEIS_CSS = None
+
+
+def variaveis_css():
+    """Todas as variáveis CSS que o painel **define**, venham do
+    `radar.py` ou das folhas de `estilo/`.
+
+    Uma definição vem sempre a seguir a um `{` ou a um `;`; sem essa
+    âncora, um `.rg-btn--danger:hover` lia-se como a definição de
+    `--danger`. (A mesma armadilha apanhou o teste irmão, no
+    `TestPeleNova`.)
+    """
+    global _VARIAVEIS_CSS
+    if _VARIAVEIS_CSS is None:
+        textos = []
+        for nome in ("radar.py",):
+            caminho = os.path.join(RAIZ, nome)
+            if os.path.exists(caminho):
+                textos.append(io.open(caminho, encoding="utf-8").read())
+        pasta = os.path.join(RAIZ, "estilo")
+        if os.path.isdir(pasta):
+            for f in sorted(os.listdir(pasta)):
+                if f.endswith(".css"):
+                    textos.append(io.open(os.path.join(pasta, f),
+                                          encoding="utf-8").read())
+        junto = re.sub(r"/\*.*?\*/", " ", "\n".join(textos), flags=re.S)
+        _VARIAVEIS_CSS = set(re.findall(r"[{;]\s*(--[a-z0-9-]+)\s*:", junto))
+    return _VARIAVEIS_CSS
 
 
 def o_que_o_codigo_tem():
@@ -459,6 +495,14 @@ def valida():
     for tok, onde in refs["bandeira"].items():
         if tok not in bandeiras:
             erro("bandeira", tok, onde, "o programa não a aceita")
+    # As variáveis de CSS já foram separadas das bandeiras por EXISTIREM
+    # (ver `variaveis_css()`), e por isso esta volta nunca acusa nada.
+    # Fica escrita à mesma: sem ela, um `refs["variavel"]` que deixasse
+    # de ser preenchido passava despercebido, e é exactamente assim que
+    # uma verificação morre em silêncio.
+    for tok, onde in refs["variavel"].items():
+        if tok not in variaveis_css():
+            erro("variavel", tok, onde, "nenhuma folha a define")
     for tok, onde in refs["rota"].items():
         base = tok.split("?")[0].rstrip("/") or "/"
         if base in rotas or tok in rotas:

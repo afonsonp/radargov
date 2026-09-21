@@ -2565,6 +2565,35 @@ botões ou no calendário.
   gesto que se fez. Quem acrescentar uma acção de linha nova passa a
   âncora — não é enfeite, é metade do gesto.
 
+- **Numa folha de estilo, quem DEFINE uma variável tem de vir depois de
+  quem a redefine** (21/09/2026, fase 1 da migração). O plano entregue
+  mandava `tokens + pontes + CSS + CSS_NOVO`; com essa ordem **nada
+  mudou de cor**, porque o `CSS_NOVO` tem `[data-pele=novo]{--azul:…}`
+  com a mesma especificidade das pontes (`:root, [data-pele=novo]`), e
+  a última ganha. Medido no browser: `--azul` ficava `#1b5fc1` e
+  `--sans` ficava system-ui — três folhas novas carregadas a não fazer
+  nada, sem um erro. Não há razão para virem antes: **uma variável é
+  lida quando a regra a usa**, não quando o ficheiro é lido. O
+  `test_o_que_define_variaveis_vem_depois_do_css_antigo` guarda-o.
+
+- **`--x: var(--x)` é circular, e o que se vê não é um erro: é um
+  buraco.** Vinha assim nas pontes entregues (`--ink: var(--ink)`).
+  Uma variável que se cita a si própria fica com o valor
+  inválido-garantido, e as 79 regras que faziam `var(--ink)` ficaram
+  sem valor — a barra de topo, que faz `background:var(--ink)`, ficou
+  **transparente**, com o logótipo branco sobre fundo claro. Não falhou
+  teste nenhum e não apareceu na consola. Quando os dois lados têm o
+  mesmo nome, **não se faz ponte nenhuma**: deixa-se o novo definir. E
+  cuidado com o nome repetido a significar outra coisa — o `--ink`
+  antigo era o quase-preto da barra, o novo é a cor do texto.
+
+- **Um teste que procura `--nome:` num CSS apanha pseudo-classes.** O
+  `.rg-btn--danger:hover` lê-se como uma definição de `--danger`, e o
+  primeiro feitio do teste acima acusava a folha de redefinir metade
+  dos tokens. Uma definição vem sempre a seguir a um `{` ou a um `;`
+  (`[{;]\s*(--[a-z0-9-]+)\s*:`), e os comentários tiram-se antes —
+  senão o comentário que **explica** a armadilha dispara-a.
+
 - **Um índice de duas colunas onde a consulta tem duas condições**
   (17/09/2026). A coluna «a acabar · 90 dias» da lista das entidades
   pergunta «destas 60 entidades, o que acaba na janela»; com o
