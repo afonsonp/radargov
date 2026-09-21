@@ -51,6 +51,15 @@ from zoneinfo import ZoneInfo
 
 import empresa                      # o registo da empresa (empresa.py importa o radar por dentro)
 import contas                    # as contas e as sessoes (contas.py nao importa o radar)
+
+# Os 49 icones do sistema de desenho, inline (fase 2, 21/09/2026). Se
+# faltar, o painel serve na mesma e os botoes ficam so com a palavra --
+# a mesma regra das folhas de `estilo/`: um icone a menos tira aspecto,
+# nao tira a pagina.
+try:
+    import icones
+except ImportError:                                  # pragma: no cover
+    icones = None
 from email.message import EmailMessage
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
 
@@ -8985,12 +8994,15 @@ def porta_de_entrada():
 
 PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%(titulo)s — RadarGov</title>%(css)s</head>
-<body class="entrar-fundo"><main class="entrar">
- <div class="logo">Radar<span>Gov</span></div>
- <h1>%(titulo)s</h1>
- <p class="nota">%(texto)s</p>
- <p><a class="bt primario" href="/">Voltar aos anúncios</a></p>
+<title>%(titulo)s — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<body class="entrar-fundo"><main class="rg entrar">
+ %(logo)s
+ <div class="rg-empty">
+  <p class="rg-empty__title">%(titulo)s</p>
+  <p class="rg-empty__text">%(texto)s</p>
+  <div class="rg-empty__action">
+   <a class="rg-btn rg-btn--primary" href="/">Voltar ao Hoje</a></div>
+ </div>
 </main></body></html>"""
 
 ERROS_DO_PAINEL = {
@@ -9006,7 +9018,8 @@ ERROS_DO_PAINEL = {
 def pagina_de_erro(codigo):
     titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
     return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
-                                   "texto": texto},
+                                   "texto": texto,
+                                   "logo": logotipo(tamanho=24)},
                     codigo, mimetype="text/html")
 
 
@@ -9092,16 +9105,18 @@ def destino_seguro(para):
 
 PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Entrar — RadarGov</title>%(css)s</head>
-<body class="entrar-fundo"><main class="entrar">
- <div class="logo">Radar<span>Gov</span></div>
+<title>Entrar — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<body class="entrar-fundo"><main class="rg entrar">
+ %(logo)s
  <h1>Entrar</h1>
  %(aviso)s
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="%(para)s">
-  <label>Utilizador<input type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></label>
-  <label>Palavra-passe<input type="password" name="senha" autocomplete="current-password" required></label>
-  <button type="submit" class="bt primario">Entrar</button>
+  <div class="rg-field"><label class="rg-field__label" for="e-utilizador">Utilizador</label>
+   <input class="rg-field__input" id="e-utilizador" type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></div>
+  <div class="rg-field"><label class="rg-field__label" for="e-senha">Palavra-passe</label>
+   <input class="rg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required></div>
+  <button type="submit" class="rg-btn rg-btn--primary">Entrar</button>
  </form>
 </main></body></html>"""
 
@@ -9109,6 +9124,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
     return Response(PAGINA_ENTRAR % {
         "css": LIGACAO_CSS,
+        "logo": logotipo(tamanho=28),
         "aviso": ("<div class='flash mau'>%s</div>" % html.escape(aviso)
                   if aviso else ""),
         "email": html.escape(email, quote=True),
@@ -9187,8 +9203,9 @@ def bloco_da_conta():
     utilizador = g.get("utilizador") or {}
     nome = utilizador.get("nome") or ""
     if g.get("sessao"):
-        return ("<details class='sou'><summary><span class='av'>%s</span>%s"
-                "</summary><div class='sou-menu'>"
+        return ("<details class='sou'><summary>"
+                "<span class='rg-avatar'>%s</span>%s"
+                "</summary><div class='rg-menu sou-menu'>"
                 "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
                 "<form method='post' action='/sair'>"
                 "<button type='submit'>sair</button></form>"
@@ -9197,10 +9214,11 @@ def bloco_da_conta():
                 "</form></div></details>"
                 % (_iniciais(nome), html.escape(nome)))
     if nome:
-        return ("<div class='sou'><div class='so-nome'><span class='av'>%s"
-                "</span>%s</div></div>" % (_iniciais(nome), html.escape(nome)))
-    return ("<div class='sou'><div class='so-nome'><span class='av'>&mdash;"
-            "</span>sem conta ainda</div></div>")
+        return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
+                "<span class='rg-avatar'>%s</span>%s</div></div>"
+                % (_iniciais(nome), html.escape(nome)))
+    return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
+            "<span class='rg-avatar'>&mdash;</span>sem conta ainda</div></div>")
 
 
 def arranque_permitido(cfg, endereco):
@@ -9339,18 +9357,13 @@ a:hover{color:var(--ink)}
 .sou .so-nome{display:flex;align-items:center;gap:7px;color:var(--barra-t3);
  font:500 10.5px/1.3 var(--sans)}
 /* O ecra de entrar: uma tarefa, sem barra lateral. */
-.entrar-fundo{display:flex;align-items:center;justify-content:center;min-height:100vh}
-.entrar{flex:none;display:block;width:min(360px,92vw);background:var(--creme);border:1px solid var(--linha);
- border-radius:12px;padding:28px 28px 24px}
-.entrar .logo{font:700 15px/1 var(--sans);color:var(--ink);letter-spacing:.02em}
-.entrar .logo span{color:var(--azul)}
-.entrar h1{font:600 20px/1.2 var(--sans);margin:18px 0 14px}
-.entrar label{display:block;font:500 11.5px/1.4 var(--sans);color:var(--t3);margin:0 0 12px}
-.entrar input{display:block;width:100%;margin-top:4px;padding:9px 10px;border:1px solid var(--linha);
- border-radius:7px;font:400 14px/1.3 var(--sans);color:var(--t1);background:#fff}
-.entrar input:focus{border-color:var(--azul)}
-.entrar .bt{width:100%;margin-top:6px;min-height:36px}
-.entrar .flash{margin:0 0 14px}
+/* Os dois ecras fora do molde (entrar, erro) mudaram-se para o sistema
+   de desenho na fase 2 da migracao (21/09/2026): o cartao, os campos e
+   o botao sao `.rg-*`, e o que os arruma esta em
+   `estilo/radargov-radar.css`. As onze regras que aqui estavam sairam
+   -- e tinham de sair, nao bastava deixa-las: `.entrar input` tem mais
+   especificidade que `.rg-field__input`, e a borda do campo continuava
+   a ser a antiga, fina e clara, por cima do campo novo. */
 
 /* zona principal */
 main{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -11118,7 +11131,11 @@ CSS_TUDO = (carregar_estilos_de_terceiros()
             + CSS + CSS_NOVO
             + ler_estilo("radargov-tokens.css")
             + ler_estilo("radargov-pontes.css")
-            + ler_estilo("radargov-componentes.css"))
+            + ler_estilo("radargov-componentes.css")
+            # o que é do RADAR e não do sistema -- ver o cabeçalho dessa
+            # folha. Vem por último, e é o único sítio onde se escreve
+            # CSS de componente que não venha do design system.
+            + ler_estilo("radargov-radar.css"))
 
 # --- o CSS deixa de viajar em cada clique (17/09/2026)
 #
@@ -11158,17 +11175,16 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 %(css)s</head><body>
 <div class="app">
-<header class="barra">
- <div class="marca"><a class="logo %(inicio_on)s" href="/" title="Hoje &mdash; o estado do negócio e o que há para fazer">Radar<span>Gov</span></a></div>
- <nav>%(nav)s</nav>
- <div class="caixa">
-  <a class="n conf %(conf_on)s" href="/configuracoes" title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
- </div>
+<header class="rg rg-topbar">
+ <a class="rg-topbar__brand" href="/" %(inicio_on)s title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
+ <nav class="rg-topbar__nav" aria-label="Principal">%(nav)s</nav>
+ <a class="rg-topbar__link" href="/configuracoes" %(conf_on)s title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
  %(conta)s
 </header>
-<main>
+<main class="rg">
  <div class="topo">
   <div class="migalhas">
    <div class="b">%(migalhas)s</div>
@@ -11188,10 +11204,16 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
    voltar ficava a meio. Nao da para fixar a altura em CSS porque a
    barra **dobra** (flex-wrap): 50px em ecra largo, 87px a 375px.
    Mede-se, e o CSS usa a medida. */
-(function(){var b=document.querySelector('.barra');if(!b)return;
+(function(){var b=document.querySelector('.rg-topbar');if(!b)return;
  var p=function(){document.documentElement.style.setProperty(
    '--barra-h', b.getBoundingClientRect().height + 'px')};
- p(); addEventListener('resize', p);})();
+ p(); addEventListener('resize', p);
+ /* E outra vez quando as letras chegarem. Medido a 21/09/2026, a 375px:
+    a barra media 130px com a letra de recurso e 92px com a Zilla Slab,
+    e o `.topo` ficava 38px descaido -- uma faixa vazia por baixo da
+    barra que so aparecia em telemovel. O `resize` nao dispara com uma
+    fonte a carregar. */
+ if (document.fonts && document.fonts.ready) document.fonts.ready.then(p);})();
 </script>
 %(script)s
 </body></html>"""
@@ -11381,6 +11403,71 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
             % (destino, ao_submeter, escondidos, classe, etiqueta))
 
 
+def icone(nome, tamanho=18, rotulo=""):
+    """Um dos 49 ícones do sistema, em `<svg>` inline.
+
+    Inline e não `<img>`: o ícone herda a cor do texto por
+    `currentColor`, e um botão que muda de cor ao passar por cima leva o
+    ícone com ele. Um `<img>` seria também um pedido por ícone, e o
+    painel não pede nada a ninguém (CSP `default-src 'self'`).
+
+    Sem o módulo, ou com um nome que não existe, devolve "" -- o botão
+    fica só com a palavra, que é o que importa.
+    """
+    if icones is None:
+        return ""
+    try:
+        return icones.icone(nome, tamanho, rotulo)
+    except Exception:                                # pragma: no cover
+        return ""
+
+
+# O disco do logótipo: a bandeira reduzida a duas faixas dentro de um
+# círculo, na proporção dela (36,8 de 92 é o verde). Vem do componente
+# `Logo` do sistema de desenho.
+#
+# O `clipPath` precisa de um id, e o componente React gera um ao acaso
+# por instância. Aqui é FIXO: dois logótipos na mesma página apontam ao
+# mesmo clip, e o clip é o mesmo -- ids repetidos em HTML são inválidos,
+# mas um id repetido a apontar para a mesma forma não muda nada do que
+# se vê. O que não se pode é gerar um ao acaso por chamada: o HTML
+# passaria a mudar a cada pedido, e a folha de estilo e as capturas de
+# ecrã deixavam de ser comparáveis.
+def _disco(tamanho=16, anel=False):
+    return (
+        "<svg class='rg-logo__disc' viewBox='0 0 96 96' width='%d' "
+        "height='%d' aria-hidden='true' focusable='false'>"
+        "<clipPath id='rg-dsc%s'><circle cx='48' cy='48' r='%d'/></clipPath>"
+        "<g clip-path='url(#rg-dsc%s)'>"
+        "<rect x='2' y='2' width='36.8' height='92' class='rg-logo__verde'/>"
+        "<rect x='38.8' y='2' width='56' height='92' class='rg-logo__verm'/>"
+        "</g>%s</svg>"
+        % (tamanho, tamanho, "-a" if anel else "", 42 if anel else 46,
+           "-a" if anel else "",
+           ("<circle cx='48' cy='48' r='42' fill='none' stroke='currentColor'"
+            " stroke-width='6'/>") if anel else ""))
+
+
+def logotipo(tamanho=26, inverso=False, marca_so=False):
+    """O logótipo: «Radar G⬤v», com o disco no lugar do ó.
+
+    É o lockup do sistema de desenho (componente `Logo`). Sobre a barra
+    azul leva `inverso`, que pinta as duas palavras de branco e põe o
+    anel à volta do disco -- sem o anel, o verde e o vermelho ficam a
+    flutuar no azul.
+    """
+    if marca_so:
+        return ("<span class='rg rg-logo rg-logo--mark%s' role='img' "
+                "aria-label='Radar Gov'>%s</span>"
+                % (" rg-logo--inverse" if inverso else "",
+                   _disco(tamanho, anel=inverso)))
+    return ("<span class='rg rg-logo%s' role='img' aria-label='Radar Gov' "
+            "style='font-size:%dpx'><span class='rg-logo__radar'>Radar</span> "
+            "<span class='rg-logo__gov'>G%sv</span></span>"
+            % (" rg-logo--inverse" if inverso else "", tamanho,
+               _disco(int(round(tamanho * 0.56)), anel=inverso)))
+
+
 def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
                     titulo=""):
     """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
@@ -11557,14 +11644,21 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     itens = []
     for chave, etiqueta, destino, vistas in NAV:
         no_item = chave == item_activo
-        itens.append("<a class='%s' href='%s'><b>%s</b></a>"
-                     % ("on" if no_item else "", destino,
+        # `aria-current="page"` e nao uma classe `.on` (fase 2 da
+        # migracao): e o mesmo sinal para o CSS e para quem le com um
+        # leitor de ecra, e o `.rg-topbar__link[aria-current]` do
+        # sistema pinta-o. Uma classe `.on` so pintava.
+        itens.append("<a class='rg-topbar__link' href='%s'%s>%s</a>"
+                     % (destino, " aria-current='page'" if no_item else "",
                         html.escape(etiqueta)))
         if no_item:
             for v_chave, v_etiqueta, v_destino in vistas:
-                itens.append("<a class='sub %s' href='%s'><b>%s</b></a>"
-                             % ("on" if v_chave == activo else "",
-                                v_destino, html.escape(v_etiqueta)))
+                itens.append(
+                    "<a class='rg-topbar__link rg-topbar__link--sub' "
+                    "href='%s'%s>%s</a>"
+                    % (v_destino,
+                       " aria-current='page'" if v_chave == activo else "",
+                       html.escape(v_etiqueta)))
 
     # A ultima verificacao saiu da barra a 13/09/2026: esta nos
     # Indicadores (linha_da_ultima_verificacao()), que passaram a seccao
@@ -11623,11 +11717,13 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
-        "conf_on": "on" if activo == "configuracoes" else "",
+        "conf_on": ("aria-current='page'"
+                    if activo == "configuracoes" else ""),
+        "logo": logotipo(tamanho=26, inverso=True),
         # o logotipo E o Hoje, e acende como qualquer item da barra:
         # sem sinal de estar aceso, o unico caminho de volta a abertura
         # nao se distingue de uma marca decorativa
-        "inicio_on": "on" if activo == "inicio" else "",
+        "inicio_on": "aria-current='page'" if activo == "inicio" else "",
         "nav": "".join(itens),
         "migalhas": migalhas,
         # O titulo, e o "?" so quando ha texto para ele guardar. Sem
@@ -21687,6 +21783,26 @@ TIPOS = {"inter.woff2", "plex-sans.woff2",
          # `/amostra` e o `[data-tipo=*]` existirem -- saem na fase 3.
          "ZillaSlab-SemiBold.woff2", "ZillaSlab-Medium.woff2",
          "SourceSans3-Variable.woff2", "SourceCodePro-Variable.woff2"}
+
+
+@app.route("/favicon.svg")
+def favicon():
+    """O disco do logótipo, sozinho, como ícone do separador.
+
+    Não havia nenhum: o browser pedia `/favicon.ico`, levava 404, e o
+    separador ficava com a folha em branco. É o mesmo desenho do
+    logótipo (fase 2 da migração), servido da própria aplicação como
+    tudo o resto.
+    """
+    resposta = Response(
+        "<?xml version='1.0' encoding='utf-8'?>"
+        + _disco(64).replace("class='rg-logo__disc'", "")
+                    .replace("class='rg-logo__verde'", "fill='#006432'")
+                    .replace("class='rg-logo__verm'", "fill='#e61e1e'")
+                    .replace("<svg ", "<svg xmlns='http://www.w3.org/2000/svg' "),
+        mimetype="image/svg+xml")
+    resposta.headers["Cache-Control"] = "public, max-age=604800"
+    return resposta
 
 
 @app.route("/tipo/<nome>")

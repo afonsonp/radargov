@@ -2594,6 +2594,37 @@ botões ou no calendário.
   (`[{;]\s*(--[a-z0-9-]+)\s*:`), e os comentários tiram-se antes —
   senão o comentário que **explica** a armadilha dispara-a.
 
+- **Uma regra do CSS antigo ganha a uma classe do sistema, e a página
+  fica com metade de cada** (22/09/2026, fase 2). A `PAGINA_ENTRAR` foi
+  refeita com `.rg-field__input` (0,1,0), e a borda continuou a ser a
+  antiga: `.entrar input` é (0,1,1) e ganha. **Não basta trocar o
+  markup — as regras que ele deixou para trás têm de sair**, senão o
+  ecrã fica com o desenho novo e os detalhes do velho, que é pior do
+  que qualquer dos dois.
+
+- **O `--barra-h` mede-se outra vez quando as letras chegarem.** É
+  medido em JS porque a barra dobra; o que ninguém tinha visto é que a
+  letra de recurso e a Zilla Slab dão barras de alturas diferentes.
+  Medido a 375px: 130px com a de recurso, 92px com a certa — e o
+  `.topo`, que faz `top:var(--barra-h)`, ficava 38px descaído, com uma
+  faixa vazia só em telemóvel. O `resize` não dispara com uma fonte a
+  carregar; o `document.fonts.ready` é que dispara.
+
+- **O `clipPath` do logótipo leva um id FIXO.** O componente React gera
+  um ao acaso por instância, e copiar isso para o Python fazia o HTML
+  mudar a cada pedido: a folha de todos os ecrãs e qualquer captura
+  deixavam de se poder comparar com a anterior. Dois logótipos na mesma
+  página apontam ao mesmo clip, o que é HTML inválido e não muda nada do
+  que se vê — a forma é a mesma.
+
+- **O `.gitignore` guarda segredos por padrão largo, e um padrão largo
+  apanha inocentes.** O `*token*` apanhou o `radargov-tokens.css`, que é
+  a paleta: o ficheiro central da migração não entrava no repositório, e
+  uma instalação nova ficava sem paleta nenhuma sem nada o dizer. A
+  excepção escreve-se com **um caminho**, nunca com `*.css`, e prova-se
+  a seguir que `chave_api.txt`, `*_API_KEY*`, `*secret*` e `*.key`
+  continuam ignorados.
+
 - **Um índice de duas colunas onde a consulta tem duas condições**
   (17/09/2026). A coluna «a acabar · 90 dias» da lista das entidades
   pergunta «destas 60 entidades, o que acaba na janela»; com o
