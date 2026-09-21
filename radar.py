@@ -13352,7 +13352,7 @@ def _lista_de_propostas():
     # nao um desconto no numero.
     sem_anuncio = sum(1 for p in linhas if not p["ref"])
     if linhas:
-        corpo = ("<div class='cx tab-cx'><table class='tab-contratos tab-lista'>"
+        corpo = ("<div class='cx tab-cx'><table class='rg-table tab-contratos tab-lista'>"
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
                  % ("".join("<th>%s</th>" % html.escape(t)
                             for t in colunas_da_ranhura(estado_actual)),
@@ -14482,7 +14482,7 @@ def _caixa_email(cfg):
     if not sou_admin():
         return (
             "<div class='cx conf-email'>"
-            "<div class='rot'>Resumo por e-mail</div>"
+            "<div class='rg-field__label'>Resumo por e-mail</div>"
             "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
             "da hora marcada, e só se houver novidade.</div>"
             "<form class='form-email' method='post' action='/alertas/email'>"
@@ -14496,7 +14496,7 @@ def _caixa_email(cfg):
                html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
     return (
         "<div class='cx conf-email'>"
-        "<div class='rot'>Resumo por e-mail</div>"
+        "<div class='rg-field__label'>Resumo por e-mail</div>"
         "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
         "da hora marcada, e só se houver novidade.</div>"
         "<form class='form-email' method='post' action='/alertas/email'>"
@@ -14506,7 +14506,7 @@ def _caixa_email(cfg):
         "value='%s'></label>"
         "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
         "</form>"
-        "<div class='rot' style='margin:22px 0 6px'>Quem envia</div>"
+        "<div class='rg-field__label' style='margin:22px 0 6px'>Quem envia</div>"
         "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
         "resumo. A palavra-passe grava-se no <code>email_senha.txt</code>, "
         "nunca no <code>config.json</code>; o campo fica vazio de "
@@ -14544,7 +14544,7 @@ def _caixa_urgente():
     usado pelo filtro, pelo cartao dos indicadores e pelos rotulos --
     por isso edita-se num sitio so, e todos leem dias_urgente()."""
     return ("<div class='cx novo-filtro' style='margin-top:16px'>"
-            "<div class='rot'>Janela do &ldquo;urgente&rdquo;</div>"
+            "<div class='rg-field__label'>Janela do &ldquo;urgente&rdquo;</div>"
             "<div class='nota' style='margin:6px 0 10px'>Um anúncio é "
             "&ldquo;urgente&rdquo; quando o prazo acaba nos próximos N "
             "dias. O mesmo número serve o filtro da lista, o cartão dos "
@@ -14635,7 +14635,7 @@ def _conteudo_alertas():
     if seguidas:
         caixa_seguidas = (
             "<div class='cx novo-filtro' style='margin-top:16px'>"
-            "<div class='rot'>Entidades seguidas</div>"
+            "<div class='rg-field__label'>Entidades seguidas</div>"
             "<div class='nota' style='margin:6px 0 10px'>Os anúncios "
             "novos destas entidades entram no resumo diário. Segue-se e "
             "deixa-se de seguir na ficha de cada uma.</div>"
@@ -14665,7 +14665,7 @@ def _conteudo_alertas():
 
     # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
     novo = (
-        "<div class='cx novo-filtro'><div class='rot'>Filtro de alertas</div>"
+        "<div class='cx novo-filtro'><div class='rg-field__label'>Filtro de alertas</div>"
         "<div class='nota' style='margin:6px 0 14px'>Um alerta é um "
         "conjunto de campos: o que entrar e corresponder vai no resumo "
         "por e-mail. Um alerta por CPV ou por palavras avisa dos "
@@ -14730,7 +14730,7 @@ def _conteudo_alertas():
                html.escape(corta(r["entidade"], 44)),
                html.escape(r["filtro"]))
             for r in ultimos)
-        historico = ("<div class='cx tab-cx'><table class='tab-contratos'>"
+        historico = ("<div class='cx tab-cx'><table class='rg-table tab-contratos'>"
                      "<thead><tr><th>Avisado</th><th>Anúncio</th>"
                      "<th>Entidade</th><th>Filtro</th></tr></thead>"
                      "<tbody>%s</tbody></table></div>" % hist)
@@ -14743,7 +14743,7 @@ def _conteudo_alertas():
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
                 _caixa_urgente() +
-                "<div class='rot' style='margin:22px 0 12px'>Últimos avisos"
+                "<div class='rg-field__label' style='margin:22px 0 12px'>Últimos avisos"
                 "</div>" + historico + "</div>")
 
     return conteudo
@@ -15039,7 +15039,7 @@ def config_leitura():
     for nome, _, omissao, ficheiros, variavel, _ in FORNECEDORES:
         texto, bem, por_var = _estado_da_chave(ficheiros, variavel)
         linhas.append(
-            "<div class='conf-forn'><div class='rot'>%s</div>"
+            "<div class='conf-forn'><div class='rg-field__label'>%s</div>"
             "<div class='saude'>%s</div>%s%s</div>"
             % (html.escape(nome),
                linhas_de_saude([("Chave", html.escape(texto), bem)], "#d68910"),
@@ -15112,7 +15112,7 @@ def config_capturas():
              "o pedido da página de um anúncio")):
         texto, bem = _estado_da_captura(nome_base)
         blocos.append(
-            "<div class='conf-forn'><div class='rot'>%s</div>"
+            "<div class='conf-forn'><div class='rg-field__label'>%s</div>"
             "<div class='nota' style='margin:6px 0 10px'>%s. Como se faz a "
             "captura está no LEIA-ME, secção 3.</div>"
             "<div class='saude'>%s</div>"
@@ -15162,7 +15162,7 @@ def config_copias():
                        cfg.get("triagem_no_git", True),
                        nota="commit e push em cada verificação em que mude")
         + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
-        + "<div class='rot' style='margin:22px 0 6px'>O que existe em copias/</div>"
+        + "<div class='rg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
         + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
         + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s "
           "<span style='color:var(--t5)'>(python radar.py --ensaiar-copia)</span></div>"
@@ -15195,7 +15195,7 @@ def _tabela_do_ensaio(linhas):
                html.escape(l["status"] or "—"),
                html.escape(_texto_do_preco(l["valor_proposta"])) if l["valor_proposta"] else "—",
                (problemas + avisos) or "<span class='ok'>liga</span>"))
-    return ("<div class='mercado-tab'><table class='tab-mercado tab-ensaio'><thead><tr>"
+    return ("<div class='mercado-tab'><table class='rg-table tab-mercado tab-ensaio'><thead><tr>"
             "<th>Linha</th><th>Referência</th><th>Anúncio</th><th>Lote</th><th>Estado</th>"
             "<th class='p'>Proposta</th><th>Ensaio</th></tr></thead><tbody>%s</tbody></table></div>"
             % "".join(corpo))
@@ -15238,7 +15238,7 @@ def config_importar():
             % (html.escape(nome, quote=True), "" if contagens["ok"] else " disabled",
                contagens["ok"], "" if contagens["ok"] == 1 else "s"))
         corpo = (
-            "<div class='rot'>Ensaio de %s</div>"
+            "<div class='rg-field__label'>Ensaio de %s</div>"
             "<div class='nota' style='margin:6px 0 12px'>%d linha%s lida%s: <b>%d liga%s</b> "
             "a %d anúncio%s, <b>%d com erro</b>. Nada foi gravado ainda.</div>%s%s"
             % (html.escape(ficheiro.filename), contagens["total"],
@@ -15252,20 +15252,20 @@ def config_importar():
                              "WHERE folha='modelo'").fetchone()
         ultima = c.execute("SELECT MAX(importado_em) FROM empresa WHERE folha='modelo'").fetchone()[0]
     corpo = (
-        "<div class='rot'>1. O modelo</div>"
+        "<div class='rg-field__label'>1. O modelo</div>"
         "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o radar "
         "precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote "
         "quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. "
         "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
         "<a class='rg-btn rg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
-        "<div class='rot' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
+        "<div class='rg-field__label' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
         "<div class='nota' style='margin-bottom:12px'>Primeiro vês um ensaio: o que liga a que "
         "anúncio, o que não liga e porquê. Só grava quando confirmares.</div>"
         "<form method='post' action='/configuracoes/importar' enctype='multipart/form-data' "
         "class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span>"
         "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
         "<button type='submit' class='rg-btn rg-btn--primary'>Ver o ensaio</button></form>"
-        "<div class='rot' style='margin:26px 0 6px'>O que já está</div>"
+        "<div class='rg-field__label' style='margin:26px 0 6px'>O que já está</div>"
         "<div class='nota'>%s</div>"
         % ("%s linha%s do modelo, em %s anúncio%s; última importação a %s."
            % (mil_pt(n_modelo[0]), "" if n_modelo[0] == 1 else "s", mil_pt(n_modelo[1]),
@@ -15356,7 +15356,7 @@ def config_conta():
         + _campo("Outra vez", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
         + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
-        + "<div class='rot' style='margin:22px 0 6px'>Sessões abertas</div>"
+        + "<div class='rg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
         + "<div class='saude'>%s</div>" % linhas
         + ("<div style='margin-top:14px'>%s</div>"
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
@@ -15381,7 +15381,7 @@ def _bloco_da_empresa(cfg=None):
     justamente nos concursos que interessam.
     """
     nome, nif = _nome_da_empresa(cfg)
-    return ("<div class='rot' style='margin:22px 0 6px'>A nossa empresa</div>"
+    return ("<div class='rg-field__label' style='margin:22px 0 6px'>A nossa empresa</div>"
             "<div class='nota' style='margin-bottom:10px'>Para o radar saber, "
             "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
             "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
@@ -15424,7 +15424,7 @@ def _bloco_utilizadores(todos, eu):
                                 % html.escape(u["email"], quote=True)))
         for u in todos)
     return (
-        "<div class='rot' style='margin:26px 0 6px'>Utilizadores</div>"
+        "<div class='rg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
         "<div class='nota' style='margin-bottom:10px'>O <b>admin</b> vê tudo "
         "e cria contas; o <b>tester</b> vê os anúncios, o que está em curso, "
         "o mercado, e nas configurações só a conta, o interesse, os alertas "
@@ -15606,7 +15606,7 @@ def entidade_procurar():
                if e["chave"].startswith("n:") else "")
             for e in achadas)
         corpo = ("<div class='larg'><div class='cx lado-cx'>"
-                 "<div class='rot' style='margin-bottom:10px'>"
+                 "<div class='rg-field__label' style='margin-bottom:10px'>"
                  "%d entidades respondem a &ldquo;%s&rdquo; &mdash; "
                  "escolhe a ficha</div>%s</div></div>"
                  % (len(achadas), html.escape(termo), linhas))
@@ -16124,7 +16124,7 @@ def concentracao_html(ganha):
                       "title='as outras %s empresas — %s'></i>"
                       % (100.0 * resto / total, mil_pt(max(0, quantas - 5)),
                          euros_curto(resto)))
-    return ("<div class='cx graf'><div class='rot'>Concentração</div>"
+    return ("<div class='cx graf'><div class='rg-field__label'>Concentração</div>"
             "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
             "cinco maiores, entre as %s empresas que ganharam alguma "
             "coisa.</div>"
@@ -16158,7 +16158,7 @@ def barras_h(linhas, titulo, nota="", ligar=False):
             % (html.escape(l["n"], quote=True), etiqueta,
                100.0 * l["v"] / maior, euros_curto(l["v"]),
                "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
-    return ("<div class='cx graf'><div class='rot'>%s</div>%s"
+    return ("<div class='cx graf'><div class='rg-field__label'>%s</div>%s"
             "<div class='barras-h'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 12px'>%s</div>" % nota
@@ -16223,7 +16223,7 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
-    return ("<div class='cx graf'><div class='rot'>%s</div>%s"
+    return ("<div class='cx graf'><div class='rg-field__label'>%s</div>%s"
             "<div class='barras'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
@@ -16424,8 +16424,8 @@ def nosso_lado_cx(nosso):
                        "" if nosso["decididos"] == 1 else "s",
                        MINIMO_COM_ENTIDADE))
         pedacos.append(
-            "<div class='ent-nossas'><div class='rot'>As nossas propostas "
-            "<i>%s</i>%s</div><table class='tab-contratos'><tbody>%s</tbody>"
+            "<div class='ent-nossas'><div class='rg-field__label'>As nossas propostas "
+            "<i>%s</i>%s</div><table class='rg-table tab-contratos'><tbody>%s</tbody>"
             "</table></div>"
             % (mil_pt(len(nosso["propostas"])), taxa, "".join(linhas)))
     else:
@@ -16658,7 +16658,7 @@ def _bloco_de_comparacao(chaves):
         % (html.escape(colunas[0][i][0]), colunas[0][i][1], colunas[1][i][1])
         for i in range(len(colunas[0])))
     return ("<div class='cx comparar'><div class='cab'>"
-            "<span class='rot'>A comparar</span><div>%s</div><div>%s</div>"
+            "<span class='rg-field__label'>A comparar</span><div>%s</div><div>%s</div>"
             "</div><div class='grelha'>%s</div>"
             "<a class='nota' href='/entidades'>deixar de comparar</a></div>"
             % (cabecas[0], cabecas[1], linhas))
@@ -16780,7 +16780,7 @@ def entidades():
         tabela = (
             "<form method='get' action='/entidades'>"
             "<input type='hidden' name='ver' value='%s'>"
-            "<div class='cx tab-cx'><table class='tab-contratos'>"
+            "<div class='cx tab-cx'><table class='rg-table tab-contratos'>"
             "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
             "<th class='p'>Compra</th><th class='p'>Ganha</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
@@ -16895,7 +16895,7 @@ def factos_da_entidade(chave, nosso, meses=24):
          euros_curto(acabam[1]) if acabam[0] else
          ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
     )
-    return ("<div class='sit-numeros seis'>%s</div>" % "".join(
+    return ("<div class='rg-stats seis'>%s</div>" % "".join(
         _numero_da_situacao(rotulo, valor, "",
                             "<span class='sub'>%s</span>" % nota)
         if valor is not None
@@ -17018,7 +17018,7 @@ def entidade(chave):
                euros(r["preco_contratual"]))
             for r in d["recentes"])
         recentes = ("<div class='cx tab-cx' style='margin-top:14px'>"
-                    "<table class='tab-contratos'><thead><tr>"
+                    "<table class='rg-table tab-contratos'><thead><tr>"
                     "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
                     "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
                     "<tbody>%s</tbody></table></div>" % linhas_r)
@@ -17492,7 +17492,7 @@ def contratos():
                           "<th>Objecto</th><th>Entidade</th>"
                           "<th>Quem ganhou</th><th>Procedimento</th>"
                           "<th class='p'>Preço</th>")
-        tabela = ("<div class='cx tab-cx'><table class='tab-contratos'>"
+        tabela = ("<div class='cx tab-cx'><table class='rg-table tab-contratos'>"
                   "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
                   "</table></div>" % (cabecalhos, "".join(corpo)))
     elif ha_pergunta:
@@ -17533,11 +17533,11 @@ def contratos():
     # era a unica defesa contra o "ecra bifacetado" que o custo da
     # opcao A (6.1) previa.
     if fim:
-        titulo_tabela = ("<div class='rot' style='margin:16px 0 10px'>"
+        titulo_tabela = ("<div class='rg-field__label' style='margin:16px 0 10px'>"
                          "Contratos por <b>fim estimado</b> &mdash; o que "
                          "vai acabar até %s</div>" % data_pt(fim_janela))
     else:
-        titulo_tabela = ("<div class='rot' style='margin:16px 0 10px'>"
+        titulo_tabela = ("<div class='rg-field__label' style='margin:16px 0 10px'>"
                          "Contratos por <b>data de celebração</b> &mdash; "
                          "o que já se comprou</div>")
 
@@ -18426,7 +18426,7 @@ def homologos_cx(a, chave):
             # feita, e sem ele o bloco e uma tabela sem criterio
             + ("<div class='nota' style='margin:6px 0 12px'>"
                "Parecido = tem em comum %s: <b>%s</b>.</div>"
-               "<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
+               "<div class='mercado-tab'><table class='rg-table tab-mercado'><thead><tr>"
                "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
                "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
                "<tbody>%s</tbody></table></div></div>"
@@ -18529,7 +18529,7 @@ def desfecho_cx(a):
         if dias < DIAS_ATE_CONTRATO:
             return ""
         return ("<div class='cx mercado' id='desfecho'>"
-                "<div class='rot'>Desfecho</div>"
+                "<div class='rg-field__label'>Desfecho</div>"
                 "<div class='nota' style='margin:6px 0 0'>"
                 "Publicado há %s e <b>ainda sem contrato celebrado</b> no "
                 "Portal BASE. Passado este tempo já não costuma ser espera: "
@@ -18593,14 +18593,14 @@ def desfecho_cx(a):
 
     # Uma linha so nao e um lote: a tabela por baixo do somario nao se
     # desenha, porque repetia os mesmos numeros noutra forma.
-    tabela = ("<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
+    tabela = ("<div class='mercado-tab'><table class='rg-table tab-mercado'><thead><tr>"
               "<th>Celebrado</th><th>Objecto</th><th>Quem ganhou</th>"
               "<th>Execução</th><th class='p'>Preço</th></tr></thead>"
               "<tbody>%s</tbody></table></div>" % "".join(corpo)
               ) if len(linhas) > 1 else ""
 
     return ("<div class='cx mercado' id='desfecho'>"
-            "<div class='rot'>Desfecho</div>"
+            "<div class='rg-field__label'>Desfecho</div>"
             "<div class='nota' style='margin:6px 0 12px'>"
             "%s, do Portal BASE. Liga-se pelo número deste anúncio "
             "(<code>%s</code>) e não por semelhança, por isso ou é este "
@@ -18634,9 +18634,9 @@ def rot_com_porque(titulo, porque=""):
     controlo morto, a mesma regra do titulo da pagina.
     """
     if not porque:
-        return "<div class='rot'>%s</div>" % titulo
+        return "<div class='rg-field__label'>%s</div>" % titulo
     return ("<details class='porque porque-bloco'><summary>"
-            "<span class='rot'>%s</span><i title='O que é este bloco'>?</i>"
+            "<span class='rg-field__label'>%s</span><i title='O que é este bloco'>?</i>"
             "</summary><div class='nota'>%s</div></details>" % (titulo, porque))
 
 
@@ -18777,7 +18777,7 @@ def mercado(a):
     return _mercado_cx(
         resumo,
         ref_preco +
-        "<div class='mercado-tab'><table class='tab-mercado'><thead><tr>"
+        "<div class='mercado-tab'><table class='rg-table tab-mercado'><thead><tr>"
         "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
         "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
         "<tbody>%s</tbody></table></div>"
@@ -19271,7 +19271,7 @@ def ficha(ref):
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
     propostas_aqui = propostas_de(ref)
     resp = (propostas_aqui[0]["responsavel"] if propostas_aqui else "") or ""
-    resp_cx = ("<div class='cx lado-cx meia'><div class='rot' style='margin-bottom:12px'>"
+    resp_cx = ("<div class='cx lado-cx meia'><div class='rg-field__label' style='margin-bottom:12px'>"
                "Responsável</div>"
                "<form class='resp' method='post' action='/responsavel/%s'>"
                "<div class='av'>%s</div>"
@@ -19298,7 +19298,7 @@ def ficha(ref):
     else:
         linhas_hist = "<div class='nota'>Ainda não há registo de alterações.</div>"
     hist_cx = ("<div class='cx lado-cx meia' id='historico'>"
-               "<div class='rot' style='margin-bottom:6px'>"
+               "<div class='rg-field__label' style='margin-bottom:6px'>"
                "Histórico</div>%s</div>" % linhas_hist)
 
     # Composicao em dossier (escolha do Afonso, 31/08/2026): uma coluna
@@ -20152,7 +20152,7 @@ def _tarefas_da_ficha(p):
               "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
               "<button type='submit'>juntar</button></form>"
               % (html.escape(p["ref"] or "", quote=True), p["id"]))
-    return ("<div class='prop-tarefas'><div class='rot'>O que falta fazer"
+    return ("<div class='prop-tarefas'><div class='rg-field__label'>O que falta fazer"
             "</div>%s%s</div>" % (lista, juntar))
 
 
@@ -20174,7 +20174,7 @@ def _etiquetas_da_ficha(ref):
            accao("/etiqueta/%s/tirar/%d" % (quote(ref, safe=""), e["id"]),
                  "&times;", "etq-x"))
         for e in minhas)
-    return ("<div class='prop-etq'><div class='rot'>Etiquetas</div>%s"
+    return ("<div class='prop-etq'><div class='rg-field__label'>Etiquetas</div>%s"
             "<form class='etq-form' method='post' action='/etiqueta/%s/nova'>"
             "<input type='text' name='nome' placeholder='+ etiqueta' "
             "list='etiquetas-existentes' maxlength='24'></form>"
@@ -20195,7 +20195,7 @@ def proposta_cx(a):
     minhas = propostas_de(ref)
     if not minhas:
         return ("<div class='cx lado-cx' id='proposta'>"
-                "<div class='rot' style='margin-bottom:12px'>A nossa proposta"
+                "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta"
                 "</div><p class='nota'>Este concurso ainda não está na "
                 "escada.</p><div class='prop-accoes'>%s%s</div></div>"
                 % (accao("/estado/%s/analisar" % quote(ref, safe=""),
@@ -20209,7 +20209,7 @@ def proposta_cx(a):
     blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg)
               for p in minhas]
     return ("<div class='cx lado-cx' id='proposta'>"
-            "<div class='rot' style='margin-bottom:12px'>A nossa proposta</div>"
+            "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta</div>"
             "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
 
 
@@ -20404,7 +20404,7 @@ def ficha_da_proposta(id_):
     # sem tarefas, sem contactos e sem histórico. O que o trabalho pede
     # não depende de o concurso ter saído no DR.
     bloco = ("<div class='cx lado-cx' id='proposta'>"
-             "<div class='rot' style='margin-bottom:12px'>A nossa proposta"
+             "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta"
              "</div>%s</div>" % _bloco_de_uma_proposta(p, nome))
     # Os contactos são da ENTIDADE, e uma consulta prévia tem entidade.
     contactos = contactos_cx({"ref": "", "nif": "",
@@ -20458,7 +20458,7 @@ def cronologia_da_proposta(p):
             (p["id"], p["ref"], p["ref"])).fetchall()
     if not passos:
         return ""
-    return ("<div class='cx lado-cx'><div class='rot' "
+    return ("<div class='cx lado-cx'><div class='rg-field__label' "
             "style='margin-bottom:10px'>Cronologia</div>%s</div>"
             % "".join("<div class='hist'><b>%s</b> %s <i>%s</i> %s</div>"
                       % (data_hora_pt(h["quando"]),
@@ -21042,7 +21042,7 @@ def cpv_html_bloco():
     if not por_cpv:
         return ""
     nomes = nomes_das_divisoes(d for d, _, _, _ in por_cpv)
-    return ("<div class='rot' style='margin:22px 0 10px'>Onde se ganha, "
+    return ("<div class='rg-field__label' style='margin:22px 0 10px'>Onde se ganha, "
             "por área</div><div class='barras-h'>%s</div>"
             % "".join(
                 "<div class='lh'><span class='t'>%s</span>"
@@ -21092,10 +21092,10 @@ def negocio_cx():
 
     def tabela(titulo, linhas, vazio):
         if not linhas:
-            return ("<div class='rot' style='margin:22px 0 6px'>%s</div>"
+            return ("<div class='rg-field__label' style='margin:22px 0 6px'>%s</div>"
                     "<div class='nota'>%s</div>" % (titulo, vazio))
         maior_n = max(l["n"] for l in linhas)
-        return ("<div class='rot' style='margin:22px 0 10px'>%s</div>"
+        return ("<div class='rg-field__label' style='margin:22px 0 10px'>%s</div>"
                 "<div class='barras-h'>%s</div>"
                 % (titulo, "".join(
                     "<div class='lh'><span class='t'>%s</span>"
@@ -21142,15 +21142,15 @@ def negocio_cx():
     # é quem sabe dizer «ainda não» em vez de um travessão, e as frases
     # dele são as que o BACKLOG cita.
     return ("<div class='cx' style='padding:22px 24px'>"
-            "<div class='rot' style='margin-bottom:6px'>O negócio</div>"
+            "<div class='rg-field__label' style='margin-bottom:6px'>O negócio</div>"
             "<div class='nota' style='margin-bottom:18px'>Porque se perde, "
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
             "com %d decididos ou mais.</div>"
             "%s"
-            "<div class='rot' style='margin:22px 0 10px'>Em jogo, por "
+            "<div class='rg-field__label' style='margin:22px 0 10px'>Em jogo, por "
             "ranhura</div><div class='barras'>%s</div>"
             "%s%s%s"
-            "<div class='rot' style='margin:22px 0 6px'>Há mais tempo sem "
+            "<div class='rg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
             "se mexerem</div><div class='saude'>%s</div>"
             "</div>"
             % (MINIMO_PARA_TAXA, aviso_fechar, barras,
@@ -21248,13 +21248,13 @@ def _delta_html(agora, antes, unidade=" pp", decimais=0):
     dados" e a maneira mais rapida de uma pagina de indicadores mentir.
     """
     if agora is None or antes is None:
-        return "<span class='delta vago'>sem comparação</span>"
+        return "<span class='rg-stat__delta rg-stat__delta--flat'>sem comparação</span>"
     dif = agora - antes
     if abs(dif) < (10.0 ** -decimais) / 2:
-        return "<span class='delta igual'>= igual</span>"
+        return "<span class='rg-stat__delta rg-stat__delta--flat'>= igual</span>"
     forma = "%%+.%df%s" % (decimais, unidade)
-    return ("<span class='delta %s'>%s %s</span>"
-            % ("sobe" if dif > 0 else "desce",
+    return ("<span class='rg-stat__delta rg-stat__delta--%s'>%s %s</span>"
+            % ("up" if dif > 0 else "down",
                "&#9650;" if dif > 0 else "&#9660;",
                (forma % dif).replace(".", ",")))
 
@@ -21264,9 +21264,9 @@ def _numero_da_situacao(rotulo, valor, delta, nota):
     a frase ocupa o lugar dele e diz o que falta para existir (o mesmo
     arranjo que ele pediu a 15/09/2026 para o `negocio_cx()`)."""
     if valor is None:
-        return ("<div class='sit-n por-haver'><span class='r'>%s</span>"
+        return ("<div class='rg-stat por-haver'><span class='r'>%s</span>"
                 "<b>%s</b></div>" % (rotulo, nota))
-    return ("<div class='sit-n'><span class='r'>%s</span><b>%s</b>%s"
+    return ("<div class='rg-stat'><span class='r'>%s</span><b>%s</b>%s"
             "<span class='d'>%s</span></div>"
             % (rotulo, valor, delta, nota))
 
@@ -21310,7 +21310,7 @@ def situacao():
     elif ver == "cpv":
         bloco = cpv_html_bloco()
         corpo = ("<div class='cx' style='padding:22px 24px'>"
-                 "<div class='rot'>Por área de CPV</div>"
+                 "<div class='rg-field__label'>Por área de CPV</div>"
                  "<div class='nota' style='margin:6px 0 0'>A taxa de "
                  "vitória por divisão do vocabulário CPV — as duas "
                  "primeiras casas, que são a área do negócio. Uma taxa "
@@ -21345,7 +21345,7 @@ def situacao():
                 # estava em jogo no trimestre passado pedia um historico
                 # que a base nao guarda, e uma seta inventada era pior
                 # do que nenhuma.
-                "<span class='delta vago'>de agora</span>",
+                "<span class='rg-stat__delta rg-stat__delta--flat'>de agora</span>",
                 "%s aberta%s%s" % (mil_pt(abertas),
                                    "" if abertas == 1 else "s",
                                    "; %s sem preço lido" % mil_pt(sem_preco)
@@ -21358,9 +21358,9 @@ def situacao():
 
         n_ganho = (_numero_da_situacao(
             "Ganho", euros_curto(euros_ganhos),
-            "<span class='delta vago'>sem comparação</span>"
+            "<span class='rg-stat__delta rg-stat__delta--flat'>sem comparação</span>"
             if euros_antes is None else
-            "<span class='delta vago'>era %s</span>"
+            "<span class='rg-stat__delta rg-stat__delta--flat'>era %s</span>"
             % euros_curto(euros_antes or 0),
             "%s concurso%s" % (mil_pt(quantos_ganhos),
                                "" if quantos_ganhos == 1 else "s"))
@@ -21405,7 +21405,7 @@ def situacao():
                else " A comparação é com %s." % rotulo_antes))
 
         corpo = ("<div class='cx' style='padding:22px 24px'>"
-                 "<div class='sit-numeros'>%s</div>%s</div>%s%s"
+                 "<div class='rg-stats'>%s</div>%s</div>%s%s"
                  % (numeros, nota_periodo, negocio_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
 
@@ -21508,7 +21508,7 @@ def funil_cx_html():
                html.escape(corta(nomes_div.get(r["div"], "sem descrição"), 40)),
                mil_pt(r["sim"]), mil_pt(r["tudo"]))
             for r in f["por_divisao"])
-        divisoes = ("<div class='rot' style='margin:22px 0 16px'>Onde a "
+        divisoes = ("<div class='rg-field__label' style='margin:22px 0 16px'>Onde a "
                     "triagem tem dito que sim</div><div class='saude'>%s</div>"
                     % divisoes)
     else:
@@ -21520,7 +21520,7 @@ def funil_cx_html():
     # (a taxa de conversao) e, concatenado no template, o `%` de baixo
     # tentava interpreta-lo como conversao.
     funil_cx = ("<div class='cx' style='padding:22px 24px'>"
-                "<div class='rot' style='margin-bottom:6px'>Funil da "
+                "<div class='rg-field__label' style='margin-bottom:6px'>Funil da "
                 "triagem</div>"
                 "<div class='nota' style='margin-bottom:18px'>" + leitura +
                 "</div><div class='barras'>" + funil_html + "</div>" +
@@ -21577,7 +21577,7 @@ def ranhuras_cx_html(por_estado):
            html.escape(rotulo))
         for i, (ch, rotulo) in enumerate(ESTADOS_DA_EMPRESA))
     return ("<div class='cx' style='padding:22px 24px'>"
-            "<div class='rot' style='margin-bottom:22px'>Propostas por "
+            "<div class='rg-field__label' style='margin-bottom:22px'>Propostas por "
             "ranhura</div><div class='barras'>%s</div></div>" % barras)
 
 
@@ -21637,7 +21637,7 @@ def indicadores():
             ("Sem detalhe lido", mil(porler),
              "lidos ao abrir a ficha, ou em rotina", "color:var(--laranja)" if porler else "")]
     kpis_html = "".join(
-        "<div class='kpi'><div class='r'>%s</div><div class='v'>%s</div>"
+        "<div class='rg-stat'><div class='r'>%s</div><div class='v'>%s</div>"
         "<div class='d' style='%s'>%s</div></div>" % (r, v, estilo, d)
         for r, v, d, estilo in kpis)
 
@@ -21756,11 +21756,11 @@ def indicadores():
     # So o sistema: o negocio saiu para a abertura (numeros_do_negocio()).
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-        "<div class='kpis'>%s</div>"
+        "<div class='rg-stats'>%s</div>"
         "<div class='cx' style='padding:22px 24px'>"
-        "<div class='rot' style='margin-bottom:16px'>Estado da recolha</div>"
+        "<div class='rg-field__label' style='margin-bottom:16px'>Estado da recolha</div>"
         "<div class='saude'>%s</div>"
-        "<div class='rot' style='margin:22px 0 16px'>Corpus de contratos "
+        "<div class='rg-field__label' style='margin:22px 0 16px'>Corpus de contratos "
         "(Portal BASE)</div><div class='saude'>%s</div>"
         "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
         "<code>contratos.db</code>. Actualiza-se em "
@@ -22117,7 +22117,7 @@ def amostra():
         "A tabela", "Os números alinham por algarismo e o dinheiro alinha à "
         "direita &mdash; é a diferença entre uma coluna que se compara de "
         "relance e uma que se lê linha a linha.",
-        "<table class='tab-contratos'><thead><tr><th>Celebrado</th>"
+        "<table class='rg-table tab-contratos'><thead><tr><th>Celebrado</th>"
         "<th>Objecto</th><th>Procedimento</th><th>Quem ganhou</th>"
         "<th class='dir'>Preço</th></tr></thead><tbody>" + "".join(
             "<tr><td>%s</td><td>%s</td><td>%s</td>"
@@ -22620,7 +22620,7 @@ def _o_que_mudou(hoje, cfg):
                accao("/verificar", "verificar agora", "mini")
                if sou_admin() else ""))
 
-    return ("<div class='cx'><div class='rot' style='display:flex;gap:8px;"
+    return ("<div class='cx'><div class='rg-field__label' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
             "<span class='direita' title='%s'%s>%s</span></div>%s"
             "<div class='feed'>%s</div></div>"
@@ -22656,7 +22656,7 @@ def _prazos_a_chegar(hoje, prazos):
     if not linhas:
         linhas.append("<div class='nota' style='padding:8px 0'>Nada a fechar "
                       "nos próximos %d dias.</div>" % DIAS_A_FECHAR)
-    return ("<div class='cx'><div class='rot'>Prazos a chegar &middot; %d "
+    return ("<div class='cx'><div class='rg-field__label'>Prazos a chegar &middot; %d "
             "dias</div><div class='prazos'>%s</div>"
             "<a class='nota' href='/calendario' style='display:block;"
             "margin-top:8px'>calendário &rarr;</a></div>"
@@ -22704,7 +22704,7 @@ def _paradas_ha_mais_tempo(hoje, quantas=3):
                mil_pt(dias), "" if dias == 1 else "s"))
     if not fora:
         return ""
-    return ("<div class='cx'><div class='rot'>Paradas há mais tempo</div>"
+    return ("<div class='cx'><div class='rg-field__label'>Paradas há mais tempo</div>"
             "<div class='saude' style='margin-top:8px;gap:7px'>%s</div></div>"
             % "".join(fora))
 
@@ -22953,7 +22953,7 @@ def inicio():
     alvo_esconder = sem_feitas if esconder else (
         sem_feitas + ("&" if "?" in sem_feitas else "?") + "feitas=esconder")
     cabecalho = (
-        "<div class='fazer-topo'><span class='rot'>Para fazer</span>%s"
+        "<div class='fazer-topo'><span class='rg-field__label'>Para fazer</span>%s"
         "<a class='esconder' href='%s'><span class='chk%s'></span>"
         "esconder as feitas</a></div>"
         % (pilhas, html.escape(alvo_esconder + "#fazer", quote=True),
@@ -23006,7 +23006,7 @@ def tarefas_adiar():
     quem = _quem_pedido()
     atrasadas = _atrasadas_de(quem, hoje)
     corpo = ("<div class='cx' style='padding:22px 24px'>"
-             "<div class='rot'>Adiar as atrasadas</div>"
+             "<div class='rg-field__label'>Adiar as atrasadas</div>"
              "<p class='nota'>São <b>%s</b> tarefa%s com data anterior a "
              "hoje%s. Adiar passa-as todas para %s; o texto, o dono e o "
              "concurso ficam como estão. <b>Não há desfazer</b>: cada uma "

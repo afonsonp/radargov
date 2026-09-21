@@ -8524,13 +8524,13 @@ class TestBlocoComPorque(unittest.TestCase):
         """Um «?» que abre nada é um controlo morto — a mesma regra do
         título da página."""
         self.assertEqual(radar.rot_com_porque("Histórico"),
-                         "<div class='rot'>Histórico</div>")
+                         "<div class='rg-field__label'>Histórico</div>")
         self.assertNotIn("<details", radar.rot_com_porque("Histórico"))
 
     def test_com_explicacao_o_rotulo_vira_summary(self):
         saida = radar.rot_com_porque("Lotes", "vêm do anúncio")
         self.assertIn("<details class='porque porque-bloco'>", saida)
-        self.assertIn("<span class='rot'>Lotes</span>", saida)
+        self.assertIn("<span class='rg-field__label'>Lotes</span>", saida)
         self.assertIn("vêm do anúncio", saida)
 
     def test_o_facto_fica_no_corpo_e_a_explicacao_dentro_do_porque(self):
@@ -11411,7 +11411,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         cliente = radar.app.test_client()
         html_ = cliente.get("/configuracoes/alertas").get_data(as_text=True)
         self.assertNotIn("Definir o interesse", html_)
-        self.assertNotIn("<div class='rot'>Interesse</div>", html_)
+        self.assertNotIn("<div class='rg-field__label'>Interesse</div>", html_)
         self.assertIn("Filtro de alertas", html_)
         self.assertIn("Criar alerta", html_)
         self.assertNotIn("Novo filtro", html_)
@@ -11427,7 +11427,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         # plataforma, datas), mais o nome; a arvore por cima; sem o grupo
         # dos contratos, que nao avisava de nada
         html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
-        caixa = html_.split("<div class='rot'>Filtro de alertas</div>")[1].split("</form>")[0]
+        caixa = html_.split("<div class='rg-field__label'>Filtro de alertas</div>")[1].split("</form>")[0]
         self.assertLess(caixa.index("details class='arvore'"), caixa.index("action='/alertas/criar'"))
         form = caixa.split("action='/alertas/criar'")[1]
         for campo in ("name='nome'", "name='q'", "name='cpv'", "name='ent'",
