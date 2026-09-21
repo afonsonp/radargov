@@ -8427,7 +8427,7 @@ def avisos_de_datas(args):
 
 def faixa_de_avisos_de_datas(args):
     """Os avisos das datas prontos a pôr na página, ou nada."""
-    return "".join("<div class='flash mau'>%s</div>" % html.escape(a)
+    return "".join("<div class='rg-alert rg-alert--danger'>%s</div>" % html.escape(a)
                    for a in avisos_de_datas(args))
 
 
@@ -9125,7 +9125,7 @@ def pagina_entrar(aviso="", email="", para="/", codigo=200):
     return Response(PAGINA_ENTRAR % {
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=28),
-        "aviso": ("<div class='flash mau'>%s</div>" % html.escape(aviso)
+        "aviso": ("<div class='rg-alert rg-alert--danger'>%s</div>" % html.escape(aviso)
                   if aviso else ""),
         "email": html.escape(email, quote=True),
         "para": html.escape(destino_seguro(para), quote=True),
@@ -11400,7 +11400,66 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
         for k, v in (campos or {}).items())
     return ("<form class='accao' method='post' action='%s'%s>%s"
             "<button type='submit' class='%s'>%s</button></form>"
-            % (destino, ao_submeter, escondidos, classe, etiqueta))
+            # a classe TRADUZ-SE aqui (fase 3): as treze chamadas
+            # continuam a dizer "mini cuidado", que e o vocabulario da
+            # casa, e o que sai e o do sistema. Traduzir em cada
+            # chamada era treze sitios por onde esquecer uma.
+            % (destino, ao_submeter, escondidos, botao(classe), etiqueta))
+
+
+# --- os botões e as pílulas do sistema (fase 3, 22/09/2026) ----------
+#
+# O vocabulário antigo (`bt`, `bt forte`, `mini cuidado`) era o mesmo em
+# todo o painel, e por isso a troca faz-se por COMPONENTE e não por
+# ecrã: um `.bt` é um `.bt` na ficha, na lista e nas configurações, e
+# converter os sete ecrãs um a um era fazer a mesma tradução sete vezes.
+#
+# O tamanho e a variante são duas coisas: `mini` é o botão DA LINHA
+# (28px) e `bt` o da PÁGINA (40px); a variante é o significado. No
+# sistema isso são duas classes (`--sm` e `--primary`), e é por isso que
+# esta tabela tem dois eixos e não nove entradas soltas.
+BOTOES = {
+    "bt": "rg-btn rg-btn--secondary",
+    "bt forte": "rg-btn rg-btn--primary",
+    "bt ok": "rg-btn rg-btn--success",
+    "bt verde": "rg-btn rg-btn--success",
+    "bt cuidado": "rg-btn rg-btn--warning",
+    "bt perigo": "rg-btn rg-btn--danger",
+    "bt-leve": "rg-btn rg-btn--sm rg-btn--subtle",
+    "mini": "rg-btn rg-btn--sm rg-btn--secondary",
+    "mini ok": "rg-btn rg-btn--sm rg-btn--success",
+    "mini verde": "rg-btn rg-btn--sm rg-btn--success",
+    "mini cuidado": "rg-btn rg-btn--sm rg-btn--warning",
+    "mini perigo": "rg-btn rg-btn--sm rg-btn--danger",
+}
+
+# Os tons das pílulas. As quatro palavras antigas vêm de funções que as
+# calculam (`etiqueta_prazo()` devolve "mau"/"avisa"/"ok"), e por isso
+# não bastava trocar os literais: há oito sítios onde a classe é uma
+# variável.
+TONS = {"": "", "ok": "rg-tag--success", "avisa": "rg-tag--warning",
+        "mau": "rg-tag--danger", "info": "rg-tag--brand",
+        "mono": "rg-tag--mono", "seal": "rg-tag--seal"}
+
+
+def botao(classe):
+    """A classe antiga de um botão, na do sistema.
+
+    Uma classe que a tabela não conheça passa como está -- há classes de
+    POSIÇÃO ao lado da variante (`mini direita`), e essas não são do
+    sistema nem se traduzem: só se acrescentam."""
+    partes, fora = classe.split(), []
+    variante = " ".join(p for p in partes if p in
+                        ("bt", "bt-leve", "mini", "forte", "ok", "verde",
+                         "cuidado", "perigo"))
+    fora = [p for p in partes if p not in variante.split()]
+    return " ".join([BOTOES.get(variante, variante)] + fora).strip()
+
+
+def tom(classe):
+    """O tom antigo de uma pílula, no do sistema. Desconhecido passa
+    como está -- e sem tom nenhum é uma pílula neutra, que existe."""
+    return " ".join(TONS.get(p, p) for p in (classe or "").split()).strip()
 
 
 def icone(nome, tamanho=18, rotulo=""):
@@ -11485,7 +11544,8 @@ def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
     return ("<form class='accao abandonar-js' method='post' "
             "action='/estado/%s/nao_fomos' data-titulo='%s'>"
             "<button type='submit' class='%s'>%s</button></form>"
-            % (ref, html.escape(titulo or ref, quote=True), classe, etiqueta))
+            % (ref, html.escape(titulo or ref, quote=True), botao(classe),
+               etiqueta))
 
 
 # A caixa e UMA por pagina, partilhada por todos os botoes: vinte copias
@@ -11531,7 +11591,7 @@ def selector_de_ranhura(accao, actual, titulo=""):
     return ("<form class='ranhura escada-js' method='post' action='%s' "
             "data-titulo='%s' data-motivos='%s' data-exige='%s'>"
             "<select name='estado'>%s</select>"
-            "<button type='submit' class='mini'>ir</button></form>"
+            "<button type='submit' class='rg-btn rg-btn--sm rg-btn--secondary'>ir</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
                " ".join(MOTIVOS_DO_ESTADO),
@@ -11563,7 +11623,7 @@ def caixa_do_motivo():
                    for m in motivos))
         for estado, motivos in MOTIVOS_DO_ESTADO.items())
     titulos = json.dumps({e: estado_da_empresa(e) for e in MOTIVOS_DO_ESTADO})
-    return ("<dialog class='modal' id='dlg-motivo'>"
+    return ("<dialog class='rg-dialog' id='dlg-motivo'>"
             "<form method='post' class='accao' id='form-motivo'>"
             "<input type='hidden' name='estado' id='dlg-motivo-estado'>"
             "<h3 id='dlg-motivo-titulo'></h3>"
@@ -11571,7 +11631,7 @@ def caixa_do_motivo():
             "<p class='nota'>Não apaga nada: fica na escada e pode "
             "voltar. O motivo é para daqui a um mês se saber porquê.</p>"
             "%s"
-            "<div class='modal-pe'>"
+            "<div class='rg-dialog__actions'>"
             "<button type='button' id='dlg-motivo-nao'>Cancelar</button>"
             "<button type='submit'>Gravar</button>"
             "</div></form></dialog>"
@@ -11689,9 +11749,9 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # cinquenta não tinha volta, que é o erro mais fácil de cometer.
         if desfazer.startswith("/estado/") or desfazer.startswith("/tarefa/"):
             volta = ("<form class='accao desfazer' method='post' action='%s'>"
-                     "<button type='submit' class='mini'>desfazer</button>"
+                     "<button type='submit' class='rg-btn rg-btn--sm rg-btn--secondary'>desfazer</button>"
                      "</form>" % html.escape(desfazer, quote=True))
-        aviso = "<div class='flash'>%s%s</div>" % (html.escape(texto_aviso), volta)
+        aviso = "<div class='rg-alert rg-alert--info'>%s%s</div>" % (html.escape(texto_aviso), volta)
 
     # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
@@ -11702,7 +11762,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     if faltam:
         onde, guiao = como_agendar()
         aviso += (
-            "<div class='flash mau'>O radar <b>não está a verificar "
+            "<div class='rg-alert rg-alert--danger'>O radar <b>não está a verificar "
             "sozinho</b>: %s por criar %s. Enquanto "
             "assim for, só recolhe quando este painel está aberto. Corre "
             "o <code>%s</code> uma vez.</div>"
@@ -11800,15 +11860,16 @@ def linha(a, vista="", urgente=None, na_escada=None):
 
     tags = []
     if a["cpv"]:
-        tags.append("<span class='tag mono'>%s</span>" % html.escape(a["cpv"]))
+        tags.append("<span class='rg-tag rg-tag--mono'>%s</span>" % html.escape(a["cpv"]))
     if a["plataforma"]:
         # verde quando dela se conseguem trazer as peças, cinzento quando
         # e preciso ir la a mao
-        tags.append("<span class='tag %s'>%s</span>"
-                    % ("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS else "",
+        tags.append("<span class='rg-tag %s'>%s</span>"
+                    % (tom("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS
+                           else ""),
                        html.escape(a["plataforma"])))
     if a["tipo"]:
-        tags.append("<span class='tag'>%s</span>" % html.escape(a["tipo"]))
+        tags.append("<span class='rg-tag'>%s</span>" % html.escape(a["tipo"]))
     # O prazo sai das etiquetas e sobe a numero forte na coluna da
     # direita: e o que manda em "concorro ou nao", e no meio das outras
     # tags lia-se ao mesmo nivel do codigo CPV.
@@ -11822,8 +11883,8 @@ def linha(a, vista="", urgente=None, na_escada=None):
     for p in (na_escada or {}).get(a["ref"], ()):
         if p["estado"] == vista:
             continue
-        tags.append("<span class='tag %s'>%s%s</span>"
-                    % ("" if p["estado"] in ESTADOS_FECHADOS else "ok",
+        tags.append("<span class='rg-tag %s'>%s%s</span>"
+                    % (tom("" if p["estado"] in ESTADOS_FECHADOS else "ok"),
                        html.escape(estado_da_empresa(p["estado"])),
                        " L%d" % p["lote"] if p["lote"] else ""))
         # Porque e que nao se foi, ou porque se perdeu, na propria
@@ -11831,7 +11892,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         # mes. Os que expiraram sem ninguem ver nao tem motivo -- e nao
         # se lhes inventa um.
         if p["motivo"]:
-            tags.append("<span class='tag'>%s</span>" % html.escape(p["motivo"]))
+            tags.append("<span class='rg-tag'>%s</span>" % html.escape(p["motivo"]))
 
     preco = ("<div class='item-preco'>%s</div>" % html.escape(a["preco_base"])) \
         if a["preco_base"] else ""
@@ -11866,7 +11927,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         # Com lotes ha uma proposta por lote e o selector move a
         # primeira: dizer qual, e mandar a ficha, e melhor do que mover
         # uma delas em silencio.
-        botoes.append("<a class='mini' href='/anuncio/%s#proposta'>%d lotes"
+        botoes.append("<a class='rg-btn rg-btn--sm rg-btn--secondary' href='/anuncio/%s#proposta'>%d lotes"
                       "</a>" % (quote(a["ref"], safe=""), len(aqui)))
 
     return (
@@ -12485,7 +12546,7 @@ def paginador(pagina, paginas, args, base="/"):
             "<input id='ir-pag' type='number' name='pag' min='1' max='%d' "
             "value='%d'><button type='submit'>ir</button></form>"
             % (base, escondidos, paginas, pagina))
-    return "<div class='paginas'>" + "".join(pecas) + "</div>"
+    return "<div class='rg-pager'>" + "".join(pecas) + "</div>"
 
 
 def com_recorte(onde, valores, frag, vals):
@@ -12730,7 +12791,7 @@ def barra_das_abas(rota, actual, contas=None):
     coisa diferente do que promete e nao mostrar numero nenhum, a regra
     da empresa escolhe o segundo.
     """
-    pecas = ["<div class='abas abas-escada'>"]
+    pecas = ["<div class='rg-tabs abas-escada' role='tablist'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
         if chave == ENTRADA_DA_ESCADA[0]:
             classe = "ponta entrada"
@@ -12740,12 +12801,13 @@ def barra_das_abas(rota, actual, contas=None):
             classe = "ponta"
         else:
             classe = "empresa" + (" fechada" if chave in ESTADOS_FECHADOS else "")
-        if chave == actual:
-            classe += " on"
         numero = ("" if contas is None
-                  else " <i>%s</i>" % mil_pt(contas.get(chave, 0)))
-        pecas.append("<a class='%s' href='%s'>%s%s</a>"
-                     % (classe, sem_pagina(request.args, rota, estado=chave),
+                  else " <span class='rg-tab__count'>%s</span>"
+                  % mil_pt(contas.get(chave, 0)))
+        pecas.append("<a class='rg-tab %s' role='tab' aria-selected='%s' "
+                     "href='%s'>%s%s</a>"
+                     % (classe, "true" if chave == actual else "false",
+                        sem_pagina(request.args, rota, estado=chave),
                         html.escape(rotulo), numero))
     pecas.append("</div>")
     return "".join(pecas)
@@ -13001,7 +13063,7 @@ def _lista_de_anuncios():
         # Sem filtro nenhum, mas com o interesse a tapar: dizer "o que
         # entrou esta triado" com 1290 anuncios escondidos era uma
         # afirmacao falsa por cima da faixa que diz o contrario.
-        corpo_lista = ("<div class='vazio'>Nada aqui <b>dentro do "
+        corpo_lista = ("<div class='rg-empty'>Nada aqui <b>dentro do "
                        "interesse</b> &mdash; há %s de fora dele. "
                        "<a href='%s'>ver tudo</a> ou "
                        "<a href='/configuracoes/interesse'>mudar o interesse</a>."
@@ -13014,12 +13076,12 @@ def _lista_de_anuncios():
           and filtro_em_uso == "estado=" + ENTRADA_DA_ESCADA[0]):
         # O vazio proprio da entrada sem filtro: nada por decidir e
         # diferente de um filtro que nao apanhou nada.
-        corpo_lista = ("<div class='vazio'>Nada por decidir: o que "
+        corpo_lista = ("<div class='rg-empty'>Nada por decidir: o que "
                        "entrou está triado, e o que expirou passou "
                        "sozinho para o <a href='/concursos?estado=expirou'>"
                        "&ldquo;expirou sem ver&rdquo;</a>.</div>")
     else:
-        corpo_lista = ("<div class='vazio'>Nada corresponde a este filtro. "
+        corpo_lista = ("<div class='rg-empty'>Nada corresponde a este filtro. "
                        "<a href='%s'>limpar</a></div>"
                        % html.escape(href_limpar(rota, estado_actual),
                                      quote=True))
@@ -13054,7 +13116,7 @@ def _lista_de_anuncios():
     por_enviar = sum(len(x[1]) for x in alertas_por_enviar())
     if por_enviar:
         faixa_avisos = (
-            "<div class='flash'><b>%s anúncio%s</b> nos teus alertas, "
+            "<div class='rg-alert rg-alert--info'><b>%s anúncio%s</b> nos teus alertas, "
             "por avisar. <a href='/configuracoes/alertas'>ver os alertas</a></div>"
             % (mil_pt(por_enviar), "" if por_enviar == 1 else "s"))
     else:
@@ -13176,11 +13238,11 @@ def linha_da_pipeline(p, urgente, prazos):
         # lista, e nao pode estar a puxar o olho para uma coisa que nao
         # pede accao nenhuma.
         if p["estado"] in ESTADOS_COM_PROPOSTO:
-            col_prazo = ("%s <span class='tag'>entregue</span>"
+            col_prazo = ("%s <span class='rg-tag'>entregue</span>"
                          % data_pt(prazo))
         else:
-            col_prazo = ("%s <span class='tag %s'>%s</span>"
-                         % (data_pt(prazo), classe_prazo,
+            col_prazo = ("%s <span class='rg-tag %s'>%s</span>"
+                         % (data_pt(prazo), tom(classe_prazo),
                             html.escape(texto_prazo)))
     else:
         col_prazo = "&mdash;"
@@ -13208,7 +13270,7 @@ def linha_da_pipeline(p, urgente, prazos):
                            quote=True),
                html.escape(nome),
                "" if p["ref"] else
-               " <span class='tag info' title='%s'>sem anúncio</span>"
+               " <span class='rg-tag rg-tag--brand' title='%s'>sem anúncio</span>"
                % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
                html.escape(p["entidade"] or "", quote=True),
                html.escape(corta(p["entidade"] or "", 45)),
@@ -13301,14 +13363,14 @@ def _lista_de_propostas():
         # "Nada em Ganho" por baixo de uma aba a dizer 13 e o ecra a
         # discordar de si proprio a dois centimetros de distancia, e
         # manda arrumar o que esta arrumado em vez de apagar a procura.
-        corpo = ("<div class='vazio'>Nada em &ldquo;%s&rdquo; com "
+        corpo = ("<div class='rg-empty'>Nada em &ldquo;%s&rdquo; com "
                  "&ldquo;%s&rdquo;. <a href='%s?estado=%s'>Ver as %s</a>."
                  "</div>"
                  % (html.escape(estado_da_empresa(estado_actual)),
                     html.escape(procura), LISTA, estado_actual,
                     mil_pt(contas.get(estado_actual, 0))))
     else:
-        corpo = ("<div class='vazio'>Nada em &ldquo;%s&rdquo;. "
+        corpo = ("<div class='rg-empty'>Nada em &ldquo;%s&rdquo;. "
                  "Põe um concurso aqui a partir da ficha dele, ou "
                  "<a href='/proposta/nova'>cria uma proposta sem anúncio</a> "
                  "(consulta prévia, ajuste directo).</div>"
@@ -14428,7 +14490,7 @@ def _caixa_email(cfg):
             "placeholder='o.teu@email.pt'></label>"
             "<label>Hora do resumo<input type='time' name='hora_resumo' "
             "value='%s'></label>"
-            "<button type='submit' class='bt forte'>Guardar</button>"
+            "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
             "</form></div>"
             % (html.escape(str(e.get("para") or ""), quote=True),
                html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
@@ -14442,7 +14504,7 @@ def _caixa_email(cfg):
         "placeholder='o.teu@email.pt'></label>"
         "<label>Hora do resumo<input type='time' name='hora_resumo' "
         "value='%s'></label>"
-        "<button type='submit' class='bt forte'>Guardar</button>"
+        "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
         "</form>"
         "<div class='rot' style='margin:22px 0 6px'>Quem envia</div>"
         "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
@@ -14457,7 +14519,7 @@ def _caixa_email(cfg):
         "<label>Porta<input type='text' name='porta' value='%s'></label>"
         "<label>Palavra-passe<input type='password' name='senha' value='' "
         "autocomplete='new-password'%s></label>"
-        "<button type='submit' class='bt forte'>Guardar</button>"
+        "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
         "</form>"
         "<div class='saude'>%s</div>%s</div>"
         % (html.escape(str(e.get("para") or ""), quote=True),
@@ -14589,7 +14651,7 @@ def _conteudo_alertas():
         lista = "<div class='alertas'>%s</div>" % "".join(
             _linha_filtro(f) for f in filtros)
     else:
-        lista = ("<div class='vazio'>Ainda não há alertas. Cria um aqui em "
+        lista = ("<div class='rg-empty'>Ainda não há alertas. Cria um aqui em "
                  "baixo: o que entrar e corresponder vai no resumo por "
                  "e-mail.</div>")
 
@@ -14909,8 +14971,8 @@ def config_recolha():
                        cfg.get("vortal_preliminares", True))
         + _interruptor("Recuperar um slot falhado na verificação seguinte",
                        "recuperar_slot_falhado", cfg.get("recuperar_slot_falhado", True))
-        + "<button type='submit' class='bt forte'>Guardar</button></form>"
-        + ("<div class='flash mau' style='margin-top:16px'>As tarefas agendadas "
+        + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
+        + ("<div class='rg-alert rg-alert--danger' style='margin-top:16px'>As tarefas agendadas "
            "estão por criar (%s): corre o agendar.sh.</div>"
            % html.escape(", ".join(faltam)) if faltam else
            "<div class='nota' style='margin-top:16px'>As tarefas agendadas do "
@@ -14994,7 +15056,7 @@ def config_leitura():
         "<select name='fornecedor_pecas'>%s</select>"
         "<small>Cada pedido desce a cadeia até alguém responder; escolher "
         "um fixa-o como primeiro.</small></label>%s"
-        "<button type='submit' class='bt forte'>Guardar</button></form>"
+        "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
         % (opcoes, "".join(linhas)))
     return pagina_config("leitura", "<div class='cx conf-cx'>" + corpo + "</div>")
 
@@ -15057,7 +15119,7 @@ def config_capturas():
             "<form method='post' action='/configuracoes/capturas' class='conf-form'>"
             "<input type='hidden' name='qual' value='%s'>"
             "<textarea name='texto' rows='5' placeholder='cola aqui o Copy as cURL'></textarea>"
-            "<button type='submit' class='bt forte'>Gravar esta captura</button>"
+            "<button type='submit' class='rg-btn rg-btn--primary'>Gravar esta captura</button>"
             "</form></div>"
             % (html.escape(titulo), html.escape(nota),
                linhas_de_saude([("Estado", html.escape(texto), bem)]),
@@ -15099,7 +15161,7 @@ def config_copias():
         + _interruptor("Empurrar a triagem para o GitHub (triagem.jsonl)", "triagem_no_git",
                        cfg.get("triagem_no_git", True),
                        nota="commit e push em cada verificação em que mude")
-        + "<button type='submit' class='bt forte'>Guardar</button></form>"
+        + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
         + "<div class='rot' style='margin:22px 0 6px'>O que existe em copias/</div>"
         + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
         + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s "
@@ -15170,7 +15232,7 @@ def config_importar():
         confirmar = (
             "<form method='post' action='/configuracoes/importar/confirmar' class='conf-form' "
             "style='margin-top:16px'><input type='hidden' name='ficheiro' value='%s'>"
-            "<button type='submit' class='bt forte'%s>Confirmar: gravar %d linha%s e a triagem</button>"
+            "<button type='submit' class='rg-btn rg-btn--primary'%s>Confirmar: gravar %d linha%s e a triagem</button>"
             "<small>As linhas com erro ficam de fora. Uma linha repetida (mesma referência e "
             "lote) substitui a que já lá estava.</small></form>"
             % (html.escape(nome, quote=True), "" if contagens["ok"] else " disabled",
@@ -15195,14 +15257,14 @@ def config_importar():
         "precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote "
         "quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. "
         "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
-        "<a class='bt' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
+        "<a class='rg-btn rg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
         "<div class='rot' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
         "<div class='nota' style='margin-bottom:12px'>Primeiro vês um ensaio: o que liga a que "
         "anúncio, o que não liga e porquê. Só grava quando confirmares.</div>"
         "<form method='post' action='/configuracoes/importar' enctype='multipart/form-data' "
         "class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span>"
         "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
-        "<button type='submit' class='bt forte'>Ver o ensaio</button></form>"
+        "<button type='submit' class='rg-btn rg-btn--primary'>Ver o ensaio</button></form>"
         "<div class='rot' style='margin:26px 0 6px'>O que já está</div>"
         "<div class='nota'>%s</div>"
         % ("%s linha%s do modelo, em %s anúncio%s; última importação a %s."
@@ -15293,7 +15355,7 @@ def config_conta():
                  extra="autocomplete='new-password'")
         + _campo("Outra vez", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
-        + "<button type='submit' class='bt forte'>Guardar</button></form>"
+        + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
         + "<div class='rot' style='margin:22px 0 6px'>Sessões abertas</div>"
         + "<div class='saude'>%s</div>" % linhas
         + ("<div style='margin-top:14px'>%s</div>"
@@ -15330,7 +15392,7 @@ def _bloco_da_empresa(cfg=None):
                      nota="como aparece nos contratos")
             + _campo("NIF", "nif_da_empresa", nif,
                      nota="nove dígitos; é por aqui que a ligação é certa")
-            + "<button type='submit' class='bt'>Guardar</button></form>")
+            + "<button type='submit' class='rg-btn rg-btn--secondary'>Guardar</button></form>")
 
 
 @app.route("/configuracoes/conta/empresa", methods=["POST"])
@@ -15374,7 +15436,7 @@ def _bloco_utilizadores(todos, eu):
         "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
         "<option value='tester'>tester</option>"
         "<option value='admin'>admin</option></select></label>"
-        "<button type='submit' class='bt forte'>Criar utilizador</button></form>"
+        "<button type='submit' class='rg-btn rg-btn--primary'>Criar utilizador</button></form>"
         % (linhas,
            _campo("Utilizador", "email", "", extra="autocomplete='off'"),
            _campo("Palavra-passe", "senha", "", tipo="password",
@@ -15549,7 +15611,7 @@ def entidade_procurar():
                  "escolhe a ficha</div>%s</div></div>"
                  % (len(achadas), html.escape(termo), linhas))
     else:
-        corpo = ("<div class='larg'><div class='vazio'>Nenhuma entidade "
+        corpo = ("<div class='larg'><div class='rg-empty'>Nenhuma entidade "
                  "do corpus responde a &ldquo;%s&rdquo;. O corpus só "
                  "conhece quem já assinou contratos desde %s. "
                  "<a href='/contratos'>Voltar aos contratos</a></div></div>"
@@ -16635,9 +16697,10 @@ def entidades():
     marcadas = [c for c in request.args.getlist("vs") if c][:2]
 
     contas = _contas_das_abas()
-    abas = "<div class='abas'>%s</div>" % "".join(
-        "<a class='%s' href='/entidades?ver=%s'>%s <i>%s</i></a>"
-        % ("on" if aba == chave else "", chave,
+    abas = "<div class='rg-tabs' role='tablist'>%s</div>" % "".join(
+        "<a class='rg-tab' role='tab' aria-selected='%s' "
+        "href='/entidades?ver=%s'>%s <span class='rg-tab__count'>%s</span></a>"
+        % ("true" if aba == chave else "false", chave,
            html.escape(rotulo + (" · %d dias" % DIAS_A_ACABAR
                                  if chave == "acabar" else "")),
            mil_pt(contas.get(chave, 0)))
@@ -16653,7 +16716,7 @@ def entidades():
     # do BASE dizem «sem BASE». O aviso diz o caminho em vez de deixar a
     # página a parecer avariada (redesenho §5).
     if not ha_corpus():
-        procura = ("<div class='flash'>Sem o corpus do Portal BASE, as "
+        procura = ("<div class='rg-alert rg-alert--info'>Sem o corpus do Portal BASE, as "
                    "colunas do mercado dizem «sem BASE» e três destas abas "
                    "ficam vazias. Traz-se em <a href='/configuracoes/"
                    "indicadores'>Configurações › Indicadores</a>, com "
@@ -16709,7 +16772,7 @@ def entidades():
                else "<span class='nota'>ainda nenhuma</span>",
                taxa,
                ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—",
-               "<span class='tag ok'>seguida</span>" if ch in seguidas
+               "<span class='rg-tag rg-tag--success'>seguida</span>" if ch in seguidas
                else "<a class='nota' href='/entidade/%s'>abrir</a>"
                % quote(ch, safe="")))
 
@@ -16723,7 +16786,7 @@ def entidades():
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
             "<th class='p'>A acabar · %d d</th><th></th></tr></thead>"
             "<tbody>%s</tbody></table>"
-            "<div class='tab-pe'><button type='submit' class='bt'>comparar "
+            "<div class='tab-pe'><button type='submit' class='rg-btn rg-btn--secondary'>comparar "
             "as marcadas</button><span class='nota'>Marca duas. "
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
@@ -16733,7 +16796,7 @@ def entidades():
                MINIMO_COM_ENTIDADE))
     else:
         titulo_vazio, porque = _vazio_da_aba(aba)
-        tabela = ("<div class='vazio comecar'><b>%s</b><span>%s</span></div>"
+        tabela = ("<div class='rg-empty comecar'><b>%s</b><span>%s</span></div>"
                   % (html.escape(titulo_vazio), porque))
 
     return envolver("entidades", "Entidades",
@@ -16962,7 +17025,7 @@ def entidade(chave):
     elif filtrada:
         # sem isto, um filtro que nao apanha nada deixava a pagina
         # aparentemente na mesma, so com os numeros a zero
-        recentes = ("<div class='vazio'>Esta entidade não tem contratos que "
+        recentes = ("<div class='rg-empty'>Esta entidade não tem contratos que "
                     "correspondam ao filtro. "
                     "<a href='/entidade/%s'>ver tudo</a></div>"
                     % quote(chave, safe=""))
@@ -17058,7 +17121,7 @@ def sem_corpus_html(titulo):
         "contratos", titulo,
         "Contratos já celebrados, do Portal BASE &mdash; quem ganhou "
         "o quê, por quanto.",
-        "<div class='larg'><div class='vazio'>"
+        "<div class='larg'><div class='rg-empty'>"
         "O corpus de contratos ainda não foi importado.<br><br>"
         "Corre <code>python radar.py --contratos</code> para o trazer do "
         "dados.gov &mdash; domínio público, sem chave nem sessão. "
@@ -17433,14 +17496,14 @@ def contratos():
                   "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
                   "</table></div>" % (cabecalhos, "".join(corpo)))
     elif ha_pergunta:
-        tabela = ("<div class='vazio'>%s "
+        tabela = ("<div class='rg-empty'>%s "
                   "<a href='%s'>limpar</a></div>"
                   % ("Nada deste filtro termina nos próximos %d meses."
                      % meses if fim else
                      "Nada corresponde a este filtro.",
                      html.escape(modo_limpo, quote=True)))
     elif fim:
-        tabela = ("<div class='vazio comecar'>"
+        tabela = ("<div class='rg-empty comecar'>"
                   "<b>De que mercado queres ver os fins de contrato?</b>"
                   "<span>Escolhe um CPV na árvore ou escreve uma entidade: "
                   "a lista mostra os contratos desse mercado que terminam "
@@ -17454,7 +17517,7 @@ def contratos():
     else:
         # A pergunta vem primeiro. Um milhao e meio de contratos por data
         # nao e uma resposta a nada.
-        tabela = ("<div class='vazio comecar'>"
+        tabela = ("<div class='rg-empty comecar'>"
                   "<b>Faz uma pergunta ao corpus.</b>"
                   "<span>Escolhe um CPV na árvore, escreve quem ganhou ou "
                   "que entidade comprou, aperta as datas ou o valor. Os "
@@ -17582,13 +17645,15 @@ def contratos():
     para_celebracao.pop("ver", None)
     para_celebracao.pop("meses", None)
     para_fim = args_da_lista(request.args, ver="fim")
-    abas = ("<div class='abas'>"
-            "<a class='%s' href='/contratos%s'>Por celebração</a>"
-            "<a class='%s' href='/contratos?%s'>Por fim estimado</a>"
+    abas = ("<div class='rg-tabs' role='tablist'>"
+            "<a class='rg-tab' role='tab' aria-selected='%s' "
+            "href='/contratos%s'>Por celebração</a>"
+            "<a class='rg-tab' role='tab' aria-selected='%s' "
+            "href='/contratos?%s'>Por fim estimado</a>"
             "</div>"
-            % ("" if fim else "on",
+            % ("false" if fim else "true",
                ("?" + urlencode(para_celebracao)) if para_celebracao else "",
-               "on" if fim else "", urlencode(para_fim)))
+               "true" if fim else "false", urlencode(para_fim)))
 
     nota_estimativa = (
         "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
@@ -17974,15 +18039,15 @@ def lotes_cx(a):
     for l in resumo["lotes"]:
         if ha_registo:
             if l["estado"]:
-                situacao = ("<span class='tag %s'>%s</span>%s%s"
-                            % (l["classe"], l["rotulo"],
+                situacao = ("<span class='rg-tag %s'>%s</span>%s%s"
+                            % (tom(l["classe"]), l["rotulo"],
                                (" <span class='lote-prop'>proposta %s</span>"
                                 % html.escape(_texto_do_preco(l["proposta"])))
                                if l["proposta"] else "",
                                (" <span class='lote-prop'>%dº lugar</span>" % int(l["lugar"]))
                                if l["lugar"] else ""))
             elif l["n"] in resumo["fomos"]:
-                situacao = "<span class='tag'>fomos, sem desfecho registado</span>"
+                situacao = "<span class='rg-tag'>fomos, sem desfecho registado</span>"
             elif resumo["conjunto"]:
                 situacao = "<span class='em-falta'>no conjunto</span>"
             else:
@@ -18000,8 +18065,8 @@ def lotes_cx(a):
         rotulo, classe = ESTADO_DO_LOTE.get(estado, ("sem desfecho registado", ""))
         nota_conj = ("<div class='nota' style='margin-top:10px'>O registo da empresa "
                      "tem uma linha para o <b>conjunto</b> dos lotes, não lote a "
-                     "lote: <span class='tag %s'>%s</span>%s</div>"
-                     % (classe, rotulo,
+                     "lote: <span class='rg-tag %s'>%s</span>%s</div>"
+                     % (tom(classe), rotulo,
                         (" proposta %s" % html.escape(_texto_do_preco(conj["valor_proposta"])))
                         if conj.get("valor_proposta") else ""))
     else:
@@ -18752,7 +18817,7 @@ def ficha(ref):
             "anuncios", "Esse anúncio não existe",
             "Não há nenhum anúncio com a referência "
             "<b>%s</b> nesta base." % html.escape(ref),
-            "<div class='vazio'>Pode ter sido apagado numa limpeza do "
+            "<div class='rg-empty'>Pode ter sido apagado numa limpeza do "
             "histórico, ou a referência estar mal escrita. "
             "<a href='" + LISTA + "'>Voltar à lista</a> ou "
             "<a href='/concursos?estado='>procurar em todos</a>.</div>",
@@ -18788,18 +18853,18 @@ def ficha(ref):
     faixa_alteracao = ""
     if a["estado"] == "alteracao":
         faixa_alteracao = (
-            "<div class='flash'>Este anúncio é uma <b>alteração</b> do anúncio "
+            "<div class='rg-alert rg-alert--info'>Este anúncio é uma <b>alteração</b> do anúncio "
             "<a href='/anuncio/%s'>%s</a>%s. O prazo e o preço daqui já estão "
             "na ficha dele, e é lá que se decide.</div>"
             % (html.escape(raiz_ref, quote=True), html.escape(raiz_ref),
                "" if raiz_ref else " original, que não está nesta base")
             if raiz_ref else
-            "<div class='flash'>Este anúncio altera o anúncio <b>%s</b>, que "
+            "<div class='rg-alert rg-alert--info'>Este anúncio altera o anúncio <b>%s</b>, que "
             "não está nesta base; fica a representar o procedimento.</div>"
             % html.escape(_valor(a, "altera") or ""))
     elif vigor:
         faixa_alteracao = (
-            "<div class='flash'>Alterado pelo anúncio <a href='/anuncio/%s'>%s"
+            "<div class='rg-alert rg-alert--info'>Alterado pelo anúncio <a href='/anuncio/%s'>%s"
             "</a>, publicado a %s: os factos acima e o texto abaixo são os da "
             "versão em vigor. O histórico diz o que mudou.</div>"
             % (html.escape(vigor["ref"], quote=True), html.escape(vigor["ref"]),
@@ -18819,15 +18884,16 @@ def ficha(ref):
     chips = ["<span class='ref'>%s %s</span>"
              % ("Anúncio" if e_do_dr else "Consulta", html.escape(ref))]
     if a["tipo"]:
-        chips.append("<span class='tag'>%s</span>" % html.escape(a["tipo"]))
-    chips.append("<span class='tag %s'>%s</span>" % (classe_estado, rotulo_estado))
+        chips.append("<span class='rg-tag'>%s</span>" % html.escape(a["tipo"]))
+    chips.append("<span class='rg-tag %s'>%s</span>"
+                 % (tom(classe_estado), rotulo_estado))
     for p in propostas_de(a["ref"]):
-        chips.append("<span class='tag %s'>%s%s</span>"
-                     % ("" if p["estado"] in ESTADOS_FECHADOS else "ok",
+        chips.append("<span class='rg-tag %s'>%s%s</span>"
+                     % (tom("" if p["estado"] in ESTADOS_FECHADOS else "ok"),
                         html.escape(estado_da_empresa(p["estado"])),
                         " L%d" % p["lote"] if p["lote"] else ""))
         if p["motivo"]:
-            chips.append("<span class='tag'>%s</span>" % html.escape(p["motivo"]))
+            chips.append("<span class='rg-tag'>%s</span>" % html.escape(p["motivo"]))
 
     # O "Propostas até" voltou aos factos. Tinha saido daqui porque
     # aparecia duas vezes no mesmo ecra -- aqui e na caixa preta da
@@ -18910,7 +18976,7 @@ def ficha(ref):
         decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
                                        a["titulo"] or ref))
     if a["pdf_url"]:
-        sair.append("<a class='bt-leve' href='%s' target='_blank'>PDF oficial</a>"
+        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank'>PDF oficial</a>"
                     % html.escape(a["pdf_url"], quote=True))
     # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a ficha
     # inteira com um 500. Na base dele todos os anuncios tem url, e por
@@ -18918,7 +18984,7 @@ def ficha(ref):
     # nao pode derrubar a pagina toda (apanhado a 16/09/2026, pelo teste
     # do indice da ficha).
     if a["url"]:
-        sair.append("<a class='bt-leve' href='%s' target='_blank'>%s</a>"
+        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank'>%s</a>"
                     % (html.escape(a["url"], quote=True),
                        "Ver no DR" if e_do_dr else "Ver na Vortal"))
     # Duas coisas diferentes, dois botoes: o procedimento na plataforma
@@ -18927,12 +18993,12 @@ def ficha(ref):
     # lista dos ficheiros; nenhum dos dois e o procedimento.
     destino, rotulo, dica = link_do_procedimento(a)
     if destino:
-        sair.append("<a class='bt-leve' href='%s' target='_blank' "
+        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank' "
                     "title='%s'>%s</a>"
                     % (html.escape(destino, quote=True),
                        html.escape(dica, quote=True), html.escape(rotulo)))
     if a["link_pecas"] and a["link_pecas"] != destino:
-        sair.append("<a class='bt-leve' href='%s' target='_blank' "
+        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank' "
                     "title='o endereço das peças que o anúncio indica'>"
                     "Peças na plataforma</a>"
                     % html.escape(a["link_pecas"], quote=True))
@@ -19019,7 +19085,7 @@ def ficha(ref):
         # sabe dela e o que a listagem publica da Vortal deu (os factos
         # do cabecalho) e o resto esta na plataforma.
         seccoes_html = (
-            "<div class='vazio'>Isto é uma <b>consulta preliminar</b>, "
+            "<div class='rg-empty'>Isto é uma <b>consulta preliminar</b>, "
             "trazida da pesquisa pública da Vortal &mdash; a parte L do "
             "DR não a publica, por isso não há anúncio para mostrar. O "
             "que se sabe está nos factos acima; o resto está na "
@@ -19027,7 +19093,7 @@ def ficha(ref):
             "</a>.</div>" % html.escape(a["url"] or "", quote=True))
         nota_modo = ""
     else:
-        seccoes_html = ("<div class='vazio'>Não foi possível ler o texto deste "
+        seccoes_html = ("<div class='rg-empty'>Não foi possível ler o texto deste "
                         "anúncio: %s</div>"
                         % (html.escape(aviso_leitura) if aviso_leitura else
                            "o DR não devolveu conteúdo."))
@@ -19178,16 +19244,16 @@ def ficha(ref):
             leitor = (
                 "<div class='leitor'>"
                 "<div class='leitor-cab'><span class='n'>%s</span>"
-                "<a class='bt-leve' href='/documento/%s/%s' download>"
+                "<a class='rg-btn rg-btn--sm rg-btn--subtle' href='/documento/%s/%s' download>"
                 "Descarregar</a>"
-                "<a class='bt-leve' href='/anuncio/%s?%s#pecas'>Fechar</a>"
+                "<a class='rg-btn rg-btn--sm rg-btn--subtle' href='/anuncio/%s?%s#pecas'>Fechar</a>"
                 "</div><div class='nota'>%s</div>%s%s</div>"
                 % (html.escape(peca_aberta), ref,
                    quote(peca_aberta, safe=""), ref,
                    html.escape(urlencode(args_fechar), quote=True),
                    aviso_leitor, visual, texto_da_peca(ref, peca_aberta)))
 
-    chip_plat = ("<span class='tag ok' style='margin-left:auto'>%s</span>"
+    chip_plat = ("<span class='rg-tag rg-tag--success' style='margin-left:auto'>%s</span>"
                  % html.escape(a["plataforma"])) if a["plataforma"] else ""
     # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
     # explicava foi para o "?" e NAO se apagou. A data em que o radar la
@@ -19553,7 +19619,7 @@ def ver_peca(ref, nome):
         return envolver(
             "anuncios", "Peça não encontrada",
             "O ficheiro já não está na pasta dos documentos.",
-            "<div class='vazio'>Volta à <a href='/anuncio/%s'>ficha do "
+            "<div class='rg-empty'>Volta à <a href='/anuncio/%s'>ficha do "
             "anúncio</a> e carrega em &ldquo;Actualizar peças&rdquo;."
             "</div>" % html.escape(ref, quote=True),
             migalhas=migalhas_de("anuncios", ref)), 404
@@ -19825,7 +19891,7 @@ def faixa_do_desfecho(p, linhas, cfg=None):
     return ("<div class='desfecho-propoe'>"
             "<div class='dp-facto'>O Portal BASE diz que este procedimento "
             "foi adjudicado a <b>%s</b> por <b>%s</b>%s. %s%s</div>"
-            "<div class='dp-botoes'>%s%s<a class='bt-leve' href='#desfecho'>"
+            "<div class='dp-botoes'>%s%s<a class='rg-btn rg-btn--sm rg-btn--subtle' href='#desfecho'>"
             "ver os contratos</a></div></div>"
             % (html.escape(" · ".join(dict.fromkeys(quem)) or "alguém"),
                euros(ganhou) if ganhou else "valor não publicado",
@@ -20053,13 +20119,14 @@ def _tarefas_da_ficha(p):
             "<li>%s<span class='t'>%s</span>%s%s%s%s</li>"
             % (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq"),
                html.escape(t["o_que"]),
-               ("<span class='tag %s'>%s</span>"
-                % (classe, html.escape(texto_prazo or data_pt(t["quando"]))))
+               ("<span class='rg-tag %s'>%s</span>"
+                % (tom(classe),
+                   html.escape(texto_prazo or data_pt(t["quando"]))))
                if t["quando"] else "",
-               "<span class='tag' title='vem das datas do DR e "
+               "<span class='rg-tag' title='vem das datas do DR e "
                "acompanha-as'>automática</span>"
                if t["origem"] in ORIGENS_AUTOMATICAS else "",
-               ("<span class='tag'>%s</span>" % html.escape(t["quem"]))
+               ("<span class='rg-tag'>%s</span>" % html.escape(t["quem"]))
                if t["quem"] else "",
                # adiar e atribuir. **É aqui que vivem desde 17/09/2026**:
                # a linha do Hoje ficou com o ✓ e o desfazer, e mais nada
@@ -20071,7 +20138,7 @@ def _tarefas_da_ficha(p):
                "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
                "<input type='text' name='quem' maxlength='60' list='pessoas' "
                "placeholder='quem'>"
-               "<button type='submit' class='mini'>gravar</button></form>"
+               "<button type='submit' class='rg-btn rg-btn--sm rg-btn--secondary'>gravar</button></form>"
                % t["id"]))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
@@ -21044,7 +21111,7 @@ def negocio_cx():
     aviso_fechar = ""
     if por_fechar:
         aviso_fechar = (
-            "<div class='flash' style='margin:0 0 18px'>"
+            "<div class='rg-alert rg-alert--info' style='margin:0 0 18px'>"
             "<b>%d proposta%s</b> ainda em aberto cujo procedimento o "
             "Portal BASE já diz adjudicado. Abre cada uma e fecha-a: o "
             "facto está lá, a decisão é tua.<div class='por-fechar'>%s</div>"
@@ -21221,9 +21288,10 @@ def situacao():
         periodo = PERIODO_DE_OMISSAO
     janela, antes, rotulo_antes = janelas_do_periodo(periodo, hoje)
 
-    abas = "<div class='abas'>%s</div>" % "".join(
-        "<a class='%s' href='/situacao?%s'>%s</a>"
-        % ("on" if ver == chave else "",
+    abas = "<div class='rg-tabs' role='tablist'>%s</div>" % "".join(
+        "<a class='rg-tab' role='tab' aria-selected='%s' href='/situacao?%s'>"
+        "%s</a>"
+        % ("true" if ver == chave else "false",
            urlencode([("ver", chave), ("periodo", periodo)]),
            html.escape(rotulo))
         for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),
@@ -21890,7 +21958,7 @@ AMOSTRA_PAGINA = """<!doctype html>
  </div>
  <div class="topo">
   <div class="migalhas"><div class="b"><em>Amostra</em></div>
-   <div class="accoes-topo"><button class="bt forte">Acção principal</button></div>
+   <div class="accoes-topo"><button class="rg-btn rg-btn--primary">Acção principal</button></div>
   </div>
   <h1 class="tit">Amostra do desenho</h1>
   <p class="subtit">Os componentes todos num sítio, para decidir antes de
@@ -22024,8 +22092,8 @@ def amostra():
         "<span class='chip-prazo avisa'>3 dias</span>"
         "<span class='chip-prazo mau'>expirado</span>"
         "<span class='chip-prazo'>prazo 03/08/2026</span>"
-        "<span class='tag'>71318100</span><span class='tag'>vortal</span>"
-        "<span class='tag'>Anúncio de procedimento</span>"
+        "<span class='rg-tag'>71318100</span><span class='rg-tag'>vortal</span>"
+        "<span class='rg-tag'>Anúncio de procedimento</span>"
         "<span class='etq'>obra</span><span class='etq'>lote 2</span>"
         "</div>"))
 
@@ -22065,22 +22133,22 @@ def amostra():
         "<input placeholder='Entidade que publica…'>"
         "<select><option>todas as plataformas (1 269)</option></select>"
         "<input type='date'><input type='date'>"
-        "<button class='bt forte'>Filtrar</button>"
-        "<a class='bt-leve' href='#'>limpar</a></div>"))
+        "<button class='rg-btn rg-btn--primary'>Filtrar</button>"
+        "<a class='rg-btn rg-btn--sm rg-btn--subtle' href='#'>limpar</a></div>"))
 
     # --- avisos ------------------------------------------------------
     partes.append(_am_seccao(
         "Os avisos e os estados vazios", "O aviso da vez, o do sistema, e "
         "o que um ecrã diz quando não tem nada. Um estado vazio tem sempre "
         "uma saída.",
-        "<div class='flash'>«Iluminação decorativa da Quadra Natalícia» "
+        "<div class='rg-alert rg-alert--info'>«Iluminação decorativa da Quadra Natalícia» "
         "marcado como interessa<form class='accao desfazer'>"
-        "<button class='mini'>desfazer</button></form></div>"
-        "<div class='flash mau'>As tarefas agendadas não estão criadas: o "
+        "<button class='rg-btn rg-btn--sm rg-btn--secondary'>desfazer</button></form></div>"
+        "<div class='rg-alert rg-alert--danger'>As tarefas agendadas não estão criadas: o "
         "radar só recolhe com o painel aberto.</div>"
         "<div class='nota' style='margin:12px 0'>3 contratos desta entidade "
         "neste CPV &mdash; de 3 983 ao todo.</div>"
-        "<div class='vazio'>Nada corresponde a este filtro. "
+        "<div class='rg-empty'>Nada corresponde a este filtro. "
         "<a href='#'>limpar</a></div>"))
 
     return AMOSTRA_PAGINA % {
@@ -22511,7 +22579,7 @@ def _o_que_mudou(hoje, cfg):
     for m in mudou:
         linhas.append(
             "<div class='l'><span class='hj-q'>%s</span><div>"
-            "<span class='tag avisa'>%s alterado</span> "
+            "<span class='rg-tag rg-tag--warning'>%s alterado</span> "
             "<a href='/anuncio/%s'>%s</a>"
             "<div class='nota'>%s &rarr; %s</div></div></div>"
             % (data_curta(hoje), html.escape(m["campo"] or "campo"),
@@ -22528,7 +22596,7 @@ def _o_que_mudou(hoje, cfg):
             quem = (l["ganhou"] or "").split("|")[0] or quem
         linhas.append(
             "<div class='l'><span class='hj-q'>BASE</span><div>"
-            "<span class='tag'>adjudicado</span> "
+            "<span class='rg-tag'>adjudicado</span> "
             "<a href='/anuncio/%s'>%s</a><div class='nota'>%s%s &mdash; "
             "a nossa está em «%s»; fecha-a</div></div></div>"
             % (quote(p["ref"], safe=""),
@@ -22579,7 +22647,7 @@ def _prazos_a_chegar(hoje, prazos):
             linhas.append(
                 "<a href='/anuncio/%s'><span class='hj-q%s'>%s</span>"
                 "<span class='hj-c'>%s</span>"
-                "<span class='tag'>%s</span></a>"
+                "<span class='rg-tag'>%s</span></a>"
                 % (quote(r["ref"], safe=""), " avisa" if i == 0 else "",
                    "hoje" if i == 0
                    else "%s %d" % (DIAS_CURTOS[d.weekday()], d.day),
@@ -22794,7 +22862,7 @@ def inicio():
                 "<span class='hj-c' title='%s'>%s</span>%s%s</div>"
                 % (" feita" if feita else "", t["id"], caixa,
                    html.escape(t["o_que"] or ""),
-                   ("<span class='tag' title='vem das datas do DR e "
+                   ("<span class='rg-tag' title='vem das datas do DR e "
                     "acompanha-as'>automática</span>"
                     if t["origem"] in ORIGENS_AUTOMATICAS else ""),
                    classe_q,
@@ -22809,7 +22877,7 @@ def inicio():
         alvo = ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"] \
             else "/proposta/%d" % p["id"]
         return ("<div class='hj-sem'><div><a href='%s'>%s</a>"
-                "<div class='hj-c'><span class='tag'>%s</span> %s &middot; %s "
+                "<div class='hj-c'><span class='rg-tag'>%s</span> %s &middot; %s "
                 "&middot; <span style='color:var(--verm)'>prazo a %s</span>"
                 "</div></div>%s</div>"
                 % (html.escape(alvo, quote=True),
@@ -22830,7 +22898,7 @@ def inicio():
             direita = ("<span class='direita'>o radar não mexe — escolhe a "
                        "ranhura</span>")
         elif chave == "atrasadas":
-            direita = ("<a class='mini direita' href='%s'>adiar todas p/ "
+            direita = ("<a class='rg-btn rg-btn--sm rg-btn--secondary direita' href='%s'>adiar todas p/ "
                        "hoje</a>"
                        % html.escape("/tarefas/adiar" + (
                            "?" + urlencode([("quem", quem)])
@@ -22873,10 +22941,10 @@ def inicio():
         fazer = "".join(blocos)
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
-        fazer = ("<div class='vazio'>Nada por fazer ainda. As tarefas nascem "
+        fazer = ("<div class='rg-empty'>Nada por fazer ainda. As tarefas nascem "
                  "sozinhas quando um concurso entra na escada — os prazos "
                  "de esclarecimentos e de entrega vêm do anúncio.<br><br>"
-                 "<a class='bt forte' href='%s'>ver os %s por decidir</a> "
+                 "<a class='rg-btn rg-btn--primary' href='%s'>ver os %s por decidir</a> "
                  "<a href='/proposta/nova'>ou cria uma proposta sem "
                  "anúncio</a></div>"
                  % (LISTA + "?estado=porver", mil_pt(por_ver)))
@@ -22943,7 +23011,7 @@ def tarefas_adiar():
              "hoje%s. Adiar passa-as todas para %s; o texto, o dono e o "
              "concurso ficam como estão. <b>Não há desfazer</b>: cada uma "
              "tinha a sua data.</p><div style='display:flex;gap:8px'>%s"
-             "<a class='bt' href='/'>voltar sem mexer</a></div></div>"
+             "<a class='rg-btn rg-btn--secondary' href='/'>voltar sem mexer</a></div></div>"
              % (mil_pt(len(atrasadas)), "" if len(atrasadas) == 1 else "s",
                 "" if quem is None else
                 (" sem dono" if not quem.strip()

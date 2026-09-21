@@ -5660,8 +5660,10 @@ class TestEscadaNaLista(BaseTemporaria):
     def test_a_barra_tem_as_dez_ranhuras_e_o_todos(self):
         html_ = self._html()
         for _, rotulo in radar.ESCADA:
-            self.assertIn(">%s <i>" % rotulo, html_, rotulo)
-        self.assertIn(">Todos <i>", html_)
+            # o numero passou de `<i>` a `.rg-tab__count` na fase 3
+            self.assertIn(">%s <span class='rg-tab__count'>" % rotulo,
+                          html_, rotulo)
+        self.assertIn(">Todos <span class='rg-tab__count'>", html_)
 
     def test_a_entrada_e_o_cemiterio_apartam_se(self):
         self.assertIn("Aquisição de software", self._html())
@@ -8239,7 +8241,8 @@ class TestSelectorDaRanhura(BaseTemporaria):
         tivesse JS ficava com um selector que não fazia nada."""
         self.cliente.post("/estado/60%2F2026/analisar")
         html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
-        self.assertIn("<button type='submit' class='mini'>ir</button>", html_)
+        self.assertIn("<button type='submit' class='rg-btn rg-btn--sm "
+                      "rg-btn--secondary'>ir</button>", html_)
         self.assertIn(".com-js .ranhura button{display:none}", radar.CSS)
         self.assertIn("classList.add('com-js')", radar.caixa_do_motivo())
 
@@ -8320,7 +8323,10 @@ class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
     def test_antes_do_submetido_o_prazo_e_alarme(self):
         for estado in ("analisar", "proposta"):
             self.assertIn("prazo expirado", self._linha(estado))
-            self.assertIn("tag mau", self._linha(estado))
+            # `rg-tag--danger` desde a fase 3 (22/09/2026): a palavra mudou,
+        # o que o teste guarda não -- antes do submetido o prazo é
+        # alarme, e depois dele é neutro.
+        self.assertIn("rg-tag--danger", self._linha(estado))
 
     def test_a_partir_do_submetido_diz_entregue_e_nao_alarme(self):
         for estado in radar.ESTADOS_COM_PROPOSTO:
@@ -8587,10 +8593,10 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         # (`.abas-escada{...}`), por isso um `assertNotIn("abas-escada")`
         # dava sempre falso positivo. É a mesma armadilha que o
         # test_o_indice_e_o_verificar_agora_seguem_o_papel já anotava.
-        self.assertNotIn("<div class='abas abas-escada'>", corpo)
+        self.assertNotIn("<div class='rg-tabs abas-escada' role='tablist'>", corpo)
         self.assertNotIn("<details class='painel-filtros'", corpo)
         # a lista continua a existir, noutro endereço
-        self.assertIn("<div class='abas abas-escada'>",
+        self.assertIn("<div class='rg-tabs abas-escada' role='tablist'>",
                       self.cliente.get(radar.LISTA).get_data(as_text=True))
 
     def test_nenhuma_ligacao_manda_para_a_lista_pelo_endereco_antigo(self):
@@ -13171,11 +13177,12 @@ class TestEntidadesRedesenhadas(CicloDaEntidade):
         # a aba pedida acende, e uma inventada volta à primeira
         seguidas = self.cliente.get(
             "/entidades?ver=seguidas").get_data(as_text=True)
-        self.assertIn("class='on' href='/entidades?ver=seguidas'", seguidas)
+        self.assertIn("aria-selected='true' href='/entidades?ver=seguidas'",
+                      seguidas)
         self.assertIn("Não segues nenhuma entidade", seguidas)
         inventada = self.cliente.get("/entidades?ver=xpto")
         self.assertEqual(inventada.status_code, 200)
-        self.assertIn("class='on' href='/entidades?ver=nossas'",
+        self.assertIn("aria-selected='true' href='/entidades?ver=nossas'",
                       inventada.get_data(as_text=True))
 
     def test_a_fita_tem_um_quadrado_por_proposta_e_a_cor_do_desfecho(self):
