@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **20 de setembro de 2026**.
+Última actualização: **22 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -40,18 +40,18 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números são de **20/09/2026**, lidos das duas bases.
+Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 
 | O quê | Quanto |
 |---|---|
-| Anúncios | 210 245 (**199 813 procedimentos**; a diferença são republicações ligadas ao original) |
-| Com o texto integral | 185 320. O `detalhe_lido` está a **100%**: não há fila por ler |
+| Anúncios | 210 376 (**199 922 procedimentos**; a diferença são republicações ligadas ao original) |
+| Com o texto integral | 185 451. O `detalhe_lido` está a **100%**: não há fila por ler |
 | Propostas na escada | **78** — perdido 16 · não fomos 15 · ganho 13 · por analisar 11 · submetido 8 · a preparar 6 · relatório 5 · cancelado 4 |
-| Tarefas por fazer | 46 |
+| Tarefas por fazer | 42 |
 | Contactos | 26 |
 | Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
-| Corpus do Portal BASE | 2 000 340 contratos, 179 823 entidades |
+| Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
 | Rotas Flask | 82 |
@@ -59,7 +59,7 @@ Funciona. Os números são de **20/09/2026**, lidos das duas bases.
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 081**, em ~71 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 364 linhas · `teste_radar.py` 13 942 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
-| As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,66 GB**, fora do git |
+| As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
 `/estilo/<etiqueta>.css`, guardado para sempre pelo browser, e a
@@ -109,8 +109,8 @@ ensaio de restauro.
   `"triagem_no_git": false`.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.8.6`**, de
-  20/09/2026. **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v1.9.0`**, de
+  22/09/2026 — o sistema de desenho (fases 1 e 2). **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 17/09/2026** — as colunas novas da
   `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre

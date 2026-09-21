@@ -90,16 +90,16 @@ fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `anuncios` | **210 245** | Um por anúncio do DR (mais 110 da Vortal). Desde **2015** |
+| `anuncios` | **210 376** | Um por anúncio do DR (mais 110 da Vortal). Desde **2015** |
 | `documentos` | 274 | As peças do procedimento em disco, de 42 concursos |
 | `analise` | 44 | O que o modelo leu das peças |
 | `propostas` | 78 | O que a **empresa** está a fazer — a escada |
 | `tarefas` | 66 | O que falta fazer, por proposta |
 | `contactos` | 26 | As pessoas do lado de lá, **por entidade** |
-| `historico` | 573 | Cada movimento: quem, o quê, quando |
-| `alteracoes` | 10 | O que o DR mudou num anúncio já lido |
+| `historico` | 621 | Cada movimento: quem, o quê, quando |
+| `alteracoes` | 15 | O que o DR mudou num anúncio já lido |
 | `cpv_dict` | 9 454 | O vocabulário CPV, com descrição |
-| `slots` | 55 | Cada verificação que correu, e quantos trouxe |
+| `slots` | 58 | Cada verificação que correu, e quantos trouxe |
 | `erros` | 28 | A série dos erros, por tipo (poda a 200) |
 | `utilizadores` · `sessoes` | 2 · 5 | A porta |
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
@@ -157,11 +157,11 @@ viaja**: não está no git.
 
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `contratos` | **2 000 340** | Cada contrato celebrado. Desde 2015 |
-| `contrato_adjudicatario` | 2 032 592 | Quem ganhou (um contrato pode ter vários) |
-| `contrato_cpv` | 2 033 368 | Os CPV de cada contrato |
-| `entidades` | **179 823** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
-| `entidade_nomes` | 255 987 | Todas as grafias por que uma entidade já apareceu |
+| `contratos` | **2 004 511** | Cada contrato celebrado. Desde 2015 |
+| `contrato_adjudicatario` | 2 036 810 | Quem ganhou (um contrato pode ter vários) |
+| `contrato_cpv` | 2 037 647 | Os CPV de cada contrato |
+| `entidades` | **180 090** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
+| `entidade_nomes` | 256 340 | Todas as grafias por que uma entidade já apareceu |
 
 Colunas de `contratos` que interessam: `n_anuncio` (**é o `ref` do
 radar** — é por aqui que se fecha o ciclo), `adjudicante_chave`,
