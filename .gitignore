@@ -51,6 +51,12 @@ chave_api.txt
 *.key
 *secret*
 *token*
+# A excepção é estreita de propósito: UM caminho, e não `*.css`. O
+# `radargov-tokens.css` é a paleta do sistema de desenho (21/09/2026) e
+# o padrão `*token*` apanhava-o — sem esta linha, o ficheiro central da
+# fase 1 não entrava no repositório e uma instalação nova ficava sem
+# paleta nenhuma, sem nada o dizer. A guarda dos segredos fica inteira.
+!estilo/radargov-tokens.css
 # E a palavra-passe do e-mail, que nao bate em nenhum dos padroes acima
 # e por isso andou seguida em git de 31/08 a 01/09/2026. O padrao largo
 # nao chega quando o nome do ficheiro nao tem nenhuma das palavras.

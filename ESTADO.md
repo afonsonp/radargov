@@ -57,8 +57,8 @@ Funciona. Os números são de **20/09/2026**, lidos das duas bases.
 | Rotas Flask | 81 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 076**, em ~76 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 23 197 linhas · `teste_radar.py` 13 791 · `empresa.py` 641 · `contas.py` 302 |
+| Testes | **1 078**, em ~70 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 23 248 linhas · `teste_radar.py` 13 865 · `empresa.py` 641 · `contas.py` 302 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,66 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em

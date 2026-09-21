@@ -8983,7 +8983,7 @@ def porta_de_entrada():
 # barra, e um 500 a meio disso dava outro 500 em cima do primeiro. E o
 # molde do /entrar, com um titulo e uma linha.
 
-PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
+PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%(titulo)s — RadarGov</title>%(css)s</head>
 <body class="entrar-fundo"><main class="entrar">
@@ -9090,7 +9090,7 @@ def destino_seguro(para):
     return "/"
 
 
-PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
+PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entrar — RadarGov</title>%(css)s</head>
 <body class="entrar-fundo"><main class="entrar">
@@ -11073,7 +11073,52 @@ def carregar_estilos_de_terceiros():
     return "\n".join(pedacos)
 
 
-CSS_TUDO = carregar_estilos_de_terceiros() + CSS + CSS_NOVO
+def ler_estilo(nome):
+    """Um ficheiro da pasta `estilo/`, ou "" se faltar.
+
+    O mesmo desenho do `carregar_estilos_de_terceiros()`: **se faltar, o
+    painel serve na mesma**. Uma folha a menos tira aspecto, não tira a
+    página, e um arranque que rebenta por causa de um `.css` é pior do
+    que um ecrã feio.
+    """
+    try:
+        with open(os.path.join(BASE_DIR, "estilo", nome), encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+# --- o sistema de desenho entra por cima (fase 1 da migração, 21/09/2026)
+#
+# Três folhas, do pacote `radargov-migracao`:
+#
+#   tokens      as 24 variáveis novas, nos três temas (`[data-theme=…]`)
+#   pontes      as 44 variáveis ANTIGAS apontadas às novas
+#   componentes as classes `.rg-*`, todas dentro de `.rg`
+#
+# **A ordem não é a que o MIGRACAO.md diz, e isso foi medido.** Ele
+# manda `tokens + pontes + CSS + CSS_NOVO`; assim nada muda de cor,
+# porque o `CSS_NOVO` tem um bloco `[data-pele=novo]{--azul:…}` com a
+# MESMA especificidade das pontes (`:root, [data-pele=novo]`) e vem
+# depois — quem vem depois ganha. Medido no browser: com a ordem dele,
+# `--azul` fica `#1b5fc1` e `--sans` fica system-ui, ou seja, o aspecto
+# antigo inteiro.
+#
+# **O que define variáveis vai todo para o FIM**, tokens incluídos. Não
+# há razão para virem antes: uma variável é lida quando a regra a usa, e
+# não quando o ficheiro é lido. E os tokens têm de vir depois do CSS
+# antigo por causa de **um** nome — medido, é só um: o `--ink`, que no
+# sistema antigo era o quase-preto da barra e no novo é a cor do texto.
+# Com os tokens antes, o `--ink` do `CSS_NOVO` ganhava e a paleta ficava
+# meia trocada.
+#
+# Os componentes ficam no fim, e são inertes até à fase 2: está tudo
+# dentro de `.rg`, e nenhum molde carimba essa classe ainda.
+CSS_TUDO = (carregar_estilos_de_terceiros()
+            + CSS + CSS_NOVO
+            + ler_estilo("radargov-tokens.css")
+            + ler_estilo("radargov-pontes.css")
+            + ler_estilo("radargov-componentes.css"))
 
 # --- o CSS deixa de viajar em cada clique (17/09/2026)
 #
@@ -11109,7 +11154,7 @@ def estilo(etiqueta):
     return resposta
 
 
-BASE = """<!doctype html><html lang="pt" data-pele="novo" data-tipo="plex"><head><meta charset="utf-8">
+BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
@@ -21635,7 +21680,13 @@ def proposta_apagar(id_):
 # `font-src 'self'`. Lista branca de nomes -- nao ha caminho nenhum a
 # juntar a mao, e por isso nao ha travessia possivel.
 TIPOS = {"inter.woff2", "plex-sans.woff2",
-         "plex-mono-400.woff2", "plex-mono-600.woff2"}
+         "plex-mono-400.woff2", "plex-mono-600.woff2",
+         # As quatro do sistema de desenho (fase 1 da migração,
+         # 21/09/2026): Zilla Slab nos títulos, Source Sans no texto,
+         # Source Code Pro nos números. As de cima ficam enquanto a
+         # `/amostra` e o `[data-tipo=*]` existirem -- saem na fase 3.
+         "ZillaSlab-SemiBold.woff2", "ZillaSlab-Medium.woff2",
+         "SourceSans3-Variable.woff2", "SourceCodePro-Variable.woff2"}
 
 
 @app.route("/tipo/<nome>")

@@ -7694,24 +7694,98 @@ class TestPeleNova(unittest.TestCase):
         dia em que vê."""
         for molde in (radar.BASE, radar.PAGINA_ERRO, radar.PAGINA_ENTRAR):
             self.assertIn('data-pele="novo"', molde)
-            self.assertIn('data-tipo="plex"', molde)
+            # `data-theme` desde a fase 1 da migração (21/09/2026): o
+            # `data-tipo` era o selector de LETRA da amostra, e a letra
+            # passou a vir dos tokens. O tema é que escolhe agora --
+            # claro, escuro, contraste.
+            self.assertIn('data-theme="claro"', molde)
+            self.assertNotIn('data-tipo=', molde)
             # e a folha que carimbam tem de ser a que traz a pele
             self.assertIn("%(css)s", molde)
         # A ORDEM é o que importa, e não por onde começa: o que é nosso
         # vem depois do que é de terceiros (para nos podermos sobrepor às
-        # curvas do Open Props), e a pele vem por último de todas (para
-        # ganhar ao CSS de base). A 17/09/2026 isto pregava
+        # curvas do Open Props). A 17/09/2026 isto pregava
         # `startswith(CSS)` e passou a falhar quando os `estilo/*.css`
         # entraram à frente — que é exactamente onde têm de estar.
-        self.assertTrue(radar.CSS_TUDO.endswith(radar.CSS_NOVO))
         self.assertIn(radar.CSS, radar.CSS_TUDO)
         self.assertLess(radar.CSS_TUDO.index(radar.CSS),
                         radar.CSS_TUDO.index(radar.CSS_NOVO))
 
+    def test_o_que_define_variaveis_vem_depois_do_css_antigo(self):
+        """A regra que a fase 1 da migração custou a descobrir
+        (21/09/2026), e que só se viu no browser.
+
+        O `MIGRACAO.md` mandava `tokens + pontes + CSS + CSS_NOVO`. Com
+        essa ordem **nada muda de cor**: o `CSS_NOVO` tem um bloco
+        `[data-pele=novo]{--azul:…}` com a mesma especificidade das
+        pontes (`:root, [data-pele=novo]`), e a que vem depois ganha.
+        Medido: `--azul` ficava `#1b5fc1` e `--sans` ficava system-ui,
+        ou seja, o aspecto antigo inteiro, com três folhas novas
+        carregadas a não fazer nada.
+
+        O que se guarda é a propriedade: **nenhuma variável definida nos
+        tokens ou nas pontes pode ser redefinida depois deles.**
+        """
+        folha = radar.CSS_TUDO
+        tokens = radar.ler_estilo("radargov-tokens.css")
+        pontes = radar.ler_estilo("radargov-pontes.css")
+        self.assertTrue(tokens and pontes, "as folhas do sistema faltam")
+        for nome, texto in (("os tokens", tokens), ("as pontes", pontes)):
+            onde = folha.index(texto)
+            self.assertGreater(onde, folha.index(radar.CSS_NOVO),
+                               "%s vêm antes do CSS_NOVO" % nome)
+            depois = folha[onde + len(texto):]
+            redefinidas = (self._definidas(texto) & self._definidas(depois))
+            self.assertEqual(
+                sorted(redefinidas), [],
+                "a folha redefine estas depois de %s" % nome)
+
+    @staticmethod
+    def _sem_comentarios(css):
+        return re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+
+    @classmethod
+    def _definidas(cls, css):
+        """Os nomes de variável DEFINIDOS num pedaço de CSS.
+
+        A definição vem sempre a seguir a um `{` ou a um `;`. Sem essa
+        âncora, um `.rg-btn--danger:hover` lê-se como uma definição de
+        `--danger` -- foi o primeiro feitio deste teste, e acusava a
+        folha de redefinir metade dos tokens."""
+        return set(re.findall(r"[{;]\s*(--[a-z0-9-]+)\s*:",
+                              cls._sem_comentarios(css)))
+
+    def test_nenhuma_ponte_se_cita_a_si_propria(self):
+        """`--ink: var(--ink)` vinha assim no pacote entregue, e é
+        circular: a variável fica com o valor inválido-garantido, e as
+        79 regras do `radar.py` que usam `var(--ink)` ficam sem valor.
+
+        O que se via: a barra de topo faz `background:var(--ink)` e
+        ficava **transparente**, com o logótipo branco sobre fundo
+        claro. Não dá erro nenhum e não falha teste nenhum -- vê-se, e
+        só se alguém olhar.
+        """
+        # sem os comentários: este ficheiro explica a armadilha citando-a
+        pontes = self._sem_comentarios(radar.ler_estilo("radargov-pontes.css"))
+        pares = re.findall(r"(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)",
+                           pontes)
+        self.assertTrue(pares, "as pontes não apontam nada")
+        for nome, valor in pares:
+            self.assertNotEqual(nome, valor,
+                                "%s cita-se a si própria" % nome)
+
     def test_as_fontes_vem_da_propria_aplicacao(self):
-        self.assertNotIn("https://", radar.CSS_NOVO)
+        """Nenhuma fonte de fora, e todas as da lista branca servidas.
+
+        Mede-se sobre o `CSS_TUDO`, que é a folha que o browser recebe,
+        e não sobre o `CSS_NOVO`: desde a fase 1 da migração as quatro
+        fontes do sistema são declaradas no `radargov-tokens.css`, e um
+        teste que só olhasse para o `CSS_NOVO` dava-as por ausentes.
+        """
+        self.assertNotIn("https://", radar.CSS_TUDO)
+        self.assertNotIn("http://", radar.CSS_TUDO)
         for nome in radar.TIPOS:
-            self.assertIn("/tipo/" + nome, radar.CSS_NOVO)
+            self.assertIn("/tipo/" + nome, radar.CSS_TUDO, nome)
 
     def test_tipo_serve_a_lista_branca_e_recusa_o_resto(self):
         cliente = radar.app.test_client()
