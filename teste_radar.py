@@ -4079,12 +4079,17 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         uma decoracao, e ninguem carrega em decoracoes."""
         cliente = radar.app.test_client()
         cabeca = cliente.get("/").get_data(as_text=True).split("</header>")[0]
-        self.assertIn('class="logo on"', cabeca)
+        # O aceso passou de uma classe `.on` para `aria-current="page"`
+        # na fase 2 da migração: é o mesmo sinal para o CSS e para quem
+        # lê com um leitor de ecrã, e uma classe só pintava.
+        self.assertIn("rg-topbar__brand", cabeca)
+        self.assertIn("aria-current='page'", cabeca)
         self.assertIn('title="Hoje', cabeca)
         # e noutra pagina apaga-se
         cabeca = (cliente.get(radar.LISTA).get_data(as_text=True)
                   .split("</header>")[0])
-        self.assertIn('class="logo "', cabeca)
+        marca = cabeca[cabeca.index("rg-topbar__brand"):][:120]
+        self.assertNotIn("aria-current", marca)
         # as migalhas da abertura dizem "Hoje", e nao "Radar"
         self.assertIn("<em>Hoje</em>", radar.migalhas_de("inicio"))
 
@@ -7774,6 +7779,59 @@ class TestPeleNova(unittest.TestCase):
             self.assertNotEqual(nome, valor,
                                 "%s cita-se a si própria" % nome)
 
+    def test_o_icone_nao_derruba_a_pagina_quando_o_modulo_falta(self):
+        """Fase 2 da migração (21/09/2026). Os 49 ícones vêm de um
+        módulo à parte (`icones.py`), e a regra é a mesma das folhas de
+        `estilo/`: **se faltar, o painel serve na mesma.** Um botão sem
+        ícone é um botão com a palavra; uma página que rebenta por causa
+        de um `<svg>` é uma página perdida.
+        """
+        self.assertTrue(radar.icone("verificar").startswith("<svg"))
+        self.assertIn("currentColor", radar.icone("verificar"))
+        # um nome que não existe não inventa nada
+        self.assertEqual(radar.icone("nao-ha-icone-assim"), "")
+        with unittest.mock.patch.object(radar, "icones", None):
+            self.assertEqual(radar.icone("verificar"), "")
+            r = radar.app.test_client().get("/")
+            self.assertEqual(r.status_code, 200)
+
+    def test_o_logotipo_tem_o_disco_e_o_anel_so_no_inverso(self):
+        """O lockup: «Radar G⬤v», com o disco da bandeira no lugar do ó.
+
+        O anel é do `inverso` e só dele: sobre a barra azul, o verde e o
+        vermelho sem anel flutuam no fundo; sobre branco, um anel a toda
+        a volta era um carimbo.
+        """
+        claro, escuro = radar.logotipo(), radar.logotipo(inverso=True)
+        for m in (claro, escuro):
+            self.assertIn("rg-logo__verde", m)
+            self.assertIn("rg-logo__verm", m)
+        self.assertNotIn("rg-logo--inverse", claro)
+        self.assertNotIn("stroke=", claro)
+        self.assertIn("stroke='currentColor'", escuro)
+        # só a marca, sem as palavras
+        so_marca = radar.logotipo(marca_so=True)
+        self.assertIn("rg-logo--mark", so_marca)
+        self.assertNotIn("Radar", so_marca.replace("Radar Gov", ""))
+        # o id do clip é FIXO: gerado ao acaso, o HTML mudava a cada
+        # pedido e nenhuma captura de ecrã se podia comparar com outra
+        self.assertEqual(radar.logotipo(), claro)
+
+    def test_o_favicon_e_o_disco_e_serve_se_de_casa(self):
+        """Não havia nenhum: o browser pedia `/favicon.ico`, levava 404,
+        e o separador ficava com a folha em branco."""
+        r = radar.app.test_client().get("/favicon.svg")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("image/svg+xml", r.headers["Content-Type"])
+        corpo = r.get_data(as_text=True)
+        self.assertIn("http://www.w3.org/2000/svg", corpo)   # o xmlns
+        # as cores vão escritas: um SVG servido como ficheiro não herda
+        # as classes da folha de estilo da página
+        self.assertIn("#006432", corpo)
+        self.assertIn("#e61e1e", corpo)
+        for molde in (radar.BASE, radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
+            self.assertIn('href="/favicon.svg"', molde)
+
     def test_as_fontes_vem_da_propria_aplicacao(self):
         """Nenhuma fonte de fora, e todas as da lista branca servidas.
 
@@ -11286,7 +11344,11 @@ class TestMudancasDeSetembro(BaseTemporaria):
     # -- a barra
 
     def test_a_barra_e_um_header_sem_contagens_nem_ultima_verificacao(self):
-        self.assertIn('<header class="barra">', radar.BASE)
+        # `.rg-topbar` desde a fase 2 da migração (21/09/2026). O que
+        # este teste guarda não é o nome da classe: é que a barra seja
+        # um `<header>` e **não** volte a carregar contagens, o acervo
+        # nem a última verificação, que foi de onde saíram a 13/09.
+        self.assertIn('<header class="rg rg-topbar">', radar.BASE)
         self.assertNotIn("<aside", radar.BASE)
         for texto in ("Verificação automática", "127.0.0.1:", "%(fontes)s",
                       "%(acervo)s", "%(ultima)s", "%(horas)s"):
@@ -11787,16 +11849,31 @@ class TestNomeRadarGov(unittest.TestCase):
     def test_o_nome_e_radargov_nos_dois_sitios_e_o_gov_e_azul(self):
         # o logotipo ganhou a classe do estado aceso e o title a
         # 16/09/2026, quando passou a ser o caminho para o Hoje
-        self.assertIn('Radar<span>Gov</span></a>', radar.BASE)
-        self.assertIn('class="logo %(inicio_on)s" href="/"', radar.BASE)
-        self.assertIn('<div class="logo">Radar<span>Gov</span></div>', radar.PAGINA_ENTRAR)
-        self.assertIn("RadarGov", radar.PAGINA_ENTRAR)
+        # O nome passou ao LOCKUP do sistema de desenho na fase 2
+        # (21/09/2026): «Radar G⬤v», com o disco da bandeira no lugar do
+        # ó. O que este teste guarda continua a ser o mesmo -- o nome é
+        # «Radar Gov» nos três moldes, o «Gov» distingue-se do «Radar»,
+        # e em lado nenhum volta a dizer «RadarDR».
+        marca = radar.logotipo(inverso=True)
+        self.assertIn("rg-logo__radar", marca)
+        self.assertIn("Radar", marca)
+        self.assertIn("rg-logo__gov", marca)
+        self.assertIn("rg-logo__disc", marca)          # o ó é o disco
+        self.assertIn("aria-label='Radar Gov'", marca) # e lê-se assim
+        self.assertIn('class="rg-topbar__brand" href="/"', radar.BASE)
+        for molde in (radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
+            self.assertIn("%(logo)s", molde)
+            self.assertIn("RadarGov", molde)           # no <title>
         self.assertNotIn("Radar<span>DR", radar.BASE + radar.PAGINA_ENTRAR)
-        self.assertIn(".marca .logo span{color:var(--azul-claro)}", radar.CSS)
-        self.assertIn(".entrar .logo span{color:var(--azul)}", radar.CSS)
-        # o claro le-se sobre a barra: AA para texto grande e mais
-        contraste = TestContrasteNosFundosReais._contraste("#7cbcf0", "#14181e")
-        self.assertGreater(contraste, 7)
+        # o «Gov» é a cor da marca, e o «Radar» a do texto -- é isso que
+        # os distingue, e é o que a folha do sistema diz
+        folha = radar.ler_estilo("radargov-componentes.css")
+        self.assertIn(".rg-logo__gov{color:var(--brand)", folha)
+        self.assertIn(".rg-logo__radar{color:var(--ink)", folha)
+        # sobre a barra azul os dois passam a branco, e o disco ganha o
+        # anel -- sem ele, o verde e o vermelho flutuam no azul
+        self.assertIn("rg-logo--inverse", marca)
+        self.assertIn("stroke='currentColor'", marca)
 
 
 class TestAuditoriaDeSeguranca(BaseTemporaria):

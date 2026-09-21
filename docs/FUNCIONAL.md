@@ -397,7 +397,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**81 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**82 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
 - **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`

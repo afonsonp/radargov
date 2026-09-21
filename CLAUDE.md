@@ -28,11 +28,10 @@ pede.**
 | `docs/FUNCIONAL.md` | **O documento funcional**: os dados que existem (tabela a tabela, com o que está cheio e o que está vazio), os conceitos, os ecrãs, as acções, as regras — e o que ainda se pode fazer com os dados que há. **Não é instantâneo: corrige-se quando o comportamento muda** | Ao desenhar ou propor um ecrã novo; ao explicar a aplicação a alguém |
 | `docs/armadilhas.md` | O que não é óbvio, em 16 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/design.md` | O caminho do aspecto **até 20/09/2026**: a direcção, a letra, a cor, os botões, a escala. A paleta e a letra que ele descreve (Plex, ardósia) **saíram a 21/09** — o que vale hoje é o sistema de desenho | Para perceber uma decisão de aspecto antiga |
-| `docs/historico/MIGRACAO.md` | O plano de migração para o sistema de desenho (21/09/2026): o mapa das 44 variáveis, o mapa das classes `.rg-*`, e as três fases. **A fase 1 está feita**; o aviso no topo diz as duas coisas do plano que não se seguiram, e porquê | **Antes de mexer em cor, letra, botões, ou nas classes de um ecrã** |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | **O arquivo**: oito instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `REDESENHO`, `CICLOS`, `CAMADAS`. **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
+| `docs/historico/` | **O arquivo**: oito instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`. **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
@@ -51,7 +50,7 @@ histórico responde a outra pergunta — **porquê, e em que dia**:
 | o que a escada é, e o que cada ranhura exige | `docs/FUNCIONAL.md` §3.1 |
 | como a porta funciona | `docs/FUNCIONAL.md` §4.9 |
 | a abertura, o `/situacao`, as entidades | `docs/FUNCIONAL.md` §4.1, §4.2, §4.7 |
-| o aspecto: cor, letra, botões | `docs/design.md` |
+| o aspecto: cor, letra, botões, e o que falta migrar | `docs/historico/MIGRACAO.md` (o plano) e `docs/design.md` (o que veio antes) |
 | o que não é óbvio na área que vais tocar | `docs/armadilhas.md` |
 | **porque é que ficou assim, e quando** | `docs/historico/` |
 
@@ -467,8 +466,8 @@ A ordem do ficheiro é a ordem do fluxo:
    única que precisa de carimbar `data-pele` e `data-tipo` no `<html>`.
    O `CSS_NOVO` está todo dentro desse âmbito e as fontes servem-se de
    `/tipo/<nome>`, por lista branca (`TIPOS`).
-8d. **o sistema de desenho** — três folhas em `estilo/`, do pacote
-   `radargov-migracao` (**fase 1 feita a 21/09/2026**;
+8d. **o sistema de desenho** — quatro folhas em `estilo/`, do pacote
+   `radargov-migracao` (**fases 1 e 2 feitas a 21-22/09/2026**;
    `docs/historico/MIGRACAO.md`): `radargov-tokens.css` (24 variáveis,
    três temas — claro, escuro, contraste), `radargov-pontes.css` (as 44
    variáveis **antigas** apontadas às novas, para o CSS de 23 mil linhas
@@ -482,13 +481,24 @@ A ordem do ficheiro é a ordem do fluxo:
    componentes` — o que **define** variáveis vai todo para o fim, senão
    o bloco `[data-pele=novo]{--azul:…}` do `CSS_NOVO` ganha-lhes e nada
    muda de cor. Os três moldes carimbam `data-theme="claro"` (o
-   `data-tipo` saiu). Ver a área «A interface» das armadilhas antes de
-   mexer nisto.
+   `data-tipo` saiu). A quarta folha é **nossa**:
+   `radargov-radar.css`, o pouco que o radar precisa e o sistema ainda
+   não tem (as vistas da barra, a barra a dobrar, o menu da conta, os
+   dois ecrãs fora do molde). **É o único sítio onde se escreve CSS de
+   componente que não venha do design system** — assim o
+   `radargov-componentes.css` fica igual ao que o sistema publica.
+   Da **fase 2**: a barra é `.rg-topbar`, o aceso é `aria-current` e
+   não uma classe, a marca é o lockup (`logotipo()`, com o disco da
+   bandeira no lugar do ó), o `<main>` leva `.rg`, e o `PAGINA_ENTRAR`
+   e o `PAGINA_ERRO` passaram aos componentes. Os 49 ícones estão em
+   **`icones.py`** e servem-se por `icone(nome)`; **se o módulo faltar,
+   o painel serve na mesma**. Ver a área «A interface» das armadilhas
+   antes de mexer nisto.
 9. **agendamento** — `relogio()`, thread daemon que dispara os slots.
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **225 pontos** (contados a 21/09/2026), cada um de um erro que
+São **229 pontos** (contados a 22/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

@@ -1,0 +1,46 @@
+/* radargov-radar.css: o que o RADAR precisa e o sistema de desenho ainda
+   não tem. Entra a seguir aos componentes, e é o único sítio onde se
+   escreve CSS de componente que não venha do design system — assim o
+   `radargov-componentes.css` fica igual ao que o sistema publica, e
+   vê-se de relance o que é nosso.
+
+   Fase 2 da migração, 21/09/2026. */
+
+/* As VISTAS de um item da barra (Calendário dentro de Concursos,
+   Entidades dentro de Mercado). O sistema tem `.rg-topbar__link` e mais
+   nada: uma vista precisa de se ler como filha do item, senão a barra
+   passa a ter cinco itens de primeiro nível, que é exactamente o que a
+   navegação de 16/09/2026 veio desfazer. */
+.rg-topbar__link--sub{font-size:13px;padding-left:var(--space-3);
+ padding-right:var(--space-3);opacity:.92}
+.rg-topbar__link--sub::before{content:'';width:1px;height:14px;
+ margin-right:var(--space-3);background:currentColor;opacity:.35;
+ display:inline-block;vertical-align:-2px}
+
+/* A barra dobra em ecrã estreito, e o `--barra-h` é medido em JS: o
+   `height` fixo do `.rg-topbar` impedia-a de dobrar e cortava os itens
+   a 375px. Passa a mínimo. */
+.rg-topbar{height:auto;min-height:56px;flex-wrap:wrap;gap:var(--space-3)
+ var(--space-5);padding-top:var(--space-2);padding-bottom:var(--space-2);
+ position:sticky;top:0;z-index:20}
+
+/* O menu da conta pendura-se da barra: é `.rg-menu`, mas posicionado. */
+.rg-topbar .sou{position:relative;flex:none}
+.rg-topbar .sou>summary{list-style:none;cursor:pointer;display:flex;
+ align-items:center;gap:var(--space-2);color:var(--on-header-muted);
+ font:400 13px/18px var(--font-sans)}
+.rg-topbar .sou>summary::-webkit-details-marker{display:none}
+.rg-topbar .sou[open]>summary{color:var(--on-header)}
+.rg-topbar .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;
+ z-index:30}
+
+/* Os dois ecrãs fora do molde (entrar, erro): o cartão ao centro. */
+.entrar-fundo{background:var(--surface)}
+main.entrar{max-width:420px;margin:12vh auto;padding:var(--space-6);
+ background:var(--surface-raised);border:1px solid var(--line);
+ border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);
+ display:flex;flex-direction:column;gap:var(--space-4)}
+main.entrar h1{margin:0;font:600 22px/28px var(--font-serif);color:var(--ink)}
+main.entrar form{display:flex;flex-direction:column;gap:var(--space-4)}
+main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
+ text-align:left}

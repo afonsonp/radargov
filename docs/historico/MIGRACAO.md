@@ -5,6 +5,12 @@
 > as três fases. Descreve o que se **pediu**; o que ficou feito está no
 > `ESTADO.md` e no `docs/diario/`. **Não se edita.**
 >
+> **Fases 1 e 2 feitas a 21-22/09/2026.** Falta a 3 (as classes, ecrã a
+> ecrã). O que a fase 2 teve de fazer por não vir no pacote: o lockup em
+> Python (`logotipo()`, a partir do componente `Logo` do sistema), o
+> favicon, e a folha `estilo/radargov-radar.css` com o pouco que o radar
+> precisa e o sistema não tem.
+>
 > **Duas coisas dele não se seguiram, e foram medidas** (ver o diário de
 > 21/09/2026 e a área «A interface» das armadilhas):
 >
