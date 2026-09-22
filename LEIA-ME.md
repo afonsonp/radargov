@@ -1061,9 +1061,17 @@ anúncios, é o teste do parser que avisa primeiro.
 **O painel está em https://radargov.pt** (e `www.radargov.pt`), de
 qualquer computador ou telemóvel, sem instalar nada. No telemóvel as
 listas ficam a uma coluna e as tabelas largas arrastam-se de lado (a
-barra já é em cima em todos os tamanhos, desde 13/09/2026). Quem abre cai no
-ecrã de entrar (secção 7) e entra com o teu utilizador e a tua
-palavra-passe. Os links do e-mail de alerta apontam para lá.
+barra já é em cima em todos os tamanhos, desde 13/09/2026). **Quem abre
+sem sessão vê o site de apresentação** (desde 23/09/2026), com um
+«Entrar» no canto que leva ao ecrã de entrar (secção 7); quem já entrou
+vê o Hoje, como sempre. Os links do e-mail de alerta apontam para lá.
+
+**O site** é o ficheiro `site/index.html`: muda-se o texto aí, e a
+mudança vê-se sem reiniciar o painel. O formulário «Pedir acesso»
+guarda cada pedido e manda-te um e-mail para o endereço dos alertas
+(se o correio estiver configurado, em Configurações › Alertas). Os
+pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
+site»** — e é aí que os vês se o e-mail não tiver chegado.
 
 Como funciona, para saberes o que pode falhar: o painel continua a
 atender só neste computador; um programa da Cloudflare, o
