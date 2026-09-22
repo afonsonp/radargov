@@ -8529,7 +8529,7 @@ class TestBlocoComPorque(unittest.TestCase):
 
     def test_com_explicacao_o_rotulo_vira_summary(self):
         saida = radar.rot_com_porque("Lotes", "vêm do anúncio")
-        self.assertIn("<details class='porque porque-bloco'>", saida)
+        self.assertIn("<details class='rg-disc porque porque-bloco'>", saida)
         self.assertIn("<span class='rg-field__label'>Lotes</span>", saida)
         self.assertIn("vêm do anúncio", saida)
 
@@ -8748,7 +8748,7 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
             self.assertIn("Quarta, 16 de setembro", corpo, "%dh" % hora)
             for saudacao in ("Bom dia", "Boa tarde", "Boa noite"):
                 self.assertNotIn(saudacao, corpo, saudacao)
-            vistos.add(corpo[corpo.index("<h1 class='tit'>"):][:60])
+            vistos.add(corpo[corpo.index("<h1 class='rg-pagehead__title'>"):][:60])
         self.assertEqual(len(vistos), 1, "o título mudou com a hora")
 
 
@@ -10269,7 +10269,7 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
     def test_os_blocos_continuam_la_dentro_e_os_guardados_sairam(self):
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         dentro = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
-        self.assertIn("class='cx filtros'", dentro)
+        self.assertIn("class='rg-card filtros'", dentro)
         # 13/09/2026: a caixa "Filtros guardados" saiu das listas; o que
         # era guardar um filtro passou a ser o Interesse e os alertas
         self.assertNotIn("Filtros guardados", html_)
@@ -12145,8 +12145,8 @@ class TestFiltrosSimples(BaseTemporaria):
     def test_a_lista_tem_so_os_quatro_campos_e_a_arvore_em_cima(self):
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         painel = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
-        self.assertLess(painel.index("details class='arvore'"), painel.index("class='cx filtros'"))
-        form = painel.split("class='cx filtros'")[1].split("</form>")[0]
+        self.assertLess(painel.index("details class='arvore'"), painel.index("class='rg-card filtros'"))
+        form = painel.split("class='rg-card filtros'")[1].split("</form>")[0]
         for campo in ("name='q'", "name='ent'", "name='plat'", "name='de'", "name='ate'"):
             self.assertIn(campo, form)
         for campo in ("name='q_excl'", "name='op'", "name='prazo'"):
