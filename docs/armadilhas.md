@@ -2665,6 +2665,24 @@ botões ou no calendário.
   conta pela `fechada_em`: uma proposta ainda aberta não se decidiu em
   período nenhum, e metê-la num fazia a taxa mexer sem nada ter mudado.
 
+- **Um `<td>` com `display:flex` deixa de ser célula** (22/09/2026, a
+  lista dos concursos). Perde a altura da linha, e o fio de baixo da
+  coluna «Faltam» ficava a meio da linha, por baixo da etiqueta do
+  prazo. O flex vive num `<span class='falta'>` dentro da célula. Vale
+  para qualquer tabela: o que se arruma lá dentro arruma-se num filho.
+
+- **Quando a marcação muda de forma, o JS que a procura fica cego sem
+  erro nenhum** (22/09/2026). A lista passou de cartões a tabela nesse
+  mesmo dia, e o teclado (`j k i a`) continuou a procurar `.item`, que
+  já não existia: `querySelectorAll` devolve vazio, a função sai no
+  primeiro `return`, e a dica `j k i a ⏎` continuou no ecrã a prometer
+  o que não fazia. O «i» estava cego há mais tempo: procurava um
+  formulário acabado em «interessa», e o botão manda para
+  `/estado/<path:ref>/<novo>` com `novo` a «analisar» desde a escada
+  (15/09/2026). Ao trocar a
+  forma de um ecrã, procura no `LISTA_JS` (e nos outros `*_JS`) os
+  selectores da forma antiga.
+
 
 ---
 

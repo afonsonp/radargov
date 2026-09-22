@@ -55,9 +55,50 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
 .lista .col-obj .item-titulo:hover{color:var(--link)}
 .lista .col-obj small{display:block;margin-top:2px;
  font:400 13px/18px var(--font-sans);color:var(--ink-muted)}
-.lista .col-tipo{color:var(--ink-secondary);white-space:nowrap}
+
 .lista .col-plat,.lista .col-falta{white-space:nowrap}
-.lista .col-falta{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+/* O flex vive num <span> por dentro, e nao no <td>: um `td` com
+   `display:flex` deixa de ser celula, perde a altura da linha e o fio
+   de baixo ficava a meio da linha, por baixo da etiqueta. */
+.lista .col-falta .falta{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
+/* O cabecalho de uma coluna de numeros alinha a direita, mas e rotulo:
+   em sans, como os outros. So as celulas vao em mono. */
+.rg-table th.rg-num{font-family:var(--font-sans);font-size:12px}
+
+/* Os filtros do `EcraConcursos`: uma grelha de uma linha em
+   `surface-sunken`, com o `Field` do sistema. O `#filtros-lista`
+   ganha as regras antigas do `.filtros`, que ainda servem as outras
+   listas. */
+#filtros-lista{display:grid;align-items:end;
+ grid-template-columns:2fr 1.5fr 1.2fr 1fr 1fr auto;gap:var(--space-3);
+ padding:var(--space-4) var(--space-5);background:var(--surface-sunken);
+ border:var(--border-hairline) solid var(--line);border-radius:var(--radius-lg);
+ box-shadow:none}
+#filtros-lista .rg-field__label{font:500 13px/18px var(--font-sans);color:var(--ink)}
+#filtros-lista .rg-field__input{min-width:0;width:100%;box-sizing:border-box;
+ min-height:40px;padding:0 var(--space-3);border:var(--border-control) solid var(--line-strong);
+ border-radius:var(--radius-md);background:var(--surface-raised);
+ font:400 14px/20px var(--font-sans);color:var(--ink)}
+#filtros-lista .rg-field__input:focus{border-color:var(--brand);
+ outline:var(--border-focus) solid var(--focus);outline-offset:0}
+#filtros-lista .campo-data:invalid{border-color:var(--danger)}
+#filtros-lista .f-accoes{display:flex;gap:var(--space-2)}
+@media (max-width:900px){
+ #filtros-lista{grid-template-columns:1fr 1fr}
+ #filtros-lista .f-q{grid-column:1/-1}}
+
+/* O resumo por cima da tabela: a contagem com os numeros a negro, o
+   interesse numa etiqueta, e a direita as teclas e o CSV. */
+.linha-conta.resumo{display:flex;flex-wrap:wrap;align-items:center;
+ gap:var(--space-1) var(--space-4);margin:var(--space-3) 0 var(--space-4);
+ font:400 13px/18px var(--font-sans);color:var(--ink-muted)}
+.linha-conta.resumo b{font:600 14px/20px var(--font-mono);color:var(--ink)}
+.linha-conta.resumo .cpv-activo{display:inline-flex;gap:var(--space-2);align-items:center;
+ margin:0;padding:2px var(--space-3);border:0;border-radius:var(--radius-full);
+ background:var(--brand-soft);color:var(--brand);font:500 12px/18px var(--font-sans)}
+.linha-conta.resumo .cpv-activo b{font:600 12px/18px var(--font-mono);color:var(--brand)}
+.linha-conta.resumo .teclas{margin-left:auto}
+.linha-conta.resumo>a{margin-left:0;color:var(--link)}
 .lista .col-acc{width:1%;white-space:nowrap}
 .lista .col-acc form{display:inline-flex;margin:0 0 0 4px}
 .lista .col-acc .ranhura{display:inline-flex;gap:4px;align-items:center}
@@ -66,3 +107,49 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
     não é a página que rola para o lado. */
  .lista.rg-table{overflow-x:auto}
  .lista.rg-table table{min-width:900px}}
+/* A linha com o foco do teclado (j/k). */
+.lista tbody tr.foco td{background:var(--brand-soft)}
+
+/* O CABECALHO DA PAGINA como o `PageHeader` do sistema: o titulo a
+   esquerda e a accao ("Verificar agora") a direita, na MESMA linha. O
+   molde poe a accao na linha das migalhas; o `display:contents` solta
+   os dois filhos da `.migalhas` para a grelha do `.topo`, sem mexer no
+   molde. E a migalha de uma pagina de primeiro nivel -- so o nome dela,
+   por cima do titulo com o mesmo nome -- nao se desenha. */
+.topo{display:grid;grid-template-columns:minmax(0,1fr) auto;
+ column-gap:var(--space-4);align-items:center}
+.topo>.migalhas{display:contents}
+.topo>.migalhas>.b{grid-column:1/-1;grid-row:1}
+.topo>.migalhas>.b:has(>em:only-child){display:none}
+.topo>.migalhas>.accoes-topo{grid-column:2;grid-row:2;margin-left:0}
+.topo>details.porque,.topo>h1{grid-column:1;grid-row:2;min-width:0}
+.topo>.rg-tabs,.topo>.vazio-topo{grid-column:1/-1;grid-row:3}
+
+/* Os botoes dos filtros com a altura dos campos, e nao da grelha. */
+#filtros-lista .f-accoes{align-self:end}
+#filtros-lista .f-accoes .rg-btn{height:40px;padding:0 var(--space-4);
+ display:inline-flex;align-items:center}
+
+/* Densidade da linha (36px no sistema): o objecto em duas linhas no
+   maximo, a entidade numa. O `title` do link continua a ter o texto
+   inteiro, e a ficha tambem. */
+.lista .col-obj .item-titulo{display:-webkit-box;-webkit-line-clamp:2;
+ -webkit-box-orient:vertical;overflow:hidden}
+.lista .col-obj small{max-width:560px;white-space:nowrap;overflow:hidden;
+ text-overflow:ellipsis}
+/* A coluna do objecto tem tecto: com o titulo cortado a duas linhas a
+   celula alargava ate caber tudo numa, e empurrava as accoes para fora
+   do ecra. */
+.lista .col-obj .item-titulo,.lista .col-obj small{max-width:460px}
+
+/* As onze abas da escada, em ecra estreito, rolam na horizontal dentro
+   da pilula em vez de dobrarem numa mancha de quatro linhas. */
+@media (max-width:900px){
+ .topo>.rg-tabs.abas-escada{display:flex;flex-wrap:nowrap;overflow-x:auto;
+  max-width:100%;border-radius:var(--radius-lg);scrollbar-width:none}
+ .topo>.rg-tabs.abas-escada .rg-tab{flex:none}}
+/* O padding de celula do sistema e `space-3` na horizontal (README,
+   «Espaço, cantos, fios»); a folha dos componentes traz `space-4`, e na
+   lista, com sete colunas, eram 112px de ar a empurrar as accoes. */
+.lista.rg-table th,.lista.rg-table td{padding-left:var(--space-3);
+ padding-right:var(--space-3)}
