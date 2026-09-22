@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 22 de setembro de 2026**, sobre a `v1.10.0`. Este
+> **Última revisão: 23 de setembro de 2026**, sobre a `v1.11.0`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -102,7 +102,7 @@ as exactas e salta as outras.
 | `anuncios` | ~210 mil | Um por anúncio do DR (mais ~110 da Vortal). Desde **2015**. Cresce ~40/dia |
 | `documentos` | algumas centenas | As peças em disco. Crescem quando se traz um concurso, e com a vigilância |
 | `analise` | uma por concurso lido | O que o modelo leu das peças |
-| `propostas` | **78** | O que a **empresa** está a fazer — a escada |
+| `propostas` | **80** | O que a **empresa** está a fazer — a escada |
 | `tarefas` | dezenas | O que falta fazer, por proposta. A verificação sincroniza-as |
 | `contactos` | **26** | As pessoas do lado de lá, **por entidade** |
 | `historico` | uma por movimento | Quem, o quê, quando. Cresce a **cada acção** no painel |
