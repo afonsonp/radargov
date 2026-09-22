@@ -88,20 +88,30 @@ para quem desenha: **acrescentar uma coluna é barato e imediato**
 o `DROP COLUMN` do SQLite reescreve-a inteira. As regras de quando
 fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 
+**Duas colunas de números, e a diferença importa.** As tabelas que
+crescem **sozinhas** — a verificação corre 2×/dia — não levam contagem
+exacta: levava-se um número que fica velho antes de o commit chegar ao
+GitHub. Aconteceu a 22/09/2026: alguém fez um commit **só** para mudar
+o `historico` de 622 para 623, e nessa manhã ele já ia em 625. As que
+mexem ao ritmo de uma pessoa, e as que estão a zero, levam o número —
+porque aí **o número é o que interessa**. O portão da release confere
+as exactas e salta as outras.
+
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `anuncios` | **210 376** | Um por anúncio do DR (mais 110 da Vortal). Desde **2015** |
-| `documentos` | 274 | As peças do procedimento em disco, de 42 concursos |
-| `analise` | 44 | O que o modelo leu das peças |
-| `propostas` | 78 | O que a **empresa** está a fazer — a escada |
-| `tarefas` | 66 | O que falta fazer, por proposta |
-| `contactos` | 26 | As pessoas do lado de lá, **por entidade** |
-| `historico` | 623 | Cada movimento: quem, o quê, quando |
-| `alteracoes` | 15 | O que o DR mudou num anúncio já lido |
-| `cpv_dict` | 9 454 | O vocabulário CPV, com descrição |
-| `slots` | 58 | Cada verificação que correu, e quantos trouxe |
-| `erros` | 28 | A série dos erros, por tipo (poda a 200) |
-| `utilizadores` · `sessoes` | 2 · 5 | A porta |
+| `anuncios` | ~210 mil | Um por anúncio do DR (mais ~110 da Vortal). Desde **2015**. Cresce ~40/dia |
+| `documentos` | algumas centenas | As peças em disco. Crescem quando se traz um concurso, e com a vigilância |
+| `analise` | uma por concurso lido | O que o modelo leu das peças |
+| `propostas` | **78** | O que a **empresa** está a fazer — a escada |
+| `tarefas` | dezenas | O que falta fazer, por proposta. A verificação sincroniza-as |
+| `contactos` | **26** | As pessoas do lado de lá, **por entidade** |
+| `historico` | uma por movimento | Quem, o quê, quando. Cresce a **cada acção** no painel |
+| `alteracoes` | uma por alteração | O que o DR mudou num anúncio já lido |
+| `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
+| `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (2/dia) |
+| `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
+| `utilizadores` | **2** | Quem entra |
+| `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
 | `estado` | 18 | Marcas do sistema (última verificação, migrações feitas) |
 | `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |

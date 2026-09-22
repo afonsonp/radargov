@@ -143,6 +143,14 @@ def funcional_medido():
             existem = {r[0] for r in c.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'")}
             for linha in bloco.splitlines():
+                # **Só as linhas que prometem um número exacto.** Uma
+                # que diga «~210 mil» ou «uma por verificação» não
+                # casa aqui, e é de propósito: as tabelas que crescem
+                # sozinhas ficavam velhas antes de o commit chegar ao
+                # GitHub. A 22/09/2026 fez-se um commit só para mudar
+                # o `historico` de 622 para 623, e nessa manhã já ia
+                # em 625 — trabalho a fingir, e o caminho mais curto
+                # para alguém começar a usar `--no-verify`.
                 m = re.match(r"\|\s*((?:`\w+`\s*·?\s*)+)\|\s*([\d\s*·\u00a0]+)\|",
                              linha)
                 if not m:
