@@ -1457,6 +1457,19 @@ def euros_do_texto(texto):
         return None
 
 
+def preco_pt(texto, vazio="—"):
+    """'285.700,00 EUR' -> '285 700,00 €', como o sistema de desenho
+    escreve o dinheiro: espaco inquebravel nos milhares e o simbolo no
+    fim. O DR escreve-o com pontos e "EUR", e na mesma lista o Portal
+    BASE chegava com espacos e "€" -- dois formatos lado a lado liam-se
+    como dois tipos de numero. O que nao se le como numero sai tal qual."""
+    v = euros_do_texto(texto)
+    if v is None:
+        return texto or vazio
+    inteiro, centimos = ("%.2f" % v).split(".")
+    return "%s,%s €" % (mil_pt(int(inteiro)), centimos)
+
+
 def para_like(termo):
     """Escapa os caracteres especiais do LIKE. Sem isto, procurar "50%"
     devolvia tudo o que tem "50", e "CP_2026" tratava o _ como coringa."""
@@ -6903,7 +6916,7 @@ def _em_cartao(a, urgente, mostrar_prazo=True):
     88 caracteres e "(SaaS" a meio era a primeira coisa que se via."""
     titulo = html.escape(a["titulo"] or "(sem título)")
     entidade = html.escape(a["entidade"] or "")
-    preco = html.escape(a["preco_base"] or "sem preço base")
+    preco = html.escape(preco_pt(a["preco_base"], "sem preço base"))
     metas = ["<span style=\"font:500 12px/1.5 %s;color:%s\">%s</span>"
              % (_EM_MONO, _EM_T3, html.escape(a["ref"]))]
     if mostrar_prazo:
@@ -11842,6 +11855,19 @@ def corta(texto, tecto):
     return texto if len(texto) <= tecto else texto[:tecto].rstrip() + "…"
 
 
+# O tipo do anuncio, dito so quando distingue. 91% da base e "Anuncio de
+# procedimento": como coluna eram tres palavras repetidas vinte vezes, a
+# coluna mais larga da lista a dizer o que menos distingue, e era ela que
+# empurrava as accoes para fora do ecra. Sai a coluna; o tipo que nao e o
+# de sempre entra como etiqueta ao lado do prazo.
+TIPO_DE_SEMPRE = "Anúncio de procedimento"
+TIPO_CURTO = {
+    "Anúncio de concurso urgente": "Urgente",
+    "Aviso de prorrogação de prazo": "Prorrogação",
+    "Declaração de retificação de anúncio": "Rectificação",
+}
+
+
 def linha(a, vista="", urgente=None, na_escada=None):
     """Uma linha da lista. O `vista` e o estado que a lista esta a
     mostrar: no separador "Por ver" a etiqueta "por ver" e sempre
@@ -11860,8 +11886,12 @@ def linha(a, vista="", urgente=None, na_escada=None):
 
     # O CPV, a plataforma e o tipo têm COLUNA desde 22/09/2026, e por
     # isso saíram daqui: na `tags` fica só o que não tem coluna nenhuma,
-    # que são as ranhuras da escada em que o anúncio está.
+    # que são as ranhuras da escada em que o anúncio está -- e o tipo,
+    # quando não é o de sempre (ver TIPO_DE_SEMPRE).
     tags = []
+    if a["tipo"] and a["tipo"] != TIPO_DE_SEMPRE:
+        tags.append("<span class='rg-tag'>%s</span>"
+                    % html.escape(TIPO_CURTO.get(a["tipo"], a["tipo"])))
     # O prazo sai das etiquetas e sobe a numero forte na coluna da
     # direita: e o que manda em "concorro ou nao", e no meio das outras
     # tags lia-se ao mesmo nivel do codigo CPV.
@@ -11935,26 +11965,26 @@ def linha(a, vista="", urgente=None, na_escada=None):
     return (
         "<tr id='a-%s'>"
         "<td class='rg-code'><a href='/anuncio/%s'>%s</a></td>"
-        "<td class='col-obj'><a href='/anuncio/%s' class='item-titulo'>%s</a>"
+        "<td class='col-obj'><a href='/anuncio/%s' class='item-titulo' title='%s'>%s</a>"
         "<small>%s%s%s</small></td>"
-        "<td class='col-tipo'>%s</td>"
         "<td class='col-plat'>%s</td>"
         "<td class='rg-num'>%s</td>"
         "<td class='rg-num'>%s</td>"
-        "<td class='col-falta'>%s%s</td>"
+        "<td class='col-falta'><span class='falta'>%s%s</span></td>"
         "<td class='col-acc'>%s</td></tr>"
         % (html.escape(a["ref"].replace("/", "-"), quote=True),
            a["ref"], html.escape(a["ref"]),
-           a["ref"], html.escape(corta(a["titulo"], 120)),
+           # o `title` leva o objecto inteiro: o CSS corta-o a duas linhas
+           a["ref"], html.escape(a["titulo"] or "", quote=True),
+           html.escape(corta(a["titulo"], 120)),
            html.escape(a["entidade"] or ""),
            (" &middot; %s" % publicado) if publicado else "",
            (" &middot; <span class='rg-mono'>%s</span>"
             % html.escape(a["cpv"])) if a["cpv"] else "",
-           html.escape(a["tipo"] or ""),
            ("<span class='rg-tag rg-tag--mono %s'>%s</span>"
             % (tom("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS else ""),
                html.escape(a["plataforma"]))) if a["plataforma"] else "",
-           html.escape(a["preco_base"] or "\u2014"),
+           html.escape(preco_pt(a["preco_base"])),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
            "".join(botoes)))
@@ -12000,7 +12030,9 @@ LISTA_JS = """<script>
 // botoes de 25px no canto direito de cada um. Nada disto dispara com o
 // foco num campo de texto.
 (function () {
-  var itens = Array.prototype.slice.call(document.querySelectorAll('.item'));
+  // As linhas da TABELA (22/09/2026): o `.item` era o cartao, e quando a
+  // lista passou a tabela as teclas ficaram sem nada onde pegar.
+  var itens = Array.prototype.slice.call(document.querySelectorAll('.lista tbody tr'));
   if (!itens.length) return;
   var i = -1;
   function foca(n) {
@@ -12022,7 +12054,8 @@ LISTA_JS = """<script>
     if (document.querySelector('dialog[open]')) return;
     if (e.key === 'j') { foca(i + 1); e.preventDefault(); }
     else if (e.key === 'k') { foca(i - 1); e.preventDefault(); }
-    else if (e.key === 'i') { accao("form.accao[action$='/interessa']"); }
+    // o "interessa" manda para /estado/<ref>/analisar desde a escada
+    else if (e.key === 'i') { accao("form.accao[action$='/analisar']"); }
     else if (e.key === 'a') { accao('form.abandonar-js'); }
     else if (e.key === 'Enter' && i >= 0) {
       var a = itens[i].querySelector('.item-titulo');
@@ -13033,20 +13066,27 @@ def _lista_de_anuncios():
     # vier por la passa em campos escondidos para nao se perder ao
     # voltar a filtrar.
     filtros = (
-        "<form class='rg-card filtros' method='get' action='%s'>"
-        "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
-        "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…' "
-        "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'>"
+        # Os campos do `EcraConcursos`: rotulo por cima, 40px, borda de
+        # 2px (o `Field` do sistema), numa grelha de uma linha.
+        "<form class='rg-card filtros' id='filtros-lista' method='get' action='%s'>"
+        "<label class='rg-field f-q'><span class='rg-field__label'>Pesquisar</span>"
+        "<input class='rg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência'></label>"
+        "<label class='rg-field'><span class='rg-field__label'>Entidade</span>"
+        "<input class='rg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
+        "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
         "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "<select name='plat'>%s</select>"
-        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "<label class='rg-field'><span class='rg-field__label'>Plataforma</span>"
+        "<select class='rg-field__input' name='plat'>%s</select></label>"
+        "<label class='rg-field'><span class='rg-field__label'>Publicado de</span>"
+        "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='rg-field__input campo-data'></label>"
+        "<label class='rg-field'><span class='rg-field__label'>até</span>"
+        "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='rg-field__input campo-data'></label>"
         "<input type='hidden' name='estado' value='%s'>"
-        "<button type='submit'>Filtrar</button>"
-        "<a class='limpar' href='%s'>limpar</a>"
+        "<span class='f-accoes'><button type='submit' class='rg-btn rg-btn--primary'>Filtrar</button>"
+        "<a class='rg-btn rg-btn--secondary limpar' href='%s'>Limpar</a></span>"
         "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
@@ -13076,7 +13116,7 @@ def _lista_de_anuncios():
         corpo_lista = (
             "<div class='lista rg-table tab-cx'><table>"
             "<thead><tr>"
-            "<th>Ref.ª</th><th>Objecto</th><th>Tipo</th><th>Plataforma</th>"
+            "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
             "<th class='rg-num'>Preço base</th>"
             "<th class='rg-num'>Prazo</th><th>Faltam</th><th></th>"
             "</tr></thead><tbody>"
@@ -13114,15 +13154,16 @@ def _lista_de_anuncios():
     # mesmo, senao "20 de 65 869" parece um filtro que nao filtrou nada
     if correspondem > len(linhas):
         primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
-        conta = ("Mais recentes primeiro &middot; %s&ndash;%s de %s que "
-                 "correspondem &middot; página %s de %s"
-                 % (mil(primeiro), mil(primeiro + len(linhas) - 1),
-                    mil(correspondem), mil(pagina), mil(paginas)))
+        conta = ("<b>%s</b> que correspondem &middot; %s&ndash;%s "
+                 "&middot; página %s de %s"
+                 % (mil(correspondem), mil(primeiro),
+                    mil(primeiro + len(linhas) - 1), mil(pagina), mil(paginas)))
     else:
-        conta = ("Mais recentes primeiro &middot; %s %s"
+        conta = ("<b>%s</b> %s"
                  % (mil(correspondem),
                     "resultado" if correspondem == 1 else "resultados"))
-    conta += " &middot; %s na base" % mil(total)
+    conta += (" &middot; de <b>%s</b> na base &middot; mais recentes primeiro"
+              % mil(total))
     if porler:
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
     # A DEFINICAO da aba saiu desta linha a 16/09/2026 (fase 5): estava
@@ -13177,11 +13218,16 @@ def _lista_de_anuncios():
            arvore + filtros + faixa_cpv))
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
-                faixa_interesse + painel_filtros +
-                "<div class='linha-conta'><span class='teclas' "
+                painel_filtros +
+                # O resumo do `EcraConcursos`: a contagem a esquerda, e o
+                # interesse, que era uma faixa azul a toda a largura, passa
+                # a uma etiqueta na mesma linha -- continua a dizer quanto
+                # tapa e a ter o "ver tudo".
+                "<div class='linha-conta resumo'><span class='conta'>" + conta
+                + "</span>" + faixa_interesse +
+                "<span class='teclas' "
                 "title='j/k: anúncio seguinte/anterior · i: interessa · "
-                "a: abandonar · Enter: abrir a ficha'>j k i a &#9166;</span>"
-                + conta +
+                "a: abandonar · Enter: abrir a ficha'>j k i a &#9166;</span>" +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
                 # ao "1-20" e exportava as 66 mil sem avisar
                 "<a href='/csv?%s'>exportar as %s linhas (CSV)</a></div>"
@@ -13300,7 +13346,7 @@ def linha_da_pipeline(p, urgente, prazos):
                html.escape(corta(p["entidade"] or "", 45)),
                "L%d" % p["lote"] if p["lote"] else
                ("conjunto" if p["lote"] == 0 else "&mdash;"),
-               html.escape(p["preco_base"] or "") or "&mdash;",
+               html.escape(preco_pt(p["preco_base"])),
                # pelo tuplo e nao concatenada ao molde: o valor ja vem
                # substituido, e um "%" la dentro rebentava o `%` de fora
                cel_proposto,
@@ -18081,7 +18127,7 @@ def lotes_cx(a):
         corpo.append("<tr><td class='n'>L%d</td><td class='o'>%s</td>"
                      "<td class='p'>%s</td>%s</tr>"
                      % (l["n"], html.escape(l["descricao"] or l["id"] or "—"),
-                        html.escape(l["preco_base"] or "—"),
+                        html.escape(preco_pt(l["preco_base"])),
                         ("<td class='s'>%s</td>" % situacao) if ha_registo else ""))
     if resumo["conjunto"]:
         conj = resumo["conjunto"]
@@ -18217,7 +18263,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
         ("Entidade adjudicante", a["entidade"], "", ""),
         ("Critério de adjudicação", criterio_de_adjudicacao(seccoes), "", ""),
-        ("Preço base", a["preco_base"], "", ""),
+        ("Preço base", preco_pt(a["preco_base"], ""), "", ""),
         ("Preço anormalmente baixo", anormal, anormal_falta,
          nota_pecas if anormal else ""),
         ("Duração do contrato", duracao, "", ""),
@@ -18961,7 +19007,7 @@ def ficha(ref):
     factos = "".join((
         _facto("Publicado", data_pt(a["data_pub"], "")),
         facto_prazo,
-        _facto("Preço base", html.escape(a["preco_base"] or "")),
+        _facto("Preço base", html.escape(preco_pt(a["preco_base"], ""))),
         _facto("Plataforma", html.escape(a["plataforma"] or "")),
         _facto("CPV", cpv_facto, largo=True),
     ))
@@ -22221,6 +22267,11 @@ DIAS_A_FECHAR = 7
 CABEM_NO_LADO = 5
 
 
+# Quantas linhas cada balde do Hoje mostra antes do «mais N».
+CABEM_NO_BALDE = 6
+CABEM_SEM_DECISAO = 3
+
+
 def _tarefas_da_abertura(desde, ate):
     """As tarefas que a abertura desenha: as abertas todas, mais as
     FEITAS da janela da fita.
@@ -22563,6 +22614,10 @@ def _o_que_mudou(hoje, cfg):
     # de 44px rebentava a caixa. No ecrã vai só a hora; a mensagem fica
     # na dica. Apanhado a olhar para a folha de todos os ecrãs.
     so_a_hora = quando_verif.split(" &mdash; ")[0]
+    # So a hora quando e de hoje: «22/09/2026 17:03» numa coluna de 48px
+    # passava por cima do texto ao lado (visto a 22/09/2026).
+    if so_a_hora.startswith(data_pt(hoje.isoformat())):
+        so_a_hora = so_a_hora.split()[-1]
     dica_verif = html.escape(re.sub(r"&\w+;", "—", quando_verif), quote=True)
 
     numeros = (
@@ -22776,6 +22831,13 @@ def inicio():
                             valores).fetchone()["n"]
 
     todas = _tarefas_da_abertura(segunda - timedelta(days=7), domingo)
+    # So as feitas de HOJE ficam riscadas no sitio (22/09/2026, queixa
+    # dele: «esta todo desformatado, tem imensas tarefas»). A linha
+    # riscada existe para o gesto ter confirmacao e volta -- e isso vale
+    # para o que se acabou de fazer, nao para o que se fez na semana
+    # passada, que eram nove linhas riscadas no meio das atrasadas.
+    todas = [t for t in todas if not t["feita_em"]
+             or t["feita_em"][:10] == hoje.isoformat()]
     pilhas = _pilhas_das_pessoas(todas, quem, eu, base_sem("quem", "dia"))
     if quem is None:
         minhas = list(todas)
@@ -22798,32 +22860,35 @@ def inicio():
     # da empresa proibe.
     por_fazer = sum(n for ch, n in quantas.items() if ch != "sem_decisao")
 
-    def facto(valor, texto, alvo, classe=""):
-        """Um facto da linha do topo. Cada um abre exactamente a lista
-        que o produz -- a regra da empresa. Onde nao ha lista unica que o
-        de (o "em jogo" e a soma de quatro ranhuras), aponta-se ao ecra
-        que o DECOMPOE, e o texto di-lo. O `texto` e HTML da casa e nao
-        do utilizador: leva as entidades do &middot; ja escritas."""
-        return ("<a href='%s'><b%s>%s</b>%s</a>"
-                % (html.escape(alvo, quote=True),
-                   (" class='%s'" % classe) if classe else "", valor, texto))
+    def facto(rotulo, valor, nota, alvo, classe=""):
+        """Um dos quatro indicadores (o `Stat` do sistema de desenho,
+        22/09/2026). Cada um abre exactamente a lista que o produz -- a
+        regra da empresa. Onde nao ha lista unica que o de (o "em jogo" e
+        a soma de quatro ranhuras), aponta-se ao ecra que o DECOMPOE. A
+        `nota` e HTML da casa e nao do utilizador."""
+        return ("<a class='rg-stat%s' href='%s'>"
+                "<span class='rg-stat__label'>%s</span>"
+                "<span class='rg-stat__value'>%s</span>"
+                "<span class='rg-stat__note'>%s</span></a>"
+                % ((" " + classe) if classe else "",
+                   html.escape(alvo, quote=True), rotulo, valor, nota))
 
     factos = "".join((
-        facto(euros_curto(em_jogo) if em_jogo else "—",
-              ("em jogo &middot; %s aberta%s"
-               % (mil_pt(abertas), "" if abertas == 1 else "s"))
-              if abertas else "em jogo", "/situacao"),
-        facto(("%d%%" % round(valor_taxa * 100))
+        facto("Em jogo", euros_curto(em_jogo) if em_jogo else "—",
+              "%s aberta%s &middot; ponto de situação &rarr;"
+              % (mil_pt(abertas), "" if abertas == 1 else "s"),
+              "/situacao", "rg-stat--seal"),
+        facto("Taxa de vitória", ("%d %%" % round(valor_taxa * 100))
               if valor_taxa is not None else "—",
-              ("de vitória &middot; %s de %s"
-               % (mil_pt(ganhos), mil_pt(decididos))) if decididos
-              else "de vitória", LISTA + "?estado=ganho"),
-        facto(mil_pt(por_ver), "por decidir", LISTA + "?estado=porver",
-              "avisa" if por_ver else ""),
-        facto(mil_pt(quantas["atrasadas"]),
-              "atrasadas &middot; %s para fazer" % mil_pt(por_fazer),
+              ("%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos)))
+              if decididos else "nada decidido ainda",
+              LISTA + "?estado=ganho"),
+        facto("Por decidir", mil_pt(por_ver), "anúncios por ver",
+              LISTA + "?estado=porver"),
+        facto("Para fazer", mil_pt(por_fazer),
+              "%s atrasada%s" % (mil_pt(quantas["atrasadas"]),
+                                 "" if quantas["atrasadas"] == 1 else "s"),
               "#fazer", "mau" if quantas["atrasadas"] else ""),
-        "<a class='adiante' href='/situacao'>Ponto de situação &rarr;</a>",
     ))
 
     # 2. a fita da semana -----------------------------------------------
@@ -22880,15 +22945,16 @@ def inicio():
         classe_q = ""
         if dia and not feita:
             classe_q = " mau" if dia < hoje else " avisa" if dia == hoje else ""
+        # A etiqueta «automática» saiu da linha (22/09/2026): estava em
+        # metade das linhas e dizia sempre o mesmo. Fica na dica do texto.
         return ("<div class='hj-row%s' id='t%d'>%s"
-                "<span class='hj-o'>%s%s</span>"
+                "<span class='hj-o'%s>%s</span>"
                 "<span class='hj-q%s'>%s</span>"
                 "<span class='hj-c' title='%s'>%s</span>%s%s</div>"
                 % (" feita" if feita else "", t["id"], caixa,
-                   html.escape(t["o_que"] or ""),
-                   ("<span class='rg-tag' title='vem das datas do DR e "
-                    "acompanha-as'>automática</span>"
+                   (" title='automática: vem das datas do DR e acompanha-as'"
                     if t["origem"] in ORIGENS_AUTOMATICAS else ""),
+                   html.escape(t["o_que"] or ""),
                    classe_q,
                    data_curta(dia) if dia else "sem data",
                    html.escape(concurso_cru, quote=True), concurso,
@@ -22918,10 +22984,7 @@ def inicio():
 
     def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui):
         direita = ""
-        if chave == "sem_decisao":
-            direita = ("<span class='direita'>o radar não mexe — escolhe a "
-                       "ranhura</span>")
-        elif chave == "atrasadas":
+        if chave == "atrasadas":
             direita = ("<a class='rg-btn rg-btn--sm rg-btn--secondary direita' href='%s'>adiar todas p/ "
                        "hoje</a>"
                        % html.escape("/tarefas/adiar" + (
@@ -22934,6 +22997,18 @@ def inicio():
                     % (mil_pt(feitas_aqui), "" if feitas_aqui == 1 else "s"))
                    if feitas_aqui else "", direita))
 
+    def com_tecto(linhas, tecto):
+        """As primeiras `tecto` linhas a vista e o resto num «mais N»
+        que se abre ali (22/09/2026). Um balde com vinte linhas
+        empurrava o dia de hoje para o fundo do ecra -- e o numero do
+        cabecalho continua a contar todas."""
+        if len(linhas) <= tecto:
+            return "".join(linhas)
+        return ("".join(linhas[:tecto])
+                + "<details class='hj-mais'><summary>mais %s</summary>%s"
+                  "</details>" % (mil_pt(len(linhas) - tecto),
+                                  "".join(linhas[tecto:])))
+
     blocos = []
     for chave, rotulo, classe in baldes:
         aqui = grupos[chave]
@@ -22941,12 +23016,14 @@ def inicio():
             continue
         if chave == "sem_decisao":
             cabeca = cabeca_do_balde(chave, rotulo, len(aqui), 0)
-            corpo = "".join(linha_sem_decisao(p) for p, _ in aqui)
+            corpo = com_tecto([linha_sem_decisao(p) for p, _ in aqui],
+                              CABEM_SEM_DECISAO)
         else:
             feitas_aqui = len(aqui) - quantas[chave]
             cabeca = cabeca_do_balde(chave, rotulo, quantas[chave], feitas_aqui)
-            corpo = "".join(linha_da_tarefa(t, d) for t, d in aqui
-                            if not (esconder and t["feita_em"]))
+            corpo = com_tecto([linha_da_tarefa(t, d) for t, d in aqui
+                               if not (esconder and t["feita_em"])],
+                              CABEM_NO_BALDE)
         if chave in ("sem_decisao", "atrasadas", "dia"):
             # Os tres que gritam nao dobram: dobrar o que esta atrasado e
             # a maneira mais limpa de o esquecer.
@@ -22982,8 +23059,7 @@ def inicio():
         "esconder as feitas</a></div>"
         % (pilhas, html.escape(alvo_esconder + "#fazer", quote=True),
            " on" if esconder else ""))
-    rodape = ("<div class='fazer-fundo'><span>✓ risca no sítio &middot; "
-              "desfazer na linha &middot; a página fica onde está</span>"
+    rodape = ("<div class='fazer-fundo'>"
               "<a class='adiante' href='/calendario'>calendário &rarr;</a>"
               "</div>")
 
@@ -22992,13 +23068,13 @@ def inicio():
         "O estado do negócio e o que há para fazer. Os números abrem a "
         "lista que os produz; as tarefas nascem sozinhas quando um "
         "concurso entra na escada.",
-        "<div class='larg'>%s<div class='dois'>"
+        "<div class='larg'><div class='rg-stats hj-stats'>%s</div>%s"
+        "<div class='dois'>"
         "<div class='rg-card' id='fazer' style='padding:0'>%s%s%s</div>"
         "<div class='lado'>%s%s%s</div></div></div>"
-        % (fita, cabecalho, fazer, rodape,
+        % (factos, fita, cabecalho, fazer, rodape,
            _o_que_mudou(hoje, cfg), _prazos_a_chegar(hoje, prazos),
            _paradas_ha_mais_tempo(hoje)),
-        abas="<div class='factos-linha'>%s</div>" % factos,
         # O selector de ranhura do balde «prazo passou sem decisão» pede
         # motivo em duas das oito palavras, e sem a caixa o gesto ficava
         # a meio (o servidor recusa e diz porquê, mas aqui há JS).

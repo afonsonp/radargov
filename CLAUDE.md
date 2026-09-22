@@ -437,8 +437,9 @@ A ordem do ficheiro é a ordem do fluxo:
    `gravar_tarefa()`.
    **Redesenhada a 17/09/2026** (`docs/historico/REDESENHO.md` §1):
    o título é a **data** (`dia_por_extenso()`) e não uma saudação; os
-   quatro cartões `.kpi` deram lugar a uma **linha de factos** na
-   ranhura das abas; entrou a **fita da semana** (`_fita_da_semana()`,
+   quatro cartões `.kpi` deram lugar a uma linha de factos na
+   ranhura das abas (que a 22/09/2026 voltou a quatro indicadores, o
+   `Stat` do sistema de desenho, por baixo do título); entrou a **fita da semana** (`_fita_da_semana()`,
    sete células — clicar num dia muda o balde do meio, `?dia=`); e o
    corpo passou a **duas colunas**, com «O que mudou», «Prazos a chegar»
    e «Paradas há mais tempo» à direita. O agrupamento por proposta
@@ -498,7 +499,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **229 pontos** (contados a 22/09/2026), cada um de um erro que
+São **232 pontos** (contados a 22/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
