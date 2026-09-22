@@ -120,6 +120,7 @@ as exactas e salta as outras.
 | `alertas_vistos` | **0** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
+| `pedidos_acesso` | — | Os pedidos do formulário do site público (§4.9). **Nasce no primeiro arranque da versão que a traz**, e só então entra na contagem do título |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -407,7 +408,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**82 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**84 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
 - **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`
@@ -577,18 +578,24 @@ criptografia estão no **`contas.py`**, que não importa o radar.
    admin quando há mais contas (`acesso_livre_local`, a `true`). É o que
    mantém o desenvolvimento e os testes sem login a cada pedido.
 3. **Nem um nem outro** — um GET é reencaminhado para `/entrar?para=…`,
-   um POST leva 403.
+   um POST leva 403. **A excepção é a raiz**: um GET a `/` sem sessão
+   recebe o **site público** (`site/index.html`, desde 23/09/2026), que
+   é um ficheiro estático sem dados. Com `?dia=` ou outro parâmetro é a
+   mesma raiz, e é o site; todos os outros caminhos vão ao login.
 
 **O que fica aberto sem sessão** não é só o `/entrar`: também o
-`/saude`, e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
+`/saude`, o `/favicon.svg`, o **`/pedir-acesso`** (o formulário do site,
+com a guarda dentro da própria rota: origem, campo-armadilha, campos
+validados e cortados, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
+`PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
 
 **Dois papéis** (`utilizadores.papel`). O **admin** vê tudo e cria
-contas; o **tester** leva 403 nas nove rotas do sistema
+contas; o **tester** leva 403 nas dez rotas do sistema
 (`ROTAS_SO_ADMIN`: Indicadores, Capturas, Recolha, Leitura das peças,
-Cópias, a gestão de utilizadores, o «Verificar agora» e quem envia o
-e-mail). `sou_admin()` é a pergunta — e no acesso livre **sem conta
+Cópias, a gestão de utilizadores, o «Verificar agora», quem envia o
+e-mail e os pedidos de acesso do site). `sou_admin()` é a pergunta — e no acesso livre **sem conta
 nenhuma** a resposta é sim, senão não se chegava a Conta para criar a
 primeira.
 

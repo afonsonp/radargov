@@ -541,6 +541,13 @@ def iniciar_db():
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_estado ON anuncios(estado)")
         c.execute("""CREATE TABLE IF NOT EXISTS etiquetas (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cor TEXT)""")
+        # Os pedidos de acesso do site publico (23/09/2026): quem os
+        # escreve e um visitante sem conta, por isso nao tocam em mais
+        # tabela nenhuma. `avisado` e o que o envio do e-mail respondeu.
+        c.execute("""CREATE TABLE IF NOT EXISTS pedidos_acesso (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, criado_em TEXT,
+            nome TEXT, empresa TEXT, email TEXT, sector TEXT,
+            mensagem TEXT, ip TEXT, avisado TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS anuncio_etiquetas (
             ref TEXT, etiqueta_id INTEGER, PRIMARY KEY (ref, etiqueta_id))""")
         c.execute("""CREATE TABLE IF NOT EXISTS documentos (
@@ -8856,7 +8863,14 @@ def volta_ao_referer(omissao):
 # que a propria pagina de entrar precisa de carregar antes de haver
 # sessao -- sao fontes de licenca aberta, e a lista branca em TIPOS e o
 # que impede que "/tipo/<nome>" chegue a outro ficheiro qualquer.
-ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo")
+#
+# /pedir-acesso (23/09/2026): o formulario do site publico. Como todas
+# as abertas, sai da porta ANTES da guarda do POST -- e por isso a
+# guarda esta dentro da propria rota (`pedir_acesso()`): origem, campo-
+# armadilha, tectos por IP e por dia. /favicon.svg: o icone, que o site
+# e o ecra de entrar pedem antes de haver sessao.
+ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
+                 "/favicon.svg")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -8873,7 +8887,7 @@ ROTAS_SO_ADMIN = ("/indicadores", "/configuracoes/indicadores",
                   "/configuracoes/recolha", "/configuracoes/leitura",
                   "/configuracoes/capturas", "/configuracoes/copias",
                   "/configuracoes/conta/utilizadores", "/verificar",
-                  "/alertas/remetente")
+                  "/alertas/remetente", "/pedidos-de-acesso")
 
 
 def sou_admin():
@@ -8975,6 +8989,14 @@ def porta_de_entrada():
         return None
     if not g.utilizador and not g.livre:
         if request.method == "GET":
+            # Quem chega a radargov.pt sem sessao ve o site publico
+            # (23/09/2026), e nao o ecra de entrar: a porta continua
+            # fechada -- o site e um ficheiro estatico sem dados --, e
+            # so a raiz o mostra. Qualquer outro caminho vai ao login.
+            if request.path == "/":
+                site = pagina_do_site()
+                if site is not None:
+                    return site
             para = request.full_path.rstrip("?")
             return redirect("/entrar?para=" + quote(para, safe=""))
         return Response("sessão em falta", 403, mimetype="text/plain")
@@ -9220,12 +9242,15 @@ def bloco_da_conta():
                 "<span class='rg-avatar'>%s</span>%s"
                 "</summary><div class='rg-menu sou-menu'>"
                 "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
+                "%s"
                 "<form method='post' action='/sair'>"
                 "<button type='submit'>sair</button></form>"
                 "<form method='post' action='/sair-de-todos'>"
                 "<button type='submit'>sair de todos os aparelhos</button>"
                 "</form></div></details>"
-                % (_iniciais(nome), html.escape(nome)))
+                % (_iniciais(nome), html.escape(nome),
+                   "<a class='sou-conta' href='/pedidos-de-acesso'>pedidos "
+                   "de acesso do site</a>" if sou_admin() else ""))
     if nome:
         return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
                 "<span class='rg-avatar'>%s</span>%s</div></div>"
@@ -21921,6 +21946,158 @@ TIPOS = {"inter.woff2", "plex-sans.woff2",
          # `/amostra` e o `[data-tipo=*]` existirem -- saem na fase 3.
          "ZillaSlab-SemiBold.woff2", "ZillaSlab-Medium.woff2",
          "SourceSans3-Variable.woff2", "SourceCodePro-Variable.woff2"}
+
+
+# --- o site publico (23/09/2026)
+#
+# O que radargov.pt mostra a quem nao tem sessao: um ficheiro estatico,
+# `site/index.html`, sem dados da empresa, e o formulario do pedido de
+# acesso. A porta continua fechada: `porta_de_entrada()` so devolve o
+# site na raiz, e tudo o resto continua a ir ao login.
+
+SITE = os.path.join(BASE_DIR, "site", "index.html")
+SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
+                      "Prestação de serviços", "Tecnologias de informação",
+                      "Outro")
+# Os tectos de quem escreve sem conta: um formulario aberto a internet
+# sem eles e uma forma de encher a base (e a caixa de correio) de lixo.
+PEDIDOS_POR_IP_POR_HORA = 5
+PEDIDOS_POR_DIA = 200
+RX_EMAIL = re.compile(r"^[^@\s<>\"']+@[^@\s<>\"']+\.[^@\s<>\"']+$")
+CONTACTO_DO_SITE = "geral@radargov.pt"
+
+
+def pagina_do_site():
+    """O site, ou None se o ficheiro faltar -- e entao a porta manda ao
+    login, como antes. Le-se a cada pedido: sao 50 KB, e assim mudar o
+    texto nao pede reiniciar o painel."""
+    try:
+        with open(SITE, encoding="utf-8") as f:
+            return Response(f.read(), mimetype="text/html")
+    except OSError:
+        return None
+
+
+def _avisar_do_pedido(id_, p):
+    """O e-mail ao dono, em fundo: o envio espera ate 30 s pelo servidor
+    de correio, e o visitante nao tem de esperar por isso. O que o envio
+    responder fica na linha do pedido -- sem palavra-passe configurada
+    o pedido fica guardado na mesma, e a pagina dos pedidos di-lo."""
+    corpo = ("Pedido de acesso ao Radar Gov\n\n"
+             "Nome: %(nome)s\nEmpresa: %(empresa)s\nE-mail: %(email)s\n"
+             "Sector: %(sector)s\n\n%(mensagem)s\n" % p)
+    try:
+        _, resposta = enviar_email("Radar Gov: pedido de acesso de %s"
+                                   % p["empresa"], corpo)
+    except Exception as erro:              # nunca derruba a thread
+        resposta = "%s: %s" % (type(erro).__name__, str(erro)[:120])
+    with liga() as c:
+        c.execute("UPDATE pedidos_acesso SET avisado=? WHERE id=?",
+                  (resposta, id_))
+
+
+@app.route("/pedir-acesso", methods=["POST"])
+def pedir_acesso():
+    """O formulario do site. **A guarda e esta**, porque a rota e aberta
+    e sai da porta antes da guarda do POST (ver `ROTAS_ABERTAS`):
+
+    - a origem tem de ser daqui (`origem_e_nossa()`);
+    - o campo-armadilha `website`, que uma pessoa nao ve, tem de vir
+      vazio -- se vier cheio responde-se que correu bem e nao se grava
+      nada, para o robo nao aprender a contorna-lo;
+    - os campos validam-se e cortam-se no tamanho;
+    - e ha tecto por IP e por dia.
+
+    Responde JSON a quem o pede (o `fetch` do site) e uma pagina a quem
+    nao tem JavaScript."""
+    quer_json = "application/json" in (request.headers.get("Accept") or "")
+
+    def resposta(ok, erro="", codigo=200):
+        if quer_json:
+            return Response(json.dumps({"ok": ok, "erro": erro}), codigo,
+                            mimetype="application/json")
+        titulo = "Pedido recebido" if ok else "Não foi possível enviar"
+        texto = (html.escape(erro) if erro else
+                 "Obrigado. Respondemos por e-mail em breve.")
+        return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
+                                       "texto": texto,
+                                       "logo": logotipo(tamanho=24)},
+                        codigo, mimetype="text/html")
+
+    if not origem_e_nossa():
+        return resposta(False, "Pedido recusado: vem de outro sítio.", 403)
+    f = request.form
+    if (f.get("website") or "").strip():
+        return resposta(True)
+    p = {chave: " ".join((f.get(chave) or "").split())[:tecto]
+         for chave, tecto in (("nome", 120), ("empresa", 160),
+                              ("email", 200), ("sector", 60))}
+    p["mensagem"] = (f.get("mensagem") or "").strip()[:2000]
+    if not (p["nome"] and p["empresa"] and RX_EMAIL.match(p["email"])
+            and p["sector"] in SECTORES_DO_PEDIDO):
+        return resposta(False, "Preencha o nome, a empresa, um e-mail válido "
+                               "e o sector, para podermos responder.", 400)
+    agora = datetime.now()
+    # O IP do tecto e o que a Cloudflare escreve: o `remote_addr` vem do
+    # X-Forwarded-For pelo ProxyFix, e esse o visitante pode mandar feito
+    # (revisao de seguranca de 23/09/2026).
+    ip = (request.headers.get("Cf-Connecting-Ip") or request.remote_addr
+          or "")[:64]
+    with liga() as c:
+        do_ip = c.execute(
+            "SELECT COUNT(*) n FROM pedidos_acesso WHERE ip=? AND criado_em>=?",
+            (ip, (agora - timedelta(hours=1)).isoformat(" ", "seconds"))
+        ).fetchone()["n"]
+        do_dia = c.execute(
+            "SELECT COUNT(*) n FROM pedidos_acesso WHERE criado_em>=?",
+            (agora.strftime("%Y-%m-%d"),)).fetchone()["n"]
+        if do_ip >= PEDIDOS_POR_IP_POR_HORA or do_dia >= PEDIDOS_POR_DIA:
+            return resposta(False, "Recebemos muitos pedidos agora. Tente "
+                                   "mais tarde ou escreva para %s."
+                                   % CONTACTO_DO_SITE, 429)
+        id_ = c.execute(
+            "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+            "sector, mensagem, ip) VALUES (?,?,?,?,?,?,?)",
+            (agora.isoformat(" ", "seconds"), p["nome"], p["empresa"],
+             p["email"], p["sector"], p["mensagem"], ip)).lastrowid
+    threading.Thread(target=_avisar_do_pedido, args=(id_, p),
+                     daemon=True).start()
+    return resposta(True)
+
+
+@app.route("/pedidos-de-acesso")
+def pedidos_de_acesso():
+    """Os pedidos que o site recebeu, para o admin. Existe porque o
+    e-mail pode nao chegar -- sem palavra-passe configurada, o aviso nao
+    sai, e o pedido so se ve aqui."""
+    with liga() as c:
+        linhas = c.execute("SELECT * FROM pedidos_acesso "
+                           "ORDER BY id DESC LIMIT 500").fetchall()
+    if linhas:
+        corpo = ("<div class='rg-card tab-cx'><table class='rg-table'>"
+                 "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
+                 "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
+                 "<th>Aviso por e-mail</th></tr></thead><tbody>%s</tbody>"
+                 "</table></div>"
+                 % "".join(
+                     "<tr><td class='rg-num'>%s</td><td>%s</td><td>%s</td>"
+                     "<td><a href='mailto:%s'>%s</a></td><td>%s</td>"
+                     "<td>%s</td><td>%s</td></tr>"
+                     % (html.escape(data_hora_pt(l["criado_em"])),
+                        html.escape(l["nome"]), html.escape(l["empresa"]),
+                        html.escape(l["email"], quote=True),
+                        html.escape(l["email"]), html.escape(l["sector"]),
+                        html.escape(l["mensagem"] or ""),
+                        html.escape(l["avisado"] or "a enviar"))
+                     for l in linhas))
+    else:
+        corpo = ("<div class='rg-empty'>Ainda não chegou nenhum pedido pelo "
+                 "site.</div>")
+    return envolver("configuracoes", "Pedidos de acesso",
+                    "O que o formulário do site público recebeu. Cada pedido "
+                    "manda também um e-mail para o endereço dos alertas, se o "
+                    "correio estiver configurado.",
+                    "<div class='larg'>%s</div>" % corpo)
 
 
 @app.route("/favicon.svg")

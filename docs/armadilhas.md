@@ -1961,6 +1961,22 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   as capturas, as chaves e a senha do e-mail quando se escrevem.
   `TestAuditoriaDeSeguranca`.
 
+- **Uma rota em `ROTAS_ABERTAS` sai da porta ANTES da guarda do POST**
+  (23/09/2026, ao abrir o `/pedir-acesso` do site público). A
+  `porta_de_entrada()` devolve `None` logo que o caminho é aberto, e a
+  conferência do CSRF e da origem vem depois — nunca corre para essas
+  rotas. Um POST aberto traz a guarda **dentro de si**: o
+  `pedir_acesso()` chama o `origem_e_nossa()`, recusa o campo-armadilha,
+  valida e corta os campos, e conta os pedidos por IP e por dia. E entra
+  na lista de excepções do `test_todas_as_rotas_post_recusam_sem_token`
+  **com a razão escrita**.
+
+- **A raiz deixou de servir de sonda para «a porta está fechada?»**
+  (23/09/2026). Sem sessão, `/` é o site público e responde 200; quatro
+  testes das contas perguntavam a `/` se a porta estava fechada e
+  passaram a perguntar a `/concursos`. Um teste novo da porta sonda uma
+  página de dentro, nunca a raiz.
+
 ## A interface
 
 As regras de desenho da empresa. As medidas estão em
