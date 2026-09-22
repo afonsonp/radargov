@@ -421,8 +421,9 @@ A ordem do ficheiro é a ordem do fluxo:
    `/alertas`, `/alertas/interesse` e `/indicadores` redireccionam.
    **Os filtros guardados deixaram de existir** nesse dia: a tabela
    `filtros_guardados` fica, mas só os alertas lá vivem. Ficha
-   em `/anuncio/<ref>`, em composição de dossier: uma coluna, com o
-   cabeçalho fino e o índice presos ao rolar. Uma peça abre **dentro
+   em `/anuncio/<ref>`, em **duas colunas** desde 23/09/2026 (o
+   `EcraFicha`: o anúncio à esquerda, a proposta, os contactos e o
+   histórico à direita), com o cabeçalho fino e o índice presos ao rolar. Uma peça abre **dentro
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
