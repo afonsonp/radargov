@@ -11186,7 +11186,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 </header>
 <main class="rg">
  <div class="topo">
-  <div class="migalhas">
+  <div class="rg-crumbs migalhas">
    <div class="b">%(migalhas)s</div>
    <div class="accoes-topo">%(accoes_topo)s</div>
   </div>
@@ -11790,11 +11790,11 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # subtitulo o <details> era um "?" que abria nada -- um controlo
         # morto, que a empresa nao poe no ecra.
         "titulo_e_porque": (
-            ("<details class='porque'><summary>"
-             "<h1 class='tit'>%s</h1><i title='O que e esta pagina'>?</i>"
-             "</summary><p class='subtit'>%s</p></details>"
+            ("<details class='rg-disc porque'><summary>"
+             "<h1 class='rg-pagehead__title'>%s</h1><i title='O que e esta pagina'>?</i>"
+             "</summary><p class='rg-pagehead__sub'>%s</p></details>"
              % (html.escape(titulo), subtitulo)) if subtitulo.strip()
-            else "<h1 class='tit'>%s</h1>" % html.escape(titulo)),
+            else "<h1 class='rg-pagehead__title'>%s</h1>" % html.escape(titulo)),
         "conteudo": conteudo,
         "abas": abas or "<div class='vazio-topo'></div>",
         "aviso": aviso,
@@ -11931,7 +11931,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
                       "</a>" % (quote(a["ref"], safe=""), len(aqui)))
 
     return (
-        "<div class='item' id='a-%s'>"
+        "<div class='rg-card item' id='a-%s'>"
         "<div class='item-corpo'>"
         "<a href='/anuncio/%s' class='item-titulo'>%s</a>"
         "<div class='item-entidade'>%s%s</div>"
@@ -13018,7 +13018,7 @@ def _lista_de_anuncios():
     # vier por la passa em campos escondidos para nao se perder ao
     # voltar a filtrar.
     filtros = (
-        "<form class='cx filtros' method='get' action='%s'>"
+        "<form class='rg-card filtros' method='get' action='%s'>"
         "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que publica…' "
         "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'>"
@@ -13352,7 +13352,7 @@ def _lista_de_propostas():
     # nao um desconto no numero.
     sem_anuncio = sum(1 for p in linhas if not p["ref"])
     if linhas:
-        corpo = ("<div class='cx tab-cx'><table class='rg-table tab-contratos tab-lista'>"
+        corpo = ("<div class='rg-card tab-cx'><table class='rg-table tab-contratos tab-lista'>"
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
                  % ("".join("<th>%s</th>" % html.escape(t)
                             for t in colunas_da_ranhura(estado_actual)),
@@ -14357,7 +14357,7 @@ def _conteudo_interesse():
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
                      mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
     formulario = (
-        "<div class='cx novo-filtro'>%s"
+        "<div class='rg-card novo-filtro'>%s"
         "<form method='post' action='/alertas/interesse' class='filtros'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
@@ -14481,7 +14481,7 @@ def _caixa_email(cfg):
     # e do sistema, e so o admin a ve -- a porta recusa-lhe o POST.
     if not sou_admin():
         return (
-            "<div class='cx conf-email'>"
+            "<div class='rg-card conf-email'>"
             "<div class='rg-field__label'>Resumo por e-mail</div>"
             "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
             "da hora marcada, e só se houver novidade.</div>"
@@ -14495,7 +14495,7 @@ def _caixa_email(cfg):
             % (html.escape(str(e.get("para") or ""), quote=True),
                html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
     return (
-        "<div class='cx conf-email'>"
+        "<div class='rg-card conf-email'>"
         "<div class='rg-field__label'>Resumo por e-mail</div>"
         "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
         "da hora marcada, e só se houver novidade.</div>"
@@ -14543,7 +14543,7 @@ def _caixa_urgente():
     """A janela do "urgente", editavel no painel (B13). E UM numero,
     usado pelo filtro, pelo cartao dos indicadores e pelos rotulos --
     por isso edita-se num sitio so, e todos leem dias_urgente()."""
-    return ("<div class='cx novo-filtro' style='margin-top:16px'>"
+    return ("<div class='rg-card novo-filtro' style='margin-top:16px'>"
             "<div class='rg-field__label'>Janela do &ldquo;urgente&rdquo;</div>"
             "<div class='nota' style='margin:6px 0 10px'>Um anúncio é "
             "&ldquo;urgente&rdquo; quando o prazo acaba nos próximos N "
@@ -14634,7 +14634,7 @@ def _conteudo_alertas():
                              "ORDER BY nome COLLATE NOCASE").fetchall()
     if seguidas:
         caixa_seguidas = (
-            "<div class='cx novo-filtro' style='margin-top:16px'>"
+            "<div class='rg-card novo-filtro' style='margin-top:16px'>"
             "<div class='rg-field__label'>Entidades seguidas</div>"
             "<div class='nota' style='margin:6px 0 10px'>Os anúncios "
             "novos destas entidades entram no resumo diário. Segue-se e "
@@ -14665,7 +14665,7 @@ def _conteudo_alertas():
 
     # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
     novo = (
-        "<div class='cx novo-filtro'><div class='rg-field__label'>Filtro de alertas</div>"
+        "<div class='rg-card novo-filtro'><div class='rg-field__label'>Filtro de alertas</div>"
         "<div class='nota' style='margin:6px 0 14px'>Um alerta é um "
         "conjunto de campos: o que entrar e corresponder vai no resumo "
         "por e-mail. Um alerta por CPV ou por palavras avisa dos "
@@ -14730,7 +14730,7 @@ def _conteudo_alertas():
                html.escape(corta(r["entidade"], 44)),
                html.escape(r["filtro"]))
             for r in ultimos)
-        historico = ("<div class='cx tab-cx'><table class='rg-table tab-contratos'>"
+        historico = ("<div class='rg-card tab-cx'><table class='rg-table tab-contratos'>"
                      "<thead><tr><th>Avisado</th><th>Anúncio</th>"
                      "<th>Entidade</th><th>Filtro</th></tr></thead>"
                      "<tbody>%s</tbody></table></div>" % hist)
@@ -14977,7 +14977,7 @@ def config_recolha():
            % html.escape(", ".join(faltam)) if faltam else
            "<div class='nota' style='margin-top:16px'>As tarefas agendadas do "
            "sistema estão criadas.</div>"))
-    return pagina_config("recolha", "<div class='cx conf-cx'>" + corpo + "</div>")
+    return pagina_config("recolha", "<div class='rg-card conf-cx'>" + corpo + "</div>")
 
 
 def _estado_da_chave(nomes, variavel):
@@ -15058,7 +15058,7 @@ def config_leitura():
         "um fixa-o como primeiro.</small></label>%s"
         "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
         % (opcoes, "".join(linhas)))
-    return pagina_config("leitura", "<div class='cx conf-cx'>" + corpo + "</div>")
+    return pagina_config("leitura", "<div class='rg-card conf-cx'>" + corpo + "</div>")
 
 
 def _estado_da_captura(nome_base):
@@ -15124,7 +15124,7 @@ def config_capturas():
             % (html.escape(titulo), html.escape(nota),
                linhas_de_saude([("Estado", html.escape(texto), bem)]),
                nome_base))
-    return pagina_config("capturas", "<div class='cx conf-cx'>" + "".join(blocos) + "</div>")
+    return pagina_config("capturas", "<div class='rg-card conf-cx'>" + "".join(blocos) + "</div>")
 
 
 @app.route("/configuracoes/copias", methods=["GET", "POST"])
@@ -15169,7 +15169,7 @@ def config_copias():
           % html.escape(le_marca("ultimo_ensaio_copia", "ainda nenhum"))
         + "<div class='saude'>%s</div>" % ("".join(existentes) or
                                            "<div class='nota'>nenhuma ainda</div>"))
-    return pagina_config("copias", "<div class='cx conf-cx'>" + corpo + "</div>")
+    return pagina_config("copias", "<div class='rg-card conf-cx'>" + corpo + "</div>")
 
 
 IMPORTACOES = os.path.join(BASE_DIR, empresa.PASTA_IMPORTACOES)
@@ -15246,7 +15246,7 @@ def config_importar():
                contagens["ok"], "" if contagens["ok"] == 1 else "m",
                contagens["anuncios"], "" if contagens["anuncios"] == 1 else "s",
                contagens["com_erro"], _tabela_do_ensaio(linhas), confirmar))
-        return pagina_config("importar", "<div class='cx conf-cx'>" + corpo + "</div>")
+        return pagina_config("importar", "<div class='rg-card conf-cx'>" + corpo + "</div>")
     with liga() as c:
         n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM empresa "
                              "WHERE folha='modelo'").fetchone()
@@ -15271,7 +15271,7 @@ def config_importar():
            % (mil_pt(n_modelo[0]), "" if n_modelo[0] == 1 else "s", mil_pt(n_modelo[1]),
               "" if n_modelo[1] == 1 else "s", html.escape(data_hora_pt(ultima)))
            if n_modelo[0] else "Ainda não entrou nenhuma linha pelo modelo."))
-    return pagina_config("importar", "<div class='cx conf-cx'>" + corpo + "</div>")
+    return pagina_config("importar", "<div class='rg-card conf-cx'>" + corpo + "</div>")
 
 
 @app.route("/configuracoes/importar/modelo.xlsx")
@@ -15307,7 +15307,7 @@ def config_importar_confirmar():
 def config_conta():
     utilizador = g.get("utilizador")
     if not utilizador:
-        return pagina_config("conta", "<div class='cx conf-cx'><div class='nota'>"
+        return pagina_config("conta", "<div class='rg-card conf-cx'><div class='nota'>"
                              "Ainda não há conta. Na pasta do radar: "
                              "<code>python radar.py --criar-utilizador NOME</code>."
                              "</div></div>")
@@ -15364,7 +15364,7 @@ def config_conta():
     if sou_admin():
         corpo += _bloco_da_empresa()
         corpo += _bloco_utilizadores(todos, utilizador["id"])
-    return pagina_config("conta", "<div class='cx conf-cx'>" + corpo + "</div>")
+    return pagina_config("conta", "<div class='rg-card conf-cx'>" + corpo + "</div>")
 
 
 def _bloco_da_empresa(cfg=None):
@@ -15605,7 +15605,7 @@ def entidade_procurar():
                "<span class='sem-nif'>sem NIF</span>"
                if e["chave"].startswith("n:") else "")
             for e in achadas)
-        corpo = ("<div class='larg'><div class='cx lado-cx'>"
+        corpo = ("<div class='larg'><div class='rg-card lado-cx'>"
                  "<div class='rg-field__label' style='margin-bottom:10px'>"
                  "%d entidades respondem a &ldquo;%s&rdquo; &mdash; "
                  "escolhe a ficha</div>%s</div></div>"
@@ -16124,7 +16124,7 @@ def concentracao_html(ganha):
                       "title='as outras %s empresas — %s'></i>"
                       % (100.0 * resto / total, mil_pt(max(0, quantas - 5)),
                          euros_curto(resto)))
-    return ("<div class='cx graf'><div class='rg-field__label'>Concentração</div>"
+    return ("<div class='rg-card graf'><div class='rg-field__label'>Concentração</div>"
             "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
             "cinco maiores, entre as %s empresas que ganharam alguma "
             "coisa.</div>"
@@ -16158,7 +16158,7 @@ def barras_h(linhas, titulo, nota="", ligar=False):
             % (html.escape(l["n"], quote=True), etiqueta,
                100.0 * l["v"] / maior, euros_curto(l["v"]),
                "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
-    return ("<div class='cx graf'><div class='rg-field__label'>%s</div>%s"
+    return ("<div class='rg-card graf'><div class='rg-field__label'>%s</div>%s"
             "<div class='barras-h'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 12px'>%s</div>" % nota
@@ -16223,7 +16223,7 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
-    return ("<div class='cx graf'><div class='rg-field__label'>%s</div>%s"
+    return ("<div class='rg-card graf'><div class='rg-field__label'>%s</div>%s"
             "<div class='barras'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
@@ -16356,7 +16356,7 @@ def filtros_da_ficha(chave, d):
     # O campo do CPV e escondido e quem escolhe e a arvore, como nas duas
     # listas: onde se pode procurar por CPV, pode-se escolher mais que um.
     return (
-        "<form class='cx filtros ent-filtros' method='get' action='/entidade/%s'>"
+        "<form class='rg-card filtros ent-filtros' method='get' action='/entidade/%s'>"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='q_excl' value='%s' "
         "placeholder='Excluir palavras…'>"
@@ -16431,7 +16431,7 @@ def nosso_lado_cx(nosso):
     else:
         pedacos.append("<p class='nota'>Ainda não lhe fizemos nenhuma "
                        "proposta.</p>")
-    corpo = ("<div class='cx lado-cx' id='nosso'>"
+    corpo = ("<div class='rg-card lado-cx' id='nosso'>"
              + rot_com_porque(
                  "O nosso lado",
                  "O que o radar e a empresa sabem desta entidade, por "
@@ -16657,7 +16657,7 @@ def _bloco_de_comparacao(chaves):
         "<div class='r'>%s</div><div>%s</div><div>%s</div>"
         % (html.escape(colunas[0][i][0]), colunas[0][i][1], colunas[1][i][1])
         for i in range(len(colunas[0])))
-    return ("<div class='cx comparar'><div class='cab'>"
+    return ("<div class='rg-card comparar'><div class='cab'>"
             "<span class='rg-field__label'>A comparar</span><div>%s</div><div>%s</div>"
             "</div><div class='grelha'>%s</div>"
             "<a class='nota' href='/entidades'>deixar de comparar</a></div>"
@@ -16706,7 +16706,7 @@ def entidades():
            mil_pt(contas.get(chave, 0)))
         for chave, rotulo in ABAS_DAS_ENTIDADES)
 
-    procura = ("<form class='cx filtros' method='get' "
+    procura = ("<form class='rg-card filtros' method='get' "
                "action='/entidade/procurar'>"
                "<label>Nome ou NIF<input type='text' name='q' "
                "placeholder='ex. 506000000, ou Politécnico de Leiria'></label>"
@@ -16780,7 +16780,7 @@ def entidades():
         tabela = (
             "<form method='get' action='/entidades'>"
             "<input type='hidden' name='ver' value='%s'>"
-            "<div class='cx tab-cx'><table class='rg-table tab-contratos'>"
+            "<div class='rg-card tab-cx'><table class='rg-table tab-contratos'>"
             "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
             "<th class='p'>Compra</th><th class='p'>Ganha</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
@@ -16915,7 +16915,7 @@ def entidade(chave):
     if not d:
         if not (nosso["anuncios"] or nosso["propostas"] or nosso["contactos"]):
             return pagina_de_erro(404)
-        ident = ("<div class='cx ent-cab'><div class='n'>%s</div>"
+        ident = ("<div class='rg-card ent-cab'><div class='n'>%s</div>"
                  "<div class='m'>%s</div></div>"
                  % (html.escape(nome),
                     ("NIF %s &middot; " % html.escape(chave))
@@ -17017,7 +17017,7 @@ def entidade(chave):
                html.escape(r["tipo_procedimento"] or ""),
                euros(r["preco_contratual"]))
             for r in d["recentes"])
-        recentes = ("<div class='cx tab-cx' style='margin-top:14px'>"
+        recentes = ("<div class='rg-card tab-cx' style='margin-top:14px'>"
                     "<table class='rg-table tab-contratos'><thead><tr>"
                     "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
                     "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
@@ -17056,7 +17056,7 @@ def entidade(chave):
     selo = selo_do_papel(papel_da_entidade(d["compra_total"],
                                            d["ganha_total"]))
 
-    ident = ("<div class='cx ent-cab'><div class='n'>%s%s</div>"
+    ident = ("<div class='rg-card ent-cab'><div class='n'>%s%s</div>"
              "<div class='m'>%s</div>%s</div>"
              % (html.escape(d["nome"]), selo,
                 ("NIF %s" % html.escape(d["nif"])) if d["nif"]
@@ -17387,7 +17387,7 @@ def contratos():
     # corpus e, escolhida a sugestao, a chave (o NIF) vai em entid/vencid,
     # que a ficha da entidade ja usava. O que vier na URL passa escondido.
     filtros = (
-        "<form class='cx filtros' method='get' action='/contratos'>"
+        "<form class='rg-card filtros' method='get' action='/contratos'>"
         "%s"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…' "
@@ -17492,7 +17492,7 @@ def contratos():
                           "<th>Objecto</th><th>Entidade</th>"
                           "<th>Quem ganhou</th><th>Procedimento</th>"
                           "<th class='p'>Preço</th>")
-        tabela = ("<div class='cx tab-cx'><table class='rg-table tab-contratos'>"
+        tabela = ("<div class='rg-card tab-cx'><table class='rg-table tab-contratos'>"
                   "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
                   "</table></div>" % (cabecalhos, "".join(corpo)))
     elif ha_pergunta:
@@ -17667,7 +17667,7 @@ def contratos():
     # /entidades, que e a vista da barra; este continua aqui porque e
     # daqui que a pergunta se faz a meio de uma consulta.
     procura_entidade = (
-        "<form class='cx filtros' method='get' action='/entidade/procurar'>"
+        "<form class='rg-card filtros' method='get' action='/entidade/procurar'>"
         "<label>Ficha de entidade</label>"
         "<input type='text' name='q' value='' "
         "placeholder='Nome ou NIF — abre a ficha directamente…'>"
@@ -18073,7 +18073,7 @@ def lotes_cx(a):
         nota_conj = ""
     # «2 lotes; sem registo de a que fomos» e um FACTO e fica no ecra;
     # de onde vem cada coluna e explicacao e vai para o "?".
-    return ("<div class='cx lotes' id='lotes'>"
+    return ("<div class='rg-card lotes' id='lotes'>"
             + rot_com_porque(
                 "Lotes",
                 "O que se sabe de cada um vem do registo da empresa (o Excel), "
@@ -18416,7 +18416,7 @@ def homologos_cx(a, chave):
                html.escape(l["tipo_procedimento"] or ""),
                venceu, euros(l["preco_contratual"])))
 
-    return ("<div class='cx mercado'>"
+    return ("<div class='rg-card mercado'>"
             + rot_com_porque(
                 "Procedimentos homólogos",
                 "Contratos desta entidade com objecto parecido com o deste "
@@ -18528,7 +18528,7 @@ def desfecho_cx(a):
         dias = _dias_desde(a["data_pub"])
         if dias < DIAS_ATE_CONTRATO:
             return ""
-        return ("<div class='cx mercado' id='desfecho'>"
+        return ("<div class='rg-card mercado' id='desfecho'>"
                 "<div class='rg-field__label'>Desfecho</div>"
                 "<div class='nota' style='margin:6px 0 0'>"
                 "Publicado há %s e <b>ainda sem contrato celebrado</b> no "
@@ -18599,7 +18599,7 @@ def desfecho_cx(a):
               "<tbody>%s</tbody></table></div>" % "".join(corpo)
               ) if len(linhas) > 1 else ""
 
-    return ("<div class='cx mercado' id='desfecho'>"
+    return ("<div class='rg-card mercado' id='desfecho'>"
             "<div class='rg-field__label'>Desfecho</div>"
             "<div class='nota' style='margin:6px 0 12px'>"
             "%s, do Portal BASE. Liga-se pelo número deste anúncio "
@@ -18635,13 +18635,13 @@ def rot_com_porque(titulo, porque=""):
     """
     if not porque:
         return "<div class='rg-field__label'>%s</div>" % titulo
-    return ("<details class='porque porque-bloco'><summary>"
+    return ("<details class='rg-disc porque porque-bloco'><summary>"
             "<span class='rg-field__label'>%s</span><i title='O que é este bloco'>?</i>"
             "</summary><div class='nota'>%s</div></details>" % (titulo, porque))
 
 
 def _mercado_cx(nota, corpo=""):
-    return ("<div class='cx mercado'>"
+    return ("<div class='rg-card mercado'>"
             + rot_com_porque(
                 "Histórico de adjudicações",
                 "Contratos já celebrados por esta entidade neste CPV, do "
@@ -18950,7 +18950,7 @@ def ficha(ref):
     # 84 grafias de uma universidade sob o mesmo NIF.
     ch_ent = (entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
               or chave_da_entidade(a))
-    cabeca = ("<div class='cx cabeca'><div class='chips'>%s</div>"
+    cabeca = ("<div class='rg-card cabeca'><div class='chips'>%s</div>"
               "<h2>%s</h2><div class='ent'>%s</div>"
               "<div class='factos'>%s</div></div>"
               % ("".join(chips), html.escape(a["titulo"] or ""),
@@ -19044,7 +19044,7 @@ def ficha(ref):
                 celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
             linhas_ess.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
                               % (html.escape(rotulo), celula))
-        seccoes_html = ("<div class='cx essencial'><dl>%s</dl>%s</div>"
+        seccoes_html = ("<div class='rg-card essencial'><dl>%s</dl>%s</div>"
                         % ("".join(linhas_ess),
                            frase_dos_campos_em_falta(sem_valor)))
         nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
@@ -19072,7 +19072,7 @@ def ficha(ref):
             cabecalho = ("%s — %s" % (numero, titulo_sec)) \
                 if titulo_sec else "Outros"
             blocos.append(
-                "<details class='sec'%s><summary>"
+                "<details class='rg-card sec'%s><summary>"
                 "<span class='st'>%s</span><span class='sh'>%s</span></summary>"
                 "<dl>%s</dl></details>"
                 % (" open" if len(blocos) < 2 else "", html.escape(cabecalho),
@@ -19258,7 +19258,7 @@ def ficha(ref):
     # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
     # explicava foi para o "?" e NAO se apagou. A data em que o radar la
     # foi da ultima vez e um facto, e essa fica no corpo.
-    docs_cx = ("<div class='cx lado-cx' id='pecas'><div class='cab'>"
+    docs_cx = ("<div class='rg-card lado-cx' id='pecas'><div class='cab'>"
                "%s%s</div>%s%s</div>"
                % (rot_com_porque(
                       "Peças do procedimento",
@@ -19271,7 +19271,7 @@ def ficha(ref):
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
     propostas_aqui = propostas_de(ref)
     resp = (propostas_aqui[0]["responsavel"] if propostas_aqui else "") or ""
-    resp_cx = ("<div class='cx lado-cx meia'><div class='rg-field__label' style='margin-bottom:12px'>"
+    resp_cx = ("<div class='rg-card lado-cx meia'><div class='rg-field__label' style='margin-bottom:12px'>"
                "Responsável</div>"
                "<form class='resp' method='post' action='/responsavel/%s'>"
                "<div class='av'>%s</div>"
@@ -19297,7 +19297,7 @@ def ficha(ref):
             for p in passos)
     else:
         linhas_hist = "<div class='nota'>Ainda não há registo de alterações.</div>"
-    hist_cx = ("<div class='cx lado-cx meia' id='historico'>"
+    hist_cx = ("<div class='rg-card lado-cx meia' id='historico'>"
                "<div class='rg-field__label' style='margin-bottom:6px'>"
                "Histórico</div>%s</div>" % linhas_hist)
 
@@ -19506,7 +19506,7 @@ def texto_da_peca(ref, nome):
                 "<div style='white-space:pre-wrap;"
                 "font:400 12px/1.6 var(--mono)'>%s</div>"
                 % (i, html.escape(pagina.strip())))
-        return ("<details class='sec' style='margin-top:14px'><summary>"
+        return ("<details class='rg-card sec' style='margin-top:14px'><summary>"
                 "<span class='st'>Texto extraído da peça</span>"
                 "<span class='sh'>pesquisável com o Ctrl+F da página, mesmo "
                 "quando o visualizador não abre</span></summary>%s</details>"
@@ -19568,7 +19568,7 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         % (html.escape(k, quote=True), html.escape(v, quote=True))
         for k, v in sorted((ocultos or {}).items()) if v)
     caixa = (
-        "<form class='cx filtros peca-procura' method='get' action='%s'>%s"
+        "<form class='rg-card filtros peca-procura' method='get' action='%s'>%s"
         "<input type='text' name='procurar' value='%s' "
         "placeholder='Procurar no documento…'>"
         "<button type='submit'>Procurar</button>%s</form>"
@@ -20008,7 +20008,7 @@ def contactos_cx(a):
                  confirmar="Apagar o contacto «%s»?"
                            % (l["nome"] or "").replace("'", " ")))
         for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
-    return ("<div class='cx lado-cx' id='contactos'>"
+    return ("<div class='rg-card lado-cx' id='contactos'>"
             # o nome da entidade entra AQUI e nao no `%` la em baixo: o
             # operador so alcanca o grupo que o segue, e um %s deixado
             # deste lado saia escrito no ecra
@@ -20194,7 +20194,7 @@ def proposta_cx(a):
     ref = a["ref"]
     minhas = propostas_de(ref)
     if not minhas:
-        return ("<div class='cx lado-cx' id='proposta'>"
+        return ("<div class='rg-card lado-cx' id='proposta'>"
                 "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta"
                 "</div><p class='nota'>Este concurso ainda não está na "
                 "escada.</p><div class='prop-accoes'>%s%s</div></div>"
@@ -20208,7 +20208,7 @@ def proposta_cx(a):
     cfg = ler_config()
     blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg)
               for p in minhas]
-    return ("<div class='cx lado-cx' id='proposta'>"
+    return ("<div class='rg-card lado-cx' id='proposta'>"
             "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta</div>"
             "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
 
@@ -20366,7 +20366,7 @@ def proposta_nova():
         return redirect("/proposta/%d?" % id_ + urlencode(
             {"aviso": "Proposta criada. O resto edita-se aqui."}))
     corpo = (
-        "<div class='cx'><form method='post' class='form-largo'>"
+        "<div class='rg-card'><form method='post' class='form-largo'>"
         "<label>Cliente<input type='text' name='entidade' maxlength='120' "
         "placeholder='ex. Instituto Politécnico de Leiria' autofocus></label>"
         "<label>Título<input type='text' name='titulo' maxlength='200' "
@@ -20403,7 +20403,7 @@ def ficha_da_proposta(id_):
     # `docs/historico/CICLOS.md`): era um formulário de quatro campos,
     # sem tarefas, sem contactos e sem histórico. O que o trabalho pede
     # não depende de o concurso ter saído no DR.
-    bloco = ("<div class='cx lado-cx' id='proposta'>"
+    bloco = ("<div class='rg-card lado-cx' id='proposta'>"
              "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta"
              "</div>%s</div>" % _bloco_de_uma_proposta(p, nome))
     # Os contactos são da ENTIDADE, e uma consulta prévia tem entidade.
@@ -20458,7 +20458,7 @@ def cronologia_da_proposta(p):
             (p["id"], p["ref"], p["ref"])).fetchall()
     if not passos:
         return ""
-    return ("<div class='cx lado-cx'><div class='rg-field__label' "
+    return ("<div class='rg-card lado-cx'><div class='rg-field__label' "
             "style='margin-bottom:10px'>Cronologia</div>%s</div>"
             % "".join("<div class='hist'><b>%s</b> %s <i>%s</i> %s</div>"
                       % (data_hora_pt(h["quando"]),
@@ -21141,7 +21141,7 @@ def negocio_cx():
     # o explicasse. A função continua a calculá-lo porque o `numero()`
     # é quem sabe dizer «ainda não» em vez de um travessão, e as frases
     # dele são as que o BACKLOG cita.
-    return ("<div class='cx' style='padding:22px 24px'>"
+    return ("<div class='rg-card' style='padding:22px 24px'>"
             "<div class='rg-field__label' style='margin-bottom:6px'>O negócio</div>"
             "<div class='nota' style='margin-bottom:18px'>Porque se perde, "
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
@@ -21309,7 +21309,7 @@ def situacao():
         corpo = funil_cx_html()
     elif ver == "cpv":
         bloco = cpv_html_bloco()
-        corpo = ("<div class='cx' style='padding:22px 24px'>"
+        corpo = ("<div class='rg-card' style='padding:22px 24px'>"
                  "<div class='rg-field__label'>Por área de CPV</div>"
                  "<div class='nota' style='margin:6px 0 0'>A taxa de "
                  "vitória por divisão do vocabulário CPV — as duas "
@@ -21404,7 +21404,7 @@ def situacao():
             % ("" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
-        corpo = ("<div class='cx' style='padding:22px 24px'>"
+        corpo = ("<div class='rg-card' style='padding:22px 24px'>"
                  "<div class='rg-stats'>%s</div>%s</div>%s%s"
                  % (numeros, nota_periodo, negocio_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
@@ -21519,7 +21519,7 @@ def funil_cx_html():
     # Montado a parte e passado como argumento: a `leitura` traz um "%"
     # (a taxa de conversao) e, concatenado no template, o `%` de baixo
     # tentava interpreta-lo como conversao.
-    funil_cx = ("<div class='cx' style='padding:22px 24px'>"
+    funil_cx = ("<div class='rg-card' style='padding:22px 24px'>"
                 "<div class='rg-field__label' style='margin-bottom:6px'>Funil da "
                 "triagem</div>"
                 "<div class='nota' style='margin-bottom:18px'>" + leitura +
@@ -21576,7 +21576,7 @@ def ranhuras_cx_html(por_estado):
            cores_barra[i % len(cores_barra)], por_estado[ch],
            html.escape(rotulo))
         for i, (ch, rotulo) in enumerate(ESTADOS_DA_EMPRESA))
-    return ("<div class='cx' style='padding:22px 24px'>"
+    return ("<div class='rg-card' style='padding:22px 24px'>"
             "<div class='rg-field__label' style='margin-bottom:22px'>Propostas por "
             "ranhura</div><div class='barras'>%s</div></div>" % barras)
 
@@ -21757,7 +21757,7 @@ def indicadores():
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
         "<div class='rg-stats'>%s</div>"
-        "<div class='cx' style='padding:22px 24px'>"
+        "<div class='rg-card' style='padding:22px 24px'>"
         "<div class='rg-field__label' style='margin-bottom:16px'>Estado da recolha</div>"
         "<div class='saude'>%s</div>"
         "<div class='rg-field__label' style='margin:22px 0 16px'>Corpus de contratos "
@@ -21957,10 +21957,10 @@ AMOSTRA_PAGINA = """<!doctype html>
   <div class="g" style="margin-left:auto"><a href="/">voltar ao painel</a></div>
  </div>
  <div class="topo">
-  <div class="migalhas"><div class="b"><em>Amostra</em></div>
+  <div class="rg-crumbs migalhas"><div class="b"><em>Amostra</em></div>
    <div class="accoes-topo"><button class="rg-btn rg-btn--primary">Acção principal</button></div>
   </div>
-  <h1 class="tit">Amostra do desenho</h1>
+  <h1 class="rg-pagehead__title">Amostra do desenho</h1>
   <p class="subtit">Os componentes todos num sítio, para decidir antes de
    um ecrã mudar. O caminho está escrito em <code>docs/design.md</code>.</p>
  </div>
@@ -22620,7 +22620,7 @@ def _o_que_mudou(hoje, cfg):
                accao("/verificar", "verificar agora", "mini")
                if sou_admin() else ""))
 
-    return ("<div class='cx'><div class='rg-field__label' style='display:flex;gap:8px;"
+    return ("<div class='rg-card'><div class='rg-field__label' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
             "<span class='direita' title='%s'%s>%s</span></div>%s"
             "<div class='feed'>%s</div></div>"
@@ -22656,7 +22656,7 @@ def _prazos_a_chegar(hoje, prazos):
     if not linhas:
         linhas.append("<div class='nota' style='padding:8px 0'>Nada a fechar "
                       "nos próximos %d dias.</div>" % DIAS_A_FECHAR)
-    return ("<div class='cx'><div class='rg-field__label'>Prazos a chegar &middot; %d "
+    return ("<div class='rg-card'><div class='rg-field__label'>Prazos a chegar &middot; %d "
             "dias</div><div class='prazos'>%s</div>"
             "<a class='nota' href='/calendario' style='display:block;"
             "margin-top:8px'>calendário &rarr;</a></div>"
@@ -22704,7 +22704,7 @@ def _paradas_ha_mais_tempo(hoje, quantas=3):
                mil_pt(dias), "" if dias == 1 else "s"))
     if not fora:
         return ""
-    return ("<div class='cx'><div class='rg-field__label'>Paradas há mais tempo</div>"
+    return ("<div class='rg-card'><div class='rg-field__label'>Paradas há mais tempo</div>"
             "<div class='saude' style='margin-top:8px;gap:7px'>%s</div></div>"
             % "".join(fora))
 
@@ -22969,7 +22969,7 @@ def inicio():
         "lista que os produz; as tarefas nascem sozinhas quando um "
         "concurso entra na escada.",
         "<div class='larg'>%s<div class='dois'>"
-        "<div class='cx' id='fazer' style='padding:0'>%s%s%s</div>"
+        "<div class='rg-card' id='fazer' style='padding:0'>%s%s%s</div>"
         "<div class='lado'>%s%s%s</div></div></div>"
         % (fita, cabecalho, fazer, rodape,
            _o_que_mudou(hoje, cfg), _prazos_a_chegar(hoje, prazos),
@@ -23005,7 +23005,7 @@ def tarefas_adiar():
     hoje = datetime.now().date()
     quem = _quem_pedido()
     atrasadas = _atrasadas_de(quem, hoje)
-    corpo = ("<div class='cx' style='padding:22px 24px'>"
+    corpo = ("<div class='rg-card' style='padding:22px 24px'>"
              "<div class='rg-field__label'>Adiar as atrasadas</div>"
              "<p class='nota'>São <b>%s</b> tarefa%s com data anterior a "
              "hoje%s. Adiar passa-as todas para %s; o texto, o dono e o "
