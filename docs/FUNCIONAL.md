@@ -420,9 +420,10 @@ Responde a quatro perguntas em três segundos: *o que tenho de fazer
 hoje · o que fecha esta semana · o que mudou · o que está parado.*
 
 1. **Título** = a data por extenso («Sexta, 18 de setembro»).
-2. **Linha de factos** — em jogo · taxa de vitória · por decidir ·
-   atrasadas/para fazer, mais a saída para o Ponto de situação. **Cada
-   um abre exactamente a lista que o produz.**
+2. **Quatro indicadores** (o `Stat` do sistema de desenho, desde
+   22/09/2026) — em jogo (com a saída para o Ponto de situação) · taxa
+   de vitória · por decidir · para fazer, com as atrasadas na nota.
+   **Cada um abre exactamente a lista que o produz.**
 3. **Fita da semana** — sete células, seg→dom. Cada uma: nº de tarefas,
    nº de feitas, entregas (laranja); a de hoje diz também quantas
    atrasadas arrasta (vermelho). **Clicar num dia muda o balde do
@@ -435,12 +436,18 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    - **O dia escolhido** na fita (por omissão, hoje). Não dobra.
    - **Resto da semana** · **Mais para a frente** — dobram.
 
-   **A linha de tarefa**: caixa de ✓ · texto (+ etiqueta «automática») ·
+   Os que não dobram mostram as primeiras linhas (`CABEM_NO_BALDE`;
+   `CABEM_SEM_DECISAO` no primeiro) e o resto num **«mais N»** que se
+   abre ali; o número do cabeçalho conta todas (22/09/2026).
+
+   **A linha de tarefa**: caixa de ✓ · texto (a origem automática vai na
+   dica do texto, não numa etiqueta) ·
    dia · **de que concurso é** (ref · entidade) · avatar de quem
    (tracejado = sem dono) · entrega, ou «fecha hoje».
 
    **Risca-se no sítio**: a linha fica, riscada, com «desfazer» — e a
-   página volta à linha (`#t<id>`), não ao topo.
+   página volta à linha (`#t<id>`), não ao topo. **Só as feitas de
+   hoje** ficam; as de outros dias saem do ecrã (22/09/2026).
 
    No cabeçalho: **pílulas de pessoa** (Todos · cada dono · sem dono) e
    **esconder as feitas**. Tudo vive no endereço (`?dia=`, `?quem=`,

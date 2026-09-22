@@ -421,7 +421,7 @@ Nome: Preço
         d = {r: v for r, v, _, _ in self.tabela()}
         self.assertEqual(d["Nome do projeto"], "Aquisição de X")
         self.assertEqual(d["Entidade adjudicante"], "Município Y")
-        self.assertEqual(d["Preço base"], "150.000,00 EUR")
+        self.assertEqual(d["Preço base"], "150\u00a0000,00\u00a0€")   # preco_pt()
         # a data mostra-se a portuguesa; guarda-se ISO porque ordena
         self.assertEqual(d["Data de submissão da proposta"], "01/09/2026")
         self.assertEqual(d["Duração do contrato"], "36 MESES")
@@ -8292,7 +8292,7 @@ class TestPrecoDaProposta(unittest.TestCase):
 
     def test_antes_do_submetido_o_proposto_esta_vazio(self):
         html_ = self._linha(self._p("analisar"))
-        self.assertIn("175.000,00 EUR", html_)     # o base, na coluna dele
+        self.assertIn("175\u00a0000,00\u00a0€", html_)   # o base, na coluna dele
 
     def test_no_submetido_com_proposto_mostra_o_proposto(self):
         html_ = self._linha(
@@ -8662,18 +8662,15 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         """
         self._proposta_com_tarefas([-6, -1, 0, 3, 40, None])
         corpo = self.cliente.get("/").get_data(as_text=True)
-        # o facto diz 6, que são as seis linhas desenhadas (os quatro
-        # cartões `.kpi` deram lugar à linha de factos a 17/09/2026)
-        self.assertIn("6 para fazer", corpo)
+        # o indicador diz 6, que são as seis linhas desenhadas (a linha
+        # de factos passou ao `Stat` do sistema de desenho a 22/09/2026)
+        numero = "Para fazer</span><span class='rg-stat__value'>6<"
+        self.assertIn(numero, corpo)
         self.assertEqual(corpo.count("class='hj-row"), 6)
         # e o destino é a própria lista, aqui em baixo -- e NÃO o
         # calendário, que mostra prazos e não tarefas
-        self.assertIn("href='#fazer'", corpo)
         self.assertIn("id='fazer'", corpo)
-        # «para fazer» aparece antes disto no title do logótipo -- é o
-        # facto que se quer, e por isso procura-se o número junto dele
-        facto = corpo[corpo.index("6 para fazer") - 400:
-                      corpo.index("6 para fazer")]
+        facto = corpo[corpo.index(numero) - 200:corpo.index(numero)]
         self.assertIn("href='#fazer'", facto)
         self.assertNotIn("/calendario", facto)
 
@@ -10681,7 +10678,7 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
         self.assertIn("<a href='#lotes'>Lotes</a>", html_)
         bloco = html_.split("id='lotes'")[1].split("</table>")[0]
         self.assertIn("Fomos a todos os 3 lotes", bloco)
-        self.assertIn("436.262,40 EUR", bloco)
+        self.assertIn("436\u00a0262,40\u00a0€", bloco)   # preco_pt()
         self.assertIn("ganho", bloco)
         self.assertIn("1º lugar", bloco)
         self.assertIn("proposta", bloco)
@@ -12811,7 +12808,27 @@ class TestHojeAgrupaSemDecisao(CicloDasTarefas):
                            proposta_id=id_, ref=ref)
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertEqual(corpo.count("class='hj-row"), 1)
-        self.assertIn("1 para fazer", corpo)
+        # desde 22/09/2026 é o indicador «Para fazer» (o `Stat`)
+        self.assertIn("Para fazer</span><span class='rg-stat__value'>1<",
+                      corpo)
+
+
+class TestPrecoNoFormatoDoSistema(unittest.TestCase):
+    """22/09/2026: o preço base vinha do DR como «184.652,00 EUR» e, na
+    mesma lista, o Portal BASE como «71 816 €» — dois formatos lado a
+    lado liam-se como dois tipos de número. O sistema de desenho escreve
+    «480 000,00 €», com espaço inquebrável."""
+
+    def test_formata_o_texto_do_dr(self):
+        self.assertEqual(radar.preco_pt("285.700,00 EUR"),
+                         "285\u00a0700,00\u00a0€")
+        self.assertEqual(radar.preco_pt("83.943,69 EUR"),
+                         "83\u00a0943,69\u00a0€")
+
+    def test_o_que_nao_e_numero_sai_tal_qual_e_o_vazio_diz_se(self):
+        self.assertEqual(radar.preco_pt("a definir"), "a definir")
+        self.assertEqual(radar.preco_pt(""), "\u2014")
+        self.assertEqual(radar.preco_pt(None, "sem preço"), "sem preço")
 
 
 class TestLinhaDaTarefaDizOConcurso(CicloDasTarefas):
