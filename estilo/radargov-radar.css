@@ -153,3 +153,96 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
    lista, com sete colunas, eram 112px de ar a empurrar as accoes. */
 .lista.rg-table th,.lista.rg-table td{padding-left:var(--space-3);
  padding-right:var(--space-3)}
+/* A tabela cabe sempre na largura do ecra (22/09/2026, pedido dele:
+   no monitor dele os botoes ficavam cortados). `table-layout:fixed`
+   com larguras por coluna: o objecto leva o que sobra e encolhe, as
+   accoes tem sempre o seu lugar. Abaixo de 1100px a tabela rola dentro
+   de si (regra do ecra estreito, em cima). */
+.lista.rg-table table{table-layout:fixed;width:100%}
+.lista.rg-table th:nth-child(1){width:124px}
+.lista.rg-table th:nth-child(3){width:96px}
+.lista.rg-table th:nth-child(4){width:128px}
+.lista.rg-table th:nth-child(5){width:96px}
+.lista.rg-table th:nth-child(6){width:128px}
+.lista.rg-table th:nth-child(7){width:196px}
+.lista .col-obj .item-titulo,.lista .col-obj small{max-width:100%}
+.lista .col-acc{white-space:nowrap;text-align:right}
+.lista .rg-code a{display:block;overflow:hidden;text-overflow:ellipsis}
+
+/* O HOJE (22/09/2026, `EcraHoje`): os quatro indicadores por cima da
+   fita, cada um uma ligacao para a lista que o produz. */
+.hj-stats{margin:0 0 var(--space-5)}
+.hj-stats a.rg-stat{text-decoration:none;color:inherit}
+.hj-stats a.rg-stat:hover{background:var(--surface)}
+.hj-stats .rg-stat.mau .rg-stat__note{color:var(--danger);font-weight:600}
+/* O «mais N» de um balde comprido. */
+details.hj-mais>summary{list-style:none;cursor:pointer;padding:6px var(--space-4);
+ font:500 13px/18px var(--font-sans);color:var(--link)}
+details.hj-mais>summary::-webkit-details-marker{display:none}
+details.hj-mais[open]>summary{color:var(--ink-muted)}
+/* A hora do «O que mudou» nao passa por cima do texto. */
+.feed .l{display:grid;grid-template-columns:52px minmax(0,1fr);gap:var(--space-2)}
+/* A coluna da direita do Hoje: os cartoes com o padding do `Card`, o
+   titulo como `h3`, e as ligacoes do feed no tamanho do texto. */
+.lado>.rg-card{padding:var(--space-4) var(--space-5)}
+.lado>.rg-card>.rg-field__label:first-child{font:600 15px/20px var(--font-sans);
+ color:var(--ink);margin-bottom:var(--space-3)}
+.feed .l a{font:500 14px/20px var(--font-sans)}
+.feed .l .nota{font-size:12px}
+/* O topo da FICHA tem outra forma: o titulo vai no `.ficha-cab` (com a
+   seta de voltar e o prazo) e o `h1` do molde vem vazio. */
+.topo>h1:empty{display:none}
+.topo>.ficha-cab{grid-column:1;grid-row:2;min-width:0}
+.topo>.ficha-indice{grid-column:1/-1;grid-row:3}
+
+/* ---- A BASE COMUM, para todos os ecras (22/09/2026) ----------------
+   Os ecras que ainda nao passaram ao sistema desenhavam com o CSS
+   antigo, e cada um tinha o seu campo, o seu botao e o seu cabecalho
+   de tabela. Isto nao muda estrutura nenhuma: da-lhes o aspecto do
+   `Field`, do `Button` e do `DataTable`. O `main.rg` e as negacoes
+   dao-lhe o peso para ganhar ao CSS antigo sem `!important`. */
+
+/* Os cabecalhos de tabela sao rotulos: em sans, mesmo nas colunas de
+   numeros (so as celulas vao em mono). */
+main.rg table th,main.rg table th.p,main.rg table th.n,main.rg table th.d{
+ font-family:var(--font-sans);font-size:12px;letter-spacing:0;
+ text-transform:none;font-weight:600;color:var(--ink-muted)}
+
+/* Os campos: o `Field` (borda de 2px, cantos de 10px), um pouco mais
+   baixo que os 40px para caber nas linhas das tabelas e das fichas. */
+main.rg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]):not([type=file]),
+main.rg select,main.rg textarea{
+ box-sizing:border-box;min-height:36px;padding:0 var(--space-3);
+ border:var(--border-control) solid var(--line-strong);border-radius:var(--radius-md);
+ background:var(--surface-raised);color:var(--ink);
+ font:400 14px/20px var(--font-sans);max-width:100%}
+main.rg textarea{padding:var(--space-2) var(--space-3)}
+main.rg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):focus,
+main.rg select:focus,main.rg textarea:focus{border-color:var(--brand);
+ outline:var(--border-focus) solid var(--focus);outline-offset:0}
+main.rg input::placeholder,main.rg textarea::placeholder{color:var(--ink-muted)}
+/* Dentro de uma tabela (o selector da ranhura) fica mais baixo. */
+main.rg td select,main.rg td input:not([type=checkbox]):not([type=radio]):not([type=hidden]){
+ min-height:30px;border-width:1px;font-size:13px}
+
+/* Os botoes sem classe do sistema: o `secondary` (contorno azul). */
+main.rg button:not([class]),main.rg input[type=submit]:not([class]){
+ display:inline-flex;align-items:center;justify-content:center;
+ min-height:36px;padding:0 var(--space-4);border:var(--border-control) solid var(--brand);
+ border-radius:var(--radius-md);background:var(--surface-raised);color:var(--brand);
+ font:600 14px/20px var(--font-sans);cursor:pointer}
+main.rg button:not([class]):hover{background:var(--brand-soft)}
+
+/* A procura das listas de propostas (`form.pf`): numa linha. */
+main.rg form.pf{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
+main.rg form.pf input[type=search]{min-width:320px;flex:0 1 420px}
+/* A etiqueta nova e uma pilula tracejada, nao um campo de formulario. */
+main.rg .etq-form input[name=nome]{min-height:28px;width:120px;padding:0 var(--space-3);
+ border:1px dashed var(--line-strong);border-radius:var(--radius-full);font-size:13px}
+/* A procura das Entidades: rotulo por cima, campo e botao numa linha,
+   encostados a esquerda como os filtros das outras listas. */
+main.rg form.filtros[action='/entidade/procurar']{display:flex;align-items:flex-end;
+ justify-content:flex-start;gap:var(--space-2);flex-wrap:wrap}
+main.rg form.filtros[action='/entidade/procurar'] label{display:flex;flex-direction:column;
+ gap:var(--space-1);font:500 13px/18px var(--font-sans);color:var(--ink)}
+main.rg form.filtros[action='/entidade/procurar'] input{min-width:360px}

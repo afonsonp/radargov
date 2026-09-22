@@ -226,7 +226,9 @@ que só se sabem a usar:
   está.
 
 **A tarefa risca-se ali e a página fica onde está** — a linha não
-desaparece: fica riscada, com o **desfazer** ao lado. Em cima podes
+desaparece: fica riscada, com o **desfazer** ao lado, até ao fim do
+dia; no dia seguinte já não aparece. Um balde comprido mostra as
+primeiras linhas e tem um **«mais N»** para ver o resto. Em cima podes
 **filtrar por pessoa** e **esconder as feitas**. Para adiar ou atribuir,
 abre a ficha do concurso: o bloco «A nossa proposta» tem os campos.
 

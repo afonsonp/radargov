@@ -2683,6 +2683,15 @@ botões ou no calendário.
   forma de um ecrã, procura no `LISTA_JS` (e nos outros `*_JS`) os
   selectores da forma antiga.
 
+- **Um CSS que muda a forma de um molde partilhado apanha páginas que
+  não se olharam** (22/09/2026). A grelha do `.topo` (título e acção na
+  mesma linha) foi escrita a olhar para a lista, e na Ficha o topo tem
+  outra forma — `h1` vazio, `.ficha-cab`, `.ficha-indice` — e ficou com
+  o prazo por cima do índice. E o Hoje punha os factos na ranhura das
+  abas, que a grelha mandou para cima do título. Antes de dar por feita
+  uma regra que toque no `.topo` (ou no `BASE`), tira a fotografia de
+  todos os ecrãs, não só do que se estava a mudar.
+
 
 ---
 
