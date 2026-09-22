@@ -3122,8 +3122,13 @@ class TestBotoesDaLinha(unittest.TestCase):
         escada = self._na_escada("submetido")
 
         def meta(vista):
+            # A célula do que FALTA (o prazo mais as ranhuras). O
+            # `.item-meta` era o bloco do cartão; com a lista em tabela
+            # (22/09/2026) as ranhuras vivem na última célula antes das
+            # acções, e é aí que se mede. Na linha toda não se pode: o
+            # selector tem a palavra em todas as suas <option>, sempre.
             h = radar.linha(self.anuncio(), vista, na_escada=escada)
-            return h.split("item-meta'>")[1].split("</div>")[0]
+            return h.split("class='col-falta'>")[1].split("</td>")[0]
 
         self.assertNotIn("Submetido", meta("submetido"))
         self.assertIn("Submetido", meta(""))

@@ -11858,24 +11858,16 @@ def linha(a, vista="", urgente=None, na_escada=None):
     except ValueError:
         publicado = ""
 
+    # O CPV, a plataforma e o tipo têm COLUNA desde 22/09/2026, e por
+    # isso saíram daqui: na `tags` fica só o que não tem coluna nenhuma,
+    # que são as ranhuras da escada em que o anúncio está.
     tags = []
-    if a["cpv"]:
-        tags.append("<span class='rg-tag rg-tag--mono'>%s</span>" % html.escape(a["cpv"]))
-    if a["plataforma"]:
-        # verde quando dela se conseguem trazer as peças, cinzento quando
-        # e preciso ir la a mao
-        tags.append("<span class='rg-tag %s'>%s</span>"
-                    % (tom("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS
-                           else ""),
-                       html.escape(a["plataforma"])))
-    if a["tipo"]:
-        tags.append("<span class='rg-tag'>%s</span>" % html.escape(a["tipo"]))
     # O prazo sai das etiquetas e sobe a numero forte na coluna da
     # direita: e o que manda em "concorro ou nao", e no meio das outras
     # tags lia-se ao mesmo nivel do codigo CPV.
     texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
-    prazo_html = ("<div class='item-prazo %s'>%s</div>"
-                  % (classe_prazo, texto_prazo)) if texto_prazo else ""
+    prazo_html = ("<span class='rg-tag %s'>%s</span>"
+                  % (tom(classe_prazo), texto_prazo)) if texto_prazo else ""
     # Em que ranhura da escada esta, quando nao e a que se esta a ver.
     # Sai da PROPOSTA -- a decisao da empresa deixou de morar no anuncio a
     # 15/09/2026 -- e vem de um mapa montado uma vez por pagina, nao de
@@ -11894,8 +11886,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         if p["motivo"]:
             tags.append("<span class='rg-tag'>%s</span>" % html.escape(p["motivo"]))
 
-    preco = ("<div class='item-preco'>%s</div>" % html.escape(a["preco_base"])) \
-        if a["preco_base"] else ""
+
 
     # Os botoes dependem do estado em que o anuncio esta. Eram sempre os
     # mesmos dois: em Descartados nao havia forma nenhuma de repor um
@@ -11930,19 +11921,43 @@ def linha(a, vista="", urgente=None, na_escada=None):
         botoes.append("<a class='rg-btn rg-btn--sm rg-btn--secondary' href='/anuncio/%s#proposta'>%d lotes"
                       "</a>" % (quote(a["ref"], safe=""), len(aqui)))
 
+    # Uma LINHA DE TABELA, e nao um cartao (22/09/2026, decisao dele
+    # depois de comparar o ecra com o `EcraConcursos` do sistema de
+    # desenho). As colunas sao as que ele desenhou: ref, objecto com a
+    # entidade por baixo, tipo, plataforma, preco base, prazo, o que
+    # falta, e as accoes.
+    #
+    # O que era um cartao com tres blocos passa a oito celulas: o CPV e
+    # o tipo tinham a mesma pilula e a mesma altura do prazo, e numa
+    # lista de vinte nao se podia comparar dois precos nem dois prazos
+    # sem os procurar com o dedo. Em coluna comparam-se de relance --
+    # e e por isso que os numeros vao alinhados a direita, em `rg-num`.
     return (
-        "<div class='rg-card item' id='a-%s'>"
-        "<div class='item-corpo'>"
-        "<a href='/anuncio/%s' class='item-titulo'>%s</a>"
-        "<div class='item-entidade'>%s%s</div>"
-        "<div class='item-meta'>%s</div></div>"
-        "<div class='item-lado'>%s%s<div class='item-accoes'>%s</div></div></div>"
+        "<tr id='a-%s'>"
+        "<td class='rg-code'><a href='/anuncio/%s'>%s</a></td>"
+        "<td class='col-obj'><a href='/anuncio/%s' class='item-titulo'>%s</a>"
+        "<small>%s%s%s</small></td>"
+        "<td class='col-tipo'>%s</td>"
+        "<td class='col-plat'>%s</td>"
+        "<td class='rg-num'>%s</td>"
+        "<td class='rg-num'>%s</td>"
+        "<td class='col-falta'>%s%s</td>"
+        "<td class='col-acc'>%s</td></tr>"
         % (html.escape(a["ref"].replace("/", "-"), quote=True),
-           a["ref"], html.escape(corta(a["titulo"], 190)),
+           a["ref"], html.escape(a["ref"]),
+           a["ref"], html.escape(corta(a["titulo"], 120)),
            html.escape(a["entidade"] or ""),
-           (" <span class='quando'>&middot; %s</span>" % publicado)
-           if publicado else "",
-           "".join(tags), prazo_html, preco, "".join(botoes)))
+           (" &middot; %s" % publicado) if publicado else "",
+           (" &middot; <span class='rg-mono'>%s</span>"
+            % html.escape(a["cpv"])) if a["cpv"] else "",
+           html.escape(a["tipo"] or ""),
+           ("<span class='rg-tag rg-tag--mono %s'>%s</span>"
+            % (tom("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS else ""),
+               html.escape(a["plataforma"]))) if a["plataforma"] else "",
+           html.escape(a["preco_base"] or "\u2014"),
+           data_pt(a["prazo"], "\u2014"),
+           prazo_html, "".join(tags),
+           "".join(botoes)))
 
 
 LISTA_JS = """<script>
@@ -13055,10 +13070,19 @@ def _lista_de_anuncios():
 
     filtro_em_uso = filtro_actual(request.args, "anuncios")
     if linhas:
-        corpo_lista = ("<div class='lista'>"
-                       + "".join(linha(a, estado_actual, urgente, na_escada)
-                                 for a in linhas)
-                       + "</div>")
+        # A tabela do `EcraConcursos`, com o cabeçalho que ele desenhou.
+        # O `.lista` fica por fora: é ele que o JS da triagem procura
+        # para guardar a posição do rolamento.
+        corpo_lista = (
+            "<div class='lista rg-table tab-cx'><table>"
+            "<thead><tr>"
+            "<th>Ref.ª</th><th>Objecto</th><th>Tipo</th><th>Plataforma</th>"
+            "<th class='rg-num'>Preço base</th>"
+            "<th class='rg-num'>Prazo</th><th>Faltam</th><th></th>"
+            "</tr></thead><tbody>"
+            + "".join(linha(a, estado_actual, urgente, na_escada)
+                      for a in linhas)
+            + "</tbody></table></div>")
     elif filtro_em_uso == "estado=" + estado_actual and escondidos_interesse:
         # Sem filtro nenhum, mas com o interesse a tapar: dizer "o que
         # entrou esta triado" com 1290 anuncios escondidos era uma

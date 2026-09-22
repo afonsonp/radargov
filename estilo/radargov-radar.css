@@ -44,3 +44,25 @@ main.entrar h1{margin:0;font:600 22px/28px var(--font-serif);color:var(--ink)}
 main.entrar form{display:flex;flex-direction:column;gap:var(--space-4)}
 main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
  text-align:left}
+
+/* A LISTA DOS CONCURSOS como tabela (22/09/2026, `EcraConcursos` do
+   sistema de desenho). As larguras são do domínio: o objecto leva o que
+   sobra, e as outras sete colunas têm o tamanho do que lá cabe. */
+.lista.rg-table table{table-layout:auto}
+.lista .col-obj{min-width:280px}
+.lista .col-obj .item-titulo{display:block;font:600 14px/1.35 var(--font-sans);
+ color:var(--ink);text-decoration:none}
+.lista .col-obj .item-titulo:hover{color:var(--link)}
+.lista .col-obj small{display:block;margin-top:2px;
+ font:400 13px/18px var(--font-sans);color:var(--ink-muted)}
+.lista .col-tipo{color:var(--ink-secondary);white-space:nowrap}
+.lista .col-plat,.lista .col-falta{white-space:nowrap}
+.lista .col-falta{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.lista .col-acc{width:1%;white-space:nowrap}
+.lista .col-acc form{display:inline-flex;margin:0 0 0 4px}
+.lista .col-acc .ranhura{display:inline-flex;gap:4px;align-items:center}
+@media (max-width:1100px){
+ /* A tabela rola dentro de si, como manda a regra do ecrã estreito --
+    não é a página que rola para o lado. */
+ .lista.rg-table{overflow-x:auto}
+ .lista.rg-table table{min-width:900px}}
