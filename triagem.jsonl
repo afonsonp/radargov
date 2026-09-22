@@ -790,3 +790,4 @@
 {"accao": "alteração", "detalhe": "do anúncio 22981/2026, publicado a 15/09/2026; a triagem faz-se lá", "quando": "2026-09-21 17:01", "quem": "DR", "ref": "23326/2026", "tabela": "historico"}
 {"accao": "alterou", "detalhe": "pelo anúncio 23326/2026 de 21/09/2026: prazo de propostas 29/09/2026 → 02/10/2026; preço base 120.000,00 EUR → 147.000,00 EUR", "quando": "2026-09-21 17:01", "quem": "DR", "ref": "22981/2026", "tabela": "historico"}
 {"accao": "tarefa", "detalhe": "feita: entregar a proposta", "quando": "2026-09-22 00:49", "quem": "admin", "ref": "22956/2026", "tabela": "historico"}
+{"accao": "verificou as peças", "detalhe": "nenhuma peça nova na plataforma (passou a data de esclarecimentos (21/09/2026))", "quando": "2026-09-22 01:05", "quem": "plataforma", "ref": "23265/2026", "tabela": "historico"}
