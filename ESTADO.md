@@ -44,10 +44,10 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 
 | O quê | Quanto |
 |---|---|
-| Anúncios | 210 376 (**199 922 procedimentos**; a diferença são republicações ligadas ao original) |
-| Com o texto integral | 185 451. O `detalhe_lido` está a **100%**: não há fila por ler |
+| Anúncios | 210 379 (**199 925 procedimentos**; a diferença são republicações ligadas ao original) |
+| Com o texto integral | 185 454. O `detalhe_lido` está a **100%**: não há fila por ler |
 | Propostas na escada | **78** — perdido 16 · não fomos 15 · ganho 13 · por analisar 11 · submetido 8 · a preparar 6 · relatório 5 · cancelado 4 |
-| Tarefas por fazer | 41 |
+| Tarefas por fazer | 40 |
 | Contactos | 26 |
 | Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
@@ -58,7 +58,7 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 081**, em ~67 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 23 432 linhas · `teste_radar.py` 13 949 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
+| Código | `radar.py` 23 456 linhas · `teste_radar.py` 13 954 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
