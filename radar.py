@@ -19376,21 +19376,29 @@ def ficha(ref):
     # rolar. Nenhum bloco entrou nem saiu -- os quatro que viviam na
     # coluna da direita passaram a estar nesta, e o prazo, que era a
     # caixa preta, e agora um facto do cabecalho mais o chip do indice.
-    conteudo = ("<div class='larg ficha-dossier'>" + cabeca + faixa_alteracao +
-                # "a pagina do anuncio e sempre a mesma" (15/09/2026): com
-                # o quadro fora, e aqui que a proposta se trabalha -- a
-                # ranhura, os campos que ela pede, as etiquetas e o que
-                # falta fazer. Vai logo a seguir ao cabecalho porque e a
-                # primeira pergunta de quem abre a ficha de um concurso
-                # que ja esta na escada.
-                proposta_cx(a) +
+    # DUAS colunas desde 23/09/2026, como o `EcraFicha` do sistema de
+    # desenho: o anuncio a esquerda (o que se le), o trabalho e o
+    # contexto a direita (o que se faz). Nenhum bloco entrou nem saiu,
+    # e as ancoras do indice sao as mesmas -- so muda o sitio. Numa
+    # coluna so, a proposta empurrava o anuncio para baixo do primeiro
+    # ecra, e o historico e o responsavel ficavam depois de oito mil
+    # pixeis de peças e mercado.
+    #
+    # "a pagina do anuncio e sempre a mesma" (15/09/2026): e aqui que a
+    # proposta se trabalha -- a ranhura, os campos que ela pede, as
+    # etiquetas e o que falta fazer. Vai no topo da coluna da direita,
+    # que e a primeira pergunta de quem abre um concurso da escada.
+    conteudo = ("<div class='larg ficha-duas'>"
+                "<div class='ficha-principal'>" + cabeca + faixa_alteracao +
                 seccoes_html + lotes_html +
                 docs_cx +
                 desfecho_html +
+                # os homologos sao uma tabela de contratos, e ficam com o
+                # mercado: na coluna estreita cortavam-se as colunas
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
-                mercado(a) + "</div>" +
-                contactos_cx(a) +
-                "<div class='ficha-pe'>" + hist_cx + resp_cx + "</div></div>")
+                mercado(a) + "</div></div>"
+                "<div class='ficha-lado'>" + proposta_cx(a) +
+                contactos_cx(a) + hist_cx + resp_cx + "</div></div>")
 
     # A ficha pendura-se na Pesquisa: e o acervo completo que a contem
     # sempre, venha-se da Triagem, do quadro ou de um homologo. A volta

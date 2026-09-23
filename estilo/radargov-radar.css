@@ -246,3 +246,21 @@ main.rg form.filtros[action='/entidade/procurar']{display:flex;align-items:flex-
 main.rg form.filtros[action='/entidade/procurar'] label{display:flex;flex-direction:column;
  gap:var(--space-1);font:500 13px/18px var(--font-sans);color:var(--ink)}
 main.rg form.filtros[action='/entidade/procurar'] input{min-width:360px}
+
+/* A FICHA em duas colunas (23/09/2026, `EcraFicha`): o anuncio a
+   esquerda, a proposta e o contexto a direita (`minmax(300px,380px)`,
+   a medida do README do sistema). Abaixo de 1100px volta a uma so, com
+   o anuncio primeiro. */
+.ficha-duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);
+ gap:var(--space-5);align-items:start}
+.ficha-principal,.ficha-lado{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ficha-lado .rg-card{padding:var(--space-4)}
+.ficha-lado .prop-campos{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.ficha-lado .ficha-pe,.ficha-lado .lado-cx.meia{width:auto}
+@media (max-width:1100px){.ficha-duas{grid-template-columns:minmax(0,1fr)}}
+/* A linha de tarefa na coluna estreita dobra: o texto e as etiquetas
+   numa linha, o formulario do adiar/quem na seguinte, a toda a largura. */
+.ficha-lado ul.tarefas li{flex-wrap:wrap}
+.ficha-lado ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
+.ficha-lado ul.tarefas li form.accao input{flex:1 1 120px;min-width:0}
+.ficha-lado .rg-card table{font-size:13px}
