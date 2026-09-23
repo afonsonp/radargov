@@ -11029,9 +11029,11 @@ class TestModeloDaEmpresa(BaseTemporaria):
         nada no dia em que o leitor do Excel antigo saiu."""
         ja_estava = radar.criar_proposta("22285/2026", estado="nao_fomos")
         radar.gravar_motivo(ja_estava, "Falta de CV's")
+        # a cópia do ficheiro da EMPRESA (F1, 23/09/2026): é lá que as
+        # propostas e o histórico vivem, e é essa que o comando recebe
         copia = os.path.join(self.pasta, "antes.db")
         with radar.liga() as c:
-            c.execute("VACUUM INTO ?", (copia,))
+            c.execute("VACUUM emp INTO ?", (copia,))
         caminho = self.preenchido([
             ["1947/2026", 2, "Ganho", None, 169344, 1, None, "Afonso", None],
             ["22285/2026", None, "Perdido", None, None, 3, None, None, None],
@@ -11643,22 +11645,9 @@ class TestMudancasDeSetembro(BaseTemporaria):
             self.assertNotIn("Filtros guardados", html_)
             self.assertNotIn("Guardar filtro", html_)
 
-    def test_os_filtros_sem_alerta_apagam_se_uma_vez_e_so_uma(self):
-        with radar.liga() as c:
-            c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta) VALUES "
-                      "('velho', 'q=x', 0), ('vivo', 'q=y', 1)")
-            c.execute("DELETE FROM estado WHERE chave='filtros_sem_alerta_apagados'")
-        radar.iniciar_db()
-        with radar.liga() as c:
-            nomes = [r[0] for r in c.execute("SELECT nome FROM filtros_guardados ORDER BY nome")]
-        self.assertEqual(nomes, ["vivo"])
-        # um alerta desligado DEPOIS da migracao fica: a marca ja esta posta
-        with radar.liga() as c:
-            c.execute("UPDATE filtros_guardados SET alerta=0 WHERE nome='vivo'")
-        radar.iniciar_db()
-        with radar.liga() as c:
-            nomes = [r[0] for r in c.execute("SELECT nome FROM filtros_guardados")]
-        self.assertEqual(nomes, ["vivo"])
+    # (O teste da limpeza de 13/09/2026 dos filtros sem alerta saiu a
+    # 23/09/2026 com a migracao que ele guardava: corria uma vez, por
+    # marca, e correu em todas as instalacoes. Ver `iniciar_empresa()`.)
 
 
 class TestTrincoEntreProcessos(BaseTemporaria):
@@ -12630,6 +12619,99 @@ class TestEnsaioDeRestauro(BaseTemporaria):
         self.assertFalse(r["serve"])
         self.assertEqual(r["contagens"]["anuncios"], (0, 3))
         self.assertTrue(radar.le_marca("ultimo_ensaio_copia").startswith("FALHOU"))
+
+
+class TestAEmpresaNoSeuFicheiro(BaseTemporaria):
+    """A F1 do plano multi-empresa (23/09/2026): o que é de uma empresa
+    vive em `empresas/<id>/empresa.db`, ligado por ATTACH, e o `radar.db`
+    fica com o que é da plataforma. O erro a não repetir tem duas caras:
+    uma tabela nos dois ficheiros (o nome sem prefixo resolve-se no
+    `radar.db` primeiro, e a da empresa fica a apodrecer ao lado), e uma
+    separação que apaga antes de ter a certeza de que copiou."""
+
+    def setUp(self):
+        super().setUp()
+        self.copias = os.path.join(self.pasta, "copias")
+        self.enterContext(unittest.mock.patch.object(radar, "COPIAS", self.copias))
+
+    def _tabelas(self, esquema):
+        with radar.liga() as c:
+            return {r[0] for r in c.execute(
+                "SELECT name FROM %s.sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%%'" % esquema)}
+
+    def _base_antiga(self, propostas=2):
+        """Uma base de antes da F1: as tabelas da empresa dentro do
+        radar.db, com linhas e a marca do resumo, e sem ficheiro da
+        empresa nenhum."""
+        emp = radar.db_da_empresa()
+        for f in (emp, emp + "-wal", emp + "-shm"):
+            if os.path.exists(f):
+                os.remove(f)
+        radar.iniciar_empresa(radar.DB)
+        c = sqlite3.connect(radar.DB)
+        for i in range(propostas):
+            c.execute("INSERT INTO propostas (ref, estado) VALUES (?, 'analisar')",
+                      ("%d/2026" % (i + 1),))
+        c.execute("INSERT INTO historico (ref, accao) VALUES ('1/2026', 'x')")
+        c.execute("INSERT OR REPLACE INTO estado VALUES ('ultimo_resumo', '2026-09-22')")
+        c.commit()
+        c.close()
+
+    def test_nenhuma_tabela_mora_nos_dois_ficheiros(self):
+        da_plataforma, da_empresa = self._tabelas("main"), self._tabelas("emp")
+        self.assertEqual(da_plataforma & da_empresa, set())
+        self.assertLessEqual(set(radar.TABELAS_DA_EMPRESA), da_empresa)
+        self.assertIn("anuncios", da_plataforma)
+
+    def test_sem_ficheiro_da_empresa_a_propostas_nem_existe(self):
+        with unittest.mock.patch.object(radar, "EMPRESA_ACTIVA", 2):
+            with radar.liga() as c:
+                with self.assertRaises(sqlite3.OperationalError):
+                    c.execute("SELECT COUNT(*) FROM propostas")
+                # e a plataforma continua a responder
+                c.execute("SELECT COUNT(*) FROM anuncios")
+
+    def test_separar_leva_as_linhas_e_so_depois_apaga(self):
+        self._base_antiga()
+        radar.iniciar_db()
+        self.assertNotIn("propostas", self._tabelas("main"))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM emp.propostas")
+                             .fetchone()[0], 2)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM emp.historico")
+                             .fetchone()[0], 1)
+            self.assertIsNone(c.execute("SELECT 1 FROM estado WHERE chave="
+                                        "'ultimo_resumo'").fetchone())
+        self.assertEqual(radar.le_marca_da_empresa("ultimo_resumo"), "2026-09-22")
+        # a cópia de antes tem as linhas, no radar.db como estavam
+        antes = [f for f in os.listdir(self.copias) if "antes-da-empresa" in f]
+        self.assertEqual(len(antes), 1)
+        c = sqlite3.connect(os.path.join(self.copias, antes[0]))
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM propostas").fetchone()[0], 2)
+        c.close()
+        # e a segunda volta não faz nada
+        self.assertIsNone(radar.separar_empresa())
+
+    def test_separar_nao_apaga_nada_se_as_contagens_nao_batem(self):
+        self._base_antiga(propostas=2)
+        radar.iniciar_empresa()
+        with sqlite3.connect(radar.db_da_empresa()) as c:
+            c.execute("INSERT INTO propostas (ref) VALUES ('9/2026')")
+        with self.assertRaises(RuntimeError):
+            radar.separar_empresa()
+        self.assertIn("propostas", self._tabelas("main"))
+
+    def test_a_copia_diaria_leva_o_ficheiro_da_empresa(self):
+        with radar.liga() as c:            # sem anúncios a cópia não serve
+            c.execute("INSERT INTO anuncios (ref, titulo) VALUES ('1/2026', 't')")
+        radar.criar_proposta("1/2026")
+        destino = radar.copia_de_seguranca(guardar=0)
+        da_empresa = radar.copia_da_empresa(destino)
+        self.assertTrue(os.path.exists(da_empresa))
+        r = radar.ensaiar_copia()
+        self.assertTrue(r["serve"])
+        self.assertEqual(r["contagens"]["propostas"], (1, 1))
 
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`

@@ -131,6 +131,7 @@ def funcional_medido():
     # Doze falsos positivos, e o achado verdadeiro — um `slots`
     # desactualizado — perdido no meio. Por isso o âmbito é explícito.
     for marca, ficheiro in (("### 2.1 ", "radar.db"),
+                            ("### 2.1a ", os.path.join("empresas", "1", "empresa.db")),
                             ("### 2.2 ", "contratos.db")):
         base = os.path.join(RAIZ, ficheiro)
         if marca not in texto or not os.path.exists(base):

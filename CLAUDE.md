@@ -164,6 +164,7 @@ python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
 python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
 python radar.py --empresa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
+                                   # (a da EMPRESA: copias/empresa-1-….db)
 python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
 python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass
@@ -295,7 +296,14 @@ cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
 
-1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. **As tabelas,
+1. **base** — `liga()`, `iniciar_db()`, `ler_config()`. **O trabalho
+   de cada empresa é outro ficheiro** desde 23/09/2026 (F1 do plano
+   multi-empresa): `empresas/<id>/empresa.db`, que o `liga()` junta por
+   ATTACH como `emp` (`db_da_empresa()`, `TABELAS_DA_EMPRESA`,
+   `EMPRESA_ACTIVA`); o esquema dele é o `iniciar_empresa()`, e o
+   `separar_empresa()` passou-lhe as tabelas no primeiro arranque. A
+   regra: **uma tabela da empresa nunca nasce no `radar.db`** — a razão
+   está nas armadilhas, «A base, as migrações e o disco». **As tabelas,
    com o que cada uma tem lá dentro e quantas linhas, estão no
    `docs/FUNCIONAL.md` §2.1**; os números medidos de hoje no
    `ESTADO.md`.
@@ -510,7 +518,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **234 pontos** (contados a 22/09/2026), cada um de um erro que
+São **235 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

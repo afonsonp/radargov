@@ -1597,6 +1597,21 @@ SQLite, cópias, e a pen que manda nos números.
   `-shm` que ficaram do anterior (LEIA-ME, secção 13) — copiar só o
   `.db` com o `-wal` velho ao lado dá uma base misturada.
 
+- **O trabalho da empresa é outro ficheiro, e uma tabela não pode
+  morar nos dois** (F1, 23/09/2026). O `liga()` junta o
+  `empresas/<id>/empresa.db` como `emp`, e um nome sem prefixo
+  resolve-se **primeiro no `radar.db`**: se uma tabela de
+  `TABELAS_DA_EMPRESA` voltar a nascer lá, tudo passa a ler e a
+  escrever nessa, e a da empresa fica a apodrecer ao lado sem um erro.
+  Apanhou-se no teste, com a `marcas_da_empresa`. Por isso o esquema da
+  empresa cria-se em `iniciar_empresa()`, que abre o ficheiro **sozinho**
+  (um `CREATE` sem prefixo numa ligação com o ATTACH cai no `radar.db`),
+  e o `TestAEmpresaNoSeuFicheiro` prova que a intersecção é vazia. Duas
+  consequências: o `VACUUM INTO` só copia o `radar.db` — a da empresa é
+  `VACUUM emp INTO`, e a cópia diária faz as duas —; e o
+  `--empresa-desfazer` recebe a cópia **da empresa**
+  (`copias/empresa-1-…db`), que é onde as propostas estão.
+
 - **A verificação das 09:00 aparece no `journalctl` com um pico de
   memória 25× maior do que a das 17:00, e não há avaria nenhuma.** A
   cópia é uma por dia e o nome é a data, por isso é a primeira

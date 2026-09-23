@@ -262,12 +262,45 @@ class Ligacao(sqlite3.Connection):
 
 _BASE_PROTEGIDA = set()
 
+# O que e de UMA empresa, e nao da plataforma (fase F1 do plano
+# multi-empresa, 23/09/2026). Vive num ficheiro seu,
+# `empresas/<id>/empresa.db`, que o `liga()` junta por ATTACH com o nome
+# `emp`: o SQL nao muda, porque um nome sem prefixo que nao exista no
+# `radar.db` resolve-se sozinho no ficheiro da empresa. E o isolamento e
+# estrutural -- sem ficheiro da empresa a `propostas` nem existe, e o
+# erro fecha em vez de mostrar dados de outra.
+#
+# Fica no `radar.db` o que e da plataforma e poupa custos por ser de
+# todos (decisao dele no mesmo dia): os anuncios, as pecas e as leituras
+# do modelo, o CPV, as alteracoes do DR, os slots, os erros, as contas e
+# os pedidos de acesso.
+TABELAS_DA_EMPRESA = ("propostas", "tarefas", "contactos", "historico",
+                      "etiquetas", "anuncio_etiquetas", "pessoas",
+                      "filtros_guardados", "alertas_vistos",
+                      "entidades_seguidas", "seguidas_vistos", "empresa",
+                      "marcas_da_empresa")
+# As marcas do resumo diario sao da empresa (e ela que o recebe); as
+# outras marcas da tabela `estado` sao da recolha, e ficam.
+MARCAS_DA_EMPRESA = ("ultimo_resumo", "ultimo_resumo_estado",
+                     "ultimo_resumo_quantos")
+# ponytail: uma empresa so ate a F4, que e quando a sessao passa a dizer
+# qual e a de quem entrou.
+EMPRESA_ACTIVA = 1
 
-def liga():
-    if DB not in _BASE_PROTEGIDA and os.path.exists(DB):
-        _BASE_PROTEGIDA.add(DB)
-        so_o_dono(DB)
-    c = sqlite3.connect(DB, timeout=30, factory=Ligacao)
+
+def db_da_empresa(empresa=None):
+    """O ficheiro da empresa. Ao lado do `DB` e nao do `BASE_DIR`: um
+    teste que aponte o `DB` para uma pasta temporaria leva a empresa com
+    ele, e nunca escreve no trabalho verdadeiro."""
+    return os.path.join(os.path.dirname(DB), "empresas",
+                        str(empresa or EMPRESA_ACTIVA), "empresa.db")
+
+
+def _abre(caminho):
+    if caminho not in _BASE_PROTEGIDA and os.path.exists(caminho):
+        _BASE_PROTEGIDA.add(caminho)
+        so_o_dono(caminho)
+    c = sqlite3.connect(caminho, timeout=30, factory=Ligacao)
     c.row_factory = sqlite3.Row
     # WAL: deixa ler enquanto outro escreve. Sem isto, o painel e a recolha
     # em fundo tropecam um no outro ("database is locked"). E persistente,
@@ -279,6 +312,14 @@ def liga():
     # titulos escritos todos em maiusculas. Registar a funcao aqui deixa
     # encher as colunas normalizadas em SQL, sem ciclo em Python.
     c.create_function("simplifica", 1, simplifica)
+    return c
+
+
+def liga():
+    c = _abre(DB)
+    emp = db_da_empresa()
+    if os.path.exists(emp):
+        c.execute("ATTACH DATABASE ? AS emp", (emp,))
     return c
 
 
@@ -521,60 +562,23 @@ def arrumar_pecas():
                   " (%s). As peças continuam a ser lidas de pecas/." % erro)
 
 
-def iniciar_db():
-    arrumar_pecas()
-    with liga() as c:
-        c.execute("""CREATE TABLE IF NOT EXISTS anuncios (
-            ref TEXT PRIMARY KEY, titulo TEXT, entidade TEXT,
-            data_pub TEXT, tipo TEXT, url TEXT,
-            cpv TEXT DEFAULT '', prazo TEXT DEFAULT '',
-            preco_base TEXT DEFAULT '', plataforma TEXT DEFAULT '',
-            detalhe_lido INTEGER DEFAULT 0,
-            estado TEXT DEFAULT 'novo', visto_em TEXT)""")
-        c.execute("""CREATE TABLE IF NOT EXISTS slots (
-            dia TEXT, hora TEXT, corrido_em TEXT, novos INTEGER,
-            PRIMARY KEY (dia, hora))""")
-        c.execute("""CREATE TABLE IF NOT EXISTS estado (
-            chave TEXT PRIMARY KEY, valor TEXT)""")
-        c.execute("""CREATE TABLE IF NOT EXISTS cpv_dict (
-            codigo TEXT PRIMARY KEY, codigo8 TEXT, descricao TEXT, simples TEXT)""")
-        c.execute("""CREATE INDEX IF NOT EXISTS ix_cpv_dict_codigo8
-                     ON cpv_dict(codigo8)""")
-        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_data ON anuncios(data_pub)")
-        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_cpv ON anuncios(cpv)")
-        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_estado ON anuncios(estado)")
+def iniciar_empresa(caminho=None):
+    """O esquema do ficheiro de uma empresa. Idempotente, como o
+    `iniciar_db()`: corre a cada arranque, e as migracoes de cada tabela
+    vieram com ela.
+
+    Abre o ficheiro SOZINHO, sem o `radar.db` ao lado: assim um CREATE
+    sem prefixo cai neste ficheiro e nao no da plataforma. O que precisa
+    dos anuncios (a chave da entidade das propostas) fica no
+    `iniciar_db()`, que os tem ao lado.
+    """
+    caminho = caminho or db_da_empresa()
+    os.makedirs(os.path.dirname(caminho), mode=0o700, exist_ok=True)
+    with _abre(caminho) as c:
         c.execute("""CREATE TABLE IF NOT EXISTS etiquetas (
             id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cor TEXT)""")
-        # Os pedidos de acesso do site publico (23/09/2026): quem os
-        # escreve e um visitante sem conta, por isso nao tocam em mais
-        # tabela nenhuma. `avisado` e o que o envio do e-mail respondeu.
-        c.execute("""CREATE TABLE IF NOT EXISTS pedidos_acesso (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, criado_em TEXT,
-            nome TEXT, empresa TEXT, email TEXT, sector TEXT,
-            mensagem TEXT, ip TEXT, avisado TEXT)""")
         c.execute("""CREATE TABLE IF NOT EXISTS anuncio_etiquetas (
             ref TEXT, etiqueta_id INTEGER, PRIMARY KEY (ref, etiqueta_id))""")
-        c.execute("""CREATE TABLE IF NOT EXISTS documentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, nome TEXT,
-            ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
-        c.execute("""CREATE INDEX IF NOT EXISTS ix_documentos_ref
-                     ON documentos(ref)""")
-        c.execute("""CREATE TABLE IF NOT EXISTS analise (
-            ref TEXT PRIMARY KEY, objecto TEXT, equipa TEXT,
-            documentos_proposta TEXT, preco_anormalmente_baixo TEXT,
-            localizacao TEXT, modelo TEXT, fontes TEXT, quando TEXT)""")
-        cols_an = [r["name"] for r in c.execute("PRAGMA table_info(analise)")]
-        for nome in ("preco_anormalmente_baixo", "localizacao"):
-            if nome not in cols_an:
-                c.execute("ALTER TABLE analise ADD COLUMN %s TEXT" % nome)
-        cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
-        for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
-            if nome not in cols_doc:
-                c.execute("ALTER TABLE documentos ADD COLUMN %s %s" % (nome, tipo))
-        # (As migracoes de uso unico do saneamento de 30/08/2026 -- A1,
-        # A2, A3 e a limpeza do indice pecas_fts -- sairam a 14/09/2026:
-        # correram em todas as instalacoes desde a v1.0.0, e uma base
-        # de antes disso ja nao existe. O diario de Agosto guarda-as.)
         # As propostas: o que a EMPRESA esta a fazer, que nao e o mesmo que o
         # estado de um anuncio (etapa 1 do docs/historico/CRM.md,
         # 15/09/2026). Existe por duas razoes que o estado do anuncio nao
@@ -665,9 +669,9 @@ def iniciar_db():
                   "WHERE COALESCE(entidade_chave,'') != '' "
                   "AND entidade_chave NOT LIKE 'n:%' "
                   "AND entidade_chave NOT GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'")
-        # (a chave das propostas enche-se mais abaixo, depois das
-        # colunas do `anuncios`: o `nif` é uma delas, e aqui ainda não
-        # existe numa base antiga)
+        # (a chave das propostas enche-se no `iniciar_db()`, depois das
+        # colunas do `anuncios`: o `nif` é uma delas, e este ficheiro
+        # não tem o `anuncios` ao lado)
         # Pessoas e rasto de quem fez o que. Ha uma so pessoa hoje, mas a
         # aplicacao ha-de ser partilhada, e historico nao se inventa depois.
         c.execute("""CREATE TABLE IF NOT EXISTS pessoas (
@@ -697,18 +701,10 @@ def iniciar_db():
             quem TEXT, criado_em TEXT)""")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alertas_envio
                      ON alertas_vistos(enviado_em)""")
-        # 13/09/2026: os filtros guardados sem alerta deixaram de ter
-        # ecra (decisao do Afonso: apagam-se, nao se convertem). Uma vez,
-        # por marca -- desligar um alerta depois disto deixa-o na tabela
-        # com alerta=0, e nao pode ser apagado no arranque seguinte.
-        if not c.execute("SELECT 1 FROM estado "
-                         "WHERE chave='filtros_sem_alerta_apagados'").fetchone():
-            c.execute("DELETE FROM alertas_vistos WHERE filtro_id IN "
-                      "(SELECT id FROM filtros_guardados "
-                      " WHERE COALESCE(alerta,0)=0)")
-            c.execute("DELETE FROM filtros_guardados WHERE COALESCE(alerta,0)=0")
-            c.execute("INSERT OR REPLACE INTO estado "
-                      "VALUES ('filtros_sem_alerta_apagados','1')")
+        # (A limpeza de 13/09/2026 dos filtros guardados sem alerta
+        # saiu a 23/09/2026: corria uma vez, por marca na `estado`,
+        # e correu em todas as instalacoes; um ficheiro de empresa
+        # novo nao tem filtro nenhum para limpar.)
         c.execute("""CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT, proposta_id INTEGER)""")
@@ -724,6 +720,140 @@ def iniciar_db():
             c.execute("ALTER TABLE historico ADD COLUMN proposta_id INTEGER")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_historico_proposta
                      ON historico(proposta_id)""")
+        # As entidades seguidas (B10) vivem na base de trabalho e nao no
+        # corpus: o corpus refaz-se com --contratos, a triagem nao. O
+        # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
+        # identidade e a chave, como sempre.
+        c.execute("""CREATE TABLE IF NOT EXISTS entidades_seguidas (
+            chave TEXT PRIMARY KEY, nome TEXT, desde TEXT)""")
+        # A fila do resumo das seguidas, com o mesmo par
+        # reconhecer/enviar dos alertas -- e o mesmo ACERVO ao seguir,
+        # senao o primeiro resumo trazia tudo o que a entidade ja tem.
+        c.execute("""CREATE TABLE IF NOT EXISTS seguidas_vistos (
+            chave TEXT, ref TEXT, visto_em TEXT, enviado_em TEXT,
+            PRIMARY KEY (chave, ref))""")
+        # As marcas que sao da empresa (MARCAS_DA_EMPRESA): a mesma
+        # forma da `estado`, noutro ficheiro.
+        c.execute("""CREATE TABLE IF NOT EXISTS marcas_da_empresa (
+            chave TEXT PRIMARY KEY, valor TEXT)""")
+        traduzir_filtros_guardados(c)
+        empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)
+    so_o_dono(caminho)
+
+
+def separar_empresa():
+    """Leva as tabelas da empresa do `radar.db` para o ficheiro dela. So
+    faz alguma coisa uma vez, na primeira base que ainda as tenha la.
+
+    Pela ordem que nao perde nada: uma copia com nome do `radar.db`
+    antes de tocar em qualquer coisa; o esquema da empresa criado pelo
+    mesmo `iniciar_empresa()` de sempre; as linhas copiadas coluna a
+    coluna; as contagens comparadas dos dois lados; e **so entao** o
+    DROP no `radar.db`. Qualquer diferenca rebenta antes do DROP, e o
+    `radar.db` fica como estava.
+
+    Idempotente mesmo a meio: se a copia das linhas ficou gravada e o
+    DROP nao (os dois ficheiros nao fazem commit juntos), a volta
+    seguinte encontra as mesmas contagens dos dois lados e so apaga.
+    Devolve (copia, {tabela: linhas}), ou None se nao havia nada.
+    """
+    if not os.path.exists(DB):
+        return None
+    with _abre(DB) as c:
+        la = [t for t in TABELAS_DA_EMPRESA if c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (t,)).fetchone()]
+    if not la:
+        return None
+    copia = copia_de_seguranca_com_nome("antes-da-empresa")
+    iniciar_empresa()
+    levadas = {}
+    with liga() as c:
+        for t in la:
+            de_la = [r["name"] for r in c.execute("PRAGMA main.table_info(%s)" % t)]
+            de_ca = {r["name"] for r in c.execute("PRAGMA emp.table_info(%s)" % t)}
+            fora = [n for n in de_la if n not in de_ca]
+            if fora:
+                raise RuntimeError("a %s do radar.db tem colunas que a da empresa "
+                                   "não tem (%s); nada se apagou" % (t, ", ".join(fora)))
+            n_la = c.execute("SELECT COUNT(*) FROM main.%s" % t).fetchone()[0]
+            n_ca = c.execute("SELECT COUNT(*) FROM emp.%s" % t).fetchone()[0]
+            if n_ca and n_ca != n_la:
+                raise RuntimeError("a %s da empresa já tem %d linhas e a do radar.db "
+                                   "tem %d; nada se apagou" % (t, n_ca, n_la))
+            if not n_ca:
+                cols = ", ".join('"%s"' % n for n in de_la)
+                c.execute("INSERT INTO emp.%s (%s) SELECT %s FROM main.%s"
+                          % (t, cols, cols, t))
+            n_ca = c.execute("SELECT COUNT(*) FROM emp.%s" % t).fetchone()[0]
+            if n_ca != n_la:
+                raise RuntimeError("a %s ficou com %d linhas na empresa e %d no "
+                                   "radar.db; nada se apagou" % (t, n_ca, n_la))
+            levadas[t] = n_la
+        marcas = ",".join("?" * len(MARCAS_DA_EMPRESA))
+        c.execute("INSERT OR REPLACE INTO emp.marcas_da_empresa "
+                  "SELECT chave, valor FROM main.estado WHERE chave IN (%s)"
+                  % marcas, MARCAS_DA_EMPRESA)
+        c.execute("DELETE FROM main.estado WHERE chave IN (%s)" % marcas,
+                  MARCAS_DA_EMPRESA)
+        c.commit()
+        for t in la:
+            c.execute("DROP TABLE main.%s" % t)
+    return copia, levadas
+
+
+def iniciar_db():
+    arrumar_pecas()
+    separar_empresa()
+    iniciar_empresa()
+    with liga() as c:
+        c.execute("""CREATE TABLE IF NOT EXISTS anuncios (
+            ref TEXT PRIMARY KEY, titulo TEXT, entidade TEXT,
+            data_pub TEXT, tipo TEXT, url TEXT,
+            cpv TEXT DEFAULT '', prazo TEXT DEFAULT '',
+            preco_base TEXT DEFAULT '', plataforma TEXT DEFAULT '',
+            detalhe_lido INTEGER DEFAULT 0,
+            estado TEXT DEFAULT 'novo', visto_em TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS slots (
+            dia TEXT, hora TEXT, corrido_em TEXT, novos INTEGER,
+            PRIMARY KEY (dia, hora))""")
+        c.execute("""CREATE TABLE IF NOT EXISTS estado (
+            chave TEXT PRIMARY KEY, valor TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS cpv_dict (
+            codigo TEXT PRIMARY KEY, codigo8 TEXT, descricao TEXT, simples TEXT)""")
+        c.execute("""CREATE INDEX IF NOT EXISTS ix_cpv_dict_codigo8
+                     ON cpv_dict(codigo8)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_data ON anuncios(data_pub)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_cpv ON anuncios(cpv)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_estado ON anuncios(estado)")
+        # Os pedidos de acesso do site publico (23/09/2026): quem os
+        # escreve e um visitante sem conta, por isso nao tocam em mais
+        # tabela nenhuma. `avisado` e o que o envio do e-mail respondeu.
+        c.execute("""CREATE TABLE IF NOT EXISTS pedidos_acesso (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, criado_em TEXT,
+            nome TEXT, empresa TEXT, email TEXT, sector TEXT,
+            mensagem TEXT, ip TEXT, avisado TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS documentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, nome TEXT,
+            ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
+        c.execute("""CREATE INDEX IF NOT EXISTS ix_documentos_ref
+                     ON documentos(ref)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS analise (
+            ref TEXT PRIMARY KEY, objecto TEXT, equipa TEXT,
+            documentos_proposta TEXT, preco_anormalmente_baixo TEXT,
+            localizacao TEXT, modelo TEXT, fontes TEXT, quando TEXT)""")
+        cols_an = [r["name"] for r in c.execute("PRAGMA table_info(analise)")]
+        for nome in ("preco_anormalmente_baixo", "localizacao"):
+            if nome not in cols_an:
+                c.execute("ALTER TABLE analise ADD COLUMN %s TEXT" % nome)
+        cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
+        for nome, tipo in (("texto", "TEXT"), ("texto_estado", "TEXT")):
+            if nome not in cols_doc:
+                c.execute("ALTER TABLE documentos ADD COLUMN %s %s" % (nome, tipo))
+        # (As migracoes de uso unico do saneamento de 30/08/2026 -- A1,
+        # A2, A3 e a limpeza do indice pecas_fts -- sairam a 14/09/2026:
+        # correram em todas as instalacoes desde a v1.0.0, e uma base
+        # de antes disso ja nao existe. O diario de Agosto guarda-as.)
         # As alteracoes que o DR fez a anuncios ja lidos (B05): a fila do
         # resumo diario, com a marca de avisado -- o reconhecer e o
         # enviar separados, como nos alertas. O historico da ficha conta
@@ -745,18 +875,6 @@ def iniciar_db():
         c.execute("""DELETE FROM erros WHERE id NOT IN (
             SELECT e2.id FROM erros e2 WHERE e2.tipo = erros.tipo
             ORDER BY e2.id DESC LIMIT 200)""")
-        # As entidades seguidas (B10) vivem na base de trabalho e nao no
-        # corpus: o corpus refaz-se com --contratos, a triagem nao. O
-        # nome guarda-se por comodidade (mostrar sem ir ao corpus); a
-        # identidade e a chave, como sempre.
-        c.execute("""CREATE TABLE IF NOT EXISTS entidades_seguidas (
-            chave TEXT PRIMARY KEY, nome TEXT, desde TEXT)""")
-        # A fila do resumo das seguidas, com o mesmo par
-        # reconhecer/enviar dos alertas -- e o mesmo ACERVO ao seguir,
-        # senao o primeiro resumo trazia tudo o que a entidade ja tem.
-        c.execute("""CREATE TABLE IF NOT EXISTS seguidas_vistos (
-            chave TEXT, ref TEXT, visto_em TEXT, enviado_em TEXT,
-            PRIMARY KEY (chave, ref))""")
         colunas = [r["name"] for r in c.execute("PRAGMA table_info(anuncios)")]
         # Migracoes idempotentes: correm sempre, nao fazem nada se ja existirem.
         for nome, tipo in (("texto", "TEXT"),
@@ -897,8 +1015,6 @@ def iniciar_db():
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_entidade "
                   "ON anuncios(entidade)")
         largar_o_que_a_escada_substituiu(c)
-        traduzir_filtros_guardados(c)
-        empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)
         contas.iniciar_tabelas(c)   # utilizadores, sessoes, o trinco do login
         # B12, uma vez, por marca: os textos extraidos antes das marcas
         # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
@@ -1082,6 +1198,20 @@ def marca(chave, valor):
 def le_marca(chave, omissao=""):
     with liga() as c:
         linha = c.execute("SELECT valor FROM estado WHERE chave=?",
+                          (chave,)).fetchone()
+    return linha["valor"] if linha else omissao
+
+
+def marca_da_empresa(chave, valor):
+    """Uma marca da empresa (MARCAS_DA_EMPRESA), no ficheiro dela."""
+    with liga() as c:
+        c.execute("INSERT OR REPLACE INTO marcas_da_empresa VALUES (?,?)",
+                  (chave, str(valor)))
+
+
+def le_marca_da_empresa(chave, omissao=""):
+    with liga() as c:
+        linha = c.execute("SELECT valor FROM marcas_da_empresa WHERE chave=?",
                           (chave,)).fetchone()
     return linha["valor"] if linha else omissao
 
@@ -6140,9 +6270,11 @@ COPIAS = os.path.join(BASE_DIR, "copias")
 
 
 def copia_de_seguranca(guardar=7):
-    """Copia o radar.db, e deita fora as mais velhas.
+    """Copia o radar.db e o ficheiro da empresa, e deita fora as mais
+    velhas (sete de cada). Desde a F1 (23/09/2026) o trabalho da empresa
+    e o `empresa-<id>-<data>.db` -- ver copia_da_empresa().
 
-    So o radar.db: o contratos.db refaz-se com `--contratos` e a pasta
+    Nada mais: o contratos.db refaz-se com `--contratos` e a pasta
     pecas/ volta a descarregar-se, mas a **triagem, as fases do
     quadro, os responsaveis e o historico nao se recuperam de lado
     nenhum** -- nao estao no git, por serem uma base, e nao havia copia
@@ -6164,19 +6296,38 @@ def copia_de_seguranca(guardar=7):
     # dia nao valem o dobro.
     destino = os.path.join(
         COPIAS, "radar-%s.db" % datetime.now().strftime("%Y-%m-%d"))
-    if os.path.exists(destino):
-        return destino
-    with liga() as c:
-        c.execute("VACUUM INTO ?", (destino,))
-    velhas = sorted(f for f in os.listdir(COPIAS)
-                    if re.fullmatch(r"radar-[\d-]+\.db", f))
-    for f in velhas[:-guardar] if guardar else []:
-        try:
-            os.remove(os.path.join(COPIAS, f))
-        except OSError:
-            pass                        # permissoes, disco: nao se estraga
+    _vacuum_para(destino)
+    for padrao in (r"radar-[\d-]+\.db", r"empresa-\d+-[\d-]+\.db"):
+        velhas = sorted(f for f in os.listdir(COPIAS) if re.fullmatch(padrao, f))
+        for f in velhas[:-guardar] if guardar else []:
+            try:
+                os.remove(os.path.join(COPIAS, f))
+            except OSError:
+                pass                    # permissoes, disco: nao se estraga
                                         # a copia nova por causa das velhas
     return destino
+
+
+def copia_da_empresa(copia):
+    """A copia do ficheiro da empresa que vai com uma copia do radar.db:
+    `radar-X.db` -> `empresa-<id>-X.db`, na mesma pasta. Desde a F1
+    (23/09/2026) o trabalho da empresa ja nao esta no radar.db, e uma
+    copia so dele deixava de fora a unica coisa que nao se recupera."""
+    pasta, nome = os.path.split(copia)
+    return os.path.join(pasta, nome.replace(
+        "radar-", "empresa-%d-" % EMPRESA_ACTIVA, 1))
+
+
+def _vacuum_para(destino):
+    """O radar.db para `destino` e a empresa para `copia_da_empresa()`,
+    cada um so se ainda nao existir -- a segunda volta do dia nao refaz
+    nada, e uma empresa que faltou a primeira faz-se na segunda."""
+    da_empresa = copia_da_empresa(destino)
+    with liga() as c:
+        if not os.path.exists(destino):
+            c.execute("VACUUM INTO ?", (destino,))
+        if os.path.exists(db_da_empresa()) and not os.path.exists(da_empresa):
+            c.execute("VACUUM emp INTO ?", (da_empresa,))
 
 
 def copia_de_seguranca_com_nome(marca_nome):
@@ -6185,10 +6336,10 @@ def copia_de_seguranca_com_nome(marca_nome):
     os.makedirs(COPIAS, exist_ok=True)
     destino = os.path.join(COPIAS, "radar-%s-%s.db"
                            % (marca_nome, datetime.now().strftime("%Y-%m-%d")))
-    if os.path.exists(destino):
-        os.remove(destino)
-    with liga() as c:
-        c.execute("VACUUM INTO ?", (destino,))
+    for f in (destino, copia_da_empresa(destino)):
+        if os.path.exists(f):
+            os.remove(f)
+    _vacuum_para(destino)
     return destino
 
 
@@ -6226,7 +6377,7 @@ def repor_estado_zero():
                 n[tabela] = "(não existe)"
     gravar_config({"interesse_activo": False, "interesse_cpv": "", "interesse_cpv_excl": "",
                    "email": {"para": ""}})
-    marca("ultimo_resumo_estado", "")
+    marca_da_empresa("ultimo_resumo_estado", "")
     return n
 
 
@@ -6260,7 +6411,10 @@ def ultima_copia():
     return os.path.join(COPIAS, nomes[-1]) if nomes else None
 
 
-TABELAS_DO_ENSAIO = ("anuncios", "historico", "utilizadores", "etiquetas")
+# As da empresa (historico, etiquetas, propostas) contam-se na copia do
+# ficheiro dela, que o ensaio junta como `emp` -- ver copia_da_empresa().
+TABELAS_DO_ENSAIO = ("anuncios", "historico", "utilizadores", "etiquetas",
+                     "propostas")
 
 
 def ensaiar_copia(copia=None):
@@ -6299,8 +6453,15 @@ def ensaiar_copia(copia=None):
     # mode=ro: o ensaio nunca escreve na copia -- nem um -journal ao lado
     uri = "file:%s?mode=ro" % os.path.abspath(copia).replace("?", "%3F")
     lida = sqlite3.connect(uri, uri=True)
+    da_empresa = copia_da_empresa(copia)
     try:
         integridade = lida.execute("PRAGMA integrity_check").fetchone()[0]
+        if os.path.exists(da_empresa):
+            lida.execute("ATTACH DATABASE ? AS emp", (
+                "file:%s?mode=ro" % os.path.abspath(da_empresa).replace("?", "%3F"),))
+            if integridade == "ok":
+                integridade = lida.execute(
+                    "PRAGMA emp.integrity_check").fetchone()[0]
         da_copia = conta(lida)
     finally:
         lida.close()
@@ -7123,7 +7284,7 @@ def enviar_resumo(cfg=None, forcar=False):
     resumo sai uma, senao eram dois e-mails com metade das coisas."""
     cfg = cfg or ler_config()
     hoje = datetime.now().strftime("%Y-%m-%d")
-    if not forcar and le_marca("ultimo_resumo", "") == hoje:
+    if not forcar and le_marca_da_empresa("ultimo_resumo", "") == hoje:
         return False, "o resumo de hoje já saiu"
     achados = alertas_por_enviar()
     alteradas = alteracoes_por_avisar()
@@ -7161,12 +7322,12 @@ def enviar_resumo(cfg=None, forcar=False):
         marcar_alertas_enviados(achados)
         marcar_alteracoes_avisadas(alteradas)
         marcar_seguidas_enviadas(seguidas)
-        marca("ultimo_resumo", hoje)
-    marca("ultimo_resumo_estado",
+        marca_da_empresa("ultimo_resumo", hoje)
+    marca_da_empresa("ultimo_resumo_estado",
           porque if bem else
           ("só no AVISOS.txt (%s)" % porque) if sem_canal else
           "por enviar (%s)" % porque)
-    marca("ultimo_resumo_quantos", str(total))
+    marca_da_empresa("ultimo_resumo_quantos", str(total))
     return entregue, porque
 
 
@@ -14593,7 +14754,7 @@ def _caixa_email(cfg):
     senha_por_variavel = bool((os.environ.get("RADAR_EMAIL_SENHA") or "").strip())
     tem_conta = bool((e.get("de") or "").strip() and (e.get("servidor") or "").strip())
     pronto = bool((e.get("para") or "").strip() and tem_conta and tem_senha)
-    estado = le_marca("ultimo_resumo_estado", "")
+    estado = le_marca_da_empresa("ultimo_resumo_estado", "")
 
     envio = [
         ("Conta que envia", e.get("de") or "por configurar", tem_conta),
