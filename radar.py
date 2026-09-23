@@ -29,6 +29,7 @@ import hashlib
 import html
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -23038,9 +23039,12 @@ RX_EMAIL = re.compile(r"^[^@\s<>\"']+@[^@\s<>\"']+\.[^@\s<>\"']+$")
 
 
 def operador_completo(cfg=None):
-    """O `operador` do config.json, se tiver os tres campos; senao None."""
+    """O `operador` do config.json, se tiver o nome e a morada; senao
+    None. O NIF e opcional (23/09/2026, decisao dele): o operador e uma
+    pessoa em nome individual, e o NIF pessoal nao vai para a internet.
+    Ao das empresas clientes o NIF continua a ser pedido."""
     op = (cfg or ler_config()).get("operador") or {}
-    if all((op.get(k) or "").strip() for k in ("nome", "nif", "morada")):
+    if all((op.get(k) or "").strip() for k in ("nome", "morada")):
         return op
     return None
 
@@ -23078,8 +23082,9 @@ def pagina_legal(qual):
             texto = f.read()
     except OSError:
         return None
-    for marca_, chave in (("{{NOME}}", "nome"), ("{{NIF}}", "nif"),
-                          ("{{MORADA}}", "morada")):
+    nif = (op.get("nif") or "").strip()
+    texto = texto.replace("{{NIF}}", ", NIF " + html.escape(nif) if nif else "")
+    for marca_, chave in (("{{NOME}}", "nome"), ("{{MORADA}}", "morada")):
         texto = texto.replace(marca_, html.escape(op[chave].strip()))
     return Response(texto, mimetype="text/html")
 
@@ -25050,6 +25055,11 @@ def main():
     # aberta cada reinicio do servico abria mais um separador.
     if "--sem-browser" not in sys.argv:
         threading.Thread(target=abrir_no_browser, daemon=True).start()
+    # Sem o registo de cada pedido (23/09/2026, pedido dele: «tudo deve
+    # ficar limpo de marcas de uso»): o werkzeug escrevia uma linha por
+    # pedido, com o IP de quem o fez, no registo do systemd. Os avisos e
+    # os erros continuam.
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.run(host=ENDERECO, port=PORTA, debug=False)
 
 
