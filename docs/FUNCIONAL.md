@@ -496,8 +496,11 @@ para qualquer ranhura.
 
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
-Em composição de dossier: uma coluna, com o cabeçalho fino e o índice
-presos ao rolar. Tem:
+Em **duas colunas** desde 23/09/2026 (o `EcraFicha` do sistema de
+desenho): à esquerda o anúncio (identidade, essencial, lotes, peças,
+desfecho, homólogos e mercado), à direita o trabalho (a nossa proposta,
+contactos, histórico, responsável); numa só abaixo de 1100px. O
+cabeçalho fino e o índice ficam presos ao rolar. Tem:
 
 - Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes)
 - O **texto** do anúncio
