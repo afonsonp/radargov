@@ -569,7 +569,7 @@ class TestEPdf(unittest.TestCase):
         # o "%PDF" fica no byte 46 e a janela de 1 KB apanhava-o: o
         # extrair_textos mandava o pacote ao pypdf e nunca o abria
         import io, zipfile
-        saco = io.BytesIO()
+        saco = radar.io.BytesIO()
         with zipfile.ZipFile(saco, "w") as z:
             z.writestr("CE_Clausulas.pdf", b"%PDF-1.7 conteudo")
         self.assertFalse(radar.e_pdf(self.caminho(saco.getvalue())))
@@ -608,6 +608,58 @@ class TestTextoDoZip(unittest.TestCase):
         _, estado = radar.texto_do_zip("nao-existe-de-certeza.zip",
                                        {"encargos"})
         self.assertTrue(estado.startswith("erro"), estado)
+
+    # -- 23/09/2026: o "programa do concurso.zip" que vinha DENTRO do ZIP
+    # da plataforma ficava fechado, e os .docx nao se liam. Ele viu-o
+    # numa ficha: «esse doc nao conseguimos ler».
+
+    @staticmethod
+    def docx(texto):
+        saco = radar.io.BytesIO()
+        import zipfile
+        with zipfile.ZipFile(saco, "w") as z:
+            z.writestr("word/document.xml",
+                       "<w:document><w:body><w:p><w:r><w:t>%s</w:t></w:r></w:p>"
+                       "</w:body></w:document>" % texto)
+        return saco.getvalue()
+
+    @staticmethod
+    def zip_em_bytes(ficheiros):
+        saco = radar.io.BytesIO()
+        import zipfile
+        with zipfile.ZipFile(saco, "w") as z:
+            for nome, dados in ficheiros:
+                z.writestr(nome, dados)
+        return saco.getvalue()
+
+    def test_o_zip_de_dentro_abre_e_o_docx_le_se(self):
+        dentro = self.zip_em_bytes([("Programa_de_Concurso.docx",
+                                     self.docx("O objecto e a manutencao"))])
+        caminho = self.zip_com([("programaconcurso.zip", dentro),
+                                ("leia.txt", b"nada")])
+        texto, estado = radar.texto_do_zip(caminho, set())
+        self.assertEqual(estado, "ok")
+        self.assertIn("O objecto e a manutencao", texto)
+        self.assertIn("programaconcurso.zip/Programa_de_Concurso.docx", texto)
+
+    def test_nao_se_desce_para_sempre(self):
+        # um ZIP dentro de um ZIP dentro de um ZIP... para no fundo
+        camada = self.zip_em_bytes([("Programa.docx", self.docx("no fundo"))])
+        for _ in range(radar.FUNDO_DOS_ZIP + 2):
+            camada = self.zip_em_bytes([("mais.zip", camada)])
+        caminho = self.zip_com([("pecas.zip", camada)])
+        self.assertEqual(radar.texto_do_zip(caminho, set()), ("", "não é PDF"))
+
+    def test_um_zip_de_nome_generico_da_ao_modelo_o_programa_de_dentro(self):
+        caminho = self.zip_com([("PECAS/Programa_de_Concurso.docx",
+                                 self.docx("Criterio de adjudicacao: preco")),
+                                ("PECAS/Anexo_I.docx", self.docx("modelo de declaracao"))])
+        texto, _ = radar.texto_do_zip(caminho, set())
+        docs = [{"nome": "1_ACINGOV_PECAS_DO_PROCEDIMENTO.zip", "texto": texto}]
+        recorte, usados = radar.pecas_para_analise(docs, "programa", ())
+        self.assertIn("Criterio de adjudicacao", recorte)
+        self.assertNotIn("modelo de declaracao", recorte)
+        self.assertTrue(usados and "Programa_de_Concurso.docx" in usados[0], usados)
 
 
 class TestPecaOuAcessorio(unittest.TestCase):

@@ -1131,6 +1131,20 @@ def iniciar_db():
             c.execute("INSERT OR REPLACE INTO estado "
                       "VALUES ('preliminares_com_detalhe','1')")
         refazer = []
+        # 23/09/2026: os ZIP de nome que nao era de peca, os ZIP dentro de
+        # ZIP e os .docx ficavam «não é PDF», e isso e um veredicto que o
+        # extrair_textos nao retenta. Uma vez, por marca, voltam a por ler.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='pecas_dentro_dos_zip'").fetchone():
+            for d in c.execute("SELECT id, ref FROM documentos WHERE "
+                               "texto_estado='não é PDF' AND (lower(nome) LIKE "
+                               "'%.zip' OR lower(nome) LIKE '%.docx')").fetchall():
+                c.execute("UPDATE documentos SET texto_estado=NULL WHERE id=?",
+                          (d["id"],))
+                if d["ref"] not in refazer:
+                    refazer.append(d["ref"])
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('pecas_dentro_dos_zip','1')")
         if not c.execute("SELECT 1 FROM estado "
                          "WHERE chave='texto_com_paginas'").fetchone():
             for d in c.execute("SELECT id, ref, nome FROM documentos "
@@ -5085,44 +5099,126 @@ def e_pdf(caminho):
     return b"%PDF" in cabeca
 
 
+# Os ZIP abrem-se por dentro ate este fundo, e nao mais: um ZIP dentro
+# de um ZIP e comum (a acingov entrega as pecas num ZIP que traz o
+# "Programa_do_Procedimento.zip"), tres niveis ja e raro, e sem tecto um
+# ficheiro-armadilha (um ZIP que se abre em si proprio) nao acabava.
+FUNDO_DOS_ZIP = 3
+# E o total descomprimido que se aceita ler de um ZIP, somado por todos
+# os niveis: a mesma defesa, contra um ZIP pequeno que se abre em
+# gigabytes.
+TECTO_DOS_ZIP = 4 * MAX_FICHEIRO
+# O marcador de cada ficheiro dentro do texto de um ZIP (23/09/2026).
+# E por ele que a leitura pelo modelo escolhe, num ZIP de nome generico,
+# os ficheiros de dentro que sao o Caderno de Encargos ou o Programa.
+MARCA_DO_FICHEIRO = "=== ficheiro: %s ==="
+RX_MARCA_DO_FICHEIRO = re.compile(r"^=== ficheiro: (.+?) ===$", re.M)
+
+
+def texto_do_docx(dados):
+    """(texto, estado) de um .docx, so com a biblioteca padrao: o .docx
+    e um ZIP, e o texto esta em word/document.xml, paragrafo a
+    paragrafo. Os anexos das pecas vem muitas vezes assim."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(dados)) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "replace")
+    except (zipfile.BadZipFile, KeyError, OSError) as erro:
+        return "", "erro: %s" % str(erro)[:80]
+    paragrafos = []
+    for p in re.findall(r"<w:p[ >].*?</w:p>", xml, re.S):
+        partes = re.findall(r"<w:t(?: [^>]*)?>(.*?)</w:t>", p, re.S)
+        paragrafos.append(html.unescape("".join(partes)))
+    texto = "\n".join(paragrafos).strip()
+    return (texto, "ok") if texto else ("", "scan")
+
+
+def ficheiros_do_zip(dados, fundo=0, gasto=None):
+    """[(nome, bytes)] dos PDF e .docx de um ZIP, entrando nos ZIP de
+    dentro ate FUNDO_DOS_ZIP, e com o total descomprimido preso ao
+    TECTO_DOS_ZIP. O nome leva o caminho dos ZIP de fora
+    ("Programa.zip/PP.pdf"), para se saber de onde veio."""
+    gasto = gasto if gasto is not None else [0]
+    saida = []
+    with zipfile.ZipFile(io.BytesIO(dados)) as z:
+        for info in z.infolist():
+            nome = info.filename
+            baixo = nome.lower()
+            if info.is_dir() or info.file_size > MAX_FICHEIRO:
+                continue
+            if not baixo.endswith((".pdf", ".docx", ".zip")):
+                continue
+            if gasto[0] + info.file_size > TECTO_DOS_ZIP:
+                break
+            gasto[0] += info.file_size
+            conteudo = z.read(info)
+            if baixo.endswith(".zip"):
+                if fundo + 1 < FUNDO_DOS_ZIP:
+                    try:
+                        saida += [(nome + "/" + n, d) for n, d in
+                                  ficheiros_do_zip(conteudo, fundo + 1, gasto)]
+                    except zipfile.BadZipFile:
+                        pass
+            else:
+                saida.append((nome, conteudo))
+    return saida
+
+
 def texto_do_zip(caminho, papeis):
     """O texto das peças que vierem dentro de um ZIP.
 
     Ha entidades que entregam o Caderno de Encargos como
     "1_CE_Clausulas_Juridicas_Tecnicas.zip", com as clausulas juridicas
     num PDF e as tecnicas noutro. Sem abrir, ficavam por ler.
+
+    Desde 23/09/2026 abre tambem os ZIP de dentro (o "programa do
+    concurso.zip" que vinha dentro do ZIP da plataforma ficava fechado)
+    e le os .docx, e cada ficheiro leva a sua marca (MARCA_DO_FICHEIRO)
+    no texto. O `papeis` escolhe, como antes: se algum ficheiro de
+    dentro for da peca que se procura, sao esses; senao, todos.
     """
     try:
-        with zipfile.ZipFile(caminho) as z:
-            dentro = [n for n in z.namelist() if n.lower().endswith(".pdf")]
-            if not dentro:
-                return "", "não é PDF"
-            # Se algum PDF de dentro for da peça que se procura, é esse
-            # que conta; senão vão todos, que o ZIP já se chama assim.
-            proprios = [n for n in dentro if papeis_da_peca(n) & papeis]
-            partes, estados = [], []
-            with tempfile.TemporaryDirectory() as temporaria:
-                for nome in (proprios or dentro):
-                    alvo = os.path.join(
-                        temporaria, nome_seguro(os.path.basename(nome)))
-                    with open(alvo, "wb") as f:
-                        f.write(z.read(nome))
-                    texto, estado = texto_do_pdf(alvo)
-                    estados.append(estado)
-                    if estado == "ok":
-                        partes.append(texto)
+        with open(caminho, "rb") as f:
+            dentro = ficheiros_do_zip(f.read())
     except (zipfile.BadZipFile, OSError, KeyError) as erro:
         return "", "erro: %s" % str(erro)[:80]
+    if not dentro:
+        return "", "não é PDF"
+    proprios = [(n, d) for n, d in dentro
+                if papeis and papeis_da_peca(os.path.basename(n)) & papeis]
+    partes, estados = [], []
+    with tempfile.TemporaryDirectory() as temporaria:
+        for nome, dados in (proprios or dentro):
+            if nome.lower().endswith(".docx"):
+                texto, estado = texto_do_docx(dados)
+            else:
+                alvo = os.path.join(temporaria, nome_seguro(os.path.basename(nome)))
+                with open(alvo, "wb") as f:
+                    f.write(dados)
+                texto, estado = texto_do_pdf(alvo)
+            estados.append(estado)
+            if estado == "ok":
+                partes.append(MARCA_DO_FICHEIRO % nome + "\n" + texto)
     if partes:
-        # A mesma marca de pagina entre PDFs do mesmo ZIP: a numeracao
-        # segue pelo conjunto fora, e a ficha diz "pag. N do texto
-        # extraido" -- num ZIP com varios PDFs nao ha outra verdade.
+        # A mesma marca de pagina entre ficheiros do mesmo ZIP: a
+        # numeracao segue pelo conjunto fora, e a ficha diz "pag. N do
+        # texto extraido" -- num ZIP com varios PDFs nao ha outra verdade.
         return "\n\f\n".join(partes), "ok"
     # Nao sai texto por duas razoes muito diferentes, e dize-las trocadas
     # manda a pessoa buscar a ferramenta errada: um PDF cifrado nao e
     # uma digitalizacao.
     erros = [e for e in estados if e.startswith("erro")]
     return "", (erros[0] if erros else "scan")
+
+
+def ficheiros_no_texto(texto):
+    """[(nome, texto)] dos ficheiros de um texto de ZIP, pelas marcas.
+    Um texto sem marcas (de antes de 23/09/2026) e um ficheiro so."""
+    marcas = list(RX_MARCA_DO_FICHEIRO.finditer(texto or ""))
+    if not marcas:
+        return []
+    return [(m.group(1), texto[m.end():(marcas[i + 1].start()
+                                        if i + 1 < len(marcas) else len(texto))])
+            for i, m in enumerate(marcas)]
 
 
 def extrair_textos(ref):
@@ -5152,7 +5248,13 @@ def extrair_textos(ref):
             estado, texto = "não é PDF", ""
         elif e_pdf(caminho):
             texto, estado = texto_do_pdf(caminho)
-        elif papeis and zipfile.is_zipfile(caminho):
+        elif d["nome"].lower().endswith(".docx"):
+            with open(caminho, "rb") as f:
+                texto, estado = texto_do_docx(f.read())
+        elif zipfile.is_zipfile(caminho):
+            # Todos os ZIP, e nao so os de nome de peca (23/09/2026): a
+            # "Resposta a Pedido de Esclarecimentos.zip" e o ZIP generico
+            # da plataforma ficavam fechados, com PDFs la dentro.
             texto, estado = texto_do_zip(caminho, papeis)
         else:
             estado, texto = "não é PDF", ""
@@ -5670,8 +5772,22 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     mil.
     """
     partes, usados = [], []
+    # Um ZIP de nome generico (o "PECAS_DO_PROCEDIMENTO.zip" da
+    # plataforma) nao diz pelo nome o que e; os ficheiros de dentro
+    # dizem, e o texto traz o nome de cada um (MARCA_DO_FICHEIRO). Assim
+    # o Programa que vinha dentro dele chega ao modelo (23/09/2026).
+    # E num ZIP de nome de peca, o mesmo: os ficheiros de dentro que sao
+    # da peca, e nao os anexos que vem com eles; so se nenhum de dentro
+    # o for e que vai o ZIP inteiro, como ate aqui.
+    abertos = []
     for d in docs:
-        if quais not in papeis_da_peca(d["nome"]):
+        escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx}
+                      for n, tx in ficheiros_no_texto(d["texto"])
+                      if quais in papeis_da_peca(os.path.basename(n))]
+        abertos += escolhidos or [d]
+    docs = abertos
+    for d in docs:
+        if quais not in papeis_da_peca(os.path.basename(d["nome"])):
             continue
         limpo = sem_indice(d["texto"])
         partes.append("### %s\n%s" % (
