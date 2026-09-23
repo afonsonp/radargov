@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 23 de setembro de 2026**, sobre a `v1.13.0`. Este
+> **Última revisão: 23 de setembro de 2026**, sobre a `v1.14.0`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -113,9 +113,9 @@ as exactas e salta as outras.
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
-| `utilizadores` | **2** | Quem entra |
+| `utilizadores` | **1** | Quem entra |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
-| `estado` | 15 | Marcas do sistema (última verificação, migrações feitas) |
+| `estado` | 17 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
