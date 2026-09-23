@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **23 de setembro de 2026**.
+Última actualização: **24 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -30,8 +30,10 @@ publicados no Diário da República, série II, **parte L**. Guarda tudo
 numa base SQLite e mostra num painel Flask. Verifica sozinha de hora a
 hora, das 08:00 às 20:00, por um temporizador do systemd, corre em Ubuntu em
 `~/Desktop/radar`, e responde em `http://127.0.0.1:8765` e, por um túnel
-com nome da Cloudflare, em **`https://radargov.pt`**. Tem login e dois
-papéis (`admin` e `tester`).
+com nome da Cloudflare, em **`https://radargov.pt`**. Tem login e três
+níveis: o dono da plataforma, e o `admin` e o `tester` de cada empresa.
+**É multi-empresa desde 23/09/2026, e hoje não tem nenhuma**: a LATD
+saiu a pedido dele, para voltar a entrar pelo pedido de acesso do site.
 
 Substitui a Armilar, produto da Vortal que a empresa pagava a 200 euros
 por mês. Princípio de desenho, decidido depois de uma primeira versão
@@ -40,25 +42,25 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números são de **22/09/2026**, lidos das duas bases.
+Funciona. Os números da plataforma são de **22/09/2026**, lidos das
+duas bases; os das empresas, de **24/09/2026**.
 
 | O quê | Quanto |
 |---|---|
 | Anúncios | 210 379 (**199 925 procedimentos**; a diferença são republicações ligadas ao original) |
 | Com o texto integral | 185 454. O `detalhe_lido` está a **100%**: não há fila por ler |
-| Propostas na escada | **78** — perdido 16 · não fomos 15 · ganho 13 · por analisar 11 · submetido 8 · a preparar 6 · relatório 5 · cancelado 4 |
-| Tarefas por fazer | 40 |
-| Contactos | 26 |
+| Empresas | **0** — a LATD (empresa 1) foi apagada a 23/09 com `--apagar-empresa`; a próxima nasce como empresa 2 |
+| Propostas, tarefas, contactos | 0 — são de cada empresa, e não há nenhuma |
 | Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
-| Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
-| Contas | 1 (a da marlene saiu a 23/09) |
+| Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
+| Contas | 1: a do dono, **sem empresa** (só abre a `/plataforma`) |
 | Rotas Flask | 89 |
-| Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa estão em `empresas/1/empresa.db` desde 23/09 (F1) |
+| Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 138**, em ~80 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 24 835 linhas · `teste_radar.py` 14 879 · `empresa.py` 641 · `contas.py` 418 · `icones.py` 62 |
+| Código | `radar.py` 25 067 linhas · `teste_radar.py` 15 043 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -107,8 +109,12 @@ ensaio de restauro.
 - **Nada sai deste computador sozinho.** Desde 23/09/2026 a
   verificação não faz commit nem push: o `triagem.jsonl` exporta-se por
   empresa para `empresas/<id>/triagem.jsonl`, só no disco, e o
-  `config.json` também saiu do git. A única cópia fora da base são as
-  `copias/` — **no mesmo disco**.
+  `config.json` também saiu do git. As cópias ficam em `copias/`, no
+  mesmo disco, e **desde 24/09/2026 também fora dele**: a primeira
+  verificação do dia manda a de cada empresa e a das contas, cifradas,
+  para o Backblaze B2 (bucket na UE, `eu-central-003`; ensaio de ida e
+  volta feito nesse dia). A palavra-passe da cifra está com o Afonso,
+  fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
   — nunca segue o `master` a cada merge. A última é a **`v1.14.0`**, de
