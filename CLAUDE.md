@@ -248,7 +248,8 @@ Aqui ficam os nomes no código: `porta_de_entrada()` (um
 `before_request`, logo a seguir ao `app`), `pedido_e_local()`,
 `origem_e_nossa()`, `sou_dono()` / `so_dono()`, `ROTAS_SO_DONO`,
 `sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN`, `largar_a_empresa()`
-(o `teardown_request` que repõe a empresa do pedido),
+(o `teardown_request` que repõe a empresa do pedido), `aceitar_pedido()`
+e `convite()` (F5; a rota aberta do convite tem a guarda dentro),
 `ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
 inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`;
 `scrypt`; `token_csrf()` / `csrf_bate()`), que **não importa o radar**.
@@ -530,7 +531,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **239 pontos** (contados a 23/09/2026), cada um de um erro que
+São **240 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

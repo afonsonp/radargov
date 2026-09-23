@@ -10177,9 +10177,13 @@ class TestContas(BaseTemporaria):
         cliente, _ = self.entrar()
         rotas = sorted(r.rule for r in radar.app.url_map.iter_rules()
                        # o /pedir-acesso e aberto de proposito e traz a
-                       # sua guarda (TestSitePublico): nao pede token
+                       # sua guarda (TestSitePublico): nao pede token. O
+                       # /convite tambem (F5): quem o abre nao tem sessao,
+                       # e a guarda e o codigo, a origem e o uso unico
+                       # (TestConvites)
                        if "POST" in r.methods
-                       and r.rule not in ("/entrar", "/pedir-acesso"))
+                       and r.rule not in ("/entrar", "/pedir-acesso",
+                                          "/convite/<codigo>"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -12914,6 +12918,131 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
         pedido seguinte, de outra pessoa."""
         self.entrar("conta-b-segredo").get("/", environ_base=self.FORA)
         self.assertEqual(radar.empresa_activa(), radar.EMPRESA_ACTIVA)
+
+
+class TestConvites(BaseTemporaria):
+    """A F5 do plano multi-empresa (23/09/2026): do pedido de acesso do
+    site à empresa a trabalhar. O dono aceita, nasce a empresa e um
+    convite que vai por e-mail; quem o abre cria a conta e entra.
+
+    O que isto trava: um convite que se usa duas vezes, que não acaba,
+    que alguém sem ser o dono consegue gerar, ou cujo código fica legível
+    na base — e o `/convite` é uma rota ABERTA, por isso a guarda tem de
+    estar nela."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")        # o dono
+            radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
+                      "email, sector) VALUES ('2026-09-23 10:00', 'Ana', "
+                      "'Construções Exemplo', 'ana@exemplo.pt', 'obras')")
+            self.pedido = c.execute("SELECT MAX(id) FROM pedidos_acesso").fetchone()[0]
+        self.enviados = []
+        self.enterContext(unittest.mock.patch.object(
+            radar, "enviar_email",
+            side_effect=lambda assunto, corpo, cfg=None, html_corpo=None:
+            self.enviados.append((cfg["email"]["para"], corpo)) or (True, "enviado")))
+
+    def entrar(self, quem):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def token(self, cliente):
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        return re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_).group(1)
+
+    def aceitar(self, quem="admin"):
+        cliente = self.entrar(quem)
+        return cliente.post("/pedidos-de-acesso/%d/aceitar" % self.pedido,
+                            data={"csrf": self.token(cliente)},
+                            environ_base=self.FORA)
+
+    def ligacao(self):
+        self.assertEqual(len(self.enviados), 1)
+        para, corpo = self.enviados[0]
+        self.assertEqual(para, "ana@exemplo.pt")
+        return re.search(r"/convite/[\w-]+", corpo).group(0)
+
+    def test_aceitar_cria_a_empresa_e_manda_o_convite_a_quem_pediu(self):
+        r = self.aceitar()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(radar.empresas_existentes(), [1, 2])
+        with radar.com_empresa(2):
+            cfg = radar.ler_config()
+        self.assertEqual(cfg["nome_da_empresa"], "Construções Exemplo")
+        self.assertEqual(cfg["email"]["para"], "ana@exemplo.pt")
+        ligacao = self.ligacao()
+        self.assertIn(ligacao, r.get_data(as_text=True))   # o dono vê-a também
+        with radar.liga() as c:
+            p = c.execute("SELECT estado, empresa_id FROM pedidos_acesso "
+                          "WHERE id=?", (self.pedido,)).fetchone()
+            self.assertEqual((p["estado"], p["empresa_id"]), ("aceite", 2))
+            # o código nunca fica na base: só o resumo
+            codigo = ligacao.rsplit("/", 1)[1]
+            self.assertFalse(c.execute("SELECT 1 FROM convites WHERE resumo=?",
+                                       (codigo,)).fetchone())
+        # e aceitar outra vez não faz outra empresa
+        self.aceitar()
+        self.assertEqual(radar.empresas_existentes(), [1, 2])
+
+    def test_so_o_dono_aceita(self):
+        self.assertEqual(self.aceitar("teste").status_code, 403)
+        self.assertEqual(radar.empresas_existentes(), [1])
+
+    def test_o_convite_cria_a_conta_da_empresa_nova_e_entra(self):
+        self.aceitar()
+        ligacao = self.ligacao()
+        cliente = radar.app.test_client()
+        r = cliente.get(ligacao, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("ana@exemplo.pt", r.get_data(as_text=True))
+        r = cliente.post(ligacao, data={"utilizador": "ana", "senha": "senha-da-ana",
+                                        "outra": "senha-da-ana"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        with radar.liga() as c:
+            u = c.execute("SELECT papel, empresa_id, dono FROM utilizadores "
+                          "WHERE email='ana'").fetchone()
+        self.assertEqual(tuple(u), ("admin", 2, 0))
+        # entrou: a página da conta é a da empresa dela
+        corpo = cliente.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("Construções Exemplo", corpo)
+        # e o convite gastou-se
+        r = radar.app.test_client().get(ligacao, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+        r = radar.app.test_client().post(ligacao, data={
+            "utilizador": "outro", "senha": "senha-comprida", "outra": "senha-comprida"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+
+    def test_um_codigo_que_nao_existe_ou_fora_do_prazo_nao_abre(self):
+        r = radar.app.test_client().get("/convite/inventado", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 404)
+        with radar.liga() as c:
+            codigo = radar.contas.criar_convite(
+                c, 1, "x@y.pt", agora=datetime.datetime(2026, 1, 1))
+        r = radar.app.test_client().get("/convite/" + codigo, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+        self.assertIn("prazo", r.get_data(as_text=True))
+
+    def test_o_convite_recusa_um_post_de_outro_sitio(self):
+        self.aceitar()
+        ligacao = self.ligacao()
+        r = radar.app.test_client().post(
+            ligacao, data={"utilizador": "ana", "senha": "senha-da-ana",
+                           "outra": "senha-da-ana"},
+            headers={"Origin": "https://mal.exemplo"}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM utilizadores "
+                                       "WHERE email='ana'").fetchone())
 
 
 class CicloDasTarefas(BaseTemporaria):
