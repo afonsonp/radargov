@@ -13250,6 +13250,38 @@ class TestAbrirABeta(BaseTemporaria):
         self.assertEqual(len(batidas), 2)
 
 
+class TestSaudeVeARecolha(BaseTemporaria):
+    """23/09/2026: o /saude, que o monitor de fora (o UptimeRobot) vigia,
+    passa a dar 503 também quando a recolha parou -- o painel de pé com
+    o temporizador morto parecia saudável a quem olhava de fora. O
+    `agora` é injectável: sem isto o teste dependia da hora a que
+    corria, que foi o que tornou instável o dos horários à meia-noite."""
+
+    CFG = {"horas_verificacao": ["09:00", "10:00"]}
+
+    def em(self, h, m):
+        return datetime.datetime(2026, 9, 23, h, m)
+
+    def test_so_se_julga_depois_da_folga_da_hora_marcada(self):
+        # sem verificacao nenhuma ainda, e uma instalacao a comecar
+        self.assertFalse(radar.recolha_atrasada(self.em(10, 45), self.CFG))
+        radar.marca("ultima_verificacao", "2026-09-23 09:02")
+        self.assertFalse(radar.recolha_atrasada(self.em(8, 30), self.CFG))   # antes da 1.a
+        self.assertFalse(radar.recolha_atrasada(self.em(10, 20), self.CFG))  # dentro da folga
+        self.assertTrue(radar.recolha_atrasada(self.em(10, 45), self.CFG))   # a das 10 nao veio
+        radar.marca("ultima_verificacao", "2026-09-23 10:03")
+        self.assertFalse(radar.recolha_atrasada(self.em(10, 45), self.CFG))
+
+    def test_a_rota_diz_503_quando_a_recolha_parou(self):
+        cliente = radar.app.test_client()
+        with unittest.mock.patch.object(radar, "recolha_atrasada", return_value=True):
+            r = cliente.get("/saude", environ_base={"REMOTE_ADDR": "203.0.113.7"})
+        self.assertEqual((r.status_code, r.get_data(as_text=True)),
+                         (503, "a recolha parou"))
+        with unittest.mock.patch.object(radar, "recolha_atrasada", return_value=False):
+            self.assertEqual(cliente.get("/saude").status_code, 200)
+
+
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
     (17/09/2026): um anúncio, uma proposta, e as datas do DR a virarem

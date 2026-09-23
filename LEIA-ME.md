@@ -1185,11 +1185,12 @@ Três coisas, que o radar já sabe usar e só precisam de ti (desde
    rascunho: lê-os, e dá-os a rever a quem responda por isto na
    empresa, antes do primeiro cliente**. Mudam-se lá, sem reiniciar.
 2. **Um vigia externo**, que te avisa por e-mail se o radar parar (o
-   radar parado não o pode dizer). Cria uma conta gratuita no
-   healthchecks.io, um «check» de hora a hora, e põe o endereço de
-   «ping» no `config.json`: `"vigia_url": "https://hc-ping.com/…"`.
-   Para saber também se o `radargov.pt` caiu, uma conta gratuita no
-   UptimeRobot a vigiar `https://radargov.pt/saude`.
+   radar parado não o pode dizer): uma conta gratuita no **UptimeRobot**
+   a vigiar `https://radargov.pt/saude`, de cinco em cinco minutos.
+   Chega para as duas avarias: o `/saude` dá erro com o site em baixo
+   **e** quando a recolha parou (a última hora marcada passou há mais de
+   40 minutos sem verificação). Se um dia quiseres também o aviso por
+   «batida», há a chave `vigia_url` (healthchecks.io), opcional.
 3. **As cópias fora do PC**, se ainda não as ligaste: secção 13.
 
 ## 15-A. Mudar o radar de computador
