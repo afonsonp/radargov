@@ -633,7 +633,9 @@ num terminal, e a primeira conta dela a seguir:
 **Há três níveis.** **Tu és o dono da plataforma**: só tu vês os
 Indicadores, as Capturas, a Recolha, a Leitura das peças e as Cópias,
 o botão «Verificar agora», a conta que envia o e-mail e os pedidos de
-acesso do site. Não vês o trabalho das outras empresas — só o da tua. O
+acesso do site — tudo na **administração da plataforma**, no menu da
+tua conta. As Configurações da tua conta mostram só o que é da tua
+empresa, como a qualquer admin. Não vês o trabalho das outras empresas — só o da tua. O
 **admin** de uma empresa cria e tira as contas **dela** e diz quem ela é
 (nome e NIF). O **tester** vê os anúncios, o que está em curso e o
 mercado, e nas configurações só a Conta, o Interesse, os Alertas e o
