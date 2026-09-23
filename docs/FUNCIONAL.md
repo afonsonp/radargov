@@ -76,7 +76,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 13 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 14 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -117,6 +117,7 @@ as exactas e salta as outras.
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
 | `estado` | 15 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
+| `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
 | `pedidos_acesso` | **0** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
@@ -432,7 +433,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**84 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**86 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
 - **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`
@@ -617,6 +618,19 @@ validados e cortados, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
 `PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
+E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
+ainda não tem conta, e a guarda está na própria rota — o código (32
+bytes aleatórios, que na base só existe em resumo), a origem do POST e
+o uso único com prazo (`DIAS_DE_CONVITE`, sete).
+
+**Do pedido de acesso à empresa a trabalhar** (F5). Em «pedidos de
+acesso do site», o dono carrega em **aceitar**: nasce a empresa
+(`criar_empresa()`), com o resumo a ir para quem pediu, e um convite de
+administrador dela (`contas.criar_convite()`), que vai por e-mail para
+o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.
+Quem abre a ligação escolhe o utilizador e a palavra-passe e entra já,
+na empresa nova (`contas.usar_convite()`). Um pedido aceite não se
+aceita duas vezes.
 
 **Cada conta é de uma empresa** (`utilizadores.empresa_id`, desde a F4
 de 23/09/2026), e a porta põe a empresa dela no pedido: o `liga()`
