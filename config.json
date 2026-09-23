@@ -1,7 +1,18 @@
 {
   "horas_verificacao": [
+    "08:00",
     "09:00",
-    "17:00"
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+    "19:00",
+    "20:00"
   ],
   "acesso_livre_local": true,
   "endereco_publico": "https://radargov.pt",
@@ -11,6 +22,8 @@
   "detalhes_por_volta": 100,
   "relidos_por_volta": 50,
   "dias_urgente": 8,
+  "nome_da_empresa": "LATD DIGITAL ENABLERS, LDA",
+  "nif_da_empresa": "516241362",
   "interesse_activo": true,
   "interesse_cpv": "72000000|48000000",
   "interesse_cpv_excl": "",
@@ -43,7 +56,5 @@
     "prestação",
     "concurso",
     "contratação"
-  ],
-  "nome_da_empresa": "LATD DIGITAL ENABLERS, LDA",
-  "nif_da_empresa": "516241362"
+  ]
 }
