@@ -95,6 +95,7 @@ ISENTOS = {
     "empresas/1/empresa.db": "o trabalho da empresa (F1); não entra no git",
     "empresa.db": "o ficheiro de cada empresa (F1); não entra no git",
     "empresas/": "a pasta das empresas (F1); não entra no git",
+    "empresas/1/config.json": "a configuração da empresa (F3); não entra no git",
     "radar-AAAA-MM-DD.db": "o molde do nome da cópia diária",
     "empresa-1-AAAA-MM-DD.db": "o molde do nome da cópia diária da empresa",
     "triagem.jsonl": "exportado pela verificação",

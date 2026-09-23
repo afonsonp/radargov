@@ -1626,6 +1626,20 @@ SQLite, cópias, e a pen que manda nos números.
   pergunta a todas (`marcar_os_da_escada()`, a tabela temporária
   `na_escada`). Com uma empresa só, os dois erros não se viam.
 
+- **O config.json também se partiu em dois, e uma empresa nova não
+  herda o da pasta** (F3, 23/09/2026). As chaves de `CONFIG_DA_EMPRESA`
+  e as `EMAIL_DA_EMPRESA` (`para`, `hora_resumo`) vivem em
+  `empresas/<id>/config.json`; o `gravar_config()` manda cada chave para
+  o ficheiro de quem é, e o `ler_config()` junta os dois. A armadilha é
+  a herança: se a segunda empresa lesse as chaves da empresa que ainda
+  estivessem no config da pasta, mandava o resumo para o e-mail da
+  primeira. Por isso só a empresa de omissão herda (é de quem elas
+  eram, e o `separar_config_da_empresa()` já lhas levou no arranque); as
+  outras partem dos valores de origem. E o `cfg` que o `verificar()` lê
+  à entrada é o da empresa de omissão — o `trabalho_da_empresa()` põe
+  por cima o de cada uma. O rasto segue o dono: uma mudança da empresa
+  vai para o `historico` dela, uma da plataforma para os `eventos`.
+
 - **A fila das alterações é da plataforma; o «já avisei» é de cada
   empresa** (F2). Até 23/09/2026 a `alteracoes` tinha um `avisado_em`
   para todas, e só entrava lá o que a empresa activa tinha marcado: a

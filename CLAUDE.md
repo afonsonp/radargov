@@ -308,7 +308,11 @@ A ordem do ficheiro é a ordem do fluxo:
    `com_empresa()`), e a verificação faz a recolha uma vez e o
    `trabalho_da_empresa()` em cada uma; o que o DR e as peças fazem vai
    para os `eventos` da plataforma (`registar_evento()`), e o
-   `registar()` fica para o que a empresa faz. **As tabelas,
+   `registar()` fica para o que a empresa faz. Desde a **F3** o
+   `config.json` também se parte: o que é da empresa
+   (`CONFIG_DA_EMPRESA`, `EMAIL_DA_EMPRESA`) vive em
+   `empresas/<id>/config.json` (`config_da_empresa()`), e o
+   `ler_config()` / `gravar_config()` juntam e separam sozinhos. **As tabelas,
    com o que cada uma tem lá dentro e quantas linhas, estão no
    `docs/FUNCIONAL.md` §2.1**; os números medidos de hoje no
    `ESTADO.md`.
@@ -523,7 +527,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **237 pontos** (contados a 23/09/2026), cada um de um erro que
+São **238 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

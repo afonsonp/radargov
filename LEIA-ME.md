@@ -721,6 +721,15 @@ e de reserva, `paginas`, `por_pagina`, `abrir_browser_ao_encontrar`,
 `acesso_livre_local` e `endereco_publico` — afinação de quem mexe no
 código.
 
+**Desde 23/09/2026 a configuração está em dois ficheiros.** O que é
+**da empresa** — o nome e o NIF, o interesse, os alertas ligados ou
+não, para quem vai o resumo e a que hora, a janela do urgente — vive em
+`empresas/1/config.json`, ao lado do trabalho dela. O resto — as horas
+da recolha, a conta que **envia** o e-mail, a leitura das peças, as
+cópias — continua no `config.json` da pasta, que é da plataforma. O
+painel grava cada coisa no sítio certo sozinho; só precisas de saber
+isto se fores abrir os ficheiros à mão.
+
 ## 8. Indicadores
 
 Estão em **Configurações › Indicadores**, só para o admin — é
