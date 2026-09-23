@@ -1116,6 +1116,7 @@ def iniciar_db():
     # «casa» passou a «empresa». Idempotente, e barato -- so abre o
     # ficheiro para escrever quando a chave velha la esta.
     renomear_chaves_do_config()
+    separar_config_da_empresa()         # F3: depois do renomear, que e sobre as chaves velhas
     for id_ in empresas_existentes():
         with com_empresa(id_):
             arrumar_a_empresa()
@@ -1204,6 +1205,85 @@ def renomear_chaves_do_config():
     return levadas
 
 
+# O que no config.json e de UMA empresa, e nao da plataforma (F3,
+# 23/09/2026): quem ela e, o que trabalha, se quer alertas, para onde
+# vai o resumo e a que horas, e a janela do urgente. Vive em
+# `empresas/<id>/config.json`; o resto -- as horas da recolha, a conta
+# que ENVIA o e-mail, a leitura das pecas, as copias -- continua no
+# config.json da pasta, que e da plataforma.
+CONFIG_DA_EMPRESA = ("nome_da_empresa", "nif_da_empresa", "interesse_activo",
+                     "interesse_cpv", "interesse_cpv_excl", "alertas",
+                     "dias_urgente")
+EMAIL_DA_EMPRESA = ("para", "hora_resumo")
+
+
+def config_da_empresa():
+    """O config.json da empresa activa, ao lado do ficheiro dela."""
+    return os.path.join(os.path.dirname(db_da_empresa()), "config.json")
+
+
+def _parte_da_empresa(cfg):
+    """A parte de um dicionario de configuracao que e da empresa."""
+    parte = {k: cfg[k] for k in CONFIG_DA_EMPRESA if k in cfg}
+    email = cfg.get("email")
+    if isinstance(email, dict):
+        so_dela = {k: v for k, v in email.items() if k in EMAIL_DA_EMPRESA}
+        if so_dela:
+            parte["email"] = so_dela
+    return parte
+
+
+def _sem_a_parte_da_empresa(cfg):
+    fora = {k: v for k, v in cfg.items() if k not in CONFIG_DA_EMPRESA}
+    if isinstance(fora.get("email"), dict):
+        fora["email"] = {k: v for k, v in fora["email"].items()
+                         if k not in EMAIL_DA_EMPRESA}
+    return fora
+
+
+def _ler_json(caminho):
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _escrever_json(caminho, dados):
+    os.makedirs(os.path.dirname(caminho), exist_ok=True)
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+def _junta(cfg, parte):
+    """`parte` por cima de `cfg`, com o `email` junto chave a chave."""
+    for chave, valor in parte.items():
+        if isinstance(valor, dict) and isinstance(cfg.get(chave), dict):
+            cfg[chave] = dict(cfg[chave], **valor)
+        else:
+            cfg[chave] = valor
+    return cfg
+
+
+def separar_config_da_empresa():
+    """Leva as chaves da empresa do config.json da pasta para o da
+    empresa de omissao, que era de quem elas eram. Uma vez, e so quando
+    ha o que levar -- a condicao e a propria pergunta, como no
+    renomear_chaves_do_config(). Uma chave que a empresa ja tenha manda:
+    quer dizer que ja se gravou pelo painel depois da mudanca."""
+    if not os.path.exists(CONFIG):
+        return {}
+    global_ = _ler_json(CONFIG)
+    levar = _parte_da_empresa(global_)
+    if not levar:
+        return {}
+    with com_empresa(EMPRESA_ACTIVA):
+        destino = config_da_empresa()
+        _escrever_json(destino, _junta(levar, _ler_json(destino)))
+    _escrever_json(CONFIG, _sem_a_parte_da_empresa(global_))
+    return levar
+
+
 def gravar_config(mudancas):
     """Grava alteracoes na configuracao, sem tocar no resto.
 
@@ -1212,25 +1292,39 @@ def gravar_config(mudancas):
     configuracao nenhuma. A palavra-passe **nao passa por aqui** -- essa
     vive em email_senha.txt, porque o config.json abre-se sem pensar.
     """
-    cfg = ler_config()
-    for chave, valor in mudancas.items():
-        if isinstance(valor, dict) and isinstance(cfg.get(chave), dict):
-            cfg[chave] = dict(cfg[chave], **valor)
-        else:
-            cfg[chave] = valor
-    with open(CONFIG, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
-    return cfg
+    # Cada chave vai para o ficheiro de quem e (F3): a da empresa para o
+    # config.json dela, o resto para o da pasta.
+    _escrever_json(CONFIG, _junta(_config_guardada(),
+                                  _sem_a_parte_da_empresa(mudancas)))
+    da_empresa = _parte_da_empresa(mudancas)
+    if da_empresa:
+        caminho = config_da_empresa()
+        _escrever_json(caminho, _junta(_ler_json(caminho), da_empresa))
+    return ler_config()
 
 
 def ler_config():
+    """A configuracao que vale para a empresa activa: os valores de
+    origem, o config.json da pasta por cima, e o da empresa por cima de
+    tudo (F3, 23/09/2026).
+
+    Uma empresa que nao seja a de omissao **nao herda** as chaves da
+    empresa que ainda estejam no config.json da pasta: eram da primeira,
+    e herda-las era a segunda empresa mandar o resumo para o e-mail da
+    outra, ou comparar o Portal BASE com o NIF dela."""
+    guardada = _config_guardada()
+    if empresa_activa() != EMPRESA_ACTIVA:
+        guardada = _sem_a_parte_da_empresa(guardada)
+    cfg = _junta(dict(CONFIG_INICIAL), guardada)
+    return _junta(cfg, _ler_json(config_da_empresa()))
+
+
+def _config_guardada():
+    """O config.json da pasta, tal como esta no disco."""
     if os.path.exists(CONFIG):
         try:
             with open(CONFIG, encoding="utf-8") as f:
-                guardada = json.load(f)
-            cfg = dict(CONFIG_INICIAL)
-            cfg.update(guardada)
-            return cfg
+                return json.load(f)
         except ValueError:
             # Ficheiro estragado. Guarda-se uma copia antes de repor os
             # valores de origem -- caso contrario as horas, a janela de
@@ -1242,9 +1336,8 @@ def ler_config():
                 print("config.json ilegivel; copia guardada em " + salvado)
             except OSError:
                 pass
-    with open(CONFIG, "w", encoding="utf-8") as f:
-        json.dump(CONFIG_INICIAL, f, ensure_ascii=False, indent=2)
-    return dict(CONFIG_INICIAL)
+    _escrever_json(CONFIG, _sem_a_parte_da_empresa(CONFIG_INICIAL))
+    return {}
 
 
 def importar_cpv_dict(caminho):
@@ -5905,6 +5998,12 @@ def reler_incompletas(limite=5, so_na_escada=True):
     feitas = 0
     for ref in refs_com_leitura_incompleta(limite, so_na_escada):
         ok, porque = analisar_pecas(ref)
+        # O rasto, como o do ler_pecas_e_registar(). Faltava desde que
+        # a releitura existe: medido a 23/09/2026, a leitura das 11:01
+        # ficou gravada na `analise` e nao deixou linha em lado nenhum.
+        registar_evento(ref, "leitura",
+                        "peças lidas" if (ok and not porque) else (porque or "falhou"),
+                        quem="radar")
         if ok:
             feitas += 1
         if SEM_ORCAMENTO_HOJE in (porque or ""):
@@ -7521,6 +7620,11 @@ def avisos_da_empresa():
 def trabalho_da_empresa(cfg, bem, diz):
     """O que a verificacao faz na empresa activa. Devolve quantos
     anuncios entraram nos alertas dela."""
+    # O `cfg` que chega foi lido com a empresa de omissao; as outras
+    # poem por cima o que e delas (F3) -- se querem alertas, para onde
+    # vai o resumo e a que horas.
+    if empresa_activa() != EMPRESA_ACTIVA:
+        cfg = _junta(dict(cfg), _parte_da_empresa(ler_config()))
     # As tarefas automaticas seguem as datas do DR, e as datas acabaram
     # de ser relidas: uma prorrogacao publicada de manha tem de chegar a
     # vista "Hoje" na mesma verificacao, e nao no dia seguinte. Barato
@@ -15298,18 +15402,25 @@ def gravar_config_registado(mudancas, quem=None):
             raise ValueError("a chave %r não pode ir para o config.json" % chave)
     antes = ler_config()
     depois = gravar_config(mudancas)
+    # O rasto vai para quem e dono da chave (F3): o que e da empresa
+    # para o historico dela, o que e da plataforma para os eventos --
+    # senao uma empresa via no historico as horas da recolha que o
+    # dono da plataforma mudou.
     for chave, valor in mudancas.items():
         if isinstance(valor, dict):
             for sub, v in valor.items():
                 velho = (antes.get(chave) or {}).get(sub)
                 if velho != v:
-                    registar("", "configuração", "%s.%s: %s → %s"
-                             % (chave, sub, json.dumps(velho, ensure_ascii=False),
-                                json.dumps(v, ensure_ascii=False)), quem=quem)
+                    dela = chave == "email" and sub in EMAIL_DA_EMPRESA
+                    (registar if dela else registar_evento)(
+                        "", "configuração", "%s.%s: %s → %s"
+                        % (chave, sub, json.dumps(velho, ensure_ascii=False),
+                           json.dumps(v, ensure_ascii=False)), quem=quem)
         elif antes.get(chave) != valor:
-            registar("", "configuração", "%s: %s → %s"
-                     % (chave, json.dumps(antes.get(chave), ensure_ascii=False),
-                        json.dumps(valor, ensure_ascii=False)), quem=quem)
+            (registar if chave in CONFIG_DA_EMPRESA else registar_evento)(
+                "", "configuração", "%s: %s → %s"
+                % (chave, json.dumps(antes.get(chave), ensure_ascii=False),
+                   json.dumps(valor, ensure_ascii=False)), quem=quem)
     return depois
 
 
