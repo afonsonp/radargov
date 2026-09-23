@@ -10615,10 +10615,11 @@ class TestConfiguracoes(BaseTemporaria):
         # e o formulario rele o que gravou
         html_ = self.cliente.get("/configuracoes/recolha").get_data(as_text=True)
         self.assertIn("value='08:30, 18:00'", html_)
-        # e fica no historico, com o antes e o depois
+        # e fica no rasto, com o antes e o depois -- nos eventos, porque a
+        # recolha e da plataforma e nao de uma empresa (F3, 23/09/2026)
         with radar.liga() as c:
             regs = [r_["detalhe"] for r_ in c.execute(
-                "SELECT detalhe FROM historico WHERE accao='configuração'")]
+                "SELECT detalhe FROM eventos WHERE accao='configuração'")]
         self.assertTrue(any(d.startswith("detalhe_dias: 60 → 90") for d in regs), regs)
 
     def test_validacao_recusa_e_nao_grava(self):
@@ -11588,11 +11589,12 @@ class TestMudancasDeSetembro(BaseTemporaria):
         # com CPV fica ligado; vazio fica desligado -- nao ha caixa
         r = radar.app.test_client().post("/alertas/interesse", data={"cpv": "72000000"})
         self.assertIn("passa a mostrar", unquote_plus(r.headers["Location"]))
-        cfg = json.load(open(radar.CONFIG, encoding="utf-8"))
+        # o interesse e da empresa: grava-se no config.json dela (F3)
+        cfg = json.load(open(radar.config_da_empresa(), encoding="utf-8"))
         self.assertTrue(cfg["interesse_activo"])
         self.assertEqual(cfg["interesse_cpv"], "72000000")
         radar.app.test_client().post("/alertas/interesse", data={"cpv": ""})
-        cfg = json.load(open(radar.CONFIG, encoding="utf-8"))
+        cfg = json.load(open(radar.config_da_empresa(), encoding="utf-8"))
         self.assertFalse(cfg["interesse_activo"])
 
     def test_com_interesse_a_lista_fica_so_com_o_filtro_de_texto(self):
@@ -12859,6 +12861,99 @@ class TestDuasEmpresas(BaseTemporaria):
         self.assertEqual(sorted(f for f in os.listdir(radar.COPIAS)
                                 if f.startswith("empresa-")),
                          ["empresa-1-" + dia, "empresa-2-" + dia])
+
+
+class TestConfigPorEmpresa(BaseTemporaria):
+    """A F3 do plano multi-empresa (23/09/2026): o que no config.json é
+    de uma empresa — quem ela é, o interesse, os alertas, o destino e a
+    hora do resumo, a janela do urgente — vive no `config.json` dela; o
+    resto é da plataforma. O erro que isto fecha é o da herança: uma
+    segunda empresa a ler o config da pasta mandava o resumo para o
+    e-mail da primeira e comparava o Portal BASE com o NIF dela."""
+
+    def _global(self):
+        with open(radar.CONFIG, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_as_chaves_da_empresa_mudam_de_ficheiro_e_o_resto_fica(self):
+        cfg = dict(nome_da_empresa="LATD", nif_da_empresa="516241362",
+                   interesse_activo=True, interesse_cpv="72",
+                   horas_verificacao=["09:00"],
+                   email={"para": "a@x.pt", "de": "radar@x.pt",
+                          "servidor": "smtp.x.pt", "porta": 587,
+                          "hora_resumo": "18:00"})
+        with open(radar.CONFIG, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        radar.iniciar_db()
+        global_ = self._global()
+        for chave in radar.CONFIG_DA_EMPRESA:
+            self.assertNotIn(chave, global_)
+        self.assertEqual(global_["horas_verificacao"], ["09:00"])
+        self.assertEqual(global_["email"], {"de": "radar@x.pt",
+                                            "servidor": "smtp.x.pt", "porta": 587})
+        lido = radar.ler_config()
+        self.assertEqual((lido["nif_da_empresa"], lido["interesse_cpv"]),
+                         ("516241362", "72"))
+        self.assertEqual(lido["email"]["para"], "a@x.pt")
+        self.assertEqual(lido["email"]["servidor"], "smtp.x.pt")
+        self.assertEqual(radar.separar_config_da_empresa(), {})   # uma vez só
+
+    def test_outra_empresa_nao_herda_o_que_e_da_primeira(self):
+        radar.gravar_config({"nif_da_empresa": "516241362",
+                             "email": {"para": "a@x.pt", "servidor": "smtp.x.pt"}})
+        radar.iniciar_empresa(radar.db_da_empresa(2))
+        with radar.com_empresa(2):
+            cfg = radar.ler_config()
+        self.assertEqual(cfg["nif_da_empresa"], "")
+        self.assertEqual(cfg["email"]["para"], "")
+        self.assertEqual(cfg["email"]["servidor"], "smtp.x.pt")  # a conta que envia é de todas
+
+    def test_gravar_leva_cada_chave_para_o_ficheiro_dela(self):
+        radar.gravar_config({"email": {"para": "a@x.pt"}})
+        radar.iniciar_empresa(radar.db_da_empresa(2))
+        with radar.com_empresa(2):
+            radar.gravar_config({"email": {"para": "b@x.pt"}, "dias_catchup": 20})
+            self.assertEqual(radar.ler_config()["email"]["para"], "b@x.pt")
+        self.assertEqual(radar.ler_config()["email"]["para"], "a@x.pt")
+        self.assertEqual(radar.ler_config()["dias_catchup"], 20)
+        self.assertEqual(self._global()["dias_catchup"], 20)
+
+    def test_a_verificacao_manda_o_resumo_de_cada_empresa_para_o_destino_dela(self):
+        radar.gravar_config({"email": {"para": "a@x.pt", "hora_resumo": "00:00"}})
+        radar.iniciar_empresa(radar.db_da_empresa(2))
+        with radar.com_empresa(2):
+            radar.gravar_config({"email": {"para": "b@x.pt", "hora_resumo": "00:00"}})
+        destinos = []
+        cfg = radar.ler_config()
+        with unittest.mock.patch.object(radar, "registar_alertas", return_value=0), \
+             unittest.mock.patch.object(radar, "registar_seguidas"), \
+             unittest.mock.patch.object(radar, "sincronizar_tarefas"), \
+             unittest.mock.patch.object(
+                 radar, "enviar_resumo",
+                 side_effect=lambda c: destinos.append(c["email"]["para"])):
+            for id_ in (1, 2):
+                with radar.com_empresa(id_):
+                    radar.trabalho_da_empresa(cfg, True, lambda _: None)
+        self.assertEqual(destinos, ["a@x.pt", "b@x.pt"])
+
+    def test_a_releitura_das_incompletas_deixa_rasto(self):
+        """O achado de 23/09/2026: a leitura completada pela verificação
+        das 11:01 ficou gravada na `analise` e não deixou linha em lado
+        nenhum — o `reler_incompletas()` chamava o `analisar_pecas()` sem
+        o `registar` que o `ler_pecas_e_registar()` tem."""
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        return_value=["groq"]), \
+             unittest.mock.patch.object(radar, "cadeia_esgotada", return_value=False), \
+             unittest.mock.patch.object(radar, "refs_com_leitura_incompleta",
+                                        return_value=["5/2026"]), \
+             unittest.mock.patch.object(radar, "analisar_pecas",
+                                        return_value=(True, "")):
+            self.assertEqual(radar.reler_incompletas(), (1, ""))
+        with radar.liga() as c:
+            linhas = c.execute("SELECT accao, detalhe, quem FROM eventos "
+                               "WHERE ref='5/2026'").fetchall()
+        self.assertEqual([tuple(l) for l in linhas],
+                         [("leitura", "peças lidas", "radar")])
 
 
 class CicloDasTarefas(BaseTemporaria):
