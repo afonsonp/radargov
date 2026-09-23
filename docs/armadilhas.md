@@ -1935,6 +1935,16 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   falhar — um teste de isolamento que passa com as páginas vazias não
   prova nada, e é por isso que há o `test_a_b_ve_o_que_e_dela`.
 
+- **As páginas legais só existem com o operador preenchido** (F8,
+  23/09/2026). O `/termos` e a `/privacidade` são rotas abertas que dão
+  404 enquanto o `operador` do config.json não tiver nome, NIF e morada,
+  e o site substitui as marcas `<!--LEGAL-->` por nada — publicar uma
+  política de privacidade sem responsável era pior do que não ter
+  nenhuma. Os três campos entram na página **escapados**: um nome com
+  «<» partia-a. E o vigia (`avisar_o_vigia()`) corre no fim do
+  `verificar()` e engole todas as falhas: um vigia em baixo não pode
+  parar a verificação que ele existe para vigiar.
+
 - **O convite é uma rota aberta, e por isso a guarda é dela** (F5,
   23/09/2026). O `/convite/<código>` sai da porta antes da guarda do
   POST, como o `/pedir-acesso` (ver em cima «rotas abertas saem antes

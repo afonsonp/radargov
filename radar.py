@@ -170,6 +170,16 @@ CONFIG_INICIAL = {
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
     "copias_a_guardar": 7,
+    # F8 (23/09/2026): quem opera o Radar Gov, para os termos e a
+    # politica de privacidade do site. Enquanto faltar um dos tres, as
+    # duas paginas nao se servem e o site nao as mostra -- uma politica
+    # de privacidade sem responsavel nao serve a ninguem.
+    "operador": {"nome": "", "nif": "", "morada": ""},
+    # F8: o endereco do vigia externo (um "ping" do healthchecks.io, por
+    # exemplo). No fim de cada verificacao o radar bate-lhe; se deixar
+    # de bater, e o vigia que avisa por e-mail -- a unica forma de saber
+    # que o PC parou e o proprio radar nao pode dize-lo. Vazio: nada.
+    "vigia_url": "",
     # F7 (23/09/2026): quantas leituras das pecas pelo modelo cada
     # empresa pode PEDIR por dia. A leitura e da plataforma e partilhada
     # (quem pede primeiro paga, e as outras leem a mesma); o tecto so
@@ -7725,6 +7735,22 @@ def trabalho_da_empresa(cfg, bem, diz):
     return quantos_avisos
 
 
+def avisar_o_vigia(bem, cfg=None, pedir=None):
+    """Bate no vigia externo (F8): o endereco `vigia_url`, e o mesmo com
+    `/fail` quando a verificacao correu mal (e a convencao do
+    healthchecks.io). Quem avisa que o radar PAROU e o vigia, pela falta
+    destas batidas -- o radar parado nao consegue dize-lo. Uma falha
+    aqui nunca estraga a verificacao."""
+    url = ((cfg or ler_config()).get("vigia_url") or "").strip().rstrip("/")
+    if not url:
+        return False
+    try:
+        (pedir or requests.get)(url if bem else url + "/fail", timeout=10)
+        return True
+    except Exception:
+        return False
+
+
 def verificar(cfg=None, passo=None):
     """O trabalho da verificacao. O `passo` e um sinal de vida opcional:
     quem corre isto numa thread passa uma funcao que diz ao ecra em que
@@ -7836,6 +7862,7 @@ def verificar(cfg=None, passo=None):
     marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
     marca("ultima_mensagem", mensagem)
     marca("ultima_ok", "1" if bem else "0")
+    avisar_o_vigia(bem, cfg)
     if novos and cfg.get("abrir_browser_ao_encontrar"):
         try:
             webbrowser.open(LOCAL + "/")
@@ -9422,7 +9449,7 @@ def volta_ao_referer(omissao):
 # armadilha, tectos por IP e por dia. /favicon.svg: o icone, que o site
 # e o ecra de entrar pedem antes de haver sessao.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
-                 "/favicon.svg")
+                 "/favicon.svg", "/privacidade", "/termos")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -22610,15 +22637,63 @@ PEDIDOS_POR_DIA = 200
 RX_EMAIL = re.compile(r"^[^@\s<>\"']+@[^@\s<>\"']+\.[^@\s<>\"']+$")
 
 
+def operador_completo(cfg=None):
+    """O `operador` do config.json, se tiver os tres campos; senao None."""
+    op = (cfg or ler_config()).get("operador") or {}
+    if all((op.get(k) or "").strip() for k in ("nome", "nif", "morada")):
+        return op
+    return None
+
+
 def pagina_do_site():
     """O site, ou None se o ficheiro faltar -- e entao a porta manda ao
     login, como antes. Le-se a cada pedido: sao 50 KB, e assim mudar o
-    texto nao pede reiniciar o painel."""
+    texto nao pede reiniciar o painel. As ligacoes para os termos e a
+    privacidade (F8) so aparecem com o operador preenchido."""
     try:
         with open(SITE, encoding="utf-8") as f:
-            return Response(f.read(), mimetype="text/html")
+            texto = f.read()
     except OSError:
         return None
+    legal = operador_completo()
+    texto = texto.replace(
+        "<!--LEGAL-->", " · <a href=\"/termos\">Termos</a> · "
+        "<a href=\"/privacidade\">Privacidade</a>" if legal else "")
+    texto = texto.replace(
+        "<!--LEGAL-NOTA-->", " — ver a <a href=\"/privacidade\">política de "
+        "privacidade</a>" if legal else "")
+    return Response(texto, mimetype="text/html")
+
+
+def pagina_legal(qual):
+    """Os termos ou a politica de privacidade (F8), com os dados do
+    operador. None enquanto o operador nao estiver preenchido: uma
+    politica de privacidade sem responsavel nao se publica."""
+    op = operador_completo()
+    if not op:
+        return None
+    try:
+        with open(os.path.join(os.path.dirname(SITE), qual + ".html"),
+                  encoding="utf-8") as f:
+            texto = f.read()
+    except OSError:
+        return None
+    for marca_, chave in (("{{NOME}}", "nome"), ("{{NIF}}", "nif"),
+                          ("{{MORADA}}", "morada")):
+        texto = texto.replace(marca_, html.escape(op[chave].strip()))
+    return Response(texto, mimetype="text/html")
+
+
+@app.route("/privacidade")
+def privacidade():
+    return pagina_legal("privacidade") or Response("não existe", 404,
+                                                   mimetype="text/plain")
+
+
+@app.route("/termos")
+def termos():
+    return pagina_legal("termos") or Response("não existe", 404,
+                                             mimetype="text/plain")
 
 
 def _avisar_do_pedido(id_, p):

@@ -444,7 +444,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**86 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**88 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
 - **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`
@@ -629,6 +629,7 @@ validados e cortados, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
 `PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
+E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site, que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32
 bytes aleatórios, que na base só existe em resumo), a origem do POST e
