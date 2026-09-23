@@ -18,7 +18,7 @@ fi
 echo " ATENÇÃO: pára o painel e as tarefas antes de continuar -- enviar o"
 echo " radar.db com o radar a escrever nele pode levar uma cópia a meio"
 echo " de uma escrita. Se corre como serviço:"
-echo "   systemctl --user stop radar-painel.service radar-09h.timer radar-17h.timer"
+echo "   systemctl --user stop radar-painel.service radar-hora.timer"
 echo
 read -r -p " Já está parado, posso continuar? [s/N] " RESP
 [ "$RESP" = "s" ] || [ "$RESP" = "S" ] || exit 1

@@ -9837,10 +9837,8 @@ class TestTarefasEmFalta(unittest.TestCase):
     Windows saiu a 14/09/2026, com o resto do Windows.)"""
 
     SYSTEMD = (
-        "Tue 2026-09-08 17:00:00 WEST 4h left Tue 2026-09-08 09:00:12 WEST "
-        "3h ago radar-17h.timer radar-verificar.service\n"
-        "Wed 2026-09-09 09:00:00 WEST 20h left Tue 2026-09-08 09:00:12 WEST "
-        "3h ago radar-09h.timer radar-verificar.service\n"
+        "Tue 2026-09-08 13:00:00 WEST 40min left Tue 2026-09-08 12:00:12 WEST "
+        "20min ago radar-hora.timer radar-verificar.service\n"
         "Mon 2026-09-14 08:00:00 WEST 5 days left - - "
         "radar-contratos.timer radar-contratos.service\n")
     def setUp(self):
@@ -9853,16 +9851,29 @@ class TestTarefasEmFalta(unittest.TestCase):
             return saida
         return listar
 
-    def test_linux_com_os_dois_timers_nao_avisa(self):
+    def test_linux_com_o_timer_nao_avisa(self):
         self.assertEqual(
             radar.tarefas_em_falta(self.lista(self.SYSTEMD), "linux"), [])
         self.assertEqual(self.chamadas[0][:2], ["systemctl", "--user"])
 
     def test_linux_sem_um_timer_diz_qual(self):
-        so_um = self.SYSTEMD.replace("radar-17h.timer", "outro.timer")
+        sem = self.SYSTEMD.replace("radar-hora.timer", "outro.timer")
         self.assertEqual(
-            radar.tarefas_em_falta(self.lista(so_um), "linux"),
-            ["radar-17h.timer"])
+            radar.tarefas_em_falta(self.lista(sem), "linux"),
+            ["radar-hora.timer"])
+
+    def test_o_agendar_sh_cria_os_timers_que_o_aviso_procura(self):
+        """A armadilha já registada: mudar um nome no agendar.sh sem
+        mudar o TAREFAS_LINUX cega o aviso vermelho. De hora a hora
+        (23/09/2026) o nome mudou -- e o timer passa --agendada, sem a
+        qual as horas fora da lista também verificavam."""
+        with open(os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               "agendar.sh"), encoding="utf-8") as f:
+            guiao = f.read()
+        criados = set(re.findall(r'"\$UNIDADES/(radar-[\w-]+\.timer)"', guiao))
+        for nome in radar.TAREFAS_LINUX:
+            self.assertIn(nome, criados)
+        self.assertIn("verificar.sh --agendada", guiao)
 
     def test_sistema_sem_agendador_conhecido_nao_inventa_aviso(self):
         self.assertEqual(
@@ -9885,6 +9896,42 @@ class TestTarefasEmFalta(unittest.TestCase):
         self.assertIn("systemd", onde)
 
 
+class TestHorasDeHoraAHora(unittest.TestCase):
+    """A verificação de hora a hora (23/09/2026). O temporizador dispara
+    a todas as horas e o radar decide quais contam; o relógio do painel
+    recupera só a última hora falhada, e não todas."""
+    HORAS = ["%02d:00" % h for h in range(8, 21)]
+
+    def d(self, hh, mm=0):
+        return datetime.datetime(2026, 9, 23, hh, mm)
+
+    def test_o_temporizador_so_verifica_nas_horas_da_lista(self):
+        self.assertEqual(radar.slot_desta_hora(self.HORAS, self.d(10, 0)), "10:00")
+        # atrasou uns minutos (o PC acordou): a hora é a mesma
+        self.assertEqual(radar.slot_desta_hora(self.HORAS, self.d(10, 59)), "10:00")
+        self.assertIsNone(radar.slot_desta_hora(self.HORAS, self.d(3, 0)))
+        self.assertIsNone(radar.slot_desta_hora(self.HORAS, self.d(21, 0)))
+        # as horas antigas continuam a funcionar
+        self.assertEqual(radar.slot_desta_hora(["09:00", "17:00"],
+                                               self.d(17, 20)), "17:00")
+        self.assertIsNone(radar.slot_desta_hora(["09:00", "17:00"],
+                                                self.d(12, 0)))
+
+    def test_o_relogio_recupera_so_a_ultima(self):
+        """Um PC ligado às 19:30 não corre onze verificações seguidas:
+        a das 19:00 traz o mesmo que todas as de antes."""
+        self.assertEqual(radar.ultimo_slot_passado(self.HORAS, self.d(19, 30)),
+                         "19:00")
+        self.assertEqual(radar.ultimo_slot_passado(self.HORAS, self.d(8, 0)),
+                         "08:00")
+        self.assertIsNone(radar.ultimo_slot_passado(self.HORAS, self.d(7, 59)))
+        self.assertEqual(radar.ultimo_slot_passado(self.HORAS, self.d(23, 0)),
+                         "20:00")
+
+    def test_por_omissao_e_de_hora_a_hora(self):
+        self.assertEqual(radar.CONFIG_INICIAL["horas_verificacao"], self.HORAS)
+
+
 class TestAvisoDasTarefasNoPainel(BaseTemporaria):
     """O aviso chega mesmo ao HTML, com o nome da tarefa em falta e o
     guião certo -- e a lista de tarefas é a deste sistema, não a do
@@ -9892,13 +9939,13 @@ class TestAvisoDasTarefasNoPainel(BaseTemporaria):
 
     def test_pagina_mostra_o_aviso(self):
         with unittest.mock.patch.object(radar, "tarefas_em_falta",
-                                        lambda: ["radar-17h.timer"]), \
+                                        lambda: ["radar-hora.timer"]), \
                 unittest.mock.patch.object(radar, "como_agendar",
                                            lambda: ("nos temporizadores do systemd",
                                                     "agendar.sh")):
             html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertIn("não está a verificar", html_)
-        self.assertIn("radar-17h.timer", html_)
+        self.assertIn("radar-hora.timer", html_)
         self.assertIn("agendar.sh", html_)
         self.assertNotIn("Windows", html_.split("não está a verificar")[1][:300])
 

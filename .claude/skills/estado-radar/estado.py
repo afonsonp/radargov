@@ -101,7 +101,7 @@ def main():
                                 capture_output=True, text=True).stdout
     except OSError:
         timers = ""
-    activas = all(nome in timers for nome in ("radar-09h.timer", "radar-17h.timer"))
+    activas = "radar-hora.timer" in timers   # de hora a hora desde 23/09/2026
     print("  tarefas agendadas: %s" % ("activas" if activas else "não encontradas"))
     return 0
 
