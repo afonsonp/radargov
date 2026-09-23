@@ -1145,6 +1145,19 @@ def iniciar_db():
                     refazer.append(d["ref"])
             c.execute("INSERT OR REPLACE INTO estado "
                       "VALUES ('pecas_dentro_dos_zip','1')")
+        # E os .7z, que chegaram no mesmo dia um pouco depois: voltam a
+        # por ler, uma vez, com a sua marca -- mas NAO se leem aqui.
+        # Medido nesse dia: um .7z de lote sao 46 PDF e 91 s de leitura;
+        # os quatro de um concurso punham o arranque do painel (e o
+        # /saude) em baixo seis minutos. Leem-se quando alguem pedir as
+        # pecas ou a leitura desse concurso, que e quando o
+        # extrair_textos() corre.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='pecas_dentro_dos_7z'").fetchone():
+            c.execute("UPDATE documentos SET texto_estado=NULL WHERE "
+                      "texto_estado='não é PDF' AND lower(nome) LIKE '%.7z'")
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('pecas_dentro_dos_7z','1')")
         if not c.execute("SELECT 1 FROM estado "
                          "WHERE chave='texto_com_paginas'").fetchone():
             for d in c.execute("SELECT id, ref, nome FROM documentos "
@@ -5181,6 +5194,66 @@ def texto_do_zip(caminho, papeis):
             dentro = ficheiros_do_zip(f.read())
     except (zipfile.BadZipFile, OSError, KeyError) as erro:
         return "", "erro: %s" % str(erro)[:80]
+    return _texto_dos_ficheiros(dentro, papeis)
+
+
+def ficheiros_do_7z(caminho):
+    """[(nome, bytes)] dos PDF, .docx e ZIP de dentro de um .7z, com os
+    mesmos tectos dos ZIP (MAX_FICHEIRO por ficheiro, TECTO_DOS_ZIP no
+    total) e os ZIP de dentro abertos por `ficheiros_do_zip()`.
+
+    Os .7z chegaram a 23/09/2026: um concurso de quatro lotes com as
+    pecas de cada lote num .7z de 32 MB (47 PDF la dentro), que ficavam
+    «não é PDF». Pede o py7zr (requirements.txt); sem ele e um erro --
+    que o extrair_textos() retenta --, e nao um veredicto."""
+    try:
+        import py7zr
+        from py7zr.io import BytesIOFactory
+    except ImportError:
+        raise OSError("falta o py7zr (python -m pip install py7zr)")
+    with py7zr.SevenZipFile(caminho, "r") as z:
+        alvos, gasto = [], 0
+        for info in z.list():
+            baixo = info.filename.lower()
+            tamanho = info.uncompressed or 0
+            if info.is_directory or not baixo.endswith((".pdf", ".docx", ".zip")):
+                continue
+            if tamanho > MAX_FICHEIRO or gasto + tamanho > TECTO_DOS_ZIP:
+                continue
+            gasto += tamanho
+            alvos.append(info.filename)
+        fabrica = BytesIOFactory(MAX_FICHEIRO)
+        if alvos:
+            z.extract(targets=alvos, factory=fabrica)
+    saida = []
+    for nome in alvos:
+        fio = fabrica.products.get(nome)
+        if fio is None:
+            continue
+        fio.seek(0)
+        dados = fio.read()
+        if nome.lower().endswith(".zip"):
+            try:
+                saida += [(nome + "/" + n, d) for n, d in ficheiros_do_zip(dados, 1)]
+            except zipfile.BadZipFile:
+                pass
+        else:
+            saida.append((nome, dados))
+    return saida
+
+
+def texto_do_7z(caminho, papeis):
+    """O texto das pecas de dentro de um .7z, como o texto_do_zip()."""
+    try:
+        dentro = ficheiros_do_7z(caminho)
+    except Exception as erro:             # py7zr: Bad7zFile, e o resto
+        return "", "erro: %s" % str(erro)[:80]
+    return _texto_dos_ficheiros(dentro, papeis)
+
+
+def _texto_dos_ficheiros(dentro, papeis):
+    """O texto de [(nome, bytes)] tirados de um arquivo: os da peca que
+    se procura, se os houver, senao todos; cada um com a sua marca."""
     if not dentro:
         return "", "não é PDF"
     proprios = [(n, d) for n, d in dentro
@@ -5251,6 +5324,8 @@ def extrair_textos(ref):
         elif d["nome"].lower().endswith(".docx"):
             with open(caminho, "rb") as f:
                 texto, estado = texto_do_docx(f.read())
+        elif d["nome"].lower().endswith(".7z"):
+            texto, estado = texto_do_7z(caminho, papeis)
         elif zipfile.is_zipfile(caminho):
             # Todos os ZIP, e nao so os de nome de peca (23/09/2026): a
             # "Resposta a Pedido de Esclarecimentos.zip" e o ZIP generico
