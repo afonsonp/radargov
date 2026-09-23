@@ -9583,7 +9583,7 @@ LOOPBACK = ("127.0.0.1", "::1")
 # empresa so e o admin era o dono. Por prefixo, para os POST de cada
 # seccao entrarem com o GET. Quem la bata sem ser dono leva 403 -- nao
 # um redirect para o login, que ele ja fez.
-ROTAS_SO_DONO = ("/indicadores", "/configuracoes/indicadores",
+ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
                  "/configuracoes/recolha", "/configuracoes/leitura",
                  "/configuracoes/capturas", "/configuracoes/copias",
                  "/verificar", "/alertas/remetente", "/pedidos-de-acesso")
@@ -10018,8 +10018,8 @@ def bloco_da_conta():
                 "<button type='submit'>sair de todos os aparelhos</button>"
                 "</form></div></details>"
                 % (_iniciais(nome), html.escape(nome),
-                   "<a class='sou-conta' href='/pedidos-de-acesso'>pedidos "
-                   "de acesso do site</a>" if sou_dono() else ""))
+                   "<a class='sou-conta' href='/plataforma'>administração "
+                   "da plataforma</a>" if sou_dono() else ""))
     if nome:
         return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
                 "<span class='rg-avatar'>%s</span>%s</div></div>"
@@ -15650,10 +15650,19 @@ SECCOES_CONFIG = (
 
 
 def seccoes_visiveis():
-    """As seccoes que quem esta pode abrir: todas ao admin, as quatro
-    primeiras ao tester. A porta (ROTAS_SO_ADMIN) e quem recusa; isto
-    e so o indice."""
-    return [sc for sc in SECCOES_CONFIG if not sc[3] or sou_dono()]
+    """As seccoes das Configuracoes: as da EMPRESA, e so essas, a toda a
+    gente. As do sistema (a bandeira sc[3]) sairam daqui a 23/09/2026 --
+    pedido dele: «enquanto admin de empresa nao devia ver» a recolha, as
+    capturas, as chaves da IA, as copias e os indicadores. Vivem na
+    administracao da plataforma (/plataforma), que so o dono abre; a
+    porta (ROTAS_SO_DONO) e quem recusa, isto e so o indice."""
+    return [sc for sc in SECCOES_CONFIG if not sc[3]]
+
+
+def seccoes_da_plataforma():
+    """As seccoes do sistema, para o indice da administracao da
+    plataforma."""
+    return [sc for sc in SECCOES_CONFIG if sc[3]]
 
 
 # O que fica no config.json de proposito, sem formulario: termos de
@@ -15699,6 +15708,9 @@ def pagina_config(seccao, conteudo, script=""):
     """O esqueleto comum: o indice das seccoes a esquerda, preso ao
     rolar como o da ficha, e a seccao a direita."""
     titulo = dict((c, t) for c, t, _, _, _ in SECCOES_CONFIG)[seccao]
+    # Uma seccao do sistema mostra o indice da PLATAFORMA, e nao o da
+    # empresa (23/09/2026): sao duas administracoes diferentes.
+    da_plataforma = seccao in {sc[0] for sc in seccoes_da_plataforma()}
     # As que gravam primeiro, e as que so leem apartadas por um risco: um
     # menu que as pinte iguais diz que os Indicadores sao uma coisa que
     # se afina, e nao sao.
@@ -15706,8 +15718,19 @@ def pagina_config(seccao, conteudo, script=""):
         "<a class='%s%s' href='/configuracoes/%s'><b>%s</b><i>%s</i></a>"
         % ("on " if c == seccao else "", "" if grava else "so-le",
            c, html.escape(t), html.escape(d))
-        for c, t, d, _, grava in sorted(seccoes_visiveis(),
-                                        key=lambda sc: not sc[4]))
+        for c, t, d, _, grava in sorted(
+            seccoes_da_plataforma() if da_plataforma else seccoes_visiveis(),
+            key=lambda sc: not sc[4]))
+    if da_plataforma:
+        indice = ("<a href='/plataforma'><b>Plataforma</b><i>o resumo, as "
+                  "empresas e os pedidos</i></a>" + indice)
+        return envolver(
+            "configuracoes", titulo,
+            "A administração da plataforma: o que é de todas as empresas.",
+            "<div class='conf'><nav class='conf-indice'>%s</nav>"
+            "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
+            migalhas=migalhas_de("configuracoes", titulo), script=script,
+            titulo_aba="%s, Plataforma" % titulo)
     return envolver(
         "configuracoes", titulo,
         # "Cada seccao grava so o que mostra" saiu a 16/09/2026: descrevia
@@ -15718,6 +15741,49 @@ def pagina_config(seccao, conteudo, script=""):
         "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
         migalhas=migalhas_de("configuracoes", titulo), script=script,
         titulo_aba="%s, Configurações" % titulo)
+
+
+@app.route("/plataforma")
+def administracao_da_plataforma():
+    """A administracao da plataforma (23/09/2026), so do dono: as
+    seccoes do sistema, as empresas, os pedidos de acesso e o «Verificar
+    agora». A conta do dono na empresa dele ve so as Configuracoes da
+    empresa, como qualquer admin -- sao dois papeis na mesma pessoa."""
+    with liga() as c:
+        contas_por_empresa = dict(c.execute(
+            "SELECT empresa_id, COUNT(*) FROM utilizadores GROUP BY empresa_id"
+        ).fetchall())
+        pendentes = c.execute("SELECT COUNT(*) FROM pedidos_acesso WHERE "
+                              "COALESCE(estado,'') != 'aceite'").fetchone()[0]
+    linhas = []
+    for id_ in empresas_existentes():
+        with com_empresa(id_):
+            nome = (ler_config().get("nome_da_empresa") or "").strip()
+        linhas.append("<tr><td class='rg-num'>%d</td><td>%s</td>"
+                      "<td class='rg-num'>%d</td></tr>"
+                      % (id_, html.escape(nome or "(sem nome)"),
+                         contas_por_empresa.get(id_, 0)))
+    seccoes = "".join(
+        "<a class='rg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
+        "<b>%s</b><div class='nota'>%s</div></a>" % (c_, html.escape(t_), html.escape(d_))
+        for c_, t_, d_, _, _ in seccoes_da_plataforma())
+    corpo = (
+        "<div class='larg'>"
+        "<div class='rg-card conf-cx'><div class='rg-field__label'>Recolha</div>"
+        "<p class='nota'>Última verificação: %s</p><div>%s</div></div>"
+        "<div class='rg-field__label' style='margin:22px 0 6px'>O sistema</div>"
+        "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
+        "<a class='rg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
+        "<b>Pedidos de acesso</b><div class='nota'>%s por decidir</div></a></div>"
+        "<div class='rg-field__label' style='margin:22px 0 6px'>Empresas</div>"
+        "<div class='rg-card tab-cx'><table class='rg-table'><thead><tr><th>N.º</th>"
+        "<th>Empresa</th><th>Contas</th></tr></thead><tbody>%s</tbody></table></div>"
+        "</div>"
+        % (html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
+           accao("/verificar", "Verificar agora"), seccoes, pendentes, "".join(linhas)))
+    return envolver("configuracoes", "Plataforma",
+                    "A administração da plataforma: o que é de todas as empresas.",
+                    corpo)
 
 
 def volta_config(seccao, aviso):

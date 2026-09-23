@@ -10480,15 +10480,17 @@ class TestConfiguracoes(BaseTemporaria):
         apartadas por um risco, no fim do menu, e o subtítulo perdeu a
         metade falsa.
         """
-        corpo = self.cliente.get("/configuracoes/conta").get_data(as_text=True)
+        # Desde 23/09/2026 os Indicadores vivem no indice da PLATAFORMA
+        # (nas seccoes do sistema), e nao no das Configuracoes da empresa.
+        corpo = self.cliente.get("/configuracoes/recolha").get_data(as_text=True)
         indice = corpo.split("class='conf-indice'")[1].split("</nav>")[0]
         self.assertIn("so-le", indice)
         # e é a última do menu, não uma do meio
         self.assertTrue(indice.rstrip().endswith("</a>"))
-        self.assertLess(indice.index("conta"), indice.index("so-le"))
+        self.assertLess(indice.index("recolha"), indice.index("so-le"))
         # o subtítulo perdeu a metade que era falsa
         self.assertNotIn("grava só o que mostra", corpo)
-        self.assertIn("Dizer ao radar como quero que ele trabalhe", corpo)
+        self.assertIn("A administração da plataforma", corpo)
 
     def test_as_notas_dos_campos_ficam_onde_estao(self):
         """O critério da §9 do `docs/design.md` **não** se aplica aqui do
@@ -11375,9 +11377,16 @@ class TestMudancasDeSetembro(BaseTemporaria):
         admin = self.entrar("admin")
         html_t = tester.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
         html_a = admin.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        # Desde 23/09/2026 as do sistema nao aparecem nas Configuracoes de
+        # NINGUEM -- nem do dono, que as tem na administracao da plataforma.
+        plataforma = admin.get("/plataforma", environ_base=self.FORA).get_data(as_text=True)
         for seccao in ("recolha", "leitura", "capturas", "copias", "indicadores"):
             self.assertNotIn("href='/configuracoes/%s'" % seccao, html_t)
-            self.assertIn("href='/configuracoes/%s'" % seccao, html_a)
+            self.assertNotIn("href='/configuracoes/%s'" % seccao, html_a)
+            self.assertIn("href='/configuracoes/%s'" % seccao, plataforma)
+        self.assertIn("href='/plataforma'", html_a)
+        self.assertNotIn("href='/plataforma'", html_t)
+        self.assertEqual(tester.get("/plataforma", environ_base=self.FORA).status_code, 403)
         for seccao in ("conta", "interesse", "alertas", "importar"):
             self.assertIn("href='/configuracoes/%s'" % seccao, html_t)
         # o bloco dos utilizadores so ao admin
@@ -12934,7 +12943,12 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
             for caminho in self._caminhos():
                 corpo = cliente.get(caminho, environ_base=self.FORA).get_data()
                 corpo = corpo.decode("utf-8", "replace")    # ha fontes e icones
-                fugas += [(quem, caminho, m) for m in self.MARCAS_DA_B if m in corpo]
+                fugas += [(quem, caminho, m) for m in self.MARCAS_DA_B if m in corpo
+                          # a lista das empresas da administracao da
+                          # plataforma diz que a B existe, e como se chama:
+                          # o dono tem de o saber. O trabalho dela, nao.
+                          and not (quem == "admin" and caminho == "/plataforma"
+                                   and m == "EMPRESA-B-SEGREDO")]
             self.assertEqual(fugas, [])
             self.assertGreater(len(self._caminhos()), 20)
 

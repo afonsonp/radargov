@@ -250,6 +250,9 @@ Aqui ficam os nomes no código: `porta_de_entrada()` (um
 `sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN`, `largar_a_empresa()`
 (o `teardown_request` que repõe a empresa do pedido), `aceitar_pedido()`
 e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal()` / `operador_completo()` e `avisar_o_vigia()` (F8),
+`administracao_da_plataforma()` (`/plataforma`, com
+`seccoes_da_plataforma()`: as secções do sistema saíram do índice das
+Configurações a 23/09/2026),
 `ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
 inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`;
 `scrypt`; `token_csrf()` / `csrf_bate()`), que **não importa o radar**.
