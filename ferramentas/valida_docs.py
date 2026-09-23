@@ -92,6 +92,10 @@ ISENTOS = {
     "curl_detalhe.txt": "captura do Afonso; não entra no git",
     "radar.db": "a base; não entra no git",
     "contratos.db": "o corpus; não entra no git",
+    "empresas/1/empresa.db": "o trabalho da empresa (F1); não entra no git",
+    "empresa.db": "o ficheiro de cada empresa (F1); não entra no git",
+    "radar-AAAA-MM-DD.db": "o molde do nome da cópia diária",
+    "empresa-1-AAAA-MM-DD.db": "o molde do nome da cópia diária da empresa",
     "triagem.jsonl": "exportado pela verificação",
     "email_senha.txt": "segredo; nunca no git",
     "config.json": "criado no primeiro arranque",
@@ -223,9 +227,12 @@ def NUMEROS():
             return None                      # sem base, não se julga
         c = sqlite3.connect("file:%s?mode=ro" % base, uri=True)
         try:
-            return c.execute(
-                "SELECT count(*) FROM sqlite_master WHERE type='table'"
-                " AND name NOT LIKE 'sqlite_%'").fetchone()[0]
+            # As da empresa nao contam, estejam onde estiverem: a F1
+            # (23/09/2026) leva-as para o ficheiro dela no primeiro
+            # arranque, e ate la ainda moram aqui.
+            return len({r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+                " AND name NOT LIKE 'sqlite_%'")} - set(radar.TABELAS_DA_EMPRESA))
         finally:
             c.close()
 

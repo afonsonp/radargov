@@ -986,8 +986,18 @@ systemctl --user stop radar-painel.service radar-hora.timer
 cp radar.db radar-estragada.db          # guarda a que lá está, por via das dúvidas
 rm -f radar.db-wal radar.db-shm         # o resto da base antiga; sem isto misturam-se
 cp copias/radar-AAAA-MM-DD.db radar.db
+# e o trabalho da empresa, que desde 23/09/2026 é um ficheiro à parte
+rm -f empresas/1/empresa.db-wal empresas/1/empresa.db-shm
+cp copias/empresa-1-AAAA-MM-DD.db empresas/1/empresa.db
 systemctl --user start radar-painel.service radar-hora.timer
 ```
+
+**As cópias são duas por dia desde 23/09/2026**: `radar-AAAA-MM-DD.db`
+(os anúncios, as peças lidas, as contas) e `empresa-1-AAAA-MM-DD.db`
+(as propostas, as tarefas, os contactos, o histórico — o trabalho da
+empresa, que é o que não se recupera de lado nenhum). O ensaio abre as
+duas. Restaura-se o par da mesma data; só o da empresa, se foi só o
+trabalho que se estragou.
 
 Perde-se o que entrou depois dessa cópia: a recolha seguinte traz os
 anúncios outra vez, mas a triagem desses dias não volta (a do
@@ -1035,9 +1045,10 @@ anúncios, é o teste do parser que avisa primeiro.
 | `empresa.py` | o registo da empresa: lê o Excel e liga-o aos anúncios, sem tocar no painel (secção 11) |
 | `curl_DR.txt` / `curl_detalhe.txt` | as tuas capturas, secção 3 |
 | `config.json` | configuração e horários, criado no primeiro arranque |
-| `radar.db` | os anúncios, a triagem e o histórico |
+| `radar.db` | os anúncios, as peças lidas, as contas — o que é da plataforma |
+| `empresas/1/empresa.db` | o trabalho da empresa: propostas, tarefas, contactos, histórico (desde 23/09/2026) |
 | `contratos.db` | o corpus de contratos do BASE (refaz-se com `--contratos`) |
-| `copias/` | cópia diária do `radar.db`, sete guardadas |
+| `copias/` | cópia diária do `radar.db` e do `empresa.db`, sete de cada guardadas |
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
 | `pecas/` | as peças dos concursos que foste buscar |
 | `AVISOS.txt` | o último resumo dos alertas em texto, quando há (o e-mail leva o mesmo, formatado) |
