@@ -13,6 +13,9 @@ contratos.db-shm
 contratos.db-wal
 # Cópias de segurança do radar.db, uma por dia. São bases, não código.
 copias/
+# O trabalho de cada empresa, um ficheiro por empresa (F1, 23/09/2026).
+# É o dado mais sensível que aqui há, e no GitHub só entra código.
+empresas/
 # Os avisos da última verificação: reescrevem-se a cada volta.
 AVISOS.txt
 pecas/
