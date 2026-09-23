@@ -374,6 +374,15 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
 
 Orçamento, cadeia de reserva, chaves.
 
+- **O tecto por empresa conta os PEDIDOS, e não as leituras** (F7,
+  23/09/2026). A `leituras_pedidas` escreve-se na rota `/analisar/<ref>`, só
+  quando o `pedir_analise()` pôs mesmo na fila e só para quem não é
+  dono; a vigilância e a releitura das incompletas não passam por ali, e
+  por isso não gastam o tecto de ninguém. Uma leitura completa recusa-se
+  antes de contar — a pergunta é «já está lida?», e só depois «ainda
+  tens pedidos hoje?». O tecto é uma chave da plataforma e não da
+  empresa: quem o decide é o dono, e é ele que paga o modelo.
+
 - **Uma leitura que ficou a meio volta a tentar-se sozinha — e só ela.**
   Era o terceiro beco sem saída das peças: «o tecto do dia bateu»
   gravava a leitura parcial em `analise` e **ninguém voltava a tentar**.

@@ -677,7 +677,11 @@ esclarecimentos (o primeiro terço do prazo, a regra supletiva do CCP)
 e sempre que o prazo ou o preço base mudam. O que aparecer de novo
 fica guardado ao lado das outras peças, no histórico da ficha e no
 resumo por e-mail — e o anúncio é logo relido pelo modelo, para a
-leitura das peças ficar com a versão nova. E na ficha há o botão
+leitura das peças ficar com a versão nova. **A leitura é a mesma para
+todas as empresas** (desde 23/09/2026): uma vez completa, só tu a podes
+mandar reler; e cada empresa pode pedir até 10 leituras por dia (o
+número muda-se no `config.json`, `leituras_por_empresa_por_dia`). E na
+ficha há o botão
 **«Ver se há peças novas»**
 para quando queres olhar já: responde na hora com o que encontrou.
 Não confundir com «Actualizar peças», que apaga e volta a trazer tudo.
