@@ -693,6 +693,12 @@ e-mail: a senha troca-se por consola, com `--palavra-passe NOME`.
   nenhum** — e nenhum dado vai para o git. Uma cópia que nunca se
   ensaiou não conta: `--ensaiar-copia` prova que se restaura (abre as
   duas).
+- **Cópia fora do PC** (F6, 23/09/2026): a primeira verificação do dia
+  manda as cópias das empresas e a das contas (`contas-<data>.db`, as
+  `TABELAS_DAS_CONTAS`) para o destino `copia_fora` do rclone, cifrado,
+  onde ficam `DIAS_DAS_COPIAS_FORA` dias (`mandar_para_fora()`); sem
+  destino configurado (o `copias_fora.sh` faz isso), ficam só no PC, e
+  a secção Cópias di-lo.
 - **Exportação da triagem**: `empresas/<id>/triagem.jsonl`, por
   empresa, só local (desde 23/09/2026 não vai ao GitHub).
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer

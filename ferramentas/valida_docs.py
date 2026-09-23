@@ -99,6 +99,7 @@ ISENTOS = {
     "empresas/1/triagem.jsonl": "exportado pela verificação, por empresa; não entra no git",
     "radar-AAAA-MM-DD.db": "o molde do nome da cópia diária",
     "empresa-1-AAAA-MM-DD.db": "o molde do nome da cópia diária da empresa",
+    "contas-AAAA-MM-DD.db": "o molde do nome da cópia diária das contas (F6)",
     "triagem.jsonl": "exportado pela verificação",
     "email_senha.txt": "segredo; nunca no git",
     "config.json": "criado no primeiro arranque",
