@@ -258,6 +258,19 @@ O DR, a Vortal, e como um anúncio entra na base.
 
 Trazer os documentos do procedimento, e o que se faz com o texto deles.
 
+- **As peças vêm dentro de ZIP, e às vezes de ZIP dentro de ZIP**
+  (23/09/2026). O `texto_do_zip()` só abria os ZIP cujo **nome** fosse de
+  peça, e só lia os PDF directamente lá dentro: a «Resposta a Pedido de
+  Esclarecimentos.zip», o «programaconcurso.zip» que vinha dentro do ZIP
+  da plataforma, e os anexos em `.docx`, ficavam por ler — medido nesse
+  dia, 12 dos 24 arquivos das peças. Hoje abre todos os ZIP, desce até
+  `FUNDO_DOS_ZIP` níveis com o total preso ao `TECTO_DOS_ZIP` (contra um
+  ZIP que se abre em si próprio), lê os `.docx` com a biblioteca padrão
+  (`texto_do_docx()`), e marca cada ficheiro no texto
+  (`MARCA_DO_FICHEIRO`) — é por essa marca que o `pecas_para_analise()`
+  manda ao modelo, de um ZIP, só os ficheiros de dentro que são da peça.
+  Os `.7z` continuam por abrir: precisavam de uma biblioteca nova.
+
 - **"Abrir plataforma" não é o link das peças.** O DR nunca publica o
   endereço da página do procedimento: traz a raiz da plataforma e o
   link das peças, e o botão abria o segundo — na acingov isso

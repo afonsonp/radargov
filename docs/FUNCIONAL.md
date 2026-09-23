@@ -312,6 +312,8 @@ aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
 ### 3.6 As peças, e o que o modelo lê
 
+**Os ZIP abrem-se por dentro** (23/09/2026): todos, até três níveis de ZIP dentro de ZIP, com os PDF e os `.docx` lidos; de um ZIP, o modelo recebe só os ficheiros de dentro que são o Caderno de Encargos ou o Programa. Os `.7z` ainda não se abrem.
+
 **A leitura é da plataforma, e partilhada** (F7, 23/09/2026; decisão
 dele: o que poupa custos e não é de uma empresa é de todas). Uma leitura
 completa serve todas as empresas e **não se refaz a pedido** — o botão
