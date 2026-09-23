@@ -9903,6 +9903,142 @@ class TestAvisoDasTarefasNoPainel(BaseTemporaria):
         self.assertNotIn("Windows", html_.split("não está a verificar")[1][:300])
 
 
+class TestSitePublico(BaseTemporaria):
+    """O site em radargov.pt e o formulário do pedido de acesso
+    (23/09/2026). A porta continua fechada: o site é um ficheiro sem
+    dados, e só a raiz o mostra; e o formulário é uma rota ABERTA, que
+    sai da porta antes da guarda do POST -- por isso a guarda está nela,
+    e é isso que estes testes seguram."""
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    BOM = {"nome": "Ana Silva", "empresa": "Obras Lda",
+           "email": "ana@obras.pt", "sector": "Obras públicas e construção",
+           "mensagem": "CPV 45"}
+
+    def setUp(self):
+        super().setUp()
+        self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(self.cfg)))
+        self.avisos = []
+        self.enterContext(unittest.mock.patch.object(
+            radar, "_avisar_do_pedido",
+            lambda id_, p: self.avisos.append((id_, p))))
+        radar.iniciar_db()
+        self.cliente = radar.app.test_client()
+
+    def pedir(self, dados=None, ambiente=None, **cabecalhos):
+        cabecalhos.setdefault("Accept", "application/json")
+        return self.cliente.post("/pedir-acesso", data=dados or self.BOM,
+                                 environ_base=ambiente or self.FORA,
+                                 headers=cabecalhos)
+
+    def pedidos(self):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM pedidos_acesso").fetchall()
+
+    def test_de_fora_a_raiz_e_o_site_e_o_resto_continua_fechado(self):
+        r = self.cliente.get("/", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        self.assertIn('id="form-acesso"', corpo)
+        # o site não traz nada do painel
+        self.assertNotIn("rg-topbar", corpo)
+        # a raiz com parâmetros é a raiz: o site, nunca o Hoje
+        self.assertNotIn("rg-topbar", self.cliente.get(
+            "/?dia=2026-09-01", environ_base=self.FORA).get_data(as_text=True))
+        for caminho in ("/concursos", "/contratos", "/pedidos-de-acesso"):
+            r = self.cliente.get(caminho, environ_base=self.FORA)
+            self.assertEqual(r.status_code, 302, caminho)
+            self.assertIn("/entrar", r.headers["Location"], caminho)
+
+    def test_de_perto_a_raiz_continua_a_ser_o_hoje(self):
+        corpo = self.cliente.get(
+            "/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
+        self.assertIn("rg-topbar", corpo)
+        self.assertNotIn("form-acesso", corpo)
+
+    def test_as_letras_do_site_sao_servidas_daqui(self):
+        # o CSP só deixa fontes do mesmo sítio, e as do site estão na TIPOS
+        with open(radar.SITE, encoding="utf-8") as f:
+            site = f.read()
+        self.assertNotIn("googleapis", site)
+        nomes = re.findall(r"/tipo/([\w.-]+)", site)
+        self.assertTrue(nomes)
+        for nome in nomes:
+            self.assertIn(nome, radar.TIPOS)
+
+    def test_um_pedido_bom_grava_e_avisa(self):
+        r = self.pedir()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json(), {"ok": True, "erro": ""})
+        (p,) = self.pedidos()
+        self.assertEqual((p["nome"], p["email"], p["ip"]),
+                         ("Ana Silva", "ana@obras.pt", "203.0.113.7"))
+        self.assertEqual(len(self.avisos), 1)
+
+    def test_sem_javascript_responde_uma_pagina(self):
+        r = self.pedir(Accept="text/html")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Pedido recebido", r.get_data(as_text=True))
+
+    def test_o_robo_que_preenche_a_armadilha_nao_grava_nada(self):
+        r = self.pedir(dict(self.BOM, website="http://spam"))
+        self.assertEqual(r.get_json()["ok"], True)   # não se lhe diz porquê
+        self.assertEqual(self.pedidos(), [])
+        self.assertEqual(self.avisos, [])
+
+    def test_de_outro_sitio_e_recusado(self):
+        r = self.pedir(Origin="https://mau.exemplo")
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.pedidos(), [])
+
+    def test_campos_em_falta_ou_email_mau_nao_gravam(self):
+        for mau in ({"email": "nao-e-email"}, {"nome": "  "},
+                    {"sector": "inventado"}):
+            r = self.pedir(dict(self.BOM, **mau))
+            self.assertEqual(r.status_code, 400, mau)
+            self.assertFalse(r.get_json()["ok"])
+        self.assertEqual(self.pedidos(), [])
+
+    def test_os_campos_cortam_no_tamanho(self):
+        self.pedir(dict(self.BOM, nome="x" * 5000, mensagem="y" * 9000))
+        (p,) = self.pedidos()
+        self.assertEqual(len(p["nome"]), 120)
+        self.assertEqual(len(p["mensagem"]), 2000)
+
+    def test_tecto_por_ip_por_hora(self):
+        for _ in range(radar.PEDIDOS_POR_IP_POR_HORA):
+            self.assertEqual(self.pedir().status_code, 200)
+        self.assertEqual(self.pedir().status_code, 429)
+        # outro IP ainda entra
+        outro = {"REMOTE_ADDR": "198.51.100.9"}
+        self.assertEqual(self.pedir(ambiente=outro).status_code, 200)
+
+    def test_o_tecto_conta_pelo_ip_da_cloudflare(self):
+        """O X-Forwarded-For pode vir feito pelo visitante; o IP que a
+        Cloudflare escreve em Cf-Connecting-Ip nao. Variar o primeiro a
+        cada pedido nao pode furar o tecto."""
+        for i in range(radar.PEDIDOS_POR_IP_POR_HORA):
+            self.assertEqual(self.pedir(**{
+                "Cf-Connecting-Ip": "192.0.2.1",
+                "X-Forwarded-For": "10.0.0.%d" % i}).status_code, 200)
+        r = self.pedir(**{"Cf-Connecting-Ip": "192.0.2.1",
+                          "X-Forwarded-For": "10.0.0.99"})
+        self.assertEqual(r.status_code, 429)
+
+    def test_o_aviso_guarda_o_que_o_email_respondeu(self):
+        self.pedir()
+        (p,) = self.pedidos()
+        with unittest.mock.patch.object(
+                radar, "enviar_email", lambda *a, **k: (False, "sem senha")):
+            TestSitePublico._avisar_original(p["id"], dict(self.BOM))
+        (p,) = self.pedidos()
+        self.assertEqual(p["avisado"], "sem senha")
+
+
+TestSitePublico._avisar_original = staticmethod(radar._avisar_do_pedido)
+
+
 class TestContas(BaseTemporaria):
     """A porta do painel (docs/historico/ONLINE.md, etapa 1, 8/09/2026).
 
@@ -10030,22 +10166,24 @@ class TestContas(BaseTemporaria):
 
     def test_acesso_livre_so_de_127001_e_sem_tunel_a_meio(self):
         local = {"REMOTE_ADDR": "127.0.0.1"}
+        # Os de fora sondam-se numa pagina de dentro: a raiz, sem sessao,
+        # e o site publico desde 23/09/2026 (TestSitePublico).
         self.assertEqual(self.cliente.get("/", environ_base=local).status_code, 200)
         # o cloudflared liga-se de 127.0.0.1 -- mas traz o Host publico
         # e os cabecalhos de proxy, e qualquer um deles chega
-        r = self.cliente.get("/", environ_base=local,
+        r = self.cliente.get("/concursos", environ_base=local,
                              headers={"Host": "abc.trycloudflare.com"})
         self.assertEqual(r.status_code, 302)
-        r = self.cliente.get("/", environ_base=local,
+        r = self.cliente.get("/concursos", environ_base=local,
                              headers={"Cf-Connecting-Ip": "203.0.113.7"})
         self.assertEqual(r.status_code, 302)
         # X-Forwarded-For: o ProxyFix troca o IP e o pedido deixa de ser local
-        r = self.cliente.get("/", environ_base=local,
+        r = self.cliente.get("/concursos", environ_base=local,
                              headers={"X-Forwarded-For": "203.0.113.7"})
         self.assertEqual(r.status_code, 302)
         # e com o interruptor desligado nem o local entra
         self.cfg["acesso_livre_local"] = False
-        self.assertEqual(self.cliente.get("/", environ_base=local).status_code, 302)
+        self.assertEqual(self.cliente.get("/concursos", environ_base=local).status_code, 302)
 
     def test_acesso_livre_e_o_unico_utilizador(self):
         with radar.app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
@@ -10117,13 +10255,16 @@ class TestContas(BaseTemporaria):
         r = a.post("/sair-de-todos", data={"csrf": self.token_da_pagina(a)},
                    environ_base=self.FORA)
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(b.get("/", environ_base=self.FORA).status_code, 302)
-        self.assertEqual(a.get("/", environ_base=self.FORA).status_code, 302)
+        # sonda-se uma pagina de dentro: a raiz, sem sessao, e o site
+        # publico (23/09/2026) e responde 200 a toda a gente
+        self.assertEqual(b.get("/concursos", environ_base=self.FORA).status_code, 302)
+        self.assertEqual(a.get("/concursos", environ_base=self.FORA).status_code, 302)
 
     def test_sair_invalida_de_imediato(self):
         a, _ = self.entrar()
         a.post("/sair", data={"csrf": self.token_da_pagina(a)}, environ_base=self.FORA)
-        self.assertEqual(a.get("/", environ_base=self.FORA).status_code, 302)
+        # uma pagina de dentro, porque a raiz sem sessao e o site publico
+        self.assertEqual(a.get("/concursos", environ_base=self.FORA).status_code, 302)
 
     # -- csrf
 
@@ -10131,7 +10272,10 @@ class TestContas(BaseTemporaria):
         """Percorre o app.url_map: uma rota POST nova nao escapa."""
         cliente, _ = self.entrar()
         rotas = sorted(r.rule for r in radar.app.url_map.iter_rules()
-                       if "POST" in r.methods and r.rule not in ("/entrar",))
+                       # o /pedir-acesso e aberto de proposito e traz a
+                       # sua guarda (TestSitePublico): nao pede token
+                       if "POST" in r.methods
+                       and r.rule not in ("/entrar", "/pedir-acesso"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)

@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radar Gov</title>
+<meta name="description" content="Radar Gov lê o Diário da República ao longo do dia, descarrega as peças e mostra o preço a que o mercado adjudica. Produto privado e independente, feito em Portugal.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+/* As letras vêm da própria aplicação (/tipo/, lista branca TIPOS): o
+   CSP só deixa carregar fontes do mesmo sítio, e um visitante não
+   precisa de falar com o Google para ler a página. */
+@font-face{font-family:"Zilla Slab";font-weight:500;font-display:swap;src:url(/tipo/ZillaSlab-Medium.woff2) format("woff2")}
+@font-face{font-family:"Zilla Slab";font-weight:600;font-display:swap;src:url(/tipo/ZillaSlab-SemiBold.woff2) format("woff2")}
+@font-face{font-family:"Source Sans 3";font-weight:200 900;font-display:swap;src:url(/tipo/SourceSans3-Variable.woff2) format("woff2")}
+@font-face{font-family:"Source Code Pro";font-weight:200 900;font-display:swap;src:url(/tipo/SourceCodePro-Variable.woff2) format("woff2")}
+:root{
+  --surface:#eef1f5;--surface-raised:#ffffff;--surface-sunken:#e4e8ef;
+  --header:#003a6c;--header-deep:#002a50;--on-header:#ffffff;--on-header-muted:#c3d5e8;--header-line:rgba(255,255,255,.18);
+  --line:#dde2ea;--line-strong:#64718b;
+  --ink:#1b2530;--ink-secondary:#435066;--ink-muted:#58647b;
+  --brand:#004682;--brand-hover:#00355f;--brand-soft:#e1ecf6;--on-brand:#ffffff;
+  --seal:#7a5200;--seal-soft:#fff1cc;--seal-on-dark:#ffd27a;
+  --success:#006432;--success-soft:#dff1e6;
+  --warning:#8a4f00;--warning-soft:#fff0d6;
+  --danger:#b3161a;--danger-soft:#fce4e3;
+  --focus:#dc00e6;
+  --shadow:0 1px 2px rgba(22,27,38,.05),0 4px 14px rgba(22,27,38,.06);
+  --shadow-alto:0 2px 6px rgba(0,20,45,.18),0 24px 48px rgba(0,20,45,.28);
+  --serif:"Zilla Slab","Roboto Slab",Georgia,serif;
+  --sans:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"Source Code Pro",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --surface:#14171c;--surface-raised:#1c2027;--surface-sunken:#101318;
+    --header:#0c2a48;--header-deep:#081d33;--on-header:#ffffff;--on-header-muted:#b9cde3;--header-line:rgba(255,255,255,.14);
+    --line:#2c323b;--line-strong:#8893aa;
+    --ink:#eceef1;--ink-secondary:#b8bec8;--ink-muted:#9aa2ae;
+    --brand:#7fb3e6;--brand-hover:#9fc6ee;--brand-soft:#16304b;--on-brand:#0b1a2c;
+    --seal:#ffc24d;--seal-soft:#3a2a05;--seal-on-dark:#ffd27a;
+    --success:#6fcf93;--success-soft:#0f2e1c;
+    --warning:#ffaa33;--warning-soft:#3b2a08;
+    --danger:#f28b82;--danger-soft:#3f1513;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.35);
+    --shadow-alto:0 2px 6px rgba(0,0,0,.4),0 24px 48px rgba(0,0,0,.55);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --surface:#14171c;--surface-raised:#1c2027;--surface-sunken:#101318;
+  --header:#0c2a48;--header-deep:#081d33;--on-header:#ffffff;--on-header-muted:#b9cde3;--header-line:rgba(255,255,255,.14);
+  --line:#2c323b;--line-strong:#8893aa;
+  --ink:#eceef1;--ink-secondary:#b8bec8;--ink-muted:#9aa2ae;
+  --brand:#7fb3e6;--brand-hover:#9fc6ee;--brand-soft:#16304b;--on-brand:#0b1a2c;
+  --seal:#ffc24d;--seal-soft:#3a2a05;--seal-on-dark:#ffd27a;
+  --success:#6fcf93;--success-soft:#0f2e1c;
+  --warning:#ffaa33;--warning-soft:#3b2a08;
+  --danger:#f28b82;--danger-soft:#3f1513;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.35);
+  --shadow-alto:0 2px 6px rgba(0,0,0,.4),0 24px 48px rgba(0,0,0,.55);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--surface);color:var(--ink);font:400 17px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--brand);text-underline-offset:2px}
+a:hover{color:var(--brand-hover)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+h1,h2{font-family:var(--serif);font-weight:600;line-height:1.08;text-wrap:balance;margin:0;letter-spacing:-.015em}
+h3{font:600 1.1rem/1.3 var(--sans);margin:0}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:24px}
+@media (max-width:600px){.wrap{padding-inline:16px}}
+
+/* Botões */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:13px 22px;font:600 1.02rem/1.2 var(--sans);text-decoration:none;border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.btn-primario{background:var(--brand);color:var(--on-brand)}
+.btn-primario:hover{background:var(--brand-hover);color:var(--on-brand)}
+.btn-secundario{background:var(--surface-raised);color:var(--brand);border-color:var(--line-strong)}
+.btn-secundario:hover{border-color:var(--brand);color:var(--brand-hover)}
+.btn-claro{background:#ffffff;color:#003a6c}
+.btn-claro:hover{background:#e1ecf6;color:#003a6c}
+.btn-contorno{background:transparent;color:var(--on-header);border-color:rgba(255,255,255,.55)}
+.btn-contorno:hover{border-color:#ffffff;color:var(--on-header)}
+.btn-pequeno{padding:8px 14px;font-size:.92rem}
+.btn[disabled]{opacity:.6;cursor:progress}
+
+/* Barra de topo */
+.topo{background:var(--header);color:var(--on-header);position:sticky;top:env(safe-area-inset-top,0px);z-index:10;border-bottom:1px solid var(--header-line)}
+.topo .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:62px}
+.topo nav{display:flex;gap:22px;align-items:center}
+.topo nav a{color:var(--on-header-muted);text-decoration:none;font-weight:600;font-size:.95rem}
+.topo nav a:hover{color:var(--on-header)}
+.topo nav a.entrar{padding:6px 2px;border-bottom:1px solid transparent}
+.topo nav a.entrar:hover{border-bottom-color:var(--on-header-muted)}
+.topo nav .btn{color:#003a6c}
+.topo nav .btn:hover{color:#003a6c}
+@media (max-width:860px){.topo nav a.ligacao{display:none}.topo nav{gap:16px}}
+
+/* Marca */
+.logo{display:inline-flex;align-items:baseline;font-family:var(--serif);font-weight:600;font-size:26px;line-height:1;white-space:nowrap;color:var(--on-header);text-decoration:none}
+.logo:hover{color:var(--on-header)}
+.logo .radar{margin-right:.22em}
+.logo svg{width:.6em;height:.6em;margin:0 .02em;transform:translateY(.04em);color:var(--on-header)}
+@media (max-width:400px){.logo{font-size:22px}}
+
+/* Abertura */
+.abertura{background:var(--header);color:var(--on-header);padding-block:72px 44px;position:relative;overflow:hidden}
+.abertura::before{content:"";position:absolute;inset:0;background:
+  repeating-linear-gradient(0deg,transparent 0 47px,rgba(255,255,255,.045) 47px 48px),
+  repeating-linear-gradient(90deg,transparent 0 47px,rgba(255,255,255,.045) 47px 48px);
+  -webkit-mask-image:linear-gradient(100deg,transparent 30%,#000 75%);mask-image:linear-gradient(100deg,transparent 30%,#000 75%);pointer-events:none}
+.abertura .grelha{position:relative;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);gap:48px;align-items:center}
+.selo{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--seal);background:var(--seal-soft);border-radius:999px;padding:4px 12px}
+.abertura .selo{color:var(--seal-on-dark);background:rgba(255,210,122,.12);border:1px solid rgba(255,210,122,.35)}
+.abertura h1{font-size:clamp(2.5rem,5.4vw,4.6rem);margin-top:22px;letter-spacing:-.025em}
+.abertura h1 em{font-style:normal;color:var(--seal-on-dark)}
+.abertura .lead{font-size:clamp(1.12rem,1.6vw,1.3rem);color:var(--on-header-muted);margin-top:22px;max-width:36ch}
+.abertura .lead strong{color:var(--on-header);font-weight:600}
+.accoes{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+.fontes{margin-top:28px;font-size:.9rem;color:var(--on-header-muted);max-width:46ch}
+@media (max-width:980px){.abertura .grelha{grid-template-columns:minmax(0,1fr);gap:40px}.abertura{padding-block:48px 56px}}
+
+/* Composição de ecrãs */
+.composicao{position:relative;padding-bottom:0}
+.ecra{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-alto);overflow:hidden;min-width:0}
+.ecra-barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-sunken)}
+.ecra-titulo{font:600 1.05rem/1.2 var(--serif)}
+.abas{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.aba{font-size:.8rem;font-weight:600;padding:3px 10px;border-radius:999px;color:var(--ink-secondary);border:1px solid var(--line)}
+.aba[aria-current]{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+.rolo{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th{text-align:left;font-weight:600;font-size:.76rem;color:var(--ink-muted);padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.escolhida td{background:var(--brand-soft)}
+tr.escolhida td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
+td.obj{min-width:210px}
+td.obj strong{display:block;font-weight:600;line-height:1.3}
+td.obj span{color:var(--ink-muted);font-size:.82rem;white-space:nowrap}
+td.obj .ref{display:block;color:var(--brand);font-size:.78rem;margin-bottom:2px}
+td.preco,td.prazo{white-space:nowrap}
+th.dir,td.preco{text-align:right}
+.etq{display:inline-block;font:600 .76rem/1 var(--sans);padding:4px 8px;border-radius:6px;margin-top:4px}
+.etq-perigo{background:var(--danger-soft);color:var(--danger)}
+.etq-aviso{background:var(--warning-soft);color:var(--warning)}
+.etq-neutra{background:var(--surface-sunken);color:var(--ink-secondary)}
+.etq-ok{background:var(--success-soft);color:var(--success)}
+.prazo .num{display:block;color:var(--ink-secondary);font-size:.84rem}
+.ecra-rodape{padding:10px 16px;border-top:1px solid var(--line);font-size:.8rem;color:var(--ink-muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+.ficha{position:absolute;left:-48px;bottom:-104px;width:300px;background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-alto);padding:16px 18px 14px;font-size:.86rem}
+.ficha .ref{font-size:.76rem;color:var(--brand)}
+.ficha h3{font:600 1rem/1.25 var(--serif);margin-top:2px}
+.ficha dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0 0;align-items:baseline}
+.ficha dt{color:var(--ink-muted);font-size:.8rem}
+.ficha dd{margin:0;text-align:right;font-weight:600}
+.ficha dd .etq{margin:0 0 0 6px}
+.pecas{list-style:none;margin:12px 0 0;padding:10px 0 0;border-top:1px solid var(--line);display:grid;gap:6px}
+.pecas li{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.pecas li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ficha .historico{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--ink-secondary);font-size:.82rem}
+.legenda{font-size:.84rem;color:var(--on-header-muted);margin-top:128px;text-align:right}
+@media (max-width:1240px){.ficha{left:-24px}}
+@media (max-width:980px){.ficha{position:relative;left:auto;bottom:auto;width:auto;max-width:420px;margin:-28px 16px 0 auto}.legenda{text-align:left;margin-top:20px}}
+@media (max-width:520px){.ficha{margin:16px 0 0;max-width:none}.pecas li .etq{white-space:nowrap}}
+
+/* Números */
+.numeros{background:var(--surface-raised);border-bottom:1px solid var(--line)}
+.numeros ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.numeros li{padding:36px 20px 32px;border-left:1px solid var(--line)}
+.numeros li:first-child{border-left:0;padding-left:0}
+.numeros .grande{display:block;font:600 clamp(2rem,3.4vw,2.9rem)/1 var(--serif);color:var(--brand);letter-spacing:-.02em;white-space:nowrap}
+.numeros .grande small{font-size:.5em;letter-spacing:0;margin-left:2px}
+.numeros p{margin-top:10px;color:var(--ink-secondary);font-size:.95rem;line-height:1.4}
+@media (max-width:980px){.numeros ul{grid-template-columns:repeat(2,minmax(0,1fr))}.numeros li{border-left:0;padding:24px 0;border-top:1px solid var(--line)}.numeros li:nth-child(-n+2){border-top:0}.numeros li:nth-child(2n){padding-left:20px;border-left:1px solid var(--line)}.numeros li:last-child{grid-column:1/-1;padding-left:0;border-left:0}}
+
+/* Secções */
+section{padding-block:88px}
+@media (max-width:700px){section{padding-block:56px}}
+.cabeca{max-width:720px;margin-bottom:40px}
+.cabeca .sobre{font-weight:700;font-size:.92rem;color:var(--brand);margin-bottom:10px}
+.cabeca h2{font-size:clamp(2rem,3.8vw,3rem)}
+.cabeca p{color:var(--ink-secondary);margin-top:14px;font-size:1.12rem;max-width:60ch}
+.faixa{background:var(--surface-raised);border-block:1px solid var(--line)}
+
+/* Ganhos: linhas alternadas */
+.ganho{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:64px;align-items:center}
+.ganho + .ganho{margin-top:96px}
+.ganho.inverso > :first-child{order:2}
+.ganho h2{font-size:clamp(1.8rem,3.2vw,2.6rem)}
+.ganho .texto > p{color:var(--ink-secondary);margin-top:14px;font-size:1.1rem;max-width:48ch}
+.texto ul{margin:20px 0 0;padding:0;list-style:none;display:grid;gap:10px}
+.texto li{padding-left:22px;position:relative}
+.texto li::before{content:"";position:absolute;left:0;top:.6em;width:8px;height:8px;border-radius:2px;background:var(--brand)}
+.ganho .sobre{font-weight:700;font-size:.92rem;color:var(--brand);margin-bottom:10px}
+@media (max-width:900px){.ganho{grid-template-columns:minmax(0,1fr);gap:28px}.ganho.inverso > :first-child{order:0}.ganho + .ganho{margin-top:64px}}
+
+.cartao{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.cartao-cabeca{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface-sunken)}
+.cartao-cabeca strong{font:600 1.02rem/1.2 var(--serif)}
+.cartao-cabeca span{font-size:.8rem;color:var(--ink-muted)}
+.cartao-corpo{padding:18px}
+
+/* Fita da semana */
+.fita{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dia{border:1px solid var(--line);border-radius:10px;padding:8px 6px 10px;text-align:center;background:var(--surface)}
+.dia b{display:block;font-size:.74rem;color:var(--ink-muted);font-weight:600}
+.dia .num{display:block;font-size:1.3rem;font-weight:600;margin-top:4px;color:var(--ink)}
+.dia i{display:block;font-style:normal;font-size:.7rem;color:var(--ink-muted);margin-top:2px}
+.dia[aria-current]{background:var(--brand);border-color:var(--brand)}
+.dia[aria-current] b,.dia[aria-current] .num,.dia[aria-current] i{color:var(--on-brand)}
+.dia.cheio .num{color:var(--danger)}
+.tarefas{list-style:none;margin:16px 0 0;padding:0;display:grid}
+.tarefas li{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--line);font-size:.9rem}
+.caixa{width:16px;height:16px;border:1.5px solid var(--line-strong);border-radius:4px;margin-top:3px}
+.feita .caixa{background:var(--success);border-color:var(--success);position:relative}
+.feita .caixa::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid var(--surface-raised);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.feita .t{text-decoration:line-through;color:var(--ink-muted)}
+.tarefas .t small{display:block;color:var(--ink-muted);font-size:.8rem}
+.dono{font-size:.78rem;font-weight:600;color:var(--ink-secondary);background:var(--surface-sunken);border-radius:999px;padding:2px 8px;white-space:nowrap}
+@media (max-width:420px){.dia i{display:none}.dia .num{font-size:1.1rem}}
+
+/* Leitura das peças */
+.leitura{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.leitura li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding-bottom:12px;border-bottom:1px solid var(--line);font-size:.92rem}
+.leitura li:last-child{border-bottom:0;padding-bottom:0}
+.leitura .rot{font-size:.78rem;font-weight:600;color:var(--ink-muted);grid-column:1/-1}
+.leitura .onde{font-size:.78rem;color:var(--brand);white-space:nowrap}
+
+/* Secção escura: mercado */
+.escura{background:var(--header-deep);color:var(--on-header)}
+.escura .cabeca .sobre,.escura .sobre{color:var(--seal-on-dark)}
+.escura .cabeca p,.escura .texto > p{color:var(--on-header-muted)}
+.escura .texto li::before{background:var(--seal-on-dark)}
+.escura .texto li{color:var(--on-header)}
+.mercado-grande{display:flex;gap:40px;flex-wrap:wrap;margin-top:28px;padding-top:24px;border-top:1px solid var(--header-line)}
+.mercado-grande div{min-width:0}
+.mercado-grande .num{display:block;font:600 clamp(2.4rem,5vw,3.6rem)/1 var(--serif);letter-spacing:-.02em}
+.mercado-grande span:last-child{display:block;margin-top:8px;color:var(--on-header-muted);font-size:.95rem}
+.barras{display:grid;gap:12px;margin-top:4px}
+.barra{display:grid;grid-template-columns:minmax(0,130px) minmax(0,1fr) auto;gap:12px;align-items:center;font-size:.86rem}
+.barra .trilho{height:10px;background:var(--surface-sunken);border-radius:999px;overflow:hidden}
+.barra .trilho span{display:block;height:100%;background:var(--brand);border-radius:999px}
+.barra.nos .trilho span{background:var(--success)}
+.resumo-preco{display:flex;gap:24px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.resumo-preco div{font-size:.82rem;color:var(--ink-muted)}
+.resumo-preco b{display:block;font:600 1.3rem/1.2 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.resumo-preco b.desc{color:var(--success)}
+.nota-ex{font-size:.82rem;color:var(--ink-muted);padding:10px 18px;border-top:1px solid var(--line)}
+@media (max-width:460px){.barra{grid-template-columns:minmax(0,1fr) auto}.barra .trilho{grid-column:1/-1;grid-row:2}}
+
+/* CTA a meio */
+.faixa-cta{background:var(--brand-soft);border-block:1px solid var(--line);padding-block:48px}
+.faixa-cta .wrap{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+.faixa-cta h2{font-size:clamp(1.6rem,2.8vw,2.2rem);max-width:28ch}
+.faixa-cta p{color:var(--ink-secondary);margin-top:8px}
+
+/* Como funciona */
+.passos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:40px;counter-reset:passo;list-style:none;margin:0;padding:0}
+.passos li{counter-increment:passo;border-top:2px solid var(--ink);padding-top:18px}
+.passos li::before{content:counter(passo);display:block;font:600 3rem/1 var(--serif);color:var(--brand);margin-bottom:14px}
+.passos p{color:var(--ink-secondary);margin-top:8px}
+@media (max-width:800px){.passos{grid-template-columns:minmax(0,1fr);gap:32px}}
+
+/* Confiança */
+.confianca{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px;max-width:900px}
+.confianca h3{font:600 1.35rem/1.2 var(--serif)}
+.confianca p{color:var(--ink-secondary);margin-top:10px}
+.confianca ul{margin:12px 0 0;padding-left:18px;color:var(--ink-secondary);display:grid;gap:6px}
+.origem{margin-top:56px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px;align-items:center;padding-top:32px;border-top:1px solid var(--line)}
+.origem .bandeira{width:56px;height:56px}
+.origem p{font:600 clamp(1.3rem,2.4vw,1.75rem)/1.25 var(--serif);max-width:40ch}
+.origem p span{display:block;font:400 1rem/1.5 var(--sans);color:var(--ink-secondary);margin-top:6px}
+@media (max-width:800px){.confianca{grid-template-columns:minmax(0,1fr);gap:28px}}
+
+/* Beta */
+.beta{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:48px;align-items:center;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:44px}
+.beta h2{font-size:clamp(1.8rem,3.2vw,2.5rem);margin-top:16px}
+.beta > div > p{color:var(--ink-secondary);margin-top:14px;font-size:1.08rem}
+.beta .accoes{margin-top:24px}
+.beta ul{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.beta li{display:flex;gap:10px;align-items:flex-start}
+.beta li svg{flex:none;margin-top:5px;color:var(--success)}
+@media (max-width:800px){.beta{grid-template-columns:minmax(0,1fr);padding:24px;gap:28px}}
+
+/* FAQ */
+.faq{max-width:780px;border-top:1px solid var(--line)}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;padding:20px 36px 20px 0;font-weight:600;font-size:1.1rem;position:relative}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"";position:absolute;right:6px;top:28px;width:9px;height:9px;border-right:2px solid var(--ink-muted);border-bottom:2px solid var(--ink-muted);transform:rotate(45deg);transition:transform .15s}
+.faq details[open] summary::after{transform:rotate(-135deg);top:32px}
+.faq details p{padding-bottom:20px;color:var(--ink-secondary);max-width:65ch}
+
+/* Formulário */
+.acesso-seccao{background:var(--header);color:var(--on-header)}
+.acesso{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;align-items:start}
+.acesso .cabeca{margin-bottom:0}
+.acesso .cabeca h2{font-size:clamp(2.2rem,4.4vw,3.4rem)}
+.acesso .cabeca p{color:var(--on-header-muted)}
+.contacto{margin-top:28px;padding-top:20px;border-top:1px solid var(--header-line);color:var(--on-header-muted)}
+.contacto a{color:var(--on-header);font-weight:600;font-size:1.15rem}
+form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-alto);padding:32px;display:grid;gap:18px;position:relative}
+.campo{display:grid;gap:6px}
+.campo label{font-weight:600;font-size:.95rem}
+.campo label small{font-weight:400;color:var(--ink-muted);font-size:.88rem}
+.campo input,.campo select,.campo textarea{font:400 1rem/1.35 var(--sans);color:var(--ink);background:var(--surface-raised);border:1px solid var(--line-strong);border-radius:10px;padding:11px 12px;width:100%}
+.campo textarea{min-height:96px;resize:vertical}
+.campo input:focus,.campo select:focus,.campo textarea:focus{outline:2px solid var(--focus);outline-offset:1px}
+.campo [aria-invalid="true"]{border-color:var(--danger)}
+.duas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.armadilha{position:absolute!important;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+.nota{font-size:.86rem;color:var(--ink-muted)}
+.erro{font-size:.92rem;color:var(--danger);background:var(--danger-soft);border-radius:10px;padding:12px 14px}
+.obrigado{background:var(--success-soft);color:var(--success);border-radius:10px;padding:14px 16px;font-weight:600}
+form .btn{justify-self:start}
+@media (max-width:900px){.acesso{grid-template-columns:minmax(0,1fr);gap:32px}}
+@media (max-width:520px){.duas{grid-template-columns:minmax(0,1fr)}form{padding:20px}form .btn{justify-self:stretch}}
+
+/* Rodapé */
+footer{background:var(--header-deep);color:var(--on-header-muted);padding-block:40px;font-size:.92rem}
+footer .wrap{display:grid;gap:16px}
+footer .linha{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+footer a{color:var(--on-header)}
+footer p{max-width:72ch}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <div class="wrap">
+    <a class="logo" href="#inicio" aria-label="Radar Gov, início"><span class="radar">Radar</span><span>G<svg viewBox="0 0 96 96" aria-hidden="true" focusable="false"><clipPath id="disco"><circle cx="48" cy="48" r="42"/></clipPath><g clip-path="url(#disco)"><rect x="2" y="2" width="36.8" height="92" fill="#006600"/><rect x="38.8" y="2" width="56" height="92" fill="#FF0000"/></g><circle cx="48" cy="48" r="42" fill="none" stroke="currentColor" stroke-width="6"/></svg>v</span></a>
+    <nav aria-label="Secções">
+      <a class="ligacao" href="#ganhos">O que ganha</a>
+      <a class="ligacao" href="#confianca">Dados</a>
+      <a class="ligacao" href="#perguntas">Perguntas</a>
+      <a class="entrar" href="/entrar">Entrar</a>
+      <a class="btn btn-claro btn-pequeno" href="#acesso">Pedir acesso</a>
+    </nav>
+  </div>
+</header>
+
+<main id="inicio">
+  <section class="abertura" aria-labelledby="t-abertura">
+    <div class="wrap grelha">
+      <div>
+        <span class="selo">Beta fechada · acesso antecipado gratuito</span>
+        <h1 id="t-abertura">Nenhum concurso da sua área fica <em>por ver</em>.</h1>
+        <p class="lead">O Radar Gov lê o Diário da República <strong>ao longo do dia</strong>, descarrega as peças e mostra-lhe a que preço o mercado adjudica. A sua equipa deixa de vigiar e passa a decidir.</p>
+        <div class="accoes">
+          <a class="btn btn-claro" href="#acesso">Pedir acesso antecipado</a>
+          <a class="btn btn-contorno" href="#ganhos">Ver o que ganha</a>
+        </div>
+        <p class="fontes">Fontes públicas: Diário da República, 2.ª série, parte&nbsp;L · consultas preliminares da Vortal · Portal BASE.</p>
+      </div>
+
+      <div class="composicao" role="img" aria-label="Exemplo do Radar Gov: a lista de concursos por analisar e, por cima, a ficha de um concurso com prazo, preço base, peças descarregadas e o histórico da entidade">
+        <div class="ecra">
+          <div class="ecra-barra">
+            <span class="ecra-titulo">Concursos</span>
+            <div class="abas">
+              <span class="aba" aria-current="true">Por analisar <span class="num">37</span></span>
+              <span class="aba">A preparar <span class="num">4</span></span>
+              <span class="aba">Submetido <span class="num">6</span></span>
+            </div>
+          </div>
+          <div class="rolo">
+            <table>
+              <thead><tr><th>Objecto e entidade</th><th class="dir">Preço base</th><th>Prazo</th></tr></thead>
+              <tbody>
+                <tr class="escolhida">
+                  <td class="obj"><span class="ref num">23513/2026</span><strong>Manutenção de equipamentos de climatização</strong><span>Município de Leiria · CPV 50730000</span></td>
+                  <td class="preco num">184 652,00 €</td>
+                  <td class="prazo"><span class="num">28/09/2026</span><span class="etq etq-aviso">6 dias</span></td>
+                </tr>
+                <tr>
+                  <td class="obj"><span class="ref num">23498/2026</span><strong>Requalificação da Escola Básica de Vale Formoso</strong><span>Câmara Municipal do Porto · CPV 45214200</span></td>
+                  <td class="preco num">1 248 300,00 €</td>
+                  <td class="prazo"><span class="num">12/10/2026</span><span class="etq etq-neutra">20 dias</span></td>
+                </tr>
+                <tr>
+                  <td class="obj"><span class="ref num">23471/2026</span><strong>Licenças de software de gestão documental</strong><span>ULS de Coimbra · CPV 48311000</span></td>
+                  <td class="preco num">62 400,00 €</td>
+                  <td class="prazo"><span class="num">24/09/2026</span><span class="etq etq-perigo">2 dias</span></td>
+                </tr>
+                <tr>
+                  <td class="obj"><span class="ref num">23466/2026</span><strong>Fardamento para o corpo de bombeiros</strong><span>Município de Setúbal · CPV 18110000</span></td>
+                  <td class="preco num">38 950,00 €</td>
+                  <td class="prazo"><span class="num">06/10/2026</span><span class="etq etq-neutra">14 dias</span></td>
+                </tr>
+                <tr>
+                  <td class="obj"><span class="ref num">23452/2026</span><strong>Limpeza de edifícios municipais</strong><span>Município de Braga · CPV 90911200</span></td>
+                  <td class="preco num">412 000,00 €</td>
+                  <td class="prazo"><span class="num">09/10/2026</span><span class="etq etq-neutra">17 dias</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="ecra-rodape"><span>Última verificação há <span class="num">20</span> min · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">4 de 5</span></span></div>
+        </div>
+
+        <div class="ficha">
+          <span class="ref num">23513/2026 · Município de Leiria</span>
+          <h3>Manutenção de equipamentos de climatização</h3>
+          <dl>
+            <dt>Prazo</dt><dd><span class="num">28/09 17:00</span><span class="etq etq-aviso">6 dias</span></dd>
+            <dt>Preço base</dt><dd class="num">184 652,00 €</dd>
+            <dt>Plataforma</dt><dd>acingov</dd>
+          </dl>
+          <ul class="pecas" aria-label="Peças">
+            <li><span>Caderno de encargos.pdf</span><span class="etq etq-ok">lido</span></li>
+            <li><span>Programa do procedimento.pdf</span><span class="etq etq-ok">lido</span></li>
+            <li><span>Anexo I, mapa de quantidades.xlsx</span><span class="etq etq-neutra">guardado</span></li>
+          </ul>
+          <p class="historico">Último contrato desta entidade no mesmo CPV: <span class="num">171 300 €</span>, <span class="num">7%</span> abaixo do preço base.</p>
+        </div>
+      </div>
+    </div>
+    <div class="wrap"><p class="legenda">Ecrãs de exemplo. Referências e valores ilustrativos.</p></div>
+  </section>
+
+  <div class="numeros" aria-label="O Radar Gov em números">
+    <div class="wrap">
+      <ul>
+        <li><span class="grande num">210 000<small>+</small></span><p>anúncios do Diário da República lidos e guardados</p></li>
+        <li><span class="grande num">2 milhões</span><p>de contratos do Portal BASE, para ver quem ganha e por quanto</p></li>
+        <li><span class="grande num">180 000</span><p>entidades públicas, cada uma com a sua ficha</p></li>
+        <li><span class="grande">Todo o dia</span><p>verificação automática, sem ninguém abrir o Diário da República</p></li>
+        <li><span class="grande num">4</span><p>plataformas de onde as peças chegam sozinhas: acingov, Vortal, compraspt e anogov</p></li>
+      </ul>
+    </div>
+  </div>
+
+  <section id="ganhos" aria-label="O que a sua empresa ganha">
+    <div class="wrap">
+      <div class="ganho">
+        <div class="texto">
+          <p class="sobre">Não perder o concurso certo</p>
+          <h2>O concurso que interessa está na lista, mesmo escrito de outra maneira.</h2>
+          <p>Lemos tudo o que a parte L publica, sem filtros à entrada. Depois recortamos pelos códigos CPV da sua empresa, que é onde uma pesquisa por palavra falha e um código não.</p>
+          <ul>
+            <li>Uma lista só, com o Diário da República e as consultas preliminares da Vortal</li>
+            <li>Alerta por e-mail quando entra um concurso que encaixa</li>
+            <li>Triagem num clique: interessa, ou não vamos, com o motivo</li>
+          </ul>
+        </div>
+        <div class="cartao" role="img" aria-label="Exemplo do alerta por e-mail: três concursos novos que encaixam nos códigos CPV da empresa">
+          <div class="cartao-cabeca"><strong>3 concursos novos no seu interesse</strong><span>Alerta de hoje</span></div>
+          <div class="cartao-corpo">
+            <ul class="leitura">
+              <li><span class="rot num">CPV 50730000 · Município de Leiria</span><span>Manutenção de equipamentos de climatização</span><span class="onde num">184 652 €</span></li>
+              <li><span class="rot num">CPV 50720000 · Hospital de Santarém</span><span>Assistência técnica a sistemas de AVAC</span><span class="onde num">96 000 €</span></li>
+              <li><span class="rot num">CPV 45331000 · Município de Viseu</span><span>Substituição de chillers no pavilhão municipal</span><span class="onde num">238 500 €</span></li>
+            </ul>
+          </div>
+          <p class="nota-ex">Dois destes não dizem «climatização» no título. Um alerta por palavra deixava-os escapar; o CPV não.</p>
+        </div>
+      </div>
+
+      <div class="ganho inverso">
+        <div class="texto">
+          <p class="sobre">Horas devolvidas à equipa</p>
+          <h2>Deixe de abrir o Diário da República todas as manhãs.</h2>
+          <p>A verificação corre sozinha, ao longo do dia. Quando a equipa chega, o trabalho de procurar já está feito: o que entrou, o que mudou e o que tem prazo esta semana, com cada tarefa atribuída a alguém.</p>
+          <ul>
+            <li>O ecrã Hoje mostra os prazos da semana e o que cada pessoa tem para fazer</li>
+            <li>Cada proposta sabe em que passo está, do primeiro olhar ao resultado</li>
+            <li>Nada para instalar: abre-se no browser, no escritório ou no telemóvel</li>
+          </ul>
+        </div>
+        <div class="cartao" role="img" aria-label="Exemplo do ecrã Hoje: a fita da semana com os prazos de cada dia e as tarefas da equipa">
+          <div class="cartao-cabeca"><strong>Terça, 22 de Setembro</strong><span>Hoje · toda a equipa</span></div>
+          <div class="cartao-corpo">
+            <div class="fita">
+              <div class="dia" aria-current="true"><b>Ter</b><span class="num">3</span><i>prazos</i></div>
+              <div class="dia"><b>Qua</b><span class="num">1</span><i>prazo</i></div>
+              <div class="dia cheio"><b>Qui</b><span class="num">4</span><i>prazos</i></div>
+              <div class="dia"><b>Sex</b><span class="num">2</span><i>prazos</i></div>
+              <div class="dia"><b>Sáb</b><span class="num">0</span><i>&nbsp;</i></div>
+              <div class="dia"><b>Dom</b><span class="num">0</span><i>&nbsp;</i></div>
+              <div class="dia"><b>Seg</b><span class="num">5</span><i>prazos</i></div>
+            </div>
+            <ul class="tarefas">
+              <li class="feita"><span class="caixa"></span><span class="t">Pedir esclarecimento sobre o lote 2<small>Licenças de software · ULS de Coimbra</small></span><span class="dono">Rita</span></li>
+              <li><span class="caixa"></span><span class="t">Rever a declaração de compromisso<small>Climatização · Município de Leiria</small></span><span class="dono">Miguel</span></li>
+              <li><span class="caixa"></span><span class="t">Decidir se vamos<small>Limpeza de edifícios · Município de Braga</small></span><span class="dono">Afonso</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="ganho">
+        <div class="texto">
+          <p class="sobre">Chegar ao prazo com as peças lidas</p>
+          <h2>As peças chegam sozinhas, e já vêm resumidas.</h2>
+          <p>Das plataformas acingov, Vortal, compraspt e anogov, as peças do procedimento descarregam-se sem ninguém entrar em cada conta. A leitura automática aponta os requisitos, o critério e os documentos a entregar, e diz a página onde os encontrou.</p>
+          <ul>
+            <li>Decide se vai ao concurso no primeiro dia, não na véspera do prazo</li>
+            <li>Cada afirmação traz a página, para confirmar no original</li>
+            <li>A decisão e a revisão continuam a ser da sua equipa</li>
+          </ul>
+        </div>
+        <div class="cartao" role="img" aria-label="Exemplo da leitura das peças: requisitos, critério de adjudicação e documentos a entregar, cada um com a página onde foi encontrado">
+          <div class="cartao-cabeca"><strong>O que as peças pedem</strong><span>Lido do caderno de encargos e do programa</span></div>
+          <div class="cartao-corpo">
+            <ul class="leitura">
+              <li><span class="rot">Critério de adjudicação</span><span>Proposta economicamente mais vantajosa: preço <span class="num">70%</span>, prazo de resposta <span class="num">30%</span></span><span class="onde num">PP, p. 6</span></li>
+              <li><span class="rot">Requisito técnico</span><span>Técnico com certificação em gases fluorados, no mínimo um por equipa</span><span class="onde num">CE, p. 14</span></li>
+              <li><span class="rot">Documentos a entregar</span><span>Declaração do anexo I, proposta de preço, plano de manutenção</span><span class="onde num">PP, p. 9</span></li>
+              <li><span class="rot">Caução</span><span><span class="num">5%</span> do preço contratual</span><span class="onde num">PP, p. 11</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="escura" aria-labelledby="t-mercado">
+    <div class="wrap ganho">
+      <div class="texto">
+        <p class="sobre">Saber o preço antes de propor</p>
+        <h2 id="t-mercado">Veja a que preço o mercado adjudica, e quem ganha na sua área.</h2>
+        <p>Cada entidade traz o seu histórico de contratos do Portal BASE: quanto pagou, a quem, e quanto abaixo do preço base. Os contratos a acabar dizem-lhe que concursos vão sair a seguir.</p>
+        <div class="mercado-grande">
+          <div><span class="num">2 milhões</span><span>de contratos celebrados</span></div>
+          <div><span class="num">180 000</span><span>entidades adjudicantes</span></div>
+        </div>
+      </div>
+      <div class="cartao" role="img" aria-label="Exemplo da ficha de uma entidade: quem ganhou os contratos de climatização nos últimos três anos e o desconto médio sobre o preço base">
+        <div class="cartao-cabeca"><strong>Município de Leiria · CPV 50730000</strong><span>Últimos 3 anos</span></div>
+        <div class="cartao-corpo">
+          <div class="barras">
+            <div class="barra"><span>Adjudicatário A</span><span class="trilho"><span style="width:92%"></span></span><span class="num">5 contratos</span></div>
+            <div class="barra"><span>Adjudicatário B</span><span class="trilho"><span style="width:55%"></span></span><span class="num">3 contratos</span></div>
+            <div class="barra nos"><span>A sua empresa</span><span class="trilho"><span style="width:20%"></span></span><span class="num">1 contrato</span></div>
+            <div class="barra"><span>Adjudicatário C</span><span class="trilho"><span style="width:20%"></span></span><span class="num">1 contrato</span></div>
+          </div>
+          <div class="resumo-preco">
+            <div>Preço base médio<b>176 400 €</b></div>
+            <div>Adjudicado médio<b>158 900 €</b></div>
+            <div>Abaixo do preço base<b class="desc">−9,9%</b></div>
+          </div>
+        </div>
+        <p class="nota-ex">Exemplo. Nomes e valores ilustrativos.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="faixa-cta">
+    <div class="wrap">
+      <div>
+        <h2>Experimente com os concursos da sua área, sem custo durante a beta.</h2>
+        <p>Configuramos o interesse consigo, e a equipa começa a trabalhar no dia seguinte.</p>
+      </div>
+      <a class="btn btn-primario" href="#acesso">Pedir acesso antecipado</a>
+    </div>
+  </div>
+
+  <section id="como-funciona" aria-labelledby="t-como">
+    <div class="wrap">
+      <div class="cabeca">
+        <p class="sobre">Como funciona</p>
+        <h2 id="t-como">Três passos, e o primeiro é o único que dá trabalho.</h2>
+      </div>
+      <ol class="passos">
+        <li><h3>Diga o que a empresa faz</h3><p>Escolhemos consigo os códigos CPV do seu sector. É esse o seu interesse, e é por ele que a lista se recorta.</p></li>
+        <li><h3>O radar verifica, ao longo do dia</h3><p>Lê o Diário da República e a Vortal, descarrega as peças e cruza cada entidade com o Portal BASE.</p></li>
+        <li><h3>A equipa decide</h3><p>Abre o painel, vê o que entrou e o que tem prazo, e marca o que vai fazer. O resto já está feito.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="confianca" class="faixa" aria-labelledby="t-confianca">
+    <div class="wrap">
+      <div class="cabeca">
+        <p class="sobre">Dados públicos</p>
+        <h2 id="t-confianca">Tudo o que mostramos pode confirmar na origem.</h2>
+      </div>
+      <div class="confianca">
+        <div>
+          <h3>Fontes públicas e verificáveis</h3>
+          <p>Tudo o que o radar mostra vem de fontes públicas, e cada anúncio leva a ligação para o original:</p>
+          <ul>
+            <li>Diário da República, 2.ª série, parte L</li>
+            <li>Consultas preliminares publicadas na Vortal</li>
+            <li>Contratos do Portal BASE, em dados abertos</li>
+          </ul>
+        </div>
+        <div>
+          <h3>O seu pedido de acesso</h3>
+          <p>Os dados do formulário servem só para lhe responder, e apagamo-los se nos pedir.</p>
+        </div>
+      </div>
+      <div class="origem">
+        <svg class="bandeira" viewBox="0 0 96 96" aria-hidden="true" focusable="false"><clipPath id="disco3"><circle cx="48" cy="48" r="42"/></clipPath><g clip-path="url(#disco3)"><rect x="2" y="2" width="36.8" height="92" fill="#006600"/><rect x="38.8" y="2" width="56" height="92" fill="#FF0000"/></g><circle cx="48" cy="48" r="42" fill="none" stroke="currentColor" stroke-width="5"/></svg>
+        <p>Feito em Portugal, por quem responde a concursos públicos.<span>O Radar Gov nasceu dentro de uma empresa que concorre todas as semanas, para resolver o trabalho que a própria equipa fazia à mão.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-beta">
+    <div class="wrap">
+      <div class="beta">
+        <div>
+          <span class="selo">Beta fechada</span>
+          <h2 id="t-beta">Gratuito para as primeiras empresas.</h2>
+          <p>Estamos a abrir o Radar Gov a um grupo pequeno de empresas fornecedoras do Estado. Em troca, pedimos a sua opinião franca sobre o que falta.</p>
+          <div class="accoes"><a class="btn btn-primario" href="#acesso">Pedir acesso antecipado</a></div>
+        </div>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Acesso completo durante a beta, sem cartão</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Contas para toda a equipa</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Configuração do interesse feita connosco</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Preço final anunciado antes do fim da beta, e saída sem custo</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="perguntas" class="faixa" aria-labelledby="t-faq">
+    <div class="wrap">
+      <div class="cabeca"><h2 id="t-faq">Perguntas frequentes</h2></div>
+      <div class="faq">
+        <details open>
+          <summary>O Radar Gov é um serviço oficial?</summary>
+          <p>Não. O Radar Gov é um produto privado, independente do Estado e de qualquer entidade pública. Não representa o Diário da República, o IMPIC nem nenhuma plataforma de contratação. Limita-se a ler e a organizar informação que já é pública.</p>
+        </details>
+        <details>
+          <summary>De onde vêm os dados?</summary>
+          <p>De fontes públicas: os anúncios da 2.ª série, parte L, do Diário da República; as consultas preliminares publicadas na Vortal; e os contratos celebrados que o IMPIC publica em dados abertos, a partir do Portal BASE. As peças vêm das próprias plataformas onde o procedimento corre.</p>
+        </details>
+        <details>
+          <summary>Serve para a minha área?</summary>
+          <p>Serve para qualquer empresa que concorra a concursos públicos: obras, fornecimento de bens, serviços ou tecnologias de informação. Não filtramos nada à entrada, e o interesse de cada empresa é que recorta a lista.</p>
+        </details>
+        <details>
+          <summary>A leitura das peças substitui a leitura humana?</summary>
+          <p>Não. Aponta os requisitos, os critérios e os documentos a entregar, e diz onde os encontrou nas peças. A decisão de concorrer, e a revisão da proposta, continuam a ser da sua equipa.</p>
+        </details>
+        <details>
+          <summary>Quanto vai custar depois da beta?</summary>
+          <p>Ainda não está decidido. Quem entrar na beta sabe o preço antes de qualquer cobrança, e pode sair sem custo.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section id="acesso" class="acesso-seccao" aria-labelledby="t-acesso">
+    <div class="wrap acesso">
+      <div class="cabeca">
+        <p class="sobre" style="color:var(--seal-on-dark)">Acesso antecipado</p>
+        <h2 id="t-acesso">Comece a ver os concursos da sua área.</h2>
+        <p>Deixe-nos o contacto e a área em que trabalha. Respondemos por e-mail com os próximos passos, normalmente em dois dias úteis.</p>
+      </div>
+      <form id="form-acesso" method="post" action="/pedir-acesso" novalidate>
+        <div class="duas">
+          <div class="campo"><label for="nome">Nome</label><input id="nome" name="nome" autocomplete="name" required maxlength="120"></div>
+          <div class="campo"><label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" required maxlength="160"></div>
+        </div>
+        <div class="campo"><label for="email">E-mail profissional</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+        <div class="campo">
+          <label for="sector">Sector</label>
+          <select id="sector" name="sector" required>
+            <option value="">Escolher o sector</option>
+            <option>Obras públicas e construção</option>
+            <option>Fornecimento de bens</option>
+            <option>Prestação de serviços</option>
+            <option>Tecnologias de informação</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="campo"><label for="mensagem">Mensagem <small>(opcional)</small></label><textarea id="mensagem" name="mensagem" maxlength="2000" placeholder="Os CPV em que trabalha, ou o que gostava de ver no radar"></textarea></div>
+        <div class="armadilha" aria-hidden="true"><label for="website">Não preencher</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+        <p class="erro" id="erro" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primario" id="enviar">Pedir acesso</button>
+        <p class="nota">Usamos estes dados só para responder ao seu pedido.</p>
+        <p class="obrigado" id="obrigado" role="status" hidden>Obrigado. Recebemos o seu pedido e respondemos por e-mail em breve.</p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="linha">
+      <span class="logo" role="img" aria-label="Radar Gov" style="font-size:22px"><span class="radar">Radar</span><span>G<svg viewBox="0 0 96 96" aria-hidden="true" focusable="false"><clipPath id="disco2"><circle cx="48" cy="48" r="42"/></clipPath><g clip-path="url(#disco2)"><rect x="2" y="2" width="36.8" height="92" fill="#006600"/><rect x="38.8" y="2" width="56" height="92" fill="#FF0000"/></g><circle cx="48" cy="48" r="42" fill="none" stroke="currentColor" stroke-width="6"/></svg>v</span></span>
+      <span><a href="/entrar">Entrar</a> · <a href="#acesso">Pedir acesso</a></span>
+    </div>
+    <p>O Radar Gov é um produto privado e independente, feito em Portugal. Não é um serviço do Estado e não tem qualquer ligação ao Diário da República, ao IMPIC ou às plataformas de contratação pública. A informação apresentada vem de fontes públicas e não dispensa a consulta do anúncio oficial.</p>
+    <p class="num" style="font-size:.85rem">© 2026 Radar Gov</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var form = document.getElementById("form-acesso");
+  var erro = document.getElementById("erro");
+  var obrigado = document.getElementById("obrigado");
+  var enviar = document.getElementById("enviar");
+  var FALHA = "Não foi possível enviar agora. Tente de novo daqui a uns minutos.";
+
+  function mostraErro(texto) { erro.textContent = texto; erro.hidden = false; }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    erro.hidden = true;
+    var invalidos = [];
+    ["nome", "empresa", "email", "sector"].forEach(function (id) {
+      var el = document.getElementById(id);
+      var mau = !el.value.trim() || !el.checkValidity();
+      el.setAttribute("aria-invalid", mau ? "true" : "false");
+      if (mau) invalidos.push(el);
+    });
+    if (invalidos.length) {
+      mostraErro("Preencha o nome, a empresa, um e-mail válido e o sector, para podermos responder.");
+      invalidos[0].focus();
+      return;
+    }
+    enviar.disabled = true;
+    fetch(form.action, { method: "POST", body: new FormData(form), headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok) {
+          Array.prototype.forEach.call(form.elements, function (el) { el.disabled = true; });
+          obrigado.hidden = false;
+        } else {
+          mostraErro((d && d.erro) || FALHA);
+          enviar.disabled = false;
+        }
+      })
+      .catch(function () { mostraErro(FALHA); enviar.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
