@@ -1110,6 +1110,14 @@ guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
 site»** — e é aí que os vês se o e-mail não tiver chegado.
 
+**Para dar acesso a quem pediu**, carrega em **«aceitar»** na linha do
+pedido. O radar cria a empresa, com o resumo diário a ir para o e-mail
+de quem pediu, e manda-lhe um convite. A pessoa abre a ligação, escolhe
+o utilizador e a palavra-passe, e entra já como administradora da
+empresa dela — e cria a seguir as contas dos colegas. A ligação serve
+uma vez e dura sete dias. **Se o e-mail não sair**, o ecrã mostra-te a
+ligação: copia-a e manda-a tu.
+
 Como funciona, para saberes o que pode falhar: o painel continua a
 atender só neste computador; um programa da Cloudflare, o
 `cloudflared`, corre aqui como serviço (`radar-tunel.service`) e faz a

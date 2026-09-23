@@ -1914,6 +1914,16 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   falhar — um teste de isolamento que passa com as páginas vazias não
   prova nada, e é por isso que há o `test_a_b_ve_o_que_e_dela`.
 
+- **O convite é uma rota aberta, e por isso a guarda é dela** (F5,
+  23/09/2026). O `/convite/<código>` sai da porta antes da guarda do
+  POST, como o `/pedir-acesso` (ver em cima «rotas abertas saem antes
+  da guarda»): o `convite()` confere a origem, e o `contas.usar_convite()`
+  o prazo e o uso único, na mesma ligação que cria a conta e a sessão —
+  ou fica tudo, ou nada. O código guarda-se **em resumo** (SHA-256):
+  quem lesse a base não podia usar um convite por usar. E o teste que
+  percorre os POST à procura de um sem token isenta-o **com a razão
+  escrita**; quem o cobre é o `TestConvites`.
+
 - **O papel decide-se na porta, por prefixo de rota, e não página a
   página** (13/09/2026). `ROTAS_SO_ADMIN` é a lista; `so_admin()`
   compara por igualdade ou por prefixo com barra, para os `POST` de

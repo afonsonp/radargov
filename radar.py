@@ -895,6 +895,12 @@ def iniciar_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, criado_em TEXT,
             nome TEXT, empresa TEXT, email TEXT, sector TEXT,
             mensagem TEXT, ip TEXT, avisado TEXT)""")
+        # O que se fez com o pedido (F5): aceite, e a empresa que nasceu
+        # dele. NULL = por decidir.
+        cols_pa = [r["name"] for r in c.execute("PRAGMA table_info(pedidos_acesso)")]
+        for nome, tipo in (("estado", "TEXT"), ("empresa_id", "INTEGER")):
+            if nome not in cols_pa:
+                c.execute("ALTER TABLE pedidos_acesso ADD COLUMN %s %s" % (nome, tipo))
         c.execute("""CREATE TABLE IF NOT EXISTS documentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, nome TEXT,
             ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
@@ -9314,8 +9320,11 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
-# eles o próprio ecrã de entrar aparecia em branco e sem letra.
-PREFIXOS_ABERTOS = ("/tipo/", "/estilo/")
+# eles o próprio ecrã de entrar aparecia em branco e sem letra. E o
+# convite (`/convite/<codigo>`, F5): quem o abre ainda não tem conta.
+# A guarda dele está na própria rota -- o código, a origem e o uso único
+# (`convite()`).
+PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o DONO da plataforma abre (F4, 23/09/2026): o sistema -- as
@@ -22560,18 +22569,23 @@ def pedidos_de_acesso():
         corpo = ("<div class='rg-card tab-cx'><table class='rg-table'>"
                  "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
                  "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
-                 "<th>Aviso por e-mail</th></tr></thead><tbody>%s</tbody>"
+                 "<th>Aviso por e-mail</th><th></th></tr></thead><tbody>%s</tbody>"
                  "</table></div>"
                  % "".join(
                      "<tr><td class='rg-num'>%s</td><td>%s</td><td>%s</td>"
                      "<td><a href='mailto:%s'>%s</a></td><td>%s</td>"
-                     "<td>%s</td><td>%s</td></tr>"
+                     "<td>%s</td><td>%s</td><td>%s</td></tr>"
                      % (html.escape(data_hora_pt(l["criado_em"])),
                         html.escape(l["nome"]), html.escape(l["empresa"]),
                         html.escape(l["email"], quote=True),
                         html.escape(l["email"]), html.escape(l["sector"]),
                         html.escape(l["mensagem"] or ""),
-                        html.escape(l["avisado"] or "a enviar"))
+                        html.escape(l["avisado"] or "a enviar"),
+                        ("aceite: empresa %d" % l["empresa_id"])
+                        if l["estado"] == "aceite" else
+                        accao("/pedidos-de-acesso/%d/aceitar" % l["id"], "aceitar",
+                              "mini", "Aceitar %s? Cria a empresa e manda o convite "
+                              "para %s." % (l["empresa"], l["email"])))
                      for l in linhas))
     else:
         corpo = ("<div class='rg-empty'>Ainda não chegou nenhum pedido pelo "
@@ -22581,6 +22595,154 @@ def pedidos_de_acesso():
                     "manda também um e-mail para o endereço dos alertas, se o "
                     "correio estiver configurado.",
                     "<div class='larg'>%s</div>" % corpo)
+
+
+TEXTO_DO_CONVITE = """Olá %(nome)s,
+
+O seu pedido de acesso ao Radar Gov foi aceite.
+
+Para criar a sua conta, abra esta ligação e escolha o nome de
+utilizador e a palavra-passe:
+
+%(ligacao)s
+
+A ligação serve uma vez e é válida durante %(dias)d dias. A conta é a
+de administrador da %(empresa)s: pode criar a seguir as contas dos
+colegas, em Configurações › Conta.
+
+Radar Gov
+"""
+
+
+@app.route("/pedidos-de-acesso/<int:id_>/aceitar", methods=["POST"])
+def aceitar_pedido(id_):
+    """F5: do pedido do site a empresa a trabalhar. Cria a empresa, com o
+    resumo a ir para quem pediu; cria o convite; manda-o por e-mail. E
+    mostra a ligacao ao dono tambem -- o e-mail pode nao sair (sem
+    palavra-passe configurada, ou recusado), e a ligacao e a unica
+    coisa que a pessoa precisa. So o dono aqui chega (ROTAS_SO_DONO,
+    por prefixo)."""
+    with liga() as c:
+        p = c.execute("SELECT * FROM pedidos_acesso WHERE id=?", (id_,)).fetchone()
+    if not p:
+        return redirect("/pedidos-de-acesso")
+    if p["estado"] == "aceite":
+        return envolver("configuracoes", "Pedido já aceite",
+                        "Este pedido já deu a empresa %d." % p["empresa_id"],
+                        "<div class='larg'><a href='/pedidos-de-acesso'>voltar "
+                        "aos pedidos</a></div>")
+    empresa_id = criar_empresa(p["empresa"] or p["nome"])
+    with com_empresa(empresa_id):
+        gravar_config({"email": {"para": p["email"]}})
+    with liga() as c:
+        codigo = contas.criar_convite(c, empresa_id, p["email"], "admin", id_)
+        c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=? "
+                  "WHERE id=?", (empresa_id, id_))
+    ligacao = endereco_do_painel() + "/convite/" + codigo
+    cfg = _junta(dict(ler_config()), {"email": {"para": p["email"]}})
+    try:
+        bem, porque = enviar_email(
+            "O seu acesso ao Radar Gov",
+            TEXTO_DO_CONVITE % {"nome": p["nome"], "ligacao": ligacao,
+                                "dias": contas.DIAS_DE_CONVITE,
+                                "empresa": p["empresa"] or "sua empresa"}, cfg)
+    except Exception as erro:              # o convite fica, com a ligacao
+        bem, porque = False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+    registar_evento("", "pedido aceite", "%s (empresa %d)"
+                    % (p["empresa"], empresa_id))
+    envio = ("Mandei o convite para <b>%s</b>." % html.escape(p["email"])
+             if bem else "<b>O e-mail não saiu</b> (%s). Manda-lhe tu a "
+             "ligação." % html.escape(porque or "sem razão"))
+    return envolver(
+        "configuracoes", "Pedido aceite",
+        "A empresa %d, %s, foi criada." % (empresa_id, p["empresa"]),
+        "<div class='larg'><div class='rg-card conf-cx'><p>%s</p>"
+        "<p>A ligação, que serve uma vez e dura %d dias:</p>"
+        "<p><code>%s</code></p><p><a href='/pedidos-de-acesso'>voltar aos "
+        "pedidos</a></p></div></div>"
+        % (envio, contas.DIAS_DE_CONVITE, html.escape(ligacao)))
+
+
+PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Criar a conta — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<body class="entrar-fundo"><main class="rg entrar">
+ %(logo)s
+ <h1>Criar a conta</h1>
+ %(aviso)s
+ %(formulario)s
+</main></body></html>"""
+
+FORMULARIO_DO_CONVITE = """<form method="post">
+  <div class="rg-field"><label class="rg-field__label" for="c-utilizador">Utilizador</label>
+   <input class="rg-field__input" id="c-utilizador" type="text" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
+  <div class="rg-field"><label class="rg-field__label" for="c-senha">Palavra-passe</label>
+   <input class="rg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
+  <div class="rg-field"><label class="rg-field__label" for="c-outra">Outra vez</label>
+   <input class="rg-field__input" id="c-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
+  <button type="submit" class="rg-btn rg-btn--primary">Criar a conta e entrar</button>
+ </form>"""
+
+
+def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True):
+    return Response(PAGINA_CONVITE % {
+        "css": LIGACAO_CSS,
+        "logo": logotipo(tamanho=28),
+        "aviso": ("<div class='rg-alert rg-alert--%s'>%s</div>"
+                  % ("danger" if erro else "info", html.escape(aviso))
+                  if aviso else ""),
+        "formulario": (FORMULARIO_DO_CONVITE
+                       % {"utilizador": html.escape(utilizador, quote=True)}
+                       if utilizador is not None else
+                       "<p><a href='/entrar'>Ir para a entrada</a></p>"),
+    }, codigo, mimetype="text/html")
+
+
+@app.route("/convite/<codigo>", methods=["GET", "POST"])
+def convite(codigo):
+    """A ligacao do convite (F5). Rota ABERTA -- quem a abre ainda nao
+    tem conta --, e por isso a guarda e aqui: o proprio codigo (32 bytes
+    aleatorios, guardado so em resumo), a origem do POST
+    (`origem_e_nossa()`), e o uso unico com prazo (`contas.usar_convite()`).
+    Um codigo que nao existe, ja usado ou fora do prazo diz porque, e
+    nao mostra o formulario."""
+    with liga() as c:
+        convite_, porque = contas.convite_valido(c, codigo)
+    if not convite_:
+        return pagina_convite(porque[0].upper() + porque[1:] + ".",
+                              codigo=404 if "não existe" in porque else 410)
+    if request.method == "GET":
+        return pagina_convite("Escolhe o nome de utilizador e a palavra-passe "
+                              "(8 caracteres ou mais).",
+                              utilizador=convite_["email"], erro=False)
+    if not origem_e_nossa():
+        return pagina_convite("O pedido veio de outro sítio.", codigo=403)
+    utilizador = (request.form.get("utilizador") or "").strip()
+    senha = request.form.get("senha") or ""
+    if senha != (request.form.get("outra") or ""):
+        return pagina_convite("As duas palavras-passe não são iguais.",
+                              utilizador=utilizador)
+    try:
+        with liga() as c:
+            token, porque = contas.usar_convite(
+                c, codigo, utilizador, senha, ip=request.remote_addr or "",
+                agente=request.headers.get("User-Agent") or "")
+    except ValueError as erro:
+        return pagina_convite("Não criei a conta: %s." % erro,
+                              utilizador=utilizador)
+    if not token:
+        return pagina_convite(porque[0].upper() + porque[1:] + ".",
+                              utilizador=utilizador)
+    registar_evento("", "conta", "convite usado: %s (empresa %d)"
+                    % (contas.email_limpo(utilizador), convite_["empresa_id"]),
+                    quem="radar")
+    resposta = redirect("/")
+    resposta.set_cookie("sessao", token,
+                        max_age=60 * 60 * 24 * contas.DIAS_DE_SESSAO,
+                        httponly=True, samesite="Lax",
+                        secure=request.is_secure)
+    return resposta
 
 
 @app.route("/favicon.svg")
