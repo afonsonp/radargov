@@ -1014,6 +1014,20 @@ cp copias/empresa-1-AAAA-MM-DD.db empresas/1/empresa.db
 systemctl --user start radar-painel.service radar-hora.timer
 ```
 
+**Cópias fora deste PC** (desde 23/09/2026). As cópias acima estão no
+mesmo disco que a base: se o PC se perder, perdem-se com ele. Para isso
+há o **`./copias_fora.sh`**, que corres **uma vez**: descarrega o
+programa que as envia (o `rclone`) e guia-te a ligar uma conta gratuita
+do **Backblaze B2** (10 GB, sem cartão — as cópias das empresas têm
+centenas de KB). A partir daí, a primeira verificação de cada dia manda
+para lá, **cifradas antes de sair daqui**, a cópia de cada empresa e a
+das contas (`contas-AAAA-MM-DD.db`: quem entra, os convites, os pedidos
+do site). Lá ficam 90 dias. O estado vê-se em Configurações › Cópias,
+na linha «Fora deste PC». **Guarda a palavra-passe da cifra fora deste
+PC** (num gestor de palavras-passe, ou em papel): sem ela, as cópias lá
+fora não se lêem — nem por ti. Para trazer uma de volta, o
+`./copias_fora.sh` diz o comando.
+
 **As cópias são duas por dia desde 23/09/2026**: `radar-AAAA-MM-DD.db`
 (os anúncios, as peças lidas, as contas) e `empresa-1-AAAA-MM-DD.db`
 (as propostas, as tarefas, os contactos, o histórico — o trabalho da
@@ -1089,6 +1103,7 @@ anúncios, é o teste do parser que avisa primeiro.
 | `ensaio.sh` | o ensaio de leitura de um concurso: põe o que o modelo escreveu ao lado do texto do documento, sem gastar orçamento |
 | `medir.sh` | mede de onde vem o token das capturas do DR (só lê as capturas) e abre o resultado |
 | `tunel_fixo.sh` | monta o `https://radargov.pt` (túnel com nome, como serviço); correu uma vez |
+| `copias_fora.sh` | liga as cópias a um destino fora deste PC (Backblaze B2, cifrado); corre-se uma vez, secção 13 |
 | `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |
 | `.venv/` | o Python e os pacotes do radar |
 | `teste_radar.py` | os testes |

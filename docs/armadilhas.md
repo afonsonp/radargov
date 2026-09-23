@@ -1596,6 +1596,18 @@ SQLite, cópias, e a pen que manda nos números.
   o `-shm` de cada uma (LEIA-ME, secção 13) — copiar só o
   `.db` com o `-wal` velho ao lado dá uma base misturada.
 
+- **A cópia fora do PC usa SÓ o rclone do `.venv`, nunca o do sistema**
+  (F6, 23/09/2026). O `rclone()` procura-o pelo `BASE_DIR`, e é por aí
+  que os testes o perdem: a `BaseTemporaria` aponta o `BASE_DIR` para
+  uma pasta temporária. Com o `shutil.which("rclone")`, um teste que
+  fizesse a cópia diária numa máquina com o rclone instalado mandava as
+  cópias de ensaio para o destino verdadeiro. E o envio é **uma vez por
+  dia** (a marca `ultima_copia_fora` começa por «ok: <dia>»): a
+  verificação corre de hora a hora, e a cópia do dia só muda na
+  primeira. O que vai é o pequeno — a cópia de cada empresa e a das
+  contas (`TABELAS_DAS_CONTAS`) —, e não o radar.db de 1,3 GB, que se
+  refaz do DR.
+
 - **O trabalho da empresa é outro ficheiro, e uma tabela não pode
   morar nos dois** (F1, 23/09/2026). O `liga()` junta o
   `empresas/<id>/empresa.db` como `emp`, e um nome sem prefixo
