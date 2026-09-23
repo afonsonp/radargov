@@ -12799,6 +12799,123 @@ class TestConfigPorEmpresa(BaseTemporaria):
                          [("leitura", "peças lidas", "radar")])
 
 
+class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
+    """O teste central da F4 do plano multi-empresa (23/09/2026): com a
+    sessão da empresa A, percorre TODAS as páginas — as sem parâmetros,
+    tiradas do `url_map` como no `TestNenhumEcraDa500`, e as do concurso,
+    da proposta e da entidade que a B trabalha — e exige que nenhum dado
+    da B apareça. Cada dado da B leva uma marca que não existe em mais
+    lado nenhum; se uma aparecer, o erro diz qual e em que página.
+
+    E as portas: quem não é dono não abre o que é do sistema, e um admin
+    não vê nem tira as contas de outra empresa."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    MARCAS_DA_B = ("TITULO-B-SEGREDO", "NOTA-B-SEGREDO", "CONTACTO-B-SEGREDO",
+                   "contacto-b@segredo.pt", "TAREFA-B-SEGREDO", "HIST-B-SEGREDO",
+                   "PESSOA-B-SEGREDO", "ALERTA-B-SEGREDO", "ETIQ-B-SEGREDO",
+                   "b-resumo@segredo.pt", "EMPRESA-B-SEGREDO", "conta-b-segredo")
+    LENTAS = ("/contratos/resumo",)
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado) VALUES ('900/2026', 'Software', 'Município', "
+                      "'2026-09-01', 'novo')")
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")      # A, dono
+            radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+        self.b = radar.criar_empresa("EMPRESA-B-SEGREDO")
+        with radar.com_empresa(self.b):
+            self.proposta_b = radar.criar_proposta(
+                "900/2026", titulo="TITULO-B-SEGREDO", estado="proposta",
+                quem="PESSOA-B-SEGREDO")
+            with radar.liga() as c:
+                c.execute("UPDATE propostas SET notas='NOTA-B-SEGREDO', "
+                          "responsavel='PESSOA-B-SEGREDO'")
+                c.execute("INSERT INTO contactos (entidade_chave, entidade, nome, "
+                          "email) VALUES ('n:municipio', 'Município', "
+                          "'CONTACTO-B-SEGREDO', 'contacto-b@segredo.pt')")
+                c.execute("INSERT INTO tarefas (ref, o_que, quem, quando) VALUES "
+                          "('900/2026', 'TAREFA-B-SEGREDO', 'PESSOA-B-SEGREDO', "
+                          "'2026-09-30')")
+                c.execute("INSERT INTO historico (ref, quem, accao, detalhe, quando) "
+                          "VALUES ('900/2026', 'PESSOA-B-SEGREDO', 'estado', "
+                          "'HIST-B-SEGREDO', '2026-09-02 10:00')")
+                c.execute("INSERT OR IGNORE INTO pessoas (nome) VALUES ('PESSOA-B-SEGREDO')")
+                c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta) "
+                          "VALUES ('ALERTA-B-SEGREDO', 'q=software', 1)")
+                c.execute("INSERT INTO etiquetas (nome, cor) VALUES "
+                          "('ETIQ-B-SEGREDO', '#c0392b')")
+            radar.gravar_config({"email": {"para": "b-resumo@segredo.pt"}})
+            # uma leitura pedida por alguém da B: o evento é da plataforma,
+            # mas o nome de quem a pediu é da B
+            radar.registar_evento("900/2026", "leitura", "peças lidas",
+                                  quem="conta-b-segredo")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "conta-b-segredo", "senha-comprida",
+                                          papel="admin", empresa_id=self.b)
+
+    def entrar(self, quem):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def _caminhos(self):
+        simples = sorted({r.rule for r in radar.app.url_map.iter_rules()
+                          if "GET" in (r.methods or ()) and "<" not in r.rule
+                          and r.rule not in self.LENTAS})
+        return simples + ["/anuncio/900/2026", "/proposta/%d" % self.proposta_b,
+                          "/entidade/n:municipio", radar.LISTA + "?estado=proposta",
+                          "/configuracoes/conta", "/configuracoes/alertas"]
+
+    def test_a_empresa_a_nao_ve_nada_da_b_em_pagina_nenhuma(self):
+        for quem in ("admin", "teste"):
+            cliente = self.entrar(quem)
+            fugas = []
+            for caminho in self._caminhos():
+                corpo = cliente.get(caminho, environ_base=self.FORA).get_data()
+                corpo = corpo.decode("utf-8", "replace")    # ha fontes e icones
+                fugas += [(quem, caminho, m) for m in self.MARCAS_DA_B if m in corpo]
+            self.assertEqual(fugas, [])
+            self.assertGreater(len(self._caminhos()), 20)
+
+    def test_a_b_ve_o_que_e_dela(self):
+        """O teste de cima só vale se as marcas aparecerem a quem as tem:
+        senão passava igual com uma página que não mostrasse nada."""
+        cliente = self.entrar("conta-b-segredo")
+        corpo = cliente.get("/anuncio/900/2026", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("NOTA-B-SEGREDO", corpo)
+        corpo = cliente.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("conta-b-segredo", corpo)
+
+    def test_o_admin_da_b_nao_abre_o_que_e_do_sistema(self):
+        cliente = self.entrar("conta-b-segredo")
+        for rota in radar.ROTAS_SO_DONO:
+            self.assertEqual(cliente.get(rota, environ_base=self.FORA).status_code,
+                             403, rota)
+        dono = self.entrar("admin")
+        self.assertIn(dono.get("/configuracoes/recolha",
+                               environ_base=self.FORA).status_code, (200, 302))
+
+    def test_um_admin_nao_tira_contas_de_outra_empresa(self):
+        with radar.liga() as c:
+            id_b = c.execute("SELECT id FROM utilizadores WHERE email="
+                             "'conta-b-segredo'").fetchone()[0]
+            self.assertFalse(radar.contas.apagar_utilizador(c, id_b, empresa_id=1))
+            self.assertTrue(c.execute("SELECT 1 FROM utilizadores WHERE id=?",
+                                      (id_b,)).fetchone())
+
+    def test_a_empresa_da_sessao_nao_fica_pendurada_depois_do_pedido(self):
+        """No cliente dos testes os pedidos correm todos na mesma thread:
+        sem o `teardown_request`, a empresa da B ficava activa para o
+        pedido seguinte, de outra pessoa."""
+        self.entrar("conta-b-segredo").get("/", environ_base=self.FORA)
+        self.assertEqual(radar.empresa_activa(), radar.EMPRESA_ACTIVA)
+
+
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
     (17/09/2026): um anúncio, uma proposta, e as datas do DR a virarem
