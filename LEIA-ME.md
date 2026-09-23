@@ -1062,7 +1062,6 @@ anúncios, é o teste do parser que avisa primeiro.
 | `contratos.sh` | o que o temporizador de segunda corre: refaz o corpus do BASE |
 | `detalhes.sh` | vai buscar o detalhe de tudo o que ainda não o tem (~3 h), secção 13 |
 | `reler.sh` | manda o modelo reler as peças já guardadas, sem ir à rede |
-| `publicar_dados.sh` / `trazer_dados.sh` | levam o `radar.db` deste computador para outro, secção 15-A |
 | `tunel_fixo.sh` | monta o `https://radargov.pt` (túnel com nome, como serviço); correu uma vez |
 | `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |
 | `.venv/` | o Python e os pacotes do radar |
@@ -1125,12 +1124,15 @@ computador.
 
 Cinco passos, nesta ordem:
 
-1. **Neste**, publicar a base: `./publicar_dados.sh`. Sobe o `radar.db`
-   para o GitHub, à parte do código. Precisa do `gh` instalado e com
-   sessão iniciada.
+1. **Neste**, parar o serviço
+   (`systemctl --user stop radar-painel.service radar-hora.timer`) e
+   levar numa pen, ou pela rede, o `radar.db` e a pasta `empresas/`
+   inteira — ou as cópias de hoje de `copias/`. **Nunca pelo GitHub**:
+   desde 23/09/2026 lá só entra código, e a pasta `empresas/` é o
+   trabalho das empresas.
 2. **No novo**, trazer a pasta do GitHub e correr `./instalar.sh`.
-3. `./trazer_dados.sh` — desce a base, para não teres de recolher onze
-   anos outra vez.
+3. Pôr o `radar.db` e a pasta `empresas/` na pasta do radar, para não
+   teres de recolher onze anos outra vez.
 4. `python radar.py --contratos` (ou `./contratos.sh`) — o corpus do
    BASE **não viaja**: são 2,5 GB e refaz-se em minutos.
 5. `./agendar.sh`, e as capturas da secção 3, que são deste browser.

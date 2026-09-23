@@ -21,6 +21,8 @@ Arranque:  python radar.py             painel em http://127.0.0.1:8765
 """
 
 import bisect
+import contextlib
+import contextvars
 import copy
 import csv
 import hashlib
@@ -278,22 +280,55 @@ TABELAS_DA_EMPRESA = ("propostas", "tarefas", "contactos", "historico",
                       "etiquetas", "anuncio_etiquetas", "pessoas",
                       "filtros_guardados", "alertas_vistos",
                       "entidades_seguidas", "seguidas_vistos", "empresa",
-                      "marcas_da_empresa")
+                      "marcas_da_empresa", "alteracoes_avisadas")
 # As marcas do resumo diario sao da empresa (e ela que o recebe); as
 # outras marcas da tabela `estado` sao da recolha, e ficam.
 MARCAS_DA_EMPRESA = ("ultimo_resumo", "ultimo_resumo_estado",
                      "ultimo_resumo_quantos")
-# ponytail: uma empresa so ate a F4, que e quando a sessao passa a dizer
+# A empresa de omissao. Ate a F4 e a unica; a partir dela a sessao diz
 # qual e a de quem entrou.
 EMPRESA_ACTIVA = 1
+# A empresa deste fio de execucao (F2, 23/09/2026). E um ContextVar e nao
+# uma global que se muda: a verificacao corre dentro do painel, numa
+# thread, e percorre as empresas uma a uma -- uma global trocada ali
+# punha os pedidos do painel, ao mesmo tempo, a ler a empresa errada.
+# Uma thread nova comeca sem valor, e cai na de omissao.
+_EMPRESA = contextvars.ContextVar("empresa", default=None)
+
+
+def empresa_activa():
+    return _EMPRESA.get() or EMPRESA_ACTIVA
+
+
+@contextlib.contextmanager
+def com_empresa(id_):
+    """Corre o bloco com `id_` como a empresa do `liga()`."""
+    marca_ = _EMPRESA.set(id_)
+    try:
+        yield
+    finally:
+        _EMPRESA.reset(marca_)
+
+
+def pasta_das_empresas():
+    return os.path.join(os.path.dirname(DB), "empresas")
+
+
+def empresas_existentes():
+    """Os ids das empresas que tem ficheiro, por ordem."""
+    pasta = pasta_das_empresas()
+    if not os.path.isdir(pasta):
+        return []
+    return sorted(int(n) for n in os.listdir(pasta) if n.isdigit()
+                  and os.path.exists(os.path.join(pasta, n, "empresa.db")))
 
 
 def db_da_empresa(empresa=None):
     """O ficheiro da empresa. Ao lado do `DB` e nao do `BASE_DIR`: um
     teste que aponte o `DB` para uma pasta temporaria leva a empresa com
     ele, e nunca escreve no trabalho verdadeiro."""
-    return os.path.join(os.path.dirname(DB), "empresas",
-                        str(empresa or EMPRESA_ACTIVA), "empresa.db")
+    return os.path.join(pasta_das_empresas(),
+                        str(empresa or empresa_activa()), "empresa.db")
 
 
 def _abre(caminho):
@@ -736,6 +771,12 @@ def iniciar_empresa(caminho=None):
         # forma da `estado`, noutro ficheiro.
         c.execute("""CREATE TABLE IF NOT EXISTS marcas_da_empresa (
             chave TEXT PRIMARY KEY, valor TEXT)""")
+        # O que ESTA empresa ja recebeu da fila `alteracoes`, que e da
+        # plataforma (F2, 23/09/2026). Era a coluna `avisado_em` da fila:
+        # a primeira empresa a mandar o resumo apagava as alteracoes das
+        # outras.
+        c.execute("""CREATE TABLE IF NOT EXISTS alteracoes_avisadas (
+            alteracao_id INTEGER PRIMARY KEY, avisado_em TEXT)""")
         traduzir_filtros_guardados(c)
         empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)
     so_o_dono(caminho)
@@ -806,7 +847,20 @@ def iniciar_db():
     arrumar_pecas()
     separar_empresa()
     iniciar_empresa()
+    for id_ in empresas_existentes():       # as migracoes de todas
+        if id_ != empresa_activa():
+            iniciar_empresa(db_da_empresa(id_))
     with liga() as c:
+        # O que a plataforma viu acontecer a um anuncio -- o DR mudou-o,
+        # rectificou-o, apareceu uma peca, o modelo leu-as (F2,
+        # 23/09/2026). Viviam no `historico` da empresa, e com duas
+        # empresas cada uma tinha a sua copia, ou so a que estava activa
+        # na altura. Sao factos de todas; a ficha mostra-os ao lado do
+        # historico da empresa. Mesma forma, sem `proposta_id`.
+        c.execute("""CREATE TABLE IF NOT EXISTS eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
+            accao TEXT, detalhe TEXT, quando TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_eventos_ref ON eventos(ref)")
         c.execute("""CREATE TABLE IF NOT EXISTS anuncios (
             ref TEXT PRIMARY KEY, titulo TEXT, entidade TEXT,
             data_pub TEXT, tipo TEXT, url TEXT,
@@ -1062,6 +1116,41 @@ def iniciar_db():
     # «casa» passou a «empresa». Idempotente, e barato -- so abre o
     # ficheiro para escrever quando a chave velha la esta.
     renomear_chaves_do_config()
+    for id_ in empresas_existentes():
+        with com_empresa(id_):
+            arrumar_a_empresa()
+
+
+def arrumar_a_empresa():
+    """As duas migracoes da F2 (23/09/2026) na empresa activa.
+    Idempotentes: correm a cada arranque e nao fazem nada quando ja
+    estao feitas.
+
+    1. Os eventos da plataforma (ACCOES_DA_PLATAFORMA) saem do
+       `historico` da empresa para os `eventos` do radar.db. Uma linha
+       igual que ja la esteja -- a outra empresa levou-a primeiro -- nao
+       se repete.
+    2. O que a empresa ja recebeu passa da coluna `alteracoes.avisado_em`
+       para a `alteracoes_avisadas` dela. Uma vez, por marca.
+    """
+    marcas = ",".join("?" * len(ACCOES_DA_PLATAFORMA))
+    with liga() as c:
+        c.execute(
+            "INSERT INTO eventos (ref, quem, accao, detalhe, quando) "
+            "SELECT h.ref, h.quem, h.accao, h.detalhe, h.quando "
+            "FROM historico h WHERE h.accao IN (%s) AND NOT EXISTS ("
+            "SELECT 1 FROM eventos e WHERE e.ref IS h.ref AND e.accao IS h.accao "
+            "AND e.detalhe IS h.detalhe AND e.quando IS h.quando) ORDER BY h.id"
+            % marcas, ACCOES_DA_PLATAFORMA)
+        c.execute("DELETE FROM historico WHERE accao IN (%s)" % marcas,
+                  ACCOES_DA_PLATAFORMA)
+        if not c.execute("SELECT 1 FROM marcas_da_empresa "
+                         "WHERE chave='alteracoes_avisadas'").fetchone():
+            c.execute("INSERT OR IGNORE INTO alteracoes_avisadas "
+                      "SELECT id, avisado_em FROM alteracoes "
+                      "WHERE avisado_em IS NOT NULL")
+            c.execute("INSERT OR REPLACE INTO marcas_da_empresa "
+                      "VALUES ('alteracoes_avisadas', '1')")
 
 
 def so_o_dono(caminho):
@@ -1787,6 +1876,36 @@ def registar(ref, accao, detalhe="", quem=None, proposta_id=None):
                      VALUES (?,?,?,?,?,?)""",
                   (ref, quem or quem_sou() or "(sem nome)", accao, detalhe,
                    datetime.now().strftime("%Y-%m-%d %H:%M"), proposta_id))
+
+
+# O que a plataforma viu acontecer a um anuncio, e que nao e de empresa
+# nenhuma (F2, 23/09/2026): o DR mudou-o ou rectificou-o, apareceu uma
+# peca, o modelo leu-as. Vai para a tabela `eventos` do radar.db, e nao
+# para o `historico` da empresa activa -- com duas empresas, ficava so
+# na que estivesse activa quando a verificacao passou.
+ACCOES_DA_PLATAFORMA = ("alterou", "alteração", "rectificado",
+                        "verificou as peças", "leitura")
+
+
+def registar_evento(ref, accao, detalhe="", quem=""):
+    with liga() as c:
+        c.execute("INSERT INTO eventos (ref,quem,accao,detalhe,quando) "
+                  "VALUES (?,?,?,?,?)",
+                  (ref, quem or quem_sou() or "(sem nome)", accao, detalhe,
+                   datetime.now().strftime("%Y-%m-%d %H:%M")))
+
+
+def passos_do_anuncio(c, ref, limite, proposta_id=None):
+    """O historico da empresa e os eventos da plataforma de um anuncio,
+    juntos e pela data. `proposta_id` apanha tambem o que a proposta
+    escreveu sem `ref` (fase 3 do CICLOS.md)."""
+    return c.execute(
+        "SELECT ref, quem, accao, detalhe, quando, id FROM historico "
+        "WHERE (COALESCE(?,'') != '' AND ref=?) OR proposta_id=? "
+        "UNION ALL SELECT ref, quem, accao, detalhe, quando, id FROM eventos "
+        "WHERE COALESCE(?,'') != '' AND ref=? "
+        "ORDER BY quando DESC, id DESC LIMIT ?",
+        (ref, ref, proposta_id, ref, ref, limite)).fetchall()
 
 
 # ------------------------------------------------------------- lotes
@@ -3162,7 +3281,7 @@ def registar_alteracoes(ref, difs):
             " VALUES (?,?,?,?,?)",
             [(ref, campo, a, d, agora) for campo, a, d in difs])
     for campo, a, d in difs:
-        registar(ref, "alterou",
+        registar_evento(ref, "alterou",
                  "%s: %s → %s" % (rotulos.get(campo, campo),
                                   _valor_vigiado(campo, a),
                                   _valor_vigiado(campo, d)),
@@ -3244,15 +3363,45 @@ def _decidido(a, c=None):
     return bool(propostas_de(a["ref"]))
 
 
+def _herdar_propostas(c, ref, raiz_ref):
+    """A proposta que a empresa fez na alteracao passa para o original
+    (ver aplicar_alteracao()). Corre numa ligacao da empresa; devolve
+    (herdou, era), os rotulos para o historico dela. A partir da F2
+    (23/09/2026) corre em CADA empresa: o DR nao sabe de empresas, e a
+    ligacao de uma alteracao lida pela verificacao tem de chegar a todas.
+    """
+    herdou, era = "", ""
+    da_alteracao = c.execute(
+        "SELECT * FROM propostas WHERE ref=? ORDER BY COALESCE(lote,0), id",
+        (ref,)).fetchall()
+    do_original = c.execute(
+        "SELECT estado FROM propostas WHERE ref=?", (raiz_ref,)).fetchall()
+    if da_alteracao and (not do_original
+                         or da_alteracao[0]["estado"] != do_original[0]["estado"]):
+        if do_original:
+            era = estado_da_empresa(do_original[0]["estado"])
+        # A do original sai: a mais recente e a que vale, e deixar as
+        # duas dava dois cartoes do mesmo procedimento no quadro.
+        apagar_propostas(c, "ref=?", (raiz_ref,))
+        c.execute("UPDATE propostas SET ref=? WHERE ref=?", (raiz_ref, ref))
+        c.execute("INSERT OR IGNORE INTO anuncio_etiquetas (ref, etiqueta_id)"
+                  " SELECT ?, etiqueta_id FROM anuncio_etiquetas WHERE ref=?",
+                  (raiz_ref, ref))
+        herdou = (estado_da_empresa(da_alteracao[0]["estado"])
+                  + (" (%s)" % da_alteracao[0]["motivo"]
+                     if da_alteracao[0]["motivo"] else ""))
+    return herdou, era
+
+
 def aplicar_alteracao(ref, avisar=True):
     """Liga a alteracao `ref` ao anuncio original e poe nele o que esta
     em vigor. Devolve o ref da raiz, ou '' quando nao ha nada a ligar.
 
     `avisar` manda os campos que mudaram para a fila `alteracoes` (o
-    resumo diario), e so quando o original esta marcado -- e o mesmo
-    criterio do reler_marcados(): uma prorrogacao num anuncio que
-    ninguem quer nao e noticia. A migracao dos 763 que ja la estavam
-    corre sem avisar; o historico da ficha fica sempre.
+    resumo diario). A fila e da plataforma e leva tudo; o resumo de cada
+    empresa so conta as dos anuncios que ela tem na escada (F2). A
+    migracao dos 763 que ja la estavam corre sem avisar; os eventos da
+    ficha ficam sempre.
     """
     with liga() as c:
         a = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
@@ -3282,26 +3431,7 @@ def aplicar_alteracao(ref, avisar=True):
         # 01/09/2026 nao fazia isto e deixou um «interessa» do Afonso
         # (21924/2026) por baixo de um descarte antigo do original; o
         # item sumiu-se dos Interessados.
-        da_alteracao = c.execute(
-            "SELECT * FROM propostas WHERE ref=? ORDER BY COALESCE(lote,0), id",
-            (ref,)).fetchall()
-        do_original = c.execute(
-            "SELECT estado FROM propostas WHERE ref=?", (raiz_ref,)).fetchall()
-        if da_alteracao and (not do_original
-                             or da_alteracao[0]["estado"] != do_original[0]["estado"]):
-            if do_original:
-                era = estado_da_empresa(do_original[0]["estado"])
-            # A do original sai: a mais recente e a que vale, e deixar as
-            # duas dava dois cartoes do mesmo procedimento no quadro.
-            apagar_propostas(c, "ref=?", (raiz_ref,))
-            c.execute("UPDATE propostas SET ref=? WHERE ref=?", (raiz_ref, ref))
-            c.execute("INSERT OR IGNORE INTO anuncio_etiquetas (ref, etiqueta_id)"
-                      " SELECT ?, etiqueta_id FROM anuncio_etiquetas WHERE ref=?",
-                      (raiz_ref, ref))
-            herdou = (estado_da_empresa(da_alteracao[0]["estado"])
-                      + (" (%s)" % da_alteracao[0]["motivo"]
-                         if da_alteracao[0]["motivo"] else ""))
-        elif a["estado"] not in ("novo", "alteracao") and r["estado"] == "novo":
+        if a["estado"] not in ("novo", "alteracao") and r["estado"] == "novo":
             # Sem proposta, o unico que ha para passar e o estado, e so
             # para um original que ainda esteja por decidir.
             c.execute("UPDATE anuncios SET estado=? WHERE ref=?",
@@ -3324,22 +3454,28 @@ def aplicar_alteracao(ref, avisar=True):
         c.execute("UPDATE anuncios SET alterado_por=?, %s WHERE ref=?"
                   % ", ".join("%s=?" % k for k in CAMPOS_EM_VIGOR),
                   [vigor["ref"]] + [campos[k] for k in CAMPOS_EM_VIGOR] + [raiz_ref])
-        marcado = _decidido(r) or bool(herdou)
-        # Idempotente tambem no historico: voltar a passar (--reler,
+        # Idempotente tambem nos eventos: voltar a passar (--reler,
         # --repor-triagem seguido de --reler) nao repete a linha.
-        ja_dito = c.execute("SELECT 1 FROM historico WHERE ref=? AND accao=?",
+        ja_dito = c.execute("SELECT 1 FROM eventos WHERE ref=? AND accao=?",
                             (ref, "alteração")).fetchone()
+    for id_ in empresas_existentes():
+        with com_empresa(id_):
+            with liga() as c:
+                herdou_aqui, era = _herdar_propostas(c, ref, raiz_ref)
+            if herdou_aqui:
+                registar(raiz_ref, "estado", "%s, decidido na alteração %s%s"
+                         % (herdou_aqui, ref, " (era «%s»)" % era if era else ""),
+                         quem="DR")
     if not ja_dito:
-        registar(ref, "alteração",
-                 "do anúncio %s, publicado a %s; a triagem faz-se lá"
-                 % (raiz_ref, data_pt(r["data_pub"], "")), quem="DR")
+        registar_evento(ref, "alteração",
+                        "do anúncio %s, publicado a %s; a triagem faz-se lá"
+                        % (raiz_ref, data_pt(r["data_pub"], "")), quem="DR")
     if herdou:
-        registar(raiz_ref, "estado", "%s, decidido na alteração %s%s"
-                 % (herdou, ref, " (era «%s»)" % era if era else ""),
-                 quem="DR")
+        registar_evento(raiz_ref, "estado", "%s, decidido na alteração %s"
+                        % (herdou, ref), quem="DR")
     if difs:
         rotulos = dict(CAMPOS_VIGIADOS)
-        registar(raiz_ref, "alterou",
+        registar_evento(raiz_ref, "alterou",
                  "pelo anúncio %s de %s: %s"
                  % (vigor["ref"], data_pt(vigor["data_pub"], ""),
                     "; ".join("%s %s → %s" % (rotulos.get(k, k),
@@ -3348,7 +3484,10 @@ def aplicar_alteracao(ref, avisar=True):
                               for k, antes, depois in difs)), quem="DR")
         vigiados = [(k, antes, depois) for k, antes, depois in difs
                     if k in rotulos and antes and depois]
-        if avisar and marcado and vigiados:
+        # Sempre, e nao so quando o original esta marcado: marcado e de
+        # uma empresa, e a fila e da plataforma. Quem filtra e o resumo
+        # de cada empresa (alteracoes_por_avisar()).
+        if avisar and vigiados:
             agora = datetime.now().strftime("%Y-%m-%d %H:%M")
             with liga() as c:
                 c.executemany(
@@ -3714,22 +3853,40 @@ def ligar_retificacoes():
                 "SELECT ref, estado FROM anuncios WHERE ref=?",
                 (alvo,)).fetchone()
             ja = c.execute(
-                "SELECT 1 FROM historico WHERE ref=? AND accao='rectificado'"
+                "SELECT 1 FROM eventos WHERE ref=? AND accao='rectificado'"
                 " AND detalhe LIKE ?",
                 (alvo, "%" + r["ref"] + "%")).fetchone()
         if not original or ja:
             continue
-        registar(alvo, "rectificado", "pelo anúncio %s" % r["ref"],
-                 quem="DR")
-        if _decidido(original):
-            with liga() as c:
-                c.execute(
-                    "INSERT INTO alteracoes (ref, campo, antes, depois,"
-                    " detectado_em) VALUES (?,?,?,?,?)",
-                    (alvo, "retificacao", "", r["ref"],
-                     datetime.now().strftime("%Y-%m-%d %H:%M")))
+        registar_evento(alvo, "rectificado", "pelo anúncio %s" % r["ref"],
+                        quem="DR")
+        # Para a fila sempre: marcado e de uma empresa, a fila e da
+        # plataforma, e quem filtra e o resumo de cada uma (F2).
+        with liga() as c:
+            c.execute(
+                "INSERT INTO alteracoes (ref, campo, antes, depois,"
+                " detectado_em) VALUES (?,?,?,?,?)",
+                (alvo, "retificacao", "", r["ref"],
+                 datetime.now().strftime("%Y-%m-%d %H:%M")))
         ligadas += 1
     return ligadas
+
+
+def marcar_os_da_escada(c):
+    """Enche a tabela TEMPORARIA `na_escada` da ligacao `c` com os
+    anuncios que QUALQUER empresa tem na escada (F2, 23/09/2026).
+
+    E a pergunta dos trabalhos da plataforma -- reler, vigiar as pecas,
+    completar as leituras --, que ate aqui liam a `propostas` da empresa
+    activa: com duas empresas, os concursos da segunda nunca eram
+    relidos. Cada ficheiro de empresa abre-se a parte, so para ler."""
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS na_escada (ref TEXT PRIMARY KEY)")
+    c.execute("DELETE FROM temp.na_escada")
+    for id_ in empresas_existentes():
+        with _abre(db_da_empresa(id_)) as e:
+            refs = [(r["ref"],) for r in e.execute(
+                "SELECT DISTINCT ref FROM propostas WHERE ref IS NOT NULL")]
+        c.executemany("INSERT OR IGNORE INTO temp.na_escada VALUES (?)", refs)
 
 
 def reler_marcados(limite=25):
@@ -3752,6 +3909,7 @@ def reler_marcados(limite=25):
     variaveis = molde["screenData"]["variables"]
     hoje = datetime.now().date().isoformat()
     with liga() as c:
+        marcar_os_da_escada(c)
         # So a fonte do DR: uma consulta preliminar da Vortal (B14) nao
         # tem pagina de detalhe no DR para reler
         # Um original ja alterado rele-se pela pagina da ALTERACAO mais
@@ -3763,7 +3921,7 @@ def reler_marcados(limite=25):
             " a.url) url"
             " FROM anuncios a WHERE a.detalhe_lido=1"
             " AND COALESCE(fonte,'dr')='dr'"
-            " AND EXISTS (SELECT 1 FROM propostas p WHERE p.ref = a.ref)"
+            " AND a.ref IN (SELECT ref FROM temp.na_escada)"
             " AND a.prazo != '' AND a.prazo >= ?"
             " ORDER BY a.prazo LIMIT ?", (hoje, limite)).fetchall()
     feitos = 0
@@ -5723,11 +5881,13 @@ def refs_com_leitura_incompleta(limite=None, so_na_escada=True):
            % " OR ".join("COALESCE(a.%s,'') = ''" % n
                          for n in CAMPOS_LIDOS_PELO_MODELO))
     if so_na_escada:
-        sql += " AND a.ref IN (SELECT ref FROM propostas WHERE ref IS NOT NULL)"
+        sql += " AND a.ref IN (SELECT ref FROM temp.na_escada)"
     sql += " ORDER BY a.quando DESC"
     if limite:
         sql += " LIMIT %d" % int(limite)
     with liga() as c:
+        if so_na_escada:
+            marcar_os_da_escada(c)      # a escada de todas (F2)
         return [r["ref"] for r in c.execute(sql)]
 
 
@@ -5974,7 +6134,7 @@ def _guardar_pecas_novas(ref, plataforma, disponiveis):
             c.execute("INSERT INTO alteracoes (ref, campo, antes, depois,"
                       " detectado_em) VALUES (?,?,?,?,?)",
                       (ref, CAMPO_PECA_NOVA, "", nome, agora))
-        registar(ref, "alterou", "peça nova na plataforma: %s%s"
+        registar_evento(ref, "alterou", "peça nova na plataforma: %s%s"
                  % (nome, "" if dados else " (não se conseguiu trazer)"),
                  quem="plataforma")
         quantas += 1
@@ -6022,10 +6182,11 @@ def anuncios_a_vigiar(limite=10, hoje=None):
     de partida nao ha com que comparar, e cada peca contaria como nova."""
     hoje = hoje or datetime.now().date()
     with liga() as c:
+        marcar_os_da_escada(c)
         marcados = c.execute(
             "SELECT ref, plataforma, link_pecas, data_pub, prazo, pecas_vigiadas_em"
             " FROM anuncios"
-            " WHERE EXISTS (SELECT 1 FROM propostas p WHERE p.ref = anuncios.ref)"
+            " WHERE ref IN (SELECT ref FROM temp.na_escada)"
             " AND docs_estado IN ('ok','parcial')"
             " AND COALESCE(link_pecas,'') != ''"
             " AND COALESCE(prazo,'') != '' AND prazo >= ?"
@@ -6072,7 +6233,7 @@ def vigiar_anuncio(a, sessao=None, razao="a pedido", reler=None):
         c.execute("UPDATE anuncios SET pecas_vigiadas_em=? WHERE ref=?",
                   (datetime.now().strftime("%Y-%m-%d %H:%M"), a["ref"]))
     if not novas:
-        registar(a["ref"], "verificou as peças",
+        registar_evento(a["ref"], "verificou as peças",
                  "nenhuma peça nova na plataforma (%s)" % razao, quem="plataforma")
     elif reler is not None:
         reler(a["ref"])
@@ -6128,7 +6289,7 @@ def ler_pecas_e_registar(ref, quem=""):
         ok, porque = analisar_pecas(ref)
         # "leitura", nao "análise": e o nome que o ecra usa (§7 do
         # ESQUELETO). Os registos antigos traduzem-se ao mostrar.
-        registar(ref, "leitura",
+        registar_evento(ref, "leitura",
                  "peças lidas" if (ok and not porque) else (porque or "falhou"),
                  quem=quem)
         if ok and not porque:
@@ -6315,19 +6476,22 @@ def copia_da_empresa(copia):
     copia so dele deixava de fora a unica coisa que nao se recupera."""
     pasta, nome = os.path.split(copia)
     return os.path.join(pasta, nome.replace(
-        "radar-", "empresa-%d-" % EMPRESA_ACTIVA, 1))
+        "radar-", "empresa-%d-" % empresa_activa(), 1))
 
 
 def _vacuum_para(destino):
     """O radar.db para `destino` e a empresa para `copia_da_empresa()`,
     cada um so se ainda nao existir -- a segunda volta do dia nao refaz
     nada, e uma empresa que faltou a primeira faz-se na segunda."""
-    da_empresa = copia_da_empresa(destino)
     with liga() as c:
         if not os.path.exists(destino):
             c.execute("VACUUM INTO ?", (destino,))
-        if os.path.exists(db_da_empresa()) and not os.path.exists(da_empresa):
-            c.execute("VACUUM emp INTO ?", (da_empresa,))
+    for id_ in empresas_existentes():       # todas, e nao so a activa
+        with com_empresa(id_):
+            da_empresa = copia_da_empresa(destino)
+            if not os.path.exists(da_empresa):
+                with liga() as c:
+                    c.execute("VACUUM emp INTO ?", (da_empresa,))
 
 
 def copia_de_seguranca_com_nome(marca_nome):
@@ -6336,7 +6500,9 @@ def copia_de_seguranca_com_nome(marca_nome):
     os.makedirs(COPIAS, exist_ok=True)
     destino = os.path.join(COPIAS, "radar-%s-%s.db"
                            % (marca_nome, datetime.now().strftime("%Y-%m-%d")))
-    for f in (destino, copia_da_empresa(destino)):
+    for f in [destino] + [os.path.join(COPIAS, "empresa-%d-%s" % (
+            id_, os.path.basename(destino)[len("radar-"):]))
+            for id_ in empresas_existentes()]:
         if os.path.exists(f):
             os.remove(f)
     _vacuum_para(destino)
@@ -6935,21 +7101,30 @@ def marcar_seguidas_enviadas(seguidas):
 
 
 def alteracoes_por_avisar():
-    """As alteracoes detectadas e ainda nao avisadas, com o anuncio ao
-    lado para o resumo ter o que dizer."""
+    """As alteracoes que ESTA empresa ainda nao recebeu, com o anuncio ao
+    lado para o resumo ter o que dizer.
+
+    So as dos anuncios que ela tem na escada, e so as detectadas depois
+    de a proposta nascer: a fila e da plataforma e leva tudo (F2,
+    23/09/2026), e ate ai a pergunta era «ainda ninguem avisou?» -- a
+    empresa B recebia as alteracoes dos concursos da A, e a primeira a
+    mandar o resumo apagava-as a outra."""
     with liga() as c:
         return c.execute(
             "SELECT t.id, t.ref, t.campo, t.antes, t.depois, "
             "a.titulo, a.entidade FROM alteracoes t "
             "JOIN anuncios a ON a.ref = t.ref "
-            "WHERE t.avisado_em IS NULL ORDER BY t.ref, t.id").fetchall()
+            "WHERE t.id NOT IN (SELECT alteracao_id FROM alteracoes_avisadas) "
+            "AND EXISTS (SELECT 1 FROM propostas p WHERE p.ref = t.ref "
+            "AND COALESCE(p.criada_em,'') <= COALESCE(t.detectado_em,'')) "
+            "ORDER BY t.ref, t.id").fetchall()
 
 
 def marcar_alteracoes_avisadas(alteradas):
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     with liga() as c:
-        c.executemany("UPDATE alteracoes SET avisado_em=? WHERE id=?",
-                      [(agora, x["id"]) for x in alteradas])
+        c.executemany("INSERT OR IGNORE INTO alteracoes_avisadas VALUES (?,?)",
+                      [(x["id"], agora) for x in alteradas])
 
 
 def texto_do_resumo(achados, alteradas=(), seguidas=()):
@@ -7293,7 +7468,7 @@ def enviar_resumo(cfg=None, forcar=False):
         return False, "nada de novo para avisar"
 
     corpo = texto_do_resumo(achados, alteradas, seguidas)
-    with open(AVISOS, "w", encoding="utf-8") as f:
+    with open(avisos_da_empresa(), "w", encoding="utf-8") as f:
         f.write(corpo)                  # fica sempre, mesmo sem e-mail
 
     total = sum(len(x[1]) for x in achados)
@@ -7332,6 +7507,46 @@ def enviar_resumo(cfg=None, forcar=False):
 
 
 AVISOS = os.path.join(BASE_DIR, "AVISOS.txt")
+
+
+def avisos_da_empresa():
+    """O AVISOS.txt de cada empresa, ao lado do ficheiro dela (F2). A
+    empresa de omissao continua a escreve-lo na pasta do radar, que e
+    onde o manual diz que ele esta."""
+    if empresa_activa() == EMPRESA_ACTIVA:
+        return AVISOS
+    return os.path.join(os.path.dirname(db_da_empresa()), "AVISOS.txt")
+
+
+def trabalho_da_empresa(cfg, bem, diz):
+    """O que a verificacao faz na empresa activa. Devolve quantos
+    anuncios entraram nos alertas dela."""
+    # As tarefas automaticas seguem as datas do DR, e as datas acabaram
+    # de ser relidas: uma prorrogacao publicada de manha tem de chegar a
+    # vista "Hoje" na mesma verificacao, e nao no dia seguinte. Barato
+    # (uma consulta e os que mudaram) e idempotente.
+    try:
+        sincronizar_tarefas()
+    except sqlite3.Error as erro:
+        print("aviso: a sincronização das tarefas falhou (%s)" % erro)
+    # Os avisos correm depois de ler os detalhes: um filtro por CPV so
+    # apanha o anuncio depois de o CPV estar lido, e ler os detalhes e a
+    # ultima coisa que a verificacao faz.
+    quantos_avisos = 0
+    if bem and cfg.get("alertas", True):
+        diz("a passar os alertas pelos anúncios novos")
+        try:
+            quantos_avisos = registar_alertas()
+            registar_seguidas()
+            # O resumo sai uma vez por dia, a partir da hora marcada: a
+            # verificacao corre de hora a hora e nao se mandam varios
+            # e-mails com um bocado das coisas cada.
+            hora = str((cfg.get("email") or {}).get("hora_resumo") or "17:00")
+            if datetime.now().strftime("%H:%M") >= hora:
+                enviar_resumo(cfg)
+        except (sqlite3.Error, OSError) as erro:
+            print("aviso: os alertas falharam (%s)" % erro)
+    return quantos_avisos
 
 
 def verificar(cfg=None, passo=None):
@@ -7386,14 +7601,6 @@ def verificar(cfg=None, passo=None):
             ligar_retificacoes()
         except (sqlite3.Error, OSError) as erro:
             print("aviso: a releitura dos marcados falhou (%s)" % erro)
-    # As tarefas automaticas seguem as datas do DR, e as datas acabaram
-    # de ser relidas: uma prorrogacao publicada de manha tem de chegar a
-    # vista "Hoje" na mesma verificacao, e nao no dia seguinte. Barato
-    # (uma consulta e os que mudaram) e idempotente.
-    try:
-        sincronizar_tarefas()
-    except sqlite3.Error as erro:
-        print("aviso: a sincronização das tarefas falhou (%s)" % erro)
     # A lista das pecas dos marcados que tem razao para isso (passou a
     # data de esclarecimentos, ou o prazo/preco mudaram -- e o reler
     # acima e que descobre isso, por isso vem depois dele). Nao depende
@@ -7455,23 +7662,14 @@ def verificar(cfg=None, passo=None):
             marca_erro("vortal_ultimo_erro", "vortal", "%s: %s"
                        % (datetime.now().strftime("%Y-%m-%d %H:%M"),
                           str(erro)[:150]))
-    # Os avisos correm depois de ler os detalhes: um filtro por CPV so
-    # apanha o anuncio depois de o CPV estar lido, e ler os detalhes e a
-    # ultima coisa que a verificacao faz.
+    # Daqui para baixo e o trabalho de cada empresa (F2, 23/09/2026): a
+    # recolha, as pecas e as leituras correram uma vez, para todas; as
+    # tarefas, os alertas e o resumo correm em cada uma, com a ligacao
+    # dela. Uma empresa que falhe nao trava as outras.
     quantos_avisos = 0
-    if bem and cfg.get("alertas", True):
-        diz("a passar os alertas pelos anúncios novos")
-        try:
-            quantos_avisos = registar_alertas()
-            registar_seguidas()
-            # O resumo sai uma vez por dia, a partir da hora marcada: a
-            # verificacao corre duas vezes e nao se mandam dois e-mails
-            # com metade das coisas cada.
-            hora = str((cfg.get("email") or {}).get("hora_resumo") or "17:00")
-            if datetime.now().strftime("%H:%M") >= hora:
-                enviar_resumo(cfg)
-        except (sqlite3.Error, OSError) as erro:
-            print("aviso: os alertas falharam (%s)" % erro)
+    for id_ in empresas_existentes():
+        with com_empresa(id_):
+            quantos_avisos += trabalho_da_empresa(cfg, bem, diz)
     if quantos_avisos:
         # o ponto e o caracter, nao a entidade: a mensagem passa por
         # html.escape() na barra lateral e "&middot;" saia escrito
@@ -19129,8 +19327,7 @@ def ficha(ref):
     with liga() as c:
         docs = c.execute("SELECT * FROM documentos WHERE ref=? ORDER BY nome",
                          (ref,)).fetchall()
-        passos = c.execute("SELECT * FROM historico WHERE ref=? "
-                           "ORDER BY id DESC LIMIT 12", (ref,)).fetchall()
+        passos = passos_do_anuncio(c, ref, 12)
         # A republicacao. Numa alteracao, a ficha aponta para o original,
         # onde a triagem se faz; num original ja alterado, o texto que
         # se mostra e o da alteracao mais recente -- e o que esta em
@@ -20751,10 +20948,7 @@ def cronologia_da_proposta(p):
     que proposta eram.
     """
     with liga() as c:
-        passos = c.execute(
-            "SELECT * FROM historico WHERE proposta_id=? OR "
-            "(COALESCE(?,'') != '' AND ref=?) ORDER BY id DESC LIMIT 20",
-            (p["id"], p["ref"], p["ref"])).fetchall()
+        passos = passos_do_anuncio(c, p["ref"], 20, proposta_id=p["id"])
     if not passos:
         return ""
     return ("<div class='rg-card lado-cx'><div class='rg-field__label' "

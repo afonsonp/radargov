@@ -8880,11 +8880,16 @@ class TestAlteracoesDoDR(BaseTemporaria):
             ref, {"data": {"DetalheConteudo": {"Texto": texto, "URL_PDF": ""}}})
 
     def _historico(self, ref, accao=None):
+        """O historico da empresa e os eventos da plataforma, juntos: o
+        que o DR fez vive nos `eventos` desde a F2 (23/09/2026), e a
+        decisao herdada pela empresa no `historico` dela."""
+        filtro = " AND accao=?" if accao else ""
+        args = (ref, accao) if accao else (ref,)
         with radar.liga() as c:
             return [dict(p) for p in c.execute(
-                "SELECT accao, detalhe FROM historico WHERE ref=?" +
-                (" AND accao=?" if accao else ""),
-                (ref, accao) if accao else (ref,))]
+                "SELECT accao, detalhe FROM historico WHERE ref=?" + filtro +
+                " UNION ALL SELECT accao, detalhe FROM eventos WHERE ref=?"
+                + filtro, args + args)]
 
     def test_reconhece_o_cabecalho_da_alteracao(self):
         self.assertEqual(radar.anuncio_alterado(
@@ -8920,10 +8925,11 @@ class TestAlteracoesDoDR(BaseTemporaria):
         alterou = self._historico("100/2026", "alterou")
         self.assertEqual(len(alterou), 1)
         self.assertIn("13/08/2026 → 11/09/2026", alterou[0]["detalhe"])
-        # nao marcado: o historico conta, a fila do resumo nao
-        with radar.liga() as c:
-            self.assertEqual(c.execute("SELECT COUNT(*) n FROM alteracoes")
-                             .fetchone()["n"], 0)
+        # nao marcado: o historico conta, o resumo nao. Desde a F2
+        # (23/09/2026) a fila e da plataforma e leva tudo -- marcado e
+        # de uma empresa --, e quem nao deixa passar e a pergunta de
+        # cada empresa.
+        self.assertEqual(radar.alteracoes_por_avisar(), [])
 
     def test_um_marcado_alterado_vai_para_a_fila_do_resumo(self):
         self._poe("100/2026", "2026-07-17", self._texto(), estado="interessa")
@@ -11816,7 +11822,7 @@ class TestVigilanciaDasPecas(BaseTemporaria):
         self.assertEqual(docs["Caderno de Encargos.pdf"], ("ocr", "texto por OCR"))
         self.assertIn("Esclarecimento 1.pdf", docs)
         with radar.liga() as c:
-            h = c.execute("SELECT detalhe FROM historico WHERE ref=?",
+            h = c.execute("SELECT detalhe FROM eventos WHERE ref=?",
                           (ref,)).fetchall()
         self.assertTrue(any("Esclarecimento 1.pdf" in x["detalhe"] for x in h), h)
 
@@ -12712,6 +12718,148 @@ class TestAEmpresaNoSeuFicheiro(BaseTemporaria):
         r = radar.ensaiar_copia()
         self.assertTrue(r["serve"])
         self.assertEqual(r["contagens"]["propostas"], (1, 1))
+
+class TestDuasEmpresas(BaseTemporaria):
+    """A F2 do plano multi-empresa (23/09/2026): a recolha corre uma vez,
+    e o que é de cada empresa corre em cada uma. Os erros que isto fecha
+    eram todos silenciosos com uma empresa só: a fila das alterações
+    tinha um `avisado_em` para todas (a primeira a mandar o resumo
+    apagava as das outras, e a B recebia as da A); os trabalhos da
+    plataforma liam a escada da empresa activa (os concursos da segunda
+    nunca eram relidos); e o que o DR fez ficava no histórico de quem
+    estivesse activo quando a verificação passou."""
+
+    CORPO = TestAlteracoesDoDR.CORPO
+    _texto = TestAlteracoesDoDR._texto
+    _poe = TestAlteracoesDoDR._poe
+    _chega = TestAlteracoesDoDR._chega
+
+    def setUp(self):
+        super().setUp()
+        radar.iniciar_empresa(radar.db_da_empresa(2))
+
+    def _propostas(self, id_):
+        with radar.com_empresa(id_):
+            with radar.liga() as c:
+                return [p["ref"] for p in c.execute(
+                    "SELECT ref FROM propostas ORDER BY id")]
+
+    def _alteracao(self, ref, quando):
+        with radar.liga() as c:
+            return c.execute(
+                "INSERT INTO alteracoes (ref, campo, antes, depois, detectado_em)"
+                " VALUES (?, 'prazo', '2026-08-13', '2026-09-11', ?)",
+                (ref, quando)).lastrowid
+
+    def _por_avisar(self, id_):
+        with radar.com_empresa(id_):
+            return [x["id"] for x in radar.alteracoes_por_avisar()]
+
+    def test_cada_empresa_ve_so_as_suas_propostas(self):
+        radar.criar_proposta("1/2026")
+        with radar.com_empresa(2):
+            radar.criar_proposta("2/2026")
+        self.assertEqual(radar.empresas_existentes(), [1, 2])
+        self.assertEqual(self._propostas(1), ["1/2026"])
+        self.assertEqual(self._propostas(2), ["2/2026"])
+        # e fora do `with` volta a de omissão
+        self.assertEqual(radar.empresa_activa(), radar.EMPRESA_ACTIVA)
+
+    def test_os_trabalhos_da_plataforma_veem_a_escada_de_todas(self):
+        radar.criar_proposta("1/2026")
+        with radar.com_empresa(2):
+            radar.criar_proposta("2/2026")
+        with radar.liga() as c:
+            radar.marcar_os_da_escada(c)
+            refs = {r[0] for r in c.execute("SELECT ref FROM temp.na_escada")}
+        self.assertEqual(refs, {"1/2026", "2/2026"})
+
+    def test_a_alteracao_passa_a_proposta_de_todas_as_empresas(self):
+        self._poe("100/2026", "2026-07-17", self._texto())
+        self._poe("200/2026", "2026-08-14")
+        radar.criar_proposta("200/2026")
+        with radar.com_empresa(2):
+            radar.criar_proposta("200/2026")
+        self._chega("200/2026", self._texto(prazo="11-09-2026",
+                                            altera="100/2026"))
+        self.assertEqual(self._propostas(1), ["100/2026"])
+        self.assertEqual(self._propostas(2), ["100/2026"])
+        # o que o DR fez está uma vez, na plataforma, e cada empresa vê-o
+        # na cronologia ao lado do que ela própria fez
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT COUNT(*) FROM eventos WHERE ref='200/2026' "
+                "AND accao='alteração'").fetchone()[0], 1)
+            accoes = [p["accao"] for p in radar.passos_do_anuncio(c, "100/2026", 20)]
+        self.assertIn("alterou", accoes)
+        self.assertIn("estado", accoes)
+
+    def test_a_alteracao_so_chega_a_quem_tem_o_concurso_e_uma_vez_a_cada(self):
+        self._poe("100/2026", "2026-07-17", self._texto())
+        radar.criar_proposta("100/2026")
+        primeira = self._alteracao("100/2026", "2099-01-01 09:00")
+        self.assertEqual(self._por_avisar(1), [primeira])
+        self.assertEqual(self._por_avisar(2), [])       # não é concurso dela
+        radar.marcar_alteracoes_avisadas([{"id": primeira}])
+        self.assertEqual(self._por_avisar(1), [])
+        # a B pega no concurso DEPOIS: a alteração velha não é notícia
+        with radar.com_empresa(2):
+            radar.criar_proposta("100/2026")
+            with radar.liga() as c:
+                c.execute("UPDATE propostas SET criada_em='2099-01-02 09:00'")
+        self.assertEqual(self._por_avisar(2), [])
+        # a seguinte chega às duas, e o aviso de uma não apaga o da outra
+        segunda = self._alteracao("100/2026", "2099-01-03 09:00")
+        with radar.com_empresa(2):
+            radar.marcar_alteracoes_avisadas([{"id": segunda}])
+        self.assertEqual(self._por_avisar(1), [segunda])
+        self.assertEqual(self._por_avisar(2), [])
+
+    def test_os_eventos_saem_do_historico_uma_vez_so(self):
+        for id_ in (1, 2):
+            with radar.com_empresa(id_):
+                with radar.liga() as c:
+                    c.executemany(
+                        "INSERT INTO historico (ref, quem, accao, detalhe, quando)"
+                        " VALUES ('9/2026', ?, ?, ?, ?)",
+                        [("DR", "alterou", "prazo: a → b", "2026-09-01 09:00"),
+                         ("Afonso", "estado", "Ganho", "2026-09-01 10:00")])
+        radar.iniciar_db()
+        radar.iniciar_db()                              # idempotente
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM eventos "
+                                       "WHERE ref='9/2026'").fetchone()[0], 1)
+        for id_ in (1, 2):
+            with radar.com_empresa(id_):
+                with radar.liga() as c:
+                    self.assertEqual([r[0] for r in c.execute(
+                        "SELECT accao FROM historico WHERE ref='9/2026'")],
+                        ["estado"])
+
+    def test_a_verificacao_corre_o_trabalho_de_cada_empresa(self):
+        vistas = []
+        cfg = dict(radar.CONFIG_INICIAL, copia_de_seguranca=False,
+                   vortal_preliminares=False, triagem_no_git=False)
+        with unittest.mock.patch.object(radar, "recolher",
+                                        return_value=(False, "sem rede", [])), \
+             unittest.mock.patch.object(radar, "vigiar_pecas", return_value=(0, "")), \
+             unittest.mock.patch.object(radar, "reler_incompletas", return_value=(0, "")), \
+             unittest.mock.patch.object(radar, "exportar_triagem"), \
+             unittest.mock.patch.object(
+                 radar, "trabalho_da_empresa",
+                 side_effect=lambda *a: vistas.append(radar.empresa_activa()) or 0):
+            radar.verificar(cfg)
+        self.assertEqual(vistas, [1, 2])
+
+    def test_a_copia_diaria_leva_todas_as_empresas(self):
+        self.enterContext(unittest.mock.patch.object(
+            radar, "COPIAS", os.path.join(self.pasta, "copias")))
+        destino = radar.copia_de_seguranca(guardar=0)
+        dia = os.path.basename(destino)[len("radar-"):]
+        self.assertEqual(sorted(f for f in os.listdir(radar.COPIAS)
+                                if f.startswith("empresa-")),
+                         ["empresa-1-" + dia, "empresa-2-" + dia])
+
 
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
