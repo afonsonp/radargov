@@ -16,7 +16,7 @@ Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 s
 
 ## O que está ABERTO
 
-**Nove.** Tudo o resto neste ficheiro é história — está feito, ou
+**Dez.** Tudo o resto neste ficheiro é história — está feito, ou
 está na lista do que não se faz. Invertido a 19/09/2026, a pedido
 dele: «o Backlog começa por coisas que já estão terminadas».
 
@@ -29,7 +29,8 @@ dele: «o Backlog começa por coisas que já estão terminadas».
 | D2 | **Fundir os `_pecas_*` e trocar o `pypdf` pelo `pymupdf`** | Duas das três da auditoria ponytail de 14/09/2026, por decidir | **Afonso** |
 | D3 | **Repetir a medição do browser da `UX-Auditoria`** | Está por fazer desde 2/09/2026: os P0 e os cinco P1 foram corrigidos e ninguém voltou a medir o resultado | **Uma sessão** |
 | R2 | **O que o redesenho deixou cair de propósito, e é preciso olhar** | Três coisas, todas por decisão do documento e não por esquecimento: a **ranhura saiu da linha de tarefa** (era do cabeçalho do grupo, que deixou de existir; a linha mostra ref · entidade · dono · entrega); o **adiar e o atribuir saíram da linha** para a ficha e para o `/tarefa/<id>/gravar` (a linha ficou com ✓ e desfazer); e o **balde «Resto da semana» fica vazio ao sábado e ao domingo**, por a semana acabar ao domingo | **Afonso**, ao usar. Se alguma fizer falta, volta — a rota do `gravar` nunca saiu |
-| R2 (perda do PC) | **Uma cópia do trabalho das empresas fora deste computador** | **Reaberta a 23/09/2026, por decisão**: com empresas clientes, nenhum dado vai para o GitHub, e a triagem deixou de lá ir (B15). Hoje o trabalho das empresas só existe no disco deste computador (`empresas/`, e as `copias/` no mesmo disco) | **Feito em código a 23/09/2026 (F6)**: a cópia diária manda as das empresas e a das contas, cifradas, para o Backblaze B2 (`copias_fora.sh`, `mandar_para_fora()`). **Fecha quando o Afonso correr o `copias_fora.sh`** e a linha «Fora deste PC» disser «ok» |
+| R2 (perda do PC) | **Uma cópia do trabalho das empresas fora deste computador** | **Reaberta a 23/09/2026, por decisão**: com empresas clientes, nenhum dado vai para o GitHub, e a triagem deixou de lá ir (B15). Hoje o trabalho das empresas só existe no disco deste computador (`empresas/`, e as `copias/` no mesmo disco) | **Configurado a 24/09/2026**: o `copias_fora.sh` correu, o bucket está na UE, e um ficheiro de ensaio foi e voltou pela cifra. **Fecha** quando a linha «Fora deste PC» das Configurações disser «ok» depois da primeira cópia diária |
+| M1 | **Mudar o nome para MiraGov** (24/09/2026, decisão dele) | Ele já tem os domínios `.pt` e `.com`. É a próxima sessão, com retoques ao desenho: o túnel e o `endereco_publico` passam ao domínio novo, o `radargov.pt` redirecciona, e o nome muda no site, no logótipo, nos e-mails, nos textos legais e no manual. O código e a pasta podem manter o nome `radar` | **A próxima sessão** |
 | D6 | **As cinco propostas de `docs/historico/CAMADAS.md`** (19/09/2026) | A documentação medida contra o ICM: a camada 0 (`CLAUDE.md`) está **14× acima** do alvo do paper (~11 000 tokens contra ~800) e mistura três camadas; `docs/` junta 86 k de receita com 216 k de arquivo sem fronteira; e **este ficheiro** é estado de execução a fingir-se de referência — 32 linhas de tabela, **21 riscadas**, as seis primeiras todas feitas. **C1, C3 e C5 são baratos e independentes**; C2 e C4 mudam o mapa mental de quem trabalha aqui | **Afonso**, uma a uma. O C3 é este ficheiro: inverter, aberto primeiro |
 
 ---
