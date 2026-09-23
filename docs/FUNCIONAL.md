@@ -446,7 +446,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**88 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**89 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
 - **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`
@@ -660,7 +660,13 @@ Cópias, o «Verificar agora», quem envia o e-mail e os pedidos de
 acesso do site); `sou_dono()` é a pergunta. O **admin** de uma empresa
 cria e tira as contas **dela** e diz quem ela é (`ROTAS_SO_ADMIN`:
 `/configuracoes/conta/utilizadores` e `/configuracoes/conta/empresa`);
-`sou_admin()` é a pergunta. O **tester** trabalha. O dono **não vê** os
+`sou_admin()` é a pergunta. O **tester** trabalha. **As duas
+administrações não se misturam** (23/09/2026, pedido dele): as
+Configurações mostram só as quatro secções da empresa, a toda a gente —
+também ao dono —, e as do sistema vivem na **administração da
+plataforma** (`/plataforma`, pelo menu da conta), com as empresas, os
+pedidos de acesso e o «Verificar agora» (`seccoes_visiveis()` /
+`seccoes_da_plataforma()`). O dono **não vê** os
 dados das empresas clientes: vê os da empresa dele, como qualquer
 conta. No acesso livre **sem conta nenhuma** as duas respostas são sim,
 senão não se chegava a Conta para criar a primeira.
