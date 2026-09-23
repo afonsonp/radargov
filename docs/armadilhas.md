@@ -207,7 +207,7 @@ O DR, a Vortal, e como um anúncio entra na base.
   horas nunca acabava.
 
 - **`ler_detalhes()` e `ler_detalhes_paralelo()` têm ritmos separados,
-  de propósito.** A rotina diária (09h/17h) chama sempre
+  de propósito.** A rotina (de hora a hora, 08:00-20:00) chama sempre
   `ler_detalhes()` sequencial, 1s de intervalo — nunca mudou. O
   `--detalhes` — que pode correr horas seguidas — usa
   `ler_detalhes_paralelo()`, `CONCORRENCIA_DETALHES` (8) pedidos ao
@@ -217,7 +217,7 @@ O DR, a Vortal, e como um anúncio entra na base.
   ninguém testou o que acontece com muitos pedidos seguidos ou em
   paralelo). Ao mexer no ritmo de qualquer um dos dois, não presumas
   que o outro segue: são decisões separadas, com riscos diferentes (a
-  rotina é 40 pedidos espaçados por 8 horas; o `--detalhes` é dezenas
+  rotina é até 40 pedidos por verificação, uma vez por hora; o `--detalhes` é dezenas
   de milhares seguidos, agora em paralelo).
 
 - **Um ensaio isolado subestima o custo do comando real.** Duas vezes
@@ -510,12 +510,12 @@ Orçamento, cadeia de reserva, chaves.
   um prazo a 9 dias saía verde ("folgado") na lista e contava como
   urgente no filtro. O número que um ecrã mostra tem de dar exactamente
   a lista que a ligação dele abre — **a cor da etiqueta é um desses
-  números**. Tudo vem de `dias_urgente()` (config.json, editável em
-  `/alertas`); nunca uses `DIAS_URGENTE` directamente num rótulo nem um
+  números**. Tudo vem de `dias_urgente()` (`empresas/<id>/config.json`,
+  editável em Configurações › Alertas); nunca uses `DIAS_URGENTE` directamente num rótulo nem um
   limiar à mão num teste de cor — é só a omissão. Quem desenha em ciclo
   (lista, quadro, calendário) lê a janela uma vez por pedido e passa-a a
-  `etiqueta_prazo(prazo, urgente)`: `dias_urgente()` abre o config.json a
-  cada chamada.
+  `etiqueta_prazo(prazo, urgente)`: `dias_urgente()` abre os dois config.json
+  a cada chamada.
 
 - **Um filtro guardado é uma query string, não SQL, e não pertence a
   separador nenhum.** Guarda os campos que tiver (`CAMPOS_FILTRO`, ordem
@@ -834,10 +834,8 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 - **Um `marca_erro()` novo tem de aparecer em `linhas_de_ultimos_erros()`.**
   É a única lista que o ecrã lê (na saúde dos `/indicadores`). O B14 e
   o B15 acrescentaram marcas e não as ligaram lá: um "remote rejected"
-  esteve um dia inteiro na base sem existir para ninguém. E a razão de
-  um comando git passa por `porque_do_git()` — o "To &lt;url&gt;" que o
-  git escreve primeiro comia os 80 caracteres da linha e a razão nunca
-  chegava a ver-se.
+  esteve um dia inteiro na base sem existir para ninguém (o
+  `porque_do_git()` saiu com o `empurrar_triagem()` a 23/09/2026).
 
 - **Uma marca de erro tem de se apagar quando a coisa volta a correr
   bem** (`limpa_erro()`, no sucesso). A marca responde a «está avariado
@@ -880,7 +878,7 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
 - **O interesse não é um alerta nem um filtro: é o recorte permanente
   da lista.** Os CPV que a empresa trabalha (`interesse_activo`,
-  `interesse_cpv`, `interesse_cpv_excl` no config.json, editados em
+  `interesse_cpv`, `interesse_cpv_excl` no `empresas/<id>/config.json`, editados em
   Configurações › Interesse — desde 13/09/2026 só a árvore, já aberta,
   e o botão dela grava: `interesse_activo` é `bool(cpv)`, não há caixa
   de ligar). Com interesse definido a lista de anúncios **não tem
@@ -1149,7 +1147,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   `COLUNAS_DA_PROPOSTA`.** A lista é escrita à mão e não por
   `PRAGMA table_info`, de propósito: exportar ou não é uma decisão, e um
   `SELECT *` fazia-a sozinho e mudava a ordem do ficheiro a cada
-  migração (o B15 promete um ficheiro determinístico). O preço é ela
+  migração (o `exportar_triagem()` promete um ficheiro determinístico). O preço é ela
   poder ficar para trás, em silêncio e sem nada no ecrã a dizê-lo — foi
   exactamente o que aconteceu às doze colunas de CRM do `anuncios`, que
   nunca lá entraram e davam o R2 por fechado sem estar. Há teste a
@@ -1213,7 +1211,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   que já existia para a ficha, faz exactamente essa junção.
 
 - **`fomos_nos()` tem TRÊS respostas, e a terceira é «não sei».** Sem o
-  NIF da empresa no `config.json` não se pode saber se a adjudicação foi
+  NIF da empresa no `empresas/<id>/config.json` não se pode saber se a adjudicação foi
   nossa, e um `False` de quem não sabe é uma afirmação falsa — era com
   base nela que a proposta ia fechar como perdida. Com o NIF, a ficha
   adianta a resposta; **o gesto de fechar continua a ser de quem lê**
@@ -1583,18 +1581,19 @@ o leitor do Excel antigo fica lá, sem comando.
 
 SQLite, cópias, e a pen que manda nos números.
 
-- **Há cópia diária da base de trabalho** em `copias/`, sete guardadas,
-  feita antes da recolha com `VACUUM INTO` (a quente, e sai compactada).
-  Copiar o ficheiro com o `.wal` ao lado dava uma cópia truncada. Só a
-  de trabalho: o corpus e os documentos refazem-se, a triagem não.
+- **Há cópia diária das duas bases**, `radar-<data>.db` e
+  `empresa-<id>-<data>.db`, em `copias/`, sete de cada, feitas antes da
+  recolha com `VACUUM INTO` (a quente, e saem compactadas). Copiar o
+  ficheiro com o `.wal` ao lado dava uma cópia truncada. Só estas: o
+  corpus e os documentos refazem-se, o trabalho da empresa não.
   **Uma cópia que nunca se abriu não é uma cópia** (15/09/2026):
   `--ensaiar-copia` abre a última em `mode=ro` (nunca deixa um
   `-journal` ao lado), passa-lhe o `integrity_check` e conta anúncios,
   triagem, histórico e contas contra a base viva; a marca
   `ultimo_ensaio_copia` diz «ok» ou «FALHOU» na saúde dos Indicadores
-  e na secção Cópias. O restauro a sério é parar o serviço do painel e
-  os temporizadores, copiar o ficheiro por cima e apagar o `-wal` e o
-  `-shm` que ficaram do anterior (LEIA-ME, secção 13) — copiar só o
+  e na secção Cópias. O restauro a sério é parar o painel e o
+  temporizador, copiar o par da mesma data por cima e apagar o `-wal` e
+  o `-shm` de cada uma (LEIA-ME, secção 13) — copiar só o
   `.db` com o `-wal` velho ao lado dá uma base misturada.
 
 - **O trabalho da empresa é outro ficheiro, e uma tabela não pode
@@ -1652,11 +1651,13 @@ SQLite, cópias, e a pen que manda nos números.
   que o DR e as peças fizeram vai para os `eventos` da plataforma
   (`registar_evento()`), e o `registar()` fica para o que a empresa fez.
 
-- **A verificação das 09:00 aparece no `journalctl` com um pico de
-  memória 25× maior do que a das 17:00, e não há avaria nenhuma.** A
-  cópia é uma por dia e o nome é a data, por isso é a primeira
-  verificação do dia que corre o `VACUUM INTO` e a segunda que encontra
-  o ficheiro feito e sai. O «memory peak» que o systemd reporta é o
+- **A primeira verificação do dia (a das 08:00) aparece no `journalctl`
+  com um pico de memória muito maior do que as outras, e não há avaria
+  nenhuma** (a 15/09/2026, quando eram duas, a das 09:00 dava 25× a das
+  17:00). As cópias são uma por dia e o nome é a data, por isso é a
+  primeira verificação do dia que corre os `VACUUM INTO` — o da
+  plataforma e o de cada empresa — e as seguintes encontram os ficheiros
+  feitos e saem. O «memory peak» que o systemd reporta é o
   `memory.peak` do cgroup v2, **que conta o page cache**: mover 1,23 GB
   para fora e outro tanto para dentro enche o cache de ficheiro do
   cgroup do serviço, e sai um número que parece consumo do processo e
@@ -1824,8 +1825,8 @@ Nada espera dentro do pedido do browser.
   chama `comecar_verificacao(slot=(dia, hora))`, não o `verificar()`
   directo — só assim há trinco (senão o relógio apanhava um clique a
   meio e punha duas verificações na mesma base) e há `passo` (senão o
-  arranque do painel ficava ~5 minutos lento, com a cópia, o push da
-  triagem e a recolha toda, sem nada no ecrã a dizer porquê). O slot
+  arranque do painel ficava ~5 minutos lento, com a cópia, a exportação
+  da triagem e a recolha toda, sem nada no ecrã a dizer porquê). O slot
   só se marca como corrido no fim e se correu bem; se o trinco
   recusar, tenta-se no minuto seguinte. E o botão à mão **não** marca
   slot: um clique às 15h não faz a verificação das 17h por feita.

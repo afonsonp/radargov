@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Traz para esta pasta a última release publicada no GitHub -- o par do
-# actualizar.bat. Nunca segue o master a cada commit: a programação
-# faz-se nas sessões remotas do Claude Code; aqui só se actualiza
-# quando há uma tag nova pronta. Se o painel estiver a correr como
-# serviço, reinicia-o no fim, para servir o código novo.
+# Traz para esta pasta a última release publicada no GitHub. Nunca
+# segue o master a cada commit: a programação faz-se nas sessões
+# remotas do Claude Code; aqui só se actualiza quando há uma tag nova
+# pronta. O config.json e o triagem.jsonl não estão no git: põem-se de
+# lado antes de avançar e repõem-se depois. Se o painel estiver a
+# correr como serviço, reinicia-o no fim, para servir o código novo.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -11,11 +12,32 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 1
 fi
 
+# Os ficheiros de DADOS que o git seguia ate 23/09/2026 -- o config.json
+# (que o painel mexe a cada definicao) e o triagem.jsonl. Sairam do git
+# nesse dia («no github devemos apenas guardar codigo»), e a release que
+# os tira apagava-os do disco ao avancar. Por isso, enquanto o git ainda
+# os seguir aqui: guardam-se ao lado, repoe-se a versao do git (a arvore
+# fica limpa e o avanco pode apaga-los a vontade), e no fim, corra bem ou
+# mal, voltam os que estavam. Numa pasta que ja nao os segue nao se faz
+# nada. Era tambem isto que fazia o guiao recusar-se sempre que o painel
+# tinha mexido numa definicao.
+GUARDADOS=()
+for f in config.json triagem.jsonl; do
+  if [ -f "$f" ] && git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+    cp -p "$f" "$f.guardado" && git checkout -q -- "$f" && GUARDADOS+=("$f")
+  fi
+done
+repor_guardados() {
+  for f in "${GUARDADOS[@]}"; do
+    mv -f "$f.guardado" "$f"
+  done
+}
+trap repor_guardados EXIT
+
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo " Há alterações por gravar em ficheiros que o git segue --"
-  echo " provavelmente o config.json, mexido pelo painel. Confirma com"
-  echo " \"git status\" o que é, e faz commit ou \"git checkout -- config.json\""
-  echo " antes de actualizar."
+  echo " Há alterações por gravar em ficheiros de código que o git segue."
+  echo " Confirma com \"git status\" o que é antes de actualizar: aqui não"
+  echo " se programa, e o que lá estiver fica por gravar."
   exit 1
 fi
 

@@ -1,5 +1,4 @@
-# Escolhe que Python usar. É lido (com "source") por todos os outros .sh,
-# e é o par do _python.bat.
+# Escolhe que Python usar. É lido (com "source") por todos os outros .sh.
 #
 # Se houver um .venv dentro da pasta -- o instalar.sh cria-o -- é esse
 # que manda: é onde estão o flask, o pymupdf e o resto, que o python3

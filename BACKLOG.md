@@ -16,7 +16,7 @@ Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 s
 
 ## O que está ABERTO
 
-**Oito.** Tudo o resto neste ficheiro é história — está feito, ou
+**Nove.** Tudo o resto neste ficheiro é história — está feito, ou
 está na lista do que não se faz. Invertido a 19/09/2026, a pedido
 dele: «o Backlog começa por coisas que já estão terminadas».
 
@@ -29,6 +29,7 @@ dele: «o Backlog começa por coisas que já estão terminadas».
 | D2 | **Fundir os `_pecas_*` e trocar o `pypdf` pelo `pymupdf`** | Duas das três da auditoria ponytail de 14/09/2026, por decidir | **Afonso** |
 | D3 | **Repetir a medição do browser da `UX-Auditoria`** | Está por fazer desde 2/09/2026: os P0 e os cinco P1 foram corrigidos e ninguém voltou a medir o resultado | **Uma sessão** |
 | R2 | **O que o redesenho deixou cair de propósito, e é preciso olhar** | Três coisas, todas por decisão do documento e não por esquecimento: a **ranhura saiu da linha de tarefa** (era do cabeçalho do grupo, que deixou de existir; a linha mostra ref · entidade · dono · entrega); o **adiar e o atribuir saíram da linha** para a ficha e para o `/tarefa/<id>/gravar` (a linha ficou com ✓ e desfazer); e o **balde «Resto da semana» fica vazio ao sábado e ao domingo**, por a semana acabar ao domingo | **Afonso**, ao usar. Se alguma fizer falta, volta — a rota do `gravar` nunca saiu |
+| R2 (perda do PC) | **Uma cópia do trabalho das empresas fora deste computador** | **Reaberta a 23/09/2026, por decisão**: com empresas clientes, nenhum dado vai para o GitHub, e a triagem deixou de lá ir (B15). Hoje o trabalho das empresas só existe no disco deste computador (`empresas/`, e as `copias/` no mesmo disco) | **A F6 do plano multi-empresa**: uma cópia fora do PC que não seja o repositório de código |
 | D6 | **As cinco propostas de `docs/historico/CAMADAS.md`** (19/09/2026) | A documentação medida contra o ICM: a camada 0 (`CLAUDE.md`) está **14× acima** do alvo do paper (~11 000 tokens contra ~800) e mistura três camadas; `docs/` junta 86 k de receita com 216 k de arquivo sem fronteira; e **este ficheiro** é estado de execução a fingir-se de referência — 32 linhas de tabela, **21 riscadas**, as seis primeiras todas feitas. **C1, C3 e C5 são baratos e independentes**; C2 e C4 mudam o mapa mental de quem trabalha aqui | **Afonso**, uma a uma. O C3 é este ficheiro: inverter, aberto primeiro |
 
 ---
@@ -46,7 +47,7 @@ disparou**. (Era a lista do que estava em aberto; passou a história a
 | E2 | ~~O primeiro envio do resumo diário~~ | **Feito a 31/08/2026, à ordem dele**: «Resumo enviado para afonso.pinto95@hotmail.com», com 1 anúncio do alerta CPV IT (INFARMED, 400 930 €). **Mas esta linha esteve errada de 8/09 a 16/09/2026**: o `--estado-zero` desse dia apagou o `email.para`, e o resumo deixou de sair para ninguém sem nada o dizer — reposto a 16/09 (D5 do `docs/historico/CICLOS.md`). Continuam **zero** alertas ligados e zero entidades seguidas: sem um deles, o resumo não tem o que dizer | — |
 | E4 | ~~Registar quando o token expira~~ | **Feito a 31/08/2026**: cada expiração grava o momento e a idade da captura na série de erros (C3) e na marca dos indicadores | — |
 | — | ~~Andamentos do esqueleto~~ | **Feitos a 31/08/2026** (1: navegação e âmbitos · 2: vocabulário e atalhos · 3: renovações fundidas em modo · 4: Fluxo B verificado e, com o E2, disparado — ver `docs/diario/2026-08.md`) | — |
-| B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**, e a sub-decisão do push também: **automático** («grava logo lá consoante o uso») — `empurrar_triagem()` faz commit+push só do `triagem.jsonl` em cada verificação em que mude; push falhado retoma na volta seguinte. **Isto fecha o R2 por inteiro** | — |
+| B15 | ~~Exportar a triagem~~ | **Feito a 31/08/2026**, e a sub-decisão do push também: **automático** («grava logo lá consoante o uso») — `empurrar_triagem()` faz commit+push só do `triagem.jsonl` em cada verificação em que mude; push falhado retoma na volta seguinte. **Isto fecha o R2 por inteiro**. **Desfeito a 23/09/2026** («no GitHub só código»): o push e o `triagem_no_git` saíram. A exportação ficou, por empresa e só local. O R2 volta a estar aberto (ver em baixo) | — |
 | B14 | ~~Vortal como segunda fonte~~ | **Em produção desde 31/08/2026, com o âmbito dele**: só «GovPT - Consulta Preliminar», país PT, fonte='vortal' — zero duplicação com o DR. Primeira recolha: **17 consultas** (ver a secção B14). A acingov fica de fora: a listagem dela não distingue tipos sem abrir detalhes | Alargar a outros tipos não-DR ou à acingov: palavra dele, com medição antes |
 | C3 | ~~Histórico de erros~~ | **Feito a 31/08/2026**: tabela `erros` com poda a 200 por tipo; as marcas continuam a servir o ecrã | — |
 | — | ~~Fallback morto na detecção de plataforma~~ | **Medido e corrigido a 31/08/2026**: +28 anúncios com plataforma (todos acingov, dita por extenso no corpo); 56 → 28 sem plataforma | — |
@@ -112,7 +113,11 @@ como sempre.
   `tarefas` e `contactos` — vai inteiro no `triagem.jsonl`. É a parte
   mais irrecuperável de todas, porque o DR não devolve o preço que se
   propôs. Fora isso, o que fica em risco no disco é só o que se refaz
-  (base, corpus, peças).
+  (base, corpus, peças). **Reaberta a 23/09/2026, por decisão**: com
+  empresas clientes, nenhum dado vai para o GitHub. Hoje o trabalho das
+  empresas só existe no disco deste computador (`empresas/`, e as
+  `copias/` no mesmo disco). Falta uma cópia fora do PC que não seja o
+  repositório de código — é a F6 do plano multi-empresa.
 - **6.2-B (dois motores de filtro):** decidido mantê-los. Não é
   pendência, é decisão — reavaliável no andamento 3.
 
@@ -298,10 +303,10 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   estavam. Num ZIP com vários PDFs a página é do texto extraído, e a
   nota di-lo.
 - **B13 — janela do "urgente" configurável** (30/08/2026).
-  `dias_urgente()` lê o `config.json` (lixo/zero voltam a 10) e TODOS os
-  sítios leem dela — filtro, rótulos, cartão dos indicadores, saúde.
-  Edita-se no painel, em `/alertas` ("Janela do urgente"), com validação
-  1–90 à vista.
+  `dias_urgente()` lê o `empresas/<id>/config.json` (lixo/zero voltam a
+  10) e TODOS os sítios leem dela — filtro, rótulos, cartão dos
+  indicadores, saúde. Edita-se no painel, em Configurações › Alertas
+  ("Janela do urgente"), com validação 1–90 à vista.
 
 ### Anotado no esqueleto de informação de 30/08/2026
 
@@ -344,6 +349,9 @@ Vazio — B11, B12 e B13 feitos a 30/08/2026; ver «Feito», no fim.
   em nada continuam a NÃO cair para o texto — testado).
 
 ### Aprovado pelo Afonso a 30/08/2026
+
+> Desfeito a 23/09/2026: a triagem deixou de ir ao git; o que se segue
+> sobre o B15 descreve o que ficou até essa data.
 
 - **B15 — exportação da triagem — FEITO a 31/08/2026.** Implementado
   como especificado abaixo: `exportar_triagem()` corre a seguir à cópia

@@ -57,7 +57,7 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Rotas Flask | 84 |
 | Tabelas em `radar.db` | 13, as da plataforma (com os `eventos`, F2). As 14 da empresa estão em `empresas/1/empresa.db` desde 23/09 (F1) |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 115**, em ~67 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 104**, em ~67 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 757 linhas · `teste_radar.py` 14 162· `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
@@ -92,7 +92,8 @@ ensaio de restauro.
 
 ## O que não corre sozinho, e é preciso saber
 
-- **Os três temporizadores do systemd** (`agendar.sh`) são o que faz o
+- **Os dois temporizadores do systemd** (`radar-hora.timer` e
+  `radar-contratos.timer`, do `agendar.sh`) são o que faz o
   radar verificar sem ninguém. Se faltarem, só recolhe com o painel
   aberto — e o relógio interno recupera os slots falhados, o que faz a
   tabela `slots` parecer certa. O painel avisa a vermelho.
@@ -103,18 +104,22 @@ ensaio de restauro.
   expira (medido a 2/09/2026), mas se o portal mudar de forma é por elas
   que se refaz — secção 3 do `LEIA-ME.md`. Não se editam à mão; um hook
   bloqueia-o.
-- **O push é do ramo inteiro.** A verificação faz commit do
-  `triagem.jsonl` e depois `git push origin master`. Qualquer commit
-  deixado no `master` sai sozinho na volta seguinte. Desliga-se com
-  `"triagem_no_git": false`.
+- **Nada sai deste computador sozinho.** Desde 23/09/2026 a
+  verificação não faz commit nem push: o `triagem.jsonl` exporta-se por
+  empresa para `empresas/<id>/triagem.jsonl`, só no disco, e o
+  `config.json` também saiu do git. A única cópia fora da base são as
+  `copias/` — **no mesmo disco**.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
   — nunca segue o `master` a cada merge. A última é a **`v1.13.0`**, de
   23/09/2026 — a verificação de hora a hora, das 08:00 às 20:00. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
-- **As últimas migrações correram a 17/09/2026** — as colunas novas da
-  `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre
-  210 mil anúncios, porque nenhuma toca na tabela `anuncios`. (As
+- **As últimas migrações correram a 23/09/2026**: a F1 passou as
+  tabelas da empresa para `empresas/1/empresa.db` (`separar_empresa()`,
+  com cópia antes e as contagens comparadas antes de apagar; 13 s no
+  primeiro arranque, quase tudo a cópia), a F2 levou 397 linhas do
+  histórico para os `eventos`, e a F3 partiu o `config.json`
+  (`separar_config_da_empresa()`). (As
   regras de quando fazer cópia e quando ensaiar estão no `CLAUDE.md`,
   banda 1.)
 

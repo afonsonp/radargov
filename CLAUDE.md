@@ -161,8 +161,8 @@ python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as 
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
-python radar.py --exportar-triagem # B15: triagem.jsonl (a verificacao exporta E faz commit+push sozinha)
-python radar.py --repor-triagem [F] # repoe a triagem numa base refeita; idempotente
+python radar.py --exportar-triagem # empresas/<id>/triagem.jsonl, só local (a verificação exporta-o sozinha; não vai para o git)
+python radar.py --repor-triagem [F] # repõe a triagem numa base refeita, a partir do empresas/<id>/triagem.jsonl (ou F); idempotente
 python radar.py --empresa-desfazer COPIA # repõe a triagem tal como está numa cópia de antes
                                    # (a da EMPRESA: copias/empresa-1-….db)
 python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
@@ -183,8 +183,8 @@ python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar
 python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
 ```
 
-As tarefas agendadas são três (`agendar.sh`): as duas verificações
-diárias e a do corpus, à segunda. **Se faltarem, o radar só recolhe com
+As tarefas agendadas são duas (`agendar.sh`): a verificação, de hora a
+hora, e a do corpus, à segunda — mais o painel como serviço. **Se faltarem, o radar só recolhe com
 o painel aberto** — e o relógio interno recupera os slots falhados, o
 que faz a tabela `slots` parecer certa. O painel avisa a vermelho.
 Desde 8/09/2026 o radar corre em **Ubuntu**, em `~/Desktop/radar`, e
@@ -203,7 +203,7 @@ o `schtasks`, o `agendar.bat`, os `creationflags`, o `python.exe` do
 hook e os testes disso. Está tudo no histórico do git.
 
 Testes — sem rede e sem tocar na base verdadeira; correm em poucos
-segundos (os do B15 criam repositórios git temporários):
+segundos:
 
 ```bash
 python teste_radar.py                                    # todos
@@ -693,7 +693,9 @@ infra-estrutura pontual como este.
 como GitHub Release, correndo **`actualizar.sh`**, que faz `git fetch
 --tags` e um `git merge --ff-only` até à tag mais recente (recusa-se a
 avançar se isso não for uma simples fast-forward, para nunca misturar
-histórico). Cortar uma release é decisão do Afonso, feita depois de
+histórico). Antes de avançar põe de lado o `config.json` e o
+`triagem.jsonl`, que já não estão no git, e repõe-nos depois — já não
+se recusa por o painel ter mexido na configuração. Cortar uma release é decisão do Afonso, feita depois de
 validar o merge.
 
 **Antes de cortar, corre o portão** (19/09/2026):
@@ -707,9 +709,11 @@ limpa, a tag por publicar, os testes, o validador da documentação, os
 **números medidos** do `ESTADO.md`, a data, e as **contagens do
 `docs/FUNCIONAL.md`** §2.1 e §2.2 contra as bases — cada secção contra
 a sua. **É automático**: o `.githooks/pre-push` corre-o ao empurrar
-uma tag `vX.Y.Z`, e recusa o push. Num push de `master` não faz nada,
-e isso é obrigatório: o `empurrar_triagem()` empurra sozinho duas
-vezes por dia, e uma falha aqui travava a sincronização dos dados. Só depois é que
+uma tag `vX.Y.Z`, e recusa o push. Num push de `master` não faz nada:
+o portão é da release, e o commit já tem o seu (os testes e o
+validador da documentação). (Até 23/09/2026 era também obrigatório: o
+`empurrar_triagem()` empurrava sozinho, e uma falha aqui travava a
+triagem.) Só depois é que
 `git tag -a vX.Y.Z -m "..."`, `git push origin vX.Y.Z`,
 `gh release create vX.Y.Z`.
 
@@ -729,15 +733,13 @@ remoto e as tags locais saíram a 15/09/2026, porque uma tag que só
 existe num disco confunde o `actualizar.sh` e o `gh release create`
 (foi o que travou a republicação da release `dados` nesse dia).
 
-Isto **não muda o B15**: `empurrar_triagem()` continua a fazer commit
-só do `triagem.jsonl` e a decidir empurrar por `git rev-list --count
-origin/master..master` (não pelo diff do ficheiro) — o push é do ramo
-inteiro, na verificação seguinte (09:00 ou 17:00), tenha a triagem
-mudado ou não. Um push falhado retoma sozinho (desliga-se com
-`"triagem_no_git": false`). Isso é sincronização de **dados**, não
-programação: continua automático e sem tocar em `radar.py`. A única
-coisa que passou a ser manual é a instalação **trazer código novo** —
-isso só acontece quando o Afonso corre `actualizar.sh`.
+**O B15 deixou de ir ao GitHub a 23/09/2026** (decisão dele: «no
+GitHub só código»). O `empurrar_triagem()` e a chave `triagem_no_git`
+saíram, e o `config.json` e o `triagem.jsonl` saíram do git. A triagem
+continua a exportar-se em cada verificação, mas por empresa e só no
+disco (`empresas/<id>/triagem.jsonl`). Nada do que a verificação faz
+toca no git: a instalação só muda quando o Afonso corre
+`actualizar.sh`.
 
 **O leitor do Excel antigo saiu a 15/09/2026**, por decisão dele
 («corta, fica no git»): as 603 linhas do `empresa.py` que sabiam ler o
@@ -757,7 +759,7 @@ guardam a regra do Zoho e a guarda dos lotes, com testes em
 **As bases de dados não entram no histórico do git** — `radar.db` (1,3
 GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por
 ficheiro que o GitHub recusa num push normal, e o Git LFS gratuito só
-dá 1 GB/mês, insuficiente para uma base que cresce duas vezes por dia.
+dá 1 GB/mês, insuficiente para uma base que cresce de hora a hora.
 **E desde 23/09/2026 nenhum dado vai para o GitHub, por nenhum
 caminho** — decisão dele: «no github devemos apenas guardar código».
 Nesse dia saiu a release `dados`, que levava o `radar.db` como anexo
