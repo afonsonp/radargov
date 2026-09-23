@@ -76,6 +76,33 @@ tamanho da `anuncios` é um número de **desempenho**, não de arrumação:
 cada varrimento arrasta os 840 MB de texto do disco, e é por isso que as
 contagens do painel vão por índice de cobertura.
 
+## O que espera pelo Afonso
+
+Escrito a 24/09/2026, para fechar nas próximas conversas. Por ordem:
+
+1. **Entregar o design system novo.** Com o link (ou os ficheiros), a
+   sessão seguinte faz as correcções de desenho ecrã a ecrã.
+2. **Pôr os domínios do MiraGov na Cloudflare** (o `.pt` e o `.com`):
+   acrescentá-los à conta da Cloudflare e mudar os nameservers no
+   registador, como se fez com o `radargov.pt`. Quando a Cloudflare
+   disser «Active», a sessão passa o túnel, o `endereco_publico`, o site,
+   o logótipo, os e-mails e os textos legais para MiraGov, e o
+   `radargov.pt` passa a redireccionar (`BACKLOG.md`, M1).
+3. **Confirmar as cópias fora do PC**, depois das 08:00 do dia seguinte
+   à configuração: na `/plataforma`, em Cópias, a linha «Fora deste PC»
+   tem de dizer «ok». Fecha a pendência R2 do `BACKLOG.md`.
+4. **Criar a primeira empresa** (a LATD, ou a piloto) pelo pedido de
+   acesso do site, e aceitá-la nos «pedidos de acesso». Nasce como
+   empresa 2. Melhor depois do MiraGov, para o convite já levar o nome
+   novo.
+5. **Pedir ao suporte do GitHub** que limpe os `refs/pull` dos PR
+   antigos (support.github.com, repositório `afonsonp/radargov`: «purge
+   cached refs/pull after history rewrite»). Guardam commits de antes da
+   reescrita, com o `config.json` e a triagem.
+6. **Antes de cobrar o primeiro cliente:** falar com um contabilista
+   sobre abrir uma sociedade. O NIPC dela entra no `operador` do
+   `config.json` no lugar do teu nome, e os termos passam a ser dela.
+
 ## O que está implementado
 
 **Está no `docs/FUNCIONAL.md`, ecrã a ecrã (§4), e só lá.** Esta secção
@@ -117,8 +144,10 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.14.0`**, de
-  23/09/2026 — a plataforma multi-empresa (F1 a F8), a administração da plataforma e as peças dentro dos ZIP. **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.0`**, de
+  24/09/2026 — a plataforma multi-empresa fechada: o dono sem empresa, o
+  `--apagar-empresa` e o `--limpar-uso`, as peças em `.7z`, as cópias
+  fora do PC a funcionar, e o operador sem NIF. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 23/09/2026**: a F1 passou as
   tabelas da empresa para `empresas/1/empresa.db` (`separar_empresa()`,
