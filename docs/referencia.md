@@ -1208,8 +1208,8 @@ um dia isso fizer falta (portefólio com muitos prazos a mais de 45 dias),
 ## Tarefas agendadas
 
 > **Já não é assim (8/09/2026).** São **temporizadores do systemd** na
-> sessão do utilizador (`radar-09h.timer`, `radar-17h.timer`,
-> `radar-contratos.timer`), criados pelo `agendar.sh`, mais o painel
+> sessão do utilizador (`radar-hora.timer` desde 23/09/2026 — eram o
+> `radar-09h` e o `radar-17h` —, e `radar-contratos.timer`), criados pelo `agendar.sh`, mais o painel
 > como serviço (`radar-painel.service`). O ramo do Windows saiu a
 > 14/09/2026, os `.bat` a 8/09.
 
@@ -1289,8 +1289,8 @@ de plataformas geridas que complicam o armazenamento dos documentos.
 Dois limites artificiais, ambos hoje corrigidos:
 
 - `dias_catchup` (15 dias) é a janela da verificação de **rotina**
-  (09h/17h) — continua pequena de propósito, não vale a pena pedir mais
-  duas vezes por dia. Para trazer mais história de uma vez, sem alterar
+  (de hora a hora, 08:00-20:00) — continua pequena de propósito, não
+  vale a pena pedir mais a cada hora. Para trazer mais história de uma vez, sem alterar
   esse valor, há `python radar.py --historico N` (N em dias, 730 por
   omissão), que faz uma chamada a `recolher()` isolada com um `cfg`
   modificado só na memória.

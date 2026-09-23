@@ -122,7 +122,7 @@ false` no `config.json`.
 No `config.json`, a única coisa que costuma valer a pena mexer é:
 
 - `dias_catchup`: 15 dias. É a janela que o radar pede ao portal em
-  **cada verificação de rotina** (as das 09h/17h). Serve também de rede
+  **cada verificação de rotina** (as de hora a hora). Serve também de rede
   se o PC estiver dias desligado. Não é o limite do que fica na base —
   ver "Histórico", abaixo.
 - `detalhe_dias`: 60 dias. O radar só vai buscar os detalhes (CPV,
@@ -701,8 +701,9 @@ as outras cinco só um admin as vê:
 - **Importar dados** — o registo da empresa, pelo modelo Excel (§13).
 - **Indicadores** — a saúde do sistema e os números (§8), com a
   verificação automática e a última verificação que estavam na barra.
-- **Recolha** — as horas da verificação (o relógio interno; os
-  temporizadores do sistema mudam com o `agendar.sh`), a janela de
+- **Recolha** — as horas da verificação (o temporizador dispara a
+  todas as horas e é esta lista que decide quais contam; mudá-la já
+  não pede o `agendar.sh`), a janela de
   recuperação, a janela e o ritmo do detalhe, a Vortal ligada ou não.
   Com limites: um zero na janela do detalhe calava a recolha em
   silêncio, por isso agora recusa.
@@ -713,8 +714,8 @@ as outras cinco só um admin as vê:
 - **Capturas** — o estado das duas capturas (`curl_DR.txt` e
   `curl_detalhe.txt`) e uma caixa para colar a nova; valida antes de
   gravar, e uma colagem errada não toca no ficheiro que lá está.
-- **Cópias** — a cópia diária ligada ou não, quantas guardar, a
-  triagem no git, e a lista do que existe em `copias/`.
+- **Cópias** — a cópia diária ligada ou não, quantas guardar, o
+  último ensaio, e a lista do que existe em `copias/`.
 
 O que fica no `config.json` à mão, de propósito: os termos de pesquisa
 e de reserva, `paginas`, `por_pagina`, `abrir_browser_ao_encontrar`,
@@ -880,9 +881,10 @@ saber:
 
 - **Nunca traz trabalho a meio.** Só avança até uma versão *publicada*
   (uma «release»), nunca até ao último remendo que alguém gravou.
-- **Recusa-se se tiveres alterações por gravar.** A mais provável é o
-  `config.json`, que o painel mexe quando mudas uma definição. Ele
-  diz-te o que é.
+- **Não mexe na tua configuração nem na tua triagem.** O `config.json`
+  e o `triagem.jsonl` já não estão no git: o guião põe-nos de lado
+  antes de actualizar e repõe-nos depois. Recusa-se só se houver
+  alterações por gravar no código, e diz-te qual é.
 - **Recusa-se se não puder avançar em linha recta.** Se isso acontecer
   não mexeu em nada — é caso para me dizeres, não para forçares.
 
@@ -1010,18 +1012,19 @@ trabalho que se estragou.
 
 Perde-se o que entrou depois dessa cópia: a recolha seguinte traz os
 anúncios outra vez, mas a triagem desses dias não volta (a do
-`triagem.jsonl` no git repõe-se com `--repor-triagem`).
+`empresas/1/triagem.jsonl`, se for mais recente do que a cópia,
+repõe-se com `--repor-triagem`).
 
 ```bash
 python radar.py --exportar-triagem
 ```
-Escreve o `triagem.jsonl` — a parte irrecuperável da base (a tua
-triagem, fases, etiquetas, histórico, filtros, seguidas) num ficheiro
-de texto que viaja no repositório do git. **Não precisas de fazer
-nada**: cada verificação exporta E faz commit+push sozinha quando o
-ficheiro muda (um push falhado retenta na verificação seguinte); à mão
-serve só para forçar antes de um commit teu. Desliga-se com
-`"triagem_no_git": false` no `config.json`.
+Escreve o `empresas/1/triagem.jsonl` — a parte irrecuperável do
+trabalho da empresa (a tua triagem, fases, etiquetas, histórico,
+filtros, seguidas) num ficheiro de texto, **só neste computador**.
+**Não precisas de fazer nada**: cada verificação o reescreve. Desde
+23/09/2026 não vai para o GitHub (lá só entra código), por isso não te
+salva se perderes o disco — para isso, leva `copias/` para fora de vez
+em quando.
 
 **Desde 15/09/2026 leva também as propostas e as tarefas** — o preço
 proposto, o lugar no relatório, os três primeiros, o motivo, a
@@ -1034,7 +1037,7 @@ dado por isso.
 python radar.py --repor-triagem
 ```
 O caminho inverso, para depois de um desastre: com a base refeita pela
-recolha (`--historico 730`), repõe as decisões do `triagem.jsonl`.
+recolha (`--historico 730`), repõe as decisões do `empresas/1/triagem.jsonl`.
 Idempotente; os anúncios que ainda não voltaram do DR ficam listados
 para se repor outra vez mais tarde.
 
@@ -1051,9 +1054,10 @@ anúncios, é o teste do parser que avisa primeiro.
 | Ficheiro | Para que serve |
 |---|---|
 | `radar.py` | o programa |
-| `empresa.py` | o registo da empresa: lê o Excel e liga-o aos anúncios, sem tocar no painel (secção 11) |
+| `empresa.py` | o modelo Excel do registo da empresa (secção 11): escreve-o, lê-o e aplica-o |
 | `curl_DR.txt` / `curl_detalhe.txt` | as tuas capturas, secção 3 |
-| `config.json` | configuração e horários, criado no primeiro arranque |
+| `config.json` | a configuração da plataforma (recolha, horas, e-mail que envia, leitura das peças, cópias); fora do git, criado no primeiro arranque |
+| `empresas/1/config.json` · `empresas/1/triagem.jsonl` | a configuração da empresa (interesse, alertas, resumo) e a exportação da triagem dela |
 | `radar.db` | os anúncios, as peças lidas, as contas — o que é da plataforma |
 | `empresas/1/empresa.db` | o trabalho da empresa: propostas, tarefas, contactos, histórico (desde 23/09/2026) |
 | `contratos.db` | o corpus de contratos do BASE (refaz-se com `--contratos`) |
@@ -1063,14 +1067,16 @@ anúncios, é o teste do parser que avisa primeiro.
 | `AVISOS.txt` | o último resumo dos alertas em texto, quando há (o e-mail leva o mesmo, formatado) |
 | `instalar.sh` | cria o `.venv/` e instala as dependências |
 | `iniciar.sh` | abre o painel (ou diz que o serviço já o tem aberto) |
-| `agendar.sh` | cria os três temporizadores e o serviço do painel |
-| `verificar.sh` | o que os temporizadores das 09h/17h correm |
+| `agendar.sh` | cria os dois temporizadores (a verificação de hora a hora e a do corpus) e o serviço do painel |
+| `verificar.sh` | o que o temporizador de hora a hora corre |
 | `actualizar.sh` | traz a última versão publicada, secção 12-A |
 | `desinstalar.sh` | remove temporizadores e serviço |
 | `historico.sh` | abre o histórico de alterações |
 | `contratos.sh` | o que o temporizador de segunda corre: refaz o corpus do BASE |
 | `detalhes.sh` | vai buscar o detalhe de tudo o que ainda não o tem (~3 h), secção 13 |
 | `reler.sh` | manda o modelo reler as peças já guardadas, sem ir à rede |
+| `ensaio.sh` | o ensaio de leitura de um concurso: põe o que o modelo escreveu ao lado do texto do documento, sem gastar orçamento |
+| `medir.sh` | mede de onde vem o token das capturas do DR (só lê as capturas) e abre o resultado |
 | `tunel_fixo.sh` | monta o `https://radargov.pt` (túnel com nome, como serviço); correu uma vez |
 | `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |
 | `.venv/` | o Python e os pacotes do radar |
@@ -1135,12 +1141,13 @@ Cinco passos, nesta ordem:
 
 1. **Neste**, parar o serviço
    (`systemctl --user stop radar-painel.service radar-hora.timer`) e
-   levar numa pen, ou pela rede, o `radar.db` e a pasta `empresas/`
+   levar numa pen, ou pela rede, o `radar.db`, o `config.json` e a
+   pasta `empresas/`
    inteira — ou as cópias de hoje de `copias/`. **Nunca pelo GitHub**:
    desde 23/09/2026 lá só entra código, e a pasta `empresas/` é o
    trabalho das empresas.
 2. **No novo**, trazer a pasta do GitHub e correr `./instalar.sh`.
-3. Pôr o `radar.db` e a pasta `empresas/` na pasta do radar, para não
+3. Pôr o `radar.db`, o `config.json` e a pasta `empresas/` na pasta do radar, para não
    teres de recolher onze anos outra vez.
 4. `python radar.py --contratos` (ou `./contratos.sh`) — o corpus do
    BASE **não viaja**: são 2,5 GB e refaz-se em minutos.

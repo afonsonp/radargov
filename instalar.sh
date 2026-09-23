@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Instala o que o radar precisa, dentro de um .venv nesta pasta -- o par
-# do instalar.bat. Não toca no Python do sistema: o Ubuntu recusa
+# Instala o que o radar precisa, dentro de um .venv nesta pasta. Não toca no Python do sistema: o Ubuntu recusa
 # `pip install` fora de um ambiente virtual, e é melhor assim.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 echo

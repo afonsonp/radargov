@@ -96,6 +96,7 @@ ISENTOS = {
     "empresa.db": "o ficheiro de cada empresa (F1); não entra no git",
     "empresas/": "a pasta das empresas (F1); não entra no git",
     "empresas/1/config.json": "a configuração da empresa (F3); não entra no git",
+    "empresas/1/triagem.jsonl": "exportado pela verificação, por empresa; não entra no git",
     "radar-AAAA-MM-DD.db": "o molde do nome da cópia diária",
     "empresa-1-AAAA-MM-DD.db": "o molde do nome da cópia diária da empresa",
     "triagem.jsonl": "exportado pela verificação",
@@ -117,6 +118,10 @@ ISENTOS = {
     "lote_da_linha()": "saiu com o leitor do Excel a 15/09/2026",
     "carta_de_lotes()": "saiu com o leitor do Excel a 15/09/2026",
     "com_corpus()": "nunca foi chamada; saiu a 03/09/2026",
+    # saíram a 23/09/2026, quando a triagem deixou de ir ao git («no
+    # github devemos apenas guardar código»); a prosa cita-as como história
+    "empurrar_triagem()": "saiu a 23/09/2026, com o push da triagem",
+    "porque_do_git()": "saiu a 23/09/2026, com o empurrar_triagem()",
     # saíram com o quadro, no mesmo dia
     "cartao()": "saiu com o quadro a 15/09/2026",
     "FASES_COM_PROPOSTO": "saiu com o quadro a 15/09/2026",
