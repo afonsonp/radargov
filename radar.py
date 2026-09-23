@@ -9723,8 +9723,42 @@ def saude():
             c.close()
     except sqlite3.Error:
         return Response("base indisponível", 503, mimetype="text/plain")
+    # E a recolha (23/09/2026): o painel pode estar de pe com a
+    # verificacao parada -- o temporizador morto, o relogio encravado --,
+    # e so o monitor de fora, que ja bate aqui, pode avisar disso. Assim
+    # um UptimeRobot a vigiar o /saude apanha as duas avarias, sem
+    # servico nenhum a mais. Sem dizer nada de dentro: so que parou.
+    if recolha_atrasada():
+        return Response("a recolha parou", 503, mimetype="text/plain",
+                        headers={"Cache-Control": "no-store"})
     return Response("ok", 200, mimetype="text/plain",
                     headers={"Cache-Control": "no-store"})
+
+
+# Quanto tempo depois da hora marcada a verificacao ainda pode estar a
+# correr (ou a arrancar) antes de se dizer que a recolha parou. Uma
+# verificacao normal leva poucos minutos; a primeira do dia, com a copia,
+# um pouco mais.
+FOLGA_DA_RECOLHA = timedelta(minutes=40)
+
+
+def recolha_atrasada(agora=None, cfg=None):
+    """True se a ultima hora marcada de verificacao ja passou ha mais de
+    FOLGA_DA_RECOLHA e a verificacao nao correu desde entao. Antes da
+    primeira hora do dia nao se julga (a de ontem a noite ja la vai)."""
+    agora = agora or datetime.now()
+    horas = (cfg or ler_config()).get("horas_verificacao") or []
+    hora = ultimo_slot_passado(horas, agora)
+    if not hora:
+        return False
+    marcada = _marcado(hora, agora)
+    if agora - marcada < FOLGA_DA_RECOLHA:
+        return False
+    # Uma instalacao que ainda nunca verificou nao esta "parada": esta a
+    # comecar. (E uma base de ensaio nova tambem -- sem isto os testes
+    # do /saude falhavam a partir das 17:40, conforme a hora a que corriam.)
+    ultima = le_marca("ultima_verificacao", "")
+    return bool(ultima) and ultima < marcada.strftime("%Y-%m-%d %H:%M")
 
 
 def csrf_da_pagina():
