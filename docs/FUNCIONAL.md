@@ -76,7 +76,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 14 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 15 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -117,6 +117,7 @@ as exactas e salta as outras.
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
 | `estado` | 15 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
+| `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
 | `pedidos_acesso` | **0** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
 
@@ -310,6 +311,16 @@ Duas origens:
 aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
 ### 3.6 As peças, e o que o modelo lê
+
+**A leitura é da plataforma, e partilhada** (F7, 23/09/2026; decisão
+dele: o que poupa custos e não é de uma empresa é de todas). Uma leitura
+completa serve todas as empresas e **não se refaz a pedido** — o botão
+«Reler pelo modelo» só o dono o vê; quem a refaz é a vigilância das
+peças, quando aparece uma peça nova. Uma leitura a meio, ou por fazer,
+pede-se da ficha, até ao tecto diário de cada empresa
+(`leituras_por_empresa_por_dia`, 10 de origem, na tabela
+`leituras_pedidas`); o que a plataforma lê sozinha não conta, e o dono
+não tem tecto (`pode_pedir_leitura()`).
 
 Os documentos do procedimento — Caderno de Encargos, Programa de
 Concurso, anexos. Vêm em duas metades, e convém não as confundir.

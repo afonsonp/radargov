@@ -18,10 +18,15 @@ if [ ! -x "$BIN" ]; then
     echo " Não consegui descarregar o rclone. Verifica a ligação."
     rm -rf "$TMP"; exit 1
   fi
-  ./_python.sh -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
+  # o _python.sh le-se com source (escolhe o $PY); nao se executa
+  source ./_python.sh
+  "$PY" -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
     "$TMP/rclone.zip" "$TMP" || { rm -rf "$TMP"; exit 1; }
   mkdir -p .venv/bin
-  cp "$TMP"/rclone-*-linux-amd64/rclone "$BIN" && chmod 755 "$BIN"
+  if ! cp "$TMP"/rclone-*-linux-amd64/rclone "$BIN" || ! chmod 755 "$BIN"; then
+    echo " Não consegui instalar o rclone em $BIN."
+    rm -rf "$TMP"; exit 1
+  fi
   rm -rf "$TMP"
   echo " rclone pronto: $("$BIN" version | head -n 1)"
 fi

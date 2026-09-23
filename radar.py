@@ -170,6 +170,12 @@ CONFIG_INICIAL = {
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
     "copias_a_guardar": 7,
+    # F7 (23/09/2026): quantas leituras das pecas pelo modelo cada
+    # empresa pode PEDIR por dia. A leitura e da plataforma e partilhada
+    # (quem pede primeiro paga, e as outras leem a mesma); o tecto so
+    # impede uma empresa de gastar sozinha o orcamento diario, que e de
+    # todas. O dono nao conta, nem o que a plataforma le sozinha.
+    "leituras_por_empresa_por_dia": 10,
     # F6 (23/09/2026): o destino das copias FORA deste PC, um "remote" do
     # rclone -- o copias_fora.sh cria-o, cifrado. Vazio, ou o rclone por
     # instalar, e as copias ficam so aqui, e o painel di-lo.
@@ -869,6 +875,13 @@ def iniciar_db():
         # empresas cada uma tinha a sua copia, ou so a que estava activa
         # na altura. Sao factos de todas; a ficha mostra-os ao lado do
         # historico da empresa. Mesma forma, sem `proposta_id`.
+        # As leituras que cada empresa PEDIU (F7), para o tecto por dia.
+        # E da plataforma, porque o tecto e dela: o orcamento do modelo e
+        # um so para todas.
+        c.execute("""CREATE TABLE IF NOT EXISTS leituras_pedidas (
+            quando TEXT, empresa_id INTEGER, ref TEXT, quem TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_leituras_pedidas "
+                  "ON leituras_pedidas(empresa_id, quando)")
         c.execute("""CREATE TABLE IF NOT EXISTS eventos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT)""")
@@ -19878,9 +19891,13 @@ def ficha(ref):
             vigiadas = a["pecas_vigiadas_em"] if "pecas_vigiadas_em" in a.keys() else ""
             accoes_docs = (
                 "<div class='accoes' style='margin-top:14px'>%s%s%s</div>%s"
-                % (accao("/analisar/%s" % ref,
-                         "Reler pelo modelo" if analise else "Ler as peças",
-                         "bt" if analise else "bt forte"),
+                % (("" if analise and not analise_incompleta(analise)
+                     and not sou_dono() else
+                     # a leitura completa e de todos, e so o dono a
+                     # refaz a pedido (F7); a vigilancia refa-la sozinha
+                     accao("/analisar/%s" % ref,
+                           "Reler pelo modelo" if analise else "Ler as peças",
+                           "bt" if analise else "bt forte")),
                    accao("/pecas-novas/%s" % ref, "Ver se há peças novas"),
                    accao("/documentos/%s" % ref, "Actualizar peças"),
                    ("<div class='nota' style='margin-top:8px'>Peças novas "
@@ -20093,16 +20110,52 @@ def nomes_das_pecas(ref):
             "SELECT nome FROM documentos WHERE ref=? ORDER BY nome", (ref,))]
 
 
+def pode_pedir_leitura(ref, cfg=None):
+    """(pode, porque) -- se a empresa activa pode pedir a leitura das
+    pecas deste concurso agora (F7, 23/09/2026).
+
+    A leitura e da PLATAFORMA (decisao dele: o que poupa custos e nao e
+    de uma empresa e partilhado): uma leitura completa serve todas, e
+    nao se refaz a pedido -- quem a refaz e a vigilancia das pecas,
+    quando aparece uma peca nova. E cada empresa tem um tecto de pedidos
+    por dia, para uma so nao gastar o orcamento do modelo de todas. O
+    dono da plataforma nao tem nem uma coisa nem outra."""
+    if sou_dono():
+        return True, ""
+    if (analise_de(ref) or None) and not analise_incompleta(analise_de(ref)):
+        return False, ("As peças deste concurso já estão lidas, e a leitura "
+                       "é a mesma para todos. Volta a ler-se sozinha se "
+                       "aparecer uma peça nova.")
+    tecto = int((cfg or ler_config()).get("leituras_por_empresa_por_dia", 10))
+    with liga() as c:
+        hoje = c.execute("SELECT COUNT(*) FROM leituras_pedidas WHERE "
+                         "empresa_id=? AND quando >= ?",
+                         (empresa_activa(), datetime.now().strftime("%Y-%m-%d"))
+                         ).fetchone()[0]
+    if hoje >= tecto:
+        return False, ("A vossa empresa já pediu %d leituras hoje, que é o "
+                       "limite diário. Amanhã há mais." % hoje)
+    return True, ""
+
+
 @app.route("/analisar/<path:ref>", methods=["POST"])
 def analisar(ref):
     """Poe na fila, como o "Trazer peças" ao lado.
 
-    Sem aviso na ligacao de proposito, pela mesma razao que as pecas: o
-    recarregar leva a query string atras e um aviso posto aqui ficava
-    colado a pagina depois de a leitura ter acabado. Quem diz em que pe
-    isto vai e a caixa das pecas.
+    Sem aviso na ligacao quando corre bem, pela mesma razao que as
+    pecas: o recarregar leva a query string atras e um aviso posto aqui
+    ficava colado a pagina depois de a leitura ter acabado. Quem diz em
+    que pe isto vai e a caixa das pecas. Quando NAO pode (F7), diz
+    porque.
     """
-    pedir_analise(ref, quem_sou())
+    pode, porque = pode_pedir_leitura(ref)
+    if not pode:
+        return _volta_com_aviso(porque)
+    if pedir_analise(ref, quem_sou()) and not sou_dono():
+        with liga() as c:
+            c.execute("INSERT INTO leituras_pedidas VALUES (?,?,?,?)",
+                      (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                       empresa_activa(), ref, quem_sou()))
     return redirect("/anuncio/" + ref)
 
 

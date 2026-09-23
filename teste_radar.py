@@ -13129,6 +13129,73 @@ class TestCopiasForaDoPC(BaseTemporaria):
         self.assertEqual(len(chamadas), 1)
 
 
+class TestLeiturasPorEmpresa(BaseTemporaria):
+    """A F7 do plano multi-empresa (23/09/2026): a leitura das peças pelo
+    modelo é da plataforma e partilhada — uma leitura completa serve
+    todas as empresas e não se refaz a pedido —, e cada empresa tem um
+    tecto de leituras pedidas por dia, para uma só não gastar o
+    orçamento do modelo de todas. O dono não tem nem uma coisa nem outra.
+    A fila é falsa: o que se mede é quem pôde pôr lá o quê."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")      # o dono
+            radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+            for i in range(4):
+                c.execute("INSERT INTO anuncios (ref, titulo) VALUES (?, 't')",
+                          ("%d/2026" % i,))
+        self.b = radar.criar_empresa("B")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "da-b", "senha-comprida",
+                                          papel="admin", empresa_id=self.b)
+        radar.gravar_config({"leituras_por_empresa_por_dia": 2})
+        self.fila = []
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_analise",
+            side_effect=lambda ref, quem="": self.fila.append((ref, quem)) or True))
+
+    def entrar(self, quem):
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                     environ_base=self.FORA)
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        token = re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_).group(1)
+        return lambda ref: cliente.post("/analisar/" + ref, data={"csrf": token},
+                                        environ_base=self.FORA)
+
+    def test_cada_empresa_tem_o_seu_tecto_por_dia(self):
+        ler = self.entrar("teste")
+        for ref in ("0/2026", "1/2026", "2/2026"):
+            ler(ref)
+        self.assertEqual([r for r, _ in self.fila], ["0/2026", "1/2026"])
+        # a outra empresa tem o dela, intacto
+        self.entrar("da-b")("3/2026")
+        self.assertEqual(self.fila[-1][0], "3/2026")
+
+    def test_o_dono_nao_tem_tecto(self):
+        ler = self.entrar("admin")
+        for ref in ("0/2026", "1/2026", "2/2026"):
+            ler(ref)
+        self.assertEqual(len(self.fila), 3)
+
+    def test_uma_leitura_completa_nao_se_refaz_a_pedido_de_uma_empresa(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO analise (ref, objecto, equipa, documentos_proposta) "
+                      "VALUES ('0/2026', 'o', 'e', 'd')")
+        r = self.entrar("teste")("0/2026")
+        self.assertEqual(self.fila, [])
+        self.assertIn("já estão lidas", unquote_plus(r.headers["Location"]))
+        # uma a meio pode pedir-se, e o dono refaz qualquer uma
+        with radar.liga() as c:
+            c.execute("INSERT INTO analise (ref, objecto) VALUES ('1/2026', 'o')")
+        self.entrar("teste")("1/2026")
+        self.entrar("admin")("0/2026")
+        self.assertEqual([r for r, _ in self.fila], ["1/2026", "0/2026"])
+
+
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
     (17/09/2026): um anúncio, uma proposta, e as datas do DR a virarem
