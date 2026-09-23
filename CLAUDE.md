@@ -170,6 +170,7 @@ python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar,
 python radar.py --criar-utilizador NOME [--empresa N]  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass; sem --empresa é da 1
 python radar.py --criar-empresa "NOME"   # F4: uma empresa nova, com o ficheiro dela vazio; diz o número
 python radar.py --apagar-empresa N [--sim] # tira a empresa inteira (cópia antes; a pasta vai para copias/); o dono fica sem empresa
+python radar.py --limpar-uso [--sim]    # tira da base os erros, sessões, entradas falhadas e eventos de pessoas; VACUUM no fim
 python ferramentas/ecrans.py       # todos os ecrãs num HTML só, para os ver
                                    # lado a lado: o HTML verdadeiro de cada
                                    # rota, com o CSS e as fontes embutidos.

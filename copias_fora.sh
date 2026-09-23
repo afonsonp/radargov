@@ -40,31 +40,48 @@ if "$BIN" listremotes | grep -qx "$DESTINO:"; then
   exit 0
 fi
 
-cat <<'PASSOS'
-
- Falta o destino. São dois passos, uma vez só.
-
- 1. No browser, cria uma conta gratuita no Backblaze B2
-    (https://www.backblaze.com/sign-up/cloud-storage), e lá dentro:
-      - um "Bucket" PRIVADO, com um nome à tua escolha (ex.: radargov-copias);
-      - uma "Application Key" só para esse bucket.
-    Aponta o keyID e a applicationKey: o B2 só mostra a chave uma vez.
-
- 2. Aqui, o rclone vai perguntar. Cria DOIS destinos, por esta ordem:
-      a) nome "b2", tipo "b2" (Backblaze B2), com o keyID e a chave;
-      b) nome "radargov-fora", tipo "crypt", remote "b2:NOME-DO-BUCKET",
-         cifra dos nomes "standard", e uma palavra-passe que o rclone
-         pode gerar.
-
-    GUARDA ESSA PALAVRA-PASSE FORA DESTE PC (num gestor de palavras-passe,
-    ou em papel). Se este PC se perder e ela com ele, as cópias lá fora
-    ficam ilegíveis -- é para isso que servem, e é por isso que ninguém,
-    nem o Backblaze, as consegue ler.
-
- Quando acabares, corre outra vez este guião para confirmar.
-
-PASSOS
-read -r -p " Abrir o rclone config agora? [s/N] " sim
-if [ "$sim" = "s" ] || [ "$sim" = "S" ]; then
-  "$BIN" config
+# Sem o menu do "rclone config" (23/09/2026: perdia-se nele). Pede so o
+# que e preciso e cria os dois destinos: o "b2" com a chave, e o
+# "radargov-fora", cifrado, dentro do bucket.
+source ./_python.sh
+echo
+echo " Falta o destino. Precisas do que o Backblaze B2 te deu:"
+echo " o keyID, a applicationKey e o nome do bucket (privado)."
+echo
+if ! "$BIN" listremotes | grep -qx "b2:"; then
+  read -r -p " keyID: " CHAVE_ID
+  read -r -s -p " applicationKey (não aparece ao escrever): " CHAVE; echo
+  if [ -z "$CHAVE_ID" ] || [ -z "$CHAVE" ]; then
+    echo " Falta o keyID ou a chave. Nada mudou."; exit 1
+  fi
+  "$BIN" config create b2 b2 account "$CHAVE_ID" key "$CHAVE" --obscure >/dev/null \
+    || { echo " Não consegui criar o destino b2."; exit 1; }
+else
+  echo " O destino b2 (a chave) já está criado."
 fi
+read -r -p " Nome do bucket: " BALDE
+if [ -z "$BALDE" ]; then echo " Falta o nome do bucket. Nada mudou."; exit 1; fi
+if ! "$BIN" lsd "b2:$BALDE" >/dev/null 2>&1; then
+  echo " Com esta chave não chego ao bucket «$BALDE»."
+  echo " Confere o nome (maiúsculas contam) e se a chave é desse bucket."
+  echo " Para refazer a chave: $BIN config delete b2   e corre isto outra vez."
+  exit 1
+fi
+SENHA="$("$PY" -c 'import secrets; print(secrets.token_urlsafe(24))')"
+"$BIN" config create "$DESTINO" crypt remote "b2:$BALDE/radargov" \
+  filename_encryption standard password "$SENHA" --obscure >/dev/null \
+  || { echo " Não consegui criar o destino $DESTINO."; exit 1; }
+echo
+echo " Pronto. A palavra-passe da cifra das cópias é:"
+echo
+echo "     $SENHA"
+echo
+echo " GUARDA-A AGORA FORA DESTE PC (gestor de palavras-passe, ou papel)."
+echo " Sem ela as cópias lá fora não se lêem -- nem por ti."
+read -r -p " Escreve GUARDEI quando a tiveres guardado: " ok
+while [ "$ok" != "GUARDEI" ]; do
+  read -r -p " Escreve GUARDEI quando a tiveres guardado: " ok
+done
+clear
+echo " Feito. A primeira verificação de cada dia manda as cópias para lá."
+echo " Para ver o que lá está: ./copias_fora.sh"

@@ -1037,9 +1037,10 @@ systemctl --user start radar-painel.service radar-hora.timer
 **Cópias fora deste PC** (desde 23/09/2026). As cópias acima estão no
 mesmo disco que a base: se o PC se perder, perdem-se com ele. Para isso
 há o **`./copias_fora.sh`**, que corres **uma vez**: descarrega o
-programa que as envia (o `rclone`) e guia-te a ligar uma conta gratuita
-do **Backblaze B2** (10 GB, sem cartão — as cópias das empresas têm
-centenas de KB). A partir daí, a primeira verificação de cada dia manda
+programa que as envia (o `rclone`) e pede-te os três dados de uma conta
+gratuita do **Backblaze B2** (10 GB, sem cartão — as cópias das empresas
+têm centenas de KB): o keyID, a applicationKey e o nome do bucket. O
+resto faz sozinho, e no fim mostra-te a palavra-passe da cifra. A partir daí, a primeira verificação de cada dia manda
 para lá, **cifradas antes de sair daqui**, a cópia de cada empresa e a
 das contas (`contas-AAAA-MM-DD.db`: quem entra, os convites, os pedidos
 do site). Lá ficam 90 dias. O estado vê-se em Configurações › Cópias,

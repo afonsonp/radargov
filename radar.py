@@ -6899,6 +6899,47 @@ def apagar_empresa(id_):
     return copia, guardada, saiu
 
 
+# As marcas da tabela `estado` que dizem quem usou e como, e nao o que
+# a recolha fez: o Excel importado (um caminho do PC de alguem), a
+# ultima entrada falhada e o ultimo erro do painel.
+MARCAS_DE_USO = ("excel_casa", "excel_casa_em", "login", "painel_ultimo_erro")
+
+
+def limpar_marcas_de_uso():
+    """Tira da base da plataforma o que diz quem a usou (23/09/2026,
+    pedido dele: «tudo deve ficar limpo de marcas de uso»): os erros
+    registados (com IP e utilizadores), as MARCAS_DE_USO, os eventos
+    postos por uma pessoa (o DR, a plataforma e o radar ficam), as
+    sessoes, as entradas falhadas e o ultimo acesso das contas. O
+    acervo -- anuncios, pecas, leituras -- fica.
+
+    No fim o VACUUM: sem ele as linhas apagadas ficavam nas paginas
+    livres do ficheiro, e continuavam la para quem o abrisse. Devolve
+    {o que saiu: quantos}."""
+    saiu = {}
+    with _abre(DB) as c:
+        saiu["erros"] = c.execute("DELETE FROM erros").rowcount
+        saiu["marcas"] = c.execute(
+            "DELETE FROM estado WHERE chave IN (%s)"
+            % ",".join("?" * len(MARCAS_DE_USO)), MARCAS_DE_USO).rowcount
+        saiu["eventos de pessoas"] = c.execute(
+            "DELETE FROM eventos WHERE COALESCE(quem,'') NOT IN "
+            "('DR', 'plataforma', 'radar')").rowcount
+        saiu["sessões"] = c.execute("DELETE FROM sessoes").rowcount
+        saiu["entradas falhadas"] = c.execute(
+            "DELETE FROM entradas_falhadas").rowcount
+        saiu["último acesso"] = c.execute(
+            "UPDATE utilizadores SET ultimo_acesso=NULL "
+            "WHERE ultimo_acesso IS NOT NULL").rowcount
+    c = _abre(DB)
+    try:
+        c.execute("VACUUM")
+        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    finally:
+        c.close()
+    return saiu
+
+
 def repor_estado_zero():
     """A aplicacao como acabada de instalar, SEM perder o acervo.
 
@@ -24738,6 +24779,19 @@ def main():
         for k, v in sorted(n.items()):
             print("  %-22s %s" % (k, v))
         print("Estado zero. O acervo ficou.")
+        return
+
+    if "--limpar-uso" in sys.argv:
+        # 23/09/2026: tira da base o que diz quem a usou; fecha as sessoes.
+        if "--sim" not in sys.argv:
+            if input("Isto apaga os erros, as sessões, as entradas falhadas e "
+                     "os eventos postos por pessoas, e fecha todas as sessões. "
+                     "Escreve LIMPAR para continuar: ").strip() != "LIMPAR":
+                print("Nada mudou.")
+                return
+        for k, v in limpar_marcas_de_uso().items():
+            print("  %-20s %s" % (k, v))
+        print("Limpo. Volta a entrar no painel.")
         return
 
     if "--apagar-empresa" in sys.argv:
