@@ -2,11 +2,16 @@
 # Cria as tarefas do radar neste computador: temporizadores do systemd
 # na sessão do utilizador (nada de root).
 #
-# São as três verificações de sempre, mais uma: o painel como serviço, sempre a
+# São duas verificações, mais uma: o painel como serviço, sempre a
 # correr, porque em Linux este computador é para ficar a servir o radar
 # e não para se abrir o painel à mão de manhã.
 #
-#   radar-09h.timer / radar-17h.timer  -> radar-verificar.service (verificar.sh)
+#   radar-hora.timer                   -> radar-verificar.service (verificar.sh --agendada)
+#
+# De hora a hora desde 23/09/2026 (eram dois, às 09h e às 17h). O
+# temporizador dispara a TODAS as horas e quem decide se esta hora conta
+# é o radar, pelas «horas da verificação» do config.json (Configurações ›
+# Recolha): mudar as horas deixa de pedir voltar a correr isto.
 #   radar-contratos.timer              -> radar-contratos.service (contratos.sh)
 #   radar-painel.service               -> .venv/bin/python radar.py --sem-browser
 #
@@ -17,15 +22,15 @@
 #
 # Sem as verificações, o radar só recolhe com o painel aberto -- e o
 # relógio interno recupera os slots falhados, o que faz parecer que
-# correu a horas quando não correu. O painel avisa a vermelho quando os
-# dois temporizadores faltam (radar.tarefas_em_falta, que lê o
+# correu a horas quando não correu. O painel avisa a vermelho quando o
+# temporizador falta (radar.tarefas_em_falta, que lê o
 # `systemctl --user list-timers`): os nomes aqui e lá têm de bater.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 AQUI="$(pwd)"
 UNIDADES="$HOME/.config/systemd/user"
 
 if ! command -v systemctl >/dev/null; then
-  echo " Não há systemd neste sistema. Agenda o verificar.sh no cron: 0 9,17 * * *"
+  echo " Não há systemd neste sistema. Agenda o verificar.sh --agendada no cron: 0 * * * *"
   exit 1
 fi
 if [ ! -x .venv/bin/python ]; then
@@ -38,27 +43,30 @@ mkdir -p "$UNIDADES"
 
 cat > "$UNIDADES/radar-verificar.service" <<FIM
 [Unit]
-Description=Radar DR: verificação (o que as tarefas das 09h e 17h correm)
+Description=Radar DR: verificação (o que o temporizador de hora a hora corre)
 
 [Service]
 Type=oneshot
 WorkingDirectory=$AQUI
-ExecStart=$AQUI/verificar.sh
+ExecStart=$AQUI/verificar.sh --agendada
 FIM
 
-for H in 09 17; do
-cat > "$UNIDADES/radar-${H}h.timer" <<FIM
+cat > "$UNIDADES/radar-hora.timer" <<FIM
 [Unit]
-Description=Radar DR ${H}h
+Description=Radar DR, de hora a hora
 
 [Timer]
-OnCalendar=*-*-* ${H}:00:00
+OnCalendar=*-*-* *:00:00
 Unit=radar-verificar.service
 
 [Install]
 WantedBy=timers.target
 FIM
-done
+
+# Os dois de antes (09h e 17h) saem, senão as 09:00 e as 17:00 corriam
+# duas vezes -- o trinco apanhava a segunda, mas ficava no journal.
+systemctl --user disable --now radar-09h.timer radar-17h.timer 2>/dev/null
+rm -f "$UNIDADES/radar-09h.timer" "$UNIDADES/radar-17h.timer"
 
 cat > "$UNIDADES/radar-contratos.service" <<FIM
 [Unit]
@@ -102,7 +110,7 @@ WantedBy=default.target
 FIM
 
 systemctl --user daemon-reload
-systemctl --user enable --now radar-09h.timer radar-17h.timer radar-contratos.timer || exit 1
+systemctl --user enable --now radar-hora.timer radar-contratos.timer || exit 1
 systemctl --user enable --now radar-painel.service || exit 1
 
 # Sem "linger", a sessão do utilizador -- e com ela os temporizadores e
@@ -115,9 +123,8 @@ else
 fi
 
 echo
-echo " Feito. Quatro unidades criadas na sessão de $USER:"
-echo "   radar-09h.timer              todos os dias às 09:00"
-echo "   radar-17h.timer              todos os dias às 17:00"
+echo " Feito. Três unidades criadas na sessão de $USER:"
+echo "   radar-hora.timer             de hora a hora (as horas que contam estão em Configurações › Recolha)"
 echo "   radar-contratos.timer        segundas às 08:00"
 echo "   radar-painel.service         o painel, sempre a correr"
 echo " Correr sem sessão aberta (linger): $LINGER"
