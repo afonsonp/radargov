@@ -111,7 +111,7 @@ as exactas e salta as outras.
 | `alteracoes` | uma por alteração | O que o DR mudou num anúncio já lido. **Leva tudo** desde a F2 (23/09/2026): cada empresa recebe só as dos concursos que tem na escada, e marca-as na `alteracoes_avisadas` dela (a coluna `avisado_em` ficou, por usar) |
 | `eventos` | uma por evento | O que a plataforma viu acontecer a um anúncio — o DR mudou-o ou rectificou-o, apareceu uma peça, o modelo leu-as (`ACCOES_DA_PLATAFORMA`). Saiu do `historico` da empresa na F2; a ficha mostra os dois juntos (`passos_do_anuncio()`) |
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
-| `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (2/dia) |
+| `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **2** | Quem entra |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
@@ -588,7 +588,7 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 | capturas | os dois pedidos cURL ao DR |
 | recolha | horas, janelas, a Vortal |
 | leitura | fornecedor, modelo e chaves do modelo que lê as peças |
-| cópias | a cópia diária e a triagem no git |
+| cópias | a cópia diária (plataforma e empresa) e o ensaio de restauro |
 
 ### 4.9 A porta
 
@@ -659,14 +659,17 @@ e-mail: a senha troca-se por consola, com `--palavra-passe NOME`.
   vortal, compraspt, anogov), **relê as leituras que ficaram a meio**,
   dispara alertas e o resumo diário.
 - **Corpus** à segunda-feira: traz o dump do IMPIC.
-- **Cópia de segurança** diária do `radar.db`, por `VACUUM INTO` (a
-  quente, com a base em WAL), sete guardadas. **Só o `radar.db`**: o
-  `contratos.db` refaz-se com `--contratos` e as peças voltam a
-  descarregar-se, mas a triagem, os responsáveis, a escada e o
-  histórico **não se recuperam de mais lado nenhum** — não estão no
-  git, por serem uma base. Uma cópia que nunca se ensaiou não conta:
-  `--ensaiar-copia` prova que se restaura.
-- **Triagem no git**: `triagem.jsonl`, commit + push automáticos.
+- **Cópia de segurança** diária, por `VACUUM INTO` (a quente, com a
+  base em WAL), sete guardadas de cada: `radar-<data>.db` (a
+  plataforma) e `empresa-<id>-<data>.db` por empresa (`VACUUM emp
+  INTO`). O `contratos.db` refaz-se com `--contratos` e as peças
+  voltam a descarregar-se, mas a triagem, os responsáveis, a escada e
+  o histórico de cada empresa **não se recuperam de mais lado
+  nenhum** — e nenhum dado vai para o git. Uma cópia que nunca se
+  ensaiou não conta: `--ensaiar-copia` prova que se restaura (abre as
+  duas).
+- **Exportação da triagem**: `empresas/<id>/triagem.jsonl`, por
+  empresa, só local (desde 23/09/2026 não vai ao GitHub).
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
   a cadeia Groq → NVIDIA → OpenRouter até alguém responder.
 
@@ -800,7 +803,7 @@ suportam**, não por prioridade.
 - **Tarefas que se adiam sempre.** Uma tarefa adiada quatro vezes é uma
   tarefa que ninguém vai fazer; hoje nada o diz.
 - **Tempo de resposta.** Entre a publicação e a primeira triagem: o
-  radar recolhe às 09:00, e o que interessa é quanto tempo fica parado
+  radar recolhe de hora a hora, desde as 08:00, e o que interessa é quanto tempo fica parado
   depois disso.
 
 ### 7.5 Com as peças e o modelo

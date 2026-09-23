@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# O par do ensaio.bat.
+# O ensaio de leitura: põe o que o modelo escreveu ao lado do texto do
+# documento, sem gastar orçamento (--sem-modelo).
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 source ./_python.sh
 echo

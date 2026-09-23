@@ -2,7 +2,8 @@
 # Cria as tarefas do radar neste computador: temporizadores do systemd
 # na sessão do utilizador (nada de root).
 #
-# São duas verificações, mais uma: o painel como serviço, sempre a
+# São dois temporizadores -- a verificação e o corpus --, mais o painel
+# como serviço, sempre a
 # correr, porque em Linux este computador é para ficar a servir o radar
 # e não para se abrir o painel à mão de manhã.
 #

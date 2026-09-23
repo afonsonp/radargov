@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Tira as tarefas e o serviço do painel deste computador -- o par do
-# desinstalar.bat. Os pacotes ficam: vivem no .venv desta pasta, não no
+# Tira as tarefas e o serviço do painel deste computador. Os pacotes
+# ficam: vivem no .venv desta pasta, não no
 # sistema. Para os tirar também, apaga a pasta .venv.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 UNIDADES="$HOME/.config/systemd/user"

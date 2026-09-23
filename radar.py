@@ -184,12 +184,10 @@ CONFIG_INICIAL = {
         "porta": 587,
         "hora_resumo": "17:00",
     },
-    # B15: depois de exportar o triagem.jsonl, fazer tambem commit+push
-    # do ficheiro (so dele) em cada verificacao em que mude. Decisao do
-    # Afonso a 31/08/2026 -- e o que poe a triagem fora do PC sem
-    # ninguem se lembrar de o fazer. A False, o export continua e o
-    # push volta a ser manual.
-    "triagem_no_git": True,
+    # (O "triagem_no_git" -- commit+push do triagem.jsonl em cada
+    # verificacao, B15 -- saiu a 23/09/2026, por decisao dele: «no github
+    # devemos apenas guardar codigo». O triagem.jsonl fica so no disco,
+    # um por empresa.)
     # B14: a segunda fonte -- as consultas preliminares da pesquisa
     # publica da Vortal, que a parte L nao publica. So esse tipo entra
     # (zero duplicacao com o DR, decisao do Afonso a 31/08/2026).
@@ -1253,6 +1251,7 @@ def _escrever_json(caminho, dados):
     os.makedirs(os.path.dirname(caminho), exist_ok=True)
     with open(caminho, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
+    so_o_dono(caminho)                  # leva o e-mail de quem recebe
 
 
 def _junta(cfg, parte):
@@ -6746,15 +6745,17 @@ def ensaiar_copia(copia=None):
 
 # ------------------------------------------- exportacao da triagem (B15)
 #
-# O remoto do git poe o CODIGO fora do PC; a triagem -- o unico dado
-# declaradamente irrecuperavel -- vivia so no disco, porque a base esta
-# no .gitignore. A saida e o tamanho: a parte irrecuperavel cabe num
-# ficheiro de texto que viaja no repositorio, e cada push passa a ser
-# uma copia da triagem fora do PC. O ficheiro leva as decisoes dele e o
-# historico com o nome de quem agiu: repositorio privado, dados dele --
-# mas fica dito, porque passa a estar fora do PC.
+# A parte irrecuperavel do trabalho de uma empresa num ficheiro de texto,
+# `empresas/<id>/triagem.jsonl`, que o `--repor-triagem` repoe numa base
+# refeita. Viajava no repositorio do codigo, com commit e push a cada
+# verificacao; saiu de la a 23/09/2026 (decisao dele: «no github devemos
+# apenas guardar codigo»), e fica so no disco, ao lado do trabalho da
+# empresa. O que a leva para fora do PC sao as copias.
 
-TRIAGEM_EXPORT = os.path.join(BASE_DIR, "triagem.jsonl")
+
+def triagem_da_empresa():
+    """O triagem.jsonl da empresa activa."""
+    return os.path.join(os.path.dirname(db_da_empresa()), "triagem.jsonl")
 
 # O que entra -- e nada mais: o resto refaz-se (os anuncios voltam do
 # DR, o corpus do IMPIC, as pecas das plataformas). Cada entrada e
@@ -6838,7 +6839,7 @@ def exportar_triagem(caminho=None):
     sempre fresco. Sair do PC exige um push; por agora e manual
     (sub-decisao registada no BACKLOG: manual ou tarefa semanal).
     Devolve (n registos, caminho)."""
-    caminho = caminho or TRIAGEM_EXPORT
+    caminho = caminho or triagem_da_empresa()
     linhas = []
     with liga() as c:
         for tabela, colunas, sql in _TABELAS_TRIAGEM:
@@ -6855,81 +6856,12 @@ def exportar_triagem(caminho=None):
     # cada vez" e uma variavel na memoria de UM processo). Com um nome
     # so, o segundo a chegar ia mudar o nome a um rascunho que o
     # primeiro ja tinha levado -- e o FileNotFoundError, que e um
-    # OSError, saltava o empurrar_triagem() do mesmo try.
+    # OSError, saltava o resto do mesmo try.
     tmp = "%s.%d.tmp" % (caminho, os.getpid())
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(linhas) + "\n")
     os.replace(tmp, caminho)
     return len(linhas), caminho
-
-
-def porque_do_git(feito, tecto=150):
-    """A razao de um comando git falhado, sem o cabecalho a tapa-la.
-
-    Um push recusado escreve "To <url>" na primeira linha e a razao so
-    na segunda, e o "error: failed to push some refs" na terceira nao
-    acrescenta nada. Com os 80 caracteres da linha dos indicadores, o
-    endereco do repositorio comia a mensagem inteira: lia-se
-    "git push: To https://github.com/..." e ficava-se sem saber porque
-    e que falhou -- que era o unico ponto de a gravar. Tira-se a linha
-    do endereco e o "error:" final, e junta-se o resto numa linha so,
-    que e como isto vai ser mostrado.
-    """
-    saida = (feito.stderr or feito.stdout or b"")
-    if isinstance(saida, bytes):
-        saida = saida.decode("utf-8", "ignore")
-    linhas = [l.strip() for l in saida.splitlines() if l.strip()]
-    uteis = [l for l in linhas
-             if not l.startswith("To ") and not l.startswith("error: failed")]
-    return " ".join(uteis or linhas)[:tecto]
-
-
-def empurrar_triagem(pasta=None):
-    """B15, sub-decisao fechada a 31/08/2026 pelo Afonso: automatico,
-    "grava logo la consoante o uso". Depois do export, se o
-    triagem.jsonl mudou face ao que o git tem, faz commit SO desse
-    ficheiro (mensagem padronizada) e push.
-
-    O push falhado NAO se perde: o commit local fica, e a proxima
-    verificacao ve os commits a frente do origin e volta a empurrar --
-    um diff limpo sozinho nao chega para dizer "esta la fora".
-    Qualquer falha (sem git, sem rede) vai para a serie de erros e
-    espera pela proxima volta; a exportacao em si ja esta no disco.
-    Desliga-se com "triagem_no_git": false no config.json.
-    Devolve (correu bem, o que aconteceu)."""
-    pasta = pasta or BASE_DIR
-    quieto = {"cwd": pasta, "capture_output": True}
-
-    def corre(args, timeout):
-        return subprocess.run(args, timeout=timeout, **quieto)
-
-    try:
-        mudou = corre(["git", "diff", "--quiet", "HEAD", "--",
-                       "triagem.jsonl"], 30).returncode != 0
-        if mudou:
-            feito = corre(["git", "commit", "-m", "triagem: " +
-                           datetime.now().strftime("%Y-%m-%d %H:%M"),
-                           "--", "triagem.jsonl"], 60)
-            if feito.returncode != 0:
-                raise RuntimeError("git commit: %s" % porque_do_git(feito))
-        a_frente = corre(["git", "rev-list", "--count",
-                          "origin/master..master"], 30)
-        if a_frente.returncode != 0:
-            raise RuntimeError("git rev-list: %s" % porque_do_git(a_frente))
-        if int(a_frente.stdout.strip() or 0) == 0:
-            limpa_erro("ultimo_erro_triagem_git")
-            return True, "sem mudanças por empurrar"
-        feito = corre(["git", "push", "origin", "master"], 180)
-        if feito.returncode != 0:
-            raise RuntimeError("git push: %s" % porque_do_git(feito))
-        limpa_erro("ultimo_erro_triagem_git")
-        return True, "triagem empurrada para o remoto"
-    except (OSError, ValueError, RuntimeError,
-            subprocess.TimeoutExpired) as erro:
-        marca_erro("ultimo_erro_triagem_git", "triagem-git",
-                   "%s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                               str(erro)[:200]))
-        return False, str(erro)[:200]
 
 
 def repor_triagem(caminho=None):
@@ -6941,7 +6873,7 @@ def repor_triagem(caminho=None):
     por repor (sem isto o restauro parecia completo e nao era; os
     anuncios em falta voltam do DR e repoe-se outra vez).
     Devolve (n escritas, {tabela: [refs por repor]})."""
-    caminho = caminho or TRIAGEM_EXPORT
+    caminho = caminho or triagem_da_empresa()
     if not os.path.exists(caminho):
         return 0, {"ficheiro": [caminho + " não existe"]}
     registos = []
@@ -7625,6 +7557,19 @@ def trabalho_da_empresa(cfg, bem, diz):
     # vai o resumo e a que horas.
     if empresa_activa() != EMPRESA_ACTIVA:
         cfg = _junta(dict(cfg), _parte_da_empresa(ler_config()))
+    # B15: a exportacao da triagem da empresa, antes de lhe mexer -- custa
+    # nada e fica sempre fresca no triagem.jsonl dela. Uma falha aqui nao
+    # pode travar o resto.
+    try:
+        exportar_triagem()
+        # Limpar a marca faz parte de a pôr: sem isto, a falha das
+        # 17:00 de 8/09/2026 ficava no painel para sempre, porque
+        # `ultima_exportacao_triagem` só se escrevia e nunca se apagava.
+        limpa_erro("ultima_exportacao_triagem")
+    except (sqlite3.Error, OSError) as erro:
+        marca_erro("ultima_exportacao_triagem", "exportacao",
+                   "%s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                               str(erro)[:150]))
     # As tarefas automaticas seguem as datas do DR, e as datas acabaram
     # de ser relidas: uma prorrogacao publicada de manha tem de chegar a
     # vista "Hoje" na mesma verificacao, e nao no dia seguinte. Barato
@@ -7667,24 +7612,6 @@ def verificar(cfg=None, passo=None):
         # O resultado fica em marca visivel (C2 do saneamento): o print
         # de antes ia parar ao journal do systemd, onde ninguem olha.
         copia_com_marca(int(cfg.get("copias_a_guardar", 7)))
-    # B15: a exportacao da triagem, a seguir a copia -- custa nada e
-    # fica sempre fresca no triagem.jsonl. Uma falha aqui nao pode
-    # travar a recolha. O commit+push automatico e a sub-decisao do
-    # Afonso (31/08/2026: "grava logo la consoante o uso").
-    try:
-        exportar_triagem()
-        # Limpar a marca faz parte de a pôr: sem isto, a falha das
-        # 17:00 de 8/09/2026 ficava no painel para sempre, porque
-        # `ultima_exportacao_triagem` só se escrevia e nunca se
-        # apagava. O empurrar_triagem() já limpava a dele.
-        limpa_erro("ultima_exportacao_triagem")
-        if cfg.get("triagem_no_git", True):
-            diz("a empurrar a triagem para o remoto")
-            empurrar_triagem()
-    except (sqlite3.Error, OSError) as erro:
-        marca_erro("ultima_exportacao_triagem", "exportacao",
-                   "%s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                               str(erro)[:150]))
     diz("a pedir os anúncios ao Diário da República")
     bem, mensagem, novos = recolher(cfg)
     if bem:
@@ -15736,7 +15663,6 @@ def config_copias():
                 "copia_de_seguranca": bool(request.form.get("copia_de_seguranca")),
                 "copias_a_guardar": _inteiro(request.form, "copias_a_guardar", 1, 60,
                                              "cópias a guardar"),
-                "triagem_no_git": bool(request.form.get("triagem_no_git")),
             }
         except ValueError as erro:
             return volta_config("copias", str(erro))
@@ -15753,14 +15679,11 @@ def config_copias():
     ultima = le_marca("ultima_copia", "ainda nenhuma")
     corpo = (
         "<form method='post' action='/configuracoes/copias' class='conf-form'>"
-        + _interruptor("Cópia diária do radar.db", "copia_de_seguranca",
+        + _interruptor("Cópia diária das bases", "copia_de_seguranca",
                        cfg.get("copia_de_seguranca", True),
-                       nota="a triagem, o quadro e o histórico não se recuperam de mais lado nenhum")
+                       nota="a plataforma e o ficheiro de cada empresa; o trabalho das empresas não se recupera de mais lado nenhum")
         + _campo("Cópias a guardar", "copias_a_guardar", cfg.get("copias_a_guardar", 7),
                  nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso")
-        + _interruptor("Empurrar a triagem para o GitHub (triagem.jsonl)", "triagem_no_git",
-                       cfg.get("triagem_no_git", True),
-                       nota="commit e push em cada verificação em que mude")
         + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
         + "<div class='rg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
         + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
@@ -21406,7 +21329,7 @@ def linhas_de_ultimos_erros(relogio=None, pecas=None, analise=None,
                           ("Último erro ao trazer peças", pecas),
                           ("Último erro da leitura pelo modelo", analise),
                           ("Última expiração do token", token),
-                          ("Último erro a gravar a triagem no git", triagem),
+                          ("Último erro a exportar a triagem", triagem),
                           ("Último erro na Vortal", vortal),
                           ("Último erro a renovar as peças do DR",
                            pecas_dr),
@@ -22350,7 +22273,7 @@ def indicadores():
                                     le_marca("docs_ultimo_erro", ""),
                                     le_marca("analise_ultimo_erro", ""),
                                     le_marca("token_ultimo_erro", ""),
-                                    le_marca("ultimo_erro_triagem_git", ""),
+                                    le_marca("ultima_exportacao_triagem", ""),
                                     le_marca("vortal_ultimo_erro", ""),
                                     le_marca("pecas_dr_ultimo_erro", ""),
                                     le_marca("painel_ultimo_erro", ""))

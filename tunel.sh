@@ -8,7 +8,8 @@
 # router, não precisa de conta nem de domínio, e acaba quando este
 # script acaba (Ctrl+C). O endereço muda de cada vez.
 #
-# Quem abre o endereço cai no /entrar: precisa da conta criada com
+# Quem abre o endereço sem sessão vê o site público na raiz; o painel
+# está em /entrar, e precisa da conta criada com
 # `python radar.py --criar-utilizador EMAIL`. O túnel liga-se ao painel
 # a partir de 127.0.0.1, mas traz o Host público e os cabeçalhos de
 # proxy, e é por eles que o painel sabe que o pedido não é local.

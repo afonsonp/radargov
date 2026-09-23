@@ -15,7 +15,8 @@
 # serviço. Correr de novo não faz mal: cada passo salta o que já está.
 #
 # O painel continua a atender só em 127.0.0.1; é o cloudflared que se
-# liga a ele daqui. Quem abre o endereço cai no /entrar. E o
+# liga a ele daqui. Quem abre o endereço sem sessão vê o site público
+# na raiz; o painel está em /entrar. E o
 # config.json leva "endereco_publico": "https://radargov.pt", para os
 # links do e-mail deixarem de dizer 127.0.0.1.
 set -u

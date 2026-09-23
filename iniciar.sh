@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Abre o painel -- o par do iniciar.bat. Se o painel já estiver a correr
+# Abre o painel. Se o painel já estiver a correr
 # como serviço (agendar.sh cria o radar-painel.service), não arranca um
 # segundo: diz onde está o que já corre.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1

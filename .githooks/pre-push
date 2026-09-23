@@ -6,22 +6,17 @@
 # `ferramentas/antes_da_release.py` existia e alguem tinha de se
 # lembrar de o correr, que e exactamente o problema que ele resolve.
 #
-# **So nas tags, e isso nao e preguica: e obrigatorio.** O
-# `empurrar_triagem()` do radar.py faz `git push origin master` sozinho
-# DUAS VEZES POR DIA, na verificacao das 09h e das 17h. Um hook que
-# corresse a bateria em cada push acrescentava ~80 s a cada uma e,
-# muito pior, uma falha qualquer TRAVAVA A SINCRONIZACAO DOS DADOS --
-# a triagem deixava de viajar, em silencio, por causa de um numero
-# velho num .md. O commit ja tem o seu proprio portao
-# (`testes_antes_do_commit.py`, e o validador da documentacao dentro da
-# bateria); aqui trata-se so do que e novo numa release.
+# **So nas tags**: um push de master nao e uma release, e o commit ja
+# tem o seu portao (`testes_antes_do_commit.py`, e o validador da
+# documentacao dentro da bateria); aqui trata-se so do que e novo numa
+# release. Ate 23/09/2026 era tambem obrigatorio, porque o
+# `empurrar_triagem()` empurrava sozinho.
 #
 # O git passa em cada linha do stdin:
 #   <ref local> <sha local> <ref remota> <sha remoto>
 # Uma tag vem como `refs/tags/v1.8.6`.
 #
-# Para saltar o portao uma vez -- e ha razoes legitimas, como
-# republicar a release "dados" ou uma emergencia --, `--no-verify`.
+# Para saltar o portao uma vez -- numa emergencia --, `--no-verify`.
 
 set -u
 RAIZ="$(git rev-parse --show-toplevel)"
