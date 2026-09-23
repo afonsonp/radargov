@@ -1168,6 +1168,30 @@ O que continua fora: o **`tunel.sh`**, que dá um endereço
 uma demonstração se o `radargov.pt` estiver em baixo por alguma razão;
 Ctrl+C fecha-o.
 
+## 15-B. Abrir a beta: o que preencher
+
+Três coisas, que o radar já sabe usar e só precisam de ti (desde
+23/09/2026):
+
+1. **Quem opera o Radar Gov**, para os Termos e a Política de
+   privacidade do site. No `config.json` da pasta:
+
+   ```json
+   "operador": {"nome": "NOME DA EMPRESA", "nif": "NIF", "morada": "MORADA"}
+   ```
+
+   Enquanto faltar um dos três, as duas páginas não aparecem. Os textos
+   estão em `site/termos.html` e `site/privacidade.html` — **são um
+   rascunho: lê-os, e dá-os a rever a quem responda por isto na
+   empresa, antes do primeiro cliente**. Mudam-se lá, sem reiniciar.
+2. **Um vigia externo**, que te avisa por e-mail se o radar parar (o
+   radar parado não o pode dizer). Cria uma conta gratuita no
+   healthchecks.io, um «check» de hora a hora, e põe o endereço de
+   «ping» no `config.json`: `"vigia_url": "https://hc-ping.com/…"`.
+   Para saber também se o `radargov.pt` caiu, uma conta gratuita no
+   UptimeRobot a vigiar `https://radargov.pt/saude`.
+3. **As cópias fora do PC**, se ainda não as ligaste: secção 13.
+
 ## 15-A. Mudar o radar de computador
 
 **Para o usares noutro sítio não precisas disto** — o

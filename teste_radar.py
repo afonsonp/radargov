@@ -13196,6 +13196,60 @@ class TestLeiturasPorEmpresa(BaseTemporaria):
         self.assertEqual([r for r, _ in self.fila], ["1/2026", "0/2026"])
 
 
+class TestAbrirABeta(BaseTemporaria):
+    """A F8 do plano multi-empresa (23/09/2026): o que falta para abrir a
+    beta e cabe no código — os termos e a política de privacidade no
+    site, e o vigia externo que avisa quando o radar pára.
+
+    O que se trava: publicar uma política de privacidade sem dizer quem
+    é o responsável (as páginas não se servem enquanto o operador estiver
+    por preencher), um nome com HTML a partir a página, e uma falha do
+    vigia a estragar a verificação."""
+
+    OPERADOR = {"nome": "Exemplo <b>Lda</b>", "nif": "500000000",
+                "morada": "Rua Um, Lisboa"}
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def test_sem_operador_nao_ha_paginas_legais_nem_ligacoes(self):
+        for rota in ("/privacidade", "/termos"):
+            self.assertEqual(self.cliente.get(rota).status_code, 404)
+        site = radar.pagina_do_site().get_data(as_text=True)
+        self.assertNotIn("/privacidade", site)
+        self.assertNotIn("<!--LEGAL", site)
+
+    def test_com_operador_as_paginas_abrem_sem_sessao_e_com_o_nome_escapado(self):
+        radar.gravar_config({"operador": self.OPERADOR})
+        fora = {"REMOTE_ADDR": "203.0.113.7"}          # sem sessão nenhuma
+        for rota in ("/privacidade", "/termos"):
+            r = self.cliente.get(rota, environ_base=fora)
+            self.assertEqual(r.status_code, 200, rota)
+            corpo = r.get_data(as_text=True)
+            self.assertIn("Exemplo &lt;b&gt;Lda&lt;/b&gt;", corpo)
+            self.assertIn("500000000", corpo)
+            self.assertNotIn("{{", corpo)
+        site = radar.pagina_do_site().get_data(as_text=True)
+        self.assertIn('href="/privacidade"', site)
+        self.assertIn('href="/termos"', site)
+
+    def test_o_vigia_leva_a_batida_e_o_fail_quando_corre_mal(self):
+        batidas = []
+        cfg = {"vigia_url": "https://hc-ping.com/abc/"}
+        self.assertTrue(radar.avisar_o_vigia(True, cfg, pedir=lambda u, **k: batidas.append(u)))
+        radar.avisar_o_vigia(False, cfg, pedir=lambda u, **k: batidas.append(u))
+        self.assertEqual(batidas, ["https://hc-ping.com/abc",
+                                   "https://hc-ping.com/abc/fail"])
+        # sem endereço não se bate em lado nenhum, e uma falha não rebenta
+        self.assertFalse(radar.avisar_o_vigia(True, {"vigia_url": ""},
+                                              pedir=lambda u, **k: batidas.append(u)))
+        def rede_em_baixo(u, **k):
+            raise OSError("sem rede")
+        self.assertFalse(radar.avisar_o_vigia(True, cfg, pedir=rede_em_baixo))
+        self.assertEqual(len(batidas), 2)
+
+
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
     (17/09/2026): um anúncio, uma proposta, e as datas do DR a virarem

@@ -38,6 +38,11 @@ PROTEGIDOS = (
                         "no DevTools em vez de editar o ficheiro"),
     (r"^radar\.db(-wal|-shm)?$", "é a base de dados; se for mesmo preciso, "
                                  "mexe-lhe por SQL e com cópia antes"),
+    # O trabalho de cada empresa (empresas/<id>/empresa.db), desde a F1
+    # de 23/09/2026 -- o dado mais valioso que aqui ha. Pedido dele.
+    (r"^empresa\.db(-wal|-shm)?$", "é o trabalho de uma empresa; se for "
+                                   "mesmo preciso, mexe-lhe por SQL e com "
+                                   "cópia antes"),
 )
 
 # Os mesmos nomes, agora para procurar no meio de um comando.
@@ -49,6 +54,9 @@ NOMES = (
     (r"radar\.db(?:-wal|-shm)?", "radar.db",
      "é a base de dados; se for mesmo preciso, mexe-lhe por SQL e com "
      "cópia antes"),
+    (r"(?<![\w-])empresa\.db(?:-wal|-shm)?", "empresa.db",
+     "é o trabalho de uma empresa; se for mesmo preciso, mexe-lhe por SQL "
+     "e com cópia antes"),
 )
 
 # Verbos de escrita. O %s e o nome protegido; o [^|;&]* nao deixa a
