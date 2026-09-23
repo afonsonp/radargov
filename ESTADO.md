@@ -55,9 +55,9 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
 | Rotas Flask | 86 |
-| Tabelas em `radar.db` | 14, as da plataforma (com os `eventos`, F2, e os `convites`, F5). As 14 da empresa estão em `empresas/1/empresa.db` desde 23/09 (F1) |
+| Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa estão em `empresas/1/empresa.db` desde 23/09 (F1) |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 119**, em ~67 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 122**, em ~67 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 757 linhas · `teste_radar.py` 14 162· `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
