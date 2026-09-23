@@ -84,6 +84,13 @@ def iniciar_tabelas(c):
     # interessam as dos ultimos quinze minutos.
     c.execute("""CREATE TABLE IF NOT EXISTS entradas_falhadas (
         quando TEXT, email TEXT, ip TEXT)""")
+    # Os convites (F5, 23/09/2026): o que o dono manda a quem pediu
+    # acesso. Guarda-se o RESUMO do codigo, nunca o codigo: quem lesse a
+    # base nao podia usar um convite por usar.
+    c.execute("""CREATE TABLE IF NOT EXISTS convites (
+        resumo TEXT PRIMARY KEY, empresa_id INTEGER NOT NULL,
+        email TEXT, papel TEXT NOT NULL DEFAULT 'admin', pedido_id INTEGER,
+        criado_em TEXT, expira TEXT, usado_em TEXT)""")
 
 
 # ------------------------------------------------------------ palavra-passe
@@ -253,6 +260,73 @@ def registar_falha(c, email, ip, agora=None):
     poda = (agora - timedelta(minutes=MINUTOS_DE_TRINCO * 4)).strftime(
         "%Y-%m-%d %H:%M:%S")
     c.execute("DELETE FROM entradas_falhadas WHERE quando < ?", (poda,))
+
+
+# ------------------------------------------------------------------ convites
+#
+# Do pedido de acesso a empresa a trabalhar (F5): o dono aceita, o radar
+# cria a empresa e um convite, e a ligacao vai por e-mail. Quem a abre
+# escolhe o utilizador e a palavra-passe e entra ja. Uso unico e com
+# validade: uma ligacao que ficou numa caixa de correio velha nao pode
+# abrir uma conta daqui a um ano.
+
+DIAS_DE_CONVITE = 7
+
+
+def _resumo(codigo):
+    return hashlib.sha256((codigo or "").encode("utf-8")).hexdigest()
+
+
+def criar_convite(c, empresa_id, email="", papel="admin", pedido_id=None,
+                  agora=None):
+    """Um convite novo. Devolve o CODIGO, que so existe aqui: na base
+    fica o resumo."""
+    if papel not in PAPEIS:
+        raise ValueError("o tipo de utilizador tem de ser admin ou tester")
+    agora = agora or datetime.now()
+    codigo = secrets.token_urlsafe(32)
+    c.execute("INSERT INTO convites (resumo, empresa_id, email, papel, pedido_id, "
+              "criado_em, expira) VALUES (?,?,?,?,?,?,?)",
+              (_resumo(codigo), empresa_id, email_limpo(email), papel, pedido_id,
+               agora.strftime("%Y-%m-%d %H:%M:%S"),
+               (agora + timedelta(days=DIAS_DE_CONVITE)).strftime(
+                   "%Y-%m-%d %H:%M:%S")))
+    return codigo
+
+
+def convite_valido(c, codigo, agora=None):
+    """(convite, None) se serve, ou (None, porque). O porque distingue o
+    que nao existe do que ja foi usado ou passou do prazo -- a quem tem
+    a ligacao certa, dizer-lhe porque e que ja nao serve."""
+    agora = agora or datetime.now()
+    linha = c.execute("SELECT * FROM convites WHERE resumo=?",
+                      (_resumo(codigo),)).fetchone()
+    if not linha:
+        return None, "este convite não existe"
+    if linha["usado_em"]:
+        return None, "este convite já foi usado"
+    if linha["expira"] <= agora.strftime("%Y-%m-%d %H:%M:%S"):
+        return None, "este convite passou do prazo"
+    return dict(linha), None
+
+
+def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
+    """Cria a conta do convite e entra. Devolve (token de sessao, None)
+    ou (None, porque). Tudo na mesma ligacao: ou fica a conta, o convite
+    gasto e a sessao, ou nao fica nada."""
+    agora = agora or datetime.now()
+    convite, porque = convite_valido(c, codigo, agora)
+    if not convite:
+        return None, porque
+    if c.execute("SELECT 1 FROM utilizadores WHERE email=?",
+                 (email_limpo(utilizador),)).fetchone():
+        return None, "já existe um utilizador com esse nome; escolhe outro"
+    criar_utilizador(c, utilizador, senha, papel=convite["papel"],
+                     empresa_id=convite["empresa_id"])
+    c.execute("UPDATE convites SET usado_em=? WHERE resumo=?",
+              (agora.strftime("%Y-%m-%d %H:%M:%S"), convite["resumo"]))
+    token, _ = entrar(c, utilizador, senha, ip, agente, agora)
+    return token, None
 
 
 # ------------------------------------------------------------------- sessoes
