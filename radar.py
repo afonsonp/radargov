@@ -780,6 +780,16 @@ def iniciar_empresa(caminho=None):
     so_o_dono(caminho)
 
 
+def criar_empresa(nome):
+    """Uma empresa nova: o ficheiro dela, com o numero a seguir ao maior,
+    e o nome no config.json dela. Devolve o numero (F4)."""
+    id_ = max(empresas_existentes() or [EMPRESA_ACTIVA]) + 1
+    iniciar_empresa(db_da_empresa(id_))
+    with com_empresa(id_):
+        gravar_config({"nome_da_empresa": " ".join(nome.split())[:120]})
+    return id_
+
+
 def separar_empresa():
     """Leva as tabelas da empresa do `radar.db` para o ficheiro dela. So
     faz alguma coisa uma vez, na primeira base que ainda as tenha la.
@@ -1994,7 +2004,12 @@ def passos_do_anuncio(c, ref, limite, proposta_id=None):
     return c.execute(
         "SELECT ref, quem, accao, detalhe, quando, id FROM historico "
         "WHERE (COALESCE(?,'') != '' AND ref=?) OR proposta_id=? "
-        "UNION ALL SELECT ref, quem, accao, detalhe, quando, id FROM eventos "
+        # Nos eventos, o `quem` so se mostra quando e a propria
+        # plataforma: uma leitura pedida por alguem de outra empresa diz
+        # que o concurso foi lido, e nao por quem (F4). O canal lateral
+        # «alguem olhou para isto» ficou aceite; o nome, nao.
+        "UNION ALL SELECT ref, CASE WHEN quem IN ('DR','plataforma','radar') "
+        "THEN quem ELSE 'RadarGov' END, accao, detalhe, quando, id FROM eventos "
         "WHERE COALESCE(?,'') != '' AND ref=? "
         "ORDER BY quando DESC, id DESC LIMIT ?",
         (ref, ref, proposta_id, ref, ref, limite)).fetchall()
@@ -9303,16 +9318,37 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
 PREFIXOS_ABERTOS = ("/tipo/", "/estilo/")
 LOOPBACK = ("127.0.0.1", "::1")
 
-# O que so o admin abre (13/09/2026, "Mudancas na plataforma RADAR"):
-# as seccoes do sistema, os indicadores, o "Verificar agora" e a gestao
-# das contas. Por prefixo, para os POST de cada seccao entrarem com o
-# GET. Um tester que la bata leva 403 -- nao um redirect para o login,
-# que ele ja fez.
-ROTAS_SO_ADMIN = ("/indicadores", "/configuracoes/indicadores",
-                  "/configuracoes/recolha", "/configuracoes/leitura",
-                  "/configuracoes/capturas", "/configuracoes/copias",
-                  "/configuracoes/conta/utilizadores", "/verificar",
-                  "/alertas/remetente", "/pedidos-de-acesso")
+# O que so o DONO da plataforma abre (F4, 23/09/2026): o sistema -- as
+# seccoes da recolha, das capturas, da leitura das pecas e das copias,
+# os indicadores, o "Verificar agora", a conta que envia o e-mail e os
+# pedidos de acesso do site. Ate ai era do admin, quando havia uma
+# empresa so e o admin era o dono. Por prefixo, para os POST de cada
+# seccao entrarem com o GET. Quem la bata sem ser dono leva 403 -- nao
+# um redirect para o login, que ele ja fez.
+ROTAS_SO_DONO = ("/indicadores", "/configuracoes/indicadores",
+                 "/configuracoes/recolha", "/configuracoes/leitura",
+                 "/configuracoes/capturas", "/configuracoes/copias",
+                 "/verificar", "/alertas/remetente", "/pedidos-de-acesso")
+# O que so o admin DA EMPRESA abre (13/09/2026): as contas dela e quem
+# ela e (nome e NIF).
+ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
+                  "/configuracoes/conta/empresa")
+
+
+def sou_dono():
+    """O dono da plataforma. No acesso livre local sem conta nenhuma
+    tambem: e o computador dele antes de haver contas."""
+    if not has_request_context():
+        return True
+    utilizador = g.get("utilizador")
+    if not utilizador:
+        return bool(g.get("livre"))
+    return contas.e_dono(utilizador)
+
+
+def so_dono(caminho):
+    return any(caminho == r or caminho.startswith(r + "/")
+               for r in ROTAS_SO_DONO)
 
 
 def sou_admin():
@@ -9425,6 +9461,15 @@ def porta_de_entrada():
             para = request.full_path.rstrip("?")
             return redirect("/entrar?para=" + quote(para, safe=""))
         return Response("sessão em falta", 403, mimetype="text/plain")
+    # A empresa de quem entrou passa a ser a do pedido (F4): o liga()
+    # junta o ficheiro dela, e so o dela. Repoe-se no teardown -- no
+    # cliente dos testes os pedidos correm todos na mesma thread.
+    if g.utilizador:
+        g.marca_da_empresa = _EMPRESA.set(
+            g.utilizador.get("empresa_id") or EMPRESA_ACTIVA)
+    if so_dono(request.path) and not sou_dono():
+        return Response("só o dono da plataforma abre isto", 403,
+                        mimetype="text/plain")
     if so_admin(request.path) and not sou_admin():
         return Response("só o admin abre isto", 403, mimetype="text/plain")
     if request.method == "POST":
@@ -9439,6 +9484,13 @@ def porta_de_entrada():
             return Response("pedido recusado: vem de outro sítio", 403,
                             mimetype="text/plain")
     return None
+
+
+@app.teardown_request
+def largar_a_empresa(_erro=None):
+    marca_ = g.pop("marca_da_empresa", None)
+    if marca_ is not None:
+        _EMPRESA.reset(marca_)
 
 
 # ------------------------------------------- os erros, e a saude
@@ -9675,7 +9727,7 @@ def bloco_da_conta():
                 "</form></div></details>"
                 % (_iniciais(nome), html.escape(nome),
                    "<a class='sou-conta' href='/pedidos-de-acesso'>pedidos "
-                   "de acesso do site</a>" if sou_admin() else ""))
+                   "de acesso do site</a>" if sou_dono() else ""))
     if nome:
         return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
                 "<span class='rg-avatar'>%s</span>%s</div></div>"
@@ -12269,7 +12321,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "accoes_topo": (
             ("<span class='a-correr'>a verificar&hellip;</span>"
              if a_verificar else accao("/verificar", "Verificar agora"))
-            if activo in PAGINAS_COM_VERIFICAR and sou_admin() else ""),
+            if activo in PAGINAS_COM_VERIFICAR and sou_dono() else ""),
         "lista_pessoas": "".join("<option value='%s'>" % html.escape(n, quote=True)
                                  for n in listar_pessoas()),
         # Enquanto a verificacao correr, a pagina volta a pedir-se
@@ -14997,9 +15049,9 @@ def _caixa_email(cfg):
         envio.append(("Último envio", html.escape(estado),
                       not estado.startswith("por enviar")))
 
-    # O tester ve so o destino e a hora (13/09/2026); a conta que envia
-    # e do sistema, e so o admin a ve -- a porta recusa-lhe o POST.
-    if not sou_admin():
+    # Quem nao e dono ve so o destino e a hora (13/09/2026; F4); a conta
+    # que envia e do sistema, e so o dono a ve -- a porta recusa-lhe o POST.
+    if not sou_dono():
         return (
             "<div class='rg-card conf-email'>"
             "<div class='rg-field__label'>Resumo por e-mail</div>"
@@ -15309,7 +15361,7 @@ def seccoes_visiveis():
     """As seccoes que quem esta pode abrir: todas ao admin, as quatro
     primeiras ao tester. A porta (ROTAS_SO_ADMIN) e quem recusa; isto
     e so o indice."""
-    return [sc for sc in SECCOES_CONFIG if not sc[3] or sou_admin()]
+    return [sc for sc in SECCOES_CONFIG if not sc[3] or sou_dono()]
 
 
 # O que fica no config.json de proposito, sem formulario: termos de
@@ -15858,7 +15910,7 @@ def config_conta():
         return volta_config("conta", "Palavra-passe mudada.")
     with liga() as c:
         sessoes = contas.sessoes_de(c, utilizador["id"])
-        todos = contas.utilizadores(c) if sou_admin() else []
+        todos = contas.utilizadores(c, empresa_activa()) if sou_admin() else []
     # "iPhone até 10/10/2026 14:35", nao o User-Agent inteiro (13/09/2026)
     linhas = "".join(
         "<div class='l'><span class='ponto' style='background:%s'></span>"
@@ -15948,10 +16000,11 @@ def _bloco_utilizadores(todos, eu):
         for u in todos)
     return (
         "<div class='rg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
-        "<div class='nota' style='margin-bottom:10px'>O <b>admin</b> vê tudo "
-        "e cria contas; o <b>tester</b> vê os anúncios, o que está em curso, "
-        "o mercado, e nas configurações só a conta, o interesse, os alertas "
-        "e o importar.</div>"
+        "<div class='nota' style='margin-bottom:10px'>As contas da nossa "
+        "empresa. O <b>admin</b> cria e tira contas e diz quem a empresa é; "
+        "o <b>tester</b> vê os anúncios, o que está em curso, o mercado, e "
+        "nas configurações só a conta, o interesse, os alertas e o "
+        "importar.</div>"
         "<div class='saude'>%s</div>"
         "<form method='post' action='/configuracoes/conta/utilizadores' "
         "class='conf-form' style='margin-top:16px'>"
@@ -15977,7 +16030,7 @@ def conta_criar_utilizador():
             return volta_config("conta", "Já existe um utilizador %s." % email)
         try:
             contas.criar_utilizador(c, email, request.form.get("senha") or "",
-                                    papel=papel)
+                                    papel=papel, empresa_id=empresa_activa())
         except ValueError as erro:
             return volta_config("conta", "Não criei: %s." % erro)
     registar("", "conta", "criou o utilizador %s (%s)"
@@ -15995,7 +16048,7 @@ def conta_apagar_utilizador(utilizador_id):
         linha = c.execute("SELECT email FROM utilizadores WHERE id=?",
                           (utilizador_id,)).fetchone()
         try:
-            houve = contas.apagar_utilizador(c, utilizador_id)
+            houve = contas.apagar_utilizador(c, utilizador_id, empresa_activa())
         except ValueError as erro:
             return volta_config("conta", "Não tirei: %s." % erro)
     if not houve:
@@ -23302,9 +23355,9 @@ def _o_que_mudou(hoje, cfg):
                "Nada de novo desde a última verificação."
                if verif_ok and le_marca("ultima_verificacao", "nunca") != "nunca"
                else "Ainda não houve uma verificação. O radar verifica "
-                    "sozinho às 09:00 e às 17:00.",
+                    "sozinho, de hora a hora.",
                accao("/verificar", "verificar agora", "mini")
-               if sou_admin() else ""))
+               if sou_dono() else ""))
 
     return ("<div class='rg-card'><div class='rg-field__label' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
@@ -24065,6 +24118,19 @@ def main():
               "descartados." % len(refs))
         return
 
+    if "--criar-empresa" in sys.argv:
+        # F4: uma empresa nova e um ficheiro novo, com o numero a seguir
+        # ao maior. Vazia -- nao herda nada da primeira (ver ler_config()).
+        i = sys.argv.index("--criar-empresa")
+        nome = " ".join(a for a in sys.argv[i + 1:] if not a.startswith("--"))
+        if not nome.strip():
+            print('Uso: python radar.py --criar-empresa "NOME DA EMPRESA"')
+            return
+        id_ = criar_empresa(nome)
+        print("Empresa %d criada: %s. Cria-lhe a primeira conta com "
+              "--criar-utilizador NOME --empresa %d." % (id_, nome.strip(), id_))
+        return
+
     for bandeira in ("--criar-utilizador", "--palavra-passe"):
         if bandeira in sys.argv:
             # A mesma funcao para os dois: cria se nao existe, troca a
@@ -24077,7 +24143,17 @@ def main():
             if not email or email.startswith("--"):
                 print("Uso: python radar.py %s UTILIZADOR" % bandeira)
                 return
-            nome, papel = "", None
+            nome, papel, empresa_id = "", None, None
+            if "--empresa" in sys.argv:
+                try:
+                    empresa_id = int(sys.argv[sys.argv.index("--empresa") + 1])
+                except (IndexError, ValueError):
+                    print("Uso: --empresa N, com o número da empresa.")
+                    return
+                if empresa_id not in empresas_existentes():
+                    print("A empresa %d não existe (há: %s). Cria-a com "
+                          "--criar-empresa." % (empresa_id, empresas_existentes()))
+                    return
             if bandeira == "--criar-utilizador":
                 papel = (input("Tipo (admin ou tester; Enter para admin): ")
                          .strip().lower() or "admin")
@@ -24087,7 +24163,8 @@ def main():
                 return
             try:
                 with liga() as c:
-                    contas.criar_utilizador(c, email, senha, nome, papel)
+                    contas.criar_utilizador(c, email, senha, nome, papel,
+                                            empresa_id)
             except ValueError as erro:
                 print("Não deu: %s" % erro)
                 return

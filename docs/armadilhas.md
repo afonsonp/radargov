@@ -1895,7 +1895,24 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 `contas.py` tem as tabelas e a criptografia, a «porta» do `radar.py`
 (`porta_de_entrada()`, logo a seguir ao `app`) tem o que é do pedido.
 `TestContas` cobre tudo isto; os papéis de 13/09/2026 estão em
-`TestMudancasDeSetembro`.
+`TestMudancasDeSetembro`, e as empresas de 23/09/2026 em
+`TestNenhumaEmpresaVeAOutra`.
+
+- **A porta põe a empresa de quem entrou no pedido, e tem de a tirar
+  no fim** (F4, 23/09/2026). O `porta_de_entrada()` faz `_EMPRESA.set()`
+  com a `empresa_id` da conta, e o `largar_a_empresa()`
+  (`teardown_request`) repõe-na. Sem o `teardown`, num servidor com
+  threads reaproveitadas — e no cliente dos testes, que corre tudo na
+  mesma — a empresa de uma pessoa ficava activa para o pedido seguinte,
+  de outra. Duas coisas que o acompanham: **o dono é o primeiro admin**,
+  tanto na migração (a coluna nasce e marca o que já existia) como numa
+  instalação nova (o `criar_utilizador()` marca o primeiro) — sem a
+  segunda, numa base nova ninguém era dono e as secções do sistema
+  ficavam fechadas a todos; e **o teste que prova o isolamento prova
+  também que apanha a fuga**: com a sessão estragada de propósito a
+  apontar para a empresa B, o `TestNenhumaEmpresaVeAOutra` tem de
+  falhar — um teste de isolamento que passa com as páginas vazias não
+  prova nada, e é por isso que há o `test_a_b_ve_o_que_e_dela`.
 
 - **O papel decide-se na porta, por prefixo de rota, e não página a
   página** (13/09/2026). `ROTAS_SO_ADMIN` é a lista; `so_admin()`

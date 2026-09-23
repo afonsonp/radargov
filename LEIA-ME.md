@@ -621,12 +621,23 @@ não precisa de ser um e-mail. Pergunta o tipo (admin ou tester; Enter
 sem aparecer no ecrã). As contas seguintes criam-se no painel, em
 **Configurações › Conta**, por um admin.
 
-**Há dois tipos de utilizador** (desde 13/09/2026). O **admin** vê
-tudo e cria contas. O **tester** vê os anúncios, o que está em curso e
-o mercado, e nas configurações só a Conta, o Interesse, os Alertas e o
-Importar dados — não vê os Indicadores, as Capturas, a Recolha, a
-Leitura das peças nem as Cópias, não tem o botão «Verificar agora», e
-no resumo por e-mail só escolhe para quem e a que hora.
+**Cada conta é de uma empresa** (desde 23/09/2026), e só vê o trabalho
+dela. As tuas contas são da LATD, a empresa 1. Uma empresa nova cria-se
+num terminal, e a primeira conta dela a seguir:
+
+```bash
+.venv/bin/python radar.py --criar-empresa "NOME DA EMPRESA"
+.venv/bin/python radar.py --criar-utilizador NOME --empresa 2
+```
+
+**Há três níveis.** **Tu és o dono da plataforma**: só tu vês os
+Indicadores, as Capturas, a Recolha, a Leitura das peças e as Cópias,
+o botão «Verificar agora», a conta que envia o e-mail e os pedidos de
+acesso do site. Não vês o trabalho das outras empresas — só o da tua. O
+**admin** de uma empresa cria e tira as contas **dela** e diz quem ela é
+(nome e NIF). O **tester** vê os anúncios, o que está em curso e o
+mercado, e nas configurações só a Conta, o Interesse, os Alertas e o
+Importar dados; no resumo por e-mail só escolhe para quem e a que hora.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
