@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Radar Gov</title>
-<meta name="description" content="Radar Gov lê o Diário da República duas vezes por dia, descarrega as peças e mostra o preço a que o mercado adjudica. Produto privado e independente, feito em Portugal.">
+<meta name="description" content="Radar Gov lê o Diário da República ao longo do dia, descarrega as peças e mostra o preço a que o mercado adjudica. Produto privado e independente, feito em Portugal.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
 /* As letras vêm da própria aplicação (/tipo/, lista branca TIPOS): o
@@ -269,7 +269,7 @@ section{padding-block:88px}
 @media (max-width:800px){.passos{grid-template-columns:minmax(0,1fr);gap:32px}}
 
 /* Confiança */
-.confianca{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:40px}
+.confianca{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px;max-width:900px}
 .confianca h3{font:600 1.35rem/1.2 var(--serif)}
 .confianca p{color:var(--ink-secondary);margin-top:10px}
 .confianca ul{margin:12px 0 0;padding-left:18px;color:var(--ink-secondary);display:grid;gap:6px}
@@ -354,7 +354,7 @@ footer p{max-width:72ch}
       <div>
         <span class="selo">Beta fechada · acesso antecipado gratuito</span>
         <h1 id="t-abertura">Nenhum concurso da sua área fica <em>por ver</em>.</h1>
-        <p class="lead">O Radar Gov lê o Diário da República às <strong>09:00</strong> e às <strong>17:00</strong>, descarrega as peças e mostra-lhe a que preço o mercado adjudica. A sua equipa deixa de vigiar e passa a decidir.</p>
+        <p class="lead">O Radar Gov lê o Diário da República <strong>ao longo do dia</strong>, descarrega as peças e mostra-lhe a que preço o mercado adjudica. A sua equipa deixa de vigiar e passa a decidir.</p>
         <div class="accoes">
           <a class="btn btn-claro" href="#acesso">Pedir acesso antecipado</a>
           <a class="btn btn-contorno" href="#ganhos">Ver o que ganha</a>
@@ -404,7 +404,7 @@ footer p{max-width:72ch}
               </tbody>
             </table>
           </div>
-          <div class="ecra-rodape"><span>Verificado hoje às <span class="num">09:00</span> · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">4 de 5</span></span></div>
+          <div class="ecra-rodape"><span>Última verificação há <span class="num">20</span> min · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">4 de 5</span></span></div>
         </div>
 
         <div class="ficha">
@@ -433,7 +433,7 @@ footer p{max-width:72ch}
         <li><span class="grande num">210 000<small>+</small></span><p>anúncios do Diário da República lidos e guardados</p></li>
         <li><span class="grande num">2 milhões</span><p>de contratos do Portal BASE, para ver quem ganha e por quanto</p></li>
         <li><span class="grande num">180 000</span><p>entidades públicas, cada uma com a sua ficha</p></li>
-        <li><span class="grande num">2× por dia</span><p>verificação automática, às <span class="num">09:00</span> e às <span class="num">17:00</span></p></li>
+        <li><span class="grande">Todo o dia</span><p>verificação automática, sem ninguém abrir o Diário da República</p></li>
         <li><span class="grande num">4</span><p>plataformas de onde as peças chegam sozinhas: acingov, Vortal, compraspt e anogov</p></li>
       </ul>
     </div>
@@ -453,7 +453,7 @@ footer p{max-width:72ch}
           </ul>
         </div>
         <div class="cartao" role="img" aria-label="Exemplo do alerta por e-mail: três concursos novos que encaixam nos códigos CPV da empresa">
-          <div class="cartao-cabeca"><strong>3 concursos novos no seu interesse</strong><span>Alerta de hoje, 09:00</span></div>
+          <div class="cartao-cabeca"><strong>3 concursos novos no seu interesse</strong><span>Alerta de hoje</span></div>
           <div class="cartao-corpo">
             <ul class="leitura">
               <li><span class="rot num">CPV 50730000 · Município de Leiria</span><span>Manutenção de equipamentos de climatização</span><span class="onde num">184 652 €</span></li>
@@ -469,7 +469,7 @@ footer p{max-width:72ch}
         <div class="texto">
           <p class="sobre">Horas devolvidas à equipa</p>
           <h2>Deixe de abrir o Diário da República todas as manhãs.</h2>
-          <p>A verificação corre sozinha, duas vezes por dia. Quando a equipa chega, o trabalho de procurar já está feito: o que entrou, o que mudou e o que tem prazo esta semana, com cada tarefa atribuída a alguém.</p>
+          <p>A verificação corre sozinha, ao longo do dia. Quando a equipa chega, o trabalho de procurar já está feito: o que entrou, o que mudou e o que tem prazo esta semana, com cada tarefa atribuída a alguém.</p>
           <ul>
             <li>O ecrã Hoje mostra os prazos da semana e o que cada pessoa tem para fazer</li>
             <li>Cada proposta sabe em que passo está, do primeiro olhar ao resultado</li>
@@ -572,7 +572,7 @@ footer p{max-width:72ch}
       </div>
       <ol class="passos">
         <li><h3>Diga o que a empresa faz</h3><p>Escolhemos consigo os códigos CPV do seu sector. É esse o seu interesse, e é por ele que a lista se recorta.</p></li>
-        <li><h3>O radar verifica, duas vezes por dia</h3><p>Às <span class="num">09:00</span> e às <span class="num">17:00</span> lê o Diário da República e a Vortal, descarrega as peças e cruza cada entidade com o Portal BASE.</p></li>
+        <li><h3>O radar verifica, ao longo do dia</h3><p>Lê o Diário da República e a Vortal, descarrega as peças e cruza cada entidade com o Portal BASE.</p></li>
         <li><h3>A equipa decide</h3><p>Abre o painel, vê o que entrou e o que tem prazo, e marca o que vai fazer. O resto já está feito.</p></li>
       </ol>
     </div>
@@ -581,8 +581,8 @@ footer p{max-width:72ch}
   <section id="confianca" class="faixa" aria-labelledby="t-confianca">
     <div class="wrap">
       <div class="cabeca">
-        <p class="sobre">Dados públicos, tratamento privado</p>
-        <h2 id="t-confianca">A informação é de todos. O que a sua empresa faz com ela é só seu.</h2>
+        <p class="sobre">Dados públicos</p>
+        <h2 id="t-confianca">Tudo o que mostramos pode confirmar na origem.</h2>
       </div>
       <div class="confianca">
         <div>
@@ -595,14 +595,8 @@ footer p{max-width:72ch}
           </ul>
         </div>
         <div>
-          <h3>Os seus dados são só seus</h3>
-          <p>A triagem, as propostas, as tarefas e as notas da sua equipa ficam na conta da sua empresa. Ninguém de fora os vê, e não os vendemos nem partilhamos.</p>
-        </div>
-        <div>
-          <h3>Alojado em Portugal</h3>
-          <!-- CONFIRMAR: alojamento. Hoje a aplicação corre num servidor em Portugal. -->
-          <p>A aplicação corre num servidor em Portugal, com acesso por palavra-passe e ligação cifrada.</p>
-          <p>Os dados do formulário de pedido servem só para lhe responder, e apagamo-los se nos pedir.</p>
+          <h3>O seu pedido de acesso</h3>
+          <p>Os dados do formulário servem só para lhe responder, e apagamo-los se nos pedir.</p>
         </div>
       </div>
       <div class="origem">
@@ -644,10 +638,6 @@ footer p{max-width:72ch}
           <p>De fontes públicas: os anúncios da 2.ª série, parte L, do Diário da República; as consultas preliminares publicadas na Vortal; e os contratos celebrados que o IMPIC publica em dados abertos, a partir do Portal BASE. As peças vêm das próprias plataformas onde o procedimento corre.</p>
         </details>
         <details>
-          <summary>Quem vê a triagem e as propostas da minha empresa?</summary>
-          <p>Só as pessoas da sua empresa com conta no Radar Gov. Os dados públicos são iguais para todos; o que a sua equipa decide, escreve e marca é só da sua empresa.</p>
-        </details>
-        <details>
           <summary>Serve para a minha área?</summary>
           <p>Serve para qualquer empresa que concorra a concursos públicos: obras, fornecimento de bens, serviços ou tecnologias de informação. Não filtramos nada à entrada, e o interesse de cada empresa é que recorta a lista.</p>
         </details>
@@ -669,11 +659,6 @@ footer p{max-width:72ch}
         <p class="sobre" style="color:var(--seal-on-dark)">Acesso antecipado</p>
         <h2 id="t-acesso">Comece a ver os concursos da sua área.</h2>
         <p>Deixe-nos o contacto e a área em que trabalha. Respondemos por e-mail com os próximos passos, normalmente em dois dias úteis.</p>
-        <div class="contacto">
-          <p>Prefere escrever directamente?</p>
-          <!-- CONFIRMAR: endereço de contacto -->
-          <a href="mailto:geral@radargov.pt">geral@radargov.pt</a>
-        </div>
       </div>
       <form id="form-acesso" method="post" action="/pedir-acesso" novalidate>
         <div class="duas">
@@ -707,7 +692,7 @@ footer p{max-width:72ch}
   <div class="wrap">
     <div class="linha">
       <span class="logo" role="img" aria-label="Radar Gov" style="font-size:22px"><span class="radar">Radar</span><span>G<svg viewBox="0 0 96 96" aria-hidden="true" focusable="false"><clipPath id="disco2"><circle cx="48" cy="48" r="42"/></clipPath><g clip-path="url(#disco2)"><rect x="2" y="2" width="36.8" height="92" fill="#006600"/><rect x="38.8" y="2" width="56" height="92" fill="#FF0000"/></g><circle cx="48" cy="48" r="42" fill="none" stroke="currentColor" stroke-width="6"/></svg>v</span></span>
-      <span><a href="/entrar">Entrar</a> · <a href="#acesso">Pedir acesso</a> · <!-- CONFIRMAR --><a href="mailto:geral@radargov.pt">geral@radargov.pt</a></span>
+      <span><a href="/entrar">Entrar</a> · <a href="#acesso">Pedir acesso</a></span>
     </div>
     <p>O Radar Gov é um produto privado e independente, feito em Portugal. Não é um serviço do Estado e não tem qualquer ligação ao Diário da República, ao IMPIC ou às plataformas de contratação pública. A informação apresentada vem de fontes públicas e não dispensa a consulta do anúncio oficial.</p>
     <p class="num" style="font-size:.85rem">© 2026 Radar Gov</p>
@@ -720,7 +705,7 @@ footer p{max-width:72ch}
   var erro = document.getElementById("erro");
   var obrigado = document.getElementById("obrigado");
   var enviar = document.getElementById("enviar");
-  var FALHA = "Não foi possível enviar agora. Escreva-nos para geral@radargov.pt.";
+  var FALHA = "Não foi possível enviar agora. Tente de novo daqui a uns minutos.";
 
   function mostraErro(texto) { erro.textContent = texto; erro.hidden = false; }
 
