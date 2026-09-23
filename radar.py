@@ -170,6 +170,10 @@ CONFIG_INICIAL = {
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
     "copias_a_guardar": 7,
+    # F6 (23/09/2026): o destino das copias FORA deste PC, um "remote" do
+    # rclone -- o copias_fora.sh cria-o, cifrado. Vazio, ou o rclone por
+    # instalar, e as copias ficam so aqui, e o painel di-lo.
+    "copia_fora": "radargov-fora:",
     # Alertas: os filtros guardados marcados como alerta dao um resumo
     # diario. E o que faz o radar deixar de precisar de ser aberto.
     "alertas": True,
@@ -6577,7 +6581,10 @@ def copia_de_seguranca(guardar=7):
     destino = os.path.join(
         COPIAS, "radar-%s.db" % datetime.now().strftime("%Y-%m-%d"))
     _vacuum_para(destino)
-    for padrao in (r"radar-[\d-]+\.db", r"empresa-\d+-[\d-]+\.db"):
+    copia_das_contas(os.path.join(COPIAS, os.path.basename(destino).replace(
+        "radar-", "contas-", 1)))
+    for padrao in (r"radar-[\d-]+\.db", r"empresa-\d+-[\d-]+\.db",
+                   r"contas-[\d-]+\.db"):
         velhas = sorted(f for f in os.listdir(COPIAS) if re.fullmatch(padrao, f))
         for f in velhas[:-guardar] if guardar else []:
             try:
@@ -6666,6 +6673,75 @@ def repor_estado_zero():
     return n
 
 
+# As tabelas da plataforma que nao se recuperam de lado nenhum e cabem
+# num ficheiro pequeno (F6): quem entra, os convites, os pedidos do
+# site. O resto do radar.db sao os anuncios, que voltam do DR -- 1,3 GB
+# que nao vale a pena mandar para fora todos os dias.
+TABELAS_DAS_CONTAS = ("utilizadores", "convites", "pedidos_acesso")
+
+
+def copia_das_contas(destino):
+    """As TABELAS_DAS_CONTAS num ficheiro seu, `contas-<data>.db`."""
+    if os.path.exists(destino):
+        return destino
+    with liga() as c:
+        c.execute("ATTACH DATABASE ? AS fora", (destino,))
+        for t_ in TABELAS_DAS_CONTAS:
+            c.execute("CREATE TABLE fora.%s AS SELECT * FROM main.%s" % (t_, t_))
+        c.commit()
+        c.execute("DETACH DATABASE fora")
+    so_o_dono(destino)
+    return destino
+
+
+def rclone():
+    """O rclone que o copias_fora.sh poe no .venv, ou None.
+
+    SO esse, e nunca o do sistema: e pelo BASE_DIR que os testes o
+    perdem (a BaseTemporaria aponta-o para uma pasta temporaria). Com o
+    do sistema, um teste que fizesse a copia diaria mandava as copias
+    de ensaio para o destino verdadeiro."""
+    local = os.path.join(BASE_DIR, ".venv", "bin", "rclone")
+    return local if os.access(local, os.X_OK) else None
+
+
+# Quantos dias as copias ficam no destino de fora. O disco daqui guarda
+# sete; fora guardam-se mais, porque la e barato e e o ultimo recurso.
+DIAS_DAS_COPIAS_FORA = 90
+
+
+def mandar_para_fora(dia, cfg=None, correr=subprocess.run):
+    """Manda as copias do dia -- a de cada empresa e a das contas -- para
+    o destino de fora, e poda o que la tem mais de DIAS_DAS_COPIAS_FORA.
+    Devolve (correu bem, o que dizer). Uma vez por dia: a marca
+    `ultima_copia_fora` diz se ja foi.
+
+    O `correr` e injectavel para os testes nao precisarem do rclone."""
+    cfg = cfg or ler_config()
+    destino = (cfg.get("copia_fora") or "").strip()
+    programa = rclone()
+    if not destino or not programa:
+        return None, ("só neste PC: %s" % ("sem destino configurado" if not destino
+                                           else "o rclone não está instalado "
+                                                "(corre o copias_fora.sh)"))
+    remotos = correr([programa, "listremotes"], capture_output=True, text=True,
+                     timeout=60)
+    if destino.split(":")[0] + ":" not in (remotos.stdout or "").split():
+        return None, "só neste PC: o destino %s não está configurado " \
+                     "(corre o copias_fora.sh)" % destino
+    alvo = destino.rstrip("/") + ("" if destino.endswith(":") else "/") + "copias"
+    feito = correr([programa, "copy", COPIAS, alvo,
+                    "--include", "empresa-*-%s.db" % dia,
+                    "--include", "contas-%s.db" % dia],
+                   capture_output=True, text=True, timeout=600)
+    if feito.returncode != 0:
+        return False, ((feito.stderr or feito.stdout or "").strip()
+                       .splitlines() or ["sem razão"])[-1][:150]
+    correr([programa, "delete", alvo, "--min-age", "%dd" % DIAS_DAS_COPIAS_FORA],
+           capture_output=True, text=True, timeout=600)
+    return True, "enviadas para %s" % alvo
+
+
 def copia_com_marca(guardar=7):
     """A copia diaria, com o resultado numa marca que o painel mostra.
 
@@ -6678,13 +6754,30 @@ def copia_com_marca(guardar=7):
     try:
         destino = copia_de_seguranca(guardar)
         marca("ultima_copia", "ok: %s" % os.path.basename(destino))
-        return True
     except (sqlite3.Error, OSError) as erro:
         marca_erro("ultima_copia", "copia", "falhou a %s: %s"
                    % (datetime.now().strftime("%Y-%m-%d %H:%M"),
                       str(erro)[:150]))
         print("aviso: copia de seguranca falhou (%s)" % erro)
         return False
+    # F6: a copia fora do PC, uma vez por dia -- a verificacao corre de
+    # hora a hora e a copia do dia so muda na primeira. Uma falha aqui
+    # nao desfaz a copia local, que ja esta feita.
+    dia = datetime.now().strftime("%Y-%m-%d")
+    if not le_marca("ultima_copia_fora", "").startswith("ok: " + dia):
+        try:
+            bem, porque = mandar_para_fora(dia)
+        except (OSError, subprocess.SubprocessError) as erro:
+            bem, porque = False, str(erro)[:150]
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if bem:
+            marca("ultima_copia_fora", "ok: %s · %s" % (agora, porque))
+        elif bem is None:
+            marca("ultima_copia_fora", porque)
+        else:
+            marca_erro("ultima_copia_fora", "copia-fora",
+                       "falhou a %s: %s" % (agora, porque))
+    return True
 
 
 def ultima_copia():
@@ -15748,6 +15841,10 @@ def config_copias():
         + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
         + "<div class='rg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
         + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
+        + "<div class='nota' style='margin-bottom:10px'>Fora deste PC: %s "
+          "<span style='color:var(--t5)'>(o destino configura-se uma vez com o "
+          "copias_fora.sh)</span></div>"
+          % html.escape(le_marca("ultima_copia_fora", "ainda nenhuma"))
         + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s "
           "<span style='color:var(--t5)'>(python radar.py --ensaiar-copia)</span></div>"
           % html.escape(le_marca("ultimo_ensaio_copia", "ainda nenhum"))
@@ -24007,6 +24104,15 @@ def abrir_no_browser(porta=None, espera=15.0):
 
 
 def main():
+    # F6: os comandos de manutencao (--exportar-triagem, --repor-triagem,
+    # --ensaiar-copia, --estado-zero, --empresa-desfazer...) sao da
+    # empresa que se disser; sem --empresa, da de omissao.
+    if "--empresa" in sys.argv:
+        try:
+            _EMPRESA.set(int(sys.argv[sys.argv.index("--empresa") + 1]))
+        except (IndexError, ValueError):
+            print("Uso: --empresa N, com o número da empresa.")
+            return
     iniciar_db()
     # As migracoes do corpus tambem correm no arranque, nao so na
     # importacao: um corpus ja em disco levava as colunas novas (o

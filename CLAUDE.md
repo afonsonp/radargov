@@ -217,7 +217,7 @@ Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
 pymupdf. O hook dos testes já escolhe o `.venv` sozinho.
 
 **Os `.sh` são atalhos para o Afonso, não para desenvolvimento.** São
-catorze, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
+quinze, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
 manual dele, e um script que exista sem lá estar é um script que ele
 não sabe que tem (aconteceu ao `actualizar.sh`, que é o gesto mais
 importante que ele faz e faltava no manual até 19/09/2026). Dois que
@@ -531,7 +531,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **240 pontos** (contados a 23/09/2026), cada um de um erro que
+São **241 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

@@ -13045,6 +13045,90 @@ class TestConvites(BaseTemporaria):
                                        "WHERE email='ana'").fetchone())
 
 
+class TestCopiasForaDoPC(BaseTemporaria):
+    """A F6 do plano multi-empresa (23/09/2026): as cópias do trabalho das
+    empresas e das contas vão, uma vez por dia, para um destino fora
+    deste PC (o rclone, com um destino cifrado que o `copias_fora.sh`
+    cria). Sem rede e sem rclone: o `correr` é falso e diz o que lhe
+    pediram. O que se trava: mandar cópias de outro dia, mandar o
+    radar.db inteiro, mandar vinte vezes por dia, e uma falha que se cala."""
+
+    class Feito:
+        def __init__(self, codigo=0, saida="", erro=""):
+            self.returncode, self.stdout, self.stderr = codigo, saida, erro
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "COPIAS", os.path.join(self.pasta, "copias")))
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")
+            c.execute("INSERT INTO anuncios (ref, titulo) VALUES ('1/2026', 't')")
+        self.pedidos = []
+
+    def correr(self, remotos="radargov-fora:\n", codigo=0):
+        def falso(args, **_):
+            self.pedidos.append(args)
+            if args[1] == "listremotes":
+                return self.Feito(saida=remotos)
+            return self.Feito(codigo=codigo, erro="" if not codigo else
+                              "Failed to copy: 401 unauthorized")
+        return falso
+
+    def test_sem_rclone_fica_so_no_pc_e_di_lo(self):
+        with unittest.mock.patch.object(radar, "rclone", return_value=None):
+            radar.copia_com_marca(guardar=0)
+        self.assertTrue(radar.le_marca("ultima_copia_fora").startswith("só neste PC"))
+
+    def test_manda_so_as_copias_do_dia_das_empresas_e_das_contas(self):
+        radar.copia_de_seguranca(guardar=0)
+        dia = datetime.datetime.now().strftime("%Y-%m-%d")
+        with unittest.mock.patch.object(radar, "rclone", return_value="/x/rclone"):
+            bem, porque = radar.mandar_para_fora(dia, correr=self.correr())
+        self.assertTrue(bem, porque)
+        copia = [p for p in self.pedidos if p[1] == "copy"][0]
+        self.assertEqual(copia[2:4], [radar.COPIAS, "radargov-fora:copias"])
+        self.assertEqual(copia[4:], ["--include", "empresa-*-%s.db" % dia,
+                                     "--include", "contas-%s.db" % dia])
+        # e poda o que lá está há mais de DIAS_DAS_COPIAS_FORA
+        self.assertTrue(any(p[1] == "delete" for p in self.pedidos))
+
+    def test_a_copia_das_contas_leva_as_contas_e_nao_os_anuncios(self):
+        destino = radar.copia_de_seguranca(guardar=0)
+        contas_ = os.path.join(radar.COPIAS, os.path.basename(destino)
+                               .replace("radar-", "contas-"))
+        c = sqlite3.connect(contas_)
+        tabelas = {r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        n = c.execute("SELECT COUNT(*) FROM utilizadores").fetchone()[0]
+        c.close()
+        self.assertEqual(tabelas, set(radar.TABELAS_DAS_CONTAS))
+        self.assertEqual(n, 1)
+
+    def test_um_destino_que_o_rclone_nao_conhece_nao_se_tenta(self):
+        with unittest.mock.patch.object(radar, "rclone", return_value="/x/rclone"):
+            bem, porque = radar.mandar_para_fora("2026-09-23",
+                                                 correr=self.correr(remotos="b2:\n"))
+        self.assertIsNone(bem)
+        self.assertIn("não está configurado", porque)
+        self.assertFalse(any(p[1] == "copy" for p in self.pedidos))
+
+    def test_uma_falha_fica_a_vista_e_volta_a_tentar_na_hora_seguinte(self):
+        with unittest.mock.patch.object(radar, "mandar_para_fora",
+                                        return_value=(False, "401 unauthorized")):
+            radar.copia_com_marca(guardar=0)
+            self.assertIn("falhou", radar.le_marca("ultima_copia_fora"))
+            self.assertIn("401", radar.le_marca("ultima_copia_fora"))
+        # e uma que correu bem nao se repete no mesmo dia
+        chamadas = []
+        with unittest.mock.patch.object(
+                radar, "mandar_para_fora",
+                side_effect=lambda dia: chamadas.append(dia) or (True, "enviadas")):
+            radar.copia_com_marca(guardar=0)
+            radar.copia_com_marca(guardar=0)
+        self.assertEqual(len(chamadas), 1)
+
+
 class CicloDasTarefas(BaseTemporaria):
     """Esqueleto das seis classes da fase 1 do `docs/historico/CICLOS.md`
     (17/09/2026): um anúncio, uma proposta, e as datas do DR a virarem
