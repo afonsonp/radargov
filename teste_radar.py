@@ -33,6 +33,32 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
 import empresa
 
+# A bateria inteira corre numa base e num config.json temporarios
+# (23/09/2026). As classes antigas, que nao herdam da BaseTemporaria,
+# abriam o painel com a base verdadeira atras: a porta lia as contas
+# dele, e no dia em que a conta do dono ficou sem empresa nove testes
+# passaram a cair em /plataforma. Passavam por acaso, e liam o que nao
+# deviam. A BaseTemporaria continua a dar a cada teste a sua.
+_ISOLAMENTO = []
+
+
+def setUpModule():
+    pasta = tempfile.mkdtemp()
+    _ISOLAMENTO.append(pasta)
+    for nome, ficheiro in (("DB", "bateria.db"), ("CONFIG", "config.json")):
+        remendo = unittest.mock.patch.object(radar, nome,
+                                             os.path.join(pasta, ficheiro))
+        remendo.start()
+        _ISOLAMENTO.append(remendo)
+    radar.iniciar_db()
+
+
+def tearDownModule():
+    for remendo in reversed(_ISOLAMENTO[1:]):
+        remendo.stop()
+    gc.collect()
+    shutil.rmtree(_ISOLAMENTO[0], ignore_errors=True)
+
 
 class TestPrefixoCPV(unittest.TestCase):
     """O filtro de CPV chegou a devolver 4592 anuncios em vez de 440."""
@@ -13081,6 +13107,37 @@ class TestDonoSemEmpresa(BaseTemporaria):
                 falhas.append((regra.rule, codigo))
         self.assertEqual(falhas, [])
         self.assertEqual(radar.empresas_existentes(), [])   # nada a criou
+
+
+class TestLimparMarcasDeUso(BaseTemporaria):
+    """23/09/2026, pedido dele: «tudo deve ficar limpo de marcas de uso».
+    Sai o que diz quem usou; o que a plataforma fez fica."""
+
+    def test_sai_o_uso_e_fica_a_plataforma(self):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")
+            radar.contas.entrar(c, "admin", "senha-comprida", ip="203.0.113.7")
+            radar.contas.registar_falha(c, "marlene", "203.0.113.8")
+            c.execute("INSERT INTO erros (quando, tipo, texto) VALUES "
+                      "('2026-09-14 11:41', 'login', 'falhou para marlene')")
+            c.execute("INSERT OR REPLACE INTO estado VALUES ('login', 'falhou')")
+            c.execute("INSERT OR REPLACE INTO estado VALUES ('ultima_ok', '1')")
+        radar.registar_evento("1/2026", "leitura", "peças lidas", quem="admin")
+        radar.registar_evento("1/2026", "alteração", "do DR", quem="DR")
+        saiu = radar.limpar_marcas_de_uso()
+        with radar.liga() as c:
+            for t in ("erros", "sessoes", "entradas_falhadas"):
+                self.assertEqual(c.execute("SELECT COUNT(*) FROM %s" % t)
+                                 .fetchone()[0], 0, t)
+            self.assertEqual([r[0] for r in c.execute("SELECT quem FROM eventos")],
+                             ["DR"])
+            self.assertIsNone(c.execute("SELECT valor FROM estado WHERE "
+                                        "chave='login'").fetchone())
+            self.assertEqual(c.execute("SELECT valor FROM estado WHERE "
+                                       "chave='ultima_ok'").fetchone()[0], "1")
+            self.assertIsNone(c.execute("SELECT ultimo_acesso FROM "
+                                        "utilizadores").fetchone()[0])
+        self.assertEqual(saiu["eventos de pessoas"], 1)
 
 
 class TestConvites(BaseTemporaria):
