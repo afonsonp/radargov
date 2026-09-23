@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 23 de setembro de 2026**, sobre a `v1.12.0`. Este
+> **Última revisão: 23 de setembro de 2026**, sobre a `v1.13.0`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
