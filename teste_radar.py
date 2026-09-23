@@ -3990,11 +3990,11 @@ class TestLinhasDeUltimosErros(unittest.TestCase):
         # rejected" de 31/08 esteve um dia inteiro sem aparecer em lado
         # nenhum.
         linhas = radar.linhas_de_ultimos_erros(
-            triagem="2026-08-31 17:00: git push: cannot lock ref",
+            triagem="2026-08-31 17:00: disco cheio",
             vortal="2026-08-31 17:00: 503 na SearchTenders")
         self.assertEqual(len(linhas), 2)
         self.assertIn("triagem", linhas[0][0])
-        self.assertIn("cannot lock ref", linhas[0][1])
+        self.assertIn("disco cheio", linhas[0][1])
         self.assertIn("Vortal", linhas[1][0])
 
     def test_erro_de_varias_linhas_fica_numa(self):
@@ -4012,7 +4012,7 @@ class TestLinhasDeUltimosErros(unittest.TestCase):
         fonte = inspect.getsource(radar.indicadores)
         for chave in ("ultimo_erro_relogio", "docs_ultimo_erro",
                       "analise_ultimo_erro", "token_ultimo_erro",
-                      "ultimo_erro_triagem_git", "vortal_ultimo_erro",
+                      "ultima_exportacao_triagem", "vortal_ultimo_erro",
                       "pecas_dr_ultimo_erro"):
             self.assertIn(chave, fonte)
 
@@ -6235,155 +6235,6 @@ class TestContactos(BaseTemporaria):
             na_tabela = {r["name"] for r in c.execute(
                 "PRAGMA table_info(contactos)")}
         self.assertEqual(na_tabela, set(radar.COLUNAS_DO_CONTACTO))
-
-
-class TestPorqueDoGit(unittest.TestCase):
-    """01/09/2026: um push recusado ficava gravado como "git push: To
-    https://github.com/afonsonp/radarconcursos.git" — o endereço comia
-    os 80 caracteres da linha dos indicadores e a razão nunca se via.
-    Foi o que aconteceu a um "cannot lock ref" de 31/08: ficou um dia
-    inteiro na base sem ninguém poder saber o que dizia."""
-
-    class Falso:
-        def __init__(self, err=b"", out=b""):
-            self.stderr, self.stdout = err, out
-
-    def test_tira_o_endereco_e_o_error_final(self):
-        saida = (b"To https://github.com/afonsonp/radarconcursos.git\n"
-                 b" ! [remote rejected] master -> master (cannot lock ref "
-                 b"'refs/heads/master': is at 95919b5 but expected 3b53318)\n"
-                 b"error: failed to push some refs to 'https://github.com/"
-                 b"afonsonp/radarconcursos.git'\n")
-        porque = radar.porque_do_git(self.Falso(saida))
-        self.assertTrue(porque.startswith("! [remote rejected]"))
-        self.assertIn("cannot lock ref", porque)
-        self.assertNotIn("github.com", porque)
-
-    def test_fica_numa_linha_so(self):
-        porque = radar.porque_do_git(self.Falso(b"uma\nduas\ntres\n"))
-        self.assertEqual(porque, "uma duas tres")
-
-    def test_usa_o_stdout_quando_nao_ha_stderr(self):
-        self.assertEqual(radar.porque_do_git(self.Falso(b"", b"so no out")),
-                         "so no out")
-
-    def test_se_so_houver_cabecalho_mostra_o_cabecalho(self):
-        # nunca devolver vazio: uma marca de erro em branco é pior que
-        # uma marca com pouco
-        porque = radar.porque_do_git(self.Falso(b"To https://exemplo/r.git\n"))
-        self.assertIn("exemplo", porque)
-
-    def test_respeita_o_tecto(self):
-        self.assertEqual(len(radar.porque_do_git(self.Falso(b"x" * 400))), 150)
-
-    def test_sem_saida_nenhuma_da_vazio(self):
-        self.assertEqual(radar.porque_do_git(self.Falso()), "")
-
-
-class TestEmpurrarTriagem(BaseTemporaria):
-    """B15, sub-decisão fechada a 31/08/2026: commit+push automáticos
-    do triagem.jsonl em cada verificação. O erro que se trava: um push
-    falhado com o commit já feito deixava o diff limpo, e um gatilho só
-    por diff nunca mais tentava o push — a cópia externa ficava para
-    trás em silêncio. Tudo com repositórios temporários, sem rede."""
-
-    def _git(self, pasta, *args):
-        import subprocess
-        return subprocess.run(["git"] + list(args), cwd=pasta,
-                              capture_output=True)
-
-    def _repo(self, com_remoto):
-        os.makedirs(os.path.join(self.pasta, "trabalho"))
-        trabalho = os.path.join(self.pasta, "trabalho")
-        self._git(trabalho, "init", "-q", "-b", "master")
-        self._git(trabalho, "config", "user.email", "t@t")
-        self._git(trabalho, "config", "user.name", "t")
-        with open(os.path.join(trabalho, "triagem.jsonl"), "w") as f:
-            f.write("{}\n")
-        self._git(trabalho, "add", "triagem.jsonl")
-        self._git(trabalho, "commit", "-q", "-m", "inicial")
-        if com_remoto:
-            bare = os.path.join(self.pasta, "remoto.git")
-            self._git(self.pasta, "init", "-q", "--bare", "-b", "master",
-                      "remoto.git")
-            self._git(trabalho, "remote", "add", "origin", bare)
-            self._git(trabalho, "push", "-q", "-u", "origin", "master")
-        return trabalho
-
-    def _mexe(self, trabalho):
-        with open(os.path.join(trabalho, "triagem.jsonl"), "a",
-                  encoding="utf-8") as f:
-            f.write('{"tabela": "ensaio"}\n')
-
-    def test_fluxo_feliz_e_sem_mudancas(self):
-        trabalho = self._repo(com_remoto=True)
-        bem, porque = radar.empurrar_triagem(trabalho)
-        self.assertTrue(bem)
-        self.assertIn("sem mudanças", porque)
-        self._mexe(trabalho)
-        bem, porque = radar.empurrar_triagem(trabalho)
-        self.assertTrue(bem)
-        self.assertIn("empurrada", porque)
-        # o remoto tem mesmo o commit da triagem
-        bare = os.path.join(self.pasta, "remoto.git")
-        log = self._git(bare, "log", "--oneline").stdout.decode()
-        self.assertIn("triagem:", log)
-
-    def test_push_falhado_retoma_na_volta_seguinte(self):
-        # commit à frente do origin SEM mudança no ficheiro: um gatilho
-        # só por diff dizia "nada a fazer" e o remoto ficava para trás
-        trabalho = self._repo(com_remoto=True)
-        self._mexe(trabalho)
-        self._git(trabalho, "commit", "-q", "-m", "triagem: preso",
-                  "--", "triagem.jsonl")
-        bem, porque = radar.empurrar_triagem(trabalho)
-        self.assertTrue(bem)
-        self.assertIn("empurrada", porque)
-
-    def test_sem_remoto_o_commit_fica_e_o_erro_regista_se(self):
-        trabalho = self._repo(com_remoto=False)
-        self._mexe(trabalho)
-        bem, _ = radar.empurrar_triagem(trabalho)
-        self.assertFalse(bem)
-        # o commit local ficou — a exportação não se perdeu, só a cópia
-        # externa é que espera pela próxima volta
-        log = self._git(trabalho, "log", "--oneline").stdout.decode()
-        self.assertIn("triagem:", log)
-        self.assertTrue(radar.le_marca("ultimo_erro_triagem_git"))
-
-    def test_o_push_bem_sucedido_apaga_a_marca_do_erro(self):
-        # 04/09/2026: o painel mostrava um push recusado a 31/08 depois
-        # de dezenas de pushes bons. A marca escrevia-se na falha e não
-        # se apagava nunca — mandava procurar uma avaria que já não
-        # havia. A série na tabela `erros` é que guarda a história.
-        trabalho = self._repo(com_remoto=False)
-        self._mexe(trabalho)
-        radar.empurrar_triagem(trabalho)            # falha: sem remoto
-        self.assertTrue(radar.le_marca("ultimo_erro_triagem_git"))
-        bare = os.path.join(self.pasta, "remoto.git")
-        self._git(self.pasta, "init", "-q", "--bare", "-b", "master",
-                  "remoto.git")
-        self._git(trabalho, "remote", "add", "origin", bare)
-        self._git(trabalho, "push", "-q", "-u", "origin", "master")
-        bem, _ = radar.empurrar_triagem(trabalho)
-        self.assertTrue(bem)
-        self.assertEqual(radar.le_marca("ultimo_erro_triagem_git"), "")
-        # a história não se perde: continua na série
-        with radar.liga() as c:
-            self.assertEqual(c.execute(
-                "SELECT COUNT(*) n FROM erros WHERE tipo='triagem-git'"
-            ).fetchone()["n"], 1)
-
-    def test_sem_nada_por_empurrar_tambem_apaga(self):
-        # o caso comum: a falha foi de rede, e na volta seguinte já não
-        # há nada para empurrar. Se só o push limpasse, a marca ficava
-        # até à próxima vez que a triagem mudasse — dias.
-        trabalho = self._repo(com_remoto=True)
-        radar.marca_erro("ultimo_erro_triagem_git", "triagem-git", "de ontem")
-        bem, porque = radar.empurrar_triagem(trabalho)
-        self.assertTrue(bem)
-        self.assertIn("sem mudanças", porque)
-        self.assertEqual(radar.le_marca("ultimo_erro_triagem_git"), "")
 
 
 class TestFaltaDePecasNaoEErroDeLeitura(unittest.TestCase):
@@ -10695,7 +10546,6 @@ class TestConfiguracoes(BaseTemporaria):
         self.assertEqual(r.status_code, 302)
         cfg = radar.ler_config()
         self.assertEqual(cfg["copias_a_guardar"], 3)
-        self.assertFalse(cfg["triagem_no_git"])
         r = self.cliente.post("/configuracoes/copias", data={"copias_a_guardar": "0"})
         self.assertIn("vai de 1", unquote_plus(r.headers["Location"]))
 
@@ -11349,15 +11199,10 @@ class TestExportacaoNaoChocaComOutroProcesso(BaseTemporaria):
     def test_uma_exportacao_boa_limpa_a_marca_de_erro(self):
         # a marca das 17:00 so se escrevia; ficava no painel para sempre
         #
-        # O TRIAGEM_EXPORT tem de ir para a pasta temporaria: o
-        # verificar() exporta para o caminho de origem, que e o
-        # `triagem.jsonl` VERDADEIRO da pasta do radar -- correr os
-        # testes reescrevia-o, e o git mostrava-o alterado sem ninguem
-        # lhe ter tocado. Apanhado a 15/09/2026, a olhar para um
-        # `git status` que tinha uma linha a mais.
-        self.enterContext(unittest.mock.patch.object(
-            radar, "TRIAGEM_EXPORT",
-            os.path.join(self.pasta, "triagem.jsonl")))
+        # O triagem.jsonl e da empresa, ao lado do ficheiro dela -- e o
+        # ficheiro dela vai com o DB para a pasta temporaria. Ate
+        # 23/09/2026 era um TRIAGEM_EXPORT na pasta do radar, que um
+        # teste sem este cuidado reescrevia (15/09/2026).
         radar.marca_erro("ultima_exportacao_triagem", "exportacao",
                          "erro de antes")
         with radar.liga() as c:
@@ -11367,9 +11212,7 @@ class TestExportacaoNaoChocaComOutroProcesso(BaseTemporaria):
         with unittest.mock.patch.object(radar, "recolher",
                                         lambda *a, **k: (False, "sem rede", 0)), \
                 unittest.mock.patch.object(radar, "copia_com_marca",
-                                           lambda *a, **k: None), \
-                unittest.mock.patch.object(radar, "empurrar_triagem",
-                                           lambda *a, **k: (True, "")):
+                                           lambda *a, **k: None):
             radar.verificar({"copia_de_seguranca": False})
         with radar.liga() as c:
             self.assertIsNone(c.execute(
@@ -12841,7 +12684,7 @@ class TestDuasEmpresas(BaseTemporaria):
     def test_a_verificacao_corre_o_trabalho_de_cada_empresa(self):
         vistas = []
         cfg = dict(radar.CONFIG_INICIAL, copia_de_seguranca=False,
-                   vortal_preliminares=False, triagem_no_git=False)
+                   vortal_preliminares=False)
         with unittest.mock.patch.object(radar, "recolher",
                                         return_value=(False, "sem rede", [])), \
              unittest.mock.patch.object(radar, "vigiar_pecas", return_value=(0, "")), \

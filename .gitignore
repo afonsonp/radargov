@@ -30,6 +30,13 @@ __pycache__/
 *.pyc
 painel.log
 config.json.estragado
+# Dados, e nao codigo (23/09/2026: «no github devemos apenas guardar
+# codigo»). O config.json leva o e-mail de quem recebe o resumo, e o
+# triagem.jsonl o trabalho da empresa. O `.guardado` e o que o
+# actualizar.sh poe de lado enquanto avanca.
+config.json
+triagem.jsonl
+*.guardado
 # permissoes desta maquina; os hooks e as skills ficam no historico, isto nao
 .claude/settings.local.json
 # worktrees de sessoes do Claude: temporarias, ja ficaram 4 para tras

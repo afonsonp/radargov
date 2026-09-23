@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# O par do reler.bat.
+# Manda o modelo reler as peças já guardadas, sem ir à rede.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 source ./_python.sh
 echo

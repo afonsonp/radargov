@@ -19,7 +19,8 @@ repositório, e não de uma lista genérica.
 O Radar é uma aplicação Flask que serve o painel em `radargov.pt`
 através de um túnel da Cloudflare, com login próprio (`contas.py` e a
 `porta_de_entrada()` do `radar.py`). Corre no computador pessoal do
-Afonso, na mesma pasta onde estão o `radar.db`, o `config.json` e as
+Afonso, na mesma pasta onde estão o `radar.db`, o `config.json`, a pasta
+`empresas/` (a base, a configuração e a triagem de cada empresa) e as
 capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
 
 ## As seis, por ordem de gravidade
@@ -53,7 +54,8 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    do `config.json` não podem aparecer em páginas, em registos, em
    mensagens de erro nem em ficheiros que entrem no git. O
    `gravar_config_registado()` recusa chaves que pareçam segredos, e o
-   `.gitignore` largo é a outra metade da guarda.
+   `.gitignore` largo é a outra metade da guarda — e desde 23/09/2026
+   o `config.json` e o `triagem.jsonl` também estão lá.
 
 6. **SQL construído por concatenação** com valores vindos do pedido
    (o motor de filtros monta condições).

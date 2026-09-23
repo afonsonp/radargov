@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# O par do detalhes.bat.
+# Vai buscar o detalhe de tudo o que ainda não o tem.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 source ./_python.sh
 echo
