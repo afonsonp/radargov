@@ -10,7 +10,8 @@ Portugal — código, comentários, mensagens de commit e respostas.
 Aplicação local em Python que vigia os anúncios de contratação pública da
 **parte L da série II do Diário da República**, guarda-os em SQLite e
 mostra-os num painel Flask em `http://127.0.0.1:8765`. Corre no PC do
-Afonso, verifica sozinha às 09:00 e às 17:00 por temporizadores do
+Afonso, verifica sozinha **de hora a hora** (das 08:00 às 20:00, desde
+23/09/2026; eram só as 09:00 e as 17:00) por um temporizador do
 systemd, e não depende de nada da empresa.
 
 Substitui a Armilar (produto Vortal, 200 €/mês).
@@ -187,10 +188,13 @@ o painel aberto** — e o relógio interno recupera os slots falhados, o
 que faz a tabela `slots` parecer certa. O painel avisa a vermelho.
 Desde 8/09/2026 o radar corre em **Ubuntu**, em `~/Desktop/radar`, e
 as tarefas são temporizadores do systemd na sessão do utilizador
-(`radar-09h.timer`, `radar-17h.timer`, `radar-contratos.timer`), mais
+(`radar-hora.timer`, que dispara a todas as horas e corre o
+`verificar.sh --agendada` — **quem decide que horas contam é o radar**,
+pela lista `horas_verificacao` do `config.json`, em Configurações ›
+Recolha —, e `radar-contratos.timer`), mais
 o painel como serviço sempre a correr (`radar-painel.service`, que
 arranca o `radar.py --sem-browser`). O aviso vermelho lê `systemctl
---user list-timers` e procura esses dois nomes — mudar um nome no
+--user list-timers` e procura esse nome — mudar um nome no
 `agendar.sh` sem mudar `TAREFAS_LINUX` cega o aviso. **O ramo do
 Windows saiu a 14/09/2026** (a aplicação está alojada em Linux, atrás
 do túnel da Cloudflare, e o Afonso decidiu que nada do Windows fica):

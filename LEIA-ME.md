@@ -2,7 +2,8 @@
 
 Vigia a parte L da série II do Diário da República, filtra os anúncios
 que interessam ao teu portefólio e mostra-os num painel local.
-Verifica sozinho às 09:00 e às 17:00.
+Verifica sozinho de hora a hora, das 08:00 às 20:00 (as horas mudam-se
+em Configurações › Recolha).
 
 Duas fontes: o serviço de pesquisa do próprio portal do DR (os
 anúncios) e o dump semanal do Portal BASE (os contratos celebrados, no
@@ -164,8 +165,8 @@ da verificação diz «pelos termos de reserva». Nunca se viu disparar.
 
 ## Histórico
 
-A verificação de rotina (09h/17h) só olha para os últimos `dias_catchup`
-dias — não vale a pena pedir mais que isso duas vezes por dia. Para
+A verificação de rotina (de hora a hora) só olha para os últimos
+`dias_catchup` dias — não vale a pena pedir mais que isso a cada hora. Para
 trazer um período maior de uma vez, corre:
 
 ```
@@ -980,12 +981,12 @@ uma importação estragou a triagem), é isto, por esta ordem, na pasta
 do radar:
 
 ```bash
-systemctl --user stop radar-painel.service radar-09h.timer radar-17h.timer
+systemctl --user stop radar-painel.service radar-hora.timer
 .venv/bin/python radar.py --ensaiar-copia copias/radar-AAAA-MM-DD.db
 cp radar.db radar-estragada.db          # guarda a que lá está, por via das dúvidas
 rm -f radar.db-wal radar.db-shm         # o resto da base antiga; sem isto misturam-se
 cp copias/radar-AAAA-MM-DD.db radar.db
-systemctl --user start radar-painel.service radar-09h.timer radar-17h.timer
+systemctl --user start radar-painel.service radar-hora.timer
 ```
 
 Perde-se o que entrou depois dessa cópia: a recolha seguinte traz os

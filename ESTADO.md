@@ -27,8 +27,8 @@ volta ao formato. Onde está o resto:
 
 Aplicação local em Python que vigia os anúncios de contratação pública
 publicados no Diário da República, série II, **parte L**. Guarda tudo
-numa base SQLite e mostra num painel Flask. Verifica sozinha às 09:00 e
-às 17:00 por temporizadores do systemd, corre em Ubuntu em
+numa base SQLite e mostra num painel Flask. Verifica sozinha de hora a
+hora, das 08:00 às 20:00, por um temporizador do systemd, corre em Ubuntu em
 `~/Desktop/radar`, e responde em `http://127.0.0.1:8765` e, por um túnel
 com nome da Cloudflare, em **`https://radargov.pt`**. Tem login e dois
 papéis (`admin` e `tester`).
@@ -57,7 +57,7 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Rotas Flask | 84 |
 | Tabelas em `radar.db` | 24 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 095**, em ~67 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 099**, em ~67 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 715 linhas · `teste_radar.py` 14 115 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 

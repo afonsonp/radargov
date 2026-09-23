@@ -1804,9 +1804,10 @@ Nada espera dentro do pedido do browser.
   que não fosse `nt` — «não há o que avisar» — e era exactamente o modo
   de falha que o aviso existe para apanhar: parecer vivo sem recolher.
   Desde 8/09/2026 em Linux lê `systemctl --user list-timers --all` e
-  procura os nomes de `TAREFAS_LINUX` (`radar-09h.timer`,
-  `radar-17h.timer`); o `agendar.sh` é quem os cria, e **os nomes têm
-  de bater nos dois sítios**. A listagem é injectável
+  procura os nomes de `TAREFAS_LINUX` (desde 23/09/2026 um só,
+  `radar-hora.timer`; eram `radar-09h.timer` e `radar-17h.timer`); o
+  `agendar.sh` é quem os cria, e **os nomes têm de bater nos dois
+  sítios** — um teste lê o `agendar.sh` e confere-o. A listagem é injectável
   (`tarefas_em_falta(listar, sistema)`) e os testes cobrem os dois
   sistemas, o sistema desconhecido (devolve vazio sem chamar nada) e o
   comando a rebentar (vazio: não se inventa aviso). O painel como
