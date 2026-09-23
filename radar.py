@@ -126,7 +126,11 @@ ACAO = ("https://diariodarepublica.pt/dr/screenservices/dr/Pesquisas/"
         "PesquisaResultado/DataActionGetPesquisas")
 
 CONFIG_INICIAL = {
-    "horas_verificacao": ["09:00", "17:00"],
+    # De hora a hora, das 08:00 as 20:00 (23/09/2026; eram so as 09:00 e
+    # as 17:00). O temporizador do sistema dispara a todas as horas, e
+    # sao estas que dizem quais contam -- mudam-se em Configuracoes ›
+    # Recolha, sem voltar a correr o agendar.sh.
+    "horas_verificacao": ["%02d:00" % h for h in range(8, 21)],
     # Um pedido vindo deste computador (127.0.0.1, sem tunel a meio)
     # entra sem login, como o unico utilizador. E o que mantem o
     # desenvolvimento e os testes sem fazerem login a cada pedido. Num
@@ -6070,7 +6074,9 @@ def guardar(colhidos, cfg=None):
 # horas. Foi assim que isto passou semanas sem se notar (no Windows, com
 # o schtasks; e ate 8/09/2026 fora do Windows devolvia-se vazio, "nao ha
 # o que avisar", que era o modo de falha que o aviso existe para apanhar).
-TAREFAS_LINUX = ("radar-09h.timer", "radar-17h.timer")
+# Um so desde 23/09/2026: o `radar-hora.timer` dispara a todas as horas
+# e o radar decide quais contam (`slot_desta_hora()`).
+TAREFAS_LINUX = ("radar-hora.timer",)
 _TAREFAS_VISTAS = None
 _TAREFAS_QUANDO = 0.0
 # A resposta guarda-se durante um minuto e nao para sempre. Era para
@@ -8747,20 +8753,49 @@ def comecar_verificacao(slot=None):
     return True, ""
 
 
+def _marcado(hora, agora):
+    """A hora "HH:MM" no dia de `agora`, como datetime."""
+    h, m = (int(x) for x in hora.split(":"))
+    return agora.replace(hour=h, minute=m, second=0, microsecond=0)
+
+
+def ultimo_slot_passado(horas, agora):
+    """A mais recente das `horas` que ja passou hoje, ou None.
+
+    E so essa que o relogio recupera (23/09/2026). Recuperava todas as
+    que faltassem, uma por minuto: com duas horas por dia era no maximo
+    uma a mais, mas de hora a hora um PC ligado as 19:00 corria onze
+    verificacoes seguidas para trazer o mesmo que a ultima traz -- cada
+    uma pede ao DR os dias de recuperacao todos."""
+    passadas = [h for h in horas if _marcado(h, agora) <= agora]
+    return max(passadas, key=lambda h: _marcado(h, agora)) if passadas else None
+
+
+def slot_desta_hora(horas, agora, janela=timedelta(minutes=60)):
+    """A hora marcada a que `agora` pertence -- a que comecou ha menos de
+    uma hora --, ou None se esta hora nao e de verificar. E a pergunta
+    do temporizador de hora a hora (`--uma-vez --agendada`): ele dispara
+    a todas as horas, e fora das horas da verificacao nao faz nada."""
+    for h in horas:
+        if timedelta(0) <= agora - _marcado(h, agora) < janela:
+            return h
+    return None
+
+
 def relogio():
     """Enquanto o painel estiver aberto, vigia as horas marcadas.
-    Se o PC esteve desligado, apanha o slot em falta quando ligar."""
+    Se o PC esteve desligado, apanha o slot em falta quando ligar --
+    so o mais recente (`ultimo_slot_passado()`)."""
     while True:
         try:
             cfg = ler_config()
             agora = datetime.now()
             dia = agora.strftime("%Y-%m-%d")
-            for hora in cfg["horas_verificacao"]:
-                h, m = (int(x) for x in hora.split(":"))
-                marcado = agora.replace(hour=h, minute=m, second=0, microsecond=0)
-                passou = agora >= marcado
+            hora = ultimo_slot_passado(cfg["horas_verificacao"], agora)
+            if hora:
+                marcado = _marcado(hora, agora)
                 atrasado = cfg.get("recuperar_slot_falhado", True)
-                if passou and not slot_corrido(dia, hora):
+                if not slot_corrido(dia, hora):
                     if agora - marcado < timedelta(minutes=5) or atrasado:
                         # Pela mesma porta do botao "Verificar agora", e
                         # nao pelo verificar() directo. Sao duas coisas
@@ -15046,15 +15081,15 @@ def config_recolha():
             return volta_config("recolha", str(erro))
         gravar_config_registado(mudancas)
         return volta_config("recolha", "Recolha guardada. As horas novas "
-                            "valem no relógio interno já; os temporizadores "
-                            "do sistema mudam com o agendar.sh.")
+                            "valem já, no painel e no temporizador do "
+                            "sistema.")
     faltam = tarefas_em_falta()
     corpo = (
         "<form method='post' action='/configuracoes/recolha' class='conf-form'>"
         + _campo("Horas da verificação", "horas",
                  ", ".join(cfg.get("horas_verificacao") or []),
-                 nota="HH:MM, separadas por vírgula. É o relógio interno do painel; "
-                      "as tarefas do sistema (systemd) têm as suas, criadas pelo agendar.sh.")
+                 nota="HH:MM, separadas por vírgula. O temporizador do sistema "
+                      "dispara de hora a hora, e só verifica nas horas desta lista.")
         + _campo("Janela de recuperação (dias)", "dias_catchup", cfg.get("dias_catchup", 15),
                  nota="quantos dias para trás o radar volta a olhar quando falha um slot")
         + _campo("Janela do detalhe (dias)", "detalhe_dias", cfg.get("detalhe_dias", 60),
@@ -23672,6 +23707,14 @@ def main():
             return
 
     if "--uma-vez" in sys.argv:
+        # O temporizador dispara a todas as horas e passa --agendada: fora
+        # das horas da verificacao nao faz nada (23/09/2026). A mao, sem
+        # a bandeira, verifica sempre.
+        agendada = slot_desta_hora(cfg["horas_verificacao"], datetime.now())
+        if "--agendada" in sys.argv and not agendada:
+            print("Esta hora não é de verificar (%s)."
+                  % ", ".join(cfg["horas_verificacao"]))
+            return
         # O mesmo trinco do painel: se o relogio de dentro dele ja
         # arrancou esta hora, este processo desiste em vez de correr a
         # segunda verificacao sobre a mesma base (8/09/2026, 17:00).
@@ -23683,11 +23726,10 @@ def main():
             mensagem, novos = verificar(cfg)
         finally:
             largar_trinco()
-        hora = min(cfg["horas_verificacao"],
-                   key=lambda h: abs((datetime.now()
-                                      - datetime.now().replace(
-                                          hour=int(h[:2]), minute=int(h[3:]),
-                                          second=0)).total_seconds()))
+        hora = agendada or min(cfg["horas_verificacao"],
+                               key=lambda h: abs((datetime.now()
+                                                  - _marcado(h, datetime.now())
+                                                  ).total_seconds()))
         registar_slot(datetime.now().strftime("%Y-%m-%d"), hora, novos)
         print(mensagem)
         return

@@ -48,8 +48,8 @@ Uma aplicação local em Python (Flask + SQLite) que **vigia os anúncios
 de contratação pública da parte L da série II do Diário da República**,
 guarda-os, e serve-os num painel.
 
-Corre em Ubuntu, em `~/Desktop/radar`. Verifica sozinha às **09:00 e às
-17:00** (temporizadores do systemd), e responde em
+Corre em Ubuntu, em `~/Desktop/radar`. Verifica sozinha **de hora a
+hora, das 08:00 às 20:00** (um temporizador do systemd), e responde em
 `http://127.0.0.1:8765` e, por um túnel da Cloudflare, em
 **`https://radargov.pt`**, com login.
 
@@ -89,7 +89,7 @@ o `DROP COLUMN` do SQLite reescreve-a inteira. As regras de quando
 fazer cópia e quando ensaiar estão no `CLAUDE.md`, banda 1.
 
 **Duas colunas de números, e a diferença importa.** As tabelas que
-crescem **sozinhas** — a verificação corre 2×/dia — não levam contagem
+crescem **sozinhas** — a verificação corre de hora a hora — não levam contagem
 exacta: levava-se um número que fica velho antes de o commit chegar ao
 GitHub. Aconteceu a 22/09/2026: alguém fez um commit **só** para mudar
 o `historico` de 622 para 623, e nessa manhã ele já ia em 625. As que
@@ -361,7 +361,7 @@ de avisar. **O interesse esconde, o alerta avisa** — são coisas
 diferentes (§3.3).
 
 **Reconhecer não é enviar, e essa separação é o desenho.** A
-verificação corre 2×/dia e o resumo sai 1×/dia; se fossem o mesmo
+verificação corre de hora a hora e o resumo sai 1×/dia; se fossem o mesmo
 passo, saíam dois e-mails com metade das coisas cada um.
 
 1. **Reconhecer** (`registar_alertas()`, `registar_seguidas()`, a cada
@@ -625,7 +625,10 @@ e-mail: a senha troca-se por consola, com `--palavra-passe NOME`.
 
 ### 4.10 O que corre sozinho
 
-- **Recolha** 2×/dia (09:00, 17:00): pagina a pesquisa do DR, lê o
+- **Recolha** de hora a hora, das 08:00 às 20:00 (desde 23/09/2026; o
+  `radar-hora.timer` dispara a todas as horas e só as de
+  `horas_verificacao` contam; o relógio do painel recupera só a última
+  hora falhada): pagina a pesquisa do DR, lê o
   detalhe de cada anúncio novo, traz as **consultas preliminares** da
   Vortal (as duas fontes estão no §3.7), detecta **republicações** e o
   que mudou, traz as peças das plataformas que o permitem (acingov,
