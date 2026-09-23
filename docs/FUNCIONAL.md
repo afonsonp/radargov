@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 23 de setembro de 2026**, sobre a `v1.11.0`. Este
+> **Última revisão: 23 de setembro de 2026**, sobre a `v1.12.0`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -76,7 +76,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — o trabalho (1,32 GB, 23 tabelas)
+### 2.1 `radar.db` — o trabalho (1,32 GB, 24 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -120,7 +120,7 @@ as exactas e salta as outras.
 | `alertas_vistos` | **0** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
-| `pedidos_acesso` | — | Os pedidos do formulário do site público (§4.9). **Nasce no primeiro arranque da versão que a traz**, e só então entra na contagem do título |
+| `pedidos_acesso` | **0** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 

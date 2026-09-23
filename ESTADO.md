@@ -55,10 +55,10 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
 | Rotas Flask | 84 |
-| Tabelas em `radar.db` | 23 |
+| Tabelas em `radar.db` | 24 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 095**, em ~67 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 23 532 linhas · `teste_radar.py` 13 971 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
+| Código | `radar.py` 23 715 linhas · `teste_radar.py` 14 115 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -109,9 +109,9 @@ ensaio de restauro.
   `"triagem_no_git": false`.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.11.0`**, de
-  23/09/2026 — os ecrãs arrumados (a lista dos concursos, o Hoje, a base
-  comum do sistema de desenho). **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v1.12.0`**, de
+  23/09/2026 — a ficha em duas colunas, e o site público em radargov.pt
+  com o formulário do pedido de acesso. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 17/09/2026** — as colunas novas da
   `propostas` e do `historico` — e demoraram **menos de 0,1 s** sobre
