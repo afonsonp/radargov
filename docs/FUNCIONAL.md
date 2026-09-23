@@ -667,8 +667,12 @@ também ao dono —, e as do sistema vivem na **administração da
 plataforma** (`/plataforma`, pelo menu da conta), com as empresas, os
 pedidos de acesso e o «Verificar agora» (`seccoes_visiveis()` /
 `seccoes_da_plataforma()`). O dono **não vê** os
-dados das empresas clientes: vê os da empresa dele, como qualquer
-conta. No acesso livre **sem conta nenhuma** as duas respostas são sim,
+dados das empresas clientes, e **não é de empresa nenhuma** (23/09/2026,
+decisão dele): o `apagar_empresa()` deixa-o com `empresa_id` 0
+(`SEM_EMPRESA`, `contas.sem_empresa()`), o `liga()` não junta ficheiro
+nenhum, e a porta só lhe abre a plataforma e o sair — tudo o resto
+redirecciona para `/plataforma` (um POST dá 403). Para trabalhar numa
+empresa usa outra conta, dela. No acesso livre **sem conta nenhuma** as duas respostas são sim,
 senão não se chegava a Conta para criar a primeira.
 
 **Duas guardas diferentes para um POST**, e confundi-las é o erro que os

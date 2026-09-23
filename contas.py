@@ -201,6 +201,14 @@ def e_admin(utilizador):
     return bool(utilizador) and utilizador.get("papel", "admin") == "admin"
 
 
+def sem_empresa(utilizador):
+    """O dono da plataforma sem empresa (23/09/2026): `empresa_id` 0.
+    So o dono pode estar assim -- e o `apagar_empresa()` do radar que o
+    deixa."""
+    return bool(utilizador) and e_dono(utilizador) \
+        and not utilizador.get("empresa_id")
+
+
 def e_dono(utilizador):
     """O dono da plataforma: ve o que e do sistema (F4)."""
     return bool(utilizador) and bool(utilizador.get("dono"))
@@ -344,8 +352,8 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
     espera = segundos_de_trinco(c, email, ip, agora)
     if espera:
         return None, "demasiadas tentativas; espera %d s" % espera
-    linha = c.execute("SELECT id, email, nome, papel, hash FROM utilizadores "
-                      "WHERE email=?", (email,)).fetchone()
+    linha = c.execute("SELECT id, email, nome, papel, hash, empresa_id, dono "
+                      "FROM utilizadores WHERE email=?", (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
         registar_falha(c, email, ip, agora)
         return None, "utilizador ou palavra-passe errados"
@@ -357,7 +365,8 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
     c.execute("UPDATE utilizadores SET ultimo_acesso=? WHERE id=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), linha["id"]))
     return token, {"id": linha["id"], "email": linha["email"],
-                   "nome": linha["nome"], "papel": linha["papel"]}
+                   "nome": linha["nome"], "papel": linha["papel"],
+                   "empresa_id": linha["empresa_id"], "dono": linha["dono"]}
 
 
 def utilizador_da_sessao(c, token, agora=None):

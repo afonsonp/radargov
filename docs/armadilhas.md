@@ -1951,6 +1951,17 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   falhar — um teste de isolamento que passa com as páginas vazias não
   prova nada, e é por isso que há o `test_a_b_ve_o_que_e_dela`.
 
+- **Uma rota aberta corre antes de a porta pôr a empresa**
+  (23/09/2026). O `/entrar` escrevia o «entrou» com o `registar()`, e
+  como a porta sai antes de fazer `_EMPRESA.set()` nas rotas abertas,
+  a entrada de uma conta da empresa B ficava no histórico da 1. Agora
+  regista dentro de `com_empresa()` da conta que entrou
+  (`test_a_entrada_da_b_fica_no_historico_da_b`). A regra: numa rota
+  aberta, **a empresa activa é a de omissão, não a de quem pede** — o
+  que se escreva lá dentro diz para que empresa vai. E o dono sem
+  empresa (`SEM_EMPRESA`) não tem `historico`: o `registar()` manda-o
+  para os `eventos`, e o `listar_pessoas()` devolve nada.
+
 - **As páginas legais só existem com o operador preenchido** (F8,
   23/09/2026). O `/termos` e a `/privacidade` são rotas abertas que dão
   404 enquanto o `operador` do config.json não tiver nome, NIF e morada,
