@@ -21964,7 +21964,6 @@ SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
 PEDIDOS_POR_IP_POR_HORA = 5
 PEDIDOS_POR_DIA = 200
 RX_EMAIL = re.compile(r"^[^@\s<>\"']+@[^@\s<>\"']+\.[^@\s<>\"']+$")
-CONTACTO_DO_SITE = "geral@radargov.pt"
 
 
 def pagina_do_site():
@@ -22053,8 +22052,7 @@ def pedir_acesso():
             (agora.strftime("%Y-%m-%d"),)).fetchone()["n"]
         if do_ip >= PEDIDOS_POR_IP_POR_HORA or do_dia >= PEDIDOS_POR_DIA:
             return resposta(False, "Recebemos muitos pedidos agora. Tente "
-                                   "mais tarde ou escreva para %s."
-                                   % CONTACTO_DO_SITE, 429)
+                                   "de novo mais tarde.", 429)
         id_ = c.execute(
             "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
             "sector, mensagem, ip) VALUES (?,?,?,?,?,?,?)",
