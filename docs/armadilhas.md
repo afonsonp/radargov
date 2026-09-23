@@ -1964,7 +1964,8 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 
 - **As páginas legais só existem com o operador preenchido** (F8,
   23/09/2026). O `/termos` e a `/privacidade` são rotas abertas que dão
-  404 enquanto o `operador` do config.json não tiver nome, NIF e morada,
+  404 enquanto o `operador` do config.json não tiver nome e morada (o
+  NIF é opcional desde 23/09/2026: o operador é uma pessoa),
   e o site substitui as marcas `<!--LEGAL-->` por nada — publicar uma
   política de privacidade sem responsável era pior do que não ter
   nenhuma. Os três campos entram na página **escapados**: um nome com

@@ -13454,6 +13454,16 @@ class TestAbrirABeta(BaseTemporaria):
         self.assertIn('href="/privacidade"', site)
         self.assertIn('href="/termos"', site)
 
+    def test_o_nif_do_operador_e_opcional(self):
+        """23/09/2026: o operador é uma pessoa, e não põe o NIF pessoal
+        na internet. Sem ele a frase fica certa, sem «NIF ,» pendurado."""
+        radar.gravar_config({"operador": {"nome": "Ana Exemplo",
+                                          "morada": "Rua Um, Lisboa"}})
+        corpo = self.cliente.get("/privacidade").get_data(as_text=True)
+        self.assertIn("<b>Ana Exemplo</b>, com domicílio", corpo)
+        self.assertNotIn("NIF", corpo.split("com domicílio")[0][-60:])
+        self.assertNotIn("{{", corpo)
+
     def test_o_vigia_leva_a_batida_e_o_fail_quando_corre_mal(self):
         batidas = []
         cfg = {"vigia_url": "https://hc-ping.com/abc/"}

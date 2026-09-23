@@ -1194,10 +1194,12 @@ Três coisas, que o radar já sabe usar e só precisam de ti (desde
    privacidade do site. No `config.json` da pasta:
 
    ```json
-   "operador": {"nome": "NOME DA EMPRESA", "nif": "NIF", "morada": "MORADA"}
+   "operador": {"nome": "O TEU NOME", "morada": "MORADA"}
    ```
 
-   Enquanto faltar um dos três, as duas páginas não aparecem. Os textos
+   O `"nif"` é opcional: em nome individual não o pões na internet
+   (23/09/2026); quando houver sociedade, entra o NIPC dela. Enquanto
+   faltar o nome ou a morada, as duas páginas não aparecem. Os textos
    estão em `site/termos.html` e `site/privacidade.html` — **são um
    rascunho: lê-os, e dá-os a rever a quem responda por isto na
    empresa, antes do primeiro cliente**. Mudam-se lá, sem reiniciar.
