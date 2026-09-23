@@ -167,7 +167,8 @@ python radar.py --empresa-desfazer COPIA # repõe a triagem tal como está numa 
                                    # (a da EMPRESA: copias/empresa-1-….db)
 python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
-python radar.py --criar-utilizador NOME  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass
+python radar.py --criar-utilizador NOME [--empresa N]  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass; sem --empresa é da 1
+python radar.py --criar-empresa "NOME"   # F4: uma empresa nova, com o ficheiro dela vazio; diz o número
 python ferramentas/ecrans.py       # todos os ecrãs num HTML só, para os ver
                                    # lado a lado: o HTML verdadeiro de cada
                                    # rota, com o CSS e as fontes embutidos.
@@ -238,14 +239,16 @@ hooks e nos testes (ver «Comandos», em cima).
 ### Acesso de fora
 
 O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
-(etapa 1 do `docs/historico/ONLINE.md`), com **dois papéis** desde
-13/09/2026.
+(etapa 1 do `docs/historico/ONLINE.md`), com **três níveis** desde 23/09/2026 (o dono da plataforma, o admin e o tester de cada empresa; eram dois papéis desde
+13/09/2026).
 
 **O que a porta É — os três estados, o que fica aberto sem sessão, as
 duas guardas do POST e o trinco — está no `docs/FUNCIONAL.md` §4.9.**
 Aqui ficam os nomes no código: `porta_de_entrada()` (um
 `before_request`, logo a seguir ao `app`), `pedido_e_local()`,
-`origem_e_nossa()`, `sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN`,
+`origem_e_nossa()`, `sou_dono()` / `so_dono()`, `ROTAS_SO_DONO`,
+`sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN`, `largar_a_empresa()`
+(o `teardown_request` que repõe a empresa do pedido),
 `ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
 inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`;
 `scrypt`; `token_csrf()` / `csrf_bate()`), que **não importa o radar**.
@@ -527,7 +530,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **238 pontos** (contados a 23/09/2026), cada um de um erro que
+São **239 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

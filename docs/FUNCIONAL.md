@@ -618,13 +618,24 @@ validados e cortados, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
 
-**Dois papéis** (`utilizadores.papel`). O **admin** vê tudo e cria
-contas; o **tester** leva 403 nas dez rotas do sistema
-(`ROTAS_SO_ADMIN`: Indicadores, Capturas, Recolha, Leitura das peças,
-Cópias, a gestão de utilizadores, o «Verificar agora», quem envia o
-e-mail e os pedidos de acesso do site). `sou_admin()` é a pergunta — e no acesso livre **sem conta
-nenhuma** a resposta é sim, senão não se chegava a Conta para criar a
-primeira.
+**Cada conta é de uma empresa** (`utilizadores.empresa_id`, desde a F4
+de 23/09/2026), e a porta põe a empresa dela no pedido: o `liga()`
+junta o ficheiro dessa empresa, e só esse. Nada da empresa de outro se
+vê em página nenhuma — é o que o `TestNenhumaEmpresaVeAOutra` percorre,
+rota a rota. Na cronologia de um anúncio, uma leitura pedida por
+alguém de outra empresa aparece como «RadarGov», sem o nome.
+
+**Três níveis.** O **dono da plataforma** (`utilizadores.dono`; o
+primeiro admin, que é o Afonso) é o único que abre o que é do sistema
+(`ROTAS_SO_DONO`: Indicadores, Capturas, Recolha, Leitura das peças,
+Cópias, o «Verificar agora», quem envia o e-mail e os pedidos de
+acesso do site); `sou_dono()` é a pergunta. O **admin** de uma empresa
+cria e tira as contas **dela** e diz quem ela é (`ROTAS_SO_ADMIN`:
+`/configuracoes/conta/utilizadores` e `/configuracoes/conta/empresa`);
+`sou_admin()` é a pergunta. O **tester** trabalha. O dono **não vê** os
+dados das empresas clientes: vê os da empresa dele, como qualquer
+conta. No acesso livre **sem conta nenhuma** as duas respostas são sim,
+senão não se chegava a Conta para criar a primeira.
 
 **Duas guardas diferentes para um POST**, e confundi-las é o erro que os
 diagramas ainda têm:

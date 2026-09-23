@@ -44,6 +44,13 @@ MINUTOS_DE_TRINCO = 15
 # leitura das pecas, copias, o "Verificar agora" -- e so do admin.
 PAPEIS = ("admin", "tester")
 
+# Desde a F4 do plano multi-empresa (23/09/2026) cada conta e de UMA
+# empresa (`empresa_id`), e o papel e dentro dela: o admin gere as contas
+# da empresa dele, o tester trabalha. O que e do SISTEMA -- a recolha,
+# as capturas, a leitura das pecas, as copias, os indicadores, os
+# pedidos de acesso -- passou a ser do DONO da plataforma (`dono`), que
+# e uma marca e nao um papel: o dono e tambem admin da empresa dele.
+
 
 def iniciar_tabelas(c):
     c.execute("""CREATE TABLE IF NOT EXISTS utilizadores (
@@ -57,6 +64,17 @@ def iniciar_tabelas(c):
     if "papel" not in cols:
         c.execute("ALTER TABLE utilizadores ADD COLUMN papel TEXT "
                   "NOT NULL DEFAULT 'admin'")
+    # A empresa de cada conta e a marca de dono (F4, 23/09/2026). Quem ja
+    # existia e da empresa 1, que era a unica; e o dono e o primeiro
+    # admin, que era o Afonso -- uma vez, quando a coluna nasce.
+    if "empresa_id" not in cols:
+        c.execute("ALTER TABLE utilizadores ADD COLUMN empresa_id INTEGER "
+                  "NOT NULL DEFAULT 1")
+    if "dono" not in cols:
+        c.execute("ALTER TABLE utilizadores ADD COLUMN dono INTEGER "
+                  "NOT NULL DEFAULT 0")
+        c.execute("UPDATE utilizadores SET dono=1 WHERE id=(SELECT MIN(id) "
+                  "FROM utilizadores WHERE papel='admin')")
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes (
         token TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
         criada_em TEXT, expira TEXT, ip TEXT, agente TEXT)""")
@@ -103,13 +121,15 @@ def email_limpo(email):
 
 # --------------------------------------------------------------- utilizadores
 
-def criar_utilizador(c, email, senha, nome="", papel=None):
+def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None):
     """Cria ou substitui a palavra-passe se o e-mail ja existir: e o
     mesmo comando que serve para recuperar o acesso pela linha de
     comandos. Devolve o id.
 
     O `papel` a None mantem o que ja la esta (ou 'admin' numa conta
-    nova): trocar a palavra-passe nao despromove ninguem.
+    nova): trocar a palavra-passe nao despromove ninguem. A `empresa_id`
+    a None, o mesmo -- trocar a palavra-passe nao muda ninguem de
+    empresa --, e 1 numa conta nova.
     """
     email = email_limpo(email)
     if papel is not None and papel not in PAPEIS:
@@ -125,32 +145,45 @@ def criar_utilizador(c, email, senha, nome="", papel=None):
                       (email,)).fetchone()
     if linha:
         c.execute("UPDATE utilizadores SET hash=?, nome=COALESCE(NULLIF(?,''), nome), "
-                  "papel=COALESCE(?, papel) WHERE id=?",
-                  (hash_senha(senha), (nome or "").strip(), papel, linha[0]))
+                  "papel=COALESCE(?, papel), empresa_id=COALESCE(?, empresa_id) "
+                  "WHERE id=?",
+                  (hash_senha(senha), (nome or "").strip(), papel, empresa_id,
+                   linha[0]))
         return linha[0]
-    cur = c.execute("INSERT INTO utilizadores (email, nome, hash, criado_em, papel) "
-                    "VALUES (?,?,?,?,?)",
+    # O primeiro admin e o dono da plataforma, tambem numa instalacao
+    # nova -- a mesma regra da migracao, que so corre quando a coluna
+    # nasce e numa base vazia nao encontra ninguem.
+    sem_dono = not c.execute("SELECT 1 FROM utilizadores WHERE dono=1").fetchone()
+    cur = c.execute("INSERT INTO utilizadores (email, nome, hash, criado_em, papel, "
+                    "empresa_id, dono) VALUES (?,?,?,?,?,?,?)",
                     (email, (nome or "").strip() or email.split("@")[0],
-                     hash_senha(senha), _agora(), papel or "admin"))
+                     hash_senha(senha), _agora(), papel or "admin",
+                     empresa_id or 1,
+                     1 if sem_dono and (papel or "admin") == "admin" else 0))
     return cur.lastrowid
 
 
-def utilizadores(c):
+def utilizadores(c, empresa_id=None):
+    """As contas, ou so as de uma empresa: o admin de uma empresa nao ve
+    as contas das outras (F4)."""
+    onde, args = ("WHERE empresa_id=?", (empresa_id,)) if empresa_id else ("", ())
     return [dict(r) for r in c.execute(
-        "SELECT id, email, nome, papel, criado_em, ultimo_acesso "
-        "FROM utilizadores ORDER BY id")]
+        "SELECT id, email, nome, papel, criado_em, ultimo_acesso, empresa_id, dono "
+        "FROM utilizadores %s ORDER BY id" % onde, args)]
 
 
-def apagar_utilizador(c, utilizador_id):
-    """Tira a conta e as sessoes dela. Recusa-se a tirar o ultimo admin:
-    sem admin ninguem volta a criar contas pelo painel."""
-    linha = c.execute("SELECT papel FROM utilizadores WHERE id=?",
+def apagar_utilizador(c, utilizador_id, empresa_id=None):
+    """Tira a conta e as sessoes dela. Recusa-se a tirar o ultimo admin
+    da empresa: sem admin ninguem volta a criar contas nela pelo painel.
+    Com `empresa_id`, uma conta de OUTRA empresa e como se nao existisse
+    -- e o que impede um admin de tirar contas alheias pelo id."""
+    linha = c.execute("SELECT papel, empresa_id FROM utilizadores WHERE id=?",
                       (utilizador_id,)).fetchone()
-    if not linha:
+    if not linha or (empresa_id and linha["empresa_id"] != empresa_id):
         return False
     if linha["papel"] == "admin" and c.execute(
-            "SELECT COUNT(*) FROM utilizadores WHERE papel='admin'"
-            ).fetchone()[0] <= 1:
+            "SELECT COUNT(*) FROM utilizadores WHERE papel='admin' "
+            "AND empresa_id=?", (linha["empresa_id"],)).fetchone()[0] <= 1:
         raise ValueError("é o único admin; cria outro antes de o tirar")
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM utilizadores WHERE id=?", (utilizador_id,))
@@ -159,6 +192,11 @@ def apagar_utilizador(c, utilizador_id):
 
 def e_admin(utilizador):
     return bool(utilizador) and utilizador.get("papel", "admin") == "admin"
+
+
+def e_dono(utilizador):
+    """O dono da plataforma: ve o que e do sistema (F4)."""
+    return bool(utilizador) and bool(utilizador.get("dono"))
 
 
 def unico_utilizador(c):
@@ -170,12 +208,14 @@ def unico_utilizador(c):
     tester, o painel no computador dele passou a dizer "sem conta
     ainda" e a registar tudo como "(sem nome)". O acesso livre e o
     computador dele; com varias contas, e o admin."""
-    linhas = c.execute("SELECT id, email, nome, papel FROM utilizadores "
-                       "ORDER BY id LIMIT 2").fetchall()
+    colunas = "id, email, nome, papel, empresa_id, dono"
+    linhas = c.execute("SELECT %s FROM utilizadores ORDER BY id LIMIT 2"
+                       % colunas).fetchall()
     if len(linhas) == 1:
         return dict(linhas[0])
-    admin = c.execute("SELECT id, email, nome, papel FROM utilizadores "
-                      "WHERE papel='admin' ORDER BY id LIMIT 1").fetchone()
+    # o dono primeiro: o acesso livre e o computador dele
+    admin = c.execute("SELECT %s FROM utilizadores WHERE papel='admin' "
+                      "ORDER BY dono DESC, id LIMIT 1" % colunas).fetchone()
     return dict(admin) if admin else None
 
 
@@ -254,7 +294,8 @@ def utilizador_da_sessao(c, token, agora=None):
         return None
     agora = agora or datetime.now()
     linha = c.execute(
-        "SELECT s.expira, u.id, u.email, u.nome, u.papel FROM sessoes s "
+        "SELECT s.expira, u.id, u.email, u.nome, u.papel, u.empresa_id, "
+        "u.dono FROM sessoes s "
         "JOIN utilizadores u ON u.id = s.utilizador_id WHERE s.token=?",
         (token,)).fetchone()
     if not linha:
@@ -266,7 +307,8 @@ def utilizador_da_sessao(c, token, agora=None):
               ((agora + timedelta(days=DIAS_DE_SESSAO)).strftime(
                   "%Y-%m-%d %H:%M:%S"), token))
     return {"id": linha["id"], "email": linha["email"],
-            "nome": linha["nome"], "papel": linha["papel"]}
+            "nome": linha["nome"], "papel": linha["papel"],
+            "empresa_id": linha["empresa_id"], "dono": linha["dono"]}
 
 
 def sair(c, token):
