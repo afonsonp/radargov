@@ -1612,6 +1612,32 @@ SQLite, cópias, e a pen que manda nos números.
   `--empresa-desfazer` recebe a cópia **da empresa**
   (`copias/empresa-1-…db`), que é onde as propostas estão.
 
+- **A empresa activa é do fio de execução, e um fio novo não a herda**
+  (F2, 23/09/2026). É um `ContextVar` (`empresa_activa()`,
+  `com_empresa()`), e não uma global que se troca: a verificação corre
+  dentro do painel e percorre as empresas uma a uma, e uma global
+  trocada ali punha os pedidos do painel, ao mesmo tempo, a ler a
+  empresa errada. A consequência a não esquecer: uma thread nova — o
+  `ThreadPoolExecutor` do `ler_detalhes()`, a fila das peças — começa
+  **sem** empresa e cai na de omissão. Por isso o código da plataforma
+  não pode depender de qual está activa: o que tem de chegar a todas
+  percorre `empresas_existentes()` (a herança da proposta numa
+  alteração, `_herdar_propostas()`), e o que pergunta «está na escada?»
+  pergunta a todas (`marcar_os_da_escada()`, a tabela temporária
+  `na_escada`). Com uma empresa só, os dois erros não se viam.
+
+- **A fila das alterações é da plataforma; o «já avisei» é de cada
+  empresa** (F2). Até 23/09/2026 a `alteracoes` tinha um `avisado_em`
+  para todas, e só entrava lá o que a empresa activa tinha marcado: a
+  primeira empresa a mandar o resumo apagava as alterações das outras,
+  e a B recebia as dos concursos da A. Hoje entra tudo, e o
+  `alteracoes_por_avisar()` de cada empresa escolhe as dos concursos que
+  ela tem na escada, detectadas **depois** de a proposta nascer (senão
+  pegar num concurso trazia meses de alterações velhas), e marca-as na
+  `alteracoes_avisadas` dela. O mesmo corte vale para o `historico`: o
+  que o DR e as peças fizeram vai para os `eventos` da plataforma
+  (`registar_evento()`), e o `registar()` fica para o que a empresa fez.
+
 - **A verificação das 09:00 aparece no `journalctl` com um pico de
   memória 25× maior do que a das 17:00, e não há avaria nenhuma.** A
   cópia é uma por dia e o nome é a data, por isso é a primeira

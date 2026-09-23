@@ -216,7 +216,7 @@ Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
 pymupdf. O hook dos testes já escolhe o `.venv` sozinho.
 
 **Os `.sh` são atalhos para o Afonso, não para desenvolvimento.** São
-dezasseis, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
+catorze, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
 manual dele, e um script que exista sem lá estar é um script que ele
 não sabe que tem (aconteceu ao `actualizar.sh`, que é o gesto mais
 importante que ele faz e faltava no manual até 19/09/2026). Dois que
@@ -303,7 +303,12 @@ A ordem do ficheiro é a ordem do fluxo:
    `EMPRESA_ACTIVA`); o esquema dele é o `iniciar_empresa()`, e o
    `separar_empresa()` passou-lhe as tabelas no primeiro arranque. A
    regra: **uma tabela da empresa nunca nasce no `radar.db`** — a razão
-   está nas armadilhas, «A base, as migrações e o disco». **As tabelas,
+   está nas armadilhas, «A base, as migrações e o disco». Desde a **F2**
+   (mesmo dia) a empresa activa é do fio de execução (`empresa_activa()`,
+   `com_empresa()`), e a verificação faz a recolha uma vez e o
+   `trabalho_da_empresa()` em cada uma; o que o DR e as peças fazem vai
+   para os `eventos` da plataforma (`registar_evento()`), e o
+   `registar()` fica para o que a empresa faz. **As tabelas,
    com o que cada uma tem lá dentro e quantas linhas, estão no
    `docs/FUNCIONAL.md` §2.1**; os números medidos de hoje no
    `ESTADO.md`.
@@ -518,7 +523,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **235 pontos** (contados a 23/09/2026), cada um de um erro que
+São **237 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
@@ -749,16 +754,15 @@ guardam a regra do Zoho e a guarda dos lotes, com testes em
 GB) e `contratos.db` (2,5 GB) excedem de longe o limite de 100 MB por
 ficheiro que o GitHub recusa num push normal, e o Git LFS gratuito só
 dá 1 GB/mês, insuficiente para uma base que cresce duas vezes por dia.
-Para levar o `radar.db` de um computador para outro usa-se uma release
-à parte, **`dados`** (fora da numeração `vX.Y.Z` do código, para o
-`actualizar.sh` não a confundir com uma versão): `publicar_dados.sh`
-sobe o `radar.db` como anexo dessa release (`gh release upload dados
---clobber`), `trazer_dados.sh` descarrega-o no computador novo. É
-manual e pontual — nunca corre nas verificações agendadas, que só
-mexem no `triagem.jsonl`. **O `contratos.db` não viaja**: com 2,5 GB
-excede mesmo o limite de anexo do GitHub (2 GB), e refaz-se em minutos
-com `python radar.py --contratos` a partir do dump público do IMPIC —
-não há razão para transportar o ficheiro.
+**E desde 23/09/2026 nenhum dado vai para o GitHub, por nenhum
+caminho** — decisão dele: «no github devemos apenas guardar código».
+Nesse dia saiu a release `dados`, que levava o `radar.db` como anexo
+para o mudar de computador, com os dois scripts que a faziam; mudar de
+computador faz-se por uma pen ou pela rede (`LEIA-ME.md` §15-A). Com
+empresas clientes, uma base num repositório de código deixava de ser
+um atalho e passava a ser uma fuga. **O `contratos.db` não viaja**:
+refaz-se em minutos com `python radar.py --contratos` a partir do dump
+público do IMPIC.
 
 **Fins de linha:** o `.gitattributes` (8/09/2026) fixa LF em tudo (e
 CRLF nos `.bat`, que já não existem). Antes dele, a pasta escrita pelo Windows com

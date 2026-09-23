@@ -76,7 +76,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 12 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 13 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -108,7 +108,8 @@ as exactas e salta as outras.
 | `anuncios` | ~210 mil | Um por anúncio do DR (mais ~110 da Vortal). Desde **2015**. Cresce ~40/dia |
 | `documentos` | algumas centenas | As peças em disco. Crescem quando se traz um concurso, e com a vigilância |
 | `analise` | uma por concurso lido | O que o modelo leu das peças |
-| `alteracoes` | uma por alteração | O que o DR mudou num anúncio já lido |
+| `alteracoes` | uma por alteração | O que o DR mudou num anúncio já lido. **Leva tudo** desde a F2 (23/09/2026): cada empresa recebe só as dos concursos que tem na escada, e marca-as na `alteracoes_avisadas` dela (a coluna `avisado_em` ficou, por usar) |
+| `eventos` | uma por evento | O que a plataforma viu acontecer a um anúncio — o DR mudou-o ou rectificou-o, apareceu uma peça, o modelo leu-as (`ACCOES_DA_PLATAFORMA`). Saiu do `historico` da empresa na F2; a ficha mostra os dois juntos (`passos_do_anuncio()`) |
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (2/dia) |
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
@@ -140,7 +141,7 @@ as exactas e salta as outras.
 `posicao`, `top3`, `motivo_perda`. São as colunas de CRM que saíram para
 `propostas` a 15/09/2026 — **não as uses: estão mortas.**
 
-### 2.1a `empresas/<id>/empresa.db` — o trabalho de uma empresa (13 tabelas)
+### 2.1a `empresas/<id>/empresa.db` — o trabalho de uma empresa (14 tabelas)
 
 **Um ficheiro por empresa** (fase F1, 23/09/2026; hoje só há a empresa
 1). O `liga()` junta-o ao `radar.db` com o nome `emp`, e o SQL não
@@ -157,14 +158,15 @@ comparadas antes de apagar.
 | `propostas` | **81** | O que a **empresa** está a fazer — a escada |
 | `tarefas` | dezenas | O que falta fazer, por proposta. A verificação sincroniza-as |
 | `contactos` | **26** | As pessoas do lado de lá, **por entidade** |
-| `historico` | uma por movimento | Quem, o quê, quando. Cresce a **cada acção** no painel |
+| `historico` | uma por movimento | Quem, o quê, quando — o que a **empresa** fez. Cresce a **cada acção** no painel; o que o DR e as peças fizeram está nos `eventos` |
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
 | `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |
 | `filtros_guardados` | **0** | Hoje só os alertas lá vivem (§3.8) |
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
 | `alertas_vistos` | **0** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
-| `marcas_da_empresa` | 3 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`) |
+| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`) e a da migração das alterações avisadas |
+| `alteracoes_avisadas` | uma por alteração recebida | O que esta empresa já recebeu da fila `alteracoes`, que é da plataforma (F2) |
 
 **As colunas de `propostas`, e quantas das 78 estão preenchidas:**
 
