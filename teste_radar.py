@@ -13006,12 +13006,81 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
             self.assertTrue(c.execute("SELECT 1 FROM utilizadores WHERE id=?",
                                       (id_b,)).fetchone())
 
+    def test_a_entrada_da_b_fica_no_historico_da_b(self):
+        """Ate 23/09/2026 o /entrar, que e rota aberta e corre antes de a
+        porta pôr a empresa, escrevia o «entrou» da B no historico da 1."""
+        self.entrar("conta-b-segredo")
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM historico WHERE "
+                                       "accao='entrou'").fetchone())
+        with radar.com_empresa(self.b), radar.liga() as c:
+            self.assertTrue(c.execute("SELECT 1 FROM historico WHERE "
+                                      "accao='entrou'").fetchone())
+
     def test_a_empresa_da_sessao_nao_fica_pendurada_depois_do_pedido(self):
         """No cliente dos testes os pedidos correm todos na mesma thread:
         sem o `teardown_request`, a empresa da B ficava activa para o
         pedido seguinte, de outra pessoa."""
         self.entrar("conta-b-segredo").get("/", environ_base=self.FORA)
         self.assertEqual(radar.empresa_activa(), radar.EMPRESA_ACTIVA)
+
+
+class TestDonoSemEmpresa(BaseTemporaria):
+    """23/09/2026, pedido dele: «a conta de dono de plataforma não pode
+    estar associada a nenhuma empresa». O `apagar_empresa()` tira a
+    empresa inteira e deixa o dono sem nenhuma; sem empresa, a porta só
+    abre a plataforma, e o arranque seguinte não faz renascer a 1 vazia.
+    A empresa nova que se crie depois é outra (a 2), e não a 1 de volta."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")     # dono
+            radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+            c.execute("INSERT INTO contactos (entidade_chave, entidade, nome) "
+                      "VALUES ('n:x', 'X', 'CONTACTO-DA-1')")
+            c.execute("INSERT INTO leituras_pedidas VALUES "
+                      "('2026-09-23 10:00', 1, '1/2026', 'teste')")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "copia_de_seguranca_com_nome", return_value="copia"))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "COPIAS", os.path.join(self.pasta, "copias")))
+        self.copia, self.guardada, self.saiu = radar.apagar_empresa(1)
+
+    def test_a_empresa_sai_inteira_e_fica_guardada_nas_copias(self):
+        self.assertEqual(radar.empresas_existentes(), [])
+        self.assertTrue(os.path.exists(os.path.join(self.guardada, "empresa.db")))
+        with radar.liga() as c:
+            contas_ = {r["email"]: r["empresa_id"] for r in c.execute(
+                "SELECT email, empresa_id FROM utilizadores")}
+            self.assertEqual(contas_, {"admin": radar.SEM_EMPRESA})
+            self.assertFalse(c.execute("SELECT 1 FROM leituras_pedidas").fetchone())
+
+    def test_o_arranque_nao_faz_renascer_a_empresa(self):
+        radar.iniciar_db()
+        self.assertEqual(radar.empresas_existentes(), [])
+        self.assertEqual(radar.criar_empresa("Nova"), 2)
+
+    def test_o_dono_sem_empresa_so_abre_a_plataforma(self):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": "admin", "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(cliente.get("/plataforma", environ_base=self.FORA)
+                         .status_code, 200)
+        r = cliente.get(radar.LISTA, environ_base=self.FORA)
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/plataforma"))
+        falhas = []
+        for regra in radar.app.url_map.iter_rules():
+            if "GET" not in (regra.methods or ()) or "<" in regra.rule:
+                continue
+            codigo = cliente.get(regra.rule, environ_base=self.FORA).status_code
+            if codigo >= 500:
+                falhas.append((regra.rule, codigo))
+        self.assertEqual(falhas, [])
+        self.assertEqual(radar.empresas_existentes(), [])   # nada a criou
 
 
 class TestConvites(BaseTemporaria):

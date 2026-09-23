@@ -169,6 +169,7 @@ python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se res
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
 python radar.py --criar-utilizador NOME [--empresa N]  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass; sem --empresa é da 1
 python radar.py --criar-empresa "NOME"   # F4: uma empresa nova, com o ficheiro dela vazio; diz o número
+python radar.py --apagar-empresa N [--sim] # tira a empresa inteira (cópia antes; a pasta vai para copias/); o dono fica sem empresa
 python ferramentas/ecrans.py       # todos os ecrãs num HTML só, para os ver
                                    # lado a lado: o HTML verdadeiro de cada
                                    # rota, com o CSS e as fontes embutidos.
@@ -534,7 +535,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **244 pontos** (contados a 23/09/2026), cada um de um erro que
+São **245 pontos** (contados a 23/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

@@ -34,6 +34,7 @@ import os
 import re
 import queue
 import shlex
+import shutil
 import smtplib
 import statistics
 import socket
@@ -306,6 +307,10 @@ MARCAS_DA_EMPRESA = ("ultimo_resumo", "ultimo_resumo_estado",
 # A empresa de omissao. Ate a F4 e a unica; a partir dela a sessao diz
 # qual e a de quem entrou.
 EMPRESA_ACTIVA = 1
+# Nenhuma empresa: a do dono da plataforma, que nao e de nenhuma
+# (23/09/2026, decisao dele). O `liga()` nao junta ficheiro nenhum, e
+# as tabelas da empresa nem existem -- falha fechado, nao abre a 1.
+SEM_EMPRESA = 0
 # A empresa deste fio de execucao (F2, 23/09/2026). E um ContextVar e nao
 # uma global que se muda: a verificacao corre dentro do painel, numa
 # thread, e percorre as empresas uma a uma -- uma global trocada ali
@@ -315,7 +320,8 @@ _EMPRESA = contextvars.ContextVar("empresa", default=None)
 
 
 def empresa_activa():
-    return _EMPRESA.get() or EMPRESA_ACTIVA
+    id_ = _EMPRESA.get()
+    return EMPRESA_ACTIVA if id_ is None else id_
 
 
 @contextlib.contextmanager
@@ -874,10 +880,13 @@ def separar_empresa():
 def iniciar_db():
     arrumar_pecas()
     separar_empresa()
-    iniciar_empresa()
+    # A primeira empresa so nasce numa instalacao nova, sem a pasta das
+    # empresas: depois de apagada (`apagar_empresa()`) nao volta a
+    # aparecer vazia no arranque seguinte.
+    if not os.path.isdir(pasta_das_empresas()):
+        iniciar_empresa()
     for id_ in empresas_existentes():       # as migracoes de todas
-        if id_ != empresa_activa():
-            iniciar_empresa(db_da_empresa(id_))
+        iniciar_empresa(db_da_empresa(id_))
     with liga() as c:
         # O que a plataforma viu acontecer a um anuncio -- o DR mudou-o,
         # rectificou-o, apareceu uma peca, o modelo leu-as (F2,
@@ -1027,7 +1036,9 @@ def iniciar_db():
         # nome que a própria proposta guarda quando não há anúncio
         # nenhum. Aqui e não lá em cima porque o `anuncios.nif` é uma das
         # colunas que a migração acabou de criar. São dezenas de linhas.
-        for p in c.execute(
+        sem_propostas = not c.execute(
+            "SELECT 1 FROM pragma_database_list WHERE name='emp'").fetchone()
+        for p in [] if sem_propostas else c.execute(
                 "SELECT p.id, p.entidade, a.nif, a.entidade AS a_entidade "
                 "FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref "
                 "WHERE COALESCE(p.entidade_chave,'') = ''").fetchall():
@@ -2001,6 +2012,8 @@ def aparelho_do_agente(agente):
 # lista de nomes para o "responsavel", que pode ser um colega sem conta.
 
 def listar_pessoas():
+    if empresa_activa() == SEM_EMPRESA:      # o dono da plataforma
+        return []
     with liga() as c:
         return [r["nome"] for r in
                 c.execute("SELECT nome FROM pessoas ORDER BY nome")]
@@ -2031,7 +2044,12 @@ def registar(ref, accao, detalhe="", quem=None, proposta_id=None):
     O `proposta_id` e para o que NAO tem `ref` (fase 3 do CICLOS.md): uma
     proposta sem anuncio gravava com `ref=""` e nada a voltava a
     encontrar -- a cronologia dela estava a ser escrita para o vazio.
+
+    Sem empresa (o dono da plataforma), vai para os `eventos`.
     """
+    if empresa_activa() == SEM_EMPRESA:
+        registar_evento(ref, accao, detalhe, quem=quem or quem_sou() or "")
+        return
     with liga() as c:
         c.execute("""INSERT INTO historico
                      (ref,quem,accao,detalhe,quando,proposta_id)
@@ -6849,6 +6867,38 @@ def copia_de_seguranca_com_nome(marca_nome):
     return destino
 
 
+def apagar_empresa(id_):
+    """Tira uma empresa inteira da plataforma (23/09/2026): o ficheiro
+    dela, a configuracao e a triagem, as contas (menos a do dono, que
+    fica sem empresa), os convites e as leituras que pediu.
+
+    Primeiro a copia com nome, e a pasta da empresa nao se apaga: vai
+    para `copias/`, onde fica ate alguem a tirar. Devolve (copia, pasta
+    guardada, {o que saiu: quantos})."""
+    if id_ not in empresas_existentes():
+        raise ValueError("a empresa %s não existe (há: %s)"
+                         % (id_, empresas_existentes()))
+    copia = copia_de_seguranca_com_nome("antes-de-apagar-a-empresa-%d" % id_)
+    guardada = os.path.join(COPIAS, "empresa-%d-apagada-%s" % (
+        id_, datetime.now().strftime("%Y-%m-%d-%H%M%S")))
+    shutil.move(os.path.dirname(db_da_empresa(id_)), guardada)
+    saiu = {}
+    with _abre(DB) as c:
+        saiu["sessões"] = c.execute(
+            "DELETE FROM sessoes WHERE utilizador_id IN (SELECT id FROM "
+            "utilizadores WHERE empresa_id=? AND dono=0)", (id_,)).rowcount
+        saiu["contas"] = c.execute("DELETE FROM utilizadores WHERE "
+                                   "empresa_id=? AND dono=0", (id_,)).rowcount
+        saiu["dono sem empresa"] = c.execute(
+            "UPDATE utilizadores SET empresa_id=? WHERE empresa_id=? AND dono=1",
+            (SEM_EMPRESA, id_)).rowcount
+        saiu["convites"] = c.execute("DELETE FROM convites WHERE empresa_id=?",
+                                     (id_,)).rowcount
+        saiu["leituras pedidas"] = c.execute(
+            "DELETE FROM leituras_pedidas WHERE empresa_id=?", (id_,)).rowcount
+    return copia, guardada, saiu
+
+
 def repor_estado_zero():
     """A aplicacao como acabada de instalar, SEM perder o acervo.
 
@@ -9799,9 +9849,18 @@ def porta_de_entrada():
     # cliente dos testes os pedidos correm todos na mesma thread.
     if g.utilizador:
         g.marca_da_empresa = _EMPRESA.set(
-            g.utilizador.get("empresa_id") or EMPRESA_ACTIVA)
+            SEM_EMPRESA if contas.sem_empresa(g.utilizador)
+            else g.utilizador.get("empresa_id") or EMPRESA_ACTIVA)
     if so_dono(request.path) and not sou_dono():
         return Response("só o dono da plataforma abre isto", 403,
+                        mimetype="text/plain")
+    # Sem empresa, so a plataforma e sair: o resto e trabalho de uma
+    # empresa, e nao ha nenhuma para mostrar.
+    if empresa_activa() == SEM_EMPRESA and not so_dono(request.path) \
+            and request.path not in ("/sair", "/sair-de-todos"):
+        if request.method == "GET":
+            return redirect("/plataforma")
+        return Response("esta conta não é de nenhuma empresa", 403,
                         mimetype="text/plain")
     if so_admin(request.path) and not sou_admin():
         return Response("só o admin abre isto", 403, mimetype="text/plain")
@@ -10040,7 +10099,12 @@ def entrar():
         return pagina_entrar(resultado, email=email,
                              para=request.form.get("para"),
                              codigo=429 if "espera" in resultado else 200)
-    registar("", "entrou", request.remote_addr or "", quem=resultado["nome"])
+    # Na empresa de quem entrou: o /entrar e rota aberta, e a porta
+    # ainda nao pos a empresa do pedido -- ate 23/09/2026 a entrada de
+    # uma conta da B ficava no historico da 1.
+    with com_empresa(SEM_EMPRESA if contas.sem_empresa(resultado)
+                     else resultado["empresa_id"] or EMPRESA_ACTIVA):
+        registar("", "entrou", request.remote_addr or "", quem=resultado["nome"])
     resposta = redirect(destino_seguro(request.form.get("para")))
     resposta.set_cookie("sessao", token,
                         max_age=60 * 60 * 24 * contas.DIAS_DE_SESSAO,
@@ -22652,11 +22716,15 @@ def indicadores():
         total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
         hoje_n = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
                            (hoje.strftime("%Y-%m-%d"),)).fetchone()["n"]
-        interessa = c.execute("SELECT COUNT(*) n FROM propostas").fetchone()["n"]
+        # As propostas sao da empresa: o dono sem empresa ve zero, e nao
+        # um 500 (23/09/2026).
+        tem_empresa = empresa_activa() != SEM_EMPRESA
+        interessa = c.execute("SELECT COUNT(*) n FROM propostas").fetchone()["n"] \
+            if tem_empresa else 0
         # A MESMA janela do filtro prazo=urgente (janela_urgente): havia
         # aqui um 7 escrito a mao com o filtro a 10, e o numero do cartao
         # nao abria lista nenhuma que o confirmasse.
-        urgentes = c.execute(
+        urgentes = 0 if not tem_empresa else c.execute(
             "SELECT COUNT(*) n FROM anuncios a WHERE a.prazo >= ? "
             "AND a.prazo <= ? AND EXISTS (SELECT 1 FROM propostas p "
             "WHERE p.ref = a.ref AND p.estado IN (%s))"
@@ -24670,6 +24738,31 @@ def main():
         for k, v in sorted(n.items()):
             print("  %-22s %s" % (k, v))
         print("Estado zero. O acervo ficou.")
+        return
+
+    if "--apagar-empresa" in sys.argv:
+        # 23/09/2026: tira uma empresa inteira; o dono fica sem empresa.
+        i = sys.argv.index("--apagar-empresa")
+        try:
+            id_ = int(sys.argv[i + 1])
+        except (IndexError, ValueError):
+            print("Uso: python radar.py --apagar-empresa N [--sim]")
+            return
+        if "--sim" not in sys.argv:
+            if input("Isto apaga a empresa %d inteira: propostas, tarefas, "
+                     "contactos, histórico, configuração, triagem e contas. "
+                     "Escreve APAGAR para continuar: " % id_).strip() != "APAGAR":
+                print("Nada mudou.")
+                return
+        try:
+            copia, guardada, saiu = apagar_empresa(id_)
+        except ValueError as erro:
+            print(erro)
+            return
+        print("Cópia de antes em %s." % copia)
+        print("A pasta da empresa está em %s (apaga-a quando quiseres)." % guardada)
+        for k, v in saiu.items():
+            print("  %-18s %s" % (k, v))
         return
 
     if "--ensaiar-copia" in sys.argv:

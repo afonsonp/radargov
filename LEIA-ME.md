@@ -622,20 +622,34 @@ sem aparecer no ecrã). As contas seguintes criam-se no painel, em
 **Configurações › Conta**, por um admin.
 
 **Cada conta é de uma empresa** (desde 23/09/2026), e só vê o trabalho
-dela. As tuas contas são da LATD, a empresa 1. Uma empresa nova cria-se
-num terminal, e a primeira conta dela a seguir:
+dela — **menos a tua**: a conta do dono da plataforma não é de empresa
+nenhuma, e só abre a administração da plataforma. Para trabalhar numa
+empresa usa outra conta, dela. Uma empresa nova nasce de um pedido de
+acesso aceite (o convite), ou num terminal, com a primeira conta dela a
+seguir:
 
 ```bash
 .venv/bin/python radar.py --criar-empresa "NOME DA EMPRESA"
 .venv/bin/python radar.py --criar-utilizador NOME --empresa 2
 ```
 
+Para tirar uma empresa inteira — propostas, tarefas, contactos,
+histórico, configuração, triagem e contas —:
+
+```bash
+.venv/bin/python radar.py --apagar-empresa N
+```
+
+Pede que escrevas APAGAR, faz uma cópia antes, e a pasta da empresa
+não desaparece: vai para `copias/empresa-N-apagada-…`, e apagas-a tu
+quando tiveres a certeza.
+
 **Há três níveis.** **Tu és o dono da plataforma**: só tu vês os
 Indicadores, as Capturas, a Recolha, a Leitura das peças e as Cópias,
 o botão «Verificar agora», a conta que envia o e-mail e os pedidos de
 acesso do site — tudo na **administração da plataforma**, no menu da
-tua conta. As Configurações da tua conta mostram só o que é da tua
-empresa, como a qualquer admin. Não vês o trabalho das outras empresas — só o da tua. O
+tua conta. Não vês o trabalho de nenhuma empresa: a tua conta não é
+de nenhuma, e tudo o que não é da plataforma leva-te de volta a ela. O
 **admin** de uma empresa cria e tira as contas **dela** e diz quem ela é
 (nome e NIF). O **tester** vê os anúncios, o que está em curso e o
 mercado, e nas configurações só a Conta, o Interesse, os Alertas e o
