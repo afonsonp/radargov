@@ -53,12 +53,12 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
-| Contas | 2 |
+| Contas | 1 (a da marlene saiu a 23/09) |
 | Rotas Flask | 89 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa estão em `empresas/1/empresa.db` desde 23/09 (F1) |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 130**, em ~67 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 23 757 linhas · `teste_radar.py` 14 162· `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
+| Código | `radar.py` 24 835 linhas · `teste_radar.py` 14 879 · `empresa.py` 641 · `contas.py` 418 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -111,8 +111,8 @@ ensaio de restauro.
   `copias/` — **no mesmo disco**.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v1.13.0`**, de
-  23/09/2026 — a verificação de hora a hora, das 08:00 às 20:00. **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v1.14.0`**, de
+  23/09/2026 — a plataforma multi-empresa (F1 a F8), a administração da plataforma e as peças dentro dos ZIP. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 23/09/2026**: a F1 passou as
   tabelas da empresa para `empresas/1/empresa.db` (`separar_empresa()`,
