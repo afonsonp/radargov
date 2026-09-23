@@ -54,10 +54,10 @@ Funciona. Os números são de **22/09/2026**, lidos das duas bases.
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — o `email.para` tem destino desde 16/09, falta ligar um alerta |
 | Contas | 2 |
-| Rotas Flask | 82 |
+| Rotas Flask | 84 |
 | Tabelas em `radar.db` | 23 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 083**, em ~67 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 095**, em ~67 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 23 532 linhas · `teste_radar.py` 13 971 · `empresa.py` 641 · `contas.py` 302 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 

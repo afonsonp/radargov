@@ -253,6 +253,12 @@ porque quem fecha a porta nas fontes e na folha é a lista branca
 `TIPOS` e a conferência da etiqueta, não a linha da porta. Lê a área
 «Contas e a porta» do `docs/armadilhas.md` antes de tocar nisto.
 
+**Sem sessão, a raiz de radargov.pt é o site público** (23/09/2026):
+`site/index.html`, servido pela `porta_de_entrada()` só em `/`, e o
+formulário `/pedir-acesso`, que é rota aberta com a guarda dentro de
+si (`pedir_acesso()`). O que isso quer dizer está no
+`docs/FUNCIONAL.md` §4.9 e nas armadilhas, «Contas e a porta».
+
 **O endereço público é `https://radargov.pt`** (8/09/2026, etapa 3
 do plano, feita pela via B — o PC de empresa exposto por um túnel, não
 um VPS): um túnel com nome da Cloudflare, `radar`, a correr como
@@ -500,7 +506,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **232 pontos** (contados a 22/09/2026), cada um de um erro que
+São **234 pontos** (contados a 22/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
