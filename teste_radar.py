@@ -650,6 +650,34 @@ class TestTextoDoZip(unittest.TestCase):
         caminho = self.zip_com([("pecas.zip", camada)])
         self.assertEqual(radar.texto_do_zip(caminho, set()), ("", "não é PDF"))
 
+    def test_o_7z_abre_como_o_zip_com_um_zip_dentro(self):
+        """23/09/2026: um concurso de quatro lotes entregava as pecas de
+        cada lote num .7z de 32 MB, e ficavam «não é PDF»."""
+        import py7zr
+        dentro = self.zip_em_bytes([("Programa_de_Concurso.docx",
+                                     self.docx("Lote 1: estrada nacional"))])
+        f = tempfile.NamedTemporaryFile(delete=False, suffix=".7z")
+        f.close()
+        self.addCleanup(lambda: os.path.exists(f.name) and os.remove(f.name))
+        with py7zr.SevenZipFile(f.name, "w") as z:
+            z.writestr(self.docx("Caderno de encargos do lote"),
+                       "LOTE 1/Caderno_de_Encargos.docx")
+            z.writestr(dentro, "LOTE 1/pecas.zip")
+            z.writestr(b"nao interessa", "LOTE 1/leia.txt")
+        texto, estado = radar.texto_do_7z(f.name, set())
+        self.assertEqual(estado, "ok")
+        self.assertIn("Caderno de encargos do lote", texto)
+        self.assertIn("Lote 1: estrada nacional", texto)
+        self.assertIn("LOTE 1/pecas.zip/Programa_de_Concurso.docx", texto)
+
+    def test_um_7z_estragado_e_erro_e_nao_veredicto(self):
+        f = tempfile.NamedTemporaryFile(delete=False, suffix=".7z")
+        f.write(b"isto nao e um 7z")
+        f.close()
+        self.addCleanup(lambda: os.path.exists(f.name) and os.remove(f.name))
+        _, estado = radar.texto_do_7z(f.name, set())
+        self.assertTrue(estado.startswith("erro"), estado)
+
     def test_um_zip_de_nome_generico_da_ao_modelo_o_programa_de_dentro(self):
         caminho = self.zip_com([("PECAS/Programa_de_Concurso.docx",
                                  self.docx("Criterio de adjudicacao: preco")),

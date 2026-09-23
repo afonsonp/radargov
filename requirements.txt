@@ -12,3 +12,7 @@ cryptography
 # lê o Excel de análise de concursos da casa (--importar-excel); puro
 # Python, só se importa nesse comando
 openpyxl
+# abre as pecas que as entidades entregam em .7z (23/09/2026: um
+# concurso de quatro lotes, 32 MB cada); puro Python, so se importa ao
+# ler uma dessas pecas
+py7zr

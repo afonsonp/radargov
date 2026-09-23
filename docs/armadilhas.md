@@ -269,7 +269,10 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   (`texto_do_docx()`), e marca cada ficheiro no texto
   (`MARCA_DO_FICHEIRO`) — é por essa marca que o `pecas_para_analise()`
   manda ao modelo, de um ZIP, só os ficheiros de dentro que são da peça.
-  Os `.7z` continuam por abrir: precisavam de uma biblioteca nova.
+  Os `.7z` abrem-se com o `py7zr` (`texto_do_7z()`, os mesmos tectos),
+  mas **não no arranque**: um `.7z` de lote são 46 PDF e 91 s de
+  leitura, e a migração que os voltou a pôr por ler não os lê — lêem-se
+  quando alguém pedir as peças ou a leitura desse concurso.
 
 - **"Abrir plataforma" não é o link das peças.** O DR nunca publica o
   endereço da página do procedimento: traz a raiz da plataforma e o
