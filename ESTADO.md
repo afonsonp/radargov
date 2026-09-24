@@ -25,7 +25,7 @@ volta ao formato. Onde está o resto:
 
 ## O que isto é
 
-Aplicação local em Python que vigia os anúncios de contratação pública
+O **Mira Gov** (era Radar Gov até 24/09/2026). Aplicação local em Python que vigia os anúncios de contratação pública
 publicados no Diário da República, série II, **parte L**. Guarda tudo
 numa base SQLite e mostra num painel Flask. Verifica sozinha de hora a
 hora, das 08:00 às 20:00, por um temporizador do systemd, corre em Ubuntu em

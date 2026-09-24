@@ -1,4 +1,4 @@
-"""Ícones do Radar Gov (Lucide, ISC), inline em currentColor. Gerado a partir de assets/Ícones do design system."""
+"""Ícones do Mira Gov (Lucide, ISC), inline em currentColor. Gerado a partir de assets/Ícones do design system."""
 
 ICONES = {
     'pesquisar': '<path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" />',

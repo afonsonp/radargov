@@ -1,4 +1,4 @@
-# Documento funcional — RadarGov
+# Documento funcional — Mira Gov
 
 > **Última revisão: 24 de setembro de 2026**, sobre a `v2.0.0`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
@@ -448,7 +448,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 **89 rotas.** A navegação tem **duas intenções mais o logótipo**:
 
-- **RadarGov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
+- **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos` · vista **Calendário** `/calendario`
 - **Mercado** → `/contratos` · vista **Entidades** `/entidades`
 - **Configurações** → `/configuracoes` (9 secções)
@@ -651,7 +651,7 @@ de 23/09/2026), e a porta põe a empresa dela no pedido: o `liga()`
 junta o ficheiro dessa empresa, e só esse. Nada da empresa de outro se
 vê em página nenhuma — é o que o `TestNenhumaEmpresaVeAOutra` percorre,
 rota a rota. Na cronologia de um anúncio, uma leitura pedida por
-alguém de outra empresa aparece como «RadarGov», sem o nome.
+alguém de outra empresa aparece como «Mira Gov», sem o nome.
 
 **Três níveis.** O **dono da plataforma** (`utilizadores.dono`; o
 primeiro admin, que é o Afonso) é o único que abre o que é do sistema
