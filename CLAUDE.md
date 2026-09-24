@@ -526,8 +526,10 @@ A ordem do ficheiro é a ordem do fluxo:
    componente que não venha do design system** — assim o
    `miragov-componentes.css` fica igual ao que o sistema publica.
    Da **fase 2**: a barra é `.mg-topbar`, o aceso é `aria-current` e
-   não uma classe, a marca é o lockup (`logotipo()`, com o disco da
-   bandeira no lugar do ó), o `<main>` leva `.mg`, e o `PAGINA_ENTRAR`
+   não uma classe, a marca é o lockup (`logotipo()`: desde 24/09/2026
+   o olho do Mira Gov, `_olho()`, seguido de «Mira Gov»; os SVG da
+   marca estão em `marca/`, e o favicon é o `marca/miragov-favicon.svg`),
+   o `<main>` leva `.mg`, e o `PAGINA_ENTRAR`
    e o `PAGINA_ERRO` passaram aos componentes. Os 49 ícones estão em
    **`icones.py`** e servem-se por `icone(nome)`; **se o módulo faltar,
    o painel serve na mesma**. Ver a área «A interface» das armadilhas
