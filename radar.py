@@ -16764,9 +16764,21 @@ def alertas_enviar():
 
 GRAFICOS_JS = """<script>
 (function() {
+  var auto = document.querySelector('#graf-corpo[data-auto]');
   var det = document.querySelector('details.graficos');
-  if (!det) return;
+  if (!det && !auto) return;
   var feito = false;
+  if (auto) {
+    // a coluna da direita do Mercado (24/09/2026): pede-se logo
+    feito = true;
+    var q = new URLSearchParams(location.search);
+    q.delete('pag');
+    fetch('/contratos/resumo?' + q.toString())
+      .then(function(r) { return r.text(); })
+      .then(function(html) { auto.innerHTML = html; })
+      .catch(function() { auto.textContent = 'falhou a carregar.'; });
+    return;
+  }
   det.addEventListener('toggle', function() {
     if (!det.open || feito) return;
     feito = true;
@@ -18499,7 +18511,7 @@ def contratos():
                    "se aplicam'" if fim else "")
     escondidos_modo = ("<input type='hidden' name='ver' value='fim'>"
                        if fim else "")
-    opcoes_meses = ("<select name='meses'>%s</select>" % "".join(
+    opcoes_meses = ("<select class='mg-field__input' name='meses'>%s</select>" % "".join(
         "<option value='%d'%s>terminam em %d meses</option>"
         % (m, " selected" if m == meses else "", m)
         for m in MESES_RENOVACOES)) if fim else ""
@@ -18509,36 +18521,52 @@ def contratos():
     # (14/09/2026, como nos anuncios); as duas entidades sugerem-se do
     # corpus e, escolhida a sugestao, a chave (o NIF) vai em entid/vencid,
     # que a ficha da entidade ja usava. O que vier na URL passa escondido.
-    filtros = (
-        "<form class='mg-card filtros' method='get' action='/contratos'>"
+    # Os campos do `EcraMercado` (24/09/2026): rotulo por cima, o `Field`
+    # do sistema, numa grelha -- a mesma forma dos filtros dos Concursos.
+    def campo(rotulo, dentro, classe=""):
+        return ("<label class='mg-field%s'><span class='mg-field__label'>%s"
+                "</span>%s</label>" % (classe, rotulo, dentro))
+    filtros = ((
+        "<form class='filtros' id='filtros-mercado' method='get' action='/contratos'>"
         "%s"
-        "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
-        "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…' "
-        "list='entidades-contratos' autocomplete='off' data-sugere='contratos' "
-        "data-chave-em='entid'>"
-        "<input type='hidden' name='entid' value='%s'>"
-        "<input type='text' name='ganhou' value='%s' placeholder='%s' "
-        "list='entidades-contratos' autocomplete='off' data-sugere='contratos' "
-        "data-chave-em='vencid'>"
-        "<input type='hidden' name='vencid' value='%s'>"
+        + campo("Objecto", "<input class='mg-field__input' type='text' name='q' "
+                "value='%s' placeholder='Objecto do contrato'>", " f-q")
+        + campo("Entidade que comprou",
+                "<input class='mg-field__input' type='text' name='adj' value='%s' "
+                "placeholder='Nome ou NIF' list='entidades-contratos' "
+                "autocomplete='off' data-sugere='contratos' data-chave-em='entid'>")
+        + "<input type='hidden' name='entid' value='%s'>"
+        + campo("%s", "<input class='mg-field__input' type='text' name='ganhou' "
+                "value='%s' placeholder='Nome ou NIF' list='entidades-contratos' "
+                "autocomplete='off' data-sugere='contratos' data-chave-em='vencid'>")
+        + "<input type='hidden' name='vencid' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "%s%s"
-        "<label>de</label><input type='text' name='de' value='%s'%s inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<label>até</label><input type='text' name='ate' value='%s'%s inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<label>desde</label><input type='text' name='min' value='%s' "
-        "placeholder='€ mínimo' style='min-width:0;width:110px;flex:none'>"
-        "<button type='submit'>Filtrar</button>"
-        "<a class='limpar' href='%s'>limpar</a>"
-        "</form><datalist id='entidades-contratos'></datalist>"
-        % (escondidos_modo, v("q"), v("adj"), v("entid"), v("ganhou"),
-           "Quem tem o contrato…" if fim else "Quem ganhou…",
+        + campo("Procedimento", "%s")
+        + "%s"
+        + campo("Celebrado de", "<input class='mg-field__input campo-data' "
+                "type='text' name='de' value='%s'%s inputmode='numeric' "
+                "placeholder='dd/mm/aaaa' maxlength='10' "
+                "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
+        + campo("até", "<input class='mg-field__input campo-data' type='text' "
+                "name='ate' value='%s'%s inputmode='numeric' "
+                "placeholder='dd/mm/aaaa' maxlength='10' "
+                "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
+        + campo("Preço mínimo", "<input class='mg-field__input' type='text' "
+                "name='min' value='%s' placeholder='€'>")
+        + "<span class='f-accoes'><button type='submit' "
+        "class='mg-btn mg-btn--primary'>Perguntar</button>"
+        "<a class='mg-btn mg-btn--secondary limpar' href='%s'>Limpar</a></span>"
+        "</form><datalist id='entidades-contratos'></datalist>")
+        % (escondidos_modo, v("q"), v("adj"), v("entid"),
+           "Quem tem o contrato" if fim else "Quem ganhou", v("ganhou"),
            v("vencid"), v("cpv"), v("cpv_excl"),
            campos_escondidos(request.args, ("q_excl", "op")),
            selector_procedimento(procs,
-                                 (request.args.get("proc") or "").strip()),
-           opcoes_meses,
+                                 (request.args.get("proc") or "").strip())
+           .replace("<select ", "<select class='mg-field__input' ", 1),
+           campo("Termina em", opcoes_meses) if fim else "",
            "" if fim else html.escape(
                data_para_campo(request.args.get("de")), quote=True),
            trava_datas,
@@ -18652,17 +18680,10 @@ def contratos():
                   "</div>"
                   % mil_pt(ha_corpus()))
 
-    # O modo dito por extenso no titulo da tabela, nao so no selector:
-    # era a unica defesa contra o "ecra bifacetado" que o custo da
-    # opcao A (6.1) previa.
-    if fim:
-        titulo_tabela = ("<div class='mg-field__label' style='margin:16px 0 10px'>"
-                         "Contratos por <b>fim estimado</b> &mdash; o que "
-                         "vai acabar até %s</div>" % data_pt(fim_janela))
-    else:
-        titulo_tabela = ("<div class='mg-field__label' style='margin:16px 0 10px'>"
-                         "Contratos por <b>data de celebração</b> &mdash; "
-                         "o que já se comprou</div>")
+    # O modo diz-se por extenso na frase do cabecalho e na aba acesa
+    # (24/09/2026, o `EcraMercado`); ate ai era o titulo da tabela, que
+    # era a defesa contra o "ecra bifacetado" que o custo da opcao A (6.1)
+    # previa. A frase muda com o modo, e por isso a defesa continua.
 
     if ha_pergunta:
         if fim:
@@ -18693,11 +18714,7 @@ def contratos():
         # a ligacao diz quantas linhas e que saem: encostada ao "1-20"
         # exportava as dezenas de milhares sem avisar. Leva ver/meses,
         # por isso o CSV exporta o mesmo modo que a lista mostra.
-        linha_conta = ("<div class='linha-conta'>" + conta +
-                       "<a href='/contratos/csv?%s'>exportar as %s linhas "
-                       "(CSV)</a></div>"
-                       % (urlencode(args_da_lista(request.args)),
-                          mil_pt(min(correspondem, TECTO_CSV))))
+        linha_conta = "<span class='conta'>" + conta + "</span>"
     else:
         linha_conta = ""
 
@@ -18754,13 +18771,12 @@ def contratos():
     # o corpus inteiro demoravam muito e respondiam a pergunta nenhuma.
     # O pedido leva a query string inteira, ver/meses incluidos: os
     # graficos respondem ao mesmo conjunto que a tabela mostra.
-    graficos = (
-        "<details class='arvore graficos'><summary>"
-        "<span class='arv-tit'>Ver em gráficos</span>"
-        "<span class='arv-sub'>quem ganha, quem compra, como se compra, "
-        "concentração, tamanho, evolução &mdash; deste filtro</span></summary>"
-        "<div id='graf-corpo' class='graf-corpo'>a carregar…</div>"
-        "</details>") if ha_pergunta else ""
+    # Desde 24/09/2026 (o `EcraMercado`) vivem na coluna da direita e
+    # pedem-se sozinhos ao abrir a pagina -- continuam a nao atrasar a
+    # tabela, que vem no HTML; so aparecem com pergunta feita.
+    graficos = ("<div id='graf-corpo' class='graf-corpo mercado-lado' "
+                "data-auto><p class='ficha-nota'>A carregar quem ganha e "
+                "quem compra…</p></div>") if ha_pergunta else ""
 
     # A troca de modo e uma troca de vista, nao de pagina: leva o filtro
     # inteiro (P3). Vai no lugar das abas, como os estados da Triagem.
@@ -18790,13 +18806,13 @@ def contratos():
     # /entidades, que e a vista da barra; este continua aqui porque e
     # daqui que a pergunta se faz a meio de uma consulta.
     procura_entidade = (
-        "<form class='mg-card filtros' method='get' action='/entidade/procurar'>"
-        "<label>Ficha de entidade</label>"
-        "<input type='text' name='q' value='' "
-        "placeholder='Nome ou NIF — abre a ficha directamente…'>"
-        "<button type='submit'>Procurar</button>"
-        "<a class='nota' href='/entidades' style='align-self:center'>"
-        "ou ver a lista das entidades</a></form>")
+        "<form class='procura-entidade' method='get' action='/entidade/procurar'>"
+        "<span>Ficha de uma entidade:</span>"
+        "<input class='mg-field__input' type='text' name='q' value='' "
+        "placeholder='Nome ou NIF' aria-label='Nome ou NIF da entidade'>"
+        "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
+        "Abrir</button>"
+        "<a href='/entidades'>ou ver a lista das entidades</a></form>")
 
     # Os dois blocos de pergunta dobram-se quando JA HA pergunta, e e o
     # INVERSO da lista dos anuncios (16/09/2026, fase 5).
@@ -18811,48 +18827,56 @@ def contratos():
     # (na lista, 284), e 213 desses eram os nove campos mais a caixa da
     # ficha de entidade -- ja respondidos, com o CPV activo declarado na
     # sua propria banda logo abaixo.
-    pergunta = (procura_entidade
-                + ("" if fim else faixa_de_avisos_de_datas(request.args))
-                + faixa_interesse + filtros)
-    if ha_pergunta:
-        pergunta = ("<details class='painel-filtros' id='painel-filtros'>"
-                    "<summary><span class='pf-tit'>Perguntar outra coisa</span>"
-                    "<span class='pf-sub'>%s</span></summary>%s</details>"
-                    % (html.escape(resumo_filtro(
-                           filtro_actual(request.args, vista), vista)),
-                       pergunta))
+    # A pergunta e um cartao aberto (o `EcraMercado`): «Perguntar ao
+    # corpus» sem pergunta, «Perguntar outra coisa» com ela, e o resumo
+    # do filtro na meta. Esteve dobrada com pergunta feita (16/09/2026):
+    # a referencia tem-na aberta, e os campos sao agora uma grelha curta.
+    pergunta = cartao(
+        "Perguntar outra coisa" if ha_pergunta else "Perguntar ao corpus",
+        ("" if fim else faixa_de_avisos_de_datas(request.args))
+        + faixa_interesse + filtros,
+        meta=html.escape(resumo_filtro(filtro_actual(request.args, vista), vista))
+        if ha_pergunta else "",
+        pe=procura_entidade, id_="pergunta")
 
-    conteudo = ("<div class='larg'>" + barra_corpus(anos) +
-                pergunta +
-                faixa_cpv + ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
-                graficos + linha_conta +
-                (titulo_tabela if ha_pergunta else "") +
-                tabela +
-                paginador(pagina, paginas, request.args, "/contratos") +
-                nota_estimativa +
+    # O `EcraMercado`: a pergunta, a arvore, a linha do resumo (o filtro
+    # activo e a contagem a esquerda, os dois modos a direita), e por
+    # baixo a tabela com os graficos na coluna da direita.
+    resumo_linha = ("<div class='mercado-resumo'>%s%s%s</div>"
+                    % (faixa_cpv, linha_conta, abas))
+    tabela_e_notas = (tabela +
+                      paginador(pagina, paginas, request.args, "/contratos") +
+                      nota_estimativa)
+    corpo_mercado = (("<div class='mercado-duas'><div class='mercado-tabela'>%s"
+                      "</div>%s</div>" % (tabela_e_notas, graficos))
+                     if ha_pergunta else tabela_e_notas)
+    conteudo = ("<div class='larg'>" + pergunta +
+                ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
+                resumo_linha + corpo_mercado + barra_corpus(anos) +
                 (fonte if ha_pergunta else "") + "</div>")
+    accoes = ("<a class='mg-btn mg-btn--secondary' href='/contratos/csv?%s' "
+              "title='as %s linhas deste filtro'>Exportar CSV</a>"
+              % (html.escape(urlencode(args_da_lista(request.args)), quote=True),
+                 mil_pt(min(correspondem, TECTO_CSV)))) if ha_pergunta else ""
 
     if fim:
         return envolver(
-            "renovacoes", "Renovações",
-            "Os mesmos contratos do Portal BASE, vistos pelo <b>fim "
-            "estimado</b>: o que está a chegar ao fim no teu mercado deve "
-            "voltar a concurso, e quem o vê antes do anúncio prepara-se "
-            "com tempo. O fim é celebração mais prazo &mdash; as "
-            "prorrogações não constam.",
-            conteudo, abas=abas,
+            "renovacoes", "Renovações", "",
+            conteudo,
+            cabeca=cabecalho_de_pagina(
+                "Mercado", "Os mesmos contratos vistos pelo <b>fim "
+                "estimado</b>: o que está a acabar volta a concurso, e quem "
+                "o vê antes do anúncio prepara-se com tempo.", [], accoes),
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
             titulo_aba="Renovações, Mira Gov")
     return envolver(
-        "contratos", "Contratos celebrados",
-        "O que já foi assinado, do Portal BASE, pela <b>data de "
-        "celebração</b> &mdash; quem ganhou, por quanto, de quem. Não são "
-        "oportunidades: servem para saber com quem se concorre. As "
-        "<a href='/contratos?ver=fim'>Renovações</a> são estes mesmos "
-        "contratos vistos pelo fim.",
-        conteudo, abas=abas,
+        "contratos", "Contratos celebrados", "",
+        conteudo,
+        cabeca=cabecalho_de_pagina(
+            "Mercado", "Contratos celebrados no Portal BASE: quem compra, "
+            "quem ganha, por quanto e quando renova.", [], accoes),
         script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
         + espera_corpus(),
         migalhas=migalhas_de("contratos"),
