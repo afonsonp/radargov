@@ -12774,7 +12774,8 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # contratos" a dizer outra coisa parecida.
         "accoes_topo": (
             ("<span class='a-correr'>a verificar&hellip;</span>"
-             if a_verificar else accao("/verificar", "Verificar agora"))
+             if a_verificar else accao("/verificar",
+                                       icone("verificar") + " Verificar agora"))
             if activo in PAGINAS_COM_VERIFICAR and sou_dono() else ""),
     }
     return com_csrf(BASE % {
@@ -14240,14 +14241,16 @@ def _lista_de_anuncios():
     # e as duas accoes. O CSV diz quantas linhas leva: a ligacao estava
     # encostada ao "1-20" e exportava as 66 mil sem avisar.
     accoes = ["<a class='mg-btn mg-btn--secondary' href='/csv?%s' "
-              "title='as %s linhas deste filtro'>Exportar CSV</a>"
-              % (html.escape(qs_csv, quote=True), mil(correspondem))]
+              "title='as %s linhas deste filtro'>%s Exportar CSV</a>"
+              % (html.escape(qs_csv, quote=True), mil(correspondem),
+                 icone("descarregar"))]
     if sou_dono():
         # "Verificar agora" vai ao DR buscar anuncios novos, e os novos
         # aterram aqui: e o UNICO sitio com o botao (11.8-A)
         accoes.append("<span class='a-correr'>a verificar&hellip;</span>"
                       if verificacao_a_correr() else
-                      accao("/verificar", "Verificar agora", "bt forte"))
+                      accao("/verificar", icone("verificar") + " Verificar agora",
+                            "bt forte"))
     frase = {ENTRADA_DA_ESCADA[0]: "O que ainda dá para responder e está "
                                    "por decidir.",
              CEMITERIO_DA_ESCADA[0]: "O que expirou sem ninguém decidir.",
@@ -14524,7 +14527,7 @@ def _lista_de_propostas():
             "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
             "convite).", [],
             "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
-            "Nova proposta</a>"),
+            + icone("mais") + " Nova proposta</a>"),
         script=caixa_do_motivo(),
         titulo_aba="%s, Propostas" % estado_da_empresa(estado_actual))
 
@@ -16058,7 +16061,8 @@ def administracao_da_plataforma():
         "<th>Empresa</th><th>Contas</th></tr></thead><tbody>%s</tbody></table></div>"
         "</div>"
         % (html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
-           accao("/verificar", "Verificar agora"), seccoes, pendentes, "".join(linhas)))
+           accao("/verificar", icone("verificar") + " Verificar agora"),
+           seccoes, pendentes, "".join(linhas)))
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que é de todas as empresas.",
                     corpo)
@@ -18948,9 +18952,10 @@ def contratos():
                 resumo_linha + corpo_mercado + barra_corpus(anos) +
                 (fonte if ha_pergunta else "") + "</div>")
     accoes = ("<a class='mg-btn mg-btn--secondary' href='/contratos/csv?%s' "
-              "title='as %s linhas deste filtro'>Exportar CSV</a>"
+              "title='as %s linhas deste filtro'>%s Exportar CSV</a>"
               % (html.escape(urlencode(args_da_lista(request.args)), quote=True),
-                 mil_pt(min(correspondem, TECTO_CSV)))) if ha_pergunta else ""
+                 mil_pt(min(correspondem, TECTO_CSV)), icone("descarregar"))
+              ) if ha_pergunta else ""
 
     if fim:
         return envolver(
@@ -20259,25 +20264,27 @@ def ficha(ref):
     if a["url"]:
         # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a
         # ficha inteira com um 500 (apanhado a 16/09/2026).
-        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>%s</a>"
+        # o «externo» diz, antes do clique, que isto sai da aplicacao
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>%s %s</a>"
                     % (html.escape(a["url"], quote=True),
-                       "Ver no DR" if e_do_dr else "Ver na Vortal"))
+                       "Ver no DR" if e_do_dr else "Ver na Vortal", icone("externo")))
     if a["pdf_url"]:
-        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>PDF oficial</a>"
-                    % html.escape(a["pdf_url"], quote=True))
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>PDF oficial %s</a>"
+                    % (html.escape(a["pdf_url"], quote=True), icone("externo")))
     # O procedimento na plataforma e as pecas sao dois botoes: estavam no
     # mesmo, e o link das pecas nao e o procedimento.
     destino, rotulo, dica = link_do_procedimento(a)
     if destino:
         sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
-                    "title='%s'>%s</a>"
+                    "title='%s'>%s %s</a>"
                     % (html.escape(destino, quote=True),
-                       html.escape(dica, quote=True), html.escape(rotulo)))
+                       html.escape(dica, quote=True), html.escape(rotulo),
+                       icone("externo")))
     if a["link_pecas"] and a["link_pecas"] != destino:
         sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
                     "title='o endereço das peças que o anúncio indica'>"
-                    "Peças na plataforma</a>"
-                    % html.escape(a["link_pecas"], quote=True))
+                    "Peças na plataforma %s</a>"
+                    % (html.escape(a["link_pecas"], quote=True), icone("externo")))
     sem_empresa = empresa_activa() == SEM_EMPRESA
     if not minhas and not e_alteracao and not sem_empresa:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
@@ -20451,8 +20458,9 @@ def ficha(ref):
                 destino_doc = "/documento/%s/%s" % (
                     ref, quote(d["nome"], safe=""))
             linhas_doc.append(
-                "<li%s><a href='%s'>%s</a><span class='n'>%s</span></li>"
+                "<li%s>%s<a href='%s'>%s</a><span class='n'>%s</span></li>"
                 % (" class='aberta'" if e_pdf and d["nome"] == peca_aberta else "",
+                   icone("documento"),
                    html.escape(destino_doc, quote=True),
                    html.escape(d["nome"]), tamanho_legivel(d["tamanho"])))
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
@@ -20479,7 +20487,8 @@ def ficha(ref):
             # "Ver se há peças novas" (14/09/2026): a lista da plataforma
             # comparada com a da base, sem apagar nada -- o "Actualizar
             # peças" apaga e traz tudo, e leva o texto extraido.
-            accoes_pecas = accao("/pecas-novas/%s" % ref, "Verificar peças novas", "mini")
+            accoes_pecas = accao("/pecas-novas/%s" % ref,
+                                 icone("verificar", 16) + " Verificar peças novas", "mini")
             vigiadas = a["pecas_vigiadas_em"] if "pecas_vigiadas_em" in a.keys() else ""
             pe_pecas = (
                 "<div class='mg-row'>%s%s</div>%s"
@@ -20508,7 +20517,8 @@ def ficha(ref):
             nota = ("Ainda não foram trazidas. Vêm sozinhas ao marcar "
                     "&ldquo;interessa&rdquo;.")
         corpo_docs = "<p class='ficha-nota'>%s</p>" % nota
-        accoes_pecas = accao("/documentos/%s" % ref, "Trazer peças", "mini forte")
+        accoes_pecas = accao("/documentos/%s" % ref,
+                             icone("descarregar", 16) + " Trazer peças", "mini forte")
         meta_pecas = html.escape(a["plataforma"] or "")
 
     # O leitor da peca escolhida, por baixo da lista e dentro da mesma
@@ -22020,11 +22030,12 @@ def calendario():
         if n:
             pedaco.append(("semana", str(n)))
         return "/calendario" + ("?" + urlencode(pedaco) if pedaco else "")
-    accoes = ("<a class='mg-btn mg-btn--secondary' href='%s'>&lsaquo; Semana</a>"
+    anterior, hoje_, seguinte = (html.escape(para_semana(n), quote=True)
+                                 for n in (semana - 1, 0, semana + 1))
+    accoes = ("<a class='mg-btn mg-btn--secondary' href='%s'>%s Semana</a>"
               "<a class='mg-btn mg-btn--secondary' href='%s'>Hoje</a>"
-              "<a class='mg-btn mg-btn--secondary' href='%s'>Semana &rsaquo;</a>"
-              % tuple(html.escape(para_semana(n), quote=True)
-                      for n in (semana - 1, 0, semana + 1)))
+              "<a class='mg-btn mg-btn--secondary' href='%s'>Semana %s</a>"
+              % (anterior, icone("anterior"), hoje_, seguinte, icone("seguinte")))
     # As abas vao no corpo. Levam a semana atras sem mais nada: o
     # `sem_pagina()` guarda os argumentos do pedido, e mudar de ranhura
     # nao pode voltar a esta semana.
@@ -24461,7 +24472,8 @@ def inicio():
     if sou_dono():
         accoes_topo = ("<span class='a-correr'>a verificar&hellip;</span>"
                        if verificacao_a_correr() else
-                       accao("/verificar", "Verificar agora", "bt forte"))
+                       accao("/verificar", icone("verificar") + " Verificar agora",
+                            "bt forte"))
 
     return envolver(
         "inicio", dia_por_extenso(hoje), "",
