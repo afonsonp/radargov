@@ -429,8 +429,14 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. Navegação por DUAS intenções mais
-   o logótipo, desde 16/09/2026. O **Hoje** (`/`, a abertura — o estado
+   lê da porta. **A barra tem cinco itens desde 24/09/2026** (a do
+   Mira Gov, decisão dele): Concursos, **Propostas** (`PROPOSTAS` =
+   `/propostas`, as oito ranhuras da empresa, que até aí eram abas dos
+   Concursos; o `/concursos?estado=<ranhura da empresa>` serve a mesma
+   página), Mercado, **Calendário** (que deixou de ser vista dos
+   Concursos) e Configurações; as abas de cada lista escolhem-se com o
+   `chaves=` do `barra_das_abas()`. Até aí eram duas intenções mais o
+   logótipo, desde 16/09/2026. O **Hoje** (`/`, a abertura — o estado
    do negócio e o que há para fazer) **não é um separador: é a marca**
    («não quero um separador de hoje, quero que esse hoje esteja no
    radargov, no logo» — ele, no mesmo dia em que a abertura nasceu). Os

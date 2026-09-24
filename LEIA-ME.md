@@ -311,13 +311,14 @@ tenha vindo do DR não se apaga aí: tira-se da escada, e o anúncio volta
 ### A barra
 
 A barra é **horizontal, em cima**, e tem a marca à esquerda — o
-**Mira Gov** é o Hoje, e é por ele que se volta à abertura — e **dois
-itens**: **Concursos** (a lista, com a vista **Calendário**) e
-**Mercado** (os contratos, com a vista **Entidades**). À direita,
-**Configurações** e o teu nome. Os Indicadores estão dentro das
-Configurações (§8).
+**Mira Gov** é o Hoje, e é por ele que se volta à abertura — e **cinco
+itens** (desde 24/09/2026): **Concursos** (o que o DR publicou: por
+ver, expirou sem ver, todos), **Propostas** (as oito ranhuras da
+empresa, de «Por analisar» a «Cancelado»), **Mercado** (os contratos,
+com a vista **Entidades**), **Calendário** e **Configurações**. À
+direita, o teu nome. Os Indicadores estão dentro das Configurações (§8).
 
-Em cima da lista estão as **dez ranhuras da escada**, por ordem:
+As **dez ranhuras da escada** repartem-se desde 24/09/2026 por dois itens: as duas pontas (e o «Todos») estão nos **Concursos**, e as oito da empresa nas **Propostas**. Por ordem:
 
 - **Por ver** — o que está por decidir **e ainda dá para responder**:
   prazo aberto, ou, quando o prazo ainda não foi lido, publicado nos
