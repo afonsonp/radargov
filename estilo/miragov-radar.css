@@ -187,9 +187,10 @@ details.hj-mais[open]>summary{color:var(--ink-muted)}
 .feed .l{display:grid;grid-template-columns:52px minmax(0,1fr);gap:var(--space-2)}
 /* A coluna da direita do Hoje: os cartoes com o padding do `Card`, o
    titulo como `h3`, e as ligacoes do feed no tamanho do texto. */
-.lado>.mg-card{padding:var(--space-4) var(--space-5)}
-.lado>.mg-card>.mg-field__label:first-child{font:600 15px/20px var(--font-sans);
- color:var(--ink);margin-bottom:var(--space-3)}
+/* Os cartoes do Hoje sao `cartao()` desde 24/09/2026: a cabeca e o
+   corpo trazem o padding do `Card`. */
+.lado{display:flex;flex-direction:column;gap:var(--space-4)}
+.mg-card__meta .mau{color:var(--danger)}
 .feed .l a{font:500 14px/20px var(--font-sans)}
 .feed .l .nota{font-size:12px}
 
