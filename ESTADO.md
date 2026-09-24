@@ -56,10 +56,10 @@ duas bases; os das empresas, de **24/09/2026**.
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 1: a do dono, **sem empresa** (só abre a `/plataforma`) |
-| Rotas Flask | 90 |
+| Rotas Flask | 89 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 140**, em ~80 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 137**, em ~80 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 25 067 linhas · `teste_radar.py` 15 043 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
@@ -80,8 +80,11 @@ contagens do painel vão por índice de cobertura.
 
 Escrito a 24/09/2026, para fechar nas próximas conversas. Por ordem:
 
-1. **Entregar o design system novo.** Com o link (ou os ficheiros), a
-   sessão seguinte faz as correcções de desenho ecrã a ecrã.
+1. ~~Entregar o design system novo~~ — **feito a 24/09/2026**: o
+   pacote Mira Gov entrou em onze PR (#50 a #61): o prefixo `mg-`, a
+   marca do olho, o nome, a barra de cinco itens, os oito ecrãs fiéis à
+   referência, e a limpeza das variáveis antigas e das pontes. Falta
+   **cortar a release** para chegar ao `radargov.pt`.
 2. **Pôr os domínios do MiraGov na Cloudflare** (o `.pt` e o `.com`):
    acrescentá-los à conta da Cloudflare e mudar os nameservers no
    registador, como se fez com o `radargov.pt`. Quando a Cloudflare

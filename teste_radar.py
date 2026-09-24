@@ -7514,8 +7514,16 @@ class TestContrasteNosFundosReais(unittest.TestCase):
     medida.
     """
 
-    def _cores(self):
-        return dict(re.findall(r"(--[a-z0-9-]+):(#[0-9a-fA-F]{6})", radar.CSS))
+    # Desde 24/09/2026 (as pontes sairam com a fase 3) mede-se a paleta
+    # que PINTA, a dos tokens do sistema, nos tres temas. As medidas de
+    # antes liam as paletas antigas do `CSS` e do `CSS_NOVO`, que desde
+    # 21/09 ja nao chegavam ao ecra: os tokens ganhavam-lhes.
+    TEMAS = {":root, [data-theme=\"claro\"]": 4.5,
+             "[data-theme=\"escuro\"]": 4.5,
+             "[data-theme=\"contraste\"]": 7.0}
+    TINTAS = ("--ink", "--ink-secondary", "--ink-muted", "--brand",
+              "--success", "--warning", "--danger", "--seal")
+    FUNDOS = ("--surface", "--surface-raised", "--surface-sunken")
 
     @staticmethod
     def _contraste(a, b):
@@ -7525,6 +7533,15 @@ class TestContrasteNosFundosReais(unittest.TestCase):
             return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b_)
         la, lb = lum(a), lum(b)
         return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    def _temas(self):
+        folha = radar.ler_estilo("miragov-tokens.css")
+        temas = {}
+        for sel, corpo in re.findall(r"([^{}]+)\{([^}]*)\}", folha):
+            cores = dict(re.findall(r"(--[a-z-]+):(#[0-9a-fA-F]{6})", corpo))
+            if "--ink" in cores:
+                temas[sel.strip()] = cores
+        return temas
 
     def _regra(self, selector):
         m = re.search(re.escape(selector) + r"\{([^}]*)\}", radar.CSS)
@@ -7538,28 +7555,24 @@ class TestContrasteNosFundosReais(unittest.TestCase):
         classe."""
         self.assertNotIn(".coluna-pede", radar.CSS)
 
-    def _morto_o_pede_da_coluna(self):
-        cores = self._cores()
-        token = re.search(r"color:var\((--t\d)\)", self._regra(".coluna-pede")).group(1)
-        fundo = re.search(r"background:var\((--[a-z0-9]+)\)", self._regra(".coluna")).group(1)
-        self.assertGreaterEqual(self._contraste(cores[token], cores[fundo]), 4.5)
-
-    def test_t1_a_t4_passam_sobre_todos_os_fundos_claros(self):
-        cores = self._cores()
-        for token in ("--t1", "--t2", "--t3", "--t4"):
-            for fundo in ("--papel", "--linha2", "--creme"):
-                self.assertGreaterEqual(
-                    self._contraste(cores[token], cores[fundo]), 4.5,
-                    "%s sobre %s" % (token, fundo))
-
-    def test_t5_e_t6_so_servem_sobre_branco_e_creme(self):
-        # e por isso que nao podem ir para a coluna do quadro nem para
-        # o papel: a regra do CLAUDE.md diz onde cada escala pode escrever
-        cores = self._cores()
-        for token in ("--t5", "--t6"):
-            self.assertGreaterEqual(self._contraste(cores[token], "#ffffff"), 4.5)
-            self.assertGreaterEqual(self._contraste(cores[token], cores["--creme"]), 4.5)
-            self.assertLess(self._contraste(cores[token], cores["--linha2"]), 4.5)
+    def test_toda_a_tinta_passa_sobre_todos_os_fundos_nos_tres_temas(self):
+        """O `--papel` não era o pior fundo (a lição de 02/09/2026), e
+        por isso mede-se sobre os TRÊS: a superfície, a levantada e a
+        rebaixada, mais o fundo suave da própria cor (uma etiqueta
+        `--warning` sobre `--warning-soft`). AA (4,5:1) no claro e no
+        escuro, AAA (7:1) no contraste."""
+        temas = self._temas()
+        self.assertEqual(sorted(temas), sorted(self.TEMAS))
+        for tema, minimo in self.TEMAS.items():
+            cores = temas[tema]
+            for tinta in self.TINTAS:
+                fundos = self.FUNDOS + ((tinta + "-soft",)
+                                        if tinta + "-soft" in cores else ())
+                for fundo in fundos:
+                    c = self._contraste(cores[tinta], cores[fundo])
+                    self.assertGreaterEqual(
+                        c, minimo, "%s sobre %s no tema %s dá %.2f"
+                        % (tinta, fundo, tema, c))
 
 
 class TestAlvosDeTextoA24px(unittest.TestCase):
@@ -7643,20 +7656,17 @@ class TestPeleNova(unittest.TestCase):
     TINTAS = ("--t1", "--t2", "--t3", "--t4", "--t5",
               "--azul", "--verde", "--verm", "--laranja")
 
-    def test_toda_a_escala_passa_aa_sobre_todos_os_fundos(self):
-        cores = self._cores()
-        for token in self.TINTAS:
-            for fundo in self.FUNDOS:
-                c = self._contraste(cores[token], cores[fundo])
-                self.assertGreaterEqual(
-                    c, 4.5, "%s sobre %s dá %.2f" % (token, fundo, c))
-
-    def test_a_escala_de_texto_tem_um_patamar_so(self):
-        """O `--t6` aponta para o mesmo valor do `--t5`: um sexto
-        cinzento que só funciona em metade dos fundos é uma armadilha,
-        não um degrau, e foi o que partiu as `.coluna-pede`."""
-        cores = self._cores()
-        self.assertEqual(cores["--t6"], cores["--t5"])
+    def test_a_escala_de_texto_tem_tres_tons(self):
+        """Eram seis tons (`--t1` a `--t6`), e o sexto só funcionava em
+        metade dos fundos -- foi o que partiu as `.coluna-pede`. O sistema
+        tem três, e as pontes pouparam-nos: `--t2`/`--t3` davam o
+        segundo, `--t4` a `--t6` o terceiro. Desde 24/09/2026 as regras
+        citam os três directamente; a medida do contraste está no
+        `TestContrasteNosFundosReais`."""
+        folha = radar.ler_estilo("miragov-tokens.css")
+        tons = set(re.findall(r"(--ink(?:-[a-z]+)?):", folha))
+        self.assertEqual(sorted(tons),
+                         ["--ink", "--ink-muted", "--ink-secondary"])
 
     def test_tudo_o_que_pinta_esta_dentro_do_ambito(self):
         """Uma regra do CSS_NOVO fora de [data-pele=novo] / [data-tipo=*]
@@ -7711,9 +7721,9 @@ class TestPeleNova(unittest.TestCase):
         """
         folha = radar.CSS_TUDO
         tokens = radar.ler_estilo("miragov-tokens.css")
-        pontes = radar.ler_estilo("miragov-pontes.css")
-        self.assertTrue(tokens and pontes, "as folhas do sistema faltam")
-        for nome, texto in (("os tokens", tokens), ("as pontes", pontes)):
+        self.assertTrue(tokens, "a folha dos tokens falta")
+        # as pontes sairam a 24/09/2026: ficam os tokens
+        for nome, texto in (("os tokens", tokens),):
             onde = folha.index(texto)
             self.assertGreater(onde, folha.index(radar.CSS_NOVO),
                                "%s vêm antes do CSS_NOVO" % nome)
@@ -7738,24 +7748,26 @@ class TestPeleNova(unittest.TestCase):
         return set(re.findall(r"[{;]\s*(--[a-z0-9-]+)\s*:",
                               cls._sem_comentarios(css)))
 
-    def test_nenhuma_ponte_se_cita_a_si_propria(self):
-        """`--ink: var(--ink)` vinha assim no pacote entregue, e é
-        circular: a variável fica com o valor inválido-garantido, e as
-        79 regras do `radar.py` que usam `var(--ink)` ficam sem valor.
+    def test_nenhuma_variavel_usada_ficou_por_definir(self):
+        """As pontes sairam a 24/09/2026, com a fase 3 da migracao: as 42
+        variaveis antigas (`--azul`, `--t3`, `--linha`...) trocaram-se
+        pelas do sistema em todas as regras, e ja nada as definia.
 
-        O que se via: a barra de topo faz `background:var(--ink)` e
-        ficava **transparente**, com o logótipo branco sobre fundo
-        claro. Não dá erro nenhum e não falha teste nenhum -- vê-se, e
-        só se alguém olhar.
-        """
-        # sem os comentários: este ficheiro explica a armadilha citando-a
-        pontes = self._sem_comentarios(radar.ler_estilo("miragov-pontes.css"))
-        pares = re.findall(r"(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)",
-                           pontes)
-        self.assertTrue(pares, "as pontes não apontam nada")
-        for nome, valor in pares:
-            self.assertNotEqual(nome, valor,
-                                "%s cita-se a si própria" % nome)
+        O que se guarda e o que as pontes guardavam, dito ao contrario:
+        **toda a variavel que uma regra usa esta definida** na folha (ou
+        e a `--barra-h`, que o JS do molde mede e poe). Uma variavel sem
+        definicao nao da erro nenhum -- a regra fica sem valor, e foi
+        assim que a barra ficou transparente a 21/09/2026 com o
+        `--ink: var(--ink)` circular. So se ve se alguem olhar."""
+        folha = self._sem_comentarios(radar.CSS_TUDO)
+        definidas = self._definidas(folha) | {"--barra-h"}
+        usadas = set(re.findall(r"var\(\s*(--[a-z0-9-]+)\s*\)", folha))
+        self.assertEqual(sorted(usadas - definidas), [])
+        # e nenhuma das antigas voltou
+        antigas = re.findall(r"var\(--(?:azul|linha2?|t[1-6]|verm|verde|"
+                             r"laranja|creme|papel|traco|coral|sup2?|f[1-6]|"
+                             r"sans|mono|sombra)\b", folha)
+        self.assertEqual(antigas, [])
 
     def test_o_icone_nao_derruba_a_pagina_quando_o_modulo_falta(self):
         """Fase 2 da migração (21/09/2026). Os 49 ícones vêm de um
@@ -7844,21 +7856,6 @@ class TestPeleNova(unittest.TestCase):
             self.assertEqual(cliente.get("/tipo/" + fora).status_code, 404,
                              fora)
 
-    def test_a_amostra_desenha_se(self):
-        cliente = radar.app.test_client()
-        for pedido in ("/amostra", "/amostra?tipo=plex",
-                       "/amostra?tipo=sistema&pele=velho",
-                       "/amostra?tipo=inventado"):
-            r = cliente.get(pedido)
-            self.assertEqual(r.status_code, 200, pedido)
-            corpo = r.get_data(as_text=True)
-            self.assertIn("Amostra do desenho", corpo)
-            self.assertNotIn("https://", corpo)
-        # o `tipo` inventado cai no de omissão em vez de ir para o HTML
-        self.assertIn('data-tipo="plex"',
-                      cliente.get("/amostra?tipo=inventado").get_data(
-                          as_text=True))
-
     def test_o_mini_deixou_de_ficar_vermelho_em_tudo(self):
         """O `.mini` é o botão DA LINHA, e ficava vermelho ao passar por
         cima -- em todos: no «ir» do selector, no «desfazer», no «X
@@ -7900,7 +7897,8 @@ class TestPeleNova(unittest.TestCase):
             repouso = re.search(
                 r"\[data-pele=novo\] \.bt\.%s\{([^}]*)\}" % classe,
                 radar.CSS_NOVO).group(1)
-            self.assertIn("background:var(--sup)", repouso, classe)
+            # `--sup` ate 24/09/2026, quando as pontes sairam
+            self.assertIn("background:var(--surface-raised)", repouso, classe)
             self.assertIn(
                 "[data-pele=novo] .bt.%s:hover,"
                 "[data-pele=novo] .bt.%s:focus-visible" % (classe, classe),
@@ -14367,8 +14365,9 @@ class TestEntidadesRedesenhadas(CicloDaEntidade):
         fita = corpo[corpo.index("ent-fita"):]
         fita = fita[:fita.index("</span>")]
         self.assertEqual(fita.count("<i style="), 3)
-        self.assertIn("var(--verde)", fita)
-        self.assertIn("var(--verm)", fita)
+        # `--verde`/`--verm` ate 24/09/2026, quando as pontes sairam
+        self.assertIn("var(--success)", fita)
+        self.assertIn("var(--danger)", fita)
         self.assertIn("3 propostas", corpo)
         self.assertIn("1 em curso", corpo)
 
