@@ -8458,6 +8458,27 @@ class TestColunasSeguemARanhura(BaseTemporaria):
         self.assertIn("Resp.", colunas)
 
 
+class TestIconesNaFicha(BaseTemporaria):
+    """24/09/2026: os ícones entraram nos botões, e em dois sítios foram
+    concatenados a um molde que levava `%` a seguir -- a armadilha do
+    `%`, que só aplica a formatação ao último pedaço. Um deles, o «Peças
+    na plataforma», só aparece quando o anúncio indica um endereço das
+    peças diferente do procedimento, e a bateria não passava por lá."""
+
+    def test_a_ficha_com_as_pecas_noutro_endereco_desenha_se(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo, url, link_pecas, texto) VALUES "
+                      "('61/2026','Software','CML','novo','2026-09-01',"
+                      "'2099-12-01','https://diariodarepublica.pt/x',"
+                      "'https://pecas.exemplo.pt/61','6 - OBJETO DO CONTRATO')")
+        r = radar.app.test_client().get("/anuncio/61%2F2026")
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("https://pecas.exemplo.pt/61", corpo)
+        self.assertIn("mg-icon", corpo)
+
+
 class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
     """O índice da ficha prometia seis destinos e a página tinha oito
     blocos com âncora (fase 5, 16/09/2026).
