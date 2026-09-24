@@ -318,3 +318,11 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-lado ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
 .ficha-lado ul.tarefas li form.accao input{flex:1 1 120px;min-width:0}
 .ficha-lado .mg-card table{font-size:13px}
+
+/* As PROPOSTAS (24/09/2026, o `EcraPropostas`): o cliente por baixo do
+   objecto, e o «Falta» em cor de aviso -- e o que trava. */
+.tab-lista td.o small{display:block;color:var(--ink-muted);font-size:12.5px}
+.tab-lista td.falta{color:var(--warning);font-size:13.5px;min-width:120px}
+.tab-lista td.falta .mg-mono{color:var(--ink-muted);font-size:12px}
+.tab-lista td.o>a{color:var(--ink);font:600 14px/20px var(--font-sans);text-decoration:none}
+.tab-lista td.o>a:hover{color:var(--link);text-decoration:underline}

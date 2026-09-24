@@ -14200,8 +14200,11 @@ def _lista_de_anuncios():
 # procura por texto chega. Um selector de CPV por cima de doze linhas e
 # um controlo que ninguem usa e que ocupa o primeiro ecra.
 
-COLUNAS_DA_PIPELINE = ("Concurso", "Cliente", "Lote", "Preço base",
-                       "Proposto", "Entrega", "Responsável", "Ranhura", "")
+# As colunas do `EcraPropostas` (24/09/2026): a referencia a esquerda, o
+# objecto com o cliente por baixo, o responsavel em circulo, e o «Falta»
+# no fim a dizer o que trava -- a proxima tarefa por fazer.
+COLUNAS_DA_PIPELINE = ("Ref.ª", "Objecto", "Lote", "Resp.", "Preço base",
+                       "Proposto", "Prazo", "Estado", "Falta")
 
 
 def colunas_da_ranhura(estado):
@@ -14238,7 +14241,7 @@ def _preco_da_proposta(p):
     return "&mdash;"
 
 
-def linha_da_pipeline(p, urgente, prazos):
+def linha_da_pipeline(p, urgente, prazos, falta=None):
     """Uma proposta na tabela. A ligacao e para a ficha do anuncio
     quando ha anuncio, e para a propria proposta quando nao ha (D2) --
     uma consulta previa nao tem ficha do DR para abrir."""
@@ -14265,19 +14268,30 @@ def linha_da_pipeline(p, urgente, prazos):
         alvo = "/proposta/%d" % p["id"]
         nome = corta(p["titulo"] or "(sem título)", 80)
     # a celula do proposto sai com a coluna (ver colunas_da_ranhura)
-    cel_proposto = ("<td class='p'>%s</td>" % _preco_da_proposta(p)
+    cel_proposto = ("<td class='mg-num p'><b>%s</b></td>" % _preco_da_proposta(p)
                     if p["estado"] in ESTADOS_COM_PROPOSTO else "")
+    # O que trava: a proxima tarefa por fazer (`falta`, lida numa consulta
+    # so por quem faz o ciclo), com a data quando a tem.
+    if falta:
+        cel_falta = ("<span class='falta-txt'>%s</span>%s"
+                     % (html.escape(corta(falta["o_que"] or "", 40)),
+                        " <span class='mg-mono'>%s</span>" % data_curta(falta["quando"])
+                        if falta["quando"] else ""))
+    else:
+        cel_falta = ""
     # O `title` leva o titulo INTEIRO: a celula corta-o a duas linhas
     # (`.tab-lista td.o a`), e um corte sem forma de ver o resto e uma
-    # lista que esconde o que promete mostrar. A ficha tem-no por
-    # extenso, e isto poupa la ir so para o ler.
-    return ("<tr><td class='o'><a href='%s' title='%s'>%s</a>%s</td>"
-            "<td class='g'><span title='%s'>%s</span></td>"
+    # lista que esconde o que promete mostrar.
+    return ("<tr><td class='mg-code'><a href='%s'>%s</a></td>"
+            "<td class='o'><a href='%s' title='%s'>%s</a>%s"
+            "<small title='%s'>%s</small></td>"
             "<td class='curta'>%s</td>"
-            "<td class='p'>%s</td>%s"
-            "<td class='d'>%s</td><td class='curta'>%s</td>"
-            "<td class='celula-ranhura'>%s</td><td class='curta'>%s</td></tr>"
-            % (alvo,
+            "<td class='curta'>%s</td>"
+            "<td class='mg-num p'>%s</td>%s"
+            "<td class='mg-num d'>%s</td>"
+            "<td class='celula-ranhura'>%s</td><td class='falta'>%s</td></tr>"
+            % (alvo, html.escape(p["ref"] or "—"),
+               alvo,
                html.escape(p["titulo"] or p["ref"] or "(sem título)",
                            quote=True),
                html.escape(nome),
@@ -14288,18 +14302,21 @@ def linha_da_pipeline(p, urgente, prazos):
                html.escape(corta(p["entidade"] or "", 45)),
                "L%d" % p["lote"] if p["lote"] else
                ("conjunto" if p["lote"] == 0 else "&mdash;"),
+               ("<span class='mg-avatar' title='%s'>%s</span>"
+                % (html.escape(p["responsavel"], quote=True),
+                   html.escape(iniciais(p["responsavel"]))))
+               if p["responsavel"] else "&mdash;",
                html.escape(preco_pt(p["preco_base"])),
                # pelo tuplo e nao concatenada ao molde: o valor ja vem
                # substituido, e um "%" la dentro rebentava o `%` de fora
                cel_proposto,
                col_prazo,
-               html.escape(p["responsavel"] or "") or "&mdash;",
                # a mesma escada da outra lista, e pela proposta: uma sem
                # anuncio nao tem `ref` por onde lhe pegar
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                    p["estado"],
                                    titulo=p["titulo"] or p["entidade"] or ""),
-               "<a href='%s'>abrir</a>" % alvo))
+               cel_falta))
 
 
 def _lista_de_propostas():
@@ -14359,6 +14376,17 @@ def _lista_de_propostas():
             prazos = {r["ref"]: r["prazo"] for r in c.execute(
                 "SELECT ref, prazo FROM anuncios WHERE ref IN (%s)"
                 % ",".join("?" * len(refs)), refs)}
+        # A proxima tarefa por fazer de cada proposta, para a coluna
+        # «Falta» -- numa consulta, pela mesma razao dos prazos.
+        falta = {}
+        ids = [p["id"] for p in linhas]
+        if ids:
+            for r in c.execute(
+                    "SELECT proposta_id, o_que, quando FROM tarefas "
+                    "WHERE feita_em IS NULL AND proposta_id IN (%s) "
+                    "ORDER BY COALESCE(NULLIF(quando,''),'9999'), id"
+                    % ",".join("?" * len(ids)), ids):
+                falta.setdefault(r["proposta_id"], r)
     contas = contar_a_escada(cfg=cfg)
     # A aba conta propostas desde 16/09/2026, e por isso o numero dela e
     # o numero desta lista -- sem ressalva nenhuma a fazer. As sem
@@ -14370,7 +14398,8 @@ def _lista_de_propostas():
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
                  % ("".join("<th>%s</th>" % html.escape(t)
                             for t in colunas_da_ranhura(estado_actual)),
-                    "".join(linha_da_pipeline(p, urgente, prazos)
+                    "".join(linha_da_pipeline(p, urgente, prazos,
+                                              falta.get(p["id"]))
                             for p in linhas)))
     elif procura:
         # A ranhura pode estar cheia: o que esta vazio e a RESPOSTA. Dizer
@@ -14407,17 +14436,22 @@ def _lista_de_propostas():
                 html.escape(procura, quote=True),
                 (" <a href='%s?estado=%s'>limpar</a>" % (PROPOSTAS, estado_actual))
                 if procura else ""))
-    conteudo = ("<div class='larg'>" + caixa +
-                "<div class='linha-conta'>" + conta +
-                "<a href='/proposta/nova'>nova proposta</a></div>"
+    # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
+    # corpo, a procura e a contagem, e a tabela.
+    conteudo = (barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)
+                + "<div class='larg'>" + caixa +
+                "<div class='linha-conta'>" + conta + "</div>"
                 + corpo + "</div>")
     return envolver(
-        "propostas", "Propostas",
-        "O que a empresa tem em curso, por ranhura. As propostas sem "
-        "anúncio do DR &mdash; consulta prévia, ajuste directo, convite "
-        "&mdash; vivem aqui e não na lista dos anúncios.",
-        conteudo, abas=barra_das_abas(rota, estado_actual, contas,
-                                      CHAVES_DA_EMPRESA),
+        "propostas", "Propostas", "",
+        conteudo,
+        cabeca=cabecalho_de_pagina(
+            "Propostas",
+            "O que a empresa tem em curso, por ranhura &mdash; com as "
+            "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
+            "convite).", [],
+            "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
+            "Nova proposta</a>"),
         script=caixa_do_motivo(),
         titulo_aba="%s, Propostas" % estado_da_empresa(estado_actual))
 
