@@ -7,6 +7,11 @@ Portugal — código, comentários, mensagens de commit e respostas.
 
 ## O que é
 
+O produto chama-se **Mira Gov** desde 24/09/2026 (era Radar Gov); o
+código, a pasta, o `radar.py` e o repositório mantêm o nome `radar`. A
+regra para o texto: quando é o **produto** a falar a quem o usa, é «o
+Mira Gov»; quando é o programa, a pasta ou os serviços, é «o radar».
+
 Aplicação local em Python que vigia os anúncios de contratação pública da
 **parte L da série II do Diário da República**, guarda-os em SQLite e
 mostra-os num painel Flask em `http://127.0.0.1:8765`. Corre no PC do

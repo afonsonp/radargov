@@ -1,4 +1,8 @@
-# Radar de Concursos, Diário da República
+# Mira Gov, Diário da República
+
+O produto chama-se **Mira Gov** desde 24/09/2026 (era Radar Gov). Neste
+manual, «o radar» é o programa que corre no PC (o `radar.py`, a pasta, os
+serviços); o nome do produto, que os clientes lêem, é Mira Gov.
 
 Vigia a parte L da série II do Diário da República, filtra os anúncios
 que interessam ao teu portefólio e mostra-os num painel local.
@@ -307,7 +311,7 @@ tenha vindo do DR não se apaga aí: tira-se da escada, e o anúncio volta
 ### A barra
 
 A barra é **horizontal, em cima**, e tem a marca à esquerda — o
-**RadarGov** é o Hoje, e é por ele que se volta à abertura — e **dois
+**Mira Gov** é o Hoje, e é por ele que se volta à abertura — e **dois
 itens**: **Concursos** (a lista, com a vista **Calendário**) e
 **Mercado** (os contratos, com a vista **Entidades**). À direita,
 **Configurações** e o teu nome. Os Indicadores estão dentro das
@@ -704,7 +708,7 @@ Não confundir com «Actualizar peças», que apaga e volta a trazer tudo.
 
 A ligação **Configurações** está à direita na barra de cima (desde
 8/09/2026; o separador Alertas passou para aqui, e a 13/09/2026 os
-Indicadores também). É onde dizes ao radar como queres que ele
+Indicadores também). É onde dizes ao Mira Gov como queres que ele
 trabalhe, em nove secções, cada uma com o seu botão «Guardar» — gravar
 uma não toca nas outras, e cada gravação fica no histórico com o
 valor de antes e o de depois. As quatro primeiras são de toda a gente;
@@ -839,7 +843,7 @@ com que proposta, em que lugar ficou, quem eram os concorrentes. Desde
 8/09/2026 entra **pelo modelo do radar**, em **Configurações › Importar
 dados**, em três passos:
 
-1. **Descarregar o modelo.** Um Excel vazio com as colunas que o radar
+1. **Descarregar o modelo.** Um Excel vazio com as colunas que o Mira Gov
    precisa: referência do anúncio no DR (ex. `1947/2026`, tal como a
    ficha a mostra — é o que liga a linha ao anúncio, sem adivinhar),
    lote (só quando o concurso tem lotes e a linha é de um), estado (Não
@@ -1190,7 +1194,7 @@ Ctrl+C fecha-o.
 Três coisas, que o radar já sabe usar e só precisam de ti (desde
 23/09/2026):
 
-1. **Quem opera o Radar Gov**, para os Termos e a Política de
+1. **Quem opera o Mira Gov**, para os Termos e a Política de
    privacidade do site. No `config.json` da pasta:
 
    ```json

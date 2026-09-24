@@ -12032,8 +12032,17 @@ class TestNomeRadarGov(unittest.TestCase):
         self.assertIn('class="mg-topbar__brand" href="/"', radar.BASE)
         for molde in (radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
             self.assertIn("%(logo)s", molde)
-            self.assertIn("RadarGov", molde)           # no <title>
+            self.assertIn("Mira Gov", molde)           # no <title>
         self.assertNotIn("Radar<span>DR", radar.BASE + radar.PAGINA_ENTRAR)
+        # Desde 24/09/2026 o produto chama-se Mira Gov: o nome antigo
+        # não fica em nenhum <title> nem nos textos do site
+        for molde in (radar.BASE, radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
+            self.assertNotIn("RadarGov", molde)
+            self.assertNotIn("Radar de Concursos", molde)
+        for pagina in ("index", "termos", "privacidade"):
+            with open(os.path.join(radar.BASE_DIR, "site", pagina + ".html"),
+                      encoding="utf-8") as f:
+                self.assertNotIn("Radar Gov", f.read())
         # o «Gov» é a cor da marca, e o «Radar» a do texto -- é isso que
         # os distingue, e é o que a folha do sistema diz
         folha = radar.ler_estilo("miragov-componentes.css")

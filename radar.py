@@ -172,7 +172,7 @@ CONFIG_INICIAL = {
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
     "copias_a_guardar": 7,
-    # F8 (23/09/2026): quem opera o Radar Gov, para os termos e a
+    # F8 (23/09/2026): quem opera o Mira Gov, para os termos e a
     # politica de privacidade do site. Enquanto faltar um dos tres, as
     # duas paginas nao se servem e o site nao as mostra -- uma politica
     # de privacidade sem responsavel nao serve a ninguem.
@@ -2088,7 +2088,7 @@ def passos_do_anuncio(c, ref, limite, proposta_id=None):
         # que o concurso foi lido, e nao por quem (F4). O canal lateral
         # «alguem olhou para isto» ficou aceite; o nome, nao.
         "UNION ALL SELECT ref, CASE WHEN quem IN ('DR','plataforma','radar') "
-        "THEN quem ELSE 'RadarGov' END, accao, detalhe, quando, id FROM eventos "
+        "THEN quem ELSE 'Mira Gov' END, accao, detalhe, quando, id FROM eventos "
         "WHERE COALESCE(?,'') != '' AND ref=? "
         "ORDER BY quando DESC, id DESC LIMIT ?",
         (ref, ref, proposta_id, ref, ref, limite)).fetchall()
@@ -7600,7 +7600,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
         cabeca.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
     if n_seg:
         cabeca.append("%d das entidades seguidas" % n_seg)
-    linhas = ["Radar de Concursos -- " + " · ".join(cabeca),
+    linhas = ["Mira Gov -- " + " · ".join(cabeca),
               datetime.now().strftime("%d/%m/%Y %H:%M"), ""]
     for f, anuncios in achados:
         linhas.append("== %s (%d)" % (f["nome"], len(anuncios)))
@@ -7827,7 +7827,7 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
     return (
         "<!DOCTYPE html><html lang=\"pt\"><head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width\">"
-        "<title>Radar de Concursos</title></head>"
+        "<title>Mira Gov</title></head>"
         "<body style=\"margin:0;padding:0;background:%(papel)s\">"
         "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
         "cellspacing=\"0\" style=\"background:%(papel)s\"><tr><td align=\"center\" "
@@ -7838,7 +7838,7 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
         "padding:18px 20px 16px\">"
         "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
         "text-transform:uppercase;letter-spacing:.08em\">"
-        "<span style=\"color:#e08b2c\">&#9679;</span>&nbsp; Radar de Concursos</div>"
+        "<span style=\"color:#e08b2c\">&#9679;</span>&nbsp; Mira Gov</div>"
         "<div style=\"font:600 18px/1.3 %(sans)s;color:#fff;margin-top:8px\">%(cabeca)s</div>"
         "<div style=\"font:400 12px/1.4 %(sans)s;color:rgba(255,255,255,.55);"
         "margin-top:4px\">%(quando)s</div>"
@@ -7933,7 +7933,7 @@ def enviar_resumo(cfg=None, forcar=False):
         pedacos.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
     if n_seg:
         pedacos.append("%d das seguidas" % n_seg)
-    bem, porque = enviar_email("Radar: " + " · ".join(pedacos), corpo, cfg,
+    bem, porque = enviar_email("Mira Gov: " + " · ".join(pedacos), corpo, cfg,
                                html_do_resumo(achados, alteradas, seguidas))
 
     # Sem e-mail configurado, **o ficheiro e a entrega** -- da-se por
@@ -9940,7 +9940,7 @@ def largar_a_empresa(_erro=None):
 
 PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%(titulo)s — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<title>%(titulo)s — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <div class="mg-empty">
@@ -10085,7 +10085,7 @@ def destino_seguro(para):
 
 PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Entrar — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<title>Entrar — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <h1>Entrar</h1>
@@ -12345,7 +12345,7 @@ def migalhas_de(vista, folha=""):
         # as paginas fora da navegacao (FORA_DA_BARRA): as Configuracoes
         # desde 13/09/2026, o Hoje desde que passou a ser o logotipo
         if vista not in FORA_DA_BARRA:
-            return "<em>%s</em>" % html.escape(folha or "Radar")
+            return "<em>%s</em>" % html.escape(folha or "Mira Gov")
         passos = [FORA_DA_BARRA[vista]]
 
     pedacos = []
@@ -14220,7 +14220,7 @@ def _lista_de_anuncios():
         conteudo, abas="".join(abas),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_do_motivo(),
-        titulo_aba="Radar de Concursos, DR")
+        titulo_aba="Mira Gov")
 
 
 # --- a lista das oito ranhuras da empresa (etapa 2 do CRM, 15/09/2026)
@@ -15917,7 +15917,7 @@ def pagina_config(seccao, conteudo, script=""):
         # "Cada seccao grava so o que mostra" saiu a 16/09/2026: descrevia
         # o que ja se ve (§9) e, pior, era FALSO para os Indicadores, que
         # nao gravam nada.
-        "Dizer ao radar como quero que ele trabalhe.",
+        "Dizer ao Mira Gov como quero que ele trabalhe.",
         "<div class='conf'><nav class='conf-indice'>%s</nav>"
         "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
         migalhas=migalhas_de("configuracoes", titulo), script=script,
@@ -16371,7 +16371,7 @@ def config_importar():
         ultima = c.execute("SELECT MAX(importado_em) FROM empresa WHERE folha='modelo'").fetchone()[0]
     corpo = (
         "<div class='mg-field__label'>1. O modelo</div>"
-        "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o radar "
+        "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o Mira Gov "
         "precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote "
         "quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. "
         "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
@@ -16500,7 +16500,7 @@ def _bloco_da_empresa(cfg=None):
     """
     nome, nif = _nome_da_empresa(cfg)
     return ("<div class='mg-field__label' style='margin:22px 0 6px'>A nossa empresa</div>"
-            "<div class='nota' style='margin-bottom:10px'>Para o radar saber, "
+            "<div class='nota' style='margin-bottom:10px'>Para o Mira Gov saber, "
             "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
             "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
             "</div>"
@@ -16740,7 +16740,7 @@ def entidade_procurar():
         "Nome ou NIF; a procura cobre todas as grafias com que cada "
         "entidade já assinou.",
         corpo, migalhas=migalhas_de("contratos", "procurar"),
-        titulo_aba="Procurar entidade, Radar de Concursos")
+        titulo_aba="Procurar entidade, Mira Gov")
 
 
 @app.route("/alertas/enviar", methods=["POST"])
@@ -17553,7 +17553,7 @@ def nosso_lado_cx(nosso):
     corpo = ("<div class='mg-card lado-cx' id='nosso'>"
              + rot_com_porque(
                  "O nosso lado",
-                 "O que o radar e a empresa sabem desta entidade, por "
+                 "O que o Mira Gov e a empresa sabem desta entidade, por "
                  "oposição ao que o Portal BASE diz. O número dos anúncios "
                  "abre exactamente essa lista.")
              + "".join(pedacos) + "</div>")
@@ -17925,7 +17925,7 @@ def entidades():
                     "<div class='larg'>%s%s%s</div>"
                     % (procura, _bloco_de_comparacao(marcadas), tabela),
                     migalhas=migalhas_de("entidades"), abas=abas,
-                    titulo_aba="Entidades, Radar de Concursos")
+                    titulo_aba="Entidades, Mira Gov")
 
 
 def factos_da_entidade(chave, nosso, meses=24):
@@ -18049,7 +18049,7 @@ def entidade(chave):
             + factos_da_entidade(chave, nosso)
             + nosso_lado_cx(nosso) + "</div>",
             migalhas=migalhas_de("entidades", corta(nome, 44)),
-            titulo_aba="%s, Radar de Concursos" % corta(nome, 40))
+            titulo_aba="%s, Mira Gov" % corta(nome, 40))
 
     filtrada = ha_filtro_na_ficha(request.args)
     compra, ganha = d["compra"], d["ganha"]
@@ -18203,7 +18203,7 @@ def entidade(chave):
         "que nós já lhe fizemos.",
         conteudo, script=ARVORE_JS,
         migalhas=migalhas_de("entidades", d["nome"][:44]),
-        titulo_aba="%s, Radar de Concursos" % d["nome"][:40])
+        titulo_aba="%s, Mira Gov" % d["nome"][:40])
 
 
 @app.route("/entidade/<path:chave>/seguir", methods=["POST"])
@@ -18246,7 +18246,7 @@ def sem_corpus_html(titulo):
         "dados.gov &mdash; domínio público, sem chave nem sessão. "
         "Dois anos são cerca de dois minutos.</div></div>",
         migalhas=migalhas_de("contratos"),
-        titulo_aba="Contratos, Radar de Concursos")
+        titulo_aba="Contratos, Mira Gov")
 
 
 @app.route("/contratos/csv")
@@ -18840,7 +18840,7 @@ def contratos():
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
-            titulo_aba="Renovações, Radar de Concursos")
+            titulo_aba="Renovações, Mira Gov")
     return envolver(
         "contratos", "Contratos celebrados",
         "O que já foi assinado, do Portal BASE, pela <b>data de "
@@ -18852,7 +18852,7 @@ def contratos():
         script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
         + espera_corpus(),
         migalhas=migalhas_de("contratos"),
-        titulo_aba="Contratos, Radar de Concursos")
+        titulo_aba="Contratos, Mira Gov")
 
 
 # --------------------------------- modo "fim estimado" dos contratos
@@ -20325,7 +20325,7 @@ def ficha(ref):
                    accao("/pecas-novas/%s" % ref, "Ver se há peças novas"),
                    accao("/documentos/%s" % ref, "Actualizar peças"),
                    ("<div class='nota' style='margin-top:8px'>Peças novas "
-                    "verificadas na plataforma a %s. O radar volta lá sozinho "
+                    "verificadas na plataforma a %s. O Mira Gov volta lá sozinho "
                     "depois da data de esclarecimentos e quando o prazo ou o "
                     "preço base mudam.</div>" % html.escape(data_hora_pt(vigiadas)))
                    if vigiadas else
@@ -20384,7 +20384,7 @@ def ficha(ref):
                "%s%s</div>%s%s</div>"
                % (rot_com_porque(
                       "Peças do procedimento",
-                      "O radar vai à plataforma ver se há peças novas "
+                      "O Mira Gov vai à plataforma ver se há peças novas "
                       "depois da data de esclarecimentos e quando o prazo "
                       "ou o preço base mudam."),
                   chip_plat, corpo_docs, leitor))
@@ -20472,7 +20472,7 @@ def ficha(ref):
                     conteudo, migalhas=migalhas,
                     script=espera + caixa_do_motivo(),
                     abas=ficha_cab + indice,
-                    titulo_aba="%s, Radar de Concursos" % ref)
+                    titulo_aba="%s, Mira Gov" % ref)
 
 
 @app.route("/documentos/<path:ref>", methods=["POST"])
@@ -20764,7 +20764,7 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
     else:
         resultados = ""
     return (
-        "Documento desenhado pelo radar, página a página (%d). "
+        "Documento desenhado pelo Mira Gov, página a página (%d). "
         "Procura com a caixa aqui em baixo: as ocorrências ficam "
         "marcadas a amarelo nas páginas, com salto directo. " % n_paginas,
         caixa + resultados + "<div class='peca-folhas'>%s</div>" % paginas_img)
@@ -20808,7 +20808,7 @@ def ver_peca(ref, nome):
     return envolver(
         "anuncios", nome, "Peça do anúncio %s." % html.escape(ref),
         corpo, migalhas=migalhas_de("anuncios", ref),
-        titulo_aba="%s, Radar de Concursos" % nome)
+        titulo_aba="%s, Mira Gov" % nome)
 
 
 @app.route("/tarefa/nova", methods=["POST"])
@@ -22580,7 +22580,7 @@ def situacao():
         "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
         "gap:18px'>%s</div></div>" % (selector, corpo),
         migalhas=migalhas_de("inicio", "Ponto de situação"),
-        abas=abas, titulo_aba="Ponto de situação, Radar de Concursos")
+        abas=abas, titulo_aba="Ponto de situação, Mira Gov")
 
 
 @app.route("/indicadores")
@@ -23106,11 +23106,11 @@ def _avisar_do_pedido(id_, p):
     de correio, e o visitante nao tem de esperar por isso. O que o envio
     responder fica na linha do pedido -- sem palavra-passe configurada
     o pedido fica guardado na mesma, e a pagina dos pedidos di-lo."""
-    corpo = ("Pedido de acesso ao Radar Gov\n\n"
+    corpo = ("Pedido de acesso ao Mira Gov\n\n"
              "Nome: %(nome)s\nEmpresa: %(empresa)s\nE-mail: %(email)s\n"
              "Sector: %(sector)s\n\n%(mensagem)s\n" % p)
     try:
-        _, resposta = enviar_email("Radar Gov: pedido de acesso de %s"
+        _, resposta = enviar_email("Mira Gov: pedido de acesso de %s"
                                    % p["empresa"], corpo)
     except Exception as erro:              # nunca derruba a thread
         resposta = "%s: %s" % (type(erro).__name__, str(erro)[:120])
@@ -23229,7 +23229,7 @@ def pedidos_de_acesso():
 
 TEXTO_DO_CONVITE = """Olá %(nome)s,
 
-O seu pedido de acesso ao Radar Gov foi aceite.
+O seu pedido de acesso ao Mira Gov foi aceite.
 
 Para criar a sua conta, abra esta ligação e escolha o nome de
 utilizador e a palavra-passe:
@@ -23240,7 +23240,7 @@ A ligação serve uma vez e é válida durante %(dias)d dias. A conta é a
 de administrador da %(empresa)s: pode criar a seguir as contas dos
 colegas, em Configurações › Conta.
 
-Radar Gov
+Mira Gov
 """
 
 
@@ -23272,7 +23272,7 @@ def aceitar_pedido(id_):
     cfg = _junta(dict(ler_config()), {"email": {"para": p["email"]}})
     try:
         bem, porque = enviar_email(
-            "O seu acesso ao Radar Gov",
+            "O seu acesso ao Mira Gov",
             TEXTO_DO_CONVITE % {"nome": p["nome"], "ligacao": ligacao,
                                 "dias": contas.DIAS_DE_CONVITE,
                                 "empresa": p["empresa"] or "sua empresa"}, cfg)
@@ -23296,7 +23296,7 @@ def aceitar_pedido(id_):
 PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Criar a conta — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<title>Criar a conta — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <h1>Criar a conta</h1>
@@ -23468,7 +23468,7 @@ AMOSTRA_PAGINA = """<!doctype html>
 </style></head><body>
 <div class="app">
 <header class="barra">
- <div class="marca"><a class="logo" href="/">Radar<span>Gov</span></a></div>
+ <div class="marca"><a class="logo" href="/">Mira<span>Gov</span></a></div>
  <nav><a class="on"><b>Concursos</b></a><a><b>Mercado</b></a></nav>
  <div class="caixa"><a class="conf">Configurações</a></div>
 </header>
@@ -24146,7 +24146,7 @@ def _o_que_mudou(hoje, cfg):
             % (dica_verif, so_a_hora,
                "Nada de novo desde a última verificação."
                if verif_ok and le_marca("ultima_verificacao", "nunca") != "nunca"
-               else "Ainda não houve uma verificação. O radar verifica "
+               else "Ainda não houve uma verificação. O Mira Gov verifica "
                     "sozinho, de hora a hora.",
                accao("/verificar", "verificar agora", "mini")
                if sou_dono() else ""))
@@ -24531,7 +24531,7 @@ def inicio():
         # motivo em duas das oito palavras, e sem a caixa o gesto ficava
         # a meio (o servidor recusa e diz porquê, mas aqui há JS).
         script=caixa_do_motivo(),
-        titulo_aba="Radar de Concursos, DR")
+        titulo_aba="Mira Gov")
 
 
 def _atrasadas_de(quem, hoje):
@@ -24577,7 +24577,7 @@ def tarefas_adiar():
     return envolver("inicio", "Adiar as atrasadas",
                     "Passa para hoje as tarefas com data anterior.",
                     "<div class='larg'>%s</div>" % corpo,
-                    titulo_aba="Adiar as atrasadas, Radar de Concursos")
+                    titulo_aba="Adiar as atrasadas, Mira Gov")
 
 
 @app.route("/tarefas/adiar", methods=["POST"])
@@ -25044,7 +25044,7 @@ def main():
         print("Não arranco: " + porque)
         return
     threading.Thread(target=relogio, daemon=True).start()
-    print("Radar de Concursos, Diário da República")
+    print("Mira Gov, Diário da República")
     print("Painel em " + LOCAL)
     print("Fecha esta janela para parar. Ctrl+C tambem serve.")
     # Em thread, e a espera da porta: o app.run() so devolve quando o
