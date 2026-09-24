@@ -2849,7 +2849,11 @@ botões ou no calendário.
   o prazo por cima do índice. E o Hoje punha os factos na ranhura das
   abas, que a grelha mandou para cima do título. Antes de dar por feita
   uma regra que toque no `.topo` (ou no `BASE`), tira a fotografia de
-  todos os ecrãs, não só do que se estava a mudar.
+  todos os ecrãs, não só do que se estava a mudar. Desde 24/09/2026 a
+  faixa do topo é o `TOPO`, fora do `BASE`, e uma página que passe
+  `cabeca=` ao `envolver()` (a Ficha) não a desenha: as migalhas dela
+  vêm do `cabecalho_de_pagina()` e não do `migalhas_de()`, e o
+  «Verificar agora» não aparece lá.
 
 
 ---

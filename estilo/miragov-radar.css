@@ -189,11 +189,6 @@ details.hj-mais[open]>summary{color:var(--ink-muted)}
  color:var(--ink);margin-bottom:var(--space-3)}
 .feed .l a{font:500 14px/20px var(--font-sans)}
 .feed .l .nota{font-size:12px}
-/* O topo da FICHA tem outra forma: o titulo vai no `.ficha-cab` (com a
-   seta de voltar e o prazo) e o `h1` do molde vem vazio. */
-.topo>h1:empty{display:none}
-.topo>.ficha-cab{grid-column:1;grid-row:2;min-width:0}
-.topo>.ficha-indice{grid-column:1/-1;grid-row:3}
 
 /* ---- A BASE COMUM, para todos os ecras (22/09/2026) ----------------
    Os ecras que ainda nao passaram ao sistema desenhavam com o CSS
@@ -247,17 +242,72 @@ main.mg form.filtros[action='/entidade/procurar'] label{display:flex;flex-direct
  gap:var(--space-1);font:500 13px/18px var(--font-sans);color:var(--ink)}
 main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 
-/* A FICHA em duas colunas (23/09/2026, `EcraFicha`): o anuncio a
-   esquerda, a proposta e o contexto a direita (`minmax(300px,380px)`,
-   a medida do README do sistema). Abaixo de 1100px volta a uma so, com
-   o anuncio primeiro. */
-.ficha-duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);
- gap:var(--space-5);align-items:start}
-.ficha-principal,.ficha-lado{display:flex;flex-direction:column;gap:14px;min-width:0}
-.ficha-lado .mg-card{padding:var(--space-4)}
+/* A FICHA (24/09/2026, o `EcraFicha` do Mira Gov). O cabecalho e o
+   `PageHeader` sobre o fundo, a escada o `Stepper`, e o resto o que o
+   preview do sistema escreve para a pagina de exemplo -- o indice em
+   pilulas, os factos em grelha de dois pares, as listas com a medida a
+   direita e o prazo grande. Duas colunas (`minmax(300px,360px)` a
+   direita); abaixo de 1100px volta a uma so, com o anuncio primeiro. */
+.corpo>.mg-pagehead{padding-top:var(--space-2)}
+.ficha-escada{margin:var(--space-1) 0 var(--space-5)}
+.ficha-indice ul{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0;padding:0;
+ list-style:none;font:500 13px/18px var(--font-sans)}
+.ficha-indice a{color:var(--ink-secondary);text-decoration:none;padding:4px 12px;
+ border-radius:var(--radius-full);background:var(--surface-sunken);display:inline-block}
+.ficha-indice a:hover{color:var(--link)}
+.ficha-duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);
+ gap:var(--space-5);align-items:start;margin-top:var(--space-5)}
+.ficha-principal,.ficha-lado,#mercado{display:flex;flex-direction:column;
+ gap:var(--space-4);min-width:0}
+.ficha-duas .mg-card{scroll-margin-top:calc(var(--barra-h,56px) + 12px)}
+.mg-card__cab{flex:1 1 auto;min-width:0}
+.mg-card__head .porque-bloco>summary{display:flex;align-items:center;gap:var(--space-2)}
+.ficha-factos{display:grid;grid-template-columns:150px minmax(0,1fr) 150px minmax(0,1fr);
+ gap:var(--space-2) var(--space-4);margin:0}
+.ficha-factos dt{font:600 12px/16px var(--font-sans);color:var(--ink-muted)}
+.ficha-factos dd{margin:0 0 var(--space-2);font:400 15px/22px var(--font-sans);
+ min-width:0;overflow-wrap:anywhere}
+.ficha-factos dd.n{font:400 14px/22px var(--font-mono)}
+/* um valor com degraus (perfis, enumeracoes: `desenha_valor()`) nao cabe
+   numa das quatro colunas: ocupa a linha inteira por baixo do rotulo */
+.ficha-factos dd:has(.perfis,.pontos,.numerados){grid-column:2/-1}
+.ficha-factos dd a{color:var(--link);font-family:var(--font-sans);font-size:13px}
+.mg-card__head .porque-bloco .mg-card__title{flex:0 1 auto}
+.ficha-seccao{margin-top:var(--space-4)}
+.ficha-seccao>summary{cursor:pointer;display:flex;gap:var(--space-3);align-items:baseline;
+ font:600 14px/20px var(--font-sans);color:var(--ink);padding:var(--space-2) 0;
+ border-top:var(--border-hairline) solid var(--line)}
+.ficha-seccao>summary .sh{margin-left:auto;font-weight:400;color:var(--ink-muted);
+ font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ficha-seccao>.ficha-factos{margin-top:var(--space-2)}
+.ficha-lista{margin:0;padding:0;list-style:none}
+.ficha-lista li{display:flex;gap:var(--space-3);padding:var(--space-2) 0;
+ border-top:var(--border-hairline) solid var(--line);font:400 14px/20px var(--font-sans)}
+.ficha-lista li:first-child{border-top:0}
+.ficha-lista li a{color:var(--link);text-decoration:none;font-weight:500;
+ flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.ficha-lista li .t{flex:1 1 auto;min-width:0}
+.ficha-lista li .n{font-family:var(--font-mono);font-size:13px;
+ color:var(--ink-secondary);flex:none}
+.ficha-lista li.aberta a{color:var(--ink);font-weight:700}
+.ficha-prazo{display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap}
+.ficha-prazo b{font:600 28px/32px var(--font-mono);letter-spacing:-.02em;color:var(--success)}
+.ficha-prazo.avisa b{color:var(--warning)}
+.ficha-prazo.mau b{color:var(--danger)}
+.ficha-prazo span{color:var(--ink-secondary)}
+.ficha-nota,.em-falta-frase{font:400 13px/18px var(--font-sans);color:var(--ink-muted);
+ margin:var(--space-2) 0 0}
+.em-falta-frase b{font-weight:600;color:var(--ink-secondary)}
+.nota-campo{display:block;margin-top:3px;font:400 12px/16px var(--font-sans);
+ color:var(--ink-muted)}
+.mg-card__foot .mg-row{gap:var(--space-2)}
 .ficha-lado .prop-campos{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
-.ficha-lado .ficha-pe,.ficha-lado .lado-cx.meia{width:auto}
+.resp{display:flex;align-items:center;gap:var(--space-2)}
+.resp .mg-field__input{flex:1 1 auto;min-width:0}
 @media (max-width:1100px){.ficha-duas{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:720px){.ficha-factos{grid-template-columns:minmax(0,1fr)}
+ .ficha-factos dd{margin-bottom:var(--space-3)}
+ .mg-pagehead__actions{flex:1 1 100%;flex-wrap:wrap}}
 /* A linha de tarefa na coluna estreita dobra: o texto e as etiquetas
    numa linha, o formulario do adiar/quem na seguinte, a toda a largura. */
 .ficha-lado ul.tarefas li{flex-wrap:wrap}

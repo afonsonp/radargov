@@ -536,10 +536,13 @@ para qualquer ranhura.
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
 Em **duas colunas** desde 23/09/2026 (o `EcraFicha` do sistema de
-desenho): à esquerda o anúncio (identidade, essencial, lotes, peças,
-desfecho, homólogos e mercado), à direita o trabalho (a nossa proposta,
-contactos, histórico, responsável); numa só abaixo de 1100px. O
-cabeçalho fino e o índice ficam presos ao rolar. Tem:
+desenho): à esquerda o anúncio (os factos em pares e o essencial, lotes,
+peças, desfecho, homólogos e mercado), à direita o prazo e o trabalho (a
+nossa proposta, contactos, histórico, responsável); numa só abaixo de
+1100px. Desde 24/09/2026 abre com o **cabeçalho da página** (migalhas,
+o título inteiro com as acções à direita, a entidade por baixo), a
+**escada em quatro passos** (Interessa · Em preparação · Submetida ·
+Decidida) e o **índice em pílulas**; nada disto fica preso ao rolar. Tem:
 
 - Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes)
 - O **texto** do anúncio

@@ -10985,61 +10985,19 @@ dialog.modal .modal-pe button[type=submit]:hover{filter:brightness(1.08)}
 .rodape .e{font:500 12px/1 var(--sans);color:var(--t2)}
 .rodape .d{font:400 12px/1 var(--sans);color:var(--t5)}
 
-/* Ficha: composicao em dossier (A1-C, escolha do Afonso a 31/08/2026).
-   Uma coluna so, por ordem de leitura, com o cabecalho fino e o indice
-   presos ao rolar. A coluna da direita desapareceu: esgotava-se a um
-   quinto da pagina e os outros 80% do rolo eram uma coluna unica na
-   mesma, com o texto lido pelo modelo a ocupar tudo. */
-.ficha-cab{display:flex;align-items:center;gap:10px;padding:2px 0 10px;
- border-bottom:1px solid var(--linha)}
-.ficha-cab .volta{font:600 15px/1 var(--sans);color:var(--t3);flex:none;
- padding:4px 2px}
-.ficha-cab .volta:hover{color:var(--ink)}
-.ficha-cab .t{flex:1;min-width:0;font:700 14.5px/1.3 var(--sans);color:var(--ink);
- overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ficha-cab form.accao{flex:none}
 .chip-prazo{flex:none;font:700 12px/1 var(--mono);padding:6px 9px;border-radius:5px;
  background:var(--linha2);color:var(--t2);white-space:nowrap}
 .chip-prazo.mau{background:var(--verm-fundo);color:var(--verm)}
 .chip-prazo.avisa{background:var(--laranja-fundo);color:var(--laranja)}
 .chip-prazo.ok{background:var(--verde-fundo);color:var(--verde)}
-.ficha-indice{display:flex;align-items:center;gap:20px;flex-wrap:wrap;
- padding:0 0 2px}
-.ficha-indice>a{padding:10px 0;font:600 12px/1 var(--sans);color:var(--t3);
- border-bottom:2px solid transparent;margin-bottom:-1px}
-.ficha-indice>a:hover{color:var(--ink)}
-.ficha-indice>a.on{color:var(--ink);border-bottom-color:var(--azul)}
-.ficha-indice .dir{margin-left:auto;display:flex;align-items:center;gap:12px;
- flex-wrap:wrap}
-.ficha-indice .nota-modo{font:400 11.5px/1 var(--sans);color:var(--t4)}
 /* accoes de segunda linha: sao ligacoes, nao botoes -- competiam com o
    "Interessa" quando eram seis caixas iguais lado a lado */
 .bt-leve{cursor:pointer;background:none;border:0;
  font:500 11.5px/1 var(--sans);color:var(--t3);display:inline-block;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .bt-leve:hover{color:var(--azul);text-decoration:underline}
-.ficha-dossier{display:flex;flex-direction:column;gap:14px}
-.ficha-dossier>#mercado{display:flex;flex-direction:column;gap:14px}
-.ficha-pe{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;
- align-items:start}
-@media (max-width:900px){.ficha-pe{grid-template-columns:minmax(0,1fr)}}
 /* um titulo vazio nao ocupa espaco: a ficha nao usa o cabecalho grande */
 h1.tit:empty,p.subtit:empty{display:none}
-.cabeca{padding:24px 26px}
-.cabeca .chips{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
-.cabeca .ref{font:500 11px/1 var(--mono);color:var(--t4)}
-.cabeca h2{margin:0 0 6px;font:700 22px/1.3 var(--sans);color:var(--azul);
- letter-spacing:-.4px;text-wrap:pretty}
-.cabeca .ent{font:400 13px/1.4 var(--sans);color:var(--t2);margin-bottom:20px}
-.cabeca .ent a{color:var(--azul)}
-.cabeca .ent a:hover{text-decoration:underline}
-/* Os factos repartem a linha entre os que existirem. Era `flex:1 1 30%`
-   e com cinco campos dava tres numa linha e depois duas linhas de um --
-   celulas do tamanho de um cartaz. Uma grelha de colunas fixas resolvia
-   isso e trazia o contrario: numa consulta preliminar, que so tem tres
-   factos, sobrava uma celula cinzenta vazia a parecer avaria. */
-.factos{display:flex;flex-wrap:wrap;gap:1px;background:var(--linha);
- border:1px solid var(--linha);border-radius:8px;overflow:hidden}
 .facto{background:var(--creme);padding:12px 15px;flex:1 1 180px;min-width:0}
 .facto .k{font:600 9.5px/1 var(--sans);color:var(--t4);text-transform:uppercase;
  letter-spacing:.08em}
@@ -11059,22 +11017,9 @@ details.sec .st{font:600 11.5px/1 var(--sans);color:var(--ink);
 details.sec .sh{margin-left:auto;font:400 11.5px/1 var(--sans);color:var(--t5);
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
 details.sec dl{margin:0;padding:2px 22px 20px}
-details.sec .par{display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px;
- padding:10px 0;border-top:1px solid var(--papel)}
 details.sec dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
 details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
  white-space:pre-line;text-wrap:pretty;word-break:break-word}
-.essencial dl{margin:0;padding:6px 22px 18px}
-.essencial .par{display:grid;grid-template-columns:230px minmax(0,1fr);
- gap:18px;padding:11px 0;border-top:1px solid var(--papel)}
-.essencial .par:first-child{border-top:0}
-.essencial dt{font:400 12.5px/1.45 var(--sans);color:var(--t4)}
-.essencial dd{margin:0;font:600 13px/1.5 var(--sans);color:var(--ink);
- text-wrap:pretty;word-break:break-word;white-space:pre-line;
- max-width:86ch}
-/* ... mas uma grelha de perfis ou uma lista nao e texto corrido:
-   essas querem toda a largura que houver */
-.essencial dd:has(.perfis){max-width:none}
 /* As tres formas dos campos longos lidos das pecas (desenha_valor).
    O texto e o mesmo -- o que muda e ter degraus: um perfil le-se como
    um cartao, uma enumeracao le-se como lista. Em bloco corrido, os 20
@@ -11083,7 +11028,6 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
    sobe para cima e os cartoes ficam com a pagina inteira. Espremidos
    na coluna do valor davam duas colunas de 240px, e "Certificação
    Gestão de Projeto" partia em tres linhas. */
-.essencial .par:has(.perfis){grid-template-columns:minmax(0,1fr);gap:8px}
 .perfis{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
  gap:10px;margin-top:2px}
 .perfil{border:1px solid var(--linha);border-radius:7px;padding:11px 13px;
@@ -11145,11 +11089,6 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .conf-forn .saude{margin:6px 0 10px}
 @media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static;flex-direction:row;flex-wrap:wrap}}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
-.em-falta-frase{margin:0;padding:12px 22px 16px;border-top:1px solid var(--linha2);
- font:400 12.5px/1.6 var(--sans);color:var(--t4)}
-.em-falta-frase b{font-weight:600;color:var(--t3)}
-.nota-campo{display:block;margin-top:3px;font:400 11.5px/1.45 var(--sans);
- color:var(--t5)}
 .a-trazer{color:var(--azul)}
 .a-trazer::before{content:'';display:inline-block;width:7px;height:7px;
  border-radius:50%;background:var(--azul);margin-right:7px;
@@ -11164,22 +11103,8 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .facto .conta.mau{color:var(--verm)}
 .facto .conta.avisa{color:var(--laranja)}
 .facto .conta.ok{color:var(--verde)}
-.barra-prazo{display:block;height:4px;border-radius:2px;background:var(--linha);
- margin-top:9px;overflow:hidden}
-.barra-prazo i{display:block;height:100%;background:var(--traco)}
 .lado-cx{padding:18px 22px}
 .lado-cx .cab{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.docs{display:flex;flex-direction:column;gap:2px;margin-top:8px}
-.doc{display:flex;align-items:center;gap:10px;padding:9px 0;
- border-top:1px solid var(--linha2)}
-.doc a{font:500 12.5px/1.35 var(--sans);min-width:0;overflow:hidden;
- text-overflow:ellipsis;white-space:nowrap}
-.doc .t{margin-left:auto;flex:none;font:400 11px/1 var(--mono);color:var(--t4)}
-/* a peca que esta aberta no leitor aqui em baixo */
-.doc.aberta a{color:var(--ink);font-weight:700}
-.doc.aberta{position:relative}
-.doc.aberta::before{content:'';position:absolute;left:-22px;top:9px;bottom:9px;
- width:3px;border-radius:2px;background:var(--azul)}
 
 /* O leitor da peca, dentro da ficha e por baixo da lista das pecas
    (pedido do Afonso a 31/08/2026). A pagina propria /peca continua a
@@ -11213,16 +11138,6 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .peca-pag{display:block;width:100%;max-width:960px;margin:14px auto 0;
  border:1px solid var(--linha);border-radius:5px;background:#fff;
  box-shadow:0 1px 3px rgba(20,24,30,.08)}
-.resp{display:flex;align-items:center;gap:9px;padding:9px 12px;
- border:1px solid var(--linha);border-radius:8px;background:var(--creme)}
-.resp .av{width:24px;height:24px;border-radius:50%;background:var(--linha);flex:none;
- font:600 9.5px/24px var(--sans);color:var(--t3);text-align:center}
-.resp input{flex:1;min-width:0;border:0;background:transparent;
- font:500 12.5px/1.4 var(--sans);color:var(--ink)}
-.resp input:focus:not(:focus-visible){outline:none}
-.resp button{background:none;border:0;color:var(--t5);cursor:pointer;
- font:400 11.5px/1 var(--sans);flex:none}
-.resp button:hover{color:var(--ink)}
 .hist{display:flex;gap:10px;align-items:baseline;padding:9px 0;
  border-top:1px solid var(--papel)}
 .hist .t{font:400 12px/1.4 var(--sans);color:var(--t2);min-width:0}
@@ -11611,16 +11526,6 @@ details.perigo[open] > summary{color:var(--verm)}
  .guardados .guardar{margin-left:0;flex-basis:100%}
  .guardados .guardar input{min-width:0;flex:1}
  .paginas{flex-wrap:wrap}
- .cabeca{padding:16px 16px}
- .cabeca h2{font-size:17px}
- .essencial dl{padding:4px 14px 14px}
- .essencial .par{grid-template-columns:minmax(0,1fr);gap:2px}
- .em-falta-frase{padding:10px 14px 14px}
- .ficha-cab{flex-wrap:wrap}
- .ficha-cab .t{font-size:13px;flex-basis:calc(100% - 40px)}
- .ficha-indice{gap:14px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
- .ficha-indice>a{white-space:nowrap}
- .ficha-indice .dir{display:none}
  .lado-cx{padding:14px}
  .coluna{width:min(282px,86vw)}
  .escada{flex-wrap:wrap}
@@ -12173,14 +12078,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
  %(conta)s
 </header>
 <main class="mg">
- <div class="topo">
-  <div class="mg-crumbs migalhas">
-   <div class="b">%(migalhas)s</div>
-   <div class="accoes-topo">%(accoes_topo)s</div>
-  </div>
-  %(titulo_e_porque)s
-  %(abas)s
- </div>
+ %(topo)s
  <div class="corpo">%(aviso)s%(conteudo)s</div>
 </main>
 </div>
@@ -12418,6 +12316,7 @@ BOTOES = {
     "mini ok": "mg-btn mg-btn--sm mg-btn--success",
     "mini verde": "mg-btn mg-btn--sm mg-btn--success",
     "mini cuidado": "mg-btn mg-btn--sm mg-btn--warning",
+    "mini forte": "mg-btn mg-btn--sm mg-btn--primary",
     "mini perigo": "mg-btn mg-btn--sm mg-btn--danger",
 }
 
@@ -12682,9 +12581,26 @@ def _iniciais(nome):
     return html.escape((partes[0][0] + partes[-1][0]).upper())
 
 
+# A faixa do topo das paginas que ainda nao passaram ao `PageHeader`:
+# as migalhas, o titulo com o "?", as accoes e as abas.
+TOPO = """<div class="topo">
+  <div class="mg-crumbs migalhas">
+   <div class="b">%(migalhas)s</div>
+   <div class="accoes-topo">%(accoes_topo)s</div>
+  </div>
+  %(titulo_e_porque)s
+  %(abas)s
+ </div>"""
+
+
 def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
-             abas="", script="", titulo_aba=None):
-    """Monta uma pagina completa a partir do esqueleto partilhado."""
+             abas="", script="", titulo_aba=None, cabeca=""):
+    """Monta uma pagina completa a partir do esqueleto partilhado.
+
+    Com `cabeca` (o `cabecalho_de_pagina()`, desde 24/09/2026), a pagina
+    abre com o cabecalho do sistema de desenho, dentro do corpo e sobre o
+    fundo, e a faixa do topo nao se desenha -- e o `EcraFicha`. As
+    paginas que ainda nao passaram continuam com a faixa."""
     # As vistas agrupadas so se mostram dentro do item aberto: a barra
     # tem cinco itens exactos (decisao 11.6-A), e e ao entrar em "Em
     # curso" ou "Mercado" que as duas vistas de cada um aparecem.
@@ -12760,7 +12676,30 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                % " e ".join("&ldquo;%s&rdquo;" % html.escape(t)
                             for t in faltam), onde, guiao))
 
+    partes_do_topo = {
+        "migalhas": migalhas,
+        # O titulo, e o "?" so quando ha texto para ele guardar. Sem
+        # subtitulo o <details> era um "?" que abria nada -- um controlo
+        # morto, que a empresa nao poe no ecra.
+        "titulo_e_porque": (
+            ("<details class='mg-disc porque'><summary>"
+             "<h1 class='mg-pagehead__title'>%s</h1><i title='O que e esta pagina'>?</i>"
+             "</summary><p class='mg-pagehead__sub'>%s</p></details>"
+             % (html.escape(titulo), subtitulo)) if subtitulo.strip()
+            else "<h1 class='mg-pagehead__title'>%s</h1>" % html.escape(titulo)),
+        "abas": abas or "<div class='vazio-topo'></div>",
+        # "Verificar agora" vai ao DR buscar anuncios novos, e os novos
+        # aterram na Triagem: e o UNICO sitio com o botao (11.8-A). No
+        # quadro e no calendario parecia dizer respeito ao que esta no
+        # ecra; nos contratos ja aparecera ao lado do "Actualizar
+        # contratos" a dizer outra coisa parecida.
+        "accoes_topo": (
+            ("<span class='a-correr'>a verificar&hellip;</span>"
+             if a_verificar else accao("/verificar", "Verificar agora"))
+            if activo in PAGINAS_COM_VERIFICAR and sou_dono() else ""),
+    }
     return com_csrf(BASE % {
+        "topo": "" if cabeca else TOPO % partes_do_topo,
         "titulo_aba": html.escape(titulo_aba or titulo),
         "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
@@ -12773,28 +12712,8 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # nao se distingue de uma marca decorativa
         "inicio_on": "aria-current='page'" if activo == "inicio" else "",
         "nav": "".join(itens),
-        "migalhas": migalhas,
-        # O titulo, e o "?" so quando ha texto para ele guardar. Sem
-        # subtitulo o <details> era um "?" que abria nada -- um controlo
-        # morto, que a empresa nao poe no ecra.
-        "titulo_e_porque": (
-            ("<details class='mg-disc porque'><summary>"
-             "<h1 class='mg-pagehead__title'>%s</h1><i title='O que e esta pagina'>?</i>"
-             "</summary><p class='mg-pagehead__sub'>%s</p></details>"
-             % (html.escape(titulo), subtitulo)) if subtitulo.strip()
-            else "<h1 class='mg-pagehead__title'>%s</h1>" % html.escape(titulo)),
         "conteudo": conteudo,
-        "abas": abas or "<div class='vazio-topo'></div>",
-        "aviso": aviso,
-        # "Verificar agora" vai ao DR buscar anuncios novos, e os novos
-        # aterram na Triagem: e o UNICO sitio com o botao (11.8-A). No
-        # quadro e no calendario parecia dizer respeito ao que esta no
-        # ecra; nos contratos ja aparecera ao lado do "Actualizar
-        # contratos" a dizer outra coisa parecida.
-        "accoes_topo": (
-            ("<span class='a-correr'>a verificar&hellip;</span>"
-             if a_verificar else accao("/verificar", "Verificar agora"))
-            if activo in PAGINAS_COM_VERIFICAR and sou_dono() else ""),
+        "aviso": cabeca + aviso,
         "lista_pessoas": "".join("<option value='%s'>" % html.escape(n, quote=True)
                                  for n in listar_pessoas()),
         # Enquanto a verificacao correr, a pagina volta a pedir-se
@@ -19072,6 +18991,134 @@ def _facto(rotulo, valor, classe="", largo=False):
             % (" larg" if largo else "", rotulo, classe, valor))
 
 
+def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
+           porque=""):
+    """Um cartão do sistema de desenho (o `Card`): cabeça com título,
+    meta e acções, o corpo, e o rodapé da proveniência.
+
+    O `porque` é o «?» do bloco (o que ele É), a mesma regra do
+    `rot_com_porque()`: o que diz de onde vem um número fica à vista, no
+    `meta` ou no `pe`; o que explica para que serve vai para o «?».
+    """
+    if porque:
+        titulo_html = ("<details class='mg-disc porque porque-bloco'><summary>"
+                       "<h3 class='mg-card__title'>%s</h3>"
+                       "<i title='O que é este bloco'>?</i></summary>"
+                       "<p class='mg-card__meta'>%s</p></details>" % (titulo, porque))
+    else:
+        titulo_html = "<h3 class='mg-card__title'>%s</h3>" % titulo
+    return ("<section class='mg mg-card%s'%s>"
+            "<div class='mg-card__head'><div class='mg-card__cab'>%s%s</div>%s</div>"
+            "%s%s</section>"
+            % (" mg-card--band" if banda else "",
+               " id='%s'" % id_ if id_ else "",
+               titulo_html,
+               "<p class='mg-card__meta'>%s</p>" % meta if meta else "",
+               "<div class='mg-card__actions'>%s</div>" % accoes if accoes else "",
+               # sem corpo nao ha corpo: uma faixa vazia por baixo da cabeca
+               # parecia um bloco a espera de carregar
+               "<div class='mg-card__body'>%s</div>" % corpo if corpo else "",
+               "<div class='mg-card__foot'>%s</div>" % pe if pe else ""))
+
+
+def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes=""):
+    """O cabeçalho de uma página (o `PageHeader`): as migalhas, o título
+    grande com as acções à direita, e o subtítulo por baixo.
+
+    `migalhas` é [(rótulo, endereço)]; a última não leva ligação. O
+    `titulo` e o `subtitulo` já vêm escapados -- o subtítulo da ficha leva
+    a ligação para a entidade."""
+    passos = "".join(
+        "<li>%s</li>" % ("<a href='%s'>%s</a>" % (html.escape(destino, quote=True),
+                                                html.escape(rotulo))
+                         if destino else "<span>%s</span>" % html.escape(rotulo))
+        for rotulo, destino in migalhas)
+    return ("<div class='mg mg-pagehead'>"
+            "<ol class='mg-crumbs'>%s</ol>"
+            "<div class='mg-pagehead__row'><h1 class='mg-pagehead__title'>%s</h1>%s</div>"
+            "%s</div>"
+            % (passos, titulo,
+               "<div class='mg-pagehead__actions'>%s</div>" % accoes if accoes else "",
+               "<p class='mg-pagehead__sub'>%s</p>" % subtitulo if subtitulo else ""))
+
+
+# Os quatro passos da escada na ficha (o `Stepper` do sistema). São a
+# escada lida por fases, e não as dez ranhuras: quem abre a ficha quer
+# saber em que fase está, e a ranhura exacta está na nota do passo.
+PASSOS_DA_FICHA = (("Interessa", ("analisar",)),
+                   ("Em preparação", ("proposta",)),
+                   ("Submetida", ("submetido", "relatorio")),
+                   ("Decidida", ESTADOS_FECHADOS))
+
+
+def passos_da_escada(a, minhas):
+    """O `Stepper` da ficha: em que fase está a nossa proposta.
+
+    Sem proposta, o primeiro passo é o actual e diz «por decidir» (ou
+    «abandonado», que é vermelho). Com lotes, conta a primeira proposta,
+    que é a que o bloco «A nossa proposta» mostra primeiro."""
+    estado = minhas[0]["estado"] if minhas else ""
+    actual, nota_actual, perigo = 0, "", False
+    for i, (_, estados) in enumerate(PASSOS_DA_FICHA):
+        if estado in estados:
+            actual = i
+    if not minhas:
+        abandonado = a["estado"] == "descartado"
+        nota_actual = "abandonado" if abandonado else "por decidir"
+        perigo = abandonado
+    else:
+        nota_actual = estado_da_empresa(estado).lower()
+        perigo = estado in ESTADOS_FECHADOS and estado != "ganho"
+    itens = []
+    for i, (rotulo, _) in enumerate(PASSOS_DA_FICHA):
+        if i == actual:
+            estado_passo = "danger" if perigo else (
+                "done" if estado == "ganho" else "current")
+            nota = nota_actual
+        else:
+            estado_passo = "done" if i < actual else "todo"
+            nota = ""
+        if i == 2 and not nota and a["prazo"] and i >= actual:
+            nota = "até %s" % data_pt(a["prazo"])[:5]
+        itens.append(
+            "<li class='mg-step mg-step--%s'%s><span class='mg-step__bar'></span>"
+            "<span class='mg-step__label'>%s</span>%s</li>"
+            % (estado_passo, " aria-current='step'" if i == actual else "",
+               rotulo, "<span class='mg-step__note'>%s</span>" % html.escape(nota)
+               if nota else ""))
+    return ("<ol class='mg mg-stepper ficha-escada' aria-label='Fases'>%s</ol>"
+            % "".join(itens))
+
+
+def prazo_da_ficha(a):
+    """O cartão do prazo, no topo da coluna da direita (o `EcraFicha`).
+
+    O número grande é o que falta; a cor é a da etiqueta do prazo, e por
+    isso a mesma da lista -- uma etiqueta que diz amarelo aqui e verde lá
+    é o ecrã a discordar de si."""
+    dias, passou = dias_restantes(a["prazo"])
+    if dias is None:
+        return cartao("Prazo", "<p class='ficha-nota'>O anúncio não indica "
+                      "o prazo das propostas.</p>", id_="prazo")
+    texto, classe = etiqueta_prazo(a["prazo"])
+    grande = "expirou" if passou else (
+        "hoje" if dias == 0 else "%d dia%s" % (dias, "" if dias == 1 else "s"))
+    try:
+        fim = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
+        por_extenso = "%d de %s" % (fim.day, MESES_LONGOS[fim.month - 1])
+    except ValueError:
+        por_extenso = data_pt(a["prazo"])
+    return cartao(
+        "Prazo",
+        "<div class='ficha-prazo %s'><b>%s</b><span>%s</span></div>"
+        "<div class='mg-row' style='margin-top:12px'>"
+        "<span class='mg-tag %s'><span class='mg-tag__dot'></span>%s</span></div>"
+        % (classe, grande, por_extenso, tom(classe),
+           html.escape(texto if passou or dias == 0 else "Prazo em " + texto)),
+        pe="Publicado a %s." % data_pt(a["data_pub"]) if a["data_pub"] else "",
+        id_="prazo")
+
+
 def criterio_de_adjudicacao(seccoes):
     """Le a seccao 21, que vem de duas maneiras.
 
@@ -19192,22 +19239,20 @@ def lotes_cx(a):
         nota_conj = ""
     # «2 lotes; sem registo de a que fomos» e um FACTO e fica no ecra;
     # de onde vem cada coluna e explicacao e vai para o "?".
-    return ("<div class='mg-card lotes' id='lotes'>"
-            + rot_com_porque(
-                "Lotes",
-                "O que se sabe de cada um vem do registo da empresa (o Excel), "
-                "lote a lote." if ha_registo else
-                "Os lotes são os que o anúncio declara; a que fomos só o "
-                "registo da empresa sabe, e ainda não tem esta linha.")
-            + ("<div class='nota' style='margin:6px 0 12px'>%s.</div>"
-               "<div class='mercado-tab'>"
-               "<table class='tab-mercado tab-lotes'><thead><tr>"
-               "<th>Lote</th><th>Descrição</th><th class='p'>Preço base</th>%s"
-               "</tr></thead><tbody>%s</tbody></table></div>%s</div>"
-               % (html.escape(frase_dos_lotes(resumo)[0].upper()
-                              + frase_dos_lotes(resumo)[1:]),
-                  "<th>A empresa</th>" if ha_registo else "",
-                  "".join(corpo), nota_conj)))
+    return cartao(
+        "Lotes",
+        "<div class='mercado-tab'>"
+        "<table class='mg-table tab-mercado tab-lotes'><thead><tr>"
+        "<th>Lote</th><th>Descrição</th><th class='p'>Preço base</th>%s"
+        "</tr></thead><tbody>%s</tbody></table></div>%s"
+        % ("<th>A empresa</th>" if ha_registo else "", "".join(corpo), nota_conj),
+        meta=html.escape(frase_dos_lotes(resumo)[0].upper()
+                         + frase_dos_lotes(resumo)[1:]) + ".",
+        id_="lotes",
+        porque="O que se sabe de cada um vem do registo da empresa (o Excel), "
+               "lote a lote." if ha_registo else
+               "Os lotes são os que o anúncio declara; a que fomos só o "
+               "registo da empresa sabe, e ainda não tem esta linha.")
 
 
 def frase_dos_campos_em_falta(sem_valor):
@@ -19535,23 +19580,20 @@ def homologos_cx(a, chave):
                html.escape(l["tipo_procedimento"] or ""),
                venceu, euros(l["preco_contratual"])))
 
-    return ("<div class='mg-card mercado'>"
-            + rot_com_porque(
-                "Procedimentos homólogos",
-                "Contratos desta entidade com objecto parecido com o deste "
-                "anúncio &mdash; as edições anteriores, com quem ganhou e "
-                "por quanto.")
-            # o "Parecido = <termos>" fica no ecra: diz COMO a lista foi
-            # feita, e sem ele o bloco e uma tabela sem criterio
-            + ("<div class='nota' style='margin:6px 0 12px'>"
-               "Parecido = tem em comum %s: <b>%s</b>.</div>"
-               "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
-               "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
-               "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
-               "<tbody>%s</tbody></table></div></div>"
-               % ("estes termos do título" if len(termos) > 1
-                  else "este termo do título",
-                  html.escape(", ".join(termos)), "".join(corpo))))
+    # o "Parecido = <termos>" fica no ecra: diz COMO a lista foi feita, e
+    # sem ele o bloco e uma tabela sem criterio
+    return cartao(
+        "Procedimentos homólogos",
+        "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
+        "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
+        "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
+        "<tbody>%s</tbody></table></div>" % "".join(corpo),
+        meta="Parecido = tem em comum %s: <b>%s</b>."
+             % ("estes termos do título" if len(termos) > 1
+                else "este termo do título", html.escape(", ".join(termos))),
+        porque="Contratos desta entidade com objecto parecido com o deste "
+               "anúncio &mdash; as edições anteriores, com quem ganhou e "
+               "por quanto.")
 
 
 # Do anuncio ao contrato leva tempo, e o tempo mediu-se: a 04/09/2026,
@@ -19647,15 +19689,15 @@ def desfecho_cx(a):
         dias = _dias_desde(a["data_pub"])
         if dias < DIAS_ATE_CONTRATO:
             return ""
-        return ("<div class='mg-card mercado' id='desfecho'>"
-                "<div class='mg-field__label'>Desfecho</div>"
-                "<div class='nota' style='margin:6px 0 0'>"
-                "Publicado há %s e <b>ainda sem contrato celebrado</b> no "
-                "Portal BASE. Passado este tempo já não costuma ser espera: "
-                "metade dos procedimentos fecha em 68 dias e nove em cada "
-                "dez em 139. Ou ficou deserto ou anulado, ou o contrato não "
-                "chegou ao dump semanal do IMPIC.</div></div>"
-                % ("%s dias" % mil_pt(dias)))
+        return cartao(
+            "Desfecho",
+            "<p class='ficha-nota'>"
+            "Publicado há %s e <b>ainda sem contrato celebrado</b> no "
+            "Portal BASE. Passado este tempo já não costuma ser espera: "
+            "metade dos procedimentos fecha em 68 dias e nove em cada "
+            "dez em 139. Ou ficou deserto ou anulado, ou o contrato não "
+            "chegou ao dump semanal do IMPIC.</p>"
+            % ("%s dias" % mil_pt(dias)), id_="desfecho")
 
     soma = sum(l["preco_contratual"] or 0.0 for l in linhas)
     desconto, base, fonte = desconto_do_desfecho(
@@ -19718,21 +19760,20 @@ def desfecho_cx(a):
               "<tbody>%s</tbody></table></div>" % "".join(corpo)
               ) if len(linhas) > 1 else ""
 
-    return ("<div class='mg-card mercado' id='desfecho'>"
-            "<div class='mg-field__label'>Desfecho</div>"
-            "<div class='nota' style='margin:6px 0 12px'>"
-            "%s, do Portal BASE. Liga-se pelo número deste anúncio "
-            "(<code>%s</code>) e não por semelhança, por isso ou é este "
-            "procedimento ou não aparece.%s</div>"
-            "<div class='desfecho-som'>%s</div>%s</div>"
-            % ("O que este procedimento deu" if len(linhas) == 1
-               else "Os %d contratos deste procedimento" % len(linhas),
-               html.escape(a["ref"]),
-               " Os lotes somam-se antes de dividir: o desconto é do "
-               "procedimento, não de cada linha." if len(linhas) > 1 else "",
-               "".join("<div><b>%s</b><span>%s</span></div>" % (v, r)
-                       for r, v in somario),
-               tabela))
+    return cartao(
+        "Desfecho",
+        "<div class='desfecho-som'>%s</div>%s"
+        % ("".join("<div><b>%s</b><span>%s</span></div>" % (v, r)
+                   for r, v in somario), tabela),
+        meta="%s, do Portal BASE. Liga-se pelo número deste anúncio "
+             "(<code>%s</code>) e não por semelhança, por isso ou é este "
+             "procedimento ou não aparece.%s"
+             % ("O que este procedimento deu" if len(linhas) == 1
+                else "Os %d contratos deste procedimento" % len(linhas),
+                html.escape(a["ref"]),
+                " Os lotes somam-se antes de dividir: o desconto é do "
+                "procedimento, não de cada linha." if len(linhas) > 1 else ""),
+        id_="desfecho")
 
 
 def rot_com_porque(titulo, porque=""):
@@ -19760,14 +19801,11 @@ def rot_com_porque(titulo, porque=""):
 
 
 def _mercado_cx(nota, corpo=""):
-    return ("<div class='mg-card mercado'>"
-            + rot_com_porque(
-                "Histórico de adjudicações",
-                "Contratos já celebrados por esta entidade neste CPV, do "
-                "Portal BASE. Não são oportunidades &mdash; servem para "
-                "saber com quem se concorre.")
-            + "<div class='nota' style='margin:6px 0 12px'>%s</div>%s</div>"
-            % (nota, corpo))
+    return cartao(
+        "Histórico de adjudicações", corpo or "", meta=nota,
+        porque="Contratos já celebrados por esta entidade neste CPV, do "
+               "Portal BASE. Não são oportunidades &mdash; servem para "
+               "saber com quem se concorre.")
 
 
 def mercado(a):
@@ -19995,163 +20033,103 @@ def ficha(ref):
     peca_aberta = (request.args.get("peca") or "").strip()
     dias, passou = dias_restantes(a["prazo"])
 
-    # --- cabecalho
-    rotulo_estado = _NOMES_ESTADO.get(a["estado"], a["estado"])
-    classe_estado = {"interessa": "ok", "descartado": "",
-                     "alteracao": ""}.get(a["estado"], "info")
-    chips = ["<span class='ref'>%s %s</span>"
-             % ("Anúncio" if e_do_dr else "Consulta", html.escape(ref))]
+    # --- o cabecalho da pagina (24/09/2026, o `EcraFicha` do Mira Gov)
+    # O titulo inteiro, grande, com as accoes a direita e a entidade por
+    # baixo -- o `PageHeader` do sistema. Substituiu o cabecalho fino que
+    # ficava preso ao rolar e o cartao de identidade com os chips: o
+    # estado passou para a escada logo a seguir, e o prazo para o cartao
+    # proprio da coluna da direita.
+    ch_ent = (entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
+              or chave_da_entidade(a))
+    nome_ent = (liga_entidade(ch_ent, a["entidade"] or "")
+                if ch_ent and ch_ent != "n:"
+                else html.escape(a["entidade"] or ""))
+    minhas = propostas_de(ref)
+    e_alteracao = a["estado"] == "alteracao"
+
+    # --- accoes
+    # As de triagem so enquanto o concurso NAO esta na escada (15/09/2026):
+    # a partir dai quem manda e o selector do bloco «A nossa proposta».
+    # As que abrem coisas fora daqui vem antes, em contorno.
+    sair, decidir = [], []
+    if a["url"]:
+        # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a
+        # ficha inteira com um 500 (apanhado a 16/09/2026).
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>%s</a>"
+                    % (html.escape(a["url"], quote=True),
+                       "Ver no DR" if e_do_dr else "Ver na Vortal"))
+    if a["pdf_url"]:
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>PDF oficial</a>"
+                    % html.escape(a["pdf_url"], quote=True))
+    # O procedimento na plataforma e as pecas sao dois botoes: estavam no
+    # mesmo, e o link das pecas nao e o procedimento.
+    destino, rotulo, dica = link_do_procedimento(a)
+    if destino:
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
+                    "title='%s'>%s</a>"
+                    % (html.escape(destino, quote=True),
+                       html.escape(dica, quote=True), html.escape(rotulo)))
+    if a["link_pecas"] and a["link_pecas"] != destino:
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
+                    "title='o endereço das peças que o anúncio indica'>"
+                    "Peças na plataforma</a>"
+                    % html.escape(a["link_pecas"], quote=True))
+    if not minhas and not e_alteracao:
+        decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
+                             "Interessa", "bt verde"))
+        decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
+                                       a["titulo"] or ref))
+
+    # As migalhas voltam para a lista **de onde se veio**, com o filtro e
+    # a pagina (volta_a_lista): presas a "/", filtrar por CPV, ir a
+    # pagina 7 e voltar devolvia "Por ver, pagina 1, sem filtro".
+    ranhura = minhas[0]["estado"] if minhas else (
+        "porver" if a["estado"] == "novo" else "")
+    migalhas = [("Concursos", volta_a_lista())]
+    if estado_da_empresa(ranhura):
+        migalhas.append((estado_da_empresa(ranhura),
+                         "%s?estado=%s" % (LISTA, ranhura)))
+    migalhas.append((ref, ""))
+    sub = [nome_ent]
     if a["tipo"]:
-        chips.append("<span class='mg-tag'>%s</span>" % html.escape(a["tipo"]))
-    chips.append("<span class='mg-tag %s'>%s</span>"
-                 % (tom(classe_estado), rotulo_estado))
-    for p in propostas_de(a["ref"]):
-        chips.append("<span class='mg-tag %s'>%s%s</span>"
-                     % (tom("" if p["estado"] in ESTADOS_FECHADOS else "ok"),
-                        html.escape(estado_da_empresa(p["estado"])),
-                        " L%d" % p["lote"] if p["lote"] else ""))
-        if p["motivo"]:
-            chips.append("<span class='mg-tag'>%s</span>" % html.escape(p["motivo"]))
+        sub.append(html.escape(a["tipo"]))
+    if a["data_pub"]:
+        sub.append("publicado a %s %s" % (
+            data_pt(a["data_pub"]),
+            "no DR, 2.ª série" if e_do_dr else "na Vortal"))
+    cabeca_pagina = cabecalho_de_pagina(
+        html.escape(a["titulo"] or ref), " &middot; ".join(sub),
+        migalhas, "".join(sair + decidir))
 
-    # O "Propostas até" voltou aos factos. Tinha saido daqui porque
-    # aparecia duas vezes no mesmo ecra -- aqui e na caixa preta da
-    # coluna da direita; com a composicao em dossier (escolha do Afonso
-    # a 31/08/2026) essa coluna deixou de existir, e o prazo passou a
-    # estar em dois sitios com papeis diferentes: aqui e o dado da
-    # tabela, la em cima e a referencia que acompanha o rolar.
-    # "Estado" continua de fora: esse repetia-se mesmo, com o chip.
-    if dias is None:
-        facto_prazo = ""
-    else:
-        # a barra mostra quanto do prazo ja passou, contando da publicacao
-        try:
-            pub = datetime.strptime(a["data_pub"], "%Y-%m-%d").date()
-            fim = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
-            total_dias = max((fim - pub).days, 1)
-            decorrido = max(min(total_dias - dias, total_dias), 0)
-            pct = int(100.0 * decorrido / total_dias)
-        except ValueError:
-            pct = 100 if passou else 0
-        _, classe_prazo = etiqueta_prazo(a["prazo"])
-        facto_prazo = _facto(
-            "Propostas até",
-            "%s <span class='conta %s'>%s</span>"
-            "<span class='barra-prazo'><i style='width:%d%%'></i></span>"
-            % (data_pt(a["prazo"]), classe_prazo,
-               "prazo expirado" if passou else conta_dias(dias),
-               100 if passou else pct))
+    # --- a escada, em quatro passos (o `Stepper` do sistema)
+    escada_html = passos_da_escada(a, minhas)
 
+    # --- o anuncio: os factos em pares, e o essencial para decidir
+    seccoes = seccoes_do_texto(texto_vigente)
     cpv_facto = "<br>".join(descricoes_cpv(a["cpv"]))
     if cpv_facto:
-        # "Que mais ha disto?" — a Pesquisa com o(s) CPV do anuncio e
-        # todos os estados fecha o ciclo ficha -> acervo (atalho da §5
-        # do ESQUELETO). O campo cpv aceita varios codigos por |.
+        # "Que mais ha disto?" -- a lista com o(s) CPV do anuncio e todos
+        # os estados. O campo cpv aceita varios codigos por |.
         codigos = "|".join(p.strip() for p in (a["cpv"] or "").split(",")
                            if p.strip())
         cpv_facto += ("<br><a href='/anuncios?%s'>ver anúncios deste CPV "
                       "na Pesquisa</a>"
                       % html.escape(urlencode({"cpv": codigos, "estado": ""}),
                                     quote=True))
-    factos = "".join((
-        _facto("Publicado", data_pt(a["data_pub"], "")),
-        facto_prazo,
-        _facto("Preço base", html.escape(preco_pt(a["preco_base"], ""))),
-        _facto("Plataforma", html.escape(a["plataforma"] or "")),
-        _facto("CPV", cpv_facto, largo=True),
-    ))
-
-    # O nome da entidade leva **sempre** à ficha dela (D3 do CICLOS.md,
-    # 17/09/2026): até aí só quando o corpus a conhecia, e uma entidade
-    # sem contrato celebrado — a mais provável de interessar, porque o
-    # concurso ainda não foi adjudicado — ficava sem caminho nenhum.
-    # A chave do corpus tem precedência quando existe: é a que agrupa as
-    # 84 grafias de uma universidade sob o mesmo NIF.
-    ch_ent = (entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
-              or chave_da_entidade(a))
-    cabeca = ("<div class='mg-card cabeca'><div class='chips'>%s</div>"
-              "<h2>%s</h2><div class='ent'>%s</div>"
-              "<div class='factos'>%s</div></div>"
-              % ("".join(chips), html.escape(a["titulo"] or ""),
-                 liga_entidade(ch_ent, a["entidade"] or "")
-                 if ch_ent and ch_ent != "n:"
-                 else html.escape(a["entidade"] or ""),
-                 factos))
-
-    # --- accoes
-    # As duas de triagem ficam no cabecalho fino, que acompanha o rolar:
-    # sao as unicas que se querem ao alcance em qualquer ponto da ficha.
-    # As outras (as que abrem coisas fora daqui, e o repor) vao para a
-    # direita do indice, onde nao disputam o olho com o titulo.
-    decidir, sair = [], []
-    e_alteracao = a["estado"] == "alteracao"
-    # Só enquanto o concurso NÃO está na escada (15/09/2026). A partir
-    # daí quem manda é o selector do bloco «A nossa proposta», logo por
-    # baixo: dois controlos para o mesmo estado, a um palmo um do
-    # outro, é a ficha a perguntar duas vezes o que já respondeu.
-    if not propostas_de(ref) and not e_alteracao:
-        decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
-                             "Interessa", "bt verde"))
-        decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
-                                       a["titulo"] or ref))
-    if a["pdf_url"]:
-        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank'>PDF oficial</a>"
-                    % html.escape(a["pdf_url"], quote=True))
-    # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a ficha
-    # inteira com um 500. Na base dele todos os anuncios tem url, e por
-    # isso nunca se viu -- mas um NULL numa coluna que ninguem garante
-    # nao pode derrubar a pagina toda (apanhado a 16/09/2026, pelo teste
-    # do indice da ficha).
-    if a["url"]:
-        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank'>%s</a>"
-                    % (html.escape(a["url"], quote=True),
-                       "Ver no DR" if e_do_dr else "Ver na Vortal"))
-    # Duas coisas diferentes, dois botoes: o procedimento na plataforma
-    # e as pecas. Estavam no mesmo -- "Abrir plataforma" abria o link
-    # das pecas, que na acingov descarrega um ZIP e na Vortal da na
-    # lista dos ficheiros; nenhum dos dois e o procedimento.
-    destino, rotulo, dica = link_do_procedimento(a)
-    if destino:
-        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank' "
-                    "title='%s'>%s</a>"
-                    % (html.escape(destino, quote=True),
-                       html.escape(dica, quote=True), html.escape(rotulo)))
-    if a["link_pecas"] and a["link_pecas"] != destino:
-        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank' "
-                    "title='o endereço das peças que o anúncio indica'>"
-                    "Peças na plataforma</a>"
-                    % html.escape(a["link_pecas"], quote=True))
-
-    # Voltar para a lista **de onde se veio**, com o filtro e a pagina.
-    # Estava preso a "/": filtrar por CPV, ir a pagina 7, abrir um anuncio
-    # e carregar aqui devolvia "Por ver, pagina 1, sem filtro" -- o botao
-    # estava no sitio onde se espera o caminho certo e era o errado, e ao
-    # fim de duas vezes deixava de se usar.
-    chip_prazo = ("<span class='chip-prazo %s'>%s &middot; %s</span>"
-                  % (etiqueta_prazo(a["prazo"])[1], data_pt(a["prazo"]),
-                     "expirado" if passou else conta_dias(dias))) \
-        if dias is not None else ""
-    ficha_cab = ("<div class='ficha-cab'>"
-                 "<a class='volta' href='%s'>&larr;</a>"
-                 "<span class='t'>%s</span>%s%s</div>"
-                 % (html.escape(volta_a_lista(), quote=True),
-                    html.escape(a["titulo"] or ref), chip_prazo,
-                    "".join(decidir)))
-
-    # --- seccoes do anuncio (as da versao em vigor, quando foi alterado)
-    seccoes = seccoes_do_texto(texto_vigente)
-
-    # No modo essencial mostra-se a tabela do que interessa para decidir,
-    # e nao as seccoes em bruto: o DR espalha estes campos por meia duzia
-    # de seccoes numeradas, e a maior parte do anuncio e burocracia.
+    pares = [("Entidade adjudicante", nome_ent, ""),
+             ("Tipo de procedimento", html.escape(a["tipo"] or ""), ""),
+             ("Preço base", html.escape(preco_pt(a["preco_base"], "")), "n"),
+             ("Propostas até", data_pt(a["prazo"], ""), "n"),
+             ("Publicado", data_pt(a["data_pub"], ""), "n"),
+             ("Plataforma", html.escape(a["plataforma"] or ""), "")]
+    sem_valor = []
+    nota_modo = ""
+    detalhe_completo = ""
     if seccoes and not completo:
-        linhas_ess = []
-        # As linhas sem valor saem da tabela para uma frase por baixo
-        # (UX-Auditoria, Miller/Pragnanz, decisao do Afonso a 8/09/2026):
-        # num "por ver" sem pecas lidas eram 8 linhas em 12 a dizer "so
-        # consta das pecas", e o bloco mais rapido de ler era o que tinha
-        # mais linhas sem conteudo. Agrupam-se por razao, para a frase
-        # continuar a dizer ONDE cada campo esta.
-        sem_valor = []
+        # O essencial, e nao as seccoes em bruto: o DR espalha estes campos
+        # por meia duzia de seccoes numeradas. As linhas sem valor saem
+        # para uma frase por baixo (decisao dele a 8/09/2026), agrupadas
+        # por razao, para continuar a dizer ONDE cada campo esta.
         for rotulo, valor, em_falta, nota in essencial_do_anuncio(
                 a, seccoes, analise_de(ref)):
             if em_falta or not valor:
@@ -20160,178 +20138,161 @@ def ficha(ref):
             celula = desenha_valor(valor)
             if nota:
                 celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
-            linhas_ess.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
-                              % (html.escape(rotulo), celula))
-        seccoes_html = ("<div class='mg-card essencial'><dl>%s</dl>%s</div>"
-                        % ("".join(linhas_ess),
-                           frase_dos_campos_em_falta(sem_valor)))
+            pares.append((html.escape(rotulo), celula, ""))
         nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
     elif seccoes:
         blocos = []
-        for numero, titulo_sec, pares in seccoes:
-            if not pares:
+        for numero, titulo_sec, pares_sec in seccoes:
+            if not pares_sec:
                 continue
             itens = []
-            for chave, valor in pares:
+            for chave, valor in pares_sec:
                 if valor.startswith("http"):
                     valor_html = ("<a href='%s' target='_blank'>%s</a>"
                                   % (html.escape(valor, quote=True), html.escape(valor)))
                 else:
                     valor_html = html.escape(valor)
-                itens.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
+                itens.append("<dt>%s</dt><dd>%s</dd>"
                              % (html.escape(chave) if chave else "&nbsp;", valor_html))
             # a dica e o primeiro valor com substancia, para se saber o que
-            # ha dentro sem ter de abrir
-            dica = next((v for _, v in pares if v and len(v) < 60), "")
-            # travessao literal, nao a entidade: isto passa por html.escape()
-            # a seguir, e "&mdash;" sairia escrito tal e qual. O titulo fica
-            # como vem (ja e maiusculas no DR); o .title() estropiava as
-            # preposicoes -- "Objeto Do Contrato".
+            # ha dentro sem ter de abrir. Travessao literal, nao a entidade:
+            # isto passa por html.escape() a seguir. O titulo fica como vem
+            # (o .title() estropiava as preposicoes).
+            dica = next((v for _, v in pares_sec if v and len(v) < 60), "")
             cabecalho = ("%s — %s" % (numero, titulo_sec)) \
                 if titulo_sec else "Outros"
             blocos.append(
-                "<details class='mg-card sec'%s><summary>"
+                "<details class='mg-disc ficha-seccao'%s><summary>"
                 "<span class='st'>%s</span><span class='sh'>%s</span></summary>"
-                "<dl>%s</dl></details>"
+                "<dl class='ficha-factos'>%s</dl></details>"
                 % (" open" if len(blocos) < 2 else "", html.escape(cabecalho),
                    html.escape(dica), "".join(itens)))
-        seccoes_html = "".join(blocos)
-        nota_modo = ("%d secções lidas do anúncio"
-                     % len([s for s in seccoes if s[2]]))
-    elif not e_do_dr:
-        # B14: uma consulta preliminar nao tem anuncio no DR -- o que se
-        # sabe dela e o que a listagem publica da Vortal deu (os factos
-        # do cabecalho) e o resto esta na plataforma.
-        seccoes_html = (
-            "<div class='mg-empty'>Isto é uma <b>consulta preliminar</b>, "
-            "trazida da pesquisa pública da Vortal &mdash; a parte L do "
-            "DR não a publica, por isso não há anúncio para mostrar. O "
-            "que se sabe está nos factos acima; o resto está na "
-            "<a href='%s' target='_blank'>página da consulta na Vortal"
-            "</a>.</div>" % html.escape(a["url"] or "", quote=True))
-        nota_modo = ""
+        detalhe_completo = "".join(blocos)
+        nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
+    pares.append(("CPV", cpv_facto, "n"))
+    factos_html = "".join(
+        "<dt>%s</dt><dd%s>%s</dd>" % (k, " class='%s'" % c if c else "", v)
+        for k, v, c in pares if v)
+    if seccoes:
+        # Essencial / completo: as duas vistas do mesmo anuncio. Trocam
+        # mesmo de vista, e por isso viajam na query string.
+        args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
+        args_com = dict(request.args.to_dict(), modo="completo")
+        troca = ("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='/anuncio/%s?%s'>%s</a>"
+                 % (ref, html.escape(urlencode(args_ess if completo else args_com),
+                                     quote=True),
+                    "Só o essencial" if completo else "Anúncio completo"))
     else:
-        seccoes_html = ("<div class='mg-empty'>Não foi possível ler o texto deste "
-                        "anúncio: %s</div>"
-                        % (html.escape(aviso_leitura) if aviso_leitura else
-                           "o DR não devolveu conteúdo."))
-        nota_modo = ""
+        troca = ""
+    if seccoes or not e_do_dr:
+        corpo_anuncio = ("<dl class='ficha-factos'>%s</dl>%s%s"
+                         % (factos_html, frase_dos_campos_em_falta(sem_valor),
+                            detalhe_completo))
+        if not e_do_dr:
+            # B14: uma consulta preliminar nao tem anuncio no DR -- o que
+            # se sabe dela e o que a listagem publica da Vortal deu.
+            corpo_anuncio += (
+                "<p class='ficha-nota'>Isto é uma <b>consulta preliminar</b>, "
+                "trazida da pesquisa pública da Vortal &mdash; a parte L do "
+                "DR não a publica, por isso não há anúncio para mostrar. O "
+                "resto está na <a href='%s' target='_blank'>página da "
+                "consulta na Vortal</a>.</p>" % html.escape(a["url"] or "", quote=True))
+    else:
+        corpo_anuncio = ("<dl class='ficha-factos'>%s</dl>"
+                         "<div class='mg-alert mg-alert--warning'>"
+                         "<div class='mg-alert__body'><div class='mg-alert__text'>"
+                         "Não foi possível ler o texto deste anúncio: %s</div>"
+                         "</div></div>"
+                         % (factos_html,
+                            html.escape(aviso_leitura) if aviso_leitura else
+                            "o DR não devolveu conteúdo."))
+    meta_anuncio = " &middot; ".join(x for x in (
+        "Ref.ª %s" % html.escape(ref), html.escape(a["plataforma"] or ""),
+        ("CPV %s" % html.escape((a["cpv"] or "").split(",")[0].strip()))
+        if a["cpv"] else "") if x)
+    anuncio_cx = cartao("Anúncio", corpo_anuncio, meta=meta_anuncio,
+                        accoes=troca, pe=nota_modo, id_="anuncio", banda=True)
 
-    # O indice: as duas primeiras entradas trocam mesmo de vista (sao as
-    # que a barra "Texto do anúncio" era), as outras sao ancoras para os
-    # blocos que ficam todos abertos por baixo. Fica preso ao rolar, que
-    # e o que paga a composicao em dossier: numa ficha de oito mil
-    # pixeis, saber onde se esta e poder saltar vale a coluna que se
-    # perdeu.
-    # O desfecho desenha-se aqui, antes do indice, porque e ele que diz
-    # se ha entrada no indice: um chip que salta para um bloco que nao
-    # existe e a mesma mentira de um numero que abre outra lista.
+    # O desfecho e os lotes desenham-se antes do indice, porque sao eles
+    # que dizem se ha entrada no indice: um chip que salta para um bloco
+    # que nao existe e a mesma mentira de um numero que abre outra lista.
     desfecho_html = desfecho_cx(a)
     lotes_html = lotes_cx(a)
-    args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
-    args_com = dict(request.args.to_dict(), modo="completo")
-    # **O indice tem de cobrir a pagina.** Ate 16/09/2026 prometia seis
-    # destinos e a pagina tinha oito blocos com ancora: faltavam o
-    # "#proposta" -- que e onde vive o trabalho da empresa, o bloco mais
-    # importante da ficha -- e o "#contactos". Um indice que salta por
-    # cima de um bloco e a mesma mentira de um numero que abre outra
-    # lista: promete o mapa da pagina e nao o e.
-    indice = ("<div class='ficha-indice'>"
-              "<a class='%s' href='/anuncio/%s?%s'>Essencial</a>"
-              "<a class='%s' href='/anuncio/%s?%s'>Anúncio completo</a>"
-              "<a href='#proposta'>A nossa proposta</a>"
-              "%s"
-              "<a href='#pecas'>Peças</a>"
-              "%s"
-              "<a href='#mercado'>Mercado</a>"
-              "<a href='#contactos'>Contactos</a>"
-              "<a href='#historico'>Histórico</a>"
-              "<span class='dir'>%s%s</span></div>"
-              % ("on" if not completo else "", ref, urlencode(args_ess),
-                 "on" if completo else "", ref, urlencode(args_com),
-                 "<a href='#lotes'>Lotes</a>" if lotes_html else "",
-                 "<a href='#desfecho'>Desfecho</a>" if desfecho_html else "",
-                 ("<span class='nota-modo'>%s</span>" % nota_modo)
-                 if nota_modo else "", "".join(sair)))
 
+    # --- as pecas
     # O 'pendente' vem antes do 'docs': ao carregar em "Actualizar peças"
     # ja ca estao as antigas, e a caixa dizia-se pronta enquanto as novas
     # vinham em fundo -- e o obter_documentos apaga-as e volta a inserir.
+    accoes_pecas, pe_pecas, meta_pecas = "", "", ""
     if a["docs_estado"] == "pendente":
-        # As peças vêm em fundo e demoram entre 1 e 10 segundos. Sem isto
-        # a página era desenhada antes de elas existirem e parecia que não
-        # tinham vindo -- só recarregando à mão é que apareciam.
-        corpo_docs = ("<div class='nota a-trazer'>A trazer as peças da "
-                      "plataforma… a página actualiza-se sozinha.</div>")
+        # As pecas vem em fundo e demoram entre 1 e 10 segundos. Sem isto
+        # a pagina era desenhada antes de elas existirem.
+        corpo_docs = ("<p class='ficha-nota a-trazer'>A trazer as peças da "
+                      "plataforma… a página actualiza-se sozinha.</p>")
     elif docs:
-        # Um PDF abre AQUI, por baixo desta lista (pedido do Afonso na
-        # fase de desenho, 31/08/2026): ler a peca deixou de ser sair da
-        # ficha. A rota propria /peca/<ref>/<nome> continua a responder,
-        # que e o que segura as ligacoes antigas; o que muda e para onde
-        # a lista aponta. O resto (ZIPs, etc.) descarrega-se como antes.
+        # Um PDF abre AQUI, por baixo desta lista (31/08/2026): ler a peca
+        # deixou de ser sair da ficha. O resto descarrega-se.
         args_peca = dict(request.args.to_dict())
         args_peca.pop("procurar", None)   # procura nova para cada peca
         linhas_doc = []
         for d in docs:
             e_pdf = d["nome"].lower().endswith(".pdf")
             if e_pdf:
-                destino = "/anuncio/%s?%s#pecas" % (
+                destino_doc = "/anuncio/%s?%s#pecas" % (
                     ref, urlencode(dict(args_peca, peca=d["nome"])))
             else:
-                destino = "/documento/%s/%s" % (
+                destino_doc = "/documento/%s/%s" % (
                     ref, quote(d["nome"], safe=""))
             linhas_doc.append(
-                "<div class='doc%s'><a href='%s'>%s</a>"
-                "<span class='t'>%s</span></div>"
-                % (" aberta" if e_pdf and d["nome"] == peca_aberta else "",
-                   html.escape(destino, quote=True),
+                "<li%s><a href='%s'>%s</a><span class='n'>%s</span></li>"
+                % (" class='aberta'" if e_pdf and d["nome"] == peca_aberta else "",
+                   html.escape(destino_doc, quote=True),
                    html.escape(d["nome"]), tamanho_legivel(d["tamanho"])))
-        linhas_doc = "".join(linhas_doc)
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
-        # sozinho parecia que estava tudo trazido.
+        # sozinho parecia que estava tudo trazido. E falhar a actualizacao
+        # com pecas antigas em disco tambem: a lista parecia recente.
         if a["docs_estado"] == "parcial":
-            cabeca_docs = ("<div class='nota' style='color:var(--laranja)'>Só veio o "
-                           "PDF do anúncio &mdash; as peças do procedimento "
-                           "não foi possível trazer da plataforma.</div>")
+            aviso_docs = ("Só veio o PDF do anúncio &mdash; as peças do "
+                          "procedimento não foi possível trazer da plataforma.")
         elif a["docs_estado"] == "falhou":
-            # Falhar a actualizacao com peças antigas em disco nao se via
-            # em lado nenhum: a lista continuava ali e parecia recente.
-            cabeca_docs = ("<div class='nota' style='color:var(--laranja)'>Não foi "
-                           "possível actualizar as peças na plataforma &mdash; "
-                           "as que estão em baixo são as de antes.</div>")
+            aviso_docs = ("Não foi possível actualizar as peças na plataforma "
+                          "&mdash; as que estão em baixo são as de antes.")
         else:
-            cabeca_docs = ("<div class='nota'>Guardadas em pecas/%s.</div>"
-                           % html.escape(re.sub(r"[^0-9A-Za-z._-]", "-", ref)))
+            aviso_docs = ""
+        meta_pecas = "%d ficheiro%s &middot; guardadas em pecas/%s" % (
+            len(docs), "" if len(docs) == 1 else "s",
+            html.escape(re.sub(r"[^0-9A-Za-z._-]", "-", ref)))
         analise = analise_de(ref)
         if analise_a_correr(ref):
-            # A leitura corre em fila, como a descarga: o que se mostra e
-            # o sinal de vida, e nao um botao que ja nao faz nada.
-            accoes_docs = ("<div class='nota a-trazer'>A ler as peças pelo "
-                           "modelo… a página actualiza-se sozinha.</div>")
+            # A leitura corre em fila, como a descarga: o que se mostra e o
+            # sinal de vida, e nao um botao que ja nao faz nada.
+            pe_pecas = ("<span class='a-trazer'>A ler as peças pelo modelo… "
+                        "a página actualiza-se sozinha.</span>")
         else:
             # "Ver se há peças novas" (14/09/2026): a lista da plataforma
             # comparada com a da base, sem apagar nada -- o "Actualizar
-            # peças" ao lado apaga e traz tudo, e leva o texto extraido.
+            # peças" apaga e traz tudo, e leva o texto extraido.
+            accoes_pecas = accao("/pecas-novas/%s" % ref, "Verificar peças novas", "mini")
             vigiadas = a["pecas_vigiadas_em"] if "pecas_vigiadas_em" in a.keys() else ""
-            accoes_docs = (
-                "<div class='accoes' style='margin-top:14px'>%s%s%s</div>%s"
+            pe_pecas = (
+                "<div class='mg-row'>%s%s</div>%s"
                 % (("" if analise and not analise_incompleta(analise)
-                     and not sou_dono() else
-                     # a leitura completa e de todos, e so o dono a
-                     # refaz a pedido (F7); a vigilancia refa-la sozinha
-                     accao("/analisar/%s" % ref,
-                           "Reler pelo modelo" if analise else "Ler as peças",
-                           "bt" if analise else "bt forte")),
-                   accao("/pecas-novas/%s" % ref, "Ver se há peças novas"),
-                   accao("/documentos/%s" % ref, "Actualizar peças"),
-                   ("<div class='nota' style='margin-top:8px'>Peças novas "
-                    "verificadas na plataforma a %s. O Mira Gov volta lá sozinho "
-                    "depois da data de esclarecimentos e quando o prazo ou o "
-                    "preço base mudam.</div>" % html.escape(data_hora_pt(vigiadas)))
-                   if vigiadas else
-                   ""))
-        corpo_docs = (cabeca_docs + "<div class='docs'>%s</div>%s"
-                      % (linhas_doc, accoes_docs))
+                    and not sou_dono() else
+                    # a leitura completa e de todos, e so o dono a refaz a
+                    # pedido (F7); a vigilancia refa-la sozinha
+                    accao("/analisar/%s" % ref,
+                          "Reler pelo modelo" if analise else "Ler as peças",
+                          "mini" if analise else "mini forte")),
+                   accao("/documentos/%s" % ref, "Actualizar peças", "mini"),
+                   ("<p class='ficha-nota'>Peças novas verificadas na "
+                    "plataforma a %s. O Mira Gov volta lá sozinho depois da "
+                    "data de esclarecimentos e quando o prazo ou o preço "
+                    "base mudam.</p>" % html.escape(data_hora_pt(vigiadas)))
+                   if vigiadas else ""))
+        corpo_docs = (("<div class='mg-alert mg-alert--warning'><div class='mg-alert__body'>"
+                       "<div class='mg-alert__text'>%s</div></div></div>" % aviso_docs
+                       if aviso_docs else "")
+                      + "<ul class='ficha-lista'>%s</ul>" % "".join(linhas_doc))
     else:
         if a["docs_estado"] == "falhou":
             nota = ("Não foi possível trazer as peças automaticamente. A "
@@ -20339,8 +20300,9 @@ def ficha(ref):
         else:
             nota = ("Ainda não foram trazidas. Vêm sozinhas ao marcar "
                     "&ldquo;interessa&rdquo;.")
-        corpo_docs = ("<div class='nota'>%s</div><div style='margin-top:14px'>%s</div>"
-                      % (nota, accao("/documentos/%s" % ref, "Trazer peças", "bt forte")))
+        corpo_docs = "<p class='ficha-nota'>%s</p>" % nota
+        accoes_pecas = accao("/documentos/%s" % ref, "Trazer peças", "mini forte")
+        meta_pecas = html.escape(a["plataforma"] or "")
 
     # O leitor da peca escolhida, por baixo da lista e dentro da mesma
     # caixa. Se o nome nao corresponder a nenhum ficheiro em disco (uma
@@ -20369,110 +20331,94 @@ def ficha(ref):
                 "<a class='mg-btn mg-btn--sm mg-btn--subtle' href='/documento/%s/%s' download>"
                 "Descarregar</a>"
                 "<a class='mg-btn mg-btn--sm mg-btn--subtle' href='/anuncio/%s?%s#pecas'>Fechar</a>"
-                "</div><div class='nota'>%s</div>%s%s</div>"
+                "</div><div class='ficha-nota'>%s</div>%s%s</div>"
                 % (html.escape(peca_aberta), ref,
                    quote(peca_aberta, safe=""), ref,
                    html.escape(urlencode(args_fechar), quote=True),
                    aviso_leitor, visual, texto_da_peca(ref, peca_aberta)))
 
-    chip_plat = ("<span class='mg-tag mg-tag--success' style='margin-left:auto'>%s</span>"
-                 % html.escape(a["plataforma"])) if a["plataforma"] else ""
     # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
-    # explicava foi para o "?" e NAO se apagou. A data em que o radar la
-    # foi da ultima vez e um facto, e essa fica no corpo.
-    docs_cx = ("<div class='mg-card lado-cx' id='pecas'><div class='cab'>"
-               "%s%s</div>%s%s</div>"
-               % (rot_com_porque(
-                      "Peças do procedimento",
-                      "O Mira Gov vai à plataforma ver se há peças novas "
-                      "depois da data de esclarecimentos e quando o prazo "
-                      "ou o preço base mudam."),
-                  chip_plat, corpo_docs, leitor))
+    # explicava foi para o "?" e NAO se apagou.
+    docs_cx = cartao(
+        "Peças do procedimento", corpo_docs + leitor, meta=meta_pecas,
+        accoes=accoes_pecas, pe=pe_pecas, id_="pecas",
+        porque="O Mira Gov vai à plataforma ver se há peças novas depois "
+               "da data de esclarecimentos e quando o prazo ou o preço "
+               "base mudam.")
+
+    # --- o prazo, num cartao proprio no topo da coluna da direita
+    prazo_cx = prazo_da_ficha(a)
 
     # O responsavel e da proposta; com lotes, todos os cartoes do mesmo
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
-    propostas_aqui = propostas_de(ref)
-    resp = (propostas_aqui[0]["responsavel"] if propostas_aqui else "") or ""
-    resp_cx = ("<div class='mg-card lado-cx meia'><div class='mg-field__label' style='margin-bottom:12px'>"
-               "Responsável</div>"
-               "<form class='resp' method='post' action='/responsavel/%s'>"
-               "<div class='av'>%s</div>"
-               "<input type='text' name='nome' value='%s' list='pessoas' "
-               "placeholder='ninguém atribuído'>"
-               "<button type='submit'>guardar</button></form></div>"
-               % (ref, _iniciais(resp), html.escape(resp, quote=True)))
+    resp = (minhas[0]["responsavel"] if minhas else "") or ""
+    resp_cx = cartao(
+        "Responsável",
+        "<form class='resp' method='post' action='/responsavel/%s'>"
+        "<span class='mg-avatar'>%s</span>"
+        "<input class='mg-field__input' type='text' name='nome' value='%s' "
+        "list='pessoas' placeholder='ninguém atribuído' aria-label='Responsável'>"
+        "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
+        "guardar</button></form>"
+        % (ref, _iniciais(resp), html.escape(resp, quote=True)))
 
     if passos:
         linhas_hist = "".join(
-            # QUEM, o que fez, e o quê — três coisas, e os três separados
-            # por espaços davam uma frase que não é frase: «Afonso Pinto
-            # proposta criada Por analisar». Quem fica destacado (é a
-            # coluna por que se lê) e o detalhe entra em aspas, que é o
-            # que o separa da acção.
-            "<div class='hist'><span class='t'><b>%s</b> %s%s</span>"
-            "<span class='q'>%s</span></div>"
+            # QUEM, o que fez, e o que -- tres coisas; separados por
+            # espacos davam uma frase que nao e frase. Quem fica destacado
+            # e o detalhe entra depois de um travessao.
+            "<li><span class='t'><b>%s</b> %s%s</span>"
+            "<span class='n'>%s</span></li>"
             % (html.escape(p["quem"]),
                html.escape(_NOMES_ACCAO.get(p["accao"], p["accao"])),
                (" &mdash; %s" % html.escape(p["detalhe"]))
                if p["detalhe"] else "",
                html.escape(data_hora_pt(p["quando"])))
             for p in passos)
+        linhas_hist = "<ul class='ficha-lista'>%s</ul>" % linhas_hist
     else:
-        linhas_hist = "<div class='nota'>Ainda não há registo de alterações.</div>"
-    hist_cx = ("<div class='mg-card lado-cx meia' id='historico'>"
-               "<div class='mg-field__label' style='margin-bottom:6px'>"
-               "Histórico</div>%s</div>" % linhas_hist)
+        linhas_hist = "<p class='ficha-nota'>Ainda não há registo de alterações.</p>"
+    hist_cx = cartao("Histórico", linhas_hist, id_="historico")
 
-    # Composicao em dossier (escolha do Afonso, 31/08/2026): uma coluna
-    # so, por ordem de leitura, com o cabecalho e o indice presos ao
-    # rolar. Nenhum bloco entrou nem saiu -- os quatro que viviam na
-    # coluna da direita passaram a estar nesta, e o prazo, que era a
-    # caixa preta, e agora um facto do cabecalho mais o chip do indice.
-    # DUAS colunas desde 23/09/2026, como o `EcraFicha` do sistema de
-    # desenho: o anuncio a esquerda (o que se le), o trabalho e o
-    # contexto a direita (o que se faz). Nenhum bloco entrou nem saiu,
-    # e as ancoras do indice sao as mesmas -- so muda o sitio. Numa
-    # coluna so, a proposta empurrava o anuncio para baixo do primeiro
-    # ecra, e o historico e o responsavel ficavam depois de oito mil
-    # pixeis de peças e mercado.
-    #
-    # "a pagina do anuncio e sempre a mesma" (15/09/2026): e aqui que a
-    # proposta se trabalha -- a ranhura, os campos que ela pede, as
-    # etiquetas e o que falta fazer. Vai no topo da coluna da direita,
-    # que e a primeira pergunta de quem abre um concurso da escada.
-    conteudo = ("<div class='larg ficha-duas'>"
-                "<div class='ficha-principal'>" + cabeca + faixa_alteracao +
-                seccoes_html + lotes_html +
-                docs_cx +
-                desfecho_html +
+    # O indice (em pilulas, como o `EcraFicha`) tem de cobrir a pagina:
+    # ate 16/09/2026 prometia seis destinos e a pagina tinha oito blocos
+    # com ancora. Um indice que salta por cima de um bloco e a mesma
+    # mentira de um numero que abre outra lista.
+    entradas = [("anuncio", "Anúncio"), ("prazo", "Prazo")]
+    if lotes_html:
+        entradas.append(("lotes", "Lotes"))
+    entradas.append(("pecas", "Peças"))
+    if desfecho_html:
+        entradas.append(("desfecho", "Desfecho"))
+    entradas += [("mercado", "Mercado"), ("proposta", "A nossa proposta"),
+                 ("contactos", "Contactos"), ("historico", "Histórico")]
+    indice = ("<nav class='ficha-indice' aria-label='Nesta página'><ul>%s</ul></nav>"
+              % "".join("<li><a href='#%s'>%s</a></li>" % e for e in entradas))
+
+    # DUAS colunas desde 23/09/2026, como o `EcraFicha`: o anuncio a
+    # esquerda (o que se le), o trabalho e o contexto a direita (o que se
+    # faz). "a pagina do anuncio e sempre a mesma" (15/09/2026): e aqui
+    # que a proposta se trabalha, logo a seguir ao prazo.
+    conteudo = ("<div class='larg'>" + escada_html + indice +
+                "<div class='ficha-duas'>"
+                "<div class='ficha-principal'>" + faixa_alteracao + anuncio_cx +
+                lotes_html + docs_cx + desfecho_html +
                 # os homologos sao uma tabela de contratos, e ficam com o
                 # mercado: na coluna estreita cortavam-se as colunas
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
                 mercado(a) + "</div></div>"
-                "<div class='ficha-lado'>" + proposta_cx(a) +
-                contactos_cx(a) + hist_cx + resp_cx + "</div></div>")
+                "<div class='ficha-lado'>" + prazo_cx + proposta_cx(a) +
+                contactos_cx(a) + hist_cx + resp_cx + "</div></div></div>")
 
-    # A ficha pendura-se na Pesquisa: e o acervo completo que a contem
-    # sempre, venha-se da Triagem, do quadro ou de um homologo. A volta
-    # com contexto continua a ser a do referrer (volta_a_lista).
-    migalhas = migalhas_de("anuncios", ref)
-    # Enquanto as peças não chegam, a página volta a pedir-se sozinha. O
-    # trabalhador põe sempre um estado terminal (ok/parcial/falhou), por
-    # isso isto pára -- não fica em ciclo.
+    # Enquanto as pecas nao chegam, a pagina volta a pedir-se sozinha. O
+    # trabalhador poe sempre um estado terminal, por isso isto para.
     espera = ("<script>setTimeout(function(){location.reload()},3000)</script>"
               if (a["docs_estado"] == "pendente" or analise_a_correr(ref))
               else "")
-
-    # O titulo e a entidade nao vao para o cabecalho grande da pagina:
-    # nesta composicao quem manda no topo e o cabecalho fino, que fica
-    # preso ao rolar e tem de caber numa linha. Os dois continuam a
-    # ler-se no cartao de identidade, logo por baixo -- e o titulo
-    # inteiro esta la, sem corte.
-    return envolver("anuncios", "", "",
-                    conteudo, migalhas=migalhas,
+    return envolver("anuncios", a["titulo"] or ref, "", conteudo,
                     script=espera + caixa_do_motivo(),
-                    abas=ficha_cab + indice,
-                    titulo_aba="%s, Mira Gov" % ref)
+                    titulo_aba="%s, Mira Gov" % ref,
+                    cabeca=cabeca_pagina)
 
 
 @app.route("/documentos/<path:ref>", methods=["POST"])
@@ -21174,16 +21120,9 @@ def contactos_cx(a):
                  confirmar="Apagar o contacto «%s»?"
                            % (l["nome"] or "").replace("'", " ")))
         for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
-    return ("<div class='mg-card lado-cx' id='contactos'>"
-            # o nome da entidade entra AQUI e nao no `%` la em baixo: o
-            # operador so alcanca o grupo que o segue, e um %s deixado
-            # deste lado saia escrito no ecra
-            + rot_com_porque(
-                "Contactos",
-                "De <b>%s</b>, e não deste concurso: aparecem em todos os "
-                "que forem dela." % html.escape(a["entidade"]
-                                                or "esta entidade"))
-            + ("%s"
+    return cartao(
+            "Contactos",
+            ("%s"
             "<form class='ct-novo' method='post' action='/contacto/nova'>"
             "<input type='hidden' name='chave' value='%s'>"
             "<input type='hidden' name='entidade' value='%s'>"
@@ -21194,11 +21133,17 @@ def contactos_cx(a):
             "<input type='email' name='email' placeholder='e-mail' maxlength='120'>"
             "<input type='text' name='telefone' placeholder='telefone' "
             "maxlength='40'>"
-            "<button type='submit'>juntar</button></form></div>"
+            "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
+            "juntar</button></form>"
             % (postos,
                html.escape(chave, quote=True),
                html.escape(a["entidade"] or "", quote=True),
-               html.escape(a["ref"], quote=True))))
+               html.escape(a["ref"], quote=True))),
+            # «de quem» é um facto e fica à vista: aparecem em todos os
+            # concursos da entidade, e não só neste
+            meta="De %s, não deste concurso" % html.escape(a["entidade"]
+                                                          or "esta entidade"),
+            id_="contactos")
 
 
 @app.route("/contacto/nova", methods=["POST"])
@@ -21360,13 +21305,18 @@ def proposta_cx(a):
     ref = a["ref"]
     minhas = propostas_de(ref)
     if not minhas:
-        return ("<div class='mg-card lado-cx' id='proposta'>"
-                "<div class='mg-field__label' style='margin-bottom:12px'>A nossa proposta"
-                "</div><p class='nota'>Este concurso ainda não está na "
-                "escada.</p><div class='prop-accoes'>%s%s</div></div>"
-                % (accao("/estado/%s/analisar" % quote(ref, safe=""),
-                         "pôr na escada", "mini verde"),
-                   forma_abandonar(ref, titulo=a["titulo"] or "")))
+        return cartao(
+            "A nossa proposta",
+            "<div class='mg-alert mg-alert--warning'><div class='mg-alert__body'>"
+            "<div class='mg-alert__title'>Falta decidir.</div>"
+            "<div class='mg-alert__text'>Este concurso ainda não está na "
+            "escada: «pôr na escada» abre a proposta e as tarefas.</div>"
+            "</div></div><div class='prop-accoes'>%s</div>"
+            % forma_abandonar(ref, titulo=a["titulo"] or ""),
+            meta="Ainda sem estado",
+            accoes=accao("/estado/%s/analisar" % quote(ref, safe=""),
+                         "pôr na escada", "mini forte"),
+            id_="proposta")
     # O desfecho do Portal BASE, uma vez por ficha e nao uma por lote:
     # a juncao e pelo `ref` do procedimento, e com tres lotes seriam
     # tres consultas iguais ao corpus de 2,4 GB.
@@ -21374,9 +21324,10 @@ def proposta_cx(a):
     cfg = ler_config()
     blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg)
               for p in minhas]
-    return ("<div class='mg-card lado-cx' id='proposta'>"
-            "<div class='mg-field__label' style='margin-bottom:12px'>A nossa proposta</div>"
-            "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
+    return cartao("A nossa proposta",
+                  "".join(blocos) + _etiquetas_da_ficha(ref),
+                  meta=html.escape(estado_da_empresa(minhas[0]["estado"])),
+                  id_="proposta")
 
 
 def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None):
