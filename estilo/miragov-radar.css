@@ -1,37 +1,37 @@
-/* radargov-radar.css: o que o RADAR precisa e o sistema de desenho ainda
+/* miragov-radar.css: o que o RADAR precisa e o sistema de desenho ainda
    não tem. Entra a seguir aos componentes, e é o único sítio onde se
    escreve CSS de componente que não venha do design system — assim o
-   `radargov-componentes.css` fica igual ao que o sistema publica, e
+   `miragov-componentes.css` fica igual ao que o sistema publica, e
    vê-se de relance o que é nosso.
 
    Fase 2 da migração, 21/09/2026. */
 
 /* As VISTAS de um item da barra (Calendário dentro de Concursos,
-   Entidades dentro de Mercado). O sistema tem `.rg-topbar__link` e mais
+   Entidades dentro de Mercado). O sistema tem `.mg-topbar__link` e mais
    nada: uma vista precisa de se ler como filha do item, senão a barra
    passa a ter cinco itens de primeiro nível, que é exactamente o que a
    navegação de 16/09/2026 veio desfazer. */
-.rg-topbar__link--sub{font-size:13px;padding-left:var(--space-3);
+.mg-topbar__link--sub{font-size:13px;padding-left:var(--space-3);
  padding-right:var(--space-3);opacity:.92}
-.rg-topbar__link--sub::before{content:'';width:1px;height:14px;
+.mg-topbar__link--sub::before{content:'';width:1px;height:14px;
  margin-right:var(--space-3);background:currentColor;opacity:.35;
  display:inline-block;vertical-align:-2px}
 
 /* A barra dobra em ecrã estreito, e o `--barra-h` é medido em JS: o
-   `height` fixo do `.rg-topbar` impedia-a de dobrar e cortava os itens
+   `height` fixo do `.mg-topbar` impedia-a de dobrar e cortava os itens
    a 375px. Passa a mínimo. */
-.rg-topbar{height:auto;min-height:56px;flex-wrap:wrap;gap:var(--space-3)
+.mg-topbar{height:auto;min-height:56px;flex-wrap:wrap;gap:var(--space-3)
  var(--space-5);padding-top:var(--space-2);padding-bottom:var(--space-2);
  position:sticky;top:0;z-index:20}
 
-/* O menu da conta pendura-se da barra: é `.rg-menu`, mas posicionado. */
-.rg-topbar .sou{position:relative;flex:none}
-.rg-topbar .sou>summary{list-style:none;cursor:pointer;display:flex;
+/* O menu da conta pendura-se da barra: é `.mg-menu`, mas posicionado. */
+.mg-topbar .sou{position:relative;flex:none}
+.mg-topbar .sou>summary{list-style:none;cursor:pointer;display:flex;
  align-items:center;gap:var(--space-2);color:var(--on-header-muted);
  font:400 13px/18px var(--font-sans)}
-.rg-topbar .sou>summary::-webkit-details-marker{display:none}
-.rg-topbar .sou[open]>summary{color:var(--on-header)}
-.rg-topbar .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;
+.mg-topbar .sou>summary::-webkit-details-marker{display:none}
+.mg-topbar .sou[open]>summary{color:var(--on-header)}
+.mg-topbar .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;
  z-index:30}
 
 /* Os dois ecrãs fora do molde (entrar, erro): o cartão ao centro. */
@@ -42,13 +42,13 @@ main.entrar{max-width:420px;margin:12vh auto;padding:var(--space-6);
  display:flex;flex-direction:column;gap:var(--space-4)}
 main.entrar h1{margin:0;font:600 22px/28px var(--font-serif);color:var(--ink)}
 main.entrar form{display:flex;flex-direction:column;gap:var(--space-4)}
-main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
+main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
  text-align:left}
 
 /* A LISTA DOS CONCURSOS como tabela (22/09/2026, `EcraConcursos` do
    sistema de desenho). As larguras são do domínio: o objecto leva o que
    sobra, e as outras sete colunas têm o tamanho do que lá cabe. */
-.lista.rg-table table{table-layout:auto}
+.lista.mg-table table{table-layout:auto}
 .lista .col-obj{min-width:280px}
 .lista .col-obj .item-titulo{display:block;font:600 14px/1.35 var(--font-sans);
  color:var(--ink);text-decoration:none}
@@ -63,7 +63,7 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
 .lista .col-falta .falta{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center}
 /* O cabecalho de uma coluna de numeros alinha a direita, mas e rotulo:
    em sans, como os outros. So as celulas vao em mono. */
-.rg-table th.rg-num{font-family:var(--font-sans);font-size:12px}
+.mg-table th.mg-num{font-family:var(--font-sans);font-size:12px}
 
 /* Os filtros do `EcraConcursos`: uma grelha de uma linha em
    `surface-sunken`, com o `Field` do sistema. O `#filtros-lista`
@@ -74,12 +74,12 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
  padding:var(--space-4) var(--space-5);background:var(--surface-sunken);
  border:var(--border-hairline) solid var(--line);border-radius:var(--radius-lg);
  box-shadow:none}
-#filtros-lista .rg-field__label{font:500 13px/18px var(--font-sans);color:var(--ink)}
-#filtros-lista .rg-field__input{min-width:0;width:100%;box-sizing:border-box;
+#filtros-lista .mg-field__label{font:500 13px/18px var(--font-sans);color:var(--ink)}
+#filtros-lista .mg-field__input{min-width:0;width:100%;box-sizing:border-box;
  min-height:40px;padding:0 var(--space-3);border:var(--border-control) solid var(--line-strong);
  border-radius:var(--radius-md);background:var(--surface-raised);
  font:400 14px/20px var(--font-sans);color:var(--ink)}
-#filtros-lista .rg-field__input:focus{border-color:var(--brand);
+#filtros-lista .mg-field__input:focus{border-color:var(--brand);
  outline:var(--border-focus) solid var(--focus);outline-offset:0}
 #filtros-lista .campo-data:invalid{border-color:var(--danger)}
 #filtros-lista .f-accoes{display:flex;gap:var(--space-2)}
@@ -105,8 +105,8 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
 @media (max-width:1100px){
  /* A tabela rola dentro de si, como manda a regra do ecrã estreito --
     não é a página que rola para o lado. */
- .lista.rg-table{overflow-x:auto}
- .lista.rg-table table{min-width:900px}}
+ .lista.mg-table{overflow-x:auto}
+ .lista.mg-table table{min-width:900px}}
 /* A linha com o foco do teclado (j/k). */
 .lista tbody tr.foco td{background:var(--brand-soft)}
 
@@ -123,11 +123,11 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
 .topo>.migalhas>.b:has(>em:only-child){display:none}
 .topo>.migalhas>.accoes-topo{grid-column:2;grid-row:2;margin-left:0}
 .topo>details.porque,.topo>h1{grid-column:1;grid-row:2;min-width:0}
-.topo>.rg-tabs,.topo>.vazio-topo{grid-column:1/-1;grid-row:3}
+.topo>.mg-tabs,.topo>.vazio-topo{grid-column:1/-1;grid-row:3}
 
 /* Os botoes dos filtros com a altura dos campos, e nao da grelha. */
 #filtros-lista .f-accoes{align-self:end}
-#filtros-lista .f-accoes .rg-btn{height:40px;padding:0 var(--space-4);
+#filtros-lista .f-accoes .mg-btn{height:40px;padding:0 var(--space-4);
  display:inline-flex;align-items:center}
 
 /* Densidade da linha (36px no sistema): o objecto em duas linhas no
@@ -145,36 +145,36 @@ main.entrar .rg-empty{border:0;padding:0;background:none;align-items:stretch;
 /* As onze abas da escada, em ecra estreito, rolam na horizontal dentro
    da pilula em vez de dobrarem numa mancha de quatro linhas. */
 @media (max-width:900px){
- .topo>.rg-tabs.abas-escada{display:flex;flex-wrap:nowrap;overflow-x:auto;
+ .topo>.mg-tabs.abas-escada{display:flex;flex-wrap:nowrap;overflow-x:auto;
   max-width:100%;border-radius:var(--radius-lg);scrollbar-width:none}
- .topo>.rg-tabs.abas-escada .rg-tab{flex:none}}
+ .topo>.mg-tabs.abas-escada .mg-tab{flex:none}}
 /* O padding de celula do sistema e `space-3` na horizontal (README,
    «Espaço, cantos, fios»); a folha dos componentes traz `space-4`, e na
    lista, com sete colunas, eram 112px de ar a empurrar as accoes. */
-.lista.rg-table th,.lista.rg-table td{padding-left:var(--space-3);
+.lista.mg-table th,.lista.mg-table td{padding-left:var(--space-3);
  padding-right:var(--space-3)}
 /* A tabela cabe sempre na largura do ecra (22/09/2026, pedido dele:
    no monitor dele os botoes ficavam cortados). `table-layout:fixed`
    com larguras por coluna: o objecto leva o que sobra e encolhe, as
    accoes tem sempre o seu lugar. Abaixo de 1100px a tabela rola dentro
    de si (regra do ecra estreito, em cima). */
-.lista.rg-table table{table-layout:fixed;width:100%}
-.lista.rg-table th:nth-child(1){width:124px}
-.lista.rg-table th:nth-child(3){width:96px}
-.lista.rg-table th:nth-child(4){width:128px}
-.lista.rg-table th:nth-child(5){width:96px}
-.lista.rg-table th:nth-child(6){width:128px}
-.lista.rg-table th:nth-child(7){width:196px}
+.lista.mg-table table{table-layout:fixed;width:100%}
+.lista.mg-table th:nth-child(1){width:124px}
+.lista.mg-table th:nth-child(3){width:96px}
+.lista.mg-table th:nth-child(4){width:128px}
+.lista.mg-table th:nth-child(5){width:96px}
+.lista.mg-table th:nth-child(6){width:128px}
+.lista.mg-table th:nth-child(7){width:196px}
 .lista .col-obj .item-titulo,.lista .col-obj small{max-width:100%}
 .lista .col-acc{white-space:nowrap;text-align:right}
-.lista .rg-code a{display:block;overflow:hidden;text-overflow:ellipsis}
+.lista .mg-code a{display:block;overflow:hidden;text-overflow:ellipsis}
 
 /* O HOJE (22/09/2026, `EcraHoje`): os quatro indicadores por cima da
    fita, cada um uma ligacao para a lista que o produz. */
 .hj-stats{margin:0 0 var(--space-5)}
-.hj-stats a.rg-stat{text-decoration:none;color:inherit}
-.hj-stats a.rg-stat:hover{background:var(--surface)}
-.hj-stats .rg-stat.mau .rg-stat__note{color:var(--danger);font-weight:600}
+.hj-stats a.mg-stat{text-decoration:none;color:inherit}
+.hj-stats a.mg-stat:hover{background:var(--surface)}
+.hj-stats .mg-stat.mau .mg-stat__note{color:var(--danger);font-weight:600}
 /* O «mais N» de um balde comprido. */
 details.hj-mais>summary{list-style:none;cursor:pointer;padding:6px var(--space-4);
  font:500 13px/18px var(--font-sans);color:var(--link)}
@@ -184,8 +184,8 @@ details.hj-mais[open]>summary{color:var(--ink-muted)}
 .feed .l{display:grid;grid-template-columns:52px minmax(0,1fr);gap:var(--space-2)}
 /* A coluna da direita do Hoje: os cartoes com o padding do `Card`, o
    titulo como `h3`, e as ligacoes do feed no tamanho do texto. */
-.lado>.rg-card{padding:var(--space-4) var(--space-5)}
-.lado>.rg-card>.rg-field__label:first-child{font:600 15px/20px var(--font-sans);
+.lado>.mg-card{padding:var(--space-4) var(--space-5)}
+.lado>.mg-card>.mg-field__label:first-child{font:600 15px/20px var(--font-sans);
  color:var(--ink);margin-bottom:var(--space-3)}
 .feed .l a{font:500 14px/20px var(--font-sans)}
 .feed .l .nota{font-size:12px}
@@ -199,53 +199,53 @@ details.hj-mais[open]>summary{color:var(--ink-muted)}
    Os ecras que ainda nao passaram ao sistema desenhavam com o CSS
    antigo, e cada um tinha o seu campo, o seu botao e o seu cabecalho
    de tabela. Isto nao muda estrutura nenhuma: da-lhes o aspecto do
-   `Field`, do `Button` e do `DataTable`. O `main.rg` e as negacoes
+   `Field`, do `Button` e do `DataTable`. O `main.mg` e as negacoes
    dao-lhe o peso para ganhar ao CSS antigo sem `!important`. */
 
 /* Os cabecalhos de tabela sao rotulos: em sans, mesmo nas colunas de
    numeros (so as celulas vao em mono). */
-main.rg table th,main.rg table th.p,main.rg table th.n,main.rg table th.d{
+main.mg table th,main.mg table th.p,main.mg table th.n,main.mg table th.d{
  font-family:var(--font-sans);font-size:12px;letter-spacing:0;
  text-transform:none;font-weight:600;color:var(--ink-muted)}
 
 /* Os campos: o `Field` (borda de 2px, cantos de 10px), um pouco mais
    baixo que os 40px para caber nas linhas das tabelas e das fichas. */
-main.rg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]):not([type=file]),
-main.rg select,main.rg textarea{
+main.mg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]):not([type=file]),
+main.mg select,main.mg textarea{
  box-sizing:border-box;min-height:36px;padding:0 var(--space-3);
  border:var(--border-control) solid var(--line-strong);border-radius:var(--radius-md);
  background:var(--surface-raised);color:var(--ink);
  font:400 14px/20px var(--font-sans);max-width:100%}
-main.rg textarea{padding:var(--space-2) var(--space-3)}
-main.rg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):focus,
-main.rg select:focus,main.rg textarea:focus{border-color:var(--brand);
+main.mg textarea{padding:var(--space-2) var(--space-3)}
+main.mg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):focus,
+main.mg select:focus,main.mg textarea:focus{border-color:var(--brand);
  outline:var(--border-focus) solid var(--focus);outline-offset:0}
-main.rg input::placeholder,main.rg textarea::placeholder{color:var(--ink-muted)}
+main.mg input::placeholder,main.mg textarea::placeholder{color:var(--ink-muted)}
 /* Dentro de uma tabela (o selector da ranhura) fica mais baixo. */
-main.rg td select,main.rg td input:not([type=checkbox]):not([type=radio]):not([type=hidden]){
+main.mg td select,main.mg td input:not([type=checkbox]):not([type=radio]):not([type=hidden]){
  min-height:30px;border-width:1px;font-size:13px}
 
 /* Os botoes sem classe do sistema: o `secondary` (contorno azul). */
-main.rg button:not([class]),main.rg input[type=submit]:not([class]){
+main.mg button:not([class]),main.mg input[type=submit]:not([class]){
  display:inline-flex;align-items:center;justify-content:center;
  min-height:36px;padding:0 var(--space-4);border:var(--border-control) solid var(--brand);
  border-radius:var(--radius-md);background:var(--surface-raised);color:var(--brand);
  font:600 14px/20px var(--font-sans);cursor:pointer}
-main.rg button:not([class]):hover{background:var(--brand-soft)}
+main.mg button:not([class]):hover{background:var(--brand-soft)}
 
 /* A procura das listas de propostas (`form.pf`): numa linha. */
-main.rg form.pf{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
-main.rg form.pf input[type=search]{min-width:320px;flex:0 1 420px}
+main.mg form.pf{display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
+main.mg form.pf input[type=search]{min-width:320px;flex:0 1 420px}
 /* A etiqueta nova e uma pilula tracejada, nao um campo de formulario. */
-main.rg .etq-form input[name=nome]{min-height:28px;width:120px;padding:0 var(--space-3);
+main.mg .etq-form input[name=nome]{min-height:28px;width:120px;padding:0 var(--space-3);
  border:1px dashed var(--line-strong);border-radius:var(--radius-full);font-size:13px}
 /* A procura das Entidades: rotulo por cima, campo e botao numa linha,
    encostados a esquerda como os filtros das outras listas. */
-main.rg form.filtros[action='/entidade/procurar']{display:flex;align-items:flex-end;
+main.mg form.filtros[action='/entidade/procurar']{display:flex;align-items:flex-end;
  justify-content:flex-start;gap:var(--space-2);flex-wrap:wrap}
-main.rg form.filtros[action='/entidade/procurar'] label{display:flex;flex-direction:column;
+main.mg form.filtros[action='/entidade/procurar'] label{display:flex;flex-direction:column;
  gap:var(--space-1);font:500 13px/18px var(--font-sans);color:var(--ink)}
-main.rg form.filtros[action='/entidade/procurar'] input{min-width:360px}
+main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 
 /* A FICHA em duas colunas (23/09/2026, `EcraFicha`): o anuncio a
    esquerda, a proposta e o contexto a direita (`minmax(300px,380px)`,
@@ -254,7 +254,7 @@ main.rg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);
  gap:var(--space-5);align-items:start}
 .ficha-principal,.ficha-lado{display:flex;flex-direction:column;gap:14px;min-width:0}
-.ficha-lado .rg-card{padding:var(--space-4)}
+.ficha-lado .mg-card{padding:var(--space-4)}
 .ficha-lado .prop-campos{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
 .ficha-lado .ficha-pe,.ficha-lado .lado-cx.meia{width:auto}
 @media (max-width:1100px){.ficha-duas{grid-template-columns:minmax(0,1fr)}}
@@ -263,4 +263,4 @@ main.rg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-lado ul.tarefas li{flex-wrap:wrap}
 .ficha-lado ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
 .ficha-lado ul.tarefas li form.accao input{flex:1 1 120px;min-width:0}
-.ficha-lado .rg-card table{font-size:13px}
+.ficha-lado .mg-card table{font-size:13px}

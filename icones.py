@@ -54,9 +54,9 @@ ICONES = {
 
 
 def icone(nome, tamanho=18, rotulo=None):
-    """Um <svg class="rg-icon"> pronto a colar. Sem rotulo é decorativo (aria-hidden)."""
+    """Um <svg class="mg-icon"> pronto a colar. Sem rotulo é decorativo (aria-hidden)."""
     corpo = ICONES[nome]
     aria = ('role="img" aria-label="%s"' % rotulo) if rotulo else 'aria-hidden="true"'
-    return ('<svg class="rg-icon" viewBox="0 0 24 24" width="%d" height="%d" fill="none" '
+    return ('<svg class="mg-icon" viewBox="0 0 24 24" width="%d" height="%d" fill="none" '
             'stroke="currentColor" stroke-width="1.75" stroke-linecap="round" '
             'stroke-linejoin="round" focusable="false" %s>%s</svg>' % (tamanho, tamanho, aria, corpo))

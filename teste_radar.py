@@ -4193,13 +4193,13 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         # O aceso passou de uma classe `.on` para `aria-current="page"`
         # na fase 2 da migração: é o mesmo sinal para o CSS e para quem
         # lê com um leitor de ecrã, e uma classe só pintava.
-        self.assertIn("rg-topbar__brand", cabeca)
+        self.assertIn("mg-topbar__brand", cabeca)
         self.assertIn("aria-current='page'", cabeca)
         self.assertIn('title="Hoje', cabeca)
         # e noutra pagina apaga-se
         cabeca = (cliente.get(radar.LISTA).get_data(as_text=True)
                   .split("</header>")[0])
-        marca = cabeca[cabeca.index("rg-topbar__brand"):][:120]
+        marca = cabeca[cabeca.index("mg-topbar__brand"):][:120]
         self.assertNotIn("aria-current", marca)
         # as migalhas da abertura dizem "Hoje", e nao "Radar"
         self.assertIn("<em>Hoje</em>", radar.migalhas_de("inicio"))
@@ -5771,10 +5771,10 @@ class TestEscadaNaLista(BaseTemporaria):
     def test_a_barra_tem_as_dez_ranhuras_e_o_todos(self):
         html_ = self._html()
         for _, rotulo in radar.ESCADA:
-            # o numero passou de `<i>` a `.rg-tab__count` na fase 3
-            self.assertIn(">%s <span class='rg-tab__count'>" % rotulo,
+            # o numero passou de `<i>` a `.mg-tab__count` na fase 3
+            self.assertIn(">%s <span class='mg-tab__count'>" % rotulo,
                           html_, rotulo)
-        self.assertIn(">Todos <span class='rg-tab__count'>", html_)
+        self.assertIn(">Todos <span class='mg-tab__count'>", html_)
 
     def test_a_entrada_e_o_cemiterio_apartam_se(self):
         self.assertIn("Aquisição de software", self._html())
@@ -7696,8 +7696,8 @@ class TestPeleNova(unittest.TestCase):
         tokens ou nas pontes pode ser redefinida depois deles.**
         """
         folha = radar.CSS_TUDO
-        tokens = radar.ler_estilo("radargov-tokens.css")
-        pontes = radar.ler_estilo("radargov-pontes.css")
+        tokens = radar.ler_estilo("miragov-tokens.css")
+        pontes = radar.ler_estilo("miragov-pontes.css")
         self.assertTrue(tokens and pontes, "as folhas do sistema faltam")
         for nome, texto in (("os tokens", tokens), ("as pontes", pontes)):
             onde = folha.index(texto)
@@ -7718,7 +7718,7 @@ class TestPeleNova(unittest.TestCase):
         """Os nomes de variável DEFINIDOS num pedaço de CSS.
 
         A definição vem sempre a seguir a um `{` ou a um `;`. Sem essa
-        âncora, um `.rg-btn--danger:hover` lê-se como uma definição de
+        âncora, um `.mg-btn--danger:hover` lê-se como uma definição de
         `--danger` -- foi o primeiro feitio deste teste, e acusava a
         folha de redefinir metade dos tokens."""
         return set(re.findall(r"[{;]\s*(--[a-z0-9-]+)\s*:",
@@ -7735,7 +7735,7 @@ class TestPeleNova(unittest.TestCase):
         só se alguém olhar.
         """
         # sem os comentários: este ficheiro explica a armadilha citando-a
-        pontes = self._sem_comentarios(radar.ler_estilo("radargov-pontes.css"))
+        pontes = self._sem_comentarios(radar.ler_estilo("miragov-pontes.css"))
         pares = re.findall(r"(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)",
                            pontes)
         self.assertTrue(pares, "as pontes não apontam nada")
@@ -7768,14 +7768,14 @@ class TestPeleNova(unittest.TestCase):
         """
         claro, escuro = radar.logotipo(), radar.logotipo(inverso=True)
         for m in (claro, escuro):
-            self.assertIn("rg-logo__verde", m)
-            self.assertIn("rg-logo__verm", m)
-        self.assertNotIn("rg-logo--inverse", claro)
+            self.assertIn("mg-logo__verde", m)
+            self.assertIn("mg-logo__verm", m)
+        self.assertNotIn("mg-logo--inverse", claro)
         self.assertNotIn("stroke=", claro)
         self.assertIn("stroke='currentColor'", escuro)
         # só a marca, sem as palavras
         so_marca = radar.logotipo(marca_so=True)
-        self.assertIn("rg-logo--mark", so_marca)
+        self.assertIn("mg-logo--mark", so_marca)
         self.assertNotIn("Radar", so_marca.replace("Radar Gov", ""))
         # o id do clip é FIXO: gerado ao acaso, o HTML mudava a cada
         # pedido e nenhuma captura de ecrã se podia comparar com outra
@@ -7801,7 +7801,7 @@ class TestPeleNova(unittest.TestCase):
 
         Mede-se sobre o `CSS_TUDO`, que é a folha que o browser recebe,
         e não sobre o `CSS_NOVO`: desde a fase 1 da migração as quatro
-        fontes do sistema são declaradas no `radargov-tokens.css`, e um
+        fontes do sistema são declaradas no `miragov-tokens.css`, e um
         teste que só olhasse para o `CSS_NOVO` dava-as por ausentes.
         """
         self.assertNotIn("https://", radar.CSS_TUDO)
@@ -8203,8 +8203,8 @@ class TestSelectorDaRanhura(BaseTemporaria):
         tivesse JS ficava com um selector que não fazia nada."""
         self.cliente.post("/estado/60%2F2026/analisar")
         html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
-        self.assertIn("<button type='submit' class='rg-btn rg-btn--sm "
-                      "rg-btn--secondary'>ir</button>", html_)
+        self.assertIn("<button type='submit' class='mg-btn mg-btn--sm "
+                      "mg-btn--secondary'>ir</button>", html_)
         self.assertIn(".com-js .ranhura button{display:none}", radar.CSS)
         self.assertIn("classList.add('com-js')", radar.caixa_do_motivo())
 
@@ -8285,10 +8285,10 @@ class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
     def test_antes_do_submetido_o_prazo_e_alarme(self):
         for estado in ("analisar", "proposta"):
             self.assertIn("prazo expirado", self._linha(estado))
-            # `rg-tag--danger` desde a fase 3 (22/09/2026): a palavra mudou,
+            # `mg-tag--danger` desde a fase 3 (22/09/2026): a palavra mudou,
         # o que o teste guarda não -- antes do submetido o prazo é
         # alarme, e depois dele é neutro.
-        self.assertIn("rg-tag--danger", self._linha(estado))
+        self.assertIn("mg-tag--danger", self._linha(estado))
 
     def test_a_partir_do_submetido_diz_entregue_e_nao_alarme(self):
         for estado in radar.ESTADOS_COM_PROPOSTO:
@@ -8486,13 +8486,13 @@ class TestBlocoComPorque(unittest.TestCase):
         """Um «?» que abre nada é um controlo morto — a mesma regra do
         título da página."""
         self.assertEqual(radar.rot_com_porque("Histórico"),
-                         "<div class='rg-field__label'>Histórico</div>")
+                         "<div class='mg-field__label'>Histórico</div>")
         self.assertNotIn("<details", radar.rot_com_porque("Histórico"))
 
     def test_com_explicacao_o_rotulo_vira_summary(self):
         saida = radar.rot_com_porque("Lotes", "vêm do anúncio")
-        self.assertIn("<details class='rg-disc porque porque-bloco'>", saida)
-        self.assertIn("<span class='rg-field__label'>Lotes</span>", saida)
+        self.assertIn("<details class='mg-disc porque porque-bloco'>", saida)
+        self.assertIn("<span class='mg-field__label'>Lotes</span>", saida)
         self.assertIn("vêm do anúncio", saida)
 
     def test_o_facto_fica_no_corpo_e_a_explicacao_dentro_do_porque(self):
@@ -8555,10 +8555,10 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         # (`.abas-escada{...}`), por isso um `assertNotIn("abas-escada")`
         # dava sempre falso positivo. É a mesma armadilha que o
         # test_o_indice_e_o_verificar_agora_seguem_o_papel já anotava.
-        self.assertNotIn("<div class='rg-tabs abas-escada' role='tablist'>", corpo)
+        self.assertNotIn("<div class='mg-tabs abas-escada' role='tablist'>", corpo)
         self.assertNotIn("<details class='painel-filtros'", corpo)
         # a lista continua a existir, noutro endereço
-        self.assertIn("<div class='rg-tabs abas-escada' role='tablist'>",
+        self.assertIn("<div class='mg-tabs abas-escada' role='tablist'>",
                       self.cliente.get(radar.LISTA).get_data(as_text=True))
 
     def test_nenhuma_ligacao_manda_para_a_lista_pelo_endereco_antigo(self):
@@ -8621,7 +8621,7 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         corpo = self.cliente.get("/").get_data(as_text=True)
         # o indicador diz 6, que são as seis linhas desenhadas (a linha
         # de factos passou ao `Stat` do sistema de desenho a 22/09/2026)
-        numero = "Para fazer</span><span class='rg-stat__value'>6<"
+        numero = "Para fazer</span><span class='mg-stat__value'>6<"
         self.assertIn(numero, corpo)
         self.assertEqual(corpo.count("class='hj-row"), 6)
         # e o destino é a própria lista, aqui em baixo -- e NÃO o
@@ -8707,7 +8707,7 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
             self.assertIn("Quarta, 16 de setembro", corpo, "%dh" % hora)
             for saudacao in ("Bom dia", "Boa tarde", "Boa noite"):
                 self.assertNotIn(saudacao, corpo, saudacao)
-            vistos.add(corpo[corpo.index("<h1 class='rg-pagehead__title'>"):][:60])
+            vistos.add(corpo[corpo.index("<h1 class='mg-pagehead__title'>"):][:60])
         self.assertEqual(len(vistos), 1, "o título mudou com a hora")
 
 
@@ -9952,9 +9952,9 @@ class TestSitePublico(BaseTemporaria):
         corpo = r.get_data(as_text=True)
         self.assertIn('id="form-acesso"', corpo)
         # o site não traz nada do painel
-        self.assertNotIn("rg-topbar", corpo)
+        self.assertNotIn("mg-topbar", corpo)
         # a raiz com parâmetros é a raiz: o site, nunca o Hoje
-        self.assertNotIn("rg-topbar", self.cliente.get(
+        self.assertNotIn("mg-topbar", self.cliente.get(
             "/?dia=2026-09-01", environ_base=self.FORA).get_data(as_text=True))
         for caminho in ("/concursos", "/contratos", "/pedidos-de-acesso"):
             r = self.cliente.get(caminho, environ_base=self.FORA)
@@ -9964,7 +9964,7 @@ class TestSitePublico(BaseTemporaria):
     def test_de_perto_a_raiz_continua_a_ser_o_hoje(self):
         corpo = self.cliente.get(
             "/", environ_base={"REMOTE_ADDR": "127.0.0.1"}).get_data(as_text=True)
-        self.assertIn("rg-topbar", corpo)
+        self.assertIn("mg-topbar", corpo)
         self.assertNotIn("form-acesso", corpo)
 
     def test_as_letras_do_site_sao_servidas_daqui(self):
@@ -10429,7 +10429,7 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
     def test_os_blocos_continuam_la_dentro_e_os_guardados_sairam(self):
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         dentro = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
-        self.assertIn("class='rg-card filtros'", dentro)
+        self.assertIn("class='mg-card filtros'", dentro)
         # 13/09/2026: a caixa "Filtros guardados" saiu das listas; o que
         # era guardar um filtro passou a ser o Interesse e os alertas
         self.assertNotIn("Filtros guardados", html_)
@@ -11514,11 +11514,11 @@ class TestMudancasDeSetembro(BaseTemporaria):
     # -- a barra
 
     def test_a_barra_e_um_header_sem_contagens_nem_ultima_verificacao(self):
-        # `.rg-topbar` desde a fase 2 da migração (21/09/2026). O que
+        # `.mg-topbar` desde a fase 2 da migração (21/09/2026). O que
         # este teste guarda não é o nome da classe: é que a barra seja
         # um `<header>` e **não** volte a carregar contagens, o acervo
         # nem a última verificação, que foi de onde saíram a 13/09.
-        self.assertIn('<header class="rg rg-topbar">', radar.BASE)
+        self.assertIn('<header class="mg mg-topbar">', radar.BASE)
         self.assertNotIn("<aside", radar.BASE)
         for texto in ("Verificação automática", "127.0.0.1:", "%(fontes)s",
                       "%(acervo)s", "%(ultima)s", "%(horas)s"):
@@ -11576,7 +11576,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         cliente = radar.app.test_client()
         html_ = cliente.get("/configuracoes/alertas").get_data(as_text=True)
         self.assertNotIn("Definir o interesse", html_)
-        self.assertNotIn("<div class='rg-field__label'>Interesse</div>", html_)
+        self.assertNotIn("<div class='mg-field__label'>Interesse</div>", html_)
         self.assertIn("Filtro de alertas", html_)
         self.assertIn("Criar alerta", html_)
         self.assertNotIn("Novo filtro", html_)
@@ -11592,7 +11592,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         # plataforma, datas), mais o nome; a arvore por cima; sem o grupo
         # dos contratos, que nao avisava de nada
         html_ = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
-        caixa = html_.split("<div class='rg-field__label'>Filtro de alertas</div>")[1].split("</form>")[0]
+        caixa = html_.split("<div class='mg-field__label'>Filtro de alertas</div>")[1].split("</form>")[0]
         self.assertLess(caixa.index("details class='arvore'"), caixa.index("action='/alertas/criar'"))
         form = caixa.split("action='/alertas/criar'")[1]
         for campo in ("name='nome'", "name='q'", "name='cpv'", "name='ent'",
@@ -12013,24 +12013,24 @@ class TestNomeRadarGov(unittest.TestCase):
         # «Radar Gov» nos três moldes, o «Gov» distingue-se do «Radar»,
         # e em lado nenhum volta a dizer «RadarDR».
         marca = radar.logotipo(inverso=True)
-        self.assertIn("rg-logo__radar", marca)
+        self.assertIn("mg-logo__radar", marca)
         self.assertIn("Radar", marca)
-        self.assertIn("rg-logo__gov", marca)
-        self.assertIn("rg-logo__disc", marca)          # o ó é o disco
+        self.assertIn("mg-logo__gov", marca)
+        self.assertIn("mg-logo__disc", marca)          # o ó é o disco
         self.assertIn("aria-label='Radar Gov'", marca) # e lê-se assim
-        self.assertIn('class="rg-topbar__brand" href="/"', radar.BASE)
+        self.assertIn('class="mg-topbar__brand" href="/"', radar.BASE)
         for molde in (radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
             self.assertIn("%(logo)s", molde)
             self.assertIn("RadarGov", molde)           # no <title>
         self.assertNotIn("Radar<span>DR", radar.BASE + radar.PAGINA_ENTRAR)
         # o «Gov» é a cor da marca, e o «Radar» a do texto -- é isso que
         # os distingue, e é o que a folha do sistema diz
-        folha = radar.ler_estilo("radargov-componentes.css")
-        self.assertIn(".rg-logo__gov{color:var(--brand)", folha)
-        self.assertIn(".rg-logo__radar{color:var(--ink)", folha)
+        folha = radar.ler_estilo("miragov-componentes.css")
+        self.assertIn(".mg-logo__gov{color:var(--brand)", folha)
+        self.assertIn(".mg-logo__radar{color:var(--ink)", folha)
         # sobre a barra azul os dois passam a branco, e o disco ganha o
         # anel -- sem ele, o verde e o vermelho flutuam no azul
-        self.assertIn("rg-logo--inverse", marca)
+        self.assertIn("mg-logo--inverse", marca)
         self.assertIn("stroke='currentColor'", marca)
 
 
@@ -12297,8 +12297,8 @@ class TestFiltrosSimples(BaseTemporaria):
     def test_a_lista_tem_so_os_quatro_campos_e_a_arvore_em_cima(self):
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         painel = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
-        self.assertLess(painel.index("details class='arvore'"), painel.index("class='rg-card filtros'"))
-        form = painel.split("class='rg-card filtros'")[1].split("</form>")[0]
+        self.assertLess(painel.index("details class='arvore'"), painel.index("class='mg-card filtros'"))
+        form = painel.split("class='mg-card filtros'")[1].split("</form>")[0]
         for campo in ("name='q'", "name='ent'", "name='plat'", "name='de'", "name='ate'"):
             self.assertIn(campo, form)
         for campo in ("name='q_excl'", "name='op'", "name='prazo'"):
@@ -13881,7 +13881,7 @@ class TestHojeAgrupaSemDecisao(CicloDasTarefas):
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertEqual(corpo.count("class='hj-row"), 1)
         # desde 22/09/2026 é o indicador «Para fazer» (o `Stat`)
-        self.assertIn("Para fazer</span><span class='rg-stat__value'>1<",
+        self.assertIn("Para fazer</span><span class='mg-stat__value'>1<",
                       corpo)
 
 

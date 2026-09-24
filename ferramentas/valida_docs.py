@@ -368,7 +368,7 @@ def variaveis_css():
     `radar.py` ou das folhas de `estilo/`.
 
     Uma definição vem sempre a seguir a um `{` ou a um `;`; sem essa
-    âncora, um `.rg-btn--danger:hover` lia-se como a definição de
+    âncora, um `.mg-btn--danger:hover` lia-se como a definição de
     `--danger`. (A mesma armadilha apanhou o teste irmão, no
     `TestPeleNova`.)
     """

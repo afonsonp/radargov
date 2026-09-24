@@ -1,5 +1,5 @@
-/* radargov-pontes.css: as variáveis antigas do radar.py apontadas aos tokens novos.
-   Entra DEPOIS de radargov-tokens.css e ANTES do CSS antigo. Com isto, o CSS e o CSS_NOVO
+/* miragov-pontes.css: as variáveis antigas do radar.py apontadas aos tokens novos.
+   Entra DEPOIS de miragov-tokens.css e ANTES do CSS antigo. Com isto, o CSS e o CSS_NOVO
    que já existem passam a pintar com a paleta nova sem se tocar numa regra.
    Apaga-se no fim da fase 3, quando já não houver regra a citar um --t*, --azul, etc. */
 :root, [data-pele=novo] {
@@ -15,7 +15,7 @@
      barra de topo, que faz `background:var(--ink)`, ficava
      TRANSPARENTE, com o logótipo branco sobre fundo claro. Medido no
      browser a 21/09/2026. Não é preciso ponte nenhuma: o nome é o mesmo
-     dos dois lados, e o `radargov-tokens.css` já o define. */
+     dos dois lados, e o `miragov-tokens.css` já o define. */
   --t1: var(--ink);
   --t2: var(--ink-secondary); --t3: var(--ink-secondary);
   --t4: var(--ink-muted); --t5: var(--ink-muted); --t6: var(--ink-muted);

@@ -9280,7 +9280,7 @@ def avisos_de_datas(args):
 
 def faixa_de_avisos_de_datas(args):
     """Os avisos das datas prontos a pôr na página, ou nada."""
-    return "".join("<div class='rg-alert rg-alert--danger'>%s</div>" % html.escape(a)
+    return "".join("<div class='mg-alert mg-alert--danger'>%s</div>" % html.escape(a)
                    for a in avisos_de_datas(args))
 
 
@@ -9941,13 +9941,13 @@ def largar_a_empresa(_erro=None):
 PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%(titulo)s — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
-<body class="entrar-fundo"><main class="rg entrar">
+<body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
- <div class="rg-empty">
-  <p class="rg-empty__title">%(titulo)s</p>
-  <p class="rg-empty__text">%(texto)s</p>
-  <div class="rg-empty__action">
-   <a class="rg-btn rg-btn--primary" href="/">Voltar ao Hoje</a></div>
+ <div class="mg-empty">
+  <p class="mg-empty__title">%(titulo)s</p>
+  <p class="mg-empty__text">%(texto)s</p>
+  <div class="mg-empty__action">
+   <a class="mg-btn mg-btn--primary" href="/">Voltar ao Hoje</a></div>
  </div>
 </main></body></html>"""
 
@@ -10086,17 +10086,17 @@ def destino_seguro(para):
 PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entrar — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
-<body class="entrar-fundo"><main class="rg entrar">
+<body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <h1>Entrar</h1>
  %(aviso)s
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="%(para)s">
-  <div class="rg-field"><label class="rg-field__label" for="e-utilizador">Utilizador</label>
-   <input class="rg-field__input" id="e-utilizador" type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></div>
-  <div class="rg-field"><label class="rg-field__label" for="e-senha">Palavra-passe</label>
-   <input class="rg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required></div>
-  <button type="submit" class="rg-btn rg-btn--primary">Entrar</button>
+  <div class="mg-field"><label class="mg-field__label" for="e-utilizador">Utilizador</label>
+   <input class="mg-field__input" id="e-utilizador" type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></div>
+  <div class="mg-field"><label class="mg-field__label" for="e-senha">Palavra-passe</label>
+   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
 </main></body></html>"""
 
@@ -10105,7 +10105,7 @@ def pagina_entrar(aviso="", email="", para="/", codigo=200):
     return Response(PAGINA_ENTRAR % {
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=28),
-        "aviso": ("<div class='rg-alert rg-alert--danger'>%s</div>" % html.escape(aviso)
+        "aviso": ("<div class='mg-alert mg-alert--danger'>%s</div>" % html.escape(aviso)
                   if aviso else ""),
         "email": html.escape(email, quote=True),
         "para": html.escape(destino_seguro(para), quote=True),
@@ -10189,8 +10189,8 @@ def bloco_da_conta():
     nome = utilizador.get("nome") or ""
     if g.get("sessao"):
         return ("<details class='sou'><summary>"
-                "<span class='rg-avatar'>%s</span>%s"
-                "</summary><div class='rg-menu sou-menu'>"
+                "<span class='mg-avatar'>%s</span>%s"
+                "</summary><div class='mg-menu sou-menu'>"
                 "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
                 "%s"
                 "<form method='post' action='/sair'>"
@@ -10202,11 +10202,11 @@ def bloco_da_conta():
                    "<a class='sou-conta' href='/plataforma'>administração "
                    "da plataforma</a>" if sou_dono() else ""))
     if nome:
-        return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
-                "<span class='rg-avatar'>%s</span>%s</div></div>"
+        return ("<div class='sou'><div class='so-nome mg-topbar__user'>"
+                "<span class='mg-avatar'>%s</span>%s</div></div>"
                 % (_iniciais(nome), html.escape(nome)))
-    return ("<div class='sou'><div class='so-nome rg-topbar__user'>"
-            "<span class='rg-avatar'>&mdash;</span>sem conta ainda</div></div>")
+    return ("<div class='sou'><div class='so-nome mg-topbar__user'>"
+            "<span class='mg-avatar'>&mdash;</span>sem conta ainda</div></div>")
 
 
 def arranque_permitido(cfg, endereco):
@@ -10347,10 +10347,10 @@ a:hover{color:var(--ink)}
 /* O ecra de entrar: uma tarefa, sem barra lateral. */
 /* Os dois ecras fora do molde (entrar, erro) mudaram-se para o sistema
    de desenho na fase 2 da migracao (21/09/2026): o cartao, os campos e
-   o botao sao `.rg-*`, e o que os arruma esta em
-   `estilo/radargov-radar.css`. As onze regras que aqui estavam sairam
+   o botao sao `.mg-*`, e o que os arruma esta em
+   `estilo/miragov-radar.css`. As onze regras que aqui estavam sairam
    -- e tinham de sair, nao bastava deixa-las: `.entrar input` tem mais
-   especificidade que `.rg-field__input`, e a borda do campo continuava
+   especificidade que `.mg-field__input`, e a borda do campo continuava
    a ser a antiga, fina e clara, por cima do campo novo. */
 
 /* zona principal */
@@ -12095,7 +12095,7 @@ def ler_estilo(nome):
 #
 #   tokens      as 24 variáveis novas, nos três temas (`[data-theme=…]`)
 #   pontes      as 44 variáveis ANTIGAS apontadas às novas
-#   componentes as classes `.rg-*`, todas dentro de `.rg`
+#   componentes as classes `.mg-*`, todas dentro de `.mg`
 #
 # **A ordem não é a que o MIGRACAO.md diz, e isso foi medido.** Ele
 # manda `tokens + pontes + CSS + CSS_NOVO`; assim nada muda de cor,
@@ -12114,16 +12114,16 @@ def ler_estilo(nome):
 # meia trocada.
 #
 # Os componentes ficam no fim, e são inertes até à fase 2: está tudo
-# dentro de `.rg`, e nenhum molde carimba essa classe ainda.
+# dentro de `.mg`, e nenhum molde carimba essa classe ainda.
 CSS_TUDO = (carregar_estilos_de_terceiros()
             + CSS + CSS_NOVO
-            + ler_estilo("radargov-tokens.css")
-            + ler_estilo("radargov-pontes.css")
-            + ler_estilo("radargov-componentes.css")
+            + ler_estilo("miragov-tokens.css")
+            + ler_estilo("miragov-pontes.css")
+            + ler_estilo("miragov-componentes.css")
             # o que é do RADAR e não do sistema -- ver o cabeçalho dessa
             # folha. Vem por último, e é o único sítio onde se escreve
             # CSS de componente que não venha do design system.
-            + ler_estilo("radargov-radar.css"))
+            + ler_estilo("miragov-radar.css"))
 
 # --- o CSS deixa de viajar em cada clique (17/09/2026)
 #
@@ -12166,15 +12166,15 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 %(css)s</head><body>
 <div class="app">
-<header class="rg rg-topbar">
- <a class="rg-topbar__brand" href="/" %(inicio_on)s title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
- <nav class="rg-topbar__nav" aria-label="Principal">%(nav)s</nav>
- <a class="rg-topbar__link" href="/configuracoes" %(conf_on)s title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
+<header class="mg mg-topbar">
+ <a class="mg-topbar__brand" href="/" %(inicio_on)s title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
+ <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
+ <a class="mg-topbar__link" href="/configuracoes" %(conf_on)s title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
  %(conta)s
 </header>
-<main class="rg">
+<main class="mg">
  <div class="topo">
-  <div class="rg-crumbs migalhas">
+  <div class="mg-crumbs migalhas">
    <div class="b">%(migalhas)s</div>
    <div class="accoes-topo">%(accoes_topo)s</div>
   </div>
@@ -12192,7 +12192,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
    voltar ficava a meio. Nao da para fixar a altura em CSS porque a
    barra **dobra** (flex-wrap): 50px em ecra largo, 87px a 375px.
    Mede-se, e o CSS usa a medida. */
-(function(){var b=document.querySelector('.rg-topbar');if(!b)return;
+(function(){var b=document.querySelector('.mg-topbar');if(!b)return;
  var p=function(){document.documentElement.style.setProperty(
    '--barra-h', b.getBoundingClientRect().height + 'px')};
  p(); addEventListener('resize', p);
@@ -12407,27 +12407,27 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
 # sistema isso são duas classes (`--sm` e `--primary`), e é por isso que
 # esta tabela tem dois eixos e não nove entradas soltas.
 BOTOES = {
-    "bt": "rg-btn rg-btn--secondary",
-    "bt forte": "rg-btn rg-btn--primary",
-    "bt ok": "rg-btn rg-btn--success",
-    "bt verde": "rg-btn rg-btn--success",
-    "bt cuidado": "rg-btn rg-btn--warning",
-    "bt perigo": "rg-btn rg-btn--danger",
-    "bt-leve": "rg-btn rg-btn--sm rg-btn--subtle",
-    "mini": "rg-btn rg-btn--sm rg-btn--secondary",
-    "mini ok": "rg-btn rg-btn--sm rg-btn--success",
-    "mini verde": "rg-btn rg-btn--sm rg-btn--success",
-    "mini cuidado": "rg-btn rg-btn--sm rg-btn--warning",
-    "mini perigo": "rg-btn rg-btn--sm rg-btn--danger",
+    "bt": "mg-btn mg-btn--secondary",
+    "bt forte": "mg-btn mg-btn--primary",
+    "bt ok": "mg-btn mg-btn--success",
+    "bt verde": "mg-btn mg-btn--success",
+    "bt cuidado": "mg-btn mg-btn--warning",
+    "bt perigo": "mg-btn mg-btn--danger",
+    "bt-leve": "mg-btn mg-btn--sm mg-btn--subtle",
+    "mini": "mg-btn mg-btn--sm mg-btn--secondary",
+    "mini ok": "mg-btn mg-btn--sm mg-btn--success",
+    "mini verde": "mg-btn mg-btn--sm mg-btn--success",
+    "mini cuidado": "mg-btn mg-btn--sm mg-btn--warning",
+    "mini perigo": "mg-btn mg-btn--sm mg-btn--danger",
 }
 
 # Os tons das pílulas. As quatro palavras antigas vêm de funções que as
 # calculam (`etiqueta_prazo()` devolve "mau"/"avisa"/"ok"), e por isso
 # não bastava trocar os literais: há oito sítios onde a classe é uma
 # variável.
-TONS = {"": "", "ok": "rg-tag--success", "avisa": "rg-tag--warning",
-        "mau": "rg-tag--danger", "info": "rg-tag--brand",
-        "mono": "rg-tag--mono", "seal": "rg-tag--seal"}
+TONS = {"": "", "ok": "mg-tag--success", "avisa": "mg-tag--warning",
+        "mau": "mg-tag--danger", "info": "mg-tag--brand",
+        "mono": "mg-tag--mono", "seal": "mg-tag--seal"}
 
 
 def botao(classe):
@@ -12482,12 +12482,12 @@ def icone(nome, tamanho=18, rotulo=""):
 # ecrã deixavam de ser comparáveis.
 def _disco(tamanho=16, anel=False):
     return (
-        "<svg class='rg-logo__disc' viewBox='0 0 96 96' width='%d' "
+        "<svg class='mg-logo__disc' viewBox='0 0 96 96' width='%d' "
         "height='%d' aria-hidden='true' focusable='false'>"
-        "<clipPath id='rg-dsc%s'><circle cx='48' cy='48' r='%d'/></clipPath>"
-        "<g clip-path='url(#rg-dsc%s)'>"
-        "<rect x='2' y='2' width='36.8' height='92' class='rg-logo__verde'/>"
-        "<rect x='38.8' y='2' width='56' height='92' class='rg-logo__verm'/>"
+        "<clipPath id='mg-dsc%s'><circle cx='48' cy='48' r='%d'/></clipPath>"
+        "<g clip-path='url(#mg-dsc%s)'>"
+        "<rect x='2' y='2' width='36.8' height='92' class='mg-logo__verde'/>"
+        "<rect x='38.8' y='2' width='56' height='92' class='mg-logo__verm'/>"
         "</g>%s</svg>"
         % (tamanho, tamanho, "-a" if anel else "", 42 if anel else 46,
            "-a" if anel else "",
@@ -12504,14 +12504,14 @@ def logotipo(tamanho=26, inverso=False, marca_so=False):
     flutuar no azul.
     """
     if marca_so:
-        return ("<span class='rg rg-logo rg-logo--mark%s' role='img' "
+        return ("<span class='mg mg-logo mg-logo--mark%s' role='img' "
                 "aria-label='Radar Gov'>%s</span>"
-                % (" rg-logo--inverse" if inverso else "",
+                % (" mg-logo--inverse" if inverso else "",
                    _disco(tamanho, anel=inverso)))
-    return ("<span class='rg rg-logo%s' role='img' aria-label='Radar Gov' "
-            "style='font-size:%dpx'><span class='rg-logo__radar'>Radar</span> "
-            "<span class='rg-logo__gov'>G%sv</span></span>"
-            % (" rg-logo--inverse" if inverso else "", tamanho,
+    return ("<span class='mg mg-logo%s' role='img' aria-label='Radar Gov' "
+            "style='font-size:%dpx'><span class='mg-logo__radar'>Radar</span> "
+            "<span class='mg-logo__gov'>G%sv</span></span>"
+            % (" mg-logo--inverse" if inverso else "", tamanho,
                _disco(int(round(tamanho * 0.56)), anel=inverso)))
 
 
@@ -12579,7 +12579,7 @@ def selector_de_ranhura(accao, actual, titulo=""):
     return ("<form class='ranhura escada-js' method='post' action='%s' "
             "data-titulo='%s' data-motivos='%s' data-exige='%s'>"
             "<select name='estado'>%s</select>"
-            "<button type='submit' class='rg-btn rg-btn--sm rg-btn--secondary'>ir</button></form>"
+            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>ir</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
                " ".join(MOTIVOS_DO_ESTADO),
@@ -12611,7 +12611,7 @@ def caixa_do_motivo():
                    for m in motivos))
         for estado, motivos in MOTIVOS_DO_ESTADO.items())
     titulos = json.dumps({e: estado_da_empresa(e) for e in MOTIVOS_DO_ESTADO})
-    return ("<dialog class='rg-dialog' id='dlg-motivo'>"
+    return ("<dialog class='mg-dialog' id='dlg-motivo'>"
             "<form method='post' class='accao' id='form-motivo'>"
             "<input type='hidden' name='estado' id='dlg-motivo-estado'>"
             "<h3 id='dlg-motivo-titulo'></h3>"
@@ -12619,7 +12619,7 @@ def caixa_do_motivo():
             "<p class='nota'>Não apaga nada: fica na escada e pode "
             "voltar. O motivo é para daqui a um mês se saber porquê.</p>"
             "%s"
-            "<div class='rg-dialog__actions'>"
+            "<div class='mg-dialog__actions'>"
             "<button type='button' id='dlg-motivo-nao'>Cancelar</button>"
             "<button type='submit'>Gravar</button>"
             "</div></form></dialog>"
@@ -12694,15 +12694,15 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         no_item = chave == item_activo
         # `aria-current="page"` e nao uma classe `.on` (fase 2 da
         # migracao): e o mesmo sinal para o CSS e para quem le com um
-        # leitor de ecra, e o `.rg-topbar__link[aria-current]` do
+        # leitor de ecra, e o `.mg-topbar__link[aria-current]` do
         # sistema pinta-o. Uma classe `.on` so pintava.
-        itens.append("<a class='rg-topbar__link' href='%s'%s>%s</a>"
+        itens.append("<a class='mg-topbar__link' href='%s'%s>%s</a>"
                      % (destino, " aria-current='page'" if no_item else "",
                         html.escape(etiqueta)))
         if no_item:
             for v_chave, v_etiqueta, v_destino in vistas:
                 itens.append(
-                    "<a class='rg-topbar__link rg-topbar__link--sub' "
+                    "<a class='mg-topbar__link mg-topbar__link--sub' "
                     "href='%s'%s>%s</a>"
                     % (v_destino,
                        " aria-current='page'" if v_chave == activo else "",
@@ -12737,9 +12737,9 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # cinquenta não tinha volta, que é o erro mais fácil de cometer.
         if desfazer.startswith("/estado/") or desfazer.startswith("/tarefa/"):
             volta = ("<form class='accao desfazer' method='post' action='%s'>"
-                     "<button type='submit' class='rg-btn rg-btn--sm rg-btn--secondary'>desfazer</button>"
+                     "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>desfazer</button>"
                      "</form>" % html.escape(desfazer, quote=True))
-        aviso = "<div class='rg-alert rg-alert--info'>%s%s</div>" % (html.escape(texto_aviso), volta)
+        aviso = "<div class='mg-alert mg-alert--info'>%s%s</div>" % (html.escape(texto_aviso), volta)
 
     # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
@@ -12750,7 +12750,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     if faltam:
         onde, guiao = como_agendar()
         aviso += (
-            "<div class='rg-alert rg-alert--danger'>O radar <b>não está a verificar "
+            "<div class='mg-alert mg-alert--danger'>O radar <b>não está a verificar "
             "sozinho</b>: %s por criar %s. Enquanto "
             "assim for, só recolhe quando este painel está aberto. Corre "
             "o <code>%s</code> uma vez.</div>"
@@ -12778,11 +12778,11 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # subtitulo o <details> era um "?" que abria nada -- um controlo
         # morto, que a empresa nao poe no ecra.
         "titulo_e_porque": (
-            ("<details class='rg-disc porque'><summary>"
-             "<h1 class='rg-pagehead__title'>%s</h1><i title='O que e esta pagina'>?</i>"
-             "</summary><p class='rg-pagehead__sub'>%s</p></details>"
+            ("<details class='mg-disc porque'><summary>"
+             "<h1 class='mg-pagehead__title'>%s</h1><i title='O que e esta pagina'>?</i>"
+             "</summary><p class='mg-pagehead__sub'>%s</p></details>"
              % (html.escape(titulo), subtitulo)) if subtitulo.strip()
-            else "<h1 class='rg-pagehead__title'>%s</h1>" % html.escape(titulo)),
+            else "<h1 class='mg-pagehead__title'>%s</h1>" % html.escape(titulo)),
         "conteudo": conteudo,
         "abas": abas or "<div class='vazio-topo'></div>",
         "aviso": aviso,
@@ -12865,13 +12865,13 @@ def linha(a, vista="", urgente=None, na_escada=None):
     # quando não é o de sempre (ver TIPO_DE_SEMPRE).
     tags = []
     if a["tipo"] and a["tipo"] != TIPO_DE_SEMPRE:
-        tags.append("<span class='rg-tag'>%s</span>"
+        tags.append("<span class='mg-tag'>%s</span>"
                     % html.escape(TIPO_CURTO.get(a["tipo"], a["tipo"])))
     # O prazo sai das etiquetas e sobe a numero forte na coluna da
     # direita: e o que manda em "concorro ou nao", e no meio das outras
     # tags lia-se ao mesmo nivel do codigo CPV.
     texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
-    prazo_html = ("<span class='rg-tag %s'>%s</span>"
+    prazo_html = ("<span class='mg-tag %s'>%s</span>"
                   % (tom(classe_prazo), texto_prazo)) if texto_prazo else ""
     # Em que ranhura da escada esta, quando nao e a que se esta a ver.
     # Sai da PROPOSTA -- a decisao da empresa deixou de morar no anuncio a
@@ -12880,7 +12880,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
     for p in (na_escada or {}).get(a["ref"], ()):
         if p["estado"] == vista:
             continue
-        tags.append("<span class='rg-tag %s'>%s%s</span>"
+        tags.append("<span class='mg-tag %s'>%s%s</span>"
                     % (tom("" if p["estado"] in ESTADOS_FECHADOS else "ok"),
                        html.escape(estado_da_empresa(p["estado"])),
                        " L%d" % p["lote"] if p["lote"] else ""))
@@ -12889,7 +12889,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         # mes. Os que expiraram sem ninguem ver nao tem motivo -- e nao
         # se lhes inventa um.
         if p["motivo"]:
-            tags.append("<span class='rg-tag'>%s</span>" % html.escape(p["motivo"]))
+            tags.append("<span class='mg-tag'>%s</span>" % html.escape(p["motivo"]))
 
 
 
@@ -12923,7 +12923,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         # Com lotes ha uma proposta por lote e o selector move a
         # primeira: dizer qual, e mandar a ficha, e melhor do que mover
         # uma delas em silencio.
-        botoes.append("<a class='rg-btn rg-btn--sm rg-btn--secondary' href='/anuncio/%s#proposta'>%d lotes"
+        botoes.append("<a class='mg-btn mg-btn--sm mg-btn--secondary' href='/anuncio/%s#proposta'>%d lotes"
                       "</a>" % (quote(a["ref"], safe=""), len(aqui)))
 
     # Uma LINHA DE TABELA, e nao um cartao (22/09/2026, decisao dele
@@ -12936,15 +12936,15 @@ def linha(a, vista="", urgente=None, na_escada=None):
     # o tipo tinham a mesma pilula e a mesma altura do prazo, e numa
     # lista de vinte nao se podia comparar dois precos nem dois prazos
     # sem os procurar com o dedo. Em coluna comparam-se de relance --
-    # e e por isso que os numeros vao alinhados a direita, em `rg-num`.
+    # e e por isso que os numeros vao alinhados a direita, em `mg-num`.
     return (
         "<tr id='a-%s'>"
-        "<td class='rg-code'><a href='/anuncio/%s'>%s</a></td>"
+        "<td class='mg-code'><a href='/anuncio/%s'>%s</a></td>"
         "<td class='col-obj'><a href='/anuncio/%s' class='item-titulo' title='%s'>%s</a>"
         "<small>%s%s%s</small></td>"
         "<td class='col-plat'>%s</td>"
-        "<td class='rg-num'>%s</td>"
-        "<td class='rg-num'>%s</td>"
+        "<td class='mg-num'>%s</td>"
+        "<td class='mg-num'>%s</td>"
         "<td class='col-falta'><span class='falta'>%s%s</span></td>"
         "<td class='col-acc'>%s</td></tr>"
         % (html.escape(a["ref"].replace("/", "-"), quote=True),
@@ -12954,9 +12954,9 @@ def linha(a, vista="", urgente=None, na_escada=None):
            html.escape(corta(a["titulo"], 120)),
            html.escape(a["entidade"] or ""),
            (" &middot; %s" % publicado) if publicado else "",
-           (" &middot; <span class='rg-mono'>%s</span>"
+           (" &middot; <span class='mg-mono'>%s</span>"
             % html.escape(a["cpv"])) if a["cpv"] else "",
-           ("<span class='rg-tag rg-tag--mono %s'>%s</span>"
+           ("<span class='mg-tag mg-tag--mono %s'>%s</span>"
             % (tom("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS else ""),
                html.escape(a["plataforma"]))) if a["plataforma"] else "",
            html.escape(preco_pt(a["preco_base"])),
@@ -13569,7 +13569,7 @@ def paginador(pagina, paginas, args, base="/"):
             "<input id='ir-pag' type='number' name='pag' min='1' max='%d' "
             "value='%d'><button type='submit'>ir</button></form>"
             % (base, escondidos, paginas, pagina))
-    return "<div class='rg-pager'>" + "".join(pecas) + "</div>"
+    return "<div class='mg-pager'>" + "".join(pecas) + "</div>"
 
 
 def com_recorte(onde, valores, frag, vals):
@@ -13814,7 +13814,7 @@ def barra_das_abas(rota, actual, contas=None):
     coisa diferente do que promete e nao mostrar numero nenhum, a regra
     da empresa escolhe o segundo.
     """
-    pecas = ["<div class='rg-tabs abas-escada' role='tablist'>"]
+    pecas = ["<div class='mg-tabs abas-escada' role='tablist'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
         if chave == ENTRADA_DA_ESCADA[0]:
             classe = "ponta entrada"
@@ -13825,9 +13825,9 @@ def barra_das_abas(rota, actual, contas=None):
         else:
             classe = "empresa" + (" fechada" if chave in ESTADOS_FECHADOS else "")
         numero = ("" if contas is None
-                  else " <span class='rg-tab__count'>%s</span>"
+                  else " <span class='mg-tab__count'>%s</span>"
                   % mil_pt(contas.get(chave, 0)))
-        pecas.append("<a class='rg-tab %s' role='tab' aria-selected='%s' "
+        pecas.append("<a class='mg-tab %s' role='tab' aria-selected='%s' "
                      "href='%s'>%s%s</a>"
                      % (classe, "true" if chave == actual else "false",
                         sem_pagina(request.args, rota, estado=chave),
@@ -14043,25 +14043,25 @@ def _lista_de_anuncios():
     filtros = (
         # Os campos do `EcraConcursos`: rotulo por cima, 40px, borda de
         # 2px (o `Field` do sistema), numa grelha de uma linha.
-        "<form class='rg-card filtros' id='filtros-lista' method='get' action='%s'>"
-        "<label class='rg-field f-q'><span class='rg-field__label'>Pesquisar</span>"
-        "<input class='rg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência'></label>"
-        "<label class='rg-field'><span class='rg-field__label'>Entidade</span>"
-        "<input class='rg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
+        "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
+        "<label class='mg-field f-q'><span class='mg-field__label'>Pesquisar</span>"
+        "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência'></label>"
+        "<label class='mg-field'><span class='mg-field__label'>Entidade</span>"
+        "<input class='mg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
         "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
         "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "<label class='rg-field'><span class='rg-field__label'>Plataforma</span>"
-        "<select class='rg-field__input' name='plat'>%s</select></label>"
-        "<label class='rg-field'><span class='rg-field__label'>Publicado de</span>"
-        "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='rg-field__input campo-data'></label>"
-        "<label class='rg-field'><span class='rg-field__label'>até</span>"
-        "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='rg-field__input campo-data'></label>"
+        "<label class='mg-field'><span class='mg-field__label'>Plataforma</span>"
+        "<select class='mg-field__input' name='plat'>%s</select></label>"
+        "<label class='mg-field'><span class='mg-field__label'>Publicado de</span>"
+        "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
+        "<label class='mg-field'><span class='mg-field__label'>até</span>"
+        "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
         "<input type='hidden' name='estado' value='%s'>"
-        "<span class='f-accoes'><button type='submit' class='rg-btn rg-btn--primary'>Filtrar</button>"
-        "<a class='rg-btn rg-btn--secondary limpar' href='%s'>Limpar</a></span>"
+        "<span class='f-accoes'><button type='submit' class='mg-btn mg-btn--primary'>Filtrar</button>"
+        "<a class='mg-btn mg-btn--secondary limpar' href='%s'>Limpar</a></span>"
         "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
@@ -14089,11 +14089,11 @@ def _lista_de_anuncios():
         # O `.lista` fica por fora: é ele que o JS da triagem procura
         # para guardar a posição do rolamento.
         corpo_lista = (
-            "<div class='lista rg-table tab-cx'><table>"
+            "<div class='lista mg-table tab-cx'><table>"
             "<thead><tr>"
             "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
-            "<th class='rg-num'>Preço base</th>"
-            "<th class='rg-num'>Prazo</th><th>Faltam</th><th></th>"
+            "<th class='mg-num'>Preço base</th>"
+            "<th class='mg-num'>Prazo</th><th>Faltam</th><th></th>"
             "</tr></thead><tbody>"
             + "".join(linha(a, estado_actual, urgente, na_escada)
                       for a in linhas)
@@ -14102,7 +14102,7 @@ def _lista_de_anuncios():
         # Sem filtro nenhum, mas com o interesse a tapar: dizer "o que
         # entrou esta triado" com 1290 anuncios escondidos era uma
         # afirmacao falsa por cima da faixa que diz o contrario.
-        corpo_lista = ("<div class='rg-empty'>Nada aqui <b>dentro do "
+        corpo_lista = ("<div class='mg-empty'>Nada aqui <b>dentro do "
                        "interesse</b> &mdash; há %s de fora dele. "
                        "<a href='%s'>ver tudo</a> ou "
                        "<a href='/configuracoes/interesse'>mudar o interesse</a>."
@@ -14115,12 +14115,12 @@ def _lista_de_anuncios():
           and filtro_em_uso == "estado=" + ENTRADA_DA_ESCADA[0]):
         # O vazio proprio da entrada sem filtro: nada por decidir e
         # diferente de um filtro que nao apanhou nada.
-        corpo_lista = ("<div class='rg-empty'>Nada por decidir: o que "
+        corpo_lista = ("<div class='mg-empty'>Nada por decidir: o que "
                        "entrou está triado, e o que expirou passou "
                        "sozinho para o <a href='/concursos?estado=expirou'>"
                        "&ldquo;expirou sem ver&rdquo;</a>.</div>")
     else:
-        corpo_lista = ("<div class='rg-empty'>Nada corresponde a este filtro. "
+        corpo_lista = ("<div class='mg-empty'>Nada corresponde a este filtro. "
                        "<a href='%s'>limpar</a></div>"
                        % html.escape(href_limpar(rota, estado_actual),
                                      quote=True))
@@ -14156,7 +14156,7 @@ def _lista_de_anuncios():
     por_enviar = sum(len(x[1]) for x in alertas_por_enviar())
     if por_enviar:
         faixa_avisos = (
-            "<div class='rg-alert rg-alert--info'><b>%s anúncio%s</b> nos teus alertas, "
+            "<div class='mg-alert mg-alert--info'><b>%s anúncio%s</b> nos teus alertas, "
             "por avisar. <a href='/configuracoes/alertas'>ver os alertas</a></div>"
             % (mil_pt(por_enviar), "" if por_enviar == 1 else "s"))
     else:
@@ -14283,10 +14283,10 @@ def linha_da_pipeline(p, urgente, prazos):
         # lista, e nao pode estar a puxar o olho para uma coisa que nao
         # pede accao nenhuma.
         if p["estado"] in ESTADOS_COM_PROPOSTO:
-            col_prazo = ("%s <span class='rg-tag'>entregue</span>"
+            col_prazo = ("%s <span class='mg-tag'>entregue</span>"
                          % data_pt(prazo))
         else:
-            col_prazo = ("%s <span class='rg-tag %s'>%s</span>"
+            col_prazo = ("%s <span class='mg-tag %s'>%s</span>"
                          % (data_pt(prazo), tom(classe_prazo),
                             html.escape(texto_prazo)))
     else:
@@ -14315,7 +14315,7 @@ def linha_da_pipeline(p, urgente, prazos):
                            quote=True),
                html.escape(nome),
                "" if p["ref"] else
-               " <span class='rg-tag rg-tag--brand' title='%s'>sem anúncio</span>"
+               " <span class='mg-tag mg-tag--brand' title='%s'>sem anúncio</span>"
                % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
                html.escape(p["entidade"] or "", quote=True),
                html.escape(corta(p["entidade"] or "", 45)),
@@ -14397,7 +14397,7 @@ def _lista_de_propostas():
     # nao um desconto no numero.
     sem_anuncio = sum(1 for p in linhas if not p["ref"])
     if linhas:
-        corpo = ("<div class='rg-card tab-cx'><table class='rg-table tab-contratos tab-lista'>"
+        corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos tab-lista'>"
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
                  % ("".join("<th>%s</th>" % html.escape(t)
                             for t in colunas_da_ranhura(estado_actual)),
@@ -14408,14 +14408,14 @@ def _lista_de_propostas():
         # "Nada em Ganho" por baixo de uma aba a dizer 13 e o ecra a
         # discordar de si proprio a dois centimetros de distancia, e
         # manda arrumar o que esta arrumado em vez de apagar a procura.
-        corpo = ("<div class='rg-empty'>Nada em &ldquo;%s&rdquo; com "
+        corpo = ("<div class='mg-empty'>Nada em &ldquo;%s&rdquo; com "
                  "&ldquo;%s&rdquo;. <a href='%s?estado=%s'>Ver as %s</a>."
                  "</div>"
                  % (html.escape(estado_da_empresa(estado_actual)),
                     html.escape(procura), LISTA, estado_actual,
                     mil_pt(contas.get(estado_actual, 0))))
     else:
-        corpo = ("<div class='rg-empty'>Nada em &ldquo;%s&rdquo;. "
+        corpo = ("<div class='mg-empty'>Nada em &ldquo;%s&rdquo;. "
                  "Põe um concurso aqui a partir da ficha dele, ou "
                  "<a href='/proposta/nova'>cria uma proposta sem anúncio</a> "
                  "(consulta prévia, ajuste directo).</div>"
@@ -15402,7 +15402,7 @@ def _conteudo_interesse():
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
                      mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
     formulario = (
-        "<div class='rg-card novo-filtro'>%s"
+        "<div class='mg-card novo-filtro'>%s"
         "<form method='post' action='/alertas/interesse' class='filtros'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
@@ -15526,8 +15526,8 @@ def _caixa_email(cfg):
     # que envia e do sistema, e so o dono a ve -- a porta recusa-lhe o POST.
     if not sou_dono():
         return (
-            "<div class='rg-card conf-email'>"
-            "<div class='rg-field__label'>Resumo por e-mail</div>"
+            "<div class='mg-card conf-email'>"
+            "<div class='mg-field__label'>Resumo por e-mail</div>"
             "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
             "da hora marcada, e só se houver novidade.</div>"
             "<form class='form-email' method='post' action='/alertas/email'>"
@@ -15535,13 +15535,13 @@ def _caixa_email(cfg):
             "placeholder='o.teu@email.pt'></label>"
             "<label>Hora do resumo<input type='time' name='hora_resumo' "
             "value='%s'></label>"
-            "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
             "</form></div>"
             % (html.escape(str(e.get("para") or ""), quote=True),
                html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
     return (
-        "<div class='rg-card conf-email'>"
-        "<div class='rg-field__label'>Resumo por e-mail</div>"
+        "<div class='mg-card conf-email'>"
+        "<div class='mg-field__label'>Resumo por e-mail</div>"
         "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
         "da hora marcada, e só se houver novidade.</div>"
         "<form class='form-email' method='post' action='/alertas/email'>"
@@ -15549,9 +15549,9 @@ def _caixa_email(cfg):
         "placeholder='o.teu@email.pt'></label>"
         "<label>Hora do resumo<input type='time' name='hora_resumo' "
         "value='%s'></label>"
-        "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
         "</form>"
-        "<div class='rg-field__label' style='margin:22px 0 6px'>Quem envia</div>"
+        "<div class='mg-field__label' style='margin:22px 0 6px'>Quem envia</div>"
         "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
         "resumo. A palavra-passe grava-se no <code>email_senha.txt</code>, "
         "nunca no <code>config.json</code>; o campo fica vazio de "
@@ -15564,7 +15564,7 @@ def _caixa_email(cfg):
         "<label>Porta<input type='text' name='porta' value='%s'></label>"
         "<label>Palavra-passe<input type='password' name='senha' value='' "
         "autocomplete='new-password'%s></label>"
-        "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
         "</form>"
         "<div class='saude'>%s</div>%s</div>"
         % (html.escape(str(e.get("para") or ""), quote=True),
@@ -15588,8 +15588,8 @@ def _caixa_urgente():
     """A janela do "urgente", editavel no painel (B13). E UM numero,
     usado pelo filtro, pelo cartao dos indicadores e pelos rotulos --
     por isso edita-se num sitio so, e todos leem dias_urgente()."""
-    return ("<div class='rg-card novo-filtro' style='margin-top:16px'>"
-            "<div class='rg-field__label'>Janela do &ldquo;urgente&rdquo;</div>"
+    return ("<div class='mg-card novo-filtro' style='margin-top:16px'>"
+            "<div class='mg-field__label'>Janela do &ldquo;urgente&rdquo;</div>"
             "<div class='nota' style='margin:6px 0 10px'>Um anúncio é "
             "&ldquo;urgente&rdquo; quando o prazo acaba nos próximos N "
             "dias. O mesmo número serve o filtro da lista, o cartão dos "
@@ -15679,8 +15679,8 @@ def _conteudo_alertas():
                              "ORDER BY nome COLLATE NOCASE").fetchall()
     if seguidas:
         caixa_seguidas = (
-            "<div class='rg-card novo-filtro' style='margin-top:16px'>"
-            "<div class='rg-field__label'>Entidades seguidas</div>"
+            "<div class='mg-card novo-filtro' style='margin-top:16px'>"
+            "<div class='mg-field__label'>Entidades seguidas</div>"
             "<div class='nota' style='margin:6px 0 10px'>Os anúncios "
             "novos destas entidades entram no resumo diário. Segue-se e "
             "deixa-se de seguir na ficha de cada uma.</div>"
@@ -15696,7 +15696,7 @@ def _conteudo_alertas():
         lista = "<div class='alertas'>%s</div>" % "".join(
             _linha_filtro(f) for f in filtros)
     else:
-        lista = ("<div class='rg-empty'>Ainda não há alertas. Cria um aqui em "
+        lista = ("<div class='mg-empty'>Ainda não há alertas. Cria um aqui em "
                  "baixo: o que entrar e corresponder vai no resumo por "
                  "e-mail.</div>")
 
@@ -15710,7 +15710,7 @@ def _conteudo_alertas():
 
     # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
     novo = (
-        "<div class='rg-card novo-filtro'><div class='rg-field__label'>Filtro de alertas</div>"
+        "<div class='mg-card novo-filtro'><div class='mg-field__label'>Filtro de alertas</div>"
         "<div class='nota' style='margin:6px 0 14px'>Um alerta é um "
         "conjunto de campos: o que entrar e corresponder vai no resumo "
         "por e-mail. Um alerta por CPV ou por palavras avisa dos "
@@ -15775,7 +15775,7 @@ def _conteudo_alertas():
                html.escape(corta(r["entidade"], 44)),
                html.escape(r["filtro"]))
             for r in ultimos)
-        historico = ("<div class='rg-card tab-cx'><table class='rg-table tab-contratos'>"
+        historico = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
                      "<thead><tr><th>Avisado</th><th>Anúncio</th>"
                      "<th>Entidade</th><th>Filtro</th></tr></thead>"
                      "<tbody>%s</tbody></table></div>" % hist)
@@ -15788,7 +15788,7 @@ def _conteudo_alertas():
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
                 _caixa_urgente() +
-                "<div class='rg-field__label' style='margin:22px 0 12px'>Últimos avisos"
+                "<div class='mg-field__label' style='margin:22px 0 12px'>Últimos avisos"
                 "</div>" + historico + "</div>")
 
     return conteudo
@@ -15940,24 +15940,24 @@ def administracao_da_plataforma():
     for id_ in empresas_existentes():
         with com_empresa(id_):
             nome = (ler_config().get("nome_da_empresa") or "").strip()
-        linhas.append("<tr><td class='rg-num'>%d</td><td>%s</td>"
-                      "<td class='rg-num'>%d</td></tr>"
+        linhas.append("<tr><td class='mg-num'>%d</td><td>%s</td>"
+                      "<td class='mg-num'>%d</td></tr>"
                       % (id_, html.escape(nome or "(sem nome)"),
                          contas_por_empresa.get(id_, 0)))
     seccoes = "".join(
-        "<a class='rg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
+        "<a class='mg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
         "<b>%s</b><div class='nota'>%s</div></a>" % (c_, html.escape(t_), html.escape(d_))
         for c_, t_, d_, _, _ in seccoes_da_plataforma())
     corpo = (
         "<div class='larg'>"
-        "<div class='rg-card conf-cx'><div class='rg-field__label'>Recolha</div>"
+        "<div class='mg-card conf-cx'><div class='mg-field__label'>Recolha</div>"
         "<p class='nota'>Última verificação: %s</p><div>%s</div></div>"
-        "<div class='rg-field__label' style='margin:22px 0 6px'>O sistema</div>"
+        "<div class='mg-field__label' style='margin:22px 0 6px'>O sistema</div>"
         "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
-        "<a class='rg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
+        "<a class='mg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
         "<b>Pedidos de acesso</b><div class='nota'>%s por decidir</div></a></div>"
-        "<div class='rg-field__label' style='margin:22px 0 6px'>Empresas</div>"
-        "<div class='rg-card tab-cx'><table class='rg-table'><thead><tr><th>N.º</th>"
+        "<div class='mg-field__label' style='margin:22px 0 6px'>Empresas</div>"
+        "<div class='mg-card tab-cx'><table class='mg-table'><thead><tr><th>N.º</th>"
         "<th>Empresa</th><th>Contas</th></tr></thead><tbody>%s</tbody></table></div>"
         "</div>"
         % (html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
@@ -16089,13 +16089,13 @@ def config_recolha():
                        cfg.get("vortal_preliminares", True))
         + _interruptor("Recuperar um slot falhado na verificação seguinte",
                        "recuperar_slot_falhado", cfg.get("recuperar_slot_falhado", True))
-        + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
-        + ("<div class='rg-alert rg-alert--danger' style='margin-top:16px'>As tarefas agendadas "
+        + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
+        + ("<div class='mg-alert mg-alert--danger' style='margin-top:16px'>As tarefas agendadas "
            "estão por criar (%s): corre o agendar.sh.</div>"
            % html.escape(", ".join(faltam)) if faltam else
            "<div class='nota' style='margin-top:16px'>As tarefas agendadas do "
            "sistema estão criadas.</div>"))
-    return pagina_config("recolha", "<div class='rg-card conf-cx'>" + corpo + "</div>")
+    return pagina_config("recolha", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
 def _estado_da_chave(nomes, variavel):
@@ -16157,7 +16157,7 @@ def config_leitura():
     for nome, _, omissao, ficheiros, variavel, _ in FORNECEDORES:
         texto, bem, por_var = _estado_da_chave(ficheiros, variavel)
         linhas.append(
-            "<div class='conf-forn'><div class='rg-field__label'>%s</div>"
+            "<div class='conf-forn'><div class='mg-field__label'>%s</div>"
             "<div class='saude'>%s</div>%s%s</div>"
             % (html.escape(nome),
                linhas_de_saude([("Chave", html.escape(texto), bem)], "#d68910"),
@@ -16174,9 +16174,9 @@ def config_leitura():
         "<select name='fornecedor_pecas'>%s</select>"
         "<small>Cada pedido desce a cadeia até alguém responder; escolher "
         "um fixa-o como primeiro.</small></label>%s"
-        "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
         % (opcoes, "".join(linhas)))
-    return pagina_config("leitura", "<div class='rg-card conf-cx'>" + corpo + "</div>")
+    return pagina_config("leitura", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
 def _estado_da_captura(nome_base):
@@ -16230,19 +16230,19 @@ def config_capturas():
              "o pedido da página de um anúncio")):
         texto, bem = _estado_da_captura(nome_base)
         blocos.append(
-            "<div class='conf-forn'><div class='rg-field__label'>%s</div>"
+            "<div class='conf-forn'><div class='mg-field__label'>%s</div>"
             "<div class='nota' style='margin:6px 0 10px'>%s. Como se faz a "
             "captura está no LEIA-ME, secção 3.</div>"
             "<div class='saude'>%s</div>"
             "<form method='post' action='/configuracoes/capturas' class='conf-form'>"
             "<input type='hidden' name='qual' value='%s'>"
             "<textarea name='texto' rows='5' placeholder='cola aqui o Copy as cURL'></textarea>"
-            "<button type='submit' class='rg-btn rg-btn--primary'>Gravar esta captura</button>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Gravar esta captura</button>"
             "</form></div>"
             % (html.escape(titulo), html.escape(nota),
                linhas_de_saude([("Estado", html.escape(texto), bem)]),
                nome_base))
-    return pagina_config("capturas", "<div class='rg-card conf-cx'>" + "".join(blocos) + "</div>")
+    return pagina_config("capturas", "<div class='mg-card conf-cx'>" + "".join(blocos) + "</div>")
 
 
 @app.route("/configuracoes/copias", methods=["GET", "POST"])
@@ -16275,8 +16275,8 @@ def config_copias():
                        nota="a plataforma e o ficheiro de cada empresa; o trabalho das empresas não se recupera de mais lado nenhum")
         + _campo("Cópias a guardar", "copias_a_guardar", cfg.get("copias_a_guardar", 7),
                  nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso")
-        + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
-        + "<div class='rg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
+        + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
+        + "<div class='mg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
         + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
         + "<div class='nota' style='margin-bottom:10px'>Fora deste PC: %s "
           "<span style='color:var(--t5)'>(o destino configura-se uma vez com o "
@@ -16287,7 +16287,7 @@ def config_copias():
           % html.escape(le_marca("ultimo_ensaio_copia", "ainda nenhum"))
         + "<div class='saude'>%s</div>" % ("".join(existentes) or
                                            "<div class='nota'>nenhuma ainda</div>"))
-    return pagina_config("copias", "<div class='rg-card conf-cx'>" + corpo + "</div>")
+    return pagina_config("copias", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
 IMPORTACOES = os.path.join(BASE_DIR, empresa.PASTA_IMPORTACOES)
@@ -16313,7 +16313,7 @@ def _tabela_do_ensaio(linhas):
                html.escape(l["status"] or "—"),
                html.escape(_texto_do_preco(l["valor_proposta"])) if l["valor_proposta"] else "—",
                (problemas + avisos) or "<span class='ok'>liga</span>"))
-    return ("<div class='mercado-tab'><table class='rg-table tab-mercado tab-ensaio'><thead><tr>"
+    return ("<div class='mercado-tab'><table class='mg-table tab-mercado tab-ensaio'><thead><tr>"
             "<th>Linha</th><th>Referência</th><th>Anúncio</th><th>Lote</th><th>Estado</th>"
             "<th class='p'>Proposta</th><th>Ensaio</th></tr></thead><tbody>%s</tbody></table></div>"
             % "".join(corpo))
@@ -16350,13 +16350,13 @@ def config_importar():
         confirmar = (
             "<form method='post' action='/configuracoes/importar/confirmar' class='conf-form' "
             "style='margin-top:16px'><input type='hidden' name='ficheiro' value='%s'>"
-            "<button type='submit' class='rg-btn rg-btn--primary'%s>Confirmar: gravar %d linha%s e a triagem</button>"
+            "<button type='submit' class='mg-btn mg-btn--primary'%s>Confirmar: gravar %d linha%s e a triagem</button>"
             "<small>As linhas com erro ficam de fora. Uma linha repetida (mesma referência e "
             "lote) substitui a que já lá estava.</small></form>"
             % (html.escape(nome, quote=True), "" if contagens["ok"] else " disabled",
                contagens["ok"], "" if contagens["ok"] == 1 else "s"))
         corpo = (
-            "<div class='rg-field__label'>Ensaio de %s</div>"
+            "<div class='mg-field__label'>Ensaio de %s</div>"
             "<div class='nota' style='margin:6px 0 12px'>%d linha%s lida%s: <b>%d liga%s</b> "
             "a %d anúncio%s, <b>%d com erro</b>. Nada foi gravado ainda.</div>%s%s"
             % (html.escape(ficheiro.filename), contagens["total"],
@@ -16364,32 +16364,32 @@ def config_importar():
                contagens["ok"], "" if contagens["ok"] == 1 else "m",
                contagens["anuncios"], "" if contagens["anuncios"] == 1 else "s",
                contagens["com_erro"], _tabela_do_ensaio(linhas), confirmar))
-        return pagina_config("importar", "<div class='rg-card conf-cx'>" + corpo + "</div>")
+        return pagina_config("importar", "<div class='mg-card conf-cx'>" + corpo + "</div>")
     with liga() as c:
         n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM empresa "
                              "WHERE folha='modelo'").fetchone()
         ultima = c.execute("SELECT MAX(importado_em) FROM empresa WHERE folha='modelo'").fetchone()[0]
     corpo = (
-        "<div class='rg-field__label'>1. O modelo</div>"
+        "<div class='mg-field__label'>1. O modelo</div>"
         "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o radar "
         "precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote "
         "quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. "
         "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
-        "<a class='rg-btn rg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
-        "<div class='rg-field__label' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
+        "<a class='mg-btn mg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
+        "<div class='mg-field__label' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
         "<div class='nota' style='margin-bottom:12px'>Primeiro vês um ensaio: o que liga a que "
         "anúncio, o que não liga e porquê. Só grava quando confirmares.</div>"
         "<form method='post' action='/configuracoes/importar' enctype='multipart/form-data' "
         "class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span>"
         "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
-        "<button type='submit' class='rg-btn rg-btn--primary'>Ver o ensaio</button></form>"
-        "<div class='rg-field__label' style='margin:26px 0 6px'>O que já está</div>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Ver o ensaio</button></form>"
+        "<div class='mg-field__label' style='margin:26px 0 6px'>O que já está</div>"
         "<div class='nota'>%s</div>"
         % ("%s linha%s do modelo, em %s anúncio%s; última importação a %s."
            % (mil_pt(n_modelo[0]), "" if n_modelo[0] == 1 else "s", mil_pt(n_modelo[1]),
               "" if n_modelo[1] == 1 else "s", html.escape(data_hora_pt(ultima)))
            if n_modelo[0] else "Ainda não entrou nenhuma linha pelo modelo."))
-    return pagina_config("importar", "<div class='rg-card conf-cx'>" + corpo + "</div>")
+    return pagina_config("importar", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
 @app.route("/configuracoes/importar/modelo.xlsx")
@@ -16425,7 +16425,7 @@ def config_importar_confirmar():
 def config_conta():
     utilizador = g.get("utilizador")
     if not utilizador:
-        return pagina_config("conta", "<div class='rg-card conf-cx'><div class='nota'>"
+        return pagina_config("conta", "<div class='mg-card conf-cx'><div class='nota'>"
                              "Ainda não há conta. Na pasta do radar: "
                              "<code>python radar.py --criar-utilizador NOME</code>."
                              "</div></div>")
@@ -16473,8 +16473,8 @@ def config_conta():
                  extra="autocomplete='new-password'")
         + _campo("Outra vez", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
-        + "<button type='submit' class='rg-btn rg-btn--primary'>Guardar</button></form>"
-        + "<div class='rg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
+        + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
+        + "<div class='mg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
         + "<div class='saude'>%s</div>" % linhas
         + ("<div style='margin-top:14px'>%s</div>"
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
@@ -16482,7 +16482,7 @@ def config_conta():
     if sou_admin():
         corpo += _bloco_da_empresa()
         corpo += _bloco_utilizadores(todos, utilizador["id"])
-    return pagina_config("conta", "<div class='rg-card conf-cx'>" + corpo + "</div>")
+    return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
 def _bloco_da_empresa(cfg=None):
@@ -16499,7 +16499,7 @@ def _bloco_da_empresa(cfg=None):
     justamente nos concursos que interessam.
     """
     nome, nif = _nome_da_empresa(cfg)
-    return ("<div class='rg-field__label' style='margin:22px 0 6px'>A nossa empresa</div>"
+    return ("<div class='mg-field__label' style='margin:22px 0 6px'>A nossa empresa</div>"
             "<div class='nota' style='margin-bottom:10px'>Para o radar saber, "
             "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
             "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
@@ -16510,7 +16510,7 @@ def _bloco_da_empresa(cfg=None):
                      nota="como aparece nos contratos")
             + _campo("NIF", "nif_da_empresa", nif,
                      nota="nove dígitos; é por aqui que a ligação é certa")
-            + "<button type='submit' class='rg-btn rg-btn--secondary'>Guardar</button></form>")
+            + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>")
 
 
 @app.route("/configuracoes/conta/empresa", methods=["POST"])
@@ -16542,7 +16542,7 @@ def _bloco_utilizadores(todos, eu):
                                 % html.escape(u["email"], quote=True)))
         for u in todos)
     return (
-        "<div class='rg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
+        "<div class='mg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
         "<div class='nota' style='margin-bottom:10px'>As contas da nossa "
         "empresa. O <b>admin</b> cria e tira contas e diz quem a empresa é; "
         "o <b>tester</b> vê os anúncios, o que está em curso, o mercado, e "
@@ -16555,7 +16555,7 @@ def _bloco_utilizadores(todos, eu):
         "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
         "<option value='tester'>tester</option>"
         "<option value='admin'>admin</option></select></label>"
-        "<button type='submit' class='rg-btn rg-btn--primary'>Criar utilizador</button></form>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Criar utilizador</button></form>"
         % (linhas,
            _campo("Utilizador", "email", "", extra="autocomplete='off'"),
            _campo("Palavra-passe", "senha", "", tipo="password",
@@ -16724,13 +16724,13 @@ def entidade_procurar():
                "<span class='sem-nif'>sem NIF</span>"
                if e["chave"].startswith("n:") else "")
             for e in achadas)
-        corpo = ("<div class='larg'><div class='rg-card lado-cx'>"
-                 "<div class='rg-field__label' style='margin-bottom:10px'>"
+        corpo = ("<div class='larg'><div class='mg-card lado-cx'>"
+                 "<div class='mg-field__label' style='margin-bottom:10px'>"
                  "%d entidades respondem a &ldquo;%s&rdquo; &mdash; "
                  "escolhe a ficha</div>%s</div></div>"
                  % (len(achadas), html.escape(termo), linhas))
     else:
-        corpo = ("<div class='larg'><div class='rg-empty'>Nenhuma entidade "
+        corpo = ("<div class='larg'><div class='mg-empty'>Nenhuma entidade "
                  "do corpus responde a &ldquo;%s&rdquo;. O corpus só "
                  "conhece quem já assinou contratos desde %s. "
                  "<a href='/contratos'>Voltar aos contratos</a></div></div>"
@@ -17243,7 +17243,7 @@ def concentracao_html(ganha):
                       "title='as outras %s empresas — %s'></i>"
                       % (100.0 * resto / total, mil_pt(max(0, quantas - 5)),
                          euros_curto(resto)))
-    return ("<div class='rg-card graf'><div class='rg-field__label'>Concentração</div>"
+    return ("<div class='mg-card graf'><div class='mg-field__label'>Concentração</div>"
             "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
             "cinco maiores, entre as %s empresas que ganharam alguma "
             "coisa.</div>"
@@ -17277,7 +17277,7 @@ def barras_h(linhas, titulo, nota="", ligar=False):
             % (html.escape(l["n"], quote=True), etiqueta,
                100.0 * l["v"] / maior, euros_curto(l["v"]),
                "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
-    return ("<div class='rg-card graf'><div class='rg-field__label'>%s</div>%s"
+    return ("<div class='mg-card graf'><div class='mg-field__label'>%s</div>%s"
             "<div class='barras-h'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 12px'>%s</div>" % nota
@@ -17342,7 +17342,7 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
-    return ("<div class='rg-card graf'><div class='rg-field__label'>%s</div>%s"
+    return ("<div class='mg-card graf'><div class='mg-field__label'>%s</div>%s"
             "<div class='barras'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
@@ -17475,7 +17475,7 @@ def filtros_da_ficha(chave, d):
     # O campo do CPV e escondido e quem escolhe e a arvore, como nas duas
     # listas: onde se pode procurar por CPV, pode-se escolher mais que um.
     return (
-        "<form class='rg-card filtros ent-filtros' method='get' action='/entidade/%s'>"
+        "<form class='mg-card filtros ent-filtros' method='get' action='/entidade/%s'>"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='q_excl' value='%s' "
         "placeholder='Excluir palavras…'>"
@@ -17543,14 +17543,14 @@ def nosso_lado_cx(nosso):
                        "" if nosso["decididos"] == 1 else "s",
                        MINIMO_COM_ENTIDADE))
         pedacos.append(
-            "<div class='ent-nossas'><div class='rg-field__label'>As nossas propostas "
-            "<i>%s</i>%s</div><table class='rg-table tab-contratos'><tbody>%s</tbody>"
+            "<div class='ent-nossas'><div class='mg-field__label'>As nossas propostas "
+            "<i>%s</i>%s</div><table class='mg-table tab-contratos'><tbody>%s</tbody>"
             "</table></div>"
             % (mil_pt(len(nosso["propostas"])), taxa, "".join(linhas)))
     else:
         pedacos.append("<p class='nota'>Ainda não lhe fizemos nenhuma "
                        "proposta.</p>")
-    corpo = ("<div class='rg-card lado-cx' id='nosso'>"
+    corpo = ("<div class='mg-card lado-cx' id='nosso'>"
              + rot_com_porque(
                  "O nosso lado",
                  "O que o radar e a empresa sabem desta entidade, por "
@@ -17776,8 +17776,8 @@ def _bloco_de_comparacao(chaves):
         "<div class='r'>%s</div><div>%s</div><div>%s</div>"
         % (html.escape(colunas[0][i][0]), colunas[0][i][1], colunas[1][i][1])
         for i in range(len(colunas[0])))
-    return ("<div class='rg-card comparar'><div class='cab'>"
-            "<span class='rg-field__label'>A comparar</span><div>%s</div><div>%s</div>"
+    return ("<div class='mg-card comparar'><div class='cab'>"
+            "<span class='mg-field__label'>A comparar</span><div>%s</div><div>%s</div>"
             "</div><div class='grelha'>%s</div>"
             "<a class='nota' href='/entidades'>deixar de comparar</a></div>"
             % (cabecas[0], cabecas[1], linhas))
@@ -17816,16 +17816,16 @@ def entidades():
     marcadas = [c for c in request.args.getlist("vs") if c][:2]
 
     contas = _contas_das_abas()
-    abas = "<div class='rg-tabs' role='tablist'>%s</div>" % "".join(
-        "<a class='rg-tab' role='tab' aria-selected='%s' "
-        "href='/entidades?ver=%s'>%s <span class='rg-tab__count'>%s</span></a>"
+    abas = "<div class='mg-tabs' role='tablist'>%s</div>" % "".join(
+        "<a class='mg-tab' role='tab' aria-selected='%s' "
+        "href='/entidades?ver=%s'>%s <span class='mg-tab__count'>%s</span></a>"
         % ("true" if aba == chave else "false", chave,
            html.escape(rotulo + (" · %d dias" % DIAS_A_ACABAR
                                  if chave == "acabar" else "")),
            mil_pt(contas.get(chave, 0)))
         for chave, rotulo in ABAS_DAS_ENTIDADES)
 
-    procura = ("<form class='rg-card filtros' method='get' "
+    procura = ("<form class='mg-card filtros' method='get' "
                "action='/entidade/procurar'>"
                "<label>Nome ou NIF<input type='text' name='q' "
                "placeholder='ex. 506000000, ou Politécnico de Leiria'></label>"
@@ -17835,7 +17835,7 @@ def entidades():
     # do BASE dizem «sem BASE». O aviso diz o caminho em vez de deixar a
     # página a parecer avariada (redesenho §5).
     if not ha_corpus():
-        procura = ("<div class='rg-alert rg-alert--info'>Sem o corpus do Portal BASE, as "
+        procura = ("<div class='mg-alert mg-alert--info'>Sem o corpus do Portal BASE, as "
                    "colunas do mercado dizem «sem BASE» e três destas abas "
                    "ficam vazias. Traz-se em <a href='/configuracoes/"
                    "indicadores'>Configurações › Indicadores</a>, com "
@@ -17891,7 +17891,7 @@ def entidades():
                else "<span class='nota'>ainda nenhuma</span>",
                taxa,
                ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—",
-               "<span class='rg-tag rg-tag--success'>seguida</span>" if ch in seguidas
+               "<span class='mg-tag mg-tag--success'>seguida</span>" if ch in seguidas
                else "<a class='nota' href='/entidade/%s'>abrir</a>"
                % quote(ch, safe="")))
 
@@ -17899,13 +17899,13 @@ def entidades():
         tabela = (
             "<form method='get' action='/entidades'>"
             "<input type='hidden' name='ver' value='%s'>"
-            "<div class='rg-card tab-cx'><table class='rg-table tab-contratos'>"
+            "<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
             "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
             "<th class='p'>Compra</th><th class='p'>Ganha</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
             "<th class='p'>A acabar · %d d</th><th></th></tr></thead>"
             "<tbody>%s</tbody></table>"
-            "<div class='tab-pe'><button type='submit' class='rg-btn rg-btn--secondary'>comparar "
+            "<div class='tab-pe'><button type='submit' class='mg-btn mg-btn--secondary'>comparar "
             "as marcadas</button><span class='nota'>Marca duas. "
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
@@ -17915,7 +17915,7 @@ def entidades():
                MINIMO_COM_ENTIDADE))
     else:
         titulo_vazio, porque = _vazio_da_aba(aba)
-        tabela = ("<div class='rg-empty comecar'><b>%s</b><span>%s</span></div>"
+        tabela = ("<div class='mg-empty comecar'><b>%s</b><span>%s</span></div>"
                   % (html.escape(titulo_vazio), porque))
 
     return envolver("entidades", "Entidades",
@@ -18014,7 +18014,7 @@ def factos_da_entidade(chave, nosso, meses=24):
          euros_curto(acabam[1]) if acabam[0] else
          ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
     )
-    return ("<div class='rg-stats seis'>%s</div>" % "".join(
+    return ("<div class='mg-stats seis'>%s</div>" % "".join(
         _numero_da_situacao(rotulo, valor, "",
                             "<span class='sub'>%s</span>" % nota)
         if valor is not None
@@ -18034,7 +18034,7 @@ def entidade(chave):
     if not d:
         if not (nosso["anuncios"] or nosso["propostas"] or nosso["contactos"]):
             return pagina_de_erro(404)
-        ident = ("<div class='rg-card ent-cab'><div class='n'>%s</div>"
+        ident = ("<div class='mg-card ent-cab'><div class='n'>%s</div>"
                  "<div class='m'>%s</div></div>"
                  % (html.escape(nome),
                     ("NIF %s &middot; " % html.escape(chave))
@@ -18136,15 +18136,15 @@ def entidade(chave):
                html.escape(r["tipo_procedimento"] or ""),
                euros(r["preco_contratual"]))
             for r in d["recentes"])
-        recentes = ("<div class='rg-card tab-cx' style='margin-top:14px'>"
-                    "<table class='rg-table tab-contratos'><thead><tr>"
+        recentes = ("<div class='mg-card tab-cx' style='margin-top:14px'>"
+                    "<table class='mg-table tab-contratos'><thead><tr>"
                     "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
                     "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
                     "<tbody>%s</tbody></table></div>" % linhas_r)
     elif filtrada:
         # sem isto, um filtro que nao apanha nada deixava a pagina
         # aparentemente na mesma, so com os numeros a zero
-        recentes = ("<div class='rg-empty'>Esta entidade não tem contratos que "
+        recentes = ("<div class='mg-empty'>Esta entidade não tem contratos que "
                     "correspondam ao filtro. "
                     "<a href='/entidade/%s'>ver tudo</a></div>"
                     % quote(chave, safe=""))
@@ -18175,7 +18175,7 @@ def entidade(chave):
     selo = selo_do_papel(papel_da_entidade(d["compra_total"],
                                            d["ganha_total"]))
 
-    ident = ("<div class='rg-card ent-cab'><div class='n'>%s%s</div>"
+    ident = ("<div class='mg-card ent-cab'><div class='n'>%s%s</div>"
              "<div class='m'>%s</div>%s</div>"
              % (html.escape(d["nome"]), selo,
                 ("NIF %s" % html.escape(d["nif"])) if d["nif"]
@@ -18240,7 +18240,7 @@ def sem_corpus_html(titulo):
         "contratos", titulo,
         "Contratos já celebrados, do Portal BASE &mdash; quem ganhou "
         "o quê, por quanto.",
-        "<div class='larg'><div class='rg-empty'>"
+        "<div class='larg'><div class='mg-empty'>"
         "O corpus de contratos ainda não foi importado.<br><br>"
         "Corre <code>python radar.py --contratos</code> para o trazer do "
         "dados.gov &mdash; domínio público, sem chave nem sessão. "
@@ -18506,7 +18506,7 @@ def contratos():
     # corpus e, escolhida a sugestao, a chave (o NIF) vai em entid/vencid,
     # que a ficha da entidade ja usava. O que vier na URL passa escondido.
     filtros = (
-        "<form class='rg-card filtros' method='get' action='/contratos'>"
+        "<form class='mg-card filtros' method='get' action='/contratos'>"
         "%s"
         "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
         "<input type='text' name='adj' value='%s' placeholder='Entidade que comprou…' "
@@ -18611,18 +18611,18 @@ def contratos():
                           "<th>Objecto</th><th>Entidade</th>"
                           "<th>Quem ganhou</th><th>Procedimento</th>"
                           "<th class='p'>Preço</th>")
-        tabela = ("<div class='rg-card tab-cx'><table class='rg-table tab-contratos'>"
+        tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
                   "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
                   "</table></div>" % (cabecalhos, "".join(corpo)))
     elif ha_pergunta:
-        tabela = ("<div class='rg-empty'>%s "
+        tabela = ("<div class='mg-empty'>%s "
                   "<a href='%s'>limpar</a></div>"
                   % ("Nada deste filtro termina nos próximos %d meses."
                      % meses if fim else
                      "Nada corresponde a este filtro.",
                      html.escape(modo_limpo, quote=True)))
     elif fim:
-        tabela = ("<div class='rg-empty comecar'>"
+        tabela = ("<div class='mg-empty comecar'>"
                   "<b>De que mercado queres ver os fins de contrato?</b>"
                   "<span>Escolhe um CPV na árvore ou escreve uma entidade: "
                   "a lista mostra os contratos desse mercado que terminam "
@@ -18636,7 +18636,7 @@ def contratos():
     else:
         # A pergunta vem primeiro. Um milhao e meio de contratos por data
         # nao e uma resposta a nada.
-        tabela = ("<div class='rg-empty comecar'>"
+        tabela = ("<div class='mg-empty comecar'>"
                   "<b>Faz uma pergunta ao corpus.</b>"
                   "<span>Escolhe um CPV na árvore, escreve quem ganhou ou "
                   "que entidade comprou, aperta as datas ou o valor. Os "
@@ -18652,11 +18652,11 @@ def contratos():
     # era a unica defesa contra o "ecra bifacetado" que o custo da
     # opcao A (6.1) previa.
     if fim:
-        titulo_tabela = ("<div class='rg-field__label' style='margin:16px 0 10px'>"
+        titulo_tabela = ("<div class='mg-field__label' style='margin:16px 0 10px'>"
                          "Contratos por <b>fim estimado</b> &mdash; o que "
                          "vai acabar até %s</div>" % data_pt(fim_janela))
     else:
-        titulo_tabela = ("<div class='rg-field__label' style='margin:16px 0 10px'>"
+        titulo_tabela = ("<div class='mg-field__label' style='margin:16px 0 10px'>"
                          "Contratos por <b>data de celebração</b> &mdash; "
                          "o que já se comprou</div>")
 
@@ -18764,10 +18764,10 @@ def contratos():
     para_celebracao.pop("ver", None)
     para_celebracao.pop("meses", None)
     para_fim = args_da_lista(request.args, ver="fim")
-    abas = ("<div class='rg-tabs' role='tablist'>"
-            "<a class='rg-tab' role='tab' aria-selected='%s' "
+    abas = ("<div class='mg-tabs' role='tablist'>"
+            "<a class='mg-tab' role='tab' aria-selected='%s' "
             "href='/contratos%s'>Por celebração</a>"
-            "<a class='rg-tab' role='tab' aria-selected='%s' "
+            "<a class='mg-tab' role='tab' aria-selected='%s' "
             "href='/contratos?%s'>Por fim estimado</a>"
             "</div>"
             % ("false" if fim else "true",
@@ -18786,7 +18786,7 @@ def contratos():
     # /entidades, que e a vista da barra; este continua aqui porque e
     # daqui que a pergunta se faz a meio de uma consulta.
     procura_entidade = (
-        "<form class='rg-card filtros' method='get' action='/entidade/procurar'>"
+        "<form class='mg-card filtros' method='get' action='/entidade/procurar'>"
         "<label>Ficha de entidade</label>"
         "<input type='text' name='q' value='' "
         "placeholder='Nome ou NIF — abre a ficha directamente…'>"
@@ -19158,7 +19158,7 @@ def lotes_cx(a):
     for l in resumo["lotes"]:
         if ha_registo:
             if l["estado"]:
-                situacao = ("<span class='rg-tag %s'>%s</span>%s%s"
+                situacao = ("<span class='mg-tag %s'>%s</span>%s%s"
                             % (tom(l["classe"]), l["rotulo"],
                                (" <span class='lote-prop'>proposta %s</span>"
                                 % html.escape(_texto_do_preco(l["proposta"])))
@@ -19166,7 +19166,7 @@ def lotes_cx(a):
                                (" <span class='lote-prop'>%dº lugar</span>" % int(l["lugar"]))
                                if l["lugar"] else ""))
             elif l["n"] in resumo["fomos"]:
-                situacao = "<span class='rg-tag'>fomos, sem desfecho registado</span>"
+                situacao = "<span class='mg-tag'>fomos, sem desfecho registado</span>"
             elif resumo["conjunto"]:
                 situacao = "<span class='em-falta'>no conjunto</span>"
             else:
@@ -19184,7 +19184,7 @@ def lotes_cx(a):
         rotulo, classe = ESTADO_DO_LOTE.get(estado, ("sem desfecho registado", ""))
         nota_conj = ("<div class='nota' style='margin-top:10px'>O registo da empresa "
                      "tem uma linha para o <b>conjunto</b> dos lotes, não lote a "
-                     "lote: <span class='rg-tag %s'>%s</span>%s</div>"
+                     "lote: <span class='mg-tag %s'>%s</span>%s</div>"
                      % (tom(classe), rotulo,
                         (" proposta %s" % html.escape(_texto_do_preco(conj["valor_proposta"])))
                         if conj.get("valor_proposta") else ""))
@@ -19192,7 +19192,7 @@ def lotes_cx(a):
         nota_conj = ""
     # «2 lotes; sem registo de a que fomos» e um FACTO e fica no ecra;
     # de onde vem cada coluna e explicacao e vai para o "?".
-    return ("<div class='rg-card lotes' id='lotes'>"
+    return ("<div class='mg-card lotes' id='lotes'>"
             + rot_com_porque(
                 "Lotes",
                 "O que se sabe de cada um vem do registo da empresa (o Excel), "
@@ -19535,7 +19535,7 @@ def homologos_cx(a, chave):
                html.escape(l["tipo_procedimento"] or ""),
                venceu, euros(l["preco_contratual"])))
 
-    return ("<div class='rg-card mercado'>"
+    return ("<div class='mg-card mercado'>"
             + rot_com_porque(
                 "Procedimentos homólogos",
                 "Contratos desta entidade com objecto parecido com o deste "
@@ -19545,7 +19545,7 @@ def homologos_cx(a, chave):
             # feita, e sem ele o bloco e uma tabela sem criterio
             + ("<div class='nota' style='margin:6px 0 12px'>"
                "Parecido = tem em comum %s: <b>%s</b>.</div>"
-               "<div class='mercado-tab'><table class='rg-table tab-mercado'><thead><tr>"
+               "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
                "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
                "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
                "<tbody>%s</tbody></table></div></div>"
@@ -19647,8 +19647,8 @@ def desfecho_cx(a):
         dias = _dias_desde(a["data_pub"])
         if dias < DIAS_ATE_CONTRATO:
             return ""
-        return ("<div class='rg-card mercado' id='desfecho'>"
-                "<div class='rg-field__label'>Desfecho</div>"
+        return ("<div class='mg-card mercado' id='desfecho'>"
+                "<div class='mg-field__label'>Desfecho</div>"
                 "<div class='nota' style='margin:6px 0 0'>"
                 "Publicado há %s e <b>ainda sem contrato celebrado</b> no "
                 "Portal BASE. Passado este tempo já não costuma ser espera: "
@@ -19712,14 +19712,14 @@ def desfecho_cx(a):
 
     # Uma linha so nao e um lote: a tabela por baixo do somario nao se
     # desenha, porque repetia os mesmos numeros noutra forma.
-    tabela = ("<div class='mercado-tab'><table class='rg-table tab-mercado'><thead><tr>"
+    tabela = ("<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
               "<th>Celebrado</th><th>Objecto</th><th>Quem ganhou</th>"
               "<th>Execução</th><th class='p'>Preço</th></tr></thead>"
               "<tbody>%s</tbody></table></div>" % "".join(corpo)
               ) if len(linhas) > 1 else ""
 
-    return ("<div class='rg-card mercado' id='desfecho'>"
-            "<div class='rg-field__label'>Desfecho</div>"
+    return ("<div class='mg-card mercado' id='desfecho'>"
+            "<div class='mg-field__label'>Desfecho</div>"
             "<div class='nota' style='margin:6px 0 12px'>"
             "%s, do Portal BASE. Liga-se pelo número deste anúncio "
             "(<code>%s</code>) e não por semelhança, por isso ou é este "
@@ -19753,14 +19753,14 @@ def rot_com_porque(titulo, porque=""):
     controlo morto, a mesma regra do titulo da pagina.
     """
     if not porque:
-        return "<div class='rg-field__label'>%s</div>" % titulo
-    return ("<details class='rg-disc porque porque-bloco'><summary>"
-            "<span class='rg-field__label'>%s</span><i title='O que é este bloco'>?</i>"
+        return "<div class='mg-field__label'>%s</div>" % titulo
+    return ("<details class='mg-disc porque porque-bloco'><summary>"
+            "<span class='mg-field__label'>%s</span><i title='O que é este bloco'>?</i>"
             "</summary><div class='nota'>%s</div></details>" % (titulo, porque))
 
 
 def _mercado_cx(nota, corpo=""):
-    return ("<div class='rg-card mercado'>"
+    return ("<div class='mg-card mercado'>"
             + rot_com_porque(
                 "Histórico de adjudicações",
                 "Contratos já celebrados por esta entidade neste CPV, do "
@@ -19896,7 +19896,7 @@ def mercado(a):
     return _mercado_cx(
         resumo,
         ref_preco +
-        "<div class='mercado-tab'><table class='rg-table tab-mercado'><thead><tr>"
+        "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
         "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
         "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
         "<tbody>%s</tbody></table></div>"
@@ -19936,7 +19936,7 @@ def ficha(ref):
             "anuncios", "Esse anúncio não existe",
             "Não há nenhum anúncio com a referência "
             "<b>%s</b> nesta base." % html.escape(ref),
-            "<div class='rg-empty'>Pode ter sido apagado numa limpeza do "
+            "<div class='mg-empty'>Pode ter sido apagado numa limpeza do "
             "histórico, ou a referência estar mal escrita. "
             "<a href='" + LISTA + "'>Voltar à lista</a> ou "
             "<a href='/concursos?estado='>procurar em todos</a>.</div>",
@@ -19971,18 +19971,18 @@ def ficha(ref):
     faixa_alteracao = ""
     if a["estado"] == "alteracao":
         faixa_alteracao = (
-            "<div class='rg-alert rg-alert--info'>Este anúncio é uma <b>alteração</b> do anúncio "
+            "<div class='mg-alert mg-alert--info'>Este anúncio é uma <b>alteração</b> do anúncio "
             "<a href='/anuncio/%s'>%s</a>%s. O prazo e o preço daqui já estão "
             "na ficha dele, e é lá que se decide.</div>"
             % (html.escape(raiz_ref, quote=True), html.escape(raiz_ref),
                "" if raiz_ref else " original, que não está nesta base")
             if raiz_ref else
-            "<div class='rg-alert rg-alert--info'>Este anúncio altera o anúncio <b>%s</b>, que "
+            "<div class='mg-alert mg-alert--info'>Este anúncio altera o anúncio <b>%s</b>, que "
             "não está nesta base; fica a representar o procedimento.</div>"
             % html.escape(_valor(a, "altera") or ""))
     elif vigor:
         faixa_alteracao = (
-            "<div class='rg-alert rg-alert--info'>Alterado pelo anúncio <a href='/anuncio/%s'>%s"
+            "<div class='mg-alert mg-alert--info'>Alterado pelo anúncio <a href='/anuncio/%s'>%s"
             "</a>, publicado a %s: os factos acima e o texto abaixo são os da "
             "versão em vigor. O histórico diz o que mudou.</div>"
             % (html.escape(vigor["ref"], quote=True), html.escape(vigor["ref"]),
@@ -20002,16 +20002,16 @@ def ficha(ref):
     chips = ["<span class='ref'>%s %s</span>"
              % ("Anúncio" if e_do_dr else "Consulta", html.escape(ref))]
     if a["tipo"]:
-        chips.append("<span class='rg-tag'>%s</span>" % html.escape(a["tipo"]))
-    chips.append("<span class='rg-tag %s'>%s</span>"
+        chips.append("<span class='mg-tag'>%s</span>" % html.escape(a["tipo"]))
+    chips.append("<span class='mg-tag %s'>%s</span>"
                  % (tom(classe_estado), rotulo_estado))
     for p in propostas_de(a["ref"]):
-        chips.append("<span class='rg-tag %s'>%s%s</span>"
+        chips.append("<span class='mg-tag %s'>%s%s</span>"
                      % (tom("" if p["estado"] in ESTADOS_FECHADOS else "ok"),
                         html.escape(estado_da_empresa(p["estado"])),
                         " L%d" % p["lote"] if p["lote"] else ""))
         if p["motivo"]:
-            chips.append("<span class='rg-tag'>%s</span>" % html.escape(p["motivo"]))
+            chips.append("<span class='mg-tag'>%s</span>" % html.escape(p["motivo"]))
 
     # O "Propostas até" voltou aos factos. Tinha saido daqui porque
     # aparecia duas vezes no mesmo ecra -- aqui e na caixa preta da
@@ -20068,7 +20068,7 @@ def ficha(ref):
     # 84 grafias de uma universidade sob o mesmo NIF.
     ch_ent = (entidade_do_anuncio(a["nif"] or "", a["entidade"] or "")
               or chave_da_entidade(a))
-    cabeca = ("<div class='rg-card cabeca'><div class='chips'>%s</div>"
+    cabeca = ("<div class='mg-card cabeca'><div class='chips'>%s</div>"
               "<h2>%s</h2><div class='ent'>%s</div>"
               "<div class='factos'>%s</div></div>"
               % ("".join(chips), html.escape(a["titulo"] or ""),
@@ -20094,7 +20094,7 @@ def ficha(ref):
         decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
                                        a["titulo"] or ref))
     if a["pdf_url"]:
-        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank'>PDF oficial</a>"
+        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank'>PDF oficial</a>"
                     % html.escape(a["pdf_url"], quote=True))
     # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a ficha
     # inteira com um 500. Na base dele todos os anuncios tem url, e por
@@ -20102,7 +20102,7 @@ def ficha(ref):
     # nao pode derrubar a pagina toda (apanhado a 16/09/2026, pelo teste
     # do indice da ficha).
     if a["url"]:
-        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank'>%s</a>"
+        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank'>%s</a>"
                     % (html.escape(a["url"], quote=True),
                        "Ver no DR" if e_do_dr else "Ver na Vortal"))
     # Duas coisas diferentes, dois botoes: o procedimento na plataforma
@@ -20111,12 +20111,12 @@ def ficha(ref):
     # lista dos ficheiros; nenhum dos dois e o procedimento.
     destino, rotulo, dica = link_do_procedimento(a)
     if destino:
-        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank' "
+        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank' "
                     "title='%s'>%s</a>"
                     % (html.escape(destino, quote=True),
                        html.escape(dica, quote=True), html.escape(rotulo)))
     if a["link_pecas"] and a["link_pecas"] != destino:
-        sair.append("<a class='rg-btn rg-btn--sm rg-btn--subtle' href='%s' target='_blank' "
+        sair.append("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='%s' target='_blank' "
                     "title='o endereço das peças que o anúncio indica'>"
                     "Peças na plataforma</a>"
                     % html.escape(a["link_pecas"], quote=True))
@@ -20162,7 +20162,7 @@ def ficha(ref):
                 celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
             linhas_ess.append("<div class='par'><dt>%s</dt><dd>%s</dd></div>"
                               % (html.escape(rotulo), celula))
-        seccoes_html = ("<div class='rg-card essencial'><dl>%s</dl>%s</div>"
+        seccoes_html = ("<div class='mg-card essencial'><dl>%s</dl>%s</div>"
                         % ("".join(linhas_ess),
                            frase_dos_campos_em_falta(sem_valor)))
         nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
@@ -20190,7 +20190,7 @@ def ficha(ref):
             cabecalho = ("%s — %s" % (numero, titulo_sec)) \
                 if titulo_sec else "Outros"
             blocos.append(
-                "<details class='rg-card sec'%s><summary>"
+                "<details class='mg-card sec'%s><summary>"
                 "<span class='st'>%s</span><span class='sh'>%s</span></summary>"
                 "<dl>%s</dl></details>"
                 % (" open" if len(blocos) < 2 else "", html.escape(cabecalho),
@@ -20203,7 +20203,7 @@ def ficha(ref):
         # sabe dela e o que a listagem publica da Vortal deu (os factos
         # do cabecalho) e o resto esta na plataforma.
         seccoes_html = (
-            "<div class='rg-empty'>Isto é uma <b>consulta preliminar</b>, "
+            "<div class='mg-empty'>Isto é uma <b>consulta preliminar</b>, "
             "trazida da pesquisa pública da Vortal &mdash; a parte L do "
             "DR não a publica, por isso não há anúncio para mostrar. O "
             "que se sabe está nos factos acima; o resto está na "
@@ -20211,7 +20211,7 @@ def ficha(ref):
             "</a>.</div>" % html.escape(a["url"] or "", quote=True))
         nota_modo = ""
     else:
-        seccoes_html = ("<div class='rg-empty'>Não foi possível ler o texto deste "
+        seccoes_html = ("<div class='mg-empty'>Não foi possível ler o texto deste "
                         "anúncio: %s</div>"
                         % (html.escape(aviso_leitura) if aviso_leitura else
                            "o DR não devolveu conteúdo."))
@@ -20366,21 +20366,21 @@ def ficha(ref):
             leitor = (
                 "<div class='leitor'>"
                 "<div class='leitor-cab'><span class='n'>%s</span>"
-                "<a class='rg-btn rg-btn--sm rg-btn--subtle' href='/documento/%s/%s' download>"
+                "<a class='mg-btn mg-btn--sm mg-btn--subtle' href='/documento/%s/%s' download>"
                 "Descarregar</a>"
-                "<a class='rg-btn rg-btn--sm rg-btn--subtle' href='/anuncio/%s?%s#pecas'>Fechar</a>"
+                "<a class='mg-btn mg-btn--sm mg-btn--subtle' href='/anuncio/%s?%s#pecas'>Fechar</a>"
                 "</div><div class='nota'>%s</div>%s%s</div>"
                 % (html.escape(peca_aberta), ref,
                    quote(peca_aberta, safe=""), ref,
                    html.escape(urlencode(args_fechar), quote=True),
                    aviso_leitor, visual, texto_da_peca(ref, peca_aberta)))
 
-    chip_plat = ("<span class='rg-tag rg-tag--success' style='margin-left:auto'>%s</span>"
+    chip_plat = ("<span class='mg-tag mg-tag--success' style='margin-left:auto'>%s</span>"
                  % html.escape(a["plataforma"])) if a["plataforma"] else ""
     # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
     # explicava foi para o "?" e NAO se apagou. A data em que o radar la
     # foi da ultima vez e um facto, e essa fica no corpo.
-    docs_cx = ("<div class='rg-card lado-cx' id='pecas'><div class='cab'>"
+    docs_cx = ("<div class='mg-card lado-cx' id='pecas'><div class='cab'>"
                "%s%s</div>%s%s</div>"
                % (rot_com_porque(
                       "Peças do procedimento",
@@ -20393,7 +20393,7 @@ def ficha(ref):
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
     propostas_aqui = propostas_de(ref)
     resp = (propostas_aqui[0]["responsavel"] if propostas_aqui else "") or ""
-    resp_cx = ("<div class='rg-card lado-cx meia'><div class='rg-field__label' style='margin-bottom:12px'>"
+    resp_cx = ("<div class='mg-card lado-cx meia'><div class='mg-field__label' style='margin-bottom:12px'>"
                "Responsável</div>"
                "<form class='resp' method='post' action='/responsavel/%s'>"
                "<div class='av'>%s</div>"
@@ -20419,8 +20419,8 @@ def ficha(ref):
             for p in passos)
     else:
         linhas_hist = "<div class='nota'>Ainda não há registo de alterações.</div>"
-    hist_cx = ("<div class='rg-card lado-cx meia' id='historico'>"
-               "<div class='rg-field__label' style='margin-bottom:6px'>"
+    hist_cx = ("<div class='mg-card lado-cx meia' id='historico'>"
+               "<div class='mg-field__label' style='margin-bottom:6px'>"
                "Histórico</div>%s</div>" % linhas_hist)
 
     # Composicao em dossier (escolha do Afonso, 31/08/2026): uma coluna
@@ -20672,7 +20672,7 @@ def texto_da_peca(ref, nome):
                 "<div style='white-space:pre-wrap;"
                 "font:400 12px/1.6 var(--mono)'>%s</div>"
                 % (i, html.escape(pagina.strip())))
-        return ("<details class='rg-card sec' style='margin-top:14px'><summary>"
+        return ("<details class='mg-card sec' style='margin-top:14px'><summary>"
                 "<span class='st'>Texto extraído da peça</span>"
                 "<span class='sh'>pesquisável com o Ctrl+F da página, mesmo "
                 "quando o visualizador não abre</span></summary>%s</details>"
@@ -20734,7 +20734,7 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         % (html.escape(k, quote=True), html.escape(v, quote=True))
         for k, v in sorted((ocultos or {}).items()) if v)
     caixa = (
-        "<form class='rg-card filtros peca-procura' method='get' action='%s'>%s"
+        "<form class='mg-card filtros peca-procura' method='get' action='%s'>%s"
         "<input type='text' name='procurar' value='%s' "
         "placeholder='Procurar no documento…'>"
         "<button type='submit'>Procurar</button>%s</form>"
@@ -20785,7 +20785,7 @@ def ver_peca(ref, nome):
         return envolver(
             "anuncios", "Peça não encontrada",
             "O ficheiro já não está na pasta dos documentos.",
-            "<div class='rg-empty'>Volta à <a href='/anuncio/%s'>ficha do "
+            "<div class='mg-empty'>Volta à <a href='/anuncio/%s'>ficha do "
             "anúncio</a> e carrega em &ldquo;Actualizar peças&rdquo;."
             "</div>" % html.escape(ref, quote=True),
             migalhas=migalhas_de("anuncios", ref)), 404
@@ -21057,7 +21057,7 @@ def faixa_do_desfecho(p, linhas, cfg=None):
     return ("<div class='desfecho-propoe'>"
             "<div class='dp-facto'>O Portal BASE diz que este procedimento "
             "foi adjudicado a <b>%s</b> por <b>%s</b>%s. %s%s</div>"
-            "<div class='dp-botoes'>%s%s<a class='rg-btn rg-btn--sm rg-btn--subtle' href='#desfecho'>"
+            "<div class='dp-botoes'>%s%s<a class='mg-btn mg-btn--sm mg-btn--subtle' href='#desfecho'>"
             "ver os contratos</a></div></div>"
             % (html.escape(" · ".join(dict.fromkeys(quem)) or "alguém"),
                euros(ganhou) if ganhou else "valor não publicado",
@@ -21174,7 +21174,7 @@ def contactos_cx(a):
                  confirmar="Apagar o contacto «%s»?"
                            % (l["nome"] or "").replace("'", " ")))
         for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
-    return ("<div class='rg-card lado-cx' id='contactos'>"
+    return ("<div class='mg-card lado-cx' id='contactos'>"
             # o nome da entidade entra AQUI e nao no `%` la em baixo: o
             # operador so alcanca o grupo que o segue, e um %s deixado
             # deste lado saia escrito no ecra
@@ -21285,14 +21285,14 @@ def _tarefas_da_ficha(p):
             "<li>%s<span class='t'>%s</span>%s%s%s%s</li>"
             % (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq"),
                html.escape(t["o_que"]),
-               ("<span class='rg-tag %s'>%s</span>"
+               ("<span class='mg-tag %s'>%s</span>"
                 % (tom(classe),
                    html.escape(texto_prazo or data_pt(t["quando"]))))
                if t["quando"] else "",
-               "<span class='rg-tag' title='vem das datas do DR e "
+               "<span class='mg-tag' title='vem das datas do DR e "
                "acompanha-as'>automática</span>"
                if t["origem"] in ORIGENS_AUTOMATICAS else "",
-               ("<span class='rg-tag'>%s</span>" % html.escape(t["quem"]))
+               ("<span class='mg-tag'>%s</span>" % html.escape(t["quem"]))
                if t["quem"] else "",
                # adiar e atribuir. **É aqui que vivem desde 17/09/2026**:
                # a linha do Hoje ficou com o ✓ e o desfazer, e mais nada
@@ -21304,7 +21304,7 @@ def _tarefas_da_ficha(p):
                "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
                "<input type='text' name='quem' maxlength='60' list='pessoas' "
                "placeholder='quem'>"
-               "<button type='submit' class='rg-btn rg-btn--sm rg-btn--secondary'>gravar</button></form>"
+               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>gravar</button></form>"
                % t["id"]))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
@@ -21318,7 +21318,7 @@ def _tarefas_da_ficha(p):
               "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
               "<button type='submit'>juntar</button></form>"
               % (html.escape(p["ref"] or "", quote=True), p["id"]))
-    return ("<div class='prop-tarefas'><div class='rg-field__label'>O que falta fazer"
+    return ("<div class='prop-tarefas'><div class='mg-field__label'>O que falta fazer"
             "</div>%s%s</div>" % (lista, juntar))
 
 
@@ -21340,7 +21340,7 @@ def _etiquetas_da_ficha(ref):
            accao("/etiqueta/%s/tirar/%d" % (quote(ref, safe=""), e["id"]),
                  "&times;", "etq-x"))
         for e in minhas)
-    return ("<div class='prop-etq'><div class='rg-field__label'>Etiquetas</div>%s"
+    return ("<div class='prop-etq'><div class='mg-field__label'>Etiquetas</div>%s"
             "<form class='etq-form' method='post' action='/etiqueta/%s/nova'>"
             "<input type='text' name='nome' placeholder='+ etiqueta' "
             "list='etiquetas-existentes' maxlength='24'></form>"
@@ -21360,8 +21360,8 @@ def proposta_cx(a):
     ref = a["ref"]
     minhas = propostas_de(ref)
     if not minhas:
-        return ("<div class='rg-card lado-cx' id='proposta'>"
-                "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta"
+        return ("<div class='mg-card lado-cx' id='proposta'>"
+                "<div class='mg-field__label' style='margin-bottom:12px'>A nossa proposta"
                 "</div><p class='nota'>Este concurso ainda não está na "
                 "escada.</p><div class='prop-accoes'>%s%s</div></div>"
                 % (accao("/estado/%s/analisar" % quote(ref, safe=""),
@@ -21374,8 +21374,8 @@ def proposta_cx(a):
     cfg = ler_config()
     blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg)
               for p in minhas]
-    return ("<div class='rg-card lado-cx' id='proposta'>"
-            "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta</div>"
+    return ("<div class='mg-card lado-cx' id='proposta'>"
+            "<div class='mg-field__label' style='margin-bottom:12px'>A nossa proposta</div>"
             "%s%s</div>" % ("".join(blocos), _etiquetas_da_ficha(ref)))
 
 
@@ -21532,7 +21532,7 @@ def proposta_nova():
         return redirect("/proposta/%d?" % id_ + urlencode(
             {"aviso": "Proposta criada. O resto edita-se aqui."}))
     corpo = (
-        "<div class='rg-card'><form method='post' class='form-largo'>"
+        "<div class='mg-card'><form method='post' class='form-largo'>"
         "<label>Cliente<input type='text' name='entidade' maxlength='120' "
         "placeholder='ex. Instituto Politécnico de Leiria' autofocus></label>"
         "<label>Título<input type='text' name='titulo' maxlength='200' "
@@ -21569,8 +21569,8 @@ def ficha_da_proposta(id_):
     # `docs/historico/CICLOS.md`): era um formulário de quatro campos,
     # sem tarefas, sem contactos e sem histórico. O que o trabalho pede
     # não depende de o concurso ter saído no DR.
-    bloco = ("<div class='rg-card lado-cx' id='proposta'>"
-             "<div class='rg-field__label' style='margin-bottom:12px'>A nossa proposta"
+    bloco = ("<div class='mg-card lado-cx' id='proposta'>"
+             "<div class='mg-field__label' style='margin-bottom:12px'>A nossa proposta"
              "</div>%s</div>" % _bloco_de_uma_proposta(p, nome))
     # Os contactos são da ENTIDADE, e uma consulta prévia tem entidade.
     contactos = contactos_cx({"ref": "", "nif": "",
@@ -21621,7 +21621,7 @@ def cronologia_da_proposta(p):
         passos = passos_do_anuncio(c, p["ref"], 20, proposta_id=p["id"])
     if not passos:
         return ""
-    return ("<div class='rg-card lado-cx'><div class='rg-field__label' "
+    return ("<div class='mg-card lado-cx'><div class='mg-field__label' "
             "style='margin-bottom:10px'>Cronologia</div>%s</div>"
             % "".join("<div class='hist'><b>%s</b> %s <i>%s</i> %s</div>"
                       % (data_hora_pt(h["quando"]),
@@ -22205,7 +22205,7 @@ def cpv_html_bloco():
     if not por_cpv:
         return ""
     nomes = nomes_das_divisoes(d for d, _, _, _ in por_cpv)
-    return ("<div class='rg-field__label' style='margin:22px 0 10px'>Onde se ganha, "
+    return ("<div class='mg-field__label' style='margin:22px 0 10px'>Onde se ganha, "
             "por área</div><div class='barras-h'>%s</div>"
             % "".join(
                 "<div class='lh'><span class='t'>%s</span>"
@@ -22255,10 +22255,10 @@ def negocio_cx():
 
     def tabela(titulo, linhas, vazio):
         if not linhas:
-            return ("<div class='rg-field__label' style='margin:22px 0 6px'>%s</div>"
+            return ("<div class='mg-field__label' style='margin:22px 0 6px'>%s</div>"
                     "<div class='nota'>%s</div>" % (titulo, vazio))
         maior_n = max(l["n"] for l in linhas)
-        return ("<div class='rg-field__label' style='margin:22px 0 10px'>%s</div>"
+        return ("<div class='mg-field__label' style='margin:22px 0 10px'>%s</div>"
                 "<div class='barras-h'>%s</div>"
                 % (titulo, "".join(
                     "<div class='lh'><span class='t'>%s</span>"
@@ -22274,7 +22274,7 @@ def negocio_cx():
     aviso_fechar = ""
     if por_fechar:
         aviso_fechar = (
-            "<div class='rg-alert rg-alert--info' style='margin:0 0 18px'>"
+            "<div class='mg-alert mg-alert--info' style='margin:0 0 18px'>"
             "<b>%d proposta%s</b> ainda em aberto cujo procedimento o "
             "Portal BASE já diz adjudicado. Abre cada uma e fecha-a: o "
             "facto está lá, a decisão é tua.<div class='por-fechar'>%s</div>"
@@ -22304,16 +22304,16 @@ def negocio_cx():
     # o explicasse. A função continua a calculá-lo porque o `numero()`
     # é quem sabe dizer «ainda não» em vez de um travessão, e as frases
     # dele são as que o BACKLOG cita.
-    return ("<div class='rg-card' style='padding:22px 24px'>"
-            "<div class='rg-field__label' style='margin-bottom:6px'>O negócio</div>"
+    return ("<div class='mg-card' style='padding:22px 24px'>"
+            "<div class='mg-field__label' style='margin-bottom:6px'>O negócio</div>"
             "<div class='nota' style='margin-bottom:18px'>Porque se perde, "
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
             "com %d decididos ou mais.</div>"
             "%s"
-            "<div class='rg-field__label' style='margin:22px 0 10px'>Em jogo, por "
+            "<div class='mg-field__label' style='margin:22px 0 10px'>Em jogo, por "
             "ranhura</div><div class='barras'>%s</div>"
             "%s%s%s"
-            "<div class='rg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
+            "<div class='mg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
             "se mexerem</div><div class='saude'>%s</div>"
             "</div>"
             % (MINIMO_PARA_TAXA, aviso_fechar, barras,
@@ -22411,12 +22411,12 @@ def _delta_html(agora, antes, unidade=" pp", decimais=0):
     dados" e a maneira mais rapida de uma pagina de indicadores mentir.
     """
     if agora is None or antes is None:
-        return "<span class='rg-stat__delta rg-stat__delta--flat'>sem comparação</span>"
+        return "<span class='mg-stat__delta mg-stat__delta--flat'>sem comparação</span>"
     dif = agora - antes
     if abs(dif) < (10.0 ** -decimais) / 2:
-        return "<span class='rg-stat__delta rg-stat__delta--flat'>= igual</span>"
+        return "<span class='mg-stat__delta mg-stat__delta--flat'>= igual</span>"
     forma = "%%+.%df%s" % (decimais, unidade)
-    return ("<span class='rg-stat__delta rg-stat__delta--%s'>%s %s</span>"
+    return ("<span class='mg-stat__delta mg-stat__delta--%s'>%s %s</span>"
             % ("up" if dif > 0 else "down",
                "&#9650;" if dif > 0 else "&#9660;",
                (forma % dif).replace(".", ",")))
@@ -22427,9 +22427,9 @@ def _numero_da_situacao(rotulo, valor, delta, nota):
     a frase ocupa o lugar dele e diz o que falta para existir (o mesmo
     arranjo que ele pediu a 15/09/2026 para o `negocio_cx()`)."""
     if valor is None:
-        return ("<div class='rg-stat por-haver'><span class='r'>%s</span>"
+        return ("<div class='mg-stat por-haver'><span class='r'>%s</span>"
                 "<b>%s</b></div>" % (rotulo, nota))
-    return ("<div class='rg-stat'><span class='r'>%s</span><b>%s</b>%s"
+    return ("<div class='mg-stat'><span class='r'>%s</span><b>%s</b>%s"
             "<span class='d'>%s</span></div>"
             % (rotulo, valor, delta, nota))
 
@@ -22451,8 +22451,8 @@ def situacao():
         periodo = PERIODO_DE_OMISSAO
     janela, antes, rotulo_antes = janelas_do_periodo(periodo, hoje)
 
-    abas = "<div class='rg-tabs' role='tablist'>%s</div>" % "".join(
-        "<a class='rg-tab' role='tab' aria-selected='%s' href='/situacao?%s'>"
+    abas = "<div class='mg-tabs' role='tablist'>%s</div>" % "".join(
+        "<a class='mg-tab' role='tab' aria-selected='%s' href='/situacao?%s'>"
         "%s</a>"
         % ("true" if ver == chave else "false",
            urlencode([("ver", chave), ("periodo", periodo)]),
@@ -22472,8 +22472,8 @@ def situacao():
         corpo = funil_cx_html()
     elif ver == "cpv":
         bloco = cpv_html_bloco()
-        corpo = ("<div class='rg-card' style='padding:22px 24px'>"
-                 "<div class='rg-field__label'>Por área de CPV</div>"
+        corpo = ("<div class='mg-card' style='padding:22px 24px'>"
+                 "<div class='mg-field__label'>Por área de CPV</div>"
                  "<div class='nota' style='margin:6px 0 0'>A taxa de "
                  "vitória por divisão do vocabulário CPV — as duas "
                  "primeiras casas, que são a área do negócio. Uma taxa "
@@ -22508,7 +22508,7 @@ def situacao():
                 # estava em jogo no trimestre passado pedia um historico
                 # que a base nao guarda, e uma seta inventada era pior
                 # do que nenhuma.
-                "<span class='rg-stat__delta rg-stat__delta--flat'>de agora</span>",
+                "<span class='mg-stat__delta mg-stat__delta--flat'>de agora</span>",
                 "%s aberta%s%s" % (mil_pt(abertas),
                                    "" if abertas == 1 else "s",
                                    "; %s sem preço lido" % mil_pt(sem_preco)
@@ -22521,9 +22521,9 @@ def situacao():
 
         n_ganho = (_numero_da_situacao(
             "Ganho", euros_curto(euros_ganhos),
-            "<span class='rg-stat__delta rg-stat__delta--flat'>sem comparação</span>"
+            "<span class='mg-stat__delta mg-stat__delta--flat'>sem comparação</span>"
             if euros_antes is None else
-            "<span class='rg-stat__delta rg-stat__delta--flat'>era %s</span>"
+            "<span class='mg-stat__delta mg-stat__delta--flat'>era %s</span>"
             % euros_curto(euros_antes or 0),
             "%s concurso%s" % (mil_pt(quantos_ganhos),
                                "" if quantos_ganhos == 1 else "s"))
@@ -22567,8 +22567,8 @@ def situacao():
             % ("" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
-        corpo = ("<div class='rg-card' style='padding:22px 24px'>"
-                 "<div class='rg-stats'>%s</div>%s</div>%s%s"
+        corpo = ("<div class='mg-card' style='padding:22px 24px'>"
+                 "<div class='mg-stats'>%s</div>%s</div>%s%s"
                  % (numeros, nota_periodo, negocio_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
 
@@ -22671,7 +22671,7 @@ def funil_cx_html():
                html.escape(corta(nomes_div.get(r["div"], "sem descrição"), 40)),
                mil_pt(r["sim"]), mil_pt(r["tudo"]))
             for r in f["por_divisao"])
-        divisoes = ("<div class='rg-field__label' style='margin:22px 0 16px'>Onde a "
+        divisoes = ("<div class='mg-field__label' style='margin:22px 0 16px'>Onde a "
                     "triagem tem dito que sim</div><div class='saude'>%s</div>"
                     % divisoes)
     else:
@@ -22682,8 +22682,8 @@ def funil_cx_html():
     # Montado a parte e passado como argumento: a `leitura` traz um "%"
     # (a taxa de conversao) e, concatenado no template, o `%` de baixo
     # tentava interpreta-lo como conversao.
-    funil_cx = ("<div class='rg-card' style='padding:22px 24px'>"
-                "<div class='rg-field__label' style='margin-bottom:6px'>Funil da "
+    funil_cx = ("<div class='mg-card' style='padding:22px 24px'>"
+                "<div class='mg-field__label' style='margin-bottom:6px'>Funil da "
                 "triagem</div>"
                 "<div class='nota' style='margin-bottom:18px'>" + leitura +
                 "</div><div class='barras'>" + funil_html + "</div>" +
@@ -22739,8 +22739,8 @@ def ranhuras_cx_html(por_estado):
            cores_barra[i % len(cores_barra)], por_estado[ch],
            html.escape(rotulo))
         for i, (ch, rotulo) in enumerate(ESTADOS_DA_EMPRESA))
-    return ("<div class='rg-card' style='padding:22px 24px'>"
-            "<div class='rg-field__label' style='margin-bottom:22px'>Propostas por "
+    return ("<div class='mg-card' style='padding:22px 24px'>"
+            "<div class='mg-field__label' style='margin-bottom:22px'>Propostas por "
             "ranhura</div><div class='barras'>%s</div></div>" % barras)
 
 
@@ -22804,7 +22804,7 @@ def indicadores():
             ("Sem detalhe lido", mil(porler),
              "lidos ao abrir a ficha, ou em rotina", "color:var(--laranja)" if porler else "")]
     kpis_html = "".join(
-        "<div class='rg-stat'><div class='r'>%s</div><div class='v'>%s</div>"
+        "<div class='mg-stat'><div class='r'>%s</div><div class='v'>%s</div>"
         "<div class='d' style='%s'>%s</div></div>" % (r, v, estilo, d)
         for r, v, d, estilo in kpis)
 
@@ -22923,11 +22923,11 @@ def indicadores():
     # So o sistema: o negocio saiu para a abertura (numeros_do_negocio()).
     conteudo = (
         "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-        "<div class='rg-stats'>%s</div>"
-        "<div class='rg-card' style='padding:22px 24px'>"
-        "<div class='rg-field__label' style='margin-bottom:16px'>Estado da recolha</div>"
+        "<div class='mg-stats'>%s</div>"
+        "<div class='mg-card' style='padding:22px 24px'>"
+        "<div class='mg-field__label' style='margin-bottom:16px'>Estado da recolha</div>"
         "<div class='saude'>%s</div>"
-        "<div class='rg-field__label' style='margin:22px 0 16px'>Corpus de contratos "
+        "<div class='mg-field__label' style='margin:22px 0 16px'>Corpus de contratos "
         "(Portal BASE)</div><div class='saude'>%s</div>"
         "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
         "<code>contratos.db</code>. Actualiza-se em "
@@ -23196,13 +23196,13 @@ def pedidos_de_acesso():
         linhas = c.execute("SELECT * FROM pedidos_acesso "
                            "ORDER BY id DESC LIMIT 500").fetchall()
     if linhas:
-        corpo = ("<div class='rg-card tab-cx'><table class='rg-table'>"
+        corpo = ("<div class='mg-card tab-cx'><table class='mg-table'>"
                  "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
                  "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
                  "<th>Aviso por e-mail</th><th></th></tr></thead><tbody>%s</tbody>"
                  "</table></div>"
                  % "".join(
-                     "<tr><td class='rg-num'>%s</td><td>%s</td><td>%s</td>"
+                     "<tr><td class='mg-num'>%s</td><td>%s</td><td>%s</td>"
                      "<td><a href='mailto:%s'>%s</a></td><td>%s</td>"
                      "<td>%s</td><td>%s</td><td>%s</td></tr>"
                      % (html.escape(data_hora_pt(l["criado_em"])),
@@ -23218,7 +23218,7 @@ def pedidos_de_acesso():
                               "para %s." % (l["empresa"], l["email"])))
                      for l in linhas))
     else:
-        corpo = ("<div class='rg-empty'>Ainda não chegou nenhum pedido pelo "
+        corpo = ("<div class='mg-empty'>Ainda não chegou nenhum pedido pelo "
                  "site.</div>")
     return envolver("configuracoes", "Pedidos de acesso",
                     "O que o formulário do site público recebeu. Cada pedido "
@@ -23286,7 +23286,7 @@ def aceitar_pedido(id_):
     return envolver(
         "configuracoes", "Pedido aceite",
         "A empresa %d, %s, foi criada." % (empresa_id, p["empresa"]),
-        "<div class='larg'><div class='rg-card conf-cx'><p>%s</p>"
+        "<div class='larg'><div class='mg-card conf-cx'><p>%s</p>"
         "<p>A ligação, que serve uma vez e dura %d dias:</p>"
         "<p><code>%s</code></p><p><a href='/pedidos-de-acesso'>voltar aos "
         "pedidos</a></p></div></div>"
@@ -23297,7 +23297,7 @@ PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Criar a conta — RadarGov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
-<body class="entrar-fundo"><main class="rg entrar">
+<body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <h1>Criar a conta</h1>
  %(aviso)s
@@ -23305,13 +23305,13 @@ PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="
 </main></body></html>"""
 
 FORMULARIO_DO_CONVITE = """<form method="post">
-  <div class="rg-field"><label class="rg-field__label" for="c-utilizador">Utilizador</label>
-   <input class="rg-field__input" id="c-utilizador" type="text" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
-  <div class="rg-field"><label class="rg-field__label" for="c-senha">Palavra-passe</label>
-   <input class="rg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
-  <div class="rg-field"><label class="rg-field__label" for="c-outra">Outra vez</label>
-   <input class="rg-field__input" id="c-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
-  <button type="submit" class="rg-btn rg-btn--primary">Criar a conta e entrar</button>
+  <div class="mg-field"><label class="mg-field__label" for="c-utilizador">Utilizador</label>
+   <input class="mg-field__input" id="c-utilizador" type="text" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
+  <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
+   <input class="mg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
+  <div class="mg-field"><label class="mg-field__label" for="c-outra">Outra vez</label>
+   <input class="mg-field__input" id="c-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Criar a conta e entrar</button>
  </form>"""
 
 
@@ -23319,7 +23319,7 @@ def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True):
     return Response(PAGINA_CONVITE % {
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=28),
-        "aviso": ("<div class='rg-alert rg-alert--%s'>%s</div>"
+        "aviso": ("<div class='mg-alert mg-alert--%s'>%s</div>"
                   % ("danger" if erro else "info", html.escape(aviso))
                   if aviso else ""),
         "formulario": (FORMULARIO_DO_CONVITE
@@ -23386,9 +23386,9 @@ def favicon():
     """
     resposta = Response(
         "<?xml version='1.0' encoding='utf-8'?>"
-        + _disco(64).replace("class='rg-logo__disc'", "")
-                    .replace("class='rg-logo__verde'", "fill='#006432'")
-                    .replace("class='rg-logo__verm'", "fill='#e61e1e'")
+        + _disco(64).replace("class='mg-logo__disc'", "")
+                    .replace("class='mg-logo__verde'", "fill='#006432'")
+                    .replace("class='mg-logo__verm'", "fill='#e61e1e'")
                     .replace("<svg ", "<svg xmlns='http://www.w3.org/2000/svg' "),
         mimetype="image/svg+xml")
     resposta.headers["Cache-Control"] = "public, max-age=604800"
@@ -23479,10 +23479,10 @@ AMOSTRA_PAGINA = """<!doctype html>
   <div class="g" style="margin-left:auto"><a href="/">voltar ao painel</a></div>
  </div>
  <div class="topo">
-  <div class="rg-crumbs migalhas"><div class="b"><em>Amostra</em></div>
-   <div class="accoes-topo"><button class="rg-btn rg-btn--primary">Acção principal</button></div>
+  <div class="mg-crumbs migalhas"><div class="b"><em>Amostra</em></div>
+   <div class="accoes-topo"><button class="mg-btn mg-btn--primary">Acção principal</button></div>
   </div>
-  <h1 class="rg-pagehead__title">Amostra do desenho</h1>
+  <h1 class="mg-pagehead__title">Amostra do desenho</h1>
   <p class="subtit">Os componentes todos num sítio, para decidir antes de
    um ecrã mudar. O caminho está escrito em <code>docs/design.md</code>.</p>
  </div>
@@ -23614,8 +23614,8 @@ def amostra():
         "<span class='chip-prazo avisa'>3 dias</span>"
         "<span class='chip-prazo mau'>expirado</span>"
         "<span class='chip-prazo'>prazo 03/08/2026</span>"
-        "<span class='rg-tag'>71318100</span><span class='rg-tag'>vortal</span>"
-        "<span class='rg-tag'>Anúncio de procedimento</span>"
+        "<span class='mg-tag'>71318100</span><span class='mg-tag'>vortal</span>"
+        "<span class='mg-tag'>Anúncio de procedimento</span>"
         "<span class='etq'>obra</span><span class='etq'>lote 2</span>"
         "</div>"))
 
@@ -23639,7 +23639,7 @@ def amostra():
         "A tabela", "Os números alinham por algarismo e o dinheiro alinha à "
         "direita &mdash; é a diferença entre uma coluna que se compara de "
         "relance e uma que se lê linha a linha.",
-        "<table class='rg-table tab-contratos'><thead><tr><th>Celebrado</th>"
+        "<table class='mg-table tab-contratos'><thead><tr><th>Celebrado</th>"
         "<th>Objecto</th><th>Procedimento</th><th>Quem ganhou</th>"
         "<th class='dir'>Preço</th></tr></thead><tbody>" + "".join(
             "<tr><td>%s</td><td>%s</td><td>%s</td>"
@@ -23655,22 +23655,22 @@ def amostra():
         "<input placeholder='Entidade que publica…'>"
         "<select><option>todas as plataformas (1 269)</option></select>"
         "<input type='date'><input type='date'>"
-        "<button class='rg-btn rg-btn--primary'>Filtrar</button>"
-        "<a class='rg-btn rg-btn--sm rg-btn--subtle' href='#'>limpar</a></div>"))
+        "<button class='mg-btn mg-btn--primary'>Filtrar</button>"
+        "<a class='mg-btn mg-btn--sm mg-btn--subtle' href='#'>limpar</a></div>"))
 
     # --- avisos ------------------------------------------------------
     partes.append(_am_seccao(
         "Os avisos e os estados vazios", "O aviso da vez, o do sistema, e "
         "o que um ecrã diz quando não tem nada. Um estado vazio tem sempre "
         "uma saída.",
-        "<div class='rg-alert rg-alert--info'>«Iluminação decorativa da Quadra Natalícia» "
+        "<div class='mg-alert mg-alert--info'>«Iluminação decorativa da Quadra Natalícia» "
         "marcado como interessa<form class='accao desfazer'>"
-        "<button class='rg-btn rg-btn--sm rg-btn--secondary'>desfazer</button></form></div>"
-        "<div class='rg-alert rg-alert--danger'>As tarefas agendadas não estão criadas: o "
+        "<button class='mg-btn mg-btn--sm mg-btn--secondary'>desfazer</button></form></div>"
+        "<div class='mg-alert mg-alert--danger'>As tarefas agendadas não estão criadas: o "
         "radar só recolhe com o painel aberto.</div>"
         "<div class='nota' style='margin:12px 0'>3 contratos desta entidade "
         "neste CPV &mdash; de 3 983 ao todo.</div>"
-        "<div class='rg-empty'>Nada corresponde a este filtro. "
+        "<div class='mg-empty'>Nada corresponde a este filtro. "
         "<a href='#'>limpar</a></div>"))
 
     return AMOSTRA_PAGINA % {
@@ -24110,7 +24110,7 @@ def _o_que_mudou(hoje, cfg):
     for m in mudou:
         linhas.append(
             "<div class='l'><span class='hj-q'>%s</span><div>"
-            "<span class='rg-tag rg-tag--warning'>%s alterado</span> "
+            "<span class='mg-tag mg-tag--warning'>%s alterado</span> "
             "<a href='/anuncio/%s'>%s</a>"
             "<div class='nota'>%s &rarr; %s</div></div></div>"
             % (data_curta(hoje), html.escape(m["campo"] or "campo"),
@@ -24127,7 +24127,7 @@ def _o_que_mudou(hoje, cfg):
             quem = (l["ganhou"] or "").split("|")[0] or quem
         linhas.append(
             "<div class='l'><span class='hj-q'>BASE</span><div>"
-            "<span class='rg-tag'>adjudicado</span> "
+            "<span class='mg-tag'>adjudicado</span> "
             "<a href='/anuncio/%s'>%s</a><div class='nota'>%s%s &mdash; "
             "a nossa está em «%s»; fecha-a</div></div></div>"
             % (quote(p["ref"], safe=""),
@@ -24151,7 +24151,7 @@ def _o_que_mudou(hoje, cfg):
                accao("/verificar", "verificar agora", "mini")
                if sou_dono() else ""))
 
-    return ("<div class='rg-card'><div class='rg-field__label' style='display:flex;gap:8px;"
+    return ("<div class='mg-card'><div class='mg-field__label' style='display:flex;gap:8px;"
             "align-items:baseline'>O que mudou"
             "<span class='direita' title='%s'%s>%s</span></div>%s"
             "<div class='feed'>%s</div></div>"
@@ -24178,7 +24178,7 @@ def _prazos_a_chegar(hoje, prazos):
             linhas.append(
                 "<a href='/anuncio/%s'><span class='hj-q%s'>%s</span>"
                 "<span class='hj-c'>%s</span>"
-                "<span class='rg-tag'>%s</span></a>"
+                "<span class='mg-tag'>%s</span></a>"
                 % (quote(r["ref"], safe=""), " avisa" if i == 0 else "",
                    "hoje" if i == 0
                    else "%s %d" % (DIAS_CURTOS[d.weekday()], d.day),
@@ -24187,7 +24187,7 @@ def _prazos_a_chegar(hoje, prazos):
     if not linhas:
         linhas.append("<div class='nota' style='padding:8px 0'>Nada a fechar "
                       "nos próximos %d dias.</div>" % DIAS_A_FECHAR)
-    return ("<div class='rg-card'><div class='rg-field__label'>Prazos a chegar &middot; %d "
+    return ("<div class='mg-card'><div class='mg-field__label'>Prazos a chegar &middot; %d "
             "dias</div><div class='prazos'>%s</div>"
             "<a class='nota' href='/calendario' style='display:block;"
             "margin-top:8px'>calendário &rarr;</a></div>"
@@ -24235,7 +24235,7 @@ def _paradas_ha_mais_tempo(hoje, quantas=3):
                mil_pt(dias), "" if dias == 1 else "s"))
     if not fora:
         return ""
-    return ("<div class='rg-card'><div class='rg-field__label'>Paradas há mais tempo</div>"
+    return ("<div class='mg-card'><div class='mg-field__label'>Paradas há mais tempo</div>"
             "<div class='saude' style='margin-top:8px;gap:7px'>%s</div></div>"
             % "".join(fora))
 
@@ -24318,10 +24318,10 @@ def inicio():
         regra da empresa. Onde nao ha lista unica que o de (o "em jogo" e
         a soma de quatro ranhuras), aponta-se ao ecra que o DECOMPOE. A
         `nota` e HTML da casa e nao do utilizador."""
-        return ("<a class='rg-stat%s' href='%s'>"
-                "<span class='rg-stat__label'>%s</span>"
-                "<span class='rg-stat__value'>%s</span>"
-                "<span class='rg-stat__note'>%s</span></a>"
+        return ("<a class='mg-stat%s' href='%s'>"
+                "<span class='mg-stat__label'>%s</span>"
+                "<span class='mg-stat__value'>%s</span>"
+                "<span class='mg-stat__note'>%s</span></a>"
                 % ((" " + classe) if classe else "",
                    html.escape(alvo, quote=True), rotulo, valor, nota))
 
@@ -24329,7 +24329,7 @@ def inicio():
         facto("Em jogo", euros_curto(em_jogo) if em_jogo else "—",
               "%s aberta%s &middot; ponto de situação &rarr;"
               % (mil_pt(abertas), "" if abertas == 1 else "s"),
-              "/situacao", "rg-stat--seal"),
+              "/situacao", "mg-stat--seal"),
         facto("Taxa de vitória", ("%d %%" % round(valor_taxa * 100))
               if valor_taxa is not None else "—",
               ("%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos)))
@@ -24419,7 +24419,7 @@ def inicio():
         alvo = ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"] \
             else "/proposta/%d" % p["id"]
         return ("<div class='hj-sem'><div><a href='%s'>%s</a>"
-                "<div class='hj-c'><span class='rg-tag'>%s</span> %s &middot; %s "
+                "<div class='hj-c'><span class='mg-tag'>%s</span> %s &middot; %s "
                 "&middot; <span style='color:var(--verm)'>prazo a %s</span>"
                 "</div></div>%s</div>"
                 % (html.escape(alvo, quote=True),
@@ -24437,7 +24437,7 @@ def inicio():
     def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui):
         direita = ""
         if chave == "atrasadas":
-            direita = ("<a class='rg-btn rg-btn--sm rg-btn--secondary direita' href='%s'>adiar todas p/ "
+            direita = ("<a class='mg-btn mg-btn--sm mg-btn--secondary direita' href='%s'>adiar todas p/ "
                        "hoje</a>"
                        % html.escape("/tarefas/adiar" + (
                            "?" + urlencode([("quem", quem)])
@@ -24494,10 +24494,10 @@ def inicio():
         fazer = "".join(blocos)
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
-        fazer = ("<div class='rg-empty'>Nada por fazer ainda. As tarefas nascem "
+        fazer = ("<div class='mg-empty'>Nada por fazer ainda. As tarefas nascem "
                  "sozinhas quando um concurso entra na escada — os prazos "
                  "de esclarecimentos e de entrega vêm do anúncio.<br><br>"
-                 "<a class='rg-btn rg-btn--primary' href='%s'>ver os %s por decidir</a> "
+                 "<a class='mg-btn mg-btn--primary' href='%s'>ver os %s por decidir</a> "
                  "<a href='/proposta/nova'>ou cria uma proposta sem "
                  "anúncio</a></div>"
                  % (LISTA + "?estado=porver", mil_pt(por_ver)))
@@ -24506,7 +24506,7 @@ def inicio():
     alvo_esconder = sem_feitas if esconder else (
         sem_feitas + ("&" if "?" in sem_feitas else "?") + "feitas=esconder")
     cabecalho = (
-        "<div class='fazer-topo'><span class='rg-field__label'>Para fazer</span>%s"
+        "<div class='fazer-topo'><span class='mg-field__label'>Para fazer</span>%s"
         "<a class='esconder' href='%s'><span class='chk%s'></span>"
         "esconder as feitas</a></div>"
         % (pilhas, html.escape(alvo_esconder + "#fazer", quote=True),
@@ -24520,9 +24520,9 @@ def inicio():
         "O estado do negócio e o que há para fazer. Os números abrem a "
         "lista que os produz; as tarefas nascem sozinhas quando um "
         "concurso entra na escada.",
-        "<div class='larg'><div class='rg-stats hj-stats'>%s</div>%s"
+        "<div class='larg'><div class='mg-stats hj-stats'>%s</div>%s"
         "<div class='dois'>"
-        "<div class='rg-card' id='fazer' style='padding:0'>%s%s%s</div>"
+        "<div class='mg-card' id='fazer' style='padding:0'>%s%s%s</div>"
         "<div class='lado'>%s%s%s</div></div></div>"
         % (factos, fita, cabecalho, fazer, rodape,
            _o_que_mudou(hoje, cfg), _prazos_a_chegar(hoje, prazos),
@@ -24557,13 +24557,13 @@ def tarefas_adiar():
     hoje = datetime.now().date()
     quem = _quem_pedido()
     atrasadas = _atrasadas_de(quem, hoje)
-    corpo = ("<div class='rg-card' style='padding:22px 24px'>"
-             "<div class='rg-field__label'>Adiar as atrasadas</div>"
+    corpo = ("<div class='mg-card' style='padding:22px 24px'>"
+             "<div class='mg-field__label'>Adiar as atrasadas</div>"
              "<p class='nota'>São <b>%s</b> tarefa%s com data anterior a "
              "hoje%s. Adiar passa-as todas para %s; o texto, o dono e o "
              "concurso ficam como estão. <b>Não há desfazer</b>: cada uma "
              "tinha a sua data.</p><div style='display:flex;gap:8px'>%s"
-             "<a class='rg-btn rg-btn--secondary' href='/'>voltar sem mexer</a></div></div>"
+             "<a class='mg-btn mg-btn--secondary' href='/'>voltar sem mexer</a></div></div>"
              % (mil_pt(len(atrasadas)), "" if len(atrasadas) == 1 else "s",
                 "" if quem is None else
                 (" sem dono" if not quem.strip()
