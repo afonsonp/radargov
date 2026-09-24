@@ -80,7 +80,7 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
  border-radius:var(--radius-md);background:var(--surface-raised);
  font:400 14px/20px var(--font-sans);color:var(--ink)}
 #filtros-mercado .mg-field__input:focus,#filtros-lista .mg-field__input:focus{border-color:var(--brand);
- outline:var(--border-focus) solid var(--focus);outline-offset:0}
+ outline:2px solid var(--brand);outline-offset:0;box-shadow:0 0 0 4px var(--brand-soft)}
 #filtros-mercado .campo-data:invalid,#filtros-lista .campo-data:invalid{border-color:var(--danger)}
 #filtros-mercado .f-accoes,#filtros-lista .f-accoes{display:flex;gap:var(--space-2)}
 @media (max-width:900px){
@@ -218,7 +218,7 @@ main.mg select,main.mg textarea{
 main.mg textarea{padding:var(--space-2) var(--space-3)}
 main.mg input:not([type=checkbox]):not([type=radio]):not([type=hidden]):focus,
 main.mg select:focus,main.mg textarea:focus{border-color:var(--brand);
- outline:var(--border-focus) solid var(--focus);outline-offset:0}
+ outline:2px solid var(--brand);outline-offset:0;box-shadow:0 0 0 4px var(--brand-soft)}
 main.mg input::placeholder,main.mg textarea::placeholder{color:var(--ink-muted)}
 /* Dentro de uma tabela (o selector da ranhura) fica mais baixo. */
 main.mg td select,main.mg td input:not([type=checkbox]):not([type=radio]):not([type=hidden]){
@@ -402,3 +402,14 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
  .entrar-lado{border-radius:0 0 var(--radius-xl) var(--radius-xl);padding:var(--space-6)}
  .entrar-lado h1{font-size:32px;line-height:36px}
  .entrar-form{padding:var(--space-6) var(--space-4)}}
+
+/* O FOCO DOS CAMPOS (24/09/2026, queixa dele: «o rebordo à volta da
+   caixa a roxo fica feio»). O `--focus` do sistema e um magenta de alta
+   visibilidade, e o `Field` pinta-o em qualquer campo com o cursor -- ao
+   entrar, o «Utilizador» abria logo cercado de roxo. Nos campos o cursor
+   ja diz onde se esta: o anel passa ao azul da marca, com um halo suave
+   (continua acima dos 3:1 que o WCAG pede a um indicador). O magenta
+   fica onde faz falta, no foco de TECLADO dos botoes e das ligacoes. */
+.mg .mg-field__input:focus,.mg input:focus-visible,.mg select:focus-visible,
+.mg textarea:focus-visible{outline:2px solid var(--brand);outline-offset:0;
+ box-shadow:0 0 0 4px var(--brand-soft)}
