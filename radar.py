@@ -24142,28 +24142,27 @@ def _o_que_mudou(hoje, cfg):
                (", %s" % euros_curto(quanto)) if quanto else "",
                html.escape(estado_da_empresa(p["estado"]))))
 
+    nunca = le_marca("ultima_verificacao", "nunca") == "nunca"
     if not linhas:
         # O estado vazio diz o que fazer a seguir, e não «nada»
-        # (redesenho §5): no primeiro dia, quem chega às 10:00 não sabe
-        # que a verificação seguinte é às 17:00 nem que há um botão.
+        # (redesenho §5). O botão de verificar está no cabeçalho da
+        # página desde 24/09/2026, e por isso já não se repete aqui.
         linhas.append(
             "<div class='l'><span class='hj-q' title='%s'>%s</span>"
-            "<div class='nota'>%s %s</div></div>"
-            % (dica_verif, so_a_hora,
+            "<div class='nota'>%s</div></div>"
+            % (dica_verif, "&mdash;" if nunca else so_a_hora,
                "Nada de novo desde a última verificação."
-               if verif_ok and le_marca("ultima_verificacao", "nunca") != "nunca"
+               if verif_ok and not nunca
                else "Ainda não houve uma verificação. O Mira Gov verifica "
-                    "sozinho, de hora a hora.",
-               accao("/verificar", "verificar agora", "mini")
-               if sou_dono() else ""))
+                    "sozinho, de hora a hora."))
 
-    return ("<div class='mg-card'><div class='mg-field__label' style='display:flex;gap:8px;"
-            "align-items:baseline'>O que mudou"
-            "<span class='direita' title='%s'%s>%s</span></div>%s"
-            "<div class='feed'>%s</div></div>"
-            % (dica_verif,
-               "" if verif_ok else " style='color:var(--verm)'",
-               so_a_hora, numeros, "".join(linhas)))
+    # A hora da verificacao vai na meta do cartao (o `EcraHoje`), a
+    # vermelho quando a ultima falhou; a mensagem inteira fica na dica.
+    return cartao(
+        "O que mudou", numeros + "<div class='feed'>%s</div>" % "".join(linhas),
+        meta=("<span title='%s'%s>desde a última verificação, %s</span>"
+              % (dica_verif, "" if verif_ok else " class='mau'", so_a_hora))
+             if not nunca else "<span class='mau'>ainda sem verificação</span>")
 
 
 def _prazos_a_chegar(hoje, prazos):
@@ -24193,11 +24192,10 @@ def _prazos_a_chegar(hoje, prazos):
     if not linhas:
         linhas.append("<div class='nota' style='padding:8px 0'>Nada a fechar "
                       "nos próximos %d dias.</div>" % DIAS_A_FECHAR)
-    return ("<div class='mg-card'><div class='mg-field__label'>Prazos a chegar &middot; %d "
-            "dias</div><div class='prazos'>%s</div>"
-            "<a class='nota' href='/calendario' style='display:block;"
-            "margin-top:8px'>calendário &rarr;</a></div>"
-            % (DIAS_A_FECHAR, "".join(linhas)))
+    return cartao("Prazos a chegar",
+                  "<div class='prazos'>%s</div>" % "".join(linhas),
+                  meta="os próximos %d dias" % DIAS_A_FECHAR,
+                  pe="<a href='/calendario'>calendário &rarr;</a>")
 
 
 def _paradas_ha_mais_tempo(hoje, quantas=3):
@@ -24241,9 +24239,9 @@ def _paradas_ha_mais_tempo(hoje, quantas=3):
                mil_pt(dias), "" if dias == 1 else "s"))
     if not fora:
         return ""
-    return ("<div class='mg-card'><div class='mg-field__label'>Paradas há mais tempo</div>"
-            "<div class='saude' style='margin-top:8px;gap:7px'>%s</div></div>"
-            % "".join(fora))
+    return cartao("Paradas há mais tempo",
+                  "<div class='saude'>%s</div>" % "".join(fora),
+                  meta="desde o último movimento")
 
 
 @app.route("/")
@@ -24511,28 +24509,55 @@ def inicio():
     sem_feitas = base_sem("feitas")
     alvo_esconder = sem_feitas if esconder else (
         sem_feitas + ("&" if "?" in sem_feitas else "?") + "feitas=esconder")
-    cabecalho = (
-        "<div class='fazer-topo'><span class='mg-field__label'>Para fazer</span>%s"
-        "<a class='esconder' href='%s'><span class='chk%s'></span>"
-        "esconder as feitas</a></div>"
-        % (pilhas, html.escape(alvo_esconder + "#fazer", quote=True),
-           " on" if esconder else ""))
-    rodape = ("<div class='fazer-fundo'>"
-              "<a class='adiante' href='/calendario'>calendário &rarr;</a>"
-              "</div>")
+    # O «Para fazer» e o cartao principal do ecra (o `Card` com faixa, no
+    # `EcraHoje`): as contas na meta, o «esconder as feitas» nas accoes, e
+    # as pilhas das pessoas no topo do corpo.
+    para_fazer = cartao(
+        "Para fazer",
+        "<div class='fazer-topo'>%s</div>%s" % (pilhas, fazer),
+        meta="%s tarefa%s &middot; %s atrasada%s"
+             % (mil_pt(por_fazer), "" if por_fazer == 1 else "s",
+                mil_pt(quantas["atrasadas"]),
+                "" if quantas["atrasadas"] == 1 else "s"),
+        accoes="<a class='mg-btn mg-btn--sm mg-btn--secondary' href='%s'>%s</a>"
+               % (html.escape(alvo_esconder + "#fazer", quote=True),
+                  "Mostrar as feitas" if esconder else "Esconder as feitas"),
+        pe="<a href='/calendario'>calendário &rarr;</a>",
+        id_="fazer", banda=True)
+
+    # O titulo continua a ser a DATA e nao uma saudacao (redesenho de
+    # 17/09/2026, decisao dele), mesmo com o `EcraHoje` a cumprimentar:
+    # por baixo vai o que a ultima verificacao trouxe.
+    _, quando_verif, _ = linha_da_ultima_verificacao()
+    hoje_iso = hoje.isoformat()
+    with liga() as c:
+        novos_hoje = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
+                               (hoje_iso,)).fetchone()["n"]
+        pecas_hoje = c.execute(
+            "SELECT COUNT(*) n FROM documentos WHERE substr(obtido_em,1,10)=?",
+            (hoje_iso,)).fetchone()["n"]
+    hora_verif = quando_verif.split(" &mdash; ")[0].split()[-1] \
+        if le_marca("ultima_verificacao", "nunca") != "nunca" else ""
+    frase = ("Última verificação às %s: %s anúncio%s novo%s, %s peça%s nova%s."
+             % (hora_verif, mil_pt(novos_hoje), "" if novos_hoje == 1 else "s",
+                "" if novos_hoje == 1 else "s", mil_pt(pecas_hoje),
+                "" if pecas_hoje == 1 else "s", "" if pecas_hoje == 1 else "s")
+             if hora_verif else "Ainda não houve uma verificação hoje.")
+    accoes_topo = ""
+    if sou_dono():
+        accoes_topo = ("<span class='a-correr'>a verificar&hellip;</span>"
+                       if verificacao_a_correr() else
+                       accao("/verificar", "Verificar agora", "bt forte"))
 
     return envolver(
-        "inicio", dia_por_extenso(hoje),
-        "O estado do negócio e o que há para fazer. Os números abrem a "
-        "lista que os produz; as tarefas nascem sozinhas quando um "
-        "concurso entra na escada.",
+        "inicio", dia_por_extenso(hoje), "",
         "<div class='larg'><div class='mg-stats hj-stats'>%s</div>%s"
-        "<div class='dois'>"
-        "<div class='mg-card' id='fazer' style='padding:0'>%s%s%s</div>"
+        "<div class='dois'>%s"
         "<div class='lado'>%s%s%s</div></div></div>"
-        % (factos, fita, cabecalho, fazer, rodape,
+        % (factos, fita, para_fazer,
            _o_que_mudou(hoje, cfg), _prazos_a_chegar(hoje, prazos),
            _paradas_ha_mais_tempo(hoje)),
+        cabeca=cabecalho_de_pagina(dia_por_extenso(hoje), frase, [], accoes_topo),
         # O selector de ranhura do balde «prazo passou sem decisão» pede
         # motivo em duas das oito palavras, e sem a caixa o gesto ficava
         # a meio (o servidor recusa e diz porquê, mas aqui há JS).

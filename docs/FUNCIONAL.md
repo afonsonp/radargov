@@ -463,7 +463,13 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 Responde a quatro perguntas em três segundos: *o que tenho de fazer
 hoje · o que fecha esta semana · o que mudou · o que está parado.*
 
-1. **Título** = a data por extenso («Sexta, 18 de setembro»).
+1. **Título** = a data por extenso («Sexta, 18 de setembro»), e não a
+   saudação do `EcraHoje` (decisão dele de 17/09/2026, mantida a
+   24/09). Por baixo, o que a última verificação trouxe («Última
+   verificação às 14:10: 41 anúncios novos, 3 peças novas»); à direita,
+   **Verificar agora** (só o dono). Desde 24/09/2026 o «Para fazer» é o
+   cartão principal, com faixa, e os blocos da direita são cartões com
+   título e meta.
 2. **Quatro indicadores** (o `Stat` do sistema de desenho, desde
    22/09/2026) — em jogo (com a saída para o Ponto de situação) · taxa
    de vitória · por decidir · para fazer, com as atrasadas na nota.
