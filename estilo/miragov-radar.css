@@ -145,9 +145,12 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 /* As onze abas da escada, em ecra estreito, rolam na horizontal dentro
    da pilula em vez de dobrarem numa mancha de quatro linhas. */
 @media (max-width:900px){
- .topo>.mg-tabs.abas-escada{display:flex;flex-wrap:nowrap;overflow-x:auto;
+ .mg-tabs.abas-escada{display:flex;flex-wrap:nowrap;overflow-x:auto;
   max-width:100%;border-radius:var(--radius-lg);scrollbar-width:none}
- .topo>.mg-tabs.abas-escada .mg-tab{flex:none}}
+ .mg-tabs.abas-escada .mg-tab{flex:none}}
+/* As abas dos Concursos vivem no corpo desde 24/09/2026 (o
+   `EcraConcursos`): o segmento, e por baixo os filtros. */
+.corpo>.mg-tabs{margin-bottom:var(--space-4)}
 /* O padding de celula do sistema e `space-3` na horizontal (README,
    «Espaço, cantos, fios»); a folha dos componentes traz `space-4`, e na
    lista, com sete colunas, eram 112px de ar a empurrar as accoes. */

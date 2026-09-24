@@ -10440,15 +10440,8 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--sans);color:var(--t3);
    intencao.
    A nota da UX-Auditoria mantem-se: o alvo continua acima de 24 px de
    altura, que e o que a regra da empresa exige. */
-.abas-escada{flex-wrap:wrap;row-gap:0;padding-bottom:1px}
-.abas-escada a{white-space:nowrap;flex:0 0 auto;padding:8px 10px;
- font-size:11.5px}
-.abas-escada a.ponta{color:var(--t5)}
-.abas-escada a.ponta:hover{color:var(--t2)}
-.abas-escada a.entrada{border-right:1px solid var(--linha);
- border-radius:7px 0 0 0;margin-right:6px;padding-right:16px}
-.abas-escada a.entrada.on{border-right-color:var(--linha)}
-.abas-escada a.cemiterio{margin-left:6px}
+.abas-escada{flex-wrap:wrap;row-gap:0}
+.abas-escada a{white-space:nowrap;flex:0 0 auto}
 /* As quatro fechadas (ganho, perdido, nao fomos, cancelado) sao o
    arquivo: ja nao pedem accao, e uma escada que as pinte com o mesmo
    peso das abertas poe o fim ao lado do que esta a acontecer. */
@@ -12847,8 +12840,9 @@ def linha(a, vista="", urgente=None, na_escada=None):
     botoes = []
     if not aqui:
         botoes.append(accao("/estado/%s/analisar" % quote(a["ref"], safe=""),
-                            "interessa", "mini verde"))
-        botoes.append(forma_abandonar(a["ref"], titulo=a["titulo"] or ""))
+                            "Interessa", "mini verde"))
+        botoes.append(forma_abandonar(a["ref"], etiqueta="Abandonar",
+                                      titulo=a["titulo"] or ""))
     else:
         botoes.append(selector_de_ranhura(
             "/escada/" + quote(a["ref"], safe=""), aqui[0]["estado"],
@@ -14137,15 +14131,20 @@ def _lista_de_anuncios():
     # antes do primeiro anuncio, e a triagem e "ler o cartao, decidir".
     # Abrem sozinhos quando ha filtro aplicado; o resumo fica na linha.
     # O JS lembra-se de ter ficado aberto (localStorage).
-    ha_filtro = filtro_em_uso != "estado=" + estado_actual
-    painel_filtros = (
-        "<details class='painel-filtros' id='painel-filtros'%s><summary>"
-        "<span class='pf-tit'>Filtros</span>"
-        "<span class='pf-sub'>%s</span></summary>"
-        "%s</details>"
-        % (" open" if ha_filtro else "",
-           html.escape(resumo_filtro(filtro_em_uso, "anuncios")),
-           arvore + filtros + faixa_cpv))
+    # Desde 24/09/2026 os campos estao sempre a vista, como no
+    # `EcraConcursos` (decisao dele: fiel a referencia): sao uma linha
+    # so, e o que ocupava 60% do ecra era a arvore dos CPV -- essa fica
+    # recolhida, e abre sozinha quando ha um CPV escolhido.
+    painel_filtros = filtros + (
+        "<details class='painel-filtros arvore-cpv' id='painel-filtros'%s><summary>"
+        "<span class='pf-tit'>Escolher por CPV</span>"
+        "<span class='pf-sub'>%s</span></summary>%s</details>"
+        % (" open" if (cpv_actual or request.args.get("cpv_excl")) else "",
+           # o resumo so quando ha filtro: sem ele dizia "porver", que e
+           # o nome interno da aba e nao um filtro
+           html.escape(resumo_filtro(filtro_em_uso, "anuncios"))
+           if filtro_em_uso != "estado=" + estado_actual else "", arvore)
+        if arvore else "") + faixa_cpv
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
                 painel_filtros +
@@ -14160,19 +14159,32 @@ def _lista_de_anuncios():
                 "a: abandonar · Enter: abrir a ficha'>j k i a &#9166;</span>" +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
                 # ao "1-20" e exportava as 66 mil sem avisar
-                "<a href='/csv?%s'>exportar as %s linhas (CSV)</a></div>"
-                % (html.escape(qs_csv, quote=True), mil(correspondem)) +
+                "</div>" +
                 corpo_lista + paginador(pagina, paginas, request.args, rota) +
                 "</div>")
 
+    # O cabecalho do `EcraConcursos`: o titulo, o que a aba e numa frase,
+    # e as duas accoes. O CSV diz quantas linhas leva: a ligacao estava
+    # encostada ao "1-20" e exportava as 66 mil sem avisar.
+    accoes = ["<a class='mg-btn mg-btn--secondary' href='/csv?%s' "
+              "title='as %s linhas deste filtro'>Exportar CSV</a>"
+              % (html.escape(qs_csv, quote=True), mil(correspondem))]
+    if sou_dono():
+        # "Verificar agora" vai ao DR buscar anuncios novos, e os novos
+        # aterram aqui: e o UNICO sitio com o botao (11.8-A)
+        accoes.append("<span class='a-correr'>a verificar&hellip;</span>"
+                      if verificacao_a_correr() else
+                      accao("/verificar", "Verificar agora", "bt forte"))
+    frase = {ENTRADA_DA_ESCADA[0]: "O que ainda dá para responder e está "
+                                   "por decidir.",
+             CEMITERIO_DA_ESCADA[0]: "O que expirou sem ninguém decidir.",
+             "": "Tudo o que o DR publicou e, da Vortal, as consultas "
+                 "preliminares."}.get(estado_actual, "")
+    conteudo = "".join(abas) + conteudo
     return envolver(
-        "anuncios", "Concursos",
-        "Entra tudo o que o DR publica &mdash; e, da Vortal, as "
-        "consultas preliminares. <b>Por ver</b> é o que ainda dá para "
-        "responder e ainda ninguém decidiu; o que expira sem ninguém "
-        "olhar passa sozinho para o fim da escada. As oito ranhuras do "
-        "meio são o que a empresa está a fazer.",
-        conteudo, abas="".join(abas),
+        "anuncios", "Concursos", "",
+        conteudo,
+        cabeca=cabecalho_de_pagina("Concursos", frase, [], "".join(accoes)),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_do_motivo(),
         titulo_aba="Mira Gov")
@@ -19072,11 +19084,13 @@ def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes=""):
                                                 html.escape(rotulo))
                          if destino else "<span>%s</span>" % html.escape(rotulo))
         for rotulo, destino in migalhas)
-    return ("<div class='mg mg-pagehead'>"
-            "<ol class='mg-crumbs'>%s</ol>"
+    # sem migalhas nao ha `<ol>`: uma pagina do primeiro nivel (os
+    # Concursos) e ela propria o inicio do caminho
+    migalhas_html = "<ol class='mg-crumbs'>%s</ol>" % passos if passos else ""
+    return ("<div class='mg mg-pagehead'>%s"
             "<div class='mg-pagehead__row'><h1 class='mg-pagehead__title'>%s</h1>%s</div>"
             "%s</div>"
-            % (passos, titulo,
+            % (migalhas_html, titulo,
                "<div class='mg-pagehead__actions'>%s</div>" % accoes if accoes else "",
                "<p class='mg-pagehead__sub'>%s</p>" % subtitulo if subtitulo else ""))
 
@@ -20130,7 +20144,9 @@ def ficha(ref):
                          "%s?estado=%s" % (LISTA, ranhura)))
     migalhas.append((ref, ""))
     sub = [nome_ent]
-    if a["tipo"]:
+    # o `tipo` e o do ANUNCIO, e 91% sao "Anuncio de procedimento": so
+    # entra quando distingue (a mesma regra da lista)
+    if a["tipo"] and a["tipo"] != TIPO_DE_SEMPRE:
         sub.append(html.escape(a["tipo"]))
     if a["data_pub"]:
         sub.append("publicado a %s %s" % (
@@ -20156,7 +20172,7 @@ def ficha(ref):
                       % html.escape(urlencode({"cpv": codigos, "estado": ""}),
                                     quote=True))
     pares = [("Entidade adjudicante", nome_ent, ""),
-             ("Tipo de procedimento", html.escape(a["tipo"] or ""), ""),
+             ("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
              ("Preço base", html.escape(preco_pt(a["preco_base"], "")), "n"),
              ("Propostas até", data_pt(a["prazo"], ""), "n"),
              ("Publicado", data_pt(a["data_pub"], ""), "n"),

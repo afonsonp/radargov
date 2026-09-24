@@ -365,12 +365,12 @@ pô-lo lá dentro fazia um alerta deixar de te avisar do que te avisa
 hoje, sem tu lhe teres tocado.
 
 A barra de filtros trabalha sobre o que já está guardado, sem apagar
-nada. **Está recolhida por omissão** (desde 8/09/2026): a lista abre
-logo nos anúncios, e a linha «Filtros» diz o que está posto; carrega
-nela para abrir a árvore de CPV, em cima, e os campos por baixo (a
-árvore só aparece enquanto não tiveres interesse definido — com ele,
-o CPV já está decidido). Abre sozinha quando há um filtro aplicado, e
-lembra-se se a deixaste aberta. Desde 14/09/2026 são quatro campos:
+nada. **Os campos estão sempre à vista** (desde 24/09/2026, como no
+desenho do Mira Gov; de 8/09 a 24/09 estavam recolhidos): uma linha,
+por baixo das abas. A **árvore de CPV** fica por baixo deles, recolhida
+na linha «Escolher por CPV», e abre sozinha quando há um CPV escolhido
+(só aparece enquanto não tiveres interesse definido — com ele, o CPV
+já está decidido). Desde 14/09/2026 são quatro campos:
 
 - **nome do concurso ou objecto**. Várias palavras separadas por `|`
   valem como "qualquer uma destas" (`outsystems|.net|java`).
