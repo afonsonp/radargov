@@ -102,10 +102,11 @@ p{margin:0}
 @media (max-width:860px){.topo nav a.ligacao{display:none}.topo nav{gap:16px}}
 
 /* Marca */
-.logo{display:inline-flex;align-items:baseline;font-family:var(--serif);font-weight:600;font-size:26px;line-height:1;white-space:nowrap;color:var(--on-header);text-decoration:none}
+.logo{display:inline-flex;align-items:center;font-family:var(--serif);font-weight:600;font-size:26px;line-height:1;white-space:nowrap;color:var(--on-header);text-decoration:none}
 .logo:hover{color:var(--on-header)}
-.logo .radar{margin-right:.22em}
-.logo svg{width:.6em;height:.6em;margin:0 .02em;transform:translateY(.04em);color:var(--on-header)}
+/* o olho: 0,7 da letra de altura, na proporção 96:60 do desenho */
+.logo .olho{display:block;flex:none;height:.7em;width:1.12em;margin-right:.25em;color:var(--on-header)}
+.logo .mira{margin-right:.22em}
 @media (max-width:400px){.logo{font-size:22px}}
 
 /* Abertura */
@@ -337,7 +338,7 @@ footer p{max-width:72ch}
 
 <header class="topo">
   <div class="wrap">
-    <a class="logo" href="#inicio" aria-label="Radar Gov, início"><span class="radar">Radar</span><span>G<svg viewBox="0 0 96 96" aria-hidden="true" focusable="false"><clipPath id="disco"><circle cx="48" cy="48" r="42"/></clipPath><g clip-path="url(#disco)"><rect x="2" y="2" width="36.8" height="92" fill="#006600"/><rect x="38.8" y="2" width="56" height="92" fill="#FF0000"/></g><circle cx="48" cy="48" r="42" fill="none" stroke="currentColor" stroke-width="6"/></svg>v</span></a>
+    <a class="logo" href="#inicio" aria-label="Mira Gov, início"><svg class="olho" viewBox="0 0 96 60" aria-hidden="true" focusable="false"><mask id="olho-m" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="60"><rect width="96" height="60" fill="#fff"/><circle cx="48" cy="30" r="18.5" fill="#000"/></mask><path d="M1 30A64 64 0 0 1 95 30A64 64 0 0 1 1 30Z" fill="currentColor" mask="url(#olho-m)"/><clipPath id="olho-p"><circle cx="48" cy="30" r="15"/></clipPath><g clip-path="url(#olho-p)"><rect x="33" y="15" width="12" height="30" fill="#006432"/><rect x="45" y="15" width="18" height="30" fill="#e61e1e"/></g></svg><span class="mira">Mira</span> <span>Gov</span></a>
     <nav aria-label="Secções">
       <a class="ligacao" href="#ganhos">O que ganha</a>
       <a class="ligacao" href="#confianca">Dados</a>
@@ -691,7 +692,7 @@ footer p{max-width:72ch}
 <footer>
   <div class="wrap">
     <div class="linha">
-      <span class="logo" role="img" aria-label="Radar Gov" style="font-size:22px"><span class="radar">Radar</span><span>G<svg viewBox="0 0 96 96" aria-hidden="true" focusable="false"><clipPath id="disco2"><circle cx="48" cy="48" r="42"/></clipPath><g clip-path="url(#disco2)"><rect x="2" y="2" width="36.8" height="92" fill="#006600"/><rect x="38.8" y="2" width="56" height="92" fill="#FF0000"/></g><circle cx="48" cy="48" r="42" fill="none" stroke="currentColor" stroke-width="6"/></svg>v</span></span>
+      <span class="logo" role="img" aria-label="Mira Gov" style="font-size:22px"><svg class="olho" viewBox="0 0 96 60" aria-hidden="true" focusable="false"><mask id="olho-m2" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="60"><rect width="96" height="60" fill="#fff"/><circle cx="48" cy="30" r="18.5" fill="#000"/></mask><path d="M1 30A64 64 0 0 1 95 30A64 64 0 0 1 1 30Z" fill="currentColor" mask="url(#olho-m2)"/><clipPath id="olho-p2"><circle cx="48" cy="30" r="15"/></clipPath><g clip-path="url(#olho-p2)"><rect x="33" y="15" width="12" height="30" fill="#006432"/><rect x="45" y="15" width="18" height="30" fill="#e61e1e"/></g></svg><span class="mira">Mira</span> <span>Gov</span></span>
       <span><a href="/entrar">Entrar</a> · <a href="#acesso">Pedir acesso</a><!--LEGAL--></span>
     </div>
     <p>O Radar Gov é um produto privado e independente, feito em Portugal. Não é um serviço do Estado e não tem qualquer ligação ao Diário da República, ao IMPIC ou às plataformas de contratação pública. A informação apresentada vem de fontes públicas e não dispensa a consulta do anúncio oficial.</p>

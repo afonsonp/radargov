@@ -1,4 +1,4 @@
-/* Radar Gov — folha dos componentes. Só variáveis de tokens.css; nenhum valor solto. */
+/* Mira Gov — folha dos componentes. Só variáveis de tokens.css; nenhum valor solto. */
 .mg{font-family:var(--font-sans);color:var(--ink);font-variant-numeric:tabular-nums;box-sizing:border-box}
 .mg *,.mg *::before,.mg *::after{box-sizing:inherit}
 .mg :focus-visible{outline:var(--border-focus) solid var(--focus);outline-offset:2px}
@@ -268,14 +268,15 @@ textarea.mg-field__input{min-height:80px;padding:var(--space-2) var(--space-3);r
 .mg-step__note{font:400 12px/16px var(--font-sans);color:var(--ink-muted);padding-left:28px}
 
 /* Logo */
-.mg-logo{display:inline-flex;align-items:baseline;font-family:var(--font-serif);font-weight:600;letter-spacing:-.01em;line-height:1;color:var(--ink);white-space:nowrap}
-.mg-logo__radar{color:var(--ink);margin-right:.2em}
-.mg-logo__gov{color:var(--brand);display:inline-flex;align-items:baseline}
-.mg-logo__disc{display:inline-block;vertical-align:baseline;margin:0 .02em;transform:translateY(.05em);color:var(--on-header)}
+.mg-logo{display:inline-flex;align-items:center;font-family:var(--font-serif);font-weight:600;letter-spacing:-.01em;line-height:1;color:var(--ink);white-space:nowrap}
+.mg-logo__eye{display:block;flex:none;margin-right:.25em;color:var(--brand)}
+.mg-logo__mira{color:var(--ink);margin-right:.22em}
+.mg-logo__gov{color:var(--brand)}
 .mg-logo__verde{fill:#006432}
 .mg-logo__verm{fill:#e61e1e}
-.mg-logo--inverse,.mg-logo--inverse .mg-logo__radar,.mg-logo--inverse .mg-logo__gov{color:var(--on-header)}
+.mg-logo--inverse,.mg-logo--inverse .mg-logo__mira,.mg-logo--inverse .mg-logo__gov,.mg-logo--inverse .mg-logo__eye{color:var(--on-header)}
 .mg-logo--mark{font-size:0}
+.mg-logo--mark .mg-logo__eye{margin-right:0}
 
 /* Icon */
 .mg-icon{display:inline-block;vertical-align:-.2em;flex:none}

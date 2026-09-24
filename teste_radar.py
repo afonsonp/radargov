@@ -7759,40 +7759,49 @@ class TestPeleNova(unittest.TestCase):
             r = radar.app.test_client().get("/")
             self.assertEqual(r.status_code, 200)
 
-    def test_o_logotipo_tem_o_disco_e_o_anel_so_no_inverso(self):
-        """O lockup: «Radar G⬤v», com o disco da bandeira no lugar do ó.
+    def test_o_logotipo_e_o_olho_com_a_pupila_da_bandeira(self):
+        """O lockup Mira Gov (24/09/2026): o olho, «Mira» e «Gov».
 
-        O anel é do `inverso` e só dele: sobre a barra azul, o verde e o
-        vermelho sem anel flutuam no fundo; sobre branco, um anel a toda
-        a volta era um carimbo.
+        A folga à volta da pupila é RECORTADA por uma máscara, e não
+        pintada de branco -- pintada, via-se um anel branco sobre a barra
+        azul. A pupila é a bandeira, verde à esquerda, e não muda no
+        inverso.
         """
         claro, escuro = radar.logotipo(), radar.logotipo(inverso=True)
         for m in (claro, escuro):
+            self.assertIn("mg-logo__eye", m)
+            self.assertIn("mask='url(#mg-olho-m)'", m)
             self.assertIn("mg-logo__verde", m)
             self.assertIn("mg-logo__verm", m)
+            self.assertIn("aria-label='Mira Gov'", m)
+            self.assertNotIn("fill='#fff'>", m.split("</mask>")[1])
+        self.assertLess(claro.index("mg-logo__verde"),
+                        claro.index("mg-logo__verm"))     # verde à esquerda
         self.assertNotIn("mg-logo--inverse", claro)
-        self.assertNotIn("stroke=", claro)
-        self.assertIn("stroke='currentColor'", escuro)
+        self.assertIn("mg-logo--inverse", escuro)
+        # o olho mede 0,7 da letra: 26px de letra, 18px de olho
+        self.assertIn("width='29' height='18'", radar.logotipo(26))
         # só a marca, sem as palavras
         so_marca = radar.logotipo(marca_so=True)
         self.assertIn("mg-logo--mark", so_marca)
-        self.assertNotIn("Radar", so_marca.replace("Radar Gov", ""))
-        # o id do clip é FIXO: gerado ao acaso, o HTML mudava a cada
+        self.assertNotIn("Mira<", so_marca)
+        # os ids são FIXOS: gerados ao acaso, o HTML mudava a cada
         # pedido e nenhuma captura de ecrã se podia comparar com outra
         self.assertEqual(radar.logotipo(), claro)
 
-    def test_o_favicon_e_o_disco_e_serve_se_de_casa(self):
+    def test_o_favicon_e_o_olho_e_serve_se_de_casa(self):
         """Não havia nenhum: o browser pedia `/favicon.ico`, levava 404,
         e o separador ficava com a folha em branco."""
         r = radar.app.test_client().get("/favicon.svg")
         self.assertEqual(r.status_code, 200)
         self.assertIn("image/svg+xml", r.headers["Content-Type"])
+        self.assertIn("max-age", r.headers["Cache-Control"])
         corpo = r.get_data(as_text=True)
         self.assertIn("http://www.w3.org/2000/svg", corpo)   # o xmlns
         # as cores vão escritas: um SVG servido como ficheiro não herda
         # as classes da folha de estilo da página
-        self.assertIn("#006432", corpo)
-        self.assertIn("#e61e1e", corpo)
+        for cor in ("#004682", "#006432", "#e61e1e"):
+            self.assertIn(cor, corpo)
         for molde in (radar.BASE, radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
             self.assertIn('href="/favicon.svg"', molde)
 
@@ -12012,12 +12021,14 @@ class TestNomeRadarGov(unittest.TestCase):
         # ó. O que este teste guarda continua a ser o mesmo -- o nome é
         # «Radar Gov» nos três moldes, o «Gov» distingue-se do «Radar»,
         # e em lado nenhum volta a dizer «RadarDR».
+        # Desde 24/09/2026 o lockup é o do Mira Gov: o olho, «Mira» e
+        # «Gov».
         marca = radar.logotipo(inverso=True)
-        self.assertIn("mg-logo__radar", marca)
-        self.assertIn("Radar", marca)
+        self.assertIn("mg-logo__mira", marca)
+        self.assertIn("Mira", marca)
         self.assertIn("mg-logo__gov", marca)
-        self.assertIn("mg-logo__disc", marca)          # o ó é o disco
-        self.assertIn("aria-label='Radar Gov'", marca) # e lê-se assim
+        self.assertIn("mg-logo__eye", marca)           # o olho à frente
+        self.assertIn("aria-label='Mira Gov'", marca)  # e lê-se assim
         self.assertIn('class="mg-topbar__brand" href="/"', radar.BASE)
         for molde in (radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
             self.assertIn("%(logo)s", molde)
@@ -12027,11 +12038,9 @@ class TestNomeRadarGov(unittest.TestCase):
         # os distingue, e é o que a folha do sistema diz
         folha = radar.ler_estilo("miragov-componentes.css")
         self.assertIn(".mg-logo__gov{color:var(--brand)", folha)
-        self.assertIn(".mg-logo__radar{color:var(--ink)", folha)
-        # sobre a barra azul os dois passam a branco, e o disco ganha o
-        # anel -- sem ele, o verde e o vermelho flutuam no azul
+        self.assertIn(".mg-logo__mira{color:var(--ink)", folha)
+        # sobre a barra azul o olho e as duas palavras passam a branco
         self.assertIn("mg-logo--inverse", marca)
-        self.assertIn("stroke='currentColor'", marca)
 
 
 class TestAuditoriaDeSeguranca(BaseTemporaria):

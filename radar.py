@@ -12469,50 +12469,50 @@ def icone(nome, tamanho=18, rotulo=""):
         return ""
 
 
-# O disco do logótipo: a bandeira reduzida a duas faixas dentro de um
-# círculo, na proporção dela (36,8 de 92 é o verde). Vem do componente
-# `Logo` do sistema de desenho.
+# O olho do logótipo (Mira Gov, 24/09/2026): uma amêndoa maciça de
+# cantos vivos, com a pupila no disco da bandeira (verde e vermelho a
+# 2:3, verde à esquerda). A folga à volta da pupila é RECORTADA por uma
+# máscara, e não pintada de branco, para o olho servir em qualquer
+# fundo. A geometria é a do componente `Eye` do sistema de desenho.
 #
-# O `clipPath` precisa de um id, e o componente React gera um ao acaso
-# por instância. Aqui é FIXO: dois logótipos na mesma página apontam ao
-# mesmo clip, e o clip é o mesmo -- ids repetidos em HTML são inválidos,
-# mas um id repetido a apontar para a mesma forma não muda nada do que
-# se vê. O que não se pode é gerar um ao acaso por chamada: o HTML
-# passaria a mudar a cada pedido, e a folha de estilo e as capturas de
-# ecrã deixavam de ser comparáveis.
-def _disco(tamanho=16, anel=False):
+# A máscara e o clip precisam de ids, e o componente React gera-os ao
+# acaso por instância. Aqui são FIXOS: dois logótipos na mesma página
+# apontam para a mesma forma, e um id repetido a apontar para a mesma
+# forma não muda nada do que se vê. O que não se pode é gerá-los ao
+# acaso por chamada: o HTML passaria a mudar a cada pedido, e as
+# capturas de ecrã deixavam de ser comparáveis.
+def _olho(altura=16):
     return (
-        "<svg class='mg-logo__disc' viewBox='0 0 96 96' width='%d' "
+        "<svg class='mg-logo__eye' viewBox='0 0 96 60' width='%d' "
         "height='%d' aria-hidden='true' focusable='false'>"
-        "<clipPath id='mg-dsc%s'><circle cx='48' cy='48' r='%d'/></clipPath>"
-        "<g clip-path='url(#mg-dsc%s)'>"
-        "<rect x='2' y='2' width='36.8' height='92' class='mg-logo__verde'/>"
-        "<rect x='38.8' y='2' width='56' height='92' class='mg-logo__verm'/>"
-        "</g>%s</svg>"
-        % (tamanho, tamanho, "-a" if anel else "", 42 if anel else 46,
-           "-a" if anel else "",
-           ("<circle cx='48' cy='48' r='42' fill='none' stroke='currentColor'"
-            " stroke-width='6'/>") if anel else ""))
+        "<mask id='mg-olho-m' maskUnits='userSpaceOnUse' x='0' y='0' "
+        "width='96' height='60'><rect width='96' height='60' fill='#fff'/>"
+        "<circle cx='48' cy='30' r='18.5' fill='#000'/></mask>"
+        "<path d='M1 30A64 64 0 0 1 95 30A64 64 0 0 1 1 30Z' "
+        "fill='currentColor' mask='url(#mg-olho-m)'/>"
+        "<clipPath id='mg-olho-p'><circle cx='48' cy='30' r='15'/></clipPath>"
+        "<g clip-path='url(#mg-olho-p)'>"
+        "<rect x='33' y='15' width='12' height='30' class='mg-logo__verde'/>"
+        "<rect x='45' y='15' width='18' height='30' class='mg-logo__verm'/>"
+        "</g></svg>" % (int(round(altura * 96 / 60)), altura))
 
 
 def logotipo(tamanho=26, inverso=False, marca_so=False):
-    """O logótipo: «Radar G⬤v», com o disco no lugar do ó.
+    """O logótipo: o olho, seguido de «Mira» e «Gov».
 
-    É o lockup do sistema de desenho (componente `Logo`). Sobre a barra
-    azul leva `inverso`, que pinta as duas palavras de branco e põe o
-    anel à volta do disco -- sem o anel, o verde e o vermelho ficam a
-    flutuar no azul.
+    É o lockup do sistema de desenho (componente `Logo`): o olho mede
+    0,7 do tamanho da letra. Sobre a barra azul leva `inverso`, que pinta
+    o olho e as duas palavras de branco; a pupila não muda. Com
+    `marca_so`, só o olho, e aí `tamanho` é a altura dele.
     """
+    inv = " mg-logo--inverse" if inverso else ""
     if marca_so:
         return ("<span class='mg mg-logo mg-logo--mark%s' role='img' "
-                "aria-label='Radar Gov'>%s</span>"
-                % (" mg-logo--inverse" if inverso else "",
-                   _disco(tamanho, anel=inverso)))
-    return ("<span class='mg mg-logo%s' role='img' aria-label='Radar Gov' "
-            "style='font-size:%dpx'><span class='mg-logo__radar'>Radar</span> "
-            "<span class='mg-logo__gov'>G%sv</span></span>"
-            % (" mg-logo--inverse" if inverso else "", tamanho,
-               _disco(int(round(tamanho * 0.56)), anel=inverso)))
+                "aria-label='Mira Gov'>%s</span>" % (inv, _olho(tamanho)))
+    return ("<span class='mg mg-logo%s' role='img' aria-label='Mira Gov' "
+            "style='font-size:%dpx'>%s<span class='mg-logo__mira'>Mira</span> "
+            "<span class='mg-logo__gov'>Gov</span></span>"
+            % (inv, tamanho, _olho(int(round(tamanho * 0.7)))))
 
 
 def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
@@ -23377,20 +23377,20 @@ def convite(codigo):
 
 @app.route("/favicon.svg")
 def favicon():
-    """O disco do logótipo, sozinho, como ícone do separador.
+    """O olho no selo azul, como ícone do separador.
 
     Não havia nenhum: o browser pedia `/favicon.ico`, levava 404, e o
-    separador ficava com a folha em branco. É o mesmo desenho do
-    logótipo (fase 2 da migração), servido da própria aplicação como
-    tudo o resto.
+    separador ficava com a folha em branco. É o ficheiro da marca
+    (`marca/miragov-favicon.svg`), com as cores escritas: um SVG servido
+    como ficheiro não herda a folha de estilo da página.
     """
-    resposta = Response(
-        "<?xml version='1.0' encoding='utf-8'?>"
-        + _disco(64).replace("class='mg-logo__disc'", "")
-                    .replace("class='mg-logo__verde'", "fill='#006432'")
-                    .replace("class='mg-logo__verm'", "fill='#e61e1e'")
-                    .replace("<svg ", "<svg xmlns='http://www.w3.org/2000/svg' "),
-        mimetype="image/svg+xml")
+    try:
+        with open(os.path.join(BASE_DIR, "marca", "miragov-favicon.svg"),
+                  encoding="utf-8") as f:
+            svg = f.read()
+    except OSError:
+        abort(404)
+    resposta = Response(svg, mimetype="image/svg+xml")
     resposta.headers["Cache-Control"] = "public, max-age=604800"
     return resposta
 
