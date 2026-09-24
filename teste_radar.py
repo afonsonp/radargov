@@ -4175,9 +4175,15 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         # no mesmo dia, por decisao dele: a abertura fica onde estava, e
         # quem la leva e o logotipo. Um item ao lado da marca era o
         # mesmo destino duas vezes a 30px de distancia.
-        self.assertEqual([n[0] for n in radar.NAV], ["anuncios", "mercado"])
-        self.assertEqual([n[1] for n in radar.NAV], ["Concursos", "Mercado"])
+        # A 24/09/2026 a barra passou aos cinco itens do Mira Gov, por
+        # ordem de uso diario (decisao dele: «seguir a referencia»); as
+        # Configuracoes sao o quinto, e desenham-se a seguir a estes.
+        self.assertEqual([n[0] for n in radar.NAV],
+                         ["anuncios", "propostas", "mercado", "calendario"])
+        self.assertEqual([n[1] for n in radar.NAV],
+                         ["Concursos", "Propostas", "Mercado", "Calendário"])
         self.assertEqual(radar.NAV[0][2], radar.LISTA)
+        self.assertEqual(radar.NAV[1][2], radar.PROPOSTAS)
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
         self.assertIn('href="/configuracoes"', html_)
         # e o "Hoje" nao volta a ser um botao da barra
@@ -4219,10 +4225,10 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         era o arrastar -- que só compensa quando se vê tudo ao mesmo
         tempo. Sobra o calendário, que é a única forma diferente de olhar
         para o mesmo: uma grelha de dias, para ver choques de datas."""
-        # o Calendário é vista do item Concursos, que é o primeiro da
-        # barra desde que o Hoje passou para o logotipo (16/09/2026)
-        self.assertEqual([v[1] for v in radar.NAV[0][3]], ["Calendário"])
-        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "anuncios")
+        # Desde 24/09/2026 o Calendário é item próprio da barra (a do
+        # Mira Gov), e os Concursos deixaram de ter vistas.
+        self.assertEqual(radar.NAV[0][3], ())
+        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "calendario")
         self.assertNotIn("quadro", radar.ITEM_DA_PAGINA)
 
     def test_contratos_e_renovacoes_vivem_sob_mercado(self):
@@ -4231,9 +4237,10 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
 
     def test_migalhas_das_vistas_agrupadas(self):
         # deixaram de ser separadores irmãos: são vistas de um item
-        self.assertIn("Concursos", radar.migalhas_de("calendario"))
-        self.assertIn("<em>Calendário</em>", radar.migalhas_de("calendario"))
+        # o Calendário é item desde 24/09/2026: as migalhas são só ele
+        self.assertEqual("<em>Calendário</em>", radar.migalhas_de("calendario"))
         self.assertIn("Mercado", radar.migalhas_de("contratos"))
+        self.assertIn("<em>Entidades</em>", radar.migalhas_de("entidades"))
 
     def test_migalhas_da_lista_unica(self):
         """A lista é a primeira vista de Concursos e partilha a chave com
@@ -4472,9 +4479,8 @@ class TestModoFimDosContratos(unittest.TestCase):
         # deixar passar.
         self.assertNotIn("renovacoes", [v[0] for v in mercado[3]])
         self.assertNotIn("contratos", [v[0] for v in mercado[3]])
-        # o Calendário continua a ser vista de barra, que é o caso oposto
-        concursos = next(n for n in radar.NAV if n[0] == "anuncios")
-        self.assertEqual([v[0] for v in concursos[3]], ["calendario"])
+        # o Calendário é item próprio da barra desde 24/09/2026
+        self.assertIn("calendario", [n[0] for n in radar.NAV])
         # e os dois modos continuam alcançáveis, pelas abas da página
         corpo = radar.app.test_client().get("/contratos").get_data(as_text=True)
         self.assertIn("ver=fim", corpo)
@@ -5465,7 +5471,9 @@ class TestCaminhoDeVoltaDaFicha(BaseTemporaria):
         radar.criar_proposta(ref="70/2026", estado="submetido")
         html_ = self.cliente.get(
             radar.LISTA + "?estado=submetido").get_data(as_text=True)
-        self.assertIn("<form class='pf' method='get' action='%s'>" % radar.LISTA,
+        # desde 24/09/2026 as ranhuras da empresa sao as Propostas, e a
+        # procura fica la
+        self.assertIn("<form class='pf' method='get' action='%s'>" % radar.PROPOSTAS,
                       html_)
         self.assertNotIn("<form class='pf' method='get' action='/'>", html_)
 
@@ -5771,12 +5779,16 @@ class TestEscadaNaLista(BaseTemporaria):
         self.assertEqual(sem_base[""], 4)
 
     def test_a_barra_tem_as_dez_ranhuras_e_o_todos(self):
-        html_ = self._html()
-        for _, rotulo in radar.ESCADA:
+        # Desde 24/09/2026 as dez repartem-se por dois itens da barra: os
+        # Concursos tem as pontas e o «Todos», as Propostas as oito da
+        # empresa. Nenhuma se perdeu, e cada uma leva o seu numero.
+        concursos, propostas = self._html(), self._html(radar.PROPOSTAS)
+        for chave, rotulo in radar.ESCADA:
+            html_ = propostas if chave in radar.CHAVES_DA_EMPRESA else concursos
             # o numero passou de `<i>` a `.mg-tab__count` na fase 3
             self.assertIn(">%s <span class='mg-tab__count'>" % rotulo,
                           html_, rotulo)
-        self.assertIn(">Todos <span class='mg-tab__count'>", html_)
+        self.assertIn(">Todos <span class='mg-tab__count'>", concursos)
 
     def test_a_entrada_e_o_cemiterio_apartam_se(self):
         self.assertIn("Aquisição de software", self._html())

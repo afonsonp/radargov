@@ -12074,7 +12074,6 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 <header class="mg mg-topbar">
  <a class="mg-topbar__brand" href="/" %(inicio_on)s title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
  <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
- <a class="mg-topbar__link" href="/configuracoes" %(conf_on)s title="A conta, o interesse, os alertas e o resto das configurações">Configurações</a>
  %(conta)s
 </header>
 <main class="mg">
@@ -12139,6 +12138,9 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 # queriam dizer a lista -- uns queriam dizer "volta ao principio", que
 # agora e outra pagina.
 LISTA = "/concursos"
+# As propostas tem casa propria desde 24/09/2026 (a barra do Mira Gov):
+# as oito ranhuras da empresa sairam das abas dos Concursos para aqui.
+PROPOSTAS = "/propostas"
 
 # **O Hoje nao e um separador: e o logotipo** (16/09/2026, decisao dele
 # no mesmo dia em que a abertura nasceu -- "nao quero um separador de
@@ -12148,8 +12150,13 @@ LISTA = "/concursos"
 # barra anunciar tres intencoes quando ha duas -- os concursos e o
 # mercado. A pagina `inicio` fica como esta, com o mesmo endereco; o que
 # sai e o botao. As migalhas dela vem do FORA_DA_BARRA.
-NAV = (("anuncios", "Concursos", LISTA,
-        (("calendario", "Calendário", "/calendario"),)),
+# **Cinco itens desde 24/09/2026** (a barra do Mira Gov, decisao dele:
+# "seguir a referencia"): Concursos, Propostas, Mercado, Calendario e
+# Configuracoes, por ordem de uso diario. O Calendario deixou de ser
+# vista dos Concursos, e as Propostas -- que eram as oito ranhuras da
+# empresa dentro da lista dos Concursos -- passaram a item.
+NAV = (("anuncios", "Concursos", LISTA, ()),
+       ("propostas", "Propostas", PROPOSTAS, ()),
        # **O Mercado nao tem vistas agrupadas na barra** (16/09/2026,
        # fase 5). Tinha "Contratos" e "Renovacoes", que sao os MESMOS
        # dois modos que as abas da pagina ja oferecem como "Por
@@ -12170,7 +12177,8 @@ NAV = (("anuncios", "Concursos", LISTA,
        # nenhuma delas, e à ficha de uma entidade só se chegava por um
        # nome dentro de um anúncio ou de uma tabela.
        ("mercado", "Mercado", "/contratos",
-        (("entidades", "Entidades", "/entidades"),)))
+        (("entidades", "Entidades", "/entidades"),)),
+       ("calendario", "Calendário", "/calendario", ()))
 # Alertas saiu do primeiro nivel a 8/09/2026 (docs/historico/ONLINE.md,
 # etapa 2): passou a seccao de Configuracoes, que vive em baixo, ao
 # lado da zona de estado, como os Indicadores -- e o sitio onde se vai
@@ -12623,6 +12631,13 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                     % (v_destino,
                        " aria-current='page'" if v_chave == activo else "",
                        html.escape(v_etiqueta)))
+
+    # As Configuracoes sao o quinto item (24/09/2026): viviam no canto
+    # oposto, sozinhas, e a barra do sistema poe-nas no fim da navegacao.
+    itens.append("<a class='mg-topbar__link' href=\"/configuracoes\"%s "
+                 "title='A conta, o interesse, os alertas e o resto das "
+                 "configurações'>Configurações</a>"
+                 % (" aria-current='page'" if activo == "configuracoes" else ""))
 
     # A ultima verificacao saiu da barra a 13/09/2026: esta nos
     # Indicadores (linha_da_ultima_verificacao()), que passaram a seccao
@@ -13717,7 +13732,13 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
     return contas
 
 
-def barra_das_abas(rota, actual, contas=None):
+# As abas de cada lista (24/09/2026): os Concursos mostram as pontas (o
+# que chegou, o que expirou sem se ver, e todos); as Propostas as oito
+# ranhuras da empresa. O calendario continua com as dez.
+ABAS_DOS_CONCURSOS = (ENTRADA_DA_ESCADA[0], CEMITERIO_DA_ESCADA[0], "")
+
+
+def barra_das_abas(rota, actual, contas=None, chaves=None):
     """As dez ranhuras mais o "todos", desenhadas uma vez para as duas
     listas. Sem isto eram dois sitios a desenhar a mesma barra, e o
     primeiro a mudar deixava o outro a mostrar abas que ja nao existem.
@@ -13735,6 +13756,8 @@ def barra_das_abas(rota, actual, contas=None):
     """
     pecas = ["<div class='mg-tabs abas-escada' role='tablist'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
+        if chaves is not None and chave not in chaves:
+            continue
         if chave == ENTRADA_DA_ESCADA[0]:
             classe = "ponta entrada"
         elif chave == CEMITERIO_DA_ESCADA[0]:
@@ -13802,8 +13825,21 @@ def painel():
     na segunda.
     """
     if aba_pedida() in CHAVES_DA_EMPRESA:
+        # As ranhuras da empresa sao as Propostas desde 24/09/2026, e o
+        # endereco antigo serve a mesma pagina (com o item Propostas
+        # aceso): as ligacoes da ficha, do Hoje, do situacao e os
+        # marcadores dele continuam a dar ao sitio certo.
         return _lista_de_propostas()
     return _lista_de_anuncios()
+
+
+@app.route(PROPOSTAS)
+def propostas():
+    """As propostas da empresa, por ranhura (o `EcraPropostas`).
+
+    Sem `?estado=` (ou com uma ranhura que nao e da empresa) abre na
+    primeira, «Por analisar»: e a entrada da escada do lado da empresa."""
+    return _lista_de_propostas()
 
 
 @app.route("/anuncios")
@@ -13915,7 +13951,7 @@ def _lista_de_anuncios():
     # pela barra_das_abas() para as duas listas as terem iguais.
     estado_actual = estado_da_aba
     contas = contar_a_escada(onde_sem_estado, val_sem_estado, cfg)
-    abas = [barra_das_abas(rota, estado_actual, contas)]
+    abas = [barra_das_abas(rota, estado_actual, contas, ABAS_DOS_CONCURSOS)]
 
     cpv_actual = request.args.get("cpv", "")
     faixa_cpv = faixa_cpv_activo(request.args,
@@ -14262,9 +14298,11 @@ def _lista_de_propostas():
     Sao as duas razoes de a tabela `propostas` existir; se esta vista as
     escondesse, a tabela nao servia para nada.
     """
-    rota = LISTA
+    rota = PROPOSTAS
     cfg = ler_config()
     estado_actual = aba_pedida()
+    if estado_actual not in CHAVES_DA_EMPRESA:
+        estado_actual = CHAVES_DA_EMPRESA[0]
     urgente = dias_urgente()
     procura = " ".join((request.args.get("q") or "").split())
     onde = ["estado = ?"]
@@ -14331,7 +14369,7 @@ def _lista_de_propostas():
                  "&ldquo;%s&rdquo;. <a href='%s?estado=%s'>Ver as %s</a>."
                  "</div>"
                  % (html.escape(estado_da_empresa(estado_actual)),
-                    html.escape(procura), LISTA, estado_actual,
+                    html.escape(procura), PROPOSTAS, estado_actual,
                     mil_pt(contas.get(estado_actual, 0))))
     else:
         corpo = ("<div class='mg-empty'>Nada em &ldquo;%s&rdquo;. "
@@ -14353,22 +14391,23 @@ def _lista_de_propostas():
              "<input type='search' name='q' value='%s' "
              "placeholder='procurar no título ou no cliente…'>"
              "<button type='submit'>procurar</button>%s</form>"
-             % (LISTA, html.escape(estado_actual, quote=True),
+             % (PROPOSTAS, html.escape(estado_actual, quote=True),
                 html.escape(procura, quote=True),
-                (" <a href='%s?estado=%s'>limpar</a>" % (LISTA, estado_actual))
+                (" <a href='%s?estado=%s'>limpar</a>" % (PROPOSTAS, estado_actual))
                 if procura else ""))
     conteudo = ("<div class='larg'>" + caixa +
                 "<div class='linha-conta'>" + conta +
                 "<a href='/proposta/nova'>nova proposta</a></div>"
                 + corpo + "</div>")
     return envolver(
-        "anuncios", "Concursos",
-        "O que a empresa está a fazer. As propostas sem anúncio do DR "
-        "&mdash; consulta prévia, ajuste directo, convite &mdash; "
-        "vivem aqui e não na lista dos anúncios.",
-        conteudo, abas=barra_das_abas(rota, estado_actual, contas),
+        "propostas", "Propostas",
+        "O que a empresa tem em curso, por ranhura. As propostas sem "
+        "anúncio do DR &mdash; consulta prévia, ajuste directo, convite "
+        "&mdash; vivem aqui e não na lista dos anúncios.",
+        conteudo, abas=barra_das_abas(rota, estado_actual, contas,
+                                      CHAVES_DA_EMPRESA),
         script=caixa_do_motivo(),
-        titulo_aba="%s, Concursos" % estado_da_empresa(estado_actual))
+        titulo_aba="%s, Propostas" % estado_da_empresa(estado_actual))
 
 
 # Caractere de escape do LIKE. Usa-se "!" e nao a barra invertida de

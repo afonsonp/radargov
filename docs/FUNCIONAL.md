@@ -446,11 +446,16 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**89 rotas.** A navegação tem **duas intenções mais o logótipo**:
+**90 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+(a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
-- **Concursos** → `/concursos` · vista **Calendário** `/calendario`
+- **Concursos** → `/concursos`: as pontas da escada (Por ver, Expirou
+  sem ver, Todos), que são anúncios
+- **Propostas** → `/propostas`: as oito ranhuras da empresa. O endereço
+  antigo, `/concursos?estado=<ranhura da empresa>`, serve a mesma página
 - **Mercado** → `/contratos` · vista **Entidades** `/entidades`
+- **Calendário** → `/calendario`, com as dez ranhuras nas abas
 - **Configurações** → `/configuracoes` (9 secções)
 
 ### 4.1 Hoje — `/`
