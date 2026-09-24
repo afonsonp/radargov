@@ -59,8 +59,8 @@ duas bases; os das empresas, de **24/09/2026**.
 | Rotas Flask | 89 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 143**, em ~80 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 25 067 linhas · `teste_radar.py` 15 043 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
+| Testes | **1 140**, em ~80 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 25 012 linhas · `teste_radar.py` 15 178 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -147,10 +147,12 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.0`**, de
-  24/09/2026 — a plataforma multi-empresa fechada: o dono sem empresa, o
-  `--apagar-empresa` e o `--limpar-uso`, as peças em `.7z`, as cópias
-  fora do PC a funcionar, e o operador sem NIF. **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.1`**, de
+  24/09/2026 — o **Mira Gov**: o nome, a marca do olho, a barra de cinco
+  itens (com as Propostas em rota própria), os oito ecrãs fiéis ao
+  sistema de desenho, o ecrã de entrar, as variáveis antigas e as
+  pontes fora, e o dono a ler os Concursos e o Mercado. (A `v2.0.0`, da
+  mesma manhã, fechou a plataforma multi-empresa.) **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 23/09/2026**: a F1 passou as
   tabelas da empresa para `empresas/1/empresa.db` (`separar_empresa()`,
