@@ -8324,6 +8324,39 @@ class TestPrazoNeutroDepoisDeSubmetido(unittest.TestCase):
         self.assertIn("&mdash;", self._linha("submetido", ""))
 
 
+class TestCalendarioAndaDeSemanaEmSemana(unittest.TestCase):
+    """O `EcraCalendario` tem «‹ Semana · Hoje · Semana ›» (24/09/2026).
+
+    O `?semana=N` desvia a grelha N semanas, preso a um ano para cada
+    lado, e um valor estragado volta a esta semana. A aba em que se esta
+    viaja com a semana: mudar de ranhura nao pode voltar a hoje."""
+
+    def _legenda(self, url):
+        corpo = radar.app.test_client().get(url).get_data(as_text=True)
+        return corpo, corpo.split("class='cal-legenda'")[1].split("</span>")[0]
+
+    def test_a_grelha_anda_uma_semana_e_volta(self):
+        hoje = datetime.date.today()
+        segunda = hoje - datetime.timedelta(days=hoje.weekday())
+        _, agora = self._legenda("/calendario")
+        _, depois = self._legenda("/calendario?semana=1")
+        _, estragado = self._legenda("/calendario?semana=abc")
+        self.assertIn(radar.data_pt(segunda.isoformat()), agora)
+        self.assertIn(radar.data_pt((segunda + datetime.timedelta(weeks=1)).isoformat()),
+                      depois)
+        self.assertEqual(agora, estragado)
+        _, longe = self._legenda("/calendario?semana=999")
+        self.assertIn(radar.data_pt((segunda + datetime.timedelta(weeks=52)).isoformat()),
+                      longe)
+
+    def test_os_botoes_e_as_abas_levam_a_ranhura_e_a_semana(self):
+        corpo, _ = self._legenda("/calendario?estado=porver&semana=2")
+        self.assertIn("href='/calendario?estado=porver&amp;semana=1'", corpo)
+        self.assertIn("href='/calendario?estado=porver&amp;semana=3'", corpo)
+        self.assertIn("href='/calendario?estado=porver'>Hoje", corpo)
+        self.assertIn("href='/calendario?estado=expirou&semana=2'", corpo)
+
+
 class TestCalendarioLigaAEscada(unittest.TestCase):
     """Atalho da §5 do esqueleto: o calendário e a lista são vistas do
     mesmo conjunto, e há sempre por onde passar de uma à outra.

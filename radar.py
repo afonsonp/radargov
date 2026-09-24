@@ -21822,7 +21822,15 @@ def calendario():
     # semanas que comece a uma quarta nao se le como um calendario. Os
     # dias ja passados desta semana ficam la, apagados -- um prazo de
     # terca que hoje e quinta ainda explica o que aconteceu.
-    principio = hoje - timedelta(days=hoje.weekday())
+    # E anda de semana em semana (24/09/2026, o `EcraCalendario`): o
+    # `?semana=N` e o desvio em semanas, preso a um ano para cada lado --
+    # um numero estragado volta a esta semana, que e o que a pagina e.
+    try:
+        semana = max(-52, min(52, int(request.args.get("semana", 0))))
+    except (TypeError, ValueError):
+        semana = 0
+    principio = (hoje - timedelta(days=hoje.weekday())
+                 + timedelta(weeks=semana))
     fim = principio + timedelta(days=SEMANAS_CALENDARIO * 7 - 1)
 
     por_dia, fora = {}, 0
@@ -21905,11 +21913,26 @@ def calendario():
     # elas o calendario por omissao mostra as propostas em aberto, que
     # quando sao zero dava um beco: a unica saida era escrever ?estado=
     # na barra de enderecos.
+    def para_semana(n):
+        pedaco = [("estado", estado)] if estado else []
+        if n:
+            pedaco.append(("semana", str(n)))
+        return "/calendario" + ("?" + urlencode(pedaco) if pedaco else "")
+    accoes = ("<a class='mg-btn mg-btn--secondary' href='%s'>&lsaquo; Semana</a>"
+              "<a class='mg-btn mg-btn--secondary' href='%s'>Hoje</a>"
+              "<a class='mg-btn mg-btn--secondary' href='%s'>Semana &rsaquo;</a>"
+              % tuple(html.escape(para_semana(n), quote=True)
+                      for n in (semana - 1, 0, semana + 1)))
+    # As abas vao no corpo. Levam a semana atras sem mais nada: o
+    # `sem_pagina()` guarda os argumentos do pedido, e mudar de ranhura
+    # nao pode voltar a esta semana.
+    abas = barra_das_abas("/calendario", estado)
     return envolver("calendario", "Calendário", "",
-                    "<div class='larg'>%s%s</div>" % (legenda, "".join(grade)),
-                    migalhas=migalhas_de("calendario"),
-                    abas=barra_das_abas("/calendario", estado),
-                    titulo_aba="Calendário, Concursos")
+                    abas + "<div class='larg'>%s%s</div>" % (legenda, "".join(grade)),
+                    cabeca=cabecalho_de_pagina(
+                        "Calendário", "Seis semanas a partir de segunda-feira. "
+                        "Cada dia mostra o que fecha nesse dia.", [], accoes),
+                    titulo_aba="Calendário, Mira Gov")
 # --------------------------------------------------------- indicadores
 
 def funil_anuncios():
