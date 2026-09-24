@@ -511,28 +511,29 @@ A ordem do ficheiro é a ordem do fluxo:
    `fechada_em` — a data em que a proposta se **decidiu**; o «em jogo» é
    uma fotografia de agora e **não leva seta**, porque a base não guarda
    o pipeline de ontem.
-8c. **a amostra do desenho** — `/amostra` (16/09/2026, fase 0 do
-   `docs/design.md`): os componentes todos num sítio, com um selector
-   de letra e de pele, para ele ver e decidir antes de um ecrã mudar.
-   É a **única** página que não passa pelo `envolver()`, porque é a
-   única que precisa de carimbar `data-pele` e `data-tipo` no `<html>`.
-   O `CSS_NOVO` está todo dentro desse âmbito e as fontes servem-se de
-   `/tipo/<nome>`, por lista branca (`TIPOS`).
+8c. **a amostra do desenho** — `/amostra` (16/09/2026) **saiu a
+   24/09/2026**: servia para escolher a letra e a pele antes de um ecrã
+   mudar, e o conteúdo dela eram as variáveis antigas. As fontes
+   continuam a servir-se de `/tipo/<nome>`, por lista branca (`TIPOS`).
+   O `data-pele="novo"` fica nos moldes, e o `CSS_NOVO` dentro dele: tirar
+   o atributo baixava a especificidade de ~150 regras e mudava quem ganha
+   a quem, sem ganho nenhum que se veja.
 8d. **o sistema de desenho** — quatro folhas em `estilo/`, do pacote
    `radargov-migracao` (**fases 1 e 2 feitas a 21-22/09/2026**;
    `docs/historico/MIGRACAO.md`): `miragov-tokens.css` (24 variáveis,
-   três temas — claro, escuro, contraste), `miragov-pontes.css` (as 44
-   variáveis **antigas** apontadas às novas, para o CSS de 23 mil linhas
-   mudar de paleta sem se tocar numa regra) e
+   três temas — claro, escuro, contraste) e
    `miragov-componentes.css` (as classes `.mg-*`, **inertes** até à
    fase 2: está tudo dentro de `.mg`, e nenhum molde carimba essa classe
    ainda). Entram por `ler_estilo()`, e **se faltarem o painel serve na
    mesma**.
    **A ordem do `CSS_TUDO` não é a que o plano diz, e a razão está
-   medida**: `terceiros + CSS + CSS_NOVO + tokens + pontes +
-   componentes` — o que **define** variáveis vai todo para o fim, senão
-   o bloco `[data-pele=novo]{--azul:…}` do `CSS_NOVO` ganha-lhes e nada
-   muda de cor. Os três moldes carimbam `data-theme="claro"` (o
+   medida**: `terceiros + CSS + CSS_NOVO + tokens + componentes` — o
+   que **define** variáveis vai para o fim, senão o `--ink` antigo do
+   `CSS_NOVO` ganha aos tokens. **As pontes (`miragov-pontes.css`, as 44
+   variáveis antigas apontadas às novas) saíram a 24/09/2026**, na fase
+   3: todas as regras passaram a citar os tokens, e um teste
+   (`test_nenhuma_variavel_usada_ficou_por_definir`) guarda que nenhuma
+   regra cita uma variável que não existe. Os três moldes carimbam `data-theme="claro"` (o
    `data-tipo` saiu). A quarta folha é **nossa**:
    `miragov-radar.css`, o pouco que o radar precisa e o sistema ainda
    não tem (as vistas da barra, a barra a dobrar, o menu da conta, os

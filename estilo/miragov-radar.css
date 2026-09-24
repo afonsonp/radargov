@@ -363,3 +363,16 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .conf-corpo>.mg-card--band .mg-card__body>.mg-field__label:first-child{display:none}
 @media (max-width:1100px){.conf-indice{flex-direction:row;flex-wrap:wrap}
  .conf-indice .mg-secnav__sep,.conf-indice .mg-secnav__note{display:none}}
+
+/* Vieram do `miragov-pontes.css` quando ele saiu (24/09/2026): sao as
+   duas regras que nao eram pontes, e continuam a fazer falta. */
+/* O CSS antigo pinta fundos a #fff à mão em .cx, .item, .bt, .entrar input, .abas a.on:
+   no tema escuro e no contraste isso quebra. Enquanto a fase 3 não chega, esta regra corrige. */
+[data-theme] .cx, [data-theme] .item, [data-theme] .vazio, [data-theme] .abas a.on, [data-theme] .bt, [data-theme] .entrar input { background: var(--surface-raised); }
+/* A barra de topo fazia `background:var(--ink)`, que no sistema antigo
+   era o quase-preto e no novo é a cor do TEXTO. O sistema tem uma cor
+   própria para ela -- `--surface-header`, o azul institucional --, e é
+   essa que deve pintar já na fase 1: a barra é a primeira coisa que se
+   vê, e deixá-la cinzenta-escura até à fase 2 era mostrar meia mudança.
+   O menu da conta pendura-se da barra e acompanha-a. */
+[data-theme] .barra, [data-theme] .sou .sou-menu { background: var(--surface-header); }
