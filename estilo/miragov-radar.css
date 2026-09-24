@@ -347,3 +347,19 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .mercado-lado{display:flex;flex-direction:column;gap:var(--space-4)}
 .mercado-lado.graf-corpo{grid-template-columns:minmax(0,1fr)}
 @media (max-width:1100px){.mercado-duas{grid-template-columns:minmax(0,1fr)}}
+
+/* As CONFIGURACOES (24/09/2026, o `EcraConfiguracoes`): o `SectionNav`
+   a esquerda (o sistema nao traz a regra base das ligacoes), e a seccao
+   num cartao com faixa. */
+.mg-secnav a,.conf-indice a{display:block;padding:8px var(--space-3);border-radius:var(--radius-md);
+ color:var(--ink-secondary);text-decoration:none;font:500 14px/20px var(--font-sans)}
+.conf-indice{display:flex;flex-direction:column;gap:2px;min-width:200px}
+.conf-indice a:hover{background:var(--surface-sunken);color:var(--ink)}
+.conf-indice a[aria-current="page"]{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.conf-indice .mg-secnav__sep{height:1px;margin:var(--space-2) var(--space-3);background:var(--line)}
+.conf-indice .mg-secnav__note{padding:0 var(--space-3);font:400 12px/16px var(--font-sans);
+ color:var(--ink-muted)}
+.conf-corpo{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.conf-corpo>.mg-card--band .mg-card__body>.mg-field__label:first-child{display:none}
+@media (max-width:1100px){.conf-indice{flex-direction:row;flex-wrap:wrap}
+ .conf-indice .mg-secnav__sep,.conf-indice .mg-secnav__note{display:none}}

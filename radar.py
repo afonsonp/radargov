@@ -11045,20 +11045,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 /* Configuracoes: o indice a esquerda, preso ao rolar como o da ficha,
    e a seccao a direita. Cada seccao e uma caixa com um formulario. */
 .conf{display:grid;grid-template-columns:200px minmax(0,1fr);gap:22px;align-items:start}
-.conf-indice{position:sticky;top:16px;display:flex;flex-direction:column;gap:2px}
-.conf-indice a{display:block;padding:8px 10px;border-radius:7px;color:var(--t2);
- min-height:24px}
-.conf-indice a b{display:block;font:600 12.5px/1.3 var(--sans)}
-.conf-indice a i{display:block;font:400 10.5px/1.3 var(--sans);color:var(--t5);font-style:normal}
-.conf-indice a:hover{background:var(--linha2);color:var(--ink)}
-.conf-indice a.on{background:#fff;border:1px solid var(--linha);color:var(--ink)}
-/* A seccao que so LE, apartada das que gravam (16/09/2026, fase 5). Os
-   Indicadores nao tem um campo de formulario: pinta-los como as outras
-   oito dizia que sao uma coisa que se afina, e nao sao. O risco em cima
-   e a separacao; a folga por baixo dele e o que a faz ler-se. */
-.conf-indice a.so-le{margin-top:12px;padding-top:14px;
- border-top:1px solid var(--linha)}
-.conf-indice a.so-le.on{margin-top:12px;border-top-color:var(--linha)}
+.conf-indice{position:sticky;top:calc(var(--barra-h,56px) + 16px)}
 .conf-cx{padding:18px 22px 22px}
 .conf-form{display:flex;flex-direction:column;gap:12px;max-width:560px}
 .conf-campo{display:flex;flex-direction:column;gap:4px;font:500 11.5px/1.4 var(--sans);color:var(--t3)}
@@ -11080,7 +11067,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--sans);color:var(--ink);
 .tab-ensaio td .ok{color:var(--verde);font-weight:600}
 .tab-ensaio td.n{font:500 12px/1.4 var(--mono);white-space:nowrap}
 .conf-forn .saude{margin:6px 0 10px}
-@media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static;flex-direction:row;flex-wrap:wrap}}
+@media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static}}
 .em-falta{font-weight:400;color:var(--t6);font-style:italic}
 .a-trazer{color:var(--azul)}
 .a-trazer::before{content:'';display:inline-block;width:7px;height:7px;
@@ -15893,39 +15880,59 @@ def pagina_config(seccao, conteudo, script=""):
     """O esqueleto comum: o indice das seccoes a esquerda, preso ao
     rolar como o da ficha, e a seccao a direita."""
     titulo = dict((c, t) for c, t, _, _, _ in SECCOES_CONFIG)[seccao]
+    descricao = dict((c, d) for c, _, d, _, _ in SECCOES_CONFIG)[seccao]
     # Uma seccao do sistema mostra o indice da PLATAFORMA, e nao o da
     # empresa (23/09/2026): sao duas administracoes diferentes.
     da_plataforma = seccao in {sc[0] for sc in seccoes_da_plataforma()}
-    # As que gravam primeiro, e as que so leem apartadas por um risco: um
-    # menu que as pinte iguais diz que os Indicadores sao uma coisa que
-    # se afina, e nao sao.
-    indice = "".join(
-        "<a class='%s%s' href='/configuracoes/%s'><b>%s</b><i>%s</i></a>"
-        % ("on " if c == seccao else "", "" if grava else "so-le",
-           c, html.escape(t), html.escape(d))
-        for c, t, d, _, grava in sorted(
-            seccoes_da_plataforma() if da_plataforma else seccoes_visiveis(),
-            key=lambda sc: not sc[4]))
+    # O indice e o `SectionNav` do sistema desde 24/09/2026: so os nomes
+    # (a descricao vai no `title` e na meta do cartao), o aceso por
+    # `aria-current`, e as que gravam primeiro -- as que so leem ficam
+    # apartadas por um risco e uma nota. Um menu que as pinte iguais diz
+    # que os Indicadores sao uma coisa que se afina, e nao sao.
+    seccoes = sorted(seccoes_da_plataforma() if da_plataforma
+                     else seccoes_visiveis(), key=lambda sc: not sc[4])
+    itens = []
+    for c, t, d, _, grava in seccoes:
+        if not grava and (not itens or "so-le" not in itens[-1]):
+            itens.append("<div class='mg-secnav__sep'></div>"
+                         "<div class='mg-secnav__note'>Só leitura</div>")
+        itens.append("<a class='%s' href='/configuracoes/%s' title='%s'%s>%s</a>"
+                     % ("" if grava else "so-le", c, html.escape(d, quote=True),
+                        " aria-current='page'" if c == seccao else "",
+                        html.escape(t)))
     if da_plataforma:
-        indice = ("<a href='/plataforma'><b>Plataforma</b><i>o resumo, as "
-                  "empresas e os pedidos</i></a>" + indice)
+        itens.insert(0, "<a href='/plataforma' title='o resumo, as empresas "
+                        "e os pedidos'>Plataforma</a>")
+    # o `.conf-indice` leva as regras do `SectionNav` na nossa folha: a
+    # classe fica a que era, que e por ela que os testes o encontram
+    indice = ("<nav class='conf-indice' aria-label='Secções'>%s</nav>"
+              % "".join(itens))
+    # A seccao e um cartao com faixa (o `EcraConfiguracoes`): o nome e o
+    # que ela e na cabeca. As que vem num `conf-cx` so passam a ser o
+    # corpo dele; as que trazem varios blocos ficam por baixo da cabeca.
+    embrulho = "<div class='mg-card conf-cx'>"
+    if conteudo.startswith(embrulho) and conteudo.endswith("</div>") \
+            and conteudo.count(embrulho) == 1:
+        seccao_html = cartao(html.escape(titulo), conteudo[len(embrulho):-6],
+                             meta=html.escape(descricao), banda=True)
+    else:
+        seccao_html = (cartao(html.escape(titulo), "", meta=html.escape(descricao),
+                              banda=True) + conteudo)
+    corpo = ("<div class='conf'>%s<div class='conf-corpo'>%s</div></div>"
+             % (indice, seccao_html))
+    if da_plataforma:
         return envolver(
-            "configuracoes", titulo,
-            "A administração da plataforma: o que é de todas as empresas.",
-            "<div class='conf'><nav class='conf-indice'>%s</nav>"
-            "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
-            migalhas=migalhas_de("configuracoes", titulo), script=script,
-            titulo_aba="%s, Plataforma" % titulo)
+            "configuracoes", titulo, "", corpo,
+            cabeca=cabecalho_de_pagina(
+                "Plataforma", "A administração da plataforma: o que é de "
+                "todas as empresas.", [], ""),
+            script=script, titulo_aba="%s, Plataforma" % titulo)
     return envolver(
-        "configuracoes", titulo,
-        # "Cada seccao grava so o que mostra" saiu a 16/09/2026: descrevia
-        # o que ja se ve (§9) e, pior, era FALSO para os Indicadores, que
-        # nao gravam nada.
-        "Dizer ao Mira Gov como quero que ele trabalhe.",
-        "<div class='conf'><nav class='conf-indice'>%s</nav>"
-        "<div class='conf-corpo'>%s</div></div>" % (indice, conteudo),
-        migalhas=migalhas_de("configuracoes", titulo), script=script,
-        titulo_aba="%s, Configurações" % titulo)
+        "configuracoes", titulo, "", corpo,
+        cabeca=cabecalho_de_pagina(
+            "Configurações", "Dizer ao Mira Gov como quero que ele trabalhe.",
+            [], ""),
+        script=script, titulo_aba="%s, Configurações" % titulo)
 
 
 @app.route("/plataforma")
