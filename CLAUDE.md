@@ -506,12 +506,12 @@ A ordem do ficheiro é a ordem do fluxo:
    `/tipo/<nome>`, por lista branca (`TIPOS`).
 8d. **o sistema de desenho** — quatro folhas em `estilo/`, do pacote
    `radargov-migracao` (**fases 1 e 2 feitas a 21-22/09/2026**;
-   `docs/historico/MIGRACAO.md`): `radargov-tokens.css` (24 variáveis,
-   três temas — claro, escuro, contraste), `radargov-pontes.css` (as 44
+   `docs/historico/MIGRACAO.md`): `miragov-tokens.css` (24 variáveis,
+   três temas — claro, escuro, contraste), `miragov-pontes.css` (as 44
    variáveis **antigas** apontadas às novas, para o CSS de 23 mil linhas
    mudar de paleta sem se tocar numa regra) e
-   `radargov-componentes.css` (as classes `.rg-*`, **inertes** até à
-   fase 2: está tudo dentro de `.rg`, e nenhum molde carimba essa classe
+   `miragov-componentes.css` (as classes `.mg-*`, **inertes** até à
+   fase 2: está tudo dentro de `.mg`, e nenhum molde carimba essa classe
    ainda). Entram por `ler_estilo()`, e **se faltarem o painel serve na
    mesma**.
    **A ordem do `CSS_TUDO` não é a que o plano diz, e a razão está
@@ -520,14 +520,14 @@ A ordem do ficheiro é a ordem do fluxo:
    o bloco `[data-pele=novo]{--azul:…}` do `CSS_NOVO` ganha-lhes e nada
    muda de cor. Os três moldes carimbam `data-theme="claro"` (o
    `data-tipo` saiu). A quarta folha é **nossa**:
-   `radargov-radar.css`, o pouco que o radar precisa e o sistema ainda
+   `miragov-radar.css`, o pouco que o radar precisa e o sistema ainda
    não tem (as vistas da barra, a barra a dobrar, o menu da conta, os
    dois ecrãs fora do molde). **É o único sítio onde se escreve CSS de
    componente que não venha do design system** — assim o
-   `radargov-componentes.css` fica igual ao que o sistema publica.
-   Da **fase 2**: a barra é `.rg-topbar`, o aceso é `aria-current` e
+   `miragov-componentes.css` fica igual ao que o sistema publica.
+   Da **fase 2**: a barra é `.mg-topbar`, o aceso é `aria-current` e
    não uma classe, a marca é o lockup (`logotipo()`, com o disco da
-   bandeira no lugar do ó), o `<main>` leva `.rg`, e o `PAGINA_ENTRAR`
+   bandeira no lugar do ó), o `<main>` leva `.mg`, e o `PAGINA_ENTRAR`
    e o `PAGINA_ERRO` passaram aos componentes. Os 49 ícones estão em
    **`icones.py`** e servem-se por `icone(nome)`; **se o módulo faltar,
    o painel serve na mesma**. Ver a área «A interface» das armadilhas

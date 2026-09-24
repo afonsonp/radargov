@@ -2747,7 +2747,7 @@ botões ou no calendário.
   antigo era o quase-preto da barra, o novo é a cor do texto.
 
 - **Um teste que procura `--nome:` num CSS apanha pseudo-classes.** O
-  `.rg-btn--danger:hover` lê-se como uma definição de `--danger`, e o
+  `.mg-btn--danger:hover` lê-se como uma definição de `--danger`, e o
   primeiro feitio do teste acima acusava a folha de redefinir metade
   dos tokens. Uma definição vem sempre a seguir a um `{` ou a um `;`
   (`[{;]\s*(--[a-z0-9-]+)\s*:`), e os comentários tiram-se antes —
@@ -2755,7 +2755,7 @@ botões ou no calendário.
 
 - **Uma regra do CSS antigo ganha a uma classe do sistema, e a página
   fica com metade de cada** (22/09/2026, fase 2). A `PAGINA_ENTRAR` foi
-  refeita com `.rg-field__input` (0,1,0), e a borda continuou a ser a
+  refeita com `.mg-field__input` (0,1,0), e a borda continuou a ser a
   antiga: `.entrar input` é (0,1,1) e ganha. **Não basta trocar o
   markup — as regras que ele deixou para trás têm de sair**, senão o
   ecrã fica com o desenho novo e os detalhes do velho, que é pior do
@@ -2777,7 +2777,7 @@ botões ou no calendário.
   que se vê — a forma é a mesma.
 
 - **O `.gitignore` guarda segredos por padrão largo, e um padrão largo
-  apanha inocentes.** O `*token*` apanhou o `radargov-tokens.css`, que é
+  apanha inocentes.** O `*token*` apanhou o `miragov-tokens.css`, que é
   a paleta: o ficheiro central da migração não entrava no repositório, e
   uma instalação nova ficava sem paleta nenhuma sem nada o dizer. A
   excepção escreve-se com **um caminho**, nunca com `*.css`, e prova-se
