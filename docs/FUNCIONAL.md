@@ -1,6 +1,6 @@
 # Documento funcional — RadarGov
 
-> **Última revisão: 23 de setembro de 2026**, sobre a `v1.14.0`. Este
+> **Última revisão: 24 de setembro de 2026**, sobre a `v2.0.0`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -115,8 +115,8 @@ as exactas e salta as outras.
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **1** | Quem entra |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
-| `estado` | 17 | Marcas do sistema (última verificação, migrações feitas) |
-| `entradas_falhadas` | 1 | Tentativas de login falhadas |
+| `estado` | 14 | Marcas do sistema (última verificação, migrações feitas) |
+| `entradas_falhadas` | 0 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
 | `pedidos_acesso` | **0** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
@@ -157,9 +157,9 @@ comparadas antes de apagar.
 
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `propostas` | **81** | O que a **empresa** está a fazer — a escada |
+| `propostas` | **0** — não há empresas desde 23/09/2026 (eram 81 na LATD) | O que a **empresa** está a fazer — a escada |
 | `tarefas` | dezenas | O que falta fazer, por proposta. A verificação sincroniza-as |
-| `contactos` | **26** | As pessoas do lado de lá, **por entidade** |
+| `contactos` | **0** (eram 26 na LATD) | As pessoas do lado de lá, **por entidade** |
 | `historico` | uma por movimento | Quem, o quê, quando — o que a **empresa** fez. Cresce a **cada acção** no painel; o que o DR e as peças fizeram está nos `eventos` |
 | `pessoas` | 4 | Os nomes que a lista de «responsável» sugere |
 | `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |
