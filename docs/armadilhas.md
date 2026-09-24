@@ -2586,11 +2586,12 @@ botões ou no calendário.
   onde fica a chave nesses dois atributos; o `ENTIDADES_JS` não sabe de
   mais nada.
 
-- **Os blocos de filtro da lista vivem dentro de um `<details
-  class='painel-filtros'>`, recolhido por omissão** (8/09/2026, os
-  P2/P3 da UX-Auditoria que o Afonso aprovou). Abre sozinho com filtro
-  aplicado (`filtro_em_uso != "estado=" + aba`) e o JS lembra o
-  estado em `localStorage`. O JS da árvore continua a procurar
+- **A árvore dos CPV da lista vive dentro de um `<details
+  class='painel-filtros arvore-cpv'>`, recolhido por omissão**; os
+  campos estão fora dele, à vista, desde 24/09/2026 (o `EcraConcursos`;
+  de 8/09 a 24/09 estava tudo recolhido, os P2/P3 da UX-Auditoria). Abre
+  sozinho com um CPV escolhido e o JS lembra o estado em
+  `localStorage`. O JS da árvore continua a procurar
   `details.arvore` no documento inteiro, por isso aninhá-la não a
   parte — mas um `id` novo lá dentro tem de continuar único na página.
   Na mesma sessão entraram o **teclado da lista** (`j k i a Enter`,

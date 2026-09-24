@@ -10437,10 +10437,13 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         self.assertNotIn("getElementById('painel-filtros')", radar.LISTA_JS)
 
     def test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro(self):
+        # Desde 24/09/2026 o que se recolhe e so a arvore dos CPV (os
+        # campos sao uma linha, a vista, como no `EcraConcursos`): abre
+        # sozinha quando ha um CPV escolhido.
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
-        self.assertIn("<details class='painel-filtros' id='painel-filtros'>", html_)
+        self.assertIn("<details class='painel-filtros arvore-cpv' id='painel-filtros'>", html_)
         html_ = self.cliente.get(radar.LISTA + "?cpv=72000000").get_data(as_text=True)
-        self.assertIn("<details class='painel-filtros' id='painel-filtros' open>", html_)
+        self.assertIn("<details class='painel-filtros arvore-cpv' id='painel-filtros' open>", html_)
         # O resumo do filtro fica na linha, para se saber o que está
         # posto. Recorta-se o <summary> DOS FILTROS e não o primeiro da
         # página: desde 16/09/2026 há o «?» do título antes dele
@@ -10451,8 +10454,10 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
 
     def test_os_blocos_continuam_la_dentro_e_os_guardados_sairam(self):
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
-        dentro = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
-        self.assertIn("class='mg-card filtros'", dentro)
+        # os campos estao a vista desde 24/09/2026, fora de qualquer
+        # <details>; a arvore dos CPV e que fica recolhida
+        antes = html_.split("class='mg-card filtros'")[0]
+        self.assertEqual(antes.count("<details"), antes.count("</details>"))
         # 13/09/2026: a caixa "Filtros guardados" saiu das listas; o que
         # era guardar um filtro passou a ser o Interesse e os alertas
         self.assertNotIn("Filtros guardados", html_)
@@ -12335,9 +12340,11 @@ class TestFiltrosSimples(BaseTemporaria):
 
     def test_a_lista_tem_so_os_quatro_campos_e_a_arvore_em_cima(self):
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
-        painel = html_.split("<details class='painel-filtros'")[1].split("</details>\n")[0]
-        self.assertLess(painel.index("details class='arvore'"), painel.index("class='mg-card filtros'"))
-        form = painel.split("class='mg-card filtros'")[1].split("</form>")[0]
+        # Desde 24/09/2026 (o `EcraConcursos`) os campos estão à vista e a
+        # árvore dos CPV fica por baixo, recolhida
+        self.assertLess(html_.index("class='mg-card filtros'"),
+                        html_.index("details class='arvore'"))
+        form = html_.split("class='mg-card filtros'")[1].split("</form>")[0]
         for campo in ("name='q'", "name='ent'", "name='plat'", "name='de'", "name='ate'"):
             self.assertIn(campo, form)
         for campo in ("name='q_excl'", "name='op'", "name='prazo'"):
