@@ -415,11 +415,12 @@ Alertas** gerem-se os alertas e configura-se o e-mail e a janela do
 secção própria. O resumo chega formatado — um cartão
 por anúncio, com o prazo colorido como na lista — e o mesmo conteúdo
 fica em texto no `AVISOS.txt`. Em **Mercado** vivem os **Contratos**
-(o que já foi adjudicado, com gráficos sobre o filtro), com dois modos
-no mesmo ecrã: **por celebração** e **por fim estimado** — as antigas
+(o que já foi adjudicado, com **quem ganha** e **quem compra** numa
+coluna ao lado da tabela, sobre o mesmo filtro), com dois modos no
+mesmo ecrã: **por celebração** e **por fim estimado** — as antigas
 Renovações, agora uma aba que mantém o filtro e mostra o que está a
-chegar ao fim (o modo diz-se no título da tabela, e as datas de
-celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
+chegar ao fim (o modo diz-se na frase por baixo do título e na aba
+acesa, e as datas de celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
 de cada entidade**, com uma ligação directa a «o que está a acabar»
 dela — e há a vista **Entidades** na barra, descrita no §5, «A ficha de
 uma entidade». (Estava aqui a lista das abas outra vez, e ainda dizia
