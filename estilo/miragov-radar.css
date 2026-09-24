@@ -376,3 +376,29 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
    vê, e deixá-la cinzenta-escura até à fase 2 era mostrar meia mudança.
    O menu da conta pendura-se da barra e acompanha-a. */
 [data-theme] .barra, [data-theme] .sou .sou-menu { background: var(--surface-header); }
+
+/* ENTRAR (24/09/2026, o `EcraEntrar`): o painel institucional a
+   esquerda, com os numeros da plataforma, e o formulario minimo a
+   direita. Abaixo de 800px o painel vai para cima, mais baixo. */
+main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.entrar-lado{background:var(--surface-header);color:var(--on-header);
+ padding:var(--space-7);border-radius:0 var(--radius-xl) var(--radius-xl) 0;
+ display:flex;flex-direction:column;justify-content:space-between;gap:var(--space-6)}
+.entrar-lado h1{margin:0;font:600 40px/44px var(--font-serif)}
+.entrar-lado small{display:block;font:400 14px/20px var(--font-sans);
+ color:var(--on-header-muted);margin-top:var(--space-2)}
+.entrar-lado p{font:400 15px/22px var(--font-sans);color:var(--on-header-muted);
+ max-width:36ch;margin:0}
+.entrar-lado .kv{display:flex;flex-wrap:wrap;gap:var(--space-6);
+ font:400 13px/18px var(--font-sans);color:var(--on-header-muted)}
+.entrar-lado .kv b{display:block;font:600 22px/28px var(--font-mono);color:var(--on-header)}
+.entrar-form{display:flex;align-items:center;justify-content:center;padding:var(--space-7)}
+.entrar-cx{width:min(380px,100%);display:flex;flex-direction:column;gap:var(--space-4)}
+.entrar-cx h2{margin:0;font:600 22px/28px var(--font-serif);color:var(--ink)}
+.entrar-cx form{display:flex;flex-direction:column;gap:var(--space-4)}
+.entrar-nota{margin:0;font:400 13px/18px var(--font-sans);color:var(--ink-muted)}
+.entrar-nota a{color:var(--link)}
+@media (max-width:800px){main.entrar-duas{grid-template-columns:minmax(0,1fr);min-height:0}
+ .entrar-lado{border-radius:0 0 var(--radius-xl) var(--radius-xl);padding:var(--space-6)}
+ .entrar-lado h1{font-size:32px;line-height:36px}
+ .entrar-form{padding:var(--space-6) var(--space-4)}}

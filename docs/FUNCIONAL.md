@@ -683,9 +683,17 @@ pedidos de acesso e o «Verificar agora» (`seccoes_visiveis()` /
 `seccoes_da_plataforma()`). O dono **não vê** os
 dados das empresas clientes, e **não é de empresa nenhuma** (23/09/2026,
 decisão dele): o `apagar_empresa()` deixa-o com `empresa_id` 0
-(`SEM_EMPRESA`, `contas.sem_empresa()`), o `liga()` não junta ficheiro
-nenhum, e a porta só lhe abre a plataforma e o sair — tudo o resto
-redirecciona para `/plataforma` (um POST dá 403). Para trabalhar numa
+(`SEM_EMPRESA`, `contas.sem_empresa()`). Desde 24/09/2026 (pedido dele:
+«na página de dono não consigo ver concursos nem o mercado») a porta
+abre-lhe, **só para ler**, o que é da plataforma: os Concursos (as
+pontas), a ficha do anúncio e as peças, o Mercado, as Entidades e o
+CSV (`LEITURA_DO_DONO`, `dono_le()`). A barra dele tem só esses dois
+itens e a Plataforma; a ficha não tem os botões da escada nem a coluna
+do trabalho. O `liga()` junta-lhe uma empresa **vazia e só de leitura**
+(`_empresa_vazia()`), para as perguntas pelas propostas darem zero em
+vez de rebentarem. O resto — as Propostas, o Hoje, o Calendário, as
+Configurações da empresa — continua a redireccionar para `/plataforma`,
+e um POST dá 403. Para trabalhar numa
 empresa usa outra conta, dela. No acesso livre **sem conta nenhuma** as duas respostas são sim,
 senão não se chegava a Conta para criar a primeira.
 

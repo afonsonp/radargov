@@ -55,7 +55,7 @@ duas bases; os das empresas, de **24/09/2026**.
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
-| Contas | 1: a do dono, **sem empresa** (só abre a `/plataforma`) |
+| Contas | 1: a do dono, **sem empresa** (abre a `/plataforma` e lê os Concursos e o Mercado) |
 | Rotas Flask | 89 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |

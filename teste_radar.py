@@ -13174,7 +13174,9 @@ class TestDonoSemEmpresa(BaseTemporaria):
         self.assertEqual(r.status_code, 302)
         self.assertEqual(cliente.get("/plataforma", environ_base=self.FORA)
                          .status_code, 200)
-        r = cliente.get(radar.LISTA, environ_base=self.FORA)
+        # desde 24/09/2026 os Concursos abrem (sao dados da plataforma):
+        # as Propostas, que sao de uma empresa, e que continuam fechadas
+        r = cliente.get(radar.PROPOSTAS, environ_base=self.FORA)
         self.assertEqual((r.status_code, r.headers["Location"]), (302, "/plataforma"))
         falhas = []
         for regra in radar.app.url_map.iter_rules():
@@ -13185,6 +13187,60 @@ class TestDonoSemEmpresa(BaseTemporaria):
                 falhas.append((regra.rule, codigo))
         self.assertEqual(falhas, [])
         self.assertEqual(radar.empresas_existentes(), [])   # nada a criou
+
+
+class TestDonoVeOsDadosDaPlataforma(TestDonoSemEmpresa):
+    """24/09/2026, pedido dele: «na página de dono não consigo ver
+    concursos nem o mercado». Os anúncios e os contratos são da
+    PLATAFORMA, e não de uma empresa: o dono sem empresa lê-os. O que
+    continua fechado é o que grava e o trabalho de uma empresa (as
+    propostas, o Hoje, o calendário, as tarefas)."""
+
+    def _cliente(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo, preco_base, cpv, texto) VALUES "
+                      "('1/2026','Software','CML','novo','2026-09-01',"
+                      "'2099-12-01','118.500,00 EUR','72000000',"
+                      "'6 - OBJETO DO CONTRATO')")
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": "admin", "senha": "senha-comprida"},
+                     environ_base=self.FORA)
+        return cliente
+
+    def test_abre_os_concursos_a_ficha_e_o_mercado(self):
+        cliente = self._cliente()
+        for pagina in (radar.LISTA, radar.LISTA + "?estado=expirou",
+                       "/anuncio/1%2F2026", "/contratos", "/entidades"):
+            r = cliente.get(pagina, environ_base=self.FORA)
+            self.assertEqual(r.status_code, 200, pagina)
+        corpo = cliente.get(radar.LISTA, environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("1/2026", corpo)
+        # sem botões que gravam: o dono não tem escada nenhuma onde pôr
+        self.assertNotIn("/estado/1%2F2026/analisar", corpo)
+        self.assertNotIn("/estado/1%2F2026/analisar",
+                         cliente.get("/anuncio/1%2F2026", environ_base=self.FORA)
+                         .get_data(as_text=True))
+
+    def test_o_trabalho_de_uma_empresa_continua_fechado(self):
+        cliente = self._cliente()
+        for pagina in ("/", radar.PROPOSTAS, radar.LISTA + "?estado=analisar",
+                       "/calendario", "/configuracoes/alertas"):
+            r = cliente.get(pagina, environ_base=self.FORA)
+            self.assertEqual((r.status_code, r.headers.get("Location")),
+                             (302, "/plataforma"), pagina)
+        r = cliente.post("/estado/1%2F2026/analisar", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(radar.empresas_existentes(), [])   # nada a criou
+
+    def test_a_barra_do_dono_so_mostra_o_que_ele_abre(self):
+        cliente = self._cliente()
+        barra = (cliente.get(radar.LISTA, environ_base=self.FORA)
+                 .get_data(as_text=True).split("</header>")[0])
+        for item in (">Concursos<", ">Mercado<", ">Plataforma<"):
+            self.assertIn(item, barra)
+        for item in (">Propostas<", ">Calendário<", ">Configurações<"):
+            self.assertNotIn(item, barra)
 
 
 class TestLimparMarcasDeUso(BaseTemporaria):
