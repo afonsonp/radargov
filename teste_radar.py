@@ -8423,7 +8423,8 @@ class TestColunasSeguemARanhura(BaseTemporaria):
         self._proposta("analisar")
         colunas, _ = self._colunas("analisar")
         self.assertIn("Lote", colunas)
-        self.assertIn("Responsável", colunas)
+        # «Resp.» desde 24/09/2026, o cabeçalho do `EcraPropostas`
+        self.assertIn("Resp.", colunas)
 
 
 class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
