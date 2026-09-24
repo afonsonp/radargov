@@ -380,7 +380,31 @@ def liga():
     emp = db_da_empresa()
     if os.path.exists(emp):
         c.execute("ATTACH DATABASE ? AS emp", (emp,))
+    elif empresa_activa() == SEM_EMPRESA:
+        # O dono sem empresa le os dados da plataforma (24/09/2026), e
+        # as paginas que os mostram tambem perguntam pelas propostas,
+        # pelos contactos, pelas tarefas. Em vez de uma guarda em cada
+        # consulta, junta-se uma empresa VAZIA: as perguntas dao zero
+        # linhas. E so de leitura -- um GET que tentasse gravar la da erro,
+        # e nao grava em silencio num sitio que ninguem ve.
+        c.execute("ATTACH DATABASE ? AS emp", (_empresa_vazia(),))
     return c
+
+
+_EMPRESA_VAZIA = []
+
+
+def _empresa_vazia():
+    """O ficheiro de uma empresa sem nada: o esquema do `iniciar_empresa()`
+    num sitio temporario, feito uma vez por processo (assim leva sempre
+    o esquema de agora) e posto so de leitura."""
+    if not _EMPRESA_VAZIA:
+        caminho = os.path.join(tempfile.mkdtemp(prefix="mira-vazia-"),
+                               "empresa.db")
+        iniciar_empresa(caminho)
+        os.chmod(caminho, 0o444)
+        _EMPRESA_VAZIA.append(caminho)
+    return _EMPRESA_VAZIA[0]
 
 
 # As seis colunas do quadro viveram aqui, com a tabela `fases`, os
@@ -9771,6 +9795,26 @@ def sou_dono():
     return contas.e_dono(utilizador)
 
 
+# O que o dono da plataforma SEM empresa pode LER (24/09/2026, pedido
+# dele: «na página de dono não consigo ver concursos nem o mercado»). Os
+# anúncios, as peças e os contratos são da plataforma, e não de uma
+# empresa. Só GET: gravar continua a precisar de uma empresa, e as
+# ranhuras da empresa (as propostas) ficam fora -- ver dono_le().
+LEITURA_DO_DONO = ("/concursos", "/anuncio/", "/documento/", "/peca/",
+                   "/peca-pagina/", "/contratos", "/entidades",
+                   "/entidade/", "/csv", "/cpv.json")
+
+
+def dono_le(caminho, args=None):
+    """Se o dono sem empresa pode abrir este caminho (por GET). O
+    `/concursos` so nas pontas: `?estado=<ranhura da empresa>` e a
+    lista das propostas, que sao de uma empresa."""
+    if caminho == LISTA:
+        return ((args or {}).get("estado") or "") not in CHAVES_DA_EMPRESA
+    return any(caminho == r.rstrip("/") or caminho.startswith(r)
+               for r in LEITURA_DO_DONO if r != LISTA)
+
+
 def so_dono(caminho):
     return any(caminho == r or caminho.startswith(r + "/")
                for r in ROTAS_SO_DONO)
@@ -9899,7 +9943,9 @@ def porta_de_entrada():
     # Sem empresa, so a plataforma e sair: o resto e trabalho de uma
     # empresa, e nao ha nenhuma para mostrar.
     if empresa_activa() == SEM_EMPRESA and not so_dono(request.path) \
-            and request.path not in ("/sair", "/sair-de-todos"):
+            and request.path not in ("/sair", "/sair-de-todos") \
+            and not (request.method == "GET"
+                     and dono_le(request.path, request.args)):
         if request.method == "GET":
             return redirect("/plataforma")
         return Response("esta conta não é de nenhuma empresa", 403,
@@ -10086,9 +10132,15 @@ def destino_seguro(para):
 PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entrar — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
-<body class="entrar-fundo"><main class="mg entrar">
- %(logo)s
- <h1>Entrar</h1>
+<body class="entrar-fundo"><main class="mg entrar-duas">
+ <section class="entrar-lado">
+  <div><h1>%(logo)s</h1><small>Vigilância de concursos públicos</small></div>
+  <p>Lê o Diário da República e as plataformas ao longo do dia, traz as
+  peças, e põe no mesmo sítio o que há para decidir.</p>
+  <div class="kv">%(numeros)s</div>
+ </section>
+ <section class="entrar-form"><div class="entrar-cx">
+ <h2>Entrar</h2>
  %(aviso)s
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="%(para)s">
@@ -10098,13 +10150,39 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
+ <p class="entrar-nota">Sem conta? <a href="/#acesso">Pede acesso</a>.</p>
+ </div></section>
 </main></body></html>"""
+
+
+def _numeros_da_entrada():
+    """Os tres numeros do painel azul do `EcraEntrar` (24/09/2026): o
+    que a plataforma tem, e nada de uma empresa -- a pagina e publica, e
+    antes de entrar nao ha empresa nenhuma. Se uma consulta falhar, o
+    numero sai e a pagina serve na mesma: entrar nao pode depender dele."""
+    numeros = []
+    try:
+        with liga() as c:
+            n = c.execute("SELECT COUNT(*) FROM anuncios").fetchone()[0]
+        numeros.append((mil_pt(n), "anúncios na base"))
+    except sqlite3.Error:
+        pass
+    try:
+        if ha_corpus():
+            numeros.append((mil_pt(ha_corpus()), "contratos no corpus"))
+    except sqlite3.Error:
+        pass
+    ultima = le_marca("ultima_verificacao", "")
+    if ultima:
+        numeros.append((html.escape(ultima.split()[-1]), "última recolha"))
+    return "".join("<span><b>%s</b>%s</span>" % par for par in numeros)
 
 
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
     return Response(PAGINA_ENTRAR % {
         "css": LIGACAO_CSS,
-        "logo": logotipo(tamanho=28),
+        "logo": logotipo(tamanho=40, inverso=True),
+        "numeros": _numeros_da_entrada(),
         "aviso": ("<div class='mg-alert mg-alert--danger'>%s</div>" % html.escape(aviso)
                   if aviso else ""),
         "email": html.escape(email, quote=True),
@@ -12590,7 +12668,14 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     # curso" ou "Mercado" que as duas vistas de cada um aparecem.
     item_activo = ITEM_DA_PAGINA.get(activo)
     itens = []
+    # O dono sem empresa ve so o que abre (24/09/2026): os Concursos e o
+    # Mercado, que sao da plataforma, e a Plataforma no lugar das
+    # Configuracoes. Uma barra com itens que devolvem a /plataforma era
+    # o «nao abre nada» dele.
+    sem_empresa = empresa_activa() == SEM_EMPRESA
     for chave, etiqueta, destino, vistas in NAV:
+        if sem_empresa and chave not in ("anuncios", "mercado"):
+            continue
         no_item = chave == item_activo
         # `aria-current="page"` e nao uma classe `.on` (fase 2 da
         # migracao): e o mesmo sinal para o CSS e para quem le com um
@@ -12610,10 +12695,13 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
 
     # As Configuracoes sao o quinto item (24/09/2026): viviam no canto
     # oposto, sozinhas, e a barra do sistema poe-nas no fim da navegacao.
-    itens.append("<a class='mg-topbar__link' href=\"/configuracoes\"%s "
-                 "title='A conta, o interesse, os alertas e o resto das "
-                 "configurações'>Configurações</a>"
-                 % (" aria-current='page'" if activo == "configuracoes" else ""))
+    if sem_empresa:
+        itens.append("<a class='mg-topbar__link' href='/plataforma'>Plataforma</a>")
+    else:
+        itens.append("<a class='mg-topbar__link' href=\"/configuracoes\"%s "
+                     "title='A conta, o interesse, os alertas e o resto das "
+                     "configurações'>Configurações</a>"
+                     % (" aria-current='page'" if activo == "configuracoes" else ""))
 
     # A ultima verificacao saiu da barra a 13/09/2026: esta nos
     # Indicadores (linha_da_ultima_verificacao()), que passaram a seccao
@@ -12821,7 +12909,9 @@ def linha(a, vista="", urgente=None, na_escada=None):
     # palavras a serio.
     aqui = list((na_escada or {}).get(a["ref"], ()))
     botoes = []
-    if not aqui:
+    if empresa_activa() == SEM_EMPRESA:
+        pass        # o dono le; a escada e de uma empresa (24/09/2026)
+    elif not aqui:
         botoes.append(accao("/estado/%s/analisar" % quote(a["ref"], safe=""),
                             "Interessa", "mini verde"))
         botoes.append(forma_abandonar(a["ref"], etiqueta="Abandonar",
@@ -20188,7 +20278,8 @@ def ficha(ref):
                     "title='o endereço das peças que o anúncio indica'>"
                     "Peças na plataforma</a>"
                     % html.escape(a["link_pecas"], quote=True))
-    if not minhas and not e_alteracao:
+    sem_empresa = empresa_activa() == SEM_EMPRESA
+    if not minhas and not e_alteracao and not sem_empresa:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
                              "Interessa", "bt verde"))
         decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
@@ -20455,6 +20546,8 @@ def ficha(ref):
 
     # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
     # explicava foi para o "?" e NAO se apagou.
+    if sem_empresa:
+        accoes_pecas = pe_pecas = ""
     docs_cx = cartao(
         "Peças do procedimento", corpo_docs + leitor, meta=meta_pecas,
         accoes=accoes_pecas, pe=pe_pecas, id_="pecas",
@@ -20506,8 +20599,10 @@ def ficha(ref):
     entradas.append(("pecas", "Peças"))
     if desfecho_html:
         entradas.append(("desfecho", "Desfecho"))
-    entradas += [("mercado", "Mercado"), ("proposta", "A nossa proposta"),
-                 ("contactos", "Contactos"), ("historico", "Histórico")]
+    entradas.append(("mercado", "Mercado"))
+    if not sem_empresa:
+        entradas += [("proposta", "A nossa proposta"),
+                     ("contactos", "Contactos"), ("historico", "Histórico")]
     indice = ("<nav class='ficha-indice' aria-label='Nesta página'><ul>%s</ul></nav>"
               % "".join("<li><a href='#%s'>%s</a></li>" % e for e in entradas))
 
@@ -20523,8 +20618,12 @@ def ficha(ref):
                 # mercado: na coluna estreita cortavam-se as colunas
                 "<div id='mercado'>" + homologos_cx(a, ch_ent) +
                 mercado(a) + "</div></div>"
-                "<div class='ficha-lado'>" + prazo_cx + proposta_cx(a) +
-                contactos_cx(a) + hist_cx + resp_cx + "</div></div></div>")
+                "<div class='ficha-lado'>" + prazo_cx +
+                # o dono sem empresa le o anuncio; a proposta, os
+                # contactos e o historico sao de uma empresa (24/09/2026)
+                ("" if sem_empresa else
+                 proposta_cx(a) + contactos_cx(a) + hist_cx + resp_cx) +
+                "</div></div></div>")
 
     # Enquanto as pecas nao chegam, a pagina volta a pedir-se sozinha. O
     # trabalhador poe sempre um estado terminal, por isso isto para.
