@@ -5409,8 +5409,10 @@ class TestCaminhoDeVoltaDaFicha(BaseTemporaria):
         self.assertEqual(self._volta("http://localhost/"), radar.LISTA)
 
     def test_a_seta_da_ficha_aponta_mesmo_para_ali(self):
+        # Desde 24/09/2026 (o `EcraFicha`) a seta deu lugar à primeira
+        # migalha, «Concursos», que leva ao mesmo sítio.
         html_ = self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
-        self.assertIn("<a class='volta' href='%s'>" % radar.LISTA, html_)
+        self.assertIn("<li><a href='%s'>Concursos</a></li>" % radar.LISTA, html_)
 
     def test_procurar_dentro_de_uma_ranhura_encontra_por_pedaco(self):
         """O `para_like()` só ESCAPA os caracteres especiais — os
@@ -8444,7 +8446,7 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
 
     def test_toda_a_ancora_da_pagina_esta_no_indice(self):
         corpo = self._ficha()
-        indice = corpo.split("<div class='ficha-indice'>")[1].split("</div>")[0]
+        indice = corpo.split("class='ficha-indice'")[1].split("</nav>")[0]
         for bloco in self.BLOCOS:
             if "id='%s'" % bloco not in corpo:
                 continue                      # esse bloco não está nesta ficha
@@ -8476,7 +8478,7 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
         salta para um bloco que não existe é a mesma mentira ao
         contrário."""
         corpo = self._ficha()
-        indice = corpo.split("<div class='ficha-indice'>")[1].split("</div>")[0]
+        indice = corpo.split("class='ficha-indice'")[1].split("</nav>")[0]
         for bloco in self.BLOCOS:
             if "href='#%s'" % bloco in indice:
                 self.assertIn("id='%s'" % bloco, corpo, bloco)
@@ -11165,14 +11167,21 @@ class TestEcraEstreito(unittest.TestCase):
     def test_as_grelhas_de_duas_colunas_passam_a_uma(self):
         b = self.bloco()
         self.assertIn(".item{grid-template-columns:minmax(0,1fr)}", b)
-        self.assertIn(".essencial .par{grid-template-columns:minmax(0,1fr)", b)
+        # a ficha passou ao `EcraFicha` a 24/09/2026: os factos em pares
+        # sao da nossa folha, e passam a uma coluna abaixo de 720px
+        self.assertIn(".ficha-factos{grid-template-columns:minmax(0,1fr)}",
+                      radar.ler_estilo("miragov-radar.css"))
         self.assertIn(".kpis{grid-template-columns:repeat(2,minmax(0,1fr))}", b)
 
     def test_o_que_e_largo_rola_dentro_de_si_e_nao_na_pagina(self):
         b = self.bloco()
-        for regra in (".abas{overflow-x:auto", ".ficha-indice{gap:14px;overflow-x:auto",
+        for regra in (".abas{overflow-x:auto",
                       ".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
             self.assertIn(regra, b, regra)
+        # o indice da ficha sao pilulas desde 24/09/2026: dobram, e por
+        # isso nao ha nada a rolar de lado
+        self.assertIn(".ficha-indice ul{display:flex;flex-wrap:wrap",
+                      radar.ler_estilo("miragov-radar.css"))
         # o viewport esta declarado, senao o browser do telemovel finge 980px
         self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', radar.BASE)
 
@@ -11974,7 +11983,7 @@ class TestVigilanciaDasPecas(BaseTemporaria):
         self._peca(ref, "Caderno de Encargos.pdf")
         cliente = radar.app.test_client()
         html_ = cliente.get("/anuncio/" + ref).get_data(as_text=True)
-        self.assertIn("Ver se há peças novas", html_)
+        self.assertIn("Verificar peças novas", html_)
         self.assertIn("action='/pecas-novas/%s'" % ref, html_)
         antigo = radar.pecas_disponiveis
         try:
