@@ -467,7 +467,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**90 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+**91 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
 (a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
@@ -646,6 +646,11 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 | recolha | horas, janelas, a Vortal |
 | leitura | fornecedor, modelo e chaves do modelo que lê as peças |
 | cópias | a cópia diária (plataforma e empresa) e o ensaio de restauro |
+
+**Como funciona** — `/ajuda` (25/09/2026, do teste com utilizadores),
+no menu da conta: o caminho de todos os dias num parágrafo, e o
+glossário (`GLOSSARIO`) das palavras da aplicação. **As definições de lá
+seguem as deste documento**: uma regra que mude aqui muda lá.
 
 ### 4.9 A porta
 

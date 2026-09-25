@@ -10609,6 +10609,7 @@ def bloco_da_conta():
                 "<span class='mg-avatar'>%s</span>%s"
                 "</summary><div class='mg-menu sou-menu'>"
                 "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
+                "<a class='sou-conta' href='/ajuda'>como funciona</a>"
                 "%s"
                 "<form method='post' action='/sair'>"
                 "<button type='submit'>sair</button></form>"
@@ -17240,6 +17241,111 @@ def conta_criar_utilizador():
              % (contas.email_limpo(email), papel))
     return volta_config("conta", "Utilizador %s criado, como %s."
                         % (contas.email_limpo(email), papel))
+
+
+# O glossario (teste com utilizadores, 25/09/2026): o estagiario sem
+# formacao nao sabia para que servia a aplicacao, e as palavras nao se
+# explicavam -- escada, ranhura, corpus, homologos. Os «?» de cada pagina
+# explicam a pagina; isto explica as palavras, num sitio so. **O dono das
+# definicoes e o `docs/FUNCIONAL.md`**: uma regra que mude la muda aqui.
+GLOSSARIO = (
+    ("O que há para decidir", (
+        ("Concursos", "Os anúncios de contratação pública da parte L da "
+         "2.ª série do Diário da República, e as consultas preliminares da "
+         "Vortal. Entram todos; a triagem faz-se aqui."),
+        ("Por ver", "Os concursos que ainda dão para responder (o prazo não "
+         "passou) e sobre os quais a empresa ainda não decidiu nada."),
+        ("Expirou sem ver", "Os que passaram do prazo sem ninguém decidir. "
+         "Não se apagam: se o prazo for prorrogado, voltam ao «Por ver»."),
+        ("Interessa", "Põe o concurso na escada, em «Por analisar», e manda "
+         "trazer as peças."),
+        ("Abandonar", "Diz que não se vai concorrer, com o motivo. Fica em "
+         "«Não fomos», e pode voltar."),
+        ("Interesse", "Os códigos CPV da empresa (Configurações › "
+         "Interesse). Com ele definido, os Concursos e o Mercado mostram "
+         "só o que cai lá dentro; «ver tudo» levanta-o nessa vista."),
+        ("CPV", "O Vocabulário Comum para os Contratos Públicos: o código "
+         "de oito dígitos que diz o que se compra. Um código mais curto "
+         "(com zeros no fim) apanha tudo o que está por baixo dele."),
+    )),
+    ("As propostas", (
+        ("A escada", "As fases de uma proposta, da decisão ao desfecho: "
+         "Por analisar, A preparar proposta, Submetido, Relatório "
+         "preliminar, Ganho, Perdido, Não fomos e Cancelado. Cada fase é "
+         "uma «ranhura»."),
+        ("O que cada fase pede", "Submetido, Relatório preliminar, Ganho e "
+         "Perdido pedem o preço proposto; o Relatório preliminar pede também "
+         "o lugar; Perdido e Não fomos pedem o motivo. Sem isso a proposta "
+         "não muda de fase."),
+        ("Tarefas", "O que há para fazer. As automáticas nascem das datas do "
+         "anúncio (pedir esclarecimentos, entregar) e acompanham-nas se o "
+         "prazo mudar; as outras escrevem-se à mão."),
+        ("Prazo supletivo", "Quando o anúncio não diz até quando se pedem "
+         "esclarecimentos, vale a regra do art. 50.º do Código dos Contratos "
+         "Públicos: o primeiro terço do prazo. Confirma-se no Programa do "
+         "Concurso."),
+        ("Tipologia", "Consulting (serviços de consultoria) ou turnkey "
+         "(entrega chave-na-mão)."),
+    )),
+    ("As peças", (
+        ("Peças do procedimento", "Os documentos do concurso: o Caderno de "
+         "Encargos, o Programa do Concurso e os anexos. O Mira Gov trá-los "
+         "das plataformas que o deixam fazer sem sessão iniciada."),
+        ("Leitura automática", "Um modelo de linguagem lê o Caderno de "
+         "Encargos e o Programa e resume o que importa (equipa, prazos, "
+         "critérios). É um ponto de partida: confirma-se sempre no "
+         "documento."),
+    )),
+    ("O mercado", (
+        ("Portal BASE", "O registo público dos contratos celebrados, que o "
+         "IMPIC publica todas as semanas. É daí que vem o Mercado."),
+        ("Corpus", "Os contratos do Portal BASE que o Mira Gov tem "
+         "guardados, desde 2015."),
+        ("Entidade", "Quem compra (adjudicante) ou quem ganha "
+         "(adjudicatário). A ficha de uma entidade junta os dois lados e o "
+         "que a empresa já fez com ela."),
+        ("Procedimentos homólogos", "Contratos da mesma entidade com um "
+         "objecto parecido com o do anúncio: as edições anteriores do mesmo "
+         "concurso, com quem ganhou e por quanto."),
+        ("Fecha a", "Quanto abaixo do preço base a entidade costuma "
+         "adjudicar, em média, nos contratos que têm os dois preços."),
+        ("A acabar", "Contratos cujo fim estimado (a data da celebração mais "
+         "o prazo declarado) cai nos próximos meses: o que pode voltar a "
+         "concurso. É estimado: prorrogações não constam do Portal BASE."),
+    )),
+    ("O negócio", (
+        ("Em jogo", "O valor das propostas que ainda estão abertas na "
+         "escada: o preço proposto, a partir de «Submetido»; antes disso, o "
+         "preço base."),
+        ("Taxa de vitória", "Das propostas decididas, quantas se ganharam. "
+         "Só se diz a partir de cinco decididas."),
+        ("Ponto de situação", "Como vai o negócio num período, comparado "
+         "com o período anterior do mesmo tamanho."),
+        ("Alerta", "Um filtro que avisa por e-mail dos concursos novos que "
+         "lhe caem dentro."),
+    )),
+)
+
+
+@app.route("/ajuda")
+def ajuda():
+    """Como funciona, e o que quer dizer cada palavra (GLOSSARIO)."""
+    blocos = "".join(
+        cartao(html.escape(grupo), "<dl class='glossario'>%s</dl>" % "".join(
+            "<dt>%s</dt><dd>%s</dd>" % (html.escape(termo), html.escape(texto))
+            for termo, texto in termos))
+        for grupo, termos in GLOSSARIO)
+    abertura = (
+        "<div class='mg-card conf-cx'><p>O Mira Gov lê os concursos públicos "
+        "ao longo do dia, traz as peças, e põe no mesmo sítio o que há para "
+        "decidir. O caminho de todos os dias é este: em <b>Concursos</b>, "
+        "vês o que chegou e carregas em <b>Interessa</b> ou "
+        "<b>Abandonar</b>; em <b>Propostas</b>, levas o que interessa até "
+        "ao fim; no <b>Hoje</b> (o logótipo) está o que há para fazer; e o "
+        "<b>Mercado</b> diz quem compra, quem ganha, e por quanto.</p></div>")
+    return envolver("ajuda", "Como funciona",
+                    "O que o Mira Gov faz, e o que quer dizer cada palavra.",
+                    "<div class='larg'>%s%s</div>" % (abertura, blocos))
 
 
 @app.route("/configuracoes/conta/utilizadores/convite", methods=["POST"])

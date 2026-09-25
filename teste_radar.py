@@ -8647,6 +8647,16 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
     def test_a_posicao_guarda_se_sem_o_que_e_da_vez(self):
         self.assertIn("['aviso', 'desfazer', 'assin']", radar.LISTA_JS)
 
+    def test_ha_uma_pagina_que_explica_as_palavras(self):
+        """O estagiário do teste de 25/09/2026 não sabia o que eram a
+        escada, o corpus ou os homólogos, e nada o dizia."""
+        r = self.cliente.get("/ajuda")
+        self.assertEqual(r.status_code, 200)
+        h = r.get_data(as_text=True)
+        for _, termos in radar.GLOSSARIO:
+            for termo, _ in termos:
+                self.assertIn("<dt>%s</dt>" % html.escape(termo), h)
+
     def test_o_prazo_esta_por_baixo_do_titulo_da_ficha(self):
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET prazo='2026-10-02' WHERE ref='60/2026'")

@@ -534,3 +534,10 @@ main#conteudo:focus{outline:none}
  .mg-pagehead__title{font-size:22px;line-height:28px}
  .ficha-escada .mg-step__label{font-size:12px;overflow:visible;white-space:normal;
   text-overflow:clip;word-break:normal}}
+
+/* O glossário (/ajuda, 25/09/2026): o termo em cima, a explicação por
+   baixo, com ar entre os pares. */
+dl.glossario{margin:0}
+dl.glossario dt{font-weight:600;color:var(--ink);margin-top:var(--space-3)}
+dl.glossario dt:first-child{margin-top:0}
+dl.glossario dd{margin:2px 0 0;color:var(--ink-secondary);max-width:70ch}
