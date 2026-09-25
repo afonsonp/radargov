@@ -60,8 +60,8 @@ duas bases; os das empresas, de **24/09/2026**.
 | Rotas Flask | 89 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 161**, em ~110 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 25 393 linhas · `teste_radar.py` 15 594 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
+| Testes | **1 185**, em ~110 s, sem rede e sem tocar na base verdadeira |
+| Código | `radar.py` 25 776 linhas · `teste_radar.py` 15 862 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -145,10 +145,13 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.4`**, de
-  25/09/2026 — **três erros que estragavam dados**, do teste com dez
-  perfis de utilizador (o preço com espaços, dois separadores, o «ver
-  tudo»). A `v2.0.3`, do mesmo dia, foi **o miragov.pt**: o painel passa ao endereço novo, e o
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.5`**, de
+  25/09/2026 — **o resto do teste com dez perfis de utilizador**: cada
+  número abre a lista que o confirma, os erros que enganavam (o aviso
+  assinado, as peças, os títulos com controlos do Windows-1252), o
+  telemóvel e a acessibilidade, e as tarefas que já nasceriam atrasadas.
+  A `v2.0.4`, do mesmo dia, foram **três erros que estragavam dados** (o
+  preço com espaços, dois separadores, o «ver tudo»). A `v2.0.3`, do mesmo dia, foi **o miragov.pt**: o painel passa ao endereço novo, e o
   miragov.com e o radargov.pt vão lá ter. A `v2.0.2`, do mesmo dia, foi
   **a varredura**: os ícones nos botões, e as correcções
   das duas voltas (a página já não foge de lado no telemóvel, a escada
