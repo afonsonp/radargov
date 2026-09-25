@@ -57,7 +57,7 @@ duas bases; os das empresas, de **24/09/2026**.
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma` e lê os Concursos e o Mercado), e a admin da LATD |
-| Rotas Flask | 90 |
+| Rotas Flask | 91 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 185**, em ~110 s, sem rede e sem tocar na base verdadeira |
