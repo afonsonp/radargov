@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 18
-- [A interface](#a-interface) &middot; 77
+- [A interface](#a-interface) &middot; 79
 - [Convenções](#convencoes) &middot; 3
 
-São **266** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **268** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2276,6 +2276,19 @@ As regras de desenho da empresa. As medidas estão em
 `docs/design.md`** (16/09/2026) — lê-o antes de mexer em cor, letra,
 botões ou no calendário.
 
+- **O molde `BASE` é formatado com `%`, e o JavaScript dele também:
+  um `%` no guião escreve-se `%%`** (25/09/2026). As setas das abas
+  levavam um `(i + n) % n`, e a bateria inteira caiu — 160 testes, todos
+  com «not enough arguments for format string», porque todas as páginas
+  passam pelo `BASE`.
+- **Abaixo de 600px as tabelas das listas são cartões, e a barra dobra**
+  (`miragov-radar.css`, teste com utilizadores de 25/09/2026). A 390px a
+  tabela dos Concursos media 905px: o prazo e os botões ficavam fora do
+  ecrã, e ao rolar para eles perdia-se o título. Uma coluna nova numa
+  das listas entra também na regra do telemóvel — senão fica encostada
+  ao lado das outras sem rótulo. E a célula leva `height:auto`: a
+  densidade de 36px do sistema, num bloco, punha a linha de baixo por
+  cima da seguinte.
 - **A camada nova de aspecto está toda dentro de `[data-pele=novo]`, e
   os moldes que a carimbam são TRÊS** (16/09/2026, fases 0 e 1 do
   `docs/design.md`): `BASE`, `PAGINA_ENTRAR` e `PAGINA_ERRO`. As duas

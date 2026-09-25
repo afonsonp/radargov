@@ -12459,13 +12459,14 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 <title>%(titulo_aba)s</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 %(css)s</head><body>
+<a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
 <div class="app">
 <header class="mg mg-topbar">
  <a class="mg-topbar__brand" href="/" %(inicio_on)s title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
  <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
  %(conta)s
 </header>
-<main class="mg">
+<main class="mg" id="conteudo" tabindex="-1">
  %(topo)s
  <div class="corpo">%(aviso)s%(conteudo)s</div>
 </main>
@@ -12493,6 +12494,18 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
    `?q=x&adj=&entid=&ganhou=&vencid=&cpv=&de=&ate=`, feio de partilhar).
    E opt-in de proposito: no Hoje, `?quem=` vazio quer dizer «sem dono»,
    e nos Concursos `?estado=` vazio e a aba «Todos». */
+/* As abas tem role=tab, e quem as usa pelo teclado espera as setas (o
+   padrao das abas da WAI-ARIA): passavam so com Tab (teste com
+   utilizadores, 25/09/2026). As setas levam o foco a aba ao lado, e o
+   Enter abre-a, porque cada aba e uma ligacao. */
+document.addEventListener('keydown', function (e) {
+ var aba = e.target.closest && e.target.closest('[role=tab]');
+ if (!aba || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+ var todas = [].slice.call(aba.closest('[role=tablist]').querySelectorAll('[role=tab]'));
+ var i = todas.indexOf(aba) + (e.key === 'ArrowRight' ? 1 : -1);
+ todas[(i + todas.length) %% todas.length].focus();
+ e.preventDefault();
+});
 document.addEventListener('submit', function (e) {
  var f = e.target;
  if (!f.classList || !f.classList.contains('sem-vazios')) return;
@@ -12846,9 +12859,11 @@ def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
     """
     return ("<form class='accao abandonar-js' method='post' "
             "action='/estado/%s/nao_fomos' data-titulo='%s'>"
-            "<button type='submit' class='%s'>%s</button></form>"
+            "<button type='submit' class='%s' aria-label='%s'>%s</button></form>"
             % (quote(ref, safe=""), html.escape(titulo or ref, quote=True),
                botao(classe),
+               html.escape("%s: %s" % (etiqueta.capitalize(),
+                                       corta(titulo or ref, 80)), quote=True),
                etiqueta))
 
 
@@ -12944,7 +12959,8 @@ def caixa_do_motivo():
               "min='1' max='99'></label>")
     titulos = json.dumps({e: estado_da_empresa(e)
                           for e in CAMPOS_QUE_A_RANHURA_EXIGE})
-    return ("<dialog class='mg-dialog' id='dlg-motivo'>"
+    return ("<dialog class='mg-dialog' id='dlg-motivo' "
+            "aria-labelledby='dlg-motivo-titulo'>"
             "<form method='post' class='accao' id='form-motivo'>"
             "<input type='hidden' name='estado' id='dlg-motivo-estado'>"
             "<h3 class='mg-dialog__title' id='dlg-motivo-titulo'></h3>"
@@ -13147,7 +13163,11 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
             volta = ("<form class='accao desfazer' method='post' action='%s'>"
                      "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>desfazer</button>"
                      "</form>" % html.escape(desfazer, quote=True))
-        aviso = "<div class='mg-alert mg-alert--info'>%s%s</div>" % (html.escape(texto_aviso), volta)
+        # role=status: o leitor de ecra le o aviso sozinho. Sem isto, quem
+        # triava pelo teclado nao ouvia se o gesto tinha dado (teste com
+        # utilizadores, 25/09/2026; WCAG 4.1.3).
+        aviso = ("<div class='mg-alert mg-alert--info' role='status'>%s%s</div>"
+                 % (html.escape(texto_aviso), volta))
 
     # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
@@ -13326,8 +13346,12 @@ def linha(a, vista="", urgente=None, na_escada=None):
     if empresa_activa() == SEM_EMPRESA:
         pass        # o dono le; a escada e de uma empresa (24/09/2026)
     elif not aqui:
+        # O nome do botao diz de que concurso e: vinte «Interessa» numa
+        # lista eram vinte botoes iguais para o leitor de ecra (teste com
+        # utilizadores, 25/09/2026; WCAG 2.4.6).
         botoes.append(accao("/estado/%s/analisar" % quote(a["ref"], safe=""),
-                            "Interessa", "mini verde"))
+                            "Interessa", "mini verde",
+                            rotulo="Interessa: %s" % corta(a["titulo"] or a["ref"], 80)))
         botoes.append(forma_abandonar(a["ref"], etiqueta="Abandonar",
                                       titulo=a["titulo"] or ""))
     else:
@@ -13386,18 +13410,37 @@ LISTA_JS = """<script>
 // item da lista isso e descer tudo outra vez -- e como o anuncio triado
 // desaparece do separador "Por ver", os de baixo sobem uma posicao e o
 // clique seguinte cai no anuncio errado.
+//
+// A chave e o endereco SEM o que e da vez (aviso, desfazer, assin): a
+// posicao guardava-se com o endereco de antes e procurava-se com o de
+// depois, que traz o ?aviso= -- e nunca se achava (teste com
+// utilizadores, 25/09/2026). E o foco volta a mesma LINHA da tabela,
+// que depois de triar e a do anuncio seguinte: sem isto, quem triava
+// pelo teclado recomecava do topo, ~25 Tabs por anuncio (WCAG 2.4.3).
 (function () {
-  var chave = 'radar-pos:' + location.pathname + location.search;
+  var q = new URLSearchParams(location.search);
+  ['aviso', 'desfazer', 'assin'].forEach(function (k) { q.delete(k); });
+  var chave = 'radar-pos:' + location.pathname + '?' + q.toString();
+  var linhas = function () {
+    return Array.prototype.slice.call(document.querySelectorAll('main tbody tr'));
+  };
   document.addEventListener('submit', function (e) {
     if (e.target && e.target.classList && e.target.classList.contains('accao')) {
-      try { sessionStorage.setItem(chave, String(window.scrollY)); } catch (x) {}
+      var tr = e.target.closest('tr');
+      var guardar = { y: window.scrollY, linha: tr ? linhas().indexOf(tr) : -1 };
+      try { sessionStorage.setItem(chave, JSON.stringify(guardar)); } catch (x) {}
     }
   }, true);
   var guardado = null;
-  try { guardado = sessionStorage.getItem(chave); } catch (x) {}
-  if (guardado !== null) {
+  try { guardado = JSON.parse(sessionStorage.getItem(chave) || 'null'); } catch (x) {}
+  if (guardado) {
     try { sessionStorage.removeItem(chave); } catch (x) {}
-    window.scrollTo(0, parseInt(guardado, 10) || 0);
+    window.scrollTo(0, parseInt(guardado.y, 10) || 0);
+    var todas = linhas();
+    var alvo = todas[Math.min(guardado.linha, todas.length - 1)];
+    var botao = guardado.linha >= 0 && alvo &&
+        alvo.querySelector('button, select, a[href]');
+    if (botao) botao.focus({ preventScroll: true });
   }
 })();
 // O painel dos filtros NAO se lembra de ter ficado aberto (16/09/2026,
@@ -20882,6 +20925,11 @@ def ficha(ref):
         sub.append("publicado a %s %s" % (
             data_pt(a["data_pub"]),
             "no DR, 2.ª série" if e_do_dr else "na Vortal"))
+    # O prazo logo por baixo do título: no telemóvel so aparecia ao fim
+    # de varios ecras, e e a primeira coisa que se procura (teste com
+    # utilizadores, 25/09/2026).
+    if a["prazo"]:
+        sub.append("<b>propostas até %s</b>" % data_pt(a["prazo"]))
     cabeca_pagina = cabecalho_de_pagina(
         html.escape(a["titulo"] or ref), " &middot; ".join(sub),
         migalhas, "".join(sair + decidir))
@@ -21958,11 +22006,11 @@ def contactos_cx(a):
             "<input type='hidden' name='chave' value='%s'>"
             "<input type='hidden' name='entidade' value='%s'>"
             "<input type='hidden' name='volta' value='%s'>"
-            "<input type='text' name='nome' placeholder='nome' required "
+            "<input type='text' name='nome' placeholder='nome' aria-label='Nome do contacto' required "
             "maxlength='120'>"
-            "<input type='text' name='papel' placeholder='cargo' maxlength='80'>"
-            "<input type='email' name='email' placeholder='e-mail' maxlength='120'>"
-            "<input type='text' name='telefone' placeholder='telefone' "
+            "<input type='text' name='papel' placeholder='cargo' aria-label='Cargo' maxlength='80'>"
+            "<input type='email' name='email' placeholder='e-mail' aria-label='E-mail' maxlength='120'>"
+            "<input type='text' name='telefone' placeholder='telefone' aria-label='Telefone' "
             "maxlength='40'>"
             "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
             "juntar</button></form>"
@@ -22059,7 +22107,8 @@ def _tarefas_da_ficha(p):
         texto_prazo, classe = etiqueta_prazo(t["quando"], dias_urgente())
         linhas.append(
             "<li>%s<span class='t'>%s</span>%s%s%s%s</li>"
-            % (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq"),
+            % (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq",
+                     rotulo="Marcar como feita: %s" % corta(t["o_que"], 60)),
                html.escape(t["o_que"]),
                ("<span class='mg-tag %s'>%s</span>"
                 % (tom(classe),

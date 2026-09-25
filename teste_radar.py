@@ -8617,6 +8617,42 @@ class TestOsOutrosErrosDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("software", texto)
 
 
+class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
+    """O perfil só-teclado e leitor de ecrã do teste de 25/09/2026. O
+    que se vê com os olhos ficou medido à parte, num browser; aqui fica
+    o que está no HTML e se perde sem ninguém reparar."""
+
+    def test_o_aviso_le_se_sozinho(self):
+        id_ = self._proposta()
+        r = self.cliente.post("/proposta/%d/ficha" % id_,
+                              data={"valor_proposta": "abc"},
+                              headers={"Referer": "http://localhost/concursos"})
+        h = self.cliente.get(r.headers["Location"]).get_data(as_text=True)
+        self.assertIn("role='status'>«abc» não se lê", h)
+
+    def test_os_botoes_da_linha_dizem_de_que_concurso_sao(self):
+        h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertIn("aria-label='Interessa: Aquisição de software'", h)
+        self.assertIn("aria-label='Abandonar: Aquisição de software'", h)
+
+    def test_ha_um_salto_para_o_conteudo(self):
+        h = self.cliente.get("/concursos").get_data(as_text=True)
+        self.assertIn("<a class=\"saltar\" href=\"#conteudo\">", h)
+        self.assertIn('<main class="mg" id="conteudo"', h)
+
+    def test_o_dialogo_do_motivo_tem_nome(self):
+        h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertIn("aria-labelledby='dlg-motivo-titulo'", h)
+
+    def test_a_posicao_guarda_se_sem_o_que_e_da_vez(self):
+        self.assertIn("['aviso', 'desfazer', 'assin']", radar.LISTA_JS)
+
+    def test_o_prazo_esta_por_baixo_do_titulo_da_ficha(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET prazo='2026-10-02' WHERE ref='60/2026'")
+        self.assertIn("<b>propostas até 02/10/2026</b>", self._ficha())
+
+
 class TestOAcabarDaEntidadeEODoMercado(CorpusTemporario):
     """A ficha da entidade contava «a acabar» em 90 dias e ligava ao modo
     fim do Mercado, que conta em meses: os dois números discordavam nos

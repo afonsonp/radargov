@@ -475,3 +475,62 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
    ficava a 729px num ecrã de 390 -- a página voltava a fugir de lado
    (medido no mesmo dia, depois de o pôr). */
 th:has(> .so-leitor){position:relative}
+
+/* «Saltar para o conteúdo» (teste com utilizadores, 25/09/2026; WCAG
+   2.4.1): invisível até ter o foco, e aí aparece por cima da barra. É o
+   primeiro Tab da página, e poupa os dez da barra a quem usa o teclado. */
+.saltar{position:absolute;left:8px;top:-60px;z-index:1000;padding:8px 14px;
+  background:var(--surface);color:var(--ink);border:2px solid var(--focus);
+  border-radius:6px;font-weight:600;text-decoration:none}
+.saltar:focus{top:8px}
+main#conteudo:focus{outline:none}
+
+/* Um botão discreto dentro de um cartão em banda é azul sobre azul
+   (contraste 1:1): o «Anúncio completo» da ficha não se via, e com o foco
+   era um contorno vazio (teste com utilizadores, 25/09/2026; WCAG
+   1.4.3). Na banda, a cor de quem está sobre o azul. */
+.mg-card--band .mg-card__actions .mg-btn--subtle,
+.mg-card--band .mg-card__actions .mg-btn--secondary{color:var(--on-brand);
+  border-color:rgba(255,255,255,.55);background:transparent}
+.mg-card--band .mg-card__actions .mg-btn--subtle:hover,
+.mg-card--band .mg-card__actions .mg-btn--secondary:hover{background:rgba(255,255,255,.12)}
+
+/* Abaixo de 600px a barra DOBRA em vez de rolar (teste com utilizadores):
+   a rolar, «Calend» aparecia cortado e as Configurações ficavam fora do
+   ecrã, sem nada a dizer que havia mais. Duas linhas de itens gastam
+   ~40px e mostram tudo. */
+@media (max-width:600px){
+ .mg-topbar__nav{flex-wrap:wrap;overflow-x:visible;row-gap:2px}
+ .mg-topbar__nav .mg-topbar__link{padding-left:10px;padding-right:10px}}
+
+/* As tabelas das listas viram cartões no telemóvel (teste com
+   utilizadores, 25/09/2026): a 390px a tabela dos Concursos media 905px,
+   e o prazo, o «Faltam» e os botões ficavam fora do ecrã — ao rolar
+   para os ver deixava de se ver o título, e carregava-se «Interessa» às
+   cegas. Cada linha passa a um bloco: a referência e o prazo em cima, o
+   título a toda a largura, e as acções por baixo. */
+@media (max-width:600px){
+ .lista.tab-cx,.tab-cx:has(>.tab-lista){overflow-x:visible}
+ .lista.tab-cx table,.tab-lista{display:block;min-width:0;width:100%}
+ .lista.tab-cx thead,.tab-lista thead{position:absolute;width:1px;height:1px;
+  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .lista.tab-cx tbody,.tab-lista tbody{display:block}
+ .lista.tab-cx tbody tr,.tab-lista tbody tr{display:flex;flex-wrap:wrap;
+  align-items:center;gap:6px 10px;padding:12px var(--space-3);
+  border-bottom:1px solid var(--line)}
+ .lista.tab-cx tbody td,.tab-lista tbody td{display:block;padding:0;border:0;
+  min-width:0;max-width:100%;height:auto;text-align:left}
+ .lista .col-obj{min-width:0}
+ .lista.tab-cx td.col-obj,.tab-lista td.o{order:-1;flex:1 1 100%}
+ .lista.tab-cx td.col-acc,.tab-lista td.celula-ranhura{flex:1 1 100%}
+ .lista.tab-cx td.col-acc .mg-row,.lista.tab-cx td.col-acc{display:flex;
+  flex-wrap:wrap;gap:8px}}
+
+/* A ficha no telemóvel (teste com utilizadores, 25/09/2026): o título a
+   30px ocupava meio ecrã, e os quatro passos da escada cortavam-se a meio
+   da palavra («Interess», «Em prep»). O título desce para 22px, e os
+   passos mostram só o número e a nota; o nome do passo aceso fica. */
+@media (max-width:600px){
+ .mg-pagehead__title{font-size:22px;line-height:28px}
+ .ficha-escada .mg-step__label{font-size:12px;overflow:visible;white-space:normal;
+  text-overflow:clip;word-break:normal}}
