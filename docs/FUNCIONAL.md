@@ -623,7 +623,7 @@ linhas, comparam-se lado a lado.**
 
 **A ficha** abre com **seis factos** — compra a 24 meses · quanto disso
 cai no nosso CPV · a que desconto fecha · quantas propostas lhe fizemos
-· a taxa com ela · o que lhe acaba em 90 dias — e tem duas colunas: o
+· a taxa com ela · o que lhe acaba em 3 meses — e tem duas colunas: o
 **nosso lado** à esquerda (anúncios dela, propostas, taxa, contactos,
 seguir) e o **Portal BASE** à direita (o que compra, a quem, como, ao
 longo do tempo). **Sem corpus diz «sem BASE», não zero.**
