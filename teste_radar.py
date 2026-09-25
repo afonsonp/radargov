@@ -8689,6 +8689,98 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("<b>propostas até 02/10/2026</b>", self._ficha())
 
 
+class TestFiltroPorDistritoEValor(BaseTemporaria):
+    """Decisão dele a 25/09/2026, do teste com utilizadores: «não há
+    filtro de distrito nem de preço base», nem no interesse, nem nos
+    Concursos, nem nos alertas. O distrito lê-se da secção 9 do texto do
+    DR (o local de execução), e não da 1 (a morada da entidade)."""
+
+    TEXTO = ("1 - IDENTIFICAÇÃO E CONTACTOS DA ENTIDADE ADJUDICANTE\r\n"
+             "Distrito: Lisboa\r\nConcelho: Lisboa\r\n"
+             "9 - LOCAL DA EXECUÇÃO DO CONTRATO\r\n"
+             "LOCAL DA EXECUÇÃO DO CONTRATO (PROCEDIMENTO)\r\n"
+             "Distrito: %s\r\nConcelho: X\r\n"
+             "10 - PRAZO DE EXECUÇÃO DO CONTRATO\r\nDistrito: Faro\r\n")
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        hoje = datetime.date.today()
+        with radar.liga() as c:
+            for ref, dist, preco in (("1/2026", "|Porto|", "50.000,00 EUR"),
+                                     ("2/2026", "|Lisboa|", "10.000,00 EUR"),
+                                     ("3/2026", "|*|", "250.000,00 EUR"),
+                                     ("4/2026", "", "80.000,00 EUR"),
+                                     ("5/2026", "|Porto|Braga|", "")):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, "
+                          "data_pub, estado, prazo, distrito, preco_base, cpv) "
+                          "VALUES (?,?,?,?,'novo',?,?,?,'72000000')",
+                          (ref, "T " + ref, "E", hoje.isoformat(),
+                           (hoje + datetime.timedelta(days=20)).isoformat(),
+                           dist, preco))
+
+    def _refs(self, **args):
+        onde, valores = radar.condicoes(dict(args, estado=""))
+        with radar.liga() as c:
+            return sorted(r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios" + onde, valores))
+
+    def test_o_distrito_le_se_da_seccao_do_local_de_execucao(self):
+        self.assertEqual(radar.distritos_do_texto(self.TEXTO % "Porto"), "|Porto|")
+        self.assertEqual(radar.distritos_do_texto(self.TEXTO % "Todos"), "|*|")
+        self.assertEqual(radar.distritos_do_texto(self.TEXTO % "Braganca"),
+                         "|Bragança|")
+        self.assertEqual(radar.distritos_do_texto("Distrito: Porto"), "")
+
+    def test_o_motor_filtra_pelo_distrito_e_um_nacional_entra_sempre(self):
+        self.assertEqual(self._refs(dist="Porto"), ["1/2026", "3/2026", "5/2026"])
+        self.assertEqual(self._refs(dist="Inventado"),
+                         ["1/2026", "2/2026", "3/2026", "4/2026", "5/2026"])
+
+    def test_o_motor_filtra_pelo_preco_base(self):
+        self.assertEqual(self._refs(pbmin="20.000"), ["1/2026", "3/2026", "4/2026"])
+        self.assertEqual(self._refs(pbmin="20 000", pbmax="100000"),
+                         ["1/2026", "4/2026"])
+
+    def test_a_lista_tem_os_campos_e_o_numero_bate(self):
+        h = self.cliente.get("/concursos?estado=&dist=Porto&pbmin=20000"
+                             ).get_data(as_text=True)
+        self.assertIn("name='dist'", h)
+        self.assertIn("<option value='Porto' selected>Porto</option>", h)
+        corpo = h.split("<main", 1)[1]
+        self.assertEqual(sorted(set(re.findall(r"href='/anuncio/([^'#?]+)'", corpo))),
+                         ["1/2026", "3/2026"])
+
+    def test_o_interesse_recorta_pelo_distrito_e_pelo_valor(self):
+        self.cliente.post("/alertas/interesse", data={
+            "cpv": "", "dist": ["Lisboa"], "pbmin": "5 000"})
+        cfg = radar.ler_config()
+        self.assertTrue(cfg["interesse_activo"])
+        frag, vals = radar.condicao_do_interesse(args={}, cfg=cfg)
+        with radar.liga() as c:
+            refs = sorted(r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios WHERE " + frag, vals))
+        self.assertEqual(refs, ["2/2026", "3/2026"])
+        h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertIn("Lisboa", h.split("Limitado ao", 1)[1][:300])
+
+    def test_um_alerta_por_distrito_so_apanha_esse(self):
+        radar.gravar_filtro("Porto", "dist=Porto&pbmin=20000", alerta=1)
+        radar.registar_alertas()
+        self.assertEqual(sorted(r["ref"] for _, linhas in radar.alertas_por_enviar()
+                                for r in linhas), ["1/2026", "3/2026"])
+
+    def test_a_migracao_le_os_que_ja_la_estao(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET distrito=NULL, texto=? WHERE ref='4/2026'",
+                      (self.TEXTO % "Setúbal",))
+        radar.preencher_distritos()
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT distrito FROM anuncios "
+                                       "WHERE ref='4/2026'").fetchone()[0],
+                             "|Setúbal|")
+
+
 class TestOAcabarDaEntidadeEODoMercado(CorpusTemporario):
     """A ficha da entidade contava «a acabar» em 90 dias e ligava ao modo
     fim do Mercado, que conta em meses: os dois números discordavam nos

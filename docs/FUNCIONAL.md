@@ -135,6 +135,7 @@ as exactas e salta as outras.
 | `preco_base` | 53,5% | |
 | `prazo` | 38,2% | Data-limite de entrega |
 | `link_pecas` | 39,2% | |
+| `distrito` | ~70% | Desde 25/09/2026: os distritos do **local de execução** (secção 9 do texto), «\|Porto\|Lisboa\|»; `*` num concurso nacional. Medido na leitura: 148 579 dos 185 886 com texto |
 | `lotes` | 10,3% | |
 | `altera` | 5,0% | Republicações ligadas ao original |
 | `detalhe_lido` | **100%** | Não há fila por ler |
@@ -297,6 +298,14 @@ ser:
 Uma lista de CPV que a empresa trabalha (e outra de exclusões), em
 Configurações. Recorta **a lista, o Hoje, o Mercado e a ficha da
 entidade**. Levanta-se com `?interesse=nao`.
+
+Desde 25/09/2026 leva também **os distritos** do local de execução e
+**um preço base mínimo** (`interesse_distritos`, `interesse_pbmin`).
+Esses dois recortam só os **anúncios** — os contratos do Mercado não os
+têm na mesma forma. Um concurso nacional entra em qualquer distrito; um
+anúncio sem distrito lido, ou sem preço base, fica de fora quando se
+pede um ou outro. Os mesmos dois campos existem no filtro dos Concursos
+e no do alerta (`dist`, `pbmin`, `pbmax`, no `condicoes()`).
 
 **Não recorta os alertas, e é de propósito.** O interesse é recorte de
 **página** (entra por `com_recorte()`), não de motor — um interesse

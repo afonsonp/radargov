@@ -541,3 +541,10 @@ dl.glossario{margin:0}
 dl.glossario dt{font-weight:600;color:var(--ink);margin-top:var(--space-3)}
 dl.glossario dt:first-child{margin-top:0}
 dl.glossario dd{margin:2px 0 0;color:var(--ink-secondary);max-width:70ch}
+
+/* Os distritos do interesse (25/09/2026): vinte caixas numa grelha que
+   dobra, em vez de uma lista de vinte linhas. */
+.dist-interesse{border:0;padding:0;margin:0 0 10px;flex:1 1 100%;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 12px}
+.dist-interesse legend{font-weight:600;margin-bottom:6px;padding:0}
+.dist-interesse .dist-cx{display:flex;align-items:center;gap:6px;font-size:13px}

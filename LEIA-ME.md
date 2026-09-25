@@ -724,10 +724,13 @@ as outras cinco só um admin as vê:
   «sair de todos os aparelhos» e, para o admin, os utilizadores: quem
   existe, de que tipo, criar outro (utilizador, palavra-passe, tipo) e
   tirar um — a tua própria conta e o último admin não se tiram.
-- **Interesse** — só a árvore de CPV, já aberta, com o que está
-  guardado marcado. Marca e desmarca e carrega em «Guardar o
-  interesse»: com CPV fica ligado, sem nenhum fica desligado. Uma linha
-  por cima diz o que está em vigor e quantos anúncios apanha.
+- **Interesse** — a árvore de CPV, já aberta, com o que está
+  guardado marcado, e por baixo os **distritos** do local de execução e
+  o **preço base mínimo**. Marca e carrega em «Guardar o interesse» (ou
+  em «Guardar», para os distritos e o valor): com alguma coisa escolhida
+  fica ligado, sem nada fica desligado. Uma linha por cima diz o que
+  está em vigor e quantos anúncios apanha. O distrito e o preço base
+  também se escolhem no filtro dos Concursos e nos alertas.
 - **Alertas** — os alertas com o interruptor e a taxa de acerto, as
   entidades seguidas, o «Filtro de alertas» em três grupos — o que é
   comum, o que é só dos anúncios (é por esses que o alerta avisa) e o
