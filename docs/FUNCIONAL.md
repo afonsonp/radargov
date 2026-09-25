@@ -467,7 +467,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**89 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+**90 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
 (a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
@@ -688,6 +688,12 @@ o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.
 Quem abre a ligação escolhe o utilizador e a palavra-passe e entra já,
 na empresa nova (`contas.usar_convite()`). Um pedido aceite não se
 aceita duas vezes.
+
+**O admin de uma empresa também convida** (25/09/2026, do teste com
+utilizadores): em Configurações › Conta, «Criar convite» dá uma
+ligação para a empresa dele, de tester ou de admin, que vale sete dias
+e uma vez, e se mostra **só nessa página** (`conta_convidar()`). Criar
+a conta com a palavra-passe continua a existir, por baixo.
 
 **Cada conta é de uma empresa** (`utilizadores.empresa_id`, desde a F4
 de 23/09/2026), e a porta põe a empresa dela no pedido: o `liga()`

@@ -639,6 +639,10 @@ seguir:
 .venv/bin/python radar.py --criar-utilizador NOME --empresa 2
 ```
 
+Dentro de uma empresa, o admin dela convida os colegas sem ti: em
+Configurações › Conta, **Criar convite** dá uma ligação que ele manda
+ao colega, e é o colega que escolhe o nome e a palavra-passe.
+
 Para tirar uma empresa inteira — propostas, tarefas, contactos,
 histórico, configuração, triagem e contas —:
 
