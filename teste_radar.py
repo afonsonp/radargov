@@ -17,7 +17,9 @@ import datetime
 import gc
 import html
 import inspect
+import io
 import json
+import zipfile
 import os
 import re
 import shutil
@@ -8687,6 +8689,86 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET prazo='2026-10-02' WHERE ref='60/2026'")
         self.assertIn("<b>propostas até 02/10/2026</b>", self._ficha())
+
+
+class TestOQueFaltavaDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
+    """O resto do teste com dez perfis de 25/09/2026: a lista por prazo,
+    as peças num ZIP, a comparação de preço lote a lote, e nenhum campo
+    de formulário sem nome para o leitor de ecrã."""
+
+    def test_a_lista_ordena_por_prazo(self):
+        with radar.liga() as c:
+            for ref, prazo in (("61/2026", "2026-12-01"), ("62/2026", "2026-10-01"),
+                               ("63/2026", "")):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                          "estado, prazo) VALUES (?,?,?,?,?,?)",
+                          (ref, "T", "E", "2026-09-02", "novo", prazo))
+        h = self.cliente.get("/concursos?estado=&ordem=prazo").get_data(as_text=True)
+        corpo = h.split("<main", 1)[1]
+        refs = [r for r in re.findall(r"href='/anuncio/([^'#?]+)'", corpo)]
+        ordem = [r for r in dict.fromkeys(refs) if r in ("61/2026", "62/2026", "63/2026")]
+        self.assertEqual(ordem, ["62/2026", "61/2026", "63/2026"])
+        self.assertIn("ordenar por publicação", h)
+
+    def test_as_pecas_descarregam_se_num_zip(self):
+        pasta = radar.pasta_do_anuncio("60/2026")
+        os.makedirs(pasta, exist_ok=True)
+        with radar.liga() as c:
+            for nome in ("CE.pdf", "PC.pdf"):
+                with open(os.path.join(pasta, nome), "wb") as f:
+                    f.write(b"%PDF-1.4 " + nome.encode())
+                c.execute("INSERT INTO documentos (ref, nome, tamanho) VALUES (?,?,?)",
+                          ("60/2026", nome, 10))
+        r = self.cliente.get("/pecas-zip/60/2026")
+        self.assertEqual(r.mimetype, "application/zip")
+        with zipfile.ZipFile(io.BytesIO(r.data)) as z:
+            self.assertEqual(sorted(z.namelist()), ["CE.pdf", "PC.pdf"])
+        self.assertEqual(self.cliente.get("/pecas-zip/99/2026").status_code, 404)
+
+    def test_com_lotes_o_preco_compara_se_lote_a_lote(self):
+        """O total de três lotes contra contratos de um lote dava «folga»
+        a um concurso que não a tinha."""
+        a = {"lotes": json.dumps([{"n": 1, "preco_base": "172.878,00 EUR"},
+                                  {"n": 2, "preco_base": "20.000,00 EUR"}])}
+        r = {"mediana": 25000.0}
+        frase = radar.comparacao_de_preco(a, 192878.0, r)
+        self.assertIn("2 lotes", frase)
+        um, dois = frase.split("lote 1,")[1].split("lote 2,")
+        self.assertIn("<b class='bom'>acima</b>", um)       # 172 878 contra 25 000
+        self.assertIn("<b class='mau'>abaixo</b>", dois)    # 20 000: 0,8 da mediana
+        # sem lotes, a comparação de sempre
+        self.assertIn("Preço base deste anúncio",
+                      radar.comparacao_de_preco({"lotes": ""}, 26000.0, r))
+
+    def test_nenhum_campo_de_formulario_fica_sem_nome(self):
+        from html.parser import HTMLParser
+
+        class Campos(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.label, self.fors, self.sem = 0, set(), []
+
+            def handle_starttag(self, tag, attrs):
+                a = dict(attrs)
+                if tag == "label":
+                    self.label += 1
+                    self.fors.add(a.get("for"))
+                elif tag in ("input", "select", "textarea") and a.get("type") not in (
+                        "hidden", "submit", "button", "checkbox", "radio"):
+                    if not (self.label or a.get("aria-label")):
+                        self.sem.append(a)
+
+            def handle_endtag(self, tag):
+                if tag == "label" and self.label:
+                    self.label -= 1
+
+        self._proposta()
+        for rota in ("/concursos", "/propostas", "/anuncio/60%2F2026",
+                     "/configuracoes/alertas", "/configuracoes/interesse"):
+            p = Campos()
+            p.feed(self.cliente.get(rota).get_data(as_text=True))
+            sem = [a for a in p.sem if a.get("id") not in p.fors]
+            self.assertEqual(sem, [], rota)
 
 
 class TestFiltroPorDistritoEValor(BaseTemporaria):

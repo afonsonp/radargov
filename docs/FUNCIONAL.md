@@ -481,7 +481,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**92 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+**93 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
 (a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
@@ -568,6 +568,11 @@ O período conta pela **`fechada_em`**. Uma taxa só se diz a partir de
 **As dez ranhuras da escada nas abas.** As duas pontas mostram
 **anúncios**; as oito do meio mostram **propostas**.
 
+Por omissão a lista vem **pela publicação**, a mais recente primeiro; a
+ligação ao lado da contagem troca para **o prazo mais perto primeiro**
+(`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026), com os sem prazo no
+fim. A ordem não é um filtro: não se guarda num alerta.
+
 Filtros (painel recolhível): objecto (com E/OU e exclusões) · CPV (com
 árvore de 9 454 códigos e exclusões) · entidade que publica · NIF ·
 plataforma · prazo · datas · preço mínimo. O filtro compõe-se com o
@@ -580,6 +585,11 @@ Por linha: triar («interessa» / «abandonar», que pergunta o motivo),
 para qualquer ranhura.
 
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
+
+As peças descarregam-se **todas num ZIP** (`/pecas-zip/<ref>`,
+25/09/2026), além de uma a uma. Com lotes, a comparação com o que a
+entidade costuma pagar faz-se **lote a lote** (`comparacao_de_preco()`),
+e não pelo total.
 
 Em **duas colunas** desde 23/09/2026 (o `EcraFicha` do sistema de
 desenho): à esquerda o anúncio (os factos em pares e o essencial, lotes,
