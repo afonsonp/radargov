@@ -8218,8 +8218,10 @@ class TestSeguirUmaEntidadeSemNif(BaseTemporaria):
     def _anuncio(self, ref, entidade, nif=""):
         with radar.liga() as c:
             c.execute("INSERT INTO anuncios (ref, titulo, entidade, nif, "
-                      "data_pub, tipo, url, estado) VALUES (?,?,?,?,?,?,?,'novo')",
-                      (ref, "T " + ref, entidade, nif, "2026-09-01", "", ""))
+                      "data_pub, tipo, url, estado, entidade_norm) "
+                      "VALUES (?,?,?,?,?,?,?,'novo',?)",
+                      (ref, "T " + ref, entidade, nif, "2026-09-01", "", "",
+                       radar.simplifica(entidade)))
 
     def test_segue_e_avisa_pelo_nome(self):
         self._anuncio("1/2026", "Fundação Salesianos")
@@ -8234,8 +8236,16 @@ class TestSeguirUmaEntidadeSemNif(BaseTemporaria):
                 (chave,)).fetchone())
         # o que já lá estava entra como acervo; o novo, com o nome escrito
         # de outra maneira, avisa-se; o de NIF não é desta chave
-        self._anuncio("3/2026", "FUNDACAO  SALESIANOS")
+        self._anuncio("3/2026", "FUNDAÇÃO SALESIANOS")
         self.assertEqual(radar.registar_seguidas(), 1)
+        # a pagina de uma entidade que o Portal BASE nao conhece tambem
+        # tem o seguir, e o nome com acentos (2.ª volta da varredura: o
+        # ramo sem corpus nao tinha botao, e o titulo era a chave)
+        with unittest.mock.patch.object(radar, "ha_corpus", lambda: False):
+            h = radar.app.test_client().get(
+                "/entidade/%s" % quote(chave, safe="")).get_data(as_text=True)
+        self.assertIn("/entidade/%s/seguir" % quote(chave, safe=""), h)
+        self.assertRegex(h, "<title>(Fundação Salesianos|FUNDAÇÃO SALESIANOS),")
         avisar = radar.seguidas_por_avisar()
         self.assertEqual([a["ref"] for _, _, anuncios in avisar
                           for a in anuncios], ["3/2026"])

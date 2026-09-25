@@ -9185,6 +9185,15 @@ def nome_da_entidade(chave):
                           (chave,)).fetchone()
             if r and (r["n"] or "").strip():
                 return r["n"]
+        elif chave.startswith("n:"):
+            # sem NIF, pela mesma chave: «fundacao salesianos» era o nome
+            # que a pagina mostrava (varredura de 25/09/2026)
+            for r in c.execute("SELECT entidade FROM anuncios "
+                               "WHERE COALESCE(nif, '') = '' "
+                               "AND COALESCE(entidade, '') != '' "
+                               "ORDER BY data_pub DESC, ref DESC"):
+                if chave_entidade("", r["entidade"]) == chave:
+                    return r["entidade"]
     return chave[2:] if chave.startswith("n:") else chave
 
 
@@ -18325,6 +18334,25 @@ def factos_da_entidade(chave, nosso, meses=24):
         for rotulo, valor, nota in seis))
 
 
+def _seguir_cx(chave):
+    """O «seguir» da entidade (B10): os anuncios novos dela entram no
+    resumo diario, ao lado dos alertas. O botao diz o estado e troca-o.
+    Serve os dois ramos da pagina -- com corpus e sem ele: a entidade que
+    o Portal BASE nao conhece tambem se segue (varredura de 25/09/2026;
+    sem NIF casa pelo nome, `registar_seguidas()`)."""
+    with liga() as c:
+        seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
+                            (chave,)).fetchone() is not None
+    return ("<div class='ent-atalhos'>%s%s</div>"
+            % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
+                     "Deixar de seguir" if seguida else
+                     "Seguir esta entidade",
+                     "bt" if seguida else "bt forte"),
+               "<span class='nota' style='align-self:center'>"
+               "a seguir &mdash; os anúncios novos dela entram no resumo "
+               "diário</span>" if seguida else ""))
+
+
 @app.route("/entidade/<path:chave>")
 def entidade(chave):
     # **A ficha existe sem corpus** (D3 do CICLOS.md): uma entidade com
@@ -18348,7 +18376,7 @@ def entidade(chave):
         return envolver(
             "entidades", nome,
             "O que sabemos desta entidade. O Portal BASE não a conhece.",
-            "<div class='larg'>" + ident
+            "<div class='larg'>" + ident + _seguir_cx(chave)
             + factos_da_entidade(chave, nosso)
             + nosso_lado_cx(nosso) + "</div>",
             migalhas=migalhas_de("entidades", corta(nome, 44)),
@@ -18385,21 +18413,7 @@ def entidade(chave):
                         % (para_lista("vencid"), mil_pt(ganha["k"])))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
 
-    # Seguir a entidade (B10): os anuncios novos dela entram no resumo
-    # diario, ao lado dos alertas. O botao diz o estado e troca-o.
-    with liga() as c:
-        seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
-                            (chave,)).fetchone() is not None
-    # sem NIF tambem: casa pelo nome (registar_seguidas, 25/09/2026)
-    seguir_cx = (
-        "<div class='ent-atalhos'>%s%s</div>"
-        % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
-                 "Deixar de seguir" if seguida else
-                 "Seguir esta entidade",
-                 "bt" if seguida else "bt forte"),
-           "<span class='nota' style='align-self:center'>"
-           "a seguir &mdash; os anúncios novos dela entram no resumo "
-           "diário</span>" if seguida else ""))
+    seguir_cx = _seguir_cx(chave)
 
     blocos = []
     if compra["k"]:
