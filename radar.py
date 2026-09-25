@@ -9924,6 +9924,40 @@ def nome_de_anfitriao(nome):
     return "127.0.0.1" if nome in ("localhost", "::1", "127.0.0.1") else nome
 
 
+# Os nomes por que o painel responde pelo tunel (25/09/2026, o Mira Gov).
+# O publico e o `endereco_publico` do config.json; os outros mandam para
+# ele. So estes: o *quick tunnel* do `tunel.sh` (trycloudflare.com) e o
+# local ficam onde estao.
+DOMINIOS_DO_PAINEL = ("miragov.pt", "www.miragov.pt", "miragov.com",
+                      "www.miragov.com", "radargov.pt", "www.radargov.pt")
+
+
+@app.before_request
+def ao_endereco_certo():
+    """Manda quem chega por um dos outros nomes para o endereco publico,
+    com o caminho e a pergunta. Antes da porta (a ordem dos
+    `before_request` e a do registo): uma sessao e um cookie do nome
+    antigo nao servem ao novo, e entrar la para depois saltar era entrar
+    duas vezes. 301 num GET; 308 no resto, que nao pode virar GET a meio.
+    O proprio endereco publico nao se reencaminha -- era um ciclo."""
+    anfitriao = (request.host or "").split(":")[0].lower()
+    # o /saude responde em qualquer nome: a vigia de fora bate nele, e um
+    # 301 ou conta como «em baixo» ou esconde a falha que devia ver
+    if anfitriao not in DOMINIOS_DO_PAINEL or request.path == "/saude":
+        return None
+    publico = endereco_do_painel()
+    alvo = (urlparse(publico).hostname or "").lower()
+    if not alvo or alvo == anfitriao or alvo not in DOMINIOS_DO_PAINEL:
+        return None
+    # o caminho TAL COMO VEIO: o full_path descodifica o %2F, e a ref
+    # «1%2F2026» chegava ao outro lado como /anuncio/1/2026
+    caminho = (request.environ.get("RAW_URI")
+               or request.environ.get("REQUEST_URI")
+               or request.full_path.rstrip("?"))
+    return redirect(publico + caminho,
+                    301 if request.method in ("GET", "HEAD") else 308)
+
+
 @app.before_request
 def porta_de_entrada():
     g.sessao = None

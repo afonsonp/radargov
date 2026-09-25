@@ -1130,16 +1130,20 @@ anúncios, é o teste do parser que avisa primeiro.
 | `reler.sh` | manda o modelo reler as peças já guardadas, sem ir à rede |
 | `ensaio.sh` | o ensaio de leitura de um concurso: põe o que o modelo escreveu ao lado do texto do documento, sem gastar orçamento |
 | `medir.sh` | mede de onde vem o token das capturas do DR (só lê as capturas) e abre o resultado |
-| `tunel_fixo.sh` | monta o `https://radargov.pt` (túnel com nome, como serviço); correu uma vez |
+| `tunel_fixo.sh` | monta o `https://miragov.pt` (túnel com nome, como serviço, que responde também pelo miragov.com e pelo radargov.pt); diz que registos DNS faltam |
 | `copias_fora.sh` | liga as cópias a um destino fora deste PC (Backblaze B2, cifrado); corre-se uma vez, secção 13 |
 | `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |
 | `.venv/` | o Python e os pacotes do radar |
 | `teste_radar.py` | os testes |
 
-## 15. O painel fora deste computador: radargov.pt
+## 15. O painel fora deste computador: miragov.pt
 
-**O painel está em https://radargov.pt** (e `www.radargov.pt`), de
-qualquer computador ou telemóvel, sem instalar nada. No telemóvel as
+**O painel está em https://miragov.pt**, de qualquer computador ou
+telemóvel, sem instalar nada. Desde 25/09/2026; antes era o
+`radargov.pt`. O `miragov.com`, o `radargov.pt` e os `www` levam lá ter,
+na mesma página em que estavas, por isso as ligações antigas continuam a
+servir. Da primeira vez tens de voltar a entrar: a sessão é de cada
+endereço. No telemóvel as
 listas ficam a uma coluna e as tabelas largas arrastam-se de lado (a
 barra já é em cima em todos os tamanhos, desde 13/09/2026). **Quem abre
 sem sessão vê o site de apresentação** (desde 23/09/2026), com um
@@ -1165,31 +1169,36 @@ Como funciona, para saberes o que pode falhar: o painel continua a
 atender só neste computador; um programa da Cloudflare, o
 `cloudflared`, corre aqui como serviço (`radar-tunel.service`) e faz a
 ponte entre o teu domínio e o painel. Por isso, **se este computador
-estiver desligado, o `radargov.pt` não abre** — e se estiver ligado,
+estiver desligado, o `miragov.pt` não abre** — e se estiver ligado,
 o serviço arranca sozinho, como o do painel. Para ver se está de pé:
 
 ```bash
 systemctl --user status radar-tunel.service
 ```
 
-E para não teres de ser tu a reparar que caiu: **`https://radargov.pt/saude`**
+E para não teres de ser tu a reparar que caiu: **`https://miragov.pt/saude`**
 responde «ok» sem login quando o painel e a base estão de pé (e 503
 quando a base não responde). Serve para pôr um vigilante gratuito a
 bater lá de cinco em cinco minutos e a mandar-te e-mail quando falha:
 o UptimeRobot (uptimerobot.com, plano Free) ou equivalente, um monitor
 do tipo HTTP com esse endereço. Ligaste-o a 15/09/2026, na tua conta
 do UptimeRobot: não está na pasta do radar, e se mudares de e-mail é
-lá que se muda.
+lá que se muda. Estava no `radargov.pt/saude`, e continua a funcionar
+assim, porque o `/saude` não se reencaminha. Quando puderes, muda-o
+para o `miragov.pt/saude`.
 
 Foi montado uma vez com o `tunel_fixo.sh`, depois de o domínio estar
 na tua conta da Cloudflare e de autorizares este computador no
 browser. Não é preciso voltar a corrê-lo; se um dia o radar mudar de
 computador, é `.venv/bin/cloudflared tunnel login` (abre a página de
-autorização) e depois `./tunel_fixo.sh` outra vez.
+autorização) e depois `./tunel_fixo.sh` outra vez. Os domínios que não
+são o do login precisam dos seus registos DNS feitos à mão no painel da
+Cloudflare, e o script diz quais faltam e o que lá pôr. Foi assim com
+o miragov, a 25/09/2026.
 
 O que continua fora: o **`tunel.sh`**, que dá um endereço
 `trycloudflare.com` aleatório e temporário, sem domínio. Serve para
-uma demonstração se o `radargov.pt` estiver em baixo por alguma razão;
+uma demonstração se o `miragov.pt` estiver em baixo por alguma razão;
 Ctrl+C fecha-o.
 
 ## 15-B. Abrir a beta: o que preencher
@@ -1212,7 +1221,7 @@ Três coisas, que o radar já sabe usar e só precisam de ti (desde
    empresa, antes do primeiro cliente**. Mudam-se lá, sem reiniciar.
 2. **Um vigia externo**, que te avisa por e-mail se o radar parar (o
    radar parado não o pode dizer): uma conta gratuita no **UptimeRobot**
-   a vigiar `https://radargov.pt/saude`, de cinco em cinco minutos.
+   a vigiar `https://miragov.pt/saude`, de cinco em cinco minutos.
    Chega para as duas avarias: o `/saude` dá erro com o site em baixo
    **e** quando a recolha parou (a última hora marcada passou há mais de
    40 minutos sem verificação). Se um dia quiseres também o aviso por
@@ -1222,7 +1231,7 @@ Três coisas, que o radar já sabe usar e só precisam de ti (desde
 ## 15-A. Mudar o radar de computador
 
 **Para o usares noutro sítio não precisas disto** — o
-`https://radargov.pt` responde de qualquer lado, e é sempre a mesma
+`https://miragov.pt` responde de qualquer lado, e é sempre a mesma
 base. Isto é para o dia em que o radar passar a **correr** noutro
 computador.
 
