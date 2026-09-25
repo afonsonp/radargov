@@ -1758,7 +1758,7 @@ class TestEurosCurto(unittest.TestCase):
     """Nos gráficos, "1 661 400 000 €" não se lê de relance."""
 
     def test_escalas(self):
-        self.assertEqual(radar.euros_curto(1661400000), "1,7 mM€")
+        self.assertEqual(radar.euros_curto(1661400000), "1,7 mil M€")
         self.assertEqual(radar.euros_curto(35800000), "35,8 M€")
         self.assertEqual(radar.euros_curto(9500), "9,5 k€")
         self.assertEqual(radar.euros_curto(420), "420 €")
@@ -8308,19 +8308,9 @@ class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
         self.assertEqual(radar.proposta(id_)["responsavel"], "Ana")
 
 
-class TestOTesteComUtilizadores(BaseTemporaria):
-    """O teste com dez perfis de utilizador de 25/09/2026 (a síntese
-    ficou fora do repositório): três erros que estragavam dados em
-    silêncio.
-
-    1. «612 350,00» — como a própria aplicação escreve os preços —
-       gravava-se como 612 EUR; «abc» gravava-se tal qual e «-500»
-       virava 500.
-    2. A mesma proposta aberta em dois separadores: o segundo a gravar
-       repunha os valores velhos de todos os campos do primeiro.
-    3. Depois de «ver tudo», carregar em Filtrar voltava a limitar a
-       lista ao interesse, sem aviso (deu 0 em vez de 148).
-    """
+class _CicloDoTesteComUtilizadores(BaseTemporaria):
+    """O anúncio 60/2026 e uma proposta sobre ele, para as classes do
+    teste com utilizadores de 25/09/2026. Sem testes próprios."""
 
     def setUp(self):
         super().setUp()
@@ -8343,6 +8333,20 @@ class TestOTesteComUtilizadores(BaseTemporaria):
                 c.execute("UPDATE propostas SET estado=?, valor_proposta=? "
                           "WHERE id=?", (estado, "118.500,00 EUR", id_))
         return id_
+
+class TestOTesteComUtilizadores(_CicloDoTesteComUtilizadores):
+    """O teste com dez perfis de utilizador de 25/09/2026 (a síntese
+    ficou fora do repositório): três erros que estragavam dados em
+    silêncio.
+
+    1. «612 350,00» — como a própria aplicação escreve os preços —
+       gravava-se como 612 EUR; «abc» gravava-se tal qual e «-500»
+       virava 500.
+    2. A mesma proposta aberta em dois separadores: o segundo a gravar
+       repunha os valores velhos de todos os campos do primeiro.
+    3. Depois de «ver tudo», carregar em Filtrar voltava a limitar a
+       lista ao interesse, sem aviso (deu 0 em vez de 148).
+    """
 
     def test_o_espaco_nos_milhares_le_se(self):
         self.assertEqual(radar.euros_do_texto("612 350,00"), 612350.0)
@@ -8508,6 +8512,109 @@ class TestUmNumeroAbreASuaLista(BaseTemporaria):
         self._anuncio("1/2026", "72000000")
         self._anuncio("2/2026", "72000000", estado="alteracao")
         self.assertIn("<b>1</b>concursos na base", radar._numeros_da_entrada())
+
+
+class TestOsOutrosErrosDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
+    """O terceiro lote do teste com dez perfis de 25/09/2026: erros que
+    não estragavam dados mas enganavam quem usava."""
+
+    def test_as_pecas_nao_dizem_que_nao_vieram_por_cima_delas(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET docs_estado='parcial' WHERE ref=?",
+                      ("60/2026",))
+            for nome in ("Anuncio.pdf", "Caderno de Encargos.pdf",
+                         "Programa do Concurso.pdf"):
+                c.execute("INSERT INTO documentos (ref, nome, tamanho) "
+                          "VALUES (?,?,?)", ("60/2026", nome, 100))
+        h = self._ficha()
+        self.assertNotIn("Só veio o PDF do anúncio", h)
+        self.assertNotIn("guardadas em pecas/", h)
+
+    def test_uma_palavra_passe_so_de_espacos_recusa_se(self):
+        with radar.liga() as c:
+            with self.assertRaises(ValueError):
+                radar.contas.criar_utilizador(c, "ana", " " * 12)
+            # e os espaços continuam a contar numa frase-passe
+            radar.contas.criar_utilizador(c, "ana", "uma frase longa")
+
+    def test_sem_sessao_um_post_de_fora_leva_a_entrar(self):
+        r = self.cliente.post("/proposta/1/ficha", data={"notas": "x"},
+                              environ_base={"REMOTE_ADDR": "203.0.113.7"},
+                              headers={"Referer": "https://miragov.pt/anuncio/60%2F2026"})
+        self.assertEqual(r.status_code, 403)
+        h = r.get_data(as_text=True)
+        self.assertIn("Sessão terminada", h)
+        self.assertIn("/entrar?para=%2Fanuncio%2F60%252F2026", h)
+
+    def test_um_id_grande_demais_e_um_404(self):
+        r = self.cliente.get("/proposta/99999999999999999999999")
+        self.assertEqual(r.status_code, 404)
+
+    def test_um_aviso_de_uma_ligacao_nao_aparece(self):
+        h = self.cliente.get("/concursos?aviso=A+tua+conta+expirou"
+                             ).get_data(as_text=True)
+        self.assertNotIn("A tua conta expirou", h)
+        # o de uma acção nossa, sim: vem assinado no redireccionamento
+        id_ = self._proposta()
+        r = self.cliente.post("/proposta/%d/ficha" % id_,
+                              data={"valor_proposta": "abc"},
+                              headers={"Referer": "http://localhost/concursos"})
+        self.assertIn("assin=", r.headers["Location"])
+        h = self.cliente.get(r.headers["Location"]).get_data(as_text=True)
+        self.assertIn("não se lê como preço", h)
+        # e uma rota antiga que só passa o aviso adiante não o assina
+        r = self.cliente.get("/alertas?aviso=falso")
+        self.assertNotIn("assin=", r.headers["Location"])
+
+    def test_o_preco_minimo_le_se_como_se_escreve_ca(self):
+        for escrito in ("1.000.000", "1 000 000", "1000000"):
+            _, valores = radar.condicoes_contratos({"min": escrito})
+            self.assertIn(1000000.0, valores, escrito)
+
+    def test_os_controlos_do_windows_1252_limpam_se(self):
+        self.assertEqual(radar.sem_controlos("A \x96 B \x93c\x94\x81"),
+                         "A – B “c”")
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET titulo=? WHERE ref=?",
+                      ("Obras \x96 fase 2", "60/2026"))
+        self.assertEqual(radar.limpar_controlos_dos_anuncios(), 1)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT titulo FROM anuncios WHERE ref=?",
+                                       ("60/2026",)).fetchone()[0],
+                             "Obras – fase 2")
+        self.assertEqual(radar.limpar_controlos_dos_anuncios(), 0)
+
+    def test_uma_tarefa_com_data_impossivel_nao_se_cria(self):
+        id_ = self._proposta()
+        with radar.liga() as c:
+            antes = c.execute("SELECT COUNT(*) FROM tarefas").fetchone()[0]
+        r = self.cliente.post("/tarefa/nova", data={
+            "o_que": "ligar", "quando": "31/02/2026", "ref": "60/2026",
+            "proposta_id": str(id_)}, headers={"Referer": "http://localhost/anuncio/60%2F2026"})
+        self.assertIn("aviso=", r.headers["Location"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM tarefas").fetchone()[0],
+                             antes)
+
+    def test_o_lugar_fora_de_1_a_99_recusa_se(self):
+        id_ = self._proposta("relatorio")
+        for mau in ("-3", "0", "100", "x"):
+            r = self.cliente.post("/proposta/%d/ficha" % id_, data={"lugar": mau})
+            self.assertIn("aviso=", r.headers["Location"], mau)
+            self.assertIsNone(radar.proposta(id_)["lugar"], mau)
+
+    def test_o_historico_da_nome_aos_campos(self):
+        self.assertEqual(radar._NOMES_ACCAO["valor_proposta"], "preço proposto")
+        self.assertEqual(radar._NOMES_ACCAO["proposta_tecnica"], "proposta técnica")
+
+    def test_o_interesse_diz_se_por_palavras(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO cpv_dict (codigo8, descricao, simples) "
+                      "VALUES ('72000000', 'Serviços de TI', 'servicos de ti')")
+        texto = radar.interesse_legivel("72000000|software")
+        self.assertIn("72000000", texto)
+        self.assertIn("Serviços de TI", texto)
+        self.assertIn("software", texto)
 
 
 class TestOAcabarDaEntidadeEODoMercado(CorpusTemporario):
@@ -11244,7 +11351,8 @@ class TestConfiguracoes(BaseTemporaria):
         r = self.cliente.post("/alertas/remetente", data={
             "de": "radar@gmail.com", "servidor": "smtp.gmail.com", "porta": "587",
             "senha": "segredo-do-email"})
-        self.assertEqual(r.headers["Location"], "/configuracoes/alertas?aviso=Conta+que+envia+guardada.")
+        self.assertTrue(r.headers["Location"].startswith(
+            "/configuracoes/alertas?aviso=Conta+que+envia+guardada.&assin="))
         cfg = radar.ler_config()
         self.assertEqual(cfg["email"]["de"], "radar@gmail.com")
         self.assertEqual(cfg["email"]["porta"], 587)

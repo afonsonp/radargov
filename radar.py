@@ -26,6 +26,7 @@ import contextvars
 import copy
 import csv
 import hashlib
+import hmac
 import html
 import io
 import json
@@ -1216,6 +1217,12 @@ def iniciar_db():
     if le_marca("alteracoes_agrupadas") != "1":
         agrupar_alteracoes()
         marca("alteracoes_agrupadas", "1")
+    # Os controlos C1 que ja estavam nos titulos e nas entidades: uma vez,
+    # por marca, pela mesma razao (varre a tabela inteira). Os que
+    # chegarem depois limpam-se na recolha.
+    if le_marca("titulos_sem_controlos") != "1":
+        limpar_controlos_dos_anuncios()
+        marca("titulos_sem_controlos", "1")
     # O vocabulario do config.json segue o do resto (16/09/2026): a
     # «casa» passou a «empresa». Idempotente, e barato -- so abre o
     # ficheiro para escrever quando a chave velha la esta.
@@ -1224,6 +1231,21 @@ def iniciar_db():
     for id_ in empresas_existentes():
         with com_empresa(id_):
             arrumar_a_empresa()
+
+
+def limpar_controlos_dos_anuncios():
+    """Passa o `sem_controlos()` pelos titulos e entidades ja gravados.
+    So escreve as linhas que mudam. Devolve quantas."""
+    controlos = "".join(chr(i) for i in range(0x80, 0xA0))
+    padrao = "*[" + controlos + "]*"
+    with liga() as c:
+        sujos = c.execute("SELECT ref, titulo, entidade FROM anuncios "
+                          "WHERE titulo GLOB ? OR entidade GLOB ?",
+                          (padrao, padrao)).fetchall()
+        c.executemany("UPDATE anuncios SET titulo=?, entidade=? WHERE ref=?",
+                      [(sem_controlos(r["titulo"]), sem_controlos(r["entidade"]),
+                        r["ref"]) for r in sujos])
+    return len(sujos)
 
 
 def arrumar_a_empresa():
@@ -1596,6 +1618,25 @@ def registar_expiracao_token(qual, mensagem):
 # grafo de chamadas: era o que fechava tres dos seis ciclos entre as
 # fatias do ficheiro -- as fontes, o mercado e a rotina estavam presas
 # ao painel por causa de formatadores, e nao por causa de painel.
+
+
+def sem_controlos(texto):
+    """Os caracteres de controlo C1 (U+0080 a U+009F) lidos como o
+    Windows-1252 os queria: U+0096 e o travessao, U+0093/U+0094 as aspas
+    curvas. O DR manda-os assim em ~1,8% dos titulos -- 3 741 anuncios a
+    25/09/2026 --, e o browser desenha-os como um quadrado ou nada (teste
+    com utilizadores). Os cinco que o Windows-1252 nao define saem."""
+    if not texto or not any("\x80" <= ch <= "\x9f" for ch in texto):
+        return texto
+    fora = []
+    for ch in texto:
+        if "\x80" <= ch <= "\x9f":
+            try:
+                ch = bytes([ord(ch)]).decode("cp1252")
+            except UnicodeDecodeError:
+                ch = ""
+        fora.append(ch)
+    return "".join(fora)
 
 
 def simplifica(texto):
@@ -3192,8 +3233,9 @@ def recolher(cfg):
                 colhidos.append({
                     "ref": numero,
                     "tipo": str(campo(origem, "tipo")),
-                    "titulo": str(campo(origem, "sumario", "title")).strip(),
-                    "entidade": str(campo(origem, "emissor")),
+                    "titulo": sem_controlos(
+                        str(campo(origem, "sumario", "title")).strip()),
+                    "entidade": sem_controlos(str(campo(origem, "emissor"))),
                     "data_pub": str(campo(origem, "dataPublicacao",
                                           "dataDisponibilizacao"))[:10],
                     "url": ("https://diariodarepublica.pt/dr/detalhe/"
@@ -9332,17 +9374,65 @@ def entidades_com_proposta():
             "GROUP BY entidade_chave ORDER BY k DESC, nome LIMIT 200").fetchall()
 
 
-def entidades_top(papel, quantas=25):
+_MEMO_ENTIDADES_TOP = {}
+
+
+def entidades_top(papel, quantas=25, cfg=None):
     """As que mais compram (clientes) ou as que mais ganham
-    (concorrentes), do corpus. Vazio sem corpus."""
+    (concorrentes), do corpus. Vazio sem corpus.
+
+    **Dentro do interesse, quando ha** (25/09/2026): no corpus inteiro,
+    os «concorrentes» de uma empresa de AVAC eram a Petrogal, a Pfizer e
+    a Endesa (teste com utilizadores), e o «Quem ganha» do Mercado, ao
+    lado, ja recortava.
+
+    Guarda-se ate o corpus mudar (a importacao e semanal): com o
+    interesse, os concorrentes custam 1,4 s medidos no corpus de
+    25/09/2026, e as abas das entidades pediam-nos a cada pagina."""
     coluna = "ganha" if papel == "concorrente" else "compra"
     if not ha_corpus():
         return []
+    frag, vals = condicao_do_interesse_contratos(args={}, cfg=cfg)
+    try:
+        versao_corpus = os.path.getmtime(CORPUS)
+    except OSError:
+        versao_corpus = 0
+    chave_memo = (papel, quantas, frag, tuple(vals), CORPUS, versao_corpus)
+    if chave_memo in _MEMO_ENTIDADES_TOP:
+        return _MEMO_ENTIDADES_TOP[chave_memo]
     with liga_corpus() as c:
-        return c.execute(
-            "SELECT chave, nome, compra, ganha FROM entidades "
-            "WHERE %s > 0 ORDER BY %s DESC LIMIT ?" % (coluna, coluna),
-            (quantas,)).fetchall()
+        if not frag:
+            linhas = c.execute(
+                "SELECT chave, nome, compra, ganha FROM entidades "
+                "WHERE %s > 0 ORDER BY %s DESC LIMIT ?" % (coluna, coluna),
+                (quantas,)).fetchall()
+        else:
+            # O valor reparte-se pelos adjudicatarios, como no «Quem
+            # ganha»: um agrupamento de tres nao vale tres vezes.
+            if papel == "concorrente":
+                por = ("SELECT a.chave ch, SUM(c.preco_contratual/c.n_adj) v "
+                       "FROM contratos c JOIN contrato_adjudicatario a "
+                       "ON a.contrato_id=c.id WHERE " + frag +
+                       " GROUP BY +a.chave")
+            else:
+                por = ("SELECT c.adjudicante_chave ch, SUM(c.preco_contratual) v "
+                       "FROM contratos c WHERE " + frag +
+                       " GROUP BY c.adjudicante_chave")
+            linhas = c.execute(
+                "WITH por AS (" + por + "), topo AS (SELECT ch, v FROM por "
+                "WHERE v > 0 AND ch IS NOT NULL AND ch != '' "
+                "ORDER BY v DESC LIMIT ?) "
+                "SELECT t.ch chave, COALESCE(e.nome, t.ch) nome, "
+                "CASE WHEN ? THEN 0 ELSE t.v END compra, "
+                "CASE WHEN ? THEN t.v ELSE 0 END ganha "
+                "FROM topo t LEFT JOIN entidades e ON e.chave = t.ch "
+                "ORDER BY t.v DESC",
+                vals + [quantas, papel == "concorrente",
+                        papel == "concorrente"]).fetchall()
+    if len(_MEMO_ENTIDADES_TOP) > 64:     # interesses que ja mudaram
+        _MEMO_ENTIDADES_TOP.clear()
+    _MEMO_ENTIDADES_TOP[chave_memo] = [dict(l) for l in linhas]
+    return _MEMO_ENTIDADES_TOP[chave_memo]
 
 
 def historico_entidade(entidade, cpv="", limite=25, nif=""):
@@ -9555,13 +9645,14 @@ def condicoes_contratos(args):
         onde.append("c.data_celebracao <= ?")
         valores.append(ate)
 
-    minimo = (args.get("min") or "").strip().replace(" ", "").replace(",", ".")
-    if minimo:
-        try:
-            valores.append(float(minimo))
-            onde.append("c.preco_contratual >= ?")
-        except ValueError:
-            pass                       # lixo na URL nao filtra nada
+    # Como se escreve ca: «1.000.000» (ponto nos milhares) era lido pelo
+    # float() como erro e o filtro caia em silencio -- vinham os 1 893
+    # contratos de sempre (teste com utilizadores, 25/09/2026). O
+    # euros_do_texto() le as tres escritas; lixo continua a nao filtrar.
+    minimo = euros_do_texto(args.get("min"))
+    if minimo is not None:
+        valores.append(minimo)
+        onde.append("c.preco_contratual >= ?")
     return " WHERE " + " AND ".join(onde), valores
 
 
@@ -9832,6 +9923,46 @@ CABECALHOS_DE_SEGURANCA = {
 }
 
 
+def assinatura_do_aviso(texto):
+    """A assinatura de um `?aviso=`, com a sessao de quem o recebe como
+    chave -- a mesma ideia do `contas.token_csrf()`.
+
+    O aviso vem no endereco, e por isso qualquer ligacao punha qualquer
+    frase na faixa oficial do painel: «?aviso=A tua conta expirou, liga
+    para…» (teste com utilizadores, 25/09/2026). Vinha escapado, mas
+    servia para enganar. Quem manda uma ligacao nao tem a sessao de quem
+    a abre, e por isso nao a assina."""
+    chave = b"aviso:" + (g.get("sessao") or "").encode("utf-8")
+    return hmac.new(chave, (texto or "").encode("utf-8"),
+                    hashlib.sha256).hexdigest()[:16]
+
+
+@app.after_request
+def assinar_o_aviso(resposta):
+    """Assina o aviso de todos os redireccionamentos, num sitio so: sao
+    dezenas de rotas a escrever `?aviso=` a mao, e uma que se esquecesse
+    perdia o aviso em silencio."""
+    destino = resposta.headers.get("Location") if resposta.status_code in (
+        301, 302, 303, 307, 308) else None
+    if destino and "aviso=" in destino:
+        partes = urlparse(destino)
+        pares = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
+                 if k != "assin"]
+        texto = next((v for k, v in pares if k == "aviso"), "").strip()
+        # Um aviso que so passa por aqui -- o redireccionamento de uma rota
+        # antiga leva os argumentos atras -- nao e nosso: assina-lo era
+        # assinar o texto de quem fez a ligacao. So segue assinado se ja
+        # vinha assinado.
+        veio = (request.args.get("aviso") or "").strip()
+        nosso = texto != veio or hmac.compare_digest(
+            request.args.get("assin") or "", assinatura_do_aviso(veio))
+        if texto and nosso:
+            pares.append(("assin", assinatura_do_aviso(texto)))
+            resposta.headers["Location"] = partes._replace(
+                query=urlencode(pares)).geturl()
+    return resposta
+
+
 @app.after_request
 def cabecalhos_de_seguranca(resposta):
     for nome, valor in CABECALHOS_DE_SEGURANCA.items():
@@ -10084,7 +10215,7 @@ def porta_de_entrada():
                     return site
             para = request.full_path.rstrip("?")
             return redirect("/entrar?para=" + quote(para, safe=""))
-        return Response("sessão em falta", 403, mimetype="text/plain")
+        return _sessao_em_falta()
     # A empresa de quem entrou passa a ser a do pedido (F4): o liga()
     # junta o ficheiro dela, e so o dela. Repoe-se no teardown -- no
     # cliente dos testes os pedidos correm todos na mesma thread.
@@ -10161,6 +10292,28 @@ ERROS_DO_PAINEL = {
 }
 
 
+def _sessao_em_falta():
+    """Um POST sem sessao -- um separador que ficou aberto depois de
+    sair, ou uma sessao que expirou. Era uma pagina branca a dizer
+    «sessão em falta», sem caminho de volta, e o que se tinha escrito
+    perdia-se sem se saber porque (teste com utilizadores, 25/09/2026).
+    Diz o que aconteceu e leva ao /entrar, de volta a pagina de onde o
+    formulario veio -- so o caminho, nunca outro sitio."""
+    para = "/"
+    if request.referrer:
+        partes = urlparse(request.referrer)
+        if partes.path.startswith("/") and not partes.path.startswith("//"):
+            para = partes.path + ("?" + partes.query if partes.query else "")
+    texto = ("A tua sessão terminou, e o que estavas a gravar não chegou ao "
+             "Mira Gov. <a href='/entrar?para=%s'>Entra outra vez</a>: o "
+             "botão Voltar do browser costuma devolver o que escreveste."
+             % html.escape(quote(para, safe=""), quote=True))
+    return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": "Sessão terminada",
+                                   "texto": texto,
+                                   "logo": logotipo(tamanho=24)},
+                    403, mimetype="text/html")
+
+
 def pagina_de_erro(codigo):
     titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
     return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
@@ -10185,9 +10338,19 @@ def nao_encontrado(_erro):
 
 @app.errorhandler(403)
 def recusado(_erro):
-    # So os abort(403): as recusas da porta continuam em texto, porque
-    # um POST de formulario ou de fetch quer a frase, nao um ecra.
+    # So os abort(403): as recusas da porta por papel continuam em
+    # texto (`_recusa()`), e a sessao em falta tem pagina propria
+    # (`_sessao_em_falta()`).
     return pagina_de_erro(403)
+
+
+@app.errorhandler(OverflowError)
+def numero_grande_demais(_erro):
+    """Um `<int:id_>` maior do que o SQLite guarda rebentava em 500 --
+    `/proposta/99999999999999999999999`, quando `/proposta/abc` dava um
+    404 limpo (teste com utilizadores, 25/09/2026). Um id que nao cabe na
+    base e um id que nao existe; num sitio so, para todas as rotas."""
+    return pagina_de_erro(404)
 
 
 @app.errorhandler(500)
@@ -12962,6 +13125,9 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     # redireccionamento. Nao vai para a base: e da vez, nao do sistema --
     # e assim nao se confunde "peças trazidas" com "verificação correu bem".
     texto_aviso = (request.args.get("aviso") or "").strip()
+    if texto_aviso and not hmac.compare_digest(
+            request.args.get("assin") or "", assinatura_do_aviso(texto_aviso)):
+        texto_aviso = ""        # de uma ligacao, e nao de uma accao nossa
     desfazer = (request.args.get("desfazer") or "").strip()
     aviso = ""
     if texto_aviso:
@@ -13586,6 +13752,20 @@ function arvoreAplicar() {
   }
   campo.form.submit();
 }
+
+// Num formulario que se submete a parte (o alerta), o que esta marcado
+// na arvore conta mesmo sem «Aplicar»: marcar e carregar em «Criar
+// alerta» dava «preenche pelo menos um campo» e perdia as marcas (teste
+// com utilizadores, 25/09/2026).
+document.addEventListener('submit', function (e) {
+  var det = document.querySelector('details.arvore');
+  var campo = document.getElementById('filtro-cpv');
+  if (!det || det.dataset.submeter !== 'nao' || !campo ||
+      e.target !== campo.form || !ARV_SEL.size) return;
+  campo.value = Array.from(ARV_SEL).join('|');
+  var fora = document.getElementById('filtro-cpv-excl');
+  if (fora) fora.value = Array.from(ARV_EXC).join('|');
+});
 
 function arvoreLimpar() {
   ARV_SEL.clear();
@@ -14929,7 +15109,17 @@ _NOMES_ESTADO = {"novo": "por ver", "interessa": "interessa",
 # (§7 do ESQUELETO: "análise" nao aparece no ecra — chama-se leitura).
 # Os registos gravados antes da mudanca ficam na base como estao; e ao
 # mostrar que se traduzem.
-_NOMES_ACCAO = {"análise": "leitura"}
+_NOMES_ACCAO = {"análise": "leitura",
+                # Os campos da proposta, como o formulario os chama: o
+                # historico mostrava `valor_proposta` e `proposta_tecnica`
+                # (teste com utilizadores, 25/09/2026).
+                "valor_proposta": "preço proposto", "preco_base": "preço base",
+                "lugar": "lugar", "top3": "os três primeiros", "coe": "CoE",
+                "notas": "notas", "responsavel": "responsável",
+                "tipologia": "tipologia", "cv": "CV",
+                "proposta_tecnica": "proposta técnica", "motivo": "motivo",
+                "ebitda": "EBITDA", "titulo": "título", "entidade": "cliente",
+                "porque_sem_ref": "porque não tem anúncio"}
 
 
 def resumo_filtro(consulta, vista=None):
@@ -15232,7 +15422,7 @@ def _faixa_do_interesse(rota, escondidos, cfg=None):
     return ("<div class='cpv-activo'>Limitado ao "
             "<a href='/configuracoes/interesse'>interesse</a>: <b>%s</b>%s%s"
             "<a href='%s'>ver tudo</a></div>"
-            % (html.escape(dentro),
+            % (interesse_legivel(dentro),
                (" <span class='d'>sem %s</span>" % html.escape(fora))
                if fora else "", quantos,
                html.escape(sem_pagina(request.args, rota, interesse="nao"),
@@ -15405,7 +15595,7 @@ def _volta_com_aviso(texto, desfazer=None, ancora=""):
     """
     partes = urlparse(request.referrer or "/")
     fica = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
-            if k not in ("aviso", "desfazer")]
+            if k not in ("aviso", "desfazer", "assin")]
     fica.append(("aviso", texto))
     if desfazer:
         fica.append(("desfazer", desfazer))
@@ -15442,9 +15632,11 @@ def _campos_exigidos_do_pedido(estado, motivo=""):
         bruto = (request.values.get("lugar") or "").strip()
         if bruto:
             try:
-                campos["lugar"] = int(bruto)
+                lugar = int(bruto)
             except ValueError:
-                pass
+                lugar = 0
+            if 1 <= lugar <= 99:          # fora disso fica «em falta»
+                campos["lugar"] = lugar
     return campos
 
 
@@ -15764,7 +15956,7 @@ def _conteudo_interesse():
                   "<b>%s</b>%s &mdash; apanha <b>%s</b> dos anúncios por ver "
                   "e <b>%s</b> do acervo. A <a href='%s'>lista</a> mostra só "
                   "isto, em todas as abas.</div>"
-                  % (html.escape(dentro),
+                  % (interesse_legivel(dentro),
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
                      mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
     formulario = (
@@ -16679,9 +16871,10 @@ def config_copias():
           "<span style='color:var(--ink-muted)'>(o destino configura-se uma vez com o "
           "copias_fora.sh)</span></div>"
           % html.escape(le_marca("ultima_copia_fora", "ainda nenhuma"))
-        + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s "
-          "<span style='color:var(--ink-muted)'>(python radar.py --ensaiar-copia)</span></div>"
-          % html.escape(le_marca("ultimo_ensaio_copia", "ainda nenhum"))
+        + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s%s</div>"
+          % (html.escape(le_marca("ultimo_ensaio_copia", "ainda nenhum")),
+             " <span style='color:var(--ink-muted)'>(python radar.py "
+             "--ensaiar-copia)</span>" if sou_dono() else "")
         + "<div class='saude'>%s</div>" % ("".join(existentes) or
                                            "<div class='nota'>nenhuma ainda</div>"))
     return pagina_config("copias", "<div class='mg-card conf-cx'>" + corpo + "</div>")
@@ -17030,7 +17223,8 @@ def alerta_criar():
         return recusa("O alerta precisa de nome.")
     consulta = urlencode(pares)
     if not [k for k, v in pares if v and k not in ("estado", "op")]:
-        return recusa("Preenche pelo menos um campo além do estado.")
+        return recusa("Diz o que o alerta procura: palavras, CPV, entidade "
+                      "ou plataforma.")
     # Nasce ligado (13/09/2026: "Criar alerta", nao "criar filtro"), e o
     # acervo que ja la esta fica marcado como tal, como ao ligar o
     # interruptor -- senao o primeiro resumo trazia tudo.
@@ -17067,6 +17261,10 @@ def alerta_trocar(filtro_id):
     if r and r["alerta"]:
         arquivar_o_acervo(filtro_id)
     return redirect("/configuracoes/alertas")
+
+
+# Quantas entidades a procura mostra de uma vez.
+ENTIDADES_NA_PROCURA = 25
 
 
 @app.route("/entidade/procurar")
@@ -17109,12 +17307,24 @@ def entidade_procurar():
                 return redirect("/entidade/" + quote(r["chave"], safe=""))
         # O nome procura-se em TODAS as grafias (entidade_nomes), com a
         # norma certa -- procurar com simplifica() perdia 11,8%
+        # O nome mais curto primeiro, e nao o alfabetico: «Setúbal» dava
+        # 25 agrupamentos de escolas e juntas por ordem alfabetica e o
+        # Município de Setúbal ficava de fora, sem aviso (teste com
+        # utilizadores, 25/09/2026). O nome curto e o que mais se parece
+        # com o que se escreveu; e o total diz-se quando ha mais.
+        padrao = "%" + para_like(norma_entidade(termo)) + "%"
         achadas = c.execute(
             "SELECT DISTINCT e.chave, e.nome, e.variantes "
             "FROM entidade_nomes n JOIN entidades e ON e.chave = n.chave "
             "WHERE n.nome_norm LIKE ? ESCAPE '%s' "
-            "ORDER BY e.nome COLLATE NOCASE LIMIT 25" % ESCAPE_LIKE,
-            ("%" + para_like(norma_entidade(termo)) + "%",)).fetchall()
+            "ORDER BY length(e.nome), e.nome COLLATE NOCASE LIMIT %d"
+            % (ESCAPE_LIKE, ENTIDADES_NA_PROCURA), (padrao,)).fetchall()
+        total_achadas = len(achadas)
+        if total_achadas == ENTIDADES_NA_PROCURA:
+            total_achadas = c.execute(
+                "SELECT COUNT(DISTINCT n.chave) FROM entidade_nomes n "
+                "WHERE n.nome_norm LIKE ? ESCAPE '%s'" % ESCAPE_LIKE,
+                (padrao,)).fetchone()[0]
     if len(achadas) == 1:
         return redirect("/entidade/" + quote(achadas[0]["chave"], safe=""))
     if achadas:
@@ -17126,9 +17336,12 @@ def entidade_procurar():
             for e in achadas)
         corpo = ("<div class='larg'><div class='mg-card lado-cx'>"
                  "<div class='mg-field__label' style='margin-bottom:10px'>"
-                 "%d entidades respondem a &ldquo;%s&rdquo; &mdash; "
-                 "escolhe a ficha</div>%s</div></div>"
-                 % (len(achadas), html.escape(termo), linhas))
+                 "%s entidades respondem a &ldquo;%s&rdquo; &mdash; "
+                 "escolhe a ficha%s</div>%s</div></div>"
+                 % (mil_pt(total_achadas), html.escape(termo),
+                    (". Aqui estão as %d de nome mais curto: escreve mais "
+                     "para afinar" % len(achadas))
+                    if total_achadas > len(achadas) else "", linhas))
     else:
         corpo = ("<div class='larg'><div class='mg-empty'>Nenhuma entidade "
                  "do corpus responde a &ldquo;%s&rdquo;. O corpus só "
@@ -18678,10 +18891,12 @@ def sem_corpus_html(titulo):
         "Contratos já celebrados, do Portal BASE &mdash; quem ganhou "
         "o quê, por quanto.",
         "<div class='larg'><div class='mg-empty'>"
-        "O corpus de contratos ainda não foi importado.<br><br>"
-        "Corre <code>python radar.py --contratos</code> para o trazer do "
-        "dados.gov &mdash; domínio público, sem chave nem sessão. "
-        "Dois anos são cerca de dois minutos.</div></div>",
+        "O corpus de contratos ainda não foi importado.<br><br>%s</div></div>"
+        % ("Corre <code>python radar.py --contratos</code> para o trazer do "
+           "dados.gov &mdash; domínio público, sem chave nem sessão. "
+           "Dois anos são cerca de dois minutos." if sou_dono() else
+           "Está a ser preparado: os contratos aparecem aqui assim que "
+           "estiverem carregados."),
         migalhas=migalhas_de("contratos"),
         titulo_aba="Contratos, Mira Gov")
 
@@ -19144,9 +19359,13 @@ def contratos():
              "estar. Anos fechados não mudam &mdash; o botão só volta a "
              "trazer o ano corrente e o anterior. O corpus começa em %d "
              "&mdash; é o mais antigo que o dados.gov chega a dar, os "
-             "zips de 2012 a 2014 vêm vazios. Para trazer um ano de "
-             "novo, <code>python radar.py --contratos %d</code>.</div>"
-             % (primeiro_ano_corpus(), primeiro_ano_corpus()))
+             "zips de 2012 a 2014 vêm vazios.%s</div>"
+             % (primeiro_ano_corpus(),
+                # o comando e do dono da plataforma: a um cliente era um
+                # texto tecnico sem uso (teste com utilizadores, 25/09/2026)
+                (" Para trazer um ano de novo, <code>python radar.py "
+                 "--contratos %d</code>." % primeiro_ano_corpus())
+                if sou_dono() else ""))
 
     # O campo do CPV e escondido, por isso um filtro activo nao se via em
     # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
@@ -19424,6 +19643,26 @@ def descricoes_cpv(campo_cpv):
             % ",".join("?" * len(codigos)), codigos)}
     return ["%s%s" % (c8, " &mdash; " + html.escape(achados[c8])
                       if c8 in achados else "") for c8 in codigos]
+
+
+def interesse_legivel(texto):
+    """«50700000|45331000» por palavras: o codigo e o nome curto de cada
+    CPV, e as palavras tal qual. Ja vem escapado. O interesse aparecia em
+    codigos crus na faixa da lista e nas Configuracoes (teste com
+    utilizadores, 25/09/2026) -- quem nao sabe os CPV de cor nao sabia o
+    que estava a filtrar."""
+    pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
+    codigos = [p for p in pedacos if re.fullmatch(r"[\d\-\s]+", p)]
+    nomes = dict(zip(codigos, descricoes_cpv(",".join(codigos))))
+    fora = []
+    for p in pedacos:
+        if p in nomes:
+            codigo, _, nome = nomes[p].partition(" &mdash; ")
+            fora.append("%s <span class='d'>%s</span>"
+                        % (codigo, html.escape(corta(html.unescape(nome), 40))))
+        else:
+            fora.append(html.escape(p))
+    return " &middot; ".join(fora)
 
 
 def tamanho_legivel(n):
@@ -19878,9 +20117,12 @@ def essencial_do_anuncio(a, seccoes, analise=None):
 
     # Nomear as pecas que foram mesmo lidas: numa leitura parcial, dizer
     # "do Caderno de Encargos e do Programa" e afirmar o que nao houve.
-    nota_pecas = ("lido de %s por %s — confirmar no documento"
+    # O nome do modelo («groq:openai/…») e para o dono; a um cliente diz
+    # só que foi lido automaticamente (teste com utilizadores, 25/09/2026).
+    nota_pecas = ("lido de %s %s — confirmar no documento"
                   % (analise["fontes"] or "peças do procedimento",
-                     analise["modelo"])) if analise else ""
+                     ("por " + analise["modelo"]) if sou_dono()
+                     else "por leitura automática")) if analise else ""
     regime = das_pecas("localizacao")
     # Lido o Programa e nao havendo limiar, isso e uma resposta -- e nao a
     # mesma coisa que ainda nao se ter ido ver.
@@ -19941,7 +20183,9 @@ def euros(v):
 def euros_curto(v):
     """Para os graficos, onde '1 661 400 000 EUR' nao se le de relance."""
     v = v or 0
-    for corte, sufixo in ((1e9, " mM€"), (1e6, " M€"), (1e3, " k€")):
+    # «mil M€» e nao «mM€»: a sigla nao se lia (teste com utilizadores,
+    # 25/09/2026).
+    for corte, sufixo in ((1e9, " mil M€"), (1e6, " M€"), (1e3, " k€")):
         if abs(v) >= corte:
             return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
     return "%.0f €" % v
@@ -20357,9 +20601,10 @@ def mercado(a):
     """
     if not ha_corpus():
         return _mercado_cx(
-            "O corpus de contratos ainda não foi importado. Corre "
-            "<code>python radar.py --contratos</code> para o trazer do "
-            "dados.gov (domínio público, sem chave).")
+            "O corpus de contratos ainda não foi importado."
+            + (" Corre <code>python radar.py --contratos</code> para o "
+               "trazer do dados.gov (domínio público, sem chave)."
+               if sou_dono() else ""))
 
     linhas, ao_todo, do_cpv, chave = historico_entidade(
         a["entidade"] or "", a["cpv"] or "", nif=a["nif"] or "")
@@ -20798,7 +21043,11 @@ def ficha(ref):
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
         # sozinho parecia que estava tudo trazido. E falhar a actualizacao
         # com pecas antigas em disco tambem: a lista parecia recente.
-        if a["docs_estado"] == "parcial":
+        # So quando o que ha e mesmo so o PDF: o estado fica «parcial» de
+        # uma tentativa antiga, e a vigilancia pode ter trazido as pecas
+        # depois -- o aviso dizia que nao vieram por cima da lista delas
+        # (teste com utilizadores, 25/09/2026).
+        if a["docs_estado"] == "parcial" and len(docs) <= 1:
             aviso_docs = ("Só veio o PDF do anúncio &mdash; as peças do "
                           "procedimento não foi possível trazer da plataforma.")
         elif a["docs_estado"] == "falhou":
@@ -20806,9 +21055,9 @@ def ficha(ref):
                           "&mdash; as que estão em baixo são as de antes.")
         else:
             aviso_docs = ""
-        meta_pecas = "%d ficheiro%s &middot; guardadas em pecas/%s" % (
-            len(docs), "" if len(docs) == 1 else "s",
-            html.escape(re.sub(r"[^0-9A-Za-z._-]", "-", ref)))
+        # Sem a pasta do servidor: «guardadas em pecas/…» e um caminho
+        # interno à vista de um cliente (teste com utilizadores).
+        meta_pecas = "%d ficheiro%s" % (len(docs), "" if len(docs) == 1 else "s")
         analise = analise_de(ref)
         if analise_a_correr(ref):
             # A leitura corre em fila, como a descarga: o que se mostra e o
@@ -21327,8 +21576,16 @@ def tarefa_nova():
         proposta_id = int(request.form.get("proposta_id") or 0) or None
     except ValueError:
         proposta_id = None
-    criar_tarefa(request.form.get("o_que"),
-                 data_do_texto(request.form.get("quando")),
+    # Uma data escrita que nao se le recusa-se com aviso, como no
+    # «adiar»: «31/02/2026» criava a tarefa sem data e em silencio (teste
+    # com utilizadores, 25/09/2026). Vazia continua a ser «sem data».
+    bruto = (request.form.get("quando") or "").strip()
+    quando = data_do_texto(bruto)
+    if bruto and not quando:
+        return _volta_com_aviso("«%s» não é uma data: escreve-a como "
+                                "dd/mm/aaaa. A tarefa não foi criada."
+                                % corta(bruto, 20))
+    criar_tarefa(request.form.get("o_que"), quando,
                  proposta_id=proposta_id, ref=ref)
     return volta_ao_referer("/anuncio/" + (ref or ""))
 
@@ -21984,10 +22241,16 @@ def proposta_da_ficha(id_):
     if "lugar" in request.form:
         bruto = (request.form.get("lugar") or "").strip()
         try:
-            campos.append("lugar")
-            valores.append(int(bruto) if bruto else None)
+            lugar = int(bruto) if bruto else None
         except ValueError:
-            campos.pop()
+            lugar = 0
+        # O browser trava o 1-99 com min/max; o servidor nao travava, e um
+        # -3 gravado deixava o formulario da ficha sem conseguir gravar
+        # mais nada (teste com utilizadores, 25/09/2026).
+        if lugar is not None and not 1 <= lugar <= 99:
+            return _volta_com_aviso("O lugar é um número de 1 a 99.")
+        campos.append("lugar")
+        valores.append(lugar)
     for nome, tecto in (("top3", 300), ("coe", 60), ("notas", 500)):
         if nome in request.form:
             campos.append(nome)

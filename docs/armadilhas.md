@@ -13,19 +13,19 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 7
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 9
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 10
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 23
+- [Contratos e entidades](#contratos-e-entidades) &middot; 24
 - [Alertas e interesse](#alertas-e-interesse) &middot; 7
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 59
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 17
+- [Contas e a porta](#contas-e-a-porta) &middot; 18
 - [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **263** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **266** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -560,6 +560,13 @@ Orçamento, cadeia de reserva, chaves.
 
 ## Datas, números e texto
 
+- **O DR manda caracteres de controlo do Windows-1252 nos títulos**
+  (U+0096 no lugar do travessão, U+0093/U+0094 nas aspas): 3 741
+  anúncios a 25/09/2026. O `sem_controlos()` traduz-os na recolha, e o
+  `limpar_controlos_dos_anuncios()` passou pelos que já lá estavam, uma
+  vez, pela marca `titulos_sem_controlos` (varre a tabela: ~6 s).
+  Uma fonte nova de títulos passa-os pelo `sem_controlos()`.
+
 - **Um preço que uma pessoa escreve passa pelo `preco_escrito()`, e o
   `None` recusa-se** (25/09/2026, teste com dez perfis de utilizador).
   O `euros_do_texto()` apanha o primeiro número que encontra, e isso
@@ -675,6 +682,13 @@ Uma árvore, duas fontes de contagem, dois campos.
 ---
 
 ## Contratos e entidades
+
+- **Os «clientes» e os «concorrentes» das Entidades recortam pelo
+  interesse, quando há** (`entidades_top()`, 25/09/2026). No corpus
+  inteiro, os concorrentes de uma empresa de AVAC eram a Petrogal e a
+  Pfizer, e o «Quem ganha» do Mercado, ao lado, já recortava. Com o
+  interesse custa 1,4 s, e por isso guarda-se até o `contratos.db`
+  mudar (`_MEMO_ENTIDADES_TOP`, pela data do ficheiro).
 
 - **Um número da ficha da entidade liga ao Mercado com
   `interesse=nao`, e o «a acabar» conta-se em meses** (25/09/2026, teste
@@ -2044,6 +2058,18 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 `TestContas` cobre tudo isto; os papéis de 13/09/2026 estão em
 `TestMudancasDeSetembro`, e as empresas de 23/09/2026 em
 `TestNenhumaEmpresaVeAOutra`.
+
+- **O `?aviso=` só aparece assinado** (`assinatura_do_aviso()`, o
+  `after_request` `assinar_o_aviso()`; 25/09/2026). O aviso vem no
+  endereço, e qualquer ligação punha qualquer frase na faixa oficial —
+  vinha escapado, mas servia para enganar. A chave é a sessão de quem o
+  recebe, como no CSRF. Duas coisas não óbvias: assina-se **num sítio
+  só**, no redireccionamento, porque são dezenas de rotas a escrever
+  `?aviso=` à mão; e um aviso que **só passa** por um redireccionamento
+  (as rotas antigas levam os argumentos atrás) **não se assina** se não
+  vinha assinado — senão `/alertas?aviso=…` assinava o texto de quem fez
+  a ligação. Um POST sem sessão tem página própria
+  (`_sessao_em_falta()`), com o caminho de volta ao `/entrar`.
 
 - **A porta põe a empresa de quem entrou no pedido, e tem de a tirar
   no fim** (F4, 23/09/2026). O `porta_de_entrada()` faz `_EMPRESA.set()`

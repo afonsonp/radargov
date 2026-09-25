@@ -148,6 +148,12 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None):
         raise ValueError("utilizador em falta, com espacos ou curto demais")
     if len(senha or "") < 8:
         raise ValueError("a palavra-passe tem de ter pelo menos 8 caracteres")
+    # Oito espacos eram oito caracteres (teste com utilizadores,
+    # 25/09/2026). Os espacos continuam a contar numa frase-passe: o que
+    # se recusa e a que nao tem mais nada.
+    if len((senha or "").strip()) < 8:
+        raise ValueError("a palavra-passe tem de ter pelo menos 8 caracteres "
+                         "além dos espaços")
     linha = c.execute("SELECT id FROM utilizadores WHERE email=?",
                       (email,)).fetchone()
     if linha:
