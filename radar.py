@@ -17544,6 +17544,8 @@ GLOSSARIO = (
          "Concurso."),
         ("Tipologia", "Consulting (serviços de consultoria) ou turnkey "
          "(entrega chave-na-mão)."),
+        ("CoE", "Center of Excellence: o centro de excelência da empresa "
+         "a que a proposta fica entregue."),
     )),
     ("As peças", (
         ("Peças do procedimento", "Os documentos do concurso: o Caderno de "
