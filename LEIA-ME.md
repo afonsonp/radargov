@@ -732,7 +732,9 @@ as outras cinco só um admin as vê:
   entidades seguidas, o «Filtro de alertas» em três grupos — o que é
   comum, o que é só dos anúncios (é por esses que o alerta avisa) e o
   que é só dos contratos (serve para aplicar o filtro ao Mercado) — com
-  o botão «Criar alerta», que o cria já ligado, o resumo por e-mail (para quem e a que hora; e,
+  o botão «Criar alerta», que o cria já ligado, e em cada alerta o
+  «avisar logo» — um e-mail a cada verificação em vez de esperar pelo
+  resumo —, o resumo por e-mail (para quem e a que hora; e,
   só para o admin, **quem envia**: conta, servidor, porta e
   palavra-passe — esta grava-se no `email_senha.txt`, nunca no
   `config.json`, e o campo fica sempre vazio), a janela do urgente,

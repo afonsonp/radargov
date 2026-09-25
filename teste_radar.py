@@ -8508,6 +8508,32 @@ class TestUmNumeroAbreASuaLista(BaseTemporaria):
         self.assertEqual([r["ref"] for _, linhas in radar.alertas_por_enviar()
                           for r in linhas], ["3/2026"])
 
+    def test_um_alerta_imediato_avisa_logo_e_o_resumo_nao_repete(self):
+        """Decisão dele a 25/09/2026, do teste com utilizadores: «só há o
+        resumo diário, e há concursos com três dias de prazo»."""
+        radar.gravar_filtro("TI", "cpv=72000000", alerta=1)
+        radar.gravar_filtro("Obras", "cpv=45000000", alerta=1)
+        with radar.liga() as c:
+            ti = c.execute("SELECT id FROM filtros_guardados "
+                           "WHERE nome='TI'").fetchone()[0]
+        self.cliente.post("/alertas/%d/imediato" % ti)
+        self._anuncio("1/2026", "72000000")
+        self._anuncio("2/2026", "45000000")
+        radar.registar_alertas()
+        enviados = []
+        with unittest.mock.patch.object(
+                radar, "enviar_email",
+                lambda assunto, corpo, cfg=None, html_corpo=None:
+                enviados.append(assunto) or (True, "enviado")):
+            self.assertTrue(radar.enviar_imediatos()[0])
+            self.assertFalse(radar.enviar_imediatos()[0])   # nada de novo
+        self.assertEqual(len(enviados), 1)
+        self.assertIn("em TI", enviados[0])
+        # o do alerta imediato já saiu; o outro fica para o resumo
+        falta = [(f["nome"], [r["ref"] for r in linhas])
+                 for f, linhas in radar.alertas_por_enviar()]
+        self.assertEqual(falta, [("Obras", ["2/2026"])])
+
     def test_a_entrada_conta_como_o_todos(self):
         self._anuncio("1/2026", "72000000")
         self._anuncio("2/2026", "72000000", estado="alteracao")

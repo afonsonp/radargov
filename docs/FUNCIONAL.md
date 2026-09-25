@@ -426,6 +426,11 @@ passo, saíam dois e-mails com metade das coisas cada um.
 2. **Enviar** (`enviar_resumo()`, a partir da `hora_resumo`): junta o
    que está reconhecido e ainda não saiu, manda um e-mail e só então
    marca como enviado.
+3. **Avisar logo** (`enviar_imediatos()`, a cada verificação, antes do
+   resumo; 25/09/2026, do teste com utilizadores): um alerta com
+   `imediato=1` («avisar logo», na lista dos alertas) manda o que lhe
+   caiu no e-mail dessa verificação, e marca-o enviado — o resumo do dia
+   já não o repete. Os outros alertas continuam só no resumo.
 
 **Corre depois de `ler_detalhes()`, e isso não é arrumação:** um alerta
 por CPV só apanha o anúncio depois de o CPV estar lido.
@@ -467,7 +472,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**91 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+**92 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
 (a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
