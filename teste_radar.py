@@ -8308,6 +8308,119 @@ class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
         self.assertEqual(radar.proposta(id_)["responsavel"], "Ana")
 
 
+class TestOTesteComUtilizadores(BaseTemporaria):
+    """O teste com dez perfis de utilizador de 25/09/2026 (a síntese
+    ficou fora do repositório): três erros que estragavam dados em
+    silêncio.
+
+    1. «612 350,00» — como a própria aplicação escreve os preços —
+       gravava-se como 612 EUR; «abc» gravava-se tal qual e «-500»
+       virava 500.
+    2. A mesma proposta aberta em dois separadores: o segundo a gravar
+       repunha os valores velhos de todos os campos do primeiro.
+    3. Depois de «ver tudo», carregar em Filtrar voltava a limitar a
+       lista ao interesse, sem aviso (deu 0 em vez de 148).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " tipo, url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      ("60/2026", "Aquisição de software", "IPL",
+                       "2026-09-01", "Anúncio de procedimento", "https://dr/60"))
+
+    _ficha = TestFichaTemUmaPortaPorGesto._ficha
+
+    def _proposta(self, estado="analisar"):
+        self.cliente.post("/estado/60%2F2026/analisar")
+        id_ = radar.propostas_de("60/2026")[0]["id"]
+        if estado != "analisar":
+            with radar.liga() as c:
+                c.execute("UPDATE propostas SET estado=?, valor_proposta=? "
+                          "WHERE id=?", (estado, "118.500,00 EUR", id_))
+        return id_
+
+    def test_o_espaco_nos_milhares_le_se(self):
+        self.assertEqual(radar.euros_do_texto("612 350,00"), 612350.0)
+        self.assertEqual(radar.euros_do_texto("612 350,00 €"), 612350.0)
+        self.assertEqual(radar.euros_do_texto("1 234 567,89 EUR"), 1234567.89)
+        # só entre grupos de três: dois números soltos não se juntam
+        self.assertEqual(radar.euros_do_texto("Lote 12 meses"), 12.0)
+
+    def test_o_preco_escrito_so_aceita_precos(self):
+        self.assertEqual(radar.preco_escrito("612 350,00"), "612.350,00 EUR")
+        self.assertEqual(radar.preco_escrito("612.350,00 €"), "612.350,00 EUR")
+        self.assertEqual(radar.preco_escrito("118500"), "118.500,00 EUR")
+        self.assertEqual(radar.preco_escrito("   "), "")
+        for mau in ("abc", "-500", "0", "12,5,3", "1.2.3"):
+            self.assertIsNone(radar.preco_escrito(mau), mau)
+
+    def test_a_ficha_grava_o_preco_com_espacos_inteiro(self):
+        id_ = self._proposta("submetido")
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"valor_proposta": "612 350,00"})
+        self.assertEqual(radar.proposta(id_)["valor_proposta"], "612.350,00 EUR")
+
+    def test_a_ficha_recusa_o_que_nao_e_preco_e_o_vazio_que_a_ranhura_exige(self):
+        id_ = self._proposta("submetido")
+        for mau in ("abc", "-500", "   "):
+            r = self.cliente.post("/proposta/%d/ficha" % id_,
+                                  data={"valor_proposta": mau})
+            self.assertIn("aviso=", r.headers["Location"], mau)
+            self.assertEqual(radar.proposta(id_)["valor_proposta"],
+                             "118.500,00 EUR", mau)
+
+    def test_mudar_de_ranhura_com_um_preco_que_nao_se_le_recusa(self):
+        id_ = self._proposta()      # por analisar, sem preço proposto
+        self.cliente.post("/estado/60%2F2026/submetido",
+                          data={"valor_proposta": "abc"})
+        p = radar.proposta(id_)
+        self.assertEqual(p["estado"], "analisar")
+        self.assertIsNone(p["valor_proposta"])
+        # e com um preço que se lê, passa, e grava-se no formato da coluna
+        self.cliente.post("/estado/60%2F2026/submetido",
+                          data={"valor_proposta": "612 350,00"})
+        p = radar.proposta(id_)
+        self.assertEqual((p["estado"], p["valor_proposta"]),
+                         ("submetido", "612.350,00 EUR"))
+
+    def test_dois_separadores_o_segundo_nao_apaga_o_primeiro(self):
+        id_ = self._proposta()
+        versao = radar.versao_da_proposta(radar.proposta(id_))
+        self.assertIn("name='versao' value='%s'" % versao, self._ficha())
+        # o primeiro separador grava
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"versao": versao, "notas": "do primeiro"})
+        # o segundo, desenhado antes, grava por cima -- e é recusado
+        r = self.cliente.post("/proposta/%d/ficha" % id_,
+                              data={"versao": versao, "notas": "do segundo"})
+        self.assertIn("aviso=", r.headers["Location"])
+        self.assertEqual(radar.proposta(id_)["notas"], "do primeiro")
+
+    def test_a_versao_nao_recusa_quem_desenhou_a_ficha_actual(self):
+        id_ = self._proposta()
+        versao = radar.versao_da_proposta(radar.proposta(id_))
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"versao": versao, "notas": "uma"})
+        versao = radar.versao_da_proposta(radar.proposta(id_))
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"versao": versao, "notas": "duas"})
+        self.assertEqual(radar.proposta(id_)["notas"], "duas")
+
+    def test_filtrar_depois_de_ver_tudo_nao_repoe_o_interesse(self):
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+        h = self.cliente.get("/concursos?interesse=nao").get_data(as_text=True)
+        self.assertIn("<input type='hidden' name='interesse' value='nao'>", h)
+        # e sem o ?interesse=nao o formulário não o inventa
+        h = self.cliente.get("/concursos").get_data(as_text=True)
+        self.assertNotIn("name='interesse'", h)
+
+
 class TestSelectorDaRanhura(BaseTemporaria):
     """O quadro saiu a 15/09/2026 e a escada passou a mudar-se na linha.
 
