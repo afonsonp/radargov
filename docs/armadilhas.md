@@ -15,7 +15,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 8
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 20
+- [Contratos e entidades](#contratos-e-entidades) &middot; 22
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 58
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **255** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **257** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -856,9 +856,25 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   uma tabela `TEMP` (vive na ligação, não no ficheiro) e as agregações
   correm sobre ela: os mesmos números (conferidos em cinco perguntas) em
   1 a 2,6 s. Só quando há `LIKE` no filtro — por CPV o índice já
-  responde em 0,1 s, e materializar seria trabalho a mais. E o
-  `EXISTS` correlacionado não é a saída que parece: para uma entidade
-  com 32 mil contratos deu 2,0 s contra os 0,3 s do `IN`.
+  responde em 0,1 s, e materializar seria trabalho a mais.
+
+- **Presa a uma entidade, a consulta por CPV vai por `EXISTS`; sem
+  entidade, por `IN`** (`cpv_da_entidade()`, 25/09/2026). O `c.id IN
+  (SELECT … cpv8 GLOB ?)` materializa todos os contratos do CPV — um
+  «45» são centenas de milhares — para os cruzar com a entidade; o
+  `EXISTS` parte dos contratos dela pelo índice. A ficha do anúncio faz
+  quatro destas, e no pior caso de quatro entidades medidas passou de
+  1,8 s a 0,6 s (num CPV estreito o `IN` ganha, 0,2 contra 0,4). **Mede
+  a quente, e duas vezes**: a primeira medida desta comparação, com a
+  cache fria, deu o contrário (2,0 s ao `EXISTS`) e esteve escrita aqui
+  como regra durante umas horas.
+
+- **Uma entidade sem NIF também se segue** (25/09/2026, decisão dele:
+  «não é de propósito, devia ter»). O `registar_seguidas()` casava só
+  pelo NIPC, e a ficha escondia o «seguir» das chaves `n:`. Casam agora
+  pela mesma `chave_entidade()` da ficha — o nome normalizado — e só com
+  anúncios sem NIF: um anúncio com NIF é de outra chave, e colá-lo pelo
+  nome misturava duas entidades.
 
 
 ---
