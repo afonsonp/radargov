@@ -6266,8 +6266,10 @@ class TestIndicadoresComerciais(BaseTemporaria):
         # a regra da empresa: o número abre a lista que o confirma
         # o endereço da lista: até 16/09/2026 este teste pedia
         # "href='/?estado=submetido'", que é a abertura e não a lista --
-        # e assim pregava a ligação errada no lugar
-        self.assertIn("href='/concursos?estado=submetido'", html_)
+        # e assim pregava a ligação errada no lugar. Desde 25/09/2026 é a
+        # das Propostas, que é onde as ranhuras da empresa vivem desde a
+        # barra de cinco itens (o /concursos?estado= serve a mesma lista)
+        self.assertIn("href='%s?estado=submetido'" % radar.PROPOSTAS, html_)
 
 
 class TestContactos(BaseTemporaria):
@@ -8225,6 +8227,20 @@ class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
         self.assertNotIn("pôr na escada", h)
         # o responsável é da proposta, e ainda não há proposta
         self.assertNotIn("action='/responsavel/", h)
+
+    def test_os_factos_nao_se_repetem(self):
+        """Varredura de 25/09/2026: a ficha dizia «Entidade adjudicante» e
+        «Preço base» duas vezes (os pares fixos e o essencial do DR), e o
+        «Nome do projeto» repetia o título que está no h1 logo acima."""
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET texto=?, preco_base=? WHERE ref=?",
+                      (TestTabelaEssencial.TEXTO, "150.000,00 EUR", "60/2026"))
+        h = self._ficha()
+        factos = h.split("<dl class='ficha-factos'>")[1].split("</dl>")[0]
+        for rotulo in ("Entidade adjudicante", "Preço base"):
+            self.assertEqual(factos.count("<dt>%s</dt>" % rotulo), 1, rotulo)
+        self.assertNotIn("<dt>Nome do projeto</dt>", factos)
+        self.assertIn("<dt>Critério de adjudicação</dt>", factos)
 
     def test_na_escada_ha_um_so_campo_responsavel(self):
         self.cliente.post("/estado/60%2F2026/analisar")

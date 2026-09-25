@@ -58,6 +58,12 @@
    selo no claro (6,9:1) e no contraste, escuro sobre o selo amarelo no
    escuro. */
 .mg-topbar .mg-avatar{color:var(--on-brand)}
+/* Um aviso escrito sem o `.mg-alert__body` (são uns dez, de antes do
+   sistema) levava cada pedaço de texto e cada ligação para a sua coluna
+   do flex: «Alterado pelo anúncio | 21717/2026 | , publicado a…» em
+   três colunas (varredura de 25/09/2026). Sem o corpo, o aviso é texto
+   corrido. */
+.mg-alert:not(:has(> .mg-alert__body)){display:block}
 .mg-field[hidden]{display:none}
 dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
 
@@ -451,3 +457,9 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
 .mg textarea:focus-visible,.mg-dialog input:focus-visible,
 .mg-dialog .mg-field__input:focus{outline:2px solid var(--brand);outline-offset:0;
  box-shadow:0 0 0 4px var(--brand-soft)}
+
+/* Texto só para quem lê com leitor de ecrã: o cabeçalho da coluna das
+   acções, que vazio o axe acusa e o leitor lê como «célula» (varredura
+   de 25/09/2026). */
+.so-leitor{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+ overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}

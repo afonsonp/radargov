@@ -15,17 +15,17 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 8
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 19
+- [Contratos e entidades](#contratos-e-entidades) &middot; 20
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 57
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 58
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 16
-- [A interface](#a-interface) &middot; 76
+- [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **252** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **255** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -849,6 +849,17 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   ~60 s e um pedido HTTP parado esse tempo parece o painel pendurado. Só
   traz o ano corrente e o anterior: anos fechados não mudam.
 
+- **Uma pergunta por texto varre-se UMA vez** (varredura de 25/09/2026).
+  O `LIKE` sobre o `objecto_norm` dos dois milhões de contratos não usa
+  índice, e o `resumo_contratos()` repetia-o nas dezassete consultas dos
+  gráficos: 9,3 s por uma «manutenção». Agora os ids que batem vão para
+  uma tabela `TEMP` (vive na ligação, não no ficheiro) e as agregações
+  correm sobre ela: os mesmos números (conferidos em cinco perguntas) em
+  1 a 2,6 s. Só quando há `LIKE` no filtro — por CPV o índice já
+  responde em 0,1 s, e materializar seria trabalho a mais. E o
+  `EXISTS` correlacionado não é a saída que parece: para uma entidade
+  com 32 mil contratos deu 2,0 s contra os 0,3 s do `IN`.
+
 
 ---
 
@@ -1145,6 +1156,15 @@ pelo Afonso e nenhuma se reabre de passagem.
   pela caixa da escada (`_botao_do_desfecho()`, com o `data-falta`), que
   pergunta o que falta. Um atalho para uma ranhura passa sempre pelo que
   ela exige, como o selector.
+
+- **A lista dos Concursos contava o mesmo conjunto quatro vezes**
+  (varredura de 25/09/2026). O «Expirou sem ver» (198 mil) levava 2,7 s:
+  o `COUNT` da lista, o da aba no `contar_a_escada()`, e mais três sobre
+  o filtro sem a plataforma (quantos, por ler, lidos por plataforma),
+  cada um a 0,6 s. As três saem agora de um `GROUP BY` só, e a aba aberta
+  entra no `contar_a_escada(..., ja_contadas=)` com o número da lista —
+  **só as abas de anúncios**: as ranhuras da empresa contam propostas, e
+  passar-lhes o número dos anúncios punha a aba a mentir. 1,45 s.
 
 - **Um gesto, uma porta** (varredura de 25/09/2026). A ficha de um
   concurso fora da escada tinha «Interessa»/«Abandonar» no cabeçalho,
@@ -2916,6 +2936,14 @@ botões ou no calendário.
   perguntar**. Quem clica não vê erro nenhum — vê o alerta desaparecer.
   Um `confirm` vai sempre pelo `json.dumps()` mais o
   `html.escape(quote=True)`, como no `accao()`.
+
+- **O `.mg-alert` é flex: sem o `.mg-alert__body`, cada pedaço vai para
+  a sua coluna** (varredura de 25/09/2026). «Alterado pelo anúncio
+  <a>21717/2026</a>, publicado a…» saía em três colunas, porque o texto
+  solto e a ligação viram itens do flex. São uns dez avisos escritos
+  antes do sistema, e a nossa folha põe-nos em bloco
+  (`.mg-alert:not(:has(> .mg-alert__body))`). Um aviso novo escreve-se
+  com o corpo: `mg-alert__body` › `mg-alert__text`.
 
 - **Um controlo sem texto precisa de nome, e a meia-luz não é cor**
   (axe-core, varredura de 25/09/2026). A caixa de cada tarefa do Hoje era

@@ -12171,6 +12171,20 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
     barra que so aparecia em telemovel. O `resize` nao dispara com uma
     fonte a carregar. */
  if (document.fonts && document.fonts.ready) document.fonts.ready.then(p);})();
+/* Um formulario GET com a classe `sem-vazios` nao leva os campos vazios
+   para o endereco (varredura de 25/09/2026: a pergunta do Mercado dava
+   `?q=x&adj=&entid=&ganhou=&vencid=&cpv=&de=&ate=`, feio de partilhar).
+   E opt-in de proposito: no Hoje, `?quem=` vazio quer dizer «sem dono»,
+   e nos Concursos `?estado=` vazio e a aba «Todos». */
+document.addEventListener('submit', function (e) {
+ var f = e.target;
+ if (!f.classList || !f.classList.contains('sem-vazios')) return;
+ [].forEach.call(f.elements, function (c) {
+  if (c.name && !c.disabled && c.value === '') {
+   c.disabled = true; setTimeout(function () { c.disabled = false; }, 0);
+  }
+ });
+});
 </script>
 %(script)s
 </body></html>"""
@@ -13237,6 +13251,9 @@ function arvoreNo(cod, porCodigo, filhos, total) {
   resumo.className = 'no';
   var chk = document.createElement('input');
   chk.type = 'checkbox';
+  // o nome para o leitor de ecra: eram 9 454 caixas que se liam so
+  // «caixa de verificacao» (axe, varredura de 25/09/2026)
+  chk.setAttribute('aria-label', cod + ' ' + item.descricao);
   chk.addEventListener('click', function(e) { e.stopPropagation(); });
   chk.addEventListener('change', function() { arvoreMudou(cod, chk.checked); });
   resumo.appendChild(chk);
@@ -13827,7 +13844,8 @@ def condicao_do_interesse_contratos(args=None, cfg=None):
     return frag, vals
 
 
-def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
+def contar_a_escada(onde_base=None, valores_base=(), cfg=None,
+                    ja_contadas=None):
     """Quantos ha em cada uma das dez ranhuras, DENTRO do filtro em uso.
 
     As contagens eram sobre a base inteira e diziam "Por ver 66 007 ·
@@ -13871,6 +13889,11 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None):
                 contas[chave] = c.execute(
                     "SELECT COUNT(*) n FROM propostas WHERE estado=?",
                     (chave,)).fetchone()["n"]
+                continue
+            # a aba que a lista ja contou, com a MESMA consulta, nao se
+            # conta outra vez: no «Expirou sem ver» eram 0,6 s repetidos
+            if chave in (ja_contadas or {}):
+                contas[chave] = ja_contadas[chave]
                 continue
             onde, valores = com_recorte(onde_base, list(valores_base),
                                         *recorte_da_lista(chave, cfg))
@@ -14080,24 +14103,30 @@ def _lista_de_anuncios():
         onde_sem_plat, val_sem_plat = com_recorte(
             *condicoes(args_da_lista(request.args, plat="", estado="")),
             *recorte_da_lista(estado_da_aba, cfg))
-        no_filtro = c.execute("SELECT COUNT(*) n FROM anuncios"
-                              + onde_sem_plat, val_sem_plat).fetchone()["n"]
-        porler_filtro = c.execute(
-            "SELECT COUNT(*) n FROM anuncios" + onde_sem_plat +
-            (" AND" if onde_sem_plat else " WHERE") + " detalhe_lido=0",
-            val_sem_plat).fetchone()["n"]
-        conta_plat = {r["p"]: r["n"] for r in c.execute(
-            "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
-            "FROM anuncios" + onde_sem_plat +
-            (" AND" if onde_sem_plat else " WHERE") + " detalhe_lido=1 "
-            "GROUP BY p", [SEM_PLATAFORMA] + val_sem_plat)}
+        # As tres contas do filtro sem a plataforma -- quantos, quantos
+        # por ler, e os lidos de cada plataforma -- saem de UMA passagem.
+        # Eram tres, cada uma a varrer o mesmo conjunto: no «Expirou sem
+        # ver» (198 mil) sao 0,6 s cada (varredura de 25/09/2026).
+        por_plat = c.execute(
+            "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n, "
+            "SUM(detalhe_lido=0) porler, SUM(detalhe_lido=1) lidos "
+            "FROM anuncios" + onde_sem_plat + " GROUP BY p",
+            [SEM_PLATAFORMA] + val_sem_plat).fetchall()
+        no_filtro = sum(r["n"] for r in por_plat)
+        porler_filtro = sum(r["porler"] or 0 for r in por_plat)
+        conta_plat = {r["p"]: r["lidos"] for r in por_plat if r["lidos"]}
 
     mil = mil_pt
 
     # A escada (15/09/2026): dez ranhuras mais o "todos", desenhadas
     # pela barra_das_abas() para as duas listas as terem iguais.
     estado_actual = estado_da_aba
-    contas = contar_a_escada(onde_sem_estado, val_sem_estado, cfg)
+    # a aba aberta ja esta contada (`correspondem`), com o mesmo recorte;
+    # as ranhuras da empresa contam propostas, e essas nao se passam
+    contas = contar_a_escada(
+        onde_sem_estado, val_sem_estado, cfg,
+        ja_contadas=({} if estado_da_aba in CHAVES_DA_EMPRESA
+                     else {estado_da_aba: correspondem}))
     abas = [barra_das_abas(rota, estado_actual, contas, ABAS_DOS_CONCURSOS)]
 
     cpv_actual = request.args.get("cpv", "")
@@ -14195,7 +14224,7 @@ def _lista_de_anuncios():
             "<thead><tr>"
             "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
             "<th class='mg-num'>Preço base</th>"
-            "<th class='mg-num'>Prazo</th><th>Faltam</th><th></th>"
+            "<th class='mg-num'>Prazo</th><th>Faltam</th><th><span class='so-leitor'>Acções</span></th>"
             "</tr></thead><tbody>"
             + "".join(linha(a, estado_actual, urgente, na_escada)
                       for a in linhas)
@@ -14342,7 +14371,8 @@ def _lista_de_anuncios():
         cabeca=cabecalho_de_pagina("Concursos", frase, [], "".join(accoes)),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_do_motivo(),
-        titulo_aba="Mira Gov")
+        titulo_aba="%s, Concursos" % (
+            ROTULOS_DA_ESCADA.get(estado_actual) or "Todos"))
 
 
 # --- a lista das oito ranhuras da empresa (etapa 2 do CRM, 15/09/2026)
@@ -16999,6 +17029,19 @@ def resumo_contratos(args):
     """
     onde, valores = filtros_dos_contratos(args)
     with liga_corpus() as c:
+        # Uma pergunta por TEXTO varre os dois milhoes de objectos com
+        # LIKE, e os graficos faziam-no dezassete vezes: 9,3 s por uma
+        # «manutencao» (varredura de 25/09/2026). Varre-se uma vez, para
+        # uma tabela TEMP (vive na ligacao, nao no ficheiro), e as
+        # agregacoes correm sobre os ids -- os mesmos numeros, em ~1 s.
+        # So com LIKE: por CPV o indice ja responde em 0,1 s.
+        escolhidos = " LIKE " in onde
+        if escolhidos:
+            c.execute("DROP TABLE IF EXISTS temp.escolhidos")
+            c.execute("CREATE TEMP TABLE escolhidos AS SELECT c.id FROM "
+                      "contratos c" + onde, valores)
+            onde, valores = (" WHERE c.id IN (SELECT id FROM temp.escolhidos)",
+                             [])
         # Quem ganha e a concentracao saem da mesma passagem: as duas
         # agregam por adjudicatario, e o SUM/COUNT OVER () traz o total e
         # o numero de empresas sem uma segunda varredura (poupa ~450 ms).
@@ -17071,6 +17114,8 @@ def resumo_contratos(args):
         # O desconto agrega por procedimento, nao por linha -- ver
         # descontos_por_procedimento(), que tambem diz o que fica de fora.
         desc = descontos_por_procedimento(c, onde, valores)
+        if escolhidos:
+            c.execute("DROP TABLE temp.escolhidos")
     return ganha, compra, proc, trim, escal, desc
 
 
@@ -18106,7 +18151,7 @@ def entidades():
             "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
             "<th class='p'>Compra</th><th class='p'>Ganha</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
-            "<th class='p'>A acabar · %d d</th><th></th></tr></thead>"
+            "<th class='p'>A acabar · %d d</th><th><span class='so-leitor'>Acções</span></th></tr></thead>"
             "<tbody>%s</tbody></table>"
             "<div class='tab-pe'><button type='submit' class='mg-btn mg-btn--secondary'>comparar "
             "as marcadas</button><span class='nota'>Marca duas. "
@@ -18714,7 +18759,7 @@ def contratos():
         return ("<label class='mg-field%s'><span class='mg-field__label'>%s"
                 "</span>%s</label>" % (classe, rotulo, dentro))
     filtros = ((
-        "<form class='filtros' id='filtros-mercado' method='get' action='/contratos'>"
+        "<form class='filtros sem-vazios' id='filtros-mercado' method='get' action='/contratos'>"
         "%s"
         + campo("Objecto", "<input class='mg-field__input' type='text' name='q' "
                 "value='%s' placeholder='Objecto do contrato'>", " f-q")
@@ -19297,13 +19342,16 @@ def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
     `rot_com_porque()`: o que diz de onde vem um número fica à vista, no
     `meta` ou no `pe`; o que explica para que serve vai para o «?».
     """
+    # h2 e nao h3 (axe, varredura de 25/09/2026): o cartao vem logo a
+    # seguir ao h1 da pagina, e saltar um nivel desorienta quem navega
+    # pelos titulos com o leitor de ecra
     if porque:
         titulo_html = ("<details class='mg-disc porque porque-bloco'><summary>"
-                       "<h3 class='mg-card__title'>%s</h3>"
+                       "<h2 class='mg-card__title'>%s</h2>"
                        "<i title='O que é este bloco'>?</i></summary>"
                        "<p class='mg-card__meta'>%s</p></details>" % (titulo, porque))
     else:
-        titulo_html = "<h3 class='mg-card__title'>%s</h3>" % titulo
+        titulo_html = "<h2 class='mg-card__title'>%s</h2>" % titulo
     return ("<section class='mg mg-card%s'%s>"
             "<div class='mg-card__head'><div class='mg-card__cab'>%s%s</div>%s</div>"
             "%s%s</section>"
@@ -20434,8 +20482,14 @@ def ficha(ref):
         # por meia duzia de seccoes numeradas. As linhas sem valor saem
         # para uma frase por baixo (decisao dele a 8/09/2026), agrupadas
         # por razao, para continuar a dizer ONDE cada campo esta.
+        # O essencial repete o que os pares fixos ja dizem (a entidade, o
+        # preco base) e o «Nome do projeto» e o titulo do h1: saiam duas
+        # vezes na mesma lista (varredura de 25/09/2026)
+        ja_ditos = {k for k, _, _ in pares} | {"Nome do projeto"}
         for rotulo, valor, em_falta, nota in essencial_do_anuncio(
                 a, seccoes, analise_de(ref)):
+            if rotulo in ja_ditos:
+                continue
             if em_falta or not valor:
                 sem_valor.append((em_falta or "o anúncio não indica", rotulo))
                 continue
@@ -22555,10 +22609,13 @@ def negocio_cx():
     maior = max([v["euros"] for v in pipeline.values()] + [1.0])
     barras = "".join(
         "<div class='col'><span class='v'>%s</span>"
-        "<a class='b' href='/concursos?estado=%s' style='height:%d%%' "
-        "title='%d proposta(s)'></a><span class='l'>%s</span></div>"
+        "<a class='b' href='%s?estado=%s' style='height:%d%%' "
+        "title='%d proposta(s)' aria-label='%s: %d proposta(s)'></a>"
+        "<span class='l'>%s</span></div>"
         % (euros_curto(pipeline[ch]["euros"]) if pipeline[ch]["euros"] else "0",
-           ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
+           PROPOSTAS, ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
+           pipeline[ch]["quantas"],
+           html.escape(estado_da_empresa(ch), quote=True),
            pipeline[ch]["quantas"], html.escape(estado_da_empresa(ch)))
         for ch in ESTADOS_ABERTOS)
 
@@ -22928,10 +22985,10 @@ def funil_cx_html():
     # Estavam em cinzento, laranja, azul e verde -- quatro cores sem
     # sistema, e as duas ultimas roubadas as cores de estado, que aqui
     # nao significam "bom" nem "a avisar".
-    passos = [("Entrados", f["entrados"], "#b9c6d2"),
-              ("Por ver", f["porver_30"], "#8ba3ba"),
-              ("Triados", f["triados_30"], "#5c809f"),
-              ("Interessa", f["interessa_30"], "var(--brand)")]
+    passos = [("Entrados", f["entrados"], tom_do_passo(0, 4)),
+              ("Por ver", f["porver_30"], tom_do_passo(1, 4)),
+              ("Triados", f["triados_30"], tom_do_passo(2, 4)),
+              ("Interessa", f["interessa_30"], tom_do_passo(3, 4))]
     maior_f = max([p[1] for p in passos] + [1])
     funil_html = "".join(
         "<div class='col'><span class='v'>%s</span>"
@@ -23027,6 +23084,17 @@ def numeros_do_negocio():
     return (negocio_cx() + funil_cx_html() + ranhuras_cx_html(por_estado))
 
 
+def tom_do_passo(i, n):
+    """A cor do passo `i` de `n` num caminho: a marca a escurecer do
+    principio para o fim, por `color-mix` sobre os tokens -- muda com o
+    tema, que as cores escritas a mao nao mudavam (varredura de
+    25/09/2026: eram cinco para oito ranhuras, em ciclo, e o «Perdido»
+    voltava a mais clara)."""
+    parte = 30 + int(70 * i / max(n - 1, 1))
+    return ("color-mix(in srgb, var(--brand) %d%%, var(--surface-sunken))"
+            % parte)
+
+
 def ranhuras_cx_html(por_estado):
     """As oito ranhuras em barras. O rotulo dizia "Interessados por fase
     do quadro" -- e o quadro saiu a 15/09/2026, e nao sao interessados,
@@ -23034,18 +23102,18 @@ def ranhuras_cx_html(por_estado):
     maior = max(list(por_estado.values()) + [1])
     # As ranhuras sao um caminho, como o funil: uma cor so, a escurecer
     # do principio para o fim.
-    cores_barra = ("#c3ced9", "#9db1c4", "#7994ae", "#5c809f", "#17557f")
     # Cada barra abre a lista que a confirma: a regra da empresa e que um
     # numero que um ecra mostra tem de dar exactamente a lista que a
     # ligacao dele abre.
     barras = "".join(
         "<div class='col'><span class='v'>%d</span>"
-        "<a class='b' href='/concursos?estado=%s' style='height:%d%%;"
-        "background:%s' title='ver as %d'></a>"
+        "<a class='b' href='%s?estado=%s' style='height:%d%%;"
+        "background:%s' title='ver as %d' aria-label='%s: ver as %d'></a>"
         "<span class='l'>%s</span></div>"
-        % (por_estado[ch], ch,
+        % (por_estado[ch], PROPOSTAS, ch,
            int(88.0 * por_estado[ch] / maior) + 6,
-           cores_barra[i % len(cores_barra)], por_estado[ch],
+           tom_do_passo(i, len(ESTADOS_DA_EMPRESA)), por_estado[ch],
+           html.escape(rotulo, quote=True), por_estado[ch],
            html.escape(rotulo))
         for i, (ch, rotulo) in enumerate(ESTADOS_DA_EMPRESA))
     return ("<div class='mg-card' style='padding:22px 24px'>"
@@ -23502,7 +23570,7 @@ def pedidos_de_acesso():
         corpo = ("<div class='mg-card tab-cx'><table class='mg-table'>"
                  "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
                  "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
-                 "<th>Aviso por e-mail</th><th></th></tr></thead><tbody>%s</tbody>"
+                 "<th>Aviso por e-mail</th><th><span class='so-leitor'>Acções</span></th></tr></thead><tbody>%s</tbody>"
                  "</table></div>"
                  % "".join(
                      "<tr><td class='mg-num'>%s</td><td>%s</td><td>%s</td>"
@@ -24600,7 +24668,9 @@ def inicio():
         # motivo em duas das oito palavras, e sem a caixa o gesto ficava
         # a meio (o servidor recusa e diz porquê, mas aqui há JS).
         script=caixa_do_motivo(),
-        titulo_aba="Mira Gov")
+        # «Hoje» e nao só a marca: com vários separadores abertos, 36
+        # paginas chamavam-se «Mira Gov» (varredura de 25/09/2026)
+        titulo_aba="Hoje, Mira Gov")
 
 
 def _atrasadas_de(quem, hoje):
