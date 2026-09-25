@@ -69,6 +69,7 @@
    a diferença entre o azul e o cinzento lia a frase sem saber onde
    carregar. Sublinhadas nas notas e nas frases corridas. */
 .nota a,.ficha-nota a,.em-falta-frase a,.mg-pagehead__sub a,.mg-alert a,
+.mg-card__meta a,
 .entrar-nota a{text-decoration:underline;text-underline-offset:2px}
 .mg-field[hidden]{display:none}
 dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}

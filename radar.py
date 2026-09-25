@@ -10037,7 +10037,7 @@ PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="cla
 <body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <div class="mg-empty">
-  <p class="mg-empty__title">%(titulo)s</p>
+  <h1 class="mg-empty__title">%(titulo)s</h1>
   <p class="mg-empty__text">%(texto)s</p>
   <div class="mg-empty__action">
    <a class="mg-btn mg-btn--primary" href="/">Voltar ao Hoje</a></div>
