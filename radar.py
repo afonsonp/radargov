@@ -784,6 +784,14 @@ def iniciar_empresa(caminho=None):
             id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE,
             consulta TEXT, alerta INTEGER DEFAULT 0,
             quem TEXT, criado_em TEXT)""")
+        # O aviso imediato de um alerta (25/09/2026, do teste com
+        # utilizadores: «so ha o resumo diario, e ha concursos com tres
+        # dias de prazo»). Depois do CREATE, que e o que o cria numa base
+        # nova; numa antiga acrescenta-se.
+        if "imediato" not in [r["name"] for r in
+                              c.execute("PRAGMA table_info(filtros_guardados)")]:
+            c.execute("ALTER TABLE filtros_guardados "
+                      "ADD COLUMN imediato INTEGER DEFAULT 0")
         c.execute("""CREATE INDEX IF NOT EXISTS ix_alertas_envio
                      ON alertas_vistos(enviado_em)""")
         # (A limpeza de 13/09/2026 dos filtros guardados sem alerta
@@ -7394,8 +7402,8 @@ _TABELAS_TRIAGEM = (
     ("historico", ("ref", "quem", "accao", "detalhe", "quando"),
      "SELECT ref, quem, accao, detalhe, quando FROM historico ORDER BY id"),
     ("filtros_guardados",
-     ("id", "nome", "consulta", "alerta", "quem", "criado_em"),
-     "SELECT id, nome, consulta, alerta, quem, criado_em "
+     ("id", "nome", "consulta", "alerta", "quem", "criado_em", "imediato"),
+     "SELECT id, nome, consulta, alerta, quem, criado_em, imediato "
      "FROM filtros_guardados ORDER BY id"),
     ("entidades_seguidas", ("chave", "nome", "desde"),
      "SELECT chave, nome, desde FROM entidades_seguidas ORDER BY chave"),
@@ -7533,11 +7541,14 @@ def repor_triagem(caminho=None):
                                reg["detalhe"], reg["quando"]))
                     escritas += 1
             elif t == "filtros_guardados":
+                # o `imediato` entrou a 25/09/2026: um triagem.jsonl de
+                # antes nao o traz, e o alerta volta como era (no resumo)
                 c.execute("INSERT OR REPLACE INTO filtros_guardados "
-                          "(id, nome, consulta, alerta, quem, criado_em) "
-                          "VALUES (?,?,?,?,?,?)",
+                          "(id, nome, consulta, alerta, quem, criado_em, "
+                          "imediato) VALUES (?,?,?,?,?,?,?)",
                           (reg["id"], reg["nome"], reg["consulta"],
-                           reg["alerta"], reg["quem"], reg["criado_em"]))
+                           reg["alerta"], reg["quem"], reg["criado_em"],
+                           reg.get("imediato") or 0))
                 escritas += 1
             elif t == "entidades_seguidas":
                 c.execute("INSERT OR REPLACE INTO entidades_seguidas "
@@ -7570,7 +7581,7 @@ ACERVO = "acervo"
 def filtros_de_alerta():
     with liga() as c:
         return c.execute(
-            "SELECT id, nome, consulta FROM filtros_guardados "
+            "SELECT id, nome, consulta, imediato FROM filtros_guardados "
             "WHERE alerta=1 ORDER BY nome COLLATE NOCASE").fetchall()
 
 
@@ -7634,11 +7645,14 @@ def arquivar_o_acervo(filtro_id):
                   (ACERVO, filtro_id))
 
 
-def alertas_por_enviar():
-    """[(filtro, [anuncios])] do que esta reconhecido e ainda nao saiu."""
+def alertas_por_enviar(so_imediatos=False):
+    """[(filtro, [anuncios])] do que esta reconhecido e ainda nao saiu.
+    Com `so_imediatos`, so dos alertas que avisam logo."""
     fora = []
     with liga() as c:
         for f in filtros_de_alerta():
+            if so_imediatos and not f["imediato"]:
+                continue
             linhas = c.execute(
                 "SELECT a.ref, a.titulo, a.entidade, a.data_pub, a.prazo, "
                 "a.preco_base, a.cpv FROM alertas_vistos v "
@@ -8092,6 +8106,33 @@ def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     return True, "enviado para %s" % para
 
 
+def enviar_imediatos(cfg=None):
+    """O aviso logo, dos alertas que o pedem: um e-mail por verificacao,
+    so com o que caiu nesses alertas, marcado como enviado -- o resumo do
+    dia ja nao o repete. Sem nada de novo, nao manda nada.
+
+    O resto e como no resumo: sem e-mail configurado da-se por entregue
+    (senao ficava «por avisar» para sempre); uma falha a serio nao marca,
+    e a verificacao seguinte volta a tentar."""
+    cfg = cfg or ler_config()
+    achados = alertas_por_enviar(so_imediatos=True)
+    if not achados:
+        return False, "nada de novo nos alertas imediatos"
+    total = sum(len(x[1]) for x in achados)
+    nomes = ", ".join(f["nome"] for f, _ in achados)
+    corpo = texto_do_resumo(achados, [], [])
+    bem, porque = enviar_email(
+        "Mira Gov: %d anúncio%s novo%s em %s" % (
+            total, "" if total == 1 else "s", "" if total == 1 else "s",
+            corta(nomes, 60)),
+        corpo, cfg, html_do_resumo(achados, [], []))
+    if bem or porque in ("e-mail por configurar",
+                         "falta a palavra-passe em email_senha.txt"):
+        marcar_alertas_enviados(achados)
+        return True, porque
+    return False, porque
+
+
 def enviar_resumo(cfg=None, forcar=False):
     """O resumo diario. Um por dia: a verificacao corre duas vezes e o
     resumo sai uma, senao eram dois e-mails com metade das coisas."""
@@ -8194,6 +8235,9 @@ def trabalho_da_empresa(cfg, bem, diz):
         try:
             quantos_avisos = registar_alertas()
             registar_seguidas()
+            # O aviso logo sai em todas as verificacoes, e antes do resumo:
+            # o que ele mandar ja nao entra no do fim do dia.
+            enviar_imediatos(cfg)
             # O resumo sai uma vez por dia, a partir da hora marcada: a
             # verificacao corre de hora a hora e nao se mandam varios
             # e-mails com um bocado das coisas cada.
@@ -16084,7 +16128,7 @@ def _linha_filtro(f):
         "<button type='submit' class='interruptor %s' title='%s'><i></i>"
         "</button></form>"
         "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
-        "<span class='onde'>aplicar a: %s</span>%s</div>"
+        "<span class='onde'>aplicar a: %s</span>%s%s</div>"
         "<div class='conta'>%s</div>"
         # o confirm pelas duas escapagens do `accao()`: escrito à mão,
         # o `&quot;` fechava a cadeia de JS e o × apagava sem perguntar
@@ -16100,6 +16144,17 @@ def _linha_filtro(f):
            html.escape(resumo_filtro(f["consulta"] or "")),
            " &middot; ".join(aplicar) or "sem campos",
            triagem,
+           # O aviso logo (25/09/2026): so num alerta ligado, que um
+           # desligado nao avisa de nada.
+           ("<span class='onde'>%s %s</span>" % (
+               "avisa <b>logo</b>, a cada verificação" if f["imediato"]
+               else "avisa no resumo do dia",
+               accao("/alertas/%d/imediato" % f["id"],
+                     "só no resumo" if f["imediato"] else "avisar logo",
+                     "mini",
+                     rotulo=("Passar «%s» a só no resumo" if f["imediato"]
+                             else "Avisar logo de «%s»") % f["nome"])))
+           if ligado else "",
            ("<span class='avisa-mal'>não avisa: nada aqui é sobre "
             "anúncios</span>" if ligado and not onde else
             "<b>%s</b> por avisar &middot; %s avisados &middot; %s do acervo%s"
@@ -17450,6 +17505,16 @@ def alertas_email():
         "hora_resumo": (request.form.get("hora_resumo") or "17:00").strip(),
     }})
     return redirect("/configuracoes/alertas?aviso=" + quote("Configuração do e-mail guardada."))
+
+
+@app.route("/alertas/<int:filtro_id>/imediato", methods=["POST"])
+def alerta_imediato(filtro_id):
+    """Liga e desliga o aviso logo de um alerta (`enviar_imediatos()`).
+    O que ja estava por avisar sai na verificacao seguinte."""
+    with liga() as c:
+        c.execute("UPDATE filtros_guardados SET imediato = 1 - COALESCE(imediato,0) "
+                  "WHERE id=?", (filtro_id,))
+    return redirect("/configuracoes/alertas")
 
 
 @app.route("/alertas/<int:filtro_id>/trocar", methods=["POST"])
