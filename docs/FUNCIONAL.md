@@ -116,11 +116,11 @@ as exactas e salta as outras.
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **2** | Quem entra |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
-| `estado` | 15 | Marcas do sistema (última verificação, migrações feitas) |
+| `estado` | 16 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
-| `pedidos_acesso` | **1** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
+| `pedidos_acesso` | **2** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
