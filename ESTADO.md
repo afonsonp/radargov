@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **24 de setembro de 2026**.
+Última actualização: **25 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -60,7 +60,7 @@ duas bases; os das empresas, de **24/09/2026**.
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 152**, em ~80 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 25 012 linhas · `teste_radar.py` 15 178 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
+| Código | `radar.py` 25 274 linhas · `teste_radar.py` 15 447 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -147,12 +147,15 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.1`**, de
-  24/09/2026 — o **Mira Gov**: o nome, a marca do olho, a barra de cinco
-  itens (com as Propostas em rota própria), os oito ecrãs fiéis ao
-  sistema de desenho, o ecrã de entrar, as variáveis antigas e as
-  pontes fora, e o dono a ler os Concursos e o Mercado. (A `v2.0.0`, da
-  mesma manhã, fechou a plataforma multi-empresa.) **Reinicia sempre o painel**, mesmo quando não há
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.2`**, de
+  25/09/2026 — **a varredura**: os ícones nos botões, e as correcções
+  das duas voltas (a página já não foge de lado no telemóvel, a escada
+  pede no acto o que falta, o alerta pergunta antes de apagar, uma porta
+  por gesto na ficha, o NIF confere, seguir entidades sem NIF, o Mercado
+  por texto e a ficha mais depressa, e a acessibilidade que o axe
+  apontava). A `v2.0.1`, de 24/09, trouxe o **Mira Gov**: o nome, a
+  marca do olho, a barra de cinco itens e os ecrãs do sistema de
+  desenho. **Reinicia sempre o painel**, mesmo quando não há
   nada a trazer: o painel só lê o `radar.py` ao arrancar.
 - **As últimas migrações correram a 23/09/2026**: a F1 passou as
   tabelas da empresa para `empresas/1/empresa.db` (`separar_empresa()`,
