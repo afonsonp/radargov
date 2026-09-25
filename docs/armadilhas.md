@@ -10,22 +10,22 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 ## Índice
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
-- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 10
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 6
+- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 7
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 8
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 19
+- [Contratos e entidades](#contratos-e-entidades) &middot; 20
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 55
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 58
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 9
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 7
-- [Contas e a porta](#contas-e-a-porta) &middot; 10
-- [A interface](#a-interface) &middot; 50
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
+- [Contas e a porta](#contas-e-a-porta) &middot; 16
+- [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **210** ao todo, contados a 17/09/2026. Contam-se por secção com
+São **255** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -849,6 +849,17 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   ~60 s e um pedido HTTP parado esse tempo parece o painel pendurado. Só
   traz o ano corrente e o anterior: anos fechados não mudam.
 
+- **Uma pergunta por texto varre-se UMA vez** (varredura de 25/09/2026).
+  O `LIKE` sobre o `objecto_norm` dos dois milhões de contratos não usa
+  índice, e o `resumo_contratos()` repetia-o nas dezassete consultas dos
+  gráficos: 9,3 s por uma «manutenção». Agora os ids que batem vão para
+  uma tabela `TEMP` (vive na ligação, não no ficheiro) e as agregações
+  correm sobre ela: os mesmos números (conferidos em cinco perguntas) em
+  1 a 2,6 s. Só quando há `LIKE` no filtro — por CPV o índice já
+  responde em 0,1 s, e materializar seria trabalho a mais. E o
+  `EXISTS` correlacionado não é a saída que parece: para uma entidade
+  com 32 mil contratos deu 2,0 s contra os 0,3 s do `IN`.
+
 
 ---
 
@@ -1125,6 +1136,44 @@ pelo Afonso e nenhuma se reabre de passagem.
   consulta: duas escadas paralelas para o mesmo percurso, e um concurso
   a subir as duas ao mesmo tempo. Não voltes a pendurar estado da empresa
   no `anuncios`; o sítio é a `propostas`.
+
+- **Um campo que a ranhura EXIGE tem de se poder dar no gesto que a
+  escolhe** (varredura de 25/09/2026). O «Submetido» exige o preço
+  proposto, e o campo só se desenha a partir do «Submetido»
+  (`ESTADOS_COM_PROPOSTO`, e perguntar o preço antes é decisão dele que
+  não se desfaz): de «A preparar proposta» não havia caminho, e a recusa
+  mandava preenchê-lo «no bloco A nossa proposta», onde não estava. O
+  `selector_de_ranhura(..., p=)` leva no `data-falta` o que ESTA proposta
+  ainda não tem, por ranhura, e a caixa do motivo pede-o no acto. Um
+  chamador novo do selector passa-lhe a proposta; sem ela, a caixa pede
+  tudo o que a ranhura exige, que é perguntar a mais mas não é beco.
+
+- **Um botão que «propõe» não leva a escolha escondida** (varredura de
+  25/09/2026). O «Perdemos» da faixa do desfecho mandava
+  `motivo=Preço` num campo escondido: o motivo da perda, que é o que a
+  empresa aprende com ela, ficava escolhido por ninguém. E os dois botões
+  mandavam ranhuras que exigem o preço proposto sem o levar. Vão agora
+  pela caixa da escada (`_botao_do_desfecho()`, com o `data-falta`), que
+  pergunta o que falta. Um atalho para uma ranhura passa sempre pelo que
+  ela exige, como o selector.
+
+- **A lista dos Concursos contava o mesmo conjunto quatro vezes**
+  (varredura de 25/09/2026). O «Expirou sem ver» (198 mil) levava 2,7 s:
+  o `COUNT` da lista, o da aba no `contar_a_escada()`, e mais três sobre
+  o filtro sem a plataforma (quantos, por ler, lidos por plataforma),
+  cada um a 0,6 s. As três saem agora de um `GROUP BY` só, e a aba aberta
+  entra no `contar_a_escada(..., ja_contadas=)` com o número da lista —
+  **só as abas de anúncios**: as ranhuras da empresa contam propostas, e
+  passar-lhes o número dos anúncios punha a aba a mentir. 1,45 s.
+
+- **Um gesto, uma porta** (varredura de 25/09/2026). A ficha de um
+  concurso fora da escada tinha «Interessa»/«Abandonar» no cabeçalho,
+  «pôr na escada»/«abandonar» no bloco da proposta, e o cartão
+  «Responsável», que também o punha na escada; com proposta, dois campos
+  «responsável» a gravar o mesmo por dois caminhos. Cada cópia é um
+  sítio onde o comportamento diverge — o bloco não sabia que as
+  alterações não se põem na escada, e o cabeçalho sabia. Antes de
+  acrescentar um botão à ficha, procura se o gesto já lá está.
 
 - **As chaves dos seis primeiros estados são, de propósito, as dos
   `fases.papel`.** `ESTADOS_DA_EMPRESA` começa por `analisar`, `proposta`,
@@ -2855,6 +2904,56 @@ botões ou no calendário.
   `cabeca=` ao `envolver()` (a Ficha) não a desenha: as migalhas dela
   vêm do `cabecalho_de_pagina()` e não do `migalhas_de()`, e o
   «Verificar agora» não aparece lá.
+
+- **Numa fila flex, o que não pode encolher empurra a página inteira
+  para o lado** (varredura de 25/09/2026). Com os cinco itens do Mira
+  Gov, a `nav` da barra chegava a 522px num ecrã de 390, e **todas** as
+  páginas com sessão rolavam de lado no telemóvel; as abas das Entidades
+  a 640px, o «ir para» do paginador a 433px, e as colunas de um gráfico
+  levavam o Mercado a 1 707px num ecrã de 1280. O remédio é o mesmo
+  para todos: a fila rola dentro de si (`overflow-x:auto` e
+  `min-width:0`) ou dobra (`flex-wrap`), e nunca estica a página. Mede-se
+  com o `scrollWidth` do documento, a 390 e a 1280, em todos os moldes;
+  a olho não se vê, porque a barra parece certa e só o polegar descobre
+  que a página foge.
+
+- **Quando uma classe muda, as regras da classe velha morrem em
+  silêncio** (varredura de 25/09/2026). A caixa da escada passou de
+  `dialog.modal` a `mg-dialog` na migração, e as regras de
+  `dialog.modal` ficaram lá sem apanhar nada: o `<dialog>` voltou ao
+  rebordo preto do browser, os motivos perderam o desenho e os botões
+  ficaram crus. E o `display:flex` do `.mg-field` ganha ao `[hidden]`
+  do browser — um campo «escondido» continua à vista. Ao trocar a classe
+  de um elemento, procura as regras da antiga; a um componente com
+  `display` próprio que se esconda por `hidden`, dá-lhe o
+  `[hidden]{display:none}`.
+
+- **Um `confirm` de JavaScript escrito à mão num atributo parte-se, e parte-se
+  calado** (varredura de 25/09/2026). O × dos alertas tinha
+  `onsubmit='return confirm("Apagar o alerta &quot;X&quot;? …")'`: o
+  `&quot;` passa a `"` antes de o JS o ler, fecha a cadeia a meio, o
+  browser deixa um erro na consola e **o formulário segue sem
+  perguntar**. Quem clica não vê erro nenhum — vê o alerta desaparecer.
+  Um `confirm` vai sempre pelo `json.dumps()` mais o
+  `html.escape(quote=True)`, como no `accao()`.
+
+- **O `.mg-alert` é flex: sem o `.mg-alert__body`, cada pedaço vai para
+  a sua coluna** (varredura de 25/09/2026). «Alterado pelo anúncio
+  <a>21717/2026</a>, publicado a…» saía em três colunas, porque o texto
+  solto e a ligação viram itens do flex. São uns dez avisos escritos
+  antes do sistema, e a nossa folha põe-nos em bloco
+  (`.mg-alert:not(:has(> .mg-alert__body))`). Um aviso novo escreve-se
+  com o corpo: `mg-alert__body` › `mg-alert__text`.
+
+- **Um controlo sem texto precisa de nome, e a meia-luz não é cor**
+  (axe-core, varredura de 25/09/2026). A caixa de cada tarefa do Hoje era
+  um `<button>` vazio: o leitor de ecrã dizia «botão», e ninguém sabia o
+  que marcava. O `accao()` tem o `rotulo=`, que vira `aria-label`; um
+  `<select>` sem `<label>` leva `aria-label`. E o `opacity` baixa o
+  contraste do texto sem ninguém o medir: os dias passados da fita
+  ficaram a 3,1:1. Para apagar um texto, muda-se a cor para um token que
+  passe, não a opacidade. O mesmo para o `.mg-topbar .mg-avatar` do
+  sistema, que dava 1,38:1 no claro e a nossa folha corrige (há teste).
 
 
 ---

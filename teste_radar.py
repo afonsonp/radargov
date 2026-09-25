@@ -6048,6 +6048,25 @@ class TestFecharOCicloComOBase(BaseTemporaria):
         # e a proposta continua onde estava
         self.assertEqual(radar.proposta(self.id_)["estado"], "submetido")
 
+    def test_os_botoes_pedem_o_que_falta_e_nao_escolhem_o_motivo(self):
+        """Varredura de 25/09/2026: o «Perdemos» mandava o motivo «Preço»
+        escondido — escolhia por quem lê o porquê de ter perdido, que é o
+        contrário do «propõe, nunca decide». E os dois mandavam ranhuras
+        que exigem o preço proposto sem o levar: numa proposta sem preço,
+        o gesto acabava num aviso a mandar preenchê-lo noutro lado. Vão
+        agora pela caixa da escada, com o `data-falta`."""
+        self._contrato()
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=NULL WHERE id=?",
+                      (self.id_,))
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        faixa = radar.faixa_do_desfecho(radar.proposta(self.id_), linhas)
+        self.assertNotIn("value='Preço'", faixa)
+        self.assertEqual(faixa.count("desfecho-js"), 2)
+        falta = [json.loads(html.unescape(f))
+                 for f in re.findall(r"data-falta='([^']*)'", faixa)]
+        self.assertEqual(falta, [["valor_proposta"], ["valor_proposta"]])
+
     def test_o_botao_fecha_a_proposta(self):
         self._contrato()
         r = self.cliente.post("/proposta/%d/escada" % self.id_,
@@ -6247,8 +6266,10 @@ class TestIndicadoresComerciais(BaseTemporaria):
         # a regra da empresa: o número abre a lista que o confirma
         # o endereço da lista: até 16/09/2026 este teste pedia
         # "href='/?estado=submetido'", que é a abertura e não a lista --
-        # e assim pregava a ligação errada no lugar
-        self.assertIn("href='/concursos?estado=submetido'", html_)
+        # e assim pregava a ligação errada no lugar. Desde 25/09/2026 é a
+        # das Propostas, que é onde as ranhuras da empresa vivem desde a
+        # barra de cinco itens (o /concursos?estado= serve a mesma lista)
+        self.assertIn("href='%s?estado=submetido'" % radar.PROPOSTAS, html_)
 
 
 class TestContactos(BaseTemporaria):
@@ -7463,7 +7484,7 @@ class TestMotivoDoAbandono(unittest.TestCase):
         self.assertNotIn("<select", html_)
         self.assertNotIn("<option", html_)
         self.assertIn("abandonar-js", html_)
-        self.assertIn("action='/estado/1/2026/nao_fomos'", html_)
+        self.assertIn("action='/estado/1%2F2026/nao_fomos'", html_)
         self.assertIn("Um anúncio", html_)
 
     def test_sem_JS_o_pedido_segue_e_o_servidor_e_que_recusa(self):
@@ -7573,6 +7594,36 @@ class TestContrasteNosFundosReais(unittest.TestCase):
                     self.assertGreaterEqual(
                         c, minimo, "%s sobre %s no tema %s dá %.2f"
                         % (tinta, fundo, tema, c))
+
+    def test_as_iniciais_da_barra_leem_se_nos_tres_temas(self):
+        """Varredura de 25/09/2026: o `.mg-topbar .mg-avatar` do sistema
+        pinta as iniciais com `--surface-header` sobre o `--seal`: 1,38:1
+        no claro. A nossa folha repõe o `--on-brand`, e é esse par que
+        tem de passar — nos três temas, que o amarelo do escuro pede tinta
+        escura e o castanho do claro pede branca."""
+        folha = radar.ler_estilo("miragov-radar.css")
+        self.assertIn(".mg-topbar .mg-avatar{color:var(--on-brand)}", folha)
+        for tema, minimo in self.TEMAS.items():
+            cores = self._temas()[tema]
+            c = self._contraste(cores["--on-brand"], cores["--seal"])
+            self.assertGreaterEqual(c, 4.5, "no tema %s dá %.2f" % (tema, c))
+
+
+class TestControlosTemNomeParaOLeitorDeEcra(unittest.TestCase):
+    """Varredura de 25/09/2026, com o axe-core: a caixa de cada tarefa do
+    Hoje era um botão sem texto (o leitor de ecrã dizia «botão», e com o
+    teclado não se sabia o que se marcava), e o selector da ranhura e o
+    da plataforma nos alertas não tinham nome nenhum."""
+
+    def test_os_tres(self):
+        caixa = radar.accao("/tarefa/1/feita", "", "chk",
+                            rotulo="marcar como feita: Pedir \"esclarecimentos\"")
+        self.assertIn("aria-label='marcar como feita: Pedir &quot;"
+                      "esclarecimentos&quot;'", caixa)
+        self.assertNotIn("aria-label", radar.accao("/x", "ok"))
+        self.assertIn("aria-label='Ranhura na escada'",
+                      radar.selector_de_ranhura("/x", "analisar"))
+        self.assertNotIn("<select name='plat'>", radar.CSS + inspect.getsource(radar))
 
 
 class TestAlvosDeTextoA24px(unittest.TestCase):
@@ -8146,6 +8197,63 @@ class TestCamposPorRanhura(BaseTemporaria):
         self.assertIn("name='top3'", html_)
 
 
+class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
+    """Varredura de 25/09/2026: a ficha de um concurso fora da escada
+    tinha «Interessa»/«Abandonar» no cabeçalho **e** «pôr na escada»/
+    «abandonar» no cartão da proposta, mais o cartão «Responsável», que
+    também o punha na escada — três portas para o mesmo gesto. E com a
+    proposta aberta havia dois campos «responsável»: o do cartão e o do
+    bloco da proposta, a gravar o mesmo por dois caminhos."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " tipo, url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      ("60/2026", "Aquisição de software", "IPL",
+                       "2026-09-01", "Anúncio de procedimento", "https://dr/60"))
+
+    def _ficha(self):
+        h = self.cliente.get("/anuncio/60%2F2026").get_data(as_text=True)
+        return re.sub(r"(?s)<script.*?</script>", "", h)
+
+    def test_fora_da_escada_ha_um_interessa_e_um_abandonar(self):
+        h = self._ficha()
+        self.assertEqual(h.count("action='/estado/60%2F2026/analisar'"), 1)
+        self.assertEqual(h.count("action='/estado/60%2F2026/nao_fomos'"), 1)
+        self.assertNotIn("pôr na escada", h)
+        # o responsável é da proposta, e ainda não há proposta
+        self.assertNotIn("action='/responsavel/", h)
+
+    def test_os_factos_nao_se_repetem(self):
+        """Varredura de 25/09/2026: a ficha dizia «Entidade adjudicante» e
+        «Preço base» duas vezes (os pares fixos e o essencial do DR), e o
+        «Nome do projeto» repetia o título que está no h1 logo acima."""
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET texto=?, preco_base=? WHERE ref=?",
+                      (TestTabelaEssencial.TEXTO, "150.000,00 EUR", "60/2026"))
+        h = self._ficha()
+        factos = h.split("<dl class='ficha-factos'>")[1].split("</dl>")[0]
+        for rotulo in ("Entidade adjudicante", "Preço base"):
+            self.assertEqual(factos.count("<dt>%s</dt>" % rotulo), 1, rotulo)
+        self.assertNotIn("<dt>Nome do projeto</dt>", factos)
+        self.assertIn("<dt>Critério de adjudicação</dt>", factos)
+
+    def test_na_escada_ha_um_so_campo_responsavel(self):
+        self.cliente.post("/estado/60%2F2026/analisar")
+        h = self._ficha()
+        self.assertIn("action='/responsavel/60/2026'", h)
+        self.assertNotIn("name='responsavel'", h)
+        # e gravar o resto do bloco não apaga o responsável que lá está
+        self.cliente.post("/responsavel/60/2026", data={"nome": "Ana"})
+        id_ = radar.propostas_de("60/2026")[0]["id"]
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"coe": "X"})
+        self.assertEqual(radar.proposta(id_)["responsavel"], "Ana")
+
+
 class TestSelectorDaRanhura(BaseTemporaria):
     """O quadro saiu a 15/09/2026 e a escada passou a mudar-se na linha.
 
@@ -8196,6 +8304,39 @@ class TestSelectorDaRanhura(BaseTemporaria):
         for _, rotulo in radar.ESTADOS_DA_EMPRESA:
             self.assertIn(">%s</option>" % html.escape(rotulo), html_)
         self.assertIn("<option value='porver'>tirar da escada</option>", html_)
+
+    def test_o_selector_pede_no_acto_o_preco_que_falta(self):
+        """Varredura de 25/09/2026, o beco: passar a «Submetido» exige o
+        preço proposto, e o campo só se desenha A PARTIR do «Submetido»
+        (`ESTADOS_COM_PROPOSTO`). A recusa mandava preencher «no bloco
+        A nossa proposta» um campo que lá não estava. O selector diz agora,
+        por ranhura, o que ESTA proposta ainda não tem, e a caixa pede-o
+        no mesmo gesto."""
+        sem = {"estado": "proposta", "valor_proposta": None, "lugar": None,
+               "motivo": None}
+        falta = json.loads(html.unescape(re.search(
+            r"data-falta='([^']*)'",
+            radar.selector_de_ranhura("/x", "proposta", p=sem)).group(1)))
+        self.assertEqual(falta["submetido"], ["valor_proposta"])
+        self.assertEqual(falta["relatorio"], ["valor_proposta", "lugar"])
+        # o motivo não entra: tem a sua caixa própria, pelo data-motivos
+        self.assertEqual(falta["nao_fomos"], [])
+        com = dict(sem, valor_proposta="118.500,00 EUR")
+        falta = json.loads(html.unescape(re.search(
+            r"data-falta='([^']*)'",
+            radar.selector_de_ranhura("/x", "proposta", p=com)).group(1)))
+        self.assertEqual(falta["submetido"], [])
+        # e a caixa tem os dois campos para os pedir
+        caixa = radar.caixa_do_motivo()
+        self.assertIn("name='valor_proposta'", caixa)
+        self.assertIn("name='lugar'", caixa)
+        # e o gesto completo chega ao servidor e passa
+        self.cliente.post("/estado/60%2F2026/analisar")
+        id_ = radar.propostas_de("60/2026")[0]["id"]
+        self.cliente.post("/proposta/%d/escada" % id_,
+                          data={"estado": "submetido",
+                                "valor_proposta": "90.000,00"})
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
 
     def test_muda_de_ranhura_pelo_corpo_e_nao_pelo_caminho(self):
         """Um `<select>` não sabe escrever um URL. Se o estado fosse no
@@ -10627,6 +10768,52 @@ class TestConfiguracoes(BaseTemporaria):
         self.assertNotIn("grava só o que mostra", corpo)
         self.assertIn("A administração da plataforma", corpo)
 
+    def test_o_nif_da_empresa_confere_o_digito_de_controlo(self):
+        """Varredura de 25/09/2026: aceitava `123456788`. O NIF da empresa
+        é o que diz «fomos nós» nas adjudicações do Portal BASE, e um
+        dígito trocado estragava esse cruzamento em silêncio — a ficha
+        passava a dizer «Não fomos nós» de tudo. Vazio continua a valer:
+        é tirá-lo."""
+        self.assertTrue(radar.nif_valido("123456789"))
+        self.assertTrue(radar.nif_valido("516241362"))
+        self.assertFalse(radar.nif_valido("123456788"))
+        self.assertFalse(radar.nif_valido("12345678"))
+        self.assertFalse(radar.nif_valido("1234567890"))
+        radar.gravar_config({"nif_da_empresa": "516241362"})
+        r = self.cliente.post("/configuracoes/conta/empresa",
+                              data={"nome_da_empresa": "Ensaio",
+                                    "nif_da_empresa": "123 456 788"})
+        self.assertIn("NIF", unquote(r.headers["Location"]))
+        self.assertEqual(radar.ler_config()["nif_da_empresa"], "516241362")
+        # com pontos e espaços, um NIF certo grava só os dígitos
+        self.cliente.post("/configuracoes/conta/empresa",
+                          data={"nome_da_empresa": "Ensaio",
+                                "nif_da_empresa": "123.456.789"})
+        self.assertEqual(radar.ler_config()["nif_da_empresa"], "123456789")
+        self.cliente.post("/configuracoes/conta/empresa",
+                          data={"nome_da_empresa": "Ensaio",
+                                "nif_da_empresa": ""})
+        self.assertEqual(radar.ler_config()["nif_da_empresa"], "")
+
+    def test_apagar_um_alerta_pergunta_antes(self):
+        """Varredura de 25/09/2026: o `onsubmit` do × era escrito à mão,
+        `confirm("Apagar o alerta &quot;X&quot;? …")` dentro de plicas —
+        o `&quot;` passa a `"` no atributo e fecha a cadeia de JS a meio.
+        O browser dizia «missing ) after argument list» e o formulário
+        seguia **sem perguntar nada**. Agora vai pelo `json.dumps()` e
+        pelo `html.escape()`, como o `accao()`; e o nome do alerta, que é
+        do utilizador, também pode ter aspas e plicas."""
+        self.cliente.post("/alertas/criar",
+                          data={"nome": "TI \"urgente\" d'Aveiro",
+                                "q": "software"})
+        corpo = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        attr = re.search(r'onsubmit="return confirm\(([^"]*)\)"', corpo)
+        self.assertIsNotNone(attr, "o × do alerta tem de perguntar")
+        # o que o browser lê no atributo é um literal de JS válido
+        self.assertEqual(json.loads(html.unescape(attr.group(1))),
+                         "Apagar o alerta «TI \"urgente\" d'Aveiro»? "
+                         "Não se apaga nada além do alerta.")
+
     def test_as_notas_dos_campos_ficam_onde_estao(self):
         """O critério da §9 do `docs/design.md` **não** se aplica aqui do
         mesmo modo: numa página de configuração o texto está ao lado do
@@ -11500,13 +11687,20 @@ class TestMudancasDeSetembro(BaseTemporaria):
                      "/configuracoes/capturas", "/configuracoes/copias",
                      "/configuracoes/indicadores", "/indicadores"):
             with self.subTest(rota=rota):
-                self.assertEqual(tester.get(rota, environ_base=self.FORA).status_code, 403)
+                r = tester.get(rota, environ_base=self.FORA)
+                self.assertEqual(r.status_code, 403)
+                # um GET recusado é um ecrã, não a frase crua em texto
+                # (varredura de 25/09/2026): o POST quer a frase, o
+                # browser quer a página com a marca e o caminho de volta
+                self.assertEqual(r.mimetype, "text/html")
+                self.assertIn("Não é para aqui", r.get_data(as_text=True))
                 self.assertIn(admin.get(rota, environ_base=self.FORA).status_code, (200, 302))
         # os POST tambem: o "Verificar agora" e quem envia o e-mail
         for rota in ("/verificar", "/alertas/remetente", "/configuracoes/conta/utilizadores"):
             with self.subTest(rota=rota):
                 r = tester.post(rota, data={"csrf": self.token(tester)}, environ_base=self.FORA)
                 self.assertEqual(r.status_code, 403)
+                self.assertEqual(r.mimetype, "text/plain")
         # e o que e dele continua a abrir
         for rota in ("/", "/calendario", "/contratos", "/configuracoes/conta",
                      "/configuracoes/interesse", "/configuracoes/alertas",
@@ -14991,7 +15185,7 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         # isto). O bloco é o ÚLTIMO, que é o que o browser lê.
         depois = radar.CSS_TUDO[radar.CSS_TUDO.rindex(marca):]
         bloco = depois[:depois.index("\n}")]
-        for regra in (".flash{animation:", "dialog.modal[open]{animation:"):
+        for regra in (".flash{animation:", "dialog.mg-dialog[open]{animation:"):
             self.assertIn(regra, bloco, regra)
         # e nenhuma delas pode existir FORA do bloco
         self.assertEqual(radar.CSS_TUDO.count(".flash{animation:"), 1)

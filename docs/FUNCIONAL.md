@@ -263,6 +263,12 @@ Por ver → Por analisar → A preparar proposta → Submetido
 | Perdido | valor proposto + motivo |
 | Não fomos | motivo |
 
+O que falta **pede-se no gesto que escolhe a ranhura** (25/09/2026):
+escolhida no selector, abre-se uma caixa com o que esta proposta ainda
+não tem — o preço, o lugar, o motivo — e grava-se tudo de uma vez. Sem
+isto, o «Submetido» a partir de «A preparar proposta» era um beco: o
+preço proposto só se mostra na ficha a partir do «Submetido».
+
 Os motivos são **vocabulário fechado** (é o que os faz dar contas):
 perda — *Preço · CV's · Proposta técnica · Certificações*; não fomos —
 *Preço base baixo · Falta de certificações · Falta de CV's · Não faz
@@ -568,6 +574,14 @@ Decidida) e o **índice em pílulas**; nada disto fica preso ao rolar. Tem:
 - O bloco **«A nossa proposta»** — a ranhura, os campos que ela exige,
   as etiquetas, e **o que falta fazer** (as tarefas, com adiar e
   atribuir)
+
+**Uma porta por gesto** (25/09/2026). Fora da escada, entra-se por
+«Interessa» ou sai-se por «Abandonar», no cabeçalho, e o bloco da
+proposta só diz que falta decidir; o cartão **«Responsável»** só existe
+com proposta, e é o único sítio da ficha onde o responsável se escreve.
+Os dois botões do desfecho («Ganhámos», «Perdemos») **propõem e não
+decidem**: abrem a caixa da escada quando falta o preço proposto, e o
+«Perdemos» pergunta o motivo em vez de o escolher.
 
 ### 4.5 Ficha da proposta — `/proposta/<id>`
 

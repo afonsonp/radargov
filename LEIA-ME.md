@@ -806,8 +806,9 @@ Duas coisas podem travar-te, e as duas dizem porquê:
 **Tudo o resto vive no bloco «A nossa proposta»**, na ficha do anúncio —
 e há um bloco por lote, quando há lotes. Lá dentro: a ranhura, os campos
 que ela pede, o que a empresa decide (tipologia, CV, proposta técnica),
-o responsável, o CoE, as notas, as etiquetas, o que falta fazer, e o
-desfecho do Portal BASE quando já há contrato celebrado.
+o CoE, as notas, as etiquetas, o que falta fazer, e o desfecho do Portal
+BASE quando já há contrato celebrado. O responsável escreve-se no cartão
+«Responsável», ao lado, que aparece quando o concurso já está na escada.
 
 **Marcar interessa** num anúncio põe-no em «Por analisar» — e é o sinal
 que manda o radar ir buscar as peças. **Voltar a por ver** tira-o da
