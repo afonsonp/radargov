@@ -8207,6 +8207,50 @@ class TestCamposPorRanhura(BaseTemporaria):
         self.assertIn("name='top3'", html_)
 
 
+class TestSeguirUmaEntidadeSemNif(BaseTemporaria):
+    """Varredura de 25/09/2026 (decisão dele: «não é de propósito, devia
+    ter»): uma entidade sem NIF — as consultas preliminares da Vortal, uma
+    proposta sem anúncio — não tinha «seguir», porque o casamento com os
+    anúncios era só pelo NIPC. Sem NIF casa pela mesma chave que a ficha
+    usa: o nome normalizado, e só com anúncios que também não tenham NIF
+    (um anúncio com NIF é de outra chave, e não se lhe cola)."""
+
+    def _anuncio(self, ref, entidade, nif=""):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, nif, "
+                      "data_pub, tipo, url, estado, entidade_norm) "
+                      "VALUES (?,?,?,?,?,?,?,'novo',?)",
+                      (ref, "T " + ref, entidade, nif, "2026-09-01", "", "",
+                       radar.simplifica(entidade)))
+
+    def test_segue_e_avisa_pelo_nome(self):
+        self._anuncio("1/2026", "Fundação Salesianos")
+        self._anuncio("2/2026", "Fundação Salesianos", nif="500000000")
+        chave = radar.chave_entidade("", "Fundação Salesianos")
+        with unittest.mock.patch.object(radar, "ha_corpus", lambda: False):
+            radar.app.test_client().post(
+                "/entidade/%s/seguir" % quote(chave, safe=""))
+        with radar.liga() as c:
+            self.assertIsNotNone(c.execute(
+                "SELECT 1 FROM entidades_seguidas WHERE chave=?",
+                (chave,)).fetchone())
+        # o que já lá estava entra como acervo; o novo, com o nome escrito
+        # de outra maneira, avisa-se; o de NIF não é desta chave
+        self._anuncio("3/2026", "FUNDAÇÃO SALESIANOS")
+        self.assertEqual(radar.registar_seguidas(), 1)
+        # a pagina de uma entidade que o Portal BASE nao conhece tambem
+        # tem o seguir, e o nome com acentos (2.ª volta da varredura: o
+        # ramo sem corpus nao tinha botao, e o titulo era a chave)
+        with unittest.mock.patch.object(radar, "ha_corpus", lambda: False):
+            h = radar.app.test_client().get(
+                "/entidade/%s" % quote(chave, safe="")).get_data(as_text=True)
+        self.assertIn("/entidade/%s/seguir" % quote(chave, safe=""), h)
+        self.assertRegex(h, "<title>(Fundação Salesianos|FUNDAÇÃO SALESIANOS),")
+        avisar = radar.seguidas_por_avisar()
+        self.assertEqual([a["ref"] for _, _, anuncios in avisar
+                          for a in anuncios], ["3/2026"])
+
+
 class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
     """Varredura de 25/09/2026: a ficha de um concurso fora da escada
     tinha «Interessa»/«Abandonar» no cabeçalho **e** «pôr na escada»/

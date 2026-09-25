@@ -1963,6 +1963,22 @@ def prefixos_em_cpv8(prefixos):
             [p + "*" for p in prefixos])
 
 
+def cpv_da_entidade(frag):
+    """O filtro por CPV quando a consulta ja esta presa a UMA entidade.
+
+    `EXISTS` a partir dos contratos dela, e nao o `c.id IN (SELECT ...)`
+    que o Mercado usa: esse materializa todos os contratos do CPV (um
+    «45» sao centenas de milhares) para depois os cruzar com a entidade.
+    Medido a quente, as consultas de uma ficha inteiras (varredura de
+    25/09/2026): no pior caso de quatro entidades, 1,8 s com o `IN` e
+    0,6 s com o `EXISTS`; num CPV estreito o `IN` ganha (0,2 s contra
+    0,4 s), mas o que se sente e o pior caso. Sem entidade, o `IN` pelo
+    indice do CPV continua a ser o certo -- aqui varria-se a base toda.
+    Os parenteses sao obrigatorios: o fragmento e um `OR` de GLOBs."""
+    return ("EXISTS (SELECT 1 FROM contrato_cpv x WHERE x.contrato_id = c.id"
+            " AND (%s))" % frag)
+
+
 def janela_urgente(hoje):
     """(hoje, hoje + dias_urgente()), em ISO. E UMA janela so.
 
@@ -7529,8 +7545,11 @@ def registar_seguidas(marcar_como=None, so_chave=None):
     O mesmo reconhecer/enviar dos alertas. O casamento e pelo NIPC
     (`anuncios.nif` = chave), que o DR publica em 99,3% dos anuncios com
     detalhe lido -- e a mesma chave do corpus, sem comparacao de nomes
-    pelo meio. Chaves "n:" (entidades sem NIF) nao casam com anuncios:
-    a ficha delas continua a mostrar os contratos, mas nao ha aviso.
+    pelo meio. Uma chave "n:" (entidade sem NIF: as consultas da Vortal,
+    uma proposta sem anuncio) casa pela mesma chave que a ficha usa, o
+    nome normalizado, e so com anuncios sem NIF -- um anuncio com NIF e
+    de outra chave. Ate 25/09/2026 nao casava, e a ficha escondia o
+    «seguir» (decisao dele: «nao e de proposito, devia ter»).
 
     `marcar_como` serve o momento de comecar a seguir: o que ja esta na
     base entra como ACERVO, senao o primeiro resumo trazia tudo. O
@@ -7547,11 +7566,19 @@ def registar_seguidas(marcar_como=None, so_chave=None):
             seguidas = c.execute("SELECT chave FROM entidades_seguidas").fetchall()
         for s in seguidas:
             if s["chave"].startswith("n:"):
-                continue
-            refs = [r["ref"] for r in c.execute(
-                "SELECT ref FROM anuncios WHERE nif=? AND ref NOT IN "
-                "(SELECT ref FROM seguidas_vistos WHERE chave=?)",
-                (s["chave"], s["chave"]))]
+                # ~1% dos anuncios nao tem NIF: compara-se em Python, com
+                # a mesma chave_entidade() da ficha, e nao por LIKE
+                refs = [r["ref"] for r in c.execute(
+                    "SELECT ref, entidade FROM anuncios "
+                    "WHERE (nif IS NULL OR nif = '') AND ref NOT IN "
+                    "(SELECT ref FROM seguidas_vistos WHERE chave=?)",
+                    (s["chave"],))
+                    if chave_entidade("", r["entidade"] or "") == s["chave"]]
+            else:
+                refs = [r["ref"] for r in c.execute(
+                    "SELECT ref FROM anuncios WHERE nif=? AND ref NOT IN "
+                    "(SELECT ref FROM seguidas_vistos WHERE chave=?)",
+                    (s["chave"], s["chave"]))]
             c.executemany(
                 "INSERT OR IGNORE INTO seguidas_vistos "
                 "(chave, ref, visto_em, enviado_em) VALUES (?,?,?,?)",
@@ -9158,6 +9185,15 @@ def nome_da_entidade(chave):
                           (chave,)).fetchone()
             if r and (r["n"] or "").strip():
                 return r["n"]
+        elif chave.startswith("n:"):
+            # sem NIF, pela mesma chave: «fundacao salesianos» era o nome
+            # que a pagina mostrava (varredura de 25/09/2026)
+            for r in c.execute("SELECT entidade FROM anuncios "
+                               "WHERE (nif IS NULL OR nif = '') "
+                               "AND COALESCE(entidade, '') != '' "
+                               "ORDER BY data_pub DESC, ref DESC"):
+                if chave_entidade("", r["entidade"]) == chave:
+                    return r["entidade"]
     return chave[2:] if chave.startswith("n:") else chave
 
 
@@ -9270,8 +9306,7 @@ def historico_entidade(entidade, cpv="", limite=25, nif=""):
         # `IN` e nao `JOIN`: um contrato com varios CPV da mesma divisao
         # aparecia uma vez por CPV.
         frag_cpv, como_cpv = prefixos_em_cpv8(prefixos)
-        no_cpv = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-                  % frag_cpv)
+        no_cpv = cpv_da_entidade(frag_cpv)
         do_cpv = c.execute(
             "SELECT COUNT(*) n FROM contratos c "
             "WHERE c.adjudicante_chave=? AND " + no_cpv,
@@ -10002,7 +10037,7 @@ PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="cla
 <body class="entrar-fundo"><main class="mg entrar">
  %(logo)s
  <div class="mg-empty">
-  <p class="mg-empty__title">%(titulo)s</p>
+  <h1 class="mg-empty__title">%(titulo)s</h1>
   <p class="mg-empty__text">%(texto)s</p>
   <div class="mg-empty__action">
    <a class="mg-btn mg-btn--primary" href="/">Voltar ao Hoje</a></div>
@@ -10938,8 +10973,15 @@ details.arvore[open]>summary::before{content:'\25BE'}
 #arvore-contagem{font:400 11.5px/1 var(--font-sans);color:var(--ink-muted)}
 #arvore-corpo{max-height:330px;overflow-y:auto;border:1px solid var(--surface-sunken);
  border-radius:9px;padding:8px 6px;background:var(--surface-raised);margin:0 18px 14px}
-#arvore-corpo details{margin-left:22px}
-#arvore-corpo summary{cursor:pointer;list-style:revert}
+#arvore-corpo .no-envolve .no-envolve{margin-left:22px}
+#arvore-corpo .no-envolve:not(.aberto)>.no-envolve{display:none}
+/* o botao que abre o ramo leva o texto do no, e a seta que o <summary>
+   desenhava (a arvore deixou de ser <details> a 25/09/2026) */
+#arvore-corpo .abre{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto;
+ padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
+#arvore-corpo .abre::before{content:'▸';font-size:10px;color:var(--ink-muted);flex:none;
+ width:10px}
+#arvore-corpo .aberto>.no>.abre::before{content:'▾'}
 #arvore-corpo .no{display:flex;align-items:center;gap:9px;padding:5px 8px;
  border-radius:6px}
 #arvore-corpo .no:hover{background:var(--surface-sunken)}
@@ -10956,9 +10998,9 @@ details.arvore[open]>summary::before{content:'\25BE'}
 #arvore-corpo .n{font:400 10.5px/1 var(--font-sans);color:var(--ink-muted);flex:none}
 /* codigo sem nada nesta fonte de contagem: escolhe-lo da lista vazia
    garantida, por isso esbatido -- mas nao escondido, que a mesma arvore
-   conta doutras coisas no outro separador */
+   conta doutras coisas no outro separador. Pela cor e nao pelo opacity,
+   que baixava o texto abaixo dos 4,5:1 (25/09/2026) */
 #arvore-corpo .no.zero .lbl,#arvore-corpo .no.zero .cod{color:var(--ink-muted)}
-#arvore-corpo .no.zero{opacity:.65}
 #arvore-corpo .escondido{display:none}
 .arv-pe{padding:0 18px 16px;font:400 11px/1.5 var(--font-sans);color:var(--ink-muted)}
 
@@ -13213,7 +13255,7 @@ function arvoreMarcarSemeados() {
     // se ve, e o que nao se ve parece nao estar la
     var no = ARV_CHK[cod].closest('.no-envolve');
     while (no) {
-      if (no.tagName === 'DETAILS') no.open = true;
+      arvoreAbrir(no, true);
       no = no.parentElement ? no.parentElement.closest('.no-envolve') : null;
     }
   });
@@ -13243,11 +13285,16 @@ function arvoreSemear() {
 
 function arvoreNo(cod, porCodigo, filhos, total) {
   var item = porCodigo[cod], temFilhos = filhos[cod] && filhos[cod].length;
-  var det = document.createElement(temFilhos ? 'details' : 'div');
+  // Um <div> e nao um <details> (varredura de 25/09/2026): a caixa vivia
+  // dentro do <summary>, um controlo dentro de outro, e o leitor de ecra
+  // perdia-se nas 9 454. Agora a linha tem a caixa e, ao lado, um botao
+  // que abre o ramo (aria-expanded) -- com o texto dentro, para carregar
+  // no nome continuar a abrir, como antes.
+  var det = document.createElement('div');
   det.className = 'no-envolve';
   det.dataset.codigo8 = cod;
   det.dataset.texto = (cod + ' ' + item.descricao).toLowerCase();
-  var resumo = document.createElement(temFilhos ? 'summary' : 'div');
+  var resumo = document.createElement('div');
   resumo.className = 'no';
   var chk = document.createElement('input');
   chk.type = 'checkbox';
@@ -13258,15 +13305,26 @@ function arvoreNo(cod, porCodigo, filhos, total) {
   chk.addEventListener('change', function() { arvoreMudou(cod, chk.checked); });
   resumo.appendChild(chk);
   ARV_CHK[cod] = chk;
+  var texto = resumo;
+  if (temFilhos) {
+    texto = document.createElement('button');
+    texto.type = 'button';
+    texto.className = 'abre';
+    texto.setAttribute('aria-expanded', 'false');
+    texto.addEventListener('click', function() {
+      arvoreAbrir(det, !det.classList.contains('aberto'));
+    });
+    resumo.appendChild(texto);
+  }
   var cs = document.createElement('span');
   cs.className = 'cod'; cs.textContent = cod;
-  resumo.appendChild(cs);
+  texto.appendChild(cs);
   var ls = document.createElement('span');
   ls.className = 'lbl'; ls.textContent = item.descricao;
-  resumo.appendChild(ls);
+  texto.appendChild(ls);
   var ns = document.createElement('span');
   ns.className = 'n'; ns.textContent = '(' + total[cod] + ')';
-  resumo.appendChild(ns);
+  texto.appendChild(ns);
   var fs = document.createElement('span');
   fs.className = 'fora'; fs.textContent = '';
   resumo.appendChild(fs);
@@ -13279,6 +13337,12 @@ function arvoreNo(cod, porCodigo, filhos, total) {
     filhos[cod].forEach(function(f) { det.appendChild(arvoreNo(f, porCodigo, filhos, total)); });
   }
   return det;
+}
+
+function arvoreAbrir(no, sim) {
+  no.classList.toggle('aberto', sim);
+  var b = no.querySelector(':scope > .no > .abre');
+  if (b) b.setAttribute('aria-expanded', sim ? 'true' : 'false');
 }
 
 function arvoreDescendentes(cod) {
@@ -13427,7 +13491,7 @@ function arvoreFiltra(no, alvo) {
   });
   var mostra = acha || algumFilho;
   no.classList.toggle('escondido', !mostra);
-  if (no.tagName === 'DETAILS' && algumFilho) no.open = true;
+  if (algumFilho) arvoreAbrir(no, true);
   return mostra;
 }
 
@@ -18270,6 +18334,25 @@ def factos_da_entidade(chave, nosso, meses=24):
         for rotulo, valor, nota in seis))
 
 
+def _seguir_cx(chave):
+    """O «seguir» da entidade (B10): os anuncios novos dela entram no
+    resumo diario, ao lado dos alertas. O botao diz o estado e troca-o.
+    Serve os dois ramos da pagina -- com corpus e sem ele: a entidade que
+    o Portal BASE nao conhece tambem se segue (varredura de 25/09/2026;
+    sem NIF casa pelo nome, `registar_seguidas()`)."""
+    with liga() as c:
+        seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
+                            (chave,)).fetchone() is not None
+    return ("<div class='ent-atalhos'>%s%s</div>"
+            % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
+                     "Deixar de seguir" if seguida else
+                     "Seguir esta entidade",
+                     "bt" if seguida else "bt forte"),
+               "<span class='nota' style='align-self:center'>"
+               "a seguir &mdash; os anúncios novos dela entram no resumo "
+               "diário</span>" if seguida else ""))
+
+
 @app.route("/entidade/<path:chave>")
 def entidade(chave):
     # **A ficha existe sem corpus** (D3 do CICLOS.md): uma entidade com
@@ -18293,7 +18376,7 @@ def entidade(chave):
         return envolver(
             "entidades", nome,
             "O que sabemos desta entidade. O Portal BASE não a conhece.",
-            "<div class='larg'>" + ident
+            "<div class='larg'>" + ident + _seguir_cx(chave)
             + factos_da_entidade(chave, nosso)
             + nosso_lado_cx(nosso) + "</div>",
             migalhas=migalhas_de("entidades", corta(nome, 44)),
@@ -18330,23 +18413,7 @@ def entidade(chave):
                         % (para_lista("vencid"), mil_pt(ganha["k"])))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
 
-    # Seguir a entidade (B10): os anuncios novos dela entram no resumo
-    # diario, ao lado dos alertas. O botao diz o estado e troca-o.
-    with liga() as c:
-        seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
-                            (chave,)).fetchone() is not None
-    if chave.startswith("n:"):
-        seguir_cx = ""     # sem NIF nao ha como casar com os anuncios
-    else:
-        seguir_cx = (
-            "<div class='ent-atalhos'>%s%s</div>"
-            % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
-                     "Deixar de seguir" if seguida else
-                     "Seguir esta entidade",
-                     "bt" if seguida else "bt forte"),
-               "<span class='nota' style='align-self:center'>"
-               "a seguir &mdash; os anúncios novos dela entram no resumo "
-               "diário</span>" if seguida else ""))
+    seguir_cx = _seguir_cx(chave)
 
     blocos = []
     if compra["k"]:
@@ -19766,8 +19833,7 @@ def descontos_da_entidade(chave, cpv):
     if not (chave and prefixos and ha_corpus()):
         return []
     frag, vals = prefixos_em_cpv8(prefixos)
-    onde = (" WHERE c.adjudicante_chave=? AND "
-            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)" % frag)
+    onde = " WHERE c.adjudicante_chave=? AND " + cpv_da_entidade(frag)
     with liga_corpus() as c:
         return descontos_por_procedimento(c, onde, [chave] + vals)
 
@@ -19788,8 +19854,8 @@ def referencia_de_preco(chave, cpv, limite=200):
         precos = [r["p"] for r in c.execute(
             "SELECT c.preco_contratual p FROM contratos c "
             "WHERE c.adjudicante_chave=? AND c.preco_contratual > 0 AND "
-            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s) "
-            "ORDER BY c.data_celebracao DESC LIMIT ?" % frag,
+            + cpv_da_entidade(frag) +
+            " ORDER BY c.data_celebracao DESC LIMIT ?",
             [chave] + vals + [limite])]
     if len(precos) < 3:                 # com dois contratos nao ha padrao
         return None
@@ -23462,14 +23528,16 @@ def pagina_legal(qual):
 
 @app.route("/privacidade")
 def privacidade():
-    return pagina_legal("privacidade") or Response("não existe", 404,
-                                                   mimetype="text/plain")
+    # o 404 do painel, com a marca e o lang, e nao texto cru: e uma
+    # pagina publica, e ate o operador estar preenchido e o que se ve
+    return pagina_legal("privacidade") or pagina_de_erro(404)
 
 
 @app.route("/termos")
 def termos():
-    return pagina_legal("termos") or Response("não existe", 404,
-                                             mimetype="text/plain")
+    # o 404 do painel, com a marca e o lang, e nao texto cru: e uma
+    # pagina publica, e ate o operador estar preenchido e o que se ve
+    return pagina_legal("termos") or pagina_de_erro(404)
 
 
 def _avisar_do_pedido(id_, p):

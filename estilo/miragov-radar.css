@@ -64,6 +64,13 @@
    três colunas (varredura de 25/09/2026). Sem o corpo, o aviso é texto
    corrido. */
 .mg-alert:not(:has(> .mg-alert__body)){display:block}
+/* Uma ligação no meio de uma frase distingue-se por mais do que a cor
+   (axe `link-in-text-block`, varredura de 25/09/2026): quem não vê bem
+   a diferença entre o azul e o cinzento lia a frase sem saber onde
+   carregar. Sublinhadas nas notas e nas frases corridas. */
+.nota a,.ficha-nota a,.em-falta-frase a,.mg-pagehead__sub a,.mg-alert a,
+.mg-card__meta a,
+.entrar-nota a{text-decoration:underline;text-underline-offset:2px}
 .mg-field[hidden]{display:none}
 dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
 

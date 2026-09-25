@@ -442,6 +442,10 @@ Quatro comportamentos que decidem o que chega:
   para voltar a tentar.
 - **Uma entidade que se começa a seguir entra com o acervo marcado como
   já visto**, senão o primeiro resumo trazia dez anos de uma vez.
+- **Qualquer entidade se segue, com ou sem NIF** (25/09/2026). Com NIF,
+  os anúncios casam pelo NIPC; sem ele (as consultas da Vortal, uma
+  entidade só com nome), pelo nome normalizado, e só com anúncios que
+  também não tragam NIF.
 
 **A maquinaria está construída e por estrear**: o canal funciona, mas
 nunca se criou um alerta, e por isso o resumo leva só alterações. As
