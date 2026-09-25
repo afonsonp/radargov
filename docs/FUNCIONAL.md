@@ -319,6 +319,9 @@ Duas origens:
 
 - **Automáticas** (`esclarecimentos`, `entrega`) — nascem das datas do
   DR quando um concurso entra na escada, e **acompanham-nas**.
+  **Uma que já nasceria atrasada não se cria** (25/09/2026, decisão
+  dele): entrar na escada depois de os esclarecimentos fecharem não põe
+  uma tarefa a vermelho no mesmo clique.
 - **Escritas à mão** — nunca se tocam.
 
 **Nada se move sozinho.** Um prazo que passa não muda ranhura nenhuma:
