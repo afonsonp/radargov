@@ -130,8 +130,16 @@ def funcional_medido():
     # tabela (é uma coluna, da tabela das colunas de `propostas`).
     # Doze falsos positivos, e o achado verdadeiro — um `slots`
     # desactualizado — perdido no meio. Por isso o âmbito é explícito.
+    # A empresa é a primeira que existir, e não uma fixa: estava a 1,
+    # a 23/09/2026 a 1 saiu e a LATD voltou como 2, e o §2.1a deixou de
+    # se conferir sem ninguém dar por isso — o `continue` de baixo salta
+    # um ficheiro que falta.
+    pastas = os.path.join(RAIZ, "empresas")
+    empresas = sorted((n for n in (os.listdir(pastas) if os.path.isdir(pastas) else [])
+                       if n.isdigit()), key=int)
+    empresa = os.path.join("empresas", empresas[0] if empresas else "1", "empresa.db")
     for marca, ficheiro in (("### 2.1 ", "radar.db"),
-                            ("### 2.1a ", os.path.join("empresas", "1", "empresa.db")),
+                            ("### 2.1a ", empresa),
                             ("### 2.2 ", "contratos.db")):
         base = os.path.join(RAIZ, ficheiro)
         if marca not in texto or not os.path.exists(base):
