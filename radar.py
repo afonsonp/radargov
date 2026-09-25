@@ -17195,14 +17195,28 @@ def _bloco_utilizadores(todos, eu):
         "nas configurações só a conta, o interesse, os alertas e o "
         "importar.</div>"
         "<div class='saude'>%s</div>"
-        "<form method='post' action='/configuracoes/conta/utilizadores' "
+        # O convite primeiro (teste com utilizadores, 25/09/2026): criar a
+        # conta obrigava o admin a inventar a palavra-passe do colega e a
+        # manda-la por algum lado. Com o convite, e o colega que a escolhe.
+        "<form method='post' action='/configuracoes/conta/utilizadores/convite' "
         "class='conf-form' style='margin-top:16px'>"
+        "<div class='nota' style='flex:1 1 100%%'><b>Convidar um colega</b>: "
+        "crias uma ligação, mandas-lha, e é ele que escolhe o nome e a "
+        "palavra-passe. Vale %d dias, e só uma vez.</div>"
+        "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
+        "<option value='tester'>tester</option>"
+        "<option value='admin'>admin</option></select></label>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
+        "<div class='nota' style='margin-top:18px'>Ou cria tu a conta, com "
+        "a palavra-passe:</div>"
+        "<form method='post' action='/configuracoes/conta/utilizadores' "
+        "class='conf-form' style='margin-top:8px'>"
         "%s%s"
         "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
         "<option value='tester'>tester</option>"
         "<option value='admin'>admin</option></select></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Criar utilizador</button></form>"
-        % (linhas,
+        "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button></form>"
+        % (linhas, contas.DIAS_DE_CONVITE,
            _campo("Utilizador", "email", "", extra="autocomplete='off'"),
            _campo("Palavra-passe", "senha", "", tipo="password",
                   nota="8 caracteres ou mais",
@@ -17226,6 +17240,37 @@ def conta_criar_utilizador():
              % (contas.email_limpo(email), papel))
     return volta_config("conta", "Utilizador %s criado, como %s."
                         % (contas.email_limpo(email), papel))
+
+
+@app.route("/configuracoes/conta/utilizadores/convite", methods=["POST"])
+def conta_convidar():
+    """O admin convida um colega para a empresa dele (teste com
+    utilizadores, 25/09/2026). Os convites ja existiam do lado da
+    plataforma (F5); este usa o mesmo `contas.criar_convite()`, com a
+    empresa de quem convida. So o admin chega aqui: a rota vive debaixo
+    de `ROTAS_SO_ADMIN`, por prefixo.
+
+    A ligacao mostra-se UMA vez, nesta resposta, e nunca vai no endereco
+    nem no historico: e ela que da entrada, e na base fica so o resumo."""
+    papel = (request.form.get("papel") or "tester").strip()
+    if papel not in contas.PAPEIS:
+        return volta_config("conta", "O tipo tem de ser admin ou tester.")
+    with liga() as c:
+        codigo = contas.criar_convite(c, empresa_activa(), "", papel)
+    registar("", "conta", "criou um convite (%s)" % papel)
+    ligacao = "%s/convite/%s" % (endereco_do_painel().rstrip("/"), codigo)
+    return pagina_config("conta", (
+        "<div class='mg-card conf-cx'>"
+        "<div class='mg-field__label'>Convite criado (%s)</div>"
+        "<p class='nota'>Manda esta ligação ao colega. Vale %d dias e só "
+        "uma vez; <b>não a voltas a ver</b> depois de saíres desta página "
+        "&mdash; se se perder, cria outra.</p>"
+        "<input class='mg-field__input' type='text' readonly value='%s' "
+        "aria-label='Ligação do convite' onfocus='this.select()' "
+        "style='width:100%%;font-family:var(--font-mono)'>"
+        "<p style='margin-top:14px'><a href='/configuracoes/conta'>Voltar à conta</a></p>"
+        "</div>" % (html.escape(papel), contas.DIAS_DE_CONVITE,
+                    html.escape(ligacao, quote=True))))
 
 
 @app.route("/configuracoes/conta/utilizadores/<int:utilizador_id>/apagar",

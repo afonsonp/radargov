@@ -13994,6 +13994,29 @@ class TestConvites(BaseTemporaria):
         self.assertEqual(para, "ana@exemplo.pt")
         return re.search(r"/convite/[\w-]+", corpo).group(0)
 
+    def test_o_admin_da_empresa_convida_um_colega(self):
+        """Teste com utilizadores de 25/09/2026: o admin tinha de inventar
+        a palavra-passe do colega. O convite é da empresa de quem convida,
+        mostra-se uma vez, e um tester não o cria."""
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "chefe", "senha-comprida",
+                                          papel="admin", empresa_id=1)
+        cliente = self.entrar("chefe")
+        r = cliente.post("/configuracoes/conta/utilizadores/convite",
+                         data={"papel": "tester", "csrf": self.token(cliente)},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        ligacao = re.search(r"/convite/([\w-]+)", r.get_data(as_text=True))
+        with radar.liga() as c:
+            convite, _ = radar.contas.convite_valido(c, ligacao.group(1))
+        self.assertEqual((convite["empresa_id"], convite["papel"]), (1, "tester"))
+        # um tester não convida ninguém
+        tester = self.entrar("teste")
+        r = tester.post("/configuracoes/conta/utilizadores/convite",
+                        data={"papel": "admin", "csrf": self.token(tester)},
+                        environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+
     def test_aceitar_cria_a_empresa_e_manda_o_convite_a_quem_pediu(self):
         r = self.aceitar()
         self.assertEqual(r.status_code, 200)
