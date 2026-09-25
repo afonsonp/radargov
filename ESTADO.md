@@ -50,15 +50,15 @@ duas bases; os das empresas, de **24/09/2026**.
 |---|---|
 | Anúncios | 210 379 (**199 925 procedimentos**; a diferença são republicações ligadas ao original) |
 | Com o texto integral | 185 454. O `detalhe_lido` está a **100%**: não há fila por ler |
-| Empresas | **0** — a LATD (empresa 1) foi apagada a 23/09 com `--apagar-empresa`; a próxima nasce como empresa 2 |
-| Propostas, tarefas, contactos | 0 — são de cada empresa, e não há nenhuma |
+| Empresas | **1** — a LATD, empresa 2 desde 24/09 (a empresa 1 foi apagada a 23/09 com `--apagar-empresa`) |
+| Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD (25/09/2026) |
 | Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
-| Contas | 1: a do dono, **sem empresa** (abre a `/plataforma` e lê os Concursos e o Mercado) |
+| Contas | 2: a do dono, **sem empresa** (abre a `/plataforma` e lê os Concursos e o Mercado), e a admin da LATD |
 | Rotas Flask | 89 |
-| Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
+| Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, `empresas/2/` |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
 | Testes | **1 153**, em ~80 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 25 308 linhas · `teste_radar.py` 15 481 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
@@ -91,13 +91,11 @@ Escrito a 24/09/2026, para fechar nas próximas conversas. Por ordem:
    `radargov.pt`, e o painel manda os outros para o `miragov.pt`. O
    monitor do UptimeRobot passou para `https://miragov.pt/saude` no
    mesmo dia.
-3. **Confirmar as cópias fora do PC**, depois das 08:00 do dia seguinte
-   à configuração: na `/plataforma`, em Cópias, a linha «Fora deste PC»
-   tem de dizer «ok». Fecha a pendência R2 do `BACKLOG.md`.
-4. **Criar a primeira empresa** (a LATD, ou a piloto) pelo pedido de
-   acesso do site, e aceitá-la nos «pedidos de acesso». Nasce como
-   empresa 2. Melhor depois do MiraGov, para o convite já levar o nome
-   novo.
+3. ~~Confirmar as cópias fora do PC~~ — **feito a 25/09/2026**: a
+   linha «Fora deste PC» diz «ok: 2026-09-25 08:00», e o bucket do B2
+   tem as cópias da empresa 2 e das contas. Fecha o R2 do `BACKLOG.md`.
+4. ~~Criar a primeira empresa~~ — **feito a 24/09/2026**: a LATD
+   voltou pelo pedido de acesso, como empresa 2.
 5. **Pedir ao suporte do GitHub** que limpe os `refs/pull` dos PR
    antigos (support.github.com, repositório `afonsonp/radargov`: «purge
    cached refs/pull after history rewrite»). Guardam commits de antes da
