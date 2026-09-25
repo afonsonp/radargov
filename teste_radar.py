@@ -6048,6 +6048,25 @@ class TestFecharOCicloComOBase(BaseTemporaria):
         # e a proposta continua onde estava
         self.assertEqual(radar.proposta(self.id_)["estado"], "submetido")
 
+    def test_os_botoes_pedem_o_que_falta_e_nao_escolhem_o_motivo(self):
+        """Varredura de 25/09/2026: o «Perdemos» mandava o motivo «Preço»
+        escondido — escolhia por quem lê o porquê de ter perdido, que é o
+        contrário do «propõe, nunca decide». E os dois mandavam ranhuras
+        que exigem o preço proposto sem o levar: numa proposta sem preço,
+        o gesto acabava num aviso a mandar preenchê-lo noutro lado. Vão
+        agora pela caixa da escada, com o `data-falta`."""
+        self._contrato()
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=NULL WHERE id=?",
+                      (self.id_,))
+        linhas = radar.desfecho_do_anuncio("17161/2026")
+        faixa = radar.faixa_do_desfecho(radar.proposta(self.id_), linhas)
+        self.assertNotIn("value='Preço'", faixa)
+        self.assertEqual(faixa.count("desfecho-js"), 2)
+        falta = [json.loads(html.unescape(f))
+                 for f in re.findall(r"data-falta='([^']*)'", faixa)]
+        self.assertEqual(falta, [["valor_proposta"], ["valor_proposta"]])
+
     def test_o_botao_fecha_a_proposta(self):
         self._contrato()
         r = self.cliente.post("/proposta/%d/escada" % self.id_,
@@ -7463,7 +7482,7 @@ class TestMotivoDoAbandono(unittest.TestCase):
         self.assertNotIn("<select", html_)
         self.assertNotIn("<option", html_)
         self.assertIn("abandonar-js", html_)
-        self.assertIn("action='/estado/1/2026/nao_fomos'", html_)
+        self.assertIn("action='/estado/1%2F2026/nao_fomos'", html_)
         self.assertIn("Um anúncio", html_)
 
     def test_sem_JS_o_pedido_segue_e_o_servidor_e_que_recusa(self):
@@ -7573,6 +7592,36 @@ class TestContrasteNosFundosReais(unittest.TestCase):
                     self.assertGreaterEqual(
                         c, minimo, "%s sobre %s no tema %s dá %.2f"
                         % (tinta, fundo, tema, c))
+
+    def test_as_iniciais_da_barra_leem_se_nos_tres_temas(self):
+        """Varredura de 25/09/2026: o `.mg-topbar .mg-avatar` do sistema
+        pinta as iniciais com `--surface-header` sobre o `--seal`: 1,38:1
+        no claro. A nossa folha repõe o `--on-brand`, e é esse par que
+        tem de passar — nos três temas, que o amarelo do escuro pede tinta
+        escura e o castanho do claro pede branca."""
+        folha = radar.ler_estilo("miragov-radar.css")
+        self.assertIn(".mg-topbar .mg-avatar{color:var(--on-brand)}", folha)
+        for tema, minimo in self.TEMAS.items():
+            cores = self._temas()[tema]
+            c = self._contraste(cores["--on-brand"], cores["--seal"])
+            self.assertGreaterEqual(c, 4.5, "no tema %s dá %.2f" % (tema, c))
+
+
+class TestControlosTemNomeParaOLeitorDeEcra(unittest.TestCase):
+    """Varredura de 25/09/2026, com o axe-core: a caixa de cada tarefa do
+    Hoje era um botão sem texto (o leitor de ecrã dizia «botão», e com o
+    teclado não se sabia o que se marcava), e o selector da ranhura e o
+    da plataforma nos alertas não tinham nome nenhum."""
+
+    def test_os_tres(self):
+        caixa = radar.accao("/tarefa/1/feita", "", "chk",
+                            rotulo="marcar como feita: Pedir \"esclarecimentos\"")
+        self.assertIn("aria-label='marcar como feita: Pedir &quot;"
+                      "esclarecimentos&quot;'", caixa)
+        self.assertNotIn("aria-label", radar.accao("/x", "ok"))
+        self.assertIn("aria-label='Ranhura na escada'",
+                      radar.selector_de_ranhura("/x", "analisar"))
+        self.assertNotIn("<select name='plat'>", radar.CSS + inspect.getsource(radar))
 
 
 class TestAlvosDeTextoA24px(unittest.TestCase):
@@ -8144,6 +8193,49 @@ class TestCamposPorRanhura(BaseTemporaria):
         html_ = radar._campos_que_a_ranhura_pede(self._p("ganho", lugar=1))
         self.assertIn("name='lugar'", html_)
         self.assertIn("name='top3'", html_)
+
+
+class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
+    """Varredura de 25/09/2026: a ficha de um concurso fora da escada
+    tinha «Interessa»/«Abandonar» no cabeçalho **e** «pôr na escada»/
+    «abandonar» no cartão da proposta, mais o cartão «Responsável», que
+    também o punha na escada — três portas para o mesmo gesto. E com a
+    proposta aberta havia dois campos «responsável»: o do cartão e o do
+    bloco da proposta, a gravar o mesmo por dois caminhos."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " tipo, url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      ("60/2026", "Aquisição de software", "IPL",
+                       "2026-09-01", "Anúncio de procedimento", "https://dr/60"))
+
+    def _ficha(self):
+        h = self.cliente.get("/anuncio/60%2F2026").get_data(as_text=True)
+        return re.sub(r"(?s)<script.*?</script>", "", h)
+
+    def test_fora_da_escada_ha_um_interessa_e_um_abandonar(self):
+        h = self._ficha()
+        self.assertEqual(h.count("action='/estado/60%2F2026/analisar'"), 1)
+        self.assertEqual(h.count("action='/estado/60%2F2026/nao_fomos'"), 1)
+        self.assertNotIn("pôr na escada", h)
+        # o responsável é da proposta, e ainda não há proposta
+        self.assertNotIn("action='/responsavel/", h)
+
+    def test_na_escada_ha_um_so_campo_responsavel(self):
+        self.cliente.post("/estado/60%2F2026/analisar")
+        h = self._ficha()
+        self.assertIn("action='/responsavel/60/2026'", h)
+        self.assertNotIn("name='responsavel'", h)
+        # e gravar o resto do bloco não apaga o responsável que lá está
+        self.cliente.post("/responsavel/60/2026", data={"nome": "Ana"})
+        id_ = radar.propostas_de("60/2026")[0]["id"]
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"coe": "X"})
+        self.assertEqual(radar.proposta(id_)["responsavel"], "Ana")
 
 
 class TestSelectorDaRanhura(BaseTemporaria):
@@ -10659,6 +10751,33 @@ class TestConfiguracoes(BaseTemporaria):
         # o subtítulo perdeu a metade que era falsa
         self.assertNotIn("grava só o que mostra", corpo)
         self.assertIn("A administração da plataforma", corpo)
+
+    def test_o_nif_da_empresa_confere_o_digito_de_controlo(self):
+        """Varredura de 25/09/2026: aceitava `123456788`. O NIF da empresa
+        é o que diz «fomos nós» nas adjudicações do Portal BASE, e um
+        dígito trocado estragava esse cruzamento em silêncio — a ficha
+        passava a dizer «Não fomos nós» de tudo. Vazio continua a valer:
+        é tirá-lo."""
+        self.assertTrue(radar.nif_valido("123456789"))
+        self.assertTrue(radar.nif_valido("516241362"))
+        self.assertFalse(radar.nif_valido("123456788"))
+        self.assertFalse(radar.nif_valido("12345678"))
+        self.assertFalse(radar.nif_valido("1234567890"))
+        radar.gravar_config({"nif_da_empresa": "516241362"})
+        r = self.cliente.post("/configuracoes/conta/empresa",
+                              data={"nome_da_empresa": "Ensaio",
+                                    "nif_da_empresa": "123 456 788"})
+        self.assertIn("NIF", unquote(r.headers["Location"]))
+        self.assertEqual(radar.ler_config()["nif_da_empresa"], "516241362")
+        # com pontos e espaços, um NIF certo grava só os dígitos
+        self.cliente.post("/configuracoes/conta/empresa",
+                          data={"nome_da_empresa": "Ensaio",
+                                "nif_da_empresa": "123.456.789"})
+        self.assertEqual(radar.ler_config()["nif_da_empresa"], "123456789")
+        self.cliente.post("/configuracoes/conta/empresa",
+                          data={"nome_da_empresa": "Ensaio",
+                                "nif_da_empresa": ""})
+        self.assertEqual(radar.ler_config()["nif_da_empresa"], "")
 
     def test_apagar_um_alerta_pergunta_antes(self):
         """Varredura de 25/09/2026: o `onsubmit` do × era escrito à mão,

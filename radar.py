@@ -1906,6 +1906,19 @@ def para_like(termo):
     return termo
 
 
+def nif_valido(nif):
+    """Um NIF português: nove dígitos, o último de controlo (módulo 11,
+    pesos 9 a 2; resto 0 ou 1 dá 0). Recebe só os dígitos.
+
+    Existe desde a varredura de 25/09/2026: a Conta aceitava `123456788`,
+    e o NIF da empresa é o que diz «fomos nós» no Portal BASE -- um dígito
+    trocado punha a ficha a dizer «Não fomos nós» de tudo."""
+    if not re.fullmatch(r"\d{9}", nif or ""):
+        return False
+    resto = sum(int(d) * (9 - i) for i, d in enumerate(nif[:8])) % 11
+    return int(nif[8]) == (0 if resto < 2 else 11 - resto)
+
+
 def prefixo_cpv(pedaco):
     """De um codigo CPV para o prefixo com que se procura.
 
@@ -11802,7 +11815,9 @@ CSS_NOVO = r"""
  color:var(--ink-muted);font:400 12px/1.35 var(--font-sans)}
 [data-pele=novo] .fita a:hover{background:var(--surface-sunken)}
 [data-pele=novo] .fita .d{font:600 13px/1 var(--font-mono);color:var(--ink-secondary)}
-[data-pele=novo] .fita .passou{opacity:.7}
+/* os dias que passaram vão a cinzento, e nao a meia-luz: o opacity:.7
+   baixava o texto a 3,1:1, abaixo dos 4,5 que o texto pede (axe, 25/09/2026) */
+[data-pele=novo] .fita .passou .d{color:var(--ink-muted);font-weight:400}
 [data-pele=novo] .fita .fds{background:var(--surface-sunken)}
 [data-pele=novo] .fita .e{color:var(--warning)}
 [data-pele=novo] .fita .m{color:var(--danger)}
@@ -12324,7 +12339,8 @@ def migalhas_de(vista, folha=""):
     return "".join(pedacos)
 
 
-def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
+def accao(destino, etiqueta, classe="bt", confirmar="", campos=None,
+          rotulo=""):
     """Um botao que faz POST. Tudo o que altera dados passa por aqui:
     como <a href> isto respondia a um prefetch do browser ou a qualquer
     coisa que siga links, e ha aqui accoes que mudam a base.
@@ -12349,13 +12365,17 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None):
         "<input type='hidden' name='%s' value='%s'>"
         % (html.escape(k, quote=True), html.escape(str(v), quote=True))
         for k, v in (campos or {}).items())
+    # `rotulo` e o nome para quem le com leitor de ecra, quando o botao
+    # nao tem texto (a caixa das tarefas do Hoje era so «botao»)
     return ("<form class='accao' method='post' action='%s'%s>%s"
-            "<button type='submit' class='%s'>%s</button></form>"
+            "<button type='submit' class='%s'%s>%s</button></form>"
             # a classe TRADUZ-SE aqui (fase 3): as treze chamadas
             # continuam a dizer "mini cuidado", que e o vocabulario da
             # casa, e o que sai e o do sistema. Traduzir em cada
             # chamada era treze sitios por onde esquecer uma.
-            % (destino, ao_submeter, escondidos, botao(classe), etiqueta))
+            % (destino, ao_submeter, escondidos, botao(classe),
+               (" aria-label='%s'" % html.escape(rotulo, quote=True))
+               if rotulo else "", etiqueta))
 
 
 # --- os botões e as pílulas do sistema (fase 3, 22/09/2026) ----------
@@ -12496,7 +12516,8 @@ def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
     return ("<form class='accao abandonar-js' method='post' "
             "action='/estado/%s/nao_fomos' data-titulo='%s'>"
             "<button type='submit' class='%s'>%s</button></form>"
-            % (ref, html.escape(titulo or ref, quote=True), botao(classe),
+            % (quote(ref, safe=""), html.escape(titulo or ref, quote=True),
+               botao(classe),
                etiqueta))
 
 
@@ -12552,7 +12573,7 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
                   % ENTRADA_DA_ESCADA[0])
     return ("<form class='ranhura escada-js' method='post' action='%s' "
             "data-titulo='%s' data-motivos='%s' data-falta='%s'>"
-            "<select name='estado'>%s</select>"
+            "<select name='estado' aria-label='Ranhura na escada'>%s</select>"
             "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>ir</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
@@ -12614,6 +12635,7 @@ def caixa_do_motivo():
             "  if (!d || !d.showModal) return;   // sem <dialog>, o POST segue\n"
             "  var f = document.getElementById('form-motivo');\n"
             "  var TITULOS = %s;\n"
+            "  var selAberto = null;\n"
             "  function abrir(accao, titulo, estado, falta) {\n"
             "    falta = falta || [];\n"
             "    var comMotivo = !!f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
@@ -12650,19 +12672,43 @@ def caixa_do_motivo():
             "    catch (erro) { falta = []; }\n"
             "    if (pedem.indexOf(sel.value) >= 0 || falta.length) {\n"
             "      abrir(form.action, form.dataset.titulo, sel.value, falta);\n"
+            "      selAberto = sel;\n"
             "    } else {\n"
             "      form.requestSubmit();\n"
             "    }\n"
             "  });\n"
-            "  // o botao \"abandonar\" da lista, que e sempre o nao_fomos\n"
+            "  // o botao \"abandonar\" da lista, que e sempre o nao_fomos, e\n"
+            "  // os dois do desfecho, que abrem a caixa se lhes faltar algo\n"
             "  document.addEventListener('submit', function (e) {\n"
             "    var origem = e.target;\n"
-            "    if (!origem.classList || !origem.classList.contains('abandonar-js')) return;\n"
+            "    if (!origem.classList) return;\n"
+            "    if (origem.classList.contains('abandonar-js')) {\n"
+            "      e.preventDefault();\n"
+            "      abrir(origem.action, origem.dataset.titulo, 'nao_fomos');\n"
+            "      return;\n"
+            "    }\n"
+            "    if (!origem.classList.contains('desfecho-js')) return;\n"
+            "    var estado = origem.dataset.estado, falta = [];\n"
+            "    try { falta = JSON.parse(origem.dataset.falta || '[]'); }\n"
+            "    catch (erro) { falta = []; }\n"
+            "    var pede = f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
+            "    if (!falta.length && !pede) return;\n"
             "    e.preventDefault();\n"
-            "    abrir(origem.action, origem.dataset.titulo, 'nao_fomos');\n"
+            "    abrir(origem.action, origem.dataset.titulo, estado, falta);\n"
             "  }, true);\n"
+            "  // cancelar (ou Esc) repoe o selector na ranhura em que a proposta\n"
+            "  // ESTA: sem isto a linha ficava a dizer Submetido sem o ser\n"
+            "  // (revisao de 25/09/2026)\n"
+            "  function repor() {\n"
+            "    if (selAberto) {\n"
+            "      for (var i = 0; i < selAberto.options.length; i++)\n"
+            "        if (selAberto.options[i].defaultSelected) selAberto.selectedIndex = i;\n"
+            "    }\n"
+            "    selAberto = null;\n"
+            "  }\n"
+            "  d.addEventListener('cancel', repor);\n"
             "  document.getElementById('dlg-motivo-nao').addEventListener(\n"
-            "      'click', function () { d.close(); });\n"
+            "      'click', function () { d.close(); repor(); });\n"
             "})();\n"
             "</script>" % (campos, grupos, titulos))
 
@@ -15714,8 +15760,8 @@ def _caixa_urgente():
             "indicadores e os avisos &mdash; mudar aqui muda em todo o "
             "lado.</div>"
             "<form method='post' action='/alertas/urgente' class='filtros'>"
-            "<label>prazos a menos de</label>"
-            "<input type='text' name='dias' value='%d' "
+            "<label for='dias-urgente'>prazos a menos de</label>"
+            "<input type='text' id='dias-urgente' name='dias' value='%d' "
             "style='min-width:0;width:70px;flex:none'>"
             "<label>dias</label>"
             "<button type='submit'>Guardar</button></form></div>"
@@ -15863,7 +15909,7 @@ def _conteudo_alertas():
         "publica…' list='entidades' autocomplete='off' data-sugere='anuncios' "
         "data-chave-em='nif'>"
         "<input type='hidden' name='nif' value='%s'>"
-        "<select name='plat'>%s</select>"
+        "<select name='plat' aria-label='Plataforma'>%s</select>"
         "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<button type='submit'>Criar alerta</button>"
@@ -16658,7 +16704,12 @@ def config_empresa():
     IMPIC guarda-o assim, e um espaço ou um ponto a meio fazia a
     comparação falhar sem nada no ecrã a dizer porquê."""
     nome = " ".join((request.form.get("nome_da_empresa") or "").split())[:120]
-    nif = re.sub(r"\D", "", request.form.get("nif_da_empresa") or "")[:9]
+    # sem o [:9] de antes: cortar um NIF de dez dígitos dava outro NIF,
+    # e o dígito de controlo é o que apanha a gralha
+    nif = re.sub(r"\D", "", request.form.get("nif_da_empresa") or "")
+    if nif and not nif_valido(nif):
+        return volta_config("conta", "O NIF %s não é válido (o último "
+                            "dígito não confere). Nada foi guardado." % nif[:12])
     gravar_config_registado({"nome_da_empresa": nome, "nif_da_empresa": nif})
     return volta_config("conta", "A nossa empresa: guardada.")
 
@@ -18021,7 +18072,8 @@ def entidades():
             taxa = "—"
         k, v = acabam.get(ch, (0, 0.0))
         corpo.append(
-            "<tr><td><input type='checkbox' name='vs' value='%s'%s></td>"
+            "<tr><td><input type='checkbox' name='vs' value='%s'%s "
+            "aria-label='comparar'></td>"
             "<td><a href='/entidade/%s'>%s</a>%s</td>"
             "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
             "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
@@ -20608,8 +20660,11 @@ def ficha(ref):
 
     # O responsavel e da proposta; com lotes, todos os cartoes do mesmo
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
+    # Só com proposta (varredura de 25/09/2026): antes dela, o cartão era
+    # uma terceira porta para a escada, ao lado do «Interessa» do
+    # cabeçalho. A rota continua a sabê-lo, para quem lá chegue.
     resp = (minhas[0]["responsavel"] if minhas else "") or ""
-    resp_cx = cartao(
+    resp_cx = "" if not minhas else cartao(
         "Responsável",
         "<form class='resp' method='post' action='/responsavel/%s'>"
         "<span class='mg-avatar'>%s</span>"
@@ -21272,10 +21327,24 @@ def faixa_do_desfecho(p, linhas, cfg=None):
                euros(ganhou) if ganhou else "valor não publicado",
                (", a " + data_pt(quando)) if quando else "",
                veredicto, conta,
-               accao("/proposta/%d/escada" % p["id"], "Ganhámos", "mini verde",
-                     campos={"estado": "ganho"}),
-               accao("/proposta/%d/escada" % p["id"], "Perdemos", "mini",
-                     campos={"estado": "perdido", "motivo": "Preço"})))
+               _botao_do_desfecho(p, "ganho", "Ganhámos", "mini verde"),
+               _botao_do_desfecho(p, "perdido", "Perdemos", "mini")))
+
+
+def _botao_do_desfecho(p, estado, etiqueta, classe):
+    """Um dos dois botões da faixa. Vai pela caixa da escada quando a
+    ranhura pede o que esta proposta não tem, ou o motivo (varredura de
+    25/09/2026): o «Perdemos» mandava o motivo «Preço» escondido, a
+    escolher por quem lê, e os dois esbarravam no preço proposto em
+    falta. Sem JS o pedido segue e o servidor diz o que falta."""
+    falta = [n for n in falta_para_a_ranhura(p, estado) if n != "motivo"]
+    return ("<form class='accao desfecho-js' method='post' "
+            "action='/proposta/%d/escada' data-estado='%s' data-falta='%s' "
+            "data-titulo='%s'><input type='hidden' name='estado' value='%s'>"
+            "<button type='submit' class='%s'>%s</button></form>"
+            % (p["id"], estado, html.escape(json.dumps(falta), quote=True),
+               html.escape(p["titulo"] or p["entidade"] or "", quote=True),
+               estado, botao(classe), etiqueta))
 
 
 # --- os contactos (etapa 6, 15/09/2026)
@@ -21561,9 +21630,10 @@ def _etiquetas_da_ficha(ref):
 def proposta_cx(a):
     """O bloco «A nossa proposta» da ficha. Um por lote quando há lotes.
 
-    Sem proposta nenhuma, mostra a porta de entrada e mais nada: um
-    formulário de dez campos por cima de um concurso que ainda não se
-    decidiu é uma pergunta antes do tempo.
+    Sem proposta nenhuma, diz só que falta decidir. Os dois botões são os
+    do cabeçalho: tinham aqui uma segunda cópia («pôr na escada» e
+    «abandonar»), e a ficha oferecia o mesmo gesto duas vezes a um palmo
+    de distância (varredura de 25/09/2026).
     """
     ref = a["ref"]
     minhas = propostas_de(ref)
@@ -21573,19 +21643,18 @@ def proposta_cx(a):
             "<div class='mg-alert mg-alert--warning'><div class='mg-alert__body'>"
             "<div class='mg-alert__title'>Falta decidir.</div>"
             "<div class='mg-alert__text'>Este concurso ainda não está na "
-            "escada: «pôr na escada» abre a proposta e as tarefas.</div>"
-            "</div></div><div class='prop-accoes'>%s</div>"
-            % forma_abandonar(ref, titulo=a["titulo"] or ""),
-            meta="Ainda sem estado",
-            accoes=accao("/estado/%s/analisar" % quote(ref, safe=""),
-                         "pôr na escada", "mini forte"),
-            id_="proposta")
+            "escada: «Interessa», lá em cima, abre a proposta e as "
+            "tarefas.</div></div></div>",
+            meta="Ainda sem estado", id_="proposta")
     # O desfecho do Portal BASE, uma vez por ficha e nao uma por lote:
     # a juncao e pelo `ref` do procedimento, e com tres lotes seriam
     # tres consultas iguais ao corpus de 2,4 GB.
     desfecho = desfecho_do_anuncio(ref)
     cfg = ler_config()
-    blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg)
+    # o responsavel e o cartao «Responsável», ao lado: dois campos para o
+    # mesmo facto gravavam-no por dois caminhos (varredura de 25/09/2026)
+    blocos = [_bloco_de_uma_proposta(p, a["titulo"] or ref, desfecho, cfg,
+                                     com_responsavel=False)
               for p in minhas]
     return cartao("A nossa proposta",
                   "".join(blocos) + _etiquetas_da_ficha(ref),
@@ -21593,7 +21662,8 @@ def proposta_cx(a):
                   id_="proposta")
 
 
-def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None):
+def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
+                           com_responsavel=True):
     """Uma proposta: o selector da ranhura, os campos que ela pede, o que
     a empresa decide, o desfecho do Portal BASE e o que falta fazer.
 
@@ -21613,9 +21683,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None):
             "<span class='prop-nome'>%s</span>%s</div>"
             "<form class='prop-campos' method='post' action='/proposta/%d/ficha'>"
             "%s%s"
-            "<label>Responsável<input type='text' name='responsavel' "
-            "value='%s' list='pessoas' placeholder='ninguém'></label>"
-            "<label>CoE<input type='text' name='coe' value='%s' "
+            "%s<label>CoE<input type='text' name='coe' value='%s' "
             "maxlength='60'></label>"
             "<label class='largo'>Notas<input type='text' name='notas' "
             "value='%s' maxlength='500' placeholder='notas…'></label>"
@@ -21627,7 +21695,10 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None):
                "".join("<label>%s%s</label>"
                        % (rotulo, _opcoes(nome, valores, p[nome]))
                        for nome, rotulo, valores in CAMPOS_DA_EMPRESA),
-               html.escape(p["responsavel"] or "", quote=True),
+               ("<label>Responsável<input type='text' name='responsavel' "
+                "value='%s' list='pessoas' placeholder='ninguém'></label>"
+                % html.escape(p["responsavel"] or "", quote=True))
+               if com_responsavel else "",
                html.escape(p["coe"] or "", quote=True),
                html.escape(p["notas"] or "", quote=True),
                faixa_do_desfecho(p, desfecho, cfg) + _tarefas_da_ficha(p)))
@@ -24335,7 +24406,9 @@ def inicio():
         # queixa que este redesenho veio resolver.
         caixa = accao("/tarefa/%d/%s" % (t["id"],
                                          "por-fazer" if feita else "feita"),
-                      "", "chk on" if feita else "chk")
+                      "", "chk on" if feita else "chk",
+                      rotulo=("voltar a pôr por fazer: " if feita
+                              else "marcar como feita: ") + t["o_que"])
         # Duas formas do mesmo: a de LER, com o `&middot;` já escrito, e
         # a do `title=`, em texto simples. Escapar a primeira outra vez
         # para o atributo dava «60/2026 &amp;middot; Câmara», que é o que

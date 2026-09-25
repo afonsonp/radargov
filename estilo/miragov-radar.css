@@ -52,6 +52,12 @@
 
 /* O `display:flex` do `.mg-field` ganha ao `[hidden]` do browser: a
    caixa da escada mostrava o «Lugar» a quem só lhe faltava o preço. */
+/* As iniciais da barra: o sistema pinta-as com a cor do cabeçalho
+   (#004682) sobre o selo (#7a5200) -- 1,38:1, ilegíveis (axe, varredura
+   de 25/09/2026). O `--on-brand` serve os três temas: branco sobre o
+   selo no claro (6,9:1) e no contraste, escuro sobre o selo amarelo no
+   escuro. */
+.mg-topbar .mg-avatar{color:var(--on-brand)}
 .mg-field[hidden]{display:none}
 dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
 

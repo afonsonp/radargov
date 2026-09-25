@@ -575,6 +575,14 @@ Decidida) e o **índice em pílulas**; nada disto fica preso ao rolar. Tem:
   as etiquetas, e **o que falta fazer** (as tarefas, com adiar e
   atribuir)
 
+**Uma porta por gesto** (25/09/2026). Fora da escada, entra-se por
+«Interessa» ou sai-se por «Abandonar», no cabeçalho, e o bloco da
+proposta só diz que falta decidir; o cartão **«Responsável»** só existe
+com proposta, e é o único sítio da ficha onde o responsável se escreve.
+Os dois botões do desfecho («Ganhámos», «Perdemos») **propõem e não
+decidem**: abrem a caixa da escada quando falta o preço proposto, e o
+«Perdemos» pergunta o motivo em vez de o escolher.
+
 ### 4.5 Ficha da proposta — `/proposta/<id>`
 
 Para as propostas **sem anúncio** (consulta prévia, ajuste directo,

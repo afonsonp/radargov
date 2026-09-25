@@ -17,15 +17,15 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 19
 - [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 55
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 57
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 16
-- [A interface](#a-interface) &middot; 75
+- [A interface](#a-interface) &middot; 76
 - [Convenções](#convencoes) &middot; 3
 
-São **249** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **252** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1136,6 +1136,24 @@ pelo Afonso e nenhuma se reabre de passagem.
   ainda não tem, por ranhura, e a caixa do motivo pede-o no acto. Um
   chamador novo do selector passa-lhe a proposta; sem ela, a caixa pede
   tudo o que a ranhura exige, que é perguntar a mais mas não é beco.
+
+- **Um botão que «propõe» não leva a escolha escondida** (varredura de
+  25/09/2026). O «Perdemos» da faixa do desfecho mandava
+  `motivo=Preço` num campo escondido: o motivo da perda, que é o que a
+  empresa aprende com ela, ficava escolhido por ninguém. E os dois botões
+  mandavam ranhuras que exigem o preço proposto sem o levar. Vão agora
+  pela caixa da escada (`_botao_do_desfecho()`, com o `data-falta`), que
+  pergunta o que falta. Um atalho para uma ranhura passa sempre pelo que
+  ela exige, como o selector.
+
+- **Um gesto, uma porta** (varredura de 25/09/2026). A ficha de um
+  concurso fora da escada tinha «Interessa»/«Abandonar» no cabeçalho,
+  «pôr na escada»/«abandonar» no bloco da proposta, e o cartão
+  «Responsável», que também o punha na escada; com proposta, dois campos
+  «responsável» a gravar o mesmo por dois caminhos. Cada cópia é um
+  sítio onde o comportamento diverge — o bloco não sabia que as
+  alterações não se põem na escada, e o cabeçalho sabia. Antes de
+  acrescentar um botão à ficha, procura se o gesto já lá está.
 
 - **As chaves dos seis primeiros estados são, de propósito, as dos
   `fases.papel`.** `ESTADOS_DA_EMPRESA` começa por `analisar`, `proposta`,
@@ -2898,6 +2916,16 @@ botões ou no calendário.
   perguntar**. Quem clica não vê erro nenhum — vê o alerta desaparecer.
   Um `confirm` vai sempre pelo `json.dumps()` mais o
   `html.escape(quote=True)`, como no `accao()`.
+
+- **Um controlo sem texto precisa de nome, e a meia-luz não é cor**
+  (axe-core, varredura de 25/09/2026). A caixa de cada tarefa do Hoje era
+  um `<button>` vazio: o leitor de ecrã dizia «botão», e ninguém sabia o
+  que marcava. O `accao()` tem o `rotulo=`, que vira `aria-label`; um
+  `<select>` sem `<label>` leva `aria-label`. E o `opacity` baixa o
+  contraste do texto sem ninguém o medir: os dias passados da fita
+  ficaram a 3,1:1. Para apagar um texto, muda-se a cor para um token que
+  passe, não a opacidade. O mesmo para o `.mg-topbar .mg-avatar` do
+  sistema, que dava 1,38:1 no claro e a nossa folha corrige (há teste).
 
 
 ---
