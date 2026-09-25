@@ -1183,9 +1183,8 @@ bater lá de cinco em cinco minutos e a mandar-te e-mail quando falha:
 o UptimeRobot (uptimerobot.com, plano Free) ou equivalente, um monitor
 do tipo HTTP com esse endereço. Ligaste-o a 15/09/2026, na tua conta
 do UptimeRobot: não está na pasta do radar, e se mudares de e-mail é
-lá que se muda. Estava no `radargov.pt/saude`, e continua a funcionar
-assim, porque o `/saude` não se reencaminha. Quando puderes, muda-o
-para o `miragov.pt/saude`.
+lá que se muda. Passou do `radargov.pt/saude` para o `miragov.pt/saude`
+a 25/09/2026. O `/saude` não se reencaminha, e responde nos dois.
 
 Foi montado uma vez com o `tunel_fixo.sh`, depois de o domínio estar
 na tua conta da Cloudflare e de autorizares este computador no

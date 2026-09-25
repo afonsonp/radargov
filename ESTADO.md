@@ -88,9 +88,9 @@ Escrito a 24/09/2026, para fechar nas próximas conversas. Por ordem:
    à instalação pelas releases `v2.0.1` e `v2.0.2`.
 2. ~~Pôr os domínios do MiraGov na Cloudflare~~ — **feito a
    25/09/2026**: o túnel responde por `miragov.pt`, `miragov.com` e
-   `radargov.pt`, e o painel manda os outros para o `miragov.pt`. Falta
-   ele mudar o monitor do UptimeRobot para `https://miragov.pt/saude`
-   (o antigo continua a servir: o `/saude` não se reencaminha).
+   `radargov.pt`, e o painel manda os outros para o `miragov.pt`. O
+   monitor do UptimeRobot passou para `https://miragov.pt/saude` no
+   mesmo dia.
 3. **Confirmar as cópias fora do PC**, depois das 08:00 do dia seguinte
    à configuração: na `/plataforma`, em Cópias, a linha «Fora deste PC»
    tem de dizer «ok». Fecha a pendência R2 do `BACKLOG.md`.
