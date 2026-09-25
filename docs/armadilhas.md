@@ -13,11 +13,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 7
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 8
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 9
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 22
-- [Alertas e interesse](#alertas-e-interesse) &middot; 5
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 58
+- [Alertas e interesse](#alertas-e-interesse) &middot; 6
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 59
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **258** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **261** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -560,6 +560,16 @@ Orçamento, cadeia de reserva, chaves.
 
 ## Datas, números e texto
 
+- **Um preço que uma pessoa escreve passa pelo `preco_escrito()`, e o
+  `None` recusa-se** (25/09/2026, teste com dez perfis de utilizador).
+  O `euros_do_texto()` apanha o primeiro número que encontra, e isso
+  serve para ler o DR, não para aceitar o que se escreve: «abc»
+  gravava-se tal qual, «-500» virava 500, e «612 350,00» — o espaço nos
+  milhares, que é como a **própria aplicação** escreve os preços — lia-se
+  612. O `euros_do_texto()` passou a ler o espaço (e o NBSP) só entre
+  grupos de três dígitos; o `preco_escrito()` exige que o texto inteiro
+  seja um preço. Um campo de preço novo usa-o, e diz ao utilizador
+  porque recusou — nunca grava o bruto.
 - **Os campos de data dos filtros são de TEXTO, e não
   `<input type="date">`** (16/09/2026). O nativo desenha-se no idioma do
   **browser** e não no da página: num browser em inglês os quatro
@@ -883,6 +893,13 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 
 Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
+- **O `?interesse=nao` tem de sobreviver ao formulário de filtro.** Um
+  `<form method=get>` só manda os campos que tem, e o «ver tudo» é um
+  parâmetro do endereço: carregar em «Filtrar» (Concursos) ou
+  «Perguntar» (Mercado) voltava a limitar a lista ao interesse, sem
+  aviso — deu 0 resultados em vez de 148 (25/09/2026). Vai no
+  `campos_escondidos()` dos dois formulários; um formulário de filtro
+  novo sobre uma lista com interesse leva-o também.
 - **Um `marca_erro()` novo tem de aparecer em `linhas_de_ultimos_erros()`.**
   É a única lista que o ecrã lê (na saúde dos `/indicadores`). O B14 e
   o B15 acrescentaram marcas e não as ligaram lá: um "remote rejected"
@@ -963,6 +980,16 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 ## Triagem, quadro e ficha
 
 O funil da empresa, do «por ver» ao «ganho».
+
+- **O formulário da proposta leva a `versao` escondida, e a gravação
+  confere-a** (`versao_da_proposta()`, `proposta_mudou_depois()`;
+  25/09/2026). O formulário manda **todos** os campos, e por isso a
+  mesma proposta aberta em dois separadores — ou por dois colegas —
+  fazia o segundo a gravar repor em silêncio os valores velhos do
+  primeiro. A versão é a linha inteira, pelas `COLUNAS_DA_PROPOSTA` (e
+  não `tuple(p)`, que com colunas de um JOIN nunca batia): qualquer
+  mudança recusa, mesmo num campo que o segundo não tocou. Um pedido
+  **sem** `versao` passa, para não partir quem não a manda.
 
 > **Duas coisas desta área saíram, e algumas armadilhas descrevem-nas
 > por dentro** (verificado a 19/09/2026 com o

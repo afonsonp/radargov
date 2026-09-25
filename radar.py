@@ -1875,14 +1875,43 @@ def mil_pt(n, espaco=" "):
 
 def euros_do_texto(texto):
     """'175.000,00 EUR' -> 175000.0. Formato portugues: o ponto separa
-    os milhares e a virgula os centimos, ao contrario do que Python le."""
-    m = re.search(r"[\d.,]+", texto or "")
+    os milhares e a virgula os centimos, ao contrario do que Python le.
+
+    O espaco nos milhares tambem conta ("612 350,00", e o NBSP que o
+    preco_pt() escreve): lia-se "612" e gravava-se 612 EUR em vez de
+    612 350 (teste com utilizadores, 25/09/2026). So entre grupos de tres
+    digitos, para "Lote 1 12 meses" nao virar um numero."""
+    m = re.search(r"\d{1,3}(?:[   ]\d{3})+(?:,\d+)?|[\d.,]+",
+                  texto or "")
     if not m:
         return None
     try:
-        return float(m.group(0).replace(".", "").replace(",", "."))
+        return float(re.sub(r"[   .]", "", m.group(0)).replace(",", "."))
     except ValueError:
         return None
+
+
+RX_PRECO_ESCRITO = re.compile(
+    r"(?:€ ?)?(?:\d{1,3}(?:[. ]\d{3})+|\d+)(?:,\d{1,2})? ?(?:€|EUR)?", re.I)
+
+
+def preco_escrito(bruto):
+    """O preço que uma pessoa escreveu, no formato da coluna
+    ("612.350,00 EUR"); "" se veio vazio; None se não se lê como preço.
+
+    Existe desde o teste com utilizadores de 25/09/2026: o preço proposto
+    aceitava «abc» (gravava-se e a lista mostrava-o), «-500» virava 500 e
+    «612 350,00» virava 612. Quem grava decide o que fazer com o None --
+    recusar com um aviso, nunca gravar o texto tal qual."""
+    texto = " ".join((bruto or "").split())
+    if not texto:
+        return ""
+    if not RX_PRECO_ESCRITO.fullmatch(texto):
+        return None
+    valor = euros_do_texto(texto)
+    if not valor:
+        return None
+    return "{:,.2f}".format(valor).translate(str.maketrans(",.", ".,")) + " EUR"
 
 
 def preco_pt(texto, vazio="—"):
@@ -2487,6 +2516,34 @@ def _tirar_da_escada(ref, antes):
         apagar_propostas(c, "id=?", (antes["id"],))
     registar(ref, "estado", "voltou a por ver")
     return "reposto em por ver"
+
+
+def versao_da_proposta(p):
+    """Uma impressão digital da linha da proposta, que o formulário leva
+    escondida e a gravação confere. Sem ela, a mesma proposta aberta em
+    dois separadores (ou por dois colegas) perdia em silêncio o que o
+    primeiro gravou: o segundo formulário mandava os valores velhos de
+    todos os campos (teste com utilizadores, 25/09/2026).
+
+    ponytail: a linha inteira, não campo a campo -- qualquer mudança
+    recusa, mesmo num campo que o segundo não tocou. Fundir por campo
+    pede o valor visto de cada um no formulário; faz-se se a recusa
+    incomodar."""
+    # Pelas colunas com nome, e não tuple(p): quem desenha pode trazer a
+    # linha com colunas a mais de um JOIN, e a versão nunca batia.
+    return hashlib.sha1(repr(tuple(p[k] for k in COLUNAS_DA_PROPOSTA))
+                        .encode()).hexdigest()[:16]
+
+
+def proposta_mudou_depois(p, versao):
+    """True se o formulário foi desenhado sobre outra versão da linha.
+    Sem `versao` (um pedido de antes disto, ou os testes) não recusa."""
+    return bool(versao) and versao != versao_da_proposta(p)
+
+
+RECADO_DA_VERSAO = ("Esta proposta mudou depois de a abrires (noutro "
+                    "separador, ou por um colega). Nada foi gravado: "
+                    "vê o que está agora e volta a escrever.")
 
 
 def gravar_campos_da_proposta(id_, campos, valores, quem=None):
@@ -14298,7 +14355,7 @@ def _lista_de_anuncios():
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
-           campos_escondidos(request.args, ("q_excl", "op", "prazo")),
+           campos_escondidos(request.args, ("q_excl", "op", "prazo", "interesse")),
            opcoes_html(opcoes_plat, plat_actual),
            html.escape(data_para_campo(request.args.get("de")), quote=True),
            html.escape(data_para_campo(request.args.get("ate")), quote=True),
@@ -15355,11 +15412,11 @@ def _campos_exigidos_do_pedido(estado, motivo=""):
         # No formato do preco base ("118.500,00 EUR"), que e o que o
         # euros_do_texto() e as somas sabem ler -- a mesma leitura do
         # proposta_da_ficha(), e nao a do euros().
-        bruto = " ".join((request.values.get("valor_proposta") or "").split())
-        if bruto:
-            valor = euros_do_texto(bruto)
-            campos["valor_proposta"] = (_texto_do_preco(valor) if valor
-                                        else bruto)
+        # O que nao se le como preco fica de fora, e a recusa diz que
+        # falta: gravar «abc» tal qual era o que acontecia ate 25/09/2026.
+        valor = preco_escrito(request.values.get("valor_proposta"))
+        if valor:
+            campos["valor_proposta"] = valor
     if "lugar" in exigidos:
         bruto = (request.values.get("lugar") or "").strip()
         if bruto:
@@ -18895,7 +18952,7 @@ def contratos():
         % (escondidos_modo, v("q"), v("adj"), v("entid"),
            "Quem tem o contrato" if fim else "Quem ganhou", v("ganhou"),
            v("vencid"), v("cpv"), v("cpv_excl"),
-           campos_escondidos(request.args, ("q_excl", "op")),
+           campos_escondidos(request.args, ("q_excl", "op", "interesse")),
            selector_procedimento(procs,
                                  (request.args.get("proc") or "").strip())
            .replace("<select ", "<select class='mg-field__input' ", 1),
@@ -21836,6 +21893,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
     return ("<div class='prop'><div class='prop-topo'>"
             "<span class='prop-nome'>%s</span>%s</div>"
             "<form class='prop-campos' method='post' action='/proposta/%d/ficha'>"
+            "<input type='hidden' name='versao' value='%s'>"
             "%s%s"
             "%s<label>CoE<input type='text' name='coe' value='%s' "
             "maxlength='60'></label>"
@@ -21845,7 +21903,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                    p["estado"], titulo=titulo, p=p),
-               p["id"], _campos_que_a_ranhura_pede(p),
+               p["id"], versao_da_proposta(p), _campos_que_a_ranhura_pede(p),
                "".join("<label>%s%s</label>"
                        % (rotulo, _opcoes(nome, valores, p[nome]))
                        for nome, rotulo, valores in CAMPOS_DA_EMPRESA),
@@ -21858,6 +21916,22 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
                faixa_do_desfecho(p, desfecho, cfg) + _tarefas_da_ficha(p)))
 
 
+def _preco_proposto_do_pedido(estado):
+    """(valor, recado) do preço proposto que o formulário trouxe. O
+    recado vem quando não se lê como preço, ou quando vem vazio numa
+    ranhura que o exige -- só espaços apagava o preço de uma proposta já
+    submetida (teste com utilizadores, 25/09/2026)."""
+    bruto = request.form.get("valor_proposta") or ""
+    valor = preco_escrito(bruto)
+    if valor is None:
+        return None, ("«%s» não se lê como preço. Escreve-o assim: 118 500,00."
+                      % corta(" ".join(bruto.split()), 40))
+    if not valor and "valor_proposta" in CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ()):
+        return None, ("Em «%s» o preço proposto não pode ficar vazio."
+                      % estado_da_empresa(estado))
+    return valor, ""
+
+
 @app.route("/proposta/<int:id_>/ficha", methods=["POST"])
 def proposta_da_ficha(id_):
     """Grava o bloco da ficha. Cada campo só muda se vier no formulário,
@@ -21865,15 +21939,17 @@ def proposta_da_ficha(id_):
     p = proposta(id_)
     if not p:
         return volta_ao_referer("/")
+    if proposta_mudou_depois(p, request.form.get("versao")):
+        return _volta_com_aviso(RECADO_DA_VERSAO)
     campos, valores = [], []
     if "valor_proposta" in request.form:
-        bruto = " ".join((request.form.get("valor_proposta") or "").split())
         # No formato do preco base ("118.500,00 EUR"), que e o que o
-        # euros_do_texto() e as somas sabem ler -- **nao** no do euros(),
-        # que poe espaco nos milhares e faz ler "118" de "118 500 €".
-        valor = euros_do_texto(bruto)
+        # euros_do_texto() e as somas sabem ler.
+        valor, recado = _preco_proposto_do_pedido(p["estado"])
+        if recado:
+            return _volta_com_aviso(recado)
         campos.append("valor_proposta")
-        valores.append((_texto_do_preco(valor) if valor else bruto) or None)
+        valores.append(valor or None)
     if "lugar" in request.form:
         bruto = (request.form.get("lugar") or "").strip()
         try:
@@ -22077,6 +22153,13 @@ def proposta_gravar(id_):
     p = proposta(id_)
     if not p:
         return pagina_de_erro(404)
+    if proposta_mudou_depois(p, request.form.get("versao")):
+        return redirect("/proposta/%d?" % id_ + urlencode({"aviso": RECADO_DA_VERSAO}))
+    for nome in ("valor_proposta", "preco_base"):
+        if nome in request.form and preco_escrito(request.form.get(nome)) is None:
+            return redirect("/proposta/%d?" % id_ + urlencode(
+                {"aviso": "«%s» não se lê como preço."
+                          % corta(request.form.get(nome), 40)}))
     if "estado" in request.form:
         novo = (request.form.get("estado") or "").strip()
         # os campos que a ranhura exige vão no mesmo pedido (D4): este
@@ -22099,7 +22182,9 @@ def proposta_gravar(id_):
     for nome, _, tecto in CAMPOS_EDITAVEIS_DA_PROPOSTA:
         if nome in request.form:
             campos.append(nome)
-            valores.append(" ".join((request.form.get(nome) or "").split())[:tecto]
+            valores.append((preco_escrito(request.form.get(nome))
+                            if nome in ("valor_proposta", "preco_base") else
+                            " ".join((request.form.get(nome) or "").split())[:tecto])
                            or None)
     if "responsavel" in request.form:
         campos.append("responsavel")

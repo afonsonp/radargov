@@ -270,6 +270,13 @@ não tem — o preço, o lugar, o motivo — e grava-se tudo de uma vez. Sem
 isto, o «Submetido» a partir de «A preparar proposta» era um beco: o
 preço proposto só se mostra na ficha a partir do «Submetido».
 
+O preço proposto **tem de se ler como preço** — «118 500,00»,
+«118.500,00 €» ou «118500» —, e grava-se sempre como «118.500,00 EUR».
+O que não se lê recusa-se com um aviso, e numa ranhura que o exige não
+pode ficar vazio. E a proposta **não se grava por cima de uma versão
+mais nova**: aberta em dois separadores, ou por dois colegas, o segundo
+a gravar é recusado e vê o que está agora (25/09/2026).
+
 Os motivos são **vocabulário fechado** (é o que os faz dar contas):
 perda — *Preço · CV's · Proposta técnica · Certificações*; não fomos —
 *Preço base baixo · Falta de certificações · Falta de CV's · Não faz
