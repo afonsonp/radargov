@@ -2707,6 +2707,7 @@ def sincronizar_tarefas(ref=None):
                     ids + list(ORIGENS_AUTOMATICAS)):
                 actuais[(t["proposta_id"], t["origem"])] = t
         agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+        hoje = datetime.now().date().isoformat()
         for l in linhas:
             quer = (datas_automaticas(l)
                     if l["estado"] in ESTADOS_COM_TAREFAS else {})
@@ -2714,7 +2715,14 @@ def sincronizar_tarefas(ref=None):
                 tem = actuais.get((l["id"], origem))
                 data = quer.get(origem)
                 dono = (l["responsavel"] or "").strip() or None
-                if data and not tem:
+                # Uma tarefa que ja NASCERIA atrasada nao se cria: e um
+                # prazo perdido, nao trabalho. «Interessa» num concurso
+                # cujos esclarecimentos ja fecharam punha «3 atrasadas» a
+                # vermelho no mesmo clique (teste com utilizadores,
+                # 25/09/2026; decisao dele no mesmo dia, que afina a D2 do
+                # CICLOS). As que se atrasam DEPOIS de nascer ficam, e a D2
+                # vale para essas: nao se apagam nem se fecham.
+                if data and not tem and data >= hoje:
                     c.execute(
                         "INSERT INTO tarefas (proposta_id, ref, o_que, quando,"
                         " quem, origem, criada_em) VALUES (?,?,?,?,?,?,?)",

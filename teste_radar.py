@@ -14329,7 +14329,7 @@ class CicloDasTarefas(BaseTemporaria):
     def _dia(self, delta):
         return (self.hoje + datetime.timedelta(days=delta)).isoformat()
 
-    def _anuncio(self, ref="60/2026", pub=-30, prazo=30, entidade="CML"):
+    def _anuncio(self, ref="60/2026", pub=-10, prazo=30, entidade="CML"):
         with radar.liga() as c:
             c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
                       "data_pub, prazo) VALUES (?,?,?,?,?,?)",
@@ -14396,8 +14396,14 @@ class TestPrazoPassadoNaoMexeEmNada(CicloDasTarefas):
     """
 
     def test_nada_se_move_nem_se_apaga(self):
-        ref = self._anuncio(pub=-60, prazo=-3)
+        # A tarefa nasce com o prazo no futuro e ATRASA-SE depois -- uma
+        # que ja nasceria atrasada nao se cria (25/09/2026, a seguir).
+        ref = self._anuncio(pub=-10, prazo=20)
         id_ = radar.criar_proposta(ref, estado="analisar")
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET data_pub=?, prazo=? WHERE ref=?",
+                      (self._dia(-60), self._dia(-3), ref))
+        radar.sincronizar_tarefas(ref)
         antes = self._tarefas()
         self.assertTrue(antes)
         self.assertEqual(radar.sincronizar_tarefas(ref), (0, 0, 0))
@@ -14407,6 +14413,14 @@ class TestPrazoPassadoNaoMexeEmNada(CicloDasTarefas):
             self.assertIsNone(t["feita_em"], t["o_que"])
         self.assertEqual(radar.proposta(id_)["estado"], "analisar")
         self.assertIsNone(radar.proposta(id_)["fechada_em"])
+
+    def test_uma_tarefa_que_ja_nasceria_atrasada_nao_se_cria(self):
+        """Decisão dele a 25/09/2026, do teste com utilizadores: marcar
+        «Interessa» num concurso cujos esclarecimentos já fecharam punha
+        tarefas atrasadas a vermelho no mesmo clique."""
+        ref = self._anuncio(pub=-60, prazo=-3)
+        radar.criar_proposta(ref, estado="analisar")
+        self.assertEqual(self._tarefas(), [])
 
     def test_a_consulta_encontra_a_proposta_e_nao_lhe_toca(self):
         ref = self._anuncio(pub=-60, prazo=-3)
