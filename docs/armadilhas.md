@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 16
+- [Contas e a porta](#contas-e-a-porta) &middot; 17
 - [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **257** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **258** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2185,6 +2185,19 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   passaram a perguntar a `/concursos`. Um teste novo da porta sonda uma
   página de dentro, nunca a raiz.
 
+- **O painel responde por seis nomes, e só um é o público** (25/09/2026,
+  o Mira Gov). O `ao_endereco_certo()` manda os outros para o
+  `endereco_publico` e corre **antes** da porta: um cookie de sessão é do
+  nome por onde se entrou, e passar a porta no nome antigo para depois
+  saltar era entrar duas vezes. Três cuidados que custaram um teste cada:
+  o caminho vai **cru** (`RAW_URI`), porque o `full_path` descodifica o
+  `%2F` e a ref `1%2F2026` chegava partida; um POST leva 308 e não 301,
+  que o browser transforma em GET; e o `/saude` não salta, senão a vigia
+  de fora via um 301 onde devia ver a falha. O próprio público nunca se
+  reencaminha — com o `endereco_publico` num dos seis, era um ciclo.
+  E o DNS de um domínio novo **não** se faz com o `cloudflared tunnel
+  route dns`: o `cert.pem` leva um token da zona escolhida no login, e o
+  registo nascia lá dentro (`miragov.pt.radargov.pt`).
 ## A interface
 
 As regras de desenho da empresa. As medidas estão em

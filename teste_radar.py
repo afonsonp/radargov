@@ -10650,6 +10650,40 @@ class TestEnderecoPublico(unittest.TestCase):
         finally:
             radar.ler_config = antigo
 
+    def test_os_outros_dominios_vao_ter_ao_publico(self):
+        """25/09/2026, o Mira Gov: o painel responde por seis nomes (o
+        miragov.pt e o .com, o radargov.pt de antes, com e sem www), e
+        manda todos para o `endereco_publico`, com o caminho e a pergunta.
+        301 num GET; 308 num POST, que não pode virar GET a meio. O próprio
+        endereço público não se reencaminha (era um ciclo), e o local não
+        se toca."""
+        cli = radar.app.test_client()
+        cfg = dict(radar.CONFIG_INICIAL, endereco_publico="https://miragov.pt")
+        with unittest.mock.patch.object(radar, "ler_config", lambda: cfg):
+            r = cli.get("/anuncio/1%2F2026?peca=x", base_url="https://radargov.pt")
+            self.assertEqual(r.status_code, 301)
+            self.assertEqual(r.headers["Location"],
+                             "https://miragov.pt/anuncio/1%2F2026?peca=x")
+            for anfitriao in ("www.radargov.pt", "miragov.com", "www.miragov.com",
+                              "www.miragov.pt"):
+                r = cli.get("/", base_url="https://" + anfitriao)
+                self.assertEqual(r.headers.get("Location"), "https://miragov.pt/",
+                                 anfitriao)
+            self.assertEqual(cli.post("/entrar", base_url="https://radargov.pt"
+                                      ).status_code, 308)
+            # o proprio e o local ficam onde estao
+            self.assertNotEqual(cli.get("/entrar", base_url="https://miragov.pt"
+                                        ).status_code, 301)
+            self.assertNotEqual(cli.get("/entrar").status_code, 301)
+            # e a vigia de fora continua a ver o /saude onde estava
+            self.assertNotIn(cli.get("/saude", base_url="https://radargov.pt"
+                                     ).status_code, (301, 308))
+        # enquanto o publico for o radargov.pt, o radargov.pt nao salta
+        cfg["endereco_publico"] = "https://radargov.pt"
+        with unittest.mock.patch.object(radar, "ler_config", lambda: cfg):
+            self.assertNotEqual(cli.get("/entrar", base_url="https://radargov.pt"
+                                        ).status_code, 301)
+
 
 
 class TestListaRecolhidaETeclado(BaseTemporaria):

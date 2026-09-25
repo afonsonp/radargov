@@ -30,7 +30,8 @@ publicados no Diário da República, série II, **parte L**. Guarda tudo
 numa base SQLite e mostra num painel Flask. Verifica sozinha de hora a
 hora, das 08:00 às 20:00, por um temporizador do systemd, corre em Ubuntu em
 `~/Desktop/radar`, e responde em `http://127.0.0.1:8765` e, por um túnel
-com nome da Cloudflare, em **`https://radargov.pt`**. Tem login e três
+com nome da Cloudflare, em **`https://miragov.pt`** (o `miragov.com` e o
+`radargov.pt` vão lá ter). Tem login e três
 níveis: o dono da plataforma, e o `admin` e o `tester` de cada empresa.
 **É multi-empresa desde 23/09/2026, e hoje não tem nenhuma**: a LATD
 saiu a pedido dele, para voltar a entrar pelo pedido de acesso do site.
@@ -59,7 +60,7 @@ duas bases; os das empresas, de **24/09/2026**.
 | Rotas Flask | 89 |
 | Tabelas em `radar.db` | 15, as da plataforma (com os `eventos`, F2, os `convites`, F5, e as `leituras_pedidas`, F7). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje não há nenhuma |
 | Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 152**, em ~80 s, sem rede e sem tocar na base verdadeira |
+| Testes | **1 153**, em ~80 s, sem rede e sem tocar na base verdadeira |
 | Código | `radar.py` 25 274 linhas · `teste_radar.py` 15 447 · `empresa.py` 641 · `contas.py` 427 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
@@ -83,14 +84,13 @@ Escrito a 24/09/2026, para fechar nas próximas conversas. Por ordem:
 1. ~~Entregar o design system novo~~ — **feito a 24/09/2026**: o
    pacote Mira Gov entrou em onze PR (#50 a #61): o prefixo `mg-`, a
    marca do olho, o nome, a barra de cinco itens, os oito ecrãs fiéis à
-   referência, e a limpeza das variáveis antigas e das pontes. Falta
-   **cortar a release** para chegar ao `radargov.pt`.
-2. **Pôr os domínios do MiraGov na Cloudflare** (o `.pt` e o `.com`):
-   acrescentá-los à conta da Cloudflare e mudar os nameservers no
-   registador, como se fez com o `radargov.pt`. Quando a Cloudflare
-   disser «Active», a sessão passa o túnel, o `endereco_publico`, o site,
-   o logótipo, os e-mails e os textos legais para MiraGov, e o
-   `radargov.pt` passa a redireccionar (`BACKLOG.md`, M1).
+   referência, e a limpeza das variáveis antigas e das pontes. Chegou
+   à instalação pelas releases `v2.0.1` e `v2.0.2`.
+2. ~~Pôr os domínios do MiraGov na Cloudflare~~ — **feito a
+   25/09/2026**: o túnel responde por `miragov.pt`, `miragov.com` e
+   `radargov.pt`, e o painel manda os outros para o `miragov.pt`. Falta
+   ele mudar o monitor do UptimeRobot para `https://miragov.pt/saude`
+   (o antigo continua a servir: o `/saude` não se reencaminha).
 3. **Confirmar as cópias fora do PC**, depois das 08:00 do dia seguinte
    à configuração: na `/plataforma`, em Cópias, a linha «Fora deste PC»
    tem de dizer «ok». Fecha a pendência R2 do `BACKLOG.md`.

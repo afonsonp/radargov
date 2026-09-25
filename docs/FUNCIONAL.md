@@ -51,7 +51,8 @@ guarda-os, e serve-os num painel.
 Corre em Ubuntu, em `~/Desktop/radar`. Verifica sozinha **de hora a
 hora, das 08:00 às 20:00** (um temporizador do systemd), e responde em
 `http://127.0.0.1:8765` e, por um túnel da Cloudflare, em
-**`https://radargov.pt`**, com login.
+**`https://miragov.pt`**, com login (desde 25/09/2026; o `miragov.com` e o
+`radargov.pt` de antes, com e sem `www`, mandam para lá, com o caminho).
 
 Substitui a Armilar (produto Vortal, 200 €/mês).
 
@@ -728,7 +729,7 @@ diagramas ainda têm:
 
 **O túnel é a razão de «local» não ser o IP.** O `cloudflared` liga-se
 ao painel a partir de `127.0.0.1`: só pelo endereço, todos os visitantes
-de `radargov.pt` eram locais. O `pedido_e_local()` conta também os
+do endereço público eram locais. O `pedido_e_local()` conta também os
 cabeçalhos de proxy e o `Host` público — qualquer um deles chega para o
 pedido deixar de ser local.
 

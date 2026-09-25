@@ -272,25 +272,31 @@ porque quem fecha a porta nas fontes e na folha é a lista branca
 `TIPOS` e a conferência da etiqueta, não a linha da porta. Lê a área
 «Contas e a porta» do `docs/armadilhas.md` antes de tocar nisto.
 
-**Sem sessão, a raiz de radargov.pt é o site público** (23/09/2026):
+**Sem sessão, a raiz do endereço público é o site** (23/09/2026):
 `site/index.html`, servido pela `porta_de_entrada()` só em `/`, e o
 formulário `/pedir-acesso`, que é rota aberta com a guarda dentro de
 si (`pedir_acesso()`). O que isso quer dizer está no
 `docs/FUNCIONAL.md` §4.9 e nas armadilhas, «Contas e a porta».
 
-**O endereço público é `https://radargov.pt`** (8/09/2026, etapa 3
-do plano, feita pela via B — o PC de empresa exposto por um túnel, não
-um VPS): um túnel com nome da Cloudflare, `radar`, a correr como
+**O endereço público é `https://miragov.pt`** desde 25/09/2026 (até aí
+`https://radargov.pt`, de 8/09/2026, etapa 3 do plano, feita pela via B
+— o PC de empresa exposto por um túnel, não um VPS): um túnel com nome da Cloudflare, `radar`, a correr como
 serviço do utilizador (`radar-tunel.service`, criado pelo
 **`tunel_fixo.sh`**), que se liga ao painel em `127.0.0.1:8765` e
-responde por `radargov.pt` e `www.radargov.pt`. O domínio está na
+responde por seis nomes — `miragov.pt`, `miragov.com` e `radargov.pt`,
+com e sem `www` (`DOMINIOS_DO_PAINEL`). O painel manda os outros para o
+público, com o caminho (`ao_endereco_certo()`, um `before_request` antes
+da porta, que deixa o `/saude` onde está para a vigia de fora). O domínio está na
 conta da Cloudflare do Afonso (plano Free; os nameservers do
 registador apontam para lá), a autorização deste computador é o
 `~/.cloudflared/cert.pem` (feita uma vez com `cloudflared tunnel
 login`, no browser dele), e as credenciais do túnel são o
 `~/.cloudflared/<id>.json` — **nada disto está na pasta do radar nem
 no git**. O `tunel_fixo.sh` é idempotente: cria o que falta e salta o
-que já está; se o Afonso mudar de computador, é correr o `login` e
+que já está — **mas não faz o DNS**: o `tunnel route dns` escreve na
+zona do domínio do login, e para outro criava um registo errado dentro
+dela; os CNAME fazem-se no painel da Cloudflare, e o script diz quais
+faltam; se o Afonso mudar de computador, é correr o `login` e
 depois o script. O painel continua a atender só em `127.0.0.1` e
 `acesso_livre_local` continua a `true`: é o `Host` público e os
 cabeçalhos do túnel que fazem um pedido de fora não ser local. O
@@ -553,7 +559,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **257 pontos** (contados a 25/09/2026), cada um de um erro que
+São **258 pontos** (contados a 25/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
