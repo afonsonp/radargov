@@ -7570,7 +7570,7 @@ def registar_seguidas(marcar_como=None, so_chave=None):
                 # a mesma chave_entidade() da ficha, e nao por LIKE
                 refs = [r["ref"] for r in c.execute(
                     "SELECT ref, entidade FROM anuncios "
-                    "WHERE COALESCE(nif, '') = '' AND ref NOT IN "
+                    "WHERE (nif IS NULL OR nif = '') AND ref NOT IN "
                     "(SELECT ref FROM seguidas_vistos WHERE chave=?)",
                     (s["chave"],))
                     if chave_entidade("", r["entidade"] or "") == s["chave"]]
@@ -9189,7 +9189,7 @@ def nome_da_entidade(chave):
             # sem NIF, pela mesma chave: «fundacao salesianos» era o nome
             # que a pagina mostrava (varredura de 25/09/2026)
             for r in c.execute("SELECT entidade FROM anuncios "
-                               "WHERE COALESCE(nif, '') = '' "
+                               "WHERE (nif IS NULL OR nif = '') "
                                "AND COALESCE(entidade, '') != '' "
                                "ORDER BY data_pub DESC, ref DESC"):
                 if chave_entidade("", r["entidade"]) == chave:
