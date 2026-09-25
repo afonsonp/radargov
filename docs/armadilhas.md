@@ -15,8 +15,8 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 9
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 9
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 22
-- [Alertas e interesse](#alertas-e-interesse) &middot; 6
+- [Contratos e entidades](#contratos-e-entidades) &middot; 23
+- [Alertas e interesse](#alertas-e-interesse) &middot; 7
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 59
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 77
 - [Convenções](#convencoes) &middot; 3
 
-São **261** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **263** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -676,6 +676,15 @@ Uma árvore, duas fontes de contagem, dois campos.
 
 ## Contratos e entidades
 
+- **Um número da ficha da entidade liga ao Mercado com
+  `interesse=nao`, e o «a acabar» conta-se em meses** (25/09/2026, teste
+  com dez perfis de utilizador). Os totais da ficha são da entidade
+  toda e a lista do Mercado abre limitada ao interesse: «ver os 15 184
+  contratos» abria 639, e «A acabar · 90 d = 173» abria 7. O
+  `para_lista()` levanta o interesse, e a janela é o `SQL_A_ACABAR`
+  (`MESES_A_ACABAR`, pelo `date('now', '+N months')` do SQLite) — a
+  mesma do `condicao_do_modo()` para onde a ligação leva. Noventa dias
+  de um lado e três meses do outro discordam nos dias do meio.
 - **Um prefixo de CPV pergunta-se com `GLOB`, nunca com `LIKE`, e são
   94×** (16/09/2026). O `LIKE 'x%'` do SQLite é insensível a maiúsculas
   e por isso **não usa o índice**: varre o `ix_cpv_v` inteiro, 2 033 368
@@ -893,6 +902,15 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 
 Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
+- **Um alerta que nasce ou se liga arquiva o acervo:
+  `arquivar_o_acervo()`** (25/09/2026). Estava só no interruptor; o
+  «Criar alerta» — por onde um alerta nasce desde 13/09/2026 — dizia
+  num comentário que o fazia e só chamava o `registar_alertas()`. Um
+  alerta acabado de criar dizia «2 328 por avisar», 2 308 deles já
+  expirados, e o primeiro resumo levava-os todos. E a ligação
+  «anúncios» do alerta abre **todas as ranhuras e sem o interesse**,
+  que é o que o alerta apanha — com a aba e o interesse da lista,
+  abria 0.
 - **O `?interesse=nao` tem de sobreviver ao formulário de filtro.** Um
   `<form method=get>` só manda os campos que tem, e o «ver tudo» é um
   parâmetro do endereço: carregar em «Filtrar» (Concursos) ou

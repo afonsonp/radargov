@@ -8421,6 +8421,116 @@ class TestOTesteComUtilizadores(BaseTemporaria):
         self.assertNotIn("name='interesse'", h)
 
 
+class TestUmNumeroAbreASuaLista(BaseTemporaria):
+    """A regra da casa — um número que um ecrã mostra tem de dar a lista
+    que a ligação dele abre — falhava em sete sítios no teste com dez
+    perfis de utilizador de 25/09/2026. Cada teste mede o número e abre
+    a ligação dele, e compara as duas coisas: a leitura do código
+    confirmava a intenção e não o que o ecrã fazia."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        self.hoje = datetime.date.today()
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+
+    def _anuncio(self, ref, cpv, prazo_dias=20, estado="novo", data_pub=None):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " tipo, url, estado, cpv, prazo) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (ref, "T " + ref, "E", data_pub or self.hoje.isoformat(),
+                       "Anúncio de procedimento", "https://dr/" + ref, estado,
+                       cpv, (self.hoje + datetime.timedelta(days=prazo_dias)).isoformat()))
+
+    def _refs_da_lista(self, href):
+        h = self.cliente.get(html.unescape(href)).get_data(as_text=True)
+        h = h.split("<main", 1)[1]
+        return set(re.findall(r"href='/anuncio/([^'#?]+)'", h))
+
+    def test_o_que_mudou(self):
+        self._anuncio("1/2026", "72000000")
+        self._anuncio("2/2026", "72200000")
+        radar.criar_proposta("2/2026")        # já não está «por ver»
+        self._anuncio("3/2026", "45000000")
+        self._anuncio("4/2026", "72000000", estado="alteracao")
+        self._anuncio("5/2026", "72000000",
+                      data_pub=(self.hoje - datetime.timedelta(days=1)).isoformat())
+        h = self.cliente.get("/").get_data(as_text=True)
+        bloco = h.split("<div class='mudou-n'>")[1].split("</div>")[0]
+        ligacoes = re.findall(r"<a href='([^']+)'><b[^>]*>([\d\s ]+)</b>",
+                              bloco)
+        self.assertEqual(len(ligacoes), 2)       # as peças não têm lista
+        (novos_h, novos_n), (int_h, int_n) = ligacoes
+        self.assertEqual(int(novos_n.replace(" ", "")), 3)
+        self.assertEqual(self._refs_da_lista(novos_h),
+                         {"1/2026", "2/2026", "3/2026"})
+        self.assertEqual(int(int_n), 2)
+        self.assertEqual(self._refs_da_lista(int_h), {"1/2026", "2/2026"})
+
+    def test_os_urgentes_da_situacao(self):
+        self._anuncio("1/2026", "72000000", prazo_dias=2)   # conta
+        self._anuncio("2/2026", "45000000", prazo_dias=2)   # fora do interesse
+        self._anuncio("3/2026", "72000000", prazo_dias=2)
+        radar.criar_proposta("3/2026")                       # já triado
+        self._anuncio("4/2026", "72000000", prazo_dias=40)  # não é urgente
+        with radar.app.test_request_context("/situacao"):
+            n = radar.funil_anuncios()["urgentes_por_ver"]
+        self.assertEqual(n, 1)
+        h = self.cliente.get("/situacao?ver=triagem").get_data(as_text=True)
+        href = re.search(r"<a href='([^']+)'><b>1 por ver com prazo", h).group(1)
+        self.assertEqual(self._refs_da_lista(href), {"1/2026"})
+
+    def test_a_ligacao_de_um_alerta_abre_o_que_ele_apanha(self):
+        self._anuncio("1/2026", "72000000")
+        self._anuncio("2/2026", "72000000", prazo_dias=-30)   # expirado
+        self._anuncio("3/2026", "45000000")                   # fora
+        radar.gravar_filtro("TI", "cpv=72000000", alerta=1)
+        h = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        href = re.search(r"<a href='(/concursos\?[^']+)'>anúncios", h).group(1)
+        self.assertEqual(self._refs_da_lista(href), {"1/2026", "2/2026"})
+
+    def test_criar_um_alerta_nao_poe_o_acervo_por_avisar(self):
+        self._anuncio("1/2026", "72000000")
+        self._anuncio("2/2026", "72000000", prazo_dias=-30)
+        self.cliente.post("/alertas/criar", data={"nome": "TI",
+                                                 "cpv": "72000000"})
+        self.assertEqual(sum(len(x[1]) for x in radar.alertas_por_enviar()), 0)
+        # e o que chega depois é que é novidade
+        self._anuncio("3/2026", "72000000")
+        radar.registar_alertas()
+        self.assertEqual([r["ref"] for _, linhas in radar.alertas_por_enviar()
+                          for r in linhas], ["3/2026"])
+
+    def test_a_entrada_conta_como_o_todos(self):
+        self._anuncio("1/2026", "72000000")
+        self._anuncio("2/2026", "72000000", estado="alteracao")
+        self.assertIn("<b>1</b>concursos na base", radar._numeros_da_entrada())
+
+
+class TestOAcabarDaEntidadeEODoMercado(CorpusTemporario):
+    """A ficha da entidade contava «a acabar» em 90 dias e ligava ao modo
+    fim do Mercado, que conta em meses: os dois números discordavam nos
+    dias do meio (teste com utilizadores, 25/09/2026)."""
+
+    def test_a_mesma_janela(self):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            for i, dias in enumerate((0, 45, 88, 91, 92, 93, 120)):
+                c.execute("INSERT INTO contratos (id, adjudicante_chave, "
+                          "fim_estimado, preco_contratual) "
+                          "VALUES (?, 'X', date('now', ?), 10)",
+                          (i + 1, "+%d days" % dias))
+            lista = c.execute(
+                "SELECT COUNT(*) FROM contratos c WHERE c.adjudicante_chave='X'"
+                + radar.condicao_do_modo(
+                    {"ver": "fim", "meses": str(radar.MESES_A_ACABAR)})
+            ).fetchone()[0]
+        self.assertEqual(radar.a_acabar_por_entidade(chaves=["X"])["X"][0], lista)
+
+
 class TestSelectorDaRanhura(BaseTemporaria):
     """O quadro saiu a 15/09/2026 e a escada passou a mudar-se na linha.
 
@@ -14887,7 +14997,7 @@ class TestEntidadesRedesenhadas(CicloDaEntidade):
         corpo = self.cliente.get(
             "/entidade/506000000").get_data(as_text=True)
         for rotulo in ("Compra · 24 m", "No nosso CPV", "Fecha a",
-                       "Connosco", "Taxa connosco", "A acabar · 90 d"):
+                       "Connosco", "Taxa connosco", "A acabar · 3 meses"):
             self.assertIn(rotulo, corpo, rotulo)
         # seis células, e não o `sit-numeros` que as embrulha -- o
         # `count("sit-n")` apanhava as duas coisas e dava sete

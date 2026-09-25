@@ -7568,6 +7568,22 @@ def registar_alertas():
     return novos
 
 
+def arquivar_o_acervo(filtro_id):
+    """Ao ligar ou criar um alerta, o que ja esta na base conta como
+    ACERVO e nao como novidade -- senao o primeiro resumo trazia tudo.
+
+    Estava so no interruptor. O «Criar alerta», que e por onde um
+    alerta nasce desde 13/09/2026, dizia num comentario que o fazia e
+    so chamava o `registar_alertas()`: um alerta acabado de criar dizia
+    «2 328 por avisar», 2 308 deles ja expirados (teste com
+    utilizadores, 25/09/2026)."""
+    registar_alertas()
+    with liga() as c:
+        c.execute("UPDATE alertas_vistos SET enviado_em=? "
+                  "WHERE filtro_id=? AND enviado_em IS NULL",
+                  (ACERVO, filtro_id))
+
+
 def alertas_por_enviar():
     """[(filtro, [anuncios])] do que esta reconhecido e ainda nao saiu."""
     fora = []
@@ -10310,8 +10326,13 @@ def _numeros_da_entrada():
     numeros = []
     try:
         with liga() as c:
-            n = c.execute("SELECT COUNT(*) FROM anuncios").fetchone()[0]
-        numeros.append((mil_pt(n), "anúncios na base"))
+            # Sem as alteracoes, como o «Todos» da lista as conta: sao
+            # republicacoes de um concurso que ja la esta, e com elas o
+            # numero da entrada nao batia com a lista (210 752 contra
+            # 200 363; teste com utilizadores, 25/09/2026).
+            n = c.execute("SELECT COUNT(*) FROM anuncios "
+                          "WHERE estado != 'alteracao'").fetchone()[0]
+        numeros.append((mil_pt(n), "concursos na base"))
     except sqlite3.Error:
         pass
     try:
@@ -15785,8 +15806,14 @@ def _linha_filtro(f):
     onde_c, fora_contratos = filtro_para(f["consulta"] or "", "contratos")
     aplicar = []
     if not fora_anuncios or onde:
+        # Todas as ranhuras e sem o interesse: e o que o alerta ve. Com a
+        # aba e o interesse da lista, a ligacao abria 0 (teste com
+        # utilizadores, 25/09/2026).
         aplicar.append("<a href='/concursos?%s'>anúncios%s</a>"
-                       % (html.escape(onde, quote=True),
+                       % (html.escape(urlencode(
+                           [(k, v) for k, v in parse_qsl(onde, keep_blank_values=True)
+                            if k not in ("estado", "interesse")]
+                           + [("estado", ""), ("interesse", "nao")]), quote=True),
                           " (parcial)" if fora_anuncios else ""))
     if not fora_contratos or onde_c:
         aplicar.append("<a href='/contratos?%s'>contratos%s</a>"
@@ -17008,7 +17035,10 @@ def alerta_criar():
     # acervo que ja la esta fica marcado como tal, como ao ligar o
     # interruptor -- senao o primeiro resumo trazia tudo.
     havia = gravar_filtro(nome, consulta, alerta=1)
-    registar_alertas()
+    with liga() as c:
+        filtro_id = c.execute("SELECT id FROM filtros_guardados WHERE nome=?",
+                              (nome,)).fetchone()["id"]
+    arquivar_o_acervo(filtro_id)
     return redirect("/configuracoes/alertas?aviso=" +
                     quote("Alerta %s: %s"
                           % ("actualizado" if havia else "criado", nome)))
@@ -17031,16 +17061,11 @@ def alerta_trocar(filtro_id):
     with liga() as c:
         c.execute("UPDATE filtros_guardados SET alerta = 1 - COALESCE(alerta,0) "
                   "WHERE id=?", (filtro_id,))
-    # Ao ligar um alerta, o que ja esta na base conta como acervo e nao
-    # como novidade -- senao o primeiro resumo trazia o acervo todo.
-    registar_alertas()
     with liga() as c:
         r = c.execute("SELECT alerta FROM filtros_guardados WHERE id=?",
                       (filtro_id,)).fetchone()
-        if r and r["alerta"]:
-            c.execute("UPDATE alertas_vistos SET enviado_em=? "
-                      "WHERE filtro_id=? AND enviado_em IS NULL",
-                      (ACERVO, filtro_id))
+    if r and r["alerta"]:
+        arquivar_o_acervo(filtro_id)
     return redirect("/configuracoes/alertas")
 
 
@@ -17980,10 +18005,16 @@ ABAS_DAS_ENTIDADES = (("nossas", "Com quem trabalhamos"),
                       ("concorrentes", "Concorrentes que mais ganham"),
                       ("acabar", "Contratos a acabar"))
 
-# A janela do "a acabar". Sao os 90 dias do documento e nao os
+# A janela do "a acabar". Sao os ~90 dias do documento e nao os
 # `dias_urgente()`: a pergunta aqui nao e "o que fecha para responder",
-# e "o que volta a concurso e me da tempo de me preparar".
-DIAS_A_ACABAR = 90
+# e "o que volta a concurso e me da tempo de me preparar". Em MESES
+# desde 25/09/2026, e contada pelo `date('now', '+N months')` do SQLite:
+# e a janela do modo fim do Mercado (`?ver=fim&meses=3`), para onde a
+# ficha liga -- com 90 dias de um lado e 3 meses do outro, o numero e a
+# lista nao batiam (teste com utilizadores).
+MESES_A_ACABAR = 3
+SQL_A_ACABAR = ("fim_estimado BETWEEN date('now') "
+                "AND date('now', '+%d months')" % MESES_A_ACABAR)
 
 # Quantas linhas por aba. As duas do corpus ja vinham limitadas a 25 no
 # `entidades_top()`; as nossas sao dezenas.
@@ -18023,7 +18054,7 @@ def _identidades_do_corpus(chaves):
             "WHERE chave IN (%s)" % ",".join("?" * len(chaves)), chaves)}
 
 
-def a_acabar_por_entidade(dias=DIAS_A_ACABAR, chaves=None, quantas=None):
+def a_acabar_por_entidade(chaves=None, quantas=None):
     """{chave: (quantos, euros)} dos contratos que acabam na janela.
 
     Corre pelo indice `(fim_estimado, id)` -- e um intervalo de datas e
@@ -18034,9 +18065,7 @@ def a_acabar_por_entidade(dias=DIAS_A_ACABAR, chaves=None, quantas=None):
     """
     if not ha_corpus():
         return {}
-    hoje = datetime.now().date()
-    ate = (hoje + timedelta(days=dias)).isoformat()
-    onde, vals = "", [hoje.isoformat(), ate]
+    onde, vals = "", []
     if chaves is not None:
         chaves = [c for c in dict.fromkeys(chaves) if c]
         if not chaves:
@@ -18047,7 +18076,7 @@ def a_acabar_por_entidade(dias=DIAS_A_ACABAR, chaves=None, quantas=None):
         linhas = c.execute(
             "SELECT adjudicante_chave ch, COUNT(*) k, "
             "  COALESCE(SUM(preco_contratual),0) v FROM contratos "
-            "WHERE fim_estimado BETWEEN ? AND ?" + onde +
+            "WHERE " + SQL_A_ACABAR + onde +
             " GROUP BY adjudicante_chave ORDER BY k DESC"
             + (" LIMIT %d" % int(quantas) if quantas else ""),
             vals).fetchall()
@@ -18112,14 +18141,10 @@ def _contas_das_abas():
     # nada. Um COUNT(DISTINCT) sobre o mesmo índice custa a leitura.
     contas["acabar"] = 0
     if ha_corpus():
-        hoje = datetime.now().date()
         with liga_corpus() as c:
             contas["acabar"] = c.execute(
                 "SELECT COUNT(DISTINCT adjudicante_chave) n FROM contratos "
-                "WHERE fim_estimado BETWEEN ? AND ?",
-                (hoje.isoformat(),
-                 (hoje + timedelta(days=DIAS_A_ACABAR)).isoformat())
-            ).fetchone()["n"]
+                "WHERE " + SQL_A_ACABAR).fetchone()["n"]
     return contas
 
 
@@ -18170,7 +18195,7 @@ def _bloco_de_comparacao(chaves):
              % (mil_pt(len(nosso["propostas"])),
                 "" if len(nosso["propostas"]) == 1 else "s", com_ela)),
             ("Anúncios dela na base", mil_pt(nosso["anuncios"])),
-            ("A acabar · %d dias" % DIAS_A_ACABAR,
+            ("A acabar · %d meses" % MESES_A_ACABAR,
              ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—"),
         ])
 
@@ -18222,7 +18247,7 @@ def entidades():
         "<a class='mg-tab' role='tab' aria-selected='%s' "
         "href='/entidades?ver=%s'>%s <span class='mg-tab__count'>%s</span></a>"
         % ("true" if aba == chave else "false", chave,
-           html.escape(rotulo + (" · %d dias" % DIAS_A_ACABAR
+           html.escape(rotulo + (" · %d meses" % MESES_A_ACABAR
                                  if chave == "acabar" else "")),
            mil_pt(contas.get(chave, 0)))
         for chave, rotulo in ABAS_DAS_ENTIDADES)
@@ -18306,7 +18331,7 @@ def entidades():
             "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
             "<th class='p'>Compra</th><th class='p'>Ganha</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
-            "<th class='p'>A acabar · %d d</th><th><span class='so-leitor'>Acções</span></th></tr></thead>"
+            "<th class='p'>A acabar · %d meses</th><th><span class='so-leitor'>Acções</span></th></tr></thead>"
             "<tbody>%s</tbody></table>"
             "<div class='tab-pe'><button type='submit' class='mg-btn mg-btn--secondary'>comparar "
             "as marcadas</button><span class='nota'>Marca duas. "
@@ -18314,7 +18339,7 @@ def entidades():
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
             "a partir de %d decididos.</span></div></div></form>"
-            % (html.escape(aba, quote=True), DIAS_A_ACABAR, "".join(corpo),
+            % (html.escape(aba, quote=True), MESES_A_ACABAR, "".join(corpo),
                MINIMO_COM_ENTIDADE))
     else:
         titulo_vazio, porque = _vazio_da_aba(aba)
@@ -18412,7 +18437,7 @@ def factos_da_entidade(chave, nosso, meses=24):
                                  "" if propostas == 1 else "s")
          if propostas else "ainda não lhe fizemos nenhuma"),
         ("Taxa connosco", taxa_v, taxa_n),
-        ("A acabar · %d d" % DIAS_A_ACABAR,
+        ("A acabar · %d meses" % MESES_A_ACABAR,
          mil_pt(acabam[0]) if acabam[0] else None,
          euros_curto(acabam[1]) if acabam[0] else
          ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
@@ -18489,6 +18514,10 @@ def entidade(chave):
         args = {c: v for c, v in ((c, (request.args.get(c) or "").strip())
                                   for c in CAMPOS_FICHA) if v}
         args[campo] = chave
+        # Os totais da ficha sao da entidade toda, e a lista do Mercado
+        # abre limitada ao interesse: «ver os 15 184» abria 639 (teste
+        # com utilizadores, 25/09/2026). A ligacao levanta-o.
+        args["interesse"] = "nao"
         return "/contratos?" + urlencode(args)
 
     ligacoes = []
@@ -18497,8 +18526,10 @@ def entidade(chave):
                         % (para_lista("entid"), mil_pt(compra["k"])))
         # "o que desta entidade esta a acabar" e a pergunta comercial da
         # ficha (atalho da §5 do ESQUELETO): o modo fim com a mesma chave
-        ligacoes.append("<a href='%s&ver=fim'>o que está a acabar "
-                        "(fim estimado)</a>" % para_lista("entid"))
+        ligacoes.append("<a href='%s&amp;ver=fim&amp;meses=%d'>o que está a "
+                        "acabar em %d meses (fim estimado)</a>"
+                        % (html.escape(para_lista("entid"), quote=True),
+                           MESES_A_ACABAR, MESES_A_ACABAR))
     if ganha["k"]:
         ligacoes.append("<a href='%s'>ver os %s que ganhou</a>"
                         % (para_lista("vencid"), mil_pt(ganha["k"])))
@@ -22406,7 +22437,6 @@ def funil_anuncios():
     """
     hoje = datetime.now().date()
     desde = (hoje - timedelta(days=30)).isoformat()
-    de_, ate = janela_urgente(hoje)
     with liga() as c:
         # Uma passagem pela tabela, com um SUM por barra (eram nove
         # COUNT separados). As quatro barras do funil na MESMA janela
@@ -22429,10 +22459,18 @@ def funil_anuncios():
         # nossa. É a mesma divisão do `contar_a_escada()`.
         d = dict(c.execute(
             "SELECT COUNT(*) total, "
-            " SUM(data_pub >= :d) entrados, "
-            " SUM(estado = 'novo' AND prazo >= :de AND prazo <= :ate) "
-            "  urgentes_por_ver "
-            "FROM anuncios", {"d": desde, "de": de_, "ate": ate}).fetchone())
+            " SUM(data_pub >= :d) entrados "
+            "FROM anuncios", {"d": desde}).fetchone())
+        # Os urgentes por ver contam-se como a lista que a ligacao abre
+        # os conta -- a aba «por ver» (sem proposta, prazo vivo), o
+        # interesse e o filtro prazo=urgente --, e nao por uma soma
+        # propria: dizia 576 e a lista abria 7 (teste com utilizadores,
+        # 25/09/2026).
+        onde_u, vals_u = com_recorte(
+            *condicoes({"prazo": "urgente", "estado": ""}),
+            *recorte_da_lista("porver"))
+        d["urgentes_por_ver"] = c.execute(
+            "SELECT COUNT(*) n FROM anuncios" + onde_u, vals_u).fetchone()["n"]
         # Triado é ter proposta; «interessa» é estar numa ranhura aberta
         # (ainda se trabalha), e descartado é «não fomos». São dezenas de
         # linhas, não duzentas mil.
@@ -23204,9 +23242,9 @@ def funil_cx_html():
     alertas = []
     if f["urgentes_por_ver"]:
         alertas.append(
-            "<a href='/concursos?estado=novo&prazo=urgente'>"
+            "<a href='%s?estado=porver&amp;prazo=urgente'>"
             "<b>%s por ver com prazo a menos de %d dias</b></a>"
-            % (mil_pt(f["urgentes_por_ver"]), dias_urgente()))
+            % (LISTA, mil_pt(f["urgentes_por_ver"]), dias_urgente()))
     # os "expirados por ver" deixaram de existir como alerta: desde a
     # fusao de 31/08/2026 um por ver expirado E um abandonado, por
     # definicao da aba -- nao ha fila a limpar nem numero a mostrar
@@ -24319,6 +24357,15 @@ def _prazos_da_janela(desde, ate):
     return fora
 
 
+def _lista_de_hoje(hoje_iso, interesse=True):
+    """A lista dos anuncios publicados num dia, em todas as ranhuras --
+    com o interesse, ou sem ele (`interesse=nao`)."""
+    args = {"estado": "", "de": hoje_iso, "ate": hoje_iso}
+    if not interesse:
+        args["interesse"] = "nao"
+    return LISTA + "?" + urlencode(args)
+
+
 def _o_que_mudou(hoje, cfg):
     """O bloco "O que mudou": tres numeros e o que entrou desde a ultima
     verificacao.
@@ -24330,9 +24377,13 @@ def _o_que_mudou(hoje, cfg):
     """
     hoje_iso = hoje.isoformat()
     frag, vals = condicao_do_interesse(cfg=cfg)
-    onde, valores = com_recorte(" WHERE data_pub=?", [hoje_iso], frag, vals)
+    # Sem as alteracoes, como o «Todos» da lista para onde os numeros
+    # levam: sao republicacoes de um concurso que ja la esta.
+    onde, valores = com_recorte(" WHERE data_pub=? AND estado != 'alteracao'",
+                                [hoje_iso], frag, vals)
     with liga() as c:
-        novos = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
+        novos = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=? "
+                          "AND estado != 'alteracao'",
                           (hoje_iso,)).fetchone()["n"]
         no_interesse = c.execute(
             "SELECT ref, titulo, entidade, preco_base, prazo FROM anuncios"
@@ -24372,12 +24423,18 @@ def _o_que_mudou(hoje, cfg):
         "<a href='%s'><b>%s</b><span class='nota'>anúncio%s novo%s</span></a>"
         "<a href='%s'><b class='azul'>%s</b>"
         "<span class='nota'>no interesse</span></a>"
-        "<a href='%s'><b>%s</b><span class='nota'>peça%s nova%s</span></a>"
+        "<span><b>%s</b><span class='nota'>peça%s nova%s</span></span>"
         "</div>"
-        % (LISTA + "?estado=porver", mil_pt(novos),
+        # Cada numero abre a lista que o confirma: os tres abriam o «por
+        # ver» inteiro (20 linhas debaixo de «58 novos», teste com
+        # utilizadores de 25/09/2026). As pecas nao tem lista por data de
+        # chegada, e por isso nao sao ligacao -- um numero sem destino e
+        # melhor do que um destino que o desmente.
+        % (html.escape(_lista_de_hoje(hoje_iso, interesse=False), quote=True),
+           mil_pt(novos),
            "" if novos == 1 else "s", "" if novos == 1 else "s",
-           LISTA + "?estado=porver", mil_pt(quantos_interesse),
-           LISTA + "?estado=porver", mil_pt(pecas),
+           html.escape(_lista_de_hoje(hoje_iso), quote=True),
+           mil_pt(quantos_interesse), mil_pt(pecas),
            "" if pecas == 1 else "s", "" if pecas == 1 else "s"))
 
     linhas = []
@@ -24479,11 +24536,17 @@ def _prazos_a_chegar(hoje, prazos):
                    html.escape(corta(r["titulo"] or r["ref"], 44)),
                    html.escape(estado_da_empresa(r["estado"]))))
     if not linhas:
-        linhas.append("<div class='nota' style='padding:8px 0'>Nada a fechar "
-                      "nos próximos %d dias.</div>" % DIAS_A_FECHAR)
+        # Das propostas, e o cartao di-lo: «Nada a fechar» com concursos
+        # por ver a terminar hoje lia-se como se nao houvesse nenhum
+        # (teste com utilizadores, 25/09/2026).
+        linhas.append("<div class='nota' style='padding:8px 0'>Nenhuma "
+                      "proposta a fechar nos próximos %d dias. Os concursos "
+                      "por ver estão em <a href='%s?estado=porver&amp;"
+                      "prazo=urgente'>Concursos</a>.</div>"
+                      % (DIAS_A_FECHAR, LISTA))
     return cartao("Prazos a chegar",
                   "<div class='prazos'>%s</div>" % "".join(linhas),
-                  meta="os próximos %d dias" % DIAS_A_FECHAR,
+                  meta="das propostas, nos próximos %d dias" % DIAS_A_FECHAR,
                   pe="<a href='/calendario'>calendário &rarr;</a>")
 
 
