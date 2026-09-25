@@ -463,3 +463,8 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
    de 25/09/2026). */
 .so-leitor{position:absolute;width:1px;height:1px;margin:-1px;padding:0;
  overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* E quem o leva tem de estar posicionado: sem isto o absoluto conta-se a
+   partir da página, e o «Acções» da última coluna de uma tabela que rola
+   ficava a 729px num ecrã de 390 -- a página voltava a fugir de lado
+   (medido no mesmo dia, depois de o pôr). */
+th:has(> .so-leitor){position:relative}

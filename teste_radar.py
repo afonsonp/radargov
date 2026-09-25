@@ -7625,6 +7625,16 @@ class TestControlosTemNomeParaOLeitorDeEcra(unittest.TestCase):
                       radar.selector_de_ranhura("/x", "analisar"))
         self.assertNotIn("<select name='plat'>", radar.CSS + inspect.getsource(radar))
 
+    def test_o_texto_so_para_o_leitor_nao_empurra_a_pagina(self):
+        """O `.so-leitor` é `position:absolute`, e sem um antepassado
+        posicionado conta-se a partir da página: o «Acções» da última
+        coluna de uma tabela que rola ficava a 729px num ecrã de 390, e
+        três páginas voltaram a fugir de lado no mesmo dia em que isso
+        se tinha corrigido (varredura de 25/09/2026)."""
+        folha = radar.ler_estilo("miragov-radar.css")
+        self.assertIn(".so-leitor{position:absolute", folha)
+        self.assertIn("th:has(> .so-leitor){position:relative}", folha)
+
 
 class TestAlvosDeTextoA24px(unittest.TestCase):
     """A área de clique era o próprio texto de 11 px.

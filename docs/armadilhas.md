@@ -2954,6 +2954,10 @@ botões ou no calendário.
   ficaram a 3,1:1. Para apagar um texto, muda-se a cor para um token que
   passe, não a opacidade. O mesmo para o `.mg-topbar .mg-avatar` do
   sistema, que dava 1,38:1 no claro e a nossa folha corrige (há teste).
+  E o texto só para o leitor (`.so-leitor`) é `position:absolute`: sem
+  um antepassado posicionado, o da última coluna de uma tabela que rola
+  empurrou três páginas para 729-873px a 390 — no mesmo dia em que isso
+  se tinha corrigido, porque não se voltou a medir depois de o pôr.
 
 
 ---
