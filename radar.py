@@ -9938,8 +9938,7 @@ def porta_de_entrada():
             SEM_EMPRESA if contas.sem_empresa(g.utilizador)
             else g.utilizador.get("empresa_id") or EMPRESA_ACTIVA)
     if so_dono(request.path) and not sou_dono():
-        return Response("só o dono da plataforma abre isto", 403,
-                        mimetype="text/plain")
+        return _recusa("só o dono da plataforma abre isto")
     # Sem empresa, so a plataforma e sair: o resto e trabalho de uma
     # empresa, e nao ha nenhuma para mostrar.
     if empresa_activa() == SEM_EMPRESA and not so_dono(request.path) \
@@ -9951,7 +9950,7 @@ def porta_de_entrada():
         return Response("esta conta não é de nenhuma empresa", 403,
                         mimetype="text/plain")
     if so_admin(request.path) and not sou_admin():
-        return Response("só o admin abre isto", 403, mimetype="text/plain")
+        return _recusa("só o admin abre isto")
     if request.method == "POST":
         if g.sessao:
             apresentado = (request.form.get("csrf")
@@ -10013,6 +10012,15 @@ def pagina_de_erro(codigo):
                                    "texto": texto,
                                    "logo": logotipo(tamanho=24)},
                     codigo, mimetype="text/html")
+
+
+def _recusa(frase):
+    """A recusa da porta por papel. Um POST (formulario ou fetch) quer a
+    frase; um GET e alguem num browser, e recebia a mesma frase em texto
+    cru, sem marca nem caminho de volta (varredura de 25/09/2026)."""
+    if request.method == "GET":
+        return pagina_de_erro(403)
+    return Response(frase, 403, mimetype="text/plain")
 
 
 @app.errorhandler(404)
@@ -11012,15 +11020,17 @@ details.painel-filtros .pf-sub{font:400 12px/1.4 var(--font-sans);color:var(--in
 /* o motivo do abandono pergunta-se numa caixa por cima (decisao do
    Afonso a 01/09/2026): um selector ao lado do botao punha uma pergunta
    permanente em cada uma das vinte linhas da lista, e a lista e para
-   ler anuncios */
-dialog.modal{border:0;border-radius:12px;padding:0;max-width:440px;width:92vw;
- box-shadow:0 18px 48px rgba(0,0,0,.28);color:var(--ink)}
-dialog.modal::backdrop{background:rgba(20,24,30,.42)}
-dialog.modal form{padding:22px 24px 18px;margin:0;display:block}
-dialog.modal h3{font:700 15px/1.3 var(--font-sans);color:var(--ink);margin:0 0 4px}
-dialog.modal .alvo{font:400 12.5px/1.45 var(--font-sans);color:var(--ink-secondary);
+   ler anuncios. Desde a migracao e o `.mg-dialog` do sistema (tamanho,
+   canto, sombra); aqui fica o que o `<dialog>` do browser traz e o
+   sistema nao desfaz -- o rebordo preto e o fundo -- e o recheio. Estas
+   regras eram de `dialog.modal`, e ficaram mortas quando a classe mudou
+   (visto na varredura de 25/09/2026). */
+dialog.mg-dialog{border:0;color:var(--ink)}
+dialog.mg-dialog::backdrop{background:rgba(22,27,38,.45)}
+dialog.mg-dialog form{margin:0}
+dialog.mg-dialog .alvo{font:400 12.5px/1.45 var(--font-sans);color:var(--ink-secondary);
  margin:0 0 12px;text-wrap:pretty}
-dialog.modal .nota{font:400 11.5px/1.5 var(--font-sans);color:var(--ink-muted);
+dialog.mg-dialog .nota{font:400 11.5px/1.5 var(--font-sans);color:var(--ink-muted);
  margin:0 0 14px}
 /* O `display` de uma regra ganha ao atributo `hidden`, que vem da
    folha do browser. Desde 15/09/2026 a caixa tem DOIS grupos de
@@ -11028,21 +11038,14 @@ dialog.modal .nota{font:400 11.5px/1.5 var(--font-sans);color:var(--ink-muted);
    sem esta linha, o dialogo do "Perdido" mostrava tambem os
    quatro motivos do "Nao fomos", oito opcoes para escolher uma.
    Visto no ecra. */
-dialog.modal .escolhas[hidden]{display:none}
-dialog.modal .escolhas{display:flex;flex-direction:column;gap:2px;
+dialog.mg-dialog .escolhas[hidden]{display:none}
+dialog.mg-dialog .escolhas{display:flex;flex-direction:column;gap:2px;
  margin-bottom:18px}
-dialog.modal .escolhas label{display:flex;align-items:center;gap:9px;
+dialog.mg-dialog .escolhas label{display:flex;align-items:center;gap:9px;
  padding:9px 10px;border-radius:7px;border:1px solid var(--line);
  font:500 12.5px/1.3 var(--font-sans);color:var(--ink-secondary);cursor:pointer}
-dialog.modal .escolhas label:hover{border-color:var(--ink-muted);background:var(--surface-raised)}
-dialog.modal .escolhas input{margin:0;flex:none}
-dialog.modal .modal-pe{display:flex;justify-content:flex-end;gap:8px}
-dialog.modal .modal-pe button{cursor:pointer;font:600 12px/1 var(--font-sans);
- padding:10px 16px;border-radius:7px;border:1px solid var(--line);
- background:#fff;color:var(--ink-secondary)}
-dialog.modal .modal-pe button[type=submit]{background:var(--danger);
- border-color:var(--danger);color:#fff}
-dialog.modal .modal-pe button[type=submit]:hover{filter:brightness(1.08)}
+dialog.mg-dialog .escolhas label:hover{border-color:var(--ink-muted);background:var(--surface-raised)}
+dialog.mg-dialog .escolhas input{margin:0;flex:none}
 .mini{cursor:pointer;padding:7px 12px;border-radius:6px;font:600 11.5px/1 var(--font-sans);
  border:1px solid var(--line);color:var(--ink-secondary);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--danger);color:var(--danger)}
@@ -11481,7 +11484,7 @@ a.ct-l{color:var(--brand)}
  .bt,.mini,button{transition:background .12s var(--ease-3),
   border-color .12s var(--ease-3),color .12s var(--ease-3)}
  /* O diálogo do motivo e o <details> do apagar: abrem, não aparecem. */
- dialog.modal[open]{animation:scale-up .14s var(--ease-out-3)}
+ dialog.mg-dialog[open]{animation:scale-up .14s var(--ease-out-3)}
  details.perigo[open] > *:not(summary){animation:fade-in .18s var(--ease-3)}
 }
 /* O que destrói dados vive fechado dentro de um <details>: um botão de
@@ -11601,7 +11604,7 @@ details.perigo[open] > summary{color:var(--danger)}
  .cal{min-width:840px}
  .conf-cx{padding:14px}
  .conf-form textarea{max-width:none}
- dialog.modal{width:94vw}
+ dialog.mg-dialog{width:94vw}
 }
 @media (max-width:600px){
  .barra nav a{padding:7px 7px;font-size:12px}
@@ -12515,7 +12518,7 @@ def _opcoes(nome, valores, actual, vazio="\u2014"):
             % (nome, opcoes_html([("", vazio)] + list(valores), actual)))
 
 
-def selector_de_ranhura(accao, actual, titulo=""):
+def selector_de_ranhura(accao, actual, titulo="", p=None):
     """O `<select>` das oito palavras, com o «tirar da escada» no fim.
 
     **Só para quem já está na escada** (decisão dele a 15/09/2026). Para
@@ -12529,7 +12532,17 @@ def selector_de_ranhura(accao, actual, titulo=""):
     abrir a caixa em vez de gravar logo. Sem JS o `<select>` muda e o
     botao grava; o servidor recusa por falta de motivo e diz porque --
     degradacao a dizer o que se passa, e nao um controlo morto.
+
+    O `data-falta` (varredura de 25/09/2026) diz, por ranhura, os campos
+    exigidos que ESTA proposta `p` ainda não tem, fora o motivo, que tem
+    a sua caixa pelo `data-motivos`. Era um beco: o «Submetido» exige o
+    preço proposto, o campo só se desenha a partir do «Submetido», e a
+    recusa mandava preenchê-lo onde ele não estava. Sem `p`, pede-se tudo
+    o que a ranhura exige -- perguntar a mais é melhor do que o beco.
     """
+    falta = {e: [n for n in (falta_para_a_ranhura(p, e) if p is not None
+                             else exigidos) if n != "motivo"]
+             for e, exigidos in CAMPOS_QUE_A_RANHURA_EXIGE.items()}
     opcoes = []
     for chave, rotulo in ESTADOS_DA_EMPRESA:
         opcoes.append("<option value='%s'%s>%s</option>"
@@ -12538,17 +12551,13 @@ def selector_de_ranhura(accao, actual, titulo=""):
     opcoes.append("<option value='%s'>tirar da escada</option>"
                   % ENTRADA_DA_ESCADA[0])
     return ("<form class='ranhura escada-js' method='post' action='%s' "
-            "data-titulo='%s' data-motivos='%s' data-exige='%s'>"
+            "data-titulo='%s' data-motivos='%s' data-falta='%s'>"
             "<select name='estado'>%s</select>"
             "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>ir</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
                " ".join(MOTIVOS_DO_ESTADO),
-               # a condicionante da informacao em falta (D4), so para o
-               # ecra que ha-de pedir os campos no acto -- hoje o
-               # servidor recusa e diz o que falta, que e degradacao a
-               # dizer o que se passa e nao um controlo morto
-               html.escape(" ".join(CAMPOS_QUE_A_RANHURA_EXIGE), quote=True),
+               html.escape(json.dumps(falta), quote=True),
                "".join(opcoes)))
 
 
@@ -12571,18 +12580,30 @@ def caixa_do_motivo():
                    % (html.escape(m, quote=True), html.escape(m))
                    for m in motivos))
         for estado, motivos in MOTIVOS_DO_ESTADO.items())
-    titulos = json.dumps({e: estado_da_empresa(e) for e in MOTIVOS_DO_ESTADO})
+    # os campos exigidos que nao sao o motivo (varredura de 25/09/2026):
+    # o selector diz no `data-falta` quais faltam, e so esses se mostram
+    campos = ("<label class='mg-field' data-campo='valor_proposta' hidden>"
+              "<span class='mg-field__label'>Preço proposto</span>"
+              "<input class='mg-field__input' type='text' name='valor_proposta' "
+              "placeholder='ex. 118.500,00'></label>"
+              "<label class='mg-field' data-campo='lugar' hidden>"
+              "<span class='mg-field__label'>Lugar</span>"
+              "<input class='mg-field__input' type='number' name='lugar' "
+              "min='1' max='99'></label>")
+    titulos = json.dumps({e: estado_da_empresa(e)
+                          for e in CAMPOS_QUE_A_RANHURA_EXIGE})
     return ("<dialog class='mg-dialog' id='dlg-motivo'>"
             "<form method='post' class='accao' id='form-motivo'>"
             "<input type='hidden' name='estado' id='dlg-motivo-estado'>"
-            "<h3 id='dlg-motivo-titulo'></h3>"
+            "<h3 class='mg-dialog__title' id='dlg-motivo-titulo'></h3>"
             "<p class='alvo' id='dlg-motivo-alvo'></p>"
-            "<p class='nota'>Não apaga nada: fica na escada e pode "
+            "<p class='nota' id='dlg-motivo-nota'>Não apaga nada: fica na escada e pode "
             "voltar. O motivo é para daqui a um mês se saber porquê.</p>"
-            "%s"
+            "%s%s"
             "<div class='mg-dialog__actions'>"
-            "<button type='button' id='dlg-motivo-nao'>Cancelar</button>"
-            "<button type='submit'>Gravar</button>"
+            "<button type='button' class='mg-btn mg-btn--secondary' "
+            "id='dlg-motivo-nao'>Cancelar</button>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Gravar</button>"
             "</div></form></dialog>"
             "<script>\n"
             "(function () {\n"
@@ -12593,12 +12614,20 @@ def caixa_do_motivo():
             "  if (!d || !d.showModal) return;   // sem <dialog>, o POST segue\n"
             "  var f = document.getElementById('form-motivo');\n"
             "  var TITULOS = %s;\n"
-            "  function abrir(accao, titulo, estado) {\n"
+            "  function abrir(accao, titulo, estado, falta) {\n"
+            "    falta = falta || [];\n"
+            "    var comMotivo = !!f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
             "    f.action = accao;\n"
             "    document.getElementById('dlg-motivo-estado').value = estado;\n"
             "    document.getElementById('dlg-motivo-titulo').textContent =\n"
-            "        (TITULOS[estado] || 'Motivo') + ': porquê?';\n"
+            "        (TITULOS[estado] || 'Motivo') + (comMotivo ? ': porquê?' : ': o que falta');\n"
             "    document.getElementById('dlg-motivo-alvo').textContent = titulo || '';\n"
+            "    document.getElementById('dlg-motivo-nota').hidden = !comMotivo;\n"
+            "    f.querySelectorAll('[data-campo]').forEach(function (c) {\n"
+            "      var meu = falta.indexOf(c.dataset.campo) >= 0;\n"
+            "      var i = c.querySelector('input');\n"
+            "      c.hidden = !meu; i.required = meu; i.disabled = !meu; i.value = '';\n"
+            "    });\n"
             "    f.querySelectorAll('.escolhas').forEach(function (g) {\n"
             "      var meu = g.dataset.para === estado;\n"
             "      g.hidden = !meu;\n"
@@ -12608,15 +12637,19 @@ def caixa_do_motivo():
             "    });\n"
             "    d.showModal();\n"
             "  }\n"
-            "  // o selector de ranhura: so as que pedem motivo abrem a caixa\n"
+            "  // o selector de ranhura: abrem a caixa as que pedem motivo, e\n"
+            "  // as que exigem um campo que esta proposta ainda nao tem\n"
             "  document.addEventListener('change', function (e) {\n"
             "    var sel = e.target;\n"
             "    if (!sel.name || sel.name !== 'estado') return;\n"
             "    var form = sel.form;\n"
             "    if (!form || !form.classList.contains('escada-js')) return;\n"
             "    var pedem = (form.dataset.motivos || '').split(' ');\n"
-            "    if (pedem.indexOf(sel.value) >= 0) {\n"
-            "      abrir(form.action, form.dataset.titulo, sel.value);\n"
+            "    var falta = [];\n"
+            "    try { falta = JSON.parse(form.dataset.falta || '{}')[sel.value] || []; }\n"
+            "    catch (erro) { falta = []; }\n"
+            "    if (pedem.indexOf(sel.value) >= 0 || falta.length) {\n"
+            "      abrir(form.action, form.dataset.titulo, sel.value, falta);\n"
             "    } else {\n"
             "      form.requestSubmit();\n"
             "    }\n"
@@ -12631,7 +12664,7 @@ def caixa_do_motivo():
             "  document.getElementById('dlg-motivo-nao').addEventListener(\n"
             "      'click', function () { d.close(); });\n"
             "})();\n"
-            "</script>" % (grupos, titulos))
+            "</script>" % (campos, grupos, titulos))
 
 
 def _iniciais(nome):
@@ -12920,7 +12953,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
     else:
         botoes.append(selector_de_ranhura(
             "/escada/" + quote(a["ref"], safe=""), aqui[0]["estado"],
-            titulo=a["titulo"] or a["ref"]))
+            titulo=a["titulo"] or a["ref"], p=aqui[0]))
     if len(aqui) > 1:
         # Com lotes ha uma proposta por lote e o selector move a
         # primeira: dizer qual, e mandar a ficha, e melhor do que mover
@@ -14391,7 +14424,8 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
                # anuncio nao tem `ref` por onde lhe pegar
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                    p["estado"],
-                                   titulo=p["titulo"] or p["entidade"] or ""),
+                                   titulo=p["titulo"] or p["entidade"] or "",
+                                   p=p),
                cel_falta))
 
 
@@ -15550,9 +15584,11 @@ def _linha_filtro(f):
         "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
         "<span class='onde'>aplicar a: %s</span>%s</div>"
         "<div class='conta'>%s</div>"
+        # o confirm pelas duas escapagens do `accao()`: escrito à mão,
+        # o `&quot;` fechava a cadeia de JS e o × apagava sem perguntar
+        # (varredura de 25/09/2026)
         "<form method='post' action='/filtros/%d/apagar' "
-        "onsubmit='return confirm(\"Apagar o alerta &quot;%s&quot;? "
-        "Não se apaga nada além do alerta.\")'>"
+        "onsubmit=\"return confirm(%s)\">"
         "<input type='hidden' name='volta' value='/alertas'>"
         "<button type='submit' class='apagar' title='apagar'>&times;</button>"
         "</form></div>"
@@ -15570,7 +15606,9 @@ def _linha_filtro(f):
                "<span class='avisa-mal'>avisa só por %s</span>"
                % html.escape(resumo_filtro(onde)) if fora_anuncios else "")
             if ligado else "não avisa"),
-           f["id"], html.escape(f["nome"], quote=True)))
+           f["id"], html.escape(json.dumps(
+               "Apagar o alerta «%s»? Não se apaga nada além do alerta."
+               % f["nome"]), quote=True)))
 
 
 def _caixa_email(cfg):
@@ -21584,7 +21622,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None):
             "<button type='submit'>gravar</button></form>%s</div>"
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
-                                   p["estado"], titulo=titulo),
+                                   p["estado"], titulo=titulo, p=p),
                p["id"], _campos_que_a_ranhura_pede(p),
                "".join("<label>%s%s</label>"
                        % (rotulo, _opcoes(nome, valores, p[nome]))
@@ -24361,7 +24399,8 @@ def inicio():
                    data_pt(p["a_prazo"]),
                    selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                        p["estado"],
-                                       titulo=p["titulo"] or p["ref"] or "")))
+                                       titulo=p["titulo"] or p["ref"] or "",
+                                       p=p)))
 
     def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui):
         direita = ""

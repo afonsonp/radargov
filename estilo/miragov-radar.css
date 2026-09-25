@@ -24,6 +24,37 @@
  var(--space-5);padding-top:var(--space-2);padding-bottom:var(--space-2);
  position:sticky;top:0;z-index:20}
 
+/* A navegação ROLA dentro da barra em ecrã estreito (varredura de
+   25/09/2026): com os cinco itens do Mira Gov, a 390px a `nav` esticava
+   até 522px e levava a página inteira a rolar de lado. O README do
+   `TopBar` diz o mesmo: «abaixo de 900px os itens rolam dentro dela».
+   O `min-width:0` deixa-a encolher como item de flex. */
+.mg-topbar__nav{min-width:0}
+@media (max-width:900px){
+ .mg-topbar__nav{order:10;flex:1 1 100%;overflow-x:auto;flex-wrap:nowrap;
+  scrollbar-width:none}
+ .mg-topbar__nav::-webkit-scrollbar{display:none}
+ .mg-topbar__nav .mg-topbar__link{flex:none;white-space:nowrap}}
+
+/* O mesmo para o que vinha a seguir, medido na mesma varredura: nada
+   destes pode empurrar a página para o lado.
+   - as abas (as cinco das Entidades chegavam a 640px a 390) rolam;
+   - o paginador dobra (a caixa «ir para» ficava fora, a 433px);
+   - a tabela das nossas propostas na entidade rola no seu cartão (927px);
+   - as colunas de um gráfico podem encolher (no Mercado, a coluna da
+     direita levava a página a 1 707px, a 1280). */
+.mg-tabs{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.mg-tabs::-webkit-scrollbar{display:none}
+.mg-tabs>*{flex:none}
+.mg-pager{flex-wrap:wrap}
+.ent-nossas{overflow-x:auto}
+.barras .col{min-width:0}
+
+/* O `display:flex` do `.mg-field` ganha ao `[hidden]` do browser: a
+   caixa da escada mostrava o «Lugar» a quem só lhe faltava o preço. */
+.mg-field[hidden]{display:none}
+dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
+
 /* O menu da conta pendura-se da barra: é `.mg-menu`, mas posicionado. */
 .mg-topbar .sou{position:relative;flex:none}
 .mg-topbar .sou>summary{list-style:none;cursor:pointer;display:flex;
@@ -411,5 +442,6 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
    (continua acima dos 3:1 que o WCAG pede a um indicador). O magenta
    fica onde faz falta, no foco de TECLADO dos botoes e das ligacoes. */
 .mg .mg-field__input:focus,.mg input:focus-visible,.mg select:focus-visible,
-.mg textarea:focus-visible{outline:2px solid var(--brand);outline-offset:0;
+.mg textarea:focus-visible,.mg-dialog input:focus-visible,
+.mg-dialog .mg-field__input:focus{outline:2px solid var(--brand);outline-offset:0;
  box-shadow:0 0 0 4px var(--brand-soft)}

@@ -8197,6 +8197,39 @@ class TestSelectorDaRanhura(BaseTemporaria):
             self.assertIn(">%s</option>" % html.escape(rotulo), html_)
         self.assertIn("<option value='porver'>tirar da escada</option>", html_)
 
+    def test_o_selector_pede_no_acto_o_preco_que_falta(self):
+        """Varredura de 25/09/2026, o beco: passar a «Submetido» exige o
+        preço proposto, e o campo só se desenha A PARTIR do «Submetido»
+        (`ESTADOS_COM_PROPOSTO`). A recusa mandava preencher «no bloco
+        A nossa proposta» um campo que lá não estava. O selector diz agora,
+        por ranhura, o que ESTA proposta ainda não tem, e a caixa pede-o
+        no mesmo gesto."""
+        sem = {"estado": "proposta", "valor_proposta": None, "lugar": None,
+               "motivo": None}
+        falta = json.loads(html.unescape(re.search(
+            r"data-falta='([^']*)'",
+            radar.selector_de_ranhura("/x", "proposta", p=sem)).group(1)))
+        self.assertEqual(falta["submetido"], ["valor_proposta"])
+        self.assertEqual(falta["relatorio"], ["valor_proposta", "lugar"])
+        # o motivo não entra: tem a sua caixa própria, pelo data-motivos
+        self.assertEqual(falta["nao_fomos"], [])
+        com = dict(sem, valor_proposta="118.500,00 EUR")
+        falta = json.loads(html.unescape(re.search(
+            r"data-falta='([^']*)'",
+            radar.selector_de_ranhura("/x", "proposta", p=com)).group(1)))
+        self.assertEqual(falta["submetido"], [])
+        # e a caixa tem os dois campos para os pedir
+        caixa = radar.caixa_do_motivo()
+        self.assertIn("name='valor_proposta'", caixa)
+        self.assertIn("name='lugar'", caixa)
+        # e o gesto completo chega ao servidor e passa
+        self.cliente.post("/estado/60%2F2026/analisar")
+        id_ = radar.propostas_de("60/2026")[0]["id"]
+        self.cliente.post("/proposta/%d/escada" % id_,
+                          data={"estado": "submetido",
+                                "valor_proposta": "90.000,00"})
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
+
     def test_muda_de_ranhura_pelo_corpo_e_nao_pelo_caminho(self):
         """Um `<select>` não sabe escrever um URL. Se o estado fosse no
         caminho, o selector precisava de JS para funcionar de todo."""
@@ -10627,6 +10660,25 @@ class TestConfiguracoes(BaseTemporaria):
         self.assertNotIn("grava só o que mostra", corpo)
         self.assertIn("A administração da plataforma", corpo)
 
+    def test_apagar_um_alerta_pergunta_antes(self):
+        """Varredura de 25/09/2026: o `onsubmit` do × era escrito à mão,
+        `confirm("Apagar o alerta &quot;X&quot;? …")` dentro de plicas —
+        o `&quot;` passa a `"` no atributo e fecha a cadeia de JS a meio.
+        O browser dizia «missing ) after argument list» e o formulário
+        seguia **sem perguntar nada**. Agora vai pelo `json.dumps()` e
+        pelo `html.escape()`, como o `accao()`; e o nome do alerta, que é
+        do utilizador, também pode ter aspas e plicas."""
+        self.cliente.post("/alertas/criar",
+                          data={"nome": "TI \"urgente\" d'Aveiro",
+                                "q": "software"})
+        corpo = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        attr = re.search(r'onsubmit="return confirm\(([^"]*)\)"', corpo)
+        self.assertIsNotNone(attr, "o × do alerta tem de perguntar")
+        # o que o browser lê no atributo é um literal de JS válido
+        self.assertEqual(json.loads(html.unescape(attr.group(1))),
+                         "Apagar o alerta «TI \"urgente\" d'Aveiro»? "
+                         "Não se apaga nada além do alerta.")
+
     def test_as_notas_dos_campos_ficam_onde_estao(self):
         """O critério da §9 do `docs/design.md` **não** se aplica aqui do
         mesmo modo: numa página de configuração o texto está ao lado do
@@ -11500,13 +11552,20 @@ class TestMudancasDeSetembro(BaseTemporaria):
                      "/configuracoes/capturas", "/configuracoes/copias",
                      "/configuracoes/indicadores", "/indicadores"):
             with self.subTest(rota=rota):
-                self.assertEqual(tester.get(rota, environ_base=self.FORA).status_code, 403)
+                r = tester.get(rota, environ_base=self.FORA)
+                self.assertEqual(r.status_code, 403)
+                # um GET recusado é um ecrã, não a frase crua em texto
+                # (varredura de 25/09/2026): o POST quer a frase, o
+                # browser quer a página com a marca e o caminho de volta
+                self.assertEqual(r.mimetype, "text/html")
+                self.assertIn("Não é para aqui", r.get_data(as_text=True))
                 self.assertIn(admin.get(rota, environ_base=self.FORA).status_code, (200, 302))
         # os POST tambem: o "Verificar agora" e quem envia o e-mail
         for rota in ("/verificar", "/alertas/remetente", "/configuracoes/conta/utilizadores"):
             with self.subTest(rota=rota):
                 r = tester.post(rota, data={"csrf": self.token(tester)}, environ_base=self.FORA)
                 self.assertEqual(r.status_code, 403)
+                self.assertEqual(r.mimetype, "text/plain")
         # e o que e dele continua a abrir
         for rota in ("/", "/calendario", "/contratos", "/configuracoes/conta",
                      "/configuracoes/interesse", "/configuracoes/alertas",
@@ -14991,7 +15050,7 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         # isto). O bloco é o ÚLTIMO, que é o que o browser lê.
         depois = radar.CSS_TUDO[radar.CSS_TUDO.rindex(marca):]
         bloco = depois[:depois.index("\n}")]
-        for regra in (".flash{animation:", "dialog.modal[open]{animation:"):
+        for regra in (".flash{animation:", "dialog.mg-dialog[open]{animation:"):
             self.assertIn(regra, bloco, regra)
         # e nenhuma delas pode existir FORA do bloco
         self.assertEqual(radar.CSS_TUDO.count(".flash{animation:"), 1)

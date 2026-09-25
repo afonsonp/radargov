@@ -263,6 +263,12 @@ Por ver → Por analisar → A preparar proposta → Submetido
 | Perdido | valor proposto + motivo |
 | Não fomos | motivo |
 
+O que falta **pede-se no gesto que escolhe a ranhura** (25/09/2026):
+escolhida no selector, abre-se uma caixa com o que esta proposta ainda
+não tem — o preço, o lugar, o motivo — e grava-se tudo de uma vez. Sem
+isto, o «Submetido» a partir de «A preparar proposta» era um beco: o
+preço proposto só se mostra na ficha a partir do «Submetido».
+
 Os motivos são **vocabulário fechado** (é o que os faz dar contas):
 perda — *Preço · CV's · Proposta técnica · Certificações*; não fomos —
 *Preço base baixo · Falta de certificações · Falta de CV's · Não faz
