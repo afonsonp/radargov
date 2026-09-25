@@ -169,6 +169,10 @@ CONFIG_INICIAL = {
     "interesse_activo": False,
     "interesse_cpv": "",
     "interesse_cpv_excl": "",
+    # o distrito e o valor do interesse (25/09/2026): «Porto|Lisboa», e o
+    # preco base minimo como se escreve
+    "interesse_distritos": "",
+    "interesse_pbmin": "",
     # Copia do radar.db antes de cada verificacao. So a triagem e o
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
@@ -1016,6 +1020,9 @@ def iniciar_db():
         colunas = [r["name"] for r in c.execute("PRAGMA table_info(anuncios)")]
         # Migracoes idempotentes: correm sempre, nao fazem nada se ja existirem.
         for nome, tipo in (("texto", "TEXT"),
+                           # os distritos do local de execucao, lidos do
+                           # texto (25/09/2026): e por aqui que se filtra
+                           ("distrito", "TEXT"),
                            ("pdf_url", "TEXT"), ("link_pecas", "TEXT"),
                            ("docs_estado", "TEXT"),
                            # o NIPC da entidade, que o DR publica sempre
@@ -1060,6 +1067,13 @@ def iniciar_db():
                            # outras sete de COLUNAS_QUE_SAIRAM)
             if nome not in colunas:
                 c.execute("ALTER TABLE anuncios ADD COLUMN %s %s" % (nome, tipo))
+        # O indice do distrito, DEPOIS do ALTER que cria a coluna (a regra
+        # da ordem, no CLAUDE.md). E de duas colunas de proposito: a
+        # coluna vive depois do `texto`, e le-la na tabela e atravessar os
+        # 840 MB dele -- medido, 3,1 s contra 0,06 de uma coluna antes. O
+        # filtro pergunta por uma subconsulta que o indice cobre sozinho.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_distrito "
+                  "ON anuncios(distrito, ref)")
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
         # nada quando ja esta feito -- e a mesma regra das outras
         # migracoes. A primeira vez sao uns segundos para a base inteira.
@@ -1231,6 +1245,12 @@ def iniciar_db():
     if le_marca("titulos_sem_controlos") != "1":
         limpar_controlos_dos_anuncios()
         marca("titulos_sem_controlos", "1")
+    # Os distritos dos anuncios que ja tem texto: uma vez, por marca (le o
+    # texto inteiro da tabela, ~15 s). Os que chegarem depois leem-se
+    # quando o detalhe se grava.
+    if le_marca("distritos_lidos") != "1":
+        preencher_distritos()
+        marca("distritos_lidos", "1")
     # O vocabulario do config.json segue o do resto (16/09/2026): a
     # «casa» passou a «empresa». Idempotente, e barato -- so abre o
     # ficheiro para escrever quando a chave velha la esta.
@@ -1239,6 +1259,17 @@ def iniciar_db():
     for id_ in empresas_existentes():
         with com_empresa(id_):
             arrumar_a_empresa()
+
+
+def preencher_distritos():
+    """Le os distritos do texto de todos os anuncios que o tem. So
+    escreve os que tem algum. Devolve quantos."""
+    with liga() as c:
+        arranjos = [(d, r["ref"]) for r in c.execute(
+            "SELECT ref, texto FROM anuncios WHERE COALESCE(texto, '') != ''")
+            for d in (distritos_do_texto(r["texto"]),) if d]
+        c.executemany("UPDATE anuncios SET distrito=? WHERE ref=?", arranjos)
+    return len(arranjos)
 
 
 def limpar_controlos_dos_anuncios():
@@ -1346,7 +1377,8 @@ def renomear_chaves_do_config():
 # que ENVIA o e-mail, a leitura das pecas, as copias -- continua no
 # config.json da pasta, que e da plataforma.
 CONFIG_DA_EMPRESA = ("nome_da_empresa", "nif_da_empresa", "interesse_activo",
-                     "interesse_cpv", "interesse_cpv_excl", "alertas",
+                     "interesse_cpv", "interesse_cpv_excl",
+                     "interesse_distritos", "interesse_pbmin", "alertas",
                      "dias_urgente")
 EMAIL_DA_EMPRESA = ("para", "hora_resumo")
 
@@ -1942,6 +1974,71 @@ def euros_do_texto(texto):
 
 RX_PRECO_ESCRITO = re.compile(
     r"(?:€ ?)?(?:\d{1,3}(?:[. ]\d{3})+|\d+)(?:,\d{1,2})? ?(?:€|EUR)?", re.I)
+
+
+# Os distritos do local de execucao, como o DR os escreve na seccao «9 -
+# LOCAL DA EXECUCAO DO CONTRATO» (medido a 25/09/2026 em 24 mil anuncios
+# de 2026: 97% trazem-na). «Todos» e «Portugal Continental» sao concursos
+# nacionais, e guardam-se como `*`: aparecem em qualquer distrito que se
+# filtre. O DR escreve «Braganca» sem cedilha num terco das vezes.
+DISTRITOS = ("Aveiro", "Beja", "Braga", "Bragança", "Castelo Branco",
+             "Coimbra", "Évora", "Faro", "Guarda", "Leiria", "Lisboa",
+             "Portalegre", "Porto", "Santarém", "Setúbal",
+             "Viana do Castelo", "Vila Real", "Viseu",
+             "Região Autónoma dos Açores", "Região Autónoma da Madeira")
+_DISTRITO_NACIONAL = ("todos", "portugal continental")
+RX_SECCAO_DO_DR = re.compile(r"^\s*\d+ - [A-ZÇÃÉÍÓÚ]", re.M)
+RX_DISTRITO = re.compile(r"^\s*Distrito:\s*(.+?)\s*$", re.M)
+
+
+def distritos_do_texto(texto):
+    """«|Porto|Lisboa|» -- os distritos do local de execucao de um
+    anuncio, lidos da seccao 9 do texto do DR; «|*|» num concurso
+    nacional; «» se o texto nao os diz. A seccao 1 tambem tem um
+    «Distrito:», mas e a morada da entidade: so conta a 9."""
+    i = (texto or "").find("LOCAL DA EXECUÇÃO")
+    if i < 0:
+        return ""
+    fim = RX_SECCAO_DO_DR.search(texto, i + 20)
+    bloco = texto[i:fim.start() if fim else len(texto)]
+    por_simples = {simplifica(d): d for d in DISTRITOS}
+    achados = []
+    for d in RX_DISTRITO.findall(bloco):
+        chave = simplifica(d)
+        nome = "*" if chave in _DISTRITO_NACIONAL else por_simples.get(chave)
+        if nome and nome not in achados:
+            achados.append(nome)
+    return "|%s|" % "|".join(achados) if achados else ""
+
+
+# O preco base em numero, dentro do SQL: a coluna guarda «175.000,00 EUR».
+SQL_PRECO_BASE = ("CAST(REPLACE(REPLACE(REPLACE(preco_base, ' EUR', ''), "
+                  "'.', ''), ',', '.') AS REAL)")
+
+
+def fragmento_local_e_valor(distritos, minimo, maximo=""):
+    """(fragmento, valores) do distrito e do valor de um anuncio -- o
+    mesmo para o motor de filtros e para o interesse. `distritos` e um ou
+    varios separados por «|»; um concurso nacional (`*`) entra em
+    qualquer um. Um anuncio sem distrito lido, ou sem preco base, fica de
+    fora quando se pede um ou outro: nao se sabe se cabe."""
+    partes, valores = [], []
+    pedidos = [d for d in (x.strip() for x in (distritos or "").split("|"))
+               if d in DISTRITOS]
+    if pedidos:
+        # pela subconsulta, que o ix_anuncios_distrito cobre: ler a coluna
+        # na tabela era atravessar o `texto` de cada anuncio
+        partes.append("ref IN (SELECT ref FROM anuncios WHERE %s OR "
+                      "distrito LIKE '%%|*|%%')"
+                      % " OR ".join("distrito LIKE ?" for _ in pedidos))
+        valores += ["%%|%s|%%" % d for d in pedidos]
+    for bruto, sinal in ((minimo, ">="), (maximo, "<=")):
+        v = euros_do_texto(bruto)
+        if v is not None:
+            partes.append("(COALESCE(preco_base, '') != '' AND %s %s ?)"
+                          % (SQL_PRECO_BASE, sinal))
+            valores.append(v)
+    return " AND ".join(partes), valores
 
 
 def preco_escrito(bruto):
@@ -3903,16 +4000,18 @@ def _guardar_detalhe(ref, dados):
             # vigor -- e registava uma "alteracao" falsa. Guarda-se o
             # texto; os campos que decidem sao os da alteracao.
             c.execute("UPDATE anuncios SET texto=?, pdf_url=?, nif=?, "
-                      "altera=?, detalhe_lido=1 WHERE ref=?",
+                      "altera=?, distrito=?, detalhe_lido=1 WHERE ref=?",
                       (texto, conteudo.get("URL_PDF") or "", campos["nif"],
-                       altera, ref))
+                       altera, distritos_do_texto(texto), ref))
         else:
             c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
                          plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
-                         altera=?, lotes=?, detalhe_lido=1 WHERE ref=?""",
+                         altera=?, distrito=?, lotes=?, detalhe_lido=1
+                         WHERE ref=?""",
                       (campos["cpv"], campos["prazo"], campos["preco_base"],
                        campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
                        campos["link_pecas"], campos["nif"], altera,
+                       distritos_do_texto(texto),
                        campos["lotes"], ref))
     # Daqui para baixo ja fora da transaccao: aplicar_alteracao() e
     # registar_alteracoes() abrem a sua ligacao e tem de ver o que ficou
@@ -7142,6 +7241,7 @@ def repor_estado_zero():
             except sqlite3.OperationalError:
                 n[tabela] = "(não existe)"
     gravar_config({"interesse_activo": False, "interesse_cpv": "", "interesse_cpv_excl": "",
+                   "interesse_distritos": "", "interesse_pbmin": "",
                    "email": {"para": ""}})
     marca_da_empresa("ultimo_resumo_estado", "")
     return n
@@ -13923,6 +14023,35 @@ def args_da_lista(args, **muda):
     return novos
 
 
+def campos_do_local_e_valor(valores, com_rotulo=True):
+    """O distrito e o preco base num formulario de filtro: o da lista
+    (com rotulo, os campos do sistema) e o do alerta (sem)."""
+    v = lambda k: html.escape((valores.get(k) or "").strip(), quote=True)
+    escolhido = (valores.get("dist") or "").strip()
+    opcoes = "<option value=''>%s</option>%s" % (
+        "todos" if com_rotulo else "distrito: qualquer um",
+        "".join("<option value='%s'%s>%s</option>"
+                % (html.escape(d, quote=True),
+                   " selected" if d == escolhido else "", html.escape(d))
+                for d in DISTRITOS))
+    if not com_rotulo:
+        return ("<select name='dist' aria-label='Distrito'>%s</select>"
+                "<input type='text' name='pbmin' value='%s' inputmode='numeric' "
+                "placeholder='€ preço base mínimo' aria-label='Preço base mínimo'>"
+                "<input type='text' name='pbmax' value='%s' inputmode='numeric' "
+                "placeholder='€ máximo' aria-label='Preço base máximo'>"
+                % (opcoes, v("pbmin"), v("pbmax")))
+    return ("<label class='mg-field'><span class='mg-field__label'>Distrito</span>"
+            "<select class='mg-field__input' name='dist'>%s</select></label>"
+            "<label class='mg-field'><span class='mg-field__label'>Preço base de</span>"
+            "<input class='mg-field__input' type='text' name='pbmin' value='%s' "
+            "inputmode='numeric' placeholder='€'></label>"
+            "<label class='mg-field'><span class='mg-field__label'>até</span>"
+            "<input class='mg-field__input' type='text' name='pbmax' value='%s' "
+            "inputmode='numeric' placeholder='€'></label>"
+            % (opcoes, v("pbmin"), v("pbmax")))
+
+
 def campos_escondidos(args, nomes):
     """Campos que sairam do ecra mas continuam a valer na URL (um alerta
     antigo, a ligacao dos urgentes): passam escondidos para nao se
@@ -14235,15 +14364,23 @@ def condicao_do_interesse(args=None, cfg=None):
     ligado, dentro, fora = interesse_definido(cfg)
     if not ligado:
         return "", []
+    cfg = ler_config() if cfg is None else cfg
     frag, vals = fragmento_cpv(dentro)
-    if not frag:
-        # interesse ligado mas por definir: nao esconde nada. Um ecra em
-        # branco sem se ter escolhido codigo nenhum le-se como avaria.
+    if frag:
+        frag_fora, vals_fora = fragmento_cpv(fora, coluna="COALESCE(cpv,'')")
+        if frag_fora and frag_fora != "1=0":
+            frag, vals = ("(%s) AND NOT (%s)" % (frag, frag_fora),
+                          vals + vals_fora)
+    # O distrito e o valor minimo do interesse (25/09/2026). Sem CPV nem
+    # isto, o interesse ligado mas por definir nao esconde nada: um ecra
+    # em branco sem se ter escolhido coisa nenhuma le-se como avaria.
+    frag_lv, vals_lv = fragmento_local_e_valor(
+        cfg.get("interesse_distritos"), cfg.get("interesse_pbmin"))
+    partes = [f for f in (frag, frag_lv) if f]
+    if not partes:
         return "", []
-    frag_fora, vals_fora = fragmento_cpv(fora, coluna="COALESCE(cpv,'')")
-    if frag_fora and frag_fora != "1=0":
-        return ("(%s) AND NOT (%s)" % (frag, frag_fora), vals + vals_fora)
-    return frag, vals
+    return (" AND ".join("(%s)" % f for f in partes) if len(partes) > 1
+            else partes[0]), vals + vals_lv
 
 
 def prefixos_do_cpv(texto):
@@ -14642,6 +14779,7 @@ def _lista_de_anuncios():
         "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
         "<label class='mg-field'><span class='mg-field__label'>até</span>"
         "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
+        "%s"
         "<input type='hidden' name='estado' value='%s'>"
         "<span class='f-accoes'><button type='submit' class='mg-btn mg-btn--primary'>Filtrar</button>"
         "<a class='mg-btn mg-btn--secondary limpar' href='%s'>Limpar</a></span>"
@@ -14656,6 +14794,7 @@ def _lista_de_anuncios():
            opcoes_html(opcoes_plat, plat_actual),
            html.escape(data_para_campo(request.args.get("de")), quote=True),
            html.escape(data_para_campo(request.args.get("ate")), quote=True),
+           campos_do_local_e_valor(request.args),
            html.escape(estado_actual, quote=True),
            html.escape(href_limpar(rota, estado_actual), quote=True)))
 
@@ -15111,6 +15250,7 @@ CAMPOS_FILTRO = ("q", "q_excl", "cpv", "cpv_excl",   # entendem-nos todos
                  "op",                               # E/OU entre q e cpv
                  "de", "ate",
                  "ent", "nif", "plat", "estado", "prazo",   # so os anuncios
+                 "dist", "pbmin", "pbmax",
                  "adj", "ganhou", "proc", "min", "entid", "vencid")
 # (O "arquivo" do interruptor da Pesquisa viveu aqui entre as duas
 # decisoes de 31/08/2026: entrou com a janela dos 12 meses e saiu
@@ -15128,7 +15268,7 @@ CAMPOS_DA_VEZ = ("pag", "aviso", "ambito")
 # seria alargar o filtro sem avisar.
 CAMPOS_POR_VISTA = {
     "anuncios": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "ent",
-                 "nif", "plat", "estado", "prazo"),
+                 "nif", "plat", "estado", "prazo", "dist", "pbmin", "pbmax"),
     "contratos": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "adj",
                   "ganhou", "proc", "min", "entid", "vencid"),
     "entidade": ("q", "q_excl", "cpv", "cpv_excl", "op", "de", "ate", "proc",
@@ -15191,7 +15331,8 @@ _NOMES_FILTRO = {"q": "objecto", "cpv": "CPV", "de": "desde", "ate": "até",
                  "q_excl": "sem", "cpv_excl": "sem CPV",
                  "op": "palavras/CPV",
                  "ent": "entidade que publica", "nif": "NIF", "plat": "plataforma",
-                 "prazo": "prazo",
+                 "prazo": "prazo", "dist": "distrito",
+                 "pbmin": "preço base desde €", "pbmax": "preço base até €",
                  "adj": "entidade que comprou", "ganhou": "ganho por",
                  "proc": "procedimento", "min": "desde €",
                  "entid": "entidade que comprou", "vencid": "ganho por"}
@@ -15450,6 +15591,14 @@ def condicoes(args):
         valores.append(inicio)
         if prazo == "urgente":
             valores.append(fim)
+    # O distrito e o preco base (25/09/2026, do teste com utilizadores:
+    # «nao ha filtro de distrito nem de preco base»). Entram no motor, e
+    # por isso servem a lista e os alertas.
+    frag_lv, vals_lv = fragmento_local_e_valor(
+        args.get("dist"), args.get("pbmin"), args.get("pbmax"))
+    if frag_lv:
+        onde.append(frag_lv)
+        valores += vals_lv
     estado = args.get("estado")
     if estado is None:
         estado = ENTRADA_DA_ESCADA[0]
@@ -15505,7 +15654,10 @@ def _faixa_do_interesse(rota, escondidos, cfg=None):
     """
     levantado = (request.args.get("interesse") or "").strip() == "nao"
     ligado, dentro, fora = interesse_definido(cfg)
-    if not ligado or not dentro:
+    descricao = descricao_do_interesse(cfg)
+    # um interesse so de distrito ou de valor tambem recorta, e a faixa
+    # tambem o diz (25/09/2026)
+    if not ligado or not descricao:
         return ""
     if levantado:
         return ("<div class='cpv-activo'>Interesse levantado nesta vista "
@@ -15518,7 +15670,7 @@ def _faixa_do_interesse(rota, escondidos, cfg=None):
     return ("<div class='cpv-activo'>Limitado ao "
             "<a href='/configuracoes/interesse'>interesse</a>: <b>%s</b>%s%s"
             "<a href='%s'>ver tudo</a></div>"
-            % (interesse_legivel(dentro),
+            % (descricao,
                (" <span class='d'>sem %s</span>" % html.escape(fora))
                if fora else "", quantos,
                html.escape(sem_pagina(request.args, rota, interesse="nao"),
@@ -16012,6 +16164,26 @@ def interesse():
     return redirect("/configuracoes/interesse" + ("?" + qs if qs else ""))
 
 
+def _local_e_valor_do_interesse(cfg):
+    """Os distritos (caixas) e o valor minimo do interesse, dentro do
+    formulario que a arvore grava -- e com o botao dele, para se poder
+    guardar so isto (25/09/2026)."""
+    escolhidos = set((cfg.get("interesse_distritos") or "").split("|"))
+    caixas = "".join(
+        "<label class='dist-cx'><input type='checkbox' name='dist' "
+        "value='%s'%s> %s</label>"
+        % (html.escape(d, quote=True), " checked" if d in escolhidos else "",
+           html.escape(d))
+        for d in DISTRITOS)
+    return ("<fieldset class='dist-interesse'><legend>Distritos do local de "
+            "execução <span class='nota'>(nenhum marcado = todos; um concurso "
+            "nacional entra sempre)</span></legend>%s</fieldset>"
+            "<label>Preço base a partir de<input type='text' name='pbmin' "
+            "value='%s' inputmode='numeric' placeholder='€, ex. 20 000'></label>"
+            "<button type='submit'>Guardar</button>"
+            % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
+
+
 def _conteudo_interesse():
     """Onde se escolhem os CPV do interesse, com a arvore."""
     cfg = ler_config()
@@ -16021,13 +16193,10 @@ def _conteudo_interesse():
         # Quanto e que este interesse apanha hoje, para nao se guardar as
         # cegas: o numero da aba "por ver" e o da base inteira.
         apanha_ver = apanha_tudo = None
-        frag, vals = fragmento_cpv(dentro)
+        # pelo mesmo recorte que a lista usa, agora que o interesse tem
+        # tambem o distrito e o valor
+        frag, vals = condicao_do_interesse(args={}, cfg=cfg)
         if frag:
-            frag_fora, vals_fora = fragmento_cpv(
-                fora, coluna="COALESCE(cpv,'')")
-            if frag_fora and frag_fora != "1=0":
-                frag = "(%s) AND NOT (%s)" % (frag, frag_fora)
-                vals = vals + vals_fora
             aba, vals_aba = condicao_da_aba("novo")
             apanha_ver = c.execute(
                 "SELECT COUNT(*) n FROM anuncios WHERE (%s) AND (%s)"
@@ -16052,7 +16221,7 @@ def _conteudo_interesse():
                   "<b>%s</b>%s &mdash; apanha <b>%s</b> dos anúncios por ver "
                   "e <b>%s</b> do acervo. A <a href='%s'>lista</a> mostra só "
                   "isto, em todas as abas.</div>"
-                  % (interesse_legivel(dentro),
+                  % (descricao_do_interesse(cfg),
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
                      mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
     formulario = (
@@ -16060,8 +16229,10 @@ def _conteudo_interesse():
         "<form method='post' action='/alertas/interesse' class='filtros'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        "%s"
         "</form>%s</div>"
         % (estado, html.escape(dentro, quote=True), html.escape(fora, quote=True),
+           _local_e_valor_do_interesse(cfg),
            arvore_html(n_cpv, "anuncios", aberta=True,
                        botao="Guardar o interesse", rodape=False)))
     return formulario
@@ -16075,11 +16246,20 @@ def interesse_gravar():
     condicao_do_interesse() e os testes leem.)"""
     dentro = " ".join((request.form.get("cpv") or "").split())
     fora = " ".join((request.form.get("cpv_excl") or "").split())
-    activo = bool(dentro)
+    distritos = "|".join(d for d in request.form.getlist("dist") if d in DISTRITOS)
+    pbmin = (request.form.get("pbmin") or "").strip()
+    if pbmin and euros_do_texto(pbmin) is None:
+        return redirect("/configuracoes/interesse?" + urlencode(
+            {"aviso": "«%s» não se lê como preço." % corta(pbmin, 20)}))
+    activo = bool(dentro or distritos or pbmin)
     gravar_config({"interesse_activo": activo, "interesse_cpv": dentro,
-                   "interesse_cpv_excl": fora})
+                   "interesse_cpv_excl": fora, "interesse_distritos": distritos,
+                   "interesse_pbmin": pbmin})
     if activo:
-        aviso = "Interesse guardado: a lista de anúncios passa a mostrar só %s." % dentro
+        aviso = ("Interesse guardado: a lista de anúncios passa a mostrar só %s."
+                 % " · ".join(x for x in (
+                     dentro, distritos.replace("|", ", "),
+                     "desde %s €" % pbmin if pbmin else "") if x))
     else:
         aviso = "Interesse vazio: a lista de anúncios volta a mostrar tudo."
     return redirect("/configuracoes/interesse?" + urlencode({"aviso": aviso}))
@@ -16423,6 +16603,7 @@ def _conteudo_alertas():
         "<select name='plat' aria-label='Plataforma'>%s</select>"
         "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "%s"
         "<button type='submit'>Criar alerta</button>"
         "</form><datalist id='entidades'></datalist></div>"
         % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
@@ -16439,7 +16620,8 @@ def _conteudo_alertas():
                       % (html.escape(POR_LER, quote=True),
                          marca_sel("plat", POR_LER))]),
            html.escape(data_para_campo(request.args.get("de")), quote=True),
-           html.escape(data_para_campo(request.args.get("ate")), quote=True)))
+           html.escape(data_para_campo(request.args.get("ate")), quote=True),
+           campos_do_local_e_valor(request.args, com_rotulo=False)))
 
     if ultimos:
         hist = "".join(
@@ -19910,6 +20092,19 @@ def descricoes_cpv(campo_cpv):
             % ",".join("?" * len(codigos)), codigos)}
     return ["%s%s" % (c8, " &mdash; " + html.escape(achados[c8])
                       if c8 in achados else "") for c8 in codigos]
+
+
+def descricao_do_interesse(cfg=None):
+    """O interesse inteiro por palavras, ja escapado: os CPV com o nome,
+    os distritos e o valor minimo. «» se nao ha nada definido."""
+    cfg = ler_config() if cfg is None else cfg
+    _, dentro, _ = interesse_definido(cfg)
+    distritos = (cfg.get("interesse_distritos") or "").strip()
+    pbmin = (cfg.get("interesse_pbmin") or "").strip()
+    return " &middot; ".join(x for x in (
+        interesse_legivel(dentro) if dentro else "",
+        html.escape(distritos.replace("|", ", ")),
+        "desde %s €" % html.escape(pbmin) if pbmin else "") if x)
 
 
 def interesse_legivel(texto):

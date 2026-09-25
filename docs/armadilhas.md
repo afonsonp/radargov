@@ -12,7 +12,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 7
-- [O motor de filtros](#o-motor-de-filtros) &middot; 9
+- [O motor de filtros](#o-motor-de-filtros) &middot; 11
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 10
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 24
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 79
 - [Convenções](#convencoes) &middot; 3
 
-São **268** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **270** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -463,6 +463,20 @@ Orçamento, cadeia de reserva, chaves.
 ---
 
 ## O motor de filtros
+
+- **Uma coluna de `anuncios` acrescentada DEPOIS do `texto` não se lê
+  na tabela: lê-se por um índice que a cubra** (25/09/2026, o
+  `distrito`). O `ALTER TABLE ADD COLUMN` põe-na no fim do registo, e
+  para lá chegar o SQLite atravessa os 840 MB do `texto` — medido, 3,1 s
+  a varrer uma coluna depois dele contra 0,06 s uma antes. O filtro do
+  distrito pergunta `ref IN (SELECT ref FROM anuncios WHERE distrito
+  LIKE …)`, e o `ix_anuncios_distrito(distrito, ref)` responde sozinho
+  (`SCAN … USING COVERING INDEX`). Uma coluna nova filtrável faz o mesmo.
+- **O distrito é o do local de execução, não o da entidade.** O texto do
+  DR traz dois «Distrito:», na secção 1 (a morada de quem compra) e na 9
+  (onde o contrato se executa); só a 9 conta (`distritos_do_texto()`).
+  «Todos» e «Portugal Continental» guardam-se como `*`, e entram em
+  qualquer distrito que se peça.
 
 - **A tradução de «texto com `|`» para SQL está num só sítio**
   (`frag_de_texto()` e `frag_de_exclusao()`, banda `comum`, desde
