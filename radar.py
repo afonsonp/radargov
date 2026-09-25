@@ -14179,6 +14179,15 @@ def sugestoes_de_entidade(texto, limite=10):
     return [{"nome": g["nome"], "nif": g["nif"], "n": g["n"]} for g in saida]
 
 
+def ordem_da_lista(args):
+    """O ORDER BY da lista de anuncios: por publicacao (a omissao) ou,
+    com `?ordem=prazo`, o prazo mais perto primeiro e os sem prazo no
+    fim. Nunca vem texto da URL para o SQL: so uma de duas frases."""
+    if (args.get("ordem") or "") == "prazo":
+        return "COALESCE(prazo, '') = '', prazo, data_pub DESC, ref DESC"
+    return "data_pub DESC, ref DESC"
+
+
 def sem_pagina(args, base="/", **muda):
     """Liga da lista com os filtros de agora. Mexer num filtro volta a
     pagina 1: a pagina 7 do filtro anterior nao existe no novo. O `base`
@@ -14640,7 +14649,8 @@ def _lista_de_anuncios():
         paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
         pagina = min(max(1, pagina_pedida(request.args)), paginas)
         linhas = c.execute("SELECT * FROM anuncios" + onde +
-                           " ORDER BY data_pub DESC, ref DESC LIMIT ? OFFSET ?",
+                           " ORDER BY " + ordem_da_lista(request.args) +
+                           " LIMIT ? OFFSET ?",
                            valores + [POR_PAGINA_LISTA,
                                       (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         # As abas contam DENTRO do filtro. Contavam a base inteira: com
@@ -14859,8 +14869,19 @@ def _lista_de_anuncios():
         conta = ("<b>%s</b> %s"
                  % (mil(correspondem),
                     "resultado" if correspondem == 1 else "resultados"))
-    conta += (" &middot; de <b>%s</b> na base &middot; mais recentes primeiro"
-              % mil(total))
+    # A ordem diz-se e troca-se aqui (25/09/2026, do teste com
+    # utilizadores: «a lista nao se ordena por prazo»).
+    por_prazo = (request.args.get("ordem") or "") == "prazo"
+    conta += (" &middot; de <b>%s</b> na base &middot; %s &middot; "
+              "<a href='%s'>%s</a>"
+              % (mil(total),
+                 "o prazo mais perto primeiro" if por_prazo
+                 else "mais recentes primeiro",
+                 html.escape(sem_pagina(request.args, rota,
+                                        ordem="" if por_prazo else "prazo"),
+                             quote=True),
+                 "ordenar por publicação" if por_prazo
+                 else "ordenar por prazo"))
     if porler:
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
     # A DEFINICAO da aba saiu desta linha a 16/09/2026 (fase 5): estava
@@ -15207,7 +15228,7 @@ def _lista_de_propostas():
     caixa = ("<form class='pf' method='get' action='%s'>"
              "<input type='hidden' name='estado' value='%s'>"
              "<input type='search' name='q' value='%s' "
-             "placeholder='procurar no título ou no cliente…'>"
+             "placeholder='procurar no título ou no cliente…' aria-label='Procurar nas propostas'>"
              "<button type='submit'>procurar</button>%s</form>"
              % (PROPOSTAS, html.escape(estado_actual, quote=True),
                 html.escape(procura, quote=True),
@@ -15422,7 +15443,7 @@ def arvore_html(n_cpv, de, submeter=True, aberta=False,
         "<span class='arv-chip' id='arvore-chip'>nenhum seleccionado</span>"
         "</summary>"
         "<div class='arvore-topo'>"
-        "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software'>"
+        "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software' aria-label='Filtrar a árvore de CPV'>"
         "<button type='button' onclick='arvoreAplicar()'>%s</button>"
         "<button type='button' class='claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
         "<span id='arvore-contagem'></span>"
@@ -16591,18 +16612,18 @@ def _conteudo_alertas():
         "%s"
         "<form method='post' action='/alertas/criar' class='filtros'>"
         "<input type='text' name='nome' required maxlength='60' value='%s' "
-        "placeholder='nome do alerta…'>"
-        "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…'>"
+        "placeholder='nome do alerta…' aria-label='Nome do alerta'>"
+        "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…' aria-label='Palavras do objecto'>"
         "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
-        "placeholder='CPV — escolhe na árvore aqui em cima'>"
+        "placeholder='CPV — escolhe na árvore aqui em cima' aria-label='CPV'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "<input type='text' name='ent' value='%s' placeholder='Entidade que "
         "publica…' list='entidades' autocomplete='off' data-sugere='anuncios' "
-        "data-chave-em='nif'>"
+        "data-chave-em='nif' aria-label='Entidade que publica'>"
         "<input type='hidden' name='nif' value='%s'>"
         "<select name='plat' aria-label='Plataforma'>%s</select>"
-        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
+        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data' aria-label='Publicado desde'>"
+        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data' aria-label='Publicado até'>"
         "%s"
         "<button type='submit'>Criar alerta</button>"
         "</form><datalist id='entidades'></datalist></div>"
@@ -21049,6 +21070,42 @@ def _mercado_cx(nota, corpo=""):
                "saber com quem se concorre.")
 
 
+def comparacao_de_preco(a, base, r):
+    """A frase que compara o preco base do anuncio com a mediana do que
+    a entidade costuma pagar neste CPV (`r`, da referencia_de_preco()).
+    Com lotes, lote a lote."""
+    def leitura(valor):
+        razao = valor / r["mediana"] if r["mediana"] else 0
+        if razao >= 1.25:
+            return ("<b class='bom'>acima</b> do que costuma pagar "
+                    "&mdash; folga face ao histórico")
+        if razao <= 0.8:
+            return ("<b class='mau'>abaixo</b> do que costuma pagar "
+                    "&mdash; margem apertada")
+        return "<b>em linha</b> com o que costuma pagar"
+    # Com lotes, o preco base do anuncio e a SOMA deles, e o historico
+    # e contrato a contrato: tres lotes de 175 k€ contra contratos de
+    # 27 k€ davam «folga» a um concurso que nao a tinha (teste com
+    # utilizadores, 25/09/2026). Compara-se cada lote.
+    lotes = [l for l in lotes_de(a) if euros_do_texto(l.get("preco_base"))]
+    if len(lotes) > 1:
+        comparacao = ("Este anúncio tem <b>%d lotes</b>, e cada um "
+                      "compara-se sozinho: %s."
+                      % (len(lotes), "; ".join(
+                          "lote %s, <b>%s</b> &mdash; %s"
+                          % (html.escape(str(l.get("n") or "?")),
+                             euros(euros_do_texto(l["preco_base"])),
+                             leitura(euros_do_texto(l["preco_base"])))
+                          for l in lotes)))
+    elif base:
+        comparacao = ("Preço base deste anúncio: <b>%s</b> &mdash; %s."
+                      % (euros(base), leitura(base)))
+    else:
+        comparacao = ("Este anúncio ainda não tem preço base lido, "
+                      "por isso não há com que comparar.")
+    return comparacao
+
+
 def mercado(a):
     """O que esta entidade ja adjudicou **no CPV deste anuncio**.
 
@@ -21123,21 +21180,7 @@ def mercado(a):
     base = euros_do_texto(a["preco_base"])
     r = referencia_de_preco(chave, a["cpv"])
     if r:
-        if base:
-            razao = base / r["mediana"] if r["mediana"] else 0
-            if razao >= 1.25:
-                leitura = ("<b class='bom'>acima</b> do que costuma pagar "
-                           "&mdash; folga face ao histórico")
-            elif razao <= 0.8:
-                leitura = ("<b class='mau'>abaixo</b> do que costuma pagar "
-                           "&mdash; margem apertada")
-            else:
-                leitura = "<b>em linha</b> com o que costuma pagar"
-            comparacao = ("Preço base deste anúncio: <b>%s</b> &mdash; %s."
-                          % (euros(base), leitura))
-        else:
-            comparacao = ("Este anúncio ainda não tem preço base lido, "
-                          "por isso não há com que comparar.")
+        comparacao = comparacao_de_preco(a, base, r)
         # A regua de quartis so com contratos que cheguem: com 3, "mais
         # barato" e "25%" eram o mesmo contrato repetido. A comparacao
         # com a mediana e a tabela ficam -- e dizem sobre quantos e.
@@ -21535,8 +21578,11 @@ def ficha(ref):
             # "Ver se há peças novas" (14/09/2026): a lista da plataforma
             # comparada com a da base, sem apagar nada -- o "Actualizar
             # peças" apaga e traz tudo, e leva o texto extraido.
-            accoes_pecas = accao("/pecas-novas/%s" % ref,
-                                 icone("verificar", 16) + " Verificar peças novas", "mini")
+            accoes_pecas = (
+                "<a class='mg-btn mg-btn--sm mg-btn--secondary' href='/pecas-zip/%s'>"
+                "Descarregar todas (ZIP)</a>" % quote(ref, safe="/")
+                + accao("/pecas-novas/%s" % ref,
+                        icone("verificar", 16) + " Verificar peças novas", "mini"))
             vigiadas = a["pecas_vigiadas_em"] if "pecas_vigiadas_em" in a.keys() else ""
             pe_pecas = (
                 "<div class='mg-row'>%s%s</div>%s"
@@ -21803,6 +21849,30 @@ def analisar(ref):
                       (datetime.now().strftime("%Y-%m-%d %H:%M"),
                        empresa_activa(), ref, quem_sou()))
     return redirect("/anuncio/" + ref)
+
+
+@app.route("/pecas-zip/<path:ref>")
+def pecas_em_zip(ref):
+    """Todas as pecas de um anuncio num ZIP (25/09/2026, do teste com
+    utilizadores: descarregava-se uma a uma). Os nomes vem da base e cada
+    caminho confirma-se dentro da pasta do anuncio, como no
+    servir_documento()."""
+    with liga() as c:
+        nomes = [r["nome"] for r in c.execute(
+            "SELECT nome FROM documentos WHERE ref=? ORDER BY nome", (ref,))]
+    memoria = io.BytesIO()
+    postos = 0
+    with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as z:
+        for nome in nomes:
+            caminho = caminho_na_pasta(ref, nome)
+            if caminho:
+                z.write(caminho, arcname=nome)
+                postos += 1
+    if not postos:
+        return pagina_de_erro(404)
+    return Response(memoria.getvalue(), mimetype="application/zip",
+                    headers={"Content-Disposition": "attachment; filename=\"pecas-%s.zip\""
+                             % re.sub(r"[^0-9A-Za-z._-]", "-", ref)})
 
 
 @app.route("/documento/<path:ref>/<nome>")
@@ -22545,9 +22615,9 @@ def _tarefas_da_ficha(p):
                # lá, a rota nunca saiu daqui.
                "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
                "<input type='text' name='quando' inputmode='numeric' "
-               "maxlength='10' placeholder='adiar p/ dd/mm/aaaa'>"
+               "maxlength='10' placeholder='adiar p/ dd/mm/aaaa' aria-label='Adiar para'>"
                "<input type='text' name='quem' maxlength='60' list='pessoas' "
-               "placeholder='quem'>"
+               "placeholder='quem' aria-label='Quem faz'>"
                "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>gravar</button></form>"
                % t["id"]))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
@@ -22556,9 +22626,9 @@ def _tarefas_da_ficha(p):
               "<input type='hidden' name='ref' value='%s'>"
               "<input type='hidden' name='proposta_id' value='%d'>"
               "<input type='text' name='o_que' maxlength='200' required "
-              "placeholder='o que falta fazer…'>"
+              "placeholder='o que falta fazer…' aria-label='O que falta fazer'>"
               "<input type='text' name='quando' inputmode='numeric' "
-              "placeholder='dd/mm/aaaa' maxlength='10' "
+              "placeholder='dd/mm/aaaa' maxlength='10' aria-label='Até quando' "
               "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
               "<button type='submit'>juntar</button></form>"
               % (html.escape(p["ref"] or "", quote=True), p["id"]))
@@ -22586,7 +22656,7 @@ def _etiquetas_da_ficha(ref):
         for e in minhas)
     return ("<div class='prop-etq'><div class='mg-field__label'>Etiquetas</div>%s"
             "<form class='etq-form' method='post' action='/etiqueta/%s/nova'>"
-            "<input type='text' name='nome' placeholder='+ etiqueta' "
+            "<input type='text' name='nome' placeholder='+ etiqueta' aria-label='Etiqueta nova' "
             "list='etiquetas-existentes' maxlength='24'></form>"
             "<datalist id='etiquetas-existentes'>%s</datalist></div>"
             % (postas, quote(ref, safe=""),
