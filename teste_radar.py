@@ -3854,6 +3854,13 @@ class BaseTemporaria(unittest.TestCase):
         # Quem precisa de um corpus põe-no nesta pasta.
         self.enterContext(unittest.mock.patch.object(
             radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
+        # E as cópias (26/09/2026): o `COPIAS` apontava para a pasta da
+        # instalação, e o teste do texto lia as cópias verdadeiras -- os
+        # nomes delas levam a data em ISO, e a bateria falhava só na pasta
+        # de produção, que é a única com cópias. Quem precisa de cópias
+        # põe-nas nesta pasta.
+        self.enterContext(unittest.mock.patch.object(
+            radar, "COPIAS", os.path.join(self.pasta, "copias")))
         radar.iniciar_db()          # cria o esquema e põe as marcas
 
 
