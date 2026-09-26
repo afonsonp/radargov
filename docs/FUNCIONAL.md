@@ -253,6 +253,10 @@ Por ver → Por analisar → A preparar proposta → Submetido
 ```
 
 - **As duas pontas** (`Por ver`, `Expirou sem ver`) são **anúncios**.
+  O `Expirou sem ver` de uma empresa conta **desde que ela chegou**
+  (`empresa_desde`, gravado ao criá-la; 26/09/2026): o que expirou
+  antes não foi ela que o deixou passar, e fica só em «Todos». Sem essa
+  data (as empresas anteriores a ela) conta tudo.
 - **As oito do meio** são **propostas** — o que a empresa decidiu fazer.
 - **Qualquer salto é permitido**, e voltar atrás é reabrir.
 - **Entrar numa ranhura exige o que a faz ser verdade**:
@@ -293,16 +297,26 @@ ser:
 - **Propostas sem anúncio** — consulta prévia, ajuste directo, convite.
   `ref` a NULL é legítimo; o `porque_sem_ref` diz porquê.
 
-### 3.3 O interesse
+### 3.3 O perfil da empresa (o interesse)
+
+**Chama-se «Perfil da empresa» em tudo o que o utilizador lê** desde
+26/09/2026 (decisão dele, na segunda ronda de testes: «Interesse»
+colidia com o botão «Interessa», que é outra coisa). No código, nas
+chaves do `config.json` (`interesse_*`), no `?interesse=nao` e na rota
+`/configuracoes/interesse` continua a chamar-se **interesse** — são
+endereços guardados e configurações gravadas. Este documento usa as
+duas palavras para a mesma coisa.
 
 Uma lista de CPV que a empresa trabalha (e outra de exclusões), em
-Configurações. Recorta **a lista, o Hoje, o Mercado e a ficha da
-entidade**. Levanta-se com `?interesse=nao`.
+Configurações › Perfil da empresa. Recorta **a lista, o Hoje, o
+Calendário, o Mercado e a ficha da entidade**. Levanta-se com
+`?interesse=nao`.
 
 Desde 25/09/2026 leva também **os distritos** do local de execução e
 **um preço base mínimo** (`interesse_distritos`, `interesse_pbmin`).
 Esses dois recortam só os **anúncios** — os contratos do Mercado não os
-têm na mesma forma. Um concurso nacional entra em qualquer distrito; um
+têm na mesma forma, e a faixa do Mercado diz isso mesmo em vez de
+prometer o perfil inteiro (26/09/2026). Um concurso nacional entra em qualquer distrito; um
 anúncio sem distrito lido, ou sem preço base, fica de fora quando se
 pede um ou outro. Os mesmos dois campos existem no filtro dos Concursos
 e no do alerta (`dist`, `pbmin`, `pbmax`, no `condicoes()`).
@@ -460,6 +474,15 @@ Quatro comportamentos que decidem o que chega:
   avisava de **todos** os anúncios de CPV 72.
 - **O estado não entra.** Procuram-se anúncios que correspondem; a
   triagem deles é outra conversa.
+- **Um alerta não se grava com o que o filtro não lê** (26/09/2026):
+  uma data impossível ou um valor que não é valor recusam-no, com a
+  razão. Na lista, o mesmo erro ignora-se e avisa-se; um alerta avisa
+  quando ninguém está a olhar, e ia apanhar a base inteira. O destino
+  do resumo também se valida no servidor.
+- **A página dos alertas diz quando o e-mail não sai**, e porquê
+  (`porque_o_email_nao_sai()`: falta a conta que envia, falta a
+  palavra-passe, ou falta o endereço). «Sem destino» e «por configurar»
+  são duas frases desde 26/09/2026.
 - **Sem e-mail configurado, o ficheiro é a entrega.** O resumo escreve-se
   sempre no `AVISOS.txt`, e nesse caso dá-se por avisado — senão o painel
   dizia «153 por avisar» para sempre e reescrevia o mesmo resumo a cada
@@ -508,7 +531,9 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
 2. **Quatro indicadores** (o `Stat` do sistema de desenho, desde
    22/09/2026) — em jogo (com a saída para o Ponto de situação) · taxa
    de vitória · por decidir · para fazer, com as atrasadas na nota.
-   **Cada um abre exactamente a lista que o produz.**
+   **Cada um abre exactamente a lista que o produz** — a taxa abre as
+   decididas de sempre no Ponto de situação (`#decididas`), ganhas e
+   perdidas, que é o que ela divide.
 3. **Fita da semana** — sete células, seg→dom. Cada uma: nº de tarefas,
    nº de feitas, entregas (laranja); a de hoje diz também quantas
    atrasadas arrasta (vermelho). **Clicar num dia muda o balde do
@@ -538,13 +563,16 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    **esconder as feitas**. Tudo vive no endereço (`?dia=`, `?quem=`,
    `?feitas=`); nada se guarda no browser.
 5. **Coluna direita**, três caixas:
-   - **O que mudou** — três números (anúncios novos · no interesse ·
-     peças novas) e um feed: os novos que caem no interesse, peças
-     novas, **prazos alterados por republicação**, e as propostas que o
-     Portal BASE **já diz adjudicadas** e nós não fechámos.
+   - **O que mudou** — três números (anúncios novos · no perfil ·
+     peças novas) e um feed: os novos que caem no perfil, peças
+     novas, **prazos alterados por republicação** (só os do perfil), e
+     as propostas que o Portal BASE **já diz adjudicadas** e nós não
+     fechámos. Os anúncios novos não contam as republicações, e o
+     subtítulo da página conta o mesmo (`novos_de_hoje()`).
    - **Prazos a chegar · 7 dias**
    - **Paradas há mais tempo** — dias desde o último movimento (laranja
-     acima de 30).
+     acima de 30). Só a partir de uma semana parada
+     (`DIAS_PARA_ESTAR_PARADA`); sem nenhuma, a caixa não aparece.
 
 ### 4.2 Ponto de situação — `/situacao`
 
@@ -553,14 +581,23 @@ um **período** (este mês · este trimestre · 12 meses · tudo), com
 comparação com o período anterior **do mesmo tamanho**.
 
 - **Quatro números**: em jogo · taxa de vitória · ganho (€ e nº) ·
-  desconto médio nos ganhos.
+  desconto médio nos ganhos. **Cada um diz, por baixo, o que soma**
+  (26/09/2026): o em jogo é o preço base nas ranhuras de antes do
+  Submetido e o proposto daí em diante; o ganho é a soma do proposto
+  das ganhas; a taxa é ganhas ÷ (ganhas + perdidas), sem os «Não
+  fomos» nem os cancelados; o desconto é a média simples, com a pesada
+  pelo valor ao lado. **E cada um é uma ligação**: o em jogo às barras
+  por ranhura, os outros três à tabela **«Decididas»** do período — as
+  ganhas e as perdidas, com a data, os dois preços e o total.
 - **Negócio**: aviso das propostas por fechar · em jogo por ranhura ·
   porque se perde · porque não se vai · onde se ganha por área CPV · há
   mais tempo sem se mexerem · propostas por ranhura.
 - **Triagem**: o funil — entrados · por ver · triados · interessa.
 - **Por área CPV**: taxa de vitória por divisão.
 
-O período conta pela **`fechada_em`**. Uma taxa só se diz a partir de
+O período conta pela **`fechada_em`** — a data em que a proposta se
+marcou como decidida **no Mira Gov**, e não a da adjudicação, e o ecrã
+di-lo. Uma taxa só se diz a partir de
 **5 decididos**; abaixo disso diz-se por extenso quantos faltam.
 
 ### 4.3 Concursos — `/concursos` (a lista única)
@@ -576,13 +613,14 @@ fim. A ordem não é um filtro: não se guarda num alerta.
 Filtros (painel recolhível): objecto (com E/OU e exclusões) · CPV (com
 árvore de 9 454 códigos e exclusões) · entidade que publica · NIF ·
 plataforma · prazo · datas · preço mínimo. O filtro compõe-se com o
-interesse.
+perfil da empresa.
 
 Por linha: triar («interessa» / «abandonar», que pergunta o motivo),
 **mudar de ranhura no selector**, abrir a ficha. Exporta para CSV.
 
 **Vista Calendário** — `/calendario`: os prazos por dia, seis semanas,
-para qualquer ranhura.
+para qualquer ranhura. As pontas (Por ver, Expirou) levam o perfil da
+empresa e a mesma faixa da lista, com o «ver tudo» (26/09/2026).
 
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
@@ -637,6 +675,11 @@ fim estimado»** — o que está a acabar, que é o que volta a concurso.
 `/contratos/resumo`: seis agregações — quem compra, quem ganha, por CPV,
 por procedimento, descontos, evolução.
 
+O perfil da empresa recorta o Mercado **só pelo CPV**, e a faixa diz
+que os distritos e o valor mínimo ficam para os concursos. O CSV leva
+até 50 000 linhas (`TECTO_CSV`); acima disso o botão diz quantas leva
+de quantas.
+
 ### 4.7 Entidades — `/entidades` e `/entidade/<chave>`
 
 **Cinco abas**: com quem trabalhamos · seguidas · clientes que mais
@@ -644,7 +687,7 @@ compram · concorrentes que mais ganham · **contratos a acabar · 90
 dias**.
 
 Tabela: entidade (nome + NIF) · papel (cliente / concorrente / ambos) ·
-compra · ganha · **fita do «connosco»** (um quadrado por proposta, com a
+compra · ganha (as duas **de sempre**, e o cabeçalho di-lo) · **fita do «connosco»** (um quadrado por proposta, com a
 cor do desfecho) · taxa connosco · a acabar · abrir. **Marcando duas
 linhas, comparam-se lado a lado.**
 
@@ -653,7 +696,10 @@ cai no nosso CPV · a que desconto fecha · quantas propostas lhe fizemos
 · a taxa com ela · o que lhe acaba em 3 meses — e tem duas colunas: o
 **nosso lado** à esquerda (anúncios dela, propostas, taxa, contactos,
 seguir) e o **Portal BASE** à direita (o que compra, a quem, como, ao
-longo do tempo). **Sem corpus diz «sem BASE», não zero.**
+longo do tempo). **Sem corpus diz «sem BASE», não zero.** O filtro da
+ficha (CPV, datas, valor…) aplica-se aos três factos do Portal BASE e
+às listas; as listas são do acervo todo, ou das datas do filtro, e o
+título de cada uma di-lo («· sempre»).
 
 ### 4.8 Configurações — `/configuracoes/…`
 
@@ -662,7 +708,7 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 | Secção | O que faz |
 |---|---|
 | **conta** | palavra-passe, sessões, a nossa empresa (nome + NIF), utilizadores |
-| **interesse** | os CPV que a empresa trabalha, e as exclusões |
+| **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
 | **importar** | o registo da empresa, pelo modelo Excel |
 | indicadores | as capturas, a recolha, o corpus — a saúde da máquina |
@@ -1001,7 +1047,7 @@ Para não desenhares o que não se pode fazer:
 | **proposta** | O que a empresa decidiu fazer sobre um anúncio (ou sem ele) |
 | **ranhura** | Um degrau da escada |
 | **escada** | As dez ranhuras, da entrada ao desfecho |
-| **interesse** | Os CPV que a empresa trabalha |
+| **perfil da empresa** | Os CPV que a empresa trabalha (e os distritos e o valor mínimo). No código, `interesse` |
 | **corpus** | O `contratos.db` — os contratos celebrados do Portal BASE |
 | **entidade** | Quem publica, ou quem ganha. Identificada por chave |
 | **peças** | Os documentos do procedimento (caderno de encargos, programa) |

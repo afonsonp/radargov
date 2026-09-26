@@ -6246,7 +6246,9 @@ class TestIndicadoresComerciais(BaseTemporaria):
         primeiro = radar.dias_parados()[0]
         self.assertGreater(primeiro[1], 100)
         radar.registar("1/2026", "nota", "mexeu hoje")
-        self.assertEqual(radar.dias_parados()[0][1], 0)
+        # e a que se mexeu hoje sai da lista: so e parada a partir de
+        # DIAS_PARA_ESTAR_PARADA (E56 da segunda ronda, 26/09/2026)
+        self.assertEqual(radar.dias_parados(), [])
 
     def test_o_ecra_abre_e_cada_numero_leva_a_lista(self):
         self._p("1/2026", "submetido", base="200.000,00 EUR",
@@ -9163,7 +9165,8 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
         # o endereço da lista, e não o "/" que passou a ser a abertura:
         # este teste estava a PREGAR a ligação errada no lugar, e foi
         # por isso que as nove partidas passaram 952 testes (16/09/2026)
-        self.assertIn('LISTA + "?estado=" + estado', fonte)
+        self.assertIn('LISTA + "?" + urlencode(', fonte)
+        self.assertIn('[("estado", estado)] + levantado', fonte)
 
     def test_o_calendario_nao_promete_uma_lista_que_nao_abre(self):
         """O «+N» de um dia cheio **não** liga a `/?de=X&ate=X`: esses
@@ -12504,7 +12507,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
     def test_o_interesse_e_so_a_arvore_aberta_e_grava_pelo_botao_dela(self):
         html_ = radar.app.test_client().get("/configuracoes/interesse").get_data(as_text=True)
         self.assertIn("<details class='arvore' data-de='anuncios' open>", html_)
-        self.assertIn("Guardar o interesse", html_)
+        self.assertIn("Guardar o perfil", html_)
         self.assertNotIn("data-submeter", html_)         # o botao da arvore submete
         self.assertNotIn("Marcar uma divisão apanha", html_)
         self.assertNotIn("name='activo'", html_)
@@ -16105,6 +16108,407 @@ class TestOActualizarReiniciaSempreOPainel(unittest.TestCase):
         self._linha_de("merge-base --is-ancestor")
         junto = "\n".join(self.linhas)
         self.assertIn("à frente da release", junto)
+
+
+# --- a segunda ronda de testes com utilizadores (26/09/2026), lote 1:
+# os numeros e as mensagens que enganam. Cada classe e um E## da
+# SINTESE.md dessa ronda.
+
+
+class TestONumeroDaAberturaAbreASuaLista(CicloDasTarefas):
+    """E2, E29, E30: o «O que mudou» da abertura.
+
+    - «Ver os 14 no interesse →» abria o «por ver» inteiro (157-165),
+      com o «14» ao lado a abrir os 14.
+    - O subtitulo dizia «116 anuncios novos» e o cartao «92», da mesma
+      verificacao: um contava as alteracoes, o outro nao.
+    - Os prazos alterados fora do interesse apareciam por baixo de
+      «0 no interesse».
+    """
+
+    def setUp(self):
+        super().setUp()
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+        hoje = self._dia(0)
+        with radar.liga() as c:
+            for i in range(radar.CABEM_NO_LADO + 2):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado,"
+                          " data_pub, prazo, cpv) VALUES (?,?,?,?,?,?,?)",
+                          ("%d/2026" % (100 + i), "Software %d" % i, "CML",
+                           "novo", hoje, self._dia(30), "72000000"))
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado,"
+                      " data_pub, prazo, cpv) VALUES (?,?,?,?,?,?,?)",
+                      ("200/2026", "Betão", "CML", "novo", hoje,
+                       self._dia(30), "45000000"))
+            # uma republicacao: nao e anuncio novo em nenhum dos dois
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado,"
+                      " data_pub, prazo, cpv) VALUES (?,?,?,?,?,?,?)",
+                      ("201/2026", "Software (rect.)", "CML", "alteracao",
+                       hoje, self._dia(30), "72000000"))
+            c.execute("INSERT INTO alteracoes (ref, campo, antes, depois,"
+                      " detectado_em) VALUES (?,?,?,?,?)",
+                      ("200/2026", "prazo", "2026-10-01", "2026-10-09",
+                       hoje + " 10:00"))
+        radar.marca("ultima_verificacao", hoje + " 10:00")
+
+    def test_o_ver_os_n_abre_o_endereco_do_numero(self):
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        alvo = html.escape(radar._lista_de_hoje(self._dia(0)), quote=True)
+        i = corpo.index("ver os %d no perfil" % (radar.CABEM_NO_LADO + 2))
+        self.assertIn("href='%s'" % alvo, corpo[i - 200:i])
+
+    def test_o_subtitulo_e_o_cartao_contam_o_mesmo(self):
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        n = radar.CABEM_NO_LADO + 3          # sem a republicacao
+        self.assertIn(": %d anúncios novos" % n, corpo)
+        self.assertIn("<b>%d</b><span class='nota'>anúncios novos" % n, corpo)
+
+    def test_um_prazo_alterado_fora_do_perfil_nao_aparece(self):
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertNotIn("Betão", corpo)
+        # sem o perfil, aparece
+        radar.gravar_config({"interesse_activo": False})
+        self.assertIn("Betão",
+                      self.cliente.get("/").get_data(as_text=True))
+
+
+class TestParadasSoDepoisDeUmaSemana(CicloDasTarefas):
+    """E56: «Paradas há mais tempo» listava as propostas criadas nesse
+    dia, todas a «0 dias» -- o contrario do titulo."""
+
+    def test_uma_proposta_de_hoje_nao_esta_parada(self):
+        radar.criar_proposta(self._anuncio(), estado="proposta")
+        self.assertEqual(radar._paradas_ha_mais_tempo(self.hoje), "")
+        self.assertEqual(radar.dias_parados(), [])
+
+    def test_uma_de_ha_duas_semanas_esta(self):
+        id_ = radar.criar_proposta(self._anuncio(), estado="proposta")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET criada_em=? WHERE id=?",
+                      (self._dia(-14), id_))
+            c.execute("DELETE FROM historico")
+        self.assertIn("14 dias", radar._paradas_ha_mais_tempo(self.hoje))
+        self.assertEqual([d for _, d in radar.dias_parados()], [14])
+
+
+class TestExpirouSoDesdeQueAEmpresaChegou(BaseTemporaria):
+    """E31: uma empresa com uma hora de vida lia «Expirou sem ver
+    5 171» -- os que expiraram antes de ela existir. E o alerta dizia
+    «dos 2 736 que marcou» a quem nao marcou nada."""
+
+    def _anuncio(self, ref, prazo):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, data_pub,"
+                      " prazo) VALUES (?,?,?,?,?)",
+                      (ref, "x", "novo", "2020-01-01", prazo))
+
+    def _expirados(self, cfg):
+        frag, vals = radar.condicao_da_aba("expirou", cfg=cfg)
+        with radar.liga() as c:
+            return {r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios WHERE " + frag, vals)}
+
+    def test_conta_desde_a_data_da_empresa(self):
+        self._anuncio("1/2020", "2020-02-01")
+        self._anuncio("2/2026", "2026-01-10")
+        self.assertEqual(self._expirados({"empresa_desde": "2026-01-01"}),
+                         {"2/2026"})
+        # sem a data (a empresa 1, anterior a ela), conta tudo
+        self.assertEqual(self._expirados({}), {"1/2020", "2/2026"})
+
+    def test_uma_empresa_nova_nasce_com_a_data(self):
+        id_ = radar.criar_empresa("Nova, Lda")
+        with radar.com_empresa(id_):
+            self.assertEqual(radar.ler_config().get("empresa_desde"),
+                             datetime.date.today().isoformat())
+
+    def test_o_alerta_nao_diz_que_a_pessoa_marcou(self):
+        with open(radar.__file__, encoding="utf-8") as f:
+            fonte = f.read()
+        self.assertNotIn("que marcou:", fonte)
+
+
+class TestAFaixaDoMercadoDizOQueAplica(BaseTemporaria):
+    """E7: o Mercado dizia «Limitado ao interesse: … Lisboa · desde
+    20 000 €» e so aplicava o CPV -- um contrato de Serpa a 8 514 €
+    por baixo. Os contratos nao tem distrito nem preco base na forma
+    dos anuncios (FUNCIONAL §3.3); a faixa diz so o que aplica."""
+
+    CFG = {"interesse_activo": True, "interesse_cpv": "45000000",
+           "interesse_distritos": "Lisboa", "interesse_pbmin": "20000"}
+
+    def test_no_mercado_a_faixa_nao_promete_distrito_nem_minimo(self):
+        with radar.app.test_request_context("/contratos"):
+            faixa = radar._faixa_do_interesse("/contratos", 0, self.CFG,
+                                              so_cpv=True)
+        self.assertIn("45000000", faixa)
+        antes = faixa.split("(os distritos")[0]
+        self.assertNotIn("Lisboa", antes)
+        self.assertNotIn("20000", antes)
+        self.assertIn("só recortam os concursos", faixa)
+
+    def test_nos_concursos_a_faixa_diz_o_perfil_todo(self):
+        with radar.app.test_request_context("/concursos"):
+            faixa = radar._faixa_do_interesse("/concursos", 0, self.CFG)
+        self.assertIn("Lisboa", faixa)
+        self.assertIn("perfil da empresa", faixa)
+
+    def test_so_distritos_no_mercado_nao_diz_que_limita(self):
+        cfg = dict(self.CFG, interesse_cpv="")
+        with radar.app.test_request_context("/contratos"):
+            self.assertEqual(radar._faixa_do_interesse(
+                "/contratos", 0, cfg, so_cpv=True), "")
+
+
+class TestCalendarioLevaOPerfil(CicloDasTarefas):
+    """E8: o «Por ver» do calendario ignorava o perfil -- 1 126 contra
+    os 142 da lista, sem faixa nem «ver tudo»."""
+
+    def test_por_ver_recorta_e_diz_quantos_ficam_de_fora(self):
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+        with radar.liga() as c:
+            for ref, titulo, cpv in (("1/2026", "Software dentro", "72000000"),
+                                     ("2/2026", "Betão fora", "45000000")):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado,"
+                          " data_pub, prazo, cpv) VALUES (?,?,?,?,?,?,?)",
+                          (ref, titulo, "CML", "novo", self._dia(-1),
+                           self._dia(2), cpv))
+        corpo = self.cliente.get("/calendario?estado=porver").get_data(as_text=True)
+        self.assertIn("Software dentro", corpo)
+        self.assertNotIn("Betão fora", corpo)
+        self.assertIn("1 de fora", corpo)
+        tudo = self.cliente.get("/calendario?estado=porver&interesse=nao"
+                                ).get_data(as_text=True)
+        self.assertIn("Betão fora", tudo)
+        # e a ligacao para a lista leva o «ver tudo»
+        self.assertIn("estado=porver&amp;interesse=nao", tudo)
+
+
+class TestOCsvDoMercadoDizQueCorta(BaseTemporaria):
+    """E9: o CSV do Mercado cortava nas 50 000 linhas sem aviso (de
+    161 711), e a dica dizia «as 50 000 linhas deste filtro»."""
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            for i in range(3):
+                c.execute("INSERT INTO contratos (ano, objecto, objecto_norm,"
+                          " adjudicante, data_celebracao, preco_contratual)"
+                          " VALUES (2026,?,?,?,?,?)",
+                          ("Limpeza %d" % i, "limpeza %d" % i, "CML",
+                           "2026-08-0%d" % (i + 1), 1000.0))
+
+    def test_acima_do_tecto_o_botao_diz_quantas_leva(self):
+        cliente = radar.app.test_client()
+        with unittest.mock.patch.object(radar, "TECTO_CSV", 2):
+            corpo = cliente.get("/contratos?q=limpeza").get_data(as_text=True)
+        self.assertIn("Exportar CSV (2 de 3)", corpo)
+        self.assertIn("só as primeiras 2 das 3 linhas", corpo)
+
+    def test_abaixo_do_tecto_nao_diz_nada(self):
+        corpo = radar.app.test_client().get(
+            "/contratos?q=limpeza").get_data(as_text=True)
+        self.assertIn("title='as 3 linhas deste filtro'", corpo)
+        self.assertNotIn("Exportar CSV (", corpo)
+
+
+class TestOsFactosDaEntidadeLevamOFiltro(BaseTemporaria):
+    """E21: filtrar a ficha de uma entidade por CPV mudava as listas e
+    deixava «Compra · 24 m» nos mesmos 73,6 M€; e a janela das listas
+    (o acervo todo) nao se dizia."""
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
+        radar.iniciar_corpus()
+        recente = (datetime.date.today()
+                   - datetime.timedelta(days=30)).isoformat()
+        with radar.liga_corpus() as c:
+            for cpv, valor in (("72000000", 1000.0), ("45000000", 9000.0)):
+                cur = c.execute(
+                    "INSERT INTO contratos (ano, objecto, adjudicante,"
+                    " adjudicante_chave, data_celebracao, preco_contratual,"
+                    " cpv, tipo_procedimento) VALUES (2026,?,?,?,?,?,?,?)",
+                    ("x", "CML", "506000000", recente, valor, cpv,
+                     "Concurso público"))
+                c.execute("INSERT INTO contrato_cpv VALUES (?,?)",
+                          (cur.lastrowid, cpv))
+            c.execute("INSERT INTO entidades (chave, nif, nome, variantes)"
+                      " VALUES ('506000000','506000000','CML',1)")
+
+    def _factos(self, args):
+        with radar.app.test_request_context("/"):
+            return radar.factos_da_entidade(
+                "506000000", radar.lado_da_empresa("506000000", "CML"),
+                args=args)
+
+    def test_o_cpv_da_ficha_muda_o_compra(self):
+        self.assertIn("10,0\xa0k€", self._factos({}))
+        filtrado = self._factos({"cpv": "72000000"})
+        self.assertIn("Compra · 24 m · no filtro", filtrado)
+        self.assertIn("1,0\xa0k€", filtrado)
+        self.assertNotIn("10,0\xa0k€", filtrado)
+
+    def test_as_listas_dizem_a_janela(self):
+        corpo = radar.app.test_client().get(
+            "/entidade/506000000").get_data(as_text=True)
+        self.assertIn("Como compra · sempre", corpo)
+        corpo = radar.app.test_client().get(
+            "/entidade/506000000?de=01/01/2026").get_data(as_text=True)
+        self.assertIn("Como compra · desde 01/01/2026", corpo)
+
+
+class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
+    """E22, E23, E24: os numeros da Situacao batiam, mas nao diziam o
+    que somavam (o proposto, a data em que se marcou, a media simples,
+    a taxa sem os «Nao fomos»), e nenhum era ligacao."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        for ref, estado, base, nosso in (
+                ("1/2026", "ganho", "100.000,00 EUR", "90.000,00 EUR"),
+                ("2/2026", "ganho", "10.000,00 EUR", "5.000,00 EUR"),
+                ("3/2026", "perdido", "50.000,00 EUR", "49.000,00 EUR")):
+            with radar.liga() as c:
+                c.execute("INSERT INTO anuncios (ref, titulo, estado, data_pub,"
+                          " preco_base) VALUES (?,?,?,?,?)",
+                          (ref, "Concurso " + ref, "novo", "2026-01-01", base))
+            id_ = radar.criar_proposta(ref, estado="submetido")
+            radar.mover_proposta(id_, estado, campos={
+                "valor_proposta": nosso, "motivo": radar.MOTIVOS_PERDA[0]})
+
+    def test_cada_numero_diz_o_que_soma(self):
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertIn("soma do proposto das 2 ganhas", corpo)
+        self.assertIn("«Não fomos» e «Cancelado» não contam", corpo)
+        # media simples (10% e 50% = 30%) e a pesada pelo valor
+        # (15 000 abaixo de 110 000 = 13,6%)
+        self.assertIn("média simples; pesada pelo valor dá 13,6%", corpo)
+        self.assertIn("marcou como decidida no Mira Gov", corpo)
+
+    def test_os_numeros_abrem_a_lista_das_decididas_com_total(self):
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertIn("href='/situacao?ver=negocio&amp;periodo=trimestre"
+                      "#decididas'", corpo)
+        self.assertIn("id='decididas'", corpo)
+        lista = corpo[corpo.index("id='decididas'"):]
+        for ref in ("1/2026", "2/2026", "3/2026"):
+            self.assertIn("Concurso " + ref, lista)
+        self.assertIn("2 ganhas, 1 perdida", lista)
+        self.assertIn("95\xa0000\xa0€", lista)
+
+    def test_a_taxa_do_hoje_abre_as_decididas_e_nao_so_os_ganhos(self):
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("/situacao?ver=negocio&amp;periodo=tudo#decididas", corpo)
+        self.assertNotIn(radar.LISTA + "?estado=ganho'", corpo)
+
+    def test_o_em_jogo_diz_de_onde_vem_cada_preco(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, data_pub,"
+                      " preco_base) VALUES (?,?,?,?,?)",
+                      ("4/2026", "Aberto", "novo", "2026-01-01",
+                       "1.000,00 EUR"))
+        radar.criar_proposta("4/2026", estado="proposta")
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertIn("preço base em", corpo)
+        self.assertIn("proposto em", corpo)
+
+
+class TestOAlertaNaoGravaOQueNaoLe(BaseTemporaria):
+    """E3, E4, E5, E6: as mensagens de sucesso sobre coisas que
+    falharam.
+
+    - Um alerta com «32/13/2026» e «abc» gravava-se, ignorava-os e
+      passava a apanhar a base inteira.
+    - O e-mail do resumo aceitava «nao-e-email» e dizia «guardada».
+    - A pagina prometia «Sai no resumo» sem o correio ligado.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def _alertas(self):
+        with radar.liga() as c:
+            return [r["nome"] for r in c.execute(
+                "SELECT nome FROM filtros_guardados")]
+
+    def test_uma_data_impossivel_recusa_o_alerta(self):
+        r = self.cliente.post("/alertas/criar", data={
+            "nome": "obras", "q": "obras", "de": "32/13/2026"})
+        self.assertIn("não foi gravado", unquote_plus(r.headers["Location"]))
+        self.assertEqual(self._alertas(), [])
+
+    def test_um_valor_ilegivel_recusa_o_alerta(self):
+        r = self.cliente.post("/alertas/criar", data={
+            "nome": "obras", "q": "obras", "pbmin": "abc"})
+        self.assertIn("não foi gravado", unquote_plus(r.headers["Location"]))
+        self.assertEqual(self._alertas(), [])
+
+    def test_criar_diz_criado(self):
+        r = self.cliente.post("/alertas/criar", data={
+            "nome": "obras", "q": "obras", "pbmin": "20 000"})
+        self.assertIn("Alerta criado", unquote_plus(r.headers["Location"]))
+        self.assertEqual(self._alertas(), ["obras"])
+
+    def test_um_email_que_nao_e_email_nao_se_grava(self):
+        radar.gravar_config({"email": {"para": "certo@exemplo.pt"}})
+        r = self.cliente.post("/alertas/email", data={
+            "para": "nao-e-email", "hora_resumo": "17:00"})
+        self.assertIn("continua a ir para certo@exemplo.pt",
+                      unquote_plus(r.headers["Location"]))
+        self.assertEqual(radar.ler_config()["email"]["para"],
+                         "certo@exemplo.pt")
+
+    def test_sem_correio_a_pagina_nao_promete_o_email(self):
+        corpo = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        self.assertIn("Os avisos ainda não saem por e-mail", corpo)
+        self.assertNotIn("Sai no resumo a seguir", corpo)
+
+    def test_sem_destino_nao_e_o_mesmo_que_sem_correio(self):
+        """E5: a lista dos pedidos dizia «e-mail por configurar» porque
+        a plataforma nao tinha para onde avisar o dono -- e o dono leu
+        que o convite nao podia sair, quando tinha saido."""
+        with unittest.mock.patch.object(radar, "ler_chave", lambda *a: "x"):
+            self.assertEqual(radar.porque_o_email_nao_sai(
+                {"email": {"de": "a@b.pt", "servidor": "smtp"}}),
+                radar.EMAIL_SEM_DESTINO)
+            self.assertEqual(radar.porque_o_email_nao_sai(
+                {"email": {"para": "c@d.pt"}}), radar.EMAIL_POR_CONFIGURAR)
+            self.assertEqual(radar.porque_o_email_nao_sai(
+                {"email": {"para": "c@d.pt", "de": "a@b.pt",
+                           "servidor": "smtp"}}), "")
+
+
+class TestOPerfilDaEmpresaNaoSeChamaInteresse(BaseTemporaria):
+    """D1 da segunda ronda (26/09/2026, decisao dele): o recorte que se
+    chamava «Interesse» colidia com o botao «Interessa». Passou a
+    «Perfil da empresa» em tudo o que se ve; os nomes no codigo
+    (`interesse_*`, a rota) ficam."""
+
+    def test_nenhum_ecra_diz_interesse(self):
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+        cliente = radar.app.test_client()
+        for rota in ("/", "/concursos", "/configuracoes/interesse",
+                     "/configuracoes", "/ajuda", "/calendario?estado=porver",
+                     "/configuracoes/conta"):
+            corpo = cliente.get(rota, follow_redirects=True).get_data(as_text=True)
+            # so o texto que se le: sem scripts, sem etiquetas (os href,
+            # name e id levam o nome interno), e sem a nota do glossario
+            # que diz como se chamava
+            texto = re.sub(r"<script.*?</script>|<style.*?</style>", " ",
+                           corpo, flags=re.S)
+            texto = re.sub(r"<[^>]*>", " ", texto)
+            texto = texto.replace("Chamava-se «Interesse»", "")
+            self.assertEqual(re.findall(r"\w*nteresse\b", texto), [], rota)
 
 
 if __name__ == "__main__":

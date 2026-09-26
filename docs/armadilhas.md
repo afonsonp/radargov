@@ -15,17 +15,17 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 11
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 10
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 24
-- [Alertas e interesse](#alertas-e-interesse) &middot; 7
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 59
+- [Contratos e entidades](#contratos-e-entidades) &middot; 27
+- [Alertas e interesse](#alertas-e-interesse) &middot; 11
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 62
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 19
-- [A interface](#a-interface) &middot; 79
+- [A interface](#a-interface) &middot; 80
 - [Convenções](#convencoes) &middot; 3
 
-São **271** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **282** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -922,6 +922,24 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   pela mesma `chave_entidade()` da ficha — o nome normalizado — e só com
   anúncios sem NIF: um anúncio com NIF é de outra chave, e colá-lo pelo
   nome misturava duas entidades.
+- **Os factos do topo da ficha da entidade levam o filtro dela**
+  (`factos_da_entidade(..., args=)`, 26/09/2026). Filtrar a ficha por
+  um CPV mudava as listas de baixo e deixava «Compra · 24 m» nos
+  mesmos 73,6 M€; com filtro, o rótulo diz «· no filtro». E as listas
+  de baixo são **o acervo todo** (ou as datas do filtro), e o título
+  de cada uma di-lo («· sempre»): lidas ao lado dos «24 m» de cima,
+  pareciam da mesma janela. A lista `/entidades` diz «Compra · sempre».
+- **No Mercado, o perfil da empresa só recorta pelo CPV** — e a faixa
+  tem de o dizer (`_faixa_do_interesse(..., so_cpv=True)`, 26/09/2026).
+  Dizia o perfil inteiro, «Lisboa · desde 20 000 €», por cima de um
+  contrato de Serpa a 8 514 €. Os contratos não têm o distrito nem o
+  preço base na forma dos anúncios (a `local_execucao` vem vazia na
+  maior parte), e aplicá-los escondia quase tudo. Um perfil só de
+  distritos não põe faixa nenhuma no Mercado: não limita nada lá.
+- **O CSV do Mercado corta no `TECTO_CSV`, e o botão di-lo**
+  («Exportar CSV (50 000 de 161 711)», 26/09/2026). Só a dica dizia
+  «as 50 000 linhas deste filtro», e a folha somava menos de metade do
+  que o ecrã mostrava. O corte é pela ordem da lista.
 
 
 ---
@@ -1019,6 +1037,33 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   levanta-o. O ecrã é próprio porque a árvore é uma por página (um
   `details.arvore`, um `#filtro-cpv`) e `/alertas` já gasta a sua no
   "Novo filtro".
+- **O ecrã diz «Perfil da empresa»; o código diz `interesse`**
+  (decisão dele, 26/09/2026: «Interesse» colidia com o botão
+  «Interessa», que é outra coisa). As chaves `interesse_*`, o
+  `?interesse=nao` e a rota `/configuracoes/interesse` ficaram: são
+  endereços guardados e configurações gravadas. Um texto novo que o
+  utilizador leia diz «perfil»; o teste
+  `TestOPerfilDaEmpresaNaoSeChamaInteresse` varre os ecrãs.
+- **Um alerta não grava o que não lê** (26/09/2026). A lista pode
+  ignorar uma data impossível e avisar por cima; um alerta não, porque
+  ninguém está a olhar para ele quando avisa — com «32/13/2026» e
+  «abc» gravava-se, e passava a apanhar a base inteira. O
+  `alerta_criar()` recusa pelas mesmas leituras da lista, o
+  `data_de_filtro()` e o `euros_do_texto()`. O destino do resumo
+  idem: «nao-e-email» gravava-se com «guardada».
+- **«Sem destino» não é «por configurar»**: `porque_o_email_nao_sai()`
+  (26/09/2026) pergunta primeiro pela conta que envia e só depois pelo
+  endereço. As duas davam «e-mail por configurar», e a lista dos
+  pedidos de acesso (que avisa o dono, e a plataforma não tinha para
+  onde) fez o dono ler que o convite não saíra — tinha saído. As três
+  razões estão em `EMAIL_SEM_CANAL`, que é o que o resumo dá por
+  entregue no `AVISOS.txt`; a página dos alertas avisa pela mesma
+  função.
+- **O Calendário tem o perfil da empresa como a lista**
+  (`_linhas_do_calendario()` pelo `recorte_da_lista()`, 26/09/2026). O
+  «Por ver» do calendário dizia 1 126 contra os 142 da lista, sem
+  faixa. Leva a mesma faixa, e o «ver tudo» passa às semanas e à
+  ligação «ver em lista».
 
 
 ---
@@ -1665,6 +1710,22 @@ pelo Afonso e nenhuma se reabre de passagem.
   inequívoco se marca sozinho. Procurar por texto é traiçoeiro:
   `%anula%` dá 601 resultados e são quase todos **cânulas** e
   «anulações de ramais».
+- **O «Expirou sem ver» de uma empresa conta desde que ela chegou**
+  (`empresa_desde`, que o `criar_empresa()` grava; 26/09/2026). Uma
+  empresa com uma hora lia «Expirou sem ver 5 171»: os concursos que
+  expiraram antes de ela existir. Sem a data — a empresa 1, e as que
+  nasceram antes de 26/09/2026 — conta tudo, como sempre contou.
+- **Os números da Situação dizem o que somam e abrem a lista**
+  (26/09/2026). Batiam com o Excel do financeiro, e ele não o sabia:
+  o «Ganho» é o proposto, o período é a data em que se marcou como
+  decidida **no Mira Gov** (não a da adjudicação), o desconto é média
+  simples (a pesada pelo valor vai ao lado) e a taxa não conta os «Não
+  fomos». Cada um tem a linha `porque` e liga à tabela
+  `#decididas` do período (`decididas_no_periodo()`), com o total. A
+  taxa do Hoje abre essa tabela, de sempre — abria só os ganhos.
+- **«Parada» é a partir de `DIAS_PARA_ESTAR_PARADA`** (7, 26/09/2026),
+  no Hoje e na Situação. Listava as propostas criadas nesse dia, todas
+  a «0 dias».
 
 ## O registo da empresa
 
@@ -3094,6 +3155,13 @@ botões ou no calendário.
   um antepassado posicionado, o da última coluna de uma tabela que rola
   empurrou três páginas para 729-873px a 390 — no mesmo dia em que isso
   se tinha corrigido, porque não se voltou a medir depois de o pôr.
+- **Os anúncios novos do dia contam-se num sítio só: `novos_de_hoje()`**
+  (26/09/2026). O subtítulo da abertura contava as alterações e o «O
+  que mudou» não, e davam 116 e 92 da mesma verificação. E o «ver os N
+  no perfil» do mesmo cartão tem o endereço do número N
+  (`_lista_de_hoje()`): abria o «por ver» inteiro, 165 debaixo de 14.
+  Os prazos alterados que o cartão lista passam pelo mesmo perfil que
+  os números de cima.
 
 
 ---
