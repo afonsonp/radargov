@@ -8927,7 +8927,7 @@ class TestAsDecisoesDaPropostaD2D3D5D10(_CicloDoTesteComUtilizadores):
                               headers=self.VOLTA)
         texto, erro = self.aviso(r)
         self.assertTrue(erro)
-        self.assertIn("art. 70.º, n.º 2, al. d)", texto)
+        self.assertIn("art. 70.º do CCP", texto)
         self.assertEqual(radar.proposta(id_)["valor_proposta"], "118.500,00 EUR")
         # igual à base passa
         self.cliente.post("/proposta/%d/ficha" % id_,

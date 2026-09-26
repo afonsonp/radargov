@@ -1,0 +1,102 @@
+# O Código dos Contratos Públicos, para o Mira Gov
+
+**É o dono do que a lei diz.** O código e os outros documentos citam o
+CCP; o que o artigo diz, em que versão, e desde quando, vive aqui. Não
+é instantâneo: **corrige-se quando a lei muda**, e a data de cada
+secção diz quando foi conferida contra o texto oficial.
+
+Pedido dele a 27/09/2026: «quero que tenhas o CCP bem estudado e que te
+mantenhas atualizado sobre as mudanças que vão acontecer e quando».
+
+## 1. A versão em vigor, e a que vem
+
+*Conferido no texto oficial a 27/09/2026.*
+
+| Desde | O quê | Onde |
+|---|---|---|
+| — | CCP, DL 18/2008, com 16 alterações | — |
+| **1/10/2026** | **DL n.º 177/2026, de 4/09** — 17.ª alteração, **republica o Código inteiro** (anexo II) | DR, 1.ª série, n.º 172: https://files.diariodarepublica.pt/1s/2026/09/17200/0000200283.pdf |
+
+**A regra da transição** (art. 10.º do DL, «Aplicação no tempo»): as
+alterações valem para os procedimentos **iniciados depois de
+1/10/2026** e para os contratos que deles saírem. Duas matérias valem
+também para os que estão em curso: a **modificação objectiva do
+contrato** e a **resolução alternativa de litígios**.
+
+**Quando é que um procedimento se inicia** (art. 36.º, n.º 1): com a
+**decisão de contratar**, não com o anúncio. O Mira Gov só vê o anúncio
+(«Data de Envio do Anúncio», §3), que é sempre **depois** da decisão.
+Daí:
+
+- anúncio enviado **antes** de 1/10/2026 → regime antigo, com certeza;
+- anúncio enviado **depois** → quase sempre regime novo, **mas não
+  garantidamente**: uma decisão de setembro pode ter anúncio em
+  outubro. O Programa do Procedimento diz em que redacção se baseia.
+
+**Consequência para o código:** durante meses o Mira Gov vê os dois
+regimes e não sabe de qual é cada procedimento. **Nenhuma mensagem deve
+citar um número ou alínea que mudou entre os dois** — cita-se o artigo.
+
+## 2. Os artigos que o Mira Gov usa
+
+*Conferido a 27/09/2026 contra a republicação.* «Alterado» quer dizer
+que o DL 177/2026 lhe mexe; não quer dizer que mexe na parte que usamos.
+
+| Artigo | O que usamos | Alterado? | No código |
+|---|---|---|---|
+| **50.º** | Esclarecimentos no primeiro terço do prazo das propostas (regra supletiva) | Não | `prazo_de_esclarecimentos()` |
+| **70.º** | A proposta acima do preço base é excluída | **Sim — mudou de sítio**: era o n.º 2, al. d); passa a **n.º 3, al. d)**. O n.º 2, al. d) novo é «não constituídas por todos os documentos exigidos» | `recusa_do_preco()` e os dois avisos do preço, que desde 27/09/2026 citam só «art. 70.º» |
+| **71.º** | Preço anormalmente baixo: a entidade *pode* fixar o limiar no PP; sem ele, pode considerá-lo na mesma, fundamentando; o concorrente é sempre ouvido antes | Sim — não se conferiu em que parte | A pergunta ao modelo sobre o Programa |
+| **147.º** | Audiência prévia: prazo fixado pelo júri, não inferior a cinco dias | Não | `DIAS_DE_PRONUNCIA`, `prazo_de_pronuncia()` |
+| **470.º** | Os prazos contam-se pelo art. 87.º do CPA (dias úteis) | Não | idem |
+| **47.º** | Preço base | **Sim: passa a facultativo** («pode fixar»); os n.os 3 a 6 são revogados | `recusa_do_preco()` não recusa sem base — certo nos dois regimes |
+| **74.º** | Critério de adjudicação (multifator / monofator) | Sim | `criterio_de_adjudicacao()` lê o anúncio, não a lei |
+| **88.º** | Caução: dispensável quando o preço contratual for inferior a **1 000 000 €** (regime novo, n.º 2, al. a)) | Sim | Ainda não se mostra (`docs/historico/SETORES.md` §6) |
+
+## 3. O que muda a 1/10/2026 e toca o produto
+
+*Cada linha conferida no texto oficial a 27/09/2026, com o artigo
+republicado.* Os valores **antigos** não se conferiram — o DL só traz os
+novos.
+
+| O quê | Regime novo | Artigo |
+|---|---|---|
+| Preço base | Facultativo | 47.º, n.º 1 |
+| Ajuste directo / consulta prévia — bens e serviços | abaixo de **75 000 €** / **130 000 €** | 20.º, n.º 1, als. c) e d) |
+| Ajuste directo / consulta prévia — empreitadas | abaixo de **150 000 €** / **1 000 000 €** | 19.º, als. c) e d) |
+| Caução dispensável | preço contratual abaixo de **1 000 000 €** | 88.º, n.º 2, a) |
+| Não dividir em lotes tem de se fundamentar | acima de **250 000 €** (bens e serviços) e **500 000 €** (obras) | 46.º-A, n.º 2 |
+| Exclusão acima do preço base | passa ao n.º 3, al. d) | 70.º |
+| Anexos I, II, V e XIII do CCP | **revogados** | 8.º do DL, al. a) |
+| Lei 30/2021 (medidas especiais) | os arts. 2.º a 16.º revogados | 8.º do DL, al. b) |
+| Portaria 372/2017 (habilitação) | **continua em vigor** até sair a portaria nova do art. 81.º, n.º 2 | 7.º do DL, n.º 1 |
+
+**O que isto pode fazer ao volume da parte L:** com os limiares da
+consulta prévia muito mais altos, o que passar a consulta prévia não
+se publica em anúncio. **Medir** os anúncios de outubro e novembro de
+2026 contra os mesmos meses de 2025 antes de concluir — é hipótese, não
+facto.
+
+## 4. O que está marcado para depois, sem data
+
+| O quê | Porque importa | Como se sabe que saiu |
+|---|---|---|
+| A **portaria nova do art. 81.º, n.º 2** (os documentos de habilitação) | Substitui a 372/2017; muda o que a empresa entrega depois de ganhar, e o cofre dos documentos | DR, 1.ª série: «Portaria» + «artigo 81.º do Código dos Contratos Públicos» |
+| A **revisão dos limiares europeus** (art. 474.º) | Decide o que vai ao JOUE. A Comissão revê-os de dois em dois anos, por regulamento delegado, com efeito a 1 de janeiro. **O texto republicado ainda reproduz os montantes com a redacção dos regulamentos de 2019** (obras 5 404 000 €; bens e serviços do Estado 139 000 €) — confirmar contra o regulamento em vigor antes de citar | JOUE, «Regulamento Delegado» + «limiares» |
+| Os **valores das classes do alvará** (Lei 41/2015) | O semáforo das obras, se o cofre um dia guardar a classe | Portaria anual do IMPIC |
+| Uma **18.ª alteração** ao CCP | — | DR, 1.ª série: «Código dos Contratos Públicos» |
+
+## 5. Como me mantenho actualizado
+
+Uma sessão não se lembra da anterior: o que eu sei do CCP é o que está
+**aqui**. Por isso:
+
+1. **Uma verificação periódica** procura no DR e no JOUE o que a tabela
+   da §4 diz para procurar, e alterações novas ao CCP. Quando encontra,
+   corrige este ficheiro por PR — com o artigo conferido no texto
+   oficial, não numa síntese.
+2. **Antes de escrever uma frase que cite o CCP** em código ou em
+   documentação, confere-se aqui; se o artigo não estiver na §2,
+   lê-se no texto oficial e acrescenta-se.
+3. **Uma síntese não é fonte.** A Procurai (https://procurai.pt/ccp)
+   serve para achar; o que se escreve aqui leu-se no DR.

@@ -35,6 +35,7 @@ pede.**
 | `docs/armadilhas.md` | O que não é óbvio, em 16 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/design.md` | O caminho do aspecto **até 20/09/2026**: a direcção, a letra, a cor, os botões, a escala. A paleta e a letra que ele descreve (Plex, ardósia) **saíram a 21/09** — o que vale hoje é o sistema de desenho | Para perceber uma decisão de aspecto antiga |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
+| `docs/ccp.md` | **A lei**: os artigos do CCP que o Mira Gov usa, conferidos no texto oficial, o que muda e quando (o DL 177/2026 a 1/10/2026 e o que está por sair) | **Antes de escrever uma frase que cite o CCP** — e nunca o número ou a alínea de um artigo que mudou entre os dois regimes |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 83 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | **O arquivo**: dez instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`, `SETORES`. **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |

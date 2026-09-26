@@ -35,6 +35,7 @@ dois que decidem se ele é possível como está desenhado.
 > | as **regras de trabalho** e o mapa do código | `CLAUDE.md` |
 > | os **números medidos** de hoje | `ESTADO.md` |
 > | o que está **em aberto** | `BACKLOG.md` |
+> | o que a **lei** diz (o CCP), as mudanças e as datas | `docs/ccp.md` |
 > | o **porquê**, com data | `docs/referencia.md`, `docs/historico/` |
 >
 > Se estás a escrever aqui uma coisa que é de outro dono, ela vai para
@@ -296,8 +297,9 @@ mais nova**: aberta em dois separadores, ou por dois colegas, o segundo
 a gravar é recusado e vê o que está agora (25/09/2026).
 
 **Um proposto acima do preço base recusa-se** (D2, decisão dele a
-26/09/2026; até aí só avisava): pelo art. 70.º, n.º 2, al. d) do CCP a
-proposta é excluída. Vale em todos os caminhos que gravam o preço — a
+26/09/2026; até aí só avisava): pelo art. 70.º do CCP a proposta é
+excluída — o n.º 2, al. d), e o n.º 3, al. d) nos procedimentos
+iniciados a partir de 1/10/2026 (`docs/ccp.md`). Vale em todos os caminhos que gravam o preço — a
 ficha, o selector e a caixa dele, a proposta sem anúncio e a importação
 — e é **o preço base do lote** numa proposta a um lote (a coluna
 `lotes` do anúncio), o total numa proposta ao conjunto. **Sem preço base
