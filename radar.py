@@ -316,7 +316,8 @@ TABELAS_DA_EMPRESA = ("propostas", "tarefas", "contactos", "historico",
                       "etiquetas", "anuncio_etiquetas", "pessoas",
                       "filtros_guardados", "alertas_vistos",
                       "entidades_seguidas", "seguidas_vistos", "empresa",
-                      "marcas_da_empresa", "alteracoes_avisadas")
+                      "marcas_da_empresa", "alteracoes_avisadas",
+                      "notas_da_proposta", "documentos_da_empresa")
 # As marcas do resumo diario sao da empresa (e ela que o recebe); as
 # outras marcas da tabela `estado` sao da recolha, e ficam.
 MARCAS_DA_EMPRESA = ("ultimo_resumo", "ultimo_resumo_estado",
@@ -567,6 +568,34 @@ CAMPOS_QUE_A_RANHURA_EXIGE = {
 ROTULO_DO_CAMPO = {"valor_proposta": "preço proposto", "lugar": "lugar",
                    "motivo": "motivo"}
 
+# As colunas do desfecho (D3 e D10 da segunda ronda, 26/09/2026): datas
+# em ISO, o valor no formato do preço («118.500,00 EUR»).
+COLUNAS_DO_DESFECHO = ("data_adjudicacao", "audiencia_em", "valor_adjudicado")
+
+# O que a ranhura PEDE no gesto de a escolher sem o EXIGIR: opcional mas
+# sugerido (decisão dele). A data da adjudicação é a do período da
+# Situação; o valor adjudicado, vazio, é o preço proposto.
+CAMPOS_QUE_A_RANHURA_SUGERE = {
+    "ganho": ("data_adjudicacao", "valor_adjudicado"),
+    "perdido": ("data_adjudicacao",),
+}
+
+
+def recusa_do_preco(proposto, base):
+    """A recusa de um preço proposto acima do preço base, ou "" (D2 da
+    segunda ronda, 26/09/2026, decisão dele: recusar, e não só avisar).
+
+    Pura: recebe os dois preços como estão gravados. Pelo art. 70.º, n.º
+    2, al. d) do CCP uma proposta acima do preço base é excluída -- ou é
+    um zero a mais. **Sem preço base conhecido não recusa**: não se sabe."""
+    nosso = euros_do_texto(proposto or "")
+    if not nosso or not base or nosso <= base:
+        return ""
+    return ("O preço proposto (%s) está acima do preço base (%s): pelo "
+            "art. 70.º, n.º 2, al. d) do CCP a proposta seria excluída. "
+            "Não foi gravado — confirme o valor."
+            % (preco_pt(proposto), preco_pt(str(base))))
+
 
 def recado_do_que_falta(estado, falta):
     """A recusa da condicionante, dita como se diz. Uma só, para os dois
@@ -727,6 +756,15 @@ def iniciar_empresa(caminho=None):
         cols_p = [r["name"] for r in c.execute("PRAGMA table_info(propostas)")]
         if "entidade_chave" not in cols_p:
             c.execute("ALTER TABLE propostas ADD COLUMN entidade_chave TEXT")
+        # As datas e o valor do desfecho (D3 e D10 da segunda ronda,
+        # 26/09/2026, decisões dele): a data da adjudicação, que passa a
+        # ser a do período da Situação (a `fechada_em` fica de recurso);
+        # a data da notificação do relatório preliminar, que abre a
+        # tarefa da audiência prévia; e o valor adjudicado, que é o que o
+        # «Ganho» soma. Instantâneo, e a NULL nas que já existem.
+        for nova in COLUNAS_DO_DESFECHO:
+            if nova not in cols_p:
+                c.execute("ALTER TABLE propostas ADD COLUMN %s TEXT" % nova)
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ref ON propostas(ref)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ent "
                   "ON propostas(entidade_chave)")
@@ -750,6 +788,30 @@ def iniciar_empresa(caminho=None):
             origem TEXT DEFAULT 'mão', criada_em TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_tarefas_quando "
                   "ON tarefas(quando)")
+        # O cofre dos documentos da empresa (D5 da segunda ronda,
+        # 26/09/2026): o alvará, as certidões, as ISO e os seguros, com a
+        # validade -- sem ficheiros. Uma tarefa nasce 15 dias antes de
+        # cada validade (`sincronizar_documentos()`), e o `documento_id`
+        # é o que a liga a ele: sem proposta nem anúncio, não havia por
+        # onde a encontrar para a tirar quando a validade muda.
+        c.execute("""CREATE TABLE IF NOT EXISTS documentos_da_empresa (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT,
+            descricao TEXT, validade TEXT, criado_em TEXT)""")
+        if "documento_id" not in [r["name"] for r in
+                                  c.execute("PRAGMA table_info(tarefas)")]:
+            c.execute("ALTER TABLE tarefas ADD COLUMN documento_id INTEGER")
+        # As notas datadas e assinadas (D3): cada nota é uma linha, com
+        # quem e quando, e nenhuma apaga a anterior. A nota única que a
+        # proposta tinha passa a ser a primeira -- e sai da coluna na
+        # MESMA transacção, para haver um sítio só onde as notas vivem.
+        # Idempotente pela própria pergunta: depois de passada, a coluna
+        # está vazia e o INSERT não encontra nada.
+        c.execute("""CREATE TABLE IF NOT EXISTS notas_da_proposta (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, proposta_id INTEGER,
+            texto TEXT, quem TEXT, quando TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_notas_proposta "
+                  "ON notas_da_proposta(proposta_id)")
+        passar_as_notas(c)
         # As tarefas que ficaram de propostas ja apagadas. Ate 16/09/2026
         # os tres sitios que apagam uma proposta deixavam-nas atras (ver
         # apagar_propostas()), e uma tarefa orfa nao e so lixo: a pagina
@@ -865,6 +927,24 @@ def iniciar_empresa(caminho=None):
         traduzir_filtros_guardados(c)
         empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)
     so_o_dono(caminho)
+
+
+def passar_as_notas(c):
+    """A nota única da coluna `propostas.notas` passa a primeira linha
+    das notas datadas, e sai da coluna na mesma transacção (D3, 26/09/
+    2026). Sem quem nem quando: não se sabe, e inventar era pior.
+
+    Idempotente pela própria pergunta (e a mesma nota não entra duas
+    vezes, que é o que um restauro repetido fazia). Corre no arranque e no fim do
+    `repor_triagem()`: um triagem.jsonl de antes traz a nota na coluna,
+    e reposta lá ficava escondida -- nenhum ecrã a lê."""
+    c.execute("INSERT INTO notas_da_proposta (proposta_id, texto) "
+              "SELECT id, notas FROM propostas p "
+              "WHERE TRIM(COALESCE(notas, '')) != '' AND NOT EXISTS ("
+              "SELECT 1 FROM notas_da_proposta n WHERE n.proposta_id = p.id "
+              "AND n.texto = p.notas) ORDER BY id")
+    c.execute("UPDATE propostas SET notas=NULL "
+              "WHERE TRIM(COALESCE(notas, '')) != ''")
 
 
 def criar_empresa(nome):
@@ -1755,6 +1835,33 @@ def prazo_de_esclarecimentos(data_pub, prazo):
     if dias <= 0:
         return None
     return pub + timedelta(days=dias // 3)
+
+
+# O prazo da audiência prévia: o art. 147.º do CCP manda o júri fixá-lo
+# na notificação do relatório preliminar, «não inferior a cinco dias», e
+# o art. 470.º, n.º 1 conta-o pelo art. 87.º do CPA -- em dias úteis, a
+# partir do dia seguinte. Os cinco são o MÍNIMO da lei, e é por isso
+# que a tarefa diz para confirmar na notificação.
+DIAS_DE_PRONUNCIA = 5
+
+
+def prazo_de_pronuncia(notificacao, dias=DIAS_DE_PRONUNCIA):
+    """A data-limite da pronúncia em audiência prévia, ou None: `dias`
+    úteis depois da notificação (ISO).
+
+    ponytail: salta sábados e domingos, e não os feriados -- a data sai
+    igual ou MAIS CEDO do que a verdadeira, nunca mais tarde, e um prazo
+    que se perde é pior do que um dia de folga. Se um dia fizer falta,
+    é juntar aqui a lista dos feriados nacionais."""
+    try:
+        dia = datetime.strptime((notificacao or "")[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    while dias:
+        dia += timedelta(days=1)
+        if dia.weekday() < 5:
+            dias -= 1
+    return dia
 
 
 def dias_urgente(cfg=None):
@@ -2709,6 +2816,9 @@ def apagar_propostas(c, onde, valores):
     """
     c.execute("DELETE FROM tarefas WHERE proposta_id IN "
               "(SELECT id FROM propostas WHERE %s)" % onde, valores)
+    # e as notas datadas (26/09/2026), pela mesma razão
+    c.execute("DELETE FROM notas_da_proposta WHERE proposta_id IN "
+              "(SELECT id FROM propostas WHERE %s)" % onde, valores)
     c.execute("DELETE FROM propostas WHERE " + onde, valores)
 
 
@@ -2727,8 +2837,10 @@ def mover_proposta(id_, estado, quem=None, campos=None):
     # Os campos que vierem no MESMO pedido gravam-se ANTES de verificar
     # (D4): o gesto é um só -- escolher a ranhura e trazer o que ela pede.
     if campos:
-        gravar_campos_da_proposta(id_, list(campos), list(campos.values()),
-                                  quem)
+        recado = gravar_campos_da_proposta(id_, list(campos),
+                                           list(campos.values()), quem)
+        if recado:
+            return False, recado
     with liga() as c:
         antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
         if not antes:
@@ -2800,6 +2912,32 @@ def traduzir_filtros_guardados(c):
                       (urlencode(novos), linha["id"]))
 
 
+def gravar_nota(proposta_id, texto, quem=None):
+    """Uma nota nova numa proposta, com quem e quando (D3 da segunda
+    ronda, 26/09/2026: «notas datadas e assinadas»). Nenhuma apaga a
+    anterior. Devolve o id, ou None se não há texto."""
+    texto = texto_de_campo(texto, 500, linhas=True)
+    if not texto:
+        return None
+    quem = quem or quem_sou() or None
+    p = proposta(proposta_id)
+    with liga() as c:
+        id_ = c.execute("INSERT INTO notas_da_proposta (proposta_id, texto, "
+                        "quem, quando) VALUES (?,?,?,?)",
+                        (proposta_id, texto, quem,
+                         datetime.now().strftime("%Y-%m-%d %H:%M"))).lastrowid
+    registar((p["ref"] if p else "") or "", "nota", corta(texto, 80), quem,
+             proposta_id=proposta_id)
+    return id_
+
+
+def notas_de(proposta_id):
+    """As notas de uma proposta, a mais recente primeiro."""
+    with liga() as c:
+        return c.execute("SELECT * FROM notas_da_proposta WHERE proposta_id=? "
+                         "ORDER BY id DESC", (proposta_id,)).fetchall()
+
+
 def gravar_motivo(id_, motivo):
     """O motivo de uma proposta, ou a limpeza dele."""
     with liga() as c:
@@ -2819,7 +2957,7 @@ def _tirar_da_escada(ref, antes):
     if not antes:
         return None
     escrito = ("valor_proposta", "notas", "lugar", "top3", "coe", "ebitda")
-    if any(antes[campo] for campo in escrito):
+    if any(antes[campo] for campo in escrito) or notas_de(antes["id"]):
         mover_proposta(antes["id"], "analisar")
         return ("reposto em «Por analisar» — tem trabalho escrito, "
                 "não se deita fora")
@@ -2866,13 +3004,25 @@ def gravar_campos_da_proposta(id_, campos, valores, quem=None):
     nome de coluna que o browser mandou era deixar o SQL a quem pedisse.
     """
     if not campos:
-        return
+        return ""
     seguros = set(COLUNAS_DA_PROPOSTA)
     assert all(nome in seguros for nome in campos), campos
+    antes = proposta(id_)
+    if not antes:
+        return ""
+    # O CCP recusa-se AQUI (D2), que é por onde passam todos os caminhos
+    # que gravam o preço -- a ficha, o selector, o diálogo e a proposta
+    # sem anúncio. Só quando o preço vem no pedido: gravar a tipologia
+    # de uma proposta antiga que já estava acima não se recusa.
+    # Devolve o recado, ou "" quando gravou.
+    if "valor_proposta" in campos or "preco_base" in campos:
+        depois = dict(antes)
+        depois.update(zip(campos, valores))
+        recado = recusa_do_preco(depois["valor_proposta"],
+                                 preco_base_da_proposta(depois))
+        if recado:
+            return recado
     with liga() as c:
-        antes = c.execute("SELECT * FROM propostas WHERE id=?", (id_,)).fetchone()
-        if not antes:
-            return
         c.execute("UPDATE propostas SET " + ", ".join(n + "=?" for n in campos)
                   + " WHERE id=?", list(valores) + [id_])
     for nome, valor in zip(campos, valores):
@@ -2880,10 +3030,13 @@ def gravar_campos_da_proposta(id_, campos, valores, quem=None):
             detalhe = str(valor or "(apagado)")
             # O preço guarda o que era (segunda ronda, 26/09/2026: o
             # «612 350 → 362 000» de uma proposta ganha perdia-se).
-            if nome in ("valor_proposta", "preco_base"):
+            if nome in ("valor_proposta", "preco_base", "valor_adjudicado"):
                 detalhe = ("%s → %s" % (preco_pt(antes[nome]), preco_pt(valor))
                            if antes[nome] else preco_pt(valor, "(apagado)"))
+            elif nome in ("data_adjudicacao", "audiencia_em"):
+                detalhe = data_pt(valor) if valor else "(apagado)"
             registar(antes["ref"] or "", nome, detalhe, quem, proposta_id=id_)
+    return ""
 
 
 def _prazos_das_propostas(c, propostas):
@@ -2927,6 +3080,27 @@ TEXTO_AUTOMATICO = {
     "entrega": "entregar a proposta",
 }
 
+# A tarefa da audiencia previa (D3 da segunda ronda, 26/09/2026): nasce
+# da data da notificacao do relatorio preliminar que alguem escreve na
+# proposta, e nao do DR. Ao contrario das do DR, **a data nao se
+# reescreve**: o prazo que conta e o que o juri fixa na notificacao, e
+# pode ser maior do que o minimo -- quem o le adia a tarefa, e a
+# sincronizacao respeita. So uma data de notificacao NOVA a refaz
+# (`_depois_do_desfecho()`).
+ORIGEM_DA_AUDIENCIA = "audiencia"
+TEXTO_DA_AUDIENCIA = ("pronunciar-se em audiência prévia (%d dias úteis, o "
+                      "mínimo do art. 147.º do CCP: confirme o prazo na "
+                      "notificação)" % DIAS_DE_PRONUNCIA)
+# A tarefa da validade de um documento do cofre (D5): `documento_id`.
+ORIGEM_DO_DOCUMENTO = "documento"
+# De onde vem cada tarefa que nao se escreveu a mao, para quem a le.
+DE_ONDE_VEM = {"esclarecimentos": "vem das datas do DR e acompanha-as",
+               "entrega": "vem das datas do DR e acompanha-as",
+               ORIGEM_DA_AUDIENCIA: "vem da data da notificação do relatório "
+                                    "preliminar",
+               ORIGEM_DO_DOCUMENTO: "vem da validade do documento, em "
+                                    "Configurações › Documentos da empresa"}
+
 # So as ranhuras onde ainda ha o que fazer geram tarefas. Um "Ganho" nao
 # tem prazo de entrega para cumprir, e um "Nao fomos" muito menos.
 ESTADOS_COM_TAREFAS = ("analisar", "proposta")
@@ -2967,8 +3141,9 @@ def sincronizar_tarefas(ref=None):
         if ref:
             onde, vals = " WHERE p.ref = ?", [ref]
         linhas = c.execute(
-            "SELECT p.id, p.ref, p.estado, p.responsavel, a.data_pub, "
-            "a.prazo FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
+            "SELECT p.id, p.ref, p.estado, p.responsavel, p.audiencia_em, "
+            "a.data_pub, a.prazo FROM propostas p "
+            "LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
             vals).fetchall()
         # As que existem, para nao ser uma consulta por proposta
         ids = [l["id"] for l in linhas]
@@ -2978,8 +3153,8 @@ def sincronizar_tarefas(ref=None):
                     "SELECT * FROM tarefas WHERE proposta_id IN (%s) AND "
                     "origem IN (%s)"
                     % (",".join("?" * len(ids)),
-                       ",".join("?" * len(ORIGENS_AUTOMATICAS))),
-                    ids + list(ORIGENS_AUTOMATICAS)):
+                       ",".join("?" * (len(ORIGENS_AUTOMATICAS) + 1))),
+                    ids + list(ORIGENS_AUTOMATICAS) + [ORIGEM_DA_AUDIENCIA]):
                 actuais[(t["proposta_id"], t["origem"])] = t
         agora = datetime.now().strftime("%Y-%m-%d %H:%M")
         hoje = datetime.now().date().isoformat()
@@ -3025,7 +3200,100 @@ def sincronizar_tarefas(ref=None):
                     # perdeu a data: deixa de haver o que fazer
                     c.execute("DELETE FROM tarefas WHERE id=?", (tem["id"],))
                     apagadas += 1
+            # A audiencia previa: enquanto a proposta estiver aberta e
+            # tiver a data da notificacao. Nasce so se ainda vai a tempo
+            # (a mesma regra das do DR), e a data nao se reescreve.
+            tem = actuais.get((l["id"], ORIGEM_DA_AUDIENCIA))
+            limite = (prazo_de_pronuncia(l["audiencia_em"])
+                      if l["estado"] not in ESTADOS_FECHADOS else None)
+            if limite and not tem and limite.isoformat() >= hoje:
+                c.execute(
+                    "INSERT INTO tarefas (proposta_id, ref, o_que, quando,"
+                    " quem, origem, criada_em) VALUES (?,?,?,?,?,?,?)",
+                    (l["id"], l["ref"], TEXTO_DA_AUDIENCIA,
+                     limite.isoformat(),
+                     (l["responsavel"] or "").strip() or None,
+                     ORIGEM_DA_AUDIENCIA, agora))
+                criadas += 1
+            elif not limite and tem and not tem["feita_em"]:
+                c.execute("DELETE FROM tarefas WHERE id=?", (tem["id"],))
+                apagadas += 1
+    if not ref:
+        criadas_d, apagadas_d = sincronizar_documentos()
+        criadas += criadas_d
+        apagadas += apagadas_d
     return criadas, mudadas, apagadas
+
+
+# --- o cofre dos documentos da empresa (D5 da segunda ronda, 26/09/2026)
+#
+# O alvará, as certidões da AT e da Segurança Social, as ISO e os
+# seguros, com a validade -- sem os ficheiros, que ficam onde a empresa
+# os tem. O que o cofre dá já é a tarefa: um documento caducado descobre-
+# se no dia da entrega, e aí já não há tempo.
+
+TIPOS_DE_DOCUMENTO = ("Alvará", "Certidão da AT", "Certidão da Segurança Social",
+                      "ISO 9001", "ISO 14001", "ISO 45001",
+                      "Seguro de responsabilidade civil",
+                      "Seguro de acidentes de trabalho", "Outro")
+# Quantos dias antes da validade nasce a tarefa (decisão dele).
+DIAS_ANTES_DA_VALIDADE = 15
+
+
+def tarefa_do_documento(d):
+    """(data ISO, texto) da tarefa de um documento, ou None sem validade.
+
+    Puro. A data é SEMPRE 15 dias antes da validade, mesmo que já tenha
+    passado: um alvará que caduca daqui a dez dias é trabalho atrasado,
+    e escondê-lo por «já nasceria atrasada» era o contrário do cofre."""
+    try:
+        validade = datetime.strptime((d["validade"] or "")[:10],
+                                     "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    nome = " ".join(x for x in (d["tipo"] or "documento",
+                                 d["descricao"] or "") if x)
+    return ((validade - timedelta(days=DIAS_ANTES_DA_VALIDADE)).isoformat(),
+            corta("renovar %s (válido até %s)" % (nome, data_pt(d["validade"])),
+                  200))
+
+
+def sincronizar_documentos():
+    """Uma tarefa por documento com validade, 15 dias antes dela. Devolve
+    (criadas, apagadas). Idempotente.
+
+    **Mudar a validade tira a tarefa velha** (decisão dele): a que não
+    bate com a validade de hoje sai, feita ou não -- a feita era da
+    validade anterior, e renovar é tarefa outra vez. Um documento que
+    sai leva as suas."""
+    criadas = apagadas = 0
+    agora = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with liga() as c:
+        quer = {}
+        for d in c.execute("SELECT * FROM documentos_da_empresa"):
+            t = tarefa_do_documento(d)
+            if t:
+                quer[d["id"]] = t
+        tem = set()
+        for t in c.execute("SELECT id, documento_id, quando, o_que "
+                           "FROM tarefas WHERE origem=?",
+                           (ORIGEM_DO_DOCUMENTO,)).fetchall():
+            pedida = quer.get(t["documento_id"])
+            if pedida and pedida[0] == t["quando"]:
+                tem.add(t["documento_id"])
+                if pedida[1] != t["o_que"]:     # mudou só a descrição
+                    c.execute("UPDATE tarefas SET o_que=? WHERE id=?",
+                              (pedida[1], t["id"]))
+            else:
+                c.execute("DELETE FROM tarefas WHERE id=?", (t["id"],))
+                apagadas += 1
+        for id_, (quando, o_que) in quer.items():
+            if id_ not in tem:
+                c.execute("INSERT INTO tarefas (documento_id, o_que, quando, "
+                          "origem, criada_em) VALUES (?,?,?,?,?)",
+                          (id_, o_que, quando, ORIGEM_DO_DOCUMENTO, agora))
+                criadas += 1
+    return criadas, apagadas
 
 
 def criar_tarefa(o_que, quando, proposta_id=None, ref=None, quem=None):
@@ -7694,9 +7962,12 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "titulo", "estado", "motivo", "responsavel",
                        "tipologia", "coe", "preco_base", "valor_proposta",
                        "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
-                       "notas", "criada_em", "fechada_em")
+                       "notas", "criada_em", "fechada_em",
+                       "data_adjudicacao", "audiencia_em", "valor_adjudicado")
 COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
-                     "feita_em", "origem", "criada_em")
+                     "feita_em", "origem", "criada_em", "documento_id")
+COLUNAS_DA_NOTA = ("id", "proposta_id", "texto", "quem", "quando")
+COLUNAS_DO_DOCUMENTO = ("id", "tipo", "descricao", "validade", "criado_em")
 COLUNAS_DO_CONTACTO = ("id", "entidade_chave", "entidade", "nome", "papel",
                        "email", "telefone", "notas", "criado_em")
 
@@ -7725,6 +7996,14 @@ _TABELAS_TRIAGEM = (
      "SELECT " + ", ".join(COLUNAS_DO_CONTACTO) + " FROM contactos ORDER BY id"),
     ("tarefas", COLUNAS_DA_TAREFA,
      "SELECT " + ", ".join(COLUNAS_DA_TAREFA) + " FROM tarefas ORDER BY id"),
+    # As notas datadas e o cofre dos documentos (26/09/2026): escritos à
+    # mão, e nenhuma fonte os refaz.
+    ("notas_da_proposta", COLUNAS_DA_NOTA,
+     "SELECT " + ", ".join(COLUNAS_DA_NOTA) + " FROM notas_da_proposta "
+     "ORDER BY id"),
+    ("documentos_da_empresa", COLUNAS_DO_DOCUMENTO,
+     "SELECT " + ", ".join(COLUNAS_DO_DOCUMENTO) + " FROM documentos_da_empresa "
+     "ORDER BY id"),
     ("etiquetas", ("id", "nome", "cor"),
      "SELECT id, nome, cor FROM etiquetas ORDER BY id"),
     ("anuncio_etiquetas", ("ref", "etiqueta_id"),
@@ -7836,6 +8115,14 @@ def repor_triagem(caminho=None):
                              ", ".join("?" * len(colunas))),
                           [reg.get(k) for k in colunas])
                 escritas += 1
+            elif t in ("notas_da_proposta", "documentos_da_empresa"):
+                colunas = {"notas_da_proposta": COLUNAS_DA_NOTA,
+                           "documentos_da_empresa": COLUNAS_DO_DOCUMENTO}[t]
+                c.execute("INSERT OR REPLACE INTO %s (%s) VALUES (%s)"
+                          % (t, ", ".join(colunas),
+                             ", ".join("?" * len(colunas))),
+                          [reg.get(k) for k in colunas])
+                escritas += 1
             elif t == "fases":
                 # Um triagem.jsonl de antes de 15/09/2026 traz as fases,
                 # e a tabela ja nao existe. Ignora-se em silencio de
@@ -7900,6 +8187,7 @@ def repor_triagem(caminho=None):
                           (reg["chave"], reg["ref"], reg["visto_em"],
                            reg["enviado_em"]))
                 escritas += 1
+        passar_as_notas(c)      # um ficheiro de antes traz a nota na coluna
     return escritas, por_repor
 
 
@@ -10551,7 +10839,8 @@ ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
 # O que so o admin DA EMPRESA abre (13/09/2026): as contas dela e quem
 # ela e (nome e NIF).
 ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
-                  "/configuracoes/conta/empresa", "/arranque")
+                  "/configuracoes/conta/empresa", "/arranque",
+                  "/configuracoes/documentos")
 
 
 def sou_dono():
@@ -13564,10 +13853,26 @@ def caixa_do_motivo():
               "<label class='mg-field' data-campo='lugar' hidden>"
               "<span class='mg-field__label'>Lugar</span>"
               "<input class='mg-field__input' type='number' name='lugar' "
-              "min='1' max='99'></label>")
-    campos = campos % html.escape(PADRAO_DO_PRECO, quote=True)
+              "min='1' max='99'></label>"
+              # os que a ranhura SUGERE (D3, D10): à vista, sem obrigar
+              "<label class='mg-field' data-campo='data_adjudicacao' hidden>"
+              "<span class='mg-field__label'>Data da adjudicação "
+              "<span class='nota'>(opcional; é a do período da "
+              "Situação)</span></span>"
+              "<input class='mg-field__input' type='text' "
+              "name='data_adjudicacao' inputmode='numeric' maxlength='10' "
+              "placeholder='dd/mm/aaaa' pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
+              "</label>"
+              "<label class='mg-field' data-campo='valor_adjudicado' hidden>"
+              "<span class='mg-field__label'>Valor adjudicado "
+              "<span class='nota'>(opcional; vazio, é o proposto)</span></span>"
+              "<input class='mg-field__input' type='text' "
+              "name='valor_adjudicado' inputmode='decimal' pattern='%s' "
+              "placeholder='ex. 118 500,00'></label>")
+    campos = campos % ((html.escape(PADRAO_DO_PRECO, quote=True),) * 2)
     titulos = json.dumps({e: estado_da_empresa(e)
                           for e in CAMPOS_QUE_A_RANHURA_EXIGE})
+    sugere = json.dumps(CAMPOS_QUE_A_RANHURA_SUGERE)
     return ("<dialog class='mg-dialog' id='dlg-motivo' "
             "aria-labelledby='dlg-motivo-titulo'>"
             "<form method='post' class='accao' id='form-motivo'>"
@@ -13591,13 +13896,16 @@ def caixa_do_motivo():
             "  var d = document.getElementById('dlg-motivo');\n"
             "  if (!d || !d.showModal) return;   // sem <dialog>, o POST segue\n"
             "  var f = document.getElementById('form-motivo');\n"
-            "  var TITULOS = %s;\n"
+            "  var TITULOS = %s, SUGERE = %s;\n"
             "  var selAberto = null;\n"
             "  // as mensagens do browser vinham em ingles (\"Please select one\n"
             "  // of these options\"): cada campo diz a sua, em portugues\n"
             "  f.addEventListener('invalid', function (e) {\n"
             "    var i = e.target;\n"
+            "    if (i.validity.customError) return;   // ja traz a sua (o CCP)\n"
             "    if (i.name === 'lugar') i.setCustomValidity('O lugar é um número de 1 a 99.');\n"
+            "    else if (i.name === 'data_adjudicacao') i.setCustomValidity('Escreva a data assim: 31/12/2026.');\n"
+            "    else if (i.name === 'valor_adjudicado') i.setCustomValidity('«' + i.value + '» não é um preço. Escreva-o assim: 118 500,00.');\n"
             "    else if (i.name === 'valor_proposta') i.setCustomValidity(i.value\n"
             "        ? '«' + i.value + '» não é um preço. Escreva-o assim: 118 500,00.'\n"
             "        : 'Escreva o preço proposto.');\n"
@@ -13616,13 +13924,15 @@ def caixa_do_motivo():
             "    f.action = accao;\n"
             "    document.getElementById('dlg-motivo-estado').value = estado;\n"
             "    document.getElementById('dlg-motivo-titulo').textContent =\n"
-            "        (TITULOS[estado] || 'Motivo') + (comMotivo ? ': porquê?' : ': o que falta');\n"
+            "        (TITULOS[estado] || 'Motivo') + (comMotivo ? ': porquê?' : falta.length ? ': o que falta' : ': a adjudicação');\n"
             "    document.getElementById('dlg-motivo-alvo').textContent = titulo || '';\n"
             "    document.getElementById('dlg-motivo-nota').hidden = !comMotivo;\n"
+            "    var sugere = SUGERE[estado] || [];\n"
             "    f.querySelectorAll('[data-campo]').forEach(function (c) {\n"
-            "      var meu = falta.indexOf(c.dataset.campo) >= 0;\n"
+            "      var exige = falta.indexOf(c.dataset.campo) >= 0;\n"
+            "      var meu = exige || sugere.indexOf(c.dataset.campo) >= 0;\n"
             "      var i = c.querySelector('input');\n"
-            "      c.hidden = !meu; i.required = meu; i.disabled = !meu; i.value = '';\n"
+            "      c.hidden = !meu; i.required = exige; i.disabled = !meu; i.value = '';\n"
             "    });\n"
             "    f.querySelectorAll('.escolhas').forEach(function (g) {\n"
             "      var meu = g.dataset.para === estado;\n"
@@ -13656,7 +13966,7 @@ def caixa_do_motivo():
             "    var falta = [];\n"
             "    try { falta = JSON.parse(form.dataset.falta || '{}')[sel.value] || []; }\n"
             "    catch (erro) { falta = []; }\n"
-            "    if (pedem.indexOf(sel.value) >= 0 || falta.length) {\n"
+            "    if (pedem.indexOf(sel.value) >= 0 || falta.length || SUGERE[sel.value]) {\n"
             "      e.preventDefault();\n"
             "      abrir(form.action, form.dataset.titulo, sel.value, falta, form.dataset.base);\n"
             "      selAberto = sel;\n"
@@ -13677,20 +13987,29 @@ def caixa_do_motivo():
             "    try { falta = JSON.parse(origem.dataset.falta || '[]'); }\n"
             "    catch (erro) { falta = []; }\n"
             "    var pede = f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
-            "    if (!falta.length && !pede) return;\n"
+            "    if (!falta.length && !pede && !SUGERE[estado]) return;\n"
             "    e.preventDefault();\n"
             "    abrir(origem.action, origem.dataset.titulo, estado, falta, origem.dataset.base);\n"
             "  }, true);\n"
-            "  // o preco proposto acima do preco base pede confirmacao (E32,\n"
-            "  // art. 70.o/2-d do CCP): no dialogo e no bloco da ficha\n"
+            "  // o preco proposto acima do preco base recusa-se ja aqui (D2,\n"
+            "  // art. 70.o/2-d do CCP), no dialogo e no bloco da ficha; o\n"
+            "  // servidor recusa na mesma, e isto so poupa a volta\n"
             "  document.addEventListener('submit', function (e) {\n"
             "    var fm = e.target, i = fm.querySelector && fm.querySelector('input[name=valor_proposta]');\n"
             "    if (!i || i.disabled || !fm.dataset.base || !i.value) return;\n"
             "    var v = parseFloat(i.value.replace(/[^0-9,]/g, '').replace(',', '.'));\n"
             "    var b = parseFloat(fm.dataset.base);\n"
-            "    if (v > b && !confirm('O preço proposto está acima do preço base. Pelo '\n"
-            "        + 'art. 70.º, n.º 2, al. d) do CCP a proposta é excluída. Gravar mesmo assim?'))\n"
+            "    if (v > b) {\n"
             "      e.preventDefault();\n"
+            "      i.setCustomValidity('Acima do preço base: pelo art. 70.º, n.º 2, al. d) do CCP '\n"
+            "          + 'a proposta seria excluída. Confirme o valor.');\n"
+            "      i.reportValidity();\n"
+            "    }\n"
+            "  });\n"
+            "  // e a recusa sai quando se corrige o valor, senao o browser\n"
+            "  // nunca mais deixava gravar o bloco da ficha\n"
+            "  document.addEventListener('input', function (e) {\n"
+            "    if (e.target.name === 'valor_proposta') e.target.setCustomValidity('');\n"
             "  });\n"
             "  // cancelar (ou Esc) repoe o selector na ranhura em que a proposta\n"
             "  // ESTA: sem isto a linha ficava a dizer Submetido sem o ser\n"
@@ -13706,7 +14025,7 @@ def caixa_do_motivo():
             "  document.getElementById('dlg-motivo-nao').addEventListener(\n"
             "      'click', function () { d.close(); repor(); });\n"
             "})();\n"
-            "</script>" % (campos, grupos, titulos))
+            "</script>" % (campos, grupos, titulos, sugere))
 
 
 def _iniciais(nome):
@@ -16103,7 +16422,10 @@ _NOMES_ACCAO = {"análise": "leitura",
                 "tipologia": "tipologia", "cv": "CV",
                 "proposta_tecnica": "proposta técnica", "motivo": "motivo",
                 "ebitda": "EBITDA", "titulo": "título", "entidade": "cliente",
-                "porque_sem_ref": "porque não tem anúncio"}
+                "porque_sem_ref": "porque não tem anúncio",
+                "data_adjudicacao": "data da adjudicação",
+                "audiencia_em": "notificação do relatório preliminar",
+                "valor_adjudicado": "valor adjudicado"}
 
 
 def resumo_filtro(consulta, vista=None):
@@ -16671,18 +16993,27 @@ def _recado_do_preco_do_pedido():
     if bruto and bruto.strip() and preco_escrito(bruto) is None:
         return ("«%s» não é um preço. Escreva-o assim: 118 500,00."
                 % corta(" ".join(bruto.split()), 40))
-    return ""
+    # e as datas e o valor do desfecho, que o diálogo do «Ganho» e do
+    # «Perdido» também pede (D3, D10)
+    return _desfecho_do_pedido(request.values, vazio_apaga=False)[1]
 
 
 def preco_base_da_proposta(p):
     """O preço base de uma proposta, em euros, ou None: o dela (as que
-    não vêm do DR) ou o do anúncio."""
+    não vêm do DR) ou o do anúncio.
+
+    **O de um lote é o do LOTE** (D2, 26/09/2026): uma proposta ao lote
+    2 sem o preço dele gravado caía no do procedimento inteiro, que é o
+    tecto errado. Vai buscá-lo à coluna `lotes` do anúncio, e sem ele lá
+    fica None -- não se sabe. A proposta ao conjunto (lote 0) é o total."""
     base = euros_do_texto(_valor(p, "preco_base") or "")
     if base is None and _valor(p, "ref"):
         with liga() as c:
-            linha = c.execute("SELECT preco_base FROM anuncios WHERE ref=?",
-                              (p["ref"],)).fetchone()
-        base = euros_do_texto((linha["preco_base"] if linha else "") or "")
+            linha = c.execute("SELECT preco_base, lotes FROM anuncios "
+                              "WHERE ref=?", (p["ref"],)).fetchone()
+        if linha:
+            base = euros_do_texto(
+                preco_base_do_lote(linha, _valor(p, "lote")) or "")
     return base
 
 
@@ -16752,6 +17083,11 @@ def _campos_exigidos_do_pedido(estado, motivo=""):
                 lugar = 0
             if 1 <= lugar <= 99:          # fora disso fica «em falta»
                 campos["lugar"] = lugar
+    # O que a ranhura SUGERE (D3, D10): a data da adjudicação e o valor
+    # adjudicado vêm no mesmo gesto, e vazios não apagam nada.
+    sugere = CAMPOS_QUE_A_RANHURA_SUGERE.get(estado, ())
+    desfecho, _ = _desfecho_do_pedido(request.values, vazio_apaga=False)
+    campos.update((k, v) for k, v in desfecho.items() if k in sugere)
     return campos
 
 
@@ -16836,6 +17172,11 @@ def mudar_estado(ref, novo):
             falta = falta_para_a_ranhura(traz, accao)
             if falta:
                 return _volta_com_erro(recado_do_que_falta(accao, falta))
+            # e o CCP (D2), antes de criar pela mesma razão
+            recado = recusa_do_preco(traz.get("valor_proposta"),
+                                     preco_base_da_proposta({"ref": ref}))
+            if recado:
+                return _volta_com_erro(recado)
             id_ = criar_proposta(ref, estado=accao)
             if traz:
                 gravar_campos_da_proposta(id_, list(traz), list(traz.values()))
@@ -17589,6 +17930,7 @@ SECCOES_CONFIG = (
     ("interesse", "Perfil da empresa", "os CPV, os distritos e o valor que a empresa trabalha", False, True),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
     ("importar", "Importar dados", "o registo da empresa, pelo modelo Excel", False, True),
+    ("documentos", "Documentos da empresa", "alvará, certidões, ISO e seguros, com a validade", False, True),
     ("indicadores", "Indicadores", "as capturas, a recolha e os contratos do Portal BASE", True, False),
     ("capturas", "Capturas", "os dois pedidos ao DR", True, True),
     ("recolha", "Recolha", "horas, janelas, a Vortal", True, True),
@@ -17604,7 +17946,10 @@ def seccoes_visiveis():
     capturas, as chaves da IA, as copias e os indicadores. Vivem na
     administracao da plataforma (/plataforma), que so o dono abre; a
     porta (ROTAS_SO_DONO) e quem recusa, isto e so o indice."""
-    return [sc for sc in SECCOES_CONFIG if not sc[3]]
+    # e as do admin da empresa (o cofre dos documentos) só a ele: um
+    # índice que leva a um 403 é uma porta pintada
+    return [sc for sc in SECCOES_CONFIG if not sc[3]
+            and (sou_admin() or not so_admin("/configuracoes/" + sc[0]))]
 
 
 def seccoes_da_plataforma():
@@ -18572,6 +18917,122 @@ def config_empresa():
                             "dígito não confere). Nada foi guardado." % nif[:12])
     gravar_config_registado({"nome_da_empresa": nome, "nif_da_empresa": nif})
     return volta_config("conta", "A nossa empresa: guardada.")
+
+
+def _documento_do_pedido(form):
+    """((tipo, descricao, validade ISO ou None), recado) do formulário de
+    um documento do cofre. A validade que não se lê recusa-se: gravá-la
+    vazia era perder a tarefa sem dizer nada."""
+    tipo = (form.get("tipo") or "").strip()
+    if tipo not in TIPOS_DE_DOCUMENTO:
+        return None, "Escolha o tipo de documento da lista."
+    descricao = texto_de_campo(form.get("descricao"), 120)
+    bruta = " ".join((form.get("validade") or "").split())
+    validade = data_de_filtro(bruta) if bruta else None
+    if bruta and not validade:
+        return None, "«%s» não é uma data (dd/mm/aaaa)." % corta(bruta, 20)
+    return (tipo, descricao, validade), ""
+
+
+@app.route("/configuracoes/documentos", methods=["GET", "POST"])
+def config_documentos():
+    """O cofre dos documentos da empresa (D5 da segunda ronda,
+    26/09/2026): o tipo, o número ou a descrição, e a validade. Sem
+    ficheiros. Cada validade dá uma tarefa 15 dias antes
+    (`sincronizar_documentos()`). Só o admin da empresa (ROTAS_SO_ADMIN)."""
+    if request.method == "POST":
+        doc, recado = _documento_do_pedido(request.form)
+        if recado:
+            return volta_config("documentos", recado, erro=True)
+        with liga() as c:
+            c.execute("INSERT INTO documentos_da_empresa (tipo, descricao, "
+                      "validade, criado_em) VALUES (?,?,?,?)",
+                      doc + (datetime.now().strftime("%Y-%m-%d %H:%M"),))
+        registar("", "documento", "%s %s: válido até %s"
+                 % (doc[0], doc[1], data_pt(doc[2], "sem validade")))
+        sincronizar_documentos()
+        return volta_config("documentos", "Documento guardado.")
+    with liga() as c:
+        docs = c.execute("SELECT * FROM documentos_da_empresa ORDER BY "
+                         "COALESCE(validade, '9999'), id").fetchall()
+    hoje = datetime.now().date().isoformat()
+
+    def opcoes(actual):
+        return "".join("<option%s>%s</option>"
+                       % (" selected" if t == actual else "", html.escape(t))
+                       for t in TIPOS_DE_DOCUMENTO)
+
+    def estado(d):
+        if not d["validade"]:
+            return "<span class='mg-tag'>sem validade</span>"
+        if d["validade"] < hoje:
+            return "<span class='mg-tag mg-tag--danger'>caducado</span>"
+        aviso = tarefa_do_documento(d)[0]
+        if aviso <= hoje:
+            return "<span class='mg-tag mg-tag--warning'>a caducar</span>"
+        return "<span class='mg-tag mg-tag--success'>válido</span>"
+    linhas = "".join(
+        "<tr><td>%s</td><td><form class='doc-linha' method='post' "
+        "action='/configuracoes/documentos/%d'>"
+        "<select name='tipo' aria-label='Tipo'>%s</select>"
+        "<input type='text' name='descricao' value='%s' maxlength='120' "
+        "aria-label='Número ou descrição' placeholder='n.º ou descrição'>"
+        "<input type='text' name='validade' value='%s' inputmode='numeric' "
+        "maxlength='10' placeholder='dd/mm/aaaa' aria-label='Válido até' "
+        "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
+        "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
+        "Guardar</button></form></td><td>%s</td></tr>"
+        % (estado(d), d["id"], opcoes(d["tipo"]),
+           html.escape(d["descricao"] or "", quote=True),
+           html.escape(data_pt(d["validade"], ""), quote=True),
+           accao("/configuracoes/documentos/%d/apagar" % d["id"], "Remover",
+                 "mini perigo", "Remover «%s %s»? A tarefa dele sai também."
+                 % (d["tipo"], d["descricao"] or "")))
+        for d in docs)
+    tabela = ("<table class='mg-table tab-docs'><thead><tr><th>Estado</th>"
+              "<th>Documento e validade</th><th></th></tr></thead>"
+              "<tbody>%s</tbody></table>" % linhas) if docs else (
+        "<p class='nota'>Ainda não há documentos no cofre.</p>")
+    novo = ("<form method='post' class='conf-form' style='margin-top:18px'>"
+            "<label class='conf-campo'><span>Tipo</span><select name='tipo'>"
+            "%s</select></label>%s%s"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Juntar"
+            "</button></form>"
+            % (opcoes(""), _campo("Número ou descrição", "descricao", "",
+                                  extra="maxlength='120'"),
+               _campo("Válido até", "validade", "",
+                      nota="dd/mm/aaaa; vazio se não caduca",
+                      extra="inputmode='numeric' maxlength='10' "
+                            "placeholder='dd/mm/aaaa'")))
+    return pagina_config("documentos", (
+        "<div class='mg-card conf-cx'><p class='nota'>O alvará, as "
+        "certidões, as ISO e os seguros, com a validade. Os ficheiros "
+        "ficam onde a empresa os tem: aqui fica o que caduca. %d dias "
+        "antes de cada validade nasce uma tarefa no Hoje, e mudar a "
+        "validade troca-a pela da data nova.</p>%s%s</div>"
+        % (DIAS_ANTES_DA_VALIDADE, tabela, novo)))
+
+
+@app.route("/configuracoes/documentos/<int:id_>", methods=["POST"])
+def config_documento_gravar(id_):
+    doc, recado = _documento_do_pedido(request.form)
+    if recado:
+        return volta_config("documentos", recado, erro=True)
+    with liga() as c:
+        c.execute("UPDATE documentos_da_empresa SET tipo=?, descricao=?, "
+                  "validade=? WHERE id=?", doc + (id_,))
+    registar("", "documento", "%s %s: válido até %s"
+             % (doc[0], doc[1], data_pt(doc[2], "sem validade")))
+    sincronizar_documentos()
+    return volta_config("documentos", "Documento guardado.")
+
+
+@app.route("/configuracoes/documentos/<int:id_>/apagar", methods=["POST"])
+def config_documento_apagar(id_):
+    with liga() as c:
+        c.execute("DELETE FROM documentos_da_empresa WHERE id=?", (id_,))
+    sincronizar_documentos()          # leva as tarefas dele
+    return volta_config("documentos", "Documento removido.")
 
 
 # Os papéis como o ecrã os diz (segunda ronda, glossário do revisor de
@@ -24022,6 +24483,28 @@ def _campos_que_a_ranhura_pede(p):
             "<label>Os três primeiros<input type='text' name='top3' "
             "value='%s' placeholder='1º … · 2º … · 3º …'></label>"
             % html.escape(p["top3"] or "", quote=True))
+    # As datas e o valor do desfecho (D3 e D10, 26/09/2026): cada um da
+    # ranhura em que acontece, e sempre que já tem valor.
+    def data(nome, rotulo, titulo):
+        return ("<label title='%s'>%s<input type='text' name='%s' value='%s' "
+                "inputmode='numeric' maxlength='10' placeholder='dd/mm/aaaa' "
+                "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'></label>"
+                % (html.escape(titulo, quote=True), rotulo, nome,
+                   html.escape(data_pt(_valor(p, nome), ""), quote=True)))
+    if estado in ("relatorio", "ganho", "perdido") or _valor(p, "audiencia_em"):
+        pecas.append(data(
+            "audiencia_em", "Notificação do relatório preliminar",
+            "Abre a tarefa da audiência prévia: %d dias úteis, o mínimo do "
+            "art. 147.º do CCP" % DIAS_DE_PRONUNCIA))
+    if estado in ("ganho", "perdido") or _valor(p, "data_adjudicacao"):
+        pecas.append(data(
+            "data_adjudicacao", "Data da adjudicação",
+            "É por esta data que o Ponto de situação conta o período"))
+    if estado == "ganho" or _valor(p, "valor_adjudicado"):
+        pecas.append(
+            "<label>Valor adjudicado<input type='text' name='valor_adjudicado' "
+            "value='%s' placeholder='vazio: o proposto'></label>"
+            % html.escape(_valor(p, "valor_adjudicado") or "", quote=True))
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos:
         pecas.append(
@@ -24054,9 +24537,9 @@ def _tarefas_da_ficha(p):
                 % (tom(classe),
                    html.escape(texto_prazo or data_pt(t["quando"]))))
                if t["quando"] else "",
-               "<span class='mg-tag' title='vem das datas do DR e "
-               "acompanha-as'>automática</span>"
-               if t["origem"] in ORIGENS_AUTOMATICAS else "",
+               "<span class='mg-tag' title='%s'>automática</span>"
+               % DE_ONDE_VEM[t["origem"]]
+               if t["origem"] in DE_ONDE_VEM else "",
                ("<span class='mg-tag'>%s</span>" % html.escape(t["quem"]))
                if t["quem"] else "",
                # adiar e atribuir. **É aqui que vivem desde 17/09/2026**:
@@ -24187,8 +24670,9 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
             "%s%s"
             "%s<label>CoE<input type='text' name='coe' value='%s' "
             "maxlength='60'></label>"
-            "<label class='largo'>Notas<textarea name='notas' rows='4' "
-            "maxlength='500' placeholder='notas…'>%s</textarea></label>"
+            "<label class='largo'>Nota nova<textarea name='nota_nova' rows='3' "
+            "maxlength='500' placeholder='fica com a data e o seu nome; as "
+            "anteriores não se apagam'></textarea></label>"
             "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>%s</div>"
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
@@ -24205,8 +24689,25 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
                 % html.escape(p["responsavel"] or "", quote=True))
                if com_responsavel else "",
                html.escape(p["coe"] or "", quote=True),
-               html.escape(p["notas"] or "", quote=True),
-               faixa_do_desfecho(p, desfecho, cfg) + _tarefas_da_ficha(p)))
+               faixa_do_desfecho(p, desfecho, cfg) + _notas_da_ficha(p)
+               + _tarefas_da_ficha(p)))
+
+
+def _notas_da_ficha(p):
+    """As notas da proposta, a mais recente primeiro, cada uma com quem
+    e quando (D3). A caixa de escrever está no formulário de cima."""
+    notas = notas_de(p["id"])
+    if not notas:
+        return ""
+    return ("<div class='prop-notas'><div class='mg-field__label'>Notas</div>"
+            "<ul class='notas'>%s</ul></div>"
+            % "".join("<li><div class='nota-cab'>%s%s</div>"
+                      "<div class='nota-texto'>%s</div></li>"
+                      % (html.escape(data_hora_pt(n["quando"]))
+                         if n["quando"] else "antes das notas datadas",
+                         " &middot; " + html.escape(n["quem"]) if n["quem"] else "",
+                         html.escape(n["texto"] or ""))
+                      for n in notas))
 
 
 def _preco_proposto_do_pedido(estado):
@@ -24223,6 +24724,51 @@ def _preco_proposto_do_pedido(estado):
         return None, ("Em «%s» o preço proposto não pode ficar vazio."
                       % estado_da_empresa(estado))
     return valor, ""
+
+
+def _desfecho_do_pedido(form, vazio_apaga=True):
+    """({campo: valor}, recado) das datas e do valor do desfecho que o
+    pedido trouxe (D3 e D10, 26/09/2026). As datas gravam-se em ISO, o
+    valor no formato do preço. O que não se lê recusa-se -- gravar uma
+    data vazia por se ter escrito «ontem» era perder o que se escreveu.
+
+    Sem `vazio_apaga` (o diálogo do «Ganho», onde são sugeridos e não
+    exigidos) um campo vazio fica de fora em vez de apagar o que lá está.
+    """
+    campos = {}
+    for nome in COLUNAS_DO_DESFECHO:
+        if nome not in form:
+            continue
+        bruto = " ".join((form.get(nome) or "").split())
+        if not bruto:
+            if vazio_apaga:
+                campos[nome] = None
+            continue
+        if nome == "valor_adjudicado":
+            valor = preco_escrito(bruto)
+            if not valor:
+                return {}, ("«%s» não se lê como preço. Escreva-o assim: "
+                            "118 500,00." % corta(bruto, 40))
+        else:
+            valor = data_de_filtro(bruto)
+            if not valor:
+                return {}, ("«%s» não é uma data (dd/mm/aaaa)."
+                            % corta(bruto, 20))
+        campos[nome] = valor
+    return campos, ""
+
+
+def _depois_do_desfecho(antes, desfecho):
+    """Uma data de notificação do relatório preliminar nova ou mudada
+    refaz a tarefa da audiência prévia: a que estava por fazer sai, e a
+    sincronização cria a da data nova. Uma já feita fica -- é um facto."""
+    if "audiencia_em" not in desfecho or \
+            (_valor(antes, "audiencia_em") or None) == desfecho["audiencia_em"]:
+        return
+    with liga() as c:
+        c.execute("DELETE FROM tarefas WHERE proposta_id=? AND origem=? "
+                  "AND feita_em IS NULL", (antes["id"], ORIGEM_DA_AUDIENCIA))
+    sincronizar_tarefas(antes["ref"] or None)
 
 
 @app.route("/proposta/<int:id_>/ficha", methods=["POST"])
@@ -24256,11 +24802,11 @@ def proposta_da_ficha(id_):
             return _volta_com_erro("O lugar é um número de 1 a 99.")
         campos.append("lugar")
         valores.append(lugar)
-    for nome, tecto in (("top3", 300), ("coe", 60), ("notas", 500)):
+    for nome, tecto in (("top3", 300), ("coe", 60)):
         if nome in request.form:
             campos.append(nome)
-            valores.append(texto_de_campo(request.form.get(nome), tecto,
-                                          linhas=nome == "notas") or None)
+            valores.append(texto_de_campo(request.form.get(nome), tecto)
+                           or None)
     for nome, _, permitidos in CAMPOS_DA_EMPRESA:
         if nome in request.form:
             valor = (request.form.get(nome) or "").strip()
@@ -24278,7 +24824,16 @@ def proposta_da_ficha(id_):
     if "responsavel" in request.form:
         campos.append("responsavel")
         valores.append(criar_pessoa(request.form.get("responsavel")))
-    gravar_campos_da_proposta(id_, campos, valores)
+    desfecho, recado = _desfecho_do_pedido(request.form)
+    if recado:
+        return _volta_com_erro(recado)
+    campos += list(desfecho)
+    valores += list(desfecho.values())
+    recado = gravar_campos_da_proposta(id_, campos, valores)
+    if recado:
+        return _volta_com_erro(recado)
+    _depois_do_desfecho(p, desfecho)
+    gravar_nota(id_, request.form.get("nota_nova"))
     ccp = aviso_do_ccp(id_) if "valor_proposta" in campos else ""
     if ccp:
         return _volta_com_aviso("Gravado. " + ccp, erro=True,
@@ -24327,8 +24882,7 @@ CAMPOS_EDITAVEIS_DA_PROPOSTA = (
     ("titulo", "título", 200), ("entidade", "cliente", 120),
     ("porque_sem_ref", "porque não tem anúncio", 120),
     ("preco_base", "preço base", 40), ("valor_proposta", "proposto", 40),
-    ("coe", "CoE", 60), ("top3", "os três primeiros", 300),
-    ("notas", "notas", 500))
+    ("coe", "CoE", 60), ("top3", "os três primeiros", 300))
 
 
 @app.route("/proposta/nova", methods=["GET", "POST"])
@@ -24502,14 +25056,20 @@ def proposta_gravar(id_):
             campos.append(nome)
             valores.append((preco_escrito(request.form.get(nome))
                             if nome in ("valor_proposta", "preco_base") else
-                            texto_de_campo(request.form.get(nome), tecto,
-                                           linhas=nome == "notas"))
+                            texto_de_campo(request.form.get(nome), tecto))
                            or None)
     if "responsavel" in request.form:
         campos.append("responsavel")
         valores.append(criar_pessoa(request.form.get("responsavel")))
-    if campos:
-        gravar_campos_da_proposta(id_, campos, valores)
+    desfecho, recado = _desfecho_do_pedido(request.form)
+    campos += list(desfecho)
+    valores += list(desfecho.values())
+    recado = recado or gravar_campos_da_proposta(id_, campos, valores)
+    if recado:
+        return redirect("/proposta/%d?" % id_ + urlencode({"tom": "erro",
+                                                           "aviso": recado}))
+    _depois_do_desfecho(p, desfecho)
+    gravar_nota(id_, request.form.get("nota_nova"))
     return redirect("/proposta/%d?" % id_ + urlencode({"aviso": "Guardado."}))
 
 
@@ -24937,14 +25497,23 @@ def pipeline_em_euros():
     return fora
 
 
-def _fragmento_da_janela(janela, coluna="fechada_em"):
+# A data pela qual uma proposta decidida conta num periodo: a da
+# adjudicacao quando alguem a escreveu (D3 da segunda ronda, 26/09/2026,
+# decisao dele), e so sem ela a `fechada_em` -- o dia em que se marcou
+# como decidida no Mira Gov. Um ganho de Dezembro marcado em Marco
+# contava no trimestre errado (E23).
+DATA_DA_DECISAO = "COALESCE(NULLIF(data_adjudicacao, ''), fechada_em)"
+
+
+def _fragmento_da_janela(janela, coluna=DATA_DA_DECISAO):
     """(fragmento SQL, valores) que recorta uma consulta a um periodo.
 
     `janela` e `(desde, ate)` em ISO, ou None para "tudo". A coluna de
-    omissao e a `fechada_em`, que e a data em que a proposta se DECIDIU
-    -- e a unica que responde a "quanto se ganhou no 3.o trimestre". Uma
-    proposta ainda aberta nao tem essa data e fica de fora de qualquer
-    periodo, que e o correcto: nao se decidiu em nenhum.
+    omissao e a DATA_DA_DECISAO -- a da adjudicacao, e a `fechada_em`
+    quando ela falta --, a unica que responde a "quanto se ganhou no 3.o
+    trimestre". Uma proposta ainda aberta nao tem nenhuma das duas e fica
+    de fora de qualquer periodo, que e o correcto: nao se decidiu em
+    nenhum.
     """
     if not janela:
         return "", []
@@ -25290,20 +25859,24 @@ def janelas_do_periodo(chave, hoje):
             (antes[0].isoformat(), antes[1].isoformat()), rotulo)
 
 
-def ganho_no_periodo(janela=None):
-    """(euros, quantos) ganhos no periodo.
+def valor_ganho(p):
+    """O que uma proposta ganha soma: o valor ADJUDICADO (D10 da segunda
+    ronda, 26/09/2026), que e o que se factura; sem ele, o proposto; e
+    so sem os dois o preco base, de aproximacao. Um sitio so, para o
+    numero e a tabela que o confirma nao se contradizerem."""
+    return (euros_do_texto(_valor(p, "valor_adjudicado") or "")
+            or euros_do_texto(p["valor_proposta"] or "")
+            or euros_do_texto(p["preco_base"] or "") or 0.0)
 
-    O valor e o PROPOSTO, que e o que se factura; sem ele lido, o preco
-    base serve de aproximacao -- a mesma regra do `pipeline_em_euros()`,
-    para os dois numeros da mesma pagina nao se contradizerem."""
+
+def ganho_no_periodo(janela=None):
+    """(euros, quantos) ganhos no periodo, pelo `valor_ganho()`."""
     recorte, vals = _fragmento_da_janela(janela)
     with liga() as c:
         linhas = c.execute(
-            "SELECT preco_base, valor_proposta FROM propostas "
-            "WHERE estado='ganho'" + recorte, vals).fetchall()
-    euros = sum(euros_do_texto(l["valor_proposta"])
-                or euros_do_texto(l["preco_base"]) or 0.0 for l in linhas)
-    return euros, len(linhas)
+            "SELECT preco_base, valor_proposta, valor_adjudicado "
+            "FROM propostas WHERE estado='ganho'" + recorte, vals).fetchall()
+    return sum(valor_ganho(l) for l in linhas), len(linhas)
 
 
 def _propostas_por_estado():
@@ -25349,17 +25922,18 @@ def _numero_da_situacao(rotulo, valor, delta, nota, porque="", alvo=""):
 
 
 def decididas_no_periodo(janela=None):
-    """As propostas ganhas e perdidas no periodo, pela `fechada_em` --
+    """As propostas ganhas e perdidas no periodo, pela DATA_DA_DECISAO --
     as linhas de que saem a taxa, o ganho e o desconto do ponto de
     situacao. Mais recentes primeiro."""
     recorte, vals = _fragmento_da_janela(janela)
     with liga() as c:
         return c.execute(
             "SELECT id, ref, titulo, entidade, estado, preco_base, "
-            "valor_proposta, fechada_em FROM propostas "
-            "WHERE estado IN ('ganho','perdido')" + recorte
-            + " ORDER BY COALESCE(fechada_em,'') DESC, id DESC",
-            vals).fetchall()
+            "valor_proposta, valor_adjudicado, fechada_em, data_adjudicacao, "
+            "%s AS decidida FROM propostas "
+            "WHERE estado IN ('ganho','perdido')%s"
+            " ORDER BY COALESCE(decidida,'') DESC, id DESC"
+            % (DATA_DA_DECISAO, recorte), vals).fetchall()
 
 
 def desconto_ponderado(linhas):
@@ -25386,17 +25960,21 @@ def tabela_das_decididas(linhas, rotulo_periodo):
                 "ganha ou perdida neste período.</div></div>"
                 % html.escape(rotulo_periodo))
     ganhas = [l for l in linhas if l["estado"] == "ganho"]
-    total = sum(euros_do_texto(l["valor_proposta"])
-                or euros_do_texto(l["preco_base"]) or 0.0 for l in ganhas)
+    total = sum(valor_ganho(l) for l in ganhas)
     corpo = "".join(
         "<tr><td class='mg-num'>%s</td><td><a href='%s'>%s</a></td>"
-        "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
-        % (data_pt((l["fechada_em"] or "")[:10], "—"),
+        "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
+        "<td class='p'>%s</td></tr>"
+        % (data_pt((l["decidida"] or "")[:10], "—")
+           + ("" if l["data_adjudicacao"] else
+              " <span class='nota' title='sem data da adjudicação: é o dia "
+              "em que se marcou no Mira Gov'>(marcada)</span>"),
            ("/anuncio/" + quote(l["ref"], safe="")) if l["ref"]
            else "/proposta/%d" % l["id"],
            html.escape(corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70)),
            html.escape(estado_da_empresa(l["estado"])),
-           preco_pt(l["preco_base"]), preco_pt(l["valor_proposta"]))
+           preco_pt(l["preco_base"]), preco_pt(l["valor_proposta"]),
+           preco_pt(l["valor_adjudicado"]) if l["estado"] == "ganho" else "")
         for l in linhas)
     return ("<div class='mg-card tab-cx' id='decididas'>"
             "<div class='mg-field__label' style='padding:16px 16px 0'>"
@@ -25404,18 +25982,74 @@ def tabela_das_decididas(linhas, rotulo_periodo):
             "<table class='mg-table tab-contratos'><thead><tr>"
             "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
             "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
+            "<th class='p'>Adjudicado</th>"
             "</tr></thead><tbody>%s</tbody><tfoot><tr><td></td>"
-            "<td><b>%s ganha%s, %s perdida%s</b></td><td></td><td></td>"
+            "<td><b>%s ganha%s, %s perdida%s</b></td><td></td><td></td><td></td>"
             "<td class='p'><b>%s</b></td></tr></tfoot></table>"
-            "<div class='nota' style='padding:0 16px 16px'>A data é a do dia "
-            "em que a proposta se marcou como decidida no Mira Gov, e não "
-            "a da adjudicação. O total soma o proposto das ganhas (o preço "
-            "base quando falta o proposto).</div></div>"
+            "<div class='nota' style='padding:0 16px 16px'>A data é a da "
+            "adjudicação; sem ela, a do dia em que a proposta se marcou como "
+            "decidida no Mira Gov («marcada»). O total soma o adjudicado das "
+            "ganhas (o proposto quando falta o adjudicado, e o preço base "
+            "quando faltam os dois).</div></div>"
             % (html.escape(rotulo_periodo), corpo,
                mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s",
                mil_pt(len(linhas) - len(ganhas)),
                "" if len(linhas) - len(ganhas) == 1 else "s",
                html.escape(euros(total))))
+
+
+# O «Em jogo» em dois (D10 da segunda ronda, 26/09/2026, decisao dele):
+# o que ainda se esta a ver, pelo preco base, e o que ja se entregou,
+# pelo proposto. Somados davam um numero que misturava o tecto das
+# entidades com o que se propos (E22).
+GRUPOS_EM_JOGO = (("em-analise", "Em análise", ("analisar", "proposta")),
+                  ("entregues", "Proposta entregue", ("submetido", "relatorio")))
+
+
+def valor_em_jogo(p):
+    """O que uma proposta aberta poe em jogo: o proposto a partir do
+    Submetido, o preco base antes (e o base quando falta o proposto) --
+    a regra do `pipeline_em_euros()`, linha a linha."""
+    if p["estado"] in ESTADOS_COM_PROPOSTO:
+        v = euros_do_texto(p["valor_proposta"] or "")
+        if v:
+            return v
+    return euros_do_texto(p["preco_base"] or "") or 0.0
+
+
+def tabela_em_jogo(ancora, rotulo, estados):
+    """A lista que confirma um dos dois «em jogo», com o total: cada
+    numero abre a sua (a regra da casa)."""
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT * FROM propostas WHERE estado IN (%s) "
+            "ORDER BY COALESCE(criada_em,'') DESC, id DESC"
+            % ",".join("?" * len(estados)), list(estados)).fetchall()
+    cabeca = ("<div class='mg-field__label' style='padding:16px 16px 0'>%s"
+              "</div>" % html.escape(rotulo))
+    if not linhas:
+        return ("<div class='mg-card tab-cx' id='%s'>%s<div class='nota' "
+                "style='padding:6px 16px 16px'>Nenhuma proposta em %s.</div>"
+                "</div>" % (ancora, cabeca, " nem em ".join(
+                    "«%s»" % estado_da_empresa(e) for e in estados)))
+    corpo = "".join(
+        "<tr><td><a href='%s'>%s</a></td><td>%s</td>"
+        "<td class='p'>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
+        % (("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
+           else "/proposta/%d" % p["id"],
+           html.escape(corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70)),
+           html.escape(estado_da_empresa(p["estado"])),
+           preco_pt(p["preco_base"]), preco_pt(p["valor_proposta"]),
+           euros(valor_em_jogo(p)))
+        for p in linhas)
+    return ("<div class='mg-card tab-cx' id='%s'>%s"
+            "<table class='mg-table tab-contratos'><thead><tr>"
+            "<th>Concurso</th><th>Fase</th><th class='p'>Preço base</th>"
+            "<th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead>"
+            "<tbody>%s</tbody><tfoot><tr><td><b>%s</b></td><td></td><td></td>"
+            "<td></td><td class='p'><b>%s</b></td></tr></tfoot></table></div>"
+            % (ancora, cabeca, corpo, plural(len(linhas), "proposta"),
+               html.escape(euros(sum(valor_em_jogo(p) for p in linhas)))))
 
 
 @app.route("/situacao")
@@ -25467,9 +26101,6 @@ def situacao():
                     "Ainda não há decididas com CPV lido.</div>"))
     else:
         pipeline = pipeline_em_euros()
-        em_jogo = sum(d["euros"] for d in pipeline.values())
-        abertas = sum(d["quantas"] for d in pipeline.values())
-        sem_preco = sum(d["sem_preco"] for d in pipeline.values())
 
         taxa = taxa_de_vitoria(janela=janela)
         _, ganhos, decididos, valor_taxa = (taxa[0] if taxa
@@ -25490,35 +26121,32 @@ def situacao():
         # a tabela das decididas do periodo, ou as propostas abertas.
         aqui = "/situacao?%s#decididas" % urlencode(
             [("ver", "negocio"), ("periodo", periodo)])
-        # O que o «em jogo» soma, dito pelos rotulos das ranhuras: preco
-        # base numas, proposto noutras, e so se via no codigo (E22).
-        com_base = [estado_da_empresa(e) for e in ESTADOS_ABERTOS
-                    if e not in ESTADOS_COM_PROPOSTO]
-        com_proposto = [estado_da_empresa(e) for e in ESTADOS_ABERTOS
-                        if e in ESTADOS_COM_PROPOSTO]
-        porque_em_jogo = ("preço base em %s; proposto em %s (o base, "
-                          "quando falta)" % (" e ".join(com_base),
-                                             " e ".join(com_proposto)))
-
-        if em_jogo:
-            n_em_jogo = _numero_da_situacao(
-                "Em jogo", euros_curto(em_jogo),
-                # O pipeline e uma FOTOGRAFIA de agora e nao um total do
-                # periodo: comparar o que esta em jogo hoje com o que
-                # estava em jogo no trimestre passado pedia um historico
-                # que a base nao guarda, e uma seta inventada era pior
-                # do que nenhuma.
+        # O «em jogo» em dois (D10): o que se está a ver, pelo preço
+        # base, e o que se entregou, pelo proposto -- cada um abre a sua
+        # lista, com o total. Somados misturavam as duas coisas (E22).
+        def n_em_jogo(ancora, rotulo, estados):
+            euros_ = sum(pipeline[e]["euros"] for e in estados)
+            quantas = sum(pipeline[e]["quantas"] for e in estados)
+            sem = sum(pipeline[e]["sem_preco"] for e in estados)
+            nomes = " e ".join("«%s»" % estado_da_empresa(e) for e in estados)
+            porque = ("preço base das propostas em %s" % nomes
+                      if not set(estados) & set(ESTADOS_COM_PROPOSTO) else
+                      "proposto das propostas em %s (o base, quando falta)"
+                      % nomes)
+            if not euros_:
+                return _numero_da_situacao(
+                    rotulo, None, "",
+                    "as %s ainda não têm preço lido" % mil_pt(quantas)
+                    if quantas else "nenhuma proposta em %s" % nomes)
+            # uma FOTOGRAFIA de agora, e nao um total do periodo: a base
+            # nao guarda o pipeline de ontem, e uma seta inventada era
+            # pior do que nenhuma
+            return _numero_da_situacao(
+                rotulo, euros_curto(euros_),
                 "<span class='mg-stat__delta mg-stat__delta--flat'>de agora</span>",
-                "%s aberta%s%s" % (mil_pt(abertas),
-                                   "" if abertas == 1 else "s",
-                                   "; %s sem preço lido" % mil_pt(sem_preco)
-                                   if sem_preco else ""),
-                porque_em_jogo, "#em-jogo")
-        else:
-            n_em_jogo = _numero_da_situacao(
-                "Em jogo", None, "",
-                "as %s abertas ainda não têm preço lido" % mil_pt(abertas)
-                if abertas else "ainda não há propostas abertas")
+                "%s%s" % (plural(quantas, "proposta"),
+                          "; %s sem preço lido" % mil_pt(sem) if sem else ""),
+                porque, "#" + ancora)
 
         n_ganho = (_numero_da_situacao(
             "Ganho", euros_curto(euros_ganhos),
@@ -25528,14 +26156,15 @@ def situacao():
             % euros_curto(euros_antes or 0),
             "%s concurso%s" % (mil_pt(quantos_ganhos),
                                "" if quantos_ganhos == 1 else "s"),
-            "soma do proposto das %s ganha%s (o preço base, quando falta)"
+            "soma do adjudicado das %s ganha%s (o proposto, quando falta; "
+            "o preço base, quando faltam os dois)"
             % (mil_pt(quantos_ganhos), "" if quantos_ganhos == 1 else "s"),
             aqui)
             if euros_ganhos else _numero_da_situacao(
                 "Ganho", None, "", "ainda não há ganhos neste período"))
 
         numeros = "".join((
-            n_em_jogo,
+            "".join(n_em_jogo(*g) for g in GRUPOS_EM_JOGO),
             _numero_da_situacao(
                 "Taxa de vitória",
                 pct_pt(valor_taxa, 0) if valor_taxa is not None
@@ -25571,17 +26200,18 @@ def situacao():
         # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23)
         nota_periodo = (
             "<div class='nota' style='margin:16px 0 0'>Os números do "
-            "período contam pela data em que a proposta se <b>marcou como "
-            "decidida no Mira Gov</b>, e não pela data da adjudicação. "
-            "«Em jogo» é uma fotografia de agora — o que está aberto não "
-            "se decidiu em período nenhum.%s</div>"
+            "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
+            "dia em que a proposta se marcou como decidida no Mira Gov. "
+            "«Em análise» e «Proposta entregue» são uma fotografia de agora "
+            "— o que está aberto não se decidiu em período nenhum.%s</div>"
             % ("" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
         corpo = ("<div class='mg-card' style='padding:22px 24px'>"
                  "<div class='mg-stats'>%s</div>%s</div>%s%s%s"
                  % (numeros, nota_periodo,
-                    tabela_das_decididas(decididas, rotulo_periodo),
+                    "".join(tabela_em_jogo(*g) for g in GRUPOS_EM_JOGO)
+                    + tabela_das_decididas(decididas, rotulo_periodo),
                     negocio_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
 
@@ -27420,6 +28050,8 @@ def inicio():
         # para o atributo dava «60/2026 &amp;middot; Câmara», que é o que
         # a dica mostrava ao passar por cima.
         pedacos = [p for p in (t["ref"] or "",
+                               "documentos da empresa"
+                               if _valor(t, "documento_id") else "",
                                corta(t["a_entidade"] or t["entidade"] or "",
                                      30)) if p]
         concurso = " &middot; ".join(html.escape(p) for p in pedacos)
@@ -27450,8 +28082,8 @@ def inicio():
                 "<span class='hj-q%s'>%s</span>"
                 "<span class='hj-c' title='%s'>%s</span>%s%s</div>"
                 % (" feita" if feita else "", t["id"], caixa,
-                   (" title='automática: vem das datas do DR e acompanha-as'"
-                    if t["origem"] in ORIGENS_AUTOMATICAS else ""),
+                   (" title='automática: %s'" % DE_ONDE_VEM[t["origem"]]
+                    if t["origem"] in DE_ONDE_VEM else ""),
                    html.escape(t["o_que"] or ""),
                    classe_q,
                    data_curta(dia) if dia else "sem data",

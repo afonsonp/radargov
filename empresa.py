@@ -152,6 +152,10 @@ def estado_pretendido(linha):
         campos["notas"] = linha["notas"][:500]
     if st == "submetido":
         return ("submetido", campos)
+    # Num «Ganho» ou «Perdido» a data da decisao e a da adjudicacao (D3,
+    # 26/09/2026): e por ela que a Situacao conta o periodo.
+    if linha.get("data_decisao"):
+        campos["data_adjudicacao"] = linha["data_decisao"]
     campos["lugar"] = (int(linha["lugar"]) if linha.get("lugar")
                        else (1 if st == "ganho" else None))
     campos["top3"] = _texto_top3(linha.get("concorrentes")) or None
@@ -180,13 +184,17 @@ def aplicar(c, linha, ref, quem="registo da empresa"):
     if not pedido:
         return "sem estado"
     estado, campos = pedido
+    # As notas vao para as notas datadas (D3, 26/09/2026), e nao para a
+    # coluna: uma nota que ja la esteja com o mesmo texto nao se repete.
+    nota = campos.pop("notas", None)
     lote = linha.get("lote")
     p = c.execute("SELECT * FROM propostas WHERE ref=? AND "
                   "COALESCE(lote,-1)=COALESCE(?,-1)", (ref, lote)).fetchone()
     if p:
         igual = (p["estado"] == estado
                  and all((p[k] or None) == (v or None)
-                         for k, v in campos.items() if k in p.keys()))
+                         for k, v in campos.items() if k in p.keys())
+                 and not _nota_nova(c, p["id"], nota))
         if igual:
             return "igual"
         if p["estado"] != estado:
@@ -223,6 +231,10 @@ def aplicar(c, linha, ref, quem="registo da empresa"):
         sets.append("%s=?" % k)
         vals.append(v)
     c.execute("UPDATE propostas SET %s WHERE id=?" % ", ".join(sets), vals + [id_])
+    if _nota_nova(c, id_, nota):
+        c.execute("INSERT INTO notas_da_proposta (proposta_id, texto, quem, "
+                  "quando) VALUES (?,?,?,?)",
+                  (id_, nota, quem, datetime.now().strftime("%Y-%m-%d %H:%M")))
     detalhe = ("%s%s, do registo da empresa"
                % (radar.estado_da_empresa(estado),
                   " (%s)" % campos["motivo"] if campos.get("motivo") else ""))
@@ -236,6 +248,13 @@ def aplicar(c, linha, ref, quem="registo da empresa"):
                             " — " + campos["top3"] if campos.get("top3") else ""),
                   quem)
     return "aplicado"
+
+
+def _nota_nova(c, proposta_id, nota):
+    """True se `nota` tem texto e a proposta ainda nao a tem."""
+    return bool(nota) and not c.execute(
+        "SELECT 1 FROM notas_da_proposta WHERE proposta_id=? AND texto=?",
+        (proposta_id, nota)).fetchone()
 
 
 def data_da_decisao(c, linha, ref):
@@ -387,16 +406,34 @@ def desaplicar_da_copia(copia):
             antes.execute("SELECT 1 FROM propostas LIMIT 1")
         except sqlite3.OperationalError:
             refs = []
+        # So as colunas que a copia tem: uma copia de antes de uma coluna
+        # nova (as do desfecho, 26/09/2026) rebentava o SELECT inteiro.
+        na_copia = {r["name"] for r in antes.execute("PRAGMA table_info(propostas)")}
+        colunas = [k for k in radar.COLUNAS_DA_PROPOSTA if k in na_copia]
+        # As notas datadas repoem-se pela copia, como o historico: as que
+        # a importacao escreveu saem. Uma copia de antes das notas
+        # datadas traz a nota na coluna, e o `passar_as_notas()` do fim
+        # volta a faze-la a primeira.
+        try:
+            notas_da_copia = {r["id"] for r in antes.execute(
+                "SELECT id FROM notas_da_proposta")}
+        except sqlite3.OperationalError:
+            notas_da_copia = set()
         for ref in refs:
             velhas = antes.execute(
                 "SELECT %s FROM propostas WHERE ref=?"
-                % ", ".join(radar.COLUNAS_DA_PROPOSTA), (ref,)).fetchall()
+                % ", ".join(colunas), (ref,)).fetchall()
+            for n in c.execute("SELECT n.id FROM notas_da_proposta n JOIN "
+                               "propostas p ON p.id = n.proposta_id "
+                               "WHERE p.ref=?", (ref,)).fetchall():
+                if n["id"] not in notas_da_copia:
+                    c.execute("DELETE FROM notas_da_proposta WHERE id=?",
+                              (n["id"],))
             c.execute("DELETE FROM propostas WHERE ref=?", (ref,))
             for v in velhas:
                 c.execute("INSERT INTO propostas (%s) VALUES (%s)"
-                          % (", ".join(radar.COLUNAS_DA_PROPOSTA),
-                             ", ".join("?" * len(radar.COLUNAS_DA_PROPOSTA))),
-                          [v[k] for k in radar.COLUNAS_DA_PROPOSTA])
+                          % (", ".join(colunas), ", ".join("?" * len(colunas))),
+                          [v[k] for k in colunas])
             # O historico repoe-se pela COPIA e nao por `quem`: ate
             # 15/09/2026 apagava-se `WHERE quem='Excel'`, e isso deixou de
             # apanhar nada no dia em que o leitor do Excel antigo saiu --
@@ -413,6 +450,7 @@ def desaplicar_da_copia(copia):
             repostos += 1
         c.execute("UPDATE empresa SET resultado='guardado', aplicado_em=NULL "
                   "WHERE ref IS NOT NULL AND resultado != 'fora'")
+        radar.passar_as_notas(c)
     antes.close()
     return repostos, apagadas
 
@@ -501,8 +539,8 @@ def escrever_modelo(caminho):
         "Lugar: a posição no relatório preliminar (1, 2, 3…). Vazio se ainda não há relatório.",
         "Concorrentes: os nomes separados por ponto e vírgula, por ordem de classificação, ex. Empresa A; Empresa B; Empresa C.",
         "Responsável: quem da empresa acompanha este concurso (nome).",
-        "Notas: texto livre.",
-        "Data da decisão: quando se decidiu (dd/mm/aaaa) — a entrega da proposta, a adjudicação ou o «não vamos». Conta para o período do Ponto de situação; vazia, conta o prazo do anúncio.",
+        "Notas: entram como uma nota da proposta, com o seu nome e a data da importação; as que a proposta já tinha ficam.",
+        "Data da decisão: quando se decidiu (dd/mm/aaaa) — a entrega da proposta, a adjudicação ou o «não vamos». Em «Ganho» e «Perdido» é a data da adjudicação, e fica gravada como tal. Conta para o período do Ponto de situação; vazia, conta o prazo do anúncio.",
         "",
         "Exemplo:  1947/2026 | 2 | Ganho |  | 169344 | 1 | Nós; Empresa B; Empresa C | Afonso | contrato de 24 meses | 15/03/2026",
         "",
@@ -666,8 +704,18 @@ def ensaio_modelo(c, linhas):
         l["titulo"] = ""
         a = None
         if l["ref"]:
-            a = c.execute("SELECT ref, titulo, estado, lotes FROM anuncios WHERE ref=?",
-                          (l["ref"],)).fetchone()
+            a = c.execute("SELECT ref, titulo, estado, lotes, preco_base "
+                          "FROM anuncios WHERE ref=?", (l["ref"],)).fetchone()
+            # O CCP (D2, 26/09/2026): acima do preço base do LOTE (ou do
+            # total, sem lote) a linha não entra, como na ficha
+            if a and l.get("valor_proposta"):
+                import radar
+                recado = radar.recusa_do_preco(
+                    radar._texto_do_preco(l["valor_proposta"]),
+                    radar.euros_do_texto(
+                        radar.preco_base_do_lote(a, l["lote"]) or ""))
+                if recado:
+                    problemas.append(recado)
             if not a:
                 problemas.append("não há anúncio %s na base" % l["ref"])
             else:
@@ -741,6 +789,9 @@ def _efeitos(c, linhas):
                                 % radar.estado_da_empresa(p["estado"]))
         else:
             mudancas = []
+            nota = campos.pop("notas", None)
+            if _nota_nova(c, p["id"], nota):
+                mudancas.append("nota nova «%s»" % radar.corta(nota, 30))
             for k, v in campos.items():
                 if (p[k] or None) == (v or None):
                     continue
