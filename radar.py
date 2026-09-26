@@ -7759,6 +7759,26 @@ def apagar_empresa(id_):
     guardada = os.path.join(COPIAS, "empresa-%d-apagada-%s" % (
         id_, datetime.now().strftime("%Y-%m-%d-%H%M%S")))
     shutil.move(os.path.dirname(db_da_empresa(id_)), guardada)
+    # A pasta sai PRIMEIRO: se o move falhar (OSError), nada se apagou na
+    # base. E se a base falhar depois, a pasta volta -- nunca fica uma
+    # empresa sem ficheiro com as contas ainda la, nem o contrario.
+    try:
+        saiu = _apagar_da_plataforma(id_)
+    except Exception:
+        shutil.move(guardada, os.path.dirname(db_da_empresa(id_)))
+        raise
+    # Uma empresa apagada nao fica na lista das suspensas (26/09/2026):
+    # o `criar_empresa()` da o numero a seguir ao maior, e a nova que
+    # herdasse o numero da ultima apagada nascia suspensa.
+    suspensas = empresas_suspensas()
+    if id_ in suspensas:
+        gravar_config({"empresas_suspensas": sorted(suspensas - {id_})})
+        saiu["suspensão"] = 1
+    return copia, guardada, saiu
+
+
+def _apagar_da_plataforma(id_):
+    """O que o `apagar_empresa()` tira do radar.db, numa transaccao so."""
     saiu = {}
     with _abre(DB) as c:
         saiu["sessões"] = c.execute(
@@ -7773,7 +7793,12 @@ def apagar_empresa(id_):
                                      (id_,)).rowcount
         saiu["leituras pedidas"] = c.execute(
             "DELETE FROM leituras_pedidas WHERE empresa_id=?", (id_,)).rowcount
-    return copia, guardada, saiu
+        # o dono que estava a ver esta empresa (o modo de suporte) deixa
+        # de a ver: a marca ficava na sessao, e com o numero reaproveitado
+        # abria a empresa nova
+        saiu["modo de suporte"] = c.execute(
+            "UPDATE sessoes SET ver_como=NULL WHERE ver_como=?", (id_,)).rowcount
+    return saiu
 
 
 # As marcas da tabela `estado` que dizem quem usou e como, e nao o que
@@ -19111,10 +19136,12 @@ def plataforma_empresa(id_):
             "o e-mail não sai (suspensa)" if suspensa else
             "o e-mail sai" if not e["email"] else "o e-mail não sai"))
     corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "%s%s%s%s%s%s</div>"
+             "%s%s%s%s%s%s%s</div>"
              % ("<div class='mg-alert mg-alert--danger'>Suspensa: as contas não entram "
                 "e não recebe alertas.</div>" if suspensa else "",
-                stats, bloco_contas, bloco_convites, bloco_alertas, bloco_perfil))
+                stats, bloco_contas, bloco_convites, bloco_alertas, bloco_perfil,
+                _cartao_de_apagar(e, fecha_contas, len(convites),
+                                  any(u["dono"] for u in contas_))))
     return envolver(
         "configuracoes", e["nome"], "", corpo, titulo_aba="%s · Plataforma" % e["nome"],
         cabeca=cabecalho_de_pagina(
@@ -19254,6 +19281,72 @@ def plataforma_suspender(id_, gesto):
                  % ("suspensa" if gesto == "suspender" else "reactivada"))
     return _volta_a("/plataforma/empresa/%d" % id_, "%s %s."
                     % (e["nome"], "suspensa" if gesto == "suspender" else "reactivada"))
+
+
+def _o_mesmo_nome(a, b):
+    """O nome escrito para confirmar bate com o da empresa: sem contar
+    espacos a mais nem maiusculas."""
+    return " ".join((a or "").split()).casefold() == " ".join((b or "").split()).casefold()
+
+
+def _cartao_de_apagar(e, n_contas, n_convites, tem_o_dono=False):
+    """O cartao de perigo do fim da pagina da empresa (26/09/2026, pedido
+    dele: «eu como dono não consigo apagar empresas»; so havia o
+    `--apagar-empresa` da consola). Diz o que sai, com os numeros, e o
+    que fica; confirma-se escrevendo o nome."""
+    with com_empresa(e["id"]):
+        with liga() as c:
+            n = {t: c.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0]
+                 for t in ("propostas", "tarefas", "contactos", "historico")}
+    nome = html.escape(e["nome"], quote=True)
+    corpo = (
+        "<p>Sai da plataforma: %s, %s, %s, %s do histórico, a configuração, a "
+        "triagem, %s%s e %s.</p>"
+        "<p class='nota'>Fica guardado: uma cópia da base de antes e a pasta da "
+        "empresa em <code>copias/</code>, de onde se recupera.</p>"
+        "<form method='post' action='/plataforma/empresa/%d/apagar' "
+        "class='mg-row' style='gap:12px;flex-wrap:wrap;align-items:flex-end;"
+        "margin-top:16px'><div class='mg-field'>"
+        "<label class='mg-field__label' for='apagar-nome'>Para confirmar, "
+        "escreva o nome da empresa: <b>%s</b></label>"
+        "<input class='mg-field__input' id='apagar-nome' name='nome' type='text' "
+        "required autocomplete='off' spellcheck='false'></div>"
+        "<button type='submit' class='mg-btn mg-btn--danger'>Apagar a empresa"
+        "</button></form>"
+        % (plural(n["propostas"], "proposta"), plural(n["tarefas"], "tarefa"),
+           plural(n["contactos"], "contacto"), plural(n["historico"], "linha"),
+           plural(n_contas, "conta"),
+           " (a do dono fica, sem empresa)" if tem_o_dono else "",
+           plural(n_convites, "convite por usar",
+                                             "convites por usar"),
+           e["id"], nome))
+    return cartao("Apagar a empresa", corpo, id_="apagar")
+
+
+@app.route("/plataforma/empresa/<int:id_>/apagar", methods=["POST"])
+def plataforma_apagar_empresa(id_):
+    """Apaga a empresa pelo painel: o `apagar_empresa()` da consola, com o
+    nome escrito como confirmacao. So o dono (o prefixo `/plataforma` esta
+    em ROTAS_SO_DONO), com o CSRF da porta, e nunca no modo de suporte (a
+    porta recusa todos os POST fora do PODE_A_VER_COMO).
+
+    Sincrono: a copia de antes e um VACUUM INTO do radar.db, medido a
+    26/09/2026 em 8,8 s para 1,35 GB -- longe dos 100 s do tunel."""
+    e = _empresa_ou_404(id_)
+    if not _o_mesmo_nome(request.form.get("nome"), e["nome"]):
+        return _volta_a("/plataforma/empresa/%d#apagar" % id_,
+                        "O nome escrito não é o da empresa: nada se apagou.", erro=True)
+    try:
+        copia, guardada, _ = apagar_empresa(id_)
+    except (ValueError, OSError, sqlite3.Error) as erro:
+        return _volta_a("/plataforma/empresa/%d#apagar" % id_,
+                        "Não se apagou: %s" % erro, erro=True)
+    registar_evento("", "empresa", "apagou a empresa %d (%s); cópia em %s, "
+                    "pasta em %s" % (id_, e["nome"], copia, guardada),
+                    quem=quem_sou() or "o dono")
+    return _volta_a("/plataforma", "%s saiu da plataforma. A cópia de antes está em "
+                    "copias/%s e a pasta da empresa em copias/%s."
+                    % (e["nome"], os.path.basename(copia), os.path.basename(guardada)))
 
 
 @app.route("/plataforma/empresa/<int:id_>/ver-como", methods=["POST"])
