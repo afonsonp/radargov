@@ -441,11 +441,15 @@ quando as peças se conseguem automaticamente, a cinzento quando tens de
 ir ao site da plataforma buscá-las.
 
 Os botões **interessa** e **abandonar** servem para ires limpando a
-lista. Abandonar não apaga, arquiva — fica na aba Abandonados, e
+lista. Abandonar não apaga, arquiva — fica em Propostas › Não fomos, e
 podes sempre repor. **Abandonar pede o motivo**: carregas no botão e
-abre uma caixa com o nome do anúncio e três hipóteses — *Preço base
-baixo*, *Falta de certificações*, *Falta de CV's* —, sem caixa de texto
-livre. Sem motivo escolhido não abandona. O
+abre uma caixa com o nome do anúncio e os motivos como botões — *Preço
+base baixo*, *Falta de certificações*, *Falta de CV's*, *Não faz parte
+da oferta* —, sem caixa de texto livre; carregar num motivo grava logo.
+Sem motivo não abandona. **No Por ver a página não recarrega** (desde
+26/09/2026): a linha sai no sítio, o aviso em baixo diz o que fizeste
+e tem o **desfazer**, o cursor passa para a linha seguinte, e os
+números da aba e da lista descem um. O
 motivo fica na etiqueta da linha, no cabeçalho da ficha, no histórico e
 numa coluna própria do CSV; assim, daqui a um mês, a aba Abandonados
 ainda diz porque é que cada um ficou de fora. (Os que caem lá sozinhos
@@ -641,7 +645,8 @@ no painel e no convite. As contas seguintes criam-se no painel, em
 **Configurações › Conta**, por um admin.
 
 **Cada conta é de uma empresa** (desde 23/09/2026), e só vê o trabalho
-dela — **menos a tua**: a conta do dono da plataforma não é de empresa
+dela — a barra diz qual, por baixo do nome de quem entrou (desde
+26/09/2026) — **menos a tua**: a conta do dono da plataforma não é de empresa
 nenhuma, e só abre a administração da plataforma. Para trabalhar numa
 empresa usa outra conta, dela. Uma empresa nova nasce de um pedido de
 acesso aceite (o convite), ou num terminal, com a primeira conta dela a
@@ -766,7 +771,9 @@ as outras cinco só um admin as vê:
   entidades seguidas, o «Filtro de alertas» em três grupos — o que é
   comum, o que é só dos anúncios (é por esses que o alerta avisa) e o
   que é só dos contratos (serve para aplicar o filtro ao Mercado) — com
-  o botão «Criar alerta», que o cria já ligado, e em cada alerta o
+  o botão «Criar alerta», que o cria já ligado — e, por cima, **«Criar
+  o alerta do perfil»**, que faz num clique o alerta com os CPV, os
+  distritos e o valor do Perfil da empresa (26/09/2026) —, e em cada alerta o
   «avisar logo» — um e-mail a cada verificação em vez de esperar pelo
   resumo —, o resumo por e-mail (para quem e a que hora; e,
   só para o admin, **quem envia**: conta, servidor, porta e
@@ -1219,9 +1226,18 @@ guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
 site»** — e é aí que os vês se o e-mail não tiver chegado.
 
-**Para dar acesso a quem pediu**, carrega em **«aceitar»** na linha do
-pedido. O radar cria a empresa, com o resumo diário a ir para o e-mail
-de quem pediu, e manda-lhe um convite. A pessoa abre a ligação, escolhe
+**Para dar acesso a quem pediu**, carrega em **«aceitar…»** na linha do
+pedido. Abre primeiro **o perfil da empresa nova** (desde 26/09/2026:
+o site promete «configuramos o perfil consigo»): os CPV já vêm do
+sector que a pessoa escolheu e dos códigos que escreveu na mensagem, e
+os distritos que ela nomeou já vêm marcados. Confere, acrescenta ou
+tira — os CPV são códigos separados por «|», e afinam-se depois na
+árvore — e carrega em **«Aceitar e mandar o convite»**. Se não
+souberes o que pôr, deixa vazio: a empresa define-o no primeiro dia,
+e o Hoje dela mostra-lhe um cartão «Pôr a empresa a trabalhar» com os
+quatro passos (perfil, nome e NIF, um alerta, convidar a equipa). O
+radar cria a empresa, com o perfil e com o resumo diário a ir para o
+e-mail de quem pediu, e manda-lhe um convite. A pessoa abre a ligação, escolhe
 o utilizador e a palavra-passe, e entra já como administradora da
 empresa dela — e cria a seguir as contas dos colegas. A ligação serve
 uma vez e dura sete dias. **Se o e-mail não sair**, o ecrã mostra-te a

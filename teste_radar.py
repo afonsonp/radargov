@@ -7596,13 +7596,18 @@ class TestMotivoDoAbandono(unittest.TestCase):
         marcacao = html_.split("<script")[0]
         self.assertNotIn("checked", marcacao)
         self.assertIn("<dialog", marcacao)
-        # o `required` passou a ser posto pelo JS, e nao na marcação
-        # (15/09/2026): a caixa serve os DOIS estados com motivo, e um
-        # grupo escondido com radios `required` travava a submissão do
-        # grupo visível sem nada no ecrã a dizer porquê. Quem recusa sem
-        # motivo continua a ser o servidor -- e isso tem teste próprio
-        # em TestSelectorDaRanhura.
-        self.assertIn("r.required = meu", html_)
+        # Os motivos são BOTÕES que gravam desde 26/09/2026 (D1-bis): um
+        # clique, e não rádio mais «Gravar». O grupo escondido tem os
+        # botões desligados (o JS), senão o Enter num campo gravava o
+        # primeiro motivo do OUTRO estado. Quem recusa sem motivo
+        # continua a ser o servidor -- teste próprio em
+        # TestSelectorDaRanhura.
+        self.assertIn("<button type='submit' name='motivo' value='%s'"
+                      % html.escape(radar.MOTIVOS_ABANDONO[0], quote=True), marcacao)
+        self.assertNotIn("type='radio'", marcacao)
+        self.assertIn("b.disabled = !meu", html_)
+        # e o «Gravar» esconde-se quando há motivos: são eles que gravam
+        self.assertIn("dlg-motivo-gravar').hidden = comMotivo", html_)
         self.assertIn("data-para='perdido'", marcacao)
         self.assertIn("data-para='nao_fomos'", marcacao)
 
@@ -9217,8 +9222,9 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
         self.assertIn("pattern='", caixa)
         self.assertTrue(re.fullmatch(radar.PADRAO_DO_PRECO, "118 500,00 €"))
         self.assertFalse(re.fullmatch(radar.PADRAO_DO_PRECO, "abc"))
-        # E42: a validação nativa vinha em inglês
-        self.assertIn("Escolha o motivo.", caixa)
+        # E42: a validação nativa vinha em inglês (o «Escolha o motivo.»
+        # saiu com os rádios, a 26/09/2026: os motivos são botões)
+        self.assertIn("O lugar é um número de 1 a 99.", caixa)
 
     def test_e13_erro_e_sucesso_nao_tem_o_mesmo_aspecto(self):
         self._proposta()
@@ -17930,7 +17936,8 @@ class TestAEscadaContaNumaPassagem(BaseTemporaria):
             corpo = cliente.get(url).get_data(as_text=True)
             with radar.app.test_request_context(url):
                 n = radar.contar_a_escada()[aba]
-            self.assertIn("<b>%d</b> resultado" % n, corpo, aba or "todos")
+            self.assertIn("<b class='n-lista'>%d</b> resultado" % n, corpo,
+                          aba or "todos")
 
     def test_as_contagens_do_perfil_saem_de_um_indice(self):
         """O `ix_anuncios_cobre` tem de cobrir a consulta das abas com o
@@ -18115,6 +18122,299 @@ class TestOClienteNaoDescarregaODesnecessario(BaseTemporaria):
         self.assertIn("height:auto",
                       radar.CSS_TUDO.split(".peca-pag{")[1][:80])
 
+
+
+class TestAEmpresaActivaNaBarra(BaseTemporaria):
+    """D7 da segunda ronda (26/09/2026, decisão dele): com mais de uma
+    empresa na plataforma, a barra não dizia em qual se estava. O perigo
+    é triar ou gravar na empresa errada sem dar por isso -- e o único
+    sinal era o conteúdo das listas."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def _barra(self):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")   # o dono
+            radar.contas.criar_utilizador(c, "ana", "senha-comprida",
+                                          papel="admin", empresa_id=1)
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": "ana", "senha": "senha-comprida"},
+                     environ_base=self.FORA)
+        return (cliente.get("/", environ_base=self.FORA)
+                .get_data(as_text=True).split("</header>")[0])
+
+    def test_o_nome_da_empresa_esta_ao_lado_de_quem_entrou(self):
+        radar.gravar_config({"nome_da_empresa": "Construções <Exemplo>"})
+        barra = self._barra()
+        self.assertIn("class='sou-empresa'", barra)
+        self.assertIn("Construções &lt;Exemplo&gt;", barra)   # escapado
+
+    def test_sem_nome_diz_o_numero(self):
+        self.assertIn(">Empresa 1</small>", self._barra())
+
+    def test_o_dono_sem_empresa_nao_tem_empresa_na_barra(self):
+        with radar.com_empresa(radar.SEM_EMPRESA):
+            self.assertEqual(radar.nome_da_empresa_activa(), "")
+
+
+class TestPorAEmpresaATrabalhar(BaseTemporaria):
+    """D13 da segunda ronda (26/09/2026, decisão dele): a empresa nova
+    entrava a ver 1 383 anúncios por decidir, sem perfil, sem alerta e
+    sem ninguém a dizer por onde começar. O cartão do Hoje tem quatro
+    passos riscados PELOS DADOS -- um passo desfeito volta a aparecer --,
+    e sai quando estão todos feitos ou quando o admin o dispensa."""
+
+    def hoje(self):
+        return radar.app.test_client().get("/").get_data(as_text=True)
+
+    def test_os_quatro_passos_riscam_se_pelos_dados(self):
+        corpo = self.hoje()
+        self.assertIn("Pôr a empresa a trabalhar", corpo)
+        self.assertIn("0 de 4 feitos", corpo)
+        for alvo in ("/configuracoes/interesse", "/configuracoes/conta#empresa",
+                     "/configuracoes/alertas#do-perfil",
+                     "/configuracoes/conta#convidar"):
+            self.assertIn("href='%s'" % alvo, corpo)
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "45000000"})
+        corpo = self.hoje()
+        self.assertIn("<s>Perfil da empresa</s>", corpo)
+        self.assertIn("1 de 4 feitos", corpo)
+        # só o nome não chega: o NIF é o que liga os contratos
+        radar.gravar_config({"nome_da_empresa": "Exemplo"})
+        self.assertIn("1 de 4 feitos", self.hoje())
+        radar.gravar_config({"nif_da_empresa": "503504564"})
+        self.assertIn("<s>Nome e NIF da empresa</s>", self.hoje())
+        radar.app.test_client().post("/alertas/do-perfil")
+        self.assertIn("<s>Um alerta</s>", self.hoje())
+        # o convite do pedido de acesso (o do próprio admin) não conta
+        with radar.liga() as c:
+            radar.contas.criar_convite(c, 1, "eu@x.pt", "admin", pedido_id=7)
+        self.assertIn("3 de 4 feitos", self.hoje())
+        with radar.liga() as c:
+            radar.contas.criar_convite(c, 1, "colega@x.pt", "tester")
+        self.assertNotIn("Pôr a empresa a trabalhar", self.hoje())
+        # e um passo desfeito volta a pôr o cartão
+        radar.gravar_config({"interesse_activo": False, "interesse_cpv": ""})
+        self.assertIn("3 de 4 feitos", self.hoje())
+
+    def test_dispensa_se(self):
+        r = radar.app.test_client().post("/arranque/dispensar")
+        self.assertEqual(r.status_code, 302)
+        self.assertNotIn("Pôr a empresa a trabalhar", self.hoje())
+
+    def test_o_tester_nao_o_ve_nem_o_dispensa(self):
+        fora = {"REMOTE_ADDR": "203.0.113.7"}
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")
+            radar.contas.criar_utilizador(c, "rui", "senha-comprida",
+                                          papel="tester", empresa_id=1)
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": "rui", "senha": "senha-comprida"},
+                     environ_base=fora)
+        corpo = cliente.get("/", environ_base=fora).get_data(as_text=True)
+        self.assertNotIn("Pôr a empresa a trabalhar", corpo)
+        token = re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", corpo).group(1)
+        r = cliente.post("/arranque/dispensar", data={"csrf": token},
+                         environ_base=fora)
+        self.assertEqual(r.status_code, 403)
+
+    def test_o_alerta_do_perfil_leva_o_perfil_inteiro(self):
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "45000000|71000000",
+                             "interesse_cpv_excl": "45100000",
+                             "interesse_distritos": "Porto|Braga",
+                             "interesse_pbmin": "20 000"})
+        r = radar.app.test_client().post("/alertas/do-perfil")
+        self.assertIn("criado", unquote(r.headers["Location"]))
+        with radar.liga() as c:
+            f = c.execute("SELECT nome, consulta, alerta FROM filtros_guardados"
+                          ).fetchall()
+        self.assertEqual(len(f), 1)
+        self.assertEqual((f[0]["nome"], f[0]["alerta"]),
+                         (radar.NOME_DO_ALERTA_DO_PERFIL, 1))
+        consulta = dict(parse_qsl(f[0]["consulta"]))
+        self.assertEqual(consulta, {"cpv": "45000000|71000000",
+                                    "cpv_excl": "45100000",
+                                    "dist": "Porto|Braga", "pbmin": "20 000"})
+        # e o motor dos anúncios lê todos: nenhum cai em silêncio
+        self.assertEqual(radar.filtro_para(f[0]["consulta"], "anuncios")[1], [])
+        # outra vez actualiza, não duplica
+        radar.app.test_client().post("/alertas/do-perfil")
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM filtros_guardados"
+                                       ).fetchone()[0], 1)
+
+    def test_sem_perfil_nao_cria_alerta_nenhum(self):
+        r = radar.app.test_client().post("/alertas/do-perfil")
+        q = dict(parse_qsl(urlparse(r.headers["Location"]).query))
+        self.assertEqual(q.get("tom"), "erro")
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM filtros_guardados"
+                                       ).fetchone()[0], 0)
+        corpo = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
+        self.assertIn("id='do-perfil'", corpo)
+        self.assertNotIn("/alertas/do-perfil", corpo)      # sem perfil, sem botão
+
+
+class TestODonoPreparaOPerfilAoAceitar(BaseTemporaria):
+    """D13 (iii), 26/09/2026: o site promete «configuramos o perfil
+    consigo», e o «aceitar» criava a empresa sem perfil nenhum. Passou a
+    ser um passo com o perfil pré-preenchido do sector e da mensagem,
+    que o dono afina antes de aceitar. O POST sem perfil continua a
+    servir (os testes da F5, em TestConvites)."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")   # o dono
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
+                      "email, sector, mensagem) VALUES ('2026-09-26 10:00', 'Ana', "
+                      "'Obras do Norte', 'ana@exemplo.pt', "
+                      "'Obras públicas e construção', "
+                      "'Fazemos obra no Porto e em Braga, e fiscalização 71520000.')")
+            self.pedido = c.execute("SELECT MAX(id) FROM pedidos_acesso").fetchone()[0]
+        self.enterContext(unittest.mock.patch.object(
+            radar, "enviar_email", return_value=(True, "enviado")))
+        self.cliente = radar.app.test_client()
+        self.cliente.post("/entrar", data={"email": "admin", "senha": "senha-comprida"},
+                          environ_base=self.FORA)
+        self.url = "/pedidos-de-acesso/%d/aceitar" % self.pedido
+
+    def token(self):
+        corpo = self.cliente.get(self.url, environ_base=self.FORA).get_data(as_text=True)
+        return re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", corpo).group(1)
+
+    def test_o_formulario_vem_pre_preenchido_do_sector_e_da_mensagem(self):
+        self.assertEqual(radar.perfil_do_pedido(
+            {"sector": "Obras públicas e construção",
+             "mensagem": "Fazemos obra no Porto e em Braga, e fiscalização 71520000."}),
+            ("45000000|71520000", "Braga|Porto"))
+        corpo = self.cliente.get(self.url, environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("value='45000000|71520000'", corpo)
+        self.assertIn("value='Porto' checked", corpo)
+        self.assertNotIn("value='Lisboa' checked", corpo)
+        # abrir o formulário não cria nada
+        self.assertEqual(radar.empresas_existentes(), [1])
+        # e a lista dos pedidos leva a ele, e não a um POST às cegas
+        lista = self.cliente.get("/pedidos-de-acesso", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("href='%s'" % self.url, lista)
+
+    def test_aceitar_grava_o_perfil_na_empresa_nova(self):
+        r = self.cliente.post(self.url, data={
+            "csrf": self.token(), "cpv": "45000000 | 7152", "dist": ["Porto", "Marte"],
+            "pbmin": "20 000"}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Perfil da empresa:", r.get_data(as_text=True))
+        with radar.com_empresa(2):
+            cfg = radar.ler_config()
+        self.assertEqual((cfg["interesse_activo"], cfg["interesse_cpv"],
+                          cfg["interesse_distritos"], cfg["interesse_pbmin"]),
+                         (True, "45000000|71520000", "Porto", "20 000"))
+        self.assertEqual(cfg["email"]["para"], "ana@exemplo.pt")
+
+    def test_um_cpv_estragado_volta_ao_formulario_sem_criar_nada(self):
+        r = self.cliente.post(self.url, data={"csrf": self.token(), "cpv": "obras"},
+                              environ_base=self.FORA)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("não é um código CPV", corpo)
+        self.assertIn("value='obras'", corpo)             # volta o que se escreveu
+        self.assertEqual(radar.empresas_existentes(), [1])
+
+
+class TestTriagemSemRecarregar(BaseTemporaria):
+    """D1-bis da segunda ronda (26/09/2026, decisão dele): triar vinte
+    anúncios eram vinte páginas inteiras, e o «Abandonar» pedia o motivo
+    e mais um «Gravar». No «Por ver» o `fetch` grava pela MESMA rota --
+    só a resposta vem em JSON --, e sem JS tudo continua como era. O JS
+    em si viu-se no browser (painel de ensaio, 26/09/2026); aqui fica o
+    que o servidor promete ao JS."""
+
+    JSON = {"Accept": "application/json"}
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+        with radar.liga() as c:
+            for n in (1, 2):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                          " tipo, url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                          ("%d/2026" % n, "Obra %d" % n, "CML", "2026-09-2%d" % n,
+                           "Anúncio de procedimento", "https://dr/%d" % n))
+        self.cliente = radar.app.test_client()
+
+    def post(self, caminho, **dados):
+        r = self.cliente.post(caminho, data=dados, headers=self.JSON)
+        self.assertEqual(r.mimetype, "application/json", caminho)
+        return r.get_json()
+
+    def test_o_interessa_responde_em_json_com_o_desfazer(self):
+        j = self.post("/estado/1%2F2026/analisar")
+        self.assertTrue(j["ok"])
+        self.assertIn("«Obra 1»", j["aviso"])
+        self.assertEqual(j["desfazer"], "/estado/1/2026/porver")
+        self.assertEqual(radar.propostas_de("1/2026")[0]["estado"], "analisar")
+        # e o desfazer pelo mesmo caminho repõe
+        self.assertTrue(self.post(j["desfazer"])["ok"])
+        self.assertEqual(radar.propostas_de("1/2026"), [])
+
+    def test_o_abandonar_sem_motivo_e_recusado_em_json(self):
+        j = self.post("/estado/1%2F2026/nao_fomos")
+        self.assertFalse(j["ok"])
+        self.assertIn("motivo", j["aviso"])
+        self.assertEqual(radar.propostas_de("1/2026"), [])
+        motivo = radar.MOTIVOS_ABANDONO[0]
+        j = self.post("/estado/1%2F2026/nao_fomos", motivo=motivo)
+        self.assertTrue(j["ok"])
+        self.assertIn(motivo, j["aviso"])
+        p = radar.propostas_de("1/2026")[0]
+        self.assertEqual((p["estado"], p["motivo"]), ("nao_fomos", motivo))
+
+    def test_sem_json_e_o_post_de_sempre(self):
+        r = self.cliente.post("/estado/2%2F2026/analisar",
+                              headers={"Referer": "http://localhost/concursos"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("aviso=", r.headers["Location"])
+
+    def test_so_o_por_ver_liga_a_triagem_e_os_numeros_tem_onde_mexer(self):
+        corpo = self.cliente.get("/concursos?estado=porver").get_data(as_text=True)
+        self.assertIn("data-triagem='1'", corpo)
+        self.assertIn("class='n-lista'", corpo)
+        self.assertIn("mg-tab__count", corpo)
+        self.assertIn("'Accept': 'application/json'", corpo)
+        # o diálogo do motivo vem DEPOIS do script da lista: procurado ao
+        # carregar, era null, e o «Abandonar» fazia o POST de sempre sem
+        # ninguém dar por isso (visto no browser, 26/09/2026)
+        self.assertGreater(corpo.index("id='dlg-motivo'"),
+                           corpo.index("var linhaDoDialogo"))
+        self.assertIn("f.id === 'form-motivo'", corpo)
+        self.assertNotIn("var fdlg = document.getElementById", corpo)
+        todos = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertNotIn("data-triagem='1'", todos)
+
+    def test_o_fetch_leva_o_csrf_como_o_post(self):
+        """A guarda é a mesma: com sessão, um POST sem o token é recusado,
+        venha em JSON ou não."""
+        fora = {"REMOTE_ADDR": "203.0.113.7"}
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida")
+            radar.contas.criar_utilizador(c, "ana", "senha-comprida",
+                                          papel="admin", empresa_id=1)
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": "ana", "senha": "senha-comprida"},
+                     environ_base=fora)
+        r = cliente.post("/estado/1%2F2026/analisar", headers=self.JSON,
+                         environ_base=fora)
+        self.assertEqual(r.status_code, 403)
+        corpo = cliente.get("/concursos", environ_base=fora).get_data(as_text=True)
+        token = re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", corpo).group(1)
+        r = cliente.post("/estado/1%2F2026/analisar",
+                         headers=dict(self.JSON, **{"X-CSRF": token}),
+                         environ_base=fora)
+        self.assertTrue(r.get_json()["ok"])
 
 if __name__ == "__main__":
 

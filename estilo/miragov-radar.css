@@ -719,3 +719,22 @@ main.mg span.p a{text-decoration:underline;text-underline-offset:2px}
    texto ocupava um terço de cada um (perfil 11). */
 .ajuda{display:flex;flex-direction:column;gap:var(--space-4)}
 .ajuda .glossario,.ajuda .conf-cx p{max-width:72ch}
+
+/* A empresa activa por baixo do nome, na barra (D7, 26/09/2026): quem
+   trabalha em mais de uma empresa vê em qual está antes de gravar. */
+.mg-topbar .sou-quem{display:flex;flex-direction:column;line-height:1.15;
+ min-width:0}
+.mg-topbar .sou-empresa{font-size:var(--text-xs);color:var(--on-header-muted);
+ max-width:24ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* O cartão «Pôr a empresa a trabalhar» do Hoje (D13, 26/09/2026): os
+   quatro passos, riscados quando os dados dizem que estão feitos. */
+#arranque{margin-bottom:var(--space-4)}
+.arranque{margin:0;padding-left:1.4em;display:grid;gap:var(--space-2)}
+.arranque li{padding-left:var(--space-1)}
+.arranque li a{font-weight:600}
+.arranque li small{display:block;color:var(--ink-muted)}
+.arranque li.feito,.arranque li.feito a{color:var(--ink-muted);font-weight:400}
+/* O texto do aviso que o JS da triagem escreve leva o espaço que sobra:
+   solto, partia a linha e deixava o ✓ sozinho em cima, no telemóvel. */
+.aviso-da-vez>.aviso-texto{flex:1 1 0;min-width:12em}

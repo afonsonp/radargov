@@ -170,7 +170,7 @@ comparadas antes de apagar.
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
 | `alertas_vistos` | **0** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
-| `marcas_da_empresa` | 1 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`) e a da migração das alterações avisadas |
+| `marcas_da_empresa` | 1 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`) |
 | `alteracoes_avisadas` | uma por alteração recebida | O que esta empresa já recebeu da fila `alteracoes`, que é da plataforma (F2) |
 
 **As colunas de `propostas`, e quantas das 78 estão preenchidas:**
@@ -461,6 +461,11 @@ diferentes (§3.3).
 verificação corre de hora a hora e o resumo sai 1×/dia; se fossem o mesmo
 passo, saíam dois e-mails com metade das coisas cada um.
 
+**O alerta do perfil** (D13, 26/09/2026): em Configurações › Alertas,
+um botão cria — ou actualiza, pelo nome «Perfil da empresa» — o alerta
+com os CPV, as exclusões, os distritos e o valor mínimo do perfil
+(`consulta_do_perfil()`), nos mesmos campos do filtro.
+
 1. **Reconhecer** (`registar_alertas()`, `registar_seguidas()`, a cada
    verificação): anota na `alertas_vistos` que anúncios caem em que
    alerta. A tabela é a memória — **um anúncio nunca é avisado duas
@@ -523,7 +528,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**98 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**100 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -541,10 +546,29 @@ Eram cinco itens desde 24/09/2026
 - **Calendário** → `/calendario`, com as dez ranhuras nas abas
 - **Configurações** → `/configuracoes` (9 secções)
 
+À direita, o menu da conta: o nome de quem entrou e, **por baixo, o da
+empresa em que está a trabalhar** (D7 da segunda ronda, 26/09/2026,
+decisão dele; `nome_da_empresa_activa()`) — «Empresa N» enquanto ela
+não tiver nome, e nada para o dono sem empresa. Com várias empresas na
+plataforma, é o que impede de triar na errada sem dar por isso. Uma
+conta continua a ser de **uma** empresa só.
+
 ### 4.1 Hoje — `/`
 
 Responde a quatro perguntas em três segundos: *o que tenho de fazer
 hoje · o que fecha esta semana · o que mudou · o que está parado.*
+
+0. **Pôr a empresa a trabalhar** (D13 da segunda ronda, 26/09/2026,
+   decisão dele) — só ao admin, por cima de tudo, enquanto faltar
+   algum dos quatro passos: **Perfil da empresa** → **nome e NIF** →
+   **um alerta** → **convidar a equipa**. Cada passo é a ligação para
+   onde se faz, e **risca-se pelos dados** e não por um clique
+   (`passos_do_arranque()`): o perfil com alguma coisa, o nome **e** o
+   NIF, um alerta ligado, e mais uma conta na empresa ou um convite
+   feito pelo admin (o do pedido de acesso não conta). Um passo desfeito
+   volta a aparecer. Sai quando os quatro estão feitos, ou com
+   **Dispensar** (`/arranque/dispensar`, só admin), que vale para a
+   empresa (`MARCA_DO_ARRANQUE`).
 
 1. **Título** = a data por extenso («Sexta, 18 de setembro»), e não a
    saudação do `EcraHoje` (decisão dele de 17/09/2026, mantida a
@@ -648,6 +672,20 @@ perfil da empresa.
 
 Por linha: triar («interessa» / «abandonar», que pergunta o motivo),
 **mudar de ranhura no selector**, abrir a ficha. Exporta para CSV.
+
+**Triar sem recarregar** (D1-bis da segunda ronda, 26/09/2026, decisão
+dele). No **Por ver**, o «Interessa» e o motivo do «Abandonar» gravam
+por `fetch`, na **mesma rota** (`/estado/<ref>/<ranhura>`) e com o
+mesmo CSRF: o servidor responde JSON a quem o pede pelo `Accept`
+(`pede_json()` no `_volta_com_aviso()`), com o mesmo aviso e o mesmo
+desfazer do redireccionamento. A linha sai no sítio, o aviso fixo em
+baixo diz o que se fez e traz o **desfazer** (que devolve a linha ao
+lugar dela), o foco passa à linha seguinte, e **o número da aba e o
+«N que correspondem» descem um** — o que o ecrã mostra continua a ser
+o que a ligação abre. O diálogo do «Abandonar» tem os **motivos como
+botões que gravam** (um clique; o «Gravar» só aparece quando não há
+motivo a escolher, como no preço do «Submetido»). Nas outras abas, e
+sem JavaScript, é o POST de sempre, com a página inteira.
 
 **Vista Calendário** — `/calendario`: os prazos por dia, seis semanas,
 para qualquer ranhura. As pontas (Por ver, Expirou) levam o perfil da
@@ -790,7 +828,14 @@ bytes aleatórios, que na base só existe em resumo), a origem do POST e
 o uso único com prazo (`DIAS_DE_CONVITE`, sete).
 
 **Do pedido de acesso à empresa a trabalhar** (F5). Em «pedidos de
-acesso do site», o dono carrega em **aceitar**: nasce a empresa
+acesso do site», o dono carrega em **aceitar…**, que desde 26/09/2026
+(D13 da segunda ronda) abre primeiro **o perfil da empresa nova**: os
+CPV que o sector diz sem dúvida (`CPV_DO_SECTOR`) mais os códigos
+escritos na mensagem, e os distritos que ela nomeia
+(`perfil_do_pedido()`), para o dono afinar antes de aceitar — é o
+«configuramos o perfil consigo» que o site promete. Só se aceitam
+códigos CPV (`_perfil_do_formulario()`); vazio, a empresa define-o
+depois. Ao aceitar nasce a empresa
 (`criar_empresa()`), com o resumo a ir para quem pediu, e um convite de
 administrador dela (`contas.criar_convite()`), que vai por e-mail para
 o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.
@@ -818,7 +863,8 @@ Cópias, o «Verificar agora», quem envia o e-mail e os pedidos de
 acesso do site); `sou_dono()` é a pergunta. O **admin** de uma empresa
 cria e tira as contas **dela** — nunca a do dono, que só o dono tira, e o
 último dono nunca sai (26/09/2026) — e diz quem ela é (`ROTAS_SO_ADMIN`:
-`/configuracoes/conta/utilizadores` e `/configuracoes/conta/empresa`);
+`/configuracoes/conta/utilizadores`, `/configuracoes/conta/empresa` e
+`/arranque/dispensar`, o cartão do Hoje);
 `sou_admin()` é a pergunta. O **tester** trabalha. **As duas
 administrações não se misturam** (23/09/2026, pedido dele): as
 Configurações mostram só as quatro secções da empresa, a toda a gente —
@@ -923,7 +969,8 @@ NOME`.
 ## 5. As acções — tudo o que muda dados
 
 Todas por **POST**, todas com CSRF, e todas **voltam à página de onde
-vieram**.
+vieram** — menos a triagem do «Por ver» com JavaScript, que grava pela
+mesma rota sem sair da página (§4.3).
 
 | Acção | Onde |
 |---|---|
@@ -938,6 +985,9 @@ vieram**.
 | Etiquetar / desetiquetar um anúncio | ficha |
 | Trazer as peças · verificar peças novas | ficha |
 | Criar / ligar / apagar alerta · enviar resumo | Configurações |
+| Criar o alerta a partir do perfil (`/alertas/do-perfil`) | Configurações › Alertas |
+| Dispensar o cartão «Pôr a empresa a trabalhar» | Hoje (admin) |
+| Aceitar um pedido de acesso, com o perfil da empresa nova | `/pedidos-de-acesso` (dono) |
 | Verificar agora · actualizar contratos | Configurações |
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
