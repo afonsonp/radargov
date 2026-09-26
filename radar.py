@@ -286,6 +286,17 @@ class Ligacao(sqlite3.Connection):
         finally:
             self.close()
 
+    def execute(self, *args):
+        # o tempo na base, para o `Server-Timing` do pedido (ver o
+        # `acertar_o_relogio()`). Conta o passo que o `execute` da, que
+        # numa contagem ou num ORDER BY e quase tudo.
+        inicio = time.perf_counter()
+        try:
+            return super().execute(*args)
+        finally:
+            if has_request_context() and "tempo_na_base" in g:
+                g.tempo_na_base += time.perf_counter() - inicio
+
 
 _BASE_PROTEGIDA = set()
 
@@ -1158,6 +1169,20 @@ def iniciar_db():
                   "ON anuncios(plataforma)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_estado_cpv "
                   "ON anuncios(estado, cpv)")
+        # `_cobre` (lote 4 da segunda ronda, 26/09/2026): as contagens
+        # das abas com o PERFIL da empresa posto. O perfil pergunta pelo
+        # `cpv` e pelo `preco_base`, e a caixa «Pesquisar» pelo
+        # `titulo_norm` -- nenhum dos índices de cima os tinha todos, e
+        # por isso cada contagem ia à tabela buscar as 210 mil linhas
+        # (0,3 s cada, cinco por página). Com este cobrem-se todas, e a
+        # ordem começa pela do `_lista` para a primeira página sair do
+        # índice sem B-tree temporária. Medido numa cópia: 1,4 s a
+        # construir, 36 MB. **Uma coluna que falte tira-lhe o COVERING**
+        # -- é o que o `test_as_contagens_do_perfil_saem_de_um_indice`
+        # guarda.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_cobre "
+                  "ON anuncios(estado, data_pub DESC, ref DESC, prazo, "
+                  "detalhe_lido, plataforma, cpv, preco_base, titulo_norm)")
         # O filtro por entidade (`condicoes()`, campo `nif`), que é
         # `nif = ? OR entidade IN (SELECT DISTINCT entidade WHERE nif=?)`
         # -- as duas metades, porque só com uma delas indexada o SQLite
@@ -2038,8 +2063,14 @@ def fragmento_local_e_valor(distritos, minimo, maximo=""):
                if d in DISTRITOS]
     if pedidos:
         # pela subconsulta, que o ix_anuncios_distrito cobre: ler a coluna
-        # na tabela era atravessar o `texto` de cada anuncio
-        partes.append("ref IN (SELECT ref FROM anuncios WHERE %s OR "
+        # na tabela era atravessar o `texto` de cada anuncio.
+        # **O `+` do `+ref` não se tira** (lote 4, 26/09/2026): sem ele
+        # o SQLite partia da lista dos distritos -- dezenas de milhares
+        # de refs -- e ia buscar cada anúncio à tabela, pelo índice da
+        # `ref`. Com ele varre o `ix_anuncios_cobre` e só confere se a
+        # `ref` está na lista: 0,30 s -> 0,19 s por contagem, e são
+        # cinco numa página. É o mesmo truque do `GROUP BY +a.chave`.
+        partes.append("+ref IN (SELECT ref FROM anuncios WHERE %s OR "
                       "distrito LIKE '%%|*|%%')"
                       % " OR ".join("distrito LIKE ?" for _ in pedidos))
         valores += ["%%|%s|%%" % d for d in pedidos]
@@ -2144,7 +2175,7 @@ def prefixos_em_cpv8(prefixos):
 
     **GLOB e não LIKE**, e a diferença são 94× (16/09/2026). O `LIKE
     'x%'` do SQLite é insensível a maiúsculas e por isso **não usa o
-    índice**: varre o `ix_cpv_v` inteiro, 2 033 368 linhas. O `GLOB
+    índice**: varre o índice do CPV inteiro, 2 033 368 linhas. O `GLOB
     'x*'` é sensível, e o planeador traduz o prefixo numa gama
     (`cpv8>? AND cpv8<?`). Medido no corpus dele, «72 ou 48»: **2,83 s
     contra 0,03 s**, com o mesmo resultado (96 576 linhas).
@@ -5381,6 +5412,28 @@ def paginas_do_pdf_imagem(caminho):
             return doc.page_count
     except Exception:
         return 0
+
+
+def tamanhos_das_paginas(caminho, escala=2.0):
+    """[(largura, altura)] em pixels de cada pagina, como o
+    `imagem_da_pagina()` as desenha; [] quando nao ha PyMuPDF ou o
+    ficheiro nao abre.
+
+    Existe para o `<img>` de cada pagina levar `width`/`height` (lote 4
+    da segunda ronda, 26/09/2026): sem eles uma imagem por carregar mede
+    0 px de altura, as 42 paginas de um caderno ficavam todas «perto do
+    ecra», e o `loading=lazy` descarregava 10,9 MB sem se fazer scroll.
+    Ler o tamanho nao desenha nada: e o `rect` de cada pagina."""
+    try:
+        import pymupdf
+    except ImportError:
+        return []
+    try:
+        with pymupdf.open(caminho) as doc:
+            return [(int(round(p.rect.width * escala)),
+                     int(round(p.rect.height * escala))) for p in doc]
+    except Exception:
+        return []
 
 
 def imagem_da_pagina(caminho, n, escala=2.0, procurar=""):
@@ -8720,7 +8773,17 @@ def iniciar_corpus():
             # indice e uma passagem pelo indice e nao pela tabela.
             "CREATE INDEX IF NOT EXISTS ix_ctr_proc "
             "ON contratos(tipo_procedimento)",
-            "CREATE INDEX IF NOT EXISTS ix_cpv_v ON contrato_cpv(cpv8)",
+            # **Com o `contrato_id` e não só o código** (lote 4 da
+            # segunda ronda, 26/09/2026): o filtro por CPV e o perfil do
+            # Mercado perguntam `c.id IN (SELECT contrato_id ... WHERE
+            # cpv8 GLOB ?)`, e com o `ix_cpv_v(cpv8)` de antes o SQLite
+            # achava o código no índice e ia buscar o `contrato_id` à
+            # tabela -- uma busca ao acaso por linha, 161 711 no perfil
+            # «45 ou 507». Medido numa cópia: a contagem do Mercado de
+            # 0,84 s a 0,45 s a quente. Custa 2,3 s e 44 MB, e o
+            # `ix_cpv_v` sai (é prefixo deste) mais abaixo.
+            "CREATE INDEX IF NOT EXISTS ix_cpv_cobre "
+            "ON contrato_cpv(cpv8, contrato_id)",
             "CREATE INDEX IF NOT EXISTS ix_adj_nif ON contrato_adjudicatario(nif)",
         ):
             c.execute(ddl)
@@ -8754,9 +8817,19 @@ def iniciar_corpus():
         # o codigo produz, e poupa a manutencao deles na importacao.
         c.execute("DROP INDEX IF EXISTS ix_cpv_c")
         c.execute("DROP INDEX IF EXISTS ix_adj_c")
+        c.execute("DROP INDEX IF EXISTS ix_cpv_v")
+        # O `ix_ctr_chave` estreito só se cria num corpus que ainda não
+        # tem o `ix_ctr_chave_fim` (lote 4, 26/09/2026). Criava-se a
+        # CADA arranque e apagava-se trinta linhas abaixo: 12,6 s e
+        # ~50 MB escritos e deitados fora no painel e em cada
+        # verificação de hora a hora (`--uma-vez` passa por aqui), sem
+        # nada a dizê-lo. Num corpus novo continua a servir o
+        # `resolver_entidades()` até o de cobertura existir.
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE type='index' "
+                         "AND name='ix_ctr_chave_fim'").fetchone():
+            c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_chave "
+                      "ON contratos(adjudicante_chave)")
         for ddl in (
-            "CREATE INDEX IF NOT EXISTS ix_ctr_chave "
-            "ON contratos(adjudicante_chave)",
             "CREATE INDEX IF NOT EXISTS ix_adj_chave "
             "ON contrato_adjudicatario(chave)",
             # **De cobertura**, e é o que faz os gráficos do Mercado
@@ -8847,6 +8920,19 @@ def iniciar_corpus():
         c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_chave_fim "
                   "ON contratos(adjudicante_chave, fim_estimado)")
         c.execute("DROP INDEX IF EXISTS ix_ctr_chave")
+        # **A ficha da entidade sai de um índice** (lote 4 da segunda
+        # ronda, 26/09/2026). Os factos, a fita, os procedimentos e os
+        # anos da ficha são somas sobre os contratos DELA, pela chave --
+        # e cada uma ia buscar à tabela as linhas todas: o Município de
+        # Lisboa são ~15 mil, lidas oito vezes por página (0,75 s a
+        # quente, 1,1 s em produção). Com as colunas que essas somas
+        # pedem no índice, a página inteira passou a 0,33 s numa cópia.
+        # Custa ~15 s a construir uma vez e 100 MB. Uma coluna que
+        # falte (uma soma nova sobre outra coluna) volta a ir à tabela,
+        # sem erro -- é a lição do `ix_anuncios_acervo`.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_chave_cobre "
+                  "ON contratos(adjudicante_chave, data_celebracao, "
+                  "preco_contratual, preco_base, tipo_procedimento, n_adj)")
         # O grafico do desconto agrupa por n_anuncio so nas linhas com
         # anuncio e com os dois precos. O indice parcial cobre a
         # consulta inteira e poupa o varrimento da tabela: medido, 1,0 s
@@ -9431,6 +9517,54 @@ def primeiro_ano_corpus(omissao=2015):
 _TIPOS_DO_CORPUS = (None, [])
 
 
+def marca_do_corpus():
+    """A identidade do corpus: data e tamanho do `contratos.db`, e o
+    tamanho do `-wal` ao lado. Muda quando a importacao escreve, e so
+    entao -- e a chave das memorias do corpus, em vez de um prazo de
+    validade (ver o `tipos_de_procedimento()`).
+
+    **A data do `-wal` nao entra** (lote 4, 26/09/2026): em WAL, cada
+    ligacao que abre recria o `-wal` e cada uma que fecha apaga-o, e por
+    isso a data dele mudava a cada pedido -- a memoria dos tipos de
+    procedimento nunca acertava, e contava-se tudo outra vez. Uma
+    escrita que acaba muda o ficheiro principal (o checkpoint, ao fechar
+    a ultima ligacao); uma a meio muda o tamanho do `-wal`."""
+    marca = []
+    for f, com_data in ((CORPUS, True), (CORPUS + "-wal", False)):
+        try:
+            e = os.stat(f)
+            marca.append((f, e.st_mtime_ns if com_data else 0, e.st_size))
+        except OSError:
+            marca.append((f, 0, 0))
+    return tuple(marca)
+
+
+# {(marca do corpus, sql, valores): linha} -- ver conta_no_corpus()
+_CONTAS_DO_CORPUS = {}
+
+
+def conta_no_corpus(c, sql, valores):
+    """A linha de uma contagem sobre o corpus, guardada ate ele mudar
+    (lote 4 da segunda ronda, 26/09/2026).
+
+    O Mercado contava a cada pedido os contratos do filtro -- com o
+    perfil «45 ou 507» sao 161 711, e com uma palavra o `LIKE` varre os
+    dois milhoes de objectos --, e o corpus so muda com a importacao de
+    segunda-feira. A chave e a propria pergunta mais a identidade do
+    ficheiro: o numero e o que a consulta daria agora, sem prazo nenhum
+    a envelhecer. So para contagens: a lista das linhas continua a
+    perguntar-se sempre."""
+    # o dia entra na chave: o modo «a acabar» pergunta `date('now', ...)`,
+    # que e o dia em UTC -- e por isso a chave tambem
+    chave = (marca_do_corpus(), time.strftime("%Y-%m-%d", time.gmtime()),
+             sql, tuple(valores))
+    if chave not in _CONTAS_DO_CORPUS:
+        if len(_CONTAS_DO_CORPUS) > 512:     # perguntas de outra semana
+            _CONTAS_DO_CORPUS.clear()
+        _CONTAS_DO_CORPUS[chave] = dict(c.execute(sql, valores).fetchone())
+    return _CONTAS_DO_CORPUS[chave]
+
+
 def tipos_de_procedimento():
     """Os tipos de procedimento que o corpus conhece, do mais comum para
     o menos, para as caixas de filtro de /contratos e de /alertas.
@@ -9449,14 +9583,7 @@ def tipos_de_procedimento():
     global _TIPOS_DO_CORPUS
     if not os.path.exists(CORPUS):
         return []
-    marca = []
-    for f in (CORPUS, CORPUS + "-wal"):
-        try:
-            e = os.stat(f)
-            marca.append((f, e.st_mtime_ns, e.st_size))
-        except OSError:
-            marca.append((f, 0, 0))
-    marca = tuple(marca)
+    marca = marca_do_corpus()
     if _TIPOS_DO_CORPUS[0] == marca:
         return _TIPOS_DO_CORPUS[1]
     try:
@@ -10156,6 +10283,29 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 # tinham limite nenhum -- um POST de gigabytes enchia o disco antes de
 # alguem o ler. 20 MB chega para o modelo preenchido com folga.
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+
+
+# O relogio de cada pedido (lote 4 da segunda ronda, 26/09/2026): o
+# cabecalho `Server-Timing` diz no DevTools de qualquer pessoa quanto do
+# tempo foi base de dados (`base`) e quanto foi o pedido inteiro
+# (`total`). Foi a falta dele que obrigou o teste de desempenho a
+# adivinhar pela forma dos numeros. E o PRIMEIRO `before_request`, para
+# contar tambem a porta; a `base` soma-a a `Ligacao.execute`.
+@app.before_request
+def acertar_o_relogio():
+    g.relogio = time.perf_counter()
+    g.tempo_na_base = 0.0
+
+
+@app.after_request
+def dizer_o_tempo(resposta):
+    inicio = g.get("relogio")
+    if inicio is not None:
+        resposta.headers["Server-Timing"] = (
+            "base;dur=%.1f, total;dur=%.1f"
+            % (g.get("tempo_na_base", 0.0) * 1000,
+               (time.perf_counter() - inicio) * 1000))
+    return resposta
 
 # Os cabecalhos de seguranca, em todas as respostas (auditoria de
 # 14/09/2026). Nao havia nenhum. O CSP e o que o painel aguenta: os
@@ -11801,7 +11951,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
    nao ha rolo dentro de rolo. */
 .leitor .peca-folhas{padding:0 15px 15px;max-height:78vh;overflow-y:auto;
  background:var(--surface-sunken)}
-.peca-pag{display:block;width:100%;max-width:960px;margin:14px auto 0;
+.peca-pag{display:block;width:100%;height:auto;max-width:960px;margin:14px auto 0;
  border:1px solid var(--line);border-radius:5px;background:#fff;
  box-shadow:0 1px 3px rgba(20,24,30,.08)}
 .hist{display:flex;gap:10px;align-items:baseline;padding:9px 0;
@@ -12231,24 +12381,10 @@ details.perigo[open] > summary{color:var(--danger)}
 # o aspecto de antes -- e por isso que o `CSS` fica como estava e os
 # testes que medem a paleta antiga continuam a medi-la.
 #
-# Os @font-face ficam fora do ambito de proposito: declarar uma familia
-# nao a carrega (o browser so pede o ficheiro quando alguma coisa a usa),
-# e assim o mesmo bloco serve as tres opcoes do selector.
+# Os @font-face da Inter e das Plex que aqui viviam sairam a 26/09/2026
+# (lote 4 da segunda ronda): nada as usava desde a fase 1 da migracao, e
+# as quatro letras do sistema vem do `miragov-tokens.css`.
 CSS_NOVO = r"""
-@font-face{font-family:'Inter';src:url('/tipo/inter.woff2') format('woff2');
- font-weight:100 900;font-style:normal;font-display:swap}
-@font-face{font-family:'Plex Sans';src:url('/tipo/plex-sans.woff2') format('woff2');
- font-weight:100 700;font-style:normal;font-display:swap}
-@font-face{font-family:'Plex Mono';src:url('/tipo/plex-mono-400.woff2') format('woff2');
- font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Plex Mono';src:url('/tipo/plex-mono-600.woff2') format('woff2');
- font-weight:600;font-style:normal;font-display:swap}
-
-[data-tipo=inter]{
- }
-[data-tipo=plex]{
- }
-/* data-tipo=sistema nao redefine nada: fica o que o CSS de cima diz */
 
 /* A paleta. Medida sobre TODOS os fundos que existem, nao so sobre o
    papel: pior caso 4,52 (docs/design.md §4). A escala de texto passou a
@@ -12705,7 +12841,17 @@ CSS_TUDO = (carregar_estilos_de_terceiros()
 # desenho do `/tipo/<nome>` das fontes, e a mesma razão.
 ETIQUETA_CSS = hashlib.sha256(CSS_TUDO.encode("utf-8")).hexdigest()[:12]
 FOLHA_CSS = "/estilo/%s.css" % ETIQUETA_CSS
-LIGACAO_CSS = '<link rel="stylesheet" href="%s">' % FOLHA_CSS
+# As duas letras do texto vêm PRÉ-CARREGADAS (lote 4 da segunda ronda,
+# 26/09/2026): o browser só as descobria depois de ler a folha, chegavam
+# ~125 ms depois dela, e o Hoje saltava 31 px na primeira visita (CLS
+# 0,177, o «bom» é < 0,1). O `crossorigin` não é enfeite: uma fonte pede-se
+# sempre em modo CORS, e sem ele o browser descarregava-a duas vezes.
+FONTES_PRE_CARREGADAS = ("SourceSans3-Variable.woff2",
+                         "ZillaSlab-SemiBold.woff2")
+LIGACAO_CSS = "".join(
+    '<link rel="preload" href="/tipo/%s" as="font" type="font/woff2" '
+    'crossorigin>' % f for f in FONTES_PRE_CARREGADAS) + (
+    '<link rel="stylesheet" href="%s">' % FOLHA_CSS)
 
 
 @app.route("/estilo/<etiqueta>.css")
@@ -14699,7 +14845,31 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None,
         # exactamente o que a regra da empresa proibe. Visto no ecra.
         onde_base, valores_base = condicoes({"estado": ""})
     contas = {}
+    ja_contadas = ja_contadas or {}
+    # As ranhuras que se contam sobre os ANUNCIOS saem de UMA passagem
+    # (lote 4 da segunda ronda, 26/09/2026): eram uma contagem cada, e
+    # com o perfil posto cada uma varria as 210 mil linhas e montava de
+    # novo a lista dos distritos -- 0,2 s cada, tres por pagina. O perfil
+    # fica no WHERE, que e comum as tres, e o recorte de cada aba passa a
+    # uma soma: `SUM(CASE WHEN aba THEN 1 ELSE 0 END)` conta exactamente
+    # as linhas que o `WHERE aba` deixava passar (um NULL fica de fora
+    # nos dois). O teste `TestAEscadaContaNumaPassagem` confere-o contra
+    # a contagem de uma em uma.
+    de_anuncios = [ch for ch, _ in ESCADA + (("", "Todos"),)
+                   if ch not in CHAVES_DA_EMPRESA and ch not in ja_contadas]
+    somas, vals_somas = [], []
+    for chave in de_anuncios:
+        frag_a, vals_a = condicao_da_aba(chave, cfg=cfg)
+        somas.append("SUM(CASE WHEN %s THEN 1 ELSE 0 END)" % frag_a
+                     if frag_a else "COUNT(*)")
+        vals_somas += vals_a
     with liga() as c:
+        if de_anuncios:
+            onde, valores = com_recorte(onde_base, list(valores_base),
+                                        *condicao_do_interesse(cfg=cfg))
+            linha = c.execute("SELECT " + ", ".join(somas) + " FROM anuncios"
+                              + onde, vals_somas + valores).fetchone()
+            contas.update((ch, n or 0) for ch, n in zip(de_anuncios, linha))
         for chave, _ in ESCADA + (("", "Todos"),):
             if chave in CHAVES_DA_EMPRESA:
                 # **As oito da empresa contam PROPOSTAS, e nao anuncios com
@@ -14721,13 +14891,8 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None,
                 continue
             # a aba que a lista ja contou, com a MESMA consulta, nao se
             # conta outra vez: no «Expirou sem ver» eram 0,6 s repetidos
-            if chave in (ja_contadas or {}):
+            if chave in ja_contadas:
                 contas[chave] = ja_contadas[chave]
-                continue
-            onde, valores = com_recorte(onde_base, list(valores_base),
-                                        *recorte_da_lista(chave, cfg))
-            contas[chave] = c.execute(
-                "SELECT COUNT(*) n FROM anuncios" + onde, valores).fetchone()["n"]
     return contas
 
 
@@ -14875,13 +15040,23 @@ def _lista_de_anuncios():
     onde, valores = com_recorte(
         *condicoes(args_da_lista(request.args, estado="")),
         *recorte_da_lista(estado_da_aba, cfg))
+    onde_sem_estado, val_sem_estado = condicoes(
+        args_da_lista(request.args, estado=""))
+    # As abas contam DENTRO do filtro, cada uma com o SEU recorte, e numa
+    # passagem so (contar_a_escada()); a aba aberta sai dali tambem, com
+    # a mesma conta que a lista faria -- so uma aba que nao e da escada
+    # (um `?estado=` antigo que ja nao existe) se conta a parte.
+    contas = contar_a_escada(onde_sem_estado, val_sem_estado, cfg)
     with liga() as c:
         # Com paginas de 20 a contagem deixa de ser dispensavel: e ela que
         # diz quantas paginas ha. Faz-se sempre, antes da consulta das
         # linhas, para se poder segurar a pagina pedida dentro do que
         # existe -- pedir a pagina 900 de 12 devolvia uma lista vazia.
-        correspondem = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
-                                 valores).fetchone()["n"]
+        if estado_da_aba in contas and estado_da_aba not in CHAVES_DA_EMPRESA:
+            correspondem = contas[estado_da_aba]
+        else:
+            correspondem = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
+                                     valores).fetchone()["n"]
         paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
         pagina = min(max(1, pagina_pedida(request.args)), paginas)
         linhas = c.execute("SELECT * FROM anuncios" + onde +
@@ -14907,8 +15082,6 @@ def _lista_de_anuncios():
                     "ORDER BY COALESCE(lote, 0), id" % ",".join("?" * len(refs)),
                     refs):
                 na_escada.setdefault(p["ref"], []).append(p)
-        onde_sem_estado, val_sem_estado = condicoes(
-            args_da_lista(request.args, estado=""))
         # Quanto e que o interesse esta a tapar, nesta aba e dentro deste
         # filtro. Um recorte permanente que nao diga quanto esconde e um
         # recorte que se esquece: passado um mes, "nao ha nada" tanto
@@ -14956,12 +15129,6 @@ def _lista_de_anuncios():
     # A escada (15/09/2026): dez ranhuras mais o "todos", desenhadas
     # pela barra_das_abas() para as duas listas as terem iguais.
     estado_actual = estado_da_aba
-    # a aba aberta ja esta contada (`correspondem`), com o mesmo recorte;
-    # as ranhuras da empresa contam propostas, e essas nao se passam
-    contas = contar_a_escada(
-        onde_sem_estado, val_sem_estado, cfg,
-        ja_contadas=({} if estado_da_aba in CHAVES_DA_EMPRESA
-                     else {estado_da_aba: correspondem}))
     abas = [barra_das_abas(rota, estado_actual, contas, ABAS_DOS_CONCURSOS)]
 
     cpv_actual = request.args.get("cpv", "")
@@ -16041,18 +16208,21 @@ def filtro_apagar(filtro_id):
 _CPV_CACHE = {}
 
 
-def _contagens_cpv_anuncios():
-    """(chave de frescura, {codigo8: quantos anuncios})."""
+def _contagens_cpv_anuncios(so_chave=False):
+    """(chave de frescura, {codigo8: quantos anuncios}). Com `so_chave`,
+    so a chave (as contagens vem None): e o que o ETag precisa."""
     with liga() as c:
         lidos = c.execute("SELECT COUNT(*) n FROM anuncios "
                           "WHERE detalhe_lido=1").fetchone()["n"]
+        if so_chave:
+            return lidos, None
         codigos = [re.sub(r"\D", "", pedaco)[:8]
                    for row in c.execute("SELECT cpv FROM anuncios WHERE cpv != ''")
                    for pedaco in row["cpv"].split(",")]
     return lidos, Counter(c8 for c8 in codigos if len(c8) == 8)
 
 
-def _contagens_cpv_contratos():
+def _contagens_cpv_contratos(so_chave=False):
     """A mesma coisa para o corpus. A arvore do separador dos contratos
     tem de contar contratos: mostrar ali as contagens dos anuncios dizia
     ao Afonso que uma divisao esta vazia quando tem milhares de
@@ -16061,6 +16231,8 @@ def _contagens_cpv_contratos():
         return 0, {}
     with liga_corpus() as c:
         quantos = c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
+        if so_chave:
+            return quantos, None
         contagens = {r["cpv8"]: r["n"] for r in c.execute(
             "SELECT cpv8, COUNT(*) n FROM contrato_cpv GROUP BY cpv8")}
     return quantos, contagens
@@ -16082,7 +16254,20 @@ def cpv_json():
     if not conta:
         return Response('{"erro":"fonte desconhecida"}',
                         mimetype="application/json", status=400)
-    chave, contagens = conta()
+    chave, _ = conta(so_chave=True)
+    # A mesma chave de frescura serve de ETag (lote 4, 26/09/2026): eram
+    # 143 KB comprimidos de novo em cada visita ao Perfil. O
+    # `Cache-Control: private, no-cache` que a resposta leva (ver o
+    # `after_request`) faz o browser perguntar, e com a chave igual a
+    # resposta e um 304 sem corpo. A etiqueta e de todos os que veem a
+    # mesma fonte -- as contagens nao sao de nenhuma empresa.
+    def etiqueta_de(chave_):
+        return hashlib.sha256(repr((de, chave_)).encode()).hexdigest()[:16]
+    etiqueta = etiqueta_de(chave)
+    if etiqueta in request.if_none_match:
+        resp = Response(status=304)
+        resp.set_etag(etiqueta)
+        return resp
 
     # As contagens so mudam quando a fonte muda (mais um anuncio com
     # detalhe lido, ou uma importacao de contratos). Guardar o resultado
@@ -16090,7 +16275,11 @@ def cpv_json():
     # arvore. Uma entrada por fonte: com uma so, alternar de separador
     # deitava fora a cache do outro a cada visita.
     if _CPV_CACHE.get(de, (None,))[0] == chave:
-        return Response(_CPV_CACHE[de][1], mimetype="application/json")
+        resp = Response(_CPV_CACHE[de][1], mimetype="application/json")
+        resp.set_etag(etiqueta)
+        return resp
+    chave, contagens = conta()
+    etiqueta = etiqueta_de(chave)     # pode ter mudado entretanto
 
     with liga() as c:
         linhas = c.execute(
@@ -16099,7 +16288,9 @@ def cpv_json():
               "n": contagens.get(r["codigo8"], 0)} for r in linhas]
     corpo = json.dumps(dados, ensure_ascii=False)
     _CPV_CACHE[de] = (chave, corpo)
-    return Response(corpo, mimetype="application/json")
+    resp = Response(corpo, mimetype="application/json")
+    resp.set_etag(etiqueta)
+    return resp
 
 
 @app.route("/verificar", methods=["POST"])
@@ -20243,9 +20434,9 @@ def contratos():
     linhas = []
     with liga_corpus() as c:
         if ha_pergunta:
-            resumo = c.execute(
-                "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
-                "FROM contratos c" + onde, valores).fetchone()
+            resumo = conta_no_corpus(
+                c, "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
+                "FROM contratos c" + onde, valores)
             correspondem, valor = resumo["n"], resumo["v"]
             if com_interesse and condicao_do_interesse_contratos(cfg=cfg)[0]:
                 # quantos e que o interesse tapa dentro deste filtro: um
@@ -20253,9 +20444,9 @@ def contratos():
                 # se esquece (a mesma regra da lista de anuncios)
                 onde_livre, val_livre = filtros_dos_contratos(
                     request.args, com_interesse=False, cfg=cfg)
-                escondidos_interesse = c.execute(
-                    "SELECT COUNT(*) n FROM contratos c" + onde_livre,
-                    val_livre).fetchone()["n"] - correspondem
+                escondidos_interesse = conta_no_corpus(
+                    c, "SELECT COUNT(*) n FROM contratos c" + onde_livre,
+                    val_livre)["n"] - correspondem
             paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
             # Escolhem-se primeiro as 20 linhas, e so depois se lhes vao
@@ -22732,12 +22923,18 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
     sufixo = ("?" + urlencode({"procurar": procurar})) if procurar else ""
     # cada pagina tem ancora propria: e para ela que as ligacoes da
     # pesquisa saltam
+    # com a largura e a altura de cada uma, senao o lazy nao actua (ver
+    # o tamanhos_das_paginas())
+    tamanhos = tamanhos_das_paginas(caminho)
+    if len(tamanhos) != n_paginas:
+        tamanhos = [None] * n_paginas
     paginas_img = "".join(
-        "<img id='pag-%d' src='%s/%d.png%s' loading='lazy' "
+        "<img id='pag-%d' src='%s/%d.png%s' loading='lazy'%s "
         "alt='página %d' class='peca-pag'>"
         % (i, html.escape(base_img, quote=True), i,
-           html.escape(sufixo, quote=True), i)
-        for i in range(1, n_paginas + 1))
+           html.escape(sufixo, quote=True),
+           " width='%d' height='%d'" % t if t else "", i)
+        for i, t in enumerate(tamanhos, 1))
 
     # A pesquisa DENTRO do documento (pedida pelo Afonso a 31/08/2026: o
     # Ctrl+F levava-o ao texto extraido, e ele queria o resultado no
@@ -25356,12 +25553,13 @@ def proposta_apagar(id_):
 # que o painel nao pede nada a nenhum dominio de fora, e o CSP diz
 # `font-src 'self'`. Lista branca de nomes -- nao ha caminho nenhum a
 # juntar a mao, e por isso nao ha travessia possivel.
-TIPOS = {"inter.woff2", "plex-sans.woff2",
-         "plex-mono-400.woff2", "plex-mono-600.woff2",
+TIPOS = {
          # As quatro do sistema de desenho (fase 1 da migração,
          # 21/09/2026): Zilla Slab nos títulos, Source Sans no texto,
-         # Source Code Pro nos números. As de cima ficam enquanto a
-         # `[data-tipo=*]` do `CSS_NOVO` as citar.
+         # Source Code Pro nos números. A Inter e as duas Plex sairam a
+         # 26/09/2026 (lote 4 da segunda ronda): o `@font-face` delas
+         # ainda viajava na folha, e nada as usava. Os ficheiros das Plex
+         # ficam em `tipo/` para o `ferramentas/ecrans.py`, que as embute.
          "ZillaSlab-SemiBold.woff2", "ZillaSlab-Medium.woff2",
          "SourceSans3-Variable.woff2", "SourceCodePro-Variable.woff2"}
 

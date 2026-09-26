@@ -3843,6 +3843,14 @@ class BaseTemporaria(unittest.TestCase):
             radar, "BASE_DIR", self.pasta))
         self.enterContext(unittest.mock.patch.object(
             radar, "CONFIG", os.path.join(self.pasta, "config.json")))
+        # E o corpus TAMBÉM (lote 4, 26/09/2026). Sem isto um teste que
+        # chamasse o `iniciar_corpus()` corria-o sobre o `contratos.db`
+        # verdadeiro: o `TestMercadoDepressa` fazia-o em cada bateria, e
+        # no dia em que o arranque passou a criar índices novos criou-os
+        # na base verdadeira (~17 s e 144 MB), a meio do trabalho dele.
+        # Quem precisa de um corpus põe-no nesta pasta.
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
         radar.iniciar_db()          # cria o esquema e põe as marcas
 
 
@@ -10687,10 +10695,11 @@ class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
             vezes.append(1)
             return antes()
 
+        radar.iniciar_corpus()          # um corpus nesta pasta, com um
+        with radar.liga_corpus() as c:  # contrato
+            c.execute("INSERT INTO contratos (id, objecto) VALUES (1, 'x')")
         radar.liga_corpus = espia
         try:
-            if not os.path.exists(radar.CORPUS):
-                self.skipTest("sem corpus nesta máquina")
             radar.app.test_client().get("/quadro")
             self.assertLessEqual(vezes.count(1), 1,
                                  "o corpus contou-se %d vezes num pedido"
@@ -17516,6 +17525,271 @@ class TestOPerfilDaEmpresaNaoSeChamaInteresse(BaseTemporaria):
             texto = re.sub(r"<[^>]*>", " ", texto)
             texto = texto.replace("Chamava-se «Interesse»", "")
             self.assertEqual(re.findall(r"\w*nteresse\b", texto), [], rota)
+
+
+
+class TestAEscadaContaNumaPassagem(BaseTemporaria):
+    """Lote 4 da segunda ronda (26/09/2026): as abas da lista contavam-se
+    uma a uma, e com o perfil posto cada contagem varria as 210 mil
+    linhas -- 0,2 s cada, tres por pagina. Passaram a UMA consulta, com o
+    recorte de cada aba numa soma. O que isto segura: que a soma conta
+    exactamente o que o `WHERE` de cada aba contava, incluindo as linhas
+    com prazo ou data a NULL (que o `WHERE` deixa de fora e a soma
+    tambem), e que a aba aberta diz o mesmo numero que a lista."""
+
+    CFG = {"interesse_activo": True, "interesse_cpv": "45000000",
+           "interesse_distritos": "Lisboa", "interesse_pbmin": "20 000"}
+
+    def setUp(self):
+        super().setUp()
+        radar.gravar_config(self.CFG)
+        hoje = datetime.date.today()
+
+        def dia(n):
+            return (hoje + datetime.timedelta(days=n)).isoformat()
+        linhas = [
+            # ref, estado, data_pub, prazo, cpv, preco, distrito
+            ("1/2026", "novo", dia(-2), dia(5), "45000000-7", "30.000,00 EUR", "|Lisboa|"),
+            ("2/2026", "novo", dia(-90), dia(-60), "45200000-9", "50.000,00 EUR", "|Lisboa|"),
+            ("3/2026", "novo", dia(-3), None, "45000000-7", "90.000,00 EUR", "|*|"),
+            ("4/2026", "novo", dia(-1), "", "45000000-7", "25.000,00 EUR", "|Lisboa|"),
+            ("5/2026", "novo", dia(-1), dia(3), "72000000-5", "90.000,00 EUR", "|Lisboa|"),
+            ("6/2026", "novo", dia(-1), dia(3), "45000000-7", "1.000,00 EUR", "|Lisboa|"),
+            ("7/2026", "novo", dia(-1), dia(3), "45000000-7", "90.000,00 EUR", "|Porto|"),
+            ("8/2026", "alteracao", dia(-1), dia(3), "45000000-7", "90.000,00 EUR", "|Lisboa|"),
+            ("9/2026", "novo", dia(-400), "", "45000000-7", "90.000,00 EUR", "|Lisboa|"),
+            ("10/2026", "novo", dia(-1), dia(9), "45000000-7", "40.000,00 EUR", "|Lisboa|"),
+        ]
+        with radar.liga() as c:
+            for ref, estado, pub, prazo, cpv, preco, dist in linhas:
+                c.execute("INSERT INTO anuncios (ref, titulo, estado, data_pub,"
+                          " prazo, cpv, preco_base, distrito, detalhe_lido)"
+                          " VALUES (?,?,?,?,?,?,?,?,1)",
+                          (ref, "Obra " + ref, estado, pub, prazo, cpv, preco,
+                           dist))
+        radar.criar_proposta("10/2026", estado="analisar")
+
+    def _uma_a_uma(self, onde_base, valores_base):
+        """A conta de antes, aba a aba, com o `WHERE` de cada uma."""
+        contas = {}
+        cfg = radar.ler_config()
+        with radar.liga() as c:
+            for chave in ("porver", "expirou", ""):
+                onde, valores = radar.com_recorte(
+                    onde_base, list(valores_base),
+                    *radar.recorte_da_lista(chave, cfg))
+                contas[chave] = c.execute(
+                    "SELECT COUNT(*) n FROM anuncios" + onde,
+                    valores).fetchone()["n"]
+        return contas
+
+    def test_a_soma_conta_o_mesmo_que_o_where(self):
+        for url in ("/concursos", "/concursos?interesse=nao",
+                    "/concursos?q=obra", "/concursos?dist=Porto"):
+            with radar.app.test_request_context(url):
+                args = radar.args_da_lista(radar.request.args, estado="")
+                base = radar.condicoes(args)
+                juntas = radar.contar_a_escada(*base)
+                separadas = self._uma_a_uma(*base)
+            for chave in ("porver", "expirou", ""):
+                self.assertEqual(juntas[chave], separadas[chave],
+                                 "%s em %s" % (chave or "todos", url))
+        # e o fixture nao e trivial: ha de tudo em cada aba
+        with radar.app.test_request_context("/concursos?interesse=nao"):
+            contas = radar.contar_a_escada()
+        self.assertTrue(contas["porver"] and contas["expirou"], contas)
+
+    def test_a_aba_aberta_diz_o_numero_da_lista(self):
+        cliente = radar.app.test_client()
+        for aba in ("porver", "expirou", ""):
+            url = "/concursos?estado=%s&interesse=nao" % aba
+            corpo = cliente.get(url).get_data(as_text=True)
+            with radar.app.test_request_context(url):
+                n = radar.contar_a_escada()[aba]
+            self.assertIn("<b>%d</b> resultado" % n, corpo, aba or "todos")
+
+    def test_as_contagens_do_perfil_saem_de_um_indice(self):
+        """O `ix_anuncios_cobre` tem de cobrir a consulta das abas com o
+        perfil posto: uma coluna que lhe falte manda o SQLite a tabela
+        larga buscar cada linha, sem erro nenhum."""
+        with radar.app.test_request_context("/concursos"):
+            onde, valores = radar.com_recorte(
+                *radar.condicoes({"estado": "", "q": "obra"}),
+                *radar.condicao_do_interesse(cfg=radar.ler_config()))
+        with radar.liga() as c:
+            passos = [r[-1] for r in c.execute(
+                "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM anuncios" + onde,
+                valores)]
+        usa = [p for p in passos if " anuncios " in p + " "]
+        self.assertTrue(usa, passos)
+        self.assertTrue(all("COVERING INDEX" in p for p in usa), passos)
+
+
+class TestOCorpusNaoRefazIndicesAoArrancar(CorpusTemporario):
+    """Lote 4 da segunda ronda (26/09/2026): o `iniciar_corpus()` criava
+    o `ix_ctr_chave` e apagava-o trinta linhas abaixo, em TODOS os
+    arranques -- 12,6 s e ~50 MB escritos no corpus verdadeiro no
+    arranque do painel e em cada verificação de hora a hora."""
+
+    def _o_que_corre(self):
+        ditos = []
+        antes = radar.liga_corpus
+
+        def espia():
+            c = antes()
+            c.set_trace_callback(ditos.append)
+            return c
+        with unittest.mock.patch.object(radar, "liga_corpus", espia):
+            radar.iniciar_corpus()
+        return ditos
+
+    def test_a_segunda_vez_nao_cria_nem_apaga_o_indice_da_chave(self):
+        radar.iniciar_corpus()
+        ditos = " ".join(self._o_que_corre())
+        self.assertNotIn("ix_ctr_chave ON", ditos)
+
+    def test_os_indices_de_cobertura_existem_e_o_estreito_saiu(self):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            tem = {r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'")}
+            self.assertLessEqual({"ix_cpv_cobre", "ix_ctr_chave_cobre",
+                                  "ix_ctr_chave_fim"}, tem)
+            self.assertNotIn("ix_cpv_v", tem)
+            self.assertNotIn("ix_ctr_chave", tem)
+            # o filtro por CPV nao vai a tabela buscar o contrato_id
+            passos = [r[-1] for r in c.execute(
+                "EXPLAIN QUERY PLAN SELECT contrato_id FROM contrato_cpv "
+                "WHERE cpv8 GLOB '45*'")]
+        self.assertTrue(any("COVERING INDEX ix_cpv_cobre" in p
+                            for p in passos), passos)
+
+
+class TestContaNoCorpusGuardaAteOCorpusMudar(CorpusTemporario):
+    """Lote 4 (26/09/2026): o total do Mercado guarda-se ate o corpus
+    mudar, e a chave e a identidade do ficheiro -- nao um prazo, que
+    mostrava numeros velhos exactamente depois de uma importacao."""
+
+    def test_guarda_e_volta_a_contar_quando_o_ficheiro_muda(self):
+        radar.iniciar_corpus()
+        radar._CONTAS_DO_CORPUS.clear()
+        sql = "SELECT COUNT(*) n FROM contratos c"
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, objecto) VALUES (1, 'x')")
+        with unittest.mock.patch.object(
+                radar, "marca_do_corpus", lambda: ("fixa",)):
+            with radar.liga_corpus() as c:
+                self.assertEqual(radar.conta_no_corpus(c, sql, [])["n"], 1)
+            # com a mesma marca, a primeira resposta fica
+            with radar.liga_corpus() as c:
+                c.execute("INSERT INTO contratos (id, objecto) VALUES (2, 'y')")
+                c.commit()
+                self.assertEqual(radar.conta_no_corpus(c, sql, [])["n"], 1)
+        # com a marca verdadeira do ficheiro, conta outra vez
+        with radar.liga_corpus() as c:
+            self.assertEqual(radar.conta_no_corpus(c, sql, [])["n"], 2)
+
+    def test_abrir_e_fechar_uma_ligacao_nao_muda_a_marca(self):
+        """A marca levava a data do `-wal`, que o SQLite recria a cada
+        ligacao que abre: mudava a cada pedido, e nem a memoria dos tipos
+        de procedimento acertava uma vez."""
+        radar.iniciar_corpus()
+        marcas = []
+        for _ in range(3):
+            # a marca le-se COM a ligacao aberta, como no pedido
+            with radar.liga_corpus() as c:
+                c.execute("SELECT COUNT(*) FROM contratos").fetchone()
+                marcas.append(radar.marca_do_corpus())
+            time.sleep(0.01)
+        self.assertEqual(len(set(marcas)), 1, marcas)
+
+
+class TestABaseTemporariaNaoTocaNoCorpusVerdadeiro(BaseTemporaria):
+    """Lote 4 (26/09/2026): a `BaseTemporaria` punha o `radar.db` numa
+    pasta temporaria e deixava o `contratos.db` a apontar para o
+    verdadeiro. Um teste chamou o `iniciar_corpus()`, e os indices novos
+    nasceram na base dele a meio da bateria."""
+
+    def test_o_corpus_esta_na_pasta_do_teste(self):
+        self.assertTrue(os.path.abspath(radar.CORPUS).startswith(
+            os.path.abspath(self.pasta) + os.sep), radar.CORPUS)
+
+
+class TestOsPedidosDizemOTempo(BaseTemporaria):
+    """Lote 4 (26/09/2026): sem um relogio no servidor, o teste de
+    desempenho teve de adivinhar pela forma dos numeros onde se gastava
+    o tempo. O `Server-Timing` separa a base do resto."""
+
+    def test_o_cabecalho_vem_com_a_base_e_o_total(self):
+        r = radar.app.test_client().get("/concursos")
+        st = r.headers.get("Server-Timing", "")
+        self.assertRegex(st, r"^base;dur=\d+\.\d, total;dur=\d+\.\d$")
+        base, total = [float(x) for x in re.findall(r"dur=([\d.]+)", st)]
+        self.assertGreater(base, 0)
+        self.assertLessEqual(base, total)
+
+
+class TestOClienteNaoDescarregaODesnecessario(BaseTemporaria):
+    """Lote 4 (26/09/2026), do teste de desempenho: o `/cpv.json`
+    voltava a descarregar 143 KB em cada visita, as fontes do texto nao
+    vinham pre-carregadas (o Hoje saltava 31 px), e as paginas de uma
+    peca nao tinham tamanho (o `loading=lazy` trazia as 42 de uma vez)."""
+
+    def test_o_cpv_json_responde_304_com_a_mesma_etiqueta(self):
+        cliente = radar.app.test_client()
+        r = cliente.get("/cpv.json?de=anuncios")
+        self.assertEqual(r.status_code, 200)
+        etiqueta = r.headers.get("ETag")
+        self.assertTrue(etiqueta)
+        self.assertIn("private", r.headers.get("Cache-Control", ""))
+        r2 = cliente.get("/cpv.json?de=anuncios",
+                         headers={"If-None-Match": etiqueta})
+        self.assertEqual(r2.status_code, 304)
+        self.assertEqual(r2.get_data(), b"")
+        # um anuncio novo lido muda a etiqueta
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, detalhe_lido, cpv)"
+                      " VALUES ('1/2026', 'x', 1, '72000000-5')")
+        r3 = cliente.get("/cpv.json?de=anuncios",
+                         headers={"If-None-Match": etiqueta})
+        self.assertEqual(r3.status_code, 200)
+        self.assertNotEqual(r3.headers.get("ETag"), etiqueta)
+
+    def test_as_fontes_do_texto_vem_pre_carregadas(self):
+        corpo = radar.app.test_client().get("/concursos").get_data(as_text=True)
+        for nome in radar.FONTES_PRE_CARREGADAS:
+            self.assertIn(nome, radar.TIPOS)
+            self.assertIn('<link rel="preload" href="/tipo/%s" as="font" '
+                          'type="font/woff2" crossorigin>' % nome, corpo)
+        # e a folha ja nao declara letras que nada usa
+        for morta in ("Inter", "Plex Sans", "Plex Mono"):
+            self.assertNotIn("font-family:'%s'" % morta, radar.CSS_TUDO)
+
+    def test_as_paginas_da_peca_levam_largura_e_altura(self):
+        libs = os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                            "libs")
+        if os.path.isdir(libs) and libs not in sys.path:
+            sys.path.append(libs)
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("sem pymupdf no Python dos testes")
+        caminho = os.path.join(self.pasta, "ensaio.pdf")
+        doc = pymupdf.open()
+        doc.new_page(width=595, height=842)
+        doc.new_page(width=842, height=595)       # uma ao alto, outra deitada
+        doc.save(caminho)
+        doc.close()
+        self.assertEqual(radar.tamanhos_das_paginas(caminho),
+                         [(1190, 1684), (1684, 1190)])
+        self.assertEqual(radar.tamanhos_das_paginas("nao-existe.pdf"), [])
+        with radar.app.test_request_context("/"):
+            _, corpo = radar.visualizador_de_peca(
+                "1/2026", "ensaio.pdf", caminho, "/documento/x", "", "/")
+        self.assertIn("loading='lazy' width='1190' height='1684'", corpo)
+        self.assertIn("width='1684' height='1190'", corpo)
+        self.assertIn("height:auto",
+                      radar.CSS_TUDO.split(".peca-pag{")[1][:80])
 
 
 if __name__ == "__main__":
