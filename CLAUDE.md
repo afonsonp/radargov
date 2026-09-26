@@ -387,7 +387,15 @@ A ordem do ficheiro é a ordem do fluxo:
    `recado_do_que_falta()`; o histórico de uma proposta sem `ref` em
    `historico.proposta_id` (`cronologia_da_proposta()` lê pelas duas); e
    a página `/proposta/<id>` monta-se com `_bloco_de_uma_proposta()`, o
-   mesmo bloco da ficha do anúncio.
+   mesmo bloco da ficha do anúncio. Desde 26/09/2026 (D2, D3, D5 e D10
+   da segunda ronda): o preço acima da base recusa-se em
+   `gravar_campos_da_proposta()`, que **devolve o recado** e é por onde
+   passam todos os caminhos (`recusa_do_preco()`); o desfecho tem
+   `COLUNAS_DO_DESFECHO`, que a caixa da escada pede pelo
+   `CAMPOS_QUE_A_RANHURA_SUGERE`; as notas são linhas
+   (`notas_da_proposta`, `gravar_nota()`, `passar_as_notas()`); a
+   audiência prévia é uma tarefa com `ORIGEM_DA_AUDIENCIA`; e o cofre
+   dos documentos é o `sincronizar_documentos()`.
    **O que a escada É lê-se no `docs/FUNCIONAL.md` §3.1** — as dez
    ranhuras, o que cada uma exige, o vocabulário fechado dos motivos.
    Aqui ficam só os nomes no código.
@@ -471,12 +479,13 @@ A ordem do ficheiro é a ordem do fluxo:
    decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
    (13/09/2026; `<header class="barra">`), só com a marca, os itens,
    **Configurações** e quem está. Configurações
-   (`/configuracoes/…`, etapa 2 do `ONLINE.md`, 8/09/2026 — **nove
+   (`/configuracoes/…`, etapa 2 do `ONLINE.md`, 8/09/2026 — **dez
    rotas literais**, não um `<seccao>`: procura-se pelo nome de cada
    uma):
-   nove secções por esta ordem — conta, interesse, alertas, importar,
+   dez secções por esta ordem — conta, interesse, alertas, importar,
+   documentos (26/09/2026, só do admin da empresa: `ROTAS_SO_ADMIN`),
    indicadores, capturas, recolha, leitura das peças, cópias
-   (`SECCOES_CONFIG`, com a bandeira de só-admin nas cinco últimas) —
+   (`SECCOES_CONFIG`, com a bandeira do sistema nas cinco últimas) —
    cada uma um formulário que grava uma coisa por
    `gravar_config_registado()` (junta sem apagar, recusa chaves que
    pareçam segredos, e deixa o antes/depois no `historico`). Alertas
@@ -569,7 +578,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **310 pontos** (contados a 26/09/2026), cada um de um erro que
+São **314 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

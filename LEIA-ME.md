@@ -253,10 +253,15 @@ antes estava no fim da abertura, agora com casa própria e três abas —
 
 Em cima escolhe-se o **período**: este mês, este trimestre (o que abre
 por omissão), 12 meses ou tudo. Cada número traz a comparação com o
-período anterior do mesmo tamanho. O período conta pela data em que a
-proposta se **decidiu**; o «em jogo» é o que está aberto **agora**, e
-por isso não tem comparação — o radar não guarda o que estava em jogo no
-trimestre passado.
+período anterior do mesmo tamanho. O período conta pela **data da
+adjudicação** que escreveste ao marcar Ganha ou Perdida; sem ela, pelo
+dia em que a marcaste. O que está em jogo são **dois números** desde
+26/09/2026 — **em análise** (o preço base do que está em «Por analisar»
+e «A preparar») e **proposta entregue** (o proposto do que está em
+«Submetida» e «Relatório preliminar») —, cada um com a sua lista por
+baixo. São o que está aberto **agora**, e por isso não têm comparação —
+o radar não guarda o que estava em jogo no trimestre passado. O «Ganho»
+soma o **valor adjudicado**; vazio, o proposto.
 
 ### A ficha de uma entidade
 
@@ -785,6 +790,12 @@ as outras cinco só um admin as vê:
   Um alerta com uma data ou um valor que não se lê **não se grava**, e
   a página diz quando o e-mail ainda não sai, e porquê.
 - **Importar dados** — o registo da empresa, pelo modelo Excel (§13).
+- **Documentos da empresa** (só o administrador) — o alvará, as
+  certidões da AT e da Segurança Social, as ISO e os seguros, com o
+  número e a validade. Os ficheiros ficam onde os tens: aqui fica o que
+  caduca. **Quinze dias antes** de cada validade nasce uma tarefa no
+  Hoje; quando renovas e mudas a validade, a tarefa passa para a data
+  nova.
 - **Indicadores** — a saúde do sistema e os números (§8), com a
   verificação automática e a última verificação que estavam na barra.
 - **Recolha** — as horas da verificação (o temporizador dispara a
@@ -848,14 +859,26 @@ Duas coisas podem travar-te, e as duas dizem porquê:
 
 - se a ranhura pedir **motivo** («Perdido», «Não fomos»), abre-se uma
   caixa a perguntar, com a lista à escolha;
-- se faltar um **campo** que ela exige — o preço proposto, o lugar —, o
-  gesto é recusado e o aviso diz exactamente o que falta. Preenche no
-  bloco «A nossa proposta» e escolhe outra vez.
+- se faltar um **campo** que ela exige — o preço proposto, o lugar —, a
+  mesma caixa pede-o; sem ele, o gesto é recusado e o aviso diz
+  exactamente o que falta;
+- um **preço proposto acima do preço base** (do lote, quando a proposta
+  é a um lote) **não se grava** desde 26/09/2026: pelo CCP a proposta
+  seria excluída, e quase sempre é um zero a mais.
+
+Ao marcar **Ganha** ou **Perdida** a caixa pede também, sem obrigar, a
+**data da adjudicação** (é a do período do Ponto de situação) e, no
+Ganho, o **valor adjudicado** (vazio, conta o proposto). E a partir do
+«Relatório preliminar» o bloco tem a **data da notificação** do
+relatório: escrevê-la cria a tarefa de te pronunciares em audiência
+prévia, **5 dias úteis** depois — o mínimo da lei. Confirma na
+notificação o prazo que o júri deu; se for maior, adia a tarefa.
 
 **Tudo o resto vive no bloco «A nossa proposta»**, na ficha do anúncio —
 e há um bloco por lote, quando há lotes. Lá dentro: a ranhura, os campos
 que ela pede, o que a empresa decide (tipologia, CV, proposta técnica),
-o CoE, as notas, as etiquetas, o que falta fazer, e o desfecho do Portal
+o CoE, as notas (cada nota nova fica com a data e o teu nome, e as de
+antes não se apagam), as etiquetas, o que falta fazer, e o desfecho do Portal
 BASE quando já há contrato celebrado. O responsável escreve-se no cartão
 «Responsável», ao lado, que aparece quando o concurso já está na escada.
 
@@ -903,7 +926,9 @@ dados**, em três passos:
    participação, valor da proposta, lugar, concorrentes (separados por
    `;`), responsável, notas e **data da decisão** (dd/mm/aaaa: é ela que
    diz em que período do Ponto de situação a proposta conta; vazia, conta
-   o prazo do anúncio). A folha «Instruções» explica cada coluna e tem
+   o prazo do anúncio; num Ganho ou Perdido fica gravada como a data da
+   adjudicação). Um valor acima do preço base (do lote, quando a linha é
+   de um lote) **não entra**, como na ficha. A folha «Instruções» explica cada coluna e tem
    um exemplo. Uma linha por concurso, ou por lote. Uma referência
    escrita à mão («Anúncio n.º 8023/2026», «8023/26») lê-se, e o ensaio
    diz como a leu.
@@ -927,8 +952,9 @@ dados**, em três passos:
    proposta. No mesmo ficheiro, uma linha repetida (mesma referência e
    lote) é um erro e fica a primeira; voltar a importar uma referência
    que já entrou substitui o que ela tinha, por isso corrigir é
-   preencher outra vez e voltar a carregar. As notas entram no campo
-   Notas da proposta.
+   preencher outra vez e voltar a carregar. As notas entram como uma
+   nota da proposta, com o teu nome e a data; importar outra vez a mesma
+   nota não a repete.
 
 **Desfazer uma importação** (desde 26/09/2026): em «O que já está», cada
 importação tem o seu **desfazer**. As propostas que ela tocou voltam a
@@ -1150,7 +1176,8 @@ em quando.
 
 **Desde 15/09/2026 leva também as propostas e as tarefas** — o preço
 proposto, o lugar no relatório, os três primeiros, o motivo, a
-tipologia, o CV, a proposta técnica, as notas e o CoE. É a parte mais
+tipologia, o CV, a proposta técnica, as notas e o CoE — e, desde
+26/09/2026, as datas e o valor adjudicado, e os documentos da empresa. É a parte mais
 irrecuperável de todas, porque o Diário da República não te devolve o
 preço que propuseste; até esse dia não ia no ficheiro e ninguém tinha
 dado por isso.

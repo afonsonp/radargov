@@ -146,7 +146,7 @@ as exactas e salta as outras.
 `posicao`, `top3`, `motivo_perda`. São as colunas de CRM que saíram para
 `propostas` a 15/09/2026 — **não as uses: estão mortas.**
 
-### 2.1a `empresas/<id>/empresa.db` — o trabalho de uma empresa (14 tabelas)
+### 2.1a `empresas/<id>/empresa.db` — o trabalho de uma empresa (16 tabelas)
 
 **Um ficheiro por empresa** (fase F1, 23/09/2026; hoje só há a empresa
 2, a LATD). O `liga()` junta-o ao `radar.db` com o nome `emp`, e o SQL não
@@ -161,7 +161,9 @@ comparadas antes de apagar.
 | Tabela | Linhas | O que é |
 |---|---|---|
 | `propostas` | **4** — da LATD, que voltou como empresa 2 a 24/09/2026 (eram 81 antes de 23/09) | O que a **empresa** está a fazer — a escada |
-| `tarefas` | dezenas | O que falta fazer, por proposta. A verificação sincroniza-as |
+| `tarefas` | dezenas | O que falta fazer, por proposta — e, desde 26/09/2026, por documento do cofre (`documento_id`). A verificação sincroniza-as |
+| `notas_da_proposta` | **0** (a LATD não tinha notas quando a coluna passou, a 26/09/2026) | As notas datadas e assinadas: texto, quem, quando. Nenhuma apaga a anterior (§3.1) |
+| `documentos_da_empresa` | **0** | O cofre (D5, 26/09/2026): tipo, número ou descrição, validade. Sem ficheiros (§4.8) |
 | `contactos` | **0** (eram 26 na LATD antes de 23/09) | As pessoas do lado de lá, **por entidade** |
 | `historico` | uma por movimento | Quem, o quê, quando — o que a **empresa** fez. Cresce a **cada acção** no painel; o que o DR e as peças fizeram está nos `eventos` |
 | `pessoas` | 0 | Os nomes que a lista de «responsável» sugere |
@@ -183,8 +185,11 @@ comparadas antes de apagar.
 | `coe` | 58 | idem |
 | `cv`, `proposta_tecnica` | 49 | Quem entrou na proposta |
 | `valor_proposta`, `ebitda` | 42 | **O `ebitda` não aparece em ecrã nenhum** |
-| `fechada_em` | 48 | A data da decisão — é o que o período do `/situacao` usa |
-| `notas` | 38 | |
+| `fechada_em` | 48 | O dia em que se marcou como decidida — o período do `/situacao` usa-a só quando falta a `data_adjudicacao` |
+| `data_adjudicacao` | 0 | A data da adjudicação (26/09/2026): é por ela que o `/situacao` conta o período |
+| `audiencia_em` | 0 | A data da notificação do relatório preliminar: abre a tarefa da audiência prévia (§3.5) |
+| `valor_adjudicado` | 0 | O que o «Ganho» soma; vazio, o proposto (26/09/2026) |
+| `notas` | 0 | **Vazia desde 26/09/2026**: as notas passaram à `notas_da_proposta`, e a coluna fica (largar uma coluna reescreve a tabela) |
 | `lugar`, `top3` | 34 | Em que posição ficámos, e quem ficou à frente |
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
 | `lote` | 0 | Existe, ainda não se usou |
@@ -290,11 +295,27 @@ pode ficar vazio. E a proposta **não se grava por cima de uma versão
 mais nova**: aberta em dois separadores, ou por dois colegas, o segundo
 a gravar é recusado e vê o que está agora (25/09/2026).
 
-**O CCP avisa, não recusa** (26/09/2026; recusar é a decisão D2, dele):
-um proposto **acima do preço base** (art. 70.º, n.º 2, al. d) — a
-proposta é excluída) e um «Relatório preliminar» ou «Ganho» **antes do
-fim do prazo de entrega** gravam-se, com o aviso a vermelho
-(`aviso_do_ccp()`); o browser pede confirmação antes de gravar o preço.
+**Um proposto acima do preço base recusa-se** (D2, decisão dele a
+26/09/2026; até aí só avisava): pelo art. 70.º, n.º 2, al. d) do CCP a
+proposta é excluída. Vale em todos os caminhos que gravam o preço — a
+ficha, o selector e a caixa dele, a proposta sem anúncio e a importação
+— e é **o preço base do lote** numa proposta a um lote (a coluna
+`lotes` do anúncio), o total numa proposta ao conjunto. **Sem preço base
+conhecido não se recusa.** O browser recusa antes de enviar, e o
+servidor recusa na mesma (`recusa_do_preco()`). Um «Relatório
+preliminar» ou «Ganho» **antes do fim do prazo de entrega** continua a
+gravar-se com o aviso a vermelho (`aviso_do_ccp()`).
+
+**O desfecho tem datas e valor** (D3 e D10, 26/09/2026): o «Ganho» e o
+«Perdido» pedem, na mesma caixa e sem obrigar, a **data da
+adjudicação** — é por ela que a Situação conta o período — e o «Ganho»
+o **valor adjudicado** (vazio, é o proposto). A partir do «Relatório
+preliminar» o bloco tem a **data da notificação** do relatório, que abre
+a tarefa da audiência prévia (§3.5).
+
+**As notas são datadas e assinadas** (D3): cada nota nova fica com
+quem e quando, e nenhuma apaga a anterior. A nota única que cada
+proposta tinha passou a ser a primeira, «antes das notas datadas».
 Uma proposta **fechada com tarefas por fazer** di-lo no bloco, com um
 «fechar as N tarefas». O histórico guarda **o antes e o depois** do
 preço e da fase («Submetida → Relatório preliminar»), e a ficha
@@ -364,6 +385,17 @@ Duas origens:
   **Uma que já nasceria atrasada não se cria** (25/09/2026, decisão
   dele): entrar na escada depois de os esclarecimentos fecharem não põe
   uma tarefa a vermelho no mesmo clique.
+- **A audiência prévia** (26/09/2026) — nasce da data da notificação do
+  relatório preliminar que alguém escreve na proposta: **5 dias úteis**
+  depois, o mínimo do art. 147.º do CCP (contado pelo art. 87.º do CPA,
+  art. 470.º do CCP). O júri fixa o prazo na notificação e pode dar
+  mais: a tarefa diz para o confirmar, **adia-se e a sincronização
+  respeita** (ao contrário das do DR). Conta sábados e domingos e não os
+  feriados, por isso sai igual ou mais cedo do que o verdadeiro. Outra
+  data de notificação refaz-a; a proposta fechada tira-a.
+- **A validade de um documento do cofre** (26/09/2026) — **15 dias
+  antes** de cada validade (§4.8). Mudar a validade troca-a pela da data
+  nova, mesmo que a velha já estivesse feita; tirar o documento leva-a.
 - **Escritas à mão** — nunca se tocam.
 
 **Nada se move sozinho.** Um prazo que passa não muda ranhura nenhuma:
@@ -528,7 +560,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**100 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**103 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -629,23 +661,28 @@ Como vai o negócio. **Três abas** (Negócio · Triagem · Por área CPV) e
 um **período** (este mês · este trimestre · 12 meses · tudo), com
 comparação com o período anterior **do mesmo tamanho**.
 
-- **Quatro números**: em jogo · taxa de vitória · ganho (€ e nº) ·
-  desconto médio nos ganhos. **Cada um diz, por baixo, o que soma**
-  (26/09/2026): o em jogo é o preço base nas ranhuras de antes do
-  Submetido e o proposto daí em diante; o ganho é a soma do proposto
-  das ganhas; a taxa é ganhas ÷ (ganhas + perdidas), sem os «Não
-  fomos» nem os cancelados; o desconto é a média simples, com a pesada
-  pelo valor ao lado. **E cada um é uma ligação**: o em jogo às barras
-  por ranhura, os outros três à tabela **«Decididas»** do período — as
-  ganhas e as perdidas, com a data, os dois preços e o total.
+- **Cinco números**: em análise · proposta entregue · taxa de vitória ·
+  ganho (€ e nº) · desconto médio nos ganhos. **Cada um diz, por baixo,
+  o que soma** (26/09/2026): o «em jogo» partiu-se em dois (D10) — **em
+  análise** é o preço base das propostas em «Por analisar» e «A
+  preparar», **proposta entregue** o proposto das que estão em
+  «Submetida» e «Relatório preliminar» (o base, quando falta); o ganho
+  é a soma do **adjudicado** das ganhas (o proposto quando falta, o
+  base quando faltam os dois); a taxa é ganhas ÷ (ganhas + perdidas),
+  sem os «Não fomos» nem os cancelados; o desconto é a média simples,
+  com a pesada pelo valor ao lado. **E cada um é uma ligação**: os dois
+  do «em jogo» à sua lista, com o total (`tabela_em_jogo()`), os outros
+  três à tabela **«Decididas»** do período — as ganhas e as perdidas,
+  com a data, os três preços e o total.
 - **Negócio**: aviso das propostas por fechar · em jogo por ranhura ·
   porque se perde · porque não se vai · onde se ganha por área CPV · há
   mais tempo sem se mexerem · propostas por ranhura.
 - **Triagem**: o funil — entrados · por ver · triados · interessa.
 - **Por área CPV**: taxa de vitória por divisão.
 
-O período conta pela **`fechada_em`** — a data em que a proposta se
-marcou como decidida **no Mira Gov**, e não a da adjudicação, e o ecrã
+O período conta pela **data da adjudicação** (26/09/2026, D3) e, sem
+ela, pela **`fechada_em`** — o dia em que a proposta se marcou como
+decidida no Mira Gov; a tabela marca essas com «(marcada)», e o ecrã
 di-lo. Uma taxa só se diz a partir de
 **5 decididos**; abaixo disso diz-se por extenso quantos faltam.
 
@@ -772,7 +809,8 @@ título de cada uma di-lo («· sempre»).
 
 ### 4.8 Configurações — `/configuracoes/…`
 
-Nove secções, por esta ordem. **As cinco últimas só ao admin.**
+Dez secções, por esta ordem. **As cinco últimas são do sistema**, e só o
+dono da plataforma as abre; os **documentos** só o admin da empresa.
 
 | Secção | O que faz |
 |---|---|
@@ -780,6 +818,7 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 | **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
 | **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
+| **documentos** | o cofre dos documentos da empresa (26/09/2026, D5): o alvará, as certidões da AT e da Segurança Social, as ISO 9001, 14001 e 45001, os seguros de responsabilidade civil e de acidentes de trabalho, outro — com o número e a validade, **sem os ficheiros**. Cada validade dá uma tarefa 15 dias antes (§3.5) |
 | indicadores | as capturas, a recolha, o corpus — a saúde da máquina |
 | capturas | os dois pedidos cURL ao DR |
 | recolha | horas, janelas, a Vortal |
@@ -976,7 +1015,8 @@ mesma rota sem sair da página (§4.3).
 |---|---|
 | Triar um anúncio (interessa / abandonar + motivo) | lista, ficha |
 | Mudar de ranhura (+ os campos que ela exige) | lista, Hoje, ficha |
-| Gravar campos da proposta | ficha, ficha da proposta |
+| Gravar campos da proposta · escrever uma nota nova | ficha, ficha da proposta |
+| Juntar · mudar · remover um documento do cofre | Configurações › Documentos da empresa (admin) |
 | Criar / apagar proposta | ficha, `/proposta/nova` |
 | Criar tarefa · marcar feita · desfazer · adiar · atribuir | Hoje, ficha |
 | Adiar todas as atrasadas | Hoje |

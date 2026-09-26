@@ -738,3 +738,23 @@ main.mg span.p a{text-decoration:underline;text-underline-offset:2px}
 /* O texto do aviso que o JS da triagem escreve leva o espaço que sobra:
    solto, partia a linha e deixava o ✓ sozinho em cima, no telemóvel. */
 .aviso-da-vez>.aviso-texto{flex:1 1 0;min-width:12em}
+
+/* As notas datadas da proposta (D3, 26/09/2026): cada uma com quem e
+   quando, a mais recente em cima; as mudanças de linha ficam. */
+.prop-notas{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-strong)}
+ul.notas{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:var(--space-2)}
+ul.notas li{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary)}
+ul.notas .nota-cab{color:var(--ink-muted);font-weight:600}
+ul.notas .nota-texto{white-space:pre-line;overflow-wrap:anywhere}
+
+/* O cofre dos documentos (D5, 26/09/2026): cada linha é um formulário
+   que dobra no telemóvel. */
+.doc-linha{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.doc-linha select,.doc-linha input{min-width:0;flex:1 1 120px}
+.tab-docs td{vertical-align:middle}
+@media (max-width:640px){
+ .tab-docs thead{display:none}
+ .tab-docs,.tab-docs tbody,.tab-docs tr,.tab-docs td{display:block;width:auto}
+ .tab-docs tr{padding:var(--space-2) 0;border-bottom:1px solid var(--line)}
+ .tab-docs td{border:0;padding:4px 0;height:auto}
+}

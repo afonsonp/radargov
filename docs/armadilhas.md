@@ -17,15 +17,15 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 11
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 66
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 69
 - [O registo da empresa](#o-registo-da-empresa) &middot; 4
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 15
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 16
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 23
 - [A interface](#a-interface) &middot; 92
 - [Convenções](#convencoes) &middot; 4
 
-São **310** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **314** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1820,6 +1820,34 @@ pelo Afonso e nenhuma se reabre de passagem.
   «N que correspondem» (`.n-lista`) —, senão o número deixa de abrir a
   lista que diz.
 
+- **O preço acima da base recusa-se no `gravar_campos_da_proposta()`, e
+  ele DEVOLVE o recado** (D2, 26/09/2026). É o único sítio por onde
+  passam a ficha, o selector (pelo `mover_proposta()`), a caixa da
+  escada e a proposta sem anúncio; um caminho novo que grave o preço e
+  ignore o que ele devolve diz «gravado» sobre uma recusa. Duas
+  excepções, e ambas verificam **antes**: o `/estado/<ref>/<ranhura>` de
+  um anúncio ainda sem proposta (criar e depois recusar deixava uma
+  proposta num «Ganho» sem preço) e a importação, que recusa a linha no
+  ensaio. O preço base de um **lote** é o do lote (`preco_base_do_lote()`
+  na coluna `lotes` do anúncio): cair no total do procedimento era
+  deixar passar tudo; sem o preço do lote lido não se recusa.
+
+- **As notas vivem na `notas_da_proposta`, e a coluna `propostas.notas`
+  está vazia de propósito** (D3, 26/09/2026). O `passar_as_notas()` leva
+  a nota da coluna para a tabela e esvazia-a na mesma transacção, no
+  arranque, no fim do `repor_triagem()` e do `--empresa-desfazer` — um
+  `triagem.jsonl` ou uma cópia de antes trazem a nota na coluna, e
+  reposta lá ficava escondida, porque nenhum ecrã a lê. Quem escreve uma
+  nota usa o `gravar_nota()`; escrever na coluna é escrever para ninguém.
+
+- **A tarefa da audiência prévia não se reescreve, ao contrário das do
+  DR** (D3). O prazo que conta é o que o júri fixa na notificação, e os
+  5 dias úteis são só o mínimo do art. 147.º: quem o lê adia a tarefa, e
+  a sincronização tem de o respeitar. Por isso só uma data de
+  notificação NOVA a refaz (`_depois_do_desfecho()`), e a contagem salta
+  os fins-de-semana e não os feriados — erra para mais cedo, nunca para
+  mais tarde.
+
 
 ## O registo da empresa
 
@@ -2122,6 +2150,13 @@ SQLite, cópias, e a pen que manda nos números.
   que ainda não tem o de cobertura (`TestOCorpusNaoRefazIndicesAoArrancar`
   lê o que o arranque corre). Quando um índice novo substitui outro, o
   `CREATE` do velho sai **no mesmo commit** do `DROP`.
+
+- **Uma cópia de antes de uma coluna nova não tem essa coluna** (26/09/
+  2026). O `--empresa-desfazer` repunha as propostas de uma cópia com
+  `SELECT` das `COLUNAS_DA_PROPOSTA` — e no dia em que entraram as do
+  desfecho, qualquer cópia de antes rebentava o desfazer inteiro. Lê só
+  as colunas que a cópia tem (`PRAGMA table_info`); o mesmo vale para
+  quem ler uma cópia com uma lista de colunas escrita no código.
 
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já

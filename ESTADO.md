@@ -57,11 +57,11 @@ duas bases; os das empresas, de **24/09/2026**.
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma` e lê os Concursos e o Mercado), e a admin da LATD |
-| Rotas Flask | 100 |
-| Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
+| Rotas Flask | 103 |
+| Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
-| Testes | **1 326**, em ~69 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 28 214 linhas · `teste_radar.py` 18 421 · `empresa.py` 802 · `contas.py` 622 · `icones.py` 62 |
+| Testes | **1 348**, em ~72 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 28 846 linhas · `teste_radar.py` 18 792 · `empresa.py` 853 · `contas.py` 622 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -167,7 +167,11 @@ ensaio de restauro.
   no feminino e «fase» no lugar de «ranhura»; uma só voz (você, ou
   impessoal); a escala tipográfica e os raios só por token; um só
   «Filtrar», um só número grande (`kpi()`); e a decisão D11 — a
-  **Situação** na barra e a **Ajuda** num «?» à vista. A `v2.0.6`, de
+  **Situação** na barra e a **Ajuda** num «?» à vista. E as decisões
+  dele sobre a proposta (26/09/2026): o preço acima da base **recusa-se**
+  (D2); a data da adjudicação, a audiência prévia e as notas datadas
+  (D3); o cofre dos documentos (D5); e o valor adjudicado e o «em jogo»
+  em dois (D10). A `v2.0.6`, de
   25/09/2026, foi **o que o teste com dez perfis pediu de novo**: o
   convite pelo admin, o «Como funciona» com o glossário, o alerta que
   avisa logo, o filtro por distrito e por preço base (uma migração lê o
