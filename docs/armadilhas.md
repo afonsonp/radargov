@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 2
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 18
+- [Contas e a porta](#contas-e-a-porta) &middot; 19
 - [A interface](#a-interface) &middot; 79
 - [Convenções](#convencoes) &middot; 3
 
-São **270** ao todo, contados a 25/09/2026. Contam-se por secção com
+São **271** ao todo, contados a 25/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2073,6 +2073,15 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 `TestMudancasDeSetembro`, e as empresas de 23/09/2026 em
 `TestNenhumaEmpresaVeAOutra`.
 
+- **O que pede sessão nunca sai sem `private` no `Cache-Control`**
+  (26/09/2026, segunda ronda do teste com utilizadores). As páginas das
+  peças (`/peca-pagina/…png`) saíam com `max-age=86400` e mais nada: a
+  Cloudflare guarda os `.png` por omissão, e servia-os da borda a quem
+  não tinha sessão — a porta nem via o pedido. O `after_request`
+  `cabecalhos_de_seguranca()` põe `private` em tudo o que não se declara
+  `public` nem `no-store`; só as folhas, as fontes e o favicon se
+  declaram `public`, e são iguais para todos. Uma correcção destas pede
+  também **purgar a cache da Cloudflare**, que o código não alcança.
 - **O `?aviso=` só aparece assinado** (`assinatura_do_aviso()`, o
   `after_request` `assinar_o_aviso()`; 25/09/2026). O aviso vem no
   endereço, e qualquer ligação punha qualquer frase na faixa oficial —

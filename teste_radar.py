@@ -8740,6 +8740,23 @@ class TestOQueFaltavaDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("Preço base deste anúncio",
                       radar.comparacao_de_preco({"lotes": ""}, 26000.0, r))
 
+    def test_nada_do_que_pede_sessao_fica_na_cache_da_cloudflare(self):
+        """Segunda ronda do teste com utilizadores, 26/09/2026: as páginas
+        das peças saíam com `max-age` sem `private`, e a Cloudflare
+        servia-as da borda a quem não tinha sessão."""
+        with unittest.mock.patch.object(radar, "caminho_na_pasta",
+                                        lambda ref, nome: "/tmp/x.pdf"), \
+                unittest.mock.patch.object(radar, "imagem_da_pagina",
+                                           lambda caminho, n, procurar="": b"png"):
+            r = self.cliente.get("/peca-pagina/60/2026/CE.pdf/1.png")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("private", r.headers["Cache-Control"])
+        self.assertIn("private", self.cliente.get("/concursos").headers["Cache-Control"])
+        # o que é igual para todos continua a poder ficar na borda
+        h = self.cliente.get("/concursos").get_data(as_text=True)
+        folha = re.search(r'href="(/estilo/[^"]+)"', h).group(1)
+        self.assertIn("public", self.cliente.get(folha).headers["Cache-Control"])
+
     def test_nenhum_campo_de_formulario_fica_sem_nome(self):
         from html.parser import HTMLParser
 
