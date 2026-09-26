@@ -228,6 +228,11 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 .hj-stats a.mg-stat{text-decoration:none;color:inherit}
 .hj-stats a.mg-stat:hover{background:var(--surface)}
 .hj-stats .mg-stat.mau .mg-stat__note{color:var(--danger);font-weight:600}
+/* O PONTO DE SITUACAO (26/09/2026): cada numero liga a lista que o
+   confirma, e diz por baixo o que soma. */
+a.mg-stat{text-decoration:none;color:inherit}
+a.mg-stat:hover{background:var(--surface)}
+.mg-stat .porque{font-size:12px;line-height:1.35;color:var(--ink-muted)}
 /* O «mais N» de um balde comprido. */
 details.hj-mais>summary{list-style:none;cursor:pointer;padding:6px var(--space-4);
  font:500 13px/18px var(--font-sans);color:var(--link)}

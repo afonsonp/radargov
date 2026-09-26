@@ -850,7 +850,9 @@ def criar_empresa(nome):
     id_ = max(empresas_existentes() or [EMPRESA_ACTIVA]) + 1
     iniciar_empresa(db_da_empresa(id_))
     with com_empresa(id_):
-        gravar_config({"nome_da_empresa": " ".join(nome.split())[:120]})
+        gravar_config({"nome_da_empresa": " ".join(nome.split())[:120],
+                       # o «Expirou sem ver» conta daqui (condicao_da_aba)
+                       "empresa_desde": datetime.now().date().isoformat()})
     return id_
 
 
@@ -1379,7 +1381,7 @@ def renomear_chaves_do_config():
 CONFIG_DA_EMPRESA = ("nome_da_empresa", "nif_da_empresa", "interesse_activo",
                      "interesse_cpv", "interesse_cpv_excl",
                      "interesse_distritos", "interesse_pbmin", "alertas",
-                     "dias_urgente")
+                     "dias_urgente", "empresa_desde")
 EMAIL_DA_EMPRESA = ("para", "hora_resumo")
 
 
@@ -8157,6 +8159,34 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
            "blocos": "".join(blocos)})
 
 
+# As razoes por que um e-mail nao sai sem sequer se tentar. Sao as que
+# se dao por entregues no AVISOS.txt (enviar_resumo), e a primeira e a
+# que o ecra dos alertas avisa a vermelho (`porque_o_email_nao_sai()`).
+EMAIL_POR_CONFIGURAR = "e-mail por configurar"
+EMAIL_SEM_SENHA = "falta a palavra-passe em email_senha.txt"
+EMAIL_SEM_DESTINO = "sem endereço para onde enviar"
+EMAIL_SEM_CANAL = (EMAIL_POR_CONFIGURAR, EMAIL_SEM_SENHA, EMAIL_SEM_DESTINO)
+RX_EMAIL = re.compile(r"[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+")
+
+
+def porque_o_email_nao_sai(cfg=None):
+    """A razao por que um e-mail nao sairia agora, ou "" se sairia.
+
+    **A conta que envia vem antes do destino**, e sao duas frases: a
+    lista dos pedidos de acesso dizia «e-mail por configurar» porque a
+    plataforma nao tinha para onde avisar o dono, e o dono leu que o
+    correio estava desligado -- estava ligado, e o convite tinha saido
+    (teste com utilizadores, 26/09/2026)."""
+    e = (cfg or ler_config()).get("email") or {}
+    if not ((e.get("de") or "").strip() and (e.get("servidor") or "").strip()):
+        return EMAIL_POR_CONFIGURAR
+    if not ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"):
+        return EMAIL_SEM_SENHA
+    if not (e.get("para") or "").strip():
+        return EMAIL_SEM_DESTINO
+    return ""
+
+
 def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     """Manda o resumo. Devolve (correu bem, o que dizer ao utilizador).
 
@@ -8174,11 +8204,10 @@ def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     para = (e.get("para") or "").strip()
     de = (e.get("de") or "").strip()
     servidor = (e.get("servidor") or "").strip()
-    if not (para and de and servidor):
-        return False, "e-mail por configurar"
+    falta = porque_o_email_nao_sai(cfg)
+    if falta:
+        return False, falta
     senha = ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA")
-    if not senha:
-        return False, "falta a palavra-passe em email_senha.txt"
 
     msg = EmailMessage()
     msg["Subject"] = assunto
@@ -8226,8 +8255,7 @@ def enviar_imediatos(cfg=None):
             total, "" if total == 1 else "s", "" if total == 1 else "s",
             corta(nomes, 60)),
         corpo, cfg, html_do_resumo(achados, [], []))
-    if bem or porque in ("e-mail por configurar",
-                         "falta a palavra-passe em email_senha.txt"):
+    if bem or porque in EMAIL_SEM_CANAL:
         marcar_alertas_enviados(achados)
         return True, porque
     return False, porque
@@ -8269,8 +8297,7 @@ def enviar_resumo(cfg=None, forcar=False):
     # "153 por avisar" para sempre e o mesmo resumo era reescrito a cada
     # volta. Uma falha a serio (palavra-passe recusada, rede em baixo) e
     # outra coisa: essa nao marca, para voltar a tentar.
-    sem_canal = porque in ("e-mail por configurar",
-                           "falta a palavra-passe em email_senha.txt")
+    sem_canal = porque in EMAIL_SEM_CANAL
     entregue = bem or sem_canal
     if entregue:
         marcar_alertas_enviados(achados)
@@ -13288,7 +13315,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         itens.append("<a class='mg-topbar__link' href='/plataforma'>Plataforma</a>")
     else:
         itens.append("<a class='mg-topbar__link' href=\"/configuracoes\"%s "
-                     "title='A conta, o interesse, os alertas e o resto das "
+                     "title='A conta, o perfil da empresa, os alertas e o resto das "
                      "configurações'>Configurações</a>"
                      % (" aria-current='page'" if activo == "configuracoes" else ""))
 
@@ -14346,6 +14373,17 @@ def condicao_da_aba(estado, hoje=None, cfg=None):
         return ("estado = 'novo' AND " + vivo + " AND NOT " + SQL_TEM_PROPOSTA,
                 [hoje.isoformat(), corte])
     if estado == "expirou":
+        # So o que expirou depois de a empresa chegar (26/09/2026): uma
+        # empresa com uma hora de vida lia «Expirou sem ver 5 171», e
+        # nao deixou fugir nenhum -- nao estava ca. O que expirou antes
+        # continua em «Todos». Sem a data (a empresa 1, anterior a ela),
+        # conta tudo, como sempre contou.
+        desde = (cfg.get("empresa_desde") or "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", desde):
+            return ("estado = 'novo' AND NOT " + vivo + " AND NOT "
+                    + SQL_TEM_PROPOSTA
+                    + " AND COALESCE(NULLIF(prazo, ''), data_pub) >= ?",
+                    [hoje.isoformat(), corte, desde])
         return ("estado = 'novo' AND NOT " + vivo + " AND NOT " + SQL_TEM_PROPOSTA,
                 [hoje.isoformat(), corte])
     return "estado = ?", [estado]
@@ -14845,9 +14883,9 @@ def _lista_de_anuncios():
         # entrou esta triado" com 1290 anuncios escondidos era uma
         # afirmacao falsa por cima da faixa que diz o contrario.
         corpo_lista = ("<div class='mg-empty'>Nada aqui <b>dentro do "
-                       "interesse</b> &mdash; há %s de fora dele. "
+                       "perfil da empresa</b> &mdash; há %s de fora dele. "
                        "<a href='%s'>ver tudo</a> ou "
-                       "<a href='/configuracoes/interesse'>mudar o interesse</a>."
+                       "<a href='/configuracoes/interesse'>mudar o perfil</a>."
                        "</div>"
                        % (mil(escondidos_interesse),
                           html.escape(sem_pagina(request.args, rota,
@@ -15674,7 +15712,7 @@ def faixa_cpv_activo(args, tirar_href):
             % (html.escape(cpv), html.escape(tirar_href, quote=True)))
 
 
-def _faixa_do_interesse(rota, escondidos, cfg=None):
+def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
     """A faixa que diz que a lista esta limitada ao interesse -- ou que
     ele foi levantado neste pedido.
 
@@ -15686,24 +15724,38 @@ def _faixa_do_interesse(rota, escondidos, cfg=None):
     levantado = (request.args.get("interesse") or "").strip() == "nao"
     ligado, dentro, fora = interesse_definido(cfg)
     descricao = descricao_do_interesse(cfg)
+    ressalva = ""
+    if so_cpv:
+        # O Mercado so recorta pelo CPV (os contratos nao tem o distrito
+        # nem o preco base na forma dos anuncios, FUNCIONAL §3.3), e a
+        # faixa dizia o perfil inteiro -- «Lisboa · desde 20 000 €» por
+        # cima de um contrato de Serpa a 8 514 € (teste de 26/09/2026).
+        # A faixa diz o que aplica, e o que nao aplica.
+        cfg_ = ler_config() if cfg is None else cfg
+        resto = [x for x in ((cfg_.get("interesse_distritos") or "").strip(),
+                             (cfg_.get("interesse_pbmin") or "").strip()) if x]
+        descricao = interesse_legivel(dentro) if dentro else ""
+        if resto:
+            ressalva = (" <span class='d'>(os distritos e o valor mínimo "
+                        "do perfil só recortam os concursos)</span>")
     # um interesse so de distrito ou de valor tambem recorta, e a faixa
     # tambem o diz (25/09/2026)
     if not ligado or not descricao:
         return ""
     if levantado:
-        return ("<div class='cpv-activo'>Interesse levantado nesta vista "
-                "&mdash; vês o acervo todo.<a href='%s'>voltar ao interesse"
+        return ("<div class='cpv-activo'>Perfil da empresa levantado nesta "
+                "vista &mdash; vês o acervo todo.<a href='%s'>voltar ao perfil"
                 "</a></div>"
                 % html.escape(sem_pagina(request.args, rota, interesse=""),
                               quote=True))
     quantos = ("<span class='d'> &middot; %s de fora</span>"
                % mil_pt(escondidos)) if escondidos > 0 else ""
     return ("<div class='cpv-activo'>Limitado ao "
-            "<a href='/configuracoes/interesse'>interesse</a>: <b>%s</b>%s%s"
-            "<a href='%s'>ver tudo</a></div>"
+            "<a href='/configuracoes/interesse'>perfil da empresa</a>: "
+            "<b>%s</b>%s%s%s<a href='%s'>ver tudo</a></div>"
             % (descricao,
                (" <span class='d'>sem %s</span>" % html.escape(fora))
-               if fora else "", quantos,
+               if fora else "", ressalva, quantos,
                html.escape(sem_pagina(request.args, rota, interesse="nao"),
                            quote=True)))
 
@@ -16240,9 +16292,8 @@ def _conteudo_interesse():
     # em vigor -- sem ela, "Guardar" nao deixava rasto nenhum no ecra.
     if apanha_ver is None:
         estado = ("<div class='nota' style='margin:0 0 12px'>Ainda sem "
-                  "interesse: a <a href='" + LISTA + "'>lista de anúncios</a> mostra "
-                  "tudo. Marca os CPV e carrega em &ldquo;Guardar o "
-                  "interesse&rdquo;.</div>")
+                  "perfil: a <a href='" + LISTA + "'>lista de anúncios</a> mostra "
+                  "tudo. Marca os CPV e carrega em «Guardar o perfil».</div>")
     else:
         # o endereco vai no TUPLO e nao concatenado ao molde: o `%` tem
         # precedencia sobre o `+`, e `"a" + LISTA + "b %s" % x` aplica a
@@ -16265,7 +16316,7 @@ def _conteudo_interesse():
         % (estado, html.escape(dentro, quote=True), html.escape(fora, quote=True),
            _local_e_valor_do_interesse(cfg),
            arvore_html(n_cpv, "anuncios", aberta=True,
-                       botao="Guardar o interesse", rodape=False)))
+                       botao="Guardar o perfil", rodape=False)))
     return formulario
 
 
@@ -16287,12 +16338,12 @@ def interesse_gravar():
                    "interesse_cpv_excl": fora, "interesse_distritos": distritos,
                    "interesse_pbmin": pbmin})
     if activo:
-        aviso = ("Interesse guardado: a lista de anúncios passa a mostrar só %s."
+        aviso = ("Perfil da empresa guardado: a lista de anúncios passa a mostrar só %s."
                  % " · ".join(x for x in (
                      dentro, distritos.replace("|", ", "),
                      "desde %s €" % pbmin if pbmin else "") if x))
     else:
-        aviso = "Interesse vazio: a lista de anúncios volta a mostrar tudo."
+        aviso = "Perfil da empresa vazio: a lista de anúncios volta a mostrar tudo."
     return redirect("/configuracoes/interesse?" + urlencode({"aviso": aviso}))
 
 
@@ -16328,7 +16379,8 @@ def _linha_filtro(f):
         triados = (f["interessou"] or 0) + (f["descartou"] or 0)
         taxa = (" &middot; acerto <b>%s</b>" % pct_pt(f["interessou"] / triados)
                 if triados else " &middot; ainda nada triado")
-        triagem = ("<span class='onde'>dos %s que marcou: %s interessa "
+        # «que marcou» dizia-o de quem nao marcou nada (26/09/2026)
+        triagem = ("<span class='onde'>dos %s que o alerta apanhou: %s interessa "
                    "&middot; %s descartados &middot; %s por ver%s</span>"
                    % (mil_pt(marcou), mil_pt(f["interessou"] or 0),
                       mil_pt(f["descartou"] or 0), mil_pt(f["por_triar"] or 0),
@@ -16668,10 +16720,19 @@ def _conteudo_alertas():
                      "<th>Entidade</th><th>Filtro</th></tr></thead>"
                      "<tbody>%s</tbody></table></div>" % hist)
     else:
-        historico = ("<div class='nota'>Ainda não saiu nenhum aviso. Sai no "
-                     "resumo a seguir à próxima verificação.</div>")
+        historico = ("<div class='nota'>Ainda não saiu nenhum aviso. %s</div>"
+                     % ("Aparece aqui a seguir à próxima verificação."
+                        if porque_o_email_nao_sai(cfg) else
+                        "Sai no resumo a seguir à próxima verificação."))
 
-    conteudo = ("<div class='larg'>" + lista +
+    # Os avisos prometiam um e-mail que nao podia sair, e nada o dizia
+    # (teste de 26/09/2026). A razao vem do mesmo teste que o envio faz.
+    falta = porque_o_email_nao_sai(cfg)
+    faixa_correio = ("<div class='mg-alert mg-alert--warning' role='status'>"
+                     "Os avisos ainda não saem por e-mail (%s). Ficam em "
+                     "«Últimos avisos», aqui em baixo.</div>"
+                     % html.escape(falta)) if falta else ""
+    conteudo = ("<div class='larg'>" + faixa_correio + lista +
                 caixa_seguidas +
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
@@ -16707,7 +16768,7 @@ def _conteudo_alertas():
 # serve; o que estava errado era chamar-lhes configuracao.
 SECCOES_CONFIG = (
     ("conta", "Conta", "palavra-passe, sessões, a nossa empresa, utilizadores", False, True),
-    ("interesse", "Interesse", "os CPV que a empresa trabalha", False, True),
+    ("interesse", "Perfil da empresa", "os CPV, os distritos e o valor que a empresa trabalha", False, True),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
     ("importar", "Importar dados", "o registo da empresa, pelo modelo Excel", False, True),
     ("indicadores", "Indicadores", "as capturas, a recolha e o corpus", True, False),
@@ -17461,7 +17522,7 @@ def _bloco_utilizadores(todos, eu):
         "<div class='nota' style='margin-bottom:10px'>As contas da nossa "
         "empresa. O <b>admin</b> cria e tira contas e diz quem a empresa é; "
         "o <b>tester</b> vê os anúncios, o que está em curso, o mercado, e "
-        "nas configurações só a conta, o interesse, os alertas e o "
+        "nas configurações só a conta, o perfil da empresa, os alertas e o "
         "importar.</div>"
         "<div class='saude'>%s</div>"
         # O convite primeiro (teste com utilizadores, 25/09/2026): criar a
@@ -17523,15 +17584,19 @@ GLOSSARIO = (
          "Vortal. Entram todos; a triagem faz-se aqui."),
         ("Por ver", "Os concursos que ainda dão para responder (o prazo não "
          "passou) e sobre os quais a empresa ainda não decidiu nada."),
-        ("Expirou sem ver", "Os que passaram do prazo sem ninguém decidir. "
+        ("Expirou sem ver", "Os que passaram do prazo, desde que a empresa chegou ao Mira Gov, "
+         "sem ninguém decidir. "
          "Não se apagam: se o prazo for prorrogado, voltam ao «Por ver»."),
         ("Interessa", "Põe o concurso na escada, em «Por analisar», e manda "
          "trazer as peças."),
         ("Abandonar", "Diz que não se vai concorrer, com o motivo. Fica em "
          "«Não fomos», e pode voltar."),
-        ("Interesse", "Os códigos CPV da empresa (Configurações › "
-         "Interesse). Com ele definido, os Concursos e o Mercado mostram "
-         "só o que cai lá dentro; «ver tudo» levanta-o nessa vista."),
+        ("Perfil da empresa", "O que a empresa trabalha: os códigos CPV "
+         "e, se quiser, os distritos e um preço base mínimo (Configurações "
+         "› Perfil da empresa). Com ele definido, os Concursos e o "
+         "Calendário mostram só o que cai lá dentro, e o Mercado só os "
+         "contratos desses CPV; «ver tudo» levanta-o nessa vista. Não mexe "
+         "nos alertas. (Chamava-se «Interesse».)"),
         ("CPV", "O Vocabulário Comum para os Contratos Públicos: o código "
          "de oito dígitos que diz o que se compra. Um código mais curto "
          "(com zeros no fim) apanha tudo o que está por baixo dele."),
@@ -17693,6 +17758,20 @@ def alerta_criar():
 
     if not nome:
         return recusa("O alerta precisa de nome.")
+    # O que o filtro nao le ignora-se em silencio, e um alerta com
+    # «32/13/2026» e «abc» apanhava a base inteira -- «200 410 por ver»
+    # -- depois de dizer que estava tudo bem (teste de 26/09/2026). A
+    # lista pode ignorar e avisar; um alerta nao, porque ninguem esta a
+    # olhar para ele quando avisa.
+    campos = dict(pares)
+    maus = ["«%s» não é uma data (dd/mm/aaaa)." % corta(campos[k], 20)
+            for k in ("de", "ate")
+            if campos.get(k) and not data_de_filtro(campos[k])]
+    maus += ["«%s» não se lê como valor." % corta(campos[k], 20)
+             for k in ("pbmin", "pbmax", "min")
+             if campos.get(k) and euros_do_texto(campos[k]) is None]
+    if maus:
+        return recusa(maus[0] + " O alerta não foi gravado.")
     consulta = urlencode(pares)
     if not [k for k, v in pares if v and k not in ("estado", "op")]:
         return recusa("Diz o que o alerta procura: palavras, CPV, entidade "
@@ -17715,11 +17794,28 @@ def alertas_email():
     """So o destino e a hora. A conta que envia nao passa por aqui: um
     formulario que a aceitasse convidava a preencher meia configuracao e
     a achar que estava feita, com a palavra-passe sempre de fora."""
-    gravar_config({"email": {
-        "para": (request.form.get("para") or "").strip(),
-        "hora_resumo": (request.form.get("hora_resumo") or "17:00").strip(),
-    }})
-    return redirect("/configuracoes/alertas?aviso=" + quote("Configuração do e-mail guardada."))
+    para = (request.form.get("para") or "").strip()
+    # Valida-se aqui e nao so no browser: «nao-e-email» gravava-se com
+    # «guardada», e o resumo deixava de chegar sem ninguem saber (teste
+    # com utilizadores, 26/09/2026). O `type=email` do campo nao chega:
+    # um colar, ou um browser antigo, passa-o.
+    maus = [x for x in re.split(r"[,;]", para) if x.strip()
+            and not RX_EMAIL.fullmatch(x.strip())]
+    if maus:
+        antes = ((ler_config().get("email") or {}).get("para") or "").strip()
+        return redirect("/configuracoes/alertas?aviso=" + quote(
+            "«%s» não parece um endereço de e-mail. Nada mudou: o resumo "
+            "continua %s." % (corta(maus[0].strip(), 60),
+                              "a ir para %s" % antes if antes
+                              else "sem destino")))
+    hora = (request.form.get("hora_resumo") or "17:00").strip()
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", hora):
+        return redirect("/configuracoes/alertas?aviso=" + quote(
+            "«%s» não é uma hora (hh:mm). Nada mudou." % corta(hora, 20)))
+    gravar_config({"email": {"para": para, "hora_resumo": hora}})
+    return redirect("/configuracoes/alertas?aviso=" + quote(
+        "O resumo vai para %s, às %s." % (para, hora) if para
+        else "Sem destino: o resumo fica só no AVISOS.txt e em «Últimos avisos»."))
 
 
 @app.route("/alertas/<int:filtro_id>/imediato", methods=["POST"])
@@ -19024,7 +19120,7 @@ def entidades():
             "<input type='hidden' name='ver' value='%s'>"
             "<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
             "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
-            "<th class='p'>Compra</th><th class='p'>Ganha</th>"
+            "<th class='p'>Compra · sempre</th><th class='p'>Ganha · sempre</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
             "<th class='p'>A acabar · %d meses</th><th><span class='so-leitor'>Acções</span></th></tr></thead>"
             "<tbody>%s</tbody></table>"
@@ -19051,7 +19147,7 @@ def entidades():
                     titulo_aba="Entidades, Mira Gov")
 
 
-def factos_da_entidade(chave, nosso, meses=24):
+def factos_da_entidade(chave, nosso, meses=24, args=None):
     """Os seis factos do topo da ficha de uma entidade (redesenho §4).
 
     Substituem os dois cartões «Compra» e «Ganha». Não é enfeite: os
@@ -19062,35 +19158,43 @@ def factos_da_entidade(chave, nosso, meses=24):
 
     Sem corpus os três primeiros dizem «sem BASE» em vez de zero: zero é
     uma afirmação sobre o mercado, e a afirmação verdadeira é «não sei».
+
+    Os três do Portal BASE levam **o filtro da ficha** (`args`), como as
+    listas de baixo: filtrar por um CPV mudava as listas e deixava
+    «Compra · 24 m» nos mesmos 73,6 M€ (teste com utilizadores,
+    26/09/2026).
     """
     desde = (datetime.now().date()
              - timedelta(days=int(30.44 * meses))).isoformat()
+    e, ev = filtro_da_ficha(args)
     compra_k = compra_v = no_cpv = 0
     desconto = None
     if ha_corpus():
         frag, vals = condicao_do_interesse_contratos(args={})
         with liga_corpus() as c:
             r = c.execute(
-                "SELECT COUNT(*) k, COALESCE(SUM(preco_contratual),0) v "
+                "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual),0) v "
                 "FROM contratos c WHERE c.adjudicante_chave=? "
-                "AND c.data_celebracao >= ?", (chave, desde)).fetchone()
+                "AND c.data_celebracao >= ?" + e,
+                [chave, desde] + ev).fetchone()
             compra_k, compra_v = r["k"], r["v"]
             if frag and compra_k:
                 no_cpv = c.execute(
                     "SELECT COUNT(*) k FROM contratos c "
                     "WHERE c.adjudicante_chave=? AND c.data_celebracao >= ? "
-                    "AND (%s)" % frag, [chave, desde] + vals).fetchone()["k"]
+                    "AND (%s)" % frag + e,
+                    [chave, desde] + vals + ev).fetchone()["k"]
             # A que desconto fecha: a média sobre os contratos com os
             # DOIS preços lidos. Diz sobre quantos -- somar uns e calar
             # os outros parecia a média de todos.
             d = c.execute(
                 "SELECT COUNT(*) k, "
-                "  AVG((preco_base - preco_contratual) / preco_base) m "
-                "FROM contratos WHERE adjudicante_chave=? "
-                "AND data_celebracao >= ? AND preco_base > 0 "
-                "AND preco_contratual > 0 "
-                "AND preco_contratual <= preco_base",
-                (chave, desde)).fetchone()
+                "  AVG((c.preco_base - c.preco_contratual) / c.preco_base) m "
+                "FROM contratos c WHERE c.adjudicante_chave=? "
+                "AND c.data_celebracao >= ? AND c.preco_base > 0 "
+                "AND c.preco_contratual > 0 "
+                "AND c.preco_contratual <= c.preco_base" + e,
+                [chave, desde] + ev).fetchone()
             if d["k"]:
                 desconto = (d["m"], d["k"])
     acabam = a_acabar_por_entidade(chaves=[chave]).get(chave, (0, 0.0))
@@ -19111,17 +19215,18 @@ def factos_da_entidade(chave, nosso, meses=24):
     else:
         taxa_v, taxa_n = None, "ainda não há decididos com ela"
 
+    no_filtro = " · no filtro" if e else ""
     seis = (
-        ("Compra · %d m" % meses,
+        ("Compra · %d m%s" % (meses, no_filtro),
          euros_curto(compra_v) if compra_k else None,
          "%s contrato%s" % (mil_pt(compra_k), "" if compra_k == 1 else "s")
          if compra_k else ("sem BASE" if not ha_corpus()
                            else "nada celebrado nesta janela")),
-        ("No nosso CPV", mil_pt(no_cpv) if no_cpv else None,
+        ("No nosso CPV" + no_filtro, mil_pt(no_cpv) if no_cpv else None,
          "dos %s contratos da janela" % mil_pt(compra_k) if no_cpv else
          ("sem BASE" if not ha_corpus()
-          else "nada da janela cai no interesse")),
-        ("Fecha a",
+          else "nada da janela cai no perfil da empresa")),
+        ("Fecha a" + no_filtro,
          ("−%.1f%%" % (desconto[0] * 100)).replace(".", ",")
          if desconto else None,
          "abaixo do preço base, em %s contratos" % mil_pt(desconto[1])
@@ -19200,7 +19305,16 @@ def entidade(chave):
     # pergunta comercial é sobre a janela recente, sobre o nosso CPV e
     # sobre o que já fizemos com ela. Os dois totais continuam a ler-se
     # nos atalhos, que são o caminho para a lista que os confirma.
-    factos = factos_da_entidade(chave, nosso)
+    factos = factos_da_entidade(chave, nosso, args=request.args)
+    # A janela das listas de baixo, dita no titulo de cada uma: sem ela,
+    # 18,1 M€ de um fornecedor lia-se como os 24 meses dos factos de
+    # cima, e e o acervo todo (teste de 26/09/2026).
+    de_f = data_de_filtro(request.args.get("de"))
+    ate_f = data_de_filtro(request.args.get("ate"))
+    janela = (" · de %s a %s" % (data_pt(de_f), data_pt(ate_f)) if de_f and ate_f
+              else " · desde %s" % data_pt(de_f) if de_f
+              else " · até %s" % data_pt(ate_f) if ate_f
+              else " · sempre")
 
     # Ligacoes para a lista, ja filtrada por esta entidade nos dois
     # papeis. Levam tambem o filtro da ficha, senao a lista mostrava
@@ -19234,24 +19348,24 @@ def entidade(chave):
 
     blocos = []
     if compra["k"]:
-        blocos.append(barras_h(d["fornecedores"], "A quem compra",
+        blocos.append(barras_h(d["fornecedores"], "A quem compra" + janela,
                                "Os fornecedores que mais receberam desta "
                                "entidade.", ligar=True))
-        blocos.append(cpv_html(d["compra_cpv"], "O que compra",
+        blocos.append(cpv_html(d["compra_cpv"], "O que compra" + janela,
                                "Por CPV, valor repartido quando o contrato "
                                "tem vários.", ligar=False))
         blocos.append(barras_h(
             [{"n": p["p"], "v": p["v"], "k": p["k"]} for p in d["compra_proc"]],
-            "Como compra",
+            "Como compra" + janela,
             "Por tipo de procedimento. O que não é concurso não teve "
             "anúncio &mdash; não era concorrível."))
         blocos.append(evolucao_html(d["compra_trim"],
                                     "Quanto adjudicou, ao longo do tempo"))
     if ganha["k"]:
-        blocos.append(barras_h(d["clientes"], "A quem vende",
+        blocos.append(barras_h(d["clientes"], "A quem vende" + janela,
                                "As entidades que mais lhe adjudicaram.",
                                ligar=True))
-        blocos.append(cpv_html(d["ganha_cpv"], "O que ganha",
+        blocos.append(cpv_html(d["ganha_cpv"], "O que ganha" + janela,
                                "Por CPV, com o valor repartido.", ligar=False))
         blocos.append(evolucao_html(d["ganha_trim"],
                                     "Quanto ganhou, ao longo do tempo"))
@@ -19780,7 +19894,7 @@ def contratos():
                   "contrato a acabar volta muitas vezes a concurso &mdash; "
                   "quem o vê antes do anúncio prepara-se com tempo.</span>"
                   "<span class='p'>Com o <a href='/configuracoes/interesse'>"
-                  "interesse</a> definido, esta página abre logo com os "
+                  "perfil da empresa</a> definido, esta página abre logo com os "
                   "contratos dos teus CPV.</span>"
                   "</div>")
     else:
@@ -19793,7 +19907,7 @@ def contratos():
                   "gráficos e a lista respondem ao filtro que puseres.</span>"
                   "<span class='p'>São %s contratos: sem filtro, os mais "
                   "recentes não dizem nada sobre nada. Com o "
-                  "<a href='/configuracoes/interesse'>interesse</a> definido, "
+                  "<a href='/configuracoes/interesse'>perfil da empresa</a> definido, "
                   "esta página abre logo com os contratos dos teus CPV.</span>"
                   "</div>"
                   % mil_pt(ha_corpus()))
@@ -19883,7 +19997,8 @@ def contratos():
                       "lado, não perdidas &mdash; voltam no modo por "
                       "celebração.</div>")
     faixa_cpv = "".join(faixas)
-    faixa_interesse = _faixa_do_interesse("/contratos", escondidos_interesse, cfg)
+    faixa_interesse = _faixa_do_interesse("/contratos", escondidos_interesse,
+                                          cfg, so_cpv=True)
     if com_interesse:
         filtros = filtros.replace("<input type='text' id='filtro-cpv-excl'",
                                   "<input type='hidden' id='filtro-cpv-excl'")
@@ -19976,10 +20091,20 @@ def contratos():
                 ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
                 resumo_linha + corpo_mercado + barra_corpus(anos) +
                 (fonte if ha_pergunta else "") + "</div>")
+    # Acima do tecto o CSV corta, e diz-se no botao e nao so na dica:
+    # «as 50 000 linhas deste filtro» por cima de 161 711 fazia a folha
+    # somar menos de metade do ecra (teste com utilizadores, 26/09/2026).
+    corta_csv = correspondem > TECTO_CSV
     accoes = ("<a class='mg-btn mg-btn--secondary' href='/contratos/csv?%s' "
-              "title='as %s linhas deste filtro'>%s Exportar CSV</a>"
+              "title='%s'>%s Exportar CSV%s</a>"
               % (html.escape(urlencode(args_da_lista(request.args)), quote=True),
-                 mil_pt(min(correspondem, TECTO_CSV)), icone("descarregar"))
+                 ("só as primeiras %s das %s linhas deste filtro, pela ordem da lista: "
+                  "filtra mais para as teres todas"
+                  % (mil_pt(TECTO_CSV), mil_pt(correspondem))) if corta_csv
+                 else "as %s linhas deste filtro" % mil_pt(correspondem),
+                 icone("descarregar"),
+                 " (%s de %s)" % (mil_pt(TECTO_CSV), mil_pt(correspondem))
+                 if corta_csv else "")
               ) if ha_pergunta else ""
 
     if fim:
@@ -23063,7 +23188,13 @@ def _linhas_do_calendario(estado):
     Cada linha e um dicionario com o que a grade desenha, venha de uma
     proposta ou de um anuncio -- assim a grade tem um so caminho, e nao
     dois quase iguais que divergem ao primeiro conserto.
+
+    Devolve tambem quantos o perfil da empresa esconde: as pontas levam
+    o mesmo recorte da lista (`recorte_da_lista()`). Sem ele, o «Por
+    ver» do calendario mostrava 1 126 contra os 142 da lista (teste com
+    utilizadores de 26/09/2026).
     """
+    escondidos = 0
     with liga() as c:
         if estado in CHAVES_DA_EMPRESA or not estado:
             alvo = [estado] if estado else list(ESTADOS_ABERTOS)
@@ -23079,12 +23210,17 @@ def _linhas_do_calendario(estado):
             o_que = (("as propostas em «%s»" % estado_da_empresa(estado))
                      if estado else "o que a empresa tem em aberto")
         else:
-            frag, vals = condicao_da_aba(estado)
-            onde, valores = com_recorte("", [], frag, vals)
+            onde, valores = com_recorte("", [], *recorte_da_lista(estado))
             anuncios = c.execute(
                 "SELECT ref, titulo, entidade, prazo FROM anuncios" + onde
                 + (" AND" if onde else " WHERE") + " prazo != ''",
                 valores).fetchall()
+            if condicao_do_interesse()[0]:
+                so_aba, vals_aba = com_recorte("", [], *condicao_da_aba(estado))
+                escondidos = c.execute(
+                    "SELECT COUNT(*) n FROM anuncios" + so_aba
+                    + (" AND" if so_aba else " WHERE") + " prazo != ''",
+                    vals_aba).fetchone()["n"] - len(anuncios)
             linhas = [{"ref": a["ref"], "titulo": a["titulo"],
                        "entidade": a["entidade"], "prazo": a["prazo"],
                        # o rotulo dos anuncios era a palavra "prazo",
@@ -23095,7 +23231,7 @@ def _linhas_do_calendario(estado):
                                              or "todos")
     linhas = [l for l in linhas if l["prazo"]]
     linhas.sort(key=lambda l: l["prazo"])
-    return linhas, o_que
+    return linhas, o_que, escondidos
 
 
 @app.route("/calendario")
@@ -23123,7 +23259,12 @@ def calendario():
     estado = request.args.get("estado")
     estado = "" if estado is None else ABAS_ANTIGAS.get(estado.strip(),
                                                         estado.strip())
-    cartas, o_que = _linhas_do_calendario(estado)
+    cartas, o_que, escondidos = _linhas_do_calendario(estado)
+    # o «ver tudo» da faixa vale tambem para a lista e para as semanas
+    levantado = ([("interesse", "nao")]
+                 if (request.args.get("interesse") or "") == "nao" else [])
+    faixa = ("" if estado in CHAVES_DA_EMPRESA or not estado
+             else _faixa_do_interesse("/calendario", escondidos))
 
     # A grade comeca na SEGUNDA desta semana e nao em hoje: uma grade de
     # semanas que comece a uma quarta nao se le como um calendario. Os
@@ -23214,14 +23355,15 @@ def calendario():
                   data_pt(fim.isoformat()),
                   ("<span>%s com prazo fora destas seis semanas &mdash; "
                    "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
-                  html.escape(LISTA + "?estado=" + estado, quote=True)))
+                  html.escape(LISTA + "?" + urlencode(
+                      [("estado", estado)] + levantado), quote=True)))
 
     # As mesmas abas da lista, e sem numeros (ver barra_das_abas). Sem
     # elas o calendario por omissao mostra as propostas em aberto, que
     # quando sao zero dava um beco: a unica saida era escrever ?estado=
     # na barra de enderecos.
     def para_semana(n):
-        pedaco = [("estado", estado)] if estado else []
+        pedaco = ([("estado", estado)] if estado else []) + levantado
         if n:
             pedaco.append(("semana", str(n)))
         return "/calendario" + ("?" + urlencode(pedaco) if pedaco else "")
@@ -23236,7 +23378,8 @@ def calendario():
     # nao pode voltar a esta semana.
     abas = barra_das_abas("/calendario", estado)
     return envolver("calendario", "Calendário", "",
-                    abas + "<div class='larg'>%s%s</div>" % (legenda, "".join(grade)),
+                    abas + "<div class='larg'>%s%s%s</div>"
+                    % (faixa, legenda, "".join(grade)),
                     cabeca=cabecalho_de_pagina(
                         "Calendário", "Seis semanas a partir de segunda-feira. "
                         "Cada dia mostra o que fecha nesse dia.", [], accoes),
@@ -23564,7 +23707,8 @@ def dias_parados(limite=10):
             dias = (hoje - datetime.strptime(quando, "%Y-%m-%d").date()).days
         except ValueError:
             continue
-        fora.append((p, dias))
+        if dias >= DIAS_PARA_ESTAR_PARADA:     # a mesma regra da abertura
+            fora.append((p, dias))
     fora.sort(key=lambda x: -x[1])
     return fora[:limite]
 
@@ -23699,7 +23843,7 @@ def negocio_cx():
         % ("/anuncio/" + quote(p["ref"], safe="") if p["ref"]
            else "/proposta/%d" % p["id"],
            html.escape(corta(p["titulo"] or p["entidade"] or "?", 48)), dias)
-        for p, dias in parados) or "<div class='nota'>nada parado</div>"
+        for p, dias in parados) or "<div class='nota'>nada parado há %d dias ou mais</div>" % DIAS_PARA_ESTAR_PARADA
 
     # O `cabeca` (em jogo · taxa · desconto) **saiu do desenho a
     # 17/09/2026**: os quatro números do topo do Ponto de situação dizem
@@ -23715,7 +23859,7 @@ def negocio_cx():
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
             "com %d decididos ou mais.</div>"
             "%s"
-            "<div class='mg-field__label' style='margin:22px 0 10px'>Em jogo, por "
+            "<div class='mg-field__label' id='em-jogo' style='margin:22px 0 10px'>Em jogo, por "
             "ranhura</div><div class='barras'>%s</div>"
             "%s%s%s"
             "<div class='mg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
@@ -23827,16 +23971,95 @@ def _delta_html(agora, antes, unidade=" pp", decimais=0):
                (forma % dif).replace(".", ",")))
 
 
-def _numero_da_situacao(rotulo, valor, delta, nota):
+def _numero_da_situacao(rotulo, valor, delta, nota, porque="", alvo=""):
     """Uma celula dos quatro numeros. Sem numero nao se poe um travessao:
     a frase ocupa o lugar dele e diz o que falta para existir (o mesmo
-    arranjo que ele pediu a 15/09/2026 para o `negocio_cx()`)."""
+    arranjo que ele pediu a 15/09/2026 para o `negocio_cx()`).
+
+    O `porque` e a linha que diz **o que o numero soma** («soma do
+    proposto das 6 ganhas», «media simples»), e o `alvo` a lista que o
+    confirma: sem uma e outra, o financeiro refazia os numeros no Excel
+    e dava-lhe outra coisa (teste com utilizadores, 26/09/2026)."""
+    porque = "<span class='porque'>%s</span>" % porque if porque else ""
     if valor is None:
         return ("<div class='mg-stat por-haver'><span class='r'>%s</span>"
-                "<b>%s</b></div>" % (rotulo, nota))
-    return ("<div class='mg-stat'><span class='r'>%s</span><b>%s</b>%s"
-            "<span class='d'>%s</span></div>"
-            % (rotulo, valor, delta, nota))
+                "<b>%s</b>%s</div>" % (rotulo, nota, porque))
+    etiqueta = ("a class='mg-stat' href='%s'" % html.escape(alvo, quote=True)
+                if alvo else "div class='mg-stat'")
+    return ("<%s><span class='r'>%s</span><b>%s</b>%s"
+            "<span class='d'>%s</span>%s</%s>"
+            % (etiqueta, rotulo, valor, delta, nota, porque,
+               "a" if alvo else "div"))
+
+
+def decididas_no_periodo(janela=None):
+    """As propostas ganhas e perdidas no periodo, pela `fechada_em` --
+    as linhas de que saem a taxa, o ganho e o desconto do ponto de
+    situacao. Mais recentes primeiro."""
+    recorte, vals = _fragmento_da_janela(janela)
+    with liga() as c:
+        return c.execute(
+            "SELECT id, ref, titulo, entidade, estado, preco_base, "
+            "valor_proposta, fechada_em FROM propostas "
+            "WHERE estado IN ('ganho','perdido')" + recorte
+            + " ORDER BY COALESCE(fechada_em,'') DESC, id DESC",
+            vals).fetchall()
+
+
+def desconto_ponderado(linhas):
+    """O desconto dos ganhos pesado pelo valor: o que se deixou abaixo
+    da base, a dividir pela base toda. Com as mesmas linhas da media
+    simples (os dois precos lidos, proposto <= base). None sem nenhuma."""
+    base = baixo = 0.0
+    for l in linhas:
+        b = euros_do_texto(l["preco_base"])
+        n = euros_do_texto(l["valor_proposta"])
+        if l["estado"] == "ganho" and b and n and n <= b:
+            base += b
+            baixo += b - n
+    return baixo / base if base else None
+
+
+def tabela_das_decididas(linhas, rotulo_periodo):
+    """A lista que confirma os numeros do periodo, com o total. Cada
+    Stat liga para aqui (`#decididas`)."""
+    if not linhas:
+        return ("<div class='mg-card' id='decididas' style='padding:22px 24px'>"
+                "<div class='mg-field__label'>Decididas %s</div>"
+                "<div class='nota' style='margin-top:6px'>Nenhuma proposta "
+                "ganha ou perdida neste período.</div></div>"
+                % html.escape(rotulo_periodo))
+    ganhas = [l for l in linhas if l["estado"] == "ganho"]
+    total = sum(euros_do_texto(l["valor_proposta"])
+                or euros_do_texto(l["preco_base"]) or 0.0 for l in ganhas)
+    corpo = "".join(
+        "<tr><td class='mg-num'>%s</td><td><a href='%s'>%s</a></td>"
+        "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
+        % (data_pt((l["fechada_em"] or "")[:10], "—"),
+           ("/anuncio/" + quote(l["ref"], safe="")) if l["ref"]
+           else "/proposta/%d" % l["id"],
+           html.escape(corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70)),
+           html.escape(estado_da_empresa(l["estado"])),
+           preco_pt(l["preco_base"]), preco_pt(l["valor_proposta"]))
+        for l in linhas)
+    return ("<div class='mg-card tab-cx' id='decididas'>"
+            "<div class='mg-field__label' style='padding:16px 16px 0'>"
+            "Decididas %s</div>"
+            "<table class='mg-table tab-contratos'><thead><tr>"
+            "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
+            "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
+            "</tr></thead><tbody>%s</tbody><tfoot><tr><td></td>"
+            "<td><b>%s ganha%s, %s perdida%s</b></td><td></td><td></td>"
+            "<td class='p'><b>%s</b></td></tr></tfoot></table>"
+            "<div class='nota' style='padding:0 16px 16px'>A data é a do dia "
+            "em que a proposta se marcou como decidida no Mira Gov, e não "
+            "a da adjudicação. O total soma o proposto das ganhas (o preço "
+            "base quando falta o proposto).</div></div>"
+            % (html.escape(rotulo_periodo), corpo,
+               mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s",
+               mil_pt(len(linhas) - len(ganhas)),
+               "" if len(linhas) - len(ganhas) == 1 else "s",
+               html.escape(euros(total))))
 
 
 @app.route("/situacao")
@@ -23904,6 +24127,22 @@ def situacao():
         desconto, sobre = desconto_medio_dos_ganhos(janela)
         desconto_antes = (desconto_medio_dos_ganhos(antes)[0] if antes
                           else None)
+        decididas = decididas_no_periodo(janela)
+        ponderado = desconto_ponderado(decididas)
+        rotulo_periodo = dict(PERIODOS_DA_SITUACAO)[periodo]
+        # Cada numero abre a lista que o confirma (a regra da empresa):
+        # a tabela das decididas do periodo, ou as propostas abertas.
+        aqui = "/situacao?%s#decididas" % urlencode(
+            [("ver", "negocio"), ("periodo", periodo)])
+        # O que o «em jogo» soma, dito pelos rotulos das ranhuras: preco
+        # base numas, proposto noutras, e so se via no codigo (E22).
+        com_base = [estado_da_empresa(e) for e in ESTADOS_ABERTOS
+                    if e not in ESTADOS_COM_PROPOSTO]
+        com_proposto = [estado_da_empresa(e) for e in ESTADOS_ABERTOS
+                        if e in ESTADOS_COM_PROPOSTO]
+        porque_em_jogo = ("preço base em %s; proposto em %s (o base, "
+                          "quando falta)" % (" e ".join(com_base),
+                                             " e ".join(com_proposto)))
 
         if em_jogo:
             n_em_jogo = _numero_da_situacao(
@@ -23917,7 +24156,8 @@ def situacao():
                 "%s aberta%s%s" % (mil_pt(abertas),
                                    "" if abertas == 1 else "s",
                                    "; %s sem preço lido" % mil_pt(sem_preco)
-                                   if sem_preco else ""))
+                                   if sem_preco else ""),
+                porque_em_jogo, "#em-jogo")
         else:
             n_em_jogo = _numero_da_situacao(
                 "Em jogo", None, "",
@@ -23931,7 +24171,10 @@ def situacao():
             "<span class='mg-stat__delta mg-stat__delta--flat'>era %s</span>"
             % euros_curto(euros_antes or 0),
             "%s concurso%s" % (mil_pt(quantos_ganhos),
-                               "" if quantos_ganhos == 1 else "s"))
+                               "" if quantos_ganhos == 1 else "s"),
+            "soma do proposto das %s ganha%s (o preço base, quando falta)"
+            % (mil_pt(quantos_ganhos), "" if quantos_ganhos == 1 else "s"),
+            aqui)
             if euros_ganhos else _numero_da_situacao(
                 "Ganho", None, "", "ainda não há ganhos neste período"))
 
@@ -23950,7 +24193,9 @@ def situacao():
                 ("%s decidido%s: faltam %s para contar"
                  % (mil_pt(decididos), "" if decididos == 1 else "s",
                     mil_pt(MINIMO_PARA_TAXA - decididos)) if decididos
-                 else "ainda não há decididos neste período")),
+                 else "ainda não há decididos neste período"),
+                "ganhas a dividir por ganhas mais perdidas; «Não fomos» e "
+                "«Cancelado» não contam", aqui if decididos else ""),
             n_ganho,
             _numero_da_situacao(
                 "Desconto médio nos ganhos",
@@ -23961,20 +24206,28 @@ def situacao():
                             else None, "pp", 1),
                 "sobre %s com os dois preços lidos" % mil_pt(sobre)
                 if desconto is not None
-                else "ainda não há ganhos com os dois preços lidos"),
+                else "ainda não há ganhos com os dois preços lidos",
+                "média simples; pesada pelo valor dá %s" % pct_pt(ponderado)
+                if ponderado is not None else "",
+                aqui if desconto is not None else ""),
         ))
 
+        # «pela data em que se decidiu» lia-se como a da adjudicacao, e
+        # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23)
         nota_periodo = (
             "<div class='nota' style='margin:16px 0 0'>Os números do "
-            "período contam pela data em que a proposta se <b>decidiu</b>. "
+            "período contam pela data em que a proposta se <b>marcou como "
+            "decidida no Mira Gov</b>, e não pela data da adjudicação. "
             "«Em jogo» é uma fotografia de agora — o que está aberto não "
             "se decidiu em período nenhum.%s</div>"
             % ("" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
         corpo = ("<div class='mg-card' style='padding:22px 24px'>"
-                 "<div class='mg-stats'>%s</div>%s</div>%s%s"
-                 % (numeros, nota_periodo, negocio_cx(),
+                 "<div class='mg-stats'>%s</div>%s</div>%s%s%s"
+                 % (numeros, nota_periodo,
+                    tabela_das_decididas(decididas, rotulo_periodo),
+                    negocio_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
 
     return envolver(
@@ -25173,6 +25426,15 @@ def _prazos_da_janela(desde, ate):
     return fora
 
 
+def novos_de_hoje(c, hoje_iso):
+    """Os anuncios novos de um dia, sem as alteracoes -- o numero do
+    subtitulo da abertura e o do «O que mudou». Contavam cada um a sua
+    maneira e davam 116 e 92 da mesma verificacao (teste de 26/09/2026):
+    as alteracoes sao republicacoes de um concurso que ja la esta."""
+    return c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=? "
+                     "AND estado != 'alteracao'", (hoje_iso,)).fetchone()["n"]
+
+
 def _lista_de_hoje(hoje_iso, interesse=True):
     """A lista dos anuncios publicados num dia, em todas as ranhuras --
     com o interesse, ou sem ele (`interesse=nao`)."""
@@ -25198,9 +25460,7 @@ def _o_que_mudou(hoje, cfg):
     onde, valores = com_recorte(" WHERE data_pub=? AND estado != 'alteracao'",
                                 [hoje_iso], frag, vals)
     with liga() as c:
-        novos = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=? "
-                          "AND estado != 'alteracao'",
-                          (hoje_iso,)).fetchone()["n"]
+        novos = novos_de_hoje(c, hoje_iso)
         no_interesse = c.execute(
             "SELECT ref, titulo, entidade, preco_base, prazo FROM anuncios"
             + onde + " ORDER BY ref DESC LIMIT ?",
@@ -25212,13 +25472,18 @@ def _o_que_mudou(hoje, cfg):
             (hoje_iso,)).fetchone()["n"]
         # As alteracoes que o DR fez a anuncios ja lidos: um prazo que
         # muda por republicacao e a coisa mais cara de nao se saber.
+        # Recortadas pelo mesmo interesse dos numeros de cima: um prazo
+        # alterado fora dele, por baixo de «0 no interesse», desmentia o
+        # numero (teste com utilizadores, 26/09/2026).
         mudou = c.execute(
             "SELECT a.ref, a.campo, a.antes, a.depois, n.titulo "
             "FROM alteracoes a LEFT JOIN anuncios n ON n.ref = a.ref "
-            "WHERE substr(a.detectado_em,1,10) >= ? "
-            "ORDER BY a.id DESC LIMIT ?",
-            ((hoje - timedelta(days=1)).isoformat(),
-             CABEM_NO_LADO)).fetchall()
+            "WHERE substr(a.detectado_em,1,10) >= ?"
+            + (" AND a.ref IN (SELECT ref FROM anuncios WHERE %s)" % frag
+               if frag else "")
+            + " ORDER BY a.id DESC LIMIT ?",
+            [(hoje - timedelta(days=1)).isoformat()] + list(vals)
+            + [CABEM_NO_LADO]).fetchall()
 
     _, quando_verif, verif_ok = linha_da_ultima_verificacao()
     # **Já vem escapado** daquela função, e traz a mensagem inteira
@@ -25238,7 +25503,7 @@ def _o_que_mudou(hoje, cfg):
         "<div class='mudou-n'>"
         "<a href='%s'><b>%s</b><span class='nota'>anúncio%s novo%s</span></a>"
         "<a href='%s'><b class='azul'>%s</b>"
-        "<span class='nota'>no interesse</span></a>"
+        "<span class='nota'>no perfil</span></a>"
         "<span><b>%s</b><span class='nota'>peça%s nova%s</span></span>"
         "</div>"
         # Cada numero abre a lista que o confirma: os tres abriam o «por
@@ -25269,8 +25534,11 @@ def _o_que_mudou(hoje, cfg):
                        if a["prazo"] else "") if p))
             for a in no_interesse)
         if quantos_interesse > len(no_interesse):
-            itens += ("<a class='nota' href='%s'>ver os %s no interesse "
-                      "&rarr;</a>" % (LISTA + "?estado=porver",
+            # o mesmo endereco do numero la de cima: abria o «por ver»
+            # inteiro, 165 debaixo de «14» (teste de 26/09/2026)
+            itens += ("<a class='nota' href='%s'>ver os %s no perfil "
+                      "&rarr;</a>" % (html.escape(_lista_de_hoje(hoje_iso),
+                                                  quote=True),
                                       mil_pt(quantos_interesse)))
         linhas.append("<div class='l'><span class='hj-q' title='%s'>%s"
                       "</span><div>%s</div></div>"
@@ -25366,6 +25634,10 @@ def _prazos_a_chegar(hoje, prazos):
                   pe="<a href='/calendario'>calendário &rarr;</a>")
 
 
+# Abaixo disto uma proposta aberta nao esta parada: esta a correr.
+DIAS_PARA_ESTAR_PARADA = 7
+
+
 def _paradas_ha_mais_tempo(hoje, quantas=3):
     """As propostas abertas que ha mais tempo nao se mexem.
 
@@ -25396,6 +25668,10 @@ def _paradas_ha_mais_tempo(hoje, quantas=3):
         except ValueError:
             continue
         dias = (hoje - quando).days
+        # «0 dias» em todas as linhas contradizia o titulo (teste de
+        # 26/09/2026): so e parada a que nao se mexe ha uma semana.
+        if dias < DIAS_PARA_ESTAR_PARADA:
+            continue
         fora.append(
             "<div class='l'><span class='t'><a href='%s'>%s</a></span>"
             "<span class='v'%s>%s dia%s</span></div>"
@@ -25506,7 +25782,9 @@ def inicio():
               if valor_taxa is not None else "—",
               ("%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos)))
               if decididos else "nada decidido ainda",
-              LISTA + "?estado=ganho"),
+              # as ganhas E as perdidas de sempre, que sao o que a taxa
+              # divide -- abria so os ganhos (teste de 26/09/2026)
+              "/situacao?ver=negocio&periodo=tudo#decididas"),
         facto("Por decidir", mil_pt(por_ver), "anúncios por ver",
               LISTA + "?estado=porver"),
         facto("Para fazer", mil_pt(por_fazer),
@@ -25702,8 +25980,7 @@ def inicio():
     _, quando_verif, _ = linha_da_ultima_verificacao()
     hoje_iso = hoje.isoformat()
     with liga() as c:
-        novos_hoje = c.execute("SELECT COUNT(*) n FROM anuncios WHERE data_pub=?",
-                               (hoje_iso,)).fetchone()["n"]
+        novos_hoje = novos_de_hoje(c, hoje_iso)
         pecas_hoje = c.execute(
             "SELECT COUNT(*) n FROM documentos WHERE substr(obtido_em,1,10)=?",
             (hoje_iso,)).fetchone()["n"]

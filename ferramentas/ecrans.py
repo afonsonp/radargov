@@ -76,7 +76,7 @@ ECRAS = [
     ("Configurações", [
         ("Configurações · Conta", "/configuracoes",
          "nove secções; a raiz abre na primeira"),
-        ("· Interesse", "/configuracoes/interesse", "os CPV que a empresa trabalha"),
+        ("· Perfil da empresa", "/configuracoes/interesse", "os CPV, os distritos e o valor que a empresa trabalha"),
         ("· Alertas", "/configuracoes/alertas", "filtros, entidades, o resumo"),
         ("· Importar", "/configuracoes/importar", "o registo da empresa, pelo Excel"),
         ("· Indicadores", "/configuracoes/indicadores", "a saúde da máquina"),

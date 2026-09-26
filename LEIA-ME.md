@@ -238,7 +238,7 @@ primeiras linhas e tem um **«mais N»** para ver o resto. Em cima podes
 abre a ficha do concurso: o bloco «A nossa proposta» tem os campos.
 
 **À direita**, três caixas: **O que mudou** desde a última verificação
-(anúncios novos, quantos caem no teu interesse, peças novas, prazos
+(anúncios novos, quantos caem no perfil da empresa, peças novas, prazos
 alterados e as propostas que o Portal BASE já diz adjudicadas),
 **Prazos a chegar · 7 dias** e **Paradas há mais tempo**.
 
@@ -351,11 +351,13 @@ original, que é onde se decide — um anúncio que abandonaste continua
 abandonado quando é republicado, e um por ver a que estenderam o prazo
 volta a aparecer com o prazo novo, sem mexeres em nada.
 
-**O interesse recorta a lista inteira.** Em *Configurações › Interesse*
+**O perfil da empresa recorta a lista inteira** (chamava-se
+«Interesse» até 26/09/2026). Em *Configurações › Perfil da empresa*
 escolhes, na árvore, os CPV que a empresa trabalha; ligado, a lista passa
 a mostrar só o que corresponde — em todas as abas, sem teres de pôr
-filtro nenhum. Não é um alerta: um alerta avisa-te, o interesse esconde
-o resto. A lista diz sempre que está limitada, quantos ficam de fora, e
+filtro nenhum. Não é um alerta: um alerta avisa-te, o perfil esconde
+o resto. No Mercado só recorta pelo CPV (os contratos não têm distrito
+nem preço base na mesma forma), e a faixa di-lo. A lista diz sempre que está limitada, quantos ficam de fora, e
 tem um **ver tudo** que o levanta para a vista em que estás. Nasce
 desligado; desligado, nada muda.
 
@@ -662,7 +664,7 @@ tua conta. Não vês o trabalho de nenhuma empresa: a tua conta não é
 de nenhuma, e tudo o que não é da plataforma leva-te de volta a ela. O
 **admin** de uma empresa cria e tira as contas **dela** e diz quem ela é
 (nome e NIF). O **tester** vê os anúncios, o que está em curso e o
-mercado, e nas configurações só a Conta, o Interesse, os Alertas e o
+mercado, e nas configurações só a Conta, o Perfil da empresa, os Alertas e o
 Importar dados; no resumo por e-mail só escolhe para quem e a que hora.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
@@ -724,9 +726,9 @@ as outras cinco só um admin as vê:
   «sair de todos os aparelhos» e, para o admin, os utilizadores: quem
   existe, de que tipo, criar outro (utilizador, palavra-passe, tipo) e
   tirar um — a tua própria conta e o último admin não se tiram.
-- **Interesse** — a árvore de CPV, já aberta, com o que está
+- **Perfil da empresa** — a árvore de CPV, já aberta, com o que está
   guardado marcado, e por baixo os **distritos** do local de execução e
-  o **preço base mínimo**. Marca e carrega em «Guardar o interesse» (ou
+  o **preço base mínimo**. Marca e carrega em «Guardar o perfil» (ou
   em «Guardar», para os distritos e o valor): com alguma coisa escolhida
   fica ligado, sem nada fica desligado. Uma linha por cima diz o que
   está em vigor e quantos anúncios apanha. O distrito e o preço base
@@ -743,7 +745,9 @@ as outras cinco só um admin as vê:
   `config.json`, e o campo fica sempre vazio), a janela do urgente,
   «enviar já» e os últimos avisos. Os «filtros guardados» de antes
   deixaram de existir: o que era guardar um filtro para o reaplicar é
-  o Interesse; o que era guardá-lo para avisar é criar um alerta.
+  o Perfil da empresa; o que era guardá-lo para avisar é criar um alerta.
+  Um alerta com uma data ou um valor que não se lê **não se grava**, e
+  a página diz quando o e-mail ainda não sai, e porquê.
 - **Importar dados** — o registo da empresa, pelo modelo Excel (§13).
 - **Indicadores** — a saúde do sistema e os números (§8), com a
   verificação automática e a última verificação que estavam na barra.
