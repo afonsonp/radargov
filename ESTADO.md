@@ -60,7 +60,7 @@ duas bases; os das empresas, de **24/09/2026**.
 | Rotas Flask | 98 |
 | Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
-| Testes | **1 296**, em ~65 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Testes | **1 293**, em ~65 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
 | Código | `radar.py` 27 563 linhas · `teste_radar.py` 17 797 · `empresa.py` 802 · `contas.py` 622 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
@@ -153,8 +153,12 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.7`**, de
-  26/09/2026 — **uma correcção de segurança**: as páginas e os
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.8`**, de
+  26/09/2026 — **os quatro primeiros lotes da segunda ronda de testes com
+  20 perfis**: cada número abre a sua lista e o «Perfil da empresa»; as
+  regras dos dados, a importação que se desfaz, as palavras-passe e o repor
+  por ligação; o telemóvel e a acessibilidade; e o desempenho (2 a 4×
+  mais rápido nas listas e no Mercado). A `v2.0.7`, do mesmo dia, foi **uma correcção de segurança**: as páginas e os
   ficheiros das peças ficavam na cache da Cloudflare e chegavam a quem
   não tinha sessão; tudo o que não é público sai agora com `private`
   (purgar a cache da Cloudflare depois). A `v2.0.6`, de

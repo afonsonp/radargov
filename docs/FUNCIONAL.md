@@ -1,6 +1,6 @@
 # Documento funcional — Mira Gov
 
-> **Última revisão: 26 de setembro de 2026**, sobre a `v2.0.7`. Este
+> **Última revisão: 26 de setembro de 2026**, sobre a `v2.0.8`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
@@ -114,14 +114,14 @@ as exactas e salta as outras.
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
-| `utilizadores` | **21** | Quem entra. A 26/09/2026 inclui as 19 contas da segunda ronda de testes com utilizadores, que saem no fim dela |
+| `utilizadores` | **20** | Quem entra. A 26/09/2026 inclui as 19 contas da segunda ronda de testes com utilizadores, que saem no fim dela |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
 | `estado` | 18 | Marcas do sistema (última verificação, migrações feitas) |
-| `entradas_falhadas` | 2 | Tentativas de login falhadas |
+| `entradas_falhadas` | 3 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **4** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
 | `reposicoes` | **0** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
-| `pedidos_acesso` | **2** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
+| `pedidos_acesso` | **3** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
