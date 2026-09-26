@@ -259,7 +259,7 @@ Aqui ficam os nomes no código: `porta_de_entrada()` (um
 `/arranque/dispensar`, o cartão «Pôr a empresa a trabalhar» do Hoje), `largar_a_empresa()`
 (o `teardown_request` que repõe a empresa do pedido), `aceitar_pedido()`
 (GET mostra o perfil da empresa nova, `perfil_do_pedido()`; só o POST
-cria) e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal()` / `operador_completo()` e `avisar_o_vigia()` (F8),
+cria) e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal()` / `operador_completo()` e `avisar_o_vigia()` (F8), `acessibilidade()` (a declaração, D15, rota aberta sem operador),
 `administracao_da_plataforma()` (`/plataforma`, com
 `seccoes_da_plataforma()`: as secções do sistema saíram do índice das
 Configurações a 23/09/2026),
@@ -478,7 +478,12 @@ A ordem do ficheiro é a ordem do fluxo:
    ficha (`proposta_cx()`) — os campos que a ranhura pede, o que a empresa
    decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
    (13/09/2026; `<header class="barra">`), só com a marca, os itens,
-   **Configurações** e quem está. Configurações
+   **Configurações** e quem está — **menos no telemóvel**: abaixo de
+   600 px a navegação vai para uma barra fixa em baixo
+   (`barra_de_baixo()`, `DESTINOS_DE_BAIXO`; D9 da segunda ronda,
+   26/09/2026), com quatro destinos e um «Mais». O Calendário tem três
+   filtros seus (`FILTROS_DO_CALENDARIO`, D12) e não as abas da escada;
+   o aspecto de alto contraste é da conta (`tema_da_pessoa()`, D14). Configurações
    (`/configuracoes/…`, etapa 2 do `ONLINE.md`, 8/09/2026 — **dez
    rotas literais**, não um `<seccao>`: procura-se pelo nome de cada
    uma):
@@ -578,7 +583,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **314 pontos** (contados a 26/09/2026), cada um de um erro que
+São **319 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

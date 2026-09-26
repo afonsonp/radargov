@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 16
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 23
-- [A interface](#a-interface) &middot; 92
+- [A interface](#a-interface) &middot; 97
 - [Convenções](#convencoes) &middot; 4
 
-São **314** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **319** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3004,7 +3004,9 @@ botões ou no calendário.
   as regras que existem, não a medida — a medida faz-se no browser.
 
 - **A barra é um `<header class="barra">`, horizontal, em todos os
-  tamanhos** (13/09/2026). O bloco `@media (max-width:900px)` já não
+  tamanhos** (13/09/2026) — **menos a navegação no telemóvel**, que
+  desde 26/09/2026 vai para a barra de baixo (ver «Há duas navegações»,
+  no fim desta área). O bloco `@media (max-width:900px)` já não
   tem regras para a barra além de a navegação ir para uma segunda
   linha; o que lá estava passou a ser a regra base. Nada de
   contagens, fontes, endereço ou última verificação lá dentro — o
@@ -3492,6 +3494,58 @@ botões ou no calendário.
   Um script da página não conta com o que o `envolver()` põe depois
   dele; o `close` do `<dialog>` também não borbulha, e apanha-se na
   captura.
+
+- **Há duas navegações na página, e só uma se vê** (D9 da segunda
+  ronda, 26/09/2026). A de cima (`.mg-topbar__nav`) e a de baixo
+  (`barra_de_baixo()`, `.barra-baixo`) têm os mesmos destinos e o mesmo
+  `aria-label`, e a regra é **`display:none` numa delas em cada
+  largura** — o `display:none` tira-a também ao leitor de ecrã, e é isso
+  que evita dois marcos «Principal». Esconder uma com `visibility`, com
+  `opacity` ou fora do ecrã deixava as duas no Tab e no leitor. Um
+  destino novo no `NAV` entra nas duas sozinho, mas a ordem da de baixo
+  é a do `DESTINOS_DE_BAIXO`: um destino que lá não esteja vai para o
+  «Mais». E o que é fixo em baixo **ocupa espaço que se tem de guardar**
+  em três sítios: o `body` (senão o fim da página fica por baixo dela),
+  o `scroll-padding-bottom` (senão o Tab deixa o foco debaixo dela —
+  WCAG 2.4.11) e o `bottom` do aviso da vez (senão o «desfazer» fica
+  tapado). A altura é o `--baixo-h`, com o
+  `env(safe-area-inset-bottom)` do iPhone — que vale **zero** sem o
+  `viewport-fit=cover` no `<meta name=viewport>` do `BASE`.
+- **O calendário leva a grelha E a agenda, e o CSS escolhe uma**
+  (D12, 26/09/2026). O servidor não sabe a largura do ecrã; a agenda do
+  telemóvel é uma `<ol class='cal-agenda'>` com um `<li class='ag-dia'>`
+  por dia com alguma coisa, e **não** usa a classe `cal-dia` de
+  propósito: o `TestCalendarioEPorDiaENaoUmGantt` conta 42
+  `class='cal-dia` e a agenda desfazia-lhe a conta. Os três filtros
+  (`FILTROS_DO_CALENDARIO`) perguntam **só dentro da janela** das seis
+  semanas (`prazo BETWEEN`): o «Tudo» sem janela eram os 210 mil
+  anúncios. E o número de cada filtro é o que ele desenha nessa janela
+  (`test_os_numeros_dos_filtros_sao_o_que_cada_um_desenha`), que é a
+  regra da casa aplicada a um número que muda com a semana. A «entregar
+  a proposta» cai no dia do prazo, porque nasce dele: a proposta **não
+  se desenha outra vez** por baixo da sua própria tarefa (a chave é
+  `(ref, dia)`).
+- **O `data-theme` do `BASE` é da pessoa, e o valor passa por uma lista
+  branca** (D14, 26/09/2026). O molde leva `data-theme="%(tema)s"` e o
+  `tema_da_pessoa()` traduz o `utilizadores.aspecto` pelo
+  `contas.ASPECTOS`; o `gravar_aspecto()` recusa o que lá não está,
+  porque o valor acaba num atributo do HTML. Os outros três moldes
+  (entrar, erro, convite) ficam no claro — não há sessão a quem
+  perguntar, e um 500 a meio de a ler dava outro 500. O escuro está nos
+  tokens e **não se oferece**: o subtítulo fica a 1,4:1 nele.
+- **Num teste, `radar.ler_estilo()` devolve vazio.** O `BaseTemporaria`
+  aponta o `BASE_DIR` para a pasta temporária, e é daí que a função lê a
+  pasta `estilo/`. Um teste que procure uma regra na nossa folha lê o
+  ficheiro pelo caminho do `radar.__file__`
+  (`TestODesenhoSegueOSistema._nosso_css()`), senão passa a procurar
+  num texto vazio — e um `assertNotIn` sobre ele passa sempre.
+- **A declaração de acessibilidade é um facto com data**
+  (`site/acessibilidade.html`, D15, 26/09/2026). A lista do que não está
+  conforme foi medida nesse dia (axe, teclado, reflow a 320 px); quando
+  se corrige uma das falhas, **tira-se de lá e muda-se a data** no mesmo
+  commit, senão a página pública passa a mentir para o lado que menos
+  se nota. É rota aberta **por igualdade** (`ROTAS_ABERTAS`) e não
+  depende do operador, ao contrário dos termos e da privacidade.
 
 ## Convenções
 

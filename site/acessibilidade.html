@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Declaração de acessibilidade — Mira Gov</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{--fundo:#eef1f5;--papel:#fff;--tinta:#1b2530;--tinta2:#435066;--marca:#004682;--linha:#dde2ea}
+@media (prefers-color-scheme:dark){:root{--fundo:#14171c;--papel:#1c2027;--tinta:#eceef1;--tinta2:#b8bec8;--marca:#7fb3e6;--linha:#2c323b}}
+body{margin:0;background:var(--fundo);color:var(--tinta);font:17px/1.6 "Source Sans 3","Segoe UI",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:32px 16px 64px}
+article{background:var(--papel);border:1px solid var(--linha);border-radius:10px;padding:28px}
+h1{font:600 1.9rem/1.2 Georgia,serif;margin:0 0 6px}h2{font-size:1.15rem;margin:28px 0 6px}
+h3{font-size:1rem;margin:18px 0 4px}
+p,li{color:var(--tinta2)}a{color:var(--marca);text-decoration:underline;text-underline-offset:2px}
+.data{font-size:.9rem;color:var(--tinta2)}
+.estado{border-left:4px solid var(--marca);padding:4px 0 4px 14px;color:var(--tinta)}
+</style>
+</head>
+<body>
+<main>
+<p><a href="/">← Mira Gov</a></p>
+<article>
+<h1>Declaração de acessibilidade</h1>
+<p class="data">Versão de 26 de setembro de 2026.</p>
+
+<p>O Mira Gov compromete-se a tornar o seu sítio web e a sua aplicação
+acessíveis a todas as pessoas. Esta declaração segue o modelo do
+Decreto-Lei n.º 83/2018, de 19 de outubro, que transpõe a Diretiva (UE)
+2016/2102. O Mira Gov é um produto privado e não um organismo do sector
+público, e segue esse modelo de forma voluntária: é a forma mais clara de
+dizer o que já cumpre, o que ainda não cumpre, e como nos dizer de uma
+barreira.</p>
+<p>Aplica-se ao site público, ao ecrã de
+entrar e à aplicação a que se chega depois de entrar.</p>
+
+<h2>Estado de conformidade</h2>
+<p class="estado">O Mira Gov está <b>parcialmente conforme</b> com as
+Directrizes de Acessibilidade para o Conteúdo da Web — as WCAG 2.1,
+nível AA — a referência da norma europeia EN 301 549 —, em virtude das não
+conformidades enumeradas abaixo. Avaliámos também os critérios novos da
+WCAG 2.2 de nível AA (o foco não obscurecido, o tamanho dos alvos e a
+autenticação acessível).</p>
+
+<h2>Conteúdo não acessível</h2>
+<h3>Não conformidades</h3>
+<ul>
+<li><b>Árvore dos CPV</b> (no Perfil da empresa e no filtro dos
+Concursos) — a contagem de códigos não muda ao filtrar a árvore, e não é
+anunciada ao leitor de ecrã (4.1.3 Mensagens de estado).</li>
+<li><b>Calendário, no computador</b> — a grelha dos dias é texto
+arrumado em colunas, e não uma tabela: o leitor de ecrã não associa o
+número do dia ao que fecha nesse dia (1.3.1 Informação e relações). No
+telemóvel o calendário é uma agenda com um título por dia, que não tem
+este problema.</li>
+<li><b>Papel de uma entidade</b> («CLI», «CONC») na lista das entidades
+— a explicação do que a sigla quer dizer só existe como dica ao passar o
+rato, que o teclado e o toque não alcançam (1.3.1).</li>
+</ul>
+<h3>Conteúdo fora do âmbito</h3>
+<ul>
+<li>As <b>peças dos procedimentos</b> (cadernos de encargos, programas e
+anexos, quase sempre em PDF) são documentos das entidades adjudicantes,
+que o Mira Gov traz tal como foram publicados. A acessibilidade deles é
+de quem os publica.</li>
+<li>O <b>tema escuro</b> não é oferecido enquanto não passar o contraste
+mínimo. Há um aspecto de <b>alto contraste</b>, que cada pessoa escolhe
+em Configurações › Conta e fica guardado na conta, em todos os
+aparelhos.</li>
+</ul>
+
+<h2>Elaboração desta declaração</h2>
+<p>Esta declaração foi elaborada a 26 de setembro de 2026, por
+<b>autoavaliação</b>, em duas fases:</p>
+<ul>
+<li>uma auditoria à WCAG 2.2 nível AA no mesmo dia, com o axe-core 4.10.2
+(regras wcag2a, wcag2aa, wcag21a, wcag21aa e wcag22aa) em 35 páginas e a
+verificação à mão dos critérios que as ferramentas não medem — o teclado,
+o foco, o reflow a 320 píxeis, o espaçamento do texto, os formulários e
+a autenticação —, a 1280, a 640 e a 320 píxeis de largura;</li>
+<li>depois das correcções, uma nova medição: o axe-core nas páginas
+principais a 1280, 390 e 360 píxeis, sem violações; nenhuma das 16
+páginas medidas obriga a rolar de lado a 320 píxeis nem a 200 % de zoom;
+e, a percorrer cada página com a tecla Tab, nenhum elemento focado fica
+escondido pelas barras fixas.</li>
+</ul>
+<p>Também entraram na avaliação uma ronda de testes com vinte perfis de
+utilização, entre eles uma pessoa com daltonismo, uma que trabalha a
+150 % de zoom e um auditor de acessibilidade.</p>
+
+<h2>Contacto</h2>
+<p>Se encontrar uma barreira que não esteja nesta lista, ou se precisar de
+uma informação num formato que consiga ler, diga-nos pelo formulário
+<a href="/#acesso">Pedir acesso</a>, escolhendo o sector «Outro» e
+escrevendo «Acessibilidade» no início da mensagem, com a página e o que
+aconteceu. Respondemos para o endereço que deixar no formulário.</p>
+</article>
+</main>
+</body>
+</html>

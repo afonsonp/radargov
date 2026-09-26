@@ -79,7 +79,7 @@
    a diferença entre o azul e o cinzento lia a frase sem saber onde
    carregar. Sublinhadas nas notas e nas frases corridas. */
 .nota a,.ficha-nota a,.em-falta-frase a,.mg-pagehead__sub a,.mg-alert a,
-.mg-card__meta a,
+.mg-card__meta a,.ajuda p a,
 .entrar-nota a{text-decoration:underline;text-underline-offset:2px}
 .mg-field[hidden]{display:none}
 dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
@@ -517,13 +517,9 @@ main#conteudo:focus{outline:none}
 .mg-card--band .mg-card__actions .mg-btn--subtle:hover,
 .mg-card--band .mg-card__actions .mg-btn--secondary:hover{background:rgba(255,255,255,.12)}
 
-/* Abaixo de 600px a barra DOBRA em vez de rolar (teste com utilizadores):
-   a rolar, «Calend» aparecia cortado e as Configurações ficavam fora do
-   ecrã, sem nada a dizer que havia mais. Duas linhas de itens gastam
-   ~40px e mostram tudo. */
-@media (max-width:600px){
- .mg-topbar__nav{flex-wrap:wrap;overflow-x:visible;row-gap:2px}
- .mg-topbar__nav .mg-topbar__link{padding-left:10px;padding-right:10px}}
+/* Abaixo de 600px a navegação de cima dobrava (teste com utilizadores:
+   a rolar, «Calend» aparecia cortado). Desde 26/09/2026 (D9) ela nem
+   aparece: os destinos vão para a barra de baixo, no fim desta folha. */
 
 /* As tabelas das listas viram cartões no telemóvel (teste com
    utilizadores, 25/09/2026): a 390px a tabela dos Concursos media 905px,
@@ -758,3 +754,67 @@ ul.notas .nota-texto{white-space:pre-line;overflow-wrap:anywhere}
  .tab-docs tr{padding:var(--space-2) 0;border-bottom:1px solid var(--line)}
  .tab-docs td{border:0;padding:4px 0;height:auto}
 }
+
+/* A BARRA DE BAIXO do telemóvel (D9, 26/09/2026, decisão dele). Abaixo
+   de 600 px a navegação de cima some, e os destinos vêm para baixo, ao
+   alcance do polegar: quatro e um «Mais», cada um com ícone e nome, e
+   alvos de 56 px (WCAG 2.5.8 pede 24; o toque, 44-48). Respeita a área
+   segura do iPhone (`env(safe-area-inset-bottom)`, com o
+   `viewport-fit=cover` do molde). O conteúdo ganha o mesmo espaço em
+   baixo, e o `scroll-padding-bottom` também: o foco não pode ficar
+   debaixo dela (2.4.11). Em ecrã largo não existe. */
+.barra-baixo{display:none}
+@media (max-width:600px){
+ :root{--baixo-h:calc(60px + env(safe-area-inset-bottom, 0px))}
+ .mg-topbar__nav{display:none}
+ .barra-baixo{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:35;
+  height:var(--baixo-h);box-sizing:border-box;
+  padding:0 max(4px, env(safe-area-inset-right, 0px))
+   env(safe-area-inset-bottom, 0px) max(4px, env(safe-area-inset-left, 0px));
+  background:var(--surface-header);color:var(--on-header-muted);
+  border-top:var(--border-hairline) solid var(--line-strong)}
+ .barra-baixo>a,.barra-baixo>details{flex:1 1 0;min-width:0}
+ .bb-item{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;height:60px;min-height:48px;box-sizing:border-box;padding:6px 2px;
+  color:var(--on-header-muted);text-decoration:none;
+  font:500 var(--text-xs)/1.2 var(--font-sans);cursor:pointer;list-style:none;
+  border-top:3px solid transparent}
+ .bb-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .bb-item::-webkit-details-marker{display:none}
+ .bb-item[aria-current="page"],.bb-item.aceso{color:var(--on-header);font-weight:700;
+  border-top-color:var(--on-header)}
+ .bb-item:focus-visible{outline:var(--border-focus) solid var(--focus);outline-offset:-4px}
+ .bb-mais{position:relative}
+ .bb-mais[open]>.bb-item{color:var(--on-header)}
+ .bb-menu{position:absolute;right:0;bottom:100%;margin-bottom:8px;z-index:36;
+  min-width:220px;max-width:calc(100vw - 16px);box-shadow:var(--shadow-md)}
+ .bb-menu .mg-menu__item{min-height:48px;box-sizing:border-box;text-decoration:none;
+  color:var(--ink);width:100%;font:400 var(--text-md)/1.3 var(--font-sans);text-align:left}
+ .bb-menu .mg-menu__item[aria-current="page"]{font-weight:700;color:var(--brand)}
+ .bb-menu form{margin:0}
+ body{padding-bottom:var(--baixo-h)}
+ html{scroll-padding-bottom:calc(var(--baixo-h) + 16px)}
+ html:has(.aviso-da-vez){scroll-padding-bottom:calc(var(--baixo-h) + 112px)}
+ .com-js .aviso-da-vez{bottom:calc(var(--baixo-h) + 12px)}}
+
+/* O CALENDÁRIO (D12, 26/09/2026): os três filtros por cima, as tarefas
+   no dia delas, e no telemóvel uma agenda em lista em vez da grelha —
+   sete colunas em 390 px davam 49 px e o título saía «Ex…». A agenda
+   só tem os dias com alguma coisa. As duas vêm na página, e esta regra
+   mostra uma: o servidor não sabe a largura do ecrã. */
+.cal-filtros{margin-bottom:var(--space-4)}
+.cal-it.tarefa{border-left-style:dashed;border-left-color:var(--seal)}
+.cal-agenda{display:none;list-style:none;margin:0;padding:0}
+@media (max-width:600px){
+ .cal-rolo{display:none}
+ .cal-agenda{display:grid;gap:var(--space-3)}
+ .ag-dia{background:var(--surface-raised);border:var(--border-hairline) solid var(--line);
+  border-radius:var(--radius-md);padding:var(--space-3);display:grid;gap:var(--space-2)}
+ .ag-dia.hoje{border-color:var(--brand)}
+ .ag-data{margin:0;font:600 var(--text-sm)/1.3 var(--font-sans);color:var(--ink)}
+ .ag-dia.mau .cal-urg{color:var(--danger)}
+ .ag-dia.avisa .cal-urg{color:var(--warning)}
+ .ag-dia .cal-it{padding:6px 0 6px 10px;min-height:44px;box-sizing:border-box}
+ .ag-dia .cal-it b{font-size:var(--text-sm);white-space:normal}
+ .ag-dia .cal-it i{white-space:normal}
+ .ag-vazio{color:var(--ink-muted)}}
