@@ -60,7 +60,7 @@ duas bases; os das empresas, de **24/09/2026**.
 | Rotas Flask | 118 |
 | Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
-| Testes | **1 414**, em ~110 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Testes | **1 411**, em ~110 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
 | Código | `radar.py` 30 464 linhas · `teste_radar.py` 20 043 · `empresa.py` 865 · `contas.py` 722 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
@@ -153,8 +153,12 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.9`**, de
-  26/09/2026 — **o lote 5 e as decisões do dono sobre a segunda ronda**:
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.10`**, de
+  26/09/2026 — **a ronda em PC**: o layout dos ecrãs grandes, o
+  Mercado e os gráficos (PC-A), as mensagens que enganavam, a página
+  dos erros, o convite sem duplicar, a suspensão com confirmação e as
+  regressões da segunda ronda (PC-B). A `v2.0.9`, do mesmo dia, foi
+  **o lote 5 e as decisões do dono sobre a segunda ronda**:
   texto e desenho, a Situação e a Ajuda na barra, a empresa na barra, o
   arranque guiado, a triagem sem recarregar, as regras e datas da
   proposta, o cofre de documentos, o Calendário novo, a barra em baixo
