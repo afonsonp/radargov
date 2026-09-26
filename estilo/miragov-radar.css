@@ -513,8 +513,14 @@ main#conteudo:focus{outline:none}
    e o prazo, o «Faltam» e os botões ficavam fora do ecrã — ao rolar
    para os ver deixava de se ver o título, e carregava-se «Interessa» às
    cegas. Cada linha passa a um bloco: a referência e o prazo em cima, o
-   título a toda a largura, e as acções por baixo. */
-@media (max-width:600px){
+   título a toda a largura, e as acções por baixo.
+   Desde 26/09/2026 a partir dos 900 px, e não dos 600: a 150 % de zoom
+   (uma janela de ~850 px) a tabela tinha 900 px numa caixa de 864, o
+   objecto ficava com 120 px («Aquisição de Serviços de…») e o
+   «Abandonar» cortado à direita (segunda ronda, perfil 7). Em cartão o
+   título leva três linhas. */
+@media (max-width:900px){
+ .lista.tab-cx .col-obj .item-titulo{-webkit-line-clamp:3}
  .lista.tab-cx,.tab-cx:has(>.tab-lista){overflow-x:visible}
  .lista.tab-cx table,.tab-lista{display:block;min-width:0;width:100%}
  .lista.tab-cx thead,.tab-lista thead{position:absolute;width:1px;height:1px;
@@ -553,3 +559,118 @@ dl.glossario dd{margin:2px 0 0;color:var(--ink-secondary);max-width:70ch}
   display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 12px}
 .dist-interesse legend{font-weight:600;margin-bottom:6px;padding:0}
 .dist-interesse .dist-cx{display:flex;align-items:center;gap:6px;font-size:13px}
+
+/* ---- TELEMÓVEL E ACESSIBILIDADE (segunda ronda de testes, 26/09/2026,
+   lote 3). Cada regra diz o critério da WCAG 2.2 que a pediu. -------- */
+
+/* 2.4.11 Foco não obscurecido. O browser encostava o elemento focado ao
+   topo, DEBAIXO da barra presa: com Shift+Tab o botão desaparecia. O
+   `--prende-h` é medido em JS (a barra e a faixa do topo, quando se
+   prendem), e o aviso fixo em baixo guarda o seu espaço. */
+html{scroll-padding-top:calc(var(--prende-h,56px) + 16px)}
+html:has(.aviso-da-vez){scroll-padding-bottom:112px}
+/* No telemóvel e num ecrã baixo a barra deixa de se prender (D9): comia
+   130 de 740 px, e 199 de 440 com o teclado aberto. Rola com a página. */
+@media (max-width:600px),(max-height:500px){
+ .mg-topbar,.topo{position:static}
+ .ficha-duas .mg-card{scroll-margin-top:12px}}
+
+/* 4.1.2 As «abas» são navegação: o aceso é o `aria-current`, com o
+   desenho que o sistema dá ao `aria-selected`. */
+.mg-tab[aria-current="page"]{color:var(--brand);background:var(--surface-raised);
+ box-shadow:var(--shadow-sm);font-weight:600}
+.mg-tab[aria-current="page"] .mg-tab__count{color:var(--brand)}
+[data-theme="contraste"] .mg-tab[aria-current="page"]{box-shadow:none;
+ outline:var(--border-control) solid var(--brand);outline-offset:-2px;background:var(--brand-soft)}
+/* No telemóvel as abas dobram em vez de rolar: as Propostas mostravam
+   duas das oito ranhuras, sem nada a dizer que havia mais. */
+@media (max-width:600px){
+ .mg-tabs,.mg-tabs.abas-escada{flex-wrap:wrap;overflow-x:visible;
+  border-radius:var(--radius-lg)}}
+
+/* 1.4.1 Uso da cor. Com deuteranopia o vermelho, o âmbar e o verde das
+   etiquetas de prazo eram o mesmo tom: o escalão diz-se também por um
+   sinal. O texto alternativo vazio (`/ ""`) tira-o do leitor de ecrã,
+   que já lê a palavra; a primeira `content` é para quem não conhece a
+   sintaxe. Vale para TODAS as etiquetas de perigo e de aviso. */
+.mg-tag--danger::before{content:"\26A0\FE0E";content:"\26A0\FE0E" / "";margin-right:3px}
+.mg-tag--warning::before{content:"\25F7";content:"\25F7" / "";margin-right:3px}
+/* O calendário marcava a urgência só pela cor do número do dia. */
+.cal-n{position:relative}
+.cal-urg{font-style:normal;margin-left:4px;color:inherit}
+.cal-dia.mau .cal-urg{color:var(--danger)}
+.cal-dia.avisa .cal-urg{color:var(--warning)}
+
+/* O aviso da vez, fixo em baixo (E25 e 4.1.3): no topo ficava fora do
+   ecrã, a milhares de píxeis de onde se carregou, com o «desfazer». Só
+   com JS -- sem ele o «×» não fecha, e um aviso preso por cima do fim da
+   página seria pior do que no topo. */
+.com-js .aviso-da-vez{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+ z-index:40;width:min(640px,calc(100% - 32px));box-sizing:border-box;margin:0;
+ display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);
+ box-shadow:var(--shadow-md)}
+.aviso-da-vez .desfazer{display:inline-flex}
+.aviso-fechar{display:none}
+.com-js .aviso-fechar{display:inline-flex;margin-left:auto;align-items:center;
+ justify-content:center;min-width:32px;min-height:32px;border:0;background:none;
+ color:inherit;font:500 20px/1 var(--font-sans);cursor:pointer;border-radius:var(--radius-md)}
+
+/* 2.5.8 Tamanho do alvo: 24 px no mínimo. A paginação media 6×18, as
+   migalhas 11,5 de altura, a caixa das tarefas 16-18, as caixas de
+   marcar 13. */
+.mg-pager>a,.mg-pager>b,.mg-pager>span{display:inline-flex;align-items:center;
+ justify-content:center;min-width:32px;min-height:32px;padding:0 var(--space-2);
+ box-sizing:border-box;border-radius:var(--radius-md)}
+.mg-pager>a:hover{background:var(--surface-sunken)}
+.migalhas .b a,.mg-crumbs a{display:inline-flex;align-items:center;min-height:24px}
+[data-pele=novo] .chk{width:24px;height:24px}
+[data-pele=novo] .chk.on::after{left:8px;top:3px;width:6px;height:12px}
+main.mg input[type=checkbox],main.mg input[type=radio],dialog input[type=radio]{
+ width:20px;height:20px;margin:2px}
+main.mg td>input[type=checkbox]{width:24px;height:24px;margin:0}
+.dist-interesse{row-gap:8px}
+main.mg summary{min-height:24px;box-sizing:border-box}
+a.nota.abrir{display:inline-flex;align-items:center;min-height:24px}
+.alerta .apagar{min-width:32px;min-height:32px;margin-left:var(--space-2)}
+/* No toque, o alvo que se acerta com o dedo (9 e 1: «nenhum alvo chega
+   aos 44 px»; «risquei a de baixo por engano»). E a letra dos campos a
+   16 px, senão o Safari do iPad amplia a página ao tocar num campo. */
+@media (pointer:coarse){
+ .mg-btn{min-height:44px}
+ .mg-btn--sm{min-height:32px}
+ .mg-topbar .sou-menu a,.mg-topbar .sou-menu button{min-height:44px;
+  display:flex;align-items:center}
+ main.mg input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+ main.mg select,main.mg textarea{font-size:16px}}
+/* As teclas j k i a ⏎ não servem num ecrã de toque. */
+@media (hover:none){.linha-conta .teclas{display:none}}
+
+/* 1.4.10 Reflow: nada obriga a rolar a página de lado a 320 px. */
+.mg-card__head{flex-wrap:wrap}
+.mg-card__actions{flex-wrap:wrap;max-width:100%}
+@media (max-width:600px){
+ main.mg form.pf input[type=search]{min-width:0;flex:1 1 100%}
+ main.mg form.filtros[action='/entidade/procurar'] label{flex:1 1 100%}
+ main.mg form.filtros[action='/entidade/procurar'] input{min-width:0;width:100%}
+ #filtros-mercado{grid-template-columns:minmax(0,1fr)}
+ #filtros-mercado .f-q{grid-column:auto}
+ /* os alertas eram três colunas: o texto ficava com 40 px, uma palavra
+    por linha. O texto passa a linha inteira, e a conta por baixo. */
+ .alerta{flex-wrap:wrap}
+ .alerta .sobre{flex:1 1 calc(100% - 120px)}
+ .alerta .conta{order:5;flex:1 1 100%;text-align:left}}
+/* O que o axe ainda apontava a 26/09/2026, depois do resto: as ligações
+   das barras da ficha da entidade (15 px de altura, umas coladas às
+   outras) e o «N anúncios no Diário da República» (22 px); e uma
+   ligação numa frase do Mercado que só se distinguia pela cor (1.4.1). */
+.barras-h .bh .t a,.ent-num{display:inline-flex;align-items:center;min-height:24px}
+main.mg span.p a{text-decoration:underline;text-underline-offset:2px}
+/* Com o ✓ e o ✕ nos botões da triagem, a coluna das acções precisa de
+   mais 32 px, senão o «Abandonar» fica cortado à direita a 1280. */
+.lista.mg-table th:nth-child(7){width:256px}
+/* Uma etiqueta que já traz o ponto do sistema não leva um segundo sinal. */
+.mg-tag:has(.mg-tag__dot)::before{content:none}
+/* O selector de ranhura com o «Mudar» sempre à vista: a 320 px, na
+   ficha, os dois juntos passavam a largura (325 px). Dobram. */
+.ranhura{flex-wrap:wrap;max-width:100%}
+.ranhura select{min-width:0;max-width:100%}

@@ -10741,7 +10741,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
   <div class="mg-field"><label class="mg-field__label" for="e-utilizador">Utilizador</label>
    <input class="mg-field__input" id="e-utilizador" type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="e-senha">Palavra-passe</label>
-   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required></div>
+   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
  <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao administrador da sua empresa uma ligação para a repor.</p>
@@ -10783,8 +10783,13 @@ def pagina_entrar(aviso="", email="", para="/", codigo=200):
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=40, inverso=True),
         "numeros": _numeros_da_entrada(),
-        "aviso": ("<div class='mg-alert mg-alert--danger'>%s</div>" % html.escape(aviso)
+        # role=alert e ligado à palavra-passe (segunda ronda, 26/09/2026;
+        # WCAG 4.1.3): era um <div> mudo, e o leitor lia o rótulo do
+        # campo com o foco e não o erro
+        "aviso": ("<div class='mg-alert mg-alert--danger' id='e-erro' role='alert'>"
+                  "<span aria-hidden='true'>&#10005;</span> %s</div>" % html.escape(aviso)
                   if aviso else ""),
+        "descrito": " aria-describedby='e-erro'" if aviso else "",
         "email": html.escape(email, quote=True),
         "para": html.escape(destino_seguro(para), quote=True),
     }, codigo, mimetype="text/html")
@@ -11847,11 +11852,9 @@ td.celula-ranhura{white-space:nowrap;width:1%}
  border:1px solid var(--line);border-radius:5px;background:#fff;
  color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
 .ranhura select:hover{border-color:var(--brand)}
-/* o botão «ir» é para quem não tem JS: com JS o select grava sozinho ao
-   mudar, e um botão a mais em cada uma de vinte linhas é ruído. O
-   esconder é feito PELO JS (classe no <html>), e não ao contrário: sem
-   JS a folha sozinha tem de o deixar visível. */
-.com-js .ranhura button{display:none}
+/* O botão «Mudar» fica sempre à vista (26/09/2026): o select deixou de
+   gravar sozinho ao mudar, porque com as setas do teclado cada opção
+   gravava e recarregava a página (WCAG 3.2.2). */
 
 /* o bloco «A nossa proposta» na ficha: a empresa do que o cartão fazia */
 .prop{border:1px solid var(--line);border-radius:6px;padding:14px;
@@ -12728,6 +12731,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>document.documentElement.classList.add('com-js')</script>
 %(css)s</head><body>
 <a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
 <div class="app">
@@ -12750,8 +12754,16 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
    barra **dobra** (flex-wrap): 50px em ecra largo, 87px a 375px.
    Mede-se, e o CSS usa a medida. */
 (function(){var b=document.querySelector('.mg-topbar');if(!b)return;
- var p=function(){document.documentElement.style.setProperty(
-   '--barra-h', b.getBoundingClientRect().height + 'px')};
+ /* E a faixa do topo, quando se prende por baixo dela: o
+    `scroll-padding-top` soma as duas, para o foco nunca ficar tapado
+    por elas (segunda ronda, 26/09/2026; WCAG 2.4.11). Uma barra que
+    nao se prende (telemovel, ecra baixo) nao conta. */
+ var t=document.querySelector('.topo');
+ var alt=function(e){return e && getComputedStyle(e).position==='sticky'
+   ? e.getBoundingClientRect().height : 0};
+ var p=function(){var s=document.documentElement.style;
+   s.setProperty('--barra-h', b.getBoundingClientRect().height + 'px');
+   s.setProperty('--prende-h', (alt(b) + alt(t)) + 'px')};
  p(); addEventListener('resize', p);
  /* E outra vez quando as letras chegarem. Medido a 21/09/2026, a 375px:
     a barra media 130px com a letra de recurso e 92px com a Zilla Slab,
@@ -12764,18 +12776,31 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
    `?q=x&adj=&entid=&ganhou=&vencid=&cpv=&de=&ate=`, feio de partilhar).
    E opt-in de proposito: no Hoje, `?quem=` vazio quer dizer «sem dono»,
    e nos Concursos `?estado=` vazio e a aba «Todos». */
-/* As abas tem role=tab, e quem as usa pelo teclado espera as setas (o
-   padrao das abas da WAI-ARIA): passavam so com Tab (teste com
-   utilizadores, 25/09/2026). As setas levam o foco a aba ao lado, e o
-   Enter abre-a, porque cada aba e uma ligacao. */
-document.addEventListener('keydown', function (e) {
- var aba = e.target.closest && e.target.closest('[role=tab]');
- if (!aba || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
- var todas = [].slice.call(aba.closest('[role=tablist]').querySelectorAll('[role=tab]'));
- var i = todas.indexOf(aba) + (e.key === 'ArrowRight' ? 1 : -1);
- todas[(i + todas.length) %% todas.length].focus();
- e.preventDefault();
-});
+/* O aviso da vez e um aviso fixo em baixo (segunda ronda, 26/09/2026:
+   E25 e WCAG 4.1.3). Ficava no topo, a 5 000 px de onde se carregou, e
+   o «desfazer» nunca se via. E uma regiao viva que JA EXISTE quando a
+   pagina carrega nao e lida pela maioria dos leitores de ecra: o texto
+   sai e volta a entrar, e isso anuncia-o. O «x» fecha-o. */
+(function () {
+ var t = document.querySelector('.aviso-da-vez');
+ if (!t) return;
+ var h = t.innerHTML;
+ t.innerHTML = '';
+ /* E o foco, se ninguem o levou para a linha (a lista leva-o), vai para
+    o aviso: caia no <body>, no topo da pagina (WCAG 2.4.3). */
+ t.setAttribute('tabindex', '-1');
+ setTimeout(function () {
+  t.innerHTML = h;
+  if (document.activeElement === document.body) t.focus({preventScroll: true});
+ }, 150);
+ t.addEventListener('click', function (e) {
+  if (e.target.closest('.aviso-fechar')) t.remove();
+ });
+})();
+/* As abas deixaram de ter role=tab a 26/09/2026 (segunda ronda; WCAG
+   4.1.2): sao ligacoes de navegacao, com `aria-current`, e o Tab e o
+   Enter bastam. As setas que aqui estavam prometiam o padrao das abas
+   da WAI-ARIA sem painel nenhum por tras. */
 document.addEventListener('submit', function (e) {
  var f = e.target;
  if (!f.classList || !f.classList.contains('sem-vazios')) return;
@@ -13113,6 +13138,14 @@ def logotipo(tamanho=26, inverso=False, marca_so=False):
             % (inv, tamanho, _olho(int(round(tamanho * 0.7)))))
 
 
+# O sim e o não da triagem levam um sinal além da cor (segunda ronda,
+# 26/09/2026; WCAG 1.4.1): com deuteranopia o verde do «Interessa» e o
+# âmbar do «Abandonar» eram o mesmo tom. O sinal é `aria-hidden`: o
+# nome do botão continua a ser a palavra.
+SINAL_SIM = "<span aria-hidden='true'>&#10003;</span> "
+SINAL_NAO = "<span aria-hidden='true'>&#10005;</span> "
+
+
 def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
                     titulo=""):
     """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
@@ -13129,12 +13162,12 @@ def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
     """
     return ("<form class='accao abandonar-js' method='post' "
             "action='/estado/%s/nao_fomos' data-titulo='%s'>"
-            "<button type='submit' class='%s' aria-label='%s'>%s</button></form>"
+            "<button type='submit' class='%s' aria-label='%s'>%s%s</button></form>"
             % (quote(ref, safe=""), html.escape(titulo or ref, quote=True),
                botao(classe),
                html.escape("%s: %s" % (etiqueta.capitalize(),
                                        corta(titulo or ref, 80)), quote=True),
-               etiqueta))
+               SINAL_NAO, etiqueta))
 
 
 # A caixa e UMA por pagina, partilhada por todos os botoes: vinte copias
@@ -13188,16 +13221,28 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
     opcoes.append("<option value='%s'>tirar da escada</option>"
                   % ENTRADA_DA_ESCADA[0])
     base = preco_base_da_proposta(p) if p is not None else None
+    # O nome diz DE QUE concurso (segunda ronda, 26/09/2026; WCAG 2.4.6):
+    # sete «Ranhura na escada» iguais numa lista não diziam qual se ia
+    # mudar. E o botão «Mudar» está sempre à vista: o selector já não
+    # grava ao mudar (3.2.2), grava-se com ele ou com o Enter.
+    ref = (p["ref"] if p is not None and "ref" in p.keys() else "") or ""
+    qual = " — ".join(x for x in (ref, corta(titulo, 80) if titulo != ref
+                                  else "") if x)
     return ("<form class='ranhura escada-js' method='post' action='%s' "
             "data-titulo='%s' data-motivos='%s' data-falta='%s'%s>"
-            "<select name='estado' aria-label='Ranhura na escada'>%s</select>"
-            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>ir</button></form>"
+            "<select name='estado' aria-label='%s'>%s</select>"
+            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'"
+            " aria-label='%s'>Mudar</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
                " ".join(MOTIVOS_DO_ESTADO),
                html.escape(json.dumps(falta), quote=True),
                " data-base='%s'" % base if base else "",
-               "".join(opcoes)))
+               html.escape("Ranhura de «%s»" % qual if qual
+                           else "Ranhura na escada", quote=True),
+               "".join(opcoes),
+               html.escape("Mudar a ranhura de «%s»" % qual if qual
+                           else "Mudar a ranhura", quote=True)))
 
 
 def caixa_do_motivo():
@@ -13300,24 +13345,32 @@ def caixa_do_motivo():
             "    });\n"
             "    d.showModal();\n"
             "  }\n"
-            "  // o selector de ranhura: abrem a caixa as que pedem motivo, e\n"
-            "  // as que exigem um campo que esta proposta ainda nao tem\n"
-            "  document.addEventListener('change', function (e) {\n"
-            "    var sel = e.target;\n"
-            "    if (!sel.name || sel.name !== 'estado') return;\n"
-            "    var form = sel.form;\n"
-            "    if (!form || !form.classList.contains('escada-js')) return;\n"
+            "  // o selector de ranhura grava so com o botao «Mudar» (ou o\n"
+            "  // Enter), e nunca ao mudar: com as setas do teclado cada opcao\n"
+            "  // gravava e recarregava (segunda ronda, 26/09/2026; WCAG\n"
+            "  // 3.2.2). No submit abrem a caixa as que pedem motivo e as que\n"
+            "  // exigem um campo que esta proposta ainda nao tem; o «tirar da\n"
+            "  // escada» pergunta antes.\n"
+            "  document.addEventListener('submit', function (e) {\n"
+            "    var form = e.target;\n"
+            "    if (!form.classList || !form.classList.contains('escada-js')) return;\n"
+            "    var sel = form.querySelector('select[name=estado]');\n"
+            "    if (!sel) return;\n"
+            "    if (sel.value === 'porver') {\n"
+            "      if (!confirm('Tirar «' + form.dataset.titulo + '» da escada? A proposta volta a «Por ver».'))\n"
+            "        e.preventDefault();\n"
+            "      return;\n"
+            "    }\n"
             "    var pedem = (form.dataset.motivos || '').split(' ');\n"
             "    var falta = [];\n"
             "    try { falta = JSON.parse(form.dataset.falta || '{}')[sel.value] || []; }\n"
             "    catch (erro) { falta = []; }\n"
             "    if (pedem.indexOf(sel.value) >= 0 || falta.length) {\n"
+            "      e.preventDefault();\n"
             "      abrir(form.action, form.dataset.titulo, sel.value, falta, form.dataset.base);\n"
             "      selAberto = sel;\n"
-            "    } else {\n"
-            "      form.requestSubmit();\n"
             "    }\n"
-            "  });\n"
+            "  }, true);\n"
             "  // o botao \"abandonar\" da lista, que e sempre o nao_fomos, e\n"
             "  // os dois do desfecho, que abrem a caixa se lhes faltar algo\n"
             "  document.addEventListener('submit', function (e) {\n"
@@ -13475,14 +13528,17 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # 26/09/2026): o erro é vermelho, com ✕ e role=alert, que o leitor
         # de ecrã anuncia logo; o resto é verde, com ✓. O `tom` não vai
         # na assinatura: só muda a cor de um texto que já é nosso.
+        # E fica fixo em baixo (E25): ver o JS do `BASE`.
+        fechar = ("<button type='button' class='aviso-fechar' "
+                  "aria-label='Fechar o aviso'>&times;</button>")
         if request.args.get("tom") == "erro":
-            aviso = ("<div class='mg-alert mg-alert--danger' role='alert'>"
-                     "<span aria-hidden='true'>&#10005;</span> %s%s</div>"
-                     % (html.escape(texto_aviso), volta))
+            aviso = ("<div class='mg-alert mg-alert--danger aviso-da-vez' role='alert'>"
+                     "<span aria-hidden='true'>&#10005;</span> %s%s%s</div>"
+                     % (html.escape(texto_aviso), volta, fechar))
         else:
-            aviso = ("<div class='mg-alert mg-alert--success' role='status'>"
-                     "<span aria-hidden='true'>&#10003;</span> %s%s</div>"
-                     % (html.escape(texto_aviso), volta))
+            aviso = ("<div class='mg-alert mg-alert--success aviso-da-vez' role='status'>"
+                     "<span aria-hidden='true'>&#10003;</span> %s%s%s</div>"
+                     % (html.escape(texto_aviso), volta, fechar))
 
     # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
@@ -13510,7 +13566,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # morto, que a empresa nao poe no ecra.
         "titulo_e_porque": (
             ("<details class='mg-disc porque'><summary>"
-             "<h1 class='mg-pagehead__title'>%s</h1><i title='O que e esta pagina'>?</i>"
+             "<h1 class='mg-pagehead__title'>%s</h1><i aria-hidden='true' title='O que e esta pagina'>?</i>"
              "</summary><p class='mg-pagehead__sub'>%s</p></details>"
              % (html.escape(titulo), subtitulo)) if subtitulo.strip()
             else "<h1 class='mg-pagehead__title'>%s</h1>" % html.escape(titulo)),
@@ -13665,7 +13721,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         # lista eram vinte botoes iguais para o leitor de ecra (teste com
         # utilizadores, 25/09/2026; WCAG 2.4.6).
         botoes.append(accao("/estado/%s/analisar" % quote(a["ref"], safe=""),
-                            "Interessa", "mini verde",
+                            SINAL_SIM + "Interessa", "mini verde",
                             rotulo="Interessa: %s" % corta(a["titulo"] or a["ref"], 80)))
         botoes.append(forma_abandonar(a["ref"], etiqueta="Abandonar",
                                       titulo=a["titulo"] or ""))
@@ -13740,7 +13796,9 @@ LISTA_JS = """<script>
     return Array.prototype.slice.call(document.querySelectorAll('main tbody tr'));
   };
   document.addEventListener('submit', function (e) {
-    if (e.target && e.target.classList && e.target.classList.contains('accao')) {
+    // o selector de ranhura tambem (26/09/2026): o foco caia no <body>
+    if (e.target && e.target.classList && (e.target.classList.contains('accao') ||
+                                            e.target.classList.contains('ranhura'))) {
       var tr = e.target.closest('tr');
       var guardar = { y: window.scrollY, linha: tr ? linhas().indexOf(tr) : -1 };
       try { sessionStorage.setItem(chave, JSON.stringify(guardar)); } catch (x) {}
@@ -14695,7 +14753,12 @@ def barra_das_abas(rota, actual, contas=None, chaves=None):
     coisa diferente do que promete e nao mostrar numero nenhum, a regra
     da empresa escolhe o segundo.
     """
-    pecas = ["<div class='mg-tabs abas-escada' role='tablist'>"]
+    # Uma navegação e não abas da WAI-ARIA (segunda ronda, 26/09/2026;
+    # WCAG 4.1.2): cada «aba» é uma ligação que abre outra página, não
+    # há painel nenhum, e o leitor anunciava «separador 1 de 11» com
+    # setas que não faziam o que se esperava. É `<nav>` com o
+    # `aria-current` na activa, como a barra de cima.
+    pecas = ["<nav class='mg-tabs abas-escada' aria-label='Ranhuras'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
         if chaves is not None and chave not in chaves:
             continue
@@ -14710,12 +14773,12 @@ def barra_das_abas(rota, actual, contas=None, chaves=None):
         numero = ("" if contas is None
                   else " <span class='mg-tab__count'>%s</span>"
                   % mil_pt(contas.get(chave, 0)))
-        pecas.append("<a class='mg-tab %s' role='tab' aria-selected='%s' "
+        pecas.append("<a class='mg-tab %s'%s "
                      "href='%s'>%s%s</a>"
-                     % (classe, "true" if chave == actual else "false",
+                     % (classe, " aria-current='page'" if chave == actual else "",
                         sem_pagina(request.args, rota, estado=chave),
                         html.escape(rotulo), numero))
-    pecas.append("</div>")
+    pecas.append("</nav>")
     return "".join(pecas)
 
 
@@ -16608,7 +16671,7 @@ def _linha_filtro(f):
     return (
         "<div class='alerta %s'>"
         "<form method='post' action='/alertas/%d/trocar'>"
-        "<button type='submit' class='interruptor %s' title='%s'><i></i>"
+        "<button type='submit' class='interruptor %s' title='%s' aria-label='%s'><i></i>"
         "</button></form>"
         "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
         "<span class='onde'>aplicar a: %s</span>%s%s</div>"
@@ -16619,10 +16682,15 @@ def _linha_filtro(f):
         "<form method='post' action='/filtros/%d/apagar' "
         "onsubmit=\"return confirm(%s)\">"
         "<input type='hidden' name='volta' value='/alertas'>"
-        "<button type='submit' class='apagar' title='apagar'>&times;</button>"
+        # os dois com o NOME do alerta (segunda ronda, 26/09/2026; WCAG
+        # 2.4.6 e 4.1.2): o «×» lia-se «vezes», e três «desligar o
+        # alerta» não diziam qual
+        "<button type='submit' class='apagar' title='apagar' aria-label='%s'>&times;</button>"
         "</form></div>"
         % ("on" if ligado else "", f["id"], "on" if ligado else "",
            "desligar o alerta" if ligado else "ligar o alerta",
+           html.escape(("Desligar o alerta «%s»" if ligado
+                         else "Ligar o alerta «%s»") % f["nome"], quote=True),
            html.escape(f["nome"]),
            html.escape(resumo_filtro(f["consulta"] or "")),
            " &middot; ".join(aplicar) or "sem campos",
@@ -16648,7 +16716,8 @@ def _linha_filtro(f):
             if ligado else "não avisa"),
            f["id"], html.escape(json.dumps(
                "Apagar o alerta «%s»? Não se apaga nada além do alerta."
-               % f["nome"]), quote=True)))
+               % f["nome"]), quote=True),
+           html.escape("Apagar o alerta «%s»" % f["nome"], quote=True)))
 
 
 def _caixa_email(cfg):
@@ -16755,7 +16824,7 @@ def _caixa_urgente():
             "lado.</div>"
             "<form method='post' action='/alertas/urgente' class='filtros'>"
             "<label for='dias-urgente'>prazos a menos de</label>"
-            "<input type='text' id='dias-urgente' name='dias' value='%d' "
+            "<input type='text' id='dias-urgente' name='dias' value='%d' inputmode='numeric' "
             "style='min-width:0;width:70px;flex:none'>"
             "<label>dias</label>"
             "<button type='submit'>Guardar</button></form></div>"
@@ -19185,7 +19254,7 @@ def filtros_da_ficha(chave, d):
         "style='min-width:0;width:120px;flex:none'>"
         "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
         "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<input type='text' name='min' value='%s' placeholder='€ mínimo' "
+        "<input type='text' name='min' value='%s' placeholder='€ mínimo' aria-label='Valor mínimo, em euros' inputmode='decimal' "
         "style='min-width:0;width:110px;flex:none'>"
         "<button type='submit'>Filtrar</button>%s"
         "<div class='periodos'><span>rápido:</span>%s</div>"
@@ -19516,10 +19585,10 @@ def entidades():
     marcadas = [c for c in request.args.getlist("vs") if c][:2]
 
     contas = _contas_das_abas()
-    abas = "<div class='mg-tabs' role='tablist'>%s</div>" % "".join(
-        "<a class='mg-tab' role='tab' aria-selected='%s' "
+    abas = "<nav class='mg-tabs' aria-label='Vistas das entidades'>%s</nav>" % "".join(
+        "<a class='mg-tab'%s "
         "href='/entidades?ver=%s'>%s <span class='mg-tab__count'>%s</span></a>"
-        % ("true" if aba == chave else "false", chave,
+        % (" aria-current='page'" if aba == chave else "", chave,
            html.escape(rotulo + (" · %d meses" % MESES_A_ACABAR
                                  if chave == "acabar" else "")),
            mil_pt(contas.get(chave, 0)))
@@ -19571,13 +19640,16 @@ def entidades():
         k, v = acabam.get(ch, (0, 0.0))
         corpo.append(
             "<tr><td><input type='checkbox' name='vs' value='%s'%s "
-            "aria-label='comparar'></td>"
+            "aria-label='%s'></td>"
             "<td><a href='/entidade/%s'>%s</a>%s</td>"
             "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
             "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
             "<td>%s</td></tr>"
             % (html.escape(ch, quote=True),
                " checked" if ch in marcadas else "",
+               # o nome diz QUAL (26/09/2026; WCAG 2.4.6): eram vinte
+               # «comparar» iguais
+               html.escape("Comparar %s" % corta(nome or ch, 60), quote=True),
                quote(ch, safe=""),
                html.escape(corta(nome or ch, 46)),
                ("<div class='nota'>%s</div>"
@@ -19593,8 +19665,9 @@ def entidades():
                taxa,
                ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—",
                "<span class='mg-tag mg-tag--success'>seguida</span>" if ch in seguidas
-               else "<a class='nota' href='/entidade/%s'>abrir</a>"
-               % quote(ch, safe="")))
+               else "<a class='nota abrir' href='/entidade/%s' aria-label='%s'>abrir</a>"
+               % (quote(ch, safe=""),
+                  html.escape("Abrir %s" % corta(nome or ch, 60), quote=True))))
 
     if corpo:
         tabela = (
@@ -20503,15 +20576,15 @@ def contratos():
     para_celebracao.pop("ver", None)
     para_celebracao.pop("meses", None)
     para_fim = args_da_lista(request.args, ver="fim")
-    abas = ("<div class='mg-tabs' role='tablist'>"
-            "<a class='mg-tab' role='tab' aria-selected='%s' "
+    abas = ("<nav class='mg-tabs' aria-label='Ordem dos contratos'>"
+            "<a class='mg-tab'%s "
             "href='/contratos%s'>Por celebração</a>"
-            "<a class='mg-tab' role='tab' aria-selected='%s' "
+            "<a class='mg-tab'%s "
             "href='/contratos?%s'>Por fim estimado</a>"
-            "</div>"
-            % ("false" if fim else "true",
+            "</nav>"
+            % ("" if fim else " aria-current='page'",
                ("?" + urlencode(para_celebracao)) if para_celebracao else "",
-               "true" if fim else "false", urlencode(para_fim)))
+               " aria-current='page'" if fim else "", urlencode(para_fim)))
 
     nota_estimativa = (
         "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
@@ -20878,7 +20951,7 @@ def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
     if porque:
         titulo_html = ("<details class='mg-disc porque porque-bloco'><summary>"
                        "<h2 class='mg-card__title'>%s</h2>"
-                       "<i title='O que é este bloco'>?</i></summary>"
+                       "<i aria-hidden='true' title='O que é este bloco'>?</i></summary>"
                        "<p class='mg-card__meta'>%s</p></details>" % (titulo, porque))
     else:
         titulo_html = "<h2 class='mg-card__title'>%s</h2>" % titulo
@@ -21686,7 +21759,7 @@ def rot_com_porque(titulo, porque=""):
     if not porque:
         return "<div class='mg-field__label'>%s</div>" % titulo
     return ("<details class='mg-disc porque porque-bloco'><summary>"
-            "<span class='mg-field__label'>%s</span><i title='O que é este bloco'>?</i>"
+            "<span class='mg-field__label'>%s</span><i aria-hidden='true' title='O que é este bloco'>?</i>"
             "</summary><div class='nota'>%s</div></details>" % (titulo, porque))
 
 
@@ -21992,7 +22065,7 @@ def ficha(ref):
     sem_empresa = empresa_activa() == SEM_EMPRESA
     if not minhas and not e_alteracao and not sem_empresa:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
-                             "Interessa", "bt verde"))
+                             SINAL_SIM + "Interessa", "bt verde"))
         decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
                                        a["titulo"] or ref))
 
@@ -23177,7 +23250,7 @@ def contactos_cx(a):
             "maxlength='120'>"
             "<input type='text' name='papel' placeholder='cargo' aria-label='Cargo' maxlength='80'>"
             "<input type='email' name='email' placeholder='e-mail' aria-label='E-mail' maxlength='120'>"
-            "<input type='text' name='telefone' placeholder='telefone' aria-label='Telefone' "
+            "<input type='tel' name='telefone' placeholder='telefone' aria-label='Telefone' autocomplete='tel' "
             "maxlength='40'>"
             "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
             "juntar</button></form>"
@@ -23585,30 +23658,43 @@ def proposta_nova():
     edita-se depois na ficha. Um formulario de quinze campos para criar
     uma linha e a maneira de ninguem a criar.
     """
+    falhou = False
     if request.method == "POST":
         entidade = " ".join((request.form.get("entidade") or "").split())[:120]
         titulo = " ".join((request.form.get("titulo") or "").split())[:200]
         porque = " ".join((request.form.get("porque_sem_ref") or "").split())[:120]
-        if not (entidade or titulo):
-            return redirect("/proposta/nova?" + urlencode(
-                {"tom": "erro", "aviso": "Uma proposta sem cliente nem título não se "
-                          "encontra depois. Escreve pelo menos um."}))
-        id_ = criar_proposta(entidade=entidade, titulo=titulo,
-                             porque_sem_ref=porque or "não vem do DR")
-        return redirect("/proposta/%d?" % id_ + urlencode(
-            {"aviso": "Proposta criada. O resto edita-se aqui."}))
+        if entidade or titulo:
+            id_ = criar_proposta(entidade=entidade, titulo=titulo,
+                                 porque_sem_ref=porque or "não vem do DR")
+            return redirect("/proposta/%d?" % id_ + urlencode(
+                {"aviso": "Proposta criada. O resto edita-se aqui."}))
+        # O erro fica AO PÉ dos campos, e não num aviso no topo
+        # (segunda ronda, 26/09/2026; WCAG 3.3.1 e 3.3.2): a regra está
+        # escrita antes de se submeter, os dois campos ficam marcados e
+        # o foco vai para o primeiro. Ia por um `?aviso=` sem assinatura,
+        # que a porta deita fora -- e o erro nem sequer aparecia.
+        falhou = True
+    invalido = " aria-invalid='true'" if falhou else ""
     corpo = (
         "<div class='mg-card'><form method='post' class='form-largo'>"
+        "<p id='nova-regra' class='nota%s'%s>%sPreencha pelo menos o cliente "
+        "ou o título: uma proposta sem nenhum dos dois não se encontra "
+        "depois.</p>"
         "<label>Cliente<input type='text' name='entidade' maxlength='120' "
+        "aria-describedby='nova-regra'%s "
         "placeholder='ex. Instituto Politécnico de Leiria' autofocus></label>"
         "<label>Título<input type='text' name='titulo' maxlength='200' "
+        "aria-describedby='nova-regra'%s "
         "placeholder='o objecto do procedimento'></label>"
         "<label>Porque não tem anúncio"
         "<input type='text' name='porque_sem_ref' maxlength='120' "
         "value='consulta prévia' list='sem-ref'></label>"
         "<datalist id='sem-ref'>%s</datalist>"
         "<button type='submit'>criar</button></form></div>"
-        % ("".join("<option value='%s'>" % html.escape(v, quote=True)
+        % (" erro" if falhou else "", " role='alert'" if falhou else "",
+           "<span aria-hidden='true'>&#10005;</span> Nada foi criado. "
+           if falhou else "", invalido, invalido,
+           "".join("<option value='%s'>" % html.escape(v, quote=True)
                    for v in ("consulta prévia", "ajuste directo", "convite",
                              "anterior a 2025", "não sei"))))
     return envolver("anuncios", "Nova proposta",
@@ -23907,10 +23993,22 @@ def calendario():
         elif aqui:
             classes.append("mau")
 
-        cabeca = ("<div class='cal-n'>%d%s</div>"
+        # A urgencia nao e so a cor do numero (segunda ronda, 26/09/2026;
+        # WCAG 1.4.1): com deuteranopia o ambar e o vermelho eram o mesmo
+        # tom e o dia urgente nao se via. Um sinal por escalao, o mesmo
+        # das etiquetas de prazo, e o texto para o leitor de ecra.
+        sinal = ""
+        if "mau" in classes and aqui:
+            sinal = ("<i class='cal-urg' aria-hidden='true'>&#9888;</i>"
+                     "<span class='so-leitor'>prazo hoje ou já passado</span>")
+        elif "avisa" in classes:
+            sinal = ("<i class='cal-urg' aria-hidden='true'>&#9719;</i>"
+                     "<span class='so-leitor'>prazo em %d dias ou menos</span>"
+                     % urgente)
+        cabeca = ("<div class='cal-n'>%d%s%s</div>"
                   % (dia.day,
                      "<span>%s</span>" % MESES[dia.month - 1]
-                     if dia.day == 1 or dia == principio else ""))
+                     if dia.day == 1 or dia == principio else "", sinal))
         visiveis = "".join(item(a) for a in aqui[:CABEM_NO_DIA])
         resto = aqui[CABEM_NO_DIA:]
         mais = ("<details class='cal-mais'><summary>+%d</summary>%s</details>"
@@ -23930,9 +24028,12 @@ def calendario():
     # esqueleto: as duas sao vistas do mesmo conjunto) e e a mesma
     # ranhura que esta a ser vista.
     legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
-               "%s.</span>%s<a href='%s'>ver em lista</a></div>"
+               "%s.</span><span><i class='cal-urg' aria-hidden='true'>&#9888;</i> "
+               "fecha hoje ou já fechou &middot; <i class='cal-urg' "
+               "aria-hidden='true'>&#9719;</i> fecha em %d dias ou menos</span>"
+               "%s<a href='%s'>ver em lista</a></div>"
                % (html.escape(o_que), data_pt(principio.isoformat()),
-                  data_pt(fim.isoformat()),
+                  data_pt(fim.isoformat()), urgente,
                   ("<span>%s com prazo fora destas seis semanas &mdash; "
                    "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
                   html.escape(LISTA + "?" + urlencode(
@@ -23949,9 +24050,11 @@ def calendario():
         return "/calendario" + ("?" + urlencode(pedaco) if pedaco else "")
     anterior, hoje_, seguinte = (html.escape(para_semana(n), quote=True)
                                  for n in (semana - 1, 0, semana + 1))
-    accoes = ("<a class='mg-btn mg-btn--secondary' href='%s'>%s Semana</a>"
+    # «Semana» e «Semana» eram o nome das duas setas, que o ícone é
+    # aria-hidden (segunda ronda, 26/09/2026; WCAG 2.4.6)
+    accoes = ("<a class='mg-btn mg-btn--secondary' href='%s' aria-label='Semana anterior'>%s Semana</a>"
               "<a class='mg-btn mg-btn--secondary' href='%s'>Hoje</a>"
-              "<a class='mg-btn mg-btn--secondary' href='%s'>Semana %s</a>"
+              "<a class='mg-btn mg-btn--secondary' href='%s' aria-label='Semana seguinte'>Semana %s</a>"
               % (anterior, icone("anterior"), hoje_, seguinte, icone("seguinte")))
     # As abas vao no corpo. Levam a semana atras sem mais nada: o
     # `sem_pagina()` guarda os argumentos do pedido, e mudar de ranhura
@@ -24659,10 +24762,10 @@ def situacao():
         periodo = PERIODO_DE_OMISSAO
     janela, antes, rotulo_antes = janelas_do_periodo(periodo, hoje)
 
-    abas = "<div class='mg-tabs' role='tablist'>%s</div>" % "".join(
-        "<a class='mg-tab' role='tab' aria-selected='%s' href='/situacao?%s'>"
+    abas = "<nav class='mg-tabs' aria-label='Vistas da situação'>%s</nav>" % "".join(
+        "<a class='mg-tab'%s href='/situacao?%s'>"
         "%s</a>"
-        % ("true" if ver == chave else "false",
+        % (" aria-current='page'" if ver == chave else "",
            urlencode([("ver", chave), ("periodo", periodo)]),
            html.escape(rotulo))
         for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),

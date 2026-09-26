@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 22
-- [A interface](#a-interface) &middot; 80
+- [A interface](#a-interface) &middot; 85
 - [Convenções](#convencoes) &middot; 3
 
-São **292** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **297** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2484,8 +2484,10 @@ botões ou no calendário.
   levavam um `(i + n) % n`, e a bateria inteira caiu — 160 testes, todos
   com «not enough arguments for format string», porque todas as páginas
   passam pelo `BASE`.
-- **Abaixo de 600px as tabelas das listas são cartões, e a barra dobra**
-  (`miragov-radar.css`, teste com utilizadores de 25/09/2026). A 390px a
+- **Abaixo de 900px as tabelas das listas são cartões, e a barra dobra**
+  (`miragov-radar.css`, teste com utilizadores de 25/09/2026; o corte
+  subiu de 600 para 900 a 26/09/2026, porque a 150 % de zoom a tabela
+  tinha 900px numa caixa de 864 e o «Abandonar» ficava cortado). A 390px a
   tabela dos Concursos media 905px: o prazo e os botões ficavam fora do
   ecrã, e ao rolar para eles perdia-se o título. Uma coluna nova numa
   das listas entra também na regra do telemóvel — senão fica encostada
@@ -3284,6 +3286,51 @@ botões ou no calendário.
 
 
 ---
+
+- **Um `<select>` não grava ao mudar: grava-se com um botão** (segunda
+  ronda de testes, 26/09/2026; WCAG 3.2.2). O da ranhura fazia
+  `requestSubmit()` no `change`, e o `change` dispara a cada seta do
+  teclado com a lista fechada: quem percorria as opções mudava a
+  proposta de ranhura três vezes e voltava ao topo da página. O botão
+  «Mudar» está sempre à vista, o JS só intercepta o `submit` (para abrir
+  a caixa do motivo ou do que falta, e para perguntar antes de «tirar da
+  escada»), e `TestAsRotasNaoTemPadroesDeAcessibilidadeConhecidos`
+  recusa um ouvinte de `change` que submeta. O nome do selector e do
+  botão diz de que concurso são: sete «Ranhura na escada» iguais numa
+  lista não diziam qual se ia mudar.
+- **O foco não pode ficar debaixo da barra presa** (WCAG 2.4.11). Com
+  Shift+Tab o browser encostava o elemento ao topo da janela — debaixo
+  da barra e da faixa do topo, que se prendem. O `html` tem
+  `scroll-padding-top` com o `--prende-h`, que o JS do `BASE` mede (a
+  barra mais a `.topo` quando está `sticky`, e zero quando não está); e
+  no telemóvel ou num ecrã com menos de 500px de altura nenhuma das
+  duas se prende: comiam 130 de 740px, e 199 de 440 com o teclado
+  aberto. Um elemento novo que se prenda ao topo entra nessa conta.
+- **As «abas» são navegação, não separadores** (WCAG 4.1.2). Eram
+  `role=tab` dentro de `role=tablist`, sem painel nenhum, e cada uma
+  abria outra página: o leitor anunciava «separador 1 de 11» e as setas
+  que o padrão promete não eram as dele. São `<nav class='mg-tabs'>` com
+  `aria-current='page'` na acesa. O `miragov-componentes.css` só pinta o
+  `aria-selected`, e não se edita: o desenho do `aria-current` está
+  copiado na nossa folha, com o do tema contraste.
+- **O aviso da vez é fixo em baixo, e sai e volta a entrar para ser
+  lido** (E25 e WCAG 4.1.3). No topo ficava a milhares de píxeis de onde
+  se carregou, com o «desfazer». E uma região `role=status` que já tem
+  texto quando a página carrega não é anunciada pela maioria dos
+  leitores: o JS do `BASE` esvazia-a e volta a enchê-la, e se nenhum
+  outro guião levou o foco para a linha, leva-o para o aviso. Só é fixo
+  com JS (`.com-js`, posto no `<head>`): sem ele o «×» não fecha, e um
+  aviso preso por cima do fim da página seria pior do que no topo.
+- **Uma etiqueta de perigo ou de aviso leva um sinal além da cor**
+  (WCAG 1.4.1; perfil daltónico da segunda ronda). O `::before` do
+  `.mg-tag--danger` (⚠) e do `.mg-tag--warning` (◷) está na nossa folha,
+  com texto alternativo vazio (`content: "…" / ""`) para o leitor não o
+  ler duas vezes — e por isso vale para todas as etiquetas, incluindo
+  as que ainda não existem. Uma etiqueta que já traz o `mg-tag__dot` fica
+  sem ele. O calendário tem o mesmo sinal no número do dia, com texto
+  para o leitor e uma legenda; e o «Interessa» e o «Abandonar» levam ✓ e
+  ✕ (`SINAL_SIM`, `SINAL_NAO`), que eram o par verde/âmbar que um
+  daltónico não distingue.
 
 ## Convenções
 
