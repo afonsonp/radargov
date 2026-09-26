@@ -279,15 +279,30 @@ def utilizadores(c, empresa_id=None):
         "FROM utilizadores %s ORDER BY id" % onde, args)]
 
 
-def apagar_utilizador(c, utilizador_id, empresa_id=None):
+def apagar_utilizador(c, utilizador_id, empresa_id=None, quem=None):
     """Tira a conta e as sessoes dela. Recusa-se a tirar o ultimo admin
     da empresa: sem admin ninguem volta a criar contas nela pelo painel.
     Com `empresa_id`, uma conta de OUTRA empresa e como se nao existisse
-    -- e o que impede um admin de tirar contas alheias pelo id."""
-    linha = c.execute("SELECT papel, empresa_id FROM utilizadores WHERE id=?",
+    -- e o que impede um admin de tirar contas alheias pelo id.
+
+    A conta do dono da plataforma so a tira o dono, e o ultimo dono
+    nunca (26/09/2026): ate ai, o admin de uma empresa onde o dono tinha
+    a conta tirava-o pelo botao «tirar» -- e o proximo admin criado
+    numa base sem dono nascia dono (`criar_utilizador()`). Sem `quem`
+    (a consola, os testes) vale o mesmo: a conta do dono nao sai. Com
+    `quem`, e a regra do `pode_repor()`: o dono tira qualquer uma, o
+    admin so as da empresa dele, o tester nenhuma."""
+    linha = c.execute("SELECT papel, empresa_id, dono FROM utilizadores WHERE id=?",
                       (utilizador_id,)).fetchone()
     if not linha or (empresa_id and linha["empresa_id"] != empresa_id):
         return False
+    if linha["dono"] and not e_dono(quem):
+        raise ValueError("a conta do dono da plataforma só o dono a tira")
+    if linha["dono"] and c.execute(
+            "SELECT COUNT(*) FROM utilizadores WHERE dono=1").fetchone()[0] <= 1:
+        raise ValueError("é o único dono da plataforma; não se tira")
+    if quem is not None and not pode_repor(quem, dict(linha)):
+        raise ValueError("só o admin da empresa tira contas")
     if linha["papel"] == "admin" and c.execute(
             "SELECT COUNT(*) FROM utilizadores WHERE papel='admin' "
             "AND empresa_id=?", (linha["empresa_id"],)).fetchone()[0] <= 1:

@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 4
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 21
+- [Contas e a porta](#contas-e-a-porta) &middot; 22
 - [A interface](#a-interface) &middot; 80
 - [Convenções](#convencoes) &middot; 3
 
-São **291** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **292** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1795,9 +1795,16 @@ o leitor do Excel antigo fica lá, sem comando.
   `folha='modelo'` e chama o `aplicar()` de sempre com a **melhor** linha
   do anúncio (ganho › submetido › perdido › não fomos) — um lote ganho
   põe o cartão no Ganho e a separação do fim mostra os perdidos. O
-  ficheiro carregado guarda-se em `importacoes/` e a confirmação lê-o
-  outra vez pelo nome, **só o nome** (`_nome_de_importacao()` recusa
-  caminhos): um `ficheiro=../radar.db` não passa. Uma razão já canónica
+  ficheiro carregado guarda-se na **pasta da empresa**
+  (`pasta_das_importacoes()`, `empresas/<id>/importacoes/`) e a
+  confirmação lê-o outra vez pelo nome, **só o nome**
+  (`_nome_de_importacao()` recusa `/`, `\` e `..`, em vez de os limpar):
+  um `ficheiro=../radar.db` não passa. Até 26/09/2026 a pasta era a
+  `importacoes/` da raiz, de todas as empresas, e o nome só levava a
+  data e a hora — a empresa B confirmava na base dela o ficheiro que a A
+  acabara de carregar. Agora o nome leva 16 caracteres ao acaso, e o
+  que ficou na pasta antiga fica lá, sem rota que o leia (apaga-se à
+  mão). Uma razão já canónica
   («Falta de CV's») fica como está no `estado_pretendido()`: o
   `MAPA_RAZAO` é para as variantes do Excel antigo, e a primeira versão
   perdia o motivo por o passar pelo mapa. `--importar-excel` e
@@ -1855,8 +1862,8 @@ o leitor do Excel antigo fica lá, sem comando.
   consola, a partir de uma cópia). A confirmação guarda o ANTES e o
   DEPOIS das propostas e do registo de cada anúncio que tocou, e os ids
   do histórico que escreveu, num `.json` da **pasta da empresa**
-  (`empresas/<id>/importacoes/`) — não na `importacoes/` da raiz, que é
-  de todas as empresas. Desfazer compara o agora com o DEPOIS: onde é
+  (`empresas/<id>/importacoes/`, a mesma dos `.xlsx` carregados; a
+  lista lê só os `.json`). Desfazer compara o agora com o DEPOIS: onde é
   igual, repõe; onde alguém mexeu, **deixa ficar e di-lo**. As propostas
   que já existiam voltam à linha de antes **pelo mesmo id**, e as
   tarefas delas ficam; só as que a importação criou saem com as suas
@@ -2449,6 +2456,20 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   gente. E **o admin nunca repõe a conta do dono**, mesmo sendo da
   empresa dele (`contas.pode_repor()`): o dono é admin da empresa 1, e
   repor-lha era ficar dono da plataforma.
+
+- **A conta do dono só o dono a tira, e o último dono nunca**
+  (26/09/2026). O `pode_repor()` já guardava o repor, mas o «tirar» das
+  Configurações › Conta só perguntava se a conta era da mesma empresa —
+  e o dono tem conta na empresa 1: o admin dela tirava-o. Pior do que
+  perdê-lo: numa base sem dono, o próximo admin criado nasce dono
+  (`criar_utilizador()`, a regra da instalação nova), e um admin que
+  tirasse o dono e criasse uma conta ficava com a plataforma. A regra
+  vive no `contas.apagar_utilizador(…, quem=)`, não só na rota: sem
+  `quem` a conta do dono não sai; com `quem`, é a regra do
+  `pode_repor()` (o dono qualquer uma, o admin as da empresa dele, o
+  tester nenhuma), e o botão só aparece a quem o pode usar. **Uma acção
+  nova de um admin sobre uma conta pergunta as duas coisas**: é da
+  empresa dele? e é o dono?
 
 
 ## A interface

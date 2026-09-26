@@ -30,7 +30,12 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    caminho tem de passar por `caminho_na_pasta()`; uma guarda que
    compare o caminho final com uma pasta que o próprio pedido
    escolheu não é guarda. Foi assim que `/peca/../radar.db` serviu a
-   base a 8/09/2026.
+   base a 8/09/2026. **E a pasta tem de ser da empresa do pedido**:
+   até 26/09/2026 a `importacoes/` era de todas, e a confirmação de
+   uma importação aceitava o nome (data e hora) de um ficheiro que
+   outra empresa carregara. Um nome que vem do pedido resolve-se
+   dentro de `empresas/<id>/`, e recusa-se se trouxer `/`, `\` ou
+   `..` — não se «limpa».
 
 2. **Texto que vem do pedido e entra no HTML sem `html.escape()`.**
    O painel gera HTML por concatenação de strings, não por templates
@@ -50,7 +55,11 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    só a gera quem pode (`contas.pode_repor()` — o dono para qualquer
    conta, o admin para as da empresa dele e nunca para a do dono), só
    se mostra na resposta do POST, e usá-la fecha todas as sessões da
-   conta.
+   conta. **E o mesmo vale para tirar uma conta**: até 26/09/2026 o
+   admin da empresa onde o dono tem conta tirava-o, e numa base sem
+   dono o admin seguinte nascia dono. Toda a acção de um admin sobre
+   uma conta pergunta se é da empresa dele **e** se é o dono
+   (`contas.apagar_utilizador(…, quem=)`; o último dono nunca sai).
 
 4. **`pedido_e_local()` e o acesso livre.** `acesso_livre_local` dá
    entrada sem palavra-passe a pedidos de `127.0.0.1`. O cloudflared

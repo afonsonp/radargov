@@ -12077,8 +12077,6 @@ class TestModeloDaEmpresa(BaseTemporaria):
         import io
         self.io = io
         self.cliente = radar.app.test_client()
-        self.enterContext(unittest.mock.patch.object(
-            radar, "IMPORTACOES", os.path.join(self.pasta, "importacoes")))
         with radar.liga() as c:
             for ref, titulo, lotes in (("1947/2026", "Servidor de terminologias",
                                         json.dumps(TestResumoDosLotes.LOTES)),
@@ -12299,8 +12297,6 @@ class TestSegundaRondaAImportacao(BaseTemporaria):
         import io
         self.io = io
         self.cliente = radar.app.test_client()
-        self.enterContext(unittest.mock.patch.object(
-            radar, "IMPORTACOES", os.path.join(self.pasta, "importacoes")))
         with radar.liga() as c:
             for ref, prazo in (("27315/2024", "2024-05-10"), ("8023/2026", "2026-03-01"),
                                ("23735/2026", "2026-04-01")):
@@ -14452,6 +14448,174 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
         pedido seguinte, de outra pessoa."""
         self.entrar("conta-b-segredo").get("/", environ_base=self.FORA)
         self.assertEqual(radar.empresa_activa(), radar.EMPRESA_ACTIVA)
+
+
+class TestOAdminNaoTiraODonoNemImportaDaOutra(BaseTemporaria):
+    """Duas falhas de segurança de 25/09/2026, achadas por um agente de
+    revisão e corrigidas a 26/09/2026:
+
+    1. o admin de uma empresa onde o dono tinha a conta tirava-a pelo
+       «tirar» das Configurações › Conta -- e o admin seguinte criado
+       numa base sem dono nascia dono da plataforma;
+    2. a pasta `importacoes/` era de todas as empresas, e a confirmação
+       aceitava o nome (data e hora, adivinhável) de um ficheiro que
+       outra empresa acabara de carregar."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        import io
+        self.io = io
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado, detalhe_lido) VALUES ('900/2026', 'Software', "
+                      "'Município', '2026-09-01', 'novo', 1)")
+            radar.contas.criar_utilizador(c, "dono", "senha-comprida")        # 1, dono
+            radar.contas.criar_utilizador(c, "admin-a", "senha-comprida", papel="admin")
+            radar.contas.criar_utilizador(c, "tester-a", "senha-comprida", papel="tester")
+        self.b = radar.criar_empresa("Empresa B")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin-b", "senha-comprida",
+                                          papel="admin", empresa_id=self.b)
+
+    def entrar(self, quem):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def token(self, cliente):
+        html_ = cliente.get("/", environ_base=self.FORA).get_data(as_text=True)
+        return re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_).group(1)
+
+    def conta(self, email):
+        with radar.liga() as c:
+            return dict(c.execute("SELECT * FROM utilizadores WHERE email=?",
+                                  (email,)).fetchone())
+
+    def existe(self, email):
+        with radar.liga() as c:
+            return bool(c.execute("SELECT 1 FROM utilizadores WHERE email=?",
+                                  (email,)).fetchone())
+
+    # -- 1. a conta do dono
+
+    def test_o_admin_da_empresa_do_dono_nao_o_tira(self):
+        admin = self.entrar("admin-a")
+        dono = self.conta("dono")
+        r = admin.post("/configuracoes/conta/utilizadores/%d/apagar" % dono["id"],
+                       data={"csrf": self.token(admin)}, environ_base=self.FORA)
+        self.assertIn("dono", unquote_plus(r.headers["Location"]))
+        self.assertTrue(self.existe("dono"))
+        # e nem lhe mostra o botão
+        html_ = admin.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        self.assertNotIn("/configuracoes/conta/utilizadores/%d/apagar" % dono["id"], html_)
+        self.assertIn("/configuracoes/conta/utilizadores/%d/apagar"
+                      % self.conta("tester-a")["id"], html_)
+
+    def test_a_regra_vive_no_contas_e_nao_so_na_rota(self):
+        dono, admin, tester = (self.conta(e) for e in ("dono", "admin-a", "tester-a"))
+        with radar.liga() as c:
+            for quem in (admin, tester, None):
+                with self.assertRaises(ValueError):
+                    radar.contas.apagar_utilizador(c, dono["id"], 1, quem=quem)
+            # o tester não tira ninguém
+            with self.assertRaises(ValueError):
+                radar.contas.apagar_utilizador(c, admin["id"], 1, quem=tester)
+            # o admin de outra empresa, nem com a empresa certa dita
+            with self.assertRaises(ValueError):
+                radar.contas.apagar_utilizador(c, tester["id"], 1,
+                                               quem=self.conta("admin-b"))
+            # o último dono nunca, nem pelo próprio dono
+            with self.assertRaises(ValueError):
+                radar.contas.apagar_utilizador(c, dono["id"], quem=dono)
+            self.assertTrue(radar.contas.apagar_utilizador(c, tester["id"], 1,
+                                                           quem=admin))
+        self.assertTrue(self.existe("dono"))
+
+    def test_o_tester_nao_tira_ninguem_pelo_painel(self):
+        tester = self.entrar("tester-a")
+        for alvo in ("dono", "admin-a"):
+            r = tester.post("/configuracoes/conta/utilizadores/%d/apagar"
+                            % self.conta(alvo)["id"],
+                            data={"csrf": self.token(tester)}, environ_base=self.FORA)
+            self.assertEqual(r.status_code, 403)
+            self.assertTrue(self.existe(alvo))
+
+    def test_o_dono_tira_contas_e_com_dois_donos_um_tira_o_outro(self):
+        dono = self.entrar("dono")
+        r = dono.post("/configuracoes/conta/utilizadores/%d/apagar"
+                      % self.conta("tester-a")["id"],
+                      data={"csrf": self.token(dono)}, environ_base=self.FORA)
+        self.assertIn("tirada", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            c.execute("UPDATE utilizadores SET dono=1 WHERE email='admin-a'")
+            self.assertTrue(radar.contas.apagar_utilizador(
+                c, self.conta("admin-a")["id"], 1, quem=self.conta("dono")))
+
+    # -- 2. as importações
+
+    def carregar(self, cliente, nome="registo.xlsx"):
+        from openpyxl import load_workbook
+        caminho = os.path.join(self.pasta, "m.xlsx")
+        empresa.escrever_modelo(caminho)
+        wb = load_workbook(caminho)
+        wb[empresa.FOLHA_MODELO].append(
+            ["900/2026", None, "Ganho", None, 380000, 1, None, None, None, None])
+        wb.save(caminho)
+        with open(caminho, "rb") as f:
+            r = cliente.post("/configuracoes/importar",
+                             data={"ficheiro": (self.io.BytesIO(f.read()), nome),
+                                   "csrf": self.token(cliente)},
+                             content_type="multipart/form-data", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        return re.search(r"name='ficheiro' value='([^']+)'",
+                         r.get_data(as_text=True)).group(1)
+
+    def test_uma_empresa_nao_confirma_a_importacao_da_outra(self):
+        nome = self.carregar(self.entrar("admin-a"))
+        # o nome já não se adivinha: 16 caracteres ao acaso
+        self.assertRegex(nome, r"^\d{8}-\d{6}-[0-9a-f]{16}-registo\.xlsx$")
+        self.assertTrue(os.path.exists(os.path.join(
+            os.path.dirname(radar.db_da_empresa(1)), "importacoes", nome)))
+        self.assertFalse(os.path.exists(os.path.join(self.pasta, "importacoes", nome)))
+        b = self.entrar("admin-b")
+        r = b.post("/configuracoes/importar/confirmar",
+                   data={"ficheiro": nome, "csrf": self.token(b)}, environ_base=self.FORA)
+        self.assertIn("carrega-o outra vez", unquote_plus(r.headers["Location"]))
+        # e um caminho até à pasta da A também não
+        for ataque in ("../../1/importacoes/" + nome, "../1/importacoes/" + nome):
+            r = b.post("/configuracoes/importar/confirmar",
+                       data={"ficheiro": ataque, "csrf": self.token(b)},
+                       environ_base=self.FORA)
+            self.assertIn("carrega-o outra vez", unquote_plus(r.headers["Location"]))
+        with radar.com_empresa(self.b), radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM empresa").fetchone()[0], 0)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM propostas").fetchone()[0], 0)
+        # a A, essa, confirma o dela
+        a = self.entrar("admin-a")
+        r = a.post("/configuracoes/importar/confirmar",
+                   data={"ficheiro": nome, "csrf": self.token(a)}, environ_base=self.FORA)
+        self.assertIn("Importado", unquote_plus(r.headers["Location"]))
+
+    def test_nomes_com_caminho_recusam_se(self):
+        for nome in ("../radar.db", "..xlsx", "../x.xlsx", "a/../b.xlsx", "a..b.xlsx",
+                     "..\\x.xlsx", "/tmp/x.xlsx", ".x.xlsx", "x.xlsx/", "", None):
+            self.assertEqual(radar._nome_de_importacao(nome), "", nome)
+        self.assertEqual(radar._nome_de_importacao("20260926-001846-ab-x_1.v2.xlsx"),
+                         "20260926-001846-ab-x_1.v2.xlsx")
+        # o nome que o utilizador dá ao ficheiro não traz pontos seguidos
+        nome = self.carregar(self.entrar("admin-a"), "..mau..nome..xlsx")
+        self.assertNotIn("..", nome)
+        self.assertEqual(radar._nome_de_importacao(nome), nome)
+        # e o desfazer, que usa a mesma guarda
+        a = self.entrar("admin-a")
+        r = a.post("/configuracoes/importar/desfazer",
+                   data={"ficheiro": "../../2/importacoes/x.xlsx", "csrf": self.token(a)},
+                   environ_base=self.FORA)
+        self.assertIn("Não encontro", unquote_plus(r.headers["Location"]))
 
 
 class TestDonoSemEmpresa(BaseTemporaria):

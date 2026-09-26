@@ -921,7 +921,9 @@ como estavam antes — as que ela criou saem, as que já existiam voltam
 ao que eram, com as tarefas. Se alguém mexeu numa delas depois de
 importar, essa fica como está, e o aviso diz qual.
 
-Os ficheiros carregados ficam em `importacoes/`, fora do git.
+Os ficheiros carregados ficam na pasta da empresa
+(`empresas/<id>/importacoes/`), fora do git. A `importacoes/` da raiz
+era de todas as empresas até 26/09/2026 e já nada a lê: pode apagar-se.
 
 O Excel antigo de análise de concursos (`Analise_Concursos_Publicos.xlsm`)
 **deixou de contar para a aplicação**, por decisão tua a 8/09/2026:

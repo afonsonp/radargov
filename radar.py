@@ -17504,13 +17504,24 @@ def config_copias():
     return pagina_config("copias", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
-IMPORTACOES = os.path.join(BASE_DIR, empresa.PASTA_IMPORTACOES)
+def pasta_das_importacoes():
+    """A pasta das importacoes DA EMPRESA ACTIVA: `empresas/<id>/importacoes/`.
+
+    Ate 26/09/2026 o .xlsx carregado ia para a `importacoes/` da raiz,
+    que era de todas as empresas, e a confirmacao aceitava qualquer nome
+    de la: o nome leva a data e a hora, e a empresa B confirmava na base
+    dela o ficheiro que a A tinha acabado de carregar -- lia os
+    concursos, os precos e as notas da A. A pasta antiga fica onde esta,
+    e nenhuma rota a le."""
+    return os.path.join(os.path.dirname(db_da_empresa()), empresa.PASTA_IMPORTACOES)
 
 
 def _nome_de_importacao(nome):
-    """So um nome de ficheiro dentro de importacoes/: nada de caminhos."""
-    nome = os.path.basename((nome or "").strip())
-    return nome if re.fullmatch(r"[\w.\-]+\.xlsx", nome) else ""
+    """So um nome de ficheiro dentro da pasta da empresa: nada de
+    caminhos. Um nome com `/`, `\\` ou `..` recusa-se -- nao se
+    «limpa» para o basename, que era aceitar um caminho e usar outro."""
+    nome = (nome or "").strip()
+    return nome if re.fullmatch(r"\w[\w\-]*(\.[\w\-]+)*\.xlsx", nome) else ""
 
 
 def _base_no_ensaio(linhas, cfg=None):
@@ -17583,12 +17594,17 @@ def config_importar():
             return volta_config_erro("importar", "Escolhe o ficheiro .xlsx preenchido.")
         if not ficheiro.filename.lower().endswith(".xlsx"):
             return volta_config_erro("importar", "Só .xlsx: é o formato do modelo.")
-        os.makedirs(IMPORTACOES, exist_ok=True)
-        nome = "%s-%s" % (datetime.now().strftime("%Y%m%d-%H%M%S"),
-                          re.sub(r"[^\w.\-]+", "_", os.path.basename(ficheiro.filename))[-60:])
+        pasta = pasta_das_importacoes()
+        os.makedirs(pasta, exist_ok=True)
+        # a data para se ler, e 16 caracteres ao acaso para o nome nao se
+        # adivinhar; o do utilizador sem pontos seguidos (`..`)
+        nome = "%s-%s-%s" % (datetime.now().strftime("%Y%m%d-%H%M%S"),
+                             os.urandom(8).hex(),
+                             re.sub(r"\.{2,}", ".", re.sub(r"[^\w.\-]+", "_",
+                                    os.path.basename(ficheiro.filename)))[-60:])
         if not nome.endswith(".xlsx"):
             nome += ".xlsx"
-        caminho = os.path.join(IMPORTACOES, nome)
+        caminho = os.path.join(pasta, nome)
         ficheiro.save(caminho)
         try:
             linhas = empresa.ler_modelo(caminho)
@@ -17692,7 +17708,7 @@ def _fotografia_da_importacao(c, refs):
 
 
 def _pasta_dos_desfazer():
-    return os.path.join(os.path.dirname(db_da_empresa()), "importacoes")
+    return pasta_das_importacoes()
 
 
 def _guardar_desfazer(nome, antes, depois, hist):
@@ -17711,7 +17727,9 @@ def _importacoes_guardadas(limite=5):
     if not os.path.isdir(pasta):
         return []
     fora = []
-    for nome in sorted(os.listdir(pasta), reverse=True)[:limite]:
+    # os .xlsx carregados vivem na mesma pasta desde 26/09/2026
+    for nome in sorted((n for n in os.listdir(pasta) if n.endswith(".json")),
+                       reverse=True)[:limite]:
         try:
             with open(os.path.join(pasta, nome), encoding="utf-8") as f:
                 fora.append(json.load(f))
@@ -17812,8 +17830,9 @@ def config_importar_desfazer():
 
 @app.route("/configuracoes/importar/modelo.xlsx")
 def config_importar_modelo():
-    os.makedirs(IMPORTACOES, exist_ok=True)
-    caminho = os.path.join(IMPORTACOES, "modelo-registo-da-empresa.xlsx")
+    pasta = pasta_das_importacoes()
+    os.makedirs(pasta, exist_ok=True)
+    caminho = os.path.join(pasta, "modelo-registo-da-empresa.xlsx")
     empresa.escrever_modelo(caminho)
     return send_file(caminho, as_attachment=True,
                      download_name="registo-da-empresa.xlsx",
@@ -17823,7 +17842,7 @@ def config_importar_modelo():
 @app.route("/configuracoes/importar/confirmar", methods=["POST"])
 def config_importar_confirmar():
     nome = _nome_de_importacao(request.form.get("ficheiro"))
-    caminho = os.path.join(IMPORTACOES, nome) if nome else ""
+    caminho = os.path.join(pasta_das_importacoes(), nome) if nome else ""
     if not nome or not os.path.exists(caminho):
         return volta_config_erro("importar", "O ficheiro do ensaio já não está cá; carrega-o outra vez.")
     linhas = empresa.ler_modelo(caminho)
@@ -17971,10 +17990,13 @@ def _bloco_utilizadores(todos, eu):
                                  rotulo="Gerar a ligação para repor a "
                                  "palavra-passe de %s" % u["email"])
             if contas.pode_repor(g.get("utilizador"), u) else "")
-           + " &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
-                                "tirar", "mini perigo",
-                                "Tirar a conta %s? As sessões dela fecham já."
-                                % html.escape(u["email"], quote=True)))
+           # o «tirar» so a quem o pode fazer: a conta do dono so o
+           # dono a tira (contas.apagar_utilizador recusa na mesma)
+           + (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
+                                   "tirar", "mini perigo",
+                                   "Tirar a conta %s? As sessões dela fecham já."
+                                   % html.escape(u["email"], quote=True))
+              if contas.pode_repor(g.get("utilizador"), u) else ""))
         for u in todos)
     return (
         "<div class='mg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
@@ -18182,7 +18204,8 @@ def conta_apagar_utilizador(utilizador_id):
         linha = c.execute("SELECT email FROM utilizadores WHERE id=?",
                           (utilizador_id,)).fetchone()
         try:
-            houve = contas.apagar_utilizador(c, utilizador_id, empresa_activa())
+            houve = contas.apagar_utilizador(c, utilizador_id, empresa_activa(),
+                                             quem=g.get("utilizador"))
         except ValueError as erro:
             return volta_config_erro("conta", "Não tirei: %s." % erro)
     if not houve:

@@ -803,7 +803,8 @@ primeiro admin, que é o Afonso) é o único que abre o que é do sistema
 (`ROTAS_SO_DONO`: Indicadores, Capturas, Recolha, Leitura das peças,
 Cópias, o «Verificar agora», quem envia o e-mail e os pedidos de
 acesso do site); `sou_dono()` é a pergunta. O **admin** de uma empresa
-cria e tira as contas **dela** e diz quem ela é (`ROTAS_SO_ADMIN`:
+cria e tira as contas **dela** — nunca a do dono, que só o dono tira, e o
+último dono nunca sai (26/09/2026) — e diz quem ela é (`ROTAS_SO_ADMIN`:
 `/configuracoes/conta/utilizadores` e `/configuracoes/conta/empresa`);
 `sou_admin()` é a pergunta. O **tester** trabalha. **As duas
 administrações não se misturam** (23/09/2026, pedido dele): as
