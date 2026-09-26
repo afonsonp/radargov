@@ -7427,7 +7427,7 @@ class TestLinkDoProcedimento(unittest.TestCase):
         destino, _, _ = radar.link_do_procedimento(
             self._a("vortal", "https://community.vortal.biz/Public/"
                               "public-tender-documents/AbC"))
-        self.assertEqual(destino, "/plataforma/1%2F2026")
+        self.assertEqual(destino, "/procedimento/1%2F2026")
 
     def test_vortal_ja_resolvido_nao_volta_a_rota(self):
         destino, _, _ = radar.link_do_procedimento(
@@ -13640,7 +13640,8 @@ class TestMudancasDeSetembro(BaseTemporaria):
         self.enterContext(unittest.mock.patch.object(
             radar, "ler_config", lambda: dict(self.cfg)))
         with radar.liga() as c:
-            self.contas.criar_utilizador(c, "admin", "senha-comprida")
+            self.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)
             self.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
 
     def entrar(self, quem):
@@ -15248,7 +15249,8 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
             c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
                       "estado) VALUES ('900/2026', 'Software', 'Município', "
                       "'2026-09-01', 'novo')")
-            radar.contas.criar_utilizador(c, "admin", "senha-comprida")      # A, dono
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)      # A, dono
             radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
         self.b = radar.criar_empresa("EMPRESA-B-SEGREDO")
         with radar.com_empresa(self.b):
@@ -15384,7 +15386,8 @@ class TestOAdminNaoTiraODonoNemImportaDaOutra(BaseTemporaria):
             c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
                       "estado, detalhe_lido) VALUES ('900/2026', 'Software', "
                       "'Município', '2026-09-01', 'novo', 1)")
-            radar.contas.criar_utilizador(c, "dono", "senha-comprida")        # 1, dono
+            radar.contas.criar_utilizador(c, "dono", "senha-comprida",
+                pela_consola=True)        # 1, dono
             radar.contas.criar_utilizador(c, "admin-a", "senha-comprida", papel="admin")
             radar.contas.criar_utilizador(c, "tester-a", "senha-comprida", papel="tester")
         self.b = radar.criar_empresa("Empresa B")
@@ -15543,7 +15546,8 @@ class TestDonoSemEmpresa(BaseTemporaria):
     def setUp(self):
         super().setUp()
         with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "admin", "senha-comprida")     # dono
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)     # dono
             radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
             c.execute("INSERT INTO contactos (entidade_chave, entidade, nome) "
                       "VALUES ('n:x', 'X', 'CONTACTO-DA-1')")
@@ -15691,7 +15695,8 @@ class TestConvites(BaseTemporaria):
     def setUp(self):
         super().setUp()
         with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "admin", "senha-comprida")        # o dono
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)        # o dono
             radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
             c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
                       "email, sector) VALUES ('2026-09-23 10:00', 'Ana', "
@@ -15889,7 +15894,8 @@ class TestReporAPalavraPasse(BaseTemporaria):
         super().setUp()
         radar.criar_empresa("Outra")
         with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "dono", "senha-comprida")   # o dono
+            radar.contas.criar_utilizador(c, "dono", "senha-comprida",
+                pela_consola=True)   # o dono
             radar.contas.criar_utilizador(c, "chefe", "senha-comprida",
                                           papel="admin", empresa_id=1)
             radar.contas.criar_utilizador(c, "rita", "senha-comprida",
@@ -15984,7 +15990,8 @@ class TestReporAPalavraPasse(BaseTemporaria):
 
     def test_o_dono_repoe_qualquer_conta(self):
         dono = self.entrar("dono")
-        pagina = dono.get("/plataforma", environ_base=self.FORA).get_data(as_text=True)
+        # desde 26/09/2026 as contas estão na página de cada empresa
+        pagina = dono.get("/plataforma/empresa/2", environ_base=self.FORA).get_data(as_text=True)
         self.assertIn("/plataforma/contas/%d/repor" % self.ids["alheio"], pagina)
         ligacao = self.ligacao(self.gerar(
             dono, "/plataforma/contas/%d/repor" % self.ids["alheio"], "/plataforma"))
@@ -16140,7 +16147,8 @@ class TestLeiturasPorEmpresa(BaseTemporaria):
     def setUp(self):
         super().setUp()
         with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "admin", "senha-comprida")      # o dono
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)      # o dono
             radar.contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
             for i in range(4):
                 c.execute("INSERT INTO anuncios (ref, titulo) VALUES (?, 't')",
@@ -18521,7 +18529,8 @@ class TestAEmpresaActivaNaBarra(BaseTemporaria):
 
     def _barra(self):
         with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "admin", "senha-comprida")   # o dono
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)   # o dono
             radar.contas.criar_utilizador(c, "ana", "senha-comprida",
                                           papel="admin", empresa_id=1)
         cliente = radar.app.test_client()
@@ -18656,7 +18665,8 @@ class TestODonoPreparaOPerfilAoAceitar(BaseTemporaria):
     def setUp(self):
         super().setUp()
         with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "admin", "senha-comprida")   # o dono
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                pela_consola=True)   # o dono
             c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
                       "email, sector, mensagem) VALUES ('2026-09-26 10:00', 'Ana', "
                       "'Obras do Norte', 'ana@exemplo.pt', "
@@ -19027,6 +19037,469 @@ class TestDeclaracaoDeAcessibilidade(BaseTemporaria):
         corpo = radar.app.test_client().get("/ajuda").get_data(as_text=True)
         self.assertIn("href='/acessibilidade'", corpo)
 
+
+class TestSoAConsolaCriaUmDono(BaseTemporaria):
+    """F2 da segunda ronda (26/09/2026, decisão dele): só a consola cria um
+    dono. O `criar_utilizador()` fazia dono o primeiro admin de uma base
+    sem dono viesse de onde viesse -- o formulário da Conta, um convite,
+    uma ligação de repor. Com a regra antiga, um admin que deixasse a base
+    sem dono ficava com a plataforma ao criar a conta seguinte."""
+
+    def _dono(self, email):
+        with radar.liga() as c:
+            return c.execute("SELECT dono FROM utilizadores WHERE email=?",
+                             (email,)).fetchone()["dono"]
+
+    def test_do_painel_e_do_convite_nunca_nasce_um_dono(self):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "primeiro", "senha-comprida")
+            codigo = radar.contas.criar_convite(c, 1, "", "admin")
+            radar.contas.usar_convite(c, codigo, "convidado", "senha-comprida")
+        self.assertEqual((self._dono("primeiro"), self._dono("convidado")), (0, 0))
+
+    def test_a_consola_cria_o_dono_uma_vez(self):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "afonso", "senha-comprida",
+                                          pela_consola=True)
+            radar.contas.criar_utilizador(c, "outro", "senha-comprida",
+                                          pela_consola=True)
+        self.assertEqual((self._dono("afonso"), self._dono("outro")), (1, 0))
+
+    def _consola(self, *argumentos):
+        with unittest.mock.patch.object(sys, "argv", ["radar.py", *argumentos]), \
+                unittest.mock.patch("builtins.input", return_value="admin"), \
+                unittest.mock.patch("getpass.getpass", return_value="senha-comprida"), \
+                contextlib.redirect_stdout(io.StringIO()):
+            radar.main()
+
+    def test_o_criar_utilizador_da_consola_faz_o_dono_e_o_palavra_passe_nao(self):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin-da-1", "senha-comprida")
+        self._consola("--palavra-passe", "admin-da-1")
+        self.assertEqual(self._dono("admin-da-1"), 0)
+        self._consola("--criar-utilizador", "afonso")
+        self.assertEqual(self._dono("afonso"), 1)
+
+    def test_o_formulario_da_conta_nao_cria_um_dono(self):
+        cliente = radar.app.test_client()        # o acesso livre, sem contas
+        r = cliente.post("/configuracoes/conta/utilizadores", data={
+            "email": "novo-admin", "senha": "senha-comprida", "papel": "admin"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self._dono("novo-admin"), 0)
+
+
+class _PlataformaComDuasEmpresas(BaseTemporaria):
+    """O dono sem empresa, duas empresas com contas, um convite por usar
+    e um pedido por decidir: a base de ensaio da página do dono."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        radar.gravar_config({"nome_da_empresa": "Alfa"})
+        self.beta = radar.criar_empresa("Beta")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "dono", "senha-comprida",
+                                          pela_consola=True)
+            c.execute("UPDATE utilizadores SET empresa_id=0 WHERE email='dono'")
+            radar.contas.criar_utilizador(c, "chefe", "senha-comprida",
+                                          papel="admin", empresa_id=1)
+            radar.contas.criar_utilizador(c, "rita", "senha-comprida",
+                                          papel="tester", empresa_id=1)
+            radar.contas.criar_utilizador(c, "beto", "senha-comprida",
+                                          papel="admin", empresa_id=self.beta)
+            self.ids = {r["email"]: r["id"] for r in
+                        c.execute("SELECT id, email FROM utilizadores")}
+            self.codigo_1 = radar.contas.criar_convite(c, 1, "novo@alfa.pt", "tester")
+            self.codigo_2 = radar.contas.criar_convite(c, self.beta, "", "admin")
+            self.convites = {r["empresa_id"]: r["id"]
+                             for r in radar.contas.convites_por_usar(c)}
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, estado) "
+                      "VALUES ('1/2026', 'Software', 'Município', '2026-09-01', 'novo')")
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                      "sector, mensagem) VALUES ('2026-09-26 09:00', 'Zé', 'Gama', "
+                      "'ze@gama.pt', 'Obras', '')")
+            self.pedido = c.execute("SELECT MAX(id) FROM pedidos_acesso").fetchone()[0]
+        self.proposta = radar.criar_proposta("1/2026", titulo="PROPOSTA-DA-ALFA",
+                                             estado="proposta", quem="chefe")
+        with radar.liga() as c:
+            c.execute("INSERT INTO notas_da_proposta (proposta_id, texto) "
+                      "VALUES (?, 'NOTA-SECRETA-ALFA')", (self.proposta,))
+
+    def entrar(self, quem, senha="senha-comprida"):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": senha},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302, quem)
+        return cliente
+
+    def token(self, cliente, pagina="/ajuda"):
+        corpo = cliente.get(pagina, environ_base=self.FORA).get_data(as_text=True)
+        return re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", corpo).group(1)
+
+    def post(self, cliente, caminho, dados=None, pagina="/ajuda"):
+        return cliente.post(caminho, data=dict(dados or {}, csrf=self.token(cliente, pagina)),
+                            environ_base=self.FORA)
+
+    def ver(self, cliente, caminho):
+        return cliente.get(caminho, environ_base=self.FORA)
+
+    def contagens_da_alfa(self):
+        with radar.com_empresa(1), radar.liga() as c:
+            return {t: c.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0]
+                    for t in radar.TABELAS_DA_EMPRESA}
+
+
+class TestODonoTemConta(_PlataformaComDuasEmpresas):
+    """«A conta» e «como funciona» mandavam o dono sem empresa de volta
+    para a /plataforma: a conta mais poderosa só mudava a palavra-passe
+    pela consola, e ele não via nem fechava as suas sessões."""
+
+    def test_abre_a_conta_e_a_ajuda_sem_os_blocos_da_empresa(self):
+        dono = self.entrar("dono")
+        for caminho in ("/configuracoes/conta", "/ajuda"):
+            self.assertEqual(self.ver(dono, caminho).status_code, 200, caminho)
+        corpo = self.ver(dono, "/configuracoes/conta").get_data(as_text=True)
+        self.assertIn("Palavra-passe actual", corpo)
+        self.assertIn("Sessões abertas", corpo)
+        self.assertNotIn("Criar utilizador", corpo)
+        self.assertNotIn("href='/configuracoes/alertas'", corpo)
+        # e o resto das Configurações continua a ser de uma empresa
+        r = self.ver(dono, "/configuracoes/alertas")
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/plataforma"))
+
+    def test_troca_a_palavra_passe_e_fecha_as_sessoes(self):
+        dono = self.entrar("dono")
+        outro_aparelho = self.entrar("dono")
+        r = self.post(dono, "/configuracoes/conta", {
+            "actual": "senha-comprida", "nova": "outra-chave-boa",
+            "outra": "outra-chave-boa"})
+        self.assertEqual(r.status_code, 302)
+        self.entrar("dono", "outra-chave-boa")
+        self.post(dono, "/sair-de-todos")
+        self.assertEqual(self.ver(outro_aparelho, "/plataforma").status_code, 302)
+
+
+class TestAPaginaDeCadaEmpresa(_PlataformaComDuasEmpresas):
+    """A tabela das empresas não tinha uma ligação: cada linha abre agora a
+    página da empresa, com as contas, os convites, os alertas, o perfil,
+    as propostas em curso e as leituras. O trabalho dela não se mostra."""
+
+    def test_a_tabela_liga_a_cada_empresa_e_a_pagina_diz_o_que_o_suporte_precisa(self):
+        dono = self.entrar("dono")
+        self.entrar("chefe")
+        plataforma = self.ver(dono, "/plataforma").get_data(as_text=True)
+        self.assertIn("href='/plataforma/empresa/1'", plataforma)
+        self.assertIn("href='/plataforma/empresa/%d'" % self.beta, plataforma)
+        corpo = self.ver(dono, "/plataforma/empresa/1").get_data(as_text=True)
+        for parte in ("chefe", "rita", "novo@alfa.pt", "Convites por usar",
+                      "Alertas e e-mail", "Perfil da empresa", "Propostas em curso",
+                      "Leituras do modelo hoje", "/plataforma/contas/%d/repor"
+                      % self.ids["rita"], "Ver como a empresa, só leitura"):
+            self.assertIn(parte, corpo, parte)
+        self.assertNotIn("NOTA-SECRETA-ALFA", corpo)
+        self.assertNotIn("PROPOSTA-DA-ALFA", corpo)
+        self.assertNotIn("beto", corpo)
+        self.assertEqual(self.ver(dono, "/plataforma/empresa/99").status_code, 404)
+
+    def test_o_dono_anula_e_gera_de_novo_os_convites_de_qualquer_empresa(self):
+        dono = self.entrar("dono")
+        r = self.post(dono, "/plataforma/convites/%d/renovar" % self.convites[self.beta])
+        self.assertEqual(r.status_code, 200)
+        novo = re.search(r"/convite/([\w-]+)", r.get_data(as_text=True)).group(1)
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.convite_valido(c, self.codigo_2)[1],
+                             "este convite foi anulado; peça outro a quem o mandou")
+            self.assertTrue(radar.contas.convite_valido(c, novo)[0])
+            # na base, só o resumo do código novo
+            self.assertFalse(c.execute("SELECT 1 FROM convites WHERE resumo=?",
+                                       (novo,)).fetchone())
+        r = self.post(dono, "/plataforma/convites/%d/anular" % self.convites[1])
+        self.assertEqual(r.status_code, 302)
+        with radar.liga() as c:
+            self.assertIsNone(radar.contas.convite_valido(c, self.codigo_1)[0])
+        # quem o tinha já não entra por ele
+        r = radar.app.test_client().post("/convite/" + self.codigo_1, data={
+            "utilizador": "novo", "senha": "senha-comprida", "outra": "senha-comprida"},
+            environ_base=self.FORA)
+        self.assertNotEqual(r.status_code, 302)
+
+    def test_o_admin_ve_e_anula_os_convites_dele_e_nao_os_de_outra(self):
+        chefe = self.entrar("chefe")
+        conta = self.ver(chefe, "/configuracoes/conta").get_data(as_text=True)
+        self.assertIn("novo@alfa.pt", conta)
+        self.assertNotIn("/convites/%d/anular" % self.convites[self.beta], conta)
+        r = self.post(chefe, "/configuracoes/conta/utilizadores/convites/%d/anular"
+                      % self.convites[self.beta])
+        self.assertEqual(r.status_code, 404)
+        r = self.post(chefe, "/configuracoes/conta/utilizadores/convites/%d/anular"
+                      % self.convites[1])
+        self.assertEqual(r.status_code, 302)
+        with radar.liga() as c:
+            self.assertIsNone(radar.contas.convite_valido(c, self.codigo_1)[0])
+            self.assertTrue(radar.contas.convite_valido(c, self.codigo_2)[0])
+        # e o tester não anula nada
+        rita = self.entrar("rita")
+        self.assertEqual(self.post(rita, "/configuracoes/conta/utilizadores/convites/%d/anular"
+                                   % self.convites[self.beta]).status_code, 403)
+
+    def test_suspender_fecha_a_porta_as_contas_sem_apagar_nada(self):
+        dono = self.entrar("dono")
+        beto = self.entrar("beto")
+        self.post(dono, "/plataforma/empresa/%d/suspender" % self.beta)
+        self.assertEqual(radar.empresas_suspensas(), {self.beta})
+        # a sessão que estava aberta fechou-se, e entrar de novo dá a recusa
+        self.assertEqual(self.ver(beto, "/concursos").status_code, 302)
+        beto = self.entrar("beto")
+        r = self.ver(beto, "/concursos")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("suspenso", r.get_data(as_text=True))
+        self.assertEqual(self.ver(self.entrar("chefe"), "/concursos").status_code, 200)
+        self.post(dono, "/plataforma/empresa/%d/reactivar" % self.beta)
+        self.assertEqual(self.ver(beto, "/concursos").status_code, 200)
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+
+    def test_a_verificacao_salta_a_empresa_suspensa(self):
+        radar.gravar_config({"empresas_suspensas": [self.beta]})
+        self.assertEqual(radar.empresas_a_trabalhar(), [1])
+        # e é por ela que o ciclo do trabalho de cada empresa passa
+        self.assertIn("for id_ in empresas_a_trabalhar(cfg):",
+                      inspect.getsource(radar.verificar))
+
+
+class TestSoODonoAbreAsRotasNovas(_PlataformaComDuasEmpresas):
+    """Tudo o que é do dono vive debaixo de `ROTAS_SO_DONO`: um admin ou um
+    tester recebe 403 em cada rota nova, e nada muda."""
+
+    def test_admin_e_tester_levam_403_e_nada_muda(self):
+        get = ["/plataforma/empresa/1", "/plataforma/empresa/%d" % self.beta]
+        post = ["/plataforma/empresa/1/ver-como", "/plataforma/empresa/1/suspender",
+                "/plataforma/empresa/1/reactivar", "/plataforma/empresa/1/convite",
+                "/plataforma/convites/%d/anular" % self.convites[1],
+                "/plataforma/convites/%d/renovar" % self.convites[1],
+                "/plataforma/correio", "/plataforma/correio/teste",
+                "/plataforma/ver-como/sair", "/pedidos-de-acesso/%d/recusar" % self.pedido]
+        for quem in ("chefe", "rita"):
+            cliente = self.entrar(quem)
+            for caminho in get:
+                self.assertEqual(self.ver(cliente, caminho).status_code, 403, (quem, caminho))
+            for caminho in post:
+                r = self.post(cliente, caminho, {"motivo": "x", "avisos": "a@b.pt",
+                                                 "porta": "587", "papel": "admin"})
+                self.assertEqual(r.status_code, 403, (quem, caminho))
+        with radar.liga() as c:
+            self.assertEqual(len(radar.contas.convites_por_usar(c)), 2)
+            self.assertIsNone(c.execute("SELECT estado FROM pedidos_acesso").fetchone()[0])
+            self.assertFalse(c.execute("SELECT 1 FROM sessoes WHERE ver_como IS NOT NULL")
+                             .fetchone())
+        self.assertEqual(radar.empresas_suspensas(), set())
+        self.assertNotIn("avisos", radar.ler_config().get("email") or {})
+
+
+class TestVerComoAEmpresaSoLeitura(_PlataformaComDuasEmpresas):
+    """O suporte fazia-se com palavras-passe emprestadas. O dono entra
+    agora numa vista da empresa onde nada se grava: a porta recusa TODOS
+    os POST, o ficheiro da empresa junta-se só de leitura, a faixa diz
+    onde se está, e cada entrada e saída fica registada."""
+
+    def _a_ver(self):
+        dono = self.entrar("dono")
+        r = self.post(dono, "/plataforma/empresa/1/ver-como")
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/"))
+        return dono
+
+    def test_ve_o_trabalho_da_empresa_com_a_faixa(self):
+        dono = self._a_ver()
+        corpo = dono.get("/proposta/%d" % self.proposta, environ_base=self.FORA,
+                         follow_redirects=True).get_data(as_text=True)
+        self.assertIn("NOTA-SECRETA-ALFA", corpo)
+        self.assertIn("faixa-ver-como", corpo)
+        self.assertIn("A ver a empresa <b>Alfa</b>, só leitura", corpo)
+        self.assertIn("action='/plataforma/ver-como/sair'", corpo)
+        # a Beta não: a marca é por sessão, e a empresa é só a escolhida
+        self.assertNotIn("beto", self.ver(dono, "/configuracoes/conta").get_data(as_text=True))
+
+    def test_todas_as_rotas_post_sao_recusadas_e_nada_se_grava(self):
+        dono = self._a_ver()
+        token = self.token(dono)
+        antes = self.contagens_da_alfa()
+        recusadas = 0
+        for regra in radar.app.url_map.iter_rules():
+            # as rotas abertas saem da porta antes de haver empresa (o
+            # /entrar, o /pedir-acesso, o convite, o repor): a guarda
+            # delas é dentro delas, e nenhuma escreve na empresa vista
+            if "POST" not in (regra.methods or ()) or regra.rule in radar.PODE_A_VER_COMO \
+                    or regra.rule in radar.ROTAS_ABERTAS \
+                    or regra.rule.startswith(radar.PREFIXOS_ABERTOS):
+                continue
+            caminho = re.sub(r"<int:[^>]+>", "1", regra.rule)
+            caminho = re.sub(r"<[^>]+>", "1", caminho)
+            r = dono.post(caminho, data={"csrf": token, "motivo": "x", "q": "x",
+                                         "nome": "x", "texto": "x"},
+                          environ_base=self.FORA)
+            self.assertEqual(r.status_code, 403, regra.rule)
+            self.assertIn("nada se grava", r.get_data(as_text=True), regra.rule)
+            recusadas += 1
+        self.assertGreater(recusadas, 60)
+        self.assertEqual(self.contagens_da_alfa(), antes)
+        self.assertEqual(radar.empresas_suspensas(), set())
+
+    def test_um_get_que_tentasse_gravar_nao_grava(self):
+        with radar.app.test_request_context("/"):
+            radar.g.ver_como = 1
+            with radar.com_empresa(1):
+                c = radar.liga()
+                try:
+                    with self.assertRaises(sqlite3.OperationalError):
+                        c.execute("INSERT INTO historico (ref, quem, accao, detalhe, "
+                                  "quando) VALUES ('', 'x', 'x', 'x', 'x')")
+                finally:
+                    c.close()
+            # a outra empresa, no mesmo pedido, não é a que se está a ver
+            with radar.com_empresa(self.beta):
+                c = radar.liga()
+                try:
+                    c.execute("SELECT COUNT(*) FROM historico").fetchone()
+                finally:
+                    c.close()
+
+    def test_nenhuma_pagina_da_500_a_ver(self):
+        dono = self._a_ver()
+        falhas = []
+        for regra in radar.app.url_map.iter_rules():
+            if "GET" not in (regra.methods or ()) or "<" in regra.rule \
+                    or regra.rule in ("/contratos/resumo",):
+                continue
+            codigo = self.ver(dono, regra.rule).status_code
+            if codigo >= 500:
+                falhas.append((regra.rule, codigo))
+        for caminho in ("/anuncio/1/2026", "/proposta/%d" % self.proposta,
+                        radar.PROPOSTAS, "/plataforma/empresa/1"):
+            codigo = self.ver(dono, caminho).status_code
+            if codigo >= 500:
+                falhas.append((caminho, codigo))
+        self.assertEqual(falhas, [])
+
+    def test_a_entrada_e_a_saida_ficam_registadas_e_o_admin_ve(self):
+        dono = self._a_ver()
+        r = self.post(dono, "/plataforma/ver-como/sair")
+        self.assertEqual((r.status_code, r.headers["Location"]),
+                         (302, "/plataforma/empresa/1"))
+        self.assertNotIn("faixa-ver-como", self.ver(dono, "/plataforma").get_data(as_text=True))
+        with radar.com_empresa(1), radar.liga() as c:
+            suporte = [r["detalhe"] for r in c.execute(
+                "SELECT detalhe FROM historico WHERE accao='suporte' ORDER BY id")]
+        self.assertEqual(len(suporte), 2)
+        self.assertIn("entrou para ver", suporte[0])
+        self.assertIn("saiu", suporte[1])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM eventos WHERE "
+                                       "accao='suporte'").fetchone()[0], 2)
+        conta = self.ver(self.entrar("chefe"), "/configuracoes/conta").get_data(as_text=True)
+        self.assertIn("Acessos do suporte", conta)
+        # e a Beta não sabe de nada
+        with radar.com_empresa(self.beta), radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM historico WHERE accao='suporte'")
+                             .fetchone())
+
+    def test_so_o_dono_ve_como_mesmo_com_a_marca_na_sessao(self):
+        chefe = self.entrar("chefe")
+        with radar.liga() as c:
+            c.execute("UPDATE sessoes SET ver_como=? WHERE utilizador_id=?",
+                      (self.beta, self.ids["chefe"]))
+        corpo = self.ver(chefe, "/configuracoes/conta").get_data(as_text=True)
+        self.assertIn("rita", corpo)
+        self.assertNotIn("beto", corpo)
+        self.assertNotIn("faixa-ver-como", corpo)
+
+
+class TestASaudeEOQueHaParaTratar(_PlataformaComDuasEmpresas):
+    """Em cima o que está mal, no meio o que é para fazer hoje: os
+    semáforos e o «a tratar hoje» da /plataforma."""
+
+    def test_os_semaforos_e_a_lista_do_dia(self):
+        with radar.com_empresa(self.beta):
+            radar.gravar_config({"empresa_desde": "2026-01-02"})
+        radar.gravar_config({"empresa_desde": datetime.date.today().isoformat()})
+        with radar.liga() as c:
+            c.execute("UPDATE convites SET expira=? WHERE empresa_id=1",
+                      ((datetime.datetime.now() + datetime.timedelta(hours=20))
+                       .strftime("%Y-%m-%d %H:%M:%S"),))
+            c.execute("INSERT INTO erros (quando, tipo, texto) VALUES (?, 'x', 'x')",
+                      (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),))
+        corpo = self.ver(self.entrar("dono"), "/plataforma").get_data(as_text=True)
+        for semaforo in ("Recolha", "Capturas", "Cópias", "Erros em 24 h",
+                         "Temporizadores", "E-mail"):
+            self.assertIn("<b>%s</b>" % semaforo, corpo, semaforo)
+        self.assertIn("A tratar hoje", corpo)
+        self.assertIn("1 pedido de acesso por decidir", corpo)
+        self.assertIn("Convite de utilizador para novo@alfa.pt (Alfa) acaba a", corpo)
+        self.assertIn("Beta: ninguém entrou desde que chegou", corpo)
+        self.assertIn("1 erro nas últimas 24 horas", corpo)
+        # a Alfa também não tem entradas, mas chegou hoje: não é um
+        # cliente a ir-se embora
+        self.assertNotIn("Alfa: ninguém", corpo)
+
+
+class TestPedidosDeAcessoRecusarEOCorreio(_PlataformaComDuasEmpresas):
+    """Um pedido lixo ficava por decidir para sempre; e os pedidos novos
+    avisavam o `para` da empresa activa -- a 1, que é um cliente --, porque
+    não havia onde pôr o endereço do dono."""
+
+    def test_recusar_pede_o_motivo_e_nao_apaga(self):
+        dono = self.entrar("dono")
+        self.post(dono, "/pedidos-de-acesso/%d/recusar" % self.pedido, {"motivo": " "})
+        with radar.liga() as c:
+            self.assertIsNone(c.execute("SELECT estado FROM pedidos_acesso").fetchone()[0])
+        self.post(dono, "/pedidos-de-acesso/%d/recusar" % self.pedido,
+                  {"motivo": "não é uma empresa"})
+        with radar.liga() as c:
+            p = c.execute("SELECT estado, motivo FROM pedidos_acesso").fetchone()
+        self.assertEqual(tuple(p), ("recusado", "não é uma empresa"))
+        lista = self.ver(dono, "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("recusado a", lista)
+        self.assertIn("não é uma empresa", lista)
+        self.assertIn("0 por decidir", self.ver(dono, "/plataforma").get_data(as_text=True))
+        # recusado não se aceita
+        r = self.ver(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+
+    def test_os_pedidos_avisam_o_endereco_da_plataforma_e_nao_o_de_um_cliente(self):
+        radar.gravar_config({"email": {"para": "cliente@alfa.pt"}})
+        dono = self.entrar("dono")
+        r = self.post(dono, "/plataforma/correio", {
+            "avisos": "dono@miragov.pt", "de": "envio@gmail.com",
+            "servidor": "smtp.gmail.com", "porta": "587", "senha": "chave-do-correio"})
+        self.assertEqual(r.status_code, 302)
+        with open(os.path.join(self.pasta, "email_senha.txt"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "chave-do-correio")
+        with open(radar.CONFIG, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["email"]["avisos"], "dono@miragov.pt")
+        mandados = []
+        with unittest.mock.patch.object(
+                radar, "enviar_email",
+                side_effect=lambda a, corpo, cfg=None, **k: mandados.append(
+                    cfg["email"]["para"]) or (True, "ok")):
+            radar._avisar_do_pedido(self.pedido, {"nome": "Zé", "empresa": "Gama",
+                                                  "email": "ze@gama.pt", "sector": "Obras",
+                                                  "mensagem": ""})
+        self.assertEqual(mandados, ["dono@miragov.pt"])
+        r = self.post(dono, "/plataforma/correio", {"avisos": "não-é-mail", "porta": "587"})
+        self.assertIn("tom=erro", r.headers["Location"])
+
+
+class TestOProcedimentoAbreAQuemEDeEmpresa(_PlataformaComDuasEmpresas):
+    """O «Abrir na Vortal» passava por `/plataforma/<ref>`, que caía no
+    prefixo de `ROTAS_SO_DONO`: dava 403 a todas as contas de empresa."""
+
+    def test_o_tester_abre_o_procedimento(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET plataforma='vortal', link_proc=? "
+                      "WHERE ref='1/2026'", ("https://community.vortal.biz/x",))
+        r = self.ver(self.entrar("rita"), "/procedimento/1%2F2026")
+        self.assertEqual((r.status_code, r.headers["Location"]),
+                         (302, "https://community.vortal.biz/x"))
 
 if __name__ == "__main__":
 

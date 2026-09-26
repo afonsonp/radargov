@@ -85,6 +85,11 @@ def iniciar_tabelas(c):
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes (
         token TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
         criada_em TEXT, expira TEXT, ip TEXT, agente TEXT)""")
+    # A empresa que o dono esta a ver, so para ler (a pagina do dono,
+    # 26/09/2026): e da SESSAO e nao da conta -- o suporte num aparelho
+    # nao muda o que o dono ve no outro, e sair fecha-o.
+    if "ver_como" not in [r[1] for r in c.execute("PRAGMA table_info(sessoes)")]:
+        c.execute("ALTER TABLE sessoes ADD COLUMN ver_como INTEGER")
     c.execute("CREATE INDEX IF NOT EXISTS ix_sessoes_util "
               "ON sessoes(utilizador_id)")
     # As falhas de login, para o trinco. Poda-se ao registar: so
@@ -98,6 +103,11 @@ def iniciar_tabelas(c):
         resumo TEXT PRIMARY KEY, empresa_id INTEGER NOT NULL,
         email TEXT, papel TEXT NOT NULL DEFAULT 'admin', pedido_id INTEGER,
         criado_em TEXT, expira TEXT, usado_em TEXT)""")
+    # Anular um convite (a pagina do dono, 26/09/2026): um convite que
+    # foi para o endereco errado tinha de esperar sete dias. Fica a linha,
+    # com a data, e o codigo deixa de servir.
+    if "anulado_em" not in [r[1] for r in c.execute("PRAGMA table_info(convites)")]:
+        c.execute("ALTER TABLE convites ADD COLUMN anulado_em TEXT")
     # As ligacoes para repor a palavra-passe (D17, 26/09/2026): o mesmo
     # molde dos convites -- so o resumo, prazo, uso unico --, mas para
     # uma conta que ja existe. Tabela a parte, e nao uma coluna nos
@@ -227,7 +237,8 @@ def email_limpo(email):
 
 # --------------------------------------------------------------- utilizadores
 
-def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None):
+def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None,
+                     pela_consola=False):
     """Cria ou substitui a palavra-passe se o e-mail ja existir: e o
     mesmo comando que serve para recuperar o acesso pela linha de
     comandos. Devolve o id.
@@ -236,6 +247,12 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None):
     nova): trocar a palavra-passe nao despromove ninguem. A `empresa_id`
     a None, o mesmo -- trocar a palavra-passe nao muda ninguem de
     empresa --, e 1 numa conta nova.
+
+    `pela_consola`: so o `--criar-utilizador` o passa. E so assim nasce
+    um dono (F2 da segunda ronda, 26/09/2026, decisao dele): o primeiro
+    admin de uma base sem dono era dono viesse de onde viesse -- e um
+    admin de empresa que conseguisse deixar a base sem dono ficava com
+    a plataforma ao criar a conta seguinte, pelo painel ou por convite.
     """
     email = email_limpo(email)
     if papel is not None and papel not in PAPEIS:
@@ -264,10 +281,12 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None):
                   (hash_senha(senha), (nome or "").strip(), papel, empresa_id,
                    linha[0]))
         return linha[0]
-    # O primeiro admin e o dono da plataforma, tambem numa instalacao
-    # nova -- a mesma regra da migracao, que so corre quando a coluna
-    # nasce e numa base vazia nao encontra ninguem.
-    sem_dono = not c.execute("SELECT 1 FROM utilizadores WHERE dono=1").fetchone()
+    # O primeiro admin criado PELA CONSOLA numa base sem dono e o dono da
+    # plataforma -- a regra da migracao, que so corre quando a coluna
+    # nasce e numa base vazia nao encontra ninguem. Do painel, de um
+    # convite ou de uma reposicao nunca nasce um dono.
+    sem_dono = pela_consola and not c.execute(
+        "SELECT 1 FROM utilizadores WHERE dono=1").fetchone()
     cur = c.execute("INSERT INTO utilizadores (email, nome, hash, criado_em, papel, "
                     "empresa_id, dono) VALUES (?,?,?,?,?,?,?)",
                     (email, (nome or "").strip() or email.split("@")[0],
@@ -449,9 +468,56 @@ def convite_valido(c, codigo, agora=None):
         return None, "este convite não existe"
     if linha["usado_em"]:
         return None, "este convite já foi usado"
+    if linha["anulado_em"]:
+        return None, "este convite foi anulado; peça outro a quem o mandou"
     if linha["expira"] <= agora.strftime("%Y-%m-%d %H:%M:%S"):
         return None, "este convite passou do prazo"
     return dict(linha), None
+
+
+def convites_por_usar(c, empresa_id=None):
+    """Os convites que ninguem usou nem anulou -- tambem os que passaram
+    do prazo, que se mostram como tal: e o que o dono quer ver para
+    gerar outro. O `id` e o rowid da linha: o resumo nunca vai para um
+    formulario."""
+    onde, args = ("AND empresa_id=?", (empresa_id,)) if empresa_id else ("", ())
+    return [dict(r) for r in c.execute(
+        "SELECT rowid AS id, empresa_id, email, papel, pedido_id, criado_em, "
+        "expira FROM convites WHERE usado_em IS NULL AND anulado_em IS NULL "
+        "%s ORDER BY criado_em DESC" % onde, args)]
+
+
+def _convite_por_id(c, id_, empresa_id=None):
+    linha = c.execute("SELECT rowid AS id, * FROM convites WHERE rowid=? "
+                      "AND usado_em IS NULL AND anulado_em IS NULL",
+                      (id_,)).fetchone()
+    if not linha or (empresa_id and linha["empresa_id"] != empresa_id):
+        return None
+    return dict(linha)
+
+
+def anular_convite(c, id_, empresa_id=None, agora=None):
+    """Anula um convite por usar. Com `empresa_id`, um convite de OUTRA
+    empresa e como se nao existisse (o admin so anula os da dele).
+    Devolve o convite anulado, ou None."""
+    convite = _convite_por_id(c, id_, empresa_id)
+    if not convite:
+        return None
+    c.execute("UPDATE convites SET anulado_em=? WHERE rowid=?",
+              ((agora or datetime.now()).strftime("%Y-%m-%d %H:%M:%S"), id_))
+    return convite
+
+
+def renovar_convite(c, id_, empresa_id=None, agora=None):
+    """Anula o convite e cria outro igual (empresa, e-mail, tipo e
+    pedido), com prazo novo. Devolve o CODIGO novo, ou None. E o
+    «gerar de novo»: a ligacao antiga nao se volta a ver -- so o resumo
+    ficou --, e reenviar e mandar esta."""
+    convite = anular_convite(c, id_, empresa_id, agora)
+    if not convite:
+        return None
+    return criar_convite(c, convite["empresa_id"], convite["email"] or "",
+                         convite["papel"], convite["pedido_id"], agora)
 
 
 def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
@@ -574,7 +640,8 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
         registar_falha(c, email, ip, agora)
         return None, "utilizador ou palavra-passe errados"
     token = secrets.token_urlsafe(32)
-    c.execute("INSERT INTO sessoes VALUES (?,?,?,?,?,?)",
+    c.execute("INSERT INTO sessoes (token, utilizador_id, criada_em, expira, ip, agente) "
+              "VALUES (?,?,?,?,?,?)",
               (token, linha["id"], agora.strftime("%Y-%m-%d %H:%M:%S"),
                (agora + timedelta(days=DIAS_DE_SESSAO)).strftime(
                    "%Y-%m-%d %H:%M:%S"), ip or "", (agente or "")[:200]))
@@ -595,7 +662,7 @@ def utilizador_da_sessao(c, token, agora=None):
     agora = agora or datetime.now()
     linha = c.execute(
         "SELECT s.expira, u.id, u.email, u.nome, u.papel, u.empresa_id, "
-        "u.dono, u.aspecto FROM sessoes s "
+        "u.dono, u.aspecto, s.ver_como FROM sessoes s "
         "JOIN utilizadores u ON u.id = s.utilizador_id WHERE s.token=?",
         (token,)).fetchone()
     if not linha:
@@ -609,7 +676,17 @@ def utilizador_da_sessao(c, token, agora=None):
     return {"id": linha["id"], "email": linha["email"],
             "nome": linha["nome"], "papel": linha["papel"],
             "empresa_id": linha["empresa_id"], "dono": linha["dono"],
-            "aspecto": linha["aspecto"]}
+            "aspecto": linha["aspecto"],
+            # so o dono ve como outra empresa: numa conta que deixou de
+            # ser dono, uma marca que ficou na sessao nao vale nada
+            "ver_como": linha["ver_como"] if linha["dono"] else None}
+
+
+def marcar_ver_como(c, token, empresa_id):
+    """Poe (ou tira, com None) a empresa que o dono esta a ver nesta
+    sessao, so para ler. Quem pode e decide o radar; isto so grava."""
+    c.execute("UPDATE sessoes SET ver_como=? WHERE token=?",
+              (empresa_id, token or ""))
 
 
 def sair(c, token):

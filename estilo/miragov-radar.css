@@ -818,3 +818,65 @@ ul.notas .nota-texto{white-space:pre-line;overflow-wrap:anywhere}
  .ag-dia .cal-it b{font-size:var(--text-sm);white-space:normal}
  .ag-dia .cal-it i{white-space:normal}
  .ag-vazio{color:var(--ink-muted)}}
+
+/* ---- A PÁGINA DO DONO (26/09/2026, a §7 da segunda ronda). -------- */
+
+/* A faixa do modo de suporte: o dono a ver uma empresa, só para ler.
+   Vive DENTRO da barra, numa linha própria, para se prender com ela; e
+   no telemóvel, onde a barra deixa de se prender (D9), prende-se na
+   mesma enquanto a faixa lá estiver -- é o aviso de que nada se grava,
+   e não pode sair do ecrã ao rolar. */
+.faixa-ver-como{flex:1 1 100%;order:-1;display:flex;flex-wrap:wrap;
+ align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-4);
+ padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);
+ background:var(--warning-soft);color:var(--ink);
+ font:500 var(--text-sm)/1.4 var(--font-sans)}
+.faixa-ver-como svg{vertical-align:-3px;margin-right:4px}
+.faixa-ver-como form{margin:0}
+@media (max-width:600px),(max-height:500px){
+ .mg-topbar:has(.faixa-ver-como){position:sticky}}
+
+/* Os semáforos da plataforma: cinco a seis cartões pequenos, cada um
+   com o ponto, o nome e o estado, e cada um abre o detalhe. */
+.semaforos{display:grid;gap:var(--space-3);
+ grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:var(--space-5)}
+.semaforo{display:flex;gap:var(--space-2);align-items:flex-start;
+ padding:var(--space-3);border:var(--border-hairline) solid var(--line);
+ border-radius:var(--radius-lg);background:var(--surface-raised);
+ color:var(--ink);text-decoration:none}
+a.semaforo:hover{border-color:var(--line-strong)}
+.semaforo .ponto{flex:none;width:10px;height:10px;border-radius:50%;margin-top:5px}
+.semaforo.bom .ponto{background:var(--success)}
+.semaforo.aviso .ponto{background:var(--warning)}
+.semaforo.mau .ponto{background:var(--danger)}
+.semaforo.mau{border-color:var(--danger)}
+.semaforo b{display:block;font:600 var(--text-sm)/1.3 var(--font-sans)}
+.semaforo small{display:block;color:var(--ink-secondary);font-size:var(--text-xs)}
+
+/* A lista «a tratar hoje»: uma linha por coisa, com a ligação à direita. */
+.a-tratar{margin:0;padding:0;list-style:none}
+.a-tratar li{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);
+ justify-content:space-between;align-items:center;padding:var(--space-2) 0;
+ border-bottom:var(--border-hairline) solid var(--line)}
+.a-tratar li:last-child{border-bottom:0}
+
+/* As tabelas da plataforma no telemóvel: cartões, cada célula com o
+   rótulo da coluna (`data-r`) à frente. Com seis e oito colunas, a
+   390px o «aceitar» dos pedidos ficava fora do ecrã. */
+@media (max-width:900px){
+ .tab-plataforma{display:block;min-width:0;width:100%}
+ .tab-plataforma thead{position:absolute;width:1px;height:1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap}
+ .tab-plataforma tbody{display:block}
+ .tab-plataforma tbody tr{display:flex;flex-direction:column;gap:4px;
+  padding:var(--space-3);border-bottom:var(--border-hairline) solid var(--line)}
+ .tab-plataforma tbody td{display:block;padding:0;border:0;height:auto;
+  text-align:left;overflow-wrap:anywhere}
+ .mg-table.tab-plataforma tbody td.mg-num{text-align:left}
+ .tab-plataforma tbody td[data-r]::before{content:attr(data-r) ": ";
+  color:var(--ink-secondary);font-size:var(--text-xs)}
+ .tab-plataforma tbody td:empty{display:none}}
+/* Um botão-ligação primário dentro de uma tabela: a cor das ligações da
+   tabela ganhava-lhe, e o «aceitar» dos pedidos era um botão azul sem
+   texto (visto no browser, 26/09/2026). */
+.mg-table a.mg-btn--primary,.mg-table a.mg-btn--primary:hover{color:var(--on-brand)}
