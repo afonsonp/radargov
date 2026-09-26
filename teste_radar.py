@@ -8295,7 +8295,11 @@ class TestPeleNova(unittest.TestCase):
             # `data-tipo` era o selector de LETRA da amostra, e a letra
             # passou a vir dos tokens. O tema é que escolhe agora --
             # claro, escuro, contraste.
-            self.assertIn('data-theme="claro"', molde)
+            # O BASE carimba o aspecto da pessoa (D14, 26/09/2026): o
+            # claro, ou o contraste que ela escolheu na conta. Os outros
+            # dois não têm sessão a quem perguntar.
+            self.assertIn('data-theme="%(tema)s"' if molde is radar.BASE
+                          else 'data-theme="claro"', molde)
             self.assertNotIn('data-tipo=', molde)
             # e a folha que carimbam tem de ser a que traz a pele
             self.assertIn("%(css)s", molde)
@@ -10277,12 +10281,13 @@ class TestCalendarioAndaDeSemanaEmSemana(unittest.TestCase):
         self.assertIn(radar.data_pt((segunda + datetime.timedelta(weeks=52)).isoformat()),
                       longe)
 
-    def test_os_botoes_e_as_abas_levam_a_ranhura_e_a_semana(self):
-        corpo, _ = self._legenda("/calendario?estado=porver&semana=2")
-        self.assertIn("href='/calendario?estado=porver&amp;semana=1'", corpo)
-        self.assertIn("href='/calendario?estado=porver&amp;semana=3'", corpo)
-        self.assertIn("href='/calendario?estado=porver'>Hoje", corpo)
-        self.assertIn("href='/calendario?estado=expirou&semana=2'", corpo)
+    def test_os_botoes_e_os_filtros_levam_o_filtro_e_a_semana(self):
+        corpo, _ = self._legenda("/calendario?ver=porver&semana=2")
+        self.assertIn("href='/calendario?ver=porver&amp;semana=1'", corpo)
+        self.assertIn("href='/calendario?ver=porver&amp;semana=3'", corpo)
+        self.assertIn("href='/calendario?ver=porver'>Hoje", corpo)
+        self.assertIn("href='/calendario?ver=tudo&amp;semana=2'", corpo)
+        self.assertIn("href='/calendario?semana=2'", corpo)
 
 
 class TestCalendarioLigaAEscada(unittest.TestCase):
@@ -10299,14 +10304,21 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
     pior do que uma que esteja no sítio certo.
     """
 
-    def test_a_volta_do_calendario_e_para_a_ranhura(self):
+    def test_a_volta_do_calendario_e_para_a_lista_do_filtro(self):
         fonte = inspect.getsource(radar.calendario)
         self.assertNotIn("/quadro", fonte)
         # o endereço da lista, e não o "/" que passou a ser a abertura:
         # este teste estava a PREGAR a ligação errada no lugar, e foi
-        # por isso que as nove partidas passaram 952 testes (16/09/2026)
+        # por isso que as nove partidas passaram 952 testes (16/09/2026).
+        # Desde os filtros (D12): as nossas são as Propostas, o por ver
+        # e o tudo são os Concursos na aba que diz o mesmo.
         self.assertIn('LISTA + "?" + urlencode(', fonte)
-        self.assertIn('[("estado", estado)] + levantado', fonte)
+        cliente = radar.app.test_client()
+        for ver, destino in (("nossas", "href='/propostas'>ver em lista"),
+                             ("porver", "href='/concursos?estado=porver'>ver em lista"),
+                             ("tudo", "href='/concursos?estado='>ver em lista")):
+            corpo = cliente.get("/calendario?ver=" + ver).get_data(as_text=True)
+            self.assertIn(destino, corpo, ver)
 
     def test_o_calendario_nao_promete_uma_lista_que_nao_abre(self):
         """O «+N» de um dia cheio **não** liga a `/?de=X&ate=X`: esses
@@ -10742,7 +10754,7 @@ class TestCalendarioEPorDiaENaoUmGantt(BaseTemporaria):
                            "novo", dia.isoformat(), dia.isoformat()))
 
     def _grade(self):
-        r = radar.app.test_client().get("/calendario?estado=porver")
+        r = radar.app.test_client().get("/calendario?ver=porver")
         self.assertEqual(r.status_code, 200)
         return r.get_data(as_text=True)
 
@@ -10779,21 +10791,22 @@ class TestCalendarioEPorDiaENaoUmGantt(BaseTemporaria):
             self.assertIn("Anúncio %d<" % n, corpo)
 
     def test_um_dia_sem_nada_e_um_dia_e_nao_um_erro(self):
-        """Sem `?estado=` o calendário mostra as propostas em aberto, que
-        numa empresa que ainda não abriu nenhuma são zero. A grade desenha-se
-        na mesma, e as abas por cima são a saída — antes era um beco, em
-        que a única forma de ver outra coisa era escrever `?estado=` na
-        barra de endereços."""
+        """Por omissão o calendário mostra as nossas, que numa empresa que
+        ainda não abriu nenhuma são zero. A grade desenha-se na mesma, e
+        os filtros por cima são a saída — antes era um beco, em que a
+        única forma de ver outra coisa era escrever `?estado=` na barra
+        de endereços."""
         r = radar.app.test_client().get("/calendario")
         corpo = r.get_data(as_text=True)
         self.assertEqual(corpo.count("class='cal-dia"), 42)
-        self.assertIn("abas-escada", corpo)
+        self.assertIn("<nav class='mg-tabs cal-filtros'", corpo)
+        self.assertIn("Nada a fechar nestas seis semanas", corpo)
 
     def test_o_que_fica_fora_da_janela_diz_se(self):
         hoje = datetime.date.today()
         self._por_ver(1, hoje + datetime.timedelta(days=120))
         corpo = self._grade()
-        self.assertIn("fora destas seis semanas", corpo)
+        self.assertIn("1 com prazo depois destas seis semanas", corpo)
 
 
 class TestAlteracoesDoDR(BaseTemporaria):
@@ -13437,7 +13450,10 @@ class TestEcraEstreito(unittest.TestCase):
         self.assertIn(".ficha-indice ul{display:flex;flex-wrap:wrap",
                       radar.ler_estilo("miragov-radar.css"))
         # o viewport esta declarado, senao o browser do telemovel finge 980px
-        self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', radar.BASE)
+        # o `viewport-fit=cover` desde a barra de baixo (D9, 26/09/2026):
+        # sem ele o `env(safe-area-inset-bottom)` do iPhone vale zero
+        self.assertIn('<meta name="viewport" content="width=device-width, '
+                      'initial-scale=1, viewport-fit=cover">', radar.BASE)
 
 
 
@@ -17985,11 +18001,11 @@ class TestCalendarioLevaOPerfil(CicloDasTarefas):
                           " data_pub, prazo, cpv) VALUES (?,?,?,?,?,?,?)",
                           (ref, titulo, "CML", "novo", self._dia(-1),
                            self._dia(2), cpv))
-        corpo = self.cliente.get("/calendario?estado=porver").get_data(as_text=True)
+        corpo = self.cliente.get("/calendario?ver=porver").get_data(as_text=True)
         self.assertIn("Software dentro", corpo)
         self.assertNotIn("Betão fora", corpo)
         self.assertIn("1 de fora", corpo)
-        tudo = self.cliente.get("/calendario?estado=porver&interesse=nao"
+        tudo = self.cliente.get("/calendario?ver=porver&interesse=nao"
                                 ).get_data(as_text=True)
         self.assertIn("Betão fora", tudo)
         # e a ligacao para a lista leva o «ver tudo»
@@ -18215,7 +18231,7 @@ class TestOPerfilDaEmpresaNaoSeChamaInteresse(BaseTemporaria):
                              "interesse_cpv": "72000000"})
         cliente = radar.app.test_client()
         for rota in ("/", "/concursos", "/configuracoes/interesse",
-                     "/configuracoes", "/ajuda", "/calendario?estado=porver",
+                     "/configuracoes", "/ajuda", "/calendario?ver=porver",
                      "/configuracoes/conta"):
             corpo = cliente.get(rota, follow_redirects=True).get_data(as_text=True)
             # so o texto que se le: sem scripts, sem etiquetas (os href,
@@ -18786,6 +18802,231 @@ class TestTriagemSemRecarregar(BaseTemporaria):
                          headers=dict(self.JSON, **{"X-CSRF": token}),
                          environ_base=fora)
         self.assertTrue(r.get_json()["ok"])
+
+
+class TestCalendarioDeTresFiltros(CicloDasTarefas):
+    """D12 da segunda ronda (26/09/2026, decisão dele): o calendário tinha
+    as onze abas da escada, e um calendário não pergunta «em que
+    ranhura». São três filtros — «As nossas» (a omissão), «Por ver» e
+    «Tudo» —, as tarefas aparecem no dia delas, e os endereços antigos
+    com `?estado=` redireccionam para o filtro que diz o mesmo."""
+
+    def _grade(self, url):
+        corpo = self.cliente.get(url).get_data(as_text=True)
+        return corpo, corpo.split("<div class='cal-rolo'>")[1].split(
+            "<ol class='cal-agenda'")[0]
+
+    def _tarefa(self, o_que, dia, quem=None, feita=None):
+        with radar.liga() as c:
+            c.execute("INSERT INTO tarefas (o_que, quando, quem, feita_em, "
+                      "origem) VALUES (?,?,?,?,?)",
+                      (o_que, self._dia(dia), quem,
+                       self._dia(feita) if feita is not None else None, "mão"))
+
+    def test_os_enderecos_antigos_redireccionam_para_o_filtro(self):
+        for antigo, novo in (("estado=analisar", "ver=nossas"),
+                             ("estado=", "ver=nossas"),
+                             ("estado=interessa", "ver=nossas"),
+                             ("estado=porver&semana=2", "ver=porver&semana=2"),
+                             ("estado=expirou&interesse=nao",
+                              "ver=tudo&interesse=nao")):
+            r = self.cliente.get("/calendario?" + antigo)
+            self.assertEqual(r.status_code, 301, antigo)
+            self.assertTrue(r.headers["Location"].endswith("/calendario?" + novo),
+                            (antigo, r.headers["Location"]))
+
+    def test_as_onze_abas_sairam(self):
+        corpo, _ = self._grade("/calendario")
+        self.assertNotIn("<nav class='mg-tabs abas-escada'", corpo)
+        filtros = corpo.split("<nav class='mg-tabs cal-filtros'")[1].split("</nav>")[0]
+        self.assertEqual(re.findall(r">([^<>]+) <span class='mg-tab__count'>", filtros),
+                         ["As nossas", "Por ver", "Tudo"])
+        self.assertIn("aria-current='page' href='/calendario'>As nossas", filtros)
+
+    def test_as_tarefas_aparecem_no_dia_delas(self):
+        self._tarefa("Ligar ao júri", 3, quem="Ana")
+        self._tarefa("Já feita", 4, feita=0)
+        _, grade = self._grade("/calendario")
+        self.assertIn("<b>Ligar ao júri</b><i>Tarefa · Ana</i>", grade)
+        self.assertNotIn("Já feita", grade)
+        # e não são do «Por ver», que são os concursos por decidir
+        _, grade = self._grade("/calendario?ver=porver")
+        self.assertNotIn("Ligar ao júri", grade)
+
+    def test_a_proposta_nao_se_repete_debaixo_da_sua_tarefa(self):
+        """A «entregar a proposta» nasce do prazo, no mesmo dia: desenhar
+        também a proposta punha o mesmo concurso duas vezes na célula."""
+        ref = self._anuncio(prazo=10)
+        radar.criar_proposta(ref, estado="proposta")
+        radar.sincronizar_tarefas()
+        _, grade = self._grade("/calendario")
+        self.assertIn("<b>entregar a proposta</b>", grade)
+        self.assertNotIn("<b>Software de gestão</b>", grade)
+
+    def test_os_numeros_dos_filtros_sao_o_que_cada_um_desenha(self):
+        """A regra da casa: o número de cada filtro abre exactamente o
+        que promete — o que ele desenha nestas seis semanas."""
+        self._anuncio("1/2026", prazo=5)               # por ver
+        self._anuncio("2/2026", prazo=6)
+        ref = self._anuncio("3/2026", prazo=7)
+        radar.criar_proposta(ref, estado="relatorio")  # nossa, sem tarefas do DR
+        self._tarefa("Rever o caderno", 2)
+        corpo, _ = self._grade("/calendario")
+        numeros = dict(re.findall(
+            r">([^<>]+) <span class='mg-tab__count'>(\d+)</span>", corpo))
+        for ver, rotulo in radar.FILTROS_DO_CALENDARIO:
+            _, grade = self._grade("/calendario?ver=" + ver)
+            self.assertEqual(int(numeros[rotulo]), grade.count("class='cal-it"),
+                             ver)
+        self.assertEqual(numeros, {"As nossas": "2", "Por ver": "2", "Tudo": "4"})
+
+    def test_no_telemovel_e_uma_agenda_so_com_os_dias_com_coisas(self):
+        self._anuncio("1/2026", prazo=3)
+        self._anuncio("2/2026", prazo=3)
+        self._anuncio("3/2026", prazo=9)
+        corpo = self.cliente.get("/calendario?ver=porver").get_data(as_text=True)
+        agenda = corpo.split("<ol class='cal-agenda'")[1].split("</ol>")[0]
+        self.assertEqual(agenda.count("<li class='ag-dia"), 2)
+        self.assertEqual(agenda.count("class='cal-it"), 3)
+        folha = TestODesenhoSegueOSistema._nosso_css()
+        self.assertIn(".cal-agenda{display:none", folha)
+        telemovel = folha.split("/* O CALENDÁRIO (D12")[1]
+        self.assertRegex(telemovel,
+                         r"@media \(max-width:600px\)\{\s*\.cal-rolo\{display:none\}")
+
+
+class TestBarraDeBaixoNoTelemovel(BaseTemporaria):
+    """D9 da segunda ronda (26/09/2026, decisão dele: a opção (c)). No
+    telemóvel a navegação vai para baixo, fixa, ao alcance do polegar:
+    quatro destinos e um «Mais», com ícone e nome, alvos de 48 px ou
+    mais, e o `aria-current` no aceso. O foco não pode ficar debaixo
+    dela (WCAG 2.4.11), e o iPhone tem a sua área segura."""
+
+    def _barra(self, url):
+        corpo = radar.app.test_client().get(url).get_data(as_text=True)
+        return corpo.split("<nav class='barra-baixo'")[1].split("</nav>")[0]
+
+    def test_quatro_destinos_e_um_mais(self):
+        barra = self._barra("/calendario")
+        principais = barra.split("<details")[0]
+        self.assertEqual(re.findall(r"<span>([^<]+)</span></a>", principais),
+                         ["Concursos", "Propostas", "Situação", "Calendário"])
+        self.assertIn("href='/calendario' aria-current='page'", principais)
+        self.assertEqual(principais.count("aria-current"), 1)
+        mais = barra.split("<details")[1]
+        for destino in ("/contratos", "/configuracoes", "/ajuda"):
+            self.assertIn("href='%s'" % destino, mais)
+        self.assertIn("<span>Mais</span>", mais)
+
+    def test_o_mais_acende_quando_a_pagina_vive_la(self):
+        barra = self._barra("/contratos")
+        self.assertIn("<summary class='bb-item aceso'>", barra)
+        self.assertIn("href='/contratos' aria-current='page'", barra)
+        self.assertNotIn("bb-item aceso", self._barra("/propostas"))
+
+    def test_a_folha_tira_a_barra_de_cima_e_guarda_o_espaco(self):
+        folha = TestODesenhoSegueOSistema._nosso_css()
+        bloco = folha.split("/* A BARRA DE BAIXO")[1].split("/* O CALENDÁRIO")[0]
+        self.assertIn(".barra-baixo{display:none}", bloco)
+        telemovel = bloco.split("@media (max-width:600px){")[1]
+        for regra in (".mg-topbar__nav{display:none}",
+                      "env(safe-area-inset-bottom",
+                      "body{padding-bottom:var(--baixo-h)}",
+                      "scroll-padding-bottom:calc(var(--baixo-h)",
+                      "min-height:48px"):
+            self.assertIn(regra, telemovel)
+        self.assertIn("viewport-fit=cover", radar.BASE)
+
+
+class TestAspectoDeAltoContraste(BaseTemporaria):
+    """D14 da segunda ronda (26/09/2026, decisão dele): o alto contraste
+    escolhe-se na conta, por pessoa, e o molde carimba-o. Na conta e não
+    no browser: quem precisa dele precisa em todos os aparelhos. O escuro
+    não se oferece (o subtítulo fica a 1,4:1 nele)."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config",
+            lambda: dict(radar.CONFIG_INICIAL, acesso_livre_local=False)))
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "ana", "senha-comprida")
+            radar.contas.criar_utilizador(c, "rui", "senha-comprida",
+                                          papel="tester", empresa_id=1)
+
+    def _entra(self, quem):
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                     environ_base=self.FORA)
+        return cliente
+
+    def _pagina(self, cliente, url="/configuracoes/conta"):
+        return cliente.get(url, environ_base=self.FORA).get_data(as_text=True)
+
+    def _token(self, cliente):
+        return re.search(r'<meta name="csrf" content="([0-9a-f]+)"',
+                         self._pagina(cliente)).group(1)
+
+    def test_cada_um_escolhe_o_seu_e_o_molde_carimba_o(self):
+        ana, rui = self._entra("ana"), self._entra("rui")
+        conta = self._pagina(ana)
+        self.assertIn('data-theme="claro"', conta)
+        self.assertIn("value='contraste'", conta)
+        self.assertNotIn("value='escuro'", conta)
+        r = ana.post("/configuracoes/conta/aspecto",
+                     data={"csrf": self._token(ana), "aspecto": "contraste"},
+                     environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        for url in ("/", "/calendario", "/configuracoes/conta"):
+            self.assertIn('data-theme="contraste"', self._pagina(ana, url), url)
+        self.assertIn("value='contraste' checked", self._pagina(ana))
+        # o do rui não mudou: é por pessoa -- e um tester também escolhe o seu
+        self.assertIn('data-theme="claro"', self._pagina(rui, "/"))
+        rui.post("/configuracoes/conta/aspecto",
+                 data={"csrf": self._token(rui), "aspecto": "contraste"},
+                 environ_base=self.FORA)
+        self.assertIn('data-theme="contraste"', self._pagina(rui, "/"))
+
+    def test_um_valor_de_fora_nao_chega_ao_html(self):
+        ana = self._entra("ana")
+        ana.post("/configuracoes/conta/aspecto",
+                 data={"csrf": self._token(ana), "aspecto": 'escuro"><script>'},
+                 environ_base=self.FORA)
+        self.assertIn('data-theme="claro"', self._pagina(ana, "/"))
+        with self.assertRaises(ValueError):
+            with radar.liga() as c:
+                radar.contas.gravar_aspecto(c, 1, "escuro")
+
+
+class TestDeclaracaoDeAcessibilidade(BaseTemporaria):
+    """D15 da segunda ronda (26/09/2026, decisão dele): a declaração de
+    acessibilidade, pública, com a estrutura do modelo do DL 83/2018 — o
+    estado, o que não está conforme, a data e o método da avaliação, e o
+    contacto, que é o formulário do site (sem e-mails inventados)."""
+
+    def test_e_publica_e_tem_as_partes_do_modelo(self):
+        with unittest.mock.patch.object(
+                radar, "ler_config",
+                lambda: dict(radar.CONFIG_INICIAL, acesso_livre_local=False)):
+            r = radar.app.test_client().get(
+                "/acessibilidade", environ_base={"REMOTE_ADDR": "203.0.113.7"})
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        for parte in ("Declaração de acessibilidade", "Decreto-Lei n.º 83/2018",
+                      "parcialmente conforme", "Conteúdo não acessível",
+                      "Elaboração desta declaração", "Contacto",
+                      'href="/#acesso"', "WCAG 2.1", 'lang="pt"'):
+            self.assertIn(parte, corpo, parte)
+        self.assertNotRegex(corpo, r"[\w.]+@[\w.]+\.\w+")   # nenhum e-mail
+
+    def test_liga_se_do_site_e_da_ajuda(self):
+        with open(radar.SITE, encoding="utf-8") as f:
+            self.assertIn('href="/acessibilidade"', f.read())
+        corpo = radar.app.test_client().get("/ajuda").get_data(as_text=True)
+        self.assertIn("href='/acessibilidade'", corpo)
+
 
 if __name__ == "__main__":
 

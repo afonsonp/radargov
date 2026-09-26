@@ -75,6 +75,13 @@ def iniciar_tabelas(c):
                   "NOT NULL DEFAULT 0")
         c.execute("UPDATE utilizadores SET dono=1 WHERE id=(SELECT MIN(id) "
                   "FROM utilizadores WHERE papel='admin')")
+    # O aspecto de cada pessoa (D14 da segunda ronda, 26/09/2026): o tema
+    # de alto contraste, escolhido na conta e nao no browser -- quem o
+    # precisa leva-o para todos os aparelhos. So «normal» e «contraste»:
+    # o escuro nao se oferece enquanto o subtitulo tiver 1,4:1 nele.
+    if "aspecto" not in cols:
+        c.execute("ALTER TABLE utilizadores ADD COLUMN aspecto TEXT "
+                  "NOT NULL DEFAULT 'normal'")
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes (
         token TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
         criada_em TEXT, expira TEXT, ip TEXT, agente TEXT)""")
@@ -330,6 +337,19 @@ def e_dono(utilizador):
     return bool(utilizador) and bool(utilizador.get("dono"))
 
 
+# Os aspectos que a conta oferece, e o `data-theme` que cada um carimba.
+ASPECTOS = {"normal": "claro", "contraste": "contraste"}
+
+
+def gravar_aspecto(c, utilizador_id, aspecto):
+    """Grava o aspecto de uma conta. Recusa o que nao esta em ASPECTOS:
+    o valor vai parar a um atributo do HTML."""
+    if aspecto not in ASPECTOS:
+        raise ValueError("aspecto desconhecido")
+    c.execute("UPDATE utilizadores SET aspecto=? WHERE id=?",
+              (aspecto, utilizador_id))
+
+
 def unico_utilizador(c):
     """Quem e o acesso livre local: o unico utilizador se so ha um, senao
     o primeiro admin. None so sem contas.
@@ -339,7 +359,7 @@ def unico_utilizador(c):
     tester, o painel no computador dele passou a dizer "sem conta
     ainda" e a registar tudo como "(sem nome)". O acesso livre e o
     computador dele; com varias contas, e o admin."""
-    colunas = "id, email, nome, papel, empresa_id, dono"
+    colunas = "id, email, nome, papel, empresa_id, dono, aspecto"
     linhas = c.execute("SELECT %s FROM utilizadores ORDER BY id LIMIT 2"
                        % colunas).fetchall()
     if len(linhas) == 1:
@@ -547,8 +567,9 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
     espera = segundos_de_trinco(c, email, ip, agora)
     if espera:
         return None, "demasiadas tentativas; espera %d s" % espera
-    linha = c.execute("SELECT id, email, nome, papel, hash, empresa_id, dono "
-                      "FROM utilizadores WHERE email=?", (email,)).fetchone()
+    linha = c.execute("SELECT id, email, nome, papel, hash, empresa_id, dono, "
+                      "aspecto FROM utilizadores WHERE email=?",
+                      (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
         registar_falha(c, email, ip, agora)
         return None, "utilizador ou palavra-passe errados"
@@ -561,7 +582,8 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
               (agora.strftime("%Y-%m-%d %H:%M:%S"), linha["id"]))
     return token, {"id": linha["id"], "email": linha["email"],
                    "nome": linha["nome"], "papel": linha["papel"],
-                   "empresa_id": linha["empresa_id"], "dono": linha["dono"]}
+                   "empresa_id": linha["empresa_id"], "dono": linha["dono"],
+                   "aspecto": linha["aspecto"]}
 
 
 def utilizador_da_sessao(c, token, agora=None):
@@ -573,7 +595,7 @@ def utilizador_da_sessao(c, token, agora=None):
     agora = agora or datetime.now()
     linha = c.execute(
         "SELECT s.expira, u.id, u.email, u.nome, u.papel, u.empresa_id, "
-        "u.dono FROM sessoes s "
+        "u.dono, u.aspecto FROM sessoes s "
         "JOIN utilizadores u ON u.id = s.utilizador_id WHERE s.token=?",
         (token,)).fetchone()
     if not linha:
@@ -586,7 +608,8 @@ def utilizador_da_sessao(c, token, agora=None):
                   "%Y-%m-%d %H:%M:%S"), token))
     return {"id": linha["id"], "email": linha["email"],
             "nome": linha["nome"], "papel": linha["papel"],
-            "empresa_id": linha["empresa_id"], "dono": linha["dono"]}
+            "empresa_id": linha["empresa_id"], "dono": linha["dono"],
+            "aspecto": linha["aspecto"]}
 
 
 def sair(c, token):

@@ -398,6 +398,9 @@ Duas origens:
   nova, mesmo que a velha já estivesse feita; tirar o documento leva-a.
 - **Escritas à mão** — nunca se tocam.
 
+**Vivem no Hoje e no Calendário** (este desde 26/09/2026, D12): as por
+fazer aparecem no dia delas, no filtro «As nossas» e no «Tudo».
+
 **Nada se move sozinho.** Um prazo que passa não muda ranhura nenhuma:
 aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
@@ -560,7 +563,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**103 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**105 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -575,8 +578,20 @@ Eram cinco itens desde 24/09/2026
   «Em jogo» do Hoje)
 - **Mercado** → `/contratos` · aba **Entidades** `/entidades`, ao lado
   dos dois modos da tabela (26/09/2026; era vista na barra)
-- **Calendário** → `/calendario`, com as dez ranhuras nas abas
+- **Calendário** → `/calendario`, com três filtros (§4.3)
 - **Configurações** → `/configuracoes` (9 secções)
+
+**No telemóvel (abaixo de 600 px) a navegação vai para baixo** (D9 da
+segunda ronda, 26/09/2026, decisão dele): uma barra fixa em baixo com
+**Concursos, Propostas, Situação, Calendário e «Mais»** — o «Mais» abre
+o Mercado, as Configurações, a Ajuda, a conta e o sair —, cada destino
+com ícone e nome, alvos de 60 px de altura, o `aria-current` no aceso (e
+o «Mais» aceso quando a página vive lá dentro), e a área segura do
+iPhone respeitada. Em cima fica a marca (o Hoje) e quem está. O
+conteúdo e o `scroll-padding-bottom` guardam a altura dela, para nada
+nem o foco ficarem tapados (WCAG 2.4.11). O dono sem empresa tem em
+baixo os Concursos e o Mercado, e a Plataforma no «Mais». Em ecrã largo
+a barra de cima fica como está (`barra_de_baixo()`).
 
 À direita, o menu da conta: o nome de quem entrou e, **por baixo, o da
 empresa em que está a trabalhar** (D7 da segunda ronda, 26/09/2026,
@@ -724,9 +739,24 @@ botões que gravam** (um clique; o «Gravar» só aparece quando não há
 motivo a escolher, como no preço do «Submetido»). Nas outras abas, e
 sem JavaScript, é o POST de sempre, com a página inteira.
 
-**Vista Calendário** — `/calendario`: os prazos por dia, seis semanas,
-para qualquer ranhura. As pontas (Por ver, Expirou) levam o perfil da
-empresa e a mesma faixa da lista, com o «ver tudo» (26/09/2026).
+**Vista Calendário** — `/calendario`: o que fecha em cada dia, seis
+semanas a partir de segunda-feira, a andar de semana em semana. Desde
+26/09/2026 (D12 da segunda ronda, decisão dele) tem **três filtros** em
+vez das onze abas da escada (`FILTROS_DO_CALENDARIO`):
+
+- **As nossas** (a omissão): os prazos das propostas em aberto e as
+  **tarefas por fazer, no dia delas**. A proposta não se desenha outra
+  vez por baixo da sua «entregar a proposta», que cai no mesmo dia;
+- **Por ver**: os concursos por decidir, com o perfil da empresa e a
+  faixa da lista, com o «ver tudo»;
+- **Tudo**: as nossas e os concursos todos (com o perfil).
+
+O número de cada filtro é o que ele desenha nestas seis semanas, e o
+«ver em lista» abre as Propostas (as nossas) ou os Concursos na aba que
+diz o mesmo. Um endereço antigo com `?estado=` redirecciona para o
+filtro equivalente (as ranhuras da empresa → as nossas; o por ver → o
+por ver; o resto → tudo). **No telemóvel é uma agenda**: dia a dia, só
+os dias que têm alguma coisa, em vez da grelha de sete colunas.
 
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
@@ -814,7 +844,7 @@ dono da plataforma as abre; os **documentos** só o admin da empresa.
 
 | Secção | O que faz |
 |---|---|
-| **conta** | palavra-passe, sessões, a nossa empresa (nome + NIF), utilizadores |
+| **conta** | palavra-passe, sessões, o **aspecto** (normal ou alto contraste, por pessoa — D14, 26/09/2026), a nossa empresa (nome + NIF), utilizadores |
 | **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
 | **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
@@ -831,7 +861,17 @@ todos os dias num parágrafo, e o glossário (`GLOSSARIO`) das palavras
 da aplicação. Cada termo tem âncora (`/ajuda#em-jogo`), e o «?» de um
 bloco ou de uma página cujo nome é um termo liga à definição («Mais na
 ajuda», `mais_na_ajuda()`). **As definições de lá
-seguem as deste documento**: uma regra que mude aqui muda lá.
+seguem as deste documento**: uma regra que mude aqui muda lá. No fim,
+a ligação para a declaração de acessibilidade.
+
+**O aspecto** (D14, 26/09/2026, decisão dele): em Configurações › Conta,
+«Normal» ou «Alto contraste». Guarda-se **na conta**
+(`utilizadores.aspecto`, `contas.gravar_aspecto()`), e não no browser —
+vale em todos os aparelhos —, e o molde carimba-o no `data-theme`
+(`tema_da_pessoa()`): `claro` ou `contraste`. O escuro existe nos
+tokens e **não se oferece**: o subtítulo das páginas fica a 1,4:1 nele.
+O ecrã de entrar, o do convite e os de erro ficam no claro (não há a
+quem perguntar).
 
 ### 4.9 A porta
 
@@ -860,6 +900,13 @@ validados e cortados, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
 `PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
+A **`/acessibilidade`** (D15, 26/09/2026): a declaração de
+acessibilidade, com a estrutura do modelo do DL 83/2018 — o estado
+(parcialmente conforme com a WCAG 2.1 AA), o que não está conforme, a
+data e o método da avaliação, e o contacto, que é o formulário do site.
+É um ficheiro do `site/`, servido **sempre** (não depende do operador),
+e liga-se do rodapé do site e da Ajuda. **Quando a acessibilidade mudar,
+muda-se lá** — a lista do que não está conforme é um facto com data.
 E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site, que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32

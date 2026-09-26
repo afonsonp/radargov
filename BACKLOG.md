@@ -16,7 +16,7 @@ Esforço: 1 ≈ ≤2h · 2 ≈ meio dia a 1 dia · 3 ≈ 2–3 dias · 4 ≈ 1 s
 
 ## O que está ABERTO
 
-**Dezassete.** Tudo o resto neste ficheiro é história — está feito, ou
+**Dezanove.** Tudo o resto neste ficheiro é história — está feito, ou
 está na lista do que não se faz. Invertido a 19/09/2026, a pedido
 dele: «o Backlog começa por coisas que já estão terminadas».
 
@@ -38,6 +38,8 @@ dele: «o Backlog começa por coisas que já estão terminadas».
 | 2R-D18 | **«Pedir opinião a…»** (D18 da segunda ronda: o comercial quer a opinião do chefe sobre um concurso que ainda não tem «Interessa») | Decisão dele: a opção **(c)** — um gesto na ficha que cria uma **tarefa para essa pessoa**, com a nota escrita, em vez de notas soltas no anúncio. O mecanismo das tarefas já existe (`criar_tarefa()` com `quem`) | **Uma sessão** |
 | 2R-D20 | **As interacções com os contactos** («liguei a 25/09…», e o próximo contacto) | Decisão dele: a opção **(b)** — um registo por contacto que entra também no histórico da proposta. **Depois das notas datadas** (26/09/2026), que lhe dão a forma: texto, quem, quando | **Uma sessão** |
 | 2R-D8 | **Pesquisa global (Ctrl+K)**: concurso, proposta, entidade, NIF numa caixa só | Decisão dele: a opção **(b)**, **depois de um índice de texto** — sem ele cada tecla varria os 210 mil anúncios. **A troca a saber antes de o fazer**: o FTS5 procura por palavras (e prefixos), e por isso deixa de achar «videovigilância» quando se procura «vigilância», que o `LIKE` de hoje acha | **Uma sessão**, com a medição do índice (tamanho e tempo) antes |
+| 2R-D12c | **O calendário num feed iCal privado, por pessoa** (D12 da segunda ronda: «a minha agenda é o Outlook», o consultor) | Os três filtros, as tarefas no dia delas e a agenda do telemóvel estão feitos (26/09/2026, as opções (b) e (d)); o (c) é o passo a seguir: um endereço secreto por conta, só de leitura, com as nossas e as tarefas | **Uma sessão** |
+| 2R-A11Y | **O que a declaração de acessibilidade ainda diz que falta** (`site/acessibilidade.html`, 26/09/2026) | Três: a contagem da árvore dos CPV que não muda ao filtrar nem se anuncia (4.1.3); a grelha do calendário no computador sem estrutura de tabela (1.3.1); e as siglas do papel das entidades («CLI», «CONC») explicadas só no `title` (1.3.1). **Quem corrigir uma, tira-a da declaração e muda-lhe a data** | **Uma sessão** |
 | D6 | **As cinco propostas de `docs/historico/CAMADAS.md`** (19/09/2026) | A documentação medida contra o ICM: a camada 0 (`CLAUDE.md`) está **14× acima** do alvo do paper (~11 000 tokens contra ~800) e mistura três camadas; `docs/` junta 86 k de receita com 216 k de arquivo sem fronteira; e **este ficheiro** é estado de execução a fingir-se de referência — 32 linhas de tabela, **21 riscadas**, as seis primeiras todas feitas. **C1, C3 e C5 são baratos e independentes**; C2 e C4 mudam o mapa mental de quem trabalha aqui | **Afonso**, uma a uma. O C3 é este ficheiro: inverter, aberto primeiro |
 
 ---

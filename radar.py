@@ -10810,8 +10810,11 @@ def volta_ao_referer(omissao):
 # guarda esta dentro da propria rota (`pedir_acesso()`): origem, campo-
 # armadilha, tectos por IP e por dia. /favicon.svg: o icone, que o site
 # e o ecra de entrar pedem antes de haver sessao.
+# /acessibilidade (D15, 26/09/2026): a declaracao de acessibilidade, que
+# e publica por natureza -- quem encontra uma barreira no ecra de entrar
+# tem de a poder ler sem conta. E um ficheiro do `site/`, sem dados.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
-                 "/favicon.svg", "/privacidade", "/termos")
+                 "/favicon.svg", "/privacidade", "/termos", "/acessibilidade")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -13284,8 +13287,8 @@ def estilo(etiqueta):
     return resposta
 
 
-BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf" content="%(csrf)s">
 <title>%(titulo_aba)s</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -13302,6 +13305,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><he
  %(topo)s
  <div class="corpo">%(aviso)s%(conteudo)s</div>
 </main>
+%(baixo)s
 </div>
 <datalist id="pessoas">%(lista_pessoas)s</datalist>
 <script>
@@ -14039,6 +14043,76 @@ def _iniciais(nome):
 
 # A faixa do topo das paginas que ainda nao passaram ao `PageHeader`:
 # as migalhas, o titulo com o "?", as accoes e as abas.
+# A BARRA DE BAIXO do telemóvel (D9 da segunda ronda, 26/09/2026, decisão
+# dele: a opção (c)). Abaixo de 600 px a navegação de cima some e fica
+# esta, fixa em baixo, ao alcance do polegar: quatro destinos e um
+# «Mais». Os quatro são os de todos os dias, por esta ordem; o que não
+# couber (o Mercado, as Configurações, a Ajuda, a conta) vai para o
+# «Mais». Em cima fica a marca, que é o Hoje, e quem está.
+DESTINOS_DE_BAIXO = ("anuncios", "propostas", "situacao", "calendario",
+                     "mercado")
+QUANTOS_EM_BAIXO = 4
+ICONES_DE_BAIXO = {"anuncios": "lista", "propostas": "documento",
+                   "situacao": "euro", "calendario": "calendario",
+                   "mercado": "mercado"}
+
+
+def tema_da_pessoa():
+    """O `data-theme` que o molde carimba: o aspecto que a pessoa
+    escolheu na conta (D14), e o claro para quem não escolheu nada."""
+    aspecto = (g.get("utilizador") or {}).get("aspecto") or "normal"
+    return contas.ASPECTOS.get(aspecto, "claro")
+
+
+def barra_de_baixo(activo, item_activo, sem_empresa):
+    """A navegação do telemóvel, fixa em baixo (D9). Os mesmos destinos
+    da barra de cima, e o `aria-current` no aceso -- só uma das duas se
+    vê de cada vez, e a outra está em `display:none`, que a tira também
+    ao leitor de ecrã."""
+    visiveis = [(chave, etiqueta, destino)
+                for chave, etiqueta, destino, _ in NAV
+                if not (sem_empresa and chave not in ("anuncios", "mercado"))]
+    por_chave = {chave: (etiqueta, destino) for chave, etiqueta, destino in visiveis}
+    ordem = [ch for ch in DESTINOS_DE_BAIXO if ch in por_chave]
+    principais, resto = ordem[:QUANTOS_EM_BAIXO], ordem[QUANTOS_EM_BAIXO:]
+
+    def item(chave):
+        etiqueta, destino = por_chave[chave]
+        return ("<a class='bb-item' href='%s'%s>%s<span>%s</span></a>"
+                % (destino, " aria-current='page'" if chave == item_activo else "",
+                   icone(ICONES_DE_BAIXO.get(chave, "lista"), 22),
+                   html.escape(etiqueta)))
+
+    def do_menu(destino, etiqueta, nome_icone, aceso=False):
+        return ("<a class='mg-menu__item' href='%s'%s>%s%s</a>"
+                % (destino, " aria-current='page'" if aceso else "",
+                   icone(nome_icone), html.escape(etiqueta)))
+
+    menu = [do_menu(por_chave[ch][1], por_chave[ch][0], ICONES_DE_BAIXO[ch],
+                    ch == item_activo) for ch in resto]
+    if sem_empresa:
+        menu.append(do_menu("/plataforma", "Plataforma", "configuracoes"))
+    else:
+        menu.append(do_menu("/configuracoes", "Configurações", "configuracoes",
+                            activo == "configuracoes"))
+    menu.append(do_menu("/ajuda", "Ajuda", "ajuda", activo == "ajuda"))
+    if g.get("sessao"):
+        menu.append("<div class='mg-menu__sep'></div>")
+        menu.append(do_menu("/configuracoes/conta", "A conta", "utilizador"))
+        menu.append("<form method='post' action='/sair'><button type='submit' "
+                    "class='mg-menu__item'>%sSair</button></form>" % icone("sair"))
+    # O «Mais» acende quando a página em que se está vive lá dentro:
+    # senão, em /contratos, nenhum dos cinco dizia onde se estava.
+    no_mais = (item_activo in resto
+               or activo in ("configuracoes", "ajuda"))
+    return ("<nav class='barra-baixo' aria-label='Principal'>%s"
+            "<details class='bb-mais'><summary class='bb-item%s'>%s"
+            "<span>Mais</span></summary>"
+            "<div class='mg-menu bb-menu'>%s</div></details></nav>"
+            % ("".join(item(ch) for ch in principais),
+               " aceso" if no_mais else "", icone("menu", 22), "".join(menu)))
+
+
 TOPO = """<div class="topo">
   <div class="mg-crumbs migalhas">
    <div class="b">%(migalhas)s</div>
@@ -14219,6 +14293,8 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # nao se distingue de uma marca decorativa
         "inicio_on": "aria-current='page'" if activo == "inicio" else "",
         "nav": "".join(itens),
+        "baixo": barra_de_baixo(activo, item_activo, sem_empresa),
+        "tema": tema_da_pessoa(),
         "conteudo": conteudo,
         "aviso": cabeca + aviso,
         "lista_pessoas": "".join("<option value='%s'>" % html.escape(n, quote=True)
@@ -15513,7 +15589,8 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None,
 
 # As abas de cada lista (24/09/2026): os Concursos mostram as pontas (o
 # que chegou, o que expirou sem se ver, e todos); as Propostas as oito
-# ranhuras da empresa. O calendario continua com as dez.
+# ranhuras da empresa. O calendario tem tres filtros seus desde 26/09/2026
+# (FILTROS_DO_CALENDARIO).
 ABAS_DOS_CONCURSOS = (ENTRADA_DA_ESCADA[0], CEMITERIO_DA_ESCADA[0], "")
 
 
@@ -15526,12 +15603,9 @@ def barra_das_abas(rota, actual, contas=None, chaves=None):
     entrada e o cemiterio), e um ecra que as pinte como as outras oito
     diz que sao oito estados quando sao dez coisas de tres naturezas.
 
-    `contas=None` desenha a barra SEM numeros, e e o que o calendario
-    pede (16/09/2026). La o numero que faria sentido nao e o total da
-    ranhura mas quantos tem prazo dentro das seis semanas -- outra
-    conta, onze vezes por pedido. Entre mostrar um numero que abre uma
-    coisa diferente do que promete e nao mostrar numero nenhum, a regra
-    da empresa escolhe o segundo.
+    `contas=None` desenha a barra SEM numeros. Era o que o calendario
+    pedia ate 26/09/2026, quando as onze abas deram lugar aos tres
+    filtros dele, com o numero de cada um nas seis semanas.
     """
     # Uma navegação e não abas da WAI-ARIA (segunda ronda, 26/09/2026;
     # WCAG 4.1.2): cada «aba» é uma ligação que abre outra página, não
@@ -18869,10 +18943,57 @@ def config_conta():
         + ("<div style='margin-top:14px'>%s</div>"
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
            if sessoes else ""))
+    corpo += _bloco_do_aspecto(utilizador)
     if sou_admin():
         corpo += _bloco_da_empresa()
         corpo += _bloco_utilizadores(todos, utilizador["id"])
     return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
+
+
+# O que cada aspecto diz a quem escolhe (D14). O escuro não se oferece:
+# o subtítulo das páginas fica a 1,4:1 nele (segunda ronda, perfil 8).
+ROTULOS_DO_ASPECTO = (
+    ("normal", "Normal"),
+    ("contraste", "Alto contraste",),
+)
+
+
+def _bloco_do_aspecto(utilizador):
+    """O aspecto do painel para esta pessoa (D14 da segunda ronda,
+    26/09/2026): normal ou alto contraste. Guarda-se na CONTA e não no
+    browser -- quem precisa do contraste precisa dele no telemóvel e no
+    computador do escritório, e não tem de o voltar a escolher em cada
+    um."""
+    actual = utilizador.get("aspecto") or "normal"
+    opcoes = "".join(
+        "<label class='dist-cx'><input type='radio' name='aspecto' value='%s'%s> %s</label>"
+        % (chave, " checked" if chave == actual else "", html.escape(rotulo))
+        for chave, rotulo in ROTULOS_DO_ASPECTO)
+    return ("<form method='post' action='/configuracoes/conta/aspecto' "
+            "class='conf-form' id='aspecto' style='margin-top:22px'>"
+            "<fieldset class='dist-interesse'><legend>Aspecto</legend>%s</fieldset>"
+            "<div class='nota' style='margin-bottom:10px'>O alto contraste "
+            "escurece o texto e as linhas, e tira as sombras. Vale para esta "
+            "conta, em todos os aparelhos.</div>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar o aspecto</button>"
+            "</form>" % opcoes)
+
+
+@app.route("/configuracoes/conta/aspecto", methods=["POST"])
+def config_aspecto():
+    """Grava o aspecto da pessoa que está (D14). Cada um muda o seu, e
+    só o seu: não há `id` no pedido."""
+    utilizador = g.get("utilizador")
+    if not utilizador:
+        return volta_config_erro("conta", "Ainda não há conta.")
+    aspecto = (request.form.get("aspecto") or "").strip()
+    try:
+        with liga() as c:
+            contas.gravar_aspecto(c, utilizador["id"], aspecto)
+    except ValueError:
+        return volta_config_erro("conta", "Esse aspecto não existe.")
+    registar("", "conta", "aspecto: %s" % aspecto)
+    return volta_config("conta", "Aspecto guardado.")
 
 
 def _bloco_da_empresa(cfg=None):
@@ -19254,9 +19375,18 @@ def ajuda():
         "ao fim; no <b>Hoje</b> (o logótipo) está o que há para fazer; a "
         "<b>Situação</b> diz como vai o negócio; e o <b>Mercado</b> diz "
         "quem compra, quem ganha, e por quanto.</p></div>")
+    # A declaracao de acessibilidade (D15): publica, e daqui a um clique
+    # para quem ja esta dentro. O aspecto de alto contraste e da conta.
+    acesso = cartao("Acessibilidade", (
+        "<p>O que o Mira Gov cumpre da WCAG, o que ainda não cumpre, e como "
+        "nos dizer de uma barreira: <a href='/acessibilidade'>declaração de "
+        "acessibilidade</a>. O aspecto de alto contraste escolhe-se em "
+        "<a href='/configuracoes/conta#aspecto'>Configurações &rsaquo; "
+        "Conta</a>.</p>"))
     return envolver("ajuda", "Como funciona",
                     "O que o Mira Gov faz, e o que quer dizer cada palavra.",
-                    "<div class='larg ajuda'>%s%s</div>" % (abertura, blocos))
+                    "<div class='larg ajuda'>%s%s%s</div>" % (abertura, blocos,
+                                                              acesso))
 
 
 @app.route("/configuracoes/conta/utilizadores/convite", methods=["POST"])
@@ -25082,63 +25212,147 @@ SEMANAS_CALENDARIO = 6
 CABEM_NO_DIA = 3
 
 
-def _linhas_do_calendario(estado):
-    """(linhas, o que se esta a ver) da grade, para a ranhura pedida.
+# Os três filtros do calendário (D12 da segunda ronda, 26/09/2026,
+# decisão dele: as opções (b) e (d)). Eram as onze abas da escada, e um
+# calendário não pergunta «em que ranhura»: pergunta «o que é NOSSO e
+# fecha quando», «o que chegou e fecha quando», e «tudo». A primeira é
+# a omissão.
+FILTROS_DO_CALENDARIO = (("nossas", "As nossas"), ("porver", "Por ver"),
+                         ("tudo", "Tudo"))
 
-    "Calendário para tudo" (palavra dele a 15/09/2026): a grade deixa de
-    ser só dos interessados. Sem `?estado=`, mostra o que a empresa tem em
-    aberto -- as quatro ranhuras que ainda se mexem --, que e a pergunta
-    que um calendario responde. Com `?estado=porver` mostra a entrada, e
-    os por ver com prazo a chegar sao a fila que custa dinheiro: era o
-    que nenhum ecra mostrava.
+
+def filtro_do_estado_antigo(estado):
+    """O filtro que diz hoje o que um `?estado=` antigo dizia: as oito
+    ranhuras da empresa (e o vazio, que era «o que está em aberto») são
+    as nossas; o por ver é o por ver; o resto (o «expirou») é o tudo."""
+    estado = ABAS_ANTIGAS.get(estado, estado)
+    if not estado or estado in CHAVES_DA_EMPRESA:
+        return "nossas"
+    return "porver" if estado == ENTRADA_DA_ESCADA[0] else "tudo"
+
+
+def _nossas_do_calendario(c, principio, fim):
+    """(linhas, refs das propostas) das NOSSAS: os prazos das propostas
+    em aberto e as tarefas por fazer, no dia delas.
+
+    Uma tarefa «entregar a proposta» cai no mesmo dia que o prazo da
+    proposta, porque nasce dele (`sincronizar_tarefas()`): a proposta
+    não se desenha outra vez por baixo da sua própria tarefa."""
+    de, ate = principio.isoformat(), fim.isoformat()
+    linhas, ja = [], set()
+    tarefas = c.execute(
+        "SELECT t.id, t.ref, t.proposta_id, t.o_que, t.quando, t.quem, "
+        "p.titulo AS p_titulo FROM tarefas t "
+        "LEFT JOIN propostas p ON p.id = t.proposta_id "
+        "WHERE t.feita_em IS NULL AND COALESCE(t.quando, '') != ''").fetchall()
+    for t in tarefas:
+        dia = _dia_da_tarefa(t)
+        if not dia or not principio <= dia <= fim:
+            continue
+        if t["ref"]:
+            destino = "/anuncio/" + quote(t["ref"], safe="")
+        elif t["proposta_id"]:
+            destino = "/proposta/%d" % t["proposta_id"]
+        else:
+            destino = "/#t%d" % t["id"]
+        linhas.append({"titulo": t["o_que"] or "tarefa", "prazo": dia.isoformat(),
+                       "rotulo": "Tarefa" + (" · " + t["quem"] if t["quem"] else ""),
+                       "segunda": t["p_titulo"] or "", "tipo": "tarefa",
+                       "href": destino})
+        if t["ref"]:
+            ja.add((t["ref"], dia.isoformat()))
+    propostas = c.execute(
+        "SELECT * FROM propostas WHERE estado IN (%s) AND ref IS NOT NULL"
+        % ",".join("?" * len(ESTADOS_ABERTOS)), ESTADOS_ABERTOS).fetchall()
+    prazos = _prazos_das_propostas(c, propostas)
+    for p in propostas:
+        prazo = prazos.get(p["ref"]) or ""
+        if not de <= prazo <= ate or (p["ref"], prazo) in ja:
+            continue
+        linhas.append({"titulo": p["titulo"] or p["ref"], "prazo": prazo,
+                       "rotulo": estado_da_empresa(p["estado"]),
+                       "segunda": "", "tipo": "proposta",
+                       "href": "/anuncio/" + quote(p["ref"], safe="")})
+    return linhas, {p["ref"] for p in propostas}
+
+
+def _linhas_do_calendario(ver, principio, fim):
+    """(linhas, o que se esta a ver, escondidos pelo perfil) do filtro
+    `ver`, SÓ dentro da janela -- o «Tudo» sem janela eram os 210 mil
+    anúncios da base.
 
     Cada linha e um dicionario com o que a grade desenha, venha de uma
-    proposta ou de um anuncio -- assim a grade tem um so caminho, e nao
-    dois quase iguais que divergem ao primeiro conserto.
+    proposta, de uma tarefa ou de um anuncio -- assim a grade tem um so
+    caminho, e nao tres quase iguais que divergem ao primeiro conserto.
 
-    Devolve tambem quantos o perfil da empresa esconde: as pontas levam
-    o mesmo recorte da lista (`recorte_da_lista()`). Sem ele, o «Por
-    ver» do calendario mostrava 1 126 contra os 142 da lista (teste com
-    utilizadores de 26/09/2026).
+    O «Por ver» e o «Tudo» levam o mesmo recorte da lista
+    (`recorte_da_lista()`), e o perfil diz quantos esconde. Sem ele, o
+    «Por ver» do calendario mostrava 1 126 contra os 142 da lista (teste
+    com utilizadores de 26/09/2026).
     """
     escondidos = 0
+    janela = " AND prazo BETWEEN ? AND ?"
+    limites = [principio.isoformat(), fim.isoformat()]
     with liga() as c:
-        if estado in CHAVES_DA_EMPRESA or not estado:
-            alvo = [estado] if estado else list(ESTADOS_ABERTOS)
-            propostas = c.execute(
-                "SELECT * FROM propostas WHERE estado IN (%s) AND ref IS NOT NULL"
-                % ",".join("?" * len(alvo)), alvo).fetchall()
-            prazos = _prazos_das_propostas(c, propostas)
-            linhas = [{"ref": p["ref"], "titulo": p["titulo"],
-                       "entidade": p["entidade"],
-                       "prazo": prazos.get(p["ref"]) or "",
-                       "rotulo": estado_da_empresa(p["estado"])}
-                      for p in propostas]
-            o_que = (("as propostas em «%s»" % estado_da_empresa(estado))
-                     if estado else "o que a empresa tem em aberto")
-        else:
-            onde, valores = com_recorte("", [], *recorte_da_lista(estado))
+        nossas, refs_nossas = (_nossas_do_calendario(c, principio, fim)
+                               if ver != "porver" else ([], set()))
+        linhas = list(nossas)
+        if ver != "nossas":
+            aba = "porver" if ver == "porver" else ""
+            onde, valores = com_recorte("", [], *recorte_da_lista(aba))
             anuncios = c.execute(
                 "SELECT ref, titulo, entidade, prazo FROM anuncios" + onde
-                + (" AND" if onde else " WHERE") + " prazo != ''",
-                valores).fetchall()
+                + (" AND" if onde else " WHERE") + " prazo != ''" + janela,
+                valores + limites).fetchall()
             if condicao_do_interesse()[0]:
-                so_aba, vals_aba = com_recorte("", [], *condicao_da_aba(estado))
+                so_aba, vals_aba = com_recorte("", [], *condicao_da_aba(aba))
                 escondidos = c.execute(
                     "SELECT COUNT(*) n FROM anuncios" + so_aba
-                    + (" AND" if so_aba else " WHERE") + " prazo != ''",
-                    vals_aba).fetchone()["n"] - len(anuncios)
-            linhas = [{"ref": a["ref"], "titulo": a["titulo"],
-                       "entidade": a["entidade"], "prazo": a["prazo"],
-                       # o rotulo dos anuncios era a palavra "prazo",
-                       # igual nas 1 086 linhas: a celula diz a entidade
-                       "rotulo": ""}
-                      for a in anuncios]
-            o_que = "os anúncios em «%s»" % (ROTULOS_DA_ESCADA.get(estado)
-                                             or "todos")
-    linhas = [l for l in linhas if l["prazo"]]
-    linhas.sort(key=lambda l: l["prazo"])
+                    + (" AND" if so_aba else " WHERE") + " prazo != ''"
+                    + janela, vals_aba + limites).fetchone()["n"] - len(anuncios)
+            # o que ja e nosso desenha-se uma vez, como proposta
+            linhas += [{"titulo": a["titulo"] or a["ref"], "prazo": a["prazo"],
+                        "rotulo": "", "segunda": a["entidade"] or "",
+                        "tipo": "anuncio",
+                        "href": "/anuncio/" + quote(a["ref"], safe="")}
+                       for a in anuncios if a["ref"] not in refs_nossas]
+    o_que = {"nossas": "as propostas em aberto e as tarefas por fazer",
+             "porver": "os concursos por ver",
+             "tudo": "tudo: as nossas e os concursos todos"}[ver]
+    linhas.sort(key=lambda l: (l["prazo"], l["tipo"] != "tarefa"))
     return linhas, o_que, escondidos
+
+
+def _depois_da_janela(ver, fim):
+    """Quantos do filtro fecham DEPOIS destas seis semanas: é o que a
+    legenda promete que continua na lista. Os de antes não se contam --
+    no «Tudo» seriam os duzentos mil que já expiraram."""
+    depois = fim.isoformat()
+    with liga() as c:
+        n = 0
+        if ver != "porver":
+            n += sum(1 for t in c.execute(
+                "SELECT quando FROM tarefas WHERE feita_em IS NULL "
+                "AND COALESCE(quando, '') != ''")
+                if (_dia_da_tarefa(t) or fim) > fim)
+            propostas = c.execute(
+                "SELECT ref FROM propostas WHERE estado IN (%s) AND ref IS NOT NULL"
+                % ",".join("?" * len(ESTADOS_ABERTOS)), ESTADOS_ABERTOS).fetchall()
+            n += sum(1 for prazo in _prazos_das_propostas(c, propostas).values()
+                     if (prazo or "") > depois)
+        if ver != "nossas":
+            onde, valores = com_recorte(
+                "", [], *recorte_da_lista("porver" if ver == "porver" else ""))
+            n += c.execute("SELECT COUNT(*) n FROM anuncios" + onde
+                           + (" AND" if onde else " WHERE") + " prazo > ?"
+                           + ("" if ver == "porver" else
+                              " AND NOT EXISTS (SELECT 1 FROM propostas p "
+                              "WHERE p.ref = anuncios.ref AND p.estado IN (%s))"
+                              % ",".join("?" * len(ESTADOS_ABERTOS))),
+                           valores + [depois]
+                           + ([] if ver == "porver" else list(ESTADOS_ABERTOS))
+                           ).fetchone()["n"]
+    return n
 
 
 @app.route("/calendario")
@@ -25155,23 +25369,26 @@ def calendario():
     "prazo" as 1 086 vezes, porque a unica informacao da celula era a
     POSICAO -- que ja estava no cabecalho da coluna.
 
-    E nao respondia a pergunta de um calendario. Ordenado por prazo, uma
-    linha por concurso, aquilo era uma lista por data com 48 000 celulas
-    desenhadas a volta; a pergunta e a inversa -- "que dia esta
-    carregado?", "ha dois a fechar na mesma manha?" --, e essa le-se por
-    dia.
+    Desde 26/09/2026 (D12) sao tres filtros e nao as onze abas da
+    escada: «As nossas» (a omissao), «Por ver» e «Tudo». As tarefas
+    entram no dia delas. E no telemovel a grade da lugar a uma agenda,
+    dia a dia, so com os dias que tem alguma coisa. Um `?estado=` antigo
+    redirecciona para o filtro que diz o mesmo.
     """
+    if "estado" in request.args:
+        pedaco = [("ver", filtro_do_estado_antigo(
+            (request.args.get("estado") or "").strip()))]
+        pedaco += [(k, request.args.get(k)) for k in ("semana", "interesse")
+                   if request.args.get(k)]
+        return redirect("/calendario?" + urlencode(pedaco), 301)
     hoje = datetime.now().date()
     urgente = dias_urgente()       # uma leitura por pedido, nao uma por dia
-    estado = request.args.get("estado")
-    estado = "" if estado is None else ABAS_ANTIGAS.get(estado.strip(),
-                                                        estado.strip())
-    cartas, o_que, escondidos = _linhas_do_calendario(estado)
+    ver = request.args.get("ver") or "nossas"
+    if ver not in dict(FILTROS_DO_CALENDARIO):
+        ver = "nossas"
     # o «ver tudo» da faixa vale tambem para a lista e para as semanas
     levantado = ([("interesse", "nao")]
                  if (request.args.get("interesse") or "") == "nao" else [])
-    faixa = ("" if estado in CHAVES_DA_EMPRESA or not estado
-             else _faixa_do_interesse("/calendario", escondidos))
 
     # A grade comeca na SEGUNDA desta semana e nao em hoje: uma grade de
     # semanas que comece a uma quarta nao se le como um calendario. Os
@@ -25188,29 +25405,58 @@ def calendario():
                  + timedelta(weeks=semana))
     fim = principio + timedelta(days=SEMANAS_CALENDARIO * 7 - 1)
 
-    por_dia, fora = {}, 0
+    # O numero de cada filtro e o que ele desenha nestas seis semanas --
+    # a regra da casa: um numero abre exactamente a lista que promete.
+    por_filtro = {chave: _linhas_do_calendario(chave, principio, fim)
+                  for chave, _ in FILTROS_DO_CALENDARIO}
+    cartas, o_que, escondidos = por_filtro[ver]
+    fora = _depois_da_janela(ver, fim)
+    faixa = ("" if ver == "nossas"
+             else _faixa_do_interesse("/calendario", escondidos))
+
+    por_dia = {}
     for a in cartas:
         try:
             dia = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
         except ValueError:
             continue
-        if principio <= dia <= fim:
-            por_dia.setdefault(dia, []).append(a)
-        else:
-            fora += 1
+        por_dia.setdefault(dia, []).append(a)
 
     def item(a):
         rotulo = (a["rotulo"] or "").strip()
-        # o rotulo dos anuncios era a palavra "prazo", igual em todas as
-        # linhas; o que diz alguma coisa e a entidade
-        segunda = rotulo if rotulo and rotulo != "prazo" else (a["entidade"] or "")
-        return ("<a class='cal-it%s' href='/anuncio/%s' title='%s'>"
+        # o que diz alguma coisa por baixo do titulo: a ranhura de uma
+        # proposta, quem faz uma tarefa (e de que proposta), a entidade
+        # de um anuncio
+        segunda = " · ".join(x for x in (rotulo, a["segunda"]) if x)
+        classe = {"proposta": " empresa", "tarefa": " tarefa"}.get(a["tipo"], "")
+        return ("<a class='cal-it%s' href='%s' title='%s'>"
                 "<b>%s</b><i>%s</i></a>"
-                % (" empresa" if rotulo and rotulo != "prazo" else "",
-                   quote(a["ref"], safe=""),
-                   html.escape(a["titulo"] or a["ref"], quote=True),
-                   html.escape(corta(a["titulo"] or a["ref"], 60)),
+                % (classe, html.escape(a["href"], quote=True),
+                   html.escape(a["titulo"], quote=True),
+                   html.escape(corta(a["titulo"], 60)),
                    html.escape(corta(segunda, 40))))
+
+    def urgencia(dia):
+        """(classe, sinal) da urgencia do DIA, e nao de cada linha: no
+        mesmo dia todas sao igualmente urgentes. A conta e a mesma do
+        resto da aplicacao (janela unica, dias_urgente()), para a cor
+        aqui e a etiqueta da lista nunca discordarem sobre o mesmo
+        prazo. E nao e so a cor do numero (segunda ronda, 26/09/2026;
+        WCAG 1.4.1): um sinal por escalao, e o texto para o leitor."""
+        aqui = por_dia.get(dia, [])
+        if not aqui:
+            return "", ""
+        classe = "mau"
+        if dia >= hoje:
+            _, classe = etiqueta_prazo(dia.isoformat(), urgente)
+        if classe == "mau":
+            return "mau", ("<i class='cal-urg' aria-hidden='true'>&#9888;</i>"
+                           "<span class='so-leitor'>prazo hoje ou já passado</span>")
+        if classe == "avisa":
+            return "avisa", ("<i class='cal-urg' aria-hidden='true'>&#9719;</i>"
+                             "<span class='so-leitor'>prazo em %d dias ou menos</span>"
+                             % urgente)
+        return "", ""
 
     def celula(dia):
         classes = ["cal-dia"]
@@ -25222,30 +25468,10 @@ def calendario():
             classes.append("fds")
         if dia.day == 1:
             classes.append("mes-novo")
-        # A urgencia e do DIA e nao de cada linha: no mesmo dia todas sao
-        # igualmente urgentes. A conta e a mesma do resto da aplicacao
-        # (janela unica, dias_urgente()), para a cor aqui e a etiqueta da
-        # lista nunca discordarem sobre o mesmo prazo.
         aqui = por_dia.get(dia, [])
-        if aqui and dia >= hoje:
-            _, classe = etiqueta_prazo(dia.isoformat(), urgente)
-            if classe in ("avisa", "mau"):
-                classes.append(classe)
-        elif aqui:
-            classes.append("mau")
-
-        # A urgencia nao e so a cor do numero (segunda ronda, 26/09/2026;
-        # WCAG 1.4.1): com deuteranopia o ambar e o vermelho eram o mesmo
-        # tom e o dia urgente nao se via. Um sinal por escalao, o mesmo
-        # das etiquetas de prazo, e o texto para o leitor de ecra.
-        sinal = ""
-        if "mau" in classes and aqui:
-            sinal = ("<i class='cal-urg' aria-hidden='true'>&#9888;</i>"
-                     "<span class='so-leitor'>prazo hoje ou já passado</span>")
-        elif "avisa" in classes:
-            sinal = ("<i class='cal-urg' aria-hidden='true'>&#9719;</i>"
-                     "<span class='so-leitor'>prazo em %d dias ou menos</span>"
-                     % urgente)
+        tom_, sinal = urgencia(dia)
+        if tom_:
+            classes.append(tom_)
         cabeca = ("<div class='cal-n'>%d%s%s</div>"
                   % (dia.day,
                      "<span>%s</span>" % MESES[dia.month - 1]
@@ -25263,11 +25489,32 @@ def calendario():
               for i in range(SEMANAS_CALENDARIO * 7)]
     grade.append("</div></div>")
 
+    # A AGENDA do telemovel (D12 (d)): sete colunas em 390 px davam 49 px
+    # e o titulo saia «Ex…», e a grade rolava de lado. Aqui e uma lista,
+    # dia a dia, so com os dias que tem alguma coisa. As duas vao na
+    # pagina e o CSS mostra uma: o servidor nao sabe a largura do ecra.
+    dias_com = sorted(por_dia)
+    agenda = ["<ol class='cal-agenda' aria-label='Agenda'>"]
+    for dia in dias_com:
+        tom_, sinal = urgencia(dia)
+        agenda.append(
+            "<li class='ag-dia%s%s'><h2 class='ag-data'>%s%s%s</h2>%s</li>"
+            % (" " + tom_ if tom_ else "", " hoje" if dia == hoje else "",
+               DIAS_SEMANA[dia.weekday()] + ", ", data_pt(dia.isoformat()),
+               (" &middot; hoje" if dia == hoje else "") + sinal,
+               "".join(item(a) for a in por_dia[dia])))
+    if not dias_com:
+        agenda.append("<li class='ag-vazio'>Nada a fechar nestas seis semanas.</li>")
+    agenda.append("</ol>")
+
     # A ligacao de volta a lista e da PAGINA e ja nao de cada linha: com
     # o dia como unidade, uma linha e uma linha dentro de uma celula e
     # nao ha la sitio para um segundo destino. O par mantem-se (§5 do
-    # esqueleto: as duas sao vistas do mesmo conjunto) e e a mesma
-    # ranhura que esta a ser vista.
+    # esqueleto: as duas sao vistas do mesmo conjunto): as nossas sao as
+    # Propostas, o por ver e o tudo sao os Concursos, na aba que diz o
+    # mesmo.
+    em_lista = (PROPOSTAS if ver == "nossas" else LISTA + "?" + urlencode(
+        [("estado", "porver" if ver == "porver" else "")] + levantado))
     legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
                "%s.</span><span><i class='cal-urg' aria-hidden='true'>&#9888;</i> "
                "fecha hoje ou já fechou &middot; <i class='cal-urg' "
@@ -25275,21 +25522,16 @@ def calendario():
                "%s<a href='%s'>ver em lista</a></div>"
                % (html.escape(o_que), data_pt(principio.isoformat()),
                   data_pt(fim.isoformat()), urgente,
-                  ("<span>%s com prazo fora destas seis semanas &mdash; "
+                  ("<span>%s com prazo depois destas seis semanas &mdash; "
                    "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
-                  html.escape(LISTA + "?" + urlencode(
-                      [("estado", estado)] + levantado), quote=True)))
+                  html.escape(em_lista, quote=True)))
 
-    # As mesmas abas da lista, e sem numeros (ver barra_das_abas). Sem
-    # elas o calendario por omissao mostra as propostas em aberto, que
-    # quando sao zero dava um beco: a unica saida era escrever ?estado=
-    # na barra de enderecos.
-    def para_semana(n):
-        pedaco = ([("estado", estado)] if estado else []) + levantado
+    def para(filtro, n):
+        pedaco = ([("ver", filtro)] if filtro != "nossas" else []) + levantado
         if n:
             pedaco.append(("semana", str(n)))
         return "/calendario" + ("?" + urlencode(pedaco) if pedaco else "")
-    anterior, hoje_, seguinte = (html.escape(para_semana(n), quote=True)
+    anterior, hoje_, seguinte = (html.escape(para(ver, n), quote=True)
                                  for n in (semana - 1, 0, semana + 1))
     # «Semana» e «Semana» eram o nome das duas setas, que o ícone é
     # aria-hidden (segunda ronda, 26/09/2026; WCAG 2.4.6)
@@ -25297,13 +25539,18 @@ def calendario():
               "<a class='mg-btn mg-btn--secondary' href='%s'>Hoje</a>"
               "<a class='mg-btn mg-btn--secondary' href='%s' aria-label='Semana seguinte'>Semana %s</a>"
               % (anterior, icone("anterior"), hoje_, seguinte, icone("seguinte")))
-    # As abas vao no corpo. Levam a semana atras sem mais nada: o
-    # `sem_pagina()` guarda os argumentos do pedido, e mudar de ranhura
-    # nao pode voltar a esta semana.
-    abas = barra_das_abas("/calendario", estado)
+    # Os tres filtros, com o numero de cada um nestas seis semanas. Levam
+    # a semana atras: mudar de filtro nao volta a hoje.
+    filtros = ("<nav class='mg-tabs cal-filtros' aria-label='O que mostrar'>%s</nav>"
+               % "".join(
+                   "<a class='mg-tab'%s href='%s'>%s <span class='mg-tab__count'>%s</span></a>"
+                   % (" aria-current='page'" if chave == ver else "",
+                      html.escape(para(chave, semana), quote=True),
+                      html.escape(rotulo), mil_pt(len(por_filtro[chave][0])))
+                   for chave, rotulo in FILTROS_DO_CALENDARIO))
     return envolver("calendario", "Calendário", "",
-                    abas + "<div class='larg'>%s%s%s</div>"
-                    % (faixa, legenda, "".join(grade)),
+                    filtros + "<div class='larg'>%s%s%s%s</div>"
+                    % (faixa, legenda, "".join(grade), "".join(agenda)),
                     cabeca=cabecalho_de_pagina(
                         "Calendário", "Seis semanas a partir de segunda-feira. "
                         "Cada dia mostra o que fecha nesse dia.", [], accoes),
@@ -26755,6 +27002,21 @@ def termos():
     return pagina_legal("termos") or pagina_de_erro(404)
 
 
+@app.route("/acessibilidade")
+def acessibilidade():
+    """A declaracao de acessibilidade (D15 da segunda ronda, 26/09/2026),
+    com a estrutura do modelo do DL 83/2018. Ao contrario dos termos e da
+    privacidade, nao depende do operador: diz o estado do produto e o
+    caminho para reportar uma barreira, que e o formulario do site. Sem
+    o ficheiro, o 404 do painel."""
+    try:
+        with open(os.path.join(os.path.dirname(SITE), "acessibilidade.html"),
+                  encoding="utf-8") as f:
+            return Response(f.read(), mimetype="text/html")
+    except OSError:
+        return pagina_de_erro(404)
+
+
 def _avisar_do_pedido(id_, p):
     """O e-mail ao dono, em fundo: o envio espera ate 30 s pelo servidor
     de correio, e o visitante nao tem de esperar por isso. O que o envio
@@ -27764,7 +28026,7 @@ def _o_que_mudou(hoje, cfg):
         if quantos_interesse > len(no_interesse):
             # o mesmo endereco do numero la de cima: abria o «por ver»
             # inteiro, 165 debaixo de «14» (teste de 26/09/2026)
-            itens += ("<a class='nota' href='%s'>ver os %s no perfil "
+            itens += ("<a class='nota abrir' href='%s'>ver os %s no perfil "
                       "&rarr;</a>" % (html.escape(_lista_de_hoje(hoje_iso),
                                                   quote=True),
                                       mil_pt(quantos_interesse)))

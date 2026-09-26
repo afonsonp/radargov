@@ -325,6 +325,13 @@ negócio; até 26/09 só se chegava lá pelo «Em jogo» do Hoje),
 **Configurações**, e depois delas o **«?»**, que é a Ajuda (o «Como
 funciona», que vivia no menu da conta). À direita, o teu nome.
 
+**No telemóvel a barra é em baixo** (desde 26/09/2026, decisão tua na
+segunda ronda): fixa, ao alcance do polegar, com **Concursos,
+Propostas, Situação, Calendário** e um **«Mais»**, que abre o Mercado,
+as Configurações, a Ajuda, a conta e o sair. Em cima fica só a marca
+(o Hoje) e o teu nome. No computador e no tablet deitado fica tudo em
+cima, como sempre.
+
 Desde 26/09/2026 o ecrã diz **«fase»** onde dizia «ranhura», e as fases
 concordam com a proposta: **A preparar**, **Submetida**, **Ganha**,
 **Perdida**, **Cancelada**. As chaves por baixo são as mesmas, e o
@@ -700,6 +707,11 @@ Mudar a palavra-passe faz-se em **Configurações › Conta** (pede a
 actual), e é lá que se vêem as sessões abertas, cada uma pelo aparelho
 («iPhone até 10/10/2026 14:35»).
 
+Também lá, desde 26/09/2026, o **Aspecto**: «Normal» ou «Alto
+contraste» (texto e linhas mais escuros, sem sombras). É de cada
+pessoa e fica guardado na conta, por isso vale no telemóvel e no
+computador. Não há tema escuro: ainda não passa o contraste mínimo.
+
 **Quando alguém se esquece da palavra-passe** (desde 26/09/2026) não há
 e-mail de recuperação — o ecrã de entrar diz para pedir ao
 administrador da empresa. Quem repõe:
@@ -889,13 +901,25 @@ CoE), volta a «Por analisar» em vez de se apagar, e o aviso diz porquê.
 
 ## 10. O calendário
 
-A segunda vista dos **Concursos** — os prazos postos no tempo, **por
-dia** e não numa grade de colunas. Seis semanas a partir de hoje, um
-quadrado por dia, e dentro de cada um os concursos cujo prazo cai nele.
-Um «+N» quando não cabem todos, que abre exactamente esses N.
+O que fecha em cada dia, **por dia** e não numa grade de colunas. Seis
+semanas a partir da segunda-feira desta semana (as setas andam de
+semana em semana), um quadrado por dia, e dentro de cada um o que fecha
+nele. Um «+N» quando não cabem todos, que abre exactamente esses N.
 
-Vale para **qualquer ranhura**, e não só para os interessados: o que o
-calendário mostra é o recorte que estiver escolhido.
+Desde 26/09/2026 tem **três filtros** em cima, em vez das onze abas da
+escada:
+
+- **As nossas** (é onde abre): os prazos das propostas em aberto e as
+  **tarefas por fazer, no dia delas** — as do Hoje, as automáticas e as
+  que escreveste à mão;
+- **Por ver**: os concursos por decidir, com o perfil da empresa (há o
+  «ver tudo», como na lista);
+- **Tudo**: as nossas e os concursos todos.
+
+O número ao lado de cada filtro é quantos ele mostra nestas seis
+semanas. Um endereço antigo com `?estado=` (um marcador do browser)
+leva ao filtro que diz o mesmo. **No telemóvel** o calendário é uma
+agenda: dia a dia, só os dias que têm alguma coisa.
 
 ## 10-A. A lista
 
@@ -1240,14 +1264,19 @@ telemóvel, sem instalar nada. Desde 25/09/2026; antes era o
 na mesma página em que estavas, por isso as ligações antigas continuam a
 servir. Da primeira vez tens de voltar a entrar: a sessão é de cada
 endereço. No telemóvel as
-listas ficam a uma coluna e as tabelas largas arrastam-se de lado (a
-barra já é em cima em todos os tamanhos, desde 13/09/2026). **Quem abre
+listas ficam a uma coluna e as tabelas largas arrastam-se de lado, e a
+barra passa para baixo (desde 26/09/2026; secção 5, «A barra»). **Quem abre
 sem sessão vê o site de apresentação** (desde 23/09/2026), com um
 «Entrar» no canto que leva ao ecrã de entrar (secção 7); quem já entrou
 vê o Hoje, como sempre. Os links do e-mail de alerta apontam para lá.
 
 **O site** é o ficheiro `site/index.html`: muda-se o texto aí, e a
-mudança vê-se sem reiniciar o painel. O formulário «Pedir acesso»
+mudança vê-se sem reiniciar o painel. No rodapé liga à **declaração de
+acessibilidade** (`/acessibilidade`, o ficheiro
+`site/acessibilidade.html`, desde 26/09/2026): diz o que o Mira Gov
+cumpre da WCAG, o que ainda não cumpre, e que as barreiras se reportam
+pelo mesmo formulário. **Quando se corrigir uma das falhas que lá estão,
+tira-se da lista e muda-se a data.** O formulário «Pedir acesso»
 guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 (se o correio estiver configurado, em Configurações › Alertas). Os
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
