@@ -270,8 +270,12 @@ Por ver → Por analisar → A preparar proposta → Submetido
 | Perdido | valor proposto + motivo |
 | Não fomos | motivo |
 
+O selector **não grava ao mudar** (26/09/2026): escolhe-se a ranhura e
+grava-se com o botão «Mudar» (ou o Enter). Antes gravava a cada seta do
+teclado. «Tirar da escada» pergunta antes.
+
 O que falta **pede-se no gesto que escolhe a ranhura** (25/09/2026):
-escolhida no selector, abre-se uma caixa com o que esta proposta ainda
+escolhida no selector e carregado o «Mudar», abre-se uma caixa com o que esta proposta ainda
 não tem — o preço, o lugar, o motivo — e grava-se tudo de uma vez. Sem
 isto, o «Submetido» a partir de «A preparar proposta» era um beco. O
 campo do preço proposto está no bloco **desde «A preparar proposta»**
@@ -952,10 +956,13 @@ Não são gosto: cada uma é um erro que já aconteceu.
 8. **O que está no ecrã está no endereço.** Nada se guarda no browser.
 9. **Uma acção de linha volta à âncora dessa linha.**
 10. **Tudo o que muda dados é POST**, e tem desfazer quando é fácil
-    errar.
+    errar. O aviso do que se fez fica fixo em baixo, com o «desfazer» à
+    mão, e nenhum selector grava ao mudar (26/09/2026).
 11. **Alvos ≥ 24 px**, contraste AA sobre **todos** os fundos, e cor só
     com significado: azul = acção / em curso · verde = ganho / feito ·
-    laranja = a chegar, atenção · vermelho = atrasado, perdido.
+    laranja = a chegar, atenção · vermelho = atrasado, perdido. **A cor
+    nunca está sozinha**: ⚠ no vermelho, ◷ no laranja, ✓/✕ nos botões
+    da triagem (26/09/2026).
 12. **Nada de fora**: CSP `default-src 'self'`. Sem CDN, sem fontes
     externas, sem analytics.
 

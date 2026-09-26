@@ -16,6 +16,7 @@ import contextlib
 import datetime
 import gc
 import html
+import html.parser
 import inspect
 import io
 import json
@@ -5877,7 +5878,14 @@ class TestEscadaNaLista(BaseTemporaria):
     def test_uma_proposta_sem_cliente_nem_titulo_recusa_se(self):
         """Uma linha sem nenhum dos dois não se encontra depois."""
         r = self.cliente.post("/proposta/nova", data={"entidade": "", "titulo": ""})
-        self.assertIn("aviso", r.headers["Location"])
+        # o erro fica ao pé dos campos, marcados, e com role=alert
+        # (segunda ronda, 26/09/2026; WCAG 3.3.1): ia num `?aviso=` sem
+        # assinatura, que a porta deitava fora -- e não aparecia
+        corpo = r.get_data(as_text=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("role='alert'", corpo)
+        self.assertIn("Nada foi criado", corpo)
+        self.assertEqual(corpo.count("aria-invalid='true'"), 2)
         with radar.liga() as c:
             self.assertEqual(c.execute(
                 "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 0)
@@ -7654,6 +7662,193 @@ class TestControlosTemNomeParaOLeitorDeEcra(unittest.TestCase):
         self.assertIn("th:has(> .so-leitor){position:relative}", folha)
 
 
+class TestAsRotasNaoTemPadroesDeAcessibilidadeConhecidos(BaseTemporaria):
+    """A segunda ronda de testes com 20 perfis (26/09/2026, perfis 9 e 13)
+    encontrou, no HTML que se serve, padrões que o axe-core não apanha e
+    que tinham voltado depois de corrigidos uma vez:
+
+    - um selector que GRAVA ao mudar (o da ranhura gravava à primeira
+      seta do teclado: WCAG 3.2.2);
+    - «abas» com `role=tab` que são ligações, sem painel nenhum (4.1.2);
+    - controlos sem nome, e botões cujo nome é só «×» (lido «vezes»);
+    - nomes repetidos na mesma página (sete «Ranhura na escada», três
+      «desligar o alerta», duas setas «Semana»: 2.4.6);
+    - a urgência do calendário dita só pela cor (1.4.1).
+
+    Percorre as rotas principais, com anúncios, propostas nas oito
+    ranhuras e dois alertas, e lê o HTML. O que só se mede num browser
+    -- o `scrollWidth` a 320 px, o tamanho real dos alvos, o foco tapado
+    pela barra -- não se mede aqui: faz-se com o Playwright, e os
+    números da última medição estão no diário de 26/09/2026."""
+
+    ROTAS = ("/", radar.LISTA, radar.LISTA + "?estado=", "/propostas",
+             "/propostas?estado=analisar", "/anuncio/23001%2F2026",
+             "/anuncio/23009%2F2026", "/calendario", "/contratos",
+             "/contratos?ver=fim", "/entidades", "/situacao",
+             "/configuracoes/conta", "/configuracoes/alertas",
+             "/configuracoes/interesse", "/proposta/nova", "/ajuda")
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        hoje = datetime.date.today()
+        with radar.liga() as c:
+            for i in range(12):
+                c.execute(
+                    "INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                    " tipo, url, estado, cpv, prazo, preco_base) VALUES "
+                    "(?,?,?,?,?,?,'novo',?,?,?)",
+                    ("%d/2026" % (23000 + i),
+                     "Aquisição de serviços de manutenção", "Município %d" % i,
+                     hoje.isoformat(), "Anúncio de procedimento",
+                     "https://dr/%d" % i, "50700000",
+                     (hoje + datetime.timedelta(days=i % 4)).isoformat(),
+                     "%d.000,00 EUR" % (10000 + i)))
+        for i, estado in enumerate(radar.CHAVES_DA_EMPRESA, start=1):
+            pid = radar.criar_proposta("%d/2026" % (23000 + i))
+            if estado == "analisar":
+                continue
+            campos = {"valor_proposta": "9.000,00 EUR", "lugar": "2"}
+            if estado in radar.MOTIVOS_DO_ESTADO:
+                campos["motivo"] = radar.MOTIVOS_DO_ESTADO[estado][0]
+            exigidos = radar.CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ())
+            radar.mover_proposta(pid, estado, campos={
+                k: v for k, v in campos.items() if k in exigidos})
+        radar.gravar_filtro("Grandes obras", "estado=porver&pbmin=100000",
+                            alerta=1)
+        radar.gravar_filtro("Software", "estado=porver&q=software", alerta=1)
+
+    class _Leitor(html.parser.HTMLParser):
+        """Os controlos de uma página, com o que lhes dá nome."""
+
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.labels_for, self.controlos, self.botoes = set(), [], []
+            self.em_label, self.botao, self.selects = 0, None, []
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "label":
+                self.em_label += 1
+                if a.get("for"):
+                    self.labels_for.add(a["for"])
+            elif tag in ("input", "select", "textarea"):
+                if tag == "input" and a.get("type") in (
+                        "hidden", "submit", "button"):
+                    return
+                self.controlos.append((tag, a, self.em_label > 0))
+                if tag == "select":
+                    self.selects.append(a)
+            elif tag == "button":
+                self.botao = [a, ""]
+
+        def handle_endtag(self, tag):
+            if tag == "label":
+                self.em_label = max(0, self.em_label - 1)
+            elif tag == "button" and self.botao is not None:
+                self.botoes.append(tuple(self.botao))
+                self.botao = None
+
+        def handle_data(self, data):
+            if self.botao is not None:
+                self.botao[1] += data
+
+    @staticmethod
+    def _folha():
+        # o `ler_estilo()` lê do BASE_DIR, que aqui é a pasta temporária
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            return f.read()
+
+    def _ler(self, rota):
+        r = self.cliente.get(rota)
+        self.assertEqual(r.status_code, 200, rota)
+        corpo = r.get_data(as_text=True)
+        leitor = self._Leitor()
+        leitor.feed(corpo)
+        return corpo, leitor
+
+    def test_nenhuma_aba_finge_ser_um_separador(self):
+        for rota in self.ROTAS:
+            corpo, _ = self._ler(rota)
+            self.assertNotRegex(corpo, r"role=['\"](tab|tablist)['\"]", rota)
+
+    def test_nenhum_selector_grava_ao_mudar(self):
+        """Nem por atributo, nem pelo JS da página (o da ranhura era um
+        `addEventListener('change', …requestSubmit())`)."""
+        for rota in self.ROTAS:
+            corpo, _ = self._ler(rota)
+            self.assertNotRegex(corpo, r"onchange=[^>]*submit", rota)
+            # até ao próximo `addEventListener`: é esse o corpo do ouvinte
+            self.assertNotRegex(
+                corpo, r"(?s)addEventListener\('change'"
+                       r"(?:(?!addEventListener).)*?(requestSubmit|\.submit\()",
+                rota)
+
+    def test_todos_os_controlos_tem_nome(self):
+        for rota in self.ROTAS:
+            _, leitor = self._ler(rota)
+            for tag, a, dentro in leitor.controlos:
+                nome = (dentro or a.get("aria-label") or a.get("aria-labelledby")
+                        or a.get("title") or (a.get("id") in leitor.labels_for))
+                self.assertTrue(nome, "%s: <%s %s> sem nome" % (rota, tag, a))
+
+    def test_um_botao_so_com_simbolo_diz_o_que_faz(self):
+        simbolos = {"", "×", "✕", "✓", "+", "−", "?", "…"}
+        for rota in self.ROTAS:
+            _, leitor = self._ler(rota)
+            for a, texto in leitor.botoes:
+                if " ".join(texto.split()) in simbolos:
+                    self.assertTrue(a.get("aria-label"),
+                                    "%s: botão «%s» sem aria-label" % (rota, texto))
+
+    def test_os_nomes_das_linhas_nao_se_repetem(self):
+        """Os selectores da ranhura e os botões dos alertas dizem QUAL."""
+        for rota in self.ROTAS:
+            _, leitor = self._ler(rota)
+            nomes = [s.get("aria-label") for s in leitor.selects
+                     if (s.get("aria-label") or "").startswith("Ranhura")]
+            self.assertEqual(len(nomes), len(set(nomes)), rota)
+            for a, _texto in leitor.botoes:
+                self.assertNotIn(a.get("aria-label"), (
+                    "desligar o alerta", "ligar o alerta", "Semana"), rota)
+        _, leitor = self._ler("/configuracoes/alertas")
+        rotulos = [a.get("aria-label") for a, _ in leitor.botoes
+                   if a.get("aria-label")]
+        self.assertIn("Apagar o alerta «Grandes obras»", rotulos)
+        self.assertIn("Desligar o alerta «Software»", rotulos)
+        corpo, _ = self._ler("/calendario")
+        self.assertIn("aria-label='Semana anterior'", corpo)
+        self.assertIn("aria-label='Semana seguinte'", corpo)
+
+    def test_a_urgencia_nao_e_so_cor(self):
+        corpo, _ = self._ler("/calendario")
+        self.assertRegex(corpo, r"cal-dia[^']*(mau|avisa)")
+        self.assertIn("class='cal-urg'", corpo)
+        self.assertIn("so-leitor'>prazo", corpo)
+        folha = self._folha()
+        for tom_ in ("danger", "warning"):
+            self.assertRegex(folha, r"\.mg-tag--%s::before\{content:" % tom_)
+        # e os dois botões da triagem levam um sinal além do verde e do âmbar
+        corpo, _ = self._ler(radar.LISTA)
+        self.assertIn(radar.SINAL_SIM + "Interessa", corpo)
+        self.assertIn(radar.SINAL_NAO + "Abandonar", corpo)
+
+    def test_as_regras_que_so_o_browser_mede_estao_na_folha(self):
+        """Não se mede aqui, mas a regra tem de lá estar: o foco não fica
+        debaixo da barra (2.4.11), a barra não se prende no telemóvel, e
+        a paginação e a caixa das tarefas têm alvo de gente (2.5.8)."""
+        folha = self._folha()
+        for regra in ("html{scroll-padding-top:calc(var(--prende-h",
+                      "@media (max-width:600px),(max-height:500px){\n"
+                      " .mg-topbar,.topo{position:static}",
+                      ".mg-pager>a,.mg-pager>b,.mg-pager>span{",
+                      "[data-pele=novo] .chk{width:24px;height:24px}",
+                      ".com-js .aviso-da-vez{position:fixed"):
+            self.assertIn(regra, folha, regra)
+        self.assertIn("--prende-h", radar.BASE)
+
+
 class TestAlvosDeTextoA24px(unittest.TestCase):
     """A área de clique era o próprio texto de 11 px.
 
@@ -8704,11 +8899,11 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
         self._proposta()
         mau = self.mover("submetido", valor_proposta="abc")
         h = self.cliente.get(mau.headers["Location"]).get_data(as_text=True)
-        self.assertIn("mg-alert--danger' role='alert'", h)
+        self.assertIn("mg-alert--danger aviso-da-vez' role='alert'", h)
         bom = self.cliente.post("/tarefa/nova", data={
             "ref": "60/2026", "o_que": "ligar ao júri"}, headers=self.VOLTA)
         h = self.cliente.get(bom.headers["Location"]).get_data(as_text=True)
-        self.assertIn("mg-alert--success' role='status'", h)
+        self.assertIn("mg-alert--success aviso-da-vez' role='status'", h)
         self.assertNotIn("mg-alert--danger", h)
 
     def test_e14_o_historico_mostra_as_ultimas_e_da_as_outras(self):
@@ -9261,16 +9456,20 @@ class TestSelectorDaRanhura(BaseTemporaria):
         p = radar.propostas_de("60/2026")[0]
         self.assertEqual((p["estado"], p["motivo"]), ("perdido", "Preço"))
 
-    def test_o_botao_ir_existe_para_quem_nao_tem_javascript(self):
-        """O JS marca o <html> com `com-js` e a folha esconde o botão. Ao
-        contrário — esconder por omissão e mostrar por JS — quem não
-        tivesse JS ficava com um selector que não fazia nada."""
+    def test_o_botao_mudar_esta_sempre_a_vista(self):
+        """Até 26/09/2026 o JS escondia o botão e o select gravava ao
+        mudar: com as setas do teclado cada opção gravava e recarregava
+        (segunda ronda, perfil 13; WCAG 3.2.2). O botão fica à vista, com
+        o nome do concurso, e o JS só intercepta o SUBMIT."""
         self.cliente.post("/estado/60%2F2026/analisar")
         html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
         self.assertIn("<button type='submit' class='mg-btn mg-btn--sm "
-                      "mg-btn--secondary'>ir</button>", html_)
-        self.assertIn(".com-js .ranhura button{display:none}", radar.CSS)
-        self.assertIn("classList.add('com-js')", radar.caixa_do_motivo())
+                      "mg-btn--secondary' aria-label='Mudar a ranhura de «60/2026",
+                      html_)
+        self.assertNotIn(".ranhura button{display:none}", radar.CSS)
+        js = radar.caixa_do_motivo()
+        self.assertNotRegex(js, r"(?s)addEventListener\('change'"
+                                r"(?:(?!addEventListener).)*?requestSubmit")
 
     def test_uma_proposta_sem_anuncio_move_se_pelo_id(self):
         """Essas não têm `ref` por onde lhes pegar (D2)."""
@@ -9675,10 +9874,10 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         # (`.abas-escada{...}`), por isso um `assertNotIn("abas-escada")`
         # dava sempre falso positivo. É a mesma armadilha que o
         # test_o_indice_e_o_verificar_agora_seguem_o_papel já anotava.
-        self.assertNotIn("<div class='mg-tabs abas-escada' role='tablist'>", corpo)
+        self.assertNotIn("<nav class='mg-tabs abas-escada'", corpo)
         self.assertNotIn("<details class='painel-filtros'", corpo)
         # a lista continua a existir, noutro endereço
-        self.assertIn("<div class='mg-tabs abas-escada' role='tablist'>",
+        self.assertIn("<nav class='mg-tabs abas-escada'",
                       self.cliente.get(radar.LISTA).get_data(as_text=True))
 
     def test_nenhuma_ligacao_manda_para_a_lista_pelo_endereco_antigo(self):
@@ -16150,12 +16349,12 @@ class TestEntidadesRedesenhadas(CicloDaEntidade):
         # a aba pedida acende, e uma inventada volta à primeira
         seguidas = self.cliente.get(
             "/entidades?ver=seguidas").get_data(as_text=True)
-        self.assertIn("aria-selected='true' href='/entidades?ver=seguidas'",
+        self.assertIn("aria-current='page' href='/entidades?ver=seguidas'",
                       seguidas)
         self.assertIn("Não segues nenhuma entidade", seguidas)
         inventada = self.cliente.get("/entidades?ver=xpto")
         self.assertEqual(inventada.status_code, 200)
-        self.assertIn("aria-selected='true' href='/entidades?ver=nossas'",
+        self.assertIn("aria-current='page' href='/entidades?ver=nossas'",
                       inventada.get_data(as_text=True))
 
     def test_a_fita_tem_um_quadrado_por_proposta_e_a_cor_do_desfecho(self):
