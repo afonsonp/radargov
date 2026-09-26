@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 4
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 16
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 23
+- [Contas e a porta](#contas-e-a-porta) &middot; 27
 - [A interface](#a-interface) &middot; 97
 - [Convenções](#convencoes) &middot; 4
 
-São **319** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **323** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -279,7 +279,7 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   link das peças, e o botão abria o segundo — na acingov isso
   descarrega um ZIP. `link_do_procedimento()` decide por plataforma:
   na Vortal é `contract-notice-view/PT1.NTC.x`, resolvido pela rota
-  `/plataforma/<ref>` e **guardado em `anuncios.link_proc`** (a ficha
+  `/procedimento/<ref>` e **guardado em `anuncios.link_proc`** (a ficha
   não pode ir à rede a cada abertura); na anogov/ComprasPT/ESPAP o
   próprio `acessoDocs.jsp` é a página do procedimento (traz referência
   interna, objecto e tipo — não há outra, o resto da aplicação é JSF
@@ -2337,7 +2337,8 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   mesma — a empresa de uma pessoa ficava activa para o pedido seguinte,
   de outra. Duas coisas que o acompanham: **o dono é o primeiro admin**,
   tanto na migração (a coluna nasce e marca o que já existia) como numa
-  instalação nova (o `criar_utilizador()` marca o primeiro) — sem a
+  instalação nova (o `criar_utilizador()` marca o primeiro admin criado
+  pela consola, e só esse, desde 26/09/2026) — sem a
   segunda, numa base nova ninguém era dono e as secções do sistema
   ficavam fechadas a todos; e **o teste que prova o isolamento prova
   também que apanha a fuga**: com a sessão estragada de propósito a
@@ -2568,6 +2569,39 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   formulário **antes** do `criar_empresa()` — validar depois era uma
   empresa a mais por cada gralha. A lista dos pedidos deixou de ter o
   botão que aceitava às cegas: é uma ligação para o formulário.
+
+- **O «ver como a empresa» fecha-se em dois sítios, e nenhum é a rota**
+  (a página do dono, 26/09/2026). A marca é da **sessão**
+  (`sessoes.ver_como`), só vale para o dono (`empresa_a_ver()`; numa
+  conta que não é dono a marca é ignorada, e o teste põe-na à mão para o
+  provar), e a porta: (1) põe essa empresa no pedido e **recusa TODOS os
+  POST** menos os de `PODE_A_VER_COMO` (`_so_leitura()`) — antes da guarda
+  do papel, para uma rota nova ficar fechada sem ninguém se lembrar dela;
+  (2) o `liga()` junta o ficheiro dela **só de leitura** (`mode=ro`, por
+  URI, `_so_para_ler()`), para um GET que grave dar erro em vez de mexer
+  no trabalho de um cliente. A saída tem de largar o `g.ver_como` **antes**
+  de escrever o «saiu» no histórico da empresa — senão a escrita cai no
+  ficheiro só de leitura. As rotas abertas (o `/entrar`, o convite)
+  saem da porta antes disto, e isso está certo: não escrevem na empresa.
+- **Só a consola cria um dono** (F2 da segunda ronda, 26/09/2026). O
+  `criar_utilizador()` fazia dono o primeiro admin de uma base sem dono,
+  viesse do painel, de um convite ou de uma reposição; agora só com
+  `pela_consola=True`, que só o `--criar-utilizador` passa. Nos testes,
+  a conta que faz de dono cria-se com `pela_consola=True` — sem isso
+  ninguém é dono e a `/plataforma` dá 403.
+- **Uma rota com `/plataforma/` no início é do dono, queira ou não**
+  (26/09/2026). O «Abrir na Vortal» passava por «/plataforma/» mais a ref, que
+  o prefixo de `ROTAS_SO_DONO` fechava a todas as contas de empresa desde
+  a F4. Passou a `/procedimento/<ref>`. Um nome de rota novo confere-se
+  contra os prefixos de `ROTAS_SO_DONO` e `ROTAS_SO_ADMIN` antes de se
+  escolher.
+- **Os avisos da plataforma não vão para o `para` de uma empresa**
+  (26/09/2026). O aviso de um pedido de acesso novo corria numa thread
+  sem pedido, com a empresa de omissão, e ia para o resumo da empresa 1
+  — que, com clientes, é o e-mail de um cliente. Vai para
+  `email.avisos` (chave da plataforma, `config_do_correio()`), que se
+  escreve na secção Correio da `/plataforma`; vazio, não avisa ninguém
+  e a `/plataforma` di-lo a vermelho.
 
 
 ## A interface

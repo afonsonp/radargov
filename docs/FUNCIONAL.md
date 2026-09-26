@@ -115,13 +115,13 @@ as exactas e salta as outras.
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **20** | Quem entra. A 26/09/2026 inclui as 19 contas da segunda ronda de testes com utilizadores, que saem no fim dela |
-| `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as |
+| `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
 | `estado` | 18 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 3 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
-| `convites` | **4** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
+| `convites` | **4** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **0** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
-| `pedidos_acesso` | **3** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
+| `pedidos_acesso` | **3** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026 |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -563,7 +563,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**105 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**115 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1018,6 +1018,57 @@ falhadas). Ao guardar, **fecham-se todas as sessões da conta** e abre-se
 uma nova para quem repôs. Pela consola continua o `--palavra-passe
 NOME`.
 
+**Só a consola cria um dono** (F2 da segunda ronda, 26/09/2026): o
+primeiro admin criado pelo `--criar-utilizador` numa base sem dono é o
+dono; do painel, de um convite ou de uma reposição nunca nasce um.
+
+**A página do dono** (26/09/2026, a §7 da segunda ronda). A
+`/plataforma` abre com **os semáforos** — Recolha, Capturas, Cópias (e a
+de fora), Erros em 24 h, Temporizadores e E-mail —, cada um a levar ao
+detalhe; por baixo, **«a tratar hoje»**, só quando há alguma coisa: os
+pedidos por decidir, os convites por usar que acabam em dois dias
+(`DIAS_ATE_O_CONVITE_ACABAR`), as empresas onde ninguém entra há
+`DIAS_SEM_ENTRAR` (14) dias, a empresa que chegou ao tecto das leituras
+de hoje, e os erros. Depois **as empresas** (estado, contas, última
+entrada, propostas em curso, leituras do mês e de hoje contra o tecto),
+a **Recolha** com o «Verificar agora» (pede confirmação), o **Correio**
+e as secções do sistema.
+
+- **O Correio da plataforma**: a conta que envia (a mesma do resumo das
+  empresas) e o endereço dos **avisos da plataforma** (`email.avisos`,
+  chave da plataforma). É para ele que vai o aviso de cada pedido de
+  acesso novo e o «e-mail de teste» — nunca para o resumo de uma
+  empresa cliente (`config_do_correio()`).
+- **A página de cada empresa** (`/plataforma/empresa/<n>`, a que cada
+  linha da tabela leva): as contas, com o tipo, a última entrada, as
+  sessões abertas e o «repor palavra-passe»; os **convites por usar**,
+  com «gerar de novo» (anula o antigo e mostra a ligação nova, uma vez)
+  e «anular», e um «criar convite»; os alertas ligados e se o e-mail
+  sai; o perfil; as propostas em curso e as leituras. **O trabalho da
+  empresa não aparece** — para isso é o «ver como».
+- **Ver como a empresa, só leitura** — o suporte. O dono carrega no
+  botão da página da empresa, e a sessão dele passa a ver a aplicação
+  dessa empresa (`sessoes.ver_como`): a porta recusa **todos** os POST
+  (só o sair passa, `PODE_A_VER_COMO`), o ficheiro dela junta-se **só
+  de leitura**, e uma faixa presa à barra diz «A ver a empresa X, só
+  leitura» com o botão de sair. Cada entrada e saída fica no histórico
+  da empresa — o admin vê-as em Configurações › Conta, «Acessos do
+  suporte» — e nos eventos da plataforma.
+- **Suspender** uma empresa (e reactivar): nada se apaga; as sessões das
+  contas dela fecham-se, a porta recusa-as com uma página que o diz
+  (`_empresa_suspensa()`), e a verificação salta-a — sem alertas nem
+  resumo (`empresas_a_trabalhar()`). A lista é `empresas_suspensas` no
+  config.json da plataforma.
+- **Os pedidos de acesso** recusam-se com o motivo, sem se apagar
+  (`recusar_pedido()`); um recusado não se aceita. No telemóvel a lista
+  são cartões, com o «aceitar» à vista.
+- **O admin da empresa** vê e anula os convites por usar da empresa dele
+  em Configurações › Conta (um de outra empresa dá 404).
+
+**O dono tem conta** (26/09/2026): sem empresa, abre na mesma a Conta —
+a palavra-passe, as sessões, o aspecto — e a Ajuda (`CONTA_DO_DONO`).
+Até aí as duas mandavam-no de volta para a `/plataforma`.
+
 ### 4.10 O que corre sozinho
 
 - **Recolha** de hora a hora, das 08:00 às 20:00 (desde 23/09/2026; o
@@ -1078,7 +1129,12 @@ mesma rota sem sair da página (§4.3).
 | Verificar agora · actualizar contratos | Configurações |
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
-| Gerar a ligação de repor a palavra-passe | Configurações › Conta (admin), `/plataforma` (dono) |
+| Gerar a ligação de repor a palavra-passe | Configurações › Conta (admin), página da empresa na `/plataforma` (dono) |
+| Recusar um pedido de acesso, com o motivo | `/pedidos-de-acesso` (dono) |
+| Criar · anular · gerar de novo um convite | página da empresa (dono); anular também em Configurações › Conta (admin) |
+| Suspender · reactivar uma empresa | página da empresa (dono) |
+| Entrar e sair do «ver como a empresa, só leitura» | página da empresa, faixa (dono) |
+| Gravar o correio da plataforma · mandar um e-mail de teste | `/plataforma` › Correio (dono) |
 | Importar o modelo · desfazer uma importação | Configurações › Importar |
 | Fechar as tarefas de uma proposta fechada | ficha |
 

@@ -659,7 +659,8 @@ no painel e no convite. As contas seguintes criam-se no painel, em
 **Cada conta é de uma empresa** (desde 23/09/2026), e só vê o trabalho
 dela — a barra diz qual, por baixo do nome de quem entrou (desde
 26/09/2026) — **menos a tua**: a conta do dono da plataforma não é de empresa
-nenhuma, e só abre a administração da plataforma. Para trabalhar numa
+nenhuma, e abre a administração da plataforma, a tua Conta e a Ajuda
+(estas duas desde 26/09/2026). Para trabalhar numa
 empresa usa outra conta, dela. Uma empresa nova nasce de um pedido de
 acesso aceite (o convite), ou num terminal, com a primeira conta dela a
 seguir:
@@ -695,6 +696,49 @@ de nenhuma, e tudo o que não é da plataforma leva-te de volta a ela. O
 mercado, e nas configurações só a Conta, o Perfil da empresa, os Alertas e o
 Importar dados; no resumo por e-mail só escolhe para quem e a que hora.
 
+**A administração da plataforma** (menu da tua conta › administração
+da plataforma, desde 26/09/2026) lê-se de cima para baixo:
+
+- **em cima, o que está mal**: seis semáforos — Recolha, Capturas,
+  Cópias, Erros em 24 h, Temporizadores e E-mail. Verde está bem,
+  amarelo é para ver quando der, vermelho é agora. Cada um leva ao
+  sítio onde se resolve;
+- **«A tratar hoje»**, só quando há alguma coisa: pedidos de acesso por
+  decidir, convites por usar que acabam em dois dias, empresas onde
+  ninguém entra há 14 dias, a empresa que chegou ao tecto das leituras
+  do dia, e os erros das últimas 24 horas;
+- **as empresas**: carrega no nome para abrir a página dela — as
+  contas (com a última entrada e o «repor palavra-passe»), os convites
+  por usar (**gerar de novo** dá uma ligação nova e anula a antiga;
+  **anular** tira-a; **criar convite** faz um para a empresa que chegou
+  por telefone), os alertas e se o e-mail dela sai, o perfil, as
+  propostas em curso e as leituras. O trabalho da empresa não aparece;
+- **Correio**: a conta que envia os e-mails e o endereço para onde vão
+  **os avisos da plataforma** — é aí que chega o aviso de cada pedido
+  de acesso novo. Põe lá o teu e-mail e carrega em «Mandar um e-mail
+  de teste». Sem ele, os pedidos não avisam ninguém (o semáforo do
+  E-mail di-lo);
+- por baixo, a Recolha (com o «Verificar agora», que pede confirmação)
+  e as secções do sistema.
+
+**Para ajudar um cliente — «ver como a empresa, só leitura».** Na
+página da empresa, o botão abre a aplicação como ela a vê: o Hoje, as
+Propostas, as fichas, as Configurações. **Nada se grava** — qualquer
+botão que guarde dá uma página «Só leitura» — e fica uma faixa amarela
+presa ao topo a dizer que empresa estás a ver, com **Sair do modo de
+suporte**. Cada vez que entras e sais fica escrito no histórico da
+empresa, e o admin dela vê-o em Configurações › Conta, «Acessos do
+suporte». Não precisas de pedir a palavra-passe a ninguém.
+
+**Suspender uma empresa** (na página dela): as contas dela deixam de
+entrar (vêem «acesso suspenso») e deixam de receber alertas, e as
+sessões abertas fecham-se. Não se apaga nada; **Reactivar** põe tudo
+como estava.
+
+**Os pedidos de acesso** têm, ao lado do «aceitar…», um **recusar**
+com o motivo: o pedido fica na lista, com o dia e a razão, e deixa de
+contar como por decidir.
+
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
 `config.json`. Quem vem de fora (pelo `tunel.sh`, secção 15) cai no
@@ -718,9 +762,10 @@ administrador da empresa. Quem repõe:
 
 - o **admin da empresa**, para as contas dela: em Configurações ›
   Conta, na lista dos utilizadores, **repor palavra-passe**;
-- **tu**, para qualquer conta de qualquer empresa (e para a tua): na
-  administração da plataforma, na lista **Contas**, **repor
-  palavra-passe**.
+- **tu**, para qualquer conta de qualquer empresa: na administração
+  da plataforma, na página da empresa (carrega no nome dela), lista
+  **Contas**, **repor palavra-passe**. A tua palavra-passe mudas em
+  Configurações › Conta, como toda a gente.
 
 Sai uma ligação, que só se vê nessa página — copia-a e manda-a à
 pessoa por onde falares com ela. Vale 24 horas e uma vez; se gerares

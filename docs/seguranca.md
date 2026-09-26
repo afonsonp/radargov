@@ -60,6 +60,18 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    dono o admin seguinte nascia dono. Toda a acção de um admin sobre
    uma conta pergunta se é da empresa dele **e** se é o dono
    (`contas.apagar_utilizador(…, quem=)`; o último dono nunca sai).
+   **E um dono só nasce pela consola** (F2, 26/09/2026): o
+   `criar_utilizador()` só marca dono com `pela_consola=True`, que só o
+   `--criar-utilizador` passa — do painel, de um convite ou de uma
+   reposição, nunca. **O «ver como a empresa» do dono é só de leitura
+   em dois sítios** (26/09/2026): a porta recusa todos os POST dessa
+   sessão menos o sair (`PODE_A_VER_COMO`), e o `liga()` junta o ficheiro
+   da empresa com `mode=ro`. A marca é da sessão e só vale numa conta de
+   dono; cada entrada e saída fica no histórico da empresa. Uma rota nova
+   do dono entra em `ROTAS_SO_DONO` (todas as da `/plataforma/…` já
+   entram pelo prefixo) — e uma rota que **não** seja do dono não pode
+   começar por `/plataforma/`: o «Abrir na Vortal» deu 403 às empresas
+   até 26/09/2026 por isso.
 
 4. **`pedido_e_local()` e o acesso livre.** `acesso_livre_local` dá
    entrada sem palavra-passe a pedidos de `127.0.0.1`. O cloudflared

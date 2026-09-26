@@ -262,7 +262,13 @@ Aqui ficam os nomes no código: `porta_de_entrada()` (um
 cria) e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal()` / `operador_completo()` e `avisar_o_vigia()` (F8), `acessibilidade()` (a declaração, D15, rota aberta sem operador),
 `administracao_da_plataforma()` (`/plataforma`, com
 `seccoes_da_plataforma()`: as secções do sistema saíram do índice das
-Configurações a 23/09/2026),
+Configurações a 23/09/2026; desde 26/09/2026 com os semáforos,
+`semaforos_da_plataforma()`, o «a tratar hoje», `a_tratar_hoje()`, e o
+correio, `config_do_correio()`), `plataforma_empresa()` (a página de cada
+empresa, `/plataforma/empresa/<n>`), o modo de suporte
+(`plataforma_ver_como()`, `empresa_a_ver()`, `PODE_A_VER_COMO`,
+`_so_leitura()`, `_so_para_ler()`, `faixa_de_suporte()`), a suspensão
+(`empresas_suspensas()`, `empresas_a_trabalhar()`), `CONTA_DO_DONO`,
 `repor()` e `_gerar_reposicao()` (D17: a ligação de repor a
 palavra-passe, rota aberta com a guarda dentro, como o convite),
 `ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
@@ -583,7 +589,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **319 pontos** (contados a 26/09/2026), cada um de um erro que
+São **323 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
