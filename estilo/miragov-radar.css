@@ -951,3 +951,26 @@ a.semaforo:hover{border-color:var(--line-strong)}
 .barras.muitas .col:first-child>.v,.barras.muitas .col:first-child>.l{justify-self:start}
 .barras.muitas .col:last-child>.v,.barras.muitas .col:last-child>.l{justify-self:end}
 @container (max-width:640px){.barras.muitas .col.alt>.l{visibility:hidden}}
+
+/* O aviso sem ancora nem «desfazer» fica no topo, no sitio dele (ronda
+   em PC, 26/09/2026): a pagina abre no topo, e preso em baixo tapava o
+   que la estivesse -- o «Criar o alerta do perfil», nos Alertas. */
+.com-js .aviso-da-vez.no-topo{position:static;transform:none;width:auto;
+ box-shadow:none;margin:0 0 var(--space-4)}
+
+/* No modo de suporte os botões que gravam ficam desligados (ronda em PC,
+   V4): o «Interessa» continuava verde e com ar de activo. */
+body:has(.faixa-ver-como) form button:disabled,
+body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(1)}
+
+/* O arranque quando faltam poucos passos: uma linha por passo em falta
+   (ronda em PC, V3 P4). */
+.arranque-curto{list-style:none;padding-left:0;gap:var(--space-1)}
+.arranque-curto li{padding-left:0}
+.arranque-curto .nota{color:var(--ink-muted)}
+
+/* Os distritos do alerta, em caixas dentro de um <details> (E60). */
+.dist-alerta{flex:1 1 100%}
+.dist-alerta summary{cursor:pointer;font:500 var(--text-sm)/1.4 var(--font-sans);padding:6px 0}
+.dist-alerta .dist-interesse{margin-top:6px}
+@media (max-width:600px){.dist-alerta .dist-interesse{grid-template-columns:1fr 1fr}}

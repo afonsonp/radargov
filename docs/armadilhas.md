@@ -10,22 +10,22 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 ## Índice
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
-- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
+- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 12
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 8
 - [O motor de filtros](#o-motor-de-filtros) &middot; 13
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 10
-- [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
+- [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
-- [Alertas e interesse](#alertas-e-interesse) &middot; 11
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 69
-- [O registo da empresa](#o-registo-da-empresa) &middot; 4
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 16
+- [Alertas e interesse](#alertas-e-interesse) &middot; 13
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 74
+- [O registo da empresa](#o-registo-da-empresa) &middot; 5
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 27
-- [A interface](#a-interface) &middot; 100
+- [Contas e a porta](#contas-e-a-porta) &middot; 30
+- [A interface](#a-interface) &middot; 102
 - [Convenções](#convencoes) &middot; 4
 
-São **326** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **344** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -385,6 +385,12 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
 
 
 ---
+- **A procura dentro da peça não é a pesquisa do PyMuPDF** (E51,
+  ronda em PC). Ele distingue acentos e as maiúsculas acentuadas
+  («tecnicos» e «TÉCNICOS» davam 0 onde «técnicos» dava 16) e procura
+  pedaços («ISO» apanhava «isolamento»). O `sitios_do_termo()` compara
+  as palavras do `get_text("words")` pelo `simplifica()`, palavra
+  inteira; os destaques e a contagem passam os dois por ele.
 
 ## O modelo que lê as peças
 
@@ -698,6 +704,12 @@ Formatos portugueses, normalização e o que o SQLite não sabe fazer.
 
 
 ---
+- **Um número vai ao `preco_pt()` como número, nunca por `str()`**
+  (V1 da ronda em PC, 26/09/2026). `str(153000.0)` dá «153000.0», e o
+  `euros_do_texto()` lê o ponto como separador dos milhares: a recusa do
+  preço dizia «acima do preço base (1 530 000,00 €)» de um concurso de
+  153 000 €. O `preco_pt()` aceita `int` e `float` directamente, e o
+  teste usa os preços como o DR os escreve.
 
 ## A árvore de CPV
 
@@ -735,6 +747,10 @@ Uma árvore, duas fontes de contagem, dois campos.
 
 
 ---
+- **A contagem ao lado da caixa da árvore segue o filtro** (E52, ronda
+  em PC): o `#arvore-contagem` é `role=status` e o `input` reconta os
+  nós que ficaram à vista. O número do `<summary>` é o total do
+  vocabulário, e não muda.
 
 ## Contratos e entidades
 
@@ -1120,6 +1136,15 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
 
 ---
+- **Os distritos do alerta são caixas `name='dist'` repetidas**, e o
+  `alerta_criar()` junta-as com `|` pela lista do formulário (E60, ronda em PC):
+  o `request.form.get("dist")` lia só a primeira. O motor
+  (`fragmento_local_e_valor()`) já sabia vários.
+- **Uma recusa dos Alertas vai a vermelho: `tom=erro`** (E3/E4/E13,
+  ronda em PC). As rotas de `/alertas/*` escreviam o `?aviso=` à mão e
+  saíam no molde do sucesso, verdes e com ✓, a dizer que nada se tinha
+  gravado. Um aviso que diz «não» passa pelo `volta_config_erro()` (ou
+  leva `("tom", "erro")` no `urlencode`).
 
 ## Triagem, quadro e ficha
 
@@ -1847,7 +1872,29 @@ pelo Afonso e nenhuma se reabre de passagem.
   notificação NOVA a refaz (`_depois_do_desfecho()`), e a contagem salta
   os fins-de-semana e não os feriados — erra para mais cedo, nunca para
   mais tarde.
-
+- **O D2 vale para o valor adjudicado** (V1 da ronda em PC). O tecto do
+  CCP recusava só o proposto; um zero a mais no «Ganha» gravava um
+  adjudicado de 4,7 M€ que a Situação somava. A guarda é a mesma, no
+  `gravar_campos_da_proposta()` e antes de criar, com o `rotulo` do
+  `recusa_do_preco()`; e o JS do diálogo confere os dois campos.
+- **A nota nova não entra no conflito de versão** (V1). Acrescenta, não
+  substitui: o `_recado_do_conflito()` grava-a e recusa o resto. Deitada
+  fora com o resto, o aviso mandava «voltar a escrever» um parágrafo.
+- **O selector de fase leva o `de`** — a fase que a página mostrava — e
+  o `recado_da_fase_mudada()` recusa se a proposta já está noutra (V1:
+  a lista antiga pôs «Perdida» por cima de um «Relatório preliminar»).
+  Sem `de` não recusa: o desfazer e os botões da triagem dizem o que
+  querem, não de onde. O diálogo do motivo leva-o no `dlg-motivo-de`.
+- **Fechar uma proposta não fecha as tarefas escritas à mão** (E34,
+  confirmado na ronda em PC). As automáticas saem sozinhas
+  (`sincronizar_tarefas()`); as manuais podem ser trabalho que o fecho
+  não acaba («enviar a factura»). O gesto de fechar diz quantas ficam
+  (`recado_das_tarefas_que_ficam()`), e a ficha tem o «fechar as N».
+- **A tarefa de um documento não nasce no passado** (V3 P2). A data é
+  a ideal (15 dias antes da validade) ou o dia em que nasceu, e a
+  sincronização reconhece-a **pelo `criada_em`**
+  (`data_da_tarefa_do_documento()`): pelo dia de hoje, amanhã já não
+  batia, e a tarefa era apagada e refeita — perdia o «feita».
 
 ## O registo da empresa
 
@@ -1953,6 +2000,11 @@ o leitor do Excel antigo fica lá, sem comando.
 
 
 ---
+- **No ensaio, «mantém-se» é «entra só no registo»** (E17, ronda em
+  PC). Uma linha cuja proposta está noutra fase entra na tabela
+  `empresa`, e a proposta não muda; «entra» e «mantém-se» na mesma
+  linha contradiziam-se. A contagem do topo (`mantem`) conta por esse
+  começo de frase — mudá-lo é mudar os dois.
 
 ## A base, as migrações e o disco
 
@@ -2182,6 +2234,14 @@ SQLite, cópias, e a pen que manda nos números.
   uma letra mudada — `git diff --ignore-cr-at-eol` antes de acreditar.
 
 ---
+- **`erros.visto_em` é da plataforma** (V4 P2, ronda em PC): o
+  semáforo e «a tratar hoje» contam os erros das 24 horas **por ver**
+  (`erros_por_ver()`). O «dar por vistos» vai só até ao `ate` que a
+  página mostrou, para um erro que chegou entretanto não se dar por
+  visto sem ninguém o ler.
+- **O ensaio de restauro confere cada `empresa-<id>-…db`** (E46): só
+  juntava o da empresa activa, e o «ok» escondia as outras. Um ficheiro
+  em falta faz o ensaio falhar.
 
 ## Trabalhos de fundo e arranque
 
@@ -2602,7 +2662,21 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   `email.avisos` (chave da plataforma, `config_do_correio()`), que se
   escreve na secção Correio da `/plataforma`; vazio, não avisa ninguém
   e a `/plataforma` di-lo a vermelho.
-
+- **No modo de suporte um `fetch` recebe JSON** (V4 P1, ronda em PC).
+  O `_so_leitura()` devolvia texto, e o JS da triagem dizia «o servidor
+  não respondeu como esperado. Recarregue» — o convite a carregar outra
+  vez. E os botões que gravam aparecem desligados (o script da
+  `faixa_de_suporte()`), com o `pode_verificar()` a tirar o «Verificar
+  agora».
+- **As ligações de uso único mostram-se por Post/Redirect/Get** (V4
+  P4): o convite e o repor guardam a ligação em `_POR_MOSTRAR`, por
+  sessão e em memória, e redireccionam para
+  `/configuracoes/conta/ligacao`, que a tira de lá. Recarregar a
+  resposta do POST criava outro convite. A rota está em `CONTA_DO_DONO`:
+  sem ela, o dono sem empresa era mandado para a `/plataforma`.
+- **A página de empresa suspensa tem uma saída só, o «Sair»** (V4 P6):
+  o «Voltar ao Hoje» do `PAGINA_ERRO` devolvia-a a ela mesma. Troca-se
+  o `ACCAO_DA_PAGINA_DE_ERRO`, e o formulário leva o `csrf`.
 
 ## A interface
 
@@ -3616,6 +3690,14 @@ botões ou no calendário.
   procedimento por baixo do objecto —, e os gráficos só vão para o lado
   acima de 1600px: abaixo disso roubavam 376px à tabela e o Preço saía
   cortado a 1280.
+- **O aviso sem âncora fica no topo** (ronda em PC). Preso em baixo
+  (E25) tapava o que lá estivesse — o «Criar o alerta do perfil» — numa
+  página que abre no topo, onde o aviso já está. Só fica preso quando o
+  endereço tem âncora ou o aviso traz o «desfazer» (a classe `no-topo`
+  do JS do `BASE`).
+- **O arranque encurta com metade feita** (V3 P4): só os passos que
+  faltam, uma linha cada (`arranque-curto`). Os riscados ocupavam
+  metade do ecrã acima da dobra.
 
 ## Convenções
 
