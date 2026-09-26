@@ -255,9 +255,11 @@ duas guardas do POST e o trinco — está no `docs/FUNCIONAL.md` §4.9.**
 Aqui ficam os nomes no código: `porta_de_entrada()` (um
 `before_request`, logo a seguir ao `app`), `pedido_e_local()`,
 `origem_e_nossa()`, `sou_dono()` / `so_dono()`, `ROTAS_SO_DONO`,
-`sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN`, `largar_a_empresa()`
+`sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN` (desde 26/09/2026 com o
+`/arranque/dispensar`, o cartão «Pôr a empresa a trabalhar» do Hoje), `largar_a_empresa()`
 (o `teardown_request` que repõe a empresa do pedido), `aceitar_pedido()`
-e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal()` / `operador_completo()` e `avisar_o_vigia()` (F8),
+(GET mostra o perfil da empresa nova, `perfil_do_pedido()`; só o POST
+cria) e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal()` / `operador_completo()` e `avisar_o_vigia()` (F8),
 `administracao_da_plataforma()` (`/plataforma`, com
 `seccoes_da_plataforma()`: as secções do sistema saíram do índice das
 Configurações a 23/09/2026),
@@ -567,7 +569,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **306 pontos** (contados a 26/09/2026), cada um de um erro que
+São **310 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

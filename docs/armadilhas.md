@@ -17,15 +17,15 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 11
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 65
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 66
 - [O registo da empresa](#o-registo-da-empresa) &middot; 4
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 15
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 22
-- [A interface](#a-interface) &middot; 90
+- [Contas e a porta](#contas-e-a-porta) &middot; 23
+- [A interface](#a-interface) &middot; 92
 - [Convenções](#convencoes) &middot; 4
 
-São **306** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **310** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1807,6 +1807,19 @@ pelo Afonso e nenhuma se reabre de passagem.
   preparar proposta», que é onde se decide, e o lugar e os três
   primeiros quando têm valor.
 
+- **A triagem sem recarregar usa a MESMA rota, e o JSON pede-se pelo
+  `Accept`** (D1-bis, 26/09/2026). O `fetch` do «Por ver» manda o
+  formulário da linha (com o CSRF que o `com_csrf()` lá pôs) ao
+  `/estado/<ref>/<ranhura>`, e o `_volta_com_aviso()` responde JSON a
+  quem o pede (`pede_json()`), com o mesmo aviso e o mesmo desfazer.
+  Uma rota paralela para o JS era a validação do motivo e da escada
+  escrita duas vezes, e a primeira a mudar deixava a outra a aceitar o
+  que já não se aceita. Só no «Por ver» (`data-triagem` na tabela):
+  noutra aba a linha não sai, muda de botões, e quem a redesenha é o
+  servidor. O que o ecrã conta desce com a linha — o número da aba e o
+  «N que correspondem» (`.n-lista`) —, senão o número deixa de abrir a
+  lista que diz.
+
 
 ## O registo da empresa
 
@@ -2513,6 +2526,13 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   tester nenhuma), e o botão só aparece a quem o pode usar. **Uma acção
   nova de um admin sobre uma conta pergunta as duas coisas**: é da
   empresa dele? e é o dono?
+
+- **O «aceitar» de um pedido é GET e POST na mesma rota, e o GET não
+  cria nada** (D13, 26/09/2026). O GET mostra o perfil pré-preenchido;
+  só o POST cria a empresa, e um CPV que não é código volta ao
+  formulário **antes** do `criar_empresa()` — validar depois era uma
+  empresa a mais por cada gralha. A lista dos pedidos deixou de ter o
+  botão que aceitava às cegas: é uma ligação para o formulário.
 
 
 ## A interface
@@ -3423,6 +3443,20 @@ botões ou no calendário.
   `%` passou a formatar só o último pedaço: a ficha da entidade deu 500
   e os Concursos perderam o formulário. Um pedaço novo entra como `%s` e
   vai no tuplo.
+- **Um `.mg-btn` com `hidden` continua à vista** (26/09/2026): o
+  `display:inline-flex` do sistema ganha ao `hidden` da folha do
+  browser, como o `.escolhas` a 15/09. O «Gravar» do diálogo do motivo
+  escondia-se pelo JS e ficava lá, ao lado dos motivos que já gravam.
+  Dentro do diálogo há a regra `dialog.mg-dialog .mg-btn[hidden]`; um
+  botão escondido noutro sítio precisa da sua.
+- **O diálogo do motivo vem depois do `LISTA_JS` na página: procura-se
+  na hora, não ao carregar** (26/09/2026). A triagem sem recarregar
+  guardava o `getElementById('form-motivo')` no arranque, que dava
+  `null`, e o «Abandonar» fazia o POST de sempre sem erro nenhum na
+  consola — só se viu por a lista voltar com 20 linhas em vez de 19.
+  Um script da página não conta com o que o `envolver()` põe depois
+  dele; o `close` do `<dialog>` também não borbulha, e apanha-se na
+  captura.
 
 ## Convenções
 

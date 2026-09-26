@@ -10551,7 +10551,7 @@ ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
 # O que so o admin DA EMPRESA abre (13/09/2026): as contas dela e quem
 # ela e (nome e NIF).
 ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
-                  "/configuracoes/conta/empresa")
+                  "/configuracoes/conta/empresa", "/arranque")
 
 
 def sou_dono():
@@ -11112,6 +11112,21 @@ def sair_de_todos():
     return resposta
 
 
+def nome_da_empresa_activa():
+    """A empresa em que se está a trabalhar, para a barra (D7 da segunda
+    ronda, 26/09/2026, decisão dele): com mais de uma empresa na
+    plataforma, quem entra tem de ver em qual está antes de triar ou
+    gravar -- o perigo é trabalhar na empresa errada sem dar por isso.
+    Já vem em HTML (a `<small>` por baixo do nome); «» para o dono sem
+    empresa, que não trabalha em nenhuma."""
+    id_ = empresa_activa()
+    if id_ == SEM_EMPRESA:
+        return ""
+    nome = (ler_config().get("nome_da_empresa") or "").strip() or "Empresa %d" % id_
+    return ("<small class='sou-empresa' title='%s'>%s</small>"
+            % (html.escape("A trabalhar em: " + nome, quote=True), html.escape(nome)))
+
+
 def bloco_da_conta():
     """O canto da barra lateral que era o campo "quem esta a trabalhar?".
 
@@ -11121,9 +11136,10 @@ def bloco_da_conta():
     """
     utilizador = g.get("utilizador") or {}
     nome = utilizador.get("nome") or ""
+    empresa_ = nome_da_empresa_activa()
     if g.get("sessao"):
         return ("<details class='sou'><summary>"
-                "<span class='mg-avatar'>%s</span>%s"
+                "<span class='mg-avatar'>%s</span><span class='sou-quem'>%s%s</span>"
                 "</summary><div class='mg-menu sou-menu'>"
                 "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
                 "%s"
@@ -11132,13 +11148,14 @@ def bloco_da_conta():
                 "<form method='post' action='/sair-de-todos'>"
                 "<button type='submit'>sair de todos os aparelhos</button>"
                 "</form></div></details>"
-                % (_iniciais(nome), html.escape(nome),
+                % (_iniciais(nome), html.escape(nome), empresa_,
                    "<a class='sou-conta' href='/plataforma'>administração "
                    "da plataforma</a>" if sou_dono() else ""))
     if nome:
         return ("<div class='sou'><div class='so-nome mg-topbar__user'>"
-                "<span class='mg-avatar'>%s</span>%s</div></div>"
-                % (_iniciais(nome), html.escape(nome)))
+                "<span class='mg-avatar'>%s</span><span class='sou-quem'>%s%s"
+                "</span></div></div>"
+                % (_iniciais(nome), html.escape(nome), empresa_))
     return ("<div class='sou'><div class='so-nome mg-topbar__user'>"
             "<span class='mg-avatar'>&mdash;</span>sem conta ainda</div></div>")
 
@@ -11897,14 +11914,13 @@ dialog.mg-dialog .nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--
    sem esta linha, o dialogo do "Perdido" mostrava tambem os
    quatro motivos do "Nao fomos", oito opcoes para escolher uma.
    Visto no ecra. */
-dialog.mg-dialog .escolhas[hidden]{display:none}
-dialog.mg-dialog .escolhas{display:flex;flex-direction:column;gap:2px;
+dialog.mg-dialog .escolhas[hidden],dialog.mg-dialog .mg-btn[hidden]{display:none}
+dialog.mg-dialog .escolhas{display:flex;flex-direction:column;gap:6px;
  margin-bottom:18px}
-dialog.mg-dialog .escolhas label{display:flex;align-items:center;gap:9px;
- padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--line);
- font:500 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-secondary);cursor:pointer}
-dialog.mg-dialog .escolhas label:hover{border-color:var(--ink-muted);background:var(--surface-raised)}
-dialog.mg-dialog .escolhas input{margin:0;flex:none}
+/* os motivos sao botoes que gravam (D1-bis, 26/09/2026): a toda a
+   largura e alinhados a esquerda, que e como se le uma lista */
+dialog.mg-dialog .escolhas .motivo-bt{justify-content:flex-start;text-align:left;
+ width:100%;min-height:40px}
 .mini{cursor:pointer;padding:7px 12px;border-radius:var(--radius-sm);font:600 var(--text-xs)/1 var(--font-sans);
  border:1px solid var(--line);color:var(--ink-secondary);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--danger);color:var(--danger)}
@@ -13524,11 +13540,17 @@ def caixa_do_motivo():
     duas (15/09/2026); o `abandonar-js` da lista continua a funcionar
     pelo mesmo diálogo, para o botão «abandonar» não perder o gesto.
     """
+    # Os motivos são BOTÕES que gravam (D1-bis da segunda ronda,
+    # 26/09/2026, decisão dele): eram rádios mais um «Gravar», dois
+    # cliques para uma escolha só. O `name=motivo` vai no botão, e o
+    # browser manda-o com o formulário -- os campos exigidos que houver
+    # (o lugar do «Perdido») validam-se na mesma antes de sair.
     grupos = "".join(
-        "<div class='escolhas' data-para='%s' hidden>%s</div>"
+        "<div class='escolhas' data-para='%s' role='group' "
+        "aria-label='Motivo' hidden>%s</div>"
         % (estado,
-           "".join("<label><input type='radio' name='motivo' value='%s'>"
-                   "<span>%s</span></label>"
+           "".join("<button type='submit' name='motivo' value='%s' "
+                   "class='mg-btn mg-btn--secondary motivo-bt'>%s</button>"
                    % (html.escape(m, quote=True), html.escape(m))
                    for m in motivos))
         for estado, motivos in MOTIVOS_DO_ESTADO.items())
@@ -13558,7 +13580,8 @@ def caixa_do_motivo():
             "<div class='mg-dialog__actions'>"
             "<button type='button' class='mg-btn mg-btn--secondary' "
             "id='dlg-motivo-nao'>Cancelar</button>"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Gravar</button>"
+            "<button type='submit' class='mg-btn mg-btn--primary' "
+            "id='dlg-motivo-gravar'>Gravar</button>"
             "</div></form></dialog>"
             "<script>\n"
             "(function () {\n"
@@ -13574,20 +13597,17 @@ def caixa_do_motivo():
             "  // of these options\"): cada campo diz a sua, em portugues\n"
             "  f.addEventListener('invalid', function (e) {\n"
             "    var i = e.target;\n"
-            "    if (i.type === 'radio') i.setCustomValidity('Escolha o motivo.');\n"
-            "    else if (i.name === 'lugar') i.setCustomValidity('O lugar é um número de 1 a 99.');\n"
+            "    if (i.name === 'lugar') i.setCustomValidity('O lugar é um número de 1 a 99.');\n"
             "    else if (i.name === 'valor_proposta') i.setCustomValidity(i.value\n"
             "        ? '«' + i.value + '» não é um preço. Escreva-o assim: 118 500,00.'\n"
             "        : 'Escreva o preço proposto.');\n"
             "  }, true);\n"
-            "  f.addEventListener('input', function (e) {\n"
-            "    if (e.target.type === 'radio')\n"
-            "      f.querySelectorAll('input[type=radio]').forEach(function (r) { r.setCustomValidity(''); });\n"
-            "    else e.target.setCustomValidity('');\n"
-            "  });\n"
-            "  f.addEventListener('change', function (e) {\n"
-            "    if (e.target.type === 'radio')\n"
-            "      f.querySelectorAll('input[type=radio]').forEach(function (r) { r.setCustomValidity(''); });\n"
+            "  f.addEventListener('input', function (e) { e.target.setCustomValidity(''); });\n"
+            "  // o Enter num campo nao grava: o botao por omissao do formulario\n"
+            "  // e o primeiro motivo, e gravava-o sem ninguem o escolher\n"
+            "  f.addEventListener('keydown', function (e) {\n"
+            "    if (e.key === 'Enter' && e.target.tagName === 'INPUT' &&\n"
+            "        !document.getElementById('dlg-motivo-gravar').offsetParent) e.preventDefault();\n"
             "  });\n"
             "  function abrir(accao, titulo, estado, falta, base) {\n"
             "    falta = falta || [];\n"
@@ -13607,11 +13627,14 @@ def caixa_do_motivo():
             "    f.querySelectorAll('.escolhas').forEach(function (g) {\n"
             "      var meu = g.dataset.para === estado;\n"
             "      g.hidden = !meu;\n"
-            "      g.querySelectorAll('input').forEach(function (r) {\n"
-            "        r.checked = false; r.required = meu;\n"
-            "      });\n"
+            "      g.querySelectorAll('button').forEach(function (b) { b.disabled = !meu; });\n"
             "    });\n"
+            "    // com motivos, sao eles que gravam; o «Gravar» fica para o que\n"
+            "    // so pede um campo (o preco do «Submetido»)\n"
+            "    document.getElementById('dlg-motivo-gravar').hidden = comMotivo;\n"
             "    d.showModal();\n"
+            "    var primeiro = f.querySelector('[data-campo]:not([hidden]) input, .escolhas:not([hidden]) button');\n"
+            "    if (primeiro) primeiro.focus();\n"
             "  }\n"
             "  // o selector de ranhura grava so com o botao «Mudar» (ou o\n"
             "  // Enter), e nunca ao mudar: com as setas do teclado cada opcao\n"
@@ -14096,6 +14119,144 @@ LISTA_JS = """<script>
         alvo.querySelector('button, select, a[href]');
     if (botao) botao.focus({ preventScroll: true });
   }
+
+  // A triagem sem recarregar (D1-bis da segunda ronda, 26/09/2026,
+  // decisao dele). No «Por ver», o «Interessa» e o motivo do «Abandonar»
+  // gravam por fetch -- a MESMA rota, o mesmo CSRF (vai no formulario) e
+  // a mesma validacao; so a resposta vem em JSON. A linha sai no sitio,
+  // o aviso diz o que se fez e traz o «desfazer», o foco passa a linha
+  // seguinte, e os numeros da aba e da lista descem um. Sem JS, ou se o
+  // pedido nao der JSON, e o POST de sempre.
+  var tabela = document.querySelector('.lista[data-triagem]');
+  if (!tabela || !window.fetch) return;
+  var csrf = (document.querySelector('meta[name=csrf]') || {}).content || '';
+  // o dialogo do motivo vem DEPOIS deste script na pagina: procura-se
+  // quando e preciso, e nao ao carregar (onde ainda nao existe)
+  var linhaDoDialogo = null;
+  // o que o leitor de ecra anuncia: uma regiao que ja existe, e so o
+  // texto muda (uma regiao criada com o texto dentro nao se le)
+  var vivo = document.createElement('div');
+  vivo.className = 'so-leitor';
+  vivo.setAttribute('role', 'status');
+  document.body.appendChild(vivo);
+  function numero(el, mais) {
+    if (!el) return;
+    var n = parseInt(el.textContent.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(n)) return;
+    n = Math.max(0, n + mais);
+    el.textContent = String(n).replace(/\\B(?=(\\d{3})+(?!\\d))/g,'\u00a0');
+  }
+  function contar(mais) {
+    numero(document.querySelector('nav.abas-escada a[aria-current] .mg-tab__count'), mais);
+    numero(document.querySelector('.n-lista'), mais);
+  }
+  function aviso(texto, erro, desfazer) {
+    var velho = document.querySelector('.aviso-da-vez');
+    if (velho) velho.remove();
+    var t = document.createElement('div');
+    t.className = 'mg-alert aviso-da-vez ' + (erro ? 'mg-alert--danger' : 'mg-alert--success');
+    var sinal = document.createElement('span');
+    sinal.setAttribute('aria-hidden', 'true');
+    sinal.textContent = erro ? '✕ ' : '✓ ';
+    t.appendChild(sinal);
+    var corpo = document.createElement('span');
+    corpo.className = 'aviso-texto';
+    corpo.textContent = texto;
+    t.appendChild(corpo);
+    if (desfazer) t.appendChild(desfazer);
+    var x = document.createElement('button');
+    x.type = 'button'; x.className = 'aviso-fechar';
+    x.setAttribute('aria-label', 'Fechar o aviso');
+    x.textContent = '×';
+    x.addEventListener('click', function () { t.remove(); });
+    t.appendChild(x);
+    document.body.appendChild(t);
+    vivo.textContent = '';
+    setTimeout(function () { vivo.textContent = texto; }, 50);
+  }
+  function focaEm(tr) {
+    var b = tr && tr.querySelector('button, select, a[href]');
+    if (b) b.focus({ preventScroll: true });
+    if (tr) tr.scrollIntoView({ block: 'nearest' });
+  }
+  function enviar(url, corpo) {
+    return fetch(url, { method: 'POST', body: corpo, credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json', 'X-CSRF': csrf } })
+      .then(function (r) {
+        if ((r.headers.get('Content-Type') || '').indexOf('application/json') < 0)
+          throw new Error('sem JSON');
+        return r.json();
+      });
+  }
+  function triar(tr, url, corpo) {
+    enviar(url, corpo).then(function (j) {
+      if (!j.ok) { aviso(j.aviso, true); return; }
+      try { sessionStorage.removeItem(chave); } catch (x) {}
+      var tbody = tr.parentNode, depois = tr.nextElementSibling;
+      var seguinte = depois || tr.previousElementSibling;
+      tbody.removeChild(tr);
+      contar(-1);
+      var volta = null;
+      if (j.desfazer && j.desfazer.indexOf('/estado/') === 0) {
+        volta = document.createElement('button');
+        volta.type = 'button';
+        volta.className = 'mg-btn mg-btn--sm mg-btn--secondary desfazer';
+        volta.textContent = 'desfazer';
+        volta.addEventListener('click', function () {
+          enviar(j.desfazer, new FormData()).then(function (k) {
+            if (!k.ok) { aviso(k.aviso, true); return; }
+            tbody.insertBefore(tr, depois && depois.parentNode === tbody ? depois : null);
+            contar(1);
+            aviso('Desfeito. ' + k.aviso, false);
+            focaEm(tr);
+          }).catch(function () {
+            aviso('O desfazer não chegou ao servidor. Recarregue a página.', true);
+          });
+        });
+      }
+      aviso(j.aviso + (tbody.children.length ? ''
+            : ' Esta página ficou vazia: recarregue para ver os seguintes.'),
+            false, volta);
+      focaEm(seguinte);
+    }).catch(function () {
+      aviso('Não se gravou: o servidor não respondeu como esperado. '
+            + 'Recarregue a página e tente outra vez.', true);
+    });
+  }
+  // o botao de um motivo nao vai no FormData do formulario: junta-se a mao
+  function dados(form, botao) {
+    var fd = new FormData(form);
+    if (botao && botao.name) fd.append(botao.name, botao.value);
+    return fd;
+  }
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f.closest) return;
+    var tr = f.closest('tr');
+    if (tr && tabela.contains(tr) && f.classList.contains('abandonar-js')) {
+      linhaDoDialogo = tr;        // o dialogo abre-o a caixa_do_motivo()
+      return;
+    }
+    if (f.id === 'form-motivo' && linhaDoDialogo) {
+      e.preventDefault();
+      var linha = linhaDoDialogo;
+      linhaDoDialogo = null;
+      document.getElementById('dlg-motivo').close();
+      triar(linha, f.action, dados(f, e.submitter));
+      return;
+    }
+    if (tr && tabela.contains(tr) && /[/]analisar$/.test(f.action)) {
+      e.preventDefault();
+      triar(tr, f.action, dados(f, e.submitter));
+    }
+  });
+  // fechado sem gravar (Cancelar, Esc): o foco volta ao botao da linha.
+  // O `close` nao borbulha: apanha-se na captura.
+  document.addEventListener('close', function (e) {
+    if (e.target.id === 'dlg-motivo' && linhaDoDialogo) {
+      focaEm(linhaDoDialogo); linhaDoDialogo = null;
+    }
+  }, true);
 })();
 // O painel dos filtros NAO se lembra de ter ficado aberto (16/09/2026,
 // fase 5). Lembrava-se, em `localStorage`, para sempre e em todas as
@@ -15359,8 +15520,13 @@ def _lista_de_anuncios():
         # A tabela do `EcraConcursos`, com o cabeçalho que ele desenhou.
         # O `.lista` fica por fora: é ele que o JS da triagem procura
         # para guardar a posição do rolamento.
+        # O `data-triagem` liga a triagem sem recarregar (D1-bis): só no
+        # «Por ver», onde triar TIRA a linha da lista. Nas outras abas a
+        # linha fica, com outros botões, e o POST de sempre redesenha-a.
         corpo_lista = (
-            "<div class='lista mg-table tab-cx'><table>"
+            "<div class='lista mg-table tab-cx'%s><table>"
+            % (" data-triagem='1'" if estado_actual == ENTRADA_DA_ESCADA[0]
+               else "") +
             "<thead><tr>"
             "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
             "<th class='mg-num'>Preço base</th>"
@@ -15412,12 +15578,12 @@ def _lista_de_anuncios():
     # mesmo, senao "20 de 65 869" parece um filtro que nao filtrou nada
     if correspondem > len(linhas):
         primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
-        conta = ("<b>%s</b> que correspondem &middot; %s&ndash;%s "
+        conta = ("<b class='n-lista'>%s</b> que correspondem &middot; %s&ndash;%s "
                  "&middot; página %s de %s"
                  % (mil(correspondem), mil(primeiro),
                     mil(primeiro + len(linhas) - 1), mil(pagina), mil(paginas)))
     else:
-        conta = ("<b>%s</b> %s"
+        conta = ("<b class='n-lista'>%s</b> %s"
                  % (mil(correspondem),
                     "resultado" if correspondem == 1 else "resultados"))
     # A ordem diz-se e troca-se aqui (25/09/2026, do teste com
@@ -16444,6 +16610,12 @@ def verificar_agora():
     return redirect(volta)
 
 
+def pede_json():
+    """Se o pedido quer a resposta em JSON (o `fetch` da lista e o do
+    site): é o `Accept` que o diz, e não um parâmetro."""
+    return "application/json" in (request.headers.get("Accept") or "")
+
+
 def _volta_com_aviso(texto, desfazer=None, ancora="", erro=False):
     """De volta a pagina de onde se carregou, com um aviso por cima.
 
@@ -16464,6 +16636,14 @@ def _volta_com_aviso(texto, desfazer=None, ancora="", erro=False):
     ronda, 26/09/2026: «"31/02/2026" não é uma data» e «Tarefa
     actualizada» tinham o mesmo azul, e o daltónico não os distinguia).
     """
+    if pede_json():
+        # A triagem sem recarregar (D1-bis, 26/09/2026): o `fetch` da
+        # lista pede JSON e recebe o MESMO aviso e o mesmo desfazer que o
+        # redireccionamento levaria -- a rota e a validação são as de
+        # sempre, só a embalagem muda.
+        return Response(json.dumps({"ok": not erro, "aviso": texto,
+                                    "desfazer": desfazer or ""}),
+                        mimetype="application/json")
     partes = urlparse(request.referrer or "/")
     fica = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
             if k not in ("aviso", "desfazer", "assin", "tom")]
@@ -17189,6 +17369,25 @@ def alertas():
     return redirect("/configuracoes/alertas" + ("?" + qs if qs else ""))
 
 
+def _caixa_alerta_do_perfil(cfg):
+    """O «criar alerta a partir do perfil» (D13, 26/09/2026): um botão,
+    com o perfil por palavras ao lado para se saber o que vai avisar.
+    Sem perfil, diz onde se define."""
+    descricao = descricao_do_interesse(cfg)
+    if not consulta_do_perfil(cfg):
+        return ("<div class='mg-card novo-filtro' id='do-perfil' style='margin-top:16px'>"
+                "<div class='mg-field__label'>Alerta a partir do perfil</div>"
+                "<p class='nota'>Com o <a href='/configuracoes/interesse'>perfil "
+                "da empresa</a> definido, cria-se aqui num clique o alerta do "
+                "que a empresa trabalha.</p></div>")
+    return ("<div class='mg-card novo-filtro' id='do-perfil' style='margin-top:16px'>"
+            "<div class='mg-field__label'>Alerta a partir do perfil</div>"
+            "<p class='nota'>Avisa por e-mail do que entrar dentro do perfil "
+            "da empresa: %s.</p>%s</div>"
+            % (descricao, accao("/alertas/do-perfil",
+                                "Criar o alerta do perfil", "bt forte")))
+
+
 def _conteudo_alertas():
     cfg = ler_config()
     with liga() as c:
@@ -17352,7 +17551,7 @@ def _conteudo_alertas():
                      "«Últimos avisos», aqui em baixo.</div>"
                      % html.escape(falta)) if falta else ""
     conteudo = ("<div class='larg'>" + faixa_correio + lista +
-                caixa_seguidas +
+                caixa_seguidas + _caixa_alerta_do_perfil(cfg) +
                 "<div style='height:16px'></div>" + novo +
                 "<div style='height:16px'></div>" + _caixa_email(cfg) +
                 _caixa_urgente() +
@@ -18345,7 +18544,7 @@ def _bloco_da_empresa(cfg=None):
     justamente nos concursos que interessam.
     """
     nome, nif = _nome_da_empresa(cfg)
-    return ("<div class='mg-field__label' style='margin:22px 0 6px'>A nossa empresa</div>"
+    return ("<div class='mg-field__label' id='empresa' style='margin:22px 0 6px'>A nossa empresa</div>"
             "<div class='nota' style='margin-bottom:10px'>Para o Mira Gov saber, "
             "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
             "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
@@ -18420,7 +18619,7 @@ def _bloco_utilizadores(todos, eu):
         # conta obrigava o admin a inventar a palavra-passe do colega e a
         # manda-la por algum lado. Com o convite, e o colega que a escolhe.
         "<form method='post' action='/configuracoes/conta/utilizadores/convite' "
-        "class='conf-form' style='margin-top:16px'>"
+        "class='conf-form' id='convidar' style='margin-top:16px'>"
         "<div class='nota' style='flex:1 1 100%%'><b>Convidar um colega</b>: "
         "cria-se uma ligação, manda-se ao colega, e é ele que escolhe o nome "
         "e a palavra-passe. Vale %d dias, e só uma vez.</div>"
@@ -18693,17 +18892,58 @@ def alerta_criar():
     if not [k for k, v in pares if v and k not in ("estado", "op")]:
         return recusa("Falta dizer o que o alerta procura: palavras, CPV, "
                       "entidade ou plataforma. O alerta não foi criado.")
-    # Nasce ligado (13/09/2026: "Criar alerta", nao "criar filtro"), e o
-    # acervo que ja la esta fica marcado como tal, como ao ligar o
-    # interruptor -- senao o primeiro resumo trazia tudo.
+    havia = _gravar_alerta(nome, consulta)
+    return redirect("/configuracoes/alertas?aviso=" +
+                    quote("Alerta %s: %s"
+                          % ("actualizado" if havia else "criado", nome)))
+
+
+def _gravar_alerta(nome, consulta):
+    """Grava o alerta ja ligado; devolve se ja existia. Nasce ligado
+    (13/09/2026: "Criar alerta", nao "criar filtro"), e o acervo que ja
+    la esta fica marcado como tal, como ao ligar o interruptor -- senao
+    o primeiro resumo trazia tudo."""
     havia = gravar_filtro(nome, consulta, alerta=1)
     with liga() as c:
         filtro_id = c.execute("SELECT id FROM filtros_guardados WHERE nome=?",
                               (nome,)).fetchone()["id"]
     arquivar_o_acervo(filtro_id)
-    return redirect("/configuracoes/alertas?aviso=" +
-                    quote("Alerta %s: %s"
-                          % ("actualizado" if havia else "criado", nome)))
+    return havia
+
+
+NOME_DO_ALERTA_DO_PERFIL = "Perfil da empresa"
+
+
+def consulta_do_perfil(cfg=None):
+    """A consulta de um alerta com o Perfil da empresa -- os CPV, os
+    distritos e o valor minimo --, ou «» se o perfil esta vazio. Os
+    campos sao os mesmos do filtro (`cpv`, `cpv_excl`, `dist`, `pbmin`),
+    e por isso o alerta avisa do que a lista mostra com o perfil posto."""
+    cfg = ler_config() if cfg is None else cfg
+    _, dentro, fora = interesse_definido(cfg)
+    pares = [(k, v) for k, v in (
+        ("cpv", dentro), ("cpv_excl", fora if dentro else ""),
+        ("dist", (cfg.get("interesse_distritos") or "").strip()),
+        ("pbmin", (cfg.get("interesse_pbmin") or "").strip())) if v]
+    return urlencode(pares)
+
+
+@app.route("/alertas/do-perfil", methods=["POST"])
+def alerta_do_perfil():
+    """O alerta a partir do Perfil da empresa, num clique (D13 da segunda
+    ronda, 26/09/2026): quem acabou de definir o que a empresa trabalha
+    nao tem de o escrever outra vez no formulario do alerta. Grava por
+    cima de um alerta com o mesmo nome -- carregar outra vez depois de
+    mudar o perfil actualiza-o."""
+    consulta = consulta_do_perfil()
+    if not consulta:
+        return volta_config_erro("alertas", "O perfil da empresa está vazio: "
+                                 "defina-o primeiro, em Configurações › "
+                                 "Perfil da empresa. Nenhum alerta foi criado.")
+    havia = _gravar_alerta(NOME_DO_ALERTA_DO_PERFIL, consulta)
+    return volta_config("alertas", "Alerta «%s» %s: avisa do que entrar "
+                        "dentro do perfil." % (NOME_DO_ALERTA_DO_PERFIL,
+                                               "actualizado" if havia else "criado"))
 
 
 @app.route("/alertas/email", methods=["POST"])
@@ -25917,7 +26157,7 @@ def pedir_acesso():
 
     Responde JSON a quem o pede (o `fetch` do site) e uma pagina a quem
     nao tem JavaScript."""
-    quer_json = "application/json" in (request.headers.get("Accept") or "")
+    quer_json = pede_json()
 
     def resposta(ok, erro="", codigo=200):
         if quer_json:
@@ -25997,9 +26237,9 @@ def pedidos_de_acesso():
                         html.escape(l["avisado"] or "a enviar"),
                         ("aceite: empresa %d" % l["empresa_id"])
                         if l["estado"] == "aceite" else
-                        accao("/pedidos-de-acesso/%d/aceitar" % l["id"], "aceitar",
-                              "mini", "Aceitar %s? Cria a empresa e manda o convite "
-                              "para %s." % (l["empresa"], l["email"])))
+                        "<a class='mg-btn mg-btn--sm mg-btn--secondary' "
+                        "href='/pedidos-de-acesso/%d/aceitar'>aceitar&hellip;</a>"
+                        % l["id"])
                      for l in linhas))
     else:
         corpo = ("<div class='mg-empty'>Ainda não chegou nenhum pedido pelo "
@@ -26028,7 +26268,104 @@ Mira Gov
 """
 
 
-@app.route("/pedidos-de-acesso/<int:id_>/aceitar", methods=["POST"])
+# O perfil que o dono prepara ao aceitar (D13 da segunda ronda,
+# 26/09/2026): o site promete «configuramos o perfil consigo», e sem
+# isto a empresa nova entrava a ver 1 383 anúncios por decidir. O
+# sector do formulário dá o ponto de partida; o dono afina antes de
+# aceitar. Só as divisões que o sector diz sem dúvida: «Fornecimento de
+# bens» ou «Prestação de serviços» não dizem de que -- ficam vazios.
+CPV_DO_SECTOR = {"Obras públicas e construção": "45000000",
+                 "Tecnologias de informação": "72000000|48000000"}
+RX_CPV_NA_MENSAGEM = re.compile(r"\b(\d{8})(?:-\d)?\b")
+
+
+def perfil_do_pedido(p):
+    """(cpv, distritos) sugeridos para a empresa de um pedido: os CPV do
+    sector mais os códigos de 8 dígitos escritos na mensagem, e os
+    distritos que a mensagem nomeia. É um ponto de partida: o dono vê-o
+    e muda-o antes de aceitar."""
+    mensagem = p["mensagem"] or ""
+    cpv = [c for c in (CPV_DO_SECTOR.get(p["sector"] or "") or "").split("|") if c]
+    cpv += [c for c in RX_CPV_NA_MENSAGEM.findall(mensagem) if c not in cpv]
+    simples = simplifica(mensagem)
+    distritos = [d for d in DISTRITOS
+                 if re.search(r"\b%s\b" % re.escape(simplifica(d)), simples)]
+    return "|".join(cpv), "|".join(distritos)
+
+
+def _perfil_do_formulario(form):
+    """O perfil que veio no formulário do aceitar, já validado, ou
+    ValueError com a frase para o ecrã. Os CPV só como códigos: é o que
+    a árvore grava, e um termo solto aqui apanhava o que calhasse."""
+    cpv = [c.strip() for c in re.split(r"[|,;\s]+", form.get("cpv") or "") if c.strip()]
+    maus = [c for c in cpv if not re.fullmatch(r"\d{2,8}", c)]
+    if maus:
+        raise ValueError("«%s» não é um código CPV (só algarismos, ex. 45000000)."
+                         % corta(maus[0], 20))
+    pbmin = (form.get("pbmin") or "").strip()
+    if pbmin and euros_do_texto(pbmin) is None:
+        raise ValueError("«%s» não se lê como preço." % corta(pbmin, 20))
+    distritos = [d for d in form.getlist("dist") if d in DISTRITOS]
+    return {"interesse_activo": bool(cpv or distritos or pbmin),
+            "interesse_cpv": "|".join(c.ljust(8, "0") for c in cpv),
+            "interesse_cpv_excl": "",
+            "interesse_distritos": "|".join(distritos),
+            "interesse_pbmin": pbmin}
+
+
+def _formulario_do_aceitar(p, aviso=""):
+    """O passo antes de aceitar: quem pediu, o que escreveu, e o perfil
+    da empresa nova pré-preenchido, para o dono o afinar."""
+    cpv, distritos = perfil_do_pedido(p)
+    if request.method == "POST":           # volta com o que se escreveu
+        cpv = request.form.get("cpv") or ""
+        distritos = "|".join(request.form.getlist("dist"))
+    escolhidos = set(distritos.split("|"))
+    caixas = "".join(
+        "<label class='dist-cx'><input type='checkbox' name='dist' "
+        "value='%s'%s> %s</label>"
+        % (html.escape(d, quote=True), " checked" if d in escolhidos else "",
+           html.escape(d)) for d in DISTRITOS)
+    return envolver(
+        "configuracoes", "Aceitar o pedido",
+        "Cria a empresa, prepara o perfil dela e manda o convite a quem pediu.",
+        "<div class='larg'>%s<div class='mg-card conf-cx'>"
+        "<p><b>%s</b>, de %s &middot; <a href='mailto:%s'>%s</a><br>"
+        "Sector: %s</p>%s</div>"
+        "<form method='post' class='mg-card conf-cx conf-form'>"
+        "<div class='mg-field__label' style='flex:1 1 100%%'>O perfil da "
+        "empresa nova</div>"
+        "<p class='nota' style='flex:1 1 100%%'>O site promete «configuramos o "
+        "perfil consigo». Vem do sector e do que a mensagem diz; afine-o antes "
+        "de aceitar, ou deixe-o vazio e a empresa define-o depois.</p>"
+        "%s"
+        "<fieldset class='dist-interesse' style='flex:1 1 100%%'><legend>"
+        "Distritos do local de execução <span class='nota'>(nenhum marcado = "
+        "todos)</span></legend>%s</fieldset>"
+        "%s"
+        "<div style='flex:1 1 100%%;display:flex;gap:8px'>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Aceitar e "
+        "mandar o convite</button>"
+        "<a class='mg-btn mg-btn--secondary' href='/pedidos-de-acesso'>voltar "
+        "sem aceitar</a></div></form></div>"
+        % (("<div class='mg-alert mg-alert--danger' role='alert'>%s</div>"
+            % html.escape(aviso)) if aviso else "",
+           html.escape(p["nome"]), html.escape(p["empresa"]),
+           html.escape(p["email"], quote=True), html.escape(p["email"]),
+           html.escape(p["sector"] or "—"),
+           ("<p class='nota'>«%s»</p>" % html.escape(p["mensagem"]))
+           if p["mensagem"] else "",
+           _campo("CPV", "cpv", cpv, nota="códigos separados por «|», ex. "
+                  "45000000|71000000; afina-se depois na árvore, em "
+                  "Configurações › Perfil da empresa"),
+           caixas,
+           _campo("Preço base a partir de", "pbmin",
+                  request.form.get("pbmin", "") if request.method == "POST" else "",
+                  nota="€; vazio = qualquer valor")),
+        titulo_aba="Aceitar o pedido")
+
+
+@app.route("/pedidos-de-acesso/<int:id_>/aceitar", methods=["GET", "POST"])
 def aceitar_pedido(id_):
     """F5: do pedido do site a empresa a trabalhar. Cria a empresa, com o
     resumo a ir para quem pediu; cria o convite; manda-o por e-mail. E
@@ -26045,9 +26382,15 @@ def aceitar_pedido(id_):
                         "Este pedido já deu a empresa %d." % p["empresa_id"],
                         "<div class='larg'><a href='/pedidos-de-acesso'>voltar "
                         "aos pedidos</a></div>")
+    if request.method == "GET":
+        return _formulario_do_aceitar(p)
+    try:
+        perfil = _perfil_do_formulario(request.form)
+    except ValueError as erro:
+        return _formulario_do_aceitar(p, str(erro))
     empresa_id = criar_empresa(p["empresa"] or p["nome"])
     with com_empresa(empresa_id):
-        gravar_config({"email": {"para": p["email"]}})
+        gravar_config(dict(perfil, email={"para": p["email"]}))
     with liga() as c:
         codigo = contas.criar_convite(c, empresa_id, p["email"], "admin", id_)
         c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=? "
@@ -26070,11 +26413,14 @@ def aceitar_pedido(id_):
     return envolver(
         "configuracoes", "Pedido aceite",
         "A empresa %d, %s, foi criada." % (empresa_id, p["empresa"]),
-        "<div class='larg'><div class='mg-card conf-cx'><p>%s</p>"
+        "<div class='larg'><div class='mg-card conf-cx'><p>%s</p><p>%s</p>"
         "<p>A ligação, que serve uma vez e dura %d dias:</p>"
         "<p><code>%s</code></p><p><a href='/pedidos-de-acesso'>voltar aos "
         "pedidos</a></p></div></div>"
-        % (envio, contas.DIAS_DE_CONVITE, html.escape(ligacao)))
+        % (envio, ("Perfil da empresa: %s." % descricao_do_interesse(perfil))
+           if perfil["interesse_activo"] else
+           "Sem perfil: a empresa define-o no primeiro dia.",
+           contas.DIAS_DE_CONVITE, html.escape(ligacao)))
 
 
 PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
@@ -27248,10 +27594,10 @@ def inicio():
 
     return envolver(
         "inicio", dia_por_extenso(hoje), "",
-        "<div class='larg'><div class='mg-stats hj-stats'>%s</div>%s"
+        "<div class='larg'>%s<div class='mg-stats hj-stats'>%s</div>%s"
         "<div class='dois'>%s"
         "<div class='lado'>%s%s%s</div></div></div>"
-        % (factos, fita, para_fazer,
+        % (cartao_do_arranque(cfg), factos, fita, para_fazer,
            _o_que_mudou(hoje, cfg), _prazos_a_chegar(hoje, prazos),
            _paradas_ha_mais_tempo(hoje)),
         cabeca=cabecalho_de_pagina(dia_por_extenso(hoje), frase, [], accoes_topo),
@@ -27262,6 +27608,77 @@ def inicio():
         # «Hoje» e nao só a marca: com vários separadores abertos, 36
         # paginas chamavam-se «Mira Gov» (varredura de 25/09/2026)
         titulo_aba="Hoje")
+
+
+# O arranque de uma empresa nova (D13 da segunda ronda, 26/09/2026,
+# decisão dele): quatro passos, cada um com a ligação para onde se faz,
+# riscados quando os DADOS dizem que está feito -- e não quando alguém
+# clicou, porque um passo que se riscou e se desfez depois (o perfil
+# esvaziado, o alerta apagado) tem de voltar a aparecer.
+MARCA_DO_ARRANQUE = "arranque_dispensado"
+
+
+def passos_do_arranque(cfg=None):
+    """[(feito, titulo, o que é, ligação)] dos quatro passos."""
+    cfg = ler_config() if cfg is None else cfg
+    nome, nif = _nome_da_empresa(cfg)
+    with liga() as c:
+        alerta = bool(c.execute("SELECT 1 FROM filtros_guardados "
+                                "WHERE alerta=1 LIMIT 1").fetchone())
+        # a equipa: um colega com conta, ou um convite que o admin fez
+        # (o do pedido de acesso, que criou a conta dele, não conta)
+        colegas = c.execute("SELECT COUNT(*) FROM utilizadores WHERE "
+                            "empresa_id=?", (empresa_activa(),)).fetchone()[0]
+        convidou = bool(c.execute("SELECT 1 FROM convites WHERE empresa_id=? "
+                                  "AND pedido_id IS NULL LIMIT 1",
+                                  (empresa_activa(),)).fetchone())
+    return [
+        (bool(consulta_do_perfil(cfg)), "Perfil da empresa",
+         "os CPV, os distritos e o valor que a empresa trabalha: a lista "
+         "passa a mostrar só isso", "/configuracoes/interesse"),
+        (bool(nome and nif), "Nome e NIF da empresa",
+         "para o Mira Gov saber, no Portal BASE, que contratos são nossos",
+         "/configuracoes/conta#empresa"),
+        (alerta, "Um alerta",
+         "o e-mail com o que entrou; faz-se num clique a partir do perfil",
+         "/configuracoes/alertas#do-perfil"),
+        (colegas > 1 or convidou, "Convidar a equipa",
+         "uma ligação por colega, e é ele que escolhe a palavra-passe",
+         "/configuracoes/conta#convidar"),
+    ]
+
+
+def cartao_do_arranque(cfg=None):
+    """O cartão «Pôr a empresa a trabalhar» do Hoje, ou «». Só para o
+    admin -- dois dos passos são ecrãs só dele --, e sai quando os
+    quatro estão feitos ou quando ele o dispensa."""
+    if (empresa_activa() == SEM_EMPRESA or not sou_admin()
+            or le_marca_da_empresa(MARCA_DO_ARRANQUE)):
+        return ""
+    passos = passos_do_arranque(cfg)
+    feitos = sum(1 for p in passos if p[0])
+    if feitos == len(passos):
+        return ""
+    itens = "".join(
+        "<li class='%s'><a href='%s'>%s</a>%s<small>%s</small></li>"
+        % ("feito" if feito else "", html.escape(alvo, quote=True),
+           ("<s>%s</s>" % titulo) if feito else titulo,
+           "<span class='so-leitor'> (feito)</span>" if feito else "",
+           html.escape(nota))
+        for feito, titulo, nota, alvo in passos)
+    return cartao(
+        "Pôr a empresa a trabalhar", "<ol class='arranque'>%s</ol>" % itens,
+        meta="%d de %d feitos" % (feitos, len(passos)),
+        accoes=accao("/arranque/dispensar", "Dispensar", "mini",
+                     rotulo="Dispensar o cartão «Pôr a empresa a trabalhar»"),
+        id_="arranque")
+
+
+@app.route("/arranque/dispensar", methods=["POST"])
+def arranque_dispensar():
+    """Tira o cartão do arranque do Hoje, para esta empresa."""
+    marca_da_empresa(MARCA_DO_ARRANQUE, datetime.now().isoformat(" ", "seconds"))
+    return redirect("/")
 
 
 def _atrasadas_de(quem, hoje):
