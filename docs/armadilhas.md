@@ -12,20 +12,20 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 8
-- [O motor de filtros](#o-motor-de-filtros) &middot; 12
+- [O motor de filtros](#o-motor-de-filtros) &middot; 13
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 10
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
-- [Contratos e entidades](#contratos-e-entidades) &middot; 27
+- [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 11
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 65
 - [O registo da empresa](#o-registo-da-empresa) &middot; 4
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 15
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 22
-- [A interface](#a-interface) &middot; 85
-- [Convenções](#convencoes) &middot; 3
+- [A interface](#a-interface) &middot; 86
+- [Convenções](#convencoes) &middot; 4
 
-São **297** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **302** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -593,6 +593,23 @@ Orçamento, cadeia de reserva, chaves.
   número que o ecrã mostra dar a lista que abre, e não um efeito
   lateral.
 
+- **As abas da lista contam-se numa passagem, e o distrito leva um
+  `+`** (lote 4 da segunda ronda, 26/09/2026). Com o perfil da empresa
+  posto (CPV, distritos, valor mínimo), cada contagem ia à tabela larga
+  buscar as 210 mil linhas — 0,2–0,3 s cada, cinco por página, e a lista
+  dos Concursos a 1,1–2,8 s em produção. Três coisas juntas: o
+  `ix_anuncios_cobre` tem **todas** as colunas que o perfil e a caixa
+  «Pesquisar» perguntam (`cpv`, `preco_base`, `titulo_norm`); o
+  `contar_a_escada()` conta as abas sobre os anúncios numa consulta só,
+  com o recorte de cada uma numa `SUM(CASE WHEN … THEN 1 ELSE 0 END)` —
+  que conta exactamente o que o `WHERE` contava, NULL incluído
+  (`TestAEscadaContaNumaPassagem` confere-o aba a aba) —, e a aba aberta
+  sai de lá; e o `+ref IN (SELECT ref … distrito …)` do
+  `fragmento_local_e_valor()`, **cujo `+` não se tira**: sem ele o
+  SQLite partia da lista dos distritos e ia buscar cada anúncio à tabela
+  pelo índice da `ref`. Uma coluna nova no perfil tem de entrar no
+  índice, ou volta tudo à tabela sem erro nenhum.
+
 
 ---
 
@@ -739,7 +756,7 @@ Uma árvore, duas fontes de contagem, dois campos.
   de um lado e três meses do outro discordam nos dias do meio.
 - **Um prefixo de CPV pergunta-se com `GLOB`, nunca com `LIKE`, e são
   94×** (16/09/2026). O `LIKE 'x%'` do SQLite é insensível a maiúsculas
-  e por isso **não usa o índice**: varre o `ix_cpv_v` inteiro, 2 033 368
+  e por isso **não usa o índice**: varre o índice do CPV inteiro, 2 033 368
   linhas. O `GLOB 'x*'` é sensível, e o planeador traduz o prefixo numa
   gama (`cpv8>? AND cpv8<?`). Medido no corpus dele, «72 ou 48»:
   **2,83 s contra 0,03 s**, com as mesmas 96 576 linhas. A troca só é
@@ -964,6 +981,18 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   («Exportar CSV (50 000 de 161 711)», 26/09/2026). Só a dica dizia
   «as 50 000 linhas deste filtro», e a folha somava menos de metade do
   que o ecrã mostrava. O corte é pela ordem da lista.
+- **O CPV e a entidade perguntam-se por índices de cobertura, e o total
+  do Mercado guarda-se até o corpus mudar** (lote 4 da segunda ronda,
+  26/09/2026). O `ix_cpv_v(cpv8)` achava o código mas ia à tabela buscar
+  o `contrato_id` — uma busca ao acaso por linha, 161 711 no perfil «45
+  ou 507» —, e o `ix_cpv_cobre(cpv8, contrato_id)` tomou-lhe o lugar
+  (0,84 → 0,45 s a quente). A ficha da entidade fazia oito somas sobre os
+  contratos dela, cada uma lida da tabela; o `ix_ctr_chave_cobre` tem as
+  colunas que essas somas pedem (0,75 → 0,33 s no Município de Lisboa).
+  E o `conta_no_corpus()` guarda as contagens do Mercado com a chave
+  `(marca_do_corpus(), dia UTC, sql, valores)`: o número é o que a
+  consulta daria agora, e o dia entra porque o modo «a acabar» pergunta
+  `date('now')`. **A lista das linhas não se guarda** — só contagens.
 
 
 ---
@@ -2060,12 +2089,26 @@ SQLite, cópias, e a pen que manda nos números.
   com o índice a cobri-lo** — agrupar texto é trabalho que o índice
   não evita, só encurta. Uma lista que só muda quando a importação
   semanal corre guarda-se em memória, com a **identidade do ficheiro**
-  (data e tamanho, do `.db` e do `-wal`) como chave, não com um prazo
-  de validade: um prazo mostrava números velhos exactamente depois de
-  uma importação, que é a única coisa que os muda. É o que o
-  `tipos_de_procedimento()` faz. E o `ha_corpus()` guarda-se **por
+  (`marca_do_corpus()`: data e tamanho do `.db`, e só o tamanho do
+  `-wal`) como chave, não com um prazo de validade: um prazo mostrava
+  números velhos exactamente depois de uma importação, que é a única
+  coisa que os muda. É o que o `tipos_de_procedimento()` faz. **A data
+  do `-wal` não pode entrar**: em WAL cada ligação que abre recria-o,
+  e com ela na chave a memória nunca acertou — medido a 26/09/2026, os
+  tipos contavam-se outra vez em cada pedido (0,2 s). E o `ha_corpus()` guarda-se **por
   pedido**, no `g` do Flask: a barra, a árvore e o corpo chamavam-no
   quatro ou cinco vezes na mesma página.
+
+- **Um índice que se cria e se apaga na mesma função é trabalho a cada
+  arranque** (lote 4 da segunda ronda, 26/09/2026). O
+  `iniciar_corpus()` criava o `ix_ctr_chave` num ciclo e apagava-o trinta
+  linhas abaixo, depois de criar o `ix_ctr_chave_fim` que o substitui:
+  **12,6 s e ~50 MB escritos e deitados fora** em cada arranque do painel
+  e em cada verificação de hora a hora, sem erro nem aviso — o estado
+  final era o certo, e por isso ninguém via. Agora só se cria num corpus
+  que ainda não tem o de cobertura (`TestOCorpusNaoRefazIndicesAoArrancar`
+  lê o que o arranque corre). Quando um índice novo substitui outro, o
+  `CREATE` do velho sai **no mesmo commit** do `DROP`.
 
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
@@ -2479,6 +2522,19 @@ As regras de desenho da empresa. As medidas estão em
 `docs/design.md`** (16/09/2026) — lê-o antes de mexer em cor, letra,
 botões ou no calendário.
 
+- **O que o browser descarrega à toa também é lentidão** (lote 4 da
+  segunda ronda, 26/09/2026, medido pelo perfil 16). Quatro regras: (1)
+  uma `<img loading=lazy>` **sem `width`/`height` não é preguiçosa** —
+  mede 0 px até carregar, fica toda «perto do ecrã», e uma peça de 42
+  páginas descarregava 10,9 MB sem scroll; o visualizador põe-lhos pelo
+  `tamanhos_das_paginas()`, e a regra `.peca-pag` leva `height:auto`. (2)
+  As duas letras do texto vão **pré-carregadas** (`FONTES_PRE_CARREGADAS`,
+  com `crossorigin`, senão descarregam duas vezes): o Hoje saltava 31 px
+  na primeira visita (CLS 0,177). (3) Um JSON grande que só muda com os
+  dados leva **ETag** (o `/cpv.json`, 143 KB, responde 304). (4) Uma
+  `@font-face` que nada usa sai da folha, e a letra sai do `TIPOS` com
+  ela. E todas as respostas levam `Server-Timing` (`base` e `total`), que
+  é por onde se começa a medir.
 - **O molde `BASE` é formatado com `%`, e o JavaScript dele também:
   um `%` no guião escreve-se `%%`** (25/09/2026). As setas das abas
   levavam um `(i + n) % n`, e a bateria inteira caiu — 160 testes, todos
@@ -3333,6 +3389,19 @@ botões ou no calendário.
   daltónico não distingue.
 
 ## Convenções
+
+- **Um teste que abra uma base, abre-a na pasta dele — as duas bases**
+  (lote 4 da segunda ronda, 26/09/2026). A `BaseTemporaria` punha o
+  `radar.db` numa pasta temporária e deixava o `CORPUS` a apontar para o
+  `contratos.db` verdadeiro; o `TestMercadoDepressa` chamava o
+  `iniciar_corpus()` e, no dia em que o arranque passou a criar dois
+  índices, criou-os **na base dele** a meio da bateria (~17 s, 144 MB).
+  Hoje a `BaseTemporaria` isola as duas, e o
+  `TestABaseTemporariaNaoTocaNoCorpusVerdadeiro` confere-o. De caminho a
+  bateria passou de ~270 s a ~65 s: parte do tempo era ler o corpus de
+  2,7 GB. E a outra metade da lição: **esta pasta é a instalação** — o
+  temporizador de hora a hora corre o `radar.py` que estiver no disco,
+  e um ramo por fundir aqui dentro é código em produção à hora certa.
 
 - **O vocabulário é «empresa»** (16/09/2026, decisão dele). Primeiro as
   cadeias do ecrã, horas depois o código inteiro:

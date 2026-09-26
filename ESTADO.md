@@ -59,9 +59,9 @@ duas bases; os das empresas, de **24/09/2026**.
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma` e lê os Concursos e o Mercado), e a admin da LATD |
 | Rotas Flask | 98 |
 | Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 14 da empresa vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
-| Índices em `anuncios` | 14, dos quais dois novos a 17/09 para o filtro por entidade (+22 MB) |
-| Testes | **1 284**, em ~128 s, sem rede e sem tocar na base verdadeira |
-| Código | `radar.py` 27 365 linhas · `teste_radar.py` 17 523 · `empresa.py` 802 · `contas.py` 622 · `icones.py` 62 |
+| Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
+| Testes | **1 296**, em ~65 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 27 563 linhas · `teste_radar.py` 17 797 · `empresa.py` 802 · `contas.py` 622 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -76,6 +76,14 @@ em `estilo/`, e desliga-se inteiro com `prefers-reduced-motion`.
 tamanho da `anuncios` é um número de **desempenho**, não de arrumação:
 cada varrimento arrasta os 840 MB de texto do disco, e é por isso que as
 contagens do painel vão por índice de cobertura.
+
+**O tempo das páginas lentas** (lote 4, 26/09/2026, medido numa cópia
+das duas bases com o código de antes e o de depois, a quente, empresa
+de ensaio com o perfil «45 ou 507 · 4 distritos · desde 20 000 €»):
+Concursos 1,1–2,6 s → **0,6–1,3 s**; Propostas 0,75 → 0,20 s; Mercado
+2,0 s → **0,65 s** (e 0,3 s num CPV); ficha do Município de Lisboa
+1,05 → **0,33 s**. Todas as respostas levam `Server-Timing` (`base` e
+`total`), que é por onde se mede a seguir. O pormenor está no diário.
 
 ## O que espera pelo Afonso
 
