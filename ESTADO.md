@@ -43,17 +43,17 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números da plataforma são de **22/09/2026**, lidos das
-duas bases; os das empresas, de **24/09/2026**.
+Funciona. Os números dos anúncios, das peças, das leituras e das
+empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 
 | O quê | Quanto |
 |---|---|
-| Anúncios | 210 379 (**199 925 procedimentos**; a diferença são republicações ligadas ao original) |
-| Com o texto integral | 185 454. O `detalhe_lido` está a **100%**: não há fila por ler |
+| Anúncios | 210 811 (**200 291 procedimentos**; a diferença são republicações ligadas ao original) |
+| Com o texto integral | 185 886. O `detalhe_lido` está a **100%**: não há fila por ler |
 | Empresas | **1** — a LATD, empresa 2 desde 24/09 (a empresa 1 foi apagada a 23/09 com `--apagar-empresa`; desde 26/09 apaga-se também no painel, na página da empresa) |
-| Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD (25/09/2026) |
-| Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
-| Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
+| Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD |
+| Peças em disco | 436 documentos, de 79 concursos (em `pecas/`, 556 MB) |
+| Leituras pelo modelo | 70, das quais **11 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e a admin da LATD |

@@ -7,6 +7,7 @@ correr mesmo que o programa esteja a meio de uma alteracao que nao
 compila. Nao escreve nada.
 """
 
+import json
 import os
 import socket
 import sqlite3
@@ -59,19 +60,41 @@ def main():
     if erro:
         print("  !! erro no relógio: %s" % erro["valor"][:90])
 
-    print("\nTRIAGEM")
-    for e, rot in (("novo", "por ver"), ("interessa", "interessa"),
-                   ("descartado", "descartados")):
-        print("  %-12s %s" % (rot, mil(q("SELECT COUNT(*) FROM anuncios WHERE estado=?", e))))
-    urg = q("SELECT COUNT(*) FROM anuncios WHERE estado='interessa' "
-            "AND prazo>=? AND prazo<=?", hoje.strftime("%Y-%m-%d"),
-            (hoje + timedelta(days=7)).strftime("%Y-%m-%d"))
-    if urg:
-        print("  !! %s com prazo a menos de 7 dias" % mil(urg))
-    for f in c.execute("SELECT f.nome, COUNT(a.ref) n FROM fases f "
-                       "LEFT JOIN anuncios a ON a.fase_id=f.id AND a.estado='interessa' "
-                       "GROUP BY f.id ORDER BY f.ordem"):
-        print("     %-24s %d" % (f["nome"], f["n"]))
+    # Desde 23/09/2026 (F1) o trabalho de cada empresa e outro ficheiro,
+    # empresas/<id>/empresa.db, e desde 15/09 a escada e das propostas:
+    # a tabela `fases` e o `anuncios.estado` ja nao dizem nada da triagem.
+    print("\nEMPRESAS")
+    pasta = os.path.join(PASTA, "empresas")
+    ids = sorted(int(n) for n in (os.listdir(pasta) if os.path.isdir(pasta) else [])
+                 if n.isdigit() and os.path.exists(os.path.join(pasta, n, "empresa.db")))
+    if not ids:
+        print("  nenhuma")
+    for id_ in ids:
+        try:
+            with open(os.path.join(pasta, str(id_), "config.json"), encoding="utf-8") as f:
+                nome = json.load(f).get("nome_da_empresa") or ""
+        except (OSError, ValueError):
+            nome = ""
+        e = sqlite3.connect("file:%s?mode=ro" % os.path.join(pasta, str(id_), "empresa.db"),
+                            uri=True)
+        qe = lambda s, *a: e.execute(s, a).fetchone()[0]
+        escada = ", ".join("%s %d" % par for par in e.execute(
+            "SELECT estado, COUNT(*) FROM propostas GROUP BY estado ORDER BY 2 DESC"))
+        print("  %d · %s" % (id_, nome or "Empresa %d" % id_))
+        print("     propostas: %d%s" % (qe("SELECT COUNT(*) FROM propostas"),
+                                        " (%s)" % escada if escada else ""))
+        print("     tarefas por fazer: %d  |  contactos: %d"
+              % (qe("SELECT COUNT(*) FROM tarefas WHERE feita_em IS NULL"),
+                 qe("SELECT COUNT(*) FROM contactos")))
+        refs = [r[0] for r in e.execute("SELECT ref FROM propostas WHERE ref IS NOT NULL")]
+        e.close()
+        if refs:
+            urg = q("SELECT COUNT(*) FROM anuncios WHERE prazo>=? AND prazo<=? "
+                    "AND ref IN (%s)" % ",".join("?" * len(refs)),
+                    hoje.strftime("%Y-%m-%d"),
+                    (hoje + timedelta(days=7)).strftime("%Y-%m-%d"), *refs)
+            if urg:
+                print("  !! %d com prazo a menos de 7 dias" % urg)
 
     print("\nCAPTURAS")
     for nome in ("curl_DR.txt", "curl_detalhe.txt"):
