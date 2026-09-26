@@ -413,12 +413,19 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
  margin:var(--space-4) 0}
 .mercado-resumo .conta{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-secondary)}
 .mercado-resumo>.mg-tabs{margin-left:auto}
-.mercado-duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);
+/* A tabela e os gráficos: um por baixo do outro até 1600px, lado a lado
+   daí para cima (lote PC-A, 26/09/2026). A coluna dos gráficos ao lado
+   roubava 376px à tabela a 1280 -- o Preço ficava cortado na borda do
+   cartão e o Objecto partia-se em nove linhas. Por baixo, os gráficos
+   voltam à grelha de cartões do `.graf-corpo`. */
+.mercado-duas{display:grid;grid-template-columns:minmax(0,1fr);
  gap:var(--space-5);align-items:start}
 .mercado-tabela{min-width:0}
-.mercado-lado{display:flex;flex-direction:column;gap:var(--space-4)}
-.mercado-lado.graf-corpo{grid-template-columns:minmax(0,1fr)}
-@media (max-width:1100px){.mercado-duas{grid-template-columns:minmax(0,1fr)}}
+.mercado-lado{gap:var(--space-4)}
+.mercado-lado.graf-corpo{padding:0}
+@media (min-width:1600px){
+ .mercado-duas{grid-template-columns:minmax(0,1fr) minmax(360px,420px)}
+ .mercado-lado.graf-corpo{grid-template-columns:minmax(0,1fr)}}
 
 /* As CONFIGURACOES (24/09/2026, o `EcraConfiguracoes`): o `SectionNav`
    a esquerda (o sistema nao traz a regra base das ligacoes), e a seccao
@@ -880,3 +887,67 @@ a.semaforo:hover{border-color:var(--line-strong)}
    tabela ganhava-lhe, e o «aceitar» dos pedidos era um botão azul sem
    texto (visto no browser, 26/09/2026). */
 .mg-table a.mg-btn--primary,.mg-table a.mg-btn--primary:hover{color:var(--on-brand)}
+
+/* ECRÃS GRANDES (lote PC-A, 26/09/2026; relatórios V5 e V2 da ronda em
+   PC). Três regras, medidas a 1280, 1440, 1920 e 2560 nos dois browsers:
+
+   1. O contentor da aplicação é UM, e está ao centro. O `.larg` tinha
+      tecto de 1560px mas encostava à esquerda: a 2560 ficavam 956px de
+      fundo vazio à direita, e o `.mg-pagehead` -- que não vive no
+      `.larg` -- esticava até à borda, com o «Exportar CSV» a 912px da
+      tabela que exporta. O tecto passa para o `.corpo` (1560px mais a
+      folga dos dois lados; o `width:100%` porque o `main` é flex em
+      coluna, e com margens automáticas um item de flex encolhe ao
+      conteúdo), e assim o cabeçalho, as abas, o `.larg` e
+      as Configurações partilham as mesmas duas bordas. A barra de cima
+      e o `.topo` (a faixa das páginas sem `mg-pagehead`) alinham o
+      interior ao mesmo contentor; o fundo continua de ponta a ponta. */
+.corpo{width:100%;max-width:calc(1560px + 2 * clamp(20px,2.4vw,44px));
+ margin-inline:auto}
+@media (min-width:1600px){
+ .mg-topbar,.topo{padding-inline:max(clamp(20px,2.4vw,44px),calc((100% - 1560px) / 2))}}
+/* 2. A prosa tem largura de leitura. As notas de uma linha só chegavam
+      a 235 caracteres na Situação e a 314-500 nas Configurações -- a
+      12px, o olho perde o princípio da linha antes de chegar ao fim. */
+.corpo :is(p,div.nota,.ficha-nota,.mg-pagehead__sub,.mg-card__meta){max-width:72ch}
+.corpo .mg-empty :is(p,div.nota){margin-inline:auto}
+/* As Configurações são formulários: a secção vai até 880px, e as
+   acções de um utilizador ou de uma sessão ficam ao pé do nome, não a
+   1 700px dele na borda de um cartão de 2 250. */
+.conf-corpo{max-width:880px}
+/* 3. Acima de 1600px a coluna da direita da ficha («A nossa proposta»)
+      ganha largura: ficava em 360px com o ecrã meio vazio. */
+@media (min-width:1600px){
+ .ficha-duas{grid-template-columns:minmax(0,1fr) minmax(360px,460px)}}
+
+/* O MERCADO. Os nomes do «Quem ganha / Quem compra» numa linha própria,
+   por cima da barra: numa grelha de quatro colunas num cartão de 324px
+   cortavam aos 7 caracteres («Bombard»), e a ligação (inline-flex, pelo
+   alvo de 24px) nem as reticências mostrava. */
+.bh{grid-template-columns:minmax(0,1fr) auto auto;
+ grid-template-areas:"t t t" "r v k";row-gap:4px}
+.bh .t{grid-area:t}.bh .r{grid-area:r}.bh .v{grid-area:v}.bh .k{grid-area:k}
+.barras-h .bh .t a{display:block;overflow:hidden;text-overflow:ellipsis;
+ white-space:nowrap;line-height:24px}
+/* A tabela dos contratos: o Objecto fica com a folga e nunca abaixo de
+   32ch; as datas e o preço não partem. */
+.tab-contratos td.o{min-width:32ch;max-width:none}
+.tab-contratos td.d,.tab-contratos td.p{width:1%;white-space:nowrap}
+.tab-contratos .sub{display:block;margin-top:2px}
+
+/* AS BARRAS POR ANO (E41). Doze anos num cartão de 324px davam colunas
+   de 9px separadas por 16px de intervalo: os anos colavam-se
+   («20212022»), e a última barra e o rótulo dela saíam do cartão. O
+   intervalo passa a acompanhar a largura do cartão (`cqi`), os rótulos
+   não partem e transbordam por igual para os dois lados, os das pontas
+   para dentro, e num cartão estreito só um ano em cada dois leva o
+   rótulo -- os outros ficam no `title` da barra. A coluna da grelha de
+   cada barra é `minmax(0,1fr)`: com `auto`, o rótulo sem quebra
+   alargava a barra, e a última saía do cartão. */
+.graf{container-type:inline-size}
+.graf .barras.muitas{gap:clamp(2px,1.2cqi,16px)}
+.barras .col{grid-template-columns:minmax(0,1fr)}
+.barras.muitas .col>.v,.barras.muitas .col>.l{white-space:nowrap;justify-self:center}
+.barras.muitas .col:first-child>.v,.barras.muitas .col:first-child>.l{justify-self:start}
+.barras.muitas .col:last-child>.v,.barras.muitas .col:last-child>.l{justify-self:end}
+@container (max-width:640px){.barras.muitas .col.alt>.l{visibility:hidden}}

@@ -19508,6 +19508,106 @@ class TestOProcedimentoAbreAQuemEDeEmpresa(_PlataformaComDuasEmpresas):
         self.assertEqual((r.status_code, r.headers["Location"]),
                          (302, "https://community.vortal.biz/x"))
 
+
+class TestOLayoutDosEcransGrandes(BaseTemporaria):
+    """Lote PC-A (26/09/2026), dos relatórios V5 e V2 da ronda em PC.
+    Medido no browser a 1280, 1440, 1920 e 2560: o conteúdo encostava à
+    esquerda e deixava 956px vazios a 2560, o «Exportar CSV» ficava a
+    912px da tabela, as notas das Configurações chegavam a 445
+    caracteres por linha, o Mercado só filtrava por CPV escrevendo
+    `?cpv=` no endereço, e os anos do gráfico colavam-se («20212022»).
+    Um teste de browser não cabe na bateria; o que se guarda aqui é o
+    que o HTML e o CSS dizem, que é o que as medidas confirmaram."""
+
+    def regra(self, seletor):
+        """O corpo da ÚLTIMA regra com exactamente este selector, na
+        folha servida (é a que ganha, com a mesma especificidade)."""
+        achadas = re.findall(r"(?:^|[}\s])" + re.escape(seletor) + r"\{([^}]*)\}",
+                             radar.CSS_TUDO)
+        self.assertTrue(achadas, seletor)
+        return achadas[-1]
+
+    def test_o_contentor_da_aplicacao_esta_ao_centro(self):
+        corpo = self.regra(".corpo")
+        self.assertIn("margin-inline:auto", corpo)
+        self.assertIn("max-width:calc(1560px", corpo)
+        # o `main` é flex em coluna: sem largura, o item encolhe ao
+        # conteúdo e a entidade ficava com 760px ao centro
+        self.assertIn("width:100%", corpo)
+        # a barra de cima e o topo alinham com o mesmo contentor
+        self.assertIn("calc((100% - 1560px) / 2)", radar.CSS_TUDO)
+
+    def test_a_prosa_e_os_formularios_tem_largura_de_leitura(self):
+        self.assertRegex(radar.CSS_TUDO,
+                         r"\.corpo :is\([^)]*div\.nota[^)]*\)\{max-width:72ch\}")
+        self.assertIn("max-width:880px", self.regra(".conf-corpo"))
+
+    def test_os_graficos_so_vao_ao_lado_da_tabela_acima_de_1600px(self):
+        """A 1280 a coluna dos gráficos roubava 376px à tabela e o Preço
+        saía cortado na borda do cartão."""
+        self.assertNotIn("minmax(300px,360px)", self.regra(".mercado-duas"))
+        self.assertRegex(radar.CSS_TUDO, r"@media \(min-width:1600px\)\{\s*"
+                         r"\.mercado-duas\{grid-template-columns:minmax\(0,1fr\) "
+                         r"minmax\(360px,420px\)\}")
+
+    def test_as_barras_por_ano_nao_saem_do_cartao(self):
+        """E41: doze anos num cartão estreito. Uma em cada duas, a contar
+        da última, leva `alt` (o CSS esconde-lhe o ano quando o cartão é
+        estreito), e a coluna da grelha de cada barra não cresce com o
+        rótulo."""
+        linhas = [{"t": str(2015 + i), "v": 1000.0 * (i + 1), "k": 1}
+                  for i in range(12)]
+        saiu = radar.barras_v(linhas, "Evolução", parcial="2026")
+        self.assertIn("<div class='barras muitas'>", saiu)
+        cols = re.findall(r"<div class='col([^']*)'>", saiu)
+        self.assertEqual(len(cols), 12)
+        self.assertNotIn("alt", cols[-1])       # o último ano lê-se sempre
+        self.assertEqual(sum("alt" in c for c in cols), 6)
+        # com poucas barras não há nada a esconder
+        self.assertNotIn("muitas", radar.barras_v(linhas[:4], "x"))
+        self.assertNotIn(" alt", radar.barras_v(linhas[:4], "x"))
+        self.assertIn("grid-template-columns:minmax(0,1fr)",
+                      self.regra(".barras .col"))
+        self.assertIn("@container", radar.CSS_TUDO)
+
+    def mercado(self, rota="/contratos?min=1"):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            cur = c.execute(
+                "INSERT INTO contratos (ano, n_anuncio, tipo_procedimento,"
+                " objecto, adjudicante, adjudicante_nif, adjudicante_chave,"
+                " data_publicacao, data_celebracao, preco_contratual,"
+                " preco_base, prazo_execucao, cpv, n_adj) VALUES (2025, '1/2025',"
+                " 'Concurso público', 'Obra', 'Município de X', '500000000',"
+                " '500000000', '2025-01-02', '2025-01-02', 1000.0, 1100.0, 30,"
+                " '45000000-7', 1)")
+            c.execute("INSERT INTO contrato_cpv VALUES (?, '45000000')",
+                      (cur.lastrowid,))
+        with unittest.mock.patch.object(radar, "ha_corpus", lambda: 1):
+            return radar.app.test_client().get(rota).get_data(as_text=True)
+
+    def test_o_mercado_tem_um_campo_de_cpv_a_vista(self):
+        """V2: com o perfil definido a árvore sai, e o CPV só se punha pelo
+        endereço. O campo é o mesmo que a árvore enche, com sugestões."""
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "45000000"})
+        h = self.mercado("/contratos?min=1&cpv=45233")
+        form = h.split("id='filtros-mercado'")[1].split("</form>")[0]
+        self.assertRegex(form, r"<input class='mg-field__input' type='text' "
+                         r"id='filtro-cpv' name='cpv' value='45233'")
+        self.assertIn("list='cpv-sugestoes'", form)
+        self.assertIn("<datalist id='cpv-sugestoes'>", h)
+        self.assertIn("data-cpv-sugere='contratos'", form)
+        self.assertIn("/cpv.json?de=", h)
+
+    def test_a_tabela_dos_contratos_tem_cinco_colunas(self):
+        """Sete colunas deixavam o Objecto em 160-230px (nove linhas por
+        contrato) e cortavam o Preço a 1280."""
+        h = self.mercado()
+        cabeca = h.split("class='mg-table tab-contratos'")[1].split("</thead>")[0]
+        self.assertEqual(len(re.findall(r"<th[ >]", cabeca)), 5)
+        self.assertIn("Concurso público", h.split("<tbody>")[1])
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 16
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 27
-- [A interface](#a-interface) &middot; 97
+- [A interface](#a-interface) &middot; 100
 - [Convenções](#convencoes) &middot; 4
 
-São **323** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **326** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3580,6 +3580,42 @@ botões ou no calendário.
   commit, senão a página pública passa a mentir para o lado que menos
   se nota. É rota aberta **por igualdade** (`ROTAS_ABERTAS`) e não
   depende do operador, ao contrário dos termos e da privacidade.
+- **O tecto da largura é do `.corpo`, não do `.larg`** (lote PC-A,
+  26/09/2026). O `.larg` tinha `max-width:1560px` encostado à esquerda,
+  e o `.mg-pagehead`, as abas e as Configurações — que não vivem nele —
+  esticavam até à borda: a 2560 o «Exportar CSV» ficava a 912px da
+  tabela. O `.corpo` leva `max-width:calc(1560px + folga)`,
+  `margin-inline:auto` **e `width:100%`**: o `main` é flex em coluna, e
+  um item de flex com margens automáticas encolhe ao conteúdo (a ficha
+  da entidade ficou com 760px ao centro no primeiro ensaio). A barra de
+  cima e o `.topo` alinham o interior pelo mesmo número,
+  `calc((100% - 1560px) / 2)`, só acima de 1600px — **mudar os 1560 é
+  mudá-los nos três sítios**. A prosa leva 72ch e a secção das
+  Configurações 880px, na `miragov-radar.css`.
+- **Um gráfico de barras não sabe a largura do cartão, e o CSS sim**
+  (E41, lote PC-A). Doze anos num cartão de 324px davam colunas de 9px
+  com 16px de intervalo: os anos colavam-se («20212022») e a última
+  barra saía do cartão. Três peças, e as três são precisas: a coluna da
+  grelha de cada `.col` é `minmax(0,1fr)` (com `auto`, o rótulo sem
+  quebra alargava a barra); com mais de `MAX_ROTULOS_BARRAS` o
+  `barras_v()` põe `muitas` na caixa e `alt` numa coluna em cada duas,
+  **a contar da última**; e o `.graf` é contentor (`container-type`),
+  para o intervalo ir em `cqi` e o `@container` esconder os anos `alt`
+  só quando o cartão é estreito. O `nowrap` dos rótulos é **só** nas
+  `muitas`: nas seis do «Tamanho dos contratos» partia-os uns por cima
+  dos outros.
+- **O campo do CPV do Mercado está à vista, e é o mesmo que a árvore
+  enche** (V2 da ronda em PC). Com o perfil definido a árvore sai, e o
+  CPV — a primeira coisa de um estudo de mercado — só se punha escrevendo
+  `?cpv=`. O `id='filtro-cpv'` passou de `hidden` a `text` com o
+  `CPV_SUGERE_JS` (o `/cpv.json` dos contratos, pedido à primeira
+  tecla); **não o voltes a esconder**, e não lhe mudes o `id`: o
+  `ARVORE_JS` lê e escreve nele. Os contratos só aceitam códigos (uma
+  palavra dá `1=0`), por isso as sugestões põem o código. A tabela tem
+  **cinco** colunas — o fim estimado por baixo da celebração, o
+  procedimento por baixo do objecto —, e os gráficos só vão para o lado
+  acima de 1600px: abaixo disso roubavam 376px à tabela e o Preço saía
+  cortado a 1280.
 
 ## Convenções
 

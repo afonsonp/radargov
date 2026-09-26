@@ -807,6 +807,13 @@ cronologia e o apagar. `/proposta/nova` cria uma.
 O corpus do Portal BASE. Lista com filtros (objecto, CPV, entidade que
 comprou, quem ganhou, procedimento, datas, preço), CSV, e **modo «por
 fim estimado»** — o que está a acabar, que é o que volta a concurso.
+**O CPV é um campo à vista** (26/09/2026): um ou mais códigos, com
+sugestões pelo número ou pelo nome, e é o mesmo que a árvore enche —
+a árvore só aparece sem perfil definido, o campo aparece sempre. A
+tabela tem cinco colunas: celebrado (com o fim estimado por baixo) ·
+objecto (com o procedimento por baixo) · entidade · quem ganhou ·
+preço. Os gráficos vão por baixo da tabela, em grelha, e só passam a
+coluna à direita dela em ecrãs com mais de 1600px.
 
 `/contratos/resumo`: seis agregações — quem compra, quem ganha, por CPV,
 por procedimento, descontos, evolução.
