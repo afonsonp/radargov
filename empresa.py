@@ -135,10 +135,21 @@ def estado_pretendido(linha):
         # como esta; o mapa e para as variantes do Excel antigo
         razao = (linha.get("razao") or "").strip()
         motivo = MAPA_RAZAO.get(_norma(razao)) or razao or None
-        return ("nao_fomos", {"motivo": motivo})
+        # Uma razao fora da lista fechada entra na mesma (o `MAPA_RAZAO`
+        # tem duas que esperam por uma decisao dele), mas o ensaio avisa
+        # que a ficha e as contas nao a conhecem (segunda ronda,
+        # 26/09/2026: entrava em silencio).
+        campos = {"motivo": motivo}
+        if linha.get("notas"):
+            campos["notas"] = linha["notas"][:500]
+        return ("nao_fomos", campos)
     campos = {}
     if linha.get("valor_proposta"):
         campos["valor_proposta"] = radar._texto_do_preco(linha["valor_proposta"])
+    # As notas do modelo nao entravam em lado nenhum (segunda ronda,
+    # 26/09/2026: «escrevi notas em todas as linhas e nao ficou nenhuma»).
+    if linha.get("notas"):
+        campos["notas"] = linha["notas"][:500]
     if st == "submetido":
         return ("submetido", campos)
     campos["lugar"] = (int(linha["lugar"]) if linha.get("lugar")
@@ -204,7 +215,7 @@ def aplicar(c, linha, ref, quem="registo da empresa"):
     # O carimbo que faz o funil esvaziar, e a mesma regra do radar: so as
     # ranhuras fechadas o levam, e sair delas limpa-o.
     sets.append("fechada_em=?")
-    vals.append(datetime.now().strftime("%Y-%m-%d %H:%M")
+    vals.append(data_da_decisao(c, linha, ref)
                 if estado in radar.ESTADOS_FECHADOS else None)
     if "motivo" not in campos:
         sets.append("motivo=NULL")
@@ -225,6 +236,20 @@ def aplicar(c, linha, ref, quem="registo da empresa"):
                             " — " + campos["top3"] if campos.get("top3") else ""),
                   quem)
     return "aplicado"
+
+
+def data_da_decisao(c, linha, ref):
+    """O `fechada_em` de uma linha importada (segunda ronda, 26/09/2026):
+    a «Data da decisão» do modelo; sem ela, o prazo do anuncio; e so sem
+    os dois, agora. Ate aqui era sempre agora -- tres anos de historico
+    caiam em «este trimestre», e a Situacao dizia que se ganhara tudo
+    nele."""
+    if linha.get("data_decisao"):
+        return linha["data_decisao"] + " 00:00"
+    a = c.execute("SELECT prazo FROM anuncios WHERE ref=?", (ref,)).fetchone()
+    if a and re.fullmatch(r"\d{4}-\d{2}-\d{2}", a["prazo"] or ""):
+        return a["prazo"] + " 00:00"
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def _registar(c, ref, accao, detalhe, quem):
@@ -418,11 +443,18 @@ COLUNAS_MODELO = (
     ("Concorrentes (separados por ;)", "concorrentes"),
     ("Responsável", "responsavel"),
     ("Notas", "notas"),
+    # A data em que se decidiu (segunda ronda, 26/09/2026): sem ela, tudo
+    # o que se importava contava como decidido no dia da importacao.
+    ("Data da decisão", "data_decisao"),
 )
 ESTADOS_MODELO = ("Não fomos", "Submetido", "Ganho", "Perdido")
 FOLHA_MODELO = "Registo"
 PASTA_IMPORTACOES = "importacoes"
 RX_REF = re.compile(r"^\s*(\d{1,6})\s*[/\-\s]\s*(\d{4})\s*$")
+# A referencia escrita a maneira do Excel: «Anúncio n.º 8023/2026»,
+# «8023/26». Procura-se o numero/ano dentro do texto, e diz-se o que se
+# leu (segunda ronda, 26/09/2026: davam «ilegível» e mostravam «—»).
+RX_REF_NO_TEXTO = re.compile(r"(?<!\d)(\d{1,6})\s*/\s*(\d{4}|\d{2})(?!\d)")
 
 
 def escrever_modelo(caminho):
@@ -437,7 +469,7 @@ def escrever_modelo(caminho):
     wb = Workbook()
     ws = wb.active
     ws.title = FOLHA_MODELO
-    larguras = (22, 8, 14, 28, 20, 8, 44, 18, 40)
+    larguras = (22, 8, 14, 28, 20, 8, 44, 18, 40, 14)
     for i, ((titulo, _), largura) in enumerate(zip(COLUNAS_MODELO, larguras), 1):
         c = ws.cell(row=1, column=i, value=titulo)
         c.font = Font(bold=True, color="FFFFFF")
@@ -464,17 +496,18 @@ def escrever_modelo(caminho):
         "Referência do anúncio: a referência do DR tal como a ficha do radar a mostra, ex. 1947/2026. É obrigatória e é o que liga a linha ao anúncio.",
         "Lote: o número do lote (1, 2, 3…) quando o concurso tem lotes e a linha é de um lote. Vazio quando não há lotes ou quando se foi ao conjunto.",
         "Estado: um da lista — Não fomos, Submetido, Ganho, Perdido.",
-        "Razão de não participação: só quando o estado é «Não fomos» — %s (ou outra, em texto livre)." % ", ".join(radar.MOTIVOS_ABANDONO),
+        "Razão de não participação: só quando o estado é «Não fomos» — uma da lista: %s. Outra razão entra, mas a ficha e as contas só conhecem as da lista." % ", ".join(radar.MOTIVOS_ABANDONO),
         "Valor da proposta (€): o que propusemos, em número (ex. 54432 ou 54432,50). Vazio se não fomos.",
         "Lugar: a posição no relatório preliminar (1, 2, 3…). Vazio se ainda não há relatório.",
         "Concorrentes: os nomes separados por ponto e vírgula, por ordem de classificação, ex. Empresa A; Empresa B; Empresa C.",
         "Responsável: quem da empresa acompanha este concurso (nome).",
         "Notas: texto livre.",
+        "Data da decisão: quando se decidiu (dd/mm/aaaa) — a entrega da proposta, a adjudicação ou o «não vamos». Conta para o período do Ponto de situação; vazia, conta o prazo do anúncio.",
         "",
-        "Exemplo:  1947/2026 | 2 | Ganho |  | 169344 | 1 | Nós; Empresa B; Empresa C | Afonso | contrato de 24 meses",
+        "Exemplo:  1947/2026 | 2 | Ganho |  | 169344 | 1 | Nós; Empresa B; Empresa C | Afonso | contrato de 24 meses | 15/03/2026",
         "",
-        "Depois de preencher, carrega o ficheiro em Configurações › Importar dados. O radar mostra um ensaio (o que liga a que anúncio, o que não liga e porquê) e só grava quando confirmares.",
-        "Uma linha repetida (mesma referência e mesmo lote) substitui a anterior. Linhas com erro não entram; as outras entram.",
+        "Depois de preencher, carrega o ficheiro em Configurações › Importar dados. O Mira Gov mostra um ensaio (o que liga a que anúncio, o que é novo e o que muda, o que não liga e porquê) e só grava quando confirmares. Uma importação desfaz-se lá, enquanto ninguém mexer nas propostas que ela tocou.",
+        "No mesmo ficheiro, uma linha repetida (mesma referência e mesmo lote) é um erro: fica a primeira. Voltar a importar uma referência que já entrou substitui o que ela tinha no registo. Linhas com erro não entram; as outras entram.",
     ]
     for i, t in enumerate(linhas, 1):
         inst.cell(row=i, column=1, value=t).alignment = Alignment(wrap_text=True, vertical="top")
@@ -497,6 +530,49 @@ def _celula(v):
     return str(v).strip()
 
 
+def _ref_da_celula(texto):
+    """(referência, aviso do que se leu) de uma célula. A escrita limpa
+    não leva aviso; a que se tirou de dentro do texto, ou com o ano em
+    dois dígitos, diz como se leu, para se poder conferir."""
+    ref = ref_limpa(texto)
+    if ref or not texto:
+        return ref, ""
+    m = RX_REF_NO_TEXTO.search(texto)
+    if not m:
+        return "", ""
+    ano = m.group(2) if len(m.group(2)) == 4 else "20" + m.group(2)
+    ref = "%d/%s" % (int(m.group(1)), ano)
+    return ref, "li «%s» como %s" % (texto[:60], ref)
+
+
+def _data_da_celula(v):
+    """A data de uma célula em ISO, ou "": o Excel dá-a como data, e à
+    mão escreve-se dd/mm/aaaa."""
+    import radar
+    if v is None or v == "":
+        return ""
+    if hasattr(v, "date") and callable(v.date):
+        return v.date().isoformat()
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    return radar.data_de_filtro(_celula(v))
+
+
+def colunas_ignoradas(caminho):
+    """[(letra, título)] das colunas com cabeçalho que não são do modelo:
+    liam-se em silêncio como se não existissem (segunda ronda,
+    26/09/2026)."""
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+    wb = load_workbook(caminho, read_only=True, data_only=True)
+    ws = wb[FOLHA_MODELO] if FOLHA_MODELO in wb.sheetnames else wb.active
+    cabeca = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()) or ()
+    wb.close()
+    return [(get_column_letter(i), _celula(v))
+            for i, v in enumerate(cabeca, 1)
+            if i > len(COLUNAS_MODELO) and _celula(v)]
+
+
 def ler_modelo(caminho):
     """Le o .xlsx preenchido: [{linha, ref, lote, status, razao,
     valor_proposta, lugar, concorrentes, responsavel, notas, erros}].
@@ -504,6 +580,7 @@ def ler_modelo(caminho):
     Nao decide nada sobre a base -- isso e o ensaio_modelo(). Aqui so
     se normaliza e se apontam os erros de forma: referencia ilegivel,
     estado fora da lista, lote ou lugar que nao sao numeros."""
+    import radar
     from openpyxl import load_workbook
     wb = load_workbook(caminho, read_only=True, data_only=True)
     ws = wb[FOLHA_MODELO] if FOLHA_MODELO in wb.sheetnames else wb.active
@@ -516,10 +593,19 @@ def ler_modelo(caminho):
         if not any(_celula(v) for v in valores):
             continue
         erros = []
-        linha = {"linha": n, "erros": erros}
-        linha["ref"] = ref_limpa(bruto["ref"])
-        if not linha["ref"]:
-            erros.append("referência do anúncio ilegível (ex.: 1947/2026)")
+        avisos = []
+        linha = {"linha": n, "erros": erros, "avisos": avisos}
+        linha["ref_escrita"] = _celula(bruto["ref"])
+        linha["ref"], lida = _ref_da_celula(linha["ref_escrita"])
+        if lida:
+            avisos.append(lida)
+        if not linha["ref_escrita"]:
+            erros.append("sem referência: o modelo só importa concursos do DR; "
+                         "as propostas sem anúncio fazem-se em Propostas › "
+                         "Nova proposta")
+        elif not linha["ref"]:
+            erros.append("referência «%s» ilegível (ex.: 1947/2026)"
+                         % linha["ref_escrita"][:60])
         lote_txt = _celula(bruto["lote"])
         try:
             linha["lote"] = int(float(lote_txt.replace(",", "."))) if lote_txt else None
@@ -536,7 +622,24 @@ def ler_modelo(caminho):
                          % (estado, ", ".join(ESTADOS_MODELO)))
         razao = _celula(bruto["razao"])
         linha["razao"] = MAPA_RAZAO.get(_norma(razao), razao) if razao else ""
+        if razao and linha["status"] and _norma(linha["status"]) != "nao fomos":
+            avisos.append("a razão só conta em «Não fomos»; nesta linha fica "
+                          "de fora")
+        elif linha["razao"] and linha["razao"] not in radar.MOTIVOS_ABANDONO:
+            avisos.append("a razão «%s» não é uma da lista: entra, mas a ficha "
+                          "e o «Porque não se vai» só conhecem as da lista (%s)"
+                          % (linha["razao"][:60], ", ".join(radar.MOTIVOS_ABANDONO)))
         linha["valor_proposta"] = _num(bruto["valor_proposta"])
+        valor_txt = _celula(bruto["valor_proposta"])
+        if valor_txt and linha["valor_proposta"] is None \
+                and radar.euros_do_texto(valor_txt) is None:
+            # «cento e vinte mil» passava a «—» e a linha dizia «liga»
+            erros.append("valor «%s» não é um número (ex. 54432,50)"
+                         % valor_txt[:40])
+        linha["data_decisao"] = _data_da_celula(bruto["data_decisao"])
+        if bruto["data_decisao"] not in (None, "") and not linha["data_decisao"]:
+            erros.append("data da decisão «%s» não é uma data (dd/mm/aaaa)"
+                         % _celula(bruto["data_decisao"])[:20])
         lugar_txt = _celula(bruto["lugar"])
         try:
             linha["lugar"] = int(float(lugar_txt.replace(",", "."))) if lugar_txt else None
@@ -589,10 +692,68 @@ def ensaio_modelo(c, linhas):
             l.setdefault("avisos", []).append("«Não fomos» com proposta ou lugar: ficam guardados, mas não contam")
         l["problemas"] = problemas
         l["ok"] = not problemas
+    _efeitos(c, linhas)
     contagens = {"total": len(linhas), "ok": sum(1 for l in linhas if l["ok"]),
                  "com_erro": sum(1 for l in linhas if not l["ok"]),
-                 "anuncios": len({l["ref"] for l in linhas if l["ok"]})}
+                 "anuncios": len({l["ref"] for l in linhas if l["ok"]}),
+                 "alteram": sum(1 for l in linhas if l.get("efeito", "")
+                                .startswith("altera")),
+                 "mantem": sum(1 for l in linhas if l.get("efeito", "")
+                               .startswith("mantém"))}
     return linhas, contagens
+
+
+_ROTULOS_DO_EFEITO = {"valor_proposta": "preço", "lugar": "lugar",
+                      "top3": "os três primeiros", "motivo": "motivo",
+                      "notas": "notas"}
+
+
+def _efeitos(c, linhas):
+    """O que a importação vai fazer a cada linha boa, sem gravar (E17 da
+    segunda ronda, 26/09/2026): «nova», «altera: preço 362 000,00 € →
+    1 000,00 €», «igual», ou «mantém-se» quando a proposta já está
+    noutra ranhura -- o `aplicar()` não passa por cima de uma decisão
+    feita no Mira Gov. Só a MELHOR linha de cada anúncio mexe na
+    proposta (`aplicar_modelo()`); as outras ficam só no registo."""
+    import radar
+    por_ref = {}
+    for l in linhas:
+        if l.get("ok"):
+            por_ref.setdefault(l["ref"], []).append(l)
+    for ref, grupo in por_ref.items():
+        melhor = sorted(grupo, key=lambda x: _PRIORIDADE.get(_norma(x["status"]), 9))[0]
+        for l in grupo:
+            if l is not melhor:
+                l["efeito"] = ("fica só no registo: o anúncio segue a linha %d"
+                               % melhor["linha"])
+        pedido = estado_pretendido(melhor)
+        if not pedido:
+            continue
+        estado, campos = pedido
+        p = c.execute("SELECT * FROM propostas WHERE ref=? AND "
+                      "COALESCE(lote,-1)=COALESCE(?,-1)",
+                      (ref, melhor["lote"])).fetchone()
+        if not p:
+            melhor["efeito"] = "nova"
+        elif p["estado"] != estado:
+            melhor["efeito"] = ("mantém-se em «%s»: a importação não substitui "
+                                "uma decisão feita no Mira Gov"
+                                % radar.estado_da_empresa(p["estado"]))
+        else:
+            mudancas = []
+            for k, v in campos.items():
+                if (p[k] or None) == (v or None):
+                    continue
+                if k == "valor_proposta":
+                    mudancas.append("preço %s → %s" % (radar.preco_pt(p[k]),
+                                                        radar.preco_pt(v)))
+                else:
+                    mudancas.append("%s «%s» → «%s»"
+                                    % (_ROTULOS_DO_EFEITO.get(k, k),
+                                       radar.corta(str(p[k] or "—"), 30),
+                                       radar.corta(str(v or "—"), 30)))
+            melhor["efeito"] = ("altera: " + "; ".join(mudancas)
+                                if mudancas else "igual")
 
 
 # A prioridade quando um anuncio tem varias linhas (lotes) com estados

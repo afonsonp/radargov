@@ -626,7 +626,10 @@ terminal aberto na pasta:
 O nome de utilizador é o que quiseres, sem espaços — `admin` serve,
 não precisa de ser um e-mail. Pergunta o tipo (admin ou tester; Enter
 é admin) e a palavra-passe (8 caracteres ou mais, escrita duas vezes,
-sem aparecer no ecrã). As contas seguintes criam-se no painel, em
+sem aparecer no ecrã). Desde 26/09/2026 recusa as fáceis — as mais
+usadas, `aaaaaaaa`, `12345678`, sequências do teclado, e as que têm o
+nome de utilizador lá dentro —, e diz qual foi o problema; vale igual
+no painel e no convite. As contas seguintes criam-se no painel, em
 **Configurações › Conta**, por um admin.
 
 **Cada conta é de uma empresa** (desde 23/09/2026), e só vê o trabalho
@@ -677,9 +680,27 @@ uma vez — se perderes o telemóvel, é isso.
 
 Mudar a palavra-passe faz-se em **Configurações › Conta** (pede a
 actual), e é lá que se vêem as sessões abertas, cada uma pelo aparelho
-(«iPhone até 10/10/2026 14:35»). Se te
-esqueceres da palavra-passe, não há «esqueci-me» por e-mail: é no
-terminal deste computador, e grava a nova por cima:
+(«iPhone até 10/10/2026 14:35»).
+
+**Quando alguém se esquece da palavra-passe** (desde 26/09/2026) não há
+e-mail de recuperação — o ecrã de entrar diz para pedir ao
+administrador da empresa. Quem repõe:
+
+- o **admin da empresa**, para as contas dela: em Configurações ›
+  Conta, na lista dos utilizadores, **repor palavra-passe**;
+- **tu**, para qualquer conta de qualquer empresa (e para a tua): na
+  administração da plataforma, na lista **Contas**, **repor
+  palavra-passe**.
+
+Sai uma ligação, que só se vê nessa página — copia-a e manda-a à
+pessoa por onde falares com ela. Vale 24 horas e uma vez; se gerares
+outra, a primeira deixa de servir. Quem a abre escolhe a palavra-passe
+nova, entra, e **todas as sessões que essa conta tinha abertas
+fecham-se** (se alguém a estava a usar sem autorização, deixa de
+estar). O admin de uma empresa não repõe a tua conta.
+
+E continua a dar pelo terminal deste computador, que grava a nova por
+cima:
 
 ```bash
 .venv/bin/python radar.py --palavra-passe admin
@@ -865,22 +886,40 @@ dados**, em três passos:
    lote (só quando o concurso tem lotes e a linha é de um), estado (Não
    fomos, Submetido, Ganho, Perdido — lista de escolha), razão de não
    participação, valor da proposta, lugar, concorrentes (separados por
-   `;`), responsável e notas. A folha «Instruções» explica cada coluna
-   e tem um exemplo. Uma linha por concurso, ou por lote.
+   `;`), responsável, notas e **data da decisão** (dd/mm/aaaa: é ela que
+   diz em que período do Ponto de situação a proposta conta; vazia, conta
+   o prazo do anúncio). A folha «Instruções» explica cada coluna e tem
+   um exemplo. Uma linha por concurso, ou por lote. Uma referência
+   escrita à mão («Anúncio n.º 8023/2026», «8023/26») lê-se, e o ensaio
+   diz como a leu.
 2. **Carregar o ficheiro preenchido.** O radar mostra um **ensaio**:
-   linha a linha, a que anúncio liga, e o que não liga e porquê —
-   referência que não existe, republicação em vez do anúncio original,
-   lote que o anúncio não tem, estado fora da lista, linha repetida.
-   Nada é gravado nesta altura.
+   linha a linha, se **entra** ou **não entra**, a que anúncio liga, e o
+   que não liga e porquê — referência que não existe, republicação em
+   vez do anúncio original, lote que o anúncio não tem, estado fora da
+   lista, valor ou data que não se lêem, linha repetida. Diz também o que
+   cada linha faz ao que já existe: **nova**, **altera** (e o quê — «preço
+   362 000,00 € → 1 000,00 €»), **igual**, ou **mantém-se**, quando a
+   proposta já está noutra fase no Mira Gov (essa não se substitui); o
+   que o Portal BASE diz de um Ganho ou Perdido («não bate» quando o dá
+   a outro); e as colunas do ficheiro que não são do modelo. Nada é
+   gravado nesta altura.
 3. **Confirmar.** As linhas sem erro entram no registo e **escrevem a
    triagem**: «Não fomos» abandona o anúncio com a razão como motivo;
    Submetido, Ganho e Perdido marcam interessa e põem o cartão na fase
    certa, com a proposta e o lugar. Cada lote é uma proposta sua, com a
    sua ranhura: um concurso com três lotes tem três blocos «A nossa
    proposta» na ficha, e cada um move-se sozinho. O responsável é da
-   proposta. Uma linha repetida (mesma referência e lote) substitui a
-   anterior, por isso corrigir é preencher outra vez e voltar a
-   carregar.
+   proposta. No mesmo ficheiro, uma linha repetida (mesma referência e
+   lote) é um erro e fica a primeira; voltar a importar uma referência
+   que já entrou substitui o que ela tinha, por isso corrigir é
+   preencher outra vez e voltar a carregar. As notas entram no campo
+   Notas da proposta.
+
+**Desfazer uma importação** (desde 26/09/2026): em «O que já está», cada
+importação tem o seu **desfazer**. As propostas que ela tocou voltam a
+como estavam antes — as que ela criou saem, as que já existiam voltam
+ao que eram, com as tarefas. Se alguém mexeu numa delas depois de
+importar, essa fica como está, e o aviso diz qual.
 
 Os ficheiros carregados ficam em `importacoes/`, fora do git.
 

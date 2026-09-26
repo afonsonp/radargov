@@ -91,9 +91,101 @@ def iniciar_tabelas(c):
         resumo TEXT PRIMARY KEY, empresa_id INTEGER NOT NULL,
         email TEXT, papel TEXT NOT NULL DEFAULT 'admin', pedido_id INTEGER,
         criado_em TEXT, expira TEXT, usado_em TEXT)""")
+    # As ligacoes para repor a palavra-passe (D17, 26/09/2026): o mesmo
+    # molde dos convites -- so o resumo, prazo, uso unico --, mas para
+    # uma conta que ja existe. Tabela a parte, e nao uma coluna nos
+    # convites: um convite cria contas, e a rota dele nao pode nunca
+    # aceitar um codigo que troca a palavra-passe de alguem.
+    c.execute("""CREATE TABLE IF NOT EXISTS reposicoes (
+        resumo TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
+        criado_por INTEGER, criado_em TEXT, expira TEXT, usado_em TEXT)""")
 
 
 # ------------------------------------------------------------ palavra-passe
+
+# D16 (26/09/2026, o 19 da segunda ronda criou contas com `aaaaaaaa`,
+# `12345678` e o proprio nome): as mais comuns. Nao sao as dez mil --
+# sao as que aparecem no topo de todas as listas publicas, mais as
+# portuguesas. O resto apanha-se pelos padroes (`_padrao_fraco()`): uma
+# lista embutida de dez mil entradas era um ficheiro de 80 KB para
+# apanhar sobretudo variacoes que os padroes ja apanham.
+SENHAS_COMUNS = frozenset("""
+password passw0rd password1 password12 password123 p@ssw0rd p@ssword
+qwerty qwertyuiop qwerty123 qwerty1234 azerty azertyuiop asdfghjkl
+asdfasdf zxcvbnm 1q2w3e4r 1q2w3e4r5t 1qaz2wsx qazwsxedc zaq12wsx
+iloveyou letmein welcome welcome1 monkey dragon football baseball
+sunshine princess master superman batman trustno1 starwars whatever
+shadow michael jennifer computer internet abc12345 abcd1234 changeme
+admin admin123 admin1234 administrator root toor secret secret123
+senha senha123 senha1234 palavra palavrapasse palavra-passe
+portugal portugal1 benfica benfica1 sporting porto fcporto slbenfica
+lisboa coimbra braga amor amoreterno saudade cristiano ronaldo
+bemvindo benvindo entrar mudar mudar123 alterar teste teste123
+teste1234 testes utilizador utilizador1 mira miragov radar radargov
+concursos concurso empresa empresa1 geral contabilidade
+""".split())
+
+# O que se escreve correndo os dedos: as filas do teclado e o alfabeto,
+# nos dois sentidos. Uma palavra-passe que caiba inteira dentro de uma
+# destas e uma sequencia.
+_SEQUENCIAS = ("01234567890123456789", "abcdefghijklmnopqrstuvwxyz",
+               "qwertyuiopasdfghjklzxcvbnm", "azertyuiopqsdfghjklmwxcvbn",
+               "1qaz2wsx3edc4rfv5tgb6yhn", "qazwsxedcrfvtgbyhnujmikolp")
+
+
+def _padrao_fraco(minusculas):
+    """Porque e que a palavra-passe e um padrao, ou ''."""
+    if len(set(minusculas)) == 1:
+        return "é um só carácter repetido"
+    for passo in range(2, 5):
+        pedaco = minusculas[:passo]
+        if (pedaco * (len(minusculas) // passo + 1))[:len(minusculas)] == minusculas:
+            return "é um pedaço repetido («%s»)" % pedaco
+    for seq in _SEQUENCIAS:
+        if minusculas in seq or minusculas in seq[::-1]:
+            return "é uma sequência do teclado ou do alfabeto"
+    return ""
+
+
+def problema_da_senha(senha, utilizador=""):
+    """Porque e que esta palavra-passe nao serve, ou '' se serve (D16).
+
+    Oito caracteres ou mais, e nao so espacos; nao uma das mais comuns,
+    nem com numeros ou sinais a volta ("Benfica2026!"); nao um padrao;
+    e sem o nome do utilizador nem o e-mail dentro. A frase vai para o
+    ecra: quem a le tem de saber o que mudar."""
+    senha = senha or ""
+    if len(senha) < 8:
+        return "a palavra-passe tem de ter pelo menos 8 caracteres"
+    # Oito espacos eram oito caracteres (teste com utilizadores,
+    # 25/09/2026). Os espacos continuam a contar numa frase-passe: o que
+    # se recusa e a que nao tem mais nada.
+    if len(senha.strip()) < 8:
+        return ("a palavra-passe tem de ter pelo menos 8 caracteres "
+                "além dos espaços")
+    minusculas = senha.lower()
+    miolo = minusculas.strip("0123456789!?.,;:-_@#$%&*+=/ ")
+    if minusculas in SENHAS_COMUNS or miolo in SENHAS_COMUNS:
+        return ("essa palavra-passe está entre as mais usadas, e é das "
+                "primeiras que se tentam; escolhe outra")
+    padrao = _padrao_fraco(minusculas) or (
+        _padrao_fraco(miolo) if len(miolo) >= 4 else "")
+    if padrao or not miolo:
+        return ("a palavra-passe %s, e adivinha-se depressa; escolhe outra"
+                % (padrao or "é só números e sinais"))
+    utilizador = email_limpo(utilizador)
+    partes = {utilizador, utilizador.split("@")[0]}
+    if any(len(p) >= 3 and p in minusculas for p in partes):
+        return ("a palavra-passe não pode ter o nome de utilizador (nem o "
+                "e-mail) lá dentro")
+    return ""
+
+
+def verificar_senha_nova(senha, utilizador=""):
+    """`problema_da_senha()` como ValueError, para quem grava."""
+    problema = problema_da_senha(senha, utilizador)
+    if problema:
+        raise ValueError(problema)
 
 def hash_senha(senha):
     """`scrypt$sal$hash`, tudo em hexadecimal. O sal e novo de cada vez."""
@@ -144,16 +236,18 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None):
     # Um nome de utilizador chega ("admin"): o Afonso nao quer e-mail
     # (8/09/2026). A coluna continua a chamar-se `email` -- e o que
     # identifica a conta, seja um e-mail ou nao.
-    if not email or " " in email or len(email) < 2:
-        raise ValueError("utilizador em falta, com espacos ou curto demais")
-    if len(senha or "") < 8:
-        raise ValueError("a palavra-passe tem de ter pelo menos 8 caracteres")
-    # Oito espacos eram oito caracteres (teste com utilizadores,
-    # 25/09/2026). Os espacos continuam a contar numa frase-passe: o que
-    # se recusa e a que nao tem mais nada.
-    if len((senha or "").strip()) < 8:
-        raise ValueError("a palavra-passe tem de ter pelo menos 8 caracteres "
-                         "além dos espaços")
+    # Uma causa de cada vez (segunda ronda, 26/09/2026): «em falta, com
+    # espacos ou curto demais» deixava a pessoa a adivinhar qual.
+    if not email:
+        raise ValueError("o nome de utilizador está em falta")
+    if " " in email:
+        raise ValueError("o nome de utilizador não pode ter espaços")
+    if len(email) < 2:
+        raise ValueError("o nome de utilizador é curto demais (2 caracteres "
+                         "ou mais)")
+    # A politica inteira (D16) vive num sitio so, e todas passam aqui: a
+    # conta, o convite, a consola e a ligacao de repor.
+    verificar_senha_nova(senha, email)
     linha = c.execute("SELECT id FROM utilizadores WHERE email=?",
                       (email,)).fetchone()
     if linha:
@@ -199,6 +293,7 @@ def apagar_utilizador(c, utilizador_id, empresa_id=None):
             "AND empresa_id=?", (linha["empresa_id"],)).fetchone()[0] <= 1:
         raise ValueError("é o único admin; cria outro antes de o tirar")
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
+    c.execute("DELETE FROM reposicoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM utilizadores WHERE id=?", (utilizador_id,))
     return True
 
@@ -340,6 +435,85 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
     c.execute("UPDATE convites SET usado_em=? WHERE resumo=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), convite["resumo"]))
     token, _ = entrar(c, utilizador, senha, ip, agente, agora)
+    return token, None
+
+
+# ---------------------------------------------------------------- reposicoes
+#
+# O "esqueci-me" (D17, 26/09/2026). Sem correio ligado nao ha e-mail de
+# recuperacao: quem repoe e uma pessoa -- o admin da empresa, para as
+# contas dela, ou o dono da plataforma, para qualquer uma --, que gera
+# uma ligacao e a entrega a mao. O molde e o do convite: 32 bytes, so o
+# resumo na base, prazo e uso unico.
+
+HORAS_DE_REPOSICAO = 24
+
+
+def pode_repor(quem, alvo):
+    """Se `quem` pode gerar a ligacao de repor para a conta `alvo` (os
+    dois como dicts com `empresa_id`, `papel` e `dono`). O dono repoe
+    qualquer uma; o admin so as da empresa dele, e nunca a do dono; o
+    tester nenhuma."""
+    if not quem or not alvo:
+        return False
+    if e_dono(quem):
+        return True
+    # A conta do dono nunca, mesmo sendo da empresa do admin: repor-lha
+    # era entrar como dono da plataforma inteira.
+    if e_dono(alvo):
+        return False
+    return e_admin(quem) and bool(quem.get("empresa_id")) \
+        and quem.get("empresa_id") == alvo.get("empresa_id")
+
+
+def criar_reposicao(c, utilizador_id, criado_por=None, agora=None):
+    """Uma ligacao nova para repor a palavra-passe da conta. Devolve o
+    CODIGO, que so existe aqui. As ligacoes anteriores da mesma conta
+    que ainda nao se usaram deixam de servir: so a ultima vale."""
+    agora = agora or datetime.now()
+    codigo = secrets.token_urlsafe(32)
+    c.execute("DELETE FROM reposicoes WHERE utilizador_id=? AND usado_em IS NULL",
+              (utilizador_id,))
+    c.execute("INSERT INTO reposicoes (resumo, utilizador_id, criado_por, "
+              "criado_em, expira) VALUES (?,?,?,?,?)",
+              (_resumo(codigo), utilizador_id, criado_por,
+               agora.strftime("%Y-%m-%d %H:%M:%S"),
+               (agora + timedelta(hours=HORAS_DE_REPOSICAO)).strftime(
+                   "%Y-%m-%d %H:%M:%S")))
+    return codigo
+
+
+def reposicao_valida(c, codigo, agora=None):
+    """(reposicao com o `email` da conta, None) se serve, ou (None,
+    porque). Uma conta que entretanto saiu faz a ligacao nao existir."""
+    agora = agora or datetime.now()
+    linha = c.execute(
+        "SELECT r.*, u.email FROM reposicoes r JOIN utilizadores u "
+        "ON u.id = r.utilizador_id WHERE r.resumo=?",
+        (_resumo(codigo),)).fetchone()
+    if not linha:
+        return None, "esta ligação não existe"
+    if linha["usado_em"]:
+        return None, "esta ligação já foi usada"
+    if linha["expira"] <= agora.strftime("%Y-%m-%d %H:%M:%S"):
+        return None, "esta ligação passou do prazo"
+    return dict(linha), None
+
+
+def usar_reposicao(c, codigo, senha, ip="", agente="", agora=None):
+    """Troca a palavra-passe, fecha TODAS as sessoes da conta (quem a
+    tinha roubado deixa de a ter) e abre uma nova para quem repos.
+    Devolve (token, None) ou (None, porque); a politica da palavra-passe
+    levanta ValueError, como no `criar_utilizador()`."""
+    agora = agora or datetime.now()
+    reposicao, porque = reposicao_valida(c, codigo, agora)
+    if not reposicao:
+        return None, porque
+    criar_utilizador(c, reposicao["email"], senha)
+    c.execute("UPDATE reposicoes SET usado_em=? WHERE resumo=?",
+              (agora.strftime("%Y-%m-%d %H:%M:%S"), reposicao["resumo"]))
+    sair_de_todos(c, reposicao["utilizador_id"])
+    token, _ = entrar(c, reposicao["email"], senha, ip, agente, agora)
     return token, None
 
 
