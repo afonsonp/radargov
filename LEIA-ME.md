@@ -311,12 +311,20 @@ tenha vindo do DR não se apaga aí: tira-se da escada, e o anúncio volta
 ### A barra
 
 A barra é **horizontal, em cima**, e tem a marca à esquerda — o
-**Mira Gov** é o Hoje, e é por ele que se volta à abertura — e **cinco
-itens** (desde 24/09/2026): **Concursos** (o que o DR publicou: por
-ver, expirou sem ver, todos), **Propostas** (as oito ranhuras da
-empresa, de «Por analisar» a «Cancelado»), **Mercado** (os contratos,
-com a vista **Entidades**), **Calendário** e **Configurações**. À
-direita, o teu nome. Os Indicadores estão dentro das Configurações (§8).
+**Mira Gov** é o Hoje, e é por ele que se volta à abertura — e **seis
+itens** (desde 26/09/2026): **Concursos** (o que o DR publicou: por
+ver, expirou sem ver, todos), **Propostas** (as oito fases da
+proposta, de «Por analisar» a «Cancelada»), **Situação** (como vai o
+negócio; até 26/09 só se chegava lá pelo «Em jogo» do Hoje),
+**Mercado** (os contratos, com a aba **Entidades**), **Calendário** e
+**Configurações**, e depois delas o **«?»**, que é a Ajuda (o «Como
+funciona», que vivia no menu da conta). À direita, o teu nome.
+
+Desde 26/09/2026 o ecrã diz **«fase»** onde dizia «ranhura», e as fases
+concordam com a proposta: **A preparar**, **Submetida**, **Ganha**,
+**Perdida**, **Cancelada**. As chaves por baixo são as mesmas, e o
+modelo de importação (o Excel) continua a aceitar as palavras de
+sempre. Os Indicadores estão dentro das Configurações (§8).
 
 As **dez ranhuras da escada** repartem-se desde 24/09/2026 por dois itens: as duas pontas (e o «Todos») estão nos **Concursos**, e as oito da empresa nas **Propostas**. Por ordem:
 
@@ -424,7 +432,7 @@ Renovações, agora uma aba que mantém o filtro e mostra o que está a
 chegar ao fim (o modo diz-se na frase por baixo do título e na aba
 acesa, e as datas de celebração desactivam-se aí, com explicação). De lá chega-se à **ficha
 de cada entidade**, com uma ligação directa a «o que está a acabar»
-dela — e há a vista **Entidades** na barra, descrita no §5, «A ficha de
+dela — e há a aba **Entidades**, ao lado dos dois modos, descrita no §5, «A ficha de
 uma entidade». (Estava aqui a lista das abas outra vez, e ainda dizia
 «quatro atalhos» quando já são cinco desde 18/09 — saiu a 19/09/2026.)
 
@@ -869,7 +877,7 @@ para lá.
 
 O que a empresa decide já não se escreve na linha: escreve-se no bloco
 «A nossa proposta» da ficha, que é onde vive tudo o que é da proposta.
-A coluna «Proposto» só aparece de «Submetido» para a frente — antes
+A coluna «Proposto» só aparece de «Submetida» para a frente — antes
 disso não está por preencher, é impossível, e uma coluna de travessões
 que nunca poderá ter nada é uma pergunta sem resposta.
 
