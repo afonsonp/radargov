@@ -35,7 +35,7 @@ pede.**
 | `docs/armadilhas.md` | O que não é óbvio, em 16 áreas | **A área que vais tocar**, antes de tocar |
 | `docs/design.md` | O caminho do aspecto **até 20/09/2026**: a direcção, a letra, a cor, os botões, a escala. A paleta e a letra que ele descreve (Plex, ardósia) **saíram a 21/09** — o que vale hoje é o sistema de desenho | Para perceber uma decisão de aspecto antiga |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
-| `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 73 linhas |
+| `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 83 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | **O arquivo**: oito instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`. **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
@@ -188,7 +188,8 @@ python ferramentas/repetido.py     # o que está escrito duas vezes, com
 python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar
                                    # uma release: árvore, testes, documentação
                                    # e os números medidos do ESTADO.md
-python radar.py --palavra-passe NOME     # troca-a (é o "esqueci-me": por consola, não por e-mail)
+python radar.py --palavra-passe NOME     # troca-a pela consola (no painel, o "esqueci-me" é a
+                                   # ligação de repor que o admin ou o dono geram)
 ```
 
 As tarefas agendadas são duas (`agendar.sh`): a verificação, de hora a
@@ -260,9 +261,12 @@ e `convite()` (F5; a rota aberta do convite tem a guarda dentro), `pagina_legal(
 `administracao_da_plataforma()` (`/plataforma`, com
 `seccoes_da_plataforma()`: as secções do sistema saíram do índice das
 Configurações a 23/09/2026),
+`repor()` e `_gerar_reposicao()` (D17: a ligação de repor a
+palavra-passe, rota aberta com a guarda dentro, como o convite),
 `ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
-inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`;
-`scrypt`; `token_csrf()` / `csrf_bate()`), que **não importa o radar**.
+inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`,
+`convites`, `reposicoes`; `scrypt`; `token_csrf()` / `csrf_bate()`; a
+política da palavra-passe, `problema_da_senha()`), que **não importa o radar**.
 
 Duas regras de trabalho que não estão em mais lado nenhum: um POST
 protege-se **por sessão ou por origem, nunca por nenhuma das duas** —
@@ -311,7 +315,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~23,2 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~27,2 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
@@ -559,7 +563,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **282 pontos** (contados a 26/09/2026), cada um de um erro que
+São **291 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

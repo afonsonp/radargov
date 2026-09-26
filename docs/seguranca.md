@@ -37,12 +37,20 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    com escape automático: cada `%s` numa página é um sítio a
    verificar. Inclui as mensagens de erro e os 404.
 
-3. **Rotas que escapam à porta.** `ROTAS_ABERTAS` são `/entrar` e
-   `/saude`, e mais nenhuma. Uma rota nova que não passe pelo
-   `before_request`, ou um POST sem verificação de CSRF quando há
-   sessão, é uma falha. O `/saude` entrou a 15/09/2026 e responde «ok»
-   ou 503 sem dizer nada de dentro: é assim que uma rota aberta se
-   escreve.
+3. **Rotas que escapam à porta.** As abertas estão em `ROTAS_ABERTAS`
+   (por igualdade) e `PREFIXOS_ABERTOS` (por prefixo), e cada uma que
+   aceita um POST traz a guarda **dentro de si**: o `/pedir-acesso`
+   (origem, armadilha, tectos), o `/convite/<código>` e, desde
+   26/09/2026, o `/repor/<código>` (o código de 32 bytes guardado só em
+   resumo, a origem, o prazo, o uso único e um trinco por IP). Uma rota
+   nova que não passe pelo `before_request`, ou um POST sem verificação
+   de CSRF quando há sessão, é uma falha. O `/saude` entrou a 15/09/2026
+   e responde «ok» ou 503 sem dizer nada de dentro: é assim que uma rota
+   aberta se escreve. **Uma ligação de repor vale uma palavra-passe**:
+   só a gera quem pode (`contas.pode_repor()` — o dono para qualquer
+   conta, o admin para as da empresa dele e nunca para a do dono), só
+   se mostra na resposta do POST, e usá-la fecha todas as sessões da
+   conta.
 
 4. **`pedido_e_local()` e o acesso livre.** `acesso_livre_local` dá
    entrada sem palavra-passe a pedidos de `127.0.0.1`. O cloudflared

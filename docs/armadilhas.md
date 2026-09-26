@@ -11,21 +11,21 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 11
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 7
-- [O motor de filtros](#o-motor-de-filtros) &middot; 11
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 8
+- [O motor de filtros](#o-motor-de-filtros) &middot; 12
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 10
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 3
 - [Contratos e entidades](#contratos-e-entidades) &middot; 27
 - [Alertas e interesse](#alertas-e-interesse) &middot; 11
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 62
-- [O registo da empresa](#o-registo-da-empresa) &middot; 2
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 65
+- [O registo da empresa](#o-registo-da-empresa) &middot; 4
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 14
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 19
+- [Contas e a porta](#contas-e-a-porta) &middot; 21
 - [A interface](#a-interface) &middot; 80
 - [Convenções](#convencoes) &middot; 3
 
-São **282** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **291** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -459,6 +459,18 @@ Orçamento, cadeia de reserva, chaves.
   chave já apareceu com nomes diferentes — e é ele que já cobre os
   nomes novos.
 
+- **A ficha diz o que a leitura não encontrou, e não o que o documento
+  não tem** (segunda ronda, 26/09/2026). Dizia «o Caderno de Encargos
+  foi lido e não fixa requisitos de equipa» — e o CE da 23728/2026
+  exigia técnicos TIM e de gases fluorados na pág. 3, numa cláusula que
+  as `ANCORAS_EQUIPA` não apanhavam. As cinco frases de «lido e nada»
+  do `essencial_do_anuncio()` passaram a «a leitura não encontrou…:
+  confirmar no documento», e o pessoal com qualificação legal entrou nas
+  âncoras (peso 3: `tecnicos`, `qualificac`, `credencia`) e no pedido ao
+  modelo. **Um negativo da leitura é sempre «não encontrei»**: o recorte
+  leva só as zonas cujo título casa com as âncoras, e o que está fora
+  delas o modelo nunca viu.
+
 
 ---
 
@@ -568,6 +580,18 @@ Orçamento, cadeia de reserva, chaves.
 
 - **O `estado` entra sempre no filtro dos anúncios, mesmo vazio** —
   ausente é "por ver", vazio é "todos", como em `condicoes()`.
+
+- **A caixa «Pesquisar» procura palavras, e os nomes procuram frases**
+  (segunda ronda, 26/09/2026). «limpeza manutenção» dava 0: o
+  `frag_de_texto()` procurava o pedaço inteiro. Com `palavras=True`
+  cada pedaço parte-se em palavras que têm de estar todas, a vírgula
+  também separa alternativas, e entre aspas volta a ser a frase. **Só o
+  `q`** (anúncios e contratos) o leva: nos nomes de entidade «Silva,
+  Lda» não são duas alternativas, e partir «Câmara Municipal de Lisboa»
+  em palavras apanhava todas as câmaras de Lisboa. E como o motor é o
+  mesmo, **os alertas com `q` mudaram com a lista** — é a regra de o
+  número que o ecrã mostra dar a lista que abre, e não um efeito
+  lateral.
 
 
 ---
@@ -1727,6 +1751,34 @@ pelo Afonso e nenhuma se reabre de passagem.
   no Hoje e na Situação. Listava as propostas criadas nesse dia, todas
   a «0 dias».
 
+- **Um aviso de erro diz-se erro: `_volta_com_erro()` e
+  `volta_config_erro()`** (segunda ronda, 26/09/2026: «"31/02/2026" não
+  é uma data» e «Tarefa actualizada» tinham o mesmo azul, e o daltónico
+  não os distinguia). O `?tom=erro` pinta o aviso de vermelho, com ✕ e
+  `role=alert`; sem ele é verde, com ✓ e `role=status`. O `tom` **não
+  entra na assinatura** do aviso (só muda a cor de um texto que já é
+  nosso), mas tem de sair onde o `aviso` sai: no `_volta_com_aviso()` e
+  na chave da posição do `LISTA_JS`, senão a página seguinte herdava o
+  vermelho e a posição guardada deixava de bater.
+
+- **O histórico da ficha pede tudo e mostra 12** (`HISTORICO_NA_FICHA`).
+  O `passos_do_anuncio(c, ref, 12)` cortava na consulta, e não havia
+  como ver o resto: perdia-se quem criou a proposta (segunda ronda,
+  26/09/2026). A consulta traz tudo — um anúncio tem dezenas de linhas,
+  não milhares — e o «ver as N entradas» é `?historico=tudo`. O preço e
+  a ranhura gravam-se com o antes («Submetido → Relatório preliminar»,
+  «612 350,00 € → 362 000,00 €»).
+
+- **Um campo da proposta com valor mostra-se, seja qual for a ranhura.**
+  O `_campos_que_a_ranhura_pede()` desenhava o preço só a partir do
+  «Submetido»; uma proposta que «tirar da escada» repunha em «Por
+  analisar» por ter preço escrito ficava com o campo escondido — o
+  trabalho escrito não a deixava sair, e o que a libertava não estava
+  no ecrã (segunda ronda, 26/09/2026). O preço aparece também em «A
+  preparar proposta», que é onde se decide, e o lugar e os três
+  primeiros quando têm valor.
+
+
 ## O registo da empresa
 
 O registo da empresa, em `empresa.py`: desde 8/09/2026 pelo modelo do radar;
@@ -1797,6 +1849,30 @@ o leitor do Excel antigo fica lá, sem comando.
   Esta lista descrevia-o como vivo em dois sítios — corrigido a
   17/09/2026.) `--empresa-desfazer CÓPIA` repõe a triagem de uma cópia
   anterior (foi o que desfez a aplicação de 02/09/2026).
+
+- **Desfazer uma importação repõe o antes só onde nada mudou depois**
+  (segunda ronda, 26/09/2026; o `--empresa-desfazer` fazia-o pela
+  consola, a partir de uma cópia). A confirmação guarda o ANTES e o
+  DEPOIS das propostas e do registo de cada anúncio que tocou, e os ids
+  do histórico que escreveu, num `.json` da **pasta da empresa**
+  (`empresas/<id>/importacoes/`) — não na `importacoes/` da raiz, que é
+  de todas as empresas. Desfazer compara o agora com o DEPOIS: onde é
+  igual, repõe; onde alguém mexeu, **deixa ficar e di-lo**. As propostas
+  que já existiam voltam à linha de antes **pelo mesmo id**, e as
+  tarefas delas ficam; só as que a importação criou saem com as suas
+  (`apagar_propostas()`).
+
+- **A data da decisão é o `fechada_em`, e o ensaio compara antes de
+  gravar.** Tudo o que se importava fechava «agora», e três anos de
+  histórico caíam em «este trimestre» da Situação. A coluna «Data da
+  decisão» do modelo vai para o `fechada_em` (`data_da_decisao()`); sem
+  ela, o prazo do anúncio; só sem os dois, agora. E o ensaio diz o que
+  cada linha faz ao que existe (`_efeitos()`): «nova», «altera: preço
+  362 000,00 € → 1 000,00 €», «igual», ou «mantém-se» quando a
+  proposta está noutra ranhura — o `aplicar()` não passa por cima de uma
+  decisão feita cá. **Só a melhor linha de cada anúncio mexe na
+  proposta** (a mesma regra do `aplicar_modelo()`); as outras dizem que
+  ficam só no registo.
 
 
 ---
@@ -2353,6 +2429,28 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   E o DNS de um domínio novo **não** se faz com o `cloudflared tunnel
   route dns`: o `cert.pem` leva um token da zona escolhida no login, e o
   registo nascia lá dentro (`miragov.pt.radargov.pt`).
+
+- **A política da palavra-passe vive no `contas.criar_utilizador()`, e
+  só lá** (D16, 26/09/2026). É por onde passam todas — a conta, o
+  convite, a consola, a ligação de repor —, e uma regra posta numa rota
+  deixava as outras três de fora. O `problema_da_senha()` recusa as
+  mais usadas (também com números ou sinais à volta: o `miolo`), um só
+  carácter, um pedaço repetido, uma sequência, e o nome de utilizador ou
+  o e-mail lá dentro. **Nos testes**, uma palavra-passe não pode conter
+  o utilizador: «senha-da-ana» para a «ana» passou a ser recusada, e
+  mudou-se o teste, não a regra.
+
+- **A ligação de repor é uma tabela à parte, e o trinco dela é só por
+  IP** (D17, 26/09/2026). Não é uma coluna nos convites: a rota do
+  convite cria contas, e não pode nunca aceitar um código que troca a
+  palavra-passe de alguém. O `/repor/<código>` conta os códigos errados
+  como entradas falhadas com a chave `repor:<ip>` — com uma chave comum,
+  cinco códigos inventados por qualquer um fechavam a porta a toda a
+  gente. E **o admin nunca repõe a conta do dono**, mesmo sendo da
+  empresa dele (`contas.pode_repor()`): o dono é admin da empresa 1, e
+  repor-lha era ficar dono da plataforma.
+
+
 ## A interface
 
 As regras de desenho da empresa. As medidas estão em

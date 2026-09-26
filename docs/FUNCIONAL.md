@@ -77,7 +77,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 15 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 16 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -120,6 +120,7 @@ as exactas e salta as outras.
 | `entradas_falhadas` | 2 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **4** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo e se já se usou |
+| `reposicoes` | **0** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `pedidos_acesso` | **2** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0` |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
@@ -272,8 +273,11 @@ Por ver → Por analisar → A preparar proposta → Submetido
 O que falta **pede-se no gesto que escolhe a ranhura** (25/09/2026):
 escolhida no selector, abre-se uma caixa com o que esta proposta ainda
 não tem — o preço, o lugar, o motivo — e grava-se tudo de uma vez. Sem
-isto, o «Submetido» a partir de «A preparar proposta» era um beco: o
-preço proposto só se mostra na ficha a partir do «Submetido».
+isto, o «Submetido» a partir de «A preparar proposta» era um beco. O
+campo do preço proposto está no bloco **desde «A preparar proposta»**
+(26/09/2026), e em qualquer ranhura quando já tem valor — senão uma
+proposta reposta em «Por analisar» ficava com o preço escondido e presa.
+A caixa recusa lá dentro o que não é preço, e fala português.
 
 O preço proposto **tem de se ler como preço** — «118 500,00»,
 «118.500,00 €» ou «118500» —, e grava-se sempre como «118.500,00 EUR».
@@ -282,8 +286,19 @@ pode ficar vazio. E a proposta **não se grava por cima de uma versão
 mais nova**: aberta em dois separadores, ou por dois colegas, o segundo
 a gravar é recusado e vê o que está agora (25/09/2026).
 
+**O CCP avisa, não recusa** (26/09/2026; recusar é a decisão D2, dele):
+um proposto **acima do preço base** (art. 70.º, n.º 2, al. d) — a
+proposta é excluída) e um «Relatório preliminar» ou «Ganho» **antes do
+fim do prazo de entrega** gravam-se, com o aviso a vermelho
+(`aviso_do_ccp()`); o browser pede confirmação antes de gravar o preço.
+Uma proposta **fechada com tarefas por fazer** di-lo no bloco, com um
+«fechar as N tarefas». O histórico guarda **o antes e o depois** do
+preço e da ranhura («Submetido → Relatório preliminar»), e a ficha
+mostra as 12 entradas mais recentes com um «ver as N».
+
 Os motivos são **vocabulário fechado** (é o que os faz dar contas):
-perda — *Preço · CV's · Proposta técnica · Certificações*; não fomos —
+perda — *Preço · CV's · Proposta técnica · Certificações · Proposta
+excluída* (esta desde 26/09/2026); não fomos —
 *Preço base baixo · Falta de certificações · Falta de CV's · Não faz
 parte da oferta*.
 
@@ -504,7 +519,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**93 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+**98 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
 (a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
@@ -610,6 +625,12 @@ ligação ao lado da contagem troca para **o prazo mais perto primeiro**
 (`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026), com os sem prazo no
 fim. A ordem não é um filtro: não se guarda num alerta.
 
+A caixa **Pesquisar** procura **todas as palavras**, por qualquer ordem
+(26/09/2026: «limpeza manutenção» dava 0, porque se procurava a frase);
+a vírgula ou a barra separam alternativas, e entre aspas procura-se a
+frase exacta. Vale igual para os alertas, que usam o mesmo motor. Sem
+resultados dentro do perfil da empresa, a lista diz quantos há fora dele.
+
 Filtros (painel recolhível): objecto (com E/OU e exclusões) · CPV (com
 árvore de 9 454 códigos e exclusões) · entidade que publica · NIF ·
 plataforma · prazo · datas · preço mínimo. O filtro compõe-se com o
@@ -710,7 +731,7 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 | **conta** | palavra-passe, sessões, a nossa empresa (nome + NIF), utilizadores |
 | **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
-| **importar** | o registo da empresa, pelo modelo Excel |
+| **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
 | indicadores | as capturas, a recolha, o corpus — a saúde da máquina |
 | capturas | os dois pedidos cURL ao DR |
 | recolha | horas, janelas, a Vortal |
@@ -825,8 +846,31 @@ cabeçalhos de proxy e o `Host` público — qualquer um deles chega para o
 pedido deixar de ser local.
 
 **Cinco falhas em quinze minutos fecham o trinco**, por e-mail **ou** por
-IP (`FALHAS_ATE_TRINCO`, `MINUTOS_DE_TRINCO`). Não há recuperação por
-e-mail: a senha troca-se por consola, com `--palavra-passe NOME`.
+IP (`FALHAS_ATE_TRINCO`, `MINUTOS_DE_TRINCO`).
+
+**A palavra-passe** (D16, 26/09/2026) tem oito caracteres ou mais, além
+dos espaços; não pode ser das mais usadas (`SENHAS_COMUNS`, também com
+números ou sinais à volta), um só carácter repetido, um pedaço repetido
+ou uma sequência do teclado ou do alfabeto; nem ter lá dentro o nome de
+utilizador ou o e-mail. Vale em todas as portas — a conta, o convite, a
+consola e a ligação de repor —, porque todas passam pelo
+`contas.criar_utilizador()`; a recusa diz qual das regras falhou
+(`contas.problema_da_senha()`).
+
+**Repor a palavra-passe** (D17, 26/09/2026). Não há e-mail de
+recuperação: o `/entrar` diz «peça ao administrador da sua empresa».
+O **admin** gera, em Configurações › Conta, uma ligação para uma conta
+da empresa dele — nunca a do dono —, e o **dono** gera-a para qualquer
+conta, na `/plataforma` (`contas.pode_repor()`). A ligação mostra-se
+**uma vez**, nessa página, e nunca vai no endereço nem no histórico;
+vale `HORAS_DE_REPOSICAO` (24) e uma vez, e gerar outra anula a
+anterior. O **`/repor/<código>`** é rota aberta, por prefixo, com a
+guarda dentro (`repor()`): o código (32 bytes, na base só o resumo, na
+tabela `reposicoes`), a origem do POST, o prazo, o uso único e um
+trinco **só por IP** (os códigos errados contam como entradas
+falhadas). Ao guardar, **fecham-se todas as sessões da conta** e abre-se
+uma nova para quem repôs. Pela consola continua o `--palavra-passe
+NOME`.
 
 ### 4.10 O que corre sozinho
 
@@ -883,6 +927,9 @@ vieram**.
 | Verificar agora · actualizar contratos | Configurações |
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
+| Gerar a ligação de repor a palavra-passe | Configurações › Conta (admin), `/plataforma` (dono) |
+| Importar o modelo · desfazer uma importação | Configurações › Importar |
+| Fechar as tarefas de uma proposta fechada | ficha |
 
 ---
 

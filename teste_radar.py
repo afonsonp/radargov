@@ -508,7 +508,9 @@ Nome: Preço
         # Programas nao fixa limiar nenhum
         falta = next(f for r, _, f, _ in self.tabela(analise=self.LIDO)
                      if r == "Preço anormalmente baixo")
-        self.assertIn("não fixa", falta)
+        # «não encontrou», e não «não fixa» (E11 da segunda ronda,
+        # 26/09/2026): a leitura sabe o que não achou, não o que não há
+        self.assertIn("não encontrou", falta)
         self.assertNotIn("só consta", falta)
 
     def test_com_limiar_mostra_o_valor_e_diz_de_onde_veio(self):
@@ -3732,6 +3734,18 @@ class TestTabelaEssencialDepoisDeLido(unittest.TestCase):
         falta = self.campo("Equipa", self.LIDO_SEM_NADA)[2]
         self.assertIn("foi lido", falta)
         self.assertNotIn("só consta", falta)
+
+    def test_e11_a_leitura_nao_afirma_o_negativo_que_nao_sabe(self):
+        """Segunda ronda (26/09/2026): «o CE não fixa requisitos de
+        equipa», quando o CE da 23728/2026 exigia técnicos TIM e de gases
+        fluorados na pág. 3. O que se sabe é que a leitura não os achou;
+        e o pessoal com qualificação legal passa a contar como equipa."""
+        for rotulo, _, falta, nota in self.tabela(self.LIDO_SEM_NADA):
+            self.assertNotIn("não fixa", falta + nota, rotulo)
+        self.assertIn("não encontrou", self.campo("Equipa", self.LIDO_SEM_NADA)[2])
+        titulo = radar.simplifica("Cláusula 7.ª - Técnicos qualificados")
+        self.assertTrue(any(re.search(p, titulo) for _, p in radar.ANCORAS_EQUIPA))
+        self.assertIn("gases fluorados", radar.INSTRUCOES_EQUIPA)
 
     def test_sem_leitura_continua_a_apontar_para_o_ce(self):
         self.assertEqual(self.campo("Equipa")[2], radar.FALTA_CE)
@@ -8171,9 +8185,15 @@ class TestCamposPorRanhura(BaseTemporaria):
         return base
 
     def test_ranhuras_sem_nada_a_apontar_nao_mostram_campos(self):
-        for estado in ("analisar", "proposta"):
-            self.assertEqual(
-                radar._campos_que_a_ranhura_pede(self._p(estado)), "", estado)
+        self.assertEqual(
+            radar._campos_que_a_ranhura_pede(self._p("analisar")), "")
+
+    def test_a_preparar_proposta_ja_tem_o_preco(self):
+        """Segunda ronda (26/09/2026, E12): a recusa do «Submetido»
+        mandava preencher o preço «no bloco», e em «A preparar
+        proposta» o bloco não tinha o campo -- era um beco."""
+        self.assertIn("name='valor_proposta'",
+                      radar._campos_que_a_ranhura_pede(self._p("proposta")))
 
     def test_submetido_pede_o_preco_proposto(self):
         html_ = radar._campos_que_a_ranhura_pede(self._p("submetido"))
@@ -8647,6 +8667,238 @@ class TestOsOutrosErrosDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("software", texto)
 
 
+class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
+    """A segunda ronda de testes com 20 perfis (26/09/2026), lote 2: o
+    que a gestora de propostas (o perfil 2) e o revisor de texto (15)
+    encontraram ao levar uma proposta de ponta a ponta. Cada teste diz o
+    E## da síntese (fora do repositório)."""
+
+    VOLTA = {"Referer": "http://localhost/anuncio/60%2F2026"}
+
+    def aviso(self, r):
+        """(texto do aviso, é erro) de um redireccionamento."""
+        q = dict(parse_qsl(urlparse(r.headers["Location"]).query))
+        return q.get("aviso", ""), q.get("tom") == "erro"
+
+    def mover(self, estado, **campos):
+        return self.cliente.post("/escada/60%2F2026",
+                                 data=dict(campos, estado=estado),
+                                 headers=self.VOLTA)
+
+    def test_e12_um_preco_que_nao_se_le_diz_se_e_nao_falta(self):
+        self._proposta()
+        texto, erro = self.aviso(self.mover("submetido", valor_proposta="abc"))
+        self.assertIn("«abc» não é um preço", texto)
+        self.assertNotIn("falta", texto)
+        self.assertTrue(erro)
+        self.assertEqual(radar.propostas_de("60/2026")[0]["estado"], "analisar")
+        # e o diálogo recusa-o lá dentro, antes de enviar, em português
+        caixa = radar.caixa_do_motivo()
+        self.assertIn("pattern='", caixa)
+        self.assertTrue(re.fullmatch(radar.PADRAO_DO_PRECO, "118 500,00 €"))
+        self.assertFalse(re.fullmatch(radar.PADRAO_DO_PRECO, "abc"))
+        # E42: a validação nativa vinha em inglês
+        self.assertIn("Escolha o motivo.", caixa)
+
+    def test_e13_erro_e_sucesso_nao_tem_o_mesmo_aspecto(self):
+        self._proposta()
+        mau = self.mover("submetido", valor_proposta="abc")
+        h = self.cliente.get(mau.headers["Location"]).get_data(as_text=True)
+        self.assertIn("mg-alert--danger' role='alert'", h)
+        bom = self.cliente.post("/tarefa/nova", data={
+            "ref": "60/2026", "o_que": "ligar ao júri"}, headers=self.VOLTA)
+        h = self.cliente.get(bom.headers["Location"]).get_data(as_text=True)
+        self.assertIn("mg-alert--success' role='status'", h)
+        self.assertNotIn("mg-alert--danger", h)
+
+    def test_e14_o_historico_mostra_as_ultimas_e_da_as_outras(self):
+        id_ = self._proposta()
+        with radar.liga() as c:
+            for i in range(20):
+                c.execute("INSERT INTO historico (ref, quem, accao, detalhe, "
+                          "quando, proposta_id) VALUES ('60/2026', 'Ana', "
+                          "'notas', ?, ?, ?)",
+                          ("nota %02d" % i, "2026-09-%02d 10:00" % (i + 1), id_))
+            total = c.execute("SELECT COUNT(*) FROM historico").fetchone()[0]
+        h = self._ficha()
+        self.assertNotIn("nota 00", h)            # a mais antiga fica de fora
+        self.assertIn("Ver as %d entradas" % total, h)
+        tudo = self.cliente.get("/anuncio/60%2F2026?historico=tudo").get_data(as_text=True)
+        self.assertIn("nota 00", tudo)
+
+    def test_e32_acima_do_preco_base_avisa_a_vermelho_sem_recusar(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET preco_base='375.000,00 EUR' "
+                      "WHERE ref='60/2026'")
+        self._proposta()
+        texto, erro = self.aviso(self.mover("submetido",
+                                            valor_proposta="612 350,00"))
+        self.assertIn("acima do preço base", texto)
+        self.assertIn("70.º", texto)
+        self.assertTrue(erro)
+        self.assertEqual(radar.propostas_de("60/2026")[0]["estado"], "submetido")
+        # e o bloco leva o preço base, para o browser pedir confirmação
+        self.assertIn("data-base='375000.0'", self._ficha())
+
+    def test_e32_ganho_antes_do_fim_do_prazo_avisa(self):
+        prazo = (datetime.date.today() + datetime.timedelta(days=5)).isoformat()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET prazo=? WHERE ref='60/2026'", (prazo,))
+        self._proposta("submetido")
+        texto, erro = self.aviso(self.mover("ganho"))
+        self.assertIn("antes de o prazo de entrega acabar", texto)
+        self.assertTrue(erro)
+
+    def test_e33_o_historico_guarda_o_antes(self):
+        id_ = self._proposta("submetido")          # 118.500,00 EUR
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"valor_proposta": "362 000,00"}, headers=self.VOLTA)
+        self.mover("relatorio", lugar="2")
+        with radar.liga() as c:
+            detalhes = [r[0] for r in c.execute(
+                "SELECT detalhe FROM historico WHERE accao IN "
+                "('valor_proposta', 'estado') ORDER BY id")]
+        self.assertIn("118 500,00 € → 362 000,00 €",
+                      [d.replace("\xa0", " ") for d in detalhes])
+        self.assertIn("Submetido → Relatório preliminar", detalhes)
+
+    def test_e34_proposta_fechada_com_tarefas_por_fazer(self):
+        id_ = self._proposta("submetido")
+        radar.criar_tarefa("mandar a caução", None, proposta_id=id_)
+        self.mover("ganho")
+        h = self._ficha()
+        self.assertIn("ainda fica 1 tarefa por fazer", h)
+        self.assertIn("/proposta/%d/fechar-tarefas" % id_, h)
+        self.cliente.post("/proposta/%d/fechar-tarefas" % id_, headers=self.VOLTA)
+        self.assertEqual(radar.tarefas_por_proposta([id_]).get(id_, []), [])
+        # numa proposta aberta não fecha nada
+        outra = self._proposta_sem_anuncio()
+        radar.criar_tarefa("ver o caderno", None, proposta_id=outra)
+        self.cliente.post("/proposta/%d/fechar-tarefas" % outra, headers=self.VOLTA)
+        self.assertEqual(len(radar.tarefas_por_proposta([outra])[outra]), 1)
+
+    def _proposta_sem_anuncio(self):
+        self.cliente.post("/proposta/nova", data={"entidade": "Câmara",
+                                                  "titulo": "Consulta"})
+        with radar.liga() as c:
+            return c.execute("SELECT MAX(id) FROM propostas").fetchone()[0]
+
+    def test_e36_por_decidir_o_primeiro_passo_nao_esta_aceso(self):
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref='60/2026'").fetchone()
+        passos = radar.passos_da_escada(a, [])
+        self.assertNotIn("mg-step--current", passos)
+        self.assertIn("ainda não decidido", passos)
+
+    def test_e27_as_pessoas_sugeridas_sao_as_que_existem(self):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "rita", "senha-comprida",
+                                          "Rita Gomes", papel="tester")
+        self.assertEqual(radar.criar_pessoa("Ana Ribeiro"), "Ana Ribeiro")
+        self.assertEqual(radar.criar_pessoa("ana  ribeiro"), "Ana Ribeiro")
+        self.assertEqual(radar.listar_pessoas(), ["Ana Ribeiro", "Rita Gomes"])
+        # e a tarefa nova tem «quem»
+        id_ = self._proposta()
+        self.assertIn("name='quem'", radar._tarefas_da_ficha(radar.proposta(id_))
+                      .split("tarefa-nova")[1])
+
+    def test_e28_as_notas_sao_uma_caixa_e_guardam_as_linhas(self):
+        id_ = self._proposta()
+        self.assertIn("<textarea name='notas'", self._ficha())
+        r = self.cliente.post("/proposta/%d/ficha" % id_,
+                              data={"notas": "linha um\r\nlinha  dois"},
+                              headers=self.VOLTA)
+        self.assertEqual(radar.proposta(id_)["notas"], "linha um\nlinha dois")
+        # E26: volta ao bloco, e não ao topo
+        self.assertTrue(r.headers["Location"].endswith("#proposta"))
+
+    def test_e43_contacto_e_tarefa_dizem_porque_nao_ficaram(self):
+        base = {"chave": "n:ipl", "entidade": "IPL", "volta": "60/2026"}
+        texto, erro = self.aviso(self.cliente.post(
+            "/contacto/nova", data=dict(base, nome=" "), headers=self.VOLTA))
+        self.assertIn("precisa de um nome", texto)
+        self.assertTrue(erro)
+        texto, erro = self.aviso(self.cliente.post(
+            "/contacto/nova", data=dict(base, nome="Rui", email="nao-e-email"),
+            headers=self.VOLTA))
+        self.assertIn("não é um endereço de e-mail", texto)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM contactos").fetchone())
+        texto, erro = self.aviso(self.cliente.post(
+            "/tarefa/nova", data={"ref": "60/2026", "o_que": " ",
+                                  "quando": "31/02/2026"}, headers=self.VOLTA))
+        self.assertIn("precisa de dizer o que há a fazer", texto)
+        # e criar uma conta diz qual das três coisas estava mal
+        for utilizador, frase in (("", "em falta"), ("com espaco", "espaços"),
+                                  ("x", "curto")):
+            with radar.liga() as c, self.assertRaises(ValueError) as e:
+                radar.contas.criar_utilizador(c, utilizador, "senha-comprida")
+            self.assertIn(frase, str(e.exception))
+
+    def test_e47_a_tarefa_atrasada_diz_que_o_e_nas_propostas(self):
+        id_ = self._proposta()
+        p = radar.proposta(id_)
+        linha = radar.linha_da_pipeline(p, 7, {}, {"o_que": "x",
+                                                   "quando": "2026-01-02"})
+        self.assertIn("atrasada · 2 jan", linha)
+        linha = radar.linha_da_pipeline(p, 7, {}, {"o_que": "x",
+                                                   "quando": "2999-01-02"})
+        self.assertNotIn("atrasada", linha)
+
+    def test_e10_o_anuncio_completo_nao_corta_as_seccoes(self):
+        """O «Anúncio completo» fechava as secções e mostrava só o 1.º
+        valor: «14 — Prestação de caução: Sim» sem os 5 %, e «21 —
+        Critério de adjudicação: Não» (era o «Multifator: Não»)."""
+        texto = ("14 - PRESTAÇÃO DE CAUÇÃO\nPrestação de caução: Sim\n"
+                 "Percentagem: 5%\n\n21 - CRITÉRIO DE ADJUDICAÇÃO\n"
+                 "Multifator: Não\nCritério: Preço\n\n"
+                 "12 - DOCUMENTOS DE HABILITAÇÃO\nHabilitação: Sim\n"
+                 "Tipo: Alvará\nDescrição: 4ª Categoria, 12ª Subcategoria\n")
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET texto=?, detalhe_lido=1 "
+                      "WHERE ref='60/2026'", (texto,))
+        h = self.cliente.get("/anuncio/60%2F2026?modo=completo").get_data(as_text=True)
+        self.assertIn("Percentagem", h)
+        self.assertIn("4ª Categoria, 12ª Subcategoria", h)
+        self.assertNotIn("<details class='mg-disc ficha-seccao'><summary>", h)
+        self.assertIn("Prestação de caução: Sim · Percentagem: 5%", h)
+        self.assertIn("Multifator: Não · Critério: Preço", h)
+
+    def test_e19_duas_palavras_procuram_as_duas_e_nao_a_frase(self):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET titulo='Limpeza e manutenção de "
+                      "espaços verdes', titulo_norm=? WHERE ref='60/2026'",
+                      (radar.simplifica("Limpeza e manutenção de espaços verdes"),))
+
+            def conta(q):
+                onde, vals = radar.condicoes({"q": q})
+                return c.execute("SELECT COUNT(*) FROM anuncios" + onde,
+                                 vals).fetchone()[0]
+            self.assertEqual(conta("limpeza manutenção"), 1)
+            self.assertEqual(conta("manutenção limpeza"), 1)
+            self.assertEqual(conta('"limpeza manutenção"'), 0)   # a frase
+            self.assertEqual(conta("limpeza betão"), 0)
+            self.assertEqual(conta("betão, verdes"), 1)            # vírgula = ou
+        # e os nomes não se partem pela vírgula
+        frag, vals = radar.frag_de_texto("Silva, Lda", "x")
+        self.assertEqual(len(vals), 1)
+
+    def test_e20_sem_resultados_diz_quantos_ficam_fora_do_perfil(self):
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "45000000"})
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET cpv='72000000', titulo_norm='software', "
+                      "detalhe_lido=1, prazo='2999-01-01' WHERE ref='60/2026'")
+        h = self.cliente.get("/concursos?q=software&estado=").get_data(as_text=True)
+        self.assertIn("há 1 fora", h)
+        self.assertIn("interesse=nao", h)
+
+    def test_f14_proposta_excluida_e_motivo_de_perda(self):
+        self._proposta("submetido")
+        self.mover("perdido", motivo="Proposta excluída")
+        self.assertEqual(radar.propostas_de("60/2026")[0]["motivo"],
+                         "Proposta excluída")
+
+
 class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
     """O perfil só-teclado e leitor de ecrã do teste de 25/09/2026. O
     que se vê com os olhos ficou medido à parte, num browser; aqui fica
@@ -8658,7 +8910,8 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
                               data={"valor_proposta": "abc"},
                               headers={"Referer": "http://localhost/concursos"})
         h = self.cliente.get(r.headers["Location"]).get_data(as_text=True)
-        self.assertIn("role='status'>«abc» não se lê", h)
+        # um erro lê-se já (role=alert), e não com o tom de um sucesso
+        self.assertIn("role='alert'><span aria-hidden='true'>&#10005;</span> «abc» não se lê", h)
 
     def test_os_botoes_da_linha_dizem_de_que_concurso_sao(self):
         h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
@@ -8675,7 +8928,7 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("aria-labelledby='dlg-motivo-titulo'", h)
 
     def test_a_posicao_guarda_se_sem_o_que_e_da_vez(self):
-        self.assertIn("['aviso', 'desfazer', 'assin']", radar.LISTA_JS)
+        self.assertIn("['aviso', 'desfazer', 'assin', 'tom']", radar.LISTA_JS)
 
     def test_ha_uma_pagina_que_explica_as_palavras(self):
         """O estagiário do teste de 25/09/2026 não sabia o que eram a
@@ -11155,8 +11408,11 @@ class TestContas(BaseTemporaria):
                        # e a guarda e o codigo, a origem e o uso unico
                        # (TestConvites)
                        if "POST" in r.methods
+                       # E o /repor (D17), pela mesma razao
+                       # (TestReporAPalavraPasse)
                        and r.rule not in ("/entrar", "/pedir-acesso",
-                                          "/convite/<codigo>"))
+                                          "/convite/<codigo>",
+                                          "/repor/<codigo>"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -12006,7 +12262,7 @@ class TestModeloDaEmpresa(BaseTemporaria):
                                   content_type="multipart/form-data")
         self.assertEqual(r.status_code, 200)
         html_ = r.get_data(as_text=True)
-        self.assertIn("<b>1 liga</b>", html_)
+        self.assertIn("<b>1 entra</b>", html_)
         self.assertIn("<b>1 com erro</b>", html_)
         self.assertIn("não há anúncio 9999/2026", html_)
         self.assertIn("Nada foi gravado ainda", html_)
@@ -12030,6 +12286,171 @@ class TestModeloDaEmpresa(BaseTemporaria):
                               data={"ficheiro": (self.io.BytesIO(b"x"), "lista.csv")},
                               content_type="multipart/form-data")
         self.assertIn("Só .xlsx", unquote_plus(r.headers["Location"]))
+
+
+class TestSegundaRondaAImportacao(BaseTemporaria):
+    """A segunda ronda de testes (26/09/2026), lote 2: o perfil 10 trouxe
+    três anos de propostas pelo modelo e perdeu dados sem aviso -- as
+    notas, a data, o «Ganho» de um colega que o ensaio dizia «liga» -- e
+    não conseguiu desfazer. Cada teste diz o E## da síntese."""
+
+    def setUp(self):
+        super().setUp()
+        import io
+        self.io = io
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "IMPORTACOES", os.path.join(self.pasta, "importacoes")))
+        with radar.liga() as c:
+            for ref, prazo in (("27315/2024", "2024-05-10"), ("8023/2026", "2026-03-01"),
+                               ("23735/2026", "2026-04-01")):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, "
+                          "url, estado, lotes, texto, detalhe_lido, prazo, preco_base) "
+                          "VALUES (?,?,?,?,?,?,?,?,?,1,?,?)",
+                          (ref, "Elevadores " + ref, "SPMS", "2024-02-01", "Anúncio",
+                           "https://dr/x", "novo", "", "texto", prazo, "400.000,00 EUR"))
+
+    preenchido = TestModeloDaEmpresa.preenchido
+
+    def ensaio(self, linhas, extra_cabecalho=None):
+        caminho = self.preenchido(linhas)
+        if extra_cabecalho:
+            from openpyxl import load_workbook
+            wb = load_workbook(caminho)
+            wb[empresa.FOLHA_MODELO].cell(row=1, column=11, value=extra_cabecalho)
+            wb.save(caminho)
+        with open(caminho, "rb") as f:
+            r = self.cliente.post("/configuracoes/importar",
+                                  data={"ficheiro": (self.io.BytesIO(f.read()), "h.xlsx")},
+                                  content_type="multipart/form-data")
+        self.assertEqual(r.status_code, 200)
+        return r.get_data(as_text=True)
+
+    def confirmar(self, html_):
+        nome = re.search(r"name='ficheiro' value='([^']+)'", html_).group(1)
+        return self.cliente.post("/configuracoes/importar/confirmar",
+                                 data={"ficheiro": nome}), nome
+
+    def test_e15_as_notas_entram_e_o_que_nao_entra_diz_se(self):
+        h = self.ensaio([
+            ["27315/2024", None, "Ganho", None, 380000, 1, None, None, "cliente exigente", None],
+            ["8023/2026", None, "Submetido", "Preço base baixo", "cento e vinte mil",
+             None, None, None, None, None],
+            ["23735/2026", None, "Não fomos", "Prazo demasiado curto", None, None, None,
+             None, None, None],
+        ], extra_cabecalho="Data de submissão")
+        self.assertIn("valor «cento e vinte mil» não é um número", h)
+        self.assertIn("A coluna K «Data de submissão» não é do modelo e é ignorada", h)
+        self.assertIn("não é uma da lista", h)
+        self.confirmar(h)
+        self.assertEqual(radar.propostas_de("27315/2024")[0]["notas"], "cliente exigente")
+        # o valor ilegível não entra em silêncio
+        self.assertEqual(radar.propostas_de("8023/2026"), [])
+
+    def test_e16_a_data_da_decisao_e_o_prazo_quando_falta(self):
+        h = self.ensaio([
+            ["27315/2024", None, "Ganho", None, 380000, 1, None, None, None, "03/06/2024"],
+            ["23735/2026", None, "Perdido", None, 390000, 2, None, None, None, None],
+            ["8023/2026", None, "Perdido", None, 390000, 2, None, None, None, "31/02/2026"],
+        ])
+        self.assertIn("data da decisão «31/02/2026» não é uma data", h)
+        self.confirmar(h)
+        self.assertEqual(radar.propostas_de("27315/2024")[0]["fechada_em"],
+                         "2024-06-03 00:00")
+        self.assertEqual(radar.propostas_de("23735/2026")[0]["fechada_em"],
+                         "2026-04-01 00:00")          # o prazo do anúncio
+
+    def test_e17_o_ensaio_diz_o_que_vai_mudar_no_que_ja_existe(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO propostas (ref, estado, valor_proposta, lugar, "
+                      "criada_em) VALUES ('23735/2026', 'ganho', '362.000,00 EUR', 1, "
+                      "'2026-05-01 10:00')")
+            c.execute("INSERT INTO propostas (ref, estado, valor_proposta, lugar, "
+                      "criada_em) VALUES ('27315/2024', 'perdido', '380.000,00 EUR', 2, "
+                      "'2026-05-01 10:00')")
+        h = self.ensaio([
+            ["23735/2026", None, "Ganho", None, 1000, 1, None, None, None, None],
+            ["27315/2024", None, "Ganho", None, 380000, 1, None, None, None, None],
+            ["8023/2026", None, "Submetido", None, 50000, None, None, None, None, None],
+        ])
+        self.assertIn("altera: preço 362\xa0000,00\xa0€ → 1\xa0000,00\xa0€", h)
+        self.assertIn("mantém-se em «Perdido»", h)
+        self.assertIn(">nova<", h)
+        self.assertIn("1 linha vai alterar proposta que já existe", h)
+
+    def test_e18_uma_importacao_desfaz_se(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO propostas (ref, estado, valor_proposta, lugar, "
+                      "criada_em) VALUES ('23735/2026', 'ganho', '362.000,00 EUR', 1, "
+                      "'2026-05-01 10:00')")
+            antiga = c.execute("SELECT id FROM propostas").fetchone()[0]
+        radar.criar_tarefa("mandar a caução", None, proposta_id=antiga)
+        h = self.ensaio([
+            ["23735/2026", None, "Ganho", None, 1000, 1, None, None, "nota", None],
+            ["8023/2026", None, "Submetido", None, 50000, None, None, None, None, None],
+            ["27315/2024", None, "Perdido", None, 380000, 2, None, None, None, None],
+        ])
+        self.confirmar(h)
+        self.assertEqual(radar.propostas_de("23735/2026")[0]["valor_proposta"],
+                         "1.000,00 EUR")
+        # alguém mexe numa delas depois de importar: essa fica
+        radar.mover_proposta(radar.propostas_de("27315/2024")[0]["id"], "relatorio")
+        pagina = self.cliente.get("/configuracoes/importar").get_data(as_text=True)
+        self.assertIn("/configuracoes/importar/desfazer", pagina)
+        nome = re.search(r"name='ficheiro' value='([^']+)'", pagina).group(1)
+        r = self.cliente.post("/configuracoes/importar/desfazer",
+                              data={"ficheiro": nome})
+        self.assertIn("27315/2024", unquote_plus(r.headers["Location"]))
+        # a que existia volta ao que era, com a tarefa; a nova sai
+        volta = radar.propostas_de("23735/2026")
+        self.assertEqual([(p["id"], p["valor_proposta"], p["notas"]) for p in volta],
+                         [(antiga, "362.000,00 EUR", None)])
+        self.assertEqual(len(radar.tarefas_por_proposta([antiga])[antiga]), 1)
+        self.assertEqual(radar.propostas_de("8023/2026"), [])
+        self.assertEqual(radar.propostas_de("27315/2024")[0]["estado"], "relatorio")
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM empresa WHERE "
+                                       "ref='8023/2026'").fetchone())
+        # e não se desfaz duas vezes
+        pagina = self.cliente.get("/configuracoes/importar").get_data(as_text=True)
+        self.assertIn("desfeita a", pagina)
+
+    def test_e18_um_preco_escrito_ve_se_em_por_analisar(self):
+        p = {"id": 1, "ref": "1/2026", "estado": "analisar", "lugar": 2,
+             "valor_proposta": "1.000,00 EUR", "top3": None, "motivo": None}
+        html_ = radar._campos_que_a_ranhura_pede(p)
+        self.assertIn("name='valor_proposta'", html_)
+        self.assertIn("name='lugar'", html_)
+
+    def test_e48_a_referencia_a_maneira_do_excel(self):
+        h = self.ensaio([
+            ["Anúncio n.º 8023/2026", None, "Submetido", None, 1, None, None, None, None, None],
+            ["27315/24", None, "Submetido", None, 1, None, None, None, None, None],
+            ["lixo", None, "Submetido", None, 1, None, None, None, None, None],
+            [None, None, "Submetido", None, 1, None, None, None, "ajuste directo", None],
+        ])
+        self.assertIn("li «Anúncio n.º 8023/2026» como 8023/2026", h)
+        self.assertIn("li «27315/24» como 27315/2024", h)
+        self.assertIn("referência «lixo» ilegível", h)
+        self.assertIn(">lixo<", h)                   # mostra o que se escreveu
+        self.assertIn("sem referência: o modelo só importa concursos do DR", h)
+        self.assertIn("<b class='mau'>não entra</b>", h)
+        # as instruções já não contradizem o ensaio
+        caminho = empresa.escrever_modelo(os.path.join(self.pasta, "modelo.xlsx"))
+        from openpyxl import load_workbook
+        texto = " ".join(str(c.value or "") for c in
+                         load_workbook(caminho)["Instruções"]["A"])
+        self.assertIn("é um erro: fica a primeira", texto)
+
+    def test_e49_um_ganho_que_o_base_contradiz(self):
+        linhas = [{"ok": True, "ref": "27315/2024", "status": "Ganho"}]
+        desfecho = [{"ganhou": "UpElev", "ganhou_ch": "500000000"}]
+        with unittest.mock.patch.object(radar, "desfecho_do_anuncio",
+                                        lambda ref: desfecho):
+            radar._base_no_ensaio(linhas, {"nome_da_empresa": "LATD",
+                                           "nif_da_empresa": "509999999"})
+        self.assertEqual(linhas[0]["base"],
+                         "não bate: o Portal BASE dá-o a UpElev")
 
 
 class TestEstadoZero(BaseTemporaria):
@@ -12431,7 +12852,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         admin = self.entrar("admin")
         r = admin.post("/configuracoes/conta/utilizadores",
                        data={"csrf": self.token(admin), "email": "novo",
-                             "senha": "senha-do-novo", "papel": "tester"},
+                             "senha": "chave-do-colega", "papel": "tester"},
                        environ_base=self.FORA)
         self.assertIn("criado", unquote_plus(r.headers["Location"]))
         with radar.liga() as c:
@@ -12441,7 +12862,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
         # repetido: recusa; curta: recusa
         r = admin.post("/configuracoes/conta/utilizadores",
                        data={"csrf": self.token(admin), "email": "novo",
-                             "senha": "senha-do-novo", "papel": "tester"},
+                             "senha": "chave-do-colega", "papel": "tester"},
                        environ_base=self.FORA)
         self.assertIn("existe", unquote_plus(r.headers["Location"]))
         r = admin.post("/configuracoes/conta/utilizadores",
@@ -13980,7 +14401,11 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
                           # plataforma diz que a B existe, e como se chama:
                           # o dono tem de o saber. O trabalho dela, nao.
                           and not (quem == "admin" and caminho == "/plataforma"
-                                   and m == "EMPRESA-B-SEGREDO")]
+                                   and m == "EMPRESA-B-SEGREDO")
+                          # e as contas, com o repor (D17, 26/09/2026): o
+                          # dono repõe a palavra-passe de qualquer uma
+                          and not (quem == "admin" and caminho == "/plataforma"
+                                   and m == "conta-b-segredo")]
             self.assertEqual(fugas, [])
             self.assertGreater(len(self._caminhos()), 20)
 
@@ -14280,8 +14705,8 @@ class TestConvites(BaseTemporaria):
         r = cliente.get(ligacao, environ_base=self.FORA)
         self.assertEqual(r.status_code, 200)
         self.assertIn("ana@exemplo.pt", r.get_data(as_text=True))
-        r = cliente.post(ligacao, data={"utilizador": "ana", "senha": "senha-da-ana",
-                                        "outra": "senha-da-ana"},
+        r = cliente.post(ligacao, data={"utilizador": "ana", "senha": "chave-da-obra",
+                                        "outra": "chave-da-obra"},
                          environ_base=self.FORA)
         self.assertEqual(r.status_code, 302)
         with radar.liga() as c:
@@ -14313,13 +14738,232 @@ class TestConvites(BaseTemporaria):
         self.aceitar()
         ligacao = self.ligacao()
         r = radar.app.test_client().post(
-            ligacao, data={"utilizador": "ana", "senha": "senha-da-ana",
-                           "outra": "senha-da-ana"},
+            ligacao, data={"utilizador": "ana", "senha": "chave-da-obra",
+                           "outra": "chave-da-obra"},
             headers={"Origin": "https://mal.exemplo"}, environ_base=self.FORA)
         self.assertEqual(r.status_code, 403)
         with radar.liga() as c:
             self.assertFalse(c.execute("SELECT 1 FROM utilizadores "
                                        "WHERE email='ana'").fetchone())
+
+
+class TestPoliticaDasPalavrasPasse(unittest.TestCase):
+    """D16 (26/09/2026): o 19 da segunda ronda criou contas com
+    `aaaaaaaa`, `12345678` e o próprio nome de utilizador, e todas
+    entraram -- a única regra eram os oito caracteres. A política vive
+    no `contas.criar_utilizador()`, por onde passam todas (a conta, o
+    convite, a consola, a ligação de repor), e a recusa diz porquê."""
+
+    def setUp(self):
+        import contas
+        self.contas = contas
+        self.c = sqlite3.connect(":memory:")
+        self.c.row_factory = sqlite3.Row
+        contas.iniciar_tabelas(self.c)
+
+    def recusa(self, senha, utilizador="maria"):
+        with self.assertRaises(ValueError) as erro:
+            self.contas.criar_utilizador(self.c, utilizador, senha)
+        return str(erro.exception)
+
+    def test_as_do_teste_sao_recusadas_com_a_razao(self):
+        self.assertIn("um só carácter", self.recusa("aaaaaaaa"))
+        self.assertIn("sequência", self.recusa("12345678"))
+        self.assertIn("sequência", self.recusa("87654321"))
+        self.assertIn("sequência", self.recusa("qwertyui"))
+        self.assertIn("nome de utilizador", self.recusa("maria.silva.99", "maria"))
+        self.assertIn("nome de utilizador",
+                      self.recusa("x-joao.lopes-x", "joao.lopes@exemplo.pt"))
+
+    def test_as_mais_comuns_mesmo_com_numeros_a_volta(self):
+        for senha in ("password", "Password123!", "benfica2026", "portugal1",
+                      "Qwerty123", "iloveyou"):
+            with self.subTest(senha=senha):
+                self.assertIn("mais usadas", self.recusa(senha))
+
+    def test_padroes_e_so_numeros(self):
+        for senha in ("abababab", "12121212", "abcabcab", "19750312", "!!!!1111"):
+            with self.subTest(senha=senha):
+                self.recusa(senha)
+
+    def test_uma_boa_passa(self):
+        for senha in ("senha-comprida", "cavalo agrafo bateria", "Tr0mbone-azul"):
+            with self.subTest(senha=senha):
+                self.assertTrue(self.contas.criar_utilizador(self.c, "maria", senha))
+
+    def test_vale_tambem_para_trocar(self):
+        self.contas.criar_utilizador(self.c, "maria", "senha-comprida")
+        self.recusa("11111111")
+
+
+class TestReporAPalavraPasse(BaseTemporaria):
+    """D17 (26/09/2026): o «esqueci-me». A chamada 1 do suporte (o 20 da
+    segunda ronda) era impossível: só se repunha pela consola, por SSH.
+    O admin da empresa (para as contas dela) e o dono (para qualquer
+    uma) geram uma ligação de uso único, no molde do convite; quem a
+    abre escolhe a palavra-passe e as sessões da conta fecham-se.
+
+    O `/repor` é rota ABERTA, e por isso a guarda está nela: o código,
+    a origem, o prazo, o uso único e o trinco."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        radar.criar_empresa("Outra")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "dono", "senha-comprida")   # o dono
+            radar.contas.criar_utilizador(c, "chefe", "senha-comprida",
+                                          papel="admin", empresa_id=1)
+            radar.contas.criar_utilizador(c, "rita", "senha-comprida",
+                                          papel="tester", empresa_id=1)
+            radar.contas.criar_utilizador(c, "alheio", "senha-comprida",
+                                          papel="tester", empresa_id=2)
+            self.ids = {r["email"]: r["id"] for r in
+                        c.execute("SELECT id, email FROM utilizadores")}
+
+    def entrar(self, quem, senha="senha-comprida"):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": senha},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302, quem)
+        return cliente
+
+    def token(self, cliente, pagina="/configuracoes/conta"):
+        html_ = cliente.get(pagina, environ_base=self.FORA).get_data(as_text=True)
+        return re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_).group(1)
+
+    def gerar(self, cliente, caminho, pagina="/configuracoes/conta"):
+        return cliente.post(caminho, data={"csrf": self.token(cliente, pagina)},
+                            environ_base=self.FORA)
+
+    def ligacao(self, resposta):
+        self.assertEqual(resposta.status_code, 200)
+        return re.search(r"/repor/[\w-]+", resposta.get_data(as_text=True)).group(0)
+
+    def test_o_admin_repoe_e_a_ligacao_so_serve_uma_vez(self):
+        chefe = self.entrar("chefe")
+        rita = self.entrar("rita")          # uma sessão aberta da Rita
+        ligacao = self.ligacao(self.gerar(
+            chefe, "/configuracoes/conta/utilizadores/%d/repor" % self.ids["rita"]))
+        # a ligação não fica na base, só o resumo
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM reposicoes WHERE resumo=?",
+                                       (ligacao.rsplit("/", 1)[1],)).fetchone())
+        fora = radar.app.test_client()
+        self.assertEqual(fora.get(ligacao, environ_base=self.FORA).status_code, 200)
+        r = fora.post(ligacao, data={"senha": "outra-chave-boa",
+                                     "outra": "outra-chave-boa"},
+                      environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        # a sessão antiga fechou-se; a nova palavra-passe entra
+        self.assertEqual(rita.get("/concursos", environ_base=self.FORA).status_code, 302)
+        self.entrar("rita", "outra-chave-boa")
+        # e a ligação gastou-se
+        r = radar.app.test_client().post(ligacao, data={
+            "senha": "terceira-chave-boa", "outra": "terceira-chave-boa"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+        self.entrar("rita", "outra-chave-boa")
+
+    def test_fora_do_prazo_nao_serve(self):
+        with radar.liga() as c:
+            codigo = radar.contas.criar_reposicao(
+                c, self.ids["rita"], agora=datetime.datetime.now()
+                - datetime.timedelta(hours=radar.contas.HORAS_DE_REPOSICAO + 1))
+        r = radar.app.test_client().get("/repor/" + codigo, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+        self.assertIn("prazo", r.get_data(as_text=True))
+
+    def test_o_admin_nao_repoe_a_conta_de_outra_empresa(self):
+        chefe = self.entrar("chefe")
+        r = self.gerar(chefe, "/configuracoes/conta/utilizadores/%d/repor"
+                       % self.ids["alheio"])
+        self.assertEqual(r.status_code, 404)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM reposicoes").fetchone())
+
+    def test_o_admin_nao_repoe_a_conta_do_dono(self):
+        """O dono é admin da empresa 1: sem esta guarda, o outro admin da
+        mesma empresa repunha-lhe a palavra-passe e ficava dono."""
+        chefe = self.entrar("chefe")
+        r = self.gerar(chefe, "/configuracoes/conta/utilizadores/%d/repor"
+                       % self.ids["dono"])
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn("/utilizadores/%d/repor" % self.ids["dono"],
+                         chefe.get("/configuracoes/conta",
+                                   environ_base=self.FORA).get_data(as_text=True))
+
+    def test_o_tester_nao_gera(self):
+        rita = self.entrar("rita")
+        r = self.gerar(rita, "/configuracoes/conta/utilizadores/%d/repor"
+                       % self.ids["chefe"])
+        self.assertEqual(r.status_code, 403)
+        self.assertFalse(radar.contas.pode_repor(
+            {"papel": "tester", "empresa_id": 1, "dono": 0},
+            {"papel": "admin", "empresa_id": 1, "dono": 0}))
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM reposicoes").fetchone())
+
+    def test_o_dono_repoe_qualquer_conta(self):
+        dono = self.entrar("dono")
+        pagina = dono.get("/plataforma", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("/plataforma/contas/%d/repor" % self.ids["alheio"], pagina)
+        ligacao = self.ligacao(self.gerar(
+            dono, "/plataforma/contas/%d/repor" % self.ids["alheio"], "/plataforma"))
+        r = radar.app.test_client().post(ligacao, data={
+            "senha": "outra-chave-boa", "outra": "outra-chave-boa"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.entrar("alheio", "outra-chave-boa")
+
+    def test_a_politica_vale_e_a_ligacao_nao_se_gasta_numa_recusa(self):
+        with radar.liga() as c:
+            codigo = radar.contas.criar_reposicao(c, self.ids["rita"])
+        cliente = radar.app.test_client()
+        r = cliente.post("/repor/" + codigo, data={"senha": "12345678",
+                                                   "outra": "12345678"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("sequência", r.get_data(as_text=True))
+        r = cliente.post("/repor/" + codigo, data={"senha": "outra-chave-boa",
+                                                   "outra": "outra-chave-boa"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+
+    def test_recusa_um_post_de_outro_sitio(self):
+        with radar.liga() as c:
+            codigo = radar.contas.criar_reposicao(c, self.ids["rita"])
+        r = radar.app.test_client().post(
+            "/repor/" + codigo, data={"senha": "outra-chave-boa",
+                                      "outra": "outra-chave-boa"},
+            headers={"Origin": "https://mal.exemplo"}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        self.entrar("rita")
+
+    def test_codigos_inventados_fecham_o_trinco_so_a_esse_ip(self):
+        cliente = radar.app.test_client()
+        for _ in range(radar.contas.FALHAS_ATE_TRINCO):
+            self.assertEqual(cliente.get("/repor/inventado",
+                                         environ_base=self.FORA).status_code, 404)
+        with radar.liga() as c:
+            codigo = radar.contas.criar_reposicao(c, self.ids["rita"])
+        self.assertEqual(cliente.get("/repor/" + codigo,
+                                     environ_base=self.FORA).status_code, 429)
+        self.assertEqual(cliente.get("/repor/" + codigo, environ_base={
+            "REMOTE_ADDR": "198.51.100.9"}).status_code, 200)
+
+    def test_gerar_outra_invalida_a_anterior(self):
+        with radar.liga() as c:
+            antiga = radar.contas.criar_reposicao(c, self.ids["rita"])
+            radar.contas.criar_reposicao(c, self.ids["rita"])
+        r = radar.app.test_client().get("/repor/" + antiga, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 404)
+
+    def test_a_entrada_diz_a_quem_pedir(self):
+        corpo = radar.app.test_client().get(
+            "/entrar", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("Peça ao administrador da sua empresa", corpo)
 
 
 class TestCopiasForaDoPC(BaseTemporaria):

@@ -435,7 +435,12 @@ def _empresa_vazia():
 # front antes de o registo estar consolidado.
 MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
                     "Falta de CV's", "Não faz parte da oferta")
-MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações")
+# «Proposta excluída» entrou a 26/09/2026 (F14 da segunda ronda): é o
+# motivo mais frequente na prática -- por documentação, por preço
+# anormalmente baixo, acima do preço base, fora de prazo -- e não cabia
+# em nenhum dos quatro. As subcausas e o «Outro» ficam para a D6.
+MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações",
+                 "Proposta excluída")
 
 # O que a empresa decide sobre cada concurso, de ambito fechado como os
 # motivos: "consulting" ou "turnkey", e sim/nao para o CV e a proposta
@@ -1976,6 +1981,10 @@ def euros_do_texto(texto):
 
 RX_PRECO_ESCRITO = re.compile(
     r"(?:€ ?)?(?:\d{1,3}(?:[. ]\d{3})+|\d+)(?:,\d{1,2})? ?(?:€|EUR)?", re.I)
+# O mesmo, para o `pattern` do browser (que não tem re.I): o diálogo
+# recusa lá dentro, antes de enviar, e o texto não se perde.
+PADRAO_DO_PRECO = (r"\s*(?:€ ?)?(?:\d{1,3}(?:[. ]\d{3})+|\d+)(?:,\d{1,2})?"
+                   r" ?(?:€|EUR|eur|Eur)?\s*")
 
 
 # Os distritos do local de execucao, como o DR os escreve na seccao «9 -
@@ -2060,6 +2069,17 @@ def preco_escrito(bruto):
     if not valor:
         return None
     return "{:,.2f}".format(valor).translate(str.maketrans(",.", ".,")) + " EUR"
+
+
+def texto_de_campo(bruto, tecto, linhas=False):
+    """O texto de um campo, sem espacos a mais e cortado no tecto. Com
+    `linhas`, as mudancas de linha ficam (as notas passaram a caixa de
+    varias linhas a 26/09/2026, e junta-las numa so era desfazer o que
+    a pessoa arrumou)."""
+    if not linhas:
+        return " ".join((bruto or "").split())[:tecto]
+    partes = [" ".join(l.split()) for l in (bruto or "").splitlines()]
+    return "\n".join(partes).strip()[:tecto]
 
 
 def preco_pt(texto, vazio="—"):
@@ -2167,7 +2187,7 @@ def janela_urgente(hoje):
 
 
 
-def frag_de_texto(texto, coluna, norma=simplifica):
+def frag_de_texto(texto, coluna, norma=simplifica, palavras=False):
     """(fragmento, valores) da procura por palavras: varias separadas
     por |, qualquer uma serve.
 
@@ -2188,14 +2208,28 @@ def frag_de_texto(texto, coluna, norma=simplifica):
     Estava escrita duas vezes, uma em cada condicoes(); veio para aqui
     a 03/09/2026. As duas listas continuam a ser dois motores, de
     proposito -- o que se partilha e so esta traducao.
+
+    Com `palavras` (a caixa «Pesquisar», segunda ronda, 26/09/2026:
+    «limpeza manutenção» dava 0, porque se procurava a frase), cada
+    pedaço parte-se em palavras e têm de estar TODAS; a vírgula também
+    separa alternativas, e entre aspas procura-se a frase tal e qual.
+    Os campos de nomes (entidade, adjudicatário) ficam sem isto: «Silva,
+    Lda» não são duas alternativas.
     """
-    pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
+    separador = r"[|,]" if palavras else r"\|"
+    pedacos = [p.strip() for p in re.split(separador, texto or "") if p.strip()]
     if not pedacos:
         return "", []
     ors, vals = [], []
     for p in pedacos:
-        ors.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-        vals.append("%" + para_like(norma(p)) + "%")
+        frase = len(p) > 1 and p[0] == p[-1] == '"'
+        termos = p.split() if palavras and not frase else [p.strip('"')]
+        termos = [t for t in termos if norma(t)] or [p]
+        ands = []
+        for t in termos:
+            ands.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
+            vals.append("%" + para_like(norma(t)) + "%")
+        ors.append(ands[0] if len(ands) == 1 else "(" + " AND ".join(ands) + ")")
     return "(" + " OR ".join(ors) + ")", vals
 
 
@@ -2243,17 +2277,36 @@ def aparelho_do_agente(agente):
 # lista de nomes para o "responsavel", que pode ser um colega sem conta.
 
 def listar_pessoas():
+    """Os nomes que o «quem» e o «Responsável» sugerem: as pessoas já
+    escritas e as contas da empresa (segunda ronda, 26/09/2026: a lista
+    vinha vazia, ou só com um nome, e «ana ribeiro» passava a ser outra
+    pessoa). Sem repetidos por maiúsculas."""
     if empresa_activa() == SEM_EMPRESA:      # o dono da plataforma
         return []
     with liga() as c:
-        return [r["nome"] for r in
-                c.execute("SELECT nome FROM pessoas ORDER BY nome")]
+        nomes = [r["nome"] for r in c.execute("SELECT nome FROM pessoas")]
+        nomes += [r["nome"] for r in c.execute(
+            "SELECT nome FROM utilizadores WHERE empresa_id=?",
+            (empresa_activa(),))]
+    vistos = {}
+    for nome in nomes:
+        nome = (nome or "").strip()
+        if nome:
+            vistos.setdefault(nome.casefold(), nome)
+    return sorted(vistos.values(), key=str.casefold)
 
 
 def criar_pessoa(nome):
-    nome = (nome or "").strip()[:60]
+    """O nome como fica gravado. Um que já existe com outras maiúsculas
+    é o mesmo -- «ana ribeiro» é a «Ana Ribeiro» (segunda ronda,
+    26/09/2026) -- e grava-se como já estava."""
+    nome = " ".join((nome or "").split())[:60]
     if not nome:
         return ""
+    for existente in listar_pessoas():
+        if existente.casefold() == nome.casefold():
+            nome = existente
+            break
     with liga() as c:
         c.execute("INSERT OR IGNORE INTO pessoas (nome) VALUES (?)", (nome,))
     return nome
@@ -2304,6 +2357,10 @@ def registar_evento(ref, accao, detalhe="", quem=""):
                   "VALUES (?,?,?,?,?)",
                   (ref, quem or quem_sou() or "(sem nome)", accao, detalhe,
                    datetime.now().strftime("%Y-%m-%d %H:%M")))
+
+
+# Quantas entradas do histórico a ficha mostra antes do «ver as N».
+HISTORICO_NA_FICHA = 12
 
 
 def passos_do_anuncio(c, ref, limite, proposta_id=None):
@@ -2598,7 +2655,11 @@ def mover_proposta(id_, estado, quem=None, campos=None):
                   else None)
         c.execute("UPDATE propostas SET estado=?, fechada_em=?, motivo=? "
                   "WHERE id=?", (estado, fechada, motivo, id_))
-    registar(antes["ref"] or "", "estado", rotulo, quem, proposta_id=id_)
+    # «Submetido → Relatório preliminar», e não só o destino (segunda
+    # ronda, 26/09/2026): o de onde vinha perdia-se.
+    registar(antes["ref"] or "", "estado",
+             "%s → %s" % (estado_da_empresa(antes["estado"]) or antes["estado"],
+                          rotulo), quem, proposta_id=id_)
     # Fechar uma proposta tira as tarefas que ainda lhe restavam: um
     # "entregar a proposta" pendurado num concurso perdido e a mesma
     # mentira que o motivo pendurado, na vista que menos a tolera -- a
@@ -2714,8 +2775,13 @@ def gravar_campos_da_proposta(id_, campos, valores, quem=None):
                   + " WHERE id=?", list(valores) + [id_])
     for nome, valor in zip(campos, valores):
         if (antes[nome] or None) != (valor or None):
-            registar(antes["ref"] or "", nome, str(valor or "(apagado)"), quem,
-                     proposta_id=id_)
+            detalhe = str(valor or "(apagado)")
+            # O preço guarda o que era (segunda ronda, 26/09/2026: o
+            # «612 350 → 362 000» de uma proposta ganha perdia-se).
+            if nome in ("valor_proposta", "preco_base"):
+                detalhe = ("%s → %s" % (preco_pt(antes[nome]), preco_pt(valor))
+                           if antes[nome] else preco_pt(valor, "(apagado)"))
+            registar(antes["ref"] or "", nome, detalhe, quem, proposta_id=id_)
 
 
 def _prazos_das_propostas(c, propostas):
@@ -5717,6 +5783,11 @@ ANCORAS_OBJECTO = (
 ANCORAS_EQUIPA = (
     (1, r"\bequipa|perfil|profissiona|recursos humanos|senioridade"),
     (2, r"composicao|afetacao|alocacao|quadro de pessoal"),
+    # O pessoal que a lei obriga a ter qualificação (segunda ronda,
+    # 26/09/2026, E11): os técnicos TIM e de gases fluorados de uma
+    # manutenção de climatização não estavam debaixo de «equipa», e a
+    # ficha dizia que o CE não fixava requisitos de equipa.
+    (3, r"\btecnicos?\b|qualificac|credencia"),
 )
 ANCORAS_PROGRAMA = (
     (1, r"documentos.{0,25}proposta|proposta.{0,25}documentos"),
@@ -5781,6 +5852,11 @@ Regras duras:
   perfis, passa-a toda.
 - Transcreve os números que lá estão. Nunca escrevas "conforme o Anexo"
   nem "experiência comprovada".
+
+Conta também como perfil o pessoal que a lei obriga a ter qualificação
+própria — técnicos credenciados, técnicos de instalação e manutenção
+(TIM), técnicos de gases fluorados, técnico responsável — com a
+qualificação em "Certificações" e a lei que a exige, se for citada.
 
 Repara SEMPRE se os requisitos são de cada perfil ou da equipa "em
 conjunto": não é a mesma coisa para quem concorre — sete certificações
@@ -9730,7 +9806,7 @@ def condicoes_contratos(args):
     # encontra "ramos e filhos" se o termo levar o mesmo caminho.
     #
     # O op=ou junta o objecto ao CPV, como na condicoes() (B07).
-    frag_q, vals_q = frag_texto(args.get("q"), "c.objecto_norm")
+    frag_q, vals_q = frag_texto(args.get("q"), "c.objecto_norm", palavras=True)
     prefixos_cpv = [p for p in (prefixo_cpv(x)
                                 for x in (args.get("cpv") or "").split("|"))
                     if p]
@@ -10204,8 +10280,11 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
 # eles o próprio ecrã de entrar aparecia em branco e sem letra. E o
 # convite (`/convite/<codigo>`, F5): quem o abre ainda não tem conta.
 # A guarda dele está na própria rota -- o código, a origem e o uso único
-# (`convite()`).
-PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/")
+# (`convite()`). A ligacao de repor a palavra-passe (`/repor/<codigo>`,
+# D17, 26/09/2026) e o mesmo caso -- quem a abre nao consegue entrar --,
+# e a guarda tambem e dentro da rota (`repor()`): o codigo, a origem, o
+# uso unico e o trinco.
+PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o DONO da plataforma abre (F4, 23/09/2026): o sistema -- as
@@ -10665,6 +10744,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
+ <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao administrador da sua empresa uma ligação para a repor.</p>
  <p class="entrar-nota">Sem conta? <a href="/#acesso">Pede acesso</a>.</p>
  </div></section>
 </main></body></html>"""
@@ -13107,14 +13187,16 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
                          html.escape(rotulo)))
     opcoes.append("<option value='%s'>tirar da escada</option>"
                   % ENTRADA_DA_ESCADA[0])
+    base = preco_base_da_proposta(p) if p is not None else None
     return ("<form class='ranhura escada-js' method='post' action='%s' "
-            "data-titulo='%s' data-motivos='%s' data-falta='%s'>"
+            "data-titulo='%s' data-motivos='%s' data-falta='%s'%s>"
             "<select name='estado' aria-label='Ranhura na escada'>%s</select>"
             "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>ir</button></form>"
             % (html.escape(accao, quote=True),
                html.escape(titulo, quote=True),
                " ".join(MOTIVOS_DO_ESTADO),
                html.escape(json.dumps(falta), quote=True),
+               " data-base='%s'" % base if base else "",
                "".join(opcoes)))
 
 
@@ -13142,11 +13224,13 @@ def caixa_do_motivo():
     campos = ("<label class='mg-field' data-campo='valor_proposta' hidden>"
               "<span class='mg-field__label'>Preço proposto</span>"
               "<input class='mg-field__input' type='text' name='valor_proposta' "
-              "placeholder='ex. 118.500,00'></label>"
+              "inputmode='decimal' pattern='%s' "
+              "placeholder='ex. 118 500,00'></label>"
               "<label class='mg-field' data-campo='lugar' hidden>"
               "<span class='mg-field__label'>Lugar</span>"
               "<input class='mg-field__input' type='number' name='lugar' "
               "min='1' max='99'></label>")
+    campos = campos % html.escape(PADRAO_DO_PRECO, quote=True)
     titulos = json.dumps({e: estado_da_empresa(e)
                           for e in CAMPOS_QUE_A_RANHURA_EXIGE})
     return ("<dialog class='mg-dialog' id='dlg-motivo' "
@@ -13173,8 +13257,28 @@ def caixa_do_motivo():
             "  var f = document.getElementById('form-motivo');\n"
             "  var TITULOS = %s;\n"
             "  var selAberto = null;\n"
-            "  function abrir(accao, titulo, estado, falta) {\n"
+            "  // as mensagens do browser vinham em ingles (\"Please select one\n"
+            "  // of these options\"): cada campo diz a sua, em portugues\n"
+            "  f.addEventListener('invalid', function (e) {\n"
+            "    var i = e.target;\n"
+            "    if (i.type === 'radio') i.setCustomValidity('Escolha o motivo.');\n"
+            "    else if (i.name === 'lugar') i.setCustomValidity('O lugar é um número de 1 a 99.');\n"
+            "    else if (i.name === 'valor_proposta') i.setCustomValidity(i.value\n"
+            "        ? '«' + i.value + '» não é um preço. Escreva-o assim: 118 500,00.'\n"
+            "        : 'Escreva o preço proposto.');\n"
+            "  }, true);\n"
+            "  f.addEventListener('input', function (e) {\n"
+            "    if (e.target.type === 'radio')\n"
+            "      f.querySelectorAll('input[type=radio]').forEach(function (r) { r.setCustomValidity(''); });\n"
+            "    else e.target.setCustomValidity('');\n"
+            "  });\n"
+            "  f.addEventListener('change', function (e) {\n"
+            "    if (e.target.type === 'radio')\n"
+            "      f.querySelectorAll('input[type=radio]').forEach(function (r) { r.setCustomValidity(''); });\n"
+            "  });\n"
+            "  function abrir(accao, titulo, estado, falta, base) {\n"
             "    falta = falta || [];\n"
+            "    f.dataset.base = base || '';\n"
             "    var comMotivo = !!f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
             "    f.action = accao;\n"
             "    document.getElementById('dlg-motivo-estado').value = estado;\n"
@@ -13208,7 +13312,7 @@ def caixa_do_motivo():
             "    try { falta = JSON.parse(form.dataset.falta || '{}')[sel.value] || []; }\n"
             "    catch (erro) { falta = []; }\n"
             "    if (pedem.indexOf(sel.value) >= 0 || falta.length) {\n"
-            "      abrir(form.action, form.dataset.titulo, sel.value, falta);\n"
+            "      abrir(form.action, form.dataset.titulo, sel.value, falta, form.dataset.base);\n"
             "      selAberto = sel;\n"
             "    } else {\n"
             "      form.requestSubmit();\n"
@@ -13231,8 +13335,19 @@ def caixa_do_motivo():
             "    var pede = f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
             "    if (!falta.length && !pede) return;\n"
             "    e.preventDefault();\n"
-            "    abrir(origem.action, origem.dataset.titulo, estado, falta);\n"
+            "    abrir(origem.action, origem.dataset.titulo, estado, falta, origem.dataset.base);\n"
             "  }, true);\n"
+            "  // o preco proposto acima do preco base pede confirmacao (E32,\n"
+            "  // art. 70.o/2-d do CCP): no dialogo e no bloco da ficha\n"
+            "  document.addEventListener('submit', function (e) {\n"
+            "    var fm = e.target, i = fm.querySelector && fm.querySelector('input[name=valor_proposta]');\n"
+            "    if (!i || i.disabled || !fm.dataset.base || !i.value) return;\n"
+            "    var v = parseFloat(i.value.replace(/[^0-9,]/g, '').replace(',', '.'));\n"
+            "    var b = parseFloat(fm.dataset.base);\n"
+            "    if (v > b && !confirm('O preço proposto está acima do preço base. Pelo '\n"
+            "        + 'art. 70.º, n.º 2, al. d) do CCP a proposta é excluída. Gravar mesmo assim?'))\n"
+            "      e.preventDefault();\n"
+            "  });\n"
             "  // cancelar (ou Esc) repoe o selector na ranhura em que a proposta\n"
             "  // ESTA: sem isto a linha ficava a dizer Submetido sem o ser\n"
             "  // (revisao de 25/09/2026)\n"
@@ -13356,8 +13471,18 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # role=status: o leitor de ecra le o aviso sozinho. Sem isto, quem
         # triava pelo teclado nao ouvia se o gesto tinha dado (teste com
         # utilizadores, 25/09/2026; WCAG 4.1.3).
-        aviso = ("<div class='mg-alert mg-alert--info' role='status'>%s%s</div>"
-                 % (html.escape(texto_aviso), volta))
+        # Erro e sucesso já não têm o mesmo azul (segunda ronda,
+        # 26/09/2026): o erro é vermelho, com ✕ e role=alert, que o leitor
+        # de ecrã anuncia logo; o resto é verde, com ✓. O `tom` não vai
+        # na assinatura: só muda a cor de um texto que já é nosso.
+        if request.args.get("tom") == "erro":
+            aviso = ("<div class='mg-alert mg-alert--danger' role='alert'>"
+                     "<span aria-hidden='true'>&#10005;</span> %s%s</div>"
+                     % (html.escape(texto_aviso), volta))
+        else:
+            aviso = ("<div class='mg-alert mg-alert--success' role='status'>"
+                     "<span aria-hidden='true'>&#10003;</span> %s%s</div>"
+                     % (html.escape(texto_aviso), volta))
 
     # O aviso que faltava. Sem as tarefas agendadas, o radar so recolhe
     # com o painel aberto -- e como o relogio interno recupera os slots
@@ -13609,7 +13734,7 @@ LISTA_JS = """<script>
 // pelo teclado recomecava do topo, ~25 Tabs por anuncio (WCAG 2.4.3).
 (function () {
   var q = new URLSearchParams(location.search);
-  ['aviso', 'desfazer', 'assin'].forEach(function (k) { q.delete(k); });
+  ['aviso', 'desfazer', 'assin', 'tom'].forEach(function (k) { q.delete(k); });
   var chave = 'radar-pos:' + location.pathname + '?' + q.toString();
   var linhas = function () {
     return Array.prototype.slice.call(document.querySelectorAll('main tbody tr'));
@@ -14823,7 +14948,8 @@ def _lista_de_anuncios():
         # 2px (o `Field` do sistema), numa grelha de uma linha.
         "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
         "<label class='mg-field f-q'><span class='mg-field__label'>Pesquisar</span>"
-        "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência'></label>"
+        "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência' "
+        "title='Palavras soltas: têm de estar todas. Separe com vírgula para qualquer uma; entre aspas, a frase exacta.'></label>"
         "<label class='mg-field'><span class='mg-field__label'>Entidade</span>"
         "<input class='mg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
         "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
@@ -14899,6 +15025,18 @@ def _lista_de_anuncios():
                        "entrou está triado, e o que expirou passou "
                        "sozinho para o <a href='/concursos?estado=expirou'>"
                        "&ldquo;expirou sem ver&rdquo;</a>.</div>")
+    elif escondidos_interesse:
+        # Com filtro e sem nada dentro do perfil, dizia só «Nada
+        # corresponde» -- com 34 de fora dele (segunda ronda, 26/09/2026).
+        corpo_lista = ("<div class='mg-empty'>Nada corresponde a este filtro "
+                       "<b>dentro do perfil da empresa</b> &mdash; há %s fora "
+                       "dele. <a href='%s'>mostrar</a> ou <a href='%s'>limpar</a>"
+                       "</div>"
+                       % (mil(escondidos_interesse),
+                          html.escape(sem_pagina(request.args, rota,
+                                                 interesse="nao"), quote=True),
+                          html.escape(href_limpar(rota, estado_actual),
+                                      quote=True)))
     else:
         corpo_lista = ("<div class='mg-empty'>Nada corresponde a este filtro. "
                        "<a href='%s'>limpar</a></div>"
@@ -15118,8 +15256,15 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
     # O que trava: a proxima tarefa por fazer (`falta`, lida numa consulta
     # so por quem faz o ciclo), com a data quando a tem.
     if falta:
+        # A atrasada diz que o é, como no Hoje (segunda ronda, 26/09/2026:
+        # o daltónico não a distinguia das outras).
+        atrasada = bool(falta["quando"]) and \
+            falta["quando"][:10] < datetime.now().strftime("%Y-%m-%d")
         cel_falta = ("<span class='falta-txt'>%s</span>%s"
                      % (html.escape(corta(falta["o_que"] or "", 40)),
+                        (" <span class='mg-tag %s'>atrasada · %s</span>"
+                         % (tom("mau"), data_curta(falta["quando"])))
+                        if atrasada else
                         " <span class='mg-mono'>%s</span>" % data_curta(falta["quando"])
                         if falta["quando"] else ""))
     else:
@@ -15565,7 +15710,7 @@ def condicoes(args):
     # traducao da Tendios para humano. Um CPV que nao corresponde a nada
     # no modo OU nao acrescenta nada, em vez de esvaziar o lado das
     # palavras com um 1=0.
-    frag_q, vals_q = frag_texto(args.get("q"), "titulo_norm")
+    frag_q, vals_q = frag_texto(args.get("q"), "titulo_norm", palavras=True)
     frag_c, vals_c = frag_cpv(args.get("cpv"))
     juntos = ((args.get("op") or "").strip() == "ou"
               and frag_q and frag_c and frag_c != "1=0")
@@ -15908,7 +16053,7 @@ def verificar_agora():
     return redirect(volta)
 
 
-def _volta_com_aviso(texto, desfazer=None, ancora=""):
+def _volta_com_aviso(texto, desfazer=None, ancora="", erro=False):
     """De volta a pagina de onde se carregou, com um aviso por cima.
 
     O mesmo caminho do "Verificar agora": a accao vem de tres sitios
@@ -15923,15 +16068,83 @@ def _volta_com_aviso(texto, desfazer=None, ancora=""):
     queixa principal dele sobre a abertura -- "concluo a tarefa e volto
     para o inicio da pagina" --, e numa lista de cinquenta tarefas
     reencontrar onde se ia custa mais do que o gesto que se fez.
+
+    O `erro` pinta o aviso de vermelho, com o ✕ e o `role=alert` (segunda
+    ronda, 26/09/2026: «"31/02/2026" não é uma data» e «Tarefa
+    actualizada» tinham o mesmo azul, e o daltónico não os distinguia).
     """
     partes = urlparse(request.referrer or "/")
     fica = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True)
-            if k not in ("aviso", "desfazer", "assin")]
+            if k not in ("aviso", "desfazer", "assin", "tom")]
     fica.append(("aviso", texto))
+    if erro:
+        fica.append(("tom", "erro"))
     if desfazer:
         fica.append(("desfazer", desfazer))
     return redirect(partes._replace(query=urlencode(fica),
                                     fragment=ancora or "").geturl())
+
+
+def _volta_com_erro(texto):
+    """O `_volta_com_aviso()` de uma recusa: vermelho, com role=alert."""
+    return _volta_com_aviso(texto, erro=True)
+
+
+def _recado_do_preco_do_pedido():
+    """A recusa de um preço proposto que veio escrito e não se lê, ou ''.
+
+    Segunda ronda, 26/09/2026: «abc» no diálogo do «Submetido» dava
+    «pede preço proposto, e falta. Preenche no bloco…» -- o texto
+    perdia-se, e a frase dizia que faltava o que a pessoa tinha escrito."""
+    bruto = request.values.get("valor_proposta")
+    if bruto and bruto.strip() and preco_escrito(bruto) is None:
+        return ("«%s» não é um preço. Escreva-o assim: 118 500,00."
+                % corta(" ".join(bruto.split()), 40))
+    return ""
+
+
+def preco_base_da_proposta(p):
+    """O preço base de uma proposta, em euros, ou None: o dela (as que
+    não vêm do DR) ou o do anúncio."""
+    base = euros_do_texto(_valor(p, "preco_base") or "")
+    if base is None and _valor(p, "ref"):
+        with liga() as c:
+            linha = c.execute("SELECT preco_base FROM anuncios WHERE ref=?",
+                              (p["ref"],)).fetchone()
+        base = euros_do_texto((linha["preco_base"] if linha else "") or "")
+    return base
+
+
+def aviso_do_ccp(id_, estado=None):
+    """O que o CCP diz desta proposta e que convém ver a vermelho, ou ''
+    (E32 da segunda ronda, 26/09/2026). **Avisa, não recusa** -- recusar
+    é a decisão D2, que é dele.
+
+    Duas coisas: o proposto acima do preço base (art. 70.º, n.º 2, al.
+    d): a proposta é excluída -- ou é um zero a mais); e um «Relatório
+    preliminar» ou «Ganho» antes de o prazo de entrega acabar."""
+    p = proposta(id_)
+    if not p:
+        return ""
+    frases = []
+    proposto = euros_do_texto(p["valor_proposta"] or "")
+    base = preco_base_da_proposta(p)
+    if proposto and base and proposto > base:
+        frases.append("O preço proposto (%s) está acima do preço base (%s): "
+                      "pelo art. 70.º, n.º 2, al. d) do CCP a proposta é "
+                      "excluída. Confirme se não é um engano."
+                      % (preco_pt(p["valor_proposta"]), preco_pt(str(base))))
+    if estado in ("relatorio", "ganho") and p["ref"]:
+        with liga() as c:
+            linha = c.execute("SELECT prazo FROM anuncios WHERE ref=?",
+                              (p["ref"],)).fetchone()
+        prazo = linha["prazo"] if linha else ""
+        dias, passou = dias_restantes(prazo)
+        if prazo and dias is not None and not passou:
+            frases.append("«%s» antes de o prazo de entrega acabar (%s): "
+                          "confirme que é mesmo assim."
+                          % (estado_da_empresa(estado), data_pt(prazo)))
+    return " ".join(frases)
 
 
 def _campos_exigidos_do_pedido(estado, motivo=""):
@@ -15995,7 +16208,9 @@ def mudar_estado(ref, novo):
     motivo = (request.values.get("motivo") or "").strip()
     permitidos = MOTIVOS_DO_ESTADO.get(accao)
     if permitidos and motivo not in permitidos:
-        return _volta_com_aviso("Escolhe o motivo antes de continuar.")
+        return _volta_com_erro("Escolhe o motivo antes de continuar.")
+    if _recado_do_preco_do_pedido():
+        return _volta_com_erro(_recado_do_preco_do_pedido())
     with liga() as c:
         actual = c.execute("SELECT estado, titulo, altera FROM anuncios "
                            "WHERE ref=?", (ref,)).fetchone()
@@ -16006,7 +16221,7 @@ def mudar_estado(ref, novo):
         # procedimento e o anuncio original -- que ja tem o prazo desta.
         with liga() as c:
             raiz = raiz_da_alteracao(c, ref, actual["altera"] or "")
-        return _volta_com_aviso(
+        return _volta_com_erro(
             "O anúncio %s é uma alteração do %s: decide-se na ficha dele."
             % (ref, raiz or "original"))
 
@@ -16018,6 +16233,7 @@ def mudar_estado(ref, novo):
     antes_estado = antes["estado"] if antes else ""
     antes_motivo = (antes["motivo"] if antes else "") or ""
 
+    ccp = ""
     if accao == ENTRADA_DA_ESCADA[0]:
         rotulo = _tirar_da_escada(ref, antes)
         if rotulo is None:
@@ -16033,7 +16249,7 @@ def mudar_estado(ref, novo):
                                         campos=_campos_exigidos_do_pedido(
                                             accao, motivo))
             if not ok:
-                return _volta_com_aviso(recado)
+                return _volta_com_erro(recado)
             id_ = antes["id"]
         else:
             # **A condicionante vale também a quem entra na escada de
@@ -16048,7 +16264,7 @@ def mudar_estado(ref, novo):
             traz = _campos_exigidos_do_pedido(accao, motivo)
             falta = falta_para_a_ranhura(traz, accao)
             if falta:
-                return _volta_com_aviso(recado_do_que_falta(accao, falta))
+                return _volta_com_erro(recado_do_que_falta(accao, falta))
             id_ = criar_proposta(ref, estado=accao)
             if traz:
                 gravar_campos_da_proposta(id_, list(traz), list(traz.values()))
@@ -16066,8 +16282,11 @@ def mudar_estado(ref, novo):
             # la estava, cada clique repetido voltava a descarregar tudo.
             pedir_documentos(ref)
         rotulo = estado_da_empresa(accao) + (" (%s)" % motivo if motivo else "")
+        ccp = aviso_do_ccp(id_, accao)
 
     texto = "«%s»: %s." % (corta(actual["titulo"] or ref, 70), rotulo)
+    if accao != ENTRADA_DA_ESCADA[0] and ccp:
+        texto += " " + ccp
     # O caminho de volta. Se o estado anterior tinha motivo, o motivo vai
     # na accao do desfazer: sem ele o servidor recusava a reposicao.
     desfazer = None
@@ -16076,7 +16295,8 @@ def mudar_estado(ref, novo):
         desfazer = "/estado/%s/%s" % (ref, alvo)
         if antes_motivo:
             desfazer += "?" + urlencode({"motivo": antes_motivo})
-    return _volta_com_aviso(texto, desfazer)
+    return _volta_com_aviso(texto, desfazer,
+                            erro=accao != ENTRADA_DA_ESCADA[0] and bool(ccp))
 
 
 @app.route("/plataforma/<path:ref>")
@@ -16332,7 +16552,7 @@ def interesse_gravar():
     pbmin = (request.form.get("pbmin") or "").strip()
     if pbmin and euros_do_texto(pbmin) is None:
         return redirect("/configuracoes/interesse?" + urlencode(
-            {"aviso": "«%s» não se lê como preço." % corta(pbmin, 20)}))
+            {"tom": "erro", "aviso": "«%s» não se lê como preço." % corta(pbmin, 20)}))
     activo = bool(dentro or distritos or pbmin)
     gravar_config({"interesse_activo": activo, "interesse_cpv": dentro,
                    "interesse_cpv_excl": fora, "interesse_distritos": distritos,
@@ -16905,6 +17125,18 @@ def administracao_da_plataforma():
         ).fetchall())
         pendentes = c.execute("SELECT COUNT(*) FROM pedidos_acesso WHERE "
                               "COALESCE(estado,'') != 'aceite'").fetchone()[0]
+        todas_as_contas = contas.utilizadores(c)
+    # As contas, com o repor (D17): o dono repoe a de qualquer empresa.
+    # A sua tambem -- e a conta mais poderosa, e ate aqui so mudava pela
+    # consola.
+    linhas_das_contas = "".join(
+        "<tr><td>%s</td><td class='mg-num'>%s</td><td>%s</td><td>%s</td></tr>"
+        % (html.escape(u["email"]), u["empresa_id"] or "—",
+           html.escape(u["papel"] + (" · dono" if u["dono"] else "")),
+           accao("/plataforma/contas/%d/repor" % u["id"], "repor palavra-passe",
+                 "mini", rotulo="Gerar a ligação para repor a palavra-passe "
+                 "de %s" % u["email"]))
+        for u in todas_as_contas)
     linhas = []
     for id_ in empresas_existentes():
         with com_empresa(id_):
@@ -16928,17 +17160,24 @@ def administracao_da_plataforma():
         "<div class='mg-field__label' style='margin:22px 0 6px'>Empresas</div>"
         "<div class='mg-card tab-cx'><table class='mg-table'><thead><tr><th>N.º</th>"
         "<th>Empresa</th><th>Contas</th></tr></thead><tbody>%s</tbody></table></div>"
+        "<div class='mg-field__label' style='margin:22px 0 6px'>Contas</div>"
+        "<div class='mg-card tab-cx'><table class='mg-table'><thead><tr>"
+        "<th>Utilizador</th><th>Empresa</th><th>Tipo</th><th></th></tr></thead>"
+        "<tbody>%s</tbody></table></div>"
         "</div>"
         % (html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
            accao("/verificar", icone("verificar") + " Verificar agora"),
-           seccoes, pendentes, "".join(linhas)))
+           seccoes, pendentes, "".join(linhas), linhas_das_contas))
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que é de todas as empresas.",
                     corpo)
 
 
-def volta_config(seccao, aviso):
-    return redirect("/configuracoes/%s?%s" % (seccao, urlencode({"aviso": aviso})))
+def volta_config(seccao, aviso, erro=False):
+    pares = {"aviso": aviso}
+    if erro:
+        pares["tom"] = "erro"
+    return redirect("/configuracoes/%s?%s" % (seccao, urlencode(pares)))
 
 
 def _campo(rotulo, nome, valor, tipo="text", nota="", extra=""):
@@ -16970,6 +17209,10 @@ def _inteiro(form, nome, minimo, maximo, rotulo):
     return n
 
 
+def volta_config_erro(seccao, aviso):
+    return volta_config(seccao, aviso, erro=True)
+
+
 @app.route("/configuracoes")
 def configuracoes():
     return redirect("/configuracoes/conta")
@@ -16994,7 +17237,7 @@ def alertas_remetente():
     try:
         porta = _inteiro(request.form, "porta", 1, 65535, "a porta")
     except ValueError as erro:
-        return volta_config("alertas", str(erro))
+        return volta_config_erro("alertas", str(erro))
     gravar_config_registado({"email": {"de": de, "servidor": servidor,
                                        "porta": porta}})
     senha = request.form.get("senha") or ""
@@ -17036,7 +17279,7 @@ def config_recolha():
                 "recuperar_slot_falhado": bool(request.form.get("recuperar_slot_falhado")),
             }
         except ValueError as erro:
-            return volta_config("recolha", str(erro))
+            return volta_config_erro("recolha", str(erro))
         gravar_config_registado(mudancas)
         return volta_config("recolha", "Recolha guardada. As horas novas "
                             "valem já, no painel e no temporizador do "
@@ -17094,7 +17337,7 @@ def config_leitura():
     if request.method == "POST":
         forn = (request.form.get("fornecedor_pecas") or "").strip()
         if forn and forn not in nomes_forn:
-            return volta_config("leitura", "Fornecedor desconhecido: %s" % forn)
+            return volta_config_erro("leitura", "Fornecedor desconhecido: %s" % forn)
         modelos = dict(cfg.get("modelos_pecas") or {})
         for nome in nomes_forn:
             modelos[nome] = (request.form.get("modelo_" + nome) or "").strip()
@@ -17170,7 +17413,7 @@ def config_capturas():
     if request.method == "POST":
         qual = (request.form.get("qual") or "").strip()
         if qual not in ("curl_DR", "curl_detalhe"):
-            return volta_config("capturas", "Captura desconhecida.")
+            return volta_config_erro("capturas", "Captura desconhecida.")
         texto = (request.form.get("texto") or "").strip()
         # valida-se ANTES de tocar no ficheiro: uma colagem a meio nao
         # pode deixar a recolha sem captura nenhuma
@@ -17182,9 +17425,9 @@ def config_capturas():
         else:
             porque = "não parece um «Copy as cURL»"
         if not pedido or not pedido.get("headers"):
-            return volta_config("capturas", "Não gravei: %s." % porque)
+            return volta_config_erro("capturas", "Não gravei: %s." % porque)
         if qual == "curl_DR" and not pedido.get("body"):
-            return volta_config("capturas", "Não gravei: a captura da pesquisa "
+            return volta_config_erro("capturas", "Não gravei: a captura da pesquisa "
                                 "tem de trazer o corpo do pedido (--data-raw).")
         with open(os.path.join(BASE_DIR, qual + ".txt"), "w", encoding="utf-8") as f:
             f.write(texto + "\n")
@@ -17226,7 +17469,7 @@ def config_copias():
                                              "cópias a guardar"),
             }
         except ValueError as erro:
-            return volta_config("copias", str(erro))
+            return volta_config_erro("copias", str(erro))
         gravar_config_registado(mudancas)
         return volta_config("copias", "Cópias guardadas.")
     existentes = []
@@ -17270,23 +17513,62 @@ def _nome_de_importacao(nome):
     return nome if re.fullmatch(r"[\w.\-]+\.xlsx", nome) else ""
 
 
+def _base_no_ensaio(linhas, cfg=None):
+    """O que o Portal BASE diz de cada linha decidida (E49 da segunda
+    ronda, 26/09/2026): um «Ganho» importado que o BASE dá a outro
+    entrava sem aviso -- e para as propostas abertas a ficha já fazia
+    este cruzamento. Só avisa: quem sabe se fomos nós é a empresa."""
+    cfg = ler_config() if cfg is None else cfg
+    for l in linhas:
+        estado = simplifica(l.get("status") or "")
+        if not (l.get("ok") and l.get("ref") and estado in ("ganho", "perdido")):
+            continue
+        desfecho = desfecho_do_anuncio(l["ref"])
+        if not desfecho:
+            continue
+        quem = corta(" · ".join(sorted({n for d in desfecho
+                                        for n in (d["ganhou"] or "").split("|")
+                                        if n})), 80) or "?"
+        nos = fomos_nos(desfecho, cfg)
+        if estado == "ganho" and nos is False:
+            l["base"] = "não bate: o Portal BASE dá-o a %s" % quem
+        elif estado == "perdido" and nos is True:
+            l["base"] = "não bate: o Portal BASE dá-o a nós"
+        else:
+            l["base"] = "adjudicado a %s" % quem
+
+
 def _tabela_do_ensaio(linhas):
     corpo = []
     for l in linhas:
         problemas = "".join("<div class='mau'>%s</div>" % html.escape(pr) for pr in l["problemas"])
         avisos = "".join("<div class='aviso'>%s</div>" % html.escape(av) for av in l.get("avisos", []))
+        # Um veredicto só, antes dos avisos (segunda ronda, 26/09/2026:
+        # um erro a vermelho e um aviso a âmbar na mesma linha não diziam
+        # se ela entrava); e o que faz ao que já existe.
+        veredicto = ("<b class='ok'>entra</b>" if l["ok"]
+                     else "<b class='mau'>não entra</b>")
+        efeito = ("<div>%s</div>" % html.escape(l["efeito"])) if l.get("efeito") else ""
+        base = l.get("base", "")
         corpo.append(
             "<tr class='%s'><td class='d'>%d</td><td class='n'>%s</td><td class='o'>%s</td>"
-            "<td class='d'>%s</td><td>%s</td><td class='p'>%s</td><td>%s</td></tr>"
-            % ("ok" if l["ok"] else "erro", l["linha"], html.escape(l["ref"] or "—"),
+            "<td class='d'>%s</td><td>%s</td><td class='p'>%s</td><td>%s</td><td>%s</td></tr>"
+            % ("ok" if l["ok"] else "erro", l["linha"],
+               # o que se escreveu, quando não se leu: «—» não deixava ver
+               # o que corrigir
+               html.escape(l["ref"] or l.get("ref_escrita") or "—"),
                html.escape(corta(l["titulo"] or "", 90)),
                "L%d" % l["lote"] if l["lote"] is not None else "—",
                html.escape(l["status"] or "—"),
                html.escape(_texto_do_preco(l["valor_proposta"])) if l["valor_proposta"] else "—",
-               (problemas + avisos) or "<span class='ok'>liga</span>"))
+               ("<span class='%s'>%s</span>" % ("mau" if base.startswith("não bate")
+                                                 else "", html.escape(base)))
+               if base else "—",
+               veredicto + efeito + problemas + avisos))
     return ("<div class='mercado-tab'><table class='mg-table tab-mercado tab-ensaio'><thead><tr>"
             "<th>Linha</th><th>Referência</th><th>Anúncio</th><th>Lote</th><th>Estado</th>"
-            "<th class='p'>Proposta</th><th>Ensaio</th></tr></thead><tbody>%s</tbody></table></div>"
+            "<th class='p'>Proposta</th><th>BASE diz</th><th>Ensaio</th></tr></thead>"
+            "<tbody>%s</tbody></table></div>"
             % "".join(corpo))
 
 
@@ -17298,9 +17580,9 @@ def config_importar():
     if request.method == "POST":
         ficheiro = request.files.get("ficheiro")
         if not ficheiro or not ficheiro.filename:
-            return volta_config("importar", "Escolhe o ficheiro .xlsx preenchido.")
+            return volta_config_erro("importar", "Escolhe o ficheiro .xlsx preenchido.")
         if not ficheiro.filename.lower().endswith(".xlsx"):
-            return volta_config("importar", "Só .xlsx: é o formato do modelo.")
+            return volta_config_erro("importar", "Só .xlsx: é o formato do modelo.")
         os.makedirs(IMPORTACOES, exist_ok=True)
         nome = "%s-%s" % (datetime.now().strftime("%Y%m%d-%H%M%S"),
                           re.sub(r"[^\w.\-]+", "_", os.path.basename(ficheiro.filename))[-60:])
@@ -17312,29 +17594,49 @@ def config_importar():
             linhas = empresa.ler_modelo(caminho)
         except Exception as erro:            # openpyxl levanta de tudo num ficheiro estragado
             os.remove(caminho)
-            return volta_config("importar", "Não consegui ler o ficheiro: %s" % str(erro)[:120])
+            return volta_config_erro("importar", "Não consegui ler o ficheiro: %s" % str(erro)[:120])
         with liga() as c:
             linhas, contagens = empresa.ensaio_modelo(c, linhas)
         if not linhas:
             os.remove(caminho)
-            return volta_config("importar", "O ficheiro não tem linhas preenchidas na folha «Registo».")
+            return volta_config_erro("importar", "O ficheiro não tem linhas preenchidas na folha «Registo».")
+        _base_no_ensaio(linhas)
+        ignoradas = empresa.colunas_ignoradas(caminho)
         confirmar = (
             "<form method='post' action='/configuracoes/importar/confirmar' class='conf-form' "
             "style='margin-top:16px'><input type='hidden' name='ficheiro' value='%s'>"
-            "<button type='submit' class='mg-btn mg-btn--primary'%s>Confirmar: gravar %d linha%s e a triagem</button>"
-            "<small>As linhas com erro ficam de fora. Uma linha repetida (mesma referência e "
-            "lote) substitui a que já lá estava.</small></form>"
+            "<button type='submit' class='mg-btn mg-btn--primary'%s>Gravar %d proposta%s</button>"
+            "<small>As linhas com erro ficam de fora. Uma referência que já entrou por "
+            "outra importação fica com o que esta traz. Depois de gravar, a importação "
+            "desfaz-se aqui, enquanto ninguém mexer nas propostas que ela tocou.</small></form>"
             % (html.escape(nome, quote=True), "" if contagens["ok"] else " disabled",
                contagens["ok"], "" if contagens["ok"] == 1 else "s"))
+        # O que muda no que já existe diz-se em cima (E17): «quase apaguei
+        # um Ganho de 362 mil euros de um colega e o ensaio disse-me que
+        # estava tudo bem».
+        topo = "".join(
+            "<div class='mg-alert mg-alert--warning'>%s</div>" % html.escape(frase)
+            for frase in (
+                ["%d linha%s vai alterar proposta%s que já existe%s — vê a coluna "
+                 "Ensaio." % (contagens["alteram"], "" if contagens["alteram"] == 1 else "s",
+                              "" if contagens["alteram"] == 1 else "s",
+                              "" if contagens["alteram"] == 1 else "m")]
+                if contagens["alteram"] else []) + (
+                ["%d linha%s não muda%s a proposta, que já está noutra ranhura."
+                 % (contagens["mantem"], "" if contagens["mantem"] == 1 else "s",
+                    "" if contagens["mantem"] == 1 else "m")]
+                if contagens["mantem"] else []) + [
+                "A coluna %s «%s» não é do modelo e é ignorada." % (letra, titulo)
+                for letra, titulo in ignoradas])
         corpo = (
             "<div class='mg-field__label'>Ensaio de %s</div>"
-            "<div class='nota' style='margin:6px 0 12px'>%d linha%s lida%s: <b>%d liga%s</b> "
-            "a %d anúncio%s, <b>%d com erro</b>. Nada foi gravado ainda.</div>%s%s"
+            "<div class='nota' style='margin:6px 0 12px'>%d linha%s lida%s: <b>%d entra%s</b> "
+            "em %d anúncio%s, <b>%d com erro</b>. Nada foi gravado ainda.</div>%s%s%s"
             % (html.escape(ficheiro.filename), contagens["total"],
                "" if contagens["total"] == 1 else "s", "" if contagens["total"] == 1 else "s",
                contagens["ok"], "" if contagens["ok"] == 1 else "m",
                contagens["anuncios"], "" if contagens["anuncios"] == 1 else "s",
-               contagens["com_erro"], _tabela_do_ensaio(linhas), confirmar))
+               contagens["com_erro"], topo, _tabela_do_ensaio(linhas), confirmar))
         return pagina_config("importar", "<div class='mg-card conf-cx'>" + corpo + "</div>")
     with liga() as c:
         n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM empresa "
@@ -17355,12 +17657,157 @@ def config_importar():
         "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Ver o ensaio</button></form>"
         "<div class='mg-field__label' style='margin:26px 0 6px'>O que já está</div>"
-        "<div class='nota'>%s</div>"
+        "<div class='nota'>%s</div>%s"
         % ("%s linha%s do modelo, em %s anúncio%s; última importação a %s."
            % (mil_pt(n_modelo[0]), "" if n_modelo[0] == 1 else "s", mil_pt(n_modelo[1]),
               "" if n_modelo[1] == 1 else "s", html.escape(data_hora_pt(ultima)))
-           if n_modelo[0] else "Ainda não entrou nenhuma linha pelo modelo."))
+           if n_modelo[0] else "Ainda não entrou nenhuma linha pelo modelo.",
+           _lista_das_importacoes()))
     return pagina_config("importar", "<div class='mg-card conf-cx'>" + corpo + "</div>")
+
+
+# --- desfazer uma importação (E18 da segunda ronda, 26/09/2026)
+#
+# «Enganei-me numa coluna e agora tenho quatro concursos de 2024 no "Por
+# analisar" e não os consigo tirar de lá.» O `--empresa-desfazer` já o
+# fazia pela consola, a partir de uma cópia; quem importa não tem
+# consola. Cada importação guarda o ANTES e o DEPOIS das propostas e do
+# registo que tocou, num ficheiro da pasta da empresa (e não da pasta
+# `importacoes/`, que é de todas). Desfazer repõe o antes -- mas só onde
+# a proposta ainda está como a importação a deixou: o que alguém mexeu
+# depois é trabalho, e não se deita fora.
+
+def _fotografia_da_importacao(c, refs):
+    """{ref: {"propostas": [...], "registo": [...]}}, as linhas inteiras."""
+    foto = {}
+    for ref in refs:
+        foto[ref] = {
+            "propostas": [dict(r) for r in c.execute(
+                "SELECT %s FROM propostas WHERE ref=? ORDER BY id"
+                % ", ".join(COLUNAS_DA_PROPOSTA), (ref,))],
+            "registo": [dict(r) for r in c.execute(
+                "SELECT * FROM empresa WHERE ref=? AND folha='modelo' ORDER BY id",
+                (ref,))]}
+    return foto
+
+
+def _pasta_dos_desfazer():
+    return os.path.join(os.path.dirname(db_da_empresa()), "importacoes")
+
+
+def _guardar_desfazer(nome, antes, depois, hist):
+    pasta = _pasta_dos_desfazer()
+    os.makedirs(pasta, exist_ok=True)
+    with open(os.path.join(pasta, nome + ".json"), "w", encoding="utf-8") as f:
+        json.dump({"ficheiro": nome, "quem": quem_sou(),
+                   "quando": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                   "antes": antes, "depois": depois, "historico": hist,
+                   "desfeita_em": None}, f, ensure_ascii=False)
+    so_o_dono(os.path.join(pasta, nome + ".json"))
+
+
+def _importacoes_guardadas(limite=5):
+    pasta = _pasta_dos_desfazer()
+    if not os.path.isdir(pasta):
+        return []
+    fora = []
+    for nome in sorted(os.listdir(pasta), reverse=True)[:limite]:
+        try:
+            with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                fora.append(json.load(f))
+        except (OSError, ValueError):
+            continue
+    return fora
+
+
+def _lista_das_importacoes():
+    linhas = []
+    for imp in _importacoes_guardadas():
+        refs = sorted(imp["depois"])
+        ligacoes = ", ".join("<a href='/anuncio/%s'>%s</a>"
+                             % (quote(r, safe=""), html.escape(r)) for r in refs[:12])
+        if len(refs) > 12:
+            ligacoes += " e mais %d" % (len(refs) - 12)
+        linhas.append(
+            "<div class='l'><span class='t'>%s, por %s: %d anúncio%s (%s)</span>"
+            "<span class='v'>%s</span></div>"
+            % (html.escape(data_hora_pt(imp["quando"])), html.escape(imp["quem"] or "—"),
+               len(refs), "" if len(refs) == 1 else "s", ligacoes or "nenhum",
+               ("desfeita a %s" % html.escape(data_hora_pt(imp["desfeita_em"])))
+               if imp.get("desfeita_em") else
+               accao("/configuracoes/importar/desfazer", "desfazer", "mini",
+                     "Desfazer esta importação? As propostas que ela tocou voltam "
+                     "a como estavam antes dela.",
+                     campos={"ficheiro": imp["ficheiro"]})))
+    return ("<div class='saude' style='margin-top:10px'>%s</div>" % "".join(linhas)
+            if linhas else "")
+
+
+def desfazer_importacao(nome):
+    """Repõe o antes de uma importação. Devolve (repostas, deixadas), ou
+    None se não há registo dela. Um anúncio cujas propostas já não estão
+    como a importação as deixou fica como está: alguém trabalhou nele."""
+    caminho = os.path.join(_pasta_dos_desfazer(), nome + ".json")
+    if not os.path.exists(caminho):
+        return None
+    with open(caminho, encoding="utf-8") as f:
+        imp = json.load(f)
+    if imp.get("desfeita_em"):
+        return 0, []
+    repostas, deixadas = 0, []
+    with liga() as c:
+        for ref, depois in imp["depois"].items():
+            agora = _fotografia_da_importacao(c, [ref])[ref]
+            if agora["propostas"] != depois["propostas"]:
+                deixadas.append(ref)
+                continue
+            antes = imp["antes"].get(ref, {"propostas": [], "registo": []})
+            # As que a importação criou saem com as tarefas delas; as que
+            # já existiam voltam à linha de antes, e as tarefas ficam.
+            ids_antes = {v["id"] for v in antes["propostas"]}
+            for v in depois["propostas"]:
+                if v["id"] not in ids_antes:
+                    apagar_propostas(c, "id=?", (v["id"],))
+            for v in antes["propostas"]:
+                c.execute("DELETE FROM propostas WHERE id=?", (v["id"],))
+                c.execute("INSERT INTO propostas (%s) VALUES (%s)"
+                          % (", ".join(v), ", ".join("?" * len(v))), list(v.values()))
+            c.execute("DELETE FROM empresa WHERE ref=? AND folha='modelo'", (ref,))
+            for v in antes["registo"]:
+                c.execute("INSERT INTO empresa (%s) VALUES (%s)"
+                          % (", ".join(v), ", ".join("?" * len(v))), list(v.values()))
+            if imp["historico"]:
+                c.execute("DELETE FROM historico WHERE ref=? AND id IN (%s)"
+                          % ",".join("?" * len(imp["historico"])),
+                          [ref] + imp["historico"])
+            repostas += 1
+    imp["desfeita_em"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(imp, f, ensure_ascii=False)
+    for ref in imp["depois"]:
+        if ref not in deixadas:
+            sincronizar_tarefas(ref)
+    return repostas, deixadas
+
+
+@app.route("/configuracoes/importar/desfazer", methods=["POST"])
+def config_importar_desfazer():
+    nome = _nome_de_importacao(request.form.get("ficheiro"))
+    feito = desfazer_importacao(nome) if nome else None
+    if feito is None:
+        return volta_config_erro("importar", "Não encontro essa importação.")
+    repostas, deixadas = feito
+    registar("", "importação", "desfeita: %d anúncio%s reposto%s (%s)"
+             % (repostas, "" if repostas == 1 else "s", "" if repostas == 1 else "s",
+                nome))
+    frase = "Importação desfeita: %d anúncio%s reposto%s." % (
+        repostas, "" if repostas == 1 else "s", "" if repostas == 1 else "s")
+    if deixadas:
+        frase += (" Fica%s como está%s %s, que alguém mexeu depois de importar."
+                  % ("" if len(deixadas) == 1 else "m",
+                     "" if len(deixadas) == 1 else "o",
+                     ", ".join(deixadas[:10])))
+    return volta_config("importar", frase, erro=bool(deixadas))
 
 
 @app.route("/configuracoes/importar/modelo.xlsx")
@@ -17378,11 +17825,18 @@ def config_importar_confirmar():
     nome = _nome_de_importacao(request.form.get("ficheiro"))
     caminho = os.path.join(IMPORTACOES, nome) if nome else ""
     if not nome or not os.path.exists(caminho):
-        return volta_config("importar", "O ficheiro do ensaio já não está cá; carrega-o outra vez.")
+        return volta_config_erro("importar", "O ficheiro do ensaio já não está cá; carrega-o outra vez.")
     linhas = empresa.ler_modelo(caminho)
     with liga() as c:
         linhas, contagens = empresa.ensaio_modelo(c, linhas)
+        refs = sorted({l["ref"] for l in linhas if l.get("ok")})
+        antes = _fotografia_da_importacao(c, refs)
+        hist_de = c.execute("SELECT COALESCE(MAX(id), 0) FROM historico").fetchone()[0]
         resultado = empresa.aplicar_modelo(c, linhas, quem=quem_sou() or "modelo")
+        hist = [r[0] for r in c.execute(
+            "SELECT id FROM historico WHERE id > ?", (hist_de,))]
+        depois = _fotografia_da_importacao(c, refs)
+    _guardar_desfazer(nome, antes, depois, hist)
     registar("", "importação", "%d linhas do modelo, %d anúncios, %d com triagem aplicada (%s)"
              % (resultado["gravadas"], resultado["anuncios"], resultado["aplicadas"], nome))
     return volta_config("importar", "Importado: %d linha%s em %d anúncio%s; %d com a triagem "
@@ -17413,13 +17867,13 @@ def config_conta():
             linha = c.execute("SELECT hash FROM utilizadores WHERE id=?",
                               (utilizador["id"],)).fetchone()
             if not contas.verifica_senha(actual, linha["hash"]):
-                return volta_config("conta", "A palavra-passe actual não está certa.")
+                return volta_config_erro("conta", "A palavra-passe actual não está certa.")
             if nova != outra:
-                return volta_config("conta", "As duas palavras-passe novas não são iguais.")
+                return volta_config_erro("conta", "As duas palavras-passe novas não são iguais.")
             try:
                 contas.criar_utilizador(c, utilizador["email"], nova)
             except ValueError as erro:
-                return volta_config("conta", "Não gravei: %s." % erro)
+                return volta_config_erro("conta", "Não gravei: %s." % erro)
         registar("", "conta", "palavra-passe mudada")
         return volta_config("conta", "Palavra-passe mudada.")
     with liga() as c:
@@ -17494,7 +17948,7 @@ def config_empresa():
     # e o dígito de controlo é o que apanha a gralha
     nif = re.sub(r"\D", "", request.form.get("nif_da_empresa") or "")
     if nif and not nif_valido(nif):
-        return volta_config("conta", "O NIF %s não é válido (o último "
+        return volta_config_erro("conta", "O NIF %s não é válido (o último "
                             "dígito não confere). Nada foi guardado." % nif[:12])
     gravar_config_registado({"nome_da_empresa": nome, "nif_da_empresa": nif})
     return volta_config("conta", "A nossa empresa: guardada.")
@@ -17512,7 +17966,12 @@ def _bloco_utilizadores(todos, eu):
            html.escape(u["email"]), " (eu)" if u["id"] == eu else "",
            html.escape(u["papel"]),
            "" if u["id"] == eu else
-           " &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
+           (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/repor" % u["id"],
+                                 "repor palavra-passe", "mini",
+                                 rotulo="Gerar a ligação para repor a "
+                                 "palavra-passe de %s" % u["email"])
+            if contas.pode_repor(g.get("utilizador"), u) else "")
+           + " &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
                                 "tirar", "mini perigo",
                                 "Tirar a conta %s? As sessões dela fecham já."
                                 % html.escape(u["email"], quote=True)))
@@ -17560,12 +18019,12 @@ def conta_criar_utilizador():
     with liga() as c:
         if c.execute("SELECT 1 FROM utilizadores WHERE email=?",
                      (contas.email_limpo(email),)).fetchone():
-            return volta_config("conta", "Já existe um utilizador %s." % email)
+            return volta_config_erro("conta", "Já existe um utilizador %s." % email)
         try:
             contas.criar_utilizador(c, email, request.form.get("senha") or "",
                                     papel=papel, empresa_id=empresa_activa())
         except ValueError as erro:
-            return volta_config("conta", "Não criei: %s." % erro)
+            return volta_config_erro("conta", "Não criei: %s." % erro)
     registar("", "conta", "criou o utilizador %s (%s)"
              % (contas.email_limpo(email), papel))
     return volta_config("conta", "Utilizador %s criado, como %s."
@@ -17695,7 +18154,7 @@ def conta_convidar():
     nem no historico: e ela que da entrada, e na base fica so o resumo."""
     papel = (request.form.get("papel") or "tester").strip()
     if papel not in contas.PAPEIS:
-        return volta_config("conta", "O tipo tem de ser admin ou tester.")
+        return volta_config_erro("conta", "O tipo tem de ser admin ou tester.")
     with liga() as c:
         codigo = contas.criar_convite(c, empresa_activa(), "", papel)
     registar("", "conta", "criou um convite (%s)" % papel)
@@ -17718,16 +18177,16 @@ def conta_convidar():
            methods=["POST"])
 def conta_apagar_utilizador(utilizador_id):
     if utilizador_id == (g.get("utilizador") or {}).get("id"):
-        return volta_config("conta", "A tua própria conta não se tira daqui.")
+        return volta_config_erro("conta", "A tua própria conta não se tira daqui.")
     with liga() as c:
         linha = c.execute("SELECT email FROM utilizadores WHERE id=?",
                           (utilizador_id,)).fetchone()
         try:
             houve = contas.apagar_utilizador(c, utilizador_id, empresa_activa())
         except ValueError as erro:
-            return volta_config("conta", "Não tirei: %s." % erro)
+            return volta_config_erro("conta", "Não tirei: %s." % erro)
     if not houve:
-        return volta_config("conta", "Essa conta já não existe.")
+        return volta_config_erro("conta", "Essa conta já não existe.")
     registar("", "conta", "tirou o utilizador %s" % linha["email"])
     return volta_config("conta", "Conta %s tirada." % linha["email"])
 
@@ -20459,7 +20918,7 @@ def passos_da_escada(a, minhas):
             actual = i
     if not minhas:
         abandonado = a["estado"] == "descartado"
-        nota_actual = "abandonado" if abandonado else "por decidir"
+        nota_actual = "abandonado" if abandonado else "ainda não decidido"
         perigo = abandonado
     else:
         nota_actual = estado_da_empresa(estado).lower()
@@ -20469,6 +20928,11 @@ def passos_da_escada(a, minhas):
         if i == actual:
             estado_passo = "danger" if perigo else (
                 "done" if estado == "ganho" else "current")
+            # Por decidir, o passo 1 fica cinzento (segunda ronda,
+            # 26/09/2026): aceso, lia-se «já Interessa» antes de alguém
+            # ter carregado no botão.
+            if not minhas and not perigo:
+                estado_passo = "todo"
             nota = nota_actual
         else:
             estado_passo = "done" if i < actual else "todo"
@@ -20748,7 +21212,8 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     # mesma coisa que ainda nao se ter ido ver.
     anormal = das_pecas("preco_anormalmente_baixo")
     anormal_falta = "" if anormal else (
-        "o Programa de Concurso não fixa nenhum"
+        "o Programa de Concurso foi lido e a leitura não encontrou nenhum: "
+        "confirmar no documento"
         if foi_lido("preco_anormalmente_baixo") else FALTA_PC)
 
     return [
@@ -20773,7 +21238,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
          # leitura, "ainda nao foi lido" era mentira -- e mandava abrir
          # um documento que a ferramenta ja tinha visto nao dizer nada.
          ("localização do procedimento; o Caderno de Encargos foi lido e "
-          "não fixa o regime presencial, remoto ou híbrido"
+          "a leitura não encontrou o regime presencial, remoto ou híbrido"
           if foi_lido("localizacao") else
           "localização do procedimento; o regime presencial, remoto ou "
           "híbrido consta do Caderno de Encargos e ainda não foi lido")),
@@ -20782,15 +21247,18 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Data de submissão da proposta", data_pt(a["prazo"], ""), "", ""),
         ("Objeto, âmbito e características", das_pecas("objecto"),
          "" if das_pecas("objecto") else
-         ("o Caderno de Encargos foi lido e não o descreve"
+         ("o Caderno de Encargos foi lido e a leitura não encontrou a "
+          "descrição: confirmar no documento"
           if foi_lido("objecto") else FALTA_CE), nota_pecas),
         ("Equipa", das_pecas("equipa"),
          "" if das_pecas("equipa") else
-         ("o Caderno de Encargos foi lido e não fixa requisitos de equipa"
+         ("o Caderno de Encargos foi lido e a leitura não encontrou "
+          "requisitos de equipa: confirmar no documento"
           if foi_lido("equipa") else FALTA_CE), nota_pecas),
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
          "" if das_pecas("documentos_proposta") else
-         ("o Programa de Concurso foi lido e não os enumera"
+         ("o Programa de Concurso foi lido e a leitura não encontrou a "
+          "lista: confirmar no documento"
           if foi_lido("documentos_proposta") else FALTA_PC), nota_pecas),
     ]
 
@@ -21417,7 +21885,7 @@ def ficha(ref):
     with liga() as c:
         docs = c.execute("SELECT * FROM documentos WHERE ref=? ORDER BY nome",
                          (ref,)).fetchall()
-        passos = passos_do_anuncio(c, ref, 12)
+        passos = passos_do_anuncio(c, ref, 100000)
         # A republicacao. Numa alteracao, a ficha aponta para o original,
         # onde a triagem se faz; num original ja alterado, o texto que
         # se mostra e o da alteracao mais recente -- e o que esta em
@@ -21592,19 +22060,24 @@ def ficha(ref):
                     valor_html = html.escape(valor)
                 itens.append("<dt>%s</dt><dd>%s</dd>"
                              % (html.escape(chave) if chave else "&nbsp;", valor_html))
-            # a dica e o primeiro valor com substancia, para se saber o que
-            # ha dentro sem ter de abrir. Travessao literal, nao a entidade:
-            # isto passa por html.escape() a seguir. O titulo fica como vem
+            # A dica diz o que ha dentro sem abrir -- e diz-o com a CHAVE
+            # (segunda ronda, 26/09/2026, E10): era o primeiro valor solto,
+            # e com as seccoes fechadas lia-se «14 — Prestação de caução:
+            # Sim» sem os 5 %, e «Critério de adjudicação: Não» (era o
+            # «Multifator: Não»). Travessao literal, nao a entidade: isto
+            # passa por html.escape() a seguir. O titulo fica como vem
             # (o .title() estropiava as preposicoes).
-            dica = next((v for _, v in pares_sec if v and len(v) < 60), "")
+            dica = corta(" · ".join("%s: %s" % (k, v) if k else v
+                                    for k, v in pares_sec if v), 110)
             cabecalho = ("%s — %s" % (numero, titulo_sec)) \
                 if titulo_sec else "Outros"
+            # O anuncio COMPLETO vem aberto: quem o pede quer ler tudo, e
+            # fechado parecia cortado ao primeiro valor.
             blocos.append(
-                "<details class='mg-disc ficha-seccao'%s><summary>"
+                "<details class='mg-disc ficha-seccao' open><summary>"
                 "<span class='st'>%s</span><span class='sh'>%s</span></summary>"
                 "<dl class='ficha-factos'>%s</dl></details>"
-                % (" open" if len(blocos) < 2 else "", html.escape(cabecalho),
-                   html.escape(dica), "".join(itens)))
+                % (html.escape(cabecalho), html.escape(dica), "".join(itens)))
         detalhe_completo = "".join(blocos)
         nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
     pares.append(("CPV", cpv_facto, "n"))
@@ -21815,6 +22288,12 @@ def ficha(ref):
         "guardar</button></form>"
         % (ref, _iniciais(resp), html.escape(resp, quote=True)))
 
+    # As 12 mais recentes, e as outras a pedido (segunda ronda,
+    # 26/09/2026: perdia-se quem criou a proposta e quem a pôs em
+    # preparação, e «um histórico que esquece não é um histórico»).
+    total_hist = len(passos)
+    if request.args.get("historico") != "tudo":
+        passos = passos[:HISTORICO_NA_FICHA]
     if passos:
         linhas_hist = "".join(
             # QUEM, o que fez, e o que -- tres coisas; separados por
@@ -21829,6 +22308,13 @@ def ficha(ref):
                html.escape(data_hora_pt(p["quando"])))
             for p in passos)
         linhas_hist = "<ul class='ficha-lista'>%s</ul>" % linhas_hist
+        if total_hist > len(passos):
+            pares = [(k, v) for k, v in request.args.items(multi=True)
+                     if k not in ("aviso", "assin", "tom", "desfazer")]
+            linhas_hist += ("<p class='ficha-nota'><a href='?%s#historico'>Ver "
+                            "as %s entradas</a></p>"
+                            % (html.escape(urlencode(pares + [("historico", "tudo")]),
+                                           quote=True), mil_pt(total_hist)))
     else:
         linhas_hist = "<p class='ficha-nota'>Ainda não há registo de alterações.</p>"
     hist_cx = cartao("Histórico", linhas_hist, id_="historico")
@@ -21979,7 +22465,7 @@ def analisar(ref):
     """
     pode, porque = pode_pedir_leitura(ref)
     if not pode:
-        return _volta_com_aviso(porque)
+        return _volta_com_erro(porque)
     if pedir_analise(ref, quem_sou()) and not sou_dono():
         with liga() as c:
             c.execute("INSERT INTO leituras_pedidas VALUES (?,?,?,?)",
@@ -22258,13 +22744,36 @@ def tarefa_nova():
     # com utilizadores, 25/09/2026). Vazia continua a ser «sem data».
     bruto = (request.form.get("quando") or "").strip()
     quando = data_do_texto(bruto)
+    # Sem texto, a recusa dizia só da data (segunda ronda, 26/09/2026).
+    if not " ".join((request.form.get("o_que") or "").split()):
+        return _volta_com_erro("A tarefa precisa de dizer o que há a fazer. "
+                               "Não foi criada.")
     if bruto and not quando:
-        return _volta_com_aviso("«%s» não é uma data: escreve-a como "
+        return _volta_com_erro("«%s» não é uma data: escreve-a como "
                                 "dd/mm/aaaa. A tarefa não foi criada."
                                 % corta(bruto, 20))
-    criar_tarefa(request.form.get("o_que"), quando,
-                 proposta_id=proposta_id, ref=ref)
-    return volta_ao_referer("/anuncio/" + (ref or ""))
+    id_ = criar_tarefa(request.form.get("o_que"), quando,
+                       proposta_id=proposta_id, ref=ref,
+                       quem=criar_pessoa(request.form.get("quem")) or None)
+    # E26: de volta à linha nova, com o aviso, e não ao topo da ficha
+    return _volta_com_aviso("Tarefa juntada.", ancora="t%d" % id_)
+
+
+@app.route("/proposta/<int:id_>/fechar-tarefas", methods=["POST"])
+def proposta_fechar_tarefas(id_):
+    """Marca como feitas as tarefas que uma proposta fechada ainda tinha
+    (E34 da segunda ronda, 26/09/2026): depois de Ganho ou Perdido
+    ficavam abertas e contavam no «Para fazer» do Hoje. Só as de uma
+    proposta fechada: numa aberta, é trabalho que ainda está por fazer."""
+    p = proposta(id_)
+    if not p or p["estado"] not in ESTADOS_FECHADOS:
+        return volta_ao_referer("/")
+    ids = [t["id"] for t in tarefas_por_proposta([id_]).get(id_, [])]
+    for tarefa_id in ids:
+        marcar_tarefa(tarefa_id, True)
+    return _volta_com_aviso("%s como feita%s." % (
+        "1 tarefa marcada" if len(ids) == 1 else "%d tarefas marcadas" % len(ids),
+        "" if len(ids) == 1 else "s"), ancora="proposta")
 
 
 @app.route("/tarefa/<int:id_>/feita", methods=["POST"])
@@ -22295,10 +22804,12 @@ def tarefa_gravar(id_):
             campos[nome] = request.form.get(nome)
     if not campos:
         return volta_ao_referer("/")
+    if "quem" in campos:
+        campos["quem"] = criar_pessoa(campos["quem"])
     ok, recado = gravar_tarefa(id_, **campos)
     if not ok:
-        return _volta_com_aviso(recado)
-    return _volta_com_aviso("Tarefa actualizada.")
+        return _volta_com_erro(recado)
+    return _volta_com_aviso("Tarefa actualizada.", ancora="t%d" % id_)
 
 
 @app.route("/tarefa/<int:id_>/por-fazer", methods=["POST"])
@@ -22352,17 +22863,21 @@ def escada_da_proposta(id_):
     motivo = (request.form.get("motivo") or "").strip()
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos and motivo not in permitidos:
-        return _volta_com_aviso("Escolhe o motivo antes de continuar.")
+        return _volta_com_erro("Escolhe o motivo antes de continuar.")
+    if _recado_do_preco_do_pedido():
+        return _volta_com_erro(_recado_do_preco_do_pedido())
     ok, recado = mover_proposta(id_, estado,
                                 campos=_campos_exigidos_do_pedido(estado,
                                                                   motivo))
     if not ok:
-        return _volta_com_aviso(recado)
+        return _volta_com_erro(recado)
     if motivo or permitidos:
         gravar_motivo(id_, motivo)
-    return _volta_com_aviso("«%s»: %s."
-                            % (corta(p["titulo"] or p["entidade"] or "", 70),
-                               estado_da_empresa(estado)))
+    ccp = aviso_do_ccp(id_, estado)
+    return _volta_com_aviso(("«%s»: %s. %s"
+                             % (corta(p["titulo"] or p["entidade"] or "", 70),
+                                estado_da_empresa(estado), ccp)).strip(),
+                            erro=bool(ccp))
 
 
 # --- fechar o ciclo com o Portal BASE (etapa 4, 15/09/2026)
@@ -22656,13 +23171,24 @@ def contactos_cx(a):
 
 @app.route("/contacto/nova", methods=["POST"])
 def contacto_novo():
+    """Um contacto da entidade. Sem nome, ou com um e-mail que não o é, a
+    página recarregava sem uma palavra (segunda ronda, 26/09/2026)."""
     ref = (request.form.get("volta") or "").strip()
+    nome = " ".join((request.form.get("nome") or "").split())
+    email = " ".join((request.form.get("email") or "").split())
+    if not nome:
+        return _volta_com_erro("O contacto precisa de um nome. Nada foi "
+                               "guardado.")
+    if email and not RX_EMAIL.fullmatch(email):
+        return _volta_com_erro("«%s» não é um endereço de e-mail. Nada foi "
+                               "guardado." % corta(email, 60))
     criar_contacto(
         (request.form.get("chave") or "").strip(),
         request.form.get("nome"), request.form.get("papel"),
         request.form.get("email"), request.form.get("telefone"),
         request.form.get("notas"), request.form.get("entidade"))
-    return volta_ao_referer("/anuncio/" + quote(ref, safe="") if ref else "/")
+    return _volta_com_aviso("Contacto «%s» guardado." % corta(nome, 60),
+                            ancora="contactos")
 
 
 @app.route("/contacto/<int:id_>/apagar", methods=["POST"])
@@ -22697,12 +23223,20 @@ def _campos_que_a_ranhura_pede(p):
     mesma rota que os grava."""
     estado = p["estado"]
     pecas = []
-    if estado in ESTADOS_COM_PROPOSTO:
-        pecas.append(
-            "<label>Preço proposto<input type='text' name='valor_proposta' "
-            "value='%s' placeholder='ex. 118.500,00'></label>"
-            % html.escape(p["valor_proposta"] or "", quote=True))
-    if estado in ("relatorio", "ganho", "perdido"):
+    # O preço proposto também em «A preparar proposta» (segunda ronda,
+    # 26/09/2026): a recusa do «Submetido» mandava preenchê-lo aqui, e na
+    # ranhura em que ele se decide o campo não existia. No «Por analisar»
+    # continua de fora: aí seria perguntar por adivinhas.
+    # E um campo com valor mostra-se sempre (E18): uma proposta posta em
+    # «Por analisar» por «tirar da escada» ficava com o preço escondido,
+    # e por isso presa -- o trabalho escrito não deixava apagá-la, e o
+    # campo que a libertava não estava no ecrã.
+    if estado in ESTADOS_COM_PROPOSTO + ("proposta",) or p["valor_proposta"]:
+      pecas.append(
+        "<label>Preço proposto<input type='text' name='valor_proposta' "
+        "value='%s' placeholder='ex. 118 500,00'></label>"
+        % html.escape(p["valor_proposta"] or "", quote=True))
+    if estado in ("relatorio", "ganho", "perdido") or p["lugar"] or p["top3"]:
         pecas.append(
             "<label>Lugar<input type='number' name='lugar' min='1' max='99' "
             "value='%s'></label>"
@@ -22735,8 +23269,8 @@ def _tarefas_da_ficha(p):
     for t in por_fazer:
         texto_prazo, classe = etiqueta_prazo(t["quando"], dias_urgente())
         linhas.append(
-            "<li>%s<span class='t'>%s</span>%s%s%s%s</li>"
-            % (accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq",
+            "<li id='t%d'>%s<span class='t'>%s</span>%s%s%s%s</li>"
+            % (t["id"], accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq",
                      rotulo="Marcar como feita: %s" % corta(t["o_que"], 60)),
                html.escape(t["o_que"]),
                ("<span class='mg-tag %s'>%s</span>"
@@ -22762,6 +23296,17 @@ def _tarefas_da_ficha(p):
                % t["id"]))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
+    if por_fazer and p["estado"] in ESTADOS_FECHADOS:
+        n = len(por_fazer)
+        lista = ("<div class='mg-alert mg-alert--warning'>A proposta está em "
+                 "«%s» e %s. %s</div>"
+                 % (html.escape(estado_da_empresa(p["estado"])),
+                    "ainda fica 1 tarefa por fazer" if n == 1 else
+                    "ainda ficam %d tarefas por fazer" % n,
+                    accao("/proposta/%d/fechar-tarefas" % p["id"],
+                          "fechar %s" % ("a tarefa" if n == 1 else
+                                         "as %d tarefas" % n),
+                          "mini"))) + lista
     juntar = ("<form class='tarefa-nova' method='post' action='/tarefa/nova'>"
               "<input type='hidden' name='ref' value='%s'>"
               "<input type='hidden' name='proposta_id' value='%d'>"
@@ -22770,6 +23315,8 @@ def _tarefas_da_ficha(p):
               "<input type='text' name='quando' inputmode='numeric' "
               "placeholder='dd/mm/aaaa' maxlength='10' aria-label='Até quando' "
               "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
+              "<input type='text' name='quem' maxlength='60' list='pessoas' "
+              "placeholder='quem' aria-label='Quem faz'>"
               "<button type='submit'>juntar</button></form>"
               % (html.escape(p["ref"] or "", quote=True), p["id"]))
     return ("<div class='prop-tarefas'><div class='mg-field__label'>O que falta fazer"
@@ -22858,18 +23405,21 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
         cabeca = "Conjunto &middot; %s" % cabeca
     return ("<div class='prop'><div class='prop-topo'>"
             "<span class='prop-nome'>%s</span>%s</div>"
-            "<form class='prop-campos' method='post' action='/proposta/%d/ficha'>"
+            "<form class='prop-campos' method='post' action='/proposta/%d/ficha'%s>"
             "<input type='hidden' name='versao' value='%s'>"
             "%s%s"
             "%s<label>CoE<input type='text' name='coe' value='%s' "
             "maxlength='60'></label>"
-            "<label class='largo'>Notas<input type='text' name='notas' "
-            "value='%s' maxlength='500' placeholder='notas…'></label>"
+            "<label class='largo'>Notas<textarea name='notas' rows='4' "
+            "maxlength='500' placeholder='notas…'>%s</textarea></label>"
             "<button type='submit'>gravar</button></form>%s</div>"
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                    p["estado"], titulo=titulo, p=p),
-               p["id"], versao_da_proposta(p), _campos_que_a_ranhura_pede(p),
+               p["id"],
+               (" data-base='%s'" % preco_base_da_proposta(p)
+                if preco_base_da_proposta(p) else ""),
+               versao_da_proposta(p), _campos_que_a_ranhura_pede(p),
                "".join("<label>%s%s</label>"
                        % (rotulo, _opcoes(nome, valores, p[nome]))
                        for nome, rotulo, valores in CAMPOS_DA_EMPRESA),
@@ -22906,14 +23456,14 @@ def proposta_da_ficha(id_):
     if not p:
         return volta_ao_referer("/")
     if proposta_mudou_depois(p, request.form.get("versao")):
-        return _volta_com_aviso(RECADO_DA_VERSAO)
+        return _volta_com_erro(RECADO_DA_VERSAO)
     campos, valores = [], []
     if "valor_proposta" in request.form:
         # No formato do preco base ("118.500,00 EUR"), que e o que o
         # euros_do_texto() e as somas sabem ler.
         valor, recado = _preco_proposto_do_pedido(p["estado"])
         if recado:
-            return _volta_com_aviso(recado)
+            return _volta_com_erro(recado)
         campos.append("valor_proposta")
         valores.append(valor or None)
     if "lugar" in request.form:
@@ -22926,33 +23476,39 @@ def proposta_da_ficha(id_):
         # -3 gravado deixava o formulario da ficha sem conseguir gravar
         # mais nada (teste com utilizadores, 25/09/2026).
         if lugar is not None and not 1 <= lugar <= 99:
-            return _volta_com_aviso("O lugar é um número de 1 a 99.")
+            return _volta_com_erro("O lugar é um número de 1 a 99.")
         campos.append("lugar")
         valores.append(lugar)
     for nome, tecto in (("top3", 300), ("coe", 60), ("notas", 500)):
         if nome in request.form:
             campos.append(nome)
-            valores.append(" ".join((request.form.get(nome) or "").split())[:tecto]
-                           or None)
+            valores.append(texto_de_campo(request.form.get(nome), tecto,
+                                          linhas=nome == "notas") or None)
     for nome, _, permitidos in CAMPOS_DA_EMPRESA:
         if nome in request.form:
             valor = (request.form.get(nome) or "").strip()
             if valor and valor not in permitidos:
-                return _volta_com_aviso("«%s» não é um valor de %s."
+                return _volta_com_erro("«%s» não é um valor de %s."
                                         % (valor, nome))
             campos.append(nome)
             valores.append(valor or None)
     if "motivo" in request.form:
         motivo = (request.form.get("motivo") or "").strip()
         if motivo and motivo not in (MOTIVOS_DO_ESTADO.get(p["estado"]) or ()):
-            return _volta_com_aviso("Esse motivo não existe para esta ranhura.")
+            return _volta_com_erro("Esse motivo não existe para esta ranhura.")
         campos.append("motivo")
         valores.append(motivo or None)
     if "responsavel" in request.form:
         campos.append("responsavel")
         valores.append(criar_pessoa(request.form.get("responsavel")))
     gravar_campos_da_proposta(id_, campos, valores)
-    return volta_ao_referer("/anuncio/" + (p["ref"] or ""))
+    ccp = aviso_do_ccp(id_) if "valor_proposta" in campos else ""
+    if ccp:
+        return _volta_com_aviso("Gravado. " + ccp, erro=True,
+                                ancora="proposta")
+    # E26 da segunda ronda: gravar voltava ao topo da ficha, e a
+    # confirmação ficava 5 000 px acima. Volta ao bloco, com o aviso.
+    return _volta_com_aviso("Proposta gravada.", ancora="proposta")
 
 
 @app.route("/etiqueta/<path:ref>/nova", methods=["POST"])
@@ -23012,7 +23568,7 @@ def proposta_nova():
         porque = " ".join((request.form.get("porque_sem_ref") or "").split())[:120]
         if not (entidade or titulo):
             return redirect("/proposta/nova?" + urlencode(
-                {"aviso": "Uma proposta sem cliente nem título não se "
+                {"tom": "erro", "aviso": "Uma proposta sem cliente nem título não se "
                           "encontra depois. Escreve pelo menos um."}))
         id_ = criar_proposta(entidade=entidade, titulo=titulo,
                              porque_sem_ref=porque or "não vem do DR")
@@ -23126,11 +23682,11 @@ def proposta_gravar(id_):
     if not p:
         return pagina_de_erro(404)
     if proposta_mudou_depois(p, request.form.get("versao")):
-        return redirect("/proposta/%d?" % id_ + urlencode({"aviso": RECADO_DA_VERSAO}))
+        return redirect("/proposta/%d?" % id_ + urlencode({"tom": "erro", "aviso": RECADO_DA_VERSAO}))
     for nome in ("valor_proposta", "preco_base"):
         if nome in request.form and preco_escrito(request.form.get(nome)) is None:
             return redirect("/proposta/%d?" % id_ + urlencode(
-                {"aviso": "«%s» não se lê como preço."
+                {"tom": "erro", "aviso": "«%s» não se lê como preço."
                           % corta(request.form.get(nome), 40)}))
     if "estado" in request.form:
         novo = (request.form.get("estado") or "").strip()
@@ -23141,14 +23697,14 @@ def proposta_gravar(id_):
             campos=_campos_exigidos_do_pedido(
                 novo, (request.form.get("motivo") or "").strip()))
         if not ok:
-            return redirect("/proposta/%d?" % id_ + urlencode({"aviso": recado}))
+            return redirect("/proposta/%d?" % id_ + urlencode({"tom": "erro", "aviso": recado}))
     if "motivo" in request.form:
         motivo = (request.form.get("motivo") or "").strip()
         permitidos = MOTIVOS_DO_ESTADO.get(
             (request.form.get("estado") or p["estado"]).strip()) or ()
         if motivo and motivo not in permitidos:
             return redirect("/proposta/%d?" % id_ + urlencode(
-                {"aviso": "Esse motivo não existe para este estado."}))
+                {"tom": "erro", "aviso": "Esse motivo não existe para este estado."}))
         gravar_motivo(id_, motivo)
     campos, valores = [], []
     for nome, _, tecto in CAMPOS_EDITAVEIS_DA_PROPOSTA:
@@ -23156,7 +23712,8 @@ def proposta_gravar(id_):
             campos.append(nome)
             valores.append((preco_escrito(request.form.get(nome))
                             if nome in ("valor_proposta", "preco_base") else
-                            " ".join((request.form.get(nome) or "").split())[:tecto])
+                            texto_de_campo(request.form.get(nome), tecto,
+                                           linhas=nome == "notas"))
                            or None)
     if "responsavel" in request.form:
         campos.append("responsavel")
@@ -24654,7 +25211,7 @@ def proposta_apagar(id_):
         # era "/quadro", que saiu a 15/09/2026 -- apanhado de passagem
         return volta_ao_referer("/")
     if p["ref"]:
-        return _volta_com_aviso(
+        return _volta_com_erro(
             "Esta proposta veio do DR: tira-se da escada com «voltar a "
             "por ver», e o anúncio volta à lista.")
     with liga() as c:
@@ -25038,6 +25595,139 @@ def convite(codigo):
                         httponly=True, samesite="Lax",
                         secure=request.is_secure)
     return resposta
+
+
+# D17 (26/09/2026): o ecra da ligacao de repor, no molde do convite.
+PAGINA_REPOR = PAGINA_CONVITE.replace("Criar a conta", "Repor a palavra-passe")
+
+FORMULARIO_DE_REPOR = """<form method="post">
+  <p class="nota">Conta: <b>%(utilizador)s</b></p>
+  <div class="mg-field"><label class="mg-field__label" for="r-senha">Palavra-passe nova</label>
+   <input class="mg-field__input" id="r-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required autofocus></div>
+  <div class="mg-field"><label class="mg-field__label" for="r-outra">Outra vez</label>
+   <input class="mg-field__input" id="r-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Guardar e entrar</button>
+ </form>"""
+
+
+def pagina_repor(aviso="", utilizador=None, codigo=200, erro=True):
+    return Response(PAGINA_REPOR % {
+        "css": LIGACAO_CSS,
+        "logo": logotipo(tamanho=28),
+        "aviso": ("<div class='mg-alert mg-alert--%s'%s>%s</div>"
+                  % ("danger" if erro else "info",
+                     " role='alert'" if erro else "", html.escape(aviso))
+                  if aviso else ""),
+        "formulario": (FORMULARIO_DE_REPOR
+                       % {"utilizador": html.escape(utilizador)}
+                       if utilizador is not None else
+                       "<p><a href='/entrar'>Ir para a entrada</a></p>"),
+    }, codigo, mimetype="text/html")
+
+
+def _chave_do_trinco_de_repor():
+    """O trinco da ligacao de repor e por IP, e so por IP: com uma chave
+    comum, cinco codigos errados de um qualquer fechavam a porta a todos."""
+    ip = request.remote_addr or ""
+    return "repor:" + ip, ip
+
+
+@app.route("/repor/<codigo>", methods=["GET", "POST"])
+def repor(codigo):
+    """A ligacao de repor a palavra-passe (D17). Rota ABERTA -- quem a
+    abre nao consegue entrar --, e por isso a guarda e aqui: o trinco
+    por IP (os codigos errados contam como entradas falhadas), o codigo
+    (32 bytes, so o resumo na base), a origem do POST, e o uso unico com
+    prazo (`contas.usar_reposicao()`, que fecha as sessoes da conta)."""
+    chave, ip = _chave_do_trinco_de_repor()
+    with liga() as c:
+        espera = contas.segundos_de_trinco(c, chave, ip)
+        if espera:
+            return pagina_repor("Demasiadas tentativas; espera %d s." % espera,
+                                codigo=429)
+        reposicao, porque = contas.reposicao_valida(c, codigo)
+        if not reposicao:
+            contas.registar_falha(c, chave, ip)
+    if not reposicao:
+        return pagina_repor(porque[0].upper() + porque[1:] + ". Peça outra "
+                            "ao administrador da sua empresa.",
+                            codigo=404 if "não existe" in porque else 410)
+    if request.method == "GET":
+        return pagina_repor("Escolha a palavra-passe nova. Ao guardar, as "
+                            "sessões abertas desta conta fecham-se todas.",
+                            utilizador=reposicao["email"], erro=False)
+    if not origem_e_nossa():
+        return pagina_repor("O pedido veio de outro sítio.", codigo=403)
+    senha = request.form.get("senha") or ""
+    if senha != (request.form.get("outra") or ""):
+        return pagina_repor("As duas palavras-passe não são iguais.",
+                            utilizador=reposicao["email"])
+    try:
+        with liga() as c:
+            token, porque = contas.usar_reposicao(
+                c, codigo, senha, ip=ip,
+                agente=request.headers.get("User-Agent") or "")
+    except ValueError as erro:
+        return pagina_repor("Não mudei: %s." % erro,
+                            utilizador=reposicao["email"])
+    if not token:
+        return pagina_repor(porque[0].upper() + porque[1:] + ".")
+    registar_evento("", "conta", "palavra-passe reposta por ligação: %s"
+                    % reposicao["email"], quem="radar")
+    resposta = redirect("/")
+    resposta.set_cookie("sessao", token,
+                        max_age=60 * 60 * 24 * contas.DIAS_DE_SESSAO,
+                        httponly=True, samesite="Lax",
+                        secure=request.is_secure)
+    return resposta
+
+
+def _gerar_reposicao(utilizador_id, voltar):
+    """Gera a ligacao de repor e mostra-a UMA vez, nesta resposta: nunca
+    no endereco nem no historico, que e ela que da entrada (D17). Quem
+    pode, diz o `contas.pode_repor()`; a conta de outra empresa, para o
+    admin, e como se nao existisse."""
+    quem = g.get("utilizador") or {}
+    with liga() as c:
+        alvo = c.execute("SELECT id, email, papel, empresa_id, dono FROM "
+                         "utilizadores WHERE id=?", (utilizador_id,)).fetchone()
+        alvo = dict(alvo) if alvo else None
+        if not contas.pode_repor(quem, alvo):
+            abort(404)
+        codigo = contas.criar_reposicao(c, utilizador_id, quem.get("id"))
+    registar_evento("", "conta", "ligação para repor a palavra-passe de %s"
+                    % alvo["email"], quem=quem.get("nome"))
+    ligacao = "%s/repor/%s" % (endereco_do_painel().rstrip("/"), codigo)
+    corpo = (
+        "<div class='mg-card conf-cx'>"
+        "<div class='mg-field__label'>Ligação para repor a palavra-passe de %s</div>"
+        "<p class='nota'>Entregue-a à pessoa. Vale %d horas e só uma vez; "
+        "ao usá-la, as sessões abertas dessa conta fecham-se todas. <b>Não "
+        "a volta a ver</b> depois de sair desta página &mdash; se se perder, "
+        "gere outra (a anterior deixa de servir).</p>"
+        "<input class='mg-field__input' type='text' readonly value='%s' "
+        "aria-label='Ligação para repor a palavra-passe' onfocus='this.select()' "
+        "style='width:100%%;font-family:var(--font-mono)'>"
+        "<p style='margin-top:14px'><a href='%s'>Voltar</a></p></div>"
+        % (html.escape(alvo["email"]), contas.HORAS_DE_REPOSICAO,
+           html.escape(ligacao, quote=True), voltar))
+    if voltar == "/plataforma":
+        return envolver("configuracoes", "Plataforma",
+                        "Repor a palavra-passe de uma conta.", corpo)
+    return pagina_config("conta", corpo)
+
+
+@app.route("/configuracoes/conta/utilizadores/<int:utilizador_id>/repor",
+           methods=["POST"])
+def conta_repor_utilizador(utilizador_id):
+    """O admin gera a ligacao de repor para uma conta da empresa dele."""
+    return _gerar_reposicao(utilizador_id, "/configuracoes/conta")
+
+
+@app.route("/plataforma/contas/<int:utilizador_id>/repor", methods=["POST"])
+def plataforma_repor_utilizador(utilizador_id):
+    """O dono gera a ligacao de repor para qualquer conta."""
+    return _gerar_reposicao(utilizador_id, "/plataforma")
 
 
 @app.route("/favicon.svg")
