@@ -60,8 +60,8 @@ duas bases; os das empresas, de **24/09/2026**.
 | Rotas Flask | 115 |
 | Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
-| Testes | **1 380**, em ~81 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 29 921 linhas · `teste_radar.py` 19 513 · `empresa.py` 853 · `contas.py` 722 · `icones.py` 62 |
+| Testes | **1 389**, em ~105 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 30 000 linhas · `teste_radar.py` 19 613 · `empresa.py` 853 · `contas.py` 722 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em

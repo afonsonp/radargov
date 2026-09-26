@@ -15298,6 +15298,54 @@ ENTIDADES_JS = """<script>
 </script>"""
 
 
+# As sugestoes do campo de CPV do Mercado (lote PC-A, 26/09/2026): o
+# vocabulario vem do `/cpv.json` que ja enche a arvore -- pedido uma vez,
+# a primeira tecla, e com ETag --, e filtra-se no browser pelo codigo ou
+# pelas palavras do nome. So o ultimo pedaco (depois do ultimo `|`) e
+# sugerido: os anteriores ficam como estao.
+CPV_SUGERE_JS = r"""<script>
+(function () {
+  var campo = document.querySelector('input[data-cpv-sugere]');
+  var lista = campo && document.getElementById(campo.getAttribute('list'));
+  if (!lista) return;
+  var vocab = null, pedido = null;
+  function simples(t) {
+    return (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+  function sugerir() {
+    var pedacos = campo.value.split('|');
+    var ultimo = simples(pedacos.pop()).trim();
+    var antes = pedacos.length ? pedacos.join('|') + '|' : '';
+    lista.innerHTML = '';
+    if (ultimo.length < 2) return;
+    var digitos = /^[0-9 -]+$/.test(ultimo) ? ultimo.replace(/[^0-9]/g, '') : '';
+    var palavras = digitos ? [] : ultimo.split(/\s+/);
+    vocab.filter(function (c) {
+      if (digitos) return c.codigo8.indexOf(digitos) === 0;
+      return palavras.every(function (p) { return c.s.indexOf(p) >= 0; });
+    }).sort(function (a, b) { return b.n - a.n; }).slice(0, 25).forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = antes + c.codigo8;
+      o.label = c.descricao + (c.n ? ' · ' + c.n.toLocaleString('pt-PT') + ' contratos' : '');
+      lista.appendChild(o);
+    });
+  }
+  campo.addEventListener('input', function () {
+    if (vocab) return sugerir();
+    if (pedido) return;
+    pedido = fetch('/cpv.json?de=' + campo.dataset.cpvSugere)
+      .then(function (r) { return r.json(); })
+      .then(function (dados) {
+        vocab = dados.map(function (c) {
+          c.s = simples(c.descricao); return c;
+        });
+        sugerir();
+      }).catch(function () { pedido = null; });
+  });
+})();
+</script>"""
+
+
 @app.route("/entidades.json")
 def entidades_json():
     de = (request.args.get("de") or "anuncios").strip()
@@ -21060,12 +21108,19 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
         marcados = {len(linhas) - 1}
         if i_max < len(linhas) - 2:
             marcados.add(i_max)
+    # E os anos também (E41, lote PC-A): com muitas barras, uma em cada
+    # duas -- a contar da última, que se lê sempre -- leva a classe
+    # `alt`, e o CSS esconde-lhe o rótulo quando o cartão é estreito
+    # (uma consulta ao contentor: o servidor não sabe a largura).
+    muitas = len(linhas) > MAX_ROTULOS_BARRAS
     cols = []
     for i, l in enumerate(linhas):
         meio = bool(parcial) and l["t"] == parcial
         realce = bool(destaque) and l["t"] == destaque
         classes = "".join((" parcial" if meio else "",
-                           " destaque" if realce else ""))
+                           " destaque" if realce else "",
+                           " alt" if muitas and (len(linhas) - 1 - i) % 2
+                           else ""))
         cols.append(
             "<div class='col%s'><span class='v'>%s</span>"
             "<div class='b' style='height:%.1f%%' title='%s: %s, %s %s%s'>"
@@ -21077,11 +21132,11 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
     return ("<div class='mg-card graf'><div class='mg-field__label'>%s</div>%s"
-            "<div class='barras'>%s</div></div>"
+            "<div class='barras%s'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
                if nota else "<div style='height:14px'></div>",
-               "".join(cols)))
+               " muitas" if muitas else "", "".join(cols)))
 
 
 @app.route("/contratos/resumo")
@@ -22323,8 +22378,19 @@ def contratos():
                 "value='%s' placeholder='Nome ou NIF' list='entidades-contratos' "
                 "autocomplete='off' data-sugere='contratos' data-chave-em='vencid'>")
         + "<input type='hidden' name='vencid' value='%s'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        # O CPV à vista (V2 da ronda em PC, 26/09/2026): era um campo
+        # escondido, e com o perfil definido a árvore sai -- o CPV, que é
+        # a primeira coisa que se filtra num estudo de mercado, só se
+        # punha escrevendo `?cpv=` no endereço. O campo é o mesmo que a
+        # árvore enche (`filtro-cpv`), e sugere códigos pelo número ou
+        # pelo nome, do `/cpv.json` dos contratos (`CPV_SUGERE_JS`).
+        + campo("CPV", "<input class='mg-field__input' type='text' "
+                "id='filtro-cpv' name='cpv' value='%s' "
+                "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
+                "autocomplete='off' data-cpv-sugere='contratos' "
+                "title='Um ou mais códigos CPV, separados por |. Os zeros à "
+                "direita alargam ao grupo: 45000000 é toda a construção.'>")
+        + "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         + campo("Procedimento", "%s")
         + "%s"
@@ -22339,7 +22405,8 @@ def contratos():
         + campo("Preço mínimo", "<input class='mg-field__input' type='text' "
                 "name='min' value='%s' placeholder='€'>")
         + botoes_de_filtro("%s") +
-        "</form><datalist id='entidades-contratos'></datalist>")
+        "</form><datalist id='entidades-contratos'></datalist>"
+        "<datalist id='cpv-sugestoes'></datalist>")
         % (escondidos_modo, v("q"), v("adj"), v("entid"),
            "Quem tem o contrato" if fim else "Quem ganhou", v("ganhou"),
            v("vencid"), v("cpv"), v("cpv_excl"),
@@ -22399,18 +22466,26 @@ def contratos():
                        venceu, data_pt(l["data_celebracao"]),
                        euros(l["preco_contratual"])))
             else:
+                # Cinco colunas e não sete (lote PC-A, 26/09/2026): o fim
+                # estimado vai por baixo da celebração e o procedimento
+                # por baixo do objecto, como a linha secundária dos
+                # Concursos. Com sete, o Objecto ficava em 160-230px e
+                # partia-se em nove linhas, e a 1280 o Preço saía cortado.
                 corpo.append(
-                    "<tr><td class='d'>%s</td><td class='d'>%s</td>"
-                    "<td class='o'>%s</td>"
-                    "<td>%s</td><td class='g'>%s</td><td>%s</td>"
+                    "<tr><td class='d'>%s%s</td>"
+                    "<td class='o'>%s<span class='nota sub'>%s</span></td>"
+                    "<td>%s</td><td class='g'>%s</td>"
                     "<td class='p'>%s</td></tr>"
                     % (data_pt(l["data_celebracao"]),
-                       data_pt(l["fim_estimado"], "—"),
+                       # o fim só quando o dump traz o prazo
+                       "<span class='nota sub'>fim %s</span>"
+                       % data_pt(l["fim_estimado"])
+                       if l["fim_estimado"] else "",
                        objecto,
+                       html.escape(l["tipo_procedimento"] or ""),
                        liga_entidade(l["adjudicante_chave"],
                                      l["adj_nome"] or "", papeis=papeis),
                        venceu,
-                       html.escape(l["tipo_procedimento"] or ""),
                        euros(l["preco_contratual"])))
         if fim:
             cabecalhos = ("<th>Fim estimado</th><th>Objecto</th>"
@@ -22420,9 +22495,11 @@ def contratos():
             # O fim estimado ao lado da celebracao: um contrato em curso
             # le-se pelo fim, nao so pelo principio. O travessao e "sem
             # prazo no dump", nao zero.
-            cabecalhos = ("<th>Celebrado</th><th>Fim estimado</th>"
-                          "<th>Objecto</th><th>Entidade</th>"
-                          "<th>Quem ganhou</th><th>Procedimento</th>"
+            cabecalhos = ("<th>Celebrado<span class='nota sub'>fim "
+                          "estimado</span></th>"
+                          "<th>Objecto<span class='nota sub'>procedimento"
+                          "</span></th><th>Entidade</th>"
+                          "<th>Quem ganhou</th>"
                           "<th class='p'>Preço</th>")
         tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
                   "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
@@ -22666,6 +22743,7 @@ def contratos():
                 "estimado</b>: o que está a acabar volta a concurso, e quem "
                 "o vê antes do anúncio prepara-se com tempo.", [], accoes),
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
+            + CPV_SUGERE_JS
             + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
             titulo_aba="Por fim estimado · Mercado")
@@ -22676,6 +22754,7 @@ def contratos():
             "Mercado", "Contratos celebrados no Portal BASE: quem compra, "
             "quem ganha, por quanto e quando renova.", [], accoes),
         script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
+            + CPV_SUGERE_JS
         + espera_corpus(),
         migalhas=migalhas_de("contratos"),
         titulo_aba="Mercado")
