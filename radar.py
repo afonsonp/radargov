@@ -10119,6 +10119,16 @@ def assinar_o_aviso(resposta):
 def cabecalhos_de_seguranca(resposta):
     for nome, valor in CABECALHOS_DE_SEGURANCA.items():
         resposta.headers.setdefault(nome, valor)
+    # Uma resposta que nao se declara `public` e `private`: e o que diz a
+    # Cloudflare (e qualquer cache pelo caminho) que nao a pode guardar
+    # para outro. As paginas das pecas saiam com um `max-age` sem mais
+    # nada, e ficavam na borda ao alcance de quem nao tinha sessao (teste
+    # com utilizadores, 26/09/2026). So as folhas, as fontes e o favicon
+    # se declaram `public` -- de proposito, e sao iguais para todos.
+    cache = resposta.headers.get("Cache-Control", "")
+    if not any(p in cache for p in ("public", "private", "no-store")):
+        resposta.headers["Cache-Control"] = (
+            "private, " + cache if cache else "private, no-cache")
     if request.is_secure:
         resposta.headers.setdefault("Strict-Transport-Security",
                                     "max-age=15552000")
@@ -21941,9 +21951,12 @@ def peca_pagina(ref, nome, n):
         return "", 404
     # as pecas nao mudam depois de trazidas: o browser pode guardar as
     # paginas um dia e poupar o desenho na visita seguinte (o termo
-    # procurado faz parte do URL, por isso cada pesquisa tem a sua)
+    # procurado faz parte do URL, por isso cada pesquisa tem a sua).
+    # **`private`, e so o browser**: sem ele a Cloudflare guardava o PNG
+    # na borda e servia-o a quem nao tinha sessao -- a porta nem chegava
+    # a ver o pedido (teste com utilizadores, 26/09/2026).
     return Response(png, mimetype="image/png",
-                    headers={"Cache-Control": "max-age=86400"})
+                    headers={"Cache-Control": "private, max-age=86400"})
 
 
 def texto_da_peca(ref, nome):
