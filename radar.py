@@ -600,9 +600,15 @@ def recusa_do_preco(proposto, base, rotulo="preço proposto"):
     """A recusa de um preço proposto acima do preço base, ou "" (D2 da
     segunda ronda, 26/09/2026, decisão dele: recusar, e não só avisar).
 
-    Pura: recebe os dois preços como estão gravados. Pelo art. 70.º, n.º
-    2, al. d) do CCP uma proposta acima do preço base é excluída -- ou é
-    um zero a mais. **Sem preço base conhecido não recusa**: não se sabe.
+    Pura: recebe os dois preços como estão gravados. Pelo art. 70.º do
+    CCP uma proposta acima do preço base é excluída -- ou é um zero a
+    mais. **Sem preço base conhecido não recusa**: não se sabe, e desde
+    o DL 177/2026 (1/10/2026) o preço base é facultativo.
+
+    **Cita-se o artigo sem o número nem a alínea**, e de propósito: era
+    o n.º 2, al. d), e nos procedimentos iniciados a partir de 1/10/2026
+    é o n.º 3, al. d). O Mira Gov vê os dois regimes durante meses, e não
+    sabe de qual é cada procedimento (ver `docs/ccp.md`).
 
     **O D2 vale para o valor adjudicado também** (ronda em PC, V1): um
     zero a mais no «Ganha» gravava um contrato de 4,7 M€ que a Situação
@@ -612,7 +618,7 @@ def recusa_do_preco(proposto, base, rotulo="preço proposto"):
     if not nosso or not base or nosso <= base:
         return ""
     return ("O %s (%s) está acima do preço base (%s): pelo "
-            "art. 70.º, n.º 2, al. d) do CCP a proposta seria excluída. "
+            "art. 70.º do CCP a proposta seria excluída. "
             "Não foi gravado — confirme o valor."
             % (rotulo, preco_pt(proposto), preco_pt(base)))
 
@@ -14315,7 +14321,7 @@ def caixa_do_motivo():
             "      var v = parseFloat(i.value.replace(/[^0-9,]/g, '').replace(',', '.'));\n"
             "      if (v > b) {\n"
             "        e.preventDefault();\n"
-            "        i.setCustomValidity('Acima do preço base: pelo art. 70.º, n.º 2, al. d) do CCP '\n"
+            "        i.setCustomValidity('Acima do preço base: pelo art. 70.º do CCP '\n"
             "            + 'a proposta seria excluída. Confirme o valor.');\n"
             "        i.reportValidity();\n"
             "      }\n"
@@ -17513,8 +17519,8 @@ def aviso_do_ccp(id_, estado=None):
     (E32 da segunda ronda, 26/09/2026). **Avisa, não recusa** -- recusar
     é a decisão D2, que é dele.
 
-    Duas coisas: o proposto acima do preço base (art. 70.º, n.º 2, al.
-    d): a proposta é excluída -- ou é um zero a mais); e um «Relatório
+    Duas coisas: o proposto acima do preço base (art. 70.º:
+    a proposta é excluída -- ou é um zero a mais); e um «Relatório
     preliminar» ou «Ganho» antes de o prazo de entrega acabar."""
     p = proposta(id_)
     if not p:
@@ -17524,7 +17530,7 @@ def aviso_do_ccp(id_, estado=None):
     base = preco_base_da_proposta(p)
     if proposto and base and proposto > base:
         frases.append("O preço proposto (%s) está acima do preço base (%s): "
-                      "pelo art. 70.º, n.º 2, al. d) do CCP a proposta é "
+                      "pelo art. 70.º do CCP a proposta é "
                       "excluída. Confirme se não é um engano."
                       % (preco_pt(p["valor_proposta"]), preco_pt(base)))
     if estado in ("relatorio", "ganho") and p["ref"]:
