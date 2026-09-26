@@ -19325,6 +19325,124 @@ class TestAPaginaDeCadaEmpresa(_PlataformaComDuasEmpresas):
                       inspect.getsource(radar.verificar))
 
 
+class TestOFocoProgramaticoNaoPintaOMagenta(unittest.TestCase):
+    """26/09/2026: depois de gravar, o JS do `BASE` põe o foco no aviso da
+    vez (WCAG 2.4.3), e o `.mg :focus-visible` do sistema pintava-o com o
+    anel magenta — medido com Playwright nas Configurações › Interesse e
+    nas Propostas. Um elemento que só recebe foco por programa
+    (`tabindex=-1`) não é interactivo, e o anel não indica nada. Os que
+    há são dois, e cada um tem a sua regra na nossa folha."""
+
+    def test_os_que_recebem_foco_por_programa_nao_levam_o_anel(self):
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        with open(radar.__file__, encoding="utf-8") as f:
+            codigo = f.read()
+        # quem recebe tabindex=-1 são estes dois; um terceiro pede a regra dele
+        self.assertEqual(len(re.findall(r"tabindex=\"-1\"|'tabindex', '-1'", codigo)), 2)
+        self.assertIn("main#conteudo:focus{outline:none}", folha)
+        # três classes (0,3,0), para ganhar ao `.mg :focus-visible` (0,2,0)
+        # e ao do contraste; e nunca no miragov-componentes.css
+        self.assertIn(".mg-alert.aviso-da-vez:focus{outline:none}", folha)
+
+
+class TestODonoApagaUmaEmpresaNoPainel(_PlataformaComDuasEmpresas):
+    """26/09/2026, pedido dele: «eu como dono não consigo apagar
+    empresas». Só havia o `--apagar-empresa` da consola. A página da
+    empresa tem agora um cartão de perigo que diz o que sai (com os
+    números) e se confirma escrevendo o nome; a rota é do dono, passa
+    pelo CSRF da porta, e nunca corre no modo de suporte."""
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "copia_de_seguranca_com_nome",
+            return_value=os.path.join(self.pasta, "copias", "radar-antes.db")))
+        self.enterContext(unittest.mock.patch.object(
+            radar, "COPIAS", os.path.join(self.pasta, "copias")))
+        os.makedirs(radar.COPIAS, exist_ok=True)
+
+    def apagar(self, cliente, nome="Beta"):
+        return self.post(cliente, "/plataforma/empresa/%d/apagar" % self.beta,
+                         {"nome": nome})
+
+    def test_a_pagina_diz_o_que_sai_com_os_numeros(self):
+        corpo = self.ver(self.entrar("dono"), "/plataforma/empresa/1").get_data(as_text=True)
+        self.assertIn("action='/plataforma/empresa/1/apagar'", corpo)
+        self.assertIn("mg-btn--danger'>Apagar a empresa", corpo)
+        # a Alfa tem uma proposta, duas contas (chefe e rita) e um convite
+        for texto in ("1 proposta", "2 contas", "1 convite por usar", "copias/"):
+            self.assertIn(texto, corpo)
+
+    def test_o_dono_apaga_com_o_nome_certo(self):
+        dono = self.entrar("dono")
+        r = self.apagar(dono, "  beta ")      # espaços e maiúsculas não contam
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].startswith("/plataforma?"))
+        self.assertIn("Beta saiu", unquote_plus(r.headers["Location"]))
+        self.assertEqual(radar.empresas_existentes(), [1])
+        self.assertTrue(any(n.startswith("empresa-%d-apagada-" % self.beta)
+                            for n in os.listdir(radar.COPIAS)))
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM utilizadores WHERE email='beto'")
+                             .fetchone())
+            self.assertFalse(c.execute("SELECT 1 FROM convites WHERE empresa_id=?",
+                                       (self.beta,)).fetchone())
+            evento = c.execute("SELECT quem, detalhe FROM eventos WHERE "
+                               "accao='empresa'").fetchone()
+        self.assertEqual(evento["quem"], "dono")
+        self.assertIn("apagou a empresa %d (Beta)" % self.beta, evento["detalhe"])
+        # a Alfa ficou como estava
+        self.assertEqual(self.contagens_da_alfa()["propostas"], 1)
+
+    def test_o_nome_errado_nao_apaga_nada(self):
+        r = self.apagar(self.entrar("dono"), "Alfa")
+        self.assertIn("tom=erro", r.headers["Location"])
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+        self.assertEqual(os.listdir(radar.COPIAS), [])
+
+    def test_admin_e_tester_levam_403_e_sem_token_tambem(self):
+        for quem in ("chefe", "rita", "beto"):
+            self.assertEqual(self.apagar(self.entrar(quem)).status_code, 403, quem)
+        r = self.entrar("dono").post("/plataforma/empresa/%d/apagar" % self.beta,
+                                     data={"nome": "Beta"}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+
+    def test_no_modo_de_suporte_nao_apaga_e_a_marca_de_outra_sessao_limpa_se(self):
+        a_ver = self.entrar("dono")
+        self.post(a_ver, "/plataforma/empresa/%d/ver-como" % self.beta)
+        self.assertEqual(self.apagar(a_ver).status_code, 403)     # a porta recusa
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+        # outra sessão do dono apaga-a: a marca da primeira não fica
+        radar.gravar_config({"empresas_suspensas": [self.beta]})
+        self.assertEqual(self.apagar(self.entrar("dono")).status_code, 302)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM sessoes WHERE ver_como IS NOT NULL")
+                             .fetchone())
+        # nem na lista das suspensas: a próxima empresa herdava o número
+        self.assertEqual(radar.empresas_suspensas(), set())
+        self.assertEqual(radar.criar_empresa("Gama"), self.beta)
+        self.assertEqual(radar.empresas_a_trabalhar(), [1, self.beta])
+
+    def test_se_a_base_falhar_a_pasta_volta_e_se_a_pasta_falhar_a_base_fica(self):
+        dono = self.entrar("dono")
+        with unittest.mock.patch.object(radar, "_apagar_da_plataforma",
+                                        side_effect=sqlite3.OperationalError("locked")):
+            r = self.apagar(dono)
+        self.assertIn("tom=erro", r.headers["Location"])
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+        with unittest.mock.patch.object(radar.shutil, "move",
+                                        side_effect=OSError("disco cheio")):
+            r = self.apagar(dono)
+        self.assertIn("disco cheio", unquote_plus(r.headers["Location"]))
+        with radar.liga() as c:
+            self.assertTrue(c.execute("SELECT 1 FROM utilizadores WHERE email='beto'")
+                            .fetchone())
+        self.assertEqual(radar.empresas_existentes(), [1, self.beta])
+
+
 class TestSoODonoAbreAsRotasNovas(_PlataformaComDuasEmpresas):
     """Tudo o que é do dono vive debaixo de `ROTAS_SO_DONO`: um admin ou um
     tester recebe 403 em cada rota nova, e nada muda."""

@@ -676,7 +676,10 @@ Configurações › Conta, **Criar convite** dá uma ligação que ele manda
 ao colega, e é o colega que escolhe o nome e a palavra-passe.
 
 Para tirar uma empresa inteira — propostas, tarefas, contactos,
-histórico, configuração, triagem e contas —:
+histórico, configuração, triagem e contas — há o botão **Apagar a
+empresa**, no fim da página dela na administração da plataforma:
+diz o que sai, com os números, e só apaga depois de escreveres o nome
+da empresa. Ou, num terminal:
 
 ```bash
 .venv/bin/python radar.py --apagar-empresa N

@@ -578,7 +578,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**118 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**119 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1089,6 +1089,19 @@ e as secções do sistema.
   leitura» com o botão de sair. Cada entrada e saída fica no histórico
   da empresa — o admin vê-as em Configurações › Conta, «Acessos do
   suporte» — e nos eventos da plataforma.
+- **Apagar a empresa** (26/09/2026, pedido dele: «eu como dono não
+  consigo apagar empresas»): um cartão de perigo no fim da página da
+  empresa diz o que sai, com os números — as propostas, as tarefas, os
+  contactos, as linhas do histórico, a configuração, a triagem, as
+  contas e os convites por usar — e o que fica (a cópia de antes e a
+  pasta dela em `copias/`). Confirma-se **escrevendo o nome** da
+  empresa (sem contar maiúsculas nem espaços a mais); um nome errado
+  não apaga nada. É o mesmo `apagar_empresa()` do `--apagar-empresa`
+  (`plataforma_apagar_empresa()`, `POST /plataforma/empresa/<n>/apagar`),
+  e corre no próprio pedido: a cópia de antes demorou 8,8 s numa base
+  de 1,35 GB. Tira também a empresa da lista das suspensas e o «ver
+  como» de qualquer sessão que a estivesse a ver, e deixa um evento
+  da plataforma. No modo de suporte não se apaga (a porta recusa).
 - **Suspender** uma empresa (e reactivar): a confirmação diz quantas
   contas deixam de entrar e quantas sessões abertas se fecham; nada se
   apaga; as sessões das

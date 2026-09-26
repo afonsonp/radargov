@@ -513,6 +513,13 @@ th:has(> .so-leitor){position:relative}
   border-radius:var(--radius-sm);font-weight:600;text-decoration:none}
 .saltar:focus{top:8px}
 main#conteudo:focus{outline:none}
+/* O aviso da vez recebe o foco por programa, depois de gravar (WCAG
+   2.4.3: o leitor de ecra le-o), e o `.mg :focus-visible` pintava-o com
+   o anel magenta -- medido a 26/09/2026 nas Configuracoes e nas
+   Propostas. Nao e interactivo nem esta na ordem do Tab, por isso o
+   anel nao indica nada (2.4.7 nao se aplica); o «x» dentro dele e que o
+   mantem. Tres classes para ganhar tambem ao do contraste. */
+.mg-alert.aviso-da-vez:focus{outline:none}
 
 /* Um botão discreto dentro de um cartão em banda é azul sobre azul
    (contraste 1:1): o «Anúncio completo» da ficha não se via, e com o foco

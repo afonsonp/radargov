@@ -50,18 +50,18 @@ duas bases; os das empresas, de **24/09/2026**.
 |---|---|
 | Anúncios | 210 379 (**199 925 procedimentos**; a diferença são republicações ligadas ao original) |
 | Com o texto integral | 185 454. O `detalhe_lido` está a **100%**: não há fila por ler |
-| Empresas | **1** — a LATD, empresa 2 desde 24/09 (a empresa 1 foi apagada a 23/09 com `--apagar-empresa`) |
+| Empresas | **1** — a LATD, empresa 2 desde 24/09 (a empresa 1 foi apagada a 23/09 com `--apagar-empresa`; desde 26/09 apaga-se também no painel, na página da empresa) |
 | Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD (25/09/2026) |
 | Peças em disco | 274 documentos, de 50 concursos (em `pecas/`, 277 MB) |
 | Leituras pelo modelo | 44, das quais **7 incompletas** (voltam a tentar-se sozinhas) |
 | Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e a admin da LATD |
-| Rotas Flask | 118 |
+| Rotas Flask | 119 |
 | Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
-| Testes | **1 411**, em ~110 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 30 464 linhas · `teste_radar.py` 20 043 · `empresa.py` 865 · `contas.py` 722 · `icones.py` 62 |
+| Testes | **1 421**, em ~150 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 30 557 linhas · `teste_radar.py` 20 161 · `empresa.py` 865 · `contas.py` 722 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em

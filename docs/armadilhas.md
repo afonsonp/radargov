@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 30
-- [A interface](#a-interface) &middot; 102
+- [Contas e a porta](#contas-e-a-porta) &middot; 31
+- [A interface](#a-interface) &middot; 103
 - [Convenções](#convencoes) &middot; 4
 
-São **344** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **346** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2674,6 +2674,18 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   `/configuracoes/conta/ligacao`, que a tira de lá. Recarregar a
   resposta do POST criava outro convite. A rota está em `CONTA_DO_DONO`:
   sem ela, o dono sem empresa era mandado para a `/plataforma`.
+- **Apagar uma empresa tira-a também do que aponta para o número dela**
+  (26/09/2026, ao pôr o «Apagar a empresa» no painel). O
+  `criar_empresa()` dá o número a seguir ao maior: apagada a última, a
+  nova herda-lhe o número — e nascia **suspensa**, se a apagada o
+  estava, e aberta a quem a estivesse a ver no modo de suporte. O
+  `apagar_empresa()` limpa as duas coisas (a lista
+  `empresas_suspensas` e o `sessoes.ver_como`). E a ordem é contrato:
+  **a pasta sai primeiro** — se o move falhar, nada se apagou na base —
+  e se a base falhar depois (`_apagar_da_plataforma()`), a pasta volta.
+  A rota corre síncrona porque a cópia de antes (um `VACUUM INTO`)
+  mediu 8,8 s para 1,35 GB; se a base passar dos ~8 GB, aproxima-se dos
+  100 s do túnel e passa a pedir um fio de fundo.
 - **A página de empresa suspensa tem uma saída só, o «Sair»** (V4 P6):
   o «Voltar ao Hoje» do `PAGINA_ERRO` devolvia-a a ela mesma. Troca-se
   o `ACCAO_DA_PAGINA_DE_ERRO`, e o formulário leva o `csrf`.
@@ -3690,6 +3702,16 @@ botões ou no calendário.
   procedimento por baixo do objecto —, e os gráficos só vão para o lado
   acima de 1600px: abaixo disso roubavam 376px à tabela e o Preço saía
   cortado a 1280.
+- **O foco posto por programa não leva o anel magenta** (26/09/2026).
+  Depois de gravar, o JS do `BASE` põe o foco no aviso da vez (WCAG
+  2.4.3), e o `.mg :focus-visible` do sistema pintava-o de magenta —
+  medido com Playwright depois de um clique, nas Configurações e nas
+  Propostas: o browser decide sozinho quando um foco posto por programa é «visível».
+  Um elemento com `tabindex=-1` não é interactivo, e o anel
+  não indica nada: a nossa folha tira-o (`main#conteudo:focus`,
+  `.mg-alert.aviso-da-vez:focus`, três classes para ganhar também ao
+  do contraste), e o «×» dentro do aviso continua com o dele. Um
+  terceiro `tabindex=-1` pede a regra dele — o teste conta-os.
 - **O aviso sem âncora fica no topo** (ronda em PC). Preso em baixo
   (E25) tapava o que lá estivesse — o «Criar o alerta do perfil» — numa
   página que abre no topo, onde o aviso já está. Só fica preso quando o

@@ -267,7 +267,8 @@ Configurações a 23/09/2026; desde 26/09/2026 com os semáforos,
 correio, `config_do_correio()`; e a lista dos erros das 24 horas,
 `plataforma_erros()`, que o semáforo conta por `erros_por_ver()`),
 `plataforma_empresa()` (a página de cada
-empresa, `/plataforma/empresa/<n>`), `mostrar_uma_vez()` (o convite e o
+empresa, `/plataforma/empresa/<n>`, com o
+cartão de apagar, `plataforma_apagar_empresa()`), `mostrar_uma_vez()` (o convite e o
 repor mostram-se por Post/Redirect/Get), o modo de suporte
 (`plataforma_ver_como()`, `empresa_a_ver()`, `PODE_A_VER_COMO`,
 `_so_leitura()`, `_so_para_ler()`, `faixa_de_suporte()`), a suspensão
@@ -592,7 +593,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **344 pontos** (contados a 26/09/2026), cada um de um erro que
+São **346 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
