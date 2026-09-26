@@ -223,8 +223,8 @@ que só se sabem a usar:
   passou. **O radar não mexe em nenhum** — mostra-os com o selector da
   ranhura ao lado, e quem escolhe és tu. Foi pedido teu: «posso não ter
   passado para submetido por esquecimento».
-- **O «adiar todas p/ hoje» das atrasadas pergunta antes, e não tem
-  desfazer** — cada tarefa tinha a sua data, e depois de as juntar num
+- **O «adiar todas p/ hoje» das atrasadas só aparece quando há
+  atrasadas por fazer, pergunta antes, e não tem desfazer** — cada tarefa tinha a sua data, e depois de as juntar num
   dia não há como as devolver.
 - **Um concurso cujas automáticas estão no primeiro balde não as repete
   nas atrasadas.** Se procuras uma tarefa e não a vês, é aí que ela
@@ -520,8 +520,9 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   página, em qualquer browser. A **caixa "Procurar no documento"**
   marca as ocorrências **a amarelo nas próprias páginas** e diz onde
   estão ("aparece em 8 páginas, 10 vezes"), com salto directo para
-  cada uma. A procura é tal e qual está escrito no documento (acentos
-  contam). O que não for PDF descarrega-se como antes;
+  cada uma. A procura é **por palavra inteira, sem contar acentos nem
+  maiúsculas**: «tecnicos» encontra «técnicos» e «TÉCNICOS», e «ISO»
+  já não apanha «isolamento». O que não for PDF descarrega-se como antes;
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica;
 - dois botões para sair daqui, que são coisas diferentes: **Abrir na
@@ -706,12 +707,17 @@ da plataforma, desde 26/09/2026) lê-se de cima para baixo:
 - **«A tratar hoje»**, só quando há alguma coisa: pedidos de acesso por
   decidir, convites por usar que acabam em dois dias, empresas onde
   ninguém entra há 14 dias, a empresa que chegou ao tecto das leituras
-  do dia, e os erros das últimas 24 horas;
+  do dia, e os erros das últimas 24 horas que ainda não viste;
+- **os erros** (o «ver» do semáforo leva lá): a lista inteira das
+  últimas 24 horas — quando, onde e o texto todo. Depois de os leres,
+  **Dar por vistos**: o semáforo e «A tratar hoje» deixam de os contar,
+  e um erro novo volta a acendê-los;
 - **as empresas**: carrega no nome para abrir a página dela — as
   contas (com a última entrada e o «repor palavra-passe»), os convites
   por usar (**gerar de novo** dá uma ligação nova e anula a antiga;
   **anular** tira-a; **criar convite** faz um para a empresa que chegou
-  por telefone), os alertas e se o e-mail dela sai, o perfil, as
+  por telefone; a ligação aparece numa página com o botão **Copiar**, e
+  recarregar não cria outra — mas também já não a mostra), os alertas e se o e-mail dela sai, o perfil, as
   propostas em curso e as leituras. O trabalho da empresa não aparece;
 - **Correio**: a conta que envia os e-mails e o endereço para onde vão
   **os avisos da plataforma** — é aí que chega o aviso de cada pedido
@@ -723,15 +729,18 @@ da plataforma, desde 26/09/2026) lê-se de cima para baixo:
 
 **Para ajudar um cliente — «ver como a empresa, só leitura».** Na
 página da empresa, o botão abre a aplicação como ela a vê: o Hoje, as
-Propostas, as fichas, as Configurações. **Nada se grava** — qualquer
-botão que guarde dá uma página «Só leitura» — e fica uma faixa amarela
+Propostas, as fichas, as Configurações. **Nada se grava** — os botões que
+guardam aparecem desligados, e o que escapar (uma tecla da triagem) diz
+«Só leitura: nada se grava» — e fica uma faixa amarela
 presa ao topo a dizer que empresa estás a ver, com **Sair do modo de
 suporte**. Cada vez que entras e sais fica escrito no histórico da
 empresa, e o admin dela vê-o em Configurações › Conta, «Acessos do
 suporte». Não precisas de pedir a palavra-passe a ninguém.
 
-**Suspender uma empresa** (na página dela): as contas dela deixam de
-entrar (vêem «acesso suspenso») e deixam de receber alertas, e as
+**Suspender uma empresa** (na página dela): a pergunta diz quantas
+contas deixam de entrar e quantas sessões abertas se fecham; as contas
+dela deixam de entrar (vêem «acesso suspenso», com o teu endereço dos
+avisos e um botão «Sair») e deixam de receber alertas, e as
 sessões abertas fecham-se. Não se apaga nada; **Reactivar** põe tudo
 como estava.
 

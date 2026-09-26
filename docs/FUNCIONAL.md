@@ -113,7 +113,7 @@ as exactas e salta as outras.
 | `eventos` | uma por evento | O que a plataforma viu acontecer a um anúncio — o DR mudou-o ou rectificou-o, apareceu uma peça, o modelo leu-as (`ACCOES_DA_PLATAFORMA`). Saiu do `historico` da empresa na F2; a ficha mostra os dois juntos (`passos_do_anuncio()`) |
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
-| `erros` | a série, por tipo | Poda a 200 por tipo — a contagem não quer dizer nada |
+| `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **20** | Quem entra. A 26/09/2026 inclui as 19 contas da segunda ronda de testes com utilizadores, que saem no fim dela |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
 | `estado` | 19 | Marcas do sistema (última verificação, migrações feitas) |
@@ -188,7 +188,7 @@ comparadas antes de apagar.
 | `fechada_em` | 48 | O dia em que se marcou como decidida — o período do `/situacao` usa-a só quando falta a `data_adjudicacao` |
 | `data_adjudicacao` | 0 | A data da adjudicação (26/09/2026): é por ela que o `/situacao` conta o período |
 | `audiencia_em` | 0 | A data da notificação do relatório preliminar: abre a tarefa da audiência prévia (§3.5) |
-| `valor_adjudicado` | 0 | O que o «Ganho» soma; vazio, o proposto (26/09/2026) |
+| `valor_adjudicado` | 0 | O que o «Ganho» soma; vazio, o proposto (26/09/2026). A Situação diz quantas ganhas somam cada um, e a tabela das decididas tem a coluna «Conta» |
 | `notas` | 0 | **Vazia desde 26/09/2026**: as notas passaram à `notas_da_proposta`, e a coluna fica (largar uma coluna reescreve a tabela) |
 | `lugar`, `top3` | 34 | Em que posição ficámos, e quem ficou à frente |
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
@@ -302,9 +302,18 @@ ficha, o selector e a caixa dele, a proposta sem anúncio e a importação
 — e é **o preço base do lote** numa proposta a um lote (a coluna
 `lotes` do anúncio), o total numa proposta ao conjunto. **Sem preço base
 conhecido não se recusa.** O browser recusa antes de enviar, e o
-servidor recusa na mesma (`recusa_do_preco()`). Um «Relatório
+servidor recusa na mesma (`recusa_do_preco()`). **O valor adjudicado
+tem o mesmo tecto** (ronda em PC, 26/09/2026): acima do preço base
+recusa-se, no diálogo e no servidor. Um «Relatório
 preliminar» ou «Ganho» **antes do fim do prazo de entrega** continua a
 gravar-se com o aviso a vermelho (`aviso_do_ccp()`).
+
+**A fase que a página mostrava vai com o gesto** (ronda em PC): o
+selector manda o `de`, e se a proposta já está noutra fase — mudada
+noutro separador, ou por um colega — nada muda e o aviso diz em que
+fase está (`recado_da_fase_mudada()`). **Uma nota nova grava-se mesmo
+quando a ficha mudou entretanto**: acrescenta, não substitui; os outros
+campos do bloco é que não se gravam.
 
 **O desfecho tem datas e valor** (D3 e D10, 26/09/2026): o «Ganho» e o
 «Perdido» pedem, na mesma caixa e sem obrigar, a **data da
@@ -394,8 +403,11 @@ Duas origens:
   feriados, por isso sai igual ou mais cedo do que o verdadeiro. Outra
   data de notificação refaz-a; a proposta fechada tira-a.
 - **A validade de um documento do cofre** (26/09/2026) — **15 dias
-  antes** de cada validade (§4.8). Mudar a validade troca-a pela da data
-  nova, mesmo que a velha já estivesse feita; tirar o documento leva-a.
+  antes** de cada validade (§4.8), **ou hoje**, se isso já passou (um
+  alvará registado a dez dias de caducar é trabalho para hoje, não
+  «atrasado»); é **de quem registou** o documento. Mudar a validade
+  troca-a pela da data nova, mesmo que a velha já estivesse feita;
+  tirar o documento leva-a.
 - **Escritas à mão** — nunca se tocam.
 
 **Vivem no Hoje e no Calendário** (este desde 26/09/2026, D12): as por
@@ -499,7 +511,10 @@ passo, saíam dois e-mails com metade das coisas cada um.
 **O alerta do perfil** (D13, 26/09/2026): em Configurações › Alertas,
 um botão cria — ou actualiza, pelo nome «Perfil da empresa» — o alerta
 com os CPV, as exclusões, os distritos e o valor mínimo do perfil
-(`consulta_do_perfil()`), nos mesmos campos do filtro.
+(`consulta_do_perfil()`), nos mesmos campos do filtro. O alerta escrito
+à mão também leva **vários distritos** (caixas, como no Perfil; ronda em
+PC), e um valor que não se lê — uma data, um preço — recusa-o a
+vermelho, sem gravar.
 
 1. **Reconhecer** (`registar_alertas()`, `registar_seguidas()`, a cada
    verificação): anota na `alertas_vistos` que anúncios caem em que
@@ -563,7 +578,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**115 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**118 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -615,7 +630,8 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    feito pelo admin (o do pedido de acesso não conta). Um passo desfeito
    volta a aparecer. Sai quando os quatro estão feitos, ou com
    **Dispensar** (`/arranque/dispensar`, só admin), que vale para a
-   empresa (`MARCA_DO_ARRANQUE`).
+   empresa (`MARCA_DO_ARRANQUE`). **Com metade feita, encurta** (ronda
+   em PC): só os passos que faltam, uma linha cada.
 
 1. **Título** = a data por extenso («Sexta, 18 de setembro»), e não a
    saudação do `EcraHoje` (decisão dele de 17/09/2026, mantida a
@@ -637,8 +653,8 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
 4. **Para fazer** (coluna esquerda), em cinco baldes:
    - **Prazo passou sem decisão** — propostas abertas cujo prazo do DR
      passou, com o selector de ranhura ao lado. Não dobra.
-   - **Atrasadas** — com «adiar todas p/ hoje» (pergunta antes; não há
-     desfazer). Não dobra.
+   - **Atrasadas** — com «adiar todas p/ hoje» só quando há atrasadas
+     por fazer (pergunta antes; não há desfazer). Não dobra.
    - **O dia escolhido** na fita (por omissão, hoje). Não dobra.
    - **Resto da semana** · **Mais para a frente** — dobram.
 
@@ -1041,6 +1057,16 @@ entrada, propostas em curso, leituras do mês e de hoje contra o tecto),
 a **Recolha** com o «Verificar agora» (pede confirmação), o **Correio**
 e as secções do sistema.
 
+- **Os erros das últimas 24 horas** (`/plataforma/erros`, ronda em PC):
+  a lista inteira — quando, onde, o texto todo — e o «dar por vistos».
+  O semáforo e «a tratar hoje» contam só os que ninguém deu por vistos
+  (`erros.visto_em`); um que chegue depois de a página abrir não se dá
+  por visto.
+- **As ligações de uso único** (o convite e o repor) mostram-se numa
+  página própria, `/configuracoes/conta/ligacao`, com o botão
+  «Copiar»: o gesto redirecciona para lá, e recarregar já não a mostra
+  nem cria outra.
+
 - **O Correio da plataforma**: a conta que envia (a mesma do resumo das
   empresas) e o endereço dos **avisos da plataforma** (`email.avisos`,
   chave da plataforma). É para ele que vai o aviso de cada pedido de
@@ -1056,13 +1082,18 @@ e as secções do sistema.
 - **Ver como a empresa, só leitura** — o suporte. O dono carrega no
   botão da página da empresa, e a sessão dele passa a ver a aplicação
   dessa empresa (`sessoes.ver_como`): a porta recusa **todos** os POST
-  (só o sair passa, `PODE_A_VER_COMO`), o ficheiro dela junta-se **só
-  de leitura**, e uma faixa presa à barra diz «A ver a empresa X, só
+  (só o sair passa, `PODE_A_VER_COMO`) — a um `fetch`, como a triagem,
+  em JSON: «Só leitura: nada se grava» —, os botões que gravam aparecem
+  desligados, o «Verificar agora» não aparece, o ficheiro dela junta-se
+  **só de leitura**, e uma faixa presa à barra diz «A ver a empresa X, só
   leitura» com o botão de sair. Cada entrada e saída fica no histórico
   da empresa — o admin vê-as em Configurações › Conta, «Acessos do
   suporte» — e nos eventos da plataforma.
-- **Suspender** uma empresa (e reactivar): nada se apaga; as sessões das
-  contas dela fecham-se, a porta recusa-as com uma página que o diz
+- **Suspender** uma empresa (e reactivar): a confirmação diz quantas
+  contas deixam de entrar e quantas sessões abertas se fecham; nada se
+  apaga; as sessões das
+  contas dela fecham-se, a porta recusa-as com uma página que o diz,
+  com o contacto e um só botão, «Sair»
   (`_empresa_suspensa()`), e a verificação salta-a — sem alertas nem
   resumo (`empresas_a_trabalhar()`). A lista é `empresas_suspensas` no
   config.json da plataforma.

@@ -678,6 +678,11 @@ def ler_modelo(caminho):
         if bruto["data_decisao"] not in (None, "") and not linha["data_decisao"]:
             erros.append("data da decisão «%s» não é uma data (dd/mm/aaaa)"
                          % _celula(bruto["data_decisao"])[:20])
+        elif linha["data_decisao"] > datetime.now().date().isoformat():
+            # uma decisão no futuro é uma gralha no ano (E16, ronda em
+            # PC): contava para um período da Situação que ainda não veio
+            erros.append("data da decisão %s ainda não chegou: confira o ano"
+                         % radar.data_pt(linha["data_decisao"]))
         lugar_txt = _celula(bruto["lugar"])
         try:
             linha["lugar"] = int(float(lugar_txt.replace(",", "."))) if lugar_txt else None
@@ -747,13 +752,13 @@ def ensaio_modelo(c, linhas):
                  "alteram": sum(1 for l in linhas if l.get("efeito", "")
                                 .startswith("altera")),
                  "mantem": sum(1 for l in linhas if l.get("efeito", "")
-                               .startswith("mantém"))}
+                               .startswith("entra só no registo"))}
     return linhas, contagens
 
 
 _ROTULOS_DO_EFEITO = {"valor_proposta": "preço", "lugar": "lugar",
                       "top3": "os três primeiros", "motivo": "motivo",
-                      "notas": "notas"}
+                      "notas": "notas", "data_adjudicacao": "data da decisão"}
 
 
 def _efeitos(c, linhas):
@@ -784,8 +789,11 @@ def _efeitos(c, linhas):
         if not p:
             melhor["efeito"] = "nova"
         elif p["estado"] != estado:
-            melhor["efeito"] = ("mantém-se em «%s»: a importação não substitui "
-                                "uma decisão feita no Mira Gov"
+            # «entra» e «mantém-se» na mesma linha contradiziam-se (ronda
+            # em PC, V6): entra no REGISTO, e a proposta não muda
+            melhor["efeito"] = ("entra só no registo: a proposta mantém-se "
+                                "em «%s», e nada nela muda — a importação não "
+                                "substitui uma decisão feita no Mira Gov"
                                 % radar.estado_da_empresa(p["estado"]))
         else:
             mudancas = []
@@ -798,6 +806,10 @@ def _efeitos(c, linhas):
                 if k == "valor_proposta":
                     mudancas.append("preço %s → %s" % (radar.preco_pt(p[k]),
                                                         radar.preco_pt(v)))
+                elif k == "data_adjudicacao":
+                    mudancas.append("data da decisão %s → %s"
+                                    % (radar.data_pt(p[k], "—"),
+                                       radar.data_pt(v, "—")))
                 else:
                     mudancas.append("%s «%s» → «%s»"
                                     % (_ROTULOS_DO_EFEITO.get(k, k),
