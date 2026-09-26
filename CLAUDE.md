@@ -439,7 +439,11 @@ A ordem do ficheiro é a ordem do fluxo:
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
    disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. **A barra tem cinco itens desde 24/09/2026** (a do
+   lê da porta. **A barra tem seis itens e a Ajuda desde 26/09/2026**
+   (D11 da segunda ronda, decisão dele: a **Situação**, `/situacao`,
+   entrou a seguir às Propostas, e a Ajuda saiu do menu da conta para
+   um «?» com o nome «Ajuda», depois das Configurações; as Entidades
+   passaram a aba do Mercado). Eram cinco desde 24/09/2026 (a do
    Mira Gov, decisão dele): Concursos, **Propostas** (`PROPOSTAS` =
    `/propostas`, as oito ranhuras da empresa, que até aí eram abas dos
    Concursos; o `/concursos?estado=<ranhura da empresa>` serve a mesma
@@ -563,7 +567,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **302 pontos** (contados a 26/09/2026), cada um de um erro que
+São **306 pontos** (contados a 26/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

@@ -248,8 +248,8 @@ Cinco ideias explicam todos os ecrãs.
 Desenho do Afonso (15/09/2026). **Uma escada só**, não um quadro:
 
 ```
-Por ver → Por analisar → A preparar proposta → Submetido
-        → Relatório preliminar → Ganho | Perdido | Não fomos | Cancelado
+Por ver → Por analisar → A preparar → Submetida
+        → Relatório preliminar → Ganha | Perdida | Não fomos | Cancelada
                                                     (+ Expirou sem ver)
 ```
 
@@ -264,7 +264,7 @@ Por ver → Por analisar → A preparar proposta → Submetido
 
 | Ranhura | Exige |
 |---|---|
-| Submetido | valor proposto |
+| Submetida | valor proposto |
 | Relatório preliminar | valor proposto + lugar |
 | Ganho | valor proposto |
 | Perdido | valor proposto + motivo |
@@ -277,8 +277,8 @@ teclado. «Tirar da escada» pergunta antes.
 O que falta **pede-se no gesto que escolhe a ranhura** (25/09/2026):
 escolhida no selector e carregado o «Mudar», abre-se uma caixa com o que esta proposta ainda
 não tem — o preço, o lugar, o motivo — e grava-se tudo de uma vez. Sem
-isto, o «Submetido» a partir de «A preparar proposta» era um beco. O
-campo do preço proposto está no bloco **desde «A preparar proposta»**
+isto, o «Submetida» a partir de «A preparar» era um beco. O
+campo do preço proposto está no bloco **desde «A preparar»**
 (26/09/2026), e em qualquer ranhura quando já tem valor — senão uma
 proposta reposta em «Por analisar» ficava com o preço escondido e presa.
 A caixa recusa lá dentro o que não é preço, e fala português.
@@ -297,7 +297,7 @@ fim do prazo de entrega** gravam-se, com o aviso a vermelho
 (`aviso_do_ccp()`); o browser pede confirmação antes de gravar o preço.
 Uma proposta **fechada com tarefas por fazer** di-lo no bloco, com um
 «fechar as N tarefas». O histórico guarda **o antes e o depois** do
-preço e da ranhura («Submetido → Relatório preliminar»), e a ficha
+preço e da fase («Submetida → Relatório preliminar»), e a ficha
 mostra as 12 entradas mais recentes com um «ver as N».
 
 Os motivos são **vocabulário fechado** (é o que os faz dar contas):
@@ -523,7 +523,10 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**98 rotas.** A barra tem **o logótipo e cinco itens** desde 24/09/2026
+**98 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
+com nome depois das Configurações, e as Entidades são aba do Mercado).
+Eram cinco itens desde 24/09/2026
 (a do Mira Gov, por ordem de uso diário):
 
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
@@ -531,7 +534,10 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
   sem ver, Todos), que são anúncios
 - **Propostas** → `/propostas`: as oito ranhuras da empresa. O endereço
   antigo, `/concursos?estado=<ranhura da empresa>`, serve a mesma página
-- **Mercado** → `/contratos` · vista **Entidades** `/entidades`
+- **Situação** → `/situacao` (26/09/2026; até aí só se chegava pelo
+  «Em jogo» do Hoje)
+- **Mercado** → `/contratos` · aba **Entidades** `/entidades`, ao lado
+  dos dois modos da tabela (26/09/2026; era vista na barra)
 - **Calendário** → `/calendario`, com as dez ranhuras nas abas
 - **Configurações** → `/configuracoes` (9 secções)
 
@@ -743,8 +749,11 @@ Nove secções, por esta ordem. **As cinco últimas só ao admin.**
 | cópias | a cópia diária (plataforma e empresa) e o ensaio de restauro |
 
 **Como funciona** — `/ajuda` (25/09/2026, do teste com utilizadores),
-no menu da conta: o caminho de todos os dias num parágrafo, e o
-glossário (`GLOSSARIO`) das palavras da aplicação. **As definições de lá
+o «?» da barra desde 26/09/2026 (era no menu da conta): o caminho de
+todos os dias num parágrafo, e o glossário (`GLOSSARIO`) das palavras
+da aplicação. Cada termo tem âncora (`/ajuda#em-jogo`), e o «?» de um
+bloco ou de uma página cujo nome é um termo liga à definição («Mais na
+ajuda», `mais_na_ajuda()`). **As definições de lá
 seguem as deste documento**: uma regra que mude aqui muda lá.
 
 ### 4.9 A porta
@@ -1100,10 +1109,12 @@ Para não desenhares o que não se pode fazer:
 |---|---|
 | **anúncio** | Uma publicação da parte L do DR. Tem `ref` («21296/2026») |
 | **proposta** | O que a empresa decidiu fazer sobre um anúncio (ou sem ele) |
-| **ranhura** | Um degrau da escada |
-| **escada** | As dez ranhuras, da entrada ao desfecho |
+| **fase** | O ponto em que a proposta está. No ecrã diz-se «fase» desde 26/09/2026; no código continua a ser «ranhura» |
+| **escada** | As fases, por ordem, da entrada ao desfecho. No ecrã só na Ajuda |
+| **Por analisar · A preparar · Submetida · Relatório preliminar · Ganha · Perdida · Não fomos · Cancelada** | As oito fases da proposta, no feminino porque o sujeito é a proposta (26/09/2026; eram «Submetido», «Ganho»…). As chaves gravadas não mudaram |
+| **Administrador / Utilizador** | Os papéis de uma conta no ecrã. No código, `admin` e `tester` |
 | **perfil da empresa** | Os CPV que a empresa trabalha (e os distritos e o valor mínimo). No código, `interesse` |
-| **corpus** | O `contratos.db` — os contratos celebrados do Portal BASE |
+| **contratos do Portal BASE** | O `contratos.db`. No código e nestes documentos, «corpus»; no ecrã, nunca (26/09/2026) |
 | **entidade** | Quem publica, ou quem ganha. Identificada por chave |
 | **peças** | Os documentos do procedimento (caderno de encargos, programa) |
 | **empresa** | Nós. (Era «casa» até 16/09/2026) |

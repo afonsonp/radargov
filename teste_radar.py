@@ -479,14 +479,14 @@ Nome: Preço
         faltam = {r for r, _, f, _ in self.tabela() if f}
         self.assertEqual(faltam, {
             "Preço anormalmente baixo",
-            "Objeto, âmbito e características", "Equipa",
+            "Objecto, âmbito e características", "Equipa",
             "Documentos que constituem a proposta"})
 
     def test_diz_em_que_documento_esta_o_que_falta(self):
         for _, _, falta, _ in self.tabela():
             if falta:
                 self.assertTrue("Caderno de Encargos" in falta
-                                or "Programa de Concurso" in falta)
+                                or "Programa do Concurso" in falta)
 
     def test_local_avisa_que_nao_e_o_local_de_trabalho(self):
         # a secção 9 do DR chama-se "LOCAL DA EXECUÇÃO DO CONTRATO
@@ -499,7 +499,7 @@ Nome: Preço
 
     def test_pecas_lidas_preenchem_os_campos_que_faltavam(self):
         d = {r: v for r, v, _, _ in self.tabela(analise=self.LIDO)}
-        self.assertEqual(d["Objeto, âmbito e características"], "- fazer X")
+        self.assertEqual(d["Objecto, âmbito e características"], "- fazer X")
         self.assertEqual(d["Equipa"], "- um gestor")
         self.assertEqual(d["Documentos que constituem a proposta"], "- DEUCP")
 
@@ -2072,8 +2072,10 @@ class TestDiferencasDoDetalhe(unittest.TestCase):
         # a regra da empresa: nunca uma data ISO num texto para ler
         self.assertEqual(radar._valor_vigiado("prazo", "2026-09-10"),
                          "10/09/2026")
+        # e o preço como o resto do ecrã (lote 5): «100,00 EUR» é a
+        # escrita do DR, e lia-se ao lado de «375 000,00 €»
         self.assertEqual(radar._valor_vigiado("preco_base", "100,00 EUR"),
-                         "100,00 EUR")
+                         "100,00\xa0€")
 
 
 class TestPadraoDeRetificacao(unittest.TestCase):
@@ -2343,7 +2345,7 @@ class TestResumoEmHtml(unittest.TestCase):
         saiu = radar.html_do_resumo([({"nome": "TI"}, [self.anuncio(),
                                                       self.anuncio(ref="2/2026")])])
         self.assertTrue(saiu.startswith("<!DOCTYPE html>"))
-        self.assertIn("2 anúncios novos nos teus alertas", saiu)
+        self.assertIn("2 anúncios novos nos seus alertas", saiu)
         self.assertIn("TI <span", saiu)
 
     def test_a_ligacao_para_a_ficha_e_um_href(self):
@@ -2646,7 +2648,7 @@ class TestConcentracao(unittest.TestCase):
     def test_quota_dos_cinco_maiores(self):
         # 5 x 16 = 80 de 100
         saiu = radar.concentracao_html(self.ganha([16] * 5, total=100.0))
-        self.assertIn(">80%<", saiu)
+        self.assertIn(">80\xa0%<", saiu)
 
     def test_as_fatias_incluem_o_resto_do_mercado(self):
         saiu = radar.concentracao_html(self.ganha([10] * 5, total=100.0))
@@ -3026,8 +3028,9 @@ class TestEscaloesDeDesconto(unittest.TestCase):
 
     def test_percentagem_com_virgula(self):
         # numeros a portuguesa, como o resto do painel
-        self.assertEqual(radar.pct_pt(0.073), "7,3%")
-        self.assertEqual(radar.pct_pt(0.5), "50,0%")
+        # e com o espaço inquebrável antes do %, como o Hoje (lote 5)
+        self.assertEqual(radar.pct_pt(0.073), "7,3\xa0%")
+        self.assertEqual(radar.pct_pt(0.5), "50,0\xa0%")
 
     def test_a_agregacao_e_por_procedimento_e_exclui_o_ambiguo(self):
         # o SQL tem de agrupar por n_anuncio e deitar fora os grupos com
@@ -3218,7 +3221,7 @@ class TestBotoesDaLinha(unittest.TestCase):
         escada» é a última opção dele."""
         h = radar.linha(self.anuncio(), na_escada=self._na_escada("nao_fomos"))
         self.assertIn("action='/escada/1%2F2026'", h)
-        self.assertIn("<option value='porver'>tirar da escada</option>", h)
+        self.assertIn("<option value='porver'>voltar a «Por ver»</option>", h)
         self.assertNotIn("abandonar-js", h)     # já está nessa ranhura
 
     def test_em_analise_nao_repete_o_botao_interessa(self):
@@ -3241,8 +3244,8 @@ class TestBotoesDaLinha(unittest.TestCase):
             h = radar.linha(self.anuncio(), vista, na_escada=escada)
             return h.split("class='col-falta'>")[1].split("</td>")[0]
 
-        self.assertNotIn("Submetido", meta("submetido"))
-        self.assertIn("Submetido", meta(""))
+        self.assertNotIn("Submetida", meta("submetido"))
+        self.assertIn("Submetida", meta(""))
 
     def test_um_anuncio_com_dois_lotes_mostra_os_dois(self):
         """D3: o L1 ganho e o L2 perdido são duas etiquetas na mesma
@@ -3251,8 +3254,8 @@ class TestBotoesDaLinha(unittest.TestCase):
             {"ref": "1/2026", "estado": "ganho", "lote": 1, "motivo": None},
             {"ref": "1/2026", "estado": "perdido", "lote": 2, "motivo": "Preço"}]}
         h = radar.linha(self.anuncio(), "", na_escada=escada)
-        self.assertIn("Ganho L1", h)
-        self.assertIn("Perdido L2", h)
+        self.assertIn("Ganha L1", h)
+        self.assertIn("Perdida L2", h)
         self.assertIn(">Preço<", h)
 
 
@@ -4203,10 +4206,14 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         # A 24/09/2026 a barra passou aos cinco itens do Mira Gov, por
         # ordem de uso diario (decisao dele: «seguir a referencia»); as
         # Configuracoes sao o quinto, e desenham-se a seguir a estes.
+        # A Situação entrou a 26/09/2026, a seguir às Propostas (D11 da
+        # segunda ronda, decisão dele).
         self.assertEqual([n[0] for n in radar.NAV],
-                         ["anuncios", "propostas", "mercado", "calendario"])
+                         ["anuncios", "propostas", "situacao", "mercado",
+                          "calendario"])
         self.assertEqual([n[1] for n in radar.NAV],
-                         ["Concursos", "Propostas", "Mercado", "Calendário"])
+                         ["Concursos", "Propostas", "Situação", "Mercado",
+                          "Calendário"])
         self.assertEqual(radar.NAV[0][2], radar.LISTA)
         self.assertEqual(radar.NAV[1][2], radar.PROPOSTAS)
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
@@ -4425,6 +4432,53 @@ class TestLigacaoContratoAnuncio(BaseTemporaria):
         self.assertEqual(radar.refs_com_anuncio(["", None]), set())
 
 
+def semear_corpus(n=40, hoje=None):
+    """Um corpus pequeno na pasta da `BaseTemporaria`: `n` contratos de
+    sete entidades, com adjudicatário e CPV. Existe desde o lote 5
+    (26/09/2026): o teste das abas do Mercado lia o `contratos.db`
+    verdadeiro, e numa pasta sem ele (um worktree) falhava por nada."""
+    hoje = hoje or datetime.date.today()
+    radar.iniciar_corpus()
+    with radar.liga_corpus() as c:
+        for i in range(n):
+            cur = c.execute(
+                "INSERT INTO contratos (ano, n_anuncio, tipo_procedimento,"
+                " objecto, adjudicante, adjudicante_nif, adjudicante_chave,"
+                " data_publicacao, data_celebracao, preco_contratual,"
+                " preco_base, prazo_execucao, cpv, n_adj) VALUES"
+                " (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",
+                (hoje.year, "%d/2025" % (100 + i), "Concurso público",
+                 "Serviços de manutenção %d" % i, "Município %d" % (i % 7),
+                 "50600000%d" % (i % 7), "50600000%d" % (i % 7),
+                 (hoje - datetime.timedelta(days=300 - i)).isoformat(),
+                 (hoje - datetime.timedelta(days=290 - i)).isoformat(),
+                 20000.0 + i * 3100, 25000.0 + i * 3100, 365,
+                 "72000000-8" if i % 2 else "50700000-2"))
+            c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif,"
+                      " nome, nome_norm, chave) VALUES (?,?,?,?,?)",
+                      (cur.lastrowid, "5100000%02d" % (i % 5),
+                       "Empresa %d, Lda" % (i % 5), "empresa %d lda" % (i % 5),
+                       "5100000%02d" % (i % 5)))
+            c.execute("INSERT INTO contrato_cpv VALUES (?,?)",
+                      (cur.lastrowid, "72000000" if i % 2 else "50700000"))
+        # as entidades (a ficha abre pela chave delas)
+        radar.resolver_entidades(c)
+
+
+class TestOsModosDoMercadoEstaoNasAbas(BaseTemporaria):
+    """Os dois modos do Mercado (e as Entidades, desde 26/09/2026)
+    alcançam-se pelas abas da página, e não pela barra. Vivia no
+    `TestModoFimDosContratos`, a ler o corpus verdadeiro."""
+
+    def test_os_modos_e_as_entidades_estao_nas_abas(self):
+        semear_corpus()
+        corpo = radar.app.test_client().get("/contratos").get_data(as_text=True)
+        self.assertIn("ver=fim", corpo)
+        self.assertIn("Por fim estimado", corpo)
+        self.assertIn("Por celebração", corpo)
+        self.assertIn("<a class='mg-tab' href='/entidades'>Entidades</a>", corpo)
+
+
 class TestModoFimDosContratos(unittest.TestCase):
     """Andamento 3 (decisão 6.1-A): as renovações fundiram-se nos
     contratos como modo «ver por fim estimado». O que estes testes
@@ -4506,11 +4560,8 @@ class TestModoFimDosContratos(unittest.TestCase):
         self.assertNotIn("contratos", [v[0] for v in mercado[3]])
         # o Calendário é item próprio da barra desde 24/09/2026
         self.assertIn("calendario", [n[0] for n in radar.NAV])
-        # e os dois modos continuam alcançáveis, pelas abas da página
-        corpo = radar.app.test_client().get("/contratos").get_data(as_text=True)
-        self.assertIn("ver=fim", corpo)
-        self.assertIn("Por fim estimado", corpo)
-        self.assertIn("Por celebração", corpo)
+        # e os dois modos continuam alcançáveis, pelas abas da página:
+        # `TestOsModosDoMercadoEstaoNasAbas`, sobre um corpus temporário
 
     def test_a_pagina_do_mercado_continua_a_acender_o_item_da_barra(self):
         """O `ITEM_DA_PAGINA` derivava das sub-vistas: tirá-las deixou a
@@ -4982,9 +5033,11 @@ class TestEscadaDaEmpresa(unittest.TestCase):
         # a lista dele, por estas palavras e por esta ordem
         self.assertEqual(
             [r for _, r in radar.ESTADOS_DA_EMPRESA],
-            ["Por analisar", "A preparar proposta", "Submetido",
-             "Relatório preliminar", "Ganho", "Perdido", "Não fomos",
-             "Cancelado"])
+            # no feminino desde 26/09/2026: o sujeito é a proposta (lote 5
+            # da segunda ronda); as chaves ficam as dele
+            ["Por analisar", "A preparar", "Submetida",
+             "Relatório preliminar", "Ganha", "Perdida", "Não fomos",
+             "Cancelada"])
 
     def test_as_chaves_das_seis_primeiras_sao_as_do_quadro_antigo(self):
         """De propósito: as seis primeiras chaves são as que `fases.papel`
@@ -5020,7 +5073,7 @@ class TestEscadaDaEmpresa(unittest.TestCase):
         self.assertEqual(radar.estado_da_empresa("inventado"), "")
         self.assertEqual(radar.estado_da_empresa(""), "")
         self.assertEqual(radar.estado_da_empresa(None), "")
-        self.assertEqual(radar.estado_da_empresa("ganho"), "Ganho")
+        self.assertEqual(radar.estado_da_empresa("ganho"), "Ganha")
 
     def test_cada_pedido_e_cada_motivo_e_de_um_estado_que_existe(self):
         """As duas listas andam ao lado da escada e é fácil deixar lá uma
@@ -7655,7 +7708,7 @@ class TestControlosTemNomeParaOLeitorDeEcra(unittest.TestCase):
         self.assertIn("aria-label='marcar como feita: Pedir &quot;"
                       "esclarecimentos&quot;'", caixa)
         self.assertNotIn("aria-label", radar.accao("/x", "ok"))
-        self.assertIn("aria-label='Ranhura na escada'",
+        self.assertIn("aria-label='Fase da proposta'",
                       radar.selector_de_ranhura("/x", "analisar"))
         self.assertNotIn("<select name='plat'>", radar.CSS + inspect.getsource(radar))
 
@@ -7668,6 +7721,295 @@ class TestControlosTemNomeParaOLeitorDeEcra(unittest.TestCase):
         folha = radar.ler_estilo("miragov-radar.css")
         self.assertIn(".so-leitor{position:absolute", folha)
         self.assertIn("th:has(> .so-leitor){position:relative}", folha)
+
+
+def semear_as_rotas():
+    """Doze anúncios, uma proposta em cada uma das oito fases e dois
+    alertas: o que as rotas principais precisam para se desenharem com
+    tudo. Servia só a acessibilidade; desde o lote 5 serve também o
+    texto e o desenho."""
+    hoje = datetime.date.today()
+    with radar.liga() as c:
+        for i in range(12):
+            c.execute(
+                "INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                " tipo, url, estado, cpv, prazo, preco_base) VALUES "
+                "(?,?,?,?,?,?,'novo',?,?,?)",
+                ("%d/2026" % (23000 + i),
+                 "Aquisição de serviços de manutenção", "Município %d" % i,
+                 hoje.isoformat(), "Anúncio de procedimento",
+                 "https://dr/%d" % i, "50700000",
+                 (hoje + datetime.timedelta(days=i % 4)).isoformat(),
+                 "%d.000,00 EUR" % (10000 + i)))
+    for i, estado in enumerate(radar.CHAVES_DA_EMPRESA, start=1):
+        pid = radar.criar_proposta("%d/2026" % (23000 + i))
+        if estado == "analisar":
+            continue
+        campos = {"valor_proposta": "9.000,00 EUR", "lugar": "2"}
+        if estado in radar.MOTIVOS_DO_ESTADO:
+            campos["motivo"] = radar.MOTIVOS_DO_ESTADO[estado][0]
+        exigidos = radar.CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ())
+        radar.mover_proposta(pid, estado, campos={
+            k: v for k, v in campos.items() if k in exigidos})
+    radar.gravar_filtro("Grandes obras", "estado=porver&pbmin=100000",
+                        alerta=1)
+    radar.gravar_filtro("Software", "estado=porver&q=software", alerta=1)
+
+
+# As rotas que o texto e o desenho percorrem: as da acessibilidade, mais
+# as abas e as fichas onde o revisor de texto e o designer encontraram
+# o que o lote 5 corrigiu (segunda ronda, 26/09/2026).
+ROTAS_DO_GUIA = (
+    "/", radar.LISTA, radar.LISTA + "?estado=", "/propostas",
+    "/propostas?estado=analisar", "/propostas?estado=perdido",
+    "/propostas?estado=ganho", "/anuncio/23001%2F2026",
+    "/anuncio/23007%2F2026", "/calendario", "/contratos",
+    "/contratos?cpv=72000000", "/contratos?ver=fim", "/entidades",
+    "/entidade/506000001", "/situacao", "/situacao?aba=triagem",
+    "/situacao?aba=cpv", "/configuracoes/conta", "/configuracoes/alertas",
+    "/configuracoes/interesse", "/configuracoes/importar",
+    "/configuracoes/indicadores", "/configuracoes/copias",
+    "/proposta/nova", "/ajuda")
+
+
+def _paginas_do_guia(caso):
+    """{rota: html} das ROTAS_DO_GUIA, sobre as rotas semeadas e um
+    corpus pequeno. Nenhuma pode dar erro."""
+    semear_as_rotas()
+    semear_corpus()
+    cliente = radar.app.test_client()
+    paginas = {}
+    for rota in ROTAS_DO_GUIA:
+        r = cliente.get(rota)
+        caso.assertEqual(r.status_code, 200, rota)
+        paginas[rota] = r.get_data(as_text=True)
+    return paginas
+
+
+def _o_que_se_le(pagina):
+    """O texto que a pessoa lê: o corpo sem guiões nem folhas, e os
+    `title`, `aria-label` e `placeholder`, que também são texto."""
+    sem = re.sub(r"(?is)<(style|script)\b.*?</\1>", " ", pagina)
+    atributos = re.findall(
+        r"""(?:title|aria-label|placeholder)=(?:'([^']*)'|"([^"]*)")""", sem)
+    corpo = re.sub(r"(?s)<[^>]+>", "\n", sem)
+    return html.unescape(corpo + "\n" + "\n".join(a or b for a, b in atributos))
+
+
+class TestOTextoDoEcraSegueOGuia(BaseTemporaria):
+    """O guia de texto da segunda ronda (26/09/2026, perfil 15, com o 12
+    e o 3), guardado no HTML que se serve. O revisor encontrou, a olho,
+    o que estava escrito de três maneiras: «412.000,00 EUR» ao lado de
+    «395 146,78 €» na mesma linha, «2026-09-24 → 2026-10-01», «1 dias»
+    cinco vezes, «57%» contra «57 %», aspas “”, «setembro» e «Objeto»
+    ao lado de «Objecto», «O que e esta pagina», e um produto que
+    tratava por você no site e por tu dois cliques depois. O formatador
+    único (`preco_pt`, `data_pt`, `pct_pt`, `plural`…) resolveu-os; isto
+    impede que voltem por uma cadeia escrita à mão."""
+
+    PROIBIDOS = (
+        (r"\b\d{4}-\d{2}-\d{2}\b", "data em ISO: data_pt()"),
+        (r"\bEUR\b", "«EUR»: preco_pt() escreve «€»"),
+        (r"\b\d{1,3}(?:\.\d{3})+,\d{2}\b", "milhares com ponto: preco_pt()"),
+        (r"(?<![\d,.])1[ \xa0](?:dias|meses|contratos|anúncios|propostas|"
+         r"tarefas|campos|linhas|decididas)\b", "plural com 1: plural()"),
+        (r"\d%", "o % sem espaço: pct_pt()"),
+        (r"[“”]", "aspas curvas: «»"),
+        (r"\bde (?:janeiro|fevereiro|março|abril|maio|junho|julho|agosto|"
+         r"setembro|outubro|novembro|dezembro)\b",
+         "mês em minúscula: a grafia é a de antes do Acordo"),
+        (r"\bObjeto\b|Programa de Concurso", "grafia: Objecto, Programa do Concurso"),
+        (r"\bpagina\b|\bespacos\b|O que e esta", "acento em falta"),
+        (r"\b(?:teu|tua|teus|tuas|triaste|puseres|confirmares|queres|"
+         r"escreveste)\b|Pede acesso", "tratamento por tu: impessoal ou você"),
+        (r"\bNão criei\b|\bMandei\b", "a máquina na primeira pessoa"),
+        (r"\b(?:ranhura|corpus|acervo)\b", "palavra interna: fase, contratos do "
+         "Portal BASE, todos os concursos"),
+        (r"\bSubmetido\b|\bGanho [A-Z]|«Ganho»|«Perdido»|«Cancelado»|A preparar proposta",
+         "a fase concorda com a proposta: Submetida, Ganha, Perdida, "
+         "Cancelada, A preparar"),
+    )
+
+    def test_nenhuma_pagina_tem_o_que_o_guia_proibe(self):
+        achados = []
+        for rota, pagina in _paginas_do_guia(self).items():
+            texto = _o_que_se_le(pagina)
+            for padrao, porque in self.PROIBIDOS:
+                for m in re.finditer(padrao, texto):
+                    linha = texto[max(0, m.start() - 40):m.end() + 40]
+                    achados.append("%s: %s -- %r" % (rota, porque,
+                                                     " ".join(linha.split())))
+        self.assertEqual(achados, [], "\n".join(achados[:30]))
+
+    def test_o_formatador_unico(self):
+        self.assertEqual(radar.plural(1, "dia"), "1 dia")
+        self.assertEqual(radar.plural(2, "dia"), "2 dias")
+        self.assertEqual(radar.plural(24, "mês", "meses"), "24 meses")
+        self.assertEqual(radar.plural(1363, "dia"), "1\xa0363 dias")
+        self.assertEqual(radar.tamanho_legivel(7549747), "7,2 MB")
+        self.assertEqual(radar.pct_pt(0.555, 0), "56\xa0%")
+        self.assertEqual(radar.preco_pt("412.000,00 EUR"), "412\xa0000,00\xa0€")
+        self.assertEqual(radar.fontes_legiveis(
+            "CE.pdf (pág. 1–7), CE.pdf (pág. 9), PC.pdf"),
+            "CE.pdf (pág. 1–7, 9), PC.pdf")
+
+    def test_cada_termo_do_glossario_tem_ancora_e_o_bloco_liga_a_ele(self):
+        """D11 da segunda ronda: o «?» de um bloco cujo nome é um termo
+        do glossário liga à definição, e a definição tem a âncora."""
+        h = radar.app.test_client().get("/ajuda").get_data(as_text=True)
+        for ancora in radar.TERMOS_DA_AJUDA:
+            self.assertIn("<dt id='%s'>" % ancora, h)
+        self.assertIn("/ajuda#procedimentos-homologos",
+                      radar.cartao("Procedimentos homólogos", "x", porque="y"))
+        # um bloco sem termo não liga a nada
+        self.assertNotIn("/ajuda#", radar.cartao("Lotes", "x", porque="y"))
+
+
+class TestODesenhoSegueOSistema(BaseTemporaria):
+    """As regras de sistema do designer da segunda ronda (26/09/2026,
+    perfil 11), guardadas no que se serve. Medidas nesse dia: 22
+    tamanhos de letra (com meios-píxeis), 15 raios, 23 variantes de
+    botão, e cinco desenhos para o mesmo «Filtrar». O
+    `miragov-componentes.css` fica como o sistema o publica; estas regras
+    valem para o NOSSO CSS (o `CSS`, o `CSS_NOVO`, a `miragov-radar.css`)
+    e para os `style=` que o painel escreve."""
+
+    # Os botões que não são `mg-btn`, e porquê. Um botão novo ou é do
+    # sistema, ou entra aqui com a razão.
+    BOTOES_PROPRIOS = {
+        "chk": "a caixa de marcar de uma tarefa do Hoje",
+        "tq": "o ✓ de uma tarefa na ficha, do tamanho da caixa",
+        "interruptor": "o interruptor que liga e desliga um alerta",
+        "apagar": "o ícone de remover um alerta, na linha dele",
+        "aviso-fechar": "o × do aviso da vez",
+    }
+
+    @staticmethod
+    def _nosso_css():
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            return radar.CSS + radar.CSS_NOVO + f.read()
+
+    @staticmethod
+    def _tamanhos(css):
+        """Os tamanhos de letra, das duas escritas: `font-size:` e o
+        `font:` abreviado (onde o tamanho vem depois do peso)."""
+        css = re.sub(r"(?s)/\*.*?\*/", "", css)
+        for m in re.finditer(r"font-size:\s*([^;}\"']+)", css):
+            yield m.group(1).strip()
+        for m in re.finditer(r"font:\s*(?:(?:italic|normal|bold|\d{3})\s+)*"
+                             r"([^\s/;}\"']+)", css):
+            yield m.group(1).strip()
+
+    @staticmethod
+    def _tamanho_da_escala(valor):
+        return (valor.startswith("var(--text-") or valor.endswith("em")
+                or valor.endswith("%") or valor in ("inherit", "%dpx"))
+
+    @staticmethod
+    def _raio_de_token(valor):
+        return all(p.startswith("var(--radius-") or p in ("0", "50%")
+                   for p in valor.split())
+
+    def test_os_tamanhos_de_letra_sao_so_os_da_escala(self):
+        fora = [v for v in self._tamanhos(self._nosso_css())
+                if not self._tamanho_da_escala(v)]
+        self.assertEqual(fora, [])
+
+    def test_os_raios_sao_so_os_dos_tokens(self):
+        css = re.sub(r"(?s)/\*.*?\*/", "", self._nosso_css())
+        fora = [m.group(1).strip() for m in
+                re.finditer(r"border-radius:\s*([^;}\"']+)", css)
+                if not self._raio_de_token(m.group(1).strip())]
+        self.assertEqual(fora, [])
+
+    def test_as_escalas_estao_definidas(self):
+        folha = self._nosso_css()
+        for nome in ("xs", "sm", "md", "lg", "xl", "2xl", "3xl"):
+            self.assertIn("--text-%s:" % nome, folha)
+
+    def test_o_que_as_paginas_escrevem_em_style_segue_as_mesmas_regras(self):
+        fora = []
+        for rota, pagina in _paginas_do_guia(self).items():
+            # o logótipo recebe o tamanho de quem o chama (`logotipo()`):
+            # é a marca, que se desenha à escala do sítio onde vai
+            pagina = re.sub(r"<span class='mg mg-logo[^>]*>", "", pagina)
+            for estilo in re.findall(r"style='([^']*)'|style=\"([^\"]*)\"", pagina):
+                estilo = estilo[0] or estilo[1]
+                fora += ["%s: letra %s" % (rota, v) for v in self._tamanhos(estilo)
+                         if not self._tamanho_da_escala(v)]
+                fora += ["%s: raio %s" % (rota, m) for m in
+                         re.findall(r"border-radius:\s*([^;]+)", estilo)
+                         if not self._raio_de_token(m.strip())]
+        self.assertEqual(fora, [])
+
+    def test_os_botoes_sao_do_sistema_ou_dizem_porque_nao(self):
+        fora = []
+        for rota, pagina in _paginas_do_guia(self).items():
+            pagina = re.sub(r"(?is)<script\b.*?</script>", "", pagina)
+            for atributos in re.findall(r"<button\b([^>]*)>", pagina):
+                classe = re.search(r"class=['\"]([^'\"]*)['\"]", atributos)
+                classes = set(classe.group(1).split()) if classe else set()
+                if "mg-btn" in classes or classes & set(self.BOTOES_PROPRIOS):
+                    continue
+                fora.append("%s: <button%s>" % (rota, atributos))
+        self.assertEqual(fora, [], "\n".join(fora[:20]))
+
+    def test_o_filtrar_e_um_so_desenho(self):
+        """Eram cinco: «Filtrar» com 12,5 px e raio 8, «Perguntar», dois
+        «procurar» sem classe e um «Filtrar» secundário."""
+        paginas = _paginas_do_guia(self)
+        for rota in (radar.LISTA, "/propostas", "/contratos?cpv=72000000",
+                     "/entidade/506000001"):
+            self.assertIn("<button type='submit' class='mg-btn mg-btn--primary'>"
+                          "Filtrar</button>", paginas[rota], rota)
+            self.assertNotIn(">Perguntar<", paginas[rota], rota)
+            self.assertNotIn(">procurar<", paginas[rota], rota)
+
+    def test_um_so_numero_grande(self):
+        """O `kpi()` no Hoje, na Situação e na ficha da entidade: o rótulo
+        pequeno e o valor grande. Na Situação e na entidade o rótulo e o
+        número estavam os dois a 16 px, e o rótulo pesava mais."""
+        paginas = _paginas_do_guia(self)
+        for rota in ("/", "/situacao", "/entidade/506000001"):
+            self.assertIn("mg-stat__label", paginas[rota], rota)
+            self.assertIn("mg-stat__value", paginas[rota], rota)
+            self.assertNotRegex(paginas[rota], r"class='mg-stat[^']*'><span class='r'>",
+                                rota)
+
+    def test_as_barras_so_levam_o_valor_quando_cabem(self):
+        """E41: com doze barras, os valores atropelavam-se. Acima de
+        MAX_ROTULOS_BARRAS só o máximo e o último levam o número; todos o
+        levam no `title`."""
+        linhas = [{"t": "2026 T%d" % i, "v": 1000.0 * (i + 1), "k": 1}
+                  for i in range(12)]
+        linhas[3]["v"] = 99000.0
+        saiu = radar.barras_v(linhas, "x")
+        valores = re.findall(r"<span class='v'>([^<]*)</span>", saiu)
+        self.assertEqual([v for v in valores if v],
+                         [radar.euros_curto(99000.0), radar.euros_curto(12000.0)])
+        self.assertEqual(saiu.count("title='2026 T"), 12)
+        # com poucas, todas levam
+        poucas = radar.barras_v(linhas[:4], "x")
+        self.assertEqual(len([v for v in re.findall(
+            r"<span class='v'>([^<]*)</span>", poucas) if v]), 4)
+
+    def test_o_filtro_da_entidade_e_o_do_mercado(self):
+        """E40: sete campos sem rótulo empilhados ao centro."""
+        pagina = _paginas_do_guia(self)["/entidade/506000001"]
+        form = pagina.split("id='filtros-entidade'")[1].split("</form>")[0]
+        for rotulo in ("Objecto", "Excluir palavras", "Excluir CPV",
+                       "Celebrado de", "até", "Preço mínimo"):
+            self.assertIn("<span class='mg-field__label'>%s</span>" % rotulo, form)
+
+    def test_a_barra_tem_a_situacao_e_a_ajuda_a_vista(self):
+        """D11 da segunda ronda (decisão dele): a Situação é item da barra,
+        e a Ajuda sai do menu da conta para um «?» com nome, na barra."""
+        pagina = _paginas_do_guia(self)["/"]
+        barra = pagina.split("<nav class=\"mg-topbar__nav\"")[1].split("</nav>")[0]
+        self.assertIn("href='/situacao'>Situação</a>", barra)
+        self.assertIn("href='/ajuda' aria-label='Ajuda'", barra)
+        self.assertNotIn("como funciona</a>", pagina)
 
 
 class TestAsRotasNaoTemPadroesDeAcessibilidadeConhecidos(BaseTemporaria):
@@ -7699,32 +8041,7 @@ class TestAsRotasNaoTemPadroesDeAcessibilidadeConhecidos(BaseTemporaria):
     def setUp(self):
         super().setUp()
         self.cliente = radar.app.test_client()
-        hoje = datetime.date.today()
-        with radar.liga() as c:
-            for i in range(12):
-                c.execute(
-                    "INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
-                    " tipo, url, estado, cpv, prazo, preco_base) VALUES "
-                    "(?,?,?,?,?,?,'novo',?,?,?)",
-                    ("%d/2026" % (23000 + i),
-                     "Aquisição de serviços de manutenção", "Município %d" % i,
-                     hoje.isoformat(), "Anúncio de procedimento",
-                     "https://dr/%d" % i, "50700000",
-                     (hoje + datetime.timedelta(days=i % 4)).isoformat(),
-                     "%d.000,00 EUR" % (10000 + i)))
-        for i, estado in enumerate(radar.CHAVES_DA_EMPRESA, start=1):
-            pid = radar.criar_proposta("%d/2026" % (23000 + i))
-            if estado == "analisar":
-                continue
-            campos = {"valor_proposta": "9.000,00 EUR", "lugar": "2"}
-            if estado in radar.MOTIVOS_DO_ESTADO:
-                campos["motivo"] = radar.MOTIVOS_DO_ESTADO[estado][0]
-            exigidos = radar.CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ())
-            radar.mover_proposta(pid, estado, campos={
-                k: v for k, v in campos.items() if k in exigidos})
-        radar.gravar_filtro("Grandes obras", "estado=porver&pbmin=100000",
-                            alerta=1)
-        radar.gravar_filtro("Software", "estado=porver&q=software", alerta=1)
+        semear_as_rotas()
 
     class _Leitor(html.parser.HTMLParser):
         """Os controlos de uma página, com o que lhes dá nome."""
@@ -8154,7 +8471,7 @@ class TestPeleNova(unittest.TestCase):
         `.mini` ficava vermelho ao passar -- em tudo. Tirado esse
         vermelho sem querer, o botão que apaga uma conta ficava igual ao
         «desfazer». O que o marca agora é a classe, não um acidente."""
-        self.assertIn('"tirar", "mini perigo"',
+        self.assertIn('"Remover", "mini perigo"',
                       inspect.getsource(radar._bloco_utilizadores))
 
     def test_abandonar_e_laranja_e_nao_vermelho(self):
@@ -8472,7 +8789,7 @@ class TestSeguirUmaEntidadeSemNif(BaseTemporaria):
             h = radar.app.test_client().get(
                 "/entidade/%s" % quote(chave, safe="")).get_data(as_text=True)
         self.assertIn("/entidade/%s/seguir" % quote(chave, safe=""), h)
-        self.assertRegex(h, "<title>(Fundação Salesianos|FUNDAÇÃO SALESIANOS),")
+        self.assertRegex(h, "<title>(Fundação Salesianos|FUNDAÇÃO SALESIANOS) — Mira Gov")
         avisar = radar.seguidas_por_avisar()
         self.assertEqual([a["ref"] for _, _, anuncios in avisar
                           for a in anuncios], ["3/2026"])
@@ -8963,7 +9280,7 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
                 "('valor_proposta', 'estado') ORDER BY id")]
         self.assertIn("118 500,00 € → 362 000,00 €",
                       [d.replace("\xa0", " ") for d in detalhes])
-        self.assertIn("Submetido → Relatório preliminar", detalhes)
+        self.assertIn("Submetida → Relatório preliminar", detalhes)
 
     def test_e34_proposta_fechada_com_tarefas_por_fazer(self):
         id_ = self._proposta("submetido")
@@ -9141,7 +9458,9 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         h = r.get_data(as_text=True)
         for _, termos in radar.GLOSSARIO:
             for termo, _ in termos:
-                self.assertIn("<dt>%s</dt>" % html.escape(termo), h)
+                self.assertIn("<dt id='%s'>%s</dt>"
+                              % (radar.ancora_do_termo(termo),
+                                 html.escape(termo)), h)
 
     def test_o_prazo_esta_por_baixo_do_titulo_da_ficha(self):
         with radar.liga() as c:
@@ -9408,7 +9727,7 @@ class TestSelectorDaRanhura(BaseTemporaria):
         self.assertIn("action='/proposta/%d/escada'" % id_, html_)
         for _, rotulo in radar.ESTADOS_DA_EMPRESA:
             self.assertIn(">%s</option>" % html.escape(rotulo), html_)
-        self.assertIn("<option value='porver'>tirar da escada</option>", html_)
+        self.assertIn("<option value='porver'>voltar a «Por ver»</option>", html_)
 
     def test_o_selector_pede_no_acto_o_preco_que_falta(self):
         """Varredura de 25/09/2026, o beco: passar a «Submetido» exige o
@@ -9472,7 +9791,7 @@ class TestSelectorDaRanhura(BaseTemporaria):
         self.cliente.post("/estado/60%2F2026/analisar")
         html_ = self.cliente.get(radar.LISTA + "?estado=analisar").get_data(as_text=True)
         self.assertIn("<button type='submit' class='mg-btn mg-btn--sm "
-                      "mg-btn--secondary' aria-label='Mudar a ranhura de «60/2026",
+                      "mg-btn--secondary' aria-label='Mudar a fase de «60/2026",
                       html_)
         self.assertNotIn(".ranhura button{display:none}", radar.CSS)
         js = radar.caixa_do_motivo()
@@ -9525,7 +9844,7 @@ class TestPrecoDaProposta(unittest.TestCase):
     def test_no_submetido_com_proposto_mostra_o_proposto(self):
         html_ = self._linha(
             self._p("submetido", valor_proposta="118.500,00 EUR"))
-        self.assertIn("118.500,00 EUR", html_)
+        self.assertIn("118\xa0500,00\xa0€", html_)   # como o resto do dinheiro (lote 5)
 
     def test_o_proposto_guarda_se_no_formato_que_se_sabe_ler(self):
         # euros() põe espaço nos milhares e euros_do_texto() lê "118" de
@@ -10031,7 +10350,7 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
                 dt.now.return_value = falso
                 dt.strptime = datetime.datetime.strptime
                 corpo = self.cliente.get("/").get_data(as_text=True)
-            self.assertIn("Quarta, 16 de setembro", corpo, "%dh" % hora)
+            self.assertIn("Quarta, 16 de Setembro", corpo, "%dh" % hora)
             for saudacao in ("Bom dia", "Boa tarde", "Boa noite"):
                 self.assertNotIn(saudacao, corpo, saudacao)
             vistos.add(corpo[corpo.index("<h1 class='mg-pagehead__title'>"):][:60])
@@ -11073,7 +11392,7 @@ class TestDesfechoNaFicha(BaseTemporaria):
         a = self.poe_anuncio("1/2026", "2026-01-05")
         saiu = radar.desfecho_cx(a)
         self.assertIn(radar.euros(90000.0), saiu)
-        self.assertIn("10,0%", saiu)
+        self.assertIn("10,0\xa0%", saiu)
         self.assertNotIn("tab-mercado", saiu)
 
     def test_varios_lotes_desenham_a_tabela_e_nao_repetem_quem_ganhou(self):
@@ -11083,7 +11402,7 @@ class TestDesfechoNaFicha(BaseTemporaria):
         saiu = radar.desfecho_cx(a)
         self.assertIn("tab-mercado", saiu)
         self.assertIn("Os 3 contratos", saiu)
-        self.assertIn("10,0%", saiu)     # somados, nao 70% tres vezes
+        self.assertIn("10,0\xa0%", saiu)     # somados, nao 70% tres vezes
         # o mesmo adjudicatario ganhou os tres lotes: no somario aparece
         # uma vez, e nao "Empresa + Empresa + Empresa"
         somario = saiu.split("desfecho-som")[1].split("</div></div>")[0]
@@ -11823,13 +12142,13 @@ class TestEssencialNumaFrase(unittest.TestCase):
 
     def test_agrupa_por_razao_e_mantem_a_ordem(self):
         saiu = radar.frase_dos_campos_em_falta([
-            ("só consta do Programa de Concurso", "Preço anormalmente baixo"),
+            ("só consta do Programa do Concurso", "Preço anormalmente baixo"),
             ("o anúncio não indica", "Duração do contrato"),
             ("só consta do Caderno de Encargos", "Equipa"),
-            ("só consta do Programa de Concurso", "Documentos que constituem a proposta"),
+            ("só consta do Programa do Concurso", "Documentos que constituem a proposta"),
         ])
-        self.assertIn("4 campos sem valor aqui", saiu)
-        self.assertIn("<b>só consta do Programa de Concurso</b>: Preço anormalmente baixo, "
+        self.assertIn("4 campos sem valor neste resumo", saiu)
+        self.assertIn("<b>só consta do Programa do Concurso</b>: Preço anormalmente baixo, "
                       "Documentos que constituem a proposta", saiu)
         self.assertLess(saiu.index("Programa"), saiu.index("não indica"))
         self.assertLess(saiu.index("não indica"), saiu.index("Caderno"))
@@ -12578,7 +12897,7 @@ class TestSegundaRondaAImportacao(BaseTemporaria):
             ["8023/2026", None, "Submetido", None, 50000, None, None, None, None, None],
         ])
         self.assertIn("altera: preço 362\xa0000,00\xa0€ → 1\xa0000,00\xa0€", h)
-        self.assertIn("mantém-se em «Perdido»", h)
+        self.assertIn("mantém-se em «Perdida»", h)
         self.assertIn(">nova<", h)
         self.assertIn("1 linha vai alterar proposta que já existe", h)
 
@@ -15914,7 +16233,7 @@ class TestAberturaRedesenhada(CicloDasTarefas):
         inteira em português, que é a mesma avaria do `<input
         type=date>` corrigida a 15/09/2026."""
         d = datetime.date(2026, 9, 16)
-        self.assertEqual(radar.dia_por_extenso(d), "Quarta, 16 de setembro")
+        self.assertEqual(radar.dia_por_extenso(d), "Quarta, 16 de Setembro")
         self.assertEqual(radar.data_curta(d), "16 set")
         self.assertEqual(radar.data_curta("2026-12-01"), "1 dez")
         self.assertEqual(radar.data_curta("nada", vazio="—"), "nada")
@@ -16308,10 +16627,15 @@ class TestListaDeEntidades(CicloDaEntidade):
         self.assertIn("/entidade/506000000", corpo)
         self.assertIn("1 proposta", corpo)
 
-    def test_e_uma_vista_do_mercado_na_barra(self):
+    def test_e_uma_aba_do_mercado_e_nao_um_item_da_barra(self):
+        """Foi vista do Mercado na barra de 17/09 a 26/09/2026, e aparecia
+        como sexto item só dentro dele (E39 da segunda ronda): a barra
+        mudava de largura e em /entidades ficavam dois acesos. É uma aba
+        do Mercado, e o Mercado continua a acender nela."""
         mercado = next(n for n in radar.NAV if n[0] == "mercado")
-        self.assertIn("entidades", [v[0] for v in mercado[3]])
+        self.assertNotIn("entidades", [v[0] for v in mercado[3]])
         self.assertEqual(radar.ITEM_DA_PAGINA["entidades"], "mercado")
+        self.assertIn("<em>Entidades</em>", radar.migalhas_de("entidades"))
 
     def test_a_procura_sem_termo_vai_para_a_lista(self):
         r = self.cliente.get("/entidade/procurar")
@@ -16423,12 +16747,12 @@ class TestEntidadesRedesenhadas(CicloDaEntidade):
         self._com_propostas(["ganho", "perdido"])
         corpo = self.cliente.get(
             "/entidade/506000000").get_data(as_text=True)
-        for rotulo in ("Compra · 24 m", "No nosso CPV", "Fecha a",
+        for rotulo in ("Compra · 24 meses", "No nosso CPV", "Fecha a",
                        "Connosco", "Taxa connosco", "A acabar · 3 meses"):
             self.assertIn(rotulo, corpo, rotulo)
         # seis células, e não o `sit-numeros` que as embrulha -- o
         # `count("sit-n")` apanhava as duas coisas e dava sete
-        self.assertEqual(corpo.count("<span class='r'>"), 6)
+        self.assertEqual(corpo.count("<span class='mg-stat__label'>"), 6)
         # sem corpus, os três do mercado dizem-no
         self.assertIn("sem BASE", corpo)
         # e a taxa não se inventa
@@ -17367,7 +17691,7 @@ class TestOsFactosDaEntidadeLevamOFiltro(BaseTemporaria):
     def test_o_cpv_da_ficha_muda_o_compra(self):
         self.assertIn("10,0\xa0k€", self._factos({}))
         filtrado = self._factos({"cpv": "72000000"})
-        self.assertIn("Compra · 24 m · no filtro", filtrado)
+        self.assertIn("Compra · 24 meses · no filtro", filtrado)
         self.assertIn("1,0\xa0k€", filtrado)
         self.assertNotIn("10,0\xa0k€", filtrado)
 
@@ -17403,10 +17727,10 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
     def test_cada_numero_diz_o_que_soma(self):
         corpo = self.cliente.get("/situacao").get_data(as_text=True)
         self.assertIn("soma do proposto das 2 ganhas", corpo)
-        self.assertIn("«Não fomos» e «Cancelado» não contam", corpo)
+        self.assertIn("«Não fomos» e «Cancelada» não contam", corpo)
         # media simples (10% e 50% = 30%) e a pesada pelo valor
         # (15 000 abaixo de 110 000 = 13,6%)
-        self.assertIn("média simples; pesada pelo valor dá 13,6%", corpo)
+        self.assertIn("média simples; pesada pelo valor dá 13,6\xa0%", corpo)
         self.assertIn("marcou como decidida no Mira Gov", corpo)
 
     def test_os_numeros_abrem_a_lista_das_decididas_com_total(self):

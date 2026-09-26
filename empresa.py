@@ -190,7 +190,7 @@ def aplicar(c, linha, ref, quem="registo da empresa"):
         if igual:
             return "igual"
         if p["estado"] != estado:
-            aviso = ("o registo da empresa diz «%s»; mantém-se a decisão do radar"
+            aviso = ("o registo da empresa diz «%s»; mantém-se a decisão do Mira Gov"
                      % (linha.get("status") or ""))
             if not c.execute("SELECT 1 FROM historico WHERE ref=? AND detalhe=?",
                              (ref, aviso)).fetchone():
@@ -480,7 +480,7 @@ def escrever_modelo(caminho):
     ws.freeze_panes = "A2"
     dv_estado = DataValidation(type="list", formula1='"%s"' % ",".join(ESTADOS_MODELO),
                                allow_blank=True, showErrorMessage=True,
-                               errorTitle="Estado", error="Escolhe um da lista.")
+                               errorTitle="Estado", error="Escolha um da lista.")
     dv_razao = DataValidation(type="list",
                               formula1='"%s"' % ",".join(radar.MOTIVOS_ABANDONO),
                               allow_blank=True, showErrorMessage=False)
@@ -493,7 +493,7 @@ def escrever_modelo(caminho):
     linhas = [
         "Como preencher a folha «Registo» — uma linha por concurso, ou por lote quando o concurso tem lotes.",
         "",
-        "Referência do anúncio: a referência do DR tal como a ficha do radar a mostra, ex. 1947/2026. É obrigatória e é o que liga a linha ao anúncio.",
+        "Referência do anúncio: a referência do DR tal como a ficha do Mira Gov a mostra, ex. 1947/2026. É obrigatória e é o que liga a linha ao anúncio.",
         "Lote: o número do lote (1, 2, 3…) quando o concurso tem lotes e a linha é de um lote. Vazio quando não há lotes ou quando se foi ao conjunto.",
         "Estado: um da lista — Não fomos, Submetido, Ganho, Perdido.",
         "Razão de não participação: só quando o estado é «Não fomos» — uma da lista: %s. Outra razão entra, mas a ficha e as contas só conhecem as da lista." % ", ".join(radar.MOTIVOS_ABANDONO),

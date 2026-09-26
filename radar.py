@@ -473,14 +473,21 @@ SIM_NAO = ("sim", "não")
 # de traducao nenhum a adivinhar. As duas ultimas ("nao_fomos",
 # "cancelado") nunca foram colunas do quadro -- o "nao fomos" e o
 # `estado='descartado'` de hoje, com nome novo e os mesmos motivos.
+#
+# Os ROTULOS concordam com a proposta, que e feminina (lote 5 da segunda
+# ronda, 26/09/2026, glossario do revisor de texto): a lista dizia
+# «Submetido» e a ficha «Submetida», e liam-se como dois estados. As
+# CHAVES nao mudam -- estao gravadas em cada proposta, no historico e
+# no modelo de importacao (`empresa.ESTADOS_MODELO`, que e um formato de
+# ficheiro e fica como os ficheiros ja preenchidos o escrevem).
 ESTADOS_DA_EMPRESA = (("analisar", "Por analisar"),
-                   ("proposta", "A preparar proposta"),
-                   ("submetido", "Submetido"),
+                   ("proposta", "A preparar"),
+                   ("submetido", "Submetida"),
                    ("relatorio", "Relatório preliminar"),
-                   ("ganho", "Ganho"),
-                   ("perdido", "Perdido"),
+                   ("ganho", "Ganha"),
+                   ("perdido", "Perdida"),
                    ("nao_fomos", "Não fomos"),
-                   ("cancelado", "Cancelado"))
+                   ("cancelado", "Cancelada"))
 
 # Onde a proposta ainda se mexe, e onde ja parou. Uma proposta que entra
 # num estado fechado grava `fechada_em` -- e e isso, e nao a coluna onde
@@ -565,8 +572,8 @@ def recado_do_que_falta(estado, falta):
     """A recusa da condicionante, dita como se diz. Uma só, para os dois
     caminhos que a aplicam — mover uma proposta, e criar uma já numa
     ranhura que exige campos."""
-    return ("«%s» pede %s, e falta%s. Preenche no bloco «A nossa "
-            "proposta» e volta a escolher."
+    return ("«%s» pede %s, e falta%s. Preencha no bloco «A nossa "
+            "proposta» e volte a escolher."
             % (estado_da_empresa(estado),
                " e ".join(ROTULO_DO_CAMPO.get(n, n) for n in falta),
                "" if len(falta) == 1 else "m"))
@@ -1857,9 +1864,12 @@ DIAS_LONGOS = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta",
                "Sábado", "Domingo")
 MESES_CURTOS = ("jan", "fev", "mar", "abr", "mai", "jun",
                 "jul", "ago", "set", "out", "nov", "dez")
-MESES_LONGOS = ("janeiro", "fevereiro", "março", "abril", "maio", "junho",
-                "julho", "agosto", "setembro", "outubro", "novembro",
-                "dezembro")
+# Com maiúscula: é a grafia de antes do Acordo, a do resto do projecto e
+# a do site («Terça, 22 de Setembro»); o Hoje dizia «setembro» (segunda
+# ronda, perfil 15).
+MESES_LONGOS = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro",
+                "Dezembro")
 
 
 def dia_por_extenso(d):
@@ -2124,6 +2134,67 @@ def preco_pt(texto, vazio="—"):
         return texto or vazio
     inteiro, centimos = ("%.2f" % v).split(".")
     return "%s,%s €" % (mil_pt(int(inteiro)), centimos)
+
+
+# --- o formatador unico (lote 5 da segunda ronda, 26/09/2026)
+#
+# Os numeros que o ecra mostra passam todos por aqui. Estavam espalhados
+# pelo Mercado (`pct_pt`, `mil_pt_f`) e pela ficha (`euros`,
+# `euros_curto`, `tamanho_legivel`), e cada banda que precisava de um
+# escrevia o seu: o revisor de texto encontrou «412.000,00 EUR» ao lado
+# de «395 146,78 €» na mesma linha, «57 %» no Hoje e «57%» na Situacao,
+# «7.2 MB» ao lado de «547 KB», e «1 dias». A regra, e o teste que a
+# guarda (`TestOTextoDoEcraSegueOGuia`): dinheiro `412 000,00 €` (ou
+# `412 k€` num grafico), data `dd/mm/aaaa` ou `24 set`, virgula decimal
+# em tudo, o % com um espaco inquebravel antes, e o plural pelo
+# `plural()`.
+
+
+def mil_pt_f(v):
+    """mil_pt() para as barras, que passam o valor como float."""
+    return mil_pt(int(round(v or 0)))
+
+
+def pct_pt(fraccao, decimais=1):
+    """0.073 -> '7,3 %'. Virgula decimal, e o espaco inquebravel antes
+    do simbolo, como o Hoje ja escrevia (a Situacao escrevia «57%»)."""
+    return (("%%.%df" % decimais) % (100.0 * fraccao)).replace(".", ",") + " %"
+
+
+def tamanho_legivel(n):
+    """1536 -> '1 KB', 7549747 -> '7,2 MB'. Com virgula: «7.2 MB» ao
+    lado de «547 KB» lia-se como dois sistemas de numeros."""
+    n = int(n or 0)
+    if n >= 1024 * 1024:
+        return ("%.1f MB" % (n / (1024.0 * 1024))).replace(".", ",")
+    if n >= 1024:
+        return "%d KB" % (n // 1024)
+    return "%d B" % n
+
+
+def euros(v):
+    """1234567.8 -> '1 234 568 €'. Os centimos nao ajudam a decidir."""
+    return mil_pt(int(round(v or 0))) + " €"
+
+
+def euros_curto(v):
+    """Para os graficos, onde '1 661 400 000 €' nao se le de relance."""
+    v = v or 0
+    # «mil M€» e nao «mM€»: a sigla nao se lia (teste com utilizadores,
+    # 25/09/2026).
+    for corte, sufixo in ((1e9, " mil M€"), (1e6, " M€"), (1e3, " k€")):
+        if abs(v) >= corte:
+            return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
+    return "%.0f €" % v
+
+
+def plural(n, singular, plural_=None):
+    """(1, 'dia') -> '1 dia'; (2, 'dia') -> '2 dias'; com o numero
+    escrito a portuguesa. O plural irregular passa-se («mês», «meses»).
+    A Situacao dizia «1 dias» cinco vezes, e o Hoje dizia bem: cada um
+    fazia a sua conta."""
+    return "%s %s" % (mil_pt(n), singular if n == 1
+                      else (plural_ or singular + "s"))
 
 
 def para_like(termo):
@@ -2754,7 +2825,7 @@ def _tirar_da_escada(ref, antes):
                 "não se deita fora")
     with liga() as c:
         apagar_propostas(c, "id=?", (antes["id"],))
-    registar(ref, "estado", "voltou a por ver")
+    registar(ref, "estado", "voltou a «Por ver»")
     return "reposto em por ver"
 
 
@@ -2781,9 +2852,9 @@ def proposta_mudou_depois(p, versao):
     return bool(versao) and versao != versao_da_proposta(p)
 
 
-RECADO_DA_VERSAO = ("Esta proposta mudou depois de a abrires (noutro "
-                    "separador, ou por um colega). Nada foi gravado: "
-                    "vê o que está agora e volta a escrever.")
+RECADO_DA_VERSAO = ("Esta proposta mudou depois de a abrir (noutro "
+                    "separador, ou por um colega). Nada foi guardado: "
+                    "veja o que está agora e volte a escrever.")
 
 
 def gravar_campos_da_proposta(id_, campos, valores, quem=None):
@@ -3815,8 +3886,14 @@ def diferencas_do_detalhe(antes, depois):
 
 
 def _valor_vigiado(campo, valor):
-    """Datas a portuguesa no aviso; o resto como o DR o escreve."""
-    return data_pt(valor) if campo == "prazo" else valor
+    """Datas e precos a portuguesa no aviso; o resto como o DR o escreve.
+    O preco base ia como o DR o escreve («612.350,00 EUR»), ao lado do
+    «375 000,00 €» do resto do ecra (segunda ronda, perfil 15)."""
+    if campo == "prazo":
+        return data_pt(valor)
+    if campo == "preco_base":
+        return preco_pt(valor, "")
+    return valor
 
 
 def registar_alteracoes(ref, difs):
@@ -6392,6 +6469,29 @@ def juntar_leituras(dados, anterior):
             for c in CAMPOS_DA_ANALISE}
 
 
+def fontes_legiveis(texto):
+    """'CE.pdf (pág. 1–7), CE.pdf (pág. 9)' -> 'CE.pdf (pág. 1–7, 9)'.
+
+    As fontes guardam-se por leitura, e duas leituras do mesmo ficheiro
+    punham-no duas vezes na ficha (segunda ronda, perfil 15). Junta-se ao
+    mostrar; o que está guardado não muda."""
+    ordem, paginas = [], {}
+    for m in re.finditer(r"\s*([^,(]+?)\s*(?:\(pág\. ([^)]*)\))?\s*(?:,|$)",
+                         texto or ""):
+        nome = m.group(1).strip()
+        if not nome:
+            continue
+        if nome not in paginas:
+            ordem.append(nome)
+            paginas[nome] = []
+        for pg in (m.group(2) or "").split(","):
+            pg = pg.strip()
+            if pg and pg not in paginas[nome]:
+                paginas[nome].append(pg)
+    return ", ".join("%s (pág. %s)" % (n, ", ".join(paginas[n]))
+                     if paginas[n] else n for n in ordem)
+
+
 def juntar_fontes(usados, anteriores, parcial):
     """As peças de onde veio o que fica guardado, e não só as desta vez.
 
@@ -8025,7 +8125,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
     n_seg = sum(len(x[2]) for x in seguidas)
     cabeca = []
     if total or not (n_alt or n_seg):
-        cabeca.append("%d anuncio%s novo%s nos teus alertas"
+        cabeca.append("%d anuncio%s novo%s nos seus alertas"
                       % (total, "" if total == 1 else "s",
                          "" if total == 1 else "s"))
     if n_alt:
@@ -8195,7 +8295,7 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
     urgente = dias_urgente()
     cabeca = []
     if total or not (n_alt or n_seg):
-        cabeca.append("%d anúncio%s novo%s nos teus alertas"
+        cabeca.append("%d anúncio%s novo%s nos seus alertas"
                       % (total, "" if total == 1 else "s",
                          "" if total == 1 else "s"))
     if n_alt:
@@ -8412,7 +8512,7 @@ def enviar_resumo(cfg=None, forcar=False):
     n_seg = sum(len(x[2]) for x in seguidas)
     pedacos = []
     if total:
-        pedacos.append("%d anúncio%s nos teus alertas"
+        pedacos.append("%d anúncio%s nos seus alertas"
                        % (total, "" if total == 1 else "s"))
     if n_alt:
         pedacos.append("%d alterado%s" % (n_alt, "" if n_alt == 1 else "s"))
@@ -9888,7 +9988,7 @@ def avisos_de_datas(args):
     de, ate = data_de_filtro(de_bruto), data_de_filtro(ate_bruto)
     for bruto, limpo in ((de_bruto, de), (ate_bruto, ate)):
         if bruto and not limpo:
-            fora.append("A data “%s” não se percebe e foi ignorada." % bruto)
+            fora.append("A data «%s» não se percebe e foi ignorada." % bruto)
     if de and ate and de > ate:
         fora.append("O intervalo está invertido — de %s até %s não "
                     "apanha nada." % (data_pt(de), data_pt(ate)))
@@ -10701,8 +10801,9 @@ PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="cla
 </main></body></html>"""
 
 ERROS_DO_PAINEL = {
-    403: ("Não é para aqui", "Esta página é só do admin, ou o pedido veio "
-                              "de outro sítio."),
+    403: ("Não é para aqui", "Esta página é só para a administração do "
+                              "Mira Gov. Se chegou aqui por uma ligação, "
+                              "volte ao Hoje."),
     404: ("Não há nada aqui", "A ligação está errada ou a página deixou "
                               "de existir."),
     500: ("Correu mal", "O painel deu um erro. Ficou registado nos "
@@ -10722,9 +10823,9 @@ def _sessao_em_falta():
         partes = urlparse(request.referrer)
         if partes.path.startswith("/") and not partes.path.startswith("//"):
             para = partes.path + ("?" + partes.query if partes.query else "")
-    texto = ("A tua sessão terminou, e o que estavas a gravar não chegou ao "
-             "Mira Gov. <a href='/entrar?para=%s'>Entra outra vez</a>: o "
-             "botão Voltar do browser costuma devolver o que escreveste."
+    texto = ("A sua sessão terminou, e o que estava a guardar não chegou ao "
+             "Mira Gov. <a href='/entrar?para=%s'>Entre outra vez</a>: o "
+             "botão Voltar do browser costuma devolver o que escreveu."
              % html.escape(quote(para, safe=""), quote=True))
     return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": "Sessão terminada",
                                    "texto": texto,
@@ -10895,7 +10996,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
  <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao administrador da sua empresa uma ligação para a repor.</p>
- <p class="entrar-nota">Sem conta? <a href="/#acesso">Pede acesso</a>.</p>
+ <p class="entrar-nota">Sem conta? <a href="/#acesso">Peça acesso</a>.</p>
  </div></section>
 </main></body></html>"""
 
@@ -10919,7 +11020,7 @@ def _numeros_da_entrada():
         pass
     try:
         if ha_corpus():
-            numeros.append((mil_pt(ha_corpus()), "contratos no corpus"))
+            numeros.append((mil_pt(ha_corpus()), "contratos do Portal BASE"))
     except sqlite3.Error:
         pass
     ultima = le_marca("ultima_verificacao", "")
@@ -11025,7 +11126,6 @@ def bloco_da_conta():
                 "<span class='mg-avatar'>%s</span>%s"
                 "</summary><div class='mg-menu sou-menu'>"
                 "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
-                "<a class='sou-conta' href='/ajuda'>como funciona</a>"
                 "%s"
                 "<form method='post' action='/sair'>"
                 "<button type='submit'>sair</button></form>"
@@ -11104,14 +11204,14 @@ CSS = r"""
    :focus-visible e nao :focus -- so aparece a quem navega por teclado,
    e nao a cada clique do rato. */
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px;
- border-radius:4px}
+ border-radius:var(--radius-sm)}
 .barra :focus-visible{outline-color:var(--seal)}
 body{margin:0;background:var(--surface);font-family:var(--font-sans);color:var(--ink);
  -webkit-font-smoothing:antialiased}
 a{color:var(--brand);text-decoration:none}
 a:hover{color:var(--ink)}
 ::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:6px}
+::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:var(--radius-sm)}
 .app{display:flex;flex-direction:column;min-height:100vh}
 
 /* A barra, em cima (13/09/2026, "Mudancas na plataforma RADAR"). Foi
@@ -11129,23 +11229,23 @@ a:hover{color:var(--ink)}
    dos itens da barra quando esta aceso: sem ela, o unico caminho de
    volta a abertura nao se distingue de uma marca decorativa, e quem la
    esta nao sabe que ja la esta. */
-.marca .logo{display:block;padding:6px 8px;margin:-6px -8px;border-radius:5px;
- font:700 15px/1 var(--font-sans);letter-spacing:-.3px;color:#fff}
+.marca .logo{display:block;padding:6px 8px;margin:-6px -8px;border-radius:var(--radius-sm);
+ font:700 var(--text-md)/1 var(--font-sans);letter-spacing:-.3px;color:#fff}
 .marca .logo span{color:var(--on-header-muted)}
 .marca .logo:hover,.marca .logo.on{background:rgba(255,255,255,.12)}
 .barra nav{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;margin:0 0 0 8px;
  overflow-x:auto;scrollbar-width:none;min-width:0}
-.barra nav a{display:block;padding:7px 9px;border-radius:5px;white-space:nowrap;flex:none;
- color:var(--on-header-muted);font:500 12.5px/1.25 var(--font-sans)}
+.barra nav a{display:block;padding:7px 9px;border-radius:var(--radius-sm);white-space:nowrap;flex:none;
+ color:var(--on-header-muted);font:500 var(--text-xs)/1.25 var(--font-sans)}
 .barra nav a:hover{background:rgba(255,255,255,.12);color:#fff}
 .barra nav a.on{background:rgba(255,255,255,.12);color:#fff}
 .barra nav a b{font:inherit;font-weight:600}
 /* as duas vistas de um item aberto (Em curso, Mercado) */
 .barra nav a.sub{padding:7px 9px}
-.barra nav a.sub b{font-weight:400;font-size:12px}
+.barra nav a.sub b{font-weight:400;font-size:var(--text-xs)}
 .barra nav a.sub.on b{font-weight:600}
 .caixa{display:flex;align-items:center;gap:10px;margin-left:auto}
-.caixa a.conf{padding:7px 9px;border-radius:5px;font:500 12.5px/1.25 var(--font-sans);
+.caixa a.conf{padding:7px 9px;border-radius:var(--radius-sm);font:500 var(--text-xs)/1.25 var(--font-sans);
  color:var(--on-header-muted)}
 .caixa a.conf:hover{background:rgba(255,255,255,.12);color:#fff}
 .caixa a.conf.on{background:rgba(255,255,255,.12);color:#fff}
@@ -11153,31 +11253,31 @@ a:hover{color:var(--ink)}
    em vez de a esticar. */
 .sou{flex:none;position:relative}
 .sou > summary{display:flex;align-items:center;gap:7px;cursor:pointer;
- list-style:none;color:var(--on-header-muted);font:500 10.5px/1.3 var(--font-sans);
+ list-style:none;color:var(--on-header-muted);font:500 var(--text-xs)/1.3 var(--font-sans);
  padding:4px 0;min-height:24px;box-sizing:border-box}
 .sou > summary::-webkit-details-marker{display:none}
 .sou > summary:hover{color:#fff}
 .sou .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;background:var(--ink);
- border:1px solid rgba(255,255,255,.13);border-radius:7px;padding:8px 12px;
+ border:1px solid rgba(255,255,255,.13);border-radius:var(--radius-sm);padding:8px 12px;
  display:flex;flex-direction:column;gap:4px;min-width:190px;z-index:30}
 .sou form{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sou .av{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.12);
- flex:none;font:600 9px/22px var(--font-sans);color:#fff;text-align:center}
+ flex:none;font:600 var(--text-xs)/22px var(--font-sans);color:#fff;text-align:center}
 .sou input{flex:1;min-width:0;background:transparent;border:0;
  border-bottom:1px solid rgba(255,255,255,.13);color:#fff;
- font:500 11.5px/1.6 var(--font-sans);padding:2px 0}
+ font:500 var(--text-xs)/1.6 var(--font-sans);padding:2px 0}
 .sou input::placeholder{color:var(--on-header-muted)}
 .sou input:focus{border-bottom-color:var(--seal)}
 .sou input:focus:not(:focus-visible){outline:none}
 .sou button{background:none;border:0;color:var(--on-header-muted);cursor:pointer;
- font:400 10.5px/1.2 var(--font-sans);flex:none;
+ font:400 var(--text-xs)/1.2 var(--font-sans);flex:none;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .sou button:hover{color:#fff}
-.sou .sou-menu a{color:var(--on-header-muted);font:400 10.5px/1.2 var(--font-sans);padding:6px 5px;
+.sou .sou-menu a{color:var(--on-header-muted);font:400 var(--text-xs)/1.2 var(--font-sans);padding:6px 5px;
  margin:-6px 0;min-height:24px;box-sizing:border-box;display:inline-block}
 .sou .sou-menu a:hover{color:#fff}
 .sou .so-nome{display:flex;align-items:center;gap:7px;color:var(--on-header-muted);
- font:500 10.5px/1.3 var(--font-sans)}
+ font:500 var(--text-xs)/1.3 var(--font-sans)}
 /* O ecra de entrar: uma tarefa, sem barra lateral. */
 /* Os dois ecras fora do molde (entrar, erro) mudaram-se para o sistema
    de desenho na fase 2 da migracao (21/09/2026): o cartao, os campos e
@@ -11199,7 +11299,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
  position:sticky;top:var(--barra-h,50px);z-index:5}
 .migalhas{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .migalhas .b{display:flex;align-items:center;gap:8px;min-width:0;
- font:500 11.5px/1 var(--font-sans);color:var(--ink-secondary)}
+ font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
 /* o separador das migalhas e um caractere, nao um risco: leva cor de
    texto, ainda que a mais fraca da escala */
 .migalhas .b s{text-decoration:none;color:var(--ink-muted)}
@@ -11209,8 +11309,8 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
    com que continue a parecer um botao ou uma ligacao */
 form.accao{display:inline-block;margin:0}
 form.accao button{font-family:inherit}
-.bt{cursor:pointer;padding:8px 13px;border-radius:7px;border:1px solid var(--line);
- background:#fff;font:600 12px/1 var(--font-sans);color:var(--ink-secondary);display:inline-block}
+.bt{cursor:pointer;padding:8px 13px;border-radius:var(--radius-sm);border:1px solid var(--line);
+ background:#fff;font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);display:inline-block}
 .bt:hover{border-color:var(--ink);color:var(--ink)}
 .bt.forte{background:var(--brand);color:#fff;border-color:var(--brand)}
 .bt.forte:hover{background:var(--ink);border-color:var(--ink);color:#fff}
@@ -11237,26 +11337,26 @@ details.porque > summary::-webkit-details-marker{display:none}
    tambem: 16px em vez de 19. */
 details.porque-bloco > summary{gap:7px}
 details.porque-bloco > summary > i{width:16px;height:16px;
- font:600 10px/14px var(--font-sans)}
+ font:600 var(--text-xs)/14px var(--font-sans)}
 details.porque-bloco .rot{margin:0}
 details.porque-bloco > .nota{margin:6px 0 12px}
 details.porque > summary > i{flex:none;font-style:normal;align-self:center;
  width:19px;height:19px;border-radius:50%;border:1px solid var(--line-strong);
- color:var(--ink-muted);font:600 11px/17px var(--font-sans);text-align:center}
+ color:var(--ink-muted);font:600 var(--text-xs)/17px var(--font-sans);text-align:center}
 details.porque > summary:hover > i{border-color:var(--brand);color:var(--brand)}
 details.porque[open] > summary > i{background:var(--brand);color:#fff;
  border-color:var(--brand)}
-h1.tit{margin:8px 0 0;font:700 22px/1.25 var(--font-sans);color:var(--ink);
+h1.tit{margin:8px 0 0;font:700 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);
  letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
-p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-secondary);
+p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);
  max-width:820px;text-wrap:pretty}
 .abas{display:flex;align-items:center;gap:4px;margin-top:14px}
-.abas a{padding:9px 14px;border-radius:7px 7px 0 0;font:600 12.5px/1 var(--font-sans);
+.abas a{padding:9px 14px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font:600 var(--text-xs)/1 var(--font-sans);
  background:transparent;color:var(--ink-secondary);border:1px solid transparent;
  border-bottom:none;margin-bottom:-1px}
 .abas a:hover{color:var(--ink)}
 .abas a.on{background:#fff;color:var(--ink);border-color:var(--line);font-weight:700}
-.abas a i{font:500 11px/1 var(--font-mono);font-style:normal;color:var(--ink-muted);margin-left:4px}
+.abas a i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted);margin-left:4px}
 .abas a.on i{color:var(--ink-secondary)}
 /* A escada (15/09/2026): dez ranhuras mais o "todos" nao cabem numa
    linha de tabuladores como as quatro abas de antes. Rolam na
@@ -11291,21 +11391,21 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .larg{max-width:1560px}
 
 /* pecas comuns */
-.cx{background:#fff;border:1px solid var(--line);border-radius:8px;
+.cx{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);
  box-shadow:0 1px 2px rgba(20,24,30,.04)}
-.rot{font:700 11px/1 var(--font-sans);color:var(--ink-secondary);text-transform:uppercase;
+.rot{font:700 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);text-transform:uppercase;
  letter-spacing:.07em}
-.nota{font:400 11.5px/1.5 var(--font-sans);color:var(--ink-muted)}
-.vazio{background:#fff;border:1px solid var(--line);border-radius:8px;
- padding:40px;text-align:center;color:var(--ink-muted);font:400 13px/1.55 var(--font-sans)}
-.flash{background:var(--brand-soft);border:1px solid var(--brand-soft);border-radius:9px;
- padding:11px 15px;margin-bottom:14px;font:500 12.5px/1.4 var(--font-sans);
+.nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
+.vazio{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);
+ padding:40px;text-align:center;color:var(--ink-muted);font:400 var(--text-sm)/1.55 var(--font-sans)}
+.flash{background:var(--brand-soft);border:1px solid var(--brand-soft);border-radius:var(--radius-md);
+ padding:11px 15px;margin-bottom:14px;font:500 var(--text-xs)/1.4 var(--font-sans);
  color:var(--brand)}
 .flash.mau{background:var(--danger-soft);border-color:#f0cfc7;color:var(--danger)}
 .flash form.desfazer{margin-left:10px;vertical-align:middle}
-.flash code{font:500 11.5px/1 var(--font-mono);background:rgba(0,0,0,.06);
- padding:2px 6px;border-radius:4px}
-.tag{font:500 10.5px/1 var(--font-sans);padding:4px 7px;border-radius:4px;
+.flash code{font:500 var(--text-xs)/1 var(--font-mono);background:rgba(0,0,0,.06);
+ padding:2px 6px;border-radius:var(--radius-sm)}
+.tag{font:500 var(--text-xs)/1 var(--font-sans);padding:4px 7px;border-radius:var(--radius-sm);
  background:var(--surface-sunken);color:var(--ink-secondary);white-space:nowrap}
 .tag.mono{font-family:var(--font-mono)}
 .tag.ok{background:var(--success-soft);color:var(--success);font-weight:600}
@@ -11315,7 +11415,7 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
-.accoes-topo .a-correr{font:500 12px/1 var(--font-sans);color:var(--warning);
+.accoes-topo .a-correr{font:500 var(--text-xs)/1 var(--font-sans);color:var(--warning);
  display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .accoes-topo .a-correr::before{content:'';width:8px;height:8px;flex:none;
  border-radius:50%;background:var(--warning);animation:pisca 1.1s infinite}
@@ -11328,8 +11428,8 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .filtros{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
  padding:12px 14px;margin-bottom:8px}
 .filtros input[type=text]{flex:1;min-width:220px;padding:9px 12px;
- border:1px solid var(--line);border-radius:8px;background:var(--surface-raised);
- font:400 12.5px/1.2 var(--font-sans);color:var(--ink)}
+ border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-raised);
+ font:400 var(--text-xs)/1.2 var(--font-sans);color:var(--ink)}
 /* A data e um campo de TEXTO com `dd/mm/aaaa` e nao um
    `<input type=date>` (16/09/2026): o nativo desenha-se no idioma do
    BROWSER e nao no da pagina, e num browser em ingles dizia
@@ -11339,15 +11439,15 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
    periodo (12 meses, 3 anos, 2026...) continuam a ser o caminho
    rapido, e `data_de_filtro()` le as duas escritas. */
 .filtros input.campo-data{padding:9px 12px;border:1px solid var(--line);
- border-radius:8px;background:var(--surface-raised);font:500 12.5px/1.2 var(--font-mono);
+ border-radius:var(--radius-md);background:var(--surface-raised);font:500 var(--text-xs)/1.2 var(--font-mono);
  color:var(--ink);width:110px;min-width:0;flex:none}
 .filtros input.campo-data:invalid{border-color:var(--danger)}
-.filtros select{padding:9px 12px;border:1px solid var(--line);border-radius:8px;
- background:var(--surface-raised);font:400 12.5px/1.2 var(--font-sans);color:var(--ink);
+.filtros select{padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
+ background:var(--surface-raised);font:400 var(--text-xs)/1.2 var(--font-sans);color:var(--ink);
  /* o select cresce com a opcao mais longa ("Ao abrigo de acordo-quadro
     (art.o 259.o)") e punha a pagina a rolar de lado num ecra estreito */
  max-width:100%;min-width:0}
-.filtros label{font:500 12px/1 var(--font-sans);color:var(--ink-secondary)}
+.filtros label{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
 /* a arvore por cima dos campos (14/09/2026): a caixa dos filtros
    encosta-se a ela */
 .painel-filtros details.arvore{margin-bottom:10px}
@@ -11358,45 +11458,49 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .filtros input:disabled,.filtros select:disabled{background:var(--surface-sunken);
  color:var(--ink-muted);border-style:dashed;cursor:not-allowed}
 .filtros:has(input:disabled) label{color:var(--ink-muted)}
-.filtros button{cursor:pointer;padding:10px 18px;border-radius:8px;border:0;
- background:var(--brand);color:#fff;font:600 12.5px/1 var(--font-sans)}
-.filtros button:hover{background:var(--ink)}
-.filtros a.limpar{padding:10px 12px;font:500 12.5px/1 var(--font-sans);color:var(--ink-muted)}
-.filtros a.limpar:hover{color:var(--ink)}
+/* So os botoes que ainda nao sao do sistema: com o `.mg-btn`, esta
+   regra (0,1,1) ganhava a classe dele (0,1,0), e o «Filtrar» dos
+   Concursos saia a 12,5 px, raio 8 e sem borda -- um quinto desenho do
+   mesmo gesto (segunda ronda, perfil 11). */
+.filtros button:not(.mg-btn){cursor:pointer;padding:10px 18px;border-radius:var(--radius-md);border:0;
+ background:var(--brand);color:#fff;font:600 var(--text-xs)/1 var(--font-sans)}
+.filtros button:not(.mg-btn):hover{background:var(--brand-hover)}
+.filtros a.limpar:not(.mg-btn){padding:10px 12px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
+.filtros a.limpar:not(.mg-btn):hover{color:var(--ink)}
 /* separador dos alertas */
 .alertas{display:flex;flex-direction:column;gap:10px}
 .alerta{display:flex;align-items:center;gap:14px;background:#fff;
- border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .alerta.on{border-color:var(--brand-soft);background:var(--surface-raised)}
 .alerta .sobre{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
-.alerta .sobre a{font:600 13.5px/1.2 var(--font-sans);color:var(--ink)}
+.alerta .sobre a{font:600 var(--text-sm)/1.2 var(--font-sans);color:var(--ink)}
 .alerta.on .sobre a{color:var(--brand)}
 .alerta .sobre a:hover{text-decoration:underline}
-.alerta .q{font:400 11.5px/1.4 var(--font-sans);color:var(--ink-muted);
+.alerta .q{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted);
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.alerta .conta{font:400 11.5px/1.4 var(--font-sans);color:var(--ink-muted);
+.alerta .conta{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted);
  text-align:right;flex:none}
 .alerta .conta b{color:var(--brand);font-weight:600}
-.alerta .sobre b{font:600 13.5px/1.2 var(--font-sans);color:var(--ink)}
+.alerta .sobre b{font:600 var(--text-sm)/1.2 var(--font-sans);color:var(--ink)}
 .alerta.on .sobre b{color:var(--brand)}
-.alerta .onde{font:400 11px/1.3 var(--font-sans);color:var(--ink-muted)}
+.alerta .onde{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted)}
 .alerta .onde a{color:var(--ink-muted)}
 .alerta .onde a:hover{color:var(--brand);text-decoration:underline}
-.alerta .avisa-mal{display:block;font:400 10.5px/1.4 var(--font-sans);
+.alerta .avisa-mal{display:block;font:400 var(--text-xs)/1.4 var(--font-sans);
  color:var(--warning);margin-top:3px}
 .alerta .apagar{cursor:pointer;border:0;background:none;color:var(--ink-muted);
- font:500 17px/1 var(--font-sans);padding:0 4px;
+ font:500 var(--text-lg)/1 var(--font-sans);padding:0 4px;
  min-width:24px;min-height:24px;box-sizing:border-box}
 .alerta .apagar:hover{color:var(--danger)}
 .alerta form{display:flex;flex:none}
 .conf-email{padding:20px 22px}
 .form-email{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .form-email label{display:flex;flex-direction:column;gap:5px;
- font:500 11px/1 var(--font-sans);color:var(--ink-muted);flex:1;min-width:150px}
+ font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);flex:1;min-width:150px}
 .form-email input{padding:9px 12px;border:1px solid var(--line);
- border-radius:8px;background:var(--surface-raised);
- font:400 12.5px/1.2 var(--font-sans);color:var(--ink)}
+ border-radius:var(--radius-md);background:var(--surface-raised);
+ font:400 var(--text-xs)/1.2 var(--font-sans);color:var(--ink)}
 .form-email button{flex:none}
 .novo-filtro{padding:20px 22px}
 .novo-filtro .filtros{padding:0;margin:0;box-shadow:none;border:0;
@@ -11410,9 +11514,9 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .novo-filtro .filtros select{flex:0 1 auto}
 .novo-filtro .filtros button{flex-basis:100%;max-width:150px;margin-top:4px}
 .guardado.parcial{border-style:dashed}
-.guardado i{font:400 9.5px/1 var(--font-sans);font-style:normal;color:var(--ink-muted);
+.guardado i{font:400 var(--text-xs)/1 var(--font-sans);font-style:normal;color:var(--ink-muted);
  margin-left:6px;padding-right:11px}
-.interruptor{cursor:pointer;width:42px;height:24px;border-radius:99px;
+.interruptor{cursor:pointer;width:42px;height:24px;border-radius:var(--radius-full);
  border:1px solid var(--line);background:var(--surface-sunken);padding:0;
  position:relative;transition:background .12s}
 .interruptor i{position:absolute;top:2px;left:2px;width:18px;height:18px;
@@ -11423,9 +11527,9 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 
 /* barra do corpus, no topo dos contratos */
 .corpus-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
- margin-bottom:12px;font:400 11.5px/1.4 var(--font-sans);color:var(--ink-secondary)}
+ margin-bottom:12px;font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
 .corpus-barra .accao{margin-left:auto}
-.corpus-barra .a-correr{margin-left:auto;font:500 12px/1 var(--font-sans);
+.corpus-barra .a-correr{margin-left:auto;font:500 var(--text-xs)/1 var(--font-sans);
  color:var(--brand);display:inline-flex;align-items:center;gap:8px}
 .corpus-barra .a-correr::before{content:'';width:9px;height:9px;flex:none;
  border-radius:50%;background:var(--brand);animation:pisca 1.1s infinite}
@@ -11433,15 +11537,15 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 
 /* ficha da entidade */
 .ent-cab{padding:20px 24px;margin-bottom:14px}
-.ent-cab .n{font:600 22px/1.25 var(--font-sans);color:var(--ink);letter-spacing:-.3px}
-.ent-cab .m{font:500 12px/1 var(--font-mono);color:var(--ink-muted);margin-top:7px}
+.ent-cab .n{font:600 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);letter-spacing:-.3px}
+.ent-cab .m{font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted);margin-top:7px}
 /* Cliente ou concorrente. Duas cores e nao uma: o que se quer distinguir
    ao correr o olho e o LADO DA MESA, e um selo neutro para os dois
    obrigava a ler a palavra para saber qual e. O terceiro caso -- as que
    sao as duas coisas -- fica sem cor de propósito: nao ha lado. */
 .ent-papel{display:inline-block;vertical-align:middle;margin-left:10px;
- padding:4px 9px;border-radius:999px;border:1px solid var(--line-strong);
- font:600 11px/1 var(--font-sans);letter-spacing:.2px;color:var(--ink-secondary);
+ padding:4px 9px;border-radius:var(--radius-full);border:1px solid var(--line-strong);
+ font:600 var(--text-xs)/1 var(--font-sans);letter-spacing:.2px;color:var(--ink-secondary);
  white-space:nowrap}
 .ent-papel.cliente{color:var(--success);border-color:var(--success)}
 .ent-papel.concorrente{color:var(--warning);border-color:var(--warning)}
@@ -11450,28 +11554,28 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
    dobrava a largura da coluna mais cheia da tabela. O `title` diz a
    palavra e o porquê. */
 .ent-papel.curto{margin-left:5px;padding:1px 5px;text-align:center;
- font:600 9.5px/1.5 var(--font-sans);letter-spacing:.3px;vertical-align:1px;
+ font:600 var(--text-xs)/1.5 var(--font-sans);letter-spacing:.3px;vertical-align:1px;
  text-transform:uppercase}
 .ent-nomes{margin-top:12px}
-.ent-nomes summary{cursor:pointer;font:400 11.5px/1.4 var(--font-sans);color:var(--ink-muted)}
+.ent-nomes summary{cursor:pointer;font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 .ent-nomes summary:hover{color:var(--ink)}
 .ent-nomes>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.ent-nomes span{font:400 10.5px/1.3 var(--font-sans);color:var(--ink-muted);
- background:var(--surface-sunken);padding:4px 8px;border-radius:4px}
+.ent-nomes span{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
+ background:var(--surface-sunken);padding:4px 8px;border-radius:var(--radius-sm)}
 .kpis.dois{grid-template-columns:repeat(2,minmax(0,1fr))}
-.kpi .r{font:600 11px/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
+.kpi .r{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.07em}
 .ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
-.ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:8px;
- background:#fff;font:500 12px/1 var(--font-sans);color:var(--ink-secondary);
+.ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
+ background:#fff;font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .ent-atalhos a:hover{border-color:var(--ink);color:var(--ink)}
 .ent-filtros{margin-bottom:14px}
 .periodos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
  flex-basis:100%;margin-top:2px}
-.periodos span{font:400 11px/1 var(--font-sans);color:var(--ink-muted);margin-right:2px}
-.periodos a{padding:6px 11px;border:1px solid var(--line);border-radius:99px;
- background:var(--surface-raised);font:500 11.5px/1 var(--font-sans);color:var(--ink-muted)}
+.periodos span{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);margin-right:2px}
+.periodos a{padding:6px 11px;border:1px solid var(--line);border-radius:var(--radius-full);
+ background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 .periodos a:hover{border-color:var(--ink-muted);color:var(--ink)}
 .periodos a.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .graf-corpo.solto{padding:0}
@@ -11491,14 +11595,14 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
    para ler. A barra e comparativa -- perde largura sem perder sentido. */
 .bh{display:grid;grid-template-columns:minmax(0,2fr) minmax(50px,1.3fr) 76px 84px;
  align-items:center;gap:10px}
-.bh .t{font:400 11.5px/1.3 var(--font-sans);color:var(--ink-secondary);overflow:hidden;
+.bh .t{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-secondary);overflow:hidden;
  text-overflow:ellipsis;white-space:nowrap}
-.bh .r{display:block;height:9px;border-radius:5px;background:var(--surface-sunken)}
-.bh .r i{display:block;height:100%;border-radius:5px;background:var(--brand)}
-.bh .v{font:600 11.5px/1 var(--font-mono);color:var(--ink);text-align:right}
-.bh .k{font:400 10.5px/1 var(--font-sans);color:var(--ink-muted);text-align:right}
+.bh .r{display:block;height:9px;border-radius:var(--radius-sm);background:var(--surface-sunken)}
+.bh .r i{display:block;height:100%;border-radius:var(--radius-sm);background:var(--brand)}
+.bh .v{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink);text-align:right}
+.bh .k{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:right}
 .graf .barras{height:150px}
-.graf .barras .v{font:600 10.5px/1 var(--font-mono)}
+.graf .barras .v{font:600 var(--text-xs)/1 var(--font-mono)}
 .graf .barras .b{background:var(--brand)}
 .graf .barras .col.parcial .b{background:repeating-linear-gradient(135deg,
  var(--brand) 0 4px,rgba(31,78,121,.35) 4px 8px)}
@@ -11506,9 +11610,9 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .graf .barras .col.destaque .b{background:var(--success)}
 .graf .barras .col.destaque .v{color:var(--success)}
 .graf .barras .col.destaque .l{color:var(--success);font-weight:600}
-.conc-n{font:700 34px/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;
+.conc-n{font:700 var(--text-3xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;
  margin-bottom:12px}
-.conc-b{display:flex;height:22px;border-radius:5px;overflow:hidden;
+.conc-b{display:flex;height:22px;border-radius:var(--radius-sm);overflow:hidden;
  background:var(--surface-sunken)}
 .conc-b i{display:block;height:100%}
 @media (max-width:900px){.graf-corpo{grid-template-columns:minmax(0,1fr)}}
@@ -11546,10 +11650,10 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .tab-cx{padding:0;overflow-x:auto}
 .tab-contratos{width:100%;border-collapse:collapse;min-width:900px}
 .tab-contratos th{text-align:left;padding:11px 12px;background:var(--surface-raised);
- border-bottom:1px solid var(--line);font:600 10.5px/1 var(--font-sans);
+ border-bottom:1px solid var(--line);font:600 var(--text-xs)/1 var(--font-sans);
  color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
 .tab-contratos td{padding:10px 12px;border-bottom:1px solid var(--surface-sunken);
- font:400 12.5px/1.45 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
+ font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
 .tab-contratos tr:last-child td{border-bottom:0}
 .tab-contratos tr:hover td{background:var(--surface-raised)}
 .tab-contratos td.d{font-family:var(--font-mono);white-space:nowrap;color:var(--ink-muted)}
@@ -11562,21 +11666,21 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .tab-contratos td a{font-weight:400}
 .tab-contratos th.p,.tab-contratos td.p{text-align:right;white-space:nowrap;
  font-family:var(--font-mono);color:var(--ink)}
-.vazio code,.larg>.nota code{font:500 11.5px/1 var(--font-mono);
- background:var(--surface-sunken);padding:2px 6px;border-radius:4px}
+.vazio code,.larg>.nota code{font:500 var(--text-xs)/1 var(--font-mono);
+ background:var(--surface-sunken);padding:2px 6px;border-radius:var(--radius-sm)}
 .vazio.comecar{display:flex;flex-direction:column;gap:10px;padding:48px 40px}
-.vazio.comecar b{font:600 15px/1.3 var(--font-sans);color:var(--ink)}
+.vazio.comecar b{font:600 var(--text-md)/1.3 var(--font-sans);color:var(--ink)}
 .vazio.comecar span{max-width:620px;margin:0 auto}
-.vazio.comecar .p{font-size:11.5px;color:var(--ink-muted)}
+.vazio.comecar .p{font-size:var(--text-xs);color:var(--ink-muted)}
 
 /* historico de adjudicacoes, na ficha */
 .mercado{padding:16px 18px;margin-top:14px}
 .tab-mercado{width:100%;border-collapse:collapse}
 .tab-mercado th{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);
- font:600 10.5px/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
+ font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.06em;white-space:nowrap}
 .tab-mercado td{padding:8px 10px;border-bottom:1px solid var(--surface-sunken);
- font:400 12px/1.35 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
+ font:400 var(--text-xs)/1.35 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
 .tab-mercado td.d{font-family:var(--font-mono);white-space:nowrap;color:var(--ink-muted)}
 .tab-mercado td.g{color:var(--ink);font-weight:500}
 .tab-mercado th.p,.tab-mercado td.p{text-align:right;white-space:nowrap;
@@ -11585,16 +11689,16 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .tab-mercado tr:last-child td{border-bottom:0}
 /* a coluna do objecto pode ser longa; a tabela rola dentro da caixa em
    vez de empurrar a ficha toda para o lado */
-.ref-preco{border:1px solid var(--line);border-radius:9px;padding:14px 16px;
+.ref-preco{border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;
  margin-bottom:14px;background:var(--surface-raised);
- font:400 12.5px/1.5 var(--font-sans);color:var(--ink-secondary)}
+ font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-secondary)}
 .ref-preco b.bom{color:var(--success)}
 .ref-preco b.mau{color:var(--danger)}
 .escada{display:flex;gap:8px;margin:12px 0 4px}
 .escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
- border-radius:6px;background:#fff;border:1px solid var(--line);
- font:400 10px/1 var(--font-sans);color:var(--ink-muted);text-align:center}
-.escada span b{font:600 12px/1 var(--font-mono);color:var(--ink)}
+ border-radius:var(--radius-sm);background:#fff;border:1px solid var(--line);
+ font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:center}
+.escada span b{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
 /* o rotulo desta esta sobre fundo azul-claro e nao sobre branco: com
    --t4 ficava a 4,3:1, por baixo do limite */
 .escada span.med{border-color:var(--brand);background:var(--brand-soft)}
@@ -11602,115 +11706,115 @@ p.subtit{margin:5px 0 0;font:400 12.5px/1.45 var(--font-sans);color:var(--ink-se
 .escada span.med b{color:var(--brand)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
-.mercado code{font:500 11.5px/1 var(--font-mono);background:var(--surface-sunken);
- padding:2px 5px;border-radius:4px}
+.mercado code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
+ padding:2px 5px;border-radius:var(--radius-sm)}
 /* O somario do desfecho: os numeros que fecham o funil (contratado,
    quem ganhou, quanto abaixo da base) lidos de relance, antes da
    tabela dos lotes. Envolve em vez de cortar -- ha adjudicatarios com
    nomes de setenta caracteres, e um agrupamento de tres nao cabe. */
 .desfecho-som{display:flex;flex-wrap:wrap;gap:14px 30px;
  padding:12px 14px;background:var(--surface-raised);border:1px solid var(--surface-sunken);
- border-radius:6px}
+ border-radius:var(--radius-sm)}
 .desfecho-som>div{display:flex;flex-direction:column;gap:4px;min-width:110px}
-.desfecho-som b{font:600 15px/1.35 var(--font-sans);color:var(--ink)}
+.desfecho-som b{font:600 var(--text-md)/1.35 var(--font-sans);color:var(--ink)}
 .desfecho-som b a{color:var(--brand)}
-.desfecho-som span{font:400 11px/1 var(--font-sans);color:var(--ink-muted);
+.desfecho-som span{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);
  text-transform:uppercase;letter-spacing:.06em}
 .desfecho-som b span{text-transform:none;letter-spacing:0}
 .guardados{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
  padding:10px 14px;margin-bottom:8px;background:var(--surface-raised);box-shadow:none}
 .guardados .rot{margin-right:4px}
-.guardados .nada{font:400 12px/1 var(--font-sans);color:var(--ink-muted)}
+.guardados .nada{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 .guardado{display:inline-flex;align-items:center;border:1px solid var(--line);
- border-radius:99px;background:var(--surface-raised);overflow:hidden}
-.guardado a{padding:7px 4px 7px 13px;font:500 12.5px/1 var(--font-sans);color:var(--ink-secondary)}
+ border-radius:var(--radius-full);background:var(--surface-raised);overflow:hidden}
+.guardado a{padding:7px 4px 7px 13px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
 .guardado:hover{border-color:var(--ink-muted)}
 .guardado:hover a{color:var(--ink)}
 .guardado.on{border-color:var(--brand);background:var(--brand-soft)}
 .guardado.on a{color:var(--brand);font-weight:600}
 .guardado form{display:inline-flex}
 .guardado button{cursor:pointer;border:0;background:none;color:var(--ink-muted);
- padding:7px 11px 7px 6px;font:500 14px/1 var(--font-sans)}
+ padding:7px 11px 7px 6px;font:500 var(--text-sm)/1 var(--font-sans)}
 .guardado button:hover{color:var(--danger)}
 .guardados .guardar{display:flex;align-items:center;gap:8px;margin-left:auto}
 .guardados .guardar input{padding:8px 12px;min-width:200px;
- border:1px solid var(--line);border-radius:8px;background:var(--surface-raised);
- font:400 12.5px/1.2 var(--font-sans);color:var(--ink)}
-.guardados .guardar button{cursor:pointer;padding:9px 15px;border-radius:8px;
+ border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-raised);
+ font:400 var(--text-xs)/1.2 var(--font-sans);color:var(--ink)}
+.guardados .guardar button{cursor:pointer;padding:9px 15px;border-radius:var(--radius-md);
  border:1px solid var(--line);background:#fff;color:var(--ink-secondary);
- font:600 12.5px/1 var(--font-sans)}
+ font:600 var(--text-xs)/1 var(--font-sans)}
 .guardados .guardar button:hover{border-color:var(--ink);color:var(--ink)}
 .cpv-activo{display:flex;align-items:center;gap:9px;padding:10px 14px;
- border:1px solid var(--brand-soft);background:var(--brand-soft);border-radius:9px;margin-bottom:12px;
- font:500 12px/1.3 var(--font-sans);color:var(--brand)}
-.cpv-activo b{font:600 12px/1.3 var(--font-mono)}
+ border:1px solid var(--brand-soft);background:var(--brand-soft);border-radius:var(--radius-md);margin-bottom:12px;
+ font:500 var(--text-xs)/1.3 var(--font-sans);color:var(--brand)}
+.cpv-activo b{font:600 var(--text-xs)/1.3 var(--font-mono)}
 .cpv-activo a{text-decoration:underline}
 
 /* arvore de CPV */
 details.arvore{margin-bottom:8px;overflow:hidden;background:var(--surface-raised);
- border:1px solid var(--line);border-radius:8px}
+ border:1px solid var(--line);border-radius:var(--radius-md)}
 details.arvore[open]{background:#fff}
 details.arvore>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  padding:11px 16px;background:var(--surface-raised);list-style:none}
 details.arvore>summary::-webkit-details-marker{display:none}
-details.arvore>summary::before{content:'\25B8';font:500 11px/1 var(--font-mono);color:var(--ink-secondary)}
+details.arvore>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-secondary)}
 details.arvore[open]>summary::before{content:'\25BE'}
-.arv-tit{font:600 13px/1 var(--font-sans);color:var(--ink)}
-.arv-sub{font:400 12px/1 var(--font-sans);color:var(--ink-muted)}
+.arv-tit{font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink)}
+.arv-sub{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 /* --t5 sobre --linha2 dava 4,35:1 -- a unica falha de AA que sobrou da
    passagem toda, e por pouco. Sobre um fundo que nao e branco a escala
    perde meio ponto de contraste: e por isso que os --t* se medem sobre
    o --papel e nao sobre o branco. */
-.arv-chip{margin-left:auto;font:600 11px/1 var(--font-sans);padding:4px 8px;
- border-radius:5px;background:var(--surface-sunken);color:var(--ink-secondary)}
+.arv-chip{margin-left:auto;font:600 var(--text-xs)/1 var(--font-sans);padding:4px 8px;
+ border-radius:var(--radius-sm);background:var(--surface-sunken);color:var(--ink-secondary)}
 .arvore-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
  padding:14px 18px 12px;border-top:1px solid var(--line)}
 .arvore-topo input{flex:1;min-width:220px;padding:8px 12px;border:1px solid var(--line);
- border-radius:8px;background:var(--surface-raised);font:400 12.5px/1.2 var(--font-sans)}
-.arvore-topo button{cursor:pointer;padding:9px 14px;border-radius:7px;border:0;
- background:var(--brand);color:#fff;font:600 12px/1 var(--font-sans)}
-.arvore-topo button.claro{background:#fff;color:var(--ink-secondary);border:1px solid var(--line)}
-#arvore-contagem{font:400 11.5px/1 var(--font-sans);color:var(--ink-muted)}
+ border-radius:var(--radius-md);background:var(--surface-raised);font:400 var(--text-xs)/1.2 var(--font-sans)}
+.arvore-topo button:not(.mg-btn){cursor:pointer;padding:9px 14px;border-radius:var(--radius-sm);border:0;
+ background:var(--brand);color:#fff;font:600 var(--text-xs)/1 var(--font-sans)}
+.arvore-topo button.claro:not(.mg-btn){background:#fff;color:var(--ink-secondary);border:1px solid var(--line)}
+#arvore-contagem{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 #arvore-corpo{max-height:330px;overflow-y:auto;border:1px solid var(--surface-sunken);
- border-radius:9px;padding:8px 6px;background:var(--surface-raised);margin:0 18px 14px}
+ border-radius:var(--radius-md);padding:8px 6px;background:var(--surface-raised);margin:0 18px 14px}
 #arvore-corpo .no-envolve .no-envolve{margin-left:22px}
 #arvore-corpo .no-envolve:not(.aberto)>.no-envolve{display:none}
 /* o botao que abre o ramo leva o texto do no, e a seta que o <summary>
    desenhava (a arvore deixou de ser <details> a 25/09/2026) */
 #arvore-corpo .abre{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto;
  padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
-#arvore-corpo .abre::before{content:'▸';font-size:10px;color:var(--ink-muted);flex:none;
+#arvore-corpo .abre::before{content:'▸';font-size:var(--text-xs);color:var(--ink-muted);flex:none;
  width:10px}
 #arvore-corpo .aberto>.no>.abre::before{content:'▾'}
 #arvore-corpo .no{display:flex;align-items:center;gap:9px;padding:5px 8px;
- border-radius:6px}
+ border-radius:var(--radius-sm)}
 #arvore-corpo .no:hover{background:var(--surface-sunken)}
 /* codigo tirado a mao de dentro de um grupo marcado: fica riscado, para
    se ver de relance o que e que a divisao apanha e o que nao */
 #arvore-corpo .no.excluido .lbl{text-decoration:line-through}
 #arvore-corpo .no.excluido .cod{text-decoration:line-through}
 #arvore-corpo .no.excluido{background:var(--surface-sunken)}
-#arvore-corpo .no .fora{font:600 9.5px/1 var(--font-sans);color:var(--danger);
+#arvore-corpo .no .fora{font:600 var(--text-xs)/1 var(--font-sans);color:var(--danger);
  letter-spacing:.04em;text-transform:uppercase;flex:none}
-#arvore-corpo .cod{font:500 10.5px/1 var(--font-mono);color:var(--ink-muted);flex:none}
-#arvore-corpo .lbl{font:500 12px/1.35 var(--font-sans);color:var(--brand);min-width:0;
+#arvore-corpo .cod{font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted);flex:none}
+#arvore-corpo .lbl{font:500 var(--text-xs)/1.35 var(--font-sans);color:var(--brand);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#arvore-corpo .n{font:400 10.5px/1 var(--font-sans);color:var(--ink-muted);flex:none}
+#arvore-corpo .n{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);flex:none}
 /* codigo sem nada nesta fonte de contagem: escolhe-lo da lista vazia
    garantida, por isso esbatido -- mas nao escondido, que a mesma arvore
    conta doutras coisas no outro separador. Pela cor e nao pelo opacity,
    que baixava o texto abaixo dos 4,5:1 (25/09/2026) */
 #arvore-corpo .no.zero .lbl,#arvore-corpo .no.zero .cod{color:var(--ink-muted)}
 #arvore-corpo .escondido{display:none}
-.arv-pe{padding:0 18px 16px;font:400 11px/1.5 var(--font-sans);color:var(--ink-muted)}
+.arv-pe{padding:0 18px 16px;font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
 
 /* lista */
 .linha-conta{display:flex;align-items:center;gap:10px;margin:12px 0;
- font:400 12px/1.5 var(--font-sans);color:var(--ink-muted)}
+ font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
 .linha-conta a{margin-left:auto;color:var(--ink-muted)}
 .linha-conta a:hover{color:var(--ink)}
-.linha-conta .teclas{font:500 11px/1 var(--font-mono);color:var(--ink-muted);
- border:1px solid var(--line);border-radius:4px;padding:3px 6px;cursor:help}
+.linha-conta .teclas{font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted);
+ border:1px solid var(--line);border-radius:var(--radius-sm);padding:3px 6px;cursor:help}
 /* O anuncio focado pelo teclado (j/k). So o teclado o poe: o rato
    continua a ler sem contornos. */
 .item.foco{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft)}
@@ -11720,18 +11824,18 @@ details.arvore[open]>summary::before{content:'\25BE'}
 details.painel-filtros{margin-bottom:10px}
 details.painel-filtros>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  list-style:none;padding:9px 12px;background:var(--surface-raised);border:1px solid var(--line);
- border-radius:8px;min-height:24px}
+ border-radius:var(--radius-md);min-height:24px}
 details.painel-filtros[open]>summary{margin-bottom:8px}
 details.painel-filtros>summary::-webkit-details-marker{display:none}
-details.painel-filtros>summary::before{content:'\25B8';font:500 11px/1 var(--font-mono);color:var(--ink-secondary)}
+details.painel-filtros>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-secondary)}
 details.painel-filtros[open]>summary::before{content:'\25BE'}
-details.painel-filtros .pf-tit{font:700 11px/1 var(--font-sans);color:var(--ink-secondary);
+details.painel-filtros .pf-tit{font:700 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
  text-transform:uppercase;letter-spacing:.07em}
-details.painel-filtros .pf-sub{font:400 12px/1.4 var(--font-sans);color:var(--ink-muted)}
+details.painel-filtros .pf-sub{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 .paginas{display:flex;align-items:center;justify-content:center;gap:5px;
  flex-wrap:wrap;margin-top:16px}
 .paginas a,.paginas b,.paginas span{min-width:32px;padding:7px 10px;
- border-radius:6px;text-align:center;font:500 12.5px/1 var(--font-sans)}
+ border-radius:var(--radius-sm);text-align:center;font:500 var(--text-xs)/1 var(--font-sans)}
 .paginas a{background:#fff;border:1px solid var(--line);color:var(--ink-muted);
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
 .paginas a:hover{border-color:var(--ink-muted);color:var(--ink)}
@@ -11743,22 +11847,22 @@ details.painel-filtros .pf-sub{font:400 12px/1.4 var(--font-sans);color:var(--in
 /* Saltar para uma pagina. Com 3300 paginas, andar de dez em dez nao la
    chega, e a unica forma de ver o meio do acervo era por filtro. */
 .ir-pagina{display:flex;align-items:center;gap:6px;margin-left:10px}
-.ir-pagina label{font:400 12px/1 var(--font-sans);color:var(--ink-secondary);padding:0}
+.ir-pagina label{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);padding:0}
 .ir-pagina input{width:72px;padding:6px 8px;border:1px solid var(--line);
- border-radius:6px;font:500 12.5px/1 var(--font-sans);background:#fff;color:var(--ink)}
-.ir-pagina button{padding:7px 11px;border:1px solid var(--line);border-radius:6px;
- background:#fff;color:var(--ink-muted);font:500 12.5px/1 var(--font-sans);cursor:pointer}
+ border-radius:var(--radius-sm);font:500 var(--text-xs)/1 var(--font-sans);background:#fff;color:var(--ink)}
+.ir-pagina button{padding:7px 11px;border:1px solid var(--line);border-radius:var(--radius-sm);
+ background:#fff;color:var(--ink-muted);font:500 var(--text-xs)/1 var(--font-sans);cursor:pointer}
 .ir-pagina button:hover{border-color:var(--ink-muted);color:var(--ink)}
 .lista{display:flex;flex-direction:column;gap:9px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) 200px;background:#fff;
- border:1px solid var(--line);border-radius:7px;box-shadow:0 1px 2px rgba(20,24,30,.04);
+ border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 1px 2px rgba(20,24,30,.04);
  overflow:hidden}
 .item:hover{border-color:var(--line-strong)}
 .item-corpo{padding:14px 17px;min-width:0}
-.item-titulo{font:700 15px/1.35 var(--font-sans);color:var(--brand);display:block;
+.item-titulo{font:700 var(--text-md)/1.35 var(--font-sans);color:var(--brand);display:block;
  letter-spacing:-.1px;text-wrap:pretty}
 .item-titulo:hover{color:var(--ink)}
-.item-entidade{font:400 12.5px/1.4 var(--font-sans);color:var(--ink-secondary);margin-top:5px}
+.item-entidade{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary);margin-top:5px}
 .item-entidade .quando{color:var(--ink-muted)}
 .item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
 .item-lado{padding:14px 17px;border-left:1px solid var(--surface-sunken);display:flex;
@@ -11766,11 +11870,11 @@ details.painel-filtros .pf-sub{font:400 12px/1.4 var(--font-sans);color:var(--in
 /* O prazo e o que decide, e le-se antes do preco. As tres cores sao as
    mesmas das etiquetas de estado (etiqueta_prazo devolve a classe): o
    que muda e o peso -- aqui e um numero, nao um distintivo. */
-.item-prazo{font:700 13.5px/1 var(--font-mono);color:var(--ink-secondary)}
+.item-prazo{font:700 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary)}
 .item-prazo.mau{color:var(--danger)}
 .item-prazo.avisa{color:var(--warning)}
 .item-prazo.ok{color:var(--success)}
-.item-preco{font:600 13px/1.2 var(--font-mono);color:var(--ink)}
+.item-preco{font:600 var(--text-sm)/1.2 var(--font-mono);color:var(--ink)}
 .item-accoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 /* o motivo do abandono pergunta-se numa caixa por cima (decisao do
    Afonso a 01/09/2026): um selector ao lado do botao punha uma pergunta
@@ -11783,9 +11887,9 @@ details.painel-filtros .pf-sub{font:400 12px/1.4 var(--font-sans);color:var(--in
 dialog.mg-dialog{border:0;color:var(--ink)}
 dialog.mg-dialog::backdrop{background:rgba(22,27,38,.45)}
 dialog.mg-dialog form{margin:0}
-dialog.mg-dialog .alvo{font:400 12.5px/1.45 var(--font-sans);color:var(--ink-secondary);
+dialog.mg-dialog .alvo{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);
  margin:0 0 12px;text-wrap:pretty}
-dialog.mg-dialog .nota{font:400 11.5px/1.5 var(--font-sans);color:var(--ink-muted);
+dialog.mg-dialog .nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted);
  margin:0 0 14px}
 /* O `display` de uma regra ganha ao atributo `hidden`, que vem da
    folha do browser. Desde 15/09/2026 a caixa tem DOIS grupos de
@@ -11797,11 +11901,11 @@ dialog.mg-dialog .escolhas[hidden]{display:none}
 dialog.mg-dialog .escolhas{display:flex;flex-direction:column;gap:2px;
  margin-bottom:18px}
 dialog.mg-dialog .escolhas label{display:flex;align-items:center;gap:9px;
- padding:9px 10px;border-radius:7px;border:1px solid var(--line);
- font:500 12.5px/1.3 var(--font-sans);color:var(--ink-secondary);cursor:pointer}
+ padding:9px 10px;border-radius:var(--radius-sm);border:1px solid var(--line);
+ font:500 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-secondary);cursor:pointer}
 dialog.mg-dialog .escolhas label:hover{border-color:var(--ink-muted);background:var(--surface-raised)}
 dialog.mg-dialog .escolhas input{margin:0;flex:none}
-.mini{cursor:pointer;padding:7px 12px;border-radius:6px;font:600 11.5px/1 var(--font-sans);
+.mini{cursor:pointer;padding:7px 12px;border-radius:var(--radius-sm);font:600 var(--text-xs)/1 var(--font-sans);
  border:1px solid var(--line);color:var(--ink-secondary);background:#fff;display:inline-block}
 .mini:hover{border-color:var(--danger);color:var(--danger)}
 /* "interessa" em contorno e nao em bloco cheio: numa lista de vinte,
@@ -11810,11 +11914,11 @@ dialog.mg-dialog .escolhas input{margin:0;flex:none}
 .mini.verde{background:#fff;color:var(--success);border-color:var(--success)}
 .mini.verde:hover{background:var(--success);color:#fff;border-color:var(--success)}
 .rodape{margin-top:18px;padding:12px 16px;border:1px solid var(--line);
- border-radius:8px;background:var(--surface-raised);display:flex;align-items:center;gap:10px}
-.rodape .e{font:500 12px/1 var(--font-sans);color:var(--ink-secondary)}
-.rodape .d{font:400 12px/1 var(--font-sans);color:var(--ink-muted)}
+ border-radius:var(--radius-md);background:var(--surface-raised);display:flex;align-items:center;gap:10px}
+.rodape .e{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
+.rodape .d{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 
-.chip-prazo{flex:none;font:700 12px/1 var(--font-mono);padding:6px 9px;border-radius:5px;
+.chip-prazo{flex:none;font:700 var(--text-xs)/1 var(--font-mono);padding:6px 9px;border-radius:var(--radius-sm);
  background:var(--surface-sunken);color:var(--ink-secondary);white-space:nowrap}
 .chip-prazo.mau{background:var(--danger-soft);color:var(--danger)}
 .chip-prazo.avisa{background:var(--warning-soft);color:var(--warning)}
@@ -11822,32 +11926,32 @@ dialog.mg-dialog .escolhas input{margin:0;flex:none}
 /* accoes de segunda linha: sao ligacoes, nao botoes -- competiam com o
    "Interessa" quando eram seis caixas iguais lado a lado */
 .bt-leve{cursor:pointer;background:none;border:0;
- font:500 11.5px/1 var(--font-sans);color:var(--ink-secondary);display:inline-block;
+ font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);display:inline-block;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .bt-leve:hover{color:var(--brand);text-decoration:underline}
 /* um titulo vazio nao ocupa espaco: a ficha nao usa o cabecalho grande */
 h1.tit:empty,p.subtit:empty{display:none}
 .facto{background:var(--surface-raised);padding:12px 15px;flex:1 1 180px;min-width:0}
-.facto .k{font:600 9.5px/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
+.facto .k{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.08em}
-.facto .v{font:600 13px/1.4 var(--font-sans);color:var(--ink);margin-top:6px}
+.facto .v{font:600 var(--text-sm)/1.4 var(--font-sans);color:var(--ink);margin-top:6px}
 .facto.larg{flex-basis:100%}
 .facto .v.ok{color:var(--success)}
 .facto .v.mau{color:var(--danger)}
 details.sec{overflow:hidden;background:#fff;border:1px solid var(--line);
- border-radius:11px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+ border-radius:var(--radius-md);box-shadow:0 1px 2px rgba(0,0,0,.06)}
 details.sec>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  padding:15px 22px;list-style:none}
 details.sec>summary::-webkit-details-marker{display:none}
-details.sec>summary::before{content:'\25B8';font:500 11px/1 var(--font-mono);color:var(--ink-muted)}
+details.sec>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted)}
 details.sec[open]>summary::before{content:'\25BE'}
-details.sec .st{font:600 11.5px/1 var(--font-sans);color:var(--ink);
+details.sec .st{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink);
  text-transform:uppercase;letter-spacing:.07em}
-details.sec .sh{margin-left:auto;font:400 11.5px/1 var(--font-sans);color:var(--ink-muted);
+details.sec .sh{margin-left:auto;font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
 details.sec dl{margin:0;padding:2px 22px 20px}
-details.sec dt{font:400 12.5px/1.45 var(--font-sans);color:var(--ink-muted)}
-details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
+details.sec dt{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-muted)}
+details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(--ink);
  white-space:pre-line;text-wrap:pretty;word-break:break-word}
 /* As tres formas dos campos longos lidos das pecas (desenha_valor).
    O texto e o mesmo -- o que muda e ter degraus: um perfil le-se como
@@ -11859,23 +11963,23 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
    Gestão de Projeto" partia em tres linhas. */
 .perfis{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
  gap:10px;margin-top:2px}
-.perfil{border:1px solid var(--line);border-radius:7px;padding:11px 13px;
+.perfil{border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px;
  background:var(--surface-raised)}
-.perfil>b{display:block;font:700 12.5px/1.35 var(--font-sans);color:var(--ink);
+.perfil>b{display:block;font:700 var(--text-xs)/1.35 var(--font-sans);color:var(--ink);
  margin-bottom:7px}
 .perfil dl{display:grid;grid-template-columns:minmax(0,104px) minmax(0,1fr);
  gap:3px 9px;margin:0}
-.perfil dt{font:400 11px/1.45 var(--font-sans);color:var(--ink-muted)}
-.perfil dd{margin:0;font:500 11px/1.45 var(--font-sans);color:var(--ink-secondary);min-width:0}
+.perfil dt{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-muted)}
+.perfil dd{margin:0;font:500 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);min-width:0}
 .pontos{margin:2px 0 0;padding:0 0 0 16px;display:flex;flex-direction:column;
  gap:6px}
-.pontos li{font:400 12.5px/1.55 var(--font-sans);color:var(--ink-secondary);
+.pontos li{font:400 var(--text-xs)/1.55 var(--font-sans);color:var(--ink-secondary);
  text-wrap:pretty;padding-left:2px;max-width:88ch}
 .pontos li::marker{color:var(--line-strong)}
 .numerados{margin:2px 0 0;padding:0 0 0 20px;display:flex;
  flex-direction:column;gap:8px}
-.numerados li{font:400 12.5px/1.55 var(--font-sans);color:var(--ink-secondary)}
-.numerados li::marker{font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.numerados li{font:400 var(--text-xs)/1.55 var(--font-sans);color:var(--ink-secondary)}
+.numerados li::marker{font-family:var(--font-mono);font-size:var(--text-xs);color:var(--ink-muted)}
 .numerados li b{display:block;font-weight:600;color:var(--ink)}
 .numerados li span{display:block;text-wrap:pretty;max-width:88ch}
 /* Configuracoes: o indice a esquerda, preso ao rolar como o da ficha,
@@ -11884,24 +11988,24 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
 .conf-indice{position:sticky;top:calc(var(--barra-h,56px) + 16px)}
 .conf-cx{padding:18px 22px 22px}
 .conf-form{display:flex;flex-direction:column;gap:12px;max-width:560px}
-.conf-campo{display:flex;flex-direction:column;gap:4px;font:500 11.5px/1.4 var(--font-sans);color:var(--ink-secondary)}
+.conf-campo{display:flex;flex-direction:column;gap:4px;font:500 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
 .conf-campo input[type=text],.conf-campo input[type=password],.conf-campo input[type=email],
 .conf-campo select,.conf-form textarea{padding:9px 12px;border:1px solid var(--line);
- border-radius:7px;font:400 13px/1.3 var(--font-sans);color:var(--ink);background:#fff}
+ border-radius:var(--radius-sm);font:400 var(--text-sm)/1.3 var(--font-sans);color:var(--ink);background:#fff}
 .conf-campo input:disabled{background:var(--surface-sunken);color:var(--ink-muted)}
-.conf-campo small{font:400 11px/1.4 var(--font-sans);color:var(--ink-muted)}
+.conf-campo small{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 .conf-check{flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}
 .conf-check input{width:16px;height:16px;margin:0}
 .conf-check small{flex-basis:100%}
 .conf-form button{align-self:flex-start;margin-top:4px}
-.conf-form textarea{font-family:var(--font-mono);font-size:11.5px;width:100%;max-width:560px}
+.conf-form textarea{font-family:var(--font-mono);font-size:var(--text-xs);width:100%;max-width:560px}
 .conf-forn{margin-top:18px;padding-top:16px;border-top:1px solid var(--surface-sunken)}
-.conf-campo input[type=file]{font:400 12.5px/1.3 var(--font-sans);color:var(--ink-secondary)}
+.conf-campo input[type=file]{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-secondary)}
 .tab-ensaio tr.erro td{background:var(--danger-soft)}
 .tab-ensaio td .mau{color:var(--danger);font-weight:500}
 .tab-ensaio td .aviso{color:var(--warning)}
 .tab-ensaio td .ok{color:var(--success);font-weight:600}
-.tab-ensaio td.n{font:500 12px/1.4 var(--font-mono);white-space:nowrap}
+.tab-ensaio td.n{font:500 var(--text-xs)/1.4 var(--font-mono);white-space:nowrap}
 .conf-forn .saude{margin:6px 0 10px}
 @media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static}}
 .em-falta{font-weight:400;color:var(--ink-muted);font-style:italic}
@@ -11914,7 +12018,7 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
    sobreviveu a composicao em dossier -- vivia na coluna da direita. O
    prazo passou a facto do cabecalho, e a barra do decorrido veio com
    ele: e a mesma conta, noutro fundo. */
-.facto .conta{display:inline-block;margin-left:8px;font:600 11.5px/1 var(--font-sans);
+.facto .conta{display:inline-block;margin-left:8px;font:600 var(--text-xs)/1 var(--font-sans);
  color:var(--ink-secondary)}
 .facto .conta.mau{color:var(--danger)}
 .facto .conta.avisa{color:var(--warning)}
@@ -11925,11 +12029,11 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
 /* O leitor da peca, dentro da ficha e por baixo da lista das pecas
    (pedido do Afonso a 31/08/2026). A pagina propria /peca continua a
    existir e usa o mesmo codigo -- ver visualizador_de_peca(). */
-.leitor{margin-top:16px;border:1px solid var(--line);border-radius:8px;
+.leitor{margin-top:16px;border:1px solid var(--line);border-radius:var(--radius-md);
  overflow:hidden;background:var(--surface-raised)}
 .leitor-cab{display:flex;align-items:center;gap:12px;padding:11px 15px;
  border-bottom:1px solid var(--line);background:#fff}
-.leitor-cab .n{flex:1;min-width:0;font:600 12.5px/1.3 var(--font-sans);color:var(--ink);
+.leitor-cab .n{flex:1;min-width:0;font:600 var(--text-xs)/1.3 var(--font-sans);color:var(--ink);
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .leitor>.nota{padding:10px 15px 0}
 .leitor .filtros{margin:10px 15px;box-shadow:none}
@@ -11937,8 +12041,8 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
    chip: reaproveitavam o .cpv-activo, que e flex, e cada <b> e cada
    "pag. N" virava uma coluna -- a frase lia-se em bocados. */
 .achados{padding:10px 14px;border:1px solid var(--brand-soft);
- background:var(--brand-soft);border-radius:8px;margin-bottom:12px;
- font:400 12.5px/1.9 var(--font-sans);color:var(--brand)}
+ background:var(--brand-soft);border-radius:var(--radius-md);margin-bottom:12px;
+ font:400 var(--text-xs)/1.9 var(--font-sans);color:var(--brand)}
 .achados b{font-weight:700}
 .achados a{text-decoration:underline;text-underline-offset:2px;
  white-space:nowrap;margin-right:4px}
@@ -11952,38 +12056,38 @@ details.sec dd{margin:0;font:500 12.5px/1.5 var(--font-sans);color:var(--ink);
 .leitor .peca-folhas{padding:0 15px 15px;max-height:78vh;overflow-y:auto;
  background:var(--surface-sunken)}
 .peca-pag{display:block;width:100%;height:auto;max-width:960px;margin:14px auto 0;
- border:1px solid var(--line);border-radius:5px;background:#fff;
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
  box-shadow:0 1px 3px rgba(20,24,30,.08)}
 .hist{display:flex;gap:10px;align-items:baseline;padding:9px 0;
  border-top:1px solid var(--surface)}
-.hist .t{font:400 12px/1.4 var(--font-sans);color:var(--ink-secondary);min-width:0}
+.hist .t{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary);min-width:0}
 .hist .t b{font-weight:600;color:var(--ink)}
-.hist .q{margin-left:auto;flex:none;font:400 10.5px/1 var(--font-mono);color:var(--ink-muted)}
+.hist .q{margin-left:auto;flex:none;font:400 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted)}
 
 /* As etiquetas: viviam no cartão do quadro e, com ele fora, vivem no
    bloco «A nossa proposta» da ficha. */
-.etq{display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:4px;
- color:#fff;font:600 10.5px/1.3 var(--font-sans)}
+.etq{display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:var(--radius-sm);
+ color:#fff;font:600 var(--text-xs)/1.3 var(--font-sans)}
 .etq form.accao{display:inline-flex}
 button.etq-x{background:none;border:0;color:#fff;opacity:.6;cursor:pointer;
- font-size:12px;line-height:1;padding:6px;margin:-6px -4px -6px 0;
+ font-size:var(--text-xs);line-height:1;padding:6px;margin:-6px -4px -6px 0;
  min-width:24px;min-height:24px;box-sizing:border-box}
 button.etq-x:hover{opacity:1}
 button.tirar{background:none;border:0;cursor:pointer;
- font:400 11px/1 var(--font-sans);color:var(--ink-muted);
+ font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);
  padding:7px 4px;margin:-7px 0;min-height:24px;box-sizing:border-box}
 button.tirar:hover{color:var(--danger)}
-.etq-form input{padding:3px 7px;border-radius:4px;border:1px dashed var(--line-strong);
- background:transparent;font:500 10.5px/1.3 var(--font-sans);color:var(--ink-muted);width:78px}
+.etq-form input{padding:3px 7px;border-radius:var(--radius-sm);border:1px dashed var(--line-strong);
+ background:transparent;font:500 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);width:78px}
 .etq-form input:focus{border-style:solid;border-color:var(--brand)}
 .etq-form input:focus:not(:focus-visible){outline:none}
 .prop-etq{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-strong)}
 .prop-etq .rot{margin-bottom:8px}
 .prop-etq .etq{display:inline-flex;margin:0 5px 5px 0}
 /* a tabela dos lotes, na ficha */
-.tab-lotes td.n{font:600 12px/1.4 var(--font-mono);white-space:nowrap}
+.tab-lotes td.n{font:600 var(--text-xs)/1.4 var(--font-mono);white-space:nowrap}
 .tab-lotes td.s{white-space:nowrap}
-.tab-lotes .lote-prop{font:400 11.5px/1.4 var(--font-sans);color:var(--ink-muted)}
+.tab-lotes .lote-prop{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 
 /* o selector de ranhura, na linha da lista e na ficha (15/09/2026).
    Com o quadro fora, é este o controlo que move um concurso na escada:
@@ -11998,8 +12102,8 @@ button.tirar:hover{color:var(--danger)}
    preparar proposta"): numa `td.curta` o select encolhia e mostrava "A
    prep", que nao diz o estado nenhum. Visto no ecra a 15/09/2026. */
 td.celula-ranhura{white-space:nowrap;width:1%}
-.ranhura select{font:400 11.5px/1.2 var(--font-sans);padding:5px 7px;
- border:1px solid var(--line);border-radius:5px;background:#fff;
+.ranhura select{font:400 var(--text-xs)/1.2 var(--font-sans);padding:5px 7px;
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
  color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
 .ranhura select:hover{border-color:var(--brand)}
 /* O botão «Mudar» fica sempre à vista (26/09/2026): o select deixou de
@@ -12007,25 +12111,25 @@ td.celula-ranhura{white-space:nowrap;width:1%}
    gravava e recarregava a página (WCAG 3.2.2). */
 
 /* o bloco «A nossa proposta» na ficha: a empresa do que o cartão fazia */
-.prop{border:1px solid var(--line);border-radius:6px;padding:14px;
+.prop{border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;
  margin-bottom:12px;background:var(--surface-sunken)}
 .prop:last-child{margin-bottom:0}
 .prop-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
  margin-bottom:12px}
-.prop-nome{font:700 13px/1.3 var(--font-sans);color:var(--ink);flex:1}
+.prop-nome{font:700 var(--text-sm)/1.3 var(--font-sans);color:var(--ink);flex:1}
 .prop-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
  gap:10px;align-items:end}
 .prop-campos label{display:flex;flex-direction:column;gap:4px;
- font:600 9.5px/1 var(--font-sans);color:var(--ink-muted);letter-spacing:.04em;
+ font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);letter-spacing:.04em;
  text-transform:uppercase}
 .prop-campos label.largo{grid-column:1/-1}
-.prop-campos input,.prop-campos select{font:400 12px/1.3 var(--font-sans);
- padding:6px 8px;border:1px solid var(--line);border-radius:5px;
+.prop-campos input,.prop-campos select{font:400 var(--text-xs)/1.3 var(--font-sans);
+ padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);
  background:#fff;color:var(--ink-secondary);text-transform:none;letter-spacing:0}
-.prop-campos button{cursor:pointer;font:600 11px/1 var(--font-sans);padding:7px 12px;
- border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink-secondary);
+.prop-campos button:not(.mg-btn){cursor:pointer;font:600 var(--text-xs)/1 var(--font-sans);padding:7px 12px;
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
-.prop-campos button:hover{border-color:var(--brand);color:var(--brand)}
+.prop-campos button:not(.mg-btn):hover{border-color:var(--brand);color:var(--brand)}
 .prop-accoes{display:flex;gap:6px;flex-wrap:wrap}
 /* o que falta fazer, por proposta */
 .prop-tarefas{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-strong)}
@@ -12033,25 +12137,25 @@ td.celula-ranhura{white-space:nowrap;width:1%}
 ul.tarefas{list-style:none;margin:0 0 10px;padding:0;display:flex;
  flex-direction:column;gap:6px}
 ul.tarefas li{display:flex;align-items:center;gap:7px;
- font:400 12px/1.4 var(--font-sans);color:var(--ink-secondary)}
+ font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
 ul.tarefas li .t{flex:1}
 button.tq{cursor:pointer;width:24px;min-height:24px;padding:0;flex:none;
- border:1px solid var(--line);border-radius:4px;background:#fff;
- color:var(--ink-muted);font:600 11px/1 var(--font-sans);box-sizing:border-box}
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
+ color:var(--ink-muted);font:600 var(--text-xs)/1 var(--font-sans);box-sizing:border-box}
 button.tq:hover{border-color:var(--success);color:var(--success)}
 .tarefa-nova{display:flex;gap:6px;flex-wrap:wrap}
 .tarefa-nova input[type=text]{flex:1;min-width:140px}
-.tarefa-nova input,.tarefa-nova button{font:400 11.5px/1.2 var(--font-sans);
- padding:6px 8px;border:1px solid var(--line);border-radius:5px;
+.tarefa-nova input,.tarefa-nova button:not(.mg-btn){font:400 var(--text-xs)/1.2 var(--font-sans);
+ padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);
  background:#fff;color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
-.tarefa-nova button{cursor:pointer;font-weight:600;color:var(--ink-secondary)}
+.tarefa-nova button:not(.mg-btn){cursor:pointer;font-weight:600;color:var(--ink-secondary)}
 
 /* A faixa que propõe fechar uma proposta com o que o Portal BASE diz
    (etapa 4). Cor de informação e não de alarme: é um facto que chegou,
    não um problema -- e o vermelho desta folha é o do prazo expirado. */
-.desfecho-propoe{margin-top:14px;padding:12px 14px;border-radius:6px;
+.desfecho-propoe{margin-top:14px;padding:12px 14px;border-radius:var(--radius-sm);
  background:var(--brand-soft);border:1px solid var(--line)}
-.dp-facto{font:400 12px/1.5 var(--font-sans);color:var(--ink-secondary)}
+.dp-facto{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-secondary)}
 .dp-botoes{display:flex;align-items:center;gap:8px;margin-top:10px;
  flex-wrap:wrap}
 .dp-botoes a.bt-leve{margin-left:auto}
@@ -12059,46 +12163,46 @@ button.tq:hover{border-color:var(--success);color:var(--success)}
 /* As barras horizontais dos motivos (etapa 5): são poucas e de nome
    longo, e em pé ficavam com o rótulo de lado a não se ler. */
 .lh{display:flex;align-items:center;gap:10px}
-.lh .t{flex:0 0 180px;font:400 11.5px/1.3 var(--font-sans);color:var(--ink-secondary);
+.lh .t{flex:0 0 180px;font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-secondary);
  text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lh .bh{height:12px;border-radius:3px;background:var(--brand);min-width:3px}
-.lh .n{font:600 11px/1 var(--font-mono);color:var(--ink-secondary)}
+.lh .bh{height:12px;border-radius:var(--radius-sm);background:var(--brand);min-width:3px}
+.lh .n{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink-secondary)}
 /* o subtítulo de um número do bloco do negócio: diz sobre o que é que
    ele conta, que é o que separa um facto de um número solto */
-.desfecho-som .sub{font:400 10.5px/1.3 var(--font-sans);color:var(--ink-muted);
+.desfecho-som .sub{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
  text-transform:none;letter-spacing:0}
 
 /* Um número que ainda não existe diz-se por extenso, e não com um
    travessão: com a base quase vazia o bloco ficava a ser três
    travessões seguidos, o que dá ar de avariado em vez de «ainda não».
    Fica mais pequeno de propósito -- é uma nota, não um facto. */
-.desfecho-som .por-haver b{font:400 12px/1.4 var(--font-sans);color:var(--ink-muted)}
+.desfecho-som .por-haver b{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 .desfecho-som .por-haver{min-width:150px}
 /* As propostas por fechar, no aviso do bloco do negócio: cada uma é um
    clique para arrumar, e por isso são ligações e não uma frase. */
 .por-fechar{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
-.por-fechar a{font:500 12px/1.4 var(--font-sans)}
+.por-fechar a{font:500 var(--text-xs)/1.4 var(--font-sans)}
 /* Os contactos (etapa 6) */
 .ct{padding:9px 0;border-bottom:1px solid var(--surface);position:relative}
 .ct:last-of-type{border-bottom:0}
-.ct-nome{font:600 12.5px/1.4 var(--font-sans);color:var(--ink)}
-.ct-papel{font:400 11px/1 var(--font-sans);color:var(--ink-muted);margin-left:6px}
-.ct-l{display:inline-block;margin-right:12px;font:400 11.5px/1.5 var(--font-sans);
+.ct-nome{font:600 var(--text-xs)/1.4 var(--font-sans);color:var(--ink)}
+.ct-papel{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);margin-left:6px}
+.ct-l{display:inline-block;margin-right:12px;font:400 var(--text-xs)/1.5 var(--font-sans);
  color:var(--ink-secondary)}
 a.ct-l{color:var(--brand)}
-.ct-notas{font:400 11.5px/1.4 var(--font-sans);color:var(--ink-muted);margin-top:3px}
+.ct-notas{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted);margin-top:3px}
 .ct-x{position:absolute;top:6px;right:0}
 .ct-x button.etq-x{color:var(--ink-muted)}
 .ct-x button.etq-x:hover{color:var(--danger);opacity:1}
 .ct-novo{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;
  padding-top:12px;border-top:1px dashed var(--line-strong)}
-.ct-novo input{flex:1 1 130px;font:400 11.5px/1.2 var(--font-sans);padding:6px 8px;
- border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink-secondary);
+.ct-novo input{flex:1 1 130px;font:400 var(--text-xs)/1.2 var(--font-sans);padding:6px 8px;
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
-.ct-novo button{cursor:pointer;font:600 11px/1 var(--font-sans);padding:6px 12px;
- border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink-secondary);
+.ct-novo button:not(.mg-btn){cursor:pointer;font:600 var(--text-xs)/1 var(--font-sans);padding:6px 12px;
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
-.ct-novo button:hover{border-color:var(--brand);color:var(--brand)}
+.ct-novo button:not(.mg-btn):hover{border-color:var(--brand);color:var(--brand)}
 
 /* O calendario (16/09/2026, fase 3 do docs/design.md). Era uma grade de
    "uma linha por concurso x uma coluna por dia", que e a forma de um
@@ -12111,10 +12215,10 @@ a.ct-l{color:var(--brand)}
    pagina -- ve-se por a celula ter tres coisas em vez de uma. */
 .cal-rolo{overflow-x:auto}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;
- background:var(--line);border:1px solid var(--line);border-radius:9px;
+ background:var(--line);border:1px solid var(--line);border-radius:var(--radius-md);
  overflow:hidden;box-shadow:var(--shadow-sm)}
 .cal-cab{background:var(--surface-raised);padding:8px 10px;
- font:600 12px/1 var(--font-sans);color:var(--ink-muted)}
+ font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 .cal-dia{background:#fff;padding:7px 8px 9px;min-height:104px;
  display:flex;flex-direction:column;gap:4px;min-width:0}
 /* Sabado e domingo distinguem-se: um prazo ao fim-de-semana importa,
@@ -12125,9 +12229,9 @@ a.ct-l{color:var(--brand)}
    terca que hoje e quinta ainda explica o que aconteceu */
 .cal-dia.passou{background:var(--surface-raised)}
 .cal-dia.passou .cal-n{color:var(--ink-muted)}
-.cal-n{font:600 13px/1 var(--font-mono);color:var(--ink-secondary);
+.cal-n{font:600 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary);
  display:flex;align-items:baseline;gap:5px;margin-bottom:2px}
-.cal-n span{font:500 9.5px/1 var(--font-sans);color:var(--ink-muted);
+.cal-n span{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);
  text-transform:none;letter-spacing:0}
 /* O dia e o eixo da pagina, e a urgencia e uma funcao DELE e nao de
    cada linha: no mesmo dia todas as linhas sao igualmente urgentes.
@@ -12139,9 +12243,9 @@ a.ct-l{color:var(--brand)}
 .cal-dia.mes-novo .cal-n span{color:var(--ink-secondary);font-weight:700}
 .cal-it{display:block;border-left:2px solid var(--line-strong);padding:2px 0 2px 6px;
  min-width:0}
-.cal-it b{display:block;font:600 12px/1.3 var(--font-sans);color:var(--ink);
+.cal-it b{display:block;font:600 var(--text-xs)/1.3 var(--font-sans);color:var(--ink);
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cal-it i{display:block;font:400 10px/1.3 var(--font-sans);color:var(--ink-muted);
+.cal-it i{display:block;font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
  font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cal-it:hover b{color:var(--brand)}
 .cal-it.empresa{border-left-color:var(--brand)}
@@ -12151,7 +12255,7 @@ a.ct-l{color:var(--brand)}
    proibe. */
 .cal-mais{margin-top:1px}
 .cal-mais > summary{cursor:pointer;list-style:none;
- font:600 10px/1 var(--font-sans);color:var(--ink-muted);padding:5px 4px;margin:-5px -4px;
+ font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);padding:5px 4px;margin:-5px -4px;
  min-height:24px;box-sizing:border-box;display:flex;align-items:center}
 .cal-mais > summary::-webkit-details-marker{display:none}
 .cal-mais > summary:hover{color:var(--brand)}
@@ -12159,7 +12263,7 @@ a.ct-l{color:var(--brand)}
 .cal-mais .cal-it{margin-top:4px}
 /* a semana e a unidade de leitura: um risco mais forte entre elas */
 .cal-legenda{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
- margin:0 0 12px;font:400 13px/1.4 var(--font-sans);color:var(--ink-muted)}
+ margin:0 0 12px;font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 
 /* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`
    porque `tq` ja e o botao de marcar uma tarefa feita (button.tq). */
@@ -12168,7 +12272,7 @@ a.ct-l{color:var(--brand)}
 .kpis a.kpi:hover .r{color:var(--brand)}
 .entrada-hoje{margin:14px 0 18px}
 .entrada-hoje.mau{color:var(--danger)}
-.cx.hoje > h2{font:620 17px/1.3 var(--font-sans);color:var(--ink);
+.cx.hoje > h2{font:620 var(--text-lg)/1.3 var(--font-sans);color:var(--ink);
  margin:0 0 14px;letter-spacing:-.2px}
 /* Quatro baldes e nao uma ordem por data: o atrasado de ontem e outra
    categoria e nao um dia pior, e uma lista so por data poe-no a seguir
@@ -12176,21 +12280,21 @@ a.ct-l{color:var(--brand)}
 .hj-g{margin:0 0 16px}
 .hj-g:last-child{margin-bottom:0}
 .hj-t{display:flex;align-items:baseline;gap:7px;margin:0 0 6px;
- font:600 13px/1 var(--font-sans);color:var(--ink-muted)}
-.hj-t i{font:500 10.5px/1 var(--font-mono);font-style:normal;color:var(--ink-muted)}
+ font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
+.hj-t i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted)}
 .hj-g.mau .hj-t{color:var(--danger)}
 .hj-g.avisa .hj-t{color:var(--warning)}
 .hj-l{display:grid;grid-template-columns:96px minmax(0,1fr) minmax(0,1fr);
- gap:12px;align-items:baseline;padding:7px 9px;border-radius:6px;
+ gap:12px;align-items:baseline;padding:7px 9px;border-radius:var(--radius-sm);
  border-left:2px solid var(--line-strong);color:inherit}
 .hj-l:hover{background:var(--surface-sunken)}
 .hj-g.mau .hj-l{border-left-color:var(--danger)}
 .hj-g.avisa .hj-l{border-left-color:var(--warning)}
-.hj-q{font:600 12px/1.4 var(--font-mono);color:var(--ink-secondary)}
+.hj-q{font:600 var(--text-xs)/1.4 var(--font-mono);color:var(--ink-secondary)}
 .hj-q.vago{color:var(--ink-muted);font-weight:400}
-.hj-o{font:500 14px/1.4 var(--font-sans);color:var(--ink);min-width:0}
+.hj-o{font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink);min-width:0}
 .hj-l:hover .hj-o{color:var(--brand)}
-.hj-c{font:400 13px/1.4 var(--font-sans);color:var(--ink-muted);min-width:0;
+.hj-c{font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:900px){.hj-l{grid-template-columns:minmax(0,1fr);gap:2px}}
 /* O cabecalho do grupo: as tarefas agrupam-se por PROPOSTA e nao por
@@ -12199,12 +12303,12 @@ a.ct-l{color:var(--brand)}
    cada uma e. */
 .hj-p{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
  margin:10px 0 3px;padding:0 9px}
-.hj-p a{font:600 13px/1.4 var(--font-sans);color:var(--ink-secondary)}
+.hj-p a{font:600 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-secondary)}
 .hj-p a:hover{color:var(--brand)}
-.hj-p .tag{font:500 10.5px/1.5 var(--font-sans)}
+.hj-p .tag{font:500 var(--text-xs)/1.5 var(--font-sans)}
 .hj-p form.ranhura{margin-left:auto}
 .hj-l .hj-bts{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
-.hj-l .hj-bts input[type=text]{width:88px;font:400 11px/1.4 var(--font-sans);
+.hj-l .hj-bts input[type=text]{width:88px;font:400 var(--text-xs)/1.4 var(--font-sans);
  padding:2px 4px}
 .hj-l .hj-bts input[name=quem]{width:76px}
 
@@ -12244,7 +12348,7 @@ a.ct-l{color:var(--brand)}
    apagar ao lado dos outros pede-se por engano. */
 details.perigo{margin:16px 0 0;border-top:1px solid var(--line);
  padding-top:12px}
-details.perigo > summary{cursor:pointer;font:500 13px/1.5
+details.perigo > summary{cursor:pointer;font:500 var(--text-sm)/1.5
  var(--font-sans);color:var(--ink-muted)}
 details.perigo[open] > summary{color:var(--danger)}
 /* a cronologia e as propostas da ficha da entidade */
@@ -12256,12 +12360,12 @@ details.perigo[open] > summary{color:var(--danger)}
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
  gap:14px}
-.kpi{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px;
+.kpi{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:20px;
  box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.kpi .r{font:500 10px/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
+.kpi .r{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.09em}
-.kpi .v{font:700 30px/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;margin:12px 0 6px}
-.kpi .d{font:500 11.5px/1.4 var(--font-sans);color:var(--ink-muted)}
+.kpi .v{font:700 var(--text-2xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;margin:12px 0 6px}
+.kpi .d{font:500 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 .ind-grelha{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;
  align-items:start}
 /* A coluna e uma GRELHA de tres faixas -- valor, barra, rotulo -- e nao
@@ -12275,13 +12379,13 @@ details.perigo[open] > summary{color:var(--danger)}
 .barras{display:flex;align-items:stretch;gap:16px;height:180px}
 .barras .col{flex:1;display:grid;grid-template-rows:auto 1fr auto;gap:9px;
  justify-items:center;height:100%}
-.barras .v{font:600 12px/1 var(--font-mono);color:var(--ink)}
+.barras .v{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
 /* A cor tinha de vir de `.graf .barras .b`, e havia barras fora do
    `.graf` -- as do "Em jogo, por ranhura", que sairam para a abertura a
    16/09/2026 e ficaram transparentes: altura certa, cor nenhuma. */
-.barras .b{width:100%;border-radius:4px 4px 0 0;align-self:end;
+.barras .b{width:100%;border-radius:var(--radius-sm) var(--radius-sm) 0 0;align-self:end;
  background:var(--brand)}
-.barras .l{font:400 11px/1.2 var(--font-sans);color:var(--ink-muted);text-align:center}
+.barras .l{font:400 var(--text-xs)/1.2 var(--font-sans);color:var(--ink-muted);text-align:center}
 .saude{display:flex;flex-direction:column;gap:12px}
 /* A linha de saude tem de aguentar valores de qualquer comprimento: as
    marcas de ultimo erro sao frases de 80 caracteres em mono, e com
@@ -12289,18 +12393,18 @@ details.perigo[open] > summary{color:var(--danger)}
    palavra a palavra a tentar dar-lhe espaco. Agora o valor encolhe,
    quebra e, se nao couber de todo, passa para a linha de baixo. */
 .saude .l{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.saude .t{font:400 12px/1.45 var(--font-sans);color:var(--ink-secondary);flex:1 1 auto;min-width:0}
+.saude .t{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);flex:1 1 auto;min-width:0}
 .saude .v{margin-left:auto;flex:0 1 auto;min-width:0;
- font:600 11.5px/1.5 var(--font-mono);color:var(--ink);text-align:right;
+ font:600 var(--text-xs)/1.5 var(--font-mono);color:var(--ink);text-align:right;
  word-break:break-word;overflow-wrap:anywhere}
 /* legenda: diz sobre o que e que as linhas seguintes contam */
 .saude .legenda{margin-top:6px}
-.saude .legenda .t{font:400 11px/1.45 var(--font-sans);color:var(--ink-muted);
+.saude .legenda .t{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-muted);
  font-style:italic}
 /* entidade sem NIF no corpus: agrupa-se pelo nome e pode ser a mesma
    empresa que outra linha */
-.sem-nif{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:4px;
- background:var(--surface-sunken);color:var(--ink-muted);font:600 9px/1.3 var(--font-sans);
+.sem-nif{display:inline-block;margin-left:6px;padding:2px 5px;border-radius:var(--radius-sm);
+ background:var(--surface-sunken);color:var(--ink-muted);font:600 var(--text-xs)/1.3 var(--font-sans);
  text-transform:uppercase;letter-spacing:.06em;vertical-align:middle}
 
 @media (max-width:1100px){
@@ -12323,7 +12427,7 @@ details.perigo[open] > summary{color:var(--danger)}
  .barra nav{order:10;flex-basis:100%;margin:2px 0 0}
  .topo{padding:12px 16px 0}
  .corpo{padding:14px 12px 44px}
- h1.tit{font-size:19px}
+ h1.tit{font-size:var(--text-lg)}
  .abas{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
  .abas a{white-space:nowrap;padding:9px 10px}
  .linha-conta{flex-wrap:wrap}
@@ -12360,8 +12464,8 @@ details.perigo[open] > summary{color:var(--danger)}
  dialog.mg-dialog{width:94vw}
 }
 @media (max-width:600px){
- .barra nav a{padding:7px 7px;font-size:12px}
- h1.tit{font-size:17px}
+ .barra nav a{padding:7px 7px;font-size:var(--text-xs)}
+ h1.tit{font-size:var(--text-lg)}
  .kpis{grid-template-columns:minmax(0,1fr)}
  .filtros select,.filtros input.campo-data{flex-basis:100%}
  .filtros input#filtro-cpv-excl{flex-basis:100%!important}
@@ -12427,10 +12531,10 @@ CSS_NOVO = r"""
  border-color:var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
 
 /* Regra 1: hierarquia pelo tamanho e pelo peso. */
-[data-pele=novo] h1.tit{font:680 32px/1.2 var(--font-sans);letter-spacing:-.6px}
-[data-pele=novo] .item-titulo{font:620 17px/1.3 var(--font-sans);
+[data-pele=novo] h1.tit{font:680 var(--text-3xl)/1.2 var(--font-sans);letter-spacing:-.6px}
+[data-pele=novo] .item-titulo{font:620 var(--text-lg)/1.3 var(--font-sans);
  letter-spacing:-.2px}
-[data-pele=novo] .abas a,[data-pele=novo] .bt{font-size:14px}
+[data-pele=novo] .abas a,[data-pele=novo] .bt{font-size:var(--text-sm)}
 
 /* Regra d do diagnostico: as maiusculas espacadas saem. Um rotulo de
    bloco passa a caixa normal, peso 600, --f2 -- le-se melhor, ocupa
@@ -12440,7 +12544,7 @@ CSS_NOVO = r"""
 [data-pele=novo] .tab-contratos th,[data-pele=novo] .tab-mercado th,
 [data-pele=novo] details.painel-filtros .pf-tit,
 [data-pele=novo] .desfecho-som span{
- text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
+ text-transform:none;letter-spacing:0;font-size:var(--text-sm);font-weight:600;
  color:var(--ink-muted)}
 
 /* Os botoes (docs/design.md §5). Cinco classes, e a funcao ve-se pela
@@ -12449,7 +12553,7 @@ CSS_NOVO = r"""
    receber foco: um botao vermelho cheio numa lista de vinte linhas e um
    alvo -- puxa o olho e convida ao clique errado, que e o contrario do
    que uma accao irreversivel quer. */
-[data-pele=novo] .bt{border-radius:6px;font-weight:600;
+[data-pele=novo] .bt{border-radius:var(--radius-sm);font-weight:600;
  background:var(--surface-raised);border-color:var(--line-strong);color:var(--ink-secondary)}
 [data-pele=novo] .bt:hover{border-color:var(--ink-secondary);color:var(--ink)}
 [data-pele=novo] .bt.forte{background:var(--brand);border-color:var(--brand);
@@ -12481,7 +12585,7 @@ CSS_NOVO = r"""
    o ponto (c) do diagnostico em estado puro: a cor de alarme a sair em
    coisas que nao alarmam nada, e por isso a nao querer dizer nada onde
    devia. Quem apaga mesmo leva `.mini.perigo`. */
-[data-pele=novo] .mini{border-radius:6px;font-size:12px;
+[data-pele=novo] .mini{border-radius:var(--radius-sm);font-size:var(--text-xs);
  background:var(--surface-raised);border-color:var(--line-strong);color:var(--ink-secondary)}
 [data-pele=novo] .mini:hover{border-color:var(--ink-secondary);color:var(--ink);
  background:var(--surface-raised)}
@@ -12522,9 +12626,9 @@ CSS_NOVO = r"""
 [data-pele=novo] .factos-linha{display:flex;flex-wrap:wrap;
  align-items:baseline;gap:6px 22px;padding:2px 0 12px}
 [data-pele=novo] .factos-linha a{color:var(--ink-muted);
- font:500 13px/1.5 var(--font-sans)}
+ font:500 var(--text-sm)/1.5 var(--font-sans)}
 [data-pele=novo] .factos-linha a:hover{color:var(--brand)}
-[data-pele=novo] .factos-linha b{font:600 15px/1 var(--font-mono);
+[data-pele=novo] .factos-linha b{font:600 var(--text-md)/1 var(--font-mono);
  color:var(--ink);margin-right:4px;word-spacing:-.3em}
 [data-pele=novo] .factos-linha b.avisa{color:var(--warning)}
 [data-pele=novo] .factos-linha b.mau{color:var(--danger)}
@@ -12534,13 +12638,13 @@ CSS_NOVO = r"""
    separacao e o fundo a aparecer, nao um risco desenhado (regra 3). */
 [data-pele=novo] .fita{display:grid;
  grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;
- background:var(--line);border:1px solid var(--line);border-radius:9px;
+ background:var(--line);border:1px solid var(--line);border-radius:var(--radius-md);
  overflow:hidden;box-shadow:var(--shadow-sm)}
 [data-pele=novo] .fita a{display:flex;flex-direction:column;gap:3px;
  padding:8px 10px 10px;min-height:66px;background:var(--surface-raised);
- color:var(--ink-muted);font:400 12px/1.35 var(--font-sans)}
+ color:var(--ink-muted);font:400 var(--text-xs)/1.35 var(--font-sans)}
 [data-pele=novo] .fita a:hover{background:var(--surface-sunken)}
-[data-pele=novo] .fita .d{font:600 13px/1 var(--font-mono);color:var(--ink-secondary)}
+[data-pele=novo] .fita .d{font:600 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary)}
 /* os dias que passaram vão a cinzento, e nao a meia-luz: o opacity:.7
    baixava o texto a 3,1:1, abaixo dos 4,5 que o texto pede (axe, 25/09/2026) */
 [data-pele=novo] .fita .passou .d{color:var(--ink-muted);font-weight:400}
@@ -12551,7 +12655,7 @@ CSS_NOVO = r"""
 [data-pele=novo] .fita .hoje .d{color:var(--brand);font-weight:700}
 [data-pele=novo] .fita .on{outline:2px solid var(--brand);outline-offset:-2px}
 [data-pele=novo] .fita-nav{display:flex;gap:18px;margin:8px 0 16px;
- flex-wrap:wrap;font:500 13px/1.4 var(--font-sans);color:var(--ink-muted)}
+ flex-wrap:wrap;font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 [data-pele=novo] .fita-nav a{color:var(--ink-secondary)}
 [data-pele=novo] .fita-nav .adiante{margin-left:auto}
 
@@ -12568,16 +12672,16 @@ CSS_NOVO = r"""
  padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 [data-pele=novo] .fazer-topo .periodos{margin:0 0 0 6px}
 [data-pele=novo] .fazer-topo .esconder{margin-left:auto;display:flex;gap:6px;
- align-items:center;font:400 13px/1 var(--font-sans);color:var(--ink-muted)}
+ align-items:center;font:400 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
 [data-pele=novo] .periodos .av{margin-right:5px;width:16px;height:16px;
- line-height:16px;font-size:8px}
+ line-height:16px;font-size:var(--text-xs)}
 [data-pele=novo] .periodos a.on .av{background:rgba(255,255,255,.28);
  color:#fff}
-[data-pele=novo] .periodos i{font:500 10.5px/1 var(--font-mono);font-style:normal;
+[data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
  opacity:.8;margin-left:4px}
 [data-pele=novo] .fazer-fundo{display:flex;gap:18px;padding:12px 16px;
  border-top:1px solid var(--line);flex-wrap:wrap;
- font:500 13px/1.4 var(--font-sans);color:var(--ink-muted)}
+ font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 [data-pele=novo] .fazer-fundo .adiante{margin-left:auto}
 
 /* Os baldes dobram com o <details> do browser -- nao ha JS nenhum a
@@ -12591,41 +12695,41 @@ CSS_NOVO = r"""
 [data-pele=novo] details.hj-g > summary .hj-t{cursor:pointer;
  padding:10px 8px 4px;margin:0}
 [data-pele=novo] details.hj-g > summary .seta::before{content:'\25b8';
- font:500 10px/1 var(--font-mono);color:var(--ink-muted)}
+ font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted)}
 [data-pele=novo] details.hj-g[open] > summary .seta::before{content:'\25be'}
 [data-pele=novo] .hj-t .direita{margin-left:auto;font-weight:400;
- font-size:12px;color:var(--ink-muted)}
-[data-pele=novo] .hj-t .feitas{font:400 12px/1 var(--font-sans);
+ font-size:var(--text-xs);color:var(--ink-muted)}
+[data-pele=novo] .hj-t .feitas{font:400 var(--text-xs)/1 var(--font-sans);
  color:var(--ink-muted)}
 
 /* A LINHA DE TAREFA. Rica-se no sitio: a queixa dele era "concluo a
    tarefa e volto para o inicio da pagina". */
 [data-pele=novo] .hj-row{display:grid;
  grid-template-columns:20px minmax(0,1fr) 64px minmax(120px,220px) 20px 96px;
- gap:10px;align-items:center;padding:6px 8px;border-radius:6px;
+ gap:10px;align-items:center;padding:6px 8px;border-radius:var(--radius-sm);
  border-left:2px solid var(--line-strong)}
 [data-pele=novo] .hj-row:hover{background:var(--surface-sunken)}
 [data-pele=novo] .hj-g.mau .hj-row{border-left-color:var(--danger)}
 [data-pele=novo] .hj-g.avisa .hj-row{border-left-color:var(--warning)}
 [data-pele=novo] .hj-row form.accao{display:flex;margin:0}
 [data-pele=novo] .hj-row .fim{justify-self:end;text-align:right;
- font:400 13px/1.4 var(--font-sans);color:var(--ink-muted)}
+ font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 [data-pele=novo] .hj-row.feita{background:var(--surface-sunken)}
 [data-pele=novo] .hj-row.feita .hj-o{color:var(--ink-muted);
  text-decoration:line-through}
 [data-pele=novo] .hj-row .hj-q.avisa{color:var(--warning)}
 [data-pele=novo] .hj-row .hj-q.mau{color:var(--danger)}
 [data-pele=novo] .hj-sem{display:grid;grid-template-columns:minmax(0,1fr) auto;
- gap:10px;align-items:center;padding:7px 8px 7px 16px;border-radius:6px;
+ gap:10px;align-items:center;padding:7px 8px 7px 16px;border-radius:var(--radius-sm);
  border-left:2px solid var(--danger)}
-[data-pele=novo] .hj-sem > div > a{font:600 14px/1.35 var(--font-sans);
+[data-pele=novo] .hj-sem > div > a{font:600 var(--text-sm)/1.35 var(--font-sans);
  color:var(--ink)}
 [data-pele=novo] .hj-sem .hj-c{white-space:normal}
 
 /* A caixa de ✓ e um <button> de um POST, e nao um <input type=checkbox>:
    sem JS uma caixa nao submete nada, e este gesto tem de valer sem JS. */
 [data-pele=novo] .chk{width:16px;height:16px;padding:0;flex:none;
- position:relative;border:1px solid var(--line-strong);border-radius:4px;
+ position:relative;border:1px solid var(--line-strong);border-radius:var(--radius-sm);
  background:var(--surface-raised);cursor:pointer}
 [data-pele=novo] .chk:hover{border-color:var(--success)}
 [data-pele=novo] .chk.on{background:var(--success);border-color:var(--success)}
@@ -12637,7 +12741,7 @@ CSS_NOVO = r"""
    lugar vazio a dizer que falta alguem, e nao a ausencia de marca. */
 [data-pele=novo] .av{width:20px;height:20px;border-radius:50%;flex:none;
  display:inline-block;background:var(--surface-sunken);color:var(--ink-secondary);
- font:600 9px/20px var(--font-sans);text-align:center}
+ font:600 var(--text-xs)/20px var(--font-sans);text-align:center}
 [data-pele=novo] .av.eu{background:var(--brand);color:#fff}
 [data-pele=novo] .av.vago{background:transparent;
  border:1px dashed var(--line-strong)}
@@ -12646,7 +12750,7 @@ CSS_NOVO = r"""
 [data-pele=novo] .mudou-n{display:flex;gap:12px;margin:12px 0 10px}
 [data-pele=novo] .mudou-n a{flex:1;display:flex;flex-direction:column;gap:2px;
  color:inherit}
-[data-pele=novo] .mudou-n b{font:600 22px/1 var(--font-mono);color:var(--ink)}
+[data-pele=novo] .mudou-n b{font:600 var(--text-xl)/1 var(--font-mono);color:var(--ink)}
 [data-pele=novo] .mudou-n b.azul{color:var(--brand)}
 [data-pele=novo] .feed{display:flex;flex-direction:column;
  border-top:1px solid var(--surface-sunken)}
@@ -12654,13 +12758,16 @@ CSS_NOVO = r"""
  grid-template-columns:44px minmax(0,1fr);gap:10px;padding:8px 0;
  border-bottom:1px solid var(--surface-sunken)}
 [data-pele=novo] .feed .l:last-child{border-bottom:0}
-[data-pele=novo] .feed .l p{margin:0;font:500 13px/1.45 var(--font-sans);
+[data-pele=novo] .feed .l p{margin:0;font:500 var(--text-sm)/1.45 var(--font-sans);
  color:var(--ink)}
 [data-pele=novo] .prazos{display:flex;flex-direction:column;margin-top:8px}
-[data-pele=novo] .prazos a{display:grid;
+/* so as linhas: a ligacao dentro da frase do vazio («estao em
+   Concursos.») tambem era um `a` filho, e virava grelha de tres colunas
+   -- a frase partia-se em tres linhas (E54 da segunda ronda) */
+[data-pele=novo] .prazos>a{display:grid;
  grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:baseline;
  padding:6px 0;border-top:1px solid var(--surface-sunken);color:inherit}
-[data-pele=novo] .prazos a .hj-c{color:var(--ink);font-weight:500}
+[data-pele=novo] .prazos>a .hj-c{color:var(--ink);font-weight:500}
 [data-pele=novo] .prazos .hj-q.avisa{color:var(--warning)}
 
 /* Abaixo de 1180 a linha parte-se em duas: caixa + texto + dono +
@@ -12687,17 +12794,17 @@ CSS_NOVO = r"""
  overflow:hidden}
 [data-pele=novo] .sit-n{background:var(--surface-raised);padding:16px 18px;
  display:flex;flex-direction:column;gap:6px}
-[data-pele=novo] .sit-n .r{font:600 13px/1 var(--font-sans);color:var(--ink-muted)}
-[data-pele=novo] .sit-n b{font:600 28px/1 var(--font-mono);color:var(--ink);
+[data-pele=novo] .sit-n .r{font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
+[data-pele=novo] .sit-n b{font:600 var(--text-2xl)/1 var(--font-mono);color:var(--ink);
  letter-spacing:-1px;word-spacing:-.3em}
-[data-pele=novo] .sit-n .d{font:400 12px/1.45 var(--font-sans);
+[data-pele=novo] .sit-n .d{font:400 var(--text-xs)/1.45 var(--font-sans);
  color:var(--ink-muted)}
 /* O `word-spacing` volta ao normal: o aperto de -.3em é do NÚMERO de
    display (senão "209 903" lê-se como dois números), e aqui o `b` leva
    uma FRASE -- saía "1de1decididos—ataxadiz-seapartirde5". */
-[data-pele=novo] .sit-n.por-haver b{font:400 13px/1.45 var(--font-sans);
+[data-pele=novo] .sit-n.por-haver b{font:400 var(--text-sm)/1.45 var(--font-sans);
  color:var(--ink-muted);letter-spacing:0;word-spacing:normal}
-[data-pele=novo] .delta{font:600 13px/1 var(--font-mono)}
+[data-pele=novo] .delta{font:600 var(--text-sm)/1 var(--font-mono)}
 [data-pele=novo] .delta.sobe{color:var(--success)}
 [data-pele=novo] .delta.desce{color:var(--danger)}
 [data-pele=novo] .delta.igual,[data-pele=novo] .delta.vago{color:var(--ink-muted);
@@ -12708,7 +12815,7 @@ CSS_NOVO = r"""
    antes de se ler a taxa; "6 propostas" nao diz nada disso. */
 [data-pele=novo] .ent-fita{display:flex;gap:2px;flex-wrap:wrap;
  margin-bottom:3px}
-[data-pele=novo] .ent-fita i{width:8px;height:8px;border-radius:2px;
+[data-pele=novo] .ent-fita i{width:8px;height:8px;border-radius:var(--radius-sm);
  display:block}
 [data-pele=novo] .tab-pe{display:flex;gap:12px;align-items:center;
  flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line)}
@@ -12718,10 +12825,10 @@ CSS_NOVO = r"""
 [data-pele=novo] .comparar .cab{display:grid;
  grid-template-columns:180px 1fr 1fr;gap:12px;padding:12px 16px;
  background:var(--brand-soft);border-bottom:1px solid var(--brand-soft);
- font:600 14px/1.3 var(--font-sans)}
+ font:600 var(--text-sm)/1.3 var(--font-sans)}
 [data-pele=novo] .comparar .grelha{display:grid;
  grid-template-columns:180px 1fr 1fr;gap:10px 12px;padding:14px 16px;
- font:400 13px/1.5 var(--font-sans);color:var(--ink-secondary)}
+ font:400 var(--text-sm)/1.5 var(--font-sans);color:var(--ink-secondary)}
 [data-pele=novo] .comparar .grelha .r{font-weight:600;color:var(--ink-muted)}
 [data-pele=novo] .comparar > a{display:block;padding:0 16px 14px}
 @media (max-width:760px){
@@ -12733,7 +12840,7 @@ CSS_NOVO = r"""
    gráficos do mercado -- e é a primeira pergunta ao abrir uma ficha. */
 [data-pele=novo] .sit-numeros.seis{margin:0 0 14px;
  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
-[data-pele=novo] .sit-numeros.seis .sit-n b{font-size:22px}
+[data-pele=novo] .sit-numeros.seis .sit-n b{font-size:var(--text-xl)}
 [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,360px) minmax(0,1fr);
  margin-top:14px}
 [data-pele=novo] .ent-dois .lado-nosso > .cx{margin:0}
@@ -13012,8 +13119,13 @@ PROPOSTAS = "/propostas"
 # Configuracoes, por ordem de uso diario. O Calendario deixou de ser
 # vista dos Concursos, e as Propostas -- que eram as oito ranhuras da
 # empresa dentro da lista dos Concursos -- passaram a item.
+# **A Situacao e item desde 26/09/2026** (D11 da segunda ronda, decisao
+# dele): so se chegava la pelo «Em jogo» do Hoje -- o rastreio de 70
+# paginas achou uma ligacao unica para `/situacao`. Vive a seguir as
+# Propostas, que sao o que ela conta.
 NAV = (("anuncios", "Concursos", LISTA, ()),
        ("propostas", "Propostas", PROPOSTAS, ()),
+       ("situacao", "Situação", "/situacao", ()),
        # **O Mercado nao tem vistas agrupadas na barra** (16/09/2026,
        # fase 5). Tinha "Contratos" e "Renovacoes", que sao os MESMOS
        # dois modos que as abas da pagina ja oferecem como "Por
@@ -13033,8 +13145,12 @@ NAV = (("anuncios", "Concursos", LISTA, ()),
        # mercado -- por quem, e não por contrato. Até aí não havia lista
        # nenhuma delas, e à ficha de uma entidade só se chegava por um
        # nome dentro de um anúncio ou de uma tabela.
-       ("mercado", "Mercado", "/contratos",
-        (("entidades", "Entidades", "/entidades"),)),
+       # **As Entidades sairam da barra a 26/09/2026** (E39 da segunda
+       # ronda): apareciam como sexto item so dentro do Mercado, a barra
+       # mudava de largura, e em /entidades ficavam dois acesos. Sao uma
+       # aba do Mercado, ao lado dos dois modos da tabela, e as migalhas
+       # dizem «Mercado › Entidades» pelo PAGINAS_DE_UM_ITEM.
+       ("mercado", "Mercado", "/contratos", ()),
        ("calendario", "Calendário", "/calendario", ()))
 # Alertas saiu do primeiro nivel a 8/09/2026 (docs/historico/ONLINE.md,
 # etapa 2): passou a seccao de Configuracoes, que vive em baixo, ao
@@ -13056,7 +13172,11 @@ ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
 # isto o item da barra deixava de acender e as migalhas caiam para
 # "Radar". A barra e hierarquia por cima das paginas, nao um nome novo
 # para elas.
-ITEM_DA_PAGINA.update({"contratos": "mercado", "renovacoes": "mercado"})
+ITEM_DA_PAGINA.update({"contratos": "mercado", "renovacoes": "mercado",
+                       "entidades": "mercado"})
+# As paginas que vivem num item e tem nome proprio nas migalhas (o item
+# por cima, a pagina a seguir).
+PAGINAS_DE_UM_ITEM = {"entidades": ("Entidades", "/entidades")}
 
 # As paginas que NAO vivem em item nenhum da barra, e o nome com que se
 # apresentam nas migalhas. Sao duas e sao as duas de propositio: o Hoje
@@ -13103,6 +13223,8 @@ def migalhas_de(vista, folha=""):
         for chave, etiqueta, destino, _ in NAV:
             if chave == item:
                 passos = [(etiqueta, destino)]
+                if vista in PAGINAS_DE_UM_ITEM:
+                    passos.append(PAGINAS_DE_UM_ITEM[vista])
                 break
     if not passos:
         # as paginas fora da navegacao (FORA_DA_BARRA): as Configuracoes
@@ -13364,7 +13486,7 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
         opcoes.append("<option value='%s'%s>%s</option>"
                       % (chave, " selected" if chave == actual else "",
                          html.escape(rotulo)))
-    opcoes.append("<option value='%s'>tirar da escada</option>"
+    opcoes.append("<option value='%s'>voltar a «Por ver»</option>"
                   % ENTRADA_DA_ESCADA[0])
     base = preco_base_da_proposta(p) if p is not None else None
     # O nome diz DE QUE concurso (segunda ronda, 26/09/2026; WCAG 2.4.6):
@@ -13384,11 +13506,11 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
                " ".join(MOTIVOS_DO_ESTADO),
                html.escape(json.dumps(falta), quote=True),
                " data-base='%s'" % base if base else "",
-               html.escape("Ranhura de «%s»" % qual if qual
-                           else "Ranhura na escada", quote=True),
+               html.escape("Fase de «%s»" % qual if qual
+                           else "Fase da proposta", quote=True),
                "".join(opcoes),
-               html.escape("Mudar a ranhura de «%s»" % qual if qual
-                           else "Mudar a ranhura", quote=True)))
+               html.escape("Mudar a fase de «%s»" % qual if qual
+                           else "Mudar a fase", quote=True)))
 
 
 def caixa_do_motivo():
@@ -13430,7 +13552,7 @@ def caixa_do_motivo():
             "<input type='hidden' name='estado' id='dlg-motivo-estado'>"
             "<h3 class='mg-dialog__title' id='dlg-motivo-titulo'></h3>"
             "<p class='alvo' id='dlg-motivo-alvo'></p>"
-            "<p class='nota' id='dlg-motivo-nota'>Não apaga nada: fica na escada e pode "
+            "<p class='nota' id='dlg-motivo-nota'>Não apaga nada, e pode "
             "voltar. O motivo é para daqui a um mês se saber porquê.</p>"
             "%s%s"
             "<div class='mg-dialog__actions'>"
@@ -13503,7 +13625,7 @@ def caixa_do_motivo():
             "    var sel = form.querySelector('select[name=estado]');\n"
             "    if (!sel) return;\n"
             "    if (sel.value === 'porver') {\n"
-            "      if (!confirm('Tirar «' + form.dataset.titulo + '» da escada? A proposta volta a «Por ver».'))\n"
+            "      if (!confirm('Voltar «' + form.dataset.titulo + '» a «Por ver»? A proposta e as tarefas dela apagam-se.'))\n"
             "        e.preventDefault();\n"
             "      return;\n"
             "    }\n"
@@ -13625,6 +13747,14 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
 
     # As Configuracoes sao o quinto item (24/09/2026): viviam no canto
     # oposto, sozinhas, e a barra do sistema poe-nas no fim da navegacao.
+    # A Ajuda à vista (D11 da segunda ronda, decisão dele): vivia no menu
+    # da conta, a 10,5 px, e ninguém a achava. Um «?» com nome, depois
+    # das Configurações -- em qualquer página, com ou sem empresa.
+    ajuda = ("<a class='mg-topbar__link barra-ajuda' href='/ajuda' "
+             "aria-label='Ajuda' title='Ajuda: como funciona o Mira Gov, e o "
+             "que quer dizer cada palavra'%s>%s</a>"
+             % (" aria-current='page'" if activo == "ajuda" else "",
+                icone("ajuda", 20) or "?"))
     if sem_empresa:
         itens.append("<a class='mg-topbar__link' href='/plataforma'>Plataforma</a>")
     else:
@@ -13632,6 +13762,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                      "title='A conta, o perfil da empresa, os alertas e o resto das "
                      "configurações'>Configurações</a>"
                      % (" aria-current='page'" if activo == "configuracoes" else ""))
+    itens.append(ajuda)
 
     # A ultima verificacao saiu da barra a 13/09/2026: esta nos
     # Indicadores (linha_da_ultima_verificacao()), que passaram a seccao
@@ -13697,12 +13828,12 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         aviso += (
             "<div class='mg-alert mg-alert--danger'>O radar <b>não está a verificar "
             "sozinho</b>: %s por criar %s. Enquanto "
-            "assim for, só recolhe quando este painel está aberto. Corre "
+            "assim for, só recolhe quando este painel está aberto. Corra "
             "o <code>%s</code> uma vez.</div>"
-            % ("a tarefa &ldquo;%s&rdquo; está" % html.escape(faltam[0])
+            % ("a tarefa «%s» está" % html.escape(faltam[0])
                if len(faltam) == 1
                else "as tarefas %s estão"
-               % " e ".join("&ldquo;%s&rdquo;" % html.escape(t)
+               % " e ".join("«%s»" % html.escape(t)
                             for t in faltam), onde, guiao))
 
     partes_do_topo = {
@@ -13712,9 +13843,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # morto, que a empresa nao poe no ecra.
         "titulo_e_porque": (
             ("<details class='mg-disc porque'><summary>"
-             "<h1 class='mg-pagehead__title'>%s</h1><i aria-hidden='true' title='O que e esta pagina'>?</i>"
-             "</summary><p class='mg-pagehead__sub'>%s</p></details>"
-             % (html.escape(titulo), subtitulo)) if subtitulo.strip()
+             "<h1 class='mg-pagehead__title'>%s</h1><i aria-hidden='true' title='O que é esta página'>?</i>"
+             "</summary><p class='mg-pagehead__sub'>%s%s</p></details>"
+             % (html.escape(titulo), subtitulo, mais_na_ajuda(titulo)))
+            if subtitulo.strip()
             else "<h1 class='mg-pagehead__title'>%s</h1>" % html.escape(titulo)),
         "abas": abas or "<div class='vazio-topo'></div>",
         # "Verificar agora" vai ao DR buscar anuncios novos, e os novos
@@ -13730,7 +13862,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     }
     return com_csrf(BASE % {
         "topo": "" if cabeca else TOPO % partes_do_topo,
-        "titulo_aba": html.escape(titulo_aba or titulo),
+        # «Ecrã — Mira Gov» em todas (segunda ronda, perfil 15): havia
+        # «Hoje, Mira Gov», «Por ver, Concursos» sem a marca, e «Nova
+        # proposta» sozinho. A secção vai com « · » antes da marca.
+        "titulo_aba": html.escape("%s — Mira Gov" % (titulo_aba or titulo)),
         "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
@@ -14923,7 +15058,7 @@ def barra_das_abas(rota, actual, contas=None, chaves=None):
     # há painel nenhum, e o leitor anunciava «separador 1 de 11» com
     # setas que não faziam o que se esperava. É `<nav>` com o
     # `aria-current` na activa, como a barra de cima.
-    pecas = ["<nav class='mg-tabs abas-escada' aria-label='Ranhuras'>"]
+    pecas = ["<nav class='mg-tabs abas-escada' aria-label='Fases'>"]
     for chave, rotulo in ESCADA + (("", "Todos"),):
         if chaves is not None and chave not in chaves:
             continue
@@ -15195,8 +15330,7 @@ def _lista_de_anuncios():
         "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
         "%s"
         "<input type='hidden' name='estado' value='%s'>"
-        "<span class='f-accoes'><button type='submit' class='mg-btn mg-btn--primary'>Filtrar</button>"
-        "<a class='mg-btn mg-btn--secondary limpar' href='%s'>Limpar</a></span>"
+        "%s"
         "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
@@ -15210,7 +15344,8 @@ def _lista_de_anuncios():
            html.escape(data_para_campo(request.args.get("ate")), quote=True),
            campos_do_local_e_valor(request.args),
            html.escape(estado_actual, quote=True),
-           html.escape(href_limpar(rota, estado_actual), quote=True)))
+           botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
+                                        quote=True))))
 
     # Com interesse definido a lista fica so com o filtro de texto (e os
     # selectores): a arvore e o "excluir CPV" saem, porque o CPV ja esta
@@ -15254,7 +15389,7 @@ def _lista_de_anuncios():
         corpo_lista = ("<div class='mg-empty'>Nada por decidir: o que "
                        "entrou está triado, e o que expirou passou "
                        "sozinho para o <a href='/concursos?estado=expirou'>"
-                       "&ldquo;expirou sem ver&rdquo;</a>.</div>")
+                       "«expirou sem ver»</a>.</div>")
     elif escondidos_interesse:
         # Com filtro e sem nada dentro do perfil, dizia só «Nada
         # corresponde» -- com 34 de fora dele (segunda ronda, 26/09/2026).
@@ -15315,7 +15450,7 @@ def _lista_de_anuncios():
     por_enviar = sum(len(x[1]) for x in alertas_por_enviar())
     if por_enviar:
         faixa_avisos = (
-            "<div class='mg-alert mg-alert--info'><b>%s anúncio%s</b> nos teus alertas, "
+            "<div class='mg-alert mg-alert--info'><b>%s anúncio%s</b> nos seus alertas, "
             "por avisar. <a href='/configuracoes/alertas'>ver os alertas</a></div>"
             % (mil_pt(por_enviar), "" if por_enviar == 1 else "s"))
     else:
@@ -15399,7 +15534,7 @@ def _lista_de_anuncios():
         cabeca=cabecalho_de_pagina("Concursos", frase, [], "".join(accoes)),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_do_motivo(),
-        titulo_aba="%s, Concursos" % (
+        titulo_aba="%s · Concursos" % (
             ROTULOS_DA_ESCADA.get(estado_actual) or "Todos"))
 
 
@@ -15450,7 +15585,9 @@ def _preco_da_proposta(p):
     estiver preenchido mostra-se o base **dito como base**, que e
     diferente de o mostrar como se fosse a proposta."""
     if p["estado"] in ESTADOS_COM_PROPOSTO and p["valor_proposta"]:
-        return html.escape(p["valor_proposta"])
+        # como o resto do dinheiro: «412.000,00 EUR» é a forma guardada, e
+        # saía ao lado de «395 146,78 €» na mesma linha (perfil 15)
+        return html.escape(preco_pt(p["valor_proposta"]))
     return "&mdash;"
 
 
@@ -15627,16 +15764,16 @@ def _lista_de_propostas():
         # "Nada em Ganho" por baixo de uma aba a dizer 13 e o ecra a
         # discordar de si proprio a dois centimetros de distancia, e
         # manda arrumar o que esta arrumado em vez de apagar a procura.
-        corpo = ("<div class='mg-empty'>Nada em &ldquo;%s&rdquo; com "
-                 "&ldquo;%s&rdquo;. <a href='%s?estado=%s'>Ver as %s</a>."
+        corpo = ("<div class='mg-empty'>Nada em «%s» com "
+                 "«%s». <a href='%s?estado=%s'>Ver as %s</a>."
                  "</div>"
                  % (html.escape(estado_da_empresa(estado_actual)),
                     html.escape(procura), PROPOSTAS, estado_actual,
                     mil_pt(contas.get(estado_actual, 0))))
     else:
-        corpo = ("<div class='mg-empty'>Nada em &ldquo;%s&rdquo;. "
-                 "Põe um concurso aqui a partir da ficha dele, ou "
-                 "<a href='/proposta/nova'>cria uma proposta sem anúncio</a> "
+        corpo = ("<div class='mg-empty'>Nada em «%s». "
+                 "Um concurso entra aqui a partir da ficha dele; ou "
+                 "<a href='/proposta/nova'>crie uma proposta sem anúncio</a> "
                  "(consulta prévia, ajuste directo).</div>"
                  % html.escape(estado_da_empresa(estado_actual)))
     conta = "%s %s" % (mil_pt(len(linhas)),
@@ -15651,12 +15788,12 @@ def _lista_de_propostas():
     caixa = ("<form class='pf' method='get' action='%s'>"
              "<input type='hidden' name='estado' value='%s'>"
              "<input type='search' name='q' value='%s' "
-             "placeholder='procurar no título ou no cliente…' aria-label='Procurar nas propostas'>"
-             "<button type='submit'>procurar</button>%s</form>"
+             "placeholder='No título ou na entidade' aria-label='Filtrar as propostas'>"
+             "%s</form>"
              % (PROPOSTAS, html.escape(estado_actual, quote=True),
                 html.escape(procura, quote=True),
-                (" <a href='%s?estado=%s'>limpar</a>" % (PROPOSTAS, estado_actual))
-                if procura else ""))
+                botoes_de_filtro("%s?estado=%s" % (PROPOSTAS, estado_actual)
+                                 if procura else "")))
     # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
     # corpo, a procura e a contagem, e a tabela.
     conteudo = (barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)
@@ -15668,13 +15805,13 @@ def _lista_de_propostas():
         conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
-            "O que a empresa tem em curso, por ranhura &mdash; com as "
+            "O que a empresa tem em curso, por fase &mdash; com as "
             "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
             "convite).", [],
             "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
             + icone("mais") + " Nova proposta</a>"),
         script=caixa_do_motivo(),
-        titulo_aba="%s, Propostas" % estado_da_empresa(estado_actual))
+        titulo_aba="%s · Propostas" % estado_da_empresa(estado_actual))
 
 
 # Caractere de escape do LIKE. Usa-se "!" e nao a barra invertida de
@@ -15855,7 +15992,7 @@ def arvore_html(n_cpv, de, submeter=True, aberta=False,
     pe = ("<div class='arv-pe'>Marcar uma divisão apanha tudo o que está por "
           "baixo dela &mdash; ao filtro vai só o código do grupo, e os zeros à "
           "direita fazem o resto. <b>Desmarcar um código lá dentro tira só "
-          "esse</b>: vai para &ldquo;excluir CPV&rdquo; e a divisão continua a "
+          "esse</b>: vai para «excluir CPV» e a divisão continua a "
           "contar, incluindo os anúncios que só trazem o código dela.</div>"
           if rodape else "")
     return (
@@ -15867,8 +16004,8 @@ def arvore_html(n_cpv, de, submeter=True, aberta=False,
         "</summary>"
         "<div class='arvore-topo'>"
         "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software' aria-label='Filtrar a árvore de CPV'>"
-        "<button type='button' onclick='arvoreAplicar()'>%s</button>"
-        "<button type='button' class='claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
+        "<button type='button' class='mg-btn mg-btn--sm mg-btn--primary' onclick='arvoreAplicar()'>%s</button>"
+        "<button type='button' class='mg-btn mg-btn--sm mg-btn--subtle claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
         "<span id='arvore-contagem'></span>"
         "</div>"
         "<div id='arvore-corpo'>a carregar…</div>"
@@ -16119,7 +16256,7 @@ def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
         return ""
     if levantado:
         return ("<div class='cpv-activo'>Perfil da empresa levantado nesta "
-                "vista &mdash; vês o acervo todo.<a href='%s'>voltar ao perfil"
+                "vista &mdash; mostra todos os concursos. <a href='%s'>voltar ao perfil"
                 "</a></div>"
                 % html.escape(sem_pagina(request.args, rota, interesse=""),
                               quote=True))
@@ -16201,7 +16338,7 @@ def filtro_apagar(filtro_id):
         c.execute("DELETE FROM filtros_guardados WHERE id=?", (filtro_id,))
         c.execute("DELETE FROM alertas_vistos WHERE filtro_id=?", (filtro_id,))
     return volta_para((request.form.get("volta") or "/configuracoes/alertas").strip(), "",
-                      "Filtro apagado: %s" % linha["nome"] if linha else "")
+                      "Alerta apagado: %s" % linha["nome"] if linha else "")
 
 
 # {fonte: (chave de frescura, corpo JSON)} -- ver cpv_json()
@@ -16462,7 +16599,7 @@ def mudar_estado(ref, novo):
     motivo = (request.values.get("motivo") or "").strip()
     permitidos = MOTIVOS_DO_ESTADO.get(accao)
     if permitidos and motivo not in permitidos:
-        return _volta_com_erro("Escolhe o motivo antes de continuar.")
+        return _volta_com_erro("Escolha o motivo antes de continuar.")
     if _recado_do_preco_do_pedido():
         return _volta_com_erro(_recado_do_preco_do_pedido())
     with liga() as c:
@@ -16737,7 +16874,7 @@ def _local_e_valor_do_interesse(cfg):
             "nacional entra sempre)</span></legend>%s</fieldset>"
             "<label>Preço base a partir de<input type='text' name='pbmin' "
             "value='%s' inputmode='numeric' placeholder='€, ex. 20 000'></label>"
-            "<button type='submit'>Guardar</button>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
             % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
 
 
@@ -16767,7 +16904,7 @@ def _conteudo_interesse():
     if apanha_ver is None:
         estado = ("<div class='nota' style='margin:0 0 12px'>Ainda sem "
                   "perfil: a <a href='" + LISTA + "'>lista de anúncios</a> mostra "
-                  "tudo. Marca os CPV e carrega em «Guardar o perfil».</div>")
+                  "tudo. Marque os CPV e carregue em «Guardar o perfil».</div>")
     else:
         # o endereco vai no TUPLO e nao concatenado ao molde: o `%` tem
         # precedencia sobre o `+`, e `"a" + LISTA + "b %s" % x` aplica a
@@ -16775,7 +16912,7 @@ def _conteudo_interesse():
         # outra vez a corrigir isto -- deu 500 no /configuracoes/interesse)
         estado = ("<div class='nota' style='margin:0 0 12px'>Em vigor: "
                   "<b>%s</b>%s &mdash; apanha <b>%s</b> dos anúncios por ver "
-                  "e <b>%s</b> do acervo. A <a href='%s'>lista</a> mostra só "
+                  "e <b>%s</b> de todos os concursos. A <a href='%s'>lista</a> mostra só "
                   "isto, em todas as abas.</div>"
                   % (descricao_do_interesse(cfg),
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
@@ -16876,7 +17013,8 @@ def _linha_filtro(f):
         # os dois com o NOME do alerta (segunda ronda, 26/09/2026; WCAG
         # 2.4.6 e 4.1.2): o «×» lia-se «vezes», e três «desligar o
         # alerta» não diziam qual
-        "<button type='submit' class='apagar' title='apagar' aria-label='%s'>&times;</button>"
+        "<button type='submit' class='apagar' title='Remover' aria-label='%s'>"
+        "%s</button>"
         "</form></div>"
         % ("on" if ligado else "", f["id"], "on" if ligado else "",
            "desligar o alerta" if ligado else "ligar o alerta",
@@ -16899,7 +17037,7 @@ def _linha_filtro(f):
            if ligado else "",
            ("<span class='avisa-mal'>não avisa: nada aqui é sobre "
             "anúncios</span>" if ligado and not onde else
-            "<b>%s</b> por avisar &middot; %s avisados &middot; %s do acervo%s"
+            "<b>%s</b> por avisar &middot; %s avisados &middot; %s de todos os concursos%s"
             % (mil_pt(f["por_enviar"]), mil_pt(f["avisados"]),
                mil_pt(f["acervo"]),
                "<span class='avisa-mal'>avisa só por %s</span>"
@@ -16908,7 +17046,8 @@ def _linha_filtro(f):
            f["id"], html.escape(json.dumps(
                "Apagar o alerta «%s»? Não se apaga nada além do alerta."
                % f["nome"]), quote=True),
-           html.escape("Apagar o alerta «%s»" % f["nome"], quote=True)))
+           html.escape("Apagar o alerta «%s»" % f["nome"], quote=True),
+           icone("apagar", 16) or "&times;"))
 
 
 def _caixa_email(cfg):
@@ -16950,7 +17089,7 @@ def _caixa_email(cfg):
             "da hora marcada, e só se houver novidade.</div>"
             "<form class='form-email' method='post' action='/alertas/email'>"
             "<label>Enviar para<input type='email' name='para' value='%s' "
-            "placeholder='o.teu@email.pt'></label>"
+            "placeholder='nome@empresa.pt'></label>"
             "<label>Hora do resumo<input type='time' name='hora_resumo' "
             "value='%s'></label>"
             "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
@@ -16964,7 +17103,7 @@ def _caixa_email(cfg):
         "da hora marcada, e só se houver novidade.</div>"
         "<form class='form-email' method='post' action='/alertas/email'>"
         "<label>Enviar para<input type='email' name='para' value='%s' "
-        "placeholder='o.teu@email.pt'></label>"
+        "placeholder='nome@empresa.pt'></label>"
         "<label>Hora do resumo<input type='time' name='hora_resumo' "
         "value='%s'></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
@@ -16973,10 +17112,10 @@ def _caixa_email(cfg):
         "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
         "resumo. A palavra-passe grava-se no <code>email_senha.txt</code>, "
         "nunca no <code>config.json</code>; o campo fica vazio de "
-        "propósito e só escreve se puseres uma nova.%s</div>"
+        "propósito, e só se grava se escrever uma nova.%s</div>"
         "<form class='form-email' method='post' action='/alertas/remetente'>"
         "<label>Conta que envia<input type='email' name='de' value='%s' "
-        "placeholder='o.teu@gmail.com'></label>"
+        "placeholder='nome@gmail.com'></label>"
         "<label>Servidor<input type='text' name='servidor' value='%s' "
         "placeholder='smtp.gmail.com'></label>"
         "<label>Porta<input type='text' name='porta' value='%s'></label>"
@@ -17007,9 +17146,9 @@ def _caixa_urgente():
     usado pelo filtro, pelo cartao dos indicadores e pelos rotulos --
     por isso edita-se num sitio so, e todos leem dias_urgente()."""
     return ("<div class='mg-card novo-filtro' style='margin-top:16px'>"
-            "<div class='mg-field__label'>Janela do &ldquo;urgente&rdquo;</div>"
+            "<div class='mg-field__label'>Janela do «urgente»</div>"
             "<div class='nota' style='margin:6px 0 10px'>Um anúncio é "
-            "&ldquo;urgente&rdquo; quando o prazo acaba nos próximos N "
+            "«urgente» quando o prazo acaba nos próximos N "
             "dias. O mesmo número serve o filtro da lista, o cartão dos "
             "indicadores e os avisos &mdash; mudar aqui muda em todo o "
             "lado.</div>"
@@ -17018,7 +17157,7 @@ def _caixa_urgente():
             "<input type='text' id='dias-urgente' name='dias' value='%d' inputmode='numeric' "
             "style='min-width:0;width:70px;flex:none'>"
             "<label>dias</label>"
-            "<button type='submit'>Guardar</button></form></div>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form></div>"
             % dias_urgente())
 
 
@@ -17031,7 +17170,7 @@ def alertas_urgente():
         n = int(bruto)
     except ValueError:
         return redirect("/configuracoes/alertas?aviso=" +
-                        quote("“%s” não é um número de dias." % bruto))
+                        quote("«%s» não é um número de dias." % bruto))
     if not 1 <= n <= 90:
         return redirect("/configuracoes/alertas?aviso=" +
                         quote("A janela do urgente vai de 1 a 90 dias."))
@@ -17114,7 +17253,7 @@ def _conteudo_alertas():
         lista = "<div class='alertas'>%s</div>" % "".join(
             _linha_filtro(f) for f in filtros)
     else:
-        lista = ("<div class='mg-empty'>Ainda não há alertas. Cria um aqui em "
+        lista = ("<div class='mg-empty'>Ainda não há alertas. Crie um aqui em "
                  "baixo: o que entrar e corresponder vai no resumo por "
                  "e-mail.</div>")
 
@@ -17167,7 +17306,7 @@ def _conteudo_alertas():
         "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data' aria-label='Publicado desde'>"
         "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data' aria-label='Publicado até'>"
         "%s"
-        "<button type='submit'>Criar alerta</button>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Criar alerta</button>"
         "</form><datalist id='entidades'></datalist></div>"
         % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
            pv("nome"), pv("q"), pv("cpv"), pv("cpv_excl"), pv("ent"), pv("nif"),
@@ -17251,11 +17390,11 @@ SECCOES_CONFIG = (
     ("interesse", "Perfil da empresa", "os CPV, os distritos e o valor que a empresa trabalha", False, True),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
     ("importar", "Importar dados", "o registo da empresa, pelo modelo Excel", False, True),
-    ("indicadores", "Indicadores", "as capturas, a recolha e o corpus", True, False),
+    ("indicadores", "Indicadores", "as capturas, a recolha e os contratos do Portal BASE", True, False),
     ("capturas", "Capturas", "os dois pedidos ao DR", True, True),
     ("recolha", "Recolha", "horas, janelas, a Vortal", True, True),
     ("leitura", "Leitura das peças", "fornecedor, modelo e chaves", True, True),
-    ("copias", "Cópias", "a cópia diária e a triagem no git", True, True),
+    ("copias", "Cópias", "a cópia diária e a cópia fora do disco", True, True),
 )
 
 
@@ -17364,13 +17503,13 @@ def pagina_config(seccao, conteudo, script=""):
             cabeca=cabecalho_de_pagina(
                 "Plataforma", "A administração da plataforma: o que é de "
                 "todas as empresas.", [], ""),
-            script=script, titulo_aba="%s, Plataforma" % titulo)
+            script=script, titulo_aba="%s · Plataforma" % titulo)
     return envolver(
         "configuracoes", titulo, "", corpo,
         cabeca=cabecalho_de_pagina(
-            "Configurações", "Dizer ao Mira Gov como quero que ele trabalhe.",
+            "Configurações", "Como o Mira Gov trabalha para a empresa.",
             [], ""),
-        script=script, titulo_aba="%s, Configurações" % titulo)
+        script=script, titulo_aba="%s · Configurações" % titulo)
 
 
 @app.route("/plataforma")
@@ -17639,7 +17778,10 @@ def config_leitura():
                       nota="de origem: %s" % html.escape(omissao)),
                "" if por_var else
                _campo("Chave nova", "chave_" + nome, "", tipo="password",
-                      nota="só escreve se puseres uma; fica no %s" % ficheiros[-1],
+                      # o ficheiro onde se ESCREVE, que para a Groq é o
+                      # de maiúsculas (a nota dizia o outro, E58)
+                      nota="só se grava se escrever uma; fica no %s"
+                      % (ficheiros[-1] if nome != "groq" else "groq_API_KEY.txt"),
                       extra="autocomplete='new-password'")))
     corpo = (
         "<form method='post' action='/configuracoes/leitura' class='conf-form'>"
@@ -17831,7 +17973,7 @@ def _tabela_do_ensaio(linhas):
                html.escape(corta(l["titulo"] or "", 90)),
                "L%d" % l["lote"] if l["lote"] is not None else "—",
                html.escape(l["status"] or "—"),
-               html.escape(_texto_do_preco(l["valor_proposta"])) if l["valor_proposta"] else "—",
+               html.escape(preco_pt(_texto_do_preco(l["valor_proposta"]))) if l["valor_proposta"] else "—",
                ("<span class='%s'>%s</span>" % ("mau" if base.startswith("não bate")
                                                  else "", html.escape(base)))
                if base else "—",
@@ -17851,7 +17993,7 @@ def config_importar():
     if request.method == "POST":
         ficheiro = request.files.get("ficheiro")
         if not ficheiro or not ficheiro.filename:
-            return volta_config_erro("importar", "Escolhe o ficheiro .xlsx preenchido.")
+            return volta_config_erro("importar", "Escolha o ficheiro .xlsx preenchido.")
         if not ficheiro.filename.lower().endswith(".xlsx"):
             return volta_config_erro("importar", "Só .xlsx: é o formato do modelo.")
         pasta = pasta_das_importacoes()
@@ -17898,7 +18040,7 @@ def config_importar():
                               "" if contagens["alteram"] == 1 else "s",
                               "" if contagens["alteram"] == 1 else "m")]
                 if contagens["alteram"] else []) + (
-                ["%d linha%s não muda%s a proposta, que já está noutra ranhura."
+                ["%d linha%s não muda%s a proposta, que já está noutra fase."
                  % (contagens["mantem"], "" if contagens["mantem"] == 1 else "s",
                     "" if contagens["mantem"] == 1 else "m")]
                 if contagens["mantem"] else []) + [
@@ -17926,8 +18068,8 @@ def config_importar():
         "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
         "<a class='mg-btn mg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
         "<div class='mg-field__label' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
-        "<div class='nota' style='margin-bottom:12px'>Primeiro vês um ensaio: o que liga a que "
-        "anúncio, o que não liga e porquê. Só grava quando confirmares.</div>"
+        "<div class='nota' style='margin-bottom:12px'>Primeiro vê-se um ensaio: o que liga a que "
+        "anúncio, o que não liga e porquê. Só se grava depois de confirmar.</div>"
         "<form method='post' action='/configuracoes/importar' enctype='multipart/form-data' "
         "class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span>"
         "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
@@ -18162,11 +18304,11 @@ def config_conta():
     linhas = "".join(
         "<div class='l'><span class='ponto' style='background:%s'></span>"
         "<span class='t'>%s%s</span><span class='v'>até %s</span></div>"
-        % ("#1e8449" if s_["token"] == g.get("sessao") else "#9db1c4",
+        % ("var(--success)" if s_["token"] == g.get("sessao") else "var(--line-strong)",
            aparelho_do_agente(s_["agente"]),
            " (esta)" if s_["token"] == g.get("sessao") else "",
            html.escape(data_hora_pt(s_["expira"][:16])))
-        for s_ in sessoes) or "<div class='nota'>nenhuma sessão: estás pelo acesso livre local</div>"
+        for s_ in sessoes) or "<div class='nota'>nenhuma sessão: a entrada é pelo acesso livre local</div>"
     corpo = (
         "<form method='post' action='/configuracoes/conta' class='conf-form'>"
         + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled")
@@ -18175,7 +18317,7 @@ def config_conta():
         + _campo("Nova palavra-passe", "nova", "", tipo="password",
                  nota="8 caracteres ou mais",
                  extra="autocomplete='new-password'")
-        + _campo("Outra vez", "outra", "", tipo="password",
+        + _campo("Repetir a nova palavra-passe", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
         + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
         + "<div class='mg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
@@ -18214,7 +18356,7 @@ def _bloco_da_empresa(cfg=None):
                      nota="como aparece nos contratos")
             + _campo("NIF", "nif_da_empresa", nif,
                      nota="nove dígitos; é por aqui que a ligação é certa")
-            + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>")
+            + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>")
 
 
 @app.route("/configuracoes/conta/empresa", methods=["POST"])
@@ -18233,6 +18375,16 @@ def config_empresa():
     return volta_config("conta", "A nossa empresa: guardada.")
 
 
+# Os papéis como o ecrã os diz (segunda ronda, glossário do revisor de
+# texto): «admin» e «tester» são as chaves gravadas, em inglês, e o
+# «tester» nem dizia o que a conta faz.
+PAPEL_NO_ECRA = {"admin": "Administrador", "tester": "Utilizador"}
+
+
+def papel_no_ecra(papel):
+    return PAPEL_NO_ECRA.get(papel, papel or "")
+
+
 def _bloco_utilizadores(todos, eu):
     """A gestao das contas, so ao admin (13/09/2026): quem existe, de que
     tipo, e o formulario para criar outra. Tirar uma conta e um botao
@@ -18241,9 +18393,9 @@ def _bloco_utilizadores(todos, eu):
     linhas = "".join(
         "<div class='l'><span class='ponto' style='background:%s'></span>"
         "<span class='t'>%s%s</span><span class='v'>%s%s</span></div>"
-        % ("#1e8449" if u["papel"] == "admin" else "#9db1c4",
+        % ("var(--success)" if u["papel"] == "admin" else "var(--line-strong)",
            html.escape(u["email"]), " (eu)" if u["id"] == eu else "",
-           html.escape(u["papel"]),
+           html.escape(papel_no_ecra(u["papel"])),
            "" if u["id"] == eu else
            (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/repor" % u["id"],
                                  "repor palavra-passe", "mini",
@@ -18253,18 +18405,16 @@ def _bloco_utilizadores(todos, eu):
            # o «tirar» so a quem o pode fazer: a conta do dono so o
            # dono a tira (contas.apagar_utilizador recusa na mesma)
            + (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
-                                   "tirar", "mini perigo",
-                                   "Tirar a conta %s? As sessões dela fecham já."
+                                   "Remover", "mini perigo",
+                                   "Remover a conta %s? As sessões dela fecham já."
                                    % html.escape(u["email"], quote=True))
               if contas.pode_repor(g.get("utilizador"), u) else ""))
         for u in todos)
     return (
         "<div class='mg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
-        "<div class='nota' style='margin-bottom:10px'>As contas da nossa "
-        "empresa. O <b>admin</b> cria e tira contas e diz quem a empresa é; "
-        "o <b>tester</b> vê os anúncios, o que está em curso, o mercado, e "
-        "nas configurações só a conta, o perfil da empresa, os alertas e o "
-        "importar.</div>"
+        "<div class='nota' style='margin-bottom:10px'><b>Administrador</b>: "
+        "gere as contas e os dados da empresa. <b>Utilizador</b>: trabalha "
+        "nos concursos e nas propostas, sem mexer nas contas.</div>"
         "<div class='saude'>%s</div>"
         # O convite primeiro (teste com utilizadores, 25/09/2026): criar a
         # conta obrigava o admin a inventar a palavra-passe do colega e a
@@ -18272,21 +18422,21 @@ def _bloco_utilizadores(todos, eu):
         "<form method='post' action='/configuracoes/conta/utilizadores/convite' "
         "class='conf-form' style='margin-top:16px'>"
         "<div class='nota' style='flex:1 1 100%%'><b>Convidar um colega</b>: "
-        "crias uma ligação, mandas-lha, e é ele que escolhe o nome e a "
-        "palavra-passe. Vale %d dias, e só uma vez.</div>"
+        "cria-se uma ligação, manda-se ao colega, e é ele que escolhe o nome "
+        "e a palavra-passe. Vale %d dias, e só uma vez.</div>"
         "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
-        "<option value='tester'>tester</option>"
-        "<option value='admin'>admin</option></select></label>"
+        "<option value='tester'>Utilizador</option>"
+        "<option value='admin'>Administrador</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
-        "<div class='nota' style='margin-top:18px'>Ou cria tu a conta, com "
+        "<div class='nota' style='margin-top:18px'>Ou criar a conta já, com "
         "a palavra-passe:</div>"
         "<form method='post' action='/configuracoes/conta/utilizadores' "
         "class='conf-form' style='margin-top:8px'>"
         "%s%s"
         "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
-        "<option value='tester'>tester</option>"
-        "<option value='admin'>admin</option></select></label>"
-        "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button></form>"
+        "<option value='tester'>Utilizador</option>"
+        "<option value='admin'>Administrador</option></select></label>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Criar utilizador</button></form>"
         % (linhas, contas.DIAS_DE_CONVITE,
            _campo("Utilizador", "email", "", extra="autocomplete='off'"),
            _campo("Palavra-passe", "senha", "", tipo="password",
@@ -18306,11 +18456,11 @@ def conta_criar_utilizador():
             contas.criar_utilizador(c, email, request.form.get("senha") or "",
                                     papel=papel, empresa_id=empresa_activa())
         except ValueError as erro:
-            return volta_config_erro("conta", "Não criei: %s." % erro)
+            return volta_config_erro("conta", "O utilizador não foi criado: %s." % erro)
     registar("", "conta", "criou o utilizador %s (%s)"
              % (contas.email_limpo(email), papel))
     return volta_config("conta", "Utilizador %s criado, como %s."
-                        % (contas.email_limpo(email), papel))
+                        % (contas.email_limpo(email), papel_no_ecra(papel)))
 
 
 # O glossario (teste com utilizadores, 25/09/2026): o estagiario sem
@@ -18328,7 +18478,7 @@ GLOSSARIO = (
         ("Expirou sem ver", "Os que passaram do prazo, desde que a empresa chegou ao Mira Gov, "
          "sem ninguém decidir. "
          "Não se apagam: se o prazo for prorrogado, voltam ao «Por ver»."),
-        ("Interessa", "Põe o concurso na escada, em «Por analisar», e manda "
+        ("Interessa", "Abre a proposta do concurso, em «Por analisar», e manda "
          "trazer as peças."),
         ("Abandonar", "Diz que não se vai concorrer, com o motivo. Fica em "
          "«Não fomos», e pode voltar."),
@@ -18343,13 +18493,13 @@ GLOSSARIO = (
          "(com zeros no fim) apanha tudo o que está por baixo dele."),
     )),
     ("As propostas", (
-        ("A escada", "As fases de uma proposta, da decisão ao desfecho: "
-         "Por analisar, A preparar proposta, Submetido, Relatório "
-         "preliminar, Ganho, Perdido, Não fomos e Cancelado. Cada fase é "
-         "uma «ranhura»."),
-        ("O que cada fase pede", "Submetido, Relatório preliminar, Ganho e "
-         "Perdido pedem o preço proposto; o Relatório preliminar pede também "
-         "o lugar; Perdido e Não fomos pedem o motivo. Sem isso a proposta "
+        ("Fase", "O ponto em que a proposta está, da decisão ao desfecho: "
+         "Por analisar, A preparar, Submetida, Relatório preliminar, Ganha, "
+         "Perdida, Não fomos e Cancelada. As fases, por esta ordem, são a "
+         "«escada» da proposta."),
+        ("O que cada fase pede", "Submetida, Relatório preliminar, Ganha e "
+         "Perdida pedem o preço proposto; o Relatório preliminar pede também "
+         "o lugar; Perdida e Não fomos pedem o motivo. Sem isso a proposta "
          "não muda de fase."),
         ("Tarefas", "O que há para fazer. As automáticas nascem das datas do "
          "anúncio (pedir esclarecimentos, entregar) e acompanham-nas se o "
@@ -18358,8 +18508,9 @@ GLOSSARIO = (
          "esclarecimentos, vale a regra do art. 50.º do Código dos Contratos "
          "Públicos: o primeiro terço do prazo. Confirma-se no Programa do "
          "Concurso."),
-        ("Tipologia", "Consulting (serviços de consultoria) ou turnkey "
-         "(entrega chave-na-mão)."),
+        ("Tipologia", "Consultoria (serviços de consultoria; «consulting» "
+         "no registo) ou Chave na mão (entrega da obra ou do sistema pronto a "
+         "usar; «turnkey» no registo)."),
         ("CoE", "Center of Excellence: o centro de excelência da empresa "
          "a que a proposta fica entregue."),
     )),
@@ -18375,8 +18526,8 @@ GLOSSARIO = (
     ("O mercado", (
         ("Portal BASE", "O registo público dos contratos celebrados, que o "
          "IMPIC publica todas as semanas. É daí que vem o Mercado."),
-        ("Corpus", "Os contratos do Portal BASE que o Mira Gov tem "
-         "guardados, desde 2015."),
+        ("Contratos do Portal BASE", "Os contratos celebrados que o Mira "
+         "Gov tem guardados, desde 2015."),
         ("Entidade", "Quem compra (adjudicante) ou quem ganha "
          "(adjudicatário). A ficha de uma entidade junta os dois lados e o "
          "que a empresa já fez com ela."),
@@ -18390,8 +18541,8 @@ GLOSSARIO = (
          "concurso. É estimado: prorrogações não constam do Portal BASE."),
     )),
     ("O negócio", (
-        ("Em jogo", "O valor das propostas que ainda estão abertas na "
-         "escada: o preço proposto, a partir de «Submetido»; antes disso, o "
+        ("Em jogo", "O valor das propostas que ainda estão abertas: o "
+         "preço proposto, a partir de «Submetida»; antes disso, o "
          "preço base."),
         ("Taxa de vitória", "Das propostas decididas, quantas se ganharam. "
          "Só se diz a partir de cinco decididas."),
@@ -18403,25 +18554,49 @@ GLOSSARIO = (
 )
 
 
+def ancora_do_termo(termo):
+    """'Em jogo' -> 'em-jogo': a âncora de um termo no `/ajuda`."""
+    return re.sub(r"[^a-z0-9]+", "-", simplifica(termo)).strip("-")
+
+
+# Os termos que têm definição (D11 da segunda ronda, 26/09/2026): um «?»
+# que explica uma palavra liga à definição dela, em vez de a repetir.
+TERMOS_DA_AJUDA = {ancora_do_termo(termo) for _, termos in GLOSSARIO
+                   for termo, _ in termos}
+
+
+def ligacao_ao_termo(termo, texto=None):
+    """Uma ligação para a definição do termo no `/ajuda`, ou o texto sem
+    ligação quando o glossário não o tem (uma ligação para uma âncora que
+    não existe leva ao topo da página, que é pior do que nada)."""
+    ancora = ancora_do_termo(termo)
+    rotulo = html.escape(texto or termo)
+    if ancora not in TERMOS_DA_AJUDA:
+        return rotulo
+    return "<a href='/ajuda#%s'>%s</a>" % (ancora, rotulo)
+
+
 @app.route("/ajuda")
 def ajuda():
     """Como funciona, e o que quer dizer cada palavra (GLOSSARIO)."""
     blocos = "".join(
         cartao(html.escape(grupo), "<dl class='glossario'>%s</dl>" % "".join(
-            "<dt>%s</dt><dd>%s</dd>" % (html.escape(termo), html.escape(texto))
+            "<dt id='%s'>%s</dt><dd>%s</dd>"
+            % (ancora_do_termo(termo), html.escape(termo), html.escape(texto))
             for termo, texto in termos))
         for grupo, termos in GLOSSARIO)
     abertura = (
         "<div class='mg-card conf-cx'><p>O Mira Gov lê os concursos públicos "
         "ao longo do dia, traz as peças, e põe no mesmo sítio o que há para "
         "decidir. O caminho de todos os dias é este: em <b>Concursos</b>, "
-        "vês o que chegou e carregas em <b>Interessa</b> ou "
-        "<b>Abandonar</b>; em <b>Propostas</b>, levas o que interessa até "
-        "ao fim; no <b>Hoje</b> (o logótipo) está o que há para fazer; e o "
-        "<b>Mercado</b> diz quem compra, quem ganha, e por quanto.</p></div>")
+        "vê-se o que chegou e carrega-se em <b>Interessa</b> ou "
+        "<b>Abandonar</b>; em <b>Propostas</b>, leva-se o que interessa até "
+        "ao fim; no <b>Hoje</b> (o logótipo) está o que há para fazer; a "
+        "<b>Situação</b> diz como vai o negócio; e o <b>Mercado</b> diz "
+        "quem compra, quem ganha, e por quanto.</p></div>")
     return envolver("ajuda", "Como funciona",
                     "O que o Mira Gov faz, e o que quer dizer cada palavra.",
-                    "<div class='larg'>%s%s</div>" % (abertura, blocos))
+                    "<div class='larg ajuda'>%s%s</div>" % (abertura, blocos))
 
 
 @app.route("/configuracoes/conta/utilizadores/convite", methods=["POST"])
@@ -18436,7 +18611,7 @@ def conta_convidar():
     nem no historico: e ela que da entrada, e na base fica so o resumo."""
     papel = (request.form.get("papel") or "tester").strip()
     if papel not in contas.PAPEIS:
-        return volta_config_erro("conta", "O tipo tem de ser admin ou tester.")
+        return volta_config_erro("conta", "O tipo tem de ser Administrador ou Utilizador.")
     with liga() as c:
         codigo = contas.criar_convite(c, empresa_activa(), "", papel)
     registar("", "conta", "criou um convite (%s)" % papel)
@@ -18444,9 +18619,9 @@ def conta_convidar():
     return pagina_config("conta", (
         "<div class='mg-card conf-cx'>"
         "<div class='mg-field__label'>Convite criado (%s)</div>"
-        "<p class='nota'>Manda esta ligação ao colega. Vale %d dias e só "
-        "uma vez; <b>não a voltas a ver</b> depois de saíres desta página "
-        "&mdash; se se perder, cria outra.</p>"
+        "<p class='nota'>Mande esta ligação ao colega. Vale %d dias e só "
+        "uma vez; <b>não se volta a ver</b> depois de sair desta página "
+        "&mdash; se se perder, crie outra.</p>"
         "<input class='mg-field__input' type='text' readonly value='%s' "
         "aria-label='Ligação do convite' onfocus='this.select()' "
         "style='width:100%%;font-family:var(--font-mono)'>"
@@ -18459,7 +18634,7 @@ def conta_convidar():
            methods=["POST"])
 def conta_apagar_utilizador(utilizador_id):
     if utilizador_id == (g.get("utilizador") or {}).get("id"):
-        return volta_config_erro("conta", "A tua própria conta não se tira daqui.")
+        return volta_config_erro("conta", "A sua própria conta não se remove daqui.")
     with liga() as c:
         linha = c.execute("SELECT email FROM utilizadores WHERE id=?",
                           (utilizador_id,)).fetchone()
@@ -18516,8 +18691,8 @@ def alerta_criar():
         return recusa(maus[0] + " O alerta não foi gravado.")
     consulta = urlencode(pares)
     if not [k for k, v in pares if v and k not in ("estado", "op")]:
-        return recusa("Diz o que o alerta procura: palavras, CPV, entidade "
-                      "ou plataforma.")
+        return recusa("Falta dizer o que o alerta procura: palavras, CPV, "
+                      "entidade ou plataforma. O alerta não foi criado.")
     # Nasce ligado (13/09/2026: "Criar alerta", nao "criar filtro"), e o
     # acervo que ja la esta fica marcado como tal, como ao ligar o
     # interruptor -- senao o primeiro resumo trazia tudo.
@@ -18600,7 +18775,7 @@ def entidade_procurar():
         # (fase 2 do CICLOS.md); até aí este formulário estava dentro do
         # Mercado e não era `href` de lado nenhum.
         return redirect("/entidades?aviso=" +
-                        quote("Escreve um nome ou um NIF para procurar."))
+                        quote("Escreva um nome ou um NIF para procurar."))
     if not ha_corpus():
         # Sem corpus procura-se no NOSSO lado, que existe na mesma: as
         # entidades das propostas e dos contactos. **Uma entidade sem
@@ -18615,7 +18790,7 @@ def entidade_procurar():
         if r and r["k"]:
             return redirect("/entidade/" + quote(r["k"], safe=""))
         return redirect("/entidades?aviso=" +
-                        quote("Não há nenhuma entidade assim. O corpus do "
+                        quote("Não há nenhuma entidade assim. O registo do "
                               "Portal BASE não está carregado."))
     with liga_corpus() as c:
         # Um NIF e a propria chave do corpus: vai directo
@@ -18656,7 +18831,7 @@ def entidade_procurar():
             for e in achadas)
         corpo = ("<div class='larg'><div class='mg-card lado-cx'>"
                  "<div class='mg-field__label' style='margin-bottom:10px'>"
-                 "%s entidades respondem a &ldquo;%s&rdquo; &mdash; "
+                 "%s entidades respondem a «%s» &mdash; "
                  "escolhe a ficha%s</div>%s</div></div>"
                  % (mil_pt(total_achadas), html.escape(termo),
                     (". Aqui estão as %d de nome mais curto: escreve mais "
@@ -18664,7 +18839,7 @@ def entidade_procurar():
                     if total_achadas > len(achadas) else "", linhas))
     else:
         corpo = ("<div class='larg'><div class='mg-empty'>Nenhuma entidade "
-                 "do corpus responde a &ldquo;%s&rdquo;. O corpus só "
+                 "do Portal BASE responde a «%s». O Portal BASE só "
                  "conhece quem já assinou contratos desde %s. "
                  "<a href='/contratos'>Voltar aos contratos</a></div></div>"
                  % (html.escape(termo), primeiro_ano_corpus()))
@@ -18673,7 +18848,7 @@ def entidade_procurar():
         "Nome ou NIF; a procura cobre todas as grafias com que cada "
         "entidade já assinou.",
         corpo, migalhas=migalhas_de("contratos", "procurar"),
-        titulo_aba="Procurar entidade, Mira Gov")
+        titulo_aba="Procurar entidade")
 
 
 @app.route("/alertas/enviar", methods=["POST"])
@@ -19093,11 +19268,6 @@ def escaloes_html(escal):
         destaque=mediano, fmt=mil_pt_f)
 
 
-def mil_pt_f(v):
-    """mil_pt() para as barras, que passam o valor como float."""
-    return mil_pt(int(round(v or 0)))
-
-
 # Escaloes do desconto sobre o preco base, em percentagem: cada corte e
 # o limite superior do escalao, e o ultimo apanha o resto. As etiquetas
 # constroem-se desta lista, para nao se mudar uma sem a outra.
@@ -19126,11 +19296,6 @@ def escaloes_de_desconto(descontos):
         baixo = lim
     etiquetas.append("%d%%+" % baixo)
     return list(zip(etiquetas, contagens)), mediana
-
-
-def pct_pt(fraccao):
-    """0.073 -> '7,3%'. Virgula decimal, como o resto dos numeros."""
-    return ("%.1f" % (100.0 * fraccao)).replace(".", ",") + "%"
 
 
 def descontos_por_procedimento(c, onde, valores):
@@ -19191,7 +19356,10 @@ def concentracao_html(ganha):
         return ""
     topo = ganha[:5]
     quota = sum(x["v"] for x in topo)
-    cores = ("#1f4e79", "#2f6ea6", "#4f8dc0", "#7fadd2", "#aecbe4")
+    # tokens e nao cores escritas a mao (segunda ronda, perfil 11): a
+    # rampa mudava de tema sem os tokens mudarem com ela
+    cores = tuple("color-mix(in srgb, var(--brand) %d%%, var(--surface-sunken))"
+                  % pc for pc in (100, 80, 62, 46, 32))
     fatias = []
     for cor, x in zip(cores, topo):
         fatias.append("<i style='width:%.2f%%;background:%s' title='%s — %s'></i>"
@@ -19207,11 +19375,11 @@ def concentracao_html(ganha):
             "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
             "cinco maiores, entre as %s empresas que ganharam alguma "
             "coisa.</div>"
-            "<div class='conc-n'>%.0f%%</div>"
+            "<div class='conc-n'>%s</div>"
             "<div class='conc-b'>%s</div>"
             "<div class='nota' style='margin-top:10px'>Os cinco maiores "
             "levam %s dos %s adjudicados.</div></div>"
-            % (mil_pt(quantas), 100.0 * quota / total, "".join(fatias),
+            % (mil_pt(quantas), pct_pt(quota / total, 0), "".join(fatias),
                euros_curto(quota), euros_curto(total)))
 
 
@@ -19274,6 +19442,11 @@ def trimestre_de(quando):
     return "%s T%d" % (quando.year, (quando.month + 2) // 3)
 
 
+# Acima disto, as barras verticais só levam o valor no máximo e no
+# último: com mais, os rótulos atropelam-se (E41).
+MAX_ROTULOS_BARRAS = 6
+
+
 def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
              unidade="contratos"):
     """Barras verticais para o tempo, como as dos indicadores.
@@ -19287,18 +19460,30 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
         return ""
     fmt = fmt or euros_curto
     maior = max(l["v"] for l in linhas) or 1
+    # **Os valores por cima só quando cabem** (E41 da segunda ronda,
+    # 26/09/2026): doze barras de 30 px com «15,2 M€» por cima davam
+    # «9,0 M€13,7 M€15,2 M€», e o último saía do cartão. A partir de
+    # MAX_ROTULOS_BARRAS vão só o máximo e o último; os outros ficam no
+    # `title` da barra. Encostados um ao outro, fica só o último.
+    marcados = set(range(len(linhas)))
+    if len(linhas) > MAX_ROTULOS_BARRAS:
+        i_max = max(range(len(linhas)), key=lambda i: linhas[i]["v"])
+        marcados = {len(linhas) - 1}
+        if i_max < len(linhas) - 2:
+            marcados.add(i_max)
     cols = []
-    for l in linhas:
+    for i, l in enumerate(linhas):
         meio = bool(parcial) and l["t"] == parcial
         realce = bool(destaque) and l["t"] == destaque
         classes = "".join((" parcial" if meio else "",
                            " destaque" if realce else ""))
         cols.append(
             "<div class='col%s'><span class='v'>%s</span>"
-            "<div class='b' style='height:%.1f%%' title='%s %s%s'>"
+            "<div class='b' style='height:%.1f%%' title='%s: %s, %s %s%s'>"
             "</div><span class='l'>%s</span></div>"
-            % (classes, fmt(l["v"]),
-               max(2.0, 100.0 * l["v"] / maior), l["k"], unidade,
+            % (classes, fmt(l["v"]) if i in marcados else "",
+               max(2.0, 100.0 * l["v"] / maior), html.escape(l["t"]),
+               fmt(l["v"]), l["k"], unidade,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
@@ -19329,7 +19514,7 @@ def contratos_resumo():
         barras_h(ganha, "Quem ganha",
                  "Valor adjudicado, do maior para o menor. Um contrato "
                  "ganho por um agrupamento reparte-se pelos membros. "
-                 "Carrega no nome para a ficha da empresa.", ligar=True),
+                 "Carregue no nome para abrir a ficha da empresa.", ligar=True),
         barras_h(compra, "Quem compra",
                  "As entidades que mais adjudicaram, por valor.", ligar=True),
         barras_h([{"n": p["p"], "v": p["v"], "k": p["k"]} for p in proc],
@@ -19421,8 +19606,8 @@ def filtros_da_ficha(chave, d):
                      % ("on" if activo else "", quote(chave, safe=""),
                         urlencode(args), html.escape(etiqueta)))
 
-    limpar = ("<a class='limpar' href='/entidade/%s'>limpar</a>"
-              % quote(chave, safe="")) if ha_filtro_na_ficha(request.args) else ""
+    limpar = ("/entidade/%s" % quote(chave, safe="")
+              if ha_filtro_na_ficha(request.args) else "")
     outros = {c: (request.args.get(c) or "").strip() for c in CAMPOS_FICHA
               if c != "cpv" and (request.args.get(c) or "").strip()}
     faixa = faixa_cpv_activo(request.args,
@@ -19434,29 +19619,64 @@ def filtros_da_ficha(chave, d):
 
     # O campo do CPV e escondido e quem escolhe e a arvore, como nas duas
     # listas: onde se pode procurar por CPV, pode-se escolher mais que um.
-    return (
-        "<form class='mg-card filtros ent-filtros' method='get' action='/entidade/%s'>"
-        "<input type='text' name='q' value='%s' placeholder='Objecto do contrato…'>"
-        "<input type='text' name='q_excl' value='%s' "
-        "placeholder='Excluir palavras…'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='text' id='filtro-cpv-excl' name='cpv_excl' value='%s' "
-        "placeholder='Excluir CPV…' "
-        "style='min-width:0;width:120px;flex:none'>"
-        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>"
-        "<input type='text' name='min' value='%s' placeholder='€ mínimo' aria-label='Valor mínimo, em euros' inputmode='decimal' "
-        "style='min-width:0;width:110px;flex:none'>"
-        "<button type='submit'>Filtrar</button>%s"
-        "<div class='periodos'><span>rápido:</span>%s</div>"
-        "</form>%s%s%s%s"
+    # Tudo entre parenteses antes do `%`: com `+` a meio, o `%` so
+    # formatava o ultimo pedaco (a armadilha das ligacoes, na interface).
+    return ((
+        # **O filtro da ficha é o do Mercado** (E40 da segunda ronda,
+        # 26/09/2026): eram sete campos sem rótulo empilhados ao centro,
+        # 410 px de altura, com o «de» e o «até» soltos entre eles.
+        "<form class='mg-card filtros ent-filtros' id='filtros-entidade' "
+        "method='get' action='/entidade/%s'>"
+        + campo_de_filtro("Objecto", "<input class='mg-field__input' type='text' "
+                          "name='q' value='%s' placeholder='Objecto do contrato'>",
+                          " f-q")
+        + campo_de_filtro("Excluir palavras", "<input class='mg-field__input' "
+                          "type='text' name='q_excl' value='%s'>")
+        + "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+        + campo_de_filtro("Excluir CPV", "<input class='mg-field__input' "
+                          "type='text' id='filtro-cpv-excl' name='cpv_excl' "
+                          "value='%s' placeholder='Código'>")
+        + campo_de_filtro("Celebrado de", "<input class='mg-field__input campo-data' "
+                          "type='text' name='de' value='%s' inputmode='numeric' "
+                          "placeholder='dd/mm/aaaa' maxlength='10' "
+                          "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
+        + campo_de_filtro("até", "<input class='mg-field__input campo-data' "
+                          "type='text' name='ate' value='%s' inputmode='numeric' "
+                          "placeholder='dd/mm/aaaa' maxlength='10' "
+                          "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
+        + campo_de_filtro("Preço mínimo", "<input class='mg-field__input' "
+                          "type='text' name='min' value='%s' placeholder='€' "
+                          "inputmode='decimal'>")
+        + "%s"
+        "<div class='periodos'><span>Período:</span>%s</div>"
+        "</form>%s%s%s%s")
         % (quote(chave, safe=""), v("q"), v("q_excl"), v("cpv"),
            v("cpv_excl"),
            html.escape(data_para_campo(request.args.get("de")), quote=True),
            html.escape(data_para_campo(request.args.get("ate")), quote=True),
-           v("min"), limpar, "".join(chips),
+           v("min"), botoes_de_filtro(html.escape(limpar, quote=True)),
+           "".join(chips),
            faixa_de_avisos_de_datas(request.args), faixa,
            arvore_html(n_cpv, "contratos"), ""))
+
+
+def campo_de_filtro(rotulo, dentro, classe=""):
+    """Um campo de um formulário de filtro: o `Field` do sistema, com o
+    rótulo por cima. O `dentro` é o controlo, já com `mg-field__input`."""
+    return ("<label class='mg-field%s'><span class='mg-field__label'>%s"
+            "</span>%s</label>" % (classe, rotulo, dentro))
+
+
+def botoes_de_filtro(limpar=""):
+    """O fim de um formulário de filtro, igual nos quatro (segunda ronda,
+    perfil 11: eram cinco desenhos do mesmo gesto, com os verbos
+    Filtrar, Perguntar e procurar). O verbo é «Filtrar», o botão é o
+    primário, e o «Limpar» é subtil. O `limpar` é o endereço sem filtro,
+    ou nada quando não há o que limpar."""
+    return ("<span class='f-accoes'><button type='submit' "
+            "class='mg-btn mg-btn--primary'>Filtrar</button>%s</span>"
+            % ("<a class='mg-btn mg-btn--subtle limpar' href='%s'>Limpar</a>"
+               % limpar if limpar else ""))
 
 
 def nosso_lado_cx(nosso):
@@ -19489,16 +19709,16 @@ def nosso_lado_cx(nosso):
                                      90)),
                    html.escape(estado_da_empresa(p["estado"])
                                + (" — lote %d" % p["lote"] if p["lote"] else "")),
-                   html.escape(p["valor_proposta"] or "—")))
+                   html.escape(preco_pt(p["valor_proposta"]))))
         taxa = ""
         if nosso["taxa"] is not None:
-            taxa = (" &middot; ganhámos <b>%d%%</b> dos %s decididos"
-                    % (round(nosso["taxa"] * 100), mil_pt(nosso["decididos"])))
+            taxa = (" &middot; ganhámos <b>%s</b> das %s decididas"
+                    % (pct_pt(nosso["taxa"], 0), mil_pt(nosso["decididos"])))
         elif nosso["decididos"]:
             # não se inventa uma taxa com dois concursos: diz-se de
             # quantos é preciso, que é a mesma honestidade do
             # taxa_de_vitoria() global
-            taxa = (" &middot; %s decidido%s — a taxa diz-se a partir de %d"
+            taxa = (" &middot; %s decidida%s — a taxa diz-se a partir de %d"
                     % (mil_pt(nosso["decididos"]),
                        "" if nosso["decididos"] == 1 else "s",
                        MINIMO_COM_ENTIDADE))
@@ -19712,13 +19932,13 @@ def _bloco_de_comparacao(chaves):
                          "" if f["compra"]["k"] == 1 else "s",
                          euros_curto(f["compra"]["v"] or 0)))
         if nosso["taxa"] is not None:
-            com_ela = ("%.0f%% de %s decididos"
-                       % (nosso["taxa"] * 100, mil_pt(nosso["decididos"])))
+            com_ela = ("%s de %s decididas"
+                       % (pct_pt(nosso["taxa"], 0), mil_pt(nosso["decididos"])))
         elif nosso["decididos"]:
             com_ela = ("%s de %s — poucos para uma taxa"
                        % (mil_pt(nosso["ganhos"]), mil_pt(nosso["decididos"])))
         else:
-            com_ela = "ainda não há decididos"
+            com_ela = "ainda não há decididas"
         k, v = acabam.get(ch, (0, 0.0))
         colunas.append([
             ("O que compra", compra),
@@ -19751,13 +19971,13 @@ def _vazio_da_aba(aba):
                 "Os anúncios novos de uma entidade seguida entram no resumo "
                 "diário. Segue-se na ficha de cada uma, no botão «seguir».")
     if aba in ("clientes", "concorrentes", "acabar"):
-        return ("Sem o corpus do Portal BASE não há esta lista",
+        return ("Sem os contratos do Portal BASE não há esta lista",
                 "São dois milhões de contratos celebrados, que se trazem com "
                 "«Actualizar contratos» em Configurações › Indicadores. "
                 "Demora minutos e refaz-se sozinho à segunda-feira.")
     return ("Ainda não há propostas com entidade nenhuma",
             "Uma entidade entra aqui quando um concurso dela passa a uma "
-            "ranhura da escada — basta carregar em «interessa» num anúncio.")
+            "fase — basta carregar em «Interessa» num anúncio.")
 
 
 @app.route("/entidades")
@@ -19789,13 +20009,13 @@ def entidades():
                "action='/entidade/procurar'>"
                "<label>Nome ou NIF<input type='text' name='q' "
                "placeholder='ex. 506000000, ou Politécnico de Leiria'></label>"
-               "<button type='submit'>procurar</button></form>")
+               "<button type='submit' class='mg-btn mg-btn--primary'>Abrir a ficha</button></form>")
 
     # Sem corpus, três das cinco abas não têm o que mostrar e as colunas
     # do BASE dizem «sem BASE». O aviso diz o caminho em vez de deixar a
     # página a parecer avariada (redesenho §5).
     if not ha_corpus():
-        procura = ("<div class='mg-alert mg-alert--info'>Sem o corpus do Portal BASE, as "
+        procura = ("<div class='mg-alert mg-alert--info'>Sem os contratos do Portal BASE, as "
                    "colunas do mercado dizem «sem BASE» e três destas abas "
                    "ficam vazias. Traz-se em <a href='/configuracoes/"
                    "indicadores'>Configurações › Indicadores</a>, com "
@@ -19822,7 +20042,7 @@ def entidades():
         # A taxa só a partir do mínimo, e abaixo dele diz-se quantos são:
         # uma taxa sobre dois concursos é ruído com ar de facto.
         if decididos >= MINIMO_COM_ENTIDADE:
-            taxa = "%.0f%%" % (100.0 * ganhos / decididos)
+            taxa = pct_pt(ganhos / decididos, 0)
         elif decididos:
             taxa = ("<span class='nota'>%s de %s — poucos</span>"
                     % (mil_pt(ganhos), mil_pt(decididos)))
@@ -19875,7 +20095,7 @@ def entidades():
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
-            "a partir de %d decididos.</span></div></div></form>"
+            "a partir de %d decididas.</span></div></div></form>"
             % (html.escape(aba, quote=True), MESES_A_ACABAR, "".join(corpo),
                MINIMO_COM_ENTIDADE))
     else:
@@ -19890,7 +20110,7 @@ def entidades():
                     "<div class='larg'>%s%s%s</div>"
                     % (procura, _bloco_de_comparacao(marcadas), tabela),
                     migalhas=migalhas_de("entidades"), abas=abas,
-                    titulo_aba="Entidades, Mira Gov")
+                    titulo_aba="Entidades")
 
 
 def factos_da_entidade(chave, nosso, meses=24, args=None):
@@ -19947,8 +20167,8 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
 
     propostas = len(nosso["propostas"])
     if nosso["taxa"] is not None:
-        taxa_v = "%.0f%%" % (nosso["taxa"] * 100)
-        taxa_n = "%s de %s decididos" % (mil_pt(nosso["ganhos"]),
+        taxa_v = pct_pt(nosso["taxa"], 0)
+        taxa_n = "%s de %s decididas" % (mil_pt(nosso["ganhos"]),
                                          mil_pt(nosso["decididos"]))
     elif nosso["decididos"]:
         # A frase ocupa o lugar do número numa célula estreita: diz o que
@@ -19959,11 +20179,11 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
                   % (mil_pt(nosso["ganhos"]), mil_pt(nosso["decididos"]),
                      MINIMO_COM_ENTIDADE))
     else:
-        taxa_v, taxa_n = None, "ainda não há decididos com ela"
+        taxa_v, taxa_n = None, "ainda não há decididas com ela"
 
     no_filtro = " · no filtro" if e else ""
     seis = (
-        ("Compra · %d m%s" % (meses, no_filtro),
+        ("Compra · %s%s" % (plural(meses, "mês", "meses"), no_filtro),
          euros_curto(compra_v) if compra_k else None,
          "%s contrato%s" % (mil_pt(compra_k), "" if compra_k == 1 else "s")
          if compra_k else ("sem BASE" if not ha_corpus()
@@ -19972,10 +20192,12 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
          "dos %s contratos da janela" % mil_pt(compra_k) if no_cpv else
          ("sem BASE" if not ha_corpus()
           else "nada da janela cai no perfil da empresa")),
+        # «Fecha a −4,8 % abaixo» era uma negação dupla (segunda ronda,
+        # perfil 15): o sinal diz-se pela palavra, e o número vai sem ele.
         ("Fecha a" + no_filtro,
-         ("−%.1f%%" % (desconto[0] * 100)).replace(".", ",")
-         if desconto else None,
-         "abaixo do preço base, em %s contratos" % mil_pt(desconto[1])
+         pct_pt(abs(desconto[0])) if desconto else None,
+         "%s do preço base (média), em %s contratos"
+         % ("abaixo" if desconto[0] >= 0 else "acima", mil_pt(desconto[1]))
          if desconto else ("sem BASE" if not ha_corpus()
                            else "nenhum contrato tem os dois preços")),
         ("Connosco", mil_pt(propostas) if propostas else None,
@@ -19989,11 +20211,7 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
          ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
     )
     return ("<div class='mg-stats seis'>%s</div>" % "".join(
-        _numero_da_situacao(rotulo, valor, "",
-                            "<span class='sub'>%s</span>" % nota)
-        if valor is not None
-        else _numero_da_situacao(rotulo, None, "", nota)
-        for rotulo, valor, nota in seis))
+        kpi(rotulo, valor, nota) for rotulo, valor, nota in seis))
 
 
 def _seguir_cx(chave):
@@ -20033,7 +20251,7 @@ def entidade(chave):
                     ("NIF %s &middot; " % html.escape(chave))
                     if re.fullmatch(r"\d{9}", chave or "") else "")
                  + "<p class='nota'>O Portal BASE não conhece esta entidade: "
-                   "não tem contratos celebrados no corpus. O que se segue é "
+                   "não tem contratos celebrados guardados. O que se segue é "
                    "o nosso lado.</p>")
         return envolver(
             "entidades", nome,
@@ -20042,7 +20260,7 @@ def entidade(chave):
             + factos_da_entidade(chave, nosso)
             + nosso_lado_cx(nosso) + "</div>",
             migalhas=migalhas_de("entidades", corta(nome, 44)),
-            titulo_aba="%s, Mira Gov" % corta(nome, 40))
+            titulo_aba="%s" % corta(nome, 40))
 
     filtrada = ha_filtro_na_ficha(request.args)
     compra, ganha = d["compra"], d["ganha"]
@@ -20195,7 +20413,7 @@ def entidade(chave):
         "que nós já lhe fizemos.",
         conteudo, script=ARVORE_JS,
         migalhas=migalhas_de("entidades", d["nome"][:44]),
-        titulo_aba="%s, Mira Gov" % d["nome"][:40])
+        titulo_aba="%s" % d["nome"][:40])
 
 
 @app.route("/entidade/<path:chave>/seguir", methods=["POST"])
@@ -20209,7 +20427,7 @@ def entidade_seguir(chave):
         with liga() as c:
             c.execute("DELETE FROM entidades_seguidas WHERE chave=?", (chave,))
             c.execute("DELETE FROM seguidas_vistos WHERE chave=?", (chave,))
-        aviso = "Deixaste de seguir a entidade."
+        aviso = "A entidade deixou de ser seguida."
     else:
         nome = chave
         if ha_corpus():
@@ -20233,14 +20451,14 @@ def sem_corpus_html(titulo):
         "Contratos já celebrados, do Portal BASE &mdash; quem ganhou "
         "o quê, por quanto.",
         "<div class='larg'><div class='mg-empty'>"
-        "O corpus de contratos ainda não foi importado.<br><br>%s</div></div>"
+        "Os contratos do Portal BASE ainda não foram trazidos.<br><br>%s</div></div>"
         % ("Corre <code>python radar.py --contratos</code> para o trazer do "
            "dados.gov &mdash; domínio público, sem chave nem sessão. "
            "Dois anos são cerca de dois minutos." if sou_dono() else
            "Está a ser preparado: os contratos aparecem aqui assim que "
            "estiverem carregados."),
         migalhas=migalhas_de("contratos"),
-        titulo_aba="Contratos, Mira Gov")
+        titulo_aba="Mercado")
 
 
 @app.route("/contratos/csv")
@@ -20256,7 +20474,7 @@ def contratos_csv():
     vista = "renovacoes" if modo_fim(request.args) else "contratos"
     if not pergunta_feita(request.args, vista):
         return redirect("/contratos?aviso=" +
-                        quote("Filtra primeiro: o corpus inteiro não se exporta."))
+                        quote("Filtre primeiro: os contratos todos não se exportam."))
     # O mesmo filtro E o mesmo modo da lista (6.1-A): a ligacao
     # "exportar as N linhas" do modo fim tem de dar as mesmas N.
     onde, valores = filtros_dos_contratos(request.args)
@@ -20342,7 +20560,7 @@ def barra_corpus(anos):
                  "meio &mdash; o painel foi fechado antes de acabar. Nada "
                  "se perdeu: carrega outra vez para a repetir.</div>")
     return ("<div class='corpus-barra'>"
-            "<span>Corpus do Portal BASE (IMPIC, dados.gov) &middot; "
+            "<span>Contratos do Portal BASE (IMPIC, dados.gov) &middot; "
             "%s contratos de %s &middot; trazido em %s</span>%s</div>%s"
             % (mil_pt(ha_corpus()),
                "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
@@ -20501,9 +20719,7 @@ def contratos():
     # que a ficha da entidade ja usava. O que vier na URL passa escondido.
     # Os campos do `EcraMercado` (24/09/2026): rotulo por cima, o `Field`
     # do sistema, numa grelha -- a mesma forma dos filtros dos Concursos.
-    def campo(rotulo, dentro, classe=""):
-        return ("<label class='mg-field%s'><span class='mg-field__label'>%s"
-                "</span>%s</label>" % (classe, rotulo, dentro))
+    campo = campo_de_filtro
     filtros = ((
         "<form class='filtros sem-vazios' id='filtros-mercado' method='get' action='/contratos'>"
         "%s"
@@ -20533,9 +20749,7 @@ def contratos():
                 "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
         + campo("Preço mínimo", "<input class='mg-field__input' type='text' "
                 "name='min' value='%s' placeholder='€'>")
-        + "<span class='f-accoes'><button type='submit' "
-        "class='mg-btn mg-btn--primary'>Perguntar</button>"
-        "<a class='mg-btn mg-btn--secondary limpar' href='%s'>Limpar</a></span>"
+        + botoes_de_filtro("%s") +
         "</form><datalist id='entidades-contratos'></datalist>")
         % (escondidos_modo, v("q"), v("adj"), v("entid"),
            "Quem tem o contrato" if fim else "Quem ganhou", v("ganhou"),
@@ -20633,28 +20847,28 @@ def contratos():
                      html.escape(modo_limpo, quote=True)))
     elif fim:
         tabela = ("<div class='mg-empty comecar'>"
-                  "<b>De que mercado queres ver os fins de contrato?</b>"
-                  "<span>Escolhe um CPV na árvore ou escreve uma entidade: "
+                  "<b>De que mercado quer ver os fins de contrato?</b>"
+                  "<span>Escolha um CPV na árvore ou escreva uma entidade: "
                   "a lista mostra os contratos desse mercado que terminam "
                   "na janela, do mais próximo para o mais distante. Um "
                   "contrato a acabar volta muitas vezes a concurso &mdash; "
                   "quem o vê antes do anúncio prepara-se com tempo.</span>"
                   "<span class='p'>Com o <a href='/configuracoes/interesse'>"
                   "perfil da empresa</a> definido, esta página abre logo com os "
-                  "contratos dos teus CPV.</span>"
+                  "contratos dos seus CPV.</span>"
                   "</div>")
     else:
         # A pergunta vem primeiro. Um milhao e meio de contratos por data
         # nao e uma resposta a nada.
         tabela = ("<div class='mg-empty comecar'>"
-                  "<b>Faz uma pergunta ao corpus.</b>"
-                  "<span>Escolhe um CPV na árvore, escreve quem ganhou ou "
-                  "que entidade comprou, aperta as datas ou o valor. Os "
-                  "gráficos e a lista respondem ao filtro que puseres.</span>"
+                  "<b>Filtre os contratos do Portal BASE.</b>"
+                  "<span>Escolha um CPV na árvore, escreva quem ganhou ou "
+                  "que entidade comprou, aperte as datas ou o valor. Os "
+                  "gráficos e a lista respondem ao filtro.</span>"
                   "<span class='p'>São %s contratos: sem filtro, os mais "
                   "recentes não dizem nada sobre nada. Com o "
                   "<a href='/configuracoes/interesse'>perfil da empresa</a> definido, "
-                  "esta página abre logo com os contratos dos teus CPV.</span>"
+                  "esta página abre logo com os contratos dos seus CPV.</span>"
                   "</div>"
                   % mil_pt(ha_corpus()))
 
@@ -20699,7 +20913,7 @@ def contratos():
     fonte = ("<div class='nota' style='margin-top:14px'>O dump do IMPIC é "
              "semanal: os contratos das últimas semanas podem ainda não lá "
              "estar. Anos fechados não mudam &mdash; o botão só volta a "
-             "trazer o ano corrente e o anterior. O corpus começa em %d "
+             "trazer o ano corrente e o anterior. Os contratos começam em %d "
              "&mdash; é o mais antigo que o dados.gov chega a dar, os "
              "zips de 2012 a 2014 vêm vazios.%s</div>"
              % (primeiro_ano_corpus(),
@@ -20767,11 +20981,12 @@ def contratos():
     para_celebracao.pop("ver", None)
     para_celebracao.pop("meses", None)
     para_fim = args_da_lista(request.args, ver="fim")
-    abas = ("<nav class='mg-tabs' aria-label='Ordem dos contratos'>"
+    abas = ("<nav class='mg-tabs' aria-label='Vistas do Mercado'>"
             "<a class='mg-tab'%s "
             "href='/contratos%s'>Por celebração</a>"
             "<a class='mg-tab'%s "
             "href='/contratos?%s'>Por fim estimado</a>"
+            "<a class='mg-tab' href='/entidades'>Entidades</a>"
             "</nav>"
             % ("" if fim else " aria-current='page'",
                ("?" + urlencode(para_celebracao)) if para_celebracao else "",
@@ -20815,7 +21030,7 @@ def contratos():
     # do filtro na meta. Esteve dobrada com pergunta feita (16/09/2026):
     # a referencia tem-na aberta, e os campos sao agora uma grelha curta.
     pergunta = cartao(
-        "Perguntar outra coisa" if ha_pergunta else "Perguntar ao corpus",
+        "Filtrar os contratos",
         ("" if fim else faixa_de_avisos_de_datas(request.args))
         + faixa_interesse + filtros,
         meta=html.escape(resumo_filtro(filtro_actual(request.args, vista), vista))
@@ -20845,7 +21060,7 @@ def contratos():
               "title='%s'>%s Exportar CSV%s</a>"
               % (html.escape(urlencode(args_da_lista(request.args)), quote=True),
                  ("só as primeiras %s das %s linhas deste filtro, pela ordem da lista: "
-                  "filtra mais para as teres todas"
+                  "filtre mais para as ter todas"
                   % (mil_pt(TECTO_CSV), mil_pt(correspondem))) if corta_csv
                  else "as %s linhas deste filtro" % mil_pt(correspondem),
                  icone("descarregar"),
@@ -20864,7 +21079,7 @@ def contratos():
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + espera_corpus(),
             migalhas=migalhas_de("renovacoes"),
-            titulo_aba="Renovações, Mira Gov")
+            titulo_aba="Por fim estimado · Mercado")
     return envolver(
         "contratos", "Contratos celebrados", "",
         conteudo,
@@ -20874,7 +21089,7 @@ def contratos():
         script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
         + espera_corpus(),
         migalhas=migalhas_de("contratos"),
-        titulo_aba="Contratos, Mira Gov")
+        titulo_aba="Mercado")
 
 
 # --------------------------------- modo "fim estimado" dos contratos
@@ -21031,15 +21246,6 @@ def interesse_legivel(texto):
     return " &middot; ".join(fora)
 
 
-def tamanho_legivel(n):
-    n = int(n or 0)
-    if n >= 1024 * 1024:
-        return "%.1f MB" % (n / (1024.0 * 1024))
-    if n >= 1024:
-        return "%d KB" % (n // 1024)
-    return "%d B" % n
-
-
 # Uma linha "Chave: valor" dentro de um bloco de perfil. O dois-pontos
 # tem de vir depois de uma chave curta -- senao qualquer frase com dois
 # pontos a meio virava uma linha de tabela.
@@ -21143,7 +21349,8 @@ def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
         titulo_html = ("<details class='mg-disc porque porque-bloco'><summary>"
                        "<h2 class='mg-card__title'>%s</h2>"
                        "<i aria-hidden='true' title='O que é este bloco'>?</i></summary>"
-                       "<p class='mg-card__meta'>%s</p></details>" % (titulo, porque))
+                       "<p class='mg-card__meta'>%s%s</p></details>"
+                       % (titulo, porque, mais_na_ajuda(titulo)))
     else:
         titulo_html = "<h2 class='mg-card__title'>%s</h2>" % titulo
     return ("<section class='mg mg-card%s'%s>"
@@ -21158,6 +21365,33 @@ def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
                # parecia um bloco a espera de carregar
                "<div class='mg-card__body'>%s</div>" % corpo if corpo else "",
                "<div class='mg-card__foot'>%s</div>" % pe if pe else ""))
+
+
+def kpi(rotulo, valor, nota="", alvo="", classe="", delta="", porque=""):
+    """O número grande (o `Stat` do sistema de desenho), um só para o
+    painel inteiro (lote 5 da segunda ronda, 26/09/2026).
+
+    Tinha três desenhos: o do Hoje era o do sistema; o da Situação e o
+    da entidade punham o rótulo e o número os dois a 16 px, e o rótulo,
+    mais comprido, pesava mais do que o número (perfil 11). Agora o
+    rótulo é pequeno e o valor é grande em todo o lado.
+
+    Sem `valor` não se põe um travessão: a `nota` ocupa o lugar dele e
+    diz o que falta para o número existir (decisão dele, 15/09/2026). O
+    `alvo` faz do cartão a ligação para a lista que o produz; o `porque`
+    diz o que o número soma. Tudo já vem em HTML da casa."""
+    frase = valor is None
+    etiqueta = ("a href='%s'" % html.escape(alvo, quote=True)) if alvo else "div"
+    return ("<%s class='mg-stat%s%s'><span class='mg-stat__label'>%s</span>"
+            "<span class='mg-stat__value%s'>%s</span>%s%s%s</%s>"
+            % (etiqueta, " " + classe if classe else "",
+               " por-haver" if frase else "", rotulo,
+               " mg-stat__value--frase" if frase else "",
+               nota if frase else valor, delta,
+               "" if frase or not nota else
+               "<span class='mg-stat__note'>%s</span>" % nota,
+               "<span class='porque'>%s</span>" % porque if porque else "",
+               "a" if alvo else "div"))
 
 
 def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes=""):
@@ -21186,8 +21420,8 @@ def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes=""):
 # Os quatro passos da escada na ficha (o `Stepper` do sistema). São a
 # escada lida por fases, e não as dez ranhuras: quem abre a ficha quer
 # saber em que fase está, e a ranhura exacta está na nota do passo.
-PASSOS_DA_FICHA = (("Interessa", ("analisar",)),
-                   ("Em preparação", ("proposta",)),
+PASSOS_DA_FICHA = (("Por analisar", ("analisar",)),
+                   ("A preparar", ("proposta",)),
                    ("Submetida", ("submetido", "relatorio")),
                    ("Decidida", ESTADOS_FECHADOS))
 
@@ -21209,6 +21443,10 @@ def passos_da_escada(a, minhas):
         perigo = abandonado
     else:
         nota_actual = estado_da_empresa(estado).lower()
+        # a fase que já é o nome do passo não se repete por baixo dele
+        # («Por analisar / por analisar», segunda ronda, perfil 15)
+        if nota_actual == PASSOS_DA_FICHA[actual][0].lower():
+            nota_actual = ""
         perigo = estado in ESTADOS_FECHADOS and estado != "ganho"
     itens = []
     for i, (rotulo, _) in enumerate(PASSOS_DA_FICHA):
@@ -21331,7 +21569,7 @@ def criterio_de_adjudicacao(seccoes):
 # Caderno de Encargos, e ficam assinalados em vez de omitidos, para se
 # ver o que falta em vez de parecer que nao existe.
 FALTA_CE = "só consta do Caderno de Encargos"
-FALTA_PC = "só consta do Programa de Concurso"
+FALTA_PC = "só consta do Programa do Concurso"
 
 
 def lotes_cx(a):
@@ -21379,7 +21617,7 @@ def lotes_cx(a):
                      "tem uma linha para o <b>conjunto</b> dos lotes, não lote a "
                      "lote: <span class='mg-tag %s'>%s</span>%s</div>"
                      % (tom(classe), rotulo,
-                        (" proposta %s" % html.escape(_texto_do_preco(conj["valor_proposta"])))
+                        (" proposta %s" % html.escape(preco_pt(_texto_do_preco(conj["valor_proposta"]))))
                         if conj.get("valor_proposta") else ""))
     else:
         nota_conj = ""
@@ -21420,10 +21658,9 @@ def frase_dos_campos_em_falta(sem_valor):
     partes = ["<b>%s</b>: %s" % (html.escape(razao),
                                  ", ".join(html.escape(r) for r in rotulos))
               for razao, rotulos in grupos]
-    n = len(sem_valor)
-    return ("<p class='em-falta-frase'>%d campo%s sem valor aqui &mdash; %s. "
-            "<a href='#pecas'>Peças</a></p>"
-            % (n, "" if n == 1 else "s", "; ".join(partes)))
+    return ("<p class='em-falta-frase'>%s sem valor neste resumo &mdash; %s. "
+            "<a href='#pecas'>Ver as peças</a></p>"
+            % (plural(len(sem_valor), "campo"), "; ".join(partes)))
 
 
 def essencial_do_anuncio(a, seccoes, analise=None):
@@ -21451,7 +21688,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
             "já passou" if passou else conta_dias(dias))
         esclarec_falta = ""
         esclarec_nota = ("calculado pela regra supletiva do art. 50.º do CCP "
-                         "(1.º terço do prazo); confirmar no Programa de Concurso")
+                         "(1.º terço do prazo); confirmar no Programa do Concurso")
     else:
         esclarecimentos, esclarec_nota = "", ""
         esclarec_falta = FALTA_PC
@@ -21491,7 +21728,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     # O nome do modelo («groq:openai/…») e para o dono; a um cliente diz
     # só que foi lido automaticamente (teste com utilizadores, 25/09/2026).
     nota_pecas = ("lido de %s %s — confirmar no documento"
-                  % (analise["fontes"] or "peças do procedimento",
+                  % (fontes_legiveis(analise["fontes"]) or "peças do procedimento",
                      ("por " + analise["modelo"]) if sou_dono()
                      else "por leitura automática")) if analise else ""
     regime = das_pecas("localizacao")
@@ -21499,7 +21736,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     # mesma coisa que ainda nao se ter ido ver.
     anormal = das_pecas("preco_anormalmente_baixo")
     anormal_falta = "" if anormal else (
-        "o Programa de Concurso foi lido e a leitura não encontrou nenhum: "
+        "o Programa do Concurso foi lido e a leitura não encontrou nenhum: "
         "confirmar no documento"
         if foi_lido("preco_anormalmente_baixo") else FALTA_PC)
 
@@ -21532,7 +21769,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Data de esclarecimentos", esclarecimentos, esclarec_falta,
          esclarec_nota),
         ("Data de submissão da proposta", data_pt(a["prazo"], ""), "", ""),
-        ("Objeto, âmbito e características", das_pecas("objecto"),
+        ("Objecto, âmbito e características", das_pecas("objecto"),
          "" if das_pecas("objecto") else
          ("o Caderno de Encargos foi lido e a leitura não encontrou a "
           "descrição: confirmar no documento"
@@ -21544,26 +21781,10 @@ def essencial_do_anuncio(a, seccoes, analise=None):
           if foi_lido("equipa") else FALTA_CE), nota_pecas),
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
          "" if das_pecas("documentos_proposta") else
-         ("o Programa de Concurso foi lido e a leitura não encontrou a "
+         ("o Programa do Concurso foi lido e a leitura não encontrou a "
           "lista: confirmar no documento"
           if foi_lido("documentos_proposta") else FALTA_PC), nota_pecas),
     ]
-
-
-def euros(v):
-    """1234567.8 -> '1 234 568 EUR'. Os centimos nao ajudam a decidir."""
-    return "{:,.0f}".format(v or 0).replace(",", " ") + " €"
-
-
-def euros_curto(v):
-    """Para os graficos, onde '1 661 400 000 EUR' nao se le de relance."""
-    v = v or 0
-    # «mil M€» e nao «mM€»: a sigla nao se lia (teste com utilizadores,
-    # 25/09/2026).
-    for corte, sufixo in ((1e9, " mil M€"), (1e6, " M€"), (1e3, " k€")):
-        if abs(v) >= corte:
-            return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
-    return "%.0f €" % v
 
 
 def descontos_da_entidade(chave, cpv):
@@ -21742,12 +21963,23 @@ def homologos_cx(a, chave):
         "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
         "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
         "<tbody>%s</tbody></table></div>" % "".join(corpo),
-        meta="Parecido = tem em comum %s: <b>%s</b>."
-             % ("estes termos do título" if len(termos) > 1
-                else "este termo do título", html.escape(", ".join(termos))),
+        meta="Com %s em comum no objecto: <b>%s</b>."
+             % ("estas palavras do título" if len(termos) > 1
+                else "esta palavra do título",
+                html.escape(", ".join(palavras_do_titulo(a["titulo"], termos)))),
         porque="Contratos desta entidade com objecto parecido com o deste "
                "anúncio &mdash; as edições anteriores, com quem ganhou e "
                "por quanto.")
+
+
+def palavras_do_titulo(titulo, termos):
+    """Os termos normalizados («contencao») escritos como o título os
+    escreve («contenção»). O «Parecido = contencao, vias» mostrava a
+    forma interna, sem acentos (segunda ronda, perfil 15)."""
+    vistos = {}
+    for palavra in re.findall(r"\w+", titulo or ""):
+        vistos.setdefault(simplifica(palavra), palavra.lower())
+    return [vistos.get(t_, t_) for t_ in termos]
 
 
 # Do anuncio ao contrato leva tempo, e o tempo mediu-se: a 04/09/2026,
@@ -21951,7 +22183,20 @@ def rot_com_porque(titulo, porque=""):
         return "<div class='mg-field__label'>%s</div>" % titulo
     return ("<details class='mg-disc porque porque-bloco'><summary>"
             "<span class='mg-field__label'>%s</span><i aria-hidden='true' title='O que é este bloco'>?</i>"
-            "</summary><div class='nota'>%s</div></details>" % (titulo, porque))
+            "</summary><div class='nota'>%s%s</div></details>"
+            % (titulo, porque, mais_na_ajuda(titulo)))
+
+
+def mais_na_ajuda(titulo):
+    """« Mais na ajuda», quando o título de um bloco ou de uma página é
+    um termo do glossário (D11 da segunda ronda, 26/09/2026): o «?» diz
+    o que o bloco é, e a ajuda diz o que a palavra quer dizer. Um termo
+    sem definição não leva ligação -- uma âncora que não existe leva ao
+    topo da página, que é pior do que nada."""
+    ancora = ancora_do_termo(re.sub(r"<[^>]+>", "", html.unescape(titulo or "")))
+    if ancora not in TERMOS_DA_AJUDA:
+        return ""
+    return " <a href='/ajuda#%s'>Mais na ajuda</a>" % ancora
 
 
 def _mercado_cx(nota, corpo=""):
@@ -22012,7 +22257,7 @@ def mercado(a):
     """
     if not ha_corpus():
         return _mercado_cx(
-            "O corpus de contratos ainda não foi importado."
+            "Os contratos do Portal BASE ainda não foram trazidos."
             + (" Corre <code>python radar.py --contratos</code> para o "
                "trazer do dados.gov (domínio público, sem chave)."
                if sou_dono() else ""))
@@ -22023,18 +22268,18 @@ def mercado(a):
                  % quote(chave, safe="")) if chave else ""
     if not ao_todo:
         return _mercado_cx(
-            "Não há contratos desta entidade no corpus. Ou nunca adjudicou "
+            "Não há contratos desta entidade no Portal BASE. Ou nunca adjudicou "
             "nada nos anos importados, ou escreve o nome de outra maneira "
             "no Portal BASE.")
     if not a["cpv"]:
         return _mercado_cx(
             "Este anúncio ainda não tem CPV lido, e sem ele não dá para "
             "escolher o histórico que interessa. A entidade tem %s "
-            "contratos no corpus &middot; %s"
+            "contratos no Portal BASE &middot; %s"
             % (mil_pt(ao_todo), ficha_ent))
     if not linhas:
         return _mercado_cx(
-            "Esta entidade tem %s contratos no corpus, mas <b>nenhum no CPV "
+            "Esta entidade tem %s contratos no Portal BASE, mas <b>nenhum no CPV "
             "%s</b> &mdash; é a primeira vez que compra isto, pelo menos "
             "nos anos importados. &middot; %s"
             % (mil_pt(ao_todo), html.escape(a["cpv"]), ficha_ent))
@@ -22105,7 +22350,7 @@ def mercado(a):
         ref_preco += (
             "<div class='nota' style='margin-top:8px'>Desconto mediano "
             "face ao preço base, nesta entidade e CPV: <b>%s</b> &mdash; "
-            "sobre %s procedimentos com anúncio e preço base no corpus."
+            "sobre %s procedimentos com anúncio e preço base no Portal BASE."
             "</div>" % (pct_pt(med), mil_pt(len(descs))))
 
     return _mercado_cx(
@@ -22299,10 +22544,9 @@ def ficha(ref):
         # os estados. O campo cpv aceita varios codigos por |.
         codigos = "|".join(p.strip() for p in (a["cpv"] or "").split(",")
                            if p.strip())
-        cpv_facto += ("<br><a href='/anuncios?%s'>ver anúncios deste CPV "
-                      "na Pesquisa</a>"
-                      % html.escape(urlencode({"cpv": codigos, "estado": ""}),
-                                    quote=True))
+        cpv_facto += ("<br><a href='%s?%s'>ver os concursos deste CPV</a>"
+                      % (LISTA, html.escape(urlencode({"cpv": codigos, "estado": ""}),
+                                            quote=True)))
     pares = [("Entidade adjudicante", nome_ent, ""),
              ("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
              ("Preço base", html.escape(preco_pt(a["preco_base"], "")), "n"),
@@ -22506,7 +22750,7 @@ def ficha(ref):
                     "plataforma indicada pode exigir sessão iniciada.")
         else:
             nota = ("Ainda não foram trazidas. Vêm sozinhas ao marcar "
-                    "&ldquo;interessa&rdquo;.")
+                    "«interessa».")
         corpo_docs = "<p class='ficha-nota'>%s</p>" % nota
         accoes_pecas = accao("/documentos/%s" % ref,
                              icone("descarregar", 16) + " Trazer peças", "mini forte")
@@ -22571,8 +22815,8 @@ def ficha(ref):
         "<span class='mg-avatar'>%s</span>"
         "<input class='mg-field__input' type='text' name='nome' value='%s' "
         "list='pessoas' placeholder='ninguém atribuído' aria-label='Responsável'>"
-        "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
-        "guardar</button></form>"
+        "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
+        "Guardar</button></form>"
         % (ref, _iniciais(resp), html.escape(resp, quote=True)))
 
     # As 12 mais recentes, e as outras a pedido (segunda ronda,
@@ -22649,7 +22893,7 @@ def ficha(ref):
               else "")
     return envolver("anuncios", a["titulo"] or ref, "", conteudo,
                     script=espera + caixa_do_motivo(),
-                    titulo_aba="%s, Mira Gov" % ref,
+                    titulo_aba="%s" % ref,
                     cabeca=cabeca_pagina)
 
 
@@ -22875,7 +23119,7 @@ def texto_da_peca(ref, nome):
                 "<div class='nota' style='margin:14px 0 4px'>&mdash; "
                 "pág. %d &mdash;</div>"
                 "<div style='white-space:pre-wrap;"
-                "font:400 12px/1.6 var(--font-mono)'>%s</div>"
+                "font:400 var(--text-xs)/1.6 var(--font-mono)'>%s</div>"
                 % (i, html.escape(pagina.strip())))
         return ("<details class='mg-card sec' style='margin-top:14px'><summary>"
                 "<span class='st'>Texto extraído da peça</span>"
@@ -22910,13 +23154,13 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         # de abrir" do browser -- por isso o aviso di-lo.
         return (
             "Pesquisa dentro do documento com o Ctrl+F do visualizador. "
-            "Se em vez do documento vires um cartão &ldquo;Abrir&rdquo;, "
-            "o teu browser está configurado para <b>transferir PDFs em "
+            "Se em vez do documento vir um cartão «Abrir», "
+            "o seu browser está configurado para <b>transferir PDFs em "
             "vez de os abrir</b> &mdash; o texto extraído fica aqui em "
             "baixo. ",
             "<embed src='%s' type='application/pdf' "
             "style='width:100%%;height:82vh;border:1px solid var(--line);"
-            "border-radius:8px;background:#fff'>"
+            "border-radius:var(--radius-md);background:#fff'>"
             % html.escape(origem, quote=True))
 
     base_img = "/peca-pagina/%s/%s" % (ref, quote(nome, safe=""))
@@ -22961,7 +23205,7 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
                 % (p, p, " (%d×)" % vezes if vezes > 1 else "")
                 for p, vezes in achadas)
             resultados = (
-                "<div class='achados'>&ldquo;%s&rdquo; aparece em "
+                "<div class='achados'>«%s» aparece em "
                 "<b>%d página%s</b> (%d vez%s), marcado a amarelo: %s</div>"
                 % (html.escape(procurar), len(achadas),
                    "" if len(achadas) == 1 else "s",
@@ -22969,14 +23213,14 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
                    "" if sum(v for _, v in achadas) == 1 else "es", saltos))
         else:
             resultados = (
-                "<div class='achados'>&ldquo;%s&rdquo; não aparece "
+                "<div class='achados'>«%s» não aparece "
                 "no documento &mdash; a procura é tal e qual está "
                 "escrito (acentos contam).</div>" % html.escape(procurar))
     else:
         resultados = ""
     return (
         "Documento desenhado pelo Mira Gov, página a página (%d). "
-        "Procura com a caixa aqui em baixo: as ocorrências ficam "
+        "Procure com a caixa aqui em baixo: as ocorrências ficam "
         "marcadas a amarelo nas páginas, com salto directo. " % n_paginas,
         caixa + resultados + "<div class='peca-folhas'>%s</div>" % paginas_img)
 
@@ -22996,8 +23240,8 @@ def ver_peca(ref, nome):
         return envolver(
             "anuncios", "Peça não encontrada",
             "O ficheiro já não está na pasta dos documentos.",
-            "<div class='mg-empty'>Volta à <a href='/anuncio/%s'>ficha do "
-            "anúncio</a> e carrega em &ldquo;Actualizar peças&rdquo;."
+            "<div class='mg-empty'>Volte à <a href='/anuncio/%s'>ficha do "
+            "anúncio</a> e carregue em «Actualizar peças»."
             "</div>" % html.escape(ref, quote=True),
             migalhas=migalhas_de("anuncios", ref)), 404
     origem = "/documento/%s/%s" % (ref, quote(nome, safe=""))
@@ -23019,7 +23263,7 @@ def ver_peca(ref, nome):
     return envolver(
         "anuncios", nome, "Peça do anúncio %s." % html.escape(ref),
         corpo, migalhas=migalhas_de("anuncios", ref),
-        titulo_aba="%s, Mira Gov" % nome)
+        titulo_aba="%s" % nome)
 
 
 @app.route("/tarefa/nova", methods=["POST"])
@@ -23156,7 +23400,7 @@ def escada_da_proposta(id_):
     motivo = (request.form.get("motivo") or "").strip()
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos and motivo not in permitidos:
-        return _volta_com_erro("Escolhe o motivo antes de continuar.")
+        return _volta_com_erro("Escolha o motivo antes de continuar.")
     if _recado_do_preco_do_pedido():
         return _volta_com_erro(_recado_do_preco_do_pedido())
     ok, recado = mover_proposta(id_, estado,
@@ -23299,9 +23543,8 @@ def faixa_do_desfecho(p, linhas, cfg=None):
     desvio, _ = desvio_do_proposto(p["valor_proposta"], linhas)
     conta = ""
     if desvio is not None and somos is not True:
-        conta = (" A nossa proposta estava <b>%s%.1f%%</b> %s."
-                 % ("+" if desvio < 0 else "", abs(desvio) * 100,
-                    "acima" if desvio > 0 else "abaixo"))
+        conta = (" A nossa proposta estava <b>%s</b> %s."
+                 % (pct_pt(abs(desvio)), "acima" if desvio > 0 else "abaixo"))
     return ("<div class='desfecho-propoe'>"
             "<div class='dp-facto'>O Portal BASE diz que este procedimento "
             "foi adjudicado a <b>%s</b> por <b>%s</b>%s. %s%s</div>"
@@ -23449,16 +23692,17 @@ def contactos_cx(a):
             "<input type='email' name='email' placeholder='e-mail' aria-label='E-mail' maxlength='120'>"
             "<input type='tel' name='telefone' placeholder='telefone' aria-label='Telefone' autocomplete='tel' "
             "maxlength='40'>"
-            "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
-            "juntar</button></form>"
+            "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
+            "Adicionar</button></form>"
             % (postos,
                html.escape(chave, quote=True),
                html.escape(a["entidade"] or "", quote=True),
                html.escape(a["ref"], quote=True))),
             # «de quem» é um facto e fica à vista: aparecem em todos os
             # concursos da entidade, e não só neste
-            meta="De %s, não deste concurso" % html.escape(a["entidade"]
-                                                          or "esta entidade"),
+            meta=("De %s, não deste concurso" % html.escape(a["entidade"]
+                                                           or "esta entidade"))
+            if a["ref"] else "",
             id_="contactos")
 
 
@@ -23582,10 +23826,10 @@ def _tarefas_da_ficha(p):
                # lá, a rota nunca saiu daqui.
                "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
                "<input type='text' name='quando' inputmode='numeric' "
-               "maxlength='10' placeholder='adiar p/ dd/mm/aaaa' aria-label='Adiar para'>"
+               "maxlength='10' placeholder='adiar para dd/mm/aaaa' aria-label='Adiar para'>"
                "<input type='text' name='quem' maxlength='60' list='pessoas' "
                "placeholder='quem' aria-label='Quem faz'>"
-               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>gravar</button></form>"
+               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Guardar</button></form>"
                % t["id"]))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
@@ -23610,7 +23854,7 @@ def _tarefas_da_ficha(p):
               "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
               "<input type='text' name='quem' maxlength='60' list='pessoas' "
               "placeholder='quem' aria-label='Quem faz'>"
-              "<button type='submit'>juntar</button></form>"
+              "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Adicionar</button></form>"
               % (html.escape(p["ref"] or "", quote=True), p["id"]))
     return ("<div class='prop-tarefas'><div class='mg-field__label'>O que falta fazer"
             "</div>%s%s</div>" % (lista, juntar))
@@ -23660,7 +23904,7 @@ def proposta_cx(a):
             "<div class='mg-alert mg-alert--warning'><div class='mg-alert__body'>"
             "<div class='mg-alert__title'>Falta decidir.</div>"
             "<div class='mg-alert__text'>Este concurso ainda não está na "
-            "escada: «Interessa», lá em cima, abre a proposta e as "
+            "fase nenhuma: «Interessa», lá em cima, abre a proposta e as "
             "tarefas.</div></div></div>",
             meta="Ainda sem estado", id_="proposta")
     # O desfecho do Portal BASE, uma vez por ficha e nao uma por lote:
@@ -23705,7 +23949,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
             "maxlength='60'></label>"
             "<label class='largo'>Notas<textarea name='notas' rows='4' "
             "maxlength='500' placeholder='notas…'>%s</textarea></label>"
-            "<button type='submit'>gravar</button></form>%s</div>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>%s</div>"
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                    p["estado"], titulo=titulo, p=p),
@@ -23788,7 +24032,7 @@ def proposta_da_ficha(id_):
     if "motivo" in request.form:
         motivo = (request.form.get("motivo") or "").strip()
         if motivo and motivo not in (MOTIVOS_DO_ESTADO.get(p["estado"]) or ()):
-            return _volta_com_erro("Esse motivo não existe para esta ranhura.")
+            return _volta_com_erro("Esse motivo não existe para esta fase.")
         campos.append("motivo")
         valores.append(motivo or None)
     if "responsavel" in request.form:
@@ -23887,7 +24131,7 @@ def proposta_nova():
         "<input type='text' name='porque_sem_ref' maxlength='120' "
         "value='consulta prévia' list='sem-ref'></label>"
         "<datalist id='sem-ref'>%s</datalist>"
-        "<button type='submit'>criar</button></form></div>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Criar proposta</button></form></div>"
         % (" erro" if falhou else "", " role='alert'" if falhou else "",
            "<span aria-hidden='true'>&#10005;</span> Nada foi criado. "
            if falhou else "", invalido, invalido,
@@ -23897,7 +24141,7 @@ def proposta_nova():
     return envolver("anuncios", "Nova proposta",
                     "O que não vem do Diário da República: consulta "
                     "prévia, ajuste directo, convite. O que vem do DR "
-                    "põe-se na escada a partir da ficha do anúncio.",
+                    "abre-se a partir da ficha do anúncio, com «Interessa».",
                     "<div class='larg'>" + corpo + "</div>",
                     migalhas=migalhas_de("anuncios", "Nova proposta"),
                     titulo_aba="Nova proposta")
@@ -23936,7 +24180,7 @@ def ficha_da_proposta(id_):
     apagar = (
         "<details class='perigo'><summary>Apagar esta proposta</summary>"
         "<p class='nota'>Apaga a proposta e as tarefas dela. Não há volta. "
-        "Uma que tenha vindo do DR não se apaga aqui: tira-se da escada, e "
+        "Uma que tenha vindo do DR não se apaga aqui: volta a «Por ver», e "
         "o anúncio volta à lista.</p>%s</details>"
         % accao("/proposta/%d/apagar" % id_, "apagar", "mini cuidado",
                 confirmar="Apagar «%s»? Não há volta."
@@ -24263,7 +24507,7 @@ def calendario():
                     cabeca=cabecalho_de_pagina(
                         "Calendário", "Seis semanas a partir de segunda-feira. "
                         "Cada dia mostra o que fecha nesse dia.", [], accoes),
-                    titulo_aba="Calendário, Mira Gov")
+                    titulo_aba="Calendário")
 # --------------------------------------------------------- indicadores
 
 def funil_anuncios():
@@ -24349,7 +24593,7 @@ def funil_anuncios():
     return d
 
 
-def linhas_de_saude(itens, cor_ma="#c0392b"):
+def linhas_de_saude(itens, cor_ma="var(--danger)"):
     """As linhas de (rotulo, valor, esta_bem) da coluna dos indicadores.
 
     Com `esta_bem` a None a linha e uma legenda: sem ponto e sem juizo,
@@ -24363,7 +24607,7 @@ def linhas_de_saude(itens, cor_ma="#c0392b"):
             saida.append(
                 "<div class='l'><span class='ponto' style='background:%s'>"
                 "</span><span class='t'>%s</span><span class='v'>%s</span>"
-                "</div>" % ("#1e8449" if bom else cor_ma, t, v))
+                "</div>" % ("var(--success)" if bom else cor_ma, t, v))
     return "".join(saida)
 
 
@@ -24623,7 +24867,7 @@ def cpv_html_bloco():
 
     Saiu de dentro do `negocio_cx()` a 17/09/2026 para poder ser a
     terceira aba do «Ponto de situação» sem se desenhar duas vezes na
-    mesma página. Só as divisões com decididos que cheguem: abaixo disso
+    mesma página. Só as divisões com decididas que cheguem: abaixo disso
     a `taxa_por_divisao_cpv()` devolve None, e a linha di-lo em vez de
     mostrar uma percentagem inventada.
     """
@@ -24641,7 +24885,7 @@ def cpv_html_bloco():
                                % (d, corta(nomes.get(d, "sem descrição"), 34))),
                    int(100.0 * (taxa if taxa is not None else 0)) or 3,
                    "var(--success)" if taxa else "var(--line-strong)",
-                   ("%.0f%% de %d" % (taxa * 100, n)) if taxa is not None
+                   ("%s de %d" % (pct_pt(taxa, 0), n)) if taxa is not None
                    else "%d de %d, poucos" % (g, n))
                 for d, g, n, taxa in por_cpv))
 
@@ -24705,8 +24949,8 @@ def negocio_cx():
         aviso_fechar = (
             "<div class='mg-alert mg-alert--info' style='margin:0 0 18px'>"
             "<b>%d proposta%s</b> ainda em aberto cujo procedimento o "
-            "Portal BASE já diz adjudicado. Abre cada uma e fecha-a: o "
-            "facto está lá, a decisão é tua.<div class='por-fechar'>%s</div>"
+            "Portal BASE já diz adjudicado. Abra cada uma e feche-a: o "
+            "facto está lá, a decisão é sua.<div class='por-fechar'>%s</div>"
             "</div>"
             % (len(por_fechar), "" if len(por_fechar) == 1 else "s",
                "".join("<a href='/anuncio/%s'>%s</a>"
@@ -24719,10 +24963,11 @@ def negocio_cx():
     parados = dias_parados(5)
     lista_parados = "".join(
         "<div class='l'><span class='t'><a href='%s'>%s</a></span>"
-        "<span class='v'>%d dias</span></div>"
+        "<span class='v'>%s</span></div>"
         % ("/anuncio/" + quote(p["ref"], safe="") if p["ref"]
            else "/proposta/%d" % p["id"],
-           html.escape(corta(p["titulo"] or p["entidade"] or "?", 48)), dias)
+           html.escape(corta(p["titulo"] or p["entidade"] or "?", 48)),
+           plural(dias, "dia"))     # «1 dias» cinco vezes (E55)
         for p, dias in parados) or "<div class='nota'>nada parado há %d dias ou mais</div>" % DIAS_PARA_ESTAR_PARADA
 
     # O `cabeca` (em jogo · taxa · desconto) **saiu do desenho a
@@ -24737,10 +24982,10 @@ def negocio_cx():
             "<div class='mg-field__label' style='margin-bottom:6px'>O negócio</div>"
             "<div class='nota' style='margin-bottom:18px'>Porque se perde, "
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
-            "com %d decididos ou mais.</div>"
+            "com %d decididas ou mais.</div>"
             "%s"
             "<div class='mg-field__label' id='em-jogo' style='margin:22px 0 10px'>Em jogo, por "
-            "ranhura</div><div class='barras'>%s</div>"
+            "fase</div><div class='barras'>%s</div>"
             "%s%s%s"
             "<div class='mg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
             "se mexerem</div><div class='saude'>%s</div>"
@@ -24860,16 +25105,7 @@ def _numero_da_situacao(rotulo, valor, delta, nota, porque="", alvo=""):
     proposto das 6 ganhas», «media simples»), e o `alvo` a lista que o
     confirma: sem uma e outra, o financeiro refazia os numeros no Excel
     e dava-lhe outra coisa (teste com utilizadores, 26/09/2026)."""
-    porque = "<span class='porque'>%s</span>" % porque if porque else ""
-    if valor is None:
-        return ("<div class='mg-stat por-haver'><span class='r'>%s</span>"
-                "<b>%s</b>%s</div>" % (rotulo, nota, porque))
-    etiqueta = ("a class='mg-stat' href='%s'" % html.escape(alvo, quote=True)
-                if alvo else "div class='mg-stat'")
-    return ("<%s><span class='r'>%s</span><b>%s</b>%s"
-            "<span class='d'>%s</span>%s</%s>"
-            % (etiqueta, rotulo, valor, delta, nota, porque,
-               "a" if alvo else "div"))
+    return kpi(rotulo, valor, nota, alvo, delta=delta, porque=porque)
 
 
 def decididas_no_periodo(janela=None):
@@ -24985,10 +25221,10 @@ def situacao():
                  "<div class='nota' style='margin:6px 0 0'>A taxa de "
                  "vitória por divisão do vocabulário CPV — as duas "
                  "primeiras casas, que são a área do negócio. Uma taxa "
-                 "só aparece com %d decididos ou mais.</div>%s</div>"
+                 "só aparece com %d decididas ou mais.</div>%s</div>"
                  % (MINIMO_PARA_TAXA,
                     bloco or "<div class='nota' style='margin-top:14px'>"
-                    "Ainda não há decididos com CPV lido.</div>"))
+                    "Ainda não há decididas com CPV lido.</div>"))
     else:
         pipeline = pipeline_em_euros()
         em_jogo = sum(d["euros"] for d in pipeline.values())
@@ -25062,25 +25298,24 @@ def situacao():
             n_em_jogo,
             _numero_da_situacao(
                 "Taxa de vitória",
-                "%.0f%%" % (valor_taxa * 100) if valor_taxa is not None
+                pct_pt(valor_taxa, 0) if valor_taxa is not None
                 else None,
                 _delta_html(valor_taxa * 100 if valor_taxa is not None
                             else None,
                             valor_antes * 100 if valor_antes is not None
                             else None),
-                "%s de %s decididos" % (mil_pt(ganhos), mil_pt(decididos))
+                "%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos))
                 if valor_taxa is not None else
-                ("%s decidido%s: faltam %s para contar"
+                ("%s decidida%s: faltam %s para contar"
                  % (mil_pt(decididos), "" if decididos == 1 else "s",
                     mil_pt(MINIMO_PARA_TAXA - decididos)) if decididos
-                 else "ainda não há decididos neste período"),
+                 else "ainda não há decididas neste período"),
                 "ganhas a dividir por ganhas mais perdidas; «Não fomos» e "
-                "«Cancelado» não contam", aqui if decididos else ""),
+                "«Cancelada» não contam", aqui if decididos else ""),
             n_ganho,
             _numero_da_situacao(
                 "Desconto médio nos ganhos",
-                ("%.1f%%" % (desconto * 100)).replace(".", ",")
-                if desconto is not None else None,
+                pct_pt(desconto) if desconto is not None else None,
                 _delta_html(desconto * 100 if desconto is not None else None,
                             desconto_antes * 100 if desconto_antes is not None
                             else None, "pp", 1),
@@ -25111,14 +25346,13 @@ def situacao():
                     ranhuras_cx_html(_propostas_por_estado())))
 
     return envolver(
-        "inicio", "Ponto de situação",
+        "situacao", "Ponto de situação",
         "Como vai o negócio: o que está em jogo, o que se ganha e porque "
-        "se perde. Uma taxa só aparece com %d decididos ou mais."
+        "se perde. Uma taxa só aparece com %d decididas ou mais."
         % MINIMO_PARA_TAXA,
         "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
         "gap:18px'>%s</div></div>" % (selector, corpo),
-        migalhas=migalhas_de("inicio", "Ponto de situação"),
-        abas=abas, titulo_aba="Ponto de situação, Mira Gov")
+        abas=abas, titulo_aba="Ponto de situação")
 
 
 @app.route("/indicadores")
@@ -25174,15 +25408,15 @@ def funil_cx_html():
     # nada sobre nada.
     if f["triados"] >= MINIMO_PARA_TAXA:
         taxa = 100.0 * f["interessa"] / f["triados"]
-        leitura = ("De tudo o que já triaste, <b>%.0f%%</b> ficou como "
-                   "interessa." % taxa)
+        leitura = ("De tudo o que já se triou, <b>%s</b> ficou como "
+                   "«Interessa»." % pct_pt(taxa / 100.0, 0))
     elif f["triados"]:
         leitura = ("Só %s anúncio%s triado%s até agora &mdash; poucos para "
                    "uma percentagem dizer alguma coisa."
                    % (mil_pt(f["triados"]), "" if f["triados"] == 1 else "s",
                       "" if f["triados"] == 1 else "s"))
     else:
-        leitura = "Ainda não triaste nada, por isso não há taxa a mostrar."
+        leitura = "Ainda não se triou nada, por isso não há taxa a mostrar."
 
     # Os numeros levam ao sitio: eram duas contagens numa frase corrida,
     # sem forma de chegar aos anuncios que contavam. A saida e a
@@ -25272,8 +25506,12 @@ def ranhuras_cx_html(por_estado):
     do quadro" -- e o quadro saiu a 15/09/2026, e nao sao interessados,
     sao propostas."""
     maior = max(list(por_estado.values()) + [1])
-    # As ranhuras sao um caminho, como o funil: uma cor so, a escurecer
-    # do principio para o fim.
+    # **A intensidade nao codifica a ordem** (segunda ronda, perfil 11):
+    # a rampa do azul claro ao escuro punha «Nao fomos» e «Cancelada»
+    # mais fortes do que «Ganha». A cor diz o que a fase e: a marca nas
+    # abertas, o sucesso na ganha, o perigo na perdida, neutro no resto.
+    cor = {"ganho": "var(--success)", "perdido": "var(--danger)",
+           "nao_fomos": "var(--line-strong)", "cancelado": "var(--line-strong)"}
     # Cada barra abre a lista que a confirma: a regra da empresa e que um
     # numero que um ecra mostra tem de dar exactamente a lista que a
     # ligacao dele abre.
@@ -25284,13 +25522,13 @@ def ranhuras_cx_html(por_estado):
         "<span class='l'>%s</span></div>"
         % (por_estado[ch], PROPOSTAS, ch,
            int(88.0 * por_estado[ch] / maior) + 6,
-           tom_do_passo(i, len(ESTADOS_DA_EMPRESA)), por_estado[ch],
+           cor.get(ch, "var(--brand)"), por_estado[ch],
            html.escape(rotulo, quote=True), por_estado[ch],
            html.escape(rotulo))
-        for i, (ch, rotulo) in enumerate(ESTADOS_DA_EMPRESA))
+        for ch, rotulo in ESTADOS_DA_EMPRESA)
     return ("<div class='mg-card' style='padding:22px 24px'>"
             "<div class='mg-field__label' style='margin-bottom:22px'>Propostas por "
-            "ranhura</div><div class='barras'>%s</div></div>" % barras)
+            "fase</div><div class='barras'>%s</div></div>" % barras)
 
 
 @app.route("/configuracoes/indicadores")
@@ -25380,11 +25618,11 @@ def indicadores():
         nome = p["p"]
         if nome == "(nenhuma)":
             rotulo, valor, bom = ("Anúncios sem plataforma indicada",
-                                  "%.1f%%" % pct, True)
+                                  pct_pt(pct / 100.0), True)
         else:
             obtem = nome in PLATAFORMAS_COM_PECAS
             rotulo = "Peças &middot; %s" % html.escape(nome)
-            valor = "%.1f%%%s" % (pct, "" if obtem else " sem acesso")
+            valor = pct_pt(pct / 100.0) + ("" if obtem else " sem acesso")
             bom = obtem
         saude.append((rotulo, valor, bom))
     # "Peças", como em todo o lado: "documentos" no ecra e so os da
@@ -25440,18 +25678,18 @@ def indicadores():
         except ValueError:
             idade = quando
         corpus = [
-            ("Contratos no corpus", mil(n_corpus), True),
+            ("Contratos do Portal BASE", mil(n_corpus), True),
             ("Anos cobertos", "%d a %d" % (anos_c[0], anos_c[-1])
              if len(anos_c) > 1 else str(anos_c[0]), True),
             ("Entidades com NIF", mil(n_ent_nif), True),
             ("Entidades só com nome", mil(n_ent - n_ent_nif),
              (n_ent - n_ent_nif) * 2 < n_ent),
             ("Última importação", idade, fresco),
-            ("Ficheiro do corpus",
+            ("Ficheiro dos contratos",
              "%.0f MB" % (os.path.getsize(CORPUS) / (1024.0 * 1024)), True),
         ]
     else:
-        corpus = [("Corpus de contratos", "por importar", False)]
+        corpus = [("Contratos do Portal BASE", "por trazer", False)]
     # o corpus avisa a amarelo e a recolha a vermelho: um corpus velho
     # e uma coisa a fazer quando der jeito, uma captura expirada e o
     # radar parado
@@ -25476,13 +25714,13 @@ def indicadores():
         "<div class='mg-card' style='padding:22px 24px'>"
         "<div class='mg-field__label' style='margin-bottom:16px'>Estado da recolha</div>"
         "<div class='saude'>%s</div>"
-        "<div class='mg-field__label' style='margin:22px 0 16px'>Corpus de contratos "
+        "<div class='mg-field__label' style='margin:22px 0 16px'>Contratos do Portal BASE "
         "(Portal BASE)</div><div class='saude'>%s</div>"
         "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
         "<code>contratos.db</code>. Actualiza-se em "
         "<a href='/contratos'>Contratos</a>.</div></div>"
         "<div class='nota'>Os números do negócio &mdash; o que está em "
-        "jogo, o funil da triagem, as propostas por ranhura &mdash; vivem "
+        "jogo, o funil da triagem, as propostas por fase &mdash; vivem "
         "em <a href='/'>Hoje</a>.</div>"
         "</div>" % (kpis_html, saude_html, corpus_html))
 
@@ -25535,8 +25773,8 @@ def proposta_apagar(id_):
         return volta_ao_referer("/")
     if p["ref"]:
         return _volta_com_erro(
-            "Esta proposta veio do DR: tira-se da escada com «voltar a "
-            "por ver», e o anúncio volta à lista.")
+            "Esta proposta veio do DR, e não se apaga aqui: escolha a "
+            "fase «voltar a Por ver», e o anúncio volta à lista.")
     with liga() as c:
         apagar_propostas(c, "id=?", (id_,))
     registar("", "proposta apagada", p["titulo"] or p["entidade"] or str(id_))
@@ -25826,8 +26064,8 @@ def aceitar_pedido(id_):
         bem, porque = False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
     registar_evento("", "pedido aceite", "%s (empresa %d)"
                     % (p["empresa"], empresa_id))
-    envio = ("Mandei o convite para <b>%s</b>." % html.escape(p["email"])
-             if bem else "<b>O e-mail não saiu</b> (%s). Manda-lhe tu a "
+    envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])
+             if bem else "<b>O e-mail não saiu</b> (%s). Mande-lhe a "
              "ligação." % html.escape(porque or "sem razão"))
     return envolver(
         "configuracoes", "Pedido aceite",
@@ -25855,7 +26093,7 @@ FORMULARIO_DO_CONVITE = """<form method="post">
    <input class="mg-field__input" id="c-utilizador" type="text" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
    <input class="mg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
-  <div class="mg-field"><label class="mg-field__label" for="c-outra">Outra vez</label>
+  <div class="mg-field"><label class="mg-field__label" for="c-outra">Repetir a palavra-passe</label>
    <input class="mg-field__input" id="c-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
   <button type="submit" class="mg-btn mg-btn--primary">Criar a conta e entrar</button>
  </form>"""
@@ -25889,7 +26127,7 @@ def convite(codigo):
         return pagina_convite(porque[0].upper() + porque[1:] + ".",
                               codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
-        return pagina_convite("Escolhe o nome de utilizador e a palavra-passe "
+        return pagina_convite("Escolha o nome de utilizador e a palavra-passe "
                               "(8 caracteres ou mais).",
                               utilizador=convite_["email"], erro=False)
     if not origem_e_nossa():
@@ -25928,7 +26166,7 @@ FORMULARIO_DE_REPOR = """<form method="post">
   <p class="nota">Conta: <b>%(utilizador)s</b></p>
   <div class="mg-field"><label class="mg-field__label" for="r-senha">Palavra-passe nova</label>
    <input class="mg-field__input" id="r-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required autofocus></div>
-  <div class="mg-field"><label class="mg-field__label" for="r-outra">Outra vez</label>
+  <div class="mg-field"><label class="mg-field__label" for="r-outra">Repetir a nova palavra-passe</label>
    <input class="mg-field__input" id="r-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
   <button type="submit" class="mg-btn mg-btn--primary">Guardar e entrar</button>
  </form>"""
@@ -26566,8 +26804,9 @@ def _o_que_mudou(hoje, cfg):
             % (data_curta(hoje), html.escape(m["campo"] or "campo"),
                quote(m["ref"], safe=""),
                html.escape(corta(m["titulo"] or m["ref"], 52)),
-               html.escape(corta(m["antes"] or "—", 28)),
-               html.escape(corta(m["depois"] or "—", 28))))
+               # a data como no resto do ecrã, e não em ISO (E53)
+               html.escape(corta(_valor_vigiado(m["campo"], m["antes"]) or "—", 28)),
+               html.escape(corta(_valor_vigiado(m["campo"], m["depois"]) or "—", 28))))
     # As propostas que o Estado ja fechou e nos nao. E a linha mais
     # accionavel do bloco: o facto esta no Portal BASE, a decisao e dele.
     for p, contratos in propostas_por_fechar(limite=3):
@@ -26780,19 +27019,14 @@ def inicio():
         regra da empresa. Onde nao ha lista unica que o de (o "em jogo" e
         a soma de quatro ranhuras), aponta-se ao ecra que o DECOMPOE. A
         `nota` e HTML da casa e nao do utilizador."""
-        return ("<a class='mg-stat%s' href='%s'>"
-                "<span class='mg-stat__label'>%s</span>"
-                "<span class='mg-stat__value'>%s</span>"
-                "<span class='mg-stat__note'>%s</span></a>"
-                % ((" " + classe) if classe else "",
-                   html.escape(alvo, quote=True), rotulo, valor, nota))
+        return kpi(rotulo, valor, nota, alvo, classe)
 
     factos = "".join((
         facto("Em jogo", euros_curto(em_jogo) if em_jogo else "—",
               "%s aberta%s &middot; ponto de situação &rarr;"
               % (mil_pt(abertas), "" if abertas == 1 else "s"),
               "/situacao", "mg-stat--seal"),
-        facto("Taxa de vitória", ("%d %%" % round(valor_taxa * 100))
+        facto("Taxa de vitória", pct_pt(valor_taxa, 0)
               if valor_taxa is not None else "—",
               ("%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos)))
               if decididos else "nada decidido ainda",
@@ -26904,7 +27138,7 @@ def inicio():
     def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui):
         direita = ""
         if chave == "atrasadas":
-            direita = ("<a class='mg-btn mg-btn--sm mg-btn--secondary direita' href='%s'>adiar todas p/ "
+            direita = ("<a class='mg-btn mg-btn--sm mg-btn--secondary direita' href='%s'>adiar todas para "
                        "hoje</a>"
                        % html.escape("/tarefas/adiar" + (
                            "?" + urlencode([("quem", quem)])
@@ -26962,7 +27196,7 @@ def inicio():
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
         fazer = ("<div class='mg-empty'>Nada por fazer ainda. As tarefas nascem "
-                 "sozinhas quando um concurso entra na escada — os prazos "
+                 "sozinhas quando um concurso ganha proposta — os prazos "
                  "de esclarecimentos e de entrega vêm do anúncio.<br><br>"
                  "<a class='mg-btn mg-btn--primary' href='%s'>ver os %s por decidir</a> "
                  "<a href='/proposta/nova'>ou cria uma proposta sem "
@@ -27027,7 +27261,7 @@ def inicio():
         script=caixa_do_motivo(),
         # «Hoje» e nao só a marca: com vários separadores abertos, 36
         # paginas chamavam-se «Mira Gov» (varredura de 25/09/2026)
-        titulo_aba="Hoje, Mira Gov")
+        titulo_aba="Hoje")
 
 
 def _atrasadas_de(quem, hoje):
@@ -27073,7 +27307,7 @@ def tarefas_adiar():
     return envolver("inicio", "Adiar as atrasadas",
                     "Passa para hoje as tarefas com data anterior.",
                     "<div class='larg'>%s</div>" % corpo,
-                    titulo_aba="Adiar as atrasadas, Mira Gov")
+                    titulo_aba="Adiar as atrasadas")
 
 
 @app.route("/tarefas/adiar", methods=["POST"])

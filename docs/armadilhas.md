@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 15
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 22
-- [A interface](#a-interface) &middot; 86
+- [A interface](#a-interface) &middot; 90
 - [Convenções](#convencoes) &middot; 4
 
-São **302** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **306** ao todo, contados a 26/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3387,6 +3387,42 @@ botões ou no calendário.
   para o leitor e uma legenda; e o «Interessa» e o «Abandonar» levam ✓ e
   ✕ (`SINAL_SIM`, `SINAL_NAO`), que eram o par verde/âmbar que um
   daltónico não distingue.
+
+- **O texto que o ecrã mostra passa por um formatador só, e há um teste
+  que lê o HTML** (lote 5 da segunda ronda, 26/09/2026, perfil 15).
+  Dinheiro pelo `preco_pt()` / `euros()` / `euros_curto()`, datas pelo
+  `data_pt()` / `data_curta()`, o % pelo `pct_pt()` (com o espaço
+  inquebrável antes), plurais pelo `plural()`, tamanhos pelo
+  `tamanho_legivel()` — todos na banda `comum`. O revisor achou
+  «412.000,00 EUR» ao lado de «395 146,78 €» na mesma linha: o valor
+  proposto guarda-se no formato do DR, e duas colunas mostravam-no cru.
+  O `TestOTextoDoEcraSegueOGuia` percorre 26 rotas e recusa ISO, «EUR»,
+  milhares com ponto, «1 dias», «57%», aspas curvas, meses em
+  minúscula, «Objeto», tu, a máquina na primeira pessoa e as palavras
+  internas («ranhura», «corpus», «acervo»). **O guardado não muda**: as
+  chaves das fases, o «CV's» dos motivos e o formato do preço são
+  dados; muda-se o que se mostra. E o e-mail do resumo fica em `px`: as
+  variáveis de CSS não existem num cliente de correio.
+- **A voz é uma** (mesmo dia). Impessoal nas instruções («Escolher na
+  árvore»), «você» quando se fala com a pessoa (o site já o fazia), «nós»
+  só para a empresa dela, e a máquina nunca na primeira pessoa («Não
+  criei», «Mandei»). A consola do `radar.py` fica no tu: é o Afonso a
+  falar consigo, não o produto.
+- **O nosso CSS usa só a escala e os tokens, e um teste lê-o** (mesmo
+  dia, perfil 11: 22 tamanhos de letra e 15 raios). Sete degraus
+  (`--text-xs` 12 … `--text-3xl` 34), em `rem`, definidos na nossa folha;
+  os raios só `var(--radius-*)`, `0` e `50%`. O `TestODesenhoSegueOSistema`
+  lê o `CSS`, o `CSS_NOVO`, a `miragov-radar.css` e os `style=` das
+  páginas; e um `<button>` ou é `mg-btn` ou está na lista do teste
+  com a razão. Uma armadilha pelo caminho: **uma regra antiga
+  `.x button{…}` (0,1,1) ganha ao `.mg-btn` (0,1,0)** — o «Filtrar» dos
+  Concursos saía a 12,5 px e raio 8. As antigas levam `:not(.mg-btn)`.
+- **Um formulário que se parte em `+` precisa de parênteses antes do
+  `%`** (mesmo dia, segunda vez que a armadilha das ligações custou um
+  500). Ao trocar um pedaço literal por `+ botoes_de_filtro(...) +`, o
+  `%` passou a formatar só o último pedaço: a ficha da entidade deu 500
+  e os Concursos perderam o formulário. Um pedaço novo entra como `%s` e
+  vai no tuplo.
 
 ## Convenções
 
