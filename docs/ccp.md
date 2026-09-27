@@ -12,10 +12,36 @@ mantenhas atualizado sobre as mudanças que vão acontecer e quando».
 
 *Conferido no texto oficial a 27/09/2026.*
 
-| Desde | O quê | Onde |
-|---|---|---|
-| — | CCP, DL 18/2008, com 16 alterações | — |
-| **1/10/2026** | **DL n.º 177/2026, de 4/09** — 17.ª alteração, **republica o Código inteiro** (anexo II) | DR, 1.ª série, n.º 172: https://files.diariodarepublica.pt/1s/2026/09/17200/0000200283.pdf |
+A linha do tempo, tirada da 1.ª série do DR (pesquisa pelo sumário
+«Código dos Contratos Públicos», de 2008 a hoje). Só as alterações que
+ainda pesam no Código de hoje:
+
+| Publicado | Diploma | O que fez | Estado |
+|---|---|---|---|
+| 29/01/2008 | DL 18/2008 | Aprova o CCP | — |
+| 31/08/2017 | **DL 111-B/2017** | A grande revisão: transpõe as directivas de 2014 | Em vigor; é a base do Código de hoje |
+| 21/05/2021 | **Lei 30/2021** | Medidas especiais (procedimentos simplificados) e alterações ao CCP | Os arts. 2.º a 16.º **saem a 1/10/2026** (revogados pelo DL 177/2026) |
+| 7/11/2022 | DL 78/2022 | Altera a Lei 30/2021 e o CCP | Idem, na parte da Lei 30/2021 |
+| 10/04/2025 | DL 66/2025 | Art. 318.º, n.º 4: o contrato pode exigir que prestações críticas sejam executadas pelo próprio cocontratante, sem subcontratar | Em vigor |
+| 23/10/2025 | DL 112/2025 | Habitação pública ou de custos controlados: concurso, consulta prévia (até 1 000 000 €) e ajuste directo simplificados **até 31/12/2026**; conceção-construção mais larga (art. 43.º) | Lido na página do DR por extracção automática, não no PDF. **Esse regime vive no art. 3.º da Lei 30/2021, que o DL 177/2026 revoga a 1/10** — para procedimentos novos, acaba três meses antes do anunciado |
+| 4/09/2026 | **DL 177/2026** | 17.ª alteração, **republica o Código inteiro** — §3 | **Entra em vigor a 1/10/2026** |
+
+O PDF oficial do DL 177/2026: DR, 1.ª série, n.º 172,
+https://files.diariodarepublica.pt/1s/2026/09/17200/0000200283.pdf
+
+O que o preâmbulo do DL 177/2026 diz que muda, pelos temas dele:
+princípios novos (economicidade, qualidade, «menor custo»); uso de
+sistemas digitais **incluindo inteligência artificial** pelas entidades;
+o princípio «só uma vez» na habilitação; o **valor estimado** redefinido
+como «preço estimado a pagar»; limiares da consulta prévia e do ajuste
+directo mais altos; não adjudicar por falta de «propostas
+satisfatórias»; o **concurso público flexível** abaixo dos limiares
+europeus (arts. 161.º-A a 161.º-E); o dever de planear as necessidades
+antes de contratar; **mais peso à qualidade** na avaliação; iniciativas
+espontâneas dos privados; testes gratuitos de soluções de TI; contratos
+reservados a startups; as causas de exclusão todas no art. 70.º; o
+concurso limitado revisto; a modificação dos contratos; a consulta
+prévia **especial** (vinda da Lei 30/2021); e a arbitragem voluntária.
 
 **A regra da transição** (art. 10.º do DL, «Aplicação no tempo»): as
 alterações valem para os procedimentos **iniciados depois de
@@ -70,6 +96,14 @@ novos.
 | Anexos I, II, V e XIII do CCP | **revogados** | 8.º do DL, al. a) |
 | Lei 30/2021 (medidas especiais) | os arts. 2.º a 16.º revogados | 8.º do DL, al. b) |
 | Portaria 372/2017 (habilitação) | **continua em vigor** até sair a portaria nova do art. 81.º, n.º 2 | 7.º do DL, n.º 1 |
+| Concurso público **flexível** (abaixo dos limiares europeus) | A entidade pode tirar ou pôr formalidades: requisitos mínimos de capacidade técnica e financeira verificados na análise das propostas, avaliação faseada, leilão, negociação | 161.º-A |
+| Audiência prévia no concurso flexível | O prazo de pronúncia pode descer a **três dias** | 161.º-B, n.º 1, b) |
+
+**O que a §3 obriga a rever no código (por decidir com ele, não feito):**
+o `DIAS_DE_PRONUNCIA` = 5 diz-se «o mínimo da lei» (art. 147.º), e
+num concurso flexível o mínimo passa a três. A tarefa da audiência já
+manda confirmar o prazo na notificação, mas o número por omissão pode
+chegar tarde.
 
 **O que isto pode fazer ao volume da parte L:** com os limiares da
 consulta prévia muito mais altos, o que passar a consulta prévia não
@@ -77,7 +111,14 @@ se publica em anúncio. **Medir** os anúncios de outubro e novembro de
 2026 contra os mesmos meses de 2025 antes de concluir — é hipótese, não
 facto.
 
-## 4. O que está marcado para depois, sem data
+## 4. O que está marcado para depois
+
+| Quando | O quê |
+|---|---|
+| **1/10/2026** | DL 177/2026 (§3); saem os arts. 2.º a 16.º da Lei 30/2021 |
+| **31/12/2026** | Fim anunciado do regime simplificado da habitação do DL 112/2025 — mas ver a §1: nos procedimentos novos já acaba a 1/10 |
+| **1/01/2028** | Próxima revisão bienal dos limiares europeus (art. 474.º) — data pelo ciclo da Comissão, não por diploma publicado |
+| Sem data | O resto da tabela abaixo |
 
 | O quê | Porque importa | Como se sabe que saiu |
 |---|---|---|
