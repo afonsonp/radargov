@@ -218,7 +218,7 @@ NAO_SAO_CONSTANTES = {
     # ficheiros do histórico, citados sem extensão
     "AUDITORIA", "SANEAMENTO", "ESQUELETO", "UX-Auditoria", "CAMADAS",
     "CICLOS", "CONCORRENTES", "CRM", "ONLINE", "REDESENHO", "FUNCIONAL",
-    "BACKLOG", "ESTADO", "SETORES",
+    "BACKLOG", "ESTADO", "SETORES", "CADERNOS",
 }
 
 # Embutidas do Python e metodos de JS que a documentacao cita a
