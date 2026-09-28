@@ -9111,6 +9111,100 @@ class _CicloDoTesteComUtilizadores(BaseTemporaria):
                           "WHERE id=?", (estado, "118.500,00 EUR", id_))
         return id_
 
+
+class TestAPropostaDeCadaEmpresa(_CicloDoTesteComUtilizadores):
+    """28/09/2026, decisões dele: os campos da proposta eram os da LATD —
+    tipologia consulting/turnkey, CV e proposta técnica sim/não, um CoE —
+    e numa obra ou numa limpeza não querem dizer nada. A tipologia e a
+    unidade passam a listas de cada empresa; o CV e a proposta técnica
+    dão lugar aos documentos que o Programa pede (o campo 12); e os
+    motivos de perda passam a genéricos para todas."""
+
+    CAMPO_12 = ("1. DEUCP\n2. Proposta técnica (Anexo II)\n"
+                "Condições especiais: só nos lotes 1 e 2\n3. CV da equipa")
+
+    def _com_leitura(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO analise (ref, documentos_proposta) "
+                      "VALUES ('60/2026', ?)", (self.CAMPO_12,))
+
+    def test_os_itens_sao_so_os_nomes_numerados(self):
+        self.assertEqual(radar.itens_da_proposta(self.CAMPO_12),
+                         ["DEUCP", "Proposta técnica (Anexo II)", "CV da equipa"])
+        self.assertEqual(radar.itens_da_proposta(None), [])
+
+    def test_sem_listas_nao_ha_tipologia_nem_unidade_nem_cv(self):
+        self._proposta()
+        h = self._ficha()
+        for nome in ("tipologia", "coe", "cv", "proposta_tecnica"):
+            self.assertNotIn("name='%s'" % nome, h, nome)
+
+    def test_as_listas_da_empresa_desenham_os_selectores(self):
+        radar.gravar_config({"tipologias": ["Obra pública", "Manutenção"],
+                             "unidades": ["Norte", "Sul"],
+                             "rotulo_da_unidade": "Delegação"})
+        self._proposta()
+        h = self._ficha()
+        self.assertIn("<option value='Manutenção'>", h)
+        self.assertIn("Delegação<select name='coe'>", h)
+        self.assertNotIn("consulting", h)
+
+    def test_fora_da_lista_recusa_se_e_na_lista_grava(self):
+        radar.gravar_config({"tipologias": ["Obra pública"]})
+        id_ = self._proposta()
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"tipologia": "turnkey"})
+        self.assertIsNone(radar.proposta(id_)["tipologia"])
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"tipologia": "Obra pública"})
+        self.assertEqual(radar.proposta(id_)["tipologia"], "Obra pública")
+
+    def test_o_valor_antigo_nao_se_perde_quando_a_lista_muda(self):
+        id_ = self._proposta()
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET tipologia='turnkey' WHERE id=?", (id_,))
+        radar.gravar_config({"tipologias": ["Obra pública"]})
+        self.assertIn("<option value='turnkey' selected>", self._ficha())
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"tipologia": "turnkey"})
+        self.assertEqual(radar.proposta(id_)["tipologia"], "turnkey")
+
+    def test_os_documentos_do_programa_marcam_se_prontos(self):
+        self._com_leitura()
+        id_ = self._proposta()
+        h = self._ficha()
+        self.assertIn("0 de 3 prontos", h)
+        self.assertIn("value='CV da equipa'", h)
+        self.cliente.post("/proposta/%d/ficha" % id_, data={
+            "docs_presentes": "1", "doc_pronto": ["DEUCP", "inventado"]})
+        self.assertEqual(radar.documentos_prontos(radar.proposta(id_)), ["DEUCP"])
+        self.assertIn("1 de 3 prontos", self._ficha())
+        # desmarcar todos grava-se, graças ao campo escondido
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"docs_presentes": "1"})
+        self.assertEqual(radar.documentos_prontos(radar.proposta(id_)), [])
+
+    def test_sem_leitura_nao_ha_lista_de_documentos(self):
+        self._proposta()
+        self.assertNotIn("docs_presentes", self._ficha())
+
+    def test_os_motivos_sao_genericos_e_os_antigos_passam(self):
+        self.assertNotIn("CV's", radar.MOTIVOS_PERDA)
+        self.assertNotIn("Proposta técnica", radar.MOTIVOS_PERDA)
+        for antigo, novo in radar.MOTIVOS_QUE_MUDARAM.items():
+            self.assertIn(novo, radar.MOTIVOS_PERDA, antigo)
+        id_ = self._proposta("perdido")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET motivo=\"CV's\" WHERE id=?", (id_,))
+        radar.iniciar_empresa()
+        self.assertEqual(radar.proposta(id_)["motivo"], "Qualidade técnica")
+
+    def test_as_listas_gravam_se_no_perfil_da_empresa(self):
+        self.cliente.post("/configuracoes/propostas", data={
+            "tipologias": "Obra pública\n\n Manutenção \nObra pública",
+            "unidades": "", "rotulo_da_unidade": "  Delegação "})
+        tipologias, unidades, rotulo = radar.listas_da_proposta()
+        self.assertEqual(tipologias, ["Obra pública", "Manutenção"])
+        self.assertEqual(unidades, [])
+        self.assertEqual(rotulo, "Delegação")
+
+
 class TestAsDecisoesDaPropostaD2D3D5D10(_CicloDoTesteComUtilizadores):
     """As decisões dele sobre a proposta, depois da segunda ronda de
     testes (26/09/2026): D2 (recusar o preço acima do preço base), D3

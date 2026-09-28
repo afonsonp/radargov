@@ -184,7 +184,8 @@ comparadas antes de apagar.
 | `responsavel` | 72 | Quem a tem |
 | `tipologia` | 72 | **Nenhum ecrã a mostra agrupada** |
 | `coe` | 58 | idem |
-| `cv`, `proposta_tecnica` | 49 | Quem entrou na proposta |
+| `cv`, `proposta_tecnica` | 49 | **Saíram do ecrã a 28/09/2026**: o que a proposta leva é o que o Programa pede, e isso é a `documentos_prontos`. As colunas ficam |
+| `documentos_prontos` | 0 | Os documentos do campo 12 que a empresa marcou como prontos, em JSON (28/09/2026) |
 | `valor_proposta`, `ebitda` | 42 | **O `ebitda` não aparece em ecrã nenhum** |
 | `fechada_em` | 48 | O dia em que se marcou como decidida — o período do `/situacao` usa-a só quando falta a `data_adjudicacao` |
 | `data_adjudicacao` | 0 | A data da adjudicação (26/09/2026): é por ela que o `/situacao` conta o período |
@@ -333,8 +334,11 @@ preço e da fase («Submetida → Relatório preliminar»), e a ficha
 mostra as 12 entradas mais recentes com um «ver as N».
 
 Os motivos são **vocabulário fechado** (é o que os faz dar contas):
-perda — *Preço · CV's · Proposta técnica · Certificações · Proposta
-excluída* (esta desde 26/09/2026); não fomos —
+perda — *Preço · Qualidade técnica · Prazo · Habilitação e
+certificações · Proposta excluída*, **genéricos para todas as
+empresas** desde 28/09/2026 (eram os da LATD: «CV's», «Proposta
+técnica», «Certificações», que passaram aos novos no
+`iniciar_empresa()`, pelo `MOTIVOS_QUE_MUDARAM`); não fomos —
 *Preço base baixo · Falta de certificações · Falta de CV's · Não faz
 parte da oferta*.
 
@@ -608,7 +612,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**119 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**120 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1314,8 +1318,8 @@ suportam**, não por prioridade.
 - **`tipologia`** (72) e **`coe`** (58) — taxa de vitória e margem por
   tipologia. O motor existe (`taxa_de_vitoria(por=…)`), **falta o
   ecrã**.
-- **`cv` e `proposta_tecnica`** (49) — quem entra nas propostas que se
-  ganham. Carga por pessoa, e que perfis fazem falta.
+- **`cv` e `proposta_tecnica`** (49) — saíram do ecrã a 28/09/2026; os
+  valores antigos ficam na base.
 - **Ciclo de decisão.** `criada_em` → `fechada_em`: quanto tempo leva
   cada ranhura, e onde é que as propostas encalham.
 - **Preço proposto vs. preço base vs. adjudicado** — as três pontas

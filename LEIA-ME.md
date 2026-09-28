@@ -945,8 +945,10 @@ notificação o prazo que o júri deu; se for maior, adia a tarefa.
 
 **Tudo o resto vive no bloco «A nossa proposta»**, na ficha do anúncio —
 e há um bloco por lote, quando há lotes. Lá dentro: a ranhura, os campos
-que ela pede, o que a empresa decide (tipologia, CV, proposta técnica),
-o CoE, as notas (cada nota nova fica com a data e o teu nome, e as de
+que ela pede, a tipologia e a unidade de negócio (as listas são da tua
+empresa, e escrevem-se no Perfil da empresa, nas Configurações; sem
+lista, o campo não aparece), os **documentos da proposta** que o
+Programa pede, para marcares os que estão prontos, as notas (cada nota nova fica com a data e o teu nome, e as de
 antes não se apagam), as etiquetas, o que falta fazer, e o desfecho do Portal
 BASE quando já há contrato celebrado. O responsável escreve-se no cartão
 «Responsável», ao lado, que aparece quando o concurso já está na escada.
@@ -1257,7 +1259,7 @@ em quando.
 
 **Desde 15/09/2026 leva também as propostas e as tarefas** — o preço
 proposto, o lugar no relatório, os três primeiros, o motivo, a
-tipologia, o CV, a proposta técnica, as notas e o CoE — e, desde
+tipologia, a unidade de negócio, os documentos prontos, as notas — e, desde
 26/09/2026, as datas e o valor adjudicado, e os documentos da empresa. É a parte mais
 irrecuperável de todas, porque o Diário da República não te devolve o
 preço que propuseste; até esse dia não ia no ficheiro e ninguém tinha

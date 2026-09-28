@@ -1182,6 +1182,18 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
 
 O funil da empresa, do «por ver» ao «ganho».
 
+- **As listas da proposta são de cada empresa, e a lista só manda
+  quando existe** (28/09/2026). A tipologia e a unidade de negócio (a
+  coluna `coe`, com o nome que a empresa lhe der) vêm do Perfil da
+  empresa (`listas_da_proposta()`). Com lista, um valor de fora
+  recusa-se — menos o que a proposta **já tinha**, que continua a
+  valer e a aparecer: a lista pode ter mudado depois. **Sem lista o
+  ecrã não mostra o campo, e a gravação aceita o texto** — os testes
+  da versão da proposta gravam «do primeiro» e «do segundo» no `coe`.
+  Os documentos prontos só aceitam os nomes que o campo 12 lista
+  **hoje**, e o `docs_presentes` escondido é o que distingue «desmarquei
+  todos» de «o formulário não trazia a lista».
+
 - **O formulário da proposta leva a `versao` escondida, e a gravação
   confere-a** (`versao_da_proposta()`, `proposta_mudou_depois()`;
   25/09/2026). O formulário manda **todos** os campos, e por isso a
@@ -1361,8 +1373,8 @@ O funil da empresa, do «por ver» ao «ganho».
   `<form>` envolver células, por isso o formulário leva
   `display:contents` e o browser aceita-o porque abre e fecha dentro da
   mesma linha; um formulário que abrisse numa célula e fechasse noutra
-  linha era engolido. Os valores fechados (`TIPOLOGIAS`, `SIM_NAO`)
-  recusam-se com aviso, e só o que mudou vai para o histórico —
+  linha era engolido. Os valores fora das listas da empresa
+  (`listas_da_proposta()`, desde 28/09/2026) recusam-se com aviso, e só o que mudou vai para o histórico —
   carregar em «guardar» sem tocar em nada não é um acontecimento.
   `TestListaEmCurso`.
 
