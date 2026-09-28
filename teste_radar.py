@@ -22,6 +22,7 @@ import io
 import json
 import zipfile
 import os
+import email.utils
 import re
 import shutil
 import sqlite3
@@ -2476,6 +2477,13 @@ class TestEnvioComHtml(unittest.TestCase):
     def test_sem_html_e_so_texto(self):
         msg = self.apanhar(None)
         self.assertEqual(msg.get_content_type(), "text/plain")
+
+    def test_leva_data_e_identificador(self):
+        # sem Date nem Message-ID sairam todos ate 28/09/2026: a caixa
+        # mostrava "sem data", e ha servidores que os mandam para o spam
+        msg = self.apanhar(None)
+        self.assertIsNotNone(email.utils.parsedate_to_datetime(msg["Date"]))
+        self.assertRegex(msg["Message-ID"], r"^<.+@d\.pt>$")
 
 
 class TestEurosDoTexto(unittest.TestCase):
