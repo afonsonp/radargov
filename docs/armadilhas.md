@@ -10,14 +10,14 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 ## Índice
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
-- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 12
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 8
+- [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 14
 - [O motor de filtros](#o-motor-de-filtros) &middot; 13
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 74
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 75
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 103
 - [Convenções](#convencoes) &middot; 4
 
-São **346** ao todo, contados a 26/09/2026. Contam-se por secção com
+São **354** ao todo, contados a 28/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -508,6 +508,40 @@ Orçamento, cadeia de reserva, chaves.
   modelo. **Um negativo da leitura é sempre «não encontrei»**: o recorte
   leva só as zonas cujo título casa com as âncoras, e o que está fora
   delas o modelo nunca viu.
+
+- **Mede-se o recorte antes de culpar o modelo** (28/09/2026,
+  `docs/historico/LEITURA-VALIDADA.md`). Quatro agentes compararam as 70
+  leituras com as peças, e o defeito era o «não consta» falso — mas das
+  59 passagens que eles provaram lá estar **só 20 chegavam ao modelo**.
+  Não era o modelo: era o recorte. A pergunta barata, que não gasta
+  orçamento, é «esta frase está no texto que o `pecas_para_analise()`
+  manda?»; só depois vale reler pelo modelo. Com as correcções desse
+  dia passaram a chegar 46 de 55.
+
+- **O orçamento do recorte corta-se na escolha das janelas, e escolhe-se
+  pela densidade.** O texto sai pela ordem do documento: um `[:tecto]`
+  no fim deitava fora a ÚLTIMA janela, que era muitas vezes a mais
+  importante (a tabela dos perfis no último anexo). E escolher pela
+  posição dava o orçamento a um «Perfil» solto na página 3. Onde as
+  âncoras se juntam — uma «experiência mínima» por linha, uma alínea
+  por documento — é onde está a resposta (`PESO_NA_DENSIDADE`).
+
+- **O peso 0 é uma frase do corpo, e não um título.** «A proposta é
+  constituída, sob pena de exclusão, pelos seguintes documentos:» acaba
+  em dois pontos, e o `e_titulo()` recusa-a — era por isso que as listas
+  de documentos ficavam de fora. As frases de peso 0 têm uma janela mais
+  curta (`JANELA_FORTE`) e disputam o lugar com os títulos, pela
+  densidade: à frente de tudo, as cópias da frase nos modelos de
+  declaração comiam o orçamento. **Não ponhas no peso 0 o que se repete
+  em todas as cláusulas** — o «director de obra» de uma empreitada saiu
+  de lá no mesmo dia por isso.
+
+- **Uma peça aberta por acréscimo só dá o que as âncoras apanharem**
+  (`SECUNDARIAS_DA_LEITURA`): a leitura do Caderno abre também o
+  Programa, onde muitas vezes estão os requisitos da equipa, e a do
+  Programa abre o Caderno, onde às vezes está o preço anormalmente
+  baixo. Mas sem âncora não entra nada — o princípio do Programa não é
+  resposta nenhuma e comia o orçamento do Caderno.
 
 
 ---
