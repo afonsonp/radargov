@@ -496,10 +496,14 @@ zonas que leu; e quando a peça nem estava entre as descarregadas, a
 ficha di-lo em vez de dizer que a leu.
 São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
-(`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` (Groq, a
-reserva na própria Groq com outro modelo, NVIDIA, OpenRouter) até
-alguém responder. **Na prática lê a Groq**: o tecto diário dela é por
-modelo, e a NVIDIA deixou de servir a 3/09/2026.
+(`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` até
+alguém responder: a Groq (`gpt-oss-120b`), o Cerebras (o mesmo modelo,
+com 1 milhão de tokens por dia; só entra com chave), a reserva na
+própria Groq (`gpt-oss-20b`), a NVIDIA (`nemotron-3-ultra`, com o
+raciocínio desligado) e o OpenRouter (um modelo gratuito, quase sempre
+cheio). Todos gratuitos; a conta de 28/09/2026 dava ~20 concursos por
+dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
+publicado.
 
 Três regras que decidem o que se vê:
 
@@ -1257,8 +1261,8 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
 - **Exportação da triagem**: `empresas/<id>/triagem.jsonl`, por
   empresa, só local (desde 23/09/2026 não vai ao GitHub).
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
-  a cadeia de fornecedores (a Groq, a reserva na Groq, a NVIDIA e o
-  OpenRouter) até alguém responder.
+  a cadeia de fornecedores (a Groq, o Cerebras, a reserva na Groq, a
+  NVIDIA e o OpenRouter) até alguém responder.
 
 ---
 
