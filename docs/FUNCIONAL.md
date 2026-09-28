@@ -115,14 +115,14 @@ as exactas e salta as outras.
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
-| `utilizadores` | **20** | Quem entra. A 26/09/2026 inclui as 19 contas da segunda ronda de testes com utilizadores, que saem no fim dela |
+| `utilizadores` | **2** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
 | `estado` | 19 | Marcas do sistema (última verificação, migrações feitas) |
-| `entradas_falhadas` | 3 | Tentativas de login falhadas |
+| `entradas_falhadas` | 1 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
-| `convites` | **4** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
-| `reposicoes` | **0** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
-| `pedidos_acesso` | **3** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026 |
+| `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
+| `reposicoes` | **2** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
+| `pedidos_acesso` | **4** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026 |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -204,11 +204,11 @@ viaja**: não está no git.
 
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `contratos` | **2 004 511** | Cada contrato celebrado. Desde 2015 |
-| `contrato_adjudicatario` | 2 036 810 | Quem ganhou (um contrato pode ter vários) |
-| `contrato_cpv` | 2 037 647 | Os CPV de cada contrato |
-| `entidades` | **180 090** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
-| `entidade_nomes` | 256 340 | Todas as grafias por que uma entidade já apareceu |
+| `contratos` | **2 009 640** | Cada contrato celebrado. Desde 2015 |
+| `contrato_adjudicatario` | 2 041 974 | Quem ganhou (um contrato pode ter vários) |
+| `contrato_cpv` | 2 042 820 | Os CPV de cada contrato |
+| `entidades` | **180 507** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
+| `entidade_nomes` | 256 875 | Todas as grafias por que uma entidade já apareceu |
 
 Colunas de `contratos` que interessam: `n_anuncio` (**é o `ref` do
 radar** — é por aqui que se fecha o ciclo), `adjudicante_chave`,
