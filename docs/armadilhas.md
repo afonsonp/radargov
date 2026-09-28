@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 14
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 15
 - [O motor de filtros](#o-motor-de-filtros) &middot; 13
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 103
 - [Convenções](#convencoes) &middot; 4
 
-São **359** ao todo, contados a 28/09/2026. Contam-se por secção com
+São **360** ao todo, contados a 28/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -542,6 +542,20 @@ Orçamento, cadeia de reserva, chaves.
   Programa abre o Caderno, onde às vezes está o preço anormalmente
   baixo. Mas sem âncora não entra nada — o princípio do Programa não é
   resposta nenhuma e comia o orçamento do Caderno.
+
+- **A reserva do modelo pode estar morta sem ninguém dar por ela.** A
+  NVIDIA retirou o `gpt-oss-120b` a 3/09/2026 (410, «end of life») e os
+  modelos que lá ficaram não responderam em 4 minutos: durante quase um
+  mês só a Groq leu, e quando o tecto diário dela acabava não lia
+  ninguém — com a cadeia a parecer inteira nas Configurações. Deu-se
+  pela coisa ao reler o acervo, a 28/09/2026, porque o `--ler-pecas`
+  cortava o erro aos 80 caracteres. **O tecto diário da Groq é por
+  modelo**: a reserva é a própria Groq com o `gpt-oss-20b`
+  (`groq-reserva`). E **o português destes documentos anda nos 2,75
+  caracteres por token**, não nos 3,5: um pedido de 2 × `TECTO_RECORTE`
+  com as instruções chegava aos 7 400 tokens e a Groq recusava-o (413).
+  O pedido inteiro fica em 1,5 × e a peça aberta por acréscimo tem o seu
+  tecto (`TECTO_SECUNDARIA`).
 
 
 ---

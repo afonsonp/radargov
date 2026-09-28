@@ -1155,6 +1155,44 @@ class TestORecorteLevaAResposta(unittest.TestCase):
         junto = radar.juntar_leituras({"objecto": "- fazer X"}, None)
         self.assertIsNone(junto["documentos_proposta"])
 
+    def pecas_grandes(self):
+        # um Caderno e um anexo tecnico enormes, e um Programa cheio de
+        # frases que as ancoras da equipa apanham
+        perfis = "".join("Experiência mínima de %d anos em Java" % n + self.NL
+                         for n in range(1, 400))
+        return [{"nome": "Caderno_de_Encargos.pdf",
+                 "texto": "3. Equipa" + self.NL + perfis},
+                {"nome": "Anexo_Especificacao_Tecnica.pdf",
+                 "texto": "3. Equipa" + self.NL + perfis},
+                {"nome": "Programa_do_Concurso.pdf",
+                 "texto": "Requisitos mínimos da equipa" + self.NL + perfis}]
+
+    def test_o_pedido_nao_passa_de_tecto_e_meio(self):
+        # 28/09/2026: a releitura bateu no limite da Groq (413). O portugues
+        # destes documentos anda nos 2,75 caracteres por token, e 2 x o
+        # tecto, com as instrucoes e a resposta, chegava aos 7 400 tokens
+        recorte, _ = radar.pecas_para_analise(self.pecas_grandes(), "encargos",
+                                              radar.ANCORAS_EQUIPA, 7000)
+        self.assertLessEqual(len(recorte), 7000 * 1.5)
+
+    def test_a_peca_por_acrescento_leva_so_uma_zona(self):
+        # com o tecto da peca, o Programa aberto por acrescento enchia o
+        # pedido ate ao tecto total em quase todos os concursos
+        docs = self.pecas_grandes()[2:]
+        docs.insert(0, {"nome": "Caderno_de_Encargos.pdf", "texto": "Nada." + self.NL})
+        recorte, _ = radar.pecas_para_analise(docs, "encargos",
+                                              radar.ANCORAS_EQUIPA, 7000)
+        programa = recorte.split("### Programa_do_Concurso.pdf")[1]
+        self.assertLessEqual(len(programa), radar.TECTO_SECUNDARIA + 20)
+
+    def test_a_reserva_e_a_groq_com_outro_modelo(self):
+        # a NVIDIA deixou de servir a 3/09/2026 (o modelo saiu), e ha quase
+        # um mes que o dia acabava quando o tecto da Groq acabava; o tecto
+        # diario da Groq e por modelo
+        nome, url, modelo = radar.FORNECEDORES[1][:3]
+        self.assertEqual((nome, url), ("groq-reserva", radar.GROQ_URL))
+        self.assertNotEqual(modelo, radar.GROQ_MODELO)
+
 
 class TestHabilitacaoECaucaoDoAnuncio(unittest.TestCase):
     """O alvará e a caução estão no anúncio do DR (§12 e §14), e faltavam

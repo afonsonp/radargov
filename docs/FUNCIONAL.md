@@ -487,7 +487,7 @@ sumário) cede ao do corpo; o mesmo documento duas vezes conta uma. A
 leitura do Caderno abre também o Programa, e a do Programa o Caderno,
 mas só pelo que as âncoras apanharem (`SECUNDARIAS_DA_LEITURA`).
 Medido com 55 passagens que se provou estarem nas peças: chegavam 20,
-chegam 46.
+chegam 44 (46 com pedidos maiores, que a Groq recusava).
 
 **Na ficha, a leitura é um rascunho.** Cada linha lida diz de que peças
 e páginas veio e «é um rascunho: confirmar no documento antes de
@@ -496,8 +496,10 @@ zonas que leu; e quando a peça nem estava entre as descarregadas, a
 ficha di-lo em vez de dizer que a leu.
 São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
-(`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` (Groq →
-NVIDIA → OpenRouter) até alguém responder.
+(`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` (Groq, a
+reserva na própria Groq com outro modelo, NVIDIA, OpenRouter) até
+alguém responder. **Na prática lê a Groq**: o tecto diário dela é por
+modelo, e a NVIDIA deixou de servir a 3/09/2026.
 
 Três regras que decidem o que se vê:
 
@@ -1255,7 +1257,8 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
 - **Exportação da triagem**: `empresas/<id>/triagem.jsonl`, por
   empresa, só local (desde 23/09/2026 não vai ao GitHub).
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
-  a cadeia Groq → NVIDIA → OpenRouter até alguém responder.
+  a cadeia de fornecedores (a Groq, a reserva na Groq, a NVIDIA e o
+  OpenRouter) até alguém responder.
 
 ---
 
