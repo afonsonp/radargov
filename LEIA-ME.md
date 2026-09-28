@@ -456,7 +456,7 @@ Os botões **interessa** e **abandonar** servem para ires limpando a
 lista. Abandonar não apaga, arquiva — fica em Propostas › Não fomos, e
 podes sempre repor. **Abandonar pede o motivo**: carregas no botão e
 abre uma caixa com o nome do anúncio e os motivos como botões — *Preço
-base baixo*, *Falta de certificações*, *Falta de CV's*, *Não faz parte
+base baixo*, *Falta de certificações*, *Falta de equipa ou capacidade*, *Não faz parte
 da oferta* —, sem caixa de texto livre; carregar num motivo grava logo.
 Sem motivo não abandona. **No Por ver a página não recarrega** (desde
 26/09/2026): a linha sai no sítio, o aviso em baixo diz o que fizeste

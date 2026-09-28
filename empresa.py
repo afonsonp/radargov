@@ -45,8 +45,11 @@ TRADUCAO_ZOHO = {"lost": "Perdido", "won": "Ganho", "cancel": "Cancelado",
 MAPA_RAZAO = {"preco base demasiado baixo": "Preço base baixo",
               "preco base baixo": "Preço base baixo",
               "falta de certificacoes": "Falta de certificações",
-              "falta de cv s": "Falta de CV's",
-              "falta de cvs": "Falta de CV's",
+              # o _norma() guarda o apostrofo: sem esta chave, «Falta de
+              # CV's» passava sem traducao (apanhado a 28/09/2026)
+              "falta de cv's": "Falta de equipa ou capacidade",
+              "falta de cv s": "Falta de equipa ou capacidade",
+              "falta de cvs": "Falta de equipa ou capacidade",
               "fora do nosso ambito": "Fora do âmbito",
               "fora do ambito": "Fora do âmbito",
               "prazo de entrega curto": "Prazo curto",

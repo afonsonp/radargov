@@ -1966,7 +1966,7 @@ o leitor do Excel antigo fica lá, sem comando.
   acabara de carregar. Agora o nome leva 16 caracteres ao acaso, e o
   que ficou na pasta antiga fica lá, sem rota que o leia (apaga-se à
   mão). Uma razão já canónica
-  («Falta de CV's») fica como está no `estado_pretendido()`: o
+  («Falta de equipa ou capacidade») fica como está no `estado_pretendido()`: o
   `MAPA_RAZAO` é para as variantes do Excel antigo, e a primeira versão
   perdia o motivo por o passar pelo mapa. `--importar-excel` e
   `--empresa-ligar` saíram; `--empresa-desfazer` (repor as propostas de uma

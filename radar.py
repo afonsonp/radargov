@@ -465,7 +465,7 @@ def _empresa_vazia():
 # passar a aplicar-se -- decisao do Afonso a 02/09/2026: nada muda no
 # front antes de o registo estar consolidado.
 MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
-                    "Falta de CV's", "Não faz parte da oferta")
+                    "Falta de equipa ou capacidade", "Não faz parte da oferta")
 # «Proposta excluída» entrou a 26/09/2026 (F14 da segunda ronda): é o
 # motivo mais frequente na prática -- por documentação, por preço
 # anormalmente baixo, acima do preço base, fora de prazo -- e não cabia
@@ -479,6 +479,9 @@ MOTIVOS_PERDA = ("Preço", "Qualidade técnica", "Prazo",
 MOTIVOS_QUE_MUDARAM = {"CV's": "Qualidade técnica",
                        "Proposta técnica": "Qualidade técnica",
                        "Certificações": "Habilitação e certificações"}
+# O mesmo para o «Não fomos» (decisão dele, 28/09/2026): «Falta de CV's»
+# era de uma empresa de TI.
+MOTIVOS_DE_ABANDONO_QUE_MUDARAM = {"Falta de CV's": "Falta de equipa ou capacidade"}
 
 # Como cada empresa arruma as suas propostas (28/09/2026). Eram fixos e
 # da LATD -- «consulting» ou «turnkey», e um CoE em texto livre --; agora
@@ -811,9 +814,11 @@ def iniciar_empresa(caminho=None):
             c.execute("ALTER TABLE propostas ADD COLUMN documentos_prontos TEXT")
         # Os motivos da LATD passam aos genéricos. Idempotente: o WHERE
         # só apanha os antigos.
-        for antigo, novo in MOTIVOS_QUE_MUDARAM.items():
-            c.execute("UPDATE propostas SET motivo=? WHERE estado='perdido' "
-                      "AND motivo=?", (novo, antigo))
+        for estado, mudaram in (("perdido", MOTIVOS_QUE_MUDARAM),
+                                ("nao_fomos", MOTIVOS_DE_ABANDONO_QUE_MUDARAM)):
+            for antigo, novo in mudaram.items():
+                c.execute("UPDATE propostas SET motivo=? WHERE estado=? "
+                          "AND motivo=?", (novo, estado, antigo))
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ref ON propostas(ref)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ent "
                   "ON propostas(entidade_chave)")
@@ -27664,7 +27669,7 @@ def porque_se_perde():
 def porque_nao_se_vai():
     """O mesmo para o «Não fomos» (MOTIVOS_ABANDONO). Vale tanto como o
     outro e diz outra coisa: onde é que a empresa não chega -- falta de
-    certificações, falta de CV's -- é o que se pode ir corrigir."""
+    certificações, falta de equipa -- é o que se pode ir corrigir."""
     with liga() as c:
         return c.execute(
             "SELECT COALESCE(NULLIF(motivo,''),'(por dizer)') m, COUNT(*) n "
