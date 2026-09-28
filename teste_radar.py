@@ -12645,9 +12645,13 @@ class TestContas(BaseTemporaria):
                        if "POST" in r.methods
                        # E o /repor (D17), pela mesma razao
                        # (TestReporAPalavraPasse)
+                       # E o ecrã do código do segundo factor
+                       # (28/09/2026): a guarda é o pendente
+                       # (TestSegundoFactorDoDono)
                        and r.rule not in ("/entrar", "/pedir-acesso",
                                           "/convite/<codigo>",
-                                          "/repor/<codigo>"))
+                                          "/repor/<codigo>",
+                                          "/entrar/codigo"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -20506,6 +20510,368 @@ class TestLotePCBHojeEPropostas(BaseTemporaria):
             self.assertEqual(len(radar.sitios_do_termo(p, "ISO")), 1)    # e não «isolamento»
             self.assertEqual(len(radar.sitios_do_termo(p, "iso 9001")), 1)
         self.assertEqual(radar.paginas_com_termo(caminho, "tecnicos"), [(1, 3)])
+
+
+class _RelogioDoTOTP:
+    """Um relógio que só anda quando o teste manda: o TOTP muda de 30 em
+    30 s, e um teste que dependesse do relógio verdadeiro falhava na
+    fronteira de um passo, ou gastava os três códigos que a janela aceita."""
+
+    def __init__(self, instante=1_800_000_000):
+        self.instante = instante
+
+    def __call__(self):
+        return self.instante
+
+
+class TestSegundoFactorDoDono(BaseTemporaria):
+    """O segundo factor da conta do dono (28/09/2026). A conta do dono
+    abre a plataforma inteira -- todas as empresas, as cópias, as contas
+    --, e até aqui bastava a palavra-passe. Os riscos que isto guarda:
+
+    - um TOTP que não bate com a RFC 6238 (as apps de autenticação não
+      o aceitariam, e ele ficava fechado fora);
+    - o mesmo código a servir duas vezes (quem o visse por cima do ombro
+      entrava nos 30 s seguintes);
+    - uma porta lateral que abrisse a sessão sem o código: a ligação de
+      repor, um pendente inventado, um aparelho de confiança que
+      sobrevive ao «sair de todos»;
+    - o segundo factor ligado sem a app o ter lido (ele ficava fora)."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    # o endereço público, como o túnel o traz (do 127.0.0.1, com o Host
+    # público): não é local, e o acesso livre não o deixa entrar
+    PUBLICO = {"REMOTE_ADDR": "127.0.0.1"}
+    URL_PUBLICO = "http://miragov.pt"
+
+    def setUp(self):
+        super().setUp()
+        self.relogio = _RelogioDoTOTP()
+        self.enterContext(unittest.mock.patch.object(
+            radar.contas, "_instante", self.relogio))
+        with radar.liga() as c:
+            self.dono = radar.contas.criar_utilizador(
+                c, "dono", "senha-comprida", pela_consola=True)
+            self.chefe = radar.contas.criar_utilizador(
+                c, "chefe", "senha-comprida", papel="admin", empresa_id=1)
+
+    # -- ajudas
+
+    def codigo(self, avanco=0):
+        """O código que a app mostraria agora (ou `avanco` passos à frente)."""
+        with radar.liga() as c:
+            segredo = c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
+                                (self.dono,)).fetchone()[0]
+        return radar.contas.codigo_totp(segredo, self.relogio() + 30 * avanco)
+
+    def passar(self, passos=1):
+        self.relogio.instante += 30 * passos
+
+    def ligar(self):
+        """Liga o segundo factor ao dono pelo contas.py; devolve os
+        códigos de recuperação."""
+        with radar.liga() as c:
+            radar.contas.preparar_segundo_factor(c, self.dono)
+        with radar.liga() as c:
+            codigos = radar.contas.confirmar_segundo_factor(c, self.dono, self.codigo())
+        self.passar()
+        return codigos
+
+    def token(self, cliente, pagina="/configuracoes/conta"):
+        html_ = cliente.get(pagina, environ_base=self.FORA).get_data(as_text=True)
+        return re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"", html_).group(1)
+
+    def entrar(self, cliente=None, quem="dono", ambiente=None, **kw):
+        cliente = cliente or radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=ambiente or self.FORA, **kw)
+        return cliente, r
+
+    def dentro(self, cliente, ambiente=None, **kw):
+        return cliente.get("/configuracoes/conta", environ_base=ambiente or self.FORA,
+                           **kw).status_code == 200
+
+    # -- o TOTP
+
+    def test_bate_com_os_vectores_da_rfc_6238(self):
+        # o segredo do anexo B da RFC (SHA1): "12345678901234567890"
+        segredo = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+        for instante, esperado in ((59, "94287082"), (1111111109, "07081804"),
+                                   (1111111111, "14050471"), (1234567890, "89005924"),
+                                   (2000000000, "69279037"), (20000000000, "65353130")):
+            self.assertEqual(radar.contas.codigo_totp(segredo, instante, 8), esperado)
+            # os seis da app são os seis de baixo
+            self.assertEqual(radar.contas.codigo_totp(segredo, instante), esperado[2:])
+
+    def test_o_segredo_tem_160_bits_e_e_novo_de_cada_vez(self):
+        import base64
+        a, b = radar.contas.segredo_novo(), radar.contas.segredo_novo()
+        self.assertNotEqual(a, b)
+        self.assertEqual(len(base64.b32decode(a)), 20)
+
+    def test_so_liga_com_um_codigo_da_app_e_os_de_recuperacao_so_em_resumo(self):
+        with radar.liga() as c:
+            radar.contas.preparar_segundo_factor(c, self.dono)
+            # preparado mas por confirmar: não está ligado
+            self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
+            self.assertIsNone(radar.contas.confirmar_segundo_factor(c, self.dono, "000000"))
+            self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
+        with radar.liga() as c:
+            codigos = radar.contas.confirmar_segundo_factor(c, self.dono, self.codigo())
+            self.assertTrue(radar.contas.segundo_factor_ligado(c, self.dono))
+        self.assertEqual(len(codigos), 10)
+        self.assertEqual(len(set(codigos)), 10)
+        with radar.liga() as c:
+            guardado = " ".join(r[0] for r in c.execute(
+                "SELECT resumo FROM segundo_factor WHERE tipo='recuperacao'"))
+        for cod in codigos:
+            self.assertNotIn(cod.replace("-", ""), guardado)
+
+    def test_o_mesmo_codigo_nao_serve_duas_vezes(self):
+        self.ligar()
+        cod = self.codigo()
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.verificar_codigo(c, self.dono, cod), "totp")
+            self.assertIsNone(radar.contas.verificar_codigo(c, self.dono, cod))
+            # nem um mais antigo que ainda caberia na janela
+            self.assertIsNone(radar.contas.verificar_codigo(c, self.dono, self.codigo(-1)))
+            # o seguinte, sim
+            self.assertEqual(radar.contas.verificar_codigo(c, self.dono, self.codigo(1)),
+                             "totp")
+
+    def test_um_codigo_de_recuperacao_serve_uma_vez(self):
+        codigos = self.ligar()
+        with radar.liga() as c:
+            # escrito à mão: maiúsculas e um espaço em vez do traço
+            escrito = codigos[0].upper().replace("-", " ")
+            self.assertEqual(radar.contas.verificar_codigo(c, self.dono, escrito),
+                             "recuperacao")
+            self.assertIsNone(radar.contas.verificar_codigo(c, self.dono, codigos[0]))
+            self.assertEqual(radar.contas.codigos_por_usar(c, self.dono), 9)
+
+    # -- entrar
+
+    def test_sem_segundo_factor_entra_como_hoje(self):
+        cliente, r = self.entrar()
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(cliente.get_cookie("sessao"))
+        self.assertTrue(self.dentro(cliente))
+
+    def test_com_o_segundo_factor_a_palavra_passe_nao_chega(self):
+        self.ligar()
+        publico = {"base_url": self.URL_PUBLICO}
+        cliente, r = self.entrar(ambiente=self.PUBLICO, **publico)
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/entrar/codigo"))
+        self.assertIsNone(cliente.get_cookie("sessao", domain="miragov.pt"))
+        self.assertTrue(cliente.get_cookie("pendente", domain="miragov.pt"))
+        self.assertFalse(self.dentro(cliente, self.PUBLICO, **publico))
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM sessoes").fetchone())
+        pagina = cliente.get("/entrar/codigo", environ_base=self.PUBLICO, **publico)
+        self.assertEqual(pagina.status_code, 200)
+        corpo = pagina.get_data(as_text=True)
+        self.assertIn('autocomplete="one-time-code"', corpo)
+        self.assertIn('inputmode="numeric"', corpo)
+        self.assertIn("código de recuperação", corpo)
+        r = cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                         environ_base=self.PUBLICO, **publico)
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(cliente.get_cookie("sessao", domain="miragov.pt"))
+        self.assertIsNone(cliente.get_cookie("pendente", domain="miragov.pt"))
+        self.assertTrue(self.dentro(cliente, self.PUBLICO, **publico))
+
+    def test_o_pendente_nao_se_guarda_em_claro_e_caduca(self):
+        self.ligar()
+        cliente, _ = self.entrar()
+        pendente = cliente.get_cookie("pendente").value
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM segundo_factor WHERE resumo=?",
+                                       (pendente,)).fetchone())
+            self.assertTrue(radar.contas.pendente_valido(c, pendente))
+        # seis minutos depois já não serve
+        depois = datetime.datetime.now() + datetime.timedelta(minutes=6)
+        with radar.liga() as c:
+            self.assertIsNone(radar.contas.pendente_valido(c, pendente, depois))
+
+    def test_sem_pendente_o_ecra_do_codigo_nao_abre_nada(self):
+        self.ligar()
+        cliente = radar.app.test_client()
+        r = cliente.get("/entrar/codigo", environ_base=self.FORA)
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/entrar"))
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                     environ_base=self.FORA)
+        self.assertIsNone(cliente.get_cookie("sessao"))
+        # um pendente inventado também não
+        cliente.set_cookie("pendente", "inventado")
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                     environ_base=self.FORA)
+        self.assertIsNone(cliente.get_cookie("sessao"))
+
+    def test_cinco_codigos_errados_gastam_o_pendente_e_contam_no_trinco(self):
+        self.ligar()
+        cliente, _ = self.entrar()
+        for _ in range(radar.contas.TENTATIVAS_DO_PENDENTE):
+            cliente.post("/entrar/codigo", data={"codigo": "000000"},
+                         environ_base=self.FORA)
+        self.assertIsNone(cliente.get_cookie("sessao"))
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM segundo_factor "
+                                       "WHERE tipo='pendente'").fetchone())
+            self.assertGreater(radar.contas.segundos_de_trinco(c, "dono", "203.0.113.7"), 0)
+        # o certo já não entra: o pendente gastou-se
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                     environ_base=self.FORA)
+        self.assertIsNone(cliente.get_cookie("sessao"))
+        # e o trinco fecha também a palavra-passe
+        _, r = self.entrar()
+        self.assertIn("demasiadas tentativas", r.get_data(as_text=True))
+
+    def test_um_codigo_de_recuperacao_entra(self):
+        codigos = self.ligar()
+        cliente, _ = self.entrar()
+        r = cliente.post("/entrar/codigo", data={"codigo": codigos[3]},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self.dentro(cliente))
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.codigos_por_usar(c, self.dono), 9)
+
+    def test_o_aparelho_de_confianca_dispensa_o_codigo_ate_sair_de_todos(self):
+        self.ligar()
+        cliente, _ = self.entrar()
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo(), "confiar": "1"},
+                     environ_base=self.FORA)
+        aparelho = cliente.get_cookie("aparelho")
+        self.assertTrue(aparelho)
+        self.assertTrue(aparelho.http_only)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM segundo_factor WHERE resumo=?",
+                                       (aparelho.value,)).fetchone())
+        cliente.post("/sair", data={"csrf": self.token(cliente)}, environ_base=self.FORA)
+        _, r = self.entrar(cliente)
+        self.assertNotEqual(r.headers["Location"], "/entrar/codigo")
+        self.assertTrue(self.dentro(cliente))
+        # outro browser, sem o cookie, continua a precisar do código
+        _, r = self.entrar()
+        self.assertEqual(r.headers["Location"], "/entrar/codigo")
+        # «sair de todos» apaga os aparelhos de confiança
+        cliente.post("/sair-de-todos", data={"csrf": self.token(cliente)},
+                     environ_base=self.FORA)
+        _, r = self.entrar(cliente)
+        self.assertEqual(r.headers["Location"], "/entrar/codigo")
+
+    def test_o_aparelho_de_uma_conta_nao_serve_a_outra(self):
+        with radar.liga() as c:
+            radar.contas.preparar_segundo_factor(c, self.chefe)
+            segredo = c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
+                                (self.chefe,)).fetchone()[0]
+            radar.contas.confirmar_segundo_factor(
+                c, self.chefe, radar.contas.codigo_totp(segredo, self.relogio()))
+            token = radar.contas.confiar_no_aparelho(c, self.dono)
+            self.assertTrue(radar.contas.aparelho_de_confianca(c, self.dono, token))
+            self.assertFalse(radar.contas.aparelho_de_confianca(c, self.chefe, token))
+
+    def test_a_ligacao_de_repor_nao_da_a_volta_ao_segundo_factor(self):
+        self.ligar()
+        with radar.liga() as c:
+            codigo = radar.contas.criar_reposicao(c, self.dono)
+        cliente = radar.app.test_client()
+        r = cliente.post("/repor/" + codigo, data={"senha": "outra-chave-boa",
+                                                  "outra": "outra-chave-boa"},
+                         environ_base=self.FORA)
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/entrar/codigo"))
+        self.assertIsNone(cliente.get_cookie("sessao"))
+        self.assertFalse(self.dentro(cliente))
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM sessoes").fetchone())
+        # a palavra-passe mudou, e o código abre
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                     environ_base=self.FORA)
+        self.assertTrue(self.dentro(cliente))
+
+    def test_o_convite_nao_serve_para_a_conta_do_dono(self):
+        self.ligar()
+        with radar.liga() as c:
+            codigo = radar.contas.criar_convite(c, 1)
+            token, porque = radar.contas.usar_convite(c, codigo, "dono", "outra-chave-boa")
+        self.assertIsNone(token)
+        self.assertIn("já existe", porque)
+
+    # -- a conta
+
+    def test_so_o_dono_ve_o_bloco_e_liga_pelo_painel(self):
+        chefe, _ = self.entrar(quem="chefe")
+        self.assertNotIn("segundo-factor", chefe.get(
+            "/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True))
+        r = chefe.post("/configuracoes/conta/segundo-factor/ligar",
+                       data={"csrf": self.token(chefe)}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
+                                       (self.chefe,)).fetchone()[0])
+        dono, _ = self.entrar()
+        r = dono.post("/configuracoes/conta/segundo-factor/ligar",
+                      data={"csrf": self.token(dono)}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        corpo = dono.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
+        with radar.liga() as c:
+            segredo = c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
+                                (self.dono,)).fetchone()[0]
+        self.assertIn("otpauth://totp/Mira%20Gov:dono?secret=" + segredo
+                      + "&amp;issuer=Mira%20Gov", corpo)
+        self.assertIn(segredo[:4] + " " + segredo[4:8], corpo)   # em grupos de 4
+        # um código errado não liga
+        dono.post("/configuracoes/conta/segundo-factor/confirmar",
+                  data={"csrf": self.token(dono), "codigo": "000000"},
+                  environ_base=self.FORA)
+        with radar.liga() as c:
+            self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
+        r = dono.post("/configuracoes/conta/segundo-factor/confirmar",
+                      data={"csrf": self.token(dono), "codigo": self.codigo()},
+                      environ_base=self.FORA)
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, radar.LIGACAO_UMA_VEZ))
+        mostrados = re.findall(r"<code>([a-z2-7]{5}-[a-z2-7]{5})</code>", dono.get(
+            radar.LIGACAO_UMA_VEZ, environ_base=self.FORA).get_data(as_text=True))
+        self.assertEqual(len(mostrados), 10)
+        # uma vez só
+        self.assertNotIn(mostrados[0], dono.get(radar.LIGACAO_UMA_VEZ,
+                                                environ_base=self.FORA).get_data(as_text=True))
+        with radar.liga() as c:
+            self.assertTrue(radar.contas.segundo_factor_ligado(c, self.dono))
+            detalhes = [r[0] for r in c.execute("SELECT detalhe FROM eventos")]
+        self.assertTrue(any("segundo factor ligado" in d for d in detalhes), detalhes)
+
+    def test_desligar_pede_um_codigo_e_apaga_os_aparelhos(self):
+        self.ligar()
+        cliente, _ = self.entrar()
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo(), "confiar": "1"},
+                     environ_base=self.FORA)
+        self.passar()
+        cliente.post("/configuracoes/conta/segundo-factor/desligar",
+                     data={"csrf": self.token(cliente), "codigo": "000000"},
+                     environ_base=self.FORA)
+        with radar.liga() as c:
+            self.assertTrue(radar.contas.segundo_factor_ligado(c, self.dono))
+        cliente.post("/configuracoes/conta/segundo-factor/desligar",
+                     data={"csrf": self.token(cliente), "codigo": self.codigo()},
+                     environ_base=self.FORA)
+        with radar.liga() as c:
+            self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
+            self.assertFalse(c.execute("SELECT 1 FROM segundo_factor").fetchone())
+            self.assertFalse(c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
+                                       (self.dono,)).fetchone()[0])
+
+    def test_pela_consola_desliga_quando_o_telemovel_se_perde(self):
+        self.ligar()
+        with unittest.mock.patch.object(sys, "argv",
+                                        ["radar.py", "--desligar-segundo-factor", "dono"]), \
+                contextlib.redirect_stdout(io.StringIO()) as saida:
+            radar.main()
+        self.assertIn("desligado", saida.getvalue())
+        with radar.liga() as c:
+            self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
+        _, r = self.entrar()
+        self.assertNotEqual(r.headers["Location"], "/entrar/codigo")
 
 
 if __name__ == "__main__":

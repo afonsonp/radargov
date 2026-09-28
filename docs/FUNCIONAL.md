@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 16 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 17 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -122,6 +122,7 @@ as exactas e salta as outras.
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **2** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
+| `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
 | `pedidos_acesso` | **4** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026 |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
@@ -613,7 +614,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**120 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**124 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1074,7 +1075,54 @@ tabela `reposicoes`), a origem do POST, o prazo, o uso único e um
 trinco **só por IP** (os códigos errados contam como entradas
 falhadas). Ao guardar, **fecham-se todas as sessões da conta** e abre-se
 uma nova para quem repôs. Pela consola continua o `--palavra-passe
-NOME`.
+NOME`. **Com o segundo factor ligado, a ligação não abre sessão**: leva
+ao ecrã do código (ver a seguir).
+
+**O segundo factor da conta do dono** (28/09/2026, decisão dele). A
+conta do dono abre a plataforma inteira; com o segundo factor ligado,
+a palavra-passe já não chega. É **opcional e só do dono**
+(`contas.pode_ter_segundo_factor()`: a regra é por conta, e estendê-la
+aos admins é mudar essa linha). O TOTP é o da RFC 6238 (HMAC-SHA1,
+30 s, seis dígitos, `contas.codigo_totp()`), feito com a biblioteca
+padrão; aceita o passo de agora e um de cada lado (`JANELA_TOTP`), e
+**nunca o mesmo passo duas vezes**: a conta guarda o último aceite
+(`utilizadores.totp_passo`).
+
+- **Ligar**, em Configurações › Conta: «Ligar o segundo factor» gera a
+  chave (160 bits, `contas.segredo_novo()`) e mostra-a em grupos de
+  quatro e como ligação `otpauth://`, que no telemóvel abre a app. Não
+  há QR. **Só fica ligado com o primeiro código certo**
+  (`contas.confirmar_segundo_factor()`); nesse momento saem **dez
+  códigos de recuperação** de uso único, mostrados uma vez pelo
+  `mostrar_uma_vez()` e guardados só em resumo.
+- **Entrar**: com ele ligado, a palavra-passe certa no `/entrar` não
+  cria a sessão — o `contas.entrar()` devolve um **pendente** (cookie
+  `pendente`, cinco minutos, `MINUTOS_DO_PENDENTE`; na base só o
+  resumo) e o **`/entrar/codigo`** pede o código da app ou um de
+  recuperação. É rota aberta, **com a guarda dentro**
+  (`entrar_codigo()`): o pendente, cinco tentativas
+  (`TENTATIVAS_DO_PENDENTE`), o trinco da conta e do IP (cada código
+  errado conta como uma entrada falhada) e a origem do POST.
+- **Confiar neste aparelho** (a caixa no ecrã do código): um cookie
+  `aparelho`, `HttpOnly`, `SameSite=Lax`, `Secure` quando o pedido
+  vem pelo endereço público, válido `DIAS_DE_APARELHO` (30) e ligado
+  à conta; com ele, a palavra-passe chega. O «sair de todos», a
+  ligação de repor e o desligar **apagam os aparelhos de confiança**.
+- **Nada dá a volta**: a guarda está no `contas.entrar()`, por onde
+  passam também a ligação de repor (que muda a palavra-passe e leva ao
+  ecrã do código, sem sessão) e o convite (que nunca serve a uma conta
+  que já existe). O acesso livre local continua como está: é a consola
+  do próprio computador.
+- **Desligar**: na Conta, com um código válido (da app ou de
+  recuperação); ou pela consola, `--desligar-segundo-factor NOME`,
+  para quando o telemóvel se perde. Leva a chave, os códigos de
+  recuperação e os aparelhos.
+
+Ligar, desligar, os códigos errados e cada código de recuperação usado
+ficam nos `eventos` da plataforma. As tabelas: três colunas no
+`utilizadores` (`totp_segredo`, `totp_ligado_em`, `totp_passo`) e a
+tabela `segundo_factor`, com o `tipo` pendente, aparelho ou
+recuperação.
 
 **Só a consola cria um dono** (F2 da segunda ronda, 26/09/2026): o
 primeiro admin criado pelo `--criar-utilizador` numa base sem dono é o

@@ -191,6 +191,8 @@ python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar
                                    # e os números medidos do ESTADO.md
 python radar.py --palavra-passe NOME     # troca-a pela consola (no painel, o "esqueci-me" é a
                                    # ligação de repor que o admin ou o dono geram)
+python radar.py --desligar-segundo-factor NOME  # desliga o segundo factor (TOTP) da conta,
+                                   # para quando o telemóvel e os códigos de recuperação se perdem
 ```
 
 As tarefas agendadas são duas (`agendar.sh`): a verificação, de hora a
@@ -276,9 +278,12 @@ repor mostram-se por Post/Redirect/Get), o modo de suporte
 (`empresas_suspensas()`, `empresas_a_trabalhar()`), `CONTA_DO_DONO`,
 `repor()` e `_gerar_reposicao()` (D17: a ligação de repor a
 palavra-passe, rota aberta com a guarda dentro, como o convite),
+`entrar_codigo()` e `_bloco_do_segundo_factor()` (28/09/2026: o
+segundo factor da conta do dono; o ecrã do código é rota aberta com a
+guarda dentro, e a guarda que conta está no `contas.entrar()`),
 `ROTAS_ABERTAS` / `PREFIXOS_ABERTOS`, `com_csrf()`, e o **`contas.py`**
 inteiro (tabelas `utilizadores`, `sessoes`, `entradas_falhadas`,
-`convites`, `reposicoes`; `scrypt`; `token_csrf()` / `csrf_bate()`; a
+`convites`, `reposicoes`, `segundo_factor`; `scrypt`; o TOTP, `codigo_totp()`; `token_csrf()` / `csrf_bate()`; a
 política da palavra-passe, `problema_da_senha()`), que **não importa o radar**.
 
 Duas regras de trabalho que não estão em mais lado nenhum: um POST
@@ -594,7 +599,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **350 pontos** (contados a 28/09/2026), cada um de um erro que
+São **354 pontos** (contados a 28/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

@@ -47,7 +47,12 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    aceita um POST traz a guarda **dentro de si**: o `/pedir-acesso`
    (origem, armadilha, tectos), o `/convite/<código>` e, desde
    26/09/2026, o `/repor/<código>` (o código de 32 bytes guardado só em
-   resumo, a origem, o prazo, o uso único e um trinco por IP). Uma rota
+   resumo, a origem, o prazo, o uso único e um trinco por IP) e, desde
+   28/09/2026, o `/entrar/codigo` do segundo factor (o pendente, só em
+   resumo, cinco minutos e cinco tentativas, o trinco e a origem).
+   **Uma porta que abra sessões passa pelo `contas.entrar()`**, que é
+   onde está a guarda do segundo factor: a ligação de repor da conta do
+   dono leva ao ecrã do código, e não a uma sessão. Uma rota
    nova que não passe pelo `before_request`, ou um POST sem verificação
    de CSRF quando há sessão, é uma falha. O `/saude` entrou a 15/09/2026
    e responde «ok» ou 503 sem dizer nada de dentro: é assim que uma rota

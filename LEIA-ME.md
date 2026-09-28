@@ -803,6 +803,71 @@ Cinco tentativas erradas em quinze minutos, pelo mesmo utilizador ou pelo
 mesmo IP, e a porta espera; as falhas ficam nos Indicadores, na série
 dos erros, que é como se vê se alguém anda a bater à porta.
 
+### O segundo factor da tua conta (desde 28/09/2026)
+
+A tua conta abre a plataforma inteira. Com o **segundo factor** ligado,
+quem souber a tua palavra-passe não entra sem o teu telemóvel: depois
+da palavra-passe, o Mira Gov pede um código de seis dígitos que muda de
+30 em 30 segundos numa app do telemóvel. É opcional, e só a tua conta o
+tem.
+
+**Para ligar** (uma vez, com o telemóvel na mão):
+
+1. Instala no telemóvel uma app de autenticação — a **Google
+   Authenticator** ou a **Microsoft Authenticator** servem, são
+   gratuitas.
+2. No Mira Gov, vai a **Configurações › Conta** e carrega em **Ligar o
+   segundo factor**. Aparece uma chave comprida.
+3. Se estás no telemóvel, toca em **«toque aqui para a acrescentar»** e
+   a app abre com a conta já preenchida. Se estás no computador, na app
+   escolhe «introduzir uma chave» (ou «chave de configuração») e
+   escreve a chave que aparece no ecrã — os espaços não contam.
+4. A app passa a mostrar «Mira Gov» com seis números. Escreve-os no
+   campo **Código** e carrega em **Ligar**. Se disser que o código não
+   bate, confirma que o telemóvel está na hora certa e escreve o código
+   que está a aparecer nesse momento.
+5. Aparecem **dez códigos de recuperação**, uma vez só. Copia-os e
+   guarda-os **fora do telemóvel** — em papel, ou no gestor de
+   palavras-passe. Cada um serve uma vez, no lugar do código da app.
+
+Até escreveres o primeiro código certo, nada muda: entras como sempre.
+
+**Para entrar** de um aparelho novo: utilizador e palavra-passe, como
+antes, e depois o ecrã pede o **código da app**. Se marcares **«Confiar
+neste aparelho durante 30 dias»**, esse browser não volta a pedir o
+código durante 30 dias (só a palavra-passe). Neste computador continua
+tudo igual: o acesso livre local não pede nada.
+
+Cinco códigos errados seguidos e tens de voltar a pôr a palavra-passe;
+e contam para a espera dos quinze minutos, como as palavras-passe
+erradas.
+
+**Se perdeste o telemóvel:**
+
+1. Entra com a palavra-passe e, no ecrã do código, carrega em **«Usar
+   um código de recuperação»** e escreve um dos dez (com ou sem o
+   traço, maiúsculas ou minúsculas — tanto faz).
+2. Em Configurações › Conta, carrega em **Desligar o segundo factor**,
+   com outro código de recuperação. Os aparelhos de confiança deixam de
+   o ser.
+3. Carrega em **Sair de todos os aparelhos**: se o telemóvel perdido
+   tinha o Mira Gov aberto, fica fechado. Voltas a entrar só com a
+   palavra-passe.
+4. Liga-o outra vez com o telemóvel novo: sai uma chave nova e dez
+   códigos novos.
+
+**Se perdeste o telemóvel e os códigos**, num terminal deste computador:
+
+```bash
+.venv/bin/python radar.py --desligar-segundo-factor admin
+```
+
+(com o teu nome de utilizador no lugar de `admin`). Entras só com a
+palavra-passe, e ligas outra vez quando quiseres.
+
+Ligar, desligar, os códigos errados e cada código de recuperação usado
+ficam registados nos eventos da plataforma.
+
 A partir de estares identificado fica registado quem marcou
 interessa, quem moveu de fase e quem ficou responsável por cada
 concurso — vês esse registo na ficha do anúncio, em baixo. Na ficha

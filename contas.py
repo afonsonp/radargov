@@ -16,10 +16,13 @@ O que aqui NAO esta, de proposito: o que e do pedido HTTP (cookies,
 redireccionamentos, o `before_request`) vive no radar.py, na banda
 `pessoas`. Este modulo so sabe de tabelas e de criptografia.
 """
+import base64
 import hashlib
 import hmac
 import os
 import secrets
+import struct
+import time
 from datetime import datetime, timedelta
 
 # scrypt da biblioteca padrao: sem dependencia nova. n=2**14 e o que o
@@ -116,6 +119,27 @@ def iniciar_tabelas(c):
     c.execute("""CREATE TABLE IF NOT EXISTS reposicoes (
         resumo TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
         criado_por INTEGER, criado_em TEXT, expira TEXT, usado_em TEXT)""")
+    # O segundo factor (28/09/2026): o segredo da app de autenticacao, o
+    # dia em que ficou ligado (NULL = preparado mas por confirmar, ou
+    # desligado) e o ultimo passo de tempo aceite, para o mesmo codigo
+    # nao servir duas vezes. O segredo vive em claro -- o TOTP precisa
+    # dele para calcular, nao ha resumo que sirva --, como os tokens das
+    # sessoes: quem le a base ja esta do lado de dentro.
+    cols = [r[1] for r in c.execute("PRAGMA table_info(utilizadores)")]
+    for coluna, tipo in (("totp_segredo", "TEXT"), ("totp_ligado_em", "TEXT"),
+                         ("totp_passo", "INTEGER NOT NULL DEFAULT 0")):
+        if coluna not in cols:
+            c.execute("ALTER TABLE utilizadores ADD COLUMN %s %s" % (coluna, tipo))
+    # E o que o segundo factor da, numa tabela so, pelo `tipo`: o pedido
+    # PENDENTE (a palavra-passe esta certa, falta o codigo), o APARELHO de
+    # confianca, e os codigos de RECUPERACAO. Os tres sao o molde dos
+    # convites: so o resumo, prazo, uso unico.
+    c.execute("""CREATE TABLE IF NOT EXISTS segundo_factor (
+        resumo TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
+        tipo TEXT NOT NULL, criado_em TEXT, expira TEXT, usado_em TEXT,
+        tentativas INTEGER NOT NULL DEFAULT 0)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_segundo_factor_util "
+              "ON segundo_factor(utilizador_id, tipo)")
 
 
 # ------------------------------------------------------------ palavra-passe
@@ -335,6 +359,7 @@ def apagar_utilizador(c, utilizador_id, empresa_id=None, quem=None):
         raise ValueError("é o único admin; cria outro antes de o tirar")
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM reposicoes WHERE utilizador_id=?", (utilizador_id,))
+    c.execute("DELETE FROM segundo_factor WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM utilizadores WHERE id=?", (utilizador_id,))
     return True
 
@@ -614,31 +639,306 @@ def usar_reposicao(c, codigo, senha, ip="", agente="", agora=None):
     c.execute("UPDATE reposicoes SET usado_em=? WHERE resumo=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), reposicao["resumo"]))
     sair_de_todos(c, reposicao["utilizador_id"])
-    token, _ = entrar(c, reposicao["email"], senha, ip, agente, agora)
-    return token, None
+    # Com o segundo factor ligado nao ha sessao (28/09/2026): a ligacao
+    # vale uma palavra-passe, nao as duas coisas. O `entrar()` devolve o
+    # pendente, e quem repos ainda tem de dar o codigo.
+    token, resultado = entrar(c, reposicao["email"], senha, ip, agente, agora)
+    return token, (None if token else resultado)
+
+
+# ------------------------------------------------------------ segundo factor
+#
+# O TOTP da RFC 6238 (28/09/2026): HMAC-SHA1, passos de 30 s, seis
+# digitos -- o que todas as apps de autenticacao fazem por omissao, e
+# por isso nada a configurar do lado de quem liga. Sem dependencia nova:
+# e um HMAC e um corte, com a biblioteca padrao.
+
+PASSO_TOTP = 30
+DIGITOS_TOTP = 6
+# O passo de agora e um de cada lado: o relogio de um telemovel anda
+# uns segundos fora, e quem escreve o codigo no ultimo segundo do passo
+# nao pode ser recusado.
+JANELA_TOTP = 1
+# O pedido pendente (a palavra-passe certa, falta o codigo): cinco
+# minutos e cinco tentativas. Com seis digitos, cinco tentativas sao uma
+# hipotese em 200 000; o trinco da conta apanha quem insistir.
+MINUTOS_DO_PENDENTE = 5
+TENTATIVAS_DO_PENDENTE = 5
+DIAS_DE_APARELHO = 30
+CODIGOS_DE_RECUPERACAO = 10
+_LETRAS_DA_RECUPERACAO = "abcdefghijklmnopqrstuvwxyz234567"
+
+
+def _instante():
+    """O relogio do TOTP, a parte para os testes o poderem parar."""
+    return time.time()
+
+
+def _quando(momento):
+    return momento.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def pode_ter_segundo_factor(utilizador):
+    """Quem pode ligar o segundo factor. So o dono, por agora (decisao
+    dele, 28/09/2026); estender aos admins e mudar esta linha -- o resto
+    ja e por conta, e nao por papel."""
+    return e_dono(utilizador)
+
+
+def segredo_novo():
+    """160 bits em base32, sem o '=' do fim: e o que as apps esperam."""
+    return base64.b32encode(secrets.token_bytes(20)).decode("ascii")
+
+
+def codigo_totp(segredo, instante, digitos=DIGITOS_TOTP):
+    """O codigo do passo de `instante` (segundos desde 1970)."""
+    return _codigo_do_passo(segredo, int(instante) // PASSO_TOTP, digitos)
+
+
+def _codigo_do_passo(segredo, passo, digitos=DIGITOS_TOTP):
+    chave = base64.b32decode(segredo.upper() + "=" * (-len(segredo) % 8))
+    mac = hmac.new(chave, struct.pack(">Q", passo), hashlib.sha1).digest()
+    corte = mac[-1] & 0x0F
+    numero = struct.unpack(">I", mac[corte:corte + 4])[0] & 0x7FFFFFFF
+    return str(numero % 10 ** digitos).zfill(digitos)
+
+
+def _passo_do_codigo(segredo, codigo, ultimo):
+    """O passo em que `codigo` bate, dentro da janela e DEPOIS do
+    `ultimo` aceite; None se nenhum. E o «depois» que faz a
+    anti-repeticao: um codigo visto por cima do ombro ja nao serve."""
+    agora = int(_instante()) // PASSO_TOTP
+    for passo in range(agora - JANELA_TOTP, agora + JANELA_TOTP + 1):
+        if passo > ultimo and hmac.compare_digest(
+                _codigo_do_passo(segredo, passo), codigo):
+            return passo
+    return None
+
+
+def segundo_factor_ligado(c, utilizador_id):
+    linha = c.execute("SELECT totp_ligado_em FROM utilizadores WHERE id=?",
+                      (utilizador_id,)).fetchone()
+    return bool(linha and linha[0])
+
+
+def preparar_segundo_factor(c, utilizador_id):
+    """O segredo novo, por confirmar: fica guardado, mas o segundo factor
+    so se liga quando a app devolver um codigo certo
+    (`confirmar_segundo_factor()`). Preparar outra vez deita o anterior
+    fora. None se ja esta ligado: para mudar de telemovel, desliga-se."""
+    if segundo_factor_ligado(c, utilizador_id):
+        return None
+    segredo = segredo_novo()
+    c.execute("UPDATE utilizadores SET totp_segredo=?, totp_ligado_em=NULL, "
+              "totp_passo=0 WHERE id=?", (segredo, utilizador_id))
+    return segredo
+
+
+def segredo_por_confirmar(c, utilizador_id):
+    linha = c.execute("SELECT totp_segredo FROM utilizadores WHERE id=? "
+                      "AND totp_ligado_em IS NULL", (utilizador_id,)).fetchone()
+    return linha[0] if linha and linha[0] else None
+
+
+def _so_digitos(codigo):
+    return "".join((codigo or "").split())
+
+
+def confirmar_segundo_factor(c, utilizador_id, codigo, agora=None):
+    """Liga o segundo factor se o `codigo` bater com o segredo preparado.
+    Devolve os codigos de recuperacao -- que so existem aqui: na base
+    fica o resumo --, ou None."""
+    segredo = segredo_por_confirmar(c, utilizador_id)
+    if not segredo:
+        return None
+    passo = _passo_do_codigo(segredo, _so_digitos(codigo), 0)
+    if passo is None:
+        return None
+    agora = agora or datetime.now()
+    c.execute("UPDATE utilizadores SET totp_ligado_em=?, totp_passo=? WHERE id=?",
+              (_quando(agora), passo, utilizador_id))
+    return _codigos_de_recuperacao_novos(c, utilizador_id, agora)
+
+
+def _recuperacao_limpa(codigo):
+    """Como se escreve a mao: maiusculas, espacos, com ou sem o traco."""
+    return "".join((codigo or "").lower().replace("-", " ").split())
+
+
+def _codigos_de_recuperacao_novos(c, utilizador_id, agora):
+    """Dez codigos de uso unico, `xxxxx-xxxxx` (50 bits cada), e os
+    anteriores deixam de servir."""
+    c.execute("DELETE FROM segundo_factor WHERE utilizador_id=? AND tipo='recuperacao'",
+              (utilizador_id,))
+    codigos = []
+    while len(codigos) < CODIGOS_DE_RECUPERACAO:
+        letras = "".join(secrets.choice(_LETRAS_DA_RECUPERACAO) for _ in range(10))
+        if letras in codigos:
+            continue
+        codigos.append(letras)
+        c.execute("INSERT INTO segundo_factor (resumo, utilizador_id, tipo, criado_em) "
+                  "VALUES (?,?,'recuperacao',?)",
+                  (_resumo(letras), utilizador_id, _quando(agora)))
+    return ["%s-%s" % (l[:5], l[5:]) for l in codigos]
+
+
+def verificar_codigo(c, utilizador_id, codigo, agora=None):
+    """'totp' ou 'recuperacao' se o codigo serve, e gasta-o; None se nao.
+    Seis digitos sao da app, o resto e um codigo de recuperacao."""
+    linha = c.execute("SELECT totp_segredo, totp_ligado_em, totp_passo "
+                      "FROM utilizadores WHERE id=?", (utilizador_id,)).fetchone()
+    if not linha or not linha["totp_ligado_em"]:
+        return None
+    digitos = _so_digitos(codigo)
+    if digitos.isdigit() and len(digitos) == DIGITOS_TOTP:
+        passo = _passo_do_codigo(linha["totp_segredo"], digitos, linha["totp_passo"])
+        # o `totp_passo < ?` no UPDATE: dois pedidos com o mesmo codigo
+        # ao mesmo tempo, e so um o gasta
+        if passo is None or not c.execute(
+                "UPDATE utilizadores SET totp_passo=? WHERE id=? AND totp_passo < ?",
+                (passo, utilizador_id, passo)).rowcount:
+            return None
+        return "totp"
+    gasto = c.execute(
+        "UPDATE segundo_factor SET usado_em=? WHERE resumo=? AND utilizador_id=? "
+        "AND tipo='recuperacao' AND usado_em IS NULL",
+        (_quando(agora or datetime.now()), _resumo(_recuperacao_limpa(codigo)),
+         utilizador_id)).rowcount
+    return "recuperacao" if gasto else None
+
+
+def codigos_por_usar(c, utilizador_id):
+    return c.execute("SELECT COUNT(*) FROM segundo_factor WHERE utilizador_id=? "
+                     "AND tipo='recuperacao' AND usado_em IS NULL",
+                     (utilizador_id,)).fetchone()[0]
+
+
+def desligar_segundo_factor(c, utilizador_id):
+    """Tira o segredo, os codigos de recuperacao, os pendentes e os
+    aparelhos de confianca. Devolve se estava ligado. Quem pode (o codigo
+    na Conta, ou a consola) decide quem chama."""
+    estava = segundo_factor_ligado(c, utilizador_id)
+    c.execute("UPDATE utilizadores SET totp_segredo=NULL, totp_ligado_em=NULL, "
+              "totp_passo=0 WHERE id=?", (utilizador_id,))
+    c.execute("DELETE FROM segundo_factor WHERE utilizador_id=?", (utilizador_id,))
+    return estava
+
+
+def criar_pendente(c, utilizador_id, agora=None):
+    """O pedido de entrada a meio: a palavra-passe estava certa, falta o
+    codigo. Devolve o CODIGO do pendente (vai num cookie); na base fica o
+    resumo. Poda os pendentes e os aparelhos fora do prazo."""
+    agora = agora or datetime.now()
+    c.execute("DELETE FROM segundo_factor WHERE tipo IN ('pendente', 'aparelho') "
+              "AND expira <= ?", (_quando(agora),))
+    codigo = secrets.token_urlsafe(32)
+    c.execute("INSERT INTO segundo_factor (resumo, utilizador_id, tipo, criado_em, "
+              "expira) VALUES (?,?,'pendente',?,?)",
+              (_resumo(codigo), utilizador_id, _quando(agora),
+               _quando(agora + timedelta(minutes=MINUTOS_DO_PENDENTE))))
+    return codigo
+
+
+def pendente_valido(c, codigo, agora=None):
+    """O pendente (com o `email` da conta) se ainda serve, ou None."""
+    if not codigo:
+        return None
+    linha = c.execute(
+        "SELECT p.utilizador_id, p.tentativas, u.email FROM segundo_factor p "
+        "JOIN utilizadores u ON u.id = p.utilizador_id WHERE p.resumo=? "
+        "AND p.tipo='pendente' AND p.expira > ?",
+        (_resumo(codigo), _quando(agora or datetime.now()))).fetchone()
+    return dict(linha) if linha else None
+
+
+def usar_pendente(c, codigo, codigo_2f, ip="", agente="", agora=None):
+    """Da o codigo ao pendente. (token, utilizador) se serve -- com o
+    `codigo_usado`, 'totp' ou 'recuperacao' --, ou (None, porque).
+
+    As falhas contam no trinco da conta e do IP (o mesmo da palavra-
+    passe), e ao fim de TENTATIVAS_DO_PENDENTE o pendente gasta-se: e
+    preciso voltar a dar a palavra-passe."""
+    agora = agora or datetime.now()
+    pendente = pendente_valido(c, codigo, agora)
+    if not pendente:
+        return None, "o pedido de entrada passou do prazo; entre outra vez"
+    espera = segundos_de_trinco(c, pendente["email"], ip, agora)
+    if espera:
+        return None, "demasiadas tentativas; espera %d s" % espera
+    usado = verificar_codigo(c, pendente["utilizador_id"], codigo_2f, agora)
+    if not usado:
+        registar_falha(c, pendente["email"], ip, agora)
+        if pendente["tentativas"] + 1 >= TENTATIVAS_DO_PENDENTE:
+            c.execute("DELETE FROM segundo_factor WHERE resumo=?", (_resumo(codigo),))
+            return None, "código errado demasiadas vezes; entre outra vez"
+        c.execute("UPDATE segundo_factor SET tentativas=tentativas+1 WHERE resumo=?",
+                  (_resumo(codigo),))
+        return None, "código errado"
+    c.execute("DELETE FROM segundo_factor WHERE resumo=?", (_resumo(codigo),))
+    token, utilizador = _abrir_sessao(c, pendente["utilizador_id"], ip, agente, agora)
+    return token, dict(utilizador, codigo_usado=usado)
+
+
+def confiar_no_aparelho(c, utilizador_id, agora=None):
+    """Um token de aparelho de confianca, para DIAS_DE_APARELHO: com ele,
+    a palavra-passe chega. Devolve o TOKEN (vai num cookie HttpOnly);
+    na base fica o resumo, ligado a conta."""
+    agora = agora or datetime.now()
+    token = secrets.token_urlsafe(32)
+    c.execute("INSERT INTO segundo_factor (resumo, utilizador_id, tipo, criado_em, "
+              "expira) VALUES (?,?,'aparelho',?,?)",
+              (_resumo(token), utilizador_id, _quando(agora),
+               _quando(agora + timedelta(days=DIAS_DE_APARELHO))))
+    return token
+
+
+def aparelho_de_confianca(c, utilizador_id, token, agora=None):
+    """Se `token` e um aparelho de confianca DESTA conta, dentro do prazo."""
+    if not token:
+        return False
+    return bool(c.execute(
+        "SELECT 1 FROM segundo_factor WHERE resumo=? AND utilizador_id=? "
+        "AND tipo='aparelho' AND expira > ?",
+        (_resumo(token), utilizador_id, _quando(agora or datetime.now()))).fetchone())
 
 
 # ------------------------------------------------------------------- sessoes
 
-def entrar(c, email, senha, ip="", agente="", agora=None):
+def entrar(c, email, senha, ip="", agente="", agora=None, aparelho=""):
     """Tenta entrar. Devolve (token, utilizador) ou (None, porque).
 
     O `porque` e texto para o ecra: 'espera N s' quando o trinco esta
     fechado, 'utilizador ou palavra-passe errados' no resto -- a mesma
     frase para os dois casos, para nao dizer a quem tenta quais os
     e-mails que existem.
+
+    Com o segundo factor ligado (28/09/2026) a palavra-passe certa NAO
+    abre sessao: o `porque` e um dict `{"pendente": codigo}`, e a sessao
+    so nasce no `usar_pendente()`. E aqui, e nao na rota, porque o
+    convite e a ligacao de repor tambem entram por esta funcao -- uma
+    guarda na rota do /entrar deixava-as abertas. So o `aparelho` de
+    confianca da conta dispensa o codigo.
     """
     agora = agora or datetime.now()
     email = email_limpo(email)
     espera = segundos_de_trinco(c, email, ip, agora)
     if espera:
         return None, "demasiadas tentativas; espera %d s" % espera
-    linha = c.execute("SELECT id, email, nome, papel, hash, empresa_id, dono, "
-                      "aspecto FROM utilizadores WHERE email=?",
+    linha = c.execute("SELECT id, hash FROM utilizadores WHERE email=?",
                       (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
         registar_falha(c, email, ip, agora)
         return None, "utilizador ou palavra-passe errados"
+    if segundo_factor_ligado(c, linha["id"]) \
+            and not aparelho_de_confianca(c, linha["id"], aparelho, agora):
+        return None, {"pendente": criar_pendente(c, linha["id"], agora)}
+    return _abrir_sessao(c, linha["id"], ip, agente, agora)
+
+
+def _abrir_sessao(c, utilizador_id, ip, agente, agora):
+    """A sessao nova, depois de a porta ter dito que sim. (token, utilizador)."""
+    linha = c.execute("SELECT id, email, nome, papel, empresa_id, dono, aspecto "
+                      "FROM utilizadores WHERE id=?", (utilizador_id,)).fetchone()
     token = secrets.token_urlsafe(32)
     c.execute("INSERT INTO sessoes (token, utilizador_id, criada_em, expira, ip, agente) "
               "VALUES (?,?,?,?,?,?)",
@@ -647,10 +947,7 @@ def entrar(c, email, senha, ip="", agente="", agora=None):
                    "%Y-%m-%d %H:%M:%S"), ip or "", (agente or "")[:200]))
     c.execute("UPDATE utilizadores SET ultimo_acesso=? WHERE id=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), linha["id"]))
-    return token, {"id": linha["id"], "email": linha["email"],
-                   "nome": linha["nome"], "papel": linha["papel"],
-                   "empresa_id": linha["empresa_id"], "dono": linha["dono"],
-                   "aspecto": linha["aspecto"]}
+    return token, dict(linha)
 
 
 def utilizador_da_sessao(c, token, agora=None):
@@ -694,10 +991,17 @@ def sair(c, token):
 
 
 def sair_de_todos(c, utilizador_id):
-    """Fecha todas as sessoes do utilizador. Devolve quantas eram."""
+    """Fecha todas as sessoes do utilizador. Devolve quantas eram.
+
+    E esquece os aparelhos de confianca (28/09/2026): o «sair de todos»
+    e o gesto de quem perdeu o telemovel, e um aparelho que ainda
+    dispensasse o codigo era meia porta aberta. A ligacao de repor
+    passa por aqui, e leva-os tambem."""
     n = c.execute("SELECT COUNT(*) FROM sessoes WHERE utilizador_id=?",
                   (utilizador_id,)).fetchone()[0]
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
+    c.execute("DELETE FROM segundo_factor WHERE utilizador_id=? AND tipo='aparelho'",
+              (utilizador_id,))
     return n
 
 
