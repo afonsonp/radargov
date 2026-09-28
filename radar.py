@@ -7312,27 +7312,72 @@ def juntar_leituras(dados, anterior):
             for c in CAMPOS_DA_ANALISE}
 
 
+def fontes_por_peca(texto):
+    """[(nome, [páginas])] das fontes guardadas, com cada ficheiro uma vez.
+
+    Parte-se nas vírgulas FORA de parênteses, e o `(pág. …)` é o último
+    parêntese de cada fonte: há nomes com parênteses dentro
+    («CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf»), e a
+    expressão antiga partia no primeiro «(» -- a ficha dizia «de
+    PRR)_WEBSITE_20260267.pdf (pág. 40–42, …, 21–22)», com as páginas
+    do Caderno e do Programa juntas numa lista só (28/09/2026)."""
+    pedacos, actual, fundo = [], "", 0
+    for ch in texto or "":
+        if ch == "," and fundo == 0:
+            pedacos.append(actual)
+            actual = ""
+            continue
+        fundo += (ch == "(") - (ch == ")")
+        fundo = max(fundo, 0)
+        actual += ch
+    pedacos.append(actual)
+    ordem, paginas = [], {}
+    for pedaco in pedacos:
+        m = re.match(r"^(.*?)\s*\(pág\. ([^()]*)\)\s*$", pedaco.strip())
+        nome, pgs = (m.group(1).strip(), m.group(2)) if m else (pedaco.strip(), "")
+        if not nome:
+            continue
+        if nome not in paginas:
+            ordem.append(nome)
+            paginas[nome] = []
+        for pg in pgs.split(","):
+            pg = pg.strip()
+            if pg and pg not in paginas[nome]:
+                paginas[nome].append(pg)
+    return [(n, paginas[n]) for n in ordem]
+
+
+def _com_paginas(nome, pgs):
+    return "%s (pág. %s)" % (nome, ", ".join(pgs)) if pgs else nome
+
+
 def fontes_legiveis(texto):
     """'CE.pdf (pág. 1–7), CE.pdf (pág. 9)' -> 'CE.pdf (pág. 1–7, 9)'.
 
     As fontes guardam-se por leitura, e duas leituras do mesmo ficheiro
     punham-no duas vezes na ficha (segunda ronda, perfil 15). Junta-se ao
     mostrar; o que está guardado não muda."""
-    ordem, paginas = [], {}
-    for m in re.finditer(r"\s*([^,(]+?)\s*(?:\(pág\. ([^)]*)\))?\s*(?:,|$)",
-                         texto or ""):
-        nome = m.group(1).strip()
-        if not nome:
-            continue
-        if nome not in paginas:
-            ordem.append(nome)
-            paginas[nome] = []
-        for pg in (m.group(2) or "").split(","):
-            pg = pg.strip()
-            if pg and pg not in paginas[nome]:
-                paginas[nome].append(pg)
-    return ", ".join("%s (pág. %s)" % (n, ", ".join(paginas[n]))
-                     if paginas[n] else n for n in ordem)
+    return ", ".join(_com_paginas(n, p) for n, p in fontes_por_peca(texto))
+
+
+_NOME_DO_PAPEL = {"encargos": "Caderno de Encargos", "programa": "Programa"}
+
+
+def fontes_pelo_papel(texto):
+    """As fontes com cada peça dita pelo papel: «Caderno de Encargos (pág.
+    40–42), Programa (pág. 21–22)». O nome do ficheiro fica quando não
+    há papel (um anexo técnico), quando o ficheiro tem os dois, ou quando
+    dois ficheiros teriam o mesmo papel -- aí o papel não os distingue.
+    Dentro de um ZIP, só o nome do ficheiro, sem o do ZIP."""
+    fontes = fontes_por_peca(texto)
+    papeis = []
+    for nome, _ in fontes:
+        p = papeis_da_peca(nome.rsplit("/", 1)[-1]) - {"tecnico"}
+        papeis.append(_NOME_DO_PAPEL[p.pop()] if len(p) == 1 else "")
+    return ", ".join(
+        _com_paginas(papel if papel and papeis.count(papel) == 1
+                     else nome.rsplit("/", 1)[-1], pgs)
+        for (nome, pgs), papel in zip(fontes, papeis))
 
 
 def juntar_fontes(usados, anteriores, parcial):
@@ -24948,9 +24993,26 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         facto("Critério", "Critério de adjudicação"),
         facto("Local", "Local de prestação de serviços", local_nota,
               "o anúncio não indica"),
-        facto("Habilitação (alvará)", "Habilitação (alvará)"),
-        facto("Caução", "Caução"),
+        _curto(facto("Habilitação (alvará)", "Habilitação (alvará)")),
+        _curto(facto("Caução", "Caução")),
     ]
+
+
+def _curto(celula):
+    """A habilitação e a caução numa célula: o valor curto, e o resto em
+    nota (a maquete). «Sim, 5% — Nos termos do artigo 16.º do Programa»
+    dá «5 %» e a nota; «Sim» sem percentagem fica «Sim»; «Alvará — 4.ª
+    Categoria, …» dá «Alvará» e a descrição em nota. Com o parágrafo
+    inteiro, a célula tinha quatro linhas a negrito e as outras uma."""
+    rotulo, valor, nota, apagado = celula
+    if apagado:
+        return celula
+    curto, _, resto = valor.partition(" — ")
+    m = re.match(r"(?i)sim\s*,\s*(.+)$", curto)
+    if rotulo == "Caução" and m:
+        curto = m.group(1)
+    curto = re.sub(r"(\d)\s*%", "\\1\u00a0%", curto.strip())
+    return (rotulo, curto, " · ".join(x for x in (resto.strip(), nota) if x), False)
 
 
 # As três colunas dos prazos e do preço escrevem-se em letra de números
@@ -25094,7 +25156,7 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
     meta = ("Leitura automática %sde %s. Pode falhar por omissão: «não "
             "encontrado» quer dizer que não estava nas páginas lidas."
             % (("(%s) " % html.escape(analise["modelo"] or "")) if sou_dono() else "",
-               html.escape(fontes_legiveis(analise["fontes"]) or "peças do procedimento")))
+               html.escape(fontes_pelo_papel(analise["fontes"]) or "peças do procedimento")))
     if origem:
         meta += (" Lida das peças do anúncio <a href='/anuncio/%s'>%s</a>, da "
                  "mesma cadeia." % (quote(origem, safe=""), html.escape(origem)))
@@ -25677,26 +25739,27 @@ def mercado_cx(a, chave, r=None):
                 "Desconto habitual", "poucos procedimentos para dizer",
                 "São precisos %d com anúncio e preço base." % MINIMO_PARA_DESCONTO,
                 apagado=True)
+        # Nesta célula, só os nomes e o número: os selos de cliente e de
+        # concorrente a cada nome atulhavam-na (revisão de 28/09/2026), e
+        # continuam nas tabelas, logo abaixo.
         todos = quem_mais_ganhou(linhas_hom) if linhas_hom else []
-        papeis = papeis_de([ch for l in linhas_hom + linhas
-                            for ch, _ in ganhadores_da_linha(l)])
         do_cpv_top = quem_mais_ganhou(linhas)[:4]
         no_cpv = ("No CPV, %s: %s" % (
             "os %d mais recentes" % len(linhas) if do_cpv > len(linhas)
             else "os %d contratos" % len(linhas),
-            ", ".join("%s %d" % (liga_entidade(ch, n, papeis=papeis), q)
+            ", ".join("%s %d" % (liga_entidade(ch, n), q)
                       for ch, n, q in do_cpv_top))) if do_cpv_top else ""
         if todos:
             ch, n, q = todos[0]
             quem = _celula("Quem costuma ganhar",
-                           "%s <small>%d dos %d homólogos</small>"
-                           % (liga_entidade(ch, n, papeis=papeis), q, len(linhas_hom)),
+                           "%s <small>&middot; %d dos %d homólogos</small>"
+                           % (liga_entidade(ch, n), q, len(linhas_hom)),
                            no_cpv)
         elif do_cpv_top:
             ch, n, q = do_cpv_top[0]
             quem = _celula("Quem costuma ganhar",
-                           "%s <small>%d dos %d no CPV</small>"
-                           % (liga_entidade(ch, n, papeis=papeis), q, len(linhas)),
+                           "%s <small>&middot; %d dos %d no CPV</small>"
+                           % (liga_entidade(ch, n), q, len(linhas)),
                            no_cpv)
         else:
             quem = _celula("Quem costuma ganhar", "não se sabe",

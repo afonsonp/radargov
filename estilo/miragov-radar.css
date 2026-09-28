@@ -1089,3 +1089,14 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
  .eq-linha>:first-child{grid-column:1/-1}
  .eq-linha .eq-cert{grid-column:4;grid-row:2}
  .ficha-mais>summary,.ficha-anuncio>summary{min-height:44px}}
+/* Abaixo de 1100px a coluna da direita caía para o fim da página, e o
+   prazo e «A nossa proposta» só se viam depois do anúncio completo. As
+   duas colunas desfazem-se (`display:contents`) e o prazo e a proposta
+   sobem para logo a seguir ao cabeçalho, como na maquete do telemóvel;
+   o responsável, os contactos e o histórico ficam no fim. Sem HTML
+   duplicado: é só a ordem. */
+@media (max-width:1100px){
+ .ficha-duas{display:flex;flex-direction:column;gap:var(--space-4)}
+ .ficha-duas>.ficha-principal,.ficha-duas>.ficha-lado{display:contents}
+ .ficha-lado>#prazo{order:-2}
+ .ficha-lado>#proposta{order:-1}}

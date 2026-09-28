@@ -852,7 +852,9 @@ a entidade paga com a régua dos quartis, o desconto habitual, quem
 costuma ganhar, e as tabelas dos homólogos e do CPV fechadas), as
 peças, e o **anúncio completo**, fechado no fim (`?modo=completo`
 abre-o). À direita, presa ao rolar no computador: o prazo, a nossa
-proposta, o responsável, os contactos e o histórico.
+proposta, o responsável, os contactos e o histórico. Abaixo de 1100px
+o prazo e a nossa proposta sobem para logo a seguir ao cabeçalho, antes
+de «Para decidir» (só CSS); o resto da coluna da direita fica no fim.
 
 **O prazo de uma republicação é o da cadeia** (`cadeia_do_anuncio()`):
 cada alteração guarda o seu prazo e o original guarda o que está em

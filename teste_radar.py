@@ -21171,6 +21171,53 @@ class TestFichaNova(unittest.TestCase):
         self.assertEqual(caucao, ("Caução", "consta do Programa do Concurso", "", True))
 
 
+class TestAsFontesComParentesesNoNome(unittest.TestCase):
+    """Revisão da ficha nova (28/09/2026): o nome verdadeiro do Caderno do
+    INFARMED tem parênteses, e o `fontes_legiveis()` partia no primeiro
+    «(» -- a ficha dizia «de PRR)_WEBSITE_20260267.pdf (pág. 40–42, …,
+    21–22)», com as páginas do Caderno e do Programa numa lista só."""
+
+    FONTES = ("CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf (pág. 40–42, "
+              "57–58), PROGRAMA_PROCEDIMENTO_INFARMED(PRR)_WEBSITE_20260267.pdf "
+              "(pág. 21–22), CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf "
+              "(pág. 8–9)")
+
+    def test_cada_ficheiro_com_as_suas_paginas(self):
+        self.assertEqual(radar.fontes_legiveis(self.FONTES),
+                         "CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf "
+                         "(pág. 40–42, 57–58, 8–9), "
+                         "PROGRAMA_PROCEDIMENTO_INFARMED(PRR)_WEBSITE_20260267.pdf "
+                         "(pág. 21–22)")
+
+    def test_a_ficha_diz_o_papel_e_o_nome_so_sem_papel(self):
+        self.assertEqual(radar.fontes_pelo_papel(self.FONTES),
+                         "Caderno de Encargos (pág. 40–42, 57–58, 8–9), "
+                         "Programa (pág. 21–22)")
+        # dois cadernos no mesmo ZIP: o papel não os distingue, fica o nome
+        self.assertEqual(radar.fontes_pelo_papel(
+            "A.zip/Caderno de encargos.pdf (pág. 1–3), A.zip/Encargos F1.pdf "
+            "(pág. 1–8), Mapa.pdf"),
+            "Caderno de encargos.pdf (pág. 1–3), Encargos F1.pdf (pág. 1–8), "
+            "Mapa.pdf")
+
+
+class TestACaucaoEAHabilitacaoCurtas(unittest.TestCase):
+    """Revisão da ficha nova: na célula, o valor curto, e o resto em nota."""
+
+    def test_o_valor_curto_e_a_nota(self):
+        self.assertEqual(radar._curto(("Caução", "Sim, 5% — Nos termos do artigo "
+                                       "16.º do Programa", "", False)),
+                         ("Caução", "5\xa0%", "Nos termos do artigo 16.º do Programa",
+                          False))
+        self.assertEqual(radar._curto(("Caução", "Sim", "", False))[1], "Sim")
+        self.assertEqual(radar._curto(("Caução", "Não", "", False))[1], "Não")
+        self.assertEqual(radar._curto(("Habilitação (alvará)",
+                                       "Alvará — 4ª Categoria, classe 3", "", False))[1:3],
+                         ("Alvará", "4ª Categoria, classe 3"))
+        apagado = ("Caução", "consta do Programa do Concurso", "", True)
+        self.assertEqual(radar._curto(apagado), apagado)
+
+
 class TestAFichaDeUmaRepublicacaoLeOPrazoDaCadeia(BaseTemporaria):
     """A correcção que motivou a ficha nova (28/09/2026): o 21295/2026, uma
     republicação intermédia, dizia «expirou» com o prazo dele (31/08),
