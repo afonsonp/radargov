@@ -313,7 +313,9 @@ form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--li
 .campo label small{font-weight:400;color:var(--ink-muted);font-size:.88rem}
 .campo input,.campo select,.campo textarea{font:400 1rem/1.35 var(--sans);color:var(--ink);background:var(--surface-raised);border:1px solid var(--line-strong);border-radius:10px;padding:11px 12px;width:100%}
 .campo textarea{min-height:96px;resize:vertical}
-.campo input:focus,.campo select:focus,.campo textarea:focus{outline:2px solid var(--focus);outline-offset:1px}
+/* a cor da marca, como no painel (28/09/2026: o magenta do --focus à volta
+   dos campos era a mesma queixa de 24/09, que só se tinha resolvido lá) */
+.campo input:focus,.campo select:focus,.campo textarea:focus{outline:2px solid var(--brand);outline-offset:1px}
 .campo [aria-invalid="true"]{border-color:var(--danger)}
 .duas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
 .armadilha{position:absolute!important;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}

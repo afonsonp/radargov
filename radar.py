@@ -11876,12 +11876,13 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
 <title>Entrar — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar-duas">
  <section class="entrar-lado">
-  <div><h1>%(logo)s</h1><small>Vigilância de concursos públicos</small></div>
+  <div><h1><a href="/" title="Voltar ao início">%(logo)s</a></h1><small>Vigilância de concursos públicos</small></div>
   <p>Lê o Diário da República e as plataformas ao longo do dia, traz as
   peças, e põe no mesmo sítio o que há para decidir.</p>
   <div class="kv">%(numeros)s</div>
  </section>
  <section class="entrar-form"><div class="entrar-cx">
+ <a class="entrar-voltar" href="/">&larr; Voltar ao início</a>
  <h2>Entrar</h2>
  %(aviso)s
  <form method="post" action="/entrar">

@@ -477,6 +477,14 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
 .entrar-cx form{display:flex;flex-direction:column;gap:var(--space-4)}
 .entrar-nota{margin:0;font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
 .entrar-nota a{color:var(--link)}
+/* O caminho de volta (28/09/2026, queixa dele: quem entra aqui sem conta
+   não conseguia voltar ao site). O logotipo liga ao início, e o
+   «Voltar ao início» fica por cima do titulo -- no telemovel o painel
+   da esquerda vai para cima e pode ficar fora do ecra. */
+.entrar-lado h1 a{color:inherit;text-decoration:none}
+.entrar-voltar{align-self:flex-start;font:400 var(--text-sm)/18px var(--font-sans);
+ color:var(--link);text-decoration:none}
+.entrar-voltar:hover{text-decoration:underline}
 @media (max-width:800px){main.entrar-duas{grid-template-columns:minmax(0,1fr);min-height:0}
  .entrar-lado{border-radius:0 0 var(--radius-xl) var(--radius-xl);padding:var(--space-6)}
  .entrar-lado h1{font-size:var(--text-3xl);line-height:36px}

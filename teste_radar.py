@@ -19652,6 +19652,31 @@ class TestAPaginaDeCadaEmpresa(_PlataformaComDuasEmpresas):
                       inspect.getsource(radar.verificar))
 
 
+class TestAEntradaTemCaminhoDeVoltaEOSiteNaoPintaOMagenta(unittest.TestCase):
+    """28/09/2026, duas queixas dele: quem carregava em «Entrar» no site e
+    não tinha conta não conseguia voltar ao início (o logótipo não era
+    ligação, e no telemóvel sobra o formulário); e os campos do «Pedir
+    acesso» do site tinham o anel magenta, que no painel já tinha saído a
+    24/09 pela mesma queixa."""
+
+    def test_a_pagina_de_entrar_volta_ao_inicio_duas_vezes(self):
+        self.assertIn('<a href="/" title="Voltar ao início">', radar.PAGINA_ENTRAR)
+        self.assertIn('<a class="entrar-voltar" href="/">', radar.PAGINA_ENTRAR)
+        # o «voltar» vem antes do formulário, para se ver no telemóvel
+        self.assertLess(radar.PAGINA_ENTRAR.index("entrar-voltar"),
+                        radar.PAGINA_ENTRAR.index("<form"))
+
+    def test_os_campos_do_site_nao_levam_o_magenta(self):
+        with open(os.path.join(os.path.dirname(radar.__file__), "site",
+                               "index.html"), encoding="utf-8") as f:
+            site = f.read()
+        regras = re.findall(r"([^{}]*(?:input|select|textarea)[^{}]*:focus[^{}]*)\{([^}]*)\}",
+                            site)
+        self.assertTrue(regras)
+        for seletor, corpo in regras:
+            self.assertNotIn("--focus", corpo, seletor.strip())
+
+
 class TestOFocoProgramaticoNaoPintaOMagenta(unittest.TestCase):
     """26/09/2026: depois de gravar, o JS do `BASE` põe o foco no aviso da
     vez (WCAG 2.4.3), e o `.mg :focus-visible` do sistema pintava-o com o
