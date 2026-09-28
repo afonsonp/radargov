@@ -9195,6 +9195,14 @@ class TestAPropostaDeCadaEmpresa(_CicloDoTesteComUtilizadores):
         radar.iniciar_empresa()
         self.assertEqual(radar.proposta(id_)["motivo"], "Qualidade técnica")
 
+    def test_o_nao_fomos_tambem_deixa_de_falar_de_cv(self):
+        self.assertNotIn("Falta de CV's", radar.MOTIVOS_ABANDONO)
+        id_ = radar.criar_proposta("60/2026", estado="nao_fomos")
+        radar.gravar_motivo(id_, "Falta de CV's")
+        radar.iniciar_empresa()
+        self.assertEqual(radar.proposta(id_)["motivo"],
+                         "Falta de equipa ou capacidade")
+
     def test_as_listas_gravam_se_no_perfil_da_empresa(self):
         self.cliente.post("/configuracoes/propostas", data={
             "tipologias": "Obra pública\n\n Manutenção \nObra pública",
@@ -11266,13 +11274,13 @@ class TestAlteracoesDoDR(BaseTemporaria):
         self._poe("200/2026", "2026-08-14",
                   self._texto(prazo="11-09-2026", altera="100/2026"))
         p = radar.criar_proposta("200/2026", estado="nao_fomos")
-        radar.gravar_motivo(p, "Falta de CV's")
+        radar.gravar_motivo(p, "Falta de equipa ou capacidade")
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET altera=NULL")   # texto por reler
         self.assertEqual(radar.agrupar_alteracoes(), (2, 1))
         viva = radar.propostas_de("100/2026")
         self.assertEqual([(x["estado"], x["motivo"]) for x in viva],
-                         [("nao_fomos", "Falta de CV's")])
+                         [("nao_fomos", "Falta de equipa ou capacidade")])
         self.assertEqual(radar.propostas_de("200/2026"), [])
         self.assertEqual(self._le("200/2026")["estado"], "alteracao")
         self.assertTrue(any("decidido na alteração" in p["detalhe"]
@@ -11303,13 +11311,13 @@ class TestAlteracoesDoDR(BaseTemporaria):
         # ninguém triou é o DR a falar, não a empresa
         self._poe("400/2026", "2026-07-01", self._texto())
         antigo = radar.criar_proposta("400/2026", estado="nao_fomos")
-        radar.gravar_motivo(antigo, "Falta de CV's")
+        radar.gravar_motivo(antigo, "Falta de equipa ou capacidade")
         self._poe("500/2026", "2026-08-02",
                   self._texto(prazo="20-09-2026", altera="400/2026"))
         radar.aplicar_alteracao("500/2026")
         fica = radar.propostas_de("400/2026")
         self.assertEqual([(x["estado"], x["motivo"]) for x in fica],
-                         [("nao_fomos", "Falta de CV's")])
+                         [("nao_fomos", "Falta de equipa ou capacidade")])
 
     def test_a_cadeia_segue_ate_a_raiz_e_o_mais_recente_manda(self):
         self._poe("100/2026", "2026-07-17", self._texto())
@@ -13385,7 +13393,7 @@ class TestModeloDaEmpresa(BaseTemporaria):
         caminho = self.preenchido([
             ["1947/2026", 1, "Perdido", None, 54432, 3, "A; B; Nós", None, None],
             ["1947/2026", 2, "Ganho", None, 169344, 1, "Nós; B; C", "Afonso", None],
-            ["22285/2026", None, "Não fomos", "Falta de CV's", None, None, None, None, "sem equipa"],
+            ["22285/2026", None, "Não fomos", "FALTA DE CV'S", None, None, None, None, "sem equipa"],
         ])
         with radar.liga() as c:
             linhas, _ = empresa.ensaio_modelo(c, empresa.ler_modelo(caminho))
@@ -13403,7 +13411,7 @@ class TestModeloDaEmpresa(BaseTemporaria):
             b = c.execute("SELECT estado, motivo FROM propostas "
                           "WHERE ref='22285/2026'").fetchone()
             self.assertEqual((b["estado"], b["motivo"]),
-                             ("nao_fomos", "Falta de CV's"))
+                             ("nao_fomos", "Falta de equipa ou capacidade"))
             self.assertEqual(c.execute("SELECT COUNT(*) FROM empresa WHERE folha='modelo'").fetchone()[0], 3)
             self.assertEqual(c.execute("SELECT lote FROM empresa WHERE ref='22285/2026'").fetchone()[0], 0)
             self.assertEqual(c.execute("SELECT COUNT(*) FROM pessoas WHERE nome='Afonso'").fetchone()[0], 1)
@@ -13427,7 +13435,7 @@ class TestModeloDaEmpresa(BaseTemporaria):
         cópia, não por `quem='Excel'` -- essa condição deixou de apanhar
         nada no dia em que o leitor do Excel antigo saiu."""
         ja_estava = radar.criar_proposta("22285/2026", estado="nao_fomos")
-        radar.gravar_motivo(ja_estava, "Falta de CV's")
+        radar.gravar_motivo(ja_estava, "Falta de equipa ou capacidade")
         # a cópia do ficheiro da EMPRESA (F1, 23/09/2026): é lá que as
         # propostas e o histórico vivem, e é essa que o comando recebe
         copia = os.path.join(self.pasta, "antes.db")
@@ -13456,7 +13464,7 @@ class TestModeloDaEmpresa(BaseTemporaria):
         # o que já lá estava antes da importação volta tal e qual
         volta = radar.propostas_de("22285/2026")
         self.assertEqual([(p["estado"], p["motivo"]) for p in volta],
-                         [("nao_fomos", "Falta de CV's")])
+                         [("nao_fomos", "Falta de equipa ou capacidade")])
         with radar.liga() as c:
             self.assertEqual(c.execute(
                 "SELECT COUNT(*) FROM historico WHERE ref='1947/2026'"

@@ -339,8 +339,9 @@ certificações · Proposta excluída*, **genéricos para todas as
 empresas** desde 28/09/2026 (eram os da LATD: «CV's», «Proposta
 técnica», «Certificações», que passaram aos novos no
 `iniciar_empresa()`, pelo `MOTIVOS_QUE_MUDARAM`); não fomos —
-*Preço base baixo · Falta de certificações · Falta de CV's · Não faz
-parte da oferta*.
+*Preço base baixo · Falta de certificações · Falta de equipa ou
+capacidade · Não faz parte da oferta* (era «Falta de CV's» até
+28/09/2026; passa no `iniciar_empresa()` e no modelo Excel).
 
 ### 3.2 Anúncio ≠ proposta
 
