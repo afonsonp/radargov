@@ -24264,13 +24264,14 @@ def kpi(rotulo, valor, nota="", alvo="", classe="", delta="", porque=""):
                "a" if alvo else "div"))
 
 
-def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes=""):
+def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas=""):
     """O cabeçalho de uma página (o `PageHeader`): as migalhas, o título
     grande com as acções à direita, e o subtítulo por baixo.
 
     `migalhas` é [(rótulo, endereço)]; a última não leva ligação. O
     `titulo` e o `subtitulo` já vêm escapados -- o subtítulo da ficha leva
-    a ligação para a entidade."""
+    a ligação para a entidade. As `etiquetas` (a ficha: o prazo e as da
+    empresa) vão numa linha por baixo, já em HTML."""
     passos = "".join(
         "<li>%s</li>" % ("<a href='%s'>%s</a>" % (html.escape(destino, quote=True),
                                                 html.escape(rotulo))
@@ -24281,10 +24282,12 @@ def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes=""):
     migalhas_html = "<ol class='mg-crumbs'>%s</ol>" % passos if passos else ""
     return ("<div class='mg mg-pagehead'>%s"
             "<div class='mg-pagehead__row'><h1 class='mg-pagehead__title'>%s</h1>%s</div>"
-            "%s</div>"
+            "%s%s</div>"
             % (migalhas_html, titulo,
                "<div class='mg-pagehead__actions'>%s</div>" % accoes if accoes else "",
-               "<p class='mg-pagehead__sub'>%s</p>" % subtitulo if subtitulo else ""))
+               "<p class='mg-pagehead__sub'>%s</p>" % subtitulo if subtitulo else "",
+               "<div class='mg-row pagehead-etiquetas'>%s</div>" % etiquetas
+               if etiquetas else ""))
 
 
 # Os quatro passos da escada na ficha (o `Stepper` do sistema). São a
@@ -24344,16 +24347,30 @@ def passos_da_escada(a, minhas):
             % "".join(itens))
 
 
-def prazo_da_ficha(a):
+def prazo_da_ficha(a, cadeia=None):
     """O cartão do prazo, no topo da coluna da direita (o `EcraFicha`).
 
     O número grande é o que falta; a cor é a da etiqueta do prazo, e por
     isso a mesma da lista -- uma etiqueta que diz amarelo aqui e verde lá
-    é o ecrã a discordar de si."""
+    é o ecrã a discordar de si. O `a["prazo"]` que chega aqui já é o da
+    cadeia (`cadeia_do_anuncio()`), e a `cadeia` diz de onde ele vem."""
     dias, passou = dias_restantes(a["prazo"])
+    historia = ""
+    if cadeia:
+        era = (" Era %s." % data_pt(cadeia["prazo_inicial"])
+               if cadeia["prorrogacoes"] and cadeia["prazo_inicial"] else "")
+        historia = (
+            "<p class='ficha-nota'>%s%s O prazo actual é o do anúncio "
+            "<a href='/anuncio/%s'>%s</a>; a última alteração saiu a %s.</p>"
+            % ("Prorrogado %s." % plural(cadeia["prorrogacoes"], "vez", "vezes")
+               if cadeia["prorrogacoes"] else
+               "%s, sem mexer no prazo."
+               % plural(cadeia["alteracoes"], "alteração", "alterações").capitalize(),
+               era, quote(cadeia["vigor"], safe=""), html.escape(cadeia["vigor"]),
+               data_pt(cadeia["ultima"])))
     if dias is None:
         return cartao("Prazo", "<p class='ficha-nota'>O anúncio não indica "
-                      "o prazo das propostas.</p>", id_="prazo")
+                      "o prazo das propostas.</p>" + historia, id_="prazo")
     texto, classe = etiqueta_prazo(a["prazo"])
     grande = "expirou" if passou else (
         "hoje" if dias == 0 else "%d dia%s" % (dias, "" if dias == 1 else "s"))
@@ -24366,9 +24383,10 @@ def prazo_da_ficha(a):
         "Prazo",
         "<div class='ficha-prazo %s'><b>%s</b><span>%s</span></div>"
         "<div class='mg-row' style='margin-top:12px'>"
-        "<span class='mg-tag %s'><span class='mg-tag__dot'></span>%s</span></div>"
+        "<span class='mg-tag %s'><span class='mg-tag__dot'></span>%s</span></div>%s"
         % (classe, grande, por_extenso, tom(classe),
-           html.escape(texto if passou or dias == 0 else "Prazo em " + texto)),
+           html.escape(texto if passou or dias == 0 else "Prazo em " + texto),
+           historia),
         pe="Publicado a %s." % data_pt(a["data_pub"]) if a["data_pub"] else "",
         id_="prazo")
 
@@ -24509,32 +24527,6 @@ def lotes_cx(a):
                "registo da empresa sabe, e ainda não tem esta linha.")
 
 
-def frase_dos_campos_em_falta(sem_valor):
-    """A frase, por baixo do essencial, com os campos que nao tem valor,
-    agrupados pela razao: [(razao, rotulo)] -> HTML, vazio se nao ha.
-
-    Mantem a ordem em que as razoes aparecem e a dos campos dentro de
-    cada uma, para a leitura ser a da tabela que substitui."""
-    if not sem_valor:
-        return ""
-    grupos = []
-    for razao, rotulo in sem_valor:
-        for g in grupos:
-            if g[0] == razao:
-                g[1].append(rotulo)
-                break
-        else:
-            grupos.append((razao, [rotulo]))
-    partes = ["<b>%s</b>: %s" % (html.escape(razao),
-                                 ", ".join(html.escape(r) for r in rotulos))
-              for razao, rotulos in grupos]
-    # Dito como se diz (E59, ronda em PC): «4 campos sem valor neste
-    # resumo» era a linguagem da tabela, e não de quem lê o anúncio.
-    return ("<p class='em-falta-frase'>Faltam aqui %s &mdash; %s. "
-            "<a href='#pecas'>Ver as peças</a></p>"
-            % (plural(len(sem_valor), "dado"), "; ".join(partes)))
-
-
 def _pares_da_seccao(seccoes, titulo):
     """Os pares da secção do anúncio cujo título tenha `titulo`."""
     alvo = simplifica(titulo)
@@ -24664,7 +24656,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     nota_pecas = ("lido de %s %s — é um rascunho: confirmar no documento "
                   "antes de decidir"
                   % (fontes_legiveis(analise["fontes"]) or "peças do procedimento",
-                     ("por " + analise["modelo"]) if sou_dono()
+                     ("por " + (analise["modelo"] or "modelo")) if sou_dono()
                      else "por leitura automática")) if analise else ""
     regime = das_pecas("localizacao")
     # Lido o Programa e nao havendo limiar, isso e uma resposta -- e nao a
@@ -24733,6 +24725,382 @@ def essencial_do_anuncio(a, seccoes, analise=None):
           "lista: confirmar no documento"
           if foi_lido("documentos_proposta") else falta("documentos_proposta")), nota_pecas),
     ]
+
+
+# --- a ficha nova (28/09/2026, a maquete que ele aprovou)
+#
+# O essencial era uma lista de pares com o mesmo peso: o preço base ao
+# lado dos 3 700 caracteres da equipa. Passou a três cartões -- o que se
+# decide (os factos do anúncio), o que as peças pedem (a leitura, que é
+# rascunho) e o mercado -- e o que é comprido recolhe-se. As funções
+# daqui são puras para se poderem testar sem desenhar a página.
+
+def cadeia_do_anuncio(c, a):
+    """A cadeia de republicações de um anúncio, ou None quando não há.
+
+    O original guarda o que está em vigor (`aplicar_alteracao()` põe-lhe
+    o prazo da alteração mais recente), mas cada alteração guarda o SEU
+    prazo. A ficha de uma alteração intermédia lia o dela e dizia
+    «expirou» de um concurso aberto: o 21295/2026 dizia 31/08, com o
+    19129/2026 já prorrogado até 06/10. O prazo da ficha vem daqui, e
+    não da linha.
+
+    Uma prorrogação é uma alteração que empurra o prazo para diante; a
+    primeira compara-se com o prazo do texto do original, que a linha
+    dele já não tem."""
+    raiz_ref = (raiz_da_alteracao(c, a["ref"], _valor(a, "altera") or "")
+                if a["estado"] == "alteracao" else a["ref"])
+    if not raiz_ref:
+        return None
+    refs = [m["ref"] for m in membros_da_cadeia(c, raiz_ref)]
+    if not refs:
+        return None
+    raiz = c.execute("SELECT prazo, texto, alterado_por FROM anuncios "
+                     "WHERE ref=?", (raiz_ref,)).fetchone()
+    membros = sorted(c.execute(
+        "SELECT ref, data_pub, prazo FROM anuncios WHERE ref IN (%s)"
+        % ",".join("?" * len(refs)), refs),
+        key=lambda m: (m["data_pub"] or "", _numero_do_ref(m["ref"])))
+    inicial = campos_do_detalhe(raiz["texto"] or "")["prazo"] or ""
+    prorrogacoes, antes = 0, inicial
+    for m in membros:
+        if m["prazo"] and antes and m["prazo"] > antes:
+            prorrogacoes += 1
+        antes = m["prazo"] or antes
+    return {"raiz": raiz_ref,
+            "vigor": raiz["alterado_por"] or membros[-1]["ref"],
+            "prazo": raiz["prazo"] or membros[-1]["prazo"] or "",
+            "prazo_inicial": inicial, "prorrogacoes": prorrogacoes,
+            "alteracoes": len(membros), "ultima": membros[-1]["data_pub"] or "",
+            "refs": [raiz_ref] + [m["ref"] for m in membros]}
+
+
+def quanto_falta(prazo, passou_diz="já passou"):
+    """«faltam 8 dias», «falta 1 dia», «é hoje», ou `passou_diz`."""
+    dias, passou = dias_restantes(prazo)
+    if dias is None:
+        return ""
+    if passou:
+        return passou_diz
+    if dias == 0:
+        return "é hoje"
+    return ("falta " if dias == 1 else "faltam ") + plural(dias, "dia")
+
+
+# O que a leitura escreve quando não achou: não é um valor.
+VAZIOS_DA_LEITURA = ("", "—", "-", "nao consta")
+RX_ANOS = re.compile(r"(\d{1,2})\s*(?:\([^)]*\)\s*)?anos?\b", re.I)
+RX_EUROS_DA_HORA = re.compile(r"(\d[\d  .]*(?:,\d{1,2})?)\s*€")
+
+
+def perfis_da_equipa(texto):
+    """Os perfis que a leitura da equipa grava, um dict por perfil.
+
+    A leitura escreve um bloco por perfil, separados por linha em branco:
+    o nome e depois pares «Quantidade: 1», «Experiência geral: 8 anos»,
+    «Certificações: …», «Horas e preço: 8448 horas, 40,00 € / hora».
+    Tira-se de cada par só o número que a tabela precisa, e de forma
+    tolerante: «1 (um) membro» dá 1, «superior a 5 (cinco) anos» dá 5.
+    Um bloco que não se decompõe (uma linha só, ou uma linha que não é
+    par) fica {"texto": bloco} e mostra-se como veio -- nada se perde."""
+    perfis = []
+    for bloco in re.split(r"\n\s*\n", (texto or "").strip()):
+        linhas = [l.strip() for l in bloco.split("\n") if l.strip()]
+        if not linhas:
+            continue
+        pares = [RX_PAR_PERFIL.match(l) for l in linhas[1:]]
+        if len(linhas) < 2 or not all(pares):
+            perfis.append({"texto": bloco.strip()})
+            continue
+        nome = linhas[0]
+        m = RX_PAR_PERFIL.match(nome)
+        if m and simplifica(m.group(1)).strip() == "nome do perfil":
+            nome = m.group(2)
+        campos = {simplifica(p.group(1)).strip(): p.group(2).strip()
+                  for p in pares}
+
+        def campo(chave):
+            v = campos.get(chave, "")
+            return "" if simplifica(v).strip() in VAZIOS_DA_LEITURA else v
+        pessoas = re.search(r"\d+", campo("quantidade"))
+        anos = RX_ANOS.search(campo("experiencia geral"))
+        preco = RX_EUROS_DA_HORA.findall(campo("horas e preco"))
+        perfis.append({"nome": nome,
+                       "pessoas": pessoas.group(0) if pessoas else "",
+                       "anos": anos.group(1) if anos else "",
+                       "cert": campo("certificacoes"),
+                       "preco": preco[-1].strip() if preco else "",
+                       "pares": [(p.group(1), p.group(2)) for p in pares]})
+    return perfis
+
+
+def _euros_da_hora(v):
+    """55.0 -> '55'; 52.5 -> '52,50'."""
+    return "%d" % v if v == int(v) else ("%.2f" % v).replace(".", ",")
+
+
+def resumo_da_equipa(perfis):
+    """«20 perfis · 2 a 8 anos · 3 com certificação · 30 a 55 €/h»: só
+    as partes que houver. Vazio quando nenhum bloco é um perfil."""
+    com_nome = [p for p in perfis if "nome" in p]
+    if not com_nome:
+        return ""
+    partes = [plural(len(com_nome), "perfil", "perfis")]
+    anos = sorted(int(p["anos"]) for p in com_nome if p["anos"])
+    if anos:
+        partes.append("%d a %d anos" % (anos[0], anos[-1])
+                      if anos[0] != anos[-1] else plural(anos[0], "ano"))
+    certificados = sum(1 for p in com_nome if p["cert"])
+    if certificados:
+        partes.append("%d com certificação" % certificados)
+    precos = sorted(v for v in (euros_do_texto(p["preco"]) for p in com_nome
+                                if p["preco"]) if v)
+    if precos:
+        partes.append(("%s a %s €/h" % (_euros_da_hora(precos[0]),
+                                          _euros_da_hora(precos[-1])))
+                      if precos[0] != precos[-1]
+                      else "%s €/h" % _euros_da_hora(precos[0]))
+    return " · ".join(partes)
+
+
+def resumo_do_objecto(texto):
+    """(o que se contrata, quantos pontos). O resumo é a PRIMEIRA linha
+    da leitura, sem o travessão ou o número: a primeira versão da ficha
+    nova fechava o objecto em «15 pontos», e ele disse que estava mal --
+    a contagem diz quanto há, não o que é. Vai para o botão."""
+    linhas = [l.strip() for l in (texto or "").split("\n") if l.strip()]
+    if not linhas:
+        return "", 0
+    m = RX_ITEM_LISTA.match(linhas[0]) or RX_ITEM_NUM.match(linhas[0])
+    primeira = m.group(m.lastindex) if m else linhas[0]
+    pontos = sum(1 for l in linhas
+                 if RX_ITEM_LISTA.match(l) or RX_ITEM_NUM.match(l))
+    return corta(primeira, 200), (pontos if pontos >= 2 else 0)
+
+
+def leitura_do_preco(valor, mediana):
+    """'acima', 'abaixo' ou 'em linha' do que a entidade costuma pagar.
+    Um sítio só para os limiares: a comparação do mercado e a célula do
+    preço base dizem a mesma coisa."""
+    razao = valor / mediana if mediana else 0
+    if razao >= 1.25:
+        return "acima"
+    if razao <= 0.8:
+        return "abaixo"
+    return "em linha"
+
+
+def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
+                        prorrogacoes=0):
+    """As oito células de «Para decidir», por esta ordem:
+    [(rótulo, valor, nota, apagado)].
+
+    Os valores são os do `essencial_do_anuncio()`; aqui só se escolhem e
+    se encurtam as notas, que numa célula não cabem frases. Os
+    esclarecimentos vêm ANTES das propostas (pedido dele: é o prazo que
+    passa primeiro). Um facto que o anúncio não traz fica na célula,
+    `apagado`, a dizer onde está -- não desaparece, que era parecer que
+    não existe."""
+    ess = {rot: (valor, falta, nota)
+           for rot, valor, falta, nota in essencial_do_anuncio(a, seccoes, analise)}
+    no_programa = "consta do Programa do Concurso"
+
+    def facto(rotulo, chave, nota="", onde=no_programa):
+        valor = ess.get(chave, ("", "", ""))[0]
+        return ((rotulo, valor, nota, False) if valor
+                else (rotulo, onde, "", True))
+
+    base = euros_do_texto(a["preco_base"] or "")
+    nota_preco = ""
+    if ref_preco and base and len(lotes_de(a)) <= 1:
+        lado = leitura_do_preco(base, ref_preco["mediana"])
+        nota_preco = "%s %s a entidade costuma pagar" % (
+            lado.capitalize(), "com o que" if lado == "em linha" else "do que")
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    if limite:
+        esclarec = ("Esclarecimentos até", limite.strftime("%d/%m/%Y"),
+                    "%s · calculado, confirmar no Programa"
+                    % quanto_falta(limite.strftime("%Y-%m-%d")).capitalize(),
+                    False)
+    else:
+        esclarec = ("Esclarecimentos até", no_programa, "", True)
+    if a["prazo"]:
+        nota = quanto_falta(a["prazo"], "expirou").capitalize()
+        if prorrogacoes:
+            nota += " · prorrogado %s" % plural(prorrogacoes, "vez", "vezes")
+        propostas = ("Propostas até", data_pt(a["prazo"]), nota, False)
+    else:
+        propostas = ("Propostas até", "o anúncio não indica", "", True)
+    duracao = ess.get("Duração do contrato", ("", "", ""))[0]
+    renovacoes = " (com renovações previstas)"
+    local_nota = ess.get("Local de prestação de serviços", ("", "", ""))[2]
+    local_nota = ("regime lido das peças: confirmar" if local_nota.startswith("lido de")
+                  else "a leitura não encontrou o regime" if "não encontrou" in local_nota
+                  else "o regime (presencial, remoto) ainda não foi lido"
+                  if local_nota else "")
+    return [
+        facto("Preço base", "Preço base", nota_preco, "o anúncio não indica"),
+        esclarec,
+        propostas,
+        ("Duração", duracao.replace(renovacoes, ""),
+         "com renovações previstas" if renovacoes in duracao else "", False)
+        if duracao else ("Duração", "o anúncio não indica", "", True),
+        facto("Critério", "Critério de adjudicação"),
+        facto("Local", "Local de prestação de serviços", local_nota,
+              "o anúncio não indica"),
+        facto("Habilitação (alvará)", "Habilitação (alvará)"),
+        facto("Caução", "Caução"),
+    ]
+
+
+# As três colunas dos prazos e do preço escrevem-se em letra de números
+_FACTOS_EM_NUMERO = ("Preço base", "Esclarecimentos até", "Propostas até")
+
+
+def para_decidir_cx(factos):
+    """O cartão «Para decidir»: a grelha das oito células, quatro por
+    linha no computador e duas no telemóvel, separadas por um fio."""
+    return cartao(
+        "Para decidir",
+        "<div class='factos-grelha'>%s</div>" % "".join(
+            _celula(html.escape(rot), html.escape(valor).replace("\n", " "),
+                    html.escape(nota), apagado,
+                    "n" if rot in _FACTOS_EM_NUMERO and not apagado else "")
+            for rot, valor, nota, apagado in factos),
+        meta="Do anúncio do DR", id_="decidir")
+
+
+def tabela_da_equipa(perfis):
+    """Uma linha por perfil: Perfil · Pessoas · Anos · Certificação · €/h.
+
+    Cada linha é um `<details>`: o nome abre o resto do bloco (a
+    formação, a experiência específica, as outras condições), que a
+    tabela não mostra. Um bloco que não se decompôs sai como texto, na
+    sua linha. As colunas levam espaço entre elas -- na primeira versão
+    «anos» e «certificação» ficavam pegados, e ele reparou."""
+    cabeca = ("<div class='eq-linha eq-cab' aria-hidden='true'><span>Perfil</span>"
+              "<span class='n'>Pessoas</span><span class='n'>Anos</span>"
+              "<span class='eq-cert'>Certificação</span><span class='n'>€/h</span></div>")
+    linhas = []
+    for p in perfis:
+        if "nome" not in p:
+            linhas.append("<div class='eq-texto'>%s</div>"
+                          % html.escape(p["texto"]).replace("\n", "<br>"))
+            continue
+        linhas.append(
+            "<details class='eq-perfil'><summary class='eq-linha'>"
+            "<span class='eq-nome'>%s</span>"
+            "<span class='n'><span class='so-leitor'>Pessoas: </span>%s</span>"
+            "<span class='n'><span class='so-leitor'>Anos: </span>%s</span>"
+            "<span class='eq-cert'><span class='so-leitor'>Certificação: </span>%s</span>"
+            "<span class='n'><span class='so-leitor'>Euros por hora: </span>%s</span>"
+            "</summary><dl class='eq-mais'>%s</dl></details>"
+            % tuple([html.escape(p["nome"])]
+                    + [html.escape(p[k]) or "·" for k in ("pessoas", "anos", "cert", "preco")]
+                    + ["".join("<dt>%s</dt><dd>%s</dd>" % (html.escape(k), html.escape(v))
+                               for k, v in p["pares"])]))
+    return ("<div class='equipa'>%s%s</div><p class='ficha-nota'>A formação e "
+            "as outras condições de cada perfil abrem-se ao tocar no nome.</p>"
+            % (cabeca, "".join(linhas)))
+
+
+def _linha_das_pecas(rotulo, corpo, resumo="", botao="", apagado=False):
+    """Uma linha de «O que as peças pedem». Com `resumo`, recolhe-se: o
+    `<summary>` mostra o resumo e o botão, e o corpo abre por baixo --
+    `<details>` nativo, sem JavaScript, e alcançável por teclado."""
+    if resumo:
+        return ("<details class='pp-linha'><summary><span class='pp-r'>%s</span>"
+                "<span class='pp-s'>%s</span><span class='pp-b'>"
+                "<span class='abrir'>%s</span><span class='fechar'>Fechar</span>"
+                "</span></summary><div class='pp-corpo'>%s</div></details>"
+                % (rotulo, html.escape(resumo), botao, corpo))
+    return ("<div class='pp-linha%s'><span class='pp-r'>%s</span>"
+            "<div class='pp-s'>%s</div></div>"
+            % (" apagado" if apagado else "", rotulo, corpo))
+
+
+def _onde_esta(falta):
+    """A razão por que um campo da leitura não tem valor, em curto: «foi
+    lido e a leitura não encontrou» diz-se «não encontrado nas páginas
+    lidas»; o resto (a peça que não veio, a leitura que não correu) fica
+    como o essencial o diz."""
+    if "não encontrou" in falta:
+        return "Não encontrado nas páginas lidas"
+    return falta[:1].upper() + falta[1:]
+
+
+def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
+    """O cartão «O que as peças pedem» (28/09/2026): a leitura do modelo,
+    com a marca «Rascunho» UMA vez e não por linha, e por baixo dela as
+    peças e as páginas que foram lidas -- a leitura omite mais do que
+    inventa, e «não encontrado» quer dizer «não estava nestas páginas».
+
+    `origem` é o ref de onde veio a leitura quando não é este (uma
+    republicação cujas peças foram lidas noutro anúncio da cadeia).
+    Sem leitura, o corpo é `sem_leitura`: o que a ficha já dizia para a
+    pedir."""
+    titulo = "O que as peças pedem"
+    if not analise:
+        return cartao(titulo, sem_leitura or
+                      "<p class='ficha-nota'>As peças ainda não foram lidas.</p>",
+                      id_="pecas-pedem")
+    ess = {rot: (valor, falta)
+           for rot, valor, falta, _ in essencial_do_anuncio(a, seccoes, analise)}
+    familia = familia_do_contrato(valor_de(seccoes, "Tipo de Contrato Principal"),
+                                  _valor(a, "cpv") or "")
+    rotulo_11 = CAMPO_11[familia][0]
+    linhas = []
+
+    valor, falta = ess.get(rotulo_11, ("", ""))
+    perfis = perfis_da_equipa(valor) if valor and familia == "equipa" else []
+    resumo = resumo_da_equipa(perfis)
+    if resumo:
+        n = sum(1 for p in perfis if "nome" in p)
+        linhas.append(_linha_das_pecas(
+            rotulo_11, tabela_da_equipa(perfis), resumo,
+            "Ver o perfil" if n == 1 else "Ver os %s" % plural(n, "perfil", "perfis")))
+    elif valor:
+        linhas.append(_linha_das_pecas(rotulo_11, desenha_valor(valor),
+                                       resumo_do_objecto(valor)[0], "Ver tudo"))
+    else:
+        linhas.append(_linha_das_pecas(rotulo_11, html.escape(_onde_esta(falta)),
+                                       apagado=True))
+
+    valor, falta = ess.get("Objecto, âmbito e características", ("", ""))
+    primeira, pontos = resumo_do_objecto(valor)
+    if valor and (pontos or len(valor) > len(primeira)):
+        linhas.append(_linha_das_pecas(
+            "Objecto", desenha_valor(valor), primeira,
+            "Ver os %d pontos" % pontos if pontos else "Ver tudo"))
+    elif valor:
+        linhas.append(_linha_das_pecas("Objecto", html.escape(valor)))
+    else:
+        linhas.append(_linha_das_pecas("Objecto", html.escape(_onde_esta(falta)),
+                                       apagado=True))
+
+    valor, falta = ess.get("Documentos que constituem a proposta", ("", ""))
+    linhas.append(_linha_das_pecas(
+        "Documentos da proposta",
+        desenha_valor(valor) if valor else html.escape(_onde_esta(falta)),
+        apagado=not valor))
+
+    valor, falta = ess.get("Preço anormalmente baixo", ("", ""))
+    linhas.append(_linha_das_pecas(
+        "Preço anormalmente baixo",
+        html.escape(valor or _onde_esta(falta)), apagado=not valor))
+
+    # Quem leu: o nome do modelo é para o dono; a um cliente diz-se só que
+    # foi lido automaticamente (teste com utilizadores, 25/09/2026).
+    meta = ("Leitura automática %sde %s. Pode falhar por omissão: «não "
+            "encontrado» quer dizer que não estava nas páginas lidas."
+            % (("(%s) " % html.escape(analise["modelo"] or "")) if sou_dono() else "",
+               html.escape(fontes_legiveis(analise["fontes"]) or "peças do procedimento")))
+    if origem:
+        meta += (" Lida das peças do anúncio <a href='/anuncio/%s'>%s</a>, da "
+                 "mesma cadeia." % (quote(origem, safe=""), html.escape(origem)))
+    return cartao(
+        titulo, "".join(linhas), meta=meta, id_="pecas-pedem",
+        accoes="<span class='mg-tag mg-tag--warning'>Rascunho: confirmar nas peças</span>")
 
 
 def descontos_da_entidade(chave, cpv):
@@ -24860,17 +25228,18 @@ def homologos_do_anuncio(chave, titulo, ref="", limite=8):
     return linhas, termos
 
 
-def homologos_cx(a, chave):
-    """A caixa dos procedimentos homologos na ficha do anuncio.
+def homologos_da_ficha(a, chave):
+    """(a tabela dos procedimentos homólogos, as linhas, os termos).
 
-    So aparece quando ha o que mostrar: o estado do corpus e da entidade
-    ja e dito pela caixa do historico logo abaixo, e uma segunda caixa a
-    dizer "nada" era ruido."""
+    Era o cartão «Procedimentos homólogos»; desde a ficha nova
+    (28/09/2026) a tabela vive fechada dentro do mercado, e as linhas
+    servem também o «quem costuma ganhar». Sem corpus ou sem nada
+    parecido devolve ("", [], termos)."""
     if not (chave and ha_corpus()):
-        return ""
+        return "", [], []
     linhas, termos = homologos_do_anuncio(chave, a["titulo"] or "", a["ref"])
     if not linhas:
-        return ""
+        return "", [], termos
 
     # Quando o contrato aponta para um anuncio que o radar tem, a ficha
     # dele fica a um clique -- e la que estao as pecas e a leitura.
@@ -24904,20 +25273,19 @@ def homologos_cx(a, chave):
                venceu, euros(l["preco_contratual"])))
 
     # o "Parecido = <termos>" fica no ecra: diz COMO a lista foi feita, e
-    # sem ele o bloco e uma tabela sem criterio
-    return cartao(
-        "Procedimentos homólogos",
+    # sem ele a tabela nao tem criterio
+    tabela = (
+        "<p class='ficha-nota'>Contratos desta entidade com %s em comum no "
+        "objecto: <b>%s</b>.</p>"
         "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
         "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
         "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
-        "<tbody>%s</tbody></table></div>" % "".join(corpo),
-        meta="Com %s em comum no objecto: <b>%s</b>."
-             % ("estas palavras do título" if len(termos) > 1
-                else "esta palavra do título",
-                html.escape(", ".join(palavras_do_titulo(a["titulo"], termos)))),
-        porque="Contratos desta entidade com objecto parecido com o deste "
-               "anúncio &mdash; as edições anteriores, com quem ganhou e "
-               "por quanto.")
+        "<tbody>%s</tbody></table></div>"
+        % ("estas palavras do título" if len(termos) > 1
+           else "esta palavra do título",
+           html.escape(", ".join(palavras_do_titulo(a["titulo"], termos))),
+           "".join(corpo)))
+    return tabela, linhas, termos
 
 
 def palavras_do_titulo(titulo, termos):
@@ -25147,24 +25515,16 @@ def mais_na_ajuda(titulo):
     return " <a href='/ajuda#%s'>Mais na ajuda</a>" % ancora
 
 
-def _mercado_cx(nota, corpo=""):
-    return cartao(
-        "Histórico de adjudicações", corpo or "", meta=nota,
-        porque="Contratos já celebrados por esta entidade neste CPV, do "
-               "Portal BASE. Não são oportunidades &mdash; servem para "
-               "saber com quem se concorre.")
-
-
 def comparacao_de_preco(a, base, r):
     """A frase que compara o preco base do anuncio com a mediana do que
     a entidade costuma pagar neste CPV (`r`, da referencia_de_preco()).
     Com lotes, lote a lote."""
     def leitura(valor):
-        razao = valor / r["mediana"] if r["mediana"] else 0
-        if razao >= 1.25:
+        lado = leitura_do_preco(valor, r["mediana"])
+        if lado == "acima":
             return ("<b class='bom'>acima</b> do que costuma pagar "
                     "&mdash; folga face ao histórico")
-        if razao <= 0.8:
+        if lado == "abaixo":
             return ("<b class='mau'>abaixo</b> do que costuma pagar "
                     "&mdash; margem apertada")
         return "<b>em linha</b> com o que costuma pagar"
@@ -25191,124 +25551,206 @@ def comparacao_de_preco(a, base, r):
     return comparacao
 
 
-def mercado(a):
-    """O que esta entidade ja adjudicou **no CPV deste anuncio**.
+def quem_mais_ganhou(linhas):
+    """[(chave, nome, quantas)] dos adjudicatários de umas linhas do
+    Portal BASE, de quem mais ganhou para quem menos. Conta pela chave, e
+    não pelo nome (a regra das entidades); num empate fica à frente quem
+    aparece primeiro, que nas listas da ficha é o mais recente."""
+    contas, nomes = {}, {}
+    for l in linhas:
+        for ch, n in ganhadores_da_linha(l):
+            k = ch or "n:" + n
+            contas[k] = contas.get(k, 0) + 1
+            nomes.setdefault(k, (ch, n))
+    return sorted(((nomes[k][0], nomes[k][1], q) for k, q in contas.items()),
+                  key=lambda x: -x[2])
 
-    E o cruzamento que justifica isto ser uma aplicacao e nao duas: o
-    anuncio diz o que vem ai, e o corpus diz como esta entidade se tem
-    portado neste tipo de compra -- quem costuma ganhar, por quanto, e
-    por que procedimento.
 
-    O CPV restringe e nao so ordena: com a entidade toda, as 25 linhas
-    enchiam-se de contratos de limpeza e de refeicoes que nada diziam
-    sobre o concurso em maos.
-    """
+def regua_do_preco(r, valor=0.0):
+    """A régua da célula «O que costuma pagar»: o intervalo entre os
+    quartis, a mediana e a marca deste concurso, em CSS e sem biblioteca.
+    A escala vai de zero a um quarto acima do maior dos dois (o 3.º
+    quartil ou este preço), para a marca nunca cair fora; o mais caro
+    fica de fora de propósito -- um contrato de dez milhões achatava o
+    resto contra a margem."""
+    topo = max(r["p75"], valor or 0) * 1.25 or 1
+
+    def pos(v):
+        return "%.1f%%" % (100.0 * v / topo)
+    return ("<div class='regua' aria-hidden='true'>"
+            "<span class='regua-caixa' style='left:%s;width:%s'></span>"
+            "<span class='regua-med' style='left:%s'></span>%s</div>"
+            % (pos(r["p25"]), pos(r["p75"] - r["p25"]), pos(r["mediana"]),
+               "<span class='regua-este' style='left:%s'></span>" % pos(valor)
+               if valor else ""))
+
+
+def _celula(rotulo, valor, nota="", apagado=False, classe=""):
+    """Uma célula das grelhas da ficha (os factos e o mercado). O valor e
+    a nota já vêm em HTML da casa."""
+    return ("<div%s><div class='k'>%s</div>"
+            "<div class='v%s'>%s</div>%s</div>"
+            % (" class='apagado'" if apagado else "", rotulo,
+               " " + classe if classe else "", valor,
+               "<div class='d'>%s</div>" % nota if nota else ""))
+
+
+def mercado_cx(a, chave, r=None):
+    """«O mercado» na ficha (28/09/2026): três células -- o que a
+    entidade costuma pagar, o desconto habitual e quem costuma ganhar --
+    e as duas tabelas de antes fechadas por baixo, a pedido.
+
+    Os números são os de sempre: `referencia_de_preco()` (passa-se `r`,
+    que a ficha já calculou para o preço base), `descontos_da_entidade()`,
+    `homologos_da_ficha()` e `historico_entidade()`. Nada se recalcula.
+
+    O CPV restringe o histórico e nao so o ordena: com a entidade toda,
+    as 25 linhas enchiam-se de contratos de limpeza e de refeicoes que
+    nada diziam sobre o concurso em maos."""
+    porque = ("Contratos já celebrados por esta entidade, do Portal BASE. "
+              "Não são oportunidades &mdash; servem para saber com quem "
+              "se concorre e por quanto.")
     if not ha_corpus():
-        return _mercado_cx(
-            "Os contratos do Portal BASE ainda não foram trazidos."
+        return cartao(
+            "O mercado", "", id_="mercado", porque=porque,
+            meta="Os contratos do Portal BASE ainda não foram trazidos."
             + (" Corre <code>python radar.py --contratos</code> para o "
                "trazer do dados.gov (domínio público, sem chave)."
                if sou_dono() else ""))
 
-    linhas, ao_todo, do_cpv, chave = historico_entidade(
+    linhas, ao_todo, do_cpv, chave_hist = historico_entidade(
         a["entidade"] or "", a["cpv"] or "", nif=a["nif"] or "")
-    ficha_ent = ("<a href='/entidade/%s'>ficha da entidade</a>"
+    chave = chave or chave_hist
+    homologos, linhas_hom, _ = homologos_da_ficha(a, chave)
+    ficha_ent = ("<a href='/entidade/%s'>Ficha da entidade</a>"
                  % quote(chave, safe="")) if chave else ""
+    cpv = (a["cpv"] or "").split(",")[0].strip()
+
+    # O que falta para haver números, dito como sempre se disse.
     if not ao_todo:
-        return _mercado_cx(
-            "Não há contratos desta entidade no Portal BASE. Ou nunca adjudicou "
-            "nada nos anos importados, ou escreve o nome de outra maneira "
-            "no Portal BASE.")
-    if not a["cpv"]:
-        return _mercado_cx(
-            "Este anúncio ainda não tem CPV lido, e sem ele não dá para "
-            "escolher o histórico que interessa. A entidade tem %s "
-            "contratos no Portal BASE &middot; %s"
-            % (mil_pt(ao_todo), ficha_ent))
-    if not linhas:
-        return _mercado_cx(
-            "Esta entidade tem %s contratos no Portal BASE, mas <b>nenhum no CPV "
-            "%s</b> &mdash; é a primeira vez que compra isto, pelo menos "
-            "nos anos importados. &middot; %s"
-            % (mil_pt(ao_todo), html.escape(a["cpv"]), ficha_ent))
+        aviso = ("Não há contratos desta entidade no Portal BASE. Ou nunca "
+                 "adjudicou nada nos anos importados, ou escreve o nome de "
+                 "outra maneira no Portal BASE.")
+    elif not a["cpv"]:
+        aviso = ("Este anúncio ainda não tem CPV lido, e sem ele não dá para "
+                 "escolher o histórico que interessa. A entidade tem %s "
+                 "contratos no Portal BASE." % mil_pt(ao_todo))
+    elif not linhas:
+        aviso = ("Esta entidade tem %s contratos no Portal BASE, mas <b>nenhum "
+                 "no CPV %s</b> &mdash; é a primeira vez que compra isto, "
+                 "pelo menos nos anos importados."
+                 % (mil_pt(ao_todo), html.escape(a["cpv"])))
+    else:
+        aviso = ""
 
-    corpo = []
-    # O selo de cliente / concorrente ao lado de cada nome: este bloco
-    # existe para se saber com quem se concorre, e sem ele um nome era
-    # so um nome (16/09/2026). Um mapa para as linhas todas, e nao uma
-    # consulta por nome dentro do ciclo.
-    papeis = papeis_de([ch for l in linhas
-                        for ch, _ in ganhadores_da_linha(l)])
-    for l in linhas:
-        venceu = " + ".join(liga_entidade(ch, n, papeis=papeis)
-                            for ch, n in ganhadores_da_linha(l)) or "—"
-        corpo.append(
-            "<tr><td class='d'>%s</td><td class='o'>%s</td><td>%s</td>"
-            "<td class='g'>%s</td><td class='p'>%s</td></tr>"
-            % (data_pt(l["data_celebracao"]),
-               html.escape(corta(l["objecto"] or "", 140)),
-               html.escape(l["tipo_procedimento"] or ""),
-               venceu,
-               euros(l["preco_contratual"])))
+    celulas = ""
+    if linhas:
+        base = euros_do_texto(a["preco_base"] or "") or 0.0
+        r = r if r is not None else referencia_de_preco(chave, a["cpv"])
+        if r:
+            lotes = [l for l in lotes_de(a) if euros_do_texto(l.get("preco_base"))]
+            este = (comparacao_de_preco(a, base, r) if len(lotes) > 1 else
+                    "Este concurso: <b>%s</b>." % euros_curto(base) if base else "")
+            # A regua de quartis so com contratos que cheguem: com 3, o
+            # 25 % e o mais barato eram o mesmo contrato repetido.
+            regua = (regua_do_preco(r, base if len(lotes) <= 1 else 0)
+                     if r["quantos"] >= MINIMO_PARA_ESCADA else "")
+            paga = _celula(
+                "O que costuma pagar",
+                "%s <small>mediana</small>" % euros_curto(r["mediana"]),
+                "%sMetade dos contratos entre %s e %s, sobre os %s mais "
+                "recentes; o preço é o de partida, sem adicionais. %s"
+                % (regua, euros_curto(r["p25"]), euros_curto(r["p75"]),
+                   mil_pt(r["quantos"]), este), classe="n")
+        else:
+            paga = _celula("O que costuma pagar", "poucos contratos para dizer",
+                           "São precisos pelo menos 3 neste CPV.", apagado=True)
+        descs = descontos_da_entidade(chave, a["cpv"])
+        if len(descs) >= MINIMO_PARA_DESCONTO:
+            _, med = escaloes_de_desconto(descs)
+            desconto = _celula(
+                "Desconto habitual", pct_pt(med, 0),
+                "Mediana do desconto sobre o preço base, em %s"
+                % plural(len(descs), "procedimento"), classe="n")
+        else:
+            desconto = _celula(
+                "Desconto habitual", "poucos procedimentos para dizer",
+                "São precisos %d com anúncio e preço base." % MINIMO_PARA_DESCONTO,
+                apagado=True)
+        todos = quem_mais_ganhou(linhas_hom) if linhas_hom else []
+        papeis = papeis_de([ch for l in linhas_hom + linhas
+                            for ch, _ in ganhadores_da_linha(l)])
+        do_cpv_top = quem_mais_ganhou(linhas)[:4]
+        no_cpv = ("No CPV, %s: %s" % (
+            "os %d mais recentes" % len(linhas) if do_cpv > len(linhas)
+            else "os %d contratos" % len(linhas),
+            ", ".join("%s %d" % (liga_entidade(ch, n, papeis=papeis), q)
+                      for ch, n, q in do_cpv_top))) if do_cpv_top else ""
+        if todos:
+            ch, n, q = todos[0]
+            quem = _celula("Quem costuma ganhar",
+                           "%s <small>%d dos %d homólogos</small>"
+                           % (liga_entidade(ch, n, papeis=papeis), q, len(linhas_hom)),
+                           no_cpv)
+        elif do_cpv_top:
+            ch, n, q = do_cpv_top[0]
+            quem = _celula("Quem costuma ganhar",
+                           "%s <small>%d dos %d no CPV</small>"
+                           % (liga_entidade(ch, n, papeis=papeis), q, len(linhas)),
+                           no_cpv)
+        else:
+            quem = _celula("Quem costuma ganhar", "não se sabe",
+                           "Os contratos não dizem quem ganhou.", apagado=True)
+        celulas = ("<div class='factos-grelha mercado-grelha'>%s%s%s</div>"
+                   % (paga, desconto, quem))
 
-    resumo = ("<b>%s contratos desta entidade no CPV %s</b>%s &middot; "
-              "de %s ao todo &middot; %s"
-              % (mil_pt(do_cpv), html.escape(a["cpv"]),
-                 ", os %s mais recentes" % len(linhas)
-                 if do_cpv > len(linhas) else "",
-                 mil_pt(ao_todo), ficha_ent))
+    # As duas tabelas de antes, fechadas: são a prova dos números de
+    # cima, e quem quer a prova abre-a.
+    mais = []
+    if homologos:
+        mais.append("<details class='ficha-mais'><summary class='mg-btn "
+                    "mg-btn--secondary'>%s</summary>%s</details>"
+                    % ("Ver o homólogo" if len(linhas_hom) == 1 else
+                       "Ver os %s" % plural(len(linhas_hom), "homólogo"),
+                       homologos))
+    if linhas:
+        corpo = []
+        papeis = papeis_de([ch for l in linhas
+                            for ch, _ in ganhadores_da_linha(l)])
+        for l in linhas:
+            venceu = " + ".join(liga_entidade(ch, n, papeis=papeis)
+                                for ch, n in ganhadores_da_linha(l)) or "—"
+            corpo.append(
+                "<tr><td class='d'>%s</td><td class='o'>%s</td><td>%s</td>"
+                "<td class='g'>%s</td><td class='p'>%s</td></tr>"
+                % (data_pt(l["data_celebracao"]),
+                   html.escape(corta(l["objecto"] or "", 140)),
+                   html.escape(l["tipo_procedimento"] or ""),
+                   venceu, euros(l["preco_contratual"])))
+        mais.append(
+            "<details class='ficha-mais'><summary class='mg-btn "
+            "mg-btn--secondary'>%s no CPV</summary>"
+            "<p class='ficha-nota'><b>%s desta entidade no CPV %s</b>%s "
+            "&middot; de %s ao todo.</p>"
+            "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
+            "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
+            "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
+            "<tbody>%s</tbody></table></div></details>"
+            % ("Ver o contrato" if len(linhas) == 1 else
+               "Ver os %s" % plural(len(linhas), "contrato"),
+               plural(do_cpv, "contrato"),
+               html.escape(cpv), ", os %s mais recentes" % len(linhas)
+               if do_cpv > len(linhas) else "", mil_pt(ao_todo), "".join(corpo)))
+    if ficha_ent:
+        mais.append(ficha_ent)
 
-    # O preco base do anuncio contra o que esta entidade tem pago neste
-    # CPV. E a informacao que nenhum portal da: diz se o preco base e
-    # generoso ou apertado antes de se gastar dias numa proposta.
-    ref_preco = ""
-    base = euros_do_texto(a["preco_base"])
-    r = referencia_de_preco(chave, a["cpv"])
-    if r:
-        comparacao = comparacao_de_preco(a, base, r)
-        # A regua de quartis so com contratos que cheguem: com 3, "mais
-        # barato" e "25%" eram o mesmo contrato repetido. A comparacao
-        # com a mediana e a tabela ficam -- e dizem sobre quantos e.
-        escada = ""
-        if r["quantos"] >= MINIMO_PARA_ESCADA:
-            escada = (
-                "<div class='escada'>"
-                "<span>mais barato<b>%s</b></span>"
-                "<span>25%%<b>%s</b></span>"
-                "<span class='med'>mediana<b>%s</b></span>"
-                "<span>75%%<b>%s</b></span>"
-                "<span>mais caro<b>%s</b></span></div>"
-                % (euros_curto(r["menor"]), euros_curto(r["p25"]),
-                   euros_curto(r["mediana"]), euros_curto(r["p75"]),
-                   euros_curto(r["maior"])))
-        ref_preco = (
-            "<div class='ref-preco'>%s%s"
-            "<div class='nota'>Sobre os %s contratos mais recentes desta "
-            "entidade neste CPV. O preço contratual é o de partida, não o "
-            "valor final &mdash; adicionais não entram.</div></div>"
-            % (comparacao, escada, mil_pt(r["quantos"])))
-
-    # O desconto com que esta entidade tem fechado neste CPV -- por
-    # procedimento e nao por linha (B04). Diz por quanto abaixo do preco
-    # base os vencedores tem levado, que e o que se quer saber antes de
-    # pensar o preco da proposta.
-    descs = descontos_da_entidade(chave, a["cpv"])
-    if len(descs) >= MINIMO_PARA_DESCONTO:
-        _, med = escaloes_de_desconto(descs)
-        ref_preco += (
-            "<div class='nota' style='margin-top:8px'>Desconto mediano "
-            "face ao preço base, nesta entidade e CPV: <b>%s</b> &mdash; "
-            "sobre %s procedimentos com anúncio e preço base no Portal BASE."
-            "</div>" % (pct_pt(med), mil_pt(len(descs))))
-
-    return _mercado_cx(
-        resumo,
-        ref_preco +
-        "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
-        "<th>Celebrado</th><th>Objecto</th><th>Procedimento</th>"
-        "<th>Quem ganhou</th><th class='p'>Preço</th></tr></thead>"
-        "<tbody>%s</tbody></table></div>"
-        % "".join(corpo))
+    return cartao(
+        "O mercado",
+        ("<p class='ficha-nota'>%s</p>" % aviso if aviso else "") + celulas
+        + ("<div class='ficha-mais-fila'>%s</div>" % "".join(mais) if mais else ""),
+        meta="Portal BASE &middot; esta entidade%s"
+             % (", CPV %s" % html.escape(cpv) if cpv else ""),
+        id_="mercado", porque=porque)
 
 
 def volta_a_lista():
@@ -25375,6 +25817,26 @@ def ficha(ref):
         vigor = (c.execute("SELECT ref, data_pub, texto FROM anuncios WHERE ref=?",
                            (a["alterado_por"],)).fetchone()
                  if _valor(a, "alterado_por") else None)
+        # O prazo de uma republicação é o da cadeia, e não o da linha dela
+        # (cadeia_do_anuncio(): a 21295/2026 dizia «expirou» de um concurso
+        # aberto até 06/10). O resto da ficha lê o `a` com esse prazo.
+        cadeia = cadeia_do_anuncio(c, a)
+        if cadeia and cadeia["prazo"]:
+            a = dict(a, prazo=cadeia["prazo"])
+        # A leitura e as peças de uma cadeia podem ter ficado noutro
+        # anúncio dela: o 19129/2026 não tem peças, e foram lidas na
+        # republicação 21295/2026. Sem leitura aqui, mostra-se a mais
+        # recente da cadeia, e diz-se de onde veio.
+        analise, origem_leitura, pecas_noutro = analise_de(ref), "", ""
+        outros = [r_ for r_ in reversed(cadeia["refs"]) if r_ != ref] if cadeia else []
+        for r_ in outros if not analise else ():
+            analise = c.execute("SELECT * FROM analise WHERE ref=?", (r_,)).fetchone()
+            if analise:
+                origem_leitura = r_
+                break
+        if not docs:
+            pecas_noutro = next((r_ for r_ in outros if c.execute(
+                "SELECT 1 FROM documentos WHERE ref=? LIMIT 1", (r_,)).fetchone()), "")
     texto_vigente = (vigor["texto"] if vigor and vigor["texto"] else a["texto"])
     faixa_alteracao = ""
     if a["estado"] == "alteracao":
@@ -25475,16 +25937,40 @@ def ficha(ref):
     # O prazo logo por baixo do título: no telemóvel so aparecia ao fim
     # de varios ecras, e e a primeira coisa que se procura (teste com
     # utilizadores, 25/09/2026).
+    if cadeia:
+        sub.append("%s, a última a %s" % (
+            plural(cadeia["alteracoes"], "alteração", "alterações"),
+            data_pt(cadeia["ultima"])[:5]))
     if a["prazo"]:
         sub.append("<b>propostas até %s</b>" % data_pt(a["prazo"]))
+    if a["plataforma"]:
+        sub.append(html.escape(a["plataforma"]))
+    # As etiquetas por baixo: o estado do prazo (o da cadeia) e as da
+    # empresa, só para ler -- põem-se e tiram-se no bloco da proposta.
+    etiquetas = []
+    if dias is not None:
+        etiquetas.append("<span class='mg-tag %s'>%s</span>" % (
+            tom(etiqueta_prazo(a["prazo"])[1]),
+            "Expirou" if passou else "Termina hoje" if dias == 0
+            else "Termina amanhã" if dias == 1
+            else "Faltam %s" % plural(dias, "dia")))
+    if not sem_empresa:
+        with liga() as c:
+            etiquetas += ["<span class='mg-tag'>%s</span>" % html.escape(e["nome"])
+                          for e in c.execute(
+                              "SELECT e.nome FROM etiquetas e JOIN anuncio_etiquetas ae "
+                              "ON ae.etiqueta_id = e.id WHERE ae.ref=? ORDER BY e.nome",
+                              (ref,))]
     cabeca_pagina = cabecalho_de_pagina(
         html.escape(a["titulo"] or ref), " &middot; ".join(sub),
-        migalhas, "".join(sair + decidir))
+        migalhas, "".join(sair + decidir), "".join(etiquetas))
 
     # --- a escada, em quatro passos (o `Stepper` do sistema)
     escada_html = passos_da_escada(a, minhas)
 
-    # --- o anuncio: os factos em pares, e o essencial para decidir
+    # --- o anuncio (28/09/2026, a ficha nova): o que se decide sai para
+    # cima, em «Para decidir» e «O que as peças pedem»; o anúncio inteiro
+    # fica no fim, fechado, com os pares que não estão em mais lado nenhum
     seccoes = seccoes_do_texto(texto_vigente)
     cpv_facto = "<br>".join(descricoes_cpv(a["cpv"]))
     if cpv_facto:
@@ -25495,113 +25981,99 @@ def ficha(ref):
         cpv_facto += ("<br><a href='%s?%s'>ver os concursos deste CPV</a>"
                       % (LISTA, html.escape(urlencode({"cpv": codigos, "estado": ""}),
                                             quote=True)))
-    pares = [("Entidade adjudicante", nome_ent, ""),
-             ("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
-             ("Preço base", html.escape(preco_pt(a["preco_base"], "")), "n"),
-             ("Propostas até", data_pt(a["prazo"], ""), "n"),
+    pares = [("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
              ("Publicado", data_pt(a["data_pub"], ""), "n"),
-             ("Plataforma", html.escape(a["plataforma"] or ""), "")]
-    sem_valor = []
-    nota_modo = ""
-    detalhe_completo = ""
-    if seccoes and not completo:
-        # O essencial, e nao as seccoes em bruto: o DR espalha estes campos
-        # por meia duzia de seccoes numeradas. As linhas sem valor saem
-        # para uma frase por baixo (decisao dele a 8/09/2026), agrupadas
-        # por razao, para continuar a dizer ONDE cada campo esta.
-        # O essencial repete o que os pares fixos ja dizem (a entidade, o
-        # preco base) e o «Nome do projeto» e o titulo do h1: saiam duas
-        # vezes na mesma lista (varredura de 25/09/2026)
-        ja_ditos = {k for k, _, _ in pares} | {"Nome do projeto"}
-        for rotulo, valor, em_falta, nota in essencial_do_anuncio(
-                a, seccoes, analise_de(ref)):
-            if rotulo in ja_ditos:
-                continue
-            if em_falta or not valor:
-                sem_valor.append((em_falta or "o anúncio não indica", rotulo))
-                continue
-            celula = desenha_valor(valor)
-            if nota:
-                celula += "<span class='nota-campo'>%s</span>" % html.escape(nota)
-            pares.append((html.escape(rotulo), celula, ""))
-        nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
-    elif seccoes:
-        blocos = []
-        for numero, titulo_sec, pares_sec in seccoes:
-            if not pares_sec:
-                continue
-            itens = []
-            for chave, valor in pares_sec:
-                if valor.startswith("http"):
-                    valor_html = ("<a href='%s' target='_blank'>%s</a>"
-                                  % (html.escape(valor, quote=True), html.escape(valor)))
-                else:
-                    valor_html = html.escape(valor)
-                itens.append("<dt>%s</dt><dd>%s</dd>"
-                             % (html.escape(chave) if chave else "&nbsp;", valor_html))
-            # A dica diz o que ha dentro sem abrir -- e diz-o com a CHAVE
-            # (segunda ronda, 26/09/2026, E10): era o primeiro valor solto,
-            # e com as seccoes fechadas lia-se «14 — Prestação de caução:
-            # Sim» sem os 5 %, e «Critério de adjudicação: Não» (era o
-            # «Multifator: Não»). Travessao literal, nao a entidade: isto
-            # passa por html.escape() a seguir. O titulo fica como vem
-            # (o .title() estropiava as preposicoes).
-            dica = corta(" · ".join("%s: %s" % (k, v) if k else v
-                                    for k, v in pares_sec if v), 110)
-            cabecalho = ("%s — %s" % (numero, titulo_sec)) \
-                if titulo_sec else "Outros"
-            # O anuncio COMPLETO vem aberto: quem o pede quer ler tudo, e
-            # fechado parecia cortado ao primeiro valor.
-            blocos.append(
-                "<details class='mg-disc ficha-seccao' open><summary>"
-                "<span class='st'>%s</span><span class='sh'>%s</span></summary>"
-                "<dl class='ficha-factos'>%s</dl></details>"
-                % (html.escape(cabecalho), html.escape(dica), "".join(itens)))
-        detalhe_completo = "".join(blocos)
-        nota_modo = "%d secções lidas do anúncio" % len([s for s in seccoes if s[2]])
-    pares.append(("CPV", cpv_facto, "n"))
+             ("Plataforma", html.escape(a["plataforma"] or ""), ""),
+             ("CPV", cpv_facto, "n")]
+    blocos = []
+    for numero, titulo_sec, pares_sec in seccoes:
+        if not pares_sec:
+            continue
+        itens = []
+        for chave, valor in pares_sec:
+            if valor.startswith("http"):
+                valor_html = ("<a href='%s' target='_blank'>%s</a>"
+                              % (html.escape(valor, quote=True), html.escape(valor)))
+            else:
+                valor_html = html.escape(valor)
+            itens.append("<dt>%s</dt><dd>%s</dd>"
+                         % (html.escape(chave) if chave else "&nbsp;", valor_html))
+        # A dica diz o que ha dentro sem abrir -- e diz-o com a CHAVE
+        # (segunda ronda, 26/09/2026, E10): era o primeiro valor solto,
+        # e com as seccoes fechadas lia-se «14 — Prestação de caução:
+        # Sim» sem os 5 %, e «Critério de adjudicação: Não» (era o
+        # «Multifator: Não»). Travessao literal, nao a entidade: isto
+        # passa por html.escape() a seguir. O titulo fica como vem
+        # (o .title() estropiava as preposicoes).
+        dica = corta(" · ".join("%s: %s" % (k, v) if k else v
+                                for k, v in pares_sec if v), 110)
+        cabecalho = ("%s — %s" % (numero, titulo_sec)) \
+            if titulo_sec else "Outros"
+        # Quem abre o anuncio completo quer ler tudo: as seccoes vem
+        # abertas, e fechadas pareciam cortadas ao primeiro valor.
+        blocos.append(
+            "<details class='mg-disc ficha-seccao' open><summary>"
+            "<span class='st'>%s</span><span class='sh'>%s</span></summary>"
+            "<dl class='ficha-factos'>%s</dl></details>"
+            % (html.escape(cabecalho), html.escape(dica), "".join(itens)))
     factos_html = "".join(
         "<dt>%s</dt><dd%s>%s</dd>" % (k, " class='%s'" % c if c else "", v)
         for k, v, c in pares if v)
-    if seccoes:
-        # Essencial / completo: as duas vistas do mesmo anuncio. Trocam
-        # mesmo de vista, e por isso viajam na query string.
-        args_ess = dict(request.args.to_dict()); args_ess.pop("modo", None)
-        args_com = dict(request.args.to_dict(), modo="completo")
-        troca = ("<a class='mg-btn mg-btn--sm mg-btn--subtle' href='/anuncio/%s?%s'>%s</a>"
-                 % (ref, html.escape(urlencode(args_ess if completo else args_com),
-                                     quote=True),
-                    "Só o essencial" if completo else "Anúncio completo"))
+    corpo_anuncio = "<dl class='ficha-factos'>%s</dl>%s" % (factos_html, "".join(blocos))
+    if not e_do_dr:
+        # B14: uma consulta preliminar nao tem anuncio no DR -- o que
+        # se sabe dela e o que a listagem publica da Vortal deu.
+        corpo_anuncio += (
+            "<p class='ficha-nota'>Isto é uma <b>consulta preliminar</b>, "
+            "trazida da pesquisa pública da Vortal &mdash; a parte L do "
+            "DR não a publica, por isso não há anúncio para mostrar. O "
+            "resto está na <a href='%s' target='_blank'>página da "
+            "consulta na Vortal</a>.</p>" % html.escape(a["url"] or "", quote=True))
+    elif not seccoes:
+        corpo_anuncio += ("<div class='mg-alert mg-alert--warning'>"
+                          "<div class='mg-alert__body'><div class='mg-alert__text'>"
+                          "Não foi possível ler o texto deste anúncio: %s</div>"
+                          "</div></div>"
+                          % (html.escape(aviso_leitura) if aviso_leitura else
+                             "o DR não devolveu conteúdo."))
+    n_seccoes = len([s for s in seccoes if s[2]])
+    # Fechado, no fim; aberto quando se pede (`?modo=completo`, que era a
+    # vista de antes e fica para as ligações que já existem) e quando não
+    # há secções para ler, que aí o aviso é o que há a dizer.
+    anuncio_cx = (
+        "<details class='ficha-anuncio'%s><summary class='mg-btn mg-btn--secondary'>"
+        "Anúncio completo%s</summary>%s</details>"
+        % (" open" if completo or not seccoes else "",
+           " (%s)" % plural(n_seccoes, "secção", "secções") if n_seccoes else "",
+           cartao("Anúncio", corpo_anuncio,
+                  meta=" &middot; ".join(x for x in (
+                      "Ref.ª %s" % html.escape(ref),
+                      html.escape(a["plataforma"] or "")) if x),
+                  id_="anuncio", banda=True)))
+
+    # --- o que se decide, o que as peças pedem e o mercado
+    ref_preco = referencia_de_preco(ch_ent, a["cpv"])
+    decidir_cx = para_decidir_cx(factos_para_decidir(
+        a, seccoes, analise, ref_preco, cadeia["prorrogacoes"] if cadeia else 0))
+    if analise_a_correr(ref):
+        sem_leitura = ("<p class='ficha-nota a-trazer'>A ler as peças pelo "
+                       "modelo… a página actualiza-se sozinha.</p>")
+    elif docs and not sem_empresa:
+        # o botão fica onde sempre esteve, nas peças: um gesto, uma porta
+        sem_leitura = ("<p class='ficha-nota'>As peças ainda não foram lidas. A "
+                       "leitura automática tira delas a equipa, o objecto, os "
+                       "documentos da proposta e o preço anormalmente baixo: "
+                       "«Ler as peças», em <a href='#pecas'>Peças do "
+                       "procedimento</a>.</p>")
+    elif pecas_noutro:
+        sem_leitura = ("<p class='ficha-nota'>As peças deste procedimento estão "
+                       "na ficha do anúncio <a href='/anuncio/%s'>%s</a>, da "
+                       "mesma cadeia.</p>" % (quote(pecas_noutro, safe=""),
+                                              html.escape(pecas_noutro)))
     else:
-        troca = ""
-    if seccoes or not e_do_dr:
-        corpo_anuncio = ("<dl class='ficha-factos'>%s</dl>%s%s"
-                         % (factos_html, frase_dos_campos_em_falta(sem_valor),
-                            detalhe_completo))
-        if not e_do_dr:
-            # B14: uma consulta preliminar nao tem anuncio no DR -- o que
-            # se sabe dela e o que a listagem publica da Vortal deu.
-            corpo_anuncio += (
-                "<p class='ficha-nota'>Isto é uma <b>consulta preliminar</b>, "
-                "trazida da pesquisa pública da Vortal &mdash; a parte L do "
-                "DR não a publica, por isso não há anúncio para mostrar. O "
-                "resto está na <a href='%s' target='_blank'>página da "
-                "consulta na Vortal</a>.</p>" % html.escape(a["url"] or "", quote=True))
-    else:
-        corpo_anuncio = ("<dl class='ficha-factos'>%s</dl>"
-                         "<div class='mg-alert mg-alert--warning'>"
-                         "<div class='mg-alert__body'><div class='mg-alert__text'>"
-                         "Não foi possível ler o texto deste anúncio: %s</div>"
-                         "</div></div>"
-                         % (factos_html,
-                            html.escape(aviso_leitura) if aviso_leitura else
-                            "o DR não devolveu conteúdo."))
-    meta_anuncio = " &middot; ".join(x for x in (
-        "Ref.ª %s" % html.escape(ref), html.escape(a["plataforma"] or ""),
-        ("CPV %s" % html.escape((a["cpv"] or "").split(",")[0].strip()))
-        if a["cpv"] else "") if x)
-    anuncio_cx = cartao("Anúncio", corpo_anuncio, meta=meta_anuncio,
-                        accoes=troca, pe=nota_modo, id_="anuncio", banda=True)
+        sem_leitura = ("<p class='ficha-nota'>As peças ainda não foram trazidas; "
+                       "lêem-se depois de chegarem (ver «Peças do procedimento»).</p>")
+    pedem_cx = pecas_pedem_cx(a, seccoes, analise, origem_leitura, sem_leitura)
 
     # O desfecho e os lotes desenham-se antes do indice, porque sao eles
     # que dizem se ha entrada no indice: um chip que salta para um bloco
@@ -25656,8 +26128,9 @@ def ficha(ref):
             aviso_docs = ""
         # Sem a pasta do servidor: «guardadas em pecas/…» e um caminho
         # interno à vista de um cliente (teste com utilizadores).
-        meta_pecas = "%d ficheiro%s" % (len(docs), "" if len(docs) == 1 else "s")
-        analise = analise_de(ref)
+        meta_pecas = ("%d ficheiro%s &middot; os PDF abrem aqui, dentro da ficha"
+                      % (len(docs), "" if len(docs) == 1 else "s"))
+        analise_aqui = analise_de(ref)
         if analise_a_correr(ref):
             # A leitura corre em fila, como a descarga: o que se mostra e o
             # sinal de vida, e nao um botao que ja nao faz nada.
@@ -25675,13 +26148,13 @@ def ficha(ref):
             vigiadas = a["pecas_vigiadas_em"] if "pecas_vigiadas_em" in a.keys() else ""
             pe_pecas = (
                 "<div class='mg-row'>%s%s</div>%s"
-                % (("" if analise and not analise_incompleta(analise)
+                % (("" if analise_aqui and not analise_incompleta(analise_aqui)
                     and not sou_dono() else
                     # a leitura completa e de todos, e so o dono a refaz a
                     # pedido (F7); a vigilancia refa-la sozinha
                     accao("/analisar/%s" % ref,
-                          "Reler pelo modelo" if analise else "Ler as peças",
-                          "mini" if analise else "mini forte")),
+                          "Reler pelo modelo" if analise_aqui else "Ler as peças",
+                          "mini" if analise_aqui else "mini forte")),
                    accao("/documentos/%s" % ref, "Actualizar peças", "mini"),
                    ("<p class='ficha-nota'>Peças novas verificadas na "
                     "plataforma a %s. O Mira Gov volta lá sozinho depois da "
@@ -25699,6 +26172,10 @@ def ficha(ref):
         else:
             nota = ("Ainda não foram trazidas. Vêm sozinhas ao marcar "
                     "«interessa».")
+        if pecas_noutro:
+            nota += (" As deste procedimento já estão na ficha do anúncio "
+                     "<a href='/anuncio/%s#pecas'>%s</a>, da mesma cadeia."
+                     % (quote(pecas_noutro, safe=""), html.escape(pecas_noutro)))
         corpo_docs = "<p class='ficha-nota'>%s</p>" % nota
         accoes_pecas = accao("/documentos/%s" % ref,
                              icone("descarregar", 16) + " Trazer peças", "mini forte")
@@ -25749,7 +26226,7 @@ def ficha(ref):
                "base mudam.")
 
     # --- o prazo, num cartao proprio no topo da coluna da direita
-    prazo_cx = prazo_da_ficha(a)
+    prazo_cx = prazo_da_ficha(a, cadeia)
 
     # O responsavel e da proposta; com lotes, todos os cartoes do mesmo
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
@@ -25802,13 +26279,15 @@ def ficha(ref):
     # ate 16/09/2026 prometia seis destinos e a pagina tinha oito blocos
     # com ancora. Um indice que salta por cima de um bloco e a mesma
     # mentira de um numero que abre outra lista.
-    entradas = [("anuncio", "Anúncio"), ("prazo", "Prazo")]
+    # Pela ordem da página (28/09/2026): a coluna principal e depois a da
+    # direita.
+    entradas = [("decidir", "Para decidir")]
     if lotes_html:
         entradas.append(("lotes", "Lotes"))
-    entradas.append(("pecas", "Peças"))
     if desfecho_html:
         entradas.append(("desfecho", "Desfecho"))
-    entradas.append(("mercado", "Mercado"))
+    entradas += [("pecas-pedem", "O que as peças pedem"), ("mercado", "Mercado"),
+                 ("pecas", "Peças"), ("anuncio", "Anúncio"), ("prazo", "Prazo")]
     if not sem_empresa:
         entradas += [("proposta", "A nossa proposta"),
                      ("contactos", "Contactos"), ("historico", "Histórico")]
@@ -25821,17 +26300,17 @@ def ficha(ref):
     # que a proposta se trabalha, logo a seguir ao prazo.
     conteudo = ("<div class='larg'>" + escada_html + indice +
                 "<div class='ficha-duas'>"
-                "<div class='ficha-principal'>" + faixa_alteracao + anuncio_cx +
-                lotes_html + docs_cx + desfecho_html +
-                # os homologos sao uma tabela de contratos, e ficam com o
-                # mercado: na coluna estreita cortavam-se as colunas
-                "<div id='mercado'>" + homologos_cx(a, ch_ent) +
-                mercado(a) + "</div></div>"
+                "<div class='ficha-principal'>" + faixa_alteracao + decidir_cx +
+                lotes_html + desfecho_html + pedem_cx +
+                # os homologos e o historico sao tabelas de contratos, e
+                # ficam no mercado: na coluna estreita cortavam-se
+                mercado_cx(a, ch_ent, ref_preco) + docs_cx + anuncio_cx + "</div>"
+                # a coluna da direita fica presa ao rolar, no computador
                 "<div class='ficha-lado'>" + prazo_cx +
                 # o dono sem empresa le o anuncio; a proposta, os
                 # contactos e o historico sao de uma empresa (24/09/2026)
                 ("" if sem_empresa else
-                 proposta_cx(a) + contactos_cx(a) + hist_cx + resp_cx) +
+                 proposta_cx(a) + resp_cx + contactos_cx(a) + hist_cx) +
                 "</div></div></div>")
 
     # Enquanto as pecas nao chegam, a pagina volta a pedir-se sozinha. O

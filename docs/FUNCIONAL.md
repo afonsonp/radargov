@@ -837,18 +837,37 @@ entidade costuma pagar faz-se **lote a lote** (`comparacao_de_preco()`),
 e não pelo total.
 
 Em **duas colunas** desde 23/09/2026 (o `EcraFicha` do sistema de
-desenho): à esquerda o anúncio (os factos em pares e o essencial, lotes,
-peças, desfecho, homólogos e mercado), à direita o prazo e o trabalho (a
-nossa proposta, contactos, histórico, responsável); numa só abaixo de
-1100px. Desde 24/09/2026 abre com o **cabeçalho da página** (migalhas,
+desenho), numa só abaixo de 1100px. **Desde 28/09/2026 (a ficha nova,
+da maquete que ele aprovou)** a coluna da esquerda é, por esta ordem:
+**Para decidir** (`para_decidir_cx()`: oito factos numa grelha, pela
+ordem de `factos_para_decidir()` — preço base, esclarecimentos até,
+propostas até, duração, critério, local, habilitação, caução; o que o
+anúncio não traz fica na célula, apagado, a dizer onde está), os lotes
+e o desfecho quando os há, **O que as peças pedem**
+(`pecas_pedem_cx()`: a leitura, marcada «Rascunho» uma vez, com as
+peças e as páginas lidas; a equipa em tabela, `perfis_da_equipa()` e
+`resumo_da_equipa()`, o objecto fechado na primeira linha,
+`resumo_do_objecto()`), **O mercado** (`mercado_cx()`: a mediana do que
+a entidade paga com a régua dos quartis, o desconto habitual, quem
+costuma ganhar, e as tabelas dos homólogos e do CPV fechadas), as
+peças, e o **anúncio completo**, fechado no fim (`?modo=completo`
+abre-o). À direita, presa ao rolar no computador: o prazo, a nossa
+proposta, o responsável, os contactos e o histórico.
+
+**O prazo de uma republicação é o da cadeia** (`cadeia_do_anuncio()`):
+cada alteração guarda o seu prazo e o original guarda o que está em
+vigor; a ficha de qualquer anúncio da cadeia mostra o em vigor, quantas
+vezes foi prorrogado, e de que anúncio vem. Sem leitura das peças no
+próprio anúncio, a ficha mostra a mais recente da cadeia e diz de onde
+veio; sem peças, aponta para o anúncio da cadeia que as tem. Desde 24/09/2026 abre com o **cabeçalho da página** (migalhas,
 o título inteiro com as acções à direita, a entidade por baixo), a
 **escada em quatro passos** (Interessa · Em preparação · Submetida ·
 Decidida) e o **índice em pílulas**; nada disto fica preso ao rolar. Tem:
 
 - Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes),
-  e no essencial a **habilitação** (o alvará, §12 do anúncio) e a
-  **caução** (§14), desde 28/09/2026
-- O **texto** do anúncio
+  com a **habilitação** (o alvará, §12 do anúncio) e a **caução** (§14),
+  desde 28/09/2026
+- O **texto** do anúncio, fechado no fim
 - As **peças** do procedimento, que **abrem dentro da ficha** (PDF, com
   pesquisa)
 - A **leitura pelo modelo**: objecto · equipa exigida · documentos da
