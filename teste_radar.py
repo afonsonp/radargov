@@ -1189,9 +1189,27 @@ class TestORecorteLevaAResposta(unittest.TestCase):
         # a NVIDIA deixou de servir a 3/09/2026 (o modelo saiu), e ha quase
         # um mes que o dia acabava quando o tecto da Groq acabava; o tecto
         # diario da Groq e por modelo
-        nome, url, modelo = radar.FORNECEDORES[1][:3]
-        self.assertEqual((nome, url), ("groq-reserva", radar.GROQ_URL))
-        self.assertNotEqual(modelo, radar.GROQ_MODELO)
+        reserva = {f[0]: f for f in radar.FORNECEDORES}["groq-reserva"]
+        self.assertEqual(reserva[1], radar.GROQ_URL)
+        self.assertNotEqual(reserva[2], radar.GROQ_MODELO)
+
+    def test_a_nvidia_le_sem_raciocinio(self):
+        # 28/09/2026: com o raciocinio ligado os modelos da NVIDIA passavam
+        # os minutos a «pensar» e estouravam o timeout; o gpt-oss-120b de la
+        # saiu a 3/09 (410)
+        nvidia = {f[0]: f for f in radar.FORNECEDORES}["nvidia"]
+        self.assertNotEqual(nvidia[2], "openai/gpt-oss-120b")
+        self.assertEqual(nvidia[5].get("chat_template_kwargs"),
+                         {"enable_thinking": False})
+
+    def test_o_cerebras_vem_logo_a_seguir_a_groq_e_so_com_chave(self):
+        # o mesmo modelo da Groq, com 1 milhao de tokens por dia: vem antes
+        # das reservas de outros modelos; sem chave, a cadeia salta-o
+        nomes = [f[0] for f in radar.FORNECEDORES]
+        self.assertEqual(nomes[:2], ["groq", "cerebras"])
+        with unittest.mock.patch.object(radar, "ler_chave",
+                                        lambda nomes, var: "" if var == "CEREBRAS_API_KEY" else "k"):
+            self.assertNotIn("cerebras", [f[0] for f in radar.cadeia_de_fornecedores({})])
 
 
 class TestHabilitacaoECaucaoDoAnuncio(unittest.TestCase):

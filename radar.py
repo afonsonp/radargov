@@ -6384,6 +6384,12 @@ GROQ_MODELO = "openai/gpt-oss-120b"
 # um 400 por um parametro a mais tirava o fornecedor da cadeia.
 FORNECEDORES = (
     ("groq", GROQ_URL, GROQ_MODELO, NOMES_CHAVE, "GROQ_API_KEY", {}),
+    # O Cerebras (28/09/2026): o MESMO gpt-oss-120b da Groq, cujas
+    # leituras ja se julgaram, com um escalao gratuito de 1 milhao de
+    # tokens por dia (~55 concursos). So entra com chave: ate la a cadeia
+    # passa-lhe por cima. A chave cola-se em Configuracoes > Leitura.
+    ("cerebras", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b",
+     ("cerebras_API_KEY.txt",), "CEREBRAS_API_KEY", {}),
     # A reserva na propria Groq (28/09/2026): o tecto diario e POR
     # MODELO, e o 20b tem o seu. Respondeu a um pedido da equipa em 2 s,
     # no formato pedido. Veio porque a NVIDIA deixou de servir: o
@@ -6392,13 +6398,24 @@ FORNECEDORES = (
     # mes que so a Groq lia, e o dia acabava quando ela acabava.
     ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
      {"reasoning_effort": "low"}),
+    # A NVIDIA volta a ler (28/09/2026) com o nemotron-3-ultra e o
+    # raciocinio DESLIGADO: ligado, os modelos de la «pensavam» minutos e
+    # passavam o timeout -- era por isso que pareciam mortos, alem de o
+    # gpt-oss-120b ter saido a 3/09. Num concurso real (a equipa de 20
+    # perfis do 21295/2026): 28 s, JSON valido, os 20 perfis, e o mais
+    # fiel ao texto dos modelos ensaiados. O `chat_template_kwargs` e dos
+    # Nemotron: quem mudar o modelo pelo config.json para um gpt-oss tem
+    # de o trocar pelo `reasoning_effort`.
     ("nvidia", "https://integrate.api.nvidia.com/v1/chat/completions",
-     "openai/gpt-oss-120b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY",
-     {"reasoning_effort": "low"}),
+     "nvidia/nemotron-3-ultra-550b-a55b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY",
+     {"chat_template_kwargs": {"enable_thinking": False}}),
     # Fica em ultimo por ser o unico que le com outro modelo, e o unico
     # que ja recusou por falta de vaga no pool gratuito.
     ("openrouter", "https://openrouter.ai/api/v1/chat/completions",
-     "z-ai/glm-5.2:free", ("openrouter_API_KEY.txt",), "OPENROUTER_API_KEY",
+     # o glm-5.2:free deixou de ser gratuito (404, 28/09/2026); dos
+     # gratuitos, este foi o unico que respondeu com JSON valido -- numa
+     # de duas tentativas: o conjunto gratuito esta quase sempre cheio
+     "poolside/laguna-s-2.1:free", ("openrouter_API_KEY.txt",), "OPENROUTER_API_KEY",
      {}),
 )
 # Cada campo tem o seu recorte e o seu pedido. Juntos num so, as

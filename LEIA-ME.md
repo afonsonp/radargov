@@ -982,7 +982,10 @@ as outras cinco só um admin as vê:
 - **Leitura das peças** — o fornecedor em uso e o modelo de cada um,
   e o estado de cada chave (em que ficheiro está e desde quando), com
   um campo para colar uma nova. Uma chave posta por variável de
-  ambiente aparece como tal e não se edita.
+  ambiente aparece como tal e não se edita. **O Cerebras** (desde
+  28/09/2026) só lê depois de lá colares a chave dele: cria a conta em
+  cloud.cerebras.ai, gera uma chave («API Keys») e cola-a no campo
+  «Chave nova» do bloco `cerebras`. Sem ela, a cadeia salta-o.
 - **Capturas** — o estado das duas capturas (`curl_DR.txt` e
   `curl_detalhe.txt`) e uma caixa para colar a nova; valida antes de
   gravar, e uma colagem errada não toca no ficheiro que lá está.

@@ -555,7 +555,12 @@ Orçamento, cadeia de reserva, chaves.
   caracteres por token**, não nos 3,5: um pedido de 2 × `TECTO_RECORTE`
   com as instruções chegava aos 7 400 tokens e a Groq recusava-o (413).
   O pedido inteiro fica em 1,5 × e a peça aberta por acréscimo tem o seu
-  tecto (`TECTO_SECUNDARIA`).
+  tecto (`TECTO_SECUNDARIA`). **E a NVIDIA não estava morta: pensava.**
+  Os modelos de lá vêm com o raciocínio ligado e passavam minutos a
+  «pensar» antes de responder; com ele desligado (o
+  `chat_template_kwargs` dos Nemotron, o `reasoning_effort` dos
+  gpt-oss) respondem em 10 a 30 s. Cada família desliga-o com o seu
+  parâmetro — trocar o modelo sem trocar os extras volta ao timeout.
 
 
 ---
