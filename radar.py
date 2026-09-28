@@ -66,6 +66,7 @@ try:
 except ImportError:                                  # pragma: no cover
     icones = None
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse
 
 try:
@@ -9211,6 +9212,10 @@ def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     msg["Subject"] = assunto
     msg["From"] = de
     msg["To"] = para
+    # sem estes dois a caixa mostra "sem data", e ha servidores que
+    # tomam a mensagem por spam (28/09/2026)
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain=de.rpartition("@")[2] or None)
     msg.set_content(corpo)
     if html_corpo:
         msg.add_alternative(html_corpo, subtype="html")
