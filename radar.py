@@ -173,6 +173,10 @@ CONFIG_INICIAL = {
     # preco base minimo como se escreve
     "interesse_distritos": "",
     "interesse_pbmin": "",
+    # as listas das propostas (28/09/2026): cada empresa escreve as suas
+    "tipologias": [],
+    "unidades": [],
+    "rotulo_da_unidade": "",
     # Copia do radar.db antes de cada verificacao. So a triagem e o
     # historico e que nao se recuperam de lado nenhum.
     "copia_de_seguranca": True,
@@ -466,15 +470,23 @@ MOTIVOS_ABANDONO = ("Preço base baixo", "Falta de certificações",
 # motivo mais frequente na prática -- por documentação, por preço
 # anormalmente baixo, acima do preço base, fora de prazo -- e não cabia
 # em nenhum dos quatro. As subcausas e o «Outro» ficam para a D6.
-MOTIVOS_PERDA = ("Preço", "CV's", "Proposta técnica", "Certificações",
-                 "Proposta excluída")
+# Genéricos para todas as empresas (decisão dele, 28/09/2026): «CV's» e
+# «Proposta técnica» eram da LATD, que vende consultoria de TI -- numa
+# obra ou numa limpeza não querem dizer nada. Os que existiam passam
+# pelo MOTIVOS_QUE_MUDARAM no iniciar_empresa().
+MOTIVOS_PERDA = ("Preço", "Qualidade técnica", "Prazo",
+                 "Habilitação e certificações", "Proposta excluída")
+MOTIVOS_QUE_MUDARAM = {"CV's": "Qualidade técnica",
+                       "Proposta técnica": "Qualidade técnica",
+                       "Certificações": "Habilitação e certificações"}
 
-# O que a empresa decide sobre cada concurso, de ambito fechado como os
-# motivos: "consulting" ou "turnkey", e sim/nao para o CV e a proposta
-# tecnica. Vieram da tabela que o Afonso mandou a 14/09/2026 e ficaram
-# quando ela se fundiu na escada.
-TIPOLOGIAS = ("consulting", "turnkey")
-SIM_NAO = ("sim", "não")
+# Como cada empresa arruma as suas propostas (28/09/2026). Eram fixos e
+# da LATD -- «consulting» ou «turnkey», e um CoE em texto livre --; agora
+# cada empresa escreve as suas listas no Perfil da empresa. O CV e a
+# proposta técnica sim/não saíram: não são uma decisão da empresa, são o
+# que o Programa pede, e isso é o campo 12 (`itens_da_proposta()`).
+ROTULO_DA_UNIDADE = "Unidade de negócio"
+MAX_NA_LISTA = 30
 
 
 # ------------------------------------------------- a escada da empresa (CRM)
@@ -791,6 +803,17 @@ def iniciar_empresa(caminho=None):
         for nova in COLUNAS_DO_DESFECHO:
             if nova not in cols_p:
                 c.execute("ALTER TABLE propostas ADD COLUMN %s TEXT" % nova)
+        # Os documentos da proposta que estão prontos (28/09/2026): uma
+        # lista JSON de nomes, tirados do campo 12. Substitui o CV e a
+        # proposta técnica sim/não, cujas colunas ficam (ver a armadilha
+        # das doze colunas).
+        if "documentos_prontos" not in cols_p:
+            c.execute("ALTER TABLE propostas ADD COLUMN documentos_prontos TEXT")
+        # Os motivos da LATD passam aos genéricos. Idempotente: o WHERE
+        # só apanha os antigos.
+        for antigo, novo in MOTIVOS_QUE_MUDARAM.items():
+            c.execute("UPDATE propostas SET motivo=? WHERE estado='perdido' "
+                      "AND motivo=?", (novo, antigo))
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ref ON propostas(ref)")
         c.execute("CREATE INDEX IF NOT EXISTS ix_propostas_ent "
                   "ON propostas(entidade_chave)")
@@ -1556,7 +1579,8 @@ def renomear_chaves_do_config():
 CONFIG_DA_EMPRESA = ("nome_da_empresa", "nif_da_empresa", "interesse_activo",
                      "interesse_cpv", "interesse_cpv_excl",
                      "interesse_distritos", "interesse_pbmin", "alertas",
-                     "dias_urgente", "empresa_desde")
+                     "dias_urgente", "empresa_desde", "tipologias",
+                     "unidades", "rotulo_da_unidade")
 EMAIL_DA_EMPRESA = ("para", "hora_resumo")
 
 
@@ -8414,7 +8438,8 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "tipologia", "coe", "preco_base", "valor_proposta",
                        "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
                        "notas", "criada_em", "fechada_em",
-                       "data_adjudicacao", "audiencia_em", "valor_adjudicado")
+                       "data_adjudicacao", "audiencia_em", "valor_adjudicado",
+                       "documentos_prontos")
 COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
                      "feita_em", "origem", "criada_em", "documento_id")
 COLUNAS_DA_NOTA = ("id", "proposta_id", "texto", "quem", "quando")
@@ -17200,7 +17225,8 @@ _NOMES_ACCAO = {"análise": "leitura",
                 # historico mostrava `valor_proposta` e `proposta_tecnica`
                 # (teste com utilizadores, 25/09/2026).
                 "valor_proposta": "preço proposto", "preco_base": "preço base",
-                "lugar": "lugar", "top3": "os três primeiros", "coe": "CoE",
+                "lugar": "lugar", "top3": "os três primeiros", "coe": "unidade de negócio",
+                "documentos_prontos": "documentos prontos",
                 "notas": "notas", "responsavel": "responsável",
                 "tipologia": "tipologia", "cv": "CV",
                 "proposta_tecnica": "proposta técnica", "motivo": "motivo",
@@ -18243,7 +18269,45 @@ def _conteudo_interesse():
            _local_e_valor_do_interesse(cfg),
            arvore_html(n_cpv, "anuncios", aberta=True,
                        botao="Guardar o perfil", rodape=False)))
-    return formulario
+    return formulario + _cartao_das_listas_da_proposta(cfg)
+
+
+def _cartao_das_listas_da_proposta(cfg):
+    """As listas com que a empresa arruma as propostas (28/09/2026): a
+    tipologia e a unidade de negócio, com o nome que ela lhe der. Uma por
+    linha; sem lista, o campo não aparece na proposta."""
+    tipologias, unidades, rotulo = listas_da_proposta(cfg)
+    return (
+        "<div class='mg-card novo-filtro'><h3>As propostas</h3>"
+        "<p class='nota'>Como a empresa arruma as suas propostas. Um nome por "
+        "linha; uma lista vazia tira o campo da proposta.</p>"
+        "<form method='post' action='/configuracoes/propostas' class='filtros'>"
+        "<label>Tipologias<textarea name='tipologias' rows='4'>%s</textarea></label>"
+        "<label>Nome da unidade<input type='text' name='rotulo_da_unidade' "
+        "value='%s' maxlength='40' placeholder='%s'></label>"
+        "<label>Unidades<textarea name='unidades' rows='4'>%s</textarea></label>"
+        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar as listas"
+        "</button></form></div>"
+        % (html.escape("\n".join(tipologias)),
+           html.escape("" if rotulo == ROTULO_DA_UNIDADE else rotulo, quote=True),
+           html.escape(ROTULO_DA_UNIDADE, quote=True),
+           html.escape("\n".join(unidades))))
+
+
+def _linhas_do_formulario(nome):
+    """As linhas de uma caixa, como lista limpa (a do config)."""
+    return _lista_do_config((request.form.get(nome) or "").splitlines())
+
+
+@app.route("/configuracoes/propostas", methods=["POST"])
+def config_propostas_gravar():
+    gravar_config_registado({
+        "tipologias": _linhas_do_formulario("tipologias"),
+        "unidades": _linhas_do_formulario("unidades"),
+        "rotulo_da_unidade": " ".join(
+            (request.form.get("rotulo_da_unidade") or "").split())[:40]})
+    return redirect("/configuracoes/interesse?" + urlencode(
+        {"aviso": "Listas das propostas guardadas."}))
 
 
 @app.route("/alertas/interesse", methods=["POST"])
@@ -20863,11 +20927,15 @@ GLOSSARIO = (
          "esclarecimentos, vale a regra do art. 50.º do Código dos Contratos "
          "Públicos: o primeiro terço do prazo. Confirma-se no Programa do "
          "Concurso."),
-        ("Tipologia", "Consultoria (serviços de consultoria; «consulting» "
-         "no registo) ou Chave na mão (entrega da obra ou do sistema pronto a "
-         "usar; «turnkey» no registo)."),
-        ("CoE", "Center of Excellence: o centro de excelência da empresa "
-         "a que a proposta fica entregue."),
+        ("Tipologia", "Como a empresa classifica as suas propostas. A "
+         "lista é de cada empresa: escreve-se no Perfil da empresa, nas "
+         "Configurações."),
+        ("Unidade de negócio", "A parte da empresa a que a proposta fica "
+         "entregue. A lista, e o nome que se lhe dá, escrevem-se no Perfil "
+         "da empresa."),
+        ("Documentos da proposta", "Os documentos que o Programa do "
+         "Concurso pede, lidos das peças. Na proposta, marcam-se os que já "
+         "estão prontos."),
     )),
     ("As peças", (
         ("Peças do procedimento", "Os documentos do concurso: o Caderno de "
@@ -26222,9 +26290,95 @@ def contacto_apagar(id_):
 # Com LOTES ha uma proposta por lote (D3), e por isso ha um destes por
 # cada: e o mesmo procedimento, e sao decisoes diferentes.
 
-CAMPOS_DA_EMPRESA = (("tipologia", "Tipologia", TIPOLOGIAS),
-                  ("cv", "CV", SIM_NAO),
-                  ("proposta_tecnica", "Proposta técnica", SIM_NAO))
+def _lista_do_config(valor):
+    """Uma lista de nomes do config, limpa: sem vazios nem repetidos."""
+    if not isinstance(valor, list):
+        return []
+    fora = []
+    for v in valor:
+        v = " ".join(str(v).split())[:60] if isinstance(v, str) else ""
+        if v and v not in fora:
+            fora.append(v)
+    return fora[:MAX_NA_LISTA]
+
+
+def listas_da_proposta(cfg=None):
+    """(tipologias, unidades, rótulo da unidade) da empresa activa."""
+    cfg = ler_config() if cfg is None else cfg
+    return (_lista_do_config(cfg.get("tipologias")),
+            _lista_do_config(cfg.get("unidades")),
+            " ".join(str(cfg.get("rotulo_da_unidade") or "").split())[:40]
+            or ROTULO_DA_UNIDADE)
+
+
+# A coluna, o rótulo, e de que lista vem o valor. A `coe` guarda a
+# unidade de negócio: o nome da coluna ficou, o da empresa é o dela.
+def _campos_da_empresa(cfg):
+    tipologias, unidades, rotulo = listas_da_proposta(cfg)
+    return (("tipologia", "Tipologia", tipologias), ("coe", rotulo, unidades))
+
+
+def _campos_da_empresa_html(p, cfg):
+    """Os selectores das listas da empresa. **Sem lista não aparece** --
+    a não ser que a proposta já tenha um valor, que não se esconde."""
+    partes = []
+    for nome, rotulo, lista in _campos_da_empresa(cfg):
+        actual = p[nome] or ""
+        valores = lista + ([actual] if actual and actual not in lista else [])
+        if valores:
+            partes.append("<label>%s%s</label>"
+                          % (html.escape(rotulo), _opcoes(nome, valores, actual)))
+    return "".join(partes)
+
+
+RX_ITEM_DA_PROPOSTA = re.compile(r"^\s*(\d+)\s*[.)]\s+(.+?)\s*$")
+
+
+def itens_da_proposta(texto):
+    """Os documentos que constituem a proposta, do campo 12 lido pelo
+    modelo («1. DEUCP», com «Condições especiais» por baixo): só os
+    nomes, pela ordem, sem repetidos."""
+    fora = []
+    for linha in (texto or "").splitlines():
+        m = RX_ITEM_DA_PROPOSTA.match(linha)
+        if m and m.group(2) not in fora:
+            fora.append(m.group(2)[:200])
+    return fora
+
+
+def documentos_prontos(p):
+    """A lista dos documentos que a empresa marcou como prontos."""
+    try:
+        valor = json.loads(p["documentos_prontos"] or "[]")
+    except (KeyError, IndexError, ValueError, TypeError):
+        return []
+    return [v for v in valor if isinstance(v, str)] if isinstance(valor, list) else []
+
+
+def _itens_da_proposta_de(p):
+    if not p["ref"]:
+        return []
+    analise = analise_de(p["ref"])
+    return itens_da_proposta(analise["documentos_proposta"]) if analise else []
+
+
+def _documentos_da_proposta_html(p):
+    """A lista dos documentos que o Programa pede (o campo 12), para a
+    empresa marcar o que está pronto. É o mapa, não uma decisão: diz o
+    que o concurso exige, e quem prepara é a empresa."""
+    itens = _itens_da_proposta_de(p)
+    if not itens:
+        return ""
+    prontos = set(documentos_prontos(p))
+    caixas = "".join(
+        "<label class='doc-pronto'><input type='checkbox' name='doc_pronto' "
+        "value='%s'%s> %s</label>"
+        % (html.escape(i, quote=True), " checked" if i in prontos else "",
+           html.escape(i)) for i in itens)
+    return ("<fieldset class='largo docs-da-proposta'><legend>Documentos da "
+            "proposta &mdash; %d de %d prontos</legend>"
+            "<input type='hidden' name='docs_presentes' value='1'>%s</fieldset>"
+            % (len(prontos & set(itens)), len(itens), caixas))
 
 
 def _campos_que_a_ranhura_pede(p):
@@ -26440,8 +26594,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
             "<form class='prop-campos' method='post' action='/proposta/%d/ficha'%s>"
             "<input type='hidden' name='versao' value='%s'>"
             "%s%s"
-            "%s<label>CoE<input type='text' name='coe' value='%s' "
-            "maxlength='60'></label>"
+            "%s%s"
             "<label class='largo'>Nota nova<textarea name='nota_nova' rows='3' "
             "maxlength='500' placeholder='fica com a data e o seu nome; as "
             "anteriores não se apagam'></textarea></label>"
@@ -26453,14 +26606,12 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
                (" data-base='%s'" % preco_base_da_proposta(p)
                 if preco_base_da_proposta(p) else ""),
                versao_da_proposta(p), _campos_que_a_ranhura_pede(p),
-               "".join("<label>%s%s</label>"
-                       % (rotulo, _opcoes(nome, valores, p[nome]))
-                       for nome, rotulo, valores in CAMPOS_DA_EMPRESA),
+               _campos_da_empresa_html(p, cfg),
                ("<label>Responsável<input type='text' name='responsavel' "
                 "value='%s' list='pessoas' placeholder='ninguém'></label>"
                 % html.escape(p["responsavel"] or "", quote=True))
                if com_responsavel else "",
-               html.escape(p["coe"] or "", quote=True),
+               _documentos_da_proposta_html(p),
                faixa_do_desfecho(p, desfecho, cfg) + _notas_da_ficha(p)
                + _tarefas_da_ficha(p)))
 
@@ -26578,19 +26729,28 @@ def proposta_da_ficha(id_):
             return _volta_com_erro("O lugar é um número de 1 a 99.")
         campos.append("lugar")
         valores.append(lugar)
-    for nome, tecto in (("top3", 300), ("coe", 60)):
+    if "top3" in request.form:
+        campos.append("top3")
+        valores.append(texto_de_campo(request.form.get("top3"), 300) or None)
+    # As listas da empresa mandam quando existem; o valor que a proposta
+    # já tinha continua a valer (a lista pode ter mudado depois). Sem
+    # lista, o ecrã não mostra o campo e aceita-se o texto, como antes.
+    for nome, rotulo, lista in _campos_da_empresa(ler_config()):
         if nome in request.form:
-            campos.append(nome)
-            valores.append(texto_de_campo(request.form.get(nome), tecto)
-                           or None)
-    for nome, _, permitidos in CAMPOS_DA_EMPRESA:
-        if nome in request.form:
-            valor = (request.form.get(nome) or "").strip()
-            if valor and valor not in permitidos:
-                return _volta_com_erro("«%s» não é um valor de %s."
-                                        % (valor, nome))
+            valor = texto_de_campo(request.form.get(nome), 60) or ""
+            if valor and lista and valor not in lista and valor != (p[nome] or ""):
+                return _volta_com_erro("«%s» não está na lista de %s do Perfil "
+                                       "da empresa." % (valor, rotulo.lower()))
             campos.append(nome)
             valores.append(valor or None)
+    # Os documentos prontos: só os que o campo 12 lista hoje. O campo
+    # escondido diz que o formulário os trazia -- sem ele, desmarcar
+    # todos não se distinguia de um formulário sem a lista.
+    if "docs_presentes" in request.form:
+        itens = _itens_da_proposta_de(p)
+        marcados = [i for i in itens if i in request.form.getlist("doc_pronto")]
+        campos.append("documentos_prontos")
+        valores.append(json.dumps(marcados, ensure_ascii=False) if marcados else None)
     if "motivo" in request.form:
         motivo = (request.form.get("motivo") or "").strip()
         if motivo and motivo not in (MOTIVOS_DO_ESTADO.get(p["estado"]) or ()):
@@ -26658,7 +26818,7 @@ CAMPOS_EDITAVEIS_DA_PROPOSTA = (
     ("titulo", "título", 200), ("entidade", "cliente", 120),
     ("porque_sem_ref", "porque não tem anúncio", 120),
     ("preco_base", "preço base", 40), ("valor_proposta", "proposto", 40),
-    ("coe", "CoE", 60), ("top3", "os três primeiros", 300))
+    ("top3", "os três primeiros", 300))
 
 
 @app.route("/proposta/nova", methods=["GET", "POST"])
