@@ -54,7 +54,7 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD |
 | Peças em disco | 436 documentos, de 79 concursos (em `pecas/`, 556 MB) |
 | Leituras pelo modelo | 70, das quais **11 incompletas** (voltam a tentar-se sozinhas) |
-| Corpus do Portal BASE | 2 004 511 contratos, 180 090 entidades |
+| Corpus do Portal BASE | 2 009 640 contratos, 180 507 entidades (28/09/2026) |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e a admin da LATD |
 | Rotas Flask | 120 |
@@ -153,10 +153,12 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.13`**, de
-  28/09/2026 — **os e-mails do radar levam data e identificador**
-  (`Date` e `Message-ID`; saíam sem eles, e há servidores que os
-  tomam por spam). A `v2.0.12`, do mesmo dia, trouxe **o `contacto@miragov.pt`** no site, na privacidade e na
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.14`**, de
+  28/09/2026 — **a página de entrar volta ao início** (o logótipo liga
+  ao site, e há um «Voltar ao início» por cima do título) e **os campos
+  do site sem o magenta**. A `v2.0.13`, do mesmo dia, pôs **data e
+  identificador nos e-mails do radar** (`Date` e `Message-ID`; saíam
+  sem eles, e há servidores que os tomam por spam). A `v2.0.12` trouxe **o `contacto@miragov.pt`** no site, na privacidade e na
   acessibilidade (o correio do domínio passou a existir nesse dia, na
   caixa do alojamento do domínios.pt), e **a proposta de cada empresa**:
   a tipologia e a unidade de negócio passam a listas do Perfil da
