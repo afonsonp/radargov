@@ -4046,6 +4046,219 @@ class TestRetentativaDeExtraccao(BaseTemporaria):
         self.assertEqual(estados["e.zip"], "não é PDF")
 
 
+def _livro_excel(folhas):
+    """Os bytes de um .xlsx com as `folhas` {nome: [linhas]}."""
+    import openpyxl
+    livro = openpyxl.Workbook()
+    livro.remove(livro.active)
+    for nome, linhas in folhas.items():
+        folha = livro.create_sheet(nome)
+        for linha in linhas:
+            folha.append(linha)
+    saco = io.BytesIO()
+    livro.save(saco)
+    return saco.getvalue()
+
+
+class TestTextoDoExcel(BaseTemporaria):
+    """28/09/2026: um .xlsx é um ZIP por dentro. O extrair_textos abria-o
+    como ZIP, não achava PDF nenhum e dava «não é PDF» — 24 ficheiros de
+    18 concursos por ler, e eram os mapas de quantidades, os cadastros
+    dos equipamentos e as listas de preços unitários (CADERNOS.md §2)."""
+
+    MAPA = {"Mapa": [["Artigo", "Designação", "Qtd"],
+                     ["1.1", "Betão C25/30", 12.0],
+                     [None, None, None],
+                     ["1.2", "Aço A500", 3.5]],
+            "Resumo": [["Total", 15.5]]}
+
+    def test_celulas_por_linha_e_folhas_como_paginas(self):
+        texto, estado = radar.texto_do_xlsx(_livro_excel(self.MAPA))
+        self.assertEqual(estado, "ok")
+        self.assertIn("Folha: Mapa", texto)
+        self.assertIn("1.1 | Betão C25/30 | 12", texto)   # 12.0 sai 12
+        self.assertIn("1.2 | Aço A500 | 3.5", texto)
+        self.assertNotIn("|  |", texto)                   # a linha vazia sai
+        self.assertIn("\f", texto)                        # uma página por folha
+
+    def test_o_que_nao_se_abre_e_veredicto_e_nao_erro(self):
+        # um «erro:» retentava-se a cada leitura, para sempre
+        self.assertEqual(radar.texto_do_xlsx(b"PK nao e um livro"),
+                         ("", "não é PDF"))
+
+    def test_o_livro_que_rebenta_nas_linhas_e_erro_e_nao_sobe(self):
+        # a revisão de 28/09/2026: abria e rebentava a iterar as linhas,
+        # e a excepção subia e parava o lote inteiro da verificação
+        import openpyxl
+
+        class Folha:
+            title = "x"
+
+            def iter_rows(self, **_):
+                raise ValueError("tabela partida")
+
+        class Livro:
+            worksheets = [Folha()]
+
+            def close(self):
+                pass
+
+        with unittest.mock.patch.object(openpyxl, "load_workbook",
+                                        return_value=Livro()):
+            texto, estado = radar.texto_do_xlsx(b"x")
+        self.assertEqual(texto, "")
+        self.assertTrue(estado.startswith("erro:"))       # retenta-se
+
+    def test_o_excel_dentro_de_um_zip_tambem_se_le(self):
+        import zipfile
+        caminho = os.path.join(self.pasta, "CE.zip")
+        with zipfile.ZipFile(caminho, "w") as z:
+            z.writestr("Mapa_de_Quantidades.xlsx", _livro_excel(self.MAPA))
+        texto, estado = radar.texto_do_zip(caminho, {"encargos", "tecnico"})
+        self.assertEqual(estado, "ok")
+        self.assertIn("Betão C25/30", texto)
+        self.assertIn("=== ficheiro: Mapa_de_Quantidades.xlsx ===", texto)
+
+    def test_extrair_textos_le_o_xlsx_e_nao_o_trata_como_zip(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        with open(os.path.join(pasta, "MQT.xlsx"), "wb") as f:
+            f.write(_livro_excel(self.MAPA))
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref,nome) VALUES ('9/2026','MQT.xlsx')")
+        radar.extrair_textos("9/2026")
+        with radar.liga() as c:
+            d = c.execute("SELECT texto, texto_estado FROM documentos "
+                          "WHERE nome='MQT.xlsx'").fetchone()
+        self.assertEqual(d["texto_estado"], "ok")
+        self.assertIn("Aço A500", d["texto"])
+
+    def test_a_migracao_poe_por_ler_uma_vez_e_so_o_que_esta_em_disco(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        for nome in ("MQT.xlsx", "CE.zip"):
+            open(os.path.join(pasta, nome), "wb").close()
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                "VALUES ('9/2026',?,?,?)",
+                [("MQT.xlsx", "", "não é PDF"),       # em disco: volta
+                 ("CE.zip", "texto antigo", "ok"),    # em disco: volta
+                 ("Longe.xlsx", "", "não é PDF"),     # fora do disco: fica
+                 ("CE.pdf", "t", "ok")])              # nao e arquivo: fica
+            c.execute("DELETE FROM estado WHERE chave='pecas_em_excel'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            d = {r["nome"]: (r["texto"], r["texto_estado"]) for r in c.execute(
+                "SELECT nome, texto, texto_estado FROM documentos")}
+            c.execute("UPDATE documentos SET texto_estado='não é PDF' "
+                      "WHERE nome='MQT.xlsx'")
+        self.assertEqual(d["MQT.xlsx"][1], None)
+        self.assertEqual(d["CE.zip"], ("texto antigo", None))   # o texto fica
+        self.assertEqual(d["Longe.xlsx"][1], "não é PDF")
+        self.assertEqual(d["CE.pdf"][1], "ok")
+        radar.iniciar_db()                                # e só uma vez
+        with radar.liga() as c:
+            self.assertEqual(c.execute(
+                "SELECT texto_estado FROM documentos WHERE nome='MQT.xlsx'"
+                ).fetchone()[0], "não é PDF")
+
+
+class TestAnexosTecnicos(unittest.TestCase):
+    """28/09/2026: a leitura escolhia as peças pelo nome — «caderno» ou
+    «programa» — e 88 de 235 documentos com texto não iam a pedido
+    nenhum: a especificação técnica, o anexo técnico das licenças, a
+    memória descritiva, o mapa de quantidades (CADERNOS.md §1)."""
+
+    def test_os_nomes_verdadeiros_sao_anexos_tecnicos(self):
+        # com os acentos como as plataformas os entregam
+        for nome in ("3_Anexo_T_cnico.pdf", "PE_26146_CNS-CE_AnexoI_EspTecnicas.pdf",
+                     "3_3.1_Anexo_CADE_Especifica_o_T_cnica.zip",
+                     "Anexo III - Memória Descritiva.pdf", "MQT.xlsx",
+                     "Anexo I - Cadastro UPS.xlsx.xlsx",
+                     "3_MOD404_Anexo_Lista_de_Pre_os_Unit_rios_LPU.xlsx",
+                     "4_mapa_quantidades_manutencao_instalacoes.xlsx"):
+            self.assertEqual(radar.papeis_da_peca(nome), {"tecnico"}, nome)
+
+    def test_o_que_e_da_proposta_ou_do_procedimento_fica_de_fora(self):
+        for nome in ("Lista.pdf", "Proposta GHAF.xlsx", "espd-request.zip",
+                     "Anexo II_Formulário de Resposta_06000115572026.xlsx",
+                     "Resposta a pedido de esclarecimentos  - P049_2026.pdf",
+                     "711130826_Modelo Garantia Bancária ou Seguro Caução.docx.pdf"):
+            self.assertNotIn("tecnico", radar.papeis_da_peca(nome), nome)
+
+    def test_o_caderno_le_os_anexos_e_vem_primeiro(self):
+        docs = [{"nome": "3_Anexo_Tecnico.pdf", "texto": "ESPECIFICAÇÃO X"},
+                {"nome": "1_Caderno_de_Encargos.pdf", "texto": "CLÁUSULA Y"},
+                {"nome": "2_Programa.pdf", "texto": "PROGRAMA Z"}]
+        texto, usados = radar.pecas_para_analise(docs, "encargos", ())
+        self.assertIn("ESPECIFICAÇÃO X", texto)
+        self.assertNotIn("PROGRAMA Z", texto)
+        self.assertLess(texto.index("CLÁUSULA Y"), texto.index("ESPECIFICAÇÃO X"))
+        texto, _ = radar.pecas_para_analise(docs, "programa", ())
+        self.assertNotIn("ESPECIFICAÇÃO X", texto)
+
+
+class TestCampo11PorTipo(unittest.TestCase):
+    """28/09/2026 (docs/historico/MAPA.md): a pergunta da equipa foi
+    escrita para os serviços de TI, que são 10% dos anúncios. Nas 17
+    empreitadas e nos 6 concursos de bens lidos deu sempre «não consta»
+    — e as peças das obras falavam todas do director de obra."""
+
+    def test_as_cinco_familias(self):
+        f = radar.familia_do_contrato
+        self.assertEqual(f("Empreitada de Obras Públicas", "45261910"), "obras")
+        self.assertEqual(f("Aquisição de Bens Móveis", "37412241"), "bens")
+        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "bens")
+        self.assertEqual(f("Aquisição de Serviços", "90911200"), "mao_de_obra")
+        self.assertEqual(f("Aquisição de Serviços", "79714000"), "mao_de_obra")
+        self.assertEqual(f("Aquisição de Serviços", "72000000"), "equipa")
+        self.assertEqual(f("Aquisição de Serviços", "50711000"), "servicos")
+        # o CPV com dois códigos: conta o primeiro
+        self.assertEqual(f("Aquisição de Serviços", "72000000, 50000000"), "equipa")
+
+    def test_sem_nada_fica_a_pergunta_de_antes(self):
+        self.assertEqual(radar.familia_do_contrato("", ""), "equipa")
+        self.assertEqual(radar.familia_do_anuncio(None, None), "equipa")
+
+    def test_a_familia_sai_do_texto_do_dr(self):
+        texto = "6 - OBJETO\nTipo de Contrato Principal: Empreitada de Obras Públicas\n"
+        self.assertEqual(radar.familia_do_anuncio(texto, "45000000"), "obras")
+
+    def test_so_a_leitura_da_equipa_muda(self):
+        de_origem = list(radar.LEITURAS)
+        obras = dict((n, (a, i)) for n, _, a, i in
+                     radar.leituras_da_familia(de_origem, "obras"))
+        self.assertEqual(obras["equipa"], (radar.ANCORAS_OBRAS, radar.INSTRUCOES_OBRAS))
+        self.assertEqual(obras["objecto"],
+                         (radar.ANCORAS_OBJECTO, radar.INSTRUCOES_OBJECTO))
+        self.assertEqual(radar.leituras_da_familia(de_origem, "equipa"), de_origem)
+
+    def test_na_familia_equipa_o_config_continua_a_mandar(self):
+        cfg = {"leituras": {"equipa": {"instrucao": "a minha pergunta"}}}
+        saiu = dict((n, i) for n, _, _, i in radar.leituras_da_familia(
+            radar.leituras_activas(cfg), "equipa"))
+        self.assertEqual(saiu["equipa"], "a minha pergunta")
+
+    def test_todas_as_perguntas_respondem_na_coluna_da_equipa(self):
+        # a analise tem colunas fixas: a resposta vai sempre para «equipa»
+        for familia, (_, _, _, instrucao) in radar.CAMPO_11.items():
+            if instrucao:
+                self.assertIn('{"equipa":', instrucao, familia)
+
+    def test_a_ficha_da_obra_diz_o_que_se_procurou(self):
+        texto = TestTabelaEssencial.TEXTO + (
+            "\n6 - OBJETO DO CONTRATO\n"
+            "Tipo de Contrato Principal: Empreitada de Obras Públicas\n")
+        linhas = radar.essencial_do_anuncio(
+            TestTabelaEssencial.ANUNCIO, radar.seccoes_do_texto(texto),
+            TestTabelaEssencialDepoisDeLido.LIDO_SEM_NADA)
+        self.assertEqual(len(linhas), 12)
+        rotulo, _, falta, _ = linhas[10]
+        self.assertEqual(rotulo, "Equipa técnica e alvará")
+        self.assertIn("a equipa técnica nem o alvará", falta)
+
+
 class TestSinonimosDePlataforma(unittest.TestCase):
     """D3 do saneamento de 30/08/2026: a plataforma decidia-se com um
     `if "acin" in alvo` solto, fora da lista PLATAFORMAS. Agora é um

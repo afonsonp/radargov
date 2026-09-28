@@ -1359,6 +1359,28 @@ def iniciar_db():
                     refazer.append(d["ref"])
             c.execute("INSERT OR REPLACE INTO estado "
                       "VALUES ('pecas_dentro_dos_zip','1')")
+        # O Excel (28/09/2026): um .xlsx e um ZIP por dentro, e o
+        # extrair_textos abria-o como tal, nao achava PDF nenhum e dava
+        # «não é PDF» -- 24 mapas de quantidades, cadastros e listas de
+        # precos por ler. E os ZIP ja lidos deixavam de fora o Excel de
+        # dentro e os anexos tecnicos de um ZIP de Caderno de Encargos.
+        # Voltam a por ler, uma vez, os que estao em disco -- sem ler
+        # aqui, como os .7z: o analisar_pecas() extrai antes de ler. O
+        # `texto` fica: so o estado volta a NULL.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='pecas_em_excel'").fetchone():
+            for d in c.execute(
+                    "SELECT id, ref, nome FROM documentos WHERE "
+                    "(texto_estado='não é PDF' AND (lower(nome) LIKE '%.xlsx' "
+                    "OR lower(nome) LIKE '%.xlsm')) OR (texto_estado='ok' AND "
+                    "(lower(nome) LIKE '%.zip' OR lower(nome) LIKE '%.7z'))"
+                    ).fetchall():
+                if os.path.exists(os.path.join(pasta_do_anuncio(d["ref"]),
+                                               d["nome"])):
+                    c.execute("UPDATE documentos SET texto_estado=NULL "
+                              "WHERE id=?", (d["id"],))
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('pecas_em_excel','1')")
         # E os .7z, que chegaram no mesmo dia um pouco depois: voltam a
         # por ler, uma vez, com a sua marca -- mas NAO se leem aqui.
         # Medido nesse dia: um .7z de lote sao 46 PDF e 91 s de leitura;
@@ -6013,6 +6035,67 @@ def texto_do_docx(dados):
     return (texto, "ok") if texto else ("", "scan")
 
 
+# ponytail: corta cada folha a 5000 linhas -- um cadastro maior perde o
+# fim; subir o numero se aparecer um que o precise.
+LINHAS_POR_FOLHA = 5000
+EXTENSOES_EXCEL = (".xlsx", ".xlsm")
+
+
+def _celula_do_excel(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, float) and valor.is_integer():
+        valor = int(valor)
+    return " ".join(str(valor).split())
+
+
+def texto_do_xlsx(dados):
+    """(texto, estado) de um .xlsx (28/09/2026): uma linha por linha da
+    folha, as celulas separadas por « | », e cada folha com o nome a
+    abrir e um \\f entre elas -- as «paginas» das fontes sao as folhas.
+    O .xls antigo (BIFF) nao: pedia o xlrd, e sao 2 em 24."""
+    try:
+        import openpyxl
+    except ImportError:
+        return "", "erro: falta o openpyxl (python -m pip install openpyxl)"
+    import warnings
+    # o openpyxl avisa (ao ler as linhas) de cabecalhos que nao percebe,
+    # e o aviso ia parar ao registo de cada verificacao
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return _folhas_do_xlsx(openpyxl, dados)
+
+
+def _folhas_do_xlsx(openpyxl, dados):
+    try:
+        livro = openpyxl.load_workbook(io.BytesIO(dados), read_only=True,
+                                       data_only=True)
+    except Exception:                  # nao e um livro que se abra
+        return "", "não é PDF"
+    folhas = []
+    try:
+        for folha in livro.worksheets:
+            linhas = []
+            for linha in folha.iter_rows(values_only=True):
+                celulas = [_celula_do_excel(v) for v in linha]
+                while celulas and not celulas[-1]:
+                    celulas.pop()
+                if any(celulas):
+                    linhas.append(" | ".join(celulas))
+                if len(linhas) >= LINHAS_POR_FOLHA:
+                    break
+            if linhas:
+                folhas.append("Folha: %s\n%s" % (folha.title, "\n".join(linhas)))
+    except Exception as erro:
+        # abriu mas rebentou nas linhas: falha da ferramenta, retenta-se
+        # -- e nao pode subir e parar o lote (como no texto_do_pdf)
+        return "", "erro: %s" % str(erro)[:80]
+    finally:
+        livro.close()
+    texto = "\n\f\n".join(folhas)
+    return (texto, "ok") if texto else ("", "scan")
+
+
 def ficheiros_do_zip(dados, fundo=0, gasto=None):
     """[(nome, bytes)] dos PDF e .docx de um ZIP, entrando nos ZIP de
     dentro ate FUNDO_DOS_ZIP, e com o total descomprimido preso ao
@@ -6026,7 +6109,7 @@ def ficheiros_do_zip(dados, fundo=0, gasto=None):
             baixo = nome.lower()
             if info.is_dir() or info.file_size > MAX_FICHEIRO:
                 continue
-            if not baixo.endswith((".pdf", ".docx", ".zip")):
+            if not baixo.endswith((".pdf", ".docx", ".zip") + EXTENSOES_EXCEL):
                 continue
             if gasto[0] + info.file_size > TECTO_DOS_ZIP:
                 break
@@ -6084,7 +6167,8 @@ def ficheiros_do_7z(caminho):
         for info in z.list():
             baixo = info.filename.lower()
             tamanho = info.uncompressed or 0
-            if info.is_directory or not baixo.endswith((".pdf", ".docx", ".zip")):
+            if info.is_directory or not baixo.endswith(
+                    (".pdf", ".docx", ".zip") + EXTENSOES_EXCEL):
                 continue
             if tamanho > MAX_FICHEIRO or gasto + tamanho > TECTO_DOS_ZIP:
                 continue
@@ -6131,6 +6215,8 @@ def _texto_dos_ficheiros(dentro, papeis):
         for nome, dados in (proprios or dentro):
             if nome.lower().endswith(".docx"):
                 texto, estado = texto_do_docx(dados)
+            elif nome.lower().endswith(EXTENSOES_EXCEL):
+                texto, estado = texto_do_xlsx(dados)
             else:
                 alvo = os.path.join(temporaria, nome_seguro(os.path.basename(nome)))
                 with open(alvo, "wb") as f:
@@ -6185,6 +6271,10 @@ def extrair_textos(ref):
     for d in docs:
         caminho = os.path.join(pasta, d["nome"])
         papeis = papeis_da_peca(d["nome"])
+        # Num ZIP de Caderno de Encargos, os anexos tecnicos de dentro sao
+        # da peca -- a especificacao, o mapa de quantidades (28/09/2026).
+        if "encargos" in papeis:
+            papeis = papeis | {"tecnico"}
         if not os.path.exists(caminho):
             estado, texto = "não é PDF", ""
         elif e_pdf(caminho):
@@ -6192,6 +6282,10 @@ def extrair_textos(ref):
         elif d["nome"].lower().endswith(".docx"):
             with open(caminho, "rb") as f:
                 texto, estado = texto_do_docx(f.read())
+        elif d["nome"].lower().endswith(EXTENSOES_EXCEL):
+            # Antes do ZIP: um .xlsx e um ZIP por dentro (28/09/2026).
+            with open(caminho, "rb") as f:
+                texto, estado = texto_do_xlsx(f.read())
         elif d["nome"].lower().endswith(".7z"):
             texto, estado = texto_do_7z(caminho, papeis)
         elif zipfile.is_zipfile(caminho):
@@ -6352,7 +6446,9 @@ Experiência geral: X anos, ou —
 Experiência específica: tecnologia, sector ou dimensão; se for mais do
 que uma, as seguintes em linhas próprias começadas por "- "
 Certificações: a lista exacta, ou —
-Outras condições: dedicação, presença, preço máximo/hora, ou —
+Outras condições: dedicação, presença, ou —
+Horas e preço: as horas máximas e o valor/hora do perfil, se o
+documento os fixar, ou —
 
 Regras duras:
 - Copia o nome do perfil TAL E QUAL. Não acrescentes "sénior", "júnior"
@@ -6420,6 +6516,154 @@ primeiro.
 
 Responde SÓ com {"documentos_proposta": "...",
 "preco_anormalmente_baixo": "..."}."""
+
+# --- o campo 11 conforme o tipo de contrato (docs/historico/MAPA.md,
+# 28/09/2026). A pergunta da equipa foi escrita para os servicos de TI,
+# que sao 10% dos anuncios: nas 17 empreitadas e nos 6 concursos de bens
+# lidos, a «equipa» deu sempre «não consta» -- e as pecas das obras
+# falavam todas do director de obra. Cada tipo tem a sua pergunta e as
+# suas ancoras; a resposta vai para a mesma coluna (`analise.equipa`),
+# e o rotulo da ficha muda com o tipo. O Mira Gov mapeia; quem decide e
+# a empresa.
+
+_FIM_DO_CAMPO_11 = """
+
+Regras duras: copia os nomes e os números TAL E QUAL estão; cada
+requisito numa linha; não interpretes; onde não houver exigência,
+escreve — (travessão).
+
+Responde SÓ com {"equipa": "..."} -- a chave chama-se "equipa" por
+razões técnicas; o conteúdo é o que se pede acima."""
+
+ANCORAS_OBRAS = (
+    (1, r"dire(c)?tor (de|da) obra|equipa tecnica|alvara|habilitac"),
+    (2, r"mapa de quantidades|quantidades|plano de trabalhos|horario|condicionantes"),
+    (3, r"\btecnicos?\b|seguranca|equipamentos?|fornecimento e montagem"),
+)
+INSTRUCOES_OBRAS = PREAMBULO + """
+
+É uma EMPREITADA DE OBRAS. Extrai, das peças (Caderno de Encargos e
+anexos técnicos), com esta estrutura:
+
+Alvará: a categoria, a subcategoria e a classe tal como pedidas, ou —
+Equipa técnica: um bloco por função (director de obra, técnico de
+segurança, e outras), cada um com:
+  Função exacta
+  Formação ou inscrição (Ordem dos Engenheiros, OET, …), ou —
+  Experiência: a expressão exacta, ou —
+  Presença em obra, ou —
+Equipamento a fornecer e montar: qual, se a obra não for só civil, ou —
+Mapa de quantidades: onde está (nome do ficheiro ou anexo), ou —
+Condicionantes do local e do horário, ou —""" + _FIM_DO_CAMPO_11
+
+ANCORAS_BENS = (
+    (1, r"especifica|caracteristicas|artigos?|quantidades|\blotes?\b"),
+    (2, r"entrega|prazo de fornecimento|garantia|assistencia"),
+    (3, r"marca|equivalente|instalacao|formacao"),
+)
+INSTRUCOES_BENS = PREAMBULO + """
+
+É uma AQUISIÇÃO DE BENS. Não há equipa: extrai, das peças (Caderno de
+Encargos e anexos técnicos), com esta estrutura:
+
+Um bloco por artigo ou lote:
+  Designação exacta — quantidade (diz se é firme ou estimada)
+  Características exigidas, uma por linha
+  Marca ou modelo, e se admite «ou equivalente», ou —
+Entrega: o prazo, e o local ou os locais
+Garantia e assistência: meses e tempo de resposta, ou —
+Instalação e formação, ou —
+
+Se há uma lista ou tabela de artigos, passa-a toda.""" + _FIM_DO_CAMPO_11
+
+ANCORAS_MAO_DE_OBRA = (
+    (1, r"postos?|horarios?|turnos?|vigilantes?|equipas?"),
+    (2, r"alvara|habilitac|titulo profissional|cartao|formacao"),
+    (3, r"equipamentos|produtos|supervis|transmiss|trabalhadores"),
+)
+INSTRUCOES_MAO_DE_OBRA = PREAMBULO + """
+
+É um serviço de MÃO-DE-OBRA (limpeza, vigilância, refeições). Extrai,
+das peças (Caderno de Encargos e anexos técnicos), com esta estrutura:
+
+Um bloco por local ou posto:
+  Local — número de pessoas — horário — dias
+Equipas mínimas e supervisão, ou —
+Habilitações: alvará (tipo), título profissional, formação obrigatória
+Equipamentos e produtos a cargo do adjudicatário, ou —
+Regime dos trabalhadores e transmissão de trabalhadores, ou —
+
+Se há uma tabela de postos, horas ou frequências, passa-a toda.""" + _FIM_DO_CAMPO_11
+
+ANCORAS_SERVICOS = (
+    (1, r"niveis? de servico|tempos? de resposta|\bsla\b|assistencia tecnica|manutencao"),
+    (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas"),
+    (3, r"\btecnicos?\b|qualificac|credencia|certifica"),
+)
+INSTRUCOES_SERVICOS = PREAMBULO + """
+
+É uma PRESTAÇÃO DE SERVIÇOS. Extrai o NÍVEL DE SERVIÇO pedido, das
+peças (Caderno de Encargos e anexos técnicos), com esta estrutura:
+
+Âmbito: os equipamentos, sistemas ou coberturas abrangidos, ou —
+Tempos de resposta, por prioridade ou por local, ou —
+Qualificações legais exigidas aos técnicos, ou —
+Volume: bolsa de horas ou quantidades, ou —
+Datas fixas, ou —""" + _FIM_DO_CAMPO_11
+
+# O rotulo na ficha, o que a leitura «não encontrou», as ancoras e a
+# pergunta. A «equipa» usa as da leitura de origem (e o config.json).
+CAMPO_11 = {
+    "equipa": ("Equipa", "requisitos de equipa", None, None),
+    "obras": ("Equipa técnica e alvará", "a equipa técnica nem o alvará",
+              ANCORAS_OBRAS, INSTRUCOES_OBRAS),
+    "bens": ("Artigos e especificações", "a lista de artigos",
+             ANCORAS_BENS, INSTRUCOES_BENS),
+    "mao_de_obra": ("Postos e horários", "os postos e os horários",
+                    ANCORAS_MAO_DE_OBRA, INSTRUCOES_MAO_DE_OBRA),
+    "servicos": ("Nível de serviço", "o nível de serviço",
+                 ANCORAS_SERVICOS, INSTRUCOES_SERVICOS),
+}
+
+
+def familia_do_contrato(tipo, cpv):
+    """O tipo de contrato em cinco famílias, sem modelo
+    (docs/historico/SETORES.md §2): o tipo do anúncio separa obras, bens
+    e serviços, e a divisão do CPV separa os serviços entre si. **Sem
+    tipo nem CPV fica «equipa»**, que é a pergunta de antes -- não se
+    muda o que se lê sem saber porquê."""
+    t = simplifica(tipo or "")
+    codigo = re.sub(r"\D", "", (cpv or "").split(",")[0])
+    if t.startswith("empreitada") or "concessao de obras" in t:
+        return "obras"
+    if t.startswith(("aquisicao de bens", "locacao")):
+        return "bens"
+    if codigo[:4] in ("9091", "7971") or codigo[:2] == "55":
+        return "mao_de_obra"
+    if codigo[:2] in ("72", "71", "73", "80") or codigo[:3] == "794":
+        return "equipa"
+    return "servicos" if (t or codigo) else "equipa"
+
+
+def familia_do_anuncio(texto, cpv):
+    """A família de um anúncio, pelo texto do DR (§6, «Tipo de Contrato
+    Principal») e pelo CPV."""
+    # pelas seccoes, como a ficha: a leitura e o rotulo nao podem divergir
+    return familia_do_contrato(
+        valor_de(seccoes_do_texto(texto or ""), "Tipo de Contrato Principal"), cpv)
+
+
+def leituras_da_familia(leituras, familia):
+    """As leituras com o campo 11 da família: troca as âncoras e a
+    pergunta da «equipa». Na família «equipa» ficam as de origem, com o
+    config.json por cima -- a afinação que lá esteja foi escrita para
+    ela."""
+    _, _, ancoras, instrucao = CAMPO_11.get(familia, CAMPO_11["equipa"])
+    if not instrucao:
+        return list(leituras)
+    return [(n, q, ancoras, instrucao) if n == "equipa" else (n, q, a, i)
+            for n, q, a, i in leituras]
+
 
 # Uma leitura por campo: que documentos ler, onde procurar, o que pedir.
 LEITURAS = (
@@ -6692,6 +6936,25 @@ RX_PECA_ENCARGOS_EXTENSO = re.compile(r"caderno|encargos")
 RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|procedimento")
 
 
+# Os anexos tecnicos (28/09/2026): a especificacao, o anexo tecnico, a
+# memoria descritiva, o mapa de quantidades, o cadastro dos equipamentos,
+# a lista de precos unitarios. Ficavam fora de todos os pedidos, porque o
+# nome nao diz «caderno» nem «programa» -- 88 de 235 documentos com texto
+# nao iam a lado nenhum. O «.?» no lugar do acento: as plataformas
+# entregam «Anexo_T_cnico» e «Pre_os_Unit_rios». O «Lista.pdf» fica de
+# fora de proposito: numa plataforma e o indice das pecas.
+RX_PECA_TECNICA = re.compile(
+    r"especifica|t.?cnic|memoria descritiva|mapa|quantidades|\bmqt\b|"
+    r"cadastro|tarefas|pre.?os.?unit|\blpu\b|conformidade|caracteristicas|"
+    r"patrimonio|sinistralidade")
+# O que tem o nome de tecnico e e da proposta ou do procedimento: o
+# formulario da proposta tecnica, o DEUCP, a garantia, uma resposta a
+# esclarecimentos.
+RX_NAO_TECNICA = re.compile(
+    r"proposta|formulario|declarac|minuta|garantia|caucao|espd|deucp|"
+    r"resposta|esclarec")
+
+
 def papeis_da_peca(nome):
     """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF."""
     n = simplifica(nome)
@@ -6703,6 +6966,8 @@ def papeis_da_peca(nome):
         papeis.add("encargos")
     if programa.search(n):
         papeis.add("programa")
+    if RX_PECA_TECNICA.search(n) and not RX_NAO_TECNICA.search(n):
+        papeis.add("tecnico")
     return papeis
 
 
@@ -6714,6 +6979,12 @@ def documentos_com_texto(ref):
             # que ele extraiu na altura e texto a serio e continua a servir.
             "AND texto_estado IN ('ok','ocr') "
             "AND texto != '' ORDER BY nome", (ref,)).fetchall()
+
+
+# O que cada leitura le, pelo papel da peca. O Caderno de Encargos leva
+# os anexos tecnicos (28/09/2026): e la que estao a lista dos artigos, a
+# especificacao e o mapa de quantidades.
+PAPEIS_DA_LEITURA = {"encargos": ("encargos", "tecnico")}
 
 
 def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
@@ -6732,16 +7003,22 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     # E num ZIP de nome de peca, o mesmo: os ficheiros de dentro que sao
     # da peca, e nao os anexos que vem com eles; so se nenhum de dentro
     # o for e que vai o ZIP inteiro, como ate aqui.
+    alvo = set(PAPEIS_DA_LEITURA.get(quais, (quais,)))
+
+    def serve(nome):
+        return bool(alvo & papeis_da_peca(os.path.basename(nome)))
+
     abertos = []
     for d in docs:
         escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx}
-                      for n, tx in ficheiros_no_texto(d["texto"])
-                      if quais in papeis_da_peca(os.path.basename(n))]
+                      for n, tx in ficheiros_no_texto(d["texto"]) if serve(n)]
         abertos += escolhidos or [d]
-    docs = abertos
+    # A peca antes dos anexos: o recorte e cortado no fim, e um anexo
+    # nao pode tirar o lugar ao Caderno de Encargos.
+    docs = sorted((d for d in abertos if serve(d["nome"])),
+                  key=lambda d: quais not in papeis_da_peca(
+                      os.path.basename(d["nome"])))
     for d in docs:
-        if quais not in papeis_da_peca(os.path.basename(d["nome"])):
-            continue
         limpo = sem_indice(d["texto"])
         partes.append("### %s\n%s" % (
             d["nome"],
@@ -6994,7 +7271,16 @@ def analisar_pecas(ref):
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
                        "na pasta do radar")
 
-    leituras = leituras_activas()      # as de origem, com o config por cima
+    # O que ficou por extrair extrai-se antes (28/09/2026): o Excel e os
+    # ZIP que a migracao `pecas_em_excel` voltou a por ler. Sem nada por
+    # ler e uma consulta so.
+    extrair_textos(ref)
+    with liga() as c:
+        a = c.execute("SELECT texto, cpv FROM anuncios WHERE ref=?",
+                      (ref,)).fetchone()
+    familia = familia_do_anuncio(a["texto"], a["cpv"]) if a else "equipa"
+    # as de origem, com o config por cima, e o campo 11 da familia
+    leituras = leituras_da_familia(leituras_activas(), familia)
     docs = documentos_com_texto(ref)
     recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
                 for nome, quais, ancoras, instrucao in leituras]
@@ -23892,6 +24178,13 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     # Lido o Programa e nao havendo limiar, isso e uma resposta -- e nao a
     # mesma coisa que ainda nao se ter ido ver.
     anormal = das_pecas("preco_anormalmente_baixo")
+    # O campo 11 conforme o tipo de contrato (docs/historico/MAPA.md).
+    try:
+        cpv = a["cpv"]
+    except (KeyError, IndexError):
+        cpv = ""
+    rotulo_11, falta_11 = CAMPO_11[familia_do_contrato(
+        v("Tipo de Contrato Principal"), cpv)][:2]
     anormal_falta = "" if anormal else (
         "o Programa do Concurso foi lido e a leitura não encontrou nenhum: "
         "confirmar no documento"
@@ -23931,10 +24224,10 @@ def essencial_do_anuncio(a, seccoes, analise=None):
          ("o Caderno de Encargos foi lido e a leitura não encontrou a "
           "descrição: confirmar no documento"
           if foi_lido("objecto") else FALTA_CE), nota_pecas),
-        ("Equipa", das_pecas("equipa"),
+        (rotulo_11, das_pecas("equipa"),
          "" if das_pecas("equipa") else
          ("o Caderno de Encargos foi lido e a leitura não encontrou "
-          "requisitos de equipa: confirmar no documento"
+          "%s: confirmar no documento" % falta_11
           if foi_lido("equipa") else FALTA_CE), nota_pecas),
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
          "" if das_pecas("documentos_proposta") else

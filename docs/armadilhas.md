@@ -274,6 +274,18 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   leitura, e a migração que os voltou a pôr por ler não os lê — lêem-se
   quando alguém pedir as peças ou a leitura desse concurso.
 
+- **Um `.xlsx` é um ZIP por dentro** (28/09/2026). O `extrair_textos()`
+  perguntava «é ZIP?» antes de perguntar «é Excel?», abria-o como
+  pacote, não achava PDF nenhum e dava «não é PDF» — um veredicto, que
+  não se retenta. Assim ficaram por ler 24 mapas de quantidades,
+  cadastros e listas de preços. O ramo do Excel vem **antes** do do ZIP,
+  e a migração `pecas_em_excel` pôs por ler, uma vez, os Excel e os ZIP
+  já lidos que estão em disco — **sem ler no arranque**, como os `.7z`:
+  quem os lê é o `analisar_pecas()`, que agora extrai antes de ler. Um
+  Excel que não abre é «não é PDF», não «erro:» — um erro retentava-se
+  a cada leitura. O `openpyxl` avisa, ao ler as linhas, de cabeçalhos
+  que não percebe: cala-se dentro do `texto_do_xlsx()`.
+
 - **"Abrir plataforma" não é o link das peças.** O DR nunca publica o
   endereço da página do procedimento: traz a raiz da plataforma e o
   link das peças, e o botão abria o segundo — na acingov isso
@@ -424,6 +436,26 @@ Orçamento, cadeia de reserva, chaves.
   comando está a pedir que se leia o que falta.
   **Os outros dois becos ficam**: sem plataforma conhecida é manual, sem
   texto extraível não há nada. São limites das fontes, não do radar.
+
+- **A leitura escolhe as peças pelo nome, e o nome vem estropiado**
+  (28/09/2026). Só iam ao modelo os ficheiros com «caderno» ou
+  «programa» no nome: 88 de 235 documentos com texto não iam a pedido
+  nenhum, e eram os anexos técnicos. O papel `tecnico` do
+  `papeis_da_peca()` apanha-os, e o objecto e o campo 11 lêem-nos
+  (`PAPEIS_DA_LEITURA`), **com o CE à frente** — o recorte corta no fim,
+  e um anexo não pode tirar o lugar ao Caderno de Encargos. Duas
+  ciladas: as plataformas entregam «Anexo_T_cnico» e
+  «Pre_os_Unit_rios», por isso a expressão leva `.?` no lugar do
+  acento; e o `Lista.pdf` **não** é anexo técnico — numa plataforma é o
+  índice das peças (`TestPapeisDaPeca`), noutra é a lista dos artigos.
+  Fica de fora; o índice mandava ao modelo lixo com ar de lista.
+
+- **O campo 11 é uma coluna e cinco perguntas** (28/09/2026). A
+  resposta de todas vai para `analise.equipa`, e por isso todas pedem
+  `{"equipa": ...}` (`TestCampo11PorTipo`). O rótulo da ficha sai do
+  tipo do anúncio **no momento em que se mostra**, não de quando se
+  leu: uma leitura antiga de uma obra, feita com a pergunta de TI,
+  aparece sob «Equipa técnica e alvará» até ser relida.
 
 - **Orçamento do modelo, não contexto.** O tecto da conta Groq são 8000
   tokens/minuto, e é ele que manda no tamanho do pedido — daí
