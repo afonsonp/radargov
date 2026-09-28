@@ -6384,6 +6384,14 @@ GROQ_MODELO = "openai/gpt-oss-120b"
 # um 400 por um parametro a mais tirava o fornecedor da cadeia.
 FORNECEDORES = (
     ("groq", GROQ_URL, GROQ_MODELO, NOMES_CHAVE, "GROQ_API_KEY", {}),
+    # A reserva na propria Groq (28/09/2026): o tecto diario e POR
+    # MODELO, e o 20b tem o seu. Respondeu a um pedido da equipa em 2 s,
+    # no formato pedido. Veio porque a NVIDIA deixou de servir: o
+    # gpt-oss-120b de la saiu a 3/09/2026 (410, «end of life»), e os
+    # modelos que la ficaram nao responderam em 4 minutos -- ha quase um
+    # mes que so a Groq lia, e o dia acabava quando ela acabava.
+    ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
+     {"reasoning_effort": "low"}),
     ("nvidia", "https://integrate.api.nvidia.com/v1/chat/completions",
      "openai/gpt-oss-120b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY",
      {"reasoning_effort": "low"}),
@@ -6400,9 +6408,12 @@ FORNECEDORES = (
 # de Encargos" -- que e verdade e nao serve para nada. Separados, a
 # equipa disputa 5 titulos em vez de 21, e quatro deles sao a zona
 # certa.
-# 7000 caracteres sao ~2 mil tokens (o portugues destes documentos anda
-# nos 3,5 caracteres por token); tres pedidos cabem no tecto de 8000 por
-# minuto.
+# 7000 caracteres sao ~2 500 tokens: o portugues destes documentos anda
+# nos 2,75 caracteres por token, medido a 28/09/2026 na Groq (12 400
+# caracteres, 4 491 tokens) -- e nao nos 3,5 que aqui se supunha. Por
+# isso o pedido inteiro nao passa de 1,5 x isto: com 2 x, mais as
+# instrucoes e a resposta, chegava aos 7 400 tokens e a Groq recusava-o
+# (413) contra o tecto de 8000 por minuto.
 TECTO_RECORTE = 7000
 
 # Onde e que mora cada campo. O numero e a prioridade: quando o
@@ -7126,6 +7137,8 @@ PAPEIS_DA_LEITURA = {"encargos": ("encargos", "tecnico")}
 # todos com «nao consta» na leitura); e o preco anormalmente baixo, no
 # Caderno de Encargos.
 SECUNDARIAS_DA_LEITURA = {"encargos": ("programa",), "programa": ("encargos",)}
+# O que uma peca aberta por acrescento pode levar: uma zona.
+TECTO_SECUNDARIA = 2500
 
 
 def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
@@ -7176,20 +7189,24 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
         if assinatura in vistos:
             continue
         vistos.add(assinatura)
-        if e_secundaria(d["nome"]):
-            janelas = _janelas_do_recorte(limpo, ancoras, tecto)
-            if not janelas:
-                continue
+        # A secundaria leva um tecto seu, pequeno (28/09/2026): com o
+        # tecto da peca, enchia o pedido ate aos 14 mil caracteres em
+        # quase todos os concursos -- o dobro de antes --, gastava o
+        # orcamento do dia a dobrar e batia no limite de tamanho da Groq
+        # (413). A resposta dela, quando la esta, e uma zona: cabe aqui.
+        teto = TECTO_SECUNDARIA if e_secundaria(d["nome"]) else tecto
+        if teto != tecto and not _janelas_do_recorte(limpo, ancoras, teto):
+            continue
         partes.append("### %s\n%s" % (
             d["nome"],
-            recorte_relevante(limpo, ancoras, tecto)))
+            recorte_relevante(limpo, ancoras, teto)))
         # A fonte leva as paginas do recorte (B12), quando o texto tem
         # as marcas; e por leitura, por isso o mesmo CE pode aparecer
         # nas fontes com paginas diferentes -- objecto e equipa leem
         # zonas diferentes, e e isso mesmo que se quer declarar.
         usados.append(rotulo_com_paginas(
-            d["nome"], paginas_do_recorte(limpo, ancoras, tecto)))
-    return "\n\n".join(partes)[:tecto * 2], usados
+            d["nome"], paginas_do_recorte(limpo, ancoras, teto)))
+    return "\n\n".join(partes)[:int(tecto * 1.5)], usados
 
 
 def limpa_campo(valor):
@@ -20114,7 +20131,7 @@ def config_leitura():
     opcoes = "".join(
         "<option value='%s'%s>%s</option>"
         % (v, " selected" if v == (cfg.get("fornecedor_pecas") or "") else "", t)
-        for v, t in [("", "a cadeia, por ordem (Groq → NVIDIA → OpenRouter)")]
+        for v, t in [("", "a cadeia, por ordem (%s)" % " → ".join(nomes_forn))]
         + [(n, n) for n in nomes_forn])
     linhas = []
     for nome, _, omissao, ficheiros, variavel, _ in FORNECEDORES:
@@ -31366,7 +31383,7 @@ def main():
         for i, ref in enumerate(porler, 1):
             ini = time.time()
             ok, porque = analisar_pecas(ref)
-            estado = porque[:80] if porque else "lido"
+            estado = porque[:240] if porque else "lido"
             print("  [%d/%d] %-14s %s (%.0fs)" % (
                 i, len(porler), ref, estado, time.time() - ini))
             lidos += 1 if ok and not porque else 0

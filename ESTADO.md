@@ -242,6 +242,7 @@ Julgar se a leitura das peças pelo modelo presta. **Julgado a
 perfis diferentes passaram as 70 leituras a pente, e **não prestava
 para decidir sem abrir as peças** — o defeito era o «não consta» falso,
 porque a resposta não chegava ao modelo (20 de 55 passagens). As
-correcções desse dia põem 46 de 55 a chegar, e a ficha passou a marcar
+correcções desse dia põem 44 de 55 a chegar (com pedidos que cabem no
+limite da Groq), e a ficha passou a marcar
 a leitura como rascunho. **Falta reler as 70 com o código novo e voltar
 a julgá-las**; até lá, a leitura não se anuncia.
