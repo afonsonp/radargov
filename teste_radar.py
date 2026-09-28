@@ -410,7 +410,9 @@ class TestCriterioDeAdjudicacao(unittest.TestCase):
 
 
 class TestTabelaEssencial(unittest.TestCase):
-    """Os 12 campos que o Afonso quer ver ao abrir um concurso."""
+    """Os campos que o Afonso quer ver ao abrir um concurso: eram 12, e
+    a habilitação (o alvará) e a caução do anúncio fizeram-nos 14
+    (28/09/2026, a validação das leituras)."""
 
     TEXTO = """
 9 - LOCAL DA EXECUÇÃO DO CONTRATO
@@ -444,8 +446,8 @@ Nome: Preço
             radar.seccoes_do_texto(texto if texto is not None else self.TEXTO),
             analise)
 
-    def test_tem_os_doze_campos(self):
-        self.assertEqual(len(self.tabela()), 12)
+    def test_tem_os_catorze_campos(self):
+        self.assertEqual(len(self.tabela()), 14)
 
     def test_preenche_o_que_vem_do_anuncio(self):
         d = {r: v for r, v, _, _ in self.tabela()}
@@ -479,7 +481,7 @@ Nome: Preço
         # calculada pela regra supletiva do CCP.
         faltam = {r for r, _, f, _ in self.tabela() if f}
         self.assertEqual(faltam, {
-            "Preço anormalmente baixo",
+            "Preço anormalmente baixo", "Habilitação (alvará)", "Caução",
             "Objecto, âmbito e características", "Equipa",
             "Documentos que constituem a proposta"})
 
@@ -761,10 +763,12 @@ class TestJuntarLeituras(unittest.TestCase):
         junto = radar.juntar_leituras({"equipa": "não consta"}, self.ANTES)
         self.assertEqual(junto["equipa"], "não consta")
 
-    def test_sem_leitura_anterior_fica_vazio(self):
+    def test_sem_leitura_anterior_fica_por_ler(self):
+        # None e nao "" desde 28/09/2026: "" fazia a ficha dizer que a
+        # peca foi lida (TestORecorteLevaAResposta)
         junto = radar.juntar_leituras({"objecto": "- fazer X"}, None)
         self.assertEqual(junto["objecto"], "- fazer X")
-        self.assertEqual(junto["equipa"], "")
+        self.assertIsNone(junto["equipa"])
 
     def test_devolve_sempre_os_quatro_campos(self):
         self.assertEqual(set(radar.juntar_leituras({}, None)),
@@ -813,6 +817,20 @@ class TestPapeisDaPeca(unittest.TestCase):
         for nome in ("2_Programa_do_Procedimento.pdf", "ProgramaConcurso.pdf",
                      "EPVL_CPi02-2627_ProgramaConsurso-Energia_signed.pdf"):
             self.assertEqual(radar.papeis_da_peca(nome), {"programa"}, nome)
+
+    def test_os_nomes_que_a_validacao_encontrou(self):
+        # 28/09/2026: quatro agentes compararam as 70 leituras com as pecas,
+        # e estes quatro ficavam por ler -- o Caderno da ESPAP como
+        # «Anexo.1-CdE», o da Marinha como «CADE», o Programa com a gralha
+        # da propria entidade, e o Convite que faz de Programa na consulta
+        self.assertEqual(radar.papeis_da_peca(
+            "09. 2026_P389-Operacao.24x7-Anexo.1-CdE.pdf"), {"encargos"})
+        self.assertEqual(radar.papeis_da_peca(
+            "1_3026009118_20260914_CADE_DITIC_signed.pdf"), {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("3_Pograma_de_Concurso.pdf"),
+                         {"programa"})
+        self.assertEqual(radar.papeis_da_peca(
+            "9-14_Convite_ Visita de estudo a Bruxelas.pdf"), {"programa"})
 
     def test_siglas(self):
         # ficavam por ler com o texto ja extraido e ali a jeito
@@ -1055,6 +1073,119 @@ class TestRecorteRelevante(unittest.TestCase):
         d = "Texto sem titulos nenhuns. " * 300
         r = radar.recorte_relevante(d, radar.ANCORAS_OBJECTO, 500)
         self.assertEqual(r, d[:500])
+
+
+class TestORecorteLevaAResposta(unittest.TestCase):
+    """O que chega ao modelo tem de conter a resposta (28/09/2026).
+
+    Quatro agentes compararam as 70 leituras com as peças, e das 59
+    passagens que provaram lá estar só 20 chegavam ao modelo. Cada teste é
+    uma das causas medidas nesse dia."""
+
+    NL = chr(10)
+
+    def rotina(self, n=20):
+        return "".join(("Cláusula %d - Penalidades" % i) + self.NL +
+                       "Texto de rotina. " * 60 + self.NL for i in range(1, n))
+
+    def test_a_frase_da_lista_vale_sem_ser_titulo(self):
+        # «...pelos seguintes documentos:» acaba em dois pontos, nao e
+        # titulo, e so os titulos ancoravam
+        d = (self.rotina() + "2. A proposta deve ser constituída, sob pena de "
+             "exclusão, pelos seguintes documentos:" + self.NL +
+             "a) Declaração de aceitação do Anexo I" + self.NL + self.rotina(5))
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 4000)
+        self.assertIn("Declaração de aceitação do Anexo I", r)
+
+    def test_o_sumario_nao_leva_a_janela(self):
+        # «7. DOCUMENTOS DA PROPOSTA 5», no sumario sem pontinhos, vinha
+        # primeiro e ficava com a janela do artigo
+        d = ("7. DOCUMENTOS DA PROPOSTA 5" + self.NL + "8. PREÇO 6" + self.NL +
+             self.rotina() + "7. Documentos da proposta" + self.NL +
+             "a) DEUCP" + self.NL + self.rotina(5))
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 3000)
+        self.assertIn("a) DEUCP", r)
+
+    def test_a_tabela_do_fim_nao_e_cortada(self):
+        # o orcamento cortava pela ordem do documento: a tabela dos perfis
+        # no ultimo anexo era escolhida e depois deitada fora
+        perfis = "".join("Experiência mínima de %d anos como Business Analyst" % n
+                         + self.NL for n in range(3, 9))
+        d = ("Perfil" + self.NL + "Texto sobre o perfil do concorrente. " * 40 +
+             self.NL + self.rotina() + "ANEXO III – PERFIS DO PROCEDIMENTO" +
+             self.NL + perfis)
+        r = radar.recorte_relevante(d, radar.ANCORAS_EQUIPA, 3000)
+        self.assertIn("5 anos como Business Analyst", r)
+        self.assertLessEqual(len(r), 3000)
+
+    def test_o_mesmo_documento_duas_vezes_conta_uma(self):
+        # o PDF e o mesmo Caderno dentro do ZIP gastavam metade do recorte
+        texto = "Cláusula 1 - Objeto" + self.NL + "Fornecer licenças." + self.NL
+        docs = [{"nome": "Caderno_de_Encargos.pdf", "texto": texto},
+                {"nome": "Caderno de Encargos rev 1.pdf", "texto": texto}]
+        _, usados = radar.pecas_para_analise(docs, "encargos", radar.ANCORAS_OBJECTO)
+        self.assertEqual(len(usados), 1, usados)
+
+    def test_a_equipa_procura_tambem_no_programa(self):
+        # as certificacoes exigidas estavam no Programa, e a leitura da
+        # equipa so abria o Caderno: «nao consta»
+        ce = "Cláusula 1 - Objeto" + self.NL + "Prestar serviços." + self.NL
+        pp = (self.rotina(5) + "Requisitos mínimos da equipa" + self.NL +
+              "Certificação em ISO 27001 Lead Implementer" + self.NL)
+        docs = [{"nome": "Caderno_de_Encargos.pdf", "texto": ce},
+                {"nome": "Programa_do_Concurso.pdf", "texto": pp}]
+        recorte, _ = radar.pecas_para_analise(docs, "encargos", radar.ANCORAS_EQUIPA)
+        self.assertIn("Lead Implementer", recorte)
+
+    def test_o_programa_sem_ancoras_nao_entra_pelo_principio(self):
+        # uma peca que se abre por acrescento so da o que as ancoras
+        # apanharem: o principio do Programa nao e resposta nenhuma
+        ce = "Cláusula 1 - Objeto" + self.NL + "Prestar serviços." + self.NL
+        pp = "Artigo 1 - Disposições gerais" + self.NL + "Nada. " * 50
+        docs = [{"nome": "Caderno_de_Encargos.pdf", "texto": ce},
+                {"nome": "Programa_do_Concurso.pdf", "texto": pp}]
+        recorte, usados = radar.pecas_para_analise(docs, "encargos",
+                                                   radar.ANCORAS_OBJECTO)
+        self.assertNotIn("Disposições gerais", recorte)
+        self.assertEqual(usados, ["Caderno_de_Encargos.pdf"])
+
+    def test_sem_leitura_a_peca_em_falta_nao_passa_por_lida(self):
+        # o campo que nao se leu fica None: com "" a ficha dizia «o
+        # Programa foi lido e nao encontrou a lista» sem Programa nenhum
+        junto = radar.juntar_leituras({"objecto": "- fazer X"}, None)
+        self.assertIsNone(junto["documentos_proposta"])
+
+
+class TestHabilitacaoECaucaoDoAnuncio(unittest.TestCase):
+    """O alvará e a caução estão no anúncio do DR (§12 e §14), e faltavam
+    em todas as fichas das obras (28/09/2026, a validação das leituras)."""
+
+    def seccoes(self, habilitacao, caucao):
+        return [("12", "DOCUMENTOS DE HABILITAÇÃO", habilitacao),
+                ("14", "PRESTAÇÃO DE CAUÇÃO", caucao)]
+
+    def test_o_alvara_com_a_categoria(self):
+        s = self.seccoes(
+            [("Habilitação para o exercício da atividade profissional", "Sim"),
+             ("Tipo", "Alvará"),
+             ("Descrição", "1.ª Subcategoria da 2.ª Categoria, classe 4")],
+            [("Prestação de caução", "Não")])
+        self.assertEqual(radar.habilitacao_do_anuncio(s),
+                         "Alvará — 1.ª Subcategoria da 2.ª Categoria, classe 4")
+        self.assertEqual(radar.caucao_do_anuncio(s), "Não")
+
+    def test_a_caucao_com_a_percentagem(self):
+        s = self.seccoes(
+            [("Habilitação para o exercício da atividade profissional", "Não")],
+            [("Prestação de caução", "Sim"), ("Percentagem", "5%"),
+             ("Descrição da Garantia Exigida", "garantia bancária")])
+        self.assertEqual(radar.habilitacao_do_anuncio(s), "Não exigida no anúncio")
+        self.assertEqual(radar.caucao_do_anuncio(s), "Sim, 5% — garantia bancária")
+
+    def test_sem_as_seccoes_fica_vazio(self):
+        # vazio, e nao «Nao»: o anuncio nao disse nada, e a ficha diz isso
+        self.assertEqual(radar.habilitacao_do_anuncio([]), "")
+        self.assertEqual(radar.caucao_do_anuncio([]), "")
 
 
 class TestLimpaCampo(unittest.TestCase):
@@ -3775,6 +3906,15 @@ class TestTabelaEssencialDepoisDeLido(unittest.TestCase):
                   if k != "equipa"}
         self.assertEqual(self.campo("Equipa", antiga)[2], radar.FALTA_CE)
 
+    def test_peca_que_faltava_nao_passa_por_lida(self):
+        # 28/09/2026: a leitura correu sem o Programa entre as pecas, e a
+        # ficha dizia «o Programa do Concurso foi lido e a leitura nao
+        # encontrou a lista» -- o jurista contou 3 casos em 17
+        sem_programa = dict(self.LIDO_SEM_NADA, documentos_proposta=None)
+        falta = self.campo("Documentos que constituem a proposta", sem_programa)[2]
+        self.assertIn("não está entre as peças descarregadas", falta)
+        self.assertNotIn("foi lido", falta)
+
     def test_documentos_lidos_apontam_para_o_programa(self):
         falta = self.campo("Documentos que constituem a proposta",
                            self.LIDO_SEM_NADA)[2]
@@ -4261,8 +4401,8 @@ class TestCampo11PorTipo(unittest.TestCase):
         linhas = radar.essencial_do_anuncio(
             TestTabelaEssencial.ANUNCIO, radar.seccoes_do_texto(texto),
             TestTabelaEssencialDepoisDeLido.LIDO_SEM_NADA)
-        self.assertEqual(len(linhas), 12)
-        rotulo, _, falta, _ = linhas[10]
+        self.assertEqual(len(linhas), 14)
+        rotulo, _, falta, _ = linhas[12]
         self.assertEqual(rotulo, "Equipa técnica e alvará")
         self.assertIn("a equipa técnica nem o alvará", falta)
 

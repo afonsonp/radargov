@@ -532,10 +532,16 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   por isso o botão diz **Procurar na acingov** e abre a pesquisa
   pública — em vez de prometer o que não existe.
 
-**Essencial** mostra uma tabela com os doze campos que interessam para
-decidir: nome, entidade, critério de adjudicação, preço base, preço
-anormalmente baixo, duração, local, data de esclarecimentos, data de
+**Essencial** mostra uma tabela com os catorze campos que interessam
+para decidir: nome, entidade, critério de adjudicação, preço base, preço
+anormalmente baixo, a **habilitação** (o alvará, com a categoria e a
+classe) e a **caução** — estas duas tiradas do anúncio, desde
+28/09/2026 —, duração, local, data de esclarecimentos, data de
 submissão, objecto, equipa e documentos que constituem a proposta.
+O que vem da leitura das peças leva a nota **«é um rascunho: confirmar
+no documento antes de decidir»**: a leitura automática falha mais por
+omitir do que por inventar, e um «a leitura não encontrou» pode ser uma
+parte das peças que não leu.
 Os que não têm valor **não ocupam linha**: ficam numa frase por baixo
 da tabela, agrupados pela razão («só consta do Programa de Concurso:
 …; só consta do Caderno de Encargos: …»), com a ligação para as peças.
