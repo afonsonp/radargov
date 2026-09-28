@@ -420,7 +420,9 @@ aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
 ### 3.6 As peças, e o que o modelo lê
 
-**Os ZIP abrem-se por dentro** (23/09/2026): todos, até três níveis de ZIP dentro de ZIP, com os PDF e os `.docx` lidos; de um ZIP, o modelo recebe só os ficheiros de dentro que são o Caderno de Encargos ou o Programa. Os `.7z` também (`py7zr`), lidos quando se pedem as peças ou a leitura do concurso.
+**Os ZIP abrem-se por dentro** (23/09/2026): todos, até três níveis de ZIP dentro de ZIP, com os PDF, os `.docx` e (desde 28/09/2026) o **Excel** lidos; de um ZIP, o modelo recebe só os ficheiros de dentro que são o Caderno de Encargos, o Programa ou um anexo técnico. Os `.7z` também (`py7zr`), lidos quando se pedem as peças ou a leitura do concurso.
+
+**O Excel lê-se** (28/09/2026): os `.xlsx` e `.xlsm`, pelo `openpyxl` (`texto_do_xlsx()`), uma linha por linha da folha e uma «página» por folha. É lá que estão os mapas de quantidades, os cadastros dos equipamentos e as listas de preços unitários. O `.xls` antigo **não** — pedia outra biblioteca, e eram 2 em 24.
 
 **A leitura é da plataforma, e partilhada** (F7, 23/09/2026; decisão
 dele: o que poupa custos e não é de uma empresa é de todas). Uma leitura
@@ -441,8 +443,34 @@ Dispara ao pôr um concurso em «Por analisar» — é esse o sinal de que se
 vai trabalhar nele. **Os ficheiros ficam em disco (`pecas/`), não
 na base**, para o `radar.db` não crescer com PDF.
 
-**Ler.** Um modelo lê o CE e o PC e preenche **três campos**:
+**Ler.** Um modelo lê o CE (com os **anexos técnicos**, desde
+28/09/2026) e o PC e preenche **três campos**:
 `objecto`, `equipa`, `documentos_proposta` (`CAMPOS_LIDOS_PELO_MODELO`).
+
+**O campo 11 muda com o tipo de contrato** (28/09/2026, o
+`docs/historico/MAPA.md`). O tipo sai do anúncio e do CPV, sem modelo
+(`familia_do_contrato()`), e cada um tem a sua pergunta, as suas âncoras
+e o seu rótulo na ficha (`CAMPO_11`):
+
+| Tipo | Na ficha | O que se pede |
+|---|---|---|
+| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa |
+| Obras | Equipa técnica e alvará | Alvará, equipa técnica, equipamento a montar, mapa de quantidades, condicionantes |
+| Bens | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
+| Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
+| Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
+
+Sem tipo nem CPV fica «Equipa», a pergunta de antes. A resposta vai
+sempre para a coluna `analise.equipa`; a afinação do `config.json` para
+a `equipa` vale só para a família «equipa». **As leituras antigas não se
+refazem de uma vez**: vão-se relendo (decisão dele).
+
+**Os anexos técnicos** reconhecem-se pelo nome (`RX_PECA_TECNICA`):
+especificação, anexo técnico, memória descritiva, mapa de quantidades,
+cadastro, lista de preços unitários. Ficam de fora os formulários da
+proposta, o DEUCP, as garantias e as respostas a esclarecimentos
+(`RX_NAO_TECNICA`), e o `Lista.pdf`, que numa plataforma é o índice das
+peças.
 São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
 (`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` (Groq →
