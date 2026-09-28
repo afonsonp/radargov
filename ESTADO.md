@@ -232,7 +232,11 @@ ensaio de restauro.
 
 ## O ponto que falta para a v1
 
-Julgar se a leitura das peças pelo modelo presta. A ferramenta existe
-(`ensaio-de-leitura <ref>`, que põe cada linha da resposta ao lado do
-pedaço do documento que a sustenta) e há 44 leituras feitas, 7 delas
-incompletas. Falta passá-las a pente.
+Julgar se a leitura das peças pelo modelo presta. **Julgado a
+28/09/2026** (`docs/historico/LEITURA-VALIDADA.md`): quatro agentes com
+perfis diferentes passaram as 70 leituras a pente, e **não prestava
+para decidir sem abrir as peças** — o defeito era o «não consta» falso,
+porque a resposta não chegava ao modelo (20 de 55 passagens). As
+correcções desse dia põem 46 de 55 a chegar, e a ficha passou a marcar
+a leitura como rascunho. **Falta reler as 70 com o código novo e voltar
+a julgá-las**; até lá, a leitura não se anuncia.

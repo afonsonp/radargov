@@ -179,7 +179,7 @@ daquilo em que realmente trabalhas.
 
 ## A leitura das peças por um modelo
 
-Quatro dos doze campos do essencial não existem no anúncio do DR: o
+Quatro dos catorze campos do essencial não existem no anúncio do DR: o
 **objecto** decomposto, a **equipa** exigida, os **documentos que
 constituem a proposta** e o **preço anormalmente baixo**. Vivem no
 Caderno de Encargos e no Programa. Um modelo lê-os e a tabela fica

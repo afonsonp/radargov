@@ -476,6 +476,23 @@ cadastro, lista de preços unitários. Ficam de fora os formulários da
 proposta, o DEUCP, as garantias e as respostas a esclarecimentos
 (`RX_NAO_TECNICA`), e o `Lista.pdf`, que numa plataforma é o índice das
 peças.
+
+**O que chega ao modelo** (28/09/2026, `docs/historico/LEITURA-VALIDADA.md`).
+Cada peça dá um recorte de até `TECTO_RECORTE` caracteres, feito das
+zonas onde as âncoras se juntam: os títulos, e as frases do corpo que
+dizem a resposta («…pelos seguintes documentos:»), escolhidas pela
+**densidade** e cortadas no orçamento. O título que se repete (o
+sumário) cede ao do corpo; o mesmo documento duas vezes conta uma. A
+leitura do Caderno abre também o Programa, e a do Programa o Caderno,
+mas só pelo que as âncoras apanharem (`SECUNDARIAS_DA_LEITURA`).
+Medido com 55 passagens que se provou estarem nas peças: chegavam 20,
+chegam 46.
+
+**Na ficha, a leitura é um rascunho.** Cada linha lida diz de que peças
+e páginas veio e «é um rascunho: confirmar no documento antes de
+decidir». «A leitura não encontrou» quer dizer que não encontrou nas
+zonas que leu; e quando a peça nem estava entre as descarregadas, a
+ficha di-lo em vez de dizer que a leu.
 São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
 (`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` (Groq →
@@ -825,7 +842,9 @@ o título inteiro com as acções à direita, a entidade por baixo), a
 **escada em quatro passos** (Interessa · Em preparação · Submetida ·
 Decidida) e o **índice em pílulas**; nada disto fica preso ao rolar. Tem:
 
-- Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes)
+- Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes),
+  e no essencial a **habilitação** (o alvará, §12 do anúncio) e a
+  **caução** (§14), desde 28/09/2026
 - O **texto** do anúncio
 - As **peças** do procedimento, que **abrem dentro da ficha** (PDF, com
   pesquisa)

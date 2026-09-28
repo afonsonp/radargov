@@ -6408,7 +6408,20 @@ TECTO_RECORTE = 7000
 # Onde e que mora cada campo. O numero e a prioridade: quando o
 # orcamento acaba, corta-se pelos 3 antes de tocar nos 1.
 # Comparadas contra simplifica(): sem acentos e em minusculas.
+#
+# O peso 0 e outra coisa (28/09/2026): uma FRASE do corpo que diz a
+# resposta, e que vale mesmo sem ser titulo. Ate aqui so os titulos
+# ancoravam, e «2. A proposta deve ser constituida, sob pena de
+# exclusao, pelos seguintes documentos:» acaba em dois pontos -- nao e
+# titulo, e a lista ficava fora do recorte. Medido nesse dia com a
+# regua das 59 passagens que quatro agentes provaram nas pecas: so 20
+# chegavam ao modelo, e 22 das que faltavam estavam num documento que
+# ia, mas fora das janelas. O peso 0 leva uma janela mais curta
+# (JANELA_FORTE) e vai a frente no orcamento.
 ANCORAS_OBJECTO = (
+    (0, r"local (de|da|do|onde) (execucao|prestacao|entrega|realiza|fornecimento)|"
+        r"nas instalacoes d|regime (hibrido|presencial|remoto|misto)|\bteletrabalho|"
+        r"tem por objec?to|constitui objec?to"),
     (1, r"objec?to\b|\bsolucao|\bambito|enquadramento"),
     # O regime -- presencial, remoto ou hibrido -- vem no mesmo pedido que
     # o objecto, por ser o mesmo documento. Prioridade 1 para nao ser o
@@ -6419,6 +6432,10 @@ ANCORAS_OBJECTO = (
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
 )
 ANCORAS_EQUIPA = (
+    (0, r"perfis? (minimos?|obrigatorios?|exigidos?|profissionais)|composta,? no minimo|"
+        r"equipa minima|meios humanos|anos de experiencia|"
+        r"experiencia (profissional )?minima|lead (auditor|implementer)|"
+        r"certificacao (em|obrigatoria)|\bpmp\b"),
     (1, r"\bequipa|perfil|profissiona|recursos humanos|senioridade"),
     (2, r"composicao|afetacao|alocacao|quadro de pessoal"),
     # O pessoal que a lei obriga a ter qualificação (segunda ronda,
@@ -6428,7 +6445,14 @@ ANCORAS_EQUIPA = (
     (3, r"\btecnicos?\b|qualificac|credencia"),
 )
 ANCORAS_PROGRAMA = (
-    (1, r"documentos.{0,25}proposta|proposta.{0,25}documentos"),
+    (0, r"propostas? (e|sao|deve ser|devem ser|sera|serao) (constituid|instruid|compost|acompanhad)|"
+        r"(constituem|instruem|integram) (a|as) propostas?|pel[oa]s seguintes (documentos|elementos)|"
+        r"anormalmente baixo quando|considera.{0,40}anormalmente baixo|"
+        r"anormalmente baixo.{0,40}(inferior|abaixo|desvio)"),
+    # «CONTEUDO E ASSINATURA DA PROPOSTA» e o titulo do artigo da lista
+    # num Programa do acervo, sem a palavra «documentos» (28/09/2026)
+    (1, r"documentos.{0,25}proposta|proposta.{0,25}documentos|"
+        r"(conteudo|constituicao|composicao|instrucao|elementos) d[ao]s? propostas?"),
     (2, r"apresentacao da proposta|termos.{0,20}proposta"),
     (2, r"anormalmente baixo"),
     (3, r"habilitacao|criterio"),
@@ -6452,6 +6476,13 @@ Extrai duas coisas do Caderno de Encargos:
   presente caderno de encargos tem por objecto". Não repitas o título do
   concurso — enumera o que tem mesmo de ser feito (desenvolvimento,
   migração, integrações, formação, garantia, suporte, prazos parciais).
+  A primeira linha diz O QUE SE CONTRATA, com as quantidades, os lotes e
+  o prazo, se lá estiverem ("- 360 licenças Microsoft 365 E3, por 12
+  meses"). Deixa de fora as obrigações que TODOS os contratos têm —
+  sigilo, seguros, cumprir a lei, prestar informação, livro de obra,
+  patentes, licenças de exportação —: não dizem nada deste concurso.
+  Se o objecto remete para um anexo que está no texto, transcreve do
+  anexo; "conforme o Anexo I" não é resposta.
 
 - "localizacao": onde e como o serviço é prestado. Começa pelo REGIME
   numa palavra — presencial, remoto ou híbrido — e a seguir o que o
@@ -6471,6 +6502,8 @@ Extrai os PERFIS exigidos para a equipa. Um bloco por perfil, com esta
 estrutura exacta e uma linha em branco entre blocos:
 
 Nome do perfil tal e qual está no documento
+Quantidade: quantas pessoas deste perfil (e a dedicação ou os turnos,
+se o documento os fixar), ou —
 Formação: área e grau exigidos, ou —
 Experiência geral: X anos, ou —
 Experiência específica: tecnologia, sector ou dimensão; se for mais do
@@ -6492,17 +6525,27 @@ Regras duras:
   perfis, passa-a toda.
 - Transcreve os números que lá estão. Nunca escrevas "conforme o Anexo"
   nem "experiência comprovada".
+- Os anos vão COM a tecnologia a que se referem: "5 anos em Oracle Data
+  Integrator" fica numa linha só, em "Experiência específica"; não
+  partas em "Experiência geral: 5 anos" e "Oracle Data Integrator".
+- Uma tabela de utilizadores, de departamentos ou de equipas DA
+  ENTIDADE não é a equipa do concorrente: só entram os perfis que o
+  concorrente tem de afectar ao contrato.
+- "preferencialmente" não é "obrigatório": se o documento diz
+  "preferencialmente", escreve-o.
 
 Conta também como perfil o pessoal que a lei obriga a ter qualificação
 própria — técnicos credenciados, técnicos de instalação e manutenção
 (TIM), técnicos de gases fluorados, técnico responsável — com a
 qualificação em "Certificações" e a lei que a exige, se for citada.
 
-Repara SEMPRE se os requisitos são de cada perfil ou da equipa "em
-conjunto": não é a mesma coisa para quem concorre — sete certificações
-numa pessoa ou espalhadas por quatro. Não atribuas a um perfil o que o
-documento exige ao conjunto; para esse faz um bloco final com o nome
-"Em conjunto, a equipa deve deter".
+Repara se os requisitos são de cada perfil ou da equipa "em conjunto":
+não é a mesma coisa para quem concorre — sete certificações numa pessoa
+ou espalhadas por quatro. Não atribuas a um perfil o que o documento
+exige ao conjunto; para esse faz um bloco final com o nome "Em
+conjunto, a equipa deve deter" — MAS SÓ se o documento exigir algo ao
+conjunto da equipa. O que é exigido à EMPRESA (uma certificação ISO da
+empresa, um alvará) não é da equipa: deixa-o de fora.
 
 Responde SÓ com {"equipa": "..."}."""
 
@@ -6534,6 +6577,10 @@ Extrai duas coisas do Programa de Concurso:
 
   NÃO omitas nenhum documento e NÃO fundas as regras de documentos
   distintos: se o Programa tem sete alíneas, a lista tem sete números.
+  Os números seguintes do artigo (n.º 2, n.º 3…) que acrescentem
+  documentos também entram. Os documentos de HABILITAÇÃO, que só o
+  adjudicatário entrega depois da adjudicação, NÃO são da proposta:
+  deixa-os de fora.
 - "preco_anormalmente_baixo": o limiar a partir do qual o preço da
   proposta é tido por anormalmente baixo (art. 71.º do CCP) — a
   percentagem ou o valor. Muitos Programas não fixam nenhum: nesse caso
@@ -6566,6 +6613,8 @@ Responde SÓ com {"equipa": "..."} -- a chave chama-se "equipa" por
 razões técnicas; o conteúdo é o que se pede acima."""
 
 ANCORAS_OBRAS = (
+    (0, r"conservador|tecnico responsavel|representa\w* do empreiteiro|"
+        r"qualificac\w* minima"),
     (1, r"dire(c)?tor (de|da) obra|equipa tecnica|alvara|habilitac"),
     (2, r"mapa de quantidades|quantidades|plano de trabalhos|horario|condicionantes"),
     (3, r"\btecnicos?\b|seguranca|equipamentos?|fornecimento e montagem"),
@@ -6580,8 +6629,8 @@ Equipa técnica: um bloco por função (director de obra, técnico de
 segurança, e outras), cada um com:
   Função exacta
   Formação ou inscrição (Ordem dos Engenheiros, OET, …), ou —
-  Experiência: a expressão exacta, ou —
-  Presença em obra, ou —
+  Experiência: a expressão exacta, com os anos, ou —
+  Presença em obra ou percentagem de afectação, ou —
 Equipamento a fornecer e montar: qual, se a obra não for só civil, ou —
 Mapa de quantidades: onde está (nome do ficheiro ou anexo), ou —
 Condicionantes do local e do horário, ou —""" + _FIM_DO_CAMPO_11
@@ -6607,6 +6656,7 @@ Instalação e formação, ou —
 Se há uma lista ou tabela de artigos, passa-a toda.""" + _FIM_DO_CAMPO_11
 
 ANCORAS_MAO_DE_OBRA = (
+    (0, r"vigilantes?\b.{0,60}\d{1,2}[:h]\d{2}|\d{1,2}[:h]\d{2}.{0,60}vigilantes?"),
     (1, r"postos?|horarios?|turnos?|vigilantes?|equipas?"),
     (2, r"alvara|habilitac|titulo profissional|cartao|formacao"),
     (3, r"equipamentos|produtos|supervis|transmiss|trabalhadores"),
@@ -6626,6 +6676,7 @@ Regime dos trabalhadores e transmissão de trabalhadores, ou —
 Se há uma tabela de postos, horas ou frequências, passa-a toda.""" + _FIM_DO_CAMPO_11
 
 ANCORAS_SERVICOS = (
+    (0, r"gases fluorados|titulo profissional|tecnicos? de instalacao e manutencao|\btim\b"),
     (1, r"niveis? de servico|tempos? de resposta|\bsla\b|assistencia tecnica|manutencao"),
     (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas"),
     (3, r"\btecnicos?\b|qualificac|credencia|certifica"),
@@ -6838,6 +6889,21 @@ def sem_indice(texto):
                       if not RX_LINHA_DE_INDICE.search(l))
 
 
+# O numero, a «Clausula 7.a» e a pagina do sumario, que nao fazem o titulo.
+RX_NUMERACAO_DO_TITULO = re.compile(
+    r"^(clausula|artigo|capitulo|seccao)?\s*[0-9ivxlc]*\s*[.)ºª°'\"-]*\s*|[\s.\d]+$")
+
+
+# Quanto vale cada ancora na densidade de uma zona.
+PESO_NA_DENSIDADE = {0: 2, 1: 2, 2: 1}
+
+
+# A janela de uma frase de peso 0: a lista de documentos de um Programa
+# cabe (sete alineas sao ~1500 caracteres), e duas destas nao comem o
+# orcamento que uma tabela de perfis precisa.
+JANELA_FORTE = 2500
+
+
 def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
     """[(inicio, fim)] das zonas que o recorte leva, por ordem no texto.
 
@@ -6846,24 +6912,55 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
     paginas_do_recorte(): o texto que vai ao modelo e as paginas que a
     ficha declara tem de sair DAS MESMAS janelas, senao a fonte mentia.
     """
-    pos, titulos = 0, []
+    pos, titulos, vistos = 0, [], {}
     for linha in texto.split("\n"):
         crua = linha.strip()
         curta = simplifica(crua)
-        if e_titulo(crua, curta):
-            for peso, padrao in ancoras:
-                if re.search(padrao, curta):
-                    titulos.append((peso, pos))
-                    break
+        titulo = e_titulo(crua, curta)
+        for peso, padrao in ancoras:
+            # o peso 0 e uma frase do corpo: vale sem ser titulo
+            if (titulo or peso == 0) and re.search(padrao, curta):
+                # O sumario sem pontinhos («7. DOCUMENTOS DA PROPOSTA 5»)
+                # repete os titulos do corpo, e o do sumario, por vir
+                # primeiro, levava a janela (28/09/2026). O mesmo titulo
+                # outra vez: vale o de baixo, que e o do corpo.
+                chave = RX_NUMERACAO_DO_TITULO.sub("", curta)
+                if titulo and chave in vistos:
+                    titulos.remove(vistos[chave])
+                par = (max(peso, 1), pos, peso)
+                titulos.append(par)
+                if titulo:
+                    vistos[chave] = par
+                break
         pos += len(linha) + 1
     if not titulos:
         return []
 
+    # O orcamento corta-se AQUI, e nao no fim: o texto sai pela ordem do
+    # documento, e um [:tecto] no fim deitava fora a janela do fim -- que
+    # era muitas vezes a mais importante, a tabela dos perfis no ultimo
+    # anexo (28/09/2026).
+    #
+    # E escolhe-se pela DENSIDADE, e nao pela posicao: onde as ancoras se
+    # juntam e onde esta a resposta -- a tabela dos perfis tem uma
+    # «experiencia minima» por linha, a lista dos documentos uma alinea
+    # por documento. Pela posicao, um «Perfil» solto na pagina 3 e a
+    # «Substituicao das equipas» levavam o orcamento, e o Anexo III dos
+    # perfis, no fim, ficava de fora. Medido com a regua das passagens.
+    def densidade(par):
+        _, p, peso = par
+        fim = p + (JANELA_FORTE if peso == 0 else janela)
+        return sum(PESO_NA_DENSIDADE.get(w, 0.5) for _, q, w in titulos
+                   if p - 200 <= q < fim)
+
     marca, gasto = bytearray(len(texto)), 0
-    for _, p in sorted(titulos):
+    for _, p, peso in sorted(titulos, key=lambda par: (-densidade(par),) + par):
         if gasto >= tecto:
             break
-        for i in range(max(0, p - 200), min(len(texto), p + janela)):
+        largura = JANELA_FORTE if peso == 0 else janela
+        for i in range(max(0, p - 200), min(len(texto), p + largura)):
+            if gasto >= tecto:
+                break
             if not marca[i]:
                 marca[i] = 1
                 gasto += 1
@@ -6952,18 +7049,25 @@ def _sigla(letras):
     return r"(?<![a-z0-9])" + letras + r"(?![a-z0-9])"
 
 
-RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("(?:ce|cde)"))
+# «CADE» e «Pograma» sao nomes do acervo (28/09/2026), um da Marinha e
+# outro com a gralha da propria entidade; o «Convite» faz as vezes do
+# Programa nas consultas previas.
+RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("(?:ce|cde|cade)"))
 # "cp" fica de fora de proposito: e "Concurso Publico", nao "Programa".
-RX_PECA_PROGRAMA = re.compile(r"programa|procedimento|" + _sigla("pp")
-                              + "|" + _sigla("pc"))
+RX_PECA_PROGRAMA = re.compile(r"programa|pograma|procedimento|convite|"
+                              + _sigla("pp") + "|" + _sigla("pc"))
 
 
 # Um anexo nao e a peca, e as siglas de duas letras aparecem-lhes no
 # nome por acaso: "Anexo.2-PC-Anexo.II-Prop.Preco.xlsx" nao e o Programa
 # de Concurso. Nos anexos exige-se a palavra por extenso.
 RX_ACESSORIO = re.compile(r"anexo|modelo|formulario|minuta|declaracao")
-RX_PECA_ENCARGOS_EXTENSO = re.compile(r"caderno|encargos")
-RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|procedimento")
+# «CdE» nao e ambigua como «CE» e «PC»: o «Anexo.1-CdE» da ESPAP e o
+# Caderno de Encargos, e ficava por ler (28/09/2026). O «CADE» num anexo
+# ja e outra coisa: o «Anexo_CADE_Especificacao_Tecnica» e um anexo DO
+# Caderno (TestAnexosTecnicos).
+RX_PECA_ENCARGOS_EXTENSO = re.compile(r"caderno|encargos|" + _sigla("cde"))
+RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|pograma|procedimento|convite")
 
 
 # Os anexos tecnicos (28/09/2026): a especificacao, o anexo tecnico, a
@@ -7015,6 +7119,13 @@ def documentos_com_texto(ref):
 # os anexos tecnicos (28/09/2026): e la que estao a lista dos artigos, a
 # especificacao e o mapa de quantidades.
 PAPEIS_DA_LEITURA = {"encargos": ("encargos", "tecnico")}
+# O que cada leitura abre ALEM da peca dela, so pelo que as ancoras
+# apanharem -- nunca o principio do documento (28/09/2026). A equipa esta
+# muitas vezes no Programa, nos requisitos minimos ou nos criterios (as
+# certificacoes ISO 27001 e CISM de um concurso, o PMP e o ITIL de outro,
+# todos com «nao consta» na leitura); e o preco anormalmente baixo, no
+# Caderno de Encargos.
+SECUNDARIAS_DA_LEITURA = {"encargos": ("programa",), "programa": ("encargos",)}
 
 
 def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
@@ -7034,9 +7145,13 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     # da peca, e nao os anexos que vem com eles; so se nenhum de dentro
     # o for e que vai o ZIP inteiro, como ate aqui.
     alvo = set(PAPEIS_DA_LEITURA.get(quais, (quais,)))
+    secundarias = set(SECUNDARIAS_DA_LEITURA.get(quais, ())) - alvo
 
     def serve(nome):
-        return bool(alvo & papeis_da_peca(os.path.basename(nome)))
+        return bool((alvo | secundarias) & papeis_da_peca(os.path.basename(nome)))
+
+    def e_secundaria(nome):
+        return not (alvo & papeis_da_peca(os.path.basename(nome)))
 
     abertos = []
     for d in docs:
@@ -7045,11 +7160,26 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
         abertos += escolhidos or [d]
     # A peca antes dos anexos: o recorte e cortado no fim, e um anexo
     # nao pode tirar o lugar ao Caderno de Encargos.
+    # A peca, depois os anexos, e as secundarias no fim.
     docs = sorted((d for d in abertos if serve(d["nome"])),
-                  key=lambda d: quais not in papeis_da_peca(
-                      os.path.basename(d["nome"])))
+                  key=lambda d: (e_secundaria(d["nome"]),
+                                 quais not in papeis_da_peca(
+                                     os.path.basename(d["nome"]))))
+    vistos = set()
     for d in docs:
         limpo = sem_indice(d["texto"])
+        # O mesmo documento duas vezes -- o PDF e o que vem dentro do ZIP,
+        # ou a versao «rev 1» igual a outra -- gastava metade do recorte a
+        # repetir-se (28/09/2026): o segundo Caderno de Encargos do 21993
+        # tirava o lugar a tabela dos perfis.
+        assinatura = re.sub(r"[^a-z0-9]", "", simplifica(limpo[:4000]))
+        if assinatura in vistos:
+            continue
+        vistos.add(assinatura)
+        if e_secundaria(d["nome"]):
+            janelas = _janelas_do_recorte(limpo, ancoras, tecto)
+            if not janelas:
+                continue
         partes.append("### %s\n%s" % (
             d["nome"],
             recorte_relevante(limpo, ancoras, tecto)))
@@ -7151,11 +7281,16 @@ def juntar_leituras(dados, anterior):
     releitura. Chave ausente e pedido falhado; "nao consta" e resposta
     do modelo, e essa substitui.
     """
+    # Sem leitura anterior, o campo que nao se leu fica None, e nao ""
+    # (28/09/2026): a ficha distingue «lido e nao consta» de «nao lido»
+    # pelo None (foi_lido), e um "" fazia-a dizer «o Programa foi lido e a
+    # leitura nao encontrou a lista» quando o Programa nem estava entre as
+    # pecas descarregadas.
     def antes(nome):
         try:
-            return (anterior[nome] if anterior else "") or ""
+            return anterior[nome] if anterior else None
         except (KeyError, IndexError):
-            return ""
+            return None
     return {c: limpa_campo(dados[c]) if c in dados else antes(c)
             for c in CAMPOS_DA_ANALISE}
 
@@ -24185,6 +24320,48 @@ def frase_dos_campos_em_falta(sem_valor):
             % (plural(len(sem_valor), "dado"), "; ".join(partes)))
 
 
+def _pares_da_seccao(seccoes, titulo):
+    """Os pares da secção do anúncio cujo título tenha `titulo`."""
+    alvo = simplifica(titulo)
+    return next((pares for _, tit, pares in seccoes
+                 if alvo in simplifica(tit or "")), [])
+
+
+def habilitacao_do_anuncio(seccoes):
+    """A habilitação que o anúncio pede (§12), numa linha: o tipo e a
+    descrição -- é aí que vem o alvará, com a categoria e a classe.
+    "" quando o anúncio não tem a secção; "Não exigida" quando diz Não.
+
+    28/09/2026: o director técnico de obras que validou as leituras deu
+    pela falta do alvará em todas as fichas -- e estava no anúncio, sem
+    precisar de modelo nenhum."""
+    pares = _pares_da_seccao(seccoes, "habilitacao")
+    if not pares:
+        return ""
+    exige = simplifica(next((v for k, v in pares
+                             if "exercicio da atividade" in simplifica(k)), ""))
+    if exige == "nao":
+        return "Não exigida no anúncio"
+    partes = [v.strip() for k, v in pares
+              if simplifica(k) in ("tipo", "descricao") and v.strip()]
+    return " — ".join(partes)
+
+
+def caucao_do_anuncio(seccoes):
+    """A caução (§14): "Sim, 5% — garantia bancária ou seguro-caução",
+    "Não", ou "" sem a secção."""
+    pares = dict((simplifica(k), v.strip()) for k, v in
+                 _pares_da_seccao(seccoes, "caucao") if k)
+    presta = pares.get("prestacao de caucao", "")
+    if not presta:
+        return ""
+    if simplifica(presta) != "sim":
+        return presta
+    extra = [x for x in (pares.get("percentagem", ""),
+                         pares.get("descricao da garantia exigida", "")) if x]
+    return "Sim" + (", " + " — ".join(extra) if extra else "")
+
+
 def essencial_do_anuncio(a, seccoes, analise=None):
     """[(rotulo, valor, em_falta, nota)] com o essencial para decidir.
 
@@ -24231,6 +24408,23 @@ def essencial_do_anuncio(a, seccoes, analise=None):
             return ""
         return "" if simplifica(valor) in ("", "nao consta", "não consta") else valor
 
+    def falta(campo):
+        """Porque nao ha valor, sem ter sido lido: a leitura correu e a
+        peca nao estava entre as descarregadas, ou ainda nao correu."""
+        peca = "o Programa do Concurso" if campo in (
+            "documentos_proposta", "preco_anormalmente_baixo") else "o Caderno de Encargos"
+        try:
+            # None: a leitura correu e a peca nao estava la. Uma linha de
+            # antes de o campo existir nao o tem, e ai nao correu
+            # (TestTabelaEssencialDepoisDeLido).
+            correu = bool(analise) and analise[campo] is None
+        except (KeyError, IndexError):
+            correu = False
+        if correu:
+            return ("%s não está entre as peças descarregadas: confirmar na "
+                    "plataforma" % peca)
+        return FALTA_PC if peca.startswith("o Programa") else FALTA_CE
+
     def foi_lido(campo):
         """Se a leitura chegou a perguntar por este campo.
 
@@ -24249,7 +24443,11 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     # "do Caderno de Encargos e do Programa" e afirmar o que nao houve.
     # O nome do modelo («groq:openai/…») e para o dono; a um cliente diz
     # só que foi lido automaticamente (teste com utilizadores, 25/09/2026).
-    nota_pecas = ("lido de %s %s — confirmar no documento"
+    # «Rascunho» e nao facto (28/09/2026): quatro agentes compararam as 70
+    # leituras com as pecas, e a leitura omite mais do que inventa -- um
+    # «nao consta» que era «nao li essa parte». A nota diz-o a cada linha.
+    nota_pecas = ("lido de %s %s — é um rascunho: confirmar no documento "
+                  "antes de decidir"
                   % (fontes_legiveis(analise["fontes"]) or "peças do procedimento",
                      ("por " + analise["modelo"]) if sou_dono()
                      else "por leitura automática")) if analise else ""
@@ -24267,7 +24465,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
     anormal_falta = "" if anormal else (
         "o Programa do Concurso foi lido e a leitura não encontrou nenhum: "
         "confirmar no documento"
-        if foi_lido("preco_anormalmente_baixo") else FALTA_PC)
+        if foi_lido("preco_anormalmente_baixo") else falta("preco_anormalmente_baixo"))
 
     return [
         ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
@@ -24276,6 +24474,12 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Preço base", preco_pt(a["preco_base"], ""), "", ""),
         ("Preço anormalmente baixo", anormal, anormal_falta,
          nota_pecas if anormal else ""),
+        # Do anúncio, e não da leitura (28/09/2026): o alvará e a caução
+        # decidem se uma construtora pode ir a jogo, e o DR já os diz.
+        ("Habilitação (alvará)", habilitacao_do_anuncio(seccoes),
+         "o anúncio não a diz: consta do Programa do Concurso", ""),
+        ("Caução", caucao_do_anuncio(seccoes),
+         "o anúncio não a diz: consta do Programa do Concurso", ""),
         ("Duração do contrato", duracao, "", ""),
         # O DR chama a esta seccao "LOCAL DA EXECUCAO DO CONTRATO
         # (PROCEDIMENTO)" e o que la esta e, quase sempre, a morada da
@@ -24302,17 +24506,17 @@ def essencial_do_anuncio(a, seccoes, analise=None):
          "" if das_pecas("objecto") else
          ("o Caderno de Encargos foi lido e a leitura não encontrou a "
           "descrição: confirmar no documento"
-          if foi_lido("objecto") else FALTA_CE), nota_pecas),
+          if foi_lido("objecto") else falta("objecto")), nota_pecas),
         (rotulo_11, das_pecas("equipa"),
          "" if das_pecas("equipa") else
          ("o Caderno de Encargos foi lido e a leitura não encontrou "
           "%s: confirmar no documento" % falta_11
-          if foi_lido("equipa") else FALTA_CE), nota_pecas),
+          if foi_lido("equipa") else falta("equipa")), nota_pecas),
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
          "" if das_pecas("documentos_proposta") else
          ("o Programa do Concurso foi lido e a leitura não encontrou a "
           "lista: confirmar no documento"
-          if foi_lido("documentos_proposta") else FALTA_PC), nota_pecas),
+          if foi_lido("documentos_proposta") else falta("documentos_proposta")), nota_pecas),
     ]
 
 
