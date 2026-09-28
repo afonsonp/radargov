@@ -19384,7 +19384,8 @@ class TestDeclaracaoDeAcessibilidade(BaseTemporaria):
     """D15 da segunda ronda (26/09/2026, decisão dele): a declaração de
     acessibilidade, pública, com a estrutura do modelo do DL 83/2018 — o
     estado, o que não está conforme, a data e o método da avaliação, e o
-    contacto, que é o formulário do site (sem e-mails inventados)."""
+    contacto, que é o contacto@miragov.pt desde 28/09/2026 (até aí o
+    formulário, porque não havia caixa: nenhum e-mail inventado)."""
 
     def test_e_publica_e_tem_as_partes_do_modelo(self):
         with unittest.mock.patch.object(
@@ -19397,9 +19398,12 @@ class TestDeclaracaoDeAcessibilidade(BaseTemporaria):
         for parte in ("Declaração de acessibilidade", "Decreto-Lei n.º 83/2018",
                       "parcialmente conforme", "Conteúdo não acessível",
                       "Elaboração desta declaração", "Contacto",
-                      'href="/#acesso"', "WCAG 2.1", 'lang="pt"'):
+                      'href="mailto:contacto@miragov.pt"', "WCAG 2.1",
+                      'lang="pt"'):
             self.assertIn(parte, corpo, parte)
-        self.assertNotRegex(corpo, r"[\w.]+@[\w.]+\.\w+")   # nenhum e-mail
+        # nenhum outro e-mail: só a caixa que existe
+        self.assertEqual(set(re.findall(r"[\w.]+@[\w.]+\.\w+", corpo)),
+                         {"contacto@miragov.pt"})
 
     def test_liga_se_do_site_e_da_ajuda(self):
         with open(radar.SITE, encoding="utf-8") as f:

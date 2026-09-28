@@ -726,7 +726,13 @@ da plataforma, desde 26/09/2026) lê-se de cima para baixo:
   **os avisos da plataforma** — é aí que chega o aviso de cada pedido
   de acesso novo. Põe lá o teu e-mail e carrega em «Mandar um e-mail
   de teste». Sem ele, os pedidos não avisam ninguém (o semáforo do
-  E-mail di-lo);
+  E-mail di-lo). **Desde 28/09/2026 é o `contacto@miragov.pt`** para
+  as duas coisas — envia e recebe os avisos. A caixa é a do alojamento
+  do domínios.pt (um só endereço no plano; lê-se no Webmail do
+  my.dominios.pt), o SMTP é o `webdomain02.dnscpanel.com`, porta 465,
+  e o DNS do correio (MX, SPF, DKIM, DMARC e o `mail`, de nuvem
+  cinzenta) está na Cloudflare. **Não mudes os nameservers para os do
+  cPanel**: o túnel deixava de responder;
 - por baixo, a Recolha (com o «Verificar agora», que pede confirmação)
   e as secções do sistema.
 
