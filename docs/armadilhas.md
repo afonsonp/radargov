@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 35
+- [Contas e a porta](#contas-e-a-porta) &middot; 36
 - [A interface](#a-interface) &middot; 103
 - [Convenções](#convencoes) &middot; 4
 
-São **354** ao todo, contados a 28/09/2026. Contam-se por secção com
+São **355** ao todo, contados a 28/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2765,6 +2765,21 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   fora. A chave da app (`totp_segredo`) é a única coisa do segundo
   factor guardada em claro — o TOTP precisa dela para calcular —; o
   pendente, os aparelhos e os códigos de recuperação só em resumo.
+- **Ligar e desligar pedem a palavra-passe actual, e têm trinco**
+  (revisão de segurança do PR #123, 28/09/2026). Sem ela, um cookie de
+  sessão roubado (mais o CSRF da página, que vem na mesma página) ligava
+  o segundo factor com a app **de quem roubou** e trancava o dono fora
+  da conta; e o desligar tentava códigos sem limite. A guarda está no
+  `contas.py` e não nas rotas — `preparar_segundo_factor()` recusa sem
+  a palavra-passe, antes de gerar a chave, e `desligar_com_codigo()`
+  junta a palavra-passe, o código e o trinco (`_senha_actual()`,
+  `registar_falha()` com o e-mail da conta e o IP). O
+  `desligar_segundo_factor()` fica sem guarda de propósito: é o da
+  consola. E **só o último pendente da conta vale** (`criar_pendente()`
+  apaga os anteriores), senão cada `/entrar` trazia mais cinco
+  tentativas. **Ligar não fecha as sessões que já estavam abertas**: se
+  o motivo de ligar é uma suspeita, o gesto a seguir é «Sair de todos
+  os aparelhos».
 
 ## A interface
 

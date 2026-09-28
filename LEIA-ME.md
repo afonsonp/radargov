@@ -816,8 +816,9 @@ tem.
 1. Instala no telemóvel uma app de autenticação — a **Google
    Authenticator** ou a **Microsoft Authenticator** servem, são
    gratuitas.
-2. No Mira Gov, vai a **Configurações › Conta** e carrega em **Ligar o
-   segundo factor**. Aparece uma chave comprida.
+2. No Mira Gov, vai a **Configurações › Conta**, escreve a tua
+   **palavra-passe actual** e carrega em **Ligar o segundo factor**.
+   Aparece uma chave comprida.
 3. Se estás no telemóvel, toca em **«toque aqui para a acrescentar»** e
    a app abre com a conta já preenchida. Se estás no computador, na app
    escolhe «introduzir uma chave» (ou «chave de configuração») e
@@ -832,6 +833,10 @@ tem.
 
 Até escreveres o primeiro código certo, nada muda: entras como sempre.
 
+**Ligar não fecha as sessões que já estavam abertas** noutros aparelhos.
+Se o ligaste por desconfiares de alguma coisa, carrega a seguir em
+**Sair de todos os aparelhos** e volta a entrar (já com o código).
+
 **Para entrar** de um aparelho novo: utilizador e palavra-passe, como
 antes, e depois o ecrã pede o **código da app**. Se marcares **«Confiar
 neste aparelho durante 30 dias»**, esse browser não volta a pedir o
@@ -840,15 +845,15 @@ tudo igual: o acesso livre local não pede nada.
 
 Cinco códigos errados seguidos e tens de voltar a pôr a palavra-passe;
 e contam para a espera dos quinze minutos, como as palavras-passe
-erradas.
+erradas — também quando desligas, lá na Conta.
 
 **Se perdeste o telemóvel:**
 
 1. Entra com a palavra-passe e, no ecrã do código, carrega em **«Usar
    um código de recuperação»** e escreve um dos dez (com ou sem o
    traço, maiúsculas ou minúsculas — tanto faz).
-2. Em Configurações › Conta, carrega em **Desligar o segundo factor**,
-   com outro código de recuperação. Os aparelhos de confiança deixam de
+2. Em Configurações › Conta, escreve a palavra-passe actual e outro
+   código de recuperação, e carrega em **Desligar o segundo factor**. Os aparelhos de confiança deixam de
    o ser.
 3. Carrega em **Sair de todos os aparelhos**: se o telemóvel perdido
    tinha o Mira Gov aberto, fica fechado. Voltas a entrar só com a

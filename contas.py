@@ -721,17 +721,43 @@ def segundo_factor_ligado(c, utilizador_id):
     return bool(linha and linha[0])
 
 
-def preparar_segundo_factor(c, utilizador_id):
+def _senha_actual(c, utilizador_id, senha, ip, agora):
+    """None se `senha` e a palavra-passe actual da conta e o trinco esta
+    aberto; senao o porque. A errada conta no trinco da conta e do IP."""
+    linha = c.execute("SELECT email, hash FROM utilizadores WHERE id=?",
+                      (utilizador_id,)).fetchone()
+    if not linha:
+        return "a conta não existe"
+    espera = segundos_de_trinco(c, linha["email"], ip, agora)
+    if espera:
+        return "demasiadas tentativas; espera %d s" % espera
+    if not verifica_senha(senha or "", linha["hash"]):
+        registar_falha(c, linha["email"], ip, agora)
+        return "a palavra-passe actual não está certa"
+    return None
+
+
+def preparar_segundo_factor(c, utilizador_id, senha, ip="", agora=None):
     """O segredo novo, por confirmar: fica guardado, mas o segundo factor
     so se liga quando a app devolver um codigo certo
     (`confirmar_segundo_factor()`). Preparar outra vez deita o anterior
-    fora. None se ja esta ligado: para mudar de telemovel, desliga-se."""
+    fora. Devolve (segredo, None) ou (None, porque).
+
+    Pede a palavra-passe ACTUAL (revisao de seguranca do PR #123,
+    28/09/2026): sem ela, quem tivesse roubado o cookie da sessao ligava
+    o segundo factor com a app DELE e trancava o dono fora da conta. A
+    errada conta no trinco. Ja ligado, recusa: para mudar de telemovel,
+    desliga-se primeiro."""
+    agora = agora or datetime.now()
+    porque = _senha_actual(c, utilizador_id, senha, ip, agora)
+    if porque:
+        return None, porque
     if segundo_factor_ligado(c, utilizador_id):
-        return None
+        return None, "o segundo factor já está ligado"
     segredo = segredo_novo()
     c.execute("UPDATE utilizadores SET totp_segredo=?, totp_ligado_em=NULL, "
               "totp_passo=0 WHERE id=?", (segredo, utilizador_id))
-    return segredo
+    return segredo, None
 
 
 def segredo_por_confirmar(c, utilizador_id):
@@ -813,10 +839,33 @@ def codigos_por_usar(c, utilizador_id):
                      (utilizador_id,)).fetchone()[0]
 
 
+def desligar_com_codigo(c, utilizador_id, senha, codigo, ip="", agora=None):
+    """O desligar da Conta: a palavra-passe actual e um codigo valido (da
+    app ou de recuperacao). Devolve ('totp' ou 'recuperacao', None) se
+    desligou, ou (None, porque).
+
+    Com trinco (revisao do PR #123, 28/09/2026): cada palavra-passe ou
+    codigo errado conta no trinco da conta e do IP, e com ele fechado nem
+    o certo passa -- sem isto, uma sessao roubada tentava codigos sem
+    limite ate desligar o segundo factor."""
+    agora = agora or datetime.now()
+    porque = _senha_actual(c, utilizador_id, senha, ip, agora)
+    if porque:
+        return None, porque
+    usado = verificar_codigo(c, utilizador_id, codigo, agora)
+    if not usado:
+        email = c.execute("SELECT email FROM utilizadores WHERE id=?",
+                          (utilizador_id,)).fetchone()[0]
+        registar_falha(c, email, ip, agora)
+        return None, "o código não está certo"
+    desligar_segundo_factor(c, utilizador_id)
+    return usado, None
+
+
 def desligar_segundo_factor(c, utilizador_id):
     """Tira o segredo, os codigos de recuperacao, os pendentes e os
-    aparelhos de confianca. Devolve se estava ligado. Quem pode (o codigo
-    na Conta, ou a consola) decide quem chama."""
+    aparelhos de confianca. Devolve se estava ligado. Sem guarda nenhuma:
+    e o que a consola chama; a Conta passa pelo `desligar_com_codigo()`."""
     estava = segundo_factor_ligado(c, utilizador_id)
     c.execute("UPDATE utilizadores SET totp_segredo=NULL, totp_ligado_em=NULL, "
               "totp_passo=0 WHERE id=?", (utilizador_id,))
@@ -827,10 +876,16 @@ def desligar_segundo_factor(c, utilizador_id):
 def criar_pendente(c, utilizador_id, agora=None):
     """O pedido de entrada a meio: a palavra-passe estava certa, falta o
     codigo. Devolve o CODIGO do pendente (vai num cookie); na base fica o
-    resumo. Poda os pendentes e os aparelhos fora do prazo."""
+    resumo. Poda os pendentes e os aparelhos fora do prazo.
+
+    E so o ultimo da conta vale (revisao do PR #123): cada pendente traz
+    cinco tentativas, e quem soubesse a palavra-passe abria quantos
+    quisesse. O trinco ja o apanhava; o pendente e que nao pode ser o
+    atalho."""
     agora = agora or datetime.now()
-    c.execute("DELETE FROM segundo_factor WHERE tipo IN ('pendente', 'aparelho') "
-              "AND expira <= ?", (_quando(agora),))
+    c.execute("DELETE FROM segundo_factor WHERE (tipo IN ('pendente', 'aparelho') "
+              "AND expira <= ?) OR (tipo='pendente' AND utilizador_id=?)",
+              (_quando(agora), utilizador_id))
     codigo = secrets.token_urlsafe(32)
     c.execute("INSERT INTO segundo_factor (resumo, utilizador_id, tipo, criado_em, "
               "expira) VALUES (?,?,'pendente',?,?)",

@@ -20643,6 +20643,11 @@ def _ligacao_otpauth(utilizador, segredo):
             % (quote(utilizador["email"], safe="@."), segredo))
 
 
+def _campo_da_senha_actual():
+    return _campo("Palavra-passe actual", "actual", "", tipo="password",
+                  extra="autocomplete='current-password' required")
+
+
 def _campo_do_codigo(nota=""):
     return _campo("Código", "codigo", "", nota=nota,
                   extra="autocomplete='one-time-code' autocapitalize='off' "
@@ -20667,6 +20672,7 @@ def _bloco_do_segundo_factor(utilizador):
                   % faltam
                 + "<form method='post' action='/configuracoes/conta/segundo-factor/"
                   "desligar' class='conf-form'>"
+                + _campo_da_senha_actual()
                 + _campo_do_codigo("o da app, ou um código de recuperação")
                 + "<button type='submit' class='mg-btn'>Desligar o segundo "
                   "factor</button></form>")
@@ -20696,8 +20702,11 @@ def _bloco_do_segundo_factor(utilizador):
               "novo pede, além da palavra-passe, o código de seis dígitos de "
               "uma app de autenticação no telemóvel. Quem souber a "
               "palavra-passe não entra sem o telemóvel.</p>"
-            + accao("/configuracoes/conta/segundo-factor/ligar",
-                    "Ligar o segundo factor", "bt"))
+            + "<form method='post' action='/configuracoes/conta/segundo-factor/"
+              "ligar' class='conf-form'>"
+            + _campo_da_senha_actual()
+            + "<button type='submit' class='mg-btn mg-btn--primary'>Ligar o "
+              "segundo factor</button></form>")
 
 
 def _quem_pode_ter_segundo_factor():
@@ -20709,12 +20718,16 @@ def _quem_pode_ter_segundo_factor():
 
 @app.route("/configuracoes/conta/segundo-factor/ligar", methods=["POST"])
 def segundo_factor_ligar():
-    """Prepara a chave. Não liga nada: isso é o `confirmar`."""
+    """Prepara a chave, com a palavra-passe actual (a revisão do PR #123:
+    sem ela, uma sessão roubada trancava o dono fora). Não liga nada:
+    isso é o `confirmar`."""
     utilizador = _quem_pode_ter_segundo_factor()
     with liga() as c:
-        segredo = contas.preparar_segundo_factor(c, utilizador["id"])
+        segredo, porque = contas.preparar_segundo_factor(
+            c, utilizador["id"], request.form.get("actual") or "",
+            ip=request.remote_addr or "")
     if not segredo:
-        return _volta_ao_segundo_factor("O segundo factor já está ligado.", erro=True)
+        return _volta_ao_segundo_factor("Não liguei: %s." % porque, erro=True)
     return _volta_ao_segundo_factor("Falta um passo: ponha a chave na app e "
                                     "escreva o primeiro código.")
 
@@ -20747,18 +20760,18 @@ def segundo_factor_confirmar():
 
 @app.route("/configuracoes/conta/segundo-factor/desligar", methods=["POST"])
 def segundo_factor_desligar():
-    """Desliga com um código válido (da app ou de recuperação), e leva os
+    """Desliga com a palavra-passe actual e um código válido (da app ou de
+    recuperação), com trinco (`contas.desligar_com_codigo()`), e leva os
     aparelhos de confiança e os códigos de recuperação."""
     utilizador = _quem_pode_ter_segundo_factor()
     with liga() as c:
-        usado = contas.verificar_codigo(c, utilizador["id"],
-                                        request.form.get("codigo") or "")
-        if usado:
-            contas.desligar_segundo_factor(c, utilizador["id"])
+        usado, porque = contas.desligar_com_codigo(
+            c, utilizador["id"], request.form.get("actual") or "",
+            request.form.get("codigo") or "", ip=request.remote_addr or "")
     if not usado:
-        registar_evento("", "conta", "segundo factor: código errado ao desligar (%s)"
-                        % utilizador["email"], quem=utilizador.get("nome") or "")
-        return _volta_ao_segundo_factor("O código não está certo; nada mudou.",
+        registar_evento("", "conta", "segundo factor: não desligou (%s): %s"
+                        % (utilizador["email"], porque), quem=utilizador.get("nome") or "")
+        return _volta_ao_segundo_factor("Não desliguei: %s. Nada mudou." % porque,
                                         erro=True)
     registar_evento("", "conta", "segundo factor desligado: %s%s"
                     % (utilizador["email"], " (com um código de recuperação)"

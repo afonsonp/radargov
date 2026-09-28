@@ -20571,7 +20571,7 @@ class TestSegundoFactorDoDono(BaseTemporaria):
         """Liga o segundo factor ao dono pelo contas.py; devolve os
         códigos de recuperação."""
         with radar.liga() as c:
-            radar.contas.preparar_segundo_factor(c, self.dono)
+            radar.contas.preparar_segundo_factor(c, self.dono, "senha-comprida")
         with radar.liga() as c:
             codigos = radar.contas.confirmar_segundo_factor(c, self.dono, self.codigo())
         self.passar()
@@ -20611,7 +20611,7 @@ class TestSegundoFactorDoDono(BaseTemporaria):
 
     def test_so_liga_com_um_codigo_da_app_e_os_de_recuperacao_so_em_resumo(self):
         with radar.liga() as c:
-            radar.contas.preparar_segundo_factor(c, self.dono)
+            radar.contas.preparar_segundo_factor(c, self.dono, "senha-comprida")
             # preparado mas por confirmar: não está ligado
             self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
             self.assertIsNone(radar.contas.confirmar_segundo_factor(c, self.dono, "000000"))
@@ -20762,7 +20762,7 @@ class TestSegundoFactorDoDono(BaseTemporaria):
 
     def test_o_aparelho_de_uma_conta_nao_serve_a_outra(self):
         with radar.liga() as c:
-            radar.contas.preparar_segundo_factor(c, self.chefe)
+            radar.contas.preparar_segundo_factor(c, self.chefe, "senha-comprida")
             segredo = c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
                                 (self.chefe,)).fetchone()[0]
             radar.contas.confirmar_segundo_factor(
@@ -20811,7 +20811,8 @@ class TestSegundoFactorDoDono(BaseTemporaria):
                                        (self.chefe,)).fetchone()[0])
         dono, _ = self.entrar()
         r = dono.post("/configuracoes/conta/segundo-factor/ligar",
-                      data={"csrf": self.token(dono)}, environ_base=self.FORA)
+                      data={"csrf": self.token(dono), "actual": "senha-comprida"},
+                      environ_base=self.FORA)
         self.assertEqual(r.status_code, 302)
         corpo = dono.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
         with radar.liga() as c:
@@ -20848,18 +20849,106 @@ class TestSegundoFactorDoDono(BaseTemporaria):
                      environ_base=self.FORA)
         self.passar()
         cliente.post("/configuracoes/conta/segundo-factor/desligar",
-                     data={"csrf": self.token(cliente), "codigo": "000000"},
+                     data={"csrf": self.token(cliente), "codigo": "000000",
+                           "actual": "senha-comprida"},
                      environ_base=self.FORA)
         with radar.liga() as c:
             self.assertTrue(radar.contas.segundo_factor_ligado(c, self.dono))
         cliente.post("/configuracoes/conta/segundo-factor/desligar",
-                     data={"csrf": self.token(cliente), "codigo": self.codigo()},
+                     data={"csrf": self.token(cliente), "codigo": self.codigo(),
+                           "actual": "senha-comprida"},
                      environ_base=self.FORA)
         with radar.liga() as c:
             self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
             self.assertFalse(c.execute("SELECT 1 FROM segundo_factor").fetchone())
             self.assertFalse(c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
                                        (self.dono,)).fetchone()[0])
+
+    # -- a revisão de segurança do PR #123 (28/09/2026)
+
+    def segredo_do_dono(self):
+        with radar.liga() as c:
+            return c.execute("SELECT totp_segredo FROM utilizadores WHERE id=?",
+                             (self.dono,)).fetchone()[0]
+
+    def test_ligar_pede_a_palavra_passe_actual(self):
+        """CRÍTICO: com um cookie de sessão roubado (e o CSRF da página),
+        ligar o segundo factor com a app de quem roubou trancava o dono
+        fora da própria conta. Sem a palavra-passe actual, nem a chave se
+        gera."""
+        dono, _ = self.entrar()
+        for dados in ({}, {"actual": ""}, {"actual": "senha-errada-9"}):
+            r = dono.post("/configuracoes/conta/segundo-factor/ligar",
+                          data=dict(dados, csrf=self.token(dono)),
+                          environ_base=self.FORA)
+            self.assertEqual(r.status_code, 302, dados)
+            self.assertIn("tom=erro", r.headers["Location"], dados)
+            self.assertFalse(self.segredo_do_dono(), dados)
+        # e o confirmar, sem chave preparada, não liga nada
+        dono.post("/configuracoes/conta/segundo-factor/confirmar",
+                  data={"csrf": self.token(dono), "codigo": "123456"},
+                  environ_base=self.FORA)
+        with radar.liga() as c:
+            self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
+        # o campo está no formulário da Conta
+        self.assertIn("name='actual'", dono.get("/configuracoes/conta",
+                      environ_base=self.FORA).get_data(as_text=True).split(
+                      "segundo-factor/ligar")[1][:600])
+
+    def test_desligar_pede_a_palavra_passe_actual(self):
+        self.ligar()
+        cliente, _ = self.entrar()
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                     environ_base=self.FORA)
+        self.passar()
+        for senha in ("", "senha-errada-9"):
+            cliente.post("/configuracoes/conta/segundo-factor/desligar",
+                         data={"csrf": self.token(cliente), "codigo": self.codigo(),
+                               "actual": senha}, environ_base=self.FORA)
+            with radar.liga() as c:
+                self.assertTrue(radar.contas.segundo_factor_ligado(c, self.dono))
+
+    def test_desligar_tem_trinco(self):
+        """ALTO: uma sessão roubada tentava códigos sem limite até
+        desligar o segundo factor. Cada código errado conta no trinco da
+        conta e do IP, e com ele fechado nem o certo passa."""
+        self.ligar()
+        cliente, _ = self.entrar()
+        cliente.post("/entrar/codigo", data={"codigo": self.codigo()},
+                     environ_base=self.FORA)
+        self.passar()
+        for _ in range(radar.contas.FALHAS_ATE_TRINCO):
+            cliente.post("/configuracoes/conta/segundo-factor/desligar",
+                         data={"csrf": self.token(cliente), "codigo": "000000",
+                               "actual": "senha-comprida"}, environ_base=self.FORA)
+        with radar.liga() as c:
+            self.assertGreater(radar.contas.segundos_de_trinco(c, "dono", "203.0.113.7"), 0)
+        r = cliente.post("/configuracoes/conta/segundo-factor/desligar",
+                         data={"csrf": self.token(cliente), "codigo": self.codigo(),
+                               "actual": "senha-comprida"}, environ_base=self.FORA)
+        self.assertIn("tom=erro", r.headers["Location"])
+        with radar.liga() as c:
+            self.assertTrue(radar.contas.segundo_factor_ligado(c, self.dono))
+
+    def test_um_pendente_novo_apaga_os_anteriores_da_conta(self):
+        """MÉDIO: quem sabe a palavra-passe criava pendentes sem fim, e
+        cada um trazia cinco tentativas novas. Só o último vale."""
+        self.ligar()
+        primeiro, _ = self.entrar()
+        segundo, _ = self.entrar()
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM segundo_factor "
+                                       "WHERE tipo='pendente'").fetchone()[0], 1)
+            self.assertIsNone(radar.contas.pendente_valido(
+                c, primeiro.get_cookie("pendente").value))
+            self.assertTrue(radar.contas.pendente_valido(
+                c, segundo.get_cookie("pendente").value))
+        # o de outra conta não sai
+        with radar.liga() as c:
+            radar.contas.criar_pendente(c, self.chefe)
+            radar.contas.criar_pendente(c, self.dono)
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM segundo_factor "
+                                       "WHERE tipo='pendente'").fetchone()[0], 2)
 
     def test_pela_consola_desliga_quando_o_telemovel_se_perde(self):
         self.ligar()

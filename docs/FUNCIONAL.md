@@ -1088,8 +1088,9 @@ padrão; aceita o passo de agora e um de cada lado (`JANELA_TOTP`), e
 **nunca o mesmo passo duas vezes**: a conta guarda o último aceite
 (`utilizadores.totp_passo`).
 
-- **Ligar**, em Configurações › Conta: «Ligar o segundo factor» gera a
-  chave (160 bits, `contas.segredo_novo()`) e mostra-a em grupos de
+- **Ligar**, em Configurações › Conta, **com a palavra-passe actual**
+  (sem ela não se gera nada, e a errada conta no trinco): «Ligar o
+  segundo factor» gera a chave (160 bits, `contas.segredo_novo()`) e mostra-a em grupos de
   quatro e como ligação `otpauth://`, que no telemóvel abre a app. Não
   há QR. **Só fica ligado com o primeiro código certo**
   (`contas.confirmar_segundo_factor()`); nesse momento saem **dez
@@ -1099,7 +1100,8 @@ padrão; aceita o passo de agora e um de cada lado (`JANELA_TOTP`), e
   cria a sessão — o `contas.entrar()` devolve um **pendente** (cookie
   `pendente`, cinco minutos, `MINUTOS_DO_PENDENTE`; na base só o
   resumo) e o **`/entrar/codigo`** pede o código da app ou um de
-  recuperação. É rota aberta, **com a guarda dentro**
+  recuperação (só o último pendente da conta vale). É rota aberta,
+  **com a guarda dentro**
   (`entrar_codigo()`): o pendente, cinco tentativas
   (`TENTATIVAS_DO_PENDENTE`), o trinco da conta e do IP (cada código
   errado conta como uma entrada falhada) e a origem do POST.
@@ -1113,8 +1115,9 @@ padrão; aceita o passo de agora e um de cada lado (`JANELA_TOTP`), e
   ecrã do código, sem sessão) e o convite (que nunca serve a uma conta
   que já existe). O acesso livre local continua como está: é a consola
   do próprio computador.
-- **Desligar**: na Conta, com um código válido (da app ou de
-  recuperação); ou pela consola, `--desligar-segundo-factor NOME`,
+- **Desligar**: na Conta, com a palavra-passe actual e um código
+  válido (da app ou de recuperação), com trinco
+  (`contas.desligar_com_codigo()`); ou pela consola, `--desligar-segundo-factor NOME`,
   para quando o telemóvel se perde. Leva a chave, os códigos de
   recuperação e os aparelhos.
 
