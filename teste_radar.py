@@ -9271,11 +9271,13 @@ class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
             c.execute("UPDATE anuncios SET texto=?, preco_base=? WHERE ref=?",
                       (TestTabelaEssencial.TEXTO, "150.000,00 EUR", "60/2026"))
         h = self._ficha()
-        factos = h.split("<dl class='ficha-factos'>")[1].split("</dl>")[0]
-        for rotulo in ("Entidade adjudicante", "Preço base"):
-            self.assertEqual(factos.count("<dt>%s</dt>" % rotulo), 1, rotulo)
-        self.assertNotIn("<dt>Nome do projeto</dt>", factos)
-        self.assertIn("<dt>Critério de adjudicação</dt>", factos)
+        # Desde a ficha nova (28/09/2026) os factos para decidir são a
+        # grelha do «Para decidir», e a entidade vive só no cabeçalho.
+        factos = h.split("class='factos-grelha'")[1].split("id='pecas-pedem'")[0]
+        self.assertEqual(factos.count("<div class='k'>Preço base</div>"), 1)
+        self.assertNotIn("Entidade adjudicante", factos)
+        self.assertNotIn("Nome do projeto", factos)
+        self.assertIn("<div class='k'>Critério</div>", factos)
 
     def test_na_escada_ha_um_so_campo_responsavel(self):
         self.cliente.post("/estado/60%2F2026/analisar")
@@ -13041,36 +13043,6 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         # com o foco num campo de texto as teclas escrevem, não triam
         self.assertIn("t.tagName === 'INPUT'", radar.LISTA_JS)
         self.assertIn(".item.foco{", radar.CSS)
-
-
-class TestEssencialNumaFrase(unittest.TestCase):
-    """O «essencial» de um por ver sem peças tinha 8 linhas em 12 a
-    dizer «só consta das peças»: saem para uma frase, agrupadas pela
-    razão, para continuar a dizer ONDE cada campo está."""
-
-    def test_agrupa_por_razao_e_mantem_a_ordem(self):
-        saiu = radar.frase_dos_campos_em_falta([
-            ("só consta do Programa do Concurso", "Preço anormalmente baixo"),
-            ("o anúncio não indica", "Duração do contrato"),
-            ("só consta do Caderno de Encargos", "Equipa"),
-            ("só consta do Programa do Concurso", "Documentos que constituem a proposta"),
-        ])
-        self.assertIn("Faltam aqui 4 dados", saiu)
-        self.assertIn("<b>só consta do Programa do Concurso</b>: Preço anormalmente baixo, "
-                      "Documentos que constituem a proposta", saiu)
-        self.assertLess(saiu.index("Programa"), saiu.index("não indica"))
-        self.assertLess(saiu.index("não indica"), saiu.index("Caderno"))
-        self.assertIn("href='#pecas'", saiu)
-
-    def test_singular_e_vazio(self):
-        self.assertIn("Faltam aqui 1 dado", radar.frase_dos_campos_em_falta([("x", "Equipa")]))
-        self.assertEqual(radar.frase_dos_campos_em_falta([]), "")
-
-    def test_escapa(self):
-        saiu = radar.frase_dos_campos_em_falta([("<b>", "A & B")])
-        self.assertIn("&lt;b&gt;", saiu)
-        self.assertIn("A &amp; B", saiu)
-
 
 
 class TestConfiguracoes(BaseTemporaria):
@@ -21157,6 +21129,152 @@ class TestSegundoFactorDoDono(BaseTemporaria):
             self.assertFalse(radar.contas.segundo_factor_ligado(c, self.dono))
         _, r = self.entrar()
         self.assertNotEqual(r.headers["Location"], "/entrar/codigo")
+
+
+class TestFichaNova(unittest.TestCase):
+    """A ficha nova (28/09/2026, a maquete que ele aprovou): a equipa em
+    tabela, os resumos das linhas recolhidas e a ordem dos factos."""
+
+    EQUIPA = ("Gestor de Projeto\nQuantidade: 1\nExperiência geral: 8 anos\n"
+              "Certificações: PMP\nHoras e preço: 55,00 €\n\n"
+              "Consultor Júnior\nQuantidade: 2 (dois) membros\n"
+              "Experiência geral: superior a 2 (dois) anos\nCertificações: —\n"
+              "Horas e preço: 8448 horas, 30,00 € / hora\n\n"
+              "Nota solta que a leitura escreveu sem pares")
+
+    def test_os_perfis_decompoem_se_e_o_bloco_solto_fica_como_texto(self):
+        perfis = radar.perfis_da_equipa(self.EQUIPA)
+        self.assertEqual(len(perfis), 3)
+        self.assertEqual((perfis[0]["nome"], perfis[0]["pessoas"], perfis[0]["anos"],
+                          perfis[0]["cert"], perfis[0]["preco"]),
+                         ("Gestor de Projeto", "1", "8", "PMP", "55,00"))
+        # «2 (dois) membros», «superior a 2 (dois) anos», e o € da hora
+        # depois das horas; o «—» não é certificação
+        self.assertEqual((perfis[1]["pessoas"], perfis[1]["anos"],
+                          perfis[1]["cert"], perfis[1]["preco"]), ("2", "2", "", "30,00"))
+        self.assertEqual(perfis[2], {"texto": "Nota solta que a leitura escreveu sem pares"})
+        tabela = radar.tabela_da_equipa(perfis)
+        self.assertIn("Nota solta que a leitura", tabela)
+        self.assertEqual(tabela.count("<details class='eq-perfil'>"), 2)
+
+    def test_o_nome_do_perfil_escrito_como_par(self):
+        perfis = radar.perfis_da_equipa("Nome do perfil: Arquitecto\nQuantidade: 1")
+        self.assertEqual(perfis[0]["nome"], "Arquitecto")
+
+    def test_o_resumo_da_equipa_diz_so_o_que_ha(self):
+        self.assertEqual(radar.resumo_da_equipa(radar.perfis_da_equipa(self.EQUIPA)),
+                         "2 perfis · 2 a 8 anos · 1 com certificação · 30 a 55 €/h")
+        self.assertEqual(radar.resumo_da_equipa(radar.perfis_da_equipa(
+            "Técnico\nFormação: —")), "1 perfil")
+        self.assertEqual(radar.resumo_da_equipa([{"texto": "x"}]), "")
+
+    def test_o_objecto_resume_se_pela_primeira_linha_e_nao_pela_contagem(self):
+        """Ele disse que estava mal: o objecto fechado começava por «15
+        pontos». A contagem vai para o botão."""
+        primeira, pontos = radar.resumo_do_objecto(
+            "- Desenho da solução\n- Implementação\n- Formação")
+        self.assertEqual((primeira, pontos), ("Desenho da solução", 3))
+        self.assertEqual(radar.resumo_do_objecto("Uma frase só."), ("Uma frase só.", 0))
+        self.assertEqual(radar.resumo_do_objecto(""), ("", 0))
+
+    def test_os_esclarecimentos_vem_antes_das_propostas(self):
+        a = {"ref": "1/2026", "titulo": "X", "entidade": "E", "preco_base": "",
+             "data_pub": "2026-09-01", "prazo": "2026-12-01", "cpv": "", "lotes": ""}
+        rotulos = [f[0] for f in radar.factos_para_decidir(a, [])]
+        self.assertEqual(rotulos, ["Preço base", "Esclarecimentos até", "Propostas até",
+                                   "Duração", "Critério", "Local",
+                                   "Habilitação (alvará)", "Caução"])
+        # o que o anúncio não traz fica na célula, apagado, a dizer onde está
+        caucao = radar.factos_para_decidir(a, [])[-1]
+        self.assertEqual(caucao, ("Caução", "consta do Programa do Concurso", "", True))
+
+
+class TestAsFontesComParentesesNoNome(unittest.TestCase):
+    """Revisão da ficha nova (28/09/2026): o nome verdadeiro do Caderno do
+    INFARMED tem parênteses, e o `fontes_legiveis()` partia no primeiro
+    «(» -- a ficha dizia «de PRR)_WEBSITE_20260267.pdf (pág. 40–42, …,
+    21–22)», com as páginas do Caderno e do Programa numa lista só."""
+
+    FONTES = ("CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf (pág. 40–42, "
+              "57–58), PROGRAMA_PROCEDIMENTO_INFARMED(PRR)_WEBSITE_20260267.pdf "
+              "(pág. 21–22), CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf "
+              "(pág. 8–9)")
+
+    def test_cada_ficheiro_com_as_suas_paginas(self):
+        self.assertEqual(radar.fontes_legiveis(self.FONTES),
+                         "CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf "
+                         "(pág. 40–42, 57–58, 8–9), "
+                         "PROGRAMA_PROCEDIMENTO_INFARMED(PRR)_WEBSITE_20260267.pdf "
+                         "(pág. 21–22)")
+
+    def test_a_ficha_diz_o_papel_e_o_nome_so_sem_papel(self):
+        self.assertEqual(radar.fontes_pelo_papel(self.FONTES),
+                         "Caderno de Encargos (pág. 40–42, 57–58, 8–9), "
+                         "Programa (pág. 21–22)")
+        # dois cadernos no mesmo ZIP: o papel não os distingue, fica o nome
+        self.assertEqual(radar.fontes_pelo_papel(
+            "A.zip/Caderno de encargos.pdf (pág. 1–3), A.zip/Encargos F1.pdf "
+            "(pág. 1–8), Mapa.pdf"),
+            "Caderno de encargos.pdf (pág. 1–3), Encargos F1.pdf (pág. 1–8), "
+            "Mapa.pdf")
+
+
+class TestACaucaoEAHabilitacaoCurtas(unittest.TestCase):
+    """Revisão da ficha nova: na célula, o valor curto, e o resto em nota."""
+
+    def test_o_valor_curto_e_a_nota(self):
+        self.assertEqual(radar._curto(("Caução", "Sim, 5% — Nos termos do artigo "
+                                       "16.º do Programa", "", False)),
+                         ("Caução", "5\xa0%", "Nos termos do artigo 16.º do Programa",
+                          False))
+        self.assertEqual(radar._curto(("Caução", "Sim", "", False))[1], "Sim")
+        self.assertEqual(radar._curto(("Caução", "Não", "", False))[1], "Não")
+        self.assertEqual(radar._curto(("Habilitação (alvará)",
+                                       "Alvará — 4ª Categoria, classe 3", "", False))[1:3],
+                         ("Alvará", "4ª Categoria, classe 3"))
+        apagado = ("Caução", "consta do Programa do Concurso", "", True)
+        self.assertEqual(radar._curto(apagado), apagado)
+
+
+class TestAFichaDeUmaRepublicacaoLeOPrazoDaCadeia(BaseTemporaria):
+    """A correcção que motivou a ficha nova (28/09/2026): o 21295/2026, uma
+    republicação intermédia, dizia «expirou» com o prazo dele (31/08),
+    quando a cadeia foi prorrogada e o 19129/2026 estava aberto até 06/10."""
+
+    def setUp(self):
+        super().setUp()
+        texto = "18 - PRAZO\nPrazo para apresentação das propostas: 31/08/2099 23:59\n"
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO anuncios (ref, titulo, entidade, estado, data_pub, "
+                "prazo, texto, altera, alterado_por) VALUES (?,?,?,?,?,?,?,?,?)",
+                [("100/2099", "Website", "E", "novo", "2099-07-27", "2099-10-06",
+                  texto, "", "300/2099"),
+                 ("200/2099", "Website", "E", "alteracao", "2099-08-21", "2099-08-31",
+                  "18 - PRAZO\n", "100/2099", None),
+                 ("300/2099", "Website", "E", "alteracao", "2099-09-28", "2099-10-06",
+                  "18 - PRAZO\n", "200/2099", None)])
+
+    def test_a_cadeia_diz_o_prazo_em_vigor_e_as_prorrogacoes(self):
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref='200/2099'").fetchone()
+            cadeia = radar.cadeia_do_anuncio(c, a)
+            c.execute("INSERT INTO anuncios (ref, estado) VALUES "
+                                "('9/2099','novo')")
+            self.assertIsNone(radar.cadeia_do_anuncio(c, c.execute(
+                "SELECT * FROM anuncios WHERE ref='9/2099'").fetchone()))
+        self.assertEqual((cadeia["raiz"], cadeia["vigor"], cadeia["prazo"],
+                          cadeia["prazo_inicial"], cadeia["alteracoes"]),
+                         ("100/2099", "300/2099", "2099-10-06", "2099-08-31", 2))
+        # 31/08 -> 31/08 não é prorrogação; 31/08 -> 06/10 é
+        self.assertEqual(cadeia["prorrogacoes"], 1)
+
+    def test_a_ficha_da_republicacao_nao_diz_expirou(self):
+        h = radar.app.test_client().get("/anuncio/200/2099").get_data(as_text=True)
+        self.assertIn("<b>propostas até 06/10/2099</b>", h)
+        self.assertNotIn("Expirou", h)
+        self.assertIn("Prorrogado 1 vez.", h)
+        self.assertIn("href='/anuncio/300%2F2099'", h)
 
 
 if __name__ == "__main__":

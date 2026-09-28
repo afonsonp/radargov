@@ -78,7 +78,7 @@
    (axe `link-in-text-block`, varredura de 25/09/2026): quem não vê bem
    a diferença entre o azul e o cinzento lia a frase sem saber onde
    carregar. Sublinhadas nas notas e nas frases corridas. */
-.nota a,.ficha-nota a,.em-falta-frase a,.mg-pagehead__sub a,.mg-alert a,
+.nota a,.ficha-nota a,.mg-pagehead__sub a,.mg-alert a,
 .mg-card__meta a,.ajuda p a,
 .entrar-nota a{text-decoration:underline;text-underline-offset:2px}
 .mg-field[hidden]{display:none}
@@ -364,11 +364,8 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-prazo.avisa b{color:var(--warning)}
 .ficha-prazo.mau b{color:var(--danger)}
 .ficha-prazo span{color:var(--ink-secondary)}
-.ficha-nota,.em-falta-frase{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted);
+.ficha-nota{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted);
  margin:var(--space-2) 0 0}
-.em-falta-frase b{font-weight:600;color:var(--ink-secondary)}
-.nota-campo{display:block;margin-top:3px;font:400 var(--text-xs)/16px var(--font-sans);
- color:var(--ink-muted)}
 .mg-card__foot .mg-row{gap:var(--space-2)}
 .ficha-lado .prop-campos{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
 .resp{display:flex;align-items:center;gap:var(--space-2)}
@@ -989,3 +986,117 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .dist-alerta summary{cursor:pointer;font:500 var(--text-sm)/1.4 var(--font-sans);padding:6px 0}
 .dist-alerta .dist-interesse{margin-top:6px}
 @media (max-width:600px){.dist-alerta .dist-interesse{grid-template-columns:1fr 1fr}}
+
+/* A ficha nova (28/09/2026, a maquete que ele aprovou). As grelhas de
+   «Para decidir» e do mercado vão de uma borda do cartão à outra, e o fio
+   de 1px entre as células é o fundo da grelha a aparecer no `gap`. Um
+   facto em falta fica na célula, apagado, a dizer onde está. */
+.mg-card__body>.factos-grelha{margin:calc(-1 * var(--space-4)) calc(-1 * var(--space-5))}
+.factos-grelha{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;
+ background:var(--line)}
+.factos-grelha>div{background:var(--surface-raised);padding:var(--space-3) var(--space-5);
+ display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.factos-grelha .k{font:600 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
+.factos-grelha .v{font:600 var(--text-md)/22px var(--font-sans);color:var(--ink);
+ overflow-wrap:anywhere}
+.factos-grelha .v.n{font:600 var(--text-lg)/26px var(--font-mono)}
+.factos-grelha .v small{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
+.factos-grelha .d{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
+.factos-grelha .apagado .v{font-weight:400;font-size:var(--text-sm);color:var(--ink-muted)}
+.mercado-grelha{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mg-card__body>.mercado-grelha{margin-bottom:0}
+.mg-card__body>.mercado-grelha:not(:first-child){margin-top:var(--space-3)}
+/* a régua do mercado: o intervalo entre os quartis, a mediana e a marca
+   deste concurso (as posições vêm em `style`, calculadas no servidor) */
+.regua{position:relative;height:22px;margin:var(--space-2) 0}
+.regua::before{content:"";position:absolute;left:0;right:0;top:10px;height:2px;
+ background:var(--line)}
+.regua span{position:absolute}
+.regua-caixa{top:4px;height:14px;background:var(--brand-soft);
+ border:var(--border-hairline) solid var(--line-strong);border-radius:var(--radius-sm)}
+.regua-med{top:2px;width:2px;height:18px;background:var(--brand)}
+.regua-este{top:0;width:4px;height:22px;margin-left:-2px;background:var(--warning);
+ border-radius:var(--radius-sm)}
+.ficha-mais-fila{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;
+ margin-top:var(--space-4)}
+.ficha-mais>summary{list-style:none}
+.ficha-mais>summary::-webkit-details-marker{display:none}
+.ficha-mais[open]{display:block;flex:1 1 100%;order:1}
+.ficha-mais[open]>summary{margin-bottom:var(--space-3)}
+/* «O que as peças pedem»: uma linha por campo; as compridas recolhem-se
+   num `<details>` cujo `summary` é o rótulo, o resumo e o botão */
+.pp-linha{border-top:var(--border-hairline) solid var(--line)}
+.mg-card__body>.pp-linha{margin:0 calc(-1 * var(--space-5))}
+.mg-card__body>.pp-linha:first-child{border-top:0;margin-top:calc(-1 * var(--space-4))}
+.mg-card__body>.pp-linha:last-child{margin-bottom:calc(-1 * var(--space-4))}
+.pp-linha>summary,div.pp-linha{display:flex;gap:var(--space-4);align-items:baseline;
+ padding:var(--space-3) var(--space-5);min-height:44px;box-sizing:border-box}
+.pp-linha>summary{cursor:pointer;list-style:none;align-items:center}
+.pp-linha>summary::-webkit-details-marker{display:none}
+.pp-linha>summary:hover{background:var(--surface-sunken)}
+.pp-r{flex:0 0 190px;font:600 var(--text-md)/22px var(--font-sans);color:var(--ink)}
+.pp-s{flex:1 1 auto;min-width:0;font:400 var(--text-md)/22px var(--font-sans);
+ color:var(--ink-secondary)}
+.pp-linha.apagado .pp-s{color:var(--ink-muted);font-size:var(--text-sm)}
+.pp-b{flex:none;font:500 var(--text-sm)/20px var(--font-sans);color:var(--link)}
+.pp-linha[open] .pp-b .abrir,.pp-linha:not([open]) .pp-b .fechar{display:none}
+.pp-corpo{padding:0 var(--space-5) var(--space-4)}
+.pp-s ol,.pp-s ul{margin:0;padding-left:var(--space-5)}
+/* a equipa: uma linha por perfil, e o nome abre o resto do bloco */
+.equipa{font-size:var(--text-sm)}
+.eq-linha{display:grid;grid-template-columns:minmax(0,1fr) 4rem 3.5rem minmax(0,12rem) 5rem;
+ column-gap:var(--space-5);align-items:center;padding:6px var(--space-3);
+ border-bottom:var(--border-hairline) solid var(--line)}
+.eq-cab{background:var(--surface-sunken);border-radius:var(--radius-sm);border-bottom:0;
+ font:600 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
+.eq-linha .n{text-align:right;font-family:var(--font-mono)}
+.eq-perfil>summary{cursor:pointer;list-style:none}
+.eq-perfil>summary::-webkit-details-marker{display:none}
+.eq-perfil>summary:hover{background:var(--surface-sunken)}
+.eq-nome{font-weight:500;color:var(--ink)}
+.eq-cert{color:var(--ink-secondary)}
+.eq-mais{display:grid;grid-template-columns:max-content minmax(0,1fr);
+ gap:var(--space-1) var(--space-4);margin:0;padding:var(--space-2) var(--space-3) var(--space-3);
+ background:var(--surface-sunken)}
+.eq-mais dt{color:var(--ink-muted)}.eq-mais dd{margin:0}
+.eq-texto{padding:6px var(--space-3);border-bottom:var(--border-hairline) solid var(--line);
+ color:var(--ink-secondary)}
+/* o anúncio completo, fechado no fim */
+.ficha-anuncio>summary{list-style:none;align-self:flex-start}
+.ficha-anuncio>summary::-webkit-details-marker{display:none}
+.ficha-anuncio[open]>summary{margin-bottom:var(--space-3)}
+.pagehead-etiquetas{gap:var(--space-2);margin-top:var(--space-2);flex-wrap:wrap}
+/* no computador, a coluna da direita fica presa ao rolar; mais alta do
+   que o ecrã, rola por dentro (senão o fim dela só se via no fim da
+   página) */
+@media (min-width:1101px){
+ .ficha-lado{position:sticky;top:calc(var(--barra-h,56px) + 12px);align-self:start;
+  max-height:calc(100vh - var(--barra-h,56px) - 24px);overflow-y:auto;
+  overscroll-behavior:contain}}
+@media (max-width:720px){
+ .factos-grelha{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .factos-grelha>div{padding:var(--space-3) var(--space-4)}
+ .mercado-grelha{grid-template-columns:minmax(0,1fr)}
+ .mg-card__body>.factos-grelha{margin:calc(-1 * var(--space-4)) calc(-1 * var(--space-4))}
+ .mg-card__body>.pp-linha{margin-left:calc(-1 * var(--space-4));margin-right:calc(-1 * var(--space-4))}
+ .pp-linha>summary,div.pp-linha{flex-direction:column;align-items:flex-start;gap:2px;
+  padding:var(--space-3) var(--space-4)}
+ .pp-r{flex-basis:auto}
+ .pp-corpo{padding:0 var(--space-4) var(--space-4)}
+ /* a equipa em duas linhas: o nome por cima, os números por baixo */
+ .eq-linha{grid-template-columns:3rem 3rem 4.5rem minmax(0,1fr);column-gap:var(--space-3);
+  min-height:44px}
+ .eq-linha>:first-child{grid-column:1/-1}
+ .eq-linha .eq-cert{grid-column:4;grid-row:2}
+ .ficha-mais>summary,.ficha-anuncio>summary{min-height:44px}}
+/* Abaixo de 1100px a coluna da direita caía para o fim da página, e o
+   prazo e «A nossa proposta» só se viam depois do anúncio completo. As
+   duas colunas desfazem-se (`display:contents`) e o prazo e a proposta
+   sobem para logo a seguir ao cabeçalho, como na maquete do telemóvel;
+   o responsável, os contactos e o histórico ficam no fim. Sem HTML
+   duplicado: é só a ordem. */
+@media (max-width:1100px){
+ .ficha-duas{display:flex;flex-direction:column;gap:var(--space-4)}
+ .ficha-duas>.ficha-principal,.ficha-duas>.ficha-lado{display:contents}
+ .ficha-lado>#prazo{order:-2}
+ .ficha-lado>#proposta{order:-1}}

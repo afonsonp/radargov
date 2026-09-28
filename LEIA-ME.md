@@ -367,7 +367,9 @@ um prazo se prorroga ou um preço base muda. O radar reconhece essas
 republicações, passa o prazo e o preço novos para o anúncio original e
 tira-as da lista. A ficha do original diz «Alterado pelo anúncio X» e o
 histórico conta o que mudou; a ficha da alteração aponta para o
-original, que é onde se decide — um anúncio que abandonaste continua
+original, que é onde se decide, mas com o prazo **em vigor** da cadeia
+(desde 28/09/2026; antes dizia «expirou» com o prazo dela, de um
+concurso que foi prorrogado e está aberto) — um anúncio que abandonaste continua
 abandonado quando é republicado, e um por ver a que estenderam o prazo
 volta a aparecer com o prazo novo, sem mexeres em nada.
 
@@ -532,21 +534,43 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   por isso o botão diz **Procurar na acingov** e abre a pesquisa
   pública — em vez de prometer o que não existe.
 
-**Essencial** mostra uma tabela com os catorze campos que interessam
-para decidir: nome, entidade, critério de adjudicação, preço base, preço
-anormalmente baixo, a **habilitação** (o alvará, com a categoria e a
-classe) e a **caução** — estas duas tiradas do anúncio, desde
-28/09/2026 —, duração, local, data de esclarecimentos, data de
-submissão, objecto, equipa e documentos que constituem a proposta.
-O que vem da leitura das peças leva a nota **«é um rascunho: confirmar
-no documento antes de decidir»**: a leitura automática falha mais por
-omitir do que por inventar, e um «a leitura não encontrou» pode ser uma
-parte das peças que não leu.
-Os que não têm valor **não ocupam linha**: ficam numa frase por baixo
-da tabela, agrupados pela razão («só consta do Programa de Concurso:
-…; só consta do Caderno de Encargos: …»), com a ligação para as peças.
-Depois de as peças serem lidas, os campos que a leitura trouxer voltam
-à tabela. O botão **Anúncio completo** abre as 28 secções em bruto.
+**Desde 28/09/2026 a ficha lê-se de cima para baixo**, pela ordem em
+que se decide:
+
+- **Para decidir** — oito factos numa grelha (quatro por linha no
+  computador, dois no telemóvel): preço base (com «acima / abaixo / em
+  linha com o que a entidade costuma pagar», quando há contratos dela
+  neste CPV), **esclarecimentos até** (antes das propostas, porque passa
+  primeiro), **propostas até** (com quantos dias faltam e quantas vezes
+  foi prorrogado), duração, critério, local, habilitação (o alvará) e
+  caução. Um facto que o anúncio não traz fica na célula, em cinzento, a
+  dizer onde está («consta do Programa do Concurso»).
+- **O que as peças pedem** — a leitura automática das peças, com a marca
+  **«Rascunho: confirmar nas peças»** uma vez, e por baixo as peças e as
+  páginas que foram lidas: a leitura falha mais por omitir do que por
+  inventar, e «não encontrado» quer dizer que não estava nessas páginas.
+  A **equipa** fecha-se num resumo («20 perfis · 2 a 8 anos · 5 com
+  certificação · 30 a 55 €/h») e abre-se numa tabela, um perfil por
+  linha (pessoas, anos, certificação, €/h); o nome de cada perfil abre a
+  formação e as outras condições. O **objecto** fecha-se na primeira
+  linha — o que se contrata — e o botão diz quantos pontos tem. Os
+  **documentos da proposta** ficam sempre à vista, e o **preço
+  anormalmente baixo** diz o valor ou «não encontrado». Nas obras, nos
+  bens e nos outros serviços a primeira linha é a do tipo de contrato
+  (a equipa técnica e o alvará, os artigos, os postos, o nível de
+  serviço), em texto.
+- **O mercado** — três números: o que a entidade costuma pagar neste CPV
+  (a mediana, e uma régua com o intervalo onde cai metade dos contratos
+  e a marca deste concurso), o desconto habitual sobre o preço base, e
+  quem costuma ganhar (nos procedimentos homólogos e no CPV). As tabelas
+  que os provam ficam fechadas, nos botões **Ver os N homólogos** e
+  **Ver os N contratos no CPV**.
+- **As peças**, que continuam a abrir dentro da ficha, e no fim o
+  **Anúncio completo**, fechado, com as secções do DR em bruto.
+
+À direita, e presa ao rolar no computador, fica o **prazo** (grande, com
+as prorrogações), a nossa proposta, o que falta fazer, os contactos e o
+histórico.
 
 A **data de esclarecimentos** é calculada, não lida: é o primeiro terço
 do prazo das propostas, que é a regra supletiva do artigo 50.º do CCP.
@@ -554,12 +578,12 @@ Vem marcada como tal, para confirmares no Programa de Concurso — alguns
 fixam prazo próprio. É um prazo que se perde em silêncio, porque fecha
 muito antes do prazo das propostas e ninguém avisa.
 
-Quatro desses campos não estão no anúncio do DR — preço anormalmente
+Quatro campos não estão no anúncio do DR — preço anormalmente
 baixo, objecto detalhado, equipa e documentos da proposta. Vivem no
 Programa de Concurso e no Caderno de Encargos, e é um modelo que os lê
 de lá quando as peças chegam (ver o ponto seguinte). Enquanto as peças
-não vierem, aparecem assinalados na tabela de propósito, para veres o
-que falta em vez de parecer que não existe.
+não vierem, o cartão «O que as peças pedem» diz que ainda não foram
+lidas, e onde se pede a leitura.
 
 Se abrires um anúncio que o radar ainda não tinha lido — um antigo, por
 exemplo — ele lê-o na altura, demora cerca de um segundo, e fica

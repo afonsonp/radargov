@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 75
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 76
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 103
 - [Convenções](#convencoes) &middot; 4
 
-São **360** ao todo, contados a 28/09/2026. Contam-se por secção com
+São **361** ao todo, contados a 28/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1993,6 +1993,20 @@ pelo Afonso e nenhuma se reabre de passagem.
   (`data_da_tarefa_do_documento()`): pelo dia de hoje, amanhã já não
   batia, e a tarefa era apagada e refeita — perdia o «feita».
 
+- **Numa cadeia de republicações, cada anúncio guarda o SEU prazo, e
+  só o original guarda o que está em vigor** (28/09/2026). O
+  `aplicar_alteracao()` põe no original o prazo da alteração mais
+  recente, mas não toca nas alterações do meio; a ficha da 21295/2026
+  lia o dela (31/08) e dizia «expirou» de um concurso prorrogado seis
+  vezes e aberto até 06/10. A ficha lê o prazo da `cadeia_do_anuncio()`
+  e passa-o num `dict(a, prazo=…)` a tudo o resto — as etiquetas, o
+  cartão do prazo e os esclarecimentos. E as peças e a leitura de uma
+  cadeia ficam no anúncio onde foram trazidas (o 19129/2026 não as tem;
+  a 21295/2026 e a 21925/2026 sim): sem elas no próprio, a ficha mostra
+  a leitura mais recente da cadeia e diz de onde veio, e aponta para as
+  peças em vez de dizer só que não vieram. Há teste
+  (`TestAFichaDeUmaRepublicacaoLeOPrazoDaCadeia`).
+
 ## O registo da empresa
 
 O registo da empresa, em `empresa.py`: desde 8/09/2026 pelo modelo do radar;
@@ -3342,8 +3356,9 @@ botões ou no calendário.
   no `LISTA_JS`: `requestSubmit()` nos formulários da linha focada,
   para o pop-up do abandono e a memória da posição do scroll
   continuarem a disparar; nada dispara com o foco num campo) e a
-  **frase dos campos em falta** do essencial
-  (`frase_dos_campos_em_falta()`, agrupada pela razão). A mensagem da
+  **frase dos campos em falta** do essencial (agrupada pela razão;
+  saiu a 28/09/2026 com a ficha nova, onde cada facto em falta fica na
+  sua célula a dizer onde está). A mensagem da
   última verificação passou a levar o ponto como carácter: era
   `&middot;` e a barra lateral escapa-a — saía escrito.
 
