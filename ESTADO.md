@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **26 de setembro de 2026**.
+Última actualização: **28 de setembro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -60,8 +60,8 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Rotas Flask | 120 |
 | Tabelas em `radar.db` | 16, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, e as `reposicoes`, D17 a 26/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB) |
-| Testes | **1 447**, em ~115 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 31 016 linhas · `teste_radar.py` 20 468 · `empresa.py` 865 · `contas.py` 722 · `icones.py` 62 |
+| Testes | **1 444**, em ~125 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 31 021 linhas · `teste_radar.py` 20 480 · `empresa.py` 865 · `contas.py` 722 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -153,8 +153,15 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.11`**, de
-  26/09/2026 — **o dono apaga uma empresa no painel** (com o nome
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.12`**, de
+  28/09/2026 — **o `contacto@miragov.pt`** no site, na privacidade e na
+  acessibilidade (o correio do domínio passou a existir nesse dia, na
+  caixa do alojamento do domínios.pt), e **a proposta de cada empresa**:
+  a tipologia e a unidade de negócio passam a listas do Perfil da
+  empresa, os documentos que o Programa pede (campo 12) substituem o CV
+  e a proposta técnica sim/não, os motivos de perda passam a genéricos,
+  e a leitura das peças pede o campo 11 conforme o tipo de contrato. A
+  `v2.0.11`, de 26/09/2026, foi **o dono apaga uma empresa no painel** (com o nome
   escrito para confirmar e a cópia antes) e o aviso sem o anel magenta.
   A `v2.0.10`, do mesmo dia, foi **a ronda em PC**: o layout dos ecrãs grandes, o
   Mercado e os gráficos (PC-A), as mensagens que enganavam, a página
@@ -173,24 +180,7 @@ ensaio de restauro.
   mais rápido nas listas e no Mercado). A `v2.0.7`, do mesmo dia, foi **uma correcção de segurança**: as páginas e os
   ficheiros das peças ficavam na cache da Cloudflare e chegavam a quem
   não tinha sessão; tudo o que não é público sai agora com `private`
-  (purgar a cache da Cloudflare depois). **No `master`, por cortar**:
-  o lote 5 da segunda ronda (26/09/2026) — o texto e o desenho: um
-  formatador único para o dinheiro, as datas, o % e os plurais; as fases
-  no feminino e «fase» no lugar de «ranhura»; uma só voz (você, ou
-  impessoal); a escala tipográfica e os raios só por token; um só
-  «Filtrar», um só número grande (`kpi()`); e a decisão D11 — a
-  **Situação** na barra e a **Ajuda** num «?» à vista. E as decisões
-  dele sobre a proposta (26/09/2026): o preço acima da base **recusa-se**
-  (D2); a data da adjudicação, a audiência prévia e as notas datadas
-  (D3); o cofre dos documentos (D5); e o valor adjudicado e o «em jogo»
-  em dois (D10). E **a página do dono** (26/09/2026, a §7 da segunda
-  ronda): a `/plataforma` com semáforos, «a tratar hoje», uma página
-  por empresa, o correio da plataforma, o «ver como a empresa, só
-  leitura» para o suporte, suspender uma empresa, recusar pedidos, a
-  conta do dono, e só a consola a criar um dono (F2). E as decisões sobre os ecrãs (26/09/2026): a barra em
-  baixo no telemóvel (D9), o calendário com três filtros, as tarefas e
-  a agenda no telemóvel (D12), o alto contraste escolhido na conta (D14)
-  e a declaração de acessibilidade em `/acessibilidade` (D15). A `v2.0.6`, de
+  (purgar a cache da Cloudflare depois). A `v2.0.6`, de
   25/09/2026, foi **o que o teste com dez perfis pediu de novo**: o
   convite pelo admin, o «Como funciona» com o glossário, o alerta que
   avisa logo, o filtro por distrito e por preço base (uma migração lê o
