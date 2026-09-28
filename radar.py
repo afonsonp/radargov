@@ -11436,8 +11436,13 @@ def volta_ao_referer(omissao):
 # /acessibilidade (D15, 26/09/2026): a declaracao de acessibilidade, que
 # e publica por natureza -- quem encontra uma barreira no ecra de entrar
 # tem de a poder ler sem conta. E um ficheiro do `site/`, sem dados.
+# /entrar/codigo (28/09/2026): o segundo ecra de entrar, o do codigo da
+# app. Quem la chega ainda nao tem sessao -- e o que ele faz nascer --,
+# e a guarda e dentro da rota (`entrar_codigo()`): o pendente (so o
+# resumo na base, cinco minutos, cinco tentativas), o trinco, e a origem.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
-                 "/favicon.svg", "/privacidade", "/termos", "/acessibilidade")
+                 "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
+                 "/entrar/codigo")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -11512,7 +11517,11 @@ def so_dono(caminho):
 # mais poderosa so mudava a palavra-passe pela consola. Por IGUALDADE:
 # `/configuracoes/conta/utilizadores` e o resto da conta sao da empresa.
 CONTA_DO_DONO = ("/configuracoes/conta", "/configuracoes/conta/aspecto",
-                 "/ajuda", "/configuracoes/conta/ligacao")
+                 "/ajuda", "/configuracoes/conta/ligacao",
+                 # o segundo factor (28/09/2026), que e so do dono
+                 "/configuracoes/conta/segundo-factor/ligar",
+                 "/configuracoes/conta/segundo-factor/confirmar",
+                 "/configuracoes/conta/segundo-factor/desligar")
 
 # Os unicos POST que passam com o dono a ver uma empresa: sair do modo
 # de suporte, e sair da sessao.
@@ -12100,7 +12109,11 @@ def entrar():
         token, resultado = contas.entrar(
             c, email, request.form.get("senha") or "",
             ip=request.remote_addr or "",
-            agente=request.headers.get("User-Agent") or "")
+            agente=request.headers.get("User-Agent") or "",
+            aparelho=request.cookies.get("aparelho") or "")
+    if not token and isinstance(resultado, dict):
+        # a palavra-passe esta certa, e falta o codigo (28/09/2026)
+        return _para_o_codigo(resultado["pendente"], request.form.get("para"))
     if not token:
         marca_erro("login", "login", "falhou para %s de %s: %s"
                    % (contas.email_limpo(email)[:60], request.remote_addr,
@@ -12108,17 +12121,37 @@ def entrar():
         return pagina_entrar(resultado, email=email,
                              para=request.form.get("para"),
                              codigo=429 if "espera" in resultado else 200)
+    return _sessao_aberta(token, resultado, request.form.get("para"))
+
+
+def _sessao_aberta(token, utilizador, para):
+    """Regista a entrada, poe o cookie da sessao e segue para `para`. O
+    /entrar e o /entrar/codigo acabam os dois aqui."""
     # Na empresa de quem entrou: o /entrar e rota aberta, e a porta
     # ainda nao pos a empresa do pedido -- ate 23/09/2026 a entrada de
     # uma conta da B ficava no historico da 1.
-    with com_empresa(SEM_EMPRESA if contas.sem_empresa(resultado)
-                     else resultado["empresa_id"] or EMPRESA_ACTIVA):
-        registar("", "entrou", request.remote_addr or "", quem=resultado["nome"])
-    resposta = redirect(destino_seguro(request.form.get("para")))
+    with com_empresa(SEM_EMPRESA if contas.sem_empresa(utilizador)
+                     else utilizador["empresa_id"] or EMPRESA_ACTIVA):
+        registar("", "entrou", request.remote_addr or "", quem=utilizador["nome"])
+    resposta = redirect(destino_seguro(para))
     resposta.set_cookie("sessao", token,
                         max_age=60 * 60 * 24 * contas.DIAS_DE_SESSAO,
                         httponly=True, samesite="Lax",
                         secure=request.is_secure)
+    return resposta
+
+
+def _para_o_codigo(pendente, para=None):
+    """Leva ao ecra do codigo com o pendente num cookie de cinco minutos.
+    O `Secure` segue o da sessao (`request.is_secure`): pelo endereco
+    publico o tunel diz https ao ProxyFix, e ai o cookie so viaja cifrado;
+    no ensaio local, em http, um cookie Secure nunca voltava."""
+    para = destino_seguro(para)
+    resposta = redirect("/entrar/codigo" + (
+        "?para=" + quote(para, safe="") if para != "/" else ""))
+    resposta.set_cookie("pendente", pendente,
+                        max_age=60 * contas.MINUTOS_DO_PENDENTE,
+                        httponly=True, samesite="Lax", secure=request.is_secure)
     return resposta
 
 
@@ -20665,6 +20698,8 @@ def config_conta():
            % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
            if sessoes else ""))
     corpo += _bloco_do_aspecto(utilizador)
+    if contas.pode_ter_segundo_factor(utilizador):
+        corpo += _bloco_do_segundo_factor(utilizador)
     if da_empresa:
         corpo += _bloco_da_empresa()
         corpo += _bloco_utilizadores(todos, utilizador["id"])
@@ -20717,6 +20752,169 @@ def config_aspecto():
         return volta_config_erro("conta", "Esse aspecto não existe.")
     registar("", "conta", "aspecto: %s" % aspecto)
     return volta_config("conta", "Aspecto guardado.")
+
+
+# ------------------------------------------------ o segundo factor da conta
+#
+# 28/09/2026, decisão dele: a conta do dono abre a plataforma inteira, e
+# bastava a palavra-passe. Opcional, e só do dono por agora
+# (`contas.pode_ter_segundo_factor()`); as tabelas e o TOTP estão no
+# contas.py. Sem QR: não há biblioteca, e não se acrescenta -- a chave
+# vai em texto, para escrever à mão, e como ligação `otpauth://`, que no
+# telemóvel abre a app de autenticação.
+
+ANCORA_DO_SEGUNDO_FACTOR = "#segundo-factor"
+
+
+def _volta_ao_segundo_factor(aviso, erro=False):
+    return redirect(volta_config("conta", aviso, erro).location
+                    + ANCORA_DO_SEGUNDO_FACTOR)
+
+
+def _ligacao_otpauth(utilizador, segredo):
+    """A ligação que as apps de autenticação conhecem (o formato da Google,
+    que todas seguem): o emissor no rótulo e no parâmetro."""
+    return ("otpauth://totp/Mira%%20Gov:%s?secret=%s&issuer=Mira%%20Gov"
+            % (quote(utilizador["email"], safe="@."), segredo))
+
+
+def _campo_da_senha_actual():
+    return _campo("Palavra-passe actual", "actual", "", tipo="password",
+                  extra="autocomplete='current-password' required")
+
+
+def _campo_do_codigo(nota=""):
+    return _campo("Código", "codigo", "", nota=nota,
+                  extra="autocomplete='one-time-code' autocapitalize='off' "
+                        "spellcheck='false' required")
+
+
+def _bloco_do_segundo_factor(utilizador):
+    """O bloco da Conta, nos três estados: desligado (o botão «Ligar»), a
+    meio (a chave e o campo do primeiro código) e ligado (o «Desligar»,
+    que pede um código)."""
+    with liga() as c:
+        ligado = contas.segundo_factor_ligado(c, utilizador["id"])
+        segredo = None if ligado else contas.segredo_por_confirmar(c, utilizador["id"])
+        faltam = contas.codigos_por_usar(c, utilizador["id"]) if ligado else 0
+    cabeca = ("<div class='mg-field__label' id='segundo-factor' "
+              "style='margin:22px 0 6px'>Segundo factor</div>")
+    if ligado:
+        return (cabeca
+                + "<p class='nota'>Está <b>ligado</b>. Num aparelho novo, depois "
+                  "da palavra-passe, o Mira Gov pede o código da app de "
+                  "autenticação. Códigos de recuperação por usar: <b>%d</b>.</p>"
+                  % faltam
+                + "<form method='post' action='/configuracoes/conta/segundo-factor/"
+                  "desligar' class='conf-form'>"
+                + _campo_da_senha_actual()
+                + _campo_do_codigo("o da app, ou um código de recuperação")
+                + "<button type='submit' class='mg-btn'>Desligar o segundo "
+                  "factor</button></form>")
+    if segredo:
+        grupos = " ".join(segredo[i:i + 4] for i in range(0, len(segredo), 4))
+        return (cabeca
+                + "<ol class='nota'>"
+                  "<li>Abra a app de autenticação do telemóvel (Google "
+                  "Authenticator, Microsoft Authenticator, ou outra) e "
+                  "acrescente uma conta.</li>"
+                  "<li>No telemóvel, <a href='%s'>toque aqui para a "
+                  "acrescentar</a>. No computador, escolha «introduzir uma "
+                  "chave» e escreva esta: <code>%s</code></li>"
+                  "<li>Escreva aqui o código de seis dígitos que a app "
+                  "mostra.</li></ol>"
+                  % (html.escape(_ligacao_otpauth(utilizador, segredo), quote=True),
+                     html.escape(grupos))
+                + "<form method='post' action='/configuracoes/conta/segundo-factor/"
+                  "confirmar' class='conf-form'>"
+                + _campo_do_codigo()
+                + "<button type='submit' class='mg-btn mg-btn--primary'>Ligar</button>"
+                  "</form>"
+                + "<div class='nota' style='margin-top:10px'>Só fica ligado "
+                  "depois deste código. Até lá, entra como sempre.</div>")
+    return (cabeca
+            + "<p class='nota'>Com o segundo factor, entrar de um aparelho "
+              "novo pede, além da palavra-passe, o código de seis dígitos de "
+              "uma app de autenticação no telemóvel. Quem souber a "
+              "palavra-passe não entra sem o telemóvel.</p>"
+            + "<form method='post' action='/configuracoes/conta/segundo-factor/"
+              "ligar' class='conf-form'>"
+            + _campo_da_senha_actual()
+            + "<button type='submit' class='mg-btn mg-btn--primary'>Ligar o "
+              "segundo factor</button></form>")
+
+
+def _quem_pode_ter_segundo_factor():
+    utilizador = g.get("utilizador")
+    if not contas.pode_ter_segundo_factor(utilizador):
+        abort(403)
+    return utilizador
+
+
+@app.route("/configuracoes/conta/segundo-factor/ligar", methods=["POST"])
+def segundo_factor_ligar():
+    """Prepara a chave, com a palavra-passe actual (a revisão do PR #123:
+    sem ela, uma sessão roubada trancava o dono fora). Não liga nada:
+    isso é o `confirmar`."""
+    utilizador = _quem_pode_ter_segundo_factor()
+    with liga() as c:
+        segredo, porque = contas.preparar_segundo_factor(
+            c, utilizador["id"], request.form.get("actual") or "",
+            ip=request.remote_addr or "")
+    if not segredo:
+        return _volta_ao_segundo_factor("Não liguei: %s." % porque, erro=True)
+    return _volta_ao_segundo_factor("Falta um passo: ponha a chave na app e "
+                                    "escreva o primeiro código.")
+
+
+@app.route("/configuracoes/conta/segundo-factor/confirmar", methods=["POST"])
+def segundo_factor_confirmar():
+    """Liga com o primeiro código certo, e mostra os códigos de
+    recuperação UMA vez (Post/Redirect/Get)."""
+    utilizador = _quem_pode_ter_segundo_factor()
+    with liga() as c:
+        codigos = contas.confirmar_segundo_factor(
+            c, utilizador["id"], request.form.get("codigo") or "")
+    if not codigos:
+        return _volta_ao_segundo_factor(
+            "O código não bate com a chave. Confirme que o telemóvel está "
+            "na hora certa e escreva o código que a app mostra agora.", erro=True)
+    registar_evento("", "conta", "segundo factor ligado: %s" % utilizador["email"],
+                    quem=utilizador.get("nome") or "")
+    return mostrar_uma_vez(
+        "Os códigos de recuperação",
+        "O segundo factor está ligado. Se perder o telemóvel, cada um destes "
+        "códigos entra <b>uma vez</b> no lugar do da app. Guarde-os fora do "
+        "telemóvel (em papel, ou no gestor de palavras-passe). <b>Não se "
+        "voltam a ver</b> depois de sair desta página."
+        "<ul class='codigos-de-recuperacao'>%s</ul>"
+        % "".join("<li><code>%s</code></li>" % html.escape(cod) for cod in codigos),
+        " ".join(codigos), "Códigos de recuperação",
+        "/configuracoes/conta" + ANCORA_DO_SEGUNDO_FACTOR)
+
+
+@app.route("/configuracoes/conta/segundo-factor/desligar", methods=["POST"])
+def segundo_factor_desligar():
+    """Desliga com a palavra-passe actual e um código válido (da app ou de
+    recuperação), com trinco (`contas.desligar_com_codigo()`), e leva os
+    aparelhos de confiança e os códigos de recuperação."""
+    utilizador = _quem_pode_ter_segundo_factor()
+    with liga() as c:
+        usado, porque = contas.desligar_com_codigo(
+            c, utilizador["id"], request.form.get("actual") or "",
+            request.form.get("codigo") or "", ip=request.remote_addr or "")
+    if not usado:
+        registar_evento("", "conta", "segundo factor: não desligou (%s): %s"
+                        % (utilizador["email"], porque), quem=utilizador.get("nome") or "")
+        return _volta_ao_segundo_factor("Não desliguei: %s. Nada mudou." % porque,
+                                        erro=True)
+    registar_evento("", "conta", "segundo factor desligado: %s%s"
+                    % (utilizador["email"], " (com um código de recuperação)"
+                       if usado == "recuperacao" else ""),
+                    quem=utilizador.get("nome") or "")
+    return _volta_ao_segundo_factor("Segundo factor desligado. Os aparelhos de "
+                                    "confiança e os códigos de recuperação "
+                                    "deixaram de servir.")
 
 
 def _bloco_da_empresa(cfg=None):
@@ -29578,6 +29776,13 @@ def repor(codigo):
     except ValueError as erro:
         return pagina_repor("Não mudei: %s." % erro,
                             utilizador=reposicao["email"])
+    if not token and isinstance(porque, dict):
+        # O segundo factor (28/09/2026): a palavra-passe mudou, mas a
+        # sessao so nasce com o codigo -- a ligacao nao da a volta a ele.
+        registar_evento("", "conta", "palavra-passe reposta por ligação: %s "
+                        "(falta o código do segundo factor)" % reposicao["email"],
+                        quem="radar")
+        return _para_o_codigo(porque["pendente"])
     if not token:
         return pagina_repor(porque[0].upper() + porque[1:] + ".")
     registar_evento("", "conta", "palavra-passe reposta por ligação: %s"
@@ -29587,6 +29792,108 @@ def repor(codigo):
                         max_age=60 * 60 * 24 * contas.DIAS_DE_SESSAO,
                         httponly=True, samesite="Lax",
                         secure=request.is_secure)
+    return resposta
+
+
+# O segundo ecra de entrar (28/09/2026), no molde do convite.
+PAGINA_DO_CODIGO = PAGINA_CONVITE.replace("Criar a conta", "Código de entrada")
+
+FORMULARIO_DO_CODIGO = """<form method="post" action="/entrar/codigo">
+  <input type="hidden" name="para" value="%(para)s">
+  <div class="mg-field"><label class="mg-field__label" for="f-codigo">%(rotulo)s</label>
+   <input class="mg-field__input" id="f-codigo" type="text" name="codigo" %(tipo)s required autofocus%(descrito)s></div>
+  <label class="dist-cx"><input type="checkbox" name="confiar" value="1"> Confiar neste aparelho durante %(dias)d dias</label>
+  <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
+ </form>
+ <p class="entrar-nota"><a href="/entrar/codigo?%(outro)s">%(outro_rotulo)s</a></p>
+ <p class="entrar-nota"><a href="/entrar">Voltar a entrar com outra conta</a></p>"""
+
+
+def pagina_do_codigo(aviso="", recuperacao=False, para="/", codigo=200):
+    """O ecra do codigo: seis digitos da app, ou um codigo de recuperacao.
+    O `one-time-code` deixa o telemovel oferecer o codigo; o `numeric`
+    abre o teclado dos numeros."""
+    para = destino_seguro(para)
+    return Response(PAGINA_DO_CODIGO % {
+        "css": LIGACAO_CSS,
+        "logo": logotipo(tamanho=28),
+        "aviso": ("<div class='mg-alert mg-alert--danger' id='f-aviso' "
+                  "role='alert'>%s</div>" % html.escape(aviso) if aviso else ""),
+        "formulario": FORMULARIO_DO_CODIGO % {
+            "para": html.escape(para, quote=True),
+            "rotulo": ("Código de recuperação" if recuperacao
+                       else "Código da app de autenticação"),
+            "tipo": ('autocomplete="off" autocapitalize="off" spellcheck="false"'
+                     if recuperacao else
+                     'autocomplete="one-time-code" inputmode="numeric" '
+                     'pattern="[0-9 ]*" maxlength="7"'),
+            "descrito": " aria-describedby='f-aviso'" if aviso else "",
+            "dias": contas.DIAS_DE_APARELHO,
+            "outro": html.escape(urlencode(
+                {"recuperacao": "1", "para": para} if not recuperacao
+                else {"para": para}), quote=True),
+            "outro_rotulo": ("Usar o código da app" if recuperacao
+                             else "Usar um código de recuperação"),
+        },
+    }, codigo, mimetype="text/html")
+
+
+@app.route("/entrar/codigo", methods=["GET", "POST"])
+def entrar_codigo():
+    """O codigo do segundo factor (28/09/2026). Rota ABERTA -- quem a abre
+    ainda nao tem sessao, e e aqui que ela nasce --, e por isso a guarda
+    e dentro: o pendente, que so o /entrar (ou a ligacao de repor) cria
+    depois da palavra-passe certa, vive num cookie HttpOnly SameSite=Lax
+    e na base so em resumo, dura cinco minutos e cinco tentativas
+    (`contas.usar_pendente()`); os codigos errados contam no trinco da
+    conta e do IP; e o POST confere a origem (`origem_e_nossa()`). Sem
+    pendente valido nao se mostra nem se aceita nada."""
+    pendente_ = request.cookies.get("pendente") or ""
+    recuperacao = bool(request.values.get("recuperacao"))
+    para = request.values.get("para")
+    with liga() as c:
+        pendente = contas.pendente_valido(c, pendente_)
+    if not pendente:
+        resposta = redirect("/entrar")
+        resposta.delete_cookie("pendente")
+        return resposta
+    if request.method == "GET":
+        return pagina_do_codigo(recuperacao=recuperacao, para=para)
+    if not origem_e_nossa():
+        return pagina_do_codigo("O pedido veio de outro sítio.", recuperacao,
+                                para, codigo=403)
+    with liga() as c:
+        token, resultado = contas.usar_pendente(
+            c, pendente_, request.form.get("codigo") or "",
+            ip=request.remote_addr or "",
+            agente=request.headers.get("User-Agent") or "")
+        aparelho = (contas.confiar_no_aparelho(c, resultado["id"])
+                    if token and request.form.get("confiar") else "")
+    if not token:
+        if "errado" in resultado:
+            registar_evento("", "conta", "segundo factor: código errado para %s"
+                            % pendente["email"], quem="radar")
+        if "entre outra vez" in resultado:
+            resposta = pagina_entrar(resultado[0].upper() + resultado[1:] + ".",
+                                     email=pendente["email"], para=para)
+            resposta.delete_cookie("pendente")
+            return resposta
+        return pagina_do_codigo(resultado[0].upper() + resultado[1:] + ".",
+                                recuperacao, para,
+                                codigo=429 if "espera" in resultado else 200)
+    if resultado["codigo_usado"] == "recuperacao":
+        with liga() as c:
+            faltam = contas.codigos_por_usar(c, resultado["id"])
+        registar_evento("", "conta", "segundo factor: %s entrou com um código de "
+                        "recuperação (faltam %d)" % (resultado["email"], faltam),
+                        quem="radar")
+    resposta = _sessao_aberta(token, resultado, para)
+    resposta.delete_cookie("pendente")
+    if aparelho:
+        resposta.set_cookie("aparelho", aparelho,
+                            max_age=60 * 60 * 24 * contas.DIAS_DE_APARELHO,
+                            httponly=True, samesite="Lax",
+                            secure=request.is_secure)
     return resposta
 
 
@@ -31131,6 +31438,31 @@ def main():
         id_ = criar_empresa(nome)
         print("Empresa %d criada: %s. Cria-lhe a primeira conta com "
               "--criar-utilizador NOME --empresa %d." % (id_, nome.strip(), id_))
+        return
+
+    if "--desligar-segundo-factor" in sys.argv:
+        # Para quando o telemovel se perde e os codigos de recuperacao
+        # tambem (28/09/2026): quem esta na consola deste computador ja
+        # esta do lado de dentro, como no --palavra-passe.
+        i = sys.argv.index("--desligar-segundo-factor")
+        nome = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
+        if not nome or nome.startswith("--"):
+            print("Uso: python radar.py --desligar-segundo-factor UTILIZADOR")
+            return
+        with liga() as c:
+            linha = c.execute("SELECT id FROM utilizadores WHERE email=?",
+                              (contas.email_limpo(nome),)).fetchone()
+            estava = linha and contas.desligar_segundo_factor(c, linha[0])
+        if not linha:
+            print("Não há nenhuma conta %s." % contas.email_limpo(nome))
+            return
+        if not estava:
+            print("A conta %s não tinha o segundo factor ligado." % contas.email_limpo(nome))
+            return
+        registar_evento("", "conta", "segundo factor desligado pela consola: %s"
+                        % contas.email_limpo(nome), quem="consola")
+        print("Segundo factor de %s desligado. Entra só com a palavra-passe; "
+              "liga-o outra vez em Configurações › Conta." % contas.email_limpo(nome))
         return
 
     for bandeira in ("--criar-utilizador", "--palavra-passe"):
