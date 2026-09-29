@@ -13436,6 +13436,90 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         self.assertNotIn("<title>Mira Gov</title>", corpo)
         self.assertTrue(os.path.isfile(os.path.join(self.PASTA_DO_SITE, "partilha.png")))
 
+    # --- o que os motores de busca e os agentes lêem (29/09/2026) --------
+
+    def _allow(self, robots, caminho):
+        """O robots.txt como o Google o lê: ganha a regra mais longa que
+        casa, e o `$` ancora o fim."""
+        melhor, deixa = -1, True
+        for tipo, regra in re.findall(r"^(Allow|Disallow): (\S+)$", robots, re.M):
+            fim = regra.endswith("$")
+            base = regra.rstrip("$")
+            casa = caminho == base if fim else caminho.startswith(base)
+            if casa and len(regra) > melhor:
+                melhor, deixa = len(regra), tipo == "Allow"
+        return deixa
+
+    def test_o_robots_abre_so_o_site_e_o_que_ele_pede(self):
+        robots = self.get("/robots.txt").get_data(as_text=True)
+        mapa = self.get("/sitemap.xml").get_data(as_text=True)
+        for caminho in re.findall(r"<loc>https?://[^/<]*(/[^<]*)</loc>", mapa):
+            self.assertTrue(self._allow(robots, caminho), caminho)
+        for caminho in ("/llms.txt", "/partilha.png", "/favicon.svg", "/entrar",
+                        "/tipo/SourceSans3-Variable.woff2", "/estilo/x.css"):
+            self.assertTrue(self._allow(robots, caminho), caminho)
+        # uma rota da aplicação nasce fechada, sem ninguém se lembrar dela
+        for caminho in ("/concursos", "/anuncio/1", "/plataforma", "/situacao",
+                        "/qualquer-rota-nova"):
+            self.assertFalse(self._allow(robots, caminho), caminho)
+        self.assertIn("Disallow: /\n", robots)
+        self.assertIn("<lastmod>", mapa)
+
+    def test_o_llms_txt_e_texto_e_aponta_para_as_paginas_do_mapa(self):
+        self.assertIn("/llms.txt", radar.ROTAS_ABERTAS)
+        r = self.get("/llms.txt")
+        self.assertEqual((r.status_code, r.mimetype), (200, "text/plain"))
+        texto = r.get_data(as_text=True)
+        self.assertTrue(texto.startswith("# Mira Gov\n\n> "))
+        mapa = self.get("/sitemap.xml").get_data(as_text=True)
+        for caminho in re.findall(r"<loc>https?://[^/<]*(/[^<]*)</loc>", mapa):
+            self.assertIn("https://miragov.pt" + caminho + ")", texto)
+        # as âncoras que cita existem na página
+        site = self.get("/").get_data(as_text=True)
+        for ancora in re.findall(r"miragov\.pt/#([\w-]+)", texto):
+            self.assertIn('id="%s"' % ancora, site)
+
+    def _json_ld(self, corpo):
+        return [json.loads(b) for b in re.findall(
+            r'<script type="application/ld\+json">(.*?)</script>', corpo, re.S)]
+
+    def test_cada_pagina_publica_tem_titulo_descricao_canonical_h1_e_json_ld(self):
+        mapa = self.get("/sitemap.xml").get_data(as_text=True)
+        titulos = set()
+        for loc in re.findall(r"<loc>([^<]*)</loc>", mapa):
+            caminho = re.sub(r"^https?://[^/]+", "", loc)
+            corpo = self.get(caminho).get_data(as_text=True)
+            titulo = re.search(r"<title>([^<]+)</title>", corpo).group(1)
+            titulos.add(titulo)
+            self.assertRegex(corpo, r'<meta name="description" content="[^"]{50,170}">')
+            canonical = re.search(r'<link rel="canonical" href="([^"]+)">', corpo).group(1)
+            self.assertEqual(canonical.replace("https://miragov.pt", ""), caminho)
+            self.assertEqual(len(re.findall(r"<h1[\s>]", corpo)), 1, caminho)
+            self.assertEqual(len(re.findall(r"<main[\s>]", corpo)), 1, caminho)
+            dados = self._json_ld(corpo)
+            self.assertTrue(dados, caminho)
+            if caminho != "/":
+                self.assertEqual((dados[0]["@type"], dados[0]["url"]),
+                                 ("WebPage", canonical))
+        self.assertEqual(len(titulos), 4)
+
+    def test_o_faq_dos_dados_e_o_que_a_pagina_mostra(self):
+        corpo = self.get("/").get_data(as_text=True)
+        dados = self._json_ld(corpo)
+        tipos = {n["@type"] for d in dados for n in d.get("@graph", [d])}
+        self.assertLessEqual({"WebSite", "Organization", "SoftwareApplication",
+                              "FAQPage"}, tipos)
+        faq = next(d for d in dados if d.get("@type") == "FAQPage")
+        vistas = [html.unescape(p) for p in
+                  re.findall(r"<summary>(.*?)</summary>", corpo, re.S)]
+        self.assertEqual([q["name"] for q in faq["mainEntity"]], vistas)
+        self.assertEqual(len(vistas), 5)
+        self.assertNotIn("<!--FAQ-JSONLD-->", corpo)
+
+    def test_o_entrar_nao_se_indexa(self):
+        self.assertIn('<meta name="robots" content="noindex">',
+                      self.get("/entrar").get_data(as_text=True))
+
     def test_o_numero_do_site_e_o_do_entrar(self):
         with unittest.mock.patch.object(radar, "concursos_na_base", lambda: 200553):
             site = self.get("/").get_data(as_text=True)

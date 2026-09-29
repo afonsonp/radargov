@@ -761,7 +761,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**132 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**133 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1177,8 +1177,20 @@ legais levam os **tokens da aplicação** e o tema «como o sistema»
 (D11), e as legais o topo e o rodapé do site; tudo entra pelas marcas
 que o `_do_site()` preenche, e a moldura partilhada é o `site/moldura.css`.
 Abertos, por igualdade, também o **`/robots.txt`**, o **`/sitemap.xml`**
-(as páginas públicas; as legais só quando existem) e a **`/partilha.png`**
-(a imagem do Open Graph, `site/partilha.png`).
+(as páginas públicas, `paginas_publicas()`, com o `<lastmod>` da data do
+ficheiro; as legais só quando existem), a **`/partilha.png`** (a imagem
+do Open Graph, `site/partilha.png`) e o **`/llms.txt`** (o resumo do
+site para os agentes de IA, `site/llms.txt`; 29/09/2026). Desde esse
+dia o robots é uma **lista branca**: abre as páginas do mapa, o que elas
+pedem para se desenharem e o `/entrar` (`ABERTOS_AO_ROBOT`), e fecha o
+resto — o `/entrar` abre-se para o motor ler o `noindex` que leva. Cada
+página do site tem o seu título, descrição, `canonical` e JSON-LD do
+Schema.org: a inicial um `@graph` com `WebSite`, `Organization` e
+`SoftwareApplication` (a oferta a 0 € da beta), mais o `FAQPage`, que
+**não se escreve à mão** — o `faq_em_json_ld()` tira-o dos `<details>`
+que a página mostra; as legais uma `WebPage` com o caminho de migalhas.
+O `http://` passa a `https://` na Cloudflare («Always Use HTTPS»), e não
+no painel, que só vê o túnel.
 E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site, que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32

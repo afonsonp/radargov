@@ -3098,6 +3098,25 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   sem dados. O `pagina_de_erro()` diz «Voltar ao início» a quem não tem
   sessão, porque para essa pessoa a raiz é o site. `TestOSiteDaTerceiraRonda`.
 
+- **O robots é uma lista branca, e o FAQ dos dados sai da página**
+  (29/09/2026). Um `Allow: /` abria ao rastreio todas as rotas da
+  aplicação, que só levam ao `/entrar`; uma lista negra envelhecia a cada
+  rota nova. Por isso: `Allow` para as páginas de `paginas_publicas()` e
+  para `ABERTOS_AO_ROBOT`, e `Disallow: /` para o resto. Dois cuidados:
+  a raiz vai como `Allow: /$` (sem o `$`, `/` casava com tudo e ganhava
+  ao `Disallow`), e **o que a página pede para se desenhar tem de estar
+  aberto** — a letra (`/tipo/<nome>`), a folha
+  (`/estilo/<etiqueta>.css`), o descodificador do e-mail da Cloudflare
+  (o cdn-cgi) —, senão o Google vê a página
+  sem letra. O `/entrar` fica aberto por outra razão: um endereço fechado
+  no robots pode ser indexado pelas ligações, e o `noindex` dele só se
+  lê se o motor lá puder ir. E o `FAQPage` do JSON-LD **não se escreve à
+  mão**: o Google trata como abuso um FAQ nos dados diferente do que está
+  no ecrã, e duas cópias do mesmo texto divergem — o `faq_em_json_ld()`
+  tira-o dos `<details>` no `_do_site()`, pela marca `<!--FAQ-JSONLD-->`.
+  Sem e-mail nos dados estruturados: a Cloudflare reescreve os endereços
+  da página. `TestOSiteDaTerceiraRonda`.
+
 - **O painel responde por seis nomes, e só um é o público** (25/09/2026,
   o Mira Gov). O `ao_endereco_certo()` manda os outros para o
   `endereco_publico` e corre **antes** da porta: um cookie de sessão é do

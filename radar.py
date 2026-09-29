@@ -12908,10 +12908,12 @@ def volta_ao_referer(omissao):
 # motor de busca e uma rede social pedem sem sessao. Nenhum tem dados --
 # o mapa lista as paginas publicas, a imagem e um ficheiro do `site/` --,
 # e so respondem a GET, por isso nao ha guarda do POST a fazer.
+# /llms.txt (29/09/2026): o resumo do site para os agentes de IA, na
+# mesma condicao -- um ficheiro do `site/`, sem dados, so GET.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
-                 "/partilha.png")
+                 "/partilha.png", "/llms.txt")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -13661,7 +13663,7 @@ def destino_seguro(para):
 
 PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Entrar — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<title>Entrar — Mira Gov</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar-duas">
  <section class="entrar-lado">
   <div><h1><a href="/" title="Voltar ao início">%(logo)s</a></h1><small>Vigilância de concursos públicos</small></div>
@@ -32732,6 +32734,28 @@ def numero_do_site(n):
     return mil_pt(n // 1000 * 1000) + "<small>+</small>"
 
 
+def faq_em_json_ld(texto):
+    """O `FAQPage` do Schema.org, tirado das perguntas que a página
+    MOSTRA (os `<details>`, 29/09/2026). Não se escreve à mão no
+    `<head>`: seria o mesmo texto em dois sítios, e o Google trata como
+    abuso um FAQ nos dados que não é o que está no ecrã. Sem perguntas,
+    nada."""
+    def limpo(s):
+        return " ".join(html.unescape(re.sub(r"<[^>]+>", "", s)).split())
+    pares = re.findall(r"<details[^>]*>\s*<summary>(.*?)</summary>\s*"
+                       r"<p>(.*?)</p>", texto, flags=re.S)
+    if not pares:
+        return ""
+    dados = {"@context": "https://schema.org", "@type": "FAQPage",
+             "mainEntity": [{"@type": "Question", "name": limpo(p),
+                             "acceptedAnswer": {"@type": "Answer",
+                                                "text": limpo(r)}}
+                            for p, r in pares]}
+    # «</» dentro de um <script> fechava-o antes do tempo
+    return ('<script type="application/ld+json">%s</script>'
+            % json.dumps(dados, ensure_ascii=False).replace("</", "<\\/"))
+
+
 def _do_site(texto):
     """As marcas que o site e as páginas legais levam, preenchidas: a
     moldura (tokens, tema, letra), o topo e o rodapé, as ligações legais
@@ -32755,6 +32779,8 @@ def _do_site(texto):
             ("<!--LEGAL-NOTA-->", " — ver a <a href=\"/privacidade\">política de "
              "privacidade</a>" if legal else "")):
         texto = texto.replace(marca_, valor)
+    if "<!--FAQ-JSONLD-->" in texto:
+        texto = texto.replace("<!--FAQ-JSONLD-->", faq_em_json_ld(texto))
     if "{{CONCURSOS}}" in texto:
         n = concursos_na_base()
         if n is None:
@@ -32837,22 +32863,70 @@ def acessibilidade():
 # entrar com 200. São rotas abertas por IGUALDADE, sem dados: o robots diz
 # onde está o mapa, e o mapa lista só as páginas públicas -- as legais só
 # quando existem (F8, com o operador preenchido).
+#
+# Desde 29/09/2026 o robots é uma LISTA BRANCA: as páginas do mapa, o que
+# elas pedem para se desenharem (a letra, a folha, o ícone, a imagem de
+# partilha, o descodificador do e-mail que a Cloudflare põe), o
+# `/llms.txt`, e o `/entrar` -- que tem de se poder ler para o motor ver
+# o `noindex` dele. Tudo o resto fica fechado, e assim uma rota nova da
+# aplicação nasce fechada sem ninguém se lembrar dela aqui.
+PAGINAS_DO_SITE = (("/", "index.html"),
+                   ("/acessibilidade", "acessibilidade.html"),
+                   ("/privacidade", "privacidade.html"),
+                   ("/termos", "termos.html"))
+ABERTOS_AO_ROBOT = ("/llms.txt", "/partilha.png", "/favicon.svg", "/tipo/",
+                    "/estilo/", "/entrar", "/cdn-cgi/")
+
+
+def paginas_publicas():
+    """[(caminho, ficheiro)] das páginas do site que existem agora: as
+    legais só com o operador preenchido (F8)."""
+    legal = operador_completo()
+    return [(c, f) for c, f in PAGINAS_DO_SITE
+            if legal or c not in ("/privacidade", "/termos")]
+
+
 @app.route("/robots.txt")
 def robots():
-    return Response("User-agent: *\nAllow: /\nSitemap: %s/sitemap.xml\n"
-                    % endereco_do_painel(), mimetype="text/plain")
+    abertos = ["/$" if c == "/" else c for c, _ in paginas_publicas()]
+    return Response(
+        "User-agent: *\n%sDisallow: /\n\nSitemap: %s/sitemap.xml\n"
+        % ("".join("Allow: %s\n" % c for c in abertos + list(ABERTOS_AO_ROBOT)),
+           endereco_do_painel()), mimetype="text/plain")
 
 
 @app.route("/sitemap.xml")
 def mapa_do_site():
     raiz = endereco_do_painel()
-    caminhos = ["/", "/acessibilidade"] + (
-        ["/privacidade", "/termos"] if operador_completo() else [])
+    pasta = os.path.dirname(SITE)
+    linhas = []
+    for caminho, ficheiro in paginas_publicas():
+        # o <lastmod> é a data do ficheiro: o texto da página é ele
+        try:
+            quando = datetime.fromtimestamp(os.path.getmtime(
+                os.path.join(pasta, ficheiro))).date().isoformat()
+            lastmod = "<lastmod>%s</lastmod>" % quando
+        except OSError:
+            lastmod = ""
+        linhas.append("<url><loc>%s</loc>%s</url>\n"
+                      % (html.escape(raiz + caminho), lastmod))
     return Response(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns='
         '"http://www.sitemaps.org/schemas/sitemap/0.9">\n%s</urlset>\n'
-        % "".join("<url><loc>%s</loc></url>\n" % html.escape(raiz + c)
-                  for c in caminhos), mimetype="application/xml")
+        % "".join(linhas), mimetype="application/xml")
+
+
+# O `/llms.txt` (29/09/2026): o resumo do site para quem o lê por
+# programa -- os agentes de IA. Um ficheiro do `site/`, sem dados, por
+# igualdade como o robots.
+@app.route("/llms.txt")
+def llms_txt():
+    try:
+        with open(os.path.join(os.path.dirname(SITE), "llms.txt"),
+                  encoding="utf-8") as f:
+            return Response(f.read(), mimetype="text/plain")
+    except OSError:
+        return pagina_de_erro(404)
 
 
 # A imagem de partilha (G100): sem ela o site saía sem imagem no LinkedIn

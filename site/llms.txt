@@ -1,0 +1,37 @@
+# Mira Gov
+
+> O Mira Gov vigia os concursos públicos portugueses. Lê o Diário da República (2.ª série, parte L) ao longo do dia, descarrega as peças do procedimento, resume o que pedem e mostra a que preço o mercado adjudica, a partir dos contratos do Portal BASE. É um produto privado e independente, feito em Portugal, e está em beta fechada, gratuita para as primeiras empresas.
+
+O Mira Gov não é um serviço oficial: não representa o Diário da República, o IMPIC nem nenhuma plataforma de contratação. Só lê e organiza informação que já é pública, e cada anúncio leva a ligação para o original. A aplicação está atrás de uma conta; o que é público é o site e as páginas abaixo.
+
+## O site
+
+- [Página inicial](https://miragov.pt/): o que o Mira Gov faz, como funciona, de onde vêm os dados, as perguntas frequentes e o formulário de pedido de acesso
+- [Pedir acesso](https://miragov.pt/#acesso): o formulário da beta; configuramos o perfil da empresa (os códigos CPV do sector) com quem pede
+- [Perguntas frequentes](https://miragov.pt/#perguntas)
+
+## O que faz
+
+- Lê todos os anúncios da parte L do Diário da República, sem filtros à entrada, e recorta-os pelos códigos CPV de cada empresa
+- Junta as consultas preliminares publicadas na Vortal
+- Descarrega as peças das plataformas acingov, Vortal, compraspt e anogov, e aponta os requisitos, o critério de adjudicação e os documentos a entregar, com a página onde os encontrou
+- Mostra o histórico de contratos de cada entidade adjudicante (quanto pagou, a quem, e quanto abaixo do preço base), a partir dos dados abertos do Portal BASE
+- Organiza o trabalho da equipa: triagem, propostas, prazos e tarefas; abre-se no browser, sem instalar nada
+
+A leitura das peças não substitui a leitura humana: a decisão de concorrer e a revisão da proposta são da equipa da empresa.
+
+## Fontes
+
+- Diário da República, 2.ª série, parte L: https://diariodarepublica.pt/
+- Portal BASE (contratos públicos): https://www.base.gov.pt/
+- Vortal (consultas preliminares): https://www.vortal.biz/
+
+## Documentos
+
+- [Declaração de acessibilidade](https://miragov.pt/acessibilidade)
+- [Política de privacidade](https://miragov.pt/privacidade)
+- [Termos de utilização](https://miragov.pt/termos)
+
+## Contacto
+
+contacto@miragov.pt
