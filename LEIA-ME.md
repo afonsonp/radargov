@@ -536,13 +536,17 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   já não apanha «isolamento». O que não for PDF descarrega-se como antes;
 - o **anúncio completo**, com contactos, critério de
   adjudicação, prazo de execução, tudo o que o DR publica;
-- dois botões para sair daqui, que são coisas diferentes: **Abrir na
-  \<plataforma\>** leva à página do procedimento, e **Peças na
-  plataforma** ao endereço das peças que o anúncio indica. Na acingov
-  o **Abrir na acingov** leva directamente à página do procedimento,
-  que pede a sessão iniciada na acingov, e o botão das peças chama-se
-  **Descarregar as peças (ZIP)**, porque é isso que faz. Na Vortal há
-  um botão só, porque as duas páginas davam no mesmo sítio.
+- em cima, **Abrir na \<plataforma\>** leva à página do procedimento.
+  Na acingov leva directamente a ela, e pede a sessão iniciada na
+  acingov. Na anogov, quando o anúncio não traz o endereço do
+  procedimento, o botão diz **Procurar na anogov** e abre a lista dos
+  procedimentos da entidade;
+- as peças da plataforma **não têm botão em cima**, de propósito: estão
+  no bloco das peças, e só enquanto o Mira Gov ainda não as tem
+  (**Descarregar da plataforma (ZIP)** na acingov, **Abrir as peças na
+  plataforma** nas outras). Esse botão abre a plataforma noutro
+  separador **e traz as peças para o concurso** no mesmo gesto. Depois
+  de cá estarem, o que há é o **Descarregar todas (ZIP)** das nossas.
 
 **Desde 28/09/2026 a ficha lê-se de cima para baixo**, pela ordem em
 que se decide:
@@ -1607,7 +1611,7 @@ anexos) o radar também as traz — ver a secção 6 — nas plataformas que
 o permitem sem sessão (acingov, vortal, anogov/ComprasPT/ESPAP), e um
 modelo lê delas os campos que o anúncio não tem. Fica de fora o que a
 secção 6 diz: anexos acima de 60 MB e as raras plataformas sem acesso
-anónimo — para esses há o botão "Peças na plataforma" da ficha.
+anónimo — para esses há, no bloco das peças da ficha, o botão que as abre na plataforma.
 
 O que continua a não haver: número de concorrentes por concurso (não é
 público em fonte nenhuma) e o que as plataformas publicam sem passar
