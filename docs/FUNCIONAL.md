@@ -437,6 +437,23 @@ Duas origens:
 **Vivem no Hoje e no Calendário** (este desde 26/09/2026, D12): as por
 fazer aparecem no dia delas, no filtro «As nossas» e no «Tudo».
 
+**O dono de uma tarefa, e o responsável de uma proposta, são contas da
+empresa** (D4 da 3.ª ronda, 29/09/2026, decisão dele). Escolhem-se numa
+lista com as contas, uma vez cada, e gravam-se pela **chave da conta**
+(o nome de utilizador); o ecrã mostra o nome (`contas_da_empresa()`,
+`pessoa_de()`). Um nome que não é conta recusa-se. **O que já estava em
+texto livre mostra-se como está** e não se perde ao gravar outro campo;
+o texto antigo que é o nome ou o utilizador de uma conta conta como
+essa conta — no Hoje é um só chip, e o `?quem=` apanha as duas
+grafias. Adiar para uma data que já passou grava, e avisa que a tarefa
+fica atrasada.
+
+**O histórico diz o que era e o que ficou**: quem cria uma tarefa é o
+autor, e o dono vai ao lado («… (para Rui)»); mudar a data ou o dono
+escreve «quando 30/09 → 02/10 · quem A → B»; na proposta, as datas, o
+responsável e os documentos prontos («6 de 8 → 8 de 8») também. Uma
+mudança que não muda nada à vista não se regista.
+
 **Nada se move sozinho.** Um prazo que passa não muda ranhura nenhuma:
 aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
@@ -746,7 +763,8 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    página volta à linha (`#t<id>`), não ao topo. **Só as feitas de
    hoje** ficam; as de outros dias saem do ecrã (22/09/2026).
 
-   No cabeçalho: **pílulas de pessoa** (Todos · cada dono · sem dono) e
+   No cabeçalho: **pílulas de pessoa** (Todos · **as minhas** · cada
+   dono, pelo nome e uma vez por pessoa · sem dono) e
    **esconder as feitas**. Tudo vive no endereço (`?dia=`, `?quem=`,
    `?feitas=`); nada se guarda no browser.
 5. **Coluna direita**, três caixas:
@@ -1072,7 +1090,9 @@ cria e tira as contas **dela** — nunca a do dono, que só o dono tira, e o
 último dono nunca sai (26/09/2026) — e diz quem ela é (`ROTAS_SO_ADMIN`:
 `/configuracoes/conta/utilizadores`, `/configuracoes/conta/empresa` e
 `/arranque/dispensar`, o cartão do Hoje);
-`sou_admin()` é a pergunta. O **tester** trabalha. **As duas
+`sou_admin()` é a pergunta. Quem abre uma destas sem ser admin vê uma
+página **dentro do molde** que diz o nome do admin da empresa, a quem
+pedir (`recado_so_do_admin()`, 3.ª ronda, G17). O **tester** trabalha. **As duas
 administrações não se misturam** (23/09/2026, pedido dele): as
 Configurações mostram só as quatro secções da empresa, a toda a gente —
 também ao dono —, e as do sistema vivem na **administração da

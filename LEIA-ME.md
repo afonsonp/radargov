@@ -906,8 +906,9 @@ ficam registados nos eventos da plataforma.
 A partir de estares identificado fica registado quem marcou
 interessa, quem moveu de fase e quem ficou responsável por cada
 concurso — vês esse registo na ficha do anúncio, em baixo. Na ficha
-podes também atribuir o concurso a uma pessoa, e essa lista de nomes
-é livre: um colega sem conta pode ser responsável.
+podes também atribuir o concurso, e as tarefas, a uma pessoa: **só a
+quem tem conta na empresa** (desde 29/09/2026). Os nomes antigos,
+escritos à mão antes disso, continuam a aparecer como estavam.
 
 ## 7-A. Configurações
 

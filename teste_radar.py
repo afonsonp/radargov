@@ -4015,6 +4015,15 @@ class TestMinimoParaEscada(unittest.TestCase):
 # A classe TestModeloComFornecedor saiu a 15/09/2026 com o que ela testava: o `_modelo_com_fornecedor()` era uma migração de uso único que já não corria no arranque
 
 
+def conta(utilizador, nome, papel="tester"):
+    """Uma conta da empresa 1 na base temporária. Desde a D4 da 3.ª ronda
+    (29/09/2026) o «quem» das tarefas e o responsável são contas, e um
+    nome solto recusa-se."""
+    with radar.liga() as c:
+        radar.contas.criar_utilizador(c, utilizador, "senha-comprida", nome,
+                                      papel=papel)
+
+
 class BaseTemporaria(unittest.TestCase):
     """Esqueleto para os testes de migração: uma base TEMPORÁRIA — nunca
     a verdadeira —, criada e deitada fora por teste. Continua sem rede e
@@ -9287,10 +9296,11 @@ class TestFichaTemUmaPortaPorGesto(BaseTemporaria):
         self.assertIn("action='/responsavel/60/2026'", h)
         self.assertNotIn("name='responsavel'", h)
         # e gravar o resto do bloco não apaga o responsável que lá está
+        conta("ana", "Ana")
         self.cliente.post("/responsavel/60/2026", data={"nome": "Ana"})
         id_ = radar.propostas_de("60/2026")[0]["id"]
         self.cliente.post("/proposta/%d/ficha" % id_, data={"coe": "X"})
-        self.assertEqual(radar.proposta(id_)["responsavel"], "Ana")
+        self.assertEqual(radar.proposta(id_)["responsavel"], "ana")
 
 
 class _CicloDoTesteComUtilizadores(BaseTemporaria):
@@ -10209,12 +10219,12 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
         self.assertIn("ainda não decidido", passos)
 
     def test_e27_as_pessoas_sugeridas_sao_as_que_existem(self):
-        with radar.liga() as c:
-            radar.contas.criar_utilizador(c, "rita", "senha-comprida",
-                                          "Rita Gomes", papel="tester")
-        self.assertEqual(radar.criar_pessoa("Ana Ribeiro"), "Ana Ribeiro")
-        self.assertEqual(radar.criar_pessoa("ana  ribeiro"), "Ana Ribeiro")
-        self.assertEqual(radar.listar_pessoas(), ["Ana Ribeiro", "Rita Gomes"])
+        """Desde a D4 da 3.ª ronda são as contas da empresa, uma vez cada:
+        «ana ribeiro» é a conta da Ana Ribeiro, e não outra pessoa."""
+        conta("rita", "Rita Gomes")
+        conta("ana", "Ana Ribeiro")
+        self.assertEqual(radar.conta_escolhida("ana  ribeiro"), ("ana", ""))
+        self.assertEqual(radar.conta_escolhida("RITA")[0], "rita")
         # e a tarefa nova tem «quem»
         id_ = self._proposta()
         self.assertIn("name='quem'", radar._tarefas_da_ficha(radar.proposta(id_))
@@ -16892,12 +16902,13 @@ class TestAutomaticaHerdaOResponsavel(CicloDasTarefas):
         ref = self._anuncio()
         id_ = radar.criar_proposta(ref, estado="analisar")
         primeira = self._tarefas()[0]["id"]
-        radar.gravar_tarefa(primeira, quem="Maria")
+        conta("maria", "Maria")
+        radar.gravar_tarefa(primeira, quem="Maria")      # grava-se a conta
         radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana"])
         radar.sincronizar_tarefas(ref)
         donos = {t["id"]: t["quem"] for t in self._tarefas()}
-        self.assertEqual(donos[primeira], "Maria")
-        self.assertEqual(set(donos.values()), {"Maria", "Ana"})
+        self.assertEqual(donos[primeira], "maria")
+        self.assertEqual(set(donos.values()), {"maria", "Ana"})
 
     def test_continua_idempotente(self):
         """Herdar o dono não pode fazer a sincronização deixar de ser
@@ -17076,6 +17087,7 @@ class TestAberturaRedesenhada(CicloDasTarefas):
             c.execute("DELETE FROM tarefas")
         da_ana = radar.criar_tarefa("com dono", self._dia(0),
                                     proposta_id=id_, ref=ref)
+        conta("ana", "Ana")
         radar.gravar_tarefa(da_ana, quem="Ana")
         sozinha = radar.criar_tarefa("sem dono", self._dia(0),
                                      proposta_id=id_, ref=ref)
@@ -17323,16 +17335,17 @@ class TestTarefaResolveSeDeQualquerPagina(CicloDasTarefas):
 
     def test_adiar_e_atribuir_sao_a_mesma_rota(self):
         t = self._uma()
+        conta("ana", "Ana")
         self.cliente.post("/tarefa/%d/gravar" % t,
                           data={"quando": "31/12/2026"},
                           headers={"Referer": "http://localhost/"})
-        self.cliente.post("/tarefa/%d/gravar" % t, data={"quem": "Ana"},
+        self.cliente.post("/tarefa/%d/gravar" % t, data={"quem": "ana"},
                           headers={"Referer": "http://localhost/"})
         with radar.liga() as c:
             linha = c.execute("SELECT * FROM tarefas WHERE id=?",
                               (t,)).fetchone()
         self.assertEqual(linha["quando"], "2026-12-31")
-        self.assertEqual(linha["quem"], "Ana")
+        self.assertEqual(linha["quem"], "ana")
 
     def test_data_ilegivel_recusa_e_nao_apaga_o_prazo(self):
         t = self._uma()
@@ -20611,15 +20624,16 @@ class TestLotePCBHojeEPropostas(BaseTemporaria):
         radar.criar_tarefa("outra que já passou", ontem)
         self.assertIn("adiar todas para", cliente.get("/").get_data(as_text=True))
 
-    def test_e27_as_sugestoes_trazem_os_donos_das_tarefas(self):
+    def test_e27_os_donos_antigos_mostram_se_como_estao(self):
+        """Desde a D4 da 3.ª ronda: um dono antigo em texto livre, sem
+        conta, não se perde -- aparece como está, e o responsável antigo
+        continua escolhido no formulário."""
         radar.criar_tarefa("ligar à entidade", None, quem="Bruno Costa")
-        with radar.liga() as c:
-            c.execute("INSERT INTO propostas (estado, responsavel) VALUES "
-                      "('analisar', 'Carla Mendes')")
-        nomes = radar.listar_pessoas()
-        self.assertIn("Bruno Costa", nomes)
-        self.assertIn("Carla Mendes", nomes)
-        self.assertEqual(radar.criar_pessoa("bruno costa"), "Bruno Costa")
+        self.assertIn("Bruno Costa", radar.app.test_client().get("/")
+                      .get_data(as_text=True))
+        self.assertIn("<option value='Carla Mendes' selected>Carla Mendes "
+                      "(sem conta)</option>",
+                      radar.opcoes_de_pessoas("Carla Mendes"))
 
     def test_e60_o_alerta_leva_varios_distritos(self):
         h = radar.app.test_client().get("/configuracoes/alertas").get_data(as_text=True)
@@ -21413,6 +21427,8 @@ class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
         with radar.liga() as c:
             versao = radar.versao_da_tarefa(c.execute(
                 "SELECT * FROM tarefas WHERE id=?", (t,)).fetchone())
+        conta("tecnico-b", "Técnico B")
+        conta("tecnico-c", "Técnico C")
         radar.gravar_tarefa(t, quem="Técnico B")         # o colega, primeiro
         r = self.cliente.post("/tarefa/%d/gravar" % t, data={
             "versao": versao, "quem": "Técnico C", "quando": "30/10/2026"},
@@ -21423,10 +21439,12 @@ class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
         with radar.liga() as c:
             linha = c.execute("SELECT quem, quando FROM tarefas WHERE id=?",
                               (t,)).fetchone()
-        self.assertEqual((linha["quem"], linha["quando"]), ("Técnico B", None))
+        self.assertEqual((linha["quem"], linha["quando"]), ("tecnico-b", None))
 
     def test_g8_o_responsavel_tem_guarda_e_diz_que_gravou(self):
         self._proposta()
+        conta("ana", "Ana")
+        conta("rui", "Rui")
         texto, erro = self.aviso(self.cliente.post(
             "/responsavel/60/2026", data={"nome": "Ana", "de": ""}, headers=self.VOLTA))
         self.assertFalse(erro)
@@ -21436,8 +21454,8 @@ class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
             "/responsavel/60/2026", data={"nome": "Rui", "de": ""}, headers=self.VOLTA))
         self.assertTrue(erro)
         self.assertIn("«Ana»", texto)
-        self.assertEqual(radar.propostas_de("60/2026")[0]["responsavel"], "Ana")
-        self.assertIn("name='de' value='Ana'", self._ficha())
+        self.assertEqual(radar.propostas_de("60/2026")[0]["responsavel"], "ana")
+        self.assertIn("name='de' value='ana'", self._ficha())
 
     def test_g9_so_uma_nota_com_a_fase_mudada_nao_e_conflito(self):
         id_ = self._proposta()
@@ -21504,6 +21522,154 @@ class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
                 "ORDER BY id")]
         self.assertEqual(rasto, [("nota apagada", "dizia: nota a dobrar"),
                                  ("nota corrigida", "dizia: nota com erro")])
+
+
+class TestTerceiraRondaPessoasEAutoria(_CicloDoTesteComUtilizadores):
+    """Rel. 01, 02 e 03 da 3.ª ronda (28/09/2026): o histórico dava como
+    autor da criação de uma tarefa quem a ia fazer (G13); a mesma pessoa
+    tinha dois nomes, o Hoje partia-a em dois chips e nenhum `?quem=`
+    dava as tarefas todas dela (G14); o «quem» aceitava «Helena
+    Fantasma» e o adiar aceitava o passado sem dizer nada (G15); o
+    histórico dizia «quando, quem» sem valores, os documentos em JSON e
+    «682 500 → 682 500» (G16); e o tester recebia um 403 a dizer que a
+    página era «da administração do Mira Gov» (G17). A regra que os junta
+    é a D4 dele: o «quem» e o responsável são contas da empresa, gravadas
+    pela chave e mostradas pelo nome; o texto antigo mostra-se como está."""
+
+    VOLTA = {"Referer": "http://localhost/anuncio/60%2F2026"}
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    CAMPO_12 = TestAPropostaDeCadaEmpresa.CAMPO_12
+
+    def setUp(self):
+        super().setUp()
+        conta("sofia", "Sofia Lopes", papel="admin")     # quem está a ver
+        conta("rui", "Rui Matos")
+
+    def aviso(self, r):
+        q = dict(parse_qsl(urlparse(r.headers["Location"]).query))
+        return q.get("aviso", ""), q.get("tom") == "erro"
+
+    def _historico(self, accao):
+        with radar.liga() as c:
+            return c.execute("SELECT quem, detalhe FROM historico WHERE accao=? "
+                             "ORDER BY id DESC LIMIT 1", (accao,)).fetchone()
+
+    def test_g13_o_autor_da_tarefa_e_quem_a_criou(self):
+        id_ = self._proposta()
+        self.cliente.post("/tarefa/nova", headers=self.VOLTA, data={
+            "ref": "60/2026", "proposta_id": str(id_),
+            "o_que": "pedir orçamento", "quem": "rui"})
+        linha = self._historico("tarefa")
+        self.assertEqual(linha["quem"], "Sofia Lopes")
+        self.assertEqual(linha["detalhe"], "pedir orçamento (para Rui Matos)")
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT quem FROM tarefas WHERE "
+                                       "o_que='pedir orçamento'").fetchone()[0], "rui")
+
+    def test_g14_uma_pessoa_e_um_chip_e_o_meu_diz_as_minhas(self):
+        id_ = self._proposta()
+        pela_conta = radar.criar_tarefa("a", None, proposta_id=id_, quem="rui")
+        pelo_nome = radar.criar_tarefa("b", None, proposta_id=id_, quem="Rui Matos")
+        minha = radar.criar_tarefa("c", None, proposta_id=id_, quem="sofia")
+        antiga = radar.criar_tarefa("d", None, proposta_id=id_, quem="Zé Antigo")
+        h = self.cliente.get("/").get_data(as_text=True)
+        pilhas = h.split("class='periodos'")[1].split("</div>")[0]
+        self.assertEqual(pilhas.count("Rui Matos <i>"), 1)
+        self.assertIn("Rui Matos <i>2</i>", pilhas)
+        self.assertNotIn(">rui <i>", pilhas)
+        self.assertIn("as minhas <i>1</i>", pilhas)
+        self.assertLess(pilhas.index("as minhas"), pilhas.index("Rui Matos"))
+        self.assertIn("Zé Antigo <i>1</i>", pilhas)       # o antigo, como está
+        so_rui = self.cliente.get("/?quem=rui").get_data(as_text=True)
+        for t in (pela_conta, pelo_nome):
+            self.assertIn("id='t%d'" % t, so_rui)
+        for t in (minha, antiga):
+            self.assertNotIn("id='t%d'" % t, so_rui)
+        # a lista do «quem» é das contas, uma vez cada, e não texto livre
+        ficha = self._ficha()
+        nova = ficha.split("action='/tarefa/nova'")[1].split("</form>")[0]
+        self.assertIn("<select name='quem'", nova)
+        self.assertIn("<option value='sofia' selected>Sofia Lopes (eu)</option>", nova)
+        self.assertEqual(nova.count("<option value='rui'"), 1)
+        self.assertNotIn("list='pessoas'", ficha)
+
+    def test_g15_um_nome_sem_conta_recusa_e_a_data_passada_avisa(self):
+        id_ = self._proposta()
+        t = radar.criar_tarefa("ligar", None, proposta_id=id_, quem="rui")
+        texto, erro = self.aviso(self.cliente.post(
+            "/tarefa/%d/gravar" % t, data={"quem": "Helena Fantasma"},
+            headers=self.VOLTA))
+        self.assertTrue(erro)
+        self.assertIn("«Helena Fantasma» não é uma conta desta empresa", texto)
+        r = self.cliente.post("/tarefa/nova", headers=self.VOLTA, data={
+            "ref": "60/2026", "proposta_id": str(id_), "o_que": "x",
+            "quem": "Helena Fantasma"})
+        self.assertTrue(self.aviso(r)[1])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT quem FROM tarefas WHERE id=?",
+                                       (t,)).fetchone()[0], "rui")
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM tarefas WHERE "
+                                       "o_que='x'").fetchone()[0], 0)
+        texto, erro = self.aviso(self.cliente.post(
+            "/tarefa/%d/gravar" % t, data={"quando": "01/09/2026"},
+            headers=self.VOLTA))
+        self.assertIn("01/09/2026 já passou, e a tarefa fica atrasada", texto)
+
+    def test_d4_o_responsavel_antigo_nao_se_perde_ao_gravar(self):
+        id_ = self._proposta()
+        radar.gravar_campos_da_proposta(id_, ["responsavel"], ["Ana Antiga"])
+        self.cliente.post("/proposta/%d/ficha" % id_, headers=self.VOLTA,
+                          data={"responsavel": "Ana Antiga", "nota_nova": "vista"})
+        self.assertEqual(radar.proposta(id_)["responsavel"], "Ana Antiga")
+        self.assertIn("(sem conta)", radar.opcoes_de_pessoas("Ana Antiga"))
+        texto, _ = self.aviso(self.cliente.post(
+            "/responsavel/60/2026", data={"nome": "rui", "de": "Ana Antiga"},
+            headers=self.VOLTA))
+        self.assertEqual(texto, "Responsável: Rui Matos.")
+        self.assertEqual(radar.proposta(id_)["responsavel"], "rui")
+        self.assertEqual(self._historico("responsável")["detalhe"],
+                         "Ana Antiga → Rui Matos")
+
+    def test_g16_o_historico_diz_o_que_era_e_o_que_ficou(self):
+        id_ = self._proposta()
+        t = radar.criar_tarefa("rever o mapa", "2026-09-30", proposta_id=id_,
+                               quem="sofia")
+        radar.gravar_tarefa(t, quando="02/10/2026", quem="rui")
+        self.assertEqual(self._historico("tarefa")["detalhe"],
+                         "rever o mapa: quando 30/09/2026 → 02/10/2026 · "
+                         "quem Sofia Lopes → Rui Matos")
+        # o mesmo preço escrito de outra maneira não é mudança
+        radar.gravar_campos_da_proposta(id_, ["valor_proposta"], ["682.500,00 EUR"])
+        radar.gravar_campos_da_proposta(id_, ["valor_proposta"], ["682500"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM historico WHERE "
+                                       "accao='valor_proposta'").fetchone()[0], 1)
+        radar.gravar_campos_da_proposta(id_, ["data_adjudicacao"], ["2026-09-20"])
+        radar.gravar_campos_da_proposta(id_, ["data_adjudicacao"], ["2026-09-28"])
+        self.assertEqual(self._historico("data_adjudicacao")["detalhe"],
+                         "20/09/2026 → 28/09/2026")
+        TestAPropostaDeCadaEmpresa._com_leitura(self)       # três documentos
+        radar.gravar_campos_da_proposta(id_, ["documentos_prontos"], ['["DEUCP"]'])
+        radar.gravar_campos_da_proposta(id_, ["documentos_prontos"],
+                                        ['["DEUCP", "CV da equipa"]'])
+        self.assertEqual(self._historico("documentos_prontos")["detalhe"],
+                         "1 de 3 → 2 de 3")
+
+    def test_g17_o_403_do_tester_diz_a_quem_pedir_e_fica_no_molde(self):
+        tester = radar.app.test_client()
+        r = tester.post("/entrar", data={"email": "rui", "senha": "senha-comprida"},
+                        environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        for rota in ("/configuracoes/conta/utilizadores", "/configuracoes/documentos"):
+            with self.subTest(rota=rota):
+                r = tester.get(rota, environ_base=self.FORA)
+                h = r.get_data(as_text=True)
+                self.assertEqual(r.status_code, 403)
+                self.assertIn("Só o administrador da empresa (Sofia Lopes)", h)
+                self.assertNotIn("administração do Mira Gov", h)
+                self.assertIn("mg-topbar", h)                  # dentro do molde
+        conta_ = tester.get("/configuracoes/conta", environ_base=self.FORA)
+        self.assertNotIn("a nossa empresa, utilizadores", conta_.get_data(as_text=True))
 
 
 if __name__ == "__main__":

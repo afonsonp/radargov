@@ -378,7 +378,8 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
    numa linha, o formulario do adiar/quem na seguinte, a toda a largura. */
 .ficha-lado ul.tarefas li{flex-wrap:wrap}
 .ficha-lado ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
-.ficha-lado ul.tarefas li form.accao input{flex:1 1 120px;min-width:0}
+.ficha-lado ul.tarefas li form.accao input,
+.ficha-lado ul.tarefas li form.accao select{flex:1 1 120px;min-width:0}
 .ficha-lado .mg-card table{font-size:var(--text-sm)}
 
 /* As PROPOSTAS (24/09/2026, o `EcraPropostas`): o cliente por baixo do
