@@ -10413,6 +10413,12 @@ def iniciar_corpus():
         # o DR pode ter escrito uma das outras 86.
         c.execute("""CREATE TABLE IF NOT EXISTS entidade_nomes (
             nome_norm TEXT PRIMARY KEY, chave TEXT)""")
+        # Os nomes de UMA entidade, para a ficha dela (3.ª ronda, G82,
+        # 29/09/2026): a chave primária é o nome, e perguntar pela chave
+        # varria as 257 mil linhas -- ~40 ms a quente e 1 s a frio em
+        # cada ficha. Medido numa cópia: constrói-se em ~0,5 s.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_nomes_chave "
+                  "ON entidade_nomes(chave, nome_norm)")
         for ddl in (
             "CREATE INDEX IF NOT EXISTS ix_ctr_nif ON contratos(adjudicante_nif)",
             "CREATE INDEX IF NOT EXISTS ix_ctr_norm ON contratos(adjudicante_norm)",
@@ -11220,6 +11226,33 @@ def conta_no_corpus(c, sql, valores):
     return _CONTAS_DO_CORPUS[chave]
 
 
+# A partir de quantos contratos no filtro a pagina do Mercado se escolhe
+# a andar pela ORDEM (o indice da data, ou o do fim estimado) em vez de
+# pelos ids do recorte -- ver onde_da_pagina().
+DENSO_PARA_A_ORDEM = 1000
+
+
+def onde_da_pagina(onde, correspondem):
+    """O WHERE da consulta das 20 linhas do Mercado, com o `c.id IN (...)`
+    desligado do indice quando o filtro e DENSO (3.ª ronda, G79,
+    29/09/2026).
+
+    Com o `c.id IN (SELECT contrato_id ... cpv8 GLOB ...)` o SQLite vai
+    buscar a tabela larga TODAS as linhas do recorte -- 400 mil no perfil
+    «45, 50, 71 ou 909» -- para as ordenar e mostrar vinte: 1,8 s a
+    quente. Com o `+` o `IN` deixa de ser por onde se entra, e o SQLite
+    anda pelo indice da ordem (`ix_ctr_data`, `ix_ctr_fim`) e para as
+    vinte primeiras que batem: 0,49 s, e 0,34 -> 0,06 s no perfil
+    «72 ou 48». **So quando e denso**: num CPV raro (dezenas de
+    contratos) andar pela ordem e percorrer o indice quase inteiro, e o
+    `IN` responde em 0,000 s. A contagem ja esta feita (e guardada) antes
+    desta consulta, e e ela que escolhe. So para a pagina: numa contagem,
+    sem ORDER BY, o `+` varria a tabela inteira."""
+    if correspondem < DENSO_PARA_A_ORDEM:
+        return onde
+    return onde.replace("c.id IN (", "+c.id IN (")
+
+
 def tipos_de_procedimento():
     """Os tipos de procedimento que o corpus conhece, do mais comum para
     o menos, para as caixas de filtro de /contratos e de /alertas.
@@ -11339,11 +11372,23 @@ def nome_da_entidade(chave):
                 return r["n"]
         elif chave.startswith("n:"):
             # sem NIF, pela mesma chave: «fundacao salesianos» era o nome
-            # que a pagina mostrava (varredura de 25/09/2026)
+            # que a pagina mostrava (varredura de 25/09/2026).
+            # **As palavras da chave primeiro, em SQL** (3.ª ronda, G82,
+            # 29/09/2026): conferia-se a chave dos 50 mil anúncios sem NIF
+            # em Python, um a um -- 1,6 s numa ficha, e mais numa que não
+            # existe, que os lia todos. As palavras da chave aparecem pela
+            # mesma ordem no `entidade_norm` (os dois saem do mesmo texto
+            # sem acentos e em minúsculas), e o índice dele responde; o
+            # Python só confere os que passam. As de uma letra ficam de
+            # fora: o «e» da chave pode ter sido um «&».
+            palavras = [p for p in chave[2:].split() if len(p) > 1]
             for r in c.execute("SELECT entidade FROM anuncios "
-                               "WHERE (nif IS NULL OR nif = '') "
+                               "WHERE rowid IN (SELECT rowid FROM anuncios "
+                               "WHERE entidade_norm LIKE ?) "
+                               "AND (nif IS NULL OR nif = '') "
                                "AND COALESCE(entidade, '') != '' "
-                               "ORDER BY data_pub DESC, ref DESC"):
+                               "ORDER BY data_pub DESC, ref DESC",
+                               ("%" + "%".join(palavras) + "%",)):
                 if chave_entidade("", r["entidade"]) == chave:
                     return r["entidade"]
     return chave[2:] if chave.startswith("n:") else chave
@@ -15212,8 +15257,11 @@ PAGINAS_DE_UM_ITEM = {"entidades": ("Entidades", "/entidades")}
 # e o logotipo (ver o comentario do NAV) e as Configuracoes vivem no
 # canto oposto. Sem esta lista, `migalhas_de()` cai no recurso e escreve
 # "Radar" -- que e o nome da aplicacao, nao o desta pagina.
+# As Configuracoes ligam ja a primeira seccao (3.ª ronda, G85): o
+# `/configuracoes` so redirecciona, e no telemovel com rede fraca cada
+# redireccionamento e mais uma viagem (+0,55 s em Fast 3G, medido).
 FORA_DA_BARRA = {"inicio": ("Hoje", "/"),
-                 "configuracoes": ("Configurações", "/configuracoes")}
+                 "configuracoes": ("Configurações", "/configuracoes/conta")}
 
 # Onde o botao "Verificar agora" aparece: SO na lista dos anuncios
 # (decisao 11.8-A, que sobrevive a fusao). O botao vai ao DR buscar
@@ -15920,7 +15968,7 @@ def barra_de_baixo(activo, item_activo, sem_empresa):
     if sem_empresa:
         menu.append(do_menu("/plataforma", "Plataforma", "configuracoes"))
     else:
-        menu.append(do_menu("/configuracoes", "Configurações", "configuracoes",
+        menu.append(do_menu("/configuracoes/conta", "Configurações", "configuracoes",
                             activo == "configuracoes"))
     menu.append(do_menu("/ajuda", "Ajuda", "ajuda", activo == "ajuda"))
     if g.get("sessao"):
@@ -17204,6 +17252,36 @@ def ordem_da_lista(args):
     return "data_pub DESC, ref DESC"
 
 
+# Abaixo de quantos anúncios no filtro a página se escolhe pelos índices
+# do filtro, e não a andar pela ordem da lista -- ver consulta_da_pagina().
+ESPARSO_PARA_A_ORDEM = 1000
+
+
+def consulta_da_pagina(onde, correspondem, ordem):
+    """O SELECT das linhas de uma página da lista de anúncios, com o
+    `LIMIT ? OFFSET ?` no fim.
+
+    **Um filtro com poucos resultados escolhe-os primeiro** (3.ª ronda,
+    G81, 29/09/2026). Com a ordem da lista, o SQLite anda pelo índice da
+    data e vai à tabela larga -- o `texto` de cada anúncio -- conferir o
+    filtro linha a linha, até ter vinte. Com um filtro que bate em
+    milhares, as vinte aparecem logo; com um que bate em **nenhum**,
+    percorre os 210 mil anúncios e lê-os todos: uma pesquisa sem
+    resultados custava 1 s a quente e 14 a 34 s a frio, mais do que uma
+    com resultados. Por isso, com poucos, as `ref` escolhem-se numa
+    subconsulta **sem ordem** -- sem ORDER BY o SQLite não tem razão para
+    andar pelo índice da data, e varre o de cobertura
+    (`ix_anuncios_cobre`) sem ir à tabela -- e só essas vão buscar a
+    linha inteira, para se ordenarem. Medido numa cópia: a pesquisa sem
+    resultados de 17-23 s para 0,04 s, o «Expirou sem ver» de 0,30 para
+    0,06 s. Com muitos fica como estava: aí a ordem é o caminho curto."""
+    if correspondem >= ESPARSO_PARA_A_ORDEM:
+        return ("SELECT * FROM anuncios" + onde + " ORDER BY " + ordem
+                + " LIMIT ? OFFSET ?")
+    return ("SELECT * FROM anuncios WHERE ref IN (SELECT ref FROM anuncios"
+            + onde + ") ORDER BY " + ordem + " LIMIT ? OFFSET ?")
+
+
 def sem_pagina(args, base="/", **muda):
     """Liga da lista com os filtros de agora. Mexer num filtro volta a
     pagina 1: a pagina 7 do filtro anterior nao existe no novo. O `base`
@@ -17436,7 +17514,7 @@ def prefixos_do_cpv(texto):
     return prefixos
 
 
-def condicao_do_interesse_contratos(args=None, cfg=None):
+def condicao_do_interesse_contratos(args=None, cfg=None, presa=False):
     """(fragmento, valores) do interesse no MERCADO (14/09/2026, a
     pedido do Afonso: «no mercado, após definir o interesse, deve também
     só aparecer o CPV marcado, tal como nos anúncios»).
@@ -17447,6 +17525,13 @@ def condicao_do_interesse_contratos(args=None, cfg=None):
     filtros_dos_contratos(), que e o recorte de pagina dos contratos
     (a lista, o CSV e os graficos filtram os tres por la) -- e NAO por
     condicoes_contratos(), que serve os alertas e a ficha da entidade.
+
+    `presa=True` quando a consulta ja esta presa a UMA entidade: o CPV
+    vai por `EXISTS` a partir dos contratos dela (`cpv_da_entidade()`).
+    O «No nosso CPV» da ficha do Municipio de Lisboa levava 0,52 s a
+    quente com o `IN`, que materializa os 400 mil contratos do perfil
+    «45, 50, 71 ou 909» para os cruzar com os 15 mil dela (3.ª ronda,
+    G82, 29/09/2026).
     """
     args = request.args if args is None else args
     if (args.get("interesse") or "").strip() == "nao":
@@ -17458,13 +17543,15 @@ def condicao_do_interesse_contratos(args=None, cfg=None):
     if not dentro_p:
         return "1=0", []          # um termo que nao e nada: vazio, nao tudo
     dentro_frag, vals = prefixos_em_cpv8(dentro_p)
-    frag = ("c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
+    frag = (cpv_da_entidade(dentro_frag) if presa else
+            "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
             % dentro_frag)
     fora_p = prefixos_do_cpv(fora)
     if fora_p:
         fora_frag, fora_vals = prefixos_em_cpv8(fora_p)
-        frag += (" AND c.id NOT IN (SELECT contrato_id FROM contrato_cpv WHERE %s)"
-                 % fora_frag)
+        frag += (" AND NOT " + cpv_da_entidade(fora_frag) if presa else
+                 " AND c.id NOT IN (SELECT contrato_id FROM contrato_cpv "
+                 "WHERE %s)" % fora_frag)
         vals += fora_vals
     return frag, vals
 
@@ -17707,9 +17794,8 @@ def _lista_de_anuncios():
                                      valores).fetchone()["n"]
         paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
         pagina = min(max(1, pagina_pedida(request.args)), paginas)
-        linhas = c.execute("SELECT * FROM anuncios" + onde +
-                           " ORDER BY " + ordem_da_lista(request.args) +
-                           " LIMIT ? OFFSET ?",
+        linhas = c.execute(consulta_da_pagina(onde, correspondem,
+                                              ordem_da_lista(request.args)),
                            valores + [POR_PAGINA_LISTA,
                                       (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         # As abas contam DENTRO do filtro. Contavam a base inteira: com
@@ -18651,7 +18737,19 @@ def condicoes(args):
                     "FROM anuncios WHERE nif = ?))")
         valores.extend([nif, nif])
     else:
-        procura(args.get("ent"), "entidade_norm")
+        # **Pelo índice do nome, como o distrito** (3.ª ronda, G82,
+        # 29/09/2026): o `entidade_norm LIKE` com o `estado` ao lado não
+        # cabia em índice nenhum, e cada contagem lia a tabela larga --
+        # o `texto` dos 210 mil anúncios. A ficha de uma entidade sem NIF
+        # levava 4,3 s só nesta conta, numa cópia com a cache fria; pela
+        # subconsulta, que o `ix_anuncios_entidade_norm` cobre (a `rowid`
+        # vai em todos os índices), 0,05 s. O `+` é o do distrito: sem ele
+        # o SQLite partia da lista e ia buscar cada anúncio à tabela.
+        frag_ent, vals_ent = frag_de_texto(args.get("ent"), "entidade_norm")
+        if frag_ent:
+            onde.append("(+ref IN (SELECT ref FROM anuncios WHERE rowid IN "
+                        "(SELECT rowid FROM anuncios WHERE %s)))" % frag_ent)
+            valores.extend(vals_ent)
     # A exclusao por palavras: "vigilancia" sem "videovigilancia". Tres
     # dos quatro concorrentes observados tem-na (ver CONCORRENTES.md), e
     # sem ela um filtro largo obriga a descartar o mesmo ruido a mao
@@ -18953,10 +19051,14 @@ def cpv_json():
     # `after_request`) faz o browser perguntar, e com a chave igual a
     # resposta e um 304 sem corpo. A etiqueta e de todos os que veem a
     # mesma fonte -- as contagens nao sao de nenhuma empresa.
+    # **Comparada em fraco** (3.ª ronda, G83, 29/09/2026): a Cloudflare,
+    # quando comprime, passa a etiqueta a fraca (`W/"..."`), e o browser
+    # devolve-a assim. O `in` do werkzeug so aceita as fortes, e por isso
+    # nunca havia 304 -- os 149 KB desciam em cada visita ao Perfil.
     def etiqueta_de(chave_):
         return hashlib.sha256(repr((de, chave_)).encode()).hexdigest()[:16]
     etiqueta = etiqueta_de(chave)
-    if etiqueta in request.if_none_match:
+    if request.if_none_match.contains_weak(etiqueta):
         resp = Response(status=304)
         resp.set_etag(etiqueta)
         return resp
@@ -22990,6 +23092,24 @@ GRAFICOS_JS = """<script>
 </script>"""
 
 
+# As colunas de que os sete graficos precisam, e so essas: sao elas que
+# vao para a tabela TEMP do _resumo_contratos(). Uma soma nova sobre outra
+# coluna tem de a acrescentar aqui -- senao rebenta com «no such column»,
+# que e melhor do que ir a tabela larga em silencio.
+COLUNAS_DO_RESUMO = ("id", "preco_contratual", "n_adj", "adjudicante_chave",
+                     "tipo_procedimento", "data_celebracao", "n_anuncio",
+                     "preco_base")
+
+# {(marca do corpus, dia UTC, sql, valores): numeros} -- ver resumo_contratos()
+_RESUMOS_DO_CORPUS = {}
+# O tecto: cada entrada sao uns KB (dez linhas por grafico) mais os
+# descontos, um numero por procedimento -- ~100 mil no corpus inteiro,
+# uns 3 MB no pior caso. Chega para os perfis das empresas e as perguntas
+# da semana; passado isto deita-se tudo fora e recomeca, como o
+# `conta_no_corpus()`.
+TECTO_RESUMOS = 32
+
+
 def resumo_contratos(args):
     """Os numeros dos graficos, sobre o mesmo filtro da lista.
 
@@ -23001,22 +23121,47 @@ def resumo_contratos(args):
     os graficos respondem sobre os contratos a acabar na janela -- o
     mesmo conjunto que a tabela mostra, senao o grafico e a lista
     discordavam no mesmo ecra.
+
+    **Guarda-se ate o corpus mudar** (3.ª ronda, G78, 29/09/2026): o
+    corpus so muda com a importacao de segunda-feira, e o resumo levava
+    9 a 18 s em CADA visita ao Mercado, de cada pessoa. A chave e a do
+    `conta_no_corpus()` -- a identidade do ficheiro, o dia (o modo «a
+    acabar» pergunta `date('now')`) e a propria pergunta em SQL, que ja
+    leva o perfil da empresa --, com o tecto `TECTO_RESUMOS`.
     """
     onde, valores = filtros_dos_contratos(args)
+    chave = (marca_do_corpus(), time.strftime("%Y-%m-%d", time.gmtime()),
+             onde, tuple(valores))
+    # numa variavel e nao relido do dicionario: outro pedido, noutra
+    # thread, pode esvazia-lo pelo tecto entre a escrita e a leitura
+    numeros = _RESUMOS_DO_CORPUS.get(chave)
+    if numeros is None:
+        numeros = _resumo_contratos(onde, valores)
+        if len(_RESUMOS_DO_CORPUS) >= TECTO_RESUMOS:
+            _RESUMOS_DO_CORPUS.clear()
+        _RESUMOS_DO_CORPUS[chave] = numeros
+    return numeros
+
+
+def _resumo_contratos(onde, valores):
+    """As sete agregacoes do resumo_contratos(), sem memoria."""
     with liga_corpus() as c:
-        # Uma pergunta por TEXTO varre os dois milhoes de objectos com
-        # LIKE, e os graficos faziam-no dezassete vezes: 9,3 s por uma
-        # «manutencao» (varredura de 25/09/2026). Varre-se uma vez, para
-        # uma tabela TEMP (vive na ligacao, nao no ficheiro), e as
-        # agregacoes correm sobre os ids -- os mesmos numeros, em ~1 s.
-        # So com LIKE: por CPV o indice ja responde em 0,1 s.
-        escolhidos = " LIKE " in onde
-        if escolhidos:
-            c.execute("DROP TABLE IF EXISTS temp.escolhidos")
-            c.execute("CREATE TEMP TABLE escolhidos AS SELECT c.id FROM "
-                      "contratos c" + onde, valores)
-            onde, valores = (" WHERE c.id IN (SELECT id FROM temp.escolhidos)",
-                             [])
+        # **Uma passagem pelo corpus, e nao sete** (3.ª ronda, G78,
+        # 29/09/2026). Cada grafico repetia o mesmo `c.id IN (SELECT
+        # ...)` e ia buscar as linhas do recorte a tabela larga -- no
+        # perfil «45, 50, 71 ou 909» sao centenas de milhares de buscas
+        # ao acaso num ficheiro de 2,8 GB, sete vezes. Agora o recorte
+        # vai UMA vez para uma tabela TEMP (vive na ligacao, nao no
+        # ficheiro) so com as colunas que os graficos pedem
+        # (`COLUNAS_DO_RESUMO`), e as agregacoes correm sobre ela. E o
+        # que ja se fazia para o texto desde 25/09/2026 (9,3 s por uma
+        # «manutencao», o LIKE repetido dezassete vezes), agora para
+        # todos os filtros.
+        c.execute("DROP TABLE IF EXISTS temp.recorte")
+        c.execute("CREATE TEMP TABLE recorte AS SELECT %s FROM contratos c"
+                  % ", ".join("c." + col for col in COLUNAS_DO_RESUMO)
+                  + onde, valores)
+        onde, valores = " WHERE 1=1", []
         # Quem ganha e a concentracao saem da mesma passagem: as duas
         # agregam por adjudicatario, e o SUM/COUNT OVER () traz o total e
         # o numero de empresas sem uma segunda varredura (poupa ~450 ms).
@@ -23030,7 +23175,7 @@ def resumo_contratos(args):
         ganha = c.execute(
             "WITH por_empresa AS ("
             " SELECT a.chave ch, SUM(c.preco_contratual/c.n_adj) v, COUNT(*) k"
-            " FROM contratos c JOIN contrato_adjudicatario a"
+            " FROM temp.recorte c JOIN contrato_adjudicatario a"
             "   ON a.contrato_id=c.id" + onde +
             " GROUP BY +a.chave),"
             # o nome vai buscar-se so as 10 que ficam: juntar a
@@ -23041,20 +23186,18 @@ def resumo_contratos(args):
             " SELECT t.ch, COALESCE(e.nome, t.ch) n, t.v, t.k, t.total,"
             " t.quantas FROM topo t LEFT JOIN entidades e ON e.chave = t.ch"
             " ORDER BY t.v DESC", valores).fetchall()
-        # O `+` desliga o indice de proposito: com ele, o SQLite varre o
-        # indice e vai buscar cada linha ao acaso -- 1443 ms contra 477.
         compra = c.execute(
             "WITH por_entidade AS ("
             " SELECT c.adjudicante_chave ch, SUM(c.preco_contratual) v,"
-            " COUNT(*) k FROM contratos c" + onde +
-            " GROUP BY +c.adjudicante_chave"
+            " COUNT(*) k FROM temp.recorte c" + onde +
+            " GROUP BY c.adjudicante_chave"
             " ORDER BY v DESC LIMIT 10)"
             " SELECT p.ch, COALESCE(e.nome, p.ch) n, p.v, p.k"
             " FROM por_entidade p LEFT JOIN entidades e ON e.chave = p.ch"
             " ORDER BY p.v DESC", valores).fetchall()
         proc = c.execute(
             "SELECT c.tipo_procedimento p, COUNT(*) k, "
-            "SUM(c.preco_contratual) v FROM contratos c" + onde +
+            "SUM(c.preco_contratual) v FROM temp.recorte c" + onde +
             " GROUP BY p ORDER BY v DESC LIMIT 8", valores).fetchall()
         # Por trimestre enquanto couberem; com sete anos sao 27 barras e
         # os rotulos deixam de se ler, e entao agrupa-se por ano. A
@@ -23063,12 +23206,12 @@ def resumo_contratos(args):
         trim = c.execute(
             "SELECT substr(c.data_celebracao,1,4) || ' T' || "
             "  ((CAST(substr(c.data_celebracao,6,2) AS INTEGER)+2)/3) t, "
-            "COUNT(*) k, SUM(c.preco_contratual) v FROM contratos c" + onde +
+            "COUNT(*) k, SUM(c.preco_contratual) v FROM temp.recorte c" + onde +
             " AND c.data_celebracao!='' GROUP BY t ORDER BY t", valores).fetchall()
         if len(trim) > MAX_BARRAS_TEMPO:
             trim = c.execute(
                 "SELECT substr(c.data_celebracao,1,4) t, COUNT(*) k, "
-                "SUM(c.preco_contratual) v FROM contratos c" + onde +
+                "SUM(c.preco_contratual) v FROM temp.recorte c" + onde +
                 " AND c.data_celebracao!='' GROUP BY t ORDER BY t",
                 valores).fetchall()
         # Escaloes de valor em vez da mediana exacta: ordenar 400 mil
@@ -23082,16 +23225,17 @@ def resumo_contratos(args):
                           for i, lim in enumerate(LIMITES_ESCALAO))
         escal = c.execute(
             "SELECT CASE %s ELSE %d END e, COUNT(*) k, "
-            "SUM(c.preco_contratual) v FROM contratos c"
+            "SUM(c.preco_contratual) v FROM temp.recorte c"
             % (escada, len(LIMITES_ESCALAO)) + onde +
             " AND c.preco_contratual > 0 GROUP BY e ORDER BY e",
             valores).fetchall()
         # O desconto agrega por procedimento, nao por linha -- ver
         # descontos_por_procedimento(), que tambem diz o que fica de fora.
-        desc = descontos_por_procedimento(c, onde, valores)
-        if escolhidos:
-            c.execute("DROP TABLE temp.escolhidos")
-    return ganha, compra, proc, trim, escal, desc
+        desc = descontos_por_procedimento(c, onde, valores, de="temp.recorte")
+        c.execute("DROP TABLE temp.recorte")
+    # em dicionarios e nao em `sqlite3.Row`: isto guarda-se na memoria
+    return tuple([dict(r) for r in linhas]
+                 for linhas in (ganha, compra, proc, trim, escal)) + (desc,)
 
 
 # Os campos que a propria ficha da entidade aceita. Sao os da lista de
@@ -23392,7 +23536,7 @@ def escaloes_de_desconto(descontos):
     return list(zip(etiquetas, contagens)), mediana
 
 
-def descontos_por_procedimento(c, onde, valores):
+def descontos_por_procedimento(c, onde, valores, de="contratos"):
     """Os descontos (0..1) sobre o preco base, POR PROCEDIMENTO.
 
     Agregado por `n_anuncio` e nunca por linha: num procedimento com
@@ -23409,7 +23553,7 @@ def descontos_por_procedimento(c, onde, valores):
     """
     return [r["d"] for r in c.execute(
         "SELECT 1.0 - SUM(c.preco_contratual)/MAX(c.preco_base) d"
-        " FROM contratos c" + onde +
+        " FROM " + de + " c" + onde +
         " AND c.n_anuncio != '' AND c.preco_base > 0"
         " AND c.preco_contratual > 0"
         " GROUP BY c.n_anuncio"
@@ -24241,7 +24385,7 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
     compra_k = compra_v = no_cpv = 0
     desconto = None
     if ha_corpus():
-        frag, vals = condicao_do_interesse_contratos(args={})
+        frag, vals = condicao_do_interesse_contratos(args={}, presa=True)
         with liga_corpus() as c:
             r = c.execute(
                 "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual),0) v "
@@ -24779,7 +24923,8 @@ def contratos():
             # linha a correrem antes do LIMIT, isto levava 45 segundos no
             # corpus de sete anos. E a mesma armadilha do "quem ganha".
             linhas = c.execute(
-                "WITH pag AS (SELECT c.* FROM contratos c" + onde +
+                "WITH pag AS (SELECT c.* FROM contratos c"
+                + onde_da_pagina(onde, correspondem) +
                 ordem_c + " LIMIT ? OFFSET ?)"
                 " SELECT p.*, COALESCE(e.nome, p.adjudicante) adj_nome,"
                 " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
@@ -24792,8 +24937,11 @@ def contratos():
                 "  ON e.chave=p.adjudicante_chave" + ordem_p,
                 valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
         procs = tipos_de_procedimento()
-        anos = [r["a"] for r in c.execute(
-            "SELECT DISTINCT ano a FROM contratos ORDER BY a")]
+        # os anos so mudam com a importacao: guardam-se como as contagens
+        # (3.ª ronda, G79 -- eram 0,1 s em cada visita ao Mercado)
+        anos = [int(a) for a in (conta_no_corpus(
+            c, "SELECT group_concat(a) a FROM (SELECT DISTINCT ano a "
+            "FROM contratos ORDER BY a)", [])["a"] or "").split(",") if a]
         # O fim da janela vem do mesmo relogio que a filtra: e o date()
         # do SQLite que define "+N meses", nao uma conta de dias a parte
         # que dissesse outra data no cabecalho.
@@ -28070,11 +28218,20 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
     tamanhos = tamanhos_das_paginas(caminho)
     if len(tamanhos) != n_paginas:
         tamanhos = [None] * n_paginas
+    # **O `?procurar=` só nas páginas onde o termo está** (3.ª ronda,
+    # G84, 29/09/2026). Ia em todas: cada procura mudava o endereço de
+    # todas as imagens, e o browser pedia de novo ao servidor as páginas
+    # já vistas -- desenhadas outra vez a 2x, sem nada a marcar --, 2,2
+    # a 2,4 s até ao `load`. A procura em si leva 0,06 s numa peça de 12
+    # páginas; as que não têm o termo ficam com o endereço de sempre, e
+    # vêm da cache (`max-age` de um dia).
+    achadas = paginas_com_termo(caminho, procurar) if procurar else []
+    com_termo = {p for p, _ in achadas}
     paginas_img = "".join(
         "<img id='pag-%d' src='%s/%d.png%s' loading='lazy'%s "
         "alt='página %d' class='peca-pag'>"
         % (i, html.escape(base_img, quote=True), i,
-           html.escape(sufixo, quote=True),
+           html.escape(sufixo if i in com_termo else "", quote=True),
            " width='%d' height='%d'" % t if t else "", i)
         for i, t in enumerate(tamanhos, 1))
 
@@ -28096,7 +28253,6 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
            ("<a class='limpar' href='%s'>limpar</a>"
             % html.escape(limpar or rota, quote=True)) if procurar else ""))
     if procurar:
-        achadas = paginas_com_termo(caminho, procurar)
         if achadas:
             saltos = " ".join(
                 "<a href='#pag-%d'>pág. %d%s</a>"
@@ -29619,10 +29775,19 @@ def _linhas_do_calendario(ver, principio, fim):
         if ver != "nossas":
             aba = "porver" if ver == "porver" else ""
             onde, valores = com_recorte("", [], *recorte_da_lista(aba))
+            # As `ref` escolhem-se numa subconsulta, e so as da janela vao
+            # buscar o titulo (3.ª ronda, G80, 29/09/2026): pedido tudo
+            # de uma vez, o SQLite varria a tabela larga -- o `texto` dos
+            # 210 mil anuncios -- para achar os ~1 500 das seis semanas,
+            # porque nenhum indice tem o titulo e a entidade. A
+            # subconsulta so pergunta pelo prazo, pelo estado e pelo CPV,
+            # que o `ix_anuncios_cobre` tem todos: medido numa copia,
+            # 2,4 s -> 0,05 s por filtro, e sao tres por pagina.
             anuncios = c.execute(
-                "SELECT ref, titulo, entidade, prazo FROM anuncios" + onde
-                + (" AND" if onde else " WHERE") + " prazo != ''" + janela,
-                valores + limites).fetchall()
+                "SELECT ref, titulo, entidade, prazo FROM anuncios "
+                "WHERE ref IN (SELECT ref FROM anuncios" + onde
+                + (" AND" if onde else " WHERE") + " prazo != ''" + janela
+                + ")", valores + limites).fetchall()
             if condicao_do_interesse()[0]:
                 so_aba, vals_aba = com_recorte("", [], *condicao_da_aba(aba))
                 escondidos = c.execute(

@@ -19736,7 +19736,9 @@ class TestBarraDeBaixoNoTelemovel(BaseTemporaria):
         self.assertIn("href='/calendario' aria-current='page'", principais)
         self.assertEqual(principais.count("aria-current"), 1)
         mais = barra.split("<details")[1]
-        for destino in ("/contratos", "/configuracoes", "/ajuda"):
+        # as Configurações ligam já à Conta (3.ª ronda, G85): o
+        # `/configuracoes` só redirecciona, e é uma viagem a mais
+        for destino in ("/contratos", "/configuracoes/conta", "/ajuda"):
             self.assertIn("href='%s'" % destino, mais)
         self.assertIn("<span>Mais</span>", mais)
 
@@ -23031,6 +23033,333 @@ class TestAcessibilidadeETelemovelDaTerceiraRonda(BaseTemporaria):
     def test_g77_a_validacao_fala_portugues(self):
         """O alerta sem nome dizia «Please fill out this field.»."""
         self.assertIn("'Preencha este campo.'", radar.BASE)
+
+
+
+@contextlib.contextmanager
+def consultas_do_radar(ligacao="liga"):
+    """Junta à lista o SQL que o radar corre no bloco, já com os valores
+    (o `set_trace_callback` do sqlite3). É o que deixa um teste perguntar
+    ao SQLite o PLANO de uma consulta que a página monta lá dentro."""
+    feitas = []
+    if ligacao == "liga":
+        orig = radar._abre
+
+        def abre(caminho):
+            c = orig(caminho)
+            c.set_trace_callback(feitas.append)
+            return c
+        with unittest.mock.patch.object(radar, "_abre", abre):
+            yield feitas
+    else:
+        orig = radar.liga_corpus
+
+        def liga_corpus():
+            c = orig()
+            c.set_trace_callback(feitas.append)
+            return c
+        with unittest.mock.patch.object(radar, "liga_corpus", liga_corpus):
+            yield feitas
+
+
+def plano(c, sql):
+    return [r[3] for r in c.execute("EXPLAIN QUERY PLAN " + sql)]
+
+
+class TestOResumoDoMercadoGuardaSe(BaseTemporaria):
+    """3.ª ronda, G78 (29/09/2026): o `/contratos/resumo` levava 9 a 18 s
+    em CADA visita ao Mercado, de cada pessoa, e era todo base de dados.
+    Duas causas: as sete agregações iam, cada uma, buscar as linhas do
+    recorte à tabela larga (no perfil «45, 50, 71 ou 909», centenas de
+    milhares de buscas ao acaso, sete vezes), e nada se guardava -- num
+    corpus que só muda com a importação de segunda-feira. Medido numa
+    cópia das bases: 70 a 100 s -> 5 s na primeira visita e 0,05 s nas
+    seguintes. Estes testes guardam as propriedades, não o relógio."""
+
+    def setUp(self):
+        super().setUp()
+        semear_corpus()
+        radar._RESUMOS_DO_CORPUS.clear()
+        self.addCleanup(radar._RESUMOS_DO_CORPUS.clear)
+
+    def _resumo(self, args=None):
+        with radar.app.test_request_context("/contratos/resumo"):
+            return radar.resumo_contratos(args or {})
+
+    def test_os_numeros_sao_os_das_contas_sobre_o_corpus(self):
+        """A tabela TEMP não muda nenhum número: confere-se contra as
+        mesmas contas feitas directamente sobre os `contratos`."""
+        ganha, compra, proc, trim, escal, desc = self._resumo()
+        with radar.liga_corpus() as c:
+            n, v = c.execute("SELECT COUNT(*), SUM(preco_contratual) "
+                             "FROM contratos").fetchone()
+            por_entidade = c.execute(
+                "SELECT adjudicante_chave, SUM(preco_contratual) v FROM "
+                "contratos GROUP BY 1 ORDER BY v DESC LIMIT 10").fetchall()
+        self.assertEqual(sum(p["k"] for p in proc), n)
+        self.assertAlmostEqual(sum(p["v"] for p in proc), v)
+        self.assertEqual(sum(e["k"] for e in escal), n)
+        self.assertEqual([(x["ch"], round(x["v"], 2)) for x in compra],
+                         [(r[0], round(r[1], 2)) for r in por_entidade])
+        self.assertAlmostEqual(ganha[0]["total"], v)
+        self.assertEqual(sum(t["k"] for t in trim), n)
+        self.assertTrue(desc)
+
+    def test_a_segunda_visita_nao_vai_a_base(self):
+        with unittest.mock.patch.object(
+                radar, "_resumo_contratos",
+                wraps=radar._resumo_contratos) as conta:
+            primeira = self._resumo()
+            segunda = self._resumo()
+        self.assertEqual(conta.call_count, 1)
+        self.assertEqual(primeira, segunda)
+
+    def test_uma_importacao_nova_desfaz_a_memoria(self):
+        antes = self._resumo()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (ano, tipo_procedimento, "
+                      "data_celebracao, preco_contratual, n_adj, "
+                      "adjudicante_chave) VALUES (2026, 'Ajuste directo', "
+                      "'2026-01-02', 1000, 1, '500000000')")
+        depois = self._resumo()
+        self.assertEqual(sum(p["k"] for p in depois[2]),
+                         sum(p["k"] for p in antes[2]) + 1)
+
+    def test_tem_tecto(self):
+        with unittest.mock.patch.object(radar, "TECTO_RESUMOS", 3):
+            for palavra in ("manutencao 1", "manutencao 2", "manutencao 3",
+                            "manutencao 4", "manutencao 5"):
+                self._resumo({"q": palavra})
+                self.assertLessEqual(len(radar._RESUMOS_DO_CORPUS), 3)
+
+    def test_o_corpus_e_lido_uma_vez(self):
+        """As agregações correm sobre a tabela TEMP: só o `CREATE TEMP
+        TABLE` lê os `contratos`."""
+        with consultas_do_radar("corpus") as feitas:
+            self._resumo()
+        a_tabela = [q for q in feitas if re.search(r"FROM contratos c\b", q)]
+        self.assertEqual(len(a_tabela), 1, a_tabela)
+        self.assertIn("CREATE TEMP TABLE recorte", a_tabela[0])
+
+
+class TestAPaginaDoMercadoAndaPelaOrdem(BaseTemporaria):
+    """3.ª ronda, G79 (29/09/2026): as 20 linhas do Mercado com o perfil
+    «45, 50, 71 ou 909» iam buscar à tabela as 400 mil do recorte, para
+    as ordenar: 1,8 s a quente. Com um filtro denso, o `IN` desliga-se do
+    índice e o SQLite anda pela ordem até ter vinte (0,49 s); com um raro
+    fica como estava (0,000 s contra 0,19)."""
+
+    ONDE = (" WHERE 1=1 AND (c.id IN (SELECT contrato_id FROM contrato_cpv "
+            "WHERE cpv8 GLOB ?)) AND c.id NOT IN (SELECT contrato_id FROM "
+            "contrato_cpv WHERE cpv8 GLOB ?)")
+
+    def test_denso_anda_pela_ordem_raro_nao(self):
+        denso = radar.onde_da_pagina(self.ONDE, radar.DENSO_PARA_A_ORDEM)
+        self.assertIn("(+c.id IN (SELECT", denso)
+        self.assertIn("c.id NOT IN (SELECT", denso)      # o NOT fica
+        self.assertEqual(radar.onde_da_pagina(self.ONDE, 12), self.ONDE)
+
+    def test_as_duas_formas_dao_as_mesmas_linhas_e_a_densa_usa_a_ordem(self):
+        semear_corpus()
+        sql = ("SELECT c.id FROM contratos c%s ORDER BY c.data_celebracao "
+               "DESC, c.id DESC LIMIT 20")
+        vals = ["72*", "9*"]
+        with radar.liga_corpus() as c:
+            raro = [r[0] for r in c.execute(sql % self.ONDE, vals)]
+            denso_sql = sql % radar.onde_da_pagina(self.ONDE, 10 ** 6)
+            denso = [r[0] for r in c.execute(denso_sql, vals)]
+            self.assertTrue(any(
+                passo.startswith("SCAN c USING") and "ix_ctr_data" in passo
+                for passo in plano(c, denso_sql.replace("?", "'x'"))))
+        self.assertEqual(raro, denso)
+        self.assertEqual(len(raro), 20)
+
+
+class TestUmaPesquisaSemResultadosNaoLeATabela(BaseTemporaria):
+    """3.ª ronda, G81 (29/09/2026): «uma pesquisa sem resultados custa 1 s
+    de base, mais do dobro de uma com resultados, e teve picos de 10 a
+    20 s a frio». Com a ordem da lista, o SQLite andava pelo índice da
+    data e conferia o filtro na tabela larga -- o `texto` de 210 mil
+    anúncios -- até ter vinte; sem nenhum que batesse, lia-os todos.
+    Medido numa cópia: 17-23 s -> 0,04 s."""
+
+    def _semear(self):
+        with radar.liga() as c:
+            for i in range(30):
+                c.execute("INSERT INTO anuncios (ref, titulo, titulo_norm, "
+                          "estado, data_pub, prazo, cpv) VALUES "
+                          "(?,?,?,'novo',?,?,?)",
+                          ("%d/2026" % (i + 1), "Limpeza %d" % i,
+                           "limpeza %d" % i if i % 10 else "vigilancia %d" % i,
+                           "2026-09-%02d" % (i % 28 + 1),
+                           "2026-10-%02d" % (28 - i % 28), "90910000"))
+
+    def test_poucos_escolhem_se_pelo_indice_de_cobertura(self):
+        self._semear()
+        cliente = radar.app.test_client()
+        with consultas_do_radar() as feitas:
+            for q in ("xyzzy", "vigilancia"):
+                self.assertEqual(cliente.get(radar.LISTA + "?estado=&q=" + q)
+                                 .status_code, 200)
+        linhas = [q for q in feitas if q.startswith("SELECT * FROM anuncios")
+                  and "LIMIT" in q]
+        self.assertEqual(len(linhas), 2)
+        with radar.liga() as c:
+            for sql in linhas:
+                passos = plano(c, sql)
+                self.assertIn("SCAN anuncios USING COVERING INDEX "
+                              "ix_anuncios_cobre", passos, sql)
+                self.assertNotIn("SCAN anuncios USING INDEX ix_anuncios_data",
+                                 passos)
+
+    def test_as_duas_formas_dao_a_mesma_pagina(self):
+        self._semear()
+        onde = " WHERE titulo_norm LIKE ? AND estado != 'alteracao'"
+        with radar.liga() as c:
+            for ordem in (radar.ordem_da_lista({}),
+                          radar.ordem_da_lista({"ordem": "prazo"})):
+                for pagina in (0, 20):
+                    vals = ["%limpeza%", 20, pagina]
+                    muitos = [r["ref"] for r in c.execute(
+                        radar.consulta_da_pagina(onde, 10 ** 6, ordem), vals)]
+                    poucos = [r["ref"] for r in c.execute(
+                        radar.consulta_da_pagina(onde, 3, ordem), vals)]
+                    self.assertEqual(muitos, poucos)
+            self.assertEqual(len(muitos), 7)       # 27 limpezas, 2.ª página
+
+
+class TestOCalendarioNaoVarreOsAnuncios(BaseTemporaria):
+    """3.ª ronda, G80 (29/09/2026): o Calendário passou de 50 para 410 ms
+    (e 4,5 s numa cópia com o perfil de CPV). O `Server-Timing` dizia
+    «310 ms fora da base», mas era a base: o `execute` só conta o
+    primeiro passo, e o resto do varrimento corre no `fetchall`. Pedidos
+    com o título e a entidade -- que nenhum índice tem --, os anúncios
+    das seis semanas obrigavam a ler a tabela larga toda."""
+
+    def test_os_anuncios_da_janela_vem_do_indice_de_cobertura(self):
+        cliente = radar.app.test_client()
+        with consultas_do_radar() as feitas:
+            for ver in ("tudo", "porver"):
+                self.assertEqual(cliente.get("/calendario?ver=" + ver)
+                                 .status_code, 200)
+        janela = [q for q in feitas if "prazo BETWEEN" in q
+                  and q.startswith("SELECT ref, titulo")]
+        self.assertEqual(len(janela), 2 * 2)   # os dois filtros, e o número do outro
+        with radar.liga() as c:
+            for sql in janela:
+                passos = plano(c, sql)
+                # nenhum passo lê a tabela inteira: a subconsulta vai
+                # por um índice, e o título só se busca pela `ref`
+                self.assertNotIn("SCAN anuncios", passos, sql)
+                self.assertIn("SEARCH anuncios USING INDEX "
+                              "sqlite_autoindex_anuncios_1 (ref=?)", passos)
+
+
+class TestAFichaDaEntidadeSemVarrer(BaseTemporaria):
+    """3.ª ronda, G82 (29/09/2026): a ficha de uma entidade sem NIF levava
+    2,9 a 5,6 s. O nome dela procurava-se em Python, a conferir a chave
+    dos 50 mil anúncios sem NIF um a um (1,6 s); os nomes de uma entidade
+    varriam as 257 mil linhas da `entidade_nomes`; e o «No nosso CPV»
+    cruzava os 400 mil contratos do perfil com os dela."""
+
+    def test_o_nome_de_uma_chave_sem_nif_acha_se_pelas_palavras(self):
+        with radar.liga() as c:
+            for ref, ent in (("1/2026", "Fundação Salesianos"),
+                             ("2/2026", "Silva & Filhos, Lda."),
+                             ("3/2026", "Salesianos de Évora")):
+                c.execute("INSERT INTO anuncios (ref, entidade, entidade_norm, "
+                          "estado, data_pub) VALUES (?,?,?,'novo','2026-09-01')",
+                          (ref, ent, radar.simplifica(ent)))
+        self.assertEqual(radar.nome_da_entidade("n:fundacao salesianos"),
+                         "Fundação Salesianos")
+        # o «e» da chave era um «&»: não entra no filtro, e acha-se na mesma
+        self.assertEqual(radar.nome_da_entidade("n:silva e filhos lda"),
+                         "Silva & Filhos, Lda.")
+        # uma que não existe cai no fim, sem rebentar
+        self.assertEqual(radar.nome_da_entidade("n:ninguem"), "ninguem")
+
+    def test_contar_por_entidade_nao_le_a_tabela(self):
+        """O «anúncios dela» da ficha conta pelo filtro `ent` do motor, e
+        o `entidade_norm LIKE` com o `estado` ao lado lia a tabela larga:
+        4,3 s numa cópia com a cache fria, 0,05 s pelo índice do nome."""
+        onde, valores = radar.condicoes({"ent": "salesianos", "estado": ""})
+        with radar.liga() as c:
+            passos = plano(c, ("SELECT COUNT(*) FROM anuncios" + onde)
+                           .replace("?", "'x'"))
+        self.assertNotIn("SCAN anuncios", passos)
+        self.assertIn("SCAN anuncios USING COVERING INDEX "
+                      "ix_anuncios_entidade_norm", passos)
+
+    def test_os_nomes_de_uma_entidade_tem_indice(self):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            self.assertIn("SEARCH entidade_nomes USING COVERING INDEX "
+                          "ix_nomes_chave (chave=?)", plano(
+                c, "SELECT nome_norm FROM entidade_nomes WHERE chave='1' "
+                   "ORDER BY nome_norm LIMIT 40"))
+
+    def test_o_interesse_preso_a_uma_entidade_vai_por_exists(self):
+        semear_corpus()
+        cfg = {"interesse_activo": True, "interesse_cpv": "72000000",
+               "interesse_cpv_excl": "72100000"}
+        solto, vals = radar.condicao_do_interesse_contratos({}, cfg)
+        preso, vals_p = radar.condicao_do_interesse_contratos({}, cfg, presa=True)
+        self.assertTrue(preso.startswith("EXISTS ("), preso)
+        self.assertIn("AND NOT EXISTS (", preso)
+        self.assertEqual(vals, vals_p)
+        with radar.liga_corpus() as c:
+            for chave in ("506000000", "506000001"):
+                contas = [c.execute("SELECT COUNT(*) FROM contratos c WHERE "
+                                    "c.adjudicante_chave=? AND " + f,
+                                    [chave] + vals).fetchone()[0]
+                          for f in (solto, preso)]
+                self.assertEqual(contas[0], contas[1])
+                self.assertTrue(contas[0])
+
+
+class TestOVocabularioCPVNaoVoltaADescer(BaseTemporaria):
+    """3.ª ronda, G83 (29/09/2026): o `/cpv.json` (149 KB) descia em cada
+    visita ao Perfil, com ETag e tudo. A Cloudflare, quando comprime,
+    passa a etiqueta a fraca (`W/"..."`), e o browser devolve-a assim; o
+    `in` do werkzeug só aceitava as fortes, e nunca havia 304."""
+
+    def test_a_etiqueta_fraca_tambem_da_304(self):
+        cliente = radar.app.test_client()
+        etiqueta = cliente.get("/cpv.json?de=anuncios").headers["ETag"]
+        for enviada in (etiqueta, "W/" + etiqueta):
+            r = cliente.get("/cpv.json?de=anuncios",
+                            headers={"If-None-Match": enviada})
+            self.assertEqual(r.status_code, 304, enviada)
+            self.assertEqual(r.get_data(), b"")
+
+
+class TestProcurarNaPecaNaoRedesenhaTudo(BaseTemporaria):
+    """3.ª ronda, G84 (29/09/2026): procurar dentro da peça levava 2,2 a
+    2,4 s até ao `load`. A procura leva 0,06 s; o que pesava era o
+    `?procurar=` em TODAS as imagens -- o browser pedia outra vez ao
+    servidor as páginas já vistas, desenhadas de novo a 2x sem nada para
+    marcar. Só as páginas onde o termo está mudam de endereço."""
+
+    def test_so_as_paginas_com_o_termo_levam_a_procura(self):
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("sem pymupdf no Python dos testes")
+        caminho = os.path.join(self.pasta, "ensaio.pdf")
+        doc = pymupdf.open()
+        doc.new_page().insert_text((72, 72), "primeira pagina")
+        doc.new_page().insert_text((72, 72), "aqui ha tecnicos")
+        doc.new_page().insert_text((72, 72), "terceira pagina")
+        doc.save(caminho)
+        doc.close()
+        with radar.app.test_request_context("/"):
+            _, corpo = radar.visualizador_de_peca(
+                "1/2026", "ensaio.pdf", caminho, "/documento/x", "técnicos", "/")
+        self.assertIn("/2.png?procurar=t%C3%A9cnicos'", corpo)
+        self.assertIn("/1.png'", corpo)
+        self.assertIn("/3.png'", corpo)
+        self.assertEqual(corpo.count("?procurar="), 1)
+        self.assertIn("aparece em <b>1 página</b>", corpo)
 
 
 if __name__ == "__main__":
