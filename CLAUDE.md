@@ -333,7 +333,7 @@ primeiro passo, no mesmo dia; o `cloudflared` que ele descarrega para
 
 ## Arquitectura
 
-Quase tudo em **`radar.py`** (~27,2 mil linhas), dividido por bandas com
+Quase tudo em **`radar.py`** (~32,7 mil linhas), dividido por bandas com
 cabeçalho `# ---`; o registo da empresa está em **`empresa.py`** e as contas
 em **`contas.py`** (ver abaixo).
 A ordem do ficheiro é a ordem do fluxo:
@@ -464,8 +464,10 @@ A ordem do ficheiro é a ordem do fluxo:
    `/entrar`, `/sair`, `/sair-de-todos`, `com_csrf()`), que exige
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
-   disto, é só a lista de nomes do «responsável» e o `quem_sou()`, que
-   lê da porta. **A barra tem seis itens e a Ajuda desde 26/09/2026**
+   disto, são as contas da empresa que o «quem» e o responsável
+   escolhem (`contas_da_empresa()`, `pessoa_de()`, `conta_escolhida()`:
+   gravam-se pela chave da conta desde a D4 da 3.ª ronda) e o
+   `quem_sou()`, que lê da porta. **A barra tem seis itens e a Ajuda desde 26/09/2026**
    (D11 da segunda ronda, decisão dele: a **Situação**, `/situacao`,
    entrou a seguir às Propostas, e a Ajuda saiu do menu da conta para
    um «?» com o nome «Ajuda», depois das Configurações; as Entidades
@@ -599,7 +601,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **369 pontos** (contados a 29/09/2026), cada um de um erro que
+São **372 pontos** (contados a 29/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

@@ -2578,51 +2578,102 @@ def aparelho_do_agente(agente):
 # do PC (docs/historico/ONLINE.md, etapa 1) passou a haver conta e
 # sessao -- as tabelas e a criptografia estao no contas.py; o que e do
 # pedido HTTP (o cookie `sessao`, o `before_request`, o /entrar) esta na
-# banda do painel, em "a porta". A tabela `pessoas` fica como esta: e a
-# lista de nomes para o "responsavel", que pode ser um colega sem conta.
+# banda do painel, em "a porta". A tabela `pessoas` fica, mas ja nao se
+# escreve nem se le: desde a D4 da 3.ª ronda (29/09/2026) o «quem» e o
+# responsavel sao contas da empresa (contas_da_empresa()).
 
-def listar_pessoas():
-    """Os nomes que o «quem» e o «Responsável» sugerem: as pessoas já
-    escritas e as contas da empresa (segunda ronda, 26/09/2026: a lista
-    vinha vazia, ou só com um nome, e «ana ribeiro» passava a ser outra
-    pessoa). Sem repetidos por maiúsculas."""
-    if empresa_activa() == SEM_EMPRESA:      # o dono da plataforma
-        return []
-    with liga() as c:
-        nomes = [r["nome"] for r in c.execute("SELECT nome FROM pessoas")]
-        nomes += [r["nome"] for r in c.execute(
-            "SELECT nome FROM utilizadores WHERE empresa_id=?",
-            (empresa_activa(),))]
-        # e os donos que já estão nas tarefas e nas propostas (E27, ronda
-        # em PC): uma importação ou uma tarefa antiga põe lá nomes que
-        # nunca passaram pela tabela `pessoas`, e sem eles «ana ribeiro»
-        # nascia outra pessoa ao lado da «Ana Ribeiro»
-        nomes += [r[0] for r in c.execute(
-            "SELECT DISTINCT quem FROM tarefas WHERE COALESCE(quem,'') != '' "
-            "UNION SELECT DISTINCT responsavel FROM propostas "
-            "WHERE COALESCE(responsavel,'') != ''")]
-    vistos = {}
-    for nome in nomes:
-        nome = (nome or "").strip()
-        if nome:
-            vistos.setdefault(nome.casefold(), nome)
-    return sorted(vistos.values(), key=str.casefold)
+def contas_da_empresa():
+    """{chave: nome} das contas da empresa activa, pela ordem em que
+    nasceram. A chave é o nome de utilizador (a coluna `email` do
+    `contas.py`, que nunca muda); o nome é o que se mostra.
+
+    **O «quem» das tarefas e o responsável são só estas** (D4 da 3.ª
+    ronda, 29/09/2026, decisão dele): até aí eram texto livre, e a mesma
+    pessoa tinha dois nomes -- o da conta e o de utilizador --, o Hoje
+    partia-a em dois chips e nenhum `?quem=` dava as tarefas todas dela
+    (G14). Numa página lê-se muitas vezes: fica no `g` do pedido."""
+    empresa = empresa_activa()
+    if empresa == SEM_EMPRESA:           # o dono da plataforma
+        return {}
+    guardadas = g.setdefault("contas_da_empresa", {}) \
+        if has_request_context() else {}
+    if empresa not in guardadas:
+        with liga() as c:
+            guardadas[empresa] = {
+                r["email"]: (r["nome"] or "").strip() or r["email"]
+                for r in c.execute("SELECT email, nome FROM utilizadores "
+                                   "WHERE empresa_id=? ORDER BY id", (empresa,))}
+    return guardadas[empresa]
 
 
-def criar_pessoa(nome):
-    """O nome como fica gravado. Um que já existe com outras maiúsculas
-    é o mesmo -- «ana ribeiro» é a «Ana Ribeiro» (segunda ronda,
-    26/09/2026) -- e grava-se como já estava."""
-    nome = " ".join((nome or "").split())[:60]
-    if not nome:
+def pessoa_de(valor):
+    """(chave, nome) de um «quem» ou de um responsável gravado.
+
+    O que se grava desde a D4 é a chave da conta. **O que já lá estava
+    em texto livre mostra-se como está** (decisão dele): o texto que é o
+    nome ou o utilizador de uma conta é essa conta -- era o «qa3-02» e a
+    «Gestora de propostas» da mesma pessoa --, e o resto é ele mesmo,
+    com a chave igual ao texto. Nada se reescreve na base."""
+    valor = (valor or "").strip()
+    if not valor:
+        return "", ""
+    da_empresa = contas_da_empresa()
+    if valor in da_empresa:
+        return valor, da_empresa[valor]
+    dobrado = valor.casefold()
+    for chave, nome in da_empresa.items():
+        if dobrado in (chave.casefold(), nome.casefold()):
+            return chave, nome
+    return valor, valor
+
+
+def nome_da_pessoa(valor):
+    return pessoa_de(valor)[1]
+
+
+def minha_conta():
+    """A chave da conta de quem está a usar a aplicação, ou ""."""
+    if not has_request_context():
         return ""
-    for existente in listar_pessoas():
-        if existente.casefold() == nome.casefold():
-            nome = existente
-            break
-    with liga() as c:
-        c.execute("INSERT OR IGNORE INTO pessoas (nome) VALUES (?)", (nome,))
-    return nome
+    return ((g.get("utilizador") or {}).get("email") or "").strip()
+
+
+def conta_escolhida(texto, actual=""):
+    """(chave, recado) do «quem» ou do responsável que um formulário
+    mandou. Vazio é «ninguém». O valor que já lá estava passa tal como
+    está -- um nome antigo sem conta não se perde por se gravar outro
+    campo do mesmo formulário. Um nome que não é conta da empresa
+    **recusa-se** (G15: «Helena Fantasma» passava a dona de tarefas)."""
+    texto = " ".join((texto or "").split())
+    if not texto:
+        return "", ""
+    chave, _ = pessoa_de(texto)
+    if chave in contas_da_empresa():
+        return chave, ""
+    if texto == (actual or "").strip():
+        return texto, ""
+    return None, ("«%s» não é uma conta desta empresa: as tarefas e as "
+                  "propostas só se dão a quem tem conta. Os colegas entram "
+                  "por convite, em Configurações › Conta." % corta(texto, 40))
+
+
+def opcoes_de_pessoas(actual="", vazio="ninguém", eu=False):
+    """As `<option>` de um `<select>` de pessoas: as contas da empresa,
+    uma vez cada, pelo nome. O `actual` vem escolhido; se for um nome
+    antigo sem conta, aparece como opção, para não se perder ao gravar.
+    `vazio` é o rótulo da opção sem valor (None: não há). Com `eu`, e
+    sem `actual`, vem escolhida a conta de quem está a ver."""
+    chave_actual = pessoa_de(actual)[0] or (minha_conta() if eu else "")
+    da_empresa = contas_da_empresa()
+    opcoes = [] if vazio is None else [("", vazio)]
+    opcoes += [(chave, nome + (" (eu)" if chave == minha_conta() else ""))
+               for chave, nome in da_empresa.items()]
+    if chave_actual and chave_actual not in da_empresa:
+        opcoes.append((chave_actual, "%s (sem conta)" % chave_actual))
+    return "".join("<option value='%s'%s>%s</option>"
+                   % (html.escape(v, quote=True),
+                      " selected" if v == chave_actual else "",
+                      html.escape(r)) for v, r in opcoes)
 
 
 def quem_sou():
@@ -3186,17 +3237,38 @@ def gravar_campos_da_proposta(id_, campos, valores, quem=None):
         c.execute("UPDATE propostas SET " + ", ".join(n + "=?" for n in campos)
                   + " WHERE id=?", list(valores) + [id_])
     for nome, valor in zip(campos, valores):
-        if (antes[nome] or None) != (valor or None):
-            detalhe = str(valor or "(apagado)")
-            # O preço guarda o que era (segunda ronda, 26/09/2026: o
-            # «612 350 → 362 000» de uma proposta ganha perdia-se).
-            if nome in ("valor_proposta", "preco_base", "valor_adjudicado"):
-                detalhe = ("%s → %s" % (preco_pt(antes[nome]), preco_pt(valor))
-                           if antes[nome] else preco_pt(valor, "(apagado)"))
-            elif nome in ("data_adjudicacao", "audiencia_em"):
-                detalhe = data_pt(valor) if valor else "(apagado)"
-            registar(antes["ref"] or "", nome, detalhe, quem, proposta_id=id_)
+        era, fica = (_valor_no_historico(antes, nome, v)
+                     for v in (antes[nome], valor))
+        # Só o que mudou À VISTA (3.ª ronda, G16): «682 500,00 € → 682 500,00 €»
+        # era o mesmo preço escrito de outra maneira, e ia ao histórico.
+        if era == fica:
+            continue
+        # O que era e o que ficou, em tudo (segunda ronda, 26/09/2026, no
+        # preço; na 3.ª ronda, G16, nas datas e no resto: a adjudicação
+        # mostrava só a data nova).
+        detalhe = "%s → %s" % (era, fica) if antes[nome] else fica
+        registar(antes["ref"] or "", nome, detalhe, quem, proposta_id=id_)
     return ""
+
+
+def _valor_no_historico(p, nome, valor):
+    """Um campo da proposta como o histórico o escreve."""
+    if nome == "documentos_prontos":
+        # «6 de 8», e não a lista em JSON cru (G16)
+        try:
+            prontos = len(json.loads(valor)) if valor else 0
+        except (TypeError, ValueError):
+            return str(valor)
+        return "%d de %d" % (prontos, len(_itens_da_proposta_de(p)) or prontos)
+    if not valor:
+        return "(apagado)"
+    if nome in ("valor_proposta", "preco_base", "valor_adjudicado"):
+        return preco_pt(valor)
+    if nome in ("data_adjudicacao", "audiencia_em"):
+        return data_pt(valor)
+    if nome == "responsavel":
+        return nome_da_pessoa(valor)
+    return corta(str(valor), 80)
 
 
 def _prazos_das_propostas(c, propostas):
@@ -3491,10 +3563,15 @@ def criar_tarefa(o_que, quando, proposta_id=None, ref=None, quem=None):
             "INSERT INTO tarefas (proposta_id, ref, o_que, quando, quem,"
             " origem, criada_em) VALUES (?,?,?,?,?,?,?)",
             (proposta_id, ref, o_que, quando or None,
-             quem or quem_sou() or None, "mão",
+             quem or minha_conta() or None, "mão",
              datetime.now().strftime("%Y-%m-%d %H:%M")))
         id_ = cur.lastrowid
-    registar(ref or "", "tarefa", o_que, quem)
+    # O autor é quem a criou, e o dono vai ao lado (3.ª ronda, G13): o
+    # `quem` da tarefa ia como autor, e o histórico dizia «Rui tarefa»
+    # de uma tarefa que a Sofia criou para o Rui.
+    para = quem if quem and quem != minha_conta() else ""
+    registar(ref or "", "tarefa", o_que + (" (para %s)" % nome_da_pessoa(para)
+                                           if para else ""))
     return id_
 
 
@@ -3566,7 +3643,7 @@ def gravar_tarefa(id_, **campos):
             # uma tarefa sem texto não se encontra depois
             valores.append(" ".join(bruto.split())[:200])
         else:
-            valores.append(" ".join(bruto.split())[:60])
+            valores.append(bruto)       # a conta confere-se em baixo
         nomes.append(nome)
     if not nomes:
         return True, ""
@@ -3574,13 +3651,28 @@ def gravar_tarefa(id_, **campos):
         t = c.execute("SELECT * FROM tarefas WHERE id=?", (id_,)).fetchone()
         if not t:
             return False, "Essa tarefa já não existe."
+        # O «quem» é uma conta da empresa (D4), e aqui, que é por onde
+        # passam todos os caminhos que o mudam
+        if "quem" in nomes:
+            chave, recado = conta_escolhida(valores[nomes.index("quem")],
+                                            t["quem"])
+            if chave is None:
+                return False, recado
+            valores[nomes.index("quem")] = chave
         c.execute("UPDATE tarefas SET " + ", ".join(n + "=?" for n in nomes)
                   + " WHERE id=?", valores + [id_])
-    mudou = [n for n, v in zip(nomes, valores) if (t[n] or None) != (v or None)]
+    # O que era e o que ficou (3.ª ronda, G16): «quando, quem» não dizia
+    # de quem a tarefa passou para quem, e com duas gravações seguidas
+    # não se via o que se tinha perdido (G7).
+    mostra = {"quando": lambda v: data_pt(v, "sem data"),
+              "quem": lambda v: nome_da_pessoa(v) or "ninguém",
+              "o_que": lambda v: "«%s»" % corta(v or "", 60)}
+    mudou = ["%s %s → %s" % ({"o_que": "texto"}.get(n, n), mostra[n](t[n]),
+                             mostra[n](v))
+             for n, v in zip(nomes, valores) if mostra[n](t[n]) != mostra[n](v)]
     if mudou:
         registar(t["ref"] or "", "tarefa",
-                 "%s: %s" % (corta(t["o_que"] or "", 60),
-                             ", ".join(sorted(mudou))))
+                 "%s: %s" % (corta(t["o_que"] or "", 60), " · ".join(mudou)))
     return True, ""
 
 
@@ -12125,7 +12217,8 @@ def porta_de_entrada():
             and request.path not in ("/sair", "/sair-de-todos"):
         return _empresa_suspensa()
     if so_dono(request.path) and not sou_dono():
-        return _recusa("só o dono da plataforma abre isto")
+        return _recusa("só o dono da plataforma abre isto",
+                       ERROS_DO_PAINEL[403][1])
     # Sem empresa, so a plataforma, a conta dele, a ajuda e sair: o resto
     # e trabalho de uma empresa, e nao ha nenhuma para mostrar.
     if empresa_activa() == SEM_EMPRESA and not so_dono(request.path) \
@@ -12138,7 +12231,7 @@ def porta_de_entrada():
         return Response("esta conta não é de nenhuma empresa", 403,
                         mimetype="text/plain")
     if so_admin(request.path) and not sou_admin():
-        return _recusa("só o admin abre isto")
+        return _recusa("só o admin abre isto", recado_so_do_admin())
     if request.method == "POST":
         if g.sessao:
             apresentado = (request.form.get("csrf")
@@ -12229,13 +12322,40 @@ def pagina_de_erro(codigo):
                     codigo, mimetype="text/html")
 
 
-def _recusa(frase):
+def _recusa(frase, texto):
     """A recusa da porta por papel. Um POST (formulario ou fetch) quer a
     frase; um GET e alguem num browser, e recebia a mesma frase em texto
-    cru, sem marca nem caminho de volta (varredura de 25/09/2026)."""
-    if request.method == "GET":
-        return pagina_de_erro(403)
-    return Response(frase, 403, mimetype="text/plain")
+    cru, sem marca nem caminho de volta (varredura de 25/09/2026).
+
+    O GET e uma pagina DENTRO do molde, com a barra (3.ª ronda, G17):
+    era uma pagina solta, so com «Voltar ao Hoje». E o `texto` diz de
+    quem e a pagina: ao tester, a do admin da empresa dizia «so para a
+    administração do Mira Gov», que nao e verdade nem diz a quem pedir."""
+    if request.method != "GET":
+        return Response(frase, 403, mimetype="text/plain")
+    corpo = ("<div class='mg-card'><div class='mg-empty'>"
+             "<h2 class='mg-empty__title'>Não é para aqui</h2>"
+             "<p class='mg-empty__text'>%s</p><div class='mg-empty__action'>"
+             "<a class='mg-btn mg-btn--primary' href='/'>Voltar ao Hoje</a>"
+             "</div></div></div>" % html.escape(texto))
+    return Response(envolver(
+        "configuracoes" if request.path.startswith("/configuracoes")
+        else "inicio", "Não é para aqui", "", corpo,
+        titulo_aba="Não é para aqui"), 403, mimetype="text/html")
+
+
+def recado_so_do_admin():
+    """A quem pedir o que so o admin da empresa faz, pelo nome (G17)."""
+    nomes = [u["nome"] or u["email"] for u in _contas_da_empresa_toda()
+             if u["papel"] == "admin"]
+    return ("Só o administrador da empresa%s abre esta página e muda o que "
+            "ela tem. Se precisa de alguma coisa daqui, peça-lhe."
+            % (" (%s)" % ", ".join(nomes) if nomes else ""))
+
+
+def _contas_da_empresa_toda():
+    with liga() as c:
+        return contas.utilizadores(c, empresa_activa())
 
 
 @app.errorhandler(404)
@@ -13667,7 +13787,7 @@ button.tq{cursor:pointer;width:24px;min-height:24px;padding:0;flex:none;
 button.tq:hover{border-color:var(--success);color:var(--success)}
 .tarefa-nova{display:flex;gap:6px;flex-wrap:wrap}
 .tarefa-nova input[type=text]{flex:1;min-width:140px}
-.tarefa-nova input,.tarefa-nova button:not(.mg-btn){font:400 var(--text-xs)/1.2 var(--font-sans);
+.tarefa-nova input,.tarefa-nova select,.tarefa-nova button:not(.mg-btn){font:400 var(--text-xs)/1.2 var(--font-sans);
  padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);
  background:#fff;color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
 .tarefa-nova button:not(.mg-btn){cursor:pointer;font-weight:600;color:var(--ink-secondary)}
@@ -14521,7 +14641,6 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
 </main>
 %(baixo)s
 </div>
-<datalist id="pessoas">%(lista_pessoas)s</datalist>
 <script>
 /* A barra e o topo estavam os DOIS em sticky;top:0, e o topo ficava por
    baixo: as migalhas e o "Verificar agora" desapareciam debaixo da
@@ -15633,8 +15752,6 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "conteudo": conteudo,
         "aviso": cabeca + aviso,
         "faixa": faixa_de_suporte(),
-        "lista_pessoas": "".join("<option value='%s'>" % html.escape(n, quote=True)
-                                 for n in listar_pessoas()),
         # Enquanto a verificacao correr, a pagina volta a pedir-se
         # sozinha -- o mesmo que a actualizacao do corpus ja fazia. A
         # thread poe sempre um estado terminal, por isso isto para.
@@ -17673,8 +17790,8 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
                "L%d" % p["lote"] if p["lote"] else
                ("conjunto" if p["lote"] == 0 else "&mdash;"),
                ("<span class='mg-avatar' title='%s'>%s</span>"
-                % (html.escape(p["responsavel"], quote=True),
-                   html.escape(iniciais(p["responsavel"]))))
+                % (html.escape(nome_da_pessoa(p["responsavel"]), quote=True),
+                   html.escape(iniciais(nome_da_pessoa(p["responsavel"])))))
                if p["responsavel"] else "&mdash;",
                html.escape(preco_pt(p["preco_base"])),
                # pelo tuplo e nao concatenada ao molde: o valor ja vem
@@ -18814,17 +18931,23 @@ def definir_responsavel(ref):
         return _volta_com_aviso(
             "O responsável mudou para «%s» depois de abrir a página "
             "(noutro separador, ou por um colega). Nada foi mudado."
-            % (agora or "ninguém"), erro=True, ancora="responsavel")
-    nome = criar_pessoa(request.form.get("nome")) if request.form.get("nome") else ""
+            % (nome_da_pessoa(agora) or "ninguém"), erro=True,
+            ancora="responsavel")
+    # uma conta da empresa, gravada pela chave (D4)
+    nome, recado = conta_escolhida(request.form.get("nome"), agora)
+    if nome is None:
+        return _volta_com_aviso(recado, erro=True, ancora="responsavel")
     if not existentes:
         if not nome:
             return volta_ao_referer("/anuncio/" + ref)
         existentes = [proposta(criar_proposta(ref))]
     with liga() as c:
         c.execute("UPDATE propostas SET responsavel=? WHERE ref=?", (nome, ref))
-    registar(ref, "responsável", nome or "(ninguém)")
+    if nome != agora:
+        registar(ref, "responsável", "%s → %s" % (
+            nome_da_pessoa(agora) or "ninguém", nome_da_pessoa(nome) or "ninguém"))
     # E diz que gravou: o «Guardar» voltava sem palavra nenhuma (G8)
-    return _volta_com_aviso("Responsável: %s." % (nome or "ninguém"),
+    return _volta_com_aviso("Responsável: %s." % (nome_da_pessoa(nome) or "ninguém"),
                             ancora="responsavel")
 
 
@@ -19550,6 +19673,15 @@ def seccoes_visiveis():
             and (sou_admin() or not so_admin("/configuracoes/" + sc[0]))]
 
 
+def descricao_da_seccao(seccao):
+    """O que a seccao tem, para quem a abre (3.ª ronda, G17): a Conta do
+    tester anunciava «a nossa empresa, utilizadores», que sao do admin e
+    ele nao ve."""
+    if seccao == "conta" and not sou_admin():
+        return "palavra-passe, sessões e o aspecto"
+    return dict((c, d) for c, _, d, _, _ in SECCOES_CONFIG)[seccao]
+
+
 def seccoes_da_plataforma():
     """As seccoes do sistema, para o indice da administracao da
     plataforma."""
@@ -19599,7 +19731,7 @@ def pagina_config(seccao, conteudo, script=""):
     """O esqueleto comum: o indice das seccoes a esquerda, preso ao
     rolar como o da ficha, e a seccao a direita."""
     titulo = dict((c, t) for c, t, _, _, _ in SECCOES_CONFIG)[seccao]
-    descricao = dict((c, d) for c, _, d, _, _ in SECCOES_CONFIG)[seccao]
+    descricao = descricao_da_seccao(seccao)
     # Uma seccao do sistema mostra o indice da PLATAFORMA, e nao o da
     # empresa (23/09/2026): sao duas administracoes diferentes.
     da_plataforma = seccao in {sc[0] for sc in seccoes_da_plataforma()}
@@ -19611,7 +19743,8 @@ def pagina_config(seccao, conteudo, script=""):
     seccoes = sorted(seccoes_da_plataforma() if da_plataforma
                      else seccoes_visiveis(), key=lambda sc: not sc[4])
     itens = []
-    for c, t, d, _, grava in seccoes:
+    for c, t, _, _, grava in seccoes:
+        d = descricao_da_seccao(c)
         if not grava and (not itens or "so-le" not in itens[-1]):
             itens.append("<div class='mg-secnav__sep'></div>"
                          "<div class='mg-secnav__note'>Só leitura</div>")
@@ -21558,7 +21691,7 @@ def config_documentos():
                       doc + (datetime.now().strftime("%Y-%m-%d %H:%M"),))
         registar("", "documento", "%s %s: válido até %s"
                  % (doc[0], doc[1], data_pt(doc[2], "sem validade")))
-        sincronizar_documentos(quem=quem_sou())
+        sincronizar_documentos(quem=minha_conta())
         return volta_config("documentos", "Documento guardado.")
     with liga() as c:
         docs = c.execute("SELECT * FROM documentos_da_empresa ORDER BY "
@@ -21631,7 +21764,7 @@ def config_documento_gravar(id_):
                   "validade=? WHERE id=?", doc + (id_,))
     registar("", "documento", "%s %s: válido até %s"
              % (doc[0], doc[1], data_pt(doc[2], "sem validade")))
-    sincronizar_documentos(quem=quem_sou())
+    sincronizar_documentos(quem=minha_conta())
     return volta_config("documentos", "Documento guardado.")
 
 
@@ -26798,12 +26931,13 @@ def ficha(ref):
         "<form class='resp' method='post' action='/responsavel/%s'>"
         "<input type='hidden' name='de' value='%s'>"
         "<span class='mg-avatar'>%s</span>"
-        "<input class='mg-field__input' type='text' name='nome' value='%s' "
-        "list='pessoas' placeholder='ninguém atribuído' aria-label='Responsável'>"
+        "<select class='mg-field__input' name='nome' aria-label='Responsável'>"
+        "%s</select>"
         "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
         "Guardar</button></form>"
-        % (ref, html.escape(resp, quote=True), _iniciais(resp),
-           html.escape(resp, quote=True)), id_="responsavel")
+        % (ref, html.escape(resp, quote=True),
+           _iniciais(nome_da_pessoa(resp)),
+           opcoes_de_pessoas(resp, "ninguém atribuído")), id_="responsavel")
 
     # As 12 mais recentes, e as outras a pedido (segunda ronda,
     # 26/09/2026: perdia-se quem criou a proposta e quem a pôs em
@@ -27278,11 +27412,25 @@ def tarefa_nova():
         return _volta_com_erro("«%s» não é uma data: escreva-a como "
                                 "dd/mm/aaaa. A tarefa não foi criada."
                                 % corta(bruto, 20))
+    quem, recado = conta_escolhida(request.form.get("quem"))
+    if quem is None:
+        return _volta_com_erro(recado + " A tarefa não foi criada.")
     id_ = criar_tarefa(request.form.get("o_que"), quando,
-                       proposta_id=proposta_id, ref=ref,
-                       quem=criar_pessoa(request.form.get("quem")) or None)
+                       proposta_id=proposta_id, ref=ref, quem=quem or None)
     # E26: de volta à linha nova, com o aviso, e não ao topo da ficha
-    return _volta_com_aviso("Tarefa juntada.", ancora="t%d" % id_)
+    return _volta_com_aviso("Tarefa juntada." + recado_da_data_passada(quando),
+                            ancora="t%d" % id_)
+
+
+def recado_da_data_passada(iso):
+    """« Atenção: … já passou …», ou "" (3.ª ronda, G15): adiar para
+    01/09 aceitava-se calado, e a tarefa aparecia atrasada no Hoje sem se
+    perceber porquê. Não se recusa -- registar o que já devia estar feito
+    é legítimo --, mas diz-se."""
+    if not iso or iso >= datetime.now().date().isoformat():
+        return ""
+    return (" Atenção: %s já passou, e a tarefa fica atrasada."
+            % data_pt(iso))
 
 
 def recado_das_tarefas_que_ficam(id_):
@@ -27373,15 +27521,17 @@ def tarefa_gravar(id_):
                 "Esta tarefa mudou depois de abrir a página (noutro "
                 "separador, ou por um colega): está agora %s%s. Nada foi "
                 "mudado: veja-a e volte a escrever o que queria."
-                % ("com %s" % t["quem"] if t["quem"] else "sem ninguém",
+                % ("com %s" % nome_da_pessoa(t["quem"]) if t["quem"]
+                   else "sem ninguém",
                    ", para %s" % data_pt(t["quando"]) if t["quando"] else ""),
                 erro=True, ancora="t%d" % id_)
-    if "quem" in campos:
-        campos["quem"] = criar_pessoa(campos["quem"])
     ok, recado = gravar_tarefa(id_, **campos)
     if not ok:
         return _volta_com_erro(recado)
-    return _volta_com_aviso("Tarefa actualizada.", ancora="t%d" % id_)
+    return _volta_com_aviso(
+        "Tarefa actualizada." + recado_da_data_passada(
+            data_de_filtro(campos.get("quando") or "")),
+        ancora="t%d" % id_)
 
 
 @app.route("/tarefa/<int:id_>/por-fazer", methods=["POST"])
@@ -27966,7 +28116,8 @@ def _tarefas_da_ficha(p):
                "<span class='mg-tag' title='%s'>automática</span>"
                % DE_ONDE_VEM[t["origem"]]
                if t["origem"] in DE_ONDE_VEM else "",
-               ("<span class='mg-tag'>%s</span>" % html.escape(t["quem"]))
+               ("<span class='mg-tag'>%s</span>"
+                % html.escape(nome_da_pessoa(t["quem"])))
                if t["quem"] else "",
                # adiar e atribuir. **É aqui que vivem desde 17/09/2026**:
                # a linha do Hoje ficou com o ✓ e o desfazer, e mais nada
@@ -27977,10 +28128,10 @@ def _tarefas_da_ficha(p):
                "<input type='hidden' name='versao' value='%s'>"
                "<input type='text' name='quando' inputmode='numeric' "
                "maxlength='10' placeholder='adiar para dd/mm/aaaa' aria-label='Adiar para'>"
-               "<input type='text' name='quem' maxlength='60' list='pessoas' "
-               "placeholder='quem' aria-label='Quem faz'>"
+               "<select name='quem' aria-label='Quem faz'>%s</select>"
                "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Guardar</button></form>"
-               % (t["id"], versao_da_tarefa(t))))
+               % (t["id"], versao_da_tarefa(t),
+                  opcoes_de_pessoas(t["quem"], "quem faz…"))))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
     if por_fazer and p["estado"] in ESTADOS_FECHADOS:
@@ -28002,10 +28153,10 @@ def _tarefas_da_ficha(p):
               "<input type='text' name='quando' inputmode='numeric' "
               "placeholder='dd/mm/aaaa' maxlength='10' aria-label='Até quando' "
               "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
-              "<input type='text' name='quem' maxlength='60' list='pessoas' "
-              "placeholder='quem' aria-label='Quem faz'>"
+              "<select name='quem' aria-label='Quem faz'>%s</select>"
               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Adicionar</button></form>"
-              % (html.escape(p["ref"] or "", quote=True), p["id"]))
+              % (html.escape(p["ref"] or "", quote=True), p["id"],
+                 opcoes_de_pessoas("", None, eu=True)))
     return ("<div class='prop-tarefas'><div class='mg-field__label'>O que falta fazer"
             "</div>%s%s</div>" % (lista, juntar))
 
@@ -28108,9 +28259,8 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
                 if preco_base_da_proposta(p) else ""),
                versao_da_proposta(p), _campos_que_a_ranhura_pede(p),
                _campos_da_empresa_html(p, cfg),
-               ("<label>Responsável<input type='text' name='responsavel' "
-                "value='%s' list='pessoas' placeholder='ninguém'></label>"
-                % html.escape(p["responsavel"] or "", quote=True))
+               ("<label>Responsável<select name='responsavel'>%s</select></label>"
+                % opcoes_de_pessoas(p["responsavel"]))
                if com_responsavel else "",
                _documentos_da_proposta_html(p),
                faixa_do_desfecho(p, desfecho, cfg) + _notas_da_ficha(p)
@@ -28279,8 +28429,12 @@ def proposta_da_ficha(id_):
         campos.append("motivo")
         valores.append(motivo or None)
     if "responsavel" in request.form:
+        responsavel, recado = conta_escolhida(request.form.get("responsavel"),
+                                              p["responsavel"])
+        if responsavel is None:
+            return recusa(recado)
         campos.append("responsavel")
-        valores.append(criar_pessoa(request.form.get("responsavel")))
+        valores.append(responsavel)
     desfecho, recado = _desfecho_do_pedido(request.form)
     if recado:
         return recusa(recado)
@@ -28548,8 +28702,13 @@ def proposta_gravar(id_):
                             texto_de_campo(request.form.get(nome), tecto))
                            or None)
     if "responsavel" in request.form:
+        responsavel, recado = conta_escolhida(request.form.get("responsavel"),
+                                              p["responsavel"])
+        if responsavel is None:
+            return redirect("/proposta/%d?" % id_ + urlencode(
+                {"tom": "erro", "aviso": recado}))
         campos.append("responsavel")
-        valores.append(criar_pessoa(request.form.get("responsavel")))
+        valores.append(responsavel)
     desfecho, recado = _desfecho_do_pedido(request.form)
     campos += list(desfecho)
     valores += list(desfecho.values())
@@ -28615,7 +28774,8 @@ def _nossas_do_calendario(c, principio, fim):
         else:
             destino = "/#t%d" % t["id"]
         linhas.append({"titulo": t["o_que"] or "tarefa", "prazo": dia.isoformat(),
-                       "rotulo": "Tarefa" + (" · " + t["quem"] if t["quem"] else ""),
+                       "rotulo": "Tarefa" + (" · " + nome_da_pessoa(t["quem"])
+                                             if t["quem"] else ""),
                        "segunda": t["p_titulo"] or "", "tipo": "tarefa",
                        "href": destino})
         if t["ref"]:
@@ -31248,27 +31408,45 @@ def _quem_pedido():
     return request.args.get("quem")
 
 
+def _e_de(t, quem):
+    """Se a tarefa `t` é do dono pedido: `quem` a None é toda a gente, e
+    vazio é «sem dono». Pela conta (D4): o `?quem=qa3-02` apanha também
+    as tarefas antigas gravadas com o nome dela (G14)."""
+    if quem is None:
+        return True
+    return pessoa_de(t["quem"])[0] == pessoa_de(quem)[0]
+
+
 def _pilhas_das_pessoas(tarefas, escolhido, eu, base):
-    """As pilhas de pessoa do cabecalho: Todos, cada dono, e sem dono.
+    """As pilhas de pessoa do cabecalho: Todos, as minhas, cada dono, e
+    sem dono.
 
     Saem das TAREFAS que ha, e nao da lista de nomes das Configuracoes:
     uma pilha de alguem sem nada para fazer e um filtro que da lista
     vazia, e quem escreveu o nome a mao sem estar na lista desaparecia
-    do ecra.
+    do ecra. Uma pilha por PESSOA, pela conta, e com o nome dela (3.ª
+    ronda, G14): o nome da conta e o de utilizador davam dois chips da
+    mesma pessoa. A de quem esta a ver diz «as minhas», logo a seguir
+    ao Todos -- nenhum chip dizia qual era o meu.
     """
-    contas, sem_dono, total = {}, 0, 0
+    contas, nomes, sem_dono, total = {}, {}, 0, 0
     for t in tarefas:
         if t["feita_em"]:
             continue
         total += 1
-        quem = (t["quem"] or "").strip()
-        if quem:
-            contas[quem] = contas.get(quem, 0) + 1
+        chave, nome = pessoa_de(t["quem"])
+        if chave:
+            contas[chave] = contas.get(chave, 0) + 1
+            nomes[chave] = nome
         else:
             sem_dono += 1
+    escolhido = escolhido if escolhido is None else pessoa_de(escolhido)[0]
+    minha = minha_conta()
     pilhas = [("Todos", None, total, "")]
-    for quem, n in sorted(contas.items(), key=lambda p: (-p[1], p[0])):
-        pilhas.append((quem, quem, n, quem))
+    for chave, n in sorted(contas.items(),
+                           key=lambda p: (p[0] != minha, -p[1], nomes[p[0]])):
+        pilhas.append(("as minhas" if chave == minha else nomes[chave],
+                       chave, n, nomes[chave]))
     if sem_dono:
         pilhas.append(("sem dono", "", sem_dono, ""))
 
@@ -31779,8 +31957,7 @@ def inicio():
     if quem is None:
         minhas = list(todas)
     else:
-        minhas = [t for t in todas
-                  if (t["quem"] or "").strip() == quem.strip()]
+        minhas = [t for t in todas if _e_de(t, quem)]
 
     sem_decisao = propostas_sem_decisao(hoje)
     baldes, grupos = _grupos_das_tarefas(minhas, hoje, sem_decisao,
@@ -31896,7 +32073,7 @@ def inicio():
                    classe_q,
                    data_curta(dia) if dia else "sem data",
                    html.escape(concurso_cru, quote=True), concurso,
-                   _avatar_html(t["quem"], eu), fim))
+                   _avatar_html(nome_da_pessoa(t["quem"]), eu), fim))
 
     def linha_sem_decisao(p):
         """Uma proposta cujo prazo passou e que continua por decidir. Nao
@@ -32149,7 +32326,7 @@ def _atrasadas_de(quem, hoje):
     todas" tem de adiar exactamente o que a lista mostra."""
     return [t for t in _tarefas_por_fazer()
             if (_dia_da_tarefa(t) or hoje) < hoje
-            and (quem is None or (t["quem"] or "").strip() == quem.strip())]
+            and _e_de(t, quem)]
 
 
 @app.route("/tarefas/adiar")
@@ -32174,7 +32351,7 @@ def tarefas_adiar():
              % (mil_pt(len(atrasadas)), "" if len(atrasadas) == 1 else "s",
                 "" if quem is None else
                 (" sem dono" if not quem.strip()
-                 else " de %s" % html.escape(quem)),
+                 else " de %s" % html.escape(nome_da_pessoa(quem))),
                 data_pt(hoje.isoformat()),
                 accao("/tarefas/adiar",
                       "adiar %s para hoje" % mil_pt(len(atrasadas)),

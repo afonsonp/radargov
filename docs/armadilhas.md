@@ -17,15 +17,15 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 79
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 81
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 36
+- [Contas e a porta](#contas-e-a-porta) &middot; 37
 - [A interface](#a-interface) &middot; 104
 - [Convenções](#convencoes) &middot; 4
 
-São **369** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **372** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2068,6 +2068,23 @@ pelo Afonso e nenhuma se reabre de passagem.
   `marcar_tarefa()`): o aviso diz «já estava feita por …», e quem o diz
   é o histórico (`quem_fez_a_tarefa()`), porque a tabela não guarda
   quem a riscou.
+- **O «quem» e o responsável são a CHAVE de uma conta, e a coluna
+  não se compara crua** (D4 da 3.ª ronda, 29/09/2026). O `tarefas.quem`
+  e o `propostas.responsavel` guardam o nome de utilizador, mas os
+  valores antigos em texto livre ficaram lá, e o «qa3-02» e a «Gestora
+  de propostas» são a mesma pessoa. Mostrar é `nome_da_pessoa()`,
+  agrupar e filtrar é `pessoa_de()[0]` (`_e_de()` no Hoje) — um
+  `t["quem"] == quem` voltava a partir a pessoa em dois chips (G14). A
+  conta confere-se no `gravar_tarefa()` e no `conta_escolhida()`, que
+  deixa passar o valor que já lá estava: sem isso, gravar a nota de uma
+  proposta com um responsável antigo recusava-se por causa dele.
+- **O autor de uma linha do histórico é quem gravou, nunca o dono da
+  tarefa** (3.ª ronda, G13). O `criar_tarefa()` passava o `quem` ao
+  `registar()`, e o histórico dizia «Rui tarefa» de uma tarefa que a
+  Sofia criou; o dono vai no detalhe, «(para Rui)». E o detalhe diz o
+  que era e o que ficou (`_valor_no_historico()`, G16), comparado JÁ
+  FORMATADO: «682.500,00 EUR» e «682500» são o mesmo preço, e iam ao
+  histórico como mudança.
 - **Uma nota corrige-se e apaga-se só por quem a escreveu, e deixa
   rasto** (D6 da 3.ª ronda). `mudar_nota()` compara o `quem` da nota com
   o `quem_sou()` — é o nome com que o `gravar_nota()` a assinou — e
@@ -2609,6 +2626,14 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   falhar — um teste de isolamento que passa com as páginas vazias não
   prova nada, e é por isso que há o `test_a_b_ve_o_que_e_dela`.
 
+- **Uma recusa por papel diz de quem é a página, e fica no molde**
+  (3.ª ronda, G17). O `_recusa()` levava toda a gente à mesma página
+  solta, que dizia «só para a administração do Mira Gov» — ao tester
+  que abria uma página do admin **da empresa**, o que não era verdade
+  nem dizia a quem pedir. Agora recebe o texto de quem chama (o do dono
+  ou o `recado_so_do_admin()`, com o nome do admin) e desenha-se com o
+  `envolver()`. O POST continua a receber a frase em texto.
+
 - **Uma rota aberta corre antes de a porta pôr a empresa**
   (23/09/2026). O `/entrar` escrevia o «entrou» com o `registar()`, e
   como a porta sai antes de fazer `_EMPRESA.set()` nas rotas abertas,
@@ -2618,7 +2643,7 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   aberta, **a empresa activa é a de omissão, não a de quem pede** — o
   que se escreva lá dentro diz para que empresa vai. E o dono sem
   empresa (`SEM_EMPRESA`) não tem `historico`: o `registar()` manda-o
-  para os `eventos`, e o `listar_pessoas()` devolve nada.
+  para os `eventos`, e o `contas_da_empresa()` devolve nada.
 
 - **As páginas legais só existem com o operador preenchido** (F8,
   23/09/2026). O `/termos` e a `/privacidade` são rotas abertas que dão
