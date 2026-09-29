@@ -835,13 +835,14 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    (`#decididas`), ganhas e perdidas, que é o que ela divide, e diz-se
    «2 ganhas em 4 decididas — a taxa aparece às 5» (`frase_da_taxa()`);
    o «por decidir» é a aba «Por ver» (os que ainda têm prazo).
-3. **Fita da semana** — sete células, seg→dom. Cada uma: nº de tarefas,
+3. **Fita da semana** — sete células, **de ontem em diante** (`_inicio_da_fita()`; até
+   29/09/2026 era seg→dom). Cada uma: nº de tarefas,
    nº de feitas, e as entregas **em duas** (D12): as **por entregar**
    (laranja; «Por analisar» e «A preparar», `ESTADOS_POR_ENTREGAR`) e as
    **já entregues**; a de hoje diz também quantas atrasadas arrasta
    (vermelho). **Clicar num dia muda o balde do meio**, e o balde do
    dia mostra também as entregas desse dia (3.ª ronda, G20). Setas
-   para a semana anterior e seguinte; o «mais para a frente» é o número
+   de 7 dias para trás e para a frente; o «mais para a frente» é o número
    do balde do fim.
 4. **Para fazer** (coluna esquerda), em cinco baldes:
    - **Prazo passou sem decisão** — propostas abertas cujo prazo do DR
@@ -849,7 +850,7 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    - **Atrasadas** — com «adiar todas p/ hoje» só quando há atrasadas
      por fazer (pergunta antes; não há desfazer). Não dobra.
    - **O dia escolhido** na fita (por omissão, hoje). Não dobra.
-   - **Resto da semana** (ou **Próximos 7 dias**: vai sempre pelo menos
+   - **Próximos N dias** (até ao fim da fita, e sempre pelo menos
      até daqui a sete dias, `_limite_da_semana()`, para uma entrega da
      segunda seguinte não ficar dobrada — G32) · **Mais para a frente e
      sem data** — dobram. As tarefas sem data vivem no último, e o

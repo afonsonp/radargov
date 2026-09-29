@@ -22888,6 +22888,32 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
             "ref": "60/2026", "proposta_id": str(id_), "o_que": "sem data"})
         self.assertIn("Mais para a frente e sem data", self._aviso(r)[0])
 
+    def test_a_fita_comeca_ontem_e_nao_a_segunda(self):
+        """29/09/2026, pedido dele: a fita começava à segunda-feira, e à
+        sexta quatro das sete células eram dias que já tinham passado.
+        Começa ontem, e anda de sete em sete a partir daí."""
+        quarta = datetime.date(2026, 9, 30)
+        terca = datetime.date(2026, 9, 29)
+        self.assertEqual(radar._inicio_da_fita(quarta, quarta), terca)
+        # clicar num dia da fita não a mexe
+        self.assertEqual(radar._inicio_da_fita(
+            quarta, terca + datetime.timedelta(days=6)), terca)
+        # as setas andam uma fita inteira, para os dois lados
+        self.assertEqual(radar._inicio_da_fita(
+            quarta, quarta + datetime.timedelta(days=7)),
+            terca + datetime.timedelta(days=7))
+        self.assertEqual(radar._inicio_da_fita(
+            quarta, quarta - datetime.timedelta(days=7)),
+            terca - datetime.timedelta(days=7))
+        # e no ecrã: a primeira célula é ontem, a segunda é hoje
+        hoje = datetime.date.today()
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        fita = corpo[corpo.index("<div class='fita'>"):]
+        ontem = hoje - datetime.timedelta(days=1)
+        self.assertIn("<span class='d'>%s %d</span>"
+                      % (radar.DIAS_CURTOS[ontem.weekday()], ontem.day),
+                      fita[:fita.index("aria-current='true'")])
+
     def test_g35_adiar_todas_sem_atrasadas_volta_ao_hoje(self):
         r = self.cliente.get("/tarefas/adiar")
         self.assertEqual(r.status_code, 302)

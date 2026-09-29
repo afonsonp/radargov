@@ -33810,8 +33810,8 @@ def _grupos_das_tarefas(tarefas, hoje, sem_decisao=(), dia_escolhido=None,
     """
     dia_escolhido = dia_escolhido or hoje
     if fim_da_semana is None:
-        fim_da_semana = dia_escolhido + timedelta(
-            days=6 - dia_escolhido.weekday())
+        fim_da_semana = (_inicio_da_fita(hoje, dia_escolhido)
+                         + timedelta(days=6))
     rotulo_do_meio = ("Hoje &middot; %s %d" % (DIAS_CURTOS[hoje.weekday()],
                                                hoje.day)
                       if dia_escolhido == hoje
@@ -33819,13 +33819,13 @@ def _grupos_das_tarefas(tarefas, hoje, sem_decisao=(), dia_escolhido=None,
     # O balde da semana vai pelo menos até daqui a sete dias (3.ª ronda,
     # G32): numa segunda-feira, a entrega da segunda seguinte caía em
     # «Mais para a frente», que está fechado, e um prazo legal a uma
-    # semana não é «para a frente».
+    # semana não é «para a frente». Desde que a fita começa ontem já não
+    # há «semana» de calendário: o rótulo diz até onde vai.
     limite = _limite_da_semana(hoje, fim_da_semana)
     baldes = [("sem_decisao", "Prazo passou sem decisão", "mau"),
               ("atrasadas", "Atrasadas", "mau"),
               ("dia", rotulo_do_meio, "avisa"),
-              ("semana", "Resto da semana" if limite == fim_da_semana
-               else "Próximos %d dias" % DIAS_A_FECHAR, ""),
+              ("semana", "Próximos %d dias" % (limite - hoje).days, ""),
               # as sem data vêm aqui, e o rótulo di-lo (G33): uma tarefa
               # criada sem data parecia não ter chegado ao Hoje
               ("depois", "Mais para a frente e sem data", "")]
@@ -33850,9 +33850,22 @@ def _grupos_das_tarefas(tarefas, hoje, sem_decisao=(), dia_escolhido=None,
     return baldes, fora
 
 
+def _inicio_da_fita(hoje, dia_escolhido):
+    """O primeiro dia da fita: ONTEM, e de sete em sete a partir daí até
+    apanhar o dia escolhido.
+
+    Começava à segunda-feira (29/09/2026, pedido dele: «o primeiro dia
+    da tabela não é segunda, é sempre o dia anterior»): à sexta, a fita
+    gastava quatro das sete células em dias que já passaram. Os sete
+    em sete fazem com que clicar num dia não mexa a fita e que as setas
+    andem uma fita inteira."""
+    ontem = hoje - timedelta(days=1)
+    return ontem + timedelta(days=(dia_escolhido - ontem).days // 7 * 7)
+
+
 def _limite_da_semana(hoje, fim_da_semana):
     """O último dia do balde «semana» (e o que a fita conta antes do
-    «mais para a frente»): o domingo do dia escolhido, ou daqui a
+    «mais para a frente»): o fim da fita do dia escolhido, ou daqui a
     `DIAS_A_FECHAR` dias se for mais longe (G32)."""
     return max(fim_da_semana, hoje + timedelta(days=DIAS_A_FECHAR))
 
@@ -33875,7 +33888,8 @@ def _com_dia(base, d):
 
 
 def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
-    """Os sete dias da semana do dia escolhido, com o que cada um tem.
+    """Os sete dias da fita do dia escolhido (de ontem em diante,
+    `_inicio_da_fita()`), com o que cada um tem.
 
     A fita responde a "o que fecha esta semana" -- a pergunta que
     obrigava a ir ao calendario e voltar. Cada celula diz quantas
@@ -33884,11 +33898,10 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
     atrasadas que arrasta, porque sao trabalho de hoje ainda que a data
     diga outra coisa.
     """
-    segunda = dia_escolhido - timedelta(days=dia_escolhido.weekday())
-    domingo = segunda + timedelta(days=6)
+    inicio = _inicio_da_fita(hoje, dia_escolhido)
     # o mesmo limite do balde «Mais para a frente» (G32): o número da
     # fita é o do balde
-    limite = _limite_da_semana(hoje, domingo)
+    limite = _limite_da_semana(hoje, inicio + timedelta(days=6))
     por_dia, feitas_no_dia, atrasadas, depois = {}, {}, 0, 0
     for t in tarefas:
         dia = _dia_da_tarefa(t)
@@ -33905,7 +33918,7 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
 
     celulas = []
     for i in range(7):
-        d = segunda + timedelta(days=i)
+        d = inicio + timedelta(days=i)
         classes = []
         if d < hoje:
             classes.append("passou")
@@ -33950,8 +33963,8 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
     # fim -- sem ele, quem anda para a frente na fita nao sabe quando
     # parar.
     nav = ("<div class='fita-nav'>"
-           "<a href='%s'>&larr; semana passada</a>"
-           "<a href='%s'>próxima semana &rarr;</a>"
+           "<a href='%s'>&larr; 7 dias antes</a>"
+           "<a href='%s'>7 dias depois &rarr;</a>"
            "<span class='adiante'>mais para a frente: %s</span></div>"
            % (html.escape(_com_dia(base, dia_escolhido - timedelta(days=7)),
                           quote=True),
@@ -34312,8 +34325,8 @@ def inicio():
             dia_escolhido = datetime.strptime(pedido[:10], "%Y-%m-%d").date()
         except ValueError:
             dia_escolhido = hoje
-    segunda = dia_escolhido - timedelta(days=dia_escolhido.weekday())
-    domingo = segunda + timedelta(days=6)
+    inicio = _inicio_da_fita(hoje, dia_escolhido)
+    fim = inicio + timedelta(days=6)
 
     quem = _quem_pedido()
     esconder = request.args.get("feitas") == "esconder"
@@ -34340,7 +34353,7 @@ def inicio():
         por_ver = c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
                             valores).fetchone()["n"]
 
-    todas = _tarefas_da_abertura(segunda - timedelta(days=7), domingo)
+    todas = _tarefas_da_abertura(inicio - timedelta(days=7), fim)
     # So as feitas de HOJE ficam riscadas no sitio (22/09/2026, queixa
     # dele: «esta todo desformatado, tem imensas tarefas»). A linha
     # riscada existe para o gesto ter confirmacao e volta -- e isso vale
@@ -34356,7 +34369,7 @@ def inicio():
 
     sem_decisao = propostas_sem_decisao(hoje)
     baldes, grupos = _grupos_das_tarefas(minhas, hoje, sem_decisao,
-                                         dia_escolhido, domingo)
+                                         dia_escolhido, fim)
     # O balde do «prazo passou sem decisão» traz linhas de `propostas` e
     # não de `tarefas`: contam-se à parte, que é o que o `_quantas()`
     # não pode fazer (uma proposta não tem `feita_em`).
@@ -34411,8 +34424,8 @@ def inicio():
     # regra da empresa proíbe. Apanhado a olhar para a página real.
     nos_baldes = [t for chave, _, _ in baldes if chave != "sem_decisao"
                   for t, _ in grupos[chave]]
-    prazos = _prazos_da_janela(min(segunda, hoje),
-                               max(domingo,
+    prazos = _prazos_da_janela(min(inicio, hoje),
+                               max(fim,
                                    hoje + timedelta(days=DIAS_A_FECHAR)))
     fita = _fita_da_semana(hoje, dia_escolhido, nos_baldes, prazos,
                            base_sem("dia"))
