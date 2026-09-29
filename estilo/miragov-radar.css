@@ -1108,3 +1108,26 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
  .ficha-duas>.ficha-principal,.ficha-duas>.ficha-lado{display:contents}
  .ficha-lado>#prazo{order:-2}
  .ficha-lado>#proposta{order:-1}}
+/* Adiar e atribuir na linha do Hoje (D5 da 3.ª ronda): dobrado, para a
+   linha não crescer; aberto, o formulário fica por baixo, à direita. */
+.hj-mexer{position:relative}
+.hj-mexer>summary{list-style:none;cursor:pointer;white-space:nowrap;
+ font:500 var(--text-xs)/24px var(--font-sans);color:var(--link)}
+.hj-mexer>summary::-webkit-details-marker{display:none}
+.hj-mexer>form{position:absolute;right:0;top:100%;z-index:5;display:flex;
+ gap:var(--space-2);align-items:center;padding:var(--space-2);
+ background:var(--surface-raised);border:1px solid var(--line-strong);
+ border-radius:var(--radius-sm)}
+.hj-mexer input[name=quando]{width:11ch}
+.hj-c a{color:inherit}
+/* As entregas do dia escolhido na fita, e as já entregues nos prazos. */
+.hj-entregas{padding:4px 8px 8px 16px;font:400 var(--text-sm)/1.5 var(--font-sans)}
+.hj-entregas a{display:block}
+.prazos .sub{padding:8px 0 2px;font:600 var(--text-xs)/1.4 var(--font-sans);
+ color:var(--ink-muted)}
+.prazos details.hj-mais>a{display:grid;grid-template-columns:44px minmax(0,1fr) auto;
+ gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid var(--surface-sunken);
+ color:inherit}
+/* O terceiro número do «O que mudou» não é ligação: em coluna como os
+   outros dois. */
+.mudou-n>span{flex:1;display:flex;flex-direction:column;gap:2px}

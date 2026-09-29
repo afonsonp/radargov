@@ -206,11 +206,16 @@ data. Logo por baixo, numa linha, **quatro números** (em jogo, taxa de
 vitória, por decidir, para fazer), e cada um abre exactamente a lista
 que o produz; ao fim da linha, a saída para o **Ponto de situação**.
 
+O **em jogo** é só o que já entregaste — as propostas em «Submetida» e
+em «Relatório preliminar» (decisão tua de 29/09/2026); o que ainda está
+por submeter é o trabalho da lista por baixo.
+
 A seguir vem a **fita da semana**: sete células, segunda a domingo. Cada
 uma diz quantas tarefas tem nesse dia, quantas já estão feitas e quantas
-entregas fecham; o dia de hoje diz também quantas atrasadas arrasta.
-**Clica num dia** para o veres — a lista por baixo muda para esse dia, e
-as setas andam de semana em semana.
+entregas fecham — **as por entregar** à parte das **já entregues**; o dia
+de hoje diz também quantas atrasadas arrasta. **Clica num dia** para o
+veres — a lista por baixo muda para esse dia, com as entregas dele por
+cima, e as setas andam de semana em semana.
 
 Por baixo, duas colunas.
 
@@ -228,7 +233,11 @@ que só se sabem a usar:
   dia não há como as devolver.
 - **Um concurso cujas automáticas estão no primeiro balde não as repete
   nas atrasadas.** Se procuras uma tarefa e não a vês, é aí que ela
-  está.
+  está. **Uma tarefa sem data** está no último, «Mais para a frente e
+  sem data», que abre dobrado.
+- **Adias e dás uma tarefa a alguém na própria linha**, no «adiar ·
+  quem» ao fim dela; o concurso da linha leva-te à tarefa dentro da
+  proposta.
 
 **A tarefa risca-se ali e a página fica onde está** — a linha não
 desaparece: fica riscada, com o **desfazer** ao lado, até ao fim do
@@ -255,11 +264,11 @@ Em cima escolhe-se o **período**: este mês, este trimestre (o que abre
 por omissão), 12 meses ou tudo. Cada número traz a comparação com o
 período anterior do mesmo tamanho. O período conta pela **data da
 adjudicação** que escreveste ao marcar Ganha ou Perdida; sem ela, pelo
-dia em que a marcaste. O que está em jogo são **dois números** desde
-26/09/2026 — **em análise** (o preço base do que está em «Por analisar»
-e «A preparar») e **proposta entregue** (o proposto do que está em
-«Submetida» e «Relatório preliminar») —, cada um com a sua lista por
-baixo. São o que está aberto **agora**, e por isso não têm comparação —
+dia em que a marcaste. As propostas abertas são **dois números** —
+**por submeter** (o preço base do que está em «Por analisar» e «A
+preparar») e **em jogo** (o proposto do que está em «Submetida» e
+«Relatório preliminar»; é o mesmo número do Hoje) —, cada um com a sua
+lista por baixo. São o que está aberto **agora**, e por isso não têm comparação —
 o radar não guarda o que estava em jogo no trimestre passado. O «Ganho»
 soma o **valor adjudicado**; vazio, o proposto.
 

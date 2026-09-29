@@ -9866,7 +9866,13 @@ class TestAsDecisoesDaPropostaD2D3D5D10(_CicloDoTesteComUtilizadores):
         self.assertIn("40\xa0000,00\xa0€", analise)
         entregues = corpo[corpo.index("id='entregues'"):]
         self.assertIn("118\xa0500,00\xa0€", entregues)
-        self.assertNotIn(">Em jogo<", corpo)
+        # O que se entregou chama-se «Em jogo» desde a D12 da 3.ª ronda
+        # (decisão dele): o por submeter é o trabalho do Hoje, e o Hoje
+        # mostra o mesmo número (G25). O que não volta é a soma das duas.
+        self.assertIn(">Por submeter<", corpo)
+        self.assertIn(">Em jogo<", corpo)
+        self.assertNotIn("158", corpo[corpo.index("mg-stats"):
+                                       corpo.index("id='em-analise'")])
 
 
 class TestOCofreDosDocumentos(BaseTemporaria):
@@ -18667,7 +18673,8 @@ class TestONumeroDaAberturaAbreASuaLista(CicloDasTarefas):
         corpo = self.cliente.get("/").get_data(as_text=True)
         n = radar.CABEM_NO_LADO + 3          # sem a republicacao
         self.assertIn(": %d anúncios novos" % n, corpo)
-        self.assertIn("<b>%d</b><span class='nota'>anúncios novos" % n, corpo)
+        # com um espaço real entre o número e a palavra (3.ª ronda, G27)
+        self.assertIn("<b>%d</b> <span class='nota'>anúncios novos" % n, corpo)
 
     def test_um_prazo_alterado_fora_do_perfil_nao_aparece(self):
         corpo = self.cliente.get("/").get_data(as_text=True)
@@ -21886,6 +21893,317 @@ class TestTerceiraRondaPessoasEAutoria(_CicloDoTesteComUtilizadores):
                 self.assertIn("mg-topbar", h)                  # dentro do molde
         conta_ = tester.get("/configuracoes/conta", environ_base=self.FORA)
         self.assertNotIn("a nossa empresa, utilizadores", conta_.get_data(as_text=True))
+
+
+def data_pt_(iso):
+    """«2026-10-02» -> «02/10/2026», como se escreve no formulário."""
+    return "/".join(reversed(iso.split("-")))
+
+
+class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
+    """Rel. 01, 02, 04, 06A, 09, 10, 12 e 13 da 3.ª ronda (28/09/2026): a
+    regra da casa -- um número abre a lista que o conta -- falhava no Hoje
+    (as entregas da fita sem lista, «Prazos a chegar» com 5 de 8, o «Em
+    jogo» que a Situação não tinha), no perfil (433 contra 400) e no «por
+    ver» com quatro números; as tarefas de uma proposta herdada de uma
+    alteração apontavam para a alteração (G18); a escada marcava
+    «Submetida ✓» num «Não fomos» (G22); e uma adjudicação no futuro
+    tirava a Ganha do trimestre (G23). As decisões dele: D3 (saltar
+    fases, com os campos das saltadas), D5 (adiar e atribuir na linha do
+    Hoje) e D12 (o «Em jogo» é só o entregue)."""
+
+    VOLTA = {"Referer": "http://localhost/anuncio/60%2F2026"}
+
+    def _dia(self, n):
+        return (datetime.date.today() + datetime.timedelta(days=n)).isoformat()
+
+    def _anuncio(self, ref, prazo, preco="100.000,00 EUR", **extra):
+        cols = dict(ref=ref, titulo="Concurso %s" % ref, entidade="Câmara",
+                    data_pub=self._dia(-5), prazo=prazo, preco_base=preco,
+                    estado="novo", **extra)
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (%s) VALUES (%s)"
+                      % (",".join(cols), ",".join("?" * len(cols))),
+                      list(cols.values()))
+        return ref
+
+    def _aviso(self, r):
+        q = dict(parse_qsl(urlparse(r.headers["Location"]).query))
+        return q.get("aviso", ""), q.get("tom") == "erro"
+
+    def _tarefa(self, t):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM tarefas WHERE id=?", (t,)).fetchone()
+
+    def _muda(self, sql, valores=()):
+        with radar.liga() as c:
+            c.execute(sql, valores)
+
+    # --- G18 ----------------------------------------------------------
+
+    def test_g18_as_tarefas_e_o_historico_seguem_a_proposta_herdada(self):
+        self._anuncio("100/2026", self._dia(10))
+        self._anuncio("200/2026", self._dia(10), altera="100/2026")
+        id_ = radar.criar_proposta("200/2026", estado="proposta")
+        t = radar.criar_tarefa("rever o mapa", self._dia(3), proposta_id=id_)
+        with radar.liga() as c:
+            radar._herdar_propostas(c, "200/2026", "100/2026")
+        with radar.liga() as c:
+            refs = {r["ref"] for r in c.execute(
+                "SELECT ref FROM tarefas WHERE proposta_id=?", (id_,))}
+            self.assertEqual(refs, {"100/2026"})
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM historico WHERE "
+                                       "ref='200/2026'").fetchone()[0], 0)
+        self.assertIn("/anuncio/100%%2F2026#t%d" % t,
+                      self.cliente.get("/").get_data(as_text=True))
+        # e as que já se partiram acertam-se no arranque
+        self._muda("UPDATE tarefas SET ref='200/2026' WHERE id=?", (t,))
+        radar.iniciar_empresa()
+        self.assertEqual(self._tarefa(t)["ref"], "100/2026")
+
+    # --- G19, G20, D12 --------------------------------------------------
+
+    def _oito_entregas(self):
+        """Seis por entregar e duas entregues, nos próximos três dias."""
+        for i in range(8):
+            ref = self._anuncio("%d/2026" % (300 + i), self._dia(1 + i % 3))
+            id_ = radar.criar_proposta(ref, estado="proposta")
+            if i >= 6:
+                radar.mover_proposta(id_, "submetido",
+                                     campos={"valor_proposta": "90.000,00 EUR"})
+
+    def test_g19_d12_os_prazos_a_chegar_mostram_todos_e_partem_em_dois(self):
+        self._oito_entregas()
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        cartao = corpo[corpo.index(">Prazos a chegar<"):]
+        self.assertIn("6 por entregar &middot; 2 entregues", cartao)
+        self.assertIn("mais 1</summary>", cartao)
+        self.assertIn("Já entregues", cartao)
+        for i in range(8):
+            self.assertIn("%d%%2F2026" % (300 + i), cartao)
+
+    def test_g20_o_dia_da_fita_abre_as_entregas_dele(self):
+        self._oito_entregas()
+        corpo = self.cliente.get("/?dia=" + self._dia(1)).get_data(as_text=True)
+        balde = corpo[corpo.index("class='hj-entregas'"):]
+        balde = balde[:balde.index("</div>")]
+        # 300, 303 e 306 caem no primeiro dia; a 306 já foi entregue
+        for ref in ("300", "303", "306"):
+            self.assertIn("%s%%2F2026" % ref, balde)
+        self.assertIn("Submetida · entregue", balde)
+        self.assertIn("2 por entregar", corpo)       # a célula da fita
+
+    # --- G24, D5 --------------------------------------------------------
+
+    def test_g24_d5_a_linha_do_hoje_liga_a_proposta_e_adia_e_atribui(self):
+        conta("rui", "Rui Matos")
+        id_ = self._proposta()
+        t = radar.criar_tarefa("ligar ao fiscal", self._dia(1), proposta_id=id_)
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        linha = corpo[corpo.index("id='t%d'" % t):]
+        linha = linha[:linha.index("</details>")]
+        self.assertIn("href='/anuncio/60%%2F2026#t%d'" % t, linha)
+        self.assertIn("action='/tarefa/%d/gravar'" % t, linha)
+        self.assertIn("<option value='rui'", linha)
+        r = self.cliente.post("/tarefa/%d/gravar" % t, headers={
+            "Referer": "http://localhost/"}, data={
+            "quando": data_pt_(self._dia(4)), "quem": "rui",
+            "versao": radar.versao_da_tarefa(self._tarefa(t))})
+        self.assertIn("#t%d" % t, r.headers["Location"])
+        self.assertEqual((self._tarefa(t)["quando"], self._tarefa(t)["quem"]),
+                         (self._dia(4), "rui"))
+
+    # --- G25, D12 -------------------------------------------------------
+
+    def test_g25_d12_o_em_jogo_e_so_o_entregue_e_bate_com_a_situacao(self):
+        self._anuncio("61/2026", self._dia(20), "40.000,00 EUR")
+        radar.criar_proposta("61/2026", estado="proposta")   # por submeter
+        self._proposta("submetido")                          # 118 500
+        hoje = self.cliente.get("/").get_data(as_text=True)
+        i = hoje.index(">Em jogo<")
+        facto = hoje[i - 300:i + 400]
+        self.assertIn("/situacao#entregues", facto)
+        self.assertIn("1 entregue", facto)
+        valor = radar.euros_curto(118500.0)
+        self.assertIn(valor, facto)
+        situacao = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertIn(valor, situacao[situacao.index(">Em jogo<"):][:600])
+
+    # --- G21 ------------------------------------------------------------
+
+    def test_g21_o_perfil_conta_como_a_aba_todos(self):
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "72000000"})
+        self._anuncio("70/2026", self._dia(10), cpv="72000000-8")
+        self._anuncio("71/2026", self._dia(10), cpv="72000000-8",
+                      altera="70/2026")
+        self._muda("UPDATE anuncios SET estado='alteracao' WHERE ref='71/2026'")
+        corpo = self.cliente.get("/configuracoes/interesse").get_data(as_text=True)
+        self.assertIn("apanha <b>1</b> dos anúncios por ver e <b>1</b> de "
+                      "todos os concursos", corpo)
+        lista = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertIn("<b class='n-lista'>1</b>", lista)
+        # e as partes somam o total da linha: sem as alteracoes
+        with radar.liga() as c:
+            sem_alt = c.execute("SELECT COUNT(*) FROM anuncios WHERE "
+                                "estado != 'alteracao'").fetchone()[0]
+        self.assertIn("de <b>%d</b> na base" % sem_alt, lista)
+
+    # --- G22, D3 --------------------------------------------------------
+
+    def test_g22_d3_nao_fomos_nao_marca_submetida_e_o_salto_pede_os_campos(self):
+        a = {"estado": "novo", "prazo": ""}
+        # «Não fomos»: só o «Por analisar» (houve proposta), nunca a
+        # «Submetida»
+        passos = radar.passos_da_escada(a, [{"estado": "nao_fomos"}])
+        self.assertEqual(passos.count("mg-step--done"), 1)
+        self.assertIn("mg-step--todo'><span class='mg-step__bar'></span>"
+                      "<span class='mg-step__label'>Submetida", passos)
+        passos = radar.passos_da_escada(a, [{"estado": "ganho"}])
+        self.assertEqual(passos.count("mg-step--done"), 4)
+        passos = radar.passos_da_escada(a, [{"estado": "perdido"}])
+        self.assertEqual(passos.count("mg-step--done"), 3)   # e o 4.º a vermelho
+        # o salto pede também o que a «Submetida» pede
+        self.assertEqual(radar.exigidos_da_ranhura("relatorio"),
+                         ("valor_proposta", "lugar"))
+        self.assertIn("valor_proposta", radar.exigidos_da_ranhura("ganho"))
+        id_ = self._proposta("proposta")
+        self._muda("UPDATE propostas SET valor_proposta=NULL WHERE id=?", (id_,))
+        ok, recado = radar.mover_proposta(id_, "ganho")
+        self.assertFalse(ok)
+        self.assertIn("preço proposto", recado)
+        # a lista de «Não fomos» não diz «entregue» nem conta dias
+        motivo = radar.MOTIVOS_ABANDONO[0]
+        radar.mover_proposta(id_, "nao_fomos", campos={"motivo": motivo})
+        linha = radar.linha_da_pipeline(radar.proposta(id_), 7,
+                                        {"60/2026": self._dia(5)})
+        self.assertNotIn("entregue", linha)
+        self.assertNotIn("dias", linha)
+        self.assertIn(html.escape(motivo), linha)
+
+    # --- G23 ------------------------------------------------------------
+
+    def test_g23_a_adjudicacao_no_futuro_recusa_e_antes_do_prazo_avisa(self):
+        self._muda("UPDATE anuncios SET prazo=? WHERE ref='60/2026'",
+                   (self._dia(-2),))
+        id_ = self._proposta("ganho")
+        texto, erro = self._aviso(self.cliente.post(
+            "/proposta/%d/ficha" % id_, headers=self.VOLTA,
+            data={"data_adjudicacao": data_pt_(self._dia(30))}))
+        self.assertTrue(erro)
+        self.assertIn("ainda não chegou", texto)
+        self.assertIsNone(radar._valor(radar.proposta(id_), "data_adjudicacao"))
+        texto, erro = self._aviso(self.cliente.post(
+            "/proposta/%d/ficha" % id_, headers=self.VOLTA,
+            data={"data_adjudicacao": data_pt_(self._dia(-4))}))
+        self.assertTrue(erro)
+        self.assertIn("anterior ao fim do prazo de entrega", texto)
+        self.assertEqual(radar.proposta(id_)["data_adjudicacao"], self._dia(-4))
+
+    # --- G26, G29, G30 ----------------------------------------------------
+
+    def test_g26_g29_os_rotulos_dizem_o_que_contam(self):
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("por ver, ainda com prazo", corpo)
+        self.assertEqual(radar.frase_da_taxa(2, 4, False),
+                         "2 ganhas em 4 decididas — a taxa aparece às %d"
+                         % radar.MINIMO_PARA_TAXA)
+        self.assertTrue(radar.frase_da_taxa(1, 1, False).startswith(
+            "1 ganha em 1 decidida —"))
+        tudo = self.cliente.get("/situacao?ver=negocio&periodo=tudo").get_data(
+            as_text=True)
+        self.assertNotIn("Decididas tudo", tudo)
+        triagem = self.cliente.get("/situacao?ver=triagem").get_data(as_text=True)
+        self.assertIn("Sem decisão", triagem)
+
+    def test_g30_sem_alertas_ligados_nao_se_promete_o_email(self):
+        corpo = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        self.assertIn("Não sai nenhum: nenhum alerta está ligado.", corpo)
+        self.assertNotIn("Sai no resumo a seguir", corpo)
+
+    # --- G27 ------------------------------------------------------------
+
+    def test_g27_o_que_mudou_diz_a_verdade_sem_perfil_e_fora_dele(self):
+        hoje = self._dia(0)
+        self._muda("UPDATE anuncios SET data_pub=? WHERE ref='60/2026'", (hoje,))
+        for nome, hora in (("a.pdf", "09:00"), ("b.pdf", "11:00")):
+            self._muda("INSERT INTO documentos (ref, nome, ficheiro, tamanho, "
+                       "origem, obtido_em) VALUES ('60/2026',?,?,1,'dr',?)",
+                       (nome, nome, hoje + " " + hora))
+        radar.marca("ultima_verificacao", hoje + " 10:00")
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("sem perfil: contam todos", corpo)
+        self.assertIn("1 peça nova (e 1 trazida depois)", corpo)
+        self.assertIn("</b> <span class='nota'>peças novas hoje", corpo)
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "45000000"})
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("Nada de novo no perfil desde a última verificação.", corpo)
+
+    # --- G28 ------------------------------------------------------------
+
+    def test_g28_uma_decidida_nao_conta_dias_e_as_listas_dizem_o_desfecho(self):
+        self._muda("UPDATE anuncios SET prazo=? WHERE ref='60/2026'",
+                   (self._dia(10),))
+        id_ = self._proposta("submetido")
+        radar.mover_proposta(id_, "ganho")
+        self.assertEqual(radar.proposta(id_)["lugar"], 1)
+        ficha = self._ficha()
+        topo = ficha[ficha.index("pagehead-etiquetas"):]
+        self.assertNotIn("Faltam", topo[:topo.index("</div>")])
+        self.assertIn(">Ganha<", topo[:topo.index("</div>")])
+        prazo = ficha[ficha.index("id='prazo'"):]
+        self.assertNotIn("Prazo em", prazo[:prazo.index("</section>")])
+        lista = self.cliente.get("/propostas?estado=ganho").get_data(as_text=True)
+        self.assertIn("<th>Desfecho</th>", lista)
+        self.assertIn("118\xa0500\xa0€", lista)
+        t = radar.criar_tarefa("enviar a factura", self._dia(2), proposta_id=id_)
+        hoje = self.cliente.get("/").get_data(as_text=True)
+        linha = hoje[hoje.index("id='t%d'" % t):]
+        linha = linha[:linha.index("<details")]
+        self.assertIn(">Ganha<", linha)
+        self.assertNotIn("entrega", linha)
+
+    # --- G31 ------------------------------------------------------------
+
+    def test_g31_o_a_acabar_da_entidade_segue_o_filtro(self):
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "ensaio-contratos.db")))
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            for i, objecto in enumerate(("limpeza", "limpeza", "obras")):
+                c.execute("INSERT INTO contratos (id, adjudicante_chave, objecto,"
+                          " objecto_norm, fim_estimado, preco_contratual) VALUES"
+                          " (?, 'X', ?, ?, date('now', '+20 days'), 10)",
+                          (i + 1, objecto, objecto))
+        self.assertEqual(radar.a_acabar_por_entidade(chaves=["X"])["X"][0], 3)
+        filtro = radar.filtro_da_ficha({"q": "limpeza"})
+        self.assertEqual(
+            radar.a_acabar_por_entidade(chaves=["X"], filtro=filtro)["X"][0], 2)
+
+    # --- G32, G33, G35 ----------------------------------------------------
+
+    def test_g32_g33_uma_entrega_a_sete_dias_e_para_fazer_e_sem_data_diz_se(self):
+        id_ = self._proposta()
+        a_sete = radar.criar_tarefa("entregar", self._dia(7), proposta_id=id_)
+        baldes, grupos = radar._grupos_das_tarefas(
+            [self._tarefa(a_sete)], datetime.date.today())
+        self.assertEqual([t["id"] for t, _ in grupos["semana"]], [a_sete])
+        self.assertIn(("semana", "Próximos 7 dias", ""), baldes)
+        r = self.cliente.post("/tarefa/nova", headers=self.VOLTA, data={
+            "ref": "60/2026", "proposta_id": str(id_), "o_que": "sem data"})
+        self.assertIn("Mais para a frente e sem data", self._aviso(r)[0])
+
+    def test_g35_adiar_todas_sem_atrasadas_volta_ao_hoje(self):
+        r = self.cliente.get("/tarefas/adiar")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("Não há tarefas atrasadas", self._aviso(r)[0])
+
+    # --- G34 ------------------------------------------------------------
+
+    def test_g34_cancelar_o_voltar_a_por_ver_repoe_a_fase(self):
+        js = radar.caixa_do_motivo()
+        ramo = js[js.index("sel.value === 'porver'"):]
+        ramo = ramo[:ramo.index("return;")]
+        self.assertIn("defaultSelected", ramo)
 
 
 if __name__ == "__main__":
