@@ -28456,7 +28456,10 @@ def ficha(ref):
     # O procedimento na plataforma e as pecas sao dois botoes: estavam no
     # mesmo, e o link das pecas nao e o procedimento.
     destino, rotulo, dica = link_do_procedimento(a)
-    if destino:
+    # Nas consultas preliminares da Vortal (fonte='vortal') o anuncio JA
+    # e a pagina do procedimento: «Ver na Vortal» e «Abrir na Vortal»
+    # davam no mesmo sitio (29/09/2026, ele). Fica o primeiro.
+    if destino and destino != a["url"]:
         sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
                     "title='%s'>%s %s</a>"
                     % (html.escape(destino, quote=True),
