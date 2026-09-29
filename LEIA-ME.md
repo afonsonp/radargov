@@ -570,7 +570,14 @@ que se decide:
   anormalmente baixo** diz o valor ou «não encontrado». Nas obras, nos
   bens e nos outros serviços a primeira linha é a do tipo de contrato
   (a equipa técnica e o alvará, os artigos, os postos, o nível de
-  serviço), em texto.
+  serviço), em texto. **Cada linha acaba na página de onde veio**
+  («(pág. 12)», ou «(Programa, pág. 5)»), para ires direito a ela; e
+  uma linha com um número que não está nas páginas lidas traz
+  **«[confirmar: o número … não está nas páginas lidas]»** — o Mira Gov
+  não o dá por facto (desde 29/09/2026; as leituras antigas não têm
+  páginas até serem relidas). Quando as peças não dizem onde é, o
+  **Local** dos factos é o do anúncio (localidade, freguesia, concelho),
+  e diz-o.
 - **O mercado** — três números: o que a entidade costuma pagar neste CPV
   (a mediana, e uma régua com o intervalo onde cai metade dos contratos
   e a marca deste concurso), o desconto habitual sobre o preço base, e

@@ -144,7 +144,13 @@ def texto_das_pecas(radar, ref, fontes):
     diferentes.
     """
     docs = radar.documentos_com_texto(ref)
-    nomes = [n.strip() for n in (fontes or "").split(",") if n.strip()]
+    # As fontes trazem « (pág. …)» e, dentro de um ZIP, «zip/membro»
+    # (29/09/2026): comparados os nomes inteiros, so batia um .xlsx sem
+    # paginas, e o ensaio confrontava a leitura so com ele -- «? sem
+    # apoio» falsos em quase todas as linhas da 23389, da 23728 e da
+    # 22036. Casa-se pelo ficheiro guardado: o nome sem paginas, e o do
+    # ZIP quando a fonte e um membro dele.
+    nomes = {nome.split("/", 1)[0] for nome, _ in radar.fontes_por_peca(fontes or "")}
     usados = [d for d in docs if d["nome"] in nomes] or list(docs)
     # sem_indice, como no caminho que leva o texto ao modelo: senao as
     # linhas pontilhadas do sumario servem de apoio a tudo -- dizem os
@@ -213,7 +219,9 @@ def main():
         for linha in valor.split("\n"):
             if not linha.strip():
                 continue
-            veredicto, onde = apoio(linha, fonte, fonte_comprimida, mapa)
+            # a pagina citada e a marca de confirmar nao sao do documento
+            veredicto, onde = apoio(radar.sem_a_pagina_citada(linha), fonte,
+                                    fonte_comprimida, mapa)
             if not veredicto:
                 continue
             contas[veredicto] += 1

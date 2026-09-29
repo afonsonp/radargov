@@ -507,9 +507,9 @@ e o seu rótulo na ficha (`CAMPO_11`):
 
 | Tipo | Na ficha | O que se pede |
 |---|---|---|
-| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa |
+| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa, e o nível de serviço (tempos de resposta, horário, disponibilidade) desde 29/09/2026 |
 | Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
-| Bens | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
+| Bens — e, desde 29/09/2026, as licenças e o suporte de fabricante com CPV de TI (`RX_LICENCAS`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
 | Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
 | Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
 
@@ -534,19 +534,26 @@ o que se constrói está na memória descritiva e no projecto, e não no
 Caderno de Encargos, que remete para eles. A leitura do objecto de uma
 empreitada lê os anexos técnicos à frente do CE e pergunta a obra, os
 trabalhos principais e o local da obra (morada, troço, quilómetros).
+Sem memória descritiva, os trabalhos saem dos **capítulos do mapa de
+quantidades** (`capitulos_do_mapa()`) ou da «Descrição da obra» do plano
+de segurança ou de resíduos (29/09/2026).
 
 **O local**, nos outros tipos, é o que uma cláusula nomeia — as
 instalações, a morada, o local de entrega —, com o regime (presencial,
 remoto, híbrido) só quando o documento o fixa. Até 29/09/2026 a
 pergunta só aceitava o regime, e respondia «não consta» a uma cláusula
-«Local da prestação» com a morada.
+«Local da prestação» com a morada. **Quando a leitura não traz local
+nenhum, a ficha mostra o do anúncio** — a localidade, a freguesia, o
+concelho e o distrito da secção 9 (`local_do_anuncio()`) — e diz que é
+do anúncio (29/09/2026).
 
 **Os anexos técnicos** reconhecem-se pelo nome (`RX_PECA_TECNICA`):
 especificação, anexo técnico, memória descritiva, mapa de quantidades,
 cadastro, lista de preços unitários. Ficam de fora os formulários da
 proposta, o DEUCP, as garantias e as respostas a esclarecimentos
-(`RX_NAO_TECNICA`), e o `Lista.pdf`, que numa plataforma é o índice das
-peças.
+(`RX_NAO_TECNICA`). O `Lista.pdf` decide-se pelo cabeçalho (29/09/2026):
+é anexo técnico quando é a «Lista de artigos» ou a «Lista de todas as
+espécies de trabalhos» da plataforma, que eram os 14 da base.
 
 **O que chega ao modelo** (28/09/2026, `docs/historico/LEITURA-VALIDADA.md`).
 Cada peça dá um recorte de até `TECTO_RECORTE` caracteres, feito das
@@ -563,7 +570,28 @@ o Caderno, mas só pelo que as âncoras apanharem
 (`SECUNDARIAS_DA_LEITURA`); sem a peça da leitura, a outra faz as vezes
 dela. Medido com as passagens que se provou estarem nas peças: a
 28/09/2026 chegavam 20 de 55, e passaram a 44; a 29/09, com 88
-passagens, de 52 para 82.
+passagens, de 52 para 82; e à tarde, com 113, de 89 para 103 (as 88 de
+antes voltaram a 82, depois de o lote 4 as ter posto em 79).
+
+**A página em cada linha** (29/09/2026, 3.ª ronda: «um resumo em que se
+pode confiar, sempre com a leitura das peças associada»). O recorte leva
+«[pág. N]» onde cada página começa — quando o texto sabe páginas: um
+`.docx` ou um Excel não sabem, e não se inventam —, e as perguntas pedem
+que cada linha da resposta acabe com a página de onde veio, «(pág. 12)»,
+ou «(Programa, pág. 5)» quando o pedido leva mais de uma peça. A ficha
+mostra-a em cada linha.
+
+**Nenhum número que não esteja nas peças** (29/09/2026). Depois da
+resposta, sem modelo, cada número de cada linha tem de estar no texto
+que foi ao modelo, comparado como o `ensaio-de-leitura` compara — sem
+espaços nem pontuação, porque o PDF parte «1 2 meses», e também com os
+espaços como separador, porque «4 1920» junto não tem o 1920 lá dentro
+(`numeros_por_confirmar()`). A linha que falha fica, e **não passa por
+facto**: leva «[confirmar: o número 1200 não está nas páginas lidas]».
+Os algarismos colados a letras («m3/h», «ePM1»), a página citada e o
+número da própria lista não se conferem. No mesmo passo saem do objecto
+as cláusulas que todos os contratos têm — cumprir a lei, o sigilo,
+comunicar alterações — quando sobra alguma coisa (`sem_clausulas_tipo()`).
 
 **Na ficha, a leitura é um rascunho.** Cada linha lida diz de que peças
 e páginas veio e «é um rascunho: confirmar no documento antes de
@@ -586,10 +614,11 @@ São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
 (`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` até
 alguém responder: a Groq (`gpt-oss-120b`), o Cerebras (o mesmo modelo,
-com 1 milhão de tokens por dia; só entra com chave), a reserva na
-própria Groq (`gpt-oss-20b`), a NVIDIA (`nemotron-3-ultra`, com o
-raciocínio desligado) e o OpenRouter (um modelo gratuito, quase sempre
-cheio). Todos gratuitos; a conta de 28/09/2026 dava ~20 concursos por
+com 1 milhão de tokens por dia; só entra com chave), a NVIDIA
+(`nemotron-3-ultra`, com o raciocínio desligado), o OpenRouter (um
+modelo gratuito, quase sempre cheio) e, no fim, a reserva na própria
+Groq (`gpt-oss-20b`) — no fim desde 29/09/2026, por ter sido o único a
+errar números nas leituras julgadas nesse dia. Todos gratuitos; a conta de 28/09/2026 dava ~20 concursos por
 dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
 publicado.
 
@@ -1461,8 +1490,8 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
 - **Exportação da triagem**: `empresas/<id>/triagem.jsonl`, por
   empresa, só local (desde 23/09/2026 não vai ao GitHub).
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
-  a cadeia de fornecedores (a Groq, o Cerebras, a reserva na Groq, a
-  NVIDIA e o OpenRouter) até alguém responder.
+  a cadeia de fornecedores (a Groq, o Cerebras, a NVIDIA, o OpenRouter
+  e a reserva na Groq) até alguém responder.
 
 ---
 
