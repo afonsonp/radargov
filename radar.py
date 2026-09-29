@@ -20,6 +20,7 @@ Arranque:  python radar.py             painel em http://127.0.0.1:8765
            python radar.py --importar-cpv F   carrega o vocabulario CPV
 """
 
+import base64
 import bisect
 import contextlib
 import contextvars
@@ -1331,6 +1332,15 @@ def iniciar_db():
         # migracoes. A primeira vez sao uns segundos para a base inteira.
         c.execute("UPDATE anuncios SET titulo_norm=simplifica(titulo), "
                   "entidade_norm=simplifica(entidade) WHERE titulo_norm IS NULL")
+        # Um ORIGINAL nunca e 'alteracao': esse estado e so de quem
+        # altera outro (`altera` preenchido). Entre 1 e 15/09/2026 o
+        # aplicar_alteracao() contava uma alteracao ja ligada como
+        # "decidida" e copiava o estado dela para o original -- e o
+        # original sumia de todas as listas e da pesquisa, com as pecas
+        # lidas na mesma. Achado a 29/09/2026 no 20666/2026: 61
+        # originais, 24 de prazo aberto. Corre sempre (0,07 s).
+        c.execute("UPDATE anuncios SET estado='novo' WHERE "
+                  "estado='alteracao' AND COALESCE(altera,'')=''")
         # A chave da entidade das propostas que ainda não a têm (fase 2
         # do `docs/historico/CICLOS.md`): do anúncio pela `ref`, e do
         # nome que a própria proposta guarda quando não há anúncio
@@ -5795,13 +5805,34 @@ PLATAFORMAS_COM_PECAS = ("acingov", "vortal", "compraspt", "anogov")
 #   compraspt  a referencia interna, o objecto e o tipo por cima da
 #              lista dos documentos. Nao existe outra -- o resto da
 #              aplicacao e JSF por POST, sem endereco proprio.
-#   acingov    **nao ha.** A lista publica tem um botao "consultar
-#              procedimento" que so abre "para aceder a este
-#              procedimento inicie sessao". O que se pode oferecer e a
-#              pesquisa publica, e o botao di-lo em vez de prometer.
+#   acingov    nao ha pagina PUBLICA, mas ha a do fornecedor com sessao
+#              iniciada, e o id dela esta no link das pecas: o
+#              ".../donwloadProcedurePiece/MTEzMTQxOA" e o base64 de
+#              "1131418", o idProcesso (29/09/2026: 670 dos 671 de prazo
+#              aberto; o que sobra traz "idProcesso=" as claras). Sem id,
+#              fica a pesquisa publica.
 VORTAL_PROCEDIMENTO = "https://community.vortal.biz/Public/contract-notice-view/%s/"
 ACINGOV_PESQUISA = ("https://www.acingov.pt/acingovprod/2/zonaPublica/"
                     "zona_publica_c/indexProcedimentos")
+ACINGOV_PROCEDIMENTO = ("https://www.acingov.pt/acingovprod/1/?mod=proposta"
+                        "&action=detailsProcedimento&option=informacaoGeral"
+                        "&idProcesso=%s")
+
+
+def id_do_processo_acingov(link):
+    """O idProcesso da acingov a partir do link das pecas, ou ''."""
+    m = re.search(r"idProcesso=(\d+)", link or "")
+    if m:
+        return m.group(1)
+    m = re.search(r"donwloadProcedurePiece/([A-Za-z0-9+/_-]+)", link or "")
+    if not m:
+        return ""
+    cifra = m.group(1)
+    try:
+        id_ = base64.urlsafe_b64decode(cifra + "=" * (-len(cifra) % 4)).decode()
+    except (ValueError, UnicodeDecodeError):
+        return ""
+    return id_ if id_.isdigit() else ""
 
 
 def link_do_procedimento(a):
@@ -5825,6 +5856,11 @@ def link_do_procedimento(a):
             return ("/procedimento/" + quote(a["ref"], safe=""),
                     "Abrir na Vortal", "a página do procedimento")
     if plat == "acingov":
+        id_ = id_do_processo_acingov(link)
+        if id_:
+            return (ACINGOV_PROCEDIMENTO % id_, "Abrir na acingov",
+                    "a página do procedimento — pede sessão iniciada "
+                    "na acingov")
         return (ACINGOV_PESQUISA, "Procurar na acingov",
                 "a acingov não tem página pública do procedimento — só se "
                 "vê com sessão iniciada; isto abre a pesquisa pública")
@@ -27704,11 +27740,18 @@ def ficha(ref):
                     % (html.escape(destino, quote=True),
                        html.escape(dica, quote=True), html.escape(rotulo),
                        icone("externo")))
-    if a["link_pecas"] and a["link_pecas"] != destino:
+    # Na Vortal as duas paginas dao no mesmo sitio (29/09/2026, dito por
+    # ele): fica um botao so. Na acingov o link das pecas descarrega um
+    # ZIP, e o botao passa a dize-lo antes do clique.
+    plat = (a["plataforma"] or "").strip()
+    if a["link_pecas"] and a["link_pecas"] != destino and plat != "vortal":
         sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
                     "title='o endereço das peças que o anúncio indica'>"
-                    "Peças na plataforma %s</a>"
-                    % (html.escape(a["link_pecas"], quote=True), icone("externo")))
+                    "%s %s</a>"
+                    % (html.escape(a["link_pecas"], quote=True),
+                       "Descarregar as peças (ZIP)"
+                       if "donwloadProcedurePiece" in a["link_pecas"]
+                       else "Peças na plataforma", icone("externo")))
     sem_empresa = empresa_activa() == SEM_EMPRESA
     if not minhas and not e_alteracao and not sem_empresa:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),

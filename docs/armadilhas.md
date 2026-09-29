@@ -139,6 +139,15 @@ O DR, a Vortal, e como um anúncio entra na base.
   763 que já estavam na base ligaram-se por marca (`alteracoes_agrupadas`)
   no arranque; `--reler` volta a passar por tudo.
 
+- **Um original nunca fica em `'alteracao'`, e o arranque garante-o.**
+  Entre 1 e 15/09/2026 o `aplicar_alteracao()` contava uma alteração já
+  ligada como «decidida» (`estado != 'novo'`) e copiava o estado dela
+  para o original: o original sumia de todas as listas e da pesquisa,
+  com as peças lidas na mesma. Ninguém deu por isso durante duas
+  semanas, porque «as leituras estavam a correr». Achado a 29/09/2026 no
+  20666/2026 (61 originais, 24 com o prazo aberto). O `iniciar_db()`
+  devolve a `'novo'` todo o `'alteracao'` com o `altera` vazio.
+
 - **A pesquisa da Vortal dá a linha; o CPV e o NIPC vêm do detalhe.**
   Os 16 campos do `SearchTenders` são título, entidade, datas, estado
   e tipo — **nenhum é CPV nem NIPC**. Até 01/09/2026 guardava-se a
@@ -295,11 +304,14 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   não pode ir à rede a cada abertura); na anogov/ComprasPT/ESPAP o
   próprio `acessoDocs.jsp` é a página do procedimento (traz referência
   interna, objecto e tipo — não há outra, o resto da aplicação é JSF
-  por POST); **na acingov não existe** — medido a 01/09/2026, o botão
-  "consultar procedimento" da lista pública só abre "para aceder a
-  este procedimento inicie sessão" —, por isso o botão diz "Procurar
-  na acingov" e abre a pesquisa pública. Não inventes um endereço de
-  procedimento para a acingov sem voltar a medir.
+  por POST); **na acingov não há página pública** (medido a 01/09/2026),
+  mas há a do fornecedor com sessão iniciada, e o id dela está no link
+  das peças: `…/donwloadProcedurePiece/MTEzMTQxOA` é o base64 de
+  `1131418`, o `idProcesso` (`id_do_processo_acingov()`,
+  `ACINGOV_PROCEDIMENTO`; 29/09/2026, com o endereço que ele deu). Sem
+  id, o botão diz "Procurar na acingov" e abre a pesquisa pública. O
+  segundo botão, o das peças, **sai na Vortal** (as duas páginas davam
+  no mesmo sítio) e **na acingov diz que é um ZIP**.
 
 - **A pesquisa nas peças (B09) foi implementada e retirada no mesmo
   dia** (30/08/2026), por decisão do Afonso: as peças só existem depois

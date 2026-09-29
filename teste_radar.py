@@ -8088,15 +8088,35 @@ class TestLinkDoProcedimento(unittest.TestCase):
                          "contract-notice-view/PT1.NTC.8/"))
         self.assertIn("PT1.NTC.8", destino)
 
-    def test_acingov_nao_promete_o_que_nao_ha(self):
+    def test_acingov_leva_ao_procedimento_pelo_id_do_link_das_pecas(self):
+        # 20666/2026: o link das peças acaba no base64 de 1131418, que é
+        # o idProcesso da página do procedimento (29/09/2026)
         destino, rotulo, dica = radar.link_do_procedimento(
-            self._a("acingov", "https://www.acingov.pt/.../"
-                               "donwloadProcedurePiece/MTEz"))
+            self._a("acingov", "https://www.acingov.pt/acingovprod/2/"
+                               "zonaPublica/zona_publica_c/"
+                               "donwloadProcedurePiece/MTEzMTQxOA"))
         # nunca o link do ZIP: era isso que o botão fazia
         self.assertNotIn("donwloadProcedurePiece", destino)
+        self.assertEqual(destino, radar.ACINGOV_PROCEDIMENTO % "1131418")
+        self.assertIn("acingov", rotulo)
+        self.assertIn("sessão iniciada", dica)
+
+    def test_acingov_com_o_idprocesso_as_claras(self):
+        destino, _, _ = radar.link_do_procedimento(
+            self._a("acingov", "https://www.acingov.pt/acingovprod/1/"
+                               "?mod=processo&action=detailsProcesso"
+                               "&idProcesso=1146973"))
+        self.assertEqual(destino, radar.ACINGOV_PROCEDIMENTO % "1146973")
+
+    def test_acingov_sem_id_nao_promete_o_que_nao_ha(self):
+        destino, rotulo, dica = radar.link_do_procedimento(
+            self._a("acingov", "https://www.acingov.pt"))
         self.assertEqual(destino, radar.ACINGOV_PESQUISA)
         self.assertIn("Procurar", rotulo)
         self.assertIn("sessão iniciada", dica)
+        # um base64 que não dá número não vira id
+        self.assertEqual(radar.id_do_processo_acingov(
+            "https://x/donwloadProcedurePiece/YWJj"), "")
 
     def test_anogov_o_acessodocs_e_a_pagina_do_procedimento(self):
         link = ("https://www.anogov.com/x/faces/app/acessoDocs.jsp"
@@ -8109,6 +8129,43 @@ class TestLinkDoProcedimento(unittest.TestCase):
     def test_sem_link_nenhum_nao_ha_botao(self):
         destino, _, _ = radar.link_do_procedimento(self._a("", ""))
         self.assertIsNone(destino)
+
+
+class TestOsBotoesDaPlataformaNaFicha(BaseTemporaria):
+    """29/09/2026, ele: na Vortal os dois botões («Abrir na Vortal» e
+    «Peças na plataforma») davam no mesmo sítio, e na acingov o das
+    peças descarregava um ZIP sem o dizer."""
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "pedir_documentos", lambda ref: None))
+
+    def _ficha(self, plat, link):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " prazo, estado, detalhe_lido, texto, url, plataforma,"
+                      " link_pecas) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                      ("70/2026", "Software", "IPL", "2026-09-01",
+                       "2099-12-30", "novo", 1, "1 - Objecto",
+                       "https://exemplo/70", plat, link))
+        return self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
+
+    def test_vortal_tem_um_botao_so(self):
+        h = self._ficha("vortal", "https://community.vortal.biz/Public/"
+                                  "public-tender-documents/AbC")
+        self.assertIn("Abrir na Vortal", h)
+        self.assertNotIn("Peças na plataforma", h)
+        self.assertNotIn("public-tender-documents/AbC", h)
+
+    def test_acingov_abre_o_procedimento_e_o_zip_diz_que_e_zip(self):
+        h = self._ficha("acingov", "https://www.acingov.pt/acingovprod/2/"
+                                   "zonaPublica/zona_publica_c/"
+                                   "donwloadProcedurePiece/MTEzMTQxOA")
+        self.assertIn(html.escape(radar.ACINGOV_PROCEDIMENTO % "1131418",
+                                  quote=True), h)
+        self.assertIn("Descarregar as peças (ZIP)", h)
 
 
 class TestInteresse(unittest.TestCase):
@@ -11724,6 +11781,20 @@ class TestAlteracoesDoDR(BaseTemporaria):
         # de uma empresa --, e quem nao deixa passar e a pergunta de
         # cada empresa.
         self.assertEqual(radar.alteracoes_por_avisar(), [])
+
+    def test_o_original_marcado_como_alteracao_volta_as_listas(self):
+        # 20666/2026: entre 1 e 15/09/2026 o original herdava o estado
+        # 'alteracao' da sua alteracao e sumia da lista e da pesquisa,
+        # com as pecas lidas na mesma. O arranque repoe-no; a alteracao
+        # fica onde esta.
+        self._poe("100/2026", "2026-07-17", self._texto(), estado="alteracao",
+                  alterado_por="200/2026")
+        self._poe("200/2026", "2026-08-14",
+                  self._texto(prazo="11-09-2026", altera="100/2026"),
+                  estado="alteracao")
+        radar.iniciar_db()
+        self.assertEqual(self._le("100/2026")["estado"], "novo")
+        self.assertEqual(self._le("200/2026")["estado"], "alteracao")
 
     def test_um_marcado_alterado_vai_para_a_fila_do_resumo(self):
         self._poe("100/2026", "2026-07-17", self._texto(), estado="interessa")
