@@ -738,10 +738,12 @@ o botão «Verificar agora», a conta que envia o e-mail e os pedidos de
 acesso do site — tudo na **administração da plataforma**, no menu da
 tua conta. Não vês o trabalho de nenhuma empresa: a tua conta não é
 de nenhuma, e tudo o que não é da plataforma leva-te de volta a ela. O
-**admin** de uma empresa cria e tira as contas **dela** e diz quem ela é
-(nome e NIF). O **tester** vê os anúncios, o que está em curso e o
-mercado, e nas configurações só a Conta, o Perfil da empresa, os Alertas e o
-Importar dados; no resumo por e-mail só escolhe para quem e a que hora.
+**admin** de uma empresa — no ecrã, desde 29/09/2026, o **gestor** —
+cria e tira as contas **dela**, diz quem ela é (nome e NIF) e é o único
+que muda o Perfil da empresa. O **tester** — no ecrã, o **utilizador** —
+vê os anúncios, o que está em curso e o mercado, e nas configurações só
+a Conta, o Perfil da empresa (só para ler), os Alertas e o Importar
+dados; no resumo por e-mail só escolhe para quem e a que hora.
 
 **A administração da plataforma** (menu da tua conta › administração
 da plataforma, desde 26/09/2026) lê-se de cima para baixo:
@@ -790,10 +792,11 @@ empresa, e o admin dela vê-o em Configurações › Conta, «Acessos do
 suporte». Não precisas de pedir a palavra-passe a ninguém.
 
 **Suspender uma empresa** (na página dela): a pergunta diz quantas
-contas deixam de entrar e quantas sessões abertas se fecham; as contas
-dela deixam de entrar (vêem «acesso suspenso», com o teu endereço dos
-avisos e um botão «Sair») e deixam de receber alertas, e as
-sessões abertas fecham-se. Não se apaga nada; **Reactivar** põe tudo
+contas deixam de entrar; as contas dela deixam de entrar (vêem «acesso
+suspenso», com o teu endereço dos avisos e um botão «Sair») e deixam de
+receber alertas. Quem estava dentro vê o mesmo «acesso suspenso» logo
+no clique seguinte (desde 29/09/2026 as sessões não se apagam: caíam no
+site sem uma palavra). Não se apaga nada; **Reactivar** põe tudo
 como estava.
 
 **Os pedidos de acesso** têm, ao lado do «aceitar…», um **recusar**
@@ -819,7 +822,7 @@ computador. Não há tema escuro: ainda não passa o contraste mínimo.
 
 **Quando alguém se esquece da palavra-passe** (desde 26/09/2026) não há
 e-mail de recuperação — o ecrã de entrar diz para pedir ao
-administrador da empresa. Quem repõe:
+gestor da empresa. Quem repõe:
 
 - o **admin da empresa**, para as contas dela: em Configurações ›
   Conta, na lista dos utilizadores, **repor palavra-passe**;
@@ -842,9 +845,14 @@ cima:
 .venv/bin/python radar.py --palavra-passe admin
 ```
 
-Cinco tentativas erradas em quinze minutos, pelo mesmo utilizador ou pelo
-mesmo IP, e a porta espera; as falhas ficam nos Indicadores, na série
-dos erros, que é como se vê se alguém anda a bater à porta.
+Cinco tentativas erradas em quinze minutos na mesma conta, e essa conta
+espera (desde 29/09/2026; o escritório inteiro, que é um IP só, só
+fecha às trinta); o ecrã diz a que horas se pode tentar de novo. As
+ligações de repor abertas com um código que não existe têm a sua conta
+à parte, e não fecham a entrada. As falhas ficam em
+administração da plataforma › Erros, e lá em cima está cada **trinco
+fechado** com o botão **Levantar o trinco** — quando souberes quem
+errou, não tens de o mandar esperar.
 
 ### O segundo factor da tua conta (desde 28/09/2026)
 

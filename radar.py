@@ -1050,10 +1050,40 @@ def passar_as_notas(c):
               "WHERE TRIM(COALESCE(notas, '')) != ''")
 
 
+# A marca do maior número de empresa que alguma vez se deu (D10 da 3.ª
+# ronda, decisão dele: «não reutilizar»). Vive na tabela `estado` do
+# radar.db, que não sai com a empresa.
+MARCA_DA_MAIOR_EMPRESA = "maior_empresa"
+RX_EMPRESA_APAGADA = re.compile(r"^empresa-(\d+)-apagada-(\d{4}-\d{2}-\d{2})")
+
+
+def empresas_apagadas():
+    """{número: 'AAAA-MM-DD'} das empresas apagadas, pelas pastas que o
+    `apagar_empresa()` deixa em `copias/`. Serve o «(apagada a …)» dos
+    pedidos, e as apagadas antes da marca MARCA_DA_MAIOR_EMPRESA."""
+    try:
+        nomes = os.listdir(COPIAS)
+    except OSError:
+        return {}
+    apagadas = {}
+    for n in nomes:
+        m = RX_EMPRESA_APAGADA.match(n)
+        if m:
+            apagadas[int(m.group(1))] = max(m.group(2), apagadas.get(int(m.group(1)), ""))
+    return apagadas
+
+
 def criar_empresa(nome):
-    """Uma empresa nova: o ficheiro dela, com o numero a seguir ao maior,
-    e o nome no config.json dela. Devolve o numero (F4)."""
-    id_ = max(empresas_existentes() or [EMPRESA_ACTIVA]) + 1
+    """Uma empresa nova: o ficheiro dela, com o número a seguir ao MAIOR
+    QUE ALGUMA VEZ EXISTIU, e o nome no config.json dela. Devolve o
+    número (F4).
+
+    Era o maior dos que existem: apagada a última, a nova herdava-lhe o
+    número, e o «aceite: empresa 4» de um pedido antigo passava a abrir
+    outra empresa (3.ª ronda, G57; D10)."""
+    id_ = max(empresas_existentes() + list(empresas_apagadas())
+              + [EMPRESA_ACTIVA, int(le_marca(MARCA_DA_MAIOR_EMPRESA, "0") or 0)]) + 1
+    marca(MARCA_DA_MAIOR_EMPRESA, id_)
     iniciar_empresa(db_da_empresa(id_))
     with com_empresa(id_):
         gravar_config({"nome_da_empresa": " ".join(nome.split())[:120],
@@ -8824,6 +8854,8 @@ def apagar_empresa(id_):
     if id_ not in empresas_existentes():
         raise ValueError("a empresa %s não existe (há: %s)"
                          % (id_, empresas_existentes()))
+    # o número não volta a ser dado (D10), nem que a pasta em copias/ saia
+    marca(MARCA_DA_MAIOR_EMPRESA, max(id_, int(le_marca(MARCA_DA_MAIOR_EMPRESA, "0") or 0)))
     copia = copia_de_seguranca_com_nome("antes-de-apagar-a-empresa-%d" % id_)
     guardada = os.path.join(COPIAS, "empresa-%d-apagada-%s" % (
         id_, datetime.now().strftime("%Y-%m-%d-%H%M%S")))
@@ -12081,9 +12113,14 @@ ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
                  "/verificar", "/alertas/remetente", "/pedidos-de-acesso")
 # O que so o admin DA EMPRESA abre (13/09/2026): as contas dela e quem
 # ela e (nome e NIF).
+# E o Perfil da empresa (D7 da 3.ª ronda, 29/09/2026, decisão dele): o
+# perfil recorta os concursos de toda a equipa, e o utilizador que o
+# mudava mudava a vista dos colegas sem saber. Só gravar: a página
+# (/configuracoes/interesse) continua a abrir-se, só para ler.
 ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
                   "/configuracoes/conta/empresa", "/arranque",
-                  "/configuracoes/documentos")
+                  "/configuracoes/documentos",
+                  "/alertas/interesse", "/configuracoes/propostas")
 
 
 def sou_dono():
@@ -12129,6 +12166,7 @@ def so_dono(caminho):
 # mais poderosa so mudava a palavra-passe pela consola. Por IGUALDADE:
 # `/configuracoes/conta/utilizadores` e o resto da conta sao da empresa.
 CONTA_DO_DONO = ("/configuracoes/conta", "/configuracoes/conta/aspecto",
+                 "/configuracoes/conta/sessoes/terminar",
                  "/ajuda", "/configuracoes/conta/ligacao",
                  # o segundo factor (28/09/2026), que e so do dono
                  "/configuracoes/conta/segundo-factor/ligar",
@@ -12137,7 +12175,10 @@ CONTA_DO_DONO = ("/configuracoes/conta", "/configuracoes/conta/aspecto",
 
 # Os unicos POST que passam com o dono a ver uma empresa: sair do modo
 # de suporte, e sair da sessao.
-PODE_A_VER_COMO = ("/plataforma/ver-como/sair", "/sair", "/sair-de-todos")
+# Sem o «/sair-de-todos» (G52 da 3.ª ronda): no modo de suporte dava um 500
+# (o registo caía no ficheiro só de leitura) e fechava na mesma as
+# sessões do dono. As sessões dele fecham-se na conta dele, fora do modo.
+PODE_A_VER_COMO = ("/plataforma/ver-como/sair", "/sair")
 
 
 def empresa_a_ver(utilizador):
@@ -12404,7 +12445,7 @@ def porta_de_entrada():
         return Response("esta conta não é de nenhuma empresa", 403,
                         mimetype="text/plain")
     if so_admin(request.path) and not sou_admin():
-        return _recusa("só o admin abre isto", recado_so_do_admin())
+        return _recusa("só o gestor abre isto", recado_so_do_admin())
     if request.method == "POST":
         if g.sessao:
             apresentado = (request.form.get("csrf")
@@ -12517,13 +12558,20 @@ def _recusa(frase, texto):
         titulo_aba="Não é para aqui"), 403, mimetype="text/html")
 
 
-def recado_so_do_admin():
-    """A quem pedir o que so o admin da empresa faz, pelo nome (G17)."""
+def gestores_da_empresa():
+    """« (Ana, Rui)» -- os gestores da empresa activa, para dizer a quem
+    pedir; «» sem nenhum."""
     nomes = [u["nome"] or u["email"] for u in _contas_da_empresa_toda()
              if u["papel"] == "admin"]
-    return ("Só o administrador da empresa%s abre esta página e muda o que "
+    return " (%s)" % ", ".join(nomes) if nomes else ""
+
+
+def recado_so_do_admin():
+    """A quem pedir o que so o admin da empresa faz, pelo nome (G17). No
+    ecrã o admin chama-se «gestor» (D7 da 3.ª ronda)."""
+    return ("Só o gestor da empresa%s abre esta página e muda o que "
             "ela tem. Se precisa de alguma coisa daqui, peça-lhe."
-            % (" (%s)" % ", ".join(nomes) if nomes else ""))
+            % gestores_da_empresa())
 
 
 def _contas_da_empresa_toda():
@@ -12542,6 +12590,32 @@ def recusado(_erro):
     # texto (`_recusa()`), e a sessao em falta tem pagina propria
     # (`_sessao_em_falta()`).
     return pagina_de_erro(403)
+
+
+# As rotas só de POST com um sítio certo para onde um GET volta (G59 da
+# 3.ª ronda): o formulário de onde vieram.
+VOLTA_DO_GET = {"/pedir-acesso": "/#acesso",
+                "/configuracoes/propostas": "/configuracoes/interesse"}
+
+
+@app.errorhandler(405)
+def metodo_errado(_erro):
+    """Um GET numa rota que só grava dava o 405 cru do Werkzeug, em
+    inglês e sem estilo (3.ª ronda, G59) -- e chega-se lá ao recarregar
+    depois de um POST falhado, ou por um endereço copiado. As que têm um
+    formulário conhecido voltam a ele; as outras dizem o que aconteceu e
+    levam ao Hoje. A porta já correu antes: sem sessão, quem chega aqui
+    por uma rota fechada foi para o /entrar."""
+    if request.method in ("GET", "HEAD") and request.path in VOLTA_DO_GET:
+        return redirect(VOLTA_DO_GET[request.path])
+    resposta = Response(PAGINA_ERRO % {
+        "css": LIGACAO_CSS, "titulo": "Este endereço só grava",
+        "texto": "Este endereço serve só para gravar um formulário, e "
+                 "abri-lo não faz nada. Volte à página de onde veio e grave "
+                 "de lá.",
+        "logo": logotipo(tamanho=24)}, 405, mimetype="text/html")
+    resposta.headers["Allow"] = ", ".join(sorted(getattr(_erro, "valid_methods", None) or ["POST"]))
+    return resposta
 
 
 @app.errorhandler(OverflowError)
@@ -12770,7 +12844,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="c
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
- <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao administrador da sua empresa uma ligação para a repor.</p>
+ <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao gestor da sua empresa uma ligação para a repor.</p>
  <p class="entrar-nota">Sem conta? <a href="/#acesso">Peça acesso</a>.</p>
  </div></section>
 </main></body></html>"""
@@ -12853,7 +12927,8 @@ def entrar():
                       resultado))
         return pagina_entrar(resultado, email=email,
                              para=request.form.get("para"),
-                             codigo=429 if "espera" in resultado else 200)
+                             codigo=429 if "demasiadas tentativas" in resultado
+                             else 200)
     return _sessao_aberta(token, resultado, request.form.get("para"))
 
 
@@ -12944,12 +13019,17 @@ def bloco_da_conta():
                 "%s"
                 "<form method='post' action='/sair'>"
                 "<button type='submit'>sair</button></form>"
-                "<form method='post' action='/sair-de-todos'>"
-                "<button type='submit'>sair de todos os aparelhos</button>"
-                "</form></div></details>"
+                "%s</div></details>"
                 % (_iniciais(nome), html.escape(nome), empresa_,
                    "<a class='sou-conta' href='/plataforma'>administração "
-                   "da plataforma</a>" if sou_dono() else ""))
+                   "da plataforma</a>" if sou_dono() else "",
+                   # no modo de suporte não (G52 da 3.ª ronda): dava 500 e
+                   # fechava as sessões do dono; e pede confirmação (G58)
+                   "" if g.get("ver_como") is not None else
+                   "<form method='post' action='/sair-de-todos' onsubmit=\"return "
+                   "confirm('Sair de todos os aparelhos? Todas as sessões desta "
+                   "conta se fecham, esta também.')\">"
+                   "<button type='submit'>sair de todos os aparelhos</button></form>"))
     if nome:
         return ("<div class='sou'><div class='so-nome mg-topbar__user'>"
                 "<span class='mg-avatar'>%s</span><span class='sou-quem'>%s%s"
@@ -14995,6 +15075,12 @@ PROPOSTAS = "/propostas"
 # dele): so se chegava la pelo «Em jogo» do Hoje -- o rastreio de 70
 # paginas achou uma ligacao unica para `/situacao`. Vive a seguir as
 # Propostas, que sao o que ela conta.
+# O que o dono sem empresa tem na barra: só o Mercado, que é de todas.
+# Os Concursos saíram (G61 da 3.ª ronda): sem empresa nada foi visto, e
+# «Expirou sem ver 199 178» não queria dizer nada. A rota continua a
+# abrir-se-lhe (`dono_le()`), só não está na barra.
+NAV_DO_DONO = ("mercado",)
+
 NAV = (("anuncios", "Concursos", LISTA, ()),
        ("propostas", "Propostas", PROPOSTAS, ()),
        ("situacao", "Situação", "/situacao", ()),
@@ -15705,7 +15791,7 @@ def barra_de_baixo(activo, item_activo, sem_empresa):
     ao leitor de ecrã."""
     visiveis = [(chave, etiqueta, destino)
                 for chave, etiqueta, destino, _ in NAV
-                if not (sem_empresa and chave not in ("anuncios", "mercado"))]
+                if not (sem_empresa and chave not in NAV_DO_DONO)]
     por_chave = {chave: (etiqueta, destino) for chave, etiqueta, destino in visiveis}
     ordem = [ch for ch in DESTINOS_DE_BAIXO if ch in por_chave]
     principais, resto = ordem[:QUANTOS_EM_BAIXO], ordem[QUANTOS_EM_BAIXO:]
@@ -15776,7 +15862,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     # o «nao abre nada» dele.
     sem_empresa = empresa_activa() == SEM_EMPRESA
     for chave, etiqueta, destino, vistas in NAV:
-        if sem_empresa and chave not in ("anuncios", "mercado"):
+        if sem_empresa and chave not in NAV_DO_DONO:
             continue
         no_item = chave == item_activo
         # `aria-current="page"` e nao uma classe `.on` (fase 2 da
@@ -15968,7 +16054,7 @@ def faixa_de_suporte():
             "document.querySelectorAll('form[method=post i] button,"
             "form[method=post i] input[type=submit],form[method=post i] select')"
             ".forEach(function(b){var a=b.form?b.form.getAttribute('action')||'':'';"
-            "if(/^[/](plataforma[/]ver-como[/]sair|sair|sair-de-todos)$/.test(a))return;"
+            "if(/^[/](plataforma[/]ver-como[/]sair|sair)$/.test(a))return;"
             "b.disabled=true;b.title='Só leitura: no modo de suporte nada se grava.';"
             "});});</script>"
             % (icone("ver") or "", html.escape(_nome_da_empresa_n(g.ver_como))))
@@ -19343,7 +19429,18 @@ def _conteudo_interesse():
            _local_e_valor_do_interesse(cfg),
            arvore_html(n_cpv, "anuncios", aberta=True,
                        botao="Guardar o perfil", rodape=False)))
-    return formulario + _cartao_das_listas_da_proposta(cfg)
+    conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
+    if sou_admin():
+        return ("<p class='nota' style='margin:0 0 12px'>O perfil vale para "
+                "toda a empresa: o que se grava aqui recorta os concursos de "
+                "toda a equipa.</p>" + conteudo)
+    # O utilizador vê o perfil e não o muda (D7): os campos ficam
+    # desligados, e a porta recusa o POST na mesma (ROTAS_SO_ADMIN).
+    return ("<div class='mg-alert mg-alert--info' style='margin:0 0 12px'>O "
+            "perfil vale para toda a empresa, e só o gestor%s o muda. Se "
+            "precisa de outro recorte, peça-lhe.</div>"
+            "<fieldset disabled style='border:0;padding:0;margin:0;min-width:0'>"
+            "%s</fieldset>" % (html.escape(gestores_da_empresa()), conteudo))
 
 
 def _cartao_das_listas_da_proposta(cfg):
@@ -19536,7 +19633,9 @@ def _caixa_email(cfg):
 
     # Quem nao e dono ve so o destino e a hora (13/09/2026; F4); a conta
     # que envia e do sistema, e so o dono a ve -- a porta recusa-lhe o POST.
-    if not sou_dono():
+    # No «ver como» o dono ve o que a empresa ve (G54 da 3.ª ronda): o
+    # cartao era dele, e podia cita-lo a um cliente que nao o tem.
+    if not sou_dono() or g.get("ver_como") is not None:
         return (
             "<div class='mg-card conf-email'>"
             "<div class='mg-field__label'>Resumo por e-mail</div>"
@@ -20173,6 +20272,7 @@ def a_tratar_hoje(empresas):
         pedidos = c.execute("SELECT COUNT(*) n, MIN(criado_em) primeiro FROM "
                             "pedidos_acesso WHERE COALESCE(estado,'') = ''").fetchone()
         convites = contas.convites_por_usar(c)
+        trincos = len(contas.trincos_fechados(c))
     erros = erros_por_ver()
     if pedidos["n"]:
         fora.append(("%d pedido%s de acesso por decidir — o primeiro chegou %s"
@@ -20200,6 +20300,10 @@ def a_tratar_hoje(empresas):
         if e["tecto"] and e["leituras_hoje"] >= e["tecto"]:
             fora.append(("%s chegou ao tecto das leituras de hoje (%d)"
                          % (e["nome"], e["tecto"]), "/plataforma/empresa/%d" % e["id"]))
+    if trincos:
+        fora.append(("%d trinco%s de entrada fechado%s agora"
+                     % (trincos, "" if trincos == 1 else "s", "" if trincos == 1 else "s"),
+                     "/plataforma/erros#trincos"))
     if erros:
         fora.append(("%d erro%s por ver nas últimas 24 horas"
                      % (erros, "" if erros == 1 else "s"), "/plataforma/erros"))
@@ -20245,11 +20349,11 @@ def plataforma_erros():
     corpo_tabela = "".join(
         "<tr%s>%s%s%s%s</tr>" % (
             "" if l["visto_em"] else " class='por-ver'",
-            _celula("Quando", html.escape(data_hora_pt(l["quando"]))),
-            _celula("Onde", html.escape(ONDE_FOI_O_ERRO.get(l["tipo"], l["tipo"] or "—"))),
-            _celula("O erro", "<span class='erro-texto'>%s</span>"
+            _celula_da_tabela("Quando", html.escape(data_hora_pt(l["quando"]))),
+            _celula_da_tabela("Onde", html.escape(ONDE_FOI_O_ERRO.get(l["tipo"], l["tipo"] or "—"))),
+            _celula_da_tabela("O erro", "<span class='erro-texto'>%s</span>"
                     % html.escape(l["texto"] or "")),
-            _celula("Visto", html.escape(data_hora_pt(l["visto_em"]))
+            _celula_da_tabela("Visto", html.escape(data_hora_pt(l["visto_em"]))
                     if l["visto_em"] else "<span class='mg-tag %s'>por ver</span>"
                     % tom("aviso")))
         for l in linhas)
@@ -20264,7 +20368,8 @@ def plataforma_erros():
                     "bt", campos={"ate": str(por_ver[0]["id"])})
               if por_ver else "")
     return envolver(
-        "configuracoes", "Erros", "", "<div class='larg'>%s</div>" % tabela,
+        "configuracoes", "Erros", "", "<div class='larg'>%s%s</div>"
+        % (_cartao_dos_trincos(), tabela),
         titulo_aba="Erros · Plataforma",
         cabeca=cabecalho_de_pagina(
             "Erros das últimas 24 horas",
@@ -20272,6 +20377,54 @@ def plataforma_erros():
             "que ainda não se deram por vistos." % (mil_pt(len(por_ver)),
                                                     mil_pt(len(linhas))),
             [("Plataforma", "/plataforma"), ("Erros", "")], accoes))
+
+
+def _cartao_dos_trincos():
+    """Os trincos fechados agora, cada um com «Levantar» (D2 da 3.ª ronda):
+    o dono via «demasiadas tentativas» nos erros e só podia dizer ao
+    cliente «espere quinze minutos»."""
+    with liga() as c:
+        fechados = contas.trincos_fechados(c)
+    if not fechados:
+        return ""
+    def quem(chave, tipo):
+        if tipo == "ip":
+            return "o endereço %s (todas as contas)" % chave
+        if chave.startswith(contas.PREFIXO_DO_REPOR):
+            return ("as ligações de repor abertas de %s"
+                    % chave[len(contas.PREFIXO_DO_REPOR):])
+        return "a conta %s" % chave
+    linhas = "".join(
+        "<li><span>Fechado para %s, até às %s</span>%s</li>"
+        % (html.escape(quem(chave, tipo)),
+           (datetime.now() + timedelta(seconds=espera)).strftime("%H:%M"),
+           accao("/plataforma/trinco/levantar", "Levantar o trinco", "bt-leve",
+                 campos={tipo: chave},
+                 rotulo="Levantar o trinco de %s" % quem(chave, tipo)))
+        for chave, tipo, espera in fechados)
+    return cartao("Trincos fechados", "<ul class='a-tratar'>%s</ul>" % linhas,
+                  meta="Cinco palavras-passe erradas fecham a conta durante %d "
+                       "minutos; %d fecham o endereço. Levante-o quando souber "
+                       "quem errou." % (contas.MINUTOS_DE_TRINCO,
+                                        contas.FALHAS_ATE_TRINCO_DO_IP),
+                  id_="trincos") + "<div style='margin-top:22px'></div>"
+
+
+@app.route("/plataforma/trinco/levantar", methods=["POST"])
+def plataforma_levantar_trinco():
+    """Tira as entradas falhadas de uma conta ou de um endereço (D2). Só o
+    dono: vive debaixo de /plataforma/ (ROTAS_SO_DONO, por prefixo), e o
+    POST leva o CSRF da sessão, como todos os de dentro da porta."""
+    conta = (request.form.get("conta") or "").strip()
+    ip = (request.form.get("ip") or "").strip()
+    if not conta and not ip:
+        abort(400)
+    with liga() as c:
+        n = contas.levantar_trinco(c, email=conta, ip=ip)
+    registar_evento("", "conta", "levantou o trinco de %s (%d falhas)"
+                    % (conta or ip, n), quem=quem_sou() or "")
+    return _volta_a("/plataforma/erros", "Trinco levantado: %s pode entrar."
+                    % (conta or ip))
 
 
 @app.route("/plataforma/erros/vistos", methods=["POST"])
@@ -20294,7 +20447,7 @@ def plataforma_erros_vistos():
         "1 erro dado" if n == 1 else "%d erros dados" % n, "o" if n == 1 else "os"))
 
 
-def _celula(rotulo, valor, classe=""):
+def _celula_da_tabela(rotulo, valor, classe=""):
     """Uma celula das tabelas da plataforma, com o rotulo da coluna para
     o telemovel (`data-r`, a regra `.tab-plataforma`)."""
     return "<td%s%s>%s</td>" % (" data-r='%s'" % html.escape(rotulo, quote=True)
@@ -20360,16 +20513,16 @@ def administracao_da_plataforma():
                               "COALESCE(estado,'') = ''").fetchone()[0]
     linhas = "".join(
         "<tr>%s%s%s%s%s%s%s</tr>" % (
-            _celula("N.º", "%d" % e["id"], "mg-num"),
-            _celula("Empresa", "<a href='/plataforma/empresa/%d'>%s</a>"
+            _celula_da_tabela("N.º", "%d" % e["id"], "mg-num"),
+            _celula_da_tabela("Empresa", "<a href='/plataforma/empresa/%d'>%s</a>"
                     % (e["id"], html.escape(e["nome"]))),
-            _celula("Estado", "<span class='mg-tag %s'>%s</span>"
+            _celula_da_tabela("Estado", "<span class='mg-tag %s'>%s</span>"
                     % (tom("mau") if e["suspensa"] else tom("ok"),
                        "suspensa" if e["suspensa"] else "activa")),
-            _celula("Contas", "%d" % e["contas"], "mg-num"),
-            _celula("Última entrada", html.escape(ha_quanto(e["ultima"]))),
-            _celula("Propostas em curso", "%d" % e["activas"], "mg-num"),
-            _celula("Leituras", "%d este mês · hoje %d/%d"
+            _celula_da_tabela("Contas", "%d" % e["contas"], "mg-num"),
+            _celula_da_tabela("Última entrada", html.escape(ha_quanto(e["ultima"]))),
+            _celula_da_tabela("Propostas em curso", "%d" % e["activas"], "mg-num"),
+            _celula_da_tabela("Leituras", "%d este mês · hoje %d/%d"
                     % (e["leituras_mes"], e["leituras_hoje"], e["tecto"])))
         for e in empresas)
     tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
@@ -20397,19 +20550,22 @@ def administracao_da_plataforma():
             "<li><span>%s</span><a href='%s'>ver</a></li>"
             % (html.escape(frase), html.escape(ligacao, quote=True))
             for frase, ligacao in tratar)) if tratar else ""
+    # A ordem é a da manhã (G60 da 3.ª ronda, V4 P9 da ronda em PC): o
+    # que está mal, o que há para tratar, as empresas, o sistema -- e só
+    # no fim a Recolha e o Correio, que se usam uma vez e estavam a meio.
     corpo = (
         "<div class='larg'>%s%s"
         "<h2 class='mg-field__label' style='margin:22px 0 6px'>Empresas</h2>%s"
-        "<div style='margin-top:22px'>%s</div><div style='margin-top:22px'>%s</div>"
         "<h2 class='mg-field__label' style='margin:22px 0 6px'>O sistema</h2>"
         "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
         "<a class='mg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
         "<b>Pedidos de acesso</b><div class='nota'>%s por decidir</div></a>"
         "<a class='mg-card conf-cx' href='/configuracoes/conta' style='display:block'>"
         "<b>A minha conta</b><div class='nota'>a palavra-passe e as sessões</div></a>"
-        "</div></div>"
+        "</div><div style='margin-top:22px'>%s</div><div style='margin-top:22px'>%s</div>"
+        "</div>"
         % (_html_dos_semaforos(semaforos_da_plataforma()), tratar_html, tabela,
-           recolha, _bloco_do_correio(cfg), seccoes, pendentes))
+           seccoes, pendentes, recolha, _bloco_do_correio(cfg)))
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que está mal, o que há para "
                     "fazer hoje, e as empresas.", corpo)
@@ -20496,49 +20652,55 @@ def plataforma_empresa(id_):
     fecha_sessoes = sum(sessoes.get(u["id"], 0) for u in contas_ if not u["dono"])
     linhas_contas = "".join(
         "<tr>%s%s%s%s%s</tr>" % (
-            _celula("Utilizador", html.escape(u["email"])),
-            _celula("Tipo", html.escape(papel_no_ecra(u["papel"])
+            _celula_da_tabela("Utilizador", html.escape(u["email"])),
+            _celula_da_tabela("Papel", html.escape(papel_no_ecra(u["papel"])
                                         + (" · dono" if u["dono"] else ""))),
-            _celula("Última entrada", html.escape(
+            _celula_da_tabela("Última entrada", html.escape(
                 data_hora_pt((u["ultimo_acesso"] or "")[:16], "nunca"))),
-            _celula("Sessões abertas", "%d" % sessoes.get(u["id"], 0), "mg-num"),
-            _celula("", accao("/plataforma/contas/%d/repor" % u["id"],
+            _celula_da_tabela("Sessões abertas", "%d" % sessoes.get(u["id"], 0), "mg-num"),
+            _celula_da_tabela("", accao("/plataforma/contas/%d/repor" % u["id"],
                               "repor palavra-passe", "mini",
                               rotulo="Gerar a ligação para repor a palavra-passe "
                               "de %s" % u["email"])))
         for u in contas_)
     bloco_contas = cartao(
         "Contas", ("<table class='mg-table tab-plataforma'><thead><tr><th>Utilizador</th>"
-                   "<th>Tipo</th><th>Última entrada</th><th>Sessões abertas</th>"
+                   "<th>Papel</th><th>Última entrada</th><th>Sessões abertas</th>"
                    "<th><span class='so-leitor'>Acções</span></th></tr></thead>"
                    "<tbody>%s</tbody></table>" % linhas_contas)
         if contas_ else "<p class='nota'>Ainda ninguém criou conta: está à espera "
                         "de um convite.</p>", id_="contas")
     linhas_convites = "".join(
         "<tr>%s%s%s%s%s</tr>" % (
-            _celula("Para", html.escape(cv["email"] or "sem endereço")),
-            _celula("Tipo", html.escape(papel_no_ecra(cv["papel"]))),
-            _celula("Criado", html.escape(data_hora_pt(cv["criado_em"][:16]))),
-            _celula("Vale até", ("<span class='mg-tag %s'>acabou</span>" % tom("mau")
+            _celula_da_tabela("Para", html.escape(cv["email"] or "sem endereço")),
+            _celula_da_tabela("Papel", html.escape(papel_no_ecra(cv["papel"]))),
+            _celula_da_tabela("Criado", html.escape(data_hora_pt(cv["criado_em"][:16]))),
+            _celula_da_tabela("Vale até", ("<span class='mg-tag %s'>acabou</span>" % tom("mau")
                                  if cv["expira"] <= agora else "")
                     + html.escape(data_hora_pt(cv["expira"][:16]))),
-            _celula("", "<div class='mg-row' style='gap:6px;flex-wrap:wrap'>%s%s</div>"
+            _celula_da_tabela("", "<div class='mg-row' style='gap:6px;flex-wrap:wrap'>%s%s</div>"
                     % (accao("/plataforma/convites/%d/renovar" % cv["id"], "gerar de novo",
                              "mini", rotulo="Gerar uma ligação nova para este convite"),
                        accao("/plataforma/convites/%d/anular" % cv["id"], "anular",
                              "mini cuidado", "Anular este convite? A ligação deixa de servir.",
-                             rotulo="Anular o convite para %s" % (cv["email"] or "sem endereço")))))
+                             rotulo=("Anular o convite para %s" % cv["email"] if cv["email"]
+                                     else "Anular o convite de %s criado a %s"
+                                     % (papel_no_ecra(cv["papel"]).lower(),
+                                        data_pt((cv["criado_em"] or "")[:10])))))))
         for cv in convites)
     bloco_convites = cartao(
         "Convites por usar",
-        ("<table class='mg-table tab-plataforma'><thead><tr><th>Para</th><th>Tipo</th>"
+        ("<table class='mg-table tab-plataforma'><thead><tr><th>Para</th><th>Papel</th>"
          "<th>Criado</th><th>Vale até</th><th><span class='so-leitor'>Acções</span></th>"
          "</tr></thead><tbody>%s</tbody></table>" % linhas_convites
          if convites else "<p class='nota'>Nenhum.</p>")
         + "<form class='form-email' method='post' action='/plataforma/empresa/%d/convite' "
-          "style='margin-top:16px'><label>Novo convite, de"
+          "style='margin-top:16px'><label>Para <span class='nota'>(opcional)</span>"
+          "<input class='mg-field__input' type='email' name='email' "
+          "autocomplete='off' placeholder='nome@empresa.pt'></label>"
+          "<label>Papel"
           "<select class='mg-field__input' name='papel'>"
-          "<option value='admin'>Administrador</option><option value='tester'>Utilizador"
+          "<option value='admin'>Gestor</option><option value='tester'>Utilizador"
           "</option></select></label><button type='submit' class='mg-btn mg-btn--secondary'>"
           "Criar convite</button></form>" % id_,
         meta="A ligação só se vê ao criá-la: «gerar de novo» anula a antiga e mostra "
@@ -20573,9 +20735,7 @@ def plataforma_empresa(id_):
                       % (e["nome"], plural(fecha_contas, "conta"),
                          "" if fecha_contas == 1 else "m",
                          "não há sessões abertas" if not fecha_sessoes else
-                         ("a sessão aberta fecha-se já" if fecha_sessoes == 1
-                          else "as %d sessões abertas fecham-se já"
-                          % fecha_sessoes))))
+                         "quem está dentro vê já «Acesso suspenso»")))
     stats = "<div class='mg-stats'>%s%s%s%s</div>" % (
         kpi("Contas", "%d" % e["contas"],
             "última entrada %s" % ha_quanto(e["ultima"])),
@@ -20612,8 +20772,14 @@ def plataforma_criar_convite(id_):
     papel = (request.form.get("papel") or "admin").strip()
     if papel not in contas.PAPEIS:
         abort(400)
+    # o endereço, opcional (G61): sem ele o convite ficava «para: sem
+    # endereço», e quem o recebia não tinha o utilizador pré-preenchido
+    email = (request.form.get("email") or "").strip()
+    if email and not RX_EMAIL.fullmatch(email):
+        return _volta_a("/plataforma/empresa/%d#convites" % id_,
+                        "«%s» não é um e-mail." % corta(email, 60), erro=True)
     with liga() as c:
-        codigo = contas.criar_convite(c, id_, "", papel)
+        codigo = contas.criar_convite(c, id_, email, papel)
     registar_evento("", "convite", "criou um convite (%s) para a empresa %d"
                     % (papel, id_), quem=quem_sou() or "")
     return _mostrar_convite(e, codigo, papel)
@@ -20656,12 +20822,17 @@ def ligacao_uma_vez():
     """A ligação acabada de criar, com o botão «Copiar». Recarregar não
     cria outra: a segunda vez diz que já se mostrou."""
     l = _POR_MOSTRAR.pop(g.get("sessao") or "", None)
-    if not l:
+    if l and "ligacao" in l:
+        # fica só o «voltar» (G61 da 3.ª ronda): ao recarregar, o Voltar
+        # levava o dono à /plataforma e não à empresa de onde veio
+        _POR_MOSTRAR[g.get("sessao") or ""] = {"voltar": l["voltar"]}
+    if not l or "ligacao" not in l:
         corpo = ("<div class='mg-card conf-cx'><p>Esta ligação já se mostrou e "
                  "não se volta a ver. Se se perdeu, gere outra: a anterior "
                  "deixa de servir.</p><p style='margin-top:14px'><a href='%s'>"
                  "Voltar</a></p></div>"
-                 % ("/plataforma" if sou_dono() else "/configuracoes/conta"))
+                 % html.escape(l["voltar"] if l else "/plataforma" if sou_dono()
+                               else "/configuracoes/conta", quote=True))
     else:
         corpo = (
             "<div class='mg-card conf-cx'>"
@@ -20721,12 +20892,11 @@ def plataforma_suspender(id_, gesto):
     depois = (antes | {id_}) if gesto == "suspender" else (antes - {id_})
     gravar_config_registado({"empresas_suspensas": sorted(depois)},
                             quem=quem_sou() or "")
-    if gesto == "suspender":
-        # as sessoes abertas dela fecham-se: suspender com alguem la
-        # dentro nao era suspender
-        with liga() as c:
-            c.execute("DELETE FROM sessoes WHERE utilizador_id IN (SELECT id FROM "
-                      "utilizadores WHERE empresa_id=? AND dono=0)", (id_,))
+    # As sessões abertas dela NÃO se apagam (G53 da 3.ª ronda): apagadas,
+    # quem estava dentro caía no site público sem uma palavra. A porta
+    # recusa-lhes tudo menos o sair a partir do pedido seguinte -- com a
+    # página «Acesso suspenso», a mesma de quem tenta entrar --, e isso é
+    # que é suspender. Ao reactivar, voltam onde estavam.
     with com_empresa(id_):
         registar("", "suporte", "empresa %s pelo dono da plataforma"
                  % ("suspensa" if gesto == "suspender" else "reactivada"))
@@ -21588,15 +21758,34 @@ def config_conta():
         suporte = [dict(r) for r in c.execute(
             "SELECT quem, detalhe, quando FROM historico WHERE accao='suporte' "
             "ORDER BY id DESC LIMIT 10")] if da_empresa else []
-    # "iPhone até 10/10/2026 14:35", nao o User-Agent inteiro (13/09/2026)
+    # "iPhone até 10/10/2026 14:35", nao o User-Agent inteiro (13/09/2026);
+    # e o ultimo uso e «terminar» em cada uma (G58 da 3.ª ronda)
     linhas = "".join(
         "<div class='l'><span class='ponto' style='background:%s'></span>"
-        "<span class='t'>%s%s</span><span class='v'>até %s</span></div>"
+        "<span class='t'>%s%s</span><span class='v'>usada %s &middot; até %s%s</span></div>"
         % ("var(--success)" if s_["token"] == g.get("sessao") else "var(--line-strong)",
            aparelho_do_agente(s_["agente"]),
            " (esta)" if s_["token"] == g.get("sessao") else "",
-           html.escape(data_hora_pt(s_["expira"][:16])))
+           html.escape(ha_quanto(s_["usada_em"])),
+           html.escape(data_hora_pt(s_["expira"][:16])),
+           "" if s_["token"] == g.get("sessao") else " &middot; " + accao(
+               "/configuracoes/conta/sessoes/terminar", "terminar", "mini",
+               campos={"n": s_["n"]},
+               rotulo="Terminar a sessão de %s" % aparelho_do_agente(s_["agente"])))
         for s_ in sessoes) or "<div class='nota'>nenhuma sessão: a entrada é pelo acesso livre local</div>"
+    if g.get("ver_como") is not None:
+        # No «ver como» (G52 e G54 da 3.ª ronda): a palavra-passe, as
+        # sessões, o aspecto e o segundo factor que aqui estavam eram os do
+        # DONO, e o «Sair de todos» fechava-lhe as sessões com um 500. O
+        # que fica é o que o gestor da empresa vê, e diz porquê.
+        corpo = ("<div class='mg-alert mg-alert--info'>A palavra-passe, as "
+                 "sessões e o aspecto são de cada pessoa: no modo de suporte "
+                 "seriam os seus, e não os da empresa, e por isso não se "
+                 "mostram. O resto é o que o gestor da empresa vê.</div>")
+        if da_empresa:
+            corpo += (_bloco_da_empresa() + _bloco_utilizadores(todos, utilizador["id"])
+                      + _bloco_dos_convites(convites) + _bloco_do_suporte(suporte))
+        return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
     corpo = (
         "<form method='post' action='/configuracoes/conta' class='conf-form'>"
         + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled")
@@ -21611,7 +21800,10 @@ def config_conta():
         + "<div class='mg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
         + "<div class='saude'>%s</div>" % linhas
         + ("<div style='margin-top:14px'>%s</div>"
-           % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt")
+           % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt",
+                   # G58 da 3.ª ronda: fechava tudo, esta incluída, sem perguntar
+                   "Sair de todos os aparelhos? As %d sessões desta conta "
+                   "fecham-se, esta também, e volta à entrada." % len(sessoes))
            if sessoes else ""))
     corpo += _bloco_do_aspecto(utilizador)
     if contas.pode_ter_segundo_factor(utilizador):
@@ -21651,6 +21843,26 @@ def _bloco_do_aspecto(utilizador):
             "conta, em todos os aparelhos.</div>"
             "<button type='submit' class='mg-btn mg-btn--primary'>Guardar o aspecto</button>"
             "</form>" % opcoes)
+
+
+@app.route("/configuracoes/conta/sessoes/terminar", methods=["POST"])
+def config_terminar_sessao():
+    """Fecha uma sessão da própria conta (G58 da 3.ª ronda). A guarda é a
+    da porta -- sessão e CSRF, e no modo de suporte recusa --, e o
+    `contas.terminar_sessao()` só fecha as da conta de quem pede."""
+    utilizador = g.get("utilizador")
+    try:
+        n = int(request.form.get("n") or 0)
+    except ValueError:
+        n = 0
+    if not utilizador or not n:
+        abort(400)
+    with liga() as c:
+        fechou = contas.terminar_sessao(c, utilizador["id"], n)
+    if fechou:
+        registar("", "conta", "terminou uma sessão", quem=utilizador.get("nome"))
+    return volta_config("conta", "Sessão terminada." if fechou
+                        else "Essa sessão já não estava aberta.")
 
 
 @app.route("/configuracoes/conta/aspecto", methods=["POST"])
@@ -22004,7 +22216,7 @@ def config_documento_apagar(id_):
 # Os papéis como o ecrã os diz (segunda ronda, glossário do revisor de
 # texto): «admin» e «tester» são as chaves gravadas, em inglês, e o
 # «tester» nem dizia o que a conta faz.
-PAPEL_NO_ECRA = {"admin": "Administrador", "tester": "Utilizador"}
+PAPEL_NO_ECRA = {"admin": "Gestor", "tester": "Utilizador"}
 
 
 def papel_no_ecra(papel):
@@ -22038,7 +22250,7 @@ def _bloco_utilizadores(todos, eu):
         for u in todos)
     return (
         "<div class='mg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
-        "<div class='nota' style='margin-bottom:10px'><b>Administrador</b>: "
+        "<div class='nota' style='margin-bottom:10px'><b>Gestor</b>: "
         "gere as contas e os dados da empresa. <b>Utilizador</b>: trabalha "
         "nos concursos e nas propostas, sem mexer nas contas.</div>"
         "<div class='saude'>%s</div>"
@@ -22050,18 +22262,18 @@ def _bloco_utilizadores(todos, eu):
         "<div class='nota' style='flex:1 1 100%%'><b>Convidar um colega</b>: "
         "cria-se uma ligação, manda-se ao colega, e é ele que escolhe o nome "
         "e a palavra-passe. Vale %d dias, e só uma vez.</div>"
-        "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
+        "<label class='conf-campo'><span>Papel</span><select name='papel'>"
         "<option value='tester'>Utilizador</option>"
-        "<option value='admin'>Administrador</option></select></label>"
+        "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
         "<div class='nota' style='margin-top:18px'>Ou criar a conta já, com "
         "a palavra-passe:</div>"
         "<form method='post' action='/configuracoes/conta/utilizadores' "
         "class='conf-form' style='margin-top:8px'>"
         "%s%s"
-        "<label class='conf-campo'><span>Tipo</span><select name='papel'>"
+        "<label class='conf-campo'><span>Papel</span><select name='papel'>"
         "<option value='tester'>Utilizador</option>"
-        "<option value='admin'>Administrador</option></select></label>"
+        "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar utilizador</button></form>"
         % (linhas, contas.DIAS_DE_CONVITE,
            _campo("Utilizador", "email", "", extra="autocomplete='off'"),
@@ -22303,7 +22515,7 @@ def conta_convidar():
     nem no historico: e ela que da entrada, e na base fica so o resumo."""
     papel = (request.form.get("papel") or "tester").strip()
     if papel not in contas.PAPEIS:
-        return volta_config_erro("conta", "O tipo tem de ser Administrador ou Utilizador.")
+        return volta_config_erro("conta", "O papel tem de ser Gestor ou Utilizador.")
     with liga() as c:
         codigo = contas.criar_convite(c, empresa_activa(), "", papel)
     registar("", "conta", "criou um convite (%s)" % papel)
@@ -31125,13 +31337,39 @@ def pedidos_de_acesso():
         linhas = c.execute("SELECT * FROM pedidos_acesso "
                            "ORDER BY id DESC LIMIT 500").fetchall()
     existem = empresas_existentes()
+    apagadas = empresas_apagadas()
+    desde, nomes = {}, {}
+    for id_ in existem:
+        with com_empresa(id_):
+            cfg_ = ler_config()
+            desde[id_] = cfg_.get("empresa_desde") or ""
+            nomes[id_] = cfg_.get("nome_da_empresa") or ""
+
+    def outra_empresa(l, id_):
+        """A empresa que lá está com esse número não é a que o pedido deu
+        (G57): chegou DEPOIS da decisão, e herdou o número de uma apagada
+        -- antes de os números deixarem de se reutilizar (D10)."""
+        chegou = desde.get(id_) or ""
+        if not chegou:
+            return False
+        decidido = (l["decidido_em"] or "")[:10]
+        if decidido:
+            return decidido < chegou
+        # os aceites de antes de 29/09/2026 não guardavam o dia: o pedido
+        # é anterior à empresa E o nome não é o que o pedido deu
+        return ((l["criado_em"] or "")[:10] < chegou
+                and simplifica(nomes.get(id_) or "")
+                != simplifica(l["empresa"] or l["nome"] or ""))
 
     def decisao(l):
         if l["estado"] == "aceite":
-            return ("<a href='/plataforma/empresa/%d'>aceite: empresa %d</a>"
-                    % (l["empresa_id"], l["empresa_id"])
-                    if l["empresa_id"] in existem
-                    else "aceite: empresa %d" % (l["empresa_id"] or 0))
+            id_ = l["empresa_id"] or 0
+            if id_ in existem and not outra_empresa(l, id_):
+                return ("<a href='/plataforma/empresa/%d'>aceite: empresa %d</a>"
+                        % (id_, id_))
+            return ("aceite: empresa %d (apagada%s)"
+                    % (id_, " a %s" % data_pt(apagadas[id_])
+                       if id_ in apagadas else ""))
         if l["estado"] == "recusado":
             return "recusado a %s: %s" % (html.escape(data_pt((l["decidido_em"] or "")[:10])),
                                           html.escape(l["motivo"] or ""))
@@ -31139,13 +31377,19 @@ def pedidos_de_acesso():
                 "<a class='mg-btn mg-btn--sm mg-btn--primary' "
                 "href='/pedidos-de-acesso/%d/aceitar'>aceitar&hellip;</a>"
                 "<form class='accao' method='post' action='/pedidos-de-acesso/%d/recusar' "
+                "onsubmit=\"return confirm(%s)\" "
                 "style='display:flex;gap:6px;flex-wrap:wrap;align-items:center'>"
                 "<input class='mg-field__input' type='text' name='motivo' required "
                 "maxlength='300' placeholder='motivo' aria-label='Motivo da recusa do "
                 "pedido de %s' style='width:12em'>"
                 "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
                 "recusar</button></form></div>"
-                % (l["id"], l["id"], html.escape(l["empresa"] or l["nome"], quote=True)))
+                % (l["id"], l["id"],
+                   # G58: recusar não se desfaz, e não perguntava
+                   html.escape(json.dumps("Recusar o pedido de %s? Fica recusado, "
+                                          "com o motivo, e não se desfaz."
+                                          % (l["empresa"] or l["nome"])), quote=True),
+                   html.escape(l["empresa"] or l["nome"], quote=True)))
 
     if linhas:
         corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
@@ -31155,15 +31399,15 @@ def pedidos_de_acesso():
                  "</table></div>"
                  % "".join(
                      "<tr>%s%s%s%s%s%s%s%s</tr>" % (
-                         _celula("Quando", html.escape(data_hora_pt(l["criado_em"])), "mg-num"),
-                         _celula("Nome", html.escape(l["nome"])),
-                         _celula("Empresa", html.escape(l["empresa"])),
-                         _celula("E-mail", "<a href='mailto:%s'>%s</a>"
+                         _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criado_em"])), "mg-num"),
+                         _celula_da_tabela("Nome", html.escape(l["nome"])),
+                         _celula_da_tabela("Empresa", html.escape(l["empresa"])),
+                         _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>"
                                  % (html.escape(l["email"], quote=True), html.escape(l["email"]))),
-                         _celula("Sector", html.escape(l["sector"])),
-                         _celula("Mensagem", html.escape(l["mensagem"] or "")),
-                         _celula("Aviso por e-mail", html.escape(l["avisado"] or "a enviar")),
-                         _celula("Decisão", decisao(l)))
+                         _celula_da_tabela("Sector", html.escape(l["sector"])),
+                         _celula_da_tabela("Mensagem", html.escape(l["mensagem"] or "")),
+                         _celula_da_tabela("Aviso por e-mail", html.escape(l["avisado"] or "a enviar")),
+                         _celula_da_tabela("Decisão", decisao(l)))
                      for l in linhas))
     else:
         corpo = ("<div class='mg-empty'>Ainda não chegou nenhum pedido pelo "
@@ -31211,7 +31455,7 @@ utilizador e a palavra-passe:
 %(ligacao)s
 
 A ligação serve uma vez e é válida durante %(dias)d dias. A conta é a
-de administrador da %(empresa)s: pode criar a seguir as contas dos
+de gestor da %(empresa)s: pode criar a seguir as contas dos
 colegas, em Configurações › Conta.
 
 Mira Gov
@@ -31227,6 +31471,11 @@ Mira Gov
 CPV_DO_SECTOR = {"Obras públicas e construção": "45000000",
                  "Tecnologias de informação": "72000000|48000000"}
 RX_CPV_NA_MENSAGEM = re.compile(r"\b(\d{8})(?:-\d)?\b")
+# «CPV 909», «cpv: 4521» -- o prefixo que quem pede escreve à mão (G56 da
+# 3.ª ronda): só os códigos de 8 algarismos entravam, e o ecrã dizia
+# «vem do que a mensagem diz» com o campo vazio. Completa-se a 8 com
+# zeros, como o `_perfil_do_formulario()` faz.
+RX_CPV_CURTO_NA_MENSAGEM = re.compile(r"\bcpv\s*[:n.º°o]*\s*(\d{2,7})\b", re.I)
 
 
 def perfil_do_pedido(p):
@@ -31237,6 +31486,8 @@ def perfil_do_pedido(p):
     mensagem = p["mensagem"] or ""
     cpv = [c for c in (CPV_DO_SECTOR.get(p["sector"] or "") or "").split("|") if c]
     cpv += [c for c in RX_CPV_NA_MENSAGEM.findall(mensagem) if c not in cpv]
+    cpv += [c.ljust(8, "0") for c in RX_CPV_CURTO_NA_MENSAGEM.findall(mensagem)
+            if c.ljust(8, "0") not in cpv]
     simples = simplifica(mensagem)
     distritos = [d for d in DISTRITOS
                  if re.search(r"\b%s\b" % re.escape(simplifica(d)), simples)]
@@ -31286,7 +31537,7 @@ def _formulario_do_aceitar(p, aviso=""):
         "<div class='mg-field__label' style='flex:1 1 100%%'>O perfil da "
         "empresa nova</div>"
         "<p class='nota' style='flex:1 1 100%%'>O site promete «configuramos o "
-        "perfil consigo». Vem do sector e do que a mensagem diz; afine-o antes "
+        "perfil consigo». %s; afine-o antes "
         "de aceitar, ou deixe-o vazio e a empresa define-o depois.</p>"
         "%s"
         "<fieldset class='dist-interesse' style='flex:1 1 100%%'><legend>"
@@ -31305,6 +31556,8 @@ def _formulario_do_aceitar(p, aviso=""):
            html.escape(p["sector"] or "—"),
            ("<p class='nota'>«%s»</p>" % html.escape(p["mensagem"]))
            if p["mensagem"] else "",
+           "Vem do sector e do que a mensagem diz" if (cpv or distritos)
+           else "O sector e a mensagem não chegaram para o sugerir: escreva-o",
            _campo("CPV", "cpv", cpv, nota="códigos separados por «|», ex. "
                   "45000000|71000000; afina-se depois na árvore, em "
                   "Configurações › Perfil da empresa"),
@@ -31345,8 +31598,11 @@ def aceitar_pedido(id_):
         gravar_config(dict(perfil, email={"para": p["email"]}))
     with liga() as c:
         codigo = contas.criar_convite(c, empresa_id, p["email"], "admin", id_)
-        c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=? "
-                  "WHERE id=?", (empresa_id, id_))
+        # o dia da decisão também no aceite (G57): é por ele que a lista
+        # dos pedidos sabe se a empresa com este número ainda é a deste
+        c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=?, "
+                  "decidido_em=? WHERE id=?",
+                  (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id_))
     ligacao = endereco_do_painel() + "/convite/" + codigo
     cfg = _junta(dict(ler_config()), {"email": {"para": p["email"]}})
     try:
@@ -31365,11 +31621,16 @@ def aceitar_pedido(id_):
     return envolver(
         "configuracoes", "Pedido aceite",
         "A empresa %d, %s, foi criada." % (empresa_id, p["empresa"]),
-        "<div class='larg'><div class='mg-card conf-cx'><p>%s</p><p>%s</p>"
+        # o número e a ligação no corpo (G56 da 3.ª ronda): o subtítulo
+        # passava despercebido, e confirmar a empresa era voltar à lista
+        "<div class='larg'><div class='mg-card conf-cx'><p><b>Empresa n.º %d "
+        "criada</b> &mdash; <a href='/plataforma/empresa/%d'>abrir a página "
+        "dela</a>.</p><p>%s</p><p>%s</p>"
         "<p>A ligação, que serve uma vez e dura %d dias:</p>"
         "<p><code>%s</code></p><p><a href='/pedidos-de-acesso'>voltar aos "
         "pedidos</a></p></div></div>"
-        % (envio, ("Perfil da empresa: %s." % descricao_do_interesse(perfil))
+        % (empresa_id, empresa_id, envio,
+           ("Perfil da empresa: %s." % descricao_do_interesse(perfil))
            if perfil["interesse_activo"] else
            "Sem perfil: a empresa define-o no primeiro dia.",
            contas.DIAS_DE_CONVITE, html.escape(ligacao)))
@@ -31397,15 +31658,29 @@ FORMULARIO_DO_CONVITE = """<form method="post">
  </form>"""
 
 
-def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True):
+def _de_quem_e_o_convite(convite_):
+    """«Convite para a X, com o papel de gestor.» e os termos (G55 da 3.ª
+    ronda): o ecrã não dizia onde se entrava nem com que papel, e com um
+    convite «sem endereço» quem o recebia não sabia de onde vinha."""
+    legal = ("<p class='entrar-nota'>Ao criar a conta aceita os "
+             "<a href='/termos'>termos de utilização</a> e a "
+             "<a href='/privacidade'>política de privacidade</a>.</p>"
+             if operador_completo() else "")
+    return ("<p class='nota'>Convite para <b>%s</b>, com o papel de <b>%s</b>.</p>"
+            % (html.escape(_nome_da_empresa_n(convite_["empresa_id"])),
+               html.escape(papel_no_ecra(convite_["papel"]).lower())), legal)
+
+
+def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True, convite_=None):
+    antes, depois = _de_quem_e_o_convite(convite_) if convite_ else ("", "")
     return Response(PAGINA_CONVITE % {
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=28),
         "aviso": ("<div class='mg-alert mg-alert--%s'>%s</div>"
                   % ("danger" if erro else "info", html.escape(aviso))
                   if aviso else ""),
-        "formulario": (FORMULARIO_DO_CONVITE
-                       % {"utilizador": html.escape(utilizador, quote=True)}
+        "formulario": (antes + FORMULARIO_DO_CONVITE
+                       % {"utilizador": html.escape(utilizador, quote=True)} + depois
                        if utilizador is not None else
                        "<p><a href='/entrar'>Ir para a entrada</a></p>"),
     }, codigo, mimetype="text/html")
@@ -31422,19 +31697,21 @@ def convite(codigo):
     with liga() as c:
         convite_, porque = contas.convite_valido(c, codigo)
     if not convite_:
-        return pagina_convite(porque[0].upper() + porque[1:] + ".",
+        return pagina_convite(porque[0].upper() + porque[1:] + ". Peça outro "
+                              "ao gestor da sua empresa.",
                               codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
         return pagina_convite("Escolha o nome de utilizador e a palavra-passe "
                               "(8 caracteres ou mais).",
-                              utilizador=convite_["email"], erro=False)
+                              utilizador=convite_["email"], erro=False,
+                              convite_=convite_)
     if not origem_e_nossa():
         return pagina_convite("O pedido veio de outro sítio.", codigo=403)
     utilizador = (request.form.get("utilizador") or "").strip()
     senha = request.form.get("senha") or ""
     if senha != (request.form.get("outra") or ""):
         return pagina_convite("As duas palavras-passe não são iguais.",
-                              utilizador=utilizador)
+                              utilizador=utilizador, convite_=convite_)
     try:
         with liga() as c:
             token, porque = contas.usar_convite(
@@ -31442,10 +31719,10 @@ def convite(codigo):
                 agente=request.headers.get("User-Agent") or "")
     except ValueError as erro:
         return pagina_convite("Não criei a conta: %s." % erro,
-                              utilizador=utilizador)
+                              utilizador=utilizador, convite_=convite_)
     if not token:
         return pagina_convite(porque[0].upper() + porque[1:] + ".",
-                              utilizador=utilizador)
+                              utilizador=utilizador, convite_=convite_)
     registar_evento("", "conta", "convite usado: %s (empresa %d)"
                     % (contas.email_limpo(utilizador), convite_["empresa_id"]),
                     quem="radar")
@@ -31487,9 +31764,11 @@ def pagina_repor(aviso="", utilizador=None, codigo=200, erro=True):
 
 def _chave_do_trinco_de_repor():
     """O trinco da ligacao de repor e por IP, e so por IP: com uma chave
-    comum, cinco codigos errados de um qualquer fechavam a porta a todos."""
+    comum, cinco codigos errados de um qualquer fechavam a porta a todos.
+    E e so do repor (G50, 3.ª ronda): estas falhas nao contam no trinco
+    do /entrar (`contas.PREFIXO_DO_REPOR`)."""
     ip = request.remote_addr or ""
-    return "repor:" + ip, ip
+    return contas.PREFIXO_DO_REPOR + ip, ip
 
 
 @app.route("/repor/<codigo>", methods=["GET", "POST"])
@@ -31503,14 +31782,16 @@ def repor(codigo):
     with liga() as c:
         espera = contas.segundos_de_trinco(c, chave, ip)
         if espera:
-            return pagina_repor("Demasiadas tentativas; espera %d s." % espera,
-                                codigo=429)
+            recado = contas.recado_do_trinco(espera)
+            return pagina_repor(recado[0].upper() + recado[1:] + ".", codigo=429)
         reposicao, porque = contas.reposicao_valida(c, codigo)
-        if not reposicao:
+        # So um codigo que NAO EXISTE conta (G50): uma ligacao ja usada ou
+        # fora do prazo e verdadeira, e abri-la cinco vezes nao e adivinhar.
+        if not reposicao and "não existe" in porque:
             contas.registar_falha(c, chave, ip)
     if not reposicao:
         return pagina_repor(porque[0].upper() + porque[1:] + ". Peça outra "
-                            "ao administrador da sua empresa.",
+                            "ao gestor da sua empresa.",
                             codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
         return pagina_repor("Escolha a palavra-passe nova. Ao guardar, as "
@@ -31634,7 +31915,8 @@ def entrar_codigo():
             return resposta
         return pagina_do_codigo(resultado[0].upper() + resultado[1:] + ".",
                                 recuperacao, para,
-                                codigo=429 if "espera" in resultado else 200)
+                                codigo=429 if "demasiadas tentativas" in resultado
+                             else 200)
     if resultado["codigo_usado"] == "recuperacao":
         with liga() as c:
             faltam = contas.codigos_por_usar(c, resultado["id"])

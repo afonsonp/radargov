@@ -47,7 +47,8 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    aceita um POST traz a guarda **dentro de si**: o `/pedir-acesso`
    (origem, armadilha, tectos), o `/convite/<código>` e, desde
    26/09/2026, o `/repor/<código>` (o código de 32 bytes guardado só em
-   resumo, a origem, o prazo, o uso único e um trinco por IP) e, desde
+   resumo, a origem, o prazo, o uso único e um trinco por IP, só dele —
+   não conta no do `/entrar`) e, desde
    28/09/2026, o `/entrar/codigo` do segundo factor (o pendente, só em
    resumo, cinco minutos e cinco tentativas, o trinco e a origem).
    **Uma porta que abra sessões passa pelo `contas.entrar()`**, que é
@@ -98,7 +99,8 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
 
 Com um utilizador, atrás de um túnel autenticado pela Cloudflare:
 dependências desactualizadas, e limite de pedidos fora do login — no
-login existe, e é o trinco por conta e IP do `contas.py`, que faz a
+login existe, e é o trinco do `contas.py` — por conta, com um tecto
+muito mais alto por IP desde 29/09/2026 (D2) —, que faz a
 resposta esperar N segundos ao fim de demasiadas tentativas.
 
 **A lista original também mandava ignorar a falta de cabeçalhos de
