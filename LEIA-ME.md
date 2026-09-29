@@ -1438,6 +1438,7 @@ anúncios, é o teste do parser que avisa primeiro.
 | `radar.db` | os anúncios, as peças lidas, as contas — o que é da plataforma |
 | `empresas/1/empresa.db` | o trabalho da empresa: propostas, tarefas, contactos, histórico (desde 23/09/2026) |
 | `contratos.db` | o corpus de contratos do BASE (refaz-se com `--contratos`) |
+| `contratos-memoria.db` | as contas do Mercado já feitas, para a primeira visita não esperar; apaga-se sem perda e refaz-se sozinho |
 | `copias/` | cópia diária do `radar.db` e do `empresa.db`, sete de cada guardadas |
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
 | `pecas/` | as peças dos concursos que foste buscar |

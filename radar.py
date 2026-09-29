@@ -1328,6 +1328,13 @@ def iniciar_db():
         # filtro pergunta por uma subconsulta que o indice cobre sozinho.
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_distrito "
                   "ON anuncios(distrito, ref)")
+        # As alteracoes de um anuncio (`membros_da_cadeia()`), que a ficha
+        # pergunta sempre: sem indice era um varrimento da tabela larga,
+        # 0,25 s em CADA ficha (lote 10, 29/09/2026). Cobre a consulta;
+        # constroi-se em 0,6 s na base de tamanho real. Depois do ALTER
+        # que cria a coluna `altera`, como o do distrito.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_altera "
+                  "ON anuncios(altera, ref, data_pub)")
         # Enche o que ainda estiver por normalizar. Corre sempre e nao faz
         # nada quando ja esta feito -- e a mesma regra das outras
         # migracoes. A primeira vez sao uns segundos para a base inteira.
@@ -2373,10 +2380,21 @@ def fragmento_local_e_valor(distritos, minimo, maximo=""):
         # `ref`. Com ele varre o `ix_anuncios_cobre` e só confere se a
         # `ref` está na lista: 0,30 s -> 0,19 s por contagem, e são
         # cinco numa página. É o mesmo truque do `GROUP BY +a.chave`.
-        partes.append("+ref IN (SELECT ref FROM anuncios WHERE %s OR "
-                      "distrito LIKE '%%|*|%%')"
-                      % " OR ".join("distrito LIKE ?" for _ in pedidos))
-        valores += ["%%|%s|%%" % d for d in pedidos]
+        # **E pela `rowid`, não pela `ref`** (lote 10, 29/09/2026): o
+        # custo era conferir 200 mil textos contra a lista; um inteiro
+        # confere-se em metade (0,21 -> 0,10 s por contagem), e o
+        # `ix_anuncios_distrito` já a leva, como todo o índice. É a rowid
+        # do mesmo anúncio dentro da mesma consulta -- nada a guardar,
+        # e por isso um VACUUM que as renumere não a estraga.
+        # E por `instr()` e nao por `LIKE` (lote 10): tres vezes mais
+        # depressa a varrer o indice (0,078 -> 0,025 s), e o mesmo -- a
+        # coluna so tem os nomes de `DISTRITOS`, escritos pelo
+        # `distritos_do_texto()`, e os pedidos passam pela mesma lista,
+        # por isso a diferenca de maiusculas do LIKE nunca conta.
+        partes.append("+rowid IN (SELECT rowid FROM anuncios WHERE %s OR "
+                      "instr(distrito, '|*|') > 0)"
+                      % " OR ".join("instr(distrito, ?) > 0" for _ in pedidos))
+        valores += ["|%s|" % d for d in pedidos]
     for bruto, sinal in ((minimo, ">="), (maximo, "<=")):
         v = euros_do_texto(bruto)
         if v is not None:
@@ -2601,7 +2619,7 @@ def janela_urgente(hoje):
 
 
 
-def frag_de_texto(texto, coluna, norma=simplifica, palavras=False):
+def frag_de_texto(texto, coluna, norma=simplifica, palavras=False, indice=None):
     """(fragmento, valores) da procura por palavras: varias separadas
     por |, qualquer uma serve.
 
@@ -2639,10 +2657,17 @@ def frag_de_texto(texto, coluna, norma=simplifica, palavras=False):
         frase = len(p) > 1 and p[0] == p[-1] == '"'
         termos = p.split() if palavras and not frase else [p.strip('"')]
         termos = [t for t in termos if norma(t)] or [p]
-        ands = []
-        for t in termos:
-            ands.append("%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE))
-            vals.append("%" + para_like(norma(t)) + "%")
+        padroes = ["%" + para_like(norma(t)) + "%" for t in termos]
+        # `indice` (lote 10): quem chama pode dar, para os termos que tem
+        # de haver TODOS, uma condicao so pelo indice de texto -- (sql,
+        # valor), ou None para o LIKE de sempre
+        pelo_indice = indice(padroes) if indice else None
+        if pelo_indice:
+            ors.append(pelo_indice[0])
+            vals.append(pelo_indice[1])
+            continue
+        ands = ["%s LIKE ? ESCAPE '%s'" % (coluna, ESCAPE_LIKE)] * len(padroes)
+        vals.extend(padroes)
         ors.append(ands[0] if len(ands) == 1 else "(" + " AND ".join(ands) + ")")
     return "(" + " OR ".join(ors) + ")", vals
 
@@ -10692,6 +10717,10 @@ def liga_corpus():
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA busy_timeout=30000")
+    # O `INSERT OR REPLACE` do importador so dispara o gatilho do DELETE
+    # (o que tira o texto velho do indice de texto) com isto ligado --
+    # ver o `construir_indice_de_texto()`.
+    c.execute("PRAGMA recursive_triggers=ON")
     # Como na liga(): e com ela que a migracao enche objecto_norm.
     c.create_function("simplifica", 1, simplifica)
     return c
@@ -10969,6 +10998,109 @@ def iniciar_corpus():
         # paginas. O indice cobre a consulta inteira.
         c.execute("CREATE INDEX IF NOT EXISTS ix_ctr_tipo "
                   "ON contratos(tipo_procedimento)")
+
+
+# O indice de texto dos objectos (lote 10, 29/09/2026): FTS5 com o
+# tokenizador `trigram`, de conteudo externo (o texto fica so na
+# `contratos`; o indice guarda os trigramas). O `trigram` responde ao
+# proprio `LIKE '%termo%'` -- a mesma semantica de pedaco de palavra que
+# a pesquisa sempre teve --, e conferido numa copia do corpus: as mesmas
+# contagens em «limpeza», «vigilancia», «manutencao», «refeicoes
+# escolares», «cp_2026» e «ab». Medido: 290 s a construir, 609 MB.
+INDICE_DE_TEXTO = "contratos_fts"
+MARCA_DO_INDICE_DE_TEXTO = "indice_de_texto"
+# a marca do corpus em que o indice se viu pronto: com o mesmo ficheiro
+# nao se pergunta outra vez; um corpus refeito ou reposto pergunta
+_TEXTO_PRONTO = []
+
+
+def indice_de_texto_pronto():
+    """Se o indice de texto esta construido. A marca so se escreve na
+    mesma transaccao que o constroi (`construir_indice_de_texto()`), e
+    os gatilhos mantem-no dai em diante; enquanto nao existe, a pesquisa
+    vai pelo `LIKE` de sempre. Visto pronto, nao se pergunta outra vez
+    enquanto o ficheiro for o mesmo (a `marca_do_corpus()`): um corpus
+    refeito do zero ou reposto de uma copia pode nao o ter."""
+    marca = marca_do_corpus()
+    if _TEXTO_PRONTO and _TEXTO_PRONTO[0] == marca:
+        return True
+    if not os.path.exists(CORPUS):
+        return False
+    try:
+        with liga_corpus() as c:
+            pronto = bool(c.execute(
+                "SELECT 1 FROM corpus_estado WHERE chave=? AND valor='ok'",
+                (MARCA_DO_INDICE_DE_TEXTO,)).fetchone())
+    except sqlite3.Error:
+        return False
+    _TEXTO_PRONTO[:] = [marca] if pronto else []
+    return pronto
+
+
+def construir_indice_de_texto(avisar=print):
+    """Constroi o indice de texto, se ainda nao existe. Minutos (290 s no
+    corpus de 2 milhoes): corre SO em fundo -- na vigia do painel
+    (`vigiar_o_corpus()`), nunca no arranque sincrono nem num pedido.
+
+    Os gatilhos e o `rebuild` vao na mesma transaccao: um contrato que
+    entrasse entre os dois ficava fora do indice. A importacao que
+    chegue a meio espera pelo trinco da escrita (o `busy_timeout`). O
+    `INSERT OR REPLACE` do importador apaga sem disparar o gatilho do
+    DELETE a nao ser com `recursive_triggers`, que o `liga_corpus()`
+    liga -- sem isso o indice guardava o texto velho de um contrato
+    substituido, e a pesquisa encontrava-o pelo que ja nao diz."""
+    if indice_de_texto_pronto() or not ha_corpus():
+        return False
+    inicio = time.time()
+    with liga_corpus() as c:
+        c.execute("BEGIN IMMEDIATE")
+        c.execute("CREATE VIRTUAL TABLE IF NOT EXISTS %s USING fts5("
+                  "objecto_norm, content='contratos', content_rowid='id', "
+                  "tokenize='trigram')" % INDICE_DE_TEXTO)
+        for gatilho, quando, corpo in (
+                ("ctr_fts_ins", "AFTER INSERT", "INSERT INTO {t}(rowid, "
+                 "objecto_norm) VALUES (new.id, new.objecto_norm);"),
+                ("ctr_fts_del", "AFTER DELETE", "INSERT INTO {t}({t}, rowid, "
+                 "objecto_norm) VALUES ('delete', old.id, old.objecto_norm);"),
+                ("ctr_fts_upd", "AFTER UPDATE OF objecto_norm",
+                 "INSERT INTO {t}({t}, rowid, objecto_norm) VALUES "
+                 "('delete', old.id, old.objecto_norm); INSERT INTO {t}("
+                 "rowid, objecto_norm) VALUES (new.id, new.objecto_norm);")):
+            c.execute("CREATE TRIGGER IF NOT EXISTS %s %s ON contratos BEGIN "
+                      "%s END" % (gatilho, quando,
+                                  corpo.format(t=INDICE_DE_TEXTO)))
+        c.execute("INSERT INTO %s(%s) VALUES ('rebuild')"
+                  % (INDICE_DE_TEXTO, INDICE_DE_TEXTO))
+        c.execute("INSERT OR REPLACE INTO corpus_estado VALUES (?, 'ok')",
+                  (MARCA_DO_INDICE_DE_TEXTO,))
+        c.commit()
+    avisar("indice de texto dos contratos construido em %.0f s"
+           % (time.time() - inicio))
+    return True
+
+
+def pelo_indice_de_texto(padroes):
+    """(condicao, valor) dos `%termo%` que tem de estar TODOS no objecto,
+    pelo indice de texto -- ou None, e fica o `LIKE` da tabela.
+
+    Pergunta-se por `MATCH` com cada termo como frase entre aspas: no
+    `trigram` uma frase e a sequencia dos trigramas dela, isto e, o
+    termo como pedaco do texto -- o mesmo que o `LIKE '%termo%'` (as
+    colunas e os termos vem os dois do `simplifica()`, sem acentos e em
+    minusculas; conferido numa copia do corpus). O `LIKE` sobre o
+    indice tambem servia, mas confere cada candidato relendo o objecto
+    na `contratos` (0,47 s contra 0,12 em «manutencao»); e os termos
+    juntam-se num `AND` so, que o FTS5 cruza por dentro (0,75 -> 0,11 s
+    em «manutencao elevadores»). So para termos sem nada escapado e com
+    3 letras ou mais (um trigrama, pelo menos)."""
+    termos = [p[1:-1] for p in padroes]
+    if (not termos or not indice_de_texto_pronto()
+            or any(len(t) < 3 or any(ch in t for ch in (ESCAPE_LIKE, "%", "_"))
+                   for t in termos)):
+        return None
+    return ("c.id IN (SELECT rowid FROM %s WHERE %s MATCH ?)"
+            % (INDICE_DE_TEXTO, INDICE_DE_TEXTO),
+            " AND ".join('"%s"' % t.replace('"', '""') for t in termos))
 
 
 def norma_entidade(nome):
@@ -11536,9 +11668,6 @@ def primeiro_ano_corpus(omissao=2015):
         return omissao
 
 
-_TIPOS_DO_CORPUS = (None, [])
-
-
 def marca_do_corpus():
     """A identidade do corpus: data e tamanho do `contratos.db`, e o
     tamanho do `-wal` ao lado. Muda quando a importacao escreve, e so
@@ -11561,8 +11690,81 @@ def marca_do_corpus():
     return tuple(marca)
 
 
-# {(marca do corpus, sql, valores): linha} -- ver conta_no_corpus()
-_CONTAS_DO_CORPUS = {}
+# A memoria das contas do corpus (lote 10, 29/09/2026): {(marca, pergunta):
+# valor} no processo, e o mesmo num ficheiro ao lado do corpus
+# (`ficheiro_da_memoria()`), para um reinicio -- cada release -- nao voltar
+# a pagar tudo. Os dois tem tecto; passado ele deita-se fora e recomeca.
+_MEMORIA_DO_CORPUS = {}
+TECTO_DA_MEMORIA = 256
+TECTO_DA_MEMORIA_EM_DISCO = 4000
+
+
+def ficheiro_da_memoria():
+    """`contratos-memoria.db`, ao lado do corpus. Um ficheiro seu e nao
+    uma tabela: escrever no `contratos.db` mudava a `marca_do_corpus()`,
+    que e a chave da propria memoria, e numa tabela do `radar.db` ia
+    todos os dias para as copias. E so memoria: apaga-se sem perda."""
+    return os.path.splitext(CORPUS)[0] + "-memoria.db"
+
+
+def _memoria_em_disco():
+    c = sqlite3.connect(ficheiro_da_memoria(), timeout=5, factory=Ligacao)
+    try:
+        c.execute("CREATE TABLE IF NOT EXISTS memoria (marca TEXT, chave TEXT, "
+                  "valor TEXT, PRIMARY KEY (marca, chave))")
+    except sqlite3.Error:
+        c.close()
+        raise
+    return c
+
+
+def lembrado_do_corpus(pergunta, calcular):
+    """O valor de `calcular()`, guardado ate o corpus mudar -- na memoria
+    do processo e em disco (lote 10, 29/09/2026: «a primeira visita ao
+    Mercado leva 25 s»; era a primeira pessoa de cada empresa, em cada
+    dia e depois de cada reinicio, a pagar as contas todas).
+
+    A chave e a `marca_do_corpus()` mais a `pergunta` (o SQL com os
+    valores, que ja leva o perfil da empresa). **O dia UTC so entra
+    quando a pergunta o usa** (`date('now'`, o modo «a acabar»): antes
+    entrava em todas, e a meia-noite deitava fora contas que nao mudam.
+
+    O valor passa sempre por JSON, tambem na primeira vez: assim quem o
+    le recebe o mesmo tipo (listas, dicionarios) venha do calculo ou do
+    disco. Um disco que falhe nao estraga nada -- conta-se outra vez."""
+    marca = repr(marca_do_corpus())
+    dia = (time.strftime("%Y-%m-%d", time.gmtime())
+           if "date('now'" in repr(pergunta) else "")
+    chave = repr((dia, pergunta))
+    valor = _MEMORIA_DO_CORPUS.get((marca, chave))
+    if valor is not None:
+        return valor
+    texto = None
+    try:
+        with _memoria_em_disco() as m:
+            linha = m.execute("SELECT valor FROM memoria WHERE marca=? AND "
+                              "chave=?", (marca, chave)).fetchone()
+            texto = linha[0] if linha else None
+    except sqlite3.Error as erro:
+        print("memoria do corpus por ler: %s" % erro, file=sys.stderr)
+    if texto is None:
+        texto = json.dumps(calcular())
+        try:
+            with _memoria_em_disco() as m:
+                # o que e de outro corpus ja nao serve a ninguem
+                m.execute("DELETE FROM memoria WHERE marca != ?", (marca,))
+                m.execute("INSERT OR REPLACE INTO memoria VALUES (?,?,?)",
+                          (marca, chave, texto))
+                m.execute("DELETE FROM memoria WHERE rowid NOT IN (SELECT "
+                          "rowid FROM memoria ORDER BY rowid DESC LIMIT ?)",
+                          (TECTO_DA_MEMORIA_EM_DISCO,))
+        except sqlite3.Error as erro:
+            print("memoria do corpus por gravar: %s" % erro, file=sys.stderr)
+    valor = json.loads(texto)
+    if len(_MEMORIA_DO_CORPUS) >= TECTO_DA_MEMORIA:
+        _MEMORIA_DO_CORPUS.clear()
+    _MEMORIA_DO_CORPUS[(marca, chave)] = valor
+    return valor
 
 
 def conta_no_corpus(c, sql, valores):
@@ -11575,16 +11777,11 @@ def conta_no_corpus(c, sql, valores):
     segunda-feira. A chave e a propria pergunta mais a identidade do
     ficheiro: o numero e o que a consulta daria agora, sem prazo nenhum
     a envelhecer. So para contagens: a lista das linhas continua a
-    perguntar-se sempre."""
-    # o dia entra na chave: o modo «a acabar» pergunta `date('now', ...)`,
-    # que e o dia em UTC -- e por isso a chave tambem
-    chave = (marca_do_corpus(), time.strftime("%Y-%m-%d", time.gmtime()),
-             sql, tuple(valores))
-    if chave not in _CONTAS_DO_CORPUS:
-        if len(_CONTAS_DO_CORPUS) > 512:     # perguntas de outra semana
-            _CONTAS_DO_CORPUS.clear()
-        _CONTAS_DO_CORPUS[chave] = dict(c.execute(sql, valores).fetchone())
-    return _CONTAS_DO_CORPUS[chave]
+    perguntar-se sempre. Desde o lote 10 guarda-se pelo
+    `lembrado_do_corpus()`, que sobrevive a um reinicio."""
+    return lembrado_do_corpus(
+        ("conta", sql, list(valores)),
+        lambda: dict(c.execute(sql, valores).fetchone()))
 
 
 # A partir de quantos contratos no filtro a pagina do Mercado se escolhe
@@ -11593,7 +11790,7 @@ def conta_no_corpus(c, sql, valores):
 DENSO_PARA_A_ORDEM = 1000
 
 
-def onde_da_pagina(onde, correspondem):
+def onde_da_pagina(onde, correspondem, desvio=0, total=0):
     """O WHERE da consulta das 20 linhas do Mercado, com o `c.id IN (...)`
     desligado do indice quando o filtro e DENSO (3.ª ronda, G79,
     29/09/2026).
@@ -11610,8 +11807,87 @@ def onde_da_pagina(onde, correspondem):
     desta consulta, e e ela que escolhe. So para a pagina: numa contagem,
     sem ORDER BY, o `+` varria a tabela inteira."""
     if correspondem < DENSO_PARA_A_ORDEM:
-        return onde
+        # com texto, e o indice de texto que escolhe as poucas; o CPV so
+        # se confere nelas (lote 10: a pesquisa partia dos 400 mil do
+        # perfil para achar as 30 que diziam «vigilancia», 0,68 s)
+        return cpv_por_exists(onde) if INDICE_DE_TEXTO in onde else onde
+    # **E o CPV vai por `EXISTS` quando andar pela ordem e curto** (lote
+    # 10, 29/09/2026). O `+c.id IN (...)` continuava a materializar o
+    # recorte inteiro -- as 400 mil do perfil largo, 0,49 s a quente e o
+    # tecto da pagina --, so para conferir vinte. Com o `EXISTS` cada
+    # linha da ordem confere-se pelo `ux_cpv`: 0,49 -> 0,003 s. Quantas
+    # linhas se conferem e (desvio + 20) x total / correspondem; passado
+    # `CONFERENCIAS_PELA_ORDEM`, o `IN` volta a ganhar (um CPV raro numa
+    # pagina funda seria o corpus quase inteiro, um a um).
+    if total and (desvio + POR_PAGINA_LISTA) * total / max(correspondem, 1) \
+            <= CONFERENCIAS_PELA_ORDEM:
+        onde = cpv_por_exists(onde)
     return onde.replace("c.id IN (", "+c.id IN (")
+
+
+# Quantas linhas da ordem se aceita conferir uma a uma pelo `EXISTS` do
+# CPV (~1 microssegundo cada a quente) -- ver onde_da_pagina().
+CONFERENCIAS_PELA_ORDEM = 200000
+_CPV_POR_IN = "c.id IN (SELECT contrato_id FROM contrato_cpv WHERE "
+
+
+def cpv_por_exists(onde):
+    """O mesmo WHERE com cada `c.id IN (SELECT contrato_id FROM
+    contrato_cpv WHERE X)` escrito como `EXISTS (SELECT 1 FROM
+    contrato_cpv x WHERE x.contrato_id = c.id AND (X))` -- a forma do
+    `cpv_da_entidade()`. Os mesmos contratos: um e o outro perguntam se
+    o contrato tem um CPV que cumpra X. O X vai ate ao parentese que
+    fecha o `IN`; os valores sao `?`, e nenhum traz parenteses. O `NOT
+    IN` do CPV excluido fica como esta (e o conjunto pequeno)."""
+    partes, resto = [], onde
+    while _CPV_POR_IN in resto:
+        i = resto.index(_CPV_POR_IN)
+        corpo, nivel, j = i + len(_CPV_POR_IN), 1, i + len(_CPV_POR_IN)
+        while nivel:
+            nivel += {"(": 1, ")": -1}.get(resto[j], 0)
+            j += 1
+        partes.append(resto[:i] + cpv_da_entidade(resto[corpo:j - 1]))
+        resto = resto[j:]
+    return "".join(partes) + resto
+
+
+def total_do_corpus(c):
+    """Quantos contratos tem o corpus, guardado como as contagens."""
+    return conta_no_corpus(c, "SELECT COUNT(*) n FROM contratos", [])["n"]
+
+
+def anos_do_corpus(c):
+    """Os anos que o corpus tem, por ordem. So mudam com a importacao:
+    guardam-se como as contagens (3.ª ronda, G79 -- eram 0,1 s em cada
+    visita ao Mercado)."""
+    return [int(a) for a in (conta_no_corpus(
+        c, "SELECT group_concat(a) a FROM (SELECT DISTINCT ano a "
+        "FROM contratos ORDER BY a)", [])["a"] or "").split(",") if a]
+
+
+def contas_do_mercado(c, args, cfg):
+    """(correspondem, valor, escondidos pelo perfil) do filtro `args` do
+    Mercado -- as contagens do `/contratos`, guardadas pelo
+    `conta_no_corpus()`. E uma funcao e nao o corpo da rota para o
+    `aquecer_o_corpus()` fazer EXACTAMENTE as mesmas perguntas (lote
+    10): uma chave que diferisse num espaco era uma memoria que ninguem
+    lia."""
+    onde, valores = filtros_dos_contratos(args, cfg=cfg)
+    resumo = conta_no_corpus(
+        c, "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
+        "FROM contratos c" + onde, valores)
+    escondidos = 0
+    ligado, dentro, _ = interesse_definido(cfg)
+    if ligado and dentro and condicao_do_interesse_contratos(args, cfg=cfg)[0]:
+        # quantos e que o interesse tapa dentro deste filtro: um
+        # recorte que nao diga quanto esconde e um recorte que
+        # se esquece (a mesma regra da lista de anuncios)
+        onde_livre, val_livre = filtros_dos_contratos(
+            args, com_interesse=False, cfg=cfg)
+        escondidos = conta_no_corpus(
+            c, "SELECT COUNT(*) n FROM contratos c" + onde_livre,
+            val_livre)["n"] - resumo["n"]
+    return resumo["n"], resumo["v"], escondidos
 
 
 def tipos_de_procedimento():
@@ -11629,21 +11905,20 @@ def tipos_de_procedimento():
     mostrava numeros velhos durante N minutos depois de uma importacao,
     e a importacao e justamente a unica coisa que mexe nisto. Dois
     `stat` custam microssegundos, mesmo na pen."""
-    global _TIPOS_DO_CORPUS
     if not os.path.exists(CORPUS):
         return []
-    marca = marca_do_corpus()
-    if _TIPOS_DO_CORPUS[0] == marca:
-        return _TIPOS_DO_CORPUS[1]
-    try:
+
+    def contar():
         with liga_corpus() as c:
-            tipos = [r["p"] for r in c.execute(
+            return [r["p"] for r in c.execute(
                 "SELECT tipo_procedimento p, COUNT(*) n FROM contratos "
                 "WHERE tipo_procedimento!='' GROUP BY p ORDER BY n DESC")]
+    try:
+        # desde o lote 10 pelo `lembrado_do_corpus()`: sobrevive a um
+        # reinicio (eram 0,3 a 0,9 s na primeira visita ao Mercado)
+        return lembrado_do_corpus(("tipos_de_procedimento",), contar)
     except sqlite3.Error:
         return []
-    _TIPOS_DO_CORPUS = (marca, tipos)
-    return tipos
 
 
 def entidade_do_anuncio(nif, nome):
@@ -11817,9 +12092,6 @@ def entidades_com_proposta():
             "GROUP BY entidade_chave ORDER BY k DESC, nome LIMIT 200").fetchall()
 
 
-_MEMO_ENTIDADES_TOP = {}
-
-
 def entidades_top(papel, quantas=25, cfg=None):
     """As que mais compram (clientes) ou as que mais ganham
     (concorrentes), do corpus. Vazio sem corpus.
@@ -11831,18 +12103,20 @@ def entidades_top(papel, quantas=25, cfg=None):
 
     Guarda-se ate o corpus mudar (a importacao e semanal): com o
     interesse, os concorrentes custam 1,4 s medidos no corpus de
-    25/09/2026, e as abas das entidades pediam-nos a cada pagina."""
+    25/09/2026, e as abas das entidades pediam-nos a cada pagina. Desde
+    o lote 10 pelo `lembrado_do_corpus()`, que sobrevive a um reinicio:
+    a primeira visita as Entidades depois de uma release levava 14-34 s."""
     coluna = "ganha" if papel == "concorrente" else "compra"
     if not ha_corpus():
         return []
     frag, vals = condicao_do_interesse_contratos(args={}, cfg=cfg)
-    try:
-        versao_corpus = os.path.getmtime(CORPUS)
-    except OSError:
-        versao_corpus = 0
-    chave_memo = (papel, quantas, frag, tuple(vals), CORPUS, versao_corpus)
-    if chave_memo in _MEMO_ENTIDADES_TOP:
-        return _MEMO_ENTIDADES_TOP[chave_memo]
+    return lembrado_do_corpus(
+        ("entidades_top", papel, quantas, frag, list(vals)),
+        lambda: _entidades_top(coluna, papel, quantas, frag, vals))
+
+
+def _entidades_top(coluna, papel, quantas, frag, vals):
+    """As contas do entidades_top(), sem memoria."""
     with liga_corpus() as c:
         if not frag:
             linhas = c.execute(
@@ -11872,10 +12146,7 @@ def entidades_top(papel, quantas=25, cfg=None):
                 "ORDER BY t.v DESC",
                 vals + [quantas, papel == "concorrente",
                         papel == "concorrente"]).fetchall()
-    if len(_MEMO_ENTIDADES_TOP) > 64:     # interesses que ja mudaram
-        _MEMO_ENTIDADES_TOP.clear()
-    _MEMO_ENTIDADES_TOP[chave_memo] = [dict(l) for l in linhas]
-    return _MEMO_ENTIDADES_TOP[chave_memo]
+    return [dict(l) for l in linhas]
 
 
 def historico_entidade(entidade, cpv="", limite=25, nif=""):
@@ -11994,7 +12265,8 @@ def condicoes_contratos(args):
     # encontra "ramos e filhos" se o termo levar o mesmo caminho.
     #
     # O op=ou junta o objecto ao CPV, como na condicoes() (B07).
-    frag_q, vals_q = frag_texto(args.get("q"), "c.objecto_norm", palavras=True)
+    frag_q, vals_q = frag_texto(args.get("q"), "c.objecto_norm", palavras=True,
+                                indice=pelo_indice_de_texto)
     prefixos_cpv = [p for p in (prefixo_cpv(x)
                                 for x in (args.get("cpv") or "").split("|"))
                     if p]
@@ -12327,6 +12599,93 @@ def relogio():
             except Exception:
                 pass
         time.sleep(60)
+
+
+def aquecer_o_corpus():
+    """Faz, em fundo, as contas que a primeira visita ao Mercado e as
+    Entidades pediria (lote 10, 29/09/2026: «a primeira visita ao Mercado
+    leva 25 s, as Entidades 4 s»). Para cada empresa a trabalhar, com o
+    perfil dela: as contagens e o resumo do Mercado nos dois modos, e os
+    clientes e concorrentes. Pelas MESMAS funcoes que as paginas usam
+    (`contas_do_mercado()`, `resumo_contratos()`, `entidades_top()`),
+    para as chaves da memoria serem as mesmas. Com a memoria em disco
+    (`lembrado_do_corpus()`), um reinicio encontra isto feito e isto
+    so confere."""
+    if not ha_corpus():
+        return
+    tipos_de_procedimento()
+    _contagens_cpv_contratos()
+    with liga_corpus() as c:
+        total_do_corpus(c)
+        anos_do_corpus(c)
+    for empresa_id in empresas_a_trabalhar():
+        with com_empresa(empresa_id):
+            cfg = ler_config()
+            for args in ({}, {"ver": "fim"}):
+                with liga_corpus() as c:
+                    contas_do_mercado(c, args, cfg)
+                resumo_contratos(args)
+            entidades_top("cliente")
+            entidades_top("concorrente")
+
+
+# De quanto em quanto tempo a vigia do corpus olha (segundos).
+INTERVALO_DA_VIGIA = 60
+
+
+def estado_para_aquecer():
+    """O que, mudando, pede outro aquecimento: a identidade do corpus (uma
+    importacao, de qualquer processo), o dia UTC (o modo «a acabar») e o
+    perfil de cada empresa (quem o muda nao paga a primeira visita)."""
+    perfis = []
+    for empresa_id in empresas_a_trabalhar():
+        with com_empresa(empresa_id):
+            perfis.append((empresa_id, interesse_definido(ler_config())))
+    return (marca_do_corpus(), time.strftime("%Y-%m-%d", time.gmtime()),
+            repr(perfis))
+
+
+def vigiar_o_corpus(voltas=None, esperar=time.sleep):
+    """A thread de fundo do painel que mantem o corpus quente (lote 10).
+    Aquece no arranque, e depois sempre que o `estado_para_aquecer()`
+    muda -- mas so quando ficou igual uma volta inteira: a meio de uma
+    importacao o ficheiro muda a cada minuto, e aquecer ai era contar
+    sobre metade. A seguir constroi o indice de texto, se falta
+    (minutos, uma vez so). Nada disto prende o arranque nem um pedido.
+
+    `voltas` e `esperar` sao para os testes (a condicao separada da
+    espera)."""
+    aquecido = anterior = None
+    volta = 0
+    while voltas is None or volta < voltas:
+        volta += 1
+        try:
+            agora = estado_para_aquecer()
+            if agora != aquecido and (anterior is None or agora == anterior):
+                inicio = time.time()
+                aquecer_o_corpus()
+                aquecido = agora
+                print("corpus aquecido em %.0f s" % (time.time() - inicio),
+                      flush=True)
+                construir_indice_de_texto()
+            anterior = agora
+        except Exception as erro:
+            # como no relogio: engolido, uma avaria persistente parecia
+            # «o Mercado esta lento», sem rasto nenhum
+            try:
+                marca_erro("ultimo_erro_vigia_corpus", "corpus", "%s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              str(erro)[:200]))
+            except Exception:
+                pass
+        esperar(INTERVALO_DA_VIGIA)
+
+
+def trabalhos_de_fundo_do_painel():
+    """O que o painel arranca em fundo, alem do relogio: a vigia do
+    corpus. Numa thread daemon -- o arranque nao espera por ela."""
+    threading.Thread(target=vigiar_o_corpus, daemon=True,
+                     name="vigia-do-corpus").start()
 
 
 
@@ -18349,9 +18708,13 @@ def _lista_de_anuncios():
         # contam dentro do filtro, sem a parte da plataforma, como os
         # separadores. Era o unico controlo do ecra com outra aritmetica:
         # com um CPV posto e a lista em 118, oferecia "acingov (2 637)".
+        # Agrupa-se pela COLUNA e so depois pelo nome (lote 10): o GROUP
+        # BY da coluna anda pelo `ix_anuncios_detalhe` ja ordenado, e o da
+        # expressao ordenava 200 mil linhas -- 0,10 -> 0,02 s, os mesmos.
         plataformas = c.execute(
-            "SELECT COALESCE(NULLIF(plataforma,''),?) p, COUNT(*) n "
-            "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC",
+            "SELECT p, SUM(n) n FROM (SELECT COALESCE(NULLIF(plataforma,''),?) "
+            "p, COUNT(*) n FROM anuncios WHERE detalhe_lido=1 "
+            "GROUP BY plataforma) GROUP BY p ORDER BY n DESC",
             (SEM_PLATAFORMA,)).fetchall()
         onde_sem_plat, val_sem_plat = com_recorte(
             *condicoes(args_da_lista(request.args, plat="", estado="")),
@@ -19541,8 +19904,11 @@ def _contagens_cpv_contratos(so_chave=False):
         quantos = c.execute("SELECT COUNT(*) n FROM contratos").fetchone()["n"]
         if so_chave:
             return quantos, None
-        contagens = {r["cpv8"]: r["n"] for r in c.execute(
-            "SELECT cpv8, COUNT(*) n FROM contrato_cpv GROUP BY cpv8")}
+        # guardado ate o corpus mudar, e aquecido em fundo (lote 10: a
+        # primeira arvore do Mercado depois de um reinicio levava 1,9 s)
+        contagens = lembrado_do_corpus(
+            ("contagens_cpv",), lambda: {r["cpv8"]: r["n"] for r in c.execute(
+                "SELECT cpv8, COUNT(*) n FROM contrato_cpv GROUP BY cpv8")})
     return quantos, contagens
 
 
@@ -23645,16 +24011,6 @@ COLUNAS_DO_RESUMO = ("id", "preco_contratual", "n_adj", "adjudicante_chave",
                      "tipo_procedimento", "data_celebracao", "n_anuncio",
                      "preco_base")
 
-# {(marca do corpus, dia UTC, sql, valores): numeros} -- ver resumo_contratos()
-_RESUMOS_DO_CORPUS = {}
-# O tecto: cada entrada sao uns KB (dez linhas por grafico) mais os
-# descontos, um numero por procedimento -- ~100 mil no corpus inteiro,
-# uns 3 MB no pior caso. Chega para os perfis das empresas e as perguntas
-# da semana; passado isto deita-se tudo fora e recomeca, como o
-# `conta_no_corpus()`.
-TECTO_RESUMOS = 32
-
-
 def resumo_contratos(args):
     """Os numeros dos graficos, sobre o mesmo filtro da lista.
 
@@ -23672,20 +24028,14 @@ def resumo_contratos(args):
     9 a 18 s em CADA visita ao Mercado, de cada pessoa. A chave e a do
     `conta_no_corpus()` -- a identidade do ficheiro, o dia (o modo «a
     acabar» pergunta `date('now')`) e a propria pergunta em SQL, que ja
-    leva o perfil da empresa --, com o tecto `TECTO_RESUMOS`.
+    leva o perfil da empresa. Desde o lote 10 pelo `lembrado_do_corpus()`:
+    guarda-se tambem em disco (um reinicio nao volta a pagar) e so leva o
+    dia na chave no modo «a acabar». Cada entrada sao uns KB mais os
+    descontos, um numero por procedimento (~2 MB no pior caso).
     """
     onde, valores = filtros_dos_contratos(args)
-    chave = (marca_do_corpus(), time.strftime("%Y-%m-%d", time.gmtime()),
-             onde, tuple(valores))
-    # numa variavel e nao relido do dicionario: outro pedido, noutra
-    # thread, pode esvazia-lo pelo tecto entre a escrita e a leitura
-    numeros = _RESUMOS_DO_CORPUS.get(chave)
-    if numeros is None:
-        numeros = _resumo_contratos(onde, valores)
-        if len(_RESUMOS_DO_CORPUS) >= TECTO_RESUMOS:
-            _RESUMOS_DO_CORPUS.clear()
-        _RESUMOS_DO_CORPUS[chave] = numeros
-    return numeros
+    return lembrado_do_corpus(("resumo", onde, list(valores)),
+                              lambda: _resumo_contratos(onde, valores))
 
 
 def _resumo_contratos(onde, valores):
@@ -25457,28 +25807,19 @@ def contratos():
     linhas = []
     with liga_corpus() as c:
         if ha_pergunta:
-            resumo = conta_no_corpus(
-                c, "SELECT COUNT(*) n, COALESCE(SUM(c.preco_contratual),0) v "
-                "FROM contratos c" + onde, valores)
-            correspondem, valor = resumo["n"], resumo["v"]
-            if com_interesse and condicao_do_interesse_contratos(cfg=cfg)[0]:
-                # quantos e que o interesse tapa dentro deste filtro: um
-                # recorte que nao diga quanto esconde e um recorte que
-                # se esquece (a mesma regra da lista de anuncios)
-                onde_livre, val_livre = filtros_dos_contratos(
-                    request.args, com_interesse=False, cfg=cfg)
-                escondidos_interesse = conta_no_corpus(
-                    c, "SELECT COUNT(*) n FROM contratos c" + onde_livre,
-                    val_livre)["n"] - correspondem
+            correspondem, valor, escondidos_interesse = contas_do_mercado(
+                c, request.args, cfg)
             paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
+            desvio = (pagina - 1) * POR_PAGINA_LISTA
             # Escolhem-se primeiro as 20 linhas, e so depois se lhes vao
             # buscar os nomes: com o LEFT JOIN e as subconsultas por
             # linha a correrem antes do LIMIT, isto levava 45 segundos no
             # corpus de sete anos. E a mesma armadilha do "quem ganha".
             linhas = c.execute(
                 "WITH pag AS (SELECT c.* FROM contratos c"
-                + onde_da_pagina(onde, correspondem) +
+                + onde_da_pagina(onde, correspondem, desvio,
+                                 total_do_corpus(c)) +
                 ordem_c + " LIMIT ? OFFSET ?)"
                 " SELECT p.*, COALESCE(e.nome, p.adjudicante) adj_nome,"
                 " (SELECT group_concat(COALESCE(g.nome, a.nome), '|')"
@@ -25489,13 +25830,9 @@ def contratos():
                 "  WHERE a.contrato_id=p.id) ganhou_ch"
                 " FROM pag p LEFT JOIN entidades e"
                 "  ON e.chave=p.adjudicante_chave" + ordem_p,
-                valores + [POR_PAGINA_LISTA, (pagina - 1) * POR_PAGINA_LISTA]).fetchall()
+                valores + [POR_PAGINA_LISTA, desvio]).fetchall()
         procs = tipos_de_procedimento()
-        # os anos so mudam com a importacao: guardam-se como as contagens
-        # (3.ª ronda, G79 -- eram 0,1 s em cada visita ao Mercado)
-        anos = [int(a) for a in (conta_no_corpus(
-            c, "SELECT group_concat(a) a FROM (SELECT DISTINCT ano a "
-            "FROM contratos ORDER BY a)", [])["a"] or "").split(",") if a]
+        anos = anos_do_corpus(c)
         # O fim da janela vem do mesmo relogio que a filtra: e o date()
         # do SQLite que define "+N meses", nao uma conta de dias a parte
         # que dissesse outra data no cabecalho.
@@ -26014,6 +26351,12 @@ def filtros_dos_contratos(args, com_interesse=True, cfg=None):
         if frag_i:
             onde += " AND (%s)" % frag_i
             valores = list(valores) + vals_i
+    # Com texto, o indice de texto escolhe os contratos e o CPV so se
+    # confere neles (lote 10): com o `IN`, o perfil largo materializava os
+    # 400 mil dele so para os cruzar -- 0,94 -> 0,51 s a contar uma
+    # «manutencao», 0,69 -> 0,10 s uma «vigilancia». Os mesmos contratos.
+    if INDICE_DE_TEXTO in onde:
+        onde = cpv_por_exists(onde)
     return onde, valores
 
 
@@ -30343,6 +30686,44 @@ def proposta_gravar(id_):
 SEMANAS_CALENDARIO = 6
 # Quantas linhas cabem num dia antes de o resto ir para o "+N".
 CABEM_NO_DIA = 3
+# Ate quantas linhas o Calendario leva o «+N» e a agenda dentro da pagina;
+# acima disto pedem-se a parte (lote 10: o «Tudo» eram 369 KB de HTML).
+LINHAS_SEM_PEDACOS = 100
+
+# O que pede os pedacos do Calendario (lote 10): o «+N» de um dia quando
+# se abre, e a agenda so num ecra estreito (o mesmo limite do CSS, em
+# miragov-radar.css), ou quando o ecra passar a ser.
+CALENDARIO_JS = """<script>
+(function() {
+  function pede(pedaco, alvo) {
+    var q = new URLSearchParams(location.search);
+    q.set('pedaco', pedaco);
+    fetch('/calendario?' + q.toString(), {credentials: 'same-origin'})
+      .then(function(r) { if (!r.ok) throw r; return r.text(); })
+      .then(function(html) { alvo.innerHTML = html; })
+      .catch(function() { alvo.textContent = 'falhou a carregar.'; });
+  }
+  [].forEach.call(document.querySelectorAll('details.cal-mais[data-pedaco]'), function(d) {
+    d.addEventListener('toggle', function() {
+      if (!d.open || d.dataset.feito) return;
+      d.dataset.feito = '1';
+      var alvo = document.createElement('div');
+      d.replaceChild(alvo, d.querySelector('.cal-carrega'));
+      pede(d.dataset.pedaco, alvo);
+    });
+  });
+  var agenda = document.querySelector('.cal-agenda[data-pedaco]');
+  if (!agenda) return;
+  var estreito = window.matchMedia('(max-width:600px)');
+  function talvez() {
+    if (!estreito.matches || agenda.dataset.feito) return;
+    agenda.dataset.feito = '1';
+    pede('agenda', agenda);
+  }
+  talvez();
+  if (estreito.addEventListener) estreito.addEventListener('change', talvez);
+})();
+</script>"""
 
 
 # Os três filtros do calendário (D12 da segunda ronda, 26/09/2026,
@@ -30555,12 +30936,26 @@ def calendario():
 
     # O numero de cada filtro e o que ele desenha nestas seis semanas --
     # a regra da casa: um numero abre exactamente a lista que promete.
-    por_filtro = {chave: _linhas_do_calendario(chave, principio, fim)
-                  for chave, _ in FILTROS_DO_CALENDARIO}
-    cartas, o_que, escondidos = por_filtro[ver]
-    fora = _depois_da_janela(ver, fim)
-    faixa = ("" if ver == "nossas"
-             else _faixa_do_interesse("/calendario", escondidos))
+    # O «+N» de cada dia e a agenda do telemovel pedem-se a parte, por
+    # `?pedaco=<dia>` e `?pedaco=agenda` (lote 10, 29/09/2026): iam os
+    # dois dentro da pagina, e o «Tudo» eram 369 KB de HTML -- cada linha
+    # duas vezes (grelha e agenda), e as de cada dia alem das tres que se
+    # veem fechadas num «+N». Aberto a mao (sem ser pelo `fetch()`), o
+    # pedaco volta a pagina inteira, como o `/contratos/resumo`.
+    pedaco = (request.args.get("pedaco") or "").strip()
+    if pedaco and request.headers.get("Sec-Fetch-Mode") == "navigate":
+        return redirect("/calendario?" + urlencode(
+            [(k, v) for k, v in request.args.items(multi=True)
+             if k != "pedaco"]))
+    if pedaco:
+        cartas = _linhas_do_calendario(ver, principio, fim)[0]
+    else:
+        por_filtro = {chave: _linhas_do_calendario(chave, principio, fim)
+                      for chave, _ in FILTROS_DO_CALENDARIO}
+        cartas, o_que, escondidos = por_filtro[ver]
+        fora = _depois_da_janela(ver, fim)
+        faixa = ("" if ver == "nossas"
+                 else _faixa_do_interesse("/calendario", escondidos))
 
     por_dia = {}
     for a in cartas:
@@ -30569,6 +30964,9 @@ def calendario():
         except ValueError:
             continue
         por_dia.setdefault(dia, []).append(a)
+    # Uma pagina leve (as «nossas» sao dezenas) leva tudo dentro, como
+    # sempre; uma pesada pede o «+N» e a agenda a parte (lote 10).
+    leve = len(cartas) <= LINHAS_SEM_PEDACOS
 
     def item(a):
         rotulo = (a["rotulo"] or "").strip()
@@ -30626,13 +31024,42 @@ def calendario():
                      if dia.day == 1 or dia == principio else "", sinal))
         visiveis = "".join(item(a) for a in aqui[:CABEM_NO_DIA])
         resto = aqui[CABEM_NO_DIA:]
-        # «+8» era o nome inteiro do botão (3.ª ronda, G74)
-        mais = ("<details class='cal-mais'><summary>+%d<span class='so-leitor'> "
+        # «+8» era o nome inteiro do botão (3.ª ronda, G74). Numa página
+        # pesada o que o «+N» esconde pede-se ao abrir (`data-pedaco`)
+        mais = ("<details class='cal-mais'%s><summary>+%d<span class='so-leitor'> "
                 "no dia %s</span></summary>%s</details>"
-                % (len(resto), data_pt(dia.isoformat()),
-                   "".join(item(a) for a in resto))) if resto else ""
+                % ("" if leve else " data-pedaco='%s'" % dia.isoformat(),
+                   len(resto), data_pt(dia.isoformat()),
+                   "".join(item(a) for a in resto) if leve
+                   else "<span class='cal-carrega'>a carregar…</span>")
+                ) if resto else ""
         return "<div class='%s'>%s%s%s</div>" % (" ".join(classes), cabeca,
                                                  visiveis, mais)
+
+    def agenda_html():
+        """Os dias da agenda do telemovel, em `<li>`."""
+        linhas = []
+        for dia in sorted(por_dia):
+            tom_, sinal = urgencia(dia)
+            linhas.append(
+                "<li class='ag-dia%s%s'><h2 class='ag-data'>%s%s%s</h2>%s</li>"
+                % (" " + tom_ if tom_ else "", " hoje" if dia == hoje else "",
+                   DIAS_SEMANA[dia.weekday()] + ", ", data_pt(dia.isoformat()),
+                   (" &middot; hoje" if dia == hoje else "") + sinal,
+                   "".join(item(a) for a in por_dia[dia])))
+        return "".join(linhas) or ("<li class='ag-vazio'>Nada a fechar nestas "
+                                   "seis semanas.</li>")
+
+    if pedaco == "agenda":
+        return Response(agenda_html(), mimetype="text/html")
+    if pedaco:
+        try:
+            dia_pedido = datetime.strptime(pedaco, "%Y-%m-%d").date()
+        except ValueError:
+            return pagina_de_erro(404)
+        return Response("".join(item(a) for a in
+                                por_dia.get(dia_pedido, [])[CABEM_NO_DIA:]),
+                        mimetype="text/html")
 
     grade = ["<div class='cal-rolo'><div class='cal'>"]
     grade += ["<div class='cal-cab'>%s</div>" % d for d in DIAS_SEMANA]
@@ -30644,19 +31071,12 @@ def calendario():
     # e o titulo saia «Ex…», e a grade rolava de lado. Aqui e uma lista,
     # dia a dia, so com os dias que tem alguma coisa. As duas vao na
     # pagina e o CSS mostra uma: o servidor nao sabe a largura do ecra.
-    dias_com = sorted(por_dia)
-    agenda = ["<ol class='cal-agenda' aria-label='Agenda'>"]
-    for dia in dias_com:
-        tom_, sinal = urgencia(dia)
-        agenda.append(
-            "<li class='ag-dia%s%s'><h2 class='ag-data'>%s%s%s</h2>%s</li>"
-            % (" " + tom_ if tom_ else "", " hoje" if dia == hoje else "",
-               DIAS_SEMANA[dia.weekday()] + ", ", data_pt(dia.isoformat()),
-               (" &middot; hoje" if dia == hoje else "") + sinal,
-               "".join(item(a) for a in por_dia[dia])))
-    if not dias_com:
-        agenda.append("<li class='ag-vazio'>Nada a fechar nestas seis semanas.</li>")
-    agenda.append("</ol>")
+    # Numa página pesada vai vazia, e o JS pede-a só num ecrã estreito:
+    # na secretária nunca se vê (lote 10).
+    agenda = ["<ol class='cal-agenda' aria-label='Agenda'%s>%s</ol>"
+              % (("", agenda_html()) if leve else
+                 (" data-pedaco='agenda'",
+                  "<li class='ag-vazio'>a carregar…</li>"))]
 
     # A ligacao de volta a lista e da PAGINA e ja nao de cada linha: com
     # o dia como unidade, uma linha e uma linha dentro de uma celula e
@@ -30701,7 +31121,8 @@ def calendario():
                    for chave, rotulo in FILTROS_DO_CALENDARIO))
     return envolver("calendario", "Calendário", "",
                     filtros + "<div class='larg'>%s%s%s%s</div>"
-                    % (faixa, legenda, "".join(grade), "".join(agenda)),
+                    % (faixa, legenda, "".join(grade), "".join(agenda)
+                       + ("" if leve else CALENDARIO_JS)),
                     cabeca=cabecalho_de_pagina(
                         "Calendário", "Seis semanas a partir de segunda-feira. "
                         "Cada dia mostra o que fecha nesse dia.", [], accoes),
@@ -31879,8 +32300,9 @@ def indicadores():
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
         plataformas = c.execute(
-            "SELECT COALESCE(NULLIF(plataforma,''),'(nenhuma)') p, COUNT(*) n "
-            "FROM anuncios WHERE detalhe_lido=1 GROUP BY p ORDER BY n DESC").fetchall()
+            "SELECT p, SUM(n) n FROM (SELECT COALESCE(NULLIF(plataforma,''),"
+            "'(nenhuma)') p, COUNT(*) n FROM anuncios WHERE detalhe_lido=1 "
+            "GROUP BY plataforma) GROUP BY p ORDER BY n DESC").fetchall()
         com_detalhe = c.execute("SELECT COUNT(*) n FROM anuncios "
                                 "WHERE detalhe_lido=1").fetchone()["n"]
         n_docs = c.execute("SELECT COUNT(*) n FROM documentos").fetchone()["n"]
@@ -34905,6 +35327,8 @@ def main():
         print("Não arranco: " + porque)
         return
     threading.Thread(target=relogio, daemon=True).start()
+    # o corpus quente e o indice de texto, em fundo (lote 10)
+    trabalhos_de_fundo_do_painel()
     print("Mira Gov, Diário da República")
     print("Painel em " + LOCAL)
     print("Fecha esta janela para parar. Ctrl+C tambem serve.")

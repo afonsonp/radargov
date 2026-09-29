@@ -211,6 +211,13 @@ viaja**: não está no git.
 | `entidades` | **180 507** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
 | `entidade_nomes` | 256 875 | Todas as grafias por que uma entidade já apareceu |
 
+E, desde o lote 10 (29/09/2026), o **índice de texto** dos objectos,
+`contratos_fts` (FTS5 `trigram`, de conteúdo externo: só os trigramas,
+~609 MB, mais as tabelas-sombra do FTS5), por onde a pesquisa do
+Mercado vai. Constrói-se sozinho em fundo (~5 minutos) e mantém-se por
+gatilhos; a marca `indice_de_texto` do `corpus_estado` diz quando está
+pronto.
+
 Colunas de `contratos` que interessam: `n_anuncio` (**é o `ref` do
 radar** — é por aqui que se fecha o ciclo), `adjudicante_chave`,
 `objecto`, `cpv`, `preco_base`, `preco_contratual`, `data_celebracao`,
@@ -1485,6 +1492,13 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
   vortal, compraspt, anogov), **relê as leituras que ficaram a meio**,
   dispara alertas e o resumo diário.
 - **Corpus** à segunda-feira: traz o dump do IMPIC.
+- **O corpus quente** (lote 10, 29/09/2026): enquanto o painel está no
+  ar, uma thread de fundo faz, com o perfil de cada empresa, as contas
+  que a primeira visita ao Mercado e às Entidades pediria, e refá-las
+  quando o corpus, o dia ou um perfil mudam. Ficam em memória e no
+  `contratos-memoria.db`, ao lado do corpus: um reinício encontra-as
+  feitas. A mesma thread constrói, uma vez, o índice de texto dos
+  objectos (~5 minutos), por onde a pesquisa do Mercado passa a ir.
 - **Cópia de segurança** diária, por `VACUUM INTO` (a quente, com a
   base em WAL), sete guardadas de cada: `radar-<data>.db` (a
   plataforma) e `empresa-<id>-<data>.db` por empresa (`VACUUM emp

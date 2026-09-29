@@ -59,9 +59,9 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e a admin da LATD |
 | Rotas Flask | 132 |
 | Tabelas em `radar.db` | 17, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, e o `segundo_factor`, 28/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
-| Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), e o `ix_nomes_chave` (29/09, 0,4 s a criar) |
-| Testes | **1 676**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 34 928 linhas · `teste_radar.py` 24 186 · `empresa.py` 868 · `contas.py` 1 153 · `icones.py` 62 |
+| Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB) |
+| Testes | **1 700**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 35 352 linhas · `teste_radar.py` 24 540 · `empresa.py` 868 · `contas.py` 1 153 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -90,6 +90,20 @@ Concursos 1,1–2,6 s → **0,6–1,3 s**; Propostas 0,75 → 0,20 s; Mercado
 Mercado 1,37 → 0,53 s; a pesquisa sem resultados 15–17 s → **0,29 s**;
 a lista com `?ent=` 27–29 s → 0,38 s; a ficha de uma entidade sem NIF
 5,0 → 0,12 s, e a de Lisboa 0,69 → 0,18 s; o Calendário 0,31 → 0,13 s.
+**E no lote 10, «Nada lento»** (29/09/2026; as 200 rotas GET das
+secções B e C do inventário, numa cópia das bases, empresas de ensaio
+com os perfis «72 ou 48» e «45, 50, 71 ou 909», a 1.ª visita num
+processo acabado de arrancar): antes, 19 rotas passavam de 1 s na
+primeira visita e 12 de 0,5 s a quente; depois, **nenhuma passa de
+0,5 s a quente** e só a primeira procura de um nome no «Entidade que
+comprou» passa de 1 s. A primeira visita ao Mercado 1,6–19 s → **0,04
+s**, ao resumo 1,1–16 s → 0,03 s, às Entidades 2,8–34 s → 0,15 s (as
+contas vivem também no `contratos-memoria.db`, e uma thread aquece-as em
+fundo: 15–31 s na primeira vez, 0 s depois de um reinício); a primeira
+pesquisa de texto no Mercado 1,6–34 s → 0,2–0,6 s, e a quente 0,3–15 s
+→ 0,07–0,22 s (índice FTS5); o distrito 0,65–0,75 → 0,4–0,46 s; a ficha
+do anúncio −0,25 s em cada uma (um índice na `altera`); o Calendário
+«Tudo» 383 → 63 KB de HTML. A tabela inteira está no PR do lote 10.
 
 ## O que espera pelo Afonso
 

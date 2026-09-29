@@ -748,8 +748,8 @@ Orçamento, cadeia de reserva, chaves.
   `distrito`). O `ALTER TABLE ADD COLUMN` põe-na no fim do registo, e
   para lá chegar o SQLite atravessa os 840 MB do `texto` — medido, 3,1 s
   a varrer uma coluna depois dele contra 0,06 s uma antes. O filtro do
-  distrito pergunta `ref IN (SELECT ref FROM anuncios WHERE distrito
-  LIKE …)`, e o `ix_anuncios_distrito(distrito, ref)` responde sozinho
+  distrito pergunta `+rowid IN (SELECT rowid FROM anuncios WHERE
+  distrito LIKE …)`, e o `ix_anuncios_distrito(distrito, ref)` responde sozinho
   (`SCAN … USING COVERING INDEX`). Uma coluna nova filtrável faz o mesmo.
 - **O filtro por entidade (`ent`) também vai pela subconsulta** (3.ª
   ronda, G82, 29/09/2026). O `entidade_norm LIKE` tinha índice, mas com
@@ -894,7 +894,12 @@ Orçamento, cadeia de reserva, chaves.
   `fragmento_local_e_valor()`, **cujo `+` não se tira**: sem ele o
   SQLite partia da lista dos distritos e ia buscar cada anúncio à tabela
   pelo índice da `ref`. Uma coluna nova no perfil tem de entrar no
-  índice, ou volta tudo à tabela sem erro nenhum.
+  índice, ou volta tudo à tabela sem erro nenhum. **Desde o lote 10 é
+  `+rowid IN (SELECT rowid …)`**: o custo era conferir 200 mil `ref`
+  (texto) contra a lista, e um inteiro confere-se em metade (0,21 ->
+  0,10 s por contagem). É a rowid do mesmo anúncio dentro da mesma
+  consulta, e por isso um VACUUM que as renumere não a estraga — uma
+  tabela à parte presa às rowids estragava.
 
 
 ---
@@ -1039,7 +1044,7 @@ Uma árvore, duas fontes de contagem, dois campos.
   inteiro, os concorrentes de uma empresa de AVAC eram a Petrogal e a
   Pfizer, e o «Quem ganha» do Mercado, ao lado, já recortava. Com o
   interesse custa 1,4 s, e por isso guarda-se até o `contratos.db`
-  mudar (`_MEMO_ENTIDADES_TOP`, pela data do ficheiro).
+  mudar (pelo `lembrado_do_corpus()`, desde o lote 10).
 
 - **Um número da ficha da entidade liga ao Mercado com
   `interesse=nao`, e o «a acabar» conta-se em meses** (25/09/2026, teste
@@ -1081,8 +1086,8 @@ Uma árvore, duas fontes de contagem, dois campos.
   `COLUNAS_DO_RESUMO` (uma soma nova sobre outra coluna tem de a
   acrescentar lá, ou rebenta com «no such column»), e o
   `resumo_contratos()` guarda os números com a chave do
-  `conta_no_corpus()` — a identidade do ficheiro, o dia e o SQL, que já
-  leva o perfil —, com o tecto `TECTO_RESUMOS`. Medido numa cópia: 3,2 s
+  `conta_no_corpus()` — a identidade do ficheiro e o SQL, que já leva o
+  perfil —, com o tecto `TECTO_DA_MEMORIA`. Medido numa cópia: 3,2 s
   na primeira visita da semana e **0,04 s** nas seguintes. Pede-se por
   `fetch` com um «a carregar…» no lugar, e é a única página fora do
   `TestNenhumEcraDa500`, com o nome à vista.
@@ -1312,9 +1317,64 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   contratos dela, cada uma lida da tabela; o `ix_ctr_chave_cobre` tem as
   colunas que essas somas pedem (0,75 → 0,33 s no Município de Lisboa).
   E o `conta_no_corpus()` guarda as contagens do Mercado com a chave
-  `(marca_do_corpus(), dia UTC, sql, valores)`: o número é o que a
-  consulta daria agora, e o dia entra porque o modo «a acabar» pergunta
-  `date('now')`. **A lista das linhas não se guarda** — só contagens.
+  `(marca_do_corpus(), sql, valores)`: o número é o que a consulta daria
+  agora. **A lista das linhas não se guarda** — só contagens.
+
+- **A memória do corpus vive também em disco, e o dia só entra quando a
+  pergunta o usa** (`lembrado_do_corpus()`, lote 10, 29/09/2026). «A
+  primeira visita ao Mercado leva 25 s, às Entidades 4 s»: as contas
+  guardavam-se só no processo, com o dia UTC na chave de TODAS, e a
+  primeira pessoa de cada empresa, em cada dia e depois de cada
+  reinício — cada release —, pagava tudo. Agora vão também para o
+  `contratos-memoria.db` (`ficheiro_da_memoria()`), ao lado do corpus e
+  **não dentro dele**: uma escrita no `contratos.db` mudava a
+  `marca_do_corpus()`, que é a chave da própria memória. O dia só entra
+  numa pergunta com `date('now'` (o modo «a acabar»). O valor passa
+  sempre por JSON, também na primeira vez — senão a primeira resposta
+  era um tuplo e a do disco uma lista. Tectos: `TECTO_DA_MEMORIA` no
+  processo, `TECTO_DA_MEMORIA_EM_DISCO` no ficheiro, e o que é de outra
+  marca apaga-se na escrita seguinte. É só memória: apaga-se sem perda.
+- **O corpus aquece em fundo, pelas MESMAS funções das páginas**
+  (`aquecer_o_corpus()`, `vigiar_o_corpus()`, lote 10). A vigia é uma
+  thread do painel que olha de minuto a minuto para o
+  `estado_para_aquecer()` — a marca do corpus (uma importação, de
+  qualquer processo), o dia e o perfil de cada empresa — e refaz as
+  contas do Mercado, do resumo e das Entidades de cada empresa quando
+  ele muda **e ficou igual uma volta inteira** (a meio de uma
+  importação o ficheiro muda a cada minuto). Uma conta nova que uma
+  página faça no arranque tem de entrar lá **pela mesma função**
+  (`contas_do_mercado()`, `resumo_contratos()`, `entidades_top()`): uma
+  chave que difira num espaço é uma memória que ninguém lê. Medido: 31 s
+  a aquecer as duas empresas de ensaio a frio, 0 s depois de um
+  reinício (está tudo no disco).
+- **A pesquisa por objecto vai pelo índice de texto** (FTS5 `trigram`,
+  `contratos_fts`, lote 10). O `LIKE '%termo%'` sobre os dois milhões de
+  objectos levava 8 a 34 s à primeira. O índice é de conteúdo externo
+  (só os trigramas; 609 MB) e leva **~5 minutos a construir**: por isso
+  constrói-se só em fundo, na vigia (`construir_indice_de_texto()`),
+  nunca no `iniciar_corpus()` — e enquanto a marca `indice_de_texto`
+  não diz «ok», a pesquisa vai pelo `LIKE` de sempre. Três coisas que
+  não são óbvias: (1) pergunta-se por `MATCH '"termo"'` e não por
+  `LIKE`: no `trigram` a frase é o termo como pedaço do texto — o mesmo
+  que o `LIKE` —, e o `LIKE` sobre o índice confere cada candidato
+  relendo o objecto na tabela (0,47 contra 0,12 s); (2) com `ESCAPE`, ou
+  com um termo de menos de 3 letras, o FTS5 não usa o índice, e por isso
+  esses ficam no `LIKE` da tabela (`pelo_indice_de_texto()`); (3) os
+  gatilhos mantêm-no, e o `INSERT OR REPLACE` do importador só dispara o
+  do DELETE com `PRAGMA recursive_triggers=ON`, que o `liga_corpus()`
+  liga — sem isso o índice guardava o texto velho de um contrato
+  substituído. O `TestAPesquisaDoMercadoPeloIndiceDeTexto` confere as
+  mesmas linhas com e sem índice, e o `integrity-check` do FTS5.
+- **Com texto, ou numa página funda o suficiente, o CPV confere-se por
+  `EXISTS`** (`cpv_por_exists()`, lote 10). O `+c.id IN (...)` do G79
+  continuava a materializar os 400 mil do perfil largo para mostrar
+  vinte (0,49 s, o tecto da página); pela ordem, com o `EXISTS` do
+  `cpv_da_entidade()`, são 0,003 s. Só enquanto as linhas a conferir —
+  (desvio + 20) × total / correspondem — não passam de
+  `CONFERENCIAS_PELA_ORDEM`: num CPV raro numa página funda, o `IN`
+  volta a ganhar. Com texto, é o índice de texto que escolhe os
+  contratos e o CPV só se confere neles, também nas contagens e no
+  resumo (`filtros_dos_contratos()`).
 
 
 ---
@@ -2619,6 +2679,23 @@ SQLite, cópias, e a pen que manda nos números.
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.
 
+- **Uma pergunta que a ficha faz sempre tem de ter índice** (lote 10,
+  29/09/2026). O `membros_da_cadeia()` pergunta pelas alterações de um
+  anúncio com `WHERE altera=?`, e sem índice era um varrimento da
+  tabela larga — 0,25 s em CADA ficha, metade do tempo dela. O
+  `ix_anuncios_altera(altera, ref, data_pub)` cobre-a; constrói-se em
+  0,6 s na base de tamanho real, no `iniciar_db()`, depois do `ALTER`
+  que cria a coluna. **Um índice que custe mais de ~2 s a construir não
+  entra no arranque síncrono**: vai para fundo, como o índice de texto
+  do corpus (5 minutos, na vigia).
+- **Um `GROUP BY` sobre uma expressão não anda pelo índice.** A lista
+  das plataformas agrupava por `COALESCE(NULLIF(plataforma,''),?)` e o
+  SQLite ordenava as 200 mil linhas numa árvore temporária, apesar do
+  `ix_anuncios_detalhe(detalhe_lido, plataforma)`: 0,10 s em cada
+  página dos Concursos e nos Indicadores. Agrupada primeiro pela
+  COLUNA e só depois pelo nome, anda pelo índice já ordenado: 0,02 s, e
+  as mesmas linhas (lote 10).
+
 - **~~OneDrive~~ — já não se aplica.** A pasta esteve dentro do
   OneDrive até 8/09/2026, e a sincronização podia bloquear o `radar.db`
   a meio de uma escrita. Hoje está no disco interno, fora de qualquer
@@ -2679,6 +2756,18 @@ Nada espera dentro do pedido do browser.
   do pedido do browser: já esteve assim e eram minutos de página em
   branco. Em fundo não há cookie para ler — passa o `quem` ao
   `registar()` em vez de contar com o `quem_sou()`.
+
+- **O painel arranca duas threads de fundo: o `relogio()` e a vigia do
+  corpus** (`trabalhos_de_fundo_do_painel()`, lote 10, 29/09/2026). A
+  vigia aquece as contas do Mercado e constrói o índice de texto do
+  corpus (o que ela faz, e porquê, está em «Contratos e entidades»). O
+  que se aprende dela: **o arranque síncrono não espera por nada disto**
+  (medido: 0,1 s de `iniciar_db()` + `iniciar_corpus()` numa base com
+  tudo feito), e um erro lá dentro vai para a marca
+  `ultimo_erro_vigia_corpus` e para a tabela `erros`, como o do relógio
+  — engolido, parecia só «o Mercado está lento». O `--uma-vez` e o
+  `--contratos` não a arrancam: a memória que ela enche é do processo
+  do painel (e do ficheiro ao lado do corpus, que qualquer processo lê).
 
 - **A guarda de «uma verificação de cada vez» tem duas metades, e a
   segunda está na base** (14/09/2026, o P0). `_VERIFICACAO` é um
@@ -3566,6 +3655,18 @@ botões ou no calendário.
   o número prometia. Abaixo de 900px a grade rola dentro de si
   (`min-width:840px`): sete colunas em 375px dão 49px e o título sai
   «Ex…», que é a mesma avaria do calendário antigo.
+- **Num Calendário pesado, o «+N» e a agenda pedem-se à parte**
+  (`?pedaco=<dia>` e `?pedaco=agenda`, lote 10, 29/09/2026). O «Tudo»
+  eram 369 KB de HTML: cada linha ia duas vezes (a grelha e a agenda do
+  telemóvel, que o CSS troca — o servidor não sabe a largura), mais as
+  escondidas em cada «+N». Acima de `LINHAS_SEM_PEDACOS` a página leva
+  só as três de cada dia; o `CALENDARIO_JS` pede o resto ao abrir o
+  «+N», e a agenda só num ecrã estreito (o mesmo `max-width:600px` do
+  CSS). Uma página leve — as «nossas» são dezenas — leva tudo dentro,
+  como sempre. Aberto à mão, o pedaço volta à página inteira (o
+  `Sec-Fetch-Mode: navigate`, como o `/contratos/resumo`). O
+  `TestOCalendarioPesadoPedeOsPedacos` conta que entre a grelha e os
+  pedaços estão todas as linhas.
 
 - **As fontes são servidas de `tipo/`, por lista branca, e a rota é
   aberta.** `/tipo/<nome>` está nas `ROTAS_ABERTAS` **por prefixo** e
