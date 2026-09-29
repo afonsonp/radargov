@@ -10060,7 +10060,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
     n_seg = sum(len(x[2]) for x in seguidas)
     cabeca = []
     if total or not (n_alt or n_seg):
-        cabeca.append("%d anuncio%s novo%s nos seus alertas"
+        cabeca.append("%d anúncio%s novo%s nos seus alertas"
                       % (total, "" if total == 1 else "s",
                          "" if total == 1 else "s"))
     if n_alt:
@@ -10081,12 +10081,12 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                 # num prazo de ha dois meses e mentira
                 prazo = "PRAZO EXPIRADO em %s" % data_pt(a["prazo"])
             else:
-                prazo = "propostas ate %s (%s)" % (data_pt(a["prazo"]),
+                prazo = "propostas até %s (%s)" % (data_pt(a["prazo"]),
                                                    conta_dias(dias))
-            linhas.append("  %s" % (a["titulo"] or "(sem titulo)")[:88])
+            linhas.append("  %s" % (a["titulo"] or "(sem título)")[:88])
             linhas.append("    %s" % (a["entidade"] or "")[:80])
             linhas.append("    %s | %s | %s"
-                          % (a["ref"], prazo, a["preco_base"] or "sem preco base"))
+                          % (a["ref"], prazo, a["preco_base"] or "sem preço base"))
             linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                           % (quote(a["ref"], safe=""),))
             linhas.append("")
@@ -10099,7 +10099,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
         linhas.append("")
         for ref, mudancas in por_ref.items():
             primeiro = mudancas[0]
-            linhas.append("  %s" % (primeiro["titulo"] or "(sem titulo)")[:88])
+            linhas.append("  %s" % (primeiro["titulo"] or "(sem título)")[:88])
             linhas.append("    %s" % (primeiro["entidade"] or "")[:80])
             for x in mudancas:
                 if x["campo"] == "retificacao":
@@ -10125,10 +10125,10 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
         for _, nome, anuncios in seguidas:
             linhas.append("  %s (%d)" % ((nome or "")[:80], len(anuncios)))
             for a in anuncios:
-                linhas.append("    %s" % (a["titulo"] or "(sem titulo)")[:84])
+                linhas.append("    %s" % (a["titulo"] or "(sem título)")[:84])
                 linhas.append("    publicado %s | %s"
                               % (data_pt(a["data_pub"]),
-                                 a["preco_base"] or "sem preco base"))
+                                 a["preco_base"] or "sem preço base"))
                 linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                               % (quote(a["ref"], safe=""),))
             linhas.append("")
@@ -10219,6 +10219,77 @@ def _em_seccao(rotulo, n, linhas):
                "".join(linhas)))
 
 
+def moldura_do_email(cabeca, corpo, rodape=""):
+    """A casca de todos os e-mails que saem (29/09/2026: «todos os emails
+    que saírem da plataforma devem ter um email bonito»): a faixa escura
+    com a marca e o título, o corpo e o rodapé. O `cabeca` é texto; o
+    `corpo` e o `rodape` já vêm em HTML. Sem rodapé, fica o endereço."""
+    painel = endereco_do_painel().rstrip("/")
+    rodape = rodape or ("<a href=\"%s\" style=\"color:%s\">%s</a>"
+                        % (html.escape(painel, quote=True), _EM_T2,
+                           html.escape(re.sub(r"^https?://", "", painel))))
+    return (
+        "<!DOCTYPE html><html lang=\"pt\"><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width\">"
+        "<title>Mira Gov</title></head>"
+        "<body style=\"margin:0;padding:0;background:%(papel)s\">"
+        "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
+        "cellspacing=\"0\" style=\"background:%(papel)s\"><tr><td align=\"center\" "
+        "style=\"padding:24px 12px\">"
+        "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
+        "cellspacing=\"0\" style=\"max-width:640px\">"
+        "<tr><td style=\"background:%(ink)s;border-radius:8px 8px 0 0;"
+        "padding:18px 20px 16px\">"
+        "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
+        "text-transform:uppercase;letter-spacing:.08em\">"
+        "<span style=\"color:#e08b2c\">&#9679;</span>&nbsp; Mira Gov</div>"
+        "<div style=\"font:600 18px/1.3 %(sans)s;color:#fff;margin-top:8px\">%(cabeca)s</div>"
+        "<div style=\"font:400 12px/1.4 %(sans)s;color:rgba(255,255,255,.55);"
+        "margin-top:4px\">%(quando)s</div>"
+        "</td></tr>"
+        "<tr><td style=\"padding:16px 0 0\">%(corpo)s</td></tr>"
+        "<tr><td style=\"padding:4px 4px 0;font:400 11.5px/1.5 %(sans)s;"
+        "color:%(t3)s\">%(rodape)s</td></tr>"
+        "</table></td></tr></table></body></html>"
+        % {"papel": _EM_PAPEL, "ink": _EM_INK, "sans": _EM_SANS, "t3": _EM_T3,
+           "cabeca": html.escape(cabeca),
+           "quando": datetime.now().strftime("%d/%m/%Y %H:%M"),
+           "corpo": corpo, "rodape": rodape})
+
+
+def _em_cartao_branco(conteudo):
+    """O bloco branco de um e-mail que não é uma lista de anúncios."""
+    return ("<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
+            "cellspacing=\"0\" style=\"background:#fff;border:1px solid %s;"
+            "border-radius:8px;margin:0 0 16px;border-collapse:separate\">"
+            "<tr><td style=\"padding:20px 22px 8px;font:400 14.5px/1.55 %s;"
+            "color:%s\">%s</td></tr></table>"
+            % (_EM_LINHA, _EM_SANS, _EM_T2, conteudo))
+
+
+def _em_paragrafo(conteudo):
+    return "<p style=\"margin:0 0 14px\">%s</p>" % conteudo
+
+
+RX_URL = re.compile(r"https?://[^\s<>\"]+")
+
+
+def html_do_texto(assunto, texto):
+    """Um e-mail que só tem texto, dentro da moldura: os parágrafos num
+    bloco branco e os endereços como ligações. É o que o `enviar_email()`
+    junta quando quem o chama não traz HTML seu (o de teste, o pedido de
+    acesso ao dono)."""
+    def ligacao(m):
+        return ("<a href=\"%s\" style=\"color:%s\">%s</a>"
+                % (m.group(0), _EM_INK, m.group(0)))
+    paragrafos = [_em_paragrafo(RX_URL.sub(ligacao, html.escape(p.strip(), quote=False))
+                                .replace("\n", "<br>"))
+                  for p in re.split(r"\n\s*\n", texto.strip()) if p.strip()]
+    titulo = re.sub(r"^Mira Gov:\s*", "", assunto)
+    return moldura_do_email(titulo[:1].upper() + titulo[1:],
+                            _em_cartao_branco("".join(paragrafos)))
+
+
 def html_do_resumo(achados, alteradas=(), seguidas=()):
     """O mesmo resumo de texto_do_resumo(), em HTML, para o e-mail ir
     com as duas partes (o texto continua a ser o AVISOS.txt e a
@@ -10291,36 +10362,14 @@ def html_do_resumo(achados, alteradas=(), seguidas=()):
                           for a in anuncios)
         blocos.append(_em_seccao("Das entidades que segues", n_seg, linhas))
 
-    return (
-        "<!DOCTYPE html><html lang=\"pt\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width\">"
-        "<title>Mira Gov</title></head>"
-        "<body style=\"margin:0;padding:0;background:%(papel)s\">"
-        "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
-        "cellspacing=\"0\" style=\"background:%(papel)s\"><tr><td align=\"center\" "
-        "style=\"padding:24px 12px\">"
-        "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
-        "cellspacing=\"0\" style=\"max-width:640px\">"
-        "<tr><td style=\"background:%(ink)s;border-radius:8px 8px 0 0;"
-        "padding:18px 20px 16px\">"
-        "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
-        "text-transform:uppercase;letter-spacing:.08em\">"
-        "<span style=\"color:#e08b2c\">&#9679;</span>&nbsp; Mira Gov</div>"
-        "<div style=\"font:600 18px/1.3 %(sans)s;color:#fff;margin-top:8px\">%(cabeca)s</div>"
-        "<div style=\"font:400 12px/1.4 %(sans)s;color:rgba(255,255,255,.55);"
-        "margin-top:4px\">%(quando)s</div>"
-        "</td></tr>"
-        "<tr><td style=\"padding:16px 0 0\">%(blocos)s</td></tr>"
-        "<tr><td style=\"padding:4px 4px 0;font:400 11.5px/1.5 %(sans)s;"
-        "color:%(t3)s\">As ligações abrem no PC onde o radar corre. "
-        "O mesmo resumo fica em <span style=\"font-family:%(mono)s\">AVISOS.txt</span>."
-        "</td></tr>"
-        "</table></td></tr></table></body></html>"
-        % {"papel": _EM_PAPEL, "ink": _EM_INK, "sans": _EM_SANS,
-           "mono": _EM_MONO, "t3": _EM_T3,
-           "cabeca": html.escape(" · ".join(cabeca)),
-           "quando": datetime.now().strftime("%d/%m/%Y %H:%M"),
-           "blocos": "".join(blocos)})
+    return moldura_do_email(
+        " · ".join(cabeca), "".join(blocos),
+        # o rodapé de antes dizia que as ligações abriam «no PC onde o radar
+        # corre» e mandava ao AVISOS.txt, que fica no servidor (29/09/2026)
+        "Recebe este e-mail porque tem alertas ligados no Mira Gov. "
+        "<a href=\"%s\" style=\"color:%s\">Mudar os alertas</a>"
+        % (html.escape(endereco_do_painel().rstrip("/") + "/configuracoes/alertas",
+                       quote=True), _EM_T2))
 
 
 # As razoes por que um e-mail nao sai sem sequer se tentar. Sao as que
@@ -10358,10 +10407,10 @@ def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     RADAR_EMAIL_SENHA -- nunca fica na configuracao, que e um ficheiro
     que se abre sem pensar. O `.gitignore` ja cobre o nome.
 
-    Com `html_corpo`, a mensagem vai em duas partes (multipart/
-    alternative): o texto e a primeira, o HTML a segunda, e o cliente
-    mostra a que souber. O texto fica sempre -- e o AVISOS.txt e o que
-    se le num cliente sem HTML.
+    A mensagem vai sempre em duas partes (multipart/alternative): o
+    texto e a primeira, o HTML a segunda, e o cliente mostra a que
+    souber. Sem `html_corpo`, o HTML e o proprio texto na moldura
+    (`html_do_texto()`).
     """
     cfg = cfg or ler_config()
     e = cfg.get("email") or {}
@@ -10382,8 +10431,9 @@ def enviar_email(assunto, corpo, cfg=None, html_corpo=None):
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain=de.rpartition("@")[2] or None)
     msg.set_content(corpo)
-    if html_corpo:
-        msg.add_alternative(html_corpo, subtype="html")
+    # nenhum sai só em texto (29/09/2026): sem HTML de quem chama, vai o
+    # texto na moldura da casa
+    msg.add_alternative(html_corpo or html_do_texto(assunto, corpo), subtype="html")
     porta = int(e.get("porta") or 587)
     try:
         if porta == 465:
@@ -21926,17 +21976,30 @@ def plataforma_criar_convite(id_):
         codigo = contas.criar_convite(c, id_, email, papel)
     registar_evento("", "convite", "criou um convite (%s) para a empresa %d"
                     % (papel, id_), quem=quem_sou() or "")
-    return _mostrar_convite(e, codigo, papel)
+    return _mostrar_convite(e, codigo, papel, email)
 
 
-def _mostrar_convite(e, codigo, papel):
+def _frase_do_envio(email, bem, porque):
+    """O que o ecrã da ligação diz do e-mail do convite, antes do resto."""
+    if not email:
+        return ""
+    if bem:
+        return "O convite seguiu por e-mail para <b>%s</b>. " % html.escape(email)
+    return ("<b>O e-mail para %s não saiu</b> (%s). "
+            % (html.escape(email), html.escape(porque or "sem razão")))
+
+
+def _mostrar_convite(e, codigo, papel, email=""):
+    ligacao = "%s/convite/%s" % (endereco_do_painel().rstrip("/"), codigo)
+    bem, porque = (enviar_convite(email, ligacao, e["nome"], papel)
+                   if email else (False, ""))
     return mostrar_uma_vez(
         "Convite de %s para %s" % (papel_no_ecra(papel).lower(), e["nome"]),
-        "Mande esta ligação. Vale %d dias e só uma vez; <b>não se volta a "
+        _frase_do_envio(email, bem, porque)
+        + "Mande esta ligação. Vale %d dias e só uma vez; <b>não se volta a "
         "ver</b> depois de sair desta página &mdash; se se perder, gere outra."
         % contas.DIAS_DE_CONVITE,
-        "%s/convite/%s" % (endereco_do_painel().rstrip("/"), codigo),
-        "Ligação do convite", "/plataforma/empresa/%d#convites" % e["id"])
+        ligacao, "Ligação do convite", "/plataforma/empresa/%d#convites" % e["id"])
 
 
 # As ligações que se mostram UMA vez (o convite e o repor), guardadas
@@ -22021,7 +22084,8 @@ def plataforma_gesto_no_convite(convite_id, gesto):
                        convite["papel"], convite["email"] or "sem endereço",
                        empresa_id), quem=quem_sou() or "")
     if codigo and empresa_id in empresas_existentes():
-        return _mostrar_convite(_empresa_ou_404(empresa_id), codigo, convite["papel"])
+        return _mostrar_convite(_empresa_ou_404(empresa_id), codigo, convite["papel"],
+                                convite["email"] or "")
     return _volta_a("/plataforma/empresa/%d#convites" % empresa_id, "Convite anulado.")
 
 
@@ -23414,7 +23478,11 @@ def _bloco_utilizadores(todos, eu):
         "class='conf-form' id='convidar' style='margin-top:16px'>"
         "<div class='nota' style='flex:1 1 100%%'><b>Convidar um colega</b>: "
         "cria-se uma ligação, manda-se ao colega, e é ele que escolhe o nome "
-        "e a palavra-passe. Vale %d dias, e só uma vez.</div>"
+        "e a palavra-passe. Vale %d dias, e só uma vez. Com o e-mail dele, "
+        "o convite segue por e-mail.</div>"
+        "<label class='conf-campo'><span>E-mail <span class='nota'>(opcional)"
+        "</span></span><input type='email' name='email' autocomplete='off' "
+        "placeholder='nome@empresa.pt'></label>"
         "<label class='conf-campo'><span>Papel</span><select name='papel'>"
         "<option value='tester'>Utilizador</option>"
         "<option value='admin'>Gestor</option></select></label>"
@@ -23682,16 +23750,22 @@ def conta_convidar():
     papel = (request.form.get("papel") or "tester").strip()
     if papel not in contas.PAPEIS:
         return volta_config_erro("conta", "O papel tem de ser Gestor ou Utilizador.")
+    email = (request.form.get("email") or "").strip()
+    if email and not RX_EMAIL.fullmatch(email):
+        return volta_config_erro("conta", "«%s» não é um e-mail." % corta(email, 60))
     with liga() as c:
-        codigo = contas.criar_convite(c, empresa_activa(), "", papel)
+        codigo = contas.criar_convite(c, empresa_activa(), email, papel)
     registar("", "conta", "criou um convite (%s)" % papel)
+    ligacao = "%s/convite/%s" % (endereco_do_painel().rstrip("/"), codigo)
+    bem, porque = (enviar_convite(email, ligacao, _nome_da_empresa_n(empresa_activa()),
+                                  papel) if email else (False, ""))
     return mostrar_uma_vez(
         "Convite criado (%s)" % papel_no_ecra(papel).lower(),
-        "Mande esta ligação ao colega. Vale %d dias e só uma vez; <b>não se "
+        _frase_do_envio(email, bem, porque)
+        + "Mande esta ligação ao colega. Vale %d dias e só uma vez; <b>não se "
         "volta a ver</b> depois de sair desta página &mdash; se se perder, "
         "crie outra." % contas.DIAS_DE_CONVITE,
-        "%s/convite/%s" % (endereco_do_painel().rstrip("/"), codigo),
-        "Ligação do convite", "/configuracoes/conta")
+        ligacao, "Ligação do convite", "/configuracoes/conta")
 
 
 @app.route("/configuracoes/conta/utilizadores/<int:utilizador_id>/apagar",
@@ -33014,21 +33088,95 @@ def recusar_pedido(id_):
                     quem=quem_sou() or "")
     return _volta_a("/pedidos-de-acesso", "Pedido de %s recusado." % p["empresa"])
 
-TEXTO_DO_CONVITE = """Olá %(nome)s,
+TEXTO_DO_CONVITE = """%(ola)s
 
-O seu pedido de acesso ao Mira Gov foi aceite.
+%(frase)s
 
 Para criar a sua conta, abra esta ligação e escolha o nome de
 utilizador e a palavra-passe:
 
 %(ligacao)s
 
-A ligação serve uma vez e é válida durante %(dias)d dias. A conta é a
-de gestor da %(empresa)s: pode criar a seguir as contas dos
-colegas, em Configurações › Conta.
+A ligação serve uma vez e é válida até %(ate)s.
+
+O que vem a seguir:
+%(passos)s
+
+Dúvidas? Responda a este e-mail.
 
 Mira Gov
 """
+
+# O que o convidado faz depois de criar a conta (29/09/2026): o e-mail
+# dizia só «abra a ligação», e o gestor chegava sem saber por onde ia.
+PASSOS_DO_CONVITE = {
+    "admin": ("Criar a conta, na ligação acima.",
+              "Confirmar o perfil da empresa (Configurações › Perfil da "
+              "empresa): as áreas CPV, os distritos e os valores.",
+              "Ligar os alertas, para receber os concursos novos por e-mail.",
+              "Convidar os colegas, em Configurações › Conta."),
+    "tester": ("Criar a conta, na ligação acima.",
+               "Ver os concursos que já esperam pela empresa, em Concursos.",
+               "Seguir as propostas da empresa, em Propostas."),
+}
+
+
+def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False):
+    """(assunto, texto, html) do convite. `pedido` é o aceite de um
+    pedido de acesso; sem ele, é o convite que o dono ou o gestor criam."""
+    papel_ecra = papel_no_ecra(papel).lower()
+    empresa = empresa or "sua empresa"
+    frase = ("O seu pedido de acesso ao Mira Gov foi aceite. A sua conta é "
+             "a de %s da %s." if pedido else
+             "Tem um convite para entrar no Mira Gov, com uma conta de %s "
+             "da %s.") % (papel_ecra, empresa)
+    ate = data_pt((datetime.now() + timedelta(days=contas.DIAS_DE_CONVITE))
+                  .strftime("%Y-%m-%d"))
+    passos = PASSOS_DO_CONVITE.get(papel, PASSOS_DO_CONVITE["tester"])
+    ola = "Olá %s," % nome if nome else "Olá,"
+    texto = TEXTO_DO_CONVITE % {
+        "ola": ola, "frase": frase, "ligacao": ligacao, "ate": ate,
+        "passos": "\n".join("%d. %s" % (i, p) for i, p in enumerate(passos, 1))}
+    href = html.escape(ligacao, quote=True)
+    corpo = (
+        _em_paragrafo(html.escape(ola)) + _em_paragrafo(html.escape(frase))
+        # o botão em tabela: é o que o Outlook respeita
+        + "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
+          "style=\"margin:6px 0 16px\"><tr><td style=\"background:%s;"
+          "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
+          "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
+          "Criar a conta</a></td></tr></table>" % (_EM_INK, href, _EM_SANS)
+        + _em_paragrafo(
+            "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
+            "copie este endereço para o browser:<br><span style=\"font-family:%s;"
+            "word-break:break-all\">%s</span></span>"
+            % (_EM_T3, _EM_MONO, html.escape(ligacao)))
+        + _em_paragrafo("A ligação serve uma vez e é válida até <b>%s</b>." % ate)
+        + "<p style=\"margin:18px 0 6px;font:700 11px/1.4 %s;color:%s;"
+          "text-transform:uppercase;letter-spacing:.06em\">O que vem a seguir</p>"
+          "<ol style=\"margin:0 0 16px;padding-left:20px\">%s</ol>"
+          % (_EM_SANS, _EM_T2, "".join("<li style=\"margin:0 0 6px\">%s</li>"
+                                      % html.escape(p) for p in passos)))
+    return ("O seu acesso ao Mira Gov" if pedido else "Convite para o Mira Gov",
+            texto,
+            moldura_do_email("Convite para a %s" % empresa, _em_cartao_branco(corpo),
+                             "Dúvidas? Responda a este e-mail. Se não esperava "
+                             "este convite, pode ignorá-lo."))
+
+
+def enviar_convite(email, ligacao, empresa, papel, nome="", pedido=False):
+    """Manda o convite para `email`, da conta da plataforma. (bem, porque);
+    uma falha não derruba quem convida -- a ligação mostra-se na mesma."""
+    if not email:
+        return False, "sem endereço"
+    assunto, texto, em_html = texto_e_html_do_convite(ligacao, empresa, papel,
+                                                      nome, pedido)
+    try:
+        return enviar_email(assunto, texto,
+                            _junta(dict(ler_config()), {"email": {"para": email}}),
+                            em_html)
+    except Exception as erro:              # o servidor pode responder o que quiser
+        return False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
 
 
 # O perfil que o dono prepara ao aceitar (D13 da segunda ronda,
@@ -33173,15 +33321,8 @@ def aceitar_pedido(id_):
                   "decidido_em=? WHERE id=?",
                   (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id_))
     ligacao = endereco_do_painel() + "/convite/" + codigo
-    cfg = _junta(dict(ler_config()), {"email": {"para": p["email"]}})
-    try:
-        bem, porque = enviar_email(
-            "O seu acesso ao Mira Gov",
-            TEXTO_DO_CONVITE % {"nome": p["nome"], "ligacao": ligacao,
-                                "dias": contas.DIAS_DE_CONVITE,
-                                "empresa": p["empresa"] or "sua empresa"}, cfg)
-    except Exception as erro:              # o convite fica, com a ligacao
-        bem, porque = False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+    bem, porque = enviar_convite(p["email"], ligacao, p["empresa"], "admin",
+                                 p["nome"], pedido=True)
     registar_evento("", "pedido aceite", "%s (empresa %d)"
                     % (p["empresa"], empresa_id))
     envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])

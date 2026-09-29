@@ -1204,6 +1204,9 @@ depois. Ao aceitar nasce a empresa
 para a página dela; o resumo vai para quem pediu, e um convite de
 gestor dela (`contas.criar_convite()`), que vai por e-mail para
 o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.
+O e-mail do convite (`texto_e_html_do_convite()`, 29/09/2026) tem um
+botão «Criar a conta», o dia até quando a ligação vale e os passos a
+seguir, que são outros para o gestor e para o utilizador.
 Quem abre a ligação escolhe o utilizador e a palavra-passe e entra já,
 na empresa nova (`contas.usar_convite()`). Um pedido aceite não se
 aceita duas vezes.
@@ -1222,7 +1225,9 @@ passou a gravar; nos antigos, a data do pedido e o nome) — diz
 **O admin de uma empresa também convida** (25/09/2026, do teste com
 utilizadores): em Configurações › Conta, «Criar convite» dá uma
 ligação para a empresa dele, de utilizador ou de gestor, que vale sete dias
-e uma vez, e se mostra **só nessa página** (`conta_convidar()`). Criar
+e uma vez, e se mostra **só nessa página** (`conta_convidar()`); com o
+e-mail do colega, que é opcional, segue também por e-mail (29/09/2026),
+como o convite que o dono cria com endereço e o que gera de novo. Criar
 a conta com a palavra-passe continua a existir, por baixo.
 
 **Cada conta é de uma empresa** (`utilizadores.empresa_id`, desde a F4

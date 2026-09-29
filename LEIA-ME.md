@@ -729,7 +729,10 @@ seguir:
 
 Dentro de uma empresa, o admin dela convida os colegas sem ti: em
 Configurações › Conta, **Criar convite** dá uma ligação que ele manda
-ao colega, e é o colega que escolhe o nome e a palavra-passe.
+ao colega — ou que segue sozinha por e-mail, se ele escrever o endereço
+do colega —, e é o colega que escolhe o nome e a palavra-passe. O
+convite que crias na página da empresa com o endereço preenchido
+também segue por e-mail.
 
 Para tirar uma empresa inteira — propostas, tarefas, contactos,
 histórico, configuração, triagem e contas — há o botão **Apagar a
