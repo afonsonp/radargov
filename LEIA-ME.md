@@ -540,7 +540,8 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
   Na acingov leva directamente a ela, e pede a sessão iniciada na
   acingov. Na anogov, quando o anúncio não traz o endereço do
   procedimento, o botão diz **Procurar na anogov** e abre a lista dos
-  procedimentos da entidade;
+  procedimentos da entidade. Numa consulta preliminar da Vortal o
+  anúncio já é a página do procedimento, e fica só o **Ver na Vortal**;
 - as peças da plataforma **não têm botão em cima**, de propósito: estão
   no bloco das peças, e só enquanto o Mira Gov ainda não as tem
   (**Descarregar da plataforma (ZIP)** na acingov, **Abrir as peças na

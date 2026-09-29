@@ -8483,6 +8483,23 @@ class TestOsBotoesDaPlataformaNaFicha(BaseTemporaria):
         self.assertIn("/anuncio/", r.headers["Location"])
         self.assertEqual(self.pedidos, [])
 
+    def test_consulta_preliminar_da_vortal_tem_um_botao_so(self):
+        # 29/09/2026: o anúncio de fonte='vortal' JÁ é a página do
+        # procedimento, e «Ver na Vortal» e «Abrir na Vortal» davam no
+        # mesmo sítio
+        pagina = ("https://community.vortal.biz/Public/"
+                  "contract-notice-view/PT1.NTC.9/")
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
+                      " prazo, estado, detalhe_lido, texto, url, plataforma,"
+                      " link_pecas, fonte) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                      ("PT1.NTC.9", "Consulta", "IPL", "2026-09-01",
+                       "2099-12-30", "novo", 1, "1 - Objecto", pagina,
+                       "vortal", pagina, "vortal"))
+        h = self.cliente.get("/anuncio/PT1.NTC.9").get_data(as_text=True)
+        self.assertIn("Ver na Vortal", h)
+        self.assertNotIn("Abrir na Vortal", h)
+
     def test_vortal_tem_um_botao_so(self):
         h = self._ficha("vortal", "https://community.vortal.biz/Public/"
                                   "public-tender-documents/AbC")
