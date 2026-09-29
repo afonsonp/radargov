@@ -17030,12 +17030,23 @@ class TestDonoVeOsDadosDaPlataforma(TestDonoSemEmpresa):
         cliente = self._cliente()
         barra = (cliente.get(radar.LISTA, environ_base=self.FORA)
                  .get_data(as_text=True).split("</header>")[0])
-        for item in (">Mercado<", ">Plataforma<"):
+        # os Concursos saíram da barra do dono (G61 da 3.ª ronda) e
+        # voltaram no mesmo dia, 29/09/2026: «deixei de ter acesso a
+        # concursos». O que saiu foram as abas de uma empresa.
+        for item in (">Concursos<", ">Mercado<", ">Plataforma<"):
             self.assertIn(item, barra)
-        # os Concursos saíram da barra do dono (G61 da 3.ª ronda): sem
-        # empresa nada foi visto, e as abas contavam 199 178 «sem ver»
-        for item in (">Concursos<", ">Propostas<", ">Calendário<", ">Configurações<"):
+        for item in (">Propostas<", ">Calendário<", ">Configurações<"):
             self.assertNotIn(item, barra)
+
+    def test_o_dono_nos_concursos_ve_todos_e_nao_as_abas_de_uma_empresa(self):
+        # «Expirou sem ver 199 178» sem empresa não quer dizer nada (G61)
+        h = (self._cliente().get(radar.LISTA, environ_base=self.FORA)
+             .get_data(as_text=True))
+        abas = h.split("aria-label='Fases'")[1].split("</nav>")[0]
+        self.assertIn("aria-current='page'", abas)
+        self.assertIn(">Todos", abas)
+        for rotulo in ("Por ver", "Expirou"):
+            self.assertNotIn(rotulo, abas)
 
 
 class TestLimparMarcasDeUso(BaseTemporaria):
