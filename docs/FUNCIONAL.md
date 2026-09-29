@@ -707,7 +707,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**126 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**128 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1112,27 +1112,45 @@ E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do 
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32
 bytes aleatórios, que na base só existe em resumo), a origem do POST e
-o uso único com prazo (`DIAS_DE_CONVITE`, sete).
+o uso único com prazo (`DIAS_DE_CONVITE`, sete). O ecrã diz **para que
+empresa e com que papel** é o convite, e liga aos termos e à privacidade
+quando existem (`_de_quem_e_o_convite()`, G55 da 3.ª ronda); um convite
+que não serve diz «peça outro ao gestor da sua empresa».
 
 **Do pedido de acesso à empresa a trabalhar** (F5). Em «pedidos de
 acesso do site», o dono carrega em **aceitar…**, que desde 26/09/2026
 (D13 da segunda ronda) abre primeiro **o perfil da empresa nova**: os
 CPV que o sector diz sem dúvida (`CPV_DO_SECTOR`) mais os códigos
 escritos na mensagem, e os distritos que ela nomeia
-(`perfil_do_pedido()`), para o dono afinar antes de aceitar — é o
+(`perfil_do_pedido()`; também o «CPV 909» escrito à mão, completado a
+oito algarismos, G56 da 3.ª ronda — e quando nada se sugere o ecrã
+di-lo, em vez de «vem do sector e da mensagem»), para o dono afinar
+antes de aceitar — é o
 «configuramos o perfil consigo» que o site promete. Só se aceitam
 códigos CPV (`_perfil_do_formulario()`); vazio, a empresa define-o
 depois. Ao aceitar nasce a empresa
-(`criar_empresa()`), com o resumo a ir para quem pediu, e um convite de
-administrador dela (`contas.criar_convite()`), que vai por e-mail para
+(`criar_empresa()`), e o ecrã diz «Empresa n.º N criada» com a ligação
+para a página dela; o resumo vai para quem pediu, e um convite de
+gestor dela (`contas.criar_convite()`), que vai por e-mail para
 o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.
 Quem abre a ligação escolhe o utilizador e a palavra-passe e entra já,
 na empresa nova (`contas.usar_convite()`). Um pedido aceite não se
 aceita duas vezes.
 
+**Os números das empresas nunca se reutilizam** (D10 da 3.ª ronda,
+29/09/2026, decisão dele): a seguinte é a maior que alguma vez existiu
+mais um, contando as que se apagaram — a marca `maior_empresa` da
+tabela `estado` (`MARCA_DA_MAIOR_EMPRESA`) e as pastas
+`copias/empresa-N-apagada-…` (`empresas_apagadas()`). Até aí era o maior
+dos que existiam, e a empresa nova herdava o número da última apagada.
+Nos pedidos, um «aceite: empresa N» cuja empresa já não existe — ou que
+lá está mas chegou **depois** da decisão (o `decidido_em`, que o aceite
+passou a gravar; nos antigos, a data do pedido e o nome) — diz
+«(apagada a dd/mm/aaaa)» e não abre a outra (G57).
+
 **O admin de uma empresa também convida** (25/09/2026, do teste com
 utilizadores): em Configurações › Conta, «Criar convite» dá uma
-ligação para a empresa dele, de tester ou de admin, que vale sete dias
+ligação para a empresa dele, de utilizador ou de gestor, que vale sete dias
 e uma vez, e se mostra **só nessa página** (`conta_convidar()`). Criar
 a conta com a palavra-passe continua a existir, por baixo.
 
@@ -1151,10 +1169,19 @@ acesso do site); `sou_dono()` é a pergunta. O **admin** de uma empresa
 cria e tira as contas **dela** — nunca a do dono, que só o dono tira, e o
 último dono nunca sai (26/09/2026) — e diz quem ela é (`ROTAS_SO_ADMIN`:
 `/configuracoes/conta/utilizadores`, `/configuracoes/conta/empresa` e
-`/arranque/dispensar`, o cartão do Hoje);
+`/arranque/dispensar`, o cartão do Hoje, e desde 29/09/2026 o **gravar
+do Perfil da empresa**, `/alertas/interesse` e `/configuracoes/propostas`
+— D7 da 3.ª ronda: o perfil recorta os concursos de toda a equipa);
 `sou_admin()` é a pergunta. Quem abre uma destas sem ser admin vê uma
 página **dentro do molde** que diz o nome do admin da empresa, a quem
-pedir (`recado_so_do_admin()`, 3.ª ronda, G17). O **tester** trabalha. **As duas
+pedir (`recado_so_do_admin()`, 3.ª ronda, G17). O **tester** trabalha, e
+vê o Perfil da empresa só para ler (os campos desligados e a linha «só
+o gestor o muda»). **No ecrã os papéis chamam-se «gestor» (o admin) e
+«utilizador» (o tester)** desde 29/09/2026 (D7, decisão dele: «as
+expressões admin e tester devem sair»): nos ecrãs, nos e-mails, nos
+convites, nas recusas e nos termos (`PAPEL_NO_ECRA`). Na base e no
+código continuam `admin` e `tester`, e a conta que se chama `admin` é
+um nome de conta. **As duas
 administrações não se misturam** (23/09/2026, pedido dele): as
 Configurações mostram só as quatro secções da empresa, a toda a gente —
 também ao dono —, e as do sistema vivem na **administração da
@@ -1167,8 +1194,10 @@ decisão dele): o `apagar_empresa()` deixa-o com `empresa_id` 0
 «na página de dono não consigo ver concursos nem o mercado») a porta
 abre-lhe, **só para ler**, o que é da plataforma: os Concursos (as
 pontas), a ficha do anúncio e as peças, o Mercado, as Entidades e o
-CSV (`LEITURA_DO_DONO`, `dono_le()`). A barra dele tem só esses dois
-itens e a Plataforma; a ficha não tem os botões da escada nem a coluna
+CSV (`LEITURA_DO_DONO`, `dono_le()`). A barra dele tem só o Mercado e a
+Plataforma (`NAV_DO_DONO`; os Concursos saíram a 29/09/2026, G61 da 3.ª
+ronda — sem empresa nada foi visto, e as abas contavam 199 178 «sem
+ver» — mas a rota abre-se-lhe na mesma); a ficha não tem os botões da escada nem a coluna
 do trabalho. O `liga()` junta-lhe uma empresa **vazia e só de leitura**
 (`_empresa_vazia()`), para as perguntas pelas propostas darem zero em
 vez de rebentarem. O resto — as Propostas, o Hoje, o Calendário, as
@@ -1194,8 +1223,16 @@ do endereço público eram locais. O `pedido_e_local()` conta também os
 cabeçalhos de proxy e o `Host` público — qualquer um deles chega para o
 pedido deixar de ser local.
 
-**Cinco falhas em quinze minutos fecham o trinco**, por e-mail **ou** por
-IP (`FALHAS_ATE_TRINCO`, `MINUTOS_DE_TRINCO`).
+**O trinco é da conta** (D2 da 3.ª ronda, 29/09/2026): cinco falhas em
+quinze minutos fecham-na (`FALHAS_ATE_TRINCO`, `MINUTOS_DE_TRINCO`), e o
+IP tem um tecto **muito mais alto** (`FALHAS_ATE_TRINCO_DO_IP`, 30) —
+um escritório é um IP, e um colega que erre não fecha os outros. Até
+aí eram cinco por e-mail **ou** por IP. A recusa diz a **hora** a que se
+pode tentar («pode tentar de novo às 22:04», `contas.recado_do_trinco()`),
+e não «espera 674 s». O **dono levanta o trinco** na página dos erros
+(`/plataforma/erros`, cartão «Trincos fechados», `POST
+/plataforma/trinco/levantar`, `contas.trincos_fechados()` /
+`contas.levantar_trinco()`), e o «A tratar hoje» conta os fechados.
 
 **A palavra-passe** (D16, 26/09/2026) tem oito caracteres ou mais, além
 dos espaços; não pode ser das mais usadas (`SENHAS_COMUNS`, também com
@@ -1207,7 +1244,7 @@ consola e a ligação de repor —, porque todas passam pelo
 (`contas.problema_da_senha()`).
 
 **Repor a palavra-passe** (D17, 26/09/2026). Não há e-mail de
-recuperação: o `/entrar` diz «peça ao administrador da sua empresa».
+recuperação: o `/entrar` diz «peça ao gestor da sua empresa».
 O **admin** gera, em Configurações › Conta, uma ligação para uma conta
 da empresa dele — nunca a do dono —, e o **dono** gera-a para qualquer
 conta, na `/plataforma` (`contas.pode_repor()`). A ligação mostra-se
@@ -1216,8 +1253,11 @@ vale `HORAS_DE_REPOSICAO` (24) e uma vez, e gerar outra anula a
 anterior. O **`/repor/<código>`** é rota aberta, por prefixo, com a
 guarda dentro (`repor()`): o código (32 bytes, na base só o resumo, na
 tabela `reposicoes`), a origem do POST, o prazo, o uso único e um
-trinco **só por IP** (os códigos errados contam como entradas
-falhadas). Ao guardar, **fecham-se todas as sessões da conta** e abre-se
+trinco **só por IP e só dele** (os códigos que **não existem** contam
+como entradas falhadas com a chave `repor:<ip>`, e não contam no trinco
+do `/entrar` — 3.ª ronda, G50: cinco aberturas de uma ligação velha
+fechavam a entrada ao escritório; uma ligação já usada ou fora do prazo
+não conta nada). Ao guardar, **fecham-se todas as sessões da conta** e abre-se
 uma nova para quem repôs. Pela consola continua o `--palavra-passe
 NOME`. **Com o segundo factor ligado, a ligação não abre sessão**: leva
 ao ecrã do código (ver a seguir).
@@ -1284,18 +1324,21 @@ pedidos por decidir, os convites por usar que acabam em dois dias
 `DIAS_SEM_ENTRAR` (14) dias, a empresa que chegou ao tecto das leituras
 de hoje, e os erros. Depois **as empresas** (estado, contas, última
 entrada, propostas em curso, leituras do mês e de hoje contra o tecto),
-a **Recolha** com o «Verificar agora» (pede confirmação), o **Correio**
-e as secções do sistema.
+as secções do sistema e, no fim, a **Recolha** com o «Verificar agora»
+(pede confirmação) e o **Correio**, que se usam uma vez (G60 da 3.ª
+ronda: estavam a meio, e os semáforos passaram a encher a linha).
 
 - **Os erros das últimas 24 horas** (`/plataforma/erros`, ronda em PC):
-  a lista inteira — quando, onde, o texto todo — e o «dar por vistos».
+  a lista inteira — quando, onde, o texto todo — e o «dar por vistos»;
+  por cima, os **trincos fechados**, cada um com «Levantar o trinco».
   O semáforo e «a tratar hoje» contam só os que ninguém deu por vistos
   (`erros.visto_em`); um que chegue depois de a página abrir não se dá
   por visto.
 - **As ligações de uso único** (o convite e o repor) mostram-se numa
   página própria, `/configuracoes/conta/ligacao`, com o botão
   «Copiar»: o gesto redirecciona para lá, e recarregar já não a mostra
-  nem cria outra.
+  nem cria outra; o «Voltar» leva à empresa de onde se veio, também
+  depois de recarregar (G61).
 
 - **O Correio da plataforma**: a conta que envia (a mesma do resumo das
   empresas) e o endereço dos **avisos da plataforma** (`email.avisos`,
@@ -1303,20 +1346,24 @@ e as secções do sistema.
   acesso novo e o «e-mail de teste» — nunca para o resumo de uma
   empresa cliente (`config_do_correio()`).
 - **A página de cada empresa** (`/plataforma/empresa/<n>`, a que cada
-  linha da tabela leva): as contas, com o tipo, a última entrada, as
+  linha da tabela leva): as contas, com o papel, a última entrada, as
   sessões abertas e o «repor palavra-passe»; os **convites por usar**,
   com «gerar de novo» (anula o antigo e mostra a ligação nova, uma vez)
-  e «anular», e um «criar convite»; os alertas ligados e se o e-mail
+  e «anular», e um «criar convite», com o endereço opcional (G61); os alertas ligados e se o e-mail
   sai; o perfil; as propostas em curso e as leituras. **O trabalho da
   empresa não aparece** — para isso é o «ver como».
 - **Ver como a empresa, só leitura** — o suporte. O dono carrega no
   botão da página da empresa, e a sessão dele passa a ver a aplicação
   dessa empresa (`sessoes.ver_como`): a porta recusa **todos** os POST
-  (só o sair passa, `PODE_A_VER_COMO`) — a um `fetch`, como a triagem,
+  (só o sair passa, `PODE_A_VER_COMO`; o «sair de todos» não, desde a
+  3.ª ronda — dava 500 e fechava as sessões do dono, G52) — a um `fetch`, como a triagem,
   em JSON: «Só leitura: nada se grava» —, os botões que gravam aparecem
   desligados, o «Verificar agora» não aparece, o ficheiro dela junta-se
   **só de leitura**, e uma faixa presa à barra diz «A ver a empresa X, só
-  leitura» com o botão de sair. Cada entrada e saída fica no histórico
+  leitura» com o botão de sair. O que é **do dono** não aparece lá
+  dentro (G54): a Conta mostra só os blocos da empresa, como o gestor
+  os vê — sem a palavra-passe, as sessões, o aspecto e o segundo
+  factor dele —, e os Alertas não mostram «Quem envia». Cada entrada e saída fica no histórico
   da empresa — o admin vê-as em Configurações › Conta, «Acessos do
   suporte» — e nos eventos da plataforma.
 - **Apagar a empresa** (26/09/2026, pedido dele: «eu como dono não
@@ -1333,10 +1380,11 @@ e as secções do sistema.
   como» de qualquer sessão que a estivesse a ver, e deixa um evento
   da plataforma. No modo de suporte não se apaga (a porta recusa).
 - **Suspender** uma empresa (e reactivar): a confirmação diz quantas
-  contas deixam de entrar e quantas sessões abertas se fecham; nada se
-  apaga; as sessões das
-  contas dela fecham-se, a porta recusa-as com uma página que o diz,
-  com o contacto e um só botão, «Sair»
+  contas deixam de entrar; nada se apaga. **As sessões abertas não se
+  apagam** (G53 da 3.ª ronda, 29/09/2026: apagadas, quem estava dentro
+  caía no site público sem uma palavra): a porta recusa-as a partir do
+  pedido seguinte com a página «Acesso suspenso», a mesma de quem tenta
+  entrar, com o contacto e um só botão, «Sair»
   (`_empresa_suspensa()`), e a verificação salta-a — sem alertas nem
   resumo (`empresas_a_trabalhar()`). A lista é `empresas_suspensas` no
   config.json da plataforma.
@@ -1348,6 +1396,18 @@ e as secções do sistema.
 
 **O dono tem conta** (26/09/2026): sem empresa, abre na mesma a Conta —
 a palavra-passe, as sessões, o aspecto — e a Ajuda (`CONTA_DO_DONO`).
+
+**As sessões de cada conta** (G58 da 3.ª ronda, 29/09/2026) dizem o
+aparelho, quando foram **usadas** pela última vez (o fim desliza trinta
+dias a cada pedido, e por isso é o fim menos esses dias) e até quando
+valem, e cada uma, menos a desta, tem **«terminar»**
+(`POST /configuracoes/conta/sessoes/terminar`, `contas.terminar_sessao()`,
+só as da própria conta). O «Sair de todos os aparelhos» e o «recusar»
+de um pedido de acesso pedem confirmação.
+
+**Um GET numa rota que só grava** (G59) dá a página da casa, «Este
+endereço só grava», e não o 405 cru do servidor; o `/pedir-acesso` e o
+`/configuracoes/propostas` voltam ao formulário deles (`VOLTA_DO_GET`).
 Até aí as duas mandavam-no de volta para a `/plataforma`.
 
 ### 4.10 O que corre sozinho

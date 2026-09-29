@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 15
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 19
 - [O motor de filtros](#o-motor-de-filtros) &middot; 13
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 37
+- [Contas e a porta](#contas-e-a-porta) &middot; 39
 - [A interface](#a-interface) &middot; 104
-- [Convenções](#convencoes) &middot; 4
+- [Convenções](#convencoes) &middot; 5
 
-São **371** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **378** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2831,7 +2831,12 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   palavra-passe de alguém. O `/repor/<código>` conta os códigos errados
   como entradas falhadas com a chave `repor:<ip>` — com uma chave comum,
   cinco códigos inventados por qualquer um fechavam a porta a toda a
-  gente. E **o admin nunca repõe a conta do dono**, mesmo sendo da
+  gente. **Mas essas falhas não contam no trinco do `/entrar`** (3.ª
+  ronda, G50): a linha levava também o IP, e o `/entrar` contava por
+  e-mail **ou** IP — cinco aberturas de uma ligação velha fecharam a
+  entrada ao escritório inteiro duas vezes na mesma noite. O tecto do IP
+  salta as linhas com o `PREFIXO_DO_REPOR`, e só um código que **não
+  existe** conta: uma ligação usada ou fora do prazo é verdadeira. E **o admin nunca repõe a conta do dono**, mesmo sendo da
   empresa dele (`contas.pode_repor()`): o dono é admin da empresa 1, e
   repor-lha era ficar dono da plataforma.
 
@@ -2902,11 +2907,16 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   sem ela, o dono sem empresa era mandado para a `/plataforma`.
 - **Apagar uma empresa tira-a também do que aponta para o número dela**
   (26/09/2026, ao pôr o «Apagar a empresa» no painel). O
-  `criar_empresa()` dá o número a seguir ao maior: apagada a última, a
-  nova herda-lhe o número — e nascia **suspensa**, se a apagada o
-  estava, e aberta a quem a estivesse a ver no modo de suporte. O
-  `apagar_empresa()` limpa as duas coisas (a lista
-  `empresas_suspensas` e o `sessoes.ver_como`). E a ordem é contrato:
+  `criar_empresa()` dava o número a seguir ao maior **dos que existem**:
+  apagada a última, a nova herdava-lhe o número — e nascia **suspensa**,
+  se a apagada o estava, aberta a quem a estivesse a ver no modo de
+  suporte, e era para ela que o «aceite: empresa 4» de um pedido antigo
+  levava (3.ª ronda, G57). O `apagar_empresa()` limpa as duas primeiras
+  (a lista `empresas_suspensas` e o `sessoes.ver_como`), e desde
+  29/09/2026 **os números não se reutilizam** (D10): o maior que já se
+  deu fica na marca `maior_empresa` do radar.db, que não sai com a
+  empresa — as pastas de `copias/` também contam, mas alguém as pode
+  tirar. E a ordem é contrato:
   **a pasta sai primeiro** — se o move falhar, nada se apagou na base —
   e se a base falhar depois (`_apagar_da_plataforma()`), a pasta volta.
   A rota corre síncrona porque a cópia de antes (um `VACUUM INTO`)
@@ -2914,7 +2924,30 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   100 s do túnel e passa a pedir um fio de fundo.
 - **A página de empresa suspensa tem uma saída só, o «Sair»** (V4 P6):
   o «Voltar ao Hoje» do `PAGINA_ERRO` devolvia-a a ela mesma. Troca-se
-  o `ACCAO_DA_PAGINA_DE_ERRO`, e o formulário leva o `csrf`.
+  o `ACCAO_DA_PAGINA_DE_ERRO`, e o formulário leva o `csrf`. **E
+  suspender não apaga as sessões** (3.ª ronda, G53): apagadas, a porta
+  já não sabia de quem era o pedido seguinte e servia o site público —
+  quem estava dentro achava que a aplicação tinha ido abaixo. É a porta
+  que recusa cada pedido de uma empresa suspensa, e é por isso que ela
+  tem de continuar a reconhecer a sessão.
+- **O trinco é da conta; o IP só tem um tecto alto** (D2 da 3.ª ronda,
+  29/09/2026). Cinco falhas por e-mail **ou** por IP fechavam um
+  escritório inteiro — um IP são várias pessoas. O
+  `segundos_de_trinco()` conta as duas coisas à parte, cada uma com o seu
+  tecto (`FALHAS_ATE_TRINCO`, `FALHAS_ATE_TRINCO_DO_IP`), e `email=None`
+  pergunta só pelo IP. A frase diz a **hora** (`recado_do_trinco()`), e
+  quem a compara com texto procura «demasiadas tentativas», não «espera»
+  — os 429 do `/entrar` e do `/entrar/codigo` dependiam da palavra
+  antiga. O dono levanta-o em `/plataforma/erros` (`POST
+  /plataforma/trinco/levantar`, dentro do prefixo de `ROTAS_SO_DONO` e
+  com o CSRF da sessão).
+- **O 405 tem página da casa** (3.ª ronda, G59). Um GET numa rota só de
+  POST dava o «Method Not Allowed» cru do Werkzeug, e chega-se lá ao
+  recarregar depois de um POST falhado. O `errorhandler(405)` corre
+  **depois** da porta (o Flask só levanta o erro de rota no
+  `dispatch_request`): sem sessão, uma rota fechada já foi para o
+  `/entrar`, e só as abertas (o `/pedir-acesso`) chegam cá sem conta. As
+  que têm um formulário conhecido voltam a ele (`VOLTA_DO_GET`).
 - **A guarda do segundo factor está no `contas.entrar()`, não na rota
   do `/entrar`** (28/09/2026). A ligação de repor e o convite também
   abrem a sessão por essa função; uma guarda só na rota deixava a
@@ -4064,6 +4097,14 @@ botões ou no calendário.
   para `comum` e os três ciclos caíram. Escrever um formatador na banda
   em que se estava a trabalhar é como isto volta.
 
+- **Um nome de função só existe uma vez no `radar.py`** (3.ª ronda,
+  G51). A ficha nova de 28/09/2026 definiu uma `_celula()` para as
+  grelhas dela, e já havia uma `_celula()` das tabelas da plataforma, mil
+  linhas acima: o Python fica com a última, e as tabelas do dono
+  passaram a sair desfeitas, com «mg-num» escrito no texto. Nenhum teste
+  via, porque cada página abria com 200. A das tabelas chama-se agora
+  `_celula_da_tabela()`, e o `test_g51_nenhuma_funcao_do_radar_se_define_duas_vezes`
+  percorre o ficheiro — com 33 mil linhas, um nome curto repete-se.
 - **Convenção de acentos:** comentários e docstrings do `radar.py` em ASCII,
   sem acentos; texto visível ao utilizador (HTML, prints, prompts) com
   acentos. Segue o que já lá está.

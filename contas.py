@@ -35,10 +35,19 @@ SCRYPT_N, SCRYPT_R, SCRYPT_P = 2 ** 14, 8, 1
 # o deixa um mes ve-o uma vez.
 DIAS_DE_SESSAO = 30
 
-# O trinco ao login: cinco falhas em quinze minutos, por e-mail ou por
-# IP, e a resposta passa a esperar.
+# O trinco ao login (D2 da 3.ª ronda, 29/09/2026): cinco falhas em
+# quinze minutos POR CONTA, e um tecto muito mais alto POR IP. Era cinco
+# por conta OU por IP, e um escritorio e um IP so: um colega que errasse
+# cinco vezes (ou cinco ligacoes de repor velhas) fechava a porta a
+# todos. O tecto do IP fica para quem experimenta contas ao calhas.
 FALHAS_ATE_TRINCO = 5
+FALHAS_ATE_TRINCO_DO_IP = 30
 MINUTOS_DE_TRINCO = 15
+# As ligacoes de repor com codigo errado tem trinco proprio, com esta
+# chave e o IP (`repor:<ip>`), e NAO contam no tecto do IP do login
+# (G50): cinco aberturas de uma ligacao expirada fechavam a entrada ao
+# escritorio inteiro.
+PREFIXO_DO_REPOR = "repor:"
 
 # Os dois papeis (13/09/2026, "Mudancas na plataforma RADAR"): o admin
 # ve tudo e cria contas; o tester ve o trabalho (anuncios, em curso,
@@ -280,7 +289,7 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None,
     """
     email = email_limpo(email)
     if papel is not None and papel not in PAPEIS:
-        raise ValueError("o tipo de utilizador tem de ser admin ou tester")
+        raise ValueError("o papel tem de ser gestor ou utilizador")
     # Um nome de utilizador chega ("admin"): o Afonso nao quer e-mail
     # (8/09/2026). A coluna continua a chamar-se `email` -- e o que
     # identifica a conta, seja um e-mail ou nao.
@@ -352,11 +361,11 @@ def apagar_utilizador(c, utilizador_id, empresa_id=None, quem=None):
             "SELECT COUNT(*) FROM utilizadores WHERE dono=1").fetchone()[0] <= 1:
         raise ValueError("é o único dono da plataforma; não se tira")
     if quem is not None and not pode_repor(quem, dict(linha)):
-        raise ValueError("só o admin da empresa tira contas")
+        raise ValueError("só o gestor da empresa tira contas")
     if linha["papel"] == "admin" and c.execute(
             "SELECT COUNT(*) FROM utilizadores WHERE papel='admin' "
             "AND empresa_id=?", (linha["empresa_id"],)).fetchone()[0] <= 1:
-        raise ValueError("é o único admin; cria outro antes de o tirar")
+        raise ValueError("é o único gestor; crie outro antes de o tirar")
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM reposicoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM segundo_factor WHERE utilizador_id=?", (utilizador_id,))
@@ -416,28 +425,74 @@ def unico_utilizador(c):
 
 # -------------------------------------------------------------------- trinco
 
+def _espera(linhas, tecto, agora):
+    """Segundos ate a falha que faz a `tecto`-esima a contar do fim sair
+    da janela; 0 se nao chegam ao tecto."""
+    if len(linhas) < tecto:
+        return 0
+    primeira = datetime.strptime(linhas[-tecto][0], "%Y-%m-%d %H:%M:%S")
+    abre = primeira + timedelta(minutes=MINUTOS_DE_TRINCO)
+    return max(1, int((abre - agora).total_seconds()))
+
+
 def segundos_de_trinco(c, email, ip, agora=None):
     """Quantos segundos faltam para o trinco abrir: 0 se nao ha trinco.
 
-    Conta as falhas dos ultimos MINUTOS_DE_TRINCO por e-mail OU por IP;
-    a partir de FALHAS_ATE_TRINCO a porta fecha ate a falha mais antiga
-    da janela sair dela.
+    Conta as falhas dos ultimos MINUTOS_DE_TRINCO da conta (FALHAS_ATE_
+    TRINCO) e as do IP (FALHAS_ATE_TRINCO_DO_IP, sem as do repor); o
+    trinco fecha pelo que chegar primeiro ao seu tecto. `email=None` so
+    olha para o IP.
     """
     agora = agora or datetime.now()
     limite = (agora - timedelta(minutes=MINUTOS_DE_TRINCO)).strftime(
         "%Y-%m-%d %H:%M:%S")
-    linhas = c.execute(
-        "SELECT quando FROM entradas_falhadas WHERE quando > ? "
-        "AND (email=? OR ip=?) ORDER BY quando",
-        (limite, email_limpo(email), ip or "")).fetchall()
-    if len(linhas) < FALHAS_ATE_TRINCO:
-        return 0
-    # a janela abre quando a falha que faz a quinta a contar do fim sair
-    # dos quinze minutos
-    primeira = datetime.strptime(linhas[-FALHAS_ATE_TRINCO][0],
-                                 "%Y-%m-%d %H:%M:%S")
-    abre = primeira + timedelta(minutes=MINUTOS_DE_TRINCO)
-    return max(1, int((abre - agora).total_seconds()))
+    da_conta = c.execute(
+        "SELECT quando FROM entradas_falhadas WHERE quando > ? AND email=? "
+        "ORDER BY quando", (limite, email_limpo(email))).fetchall() \
+        if email is not None else []
+    do_ip = c.execute(
+        "SELECT quando FROM entradas_falhadas WHERE quando > ? AND ip=? "
+        "AND substr(email, 1, ?) != ? ORDER BY quando",
+        (limite, ip, len(PREFIXO_DO_REPOR), PREFIXO_DO_REPOR)).fetchall() if ip else []
+    return max(_espera(da_conta, FALHAS_ATE_TRINCO, agora),
+               _espera(do_ip, FALHAS_ATE_TRINCO_DO_IP, agora))
+
+
+def recado_do_trinco(espera, agora=None):
+    """A frase do trinco para o ecra (G50): a hora a que se pode tentar,
+    e nao «espera 674 s» -- que tratava por tu e obrigava a fazer contas."""
+    abre = (agora or datetime.now()) + timedelta(seconds=espera + 59)
+    return "demasiadas tentativas; pode tentar de novo às %s" % abre.strftime("%H:%M")
+
+
+def levantar_trinco(c, email="", ip=""):
+    """Tira as falhas da conta e/ou do IP (D2: o dono levanta o trinco
+    nas paginas dele). Devolve quantas linhas sairam."""
+    n = 0
+    if email:
+        n += c.execute("DELETE FROM entradas_falhadas WHERE email=?",
+                       (email_limpo(email),)).rowcount
+    if ip:
+        n += c.execute("DELETE FROM entradas_falhadas WHERE ip=?", (ip,)).rowcount
+    return n
+
+
+def trincos_fechados(c, agora=None):
+    """[(chave, tipo, segundos)] das contas e IP com o trinco fechado
+    agora -- o que a pagina dos erros oferece para levantar."""
+    agora = agora or datetime.now()
+    limite = (agora - timedelta(minutes=MINUTOS_DE_TRINCO)).strftime(
+        "%Y-%m-%d %H:%M:%S")
+    fechados = []
+    for coluna, tipo in (("email", "conta"), ("ip", "ip")):
+        for (chave,) in c.execute(
+                "SELECT DISTINCT %s FROM entradas_falhadas WHERE quando > ? "
+                "AND COALESCE(%s, '') != ''" % (coluna, coluna), (limite,)).fetchall():
+            espera = (segundos_de_trinco(c, chave, "", agora) if tipo == "conta"
+                      else segundos_de_trinco(c, None, chave, agora))
+            if espera:
+                fechados.append((chave, tipo, espera))
+    return fechados
 
 
 def registar_falha(c, email, ip, agora=None):
@@ -470,7 +525,7 @@ def criar_convite(c, empresa_id, email="", papel="admin", pedido_id=None,
     """Um convite novo. Devolve o CODIGO, que so existe aqui: na base
     fica o resumo."""
     if papel not in PAPEIS:
-        raise ValueError("o tipo de utilizador tem de ser admin ou tester")
+        raise ValueError("o papel tem de ser gestor ou utilizador")
     agora = agora or datetime.now()
     codigo = secrets.token_urlsafe(32)
     c.execute("INSERT INTO convites (resumo, empresa_id, email, papel, pedido_id, "
@@ -730,7 +785,7 @@ def _senha_actual(c, utilizador_id, senha, ip, agora):
         return "a conta não existe"
     espera = segundos_de_trinco(c, linha["email"], ip, agora)
     if espera:
-        return "demasiadas tentativas; espera %d s" % espera
+        return recado_do_trinco(espera, agora)
     if not verifica_senha(senha or "", linha["hash"]):
         registar_falha(c, linha["email"], ip, agora)
         return "a palavra-passe actual não está certa"
@@ -919,7 +974,7 @@ def usar_pendente(c, codigo, codigo_2f, ip="", agente="", agora=None):
         return None, "o pedido de entrada passou do prazo; entre outra vez"
     espera = segundos_de_trinco(c, pendente["email"], ip, agora)
     if espera:
-        return None, "demasiadas tentativas; espera %d s" % espera
+        return None, recado_do_trinco(espera, agora)
     usado = verificar_codigo(c, pendente["utilizador_id"], codigo_2f, agora)
     if not usado:
         registar_falha(c, pendente["email"], ip, agora)
@@ -978,7 +1033,7 @@ def entrar(c, email, senha, ip="", agente="", agora=None, aparelho=""):
     email = email_limpo(email)
     espera = segundos_de_trinco(c, email, ip, agora)
     if espera:
-        return None, "demasiadas tentativas; espera %d s" % espera
+        return None, recado_do_trinco(espera, agora)
     linha = c.execute("SELECT id, hash FROM utilizadores WHERE email=?",
                       (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
@@ -1061,9 +1116,23 @@ def sair_de_todos(c, utilizador_id):
 
 
 def sessoes_de(c, utilizador_id):
-    return [dict(r) for r in c.execute(
-        "SELECT token, criada_em, expira, ip, agente FROM sessoes "
-        "WHERE utilizador_id=? ORDER BY criada_em DESC", (utilizador_id,))]
+    """As sessoes da conta, com o `n` (o rowid, que vai para o ecra -- o
+    token nunca) e o `usada_em`: o fim desliza DIAS_DE_SESSAO a cada
+    pedido, e por isso o ultimo uso e o fim menos esses dias (G58)."""
+    linhas = [dict(r) for r in c.execute(
+        "SELECT rowid AS n, token, criada_em, expira, ip, agente FROM sessoes "
+        "WHERE utilizador_id=? ORDER BY expira DESC", (utilizador_id,))]
+    for l in linhas:
+        l["usada_em"] = (datetime.strptime(l["expira"], "%Y-%m-%d %H:%M:%S")
+                         - timedelta(days=DIAS_DE_SESSAO)).strftime("%Y-%m-%d %H:%M:%S")
+    return linhas
+
+
+def terminar_sessao(c, utilizador_id, n):
+    """Fecha UMA sessao da conta, pelo `n` do `sessoes_de()`. So as da
+    propria conta: um `n` de outra nao fecha nada. True se fechou."""
+    return bool(c.execute("DELETE FROM sessoes WHERE rowid=? AND utilizador_id=?",
+                          (n, utilizador_id)).rowcount)
 
 
 # ---------------------------------------------------------------------- csrf

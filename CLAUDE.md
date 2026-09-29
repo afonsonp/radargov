@@ -251,14 +251,17 @@ hooks e nos testes (ver «Comandos», em cima).
 
 O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
 (etapa 1 do `docs/historico/ONLINE.md`), com **três níveis** desde 23/09/2026 (o dono da plataforma, o admin e o tester de cada empresa; eram dois papéis desde
-13/09/2026).
+13/09/2026). **No ecrã o admin é «gestor» e o tester «utilizador»** desde
+29/09/2026 (D7 da 3.ª ronda, `PAPEL_NO_ECRA`); na base e no código ficam
+`admin` e `tester`.
 
 **O que a porta É — os três estados, o que fica aberto sem sessão, as
 duas guardas do POST e o trinco — está no `docs/FUNCIONAL.md` §4.9.**
 Aqui ficam os nomes no código: `porta_de_entrada()` (um
 `before_request`, logo a seguir ao `app`), `pedido_e_local()`,
 `origem_e_nossa()`, `sou_dono()` / `so_dono()`, `ROTAS_SO_DONO`,
-`sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN` (desde 26/09/2026 com o
+`sou_admin()` / `so_admin()`, `ROTAS_SO_ADMIN` (desde 29/09/2026 com o
+gravar do Perfil da empresa; desde 26/09/2026 com o
 `/arranque/dispensar`, o cartão «Pôr a empresa a trabalhar» do Hoje), `largar_a_empresa()`
 (o `teardown_request` que repõe a empresa do pedido), `aceitar_pedido()`
 (GET mostra o perfil da empresa nova, `perfil_do_pedido()`; só o POST
@@ -276,6 +279,9 @@ repor mostram-se por Post/Redirect/Get), o modo de suporte
 (`plataforma_ver_como()`, `empresa_a_ver()`, `PODE_A_VER_COMO`,
 `_so_leitura()`, `_so_para_ler()`, `faixa_de_suporte()`), a suspensão
 (`empresas_suspensas()`, `empresas_a_trabalhar()`), `CONTA_DO_DONO`,
+o trinco (`contas.segundos_de_trinco()`, por conta e com um tecto alto
+por IP desde 29/09/2026, e `plataforma_levantar_trinco()`, o «levantar»
+do dono), `metodo_errado()` (o 405 da casa),
 `repor()` e `_gerar_reposicao()` (D17: a ligação de repor a
 palavra-passe, rota aberta com a guarda dentro, como o convite),
 `entrar_codigo()` e `_bloco_do_segundo_factor()` (28/09/2026: o
@@ -601,7 +607,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **375 pontos** (contados a 29/09/2026), cada um de um erro que
+São **378 pontos** (contados a 29/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

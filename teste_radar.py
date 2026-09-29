@@ -12,6 +12,8 @@ segundo, por isso nao ha desculpa para nao os correr antes de gravar.
 Quando o DR mudar o formato dos anuncios, e o teste do parser que avisa.
 """
 
+import ast
+import collections
 import contextlib
 import datetime
 import gc
@@ -12716,18 +12718,20 @@ class TestContas(BaseTemporaria):
                     c, "afonso@exemplo.pt", "errada", ip="1.2.3.4",
                     agora=t0 + datetime.timedelta(seconds=i))
                 self.assertIsNone(token)
-            self.assertNotIn("espera", porque)      # a quinta ainda responde
-            # a sexta, com a senha CERTA, espera -- e diz quanto
+            self.assertNotIn("demasiadas", porque)  # a quinta ainda responde
+            # a sexta, com a senha CERTA, espera -- e diz a que horas
+            # (G50 da 3.ª ronda: era «espera 674 s», e tratava por tu)
             token, porque = self.contas.entrar(
                 c, "afonso@exemplo.pt", "senha-comprida", ip="9.9.9.9",
                 agora=t0 + datetime.timedelta(seconds=10))
             self.assertIsNone(token)
-            self.assertIn("espera", porque)
-            # por IP tambem: outro e-mail do mesmo IP fica preso
+            self.assertIn("pode tentar de novo às 10:15", porque)
+            # o IP NÃO fica preso por cinco (D2 da 3.ª ronda): um
+            # escritório é um IP, e um colega que erra não fecha os outros
             token, porque = self.contas.entrar(
                 c, "outro@exemplo.pt", "x", ip="1.2.3.4",
                 agora=t0 + datetime.timedelta(seconds=10))
-            self.assertIn("espera", porque)
+            self.assertNotIn("demasiadas", porque)
             # passados os quinze minutos abre
             token, _ = self.contas.entrar(
                 c, "afonso@exemplo.pt", "senha-comprida", ip="1.2.3.4",
@@ -16197,9 +16201,11 @@ class TestDonoVeOsDadosDaPlataforma(TestDonoSemEmpresa):
         cliente = self._cliente()
         barra = (cliente.get(radar.LISTA, environ_base=self.FORA)
                  .get_data(as_text=True).split("</header>")[0])
-        for item in (">Concursos<", ">Mercado<", ">Plataforma<"):
+        for item in (">Mercado<", ">Plataforma<"):
             self.assertIn(item, barra)
-        for item in (">Propostas<", ">Calendário<", ">Configurações<"):
+        # os Concursos saíram da barra do dono (G61 da 3.ª ronda): sem
+        # empresa nada foi visto, e as abas contavam 199 178 «sem ver»
+        for item in (">Concursos<", ">Propostas<", ">Calendário<", ">Configurações<"):
             self.assertNotIn(item, barra)
 
 
@@ -16605,7 +16611,7 @@ class TestReporAPalavraPasse(BaseTemporaria):
     def test_a_entrada_diz_a_quem_pedir(self):
         corpo = radar.app.test_client().get(
             "/entrar", environ_base=self.FORA).get_data(as_text=True)
-        self.assertIn("Peça ao administrador da sua empresa", corpo)
+        self.assertIn("Peça ao gestor da sua empresa", corpo)
 
 
 class TestCopiasForaDoPC(BaseTemporaria):
@@ -19830,8 +19836,12 @@ class TestAPaginaDeCadaEmpresa(_PlataformaComDuasEmpresas):
         beto = self.entrar("beto")
         self.post(dono, "/plataforma/empresa/%d/suspender" % self.beta)
         self.assertEqual(radar.empresas_suspensas(), {self.beta})
-        # a sessão que estava aberta fechou-se, e entrar de novo dá a recusa
-        self.assertEqual(self.ver(beto, "/concursos").status_code, 302)
+        # a sessão que estava aberta vê a recusa, e não o site público
+        # (G53 da 3.ª ronda: caía no site sem uma palavra); entrar de
+        # novo dá a mesma recusa
+        r = self.ver(beto, "/")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("Acesso suspenso", r.get_data(as_text=True))
         beto = self.entrar("beto")
         r = self.ver(beto, "/concursos")
         self.assertEqual(r.status_code, 403)
@@ -19970,10 +19980,12 @@ class TestODonoApagaUmaEmpresaNoPainel(_PlataformaComDuasEmpresas):
         with radar.liga() as c:
             self.assertFalse(c.execute("SELECT 1 FROM sessoes WHERE ver_como IS NOT NULL")
                              .fetchone())
-        # nem na lista das suspensas: a próxima empresa herdava o número
+        # nem na lista das suspensas; e o número não volta a ser dado
+        # (D10 da 3.ª ronda): a próxima é a seguinte à maior que já houve
         self.assertEqual(radar.empresas_suspensas(), set())
-        self.assertEqual(radar.criar_empresa("Gama"), self.beta)
-        self.assertEqual(radar.empresas_a_trabalhar(), [1, self.beta])
+        gama = radar.criar_empresa("Gama")
+        self.assertEqual(gama, self.beta + 1)
+        self.assertEqual(radar.empresas_a_trabalhar(), [1, gama])
 
     def test_se_a_base_falhar_a_pasta_volta_e_se_a_pasta_falhar_a_base_fica(self):
         dono = self.entrar("dono")
@@ -20550,7 +20562,8 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
                              r'onsubmit="return confirm\((.*?)\)"', h).group(1)
         pergunta = json.loads(html.unescape(pergunta))
         self.assertIn("2 contas deixam de entrar", pergunta)
-        self.assertIn("as 2 sessões abertas fecham-se já", pergunta)
+        # as sessões ficam, e vêem «Acesso suspenso» (G53 da 3.ª ronda)
+        self.assertIn("quem está dentro vê já «Acesso suspenso»", pergunta)
 
     def test_v4_p6_o_acesso_suspenso_tem_uma_saida_que_funciona(self):
         radar.gravar_config({"empresas_suspensas": [1]})
@@ -21676,7 +21689,8 @@ class TestTerceiraRondaPessoasEAutoria(_CicloDoTesteComUtilizadores):
                 r = tester.get(rota, environ_base=self.FORA)
                 h = r.get_data(as_text=True)
                 self.assertEqual(r.status_code, 403)
-                self.assertIn("Só o administrador da empresa (Sofia Lopes)", h)
+                # «gestor» e não «administrador» (D7 da 3.ª ronda)
+                self.assertIn("Só o gestor da empresa (Sofia Lopes)", h)
                 self.assertNotIn("administração do Mira Gov", h)
                 self.assertIn("mg-topbar", h)                  # dentro do molde
         conta_ = tester.get("/configuracoes/conta", environ_base=self.FORA)
@@ -22316,6 +22330,328 @@ class TestTerceiraRondaPecasNaFicha(_CicloDoTesteComUtilizadores):
         self.assertIn("versão anterior da pergunta", pedem)
         self.assertIn("Não lido", pedem)
         self.assertIn("Projeto.zip", pedem)
+
+
+class TestTerceiraRondaAPortaEAPlataforma(_PlataformaComDuasEmpresas):
+    """Lote 5 da 3.ª ronda (28-29/09/2026): a porta, a plataforma e o
+    suporte, com as decisões D2, D7 e D10 do dono. Cada teste diz o G do
+    que falhou: o trinco que fechava o escritório por cinco ligações de
+    repor velhas, as tabelas do dono desfeitas por uma função com o nome
+    de outra, o «Sair de todos» que dava 500 no modo de suporte, a
+    sessão suspensa que caía no site, e os números de empresa que se
+    reutilizavam."""
+
+    # -- G50 e D2: o trinco
+
+    def test_g50_cinco_repor_invalidos_nao_fecham_a_entrada(self):
+        cliente = radar.app.test_client()
+        for _ in range(radar.contas.FALHAS_ATE_TRINCO + 1):
+            cliente.get("/repor/inventado", environ_base=self.FORA)
+        r = cliente.post("/entrar", data={"email": "chefe", "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)          # entrou
+        # e o repor tem o seu, que diz a hora e não os segundos
+        r = cliente.get("/repor/inventado", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("pode tentar de novo às", r.get_data(as_text=True))
+        self.assertNotIn(" s.", r.get_data(as_text=True).split("mg-alert")[1][:120])
+
+    def test_g50_uma_ligacao_ja_usada_nao_conta_no_trinco(self):
+        with radar.liga() as c:
+            codigo = radar.contas.criar_reposicao(c, self.ids["rita"])
+            c.execute("UPDATE reposicoes SET usado_em='2026-09-28 10:00:00'")
+        cliente = radar.app.test_client()
+        for _ in range(radar.contas.FALHAS_ATE_TRINCO + 2):
+            self.assertEqual(cliente.get("/repor/" + codigo,
+                                         environ_base=self.FORA).status_code, 410)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM entradas_falhadas")
+                             .fetchone()[0], 0)
+
+    def test_d2_o_trinco_e_da_conta_e_o_ip_tem_tecto_alto(self):
+        t0 = datetime.datetime(2026, 9, 29, 9, 0, 0)
+        ip = "203.0.113.7"
+        with radar.liga() as c:
+            for i in range(radar.contas.FALHAS_ATE_TRINCO):
+                radar.contas.entrar(c, "chefe", "errada", ip=ip,
+                                    agora=t0 + datetime.timedelta(seconds=i))
+            # a conta fechou; a colega do mesmo escritório entra
+            self.assertTrue(radar.contas.segundos_de_trinco(c, "chefe", "", t0))
+            token, _ = radar.contas.entrar(c, "rita", "senha-comprida", ip=ip,
+                                           agora=t0 + datetime.timedelta(seconds=9))
+            self.assertTrue(token)
+            # o IP fecha só ao tecto dele, e para todas as contas
+            for i in range(radar.contas.FALHAS_ATE_TRINCO_DO_IP):
+                radar.contas.registar_falha(c, "x%d" % i, ip,
+                                            t0 + datetime.timedelta(seconds=20 + i))
+            token, porque = radar.contas.entrar(c, "beto", "senha-comprida", ip=ip,
+                                                agora=t0 + datetime.timedelta(minutes=1))
+            self.assertIsNone(token)
+            self.assertIn("pode tentar de novo às", porque)
+
+    def _fecha_o_trinco_do_beto(self):
+        with radar.liga() as c:
+            for _ in range(radar.contas.FALHAS_ATE_TRINCO):
+                radar.contas.registar_falha(c, "beto", "198.51.100.4")
+            self.assertTrue(radar.contas.segundos_de_trinco(c, "beto", ""))
+
+    def test_d2_o_dono_ve_e_levanta_o_trinco(self):
+        self._fecha_o_trinco_do_beto()
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/plataforma/erros").get_data(as_text=True)
+        self.assertIn("Trincos fechados", h)
+        self.assertIn("a conta beto", h)
+        self.assertIn("trinco", self.ver(dono, "/plataforma").get_data(as_text=True))
+        r = self.post(dono, "/plataforma/trinco/levantar", {"conta": "beto"})
+        self.assertEqual(r.status_code, 302)
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.segundos_de_trinco(c, "beto", ""), 0)
+        self.entrar("beto")                                  # e entra
+
+    def test_d2_levantar_o_trinco_so_o_dono_e_com_csrf(self):
+        self._fecha_o_trinco_do_beto()
+        # sem sessão: a porta recusa o POST
+        r = radar.app.test_client().post("/plataforma/trinco/levantar",
+                                         data={"conta": "beto"}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        # o utilizador e o gestor da empresa: só o dono
+        for quem in ("rita", "chefe"):
+            with self.subTest(quem=quem):
+                r = self.post(self.entrar(quem), "/plataforma/trinco/levantar",
+                              {"conta": "beto"})
+                self.assertEqual(r.status_code, 403)
+        # o dono sem o token
+        r = self.entrar("dono").post("/plataforma/trinco/levantar",
+                                     data={"conta": "beto"}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+        with radar.liga() as c:
+            self.assertTrue(radar.contas.segundos_de_trinco(c, "beto", ""))
+
+    # -- G51: as tabelas do dono
+
+    def test_g51_as_tabelas_do_dono_tem_as_celulas_na_tabela(self):
+        dono = self.entrar("dono")
+        for caminho in ("/plataforma", "/plataforma/empresa/1", "/pedidos-de-acesso"):
+            with self.subTest(caminho=caminho):
+                h = self.ver(dono, caminho).get_data(as_text=True)
+                self.assertNotIn(">mg-num<", h)
+                self.assertNotIn("<tr><div", h)
+                self.assertIn("<td data-r=", h)
+
+    def test_g51_nenhuma_funcao_do_radar_se_define_duas_vezes(self):
+        """A causa do G51: a ficha nova (28/09/2026) definiu outra
+        `_celula()`, e a de baixo ganhava a todas as chamadas da de cima."""
+        arvore = ast.parse(inspect.getsource(radar))
+        nomes = collections.Counter(n.name for n in arvore.body if isinstance(
+            n, (ast.FunctionDef, ast.ClassDef)))
+        self.assertEqual([n for n, k in nomes.items() if k > 1], [])
+
+    # -- G52 e G54: o «ver como»
+
+    def _a_ver_a_alfa(self):
+        dono = self.entrar("dono")
+        self.post(dono, "/plataforma/empresa/1/ver-como")
+        return dono
+
+    def test_g52_sair_de_todos_no_modo_de_suporte_recusa_e_nao_fecha_nada(self):
+        outra = self.entrar("dono")
+        dono = self._a_ver_a_alfa()
+        h = self.ver(dono, "/configuracoes/conta").get_data(as_text=True)
+        self.assertNotIn("action='/sair-de-todos'", h)        # nem no menu da barra
+        r = self.post(dono, "/sair-de-todos")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("Só leitura", r.get_data(as_text=True))
+        self.assertEqual(self.ver(outra, "/plataforma").status_code, 200)
+
+    def test_g54_o_ver_como_nao_mostra_o_que_e_do_dono(self):
+        dono = self._a_ver_a_alfa()
+        conta = self.ver(dono, "/configuracoes/conta").get_data(as_text=True)
+        self.assertNotIn("value='dono'", conta)
+        self.assertNotIn("Sessões abertas", conta)
+        self.assertIn("seriam os seus", conta)
+        self.assertIn("chefe", conta)                    # as contas da empresa
+        alertas = self.ver(dono, "/configuracoes/alertas").get_data(as_text=True)
+        self.assertNotIn("Quem envia", alertas)
+        # e fora do modo, o dono continua a ver o que é dele
+        self.post(dono, "/plataforma/ver-como/sair")
+        self.assertIn("Sessões abertas",
+                      self.ver(dono, "/configuracoes/conta").get_data(as_text=True))
+
+    # -- G55: o convite
+
+    def test_g55_o_convite_diz_a_empresa_e_o_papel(self):
+        h = radar.app.test_client().get("/convite/" + self.codigo_2,
+                                        environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("Convite para <b>Beta</b>, com o papel de <b>gestor</b>", h)
+        h = radar.app.test_client().get("/convite/inventado",
+                                        environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("Peça outro ao gestor da sua empresa", h)
+
+    # -- G56: aceitar um pedido
+
+    def test_g56_o_cpv_curto_da_mensagem_vem_preenchido(self):
+        cpv, _ = radar.perfil_do_pedido({"sector": "Outro",
+                                         "mensagem": "Limpeza de edifícios, CPV 909"})
+        self.assertEqual(cpv, "90900000")
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido).get_data(as_text=True)
+        # o pedido do fixture («Obras», sem mensagem) não sugere nada, e diz-o
+        self.assertIn("não chegaram para o sugerir", h)
+
+    def test_g56_o_aceite_diz_o_numero_e_abre_a_empresa(self):
+        dono = self.entrar("dono")
+        with unittest.mock.patch.object(radar, "enviar_email", return_value=(True, "")):
+            r = self.post(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido,
+                          {"cpv": "45", "pbmin": ""})
+        n = max(radar.empresas_existentes())
+        h = r.get_data(as_text=True)
+        self.assertIn("Empresa n.º %d criada" % n, h)
+        self.assertIn("href='/plataforma/empresa/%d'" % n, h)
+
+    # -- G57 e D10: os números das empresas
+
+    def test_d10_o_numero_de_uma_apagada_nao_volta(self):
+        gama = radar.criar_empresa("Gama")
+        radar.apagar_empresa(gama)
+        # nem que a pasta em copias/ saia: a marca fica no radar.db
+        shutil.rmtree(radar.COPIAS)
+        self.assertEqual(radar.criar_empresa("Delta"), gama + 1)
+
+    def test_g57_o_pedido_de_uma_empresa_apagada_diz_apagada(self):
+        dono = self.entrar("dono")
+        with unittest.mock.patch.object(radar, "enviar_email", return_value=(True, "")):
+            self.post(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido, {"cpv": ""})
+        n = max(radar.empresas_existentes())
+        radar.apagar_empresa(n)
+        h = self.ver(dono, "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("aceite: empresa %d (apagada a %s)"
+                      % (n, datetime.date.today().strftime("%d/%m/%Y")), h)
+        self.assertNotIn("href='/plataforma/empresa/%d'" % n, h)
+
+    def test_g57_um_aceite_antigo_com_o_numero_herdado_nao_abre_a_outra(self):
+        """Os aceites de antes de 29/09/2026 não têm o dia: o pedido é
+        anterior à empresa que lá está, e o nome não é o dele."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                      "sector, mensagem, estado, empresa_id) VALUES ('2026-09-01 09:00', "
+                      "'Ana', 'Antiga Lda', 'ana@x.pt', 'Obras', '', 'aceite', ?)",
+                      (self.beta,))
+        with radar.com_empresa(self.beta):
+            radar.gravar_config({"empresa_desde": "2026-09-28"})
+        h = self.ver(self.entrar("dono"), "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("aceite: empresa %d (apagada)" % self.beta, h)
+
+    # -- G58: confirmar e as sessões
+
+    def test_g58_recusar_e_sair_de_todos_perguntam(self):
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertRegex(h, r"action='/pedidos-de-acesso/%d/recusar' onsubmit=\"return "
+                            r"confirm\(" % self.pedido)
+        h = self.ver(dono, "/configuracoes/conta").get_data(as_text=True)
+        self.assertRegex(h, r"action='/sair-de-todos' onsubmit=\"return confirm\(")
+
+    def test_g58_terminar_uma_sessao_so_da_propria_conta(self):
+        chefe_a = self.entrar("chefe")
+        chefe_b = self.entrar("chefe")
+        rita = self.entrar("rita")
+        with radar.liga() as c:
+            da_rita = radar.contas.sessoes_de(c, self.ids["rita"])[0]["n"]
+            do_chefe = radar.contas.sessoes_de(c, self.ids["chefe"])
+        self.assertTrue(all(s["usada_em"] for s in do_chefe))
+        h = self.ver(chefe_a, "/configuracoes/conta").get_data(as_text=True)
+        self.assertIn("usada ", h)
+        self.assertIn("/configuracoes/conta/sessoes/terminar", h)
+        # a sessão da rita não se fecha pelo chefe
+        self.post(chefe_a, "/configuracoes/conta/sessoes/terminar", {"n": da_rita},
+                  pagina="/configuracoes/conta")
+        self.assertEqual(self.ver(rita, "/concursos").status_code, 200)
+        # a outra do chefe fecha-se
+        outra = [s["n"] for s in do_chefe][0]
+        with radar.liga() as c:
+            esta = {s["n"] for s in radar.contas.sessoes_de(c, self.ids["chefe"])}
+        self.post(chefe_a, "/configuracoes/conta/sessoes/terminar", {"n": outra},
+                  pagina="/configuracoes/conta")
+        with radar.liga() as c:
+            depois = {s["n"] for s in radar.contas.sessoes_de(c, self.ids["chefe"])}
+        self.assertEqual(len(esta) - 1, len(depois))
+        del chefe_b
+        # sem sessão, a porta recusa
+        r = radar.app.test_client().post("/configuracoes/conta/sessoes/terminar",
+                                         data={"n": da_rita}, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 403)
+
+    # -- G59: o 405
+
+    def test_g59_o_get_numa_rota_que_so_grava_tem_pagina_da_casa(self):
+        chefe = self.entrar("chefe")
+        r = self.ver(chefe, "/tarefa/nova")
+        self.assertEqual(r.status_code, 405)
+        h = r.get_data(as_text=True)
+        self.assertIn("Este endereço só grava", h)
+        self.assertNotIn("Method Not Allowed", h)
+        self.assertIn('name="viewport"', h)
+        self.assertEqual(self.ver(chefe, "/configuracoes/propostas").headers["Location"],
+                         "/configuracoes/interesse")
+        r = radar.app.test_client().get("/pedir-acesso", environ_base=self.FORA)
+        self.assertEqual(r.headers["Location"], "/#acesso")
+
+    # -- G60 e G61: a plataforma
+
+    def test_g60_o_papel_chama_se_papel_e_os_semaforos_enchem_a_linha(self):
+        h = self.ver(self.entrar("dono"), "/plataforma/empresa/1").get_data(as_text=True)
+        self.assertIn("<th>Papel</th>", h)
+        self.assertNotIn("<th>Tipo</th>", h)
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            self.assertIn("repeat(auto-fit,minmax(150px,1fr))", f.read())
+
+    def test_g61_o_convite_do_dono_leva_o_email_e_o_voltar_volta(self):
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/plataforma/empresa/%d" % self.beta).get_data(as_text=True)
+        self.assertIn("Anular o convite de gestor criado a", h)
+        self.assertNotIn("para sem endereço", h)
+        self.post(dono, "/plataforma/empresa/%d/convite" % self.beta,
+                  {"papel": "tester", "email": "zeca@beta.pt"})
+        with radar.liga() as c:
+            self.assertIn("zeca@beta.pt", [cv["email"] for cv in
+                                           radar.contas.convites_por_usar(c, self.beta)])
+        self.ver(dono, radar.LIGACAO_UMA_VEZ)
+        h = self.ver(dono, radar.LIGACAO_UMA_VEZ).get_data(as_text=True)
+        self.assertIn("já se mostrou", h)
+        self.assertIn("href='/plataforma/empresa/%d#convites'" % self.beta, h)
+
+    # -- D7: o gestor e o utilizador
+
+    def test_d7_so_o_gestor_muda_o_perfil_da_empresa(self):
+        rita = self.entrar("rita")
+        h = self.ver(rita, "/configuracoes/interesse").get_data(as_text=True)
+        self.assertIn("só o gestor (chefe) o muda", h)
+        self.assertIn("<fieldset disabled", h)
+        for caminho, dados in (("/alertas/interesse", {"cpv": "45000000"}),
+                               ("/configuracoes/propostas", {"tipologias": "X"})):
+            with self.subTest(caminho=caminho):
+                self.assertEqual(self.post(rita, caminho, dados).status_code, 403)
+        with radar.com_empresa(1):
+            self.assertFalse(radar.ler_config().get("interesse_cpv"))
+        chefe = self.entrar("chefe")
+        self.assertNotIn("<fieldset disabled", self.ver(
+            chefe, "/configuracoes/interesse").get_data(as_text=True))
+        self.assertEqual(self.post(chefe, "/alertas/interesse",
+                                   {"cpv": "45000000"}).status_code, 302)
+        with radar.com_empresa(1):
+            self.assertEqual(radar.ler_config().get("interesse_cpv"), "45000000")
+
+    def test_d7_o_ecra_diz_gestor_e_utilizador(self):
+        h = self.ver(self.entrar("chefe"), "/configuracoes/conta").get_data(as_text=True)
+        self.assertIn("<b>Gestor</b>: gere as contas", h)
+        self.assertIn("<option value='admin'>Gestor</option>", h)
+        texto = re.sub(r"<[^>]+>", " ", h)
+        self.assertNotRegex(texto, r"\b(Administrador|administrador|tester|admin)\b")
+        self.assertIn("de gestor da", radar.TEXTO_DO_CONVITE)
+        with open(os.path.join(os.path.dirname(radar.__file__), "site",
+                               "termos.html"), encoding="utf-8") as f:
+            self.assertNotIn("administrador", f.read())
 
 
 if __name__ == "__main__":
