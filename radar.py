@@ -13012,24 +13012,35 @@ def bloco_da_conta():
     nome = utilizador.get("nome") or ""
     empresa_ = nome_da_empresa_activa()
     if g.get("sessao"):
+        # O mesmo `mg-menu` do «Mais» da barra de baixo, com os ícones e
+        # as maiúsculas (3.ª ronda, G71): eram dois desenhos do mesmo
+        # menu, e o «sair» era um alvo de 28×18. O nome do botão diz o
+        # que ele é (o leitor soletrava as iniciais do avatar); o Esc e
+        # o Tab para fora fecham-no (o `BASE`, «o menu da conta»).
         return ("<details class='sou'><summary>"
-                "<span class='mg-avatar'>%s</span><span class='sou-quem'>%s%s</span>"
+                "<span class='so-leitor'>Menu da conta: </span>"
+                "<span class='mg-avatar' aria-hidden='true'>%s</span>"
+                "<span class='sou-quem'>%s%s</span>"
                 "</summary><div class='mg-menu sou-menu'>"
-                "<a class='sou-conta' href='/configuracoes/conta'>a conta</a>"
+                "<a class='mg-menu__item' href='/configuracoes/conta'>%sA conta</a>"
                 "%s"
                 "<form method='post' action='/sair'>"
-                "<button type='submit'>sair</button></form>"
+                "<button type='submit' class='mg-menu__item'>%sSair</button></form>"
                 "%s</div></details>"
                 % (_iniciais(nome), html.escape(nome), empresa_,
-                   "<a class='sou-conta' href='/plataforma'>administração "
-                   "da plataforma</a>" if sou_dono() else "",
+                   icone("utilizador"),
+                   "<a class='mg-menu__item' href='/plataforma'>%sAdministração "
+                   "da plataforma</a>" % icone("configuracoes") if sou_dono() else "",
+                   icone("sair"),
                    # no modo de suporte não (G52 da 3.ª ronda): dava 500 e
                    # fechava as sessões do dono; e pede confirmação (G58)
                    "" if g.get("ver_como") is not None else
+                   "<div class='mg-menu__sep'></div>"
                    "<form method='post' action='/sair-de-todos' onsubmit=\"return "
                    "confirm('Sair de todos os aparelhos? Todas as sessões desta "
                    "conta se fecham, esta também.')\">"
-                   "<button type='submit'>sair de todos os aparelhos</button></form>"))
+                   "<button type='submit' class='mg-menu__item'>%sSair de todos os "
+                   "aparelhos</button></form>" % icone("sair")))
     if nome:
         return ("<div class='sou'><div class='so-nome mg-topbar__user'>"
                 "<span class='mg-avatar'>%s</span><span class='sou-quem'>%s%s"
@@ -14573,7 +14584,7 @@ CSS_NOVO = r"""
 [data-pele=novo] .periodos a.on .av{background:rgba(255,255,255,.28);
  color:#fff}
 [data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
- opacity:.8;margin-left:4px}
+ margin-left:4px}
 [data-pele=novo] .fazer-fundo{display:flex;gap:18px;padding:12px 16px;
  border-top:1px solid var(--line);flex-wrap:wrap;
  font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
@@ -15004,6 +15015,66 @@ document.addEventListener('submit', function (e) {
   if (e.persisted) [].forEach.call(document.querySelectorAll('form[data-a-gravar]'), soltar);
  });
 })();
+/* As bolhas da validação do browser vêm na língua do BROWSER: num em
+   inglês, o alerta sem nome dizia «Please fill out this field.» (3.ª
+   ronda, G77). Cada campo inválido diz a sua em português. A caixa do
+   motivo tem as suas mensagens, e fica de fora. */
+(function () {
+ document.addEventListener('invalid', function (e) {
+  var c = e.target, v = c.validity;
+  if (!v || v.customError || (c.closest && c.closest('#form-motivo'))) return;
+  var m = '';
+  if (v.valueMissing) m = c.tagName === 'SELECT' ? 'Escolha uma opção.' : 'Preencha este campo.';
+  else if (v.patternMismatch && c.placeholder === 'dd/mm/aaaa') m = 'Escreva a data assim: 31/12/2026.';
+  else if (v.typeMismatch && c.type === 'email') m = 'Escreva um endereço de e-mail, como nome@empresa.pt.';
+  else if (v.patternMismatch) m = 'O que escreveu não tem a forma pedida.';
+  if (m) { c.setCustomValidity(m); c.dataset.recadoPt = '1'; }
+ }, true);
+ function limpa(e) {
+  var c = e.target;
+  if (c.dataset && c.dataset.recadoPt) { c.setCustomValidity(''); delete c.dataset.recadoPt; }
+ }
+ document.addEventListener('input', limpa, true);
+ document.addEventListener('change', limpa, true);
+})();
+/* Uma tabela que rola de lado di-lo (3.ª ronda, G75): a 768 px o domingo
+   do calendário, o «Preço» da Situação e o «Quem ganhou» do Mercado
+   ficavam cortados, sem nada a dizer que havia mais. A dica nasce e sai
+   com a medida, e o leitor de ecrã não precisa dela (lê a tabela toda). */
+(function () {
+ function mede() {
+  [].forEach.call(document.querySelectorAll('main .cal-rolo, main .tab-cx, main .mercado-tab'), function (e) {
+   var rola = e.scrollWidth > e.clientWidth + 2;
+   var dica = e.previousElementSibling;
+   var tem = dica && dica.classList.contains('rola-dica');
+   if (rola && !tem) {
+    dica = document.createElement('p');
+    dica.className = 'rola-dica'; dica.setAttribute('aria-hidden', 'true');
+    dica.textContent = 'A tabela continua para o lado \u2192';
+    e.parentNode.insertBefore(dica, e);
+   } else if (!rola && tem) dica.remove();
+  });
+ }
+ mede(); addEventListener('resize', mede);
+})();
+/* Os menus da barra (o da conta e o «Mais»): o Esc fecha-os e devolve o
+   foco ao botão, e sair deles com o Tab ou com um clique fora também os
+   fecha (3.ª ronda, G71). Um <details> não faz nada disto sozinho, e o
+   menu aberto ficava por cima da página, a tapar o foco seguinte. */
+(function () {
+ function abertos() { return document.querySelectorAll('details.sou[open], details.bb-mais[open]'); }
+ function fechaFora(e) {
+  [].forEach.call(abertos(), function (d) { if (!d.contains(e.target)) d.open = false; });
+ }
+ document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  [].forEach.call(abertos(), function (d) {
+   d.open = false; d.querySelector('summary').focus();
+  });
+ });
+ document.addEventListener('focusin', fechaFora);
+ document.addEventListener('click', fechaFora);
+})();
 /* O aviso vive no endereço (?aviso=…&assin=…), e refrescar repetia-o:
    parecia que se tinha gravado outra vez (3.ª ronda, G11). Depois de o
    mostrar, sai do endereço -- e o que é da página (?quem=, a âncora)
@@ -15241,6 +15312,16 @@ def accao(destino, etiqueta, classe="bt", confirmar="", campos=None,
             % (destino, ao_submeter, escondidos, botao(classe),
                (" aria-label='%s'" % html.escape(rotulo, quote=True))
                if rotulo else "", etiqueta))
+
+
+def rotulado(texto, campo, classe=""):
+    """Um campo pequeno com o rótulo à vista, por cima dele (3.ª ronda,
+    G74). O nome estava só no texto de exemplo («nome», «cargo», «o que
+    falta fazer…»), que desaparece quando se escreve. É uma grelha e não
+    um flex de propósito: as regras antigas destes formulários dão ao
+    campo um `flex:1 1 130px`, que numa coluna flex era altura."""
+    return ("<label class='rot%s'><span class='rot-t'>%s</span>%s</label>"
+            % (" " + classe if classe else "", texto, campo))
 
 
 # --- os botões e as pílulas do sistema (fase 3, 22/09/2026) ----------
@@ -15519,7 +15600,7 @@ def caixa_do_motivo():
     # (o lugar do «Perdido») validam-se na mesma antes de sair.
     grupos = "".join(
         "<div class='escolhas' data-para='%s' role='group' "
-        "aria-label='Motivo' hidden>%s</div>"
+        "aria-labelledby='dlg-motivo-escolha' hidden>%s</div>"
         % (estado,
            "".join("<button type='submit' name='motivo' value='%s' "
                    "class='mg-btn mg-btn--secondary motivo-bt'>%s</button>"
@@ -15529,12 +15610,16 @@ def caixa_do_motivo():
     # os campos exigidos que nao sao o motivo (varredura de 25/09/2026):
     # o selector diz no `data-falta` quais faltam, e so esses se mostram
     campos = ("<label class='mg-field' data-campo='valor_proposta' hidden>"
-              "<span class='mg-field__label'>Preço proposto</span>"
+              # o «(obrigatório)» mostra-se quando o é (3.ª ronda, G74):
+              # os opcionais diziam-no e este não
+              "<span class='mg-field__label'>Preço proposto"
+              "<span class='nota obrig' hidden> (obrigatório)</span></span>"
               "<input class='mg-field__input' type='text' name='valor_proposta' "
               "inputmode='decimal' pattern='%s' "
               "placeholder='ex. 118 500,00'></label>"
               "<label class='mg-field' data-campo='lugar' hidden>"
-              "<span class='mg-field__label'>Lugar</span>"
+              "<span class='mg-field__label'>Lugar"
+              "<span class='nota obrig' hidden> (obrigatório)</span></span>"
               "<input class='mg-field__input' type='number' name='lugar' "
               "min='1' max='99'></label>"
               # os que a ranhura SUGERE (D3, D10): à vista, sem obrigar
@@ -15565,7 +15650,10 @@ def caixa_do_motivo():
             "<p class='alvo' id='dlg-motivo-alvo'></p>"
             "<p class='nota' id='dlg-motivo-nota'>Não apaga nada, e pode "
             "voltar. O motivo é para daqui a um mês se saber porquê.</p>"
-            "%s%s"
+            "%s"
+            # gravar é escolher, e isso diz-se (3.ª ronda, G74)
+            "<p class='mg-field__label' id='dlg-motivo-escolha' hidden>"
+            "Escolha o motivo: a escolha grava.</p>%s"
             "<div class='mg-dialog__actions'>"
             "<button type='button' class='mg-btn mg-btn--secondary' "
             "id='dlg-motivo-nao'>Cancelar</button>"
@@ -15595,11 +15683,28 @@ def caixa_do_motivo():
             "        : 'Escreva o preço proposto.');\n"
             "  }, true);\n"
             "  f.addEventListener('input', function (e) { e.target.setCustomValidity(''); });\n"
-            "  // o Enter num campo nao grava: o botao por omissao do formulario\n"
-            "  // e o primeiro motivo, e gravava-o sem ninguem o escolher\n"
+            "  // o Enter num campo: o botao por omissao do formulario e o\n"
+            "  // primeiro motivo -- gravava-o sem ninguem o escolher, e depois,\n"
+            "  // desligado, o Enter nao fazia nada nem dizia nada (3.a ronda,\n"
+            "  // G70). Agora grava pelo «Gravar»; com motivos, leva o foco a\n"
+            "  // eles, que e onde se grava.\n"
             "  f.addEventListener('keydown', function (e) {\n"
-            "    if (e.key === 'Enter' && e.target.tagName === 'INPUT' &&\n"
-            "        !document.getElementById('dlg-motivo-gravar').offsetParent) e.preventDefault();\n"
+            "    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;\n"
+            "    e.preventDefault();\n"
+            "    var g = document.getElementById('dlg-motivo-gravar');\n"
+            "    if (!g.hidden) { f.requestSubmit(g); return; }\n"
+            "    var m = f.querySelector('.escolhas:not([hidden]) button');\n"
+            "    if (m) m.focus();\n"
+            "  });\n"
+            "  // e o Enter no selector da fase e o «Mudar», como o FUNCIONAL\n"
+            "  // diz (abria a lista das opcoes)\n"
+            "  document.addEventListener('keydown', function (e) {\n"
+            "    var s = e.target;\n"
+            "    if (e.key !== 'Enter' || s.tagName !== 'SELECT' || !s.form ||\n"
+            "        !s.form.classList.contains('escada-js')) return;\n"
+            "    e.preventDefault();\n"
+            "    var b = s.form.querySelector('button[type=submit]');\n"
+            "    if (b) s.form.requestSubmit(b); else s.form.requestSubmit();\n"
             "  });\n"
             "  var ultimo = null;\n"
             "  function abrir(accao, titulo, estado, falta, base, de) {\n"
@@ -15614,12 +15719,14 @@ def caixa_do_motivo():
             "        (TITULOS[estado] || 'Motivo') + (comMotivo ? ': porquê?' : falta.length ? ': o que falta' : ': a adjudicação');\n"
             "    document.getElementById('dlg-motivo-alvo').textContent = titulo || '';\n"
             "    document.getElementById('dlg-motivo-nota').hidden = !comMotivo;\n"
+            "    document.getElementById('dlg-motivo-escolha').hidden = !comMotivo;\n"
             "    var sugere = SUGERE[estado] || [];\n"
             "    f.querySelectorAll('[data-campo]').forEach(function (c) {\n"
             "      var exige = falta.indexOf(c.dataset.campo) >= 0;\n"
             "      var meu = exige || sugere.indexOf(c.dataset.campo) >= 0;\n"
             "      var i = c.querySelector('input');\n"
             "      c.hidden = !meu; i.required = exige; i.disabled = !meu; i.value = '';\n"
+            "      var o = c.querySelector('.obrig'); if (o) o.hidden = !exige;\n"
             "    });\n"
             "    f.querySelectorAll('.escolhas').forEach(function (g) {\n"
             "      var meu = g.dataset.para === estado;\n"
@@ -16433,43 +16540,58 @@ LISTA_JS = """<script>
 // UX-Auditoria pediu, que existia precisamente porque a lista abria com
 // 60% do ecra em filtros. E a mesma razao por que o "?" do titulo
 // tambem nao tem memoria (fase 2).
-// Teclado na lista (UX-Auditoria, Parkinson): j/k anuncio seguinte e
-// anterior, i interessa, a abandonar (abre a caixa do motivo), Enter
-// abre a ficha. Triar vinte cartoes era vinte vezes levar o rato a dois
-// botoes de 25px no canto direito de cada um. Nada disto dispara com o
-// foco num campo de texto.
+// O «Mais filtros» do telemovel (3.a ronda, G75): abre e fecha os campos
+// recolhidos. Sem JS nada se recolhe (a regra do CSS pede o .com-js).
 (function () {
-  // As linhas da TABELA (22/09/2026): o `.item` era o cartao, e quando a
-  // lista passou a tabela as teclas ficaram sem nada onde pegar.
-  var itens = Array.prototype.slice.call(document.querySelectorAll('.lista tbody tr'));
-  if (!itens.length) return;
-  var i = -1;
-  function foca(n) {
-    if (i >= 0) itens[i].classList.remove('foco');
-    i = Math.max(0, Math.min(itens.length - 1, n));
-    itens[i].classList.add('foco');
-    itens[i].scrollIntoView({block: 'nearest'});
+  var b = document.querySelector('#filtros-lista .f-mais');
+  if (!b) return;
+  b.addEventListener('click', function () {
+    var f = document.getElementById('filtros-lista');
+    var aberto = f.classList.toggle('aberto');
+    b.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+  });
+})();
+// Teclado na lista (UX-Auditoria, Parkinson): j/k linha seguinte e
+// anterior, i interessa, a abandonar (abre a caixa do motivo). Triar
+// vinte cartoes era vinte vezes levar o rato a dois botoes de 25px no
+// canto direito de cada um. Nada disto dispara com o foco num campo.
+//
+// **So com o foco numa linha da tabela** (3.a ronda, G65; WCAG 2.1.4):
+// na pagina toda, quem dita ao computador ou escreve com o leitor fora
+// do modo de navegacao triava um concurso sem querer com um «i» solto.
+// E o realce e o do FOCO, nao um indice guardado: depois do «i» a
+// triagem leva o foco a linha seguinte, e o realce vai com ele (antes
+// sumia, e o «i» seguinte nao fazia nada). O Enter e o do browser: com
+// o foco no titulo abre a ficha, num botao carrega-o.
+(function () {
+  var tabela = document.querySelector('.lista tbody');
+  if (!tabela) return;
+  var acesa = null;
+  tabela.addEventListener('focusin', function (e) {
+    var tr = e.target.closest('tr');
+    if (acesa && acesa !== tr) acesa.classList.remove('foco');
+    acesa = tr;
+    if (tr) tr.classList.add('foco');
+  });
+  function foca(tr) {
+    var a = tr && (tr.querySelector('.item-titulo') || tr.querySelector('a[href], button'));
+    if (a) { a.focus(); tr.scrollIntoView({block: 'nearest'}); }
   }
-  function accao(selector) {
-    if (i < 0) return;
-    var f = itens[i].querySelector(selector);
-    if (f) f.requestSubmit();
-  }
-  document.addEventListener('keydown', function (e) {
+  tabela.addEventListener('keydown', function (e) {
     var t = e.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
-              t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+        t.tagName === 'SELECT' || t.isContentEditable) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (document.querySelector('dialog[open]')) return;
-    if (e.key === 'j') { foca(i + 1); e.preventDefault(); }
-    else if (e.key === 'k') { foca(i - 1); e.preventDefault(); }
+    var tr = t.closest('tr');
+    if (!tr || tr.parentNode !== tabela) return;
+    var f = null;
+    if (e.key === 'j') { foca(tr.nextElementSibling); e.preventDefault(); }
+    else if (e.key === 'k') { foca(tr.previousElementSibling); e.preventDefault(); }
     // o "interessa" manda para /estado/<ref>/analisar desde a escada
-    else if (e.key === 'i') { accao("form.accao[action$='/analisar']"); }
-    else if (e.key === 'a') { accao('form.abandonar-js'); }
-    else if (e.key === 'Enter' && i >= 0) {
-      var a = itens[i].querySelector('.item-titulo');
-      if (a) location.href = a.href;
-    }
+    else if (e.key === 'i') { f = tr.querySelector("form.accao[action$='/analisar']"); }
+    else if (e.key === 'a') { f = tr.querySelector('form.abandonar-js'); }
+    if (f) { e.preventDefault(); f.requestSubmit(); }
   });
 })();
 </script>"""
@@ -16892,7 +17014,7 @@ def campos_do_local_e_valor(valores, com_rotulo=True):
             "<label class='mg-field'><span class='mg-field__label'>Preço base de</span>"
             "<input class='mg-field__input' type='text' name='pbmin' value='%s' "
             "inputmode='numeric' placeholder='€'></label>"
-            "<label class='mg-field'><span class='mg-field__label'>até</span>"
+            "<label class='mg-field'><span class='mg-field__label'>Preço base até</span>"
             "<input class='mg-field__input' type='text' name='pbmax' value='%s' "
             "inputmode='numeric' placeholder='€'></label>"
             % (opcoes, v("pbmin"), v("pbmax")))
@@ -17703,6 +17825,10 @@ def _lista_de_anuncios():
     # URL (um alerta antigo, a ligacao do cartao dos urgentes), e o que
     # vier por la passa em campos escondidos para nao se perder ao
     # voltar a filtrar.
+    # os campos que o «Mais filtros» do telemóvel esconde e estão em uso
+    em_uso_escondidos = sum(1 for c in ("ent", "plat", "de", "ate", "dist",
+                                        "pbmin", "pbmax")
+                            if (request.args.get(c) or "").strip())
     filtros = (
         # Os campos do `EcraConcursos`: rotulo por cima, 40px, borda de
         # 2px (o `Field` do sistema), numa grelha de uma linha.
@@ -17710,6 +17836,11 @@ def _lista_de_anuncios():
         "<label class='mg-field f-q'><span class='mg-field__label'>Pesquisar</span>"
         "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência' "
         "title='Palavras soltas: têm de estar todas. Separe com vírgula para qualquer uma; entre aspas, a frase exacta.'></label>"
+        # No telemóvel os outros campos recolhem-se atrás deste botão, que
+        # diz quantos estão em uso (3.ª ronda, G75): a 390 px os filtros
+        # ocupavam a primeira dobra inteira, sem um concurso à vista.
+        "<button type='button' class='mg-btn mg-btn--sm mg-btn--secondary f-mais' "
+        "aria-expanded='false' aria-controls='filtros-lista'>Mais filtros%s</button>"
         "<label class='mg-field'><span class='mg-field__label'>Entidade</span>"
         "<input class='mg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
         "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
@@ -17721,7 +17852,7 @@ def _lista_de_anuncios():
         "<select class='mg-field__input' name='plat'>%s</select></label>"
         "<label class='mg-field'><span class='mg-field__label'>Publicado de</span>"
         "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
-        "<label class='mg-field'><span class='mg-field__label'>até</span>"
+        "<label class='mg-field'><span class='mg-field__label'>Publicado até</span>"
         "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
         "%s"
         "<input type='hidden' name='estado' value='%s'>"
@@ -17729,6 +17860,7 @@ def _lista_de_anuncios():
         "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
+           (" &middot; %d" % em_uso_escondidos) if em_uso_escondidos else "",
            html.escape(request.args.get("ent", ""), quote=True),
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
            html.escape(cpv_actual, quote=True),
@@ -17900,8 +18032,12 @@ def _lista_de_anuncios():
                 "<div class='linha-conta resumo'><span class='conta'>" + conta
                 + "</span>" + faixa_interesse +
                 "<span class='teclas' "
-                "title='j/k: anúncio seguinte/anterior · i: interessa · "
-                "a: abandonar · Enter: abrir a ficha'>j k i a &#9166;</span>" +
+                "title='Com o foco numa linha da tabela — j/k: anúncio seguinte/anterior · "
+                "i: interessa · a: abandonar · Enter: abrir a ficha'>"
+                "<span aria-hidden='true'>j k i a &#9166;</span>"
+                "<span class='so-leitor'>Atalhos, com o foco numa linha da tabela: "
+                "j e k mudam de linha, i marca Interessa, a abandona, "
+                "Enter abre a ficha.</span></span>" +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
                 # ao "1-20" e exportava as 66 mil sem avisar
                 "</div>" +
@@ -18683,7 +18819,7 @@ def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
                % mil_pt(escondidos)) if escondidos > 0 else ""
     return ("<div class='cpv-activo'>Limitado ao "
             "<a href='/configuracoes/interesse'>perfil da empresa</a>: "
-            "<b>%s</b>%s%s%s<a href='%s'>ver tudo</a></div>"
+            "<b>%s</b>%s%s%s <a href='%s'>ver tudo</a></div>"
             % (descricao,
                (" <span class='d'>sem %s</span>" % html.escape(fora))
                if fora else "", ressalva, quantos,
@@ -19839,7 +19975,7 @@ def _conteudo_alertas():
         return " selected" if request.args.get(campo, omissao) == valor else ""
 
     # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
-    novo = (
+    novo = ((
         "<div class='mg-card novo-filtro'><div class='mg-field__label'>Filtro de alertas</div>"
         "<div class='nota' style='margin:6px 0 14px'>Um alerta é um "
         "conjunto de campos: o que entrar e corresponder vai no resumo "
@@ -19865,22 +20001,23 @@ def _conteudo_alertas():
         # grupo dos contratos, que nao avisava de nada.
         "%s"
         "<form method='post' action='/alertas/criar' class='filtros'>"
-        "<input type='text' name='nome' required maxlength='60' value='%s' "
-        "placeholder='nome do alerta…' aria-label='Nome do alerta'>"
-        "<input type='text' name='q' value='%s' placeholder='Nome do anúncio ou objecto…' aria-label='Palavras do objecto'>"
-        "<input type='text' id='filtro-cpv' name='cpv' value='%s' readonly "
-        "placeholder='CPV — escolha na árvore aqui em cima' aria-label='CPV'>"
+        + rotulado("Nome do alerta", "<input type='text' name='nome' required "
+                   "maxlength='60' value='%s'>", "larga")
+        + rotulado("Palavras do objecto", "<input type='text' name='q' value='%s' "
+                   "placeholder='Nome do anúncio ou objecto…'>", "larga")
+        + rotulado("CPV", "<input type='text' id='filtro-cpv' name='cpv' value='%s' "
+                   "readonly placeholder='escolha na árvore aqui em cima'>", "larga") +
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
-        "<input type='text' name='ent' value='%s' placeholder='Entidade que "
-        "publica…' list='entidades' autocomplete='off' data-sugere='anuncios' "
-        "data-chave-em='nif' aria-label='Entidade que publica'>"
+        + rotulado("Entidade que publica", "<input type='text' name='ent' value='%s' "
+                   "list='entidades' autocomplete='off' data-sugere='anuncios' "
+                   "data-chave-em='nif'>", "larga") +
         "<input type='hidden' name='nif' value='%s'>"
-        "<select name='plat' aria-label='Plataforma'>%s</select>"
-        "<label>de</label><input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data' aria-label='Publicado desde'>"
-        "<label>até</label><input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data' aria-label='Publicado até'>"
+        + rotulado("Plataforma", "<select name='plat' aria-label='Plataforma'>%s</select>")
+        + rotulado("Publicado de", "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>")
+        + rotulado("Publicado até", "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>") +
         "%s"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar alerta</button>"
-        "</form><datalist id='entidades'></datalist></div>"
+        "</form><datalist id='entidades'></datalist></div>")
         % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
            pv("nome"), pv("q"), pv("cpv"), pv("cpv_excl"), pv("ent"), pv("nif"),
            "".join(["<option value=''>plataforma: qualquer uma</option>"]
@@ -22165,7 +22302,8 @@ def config_documentos():
            html.escape(data_pt(d["validade"], ""), quote=True),
            accao("/configuracoes/documentos/%d/apagar" % d["id"], "Remover",
                  "mini perigo", "Remover «%s %s»? A tarefa dele sai também."
-                 % (d["tipo"], d["descricao"] or "")))
+                 % (d["tipo"], d["descricao"] or ""),
+                 rotulo="Remover «%s %s»" % (d["tipo"], d["descricao"] or "")))
         for d in docs)
     tabela = ("<table class='mg-table tab-docs'><thead><tr><th>Estado</th>"
               "<th>Documento e validade</th><th></th></tr></thead>"
@@ -22245,7 +22383,10 @@ def _bloco_utilizadores(todos, eu):
            + (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
                                    "Remover", "mini perigo",
                                    "Remover a conta %s? As sessões dela fecham já."
-                                   % html.escape(u["email"], quote=True))
+                                   % html.escape(u["email"], quote=True),
+                                   # onze «Remover» seguidos não diziam de
+                                   # quem (3.ª ronda, G67)
+                                   rotulo="Remover %s da empresa" % u["email"])
               if contas.pode_repor(g.get("utilizador"), u) else ""))
         for u in todos)
     return (
@@ -23066,7 +23207,11 @@ def selo_do_papel(papel, curto=False):
     return (" <span class='ent-papel %s%s' title='%s — %s'>%s</span>"
             % (classe, " curto" if curto else "",
                html.escape(rotulo, quote=True), html.escape(porque, quote=True),
-               html.escape(PAPEL_ABREVIADO[classe] if curto else rotulo)))
+               # a abreviatura só para os olhos; o leitor ouve a palavra
+               # (3.ª ronda, G74: «conc» só estava no `title`)
+               ("<span aria-hidden='true'>%s</span><span class='so-leitor'>%s</span>"
+                % (html.escape(PAPEL_ABREVIADO[classe]), html.escape(rotulo)))
+               if curto else html.escape(rotulo)))
 
 
 def ficha_entidade(chave, args=None):
@@ -23558,8 +23703,9 @@ def filtros_da_ficha(chave, d):
             args.pop("ate", None)
         else:
             args["de"], args["ate"] = de, ate
+        # o escolhido diz-se, e não só pela cor (3.ª ronda, G73)
         chips.append("<a class='%s' href='/entidade/%s?%s'>%s</a>"
-                     % ("on" if activo else "", quote(chave, safe=""),
+                     % ("on' aria-current='true" if activo else "", quote(chave, safe=""),
                         urlencode(args), html.escape(etiqueta)))
 
     limpar = ("/entidade/%s" % quote(chave, safe="")
@@ -23596,7 +23742,7 @@ def filtros_da_ficha(chave, d):
                           "type='text' name='de' value='%s' inputmode='numeric' "
                           "placeholder='dd/mm/aaaa' maxlength='10' "
                           "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
-        + campo_de_filtro("até", "<input class='mg-field__input campo-data' "
+        + campo_de_filtro("Celebrado até", "<input class='mg-field__input campo-data' "
                           "type='text' name='ate' value='%s' inputmode='numeric' "
                           "placeholder='dd/mm/aaaa' maxlength='10' "
                           "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
@@ -24715,7 +24861,7 @@ def contratos():
                 "type='text' name='de' value='%s'%s inputmode='numeric' "
                 "placeholder='dd/mm/aaaa' maxlength='10' "
                 "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
-        + campo("até", "<input class='mg-field__input campo-data' type='text' "
+        + campo("Celebrado até", "<input class='mg-field__input campo-data' type='text' "
                 "name='ate' value='%s'%s inputmode='numeric' "
                 "placeholder='dd/mm/aaaa' maxlength='10' "
                 "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
@@ -27943,7 +28089,7 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
     caixa = (
         "<form class='mg-card filtros peca-procura' method='get' action='%s'>%s"
         "<input type='text' name='procurar' value='%s' "
-        "placeholder='Procurar no documento…'>"
+        "placeholder='Procurar no documento…' aria-label='Procurar no documento'>"
         "<button type='submit'>Procurar</button>%s</form>"
         % (html.escape(rota, quote=True), escondidos,
            html.escape(procurar, quote=True),
@@ -27975,7 +28121,12 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         "Documento desenhado pelo Mira Gov, página a página (%d). "
         "Procure com a caixa aqui em baixo: as ocorrências ficam "
         "marcadas a amarelo nas páginas, com salto directo. " % n_paginas,
-        caixa + resultados + "<div class='peca-folhas'>%s</div>" % paginas_img)
+        # A zona das páginas rola por si: sem tabindex, quem só usa o
+        # teclado não descia da página 1 (3.ª ronda, G68; WCAG 2.1.1)
+        caixa + resultados
+        + "<div class='peca-folhas' tabindex='0' role='region' "
+          "aria-label='Páginas de %s'>%s</div>"
+        % (html.escape(nome, quote=True), paginas_img))
 
 
 @app.route("/peca/<path:ref>/<nome>")
@@ -28500,23 +28651,24 @@ def contactos_cx(a):
            if l["notas"] else "",
            accao("/contacto/%d/apagar" % l["id"], "&times;", "etq-x",
                  confirmar="Apagar o contacto «%s»?"
-                           % (l["nome"] or "").replace("'", " ")))
+                           % (l["nome"] or "").replace("'", " "),
+                 # o «×» sozinho o leitor lia «vezes» (3.ª ronda, G67)
+                 rotulo="Apagar o contacto «%s»" % (l["nome"] or "")))
         for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
     return cartao(
             "Contactos",
-            ("%s"
+            (("%s"
             "<form class='ct-novo' method='post' action='/contacto/nova'>"
             "<input type='hidden' name='chave' value='%s'>"
             "<input type='hidden' name='entidade' value='%s'>"
             "<input type='hidden' name='volta' value='%s'>"
-            "<input type='text' name='nome' placeholder='nome' aria-label='Nome do contacto' required "
-            "maxlength='120'>"
-            "<input type='text' name='papel' placeholder='cargo' aria-label='Cargo' maxlength='80'>"
-            "<input type='email' name='email' placeholder='e-mail' aria-label='E-mail' maxlength='120'>"
-            "<input type='tel' name='telefone' placeholder='telefone' aria-label='Telefone' autocomplete='tel' "
-            "maxlength='40'>"
+            + rotulado("Nome", "<input type='text' name='nome' required maxlength='120'>")
+            + rotulado("Cargo", "<input type='text' name='papel' maxlength='80'>")
+            + rotulado("E-mail", "<input type='email' name='email' maxlength='120'>")
+            + rotulado("Telefone", "<input type='tel' name='telefone' autocomplete='tel' "
+                       "maxlength='40'>") +
             "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
-            "Adicionar</button></form>"
+            "Adicionar</button></form>")
             % (postos,
                html.escape(chave, quote=True),
                html.escape(a["entidade"] or "", quote=True),
@@ -28758,12 +28910,12 @@ def _tarefas_da_ficha(p):
                # (o redesenho dá-lhe seis colunas e nenhuma para dois
                # campos de texto). Está no BACKLOG, R2: se fizerem falta
                # lá, a rota nunca saiu daqui.
-               "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
+               ("<form class='accao' method='post' action='/tarefa/%d/gravar'>"
                "<input type='hidden' name='versao' value='%s'>"
-               "<input type='text' name='quando' inputmode='numeric' "
-               "maxlength='10' placeholder='adiar para dd/mm/aaaa' aria-label='Adiar para'>"
-               "<select name='quem' aria-label='Quem faz'>%s</select>"
-               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Guardar</button></form>"
+               + rotulado("Adiar para", "<input type='text' name='quando' inputmode='numeric' "
+                          "maxlength='10' placeholder='dd/mm/aaaa'>")
+               + rotulado("Quem faz", "<select name='quem'>%s</select>") +
+               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Guardar</button></form>")
                % (t["id"], versao_da_tarefa(t),
                   opcoes_de_pessoas(t["quem"], "quem faz…"))))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
@@ -28779,16 +28931,16 @@ def _tarefas_da_ficha(p):
                           "fechar %s" % ("a tarefa" if n == 1 else
                                          "as %d tarefas" % n),
                           "mini"))) + lista
-    juntar = ("<form class='tarefa-nova' method='post' action='/tarefa/nova'>"
+    juntar = (("<form class='tarefa-nova' method='post' action='/tarefa/nova'>"
               "<input type='hidden' name='ref' value='%s'>"
               "<input type='hidden' name='proposta_id' value='%d'>"
-              "<input type='text' name='o_que' maxlength='200' required "
-              "placeholder='o que falta fazer…' aria-label='O que falta fazer'>"
-              "<input type='text' name='quando' inputmode='numeric' "
-              "placeholder='dd/mm/aaaa' maxlength='10' aria-label='Até quando' "
-              "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
-              "<select name='quem' aria-label='Quem faz'>%s</select>"
-              "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Adicionar</button></form>"
+              + rotulado("Tarefa nova", "<input type='text' name='o_que' maxlength='200' "
+                         "required>", "larga")
+              + rotulado("Até quando", "<input type='text' name='quando' inputmode='numeric' "
+                         "placeholder='dd/mm/aaaa' maxlength='10' "
+                         "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
+              + rotulado("Quem faz", "<select name='quem'>%s</select>") +
+              "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Adicionar</button></form>")
               % (html.escape(p["ref"] or "", quote=True), p["id"],
                  opcoes_de_pessoas("", None, eu=True)))
     return ("<div class='prop-tarefas'><div class='mg-field__label'>O que falta fazer"
@@ -28811,7 +28963,7 @@ def _etiquetas_da_ficha(ref):
         "<span class='etq' style='background:%s'>%s%s</span>"
         % (e["cor"], html.escape(e["nome"]),
            accao("/etiqueta/%s/tirar/%d" % (quote(ref, safe=""), e["id"]),
-                 "&times;", "etq-x"))
+                 "&times;", "etq-x", rotulo="Tirar a etiqueta «%s»" % e["nome"]))
         for e in minhas)
     return ("<div class='prop-etq'><div class='mg-field__label'>Etiquetas</div>%s"
             "<form class='etq-form' method='post' action='/etiqueta/%s/nova'>"
@@ -29645,8 +29797,11 @@ def calendario():
                      if dia.day == 1 or dia == principio else "", sinal))
         visiveis = "".join(item(a) for a in aqui[:CABEM_NO_DIA])
         resto = aqui[CABEM_NO_DIA:]
-        mais = ("<details class='cal-mais'><summary>+%d</summary>%s</details>"
-                % (len(resto), "".join(item(a) for a in resto))) if resto else ""
+        # «+8» era o nome inteiro do botão (3.ª ronda, G74)
+        mais = ("<details class='cal-mais'><summary>+%d<span class='so-leitor'> "
+                "no dia %s</span></summary>%s</details>"
+                % (len(resto), data_pt(dia.isoformat()),
+                   "".join(item(a) for a in resto))) if resto else ""
         return "<div class='%s'>%s%s%s</div>" % (" ".join(classes), cabeca,
                                                  visiveis, mais)
 
@@ -30542,7 +30697,8 @@ def situacao():
     selector = ("<div class='periodos'><span>Período</span>%s</div>"
                 % "".join(
                     "<a class='%s' href='/situacao?%s'>%s</a>"
-                    % ("on" if periodo == chave else "",
+                    # o escolhido diz-se, e não só pela cor (G73)
+                    % ("on' aria-current='true" if periodo == chave else "",
                        urlencode([("ver", ver), ("periodo", chave)]),
                        html.escape(rotulo))
                     for chave, rotulo in PERIODOS_DA_SITUACAO))
@@ -32206,7 +32362,8 @@ def _pilhas_das_pessoas(tarefas, escolhido, eu, base):
             base + ("&" if "?" in base else "?") + "quem=" + quote(valor))
         fora.append(
             "<a class='pill%s' href='%s'>%s%s <i>%s</i></a>"
-            % (" on" if valor == escolhido else "",
+            # a pessoa escolhida diz-se, e não só pela cor (3.ª ronda, G73)
+            % (" on' aria-current='true" if valor == escolhido else "",
                html.escape(alvo + "#fazer", quote=True),
                _avatar_html(com_avatar, eu) if com_avatar else "",
                html.escape(rotulo), mil_pt(n)))
@@ -32369,9 +32526,11 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
                          % (mil_pt(atrasadas), "" if atrasadas == 1 else "s",
                             "" if atrasadas == 1 else "m"))
         celulas.append(
-            "<a class='%s' href='%s'><span class='d'>%s %d</span>%s</a>"
+            # o dia escolhido diz-se, e não só pela cor (3.ª ronda, G73)
+            "<a class='%s' href='%s'%s><span class='d'>%s %d</span>%s</a>"
             % (" ".join(classes),
                html.escape(_com_dia(base, d) + "#fazer", quote=True),
+               " aria-current='true'" if d == dia_escolhido else "",
                DIAS_CURTOS[d.weekday()], d.day, "".join(notas)))
 
     # A navegacao da fita. O "mais para a frente" e o numero do balde do
@@ -32809,7 +32968,9 @@ def inicio():
         facto("Em jogo", euros_curto(em_jogo) if em_jogo else "—",
               "%s entregue%s &middot; ponto de situação &rarr;"
               % (mil_pt(abertas), "" if abertas == 1 else "s"),
-              "/situacao#entregues", "mg-stat--seal"),
+              # sem o âmbar do selo (3.ª ronda, G66): a cor dizia
+              # «atenção» a um número que não pede nada
+              "/situacao#entregues"),
         facto("Taxa de vitória", pct_pt(valor_taxa, 0)
               if valor_taxa is not None else "—",
               frase_da_taxa(ganhos, decididos, valor_taxa is not None)
@@ -32853,8 +33014,12 @@ def inicio():
         caixa = accao("/tarefa/%d/%s" % (t["id"],
                                          "por-fazer" if feita else "feita"),
                       "", "chk on" if feita else "chk",
+                      # com o concurso (3.ª ronda, G72): «entregar a
+                      # proposta» ×8 não dizia qual
                       rotulo=("voltar a pôr por fazer: " if feita
-                              else "marcar como feita: ") + t["o_que"])
+                              else "marcar como feita: ") + t["o_que"]
+                      + (" — " + (t["ref"] or t["a_entidade"] or t["entidade"])
+                         if t["ref"] or t["a_entidade"] or t["entidade"] else ""))
         # Duas formas do mesmo: a de LER, com o `&middot;` já escrito, e
         # a do `title=`, em texto simples. Escapar a primeira outra vez
         # para o atributo dava «60/2026 &amp;middot; Câmara», que é o que
@@ -32901,16 +33066,16 @@ def inicio():
         # dele): eram 96 teclas e cinco páginas pela ficha. A mesma rota
         # e o mesmo formulário da ficha (`/tarefa/<id>/gravar`, com a
         # versão), dobrado num `<details>` para a linha não crescer.
-        mexer = "" if feita else (
+        mexer = "" if feita else ((
             "<details class='hj-mexer'><summary title='Adiar ou atribuir' "
             "aria-label='Adiar ou atribuir: %s'>adiar &middot; quem</summary>"
             "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
             "<input type='hidden' name='versao' value='%s'>"
-            "<input type='text' name='quando' inputmode='numeric' "
-            "maxlength='10' placeholder='dd/mm/aaaa' aria-label='Adiar para'>"
-            "<select name='quem' aria-label='Quem faz'>%s</select>"
+            + rotulado("Adiar para", "<input type='text' name='quando' inputmode='numeric' "
+                       "maxlength='10' placeholder='dd/mm/aaaa'>")
+            + rotulado("Quem faz", "<select name='quem'>%s</select>") +
             "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>"
-            "Guardar</button></form></details>"
+            "Guardar</button></form></details>")
             % (html.escape(t["o_que"] or "", quote=True), t["id"],
                versao_da_tarefa(t), opcoes_de_pessoas(t["quem"], "quem faz…")))
         # A etiqueta «automática» saiu da linha (22/09/2026): estava em
@@ -32926,7 +33091,12 @@ def inicio():
                    classe_q,
                    data_curta(dia) if dia else "sem data",
                    html.escape(concurso_cru, quote=True), concurso,
-                   _avatar_html(nome_da_pessoa(t["quem"]), eu), fim, mexer))
+                   _avatar_html(nome_da_pessoa(t["quem"]), eu)
+                   # o dono só estava no `title` do círculo (G72)
+                   + "<span class='so-leitor'>%s</span>"
+                   % (("de " + html.escape(nome_da_pessoa(t["quem"]) or t["quem"]))
+                      if t["quem"] else "sem dono"),
+                   fim, mexer))
 
     def linha_sem_decisao(p):
         """Uma proposta cujo prazo passou e que continua por decidir. Nao
@@ -32962,8 +33132,10 @@ def inicio():
                        % html.escape("/tarefas/adiar" + (
                            "?" + urlencode([("quem", quem)])
                            if quem is not None else ""), quote=True))
-        return ("<div class='hj-t'><span class='seta'></span>"
-                "<span>%s</span><i>%s</i>%s%s%s</div>"
+        # um cabeçalho, e não um <div> (3.ª ronda, G72): o leitor de ecrã
+        # salta de grupo em grupo pelos cabeçalhos
+        return ("<h3 class='hj-t'><span class='seta'></span>"
+                "<span>%s</span><i>%s</i>%s%s%s</h3>"
                 % (rotulo, mil_pt(por_fazer_aqui),
                    (" <span class='feitas'>&middot; %s feita%s</span>"
                     % (mil_pt(feitas_aqui), "" if feitas_aqui == 1 else "s"))

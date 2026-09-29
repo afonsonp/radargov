@@ -807,9 +807,9 @@ contar como por decidir.
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
 `config.json`. Quem vem de fora (pelo `tunel.sh`, secção 15) cai no
 ecrã de entrar, e a sessão dura 30 dias em cada aparelho. No canto
-direito da barra de cima está o teu nome; ao abrir há «a conta»,
-«sair» e «sair de todos os aparelhos», que fecha todas as sessões de
-uma vez — se perderes o telemóvel, é isso.
+direito da barra de cima está o teu nome; ao abrir há «A conta»,
+«Sair» e «Sair de todos os aparelhos», que fecha todas as sessões de
+uma vez — se perderes o telemóvel, é isso. O Esc fecha o menu.
 
 Mudar a palavra-passe faz-se em **Configurações › Conta** (pede a
 actual), e é lá que se vêem as sessões abertas, cada uma pelo aparelho

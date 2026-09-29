@@ -760,7 +760,9 @@ empresa em que está a trabalhar** (D7 da segunda ronda, 26/09/2026,
 decisão dele; `nome_da_empresa_activa()`) — «Empresa N» enquanto ela
 não tiver nome, e nada para o dono sem empresa. Com várias empresas na
 plataforma, é o que impede de triar na errada sem dar por isso. Uma
-conta continua a ser de **uma** empresa só.
+conta continua a ser de **uma** empresa só. O menu é o mesmo `mg-menu` do «Mais» da barra de baixo
+(«A conta», «Sair», «Sair de todos os aparelhos»), e fecha com o Esc, com
+o Tab para fora ou com um clique fora (3.ª ronda, G71).
 
 ### 4.1 Hoje — `/`
 
