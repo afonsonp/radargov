@@ -267,7 +267,15 @@ Por ver → Por analisar → A preparar → Submetida
   antes não foi ela que o deixou passar, e fica só em «Todos». Sem essa
   data (as empresas anteriores a ela) conta tudo.
 - **As oito do meio** são **propostas** — o que a empresa decidiu fazer.
-- **Qualquer salto é permitido**, e voltar atrás é reabrir.
+- **Qualquer salto é permitido**, e voltar atrás é reabrir. **O salto
+  pede o que pedem as ranhuras que implica** (D3 da 3.ª ronda,
+  29/09/2026, decisão dele: «não vejo problema em meter diretamente no
+  ganho desde que dê toda a informação que é pedida até lá»):
+  «Relatório preliminar», «Ganha» e «Perdida» implicam «Submetida»
+  (`RANHURAS_IMPLICADAS`, `exigidos_da_ranhura()`). «Não fomos» e
+  «Cancelada» não implicam nenhuma: a escada da ficha nunca as mostra
+  com «Submetida ✓», e a lista nunca diz «entregue» nem conta dias
+  (G22).
 - **Entrar numa ranhura exige o que a faz ser verdade**:
 
 | Ranhura | Exige |
@@ -310,7 +318,13 @@ servidor recusa na mesma (`recusa_do_preco()`). **O valor adjudicado
 tem o mesmo tecto** (ronda em PC, 26/09/2026): acima do preço base
 recusa-se, no diálogo e no servidor. Um «Relatório
 preliminar» ou «Ganho» **antes do fim do prazo de entrega** continua a
-gravar-se com o aviso a vermelho (`aviso_do_ccp()`).
+gravar-se com o aviso a vermelho (`aviso_do_ccp()`), e a **data da
+adjudicação** escrita no campo também, quando é anterior ao fim do
+prazo; **no futuro recusa-se** (3.ª ronda, G23: um dígito trocado tirava
+a Ganha do trimestre). Uma **Ganha sem lugar fica em 1.º**, e uma
+proposta decidida **não conta dias** na ficha; as listas das decididas
+trocam o «Falta» pelo **Desfecho** — o adjudicado da Ganha, o motivo da
+Perdida e do Não fomos (G28).
 
 **A fase que a página mostrava vai com o gesto** (ronda em PC): o
 selector manda o `de`, e se a proposta já está noutra fase — mudada
@@ -733,22 +747,34 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    cartão principal, com faixa, e os blocos da direita são cartões com
    título e meta.
 2. **Quatro indicadores** (o `Stat` do sistema de desenho, desde
-   22/09/2026) — em jogo (com a saída para o Ponto de situação) · taxa
-   de vitória · por decidir · para fazer, com as atrasadas na nota.
-   **Cada um abre exactamente a lista que o produz** — a taxa abre as
-   decididas de sempre no Ponto de situação (`#decididas`), ganhas e
-   perdidas, que é o que ela divide.
+   22/09/2026) — em jogo · taxa de vitória · por decidir · para fazer,
+   com as atrasadas na nota. **Cada um abre exactamente a lista que o
+   produz** — o **em jogo** é só o que já se entregou, «Submetida» e
+   «Relatório preliminar» (D12 da 3.ª ronda, 29/09/2026: o por submeter
+   é o trabalho do Hoje, não dinheiro em jogo), e abre o mesmo número
+   na Situação (`#entregues`); a taxa abre as decididas de sempre
+   (`#decididas`), ganhas e perdidas, que é o que ela divide, e diz-se
+   «2 ganhas em 4 decididas — a taxa aparece às 5» (`frase_da_taxa()`);
+   o «por decidir» é a aba «Por ver» (os que ainda têm prazo).
 3. **Fita da semana** — sete células, seg→dom. Cada uma: nº de tarefas,
-   nº de feitas, entregas (laranja); a de hoje diz também quantas
-   atrasadas arrasta (vermelho). **Clicar num dia muda o balde do
-   meio.** Setas para a semana anterior e seguinte.
+   nº de feitas, e as entregas **em duas** (D12): as **por entregar**
+   (laranja; «Por analisar» e «A preparar», `ESTADOS_POR_ENTREGAR`) e as
+   **já entregues**; a de hoje diz também quantas atrasadas arrasta
+   (vermelho). **Clicar num dia muda o balde do meio**, e o balde do
+   dia mostra também as entregas desse dia (3.ª ronda, G20). Setas
+   para a semana anterior e seguinte; o «mais para a frente» é o número
+   do balde do fim.
 4. **Para fazer** (coluna esquerda), em cinco baldes:
    - **Prazo passou sem decisão** — propostas abertas cujo prazo do DR
      passou, com o selector de ranhura ao lado. Não dobra.
    - **Atrasadas** — com «adiar todas p/ hoje» só quando há atrasadas
      por fazer (pergunta antes; não há desfazer). Não dobra.
    - **O dia escolhido** na fita (por omissão, hoje). Não dobra.
-   - **Resto da semana** · **Mais para a frente** — dobram.
+   - **Resto da semana** (ou **Próximos 7 dias**: vai sempre pelo menos
+     até daqui a sete dias, `_limite_da_semana()`, para uma entrega da
+     segunda seguinte não ficar dobrada — G32) · **Mais para a frente e
+     sem data** — dobram. As tarefas sem data vivem no último, e o
+     aviso de as criar di-lo (G33).
 
    Os que não dobram mostram as primeiras linhas (`CABEM_NO_BALDE`;
    `CABEM_SEM_DECISAO` no primeiro) e o resto num **«mais N»** que se
@@ -756,8 +782,11 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
 
    **A linha de tarefa**: caixa de ✓ · texto (a origem automática vai na
    dica do texto, não numa etiqueta) ·
-   dia · **de que concurso é** (ref · entidade) · avatar de quem
-   (tracejado = sem dono) · entrega, ou «fecha hoje».
+   dia · **de que concurso é** (ref · entidade), que **liga à tarefa
+   dentro do bloco da proposta** (`_alvo_da_tarefa()`) · avatar de quem
+   (tracejado = sem dono) · entrega, ou «fecha hoje», ou a fase de uma
+   proposta já decidida (G28) · **«adiar · quem»**, dobrado, com a
+   mesma rota da ficha (`/tarefa/<id>/gravar`; D5 da 3.ª ronda).
 
    **Risca-se no sítio**: a linha fica, riscada, com «desfazer» — e a
    página volta à linha (`#t<id>`), não ao topo. **Só as feitas de
@@ -768,13 +797,17 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
    **esconder as feitas**. Tudo vive no endereço (`?dia=`, `?quem=`,
    `?feitas=`); nada se guarda no browser.
 5. **Coluna direita**, três caixas:
-   - **O que mudou** — três números (anúncios novos · no perfil ·
-     peças novas) e um feed: os novos que caem no perfil, peças
+   - **O que mudou** — três números (anúncios novos · no perfil, ou
+     «sem perfil: contam todos» · peças novas hoje) e um feed: os novos que caem no perfil, peças
      novas, **prazos alterados por republicação** (só os do perfil), e
      as propostas que o Portal BASE **já diz adjudicadas** e nós não
      fechámos. Os anúncios novos não contam as republicações, e o
-     subtítulo da página conta o mesmo (`novos_de_hoje()`).
-   - **Prazos a chegar · 7 dias**
+     subtítulo da página conta o mesmo (`novos_de_hoje()`); as peças
+     trazidas depois da verificação contam-se à parte no subtítulo («e
+     N trazidas depois»).
+   - **Prazos a chegar · 7 dias** — todas as entregas das propostas
+     abertas, **por entregar** primeiro e **já entregues** à parte; o
+     que passa das cinco dobra num «mais N» (G19, D12).
    - **Paradas há mais tempo** — dias desde o último movimento (laranja
      acima de 30). Só a partir de uma semana parada
      (`DIAS_PARA_ESTAR_PARADA`); sem nenhuma, a caixa não aparece.
@@ -785,12 +818,13 @@ Como vai o negócio. **Três abas** (Negócio · Triagem · Por área CPV) e
 um **período** (este mês · este trimestre · 12 meses · tudo), com
 comparação com o período anterior **do mesmo tamanho**.
 
-- **Cinco números**: em análise · proposta entregue · taxa de vitória ·
+- **Cinco números**: por submeter · em jogo · taxa de vitória ·
   ganho (€ e nº) · desconto médio nos ganhos. **Cada um diz, por baixo,
-  o que soma** (26/09/2026): o «em jogo» partiu-se em dois (D10) — **em
-  análise** é o preço base das propostas em «Por analisar» e «A
-  preparar», **proposta entregue** o proposto das que estão em
-  «Submetida» e «Relatório preliminar» (o base, quando falta); o ganho
+  o que soma** (26/09/2026): o «em jogo» partiu-se em dois (D10) — **por
+  submeter** é o preço base das propostas em «Por analisar» e «A
+  preparar», **em jogo** o proposto das que estão em «Submetida» e
+  «Relatório preliminar» (o base, quando falta), e é o mesmo número do
+  «Em jogo» do Hoje (D12 e G25 da 3.ª ronda, 29/09/2026); o ganho
   é a soma do **adjudicado** das ganhas (o proposto quando falta, o
   base quando faltam os dois); a taxa é ganhas ÷ (ganhas + perdidas),
   sem os «Não fomos» nem os cancelados; o desconto é a média simples,
@@ -798,10 +832,12 @@ comparação com o período anterior **do mesmo tamanho**.
   do «em jogo» à sua lista, com o total (`tabela_em_jogo()`), os outros
   três à tabela **«Decididas»** do período — as ganhas e as perdidas,
   com a data, os três preços e o total.
-- **Negócio**: aviso das propostas por fechar · em jogo por ranhura ·
+- **Negócio**: aviso das propostas por fechar · abertas por fase ·
   porque se perde · porque não se vai · onde se ganha por área CPV · há
   mais tempo sem se mexerem · propostas por ranhura.
-- **Triagem**: o funil — entrados · por ver · triados · interessa.
+- **Triagem**: o funil — entrados · sem decisão · triados · interessa.
+  O segundo chama-se «sem decisão» e não «por ver» (G26): conta também
+  os que já expiraram, e a aba «Por ver» só os que ainda têm prazo.
 - **Por área CPV**: taxa de vitória por divisão.
 
 O período conta pela **data da adjudicação** (26/09/2026, D3) e, sem

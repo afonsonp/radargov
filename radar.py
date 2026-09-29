@@ -569,6 +569,10 @@ PEDIDO_DO_ESTADO = {"perdido": "porque se perdeu",
 # e para a soma da coluna.
 ESTADOS_COM_PROPOSTO = ("submetido", "relatorio", "ganho", "perdido")
 
+# O «Em jogo» (D12 da 3.ª ronda, decisão dele): só as propostas já
+# entregues e à espera da decisão. O Hoje e a Situação somam as mesmas.
+ESTADOS_EM_JOGO = ("submetido", "relatorio")
+
 # Que lista de motivos cada estado usa. Os dois sao de ambito FECHADO
 # (decisao de 01/09/2026): texto livre da, ao fim de um mes, cinquenta
 # maneiras de escrever "preco" e nenhuma conta que se possa fazer.
@@ -598,6 +602,25 @@ CAMPOS_QUE_A_RANHURA_EXIGE = {
 }
 ROTULO_DO_CAMPO = {"valor_proposta": "preço proposto", "lugar": "lugar",
                    "motivo": "motivo"}
+
+# As fases que um desfecho IMPLICA (D3 da 3.ª ronda, decisão dele: «não
+# vejo problema em meter diretamente no ganho desde que dê toda a
+# informação que é pedida até lá»). Saltar é permitido; o salto pede
+# também o que as ranhuras implicadas pedem, e a escada da ficha marca
+# como passadas só essas. «Não fomos» e «Cancelada» não implicam
+# nenhuma: nunca foram submetidas.
+RANHURAS_IMPLICADAS = {"relatorio": ("submetido",),
+                       "ganho": ("submetido",),
+                       "perdido": ("submetido",)}
+
+
+def exigidos_da_ranhura(estado):
+    """Os campos que entrar em `estado` exige: os dela e os das ranhuras
+    que ela implica (D3), sem repetir."""
+    fora = []
+    for e in (estado,) + RANHURAS_IMPLICADAS.get(estado, ()):
+        fora += [n for n in CAMPOS_QUE_A_RANHURA_EXIGE.get(e, ()) if n not in fora]
+    return tuple(fora)
 
 # As colunas do desfecho (D3 e D10 da segunda ronda, 26/09/2026): datas
 # em ISO, o valor no formato do preço («118.500,00 EUR»).
@@ -659,7 +682,7 @@ def falta_para_a_ranhura(p, estado):
     listas não são a mesma.
     """
     fora = []
-    for nome in CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ()):
+    for nome in exigidos_da_ranhura(estado):
         valor = _valor(p, nome)
         if nome == "motivo":
             if valor not in (MOTIVOS_DO_ESTADO.get(estado) or ()):
@@ -980,8 +1003,33 @@ def iniciar_empresa(caminho=None):
         c.execute("""CREATE TABLE IF NOT EXISTS alteracoes_avisadas (
             alteracao_id INTEGER PRIMARY KEY, avisado_em TEXT)""")
         traduzir_filtros_guardados(c)
+        acertar_a_referencia_das_tarefas(c)
         empresa.iniciar_tabelas(c)     # o registo da empresa (Excel; um dia o Zoho)
     so_o_dono(caminho)
+
+
+def acertar_a_referencia_das_tarefas(c):
+    """As tarefas e o histórico seguem a proposta para onde ela foi.
+
+    Quando uma alteração do DR herda a proposta (`_herdar_propostas()`),
+    a proposta passa para o anúncio original e as tarefas dela ficavam
+    no da alteração (3.ª ronda, G18): o Hoje dizia «entregar a proposta ·
+    23820/2026» de uma proposta no 22219/2026, a ligação abria uma ficha
+    a dizer «ainda não decidido», o Calendário mostrava-a duas vezes, e
+    o histórico partia-se entre os dois anúncios. Idempotente: sem
+    nenhuma tarefa noutra referência que não a da proposta, não faz nada
+    -- e por isso corre também no arranque, para as que já se partiram."""
+    pares = c.execute(
+        "SELECT DISTINCT t.ref AS era, p.ref AS agora FROM tarefas t "
+        "JOIN propostas p ON p.id = t.proposta_id "
+        "WHERE t.ref IS NOT NULL AND t.ref != '' AND p.ref IS NOT NULL "
+        "AND t.ref != p.ref").fetchall()
+    for par in pares:
+        c.execute("UPDATE tarefas SET ref=? WHERE ref=? AND proposta_id IN "
+                  "(SELECT id FROM propostas WHERE ref=?)",
+                  (par["agora"], par["era"], par["agora"]))
+        c.execute("UPDATE historico SET ref=? WHERE ref=?",
+                  (par["agora"], par["era"]))
 
 
 def passar_as_notas(c):
@@ -3022,8 +3070,12 @@ def mover_proposta(id_, estado, quem=None, campos=None):
         motivo = (antes["motivo"]
                   if antes["motivo"] in (MOTIVOS_DO_ESTADO.get(estado) or ())
                   else None)
-        c.execute("UPDATE propostas SET estado=?, fechada_em=?, motivo=? "
-                  "WHERE id=?", (estado, fechada, motivo, id_))
+        # Uma Ganha ficou em 1.º lugar (3.ª ronda, G28): o «Lugar» ficava
+        # vazio numa proposta ganha. Só quando ninguém o escreveu.
+        lugar = (1 if estado == "ganho" and not antes["lugar"]
+                 else antes["lugar"])
+        c.execute("UPDATE propostas SET estado=?, fechada_em=?, motivo=?, "
+                  "lugar=? WHERE id=?", (estado, fechada, motivo, lugar, id_))
     # «Submetido → Relatório preliminar», e não só o destino (segunda
     # ronda, 26/09/2026): o de onde vinha perdia-se.
     registar(antes["ref"] or "", "estado",
@@ -4564,6 +4616,9 @@ def _herdar_propostas(c, ref, raiz_ref):
         # duas dava dois cartoes do mesmo procedimento no quadro.
         apagar_propostas(c, "ref=?", (raiz_ref,))
         c.execute("UPDATE propostas SET ref=? WHERE ref=?", (raiz_ref, ref))
+        # o histórico e as tarefas vão com ela (G18)
+        c.execute("UPDATE historico SET ref=? WHERE ref=?", (raiz_ref, ref))
+        acertar_a_referencia_das_tarefas(c)
         c.execute("INSERT OR IGNORE INTO anuncio_etiquetas (ref, etiqueta_id)"
                   " SELECT ?, etiqueta_id FROM anuncio_etiquetas WHERE ref=?",
                   (raiz_ref, ref))
@@ -14135,7 +14190,7 @@ CSS_NOVO = r"""
 /* A LINHA DE TAREFA. Rica-se no sitio: a queixa dele era "concluo a
    tarefa e volto para o inicio da pagina". */
 [data-pele=novo] .hj-row{display:grid;
- grid-template-columns:20px minmax(0,1fr) 64px minmax(120px,220px) 20px 96px;
+ grid-template-columns:20px minmax(0,1fr) 64px minmax(120px,220px) 20px 96px auto;
  gap:10px;align-items:center;padding:6px 8px;border-radius:var(--radius-sm);
  border-left:2px solid var(--line-strong)}
 [data-pele=novo] .hj-row:hover{background:var(--surface-sunken)}
@@ -14211,7 +14266,8 @@ CSS_NOVO = r"""
  [data-pele=novo] .hj-row .av{order:2}
  [data-pele=novo] .hj-row .fim{order:3;margin-left:auto}
  [data-pele=novo] .hj-row .hj-q{order:4;flex:0 0 auto;margin-left:26px}
- [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}}
+ [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}
+ [data-pele=novo] .hj-row .hj-mexer{order:6}}
 @media (max-width:900px){
  [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
 
@@ -14966,7 +15022,8 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
     """
     falta = {e: [n for n in (falta_para_a_ranhura(p, e) if p is not None
                              else exigidos) if n != "motivo"]
-             for e, exigidos in CAMPOS_QUE_A_RANHURA_EXIGE.items()}
+             for e, exigidos in ((e, exigidos_da_ranhura(e))
+                                 for e in CAMPOS_QUE_A_RANHURA_EXIGE)}
     opcoes = []
     for chave, rotulo in ESTADOS_DA_EMPRESA:
         opcoes.append("<option value='%s'%s>%s</option>"
@@ -15172,8 +15229,13 @@ def caixa_do_motivo():
             "    var sel = form.querySelector('select[name=estado]');\n"
             "    if (!sel) return;\n"
             "    if (sel.value === 'porver') {\n"
-            "      if (!confirm('Voltar «' + form.dataset.titulo + '» a «Por ver»? A proposta e as tarefas dela apagam-se.'))\n"
+            "      if (!confirm('Voltar «' + form.dataset.titulo + '» a «Por ver»? A proposta e as tarefas dela apagam-se.')) {\n"
             "        e.preventDefault();\n"
+            "        // cancelar repoe a fase verdadeira (3.a ronda, G34), como\n"
+            "        // o Cancelar da caixa do motivo ja fazia\n"
+            "        for (var i = 0; i < sel.options.length; i++)\n"
+            "          if (sel.options[i].defaultSelected) sel.selectedIndex = i;\n"
+            "      }\n"
             "      return;\n"
             "    }\n"
             "    var pedem = (form.dataset.motivos || '').split(' ');\n"
@@ -17143,7 +17205,11 @@ def _lista_de_anuncios():
             escondidos_interesse = c.execute(
                 "SELECT COUNT(*) n FROM anuncios" + onde_livre,
                 val_livre).fetchone()["n"] - correspondem
-        total = c.execute("SELECT COUNT(*) n FROM anuncios").fetchone()["n"]
+        # Sem as alteracoes, como o «Todos» (3.ª ronda, G21): as partes
+        # da linha -- os que correspondem e os «de fora» -- somam isto,
+        # e com as republicacoes dentro faltavam 10 mil a conta.
+        total = c.execute("SELECT COUNT(*) n FROM anuncios "
+                          "WHERE estado != 'alteracao'").fetchone()["n"]
         porler = c.execute("SELECT COUNT(*) n FROM anuncios "
                            "WHERE detalhe_lido=0").fetchone()["n"]
         n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
@@ -17492,9 +17558,14 @@ def colunas_da_ranhura(estado):
     estarem preenchidos, e isso e outra coisa -- podem ter valor, e
     esconde-los tirava o sitio onde se ve que faltam.
     """
-    if estado in ESTADOS_COM_PROPOSTO:
-        return COLUNAS_DA_PIPELINE
-    return tuple(c for c in COLUNAS_DA_PIPELINE if c != "Proposto")
+    colunas = (COLUNAS_DA_PIPELINE if estado in ESTADOS_COM_PROPOSTO
+               else tuple(c for c in COLUNAS_DA_PIPELINE if c != "Proposto"))
+    # Numa ranhura decidida a última coluna é o desfecho (3.ª ronda,
+    # G28): o adjudicado de uma Ganha, o motivo de uma Perdida ou de um
+    # Não fomos. Não havia onde os ler sem abrir proposta a proposta.
+    if estado in ESTADOS_FECHADOS:
+        colunas = colunas[:-1] + ("Desfecho",)
+    return colunas
 
 
 def _preco_da_proposta(p):
@@ -17523,6 +17594,10 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
         if p["estado"] in ESTADOS_COM_PROPOSTO:
             col_prazo = ("%s <span class='mg-tag'>entregue</span>"
                          % data_pt(prazo))
+        elif p["estado"] in ESTADOS_FECHADOS:
+            # decidida sem entrega (Não fomos, Cancelada): a data, sem
+            # contagem nem «entregue» (G22, G28)
+            col_prazo = data_pt(prazo)
         else:
             col_prazo = ("%s <span class='mg-tag %s'>%s</span>"
                          % (data_pt(prazo), tom(classe_prazo),
@@ -17554,6 +17629,12 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
                         if falta["quando"] else ""))
     else:
         cel_falta = ""
+    if p["estado"] == "ganho":
+        cel_falta = ("<span class='mg-num'>%s</span> <span class='nota'>%s</span>"
+                     % (html.escape(euros(valor_ganho(p))),
+                        de_onde_vem_o_ganho(p) or "")) if valor_ganho(p) else ""
+    elif p["estado"] in ESTADOS_FECHADOS:
+        cel_falta = html.escape(p["motivo"] or "")
     # O `title` leva o titulo INTEIRO: a celula corta-o a duas linhas
     # (`.tab-lista td.o a`), e um corte sem forma de ver o resto e uma
     # lista que esconde o que promete mostrar.
@@ -18480,6 +18561,18 @@ def aviso_do_ccp(id_, estado=None):
             frases.append("«%s» antes de o prazo de entrega acabar (%s): "
                           "confirme que é mesmo assim."
                           % (estado_da_empresa(estado), data_pt(prazo)))
+    # A adjudicação antes do fim do prazo de entrega, escrita no campo
+    # (3.ª ronda, G23): a mudança de fase avisava, o campo não.
+    adjudicada = _valor(p, "data_adjudicacao") or ""
+    if adjudicada and p["ref"] and estado is None:
+        with liga() as c:
+            linha = c.execute("SELECT prazo FROM anuncios WHERE ref=?",
+                              (p["ref"],)).fetchone()
+        prazo = (linha["prazo"] if linha else "") or ""
+        if prazo and adjudicada < prazo[:10]:
+            frases.append("A data da adjudicação (%s) é anterior ao fim do "
+                          "prazo de entrega (%s): confirme que é mesmo assim."
+                          % (data_pt(adjudicada), data_pt(prazo)))
     return " ".join(frases)
 
 
@@ -18496,7 +18589,7 @@ def _campos_exigidos_do_pedido(estado, motivo=""):
     query string.
     """
     campos = {}
-    exigidos = CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ())
+    exigidos = exigidos_da_ranhura(estado)
     if "motivo" in exigidos and motivo:
         campos["motivo"] = motivo
     if "valor_proposta" in exigidos:
@@ -18878,15 +18971,18 @@ def _conteudo_interesse():
         apanha_ver = apanha_tudo = None
         # pelo mesmo recorte que a lista usa, agora que o interesse tem
         # tambem o distrito e o valor
+        # E pelas mesmas consultas das abas (3.ª ronda, G21): contava as
+        # alteracoes, que o «Todos» nao conta, e dava 433 contra 400.
         frag, vals = condicao_do_interesse(args={}, cfg=cfg)
         if frag:
-            aba, vals_aba = condicao_da_aba("novo")
-            apanha_ver = c.execute(
-                "SELECT COUNT(*) n FROM anuncios WHERE (%s) AND (%s)"
-                % (aba, frag), vals_aba + vals).fetchone()["n"]
-            apanha_tudo = c.execute(
-                "SELECT COUNT(*) n FROM anuncios WHERE " + frag,
-                vals).fetchone()["n"]
+            def conta(aba):
+                onde, valores = condicoes({"estado": ""})
+                onde, valores = com_recorte(onde, valores,
+                                            *recorte_da_lista(aba, cfg))
+                return c.execute("SELECT COUNT(*) n FROM anuncios" + onde,
+                                 valores).fetchone()["n"]
+            apanha_ver = conta(ENTRADA_DA_ESCADA[0])
+            apanha_tudo = conta("")
     # So a arvore, ja aberta (13/09/2026): o que esta guardado vem
     # semeado nela, e o botao da arvore grava. Uma linha diz o que esta
     # em vigor -- sem ela, "Guardar" nao deixava rasto nenhum no ecra.
@@ -19018,8 +19114,10 @@ def _linha_filtro(f):
         taxa = (" &middot; acerto <b>%s</b>" % pct_pt(f["interessou"] / triados)
                 if triados else " &middot; ainda nada triado")
         # «que marcou» dizia-o de quem nao marcou nada (26/09/2026)
+        # «sem decisão» e não «por ver» (G26, N4): conta também os que
+        # já fecharam, e a aba «Por ver» dos Concursos dava outro número
         triagem = ("<span class='onde'>dos %s que o alerta apanhou: %s interessa "
-                   "&middot; %s descartados &middot; %s por ver%s</span>"
+                   "&middot; %s descartados &middot; %s sem decisão%s</span>"
                    % (mil_pt(marcou), mil_pt(f["interessou"] or 0),
                       mil_pt(f["descartou"] or 0), mil_pt(f["por_triar"] or 0),
                       taxa))
@@ -19385,8 +19483,13 @@ def _conteudo_alertas():
                      "<th>Entidade</th><th>Filtro</th></tr></thead>"
                      "<tbody>%s</tbody></table></div>" % hist)
     else:
+        # Sem alerta ligado nem entidade seguida não sai nada (3.ª ronda,
+        # G30): dizia «Sai no resumo a seguir…» com 0 alertas ligados.
+        sem_fonte = not seguidas and not any(f["alerta"] for f in filtros)
         historico = ("<div class='nota'>Ainda não saiu nenhum aviso. %s</div>"
-                     % ("Aparece aqui a seguir à próxima verificação."
+                     % ("Não sai nenhum: nenhum alerta está ligado."
+                        if sem_fonte else
+                        "Aparece aqui a seguir à próxima verificação."
                         if porque_o_email_nao_sai(cfg) else
                         "Sai no resumo a seguir à próxima verificação."))
 
@@ -20110,7 +20213,10 @@ def plataforma_empresa(id_):
           "Criar convite</button></form>" % id_,
         meta="A ligação só se vê ao criá-la: «gerar de novo» anula a antiga e mostra "
              "uma nova, para reenviar.", id_="convites")
-    envio = ("sai para %s" % html.escape(e["para"]) if not e["email"]
+    # Sem alertas ligados não sai nada, e a página dizia «o e-mail sai»
+    # (3.ª ronda, G30)
+    envio = ("não sai: nenhum alerta ligado" if not e["alertas"]
+             else "sai para %s" % html.escape(e["para"]) if not e["email"]
              else "não sai: %s" % html.escape(e["email"]))
     bloco_alertas = cartao(
         "Alertas e e-mail",
@@ -20148,6 +20254,7 @@ def plataforma_empresa(id_):
             "tecto por dia; %d este mês" % e["leituras_mes"]),
         kpi("Alertas ligados", "%d" % len(e["alertas"]),
             "o e-mail não sai (suspensa)" if suspensa else
+            "o e-mail não sai: nenhum ligado" if not e["alertas"] else
             "o e-mail sai" if not e["email"] else "o e-mail não sai"))
     corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
              "%s%s%s%s%s%s%s</div>"
@@ -21787,9 +21894,9 @@ GLOSSARIO = (
          "concurso. É estimado: prorrogações não constam do Portal BASE."),
     )),
     ("O negócio", (
-        ("Em jogo", "O valor das propostas que ainda estão abertas: o "
-         "preço proposto, a partir de «Submetida»; antes disso, o "
-         "preço base."),
+        ("Em jogo", "O valor das propostas já entregues e à espera da "
+         "decisão (Submetida e Relatório preliminar), pelo preço proposto. "
+         "O que ainda está por submeter é o trabalho do Hoje."),
         ("Taxa de vitória", "Das propostas decididas, quantas se ganharam. "
          "Só se diz a partir de cinco decididas."),
         ("Ponto de situação", "Como vai o negócio num período, comparado "
@@ -23114,7 +23221,7 @@ def _identidades_do_corpus(chaves):
             "WHERE chave IN (%s)" % ",".join("?" * len(chaves)), chaves)}
 
 
-def a_acabar_por_entidade(chaves=None, quantas=None):
+def a_acabar_por_entidade(chaves=None, quantas=None, filtro=("", [])):
     """{chave: (quantos, euros)} dos contratos que acabam na janela.
 
     Corre pelo indice `(fim_estimado, id)` -- e um intervalo de datas e
@@ -23122,20 +23229,23 @@ def a_acabar_por_entidade(chaves=None, quantas=None):
     mais o prazo declarado ao IMPIC): prorrogações e cessações
     antecipadas não constam do dump, e por isso isto é um sinal para
     olhar, não um facto.
-    """
+
+    O `filtro` é o da ficha da entidade (`filtro_da_ficha()`, com o
+    prefixo `c.`): os outros factos já mudavam com ele, e este ficava
+    igual (3.ª ronda, G31)."""
     if not ha_corpus():
         return {}
-    onde, vals = "", []
+    onde, vals = filtro[0], list(filtro[1])
     if chaves is not None:
         chaves = [c for c in dict.fromkeys(chaves) if c]
         if not chaves:
             return {}
-        onde = " AND adjudicante_chave IN (%s)" % ",".join("?" * len(chaves))
+        onde += " AND adjudicante_chave IN (%s)" % ",".join("?" * len(chaves))
         vals += chaves
     with liga_corpus() as c:
         linhas = c.execute(
             "SELECT adjudicante_chave ch, COUNT(*) k, "
-            "  COALESCE(SUM(preco_contratual),0) v FROM contratos "
+            "  COALESCE(SUM(preco_contratual),0) v FROM contratos c "
             "WHERE " + SQL_A_ACABAR + onde +
             " GROUP BY adjudicante_chave ORDER BY k DESC"
             + (" LIMIT %d" % int(quantas) if quantas else ""),
@@ -23470,7 +23580,8 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
                 [chave, desde] + ev).fetchone()
             if d["k"]:
                 desconto = (d["m"], d["k"])
-    acabam = a_acabar_por_entidade(chaves=[chave]).get(chave, (0, 0.0))
+    acabam = a_acabar_por_entidade(chaves=[chave], filtro=(e, ev)).get(
+        chave, (0, 0.0))
 
     propostas = len(nosso["propostas"])
     if nosso["taxa"] is not None:
@@ -23512,7 +23623,7 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
                                  "" if propostas == 1 else "s")
          if propostas else "ainda não lhe fizemos nenhuma"),
         ("Taxa connosco", taxa_v, taxa_n),
-        ("A acabar · %d meses" % MESES_A_ACABAR,
+        ("A acabar · %d meses%s" % (MESES_A_ACABAR, no_filtro),
          mil_pt(acabam[0]) if acabam[0] else None,
          euros_curto(acabam[1]) if acabam[0] else
          ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
@@ -24721,7 +24832,7 @@ def kpi(rotulo, valor, nota="", alvo="", classe="", delta="", porque=""):
                " mg-stat__value--frase" if frase else "",
                nota if frase else valor, delta,
                "" if frase or not nota else
-               "<span class='mg-stat__note'>%s</span>" % nota,
+               " <span class='mg-stat__note'>%s</span>" % nota,
                "<span class='porque'>%s</span>" % porque if porque else "",
                "a" if alvo else "div"))
 
@@ -24796,6 +24907,13 @@ def passos_da_escada(a, minhas):
             nota = nota_actual
         else:
             estado_passo = "done" if i < actual else "todo"
+            # Só as fases que o desfecho implica ficam marcadas (3.ª
+            # ronda, G22 e D3): «Não fomos» e «Cancelada» não implicam
+            # nenhuma, e a escada dizia «Submetida ✓» de uma proposta
+            # que nunca foi entregue.
+            if (i > 0 and estado in ESTADOS_FECHADOS
+                    and not RANHURAS_IMPLICADAS.get(estado)):
+                estado_passo = "todo"
             nota = ""
         if i == 2 and not nota and a["prazo"] and i >= actual:
             nota = "até %s" % data_pt(a["prazo"])[:5]
@@ -24809,7 +24927,7 @@ def passos_da_escada(a, minhas):
             % "".join(itens))
 
 
-def prazo_da_ficha(a, cadeia=None):
+def prazo_da_ficha(a, cadeia=None, decidida=False):
     """O cartão do prazo, no topo da coluna da direita (o `EcraFicha`).
 
     O número grande é o que falta; a cor é a da etiqueta do prazo, e por
@@ -24836,6 +24954,12 @@ def prazo_da_ficha(a, cadeia=None):
     texto, classe = etiqueta_prazo(a["prazo"])
     grande = "expirou" if passou else (
         "hoje" if dias == 0 else "%d dia%s" % (dias, "" if dias == 1 else "s"))
+    if not passou and dias:
+        texto = "Prazo em " + texto
+    if decidida:
+        # sem contagem numa proposta decidida (G28): «Prazo em 10 dias»
+        # numa Ganha lia-se como trabalho por fazer
+        grande, texto, classe = "decidida", "Proposta decidida", ""
     try:
         fim = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
         por_extenso = "%d de %s" % (fim.day, MESES_LONGOS[fim.month - 1])
@@ -24847,8 +24971,7 @@ def prazo_da_ficha(a, cadeia=None):
         "<div class='mg-row' style='margin-top:12px'>"
         "<span class='mg-tag %s'><span class='mg-tag__dot'></span>%s</span></div>%s"
         % (classe, grande, por_extenso, tom(classe),
-           html.escape(texto if passou or dias == 0 else "Prazo em " + texto),
-           historia),
+           html.escape(texto), historia),
         pe="Publicado a %s." % data_pt(a["data_pub"]) if a["data_pub"] else "",
         id_="prazo")
 
@@ -26428,7 +26551,15 @@ def ficha(ref):
     # As etiquetas por baixo: o estado do prazo (o da cadeia) e as da
     # empresa, só para ler -- põem-se e tiram-se no bloco da proposta.
     etiquetas = []
-    if dias is not None:
+    # Uma proposta decidida já não tem prazo a correr (3.ª ronda, G28):
+    # a ficha de uma Ganha dizia «Faltam 10 dias». Diz-se a fase.
+    decidida = bool(minhas) and all(p["estado"] in ESTADOS_FECHADOS
+                                    for p in minhas)
+    if decidida:
+        etiquetas.append("<span class='mg-tag'>%s</span>" % html.escape(
+            " · ".join(dict.fromkeys(estado_da_empresa(p["estado"])
+                                     for p in minhas))))
+    elif dias is not None:
         etiquetas.append("<span class='mg-tag %s'>%s</span>" % (
             tom(etiqueta_prazo(a["prazo"])[1]),
             "Expirou" if passou else "Termina hoje" if dias == 0
@@ -26706,7 +26837,7 @@ def ficha(ref):
                "base mudam.")
 
     # --- o prazo, num cartao proprio no topo da coluna da direita
-    prazo_cx = prazo_da_ficha(a, cadeia)
+    prazo_cx = prazo_da_ficha(a, cadeia, decidida=decidida)
 
     # O responsavel e da proposta; com lotes, todos os cartoes do mesmo
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
@@ -27206,8 +27337,12 @@ def tarefa_nova():
     id_ = criar_tarefa(request.form.get("o_que"), quando,
                        proposta_id=proposta_id, ref=ref, quem=quem or None)
     # E26: de volta à linha nova, com o aviso, e não ao topo da ficha
-    return _volta_com_aviso("Tarefa juntada." + recado_da_data_passada(quando),
-                            ancora="t%d" % id_)
+    # sem data diz-se onde fica (3.ª ronda, G33): parecia não ter chegado
+    # ao Hoje, e estava no balde dobrado do fim
+    return _volta_com_aviso("Tarefa juntada." + (
+        recado_da_data_passada(quando) if quando else
+        " Sem data: no Hoje fica em «Mais para a frente e sem data»."),
+        ancora="t%d" % id_)
 
 
 def recado_da_data_passada(iso):
@@ -28099,7 +28234,7 @@ def _preco_proposto_do_pedido(estado):
     if valor is None:
         return None, ("«%s» não se lê como preço. Escreve-o assim: 118 500,00."
                       % corta(" ".join(bruto.split()), 40))
-    if not valor and "valor_proposta" in CAMPOS_QUE_A_RANHURA_EXIGE.get(estado, ()):
+    if not valor and "valor_proposta" in exigidos_da_ranhura(estado):
         return None, ("Em «%s» o preço proposto não pode ficar vazio."
                       % estado_da_empresa(estado))
     return valor, ""
@@ -28133,6 +28268,14 @@ def _desfecho_do_pedido(form, vazio_apaga=True):
             if not valor:
                 return {}, ("«%s» não é uma data (dd/mm/aaaa)."
                             % corta(bruto, 20))
+            # Uma adjudicação no futuro é um dígito
+            # trocado (3.ª ronda, G23): 15/12 por 15/09 tirava a Ganha
+            # do trimestre na Situação, sem ninguém dar por isso.
+            if (nome == "data_adjudicacao"
+                    and valor > datetime.now().date().isoformat()):
+                return {}, ("%s (%s) ainda não chegou: não foi gravada. "
+                            "Confirme a data."
+                            % ("A data da adjudicação", data_pt(valor)))
         campos[nome] = valor
     return campos, ""
 
@@ -28244,7 +28387,8 @@ def proposta_da_ficha(id_):
         return recusa(recado)
     _depois_do_desfecho(p, desfecho)
     gravar_nota(id_, request.form.get("nota_nova"))
-    ccp = aviso_do_ccp(id_) if "valor_proposta" in campos else ""
+    ccp = (aviso_do_ccp(id_) if "valor_proposta" in campos
+           or "data_adjudicacao" in desfecho else "")
     if ccp:
         return _volta_com_aviso("Gravado. " + ccp, erro=True,
                                 ancora="proposta")
@@ -28548,7 +28692,7 @@ def _nossas_do_calendario(c, principio, fim):
     linhas, ja = [], set()
     tarefas = c.execute(
         "SELECT t.id, t.ref, t.proposta_id, t.o_que, t.quando, t.quem, "
-        "p.titulo AS p_titulo FROM tarefas t "
+        "p.titulo AS p_titulo, p.estado AS p_estado FROM tarefas t "
         "LEFT JOIN propostas p ON p.id = t.proposta_id "
         "WHERE t.feita_em IS NULL AND COALESCE(t.quando, '') != ''").fetchall()
     for t in tarefas:
@@ -28561,9 +28705,14 @@ def _nossas_do_calendario(c, principio, fim):
             destino = "/proposta/%d" % t["proposta_id"]
         else:
             destino = "/#t%d" % t["id"]
+        # a proposta decidida diz-se (3.ª ronda, G28): a tarefa de uma
+        # Ganha lia-se como trabalho de uma proposta em curso
         linhas.append({"titulo": t["o_que"] or "tarefa", "prazo": dia.isoformat(),
                        "rotulo": "Tarefa" + (" · " + nome_da_pessoa(t["quem"])
-                                             if t["quem"] else ""),
+                                             if t["quem"] else "")
+                                 + (" · proposta %s"
+                                    % estado_da_empresa(t["p_estado"]).lower()
+                                    if t["p_estado"] in ESTADOS_FECHADOS else ""),
                        "segunda": t["p_titulo"] or "", "tipo": "tarefa",
                        "href": destino})
         if t["ref"]:
@@ -28624,7 +28773,7 @@ def _linhas_do_calendario(ver, principio, fim):
                         "href": "/anuncio/" + quote(a["ref"], safe="")}
                        for a in anuncios if a["ref"] not in refs_nossas]
     o_que = {"nossas": "as propostas em aberto e as tarefas por fazer",
-             "porver": "os concursos por ver",
+             "porver": "os concursos por ver com prazo nestas seis semanas",
              "tudo": "tudo: as nossas e os concursos todos"}[ver]
     linhas.sort(key=lambda l: (l["prazo"], l["tipo"] != "tarefa"))
     return linhas, o_que, escondidos
@@ -29076,6 +29225,17 @@ def _fragmento_da_janela(janela, coluna=DATA_DA_DECISAO):
             [desde, ate])
 
 
+def frase_da_taxa(ganhos, decididos, contada):
+    """«2 ganhas em 4 decididas — a taxa aparece às 5» (3.ª ronda, G29).
+    Era «2 de 4 decididas», que se lia «2 das 4 estão decididas», e na
+    Situação «faltam 1 para contar». Uma frase só, para os dois ecrãs."""
+    frase = "%s em %s" % (plural(ganhos, "ganha"),
+                          plural(decididos, "decidida"))
+    if not contada:
+        frase += " — a taxa aparece às %d" % MINIMO_PARA_TAXA
+    return frase
+
+
 def taxa_de_vitoria(por=None, minimo=MINIMO_PARA_TAXA, janela=None):
     """Quantos se ganham dos que se decidiram, ao todo ou por dimensão.
 
@@ -29347,7 +29507,7 @@ def negocio_cx():
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
             "com %d decididas ou mais.</div>"
             "%s"
-            "<div class='mg-field__label' id='em-jogo' style='margin:22px 0 10px'>Em jogo, por "
+            "<div class='mg-field__label' id='em-jogo' style='margin:22px 0 10px'>Abertas, por "
             "fase</div><div class='barras'>%s</div>"
             "%s%s%s"
             "<div class='mg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
@@ -29587,8 +29747,13 @@ def tabela_das_decididas(linhas, rotulo_periodo):
 # o que ainda se esta a ver, pelo preco base, e o que ja se entregou,
 # pelo proposto. Somados davam um numero que misturava o tecto das
 # entidades com o que se propos (E22).
-GRUPOS_EM_JOGO = (("em-analise", "Em análise", ("analisar", "proposta")),
-                  ("entregues", "Proposta entregue", ("submetido", "relatorio")))
+#
+# E o «Em jogo» é só o entregue (D12 da 3.ª ronda, decisão dele: «o em
+# jogo só deve ter submetidos e relatórios preliminares»). O que está por
+# submeter é o trabalho do Hoje, e não dinheiro em jogo: o Hoje dizia 17,9
+# M€ e a Situação, para onde o número levava, só tinha 15,5 e 2,3 (G25).
+GRUPOS_EM_JOGO = (("em-analise", "Por submeter", ("analisar", "proposta")),
+                  ("entregues", "Em jogo", ESTADOS_EM_JOGO))
 
 
 def valor_em_jogo(p):
@@ -29701,7 +29866,10 @@ def situacao():
                           else None)
         decididas = decididas_no_periodo(janela)
         ponderado = desconto_ponderado(decididas)
-        rotulo_periodo = dict(PERIODOS_DA_SITUACAO)[periodo]
+        # «Decididas tudo» (3.ª ronda, G29): o rótulo do período é o do
+        # selector, e no título lê-se melhor entre parênteses
+        rotulo_periodo = ("(desde sempre)" if periodo == "tudo"
+                          else dict(PERIODOS_DA_SITUACAO)[periodo])
         # Cada numero abre a lista que o confirma (a regra da empresa):
         # a tabela das decididas do periodo, ou as propostas abertas.
         aqui = "/situacao?%s#decididas" % urlencode(
@@ -29756,12 +29924,8 @@ def situacao():
                             else None,
                             valor_antes * 100 if valor_antes is not None
                             else None),
-                "%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos))
-                if valor_taxa is not None else
-                ("%s decidida%s: faltam %s para contar"
-                 % (mil_pt(decididos), "" if decididos == 1 else "s",
-                    mil_pt(MINIMO_PARA_TAXA - decididos)) if decididos
-                 else "ainda não há decididas neste período"),
+                frase_da_taxa(ganhos, decididos, valor_taxa is not None)
+                if decididos else "ainda não há decididas neste período",
                 "ganhas a dividir por ganhas mais perdidas; «Não fomos» e "
                 "«Cancelada» não contam", aqui if decididos else ""),
             n_ganho,
@@ -29785,7 +29949,7 @@ def situacao():
             "<div class='nota' style='margin:16px 0 0'>Os números do "
             "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
             "dia em que a proposta se marcou como decidida no Mira Gov. "
-            "«Em análise» e «Proposta entregue» são uma fotografia de agora "
+            "«Por submeter» e «Em jogo» são uma fotografia de agora "
             "— o que está aberto não se decidiu em período nenhum.%s</div>"
             % ("" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
@@ -29845,7 +30009,11 @@ def funil_cx_html():
     # sistema, e as duas ultimas roubadas as cores de estado, que aqui
     # nao significam "bom" nem "a avisar".
     passos = [("Entrados", f["entrados"], tom_do_passo(0, 4)),
-              ("Por ver", f["porver_30"], tom_do_passo(1, 4)),
+              # «Sem decisão» e não «Por ver» (3.ª ronda, G26): são os
+              # entrados no período sem proposta, também os que já
+              # expiraram -- e «Por ver» é o nome da aba dos que ainda se
+              # podem responder, que dava outro número
+              ("Sem decisão", f["porver_30"], tom_do_passo(1, 4)),
               ("Triados", f["triados_30"], tom_do_passo(2, 4)),
               ("Interessa", f["interessa_30"], tom_do_passo(3, 4))]
     maior_f = max([p[1] for p in passos] + [1])
@@ -31205,6 +31373,19 @@ def _e_de(t, quem):
     return pessoa_de(t["quem"])[0] == pessoa_de(quem)[0]
 
 
+def _alvo_da_tarefa(t):
+    """Para onde leva a linha de uma tarefa: a própria tarefa dentro do
+    bloco da proposta (`#t<id>`), na ficha do anúncio ou, sem anúncio,
+    na da proposta; uma tarefa só de anúncio leva à ficha dele (G24)."""
+    ancora = "#t%d" % t["id"]
+    if t["ref"]:
+        return "/anuncio/" + quote(t["ref"], safe="") + (
+            ancora if t["proposta_id"] else "")
+    if t["proposta_id"]:
+        return "/proposta/%d%s" % (t["proposta_id"], ancora)
+    return ""
+
+
 def _pilhas_das_pessoas(tarefas, escolhido, eu, base):
     """As pilhas de pessoa do cabecalho: Todos, as minhas, cada dono, e
     sem dono.
@@ -31284,11 +31465,19 @@ def _grupos_das_tarefas(tarefas, hoje, sem_decisao=(), dia_escolhido=None,
                                                hoje.day)
                       if dia_escolhido == hoje
                       else html.escape(dia_por_extenso(dia_escolhido)))
+    # O balde da semana vai pelo menos até daqui a sete dias (3.ª ronda,
+    # G32): numa segunda-feira, a entrega da segunda seguinte caía em
+    # «Mais para a frente», que está fechado, e um prazo legal a uma
+    # semana não é «para a frente».
+    limite = _limite_da_semana(hoje, fim_da_semana)
     baldes = [("sem_decisao", "Prazo passou sem decisão", "mau"),
               ("atrasadas", "Atrasadas", "mau"),
               ("dia", rotulo_do_meio, "avisa"),
-              ("semana", "Resto da semana", ""),
-              ("depois", "Mais para a frente", "")]
+              ("semana", "Resto da semana" if limite == fim_da_semana
+               else "Próximos %d dias" % DIAS_A_FECHAR, ""),
+              # as sem data vêm aqui, e o rótulo di-lo (G33): uma tarefa
+              # criada sem data parecia não ter chegado ao Hoje
+              ("depois", "Mais para a frente e sem data", "")]
     fora = {chave: [] for chave, _, _ in baldes}
     fora["sem_decisao"] = [(p, None) for p in sem_decisao]
     paradas = {p["id"] for p in sem_decisao}
@@ -31302,12 +31491,19 @@ def _grupos_das_tarefas(tarefas, hoje, sem_decisao=(), dia_escolhido=None,
             chave = "dia"
         elif dia < hoje:
             chave = "atrasadas"
-        elif dia <= fim_da_semana:
+        elif dia <= limite:
             chave = "semana"
         else:
             chave = "depois"
         fora[chave].append((t, dia))
     return baldes, fora
+
+
+def _limite_da_semana(hoje, fim_da_semana):
+    """O último dia do balde «semana» (e o que a fita conta antes do
+    «mais para a frente»): o domingo do dia escolhido, ou daqui a
+    `DIAS_A_FECHAR` dias se for mais longe (G32)."""
+    return max(fim_da_semana, hoje + timedelta(days=DIAS_A_FECHAR))
 
 
 def _quantas(balde):
@@ -31339,6 +31535,9 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
     """
     segunda = dia_escolhido - timedelta(days=dia_escolhido.weekday())
     domingo = segunda + timedelta(days=6)
+    # o mesmo limite do balde «Mais para a frente» (G32): o número da
+    # fita é o do balde
+    limite = _limite_da_semana(hoje, domingo)
     por_dia, feitas_no_dia, atrasadas, depois = {}, {}, 0, 0
     for t in tarefas:
         dia = _dia_da_tarefa(t)
@@ -31346,7 +31545,7 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
             if dia:
                 feitas_no_dia[dia] = feitas_no_dia.get(dia, 0) + 1
             continue
-        if dia is None or dia > domingo:
+        if dia is None or dia > limite:
             depois += 1
         if dia:
             por_dia[dia] = por_dia.get(dia, 0) + 1
@@ -31372,10 +31571,18 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
                     " &middot; %s feita%s" % (mil_pt(feitas),
                                               "" if feitas == 1 else "s")
                     if feitas else "")]
-        n_entregas = len(prazos.get(d, ()))
-        if n_entregas:
-            notas.append("<span class='e'>%s entrega%s</span>"
-                         % (mil_pt(n_entregas), "" if n_entregas == 1 else "s"))
+        # As entregas em duas (D12 da 3.ª ronda, decisão dele): o que
+        # ainda está por entregar é trabalho, e o que já foi entregue só
+        # espera. «7 entregas» com cinco já submetidas lia-se como sete
+        # por fazer.
+        por_entregar, entregues = _entregas_do_dia(prazos, d)
+        if por_entregar:
+            notas.append("<span class='e'>%s por entregar</span>"
+                         % mil_pt(len(por_entregar)))
+        if entregues:
+            notas.append("<span class='nota-dia'>%s entregue%s</span>"
+                         % (mil_pt(len(entregues)),
+                            "" if len(entregues) == 1 else "s"))
         if d == hoje and atrasadas:
             notas.append("<span class='m'>%s atrasada%s arrasta%s</span>"
                          % (mil_pt(atrasadas), "" if atrasadas == 1 else "s",
@@ -31399,6 +31606,18 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
                           quote=True),
               mil_pt(depois)))
     return "<div class='fita'>%s</div>%s" % ("".join(celulas), nav)
+
+
+# As ranhuras em que a proposta ainda não foi entregue (D12): o que o
+# Hoje mostra como trabalho. As outras abertas já foram submetidas.
+ESTADOS_POR_ENTREGAR = ("analisar", "proposta")
+
+
+def _entregas_do_dia(prazos, d):
+    """([por entregar], [já entregues]) das entregas do dia `d`."""
+    linhas = prazos.get(d, ())
+    return ([r for r in linhas if r["estado"] in ESTADOS_POR_ENTREGAR],
+            [r for r in linhas if r["estado"] not in ESTADOS_POR_ENTREGAR])
 
 
 def _prazos_da_janela(desde, ate):
@@ -31501,12 +31720,15 @@ def _o_que_mudou(hoje, cfg):
         so_a_hora = so_a_hora.split()[-1]
     dica_verif = html.escape(re.sub(r"&\w+;", "—", quando_verif), quote=True)
 
+    # O espaço entre o número e a palavra é real (3.ª ronda, G27): o
+    # leitor de ecrã lia «0peças novas», que o CSS separava só à vista.
+    # Sem perfil, o segundo número não diz «no perfil» -- são todos.
     numeros = (
         "<div class='mudou-n'>"
-        "<a href='%s'><b>%s</b><span class='nota'>anúncio%s novo%s</span></a>"
-        "<a href='%s'><b class='azul'>%s</b>"
-        "<span class='nota'>no perfil</span></a>"
-        "<span><b>%s</b><span class='nota'>peça%s nova%s</span></span>"
+        "<a href='%s'><b>%s</b> <span class='nota'>anúncio%s novo%s</span></a>"
+        "<a href='%s'><b class='azul'>%s</b> "
+        "<span class='nota'>%s</span></a>"
+        "<span><b>%s</b> <span class='nota'>peça%s nova%s hoje</span></span>"
         "</div>"
         # Cada numero abre a lista que o confirma: os tres abriam o «por
         # ver» inteiro (20 linhas debaixo de «58 novos», teste com
@@ -31517,7 +31739,9 @@ def _o_que_mudou(hoje, cfg):
            mil_pt(novos),
            "" if novos == 1 else "s", "" if novos == 1 else "s",
            html.escape(_lista_de_hoje(hoje_iso), quote=True),
-           mil_pt(quantos_interesse), mil_pt(pecas),
+           mil_pt(quantos_interesse),
+           "no perfil" if frag else "sem perfil: contam todos",
+           mil_pt(pecas),
            "" if pecas == 1 else "s", "" if pecas == 1 else "s"))
 
     linhas = []
@@ -31584,7 +31808,10 @@ def _o_que_mudou(hoje, cfg):
             "<div class='l'><span class='hj-q' title='%s'>%s</span>"
             "<div class='nota'>%s</div></div>"
             % (dica_verif, "&mdash;" if nunca else so_a_hora,
-               "Nada de novo desde a última verificação."
+               # com anúncios novos fora do perfil, «nada de novo»
+               # desmentia o número de cima (G27)
+               ("Nada de novo no perfil desde a última verificação."
+                if novos else "Nada de novo desde a última verificação.")
                if verif_ok and not nunca
                else "Ainda não houve uma verificação. O Mira Gov verifica "
                     "sozinho, de hora a hora."))
@@ -31604,17 +31831,22 @@ def _prazos_a_chegar(hoje, prazos):
 
     Le o mesmo dicionario que a fita desenha -- e a mesma pergunta em
     duas formas, e duas consultas para o mesmo facto era a maneira certa
-    de as duas discordarem um dia."""
-    linhas = []
+    de as duas discordarem um dia.
+
+    **Todas, e partidas em duas** (3.ª ronda, G19 e D12): mostrava as
+    cinco primeiras sem «mais», com a fita a dizer oito no mesmo ecrã; e
+    as já entregues iam misturadas com as por entregar, que são as
+    únicas que ainda pedem trabalho. O que passa das cinco dobra-se num
+    «mais N», como os baldes do Para fazer."""
+    por_entregar, entregues = [], []
     for i in range(DIAS_A_FECHAR + 1):
-        if len(linhas) >= CABEM_NO_LADO:
-            break
         d = hoje + timedelta(days=i)
-        for r in prazos.get(d, ()):
-            if len(linhas) >= CABEM_NO_LADO:
-                break
-            linhas.append(
-                "<a href='/anuncio/%s'><span class='hj-q%s'>%s</span>"
+        uns, outros = _entregas_do_dia(prazos, d)
+        por_entregar += [(i, d, r) for r in uns]
+        entregues += [(i, d, r) for r in outros]
+
+    def linha(i, d, r):
+        return ("<a href='/anuncio/%s'><span class='hj-q%s'>%s</span>"
                 "<span class='hj-c'>%s</span>"
                 "<span class='mg-tag'>%s</span></a>"
                 % (quote(r["ref"], safe=""), " avisa" if i == 0 else "",
@@ -31622,18 +31854,39 @@ def _prazos_a_chegar(hoje, prazos):
                    else "%s %d" % (DIAS_CURTOS[d.weekday()], d.day),
                    html.escape(corta(r["titulo"] or r["ref"], 44)),
                    html.escape(estado_da_empresa(r["estado"]))))
-    if not linhas:
+
+    def com_mais(itens):
+        feitas = [linha(*x) for x in itens]
+        if len(feitas) <= CABEM_NO_LADO:
+            return "".join(feitas)
+        return ("".join(feitas[:CABEM_NO_LADO])
+                + "<details class='hj-mais'><summary>mais %s</summary>%s"
+                  "</details>" % (mil_pt(len(feitas) - CABEM_NO_LADO),
+                                  "".join(feitas[CABEM_NO_LADO:])))
+
+    corpo = com_mais(por_entregar)
+    if entregues:
+        corpo += ("<div class='sub'>Já entregues &middot; à espera da "
+                  "decisão</div>" + com_mais(entregues))
+    if not por_entregar and not entregues:
         # Das propostas, e o cartao di-lo: «Nada a fechar» com concursos
         # por ver a terminar hoje lia-se como se nao houvesse nenhum
         # (teste com utilizadores, 25/09/2026).
-        linhas.append("<div class='nota' style='padding:8px 0'>Nenhuma "
-                      "proposta a fechar nos próximos %d dias. Os concursos "
-                      "por ver estão em <a href='%s?estado=porver&amp;"
-                      "prazo=urgente'>Concursos</a>.</div>"
-                      % (DIAS_A_FECHAR, LISTA))
+        corpo = ("<div class='nota' style='padding:8px 0'>Nenhuma "
+                 "proposta a fechar nos próximos %d dias. Os concursos "
+                 "por ver estão em <a href='%s?estado=porver&amp;"
+                 "prazo=urgente'>Concursos</a>.</div>"
+                 % (DIAS_A_FECHAR, LISTA))
+    elif not por_entregar:
+        corpo = ("<div class='nota' style='padding:8px 0'>Nenhuma por "
+                 "entregar.</div>" + corpo)
     return cartao("Prazos a chegar",
-                  "<div class='prazos'>%s</div>" % "".join(linhas),
-                  meta="das propostas, nos próximos %d dias" % DIAS_A_FECHAR,
+                  "<div class='prazos'>%s</div>" % corpo,
+                  meta="das propostas, nos próximos %d dias: %s por "
+                       "entregar &middot; %s entregue%s"
+                       % (DIAS_A_FECHAR, mil_pt(len(por_entregar)),
+                          mil_pt(len(entregues)),
+                          "" if len(entregues) == 1 else "s"),
                   pe="<a href='/calendario'>calendário &rarr;</a>")
 
 
@@ -31722,8 +31975,9 @@ def inicio():
 
     # 1. os quatro factos -----------------------------------------------
     pipeline = pipeline_em_euros()
-    em_jogo = sum(d["euros"] for d in pipeline.values())
-    abertas = sum(d["quantas"] for d in pipeline.values())
+    # só o entregue (D12): o mesmo número do «Em jogo» da Situação (G25)
+    em_jogo = sum(pipeline[e]["euros"] for e in ESTADOS_EM_JOGO)
+    abertas = sum(pipeline[e]["quantas"] for e in ESTADOS_EM_JOGO)
     taxa = taxa_de_vitoria()
     _, ganhos, decididos, valor_taxa = (taxa[0] if taxa
                                         else ("total", 0, 0, None))
@@ -31772,17 +32026,19 @@ def inicio():
 
     factos = "".join((
         facto("Em jogo", euros_curto(em_jogo) if em_jogo else "—",
-              "%s aberta%s &middot; ponto de situação &rarr;"
+              "%s entregue%s &middot; ponto de situação &rarr;"
               % (mil_pt(abertas), "" if abertas == 1 else "s"),
-              "/situacao", "mg-stat--seal"),
+              "/situacao#entregues", "mg-stat--seal"),
         facto("Taxa de vitória", pct_pt(valor_taxa, 0)
               if valor_taxa is not None else "—",
-              ("%s de %s decididas" % (mil_pt(ganhos), mil_pt(decididos)))
+              frase_da_taxa(ganhos, decididos, valor_taxa is not None)
               if decididos else "nada decidido ainda",
               # as ganhas E as perdidas de sempre, que sao o que a taxa
               # divide -- abria so os ganhos (teste de 26/09/2026)
               "/situacao?ver=negocio&periodo=tudo#decididas"),
-        facto("Por decidir", mil_pt(por_ver), "anúncios por ver",
+        # o que conta, dito (G26): a aba «Por ver», que só tem os que
+        # ainda se podem responder
+        facto("Por decidir", mil_pt(por_ver), "por ver, ainda com prazo",
               LISTA + "?estado=porver"),
         facto("Para fazer", mil_pt(por_fazer),
               "%s atrasada%s" % (mil_pt(quantas["atrasadas"]),
@@ -31829,8 +32085,20 @@ def inicio():
                                      30)) if p]
         concurso = " &middot; ".join(html.escape(p) for p in pedacos)
         concurso_cru = " · ".join(pedacos)
+        # A linha liga à tarefa dentro do bloco da proposta (3.ª ronda,
+        # G24): o «23610/2026 · Município…» era texto, e para chegar à
+        # proposta eram cinco páginas.
+        alvo = _alvo_da_tarefa(t)
+        if alvo:
+            concurso = "<a href='%s'>%s</a>" % (html.escape(alvo, quote=True),
+                                                concurso)
         fim = ""
-        if t["a_prazo"]:
+        if t["estado"] in ESTADOS_FECHADOS:
+            # Uma proposta decidida já não tem entrega (G28): «entrega
+            # 8 out» numa Ganha lia-se como trabalho por fazer.
+            fim = ("<span class='fim'><span class='mg-tag'>%s</span></span>"
+                   % html.escape(estado_da_empresa(t["estado"])))
+        elif t["a_prazo"]:
             try:
                 d_prazo = datetime.strptime(t["a_prazo"][:10],
                                             "%Y-%m-%d").date()
@@ -31848,12 +32116,28 @@ def inicio():
         classe_q = ""
         if dia and not feita:
             classe_q = " mau" if dia < hoje else " avisa" if dia == hoje else ""
+        # Adiar e atribuir na própria linha (D5 da 3.ª ronda, decisão
+        # dele): eram 96 teclas e cinco páginas pela ficha. A mesma rota
+        # e o mesmo formulário da ficha (`/tarefa/<id>/gravar`, com a
+        # versão), dobrado num `<details>` para a linha não crescer.
+        mexer = "" if feita else (
+            "<details class='hj-mexer'><summary title='Adiar ou atribuir' "
+            "aria-label='Adiar ou atribuir: %s'>adiar &middot; quem</summary>"
+            "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
+            "<input type='hidden' name='versao' value='%s'>"
+            "<input type='text' name='quando' inputmode='numeric' "
+            "maxlength='10' placeholder='dd/mm/aaaa' aria-label='Adiar para'>"
+            "<select name='quem' aria-label='Quem faz'>%s</select>"
+            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>"
+            "Guardar</button></form></details>"
+            % (html.escape(t["o_que"] or "", quote=True), t["id"],
+               versao_da_tarefa(t), opcoes_de_pessoas(t["quem"], "quem faz…")))
         # A etiqueta «automática» saiu da linha (22/09/2026): estava em
         # metade das linhas e dizia sempre o mesmo. Fica na dica do texto.
         return ("<div class='hj-row%s' id='t%d'>%s"
                 "<span class='hj-o'%s>%s</span>"
                 "<span class='hj-q%s'>%s</span>"
-                "<span class='hj-c' title='%s'>%s</span>%s%s</div>"
+                "<span class='hj-c' title='%s'>%s</span>%s%s%s</div>"
                 % (" feita" if feita else "", t["id"], caixa,
                    (" title='automática: %s'" % DE_ONDE_VEM[t["origem"]]
                     if t["origem"] in DE_ONDE_VEM else ""),
@@ -31861,7 +32145,7 @@ def inicio():
                    classe_q,
                    data_curta(dia) if dia else "sem data",
                    html.escape(concurso_cru, quote=True), concurso,
-                   _avatar_html(nome_da_pessoa(t["quem"]), eu), fim))
+                   _avatar_html(nome_da_pessoa(t["quem"]), eu), fim, mexer))
 
     def linha_sem_decisao(p):
         """Uma proposta cujo prazo passou e que continua por decidir. Nao
@@ -31886,7 +32170,8 @@ def inicio():
                                        titulo=p["titulo"] or p["ref"] or "",
                                        p=p)))
 
-    def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui):
+    def cabeca_do_balde(chave, rotulo, por_fazer_aqui, feitas_aqui,
+                        entregas=0):
         direita = ""
         # só com atrasadas por fazer (E35): com «0 · 2 feitas» o botão
         # oferecia adiar o que não havia
@@ -31897,11 +32182,14 @@ def inicio():
                            "?" + urlencode([("quem", quem)])
                            if quem is not None else ""), quote=True))
         return ("<div class='hj-t'><span class='seta'></span>"
-                "<span>%s</span><i>%s</i>%s%s</div>"
+                "<span>%s</span><i>%s</i>%s%s%s</div>"
                 % (rotulo, mil_pt(por_fazer_aqui),
                    (" <span class='feitas'>&middot; %s feita%s</span>"
                     % (mil_pt(feitas_aqui), "" if feitas_aqui == 1 else "s"))
-                   if feitas_aqui else "", direita))
+                   if feitas_aqui else "",
+                   (" <span class='feitas'>&middot; %s entrega%s</span>"
+                    % (mil_pt(entregas), "" if entregas == 1 else "s"))
+                   if entregas else "", direita))
 
     def com_tecto(linhas, tecto):
         """As primeiras `tecto` linhas a vista e o resto num «mais N»
@@ -31915,9 +32203,37 @@ def inicio():
                   "</details>" % (mil_pt(len(linhas) - tecto),
                                   "".join(linhas[tecto:])))
 
+    # As entregas do dia escolhido (3.ª ronda, G20): a fita dizia «qui 1
+    # · 7 entregas» e o clique abria só as tarefas -- o número não abria
+    # a lista que conta. Vão no balde do dia, por cima das tarefas.
+    por_entregar_dia, entregues_dia = _entregas_do_dia(prazos, dia_escolhido)
+    entregas_dia = ""
+    if por_entregar_dia or entregues_dia:
+        entregas_dia = "<div class='hj-entregas'>%s</div>" % "".join(
+            "<a href='/anuncio/%s'>entrega &middot; %s "
+            "<span class='mg-tag'>%s</span></a>"
+            % (quote(r["ref"], safe=""),
+               html.escape(corta(r["titulo"] or r["ref"], 60)),
+               html.escape(estado_da_empresa(r["estado"])
+                           + ("" if r["estado"] in ESTADOS_POR_ENTREGAR
+                              else " · entregue")))
+            for r in por_entregar_dia + entregues_dia)
+
     blocos = []
     for chave, rotulo, classe in baldes:
         aqui = grupos[chave]
+        if chave == "dia" and entregas_dia:
+            n_ent = len(por_entregar_dia) + len(entregues_dia)
+            blocos.append(
+                "<div class='hj-g %s'>%s%s%s</div>"
+                % (classe, cabeca_do_balde(
+                    chave, rotulo, quantas[chave], len(aqui) - quantas[chave],
+                    entregas=n_ent),
+                   entregas_dia,
+                   com_tecto([linha_da_tarefa(t, d) for t, d in aqui
+                              if not (esconder and t["feita_em"])],
+                             CABEM_NO_BALDE)))
+            continue
         if not aqui:
             continue
         if chave == "sem_decisao":
@@ -31980,17 +32296,28 @@ def inicio():
     # por baixo vai o que a ultima verificacao trouxe.
     _, quando_verif, _ = linha_da_ultima_verificacao()
     hoje_iso = hoje.isoformat()
+    # As peças que chegaram DEPOIS da verificação (as do «Interessa», que
+    # as vai buscar logo) contam-se à parte (3.ª ronda, G27): a frase dava
+    # à verificação das 20:03 peças que ela não trouxe, e o número crescia
+    # sem verificação nenhuma.
+    ultima = le_marca("ultima_verificacao", "")[:16]
     with liga() as c:
         novos_hoje = novos_de_hoje(c, hoje_iso)
-        pecas_hoje = c.execute(
-            "SELECT COUNT(*) n FROM documentos WHERE substr(obtido_em,1,10)=?",
-            (hoje_iso,)).fetchone()["n"]
+        pecas = c.execute(
+            "SELECT SUM(substr(obtido_em,1,16) <= ?) antes, "
+            "SUM(substr(obtido_em,1,16) > ?) depois FROM documentos "
+            "WHERE substr(obtido_em,1,10)=?",
+            (ultima, ultima, hoje_iso)).fetchone()
+    pecas_hoje, pecas_depois = pecas["antes"] or 0, pecas["depois"] or 0
     hora_verif = quando_verif.split(" &mdash; ")[0].split()[-1] \
         if le_marca("ultima_verificacao", "nunca") != "nunca" else ""
-    frase = ("Última verificação às %s: %s anúncio%s novo%s, %s peça%s nova%s."
+    frase = ("Última verificação às %s: %s anúncio%s novo%s, %s peça%s nova%s%s."
              % (hora_verif, mil_pt(novos_hoje), "" if novos_hoje == 1 else "s",
                 "" if novos_hoje == 1 else "s", mil_pt(pecas_hoje),
-                "" if pecas_hoje == 1 else "s", "" if pecas_hoje == 1 else "s")
+                "" if pecas_hoje == 1 else "s", "" if pecas_hoje == 1 else "s",
+                " (e %s trazida%s depois)" % (mil_pt(pecas_depois),
+                                             "" if pecas_depois == 1 else "s")
+                if pecas_depois else "")
              if hora_verif else "Ainda não houve uma verificação hoje.")
     accoes_topo = ""
     if pode_verificar():
@@ -32129,6 +32456,11 @@ def tarefas_adiar():
     hoje = datetime.now().date()
     quem = _quem_pedido()
     atrasadas = _atrasadas_de(quem, hoje)
+    if not atrasadas:
+        # Sem nada para adiar não se pergunta nada (3.ª ronda, G35): a
+        # página abria a dizer «São 0 tarefas…» e só oferecia voltar.
+        return redirect("/?" + urlencode([("aviso", "Não há tarefas atrasadas "
+                                           "para adiar.")]) + "#fazer")
     corpo = ("<div class='mg-card' style='padding:22px 24px'>"
              "<div class='mg-field__label'>Adiar as atrasadas</div>"
              "<p class='nota'>São <b>%s</b> tarefa%s com data anterior a "

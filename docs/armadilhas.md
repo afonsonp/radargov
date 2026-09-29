@@ -17,7 +17,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 81
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 104
 - [Convenções](#convencoes) &middot; 4
 
-São **368** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **371** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2059,6 +2059,26 @@ pelo Afonso e nenhuma se reabre de passagem.
   a leitura mais recente da cadeia e diz de onde veio, e aponta para as
   peças em vez de dizer só que não vieram. Há teste
   (`TestAFichaDeUmaRepublicacaoLeOPrazoDaCadeia`).
+- **Quando a proposta passa de uma alteração para o original, as
+  tarefas e o histórico vão com ela** (G18 da 3.ª ronda, 29/09/2026).
+  O `_herdar_propostas()` mudava o `propostas.ref` e deixava o
+  `tarefas.ref` e o `historico.ref` na alteração: o Hoje dizia
+  «entregar a proposta · 23820/2026» de uma proposta no 22219/2026, a
+  ligação abria uma ficha «ainda não decidido», e o Calendário
+  desenhava a proposta duas vezes. O `acertar_a_referencia_das_tarefas()`
+  corre ali e no arranque (`iniciar_empresa()`), e é idempotente.
+- **O «Em jogo» é só o entregue, e o Hoje e a Situação somam o mesmo
+  tuplo** (D12 da 3.ª ronda, decisão dele). `ESTADOS_EM_JOGO` =
+  «Submetida» e «Relatório preliminar»; o por submeter é trabalho, e
+  vive no Hoje. O Hoje somava as quatro ranhuras abertas e a Situação,
+  para onde o número levava, só tinha as duas metades (G25). Um terceiro
+  sítio que some o «em jogo» lê o tuplo, não uma lista sua.
+- **As entregas da fita, do balde do dia e dos «Prazos a chegar» saem
+  de um dicionário e de uma função** (`_prazos_da_janela()` e
+  `_entregas_do_dia()`, G19, G20 e D12). A fita dizia «7 entregas», o
+  clique no dia não as mostrava e o cartão cortava em cinco sem «mais»;
+  três leituras do mesmo facto, cada uma com o seu corte. E partem-se
+  pelo `ESTADOS_POR_ENTREGAR`: o que já foi entregue não é trabalho.
 
 ## O registo da empresa
 
