@@ -539,9 +539,10 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 - dois botões para sair daqui, que são coisas diferentes: **Abrir na
   \<plataforma\>** leva à página do procedimento, e **Peças na
   plataforma** ao endereço das peças que o anúncio indica. Na acingov
-  não há página pública do procedimento (só se vê com sessão iniciada),
-  por isso o botão diz **Procurar na acingov** e abre a pesquisa
-  pública — em vez de prometer o que não existe.
+  o **Abrir na acingov** leva directamente à página do procedimento,
+  que pede a sessão iniciada na acingov, e o botão das peças chama-se
+  **Descarregar as peças (ZIP)**, porque é isso que faz. Na Vortal há
+  um botão só, porque as duas páginas davam no mesmo sítio.
 
 **Desde 28/09/2026 a ficha lê-se de cima para baixo**, pela ordem em
 que se decide:
