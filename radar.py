@@ -6650,15 +6650,25 @@ TECTO_RECORTE = 7000
 # ia, mas fora das janelas. O peso 0 leva uma janela mais curta
 # (JANELA_FORTE) e vai a frente no orcamento.
 ANCORAS_OBJECTO = (
+    # «situada na Rua de Sao Martinho» (23794) e os «locais de entrega»
+    # nao batiam (29/09/2026); o titulo «2.5 LOCALIZACAO E DELIMITACOES»
+    # (21877) bate no peso 1. E os «incendios ou inundacoes com origem nas
+    # instalacoes do adjudicatario» da forca maior, que estao em todos os
+    # Cadernos, deixam de gastar a reserva do peso 0 (21275).
     (0, r"local (de|da|do|onde) (execucao|prestacao|entrega|realiza|fornecimento)|"
-        r"nas instalacoes d|regime (hibrido|presencial|remoto|misto)|\bteletrabalho|"
-        r"tem por objec?to|constitui objec?to"),
+        r"locais de (execucao|entrega|prestacao)|situad[oa] n|"
+        r"(?<!origem )nas instalacoes d|regime (hibrido|presencial|remoto|misto)|\bteletrabalho"),
+    # O objecto numa ancora sua: cada ancora de peso 0 tem a sua janela
+    # garantida, e o local nao a perde para o «tem por objecto» (29/09/2026)
+    (0, r"tem por objec?to|constitui objec?to"),
     (1, r"objec?to\b|\bsolucao|\bambito|enquadramento"),
     # O regime -- presencial, remoto ou hibrido -- vem no mesmo pedido que
     # o objecto, por ser o mesmo documento. Prioridade 1 para nao ser o
     # primeiro a ser cortado quando o recorte enche: e uma clausula curta,
     # custa pouco, e sem ela o campo fica vazio de vez.
-    (1, r"local d[aeo]|instalacoes|teletrabalho|presencial|regime de trabalho"),
+    # «localizacao» so como titulo: no corpo de uma especificacao de SIG
+    # (22001) ha trinta, e comiam a reserva do peso 0
+    (1, r"local d[aeo]|localizacao|instalacoes|teletrabalho|presencial|regime de trabalho"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
 )
@@ -6666,7 +6676,13 @@ ANCORAS_EQUIPA = (
     (0, r"perfis? (minimos?|obrigatorios?|exigidos?|profissionais)|composta,? no minimo|"
         r"equipa minima|meios humanos|anos de experiencia|"
         r"experiencia (profissional )?minima|lead (auditor|implementer)|"
-        r"certificacao (em|obrigatoria)|\bpmp\b"),
+        r"certificacao (em|obrigatoria)|\bpmp\b|"
+        # A quantidade numa tabela ou num total a parte (23486, 23804), a
+        # lista so de nomes (23265) e os requisitos em prosa (22956)
+        # ficavam fora do recorte (29/09/2026)
+        r"recursos horas estimadas|\bftes?\b|numero (estimado )?de recursos|"
+        r"dimensao (minima )?da equipa|seguintes perfis|equipa multidisciplinar|"
+        r"dever\w*(\(\w+\))? possuir experiencia"),
     (1, r"\bequipa|perfil|profissiona|recursos humanos|senioridade"),
     (2, r"composicao|afetacao|alocacao|quadro de pessoal"),
     # O pessoal que a lei obriga a ter qualificação (segunda ronda,
@@ -6676,10 +6692,23 @@ ANCORAS_EQUIPA = (
     (3, r"\btecnicos?\b|qualificac|credencia"),
 )
 ANCORAS_PROGRAMA = (
-    (0, r"propostas? (e|sao|deve ser|devem ser|sera|serao) (constituid|instruid|compost|acompanhad)|"
-        r"(constituem|instruem|integram) (a|as) propostas?|pel[oa]s seguintes (documentos|elementos)|"
-        r"anormalmente baixo quando|considera.{0,40}anormalmente baixo|"
-        r"anormalmente baixo.{0,40}(inferior|abaixo|desvio)"),
+    # «Cada proposta devera ser constituida com os seguintes documentos»
+    # (23577) nao batia em nenhuma das duas (29/09/2026)
+    (0, r"propostas? (e|sao|deve ser|devem ser|devera ser|deverao ser|sera|serao) "
+        r"(constituid|instruid|compost|acompanhad)|"
+        r"(constituem|instruem|integram) (a|as) propostas?|"
+        r"(pel[oa]s|com os) seguintes (documentos|elementos)|"
+        # «deve ainda indicar/apresentar os seguintes» / «elementos/docu
+        # mentos:», partido pelo OCR na linha seguinte (29/09/2026, 23010)
+        # -- e nao os «seguintes documentos de habilitacao», que o
+        # adjudicatario so entrega depois (23813)
+        r"(indicar|apresentar).{0,30}seguintes( (elementos|docu ?mentos)(?! de habilitacao)|$)"),
+    # O limiar numa ancora sua, para ter a sua janela garantida
+    # (29/09/2026, 14680, 23530, 23577); e o «(PAB Unitario)» do titulo
+    # «15.5. Preco Anormalmente Baixo por Artigo Unitario» do 21877, que
+    # pela numeracao em dois niveis nao passa por titulo.
+    (0, r"anormalmente baixo quando|considera.{0,40}anormalmente baixo|"
+        r"anormalmente baixo.{0,40}(inferior|abaixo|desvio)|\bpab\b"),
     # «CONTEUDO E ASSINATURA DA PROPOSTA» e o titulo do artigo da lista
     # num Programa do acervo, sem a palavra «documentos» (28/09/2026)
     (1, r"documentos.{0,25}proposta|proposta.{0,25}documentos|"
@@ -6715,15 +6744,20 @@ Extrai duas coisas do Caderno de Encargos:
   Se o objecto remete para um anexo que está no texto, transcreve do
   anexo; "conforme o Anexo I" não é resposta.
 
-- "localizacao": onde e como o serviço é prestado. Começa pelo REGIME
-  numa palavra — presencial, remoto ou híbrido — e a seguir o que o
-  documento exige em concreto: as instalações nomeadas, quantos dias por
-  semana se exige presença, deslocações previstas. Exemplos do formato:
-  "Presencial, nas instalações do INFARMED em Lisboa"; "Híbrido: 2 dias
-  por semana presenciais"; "Remoto, com deslocações pontuais a Lisboa
-  para reuniões de acompanhamento".
-  Se o documento não disser nada sobre presença nem regime, responde
-  "não consta" — NÃO deduzas o regime a partir da morada da entidade.
+- "localizacao": onde o serviço é prestado ou os bens são entregues. As
+  instalações, moradas ou locais de execução ou de entrega que uma
+  cláusula NOMEIA ("Local da prestação", "Local de execução", "Local de
+  entrega") são resposta, mesmo sem regime nenhum. Se o documento fixar
+  o REGIME — presencial, remoto ou híbrido —, começa por ele numa
+  palavra, e junta os dias de presença e as deslocações; se não o fixar,
+  não o inventes: uma entrega de bens não é "Remoto". Uma condição
+  copia-se tal como está, sem trocar a regra pela excepção. Exemplos:
+  "Presencial, nas instalações do INFARMED, Parque de Saúde de Lisboa";
+  "Entrega na sede, Avenida Torrado da Silva, Almada"; "Híbrido: 2 dias
+  por semana presenciais".
+  A morada do cabeçalho ou do rodapé das páginas, ou da identificação
+  da entidade, NÃO é local de execução. Se nenhuma cláusula disser onde
+  nem como, responde "não consta".
 
 Responde SÓ com {"objecto": "...", "localizacao": "..."}."""
 
@@ -6737,46 +6771,48 @@ Quantidade: quantas pessoas deste perfil (e a dedicação ou os turnos,
 se o documento os fixar), ou —
 Formação: área e grau exigidos, ou —
 Experiência geral: X anos, ou —
-Experiência específica: tecnologia, sector ou dimensão; se for mais do
-que uma, as seguintes em linhas próprias começadas por "- "
+Experiência específica: tecnologia, sector ou dimensão; se forem
+várias, em linhas começadas por "- "
 Certificações: a lista exacta, ou —
 Outras condições: dedicação, presença, ou —
-Horas e preço: as horas máximas e o valor/hora do perfil, se o
-documento os fixar, ou —
+Horas e preço: horas máximas e valor/hora do perfil, se fixados, ou —
 
 Regras duras:
-- Copia o nome do perfil TAL E QUAL. Não acrescentes "sénior", "júnior"
-  nem qualquer qualificador que não esteja lá.
+- Copia o nome do perfil TAL E QUAL, sem acrescentar "sénior",
+  "júnior" nem outro qualificador.
 - Cada requisito numa linha autónoma.
-- Se o documento não quantifica, escreve a expressão exacta que lá está,
-  sem interpretar: "experiência relevante" fica "experiência relevante".
-- Onde não houver exigência, escreve — (travessão). Não inventes e não
-  deixes a linha de fora.
+- Sem número, copia a expressão exacta: "experiência relevante" fica
+  "experiência relevante".
+- Sem exigência, escreve — (travessão). Não inventes e não deixes a
+  linha de fora.
 - N perfis no documento, N blocos na resposta. Se há uma tabela de
   perfis, passa-a toda.
-- Transcreve os números que lá estão. Nunca escrevas "conforme o Anexo"
-  nem "experiência comprovada".
-- Os anos vão COM a tecnologia a que se referem: "5 anos em Oracle Data
-  Integrator" fica numa linha só, em "Experiência específica"; não
-  partas em "Experiência geral: 5 anos" e "Oracle Data Integrator".
-- Uma tabela de utilizadores, de departamentos ou de equipas DA
-  ENTIDADE não é a equipa do concorrente: só entram os perfis que o
-  concorrente tem de afectar ao contrato.
-- "preferencialmente" não é "obrigatório": se o documento diz
-  "preferencialmente", escreve-o.
+- Transcreve os números; nunca "conforme o Anexo" nem "experiência
+  comprovada".
+- Os anos vão COM a tecnologia: "5 anos em Oracle Data Integrator" é
+  uma linha de "Experiência específica", e não "Experiência geral: 5
+  anos".
+- A quantidade pode estar noutra tabela ou num total (FTE, número de
+  recursos, horas estimadas por perfil): vai buscá-la lá.
+- Uma lista só com os nomes dos perfis é resposta: um bloco por nome,
+  com — no que o documento não fixa.
+- O pessoal DA ENTIDADE (o gestor do contrato, quem ela nomeia, os
+  seus utilizadores e departamentos) não é equipa: só entram os perfis
+  que o concorrente afecta ao contrato.
+- "preferencialmente" não é "obrigatório": se o documento o diz,
+  escreve-o.
 
 Conta também como perfil o pessoal que a lei obriga a ter qualificação
-própria — técnicos credenciados, técnicos de instalação e manutenção
-(TIM), técnicos de gases fluorados, técnico responsável — com a
-qualificação em "Certificações" e a lei que a exige, se for citada.
+— técnicos credenciados, TIM, de gases fluorados, técnico responsável —
+com a qualificação e a lei em "Certificações".
 
-Repara se os requisitos são de cada perfil ou da equipa "em conjunto":
-não é a mesma coisa para quem concorre — sete certificações numa pessoa
-ou espalhadas por quatro. Não atribuas a um perfil o que o documento
-exige ao conjunto; para esse faz um bloco final com o nome "Em
-conjunto, a equipa deve deter" — MAS SÓ se o documento exigir algo ao
-conjunto da equipa. O que é exigido à EMPRESA (uma certificação ISO da
-empresa, um alvará) não é da equipa: deixa-o de fora.
+Se o documento exige algo ao CONJUNTO da equipa (sete certificações
+numa pessoa ou espalhadas por quatro), não o dês a um perfil: faz um
+bloco final "Em conjunto, a equipa deve deter". A DIMENSÃO MÍNIMA da
+equipa e a formação exigida a toda ela ("no mínimo por 2 elementos",
+"mínimo de 7 elementos com formação superior, sob pena de exclusão")
+entram sempre nesse bloco, mesmo sem perfis. O que é exigido à EMPRESA
+(uma certificação ISO, um alvará) não é da equipa: fica de fora.
 
 Responde SÓ com {"equipa": "..."}."""
 
@@ -6855,13 +6891,15 @@ INSTRUCOES_OBRAS = PREAMBULO + """
 É uma EMPREITADA DE OBRAS. Extrai, das peças (Caderno de Encargos e
 anexos técnicos), com esta estrutura:
 
-Alvará: a categoria, a subcategoria e a classe tal como pedidas, ou —
 Equipa técnica: um bloco por função (director de obra, técnico de
 segurança, e outras), cada um com:
   Função exacta
-  Formação ou inscrição (Ordem dos Engenheiros, OET, …), ou —
+  Formação ou inscrição (Ordem dos Engenheiros, OET, …); se o
+  documento remete para a lei ("qualificação prevista na Lei n.º
+  40/2015"), copia a remissão tal qual — é um requisito, e não —
   Experiência: a expressão exacta, com os anos, ou —
-  Presença em obra ou percentagem de afectação, ou —
+  Presença em obra ou percentagem de afectação ("presente sempre que
+  convocado", "20 %"), ou —
 Equipamento a fornecer e montar: qual, se a obra não for só civil, ou —
 Mapa de quantidades: onde está (nome do ficheiro ou anexo), ou —
 Condicionantes do local e do horário, ou —""" + _FIM_DO_CAMPO_11
@@ -6887,7 +6925,9 @@ Instalação e formação, ou —
 Se há uma lista ou tabela de artigos, passa-a toda.""" + _FIM_DO_CAMPO_11
 
 ANCORAS_MAO_DE_OBRA = (
-    (0, r"vigilantes?\b.{0,60}\d{1,2}[:h]\d{2}|\d{1,2}[:h]\d{2}.{0,60}vigilantes?"),
+    # «Servico de vigilancia - dias uteis 1 17:00-08:00» (23794): a
+    # vigilancia, e a hora a 66 caracteres, nao batiam (29/09/2026)
+    (0, r"vigilan(tes?|cia)\b.{0,80}\d{1,2}[:h]\d{2}|\d{1,2}[:h]\d{2}.{0,80}vigilan(tes?|cia)"),
     (1, r"postos?|horarios?|turnos?|vigilantes?|equipas?"),
     (2, r"alvara|habilitac|titulo profissional|cartao|formacao"),
     (3, r"equipamentos|produtos|supervis|transmiss|trabalhadores"),
@@ -6907,9 +6947,15 @@ Regime dos trabalhadores e transmissão de trabalhadores, ou —
 Se há uma tabela de postos, horas ou frequências, passa-a toda.""" + _FIM_DO_CAMPO_11
 
 ANCORAS_SERVICOS = (
-    (0, r"gases fluorados|titulo profissional|tecnicos? de instalacao e manutencao|\btim\b"),
-    (1, r"niveis? de servico|tempos? de resposta|\bsla\b|assistencia tecnica|manutencao"),
-    (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas"),
+    # Os tempos de resposta a peso 0, e a «manutencao» a 2 (29/09/2026):
+    # nos contratos de manutencao a palavra esta em todas as clausulas, e
+    # enchia o recorte antes das do SLA -- «Tempos de resposta: —» na
+    # 22719, na 22949 e na 23728, que fixam 24 h, 2 h e 4 h.
+    (0, r"gases fluorados|titulo profissional|tecnicos? de instalacao e manutencao|\btim\b|"
+        r"tempos? (maximos? )?de (resposta|atendimento|reposicao|resolucao)|"
+        r"niveis? de servico"),
+    (1, r"\bsla\b|assistencia tecnica"),
+    (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas|manutencao"),
     (3, r"\btecnicos?\b|qualificac|credencia|certifica"),
 )
 INSTRUCOES_SERVICOS = PREAMBULO + """
@@ -6922,6 +6968,55 @@ Tempos de resposta, por prioridade ou por local, ou —
 Qualificações legais exigidas aos técnicos, ou —
 Volume: bolsa de horas ou quantidades, ou —
 Datas fixas, ou —""" + _FIM_DO_CAMPO_11
+
+# --- o objecto das obras (29/09/2026). A pergunta do objecto foi escrita
+# para os servicos de TI, e as ancoras dela apanham a Clausula 1.a do CE,
+# que numa empreitada remete para o projecto: em 11 das 17 obras o
+# objecto saiu so com clausulas-tipo (medicoes, ensaios, livro de obra,
+# paineis). O que se constroi esta na memoria descritiva -- as duas
+# leituras certas vieram dela. Le o papel «tecnico» a frente do CE.
+ANCORAS_OBJECTO_OBRAS = (
+    (0, r"descricao (geral )?da (obra|intervencao|empreitada)|intervencao preconizada|"
+        r"tem (por|como) objec?tivo|"
+        r"presente (memoria descritiva|empreitada|intervencao|obra) "
+        r"(refere|respeita|diz respeito|consiste|visa|tem)|refere-se a presente memoria"),
+    (0, r"tem por objec?to|constitui objec?to"),
+    (0, r"local (de|da|do|onde) (execucao|realiza|implantacao)|localizacao da obra|"
+        r"(?<!origem )nas instalacoes d|situad[oa] n"),
+    (1, r"memoria descritiva|descricao|ambito|intervencao|trabalhos a realizar|"
+        r"objec?to\b|localizacao|local da obra|enquadramento|introducao"),
+    (2, r"solucao|caracterizacao|lotes?\b|trabalhos preparatorios|pavimenta"),
+)
+INSTRUCOES_OBJECTO_OBRAS = PREAMBULO + """
+
+É uma EMPREITADA DE OBRAS. Extrai duas coisas das peças (memória
+descritiva, projecto, Caderno de Encargos):
+
+- "objecto": o que se constrói, reabilita ou instala, um ponto por
+  linha começada por "- ". A primeira linha diz a OBRA e o SÍTIO; as
+  seguintes, os trabalhos principais que a memória descritiva ou o
+  projecto descrevem (demolições, estruturas, coberturas, redes,
+  equipamentos a instalar, pavimentos), com as quantidades, os troços e
+  os lotes, se lá estiverem. NÃO são objecto, e ficam de fora, as
+  cláusulas que qualquer empreitada tem: medições, ensaios, livro de
+  obra, painéis ou placas de identificação, horário, patentes,
+  estaleiro, plano de segurança e saúde, resíduos, seguros, e os
+  encargos incluídos no preço (taxas, impostos, fornecimentos e
+  embalagens). Não repitas o título partido em várias linhas. Se as
+  peças só dão o título e remetem para o projecto, a resposta é o
+  título, numa linha.
+
+- "localizacao": onde é a obra — a morada, a freguesia e o concelho, o
+  troço e os quilómetros — tal como as peças o escrevem. A morada da
+  entidade, do cabeçalho ou do rodapé NÃO é o local da obra. Se as peças
+  não o disserem, responde "não consta".
+
+Responde SÓ com {"objecto": "...", "localizacao": "..."}."""
+
+# A leitura do objecto que muda com a familia: (quais, ancoras, pergunta).
+OBJECTO_DA_FAMILIA = {
+    "obras": ("tecnico", ANCORAS_OBJECTO_OBRAS, INSTRUCOES_OBJECTO_OBRAS),
+}
 
 # O rotulo na ficha, o que a leitura «não encontrou», as ancoras e a
 # pergunta. A «equipa» usa as da leitura de origem (e o config.json).
@@ -6971,10 +7066,14 @@ def leituras_da_familia(leituras, familia):
     config.json por cima -- a afinação que lá esteja foi escrita para
     ela."""
     _, _, ancoras, instrucao = CAMPO_11.get(familia, CAMPO_11["equipa"])
-    if not instrucao:
-        return list(leituras)
-    return [(n, q, ancoras, instrucao) if n == "equipa" else (n, q, a, i)
-            for n, q, a, i in leituras]
+    fora = list(leituras)
+    if instrucao:
+        fora = [(n, q, ancoras, instrucao) if n == "equipa" else (n, q, a, i)
+                for n, q, a, i in fora]
+    if familia in OBJECTO_DA_FAMILIA:
+        fora = [(n,) + OBJECTO_DA_FAMILIA[familia] if n == "objecto" else (n, q, a, i)
+                for n, q, a, i in fora]
+    return fora
 
 
 # Uma leitura por campo: que documentos ler, onde procurar, o que pedir.
@@ -7114,8 +7213,19 @@ def e_titulo(crua, curta):
 RX_LINHA_DE_INDICE = re.compile(r"\.\s*\.\s*\.\s*\.\s*\.")
 
 
+# «Anexo I II»: o extractor parte o «III» de alguns PDF (23610 e 23612,
+# dois dias seguidos), e a leitura dizia «Proposta de preço (Anexo II)»
+# -- o modelo da declaracao, e nao o da proposta. Quem seguisse a ficha
+# entregava o modelo errado (29/09/2026).
+RX_ANEXO_PARTIDO = re.compile(r"\b(anexo\s+)(I{1,2}) (I{1,2})\b", re.IGNORECASE)
+
+
 def sem_indice(texto):
-    """O texto sem as linhas pontilhadas do sumario."""
+    """O texto sem as linhas pontilhadas do sumario, e com os numerais
+    dos anexos que o extractor partiu outra vez juntos."""
+    texto = RX_ANEXO_PARTIDO.sub(
+        lambda m: m.group(1) + m.group(2) + m.group(3)
+        if len(m.group(2) + m.group(3)) <= 3 else m.group(0), texto)
     return "\n".join(l for l in texto.split("\n")
                       if not RX_LINHA_DE_INDICE.search(l))
 
@@ -7133,6 +7243,33 @@ PESO_NA_DENSIDADE = {0: 2, 1: 2, 2: 1}
 # cabe (sete alineas sao ~1500 caracteres), e duas destas nao comem o
 # orcamento que uma tabela de perfis precisa.
 JANELA_FORTE = 2500
+# ... e quando o artigo acaba antes, acaba ali; quando acaba depois, vai
+# ate ao fim dele, mas nao passa disto (29/09/2026). Nos Programas da SPMS
+# (21295, 21296, 21924) as Notas 1 a 3 entre as alineas c) e d), mais o
+# cabecalho de cada pagina, empurravam as alineas e) f) g) para fora dos
+# 2 500: a lista chegava ao modelo cortada na d), e a ficha dizia-a
+# inteira. O artigo acaba no titulo seguinte que diga «Artigo»,
+# «Clausula», «Capitulo», «Seccao» ou «Anexo».
+JANELA_DO_ARTIGO = 4500
+# A parte do tecto que as frases de peso 0 tem guardada, antes de as
+# zonas densas escolherem (29/09/2026). Pela densidade so, uma clausula
+# curta perdia sempre para uma tabela: a «Clausula 5.a Local da prestacao
+# de servicos» do 21295 ficava fora, e a janela do «Local de execucao»
+# do 21568 recebia 69 caracteres. Metade, e nao tudo: a primeira ronda
+# (28/09/2026) pos o peso 0 a frente de tudo e perdeu o seguro de
+# acidentes de trabalho do 21877.
+RESERVA_DO_PESO_0 = 0.5
+
+
+def _fim_do_artigo(titulos_de_artigo, p, largura_minima):
+    """Onde acaba a janela de uma frase de peso 0 que esta em `p`: no
+    titulo de artigo seguinte, se vier antes de JANELA_DO_ARTIGO; senao
+    na JANELA_DO_ARTIGO, se o artigo continuar; e sem titulo nenhum a
+    vista, a JANELA_FORTE de sempre."""
+    for q in titulos_de_artigo:
+        if q > p:
+            return p + min(q - p, JANELA_DO_ARTIGO)
+    return p + largura_minima
 
 
 def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
@@ -7143,12 +7280,14 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
     paginas_do_recorte(): o texto que vai ao modelo e as paginas que a
     ficha declara tem de sair DAS MESMAS janelas, senao a fonte mentia.
     """
-    pos, titulos, vistos = 0, [], {}
+    pos, titulos, vistos, artigos, frases = 0, [], {}, [], {}
     for linha in texto.split("\n"):
         crua = linha.strip()
         curta = simplifica(crua)
         titulo = e_titulo(crua, curta)
-        for peso, padrao in ancoras:
+        if titulo and RX_MARCADOR.match(curta):
+            artigos.append(pos)
+        for qual, (peso, padrao) in enumerate(ancoras):
             # o peso 0 e uma frase do corpo: vale sem ser titulo
             if (titulo or peso == 0) and re.search(padrao, curta):
                 # O sumario sem pontinhos («7. DOCUMENTOS DA PROPOSTA 5»)
@@ -7162,10 +7301,17 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
                 titulos.append(par)
                 if titulo:
                     vistos[chave] = par
+                if peso == 0:
+                    frases[pos] = (curta, qual)
                 break
         pos += len(linha) + 1
     if not titulos:
         return []
+
+    def largura(p, peso):
+        if peso:
+            return janela
+        return _fim_do_artigo(artigos, p, JANELA_FORTE) - p
 
     # O orcamento corta-se AQUI, e nao no fim: o texto sai pela ordem do
     # documento, e um [:tecto] no fim deitava fora a janela do fim -- que
@@ -7180,21 +7326,47 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
     # perfis, no fim, ficava de fora. Medido com a regua das passagens.
     def densidade(par):
         _, p, peso = par
-        fim = p + (JANELA_FORTE if peso == 0 else janela)
+        fim = p + largura(p, peso)
         return sum(PESO_NA_DENSIDADE.get(w, 0.5) for _, q, w in titulos
                    if p - 200 <= q < fim)
 
     marca, gasto = bytearray(len(texto)), 0
-    for _, p, peso in sorted(titulos, key=lambda par: (-densidade(par),) + par):
-        if gasto >= tecto:
-            break
-        largura = JANELA_FORTE if peso == 0 else janela
-        for i in range(max(0, p - 200), min(len(texto), p + largura)):
-            if gasto >= tecto:
-                break
+
+    def marcar(p, peso, ate):
+        nonlocal gasto
+        for i in range(max(0, p - 200), min(len(texto), p + largura(p, peso))):
+            if gasto >= ate:
+                return
             if not marca[i]:
                 marca[i] = 1
                 gasto += 1
+
+    ordem = sorted(titulos, key=lambda par: (-densidade(par),) + par)
+    # Primeiro as frases de peso 0, cada frase uma vez: a mesma frase
+    # copiada nos modelos de declaracao do fim do Programa nao leva a
+    # reserva duas vezes. E a melhor de cada ancora de peso 0 antes das
+    # outras: o limiar do preco anormalmente baixo do 14680 perdia a
+    # reserva para as seis frases da lista dos documentos, que se juntam
+    # na mesma zona (29/09/2026).
+    # Cada uma com a sua parte da reserva, e nao a reserva inteira: a
+    # janela da lista vai ate ao fim do artigo, e sozinha comia-a toda.
+    fortes = [p for _, p, peso in ordem if peso == 0]
+    primeiras = {}
+    for p in fortes:
+        primeiras.setdefault(frases[p][1], p)
+    reserva = int(tecto * RESERVA_DO_PESO_0)
+    quota = reserva // max(1, len(primeiras))
+    for p in sorted(primeiras.values(), key=fortes.index):
+        marcar(p, 0, min(gasto + quota, reserva))
+    ditas = set()
+    for p in fortes:
+        if frases[p][0] not in ditas:
+            ditas.add(frases[p][0])
+            marcar(p, 0, reserva)
+    for _, p, peso in ordem:
+        if gasto >= tecto:
+            break
+        marcar(p, peso, tecto)
 
     partes, i, n = [], 0, len(texto)
     while i < n:
@@ -7209,6 +7381,23 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
     return partes
 
 
+SEPARADOR_DO_RECORTE = "\n[...]\n"
+
+
+def _janelas_que_cabem(texto, ancoras, tecto, janela=3500):
+    """As janelas, com o lugar dos «[...]» que as separam descontado.
+
+    Sem isto o [:tecto] do fim cortava 7 caracteres por janela ao fim da
+    ULTIMA -- e era la que estava, a 29/09/2026, a lista dos perfis da
+    23265 e o fim de um tempo de resposta («de 4» em vez de «de 4
+    horas»)."""
+    janelas = _janelas_do_recorte(texto, ancoras, tecto, janela)
+    excesso = len(SEPARADOR_DO_RECORTE) * (len(janelas) - 1)
+    if excesso > 0:
+        janelas = _janelas_do_recorte(texto, ancoras, tecto - excesso, janela)
+    return janelas
+
+
 def recorte_relevante(texto, ancoras, tecto, janela=3500):
     """As partes do documento que respondem ao que se procura.
 
@@ -7218,10 +7407,10 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
     minuto da API obriga a escolher, e escolher tambem melhora a
     leitura, por tirar ruido do caminho do modelo.
     """
-    janelas = _janelas_do_recorte(texto, ancoras, tecto, janela)
+    janelas = _janelas_que_cabem(texto, ancoras, tecto, janela)
     if not janelas:
         return texto[:tecto]
-    return "\n[...]\n".join(texto[i:j] for i, j in janelas)[:tecto]
+    return SEPARADOR_DO_RECORTE.join(texto[i:j] for i, j in janelas)[:tecto]
 
 
 def paginas_do_recorte(texto, ancoras, tecto, janela=3500):
@@ -7233,7 +7422,7 @@ def paginas_do_recorte(texto, ancoras, tecto, janela=3500):
     antes dele."""
     if "\f" not in texto:
         return []
-    janelas = (_janelas_do_recorte(texto, ancoras, tecto, janela)
+    janelas = (_janelas_que_cabem(texto, ancoras, tecto, janela)
                or [(0, min(len(texto), tecto))])
     paginas = []
     for i, j in janelas:
@@ -7285,7 +7474,8 @@ def _sigla(letras):
 # Programa nas consultas previas.
 RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("(?:ce|cde|cade)"))
 # "cp" fica de fora de proposito: e "Concurso Publico", nao "Programa".
-RX_PECA_PROGRAMA = re.compile(r"programa|pograma|procedimento|convite|"
+# «ProgConc» (29/09/2026, 23492): sem ele a leitura da proposta so tinha o CE.
+RX_PECA_PROGRAMA = re.compile(r"programa|pograma|progconc|prog\.? ?conc|procedimento|convite|"
                               + _sigla("pp") + "|" + _sigla("pc"))
 
 
@@ -7309,6 +7499,10 @@ RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|pograma|procedimento|convite")
 # entregam «Anexo_T_cnico» e «Pre_os_Unit_rios». O «Lista.pdf» fica de
 # fora de proposito: numa plataforma e o indice das pecas.
 RX_PECA_TECNICA = re.compile(
+    # «2. MD_signed», «ConstCivil_MDJ_ADig», «1-MDAVAC-Valado»: a memoria
+    # descritiva pela sigla, que e onde as obras dizem o que se constroi
+    # (29/09/2026, 23708, 23492, 23853)
+    r"(?<![a-z0-9])md[a-z]{0,4}(?![a-z0-9])|"
     r"especifica|t.?cnic|memoria descritiva|mapa|quantidades|\bmqt\b|"
     r"cadastro|tarefas|pre.?os.?unit|\blpu\b|conformidade|caracteristicas|"
     r"patrimonio|sinistralidade")
@@ -7349,7 +7543,9 @@ def documentos_com_texto(ref):
 # O que cada leitura le, pelo papel da peca. O Caderno de Encargos leva
 # os anexos tecnicos (28/09/2026): e la que estao a lista dos artigos, a
 # especificacao e o mapa de quantidades.
-PAPEIS_DA_LEITURA = {"encargos": ("encargos", "tecnico")}
+PAPEIS_DA_LEITURA = {"encargos": ("encargos", "tecnico"),
+                     # o objecto das obras: a memoria descritiva a frente
+                     "tecnico": ("tecnico", "encargos")}
 # O que cada leitura abre ALEM da peca dela, so pelo que as ancoras
 # apanharem -- nunca o principio do documento (28/09/2026). A equipa esta
 # muitas vezes no Programa, nos requisitos minimos ou nos criterios (as
@@ -7391,6 +7587,13 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
         escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx}
                       for n, tx in ficheiros_no_texto(d["texto"]) if serve(n)]
         abertos += escolhidos or [d]
+    # Sem a peca da leitura, a outra faz as vezes dela, com o tecto
+    # inteiro (29/09/2026): as «Pecas do procedimento» do 22005 sao o
+    # Programa e o Caderno num PDF so, e pelo nome so passam por Programa
+    # -- a leitura do objecto levava delas uma zona de 2 500 caracteres, e
+    # o local de entrega, na pagina 14, ficava de fora.
+    if not any(alvo & papeis_da_peca(os.path.basename(d["nome"])) for d in abertos):
+        alvo, secundarias = alvo | secundarias, set()
     # A peca antes dos anexos: o recorte e cortado no fim, e um anexo
     # nao pode tirar o lugar ao Caderno de Encargos.
     # A peca, depois os anexos, e as secundarias no fim.
@@ -7398,7 +7601,7 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
                   key=lambda d: (e_secundaria(d["nome"]),
                                  quais not in papeis_da_peca(
                                      os.path.basename(d["nome"]))))
-    vistos = set()
+    vistos, total = set(), int(tecto * 1.5)
     for d in docs:
         limpo = sem_indice(d["texto"])
         # O mesmo documento duas vezes -- o PDF e o que vem dentro do ZIP,
@@ -7414,19 +7617,28 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
         # quase todos os concursos -- o dobro de antes --, gastava o
         # orcamento do dia a dobrar e batia no limite de tamanho da Groq
         # (413). A resposta dela, quando la esta, e uma zona: cabe aqui.
-        teto = TECTO_SECUNDARIA if e_secundaria(d["nome"]) else tecto
-        if teto != tecto and not _janelas_do_recorte(limpo, ancoras, teto):
+        secundaria = e_secundaria(d["nome"])
+        teto = TECTO_SECUNDARIA if secundaria else tecto
+        # O que ainda cabe no pedido, e nao um corte no fim (29/09/2026):
+        # o [:1,5 x tecto] cortava o ultimo documento pela ordem do texto,
+        # e a lista dos perfis do anexo tecnico da 23265 -- escolhida,
+        # na segunda janela dele -- era deitada fora. Com o que sobra
+        # como tecto, as janelas escolhem-se dentro do que cabe.
+        cabeca = "### %s\n" % d["nome"]
+        sobra = total - len("\n\n".join(partes)) - len(cabeca) - 2
+        teto = min(teto, sobra)
+        if teto < 200:
             continue
-        partes.append("### %s\n%s" % (
-            d["nome"],
-            recorte_relevante(limpo, ancoras, teto)))
+        if secundaria and not _janelas_do_recorte(limpo, ancoras, teto):
+            continue
+        partes.append(cabeca + recorte_relevante(limpo, ancoras, teto))
         # A fonte leva as paginas do recorte (B12), quando o texto tem
         # as marcas; e por leitura, por isso o mesmo CE pode aparecer
         # nas fontes com paginas diferentes -- objecto e equipa leem
         # zonas diferentes, e e isso mesmo que se quer declarar.
         usados.append(rotulo_com_paginas(
             d["nome"], paginas_do_recorte(limpo, ancoras, teto)))
-    return "\n\n".join(partes)[:int(tecto * 1.5)], usados
+    return "\n\n".join(partes)[:total], usados
 
 
 def limpa_campo(valor):
