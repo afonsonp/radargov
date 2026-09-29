@@ -1212,6 +1212,219 @@ class TestORecorteLevaAResposta(unittest.TestCase):
             self.assertNotIn("cerebras", [f[0] for f in radar.cadeia_de_fornecedores({})])
 
 
+class TestSegundaRondaDaLeitura(unittest.TestCase):
+    """29/09/2026: quatro agentes voltaram a julgar as 70 leituras,
+    relidas com o código da primeira ronda, e a régua das passagens
+    (agora 88) passou de 52 a 82. Cada teste é uma causa medida nesse
+    dia."""
+
+    NL = chr(10)
+
+    def rotina(self, n=20):
+        return "".join(("Cláusula %d - Penalidades" % i) + self.NL +
+                       "Texto de rotina. " * 60 + self.NL for i in range(1, n))
+
+    def test_a_clausula_curta_do_local_nao_perde_para_a_zona_densa(self):
+        # 21295: a «Cláusula 5.ª Local da prestação de serviços» ficava
+        # fora, porque as janelas se escolhiam só pela densidade e uma
+        # zona cheia de títulos ganhava-lhe sempre
+        local = ("Cláusula 5.ª Local da prestação de serviços" + self.NL +
+                 "A prestação de serviços será executada nas instalações da "
+                 "entidade, sitas no Parque de Saúde de Lisboa." + self.NL)
+        # nomes distintos: o mesmo título repetido conta uma vez só
+        densa = "".join("%d. Âmbito do módulo %s" % (i, chr(97 + i % 26) * (1 + i // 26))
+                        + self.NL + "Descrição do módulo. " * 5 + self.NL
+                        for i in range(1, 60))
+        d = local + self.rotina(8) + densa
+        r = radar.recorte_relevante(d, radar.ANCORAS_OBJECTO, 3000)
+        self.assertIn("Parque de Saúde de Lisboa", r)
+
+    def test_a_lista_vai_ate_ao_fim_do_artigo(self):
+        # 21295, 21296, 21924: as notas entre as alíneas empurravam a e),
+        # a f) e a g) para fora dos 2 500 caracteres da janela
+        notas = "Nota: texto longo sobre os currículos. " * 40 + self.NL
+        artigo = ("Artigo 6.º" + self.NL + "Documentos que constituem as propostas" +
+                  self.NL + "1. As propostas devem ser constituídas pelos seguintes "
+                  "documentos, sob pena de exclusão:" + self.NL +
+                  "a) DEUCP;" + self.NL + "b) Modelo da proposta;" + self.NL +
+                  "c) Currículos;" + self.NL + notas + "d) Declaração;" + self.NL +
+                  notas + "e) Documentos dos terceiros;" + self.NL +
+                  "g) O formulário principal da proposta." + self.NL +
+                  "Artigo 7.º" + self.NL + "Preço base" + self.NL)
+        d = self.rotina() + artigo + self.rotina(5)
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 7000)
+        self.assertIn("formulário principal da proposta", r)
+        # e acaba no artigo seguinte: o resto não vem por arrasto
+        self.assertNotIn("Preço base", r)
+
+    def test_o_limiar_nao_perde_o_lugar_para_a_lista(self):
+        # 14680: as seis frases da lista juntavam-se na mesma zona, e a
+        # frase do preço anormalmente baixo, sozinha, ficava sem janela
+        lista = "".join("Os documentos que constituem a proposta devem %d. " % i +
+                        "Texto. " * 30 + self.NL for i in range(8))
+        d = (self.rotina(5) + lista + self.rotina(10) +
+             "Considera-se que o preço total é anormalmente baixo quando "
+             "for inferior a 2.000.000,00 €." + self.NL + self.rotina(5))
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 3000)
+        self.assertIn("2.000.000,00", r)
+
+    def test_o_pab_do_titulo_numerado(self):
+        # 21877: «15.5. Preço Anormalmente Baixo por Artigo Unitário (PAB
+        # Unitário)» não passa por título, e o «inferior» estava na linha
+        # seguinte
+        d = (self.rotina() + "15.5.  Preço Anormalmente Baixo por Artigo "
+             "Unitário (PAB Unitário)" + self.NL + "considera-se que a proposta "
+             "de um preço unitário inferior a 60% do Preço Máximo" + self.NL +
+             self.rotina(5))
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 3000)
+        self.assertIn("inferior a 60%", r)
+
+    def test_a_lista_partida_pelo_ocr(self):
+        # 23010: «deve ainda indicar/apresentar os seguintes» e, na linha
+        # de baixo, «elementos/docu mentos:»; e não a lista da habilitação
+        d = (self.rotina() + "3. Na proposta, o concorrente deve ainda "
+             "indicar/apresentar os seguintes" + self.NL + "elementos/docu mentos:" +
+             self.NL + "f) Preços unitários, não superiores ao Despacho n.º 1371/2016" +
+             self.NL + self.rotina(5))
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 3000)
+        self.assertIn("1371/2016", r)
+        curta = radar.simplifica("deve apresentar os seguintes documentos de habilitação:")
+        self.assertFalse(re.search(radar.ANCORAS_PROGRAMA[0][1], curta))
+        # 23577: «deverá ser constituída com os seguintes documentos»
+        self.assertTrue(re.search(radar.ANCORAS_PROGRAMA[0][1], radar.simplifica(
+            "1. Cada proposta deverá ser constituída com os seguintes documentos:")))
+
+    def test_o_ultimo_documento_escolhe_dentro_do_que_sobra(self):
+        # 23265: o anexo técnico tinha a lista dos perfis na segunda
+        # janela, e o [:1,5 x tecto] cortava-o pela ordem do texto
+        ce = self.rotina(12) + "3. Equipa" + self.NL + "Texto. " * 900 + self.NL
+        anexo = ("5. Requisitos Técnicos" + self.NL + "Requisito. " * 400 + self.NL +
+                 self.rotina(8) + "9. Equipa Técnica" + self.NL +
+                 "uma equipa multidisciplinar que inclua, no mínimo, os seguintes "
+                 "perfis: Gestor de projeto; UX Designer" + self.NL)
+        docs = [{"nome": "Caderno_de_Encargos.pdf", "texto": ce},
+                {"nome": "Anexo_Clausulas_tecnicas.pdf", "texto": anexo}]
+        recorte, _ = radar.pecas_para_analise(docs, "encargos", radar.ANCORAS_EQUIPA, 4000)
+        self.assertIn("UX Designer", recorte)
+        self.assertLessEqual(len(recorte), 6000)
+
+    def test_sem_caderno_o_programa_faz_as_vezes_dele(self):
+        # 22005: «Peças do procedimento» são o Programa e o Caderno num
+        # PDF só; pelo nome só passavam por Programa, e a leitura do
+        # objecto levava delas uma zona de 2 500 caracteres
+        texto = ("Cláusula 1.ª Objeto" + self.NL + "Licenças." + self.NL +
+                 self.rotina(10) + "Entrega dos bens objeto do contrato" + self.NL +
+                 "Os bens devem ser entregues faseadamente no IPO-Porto." + self.NL)
+        docs = [{"nome": "Peças do procedimento CP 2298_26.pdf", "texto": texto}]
+        recorte, _ = radar.pecas_para_analise(docs, "encargos", radar.ANCORAS_OBJECTO)
+        self.assertIn("IPO-Porto", recorte)
+
+    def test_o_local_nomeado_sem_regime(self):
+        # 23794, 21877: a morada vinha numa frase «situada na» ou num
+        # título «LOCALIZAÇÃO», e não batia; a força maior de todos os
+        # Cadernos («com origem nas instalações do adjudicatário») não
+        # gasta a reserva
+        rx = radar.ANCORAS_OBJECTO[0][1]
+        for frase in ("vigilância no edifício situado na Rua de São Martinho",
+                      "Locais de entrega dos bens"):
+            self.assertTrue(re.search(rx, radar.simplifica(frase)), frase)
+        self.assertFalse(re.search(rx, radar.simplifica(
+            "e) Incêndios ou inundações com origem nas instalações do adjudicatário")))
+        titulos = [r for p, r in radar.ANCORAS_OBJECTO if p == 1]
+        self.assertTrue(any(re.search(r, "2.5 localizacao e delimitacoes") for r in titulos))
+        # no corpo, «localização» é ruído (a especificação de um SIG, 22001)
+        self.assertFalse(any(re.search(r, "com indicacao da localizacao")
+                             for p, r in radar.ANCORAS_OBJECTO if p == 0))
+
+    def test_a_pergunta_do_local_aceita_o_sitio_sem_regime(self):
+        # os quatro perfis: «não consta» com a cláusula «Local de…» a
+        # chegar ao modelo, porque a pergunta só aceitava um regime
+        i = radar.INSTRUCOES_OBJECTO
+        self.assertIn("mesmo sem regime nenhum", i)
+        self.assertIn("não é \"Remoto\"", i)
+        self.assertIn("cabeçalho", i)
+        self.assertNotIn("Se o documento não disser nada sobre presença nem regime", i)
+
+    def test_o_sla_vence_a_manutencao(self):
+        # 22719, 22949, 23728: «Tempos de resposta: —» com o SLA nas peças
+        manutencao = "".join("%d. Manutenção do equipamento %d" % (i, i) + self.NL +
+                             "Texto. " * 30 + self.NL for i in range(1, 40))
+        d = (manutencao + self.rotina(5) + "Em situações de urgência: a) O tempo "
+             "de resposta máximo é de 4 horas" + self.NL + "b) O prazo de "
+             "reposição é de 8 horas." + self.NL + self.rotina(3))
+        r = radar.recorte_relevante(d, radar.ANCORAS_SERVICOS, 3000)
+        self.assertIn("4 horas", r)
+
+    def test_a_equipa_em_frases_do_corpo(self):
+        # 23804 («6 FTEs»), 21969 («os seguintes perfis»), 22956
+        # («deverá(ão) possuir experiência técnica em»)
+        rx = radar.ANCORAS_EQUIPA[0][1]
+        for frase in ("dimensão miníma da equipa (equipa base) para 6 FTEs",
+                      "a equipa afeta deve incluir, no mínimo, os seguintes perfis:",
+                      "O(s) Programador(es) deverá(ão) possuir experiência técnica em C#"):
+            self.assertTrue(re.search(rx, radar.simplifica(frase)), frase)
+        # a «equipa técnica» das grelhas de pontuação não (21631)
+        self.assertFalse(re.search(rx, radar.simplifica(
+            "Equipa técnica constituída por 2 elementos")))
+
+    def test_a_pergunta_da_equipa(self):
+        # 21631 e 20445 (a dimensão mínima), 23265 (a lista só de
+        # nomes), 22754 (o gestor do contrato da ESPAP como perfil)
+        i = radar.INSTRUCOES_EQUIPA
+        for pedaco in ("DIMENSÃO MÍNIMA", "gestor do contrato",
+                       "lista só com os nomes", "noutra tabela ou num total"):
+            self.assertIn(pedaco, i)
+        # e não cresceu: o pedido inteiro fica debaixo do limite da Groq
+        self.assertLessEqual(len(i), 2842)
+
+    def test_a_pergunta_das_obras_sem_alvara(self):
+        # o alvará vem do anúncio, e a leitura só produzia negações
+        # falsas; a remissão para a lei é um requisito, e não «—»
+        self.assertNotIn("Alvará:", radar.INSTRUCOES_OBRAS)
+        self.assertIn("Lei n.º", radar.INSTRUCOES_OBRAS)
+
+    def test_o_objecto_das_obras_le_a_memoria_descritiva(self):
+        # 11 de 17 obras com o objecto feito de cláusulas-tipo: o que se
+        # constrói está na memória descritiva, que se chama «MD»
+        for nome in ("2. MD_signed.pdf", "ConstCivil_MDJ_ADig.pdf",
+                     "1-MDAVAC-Valado-v1.docx"):
+            self.assertIn("tecnico", radar.papeis_da_peca(nome), nome)
+        obras = dict((n, (q, a, i)) for n, q, a, i in
+                     radar.leituras_da_familia(list(radar.LEITURAS), "obras"))
+        quais, ancoras, instrucao = obras["objecto"]
+        self.assertIn("livro de", instrucao)
+        ce = ("Cláusula 1.ª Objeto" + self.NL + "O presente caderno tem por objeto a "
+              "empreitada X, de acordo com o projeto." + self.NL + self.rotina(10))
+        md = ("MEMÓRIA DESCRITIVA E JUSTIFICATIVA" + self.NL + "A presente memória "
+              "descritiva refere-se à intervenção nos edifícios C1 e C2." + self.NL)
+        docs = [{"nome": "Caderno_de_Encargos.pdf", "texto": ce},
+                {"nome": "2. MD_signed.pdf", "texto": md}]
+        recorte, _ = radar.pecas_para_analise(docs, quais, ancoras)
+        self.assertIn("edifícios C1 e C2", recorte)
+        self.assertLess(recorte.index("edifícios C1 e C2"), recorte.index("empreitada X"))
+
+    def test_a_vigilancia_com_a_hora_longe(self):
+        # 23794: «vigilância», e não «vigilante», com a hora a 66 caracteres
+        rx = radar.ANCORAS_MAO_DE_OBRA[0][1]
+        self.assertTrue(re.search(rx, radar.simplifica(
+            "* A vigilância das 0:00-07:00h na noite de quarta-feira")))
+        self.assertTrue(re.search(rx, radar.simplifica(
+            "Serviço de vigilância - Quarta-Feira para Quinta-Feira | Reforço com "
+            "mais 1 vigilante | 00:00-07:00")))
+
+    def test_o_progconc_e_o_programa(self):
+        # 23492: sem ele a leitura da proposta só tinha o CE
+        self.assertEqual(radar.papeis_da_peca("2_ProgConc_40.341.233.109_26.pdf"),
+                         {"programa"})
+
+    def test_o_anexo_partido_pelo_extractor(self):
+        # 23610 e 23612: «Anexo I II» e a leitura dizia «Anexo II», o
+        # modelo da declaração, em vez do III, o da proposta de preço
+        self.assertIn("Anexo III ao presente",
+                      radar.sem_indice("modelo constante do Anexo I II ao presente"))
+        self.assertIn("Anexos I e II", radar.sem_indice("os Anexos I e II"))
+
+
 class TestHabilitacaoECaucaoDoAnuncio(unittest.TestCase):
     """O alvará e a caução estão no anúncio do DR (§12 e §14), e faltavam
     em todas as fichas das obras (28/09/2026, a validação das leituras)."""
@@ -4430,11 +4643,14 @@ class TestCampo11PorTipo(unittest.TestCase):
         self.assertEqual(radar.familia_do_anuncio(texto, "45000000"), "obras")
 
     def test_so_a_leitura_da_equipa_muda(self):
+        # ... e, desde 29/09/2026, o objecto das obras (TestSegundaRondaDaLeitura)
         de_origem = list(radar.LEITURAS)
         obras = dict((n, (a, i)) for n, _, a, i in
                      radar.leituras_da_familia(de_origem, "obras"))
         self.assertEqual(obras["equipa"], (radar.ANCORAS_OBRAS, radar.INSTRUCOES_OBRAS))
-        self.assertEqual(obras["objecto"],
+        bens = dict((n, (a, i)) for n, _, a, i in
+                    radar.leituras_da_familia(de_origem, "bens"))
+        self.assertEqual(bens["objecto"],
                          (radar.ANCORAS_OBJECTO, radar.INSTRUCOES_OBJECTO))
         self.assertEqual(radar.leituras_da_familia(de_origem, "equipa"), de_origem)
 
