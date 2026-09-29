@@ -60,8 +60,8 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Rotas Flask | 128 |
 | Tabelas em `radar.db` | 17, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, e o `segundo_factor`, 28/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), e o `ix_nomes_chave` (29/09, 0,4 s a criar) |
-| Testes | **1 614**, em ~165 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 34 117 linhas · `teste_radar.py` 23 367 · `empresa.py` 868 · `contas.py` 1 150 · `icones.py` 62 |
+| Testes | **1 619**, em ~200 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 34 160 linhas · `teste_radar.py` 23 438 · `empresa.py` 868 · `contas.py` 1 150 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -159,8 +159,14 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.19`**, de
-  29/09/2026 — **a segunda ronda da leitura das peças** (a régua passa
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.20`**, de
+  29/09/2026 — **os lotes 2 a 7 da 3.ª ronda** (pessoas e autoria;
+  números, Hoje e escada; a leitura que diz que não há; a porta e o
+  suporte; acessibilidade e telemóvel; o desempenho do Mercado, das
+  listas e das fichas) e **61 procedimentos que estavam escondidos
+  como alteração voltam às listas** (24 de prazo aberto); na acingov o
+  botão abre a página do procedimento. A `v2.0.19`, do mesmo dia:
+  **a segunda ronda da leitura das peças** (a régua passa
   de 52 para 82 de 88 passagens: o local, a lista inteira até ao fim do
   artigo, o objecto das obras pela memória descritiva, o SLA, a
   dimensão da equipa, o limiar do preço anormalmente baixo) e **o lote 1
