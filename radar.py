@@ -6688,14 +6688,6 @@ FORNECEDORES = (
     # passa-lhe por cima. A chave cola-se em Configuracoes > Leitura.
     ("cerebras", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b",
      ("cerebras_API_KEY.txt",), "CEREBRAS_API_KEY", {}),
-    # A reserva na propria Groq (28/09/2026): o tecto diario e POR
-    # MODELO, e o 20b tem o seu. Respondeu a um pedido da equipa em 2 s,
-    # no formato pedido. Veio porque a NVIDIA deixou de servir: o
-    # gpt-oss-120b de la saiu a 3/09/2026 (410, «end of life»), e os
-    # modelos que la ficaram nao responderam em 4 minutos -- ha quase um
-    # mes que so a Groq lia, e o dia acabava quando ela acabava.
-    ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
-     {"reasoning_effort": "low"}),
     # A NVIDIA volta a ler (28/09/2026) com o nemotron-3-ultra e o
     # raciocinio DESLIGADO: ligado, os modelos de la «pensavam» minutos e
     # passavam o timeout -- era por isso que pareciam mortos, alem de o
@@ -6707,14 +6699,27 @@ FORNECEDORES = (
     ("nvidia", "https://integrate.api.nvidia.com/v1/chat/completions",
      "nvidia/nemotron-3-ultra-550b-a55b", ("nvidia_API_KEY.txt",), "NVIDIA_API_KEY",
      {"chat_template_kwargs": {"enable_thinking": False}}),
-    # Fica em ultimo por ser o unico que le com outro modelo, e o unico
-    # que ja recusou por falta de vaga no pool gratuito.
+    # Antes da reserva da Groq: le com outro modelo e ja recusou por
+    # falta de vaga no pool gratuito, mas nao errou numeros.
     ("openrouter", "https://openrouter.ai/api/v1/chat/completions",
      # o glm-5.2:free deixou de ser gratuito (404, 28/09/2026); dos
      # gratuitos, este foi o unico que respondeu com JSON valido -- numa
      # de duas tentativas: o conjunto gratuito esta quase sempre cheio
      "poolside/laguna-s-2.1:free", ("openrouter_API_KEY.txt",), "OPENROUTER_API_KEY",
      {}),
+    # A reserva na propria Groq (28/09/2026): o tecto diario e POR
+    # MODELO, e o 20b tem o seu. Respondeu a um pedido da equipa em 2 s,
+    # no formato pedido. Veio porque a NVIDIA deixou de servir: o
+    # gpt-oss-120b de la saiu a 3/09/2026 (410, «end of life»), e os
+    # modelos que la ficaram nao responderam em 4 minutos -- ha quase um
+    # mes que so a Groq lia, e o dia acabava quando ela acabava.
+    # No FIM desde 29/09/2026 (3.a ronda): julgadas as 75 releituras, foi
+    # o unico modelo que errou numeros («61 unidades» com 129 no cadastro
+    # da 23389, «com IVA» onde o IVA acresce na 23265) e o que falhou a
+    # habilitacao legal da 23351. Fica para quando todos os outros
+    # acabaram o dia.
+    ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
+     {"reasoning_effort": "low"}),
 )
 # Cada campo tem o seu recorte e o seu pedido. Juntos num so, as
 # ancoras do objecto gastavam o orcamento antes de se chegar a tabela de
@@ -6778,7 +6783,19 @@ ANCORAS_EQUIPA = (
         r"recursos horas estimadas|\bftes?\b|numero (estimado )?de recursos|"
         r"dimensao (minima )?da equipa|seguintes perfis|equipa multidisciplinar|"
         r"dever\w*(\(\w+\))? possuir experiencia"),
-    (1, r"\bequipa|perfil|profissiona|recursos humanos|senioridade"),
+    # O nivel de servico dos contratos de TI (29/09/2026, 3.a ronda): a
+    # familia «equipa» nunca o pedia, e a 21811 («R.13 ... prioridade
+    # elevada»), a 22036 («Emergencia (P1) ... 30 minutos»), a 22540 e a
+    # 22956 diziam «nao consta» com a tabela nas pecas. Numa ancora sua,
+    # para a reserva do peso 0 nao o tirar aos perfis. O «tempos maximos»
+    # no fim da linha: o PDF parte «tempos maximos / de resposta» (22956).
+    (0, r"tempos? maximos? (de|para) (primeira )?(resp|atendimento|reposicao|resolucao)|"
+        r"tempos? maximos?\s*$|niveis? de servico|\bsla\b|disponibilidade.{0,60}%|\(p1\)|"
+        r"prioridade elevada|gravidade alta"),
+    # «7.3. Requisitos» debaixo de cada perfil (21724): o nome do perfil
+    # esta duas seccoes acima, e os requisitos do Tecnico de Helpdesk --
+    # 8 dos 13 recursos -- ficavam fora do recorte
+    (1, r"\bequipa|perfil|profissiona|recursos humanos|senioridade|^[\d.]*\s*requisitos$"),
     (2, r"composicao|afetacao|alocacao|quadro de pessoal"),
     # O pessoal que a lei obriga a ter qualificação (segunda ronda,
     # 26/09/2026, E11): os técnicos TIM e de gases fluorados de uma
@@ -6796,13 +6813,16 @@ ANCORAS_PROGRAMA = (
         # «deve ainda indicar/apresentar os seguintes» / «elementos/docu
         # mentos:», partido pelo OCR na linha seguinte (29/09/2026, 23010)
         # -- e nao os «seguintes documentos de habilitacao», que o
-        # adjudicatario so entrega depois (23813)
-        r"(indicar|apresentar).{0,30}seguintes( (elementos|docu ?mentos)(?! de habilitacao)|$)"),
+        # adjudicatario so entrega depois (23813), nem os que o ACE
+        # entrega «no prazo de 20 dias contados da notificacao da
+        # adjudicacao» (14680, 29/09/2026), que levavam a reserva da lista
+        r"^(?!.*adjudica).*(indicar|apresentar).{0,30}seguintes"
+        r"( (elementos|docu ?mentos)(?! de habilitacao)|$)"),
     # O limiar numa ancora sua, para ter a sua janela garantida
     # (29/09/2026, 14680, 23530, 23577); e o «(PAB Unitario)» do titulo
     # «15.5. Preco Anormalmente Baixo por Artigo Unitario» do 21877, que
     # pela numeracao em dois niveis nao passa por titulo.
-    (0, r"anormalmente baixo quando|considera.{0,40}anormalmente baixo|"
+    (0, r"anormalmente baixo quando|considera(?!d[oa]\b).{0,40}anormalmente baixo|"
         r"anormalmente baixo.{0,40}(inferior|abaixo|desvio)|\bpab\b"),
     # «CONTEUDO E ASSINATURA DA PROPOSTA» e o titulo do artigo da lista
     # num Programa do acervo, sem a palavra «documentos» (28/09/2026)
@@ -6823,7 +6843,13 @@ peças de um procedimento e extrais o que te for pedido.
 Responde SÓ com JSON. Se algo não constar das peças, põe exactamente
 "não consta". Não inventes, e não mandes o leitor consultar outro
 documento: se a informação está nas peças, transcreve-a. Escreve em
-português de Portugal."""
+português de Portugal.
+
+O texto marca «[pág. N]» onde cada página começa. Acaba cada linha da
+resposta com a página de onde a tiraste: "(pág. 12)"; com mais de uma
+peça (as linhas «### nome»), diz qual: "(Programa, pág. 5)". Sem
+marcas no texto, ou em "não consta" e "—", não ponhas página. Os
+números copiam-se das peças, sem contas."""
 
 INSTRUCOES_OBJECTO = PREAMBULO + """
 
@@ -6838,8 +6864,10 @@ Extrai duas coisas do Caderno de Encargos:
   A primeira linha diz O QUE SE CONTRATA, com as quantidades, os lotes e
   o prazo, se lá estiverem ("- 360 licenças Microsoft 365 E3, por 12
   meses"). Deixa de fora as obrigações que TODOS os contratos têm —
-  sigilo, seguros, cumprir a lei, prestar informação, livro de obra,
-  patentes, licenças de exportação —: não dizem nada deste concurso.
+  sigilo, seguros, cumprir a lei, prestar informação, comunicar
+  alterações, cumprir prazos, livro de obra, patentes, licenças de
+  exportação —: não dizem nada deste concurso, seja ele de serviços,
+  de bens ou de licenças.
   Se o objecto remete para um anexo que está no texto, transcreve do
   anexo; "conforme o Anexo I" não é resposta.
   Numa EMPREITADA, a primeira linha diz o que se constrói ou reabilita,
@@ -6872,52 +6900,47 @@ Extrai os PERFIS exigidos para a equipa. Um bloco por perfil, com esta
 estrutura exacta e uma linha em branco entre blocos:
 
 Nome do perfil tal e qual está no documento
-Quantidade: quantas pessoas deste perfil (e a dedicação ou os turnos,
-se o documento os fixar), ou —
+Quantidade: quantas pessoas (e a dedicação ou os turnos, se fixados), ou —
 Formação: área e grau exigidos, ou —
 Experiência geral: X anos, ou —
-Experiência específica: tecnologia, sector ou dimensão; se forem
-várias, em linhas começadas por "- "
+Experiência específica: tecnologia, sector ou dimensão, em linhas "- "
 Certificações: a lista exacta, ou —
 Outras condições: dedicação, presença, ou —
-Horas e preço: horas máximas e valor/hora do perfil, se fixados, ou —
+Horas e preço: horas máximas e valor/hora do perfil, ou —
+
+Depois dos perfis, um bloco "Nível de serviço": tempos de resposta por
+prioridade, horário e disponibilidade exigidos; sem nenhum, não há bloco.
 
 Regras duras:
-- Copia o nome do perfil TAL E QUAL, sem acrescentar "sénior",
-  "júnior" nem outro qualificador.
-- Cada requisito numa linha autónoma.
-- Sem número, copia a expressão exacta: "experiência relevante" fica
-  "experiência relevante".
-- Sem exigência, escreve — (travessão). Não inventes e não deixes a
-  linha de fora.
-- N perfis no documento, N blocos na resposta. Se há uma tabela de
-  perfis, passa-a toda.
-- Transcreve os números; nunca "conforme o Anexo" nem "experiência
-  comprovada".
-- Os anos vão COM a tecnologia: "5 anos em Oracle Data Integrator" é
-  uma linha de "Experiência específica", e não "Experiência geral: 5
-  anos".
-- A quantidade pode estar noutra tabela ou num total (FTE, número de
-  recursos, horas estimadas por perfil): vai buscá-la lá.
-- Uma lista só com os nomes dos perfis é resposta: um bloco por nome,
-  com — no que o documento não fixa.
-- O pessoal DA ENTIDADE (o gestor do contrato, quem ela nomeia, os
-  seus utilizadores e departamentos) não é equipa: só entram os perfis
-  que o concorrente afecta ao contrato.
-- "preferencialmente" não é "obrigatório": se o documento o diz,
-  escreve-o.
+- O nome do perfil TAL E QUAL, sem "sénior" nem "júnior" a mais.
+- Cada requisito numa linha. Sem número, a expressão exacta. Sem
+  exigência, — (travessão); nunca "conforme o Anexo".
+- N perfis no documento, N blocos; uma tabela de perfis passa toda, e
+  uma lista só com os nomes dos perfis também é resposta.
+- Os anos vão COM a tecnologia: "5 anos em Oracle" é experiência
+  específica, e não geral.
+- A quantidade pode estar noutra tabela ou num total (FTE, recursos,
+  horas estimadas); linhas iguais repetidas numa tabela contam: duas
+  «Cons. Sénior Java» dão 2.
+- Os requisitos de um perfil podem estar numa secção à parte («6.3.
+  Requisitos»): vai lá buscá-los.
+- O pessoal DA ENTIDADE (o gestor do contrato, os seus utilizadores)
+  não é equipa.
+- "preferencialmente" não é "obrigatório", e "ou" fica "ou": duas
+  condições alternativas não são as duas exigidas.
+- O EXIGIDO ("mínimo", "obrigatório", "sob pena de exclusão") não é o
+  que só PONTUA: um escalão de uma grelha de avaliação ("≥ 20 anos -
+  100 pontos") fica de fora, ou a linha acaba em "(pontua)".
 
-Conta também como perfil o pessoal que a lei obriga a ter qualificação
-— técnicos credenciados, TIM, de gases fluorados, técnico responsável —
-com a qualificação e a lei em "Certificações".
+Conta como perfil o pessoal que a lei obriga a ter qualificação
+(técnicos credenciados, TIM, gases fluorados), com a lei em
+"Certificações".
 
-Se o documento exige algo ao CONJUNTO da equipa (sete certificações
-numa pessoa ou espalhadas por quatro), não o dês a um perfil: faz um
-bloco final "Em conjunto, a equipa deve deter". A DIMENSÃO MÍNIMA da
-equipa e a formação exigida a toda ela ("no mínimo por 2 elementos",
-"mínimo de 7 elementos com formação superior, sob pena de exclusão")
-entram sempre nesse bloco, mesmo sem perfis. O que é exigido à EMPRESA
-(uma certificação ISO, um alvará) não é da equipa: fica de fora.
+O que o documento exige ao CONJUNTO da equipa (certificações espalhadas
+por várias pessoas, a DIMENSÃO MÍNIMA — "no mínimo por 2 elementos",
+"mínimo de 7 elementos com formação superior") vai num bloco final "Em
+conjunto, a equipa deve deter" — SÓ quando uma frase das peças o diz;
+sem ela, não há bloco. O exigido à EMPRESA (ISO, alvará) fica de fora.
 
 Responde SÓ com {"equipa": "..."}."""
 
@@ -6952,13 +6975,16 @@ Extrai duas coisas do Programa de Concurso:
   NÃO omitas nenhum documento e NÃO fundas as regras de documentos
   distintos: se o Programa tem sete alíneas, a lista tem sete números.
   Os números seguintes do artigo (n.º 2, n.º 3…) que acrescentem
-  documentos também entram. Os documentos de HABILITAÇÃO, que só o
-  adjudicatário entrega depois da adjudicação, NÃO são da proposta:
-  deixa-os de fora.
+  documentos também entram. Manda o artigo: o que ele lista entra,
+  mesmo com "habilitação" no nome ("documentos de habilitação dos
+  terceiros", a certidão permanente). Ficam de fora só os que o
+  adjudicatário entrega DEPOIS da adjudicação.
 - "preco_anormalmente_baixo": o limiar a partir do qual o preço da
   proposta é tido por anormalmente baixo (art. 71.º do CCP) — a
-  percentagem ou o valor. Muitos Programas não fixam nenhum: nesse caso
-  responde "não consta". Não confundas com o preço base.
+  percentagem ou o valor, COM a base a que se aplica ("inferior a 50%
+  do preço base", "10% abaixo da média das propostas"). Muitos
+  Programas não fixam nenhum: nesse caso responde "não consta". Não
+  confundas com o preço base.
 - "caucao": a caução que o Programa exige ao adjudicatário, tal como lá
   está ("5% do preço contratual"). Se diz que não há lugar a caução,
   responde "não exigida"; se não fala de caução, "não consta".
@@ -6998,7 +7024,11 @@ razões técnicas; o conteúdo é o que se pede acima."""
 
 ANCORAS_OBRAS = (
     (0, r"conservador|tecnico responsavel|representa\w* do empreiteiro|"
-        r"qualificac\w* minima"),
+        r"qualificac\w* minima|"
+        # «A equipa tecnica a afetar a obra ... os seguintes tecnicos:»
+        # (14680) e «O elenco da Equipa Tecnica e o seguinte» (21999): a
+        # frase que abre a lista, sem titulo que ancore (29/09/2026)
+        r"(equipa tecnica|elenco da equipa).{0,40}(afetar|seguinte|integrar)|seguintes tecnicos"),
     (1, r"dire(c)?tor (de|da) obra|equipa tecnica|alvara|habilitac"),
     (2, r"mapa de quantidades|quantidades|plano de trabalhos|horario|condicionantes"),
     (3, r"\btecnicos?\b|seguranca|equipamentos?|fornecimento e montagem"),
@@ -7022,6 +7052,12 @@ Mapa de quantidades: onde está (nome do ficheiro ou anexo), ou —
 Condicionantes do local e do horário, ou —""" + _FIM_DO_CAMPO_11
 
 ANCORAS_BENS = (
+    # «2- O fornecimento compreende os seguintes itens: / Quantidade
+    # Servico» (21659, 29/09/2026): a lista das licencas numa frase do
+    # corpo, e nao num titulo
+    (0, r"(fornecimento|aquisicao|contrato) (compreende|inclui|abrange) os seguintes|"
+        r"seguintes (itens|artigos|bens|licencas)|lista de (artigos|bens|licencas)|"
+        r"^quantidade (servico|descricao|artigo|designacao)"),
     (1, r"especifica|caracteristicas|artigos?|quantidades|\blotes?\b"),
     (2, r"entrega|prazo de fornecimento|garantia|assistencia"),
     (3, r"marca|equivalente|instalacao|formacao"),
@@ -7070,7 +7106,13 @@ ANCORAS_SERVICOS = (
     # 22719, na 22949 e na 23728, que fixam 24 h, 2 h e 4 h.
     (0, r"gases fluorados|titulo profissional|tecnicos? de instalacao e manutencao|\btim\b|"
         r"tempos? (maximos? )?de (resposta|atendimento|reposicao|resolucao)|"
-        r"niveis? de servico"),
+        r"niveis? de servico|"
+        # «Dar resposta a qualquer solicitacao ... no prazo maximo de 24
+        # horas» (22460) e os «Tecnicos Eletricistas com carteira
+        # profissional» do artigo «Habilitacoes necessarias» do Programa
+        # (23351): «Tempos de resposta: —» e «nao consta» (29/09/2026)
+        r"no prazo maximo de \d+ ?(horas|h\b|minutos)|carteira profissional|"
+        r"habilitacoes necessarias|tecnicos? executantes"),
     (1, r"\bsla\b|assistencia tecnica"),
     (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas|manutencao"),
     (3, r"\btecnicos?\b|qualificac|credencia|certifica"),
@@ -7119,9 +7161,11 @@ descritiva, projecto, Caderno de Encargos):
   obra, painéis ou placas de identificação, horário, patentes,
   estaleiro, plano de segurança e saúde, resíduos, seguros, e os
   encargos incluídos no preço (taxas, impostos, fornecimentos e
-  embalagens). Não repitas o título partido em várias linhas. Se as
-  peças só dão o título e remetem para o projecto, a resposta é o
-  título, numa linha.
+  embalagens), nem os «outros trabalhos» (lavagens, telas finais,
+  manuais, formação). Não repitas o título partido em várias linhas.
+  Sem memória descritiva, os trabalhos saem dos «Capítulos do mapa de
+  quantidades» ou da «Descrição da obra» do plano de segurança ou de
+  resíduos. Só se nada disto houver, a resposta é o título, numa linha.
 
 - "localizacao": onde é a obra — a morada, a freguesia e o concelho, o
   troço e os quilómetros — tal como as peças o escrevem. A morada da
@@ -7150,12 +7194,28 @@ CAMPO_11 = {
 }
 
 
-def familia_do_contrato(tipo, cpv):
+# As licencas e o suporte de fabricante com CPV de servicos de TI
+# (29/09/2026, 3.a ronda): «Licenciamento e manutencao de rede Check
+# Point» (21659, CPV 72267), «Suporte e Renovacao do Licenciamento CISCO»
+# (22682), «Renovacao Suporte AVAMAR» (23589, 72100) liam-se como equipa
+# -- «nao consta», ou os artigos tratados como perfis. O que se compra sao
+# artigos com quantidade. Pela designacao do contrato, sem modelo; e nao
+# quando ha trabalho de equipa no mesmo contrato (desenvolvimento,
+# evolutiva, bolsa de horas), que a pergunta da equipa le melhor.
+# Medido nesse dia: 115 dos 442 anuncios de CPV 72 desde junho.
+RX_LICENCAS = re.compile(r"\blicen[cs]|subscri[cç]|renova\w* (d[oe] )?suporte|suporte e renova")
+RX_TRABALHO_DE_EQUIPA = re.compile(
+    r"desenvolv|implementa|consultor|evolutiv|bolsa de horas|recursos|perfis|"
+    r"alojamento|hosting|operacao")
+
+
+def familia_do_contrato(tipo, cpv, designacao=""):
     """O tipo de contrato em cinco famílias, sem modelo
     (docs/historico/SETORES.md §2): o tipo do anúncio separa obras, bens
     e serviços, e a divisão do CPV separa os serviços entre si. **Sem
     tipo nem CPV fica «equipa»**, que é a pergunta de antes -- não se
-    muda o que se lê sem saber porquê."""
+    muda o que se lê sem saber porquê. A `designacao` do contrato separa
+    as licenças dos serviços de TI (RX_LICENCAS)."""
     t = simplifica(tipo or "")
     codigo = re.sub(r"\D", "", (cpv or "").split(",")[0])
     if t.startswith("empreitada") or "concessao de obras" in t:
@@ -7164,17 +7224,27 @@ def familia_do_contrato(tipo, cpv):
         return "bens"
     if codigo[:4] in ("9091", "7971") or codigo[:2] == "55":
         return "mao_de_obra"
+    d = simplifica(designacao or "")
+    if codigo[:2] == "72" and RX_LICENCAS.search(d) and not RX_TRABALHO_DE_EQUIPA.search(d):
+        return "bens"
     if codigo[:2] in ("72", "71", "73", "80") or codigo[:3] == "794":
         return "equipa"
     return "servicos" if (t or codigo) else "equipa"
 
 
+def familia_das_seccoes(seccoes, cpv, titulo=""):
+    """A família pelas secções do anúncio: o tipo (§6) e a designação.
+    E a mesma conta para a leitura e para a ficha -- a leitura e o
+    rótulo não podem divergir."""
+    return familia_do_contrato(
+        valor_de(seccoes, "Tipo de Contrato Principal"), cpv,
+        valor_de(seccoes, "Designação do contrato") or titulo)
+
+
 def familia_do_anuncio(texto, cpv):
     """A família de um anúncio, pelo texto do DR (§6, «Tipo de Contrato
-    Principal») e pelo CPV."""
-    # pelas seccoes, como a ficha: a leitura e o rotulo nao podem divergir
-    return familia_do_contrato(
-        valor_de(seccoes_do_texto(texto or ""), "Tipo de Contrato Principal"), cpv)
+    Principal»), pela designação e pelo CPV."""
+    return familia_das_seccoes(seccoes_do_texto(texto or ""), cpv)
 
 
 def leituras_da_familia(leituras, familia):
@@ -7206,9 +7276,12 @@ LEITURAS = (
 # não de um número que alguém tenha de se lembrar de subir: mudar uma
 # vírgula nas INSTRUCOES_* muda a versão. As leituras das propostas
 # abertas voltam então à fila da releitura (refs_com_leitura_incompleta).
+# E a do objecto das obras (29/09/2026): ficava de fora, e mudar so ela
+# nao mandava reler nenhuma obra.
 VERSAO_DA_PERGUNTA = hashlib.sha1("\n".join(
     [i for _, _, _, i in LEITURAS]
-    + [v[3] for v in CAMPO_11.values() if v[3]]).encode("utf-8")).hexdigest()[:10]
+    + [v[3] for v in CAMPO_11.values() if v[3]]
+    + [v[2] for v in OBJECTO_DA_FAMILIA.values()]).encode("utf-8")).hexdigest()[:10]
 
 
 def leitura_desactualizada(linha):
@@ -7319,7 +7392,11 @@ def cadeia_de_fornecedores(cfg=None):
 
 
 RX_MARCADOR = re.compile(r"^(clausula|artigo|anexo|capitulo|seccao|apendice)\b")
-RX_NUMERADO = re.compile(r"^[0-9IVXivx]+\s*[.)ºª-]+\s*[A-ZÀ-Ý]")
+# A numeracao em dois ou mais niveis tambem e titulo (29/09/2026, 3.a
+# ronda): «7.3. Requisitos» nao passava, e os requisitos do Tecnico de
+# Helpdesk da 21724 ficavam fora do recorte. Um numero so, sem ponto nem
+# parentese, continua a nao ser: «2 Security Gateway» e uma linha de tabela.
+RX_NUMERADO = re.compile(r"^[0-9IVXivx]+(?:\.\d+)*\s*[.)ºª-]+\s*[A-ZÀ-Ý]|^\d+(?:\.\d+)+\s+[A-ZÀ-Ý]")
 
 
 def e_titulo(crua, curta):
@@ -7359,8 +7436,14 @@ def sem_indice(texto):
 
 
 # O numero, a «Clausula 7.a» e a pagina do sumario, que nao fazem o titulo.
+# E o «ª» e o «º» do numero, que o simplifica() faz «a» e «o» (29/09/2026,
+# 23577): o «14ª Documentos da proposta» do sumario dava a chave «a
+# documentos da proposta», nao se juntava ao titulo do corpo, e o sumario
+# -- onde os titulos todos se juntam -- ficava com a janela mais densa. O
+# limiar do preco anormalmente baixo, no corpo, ficava de fora.
 RX_NUMERACAO_DO_TITULO = re.compile(
-    r"^(clausula|artigo|capitulo|seccao)?\s*[0-9ivxlc]*\s*[.)ºª°'\"-]*\s*|[\s.\d]+$")
+    r"^(clausula|artigo|capitulo|seccao)?\s*[0-9ivxlc]*\s*[.)ºª°'\"-]*"
+    r"(?:(?<=[0-9.])[ao]\b)?[.)ºª°'\"\s-]*|[\s.\d]+$")
 
 
 # Quanto vale cada ancora na densidade de uma zona.
@@ -7435,11 +7518,20 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
         pos += len(linha) + 1
     if not titulos:
         return []
+    # Sem nenhum «Artigo»/«Clausula» no documento nao se sabe onde o
+    # artigo acaba, e a frase leva a JANELA_DO_ARTIGO (29/09/2026, 14680):
+    # o Programa em .docx perde a numeracao dos titulos, a lista dos
+    # documentos ficava nos 2 500 caracteres da JANELA_FORTE, e as duas
+    # ultimas alineas -- os precos parciais e a ciberseguranca -- nao
+    # chegavam. O titulo seguinte, qualquer que fosse, nao serve: as
+    # linhas de uma tabela («Linha Cod. Designacao Unidade Qtd») passam
+    # por titulo, e a lista dos artigos do 23513 ficava na primeira.
+    minima = JANELA_FORTE if artigos else JANELA_DO_ARTIGO
 
     def largura(p, peso):
         if peso:
             return janela
-        return _fim_do_artigo(artigos, p, JANELA_FORTE) - p
+        return _fim_do_artigo(artigos, p, minima) - p
 
     # O orcamento corta-se AQUI, e nao no fim: o texto sai pela ordem do
     # documento, e um [:tecto] no fim deitava fora a janela do fim -- que
@@ -7512,17 +7604,43 @@ def _janelas_do_recorte(texto, ancoras, tecto, janela=3500):
 SEPARADOR_DO_RECORTE = "\n[...]\n"
 
 
+# A pagina em cada pedaco do recorte (29/09/2026, 3.a ronda, a pedido
+# dele: «um resumo em que se pode confiar, sempre com a leitura das pecas
+# associada»). O modelo ve «[pág. 12]» onde a pagina comeca, e a pergunta
+# pede-lhe que acabe cada linha com a pagina de onde a tirou -- a ficha
+# mostra-a, e quem confere vai direito a ela. So quando o texto tem as
+# marcas \f do extractor: um .docx ou um Excel nao sabem paginas, e nao
+# se inventam.
+def marca_de_pagina(n):
+    return "[pág. %d]" % n
+
+
+def _texto_das_janelas(texto, janelas):
+    """O texto das janelas, separadas por «[...]», com as paginas marcadas."""
+    if "\f" not in texto:
+        return SEPARADOR_DO_RECORTE.join(texto[i:j] for i, j in janelas)
+    pedacos = []
+    for i, j in janelas:
+        primeira = texto.count("\f", 0, i) + 1
+        paginas = [(primeira + k, pg) for k, pg in enumerate(texto[i:j].split("\f"))]
+        pedacos.append("\n".join("%s\n%s" % (marca_de_pagina(n), pg.strip("\n"))
+                                 for n, pg in paginas if pg.strip()))
+    return SEPARADOR_DO_RECORTE.join(pedacos)
+
+
 def _janelas_que_cabem(texto, ancoras, tecto, janela=3500):
-    """As janelas, com o lugar dos «[...]» que as separam descontado.
+    """As janelas, com o lugar dos «[...]» e das marcas de pagina descontado.
 
     Sem isto o [:tecto] do fim cortava 7 caracteres por janela ao fim da
     ULTIMA -- e era la que estava, a 29/09/2026, a lista dos perfis da
     23265 e o fim de um tempo de resposta («de 4» em vez de «de 4
-    horas»)."""
-    janelas = _janelas_do_recorte(texto, ancoras, tecto, janela)
-    excesso = len(SEPARADOR_DO_RECORTE) * (len(janelas) - 1)
+    horas»). Sem ancora nenhuma que pegue, e o principio do texto."""
+    janelas = (_janelas_do_recorte(texto, ancoras, tecto, janela)
+               or [(0, min(len(texto), tecto))])
+    excesso = len(_texto_das_janelas(texto, janelas)) - sum(j - i for i, j in janelas)
     if excesso > 0:
-        janelas = _janelas_do_recorte(texto, ancoras, tecto - excesso, janela)
+        janelas = (_janelas_do_recorte(texto, ancoras, tecto - excesso, janela)
+                   or [(0, min(len(texto), tecto - excesso))])
     return janelas
 
 
@@ -7535,10 +7653,7 @@ def recorte_relevante(texto, ancoras, tecto, janela=3500):
     minuto da API obriga a escolher, e escolher tambem melhora a
     leitura, por tirar ruido do caminho do modelo.
     """
-    janelas = _janelas_que_cabem(texto, ancoras, tecto, janela)
-    if not janelas:
-        return texto[:tecto]
-    return SEPARADOR_DO_RECORTE.join(texto[i:j] for i, j in janelas)[:tecto]
+    return _texto_das_janelas(texto, _janelas_que_cabem(texto, ancoras, tecto, janela))[:tecto]
 
 
 def paginas_do_recorte(texto, ancoras, tecto, janela=3500):
@@ -7550,10 +7665,8 @@ def paginas_do_recorte(texto, ancoras, tecto, janela=3500):
     antes dele."""
     if "\f" not in texto:
         return []
-    janelas = (_janelas_que_cabem(texto, ancoras, tecto, janela)
-               or [(0, min(len(texto), tecto))])
     paginas = []
-    for i, j in janelas:
+    for i, j in _janelas_que_cabem(texto, ancoras, tecto, janela):
         for p in range(texto.count("\f", 0, i) + 1,
                        texto.count("\f", 0, j) + 2):
             if p not in paginas:
@@ -7600,7 +7713,12 @@ def _sigla(letras):
 # «CADE» e «Pograma» sao nomes do acervo (28/09/2026), um da Marinha e
 # outro com a gralha da propria entidade; o «Convite» faz as vezes do
 # Programa nas consultas previas.
-RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("(?:ce|cde|cade)"))
+# O Caderno da Infraestruturas de Portugal vem partido por capitulos
+# («Cap1_ClausulasGerais_L1.pdf» ... «Cap7_CondicoesParticulares_L1.pdf»,
+# 21999, 29/09/2026): a equipa tecnica esta no Cap. 7, e nenhum dos
+# ficheiros dizia «caderno» -- a leitura da equipa deu «—» em tudo.
+RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|condicoes.?particulares|clausulas.?gerais|"
+                              + _sigla("(?:ce|cde|cade)"))
 # "cp" fica de fora de proposito: e "Concurso Publico", nao "Programa".
 # O «ProgConc» (29/09/2026, 3.ª ronda, G37): o
 # «2_ProgConc_40.341.233.109_26.pdf» do 23492/2026 nao era o Programa
@@ -7629,14 +7747,15 @@ RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|pograma|procedimento|convite|"
 # a lista de precos unitarios. Ficavam fora de todos os pedidos, porque o
 # nome nao diz «caderno» nem «programa» -- 88 de 235 documentos com texto
 # nao iam a lado nenhum. O «.?» no lugar do acento: as plataformas
-# entregam «Anexo_T_cnico» e «Pre_os_Unit_rios». O «Lista.pdf» fica de
-# fora de proposito: numa plataforma e o indice das pecas.
+# entregam «Anexo_T_cnico» e «Pre_os_Unit_rios». O «Lista.pdf» decide-se
+# pelo cabecalho (RX_LISTA_DE_ARTIGOS), e nao pelo nome.
 RX_PECA_TECNICA = re.compile(
     # «2. MD_signed», «ConstCivil_MDJ_ADig», «1-MDAVAC-Valado»: a memoria
     # descritiva pela sigla, que e onde as obras dizem o que se constroi
     # (29/09/2026, 23708, 23492, 23853)
     r"(?<![a-z0-9])md[a-z]{0,4}(?![a-z0-9])|"
-    r"especifica|t.?cnic|memoria descritiva|mapa|quantidades|\bmqt\b|"
+    # «Mem Descritiva» e «MQTEN249-3» (21999, a mesma IP)
+    r"especifica|t.?cnic|mem(oria)?\.?.?descritiva|mapa|quantidades|(?<![a-z0-9])mqt|"
     r"cadastro|tarefas|pre.?os.?unit|\blpu\b|conformidade|caracteristicas|"
     r"patrimonio|sinistralidade")
 # O que tem o nome de tecnico e e da proposta ou do procedimento: o
@@ -7647,9 +7766,25 @@ RX_NAO_TECNICA = re.compile(
     r"resposta|esclarec")
 
 
-def papeis_da_peca(nome):
-    """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF."""
+# O «Lista.pdf» pelo que diz (29/09/2026, 3.a ronda): os 14 que ha na
+# base sao todos a «Lista de artigos» ou a «Lista de todas as especies de
+# trabalhos previstos no Caderno de Encargos» da plataforma -- os artigos
+# com quantidade (23513: 16 AEC Collection, 1+3 AutoCAD, 20 AutoCAD LT) e
+# o mapa das obras (21482, 23723). A leitura dizia «quantidade nao
+# consta» e «nao consta» o objecto com eles ao lado. Pelo nome nao se
+# sabe: por isso vai o cabecalho, e um indice das pecas continua de fora.
+RX_LISTA_PELO_NOME = re.compile(r"^lista\b")
+RX_LISTA_DE_ARTIGOS = re.compile(r"lista de (artigos|todas as especies de trabalhos)")
+
+
+def papeis_da_peca(nome, texto=""):
+    """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF.
+
+    Pelo nome; o `texto`, quando vem, so decide o «Lista.pdf»."""
     n = simplifica(nome)
+    if (texto and RX_LISTA_PELO_NOME.search(n)
+            and RX_LISTA_DE_ARTIGOS.search(simplifica(texto[:600]))):
+        return {"tecnico"}
     acessorio = bool(RX_ACESSORIO.search(n))
     encargos = (RX_PECA_ENCARGOS_EXTENSO if acessorio else RX_PECA_ENCARGOS)
     programa = (RX_PECA_PROGRAMA_EXTENSO if acessorio else RX_PECA_PROGRAMA)
@@ -7710,6 +7845,25 @@ def junta_numerais_partidos(texto):
     return RX_ANEXO_PARTIDO.sub(junta, texto or "")
 
 
+# Os capitulos do mapa de quantidades (29/09/2026, 3.a ronda): nas obras
+# sem memoria descritiva (21482, 21647, 21999, 23496, 23723) o objecto
+# ficava o titulo, ou uma remissao para o projecto -- e o mapa estava
+# la, com «1.0 CONSTRUCAO DE MURO DE BETAO CICLOPICO NA RUA DE
+# REVILHAES». Os artigos do mapa sao paragrafos de regras de medicao;
+# os capitulos, as linhas que a plataforma escreve com um espaco a
+# frente e sem quantidade, sao o que se constroi e onde.
+RX_CAPITULO_DO_MAPA = re.compile(r"^ \d+(?:\.\d+)*\s+\S")
+
+
+def capitulos_do_mapa(texto, tecto):
+    """Os capitulos do «Lista de todas as especies de trabalhos», ou ""
+    quando o texto nao e esse mapa."""
+    if "especies de trabalhos" not in simplifica(texto[:600]):
+        return ""
+    linhas = [l.strip()[:160] for l in texto.split("\n") if RX_CAPITULO_DO_MAPA.match(l)]
+    return ("Capítulos do mapa de quantidades:\n" + "\n".join(linhas))[:tecto]
+
+
 def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     """O que interessa, dos documentos que fazem o papel `quais`.
 
@@ -7729,31 +7883,35 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     alvo = set(PAPEIS_DA_LEITURA.get(quais, (quais,)))
     secundarias = set(SECUNDARIAS_DA_LEITURA.get(quais, ())) - alvo
 
-    def serve(nome):
-        return bool((alvo | secundarias) & papeis_da_peca(os.path.basename(nome)))
+    # o papel pelo nome, e pelo cabecalho no «Lista.pdf» (papeis_da_peca)
+    def papeis(nome, texto):
+        return papeis_da_peca(os.path.basename(nome), texto)
 
-    def e_secundaria(nome):
-        return not (alvo & papeis_da_peca(os.path.basename(nome)))
+    def serve(d):
+        return bool((alvo | secundarias) & papeis(d["nome"], d["texto"]))
+
+    def e_secundaria(d):
+        return not (alvo & papeis(d["nome"], d["texto"]))
 
     abertos = []
     for d in docs:
         escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx}
-                      for n, tx in ficheiros_no_texto(d["texto"]) if serve(n)]
+                      for n, tx in ficheiros_no_texto(d["texto"])
+                      if serve({"nome": n, "texto": tx})]
         abertos += escolhidos or [d]
     # Sem a peca da leitura, a outra faz as vezes dela, com o tecto
     # inteiro (29/09/2026): as «Pecas do procedimento» do 22005 sao o
     # Programa e o Caderno num PDF so, e pelo nome so passam por Programa
     # -- a leitura do objecto levava delas uma zona de 2 500 caracteres, e
     # o local de entrega, na pagina 14, ficava de fora.
-    if not any(alvo & papeis_da_peca(os.path.basename(d["nome"])) for d in abertos):
+    if not any(alvo & papeis(d["nome"], d["texto"]) for d in abertos):
         alvo, secundarias = alvo | secundarias, set()
     # A peca antes dos anexos: o recorte e cortado no fim, e um anexo
     # nao pode tirar o lugar ao Caderno de Encargos.
     # A peca, depois os anexos, e as secundarias no fim.
-    docs = sorted((d for d in abertos if serve(d["nome"])),
-                  key=lambda d: (e_secundaria(d["nome"]),
-                                 quais not in papeis_da_peca(
-                                     os.path.basename(d["nome"]))))
+    docs = sorted((d for d in abertos if serve(d)),
+                  key=lambda d: (e_secundaria(d),
+                                 quais not in papeis(d["nome"], d["texto"])))
     vistos, total = set(), int(tecto * 1.5)
     for d in docs:
         limpo = sem_indice(d["texto"])
@@ -7770,7 +7928,7 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
         # quase todos os concursos -- o dobro de antes --, gastava o
         # orcamento do dia a dobrar e batia no limite de tamanho da Groq
         # (413). A resposta dela, quando la esta, e uma zona: cabe aqui.
-        secundaria = e_secundaria(d["nome"])
+        secundaria = e_secundaria(d)
         teto = TECTO_SECUNDARIA if secundaria else tecto
         # O que ainda cabe no pedido, e nao um corte no fim (29/09/2026):
         # o [:1,5 x tecto] cortava o ultimo documento pela ordem do texto,
@@ -7786,6 +7944,13 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
             continue
         # O «limpo» ja vem do sem_indice(), que junta os numerais
         # partidos (G40): o recorte nao precisa de os juntar outra vez.
+        # O mapa de quantidades das obras vai pelos capitulos, que dizem o
+        # que se constroi (capitulos_do_mapa); o resto, pelas ancoras.
+        capitulos = capitulos_do_mapa(limpo, teto)
+        if capitulos:
+            partes.append(cabeca + capitulos)
+            usados.append(d["nome"])
+            continue
         partes.append(cabeca + recorte_relevante(limpo, ancoras, teto))
         # A fonte leva as paginas do recorte (B12), quando o texto tem
         # as marcas; e por leitura, por isso o mesmo CE pode aparecer
@@ -7815,6 +7980,132 @@ def limpa_campo(valor):
     while fora and not fora[-1]:
         fora.pop()
     return "\n".join(fora)
+
+
+# --- os numeros da resposta contra as pecas (29/09/2026, 3.a ronda)
+#
+# O Mira Gov nao decide por ninguem, mas o resumo tem de ser de confiar
+# (ele, nesse dia). A leitura omite mais do que inventa -- mas inventou:
+# «caudais nominais 1200 m3/h» na 23853, onde a tabela diz 1540; «61
+# unidades» na 23389, com 129 no cadastro. Um numero que nao esta no
+# texto que o modelo leu nao se grava como facto: a linha fica, marcada
+# para confirmar. Sem modelo, depois da resposta.
+#
+# Compara-se como o ensaio-de-leitura compara, porque o PDF parte os
+# numeros («1 2 meses»): o texto comprimido, sem espacos nem pontuacao.
+# Mas so comprimido nao chega -- «Business analyst 4 1920» da «41920», e
+# o 1920 ficava sem apoio. Por isso vale nas duas formas: com os espacos
+# como separador, ou sem nada. As casas decimais a zero, os separadores
+# dos milhares e os numeros por extenso normalizam-se dos dois lados.
+
+# A pagina no fim da linha, que a pergunta pede: «(pág. 12)», «(Programa,
+# pág. 5)», «(pág. 12–13)». Nao e um numero da resposta.
+RX_PAGINA_NA_LINHA = re.compile(r"\s*\((?:[^()]{0,80},\s*)?p[áa]g\.?\s*\d[\d\s,–-]*\)\s*$")
+# O numero da lista que o proprio modelo escreve («3. DEUCP»).
+RX_NUMERO_DA_LISTA = re.compile(r"^\s*(\d{1,2}[.)]|-)\s+")
+RX_POR_CONFIRMAR = re.compile(r" \[confirmar: [^\]]* nas páginas lidas\]")
+
+
+def marca_por_confirmar(numeros):
+    return (" [confirmar: o número %s não está nas páginas lidas]" % numeros[0]
+            if len(numeros) == 1 else
+            " [confirmar: os números %s não estão nas páginas lidas]" % ", ".join(numeros))
+_UNIDADES = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4,
+             "cinco": 5, "seis": 6, "sete": 7, "oito": 8, "nove": 9}
+_EXTENSO = dict(_UNIDADES, dez=10, onze=11, doze=12, treze=13, catorze=14,
+                quatorze=14, quinze=15, dezasseis=16, dezesseis=16,
+                dezassete=17, dezessete=17, dezoito=18, dezanove=19, dezenove=19,
+                vinte=20, trinta=30, quarenta=40, cinquenta=50, sessenta=60,
+                setenta=70, oitenta=80, noventa=90, cem=100,
+                # «30 de setembro» nas pecas, «30/09» na resposta
+                janeiro=1, fevereiro=2, marco=3, abril=4, maio=5, junho=6,
+                julho=7, agosto=8, setembro=9, outubro=10, novembro=11,
+                dezembro=12)
+RX_DEZENA_E_UNIDADE = re.compile(
+    r"\b(vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa) e (%s)\b"
+    % "|".join(_UNIDADES))
+# «um» e «uma» sao artigos: por extenso so contam a seguir a uma dezena
+RX_POR_EXTENSO = re.compile(r"\b(%s)\b" % "|".join(k for k in _EXTENSO
+                                                    if k not in ("um", "uma")))
+
+
+def sem_a_pagina_citada(linha):
+    """A linha sem a pagina do fim (e sem a marca de confirmar)."""
+    return RX_PAGINA_NA_LINHA.sub("", RX_POR_CONFIRMAR.sub("", linha or ""))
+
+
+def _numeros_normalizados(texto):
+    """(com espacos, sem nada): o texto so com letras e algarismos, os
+    numeros por extenso em algarismos, e «1.920,00» feito «1920»."""
+    t = simplifica(texto or "")
+    t = RX_DEZENA_E_UNIDADE.sub(lambda m: " %d " % (_EXTENSO[m.group(1)]
+                                                    + _UNIDADES[m.group(2)]), t)
+    t = RX_POR_EXTENSO.sub(lambda m: " %d " % _EXTENSO[m.group(1)], t)
+    t = re.sub(r"(\d)[.,]0{1,2}(?!\d)", r"\1", t)
+    # o ponto so junta os milhares («1.920»): «Clausula 41.2» sao dois
+    # numeros, e junto dava «412», sem apoio (21647)
+    t = re.sub(r"(?<=\d)\.(?=\d{3}(?!\d))|(?<=\d),(?=\d)", "", t)
+    return re.sub(r"[^a-z0-9]+", " ", t), re.sub(r"[^a-z0-9]", "", t)
+
+
+def _esta_no_texto(numero, fonte):
+    padrao = r"(?<!\d)0*%s(?!\d)" % re.escape(numero.lstrip("0") or "0")
+    return any(re.search(padrao, f) for f in fonte)
+
+
+def numeros_sem_apoio(linha, fonte):
+    """Os numeros de uma linha da resposta que nao estao na `fonte`
+    (o par que _numeros_normalizados() da do texto lido)."""
+    corpo = RX_NUMERO_DA_LISTA.sub("", sem_a_pagina_citada(linha))
+    # «1 200 000 €»: os milhares com espaco sao um numero so
+    corpo = re.sub(r"(?<=\d)[ \u00a0](?=\d{3}(?!\d))", "", corpo)
+    faltam = []
+    # so os numeros soltos: o «3» de «m3/h», o «1» de «ePM1» e o «13» de
+    # «R.13» sao nomes, e nao quantidades
+    for n in re.findall(r"(?<![a-z0-9])\d+(?![a-z0-9])", _numeros_normalizados(corpo)[0]):
+        if n not in faltam and not _esta_no_texto(n, fonte):
+            faltam.append(n)
+    return faltam
+
+
+def numeros_por_confirmar(valor, texto_lido):
+    """O campo com cada linha de numeros sem apoio marcada para confirmar.
+
+    `texto_lido` e o recorte que foi ao modelo, e nao as pecas inteiras:
+    o modelo so viu aquilo, e um numero que la nao esta nao veio dali."""
+    if not isinstance(valor, str) or not re.search(r"\d", valor):
+        return valor
+    fonte = _numeros_normalizados(re.sub(r"\[pág\. \d+\]", " ", texto_lido or ""))
+    linhas = []
+    for linha in valor.split("\n"):
+        faltam = numeros_sem_apoio(linha, fonte)
+        if faltam and not RX_POR_CONFIRMAR.search(linha):
+            linha += marca_por_confirmar(faltam)
+        linhas.append(linha)
+    return "\n".join(linhas)
+
+
+# As clausulas que todos os contratos tem, numa linha do objecto (29/09/
+# 2026, 3.a ronda): a pergunta ja as mandava deixar de fora, e a 21659 e a
+# 21764 (licencas) diziam «Comunicar a ESPAP ... alteracoes», «Cumprir a
+# legislacao aplicavel», «Assegurar o sigilo». Tiram-se sem modelo, e so
+# quando fica alguma coisa: um objecto feito so delas diz que a leitura
+# falhou, e isso ve-se.
+RX_CLAUSULA_TIPO = re.compile(
+    r"^(cumprir (a |as |toda a |todas as )?(legislacao|lei|leis|normas|disposicoes|prazos)|"
+    r"(assegurar|manter|guardar|garantir) (o |a )?(sigilo|confidencialidade)|"
+    r"comunicar .{0,80}(alterac|facto|ocorrencia|circunstancia)|"
+    r"prestar (toda a |a |as )?informac|"
+    r"(contratar|manter) (os )?seguros|recorrer a todos os meios)")
+
+
+def sem_clausulas_tipo(objecto):
+    if not isinstance(objecto, str):
+        return objecto
+    linhas = objecto.split("\n")
+    fica = [l for l in linhas
+            if not RX_CLAUSULA_TIPO.search(simplifica(RX_NUMERO_DA_LISTA.sub("", l)).strip())]
+    return "\n".join(fica) if any(l.strip() for l in fica) else objecto
 
 
 # A conta tem dois tectos, e so um deles se ve nos cabecalhos. O de
@@ -8146,7 +8437,13 @@ def analisar_pecas(ref):
             falhas.append("%s: %s" % (nome, aviso))
             modelo_falhou = True
             continue
-        dados.update(resposta)
+        # Sem modelo, depois da resposta (29/09/2026, 3.a ronda): as
+        # clausulas-tipo saem do objecto, e a linha com um numero que nao
+        # esta no texto lido fica marcada para confirmar
+        if "objecto" in resposta:
+            resposta["objecto"] = sem_clausulas_tipo(limpa_campo(resposta["objecto"]))
+        dados.update({k: numeros_por_confirmar(limpa_campo(v), texto)
+                      if isinstance(v, str) else v for k, v in resposta.items()})
         usados += [f for f in fontes if f not in usados]
         if usado not in modelos:
             modelos.append(usado)
@@ -26236,6 +26533,34 @@ def caucao_do_anuncio(seccoes):
     return "Sim" + (", " + " — ".join(extra) if extra else "")
 
 
+def local_do_anuncio(seccoes):
+    """Os locais da secção 9 do anúncio («LOCAL DA EXECUÇÃO DO
+    CONTRATO»), um por «País:», com a localidade, a freguesia, o
+    concelho e o distrito que não se repitam: «Presa, Freguesia de
+    Alcaravela, Sardoal, Santarém». "" sem a secção.
+
+    Vem por baixo da leitura quando ela não encontra o local (29/09/2026,
+    3.a ronda): sete fichas de obras diziam «não consta» com o sítio no
+    anúncio -- Presa, Sé, Paço de Sousa, Mancelos. Diz-se que é do
+    anúncio, que muitas vezes é a morada da entidade."""
+    ordem = ("localidade", "freguesia", "concelho", "distrito")
+    locais, actual = [], {}
+    for chave, valor in _pares_da_seccao(seccoes, "local da execucao") + [("País", "")]:
+        chave, valor = simplifica(chave or "").strip(), (valor or "").strip()
+        if chave == "pais":
+            partes = []
+            for v in (actual.get(k, "") for k in ordem):
+                if not v or any(simplifica(v) in simplifica(x) for x in partes):
+                    continue
+                partes = [x for x in partes if simplifica(x) not in simplifica(v)] + [v]
+            if partes and ", ".join(partes) not in locais:
+                locais.append(", ".join(partes))
+            actual = {}
+        elif chave in ordem:
+            actual[chave] = valor
+    return "; ".join(locais)
+
+
 def essencial_do_anuncio(a, seccoes, analise=None):
     """[(rotulo, valor, em_falta, nota)] com o essencial para decidir.
 
@@ -26366,7 +26691,7 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         cpv = a["cpv"]
     except (KeyError, IndexError):
         cpv = ""
-    familia = familia_do_contrato(v("Tipo de Contrato Principal"), cpv)
+    familia = familia_das_seccoes(seccoes, cpv, a["titulo"] or "")
     rotulo_11, falta_11 = CAMPO_11[familia][:2]
     anormal_falta = "" if anormal else (
         nao_encontrou("preco_anormalmente_baixo",
@@ -26399,13 +26724,13 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         # trouxer, e ele que manda, com o concelho a seguir.
         ("Local de prestação de serviços",
          "%s\n(%s, segundo o anúncio)" % (regime, local) if regime and local
-         else (regime or local), "",
+         else (regime or local_do_anuncio(seccoes) or local), "",
          nota_pecas if regime else
          # A mesma distincao do preco anormalmente baixo: depois da
          # leitura, "ainda nao foi lido" era mentira -- e mandava abrir
          # um documento que a ferramenta ja tinha visto nao dizer nada.
-         ("localização do procedimento; o Caderno de Encargos foi lido e "
-          "a leitura não encontrou o regime presencial, remoto ou híbrido"
+         ("segundo o anúncio; o Caderno de Encargos foi lido e a leitura "
+          "não encontrou o local nem o regime presencial, remoto ou híbrido"
           if foi_lido("localizacao") else
           "localização do procedimento; o regime presencial, remoto ou "
           "híbrido consta do Caderno de Encargos e ainda não foi lido")),
@@ -26463,7 +26788,7 @@ def sem_negativos_por_saber(texto, antiga):
     linhas = []
     for linha in texto.split("\n"):
         chave, dois, valor = linha.partition(":")
-        if dois and simplifica(valor).strip() in vazios:
+        if dois and simplifica(sem_a_pagina_citada(valor)).strip() in vazios:
             linha = "%s: não encontrado nas páginas lidas" % chave
         linhas.append(linha)
     return "\n".join(linhas)
@@ -26555,15 +26880,18 @@ def perfis_da_equipa(texto):
             perfis.append({"texto": bloco.strip()})
             continue
         nome = linhas[0]
-        m = RX_PAR_PERFIL.match(nome)
-        if m and simplifica(m.group(1)).strip() == "nome do perfil":
-            nome = m.group(2)
+        # «Nome do perfil tal e qual está no documento: Consultor X» -- o
+        # modelo copia o rótulo da pergunta (21568, 21713, 21724)
+        m = re.match(r"(?i)nome do perfil[^:]{0,60}:\s*(.+)$", nome)
+        if m:
+            nome = m.group(1)
         campos = {simplifica(p.group(1)).strip(): p.group(2).strip()
                   for p in pares}
 
         def campo(chave):
             v = campos.get(chave, "")
-            return "" if simplifica(v).strip() in VAZIOS_DA_LEITURA else v
+            return ("" if simplifica(sem_a_pagina_citada(v)).strip() in VAZIOS_DA_LEITURA
+                    else v)
         pessoas = re.search(r"\d+", campo("quantidade"))
         anos = RX_ANOS.search(campo("experiencia geral"))
         preco = RX_EUROS_DA_HORA.findall(campo("horas e preco"))
@@ -26614,7 +26942,7 @@ def resumo_do_objecto(texto):
     if not linhas:
         return "", 0
     m = RX_ITEM_LISTA.match(linhas[0]) or RX_ITEM_NUM.match(linhas[0])
-    primeira = m.group(m.lastindex) if m else linhas[0]
+    primeira = sem_a_pagina_citada(m.group(m.lastindex) if m else linhas[0])
     pontos = sum(1 for l in linhas
                  if RX_ITEM_LISTA.match(l) or RX_ITEM_NUM.match(l))
     return corta(primeira, 200), (pontos if pontos >= 2 else 0)
@@ -26678,8 +27006,10 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
     local_nota = ess.get("Local de prestação de serviços", ("", "", ""))[2]
     # «a leitura não encontrou o regime» nas seis fichas de obras, e
     # ninguém sabia que regime (3.ª ronda, G46): sem regime, nada.
+    # e sem local nas peças, diz-se que é o do anúncio (3.ª ronda)
     local_nota = ("regime lido das peças: confirmar" if local_nota.startswith("lido de")
-                  else "" if "não encontrou" in local_nota
+                  else "segundo o anúncio: as peças lidas não o dizem"
+                  if "não encontrou" in local_nota
                   else "o regime (presencial, remoto) ainda não foi lido"
                   if local_nota else "")
     return [
@@ -26839,8 +27169,8 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
                       id_="pecas-pedem")
     ess = {rot: (valor, falta)
            for rot, valor, falta, _ in essencial_do_anuncio(a, seccoes, analise)}
-    familia = familia_do_contrato(valor_de(seccoes, "Tipo de Contrato Principal"),
-                                  _valor(a, "cpv") or "")
+    familia = familia_das_seccoes(seccoes, _valor(a, "cpv") or "",
+                                  _valor(a, "titulo") or "")
     rotulo_11 = CAMPO_11[familia][0]
     linhas = []
 
@@ -26885,7 +27215,9 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
     # Quem leu: o nome do modelo é para o dono; a um cliente diz-se só que
     # foi lido automaticamente (teste com utilizadores, 25/09/2026).
     meta = ("Leitura automática %sde %s. Pode falhar por omissão: «não "
-            "encontrado» quer dizer que não estava nas páginas lidas."
+            "encontrado» quer dizer que não estava nas páginas lidas. Cada "
+            "linha diz a página de onde veio; «confirmar» marca um número que "
+            "não está nas páginas lidas."
             % (("(%s) " % html.escape(analise["modelo"] or "")) if sou_dono() else "",
                html.escape(fontes_pelo_papel(analise["fontes"]) or "peças do procedimento")))
     quando = data_pt((_valor(analise, "quando") or "")[:10], "")

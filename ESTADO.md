@@ -269,5 +269,8 @@ para decidir sem abrir as peças** — o defeito era o «não consta» falso,
 porque a resposta não chegava ao modelo (20 de 55 passagens). As
 correcções desse dia põem 44 de 55 a chegar (com pedidos que cabem no
 limite da Groq), e a ficha passou a marcar
-a leitura como rascunho. **Falta reler as 70 com o código novo e voltar
-a julgá-las**; até lá, a leitura não se anuncia.
+a leitura como rascunho. Relidas e julgadas outra vez a 29/09/2026, duas
+rondas no mesmo dia: a régua vai em 103 de 113 passagens, cada linha da
+leitura cita a página, e um número que não está nas páginas lidas fica
+marcado para confirmar (`docs/diario/2026-09.md`). **Falta reler com a
+pergunta de agora e voltar a julgar**; até lá, a leitura não se anuncia.

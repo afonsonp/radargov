@@ -1209,6 +1209,9 @@ class TestORecorteLevaAResposta(unittest.TestCase):
         # das reservas de outros modelos; sem chave, a cadeia salta-o
         nomes = [f[0] for f in radar.FORNECEDORES]
         self.assertEqual(nomes[:2], ["groq", "cerebras"])
+        # e a reserva da Groq no fim, desde 29/09/2026: o único modelo que
+        # errou números (TestTerceiraRondaDaLeitura)
+        self.assertEqual(nomes[-1], "groq-reserva")
         with unittest.mock.patch.object(radar, "ler_chave",
                                         lambda nomes, var: "" if var == "CEREBRAS_API_KEY" else "k"):
             self.assertNotIn("cerebras", [f[0] for f in radar.cadeia_de_fornecedores({})])
@@ -1376,8 +1379,11 @@ class TestSegundaRondaDaLeitura(unittest.TestCase):
         for pedaco in ("DIMENSÃO MÍNIMA", "gestor do contrato",
                        "lista só com os nomes", "noutra tabela ou num total"):
             self.assertIn(pedaco, i)
-        # e não cresceu: o pedido inteiro fica debaixo do limite da Groq
-        self.assertLessEqual(len(i), 2842)
+        # e não cresce sem conta: o pedido inteiro fica debaixo do limite
+        # da Groq. Eram 2 842; a 29/09/2026 passou a 2 939 com a página em
+        # cada linha, o nível de serviço e o que só pontua (3.ª ronda), e
+        # o maior pedido de todos foi de 13 430 a 13 933 caracteres
+        self.assertLessEqual(len(i), 2939)
 
     def test_a_pergunta_das_obras_sem_alvara(self):
         # o alvará vem do anúncio, e a leitura só produzia negações
@@ -1425,6 +1431,282 @@ class TestSegundaRondaDaLeitura(unittest.TestCase):
         self.assertIn("Anexo III ao presente",
                       radar.sem_indice("modelo constante do Anexo I II ao presente"))
         self.assertIn("Anexos I e II", radar.sem_indice("os Anexos I e II"))
+
+
+class TestTerceiraRondaDaLeitura(unittest.TestCase):
+    """29/09/2026, à tarde: quatro perfis julgaram as 75 leituras relidas
+    com a segunda ronda, e o princípio que ele deu nesse dia manda nesta:
+    «não quero que decida por ninguém, mas sim que faça um resumo em que
+    se pode confiar, sempre com a leitura das peças associada». A régua
+    passou a 113 passagens; as 88 de antes ficam em 82 e as 25 novas vão
+    de 12 a 21. Cada teste é uma causa medida nesse dia."""
+
+    NL = chr(10)
+
+    def rotina(self, n=20):
+        return "".join(("Cláusula %d - Penalidades" % i) + self.NL +
+                       "Texto de rotina. " * 60 + self.NL for i in range(1, n))
+
+    # --- o recorte ------------------------------------------------------
+
+    def test_o_ordinal_do_sumario_nao_separa_o_titulo_do_corpo(self):
+        # 23577: «14ª Documentos da proposta» dava a chave «a documentos
+        # da proposta», e o sumário -- onde os títulos se juntam -- ficava
+        # com a janela, e o limiar do corpo de fora
+        chave = lambda t: radar.RX_NUMERACAO_DO_TITULO.sub("", radar.simplifica(t))
+        self.assertEqual(chave("14ª Documentos da proposta"), "documentos da proposta")
+        self.assertEqual(chave("1.º Objeto"), "objeto")
+        self.assertEqual(chave("A proposta"), "a proposta")
+
+    def test_a_caucao_considerada_anormalmente_baixa_nao_e_o_limiar(self):
+        # 23577: «seja considerado anormalmente baixo, o valor da caução»
+        # levava a reserva do limiar, que ficava fora
+        rx = radar.ANCORAS_PROGRAMA[1][1]
+        self.assertFalse(re.search(rx, radar.simplifica(
+            "Caso o preço contratual seja considerado anormalmente baixo, o valor da caução")))
+        for frase in ("considera-se que o preço de uma proposta é anormalmente baixo quando",
+                      "São consideradas propostas de preço anormalmente baixo as que"):
+            self.assertTrue(re.search(rx, radar.simplifica(frase)), frase)
+
+    def test_os_documentos_depois_da_adjudicacao_nao_sao_a_lista(self):
+        # 14680: «o ACE deve apresentar os seguintes documentos no prazo
+        # de 20 dias contados da notificação da adjudicação»
+        rx = radar.ANCORAS_PROGRAMA[0][1]
+        self.assertFalse(re.search(rx, radar.simplifica(
+            "o ACE deve apresentar os seguintes documentos no prazo de 20 (vinte) dias "
+            "contados da notificação da adjudicação:")))
+
+    def test_a_numeracao_em_dois_niveis_e_titulo(self):
+        # 21724: «7.3. Requisitos» do Técnico de Helpdesk não era título
+        for t in ("7.3. Requisitos", "7.3 Requisitos", "15.5. Preço Anormalmente Baixo"):
+            self.assertTrue(radar.e_titulo(t, radar.simplifica(t)), t)
+        # uma linha de tabela continua a não ser
+        self.assertFalse(radar.e_titulo("2 Security Gateway", "2 security gateway"))
+        rx = [r for p, r in radar.ANCORAS_EQUIPA if p == 1][0]
+        self.assertTrue(re.search(rx, "7.3. requisitos"))
+
+    def test_o_nivel_de_servico_nos_contratos_de_ti(self):
+        # 21811, 22036, 22540, 22956: a família «equipa» nunca o pedia
+        fortes = [r for p, r in radar.ANCORAS_EQUIPA if p == 0]
+        for frase in ("Para pedidos classificados com prioridade elevada, o tempo máximo de",
+                      "níveis de serviço (SLA) para tempo de resposta a incidentes:",
+                      "Tempo máximo de resposta técnica remota 30 minutos",
+                      "Cocontratante deverá assegurar os seguintes tempos máximos"):
+            self.assertTrue(any(re.search(r, radar.simplifica(frase)) for r in fortes), frase)
+        self.assertIn("Nível de serviço", radar.INSTRUCOES_EQUIPA)
+
+    def test_as_licencas_com_cpv_de_ti_sao_bens(self):
+        # 21659, 22682, 23589: artigos com quantidade lidos como perfis
+        f = radar.familia_do_contrato
+        for titulo, cpv in (("Licenciamento e manutenção de rede check Point", "72267000"),
+                            ("Aquisição de Serviços de Suporte e Renovação do "
+                             "Licenciamento CISCO", "72500000"),
+                            ("Serviços Renovação Suporte AVAMAR 2026", "72100000")):
+            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "bens", titulo)
+        # com trabalho de equipa no mesmo contrato, fica equipa
+        for titulo in ("Aquisição de serviços de suporte técnico e manutenção adaptativa "
+                       "e evolutiva da plataforma DSpace",
+                       "Renovação de Licenciamento, Manutenção Operativa e Evolutiva"):
+            self.assertEqual(f("Aquisição de Serviços", "72267000", titulo), "equipa", titulo)
+        # e sem designação, como antes
+        self.assertEqual(f("Aquisição de Serviços", "72267000"), "equipa")
+        texto = ("6 - OBJETO DO CONTRATO\nDesignação do contrato: Licenças Office 2024\n"
+                 "Tipo de Contrato Principal: Aquisição de Serviços\n")
+        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "bens")
+
+    def test_a_lista_dos_itens_dos_bens(self):
+        # 21659: «2- O fornecimento compreende os seguintes itens:»
+        rx = radar.ANCORAS_BENS[0][1]
+        self.assertTrue(re.search(rx, radar.simplifica(
+            "2- O fornecimento compreende os seguintes itens:")))
+
+    def test_o_lista_pdf_pelo_que_diz(self):
+        # 23513: os artigos (16 AEC Collection, 20 AutoCAD LT) estavam no
+        # «Lista.pdf», que ficava de fora por ser «o índice das peças»
+        artigos = ("Município de Santarém" + self.NL + "Procedimento 157" + self.NL +
+                   "Lista de artigos" + self.NL + "Linha Cod. Designação Unidade Qtd")
+        self.assertEqual(radar.papeis_da_peca("Lista.pdf", artigos), {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca("Lista.pdf"), set())
+        self.assertEqual(radar.papeis_da_peca("Lista.pdf", "Caderno de Encargos.pdf"), set())
+        docs = [{"nome": "Caderno_de_Encargos.pdf", "texto": "Cláusula 1 - Objeto" + self.NL},
+                {"nome": "Lista.pdf", "texto": artigos + self.NL +
+                 "4 4 AutoCAD LT - Government Single-user UN 20"}]
+        recorte, _ = radar.pecas_para_analise(docs, "encargos", radar.ANCORAS_BENS)
+        self.assertIn("AutoCAD LT", recorte)
+
+    def test_o_mapa_das_obras_vai_pelos_capitulos(self):
+        # 23723: «1.0 CONSTRUÇÃO DE MURO DE BETÃO CICLÓPICO NA RUA DE
+        # REVILHÃES» estava no mapa, e o objecto era uma remissão
+        mapa = self.NL.join([
+            "Município de Amarante", "Procedimento CP/56/2026",
+            "Lista de todas as espécies de trabalhos previstos no Caderno de Encargos",
+            "Linha Cod. Designação Unidade Qtd",
+            " 1.0 CONSTRUÇÃO DE MURO DE BETÃO CICLÓPICO NA RUA DE REVILHÃES",
+            " 1.1 ESTALEIRO",
+            "1 1.1.1 Fornecimento, montagem e desmontagem de estaleiro " + "texto " * 200,
+            "VG 1", " 2.0 MURO DE PEDRA NA RUA DA GRANJA"])
+        capitulos = radar.capitulos_do_mapa(mapa, 7000)
+        self.assertIn("MURO DE BETÃO CICLÓPICO", capitulos)
+        self.assertIn("RUA DA GRANJA", capitulos)
+        self.assertNotIn("Fornecimento, montagem", capitulos)
+        self.assertEqual(radar.capitulos_do_mapa("Cláusula 1 - Objeto", 7000), "")
+        obras = dict((n, (q, a)) for n, q, a, _ in
+                     radar.leituras_da_familia(list(radar.LEITURAS), "obras"))
+        quais, ancoras = obras["objecto"]
+        recorte, _ = radar.pecas_para_analise(
+            [{"nome": "Lista.pdf", "texto": mapa}], quais, ancoras)
+        self.assertIn("RUA DA GRANJA", recorte)
+        self.assertIn("Capítulos do mapa", radar.INSTRUCOES_OBJECTO_OBRAS)
+
+    def test_o_caderno_da_ip_partido_por_capitulos(self):
+        # 21999: a equipa técnica no «Cap7_CondicoesParticulares_L1.pdf»,
+        # e a memória descritiva em «..._Mem Descritiva_12jan26.pdf»
+        self.assertIn("encargos", radar.papeis_da_peca("Cap7_CondicoesParticulares_L1.pdf"))
+        self.assertIn("encargos", radar.papeis_da_peca("Cap1_ClausulasGerais_L1.pdf"))
+        self.assertEqual(radar.papeis_da_peca("CCP 2026_EN249-3_Mem Descritiva_12jan26.pdf"),
+                         {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca("MQTEN249-3.0026.2026.pdf"), {"tecnico"})
+
+    def test_a_frase_que_abre_a_equipa_das_obras(self):
+        # 14680 e 21999: a lista da equipa técnica abre numa frase do
+        # corpo, e o título não chegava
+        rx = radar.ANCORAS_OBRAS[0][1]
+        for frase in ("A equipa técnica a afetar à obra na substituição das Escadas "
+                      "deverá integrar, obrigatoriamente, os seguintes técnicos:",
+                      "7.3.2 O elenco da Equipa Técnica é o seguinte:"):
+            self.assertTrue(re.search(rx, radar.simplifica(frase)), frase)
+
+    def test_os_servicos_leem_a_resposta_e_a_carteira(self):
+        # 22460 e 23351
+        rx = radar.ANCORAS_SERVICOS[0][1]
+        for frase in ("d) Dar resposta a qualquer solicitação, no prazo máximo de 24 horas;",
+                      "Técnicos Eletricistas com carteira profissional, emitida pela DGEG",
+                      "Artigo 10.º Habilitações necessárias"):
+            self.assertTrue(re.search(rx, radar.simplifica(frase)), frase)
+
+    def test_sem_artigos_a_lista_leva_a_janela_do_artigo(self):
+        # 14680: o Programa em .docx perde a numeração dos títulos, e a
+        # lista ficava nos 2 500 caracteres; as últimas alíneas caíam
+        itens = "".join("Documento %d, com a designação longa que o Programa lhe dá. " % i
+                        + "Texto. " * 40 + self.NL for i in range(1, 10))
+        d = ("Documentos que constituem a proposta" + self.NL +
+             "Sob pena de exclusão, a proposta deverá ser constituída pelos seguintes "
+             "documentos:" + self.NL + itens + "Declaração de compromisso de cibersegurança."
+             + self.NL + "Texto de rotina. " * 400)
+        self.assertLess(len(d.split("cibersegurança")[0]), radar.JANELA_DO_ARTIGO)
+        self.assertGreater(len(d.split("cibersegurança")[0]), radar.JANELA_FORTE)
+        r = radar.recorte_relevante(d, radar.ANCORAS_PROGRAMA, 7000)
+        self.assertIn("cibersegurança", r)
+
+    # --- A. a leitura sempre associada às peças -------------------------
+
+    def test_a_pagina_marcada_no_recorte(self):
+        paginas = ["Cláusula %d - Penalidades%sTexto de rotina. %s" % (i, self.NL, self.NL)
+                   for i in range(1, 5)]
+        paginas[2] = ("Cláusula 3 - Objeto" + self.NL + "O objeto é a manutenção." +
+                      self.NL)
+        texto = "\f".join(paginas)
+        r = radar.recorte_relevante(texto, radar.ANCORAS_OBJECTO, 400)
+        self.assertIn("[pág. 3]" + self.NL + "Cláusula 3 - Objeto", r)
+        self.assertLessEqual(len(r), 400)
+        self.assertNotIn("\f", r)
+        # sem as marcas do extractor não se inventam páginas
+        self.assertNotIn("[pág.", radar.recorte_relevante(
+            texto.replace("\f", self.NL), radar.ANCORAS_OBJECTO, 400))
+
+    def test_a_pergunta_pede_a_pagina_em_cada_linha(self):
+        for instrucao in [i for _, _, _, i in radar.LEITURAS] + [
+                v[3] for v in radar.CAMPO_11.values() if v[3]]:
+            self.assertIn("(pág. 12)", instrucao)
+            self.assertIn("(Programa, pág. 5)", instrucao)
+
+    def test_o_numero_que_nao_esta_nas_pecas_fica_por_confirmar(self):
+        # 23853: «caudais nominais 1200 m3/h», e a tabela diz 1540
+        lido = ("Caudal máximo de insuflação [m3/h] 1540" + self.NL +
+                "Perfil Recursos Horas Estimadas" + self.NL + "Business analyst  4 1920"
+                + self.NL + "[pág. 7]" + self.NL + "experiência mínima de dois anos, 1 2 meses"
+                + self.NL + "Cláusula 41.ª" + self.NL + "1.200.000,00 € ; 99,72%")
+        f = lambda linha: radar.numeros_por_confirmar(linha, lido)
+        marcada = f("- caudais nominais 1200 m3/h (pág. 4)")
+        self.assertIn("[confirmar: o número 1200 não está nas páginas lidas]", marcada)
+        # o que o PDF parte, os milhares, o extenso, a página citada, o
+        # número da lista e os nomes com algarismos não são invenção
+        for linha in ("- Business analyst: 4 recursos, 1920 horas (pág. 7)",
+                      "Experiência: 2 anos; prazo 12 meses (Programa, pág. 7)",
+                      "- 1 200 000 €; 99,72 %; 1.200.000,00 €", "12. DEUCP",
+                      "- Cláusula 41.2: filtros ePM1, m3/h"):
+            self.assertEqual(f(linha), linha, linha)
+        self.assertEqual(f(marcada), marcada)            # não se marca duas vezes
+
+    def test_as_clausulas_tipo_saem_do_objecto(self):
+        # 21659 e 21764 (licenças): «Cumprir a legislação», «Assegurar o sigilo»
+        objecto = self.NL.join(["- 72 licenças Nokia SR (pág. 2)",
+                                "- Cumprir a legislação aplicável",
+                                "- Assegurar o sigilo", "- Comunicar à ESPAP quaisquer alterações"])
+        self.assertEqual(radar.sem_clausulas_tipo(objecto), "- 72 licenças Nokia SR (pág. 2)")
+        # só delas, fica como veio: a leitura falhou, e isso vê-se
+        self.assertEqual(radar.sem_clausulas_tipo("- Assegurar o sigilo"), "- Assegurar o sigilo")
+
+    def test_o_local_do_anuncio_quando_a_leitura_nao_o_tem(self):
+        texto = self.NL.join(["9 - LOCAL DA EXECUÇÃO DO CONTRATO",
+                              "LOCAL DA EXECUÇÃO DO CONTRATO (PROCEDIMENTO)",
+                              "País: Portugal", "Localidade: Presa", "Distrito: Santarém",
+                              "Concelho: Sardoal", "Freguesia: Freguesia de Alcaravela",
+                              "País: Portugal", "Localidade: Freguesia de Candemil - Amarante",
+                              "Distrito: Porto", "Concelho: Amarante",
+                              "Freguesia: Freguesia de Candemil - Amarante"])
+        seccoes = radar.seccoes_do_texto(texto)
+        self.assertEqual(radar.local_do_anuncio(seccoes),
+                         "Presa, Freguesia de Alcaravela, Sardoal, Santarém; "
+                         "Freguesia de Candemil - Amarante, Porto")
+        analise = {"objecto": "- x", "equipa": "- y", "documentos_proposta": "1. z",
+                   "preco_anormalmente_baixo": "não consta", "localizacao": "não consta",
+                   "fontes": "CE.pdf", "modelo": "m"}
+        anuncio = {"titulo": "Obra", "entidade": "Município", "preco_base": "",
+                   "prazo": "2026-10-07", "data_pub": "2026-09-20", "cpv": "45000000",
+                   "ref": "1/2026"}
+        linha = next(l for l in radar.essencial_do_anuncio(anuncio, seccoes, analise)
+                     if l[0] == "Local de prestação de serviços")
+        self.assertIn("Freguesia de Alcaravela", linha[1])
+        self.assertIn("segundo o anúncio", linha[3])
+
+    def test_o_rotulo_da_pergunta_nao_e_o_nome_do_perfil(self):
+        # 21568, 21713, 21724
+        perfis = radar.perfis_da_equipa(
+            "Nome do perfil tal e qual está no documento: Gestor de Projeto (pág. 4)"
+            + self.NL + "Quantidade: 1 (pág. 4)" + self.NL + "Formação: — ")
+        self.assertEqual(perfis[0]["nome"], "Gestor de Projeto (pág. 4)")
+        self.assertEqual(perfis[0]["pessoas"], "1")
+
+    # --- B. as perguntas -------------------------------------------------
+
+    def test_a_pergunta_da_equipa_separa_o_que_pontua_e_nao_junta_o_ou(self):
+        # 20445 e 21631 (escalões lidos como requisitos), 21568 (o «ou»),
+        # 21296 (as linhas repetidas), 21724 (a secção à parte), 22458 e
+        # 23486 (o bloco do conjunto sem frase que o sustente)
+        i = " ".join(radar.INSTRUCOES_EQUIPA.split())
+        for pedaco in ("(pontua)", "\"ou\" fica \"ou\"", "linhas iguais repetidas",
+                       "«6.3.", "SÓ quando uma frase das peças o diz"):
+            self.assertIn(pedaco, i)
+        self.assertNotIn("entram sempre nesse bloco", i)
+
+    def test_a_pergunta_da_proposta_segue_o_artigo(self):
+        # 21296, 21924: a «habilitação dos terceiros» e a certidão
+        # permanente saíam, por terem «habilitação» no nome
+        i = " ".join(radar.INSTRUCOES_PROPOSTA.split())
+        self.assertIn("habilitação dos terceiros", i)
+        self.assertIn("DEPOIS da adjudicação", i)
+        self.assertIn("50%", i)                            # o limiar com a base (22102)
+
+    def test_as_clausulas_tipo_em_todas_as_familias(self):
+        self.assertIn("de bens ou de licenças", " ".join(radar.INSTRUCOES_OBJECTO.split()))
+        self.assertIn("outros trabalhos", " ".join(radar.INSTRUCOES_OBJECTO_OBRAS.split()))
+
+    # --- C. a cadeia -----------------------------------------------------
+
+    def test_a_reserva_da_groq_vem_no_fim(self):
+        # foi o único modelo que errou números (23389, 23265)
+        self.assertEqual([f[0] for f in radar.FORNECEDORES][-1], "groq-reserva")
 
 
 class TestHabilitacaoECaucaoDoAnuncio(unittest.TestCase):
@@ -22471,7 +22753,12 @@ class TestTerceiraRondaALeituraDasPecas(BaseTemporaria):
                     ("PC.pdf", "Artigo 7.º - Documentos da proposta\nA proposta é "
                                "constituída pelos seguintes documentos:\na) Proposta de "
                                "preço, conforme o modelo constante do Anexo I II ao "
-                               "presente Programa;\nArtigo 13.º - Caução\n5% do preço.\n")):
+                               "presente Programa;\nArtigo 13.º - Caução\n5% do preço.\n"
+                               # o alvará que a resposta do duplo cita: sem
+                               # ele, os números ficavam por confirmar (a
+                               # verificação dos números, 29/09/2026)
+                               "Artigo 14.º - Alvará\n1.ª subcategoria da "
+                               "2.ª categoria.\n")):
                 c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
                           "VALUES ('80/2026',?,?,'ok')", (nome, texto))
         pedidos = []
@@ -22589,7 +22876,10 @@ class TestTerceiraRondaALeituraDasPecas(BaseTemporaria):
         texto = "9 - LOCAL DA EXECUÇÃO DO CONTRATO\nConcelho: Penafiel\nDistrito: Porto\n"
         local = next(f for f in radar.factos_para_decidir(
             self.ANUNCIO, radar.seccoes_do_texto(texto), lida) if f[0] == "Local")
-        self.assertEqual(local[2], "")
+        # sem regime, não se fala de regime; e desde 29/09/2026 (3.ª ronda)
+        # diz-se que o local é o do anúncio, que as peças lidas não o dão
+        self.assertNotIn("regime", local[2])
+        self.assertEqual(local[2], "segundo o anúncio: as peças lidas não o dizem")
         cx = radar.para_decidir_cx(radar.factos_para_decidir(self.ANUNCIO, [], lida))
         self.assertIn("Os factos do anúncio", cx)
         self.assertNotIn("Para decidir", cx)
@@ -23629,6 +23919,72 @@ class TestTerceiraRondaCoerenciaDeDesenhoETexto(_CicloDoTesteComUtilizadores):
         h = self.cliente.get("/ajuda").get_data(as_text=True)
         for termo in ("lote", "gestor-e-utilizador", "por-a-empresa-a-trabalhar"):
             self.assertIn("<dt id='%s'>" % termo, h)
+
+
+class TestALeituraAssociadaAsPecas(BaseTemporaria):
+    """A verificação depois da resposta (29/09/2026, 3.ª ronda): o que se
+    grava é o que as peças sustentam, e o guião do ensaio confronta com
+    as peças certas. O modelo nunca é chamado: o `_perguntar()` é um
+    duplo."""
+
+    def _ler(self, respostas):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, texto) VALUES "
+                      "('90/2026','UTAN','novo','')")
+            c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) VALUES "
+                      "('90/2026','CE.pdf',?,'ok')",
+                      ("Cláusula 1.ª - Objeto\nFornecimento de uma UTAN.\f"
+                       "Cláusula 2.ª - Características\nCaudal máximo de insuflação "
+                       "[m3/h] 1540\n",))
+        vistos = []
+
+        def perguntar(cadeia, instrucao, texto):
+            vistos.append(texto)
+            for chave, resposta in respostas.items():
+                if '{"%s"' % chave in instrucao.replace(" ", ""):
+                    return dict(resposta), "", "duplo:m"
+            return None, "falhou", ""
+
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: [("duplo", "u", "m", "k", {})]), \
+             unittest.mock.patch.object(radar, "extrair_textos", lambda ref: None), \
+             unittest.mock.patch.object(radar, "_perguntar", perguntar):
+            radar.analisar_pecas("90/2026")
+        return radar.analise_de("90/2026"), vistos
+
+    def test_o_numero_inventado_grava_se_marcado_e_as_clausulas_tipo_saem(self):
+        # 23853: «caudais nominais 1200 m3/h», com a tabela a dizer 1540
+        linha, vistos = self._ler({"objecto": {
+            "objecto": "- UTAN com caudal de 1540 m3/h (pág. 2)\\n"
+                       "- caudais nominais 1200 m3/h (pág. 2)\\n"
+                       "- Cumprir a legislação aplicável",
+            "localizacao": "não consta"}})
+        self.assertIn("[pág. 2]", vistos[0])
+        objecto = linha["objecto"].split("\n")
+        self.assertEqual(objecto[0], "- UTAN com caudal de 1540 m3/h (pág. 2)")
+        self.assertIn("confirmar: o número 1200", objecto[1])
+        self.assertEqual(len(objecto), 2)
+
+    def test_o_ensaio_casa_as_fontes_com_paginas_e_zip(self):
+        # 23389, 23728, 22036: as fontes trazem « (pág. …)» e «zip/membro»,
+        # e o guião só confrontava com o ficheiro sem páginas
+        import importlib.util
+        with radar.liga() as c:
+            for nome, texto in (("CE.pdf", "Cláusula 1 - Objeto UPS"),
+                                ("Pecas.zip", "o Programa"), ("Anexo.xlsx", "cadastro")):
+                c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                          "VALUES ('91/2026',?,?,'ok')", (nome, texto))
+        caminho = os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               ".claude", "skills", "ensaio-de-leitura", "ensaio.py")
+        spec = importlib.util.spec_from_file_location("ensaio_de_leitura", caminho)
+        ensaio = importlib.util.module_from_spec(spec)
+        # o guião troca o sys.stdout ao ser importado
+        with unittest.mock.patch.object(sys, "stdout", io.TextIOWrapper(io.BytesIO())):
+            spec.loader.exec_module(ensaio)
+        nomes, _ = ensaio.texto_das_pecas(
+            radar, "91/2026", "CE.pdf (pág. 1–3), Pecas.zip/Programa.pdf (pág. 4), Anexo.xlsx")
+        self.assertEqual(sorted(nomes), ["Anexo.xlsx", "CE.pdf", "Pecas.zip"])
+
 
 
 if __name__ == "__main__":
