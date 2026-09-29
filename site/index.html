@@ -17,7 +17,68 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Mira Gov: nenhum concurso da sua área fica por ver.">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Mira Gov","url":"https://miragov.pt/","inLanguage":"pt-PT"}</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "WebSite",
+   "@id": "https://miragov.pt/#site",
+   "name": "Mira Gov",
+   "url": "https://miragov.pt/",
+   "inLanguage": "pt-PT",
+   "publisher": {
+    "@id": "https://miragov.pt/#organizacao"
+   }
+  },
+  {
+   "@type": "Organization",
+   "@id": "https://miragov.pt/#organizacao",
+   "name": "Mira Gov",
+   "url": "https://miragov.pt/",
+   "logo": "https://miragov.pt/favicon.svg",
+   "description": "Produto privado e independente, feito em Portugal, que vigia os concursos públicos portugueses.",
+   "areaServed": {
+    "@type": "Country",
+    "name": "Portugal"
+   },
+   "contactPoint": {
+    "@type": "ContactPoint",
+    "contactType": "customer support",
+    "url": "https://miragov.pt/#acesso",
+    "availableLanguage": "pt-PT"
+   }
+  },
+  {
+   "@type": "SoftwareApplication",
+   "@id": "https://miragov.pt/#aplicacao",
+   "name": "Mira Gov",
+   "url": "https://miragov.pt/",
+   "applicationCategory": "BusinessApplication",
+   "operatingSystem": "Web",
+   "inLanguage": "pt-PT",
+   "description": "Vigia os anúncios de contratação pública do Diário da República (2.ª série, parte L), descarrega as peças do procedimento e mostra a que preço o mercado adjudica, a partir dos contratos do Portal BASE.",
+   "featureList": [
+    "Leitura do Diário da República ao longo do dia",
+    "Descarga e resumo das peças do procedimento",
+    "Preços de adjudicação e adjudicatários por área (Portal BASE)",
+    "Triagem e acompanhamento das propostas da equipa"
+   ],
+   "publisher": {
+    "@id": "https://miragov.pt/#organizacao"
+   },
+   "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR",
+    "description": "Gratuito durante a beta, para as primeiras empresas.",
+    "url": "https://miragov.pt/#acesso"
+   }
+  }
+ ]
+}
+</script>
+<!--FAQ-JSONLD-->
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <!--MOLDURA-->
 <style>
