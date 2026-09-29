@@ -164,7 +164,7 @@ comparadas antes de apagar.
 |---|---|---|
 | `propostas` | **4** — da LATD, que voltou como empresa 2 a 24/09/2026 (eram 81 antes de 23/09) | O que a **empresa** está a fazer — a escada |
 | `tarefas` | dezenas | O que falta fazer, por proposta — e, desde 26/09/2026, por documento do cofre (`documento_id`). A verificação sincroniza-as |
-| `notas_da_proposta` | **0** (a LATD não tinha notas quando a coluna passou, a 26/09/2026) | As notas datadas e assinadas: texto, quem, quando. Nenhuma apaga a anterior (§3.1) |
+| `notas_da_proposta` | **0** (a LATD não tinha notas quando a coluna passou, a 26/09/2026) | As notas datadas e assinadas: texto, quem, quando. Nenhuma apaga a anterior; quem a escreveu corrige-a ou apaga-a (§3.1) |
 | `documentos_da_empresa` | **0** | O cofre (D5, 26/09/2026): tipo, número ou descrição, validade. Sem ficheiros (§4.8) |
 | `contactos` | **0** (eram 26 na LATD antes de 23/09) | As pessoas do lado de lá, **por entidade** |
 | `historico` | uma por movimento | Quem, o quê, quando — o que a **empresa** fez. Cresce a **cada acção** no painel; o que o DR e as peças fizeram está nos `eventos` |
@@ -315,9 +315,22 @@ gravar-se com o aviso a vermelho (`aviso_do_ccp()`).
 **A fase que a página mostrava vai com o gesto** (ronda em PC): o
 selector manda o `de`, e se a proposta já está noutra fase — mudada
 noutro separador, ou por um colega — nada muda e o aviso diz em que
-fase está (`recado_da_fase_mudada()`). **Uma nota nova grava-se mesmo
-quando a ficha mudou entretanto**: acrescenta, não substitui; os outros
-campos do bloco é que não se gravam.
+fase está (`recado_da_fase_mudada()`). O **desfazer** leva também a
+fase em que deixou a proposta, e recusa se um colega a mudou depois; e
+pedir a fase em que a proposta já está não é conflito — é o segundo
+toque no «Mudar» (3.ª ronda, 29/09/2026). **Uma nota nova grava-se
+mesmo quando a ficha mudou entretanto, ou quando outro campo é
+recusado** (um preço apagado sem querer): acrescenta, não substitui; os
+outros campos do bloco é que não se gravam — e só há conflito se o
+pedido muda algum campo. A **tarefa** (`versao_da_tarefa()`) e o
+**responsável** (o `de`) têm a mesma guarda: quem grava sobre uma página
+antiga não passa por cima do colega, e o aviso diz o que está agora.
+
+**Gravar uma vez** (3.ª ronda, G1): cada formulário leva um `envio`
+aleatório, e um segundo pedido com o mesmo — o duplo toque, o «voltar»
+e «Guardar» outra vez — recebe a resposta do primeiro sem gravar outra
+vez (`envio_repetido()`). No browser, o botão diz «A gravar…» e
+desliga-se até a página mudar.
 
 **O desfecho tem datas e valor** (D3 e D10, 26/09/2026): o «Ganho» e o
 «Perdido» pedem, na mesma caixa e sem obrigar, a **data da
@@ -327,7 +340,10 @@ preliminar» o bloco tem a **data da notificação** do relatório, que abre
 a tarefa da audiência prévia (§3.5).
 
 **As notas são datadas e assinadas** (D3): cada nota nova fica com
-quem e quando, e nenhuma apaga a anterior. A nota única que cada
+quem e quando, e nenhuma apaga a anterior. **Quem escreveu uma nota
+corrige-a ou apaga-a, sempre** (D6 da 3.ª ronda, 29/09/2026), e o
+histórico guarda o que ela dizia («nota corrigida», «nota apagada»);
+as dos outros não se tocam. A nota única que cada
 proposta tinha passou a ser a primeira, «antes das notas datadas».
 Uma proposta **fechada com tarefas por fazer** di-lo no bloco, com um
 «fechar as N tarefas». O histórico guarda **o antes e o depois** do
@@ -637,7 +653,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**124 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**126 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1297,7 +1313,7 @@ mesma rota sem sair da página (§4.3).
 |---|---|
 | Triar um anúncio (interessa / abandonar + motivo) | lista, ficha |
 | Mudar de ranhura (+ os campos que ela exige) | lista, Hoje, ficha |
-| Gravar campos da proposta · escrever uma nota nova | ficha, ficha da proposta |
+| Gravar campos da proposta · escrever uma nota nova · corrigir ou apagar a própria nota | ficha, ficha da proposta |
 | Juntar · mudar · remover um documento do cofre | Configurações › Documentos da empresa (admin) |
 | Criar / apagar proposta | ficha, `/proposta/nova` |
 | Criar tarefa · marcar feita · desfazer · adiar · atribuir | Hoje, ficha |

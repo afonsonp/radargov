@@ -1057,8 +1057,8 @@ e há um bloco por lote, quando há lotes. Lá dentro: a ranhura, os campos
 que ela pede, a tipologia e a unidade de negócio (as listas são da tua
 empresa, e escrevem-se no Perfil da empresa, nas Configurações; sem
 lista, o campo não aparece), os **documentos da proposta** que o
-Programa pede, para marcares os que estão prontos, as notas (cada nota nova fica com a data e o teu nome, e as de
-antes não se apagam), as etiquetas, o que falta fazer, e o desfecho do Portal
+Programa pede, para marcares os que estão prontos, as notas (cada nota nova fica com a data e o teu nome; as tuas
+corriges ou apagas quando quiseres, e o histórico guarda o que diziam), as etiquetas, o que falta fazer, e o desfecho do Portal
 BASE quando já há contrato celebrado. O responsável escreve-se no cartão
 «Responsável», ao lado, que aparece quando o concurso já está na escada.
 

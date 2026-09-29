@@ -761,6 +761,13 @@ ul.notas{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:var(--space-2
 ul.notas li{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary)}
 ul.notas .nota-cab{color:var(--ink-muted);font-weight:600}
 ul.notas .nota-texto{white-space:pre-line;overflow-wrap:anywhere}
+/* D6 da 3.ª ronda: o «corrigir» e o «apagar» de uma nota própria, na
+   mesma linha, pequenos; o corrigir abre a caixa no sítio. */
+ul.notas .nota-mexer{display:inline-block;margin-right:var(--space-2)}
+ul.notas .nota-mexer summary{cursor:pointer;color:var(--ink-muted)}
+ul.notas .nota-mexer[open]{display:block}
+ul.notas .nota-mexer textarea{width:100%;margin:4px 0}
+ul.notas li>form.accao{display:inline-block}
 
 /* O cofre dos documentos (D5, 26/09/2026): cada linha é um formulário
    que dobra no telemóvel. */
