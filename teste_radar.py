@@ -8539,6 +8539,9 @@ class TestOTextoDoEcraSegueOGuia(BaseTemporaria):
         (r"escolhe…|\b(?:escolhe (?:na|a ficha)|escreve-a|carrega-o|recarrega a "
          r"página|vê a coluna|usa o botão|escreve mais|carrega outra vez|"
          r"confirma antes de)\b", "tratamento por tu: você"),
+        # e os que a 3.ª ronda achou (G92): o preço, o Mercado, as Entidades
+        (r"(?i:\b(?:escreve-o assim|marca duas|corre python))\b",
+         "tratamento por tu: você"),
         (r"\bNão criei\b|\bMandei\b", "a máquina na primeira pessoa"),
         (r"\b(?:ranhura|corpus|acervo)\b", "palavra interna: fase, contratos do "
          "Portal BASE, todos os concursos"),
@@ -8638,6 +8641,46 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         fora = [m.group(1).strip() for m in
                 re.finditer(r"border-radius:\s*([^;}\"']+)", css)
                 if not self._raio_de_token(m.group(1).strip())]
+        self.assertEqual(fora, [])
+
+    # As cores escritas à mão que ficam, e porquê (3.ª ronda, D1). Tudo o
+    # resto é um token: um `#fff` à mão é branco nos três temas, e foi
+    # assim que o calendário, a distribuição dos preços, o visualizador,
+    # a árvore e a caixa da tarefa ficaram brancos no escuro, com o texto
+    # do escuro por cima a 1,16:1 (rel. 06B #3-#7).
+    CORES_LITERAIS = {
+        ".etq": "a letra sobre a cor da etiqueta, que é da pessoa e não do tema",
+        "button.etq-x": "o × da etiqueta, sobre a mesma cor",
+        "dialog.mg-dialog::backdrop": "o véu por trás do diálogo, igual nos três",
+    }
+    RX_COR = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgb|hsl)a?\(|"
+                        r"(?<![\w-])(?:white|black)(?![\w-])")
+
+    def test_as_cores_sao_tokens(self):
+        css = re.sub(r"(?s)/\*.*?\*/", "", self._nosso_css())
+        fora = []
+        for seletor, corpo in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            seletor = " ".join(seletor.split())
+            if seletor in self.CORES_LITERAIS:
+                continue
+            for decl in corpo.split(";"):
+                prop, _, valor = decl.partition(":")
+                if prop.strip().startswith("--") or not valor:
+                    continue
+                if self.RX_COR.search(valor):
+                    fora.append("%s { %s }" % (seletor, decl.strip()))
+        self.assertEqual(fora, [])
+
+    def test_o_que_as_paginas_pintam_em_style_e_token(self):
+        fora = []
+        for rota, pagina in _paginas_do_guia(self).items():
+            pagina = re.sub(r"<span class='mg mg-logo[^>]*>", "", pagina)
+            # a etiqueta leva a cor que a pessoa lhe deu
+            pagina = re.sub(r"<span class='etq' style='[^']*'>", "", pagina)
+            for estilo in re.findall(r"style='([^']*)'|style=\"([^\"]*)\"", pagina):
+                estilo = estilo[0] or estilo[1]
+                if self.RX_COR.search(estilo):
+                    fora.append("%s: %s" % (rota, estilo))
         self.assertEqual(fora, [])
 
     def test_as_escalas_estao_definidas(self):
@@ -9008,10 +9051,12 @@ class TestPeleNova(unittest.TestCase):
             # passou a vir dos tokens. O tema é que escolhe agora --
             # claro, escuro, contraste.
             # O BASE carimba o aspecto da pessoa (D14, 26/09/2026): o
-            # claro, ou o contraste que ela escolheu na conta. Os outros
-            # dois não têm sessão a quem perguntar.
+            # claro, ou o que ela escolheu na conta. Os outros dois não têm
+            # sessão a quem perguntar, e seguem o computador (3.ª ronda,
+            # D1: o site segue-o, e quem carregava em «Entrar» com o
+            # computador em escuro caía numa página clara).
             self.assertIn('data-theme="%(tema)s"' if molde is radar.BASE
-                          else 'data-theme="claro"', molde)
+                          else 'data-theme="sistema"', molde)
             self.assertNotIn('data-tipo=', molde)
             # e a folha que carimbam tem de ser a que traz a pele
             self.assertIn("%(css)s", molde)
@@ -10621,7 +10666,11 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
                               headers={"Referer": "http://localhost/concursos"})
         h = self.cliente.get(r.headers["Location"]).get_data(as_text=True)
         # um erro lê-se já (role=alert), e não com o tom de um sucesso
-        self.assertIn("role='alert'><span aria-hidden='true'>&#10005;</span> «abc» não se lê", h)
+        # (o sinal é o ⚠ desde a 3.ª ronda, G97: o ✕ fazia par com o × de
+        # fechar, e o aviso tinha duas cruzes)
+        self.assertIn("role='alert'><span aria-hidden='true'>&#9888;&#65038;</span> «abc» não se lê", h)
+        # e trata por você, como o resto do produto (3.ª ronda, G92)
+        self.assertIn("Escreva-o assim", h)
 
     def test_os_botoes_da_linha_dizem_de_que_concurso_sao(self):
         h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
@@ -14695,9 +14744,12 @@ class TestMudancasDeSetembro(BaseTemporaria):
 
     def test_o_interesse_e_so_a_arvore_aberta_e_grava_pelo_botao_dela(self):
         html_ = radar.app.test_client().get("/configuracoes/interesse").get_data(as_text=True)
-        self.assertIn("<details class='arvore' data-de='anuncios' open>", html_)
-        self.assertIn("Guardar o perfil", html_)
-        self.assertNotIn("data-submeter", html_)         # o botao da arvore submete
+        # desde a 3.ª ronda (G95) grava o «Guardar o perfil» do formulário,
+        # um só, e não um botão da árvore: eram dois «Guardar» na página
+        self.assertIn("<details class='arvore' data-de='anuncios' "
+                      "data-submeter='nao' open>", html_)
+        self.assertIn("form='form-perfil' class='mg-btn mg-btn--primary'>"
+                      "Guardar o perfil", html_)
         self.assertNotIn("Marcar uma divisão apanha", html_)
         self.assertNotIn("name='activo'", html_)
         self.assertNotIn("Aplicar seleccionados", html_)
@@ -19868,8 +19920,9 @@ class TestAspectoDeAltoContraste(BaseTemporaria):
         ana, rui = self._entra("ana"), self._entra("rui")
         conta = self._pagina(ana)
         self.assertIn('data-theme="claro"', conta)
-        self.assertIn("value='contraste'", conta)
-        self.assertNotIn("value='escuro'", conta)
+        # os quatro desde a 3.ª ronda (D1): o escuro e o «como o sistema»
+        for valor in ("normal", "escuro", "sistema", "contraste"):
+            self.assertIn("value='%s'" % valor, conta)
         r = ana.post("/configuracoes/conta/aspecto",
                      data={"csrf": self._token(ana), "aspecto": "contraste"},
                      environ_base=self.FORA)
@@ -19884,6 +19937,26 @@ class TestAspectoDeAltoContraste(BaseTemporaria):
                  environ_base=self.FORA)
         self.assertIn('data-theme="contraste"', self._pagina(rui, "/"))
 
+    def test_o_escuro_e_o_do_sistema(self):
+        """3.ª ronda, D1 (decisão dele): o escuro oferece-se, e o «como o
+        sistema» carimba `sistema`, que o guião do <head> troca pelo claro
+        ou pelo escuro do computador antes de a página se pintar."""
+        ana = self._entra("ana")
+        for aspecto, tema in (("escuro", "escuro"), ("sistema", "sistema")):
+            ana.post("/configuracoes/conta/aspecto",
+                     data={"csrf": self._token(ana), "aspecto": aspecto},
+                     environ_base=self.FORA)
+            pagina = self._pagina(ana, "/")
+            self.assertIn('data-theme="%s"' % tema, pagina)
+            # o guião vem antes da folha, para não pintar claro primeiro
+            self.assertLess(pagina.index("prefers-color-scheme: dark"),
+                            pagina.index('rel="stylesheet"'))
+        # sem sessão, o «Entrar» segue o computador
+        pagina = radar.app.test_client().get(
+            "/entrar", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn('data-theme="sistema"', pagina)
+        self.assertIn("prefers-color-scheme: dark", pagina)
+
     def test_um_valor_de_fora_nao_chega_ao_html(self):
         ana = self._entra("ana")
         ana.post("/configuracoes/conta/aspecto",
@@ -19892,7 +19965,7 @@ class TestAspectoDeAltoContraste(BaseTemporaria):
         self.assertIn('data-theme="claro"', self._pagina(ana, "/"))
         with self.assertRaises(ValueError):
             with radar.liga() as c:
-                radar.contas.gravar_aspecto(c, 1, "escuro")
+                radar.contas.gravar_aspecto(c, 1, "roxo")
 
 
 class TestDeclaracaoDeAcessibilidade(BaseTemporaria):
@@ -21235,7 +21308,8 @@ class TestSegundoFactorDoDono(BaseTemporaria):
         self.assertIsNone(cliente.get_cookie("sessao"))
         # e o trinco fecha também a palavra-passe
         _, r = self.entrar()
-        self.assertIn("demasiadas tentativas", r.get_data(as_text=True))
+        # (em frase, com maiúscula, desde a 3.ª ronda, G97)
+        self.assertIn("Demasiadas tentativas", r.get_data(as_text=True))
 
     def test_um_codigo_de_recuperacao_entra(self):
         codigos = self.ligar()
@@ -23431,6 +23505,130 @@ class TestProcurarNaPecaNaoRedesenhaTudo(BaseTemporaria):
         self.assertIn("/3.png'", corpo)
         self.assertEqual(corpo.count("?procurar="), 1)
         self.assertIn("aparece em <b>1 página</b>", corpo)
+
+
+class TestTerceiraRondaCoerenciaDeDesenhoETexto(_CicloDoTesteComUtilizadores):
+    """Lote 8 da 3.ª ronda (29/09/2026): o que se desenhava ou se dizia de
+    duas maneiras. Os documentos da proposta com a caixa numa linha e o
+    nome na seguinte, a «Nova proposta» sem estilo, a barra a acender
+    «Concursos» numa proposta, as faixas de aviso a chegar vazias, os
+    formatos (o preço do DR no campo, a data em ISO, os CPV com a barra),
+    o «tu» que sobrava, a árvore dos CPV com dois «Guardar» e um filtro
+    que exigia acentos, e as datas sem ano recusadas sem se dizer."""
+
+    @staticmethod
+    def _nossa_folha():
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            return f.read()
+
+    def test_g87_a_caixa_do_documento_fica_ao_lado_do_nome(self):
+        folha = self._nossa_folha()
+        self.assertRegex(folha, r"\.docs-da-proposta \.doc-pronto\{display:flex;"
+                                r"flex-direction:row")
+        self.assertIn(".docs-da-proposta .doc-pronto input{flex:none;width:auto", folha)
+
+    def test_g88_a_nova_proposta_tem_os_campos_do_sistema(self):
+        h = self.cliente.get("/proposta/nova").get_data(as_text=True)
+        for campo in ("n-entidade", "n-titulo", "n-porque"):
+            self.assertIn("<label class='mg-field__label' for='%s'>" % campo, h)
+            self.assertIn("class='mg-field__input' id='%s'" % campo, h)
+        self.assertIn("<div class='mg-card__body'><form method='post' "
+                      "class='form-nova'>", h)
+
+    def test_g89_uma_proposta_acende_as_propostas(self):
+        r = self.cliente.post("/proposta/nova", data={"entidade": "Junta X",
+                                                       "titulo": "Limpeza"})
+        id_ = int(re.search(r"/proposta/(\d+)", r.headers["Location"]).group(1))
+        for rota in ("/proposta/nova", "/proposta/%d" % id_):
+            h = self.cliente.get(rota).get_data(as_text=True)
+            self.assertRegex(h, r"<a[^>]*href='%s'[^>]*aria-current"
+                             % radar.PROPOSTAS, rota)
+            self.assertNotRegex(h, r"<a[^>]*href='%s'[^>]*aria-current"
+                                % radar.LISTA, rota)
+        # e a data de criação à portuguesa (G91)
+        self.assertRegex(h, r"Criada a \d{2}/\d{2}/\d{4}")
+
+    def test_g90_o_aviso_chega_com_o_texto(self):
+        # o texto fica no aviso à vista; o que entra depois é a região só
+        # para o leitor de ecrã
+        self.assertNotIn("t.innerHTML = '';", radar.BASE)
+        self.assertIn("vivo.className = 'so-leitor';", radar.BASE)
+
+    def test_g91_o_preco_no_campo_e_os_cpv_por_palavras(self):
+        self.assertEqual(radar.preco_do_campo("230.000,00 EUR"), "230 000,00 €")
+        self.assertEqual(radar.preco_do_campo(""), "")
+        # gravar sem mexer não muda nada
+        self.assertEqual(radar.preco_escrito(radar.preco_do_campo("230.000,00 EUR")),
+                         "230.000,00 EUR")
+        self._proposta("preparar")
+        h = self._ficha()
+        self.assertIn("name='valor_proposta' value='118 500,00 €'", h)
+        self.assertNotIn("118.500,00 EUR", h)
+        with radar.liga() as c:
+            c.execute("INSERT INTO cpv_dict (codigo8, descricao, simples) VALUES "
+                      "('90911200', 'Serviços de limpeza de edifícios', 'limpeza')")
+        texto = radar.resumo_filtro("cpv=90911200|software&dist=Braga|Porto")
+        self.assertIn("90911200 Serviços de limpeza de edifícios, software", texto)
+        self.assertIn("distrito Braga, Porto", texto)
+        self.assertNotIn("|", texto)
+
+    def test_g95_um_guardar_so_no_perfil(self):
+        h = self.cliente.get("/configuracoes/interesse").get_data(as_text=True)
+        self.assertEqual(h.count("Guardar o perfil</button>"), 1)
+        self.assertIn("form='form-perfil'", h)
+        self.assertNotIn("onclick='arvoreAplicar()'>Guardar", h)
+        # e a árvore desenha os ramos ao abrir, e filtra sem acentos
+        self.assertIn("function arvoreDesenharFilhos", radar.ARVORE_JS)
+        self.assertIn("normalize('NFD')", radar.ARVORE_JS)
+        self.assertNotIn("filhos[cod].forEach(function(f) { det.appendChild",
+                         radar.ARVORE_JS)
+
+    def test_g96_a_data_sem_ano_e_deste_ano(self):
+        ano = datetime.date.today().year
+        self.assertEqual(radar.data_do_texto("2/10"), "%d-10-02" % ano)
+        self.assertEqual(radar.data_de_filtro("2/10"), "%d-10-02" % ano)
+        self.assertEqual(radar.data_do_texto("31/2"), "")
+        id_ = self._proposta()
+        self.cliente.post("/tarefa/nova", data={
+            "ref": "60/2026", "proposta_id": str(id_), "o_que": "ligar ao júri",
+            "quando": "2/10"})
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT quando FROM tarefas WHERE "
+                                       "o_que='ligar ao júri'").fetchone()[0],
+                             "%d-10-02" % ano)
+        # e o campo de uma data que não se lê marca-se
+        self.assertIn("input.campo-data", radar.BASE)
+
+    def test_g97_o_erro_de_entrar_e_uma_frase(self):
+        self.assertEqual(
+            radar.frase_do_aviso_de_entrar("utilizador ou palavra-passe errados"),
+            "Utilizador ou palavra-passe errados. Se se esqueceu da "
+            "palavra-passe, peça ao gestor da sua empresa uma ligação para a repor.")
+        self.assertEqual(radar.frase_do_aviso_de_entrar("Já tem ponto."), "Já tem ponto.")
+
+    def test_g97_o_resumo_aberto_a_mao_vai_para_o_mercado(self):
+        r = self.cliente.get("/contratos/resumo?q=x",
+                             headers={"Sec-Fetch-Mode": "navigate"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].endswith("/contratos?q=x"))
+        # o fetch da página continua a receber o pedaço
+        self.assertEqual(self.cliente.get("/contratos/resumo").status_code, 200)
+
+    def test_g97_na_ficha_nao_se_manda_para_a_ficha(self):
+        id_ = self._proposta()
+        radar.criar_tarefa("ligar", "2026-10-02", proposta_id=id_, ref="60/2026")
+        with radar.app.test_request_context(
+                "/", headers={"Referer": "http://localhost/anuncio/60%2F2026"}):
+            self.assertIn("mais abaixo", radar.recado_das_tarefas_que_ficam(id_))
+        with radar.app.test_request_context(
+                "/", headers={"Referer": "http://localhost/concursos"}):
+            self.assertIn("na ficha", radar.recado_das_tarefas_que_ficam(id_))
+
+    def test_g97_a_ajuda_explica_o_lote_os_papeis_e_o_dispensar(self):
+        h = self.cliente.get("/ajuda").get_data(as_text=True)
+        for termo in ("lote", "gestor-e-utilizador", "por-a-empresa-a-trabalhar"):
+            self.assertIn("<dt id='%s'>" % termo, h)
 
 
 if __name__ == "__main__":
