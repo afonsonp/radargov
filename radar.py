@@ -5865,6 +5865,17 @@ def link_do_procedimento(a):
         return (ACINGOV_PESQUISA, "Procurar na acingov",
                 "a acingov não tem página pública do procedimento — só se "
                 "vê com sessão iniciada; isto abre a pesquisa pública")
+    # A anogov quando o DR nao traz o acessoDocs, so a entrada da
+    # entidade (dashboard.jsp, faces/, detalhePap.jsp sem parametros; 14
+    # em 2026, quase todos da IP): o que se pode oferecer e a lista dos
+    # procedimentos dessa entidade, que e publica (29/09/2026).
+    entidade_anogov = re.match(r"(https?://(?:www\.)?anogov\.com/[^/]+)/faces/",
+                               link)
+    if entidade_anogov and "acessoDocs" not in link:
+        return (entidade_anogov.group(1) + "/faces/app/pap/listaPaps.jsp",
+                "Procurar na anogov",
+                "o anúncio não traz o endereço do procedimento; isto abre a "
+                "lista dos procedimentos da entidade")
     if link:
         # anogov, compraspt e a ESPAP: o acessoDocs e a pagina do
         # procedimento. Para o resto, e o unico endereco que ha.
@@ -28101,18 +28112,10 @@ def ficha(ref):
                     % (html.escape(destino, quote=True),
                        html.escape(dica, quote=True), html.escape(rotulo),
                        icone("externo")))
-    # Na Vortal as duas paginas dao no mesmo sitio (29/09/2026, dito por
-    # ele): fica um botao so. Na acingov o link das pecas descarrega um
-    # ZIP, e o botao passa a dize-lo antes do clique.
-    plat = (a["plataforma"] or "").strip()
-    if a["link_pecas"] and a["link_pecas"] != destino and plat != "vortal":
-        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
-                    "title='o endereço das peças que o anúncio indica'>"
-                    "%s %s</a>"
-                    % (html.escape(a["link_pecas"], quote=True),
-                       "Descarregar as peças (ZIP)"
-                       if "donwloadProcedurePiece" in a["link_pecas"]
-                       else "Peças na plataforma", icone("externo")))
+    # As pecas da plataforma NAO tem botao aqui em cima (29/09/2026, ele:
+    # «as pessoas começam logo por aí e não vão às peças na nossa
+    # plataforma»). Vivem no bloco das pecas, e so enquanto o Mira Gov
+    # ainda nao as tem -- ver botao_das_pecas_na_plataforma().
     sem_empresa = empresa_activa() == SEM_EMPRESA
     if not minhas and not e_alteracao and not sem_empresa:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
@@ -28395,8 +28398,10 @@ def ficha(ref):
                      "<a href='/anuncio/%s#pecas'>%s</a>, da mesma cadeia."
                      % (quote(pecas_noutro, safe=""), html.escape(pecas_noutro)))
         corpo_docs = "<p class='ficha-nota'>%s</p>" % nota
-        accoes_pecas = accao("/documentos/%s" % ref,
-                             icone("descarregar", 16) + " Trazer peças", "mini forte")
+        accoes_pecas = (accao("/documentos/%s" % ref,
+                              icone("descarregar", 16) + " Trazer peças",
+                              "mini forte")
+                        + botao_das_pecas_na_plataforma(a))
         meta_pecas = html.escape(a["plataforma"] or "")
 
     # O leitor da peca escolhida, por baixo da lista e dentro da mesma
@@ -28564,6 +28569,42 @@ def trazer_documentos(ref):
     """
     pedir_documentos(ref)
     return redirect("/anuncio/" + ref)
+
+
+def botao_das_pecas_na_plataforma(a):
+    """O botao que abre as pecas na plataforma, para o bloco das pecas
+    quando o Mira Gov ainda nao as tem (29/09/2026). E um POST: abre a
+    plataforma noutro separador e, no mesmo gesto, pede as pecas para o
+    concurso -- quem as descarrega de la tambem as fica a ter aqui."""
+    link = (a["link_pecas"] or "").strip()
+    if not link.startswith(("http://", "https://")):
+        return ""
+    rotulo = ("Descarregar da plataforma (ZIP)"
+              if "donwloadProcedurePiece" in link
+              else "Abrir as peças na plataforma")
+    return ("<form class='accao' method='post' target='_blank' action="
+            "'/pecas-da-plataforma/%s' onsubmit=\"setTimeout(function()"
+            "{location.reload()},1500)\"><button type='submit' class='%s' "
+            "title='abre a plataforma e traz as peças para este concurso'>"
+            "%s %s</button></form>"
+            % (html.escape(quote(a["ref"], safe="/"), quote=True),
+               botao("mini"), rotulo, icone("externo")))
+
+
+@app.route("/pecas-da-plataforma/<path:ref>", methods=["POST"])
+def pecas_da_plataforma(ref):
+    """Leva as pecas na plataforma e pede-as para o concurso (ver
+    botao_das_pecas_na_plataforma()). O destino e o link que o DR
+    publicou e esta na base, nunca o que vem no pedido."""
+    with liga() as c:
+        a = c.execute("SELECT link_pecas, docs_estado FROM anuncios "
+                      "WHERE ref=?", (ref,)).fetchone()
+    link = ((a["link_pecas"] if a else "") or "").strip()
+    if not link.startswith(("http://", "https://")):
+        return redirect("/anuncio/" + quote(ref, safe="/"))
+    if a["docs_estado"] not in ("pendente", "ok"):
+        pedir_documentos(ref)
+    return redirect(link)
 
 
 @app.route("/pecas-novas/<path:ref>", methods=["POST"])

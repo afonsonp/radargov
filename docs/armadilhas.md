@@ -309,9 +309,16 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   das peças: `…/donwloadProcedurePiece/MTEzMTQxOA` é o base64 de
   `1131418`, o `idProcesso` (`id_do_processo_acingov()`,
   `ACINGOV_PROCEDIMENTO`; 29/09/2026, com o endereço que ele deu). Sem
-  id, o botão diz "Procurar na acingov" e abre a pesquisa pública. O
-  segundo botão, o das peças, **sai na Vortal** (as duas páginas davam
-  no mesmo sítio) e **na acingov diz que é um ZIP**.
+  id, o botão diz "Procurar na acingov" e abre a pesquisa pública. Na
+  **anogov sem `acessoDocs`** (o DR traz só o `dashboard.jsp` ou a raiz
+  da entidade, 14 em 2026) abre a `listaPaps.jsp` da entidade: a lista
+  é JSF por POST e nenhum procedimento tem endereço próprio (medido a
+  29/09/2026). **O link das peças não tem botão no topo da ficha** (o
+  mesmo dia, ele: «as pessoas começam logo por aí e não vão às peças na
+  nossa plataforma»): vive no bloco das peças só enquanto elas não
+  estão cá, e é um POST, `/pecas-da-plataforma/<ref>`, que pede as
+  peças para o concurso e redirecciona para o link **da base**, nunca
+  para um do pedido.
 
 - **A pesquisa nas peças (B09) foi implementada e retirada no mesmo
   dia** (30/08/2026), por decisão do Afonso: as peças só existem depois
