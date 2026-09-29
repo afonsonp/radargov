@@ -507,7 +507,8 @@ A ordem do ficheiro é a ordem do fluxo:
    (`barra_de_baixo()`, `DESTINOS_DE_BAIXO`; D9 da segunda ronda,
    26/09/2026), com quatro destinos e um «Mais». O Calendário tem três
    filtros seus (`FILTROS_DO_CALENDARIO`, D12) e não as abas da escada;
-   o aspecto de alto contraste é da conta (`tema_da_pessoa()`, D14). Configurações
+   o aspecto (claro, escuro, como o sistema, alto contraste) é da conta
+   (`tema_da_pessoa()`, D14; o escuro desde a D1 da 3.ª ronda). Configurações
    (`/configuracoes/…`, etapa 2 do `ONLINE.md`, 8/09/2026 — **dez
    rotas literais**, não um `<seccao>`: procura-se pelo nome de cada
    uma):
@@ -607,7 +608,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **396 pontos** (contados a 29/09/2026), cada um de um erro que
+São **401 pontos** (contados a 29/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

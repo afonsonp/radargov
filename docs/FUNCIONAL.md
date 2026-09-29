@@ -1065,7 +1065,7 @@ dono da plataforma as abre; os **documentos** só o admin da empresa.
 
 | Secção | O que faz |
 |---|---|
-| **conta** | palavra-passe, sessões, o **aspecto** (normal ou alto contraste, por pessoa — D14, 26/09/2026), a nossa empresa (nome + NIF), utilizadores |
+| **conta** | palavra-passe, sessões, o **aspecto** (normal, escuro, como o sistema ou alto contraste, por pessoa — D14, 26/09/2026; D1, 29/09/2026), a nossa empresa (nome + NIF), utilizadores |
 | **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
 | **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
@@ -1085,14 +1085,15 @@ ajuda», `mais_na_ajuda()`). **As definições de lá
 seguem as deste documento**: uma regra que mude aqui muda lá. No fim,
 a ligação para a declaração de acessibilidade.
 
-**O aspecto** (D14, 26/09/2026, decisão dele): em Configurações › Conta,
-«Normal» ou «Alto contraste». Guarda-se **na conta**
-(`utilizadores.aspecto`, `contas.gravar_aspecto()`), e não no browser —
-vale em todos os aparelhos —, e o molde carimba-o no `data-theme`
-(`tema_da_pessoa()`): `claro` ou `contraste`. O escuro existe nos
-tokens e **não se oferece**: o subtítulo das páginas fica a 1,4:1 nele.
-O ecrã de entrar, o do convite e os de erro ficam no claro (não há a
-quem perguntar).
+**O aspecto** (D14, 26/09/2026, decisão dele; o escuro e o «como o
+sistema» desde a D1 da 3.ª ronda, 29/09/2026): em Configurações › Conta,
+«Normal», «Escuro», «Como o sistema» ou «Alto contraste». Guarda-se
+**na conta** (`utilizadores.aspecto`, `contas.gravar_aspecto()`), e não
+no browser — vale em todos os aparelhos —, e o molde carimba-o no
+`data-theme` (`tema_da_pessoa()`): `claro`, `escuro`, `sistema` ou
+`contraste`. O `sistema` troca-o o `TEMA_DO_SISTEMA_JS`, no `<head>`,
+pelo claro ou pelo escuro do computador. O ecrã de entrar, o do convite
+e os de erro seguem o computador (não há a quem perguntar).
 
 ### 4.9 A porta
 

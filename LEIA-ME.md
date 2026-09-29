@@ -815,10 +815,12 @@ Mudar a palavra-passe faz-se em **Configurações › Conta** (pede a
 actual), e é lá que se vêem as sessões abertas, cada uma pelo aparelho
 («iPhone até 10/10/2026 14:35»).
 
-Também lá, desde 26/09/2026, o **Aspecto**: «Normal» ou «Alto
-contraste» (texto e linhas mais escuros, sem sombras). É de cada
-pessoa e fica guardado na conta, por isso vale no telemóvel e no
-computador. Não há tema escuro: ainda não passa o contraste mínimo.
+Também lá, desde 26/09/2026, o **Aspecto**: «Normal», «Escuro»
+(desde 29/09/2026), «Como o sistema» (claro ou escuro, como o
+computador ou o telemóvel estiverem) ou «Alto contraste» (texto e
+linhas mais escuros, sem sombras). É de cada pessoa e fica guardado na
+conta, por isso vale no telemóvel e no computador. O ecrã de entrar,
+que ainda não sabe quem é, segue o computador.
 
 **Quando alguém se esquece da palavra-passe** (desde 26/09/2026) não há
 e-mail de recuperação — o ecrã de entrar diz para pedir ao

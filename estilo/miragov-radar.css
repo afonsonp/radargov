@@ -113,6 +113,8 @@ main.entrar h1{margin:0;font:600 var(--text-xl)/28px var(--font-serif);color:var
 main.entrar form{display:flex;flex-direction:column;gap:var(--space-4)}
 main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
  text-align:left}
+/* no telemóvel o cartão encostava às duas margens (3.ª ronda, G97) */
+@media (max-width:460px){main.entrar{margin:var(--space-6) var(--space-4);padding:var(--space-5)}}
 
 /* A LISTA DOS CONCURSOS como tabela (22/09/2026, `EcraConcursos` do
    sistema de desenho). As larguras são do domínio: o objecto leva o que
@@ -559,10 +561,20 @@ main#conteudo:focus{outline:none}
    era um contorno vazio (teste com utilizadores, 25/09/2026; WCAG
    1.4.3). Na banda, a cor de quem está sobre o azul. */
 .mg-card--band .mg-card__actions .mg-btn--subtle,
-.mg-card--band .mg-card__actions .mg-btn--secondary{color:var(--on-brand);
-  border-color:rgba(255,255,255,.55);background:transparent}
+.mg-card--band .mg-card__actions .mg-btn--secondary{color:var(--on-header);
+  border-color:color-mix(in srgb,var(--on-header) 55%,transparent);background:transparent}
 .mg-card--band .mg-card__actions .mg-btn--subtle:hover,
-.mg-card--band .mg-card__actions .mg-btn--secondary:hover{background:rgba(255,255,255,.12)}
+.mg-card--band .mg-card__actions .mg-btn--secondary:hover{
+  background:color-mix(in srgb,var(--on-header) 12%,transparent)}
+/* A BANDA É A COR DA BARRA, NOS TRÊS TEMAS (3.ª ronda, D1; rel. 06B #5).
+   O sistema pinta-a com o `--brand` e o subtítulo com o
+   `--on-header-muted`: no claro são o mesmo azul da barra, mas no escuro
+   o `--brand` passa a azul-claro e o subtítulo ficava a 1,36:1 («20
+   tarefas · 0 atrasadas»). Com o `--surface-header` a banda é azul-escura
+   em todos, e o título, o subtítulo e os botões ficam com a letra da barra.
+   No claro nada muda: `--surface-header` e `--brand` são o mesmo #004682. */
+.mg-card--band .mg-card__head{background:var(--surface-header);border-bottom-color:var(--surface-header)}
+.mg-card--band .mg-card__title{color:var(--on-header)}
 
 /* Abaixo de 600px a navegação de cima dobrava (teste com utilizadores:
    a rolar, «Calend» aparecia cortado). Desde 26/09/2026 (D9) ela nem
@@ -683,6 +695,9 @@ html:has(.aviso-da-vez){scroll-padding-bottom:112px}
  box-sizing:border-box;border-radius:var(--radius-md)}
 .mg-pager>a:hover{background:var(--surface-sunken)}
 .migalhas .b a,.mg-crumbs a{display:inline-flex;align-items:center;min-height:24px}
+/* e cada passo alinha pelo meio, com o último (que não é ligação) na
+   mesma linha dos outros: ficava mais acima (3.ª ronda, G97) */
+.mg-crumbs li{display:inline-flex;align-items:center;min-height:24px}
 [data-pele=novo] .chk{width:24px;height:24px}
 [data-pele=novo] .chk.on::after{left:8px;top:3px;width:6px;height:12px}
 main.mg input[type=checkbox],main.mg input[type=radio],dialog input[type=radio]{
@@ -1189,3 +1204,54 @@ ul.tarefas li form.accao{align-items:end}
 /* A dica de uma tabela que rola de lado (o JS do `BASE`; G75). */
 .rola-dica{margin:0 0 var(--space-1);font:400 var(--text-xs)/16px var(--font-sans);
  color:var(--ink-muted);text-align:right}
+
+/* O ESCURO PINTA TAMBÉM O QUE É DO BROWSER (3.ª ronda, D1): as caixas de
+   marcar, os `select`, as barras de rolar e o calendário do `<input>` vêm
+   claros sem isto, num ecrã escuro. */
+[data-theme="escuro"]{color-scheme:dark}
+
+/* A NOVA PROPOSTA (3.ª ronda, G88): os campos empilhados, o rótulo por
+   cima de cada um, como nas Configurações. */
+.form-nova{display:flex;flex-direction:column;gap:var(--space-4);max-width:560px}
+.form-nova .nota{margin:0}
+
+/* OS DOCUMENTOS DA PROPOSTA (3.ª ronda, G87): a caixa à esquerda do nome,
+   na mesma linha, e o nome clicável. As regras antigas dos campos da ficha
+   (`.prop-campos input`, `label` em coluna) punham a caixa numa linha e o
+   nome na seguinte, dentro da moldura cinzenta do browser: marcava-se o
+   documento errado como pronto. */
+.docs-da-proposta{border:var(--border-hairline) solid var(--line);border-radius:var(--radius-md);
+ margin:0;padding:var(--space-2) var(--space-3) var(--space-3);min-width:0;
+ display:flex;flex-direction:column;gap:var(--space-1)}
+.docs-da-proposta legend{padding:0 var(--space-1);font:600 var(--text-sm)/20px var(--font-sans);color:var(--ink)}
+.docs-da-proposta .doc-pronto{display:flex;flex-direction:row;align-items:flex-start;gap:var(--space-2);
+ font:400 var(--text-sm)/20px var(--font-sans);color:var(--ink);cursor:pointer;min-height:24px}
+.docs-da-proposta .doc-pronto input{flex:none;width:auto;min-width:0;height:auto;margin:2px 0 0;
+ accent-color:var(--brand)}
+
+/* O MESMO BOTÃO COM A MESMA ALTURA (3.ª ronda, G94). O sistema põe
+   `box-sizing:inherit` em tudo o que está dentro do `.mg`; mas o que está
+   dentro de um `<details>` herda do `slot` do browser, que é `content-box`
+   -- e aí o `mg-btn--sm` passava de 28 para 32 px (o «Guardar» do Hoje, a
+   árvore dos CPV, o «apagar» da proposta), e um campo ficava 4 px mais
+   largo do que o vizinho. */
+.mg details>*{box-sizing:border-box}
+
+/* A ESCALA DE LETRA DOS COMPONENTES (3.ª ronda, G93). O
+   `miragov-componentes.css` escreve tamanhos à mão (11, 13, 15, 17 e
+   30 px) que não são degraus da escala: contaram-se 14 tamanhos na
+   aplicação para 7 tokens, com 13 px em milhares de textos e os títulos a
+   30. A folha do sistema fica como é publicada; aqui cada um vai ao degrau
+   mais perto -- os títulos ao `--text-2xl` e ao `--text-lg`, o corpo ao
+   `--text-md`, o apoio ao `--text-sm` e ao `--text-xs`. */
+.mg-pagehead__title{font-size:var(--text-2xl);line-height:1.25}
+.mg-card__title,.mg-empty__title{font-size:var(--text-lg)}
+.mg-pagehead__sub,.mg-card__body,.mg-dialog__body{font-size:var(--text-md)}
+.mg-btn--sm,.mg-card__meta,.mg-card__foot,.mg-field__hint,.mg-field__error,
+.mg-choice__hint,.mg-stat__delta,.mg-stat__note,.mg-step__label,.mg-pager,
+.mg-table .mg-num,.mg-table .mg-code,.mg-crumbs,.mg-pager__pg,
+.mg-topbar__user{font-size:var(--text-sm)}
+.mg-avatar,.mg-step__label::before{font-size:var(--text-xs)}
+main.mg h3:not([class]){font-size:var(--text-lg)}
+.perfil-guardar{margin-top:var(--space-4)}
+input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--danger-soft)}

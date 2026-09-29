@@ -391,7 +391,10 @@ def e_dono(utilizador):
 
 
 # Os aspectos que a conta oferece, e o `data-theme` que cada um carimba.
-ASPECTOS = {"normal": "claro", "contraste": "contraste"}
+# O "sistema" nao e um tema: o guiao do <head> (TEMA_DO_SISTEMA_JS, no
+# radar) troca-o pelo claro ou pelo escuro do computador (3.a ronda, D1).
+ASPECTOS = {"normal": "claro", "escuro": "escuro", "sistema": "sistema",
+            "contraste": "contraste"}
 
 
 def gravar_aspecto(c, utilizador_id, aspecto):

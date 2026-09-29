@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 39
-- [A interface](#a-interface) &middot; 113
+- [A interface](#a-interface) &middot; 118
 - [Convenções](#convencoes) &middot; 5
 
-São **396** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **401** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -4069,9 +4069,13 @@ botões ou no calendário.
   `tema_da_pessoa()` traduz o `utilizadores.aspecto` pelo
   `contas.ASPECTOS`; o `gravar_aspecto()` recusa o que lá não está,
   porque o valor acaba num atributo do HTML. Os outros três moldes
-  (entrar, erro, convite) ficam no claro — não há sessão a quem
-  perguntar, e um 500 a meio de a ler dava outro 500. O escuro está nos
-  tokens e **não se oferece**: o subtítulo fica a 1,4:1 nele.
+  (entrar, erro, convite) carimbam `sistema` — não há sessão a quem
+  perguntar, e um 500 a meio de a ler dava outro 500. O escuro
+  oferece-se desde 29/09/2026 (D1 da 3.ª ronda), com o «como o sistema»:
+  o `sistema` não é um tema, é o `TEMA_DO_SISTEMA_JS` (no
+  `LIGACAO_CSS`, antes da folha) que o troca pelo claro ou pelo escuro.
+  Um `@media (prefers-color-scheme)` na nossa folha obrigava a copiar os
+  tokens do escuro, que são do sistema.
 - **Num teste, `radar.ler_estilo()` devolve vazio.** O `BaseTemporaria`
   aponta o `BASE_DIR` para a pasta temporária, e é daí que a função lê a
   pasta `estilo/`. Um teste que procure uma regra na nossa folha lê o
@@ -4199,6 +4203,37 @@ botões ou no calendário.
   campo inválido a sua mensagem em português (`invalid`, na captura), e
   limpa-a ao escrever. A caixa do motivo tem as suas, e fica de fora —
   o ouvinte do documento corre antes do dela, e tapava-as.
+- **Uma cor escrita à mão é a mesma nos três temas, e um teste lê-as**
+  (3.ª ronda, D1). O calendário, as caixas da distribuição, o
+  visualizador, a árvore e a caixa da tarefa tinham `background:#fff`, e
+  no escuro ficavam brancos com o texto do escuro por cima (1,16:1). O
+  `CSS`, o `CSS_NOVO` e a nossa folha passaram aos tokens; o
+  `TestODesenhoSegueOSistema.test_as_cores_sao_tokens` recusa um `#`,
+  um «rgb(» ou um `white` fora das cores que o teste lista com a razão, e o
+  vizinho faz o mesmo aos `style=` das páginas. Um translúcido faz-se com
+  `color-mix(in srgb, var(--x) N%, transparent)`. E a banda do cartão é
+  `--surface-header` e não `--brand`: no escuro o `--brand` é azul-claro,
+  e o subtítulo `--on-header-muted` ficava a 1,36:1. Ao medir o escuro
+  por JS, espera-se pela `transition` dos botões: logo a seguir a trocar
+  o `data-theme`, o `getComputedStyle` ainda dá o branco de antes.
+- **Dentro de um `<details>`, o `box-sizing:inherit` do sistema herda do
+  `slot` do browser, que é `content-box`** (3.ª ronda, G94). O mesmo
+  `mg-btn--sm` media 28 px fora e 32 dentro. A nossa folha põe
+  `border-box` nos filhos directos de um `<details>` dentro do `.mg`.
+- **A escala dos componentes corrige-se na nossa folha** (G93): o
+  `miragov-componentes.css` escreve 11, 13, 15, 17 e 30 px, que não são
+  degraus; a nossa folha leva cada um ao token mais perto, e o ficheiro
+  do sistema fica como é publicado.
+- **O aviso da vez chega com o texto** (G90). Esvaziá-lo e voltar a
+  enchê-lo para o leitor de ecrã anunciar deixava 150 ms (ou mais) de
+  friso vazio, que depois empurrava a página. Quem entra depois é uma
+  região `so-leitor` à parte, com o `role` que o aviso trazia.
+- **A árvore dos CPV desenha só os ramos abertos** (G95): 9 454 códigos
+  eram ~69 000 elementos; abre com ~360. O filtro procura nos dados
+  (`ARV_TEXTO`, sem acentos, todas as palavras em qualquer ordem) e
+  desenha o caminho até ao que bate. Quem precisar de um nó que ainda
+  não está desenhado usa o `arvoreNoDe()`, e o `ARV_CHK` tem só os
+  desenhados — o `arvorePintar()` pinta esses.
 - **Uma tabela que rola de lado di-lo** (G75): a dica «A tabela continua
   para o lado» nasce e sai com a medida (`.cal-rolo`, `.tab-cx`,
   `.mercado-tab`), porque a 768px o domingo do calendário e a última

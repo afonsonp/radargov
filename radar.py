@@ -2210,10 +2210,12 @@ def data_do_texto(escrito):
         return ""
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", escrito):
         return escrito
-    m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", escrito)
+    # sem ano é o ano corrente (3.ª ronda, G96), como no data_de_filtro()
+    m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}))?", escrito)
     if not m:
         return ""
-    dia, mes, ano = (int(x) for x in m.groups())
+    dia, mes = int(m.group(1)), int(m.group(2))
+    ano = int(m.group(3) or date.today().year)
     try:
         return datetime(ano, mes, dia).strftime("%Y-%m-%d")
     except ValueError:
@@ -2242,10 +2244,13 @@ def data_de_filtro(valor):
     valor = (valor or "").strip()
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor):
         return valor
-    pt = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", valor)
+    # sem ano é o ano corrente (3.ª ronda, G96): «2/10» numa tarefa era
+    # recusado sem se dizer porquê
+    pt = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{4}))?", valor)
     if not pt:
         return ""
-    dia, mes, ano = (int(p) for p in pt.groups())
+    dia, mes = int(pt.group(1)), int(pt.group(2))
+    ano = int(pt.group(3) or date.today().year)
     try:
         return date(ano, mes, dia).isoformat()
     except ValueError:              # 31/02: nao e data, e nao se filtra
@@ -2398,6 +2403,17 @@ def texto_de_campo(bruto, tecto, linhas=False):
         return " ".join((bruto or "").split())[:tecto]
     partes = [" ".join(l.split()) for l in (bruto or "").splitlines()]
     return "\n".join(partes).strip()[:tecto]
+
+
+def preco_do_campo(guardado):
+    """O preço guardado ("230.000,00 EUR", o formato do DR) como se
+    escreve num campo: '230 000,00 €' (3.ª ronda, G91). O campo mostrava
+    o guardado tal qual, ao lado de listas que já diziam «230 000,00 €»;
+    e o `preco_escrito()` lê este formato de volta, por isso gravar sem
+    mexer não muda nada. Vazio fica vazio (o `placeholder` diz o resto)."""
+    # com espaços normais: é texto para editar, e o `pattern` do diálogo
+    # só conhece o espaço normal
+    return preco_pt(guardado, "").replace("\xa0", " ") if guardado else ""
 
 
 def preco_pt(texto, vazio="—"):
@@ -9032,12 +9048,12 @@ def mandar_para_fora(dia, cfg=None, correr=subprocess.run):
     if not destino or not programa:
         return None, ("só neste PC: %s" % ("sem destino configurado" if not destino
                                            else "o rclone não está instalado "
-                                                "(corre o copias_fora.sh)"))
+                                                "(corra o copias_fora.sh)"))
     remotos = correr([programa, "listremotes"], capture_output=True, text=True,
                      timeout=60)
     if destino.split(":")[0] + ":" not in (remotos.stdout or "").split():
         return None, "só neste PC: o destino %s não está configurado " \
-                     "(corre o copias_fora.sh)" % destino
+                     "(corra o copias_fora.sh)" % destino
     alvo = destino.rstrip("/") + ("" if destino.endswith(":") else "/") + "copias"
     feito = correr([programa, "copy", COPIAS, alvo,
                     "--include", "empresa-*-%s.db" % dia,
@@ -12523,7 +12539,7 @@ def largar_a_empresa(_erro=None):
 # barra, e um 500 a meio disso dava outro 500 em cima do primeiro. E o
 # molde do /entrar, com um titulo e uma linha.
 
-PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
+PAGINA_ERRO = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%(titulo)s — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar">
@@ -12867,7 +12883,7 @@ def destino_seguro(para):
     return "/"
 
 
-PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
+PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entrar — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar-duas">
@@ -12923,7 +12939,24 @@ def _numeros_da_entrada():
     return "".join("<span><b>%s</b>%s</span>" % par for par in numeros)
 
 
+def frase_do_aviso_de_entrar(aviso):
+    """O recado do `contas` como frase (3.ª ronda, G97): chegava em
+    minúscula e sem ponto («✕ utilizador ou palavra-passe errados»), e o
+    que fazer estava três linhas abaixo, a cinzento. Diz-se já ali."""
+    aviso = (aviso or "").strip()
+    if not aviso:
+        return ""
+    frase = aviso[:1].upper() + aviso[1:]
+    if not frase.endswith((".", "!", "?")):
+        frase += "."
+    if "palavra-passe errados" in aviso:
+        frase += (" Se se esqueceu da palavra-passe, peça ao gestor da sua "
+                  "empresa uma ligação para a repor.")
+    return frase
+
+
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
+    aviso = frase_do_aviso_de_entrar(aviso)
     return Response(PAGINA_ENTRAR % {
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=40, inverso=True),
@@ -13174,7 +13207,7 @@ a:hover{color:var(--ink)}
    mesma barra em todos os tamanhos: o que era o bloco do telemovel
    passou a ser a regra. */
 .barra{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;
- gap:6px 14px;padding:10px 20px;background:var(--ink);color:#fff;
+ gap:6px 14px;padding:10px 20px;background:var(--surface-header);color:var(--on-header);
  position:sticky;top:0;z-index:20;box-sizing:border-box}
 .marca{flex:none}
 /* O logotipo E o Hoje (16/09/2026, decisao dele). Leva a mesma pastilha
@@ -13182,15 +13215,15 @@ a:hover{color:var(--ink)}
    volta a abertura nao se distingue de uma marca decorativa, e quem la
    esta nao sabe que ja la esta. */
 .marca .logo{display:block;padding:6px 8px;margin:-6px -8px;border-radius:var(--radius-sm);
- font:700 var(--text-md)/1 var(--font-sans);letter-spacing:-.3px;color:#fff}
+ font:700 var(--text-md)/1 var(--font-sans);letter-spacing:-.3px;color:var(--on-header)}
 .marca .logo span{color:var(--on-header-muted)}
-.marca .logo:hover,.marca .logo.on{background:rgba(255,255,255,.12)}
+.marca .logo:hover,.marca .logo.on{background:color-mix(in srgb,var(--on-header) 12%,transparent)}
 .barra nav{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;margin:0 0 0 8px;
  overflow-x:auto;scrollbar-width:none;min-width:0}
 .barra nav a{display:block;padding:7px 9px;border-radius:var(--radius-sm);white-space:nowrap;flex:none;
  color:var(--on-header-muted);font:500 var(--text-xs)/1.25 var(--font-sans)}
-.barra nav a:hover{background:rgba(255,255,255,.12);color:#fff}
-.barra nav a.on{background:rgba(255,255,255,.12);color:#fff}
+.barra nav a:hover{background:color-mix(in srgb,var(--on-header) 12%,transparent);color:var(--on-header)}
+.barra nav a.on{background:color-mix(in srgb,var(--on-header) 12%,transparent);color:var(--on-header)}
 .barra nav a b{font:inherit;font-weight:600}
 /* as duas vistas de um item aberto (Em curso, Mercado) */
 .barra nav a.sub{padding:7px 9px}
@@ -13199,8 +13232,8 @@ a:hover{color:var(--ink)}
 .caixa{display:flex;align-items:center;gap:10px;margin-left:auto}
 .caixa a.conf{padding:7px 9px;border-radius:var(--radius-sm);font:500 var(--text-xs)/1.25 var(--font-sans);
  color:var(--on-header-muted)}
-.caixa a.conf:hover{background:rgba(255,255,255,.12);color:#fff}
-.caixa a.conf.on{background:rgba(255,255,255,.12);color:#fff}
+.caixa a.conf:hover{background:color-mix(in srgb,var(--on-header) 12%,transparent);color:var(--on-header)}
+.caixa a.conf.on{background:color-mix(in srgb,var(--on-header) 12%,transparent);color:var(--on-header)}
 /* Quem esta. Fechado por omissao; aberto, o menu cai por baixo da barra
    em vez de a esticar. */
 .sou{flex:none;position:relative}
@@ -13208,15 +13241,15 @@ a:hover{color:var(--ink)}
  list-style:none;color:var(--on-header-muted);font:500 var(--text-xs)/1.3 var(--font-sans);
  padding:4px 0;min-height:24px;box-sizing:border-box}
 .sou > summary::-webkit-details-marker{display:none}
-.sou > summary:hover{color:#fff}
+.sou > summary:hover{color:var(--on-header)}
 .sou .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;background:var(--ink);
- border:1px solid rgba(255,255,255,.13);border-radius:var(--radius-sm);padding:8px 12px;
+ border:1px solid color-mix(in srgb,var(--on-header) 13%,transparent);border-radius:var(--radius-sm);padding:8px 12px;
  display:flex;flex-direction:column;gap:4px;min-width:190px;z-index:30}
 .sou form{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.sou .av{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.12);
- flex:none;font:600 var(--text-xs)/22px var(--font-sans);color:#fff;text-align:center}
+.sou .av{width:22px;height:22px;border-radius:50%;background:color-mix(in srgb,var(--on-header) 12%,transparent);
+ flex:none;font:600 var(--text-xs)/22px var(--font-sans);color:var(--on-header);text-align:center}
 .sou input{flex:1;min-width:0;background:transparent;border:0;
- border-bottom:1px solid rgba(255,255,255,.13);color:#fff;
+ border-bottom:1px solid color-mix(in srgb,var(--on-header) 13%,transparent);color:var(--on-header);
  font:500 var(--text-xs)/1.6 var(--font-sans);padding:2px 0}
 .sou input::placeholder{color:var(--on-header-muted)}
 .sou input:focus{border-bottom-color:var(--seal)}
@@ -13224,10 +13257,10 @@ a:hover{color:var(--ink)}
 .sou button{background:none;border:0;color:var(--on-header-muted);cursor:pointer;
  font:400 var(--text-xs)/1.2 var(--font-sans);flex:none;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
-.sou button:hover{color:#fff}
+.sou button:hover{color:var(--on-header)}
 .sou .sou-menu a{color:var(--on-header-muted);font:400 var(--text-xs)/1.2 var(--font-sans);padding:6px 5px;
  margin:-6px 0;min-height:24px;box-sizing:border-box;display:inline-block}
-.sou .sou-menu a:hover{color:#fff}
+.sou .sou-menu a:hover{color:var(--on-header)}
 .sou .so-nome{display:flex;align-items:center;gap:7px;color:var(--on-header-muted);
  font:500 var(--text-xs)/1.3 var(--font-sans)}
 /* O ecra de entrar: uma tarefa, sem barra lateral. */
@@ -13262,12 +13295,12 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
 form.accao{display:inline-block;margin:0}
 form.accao button{font-family:inherit}
 .bt{cursor:pointer;padding:8px 13px;border-radius:var(--radius-sm);border:1px solid var(--line);
- background:#fff;font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);display:inline-block}
+ background:var(--surface-raised);font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);display:inline-block}
 .bt:hover{border-color:var(--ink);color:var(--ink)}
-.bt.forte{background:var(--brand);color:#fff;border-color:var(--brand)}
-.bt.forte:hover{background:var(--ink);border-color:var(--ink);color:#fff}
-.bt.verde{background:var(--success);color:#fff;border-color:var(--success)}
-.bt.verde:hover{background:#155f3c;color:#fff;border-color:#155f3c}
+.bt.forte{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+.bt.forte:hover{background:var(--brand-hover);border-color:var(--brand-hover);color:var(--on-brand)}
+.bt.verde{background:var(--success);color:var(--on-brand);border-color:var(--success)}
+.bt.verde:hover{background:color-mix(in srgb,var(--success) 85%,var(--ink));color:var(--on-brand);border-color:color-mix(in srgb,var(--success) 85%,var(--ink))}
 /* A escala tem degraus a serio. Estava tudo entre 10 e 13,5px e a
    hierarquia fazia-se so por peso e cor -- numa pagina densa lia-se
    tudo ao mesmo nivel. */
@@ -13296,7 +13329,7 @@ details.porque > summary > i{flex:none;font-style:normal;align-self:center;
  width:19px;height:19px;border-radius:50%;border:1px solid var(--line-strong);
  color:var(--ink-muted);font:600 var(--text-xs)/17px var(--font-sans);text-align:center}
 details.porque > summary:hover > i{border-color:var(--brand);color:var(--brand)}
-details.porque[open] > summary > i{background:var(--brand);color:#fff;
+details.porque[open] > summary > i{background:var(--brand);color:var(--on-brand);
  border-color:var(--brand)}
 h1.tit{margin:8px 0 0;font:700 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);
  letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
@@ -13307,7 +13340,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
  background:transparent;color:var(--ink-secondary);border:1px solid transparent;
  border-bottom:none;margin-bottom:-1px}
 .abas a:hover{color:var(--ink)}
-.abas a.on{background:#fff;color:var(--ink);border-color:var(--line);font-weight:700}
+.abas a.on{background:var(--surface-raised);color:var(--ink);border-color:var(--line);font-weight:700}
 .abas a i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted);margin-left:4px}
 .abas a.on i{color:var(--ink-secondary)}
 /* A escada (15/09/2026): dez ranhuras mais o "todos" nao cabem numa
@@ -13343,19 +13376,19 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .larg{max-width:1560px}
 
 /* pecas comuns */
-.cx{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);
- box-shadow:0 1px 2px rgba(20,24,30,.04)}
+.cx{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);
+ box-shadow:var(--shadow-sm)}
 .rot{font:700 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);text-transform:uppercase;
  letter-spacing:.07em}
 .nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
-.vazio{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);
+.vazio{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);
  padding:40px;text-align:center;color:var(--ink-muted);font:400 var(--text-sm)/1.55 var(--font-sans)}
 .flash{background:var(--brand-soft);border:1px solid var(--brand-soft);border-radius:var(--radius-md);
  padding:11px 15px;margin-bottom:14px;font:500 var(--text-xs)/1.4 var(--font-sans);
  color:var(--brand)}
-.flash.mau{background:var(--danger-soft);border-color:#f0cfc7;color:var(--danger)}
+.flash.mau{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 25%,transparent);color:var(--danger)}
 .flash form.desfazer{margin-left:10px;vertical-align:middle}
-.flash code{font:500 var(--text-xs)/1 var(--font-mono);background:rgba(0,0,0,.06);
+.flash code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
  padding:2px 6px;border-radius:var(--radius-sm)}
 .tag{font:500 var(--text-xs)/1 var(--font-sans);padding:4px 7px;border-radius:var(--radius-sm);
  background:var(--surface-sunken);color:var(--ink-secondary);white-space:nowrap}
@@ -13415,15 +13448,15 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
    Concursos saia a 12,5 px, raio 8 e sem borda -- um quinto desenho do
    mesmo gesto (segunda ronda, perfil 11). */
 .filtros button:not(.mg-btn){cursor:pointer;padding:10px 18px;border-radius:var(--radius-md);border:0;
- background:var(--brand);color:#fff;font:600 var(--text-xs)/1 var(--font-sans)}
+ background:var(--brand);color:var(--on-brand);font:600 var(--text-xs)/1 var(--font-sans)}
 .filtros button:not(.mg-btn):hover{background:var(--brand-hover)}
 .filtros a.limpar:not(.mg-btn){padding:10px 12px;font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 .filtros a.limpar:not(.mg-btn):hover{color:var(--ink)}
 /* separador dos alertas */
 .alertas{display:flex;flex-direction:column;gap:10px}
-.alerta{display:flex;align-items:center;gap:14px;background:#fff;
+.alerta{display:flex;align-items:center;gap:14px;background:var(--surface-raised);
  border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;
- box-shadow:0 1px 2px rgba(0,0,0,.06)}
+ box-shadow:var(--shadow-sm)}
 .alerta.on{border-color:var(--brand-soft);background:var(--surface-raised)}
 .alerta .sobre{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 .alerta .sobre a{font:600 var(--text-sm)/1.2 var(--font-sans);color:var(--ink)}
@@ -13472,7 +13505,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
  border:1px solid var(--line);background:var(--surface-sunken);padding:0;
  position:relative;transition:background .12s}
 .interruptor i{position:absolute;top:2px;left:2px;width:18px;height:18px;
- border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);
+ border-radius:50%;background:var(--surface-raised);box-shadow:var(--shadow-sm);
  transition:left .12s}
 .interruptor.on{background:var(--brand);border-color:var(--brand)}
 .interruptor.on i{left:21px}
@@ -13519,8 +13552,8 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
  letter-spacing:.07em}
 .ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
- background:#fff;font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
- box-shadow:0 1px 2px rgba(0,0,0,.06)}
+ background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
+ box-shadow:var(--shadow-sm)}
 .ent-atalhos a:hover{border-color:var(--ink);color:var(--ink)}
 .ent-filtros{margin-bottom:14px}
 .periodos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
@@ -13529,7 +13562,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .periodos a{padding:6px 11px;border:1px solid var(--line);border-radius:var(--radius-full);
  background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 .periodos a:hover{border-color:var(--ink-muted);color:var(--ink)}
-.periodos a.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.periodos a.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .graf-corpo.solto{padding:0}
 .bh .t a{color:var(--brand)}
 .bh .t a:hover{color:var(--ink);text-decoration:underline}
@@ -13557,7 +13590,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .graf .barras .v{font:600 var(--text-xs)/1 var(--font-mono)}
 .graf .barras .b{background:var(--brand)}
 .graf .barras .col.parcial .b{background:repeating-linear-gradient(135deg,
- var(--brand) 0 4px,rgba(31,78,121,.35) 4px 8px)}
+ var(--brand) 0 4px,color-mix(in srgb,var(--brand) 35%,transparent) 4px 8px)}
 .graf .barras .col.parcial .v,.graf .barras .col.parcial .l{color:var(--ink-muted)}
 .graf .barras .col.destaque .b{background:var(--success)}
 .graf .barras .col.destaque .v{color:var(--success)}
@@ -13648,7 +13681,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .ref-preco b.mau{color:var(--danger)}
 .escada{display:flex;gap:8px;margin:12px 0 4px}
 .escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
- border-radius:var(--radius-sm);background:#fff;border:1px solid var(--line);
+ border-radius:var(--radius-sm);background:var(--surface-raised);border:1px solid var(--line);
  font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:center}
 .escada span b{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
 /* o rotulo desta esta sobre fundo azul-claro e nao sobre branco: com
@@ -13693,7 +13726,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-raised);
  font:400 var(--text-xs)/1.2 var(--font-sans);color:var(--ink)}
 .guardados .guardar button{cursor:pointer;padding:9px 15px;border-radius:var(--radius-md);
- border:1px solid var(--line);background:#fff;color:var(--ink-secondary);
+ border:1px solid var(--line);background:var(--surface-raised);color:var(--ink-secondary);
  font:600 var(--text-xs)/1 var(--font-sans)}
 .guardados .guardar button:hover{border-color:var(--ink);color:var(--ink)}
 .cpv-activo{display:flex;align-items:center;gap:9px;padding:10px 14px;
@@ -13705,7 +13738,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 /* arvore de CPV */
 details.arvore{margin-bottom:8px;overflow:hidden;background:var(--surface-raised);
  border:1px solid var(--line);border-radius:var(--radius-md)}
-details.arvore[open]{background:#fff}
+details.arvore[open]{background:var(--surface-raised)}
 details.arvore>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  padding:11px 16px;background:var(--surface-raised);list-style:none}
 details.arvore>summary::-webkit-details-marker{display:none}
@@ -13724,8 +13757,8 @@ details.arvore[open]>summary::before{content:'\25BE'}
 .arvore-topo input{flex:1;min-width:220px;padding:8px 12px;border:1px solid var(--line);
  border-radius:var(--radius-md);background:var(--surface-raised);font:400 var(--text-xs)/1.2 var(--font-sans)}
 .arvore-topo button:not(.mg-btn){cursor:pointer;padding:9px 14px;border-radius:var(--radius-sm);border:0;
- background:var(--brand);color:#fff;font:600 var(--text-xs)/1 var(--font-sans)}
-.arvore-topo button.claro:not(.mg-btn){background:#fff;color:var(--ink-secondary);border:1px solid var(--line)}
+ background:var(--brand);color:var(--on-brand);font:600 var(--text-xs)/1 var(--font-sans)}
+.arvore-topo button.claro:not(.mg-btn){background:var(--surface-raised);color:var(--ink-secondary);border:1px solid var(--line)}
 #arvore-contagem{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 #arvore-corpo{max-height:330px;overflow-y:auto;border:1px solid var(--surface-sunken);
  border-radius:var(--radius-md);padding:8px 6px;background:var(--surface-raised);margin:0 18px 14px}
@@ -13788,10 +13821,10 @@ details.painel-filtros .pf-sub{font:400 var(--text-xs)/1.4 var(--font-sans);colo
  flex-wrap:wrap;margin-top:16px}
 .paginas a,.paginas b,.paginas span{min-width:32px;padding:7px 10px;
  border-radius:var(--radius-sm);text-align:center;font:500 var(--text-xs)/1 var(--font-sans)}
-.paginas a{background:#fff;border:1px solid var(--line);color:var(--ink-muted);
- box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.paginas a{background:var(--surface-raised);border:1px solid var(--line);color:var(--ink-muted);
+ box-shadow:var(--shadow-sm)}
 .paginas a:hover{border-color:var(--ink-muted);color:var(--ink)}
-.paginas b.on{background:var(--ink);border:1px solid var(--ink);color:#fff;
+.paginas b.on{background:var(--ink);border:1px solid var(--ink);color:var(--on-brand);
  font-weight:600}
 .paginas .morto{border:1px solid transparent;color:var(--ink-muted)}
 .paginas .corte{border:1px solid transparent;color:var(--ink-muted);min-width:0;
@@ -13801,13 +13834,13 @@ details.painel-filtros .pf-sub{font:400 var(--text-xs)/1.4 var(--font-sans);colo
 .ir-pagina{display:flex;align-items:center;gap:6px;margin-left:10px}
 .ir-pagina label{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);padding:0}
 .ir-pagina input{width:72px;padding:6px 8px;border:1px solid var(--line);
- border-radius:var(--radius-sm);font:500 var(--text-xs)/1 var(--font-sans);background:#fff;color:var(--ink)}
+ border-radius:var(--radius-sm);font:500 var(--text-xs)/1 var(--font-sans);background:var(--surface-raised);color:var(--ink)}
 .ir-pagina button{padding:7px 11px;border:1px solid var(--line);border-radius:var(--radius-sm);
- background:#fff;color:var(--ink-muted);font:500 var(--text-xs)/1 var(--font-sans);cursor:pointer}
+ background:var(--surface-raised);color:var(--ink-muted);font:500 var(--text-xs)/1 var(--font-sans);cursor:pointer}
 .ir-pagina button:hover{border-color:var(--ink-muted);color:var(--ink)}
 .lista{display:flex;flex-direction:column;gap:9px}
-.item{display:grid;grid-template-columns:minmax(0,1fr) 200px;background:#fff;
- border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 1px 2px rgba(20,24,30,.04);
+.item{display:grid;grid-template-columns:minmax(0,1fr) 200px;background:var(--surface-raised);
+ border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
  overflow:hidden}
 .item:hover{border-color:var(--line-strong)}
 .item-corpo{padding:14px 17px;min-width:0}
@@ -13857,13 +13890,13 @@ dialog.mg-dialog .escolhas{display:flex;flex-direction:column;gap:6px;
 dialog.mg-dialog .escolhas .motivo-bt{justify-content:flex-start;text-align:left;
  width:100%;min-height:40px}
 .mini{cursor:pointer;padding:7px 12px;border-radius:var(--radius-sm);font:600 var(--text-xs)/1 var(--font-sans);
- border:1px solid var(--line);color:var(--ink-secondary);background:#fff;display:inline-block}
+ border:1px solid var(--line);color:var(--ink-secondary);background:var(--surface-raised);display:inline-block}
 .mini:hover{border-color:var(--danger);color:var(--danger)}
 /* "interessa" em contorno e nao em bloco cheio: numa lista de vinte,
    vinte blocos verdes puxavam o olho todo para a coluna das accoes e
    os titulos -- o que se le para decidir -- ficavam em segundo plano. */
-.mini.verde{background:#fff;color:var(--success);border-color:var(--success)}
-.mini.verde:hover{background:var(--success);color:#fff;border-color:var(--success)}
+.mini.verde{background:var(--surface-raised);color:var(--success);border-color:var(--success)}
+.mini.verde:hover{background:var(--success);color:var(--on-brand);border-color:var(--success)}
 .rodape{margin-top:18px;padding:12px 16px;border:1px solid var(--line);
  border-radius:var(--radius-md);background:var(--surface-raised);display:flex;align-items:center;gap:10px}
 .rodape .e{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
@@ -13889,8 +13922,8 @@ h1.tit:empty,p.subtit:empty{display:none}
 .facto.larg{flex-basis:100%}
 .facto .v.ok{color:var(--success)}
 .facto .v.mau{color:var(--danger)}
-details.sec{overflow:hidden;background:#fff;border:1px solid var(--line);
- border-radius:var(--radius-md);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+details.sec{overflow:hidden;background:var(--surface-raised);border:1px solid var(--line);
+ border-radius:var(--radius-md);box-shadow:var(--shadow-sm)}
 details.sec>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  padding:15px 22px;list-style:none}
 details.sec>summary::-webkit-details-marker{display:none}
@@ -13942,7 +13975,7 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
 .conf-campo{display:flex;flex-direction:column;gap:4px;font:500 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
 .conf-campo input[type=text],.conf-campo input[type=password],.conf-campo input[type=email],
 .conf-campo select,.conf-form textarea{padding:9px 12px;border:1px solid var(--line);
- border-radius:var(--radius-sm);font:400 var(--text-sm)/1.3 var(--font-sans);color:var(--ink);background:#fff}
+ border-radius:var(--radius-sm);font:400 var(--text-sm)/1.3 var(--font-sans);color:var(--ink);background:var(--surface-raised)}
 .conf-campo input:disabled{background:var(--surface-sunken);color:var(--ink-muted)}
 .conf-campo small{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 .conf-check{flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}
@@ -13983,7 +14016,7 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
 .leitor{margin-top:16px;border:1px solid var(--line);border-radius:var(--radius-md);
  overflow:hidden;background:var(--surface-raised)}
 .leitor-cab{display:flex;align-items:center;gap:12px;padding:11px 15px;
- border-bottom:1px solid var(--line);background:#fff}
+ border-bottom:1px solid var(--line);background:var(--surface-raised)}
 .leitor-cab .n{flex:1;min-width:0;font:600 var(--text-xs)/1.3 var(--font-sans);color:var(--ink);
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .leitor>.nota{padding:10px 15px 0}
@@ -14007,8 +14040,8 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
 .leitor .peca-folhas{padding:0 15px 15px;max-height:78vh;overflow-y:auto;
  background:var(--surface-sunken)}
 .peca-pag{display:block;width:100%;height:auto;max-width:960px;margin:14px auto 0;
- border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
- box-shadow:0 1px 3px rgba(20,24,30,.08)}
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);
+ box-shadow:var(--shadow-sm)}
 .hist{display:flex;gap:10px;align-items:baseline;padding:9px 0;
  border-top:1px solid var(--surface)}
 .hist .t{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary);min-width:0}
@@ -14054,7 +14087,7 @@ button.tirar:hover{color:var(--danger)}
    prep", que nao diz o estado nenhum. Visto no ecra a 15/09/2026. */
 td.celula-ranhura{white-space:nowrap;width:1%}
 .ranhura select{font:400 var(--text-xs)/1.2 var(--font-sans);padding:5px 7px;
- border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);
  color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
 .ranhura select:hover{border-color:var(--brand)}
 /* O botão «Mudar» fica sempre à vista (26/09/2026): o select deixou de
@@ -14076,9 +14109,9 @@ td.celula-ranhura{white-space:nowrap;width:1%}
 .prop-campos label.largo{grid-column:1/-1}
 .prop-campos input,.prop-campos select{font:400 var(--text-xs)/1.3 var(--font-sans);
  padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);
- background:#fff;color:var(--ink-secondary);text-transform:none;letter-spacing:0}
+ background:var(--surface-raised);color:var(--ink-secondary);text-transform:none;letter-spacing:0}
 .prop-campos button:not(.mg-btn){cursor:pointer;font:600 var(--text-xs)/1 var(--font-sans);padding:7px 12px;
- border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink-secondary);
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
 .prop-campos button:not(.mg-btn):hover{border-color:var(--brand);color:var(--brand)}
 .prop-accoes{display:flex;gap:6px;flex-wrap:wrap}
@@ -14090,15 +14123,17 @@ ul.tarefas{list-style:none;margin:0 0 10px;padding:0;display:flex;
 ul.tarefas li{display:flex;align-items:center;gap:7px;
  font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
 ul.tarefas li .t{flex:1}
+/* O ✓ só se vê ao passar por cima ou com o foco (3.ª ronda, G94): já
+   desenhado a cinzento, a caixa de uma tarefa por fazer parecia marcada. */
 button.tq{cursor:pointer;width:24px;min-height:24px;padding:0;flex:none;
- border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;
- color:var(--ink-muted);font:600 var(--text-xs)/1 var(--font-sans);box-sizing:border-box}
-button.tq:hover{border-color:var(--success);color:var(--success)}
+ border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--surface-raised);
+ color:transparent;font:600 var(--text-xs)/1 var(--font-sans);box-sizing:border-box}
+button.tq:hover,button.tq:focus-visible{border-color:var(--success);color:var(--success)}
 .tarefa-nova{display:flex;gap:6px;flex-wrap:wrap}
 .tarefa-nova input[type=text]{flex:1;min-width:140px}
 .tarefa-nova input,.tarefa-nova select,.tarefa-nova button:not(.mg-btn){font:400 var(--text-xs)/1.2 var(--font-sans);
  padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);
- background:#fff;color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
+ background:var(--surface-raised);color:var(--ink-secondary);min-height:24px;box-sizing:border-box}
 .tarefa-nova button:not(.mg-btn){cursor:pointer;font-weight:600;color:var(--ink-secondary)}
 
 /* A faixa que propõe fechar uma proposta com o que o Portal BASE diz
@@ -14148,10 +14183,10 @@ a.ct-l{color:var(--brand)}
 .ct-novo{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;
  padding-top:12px;border-top:1px dashed var(--line-strong)}
 .ct-novo input{flex:1 1 130px;font:400 var(--text-xs)/1.2 var(--font-sans);padding:6px 8px;
- border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink-secondary);
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
 .ct-novo button:not(.mg-btn){cursor:pointer;font:600 var(--text-xs)/1 var(--font-sans);padding:6px 12px;
- border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink-secondary);
+ border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
 .ct-novo button:not(.mg-btn):hover{border-color:var(--brand);color:var(--brand)}
 
@@ -14170,7 +14205,7 @@ a.ct-l{color:var(--brand)}
  overflow:hidden;box-shadow:var(--shadow-sm)}
 .cal-cab{background:var(--surface-raised);padding:8px 10px;
  font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
-.cal-dia{background:#fff;padding:7px 8px 9px;min-height:104px;
+.cal-dia{background:var(--surface-raised);padding:7px 8px 9px;min-height:104px;
  display:flex;flex-direction:column;gap:4px;min-width:0}
 /* Sabado e domingo distinguem-se: um prazo ao fim-de-semana importa,
    e sem isto a grade e uma tira de numeros onde nao se separa um
@@ -14219,7 +14254,7 @@ a.ct-l{color:var(--brand)}
 /* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`
    porque `tq` ja e o botao de marcar uma tarefa feita (button.tq). */
 .kpis a.kpi{display:block;color:inherit}
-.kpis a.kpi:hover{border-color:var(--line-strong);box-shadow:0 2px 6px rgba(17,20,24,.08)}
+.kpis a.kpi:hover{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
 .kpis a.kpi:hover .r{color:var(--brand)}
 .entrada-hoje{margin:14px 0 18px}
 .entrada-hoje.mau{color:var(--danger)}
@@ -14311,8 +14346,8 @@ details.perigo[open] > summary{color:var(--danger)}
 /* indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
  gap:14px}
-.kpi{background:#fff;border:1px solid var(--line);border-radius:var(--radius-md);padding:20px;
- box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.kpi{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);padding:20px;
+ box-shadow:var(--shadow-sm)}
 .kpi .r{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.09em}
 .kpi .v{font:700 var(--text-2xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;margin:12px 0 6px}
@@ -14508,20 +14543,20 @@ CSS_NOVO = r"""
  background:var(--surface-raised);border-color:var(--line-strong);color:var(--ink-secondary)}
 [data-pele=novo] .bt:hover{border-color:var(--ink-secondary);color:var(--ink)}
 [data-pele=novo] .bt.forte{background:var(--brand);border-color:var(--brand);
- color:#fff}
-[data-pele=novo] .bt.forte:hover{background:#17509f;border-color:#17509f}
+ color:var(--on-brand)}
+[data-pele=novo] .bt.forte:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
 [data-pele=novo] .bt.ok,[data-pele=novo] .bt.verde{background:var(--success);
- border-color:var(--success);color:#fff}
+ border-color:var(--success);color:var(--on-brand)}
 [data-pele=novo] .bt.ok:hover,[data-pele=novo] .bt.verde:hover{
- background:#0e5c3c;border-color:#0e5c3c;color:#fff}
+ background:color-mix(in srgb,var(--success) 85%,var(--ink));border-color:color-mix(in srgb,var(--success) 85%,var(--ink));color:var(--on-brand)}
 [data-pele=novo] .bt.cuidado{background:var(--surface-raised);color:var(--warning);
- border-color:#e0b48a}
+ border-color:color-mix(in srgb,var(--warning) 45%,transparent)}
 [data-pele=novo] .bt.cuidado:hover,[data-pele=novo] .bt.cuidado:focus-visible{
- background:var(--warning);border-color:var(--warning);color:#fff}
+ background:var(--warning);border-color:var(--warning);color:var(--on-brand)}
 [data-pele=novo] .bt.perigo{background:var(--surface-raised);color:var(--danger);
- border-color:#e5a9a2}
+ border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
 [data-pele=novo] .bt.perigo:hover,[data-pele=novo] .bt.perigo:focus-visible{
- background:var(--danger);border-color:var(--danger);color:#fff}
+ background:var(--danger);border-color:var(--danger);color:var(--on-brand)}
 
 /* O `.mini` e o botao DA LINHA, e o `.bt` e o botao DA PAGINA. A
    diferenca nao e so o tamanho: numa lista de vinte linhas com dois
@@ -14541,18 +14576,18 @@ CSS_NOVO = r"""
 [data-pele=novo] .mini:hover{border-color:var(--ink-secondary);color:var(--ink);
  background:var(--surface-raised)}
 [data-pele=novo] .mini.verde,[data-pele=novo] .mini.ok{color:var(--success);
- border-color:#9ac4ae}
+ border-color:color-mix(in srgb,var(--success) 45%,transparent)}
 [data-pele=novo] .mini.verde:hover,[data-pele=novo] .mini.ok:hover,
 [data-pele=novo] .mini.verde:focus-visible,[data-pele=novo] .mini.ok:focus-visible{
- background:var(--success);border-color:var(--success);color:#fff}
-[data-pele=novo] .mini.cuidado{color:var(--warning);border-color:#e0b48a}
+ background:var(--success);border-color:var(--success);color:var(--on-brand)}
+[data-pele=novo] .mini.cuidado{color:var(--warning);border-color:color-mix(in srgb,var(--warning) 45%,transparent)}
 [data-pele=novo] .mini.cuidado:hover,
 [data-pele=novo] .mini.cuidado:focus-visible{
- background:var(--warning);border-color:var(--warning);color:#fff}
-[data-pele=novo] .mini.perigo{color:var(--danger);border-color:#e5a9a2}
+ background:var(--warning);border-color:var(--warning);color:var(--on-brand)}
+[data-pele=novo] .mini.perigo{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
 [data-pele=novo] .mini.perigo:hover,
 [data-pele=novo] .mini.perigo:focus-visible{
- background:var(--danger);border-color:var(--danger);color:#fff}
+ background:var(--danger);border-color:var(--danger);color:var(--on-brand)}
 
 /* O separador de milhares e um espaco INQUEBRAVEL (mil_pt), e faz falta:
    com um normal, o browser parte "1 363 300" ao fim da linha. Mas a
@@ -14626,8 +14661,8 @@ CSS_NOVO = r"""
  align-items:center;font:400 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
 [data-pele=novo] .periodos .av{margin-right:5px;width:16px;height:16px;
  line-height:16px;font-size:var(--text-xs)}
-[data-pele=novo] .periodos a.on .av{background:rgba(255,255,255,.28);
- color:#fff}
+[data-pele=novo] .periodos a.on .av{background:color-mix(in srgb,var(--on-brand) 28%,transparent);
+ color:var(--on-brand)}
 [data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
  margin-left:4px}
 [data-pele=novo] .fazer-fundo{display:flex;gap:18px;padding:12px 16px;
@@ -14681,11 +14716,11 @@ CSS_NOVO = r"""
    sem JS uma caixa nao submete nada, e este gesto tem de valer sem JS. */
 [data-pele=novo] .chk{width:16px;height:16px;padding:0;flex:none;
  position:relative;border:1px solid var(--line-strong);border-radius:var(--radius-sm);
- background:var(--surface-raised);cursor:pointer}
+ background:var(--surface-raised);cursor:pointer;font:inherit;color:inherit}
 [data-pele=novo] .chk:hover{border-color:var(--success)}
 [data-pele=novo] .chk.on{background:var(--success);border-color:var(--success)}
 [data-pele=novo] .chk.on::after{content:'';position:absolute;left:4px;top:1px;
- width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;
+ width:4px;height:8px;border:solid var(--on-brand);border-width:0 2px 2px 0;
  transform:rotate(45deg)}
 
 /* O avatar de quem e a tarefa. Sem dono e um circulo tracejado -- um
@@ -14693,7 +14728,7 @@ CSS_NOVO = r"""
 [data-pele=novo] .av{width:20px;height:20px;border-radius:50%;flex:none;
  display:inline-block;background:var(--surface-sunken);color:var(--ink-secondary);
  font:600 var(--text-xs)/20px var(--font-sans);text-align:center}
-[data-pele=novo] .av.eu{background:var(--brand);color:#fff}
+[data-pele=novo] .av.eu{background:var(--brand);color:var(--on-brand)}
 [data-pele=novo] .av.vago{background:transparent;
  border:1px dashed var(--line-strong)}
 
@@ -14907,7 +14942,22 @@ FOLHA_CSS = "/estilo/%s.css" % ETIQUETA_CSS
 # sempre em modo CORS, e sem ele o browser descarregava-a duas vezes.
 FONTES_PRE_CARREGADAS = ("SourceSans3-Variable.woff2",
                          "ZillaSlab-SemiBold.woff2")
-LIGACAO_CSS = "".join(
+# O TEMA «COMO O SISTEMA» (3.ª ronda, D1). O molde carimba
+# `data-theme="sistema"` -- nas páginas sem sessão (entrar, convite, repor,
+# erro) sempre, e no painel a quem o escolheu na conta --, e este guião,
+# que corre no <head> antes de a página se pintar, troca-o pelo claro ou
+# pelo escuro que o computador pede, e volta a trocar se o computador
+# mudar. É um guião e não um `@media` na folha porque os tokens do escuro
+# são do `miragov-tokens.css`, que fica como o sistema o publica: repeti-los
+# dentro de um `prefers-color-scheme` era ter duas cópias do escuro. Sem
+# JS, o "sistema" não bate em nenhum tema e fica o do `:root`, o claro.
+TEMA_DO_SISTEMA_JS = (
+    "<script>(function(){var h=document.documentElement;"
+    "if(h.getAttribute('data-theme')!=='sistema'||!window.matchMedia)return;"
+    "var m=matchMedia('(prefers-color-scheme: dark)');"
+    "function p(){h.setAttribute('data-theme',m.matches?'escuro':'claro')}"
+    "p();if(m.addEventListener)m.addEventListener('change',p)})()</script>")
+LIGACAO_CSS = TEMA_DO_SISTEMA_JS + "".join(
     '<link rel="preload" href="/tipo/%s" as="font" type="font/woff2" '
     'crossorigin>' % f for f in FONTES_PRE_CARREGADAS) + (
     '<link rel="stylesheet" href="%s">' % FOLHA_CSS)
@@ -14984,13 +15034,20 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
 /* O aviso da vez e um aviso fixo em baixo (segunda ronda, 26/09/2026:
    E25 e WCAG 4.1.3). Ficava no topo, a 5 000 px de onde se carregou, e
    o «desfazer» nunca se via. E uma regiao viva que JA EXISTE quando a
-   pagina carrega nao e lida pela maioria dos leitores de ecra: o texto
-   sai e volta a entrar, e isso anuncia-o. O «x» fecha-o. */
+   pagina carrega nao e lida pela maioria dos leitores de ecra: o que se
+   anuncia e uma regiao a parte, so para o leitor, onde o texto entra
+   depois. O aviso a vista fica com o texto desde o HTML (3.a ronda, G90):
+   era ele que se esvaziava e voltava a encher, e chegava como um friso
+   vazio de 26 px que depois empurrava a pagina 32 px -- um erro rapido
+   nao se chegava a ler. O «x» fecha-o. */
 (function () {
  var t = document.querySelector('.aviso-da-vez');
  if (!t) return;
- var h = t.innerHTML;
- t.innerHTML = '';
+ var vivo = document.createElement('div');
+ vivo.className = 'so-leitor';
+ vivo.setAttribute('role', t.getAttribute('role') || 'status');
+ t.removeAttribute('role');
+ document.body.appendChild(vivo);
  /* Preso em baixo SO quando a pagina volta a um sitio (uma ancora) ou
     traz o «desfazer» (ronda em PC, 26/09/2026): sem ancora a pagina
     abre no topo, que e onde o aviso ja esta -- e preso em baixo tapava
@@ -15000,11 +15057,30 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
     o aviso: caia no <body>, no topo da pagina (WCAG 2.4.3). */
  t.setAttribute('tabindex', '-1');
  setTimeout(function () {
-  t.innerHTML = h;
+  vivo.textContent = t.innerText.replace(/[\u26a0\ufe0e\u2713\u00d7]/g, '').replace(/desfazer/, '').trim();
   if (document.activeElement === document.body) t.focus({preventScroll: true});
  }, 150);
  t.addEventListener('click', function (e) {
   if (e.target.closest('.aviso-fechar')) t.remove();
+ });
+})();
+/* Uma data que nao se le fica no campo -- e onde se corrige -- mas
+   marcada a vermelho (3.a ronda, G96): o aviso dizia que «32/13/2026»
+   tinha sido ignorada, e o campo continuava igual aos outros. O padrao
+   do campo nao a apanha: 32/13 tem a forma de uma data. */
+(function () {
+ document.querySelectorAll('input.campo-data').forEach(function (i) {
+  var v = i.value.trim(), m = /^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/.exec(v);
+  if (!v || /^\\d{4}-\\d{2}-\\d{2}$/.test(v)) return;
+  var d = m && new Date(+m[3], +m[2] - 1, +m[1]);
+  if (d && d.getMonth() === +m[2] - 1 && d.getDate() === +m[1]) return;
+  i.setAttribute('aria-invalid', 'true');
+  var campo = i.closest('.mg-field');
+  if (campo) campo.classList.add('mg-field--error');
+  i.addEventListener('input', function () {
+   i.removeAttribute('aria-invalid');
+   if (campo) campo.classList.remove('mg-field--error');
+  }, {once: true});
  });
 })();
 /* As abas deixaram de ter role=tab a 26/09/2026 (segunda ronda; WCAG
@@ -16100,8 +16176,11 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         fechar = ("<button type='button' class='aviso-fechar' "
                   "aria-label='Fechar o aviso'>&times;</button>")
         if request.args.get("tom") == "erro":
+            # o sinal do erro é o ⚠ e não o ✕ (3.ª ronda, G97): com o ×
+            # de fechar, o aviso tinha duas cruzes, e a da esquerda
+            # parecia outro botão de fechar
             aviso = ("<div class='mg-alert mg-alert--danger aviso-da-vez' role='alert'>"
-                     "<span aria-hidden='true'>&#10005;</span> %s%s%s</div>"
+                     "<span aria-hidden='true'>&#9888;&#65038;</span> %s%s%s</div>"
                      % (html.escape(texto_aviso), volta, fechar))
         else:
             aviso = ("<div class='mg-alert mg-alert--success aviso-da-vez' role='status'>"
@@ -16460,7 +16539,7 @@ LISTA_JS = """<script>
     t.className = 'mg-alert aviso-da-vez ' + (erro ? 'mg-alert--danger' : 'mg-alert--success');
     var sinal = document.createElement('span');
     sinal.setAttribute('aria-hidden', 'true');
-    sinal.textContent = erro ? '✕ ' : '✓ ';
+    sinal.textContent = erro ? '\u26a0\ufe0e ' : '✓ ';
     t.appendChild(sinal);
     var corpo = document.createElement('span');
     corpo.className = 'aviso-texto';
@@ -16654,7 +16733,7 @@ ARVORE_JS = """<script>
 // sem dois ramos ficava sem forma de o dizer, e tirar o 72 perdia os
 // anuncios que so trazem o codigo da divisao.
 var ARV_DADOS = null, ARV_SEL = new Set(), ARV_EXC = new Set(),
-    ARV_FILHOS = {}, ARV_PAI = {}, ARV_CHK = {};
+    ARV_FILHOS = {}, ARV_PAI = {}, ARV_CHK = {}, ARV_TEXTO = {}, ARV_MOLDE = null;
 
 function arvoreCarregar() {
   if (ARV_DADOS) return;
@@ -16703,6 +16782,12 @@ function arvoreConstruir(dados) {
   raizes.forEach(acumula);
   Object.keys(filhos).forEach(function(k) { filhos[k].forEach(acumula); });
 
+  // O texto de cada código, sem acentos e em minúsculas, para o filtro
+  // (3.ª ronda, G95): «manutencao» dava 0 e «manutenção» dava 263.
+  dados.forEach(function(d) {
+    ARV_TEXTO[d.codigo8] = arvoreSemAcentos(d.codigo8 + ' ' + d.descricao);
+  });
+  ARV_MOLDE = {porCodigo: porCodigo, filhos: filhos, total: total};
   var corpo = document.getElementById('arvore-corpo');
   corpo.innerHTML = '';
   raizes.forEach(function(cod) { corpo.appendChild(arvoreNo(cod, porCodigo, filhos, total)); });
@@ -16711,20 +16796,49 @@ function arvoreConstruir(dados) {
   arvoreMarcarSemeados();
 }
 
+function arvoreSemAcentos(texto) {
+  return texto.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+}
+
+// Os ramos desenham-se quando se abrem (3.ª ronda, G95): a árvore
+// inteira eram 9 454 linhas e perto de 69 000 elementos na página, para
+// quem ia ver três divisões. Uma linha fechada não tem filhos no DOM; ao
+// abrir, desenham-se os filhos (só esses) e pintam-se as caixas deles.
+function arvoreDesenharFilhos(no, adiar) {
+  if (no.dataset.desenhado) return;
+  no.dataset.desenhado = '1';
+  var m = ARV_MOLDE, cod = no.dataset.codigo8;
+  (m.filhos[cod] || []).forEach(function(f) {
+    no.appendChild(arvoreNo(f, m.porCodigo, m.filhos, m.total));
+  });
+  // quem abre muitos de uma vez (o filtro, o semear) pinta uma vez no fim
+  if (!adiar) arvorePintar();
+}
+
+// O nó de um código, desenhando pelo caminho os ramos até ele.
+function arvoreNoDe(cod) {
+  var caminho = arvoreAntepassados(cod).reverse();
+  for (var i = 0; i < caminho.length; i++) {
+    var no = document.querySelector('#arvore-corpo [data-codigo8="' + caminho[i] + '"]');
+    if (!no) return null;
+    arvoreDesenharFilhos(no, true);
+  }
+  return document.querySelector('#arvore-corpo [data-codigo8="' + cod + '"]');
+}
+
 function arvoreMarcarSemeados() {
   // Poe as caixas de acordo com o filtro que ja esta em uso. Sem isto a
   // arvore abria em branco por cima de um filtro cheio de CPV -- e como
   // "Aplicar" escreve o que a arvore tem, aplicar limpava o filtro.
   var abrir = Array.from(ARV_SEL).concat(Array.from(ARV_EXC));
   abrir.forEach(function(cod) {
-    if (!ARV_CHK[cod]) return;
-    // abrir os antepassados: marcado dentro de um <details> fechado nao
-    // se ve, e o que nao se ve parece nao estar la
-    var no = ARV_CHK[cod].closest('.no-envolve');
-    while (no) {
-      arvoreAbrir(no, true);
-      no = no.parentElement ? no.parentElement.closest('.no-envolve') : null;
-    }
+    if (!(cod in ARV_TEXTO)) return;
+    // abrir os antepassados: marcado dentro de um ramo fechado nao se
+    // ve, e o que nao se ve parece nao estar la (e desenha-os pelo caminho)
+    arvoreAntepassados(cod).forEach(function(a) {
+      var no = arvoreNoDe(a);
+      if (no) arvoreAbrir(no, true, true);
+    });
   });
   arvorePintar();
 }
@@ -16800,13 +16914,12 @@ function arvoreNo(cod, porCodigo, filhos, total) {
   // os ramos com anuncios no meio de dezenas de (0).
   if (!total[cod]) resumo.classList.add('zero');
   det.appendChild(resumo);
-  if (temFilhos) {
-    filhos[cod].forEach(function(f) { det.appendChild(arvoreNo(f, porCodigo, filhos, total)); });
-  }
+  // os filhos desenham-se ao abrir: arvoreDesenharFilhos()
   return det;
 }
 
-function arvoreAbrir(no, sim) {
+function arvoreAbrir(no, sim, adiar) {
+  if (sim) arvoreDesenharFilhos(no, adiar);
   no.classList.toggle('aberto', sim);
   var b = no.querySelector(':scope > .no > .abre');
   if (b) b.setAttribute('aria-expanded', sim ? 'true' : 'false');
@@ -16949,8 +17062,11 @@ function arvoreAplicar() {
 document.addEventListener('submit', function (e) {
   var det = document.querySelector('details.arvore');
   var campo = document.getElementById('filtro-cpv');
+  // no Perfil da empresa grava-se sempre o que a árvore tem, até vazio
+  // (é assim que se tira o último CPV); no alerta, só se se marcou algo
+  var perfil = campo && campo.form && campo.form.id === 'form-perfil';
   if (!det || det.dataset.submeter !== 'nao' || !campo ||
-      e.target !== campo.form || !ARV_SEL.size) return;
+      e.target !== campo.form || (!ARV_SEL.size && !perfil)) return;
   campo.value = Array.from(ARV_SEL).join('|');
   var fora = document.getElementById('filtro-cpv-excl');
   if (fora) fora.value = Array.from(ARV_EXC).join('|');
@@ -16962,18 +17078,40 @@ function arvoreLimpar() {
   arvorePintar();
 }
 
-function arvoreFiltra(no, alvo) {
-  if (!alvo) { no.classList.remove('escondido'); return true; }
-  var acha = no.dataset.texto.indexOf(alvo) >= 0, algumFilho = false;
-  Array.from(no.children).forEach(function(filho) {
-    if (filho.dataset && filho.dataset.codigo8) {
-      if (arvoreFiltra(filho, alvo)) algumFilho = true;
-    }
+// O filtro procura nos dados e não no DOM (3.ª ronda, G95): os ramos
+// fechados já não estão desenhados. Cada palavra tem de aparecer, em
+// qualquer ordem e sem acentos -- «manutencao edificios» acha «Serviços
+// de reparação e manutenção de equipamento em edifícios», que a frase
+// exacta com acentos não achava. Mostra-se o que bate e o caminho até
+// lá, com os ramos do caminho abertos.
+function arvoreFiltrar(texto) {
+  var palavras = arvoreSemAcentos(texto).split(/\\s+/).filter(Boolean);
+  var corpo = document.getElementById('arvore-corpo');
+  if (!palavras.length) {
+    corpo.querySelectorAll('.escondido').forEach(function(n) {
+      n.classList.remove('escondido');
+    });
+    return -1;
+  }
+  var batem = Object.keys(ARV_TEXTO).filter(function(cod) {
+    var t = ARV_TEXTO[cod];
+    return palavras.every(function(p) { return t.indexOf(p) >= 0; });
   });
-  var mostra = acha || algumFilho;
-  no.classList.toggle('escondido', !mostra);
-  if (algumFilho) arvoreAbrir(no, true);
-  return mostra;
+  var ver = {}, abrir = {};
+  batem.forEach(function(cod) {
+    ver[cod] = true;
+    arvoreAntepassados(cod).forEach(function(a) { ver[a] = true; abrir[a] = true; });
+  });
+  // do topo para baixo, para cada ramo ter o pai já desenhado
+  Object.keys(abrir).sort().forEach(function(a) {
+    var no = arvoreNoDe(a);
+    if (no) arvoreAbrir(no, true, true);
+  });
+  corpo.querySelectorAll('[data-codigo8]').forEach(function(n) {
+    n.classList.toggle('escondido', !ver[n.dataset.codigo8]);
+  });
+  arvorePintar();
+  return batem.length;
 }
 
 // A pagina pode nao ter arvore (a lista com interesse definido,
@@ -16988,17 +17126,13 @@ if (ARV_DET) {
   // <details open> e uma tarefa em fila, e nao se conta com ele
   if (ARV_DET.open) arvoreCarregar();
   document.getElementById('arvore-busca').addEventListener('input', function() {
-    var alvo = this.value.trim().toLowerCase();
-    var corpo = document.getElementById('arvore-corpo');
-    Array.from(corpo.children).forEach(
-        function(no) { arvoreFiltra(no, alvo); });
+    if (!ARV_MOLDE) return;
+    var vistos = arvoreFiltrar(this.value);
     // a contagem segue o filtro, e o leitor de ecra ouve-a (E52): dizia
     // «9 454 codigos» com a arvore reduzida a uma dezena
     var conta = document.getElementById('arvore-contagem');
     if (!conta.dataset.total) conta.dataset.total = conta.textContent;
-    var vistos = Array.from(corpo.querySelectorAll('[data-codigo8]')).filter(
-        function(n) { return !n.closest('.escondido'); }).length;
-    conta.textContent = alvo ? (vistos + (vistos === 1 ? ' código' : ' códigos')
+    conta.textContent = vistos >= 0 ? (vistos + (vistos === 1 ? ' código' : ' códigos')
         + ' com «' + this.value.trim() + '»') : conta.dataset.total;
   });
   arvoreSemear();
@@ -18607,6 +18741,12 @@ def resumo_filtro(consulta, vista=None):
             # mesmo ecra, e a que se lia era a de dentro da base.
             if campo in ("de", "ate"):
                 valor = data_para_campo(valor)
+            # e os CPV e os distritos por palavras, não com a barra que
+            # os separa lá dentro (3.ª ronda, G91)
+            elif campo in ("cpv", "cpv_excl"):
+                valor = cpv_legivel(valor)
+            elif "|" in valor:
+                valor = valor.replace("|", ", ")
             partes.append("%s %s" % (_NOMES_FILTRO[campo], valor))
     return " · ".join(partes) or "sem filtro"
 
@@ -18645,14 +18785,19 @@ def arvore_html(n_cpv, de, submeter=True, aberta=False,
         "</summary>"
         "<div class='arvore-topo'>"
         "<input type='text' id='arvore-busca' placeholder='filtrar a árvore, ex. software' aria-label='Filtrar a árvore de CPV'>"
-        "<button type='button' class='mg-btn mg-btn--sm mg-btn--primary' onclick='arvoreAplicar()'>%s</button>"
+        "%s"
         "<button type='button' class='mg-btn mg-btn--sm mg-btn--subtle claro' onclick='arvoreLimpar()'>Limpar selecção</button>"
         "<span id='arvore-contagem' role='status' aria-live='polite'></span>"
         "</div>"
         "<div id='arvore-corpo'>a carregar…</div>"
         "%s</details>" % (de, "" if submeter else " data-submeter='nao'",
                           " open" if aberta else "",
-                          mil_pt(n_cpv), quantos, html.escape(botao), pe))
+                          mil_pt(n_cpv), quantos,
+                          # sem `botao`, grava o botão do formulário (o
+                          # Perfil da empresa: um «Guardar» só, 3.ª ronda G95)
+                          "<button type='button' class='mg-btn mg-btn--sm "
+                          "mg-btn--primary' onclick='arvoreAplicar()'>%s</button>"
+                          % html.escape(botao) if botao else "", pe))
 
 
 def fragmento_cpv(texto, coluna="cpv"):
@@ -19605,12 +19750,14 @@ def _local_e_valor_do_interesse(cfg):
         % (html.escape(d, quote=True), " checked" if d in escolhidos else "",
            html.escape(d))
         for d in DISTRITOS)
+    # sem botão próprio (3.ª ronda, G95): eram dois «Guardar» na mesma
+    # página, e não se percebia que eram duas coisas; grava o «Guardar o
+    # perfil» do fim, que leva também a árvore
     return ("<fieldset class='dist-interesse'><legend>Distritos do local de "
             "execução <span class='nota'>(nenhum marcado = todos; um concurso "
             "nacional entra sempre)</span></legend>%s</fieldset>"
             "<label>Preço base a partir de<input type='text' name='pbmin' "
             "value='%s' inputmode='numeric' placeholder='€, ex. 20 000'></label>"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
             % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
 
 
@@ -19656,17 +19803,24 @@ def _conteudo_interesse():
                   % (descricao_do_interesse(cfg),
                      (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
                      mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
+    # Um «Guardar o perfil» só, no fim, para os distritos, o valor e a
+    # árvore (3.ª ronda, G95). A árvore fica fora do <form> (o filtro dela
+    # não é um campo a enviar) e o botão chega-lhe pelo `form=`; ao enviar,
+    # o JS da árvore escreve nos campos escondidos o que está marcado.
     formulario = (
         "<div class='mg-card novo-filtro'>%s"
-        "<form method='post' action='/alertas/interesse' class='filtros'>"
+        "<form method='post' action='/alertas/interesse' class='filtros' "
+        "id='form-perfil'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "</form>%s</div>"
+        "</form>%s<div class='perfil-guardar'><button type='submit' "
+        "form='form-perfil' class='mg-btn mg-btn--primary'>Guardar o perfil"
+        "</button></div></div>"
         % (estado, html.escape(dentro, quote=True), html.escape(fora, quote=True),
            _local_e_valor_do_interesse(cfg),
-           arvore_html(n_cpv, "anuncios", aberta=True,
-                       botao="Guardar o perfil", rodape=False)))
+           arvore_html(n_cpv, "anuncios", submeter=False, aberta=True,
+                       botao=None, rodape=False)))
     conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
     if sou_admin():
         return ("<p class='nota' style='margin:0 0 12px'>O perfil vale para "
@@ -19739,7 +19893,7 @@ def interesse_gravar():
     if activo:
         aviso = ("Perfil da empresa guardado: a lista de anúncios passa a mostrar só %s."
                  % " · ".join(x for x in (
-                     dentro, distritos.replace("|", ", "),
+                     cpv_legivel(dentro), distritos.replace("|", ", "),
                      "desde %s €" % pbmin if pbmin else "") if x))
     else:
         aviso = "Perfil da empresa vazio: a lista de anúncios volta a mostrar tudo."
@@ -19924,7 +20078,7 @@ def _caixa_email(cfg):
            html.escape(str(e.get("servidor") or ""), quote=True),
            html.escape(str(e.get("porta") or "587"), quote=True),
            " disabled" if senha_por_variavel else "",
-           linhas_de_saude(envio, "#d68910"),
+           linhas_de_saude(envio, "var(--warning)"),
            ("<div style='margin-top:16px'>%s</div>"
             % accao("/alertas/enviar", "Enviar o resumo agora", "bt")
             if pronto else
@@ -21379,7 +21533,7 @@ def config_recolha():
                        "recuperar_slot_falhado", cfg.get("recuperar_slot_falhado", True))
         + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
         + ("<div class='mg-alert mg-alert--danger' style='margin-top:16px'>As tarefas agendadas "
-           "estão por criar (%s): corre o agendar.sh.</div>"
+           "estão por criar (%s): corra o agendar.sh.</div>"
            % html.escape(", ".join(faltam)) if faltam else
            "<div class='nota' style='margin-top:16px'>As tarefas agendadas do "
            "sistema estão criadas.</div>"))
@@ -21448,7 +21602,7 @@ def config_leitura():
             "<div class='conf-forn'><div class='mg-field__label'>%s</div>"
             "<div class='saude'>%s</div>%s%s</div>"
             % (html.escape(nome),
-               linhas_de_saude([("Chave", html.escape(texto), bem)], "#d68910"),
+               linhas_de_saude([("Chave", html.escape(texto), bem)], "var(--warning)"),
                _campo("Modelo", "modelo_" + nome,
                       modelo_do_fornecedor(cfg, nome, omissao),
                       nota="de origem: %s" % html.escape(omissao)),
@@ -22055,17 +22209,20 @@ def config_conta():
     return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
-# O que cada aspecto diz a quem escolhe (D14). O escuro não se oferece:
-# o subtítulo das páginas fica a 1,4:1 nele (segunda ronda, perfil 8).
+# O que cada aspecto diz a quem escolhe (D14). O escuro oferece-se desde
+# a 3.ª ronda (D1): antes saíram os fundos brancos escritos à mão e a banda
+# a `--brand`, que o deixavam com texto a 1,16:1 (rel. 06B #3-#7).
 ROTULOS_DO_ASPECTO = (
     ("normal", "Normal"),
-    ("contraste", "Alto contraste",),
+    ("escuro", "Escuro"),
+    ("sistema", "Como o sistema (claro ou escuro, como o computador estiver)"),
+    ("contraste", "Alto contraste"),
 )
 
 
 def _bloco_do_aspecto(utilizador):
     """O aspecto do painel para esta pessoa (D14 da segunda ronda,
-    26/09/2026): normal ou alto contraste. Guarda-se na CONTA e não no
+    26/09/2026): normal, escuro, como o sistema ou alto contraste. Guarda-se na CONTA e não no
     browser -- quem precisa do contraste precisa dele no telemóvel e no
     computador do escritório, e não tem de o voltar a escolher em cada
     um."""
@@ -22078,8 +22235,10 @@ def _bloco_do_aspecto(utilizador):
             "class='conf-form' id='aspecto' style='margin-top:22px'>"
             "<fieldset class='dist-interesse'><legend>Aspecto</legend>%s</fieldset>"
             "<div class='nota' style='margin-bottom:10px'>O alto contraste "
-            "escurece o texto e as linhas, e tira as sombras. Vale para esta "
-            "conta, em todos os aparelhos.</div>"
+            "escurece o texto e as linhas, e tira as sombras. «Como o "
+            "sistema» segue o claro ou o escuro que o computador ou o "
+            "telemóvel tiverem. Vale para esta conta, em todos os "
+            "aparelhos.</div>"
             "<button type='submit' class='mg-btn mg-btn--primary'>Guardar o aspecto</button>"
             "</form>" % opcoes)
 
@@ -22625,6 +22784,19 @@ GLOSSARIO = (
         ("CPV", "O Vocabulário Comum para os Contratos Públicos: o código "
          "de oito dígitos que diz o que se compra. Um código mais curto "
          "(com zeros no fim) apanha tudo o que está por baixo dele."),
+        # os três que faltavam a quem chega (3.ª ronda, G97)
+        ("Lote", "Uma parte de um concurso que se adjudica à parte: o "
+         "mesmo anúncio pode ter vários, cada um com o seu preço base. A "
+         "empresa concorre a um, a alguns ou a todos, e cada lote a que "
+         "concorre é uma proposta."),
+        ("Gestor e utilizador", "Os dois tipos de conta de uma empresa. O "
+         "gestor faz o mesmo que o utilizador e, além disso, muda o Perfil "
+         "da empresa, os documentos e as contas da equipa (convida, tira, "
+         "gera a ligação de repor a palavra-passe). O utilizador trabalha "
+         "os concursos e as propostas."),
+        ("Pôr a empresa a trabalhar", "O cartão do Hoje com os primeiros "
+         "passos, que o gestor vê enquanto faltam. «Dispensar» tira-o para "
+         "toda a empresa e não volta; os passos continuam nas Configurações."),
     )),
     ("As propostas", (
         ("Fase", "O ponto em que a proposta está, da decisão ao desfecho: "
@@ -23748,7 +23920,15 @@ def contratos_resumo():
     lista lenta para quem so quer a tabela. Devolve HTML e nao JSON de
     proposito -- desenhar continua a ser em Python, como o resto do
     painel, e o JS so tem de o pendurar no sitio.
+
+    Aberto a mao na barra do browser (3.a ronda, G97) era o pedaco cru,
+    sem titulo, sem `lang` e sem folha: quem la chega vai para o Mercado,
+    com o mesmo filtro. Conhece-se pelo `Sec-Fetch-Mode: navigate`, que o
+    `fetch()` da pagina nunca manda.
     """
+    if request.headers.get("Sec-Fetch-Mode") == "navigate":
+        qs = request.query_string.decode()
+        return redirect("/contratos" + ("?" + qs if qs else ""))
     if not ha_corpus():
         return Response("", mimetype="text/html")
     ganha, compra, proc, trim, escal, desc = resumo_contratos(request.args)
@@ -24340,7 +24520,7 @@ def entidades():
             "<th class='p'>A acabar · %d meses</th><th><span class='so-leitor'>Acções</span></th></tr></thead>"
             "<tbody>%s</tbody></table>"
             "<div class='tab-pe'><button type='submit' class='mg-btn mg-btn--secondary'>comparar "
-            "as marcadas</button><span class='nota'>Marca duas. "
+            "as marcadas</button><span class='nota'>Marque duas. "
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
@@ -24702,7 +24882,7 @@ def sem_corpus_html(titulo):
         "o quê, por quanto.",
         "<div class='larg'><div class='mg-empty'>"
         "Os contratos do Portal BASE ainda não foram trazidos.<br><br>%s</div></div>"
-        % ("Corre <code>python radar.py --contratos</code> para o trazer do "
+        % ("Corra <code>python radar.py --contratos</code> para o trazer do "
            "dados.gov &mdash; domínio público, sem chave nem sessão. "
            "Dois anos são cerca de dois minutos." if sou_dono() else
            "Está a ser preparado: os contratos aparecem aqui assim que "
@@ -24803,8 +24983,9 @@ def barra_corpus(anos):
                         "Actualizar contratos")
     aviso = ""
     if estado == "falhou":
-        aviso = ("<div class='cpv-activo' style='border-color:#f0c9c3;"
-                 "background:#fbe9e6;color:var(--danger)'>A última "
+        aviso = ("<div class='cpv-activo' style='border-color:"
+                 "color-mix(in srgb,var(--danger) 25%,transparent);"
+                 "background:var(--danger-soft);color:var(--danger)'>A última "
                  "actualização falhou: %s</div>" % html.escape(passo))
     elif estado == "interrompida":
         aviso = ("<div class='cpv-activo'>A última actualização ficou a "
@@ -25503,6 +25684,23 @@ def descricao_do_interesse(cfg=None):
         interesse_legivel(dentro) if dentro else "",
         html.escape(distritos.replace("|", ", ")),
         "desde %s €" % html.escape(pbmin) if pbmin else "") if x)
+
+
+def cpv_legivel(texto):
+    """«50700000|90911200» em texto simples, para um aviso ou uma legenda
+    (3.ª ronda, G91): «50700000 Serviços de reparação…, 90911200 Serviços
+    de limpeza…». O aviso de guardar o perfil e o cartão do alerta
+    mostravam os códigos crus, separados pela barra. As palavras ficam
+    como estão. Não vem escapado: quem o põe numa página escapa-o."""
+    pedacos = [p.strip() for p in (texto or "").split("|") if p.strip()]
+    codigos = [p for p in pedacos if re.fullmatch(r"[\d\-\s]+", p)]
+    nomes = dict(zip(codigos, descricoes_cpv(",".join(codigos))))
+    fora = []
+    for p in pedacos:
+        codigo, _, nome = nomes.get(p, p).partition(" &mdash; ")
+        fora.append("%s %s" % (codigo, corta(html.unescape(nome), 40))
+                    if nome else html.unescape(codigo))
+    return ", ".join(fora)
 
 
 def interesse_legivel(texto):
@@ -27216,7 +27414,7 @@ def mercado_cx(a, chave, r=None):
         return cartao(
             "O mercado", "", id_="mercado", porque=porque,
             meta="Os contratos do Portal BASE ainda não foram trazidos."
-            + (" Corre <code>python radar.py --contratos</code> para o "
+            + (" Corra <code>python radar.py --contratos</code> para o "
                "trazer do dados.gov (domínio público, sem chave)."
                if sou_dono() else ""))
 
@@ -28247,7 +28445,7 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         "<form class='mg-card filtros peca-procura' method='get' action='%s'>%s"
         "<input type='text' name='procurar' value='%s' "
         "placeholder='Procurar no documento…' aria-label='Procurar no documento'>"
-        "<button type='submit'>Procurar</button>%s</form>"
+        "<button type='submit' class='mg-btn mg-btn--secondary'>Procurar</button>%s</form>"
         % (html.escape(rota, quote=True), escondidos,
            html.escape(procurar, quote=True),
            ("<a class='limpar' href='%s'>limpar</a>"
@@ -28384,10 +28582,15 @@ def recado_das_tarefas_que_ficam(id_):
     n = len(tarefas_por_proposta([id_]).get(id_, []))
     if not n:
         return ""
-    return (" %s: veja-a%s na ficha, onde se fecha%s de uma vez."
+    # dito NA ficha, «veja-as na ficha» mandava para onde já se estava
+    # (3.ª ronda, G97): aí diz-se o bloco
+    origem = (request.referrer or "") if has_request_context() else ""
+    onde = ("mais abaixo, em «O que falta fazer»"
+            if "/anuncio/" in origem or "/proposta/" in origem else "na ficha")
+    return (" %s: veja-a%s %s, onde se fecha%s de uma vez."
             % ("Fica 1 tarefa por fazer" if n == 1
                else "Ficam %d tarefas por fazer" % n,
-               "" if n == 1 else "s", "" if n == 1 else "m"))
+               "" if n == 1 else "s", onde, "" if n == 1 else "m"))
 
 
 @app.route("/proposta/<int:id_>/fechar-tarefas", methods=["POST"])
@@ -28991,7 +29194,7 @@ def _campos_que_a_ranhura_pede(p):
       pecas.append(
         "<label>Preço proposto<input type='text' name='valor_proposta' "
         "value='%s' placeholder='ex. 118 500,00'></label>"
-        % html.escape(p["valor_proposta"] or "", quote=True))
+        % html.escape(preco_do_campo(p["valor_proposta"]), quote=True))
     if estado in ("relatorio", "ganho", "perdido") or p["lugar"] or p["top3"]:
         pecas.append(
             "<label>Lugar<input type='number' name='lugar' min='1' max='99' "
@@ -29022,7 +29225,7 @@ def _campos_que_a_ranhura_pede(p):
         pecas.append(
             "<label>Valor adjudicado<input type='text' name='valor_adjudicado' "
             "value='%s' placeholder='vazio: o proposto'></label>"
-            % html.escape(_valor(p, "valor_adjudicado") or "", quote=True))
+            % html.escape(preco_do_campo(_valor(p, "valor_adjudicado")), quote=True))
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos:
         pecas.append(
@@ -29094,7 +29297,7 @@ def _tarefas_da_ficha(p):
                          "required>", "larga")
               + rotulado("Até quando", "<input type='text' name='quando' inputmode='numeric' "
                          "placeholder='dd/mm/aaaa' maxlength='10' "
-                         "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
+                         "pattern='\\d{1,2}/\\d{1,2}(/\\d{4})?'>")
               + rotulado("Quem faz", "<select name='quem'>%s</select>") +
               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Adicionar</button></form>")
               % (html.escape(p["ref"] or "", quote=True), p["id"],
@@ -29251,7 +29454,7 @@ def _preco_proposto_do_pedido(estado):
     bruto = request.form.get("valor_proposta") or ""
     valor = preco_escrito(bruto)
     if valor is None:
-        return None, ("«%s» não se lê como preço. Escreve-o assim: 118 500,00."
+        return None, ("«%s» não se lê como preço. Escreva-o assim: 118 500,00."
                       % corta(" ".join(bruto.split()), 40))
     if not valor and "valor_proposta" in exigidos_da_ranhura(estado):
         return None, ("Em «%s» o preço proposto não pode ficar vazio."
@@ -29503,34 +29706,47 @@ def proposta_nova():
         # que a porta deita fora -- e o erro nem sequer aparecia.
         falhou = True
     invalido = " aria-invalid='true'" if falhou else ""
+    # Os campos do sistema, com o rótulo por cima (3.ª ronda, G88): eram
+    # `<label>` a embrulhar o campo em linha, e a 390 px o «Título» ficava
+    # à direita da caixa do Cliente -- lia-se como rótulo do campo errado.
+    # Nenhum leva `required`: a regra é «um dos dois», e o browser não a
+    # sabe dizer; di-la o parágrafo de cima, e o servidor recusa.
     corpo = (
-        "<div class='mg-card'><form method='post' class='form-largo'>"
+        "<div class='mg-card'><div class='mg-card__body'>"
+        "<form method='post' class='form-nova'>"
         "<p id='nova-regra' class='nota%s'%s>%sPreencha pelo menos o cliente "
         "ou o título: uma proposta sem nenhum dos dois não se encontra "
         "depois.</p>"
-        "<label>Cliente<input type='text' name='entidade' maxlength='120' "
+        "<div class='mg-field'><label class='mg-field__label' for='n-entidade'>"
+        "Cliente</label><input class='mg-field__input' id='n-entidade' "
+        "type='text' name='entidade' maxlength='120' "
         "aria-describedby='nova-regra'%s "
-        "placeholder='ex. Instituto Politécnico de Leiria' autofocus></label>"
-        "<label>Título<input type='text' name='titulo' maxlength='200' "
+        "placeholder='ex. Instituto Politécnico de Leiria' autofocus></div>"
+        "<div class='mg-field'><label class='mg-field__label' for='n-titulo'>"
+        "Título</label><input class='mg-field__input' id='n-titulo' "
+        "type='text' name='titulo' maxlength='200' "
         "aria-describedby='nova-regra'%s "
-        "placeholder='o objecto do procedimento'></label>"
-        "<label>Porque não tem anúncio"
-        "<input type='text' name='porque_sem_ref' maxlength='120' "
-        "value='consulta prévia' list='sem-ref'></label>"
+        "placeholder='o objecto do procedimento'></div>"
+        "<div class='mg-field'><label class='mg-field__label' for='n-porque'>"
+        "Porque não tem anúncio</label><input class='mg-field__input' "
+        "id='n-porque' type='text' name='porque_sem_ref' maxlength='120' "
+        "value='consulta prévia' list='sem-ref'></div>"
         "<datalist id='sem-ref'>%s</datalist>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Criar proposta</button></form></div>"
+        "<div><button type='submit' class='mg-btn mg-btn--primary'>Criar proposta"
+        "</button></div></form></div></div>"
         % (" erro" if falhou else "", " role='alert'" if falhou else "",
            "<span aria-hidden='true'>&#10005;</span> Nada foi criado. "
            if falhou else "", invalido, invalido,
            "".join("<option value='%s'>" % html.escape(v, quote=True)
                    for v in ("consulta prévia", "ajuste directo", "convite",
                              "anterior a 2025", "não sei"))))
-    return envolver("anuncios", "Nova proposta",
+    # Acende «Propostas», que é onde ela vai viver (3.ª ronda, G89)
+    return envolver("propostas", "Nova proposta",
                     "O que não vem do Diário da República: consulta "
                     "prévia, ajuste directo, convite. O que vem do DR "
                     "abre-se a partir da ficha do anúncio, com «Interessa».",
                     "<div class='larg'>" + corpo + "</div>",
-                    migalhas=migalhas_de("anuncios", "Nova proposta"),
+                    migalhas=migalhas_de("propostas", "Nova proposta"),
                     titulo_aba="Nova proposta")
 
 
@@ -29574,17 +29790,20 @@ def ficha_da_proposta(id_):
                           % (nome or "").replace("'", " ")))
     corpo = (bloco
              + "<p class='nota'>Sem anúncio do DR: %s. Criada a %s.%s</p>"
+             # dd/mm/aaaa, como as notas da mesma ficha (G91)
              % (html.escape(p["porque_sem_ref"] or "não vem do DR"),
-                html.escape(p["criada_em"] or "?"),
-                " Fechada a %s." % html.escape(p["fechada_em"])
+                html.escape(data_hora_pt(p["criada_em"], "?")),
+                " Fechada a %s." % html.escape(data_hora_pt(p["fechada_em"]))
                 if p["fechada_em"] else "")
              + ligacao_a_entidade + contactos
              + cronologia_da_proposta(p) + apagar)
-    return envolver("anuncios", corta(nome, 80),
+    # uma proposta vive nas Propostas: a barra e a migalha acendiam
+    # «Concursos» (3.ª ronda, G89)
+    return envolver("propostas", corta(nome, 80),
                     html.escape(p["entidade"] or ""),
                     "<div class='larg'>" + corpo + "</div>",
                     script=caixa_do_motivo(),
-                    migalhas=migalhas_de("anuncios", corta(nome, 40)),
+                    migalhas=migalhas_de("propostas", corta(nome, 40)),
                     titulo_aba=corta(nome, 60))
 
 
@@ -31344,7 +31563,7 @@ def indicadores():
     # o corpus avisa a amarelo e a recolha a vermelho: um corpus velho
     # e uma coisa a fazer quando der jeito, uma captura expirada e o
     # radar parado
-    corpus_html = linhas_de_saude(corpus, "#d68910")
+    corpus_html = linhas_de_saude(corpus, "var(--warning)")
     # Os ultimos erros gravados, que so se viam por SQL (C1): a amarelo,
     # porque a marca e sobrescrita e pode ser antiga -- a data vai nela.
     erros = linhas_de_ultimos_erros(le_marca("ultimo_erro_relogio", ""),
@@ -31356,7 +31575,7 @@ def indicadores():
                                     le_marca("pecas_dr_ultimo_erro", ""),
                                     le_marca("painel_ultimo_erro", ""))
     saude_html = (linhas_de_saude(saude)
-                  + linhas_de_saude(erros, "#d68910"))
+                  + linhas_de_saude(erros, "var(--warning)"))
 
     # So o sistema: o negocio saiu para a abertura (numeros_do_negocio()).
     conteudo = (
@@ -31957,7 +32176,7 @@ def aceitar_pedido(id_):
            contas.DIAS_DE_CONVITE, html.escape(ligacao)))
 
 
-PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="claro"><head><meta charset="utf-8">
+PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Criar a conta — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
