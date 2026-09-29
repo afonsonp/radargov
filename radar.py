@@ -74,6 +74,7 @@ try:
     import requests
     from flask import abort, Flask, g, has_request_context, redirect, \
         request, Response, send_file
+    from werkzeug.exceptions import NotFound
     from werkzeug.middleware.proxy_fix import ProxyFix
 except ImportError:
     print("Falta instalar. Corre:  python -m pip install -r requirements.txt")
@@ -12489,9 +12490,14 @@ def volta_ao_referer(omissao):
 # app. Quem la chega ainda nao tem sessao -- e o que ele faz nascer --,
 # e a guarda e dentro da rota (`entrar_codigo()`): o pendente (so o
 # resumo na base, cinco minutos, cinco tentativas), o trinco, e a origem.
+# /robots.txt, /sitemap.xml e /partilha.png (3.ª ronda, G100): o que um
+# motor de busca e uma rede social pedem sem sessao. Nenhum tem dados --
+# o mapa lista as paginas publicas, a imagem e um ficheiro do `site/` --,
+# e so respondem a GET, por isso nao ha guarda do POST a fazer.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
-                 "/entrar/codigo")
+                 "/entrar/codigo", "/robots.txt", "/sitemap.xml",
+                 "/partilha.png")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -12808,6 +12814,13 @@ def porta_de_entrada():
                 site = pagina_do_site()
                 if site is not None:
                     return site
+            # Um endereço que não é rota nenhuma é um 404 a sério, e não
+            # o /entrar com 200 (3.ª ronda, G100: cada endereço errado era
+            # um «soft 404» para os motores de busca). As rotas que
+            # existem continuam a ir ao login -- o `NotFound` só vem
+            # quando o Flask não encontrou nenhuma.
+            if isinstance(request.routing_exception, NotFound):
+                return pagina_de_erro(404)
             para = request.full_path.rstrip("?")
             return redirect("/entrar?para=" + quote(para, safe=""))
         return _sessao_em_falta()
@@ -12935,10 +12948,15 @@ def _sessao_em_falta():
 
 def pagina_de_erro(codigo):
     titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
-    return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
-                                   "texto": texto,
-                                   "logo": logotipo(tamanho=24)},
-                    codigo, mimetype="text/html")
+    pagina = PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
+                            "texto": texto, "logo": logotipo(tamanho=24)}
+    # Quem não tem sessão não tem Hoje: a raiz é o site (3.ª ronda, G100,
+    # agora que um endereço errado sem sessão dá este 404).
+    if has_request_context() and not g.get("utilizador") \
+            and not g.get("livre"):
+        pagina = pagina.replace(ACCAO_DA_PAGINA_DE_ERRO, ACCAO_DA_PAGINA_DE_ERRO
+                                .replace("Voltar ao Hoje", "Voltar ao início"))
+    return Response(pagina, codigo, mimetype="text/html")
 
 
 def _recusa(frase, texto):
@@ -13255,23 +13273,33 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="s
 </main></body></html>"""
 
 
+def concursos_na_base():
+    """Quantos concursos a base tem, ou None se ela não responder. É o
+    número do `/entrar` E do site (3.ª ronda, G101): o site dizia
+    «210 000+», escrito à mão, e o `/entrar` «200 553» -- quem carregava
+    em «Entrar» via o número baixar 5 %.
+
+    Sem as alteracoes, como o «Todos» da lista as conta: sao
+    republicacoes de um concurso que ja la esta, e com elas o numero da
+    entrada nao batia com a lista (210 752 contra 200 363; teste com
+    utilizadores, 25/09/2026)."""
+    try:
+        with liga() as c:
+            return c.execute("SELECT COUNT(*) FROM anuncios "
+                             "WHERE estado != 'alteracao'").fetchone()[0]
+    except sqlite3.Error:
+        return None
+
+
 def _numeros_da_entrada():
     """Os tres numeros do painel azul do `EcraEntrar` (24/09/2026): o
     que a plataforma tem, e nada de uma empresa -- a pagina e publica, e
     antes de entrar nao ha empresa nenhuma. Se uma consulta falhar, o
     numero sai e a pagina serve na mesma: entrar nao pode depender dele."""
     numeros = []
-    try:
-        with liga() as c:
-            # Sem as alteracoes, como o «Todos» da lista as conta: sao
-            # republicacoes de um concurso que ja la esta, e com elas o
-            # numero da entrada nao batia com a lista (210 752 contra
-            # 200 363; teste com utilizadores, 25/09/2026).
-            n = c.execute("SELECT COUNT(*) FROM anuncios "
-                          "WHERE estado != 'alteracao'").fetchone()[0]
+    n = concursos_na_base()
+    if n is not None:
         numeros.append((mil_pt(n), "concursos na base"))
-    except sqlite3.Error:
-        pass
     try:
         if ha_corpus():
             numeros.append((mil_pt(ha_corpus()), "contratos do Portal BASE"))
@@ -15301,9 +15329,10 @@ TEMA_DO_SISTEMA_JS = (
     "var m=matchMedia('(prefers-color-scheme: dark)');"
     "function p(){h.setAttribute('data-theme',m.matches?'escuro':'claro')}"
     "p();if(m.addEventListener)m.addEventListener('change',p)})()</script>")
-LIGACAO_CSS = TEMA_DO_SISTEMA_JS + "".join(
+PRE_CARGA_DAS_LETRAS = "".join(
     '<link rel="preload" href="/tipo/%s" as="font" type="font/woff2" '
-    'crossorigin>' % f for f in FONTES_PRE_CARREGADAS) + (
+    'crossorigin>' % f for f in FONTES_PRE_CARREGADAS)
+LIGACAO_CSS = TEMA_DO_SISTEMA_JS + PRE_CARGA_DAS_LETRAS + (
     '<link rel="stylesheet" href="%s">' % FOLHA_CSS)
 
 
@@ -32122,24 +32151,125 @@ def operador_completo(cfg=None):
     return None
 
 
+# O olho da marca no site (as ids da máscara têm de ser únicas na página:
+# o topo e o rodapé levam cada um o seu). É o `_olho()` da aplicação com
+# as cores da pupila escritas, porque o site não carrega os componentes.
+def _olho_do_site(sufixo):
+    return ('<svg class="olho" viewBox="0 0 96 60" aria-hidden="true" '
+            'focusable="false"><mask id="olho-m%(s)s" maskUnits="userSpaceOnUse" '
+            'x="0" y="0" width="96" height="60"><rect width="96" height="60" '
+            'fill="#fff"/><circle cx="48" cy="30" r="18.5" fill="#000"/></mask>'
+            '<path d="M1 30A64 64 0 0 1 95 30A64 64 0 0 1 1 30Z" '
+            'fill="currentColor" mask="url(#olho-m%(s)s)"/><clipPath '
+            'id="olho-p%(s)s"><circle cx="48" cy="30" r="15"/></clipPath><g '
+            'clip-path="url(#olho-p%(s)s)"><rect x="33" y="15" width="12" '
+            'height="30" fill="#006432"/><rect x="45" y="15" width="18" '
+            'height="30" fill="#e61e1e"/></g></svg>' % {"s": sufixo})
+
+
+# O topo das páginas legais e o rodapé de todas (3.ª ronda, G102): as
+# três páginas legais não tinham a marca, só «← Mira Gov» em texto, e
+# pareciam de outro produto.
+TOPO_DAS_PAGINAS_DO_SITE = (
+    '<header class="topo"><div class="wrap"><a class="logo" href="/" '
+    'aria-label="Mira Gov, início">%s<span class="mira">Mira</span> '
+    '<span>Gov</span></a><nav aria-label="Site"><a class="entrar" '
+    'href="/entrar">Entrar</a><a class="btn btn-claro btn-pequeno" '
+    'href="/#acesso">Pedir acesso</a></nav></div></header>' % _olho_do_site("t"))
+RODAPE_DO_SITE = (
+    '<footer><div class="wrap"><div class="linha"><span class="logo" '
+    'role="img" aria-label="Mira Gov">%s<span class="mira">Mira</span> '
+    '<span>Gov</span></span><span><a href="/entrar">Entrar</a> · '
+    '<a href="/#acesso">Pedir acesso</a> · <a href="mailto:contacto@miragov.pt">'
+    'contacto@miragov.pt</a><!--LEGAL--> · <a href="/acessibilidade">'
+    'Acessibilidade</a></span></div><p>O Mira Gov é um produto privado e '
+    'independente, feito em Portugal. Não é um serviço do Estado e não tem '
+    'qualquer ligação ao Diário da República, ao IMPIC ou às plataformas de '
+    'contratação pública. A informação apresentada vem de fontes públicas e '
+    'não dispensa a consulta do anúncio oficial.</p><p class="num direitos">'
+    '© 2026 Mira Gov</p></div></footer>' % _olho_do_site("r"))
+# Os tokens da aplicação e o tema «como o sistema» (3.ª ronda, D11): o
+# site tinha uma paleta e uma letra suas, e um escuro seu que não era o
+# da aplicação. Os tokens vão num <style> e não na folha da aplicação:
+# são 3 KB, e a folha inteira traria as classes dela (.ficha, .cartao,
+# .aba) a chocar com as do site. Lidos no arranque, como o CSS_TUDO.
+TOKENS_DO_SITE = ler_estilo("miragov-tokens.css")
+
+
+def ritmo_da_verificacao(horas):
+    """(«De hora a hora», «das 8h às 20h»): como o site diz quando se
+    verifica, a partir do `horas_verificacao` (3.ª ronda, G101: dizia
+    «Todo o dia», escrito à mão, e o `/entrar` mostrava a última recolha
+    às 20h)."""
+    hs = sorted({int(h[:2]) for h in horas if h[:2].isdigit()})
+    if not hs:
+        return "Ao longo do dia", "verificação automática"
+    if len(hs) > 2 and hs == list(range(hs[0], hs[-1] + 1)):
+        return "De hora a hora", "das %dh às %dh, verificação automática" % (
+            hs[0], hs[-1])
+    vezes = "Uma vez por dia" if len(hs) == 1 else "%d vezes por dia" % len(hs)
+    return vezes, "às %s, verificação automática" % " e às ".join(
+        "%dh" % h for h in hs)
+
+
+def numero_do_site(n):
+    """«200 000+»: o número de concursos do `/entrar`, arredondado para
+    baixo ao milhar, para não mentir a quem clica em «Entrar» e vê o
+    exacto (3.ª ronda, G101)."""
+    if n < 1000:
+        return mil_pt(n)
+    return mil_pt(n // 1000 * 1000) + "<small>+</small>"
+
+
+def _do_site(texto):
+    """As marcas que o site e as páginas legais levam, preenchidas: a
+    moldura (tokens, tema, letra), o topo e o rodapé, as ligações legais
+    (F8, só com o operador preenchido), e os números do site."""
+    moldura = ""
+    try:
+        with open(os.path.join(os.path.dirname(SITE), "moldura.css"),
+                  encoding="utf-8") as f:
+            moldura = f.read()
+    except OSError:
+        pass
+    legal = operador_completo()
+    for marca_, valor in (
+            ("<!--MOLDURA-->", TEMA_DO_SISTEMA_JS + PRE_CARGA_DAS_LETRAS
+             + "<style>%s%s</style>" % (TOKENS_DO_SITE, moldura)),
+            ("<!--TOPO-->", TOPO_DAS_PAGINAS_DO_SITE),
+            ("<!--RODAPE-->", RODAPE_DO_SITE),
+            ("<!--OLHO-->", _olho_do_site("")),
+            ("<!--LEGAL-->", " · <a href=\"/termos\">Termos</a> · "
+             "<a href=\"/privacidade\">Privacidade</a>" if legal else ""),
+            ("<!--LEGAL-NOTA-->", " — ver a <a href=\"/privacidade\">política de "
+             "privacidade</a>" if legal else "")):
+        texto = texto.replace(marca_, valor)
+    if "{{CONCURSOS}}" in texto:
+        n = concursos_na_base()
+        if n is None:
+            # sem base, a caixa do número sai; nunca um número inventado
+            texto = re.sub(r"<li>(?:(?!</li>).)*\{\{CONCURSOS\}\}.*?</li>", "",
+                           texto, flags=re.S)
+        else:
+            texto = texto.replace("{{CONCURSOS}}", numero_do_site(n))
+    if "{{RITMO}}" in texto:
+        ritmo, detalhe = ritmo_da_verificacao(
+            ler_config().get("horas_verificacao") or [])
+        texto = texto.replace("{{RITMO}}", ritmo).replace(
+            "{{RITMO_DETALHE}}", detalhe)
+    return texto
+
+
 def pagina_do_site():
     """O site, ou None se o ficheiro faltar -- e entao a porta manda ao
     login, como antes. Le-se a cada pedido: sao 50 KB, e assim mudar o
-    texto nao pede reiniciar o painel. As ligacoes para os termos e a
-    privacidade (F8) so aparecem com o operador preenchido."""
+    texto nao pede reiniciar o painel."""
     try:
         with open(SITE, encoding="utf-8") as f:
             texto = f.read()
     except OSError:
         return None
-    legal = operador_completo()
-    texto = texto.replace(
-        "<!--LEGAL-->", " · <a href=\"/termos\">Termos</a> · "
-        "<a href=\"/privacidade\">Privacidade</a>" if legal else "")
-    texto = texto.replace(
-        "<!--LEGAL-NOTA-->", " — ver a <a href=\"/privacidade\">política de "
-        "privacidade</a>" if legal else "")
-    return Response(texto, mimetype="text/html")
+    return Response(_do_site(texto), mimetype="text/html")
 
 
 def pagina_legal(qual):
@@ -32159,7 +32289,7 @@ def pagina_legal(qual):
     texto = texto.replace("{{NIF}}", ", NIF " + html.escape(nif) if nif else "")
     for marca_, chave in (("{{NOME}}", "nome"), ("{{MORADA}}", "morada")):
         texto = texto.replace(marca_, html.escape(op[chave].strip()))
-    return Response(texto, mimetype="text/html")
+    return Response(_do_site(texto), mimetype="text/html")
 
 
 @app.route("/privacidade")
@@ -32186,9 +32316,45 @@ def acessibilidade():
     try:
         with open(os.path.join(os.path.dirname(SITE), "acessibilidade.html"),
                   encoding="utf-8") as f:
-            return Response(f.read(), mimetype="text/html")
+            return Response(_do_site(f.read()), mimetype="text/html")
     except OSError:
         return pagina_de_erro(404)
+
+
+# O que um motor de busca pede antes de tudo (3.ª ronda, G100): o
+# `/robots.txt` e o `/sitemap.xml` iam ao /entrar e recebiam a página de
+# entrar com 200. São rotas abertas por IGUALDADE, sem dados: o robots diz
+# onde está o mapa, e o mapa lista só as páginas públicas -- as legais só
+# quando existem (F8, com o operador preenchido).
+@app.route("/robots.txt")
+def robots():
+    return Response("User-agent: *\nAllow: /\nSitemap: %s/sitemap.xml\n"
+                    % endereco_do_painel(), mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def mapa_do_site():
+    raiz = endereco_do_painel()
+    caminhos = ["/", "/acessibilidade"] + (
+        ["/privacidade", "/termos"] if operador_completo() else [])
+    return Response(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns='
+        '"http://www.sitemaps.org/schemas/sitemap/0.9">\n%s</urlset>\n'
+        % "".join("<url><loc>%s</loc></url>\n" % html.escape(raiz + c)
+                  for c in caminhos), mimetype="application/xml")
+
+
+# A imagem de partilha (G100): sem ela o site saía sem imagem no LinkedIn
+# e no WhatsApp. Um ficheiro do `site/`, sem dados, feito a partir da
+# abertura do site (1200 x 630, o tamanho do Open Graph).
+@app.route("/partilha.png")
+def imagem_de_partilha():
+    caminho = os.path.join(os.path.dirname(SITE), "partilha.png")
+    if not os.path.isfile(caminho):
+        return pagina_de_erro(404)
+    resposta = send_file(caminho, mimetype="image/png")
+    resposta.headers["Cache-Control"] = "public, max-age=86400"
+    return resposta
 
 
 def _avisar_do_pedido(id_, p):
@@ -32235,7 +32401,12 @@ def pedir_acesso():
                             mimetype="application/json")
         titulo = "Pedido recebido" if ok else "Não foi possível enviar"
         texto = (html.escape(erro) if erro else
-                 "Obrigado. Respondemos por e-mail em breve.")
+                 # o que vem a seguir, como a confirmação do site (G99)
+                 "Respondemos para %s, normalmente em dois dias úteis. Quando "
+                 "o pedido for aceite, recebe nesse endereço um convite para "
+                 "criar a conta. Se não chegar, veja a pasta de spam ou "
+                 "escreva para contacto@miragov.pt."
+                 % (html.escape(request.form.get("email") or "") or "o seu e-mail"))
         return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
                                        "texto": texto,
                                        "logo": logotipo(tamanho=24)},
@@ -32252,6 +32423,11 @@ def pedir_acesso():
     p["mensagem"] = (f.get("mensagem") or "").strip()[:2000]
     if not (p["nome"] and p["empresa"] and RX_EMAIL.match(p["email"])
             and p["sector"] in SECTORES_DO_PEDIDO):
+        # só o e-mail mal escrito diz-se como tal (3.ª ronda, G103)
+        if p["nome"] and p["empresa"] and p["email"] \
+                and p["sector"] in SECTORES_DO_PEDIDO:
+            return resposta(False, "O e-mail não parece válido. Confira-o: "
+                                   "é para lá que respondemos.", 400)
         return resposta(False, "Preencha o nome, a empresa, um e-mail válido "
                                "e o sector, para podermos responder.", 400)
     agora = datetime.now()

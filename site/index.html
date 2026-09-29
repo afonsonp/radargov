@@ -1,123 +1,41 @@
 <!doctype html>
-<html lang="pt">
+<html lang="pt-PT" data-theme="sistema">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mira Gov</title>
-<meta name="description" content="Mira Gov lê o Diário da República ao longo do dia, descarrega as peças e mostra o preço a que o mercado adjudica. Produto privado e independente, feito em Portugal.">
+<title>Mira Gov — vigilância de concursos públicos</title>
+<meta name="description" content="O Mira Gov lê o Diário da República ao longo do dia, descarrega as peças e mostra o preço a que o mercado adjudica. Produto privado e independente, feito em Portugal.">
+<link rel="canonical" href="https://miragov.pt/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mira Gov">
+<meta property="og:locale" content="pt_PT">
+<meta property="og:url" content="https://miragov.pt/">
+<meta property="og:title" content="Mira Gov — vigilância de concursos públicos">
+<meta property="og:description" content="Nenhum concurso da sua área fica por ver. O Mira Gov lê o Diário da República, descarrega as peças e mostra a que preço o mercado adjudica.">
+<meta property="og:image" content="https://miragov.pt/partilha.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Mira Gov: nenhum concurso da sua área fica por ver.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Mira Gov","url":"https://miragov.pt/","inLanguage":"pt-PT"}</script>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!--MOLDURA-->
 <style>
-/* As letras vêm da própria aplicação (/tipo/, lista branca TIPOS): o
-   CSP só deixa carregar fontes do mesmo sítio, e um visitante não
-   precisa de falar com o Google para ler a página. */
-@font-face{font-family:"Zilla Slab";font-weight:500;font-display:swap;src:url(/tipo/ZillaSlab-Medium.woff2) format("woff2")}
-@font-face{font-family:"Zilla Slab";font-weight:600;font-display:swap;src:url(/tipo/ZillaSlab-SemiBold.woff2) format("woff2")}
-@font-face{font-family:"Source Sans 3";font-weight:200 900;font-display:swap;src:url(/tipo/SourceSans3-Variable.woff2) format("woff2")}
-@font-face{font-family:"Source Code Pro";font-weight:200 900;font-display:swap;src:url(/tipo/SourceCodePro-Variable.woff2) format("woff2")}
-:root{
-  --surface:#eef1f5;--surface-raised:#ffffff;--surface-sunken:#e4e8ef;
-  --header:#003a6c;--header-deep:#002a50;--on-header:#ffffff;--on-header-muted:#c3d5e8;--header-line:rgba(255,255,255,.18);
-  --line:#dde2ea;--line-strong:#64718b;
-  --ink:#1b2530;--ink-secondary:#435066;--ink-muted:#58647b;
-  --brand:#004682;--brand-hover:#00355f;--brand-soft:#e1ecf6;--on-brand:#ffffff;
-  --seal:#7a5200;--seal-soft:#fff1cc;--seal-on-dark:#ffd27a;
-  --success:#006432;--success-soft:#dff1e6;
-  --warning:#8a4f00;--warning-soft:#fff0d6;
-  --danger:#b3161a;--danger-soft:#fce4e3;
-  --focus:#dc00e6;
-  --shadow:0 1px 2px rgba(22,27,38,.05),0 4px 14px rgba(22,27,38,.06);
-  --shadow-alto:0 2px 6px rgba(0,20,45,.18),0 24px 48px rgba(0,20,45,.28);
-  --serif:"Zilla Slab","Roboto Slab",Georgia,serif;
-  --sans:"Source Sans 3","Segoe UI",system-ui,sans-serif;
-  --mono:"Source Code Pro",ui-monospace,Consolas,monospace;
-  color-scheme:light;
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    color-scheme:dark;
-    --surface:#14171c;--surface-raised:#1c2027;--surface-sunken:#101318;
-    --header:#0c2a48;--header-deep:#081d33;--on-header:#ffffff;--on-header-muted:#b9cde3;--header-line:rgba(255,255,255,.14);
-    --line:#2c323b;--line-strong:#8893aa;
-    --ink:#eceef1;--ink-secondary:#b8bec8;--ink-muted:#9aa2ae;
-    --brand:#7fb3e6;--brand-hover:#9fc6ee;--brand-soft:#16304b;--on-brand:#0b1a2c;
-    --seal:#ffc24d;--seal-soft:#3a2a05;--seal-on-dark:#ffd27a;
-    --success:#6fcf93;--success-soft:#0f2e1c;
-    --warning:#ffaa33;--warning-soft:#3b2a08;
-    --danger:#f28b82;--danger-soft:#3f1513;
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.35);
-    --shadow-alto:0 2px 6px rgba(0,0,0,.4),0 24px 48px rgba(0,0,0,.55);
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --surface:#14171c;--surface-raised:#1c2027;--surface-sunken:#101318;
-  --header:#0c2a48;--header-deep:#081d33;--on-header:#ffffff;--on-header-muted:#b9cde3;--header-line:rgba(255,255,255,.14);
-  --line:#2c323b;--line-strong:#8893aa;
-  --ink:#eceef1;--ink-secondary:#b8bec8;--ink-muted:#9aa2ae;
-  --brand:#7fb3e6;--brand-hover:#9fc6ee;--brand-soft:#16304b;--on-brand:#0b1a2c;
-  --seal:#ffc24d;--seal-soft:#3a2a05;--seal-on-dark:#ffd27a;
-  --success:#6fcf93;--success-soft:#0f2e1c;
-  --warning:#ffaa33;--warning-soft:#3b2a08;
-  --danger:#f28b82;--danger-soft:#3f1513;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.35);
-  --shadow-alto:0 2px 6px rgba(0,0,0,.4),0 24px 48px rgba(0,0,0,.55);
-}
-
-*{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:72px}
-body{margin:0;background:var(--surface);color:var(--ink);font:400 17px/1.55 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-a{color:var(--brand);text-underline-offset:2px}
-a:hover{color:var(--brand-hover)}
-:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-h1,h2{font-family:var(--serif);font-weight:600;line-height:1.08;text-wrap:balance;margin:0;letter-spacing:-.015em}
-h3{font:600 1.1rem/1.3 var(--sans);margin:0}
+
+h1,h2{font-family:var(--font-serif);font-weight:600;line-height:1.08;text-wrap:balance;margin:0;letter-spacing:-.015em}
+h3{font:600 1.1rem/1.3 var(--font-sans);margin:0}
 p{margin:0}
-.wrap{max-width:1180px;margin:0 auto;padding-inline:24px}
-@media (max-width:600px){.wrap{padding-inline:16px}}
-
-/* Botões */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:13px 22px;font:600 1.02rem/1.2 var(--sans);text-decoration:none;border:1px solid transparent;cursor:pointer;white-space:nowrap}
-.btn-primario{background:var(--brand);color:var(--on-brand)}
-.btn-primario:hover{background:var(--brand-hover);color:var(--on-brand)}
-.btn-secundario{background:var(--surface-raised);color:var(--brand);border-color:var(--line-strong)}
-.btn-secundario:hover{border-color:var(--brand);color:var(--brand-hover)}
-.btn-claro{background:#ffffff;color:#003a6c}
-.btn-claro:hover{background:#e1ecf6;color:#003a6c}
-.btn-contorno{background:transparent;color:var(--on-header);border-color:rgba(255,255,255,.55)}
-.btn-contorno:hover{border-color:#ffffff;color:var(--on-header)}
-.btn-pequeno{padding:8px 14px;font-size:.92rem}
-.btn[disabled]{opacity:.6;cursor:progress}
-
-/* Barra de topo */
-.topo{background:var(--header);color:var(--on-header);position:sticky;top:env(safe-area-inset-top,0px);z-index:10;border-bottom:1px solid var(--header-line)}
-.topo .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:62px}
-.topo nav{display:flex;gap:22px;align-items:center}
-.topo nav a{color:var(--on-header-muted);text-decoration:none;font-weight:600;font-size:.95rem}
-.topo nav a:hover{color:var(--on-header)}
-.topo nav a.entrar{padding:6px 2px;border-bottom:1px solid transparent}
-.topo nav a.entrar:hover{border-bottom-color:var(--on-header-muted)}
-.topo nav .btn{color:#003a6c}
-.topo nav .btn:hover{color:#003a6c}
-@media (max-width:860px){.topo nav a.ligacao{display:none}.topo nav{gap:16px}}
-
-/* Marca */
-.logo{display:inline-flex;align-items:center;font-family:var(--serif);font-weight:600;font-size:26px;line-height:1;white-space:nowrap;color:var(--on-header);text-decoration:none}
-.logo:hover{color:var(--on-header)}
-/* o olho: 0,7 da letra de altura, na proporção 96:60 do desenho */
-.logo .olho{display:block;flex:none;height:.7em;width:1.12em;margin-right:.25em;color:var(--on-header)}
-.logo .mira{margin-right:.22em}
-@media (max-width:400px){.logo{font-size:22px}}
 
 /* Abertura */
-.abertura{background:var(--header);color:var(--on-header);padding-block:72px 44px;position:relative;overflow:hidden}
+.abertura{background:var(--surface-header);color:var(--on-header);padding-block:72px 44px;position:relative;overflow:hidden}
 .abertura::before{content:"";position:absolute;inset:0;background:
-  repeating-linear-gradient(0deg,transparent 0 47px,rgba(255,255,255,.045) 47px 48px),
-  repeating-linear-gradient(90deg,transparent 0 47px,rgba(255,255,255,.045) 47px 48px);
+  repeating-linear-gradient(0deg,transparent 0 47px,color-mix(in srgb,var(--on-header) 4.5%,transparent) 47px 48px),
+  repeating-linear-gradient(90deg,transparent 0 47px,color-mix(in srgb,var(--on-header) 4.5%,transparent) 47px 48px);
   -webkit-mask-image:linear-gradient(100deg,transparent 30%,#000 75%);mask-image:linear-gradient(100deg,transparent 30%,#000 75%);pointer-events:none}
 .abertura .grelha{position:relative;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);gap:48px;align-items:center}
 .selo{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--seal);background:var(--seal-soft);border-radius:999px;padding:4px 12px}
-.abertura .selo{color:var(--seal-on-dark);background:rgba(255,210,122,.12);border:1px solid rgba(255,210,122,.35)}
+.abertura .selo{color:var(--seal-on-dark);background:color-mix(in srgb,var(--seal-on-dark) 12%,transparent);border:1px solid color-mix(in srgb,var(--seal-on-dark) 35%,transparent)}
 .abertura h1{font-size:clamp(2.5rem,5.4vw,4.6rem);margin-top:22px;letter-spacing:-.025em}
 .abertura h1 em{font-style:normal;color:var(--seal-on-dark)}
 .abertura .lead{font-size:clamp(1.12rem,1.6vw,1.3rem);color:var(--on-header-muted);margin-top:22px;max-width:36ch}
@@ -128,9 +46,9 @@ p{margin:0}
 
 /* Composição de ecrãs */
 .composicao{position:relative;padding-bottom:0}
-.ecra{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-alto);overflow:hidden;min-width:0}
+.ecra{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);overflow:hidden;min-width:0}
 .ecra-barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-sunken)}
-.ecra-titulo{font:600 1.05rem/1.2 var(--serif)}
+.ecra-titulo{font:600 1.05rem/1.2 var(--font-serif)}
 .abas{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .aba{font-size:.8rem;font-weight:600;padding:3px 10px;border-radius:999px;color:var(--ink-secondary);border:1px solid var(--line)}
 .aba[aria-current]{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
@@ -147,7 +65,7 @@ td.obj span{color:var(--ink-muted);font-size:.82rem;white-space:nowrap}
 td.obj .ref{display:block;color:var(--brand);font-size:.78rem;margin-bottom:2px}
 td.preco,td.prazo{white-space:nowrap}
 th.dir,td.preco{text-align:right}
-.etq{display:inline-block;font:600 .76rem/1 var(--sans);padding:4px 8px;border-radius:6px;margin-top:4px}
+.etq{display:inline-block;font:600 .76rem/1 var(--font-sans);padding:4px 8px;border-radius:6px;margin-top:4px}
 .etq-perigo{background:var(--danger-soft);color:var(--danger)}
 .etq-aviso{background:var(--warning-soft);color:var(--warning)}
 .etq-neutra{background:var(--surface-sunken);color:var(--ink-secondary)}
@@ -155,29 +73,36 @@ th.dir,td.preco{text-align:right}
 .prazo .num{display:block;color:var(--ink-secondary);font-size:.84rem}
 .ecra-rodape{padding:10px 16px;border-top:1px solid var(--line);font-size:.8rem;color:var(--ink-muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 
-.ficha{position:absolute;left:-48px;bottom:-104px;width:300px;background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-alto);padding:16px 18px 14px;font-size:.86rem}
+/* A ficha fica por baixo da lista, e não por cima (3.ª ronda, G103: a
+   1440 tapava a 3.ª linha, e do título só se via «…ntal») */
+.ficha{position:relative;margin:20px 0 0 -48px;width:300px;background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);padding:16px 18px 14px;font-size:.86rem}
 .ficha .ref{font-size:.76rem;color:var(--brand)}
-.ficha .ficha-titulo{font:600 1rem/1.25 var(--serif);margin:2px 0 0}
+.ficha .ficha-titulo{font:600 1rem/1.25 var(--font-serif);margin:2px 0 0}
 .ficha dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0 0;align-items:baseline}
 .ficha dt{color:var(--ink-muted);font-size:.8rem}
 .ficha dd{margin:0;text-align:right;font-weight:600}
 .ficha dd .etq{margin:0 0 0 6px}
-.pecas{list-style:none;margin:12px 0 0;padding:10px 0 0;border-top:1px solid var(--line);display:grid;gap:6px}
+.pecas{list-style:none;margin:12px 0 0;padding:10px 0 0;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
 .pecas li{display:flex;justify-content:space-between;gap:10px;align-items:center}
 .pecas li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ficha .historico{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--ink-secondary);font-size:.82rem}
-.legenda{font-size:.84rem;color:var(--on-header-muted);margin-top:128px;text-align:right}
-@media (max-width:1240px){.ficha{left:-24px}}
-@media (max-width:980px){.ficha{position:relative;left:auto;bottom:auto;width:auto;max-width:420px;margin:-28px 16px 0 auto}.legenda{text-align:left;margin-top:20px}}
+.legenda{font-size:.84rem;color:var(--on-header-muted);margin-top:20px;text-align:right}
+@media (max-width:1240px){.ficha{margin-left:-24px}}
+@media (max-width:980px){.ficha{width:auto;max-width:420px;margin:16px 16px 0 auto}.legenda{text-align:left}}
 @media (max-width:520px){.ficha{margin:16px 0 0;max-width:none}.pecas li .etq{white-space:nowrap}}
+/* a 390 a coluna do preço saía cortada («184 652,0»; 3.ª ronda, G103):
+   esconde-se, e o preço base continua na ficha, logo por baixo */
+@media (max-width:520px){th.dir,td.preco{display:none}}
 
 /* Números */
 .numeros{background:var(--surface-raised);border-bottom:1px solid var(--line)}
 .numeros ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
 .numeros li{padding:36px 20px 32px;border-left:1px solid var(--line)}
 .numeros li:first-child{border-left:0;padding-left:0}
-.numeros .grande{display:block;font:600 clamp(2rem,3.4vw,2.9rem)/1 var(--serif);color:var(--brand);letter-spacing:-.02em;white-space:nowrap}
+.numeros .grande{display:block;font:600 clamp(2rem,3.4vw,2.9rem)/1 var(--font-serif);color:var(--brand);letter-spacing:-.02em;white-space:nowrap}
 .numeros .grande small{font-size:.5em;letter-spacing:0;margin-left:2px}
+/* o ritmo é texto («De hora a hora»), e parte-se; os números não */
+.numeros .grande.ritmo{white-space:normal}
 .numeros p{margin-top:10px;color:var(--ink-secondary);font-size:.95rem;line-height:1.4}
 @media (max-width:980px){.numeros ul{grid-template-columns:repeat(2,minmax(0,1fr))}.numeros li{border-left:0;padding:24px 0;border-top:1px solid var(--line)}.numeros li:nth-child(-n+2){border-top:0}.numeros li:nth-child(2n){padding-left:20px;border-left:1px solid var(--line)}.numeros li:last-child{grid-column:1/-1;padding-left:0;border-left:0}}
 
@@ -202,9 +127,9 @@ section{padding-block:88px}
 .ganho .sobre{font-weight:700;font-size:.92rem;color:var(--brand);margin-bottom:10px}
 @media (max-width:900px){.ganho{grid-template-columns:minmax(0,1fr);gap:28px}.ganho.inverso > :first-child{order:0}.ganho + .ganho{margin-top:64px}}
 
-.cartao{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.cartao{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-sm);overflow:hidden;min-width:0}
 .cartao-cabeca{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface-sunken)}
-.cartao-cabeca strong{font:600 1.02rem/1.2 var(--serif)}
+.cartao-cabeca strong{font:600 1.02rem/1.2 var(--font-serif)}
 .cartao-cabeca span{font-size:.8rem;color:var(--ink-muted)}
 .cartao-corpo{padding:18px}
 
@@ -242,7 +167,7 @@ section{padding-block:88px}
 .escura .texto li{color:var(--on-header)}
 .mercado-grande{display:flex;gap:40px;flex-wrap:wrap;margin-top:28px;padding-top:24px;border-top:1px solid var(--header-line)}
 .mercado-grande div{min-width:0}
-.mercado-grande .num{display:block;font:600 clamp(2.4rem,5vw,3.6rem)/1 var(--serif);letter-spacing:-.02em}
+.mercado-grande .num{display:block;font:600 clamp(2.4rem,5vw,3.6rem)/1 var(--font-serif);letter-spacing:-.02em}
 .mercado-grande span:last-child{display:block;margin-top:8px;color:var(--on-header-muted);font-size:.95rem}
 .barras{display:grid;gap:12px;margin-top:4px}
 .barra{display:grid;grid-template-columns:minmax(0,130px) minmax(0,1fr) auto;gap:12px;align-items:center;font-size:.86rem}
@@ -251,7 +176,7 @@ section{padding-block:88px}
 .barra.nos .trilho span{background:var(--success)}
 .resumo-preco{display:flex;gap:24px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 .resumo-preco div{font-size:.82rem;color:var(--ink-muted)}
-.resumo-preco b{display:block;font:600 1.3rem/1.2 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.resumo-preco b{display:block;font:600 1.3rem/1.2 var(--font-mono);color:var(--ink);font-variant-numeric:tabular-nums}
 .resumo-preco b.desc{color:var(--success)}
 .nota-ex{font-size:.82rem;color:var(--ink-muted);padding:10px 18px;border-top:1px solid var(--line)}
 @media (max-width:460px){.barra{grid-template-columns:minmax(0,1fr) auto}.barra .trilho{grid-column:1/-1;grid-row:2}}
@@ -265,23 +190,23 @@ section{padding-block:88px}
 /* Como funciona */
 .passos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:40px;counter-reset:passo;list-style:none;margin:0;padding:0}
 .passos li{counter-increment:passo;border-top:2px solid var(--ink);padding-top:18px}
-.passos li::before{content:counter(passo);display:block;font:600 3rem/1 var(--serif);color:var(--brand);margin-bottom:14px}
+.passos li::before{content:counter(passo);display:block;font:600 3rem/1 var(--font-serif);color:var(--brand);margin-bottom:14px}
 .passos p{color:var(--ink-secondary);margin-top:8px}
 @media (max-width:800px){.passos{grid-template-columns:minmax(0,1fr);gap:32px}}
 
 /* Confiança */
 .confianca{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px;max-width:900px}
-.confianca h3{font:600 1.35rem/1.2 var(--serif)}
+.confianca h3{font:600 1.35rem/1.2 var(--font-serif)}
 .confianca p{color:var(--ink-secondary);margin-top:10px}
 .confianca ul{margin:12px 0 0;padding-left:18px;color:var(--ink-secondary);display:grid;gap:6px}
 .origem{margin-top:56px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px;align-items:center;padding-top:32px;border-top:1px solid var(--line)}
 .origem .bandeira{width:56px;height:56px}
-.origem p{font:600 clamp(1.3rem,2.4vw,1.75rem)/1.25 var(--serif);max-width:40ch}
-.origem p span{display:block;font:400 1rem/1.5 var(--sans);color:var(--ink-secondary);margin-top:6px}
+.origem p{font:600 clamp(1.3rem,2.4vw,1.75rem)/1.25 var(--font-serif);max-width:40ch}
+.origem p span{display:block;font:400 1rem/1.5 var(--font-sans);color:var(--ink-secondary);margin-top:6px}
 @media (max-width:800px){.confianca{grid-template-columns:minmax(0,1fr);gap:28px}}
 
 /* Beta */
-.beta{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:48px;align-items:center;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:44px}
+.beta{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:48px;align-items:center;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-sm);padding:44px}
 .beta h2{font-size:clamp(1.8rem,3.2vw,2.5rem);margin-top:16px}
 .beta > div > p{color:var(--ink-secondary);margin-top:14px;font-size:1.08rem}
 .beta .accoes{margin-top:24px}
@@ -300,18 +225,18 @@ section{padding-block:88px}
 .faq details p{padding-bottom:20px;color:var(--ink-secondary);max-width:65ch}
 
 /* Formulário */
-.acesso-seccao{background:var(--header);color:var(--on-header)}
+.acesso-seccao{background:var(--surface-header);color:var(--on-header)}
 .acesso{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;align-items:start}
 .acesso .cabeca{margin-bottom:0}
 .acesso .cabeca h2{font-size:clamp(2.2rem,4.4vw,3.4rem)}
 .acesso .cabeca p{color:var(--on-header-muted)}
 .contacto{margin-top:28px;padding-top:20px;border-top:1px solid var(--header-line);color:var(--on-header-muted)}
 .contacto a{color:var(--on-header);font-weight:600;font-size:1.15rem}
-form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-alto);padding:32px;display:grid;gap:18px;position:relative}
+form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-md);padding:32px;display:grid;gap:18px;position:relative}
 .campo{display:grid;gap:6px}
 .campo label{font-weight:600;font-size:.95rem}
 .campo label small{font-weight:400;color:var(--ink-muted);font-size:.88rem}
-.campo input,.campo select,.campo textarea{font:400 1rem/1.35 var(--sans);color:var(--ink);background:var(--surface-raised);border:1px solid var(--line-strong);border-radius:10px;padding:11px 12px;width:100%}
+.campo input,.campo select,.campo textarea{font:400 1rem/1.35 var(--font-sans);color:var(--ink);background:var(--surface-raised);border:1px solid var(--line-strong);border-radius:10px;padding:11px 12px;width:100%}
 .campo textarea{min-height:96px;resize:vertical}
 /* a cor da marca, como no painel (28/09/2026: o magenta do --focus à volta
    dos campos era a mesma queixa de 24/09, que só se tinha resolvido lá) */
@@ -320,27 +245,25 @@ form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--li
 .duas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
 .armadilha{position:absolute!important;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
 .nota{font-size:.86rem;color:var(--ink-muted)}
-.erro{font-size:.92rem;color:var(--danger);background:var(--danger-soft);border-radius:10px;padding:12px 14px}
-.obrigado{background:var(--success-soft);color:var(--success);border-radius:10px;padding:14px 16px;font-weight:600}
+/* a borda sobrevive às cores forçadas (3.ª ronda, G104): sem ela o
+   erro ficava uma frase solta entre o último campo e o botão */
+.erro{font-size:.92rem;color:var(--danger);background:var(--danger-soft);border:1px solid var(--danger);border-radius:var(--radius-md);padding:12px 14px}
+/* a confirmação troca o formulário e recebe o foco por programa (G98):
+   não é interactiva, e o anel não diria nada */
+.obrigado{background:var(--success-soft);color:var(--ink);border:1px solid var(--success);border-radius:var(--radius-md);padding:18px 20px;display:grid;gap:10px}
+.obrigado:focus{outline:none}
+.obrigado h3{color:var(--success);font:600 1.3rem/1.2 var(--font-serif)}
 form .btn{justify-self:start}
 @media (max-width:900px){.acesso{grid-template-columns:minmax(0,1fr);gap:32px}}
 @media (max-width:520px){.duas{grid-template-columns:minmax(0,1fr)}form{padding:20px}form .btn{justify-self:stretch}}
 
-/* Rodapé */
-footer{background:var(--header-deep);color:var(--on-header-muted);padding-block:40px;font-size:.92rem}
-footer .wrap{display:grid;gap:16px}
-footer .linha{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
-footer a{color:var(--on-header)}
-footer p{max-width:72ch}
-
-@media (prefers-reduced-motion:reduce){*{transition:none!important}html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
 
 <header class="topo">
   <div class="wrap">
-    <a class="logo" href="#inicio" aria-label="Mira Gov, início"><svg class="olho" viewBox="0 0 96 60" aria-hidden="true" focusable="false"><mask id="olho-m" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="60"><rect width="96" height="60" fill="#fff"/><circle cx="48" cy="30" r="18.5" fill="#000"/></mask><path d="M1 30A64 64 0 0 1 95 30A64 64 0 0 1 1 30Z" fill="currentColor" mask="url(#olho-m)"/><clipPath id="olho-p"><circle cx="48" cy="30" r="15"/></clipPath><g clip-path="url(#olho-p)"><rect x="33" y="15" width="12" height="30" fill="#006432"/><rect x="45" y="15" width="18" height="30" fill="#e61e1e"/></g></svg><span class="mira">Mira</span> <span>Gov</span></a>
+    <a class="logo" href="#inicio" aria-label="Mira Gov, início"><!--OLHO--><span class="mira">Mira</span> <span>Gov</span></a>
     <nav aria-label="Secções">
       <a class="ligacao" href="#ganhos">O que ganha</a>
       <a class="ligacao" href="#confianca">Dados</a>
@@ -390,16 +313,6 @@ footer p{max-width:72ch}
                   <td class="prazo"><span class="num">12/10/2026</span><span class="etq etq-neutra">20 dias</span></td>
                 </tr>
                 <tr>
-                  <td class="obj"><span class="ref num">23471/2026</span><strong>Licenças de software de gestão documental</strong><span>ULS de Coimbra · CPV 48311000</span></td>
-                  <td class="preco num">62 400,00 €</td>
-                  <td class="prazo"><span class="num">24/09/2026</span><span class="etq etq-perigo">2 dias</span></td>
-                </tr>
-                <tr>
-                  <td class="obj"><span class="ref num">23466/2026</span><strong>Fardamento para o corpo de bombeiros</strong><span>Município de Setúbal · CPV 18110000</span></td>
-                  <td class="preco num">38 950,00 €</td>
-                  <td class="prazo"><span class="num">06/10/2026</span><span class="etq etq-neutra">14 dias</span></td>
-                </tr>
-                <tr>
                   <td class="obj"><span class="ref num">23452/2026</span><strong>Limpeza de edifícios municipais</strong><span>Município de Braga · CPV 90911200</span></td>
                   <td class="preco num">412 000,00 €</td>
                   <td class="prazo"><span class="num">09/10/2026</span><span class="etq etq-neutra">17 dias</span></td>
@@ -407,7 +320,7 @@ footer p{max-width:72ch}
               </tbody>
             </table>
           </div>
-          <div class="ecra-rodape"><span>Última verificação há <span class="num">20</span> min · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">4 de 5</span></span></div>
+          <div class="ecra-rodape"><span>Última verificação há <span class="num">20</span> min · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">4</span> de <span class="num">5</span></span></div>
         </div>
 
         <div class="ficha">
@@ -433,10 +346,10 @@ footer p{max-width:72ch}
   <div class="numeros" aria-label="O Mira Gov em números">
     <div class="wrap">
       <ul>
-        <li><span class="grande num">210 000<small>+</small></span><p>anúncios do Diário da República lidos e guardados</p></li>
+        <li><span class="grande num">{{CONCURSOS}}</span><p>concursos do Diário da República lidos e guardados</p></li>
         <li><span class="grande num">2 milhões</span><p>de contratos do Portal BASE, para ver quem ganha e por quanto</p></li>
         <li><span class="grande num">180 000</span><p>entidades públicas, cada uma com a sua ficha</p></li>
-        <li><span class="grande">Todo o dia</span><p>verificação automática, sem ninguém abrir o Diário da República</p></li>
+        <li><span class="grande ritmo">{{RITMO}}</span><p>{{RITMO_DETALHE}}, sem ninguém abrir o Diário da República</p></li>
         <li><span class="grande num">4</span><p>plataformas de onde as peças chegam sozinhas: acingov, Vortal, compraspt e anogov</p></li>
       </ul>
     </div>
@@ -494,7 +407,7 @@ footer p{max-width:72ch}
             <ul class="tarefas">
               <li class="feita"><span class="caixa"></span><span class="t">Pedir esclarecimento sobre o lote 2<small>Licenças de software · ULS de Coimbra</small></span><span class="dono">Rita</span></li>
               <li><span class="caixa"></span><span class="t">Rever a declaração de compromisso<small>Climatização · Município de Leiria</small></span><span class="dono">Miguel</span></li>
-              <li><span class="caixa"></span><span class="t">Decidir se vamos<small>Limpeza de edifícios · Município de Braga</small></span><span class="dono">Afonso</span></li>
+              <li><span class="caixa"></span><span class="t">Decidir se vamos<small>Limpeza de edifícios · Município de Braga</small></span><span class="dono">Joana</span></li>
             </ul>
           </div>
         </div>
@@ -592,9 +505,9 @@ footer p{max-width:72ch}
           <h3>Fontes públicas e verificáveis</h3>
           <p>Tudo o que o Mira Gov mostra vem de fontes públicas, e cada anúncio leva a ligação para o original:</p>
           <ul>
-            <li>Diário da República, 2.ª série, parte L</li>
-            <li>Consultas preliminares publicadas na Vortal</li>
-            <li>Contratos do Portal BASE, em dados abertos</li>
+            <li><a href="https://diariodarepublica.pt/" rel="noopener">Diário da República</a>, 2.ª série, parte L</li>
+            <li>Consultas preliminares publicadas na <a href="https://community.vortal.biz/" rel="noopener">Vortal</a></li>
+            <li>Contratos do <a href="https://www.base.gov.pt/" rel="noopener">Portal BASE</a>, em dados abertos</li>
           </ul>
         </div>
         <div>
@@ -686,22 +599,17 @@ footer p{max-width:72ch}
         <p class="erro" id="erro" role="alert" hidden></p>
         <button type="submit" class="btn btn-primario" id="enviar">Pedir acesso</button>
         <p class="nota">Usamos estes dados só para responder ao seu pedido<!--LEGAL-NOTA-->.</p>
-        <p class="obrigado" id="obrigado" role="status" hidden>Obrigado. Recebemos o seu pedido e respondemos por e-mail em breve.</p>
+        <div class="obrigado" id="obrigado" role="status" tabindex="-1" hidden>
+          <h3>Pedido recebido</h3>
+          <p>Recebemos o pedido<span id="ob-empresa"></span>. Respondemos para <strong id="ob-email"></strong>, normalmente em dois dias úteis. Quando o pedido for aceite, recebe nesse endereço um convite para criar a conta.</p>
+          <p>Se não chegar, veja a pasta de spam ou escreva para <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a>.</p>
+        </div>
       </form>
     </div>
   </section>
 </main>
 
-<footer>
-  <div class="wrap">
-    <div class="linha">
-      <span class="logo" role="img" aria-label="Mira Gov" style="font-size:22px"><svg class="olho" viewBox="0 0 96 60" aria-hidden="true" focusable="false"><mask id="olho-m2" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="60"><rect width="96" height="60" fill="#fff"/><circle cx="48" cy="30" r="18.5" fill="#000"/></mask><path d="M1 30A64 64 0 0 1 95 30A64 64 0 0 1 1 30Z" fill="currentColor" mask="url(#olho-m2)"/><clipPath id="olho-p2"><circle cx="48" cy="30" r="15"/></clipPath><g clip-path="url(#olho-p2)"><rect x="33" y="15" width="12" height="30" fill="#006432"/><rect x="45" y="15" width="18" height="30" fill="#e61e1e"/></g></svg><span class="mira">Mira</span> <span>Gov</span></span>
-      <span><a href="/entrar">Entrar</a> · <a href="#acesso">Pedir acesso</a> · <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a><!--LEGAL--> · <a href="/acessibilidade">Acessibilidade</a></span>
-    </div>
-    <p>O Mira Gov é um produto privado e independente, feito em Portugal. Não é um serviço do Estado e não tem qualquer ligação ao Diário da República, ao IMPIC ou às plataformas de contratação pública. A informação apresentada vem de fontes públicas e não dispensa a consulta do anúncio oficial.</p>
-    <p class="num" style="font-size:.85rem">© 2026 Mira Gov</p>
-  </div>
-</footer>
+<!--RODAPE-->
 
 <script>
 (function () {
@@ -710,8 +618,29 @@ footer p{max-width:72ch}
   var obrigado = document.getElementById("obrigado");
   var enviar = document.getElementById("enviar");
   var FALHA = "Não foi possível enviar agora. Tente de novo daqui a uns minutos.";
+  // O pedido feito fica lembrado neste separador (3.ª ronda, G99): ao
+  // recarregar, o formulário voltava vazio, como se nada tivesse ido.
+  // sessionStorage e não localStorage: acaba quando o separador fecha.
+  var CHAVE = "miragov-pedido";
 
   function mostraErro(texto) { erro.textContent = texto; erro.hidden = false; }
+
+  // A confirmação TROCA o formulário e recebe o foco (G98): aparecia por
+  // baixo do botão, fora do ecrã, e o foco ia para o body.
+  function confirma(p, focar) {
+    document.getElementById("ob-empresa").textContent = p.empresa ? " de " + p.empresa : "";
+    document.getElementById("ob-email").textContent = p.email;
+    Array.prototype.forEach.call(form.children, function (el) {
+      if (el !== obrigado) el.hidden = true;
+    });
+    obrigado.hidden = false;
+    if (focar) obrigado.focus();
+  }
+
+  try {
+    var guardado = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
+    if (guardado && guardado.email) confirma(guardado, false);
+  } catch (e) {}
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
@@ -724,7 +653,12 @@ footer p{max-width:72ch}
       if (mau) invalidos.push(el);
     });
     if (invalidos.length) {
-      mostraErro("Preencha o nome, a empresa, um e-mail válido e o sector, para podermos responder.");
+      // só o e-mail mal escrito diz-se como tal (06A #19): a frase do
+      // formulário vazio mandava preencher o que já estava preenchido
+      var email = document.getElementById("email");
+      mostraErro(invalidos.length === 1 && invalidos[0] === email && email.value.trim()
+        ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
+        : "Preencha o nome, a empresa, um e-mail válido e o sector, para podermos responder.");
       invalidos[0].focus();
       return;
     }
@@ -733,8 +667,10 @@ footer p{max-width:72ch}
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d && d.ok) {
-          Array.prototype.forEach.call(form.elements, function (el) { el.disabled = true; });
-          obrigado.hidden = false;
+          var p = { empresa: document.getElementById("empresa").value.trim(),
+                    email: document.getElementById("email").value.trim() };
+          try { sessionStorage.setItem(CHAVE, JSON.stringify(p)); } catch (e) {}
+          confirma(p, true);
         } else {
           mostraErro((d && d.erro) || FALHA);
           enviar.disabled = false;

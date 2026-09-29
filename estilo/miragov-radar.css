@@ -1255,3 +1255,9 @@ ul.tarefas li form.accao{align-items:end}
 main.mg h3:not([class]){font-size:var(--text-lg)}
 .perfil-guardar{margin-top:var(--space-4)}
 input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--danger-soft)}
+/* As cores forçadas (o alto contraste do Windows; 3.ª ronda, G104): o
+   browser apagava a máscara do olho e ficava só a pupila, no /entrar e no
+   404. A cor é a do texto do sistema: sem o ajuste, o olho ficava com a
+   cor que tinha (branco, no inverso) em cima do fundo do sistema. Duas
+   classes, para empatar com o `.mg-logo--inverse .mg-logo__eye`. */
+@media (forced-colors:active){.mg-logo .mg-logo__eye{forced-color-adjust:none;color:CanvasText}}

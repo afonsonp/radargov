@@ -13205,9 +13205,10 @@ class TestSitePublico(BaseTemporaria):
         self.assertNotIn("form-acesso", corpo)
 
     def test_as_letras_do_site_sao_servidas_daqui(self):
-        # o CSP só deixa fontes do mesmo sítio, e as do site estão na TIPOS
-        with open(radar.SITE, encoding="utf-8") as f:
-            site = f.read()
+        # o CSP só deixa fontes do mesmo sítio, e as do site estão na TIPOS.
+        # Desde a 3.ª ronda (D11) vêm com os tokens da aplicação, que o
+        # `pagina_do_site()` põe na página -- lê-se a página servida.
+        site = radar.pagina_do_site().get_data(as_text=True)
         self.assertNotIn("googleapis", site)
         nomes = re.findall(r"/tipo/([\w.-]+)", site)
         self.assertTrue(nomes)
@@ -13284,6 +13285,152 @@ class TestSitePublico(BaseTemporaria):
 
 
 TestSitePublico._avisar_original = staticmethod(radar._avisar_do_pedido)
+
+
+class TestOSiteDaTerceiraRonda(BaseTemporaria):
+    """O lote 9 da 3.ª ronda (29/09/2026), o site público, relatório 07.
+    Cada teste é um achado que existiu:
+
+    - G100: o `/robots.txt`, o `/sitemap.xml` e qualquer endereço errado
+      sem sessão iam ao /entrar e recebiam 200 (um «soft 404»); e o site
+      não tinha Open Graph, `canonical` nem `lang="pt-PT"`;
+    - G101: o site dizia «210 000+» e o /entrar «200 553», e «Todo o dia»
+      quando a verificação é de hora a hora das 8h às 20h;
+    - G102: as páginas legais sem a marca, em Georgia, e os termos sem o
+      contacto;
+    - G103: o e-mail mal escrito levava a frase do formulário vazio;
+    - G104: nas cores forçadas o olho da marca perdia a forma;
+    - D11: o site com uma paleta sua, fora dos tokens da aplicação;
+    - D9: o site não leva nome nenhum (a demonstração tinha o do dono)."""
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    PASTA_DO_SITE = os.path.join(os.path.dirname(radar.__file__), "site")
+
+    def setUp(self):
+        super().setUp()
+        self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True,
+                        operador={"nome": "Operador", "morada": "Rua 1"})
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(self.cfg)))
+        radar.iniciar_db()
+        self.cliente = radar.app.test_client()
+
+    def get(self, caminho):
+        return self.cliente.get(caminho, environ_base=self.FORA)
+
+    def ficheiro(self, nome):
+        with open(os.path.join(self.PASTA_DO_SITE, nome), encoding="utf-8") as f:
+            return f.read()
+
+    def test_um_endereco_que_nao_existe_da_404_e_as_rotas_continuam_no_login(self):
+        r = self.get("/nao-existe")
+        self.assertEqual(r.status_code, 404)
+        corpo = r.get_data(as_text=True)
+        # quem não tem sessão não tem Hoje: volta ao site
+        self.assertIn("Voltar ao início", corpo)
+        self.assertNotIn("Voltar ao Hoje", corpo)
+        for caminho in ("/concursos", "/anuncio/1%2F2026", "/configuracoes/conta"):
+            r = self.get(caminho)
+            self.assertEqual(r.status_code, 302, caminho)
+            self.assertIn("/entrar", r.headers["Location"], caminho)
+
+    def test_robots_e_mapa_sao_texto_e_listam_so_o_publico(self):
+        r = self.get("/robots.txt")
+        self.assertEqual((r.status_code, r.mimetype), (200, "text/plain"))
+        self.assertIn("Sitemap: ", r.get_data(as_text=True))
+        r = self.get("/sitemap.xml")
+        self.assertEqual((r.status_code, r.mimetype), (200, "application/xml"))
+        locs = re.findall(r"<loc>https?://[^/<]*(/[^<]*)</loc>", r.get_data(as_text=True))
+        self.assertEqual(locs, ["/", "/acessibilidade", "/privacidade", "/termos"])
+        # sem operador, as legais não existem e não entram no mapa
+        self.cfg.pop("operador")
+        self.assertNotIn("/termos", self.get("/sitemap.xml").get_data(as_text=True))
+        # as três são por igualdade: nada de /robots.txt/qualquer-coisa
+        for rota in ("/robots.txt", "/sitemap.xml", "/partilha.png"):
+            self.assertIn(rota, radar.ROTAS_ABERTAS)
+        self.assertEqual(self.get("/robots.txt/x").status_code, 404)
+
+    def test_o_site_tem_titulo_partilha_canonical_e_lingua(self):
+        corpo = self.get("/").get_data(as_text=True)
+        self.assertIn('<html lang="pt-PT" data-theme="sistema">', corpo)
+        for marca_ in ('<link rel="canonical" href="https://miragov.pt/">',
+                       'property="og:image" content="https://miragov.pt/partilha.png"',
+                       'name="twitter:card"', "application/ld+json"):
+            self.assertIn(marca_, corpo)
+        self.assertNotIn("<title>Mira Gov</title>", corpo)
+        self.assertTrue(os.path.isfile(os.path.join(self.PASTA_DO_SITE, "partilha.png")))
+
+    def test_o_numero_do_site_e_o_do_entrar(self):
+        with unittest.mock.patch.object(radar, "concursos_na_base", lambda: 200553):
+            site = self.get("/").get_data(as_text=True)
+            entrar = self.get("/entrar").get_data(as_text=True)
+        self.assertIn(radar.mil_pt(200553), entrar)
+        self.assertIn(radar.mil_pt(200000) + "<small>+</small>", site)
+        self.assertNotIn("210 000", site)
+        self.assertNotIn("{{", site)
+        # sem base, a caixa sai -- nunca um número inventado
+        with unittest.mock.patch.object(radar, "concursos_na_base", lambda: None):
+            site = self.get("/").get_data(as_text=True)
+        self.assertNotIn("CONCURSOS", site)
+        self.assertNotIn("lidos e guardados", site)
+
+    def test_o_ritmo_vem_das_horas_da_verificacao(self):
+        self.assertEqual(radar.ritmo_da_verificacao(radar.CONFIG_INICIAL["horas_verificacao"]),
+                         ("De hora a hora", "das 8h às 20h, verificação automática"))
+        self.assertEqual(radar.ritmo_da_verificacao(["09:00", "17:00"])[0], "2 vezes por dia")
+        site = self.get("/").get_data(as_text=True)
+        self.assertIn("De hora a hora", site)
+        self.assertNotIn("Todo o dia", site)
+
+    def test_o_email_mal_escrito_diz_se_como_tal(self):
+        r = self.cliente.post("/pedir-acesso", environ_base=self.FORA,
+                              headers={"Accept": "application/json"},
+                              data={"nome": "Ana", "empresa": "Obras",
+                                    "email": "ana@", "sector": "Outro"})
+        self.assertIn("O e-mail não parece válido", r.get_json()["erro"])
+        self.assertIn("O e-mail não parece válido", self.ficheiro("index.html"))
+
+    def test_as_paginas_legais_tem_a_marca_a_letra_e_o_contacto(self):
+        for rota in ("/privacidade", "/termos", "/acessibilidade"):
+            corpo = self.get(rota).get_data(as_text=True)
+            self.assertIn('class="topo"', corpo, rota)
+            self.assertIn("<footer>", corpo, rota)
+            self.assertIn('class="olho"', corpo, rota)
+            self.assertNotIn("1.2 Georgia", corpo, rota)   # o título era em Georgia
+            self.assertIn("var(--font-serif)", corpo, rota)
+            self.assertIn("mailto:contacto@miragov.pt", corpo, rota)
+            self.assertIn('<link rel="canonical"', corpo, rota)
+            self.assertNotIn("<!--", corpo.split("<body>")[1], rota)
+            # uma norma só: o mês com maiúscula, como a aplicação
+            self.assertNotRegex(corpo, r"\d de (setembro|outubro)", rota)
+
+    def test_o_site_usa_os_tokens_da_aplicacao(self):
+        corpo = self.get("/").get_data(as_text=True)
+        self.assertIn("[data-theme=\"escuro\"]", corpo)
+        self.assertIn(radar.TEMA_DO_SISTEMA_JS, corpo)
+        # nenhuma cor escrita à mão no CSS do site, fora a moldura (o âmbar
+        # sobre o azul, com a razão) e o #000 das máscaras
+        for nome in ("index.html", "privacidade.html", "termos.html",
+                     "acessibilidade.html"):
+            texto = self.ficheiro(nome)
+            estilo = "".join(re.findall(r"<style>(.*?)</style>", texto, re.S))
+            self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,6}\b|rgba?\(",
+                                        estilo.replace("#000 ", "")), [], nome)
+        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,6}\b|rgba?\(",
+                                    self.ficheiro("moldura.css").replace("#000)", "")),
+                         ["#ffd27a"])
+
+    def test_nas_cores_forcadas_o_olho_guarda_a_forma(self):
+        self.assertIn("forced-color-adjust:none", self.ficheiro("moldura.css"))
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            self.assertIn(".mg-logo .mg-logo__eye{forced-color-adjust:none", f.read())
+        # e a caixa do erro tem borda, que sobrevive às cores forçadas
+        self.assertRegex(self.ficheiro("index.html"), r"\.erro\{[^}]*border:1px solid")
+
+    def test_o_site_nao_leva_nome_de_ninguem(self):
+        site = self.get("/").get_data(as_text=True)
+        for nome in ("Afonso", "LATD", "Conkord"):
+            self.assertNotIn(nome, site)
 
 
 class TestContas(BaseTemporaria):
@@ -20315,15 +20462,16 @@ class TestDeclaracaoDeAcessibilidade(BaseTemporaria):
                       "parcialmente conforme", "Conteúdo não acessível",
                       "Elaboração desta declaração", "Contacto",
                       'href="mailto:contacto@miragov.pt"', "WCAG 2.1",
-                      'lang="pt"'):
+                      'lang="pt-PT"'):   # pt-PT desde a 3.ª ronda (G100)
             self.assertIn(parte, corpo, parte)
         # nenhum outro e-mail: só a caixa que existe
         self.assertEqual(set(re.findall(r"[\w.]+@[\w.]+\.\w+", corpo)),
                          {"contacto@miragov.pt"})
 
     def test_liga_se_do_site_e_da_ajuda(self):
-        with open(radar.SITE, encoding="utf-8") as f:
-            self.assertIn('href="/acessibilidade"', f.read())
+        # o rodapé é do `_do_site()` desde a 3.ª ronda (G102): lê-se o site servido
+        self.assertIn('href="/acessibilidade"',
+                      radar.pagina_do_site().get_data(as_text=True))
         corpo = radar.app.test_client().get("/ajuda").get_data(as_text=True)
         self.assertIn("href='/acessibilidade'", corpo)
 

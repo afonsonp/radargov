@@ -21,7 +21,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 39
+- [Contas e a porta](#contas-e-a-porta) &middot; 40
 - [A interface](#a-interface) &middot; 118
 - [Convenções](#convencoes) &middot; 5
 
@@ -2987,6 +2987,17 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   testes das contas perguntavam a `/` se a porta estava fechada e
   passaram a perguntar a `/concursos`. Um teste novo da porta sonda uma
   página de dentro, nunca a raiz.
+
+- **Sem sessão, um endereço que não é rota dá 404; os que são rotas vão
+  ao login** (3.ª ronda, G100, 29/09/2026). A porta distingue-os pelo
+  `request.routing_exception` (um `NotFound`), que o Flask já preencheu
+  quando o `before_request` corre — e não por uma lista de rotas, que
+  envelhecia. Um 404 para tudo o que não tem sessão fechava a aplicação
+  a quem segue uma ligação antes de entrar; e o `/entrar` com 200 para
+  tudo era um «soft 404». O `/robots.txt`, o `/sitemap.xml` e a
+  `/partilha.png` entraram em `ROTAS_ABERTAS` **por igualdade**: só GET,
+  sem dados. O `pagina_de_erro()` diz «Voltar ao início» a quem não tem
+  sessão, porque para essa pessoa a raiz é o site. `TestOSiteDaTerceiraRonda`.
 
 - **O painel responde por seis nomes, e só um é o público** (25/09/2026,
   o Mira Gov). O `ao_endereco_certo()` manda os outros para o

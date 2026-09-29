@@ -1475,7 +1475,12 @@ sem sessão vê o site de apresentação** (desde 23/09/2026), com um
 vê o Hoje, como sempre. Os links do e-mail de alerta apontam para lá.
 
 **O site** é o ficheiro `site/index.html`: muda-se o texto aí, e a
-mudança vê-se sem reiniciar o painel. No rodapé liga à **declaração de
+mudança vê-se sem reiniciar o painel. Dois números **não** se mudam lá:
+o dos concursos (é o do ecrã de entrar, arredondado ao milhar) e o
+ritmo da verificação (sai das horas em Configurações › Recolha). As
+cores e a letra são as da aplicação, e o que o site e as páginas legais
+partilham — a barra, o rodapé — está em `site/moldura.css`. A imagem
+que aparece quando alguém partilha o endereço é a `site/partilha.png`. No rodapé liga à **declaração de
 acessibilidade** (`/acessibilidade`, o ficheiro
 `site/acessibilidade.html`, desde 26/09/2026): diz o que o Mira Gov
 cumpre da WCAG, o que ainda não cumpre, e que as barreiras se reportam
