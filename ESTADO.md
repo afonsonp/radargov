@@ -60,8 +60,8 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Rotas Flask | 128 |
 | Tabelas em `radar.db` | 17, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, e o `segundo_factor`, 28/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), e o `ix_nomes_chave` (29/09, 0,4 s a criar) |
-| Testes | **1 636**, em ~190 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 34 379 linhas · `teste_radar.py` 23 636 · `empresa.py` 868 · `contas.py` 1 153 · `icones.py` 62 |
+| Testes | **1 658**, em ~190 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 34 711 linhas · `teste_radar.py` 23 992 · `empresa.py` 868 · `contas.py` 1 153 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -159,8 +159,13 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.20`**, de
-  29/09/2026 — **os lotes 2 a 7 da 3.ª ronda** (pessoas e autoria;
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.21`**, de
+  29/09/2026 — **a terceira ronda da leitura das peças** (a página em
+  cada linha do resumo, os números conferidos contra as peças, o local
+  do anúncio quando falta, o SLA nas TI, as licenças como bens; a régua
+  de 89 para 103 de 113; a reserva 20b no fim da cadeia) e **o lote 8
+  da 3.ª ronda** (coerência de desenho e de texto, o tema escuro). A
+  `v2.0.20`, do mesmo dia: **os lotes 2 a 7 da 3.ª ronda** (pessoas e autoria;
   números, Hoje e escada; a leitura que diz que não há; a porta e o
   suporte; acessibilidade e telemóvel; o desempenho do Mercado, das
   listas e das fichas) e **61 procedimentos que estavam escondidos
