@@ -23,11 +23,11 @@ p,li{color:var(--tinta2)}a{color:var(--marca);text-decoration:underline;text-und
 <p><a href="/">← Mira Gov</a></p>
 <article>
 <h1>Declaração de acessibilidade</h1>
-<p class="data">Versão de 26 de setembro de 2026.</p>
+<p class="data">Versão de 29 de Setembro de 2026.</p>
 
 <p>O Mira Gov compromete-se a tornar o seu sítio web e a sua aplicação
 acessíveis a todas as pessoas. Esta declaração segue o modelo do
-Decreto-Lei n.º 83/2018, de 19 de outubro, que transpõe a Diretiva (UE)
+Decreto-Lei n.º 83/2018, de 19 de Outubro, que transpõe a Directiva (UE)
 2016/2102. O Mira Gov é um produto privado e não um organismo do sector
 público, e segue esse modelo de forma voluntária: é a forma mais clara de
 dizer o que já cumpre, o que ainda não cumpre, e como nos dizer de uma
@@ -40,54 +40,68 @@ entrar e à aplicação a que se chega depois de entrar.</p>
 Directrizes de Acessibilidade para o Conteúdo da Web — as WCAG 2.1,
 nível AA — a referência da norma europeia EN 301 549 —, em virtude das não
 conformidades enumeradas abaixo. Avaliámos também os critérios novos da
-WCAG 2.2 de nível AA (o foco não obscurecido, o tamanho dos alvos e a
-autenticação acessível).</p>
+WCAG 2.2 de nível AA (o foco não obscurecido, o tamanho dos alvos, a
+autenticação acessível e a ajuda consistente).</p>
 
 <h2>Conteúdo não acessível</h2>
 <h3>Não conformidades</h3>
 <ul>
-<li><b>Árvore dos CPV</b> (no Perfil da empresa e no filtro dos
-Concursos) — a contagem de códigos não muda ao filtrar a árvore, e não é
-anunciada ao leitor de ecrã (4.1.3 Mensagens de estado).</li>
 <li><b>Calendário, no computador</b> — a grelha dos dias é texto
 arrumado em colunas, e não uma tabela: o leitor de ecrã não associa o
 número do dia ao que fecha nesse dia (1.3.1 Informação e relações). No
 telemóvel o calendário é uma agenda com um título por dia, que não tem
 este problema.</li>
-<li><b>Papel de uma entidade</b> («CLI», «CONC») na lista das entidades
-— a explicação do que a sigla quer dizer só existe como dica ao passar o
-rato, que o teclado e o toque não alcançam (1.3.1).</li>
+<li><b>O «+N» de um dia cheio do calendário</b> — com vários dias abertos
+ao mesmo tempo, os botões podem ficar com menos de 24 píxeis de altura
+(2.5.8 Tamanho do alvo).</li>
+</ul>
+<h3>Limitações que não são não conformidades</h3>
+<ul>
+<li>A <b>letra</b> acompanha o zoom do browser, mas parte dela não
+acompanha o tamanho de letra escolhido nas definições do browser: os
+componentes do sistema de desenho têm a letra em píxeis.</li>
+<li>Na aplicação, o <b>tema escuro</b> não é oferecido enquanto não passar
+o contraste mínimo. Há um aspecto de <b>alto contraste</b>, que cada pessoa
+escolhe em Configurações › Conta e fica guardado na conta, em todos os
+aparelhos. O site público e as páginas legais seguem o tema escuro do
+aparelho, e passam o contraste mínimo nele.</li>
 </ul>
 <h3>Conteúdo fora do âmbito</h3>
 <ul>
 <li>As <b>peças dos procedimentos</b> (cadernos de encargos, programas e
 anexos, quase sempre em PDF) são documentos das entidades adjudicantes,
 que o Mira Gov traz tal como foram publicados. A acessibilidade deles é
-de quem os publica.</li>
-<li>O <b>tema escuro</b> não é oferecido enquanto não passar o contraste
-mínimo. Há um aspecto de <b>alto contraste</b>, que cada pessoa escolhe
-em Configurações › Conta e fica guardado na conta, em todos os
-aparelhos.</li>
+de quem os publica. O texto extraído de cada peça está na ficha, por
+baixo das páginas.</li>
 </ul>
 
 <h2>Elaboração desta declaração</h2>
-<p>Esta declaração foi elaborada a 26 de setembro de 2026, por
-<b>autoavaliação</b>, em duas fases:</p>
+<p>Esta declaração foi elaborada a 26 de Setembro de 2026 e revista a 29
+de Setembro de 2026, por <b>autoavaliação</b>:</p>
 <ul>
-<li>uma auditoria à WCAG 2.2 nível AA no mesmo dia, com o axe-core 4.10.2
-(regras wcag2a, wcag2aa, wcag21a, wcag21aa e wcag22aa) em 35 páginas e a
-verificação à mão dos critérios que as ferramentas não medem — o teclado,
-o foco, o reflow a 320 píxeis, o espaçamento do texto, os formulários e
-a autenticação —, a 1280, a 640 e a 320 píxeis de largura;</li>
-<li>depois das correcções, uma nova medição: o axe-core nas páginas
-principais a 1280, 390 e 360 píxeis, sem violações; nenhuma das 16
-páginas medidas obriga a rolar de lado a 320 píxeis nem a 200 % de zoom;
-e, a percorrer cada página com a tecla Tab, nenhum elemento focado fica
-escondido pelas barras fixas.</li>
+<li>a 26 de Setembro, uma auditoria à WCAG 2.2 nível AA com o axe-core
+4.10.2 (regras wcag2a, wcag2aa, wcag21a, wcag21aa e wcag22aa) em 35
+páginas, e a verificação à mão do teclado, do foco, do reflow, do
+espaçamento do texto, dos formulários e da autenticação, a 1280, a 640 e
+a 320 píxeis de largura. Essa medição do reflow só procurou o
+deslocamento de lado, e por isso não viu rótulos escritos por cima dos
+valores nem uma linha de tarefa que saía do ecrã;</li>
+<li>a 28 de Setembro, uma nova auditoria, com o axe-core 4.13 em 84
+rotas, um leitor de ecrã e só o teclado em três fluxos (triar, mudar a
+fase com o motivo e marcar uma tarefa), e o reflow medido também pela
+sobreposição;</li>
+<li>a 29 de Setembro, depois das correcções que essa auditoria pediu (o
+nome dos botões «×» e «Remover», o foco nas barras de navegação, as
+páginas das peças com o teclado, os atalhos de uma tecla só com o foco
+na tabela, o contraste dos números do Hoje, os rótulos à vista, o menu
+da conta, os filtros escolhidos e o reflow a 320 píxeis), o axe-core sem
+violações nas páginas corrigidas, e nenhuma delas obriga a rolar de
+lado a 320 nem a 390 píxeis.</li>
 </ul>
-<p>Também entraram na avaliação uma ronda de testes com vinte perfis de
+<p>Também entraram na avaliação duas rondas de testes com perfis de
 utilização, entre eles uma pessoa com daltonismo, uma que trabalha a
-150 % de zoom e um auditor de acessibilidade.</p>
+150 % de zoom, um auditor de acessibilidade e uma pessoa cega que usa
+um leitor de ecrã e só o teclado.</p>
 
 <h2>Contacto</h2>
 <p>Se encontrar uma barreira que não esteja nesta lista, ou se precisar de

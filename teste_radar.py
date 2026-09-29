@@ -8443,7 +8443,7 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         pagina = _paginas_do_guia(self)["/entidade/506000001"]
         form = pagina.split("id='filtros-entidade'")[1].split("</form>")[0]
         for rotulo in ("Objecto", "Excluir palavras", "Excluir CPV",
-                       "Celebrado de", "até", "Preço mínimo"):
+                       "Celebrado de", "Celebrado até", "Preço mínimo"):
             self.assertIn("<span class='mg-field__label'>%s</span>" % rotulo, form)
 
     def test_a_barra_tem_a_situacao_e_a_ajuda_a_vista(self):
@@ -13060,11 +13060,26 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
         self.assertIn("class='teclas'", html_)
         self.assertIn("keydown", radar.LISTA_JS)
-        for tecla in ("'j'", "'k'", "'i'", "'a'", "'Enter'"):
+        for tecla in ("'j'", "'k'", "'i'", "'a'"):
             self.assertIn("e.key === " + tecla, radar.LISTA_JS)
         # com o foco num campo de texto as teclas escrevem, não triam
         self.assertIn("t.tagName === 'INPUT'", radar.LISTA_JS)
         self.assertIn(".item.foco{", radar.CSS)
+
+    def test_as_teclas_so_valem_com_o_foco_na_tabela(self):
+        """3.ª ronda, G65 (WCAG 2.1.4): o «i» e o «a» gravavam com o
+        foco em qualquer sítio da página — um «i» ditado ao computador
+        triava um concurso. E depois do «i» o realce sumia, e o «i»
+        seguinte não fazia nada: o índice guardado apontava para uma
+        linha que já tinha saído."""
+        js = radar.LISTA_JS[radar.LISTA_JS.index("// Teclado na lista"):]
+        self.assertIn("tabela.addEventListener('keydown'", js)
+        self.assertNotIn("document.addEventListener('keydown'", js)
+        # o realce segue o foco, e não um índice
+        self.assertIn("addEventListener('focusin'", js)
+        self.assertNotIn("itens[i]", js)
+        html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        self.assertIn("com o foco numa linha da tabela", html_)
 
 
 class TestConfiguracoes(BaseTemporaria):
@@ -22652,6 +22667,154 @@ class TestTerceiraRondaAPortaEAPlataforma(_PlataformaComDuasEmpresas):
         with open(os.path.join(os.path.dirname(radar.__file__), "site",
                                "termos.html"), encoding="utf-8") as f:
             self.assertNotIn("administrador", f.read())
+
+
+class TestAcessibilidadeETelemovelDaTerceiraRonda(BaseTemporaria):
+    """O lote 6 da 3.ª ronda de testes (29/09/2026), perfis 10, 06A, 06B,
+    02, 09 e 12: o veredicto do perfil 10 foi «não conforme com a WCAG
+    2.2 AA», com oito critérios a falhar. Cada teste é um dos achados, e
+    o comentário diz o que se viu."""
+
+    @staticmethod
+    def _nossa_folha():
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            return f.read()
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo,"
+                      " url, estado, prazo) VALUES ('70/2026', 'Obra', 'IPL',"
+                      " '2026-09-01', 'Anúncio de procedimento', 'https://dr/70',"
+                      " 'novo', '2099-12-31')")
+        self.pid = radar.criar_proposta("70/2026", estado="analisar")
+
+    def test_g63_a_ficha_em_coluna_estica_os_cartoes(self):
+        """A 390 px a ficha com lotes ia a 782 px: em coluna, o
+        `align-items:start` das duas colunas deixava cada cartão com a
+        largura do conteúdo, e a tabela dos lotes tem 720. E a linha da
+        tarefa da proposta sem anúncio (sem `.ficha-lado`) não dobrava:
+        414 a 532 px num ecrã de 320."""
+        folha = self._nossa_folha()
+        self.assertIn(".ficha-duas{display:flex;flex-direction:column;"
+                      "gap:var(--space-4);align-items:stretch}", folha)
+        self.assertIn("@media (max-width:600px){ul.tarefas li{flex-wrap:wrap}", folha)
+
+    def test_g64_a_faixa_do_perfil_corre_como_uma_frase(self):
+        """Em flex, cada pedaço da frase era uma coluna: «Limitado / ao» a
+        1440, e 16 linhas de CPV a 390."""
+        folha = self._nossa_folha()
+        self.assertIn(".cpv-activo{display:block", folha)
+        self.assertIn(".linha-conta.resumo .cpv-activo{display:inline;", folha)
+
+    def test_g65_as_teclas_nao_dizem_so_para_os_olhos(self):
+        html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        self.assertIn("<span aria-hidden='true'>j k i a &#9166;</span>", html_)
+
+    def test_g66_o_numero_da_pilula_e_o_em_jogo(self):
+        """O número dentro da pílula do Hoje estava a 3,7:1 (a meia-luz
+        do `opacity:.8`), e o «Em jogo» era âmbar sem pedir nada."""
+        self.assertNotRegex(radar.CSS_NOVO, r"\.periodos i\{[^}]*opacity")
+        radar.criar_tarefa("ligar", "2026-10-02", proposta_id=self.pid,
+                           ref="70/2026", quem="Ana")
+        html_ = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("class='mg-stat'><span class='mg-stat__label'>Em jogo", html_)
+
+    def test_g67_o_x_e_o_remover_dizem_o_que_apagam(self):
+        """O leitor dizia «vezes» no «×» de apagar um contacto, e onze
+        «Remover» seguidos na Conta não diziam de quem."""
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref='70/2026'").fetchone()
+        radar.criar_contacto(radar.chave_da_entidade(a), "Eng.ª Maria")
+        self.cliente.post("/etiqueta/70%2F2026/nova", data={"nome": "urgente"})
+        html_ = self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
+        self.assertIn("aria-label='Apagar o contacto «Eng.ª Maria»'", html_)
+        self.assertIn("aria-label='Tirar a etiqueta «urgente»'", html_)
+        self.assertIn('rotulo="Remover %s da empresa" % u["email"]',
+                      inspect.getsource(radar))
+
+    def test_g68_as_paginas_da_peca_focam_se(self):
+        """A zona das páginas rola por si e não se focava: com o teclado
+        não se descia da página 1 (axe: scrollable-region-focusable)."""
+        fonte = inspect.getsource(radar.visualizador_de_peca)
+        self.assertIn("<div class='peca-folhas' tabindex='0' role='region' ", fonte)
+        self.assertIn("aria-label='Páginas de %s'", fonte)
+
+    def test_g69_o_foco_ve_se_nas_barras_nos_tres_temas(self):
+        """O preto do contraste sobre a barra dava 1,57:1, e o magenta do
+        escuro 2,36:1: o foco na barra não se via."""
+        folha = self._nossa_folha()
+        cor = re.search(r"--focus-on-header:(#[0-9a-f]{6})", folha).group(1)
+        self.assertIn(".mg-topbar :focus-visible,.barra-baixo :focus-visible"
+                      "{outline-color:var(--focus-on-header)}", folha)
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-tokens.css"), encoding="utf-8") as f:
+            tokens = f.read()
+        barras = re.findall(r"--surface-header:(#[0-9a-fA-F]{6})", tokens)
+        self.assertEqual(len(barras), 3)
+        for barra in barras:
+            self.assertGreaterEqual(
+                TestContrasteNosFundosReais._contraste(cor, barra), 3.0, barra)
+
+    def test_g70_o_enter_grava_na_caixa_e_no_selector(self):
+        """O Enter no preço não gravava nem dizia nada (o botão por
+        omissão era um motivo desligado), e no selector abria a lista."""
+        caixa = radar.caixa_do_motivo()
+        self.assertIn("if (!g.hidden) { f.requestSubmit(g); return; }", caixa)
+        self.assertIn("s.tagName !== 'SELECT'", caixa)
+        self.assertIn("(obrigatório)", caixa)
+        self.assertIn("Escolha o motivo: a escolha grava.", caixa)
+
+    def test_g71_o_menu_da_conta_e_o_do_mais(self):
+        """Esc não o fechava, o «sair» tinha 28×18 e o nome soletrava as
+        iniciais; e era desenhado de outra maneira que o «Mais»."""
+        with radar.app.test_request_context("/"):
+            radar.g.sessao = {"id": 1}
+            radar.g.utilizador = {"nome": "Leitor de ecrã"}
+            bloco = radar.bloco_da_conta()
+        self.assertIn("<span class='so-leitor'>Menu da conta: </span>", bloco)
+        self.assertIn("<span class='mg-avatar' aria-hidden='true'>", bloco)
+        self.assertIn("class='mg-menu__item'>", bloco)
+        self.assertIn("if (e.key !== 'Escape') return;", radar.BASE)
+
+    def test_g72_e_g73_as_tarefas_e_os_filtros_do_hoje(self):
+        """«entregar a proposta» ×8 sem dizer de que concurso; o dono só
+        no `title`; os grupos sem cabeçalho; e a pessoa e o dia
+        escolhidos só pela cor."""
+        radar.criar_tarefa("ligar", radar.date.today().isoformat(),
+                           proposta_id=self.pid, ref="70/2026", quem="Ana")
+        html_ = self.cliente.get("/?quem=Ana").get_data(as_text=True)
+        self.assertIn("aria-label='marcar como feita: ligar — 70/2026'", html_)
+        self.assertIn("<span class='so-leitor'>de Ana</span>", html_)
+        self.assertIn("<h3 class='hj-t'>", html_)
+        self.assertIn("class='pill on' aria-current='true'", html_)
+        self.assertIn("aria-current='true'><span class='d'>", html_)
+
+    def test_g74_os_rotulos_estao_a_vista_e_por_extenso(self):
+        """Dois campos «até»; campos só com o texto de exemplo, que some
+        ao escrever; «conc» e «+8» sem nome."""
+        html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        self.assertIn("<span class='mg-field__label'>Publicado até</span>", html_)
+        self.assertIn("<span class='mg-field__label'>Preço base até</span>", html_)
+        radar.criar_tarefa("ligar", "2026-10-02", proposta_id=self.pid, ref="70/2026")
+        ficha = self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
+        for rotulo in ("Nome", "Cargo", "Tarefa nova", "Até quando", "Adiar para"):
+            self.assertIn("<span class='rot-t'>%s</span>" % rotulo, ficha)
+        self.assertIn("<span class='so-leitor'>Concorrente</span>",
+                      radar.selo_do_papel(("concorrente", "Concorrente", "x"), curto=True))
+
+    def test_g75_filtros_recolhidos_e_a_dica_de_rolar(self):
+        """A 390 px os filtros ocupavam a primeira dobra; a 768 as tabelas
+        cortavam-se sem nada a dizer que havia mais."""
+        html_ = self.cliente.get(radar.LISTA + "?estado=porver&ent=IPL").get_data(as_text=True)
+        self.assertIn("aria-controls='filtros-lista'>Mais filtros &middot; 1</button>", html_)
+        self.assertIn("A tabela continua para o lado", radar.BASE)
+
+    def test_g77_a_validacao_fala_portugues(self):
+        """O alerta sem nome dizia «Please fill out this field.»."""
+        self.assertIn("'Preencha este campo.'", radar.BASE)
 
 
 if __name__ == "__main__":

@@ -3503,7 +3503,9 @@ botões ou no calendário.
   Na mesma sessão entraram o **teclado da lista** (`j k i a Enter`,
   no `LISTA_JS`: `requestSubmit()` nos formulários da linha focada,
   para o pop-up do abandono e a memória da posição do scroll
-  continuarem a disparar; nada dispara com o foco num campo) e a
+  continuarem a disparar; nada dispara com o foco num campo; desde a
+  3.ª ronda, G65, **só com o foco numa linha da tabela** — ver a seguir)
+  e a
   **frase dos campos em falta** do essencial (agrupada pela razão;
   saiu a 28/09/2026 com a ficha nova, onde cada facto em falta fica na
   sua célula a dizer onde está). A mensagem da
@@ -4041,6 +4043,56 @@ botões ou no calendário.
 - **O arranque encurta com metade feita** (V3 P4): só os passos que
   faltam, uma linha cada (`arranque-curto`). Os riscados ocupavam
   metade do ecrã acima da dobra.
+- **Um atalho de uma tecla só vale com o foco no que ele muda** (3.ª
+  ronda, G65; WCAG 2.1.4). O `j k i a` ouvia a página toda, e um «i»
+  ditado ao computador, ou escrito com o leitor de ecrã fora do modo de
+  navegação, triava um concurso. O ouvinte está no `tbody` da lista, e
+  o realce é o da linha com o foco (`focusin`), não um índice guardado:
+  com o índice, depois do «i» a linha saía, o realce sumia e o «i»
+  seguinte não fazia nada. O Enter é o do browser.
+- **Em coluna, o `align-items:start` deixa cada filho com a largura do
+  conteúdo** (G63). A ficha abaixo de 1100px passa a flex em coluna e
+  herdava o `start` das duas colunas: o cartão dos lotes (tabela de
+  720px) levava a página a 782px num ecrã de 390, e a tabela nem chegava
+  a rolar dentro de si. Leva `align-items:stretch`. E a linha de tarefa
+  dobra no telemóvel em **qualquer** página, não só na `.ficha-lado`: a
+  proposta sem anúncio não a tem, e ficava com 414-532px a 320.
+- **Uma frase não é um flex** (G64). A faixa «Limitado ao perfil da
+  empresa» era `display:flex`, e cada pedaço de texto virava uma coluna:
+  «Limitado / ao» a 1440, 16 linhas de CPV a 390. Corre em bloco, e o
+  espaço antes do «ver tudo» passou a ser um espaço no HTML (era o `gap`).
+- **O foco nas duas barras é amarelo, nos três temas** (G69). As barras
+  são azul-marinho em todos, e o `--focus` do sistema não se via lá: o
+  magenta a 2,36:1, o preto do contraste a 1,57:1. O `--focus-on-header`
+  está na nossa folha (o `miragov-tokens.css` é do sistema), e dentro de
+  um `mg-menu` aberto — fundo claro — volta o `--focus`. Há teste que o
+  mede contra as três `--surface-header`.
+- **O menu da conta é o `mg-menu` do «Mais»** (G71): as mesmas classes,
+  os ícones, as maiúsculas e alvos de 40px (o «sair» tinha 28×18). As
+  regras antigas do `.sou` (o painel escuro, a letra de 12px) ficam no
+  `CSS` e perdem para `.mg-topbar .sou …` na nossa folha. Um `<details>`
+  não fecha sozinho: o JS do `BASE` fecha o da conta e o «Mais» com o
+  Esc (e devolve o foco ao `summary`), com o Tab para fora e com um
+  clique fora.
+- **Um campo pequeno leva o rótulo à vista: `rotulado()`** (G74). O
+  nome estava só no texto de exemplo, que some ao escrever. A caixa é
+  uma **grelha** e não um flex de propósito: as regras antigas destes
+  formulários (`.ct-novo input`, `.ficha-lado ul.tarefas li form.accao
+  input`) dão ao campo `flex:1 1 130px`, e numa coluna flex isso era
+  altura. E um formulário que passa a ter `+ rotulado(...) +` no meio
+  precisa de parênteses antes do `%` — a mesma armadilha das ligações.
+- **O filtro escolhido diz-se, e não só pela cor** (G73): o dia da fita,
+  a pessoa e o período da Situação e da entidade levam
+  `aria-current='true'`, como as abas já levavam o `'page'`.
+- **As bolhas da validação do browser falam a língua do browser** (G77):
+  num em inglês, «Please fill out this field.». O JS do `BASE` dá a cada
+  campo inválido a sua mensagem em português (`invalid`, na captura), e
+  limpa-a ao escrever. A caixa do motivo tem as suas, e fica de fora —
+  o ouvinte do documento corre antes do dela, e tapava-as.
+- **Uma tabela que rola de lado di-lo** (G75): a dica «A tabela continua
+  para o lado» nasce e sai com a medida (`.cal-rolo`, `.tab-cx`,
+  `.mercado-tab`), porque a 768px o domingo do calendário e a última
+  coluna da Situação ficavam cortados sem sinal nenhum.
 
 ## Convenções
 

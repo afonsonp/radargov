@@ -93,6 +93,15 @@ dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
 .mg-topbar .sou[open]>summary{color:var(--on-header)}
 .mg-topbar .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;
  z-index:30}
+/* O painel e o do `mg-menu`, como o «Mais» (3.a ronda, G71): as regras
+   antigas do `.sou` (o painel escuro, a letra de 12px, os alvos de 24px)
+   perdem aqui. */
+.mg-topbar .sou .sou-menu{background:var(--surface-raised);border:var(--border-hairline) solid var(--line);
+ border-radius:var(--radius-lg);padding:var(--space-2);gap:0;min-width:240px;box-shadow:var(--shadow-md)}
+.mg-topbar .sou .sou-menu form{display:block}
+.mg-topbar .sou .mg-menu__item{width:100%;margin:0;padding:var(--space-2) var(--space-3);
+ min-height:40px;box-sizing:border-box;display:flex;color:var(--ink);font:400 var(--text-sm)/20px var(--font-sans)}
+.mg-topbar .sou .mg-menu__item:hover{background:var(--surface-sunken);color:var(--ink)}
 
 /* Os dois ecrãs fora do molde (entrar, erro): o cartão ao centro. */
 .entrar-fundo{background:var(--surface)}
@@ -153,11 +162,15 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
  gap:var(--space-1) var(--space-4);margin:var(--space-3) 0 var(--space-4);
  font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
 .linha-conta.resumo b{font:600 var(--text-sm)/20px var(--font-mono);color:var(--ink)}
-.linha-conta.resumo .cpv-activo{display:inline-flex;gap:var(--space-2);align-items:center;
+/* A faixa do perfil e uma frase, e corre como uma (3.a ronda, G64): em
+   flex, cada pedaco de texto era uma coluna -- «Limitado / ao» a 1440, e
+   16 linhas de CPV numa coluna estreita a 390. */
+.cpv-activo{display:block;overflow-wrap:anywhere}
+.linha-conta.resumo .cpv-activo{display:inline;
  margin:0;padding:2px var(--space-3);border:0;border-radius:var(--radius-full);
  background:var(--brand-soft);color:var(--brand);font:500 var(--text-xs)/18px var(--font-sans)}
 .linha-conta.resumo .cpv-activo b{font:600 var(--text-xs)/18px var(--font-mono);color:var(--brand)}
-.linha-conta.resumo .teclas{margin-left:auto}
+.linha-conta.resumo .teclas{margin-left:auto;position:relative}
 .linha-conta.resumo>a{margin-left:0;color:var(--link)}
 .lista .col-acc{width:1%;white-space:nowrap}
 .lista .col-acc form{display:inline-flex;margin:0 0 0 4px}
@@ -376,10 +389,15 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
  .mg-pagehead__actions{flex:1 1 100%;flex-wrap:wrap}}
 /* A linha de tarefa na coluna estreita dobra: o texto e as etiquetas
    numa linha, o formulario do adiar/quem na seguinte, a toda a largura. */
+/* E no telemovel, em qualquer pagina (3.a ronda, G63): a proposta sem
+   anuncio nao tem .ficha-lado, e a linha ficava com 414-532px a 320. */
 .ficha-lado ul.tarefas li{flex-wrap:wrap}
 .ficha-lado ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
 .ficha-lado ul.tarefas li form.accao input,
 .ficha-lado ul.tarefas li form.accao select{flex:1 1 120px;min-width:0}
+@media (max-width:600px){ul.tarefas li{flex-wrap:wrap}
+ ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
+ ul.tarefas li form.accao input,ul.tarefas li form.accao select{flex:1 1 120px;min-width:0}}
 .ficha-lado .mg-card table{font-size:var(--text-sm)}
 
 /* As PROPOSTAS (24/09/2026, o `EcraPropostas`): o cliente por baixo do
@@ -452,7 +470,7 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
    essa que deve pintar já na fase 1: a barra é a primeira coisa que se
    vê, e deixá-la cinzenta-escura até à fase 2 era mostrar meia mudança.
    O menu da conta pendura-se da barra e acompanha-a. */
-[data-theme] .barra, [data-theme] .sou .sou-menu { background: var(--surface-header); }
+[data-theme] .barra { background: var(--surface-header); }
 
 /* ENTRAR (24/09/2026, o `EcraEntrar`): o painel institucional a
    esquerda, com os numeros da plataforma, e o formulario minimo a
@@ -487,6 +505,15 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
  .entrar-lado{border-radius:0 0 var(--radius-xl) var(--radius-xl);padding:var(--space-6)}
  .entrar-lado h1{font-size:var(--text-3xl);line-height:36px}
  .entrar-form{padding:var(--space-6) var(--space-4)}}
+
+/* O FOCO NAS BARRAS (3.a ronda, G69). As duas barras sao azul-marinho nos
+   tres temas, e o --focus do sistema nao se ve la: o magenta fica a
+   2,36:1 sobre #004682, e o preto do contraste a 1,57:1 sobre #00305a --
+   precisamente o tema de quem mais depende do teclado. O amarelo passa
+   6,9:1 e 9,6:1. Dentro de um menu aberto (fundo claro) volta o de sempre. */
+:root,[data-theme]{--focus-on-header:#ffd84d}
+.mg-topbar :focus-visible,.barra-baixo :focus-visible{outline-color:var(--focus-on-header)}
+.mg-topbar .mg-menu :focus-visible,.barra-baixo .mg-menu :focus-visible{outline-color:var(--focus)}
 
 /* O FOCO DOS CAMPOS (24/09/2026, queixa dele: «o rebordo à volta da
    caixa a roxo fica feio»). O `--focus` do sistema e um magenta de alta
@@ -810,7 +837,7 @@ ul.notas li>form.accao{display:inline-block}
  .bb-item::-webkit-details-marker{display:none}
  .bb-item[aria-current="page"],.bb-item.aceso{color:var(--on-header);font-weight:700;
   border-top-color:var(--on-header)}
- .bb-item:focus-visible{outline:var(--border-focus) solid var(--focus);outline-offset:-4px}
+ .bb-item:focus-visible{outline:var(--border-focus) solid var(--focus-on-header);outline-offset:-4px}
  .bb-mais{position:relative}
  .bb-mais[open]>.bb-item{color:var(--on-header)}
  .bb-menu{position:absolute;right:0;bottom:100%;margin-bottom:8px;z-index:36;
@@ -1108,7 +1135,11 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
    o responsável, os contactos e o histórico ficam no fim. Sem HTML
    duplicado: é só a ordem. */
 @media (max-width:1100px){
- .ficha-duas{display:flex;flex-direction:column;gap:var(--space-4)}
+ /* stretch, e nao o `start` das duas colunas: em coluna, o `start` deixa
+    cada cartao com a largura do conteudo, e a tabela dos lotes (720px)
+    levava a pagina a 782px a 390 (3.a ronda, G63). Esticado, o cartao tem
+    a largura do ecra e a tabela rola dentro do .mercado-tab. */
+ .ficha-duas{display:flex;flex-direction:column;gap:var(--space-4);align-items:stretch}
  .ficha-duas>.ficha-principal,.ficha-duas>.ficha-lado{display:contents}
  .ficha-lado>#prazo{order:-2}
  .ficha-lado>#proposta{order:-1}}
@@ -1135,3 +1166,26 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 /* O terceiro número do «O que mudou» não é ligação: em coluna como os
    outros dois. */
 .mudou-n>span{flex:1;display:flex;flex-direction:column;gap:2px}
+/* O texto so para o leitor e `position:absolute`: a linha do Hoje e o
+   antepassado dele (3.a ronda, G72), senao empurrava a pagina. */
+.hj-row{position:relative}
+/* O rotulo a vista por cima de um campo pequeno (`rotulado()`; 3.a ronda,
+   G74): o nome estava so no texto de exemplo. Grelha, e nao flex: as
+   regras antigas destes formularios dao ao campo um `flex:1 1 130px`. */
+.rot{display:grid;gap:2px;align-content:start;flex:1 1 130px;min-width:0}
+.rot.larga{flex:2 1 220px}
+.rot>input,.rot>select{width:100%;min-width:0;box-sizing:border-box}
+.rot-t{font:500 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
+.ct-novo,.tarefa-nova,.novo-filtro form.filtros,.hj-mexer>form,
+ul.tarefas li form.accao{align-items:end}
+/* o texto so para o leitor precisa de um antepassado posicionado */
+.ent-papel,.cal-mais>summary{position:relative}
+/* O «Mais filtros» dos Concursos (3.a ronda, G75): so no telemovel, e so
+   com JS; fechado, fica a pesquisa, o botao e o «Filtrar». */
+#filtros-lista .f-mais{display:none}
+@media (max-width:600px){
+ .com-js #filtros-lista .f-mais{display:inline-flex;grid-column:1/-1;justify-self:start}
+ .com-js #filtros-lista:not(.aberto)>.mg-field:not(.f-q){display:none}}
+/* A dica de uma tabela que rola de lado (o JS do `BASE`; G75). */
+.rola-dica{margin:0 0 var(--space-1);font:400 var(--text-xs)/16px var(--font-sans);
+ color:var(--ink-muted);text-align:right}
