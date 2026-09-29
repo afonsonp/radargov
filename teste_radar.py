@@ -2553,10 +2553,10 @@ class TestResumoDosAlertas(unittest.TestCase):
 
     def test_conta_no_cabecalho(self):
         saiu = self.resumo([self.anuncio(), self.anuncio(ref="2/2026")])
-        self.assertIn("2 anuncios novos", saiu)
+        self.assertIn("2 anúncios novos", saiu)
 
     def test_singular(self):
-        self.assertIn("1 anuncio novo", self.resumo([self.anuncio()]))
+        self.assertIn("1 anúncio novo", self.resumo([self.anuncio()]))
 
     def test_prazo_expirado_nao_diz_termina_hoje(self):
         # conta_dias() diz "termina hoje" para dias <= 0, o que num prazo
@@ -2822,7 +2822,7 @@ class TestResumoComAlterados(unittest.TestCase):
 
     def test_so_alterados_nao_diz_zero_novos(self):
         saiu = radar.texto_do_resumo([], [self.alteracao()])
-        self.assertNotIn("0 anuncios novos", saiu)
+        self.assertNotIn("0 anúncios novos", saiu)
         self.assertIn("1 alterado", saiu)
 
     def test_duas_mudancas_do_mesmo_anuncio_contam_uma_vez(self):
@@ -2843,7 +2843,7 @@ class TestResumoComAlterados(unittest.TestCase):
             [({"nome": "TI"}, [{"ref": "1/2026", "titulo": "t",
                                 "entidade": "e", "data_pub": "2026-08-01",
                                 "prazo": "", "preco_base": "", "cpv": ""}])])
-        self.assertIn("1 anuncio novo", saiu)
+        self.assertIn("1 anúncio novo", saiu)
         self.assertNotIn("Alterados", saiu)
 
 
@@ -2991,7 +2991,7 @@ class TestResumoComSeguidas(unittest.TestCase):
     def test_cabecalho_conta_as_seguidas_sem_zero_novos(self):
         saiu = radar.texto_do_resumo([], (), self.seguidas())
         self.assertIn("1 das entidades seguidas", saiu)
-        self.assertNotIn("0 anuncios novos", saiu)
+        self.assertNotIn("0 anúncios novos", saiu)
 
 
 class TestEnvioSemConfiguracao(unittest.TestCase):
@@ -3169,9 +3169,24 @@ class TestEnvioComHtml(unittest.TestCase):
         self.assertIn("texto simples", msg.get_body(("plain",)).get_content())
         self.assertIn("bonito", msg.get_body(("html",)).get_content())
 
-    def test_sem_html_e_so_texto(self):
+    def test_sem_html_vai_o_texto_na_moldura(self):
+        """29/09/2026: «todos os emails que saírem da plataforma devem ter
+        um email bonito». O de teste e o pedido de acesso saíam só em
+        texto; agora o texto vai também na moldura, com as ligações."""
         msg = self.apanhar(None)
-        self.assertEqual(msg.get_content_type(), "text/plain")
+        self.assertEqual(msg.get_content_type(), "multipart/alternative")
+        em_html = msg.get_body(("html",)).get_content()
+        self.assertIn("Mira Gov", em_html)
+        self.assertIn("texto simples", em_html)
+
+    def test_o_texto_na_moldura_escapa_e_liga_os_enderecos(self):
+        h = radar.html_do_texto("Mira Gov: pedido de acesso de A & B",
+                                "Nome: <Ana>\n\nVer https://miragov.pt/x?a=1&b=2")
+        self.assertIn("pedido de acesso de A &amp; B", h)
+        self.assertNotIn("Mira Gov: pedido", h)
+        self.assertIn("&lt;Ana&gt;", h)
+        self.assertIn('<a href="https://miragov.pt/x?a=1&amp;b=2"', h)
+
 
     def test_leva_data_e_identificador(self):
         # sem Date nem Message-ID sairam todos ate 28/09/2026: a caixa
@@ -3180,6 +3195,39 @@ class TestEnvioComHtml(unittest.TestCase):
         self.assertIsNotNone(email.utils.parsedate_to_datetime(msg["Date"]))
         self.assertRegex(msg["Message-ID"], r"^<.+@d\.pt>$")
 
+
+class TestEmailsBonitos(unittest.TestCase):
+    """29/09/2026: o rodapé dos alertas dizia que as ligações abriam «no
+    PC onde o radar corre» e mandava ao AVISOS.txt, que fica no servidor;
+    e o convite era um texto sem botão nem data."""
+
+    def test_o_rodape_dos_alertas_nao_fala_do_pc_e_liga_aos_alertas(self):
+        h = radar.html_do_resumo([], [], [])
+        self.assertNotIn("PC onde", h)
+        self.assertNotIn("AVISOS.txt", h)
+        self.assertIn("/configuracoes/alertas", h)
+
+    def test_o_convite_do_gestor_tem_botao_data_e_passos(self):
+        ligacao = "https://miragov.pt/convite/abc"
+        assunto, texto, h = radar.texto_e_html_do_convite(
+            ligacao, "Beta, Lda", "admin", "Ana", pedido=True)
+        self.assertEqual(assunto, "O seu acesso ao Mira Gov")
+        ate = (datetime.date.today() + datetime.timedelta(
+            days=radar.contas.DIAS_DE_CONVITE)).strftime("%d/%m/%Y")
+        for parte in (texto, h):
+            self.assertIn(ate, parte)
+            self.assertIn("gestor da Beta, Lda", parte)
+            self.assertIn("Convidar os colegas", parte)
+        self.assertIn("Olá Ana,", texto)
+        self.assertIn('href="%s"' % ligacao, h)
+        self.assertIn("Criar a conta</a>", h)
+
+    def test_o_convite_de_utilizador_nao_manda_convidar_colegas(self):
+        _, texto, h = radar.texto_e_html_do_convite(
+            "https://x/convite/abc", "Beta", "tester")
+        self.assertIn("Olá,", texto)
+        self.assertIn("uma conta de utilizador da Beta", texto)
+        self.assertNotIn("Convidar os colegas", texto + h)
 
 class TestEurosDoTexto(unittest.TestCase):
     """O DR escreve "175.000,00 EUR": o ponto separa os milhares e a
@@ -17183,6 +17231,22 @@ class TestConvites(BaseTemporaria):
                         environ_base=self.FORA)
         self.assertEqual(r.status_code, 403)
 
+    def test_o_convite_do_gestor_com_email_segue_por_email(self):
+        """29/09/2026: o convite do gestor só mostrava a ligação para a
+        copiar; com o e-mail do colega, segue também por e-mail."""
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "chefe", "senha-comprida",
+                                          papel="admin", empresa_id=1)
+        cliente = self.entrar("chefe")
+        r = cliente.post("/configuracoes/conta/utilizadores/convite",
+                         data={"papel": "tester", "email": "rui@exemplo.pt",
+                               "csrf": self.token(cliente)},
+                         environ_base=self.FORA, follow_redirects=True)
+        self.assertIn("seguiu por e-mail para <b>rui@exemplo.pt</b>",
+                      r.get_data(as_text=True))
+        self.assertEqual([p for p, _ in self.enviados], ["rui@exemplo.pt"])
+        self.assertRegex(self.enviados[0][1], r"/convite/[\w-]+")
+
     def test_aceitar_cria_a_empresa_e_manda_o_convite_a_quem_pediu(self):
         r = self.aceitar()
         self.assertEqual(r.status_code, 200)
@@ -23576,7 +23640,8 @@ class TestTerceiraRondaAPortaEAPlataforma(_PlataformaComDuasEmpresas):
         self.assertIn("<option value='admin'>Gestor</option>", h)
         texto = re.sub(r"<[^>]+>", " ", h)
         self.assertNotRegex(texto, r"\b(Administrador|administrador|tester|admin)\b")
-        self.assertIn("de gestor da", radar.TEXTO_DO_CONVITE)
+        self.assertIn("de gestor da", radar.texto_e_html_do_convite(
+            "https://x/convite/a", "Beta", "admin")[1])
         with open(os.path.join(os.path.dirname(radar.__file__), "site",
                                "termos.html"), encoding="utf-8") as f:
             self.assertNotIn("administrador", f.read())

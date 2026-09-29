@@ -1446,7 +1446,13 @@ Um alerta é um filtro com a marca posta; o interesse é outra coisa.
   compara as ligações de um e do outro (`TestResumoEmHtml`): dois
   formatos que divergem ao primeiro arranjo foi a razão de haver um só
   até aqui. A pílula do prazo vem de `etiqueta_prazo()` com a janela
-  de `dias_urgente()`, como a lista.
+  de `dias_urgente()`, como a lista. **Desde 29/09/2026 nenhum e-mail
+  sai só em texto**: a casca de todos é a `moldura_do_email()`, e o
+  `enviar_email()` põe na moldura, pela `html_do_texto()`, o texto de
+  quem não traz HTML seu. O rodapé dos alertas dizia que as ligações
+  abriam «no PC onde o radar corre» e mandava ao `AVISOS.txt`: um
+  e-mail é lido pelo cliente, e o `AVISOS.txt` fica no servidor, onde
+  ele não chega — não voltes a apontar-lhe para lá.
 
 - **O interesse não é um alerta nem um filtro: é o recorte permanente
   da lista.** Os CPV que a empresa trabalha (`interesse_activo`,
