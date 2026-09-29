@@ -8977,7 +8977,9 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
         p = self._params(r)
         self.assertIn("Por analisar", p["aviso"])
         self.assertIn("Aquisição de serviços de consultoria", p["aviso"])
-        self.assertEqual(p["desfazer"], "/estado/2/2026/porver")
+        # com a fase em que ficou (3.ª ronda, G6): o desfazer recusa se um
+        # colega a mudou entretanto
+        self.assertEqual(p["desfazer"], "/estado/2/2026/porver?de=analisar")
         self.assertEqual(p["estado"], "porver")     # o filtro da pagina fica
 
     def test_nao_fomos_avisa_com_o_motivo_e_o_desfazer_repoe(self):
@@ -8985,7 +8987,7 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
                               data={"motivo": radar.MOTIVOS_ABANDONO[0]})
         p = self._params(r)
         self.assertIn("Não fomos (%s)" % radar.MOTIVOS_ABANDONO[0], p["aviso"])
-        self.assertEqual(p["desfazer"], "/estado/2/2026/porver")
+        self.assertEqual(p["desfazer"], "/estado/2/2026/porver?de=nao_fomos")
         r = self.cliente.post(p["desfazer"])
         self.assertIn("reposto em por ver", self._params(r)["aviso"])
         # sair da escada tira a proposta, e o anuncio fica como o DR o
@@ -19302,7 +19304,7 @@ class TestTriagemSemRecarregar(BaseTemporaria):
         j = self.post("/estado/1%2F2026/analisar")
         self.assertTrue(j["ok"])
         self.assertIn("«Obra 1»", j["aviso"])
-        self.assertEqual(j["desfazer"], "/estado/1/2026/porver")
+        self.assertEqual(j["desfazer"], "/estado/1/2026/porver?de=analisar")
         self.assertEqual(radar.propostas_de("1/2026")[0]["estado"], "analisar")
         # e o desfazer pelo mesmo caminho repõe
         self.assertTrue(self.post(j["desfazer"])["ok"])
@@ -21275,6 +21277,233 @@ class TestAFichaDeUmaRepublicacaoLeOPrazoDaCadeia(BaseTemporaria):
         self.assertNotIn("Expirou", h)
         self.assertIn("Prorrogado 1 vez.", h)
         self.assertIn("href='/anuncio/300%2F2099'", h)
+
+
+# --- o lote 1 da 3.ª ronda de testes (28-29/09/2026) -------------------
+#
+# «Gravar uma vez e dizer a verdade» (/home/afonso/Desktop/radar-qa3-
+# 2026-09-28, SINTESE.md §3). Cada teste diz o G da síntese, e cada um
+# falhava no código de antes.
+
+
+class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
+    """Com rede má (rel. 09) o segundo toque gravava outra vez, e as
+    mensagens diziam o contrário do que tinha acontecido; com três
+    colegas na mesma proposta (rel. 03) o desfazer, a tarefa e o
+    responsável perdiam o que o outro fez, em silêncio."""
+
+    VOLTA = {"Referer": "http://localhost/anuncio/60%2F2026"}
+
+    def aviso(self, r):
+        q = dict(parse_qsl(urlparse(r.headers["Location"]).query))
+        return q.get("aviso", ""), q.get("tom") == "erro"
+
+    def envio(self, h, accao):
+        """O `envio` do formulário com esta acção, na página `h`."""
+        form = re.search(r"(?s)<form[^>]*action='%s'[^>]*>(.*?)</form>"
+                         % re.escape(accao), h).group(1)
+        return re.search(r"name='envio' value='([0-9a-f]+)'", form).group(1)
+
+    def test_g1_o_segundo_toque_nao_grava_outra_vez(self):
+        id_ = self._proposta()
+        h = self._ficha()
+        dados = {"ref": "60/2026", "proposta_id": str(id_), "o_que": "ligar ao júri",
+                 "envio": self.envio(h, "/tarefa/nova")}
+        r1 = self.cliente.post("/tarefa/nova", data=dados, headers=self.VOLTA)
+        r2 = self.cliente.post("/tarefa/nova", data=dados, headers=self.VOLTA)
+        with radar.liga() as c:
+            n = c.execute("SELECT COUNT(*) n FROM tarefas WHERE o_que='ligar ao júri'"
+                          ).fetchone()["n"]
+        self.assertEqual(n, 1)
+        # o segundo recebe a resposta do primeiro: o mesmo aviso, a mesma linha
+        self.assertEqual(r1.headers["Location"], r2.headers["Location"])
+        # a nota também (o «voltar» e «Guardar» outra vez, G3, é o mesmo envio)
+        nota = {"nota_nova": "rever o ponto 3",
+                "envio": self.envio(h, "/proposta/%d/ficha" % id_)}
+        for _ in range(3):
+            self.cliente.post("/proposta/%d/ficha" % id_, data=nota, headers=self.VOLTA)
+        self.assertEqual(len(radar.notas_de(id_)), 1)
+        # e um envio novo grava, que é outro gesto
+        dados["envio"] = "outro"
+        self.cliente.post("/tarefa/nova", data=dados, headers=self.VOLTA)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) n FROM tarefas WHERE "
+                                       "o_que='ligar ao júri'").fetchone()["n"], 2)
+
+    def test_g1_todos_os_formularios_post_levam_um_envio_seu(self):
+        self._proposta()
+        h = self.cliente.get("/anuncio/60%2F2026").get_data(as_text=True)
+        forms = re.findall(r"<form\b[^>]*method=['\"]post['\"][^>]*>", h, re.I)
+        envios = re.findall(r"name='envio' value='([0-9a-f]+)'", h)
+        self.assertTrue(forms)
+        self.assertEqual(len(envios), len(forms))
+        self.assertEqual(len(set(envios)), len(envios))
+
+    def test_g1_um_pedido_que_rebenta_larga_o_envio(self):
+        # sem isto, o segundo esperava 15 s por uma resposta que não vinha
+        id_ = self._proposta()
+        dados = {"ref": "60/2026", "proposta_id": str(id_), "o_que": "x",
+                 "envio": "abc"}
+        with unittest.mock.patch.object(radar, "criar_tarefa",
+                                        side_effect=RuntimeError("de propósito")):
+            radar.app.testing = False
+            try:
+                self.assertEqual(self.cliente.post("/tarefa/nova", data=dados,
+                                                   headers=self.VOLTA).status_code, 500)
+            finally:
+                radar.app.testing = True
+        self.assertNotIn(("", "/tarefa/nova", "abc"), radar._envios)
+        self.assertEqual(self.cliente.post("/tarefa/nova", data=dados,
+                                           headers=self.VOLTA).status_code, 302)
+
+    def test_g2_o_botao_diz_a_gravar_e_nao_envia_duas_vezes(self):
+        h = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("A gravar…", h)
+        self.assertIn("aria-busy", h)
+        self.assertIn("stopImmediatePropagation", h)
+        # G3: o «voltar» do bfcache solta o botão preso
+        self.assertIn("pageshow", h)
+        # G5: a triagem por fetch não sai duas vezes da mesma linha
+        self.assertIn("tr.getAttribute('aria-busy') === 'true'", radar.LISTA_JS)
+
+    def test_g4_a_nota_grava_se_quando_o_preco_e_recusado(self):
+        id_ = self._proposta("submetido")
+        r = self.cliente.post("/proposta/%d/ficha" % id_, data={
+            "valor_proposta": "", "nota_nova": "um parágrafo escrito no telemóvel"},
+            headers=self.VOLTA)
+        texto, erro = self.aviso(r)
+        self.assertTrue(erro)
+        self.assertIn("A nota foi gravada", texto)
+        self.assertIn("preço proposto não pode ficar vazio", texto)
+        self.assertEqual([n["texto"] for n in radar.notas_de(id_)],
+                         ["um parágrafo escrito no telemóvel"])
+        self.assertEqual(radar.proposta(id_)["valor_proposta"], "118.500,00 EUR")
+        # e a caixa da escada reabre com o que se escreveu
+        self.assertIn("radar-caixa:", radar.caixa_do_motivo())
+
+    def test_g5_o_segundo_mudar_nao_diz_que_nada_mudou(self):
+        id_ = self._proposta()
+        pedido = {"estado": "proposta", "de": "analisar"}
+        self.cliente.post("/escada/60%2F2026", data=pedido, headers=self.VOLTA)
+        texto, erro = self.aviso(self.cliente.post("/escada/60%2F2026", data=pedido,
+                                                   headers=self.VOLTA))
+        self.assertFalse(erro, texto)
+        self.assertNotIn("Nada foi mudado", texto)
+        self.assertEqual(radar.proposta(id_)["estado"], "proposta")
+
+    def test_g6_o_desfazer_nao_passa_por_cima_de_um_colega(self):
+        id_ = self._proposta()
+        r = self.cliente.post("/escada/60%2F2026", data={"estado": "proposta"},
+                              headers=self.VOLTA)
+        desfazer = dict(parse_qsl(urlparse(r.headers["Location"]).query))["desfazer"]
+        self.assertIn("de=proposta", desfazer)
+        with radar.liga() as c:           # o colega muda-a entretanto
+            c.execute("UPDATE propostas SET estado='submetido', "
+                      "valor_proposta='1.000,00 EUR' WHERE id=?", (id_,))
+        texto, erro = self.aviso(self.cliente.post(desfazer, headers=self.VOLTA))
+        self.assertTrue(erro)
+        self.assertIn("Nada foi mudado", texto)
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
+
+    def test_g7_a_tarefa_de_um_colega_nao_se_perde(self):
+        id_ = self._proposta()
+        t = radar.criar_tarefa("ligar ao fiscal", None, proposta_id=id_)
+        h = self._ficha()
+        self.assertIn("name='versao'", h.split("action='/tarefa/%d/gravar'" % t)[1][:200])
+        with radar.liga() as c:
+            versao = radar.versao_da_tarefa(c.execute(
+                "SELECT * FROM tarefas WHERE id=?", (t,)).fetchone())
+        radar.gravar_tarefa(t, quem="Técnico B")         # o colega, primeiro
+        r = self.cliente.post("/tarefa/%d/gravar" % t, data={
+            "versao": versao, "quem": "Técnico C", "quando": "30/10/2026"},
+            headers=self.VOLTA)
+        texto, erro = self.aviso(r)
+        self.assertTrue(erro)
+        self.assertIn("Técnico B", texto)
+        with radar.liga() as c:
+            linha = c.execute("SELECT quem, quando FROM tarefas WHERE id=?",
+                              (t,)).fetchone()
+        self.assertEqual((linha["quem"], linha["quando"]), ("Técnico B", None))
+
+    def test_g8_o_responsavel_tem_guarda_e_diz_que_gravou(self):
+        self._proposta()
+        texto, erro = self.aviso(self.cliente.post(
+            "/responsavel/60/2026", data={"nome": "Ana", "de": ""}, headers=self.VOLTA))
+        self.assertFalse(erro)
+        self.assertEqual(texto, "Responsável: Ana.")
+        # o colega com a página antiga (dizia ninguém) não passa por cima
+        texto, erro = self.aviso(self.cliente.post(
+            "/responsavel/60/2026", data={"nome": "Rui", "de": ""}, headers=self.VOLTA))
+        self.assertTrue(erro)
+        self.assertIn("«Ana»", texto)
+        self.assertEqual(radar.propostas_de("60/2026")[0]["responsavel"], "Ana")
+        self.assertIn("name='de' value='Ana'", self._ficha())
+
+    def test_g9_so_uma_nota_com_a_fase_mudada_nao_e_conflito(self):
+        id_ = self._proposta()
+        versao = radar.versao_da_proposta(radar.proposta(id_))
+        with radar.liga() as c:           # um colega muda a fase
+            c.execute("UPDATE propostas SET estado='proposta' WHERE id=?", (id_,))
+        r = self.cliente.post("/proposta/%d/ficha" % id_, data={
+            "versao": versao, "top3": "", "nota_nova": "só uma nota"},
+            headers=self.VOLTA)
+        texto, erro = self.aviso(r)
+        self.assertFalse(erro, texto)
+        self.assertEqual(texto, "Proposta gravada.")
+        self.assertEqual(len(radar.notas_de(id_)), 1)
+        # mas quem muda um campo sobre a página antiga continua a ser travado
+        r = self.cliente.post("/proposta/%d/ficha" % id_, data={
+            "versao": versao, "top3": "A, B, C"}, headers=self.VOLTA)
+        self.assertTrue(self.aviso(r)[1])
+        self.assertIsNone(radar.proposta(id_)["top3"])
+
+    def test_g10_o_segundo_visto_diz_que_ja_estava_feita(self):
+        id_ = self._proposta()
+        t = radar.criar_tarefa("enviar a caução", None, proposta_id=id_)
+        radar.marcar_tarefa(t, True, quem="Técnico B")
+        texto, erro = self.aviso(self.cliente.post("/tarefa/%d/feita" % t,
+                                                   headers=self.VOLTA))
+        self.assertFalse(erro)
+        self.assertIn("já estava feita por Técnico B", texto)
+        with radar.liga() as c:
+            n = c.execute("SELECT COUNT(*) n FROM historico WHERE detalhe=?",
+                          ("feita: enviar a caução",)).fetchone()["n"]
+        self.assertEqual(n, 1)
+
+    def test_g11_o_aviso_sai_do_endereco_depois_de_mostrado(self):
+        self.assertIn("history.replaceState", self.cliente.get("/").get_data(as_text=True))
+
+    def test_d6_a_propria_nota_corrige_se_e_apaga_se_com_rasto(self):
+        id_ = self._proposta()
+        radar.gravar_nota(id_, "nota a dobrar")
+        radar.gravar_nota(id_, "nota com erro")
+        with radar.liga() as c:
+            c.execute("INSERT INTO notas_da_proposta (proposta_id, texto, quem, "
+                      "quando) VALUES (?,?,?,?)", (id_, "a do colega", "Colega",
+                                                   "2026-09-28 10:00"))
+        dobrada, errada, alheia = [n["id"] for n in sorted(
+            radar.notas_de(id_), key=lambda n: n["id"])]
+        h = self._ficha()
+        self.assertIn("action='/nota/%d/apagar'" % dobrada, h)
+        self.assertNotIn("action='/nota/%d/apagar'" % alheia, h)
+        self.cliente.post("/nota/%d/apagar" % dobrada, headers=self.VOLTA)
+        self.cliente.post("/nota/%d/corrigir" % errada, data={"texto": "nota certa"},
+                          headers=self.VOLTA)
+        texto, erro = self.aviso(self.cliente.post("/nota/%d/apagar" % alheia,
+                                                   headers=self.VOLTA))
+        self.assertTrue(erro)
+        self.assertEqual(sorted(n["texto"] for n in radar.notas_de(id_)),
+                         ["a do colega", "nota certa"])
+        # vazia não fica: apaga-se
+        self.assertTrue(self.aviso(self.cliente.post(
+            "/nota/%d/corrigir" % errada, data={"texto": "  "},
+            headers=self.VOLTA))[1])
+        with radar.liga() as c:
+            rasto = [(l["accao"], l["detalhe"]) for l in c.execute(
+                "SELECT accao, detalhe FROM historico WHERE accao LIKE 'nota %' "
+                "ORDER BY id")]
+        self.assertEqual(rasto, [("nota apagada", "dizia: nota a dobrar"),
+                                 ("nota corrigida", "dizia: nota com erro")])
 
 
 if __name__ == "__main__":

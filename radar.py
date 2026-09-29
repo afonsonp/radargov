@@ -3035,6 +3035,47 @@ def gravar_nota(proposta_id, texto, quem=None):
     return id_
 
 
+def nota_e_minha(n):
+    """Se a nota é de quem está a pedir: o `quem` dela é o nome com que
+    o `gravar_nota()` a assinou. No acesso livre sem conta os dois são
+    vazios, e a nota é de quem lá está."""
+    return (n["quem"] or "") == (quem_sou() or "")
+
+
+def mudar_nota(id_, texto=None):
+    """Corrige (com `texto`) ou apaga (sem ele) uma nota, e deixa no
+    histórico o que ela dizia (D6 da 3.ª ronda, 29/09/2026: «apagar e
+    corrigir a própria nota sempre, com rasto no histórico»). Com rede má
+    uma nota a dobrar era inevitável, e ficava para sempre no bloco.
+    Devolve (ok, recado); só quem a escreveu mexe nela."""
+    with liga() as c:
+        n = c.execute("SELECT * FROM notas_da_proposta WHERE id=?",
+                      (id_,)).fetchone()
+    if not n:
+        return False, "Essa nota já não existe."
+    if not nota_e_minha(n):
+        return False, "Só quem escreveu a nota a pode corrigir ou apagar."
+    if texto is not None:
+        texto = texto_de_campo(texto, 500, linhas=True)
+        if not texto:
+            return False, ("Uma nota não fica vazia: para a tirar, "
+                           "apague-a.")
+        if texto == n["texto"]:
+            return True, ""
+    with liga() as c:
+        if texto is None:
+            c.execute("DELETE FROM notas_da_proposta WHERE id=?", (id_,))
+        else:
+            c.execute("UPDATE notas_da_proposta SET texto=? WHERE id=?",
+                      (texto, id_))
+    p = proposta(n["proposta_id"])
+    registar((p["ref"] if p else "") or "",
+             "nota apagada" if texto is None else "nota corrigida",
+             "dizia: " + corta(n["texto"] or "", 200),
+             proposta_id=n["proposta_id"])
+    return True, ""
+
+
 def notas_de(proposta_id):
     """As notas de uma proposta, a mais recente primeiro."""
     with liga() as c:
@@ -3458,17 +3499,32 @@ def criar_tarefa(o_que, quando, proposta_id=None, ref=None, quem=None):
 
 
 def marcar_tarefa(id_, feita=True, quem=None):
-    """Risca ou desrisca uma tarefa. Devolve a linha, ou None."""
+    """Risca ou desrisca uma tarefa. Devolve a linha COMO ESTAVA, ou None.
+
+    Uma tarefa que já está como se pede não se toca nem vai ao histórico
+    (3.ª ronda, G10): o ✓ de um colega sobre uma tarefa já feita punha
+    uma segunda linha «feita» no histórico, como se fosse obra dele."""
     with liga() as c:
         t = c.execute("SELECT * FROM tarefas WHERE id=?", (id_,)).fetchone()
         if not t:
             return None
+        if bool(t["feita_em"]) == bool(feita):
+            return t
         c.execute("UPDATE tarefas SET feita_em=? WHERE id=?",
                   (datetime.now().strftime("%Y-%m-%d %H:%M") if feita else None,
                    id_))
     registar(t["ref"] or "", "tarefa",
              "%s: %s" % ("feita" if feita else "por fazer", t["o_que"]), quem)
     return t
+
+
+def versao_da_tarefa(t):
+    """A impressão digital de uma tarefa, que o formulário da linha leva
+    escondida (3.ª ronda, G7): dois colegas a adiar e a atribuir a mesma
+    tarefa, e o primeiro perdia-se sem aviso. A mesma ideia da
+    `versao_da_proposta()`."""
+    return hashlib.sha1(repr(tuple(t[k] for k in (
+        "o_que", "quando", "quem", "feita_em"))).encode()).hexdigest()[:16]
 
 
 def gravar_tarefa(id_, **campos):
@@ -12079,11 +12135,104 @@ def com_csrf(pagina):
     metade: que o servidor recusa sem o campo.
     """
     token = csrf_da_pagina()
-    if not token:
-        return pagina
-    campo = "<input type='hidden' name='csrf' value='%s'>" % token
+    campo = ("<input type='hidden' name='csrf' value='%s'>" % token
+             if token else "")
+    # E o identificador de envio, um por formulário (3.ª ronda, G1): ver
+    # o `envio_repetido()`, logo abaixo.
     return re.sub(r"(<form\b[^>]*\bmethod=['\"]post['\"][^>]*>)",
-                  lambda m: m.group(1) + campo, pagina, flags=re.I)
+                  lambda m: (m.group(1) + campo
+                             + "<input type='hidden' name='envio' value='%s'>"
+                             % os.urandom(8).hex()),
+                  pagina, flags=re.I)
+
+
+# --- o identificador de envio (3.ª ronda de testes, 28/09/2026, G1)
+#
+# Com rede má, um segundo toque no «Guardar» é um segundo POST: o browser
+# aborta o primeiro, mas o servidor já o recebeu e gravou. Deu duas e
+# três tarefas, notas e contactos iguais (rel. 09), e a fase mudada com
+# uma faixa vermelha a dizer que nada tinha mudado. O botão desliga-se no
+# JS do `BASE`, mas isso não chega: o «voltar» traz a página do bfcache
+# com o formulário igual, e uma rede que cai depois do POST deixa quem
+# gravou sem saber que gravou. Por isso cada formulário leva um `envio`
+# aleatório (o `com_csrf()` põe-no), e o servidor lembra-se da resposta
+# que deu a cada um: o segundo pedido com o mesmo `envio` recebe a MESMA
+# resposta, sem voltar a gravar -- o mesmo aviso e o mesmo «desfazer».
+ENVIOS_LEMBRADOS = 2000
+# Quanto espera o segundo pedido pelo primeiro, que ainda está a correr.
+ESPERA_PELO_PRIMEIRO = 15
+_envios = {}
+_envios_trinco = threading.Lock()
+_A_CORRER = "a correr"
+
+
+@app.before_request
+def envio_repetido():
+    """A resposta do primeiro pedido, a quem manda o mesmo `envio` outra
+    vez; None ao primeiro, que segue. Corre depois da porta (regista-se
+    depois dela), e por isso só vê POST que já passaram o CSRF.
+
+    ponytail: em memória, num processo só -- é o que o painel é. Com
+    vários processos, ia para uma tabela."""
+    envio = request.form.get("envio") if request.method == "POST" else ""
+    if not envio:
+        return None
+    chave = (g.get("sessao") or "", request.path, envio)
+    fim = time.monotonic() + ESPERA_PELO_PRIMEIRO
+    while True:
+        with _envios_trinco:
+            guardada = _envios.get(chave)
+            if guardada is None:
+                _envios[chave] = _A_CORRER
+                while len(_envios) > ENVIOS_LEMBRADOS:
+                    del _envios[next(iter(_envios))]
+                g.envio = chave
+                return None
+        if guardada != _A_CORRER:
+            codigo, destino, corpo, tipo = guardada
+            resposta = Response(corpo, codigo, mimetype=tipo)
+            if destino:
+                resposta.headers["Location"] = destino
+            return resposta
+        if time.monotonic() > fim:
+            return _volta_com_aviso("Isto ainda se está a gravar: recarregue "
+                                    "a página daqui a pouco para ver se "
+                                    "ficou.", erro=True)
+        time.sleep(0.1)
+
+
+@app.after_request
+def lembrar_o_envio(resposta):
+    """Guarda o que se respondeu ao `envio`: um redireccionamento ou o
+    JSON da triagem. O resto (uma página, um ficheiro) não se repete a
+    quem o pedir outra vez -- esquece-se, e o segundo pedido corre."""
+    chave = g.pop("envio", None)
+    if chave is None:
+        return resposta
+    guarda = not resposta.is_streamed and (
+        resposta.status_code in (301, 302, 303, 307, 308)
+        or resposta.mimetype == "application/json")
+    with _envios_trinco:
+        if guarda:
+            _envios[chave] = (resposta.status_code,
+                              resposta.headers.get("Location"),
+                              resposta.get_data()
+                              if resposta.mimetype == "application/json" else b"",
+                              resposta.mimetype)
+        else:
+            _envios.pop(chave, None)
+    return resposta
+
+
+@app.teardown_request
+def largar_o_envio(_erro=None):
+    """Um pedido que rebentou antes de responder larga o `envio`: o
+    segundo não pode ficar à espera de uma resposta que não vem."""
+    chave = g.pop("envio", None)
+    if chave is not None:
+        with _envios_trinco:
+            if _envios.get(chave) == _A_CORRER:
+                del _envios[chave]
 
 
 def destino_seguro(para):
@@ -14230,6 +14379,57 @@ document.addEventListener('submit', function (e) {
   }
  });
 });
+/* «A gravar…» (3.ª ronda, G1 e G2): com rede má uma gravação leva 4 a 5 s
+   sem sinal nenhum, e o segundo toque gravava outra vez. No primeiro
+   envio de um formulário POST o botão desliga-se e diz o que está a
+   fazer, e um segundo envio do mesmo formulário não sai. O que se vê
+   decide-se DEPOIS dos outros ouvintes (o setTimeout): um formulário que
+   eles pararam -- a caixa do motivo, o `confirm`, a triagem por fetch --
+   não fica preso. O servidor tem a sua guarda (o `envio`), para o que
+   isto não apanha. */
+(function () {
+ var DESPRENDE = 30000;
+ function soltar(f) {
+  delete f.dataset.aGravar; f.removeAttribute('aria-busy');
+  [].forEach.call(f.querySelectorAll('[data-texto-antes]'), function (b) {
+   b.innerHTML = b.dataset.textoAntes; delete b.dataset.textoAntes; b.disabled = false;
+  });
+ }
+ document.addEventListener('submit', function (e) {
+  var f = e.target;
+  if (!f.getAttribute || (f.getAttribute('method') || '').toLowerCase() !== 'post'
+      || f.target) return;
+  if (f.dataset.aGravar) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  f.dataset.aGravar = '1';
+  var b = e.submitter || f.querySelector('button[type=submit], button:not([type])');
+  setTimeout(function () {
+   if (e.defaultPrevented) { delete f.dataset.aGravar; return; }
+   f.setAttribute('aria-busy', 'true');
+   if (b && !b.disabled) {
+    b.dataset.textoAntes = b.innerHTML;
+    if (b.textContent.trim().length > 2) b.textContent = 'A gravar…';
+    b.disabled = true;
+   }
+   setTimeout(function () { soltar(f); }, DESPRENDE);
+  }, 0);
+ });
+ /* O «voltar» traz a página do bfcache tal como ficou: com o botão preso
+    em «A gravar…». Solta-se. */
+ addEventListener('pageshow', function (e) {
+  if (e.persisted) [].forEach.call(document.querySelectorAll('form[data-a-gravar]'), soltar);
+ });
+})();
+/* O aviso vive no endereço (?aviso=…&assin=…), e refrescar repetia-o:
+   parecia que se tinha gravado outra vez (3.ª ronda, G11). Depois de o
+   mostrar, sai do endereço -- e o que é da página (?quem=, a âncora)
+   fica. */
+(function () {
+ var q = new URLSearchParams(location.search);
+ if (!q.has('aviso') || !history.replaceState) return;
+ ['aviso', 'desfazer', 'assin', 'tom'].forEach(function (k) { q.delete(k); });
+ var s = q.toString();
+ history.replaceState(history.state, '', location.pathname + (s ? '?' + s : '') + location.hash);
+})();
 </script>
 %(script)s
 </body></html>"""
@@ -14684,16 +14884,24 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
                            else "Mudar a fase", quote=True)))
 
 
-def recado_da_fase_mudada(agora):
+def recado_da_fase_mudada(agora, pedida=""):
     """A recusa de mudar a fase a partir de uma página antiga, ou "".
 
     O selector manda a fase que MOSTRAVA (`de`); se a proposta já está
     noutra, alguém a mudou depois de a página abrir -- noutro separador,
     ou um colega (ronda em PC, V1: a lista antiga pôs «Perdida» por cima
-    de um «Relatório preliminar», sem aviso). Sem `de` (o desfazer, os
-    botões da triagem) não recusa: esses dizem o que querem, não de onde."""
-    de = (request.form.get("de") or "").strip()
-    if not de or de == (agora or ""):
+    de um «Relatório preliminar», sem aviso). Sem `de` (os botões da
+    triagem) não recusa: esses dizem o que querem, não de onde.
+
+    O desfazer leva-o na acção (`?de=`), desde a 3.ª ronda (G6): desfazia
+    por cima da decisão que um colega tomou entretanto, em silêncio. E se
+    a proposta já está na fase `pedida` não há nada a recusar (G5): era o
+    segundo toque no «Mudar», e a faixa dizia «nada foi mudado» sobre a
+    mudança que o primeiro tinha feito."""
+    de = (request.values.get("de") or "").strip()
+    agora = agora or ""
+    if not de or de == agora or (
+            pedida and (agora or ENTRADA_DA_ESCADA[0]) == pedida):
         return ""
     return ("Esta proposta mudou para «%s» depois de abrir a página "
             "(noutro separador, ou por um colega). Nada foi mudado: veja "
@@ -14801,7 +15009,9 @@ def caixa_do_motivo():
             "    if (e.key === 'Enter' && e.target.tagName === 'INPUT' &&\n"
             "        !document.getElementById('dlg-motivo-gravar').offsetParent) e.preventDefault();\n"
             "  });\n"
+            "  var ultimo = null;\n"
             "  function abrir(accao, titulo, estado, falta, base, de) {\n"
+            "    ultimo = [accao, titulo, estado, falta, base, de];\n"
             "    falta = falta || [];\n"
             "    document.getElementById('dlg-motivo-de').value = de || '';\n"
             "    f.dataset.base = base || '';\n"
@@ -14912,6 +15122,33 @@ def caixa_do_motivo():
             "    selAberto = null;\n"
             "  }\n"
             "  d.addEventListener('cancel', repor);\n"
+            "  // o servidor recusou (uma data que nao existe, um preco acima\n"
+            "  // do base) e a pagina voltou: a caixa reabre com o que se\n"
+            "  // escreveu, em vez de fechar e o esquecer (3.a ronda, G4). O\n"
+            "  // que se escreveu guarda-se ao enviar, e so se usa se a pagina\n"
+            "  // seguinte trouxer um aviso de erro.\n"
+            "  var GUARDA = 'radar-caixa:' + location.pathname;\n"
+            "  f.addEventListener('submit', function (e) {\n"
+            "    var v = {}, args = ultimo;\n"
+            "    f.querySelectorAll('[data-campo] input').forEach(function (i) {\n"
+            "      if (!i.disabled) v[i.name] = i.value;\n"
+            "    });\n"
+            "    setTimeout(function () {\n"
+            "      if (e.defaultPrevented || !args) return;\n"
+            "      try { sessionStorage.setItem(GUARDA, JSON.stringify({a: args, v: v})); } catch (x) {}\n"
+            "    }, 0);\n"
+            "  });\n"
+            "  try {\n"
+            "    var guardado = JSON.parse(sessionStorage.getItem(GUARDA) || 'null');\n"
+            "    sessionStorage.removeItem(GUARDA);\n"
+            "    if (guardado && document.querySelector('.aviso-da-vez[role=alert]')) {\n"
+            "      abrir.apply(null, guardado.a);\n"
+            "      Object.keys(guardado.v).forEach(function (k) {\n"
+            "        var i = f.querySelector('[data-campo] input[name=' + k + ']');\n"
+            "        if (i && !i.disabled) i.value = guardado.v[k];\n"
+            "      });\n"
+            "    }\n"
+            "  } catch (x) {}\n"
             "  document.getElementById('dlg-motivo-nao').addEventListener(\n"
             "      'click', function () { d.close(); repor(); });\n"
             "})();\n"
@@ -15504,8 +15741,15 @@ LISTA_JS = """<script>
         return r.json();
       });
   }
+  // Um segundo toque na mesma linha, enquanto o primeiro vai a caminho,
+  // não sai (3.ª ronda, G5): dizia «Não se gravou… recarregue» sobre o
+  // que o primeiro tinha gravado, e o «desfazer» perdia-se.
   function triar(tr, url, corpo) {
+    if (tr.getAttribute('aria-busy') === 'true') return;
+    tr.setAttribute('aria-busy', 'true');
+    var solta = function () { tr.removeAttribute('aria-busy'); };
     enviar(url, corpo).then(function (j) {
+      solta();
       if (!j.ok) { aviso(j.aviso, true); return; }
       try { sessionStorage.removeItem(chave); } catch (x) {}
       var tbody = tr.parentNode, depois = tr.nextElementSibling;
@@ -15535,14 +15779,20 @@ LISTA_JS = """<script>
             false, volta);
       focaEm(seguinte);
     }).catch(function () {
+      solta();
       aviso('Não se gravou: o servidor não respondeu como esperado. '
             + 'Recarregue a página e tente outra vez.', true);
     });
   }
-  // o botao de um motivo nao vai no FormData do formulario: junta-se a mao
+  // o botao de um motivo nao vai no FormData do formulario: junta-se a mao.
+  // E o `envio` do formulario renova-se: a linha pode voltar (o
+  // desfazer) e ser triada outra vez, e com o mesmo `envio` o servidor
+  // respondia o que respondeu da primeira, sem gravar.
   function dados(form, botao) {
     var fd = new FormData(form);
     if (botao && botao.name) fd.append(botao.name, botao.value);
+    var envio = form.querySelector('input[name=envio]');
+    if (envio) envio.value = Math.random().toString(16).slice(2);
     return fd;
   }
   document.addEventListener('submit', function (e) {
@@ -18206,7 +18456,7 @@ def mudar_estado(ref, novo):
     antes = existentes[0] if existentes else None
     antes_estado = antes["estado"] if antes else ""
     antes_motivo = (antes["motivo"] if antes else "") or ""
-    recado = recado_da_fase_mudada(antes_estado)
+    recado = recado_da_fase_mudada(antes_estado, accao)
     if recado:
         return _volta_com_erro(recado)
 
@@ -18275,12 +18525,18 @@ def mudar_estado(ref, novo):
         texto += recado_das_tarefas_que_ficam(id_)
     # O caminho de volta. Se o estado anterior tinha motivo, o motivo vai
     # na accao do desfazer: sem ele o servidor recusava a reposicao.
+    # E a fase em que a deixou (`de`): um colega que a mude depois faz o
+    # desfazer recusar, em vez de passar por cima dele (3.ª ronda, G6).
     desfazer = None
     if antes_estado != accao:
         alvo = antes_estado or ENTRADA_DA_ESCADA[0]
         desfazer = "/estado/%s/%s" % (ref, alvo)
-        if antes_motivo:
-            desfazer += "?" + urlencode({"motivo": antes_motivo})
+        depois = propostas_de(ref)
+        pede = {"motivo": antes_motivo} if antes_motivo else {}
+        if depois:
+            pede["de"] = depois[0]["estado"]
+        if pede:
+            desfazer += "?" + urlencode(pede)
     return _volta_com_aviso(texto, desfazer,
                             erro=accao != ENTRADA_DA_ESCADA[0] and bool(ccp))
 
@@ -18337,8 +18593,17 @@ def definir_responsavel(ref):
     ha nada para tratar. Se ainda nao houver proposta nenhuma, atribuir
     um responsavel E po-lo na escada -- que e o que o gesto quer dizer.
     """
-    nome = criar_pessoa(request.form.get("nome")) if request.form.get("nome") else ""
     existentes = propostas_de(ref)
+    # O formulário leva quem MOSTRAVA (`de`), e um colega que o tenha
+    # mudado entretanto faz recusar (3.ª ronda, G8): a última gravação
+    # ganhava, sem aviso a ninguém.
+    agora = (existentes[0]["responsavel"] if existentes else "") or ""
+    if "de" in request.form and (request.form.get("de") or "") != agora:
+        return _volta_com_aviso(
+            "O responsável mudou para «%s» depois de abrir a página "
+            "(noutro separador, ou por um colega). Nada foi mudado."
+            % (agora or "ninguém"), erro=True, ancora="responsavel")
+    nome = criar_pessoa(request.form.get("nome")) if request.form.get("nome") else ""
     if not existentes:
         if not nome:
             return volta_ao_referer("/anuncio/" + ref)
@@ -18346,7 +18611,9 @@ def definir_responsavel(ref):
     with liga() as c:
         c.execute("UPDATE propostas SET responsavel=? WHERE ref=?", (nome, ref))
     registar(ref, "responsável", nome or "(ninguém)")
-    return volta_ao_referer("/anuncio/" + ref)
+    # E diz que gravou: o «Guardar» voltava sem palavra nenhuma (G8)
+    return _volta_com_aviso("Responsável: %s." % (nome or "ninguém"),
+                            ancora="responsavel")
 
 
 def celula_csv(valor):
@@ -26317,12 +26584,14 @@ def ficha(ref):
     resp_cx = "" if not minhas else cartao(
         "Responsável",
         "<form class='resp' method='post' action='/responsavel/%s'>"
+        "<input type='hidden' name='de' value='%s'>"
         "<span class='mg-avatar'>%s</span>"
         "<input class='mg-field__input' type='text' name='nome' value='%s' "
         "list='pessoas' placeholder='ninguém atribuído' aria-label='Responsável'>"
         "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
         "Guardar</button></form>"
-        % (ref, _iniciais(resp), html.escape(resp, quote=True)))
+        % (ref, html.escape(resp, quote=True), _iniciais(resp),
+           html.escape(resp, quote=True)), id_="responsavel")
 
     # As 12 mais recentes, e as outras a pedido (segunda ronda,
     # 26/09/2026: perdia-se quem criou a proposta e quem a pôs em
@@ -26837,11 +27106,29 @@ def proposta_fechar_tarefas(id_):
         "" if len(ids) == 1 else "s"), ancora="proposta")
 
 
+def quem_fez_a_tarefa(t):
+    """Quem riscou a tarefa, pelo histórico (a tabela não o guarda), ou ""."""
+    with liga() as c:
+        linha = c.execute(
+            "SELECT quem FROM historico WHERE accao='tarefa' AND detalhe=? "
+            "AND COALESCE(ref,'')=? ORDER BY id DESC LIMIT 1",
+            ("feita: %s" % t["o_que"], t["ref"] or "")).fetchone()
+    return (linha["quem"] if linha else "") or ""
+
+
 @app.route("/tarefa/<int:id_>/feita", methods=["POST"])
 def tarefa_feita(id_):
     t = marcar_tarefa(id_, True)
     if not t:
         return volta_ao_referer("/")
+    if t["feita_em"]:
+        # G10: já estava feita -- por um colega, ou noutro separador. O
+        # aviso di-lo, e não traz desfazer: o gesto não foi deste.
+        quem = quem_fez_a_tarefa(t)
+        return _volta_com_aviso("«%s» já estava feita%s."
+                                % (corta(t["o_que"], 60),
+                                   " por %s" % quem if quem else ""),
+                                ancora="t%d" % id_)
     # A âncora traz de volta à linha, e não ao topo: a linha risca-se no
     # sítio e a página fica onde estava (redesenho de 17/09/2026).
     return _volta_com_aviso("«%s» feita." % corta(t["o_que"], 60),
@@ -26865,6 +27152,18 @@ def tarefa_gravar(id_):
             campos[nome] = request.form.get(nome)
     if not campos:
         return volta_ao_referer("/")
+    versao = request.form.get("versao")
+    if versao:
+        with liga() as c:
+            t = c.execute("SELECT * FROM tarefas WHERE id=?", (id_,)).fetchone()
+        if t and versao != versao_da_tarefa(t):
+            return _volta_com_aviso(
+                "Esta tarefa mudou depois de abrir a página (noutro "
+                "separador, ou por um colega): está agora %s%s. Nada foi "
+                "mudado: veja-a e volte a escrever o que queria."
+                % ("com %s" % t["quem"] if t["quem"] else "sem ninguém",
+                   ", para %s" % data_pt(t["quando"]) if t["quando"] else ""),
+                erro=True, ancora="t%d" % id_)
     if "quem" in campos:
         campos["quem"] = criar_pessoa(campos["quem"])
     ok, recado = gravar_tarefa(id_, **campos)
@@ -26922,8 +27221,8 @@ def escada_da_proposta(id_):
         return mudar_estado(p["ref"], (request.form.get("estado") or "").strip())
     estado = (request.form.get("estado") or "").strip()
     motivo = (request.form.get("motivo") or "").strip()
-    if recado_da_fase_mudada(p["estado"]):
-        return _volta_com_erro(recado_da_fase_mudada(p["estado"]))
+    if recado_da_fase_mudada(p["estado"], estado):
+        return _volta_com_erro(recado_da_fase_mudada(p["estado"], estado))
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos and motivo not in permitidos:
         return _volta_com_erro("Escolha o motivo antes de continuar.")
@@ -27463,12 +27762,13 @@ def _tarefas_da_ficha(p):
                # campos de texto). Está no BACKLOG, R2: se fizerem falta
                # lá, a rota nunca saiu daqui.
                "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
+               "<input type='hidden' name='versao' value='%s'>"
                "<input type='text' name='quando' inputmode='numeric' "
                "maxlength='10' placeholder='adiar para dd/mm/aaaa' aria-label='Adiar para'>"
                "<input type='text' name='quem' maxlength='60' list='pessoas' "
                "placeholder='quem' aria-label='Quem faz'>"
                "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Guardar</button></form>"
-               % t["id"]))
+               % (t["id"], versao_da_tarefa(t))))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
     if por_fazer and p["estado"] in ESTADOS_FECHADOS:
@@ -27586,7 +27886,7 @@ def _bloco_de_uma_proposta(p, titulo, desfecho=None, cfg=None,
             "%s%s"
             "<label class='largo'>Nota nova<textarea name='nota_nova' rows='3' "
             "maxlength='500' placeholder='fica com a data e o seu nome; as "
-            "anteriores não se apagam'></textarea></label>"
+            "suas corrigem-se e apagam-se lá em baixo'></textarea></label>"
             "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>%s</div>"
             % (cabeca,
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
@@ -27614,12 +27914,29 @@ def _notas_da_ficha(p):
     return ("<div class='prop-notas'><div class='mg-field__label'>Notas</div>"
             "<ul class='notas'>%s</ul></div>"
             % "".join("<li><div class='nota-cab'>%s%s</div>"
-                      "<div class='nota-texto'>%s</div></li>"
+                      "<div class='nota-texto'>%s</div>%s</li>"
                       % (html.escape(data_hora_pt(n["quando"]))
                          if n["quando"] else "antes das notas datadas",
                          " &middot; " + html.escape(n["quem"]) if n["quem"] else "",
-                         html.escape(n["texto"] or ""))
+                         html.escape(n["texto"] or ""),
+                         _mexer_na_nota(n) if nota_e_minha(n) else "")
                       for n in notas))
+
+
+def _mexer_na_nota(n):
+    """O «corrigir» e o «apagar» de uma nota própria (D6 da 3.ª ronda).
+    O corrigir abre no sítio, com o texto dentro; o apagar pergunta."""
+    return ("<details class='nota-mexer'><summary>corrigir</summary>"
+            "<form method='post' action='/nota/%d/corrigir'>"
+            "<textarea name='texto' rows='3' maxlength='500' required "
+            "aria-label='Corrigir a nota'>%s</textarea>"
+            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>"
+            "Guardar a correcção</button></form></details>%s"
+            % (n["id"], html.escape(n["texto"] or ""),
+               accao("/nota/%d/apagar" % n["id"], "apagar", "mini",
+                     confirmar="Apagar esta nota? O histórico guarda o que dizia.",
+                     rotulo="Apagar a nota de %s" % data_hora_pt(n["quando"])
+                     if n["quando"] else "")))
 
 
 def _preco_proposto_do_pedido(estado):
@@ -27690,19 +28007,22 @@ def proposta_da_ficha(id_):
     p = proposta(id_)
     if not p:
         return volta_ao_referer("/")
-    if proposta_mudou_depois(p, request.form.get("versao")):
-        # A nota nova ACRESCENTA, e não colide com nada: grava-se na
-        # mesma (ronda em PC, V1). Deitava-se fora com o resto, e o
-        # aviso mandava «voltar a escrever» um parágrafo inteiro.
-        return _volta_com_aviso(_recado_do_conflito(id_), erro=True,
-                                ancora="proposta")
+
+    def recusa(recado):
+        # A nota nova grava-se mesmo quando o resto é recusado (3.ª
+        # ronda, G4): com o preço apagado sem querer, o aviso falava só
+        # do preço e o parágrafo escrito no telemóvel perdia-se.
+        if gravar_nota(id_, request.form.get("nota_nova")):
+            recado = "A nota foi gravada. O resto não: %s%s" % (
+                recado[:1].lower(), recado[1:])
+        return _volta_com_aviso(recado, erro=True, ancora="proposta")
     campos, valores = [], []
     if "valor_proposta" in request.form:
         # No formato do preco base ("118.500,00 EUR"), que e o que o
         # euros_do_texto() e as somas sabem ler.
         valor, recado = _preco_proposto_do_pedido(p["estado"])
         if recado:
-            return _volta_com_erro(recado)
+            return recusa(recado)
         campos.append("valor_proposta")
         valores.append(valor or None)
     if "lugar" in request.form:
@@ -27715,7 +28035,7 @@ def proposta_da_ficha(id_):
         # -3 gravado deixava o formulario da ficha sem conseguir gravar
         # mais nada (teste com utilizadores, 25/09/2026).
         if lugar is not None and not 1 <= lugar <= 99:
-            return _volta_com_erro("O lugar é um número de 1 a 99.")
+            return recusa("O lugar é um número de 1 a 99.")
         campos.append("lugar")
         valores.append(lugar)
     if "top3" in request.form:
@@ -27728,7 +28048,7 @@ def proposta_da_ficha(id_):
         if nome in request.form:
             valor = texto_de_campo(request.form.get(nome), 60) or ""
             if valor and lista and valor not in lista and valor != (p[nome] or ""):
-                return _volta_com_erro("«%s» não está na lista de %s do Perfil "
+                return recusa("«%s» não está na lista de %s do Perfil "
                                        "da empresa." % (valor, rotulo.lower()))
             campos.append(nome)
             valores.append(valor or None)
@@ -27743,7 +28063,7 @@ def proposta_da_ficha(id_):
     if "motivo" in request.form:
         motivo = (request.form.get("motivo") or "").strip()
         if motivo and motivo not in (MOTIVOS_DO_ESTADO.get(p["estado"]) or ()):
-            return _volta_com_erro("Esse motivo não existe para esta fase.")
+            return recusa("Esse motivo não existe para esta fase.")
         campos.append("motivo")
         valores.append(motivo or None)
     if "responsavel" in request.form:
@@ -27751,12 +28071,23 @@ def proposta_da_ficha(id_):
         valores.append(criar_pessoa(request.form.get("responsavel")))
     desfecho, recado = _desfecho_do_pedido(request.form)
     if recado:
-        return _volta_com_erro(recado)
+        return recusa(recado)
     campos += list(desfecho)
     valores += list(desfecho.values())
+    # A versão confere-se depois de ler o pedido, e só recusa se o pedido
+    # MUDA alguma coisa (3.ª ronda, G9): quem só escreveu uma nota, com a
+    # fase mudada por um colega, levava a faixa vermelha «o resto não»
+    # sem ter resto nenhum. Um campo igual ao que está não passa por cima
+    # de ninguém. A nota nova acrescenta e grava-se sempre (ronda em PC,
+    # V1).
+    if proposta_mudou_depois(p, request.form.get("versao")) and any(
+            (p[c] or None) != (v or None)
+            for c, v in zip(campos, valores)):
+        return _volta_com_aviso(_recado_do_conflito(id_), erro=True,
+                                ancora="proposta")
     recado = gravar_campos_da_proposta(id_, campos, valores)
     if recado:
-        return _volta_com_erro(recado)
+        return recusa(recado)
     _depois_do_desfecho(p, desfecho)
     gravar_nota(id_, request.form.get("nota_nova"))
     ccp = aviso_do_ccp(id_) if "valor_proposta" in campos else ""
@@ -27766,6 +28097,26 @@ def proposta_da_ficha(id_):
     # E26 da segunda ronda: gravar voltava ao topo da ficha, e a
     # confirmação ficava 5 000 px acima. Volta ao bloco, com o aviso.
     return _volta_com_aviso("Proposta gravada.", ancora="proposta")
+
+
+@app.route("/nota/<int:id_>/apagar", methods=["POST"])
+def nota_apagar(id_):
+    """Apaga uma nota própria (D6 da 3.ª ronda); o histórico guarda o
+    que ela dizia."""
+    ok, recado = mudar_nota(id_)
+    if not ok:
+        return _volta_com_aviso(recado, erro=True, ancora="proposta")
+    return _volta_com_aviso("Nota apagada. O histórico guarda o que dizia.",
+                            ancora="proposta")
+
+
+@app.route("/nota/<int:id_>/corrigir", methods=["POST"])
+def nota_corrigir(id_):
+    """Corrige uma nota própria (D6); o histórico guarda o que dizia."""
+    ok, recado = mudar_nota(id_, request.form.get("texto") or "")
+    if not ok:
+        return _volta_com_aviso(recado, erro=True, ancora="proposta")
+    return _volta_com_aviso("Nota corrigida.", ancora="proposta")
 
 
 @app.route("/etiqueta/<path:ref>/nova", methods=["POST"])

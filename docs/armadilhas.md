@@ -17,15 +17,15 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 28
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 76
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 79
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 36
-- [A interface](#a-interface) &middot; 103
+- [A interface](#a-interface) &middot; 104
 - [Convenções](#convencoes) &middot; 4
 
-São **361** ao todo, contados a 28/09/2026. Contam-se por secção com
+São **365** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1977,11 +1977,47 @@ pelo Afonso e nenhuma se reabre de passagem.
 - **A nota nova não entra no conflito de versão** (V1). Acrescenta, não
   substitui: o `_recado_do_conflito()` grava-a e recusa o resto. Deitada
   fora com o resto, o aviso mandava «voltar a escrever» um parágrafo.
+  **E também não entra nas outras recusas** (3.ª ronda, G4): o `recusa()`
+  do `proposta_da_ficha()` grava-a antes de recusar o preço vazio, o
+  lugar fora de 1-99 ou a data que não existe — um `_volta_com_erro()`
+  novo nessa rota deitava-a fora outra vez. **A versão confere-se
+  depois de ler o pedido** (G9), e só é conflito se algum campo do
+  pedido difere do que está: quem só escreveu uma nota com a fase mudada
+  por um colega levava a faixa vermelha sem ter mudado nada.
 - **O selector de fase leva o `de`** — a fase que a página mostrava — e
   o `recado_da_fase_mudada()` recusa se a proposta já está noutra (V1:
   a lista antiga pôs «Perdida» por cima de um «Relatório preliminar»).
-  Sem `de` não recusa: o desfazer e os botões da triagem dizem o que
-  querem, não de onde. O diálogo do motivo leva-o no `dlg-motivo-de`.
+  Sem `de` não recusa: os botões da triagem dizem o que querem, não de
+  onde. O diálogo do motivo leva-o no `dlg-motivo-de`. **O desfazer
+  leva-o na acção** (`?de=`, 3.ª ronda, G6), com a fase em que o gesto
+  deixou a proposta — por isso o `recado_da_fase_mudada()` lê
+  `request.values` e não `request.form`; e **pedir a fase em que ela já
+  está não é conflito** (G5): era o segundo toque no «Mudar», e a faixa
+  dizia «nada foi mudado» sobre a mudança do primeiro.
+- **Um formulário grava UMA vez: o `envio`** (3.ª ronda, G1). O
+  `com_csrf()` põe um `envio` aleatório em cada `<form method=post>`, e
+  o `envio_repetido()` responde a um segundo pedido com o mesmo o que
+  respondeu ao primeiro — o redireccionamento ou o JSON — sem voltar a
+  gravar; espera por ele se ainda estiver a correr. Com rede má o duplo
+  toque dava duas e três tarefas, notas e contactos iguais, e o «voltar»
+  e «Guardar» outra vez também. Duas coisas: uma resposta que não é
+  redireccionamento nem JSON (uma página, um ficheiro) **não se guarda**,
+  e o segundo pedido corre; e o `fetch` da triagem **renova o `envio`**
+  a cada envio (no `LISTA_JS`), porque a linha pode voltar com o desfazer e
+  ser triada outra vez no mesmo formulário.
+- **A tarefa e o responsável têm guarda, como a proposta** (3.ª ronda,
+  G7 e G8): o formulário da tarefa leva a `versao_da_tarefa()`, o do
+  responsável o `de`, e a última gravação já não ganha calada. E o ✓
+  numa tarefa **já feita** não a toca nem vai ao histórico (G10,
+  `marcar_tarefa()`): o aviso diz «já estava feita por …», e quem o diz
+  é o histórico (`quem_fez_a_tarefa()`), porque a tabela não guarda
+  quem a riscou.
+- **Uma nota corrige-se e apaga-se só por quem a escreveu, e deixa
+  rasto** (D6 da 3.ª ronda). `mudar_nota()` compara o `quem` da nota com
+  o `quem_sou()` — é o nome com que o `gravar_nota()` a assinou — e
+  escreve no histórico o que ela dizia («nota corrigida», «nota
+  apagada»). Corrigida para vazio recusa: tirar uma nota é apagá-la, e
+  o gesto tem o seu nome.
 - **Fechar uma proposta não fecha as tarefas escritas à mão** (E34,
   confirmado na ronda em PC). As automáticas saem sozinhas
   (`sincronizar_tarefas()`); as manuais podem ser trabalho que o fecho
@@ -3875,7 +3911,21 @@ botões ou no calendário.
   (E25) tapava o que lá estivesse — o «Criar o alerta do perfil» — numa
   página que abre no topo, onde o aviso já está. Só fica preso quando o
   endereço tem âncora ou o aviso traz o «desfazer» (a classe `no-topo`
-  do JS do `BASE`).
+  do JS do `BASE`). **E sai do endereço depois de mostrado** (3.ª
+  ronda, G11): o `history.replaceState` tira o `aviso`, o `assin`, o
+  `tom` e o `desfazer` e deixa o resto (`?quem=`, a âncora) — refrescar
+  repetia-o, e parecia que se tinha gravado outra vez. Quem guarda a
+  posição da lista já tirava as mesmas quatro, e continua a bater.
+- **O «A gravar…» decide-se DEPOIS dos outros ouvintes do `submit`**
+  (3.ª ronda, G1 e G2). O JS do `BASE` regista-se antes dos das páginas,
+  e por isso corre primeiro: se desligasse logo o botão, prendia os
+  formulários que outro guião pára a seguir — a caixa do motivo, o
+  `confirm`, a triagem por `fetch`. Marca o formulário já (um segundo
+  envio não sai), e o resto vai num `setTimeout(0)`, que também deixa o
+  browser ler o `name` do botão antes de o desligar. Solta-se no
+  `pageshow` do bfcache e ao fim de 30 s (um POST que devolve um
+  ficheiro não sai da página). A triagem por `fetch` tem a guarda dela,
+  o `aria-busy` da linha.
 - **O arranque encurta com metade feita** (V3 P4): só os passos que
   faltam, uma linha cada (`arranque-curto`). Os riscados ocupavam
   metade do ecrã acima da dobra.
