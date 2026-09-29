@@ -53,7 +53,7 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Empresas | **1** — a LATD, empresa 2 desde 24/09 (a empresa 1 foi apagada a 23/09 com `--apagar-empresa`; desde 26/09 apaga-se também no painel, na página da empresa) |
 | Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD |
 | Peças em disco | 436 documentos, de 79 concursos (em `pecas/`, 556 MB) |
-| Leituras pelo modelo | 70, das quais **11 incompletas** (voltam a tentar-se sozinhas) |
+| Leituras pelo modelo | 70, das quais **11 incompletas** (voltam a tentar-se sozinhas; desde a 3.ª ronda, também as das propostas abertas lidas com uma versão anterior da pergunta) |
 | Corpus do Portal BASE | 2 009 640 contratos, 180 507 entidades (28/09/2026) |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e a admin da LATD |

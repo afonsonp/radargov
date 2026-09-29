@@ -1048,6 +1048,8 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .pp-linha.apagado .pp-s{color:var(--ink-muted);font-size:var(--text-sm)}
 .pp-b{flex:none;font:500 var(--text-sm)/20px var(--font-sans);color:var(--link)}
 .pp-linha[open] .pp-b .abrir,.pp-linha:not([open]) .pp-b .fechar{display:none}
+/* o campo 11 vem uma linha por requisito, e o texto guarda-as (3.ª ronda, G44) */
+.pp-corpo,.pp-s{white-space:pre-line}
 .pp-corpo{padding:0 var(--space-5) var(--space-4)}
 .pp-s ol,.pp-s ul{margin:0;padding-left:var(--space-5)}
 /* a equipa: uma linha por perfil, e o nome abre o resto do bloco */

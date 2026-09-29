@@ -17972,9 +17972,12 @@ class TestLeituraIncompletaVoltaATentar(BaseTemporaria):
             c.execute("INSERT INTO analise (ref, objecto, equipa, "
                       "documentos_proposta, quando) VALUES "
                       "('60/2026','o objecto','', 'os documentos','2026-09-10')")
+            # (com a pergunta de agora: uma leitura de uma pergunta
+            # anterior, numa proposta aberta, também volta à fila -- D8)
             c.execute("INSERT INTO analise (ref, objecto, equipa, "
-                      "documentos_proposta, quando) VALUES "
-                      "('61/2026','o objecto','a equipa','os docs','2026-09-10')")
+                      "documentos_proposta, quando, pergunta) VALUES "
+                      "('61/2026','o objecto','a equipa','os docs','2026-09-10',?)",
+                      (radar.VERSAO_DA_PERGUNTA,))
         radar.criar_proposta("60/2026")
         radar.criar_proposta("61/2026")
 
@@ -21226,13 +21229,14 @@ class TestAsFontesComParentesesNoNome(unittest.TestCase):
     def test_cada_ficheiro_com_as_suas_paginas(self):
         self.assertEqual(radar.fontes_legiveis(self.FONTES),
                          "CADERNO_ENCARGOS_INFARMED(PRR)_WEBSITE_20260267.pdf "
-                         "(pág. 40–42, 57–58, 8–9), "
+                         "(pág. 8–9, 40–42, 57–58), "
                          "PROGRAMA_PROCEDIMENTO_INFARMED(PRR)_WEBSITE_20260267.pdf "
                          "(pág. 21–22)")
 
     def test_a_ficha_diz_o_papel_e_o_nome_so_sem_papel(self):
         self.assertEqual(radar.fontes_pelo_papel(self.FONTES),
-                         "Caderno de Encargos (pág. 40–42, 57–58, 8–9), "
+                         # por ordem desde a 3.ª ronda (G42)
+                         "Caderno de Encargos (pág. 8–9, 40–42, 57–58), "
                          "Programa (pág. 21–22)")
         # dois cadernos no mesmo ZIP: o papel não os distingue, fica o nome
         self.assertEqual(radar.fontes_pelo_papel(
@@ -21988,6 +21992,330 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
         ramo = js[js.index("sel.value === 'porver'"):]
         ramo = ramo[:ramo.index("return;")]
         self.assertIn("defaultSelected", ramo)
+
+
+# --- o lote 4 da 3.ª ronda de testes: a leitura das peças (29/09/2026) --
+
+
+class TestTerceiraRondaALeituraDasPecas(BaseTemporaria):
+    """Rel. 05 da 3.ª ronda (28/09/2026), o técnico que conferiu a leitura
+    das seis propostas contra os PDF, e rel. 01, 02 e 12. O Mira Gov não
+    decide em lado nenhum (0 frases de GO); o defeito era o que diz que
+    não há: «Não encontrado nas páginas lidas» com o dado numa página
+    lida (G36), com a peça por ler (G37), o «—» a afirmar «sem exigência»
+    (G38), o Programa que contradiz o anúncio sem se mostrar (G39), o
+    Anexo II no lugar do III (G40), o alvará cortado nos dois pontos
+    (G41). E a D8, decisão dele: as leituras das propostas abertas
+    relêem-se com a pergunta nova; as outras dizem que são da anterior.
+    O modelo nunca é chamado: o `_perguntar()` é um duplo."""
+
+    OBRA = ("6 - OBJETO DO CONTRATO\n"
+            "Tipo de Contrato Principal: Empreitada de Obras Públicas\n")
+    ANUNCIO = {"ref": "70/2026", "titulo": "Reabilitação da EB",
+               "entidade": "Município", "preco_base": "70.242,20 EUR",
+               "prazo": "2026-10-07", "data_pub": "2026-09-20", "cpv": "45000000"}
+
+    def _leitura(self, ref, pergunta=None, **campos):
+        linha = dict(ref=ref, objecto="- a obra", equipa="Alvará: 2.ª categoria",
+                     documentos_proposta="1. DEUCP", quando="2026-09-26 10:00",
+                     fontes="CE.pdf (pág. 1–3), PC.pdf (pág. 4)", pergunta=pergunta)
+        linha.update(campos)
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado) VALUES (?,?,'novo')",
+                      (ref, "Concurso %s" % ref))
+            c.execute("INSERT INTO analise (%s) VALUES (%s)"
+                      % (",".join(linha), ",".join("?" * len(linha))),
+                      list(linha.values()))
+            return c.execute("SELECT * FROM analise WHERE ref=?", (ref,)).fetchone()
+
+    def _campo(self, rotulo, analise, texto=""):
+        return next(l for l in radar.essencial_do_anuncio(
+            self.ANUNCIO, radar.seccoes_do_texto(texto), analise) if l[0] == rotulo)
+
+    # --- D8 ------------------------------------------------------------
+
+    def test_d8_so_as_abertas_lidas_com_a_pergunta_anterior_voltam_a_fila(self):
+        self._leitura("1/2026")                                   # aberta, antiga
+        self._leitura("2/2026")                                   # ganha, antiga
+        self._leitura("3/2026", pergunta=radar.VERSAO_DA_PERGUNTA)  # aberta, de agora
+        self._leitura("4/2026")                                   # fora da escada
+        self._leitura("5/2026", equipa="")                        # a meio, aberta
+        radar.criar_proposta("1/2026", estado="submetido")
+        radar.criar_proposta("2/2026", estado="ganho")
+        radar.criar_proposta("3/2026", estado="proposta")
+        radar.criar_proposta("5/2026", estado="relatorio")
+        # as que ficaram a meio primeiro, e só depois as da pergunta anterior
+        self.assertEqual(radar.refs_com_leitura_incompleta(), ["5/2026", "1/2026"])
+        # à mão, só o que ficou a meio: a pergunta nova não se impõe a tudo
+        self.assertEqual(radar.refs_com_leitura_incompleta(so_na_escada=False),
+                         ["5/2026"])
+
+    def test_d8_pela_fila_sem_rajada(self):
+        for n in range(1, 9):
+            self._leitura("%d/2026" % n)
+            radar.criar_proposta("%d/2026" % n)
+        vezes = []
+
+        def falso(ref):
+            vezes.append(ref)
+            return True, ""
+
+        with unittest.mock.patch.object(radar, "analisar_pecas", falso), \
+             unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: [("groq", "k", "m")]), \
+             unittest.mock.patch.object(radar, "cadeia_esgotada", lambda c: False):
+            self.assertEqual(radar.reler_incompletas(limite=5), (5, ""))
+        self.assertEqual(len(vezes), 5)
+
+    def _ler(self, respostas):
+        """O `analisar_pecas()` com um duplo no lugar do modelo: cada
+        pergunta responde o que `respostas` disser pela chave que pede."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, texto) "
+                      "VALUES ('80/2026','Obra','novo',?)", (self.OBRA,))
+            for nome, texto in (
+                    ("CE.pdf", "Cláusula 1.ª - Objeto\nA empreitada de reabilitação.\n"
+                               "Cláusula 9.ª - Director de obra\nEngenheiro civil.\n"),
+                    ("PC.pdf", "Artigo 7.º - Documentos da proposta\nA proposta é "
+                               "constituída pelos seguintes documentos:\na) Proposta de "
+                               "preço, conforme o modelo constante do Anexo I II ao "
+                               "presente Programa;\nArtigo 13.º - Caução\n5% do preço.\n")):
+                c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                          "VALUES ('80/2026',?,?,'ok')", (nome, texto))
+        pedidos = []
+
+        def perguntar(cadeia, instrucao, texto):
+            pedidos.append(texto)
+            for chave, resposta in respostas.items():
+                if '{"%s"' % chave in instrucao.replace(" ", ""):
+                    return resposta, "" if resposta else "falhou", "duplo:m"
+            return None, "falhou", ""
+
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: [("duplo", "u", "m", "k", {})]), \
+             unittest.mock.patch.object(radar, "extrair_textos", lambda ref: None), \
+             unittest.mock.patch.object(radar, "_perguntar", perguntar):
+            ok, _ = radar.analisar_pecas("80/2026")
+        self.assertTrue(ok)
+        return radar.analise_de("80/2026"), pedidos
+
+    TUDO = {"objecto": {"objecto": "- reabilitar a EB", "localizacao": "não consta"},
+            "equipa": {"equipa": "Director de obra: engenheiro civil"},
+            "documentos_proposta": {"documentos_proposta": "1. Proposta de preço (Anexo III)",
+                                    "preco_anormalmente_baixo": "não consta",
+                                    "caucao": "5% do preço contratual",
+                                    "habilitacao": "1.ª subcategoria da 2.ª categoria"}}
+
+    def test_d8_a_leitura_guarda_a_versao_da_pergunta_e_o_que_o_programa_diz(self):
+        linha, pedidos = self._ler(self.TUDO)
+        self.assertEqual(linha["pergunta"], radar.VERSAO_DA_PERGUNTA)
+        self.assertFalse(radar.leitura_desactualizada(linha))
+        self.assertEqual(linha["caucao"], "5% do preço contratual")
+        self.assertEqual(linha["habilitacao"], "1.ª subcategoria da 2.ª categoria")
+        # G40: o numeral que o PDF partiu chega ao modelo inteiro
+        self.assertTrue(any("Anexo III ao presente" in p for p in pedidos))
+        self.assertFalse(any("Anexo I II" in p for p in pedidos))
+
+    def test_d8_com_uma_pergunta_a_falhar_a_versao_fica_a_anterior(self):
+        """O campo que falhou é ainda o da pergunta antiga: a leitura tem
+        de voltar à fila, e não passar por lida com a nova."""
+        linha, _ = self._ler(dict(self.TUDO, equipa=None))
+        self.assertIsNone(linha["pergunta"])
+        self.assertTrue(radar.leitura_desactualizada(linha))
+
+    # --- G36, G37, G38 ---------------------------------------------------
+
+    def test_g36_o_nao_encontrado_de_uma_pergunta_anterior_di_lo_com_a_data(self):
+        antiga = self._leitura("1/2026", equipa="não consta")
+        falta = self._campo("Equipa técnica e alvará", antiga, self.OBRA)[2]
+        self.assertIn("não encontrou", falta)
+        self.assertIn("lida a 26/09/2026 com uma versão anterior da pergunta", falta)
+        self.assertEqual(radar._onde_esta(falta), "Não encontrado nas páginas lidas "
+                         "(lida a 26/09/2026 com uma versão anterior da pergunta)")
+        nova = self._leitura("2/2026", equipa="não consta",
+                             pergunta=radar.VERSAO_DA_PERGUNTA)
+        falta = self._campo("Equipa técnica e alvará", nova, self.OBRA)[2]
+        self.assertNotIn("versão anterior", falta)
+        self.assertEqual(radar._onde_esta(falta), "Não encontrado nas páginas lidas")
+
+    def test_g37_o_programa_que_nao_foi_lido_nao_passa_por_lido(self):
+        """23492/2026: o «2_ProgConc_…pdf» não era o Programa para
+        ninguém, e a ficha dizia «não encontrado» dos nove documentos."""
+        self.assertEqual(radar.papeis_da_peca("2_ProgConc_40.341.233.109_26.pdf"),
+                         {"programa"})
+        so_o_ce = self._leitura("1/2026", documentos_proposta="não consta",
+                                preco_anormalmente_baixo="não consta",
+                                fontes="1_CE_40.341.233.109_26.pdf (pág. 7–8)")
+        for rotulo in ("Documentos que constituem a proposta",
+                       "Preço anormalmente baixo"):
+            falta = self._campo(rotulo, so_o_ce)[2]
+            self.assertIn("o Programa do Concurso não foi lido", falta, rotulo)
+            self.assertNotIn("não encontrou", falta, rotulo)
+
+    def test_g38_o_travessao_nao_afirma_sem_exigencia_o_que_nao_se_sabe(self):
+        equipa = ("Alvará: —\nEquipa técnica:\nTécnico de segurança:\n"
+                  "Formação ou inscrição: não consta\nPresença em obra: 20 %")
+        antiga = self._leitura("1/2026", equipa=equipa)
+        valor = self._campo("Equipa técnica e alvará", antiga, self.OBRA)[1]
+        self.assertIn("Alvará: não encontrado nas páginas lidas", valor)
+        self.assertIn("Formação ou inscrição: não encontrado nas páginas lidas", valor)
+        self.assertIn("Presença em obra: 20 %", valor)
+        # com a pergunta de agora o «—» é o que as peças dizem expressamente
+        nova = self._leitura("2/2026", equipa=equipa, pergunta=radar.VERSAO_DA_PERGUNTA)
+        valor = self._campo("Equipa técnica e alvará", nova, self.OBRA)[1]
+        self.assertIn("Alvará: —", valor)
+        self.assertIn("Formação ou inscrição: não encontrado", valor)
+        self.assertIn("SÓ quando as peças dizem expressamente", radar.INSTRUCOES_OBRAS)
+        self.assertIn("Programa do Concurso", radar.INSTRUCOES_OBRAS)
+
+    # --- G39, G46, G49 ---------------------------------------------------
+
+    def test_g39_o_programa_ao_lado_do_anuncio_com_a_fonte(self):
+        texto = ("14 - CAUÇÃO\nPrestação de caução: Não\n"
+                 "12 - DOCUMENTOS DE HABILITAÇÃO\n"
+                 "Habilitação para o exercício da atividade profissional: Não\n")
+        lida = self._leitura("1/2026", caucao="5% do preço contratual",
+                             habilitacao="1.ª subcategoria da 2.ª categoria\n"
+                                         "classe do valor da proposta")
+        factos = {f[0]: f for f in radar.factos_para_decidir(
+            self.ANUNCIO, radar.seccoes_do_texto(texto), lida)}
+        rot, valor, nota, apagado = factos["Caução"]
+        self.assertEqual(valor, "Não")                       # o anúncio
+        self.assertIn("o Programa diz: 5% do preço contratual", nota)
+        _, valor, nota, _ = factos["Habilitação (alvará)"]
+        self.assertEqual(valor, "Não exigida no anúncio")
+        self.assertIn("1.ª subcategoria da 2.ª categoria; classe do valor", nota)
+        # o anúncio calado: vale o Programa, dito como tal
+        _, valor, nota, apagado = radar.factos_para_decidir(
+            self.ANUNCIO, [], lida)[-1]
+        self.assertEqual((valor, apagado), ("5% do preço contratual", False))
+        self.assertIn("no Programa", nota)
+        self.assertIn('"caucao"', radar.INSTRUCOES_PROPOSTA)
+
+    def test_g46_sem_regime_nao_se_fala_de_regime_e_g49_sao_factos(self):
+        lida = self._leitura("1/2026", localizacao="não consta")
+        texto = "9 - LOCAL DA EXECUÇÃO DO CONTRATO\nConcelho: Penafiel\nDistrito: Porto\n"
+        local = next(f for f in radar.factos_para_decidir(
+            self.ANUNCIO, radar.seccoes_do_texto(texto), lida) if f[0] == "Local")
+        self.assertEqual(local[2], "")
+        cx = radar.para_decidir_cx(radar.factos_para_decidir(self.ANUNCIO, [], lida))
+        self.assertIn("Os factos do anúncio", cx)
+        self.assertNotIn("Para decidir", cx)
+
+    # --- G40, G41, G42, G44, G45 -----------------------------------------
+
+    def test_g40_o_numeral_partido_pelo_pdf_junta_se(self):
+        f = radar.junta_numerais_partidos
+        # o texto verdadeiro do Programa do 23610/2026, p. 5
+        self.assertEqual(f("b) Proposta de preço , elaborada em conformidade com o "
+                           "modelo constante do Anexo I II ao presente"),
+                         "b) Proposta de preço , elaborada em conformidade com o "
+                         "modelo constante do Anexo III ao presente")
+        for fica in ("Anexo I e II", "Anexo I, II", "Anexo II III"):
+            self.assertEqual(f(fica), fica)
+        self.assertIn("PRÓPRIA alínea", radar.INSTRUCOES_PROPOSTA)
+
+    def test_g41_o_alvara_nao_se_corta_nos_dois_pontos(self):
+        # o anúncio do 23723/2026, §12
+        texto = ("12 - DOCUMENTOS DE HABILITAÇÃO\n"
+                 "Habilitação para o exercício da atividade profissional: Sim\n"
+                 "Tipo: Alvará\n"
+                 "Descrição: Titularidade do Alvará ou Título de Registo emitido pelo "
+                 "IMPIC, I.P. contendo as seguintes habilitações: \n"
+                 "- A 1ª Subcategoria da 2ª Categoria, a qual tem de ser de classe "
+                 "que cubra o valor global da proposta;\n"
+                 "- As 5ª, 6ª e 8ª Subcategoria da 2ª Categoria, a qual tem de ser "
+                 "de classe que cubra o valor dos trabalhos que lhe respeitem.\n\n"
+                 "13 - CONDIÇÕES DE APRESENTAÇÃO\nPlataforma: ACIN\n")
+        hab = radar.habilitacao_do_anuncio(radar.seccoes_do_texto(texto))
+        self.assertIn("- A 1ª Subcategoria da 2ª Categoria", hab)
+        self.assertIn("- As 5ª, 6ª e 8ª Subcategoria", hab)
+        self.assertNotIn("ACIN", hab)
+
+    def test_g42_as_paginas_de_cada_ficheiro_por_ordem(self):
+        self.assertEqual(
+            radar.fontes_pelo_papel("CE.pdf (pág. 1–7, 24–26), PC.pdf (pág. 27–28), "
+                                    "CE.pdf (pág. 12, 28–30, 1–10)"),
+            "Caderno de Encargos (pág. 1–10, 12, 24–26, 28–30), Programa (pág. 27–28)")
+
+    def test_g44_um_requisito_por_linha_e_g45_a_grafia(self):
+        self.assertEqual(
+            radar.arruma_a_leitura("Director de obra: Função exacta: director de obra; "
+                                   "Formação ou inscrição: —; Experiência: —"),
+            "Director de obra: Função exacta: director de obra\n"
+            "Formação ou inscrição: —\nExperiência: —")
+        # um «;» no meio de uma frase fica
+        self.assertEqual(radar.arruma_a_leitura("livro de obra; medições"),
+                         "livro de obra; medições")
+        self.assertEqual(radar.arruma_a_leitura("- Indenização por danos"),
+                         "- Indemnização por danos")
+        self.assertIn("pre-line", radar.CSS_TUDO.split(".pp-corpo,.pp-s{")[1][:30])
+        self.assertIn("EMPREITADA", radar.INSTRUCOES_OBJECTO)
+
+    # --- G43 -------------------------------------------------------------
+
+    def test_g43_as_pecas_que_nao_entraram_na_leitura_dizem_se(self):
+        with radar.liga() as c:
+            for nome in ("Anúncio DR.pdf", "419973858.pdf", "1_CE.pdf", "2_PP.pdf",
+                         "3_Projeto.zip", "4_Anexos.7z", "MQT.xlsx"):
+                c.execute("INSERT INTO documentos (ref, nome) VALUES ('90/2026', ?)",
+                          (nome,))
+        fontes = ("1_CE.pdf (pág. 1–3), 2_PP.pdf (pág. 4), "
+                  "4_Anexos.7z/Memoria descritiva.pdf (pág. 1–2)")
+        self.assertEqual(radar.pecas_nao_lidas("90/2026", fontes),
+                         ["3_Projeto.zip", "MQT.xlsx"])
+
+    # --- G47 -------------------------------------------------------------
+
+    def test_g47_os_homologos_de_uma_obra_nao_sao_contratos_de_software(self):
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            for n, (objecto, cpv) in enumerate((
+                    ("Manutenção corretiva de edifícios escolares", "45453000"),
+                    ("Manutenção corretiva de software de gestão", "72267000")), 1):
+                c.execute("INSERT INTO contratos (id, ano, n_anuncio, objecto, "
+                          "objecto_norm, adjudicante, adjudicante_chave, "
+                          "data_celebracao, preco_contratual, cpv) VALUES "
+                          "(?, 2025, ?, ?, ?, 'Município', '500000000', "
+                          "'2025-01-02', 1000.0, ?)",
+                          (n, "%d/2025" % n, objecto, radar.simplifica(objecto), cpv))
+                c.execute("INSERT INTO contrato_cpv VALUES (?, ?)", (n, cpv))
+        titulo = "Manutenção corretiva de edifícios e software"
+        with unittest.mock.patch.object(radar, "ha_corpus", lambda: 1):
+            todos, _ = radar.homologos_do_anuncio("500000000", titulo)
+            obra, _ = radar.homologos_do_anuncio("500000000", titulo,
+                                                 cpv="45453000-7")
+        self.assertEqual(len(todos), 2)
+        self.assertEqual([l["objecto"] for l in obra],
+                         ["Manutenção corretiva de edifícios escolares"])
+
+
+class TestTerceiraRondaPecasNaFicha(_CicloDoTesteComUtilizadores):
+    """G48 (rel. 02 #13): numa proposta já «A preparar», as peças diziam
+    «Ainda não foram trazidas. Vêm sozinhas ao marcar «interessa»» -- e
+    já estava marcada. E G43 e G36 na ficha desenhada."""
+
+    def test_g48_numa_proposta_ja_marcada_nao_se_promete_que_vem_sozinhas(self):
+        self.assertIn("Vêm sozinhas ao marcar", self._ficha())
+        self._proposta("proposta")
+        h = self._ficha()
+        self.assertNotIn("Vêm sozinhas ao marcar", h)
+        self.assertIn("Não se conseguiram trazer sozinhas desta plataforma", h)
+
+    def test_g36_g43_a_leitura_diz_a_data_a_versao_e_o_que_nao_leu(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                      "VALUES ('60/2026','CE.pdf','x','ok'), "
+                      "('60/2026','Projeto.zip','x','ok')")
+            c.execute("INSERT INTO analise (ref, objecto, equipa, documentos_proposta,"
+                      " fontes, quando) VALUES ('60/2026','- x','não consta',"
+                      "'1. DEUCP','CE.pdf (pág. 1–2)','2026-09-26 10:00')")
+        h = self._ficha()
+        pedem = h.split("id='pecas-pedem'")[1].split("id='mercado'")[0]
+        self.assertIn("Lida a 26/09/2026.", pedem)
+        self.assertIn("versão anterior da pergunta", pedem)
+        self.assertIn("Não lido", pedem)
+        self.assertIn("Projeto.zip", pedem)
 
 
 if __name__ == "__main__":
