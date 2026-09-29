@@ -60,8 +60,8 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Rotas Flask | 131 |
 | Tabelas em `radar.db` | 17, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, e o `segundo_factor`, 28/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
 | Índices em `anuncios` | 15: dois a 17/09 para o filtro por entidade (+22 MB), e o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), e o `ix_nomes_chave` (29/09, 0,4 s a criar) |
-| Testes | **1 636**, em ~190 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 34 379 linhas · `teste_radar.py` 23 636 · `empresa.py` 868 · `contas.py` 1 153 · `icones.py` 62 |
+| Testes | **1 671**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 34 887 linhas · `teste_radar.py` 24 140 · `empresa.py` 868 · `contas.py` 1 153 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -269,5 +269,8 @@ para decidir sem abrir as peças** — o defeito era o «não consta» falso,
 porque a resposta não chegava ao modelo (20 de 55 passagens). As
 correcções desse dia põem 44 de 55 a chegar (com pedidos que cabem no
 limite da Groq), e a ficha passou a marcar
-a leitura como rascunho. **Falta reler as 70 com o código novo e voltar
-a julgá-las**; até lá, a leitura não se anuncia.
+a leitura como rascunho. Relidas e julgadas outra vez a 29/09/2026, duas
+rondas no mesmo dia: a régua vai em 103 de 113 passagens, cada linha da
+leitura cita a página, e um número que não está nas páginas lidas fica
+marcado para confirmar (`docs/diario/2026-09.md`). **Falta reler com a
+pergunta de agora e voltar a julgar**; até lá, a leitura não se anuncia.

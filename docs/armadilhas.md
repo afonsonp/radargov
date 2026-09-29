@@ -9,9 +9,9 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 15
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 23
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 27
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 118
 - [Convenções](#convencoes) &middot; 5
 
-São **401** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **406** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -458,9 +458,19 @@ Orçamento, cadeia de reserva, chaves.
   e um anexo não pode tirar o lugar ao Caderno de Encargos. Duas
   ciladas: as plataformas entregam «Anexo_T_cnico» e
   «Pre_os_Unit_rios», por isso a expressão leva `.?` no lugar do
-  acento; e o `Lista.pdf` **não** é anexo técnico — numa plataforma é o
-  índice das peças (`TestPapeisDaPeca`), noutra é a lista dos artigos.
-  Fica de fora; o índice mandava ao modelo lixo com ar de lista.
+  acento; e o `Lista.pdf` decide-se **pelo cabeçalho, e não pelo nome**
+  (29/09/2026, 3.ª ronda): os 14 da base eram todos a «Lista de artigos»
+  ou a «Lista de todas as espécies de trabalhos» da plataforma — os
+  artigos com quantidade (23513) e o mapa das obras (21482, 23723) —, e
+  ficavam de fora por serem «o índice das peças». O nome sozinho
+  continua a não dar papel nenhum (`TestPapeisDaPeca`); é o
+  `papeis_da_peca(nome, texto)` com o cabeçalho que o faz técnico. Do
+  mapa das obras vão só os capítulos (`capitulos_do_mapa()`): os
+  artigos são parágrafos de regras de medição, e os capítulos dizem o
+  que se constrói e onde. E o Caderno da Infraestruturas de Portugal
+  vem **partido por capítulos** («Cap7_CondicoesParticulares_L1.pdf»,
+  21999), sem «caderno» em nenhum: a equipa técnica do Cap. 7 nunca
+  chegava ao modelo.
 
 - **O campo 11 é uma coluna e cinco perguntas** (28/09/2026). A
   resposta de todas vai para `analise.equipa`, e por isso todas pedem
@@ -638,6 +648,59 @@ Orçamento, cadeia de reserva, chaves.
   se lê**: a ETAR de Muge (23780) tem o que se reabilita num Projeto.zip
   que a plataforma não deu.
 
+- **A leitura cita a página, e o número que não está nas peças fica por
+  confirmar** (29/09/2026, 3.ª ronda, o princípio dele: «um resumo em
+  que se pode confiar, sempre com a leitura das peças associada»). O
+  recorte leva «[pág. N]» onde cada página começa
+  (`_texto_das_janelas()`, a partir dos `\f` do extractor) e o
+  `PREAMBULO` pede a página no fim de cada linha. Depois da resposta,
+  **sem modelo**, cada número de cada linha tem de estar no texto que
+  foi ao modelo (`numeros_por_confirmar()`); a linha que falha grava-se
+  com «[confirmar: o número 1200 não está nas páginas lidas]». Três
+  ciladas, todas medidas: o PDF parte os números («1 2 meses»), por
+  isso compara-se sem espaços — mas **só** sem espaços, «Business
+  analyst 4 1920» dava «41920» e o 1920 ficava sem apoio, por isso vale
+  também com os espaços como separador; o ponto só junta milhares
+  («Cláusula 41.2» não é 412: sete marcas falsas na 21647); e os
+  algarismos colados a letras («m3/h», «ePM1», «09h00») não se
+  conferem. Medido contra as 1 004 linhas com números das leituras
+  guardadas: uma marcada, e era a invenção verdadeira da 23853.
+  **As marcas contam no tecto**: o `_janelas_que_cabem()` desconta-as
+  como desconta os «[...]», e o maior pedido passou de 13 430 a 13 933
+  caracteres com as perguntas novas.
+
+- **O «14ª» do sumário é «14a» depois do `simplifica()`** (29/09/2026,
+  23577). A chave que junta o título do sumário ao do corpo tirava o
+  número mas não o ordinal, dava «a documentos da proposta», e o
+  sumário sem pontinhos — onde os títulos todos se juntam — ganhava a
+  janela mais densa; o limiar do corpo ficava de fora
+  (`RX_NUMERACAO_DO_TITULO`). Na mesma família: a numeração em dois
+  níveis («7.3. Requisitos») passa a título (`RX_NUMERADO`), mas um
+  número só sem ponto não («2 Security Gateway» é uma linha de tabela);
+  e a frase «seja considerado anormalmente baixo, o valor da caução»
+  deixou de passar pelo limiar — levava-lhe a reserva.
+
+- **As licenças com CPV de serviços de TI lêem-se como bens**
+  (29/09/2026, `RX_LICENCAS`). «Licenciamento e manutenção de rede
+  Check Point» (72267), «Suporte e Renovação do Licenciamento CISCO»,
+  «Renovação Suporte AVAMAR»: a família «equipa» dizia «não consta» ou
+  tratava os artigos como perfis. Decide a **designação do contrato**,
+  sem modelo, e só quando não há trabalho de equipa no mesmo contrato
+  (`RX_TRABALHO_DE_EQUIPA`: desenvolvimento, evolutiva, bolsa de
+  horas…). Mediu-se 115 dos 442 anúncios de CPV 72 desde junho. A
+  leitura e a ficha passam pela mesma conta (`familia_das_seccoes()`) —
+  se uma usasse só o tipo e o CPV, o rótulo e a pergunta divergiam.
+
+- **A família «equipa» também pede o nível de serviço** (29/09/2026).
+  As âncoras e a pergunta do SLA só existiam na família «serviços», e os
+  contratos de TI (CPV 72, 71, 73, 80, 794) nunca o liam: «não consta»
+  na 21811 e na 22036 com a tabela nas peças. É uma âncora de peso 0
+  **sua**, e estreita: com «prioridade X» e «tempo de resposta» soltos,
+  que se repetem em cada linha de uma tabela de SLA, a zona ficava a
+  mais densa do Caderno e comia os perfis (o PMP da 21993 saiu do
+  recorte). O «tempos máximos» no fim da linha fica: o PDF parte «tempos
+  máximos / de resposta».
+
 - **Uma peça aberta por acréscimo só dá o que as âncoras apanharem**
   (`SECUNDARIAS_DA_LEITURA`): a leitura do Caderno abre também o
   Programa, onde muitas vezes estão os requisitos da equipa, e a do
@@ -663,6 +726,10 @@ Orçamento, cadeia de reserva, chaves.
   `chat_template_kwargs` dos Nemotron, o `reasoning_effort` dos
   gpt-oss) respondem em 10 a 30 s. Cada família desliga-o com o seu
   parâmetro — trocar o modelo sem trocar os extras volta ao timeout.
+  **A reserva da Groq está no fim da cadeia** desde 29/09/2026: das 75
+  releituras julgadas nesse dia, o `gpt-oss-20b` foi o único que errou
+  números («61 unidades» com 129 no cadastro da 23389) e o sentido do
+  IVA (23265). Fica para quando todos os outros acabaram o dia.
 
 
 ---
