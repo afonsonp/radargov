@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 15
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 19
 - [O motor de filtros](#o-motor-de-filtros) &middot; 13
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 104
 - [Convenções](#convencoes) &middot; 4
 
-São **365** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **369** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -516,7 +516,8 @@ Orçamento, cadeia de reserva, chaves.
   Não era o modelo: era o recorte. A pergunta barata, que não gasta
   orçamento, é «esta frase está no texto que o `pecas_para_analise()`
   manda?»; só depois vale reler pelo modelo. Com as correcções desse
-  dia passaram a chegar 46 de 55.
+  dia passaram a chegar 46 de 55; a 29/09, com a régua alargada às 88
+  passagens dos quatro relatórios desse dia, de 52 para 82.
 
 - **O orçamento do recorte corta-se na escolha das janelas, e escolhe-se
   pela densidade.** O texto sai pela ordem do documento: um `[:tecto]`
@@ -529,12 +530,67 @@ Orçamento, cadeia de reserva, chaves.
 - **O peso 0 é uma frase do corpo, e não um título.** «A proposta é
   constituída, sob pena de exclusão, pelos seguintes documentos:» acaba
   em dois pontos, e o `e_titulo()` recusa-a — era por isso que as listas
-  de documentos ficavam de fora. As frases de peso 0 têm uma janela mais
-  curta (`JANELA_FORTE`) e disputam o lugar com os títulos, pela
-  densidade: à frente de tudo, as cópias da frase nos modelos de
-  declaração comiam o orçamento. **Não ponhas no peso 0 o que se repete
+  de documentos ficavam de fora. **Não ponhas no peso 0 o que se repete
   em todas as cláusulas** — o «director de obra» de uma empreitada saiu
-  de lá no mesmo dia por isso.
+  de lá a 28/09/2026 por isso, e a 29/09 caíram mais quatro: a
+  «localização» no corpo de uma especificação de SIG (trinta, na
+  22001), a «equipa técnica» das grelhas de pontuação (21631), os
+  «incêndios ou inundações com origem nas instalações» da força maior,
+  que estão em todos os Cadernos, e os «seguintes documentos de
+  habilitação». Como título ainda servem (peso 1); no corpo, comiam a
+  reserva.
+
+- **O peso 0 tem metade do orçamento guardada, e cada âncora a sua
+  parte** (29/09/2026, `RESERVA_DO_PESO_0`). Pela densidade só, uma
+  cláusula curta perdia sempre para uma tabela: a «Cláusula 5.ª Local
+  da prestação de serviços» do 21295 ficava fora, e a janela do «Local
+  de execução» do 21568 recebia 69 caracteres. À frente de tudo, sem
+  tecto, perdia-se o seguro de acidentes de trabalho do 21877 (as cópias
+  da frase nos modelos de declaração comiam tudo) — por isso **metade**,
+  **cada frase uma vez**, e **a melhor de cada âncora de peso 0 antes
+  das outras, com a sua quota**: o limiar do preço anormalmente baixo
+  do 14680 perdia a reserva para as seis frases da lista, que se juntam
+  na mesma zona. Por isso o local, o objecto, a lista e o limiar são
+  âncoras de peso 0 **separadas** — juntá-las num só padrão devolve o
+  problema. E a janela de uma frase de peso 0 **acaba no artigo**
+  (`_fim_do_artigo()`, até `JANELA_DO_ARTIGO`): as notas entre as
+  alíneas dos Programas da SPMS empurravam a e) f) g) para fora dos
+  2 500 fixos, e a ficha mostrava a lista cortada como se fosse inteira.
+
+- **O último documento escolhe dentro do que sobra, e não é cortado no
+  fim** (29/09/2026). O `pecas_para_analise()` cortava o pedido a
+  1,5 × `TECTO_RECORTE` pela ordem do texto, e o último documento perdia
+  a janela de baixo — a lista dos perfis do anexo técnico da 23265 era
+  escolhida e deitada fora, e as fontes declaravam páginas que o modelo
+  não viu. Agora o que sobra é o tecto dele. O mesmo no
+  `recorte_relevante()`: os `[...]` entre janelas ocupam lugar, e o
+  `[:tecto]` cortava-os ao fim da última (`_janelas_que_cabem()`). E
+  **sem a peça da leitura, a outra faz as vezes dela**: as «Peças do
+  procedimento» do 22005 são o Programa e o Caderno num PDF só, e pelo
+  nome só passavam por Programa — a leitura do objecto tirava delas uma
+  zona de 2 500.
+
+- **O local é o sítio que uma cláusula nomeia, com ou sem regime**
+  (29/09/2026, os quatro perfis). A pergunta só aceitava presencial,
+  remoto ou híbrido, e mandava responder «não consta» sem regime: com a
+  «Cláusula 5.ª Local da prestação» a chegar ao modelo, 14 leituras
+  diziam «não consta». O `INSTRUCOES_OBJECTO` aceita as instalações e
+  as moradas nomeadas, proíbe a morada do cabeçalho e do rodapé (a
+  23589 punha o Alfeite, do cabeçalho, a um serviço em Lisboa), manda
+  copiar a condição sem trocar a regra pela excepção (a 23174 dava o
+  remoto por regra) e não deixa pôr «Remoto» a uma entrega de bens.
+
+- **O objecto de uma obra está na memória descritiva, e não no CE**
+  (29/09/2026, `OBJECTO_DA_FAMILIA`). A cláusula 1.ª do CE de uma
+  empreitada remete para o projecto, e com as âncoras dos serviços o
+  recorte era feito de cláusulas-tipo (medições, livro de obra,
+  painéis): 11 de 17 obras sem dizer o que se constrói. Na família
+  «obras» o objecto lê o papel `tecnico` à frente do CE, com âncoras e
+  pergunta suas. A memória descritiva chama-se muitas vezes só «MD»
+  («2. MD_signed», «ConstCivil_MDJ_ADig», «1-MDAVAC»), e o
+  `papeis_da_peca()` reconhece a sigla. **O que não está nas peças não
+  se lê**: a ETAR de Muge (23780) tem o que se reabilita num Projeto.zip
+  que a plataforma não deu.
 
 - **Uma peça aberta por acréscimo só dá o que as âncoras apanharem**
   (`SECUNDARIAS_DA_LEITURA`): a leitura do Caderno abre também o

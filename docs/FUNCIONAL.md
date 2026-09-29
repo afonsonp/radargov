@@ -477,7 +477,7 @@ e o seu rótulo na ficha (`CAMPO_11`):
 | Tipo | Na ficha | O que se pede |
 |---|---|---|
 | Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa |
-| Obras | Equipa técnica e alvará | Alvará, equipa técnica, equipamento a montar, mapa de quantidades, condicionantes |
+| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não da leitura, desde 29/09/2026 |
 | Bens | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
 | Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
 | Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
@@ -486,6 +486,18 @@ Sem tipo nem CPV fica «Equipa», a pergunta de antes. A resposta vai
 sempre para a coluna `analise.equipa`; a afinação do `config.json` para
 a `equipa` vale só para a família «equipa». **As leituras antigas não se
 refazem de uma vez**: vão-se relendo (decisão dele).
+
+**Nas obras muda também o objecto** (29/09/2026, `OBJECTO_DA_FAMILIA`):
+o que se constrói está na memória descritiva e no projecto, e não no
+Caderno de Encargos, que remete para eles. A leitura do objecto de uma
+empreitada lê os anexos técnicos à frente do CE e pergunta a obra, os
+trabalhos principais e o local da obra (morada, troço, quilómetros).
+
+**O local**, nos outros tipos, é o que uma cláusula nomeia — as
+instalações, a morada, o local de entrega —, com o regime (presencial,
+remoto, híbrido) só quando o documento o fixa. Até 29/09/2026 a
+pergunta só aceitava o regime, e respondia «não consta» a uma cláusula
+«Local da prestação» com a morada.
 
 **Os anexos técnicos** reconhecem-se pelo nome (`RX_PECA_TECNICA`):
 especificação, anexo técnico, memória descritiva, mapa de quantidades,
@@ -498,12 +510,18 @@ peças.
 Cada peça dá um recorte de até `TECTO_RECORTE` caracteres, feito das
 zonas onde as âncoras se juntam: os títulos, e as frases do corpo que
 dizem a resposta («…pelos seguintes documentos:»), escolhidas pela
-**densidade** e cortadas no orçamento. O título que se repete (o
-sumário) cede ao do corpo; o mesmo documento duas vezes conta uma. A
-leitura do Caderno abre também o Programa, e a do Programa o Caderno,
-mas só pelo que as âncoras apanharem (`SECUNDARIAS_DA_LEITURA`).
-Medido com 55 passagens que se provou estarem nas peças: chegavam 20,
-chegam 44 (46 com pedidos maiores, que a Groq recusava).
+**densidade** e cortadas no orçamento — menos metade, que fica guardada
+para as frases do corpo, e onde cada uma (o local, o objecto, a lista,
+o limiar do preço anormalmente baixo) tem a sua parte (29/09/2026). A
+janela de uma dessas frases vai até ao fim do artigo dela. O título que
+se repete (o sumário) cede ao do corpo; o mesmo documento duas vezes
+conta uma; o último documento escolhe as zonas dentro do que ainda cabe
+no pedido. A leitura do Caderno abre também o Programa, e a do Programa
+o Caderno, mas só pelo que as âncoras apanharem
+(`SECUNDARIAS_DA_LEITURA`); sem a peça da leitura, a outra faz as vezes
+dela. Medido com as passagens que se provou estarem nas peças: a
+28/09/2026 chegavam 20 de 55, e passaram a 44; a 29/09, com 88
+passagens, de 52 para 82.
 
 **Na ficha, a leitura é um rascunho.** Cada linha lida diz de que peças
 e páginas veio e «é um rascunho: confirmar no documento antes de
