@@ -15999,11 +15999,12 @@ PROPOSTAS = "/propostas"
 # dele): so se chegava la pelo «Em jogo» do Hoje -- o rastreio de 70
 # paginas achou uma ligacao unica para `/situacao`. Vive a seguir as
 # Propostas, que sao o que ela conta.
-# O que o dono sem empresa tem na barra: só o Mercado, que é de todas.
-# Os Concursos saíram (G61 da 3.ª ronda): sem empresa nada foi visto, e
-# «Expirou sem ver 199 178» não queria dizer nada. A rota continua a
-# abrir-se-lhe (`dono_le()`), só não está na barra.
-NAV_DO_DONO = ("mercado",)
+# O que o dono sem empresa tem na barra: os Concursos e o Mercado, que
+# sao de todas. Os Concursos sairam a 29/09/2026 (G61 da 3.ª ronda, por
+# «Expirou sem ver 199 178», que sem empresa nao quer dizer nada) e
+# voltaram no mesmo dia, decisao dele («deixei de ter acesso a
+# concursos»): o que saiu foram as abas, ver ABAS_DO_DONO.
+NAV_DO_DONO = ("anuncios", "mercado")
 
 NAV = (("anuncios", "Concursos", LISTA, ()),
        ("propostas", "Propostas", PROPOSTAS, ()),
@@ -18504,6 +18505,9 @@ def contar_a_escada(onde_base=None, valores_base=(), cfg=None,
 # ranhuras da empresa. O calendario tem tres filtros seus desde 26/09/2026
 # (FILTROS_DO_CALENDARIO).
 ABAS_DOS_CONCURSOS = (ENTRADA_DA_ESCADA[0], CEMITERIO_DA_ESCADA[0], "")
+# Sem empresa ninguem viu nada: «Por ver» e «Expirou sem ver» sao
+# perguntas de uma empresa (G61 da 3.ª ronda). O dono ve so «Todos».
+ABAS_DO_DONO = ("",)
 
 
 def barra_das_abas(rota, actual, contas=None, chaves=None):
@@ -18575,7 +18579,8 @@ def aba_pedida():
     ver o que chegou, e nao o acervo de 199 mil."""
     pedida = request.args.get("estado")
     if pedida is None:
-        return ENTRADA_DA_ESCADA[0]
+        return ("" if empresa_activa() == SEM_EMPRESA
+                else ENTRADA_DA_ESCADA[0])
     pedida = pedida.strip()
     return ABAS_ANTIGAS.get(pedida, pedida)
 
@@ -18737,7 +18742,9 @@ def _lista_de_anuncios():
     # A escada (15/09/2026): dez ranhuras mais o "todos", desenhadas
     # pela barra_das_abas() para as duas listas as terem iguais.
     estado_actual = estado_da_aba
-    abas = [barra_das_abas(rota, estado_actual, contas, ABAS_DOS_CONCURSOS)]
+    abas = [barra_das_abas(rota, estado_actual, contas,
+                           ABAS_DO_DONO if empresa_activa() == SEM_EMPRESA
+                           else ABAS_DOS_CONCURSOS)]
 
     cpv_actual = request.args.get("cpv", "")
     faixa_cpv = faixa_cpv_activo(request.args,

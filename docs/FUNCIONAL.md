@@ -1264,10 +1264,13 @@ decisão dele): o `apagar_empresa()` deixa-o com `empresa_id` 0
 «na página de dono não consigo ver concursos nem o mercado») a porta
 abre-lhe, **só para ler**, o que é da plataforma: os Concursos (as
 pontas), a ficha do anúncio e as peças, o Mercado, as Entidades e o
-CSV (`LEITURA_DO_DONO`, `dono_le()`). A barra dele tem só o Mercado e a
-Plataforma (`NAV_DO_DONO`; os Concursos saíram a 29/09/2026, G61 da 3.ª
-ronda — sem empresa nada foi visto, e as abas contavam 199 178 «sem
-ver» — mas a rota abre-se-lhe na mesma); a ficha não tem os botões da escada nem a coluna
+CSV (`LEITURA_DO_DONO`, `dono_le()`). A barra dele tem os Concursos, o
+Mercado e a Plataforma (`NAV_DO_DONO`). Os Concursos saíram a 29/09/2026
+(G61 da 3.ª ronda: sem empresa nada foi visto, e as abas contavam
+199 178 «sem ver») e voltaram no mesmo dia, a pedido dele («deixei de
+ter acesso a concursos»). O que saiu foram as abas de uma empresa: o
+dono vê só «Todos» (`ABAS_DO_DONO`), e é essa a aba que abre. A ficha
+não tem os botões da escada nem a coluna
 do trabalho. O `liga()` junta-lhe uma empresa **vazia e só de leitura**
 (`_empresa_vazia()`), para as perguntas pelas propostas darem zero em
 vez de rebentarem. O resto — as Propostas, o Hoje, o Calendário, as
