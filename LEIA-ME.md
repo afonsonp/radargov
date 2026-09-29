@@ -210,12 +210,12 @@ O **em jogo** é só o que já entregaste — as propostas em «Submetida» e
 em «Relatório preliminar» (decisão tua de 29/09/2026); o que ainda está
 por submeter é o trabalho da lista por baixo.
 
-A seguir vem a **fita da semana**: sete células, segunda a domingo. Cada
+A seguir vem a **fita da semana**: sete células, de ontem em diante. Cada
 uma diz quantas tarefas tem nesse dia, quantas já estão feitas e quantas
 entregas fecham — **as por entregar** à parte das **já entregues**; o dia
 de hoje diz também quantas atrasadas arrasta. **Clica num dia** para o
 veres — a lista por baixo muda para esse dia, com as entregas dele por
-cima, e as setas andam de semana em semana.
+cima, e as setas andam 7 dias de cada vez.
 
 Por baixo, duas colunas.
 
