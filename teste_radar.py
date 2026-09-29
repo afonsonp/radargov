@@ -13491,7 +13491,7 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
             corpo = self.get(caminho).get_data(as_text=True)
             titulo = re.search(r"<title>([^<]+)</title>", corpo).group(1)
             titulos.add(titulo)
-            self.assertRegex(corpo, r'<meta name="description" content="[^"]{50,170}">')
+            self.assertRegex(corpo, r'<meta name="description" content="[^"]{50,160}">')
             canonical = re.search(r'<link rel="canonical" href="([^"]+)">', corpo).group(1)
             self.assertEqual(canonical.replace("https://miragov.pt", ""), caminho)
             self.assertEqual(len(re.findall(r"<h1[\s>]", corpo)), 1, caminho)
