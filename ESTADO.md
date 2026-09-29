@@ -173,8 +173,10 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.27`**, de
-  29/09/2026 — **o site pronto para os motores de busca e os agentes de
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.28`**, de
+  29/09/2026 — **as descrições da inicial e dos termos à medida do
+  Google** (a da inicial tinha 166 caracteres). A `v2.0.27`, do mesmo
+  dia — **o site pronto para os motores de busca e os agentes de
   IA** (o robots em lista branca, o `<lastmod>` no mapa, o JSON-LD em
   todas as páginas, o `/llms.txt`, o `noindex` no `/entrar`) e **todos
   os e-mails saem bonitos, e o convite segue por e-mail**. A `v2.0.26`,
