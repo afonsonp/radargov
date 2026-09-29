@@ -8408,6 +8408,19 @@ class TestLinkDoProcedimento(unittest.TestCase):
         self.assertEqual(destino, link)
         self.assertIn("anogov", rotulo)
 
+    def test_anogov_sem_acessodocs_abre_a_lista_da_entidade(self):
+        # 29/09/2026: 14 anúncios de 2026 (quase todos da IP) trazem só a
+        # entrada da entidade na anogov, e o botão dava no dashboard
+        for link in ("https://www.anogov.com/infraestruturasdeportugal-ip/"
+                     "faces/app/dashboard.jsp",
+                     "https://www.anogov.com/infraestruturasdeportugal-ip/faces/"):
+            destino, rotulo, _ = radar.link_do_procedimento(
+                self._a("anogov", link))
+            self.assertEqual(destino, "https://www.anogov.com/"
+                             "infraestruturasdeportugal-ip/faces/app/pap/"
+                             "listaPaps.jsp")
+            self.assertIn("Procurar", rotulo)
+
     def test_sem_link_nenhum_nao_ha_botao(self):
         destino, _, _ = radar.link_do_procedimento(self._a("", ""))
         self.assertIsNone(destino)
@@ -8416,23 +8429,59 @@ class TestLinkDoProcedimento(unittest.TestCase):
 class TestOsBotoesDaPlataformaNaFicha(BaseTemporaria):
     """29/09/2026, ele: na Vortal os dois botões («Abrir na Vortal» e
     «Peças na plataforma») davam no mesmo sítio, e na acingov o das
-    peças descarregava um ZIP sem o dizer."""
+    peças descarregava um ZIP sem o dizer. No mesmo dia, a seguir: o das
+    peças «só deve estar ao pé das peças», senão as pessoas começam por
+    ali e não vão às peças do Mira Gov -- e descarregar de lá também as
+    traz para o concurso."""
+
+    ZIP = ("https://www.acingov.pt/acingovprod/2/zonaPublica/"
+           "zona_publica_c/donwloadProcedurePiece/MTEzMTQxOA")
 
     def setUp(self):
         super().setUp()
         self.cliente = radar.app.test_client()
+        self.pedidos = []
         self.enterContext(unittest.mock.patch.object(
-            radar, "pedir_documentos", lambda ref: None))
+            radar, "pedir_documentos", self.pedidos.append))
 
-    def _ficha(self, plat, link):
+    def _ficha(self, plat, link, docs_estado=None):
         with radar.liga() as c:
             c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub,"
                       " prazo, estado, detalhe_lido, texto, url, plataforma,"
-                      " link_pecas) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                      " link_pecas, docs_estado) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                       ("70/2026", "Software", "IPL", "2026-09-01",
                        "2099-12-30", "novo", 1, "1 - Objecto",
-                       "https://exemplo/70", plat, link))
+                       "https://exemplo/70", plat, link, docs_estado))
         return self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
+
+    def test_o_das_pecas_nao_esta_no_topo_esta_no_bloco_das_pecas(self):
+        h = self._ficha("acingov", self.ZIP)
+        topo, _, resto = h.partition("id='pecas'")
+        self.assertNotIn("Descarregar da plataforma", topo)
+        self.assertNotIn("donwloadProcedurePiece", h)
+        self.assertIn("Descarregar da plataforma (ZIP)", resto)
+        self.assertIn("action='/pecas-da-plataforma/70/2026'", resto)
+
+    def test_com_as_pecas_ca_nao_ha_botao_para_a_plataforma(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref,nome) VALUES "
+                      "('70/2026','CE.pdf')")
+        h = self._ficha("acingov", self.ZIP, docs_estado="ok")
+        self.assertNotIn("/pecas-da-plataforma/", h)
+        self.assertIn("Descarregar todas (ZIP)", h)
+
+    def test_descarregar_da_plataforma_traz_as_pecas_para_o_concurso(self):
+        self._ficha("acingov", self.ZIP)
+        r = self.cliente.post("/pecas-da-plataforma/70/2026")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.headers["Location"], self.ZIP)
+        self.assertEqual(self.pedidos, ["70/2026"])
+
+    def test_sem_link_nao_sai_para_lado_nenhum(self):
+        self._ficha("acingov", "")
+        r = self.cliente.post("/pecas-da-plataforma/70/2026")
+        self.assertIn("/anuncio/", r.headers["Location"])
+        self.assertEqual(self.pedidos, [])
 
     def test_vortal_tem_um_botao_so(self):
         h = self._ficha("vortal", "https://community.vortal.biz/Public/"
@@ -8441,13 +8490,10 @@ class TestOsBotoesDaPlataformaNaFicha(BaseTemporaria):
         self.assertNotIn("Peças na plataforma", h)
         self.assertNotIn("public-tender-documents/AbC", h)
 
-    def test_acingov_abre_o_procedimento_e_o_zip_diz_que_e_zip(self):
-        h = self._ficha("acingov", "https://www.acingov.pt/acingovprod/2/"
-                                   "zonaPublica/zona_publica_c/"
-                                   "donwloadProcedurePiece/MTEzMTQxOA")
+    def test_acingov_abre_o_procedimento(self):
+        h = self._ficha("acingov", self.ZIP)
         self.assertIn(html.escape(radar.ACINGOV_PROCEDIMENTO % "1131418",
                                   quote=True), h)
-        self.assertIn("Descarregar as peças (ZIP)", h)
 
 
 class TestInteresse(unittest.TestCase):
