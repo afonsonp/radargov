@@ -1346,7 +1346,11 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   (`contas_do_mercado()`, `resumo_contratos()`, `entidades_top()`): uma
   chave que difira num espaço é uma memória que ninguém lê. Medido: 31 s
   a aquecer as duas empresas de ensaio a frio, 0 s depois de um
-  reinício (está tudo no disco).
+  reinício (está tudo no disco). **E aquece-se também sem o perfil**
+  (`interesse=nao`: o «ver tudo», e o que o dono vê, que não tem
+  empresa) — a v2.0.24 só fazia o perfil de cada empresa, e o resumo do
+  corpus inteiro levou 33 s na primeira visita, em produção, a
+  29/09/2026.
 - **A pesquisa por objecto vai pelo índice de texto** (FTS5 `trigram`,
   `contratos_fts`, lote 10). O `LIKE '%termo%'` sobre os dois milhões de
   objectos levava 8 a 34 s à primeira. O índice é de conteúdo externo

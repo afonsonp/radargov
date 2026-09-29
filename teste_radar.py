@@ -2317,6 +2317,17 @@ class TestExclusoesNoFiltro(unittest.TestCase):
                 self.assertIn("q_excl=obras", dentro)
 
 
+# O caminho do LIKE, que e o que estas duas classes olham: sem isto,
+# numa maquina onde o contratos.db verdadeiro ja tem o indice de texto
+# (lote 10), a pesquisa ia pelo FTS e os testes falhavam -- falharam na
+# instalacao a 29/09/2026, uma hora depois de o indice ficar pronto. O
+# caminho do indice tem os testes dele, isolados
+# (TestAPesquisaDoMercadoPeloIndiceDeTexto).
+SEM_INDICE_DE_TEXTO = unittest.mock.patch.object(
+    radar, "indice_de_texto_pronto", lambda: False)
+
+
+@SEM_INDICE_DE_TEXTO
 class TestEOuEntrePalavrasECpv(unittest.TestCase):
     """B07: por omissão as palavras e o CPV juntam-se por E (pesquisa
     mais restrita); com op=ou, por OU (mais ampla). A armadilha é a
@@ -4138,6 +4149,7 @@ class TestEntidadeSemNif(unittest.TestCase):
         self.assertNotIn("sem NIF", h)
 
 
+@SEM_INDICE_DE_TEXTO
 class TestPesquisaContratosNormalizada(unittest.TestCase):
     """Procurar "aquisição" nos contratos perdia 68 295 (11,8%).
 
@@ -24305,6 +24317,24 @@ class TestOCorpusAqueceEmFundo(BaseTemporaria):
                          "/entidades?ver=clientes"):
                 self.assertEqual(cliente.get(rota).status_code, 200, rota)
             for rota in ("/contratos/resumo", "/contratos/resumo?ver=fim"):
+                self.assertEqual(cliente.get(rota).status_code, 200, rota)
+        contas = [q for q in feitas
+                  if re.search(r"COUNT\(\*\) n, COALESCE\(SUM|CREATE TEMP "
+                               r"TABLE recorte|SUM\(c\.preco_contratual", q)]
+        self.assertEqual(contas, [])
+
+    def test_o_mercado_sem_perfil_tambem_fica_aquecido(self):
+        # Medido em produção a 29/09/2026, já com a v2.0.24: o resumo do
+        # Mercado com o perfil levantado (o «ver tudo», e o que o dono vê,
+        # que não tem empresa) levou 33 s na primeira visita -- o
+        # aquecimento só fazia o perfil de cada empresa.
+        radar.aquecer_o_corpus()
+        cliente = radar.app.test_client()
+        with consultas_do_radar("corpus") as feitas:
+            for rota in ("/contratos?interesse=nao",
+                         "/contratos?interesse=nao&ver=fim",
+                         "/contratos/resumo?interesse=nao",
+                         "/contratos/resumo?interesse=nao&ver=fim"):
                 self.assertEqual(cliente.get(rota).status_code, 200, rota)
         contas = [q for q in feitas
                   if re.search(r"COUNT\(\*\) n, COALESCE\(SUM|CREATE TEMP "

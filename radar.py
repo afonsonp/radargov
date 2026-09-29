@@ -12621,7 +12621,12 @@ def aquecer_o_corpus():
     for empresa_id in empresas_a_trabalhar():
         with com_empresa(empresa_id):
             cfg = ler_config()
-            for args in ({}, {"ver": "fim"}):
+            # Tambem sem o perfil (o «ver tudo», e o que o dono ve): 33 s
+            # na primeira visita, medido em producao a 29/09/2026. A chave
+            # e a mesma em todas as empresas, e da segunda em diante e so
+            # memoria.
+            for args in ({}, {"ver": "fim"}, {"interesse": "nao"},
+                         {"interesse": "nao", "ver": "fim"}):
                 with liga_corpus() as c:
                     contas_do_mercado(c, args, cfg)
                 resumo_contratos(args)
