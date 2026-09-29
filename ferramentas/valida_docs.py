@@ -92,6 +92,8 @@ ISENTOS = {
     "curl_detalhe.txt": "captura do Afonso; não entra no git",
     "radar.db": "a base; não entra no git",
     "contratos.db": "o corpus; não entra no git",
+    "contratos-memoria.db": "a memória das contas do corpus (lote 10); "
+                            "gera-se sozinha ao lado dele, não entra no git",
     "empresas/1/empresa.db": "o trabalho da empresa (F1); não entra no git",
     "empresa.db": "o ficheiro de cada empresa (F1); não entra no git",
     "empresas/": "a pasta das empresas (F1); não entra no git",

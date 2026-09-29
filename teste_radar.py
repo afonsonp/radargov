@@ -12634,7 +12634,7 @@ class TestTiposDeProcedimentoGuardados(CorpusTemporario):
 
     def setUp(self):
         super().setUp()
-        radar._TIPOS_DO_CORPUS = (None, [])
+        radar._MEMORIA_DO_CORPUS.clear()
         radar.iniciar_corpus()
         self.idas = []
         self.liga_verdadeira = radar.liga_corpus
@@ -12646,7 +12646,7 @@ class TestTiposDeProcedimentoGuardados(CorpusTemporario):
         self.enterContext(unittest.mock.patch.object(radar, "liga_corpus", espia))
 
     def tearDown(self):
-        radar._TIPOS_DO_CORPUS = (None, [])
+        radar._MEMORIA_DO_CORPUS.clear()
         super().tearDown()
 
     _proximo = 1000
@@ -19811,7 +19811,7 @@ class TestContaNoCorpusGuardaAteOCorpusMudar(CorpusTemporario):
 
     def test_guarda_e_volta_a_contar_quando_o_ficheiro_muda(self):
         radar.iniciar_corpus()
-        radar._CONTAS_DO_CORPUS.clear()
+        radar._MEMORIA_DO_CORPUS.clear()
         sql = "SELECT COUNT(*) n FROM contratos c"
         with radar.liga_corpus() as c:
             c.execute("INSERT INTO contratos (id, objecto) VALUES (1, 'x')")
@@ -23719,8 +23719,8 @@ class TestOResumoDoMercadoGuardaSe(BaseTemporaria):
     def setUp(self):
         super().setUp()
         semear_corpus()
-        radar._RESUMOS_DO_CORPUS.clear()
-        self.addCleanup(radar._RESUMOS_DO_CORPUS.clear)
+        radar._MEMORIA_DO_CORPUS.clear()
+        self.addCleanup(radar._MEMORIA_DO_CORPUS.clear)
 
     def _resumo(self, args=None):
         with radar.app.test_request_context("/contratos/resumo"):
@@ -23766,11 +23766,11 @@ class TestOResumoDoMercadoGuardaSe(BaseTemporaria):
                          sum(p["k"] for p in antes[2]) + 1)
 
     def test_tem_tecto(self):
-        with unittest.mock.patch.object(radar, "TECTO_RESUMOS", 3):
+        with unittest.mock.patch.object(radar, "TECTO_DA_MEMORIA", 3):
             for palavra in ("manutencao 1", "manutencao 2", "manutencao 3",
                             "manutencao 4", "manutencao 5"):
                 self._resumo({"q": palavra})
-                self.assertLessEqual(len(radar._RESUMOS_DO_CORPUS), 3)
+                self.assertLessEqual(len(radar._MEMORIA_DO_CORPUS), 3)
 
     def test_o_corpus_e_lido_uma_vez(self):
         """As agregações correm sobre a tabela TEMP: só o `CREATE TEMP
@@ -24189,6 +24189,360 @@ class TestALeituraAssociadaAsPecas(BaseTemporaria):
         nomes, _ = ensaio.texto_das_pecas(
             radar, "91/2026", "CE.pdf (pág. 1–3), Pecas.zip/Programa.pdf (pág. 4), Anexo.xlsx")
         self.assertEqual(sorted(nomes), ["Anexo.xlsx", "CE.pdf", "Pecas.zip"])
+
+
+# ------------------------------------------------ lote 10: «Nada lento»
+
+class TestAMemoriaDoCorpusSobreviveAoReinicio(BaseTemporaria):
+    """Lote 10 (29/09/2026): «a primeira visita ao Mercado leva 25 s (depois
+    0,7 s), e às Entidades 4 s». As contas guardavam-se só em memória do
+    processo, com o dia na chave: a primeira pessoa de cada empresa, em
+    cada dia e depois de cada reinício -- cada release --, pagava tudo.
+    Agora guardam-se também num ficheiro ao lado do corpus, e o dia só
+    entra quando a pergunta o usa."""
+
+    def setUp(self):
+        super().setUp()
+        semear_corpus()
+        radar._MEMORIA_DO_CORPUS.clear()
+        self.addCleanup(radar._MEMORIA_DO_CORPUS.clear)
+        self.contas = []
+
+    def _conta(self, pergunta=("x",), valor=None):
+        def calcular():
+            self.contas.append(1)
+            return valor if valor is not None else {"n": 7, "l": [1, 2]}
+        return radar.lembrado_do_corpus(pergunta, calcular)
+
+    def test_um_reinicio_encontra_a_conta_feita(self):
+        primeira = self._conta()
+        radar._MEMORIA_DO_CORPUS.clear()          # o processo novo
+        self.assertEqual(self._conta(), primeira)
+        self.assertEqual(len(self.contas), 1)
+        self.assertTrue(os.path.exists(radar.ficheiro_da_memoria()))
+
+    def test_um_corpus_novo_conta_outra_vez_e_deita_fora_o_velho(self):
+        self._conta()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (ano, objecto) VALUES (2026, 'x')")
+        radar._MEMORIA_DO_CORPUS.clear()
+        self._conta()
+        self.assertEqual(len(self.contas), 2)
+        with sqlite3.connect(radar.ficheiro_da_memoria()) as m:
+            self.assertEqual(m.execute("SELECT COUNT(DISTINCT marca) FROM "
+                                       "memoria").fetchone()[0], 1)
+
+    def test_o_dia_so_entra_quando_a_pergunta_o_usa(self):
+        with unittest.mock.patch.object(radar.time, "gmtime",
+                                        return_value=time.gmtime(0)):
+            self._conta(("sem dia",))
+            self._conta(("date('now', '+3 months')",))
+        self._conta(("sem dia",))                          # outro dia: igual
+        self.assertEqual(len(self.contas), 2)
+        self._conta(("date('now', '+3 months')",))         # outro dia: conta
+        self.assertEqual(len(self.contas), 3)
+
+    def test_o_valor_e_o_mesmo_venha_da_conta_ou_do_disco(self):
+        """Passa sempre por JSON: um tuplo na primeira vez e uma lista na
+        segunda eram duas respostas diferentes à mesma pergunta."""
+        a = self._conta(("t",), valor=(1, [2, 3]))
+        radar._MEMORIA_DO_CORPUS.clear()
+        self.assertEqual(a, self._conta(("t",), valor=(1, [2, 3])))
+        self.assertEqual(a, [1, [2, 3]])
+
+    def test_tem_tecto_em_memoria_e_em_disco(self):
+        with unittest.mock.patch.object(radar, "TECTO_DA_MEMORIA", 3), \
+                unittest.mock.patch.object(radar, "TECTO_DA_MEMORIA_EM_DISCO", 4):
+            for i in range(9):
+                self._conta(("p", i))
+                self.assertLessEqual(len(radar._MEMORIA_DO_CORPUS), 3)
+        with sqlite3.connect(radar.ficheiro_da_memoria()) as m:
+            self.assertEqual(m.execute("SELECT COUNT(*) FROM memoria")
+                             .fetchone()[0], 4)
+
+    def test_um_ficheiro_estragado_nao_estraga_a_pagina(self):
+        with open(radar.ficheiro_da_memoria(), "w") as f:
+            f.write("isto nao e uma base")
+        self.assertEqual(self._conta()["n"], 7)
+
+
+class TestOCorpusAqueceEmFundo(BaseTemporaria):
+    """Lote 10: a vigia do corpus faz, em fundo e com o perfil de cada
+    empresa, as contas que a primeira visita ao Mercado e às Entidades
+    pediria -- pelas MESMAS funções das páginas, senão as chaves não
+    batiam e a memória não servia a ninguém."""
+
+    def setUp(self):
+        super().setUp()
+        semear_corpus()
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+        radar._MEMORIA_DO_CORPUS.clear()
+        self.addCleanup(radar._MEMORIA_DO_CORPUS.clear)
+
+    def test_depois_de_aquecer_as_paginas_nao_contam_nada(self):
+        radar.aquecer_o_corpus()
+        cliente = radar.app.test_client()
+        with consultas_do_radar("corpus") as feitas:
+            for rota in ("/contratos", "/contratos?ver=fim", "/entidades",
+                         "/entidades?ver=clientes"):
+                self.assertEqual(cliente.get(rota).status_code, 200, rota)
+            for rota in ("/contratos/resumo", "/contratos/resumo?ver=fim"):
+                self.assertEqual(cliente.get(rota).status_code, 200, rota)
+        contas = [q for q in feitas
+                  if re.search(r"COUNT\(\*\) n, COALESCE\(SUM|CREATE TEMP "
+                               r"TABLE recorte|SUM\(c\.preco_contratual", q)]
+        self.assertEqual(contas, [])
+
+    def test_a_vigia_aquece_ao_arrancar_e_so_quando_algo_muda(self):
+        aquecidas, estados = [], [("a",), ("a",), ("b",), ("b",), ("b",)]
+        with unittest.mock.patch.object(radar, "estado_para_aquecer",
+                                        side_effect=estados), \
+                unittest.mock.patch.object(radar, "aquecer_o_corpus",
+                                           lambda: aquecidas.append(1)), \
+                unittest.mock.patch.object(radar, "construir_indice_de_texto",
+                                           lambda: None):
+            esperas = []
+            radar.vigiar_o_corpus(voltas=5, esperar=esperas.append)
+        # ao arrancar; e o «b» só depois de ficar igual uma volta inteira
+        self.assertEqual(len(aquecidas), 2)
+        self.assertEqual(len(esperas), 5)
+
+    def test_a_vigia_nao_morre_com_um_erro(self):
+        with unittest.mock.patch.object(radar, "estado_para_aquecer",
+                                        side_effect=RuntimeError("disco")):
+            radar.vigiar_o_corpus(voltas=2, esperar=lambda s: None)
+        self.assertIn("disco", radar.le_marca("ultimo_erro_vigia_corpus", ""))
+
+    def test_mudar_o_perfil_pede_outro_aquecimento(self):
+        antes = radar.estado_para_aquecer()
+        radar.gravar_config({"interesse_cpv": "50000000"})
+        self.assertNotEqual(antes, radar.estado_para_aquecer())
+
+
+class TestAPesquisaDoMercadoPeloIndiceDeTexto(BaseTemporaria):
+    """Lote 10: a primeira pesquisa de texto no Mercado levava 8 a 34 s --
+    um `LIKE '%termo%'` sobre os dois milhões de objectos. O índice FTS5
+    `trigram` responde ao mesmo `LIKE`, e por isso dá as MESMAS linhas:
+    confere-se aqui contra o `LIKE` da tabela, com e sem acentos, com
+    termos curtos e com caracteres que se escapam."""
+
+    TERMOS = ("manutenção", "MANUTENCAO", "limpeza", "serviços manutenção",
+              "ab", "1", "50%", "x_y", "manutencao 1", "inexistente",
+              '"serviços de manutenção 3"', "limpeza|manutenção 2")
+
+    def setUp(self):
+        super().setUp()
+        semear_corpus()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (ano, objecto) VALUES "
+                      "(2026, 'Limpeza 50% das escolas x_y')")
+        radar.iniciar_corpus()                 # enche o objecto_norm
+        radar._TEXTO_PRONTO.clear()
+        self.addCleanup(radar._TEXTO_PRONTO.clear)
+
+    def _ids(self, q):
+        onde, valores = radar.condicoes_contratos({"q": q})
+        with radar.liga_corpus() as c:
+            return sorted(r[0] for r in c.execute(
+                "SELECT c.id FROM contratos c" + onde, valores))
+
+    def test_as_mesmas_linhas_com_e_sem_indice(self):
+        self.assertFalse(radar.indice_de_texto_pronto())
+        antes = {q: self._ids(q) for q in self.TERMOS}
+        self.assertTrue(radar.construir_indice_de_texto(avisar=lambda m: None))
+        self.assertTrue(radar.indice_de_texto_pronto())
+        for q in self.TERMOS:
+            self.assertEqual(self._ids(q), antes[q], q)
+        self.assertTrue(antes["manutenção"])
+        self.assertTrue(antes["50%"])
+
+    def test_com_o_perfil_as_mesmas_linhas_e_o_cpv_por_exists(self):
+        radar.gravar_config({"interesse_activo": True,
+                             "interesse_cpv": "72000000"})
+
+        def ids():
+            onde, valores = radar.filtros_dos_contratos({"q": "manutenção"})
+            with radar.liga_corpus() as c:
+                return onde, sorted(r[0] for r in c.execute(
+                    "SELECT c.id FROM contratos c" + onde, valores))
+        onde_antes, antes = ids()
+        radar.construir_indice_de_texto(avisar=lambda m: None)
+        onde, depois = ids()
+        self.assertEqual(depois, antes)
+        self.assertTrue(antes)
+        self.assertIn("EXISTS (SELECT 1 FROM contrato_cpv x", onde)
+        self.assertNotIn("EXISTS", onde_antes)     # sem índice, como estava
+
+    def test_vai_pelo_indice_so_quando_pode(self):
+        radar.construir_indice_de_texto(avisar=lambda m: None)
+        onde, valores = radar.condicoes_contratos(
+            {"q": "limpeza ab|vigilância escolas|50%"})
+        # «limpeza ab» e «50%» ficam no LIKE (um termo curto, um escapado);
+        # «vigilância escolas» vai pelo índice, os dois termos num MATCH só
+        self.assertEqual(onde.count("MATCH ?"), 1)
+        self.assertEqual(onde.count("c.objecto_norm LIKE"), 3)
+        self.assertIn('"vigilancia" AND "escolas"', valores)
+
+    def test_os_gatilhos_mantem_o_indice_como_a_tabela(self):
+        radar.construir_indice_de_texto(avisar=lambda m: None)
+        # a importação: apaga o ano, volta a pôr (com REPLACE), e o arranque
+        # enche o objecto_norm que faltar
+        with radar.liga_corpus() as c:
+            c.execute("DELETE FROM contratos WHERE objecto LIKE '%manutenção 1%'")
+            c.execute("INSERT OR REPLACE INTO contratos (id, ano, objecto, "
+                      "objecto_norm) SELECT id, ano, 'Vigilância nocturna', "
+                      "'vigilancia nocturna' FROM contratos WHERE objecto "
+                      "LIKE '%manutenção 2%'")
+            c.execute("INSERT INTO contratos (ano, objecto) VALUES "
+                      "(2026, 'Limpeza de praias')")
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            # o próprio FTS5 confere o índice contra a tabela
+            c.execute("INSERT INTO %s(%s, rank) VALUES ('integrity-check', 1)"
+                      % ((radar.INDICE_DE_TEXTO,) * 2))
+            for termo in ("manutencao 2", "vigilancia", "praias", "manutencao 1"):
+                pelo_indice = sorted(r[0] for r in c.execute(
+                    "SELECT rowid FROM %s WHERE objecto_norm LIKE ?"
+                    % radar.INDICE_DE_TEXTO, ("%" + termo + "%",)))
+                pela_tabela = sorted(r[0] for r in c.execute(
+                    "SELECT id FROM contratos WHERE objecto_norm LIKE ?",
+                    ("%" + termo + "%",)))
+                self.assertEqual(pelo_indice, pela_tabela, termo)
+
+    def test_um_corpus_reposto_sem_indice_volta_ao_like(self):
+        """Visto pronto, não se pergunta outra vez -- mas só enquanto o
+        ficheiro for o mesmo: um corpus refeito ou reposto de uma cópia
+        sem o índice punha a pesquisa a perguntar por uma tabela que não
+        existe."""
+        radar.construir_indice_de_texto(avisar=lambda m: None)
+        self.assertTrue(radar.indice_de_texto_pronto())
+        with radar.liga_corpus() as c:
+            c.execute("DELETE FROM corpus_estado WHERE chave=?",
+                      (radar.MARCA_DO_INDICE_DE_TEXTO,))
+        self.assertFalse(radar.indice_de_texto_pronto())
+        self.assertEqual(self._ids("limpeza"), self._ids("limpeza"))
+
+    def test_construir_duas_vezes_nao_faz_nada(self):
+        self.assertTrue(radar.construir_indice_de_texto(avisar=lambda m: None))
+        self.assertFalse(radar.construir_indice_de_texto(avisar=lambda m: None))
+
+
+class TestAPaginaDoMercadoConfereOCPVPelaOrdem(BaseTemporaria):
+    """Lote 10: com o perfil largo, o `+c.id IN (...)` do G79 continuava a
+    materializar as 400 mil do recorte para mostrar vinte (0,49 s, o
+    tecto da página). Pela ordem, com o CPV conferido por `EXISTS`, são
+    0,003 s -- e as MESMAS linhas, em qualquer página."""
+
+    ONDE = TestAPaginaDoMercadoAndaPelaOrdem.ONDE
+
+    def test_as_mesmas_linhas_em_todas_as_paginas(self):
+        semear_corpus(n=90)
+        sql = ("SELECT c.id FROM contratos c%s ORDER BY c.data_celebracao "
+               "DESC, c.id DESC LIMIT 20 OFFSET ?")
+        with radar.liga_corpus() as c:
+            for desvio in (0, 20, 40):
+                vals = ["72*", "9*", desvio]
+                antes = [r[0] for r in c.execute(sql % self.ONDE, vals)]
+                novo = sql % radar.onde_da_pagina(self.ONDE, 1000, desvio, 1000)
+                self.assertIn("EXISTS (SELECT 1 FROM contrato_cpv x", novo)
+                self.assertIn("c.id NOT IN (SELECT", novo)   # o excluído fica
+                self.assertEqual([r[0] for r in c.execute(novo, vals)], antes)
+
+    def test_um_cpv_raro_numa_pagina_funda_fica_no_in(self):
+        onde = radar.onde_da_pagina(self.ONDE, 1000, 980, 2 * 10 ** 6)
+        self.assertNotIn("EXISTS", onde)
+        self.assertIn("+c.id IN (SELECT", onde)
+
+    def test_cpv_por_exists_respeita_os_parenteses(self):
+        onde = (" WHERE (c.id IN (SELECT contrato_id FROM contrato_cpv WHERE "
+                "(cpv8 GLOB ? OR cpv8 GLOB ?))) AND c.ano=?")
+        self.assertEqual(
+            radar.cpv_por_exists(onde),
+            " WHERE (EXISTS (SELECT 1 FROM contrato_cpv x WHERE x.contrato_id"
+            " = c.id AND ((cpv8 GLOB ? OR cpv8 GLOB ?)))) AND c.ano=?")
+
+
+class TestOsAnunciosDeUmDistritoPelaRowid(BaseTemporaria):
+    """Lote 10: o filtro por distrito custava 0,74 s -- três contagens, cada
+    uma a conferir 200 mil `ref` (texto) contra a lista dos do distrito.
+    Pela `rowid` do mesmo anúncio confere-se em metade, e são os mesmos."""
+
+    def test_os_mesmos_anuncios(self):
+        with radar.liga() as c:
+            for i, d in enumerate(("|Lisboa|", "|Porto|", "|*|", "",
+                                   "|Porto|Lisboa|", "|Setúbal|")):
+                c.execute("INSERT INTO anuncios (ref, estado, data_pub, "
+                          "distrito) VALUES (?, 'novo', '2026-09-01', ?)",
+                          ("%d/2026" % i, d))
+            frag, vals = radar.fragmento_local_e_valor("Lisboa", "")
+            self.assertIn("+rowid IN (SELECT rowid", frag)
+            pela_rowid = sorted(r[0] for r in c.execute(
+                "SELECT ref FROM anuncios WHERE " + frag, vals))
+            pela_ref = sorted(r[0] for r in c.execute(
+                "SELECT ref FROM anuncios WHERE " + frag.replace(
+                    "rowid", "ref"), vals))
+        self.assertEqual(pela_rowid, pela_ref)
+        self.assertEqual(pela_rowid, ["0/2026", "2/2026", "4/2026"])
+
+
+class TestAsAlteracoesDaFichaPeloIndice(BaseTemporaria):
+    """Lote 10: a ficha perguntava sempre pelas alterações do anúncio
+    (`membros_da_cadeia()`) com um `WHERE altera=?` sem índice -- um
+    varrimento da tabela larga, 0,25 s em CADA ficha."""
+
+    def test_o_plano_usa_o_indice_de_cobertura(self):
+        with radar.liga() as c:
+            passos = plano(c, "SELECT ref, data_pub FROM anuncios "
+                              "WHERE altera='1/2026'")
+        self.assertTrue(any("COVERING INDEX ix_anuncios_altera" in p
+                            for p in passos), passos)
+
+
+class TestOCalendarioPesadoPedeOsPedacos(BaseTemporaria):
+    """Lote 10: o «Tudo» do Calendário eram 369 KB de HTML -- cada linha
+    duas vezes (a grelha e a agenda do telemóvel), mais as escondidas em
+    cada «+N». Numa página pesada o «+N» e a agenda pedem-se à parte; e
+    entre a grelha e os pedaços estão TODAS as linhas, sem faltar uma."""
+
+    def setUp(self):
+        super().setUp()
+        self.dia = datetime.date.today() + datetime.timedelta(days=2)
+        with radar.liga() as c:
+            for n in range(radar.LINHAS_SEM_PEDACOS + 20):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, "
+                          "estado, data_pub, prazo) VALUES (?,?,?,?,?,?)",
+                          ("%d/2026" % n, "Anúncio %d" % n, "Município",
+                           "novo", self.dia.isoformat(), self.dia.isoformat()))
+        self.cliente = radar.app.test_client()
+
+    def test_a_pagina_nao_leva_as_escondidas_e_os_pedacos_trazem_nas(self):
+        pagina = self.cliente.get("/calendario?ver=porver").get_data(as_text=True)
+        self.assertIn("data-pedaco='%s'" % self.dia.isoformat(), pagina)
+        self.assertIn("data-pedaco='agenda'", pagina)
+        vistos = set(re.findall(r"Anúncio (\d+)<", pagina))
+        self.assertEqual(len(vistos), radar.CABEM_NO_DIA)
+        mais = self.cliente.get("/calendario?ver=porver&pedaco="
+                                + self.dia.isoformat()).get_data(as_text=True)
+        vistos |= set(re.findall(r"Anúncio (\d+)<", mais))
+        self.assertEqual(len(vistos), radar.LINHAS_SEM_PEDACOS + 20)
+        agenda = self.cliente.get("/calendario?ver=porver&pedaco=agenda"
+                                  ).get_data(as_text=True)
+        self.assertEqual(len(set(re.findall(r"Anúncio (\d+)<", agenda))),
+                         radar.LINHAS_SEM_PEDACOS + 20)
+
+    def test_um_pedaco_aberto_a_mao_volta_a_pagina(self):
+        r = self.cliente.get("/calendario?ver=porver&pedaco=agenda",
+                             headers={"Sec-Fetch-Mode": "navigate"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].endswith("/calendario?ver=porver"))
+
+    def test_uma_pagina_leve_leva_tudo_dentro(self):
+        with radar.liga() as c:
+            c.execute("DELETE FROM anuncios WHERE CAST(ref AS INTEGER) > 10")
+        pagina = self.cliente.get("/calendario?ver=porver").get_data(as_text=True)
+        self.assertNotIn("data-pedaco", pagina)
+        self.assertEqual(len(set(re.findall(r"Anúncio (\d+)<", pagina))), 11)
 
 
 
