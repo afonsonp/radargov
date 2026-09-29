@@ -3182,7 +3182,7 @@ class TestEnvioComHtml(unittest.TestCase):
     def test_o_texto_na_moldura_escapa_e_liga_os_enderecos(self):
         h = radar.html_do_texto("Mira Gov: pedido de acesso de A & B",
                                 "Nome: <Ana>\n\nVer https://miragov.pt/x?a=1&b=2")
-        self.assertIn("pedido de acesso de A &amp; B", h)
+        self.assertIn("Pedido de acesso de A &amp; B", h)
         self.assertNotIn("Mira Gov: pedido", h)
         self.assertIn("&lt;Ana&gt;", h)
         self.assertIn('<a href="https://miragov.pt/x?a=1&amp;b=2"', h)

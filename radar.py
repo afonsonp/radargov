@@ -10285,7 +10285,8 @@ def html_do_texto(assunto, texto):
     paragrafos = [_em_paragrafo(RX_URL.sub(ligacao, html.escape(p.strip(), quote=False))
                                 .replace("\n", "<br>"))
                   for p in re.split(r"\n\s*\n", texto.strip()) if p.strip()]
-    return moldura_do_email(re.sub(r"^Mira Gov:\s*", "", assunto),
+    titulo = re.sub(r"^Mira Gov:\s*", "", assunto)
+    return moldura_do_email(titulo[:1].upper() + titulo[1:],
                             _em_cartao_branco("".join(paragrafos)))
 
 
