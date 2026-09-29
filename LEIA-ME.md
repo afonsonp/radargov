@@ -546,14 +546,16 @@ abre a ficha **dentro da aplicação**, já não o site do DR. Lá tens:
 **Desde 28/09/2026 a ficha lê-se de cima para baixo**, pela ordem em
 que se decide:
 
-- **Para decidir** — oito factos numa grelha (quatro por linha no
+- **Os factos do anúncio** (era «Para decidir») — oito factos numa grelha (quatro por linha no
   computador, dois no telemóvel): preço base (com «acima / abaixo / em
   linha com o que a entidade costuma pagar», quando há contratos dela
   neste CPV), **esclarecimentos até** (antes das propostas, porque passa
   primeiro), **propostas até** (com quantos dias faltam e quantas vezes
   foi prorrogado), duração, critério, local, habilitação (o alvará) e
   caução. Um facto que o anúncio não traz fica na célula, em cinzento, a
-  dizer onde está («consta do Programa do Concurso»).
+  dizer onde está («consta do Programa do Concurso»). Na caução e no
+  alvará, quando as peças foram lidas, vem ao lado o que o Programa diz
+  — às vezes não é o mesmo que o anúncio, e aí vês as duas versões.
 - **O que as peças pedem** — a leitura automática das peças, com a marca
   **«Rascunho: confirmar nas peças»** uma vez, e por baixo as peças e as
   páginas que foram lidas: a leitura falha mais por omitir do que por
@@ -633,7 +635,9 @@ coisa: ficou deserto, foi anulado, ou nunca chegou ao Portal BASE.
 Sobre as peças: o botão **Trazer peças** vai buscá-las à plataforma
 indicada no anúncio. Também vêm sozinhas quando marcas **interessa** —
 nesse caso a ficha mostra "a trazer as peças…" e actualiza-se sozinha
-quando elas chegam, o que leva alguns segundos.
+quando elas chegam, o que leva alguns segundos. Se o concurso já está
+nas Propostas e as peças não vieram, a plataforma não as deixou trazer
+sozinhas: a ficha di-lo, e é descarregá-las de lá.
 
 ### As peças lidas
 

@@ -508,15 +508,26 @@ e o seu rótulo na ficha (`CAMPO_11`):
 | Tipo | Na ficha | O que se pede |
 |---|---|---|
 | Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa |
-| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não da leitura, desde 29/09/2026 |
+| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
 | Bens | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
 | Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
 | Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
 
 Sem tipo nem CPV fica «Equipa», a pergunta de antes. A resposta vai
 sempre para a coluna `analise.equipa`; a afinação do `config.json` para
-a `equipa` vale só para a família «equipa». **As leituras antigas não se
-refazem de uma vez**: vão-se relendo (decisão dele).
+a `equipa` vale só para a família «equipa».
+
+**A versão da pergunta** (D8 da 3.ª ronda, 29/09/2026, decisão dele).
+Cada leitura guarda a versão das perguntas com que se fez
+(`analise.pergunta`, `VERSAO_DA_PERGUNTA`, que sai do próprio texto das
+`INSTRUCOES_*`: mudar uma pergunta muda a versão sem ninguém se
+lembrar). **As leituras das propostas abertas** — Por analisar, A
+preparar, Submetida, Relatório preliminar — lidas com uma versão
+anterior **relêem-se sozinhas**, pela fila das incompletas
+(`refs_com_leitura_incompleta()`), depois delas e com o mesmo tecto por
+volta: sem rajada, que as reservas não aguentam. As outras ficam como
+estão, e a ficha diz «lida a dd/mm/aaaa com uma versão anterior da
+pergunta» (`leitura_desactualizada()`).
 
 **Nas obras muda também o objecto** (29/09/2026, `OBJECTO_DA_FAMILIA`):
 o que se constrói está na memória descritiva e no projecto, e não no
@@ -558,7 +569,19 @@ passagens, de 52 para 82.
 e páginas veio e «é um rascunho: confirmar no documento antes de
 decidir». «A leitura não encontrou» quer dizer que não encontrou nas
 zonas que leu; e quando a peça nem estava entre as descarregadas, a
-ficha di-lo em vez de dizer que a leu.
+ficha di-lo em vez de dizer que a leu. **Três faltas que não se
+confundem** (3.ª ronda, G36-G38): «não encontrado nas páginas lidas»
+(a peça foi lida), «o Programa do Concurso não foi lido» (a peça de
+onde o campo sai não está entre as fontes, `PECAS_DO_CAMPO`), e o
+mesmo «não encontrado» com «lida com uma versão anterior da pergunta».
+No campo 11, o «—» é só o que as peças dizem expressamente que não há;
+o que a leitura não achou diz «não encontrado» (`sem_negativos_por_saber()`).
+As peças que não entraram na leitura — o ZIP do projecto, um 7z, um
+Excel — listam-se por nome, «Não lido» (`pecas_nao_lidas()`).
+**A caução e o alvará do Programa** (`analise.caucao`,
+`analise.habilitacao`) vão ao lado do que o anúncio diz, cada um com a
+fonte: quando se contradizem, vêem-se as duas versões, e o Mira Gov não
+escolhe.
 São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
 (`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` até
@@ -931,10 +954,13 @@ e não pelo total.
 Em **duas colunas** desde 23/09/2026 (o `EcraFicha` do sistema de
 desenho), numa só abaixo de 1100px. **Desde 28/09/2026 (a ficha nova,
 da maquete que ele aprovou)** a coluna da esquerda é, por esta ordem:
-**Para decidir** (`para_decidir_cx()`: oito factos numa grelha, pela
-ordem de `factos_para_decidir()` — preço base, esclarecimentos até,
-propostas até, duração, critério, local, habilitação, caução; o que o
-anúncio não traz fica na célula, apagado, a dizer onde está), os lotes
+**Os factos do anúncio** (`para_decidir_cx()`; chamava-se «Para
+decidir» até à 3.ª ronda, G49, e o bloco só tem factos: oito numa
+grelha, pela ordem de `factos_para_decidir()` — preço base,
+esclarecimentos até, propostas até, duração, critério, local,
+habilitação, caução; o que o anúncio não traz fica na célula, apagado,
+a dizer onde está; a caução e o alvará levam ao lado o que o Programa
+diz, quando foi lido), os lotes
 e o desfecho quando os há, **O que as peças pedem**
 (`pecas_pedem_cx()`: a leitura, marcada «Rascunho» uma vez, com as
 peças e as páginas lidas; a equipa em tabela, `perfis_da_equipa()` e
@@ -946,7 +972,7 @@ peças, e o **anúncio completo**, fechado no fim (`?modo=completo`
 abre-o). À direita, presa ao rolar no computador: o prazo, a nossa
 proposta, o responsável, os contactos e o histórico. Abaixo de 1100px
 o prazo e a nossa proposta sobem para logo a seguir ao cabeçalho, antes
-de «Para decidir» (só CSS); o resto da coluna da direita fica no fim.
+dos factos do anúncio (só CSS); o resto da coluna da direita fica no fim.
 
 **O prazo de uma republicação é o da cadeia** (`cadeia_do_anuncio()`):
 cada alteração guarda o seu prazo e o original guarda o que está em

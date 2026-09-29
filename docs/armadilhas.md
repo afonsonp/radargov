@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 104
 - [Convenções](#convencoes) &middot; 4
 
-São **375** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **379** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -455,7 +455,41 @@ Orçamento, cadeia de reserva, chaves.
   `{"equipa": ...}` (`TestCampo11PorTipo`). O rótulo da ficha sai do
   tipo do anúncio **no momento em que se mostra**, não de quando se
   leu: uma leitura antiga de uma obra, feita com a pergunta de TI,
-  aparece sob «Equipa técnica e alvará» até ser relida.
+  aparece sob «Equipa técnica e alvará» até ser relida — e desde a 3.ª
+  ronda a ficha diz que é de uma versão anterior da pergunta.
+
+- **A versão da pergunta sai do texto dela** (D8 da 3.ª ronda,
+  29/09/2026). `VERSAO_DA_PERGUNTA` é um resumo das `INSTRUCOES_*`:
+  **mexer numa pergunta põe na fila todas as leituras das propostas
+  abertas** — é o que se quer, e vai pela fila das incompletas, com o
+  tecto por volta (`relidas_incompletas_por_volta`) e a paragem ao
+  primeiro «sem orçamento». Duas ciladas: a versão só se grava quando
+  todas as perguntas que tinham texto responderam (um campo que falhou
+  ainda é da pergunta antiga); e a peça que falta **não** conta como
+  falha — senão a leitura sem Programa voltava à fila de hora a hora,
+  a perguntar o mesmo.
+
+- **O «—» não é «não encontrei»** (3.ª ronda, G38). A pergunta antiga
+  pedia «—» onde não houvesse exigência, e o modelo punha-o em tudo o
+  que não viu: «Alvará: —» numa obra cujo Programa pedia a 5.ª e a 6.ª
+  subcategorias, que o recorte não levava. A pergunta de agora pede
+  «não consta» para o que não viu, e a ficha mostra os dois como «não
+  encontrado» (`sem_negativos_por_saber()`) — o «—» só fica, e só numa
+  leitura da versão de agora, quando as peças o dizem expressamente.
+
+- **O PDF parte os numerais romanos** (3.ª ronda, G40): «modelo
+  constante do Anexo I II», e o modelo leu «Anexo II» — que era outra
+  declaração. O recorte junta-os antes de ir ao modelo
+  (`junta_numerais_partidos()`), só quando o resultado é um numeral que
+  existe. É a mesma família dos «1 2 meses» das armadilhas já pagas.
+
+- **Uma peça que ninguém reconhece não é lida, e o «não encontrado»
+  dela mente** (3.ª ronda, G37). O «2_ProgConc_…pdf» não era o Programa
+  para o `RX_PECA_PROGRAMA`, e a ficha dizia «não encontrado nas
+  páginas lidas» dos nove documentos que ele pedia. A ficha confere a
+  peça de cada campo contra as fontes (`PECAS_DO_CAMPO`) antes de dizer
+  que a leu; e o que ficou de fora lista-se, «Não lido»
+  (`pecas_nao_lidas()`).
 
 - **Orçamento do modelo, não contexto.** O tecto da conta Groq são 8000
   tokens/minuto, e é ele que manda no tamanho do pedido — daí

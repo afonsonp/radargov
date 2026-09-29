@@ -1197,7 +1197,11 @@ def iniciar_db():
             documentos_proposta TEXT, preco_anormalmente_baixo TEXT,
             localizacao TEXT, modelo TEXT, fontes TEXT, quando TEXT)""")
         cols_an = [r["name"] for r in c.execute("PRAGMA table_info(analise)")]
-        for nome in ("preco_anormalmente_baixo", "localizacao"):
+        # `pergunta` (D8 da 3.ª ronda): a versão da pergunta com que a
+        # leitura se fez -- vazia é uma versão anterior. `caucao` e
+        # `habilitacao` (G39): o que o Programa diz, ao lado do anúncio.
+        for nome in ("preco_anormalmente_baixo", "localizacao", "pergunta",
+                     "caucao", "habilitacao"):
             if nome not in cols_an:
                 c.execute("ALTER TABLE analise ADD COLUMN %s TEXT" % nome)
         cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
@@ -5119,11 +5123,20 @@ def marcar_os_da_escada(c):
     relidos. Cada ficheiro de empresa abre-se a parte, so para ler."""
     c.execute("CREATE TEMP TABLE IF NOT EXISTS na_escada (ref TEXT PRIMARY KEY)")
     c.execute("DELETE FROM temp.na_escada")
+    # E as ABERTAS, a parte (D8 da 3.ª ronda): so as leituras delas se
+    # relêem quando a pergunta muda -- uma proposta ganha ou perdida já
+    # não precisa da leitura nova.
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS abertas (ref TEXT PRIMARY KEY)")
+    c.execute("DELETE FROM temp.abertas")
     for id_ in empresas_existentes():
         with _abre(db_da_empresa(id_)) as e:
-            refs = [(r["ref"],) for r in e.execute(
-                "SELECT DISTINCT ref FROM propostas WHERE ref IS NOT NULL")]
-        c.executemany("INSERT OR IGNORE INTO temp.na_escada VALUES (?)", refs)
+            linhas = e.execute(
+                "SELECT ref, estado FROM propostas WHERE ref IS NOT NULL").fetchall()
+        c.executemany("INSERT OR IGNORE INTO temp.na_escada VALUES (?)",
+                      [(r["ref"],) for r in linhas])
+        c.executemany("INSERT OR IGNORE INTO temp.abertas VALUES (?)",
+                      [(r["ref"],) for r in linhas
+                       if r["estado"] in ESTADOS_ABERTOS])
 
 
 def reler_marcados(limite=25):
@@ -6715,6 +6728,10 @@ ANCORAS_PROGRAMA = (
         r"(conteudo|constituicao|composicao|instrucao|elementos) d[ao]s? propostas?"),
     (2, r"apresentacao da proposta|termos.{0,20}proposta"),
     (2, r"anormalmente baixo"),
+    # a caução e o alvará que o Programa exige (3.ª ronda, G39): o
+    # anúncio diz «Caução: Não» e o Programa exige 5 %, e a ficha só
+    # mostrava o anúncio
+    (2, r"caucao|alvara|titulo de registo"),
     (3, r"habilitacao|criterio"),
 )
 
@@ -6743,6 +6760,12 @@ Extrai duas coisas do Caderno de Encargos:
   patentes, licenças de exportação —: não dizem nada deste concurso.
   Se o objecto remete para um anexo que está no texto, transcreve do
   anexo; "conforme o Anexo I" não é resposta.
+  Numa EMPREITADA, a primeira linha diz o que se constrói ou reabilita,
+  onde, e as quantidades principais; os pontos seguintes são os
+  trabalhos (as especialidades, os equipamentos a montar). Ficam de fora
+  as obrigações gerais do empreiteiro, que todas as obras têm: livro de
+  obra, horário afixado, medições mensais, patentes, seguros, plano de
+  segurança, telas finais.
 
 - "localizacao": onde o serviço é prestado ou os bens são entregues. As
   instalações, moradas ou locais de execução ou de entrega que uma
@@ -6839,7 +6862,9 @@ Extrai duas coisas do Programa de Concurso:
 
   Usa a sigla quando ela é corrente (DEUCP, CV, certidão permanente).
   Guarda o anexo ou modelo a usar, que muda o que há a fazer
-  ("2. Modelo da Proposta (Anexo II)"). Deita fora números de
+  ("2. Modelo da Proposta (Anexo II)"). O número do anexo copia-se da
+  PRÓPRIA alínea desse documento, letra a letra: nunca o deduzas da
+  ordem dos anexos nem de outra alínea. Deita fora números de
   regulamento, datas de diplomas e as fórmulas jurídicas de rotina.
 
   NÃO omitas nenhum documento e NÃO fundas as regras de documentos
@@ -6852,6 +6877,13 @@ Extrai duas coisas do Programa de Concurso:
   proposta é tido por anormalmente baixo (art. 71.º do CCP) — a
   percentagem ou o valor. Muitos Programas não fixam nenhum: nesse caso
   responde "não consta". Não confundas com o preço base.
+- "caucao": a caução que o Programa exige ao adjudicatário, tal como lá
+  está ("5% do preço contratual"). Se diz que não há lugar a caução,
+  responde "não exigida"; se não fala de caução, "não consta".
+- "habilitacao": o alvará ou título de registo que o Programa exige —
+  TODAS as categorias e subcategorias, com as classes, tal como estão,
+  uma por linha; nunca pares numa frase que acaba em dois pontos. Se
+  não fala disso, "não consta".
 
 ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
 (o que tu entregas) NÃO é o mesmo que "peças que constituem o
@@ -6859,7 +6891,7 @@ procedimento" (anúncio, programa, caderno de encargos). Queremos o
 primeiro.
 
 Responde SÓ com {"documentos_proposta": "...",
-"preco_anormalmente_baixo": "..."}."""
+"preco_anormalmente_baixo": "...", "caucao": "...", "habilitacao": "..."}."""
 
 # --- o campo 11 conforme o tipo de contrato (docs/historico/MAPA.md,
 # 28/09/2026). A pergunta da equipa foi escrita para os servicos de TI,
@@ -6873,8 +6905,11 @@ Responde SÓ com {"documentos_proposta": "...",
 _FIM_DO_CAMPO_11 = """
 
 Regras duras: copia os nomes e os números TAL E QUAL estão; cada
-requisito numa linha; não interpretes; onde não houver exigência,
-escreve — (travessão).
+requisito na sua linha, separadas por mudanças de linha — nunca vários
+na mesma linha separados por «;»; não interpretes. Escreve — (travessão)
+SÓ quando as peças dizem expressamente que não há exigência; quando o
+texto que tens não fala disso, escreve "não consta" — não leste as
+peças inteiras, e o que não viste não é o mesmo que não haver.
 
 Responde SÓ com {"equipa": "..."} -- a chave chama-se "equipa" por
 razões técnicas; o conteúdo é o que se pede acima."""
@@ -6888,8 +6923,8 @@ ANCORAS_OBRAS = (
 )
 INSTRUCOES_OBRAS = PREAMBULO + """
 
-É uma EMPREITADA DE OBRAS. Extrai, das peças (Caderno de Encargos e
-anexos técnicos), com esta estrutura:
+É uma EMPREITADA DE OBRAS. Extrai, das peças (Caderno de Encargos,
+Programa do Concurso e anexos técnicos), com esta estrutura:
 
 Equipa técnica: um bloco por função (director de obra, técnico de
 segurança, e outras), cada um com:
@@ -7083,6 +7118,21 @@ LEITURAS = (
     ("proposta", "programa", ANCORAS_PROGRAMA, INSTRUCOES_PROPOSTA),
 )
 
+# A versão da pergunta (D8 da 3.ª ronda, decisão dele): cada leitura
+# guarda-a em `analise.pergunta`, e a ficha diz «lida com uma versão
+# anterior da pergunta» quando não bate. Sai das próprias perguntas, e
+# não de um número que alguém tenha de se lembrar de subir: mudar uma
+# vírgula nas INSTRUCOES_* muda a versão. As leituras das propostas
+# abertas voltam então à fila da releitura (refs_com_leitura_incompleta).
+VERSAO_DA_PERGUNTA = hashlib.sha1("\n".join(
+    [i for _, _, _, i in LEITURAS]
+    + [v[3] for v in CAMPO_11.values() if v[3]]).encode("utf-8")).hexdigest()[:10]
+
+
+def leitura_desactualizada(linha):
+    """A leitura foi feita com outra versão da pergunta?"""
+    return bool(linha) and (_valor(linha, "pergunta") or "") != VERSAO_DA_PERGUNTA
+
 
 def _ancoras_do_config(bruto):
     """Valida ancoras vindas do config: lista de [prioridade, regex].
@@ -7216,16 +7266,12 @@ RX_LINHA_DE_INDICE = re.compile(r"\.\s*\.\s*\.\s*\.\s*\.")
 # «Anexo I II»: o extractor parte o «III» de alguns PDF (23610 e 23612,
 # dois dias seguidos), e a leitura dizia «Proposta de preço (Anexo II)»
 # -- o modelo da declaracao, e nao o da proposta. Quem seguisse a ficha
-# entregava o modelo errado (29/09/2026).
-RX_ANEXO_PARTIDO = re.compile(r"\b(anexo\s+)(I{1,2}) (I{1,2})\b", re.IGNORECASE)
-
-
+# entregava o modelo errado (29/09/2026). Junta-os o
+# junta_numerais_partidos(), mais abaixo (3.ª ronda, G40).
 def sem_indice(texto):
     """O texto sem as linhas pontilhadas do sumario, e com os numerais
     dos anexos que o extractor partiu outra vez juntos."""
-    texto = RX_ANEXO_PARTIDO.sub(
-        lambda m: m.group(1) + m.group(2) + m.group(3)
-        if len(m.group(2) + m.group(3)) <= 3 else m.group(0), texto)
+    texto = junta_numerais_partidos(texto)
     return "\n".join(l for l in texto.split("\n")
                       if not RX_LINHA_DE_INDICE.search(l))
 
@@ -7474,8 +7520,12 @@ def _sigla(letras):
 # Programa nas consultas previas.
 RX_PECA_ENCARGOS = re.compile(r"caderno|encargos|" + _sigla("(?:ce|cde|cade)"))
 # "cp" fica de fora de proposito: e "Concurso Publico", nao "Programa".
-# «ProgConc» (29/09/2026, 23492): sem ele a leitura da proposta so tinha o CE.
-RX_PECA_PROGRAMA = re.compile(r"programa|pograma|progconc|prog\.? ?conc|procedimento|convite|"
+# O «ProgConc» (29/09/2026, 3.ª ronda, G37): o
+# «2_ProgConc_40.341.233.109_26.pdf» do 23492/2026 nao era o Programa
+# para ninguem -- a leitura da proposta so tinha o CE, e a ficha dizia
+# «nao encontrado nas paginas lidas» dos nove documentos que ele pedia.
+RX_PECA_PROGRAMA = re.compile(r"programa|pograma|procedimento|convite|"
+                              r"prog.?conc|prog\.? ?conc|"
                               + _sigla("pp") + "|" + _sigla("pc"))
 
 
@@ -7488,7 +7538,8 @@ RX_ACESSORIO = re.compile(r"anexo|modelo|formulario|minuta|declaracao")
 # ja e outra coisa: o «Anexo_CADE_Especificacao_Tecnica» e um anexo DO
 # Caderno (TestAnexosTecnicos).
 RX_PECA_ENCARGOS_EXTENSO = re.compile(r"caderno|encargos|" + _sigla("cde"))
-RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|pograma|procedimento|convite")
+RX_PECA_PROGRAMA_EXTENSO = re.compile(r"programa|pograma|procedimento|convite|"
+                                      r"prog.?conc")
 
 
 # Os anexos tecnicos (28/09/2026): a especificacao, o anexo tecnico, a
@@ -7555,6 +7606,26 @@ PAPEIS_DA_LEITURA = {"encargos": ("encargos", "tecnico"),
 SECUNDARIAS_DA_LEITURA = {"encargos": ("programa",), "programa": ("encargos",)}
 # O que uma peca aberta por acrescento pode levar: uma zona.
 TECTO_SECUNDARIA = 2500
+
+
+# O PDF parte os numerais romanos como parte os numeros («1 2 meses»):
+# o Programa do 23610/2026 diz «modelo constante do Anexo I II» na alinea
+# da proposta de preco, e o modelo leu «Anexo II» -- que e a declaracao
+# da habilitacao. Quem seguisse a ficha entregava o modelo errado (3.ª
+# ronda, G40). Junta-se so quando o resultado e um numeral que existe
+# (ate XX): «Anexo I e II» e «Anexo I, II» ficam como estao.
+RX_ANEXO_PARTIDO = re.compile(r"\b([Aa]nexo|ANEXO)\s+([IVX]{1,3}) ([IVX]{1,3})\b")
+NUMERAIS_ROMANOS = ("I II III IV V VI VII VIII IX X XI XII XIII XIV XV XVI "
+                    "XVII XVIII XIX XX").split()
+
+
+def junta_numerais_partidos(texto):
+    """«Anexo I II» -> «Anexo III», quando «III» e um numeral a serio."""
+    def junta(m):
+        junto = m.group(2) + m.group(3)
+        return ("%s %s" % (m.group(1), junto) if junto in NUMERAIS_ROMANOS
+                else m.group(0))
+    return RX_ANEXO_PARTIDO.sub(junta, texto or "")
 
 
 def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
@@ -7631,6 +7702,8 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
             continue
         if secundaria and not _janelas_do_recorte(limpo, ancoras, teto):
             continue
+        # O «limpo» ja vem do sem_indice(), que junta os numerais
+        # partidos (G40): o recorte nao precisa de os juntar outra vez.
         partes.append(cabeca + recorte_relevante(limpo, ancoras, teto))
         # A fonte leva as paginas do recorte (B12), quando o texto tem
         # as marcas; e por leitura, por isso o mesmo CE pode aparecer
@@ -7718,7 +7791,8 @@ def espera_pedida(resposta, tecto=70):
 
 
 CAMPOS_DA_ANALISE = ("objecto", "equipa", "documentos_proposta",
-                     "preco_anormalmente_baixo", "localizacao")
+                     "preco_anormalmente_baixo", "localizacao",
+                     "caucao", "habilitacao")
 
 
 def juntar_leituras(dados, anterior):
@@ -7776,7 +7850,27 @@ def fontes_por_peca(texto):
             pg = pg.strip()
             if pg and pg not in paginas[nome]:
                 paginas[nome].append(pg)
-    return [(n, paginas[n]) for n in ordem]
+    return [(n, _paginas_por_ordem(paginas[n])) for n in ordem]
+
+
+def _paginas_por_ordem(pgs):
+    """["1–7", "24–26", "1–10"] -> ["1–10", "24–26"] (3.ª ronda, G42).
+
+    Cada leitura guarda as suas paginas, e juntas pela ordem em que
+    vieram liam-se como dois ficheiros: «Caderno de Encargos (pág. 1–7,
+    24–26, 1–10)». Um intervalo que nao se percebe fica como veio."""
+    numeros, outros = set(), []
+    for pg in pgs:
+        m = re.fullmatch(r"(\d+)(?:\s*[–-]\s*(\d+))?", pg)
+        if not m:
+            outros.append(pg)
+            continue
+        ini = int(m.group(1))
+        numeros.update(range(ini, int(m.group(2) or ini) + 1))
+    if not numeros:
+        return list(pgs)
+    rotulo = rotulo_com_paginas("x", sorted(numeros))
+    return rotulo[len("x (pág. "):-1].split(", ") + outros
 
 
 def _com_paginas(nome, pgs):
@@ -7960,6 +8054,7 @@ def analisar_pecas(ref):
                        "ainda não há Caderno de Encargos nem Programa em disco")
 
     dados, usados, falhas, modelos = {}, [], [], []
+    modelo_falhou = False
     for nome, (texto, fontes), instrucao in recortes:
         if not texto:
             falhas.append("%s: falta o documento" % nome)
@@ -7967,6 +8062,7 @@ def analisar_pecas(ref):
         resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
         if resposta is None:
             falhas.append("%s: %s" % (nome, aviso))
+            modelo_falhou = True
             continue
         dados.update(resposta)
         usados += [f for f in fontes if f not in usados]
@@ -8000,15 +8096,24 @@ def analisar_pecas(ref):
     modelos = juntar_fontes(modelos, anterior["modelo"] if anterior else "",
                             bool(falhas))
 
+    # A versão da pergunta so muda quando todas as perguntas que tinham
+    # texto responderam (D8): com uma a falhar, o campo dela e ainda o
+    # da pergunta antiga, e a leitura tem de voltar a fila. A peca que
+    # falta nao conta -- sem ela, a releitura seguinte dava o mesmo, e
+    # gastava o orcamento de hora a hora a perguntar outra vez.
+    pergunta = (VERSAO_DA_PERGUNTA if not modelo_falhou
+                else (_valor(anterior, "pergunta") if anterior else None))
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
             (ref,objecto,equipa,documentos_proposta,preco_anormalmente_baixo,
-             localizacao,modelo,fontes,quando) VALUES (?,?,?,?,?,?,?,?,?)""",
+             localizacao,caucao,habilitacao,modelo,fontes,quando,pergunta)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (ref, campos["objecto"], campos["equipa"],
                    campos["documentos_proposta"],
                    campos["preco_anormalmente_baixo"],
-                   campos["localizacao"], modelos, fontes,
-                   datetime.now().strftime("%Y-%m-%d %H:%M")))
+                   campos["localizacao"], campos["caucao"],
+                   campos["habilitacao"], modelos, fontes,
+                   datetime.now().strftime("%Y-%m-%d %H:%M"), pergunta))
     if sem_orcamento:
         return True, SEM_ORCAMENTO_HOJE
     # Leitura parcial e melhor do que nenhuma, mas tem de se saber.
@@ -8053,19 +8158,32 @@ def refs_com_leitura_incompleta(limite=None, so_na_escada=True):
     `so_na_escada` limita ao que a empresa está mesmo a trabalhar: gastar
     o orçamento do dia a reler um concurso que ninguém olhou é tirá-lo a
     um que se vai entregar.
+
+    **E as das propostas abertas lidas com outra versão da pergunta** (D8
+    da 3.ª ronda, decisão dele): Por analisar, A preparar, Submetida e
+    Relatório preliminar. As outras ficam como estão, e a ficha diz que
+    foram lidas com a versão anterior. Vão pela mesma fila e com o mesmo
+    `limite` por volta -- sem rajada, que as reservas não aguentam
+    (`docs/referencia.md`) --, depois das que ficaram a meio.
     """
-    sql = ("SELECT a.ref FROM analise a WHERE (%s)"
-           % " OR ".join("COALESCE(a.%s,'') = ''" % n
-                         for n in CAMPOS_LIDOS_PELO_MODELO))
+    incompleta = " OR ".join("COALESCE(a.%s,'') = ''" % n
+                             for n in CAMPOS_LIDOS_PELO_MODELO)
+    params = []
     if so_na_escada:
-        sql += " AND a.ref IN (SELECT ref FROM temp.na_escada)"
-    sql += " ORDER BY a.quando DESC"
+        sql = ("SELECT a.ref FROM analise a WHERE ((%s) AND a.ref IN "
+               "(SELECT ref FROM temp.na_escada)) OR (COALESCE(a.pergunta,'') "
+               "!= ? AND a.ref IN (SELECT ref FROM temp.abertas))"
+               " ORDER BY (%s) DESC, a.quando DESC" % (incompleta, incompleta))
+        params.append(VERSAO_DA_PERGUNTA)
+    else:
+        sql = ("SELECT a.ref FROM analise a WHERE (%s) ORDER BY a.quando DESC"
+               % incompleta)
     if limite:
         sql += " LIMIT %d" % int(limite)
     with liga() as c:
         if so_na_escada:
             marcar_os_da_escada(c)      # a escada de todas (F2)
-        return [r["ref"] for r in c.execute(sql)]
+        return [r["ref"] for r in c.execute(sql, params)]
 
 
 def reler_incompletas(limite=5, so_na_escada=True):
@@ -25325,10 +25443,22 @@ def lotes_cx(a):
 
 
 def _pares_da_seccao(seccoes, titulo):
-    """Os pares da secção do anúncio cujo título tenha `titulo`."""
+    """Os pares da secção do anúncio cujo título tenha `titulo`.
+
+    Uma linha sem «chave:» continua o valor de cima (3.ª ronda, G41): a
+    descrição do alvará do 23723/2026 acaba em «…contendo as seguintes
+    habilitações:» e as subcategorias vêm nas linhas seguintes, e a
+    ficha mostrava a frase cortada nos dois pontos."""
     alvo = simplifica(titulo)
-    return next((pares for _, tit, pares in seccoes
-                 if alvo in simplifica(tit or "")), [])
+    pares = next((pares for _, tit, pares in seccoes
+                  if alvo in simplifica(tit or "")), [])
+    juntos = []
+    for chave, valor in pares:
+        if not chave and juntos and valor.strip():
+            juntos[-1] = (juntos[-1][0], (juntos[-1][1] + "\n" + valor.strip()).strip())
+        else:
+            juntos.append((chave, valor))
+    return juntos
 
 
 def habilitacao_do_anuncio(seccoes):
@@ -25410,7 +25540,39 @@ def essencial_do_anuncio(a, seccoes, analise=None):
             # E a mesma licao do juntar_leituras -- a ficha inteira nao
             # pode ir abaixo por causa de um campo que ainda nao foi lido.
             return ""
-        return "" if simplifica(valor) in ("", "nao consta", "não consta") else valor
+        if simplifica(valor) in ("", "nao consta", "não consta"):
+            return ""
+        return arruma_a_leitura(valor)
+
+    # A leitura foi feita com a pergunta de agora? (D8 da 3.ª ronda.) Um
+    # «não encontrado» de uma pergunta anterior não diz o mesmo: a
+    # pergunta de TI não procurava o alvará de uma obra (G36).
+    antiga = leitura_desactualizada(analise)
+    quando = data_pt(((_valor(analise, "quando") or "")[:10]), "") if analise else ""
+    sufixo_antiga = (" (lida%s com uma versão anterior da pergunta)"
+                     % (" a " + quando if quando else "")) if antiga else ""
+
+    def peca_lida(campo):
+        """A peça de onde o campo sai está entre as fontes da leitura?
+        (3.ª ronda, G37.) O Programa do 23492/2026 estava descarregado e
+        não foi lido, e a ficha dizia «não encontrado nas páginas lidas»
+        dos nove documentos que ele pedia. Sem fontes guardadas não se
+        sabe, e fica como antes."""
+        fontes = (_valor(analise, "fontes") or "") if analise else ""
+        if not fontes.strip():
+            return True
+        papeis = set()
+        for nome, _ in fontes_por_peca(fontes):
+            papeis |= papeis_da_peca(nome.rsplit("/", 1)[-1])
+        return bool(papeis & set(PECAS_DO_CAMPO.get(campo, ("encargos", "tecnico"))))
+
+    def nao_encontrou(campo, frase):
+        """«Foi lido e não encontrou», se a peça foi mesmo lida."""
+        if not peca_lida(campo):
+            peca = ("o Programa do Concurso" if "programa" in PECAS_DO_CAMPO.get(campo, ())
+                    else "o Caderno de Encargos")
+            return "%s não foi lido: confirmar no documento" % peca
+        return frase + sufixo_antiga
 
     def falta(campo):
         """Porque nao ha valor, sem ter sido lido: a leitura correu e a
@@ -25464,12 +25626,16 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         cpv = a["cpv"]
     except (KeyError, IndexError):
         cpv = ""
-    rotulo_11, falta_11 = CAMPO_11[familia_do_contrato(
-        v("Tipo de Contrato Principal"), cpv)][:2]
+    familia = familia_do_contrato(v("Tipo de Contrato Principal"), cpv)
+    rotulo_11, falta_11 = CAMPO_11[familia][:2]
     anormal_falta = "" if anormal else (
-        "o Programa do Concurso foi lido e a leitura não encontrou nenhum: "
-        "confirmar no documento"
+        nao_encontrou("preco_anormalmente_baixo",
+                      "o Programa do Concurso foi lido e a leitura não "
+                      "encontrou nenhum: confirmar no documento")
         if foi_lido("preco_anormalmente_baixo") else falta("preco_anormalmente_baixo"))
+    equipa = das_pecas("equipa")
+    if equipa and familia != "equipa":
+        equipa = sem_negativos_por_saber(equipa, antiga)
 
     return [
         ("Nome do projeto", a["titulo"] or v("Designação do contrato"), "", ""),
@@ -25508,20 +25674,59 @@ def essencial_do_anuncio(a, seccoes, analise=None):
         ("Data de submissão da proposta", data_pt(a["prazo"], ""), "", ""),
         ("Objecto, âmbito e características", das_pecas("objecto"),
          "" if das_pecas("objecto") else
-         ("o Caderno de Encargos foi lido e a leitura não encontrou a "
-          "descrição: confirmar no documento"
+         (nao_encontrou("objecto", "o Caderno de Encargos foi lido e a "
+                        "leitura não encontrou a descrição: confirmar no documento")
           if foi_lido("objecto") else falta("objecto")), nota_pecas),
-        (rotulo_11, das_pecas("equipa"),
-         "" if das_pecas("equipa") else
-         ("o Caderno de Encargos foi lido e a leitura não encontrou "
-          "%s: confirmar no documento" % falta_11
+        (rotulo_11, equipa,
+         "" if equipa else
+         (nao_encontrou("equipa", "o Caderno de Encargos foi lido e a leitura "
+                        "não encontrou %s: confirmar no documento" % falta_11)
           if foi_lido("equipa") else falta("equipa")), nota_pecas),
         ("Documentos que constituem a proposta", das_pecas("documentos_proposta"),
          "" if das_pecas("documentos_proposta") else
-         ("o Programa do Concurso foi lido e a leitura não encontrou a "
-          "lista: confirmar no documento"
+         (nao_encontrou("documentos_proposta", "o Programa do Concurso foi lido "
+                        "e a leitura não encontrou a lista: confirmar no documento")
           if foi_lido("documentos_proposta") else falta("documentos_proposta")), nota_pecas),
     ]
+
+
+# De que peça sai cada campo lido (3.ª ronda, G37): a lista dos
+# documentos, o preço anormalmente baixo, a caução e o alvará, do
+# Programa; o resto do Caderno de Encargos e dos anexos técnicos.
+PECAS_DO_CAMPO = {"documentos_proposta": ("programa",),
+                  "preco_anormalmente_baixo": ("programa",),
+                  "caucao": ("programa",), "habilitacao": ("programa",)}
+
+# Uma linha «Chave: valor» que o modelo juntou a outras com «;» (3.ª
+# ronda, G44): «Equipa técnica - Director de obra: Função exacta:
+# director de obra; Formação ou inscrição: —; Experiência: —» saía num
+# parágrafo corrido. Parte-se antes de cada «; Chave:».
+RX_PAR_COLADO = re.compile(r";\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^:;\n]{1,60}:)")
+
+
+def arruma_a_leitura(texto):
+    """O texto lido, como a ficha o mostra: um requisito por linha, e
+    a grafia de Portugal («Indenização» é do Brasil, e a peça dizia
+    «indemniza», G45). Não muda o que está guardado."""
+    texto = RX_PAR_COLADO.sub("\n", texto)
+    return re.sub(r"\b([Ii])ndeniza", r"\1ndemniza", texto)
+
+
+def sem_negativos_por_saber(texto, antiga):
+    """O campo 11 sem afirmar um negativo que a leitura não sabe (3.ª
+    ronda, G38): «Alvará: —» dizia «sem exigência», e o Programa pedia
+    a 5.ª e a 6.ª subcategorias. «não consta» é «não encontrado»; o «—»
+    também, numa leitura de uma pergunta anterior -- que o pedia para
+    tudo o que não achasse. Na pergunta de agora o «—» é só para o que
+    as peças dizem expressamente que não há, e fica."""
+    vazios = ("nao consta",) + (("—", "-") if antiga else ())
+    linhas = []
+    for linha in texto.split("\n"):
+        chave, dois, valor = linha.partition(":")
+        if dois and simplifica(valor).strip() in vazios:
+            linha = "%s: não encontrado nas páginas lidas" % chave
+        linhas.append(linha)
+    return "\n".join(linhas)
 
 
 # --- a ficha nova (28/09/2026, a maquete que ele aprovou)
@@ -25731,8 +25936,10 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
     duracao = ess.get("Duração do contrato", ("", "", ""))[0]
     renovacoes = " (com renovações previstas)"
     local_nota = ess.get("Local de prestação de serviços", ("", "", ""))[2]
+    # «a leitura não encontrou o regime» nas seis fichas de obras, e
+    # ninguém sabia que regime (3.ª ronda, G46): sem regime, nada.
     local_nota = ("regime lido das peças: confirmar" if local_nota.startswith("lido de")
-                  else "a leitura não encontrou o regime" if "não encontrou" in local_nota
+                  else "" if "não encontrou" in local_nota
                   else "o regime (presencial, remoto) ainda não foi lido"
                   if local_nota else "")
     return [
@@ -25745,9 +25952,36 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         facto("Critério", "Critério de adjudicação"),
         facto("Local", "Local de prestação de serviços", local_nota,
               "o anúncio não indica"),
-        _curto(facto("Habilitação (alvará)", "Habilitação (alvará)")),
-        _curto(facto("Caução", "Caução")),
+        _com_o_programa(_curto(facto("Habilitação (alvará)", "Habilitação (alvará)")),
+                        _do_programa(analise, "habilitacao")),
+        _com_o_programa(_curto(facto("Caução", "Caução")),
+                        _do_programa(analise, "caucao")),
     ]
+
+
+def _do_programa(analise, campo):
+    """O que a leitura tirou do Programa para a caução ou o alvará, numa
+    linha; "" quando não leu ou não encontrou."""
+    valor = (_valor(analise, campo) or "").strip() if analise else ""
+    if simplifica(valor) in ("", "nao consta", "—", "-"):
+        return ""
+    return "; ".join(l.strip(" -–•") for l in valor.split("\n") if l.strip())
+
+
+def _com_o_programa(celula, programa):
+    """A célula do anúncio, com o que o Programa diz ao lado (3.ª ronda,
+    G39): o anúncio do 23853/2026 diz «Caução: Não» e o Programa exige 5
+    % -- a ficha só mostrava o anúncio. As duas versões, cada uma com a
+    fonte (docs/historico/MAPA.md); o Mira Gov não escolhe entre elas.
+    Quando o anúncio não o diz, o valor é o do Programa."""
+    rotulo, valor, nota, apagado = celula
+    if not programa:
+        return celula
+    if apagado:
+        return (rotulo, corta(programa, 60),
+                "no Programa (leitura automática): confirmar", False)
+    return (rotulo, valor, " · ".join(x for x in (
+        nota, "o Programa diz: %s (leitura automática)" % programa) if x), False)
 
 
 def _curto(celula):
@@ -25772,16 +26006,19 @@ _FACTOS_EM_NUMERO = ("Preço base", "Esclarecimentos até", "Propostas até")
 
 
 def para_decidir_cx(factos):
-    """O cartão «Para decidir»: a grelha das oito células, quatro por
-    linha no computador e duas no telemóvel, separadas por um fio."""
+    """O cartão «Os factos do anúncio»: a grelha das oito células,
+    quatro por linha no computador e duas no telemóvel, separadas por um
+    fio. Chamava-se «Para decidir», e o bloco só tem factos (3.ª ronda,
+    G49): o Mira Gov mapeia, e quem decide é a empresa."""
     return cartao(
-        "Para decidir",
+        "Os factos do anúncio",
         "<div class='factos-grelha'>%s</div>" % "".join(
             _celula(html.escape(rot), html.escape(valor).replace("\n", " "),
                     html.escape(nota), apagado,
                     "n" if rot in _FACTOS_EM_NUMERO and not apagado else "")
             for rot, valor, nota, apagado in factos),
-        meta="Do anúncio do DR", id_="decidir")
+        meta="Do anúncio do DR, com o Programa ao lado quando foi lido",
+        id_="decidir")
 
 
 def tabela_da_equipa(perfis):
@@ -25839,7 +26076,9 @@ def _onde_esta(falta):
     lidas»; o resto (a peça que não veio, a leitura que não correu) fica
     como o essencial o diz."""
     if "não encontrou" in falta:
-        return "Não encontrado nas páginas lidas"
+        antiga = falta.find(" (lida ")
+        return ("Não encontrado nas páginas lidas"
+                + (falta[antiga:] if antiga >= 0 else ""))
     return falta[:1].upper() + falta[1:]
 
 
@@ -25909,12 +26148,45 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
             "encontrado» quer dizer que não estava nas páginas lidas."
             % (("(%s) " % html.escape(analise["modelo"] or "")) if sou_dono() else "",
                html.escape(fontes_pelo_papel(analise["fontes"]) or "peças do procedimento")))
+    quando = data_pt((_valor(analise, "quando") or "")[:10], "")
+    if quando:
+        meta += " Lida a %s." % quando
+    if leitura_desactualizada(analise):
+        # D8 da 3.ª ronda: as das propostas abertas relêem-se sozinhas,
+        # pela fila; as outras ficam, e isto di-lo
+        meta += (" Lida com uma versão anterior da pergunta: a das propostas "
+                 "abertas volta a ler-se sozinha.")
     if origem:
         meta += (" Lida das peças do anúncio <a href='/anuncio/%s'>%s</a>, da "
                  "mesma cadeia." % (quote(origem, safe=""), html.escape(origem)))
+    fora = pecas_nao_lidas(origem or a["ref"], analise["fontes"])
+    if fora:
+        linhas.append(_linha_das_pecas(
+            "Não lido", html.escape(", ".join(fora)) + "<br><span class='ficha-nota'>"
+            "Estas peças não entraram na leitura: abrem-se em «Peças».</span>"))
     return cartao(
         titulo, "".join(linhas), meta=meta, id_="pecas-pedem",
         accoes="<span class='mg-tag mg-tag--warning'>Rascunho: confirmar nas peças</span>")
+
+
+def pecas_nao_lidas(ref, fontes):
+    """Os ficheiros das peças que não entraram na leitura (3.ª ronda,
+    G43; o «não lido: <ficheiro>» do docs/historico/MAPA.md): o ZIP do
+    projecto, o 7z dos anexos, um Excel. O anúncio do DR, que vem entre
+    as peças, não conta -- já está na ficha.
+    ponytail: um ZIP de que se leu um ficheiro conta como lido; os que
+    ficaram de fora lá dentro não se listam, que era abrir o ZIP a cada
+    visita à ficha."""
+    lidos = set()
+    for nome, _ in fontes_por_peca(fontes or ""):
+        lidos.add(nome)
+        lidos.add(nome.split("/", 1)[0])
+    with liga() as c:
+        nomes = [r["nome"] for r in c.execute(
+            "SELECT nome FROM documentos WHERE ref=? ORDER BY nome", (ref,))]
+    return [n for n in nomes if n not in lidos
+            and "anuncio" not in simplifica(n)
+            and not re.fullmatch(r"\d{6,}\.pdf", n)]
 
 
 def descontos_da_entidade(chave, cpv):
@@ -25996,7 +26268,7 @@ def termos_do_titulo(titulo, maximo=6):
     return termos
 
 
-def homologos_do_anuncio(chave, titulo, ref="", limite=8):
+def homologos_do_anuncio(chave, titulo, ref="", limite=8, cpv=""):
     """Contratos da mesma entidade com objecto parecido com este anuncio.
 
     E a pergunta "quanto e que isto custou da ultima vez, e quem ganhou"
@@ -26011,6 +26283,11 @@ def homologos_do_anuncio(chave, titulo, ref="", limite=8):
 
     Devolve (linhas, termos usados) -- os termos mostram-se, para se
     saber porque e que cada contrato aparece.
+
+    Com o `cpv` do anuncio, so os contratos da mesma divisao do CPV (3.ª
+    ronda, G47): umas pequenas reparacoes de construcao civil mostravam
+    oito contratos de software da mesma entidade, por partilharem
+    «manutencao corretiva».
     """
     termos = termos_do_titulo(titulo)
     if not (chave and termos and ha_corpus()):
@@ -26019,14 +26296,18 @@ def homologos_do_anuncio(chave, titulo, ref="", limite=8):
     pontos = " + ".join(
         "(COALESCE(c.objecto_norm,'') LIKE ? ESCAPE '%s')" % ESCAPE_LIKE
         for _ in termos)
+    divisoes = sorted({re.sub(r"\D", "", x)[:2] for x in (cpv or "").split(",")
+                       if len(re.sub(r"\D", "", x)) >= 2})
+    frag_cpv, vals_cpv = prefixos_em_cpv8(divisoes) if divisoes else ("", [])
     valores = (["%" + para_like(t) + "%" for t in termos]
-               + [chave, ref, minimo, limite])
+               + [chave, ref] + vals_cpv + [minimo, limite])
     with liga_corpus() as c:
         linhas = c.execute(
             "WITH marcados AS (SELECT c.id, c.n_anuncio, c.data_celebracao,"
             " c.objecto, c.tipo_procedimento, c.preco_contratual,"
             " (" + pontos + ") pontos FROM contratos c"
-            " WHERE c.adjudicante_chave=? AND COALESCE(c.n_anuncio,'') != ?),"
+            " WHERE c.adjudicante_chave=? AND COALESCE(c.n_anuncio,'') != ?"
+            + (" AND " + cpv_da_entidade(frag_cpv) if frag_cpv else "") + "),"
             " pag AS (SELECT * FROM marcados WHERE pontos >= ?"
             "  ORDER BY pontos DESC, data_celebracao DESC, id DESC LIMIT ?)"
             " SELECT p.*,"
@@ -26051,7 +26332,8 @@ def homologos_da_ficha(a, chave):
     parecido devolve ("", [], termos)."""
     if not (chave and ha_corpus()):
         return "", [], []
-    linhas, termos = homologos_do_anuncio(chave, a["titulo"] or "", a["ref"])
+    linhas, termos = homologos_do_anuncio(chave, a["titulo"] or "", a["ref"],
+                                          cpv=_valor(a, "cpv") or "")
     if not linhas:
         return "", [], termos
 
@@ -26992,6 +27274,11 @@ def ficha(ref):
         if a["docs_estado"] == "falhou":
             nota = ("Não foi possível trazer as peças automaticamente. A "
                     "plataforma indicada pode exigir sessão iniciada.")
+        elif minhas:
+            # Já está na escada (3.ª ronda, G48): dizer «vêm sozinhas ao
+            # marcar interessa» a quem já marcou era mandá-lo esperar
+            nota = ("Não se conseguiram trazer sozinhas desta plataforma: "
+                    "use «Trazer peças», ou descarregue-as da plataforma.")
         else:
             nota = ("Ainda não foram trazidas. Vêm sozinhas ao marcar "
                     "«interessa».")
@@ -27107,7 +27394,7 @@ def ficha(ref):
     # mentira de um numero que abre outra lista.
     # Pela ordem da página (28/09/2026): a coluna principal e depois a da
     # direita.
-    entradas = [("decidir", "Para decidir")]
+    entradas = [("decidir", "Factos do anúncio")]
     if lotes_html:
         entradas.append(("lotes", "Lotes"))
     if desfecho_html:
