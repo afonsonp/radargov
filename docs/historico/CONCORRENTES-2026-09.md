@@ -804,3 +804,63 @@ stotles.com/resource/blog, Series A (05/2025) [V] · tracxn.com, Tendium
 procedimento de 2025 sem republicações nem Vortal; 28 839 com o tipo de
 contrato na secção 6; a banda do DL 177 por família: bens 2 274 de
 12 316, serviços 1 830 de 9 278, obras 3 936 de 7 245 [M].
+
+---
+
+## Adenda, à noite do mesmo dia — a Adjudica, medida
+
+Decisão dele à noite: «testa a adjudica». Feito **sem criar conta**, às
+23h de 29/09/2026. Corrige o que está acima: onde o §2.1 e a matriz
+dizem «declarado» e «sem empresa visível», leia-se isto.
+
+**É um produto a sério, em lançamento silencioso.** A API
+(`api.adjudica.biz`, documentação aberta) tem **317 rotas**: radar,
+dossiês de propostas, fundos europeus e candidaturas, consórcios,
+facturação por Stripe com créditos e planos, ingestão com «políticas de
+scraping» e níveis de modelo por fase, geração de posts de marketing.
+Login por Keycloak; base de dados a responder; sete dias de uptime. Há
+um `people.adjudica.biz` gratuito (despesa pública) e um observatório
+por sector com dados do BASE.
+
+**Quem está por trás: ninguém encontrável.** Domínio registado a
+**11/07/2026** (Namecheap, registante oculto); sem NIF, morada, termos,
+privacidade, LinkedIn, imprensa, Product Hunt. A única captura antiga do
+domínio (2010) é de uma consultora de compras com o mesmo nome. Preço:
+«grátis para começar, planos a partir de 50 €», sem página de preços.
+
+**Cobertura, medida contra a nossa base** — a lista pública deles, sem
+conta, 960 concursos únicos (847 do DR + 113 do TED; a paginação repete
+e não deixa ver os 1 486 que anunciam):
+
+| | |
+|---|---|
+| Refs do DR que existem na nossa base, com a mesma `data_pub` | **847 de 847** |
+| Atraso | a ref mais alta deles: **24059/2026**; a nossa às 23h: **24148** — 102 anúncios de hoje e 74 de ontem ainda não lá estão. Consistente com ingerir pelo BASE, que republica o DR com atraso |
+| Os nossos três de hoje acima de 100 k€ (24074, 24135, 24114) | **ausentes** |
+| Fonte declarada | «Portal BASE / IMPIC» — mas o número que expõem é o da parte L, e as peças apontam para as mesmas plataformas que nós |
+
+**Erros de dados nos cinco da página inicial:** dois prazos
+**antecipados** (Almodôvar 24090/2026: eles 29/09, o DR diz **06/10**;
+23414/2026: 30/09 contra 02/10 — quem confiar neles julga ter uma
+semana a menos), duas entidades trocadas (a FCUP e a UP aparecem como
+«Faculdade de Medicina»), e o preço da GNR (22093/2026) é o do lote 1
+em vez do total. Em 8 dos 847 o prazo deles é mais cedo do que o do DR.
+
+**O que muda no que está escrito acima:**
+
+1. **É o concorrente directo** — mesmo segmento, mesmo pacote, mais
+   fundos e consórcios — com dois meses e meio de vida.
+2. **Onde ganhamos, com prova**: a frescura (hora a hora contra um dia)
+   e **os dados certos** — o prazo antecipado é o erro que faz perder
+   concursos. É um argumento de venda mensurável, e repete o padrão da
+   Tendios em Agosto: quem ingere de segunda mão parte a identidade e as
+   datas.
+3. **Aperta o preço** (§8, decisão 2): com eles a «desde 50 €», a
+   diferença tem de estar à vista — frescura, prazos do DR, leitura por
+   família, escada em CCP, uma empresa com cara e termos.
+4. **Falta ver a leitura das peças e o dossiê**, que é onde dizem
+   «citamos a página». Só com conta.
+
+A pesquisa inversa dos três anúncios de Agosto não se fez: já tinham
+o prazo expirado e a lista pública só mostra abertos; a pesquisa por
+texto exige sessão.
