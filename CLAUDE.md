@@ -303,7 +303,11 @@ porque quem fecha a porta nas fontes e na folha é a lista branca
 **Sem sessão, a raiz do endereço público é o site** (23/09/2026):
 `site/index.html`, servido pela `porta_de_entrada()` só em `/`, e o
 formulário `/pedir-acesso`, que é rota aberta com a guarda dentro de
-si (`pedir_acesso()`). O que isso quer dizer está no
+si (`pedir_acesso()`). Desde 29/09/2026 (lote 9 da 3.ª ronda) um
+caminho sem sessão que não é rota nenhuma dá 404, e há o `/robots.txt`,
+o `/sitemap.xml` e a `/partilha.png`, abertos por igualdade; as páginas
+do site passam todas pelo `_do_site()`, que lhes põe os tokens da
+aplicação e a moldura (`site/moldura.css`). O que isso quer dizer está no
 `docs/FUNCIONAL.md` §4.9 e nas armadilhas, «Contas e a porta».
 
 **O endereço público é `https://miragov.pt`** desde 25/09/2026 (até aí
@@ -608,7 +612,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **402 pontos** (contados a 29/09/2026), cada um de um erro que
+São **403 pontos** (contados a 29/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

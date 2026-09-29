@@ -725,7 +725,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**128 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**131 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1113,7 +1113,10 @@ criptografia estão no **`contas.py`**, que não importa o radar.
    um POST leva 403. **A excepção é a raiz**: um GET a `/` sem sessão
    recebe o **site público** (`site/index.html`, desde 23/09/2026), que
    é um ficheiro estático sem dados. Com `?dia=` ou outro parâmetro é a
-   mesma raiz, e é o site; todos os outros caminhos vão ao login.
+   mesma raiz, e é o site; todos os outros caminhos **que são rotas** vão
+   ao login. Um caminho que não é rota nenhuma dá o **404** do painel,
+   com «Voltar ao início» (3.ª ronda, G100: era o `/entrar` com 200, um
+   «soft 404» para os motores de busca).
 
 **O que fica aberto sem sessão** não é só o `/entrar`: também o
 `/saude`, o `/favicon.svg`, o **`/pedir-acesso`** (o formulário do site,
@@ -1129,6 +1132,16 @@ data e o método da avaliação, e o contacto, que é o formulário do site.
 É um ficheiro do `site/`, servido **sempre** (não depende do operador),
 e liga-se do rodapé do site e da Ajuda. **Quando a acessibilidade mudar,
 muda-se lá** — a lista do que não está conforme é um facto com data.
+Os números do site não se escrevem à mão (3.ª ronda, G101): o dos
+concursos é o do `/entrar` (`concursos_na_base()`), arredondado para
+baixo ao milhar (`numero_do_site()`), e o ritmo da verificação sai do
+`horas_verificacao` (`ritmo_da_verificacao()`). O site e as páginas
+legais levam os **tokens da aplicação** e o tema «como o sistema»
+(D11), e as legais o topo e o rodapé do site; tudo entra pelas marcas
+que o `_do_site()` preenche, e a moldura partilhada é o `site/moldura.css`.
+Abertos, por igualdade, também o **`/robots.txt`**, o **`/sitemap.xml`**
+(as páginas públicas; as legais só quando existem) e a **`/partilha.png`**
+(a imagem do Open Graph, `site/partilha.png`).
 E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site, que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32
