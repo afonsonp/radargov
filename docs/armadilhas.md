@@ -11,21 +11,21 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 14
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 19
-- [O motor de filtros](#o-motor-de-filtros) &middot; 13
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 23
+- [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
-- [Contratos e entidades](#contratos-e-entidades) &middot; 28
+- [Contratos e entidades](#contratos-e-entidades) &middot; 31
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
 - [Contas e a porta](#contas-e-a-porta) &middot; 39
-- [A interface](#a-interface) &middot; 104
+- [A interface](#a-interface) &middot; 113
 - [Convenções](#convencoes) &middot; 5
 
-São **391** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **396** ao todo, contados a 29/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -665,6 +665,25 @@ Orçamento, cadeia de reserva, chaves.
   distrito pergunta `ref IN (SELECT ref FROM anuncios WHERE distrito
   LIKE …)`, e o `ix_anuncios_distrito(distrito, ref)` responde sozinho
   (`SCAN … USING COVERING INDEX`). Uma coluna nova filtrável faz o mesmo.
+- **O filtro por entidade (`ent`) também vai pela subconsulta** (3.ª
+  ronda, G82, 29/09/2026). O `entidade_norm LIKE` tinha índice, mas com
+  o `estado != 'alteracao'` ao lado a contagem lia a tabela larga: a
+  ficha de uma entidade sem NIF levava 5 s, e a lista com `?ent=`
+  27 a 29 s, numa cópia com a cache fria. Pela `rowid` (que vai em todos
+  os índices) o `ix_anuncios_entidade_norm` responde sozinho: 0,05 s a
+  contagem, 0,38 s a lista. E o nome de uma chave `n:` já não se procura
+  a conferir os 50 mil anúncios sem NIF em Python: as palavras da chave
+  vão primeiro a um `LIKE` (`nome_da_entidade()`).
+- **Uma página com poucos resultados escolhe-os antes de os ordenar**
+  (`consulta_da_pagina()`, G81). Com o `ORDER BY data_pub` e o `LIMIT`,
+  o SQLite anda pelo índice da data e confere o filtro na tabela larga
+  até ter vinte; se nenhum bate, lê os 210 mil anúncios: a pesquisa sem
+  resultados levava 15 a 17 s numa cópia (1 s a quente em produção,
+  picos de 20 s). Abaixo de `ESPARSO_PARA_A_ORDEM`, as `ref` escolhem-se
+  numa subconsulta **sem ORDER BY** — com ordem, o SQLite volta a
+  preferir o índice da data — e o `ix_anuncios_cobre` responde: 0,3 s a
+  página. O Calendário faz o mesmo (G80: 0,31 → 0,13 s), porque o título
+  e a entidade que ele mostra não estão em índice nenhum.
 - **O distrito é o do local de execução, não o da entidade.** O texto do
   DR traz dois «Distrito:», na secção 1 (a morada de quem compra) e na 9
   (onde o contrato se executa); só a 9 conta (`distritos_do_texto()`).
@@ -967,13 +986,38 @@ Uma árvore, duas fontes de contagem, dois campos.
   ~5 s. Custa 2,74 s a construir na importação. A ordem das colunas é o
   que o faz cobrir; trocá-las desfaz isto sem nada acusar.
 
-- **O `/contratos/resumo` faz SEIS agregações sobre o corpus, e é por
-  isso que é a página mais cara da aplicação.** Cada uma repete o mesmo
-  `c.id IN (SELECT …)` e varre as ~96 mil linhas do recorte: com as duas
-  correcções acima são ~0,7 s cada, ~5 s ao todo. Fica **atrás de um
-  `<details>`** e é pedida por `fetch` com um «a carregar…» no lugar —
-  não se paga ao abrir a lista. É a única página fora do
+- **O `/contratos/resumo` lê o corpus UMA vez, e guarda-se até ele
+  mudar** (3.ª ronda, G78, 29/09/2026). As sete agregações repetiam o
+  mesmo `c.id IN (SELECT …)` e iam, cada uma, buscar as linhas do
+  recorte à tabela larga: no perfil «45, 50, 71 ou 909» eram 8,6 s a
+  quente e 70 a 100 s com a cache fria, em **cada** visita ao Mercado.
+  Agora o recorte vai uma vez para uma tabela TEMP só com as
+  `COLUNAS_DO_RESUMO` (uma soma nova sobre outra coluna tem de a
+  acrescentar lá, ou rebenta com «no such column»), e o
+  `resumo_contratos()` guarda os números com a chave do
+  `conta_no_corpus()` — a identidade do ficheiro, o dia e o SQL, que já
+  leva o perfil —, com o tecto `TECTO_RESUMOS`. Medido numa cópia: 3,2 s
+  na primeira visita da semana e **0,04 s** nas seguintes. Pede-se por
+  `fetch` com um «a carregar…» no lugar, e é a única página fora do
   `TestNenhumEcraDa500`, com o nome à vista.
+- **A página do Mercado anda pela ORDEM quando o filtro é denso**
+  (`onde_da_pagina()`, G79). Com o `c.id IN (…)`, as 20 linhas do perfil
+  largo obrigavam a buscar e ordenar as 400 mil do recorte (1,4 s a
+  quente); com o `+c.id IN` o SQLite anda pelo `ix_ctr_data` (ou o
+  `ix_ctr_fim`) e pára nas vinte (0,5 s). **Só a partir de
+  `DENSO_PARA_A_ORDEM`**: num CPV raro andar pela ordem é percorrer o
+  índice quase inteiro, e o `IN` responde em 0,000 s. E só na página —
+  numa contagem, sem ORDER BY, o `+` varria a tabela.
+- **Presa a uma entidade, o INTERESSE também vai por `EXISTS`**
+  (`condicao_do_interesse_contratos(..., presa=True)`, G82). O «No nosso
+  CPV» da ficha usava o `IN` do Mercado, que materializa os 400 mil
+  contratos do perfil para os cruzar com os dela: 0,52 s no Município
+  de Lisboa, e a ficha inteira de 0,69 para 0,18 s. É a mesma regra do
+  `cpv_da_entidade()`, que agora serve as duas.
+- **Os nomes de uma entidade perguntam-se pelo `ix_nomes_chave`** (G82).
+  A chave primária da `entidade_nomes` é o nome, e pedir os nomes de
+  uma chave varria as 257 mil linhas (1 s a frio em cada ficha).
+  Constrói-se em 0,4 s no corpus de tamanho real, no `iniciar_corpus()`.
 
 - **Os dois totais do papel vivem na tabela `entidades`, somados com o
   corpus.** São o `compra` e o `ganha`, enchidos pelo
@@ -1134,8 +1178,9 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   gráficos: 9,3 s por uma «manutenção». Agora os ids que batem vão para
   uma tabela `TEMP` (vive na ligação, não no ficheiro) e as agregações
   correm sobre ela: os mesmos números (conferidos em cinco perguntas) em
-  1 a 2,6 s. Só quando há `LIKE` no filtro — por CPV o índice já
-  responde em 0,1 s, e materializar seria trabalho a mais.
+  1 a 2,6 s. Desde 29/09/2026 (G78) o recorte vai **sempre** para a
+  tabela TEMP, e não só com `LIKE`: por CPV o índice achava os ids
+  depressa, mas cada gráfico ia depois buscar as linhas à tabela larga.
 
 - **Presa a uma entidade, a consulta por CPV vai por `EXISTS`; sem
   entidade, por `IN`** (`cpv_da_entidade()`, 25/09/2026). O `c.id IN
@@ -3072,6 +3117,15 @@ botões ou no calendário.
   `@font-face` que nada usa sai da folha, e a letra sai do `TIPOS` com
   ela. E todas as respostas levam `Server-Timing` (`base` e `total`), que
   é por onde se começa a medir.
+  **Dois cuidados** (3.ª ronda, 29/09/2026). O `base` só conta o
+  `execute`, e o SQLite corre o resto de um varrimento no `fetchall`: o
+  Calendário dizia «310 ms fora da base» e era a base toda (G80). E o
+  ETag compara-se **em fraco** (`if_none_match.contains_weak`): a
+  Cloudflare, quando comprime, passa a etiqueta a `W/"…"`, o `in` do
+  werkzeug só aceita as fortes, e o `/cpv.json` descia inteiro em cada
+  visita (G83). Numa procura dentro da peça, o `?procurar=` vai só nas
+  páginas onde o termo está: nas outras mudava o endereço e o browser
+  pedia outra vez páginas já desenhadas (G84, 2,2–2,4 s até ao `load`).
 - **O molde `BASE` é formatado com `%`, e o JavaScript dele também:
   um `%` no guião escreve-se `%%`** (25/09/2026). As setas das abas
   levavam um `(i + n) % n`, e a bateria inteira caiu — 160 testes, todos
