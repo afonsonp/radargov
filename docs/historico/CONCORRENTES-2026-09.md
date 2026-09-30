@@ -864,3 +864,125 @@ em vez do total. Em 8 dos 847 o prazo deles é mais cedo do que o do DR.
 A pesquisa inversa dos três anúncios de Agosto não se fez: já tinham
 o prazo expirado e a lista pública só mostra abertos; a pesquisa por
 texto exige sessão.
+
+---
+
+## Adenda 2, 30 de setembro — por dentro das cinco, e o que o Mira Gov tem de fechar
+
+Na manhã de 30/09 um agente navegou nas contas do Afonso, no Chrome
+dele (Armilar paga; Tendios gratuita; Adjudica acabada de criar; a demo
+da SpotGov; o site da TRINTA) e escreveu o relatório que está inteiro
+no `docs/historico/CONCORRENTES-2026-09-exploracao.md`. O que esta
+adenda faz é cruzá-lo com o Mira Gov de hoje: **o que já temos, o que
+falta, e por que ordem**. Os três testes que ele correu:
+
+| Teste | Armilar | Tendios | Adjudica | Mira Gov |
+|---|---|---|---|---|
+| Entidade pelo NIF 508080142 | **1** (ULS São José) | inconclusivo (a caixa não filtrou) | sem pesquisa | 1 |
+| O 24090/2026 (Almodôvar, prazo 06/10) | **não indexado** às 08h de 30/09 | **0 resultados** | sem créditos | na base desde 29/09 |
+| Anúncio mais recente às 08h | 24122/2026 (29/09) | 23871/2026 (28/09) | — | 24148 (29/09, 23h) |
+
+E as horas do prazo: a Armilar diz 22:59 na ficha e 23:59 no resumo; a
+Tendios 17:00 na ficha e 16:00 na Vera; a demo da SpotGov tem um prazo
+anterior à publicação. **Nenhuma das três tem a hora do prazo coerente
+consigo própria.** É o erro que perde concursos, e é o que a TRINTA
+promete corrigir «com a hora vinda da plataforma».
+
+### A descoberta que muda o §6 e o §7
+
+A Armilar mostra «média de participantes 5» e «taxa de sucesso 12%»; a
+SpotGov «nº de concorrentes por contrato»; a Adjudica «cruza com a lista
+de concorrentes publicada em cada contrato». A nossa documentação dizia
+que isso não existe em público. **Medido a 30/09/2026: existe.** O
+detalhe de cada contrato no Portal BASE (`type=detail_contratos`, um
+pedido por contrato) devolve **`contestants` — os concorrentes, com
+NIF** (25 num concurso de material de laboratório de Setembro), mais
+`invitees` (vazio nos três de consulta prévia que se pediram — amostra
+pequena; não se afirma nada), `closeDate`, `causesDeadlineChange`,
+`causesPriceChange`, o PDF do contrato, o link das peças e o
+acordo-quadro. **Não está no dump** que faz o corpus; está a um pedido
+por contrato.
+
+O que isso desbloqueia, com os dados que já temos ao lado:
+
+| Com os concorrentes por contrato | Quem o tem hoje |
+|---|---|
+| **Quantos concorrem** por entidade e CPV — «vale a pena ir?» em 10 s | Armilar («nº potencial de participantes»), SpotGov |
+| **Taxa de sucesso** de cada fornecedor — propostas ÷ vitórias | Armilar (ficha da empresa) |
+| **Quem nos ganha, e a quem** — os que aparecem nos mesmos concursos | ninguém em PT a preço de PME |
+| **Ganho/perdido automático** nas nossas propostas: o nosso NIF na lista | Adjudica (declarado) |
+| **Concorrentes prováveis** de um concurso novo, pela entidade e CPV | Armilar («Insights») |
+
+O custo: um pedido por contrato, ~0,5 s. Não se pede aos 2 milhões —
+pede-se aos contratos das entidades e CPV de cada empresa nos últimos
+três anos (milhares, não milhões), uma vez, e depois só os novos de cada
+dump semanal. **É o R3 («quem convida quem») com dados a sério**, e
+responde à «Insights» da Armilar, que era a única coisa do mapa que
+tínhamos como impossível. O `docs/FUNCIONAL.md` §8 e o «Não fazer» do
+`BACKLOG.md` foram corrigidos; **não se construiu nada** — é decisão dele.
+
+### As dezasseis «ideias a roubar», cruzadas com o que já existe
+
+Do relatório, por ordem dele. «Temos» é o estado de 30/09/2026.
+
+| # | Ideia | Mira Gov hoje | Gap | Prioridade |
+|---|---|---|---|---|
+| 1 | Hora exacta do prazo, com fuso, coerente em todo o lado | o prazo vem do DR, com a hora, e é o mesmo em todos os ecrãs | conferir a hora contra a plataforma (a TRINTA promete-o); **medir primeiro** quantas vezes o DR e a plataforma divergem | média |
+| 2 | Detectar e assinalar alterações (prazo, rectificação, anulação) | **temos** — a cadeia das republicações, o prazo da cadeia na ficha, as alterações no resumo (B05) | — | — |
+| 3 | Citação que abre o PDF **na cláusula**, com excerto (Tendios) e **página** (Armilar) | temos a página em cada linha; o visualizador abre o PDF na 1.ª página | **abrir o PDF na página citada** (`#page=N` no visualizador) e mostrar o excerto ao lado | **alta, barata** |
+| 4 | Resumo com secções fixas: datas · critérios com fórmula · habilitação · cauções · **penalidades · pagamentos** | temos objecto, campo 11 por família, documentos, critério e caução do anúncio, SLA, PAB, local | **penalidades e condições de pagamento** não se lêem; a fórmula do preço (K1 = 100 − 100·(Pc/Pb)³) só quando o anúncio a traz | média — depois de reler as 70 |
+| 5 | Alerta com incluídos/excluídos, OU/E, gatilhos publicação/adjudicação/vencimento, hora e dias | **temos** exclusões, E/OU, hora do resumo, «avisar logo» | gatilho **por vencimento** (prazos a chegar por e-mail — o Hoje já os mostra); dias da semana | baixa |
+| 6 | «Insights» por concurso: desconto estimado, nº participantes, concorrentes prováveis com taxa de sucesso | temos o desconto por entidade/CPV e os homólogos (B02, B04) | **nº de participantes e concorrentes prováveis** — a descoberta acima | **alta — decisão** |
+| 7 | Ficha de fornecedor com desconto médio, participantes, taxa de sucesso, clientes | temos o lado de fornecedor da entidade (contratos ganhos, clientes, desconto) | taxa de sucesso e participantes — idem | alta — idem |
+| 8 | Contratos a terminar por mês, watchlist, probabilidade | temos a lista (`?ver=fim`) e o seguir entidades | a **antecipação medida** (R5) — «costuma republicar N meses antes» | média |
+| 9 | Link ao DR e peças em bloco com tamanho; «peças em falta» | **temos** o link, o ZIP, e a etiqueta de plataforma sem receita | o tamanho dos ficheiros na lista | baixa |
+| 10 | País por omissão = Portugal | não se aplica | — | — |
+| 11 | Guardar/descartar da lista, kanban com valor, etiquetas, responsável, tarefas pré-definidas por oportunidade | **temos** a triagem na lista, o «em jogo», o responsável, as tarefas automáticas por ranhura; as etiquetas existem e ninguém as usa | **grupos de tarefas pré-definidos** (proposta · documentos económicos · técnicos · legais · validações) como modelo por família — é uma lista, não código novo | média |
+| 12 | Histórico de envios do alerta («29 set 08:36 — 4») | falta | já no backlog (2R-§7, ponto 12) | média |
+| 13 | Ganho/perdido automático por NIF na lista de concorrentes | temos o `fomos_nos()` pelo vencedor | a **derrota** automática — a descoberta acima | alta — idem |
+| 14 | Pesquisa full-text nas peças | retirada de propósito (B09) | — | não se faz |
+| 15 | Onboarding com «foco» em linguagem natural e dica «as palavras com que um comprador o publicaria»; alerta auto-criado do sector | **temos** o arranque guiado, o perfil por CPV e o alerta do perfil num botão (D13) | a **frase da dica** no Perfil da empresa — texto, não código | baixa, imediata |
+| 16 | Versionar o resumo; refazer quando as peças mudam | **temos** (a versão da pergunta; a vigilância das peças relê) | mostrar a versão na ficha como «Versão 2 — data» | baixa |
+
+**Os erros deles que não repetimos**, conferidos: base sem Espanha;
+português de Portugal; «Tipo de contrato» sempre do anúncio; sem
+«Orçamento 0 €» (o preço vazio fica vazio); a hora do prazo a mesma em
+todos os ecrãs; a leitura marcada como rascunho e «para confirmar» em
+vez de inferências apresentadas como factos («a decisão de contratar foi
+a 29-09», diz a Armilar, e é a data do anúncio). **O que ainda partilhamos
+com eles:** as reservas gratuitas do modelo podem parar a leitura — a
+Adjudica queimou os 10 € de boas-vindas numa pesquisa que falhou e ficou
+inutilizável antes do primeiro concurso. É a fraqueza 5 do §6, vista num
+concorrente.
+
+### Os planos, confirmados pelo que se viu por dentro
+
+- A **Adjudica** cobra por créditos (50 → 500 €/mês por 50 000 →
+  500 000 créditos, que não transitam) e **esgotou-os antes do primeiro
+  resultado**. A **Tendios** vende IA ao crédito (25 no Pro). A
+  **Armilar** gera um resumo em 1–2 minutos com quota. **A leitura
+  ilimitada é o argumento** do plano do meio, e é o que os outros não
+  podem oferecer.
+- A **Tendios Pro a 37 €** (7 dias grátis) é o concorrente do degrau de
+  baixo — sem link ao DR, peças bloqueadas no gratuito, 5 CPV. O nosso
+  «Vigia» a 39 € ganha em fonte e em peças, sem IA.
+- Os **«Insights» da Armilar** (~200 €) eram a única coisa do mapa que
+  não tínhamos como responder. Com os concorrentes por contrato, temos.
+
+Fica a proposta do §8, decisão 2, com o que a exploração acrescentou:
+**Vigia 39 € · Mira Gov 120 € / 99 € no anual · Empresa sob consulta**,
+sem cêntimos, «+IVA» à vista, preço de fundador na beta.
+
+### O que se pede agora (por cima do §8)
+
+1. **Decidir os concorrentes por contrato** — é a maior porta que esta
+   passagem abriu, e é a resposta aos «Insights» da Armilar, à «média de
+   participantes» e ao «ganho/perdido» da Adjudica de uma vez. Proponho
+   desenhar antes de escrever: que contratos se pedem, com que ritmo, e
+   onde aparece (ficha do concurso, ficha da entidade, Situação).
+2. **A citação a abrir na página** — uma sessão pequena, sem decisão de
+   desenho.
+3. **Os grupos de tarefas por família** e **a frase da dica no Perfil**
+   — texto e listas, quando calhar.
+4. **Medir a hora do prazo** DR × plataforma numa amostra antes de
+   prometer o que a TRINTA promete.

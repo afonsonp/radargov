@@ -526,7 +526,11 @@ premissa mudar — com data e números novos.
 - **Número de licitadores por concurso** — Armilar e SpotGov mostram-no;
   **não há fonte pública**: o dump do IMPIC não o traz (medido a 29/08) e o
   da Armilar vem presumivelmente dos dados internos da própria plataforma.
-  Prometê-lo seria inventá-lo.
+  Prometê-lo seria inventá-lo. **A premissa mudou a 30/09/2026**: o
+  detalhe de cada contrato no Portal BASE devolve a lista dos concorrentes
+  com NIF (`contestants`) — não está no dump, está a um pedido por
+  contrato (`docs/FUNCIONAL.md` §8 e `docs/historico/CONCORRENTES-2026-09.md`,
+  adenda 2). Reabre-se com decisão dele; não se construiu nada.
 - **Previsão do preço vencedor por ML** (SpotGov, BETA deles) — sem o nº de
   licitadores nem dados de propostas, o radar só teria o desconto histórico
   (B04), que é a versão honesta da mesma pergunta. A versão "intervalo de
