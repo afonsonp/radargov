@@ -173,8 +173,9 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.30`**, de
-  30/09/2026 — **a fotografia no «Quem está por trás» do site**. A
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.31`**, de
+  30/09/2026 — **o site fala da procura plataforma a plataforma**, e não
+  de abrir o Diário da República. A `v2.0.30`, do mesmo dia — **a fotografia no «Quem está por trás» do site**. A
   `v2.0.29`, do mesmo dia — **a página inicial depois da auditoria** (os números
   verdadeiros, as datas do exemplo a contar de hoje, quem está por trás,
   quatro perguntas novas, o site no Acordo Ortográfico). A `v2.0.28`, de
