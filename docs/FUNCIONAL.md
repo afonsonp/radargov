@@ -123,7 +123,7 @@ as exactas e salta as outras.
 | `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **2** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
-| `pedidos_acesso` | **4** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026 |
+| `pedidos_acesso` | **4** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -1195,7 +1195,9 @@ criptografia estão no **`contas.py`**, que não importa o radar.
 3. **Nem um nem outro** — um GET é reencaminhado para `/entrar?para=…`,
    um POST leva 403. **A excepção é a raiz**: um GET a `/` sem sessão
    recebe o **site público** (`site/index.html`, desde 23/09/2026), que
-   é um ficheiro estático sem dados. Com `?dia=` ou outro parâmetro é a
+   é um ficheiro estático sem dados. Desde 30/09/2026 tem os três planos
+   (Vigia, VigIA+, Corporate, com preços sem IVA) e a oferta de fundador,
+   e o formulário pede o NIF da empresa e o plano que interessa. Com `?dia=` ou outro parâmetro é a
    mesma raiz, e é o site; todos os outros caminhos **que são rotas** vão
    ao login. Um caminho que não é rota nenhuma dá o **404** do painel,
    com «Voltar ao início» (3.ª ronda, G100: era o `/entrar` com 200, um
@@ -1204,7 +1206,8 @@ criptografia estão no **`contas.py`**, que não importa o radar.
 **O que fica aberto sem sessão** não é só o `/entrar`: também o
 `/saude`, o `/favicon.svg`, o **`/pedir-acesso`** (o formulário do site,
 com a guarda dentro da própria rota: origem, campo-armadilha, campos
-validados e cortados, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
+validados e cortados — o NIF pelo dígito de controlo, `nif_do_pedido()`, e obrigatório desde
+30/09/2026 —, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
 `PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
@@ -1245,7 +1248,7 @@ diz **quem está por trás** (o nome dele e a fotografia, a
 iniciais, `rosto_do_site()`), e nunca o nome da empresa onde trabalhou; e
 o site está **no Acordo Ortográfico** («objeto», «setor», os meses em
 minúscula), ao contrário da aplicação.
-E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site, que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
+E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site (desde 30/09/2026 com o texto dos planos pagos, o `docs/historico/TERMOS-2026-10.md`: os planos, os preços sem IVA, a fatura, o pré-pago, a renovação e o preço de fundador), que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32
 bytes aleatórios, que na base só existe em resumo), a origem do POST e
@@ -1266,7 +1269,8 @@ antes de aceitar — é o
 «configuramos o perfil consigo» que o site promete. Só se aceitam
 códigos CPV (`_perfil_do_formulario()`); vazio, a empresa define-o
 depois. Ao aceitar nasce a empresa
-(`criar_empresa()`), e o ecrã diz «Empresa n.º N criada» com a ligação
+(`criar_empresa()`), com o NIF do pedido como o NIF da empresa
+(desde 30/09/2026: é o da fatura), e o ecrã diz «Empresa n.º N criada» com a ligação
 para a página dela; o resumo vai para quem pediu, e um convite de
 gestor dela (`contas.criar_convite()`), que vai por e-mail para
 o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.
