@@ -1760,9 +1760,15 @@ Para não desenhares o que não se pode fazer:
 - **Preços das propostas perdedoras** — não estão em lado nenhum público.
 - **Relatórios preliminares e finais** — só chegam a quem concorre, pela
   plataforma, com sessão iniciada.
-- **Impugnações e recursos** — não constam do dump.
-- **Execução do contrato** (prorrogações, adendas, rescisões) — o BASE
-  publica a celebração, não a vida do contrato.
+- **Impugnações, a vida do contrato e as não celebrações** — não
+  constam do dump, mas **estão na pesquisa do Portal BASE** (medido a
+  30/09/2026, `docs/diario/2026-10.md`, L0): as impugnações que as
+  entidades comunicam (`search_impugnacoes`), as modificações
+  contratuais — adendas e o preço novo, com o `contractId`
+  (`search_incrementos`) — e os procedimentos que acabaram sem contrato,
+  com o motivo (`search_cnccs`). O BASE publica também as consultas
+  preliminares (`search_consultapreliminar`). Nada disto foi
+  construído; é inventário para o L5 e os planos seguintes.
 - **Notificação imediata** — exigiria interrogar o DR de minuto a
   minuto.
 - **Peças de saphety, compraspublicas e gatewit** — ~17 mil anúncios sem
