@@ -33615,7 +33615,9 @@ def _avisar_do_pedido(id_, p):
              "Nome: %(nome)s\nEmpresa: %(empresa)s\nNIF: %(nif)s\n"
              "E-mail: %(email)s\nSector: %(sector)s\nInteressa-lhe: %(rotulo)s"
              "\n\n%(mensagem)s\n"
-             % dict(p, rotulo=PLANOS_DO_PEDIDO.get(p.get("plano"), "—")))
+             # um pedido de antes do NIF (ou sem plano) avisa na mesma
+             % dict({"nif": "—"}, **dict(p, rotulo=PLANOS_DO_PEDIDO.get(
+                 p.get("plano"), "—"))))
     # Para o endereco dos avisos da PLATAFORMA (26/09/2026). Ia para o
     # `para` da empresa activa -- a 1, numa thread sem pedido --, que
     # numa plataforma sem empresas nao existe, e com clientes e o e-mail
