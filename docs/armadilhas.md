@@ -16,16 +16,16 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 35
-- [Alertas e interesse](#alertas-e-interesse) &middot; 13
+- [Alertas e interesse](#alertas-e-interesse) &middot; 14
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 20
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
 - [Contas e a porta](#contas-e-a-porta) &middot; 41
-- [A interface](#a-interface) &middot; 119
+- [A interface](#a-interface) &middot; 120
 - [Convenções](#convencoes) &middot; 7
 
-São **420** ao todo, contados a 30/09/2026. Contam-se por secção com
+São **422** ao todo, contados a 30/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1432,6 +1432,15 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 ## Alertas e interesse
 
 Um alerta é um filtro com a marca posta; o interesse é outra coisa.
+
+- **Um envio é um alerta e um minuto, e o canal diz se saiu mesmo.**
+  Não há tabela de envios (L7 do plano de Outubro, 30/09/2026): o
+  `marcar_alertas_enviados()` marca tudo o que saiu com o mesmo minuto,
+  e o `envios_dos_alertas()` agrupa por alerta e minuto. Quem marcar
+  sem o `canal` deixa o envio com «—»; e sem e-mail configurado o
+  resumo **conta como enviado**, por isso o `canal` («email» ou
+  «ficheiro») é a única coisa que distingue um aviso que chegou a
+  alguém de um que ficou no `AVISOS.txt`. O acervo não é envio.
 
 - **Um alerta que nasce ou se liga arquiva o acervo:
   `arquivar_o_acervo()`** (25/09/2026). Estava só no interruptor; o
@@ -3364,6 +3373,17 @@ As regras de desenho da empresa. As medidas estão em
 `docs/historico/UX-Auditoria.md`, e **o caminho do aspecto está em
 `docs/design.md`** (16/09/2026) — lê-o antes de mexer em cor, letra,
 botões ou no calendário.
+
+- **A citação «(pág. 2)» não diz de que peça é, e quem escolhe é a
+  ficha** (L1 do plano de Outubro, 30/09/2026). A leitura guarda as
+  fontes todas juntas, não por campo, e só nomeia a peça quando o
+  recorte daquele campo levava mais de uma. O `peca_da_citacao()`
+  escolhe o PDF com mais palavras da linha nessa página, **só entre as
+  peças que a leitura leu**: o «Anúncio DR.pdf» também vem na lista, e
+  a página 1 dele (o objecto, a entidade) ganhava a qualquer caderno.
+  E a ligação leva a página e a linha para a ficha; a lista das outras
+  peças e o «Fechar» **tiram-nas** (`pagina`, `citacao`, `rotulo`) —
+  senão o excerto de uma peça aparecia por cima de outra.
 
 - **O que o browser descarrega à toa também é lentidão** (lote 4 da
   segunda ronda, 26/09/2026, medido pelo perfil 16). Quatro regras: (1)

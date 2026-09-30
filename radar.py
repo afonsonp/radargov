@@ -935,6 +935,13 @@ def iniciar_empresa(caminho=None):
         c.execute("""CREATE TABLE IF NOT EXISTS alertas_vistos (
             filtro_id INTEGER, ref TEXT, visto_em TEXT, enviado_em TEXT,
             PRIMARY KEY (filtro_id, ref))""")
+        # Por onde saiu cada aviso (L7 do plano de Outubro): «email», ou
+        # «ficheiro» quando não há e-mail configurado -- o resumo fica só
+        # no AVISOS.txt e marca-se como enviado na mesma, e o registo dos
+        # envios tem de dizer qual dos dois foi.
+        if "canal" not in [r["name"] for r in
+                           c.execute("PRAGMA table_info(alertas_vistos)")]:
+            c.execute("ALTER TABLE alertas_vistos ADD COLUMN canal TEXT")
         # Filtros com nome. O que se guarda e a query string, nao as
         # condicoes SQL: assim um filtro e uma ligacao, e o que a lista
         # aprender a filtrar amanha funciona nos filtros de ontem.
@@ -2963,6 +2970,56 @@ def frase_dos_lotes(resumo):
     if resumo["conjunto"]:
         return "fomos ao conjunto dos %d lotes" % total
     return "%d lote%s; sem registo de a que fomos" % (total, "" if total == 1 else "s")
+
+
+def palavras_da_frase(frase):
+    """As palavras de quatro letras ou mais, simplificadas: o que se
+    procura de uma linha da leitura na página que ela cita."""
+    return set(re.findall(r"\w{4,}", simplifica(frase)))
+
+
+def excerto_da_pagina(pagina, frase, largura=240):
+    """(excerto, achou) da página, à volta do que a frase diz (L1 do
+    plano de Outubro).
+
+    A frase é uma linha da leitura, e o modelo resume: tal qual quase
+    nunca está na página. Procura-se primeiro a frase inteira; depois a
+    janela de `largura` com mais palavras dela, e `achou` só quando essa
+    janela tem pelo menos metade. Sem nada, fica o início da página com
+    `achou` falso -- e quem o mostra di-lo. Sem acentos nem maiúsculas,
+    letra a letra, para as posições baterem com o original."""
+    pagina = " ".join((pagina or "").split())
+    plano = "".join((simplifica(c) or " ")[0] for c in pagina)
+    inicio, achou = 0, False
+    alvo = " ".join(simplifica(frase).split())
+    if alvo and alvo in plano:
+        inicio, achou = plano.index(alvo), True
+    else:
+        palavras = palavras_da_frase(frase)
+        posicoes = [(m.start(), m.group()) for m in re.finditer(r"\w{4,}", plano)
+                    if m.group() in palavras]
+        melhor = 0
+        for k, (p, _) in enumerate(posicoes):
+            vistas = set()
+            for q, w in posicoes[k:]:
+                if q - p > largura:
+                    break
+                vistas.add(w)
+            if len(vistas) > melhor:
+                melhor, inicio = len(vistas), p
+        achou = bool(palavras) and melhor * 2 >= len(palavras)
+        if not achou:
+            inicio = 0
+    if inicio:
+        # um pouco de contexto antes, a começar numa palavra inteira
+        inicio = max(0, inicio - largura // 4)
+        espaco = pagina.find(" ", inicio)
+        inicio = espaco + 1 if 0 <= espaco < inicio + 20 else inicio
+    fim = min(len(pagina), inicio + largura)
+    if fim < len(pagina) and " " in pagina[inicio:fim]:
+        fim = pagina.rfind(" ", inicio, fim)
+    return (("…" if inicio else "") + pagina[inicio:fim]
+            + ("…" if fim < len(pagina) else "")), achou
 
 
 # ------------------------------------------------------------ propostas
@@ -10142,14 +10199,65 @@ def alertas_por_enviar(so_imediatos=False):
     return fora
 
 
-def marcar_alertas_enviados(achados):
+def marcar_alertas_enviados(achados, canal=""):
+    """Marca o que saiu, todo com o mesmo minuto: é esse minuto, por
+    alerta, que faz de um envio uma linha no registo dos envios."""
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     with liga() as c:
         for f, linhas in achados:
             c.executemany(
-                "UPDATE alertas_vistos SET enviado_em=? "
+                "UPDATE alertas_vistos SET enviado_em=?, canal=? "
                 "WHERE filtro_id=? AND ref=?",
-                [(agora, f["id"], a["ref"]) for a in linhas])
+                [(agora, canal, f["id"], a["ref"]) for a in linhas])
+
+
+CANAIS_DO_ENVIO = {"email": "por e-mail", "ficheiro": "só no AVISOS.txt"}
+
+
+def envios_dos_alertas(limite=15, ref=None):
+    """Os últimos envios dos alertas da empresa activa (L7 do plano de
+    Outubro): [{alerta, quando, canal, anuncios: [linhas]}], do mais
+    recente. Um envio é um alerta e um minuto -- o
+    `marcar_alertas_enviados()` marca-os juntos. O acervo (o que já lá
+    estava quando o alerta nasceu) não é envio. Com `ref`, só os envios
+    em que esse anúncio foi."""
+    with liga() as c:
+        grupos = c.execute(
+            "SELECT v.filtro_id, f.nome AS alerta, v.enviado_em AS quando, "
+            "MAX(COALESCE(v.canal,'')) AS canal FROM alertas_vistos v "
+            "JOIN filtros_guardados f ON f.id=v.filtro_id "
+            "WHERE v.enviado_em IS NOT NULL AND v.enviado_em != ? %s"
+            "GROUP BY v.filtro_id, v.enviado_em ORDER BY v.enviado_em DESC LIMIT ?"
+            % ("AND v.ref=? " if ref else ""),
+            [ACERVO] + ([ref] if ref else []) + [limite]).fetchall()
+        envios = []
+        for g in grupos:
+            envios.append(dict(g, anuncios=c.execute(
+                "SELECT v.ref, a.titulo, a.entidade FROM alertas_vistos v "
+                "JOIN anuncios a ON a.ref=v.ref WHERE v.filtro_id=? "
+                "AND v.enviado_em=? ORDER BY a.data_pub DESC, v.ref",
+                (g["filtro_id"], g["quando"])).fetchall()))
+    return envios
+
+
+def envios_html(envios):
+    """A tabela dos envios: quando, o alerta, por onde, e quantos -- o
+    número abre a lista desses anúncios, que é exactamente o que saiu."""
+    linhas = "".join(
+        "<tr><td class='d'>%s</td><td>%s</td><td>%s</td><td><details>"
+        "<summary>%s</summary><ul class='ficha-lista'>%s</ul></details></td></tr>"
+        % (html.escape(data_hora_pt(e["quando"])), html.escape(e["alerta"]),
+           html.escape(CANAIS_DO_ENVIO.get(e["canal"], "—")),
+           html.escape(plural(len(e["anuncios"]), "anúncio")),
+           "".join("<li><a href='/anuncio/%s'>%s</a> <span class='n'>%s</span></li>"
+                   % (quote(a["ref"], safe=""),
+                      html.escape(corta(a["titulo"] or a["ref"], 80)),
+                      html.escape(corta(a["entidade"] or "", 44)))
+                   for a in e["anuncios"]))
+        for e in envios)
+    return ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
+            "<thead><tr><th>Enviado</th><th>Alerta</th><th>Por</th>"
+            "<th>Anúncios</th></tr></thead><tbody>%s</tbody></table></div>" % linhas)
 
 
 def registar_seguidas(marcar_como=None, so_chave=None):
@@ -10684,7 +10792,7 @@ def enviar_imediatos(cfg=None):
             corta(nomes, 60)),
         corpo, cfg, html_do_resumo(achados, [], []))
     if bem or porque in EMAIL_SEM_CANAL:
-        marcar_alertas_enviados(achados)
+        marcar_alertas_enviados(achados, "email" if bem else "ficheiro")
         return True, porque
     return False, porque
 
@@ -10728,7 +10836,7 @@ def enviar_resumo(cfg=None, forcar=False):
     sem_canal = porque in EMAIL_SEM_CANAL
     entregue = bem or sem_canal
     if entregue:
-        marcar_alertas_enviados(achados)
+        marcar_alertas_enviados(achados, "email" if bem else "ficheiro")
         marcar_alteracoes_avisadas(alteradas)
         marcar_seguidas_enviadas(seguidas)
         marca_da_empresa("ultimo_resumo", hoje)
@@ -20789,6 +20897,10 @@ def _local_e_valor_do_interesse(cfg):
             % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
 
 
+DICA_DO_PERFIL = ("Marque as áreas em que um comprador publicaria o que a "
+                  "empresa faz — duas a quatro chegam.")
+
+
 def _conteudo_interesse():
     """Onde se escolhem os CPV do interesse, com a arvore."""
     cfg = ler_config()
@@ -20837,6 +20949,9 @@ def _conteudo_interesse():
     # o JS da árvore escreve nos campos escondidos o que está marcado.
     formulario = (
         "<div class='mg-card novo-filtro'>%s"
+        # a dica (L7 do plano de Outubro, da exploração dos concorrentes):
+        # quem começa marca áreas a mais, e a lista enche-se do que não faz
+        "<p class='nota dica-do-perfil'>%s</p>"
         "<form method='post' action='/alertas/interesse' class='filtros' "
         "id='form-perfil'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
@@ -20845,8 +20960,8 @@ def _conteudo_interesse():
         "</form>%s<div class='perfil-guardar'><button type='submit' "
         "form='form-perfil' class='mg-btn mg-btn--primary'>Guardar o perfil"
         "</button></div></div>"
-        % (estado, html.escape(dentro, quote=True), html.escape(fora, quote=True),
-           _local_e_valor_do_interesse(cfg),
+        % (estado, html.escape(DICA_DO_PERFIL), html.escape(dentro, quote=True),
+           html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg),
            arvore_html(n_cpv, "anuncios", submeter=False, aberta=True,
                        botao=None, rodape=False)))
     conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
@@ -21223,13 +21338,6 @@ def _conteudo_alertas():
             "FROM filtros_guardados f "
             "ORDER BY f.alerta DESC, f.nome COLLATE NOCASE",
             (ACERVO, ACERVO)).fetchall()
-        ultimos = c.execute(
-            "SELECT v.ref, v.enviado_em, a.titulo, a.entidade, "
-            "f.nome AS filtro FROM alertas_vistos v "
-            "JOIN anuncios a ON a.ref=v.ref "
-            "JOIN filtros_guardados f ON f.id=v.filtro_id "
-            "WHERE v.enviado_em IS NOT NULL AND v.enviado_em != ? "
-            "ORDER BY v.enviado_em DESC LIMIT 25", (ACERVO,)).fetchall()
         plataformas = [p for p, _ in agrupar_plataformas(
             {r["p"]: r["n"] for r in c.execute(
                 "SELECT plataforma p, COUNT(*) n FROM anuncios "
@@ -21334,19 +21442,13 @@ def _conteudo_alertas():
            html.escape(data_para_campo(request.args.get("ate")), quote=True),
            campos_do_local_e_valor(request.args, com_rotulo=False)))
 
-    if ultimos:
-        hist = "".join(
-            "<tr><td class='d'>%s</td><td class='o'>"
-            "<a href='/anuncio/%s'>%s</a></td><td>%s</td><td>%s</td></tr>"
-            % (data_pt(r["enviado_em"]), quote(r["ref"], safe=""),
-               html.escape(corta(r["titulo"] or r["ref"], 80)),
-               html.escape(corta(r["entidade"], 44)),
-               html.escape(r["filtro"]))
-            for r in ultimos)
-        historico = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
-                     "<thead><tr><th>Avisado</th><th>Anúncio</th>"
-                     "<th>Entidade</th><th>Filtro</th></tr></thead>"
-                     "<tbody>%s</tbody></table></div>" % hist)
+    # O registo dos envios (L7 do plano de Outubro): era a lista dos
+    # últimos 25 anúncios avisados, solta; passou a um envio por linha
+    # -- quando, que alerta, por onde, e quantos --, com os anúncios de
+    # cada um a abrir por baixo do número.
+    envios = envios_dos_alertas()
+    if envios:
+        historico = envios_html(envios)
     else:
         # Sem alerta ligado nem entidade seguida não sai nada (3.ª ronda,
         # G30): dizia «Sai no resumo a seguir…» com 0 alertas ligados.
@@ -22146,14 +22248,18 @@ def plataforma_empresa(id_):
     envio = ("não sai: nenhum alerta ligado" if not e["alertas"]
              else "sai para %s" % html.escape(e["para"]) if not e["email"]
              else "não sai: %s" % html.escape(e["email"]))
+    with com_empresa(id_):
+        envios = envios_dos_alertas(limite=10)
     bloco_alertas = cartao(
         "Alertas e e-mail",
-        "<p>%s</p><p class='nota'>O resumo por e-mail %s.</p>"
+        "<p>%s</p><p class='nota'>O resumo por e-mail %s.</p>%s"
         % ("%d alerta%s ligado%s: %s" % (
             len(e["alertas"]), "" if len(e["alertas"]) == 1 else "s",
             "" if len(e["alertas"]) == 1 else "s",
             html.escape(", ".join(e["alertas"])))
-           if e["alertas"] else "Nenhum alerta ligado.", envio))
+           if e["alertas"] else "Nenhum alerta ligado.", envio,
+           envios_html(envios) if envios else
+           "<p class='nota'>Ainda não saiu nenhum envio.</p>"))
     bloco_perfil = cartao(
         "Perfil da empresa",
         "<p>%s</p>" % (e["perfil"] or "Por definir: a empresa vê os concursos todos."))
@@ -26777,8 +26883,11 @@ RX_ITEM_LISTA = re.compile(r"^\s*[-–•]\s+(.+)$")
 RX_ITEM_NUM = re.compile(r"^\s*(\d{1,2})\.\s+(.+)$")
 
 
-def desenha_valor(valor):
+def desenha_valor(valor, cita=None):
     """O valor de um campo do essencial, com a estrutura que ele tiver.
+
+    `cita` desenha uma linha (escapada) com a página citada como ligação
+    (L1, `citacao_com_ligacao()`); sem ela, a linha só se escapa.
 
     Os campos lidos das pecas pelo modelo sao os mais compridos da ficha
     -- a "Equipa" deste anuncio do INFARMED sao 3 200 caracteres em 146
@@ -26796,6 +26905,7 @@ def desenha_valor(valor):
     texto = (valor or "").strip()
     if not texto:
         return ""
+    esc = cita or html.escape
 
     blocos = [b for b in re.split(r"\n\s*\n", texto) if b.strip()]
     if len(blocos) >= 2:
@@ -26810,7 +26920,7 @@ def desenha_valor(valor):
                 "<div class='perfil'><b>%s</b><dl>%s</dl></div>"
                 % (html.escape(linhas[0]),
                    "".join("<dt>%s</dt><dd>%s</dd>"
-                           % (html.escape(m.group(1)), html.escape(m.group(2)))
+                           % (html.escape(m.group(1)), esc(m.group(2)))
                            for m in pares)))
         if todos_com_pares and cartoes:
             return "<div class='perfis'>%s</div>" % "".join(cartoes)
@@ -26819,7 +26929,7 @@ def desenha_valor(valor):
     itens = [RX_ITEM_LISTA.match(l) for l in linhas]
     if len(linhas) >= 2 and all(itens):
         return ("<ul class='pontos'>%s</ul>"
-                % "".join("<li>%s</li>" % html.escape(m.group(1))
+                % "".join("<li>%s</li>" % esc(m.group(1))
                           for m in itens))
 
     # numerados: cada numero abre um item e o que vem a seguir, ate ao
@@ -26840,12 +26950,12 @@ def desenha_valor(valor):
             return ("<ol class='numerados'>%s</ol>"
                     % "".join(
                         "<li><b>%s</b>%s</li>"
-                        % (html.escape(nome),
-                           ("<span>%s</span>" % html.escape(" ".join(det)))
+                        % (esc(nome) if not det else html.escape(nome),
+                           ("<span>%s</span>" % esc(" ".join(det)))
                            if det else "")
                         for nome, det in itens))
 
-    return html.escape(texto)
+    return "\n".join(esc(linha) for linha in texto.split("\n"))
 
 
 def _facto(rotulo, valor, classe="", largo=False):
@@ -27865,6 +27975,87 @@ def _onde_esta(falta):
     return falta[:1].upper() + falta[1:]
 
 
+def citacao_com_ligacao(ref):
+    """A função que desenha uma linha da leitura com a página citada como
+    ligação (L1 do plano de Outubro): «(pág. 14)» abre a peça na página
+    14, dentro da ficha de `ref`, com o excerto que sustenta a linha.
+
+    A ligação leva a página, a linha e o nome da peça quando a citação o
+    diz; qual é o ficheiro decide-o a ficha (`peca_da_citacao()`), porque
+    uma citação só com a página não o diz. Sem citação, a linha só se
+    escapa."""
+    def cita(linha):
+        m = RX_PAGINA_NA_LINHA.search(linha or "")
+        paginas = paginas_da_citacao(linha)
+        if not m or not paginas:
+            return html.escape(linha or "")
+        citacao = m.group().strip()
+        nome = re.match(r"\((.*)[,;]\s*p[áa]gs?", citacao)
+        frase = RX_ITEM_LISTA.sub(r"\1", RX_NUMERO_DA_LISTA.sub("", sem_a_pagina_citada(linha)))
+        destino = "/anuncio/%s?%s#pag-%d" % (
+            quote(ref, safe="/"),
+            urlencode({"pagina": paginas[0], "citacao": frase.strip()[:200],
+                       "rotulo": nome.group(1).strip() if nome else ""}),
+            paginas[0])
+        return ("%s <a class='citacao' href='%s' title='Abrir a peça nesta página'>%s</a>"
+                % (html.escape(linha[:m.start()]), html.escape(destino, quote=True),
+                   html.escape(citacao)))
+    return cita
+
+
+def peca_da_citacao(ref, pagina, frase, rotulo=""):
+    """O nome do PDF de `ref` que a citação aponta, ou "".
+
+    Com o nome na citação («Caderno de Encargos, pág. 3»), é esse -- pelo
+    nome do ficheiro ou pelo papel, como o `_nomes_das_pecas()` o disse.
+    Sem ele, é a peça cuja página `pagina` tem mais palavras da linha: a
+    leitura não guarda de que peça veio cada campo. Só PDF, que é o que
+    o visualizador abre na página."""
+    with liga() as c:
+        docs = c.execute("SELECT nome, texto FROM documentos WHERE ref=? "
+                         "AND COALESCE(texto,'')!=''", (ref,)).fetchall()
+    docs = [d for d in docs
+            if abre_no_browser(caminho_na_pasta(ref, d["nome"]) or "") == "application/pdf"]
+    # só as que a leitura leu: o anúncio do DR também vem entre as peças,
+    # e a página 1 dele ganhava a qualquer caderno
+    analise = analise_de(ref)
+    lidas = {n for n, _ in fontes_por_peca(analise["fontes"] if analise else "")}
+    docs = [d for d in docs if d["nome"] in lidas] or docs
+    if rotulo:
+        nomes = _nomes_das_pecas([d["nome"] for d in docs])
+        pelo_nome = [d for d in docs if rotulo in (
+            d["nome"], nomes[d["nome"]], re.sub(r"[()]", "", nomes[d["nome"]]))]
+        docs = pelo_nome or docs
+    palavras = palavras_da_frase(frase)
+    melhor, escolhida = -1, ""
+    for d in docs:
+        paginas = d["texto"].split("\f")
+        if pagina > len(paginas):
+            continue
+        nota = len(palavras & palavras_da_frase(paginas[pagina - 1]))
+        if nota > melhor:
+            melhor, escolhida = nota, d["nome"]
+    return escolhida if melhor > 0 or len(docs) == 1 else ""
+
+
+def excerto_da_citacao(ref, nome, pagina, frase):
+    """O `<blockquote>` com o excerto da página citada, por cima da peça
+    aberta na ficha; "" quando a página não existe no texto da peça."""
+    with liga() as c:
+        d = c.execute("SELECT texto FROM documentos WHERE ref=? AND nome=?",
+                      (ref, nome)).fetchone()
+    paginas = ((d and d["texto"]) or "").split("\f")
+    if not d or not d["texto"] or pagina > len(paginas):
+        return ""
+    excerto, achou = excerto_da_pagina(paginas[pagina - 1], frase)
+    return ("<blockquote class='citacao-excerto'><p>%s</p><footer>pág. %d de %d"
+            "%s</footer></blockquote>"
+            % (html.escape(excerto), pagina, len(paginas),
+               "" if achou or not frase else
+               " &middot; a linha da leitura não se encontrou tal qual nesta "
+               "página: fica o início dela"))
+
+
 def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
     """O cartão «O que as peças pedem» (28/09/2026): a leitura do modelo,
     com a marca «Rascunho» UMA vez e não por linha, e por baixo dela as
@@ -27886,6 +28077,7 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
                                   _valor(a, "titulo") or "")
     rotulo_11 = CAMPO_11[familia][0]
     linhas = []
+    cita = citacao_com_ligacao(origem or a["ref"])
 
     valor, falta = ess.get(rotulo_11, ("", ""))
     perfis = perfis_da_equipa(valor) if valor and familia == "equipa" else []
@@ -27896,7 +28088,7 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
             rotulo_11, tabela_da_equipa(perfis), resumo,
             "Ver o perfil" if n == 1 else "Ver os %s" % plural(n, "perfil", "perfis")))
     elif valor:
-        linhas.append(_linha_das_pecas(rotulo_11, desenha_valor(valor),
+        linhas.append(_linha_das_pecas(rotulo_11, desenha_valor(valor, cita),
                                        resumo_do_objecto(valor)[0], "Ver tudo"))
     else:
         linhas.append(_linha_das_pecas(rotulo_11, html.escape(_onde_esta(falta)),
@@ -27906,10 +28098,10 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
     primeira, pontos = resumo_do_objecto(valor)
     if valor and (pontos or len(valor) > len(primeira)):
         linhas.append(_linha_das_pecas(
-            "Objecto", desenha_valor(valor), primeira,
+            "Objecto", desenha_valor(valor, cita), primeira,
             "Ver os %d pontos" % pontos if pontos else "Ver tudo"))
     elif valor:
-        linhas.append(_linha_das_pecas("Objecto", html.escape(valor)))
+        linhas.append(_linha_das_pecas("Objecto", desenha_valor(valor, cita)))
     else:
         linhas.append(_linha_das_pecas("Objecto", html.escape(_onde_esta(falta)),
                                        apagado=True))
@@ -27917,13 +28109,13 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
     valor, falta = ess.get("Documentos que constituem a proposta", ("", ""))
     linhas.append(_linha_das_pecas(
         "Documentos da proposta",
-        desenha_valor(valor) if valor else html.escape(_onde_esta(falta)),
+        desenha_valor(valor, cita) if valor else html.escape(_onde_esta(falta)),
         apagado=not valor))
 
     valor, falta = ess.get("Preço anormalmente baixo", ("", ""))
     linhas.append(_linha_das_pecas(
         "Preço anormalmente baixo",
-        html.escape(valor or _onde_esta(falta)), apagado=not valor))
+        cita(valor) if valor else html.escape(_onde_esta(falta)), apagado=not valor))
 
     # Quem leu: o nome do modelo é para o dono; a um cliente diz-se só que
     # foi lido automaticamente (teste com utilizadores, 25/09/2026).
@@ -28745,6 +28937,16 @@ def ficha(ref):
     # Viaja na query string e nao em estado nenhum: a ficha com uma peca
     # aberta e uma ligacao que se guarda e se manda a alguem.
     peca_aberta = (request.args.get("peca") or "").strip()
+    # A citação da leitura (L1): «(pág. 14)» chega com a página e a linha,
+    # e abre a peça nessa página, com o excerto. Uma página que não é
+    # número ignora-se.
+    pagina = request.args.get("pagina") or ""
+    # só algarismos ASCII: o isdigit() aceita «²», e o int() rebentava
+    pagina = int(pagina) if re.fullmatch(r"[0-9]{1,5}", pagina) else 0
+    citacao = (request.args.get("citacao") or "")[:300]
+    if pagina and not peca_aberta:
+        peca_aberta = peca_da_citacao(ref, pagina, citacao,
+                                      (request.args.get("rotulo") or "")[:200])
     dias, passou = dias_restantes(a["prazo"])
 
     # --- o cabecalho da pagina (24/09/2026, o `EcraFicha` do Mira Gov)
@@ -28988,6 +29190,8 @@ def ficha(ref):
         # deixou de ser sair da ficha. O resto descarrega-se.
         args_peca = dict(request.args.to_dict())
         args_peca.pop("procurar", None)   # procura nova para cada peca
+        for chave in ("pagina", "citacao", "rotulo"):   # a citação é desta peça
+            args_peca.pop(chave, None)
         linhas_doc = []
         for d in docs:
             e_pdf = d["nome"].lower().endswith(".pdf")
@@ -29034,7 +29238,11 @@ def ficha(ref):
             # peças" apaga e traz tudo, e leva o texto extraido.
             accoes_pecas = (
                 "<a class='mg-btn mg-btn--sm mg-btn--secondary' href='/pecas-zip/%s'>"
-                "Descarregar todas (ZIP)</a>" % quote(ref, safe="/")
+                "Descarregar todas (ZIP, %s)</a>"
+                # o total, para quem está no telemóvel saber o que vai
+                # descarregar (L7 do plano de Outubro)
+                % (quote(ref, safe="/"),
+                   tamanho_legivel(sum(d["tamanho"] or 0 for d in docs)))
                 + accao("/pecas-novas/%s" % ref,
                         icone("verificar", 16) + " Verificar peças novas", "mini"))
             vigiadas = a["pecas_vigiadas_em"] if "pecas_vigiadas_em" in a.keys() else ""
@@ -29089,7 +29297,8 @@ def ficha(ref):
         caminho = caminho_na_pasta(ref, peca_aberta)
         if caminho:
             args_fechar = dict(request.args.to_dict())
-            args_fechar.pop("peca", None); args_fechar.pop("procurar", None)
+            for chave in ("peca", "procurar", "pagina", "citacao", "rotulo"):
+                args_fechar.pop(chave, None)
             # O `action` vai sem query string de proposito: um GET
             # substitui-a inteira pelos campos do formulario, e o que
             # tem de sobreviver a procura viaja nos escondidos.
@@ -29111,7 +29320,10 @@ def ficha(ref):
                 % (html.escape(peca_aberta), ref,
                    quote(peca_aberta, safe=""), ref,
                    html.escape(urlencode(args_fechar), quote=True),
-                   aviso_leitor, visual, texto_da_peca(ref, peca_aberta)))
+                   aviso_leitor,
+                   (excerto_da_citacao(ref, peca_aberta, pagina, citacao)
+                    if pagina else "") + visual,
+                   texto_da_peca(ref, peca_aberta)))
 
     # A vigilancia das pecas nao se ve em mais lado nenhum: a nota que a
     # explicava foi para o "?" e NAO se apagou.
@@ -29175,6 +29387,14 @@ def ficha(ref):
                                            quote=True), mil_pt(total_hist)))
     else:
         linhas_hist = "<p class='ficha-nota'>Ainda não há registo de alterações.</p>"
+    # Se os alertas avisaram deste anúncio, e quando (L7 do plano de Outubro)
+    avisos = envios_dos_alertas(limite=5, ref=ref)
+    if avisos:
+        linhas_hist = ("<p class='ficha-nota'>%s.</p>" % "; ".join(
+            "Avisado a %s pelo alerta «%s», %s"
+            % (html.escape(data_hora_pt(e["quando"])), html.escape(e["alerta"]),
+               html.escape(CANAIS_DO_ENVIO.get(e["canal"], "sem registo do canal")))
+            for e in avisos)) + linhas_hist
     hist_cx = cartao("Histórico", linhas_hist, id_="historico")
 
     # O indice (em pilulas, como o `EcraFicha`) tem de cobrir a pagina:

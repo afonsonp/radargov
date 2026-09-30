@@ -8685,7 +8685,7 @@ class TestOsBotoesDaPlataformaNaFicha(BaseTemporaria):
                       "('70/2026','CE.pdf')")
         h = self._ficha("acingov", self.ZIP, docs_estado="ok")
         self.assertNotIn("/pecas-da-plataforma/", h)
-        self.assertIn("Descarregar todas (ZIP)", h)
+        self.assertIn("Descarregar todas (ZIP", h)
 
     def test_descarregar_da_plataforma_traz_as_pecas_para_o_concurso(self):
         self._ficha("acingov", self.ZIP)
@@ -25032,6 +25032,195 @@ class TestOCalendarioPesadoPedeOsPedacos(BaseTemporaria):
         pagina = self.cliente.get("/calendario?ver=porver").get_data(as_text=True)
         self.assertNotIn("data-pedaco", pagina)
         self.assertEqual(len(set(re.findall(r"Anúncio (\d+)<", pagina))), 11)
+
+
+class TestACitacaoAbreNaPagina(_CicloDoTesteComUtilizadores):
+    """L1 do plano de Outubro (30/09/2026): cada linha da leitura diz
+    «(pág. 14)», e isso era texto -- para confirmar, abria-se a peça e
+    procurava-se a página à mão. A citação passa a ligação que abre a
+    peça dentro da ficha, nessa página, com o excerto por cima.
+
+    Duas coisas que não são óbvias e que estes testes guardam: a citação
+    quase nunca diz de que peça veio (a leitura não o guarda por campo),
+    e é a ficha que a escolhe pelas palavras da linha; e o anúncio do DR
+    vem entre as peças, e a página 1 dele ganhava a qualquer caderno se
+    não se limitasse às peças que a leitura leu."""
+
+    LINHA = "- Fornecimento de três servidores de rack com garantia (pág. 2)"
+
+    def _pecas(self):
+        pasta = radar.pasta_do_anuncio("60/2026")
+        os.makedirs(pasta, exist_ok=True)
+        textos = {
+            "CE.pdf": "Caderno de encargos\fCláusula 3.ª O fornecimento de três "
+                      "servidores de rack, com garantia de cinco anos.",
+            "PC.pdf": "Programa do procedimento\fArtigo 2.º Os documentos da proposta.",
+            "Anúncio DR.pdf": "Anúncio\fServidores de rack e garantia e fornecimento",
+        }
+        with radar.liga() as c:
+            for nome, texto in textos.items():
+                with open(os.path.join(pasta, nome), "wb") as f:
+                    f.write(b"%PDF-1.4 " + nome.encode())
+                c.execute("INSERT INTO documentos (ref, nome, tamanho, texto) "
+                          "VALUES (?,?,?,?)", ("60/2026", nome, 1024, texto))
+            c.execute("INSERT INTO analise (ref, objecto, fontes, modelo, quando) "
+                      "VALUES (?,?,?,?,?)",
+                      ("60/2026", self.LINHA, "CE.pdf (pág. 2), PC.pdf (pág. 2)",
+                       "m", "2026-09-30 10:00"))
+
+    def test_o_excerto_acha_a_frase_sem_acentos_nem_maiusculas(self):
+        pagina = ("Texto de enchimento. " * 20 + "A PRESTAÇÃO DE SERVIÇOS DE "
+                  "MANUTENÇÃO inclui as deslocações. " + "Mais texto. " * 20)
+        excerto, achou = radar.excerto_da_pagina(pagina, "prestacao de servicos de manutencao")
+        self.assertTrue(achou)
+        self.assertIn("PRESTAÇÃO DE SERVIÇOS", excerto)
+        self.assertTrue(excerto.startswith("…"))
+
+    def test_sem_a_frase_fica_o_inicio_da_pagina_e_di_lo(self):
+        excerto, achou = radar.excerto_da_pagina("Cláusula 1.ª Objecto do contrato.",
+                                                 "nada disto aparece aqui")
+        self.assertFalse(achou)
+        self.assertTrue(excerto.startswith("Cláusula 1.ª"))
+
+    def test_a_linha_liga_a_pagina_com_a_peca_da_citacao(self):
+        cita = radar.citacao_com_ligacao("60/2026")
+        h = cita("Garantia de 5 anos (Caderno de Encargos, pág. 14–15)")
+        self.assertIn("href='/anuncio/60/2026?pagina=14&amp;", h)
+        self.assertIn("rotulo=Caderno+de+Encargos", h)
+        self.assertIn("#pag-14'", h)
+        self.assertTrue(h.startswith("Garantia de 5 anos <a class='citacao'"))
+        # sem citação, só escapa
+        self.assertEqual(cita("A <b> & B"), "A &lt;b&gt; &amp; B")
+
+    def test_a_ficha_mostra_a_citacao_como_ligacao(self):
+        self._pecas()
+        h = self.cliente.get("/anuncio/60/2026").get_data(as_text=True)
+        self.assertIn("<a class='citacao'", h)
+        self.assertIn("pagina=2", h)
+
+    def test_abre_a_peca_certa_na_pagina_com_o_excerto(self):
+        self._pecas()
+        h = self.cliente.get("/anuncio/60/2026?pagina=2&citacao=" + quote(
+            "Fornecimento de três servidores de rack com garantia")).get_data(as_text=True)
+        leitor = h.split("<div class='leitor'>", 1)[1]
+        self.assertIn("<span class='n'>CE.pdf</span>", leitor)
+        self.assertIn("<blockquote class='citacao-excerto'>", leitor)
+        self.assertIn("pág. 2 de 2", leitor)
+        self.assertIn("servidores de rack", leitor)
+
+    def test_uma_pagina_que_nao_e_numero_nao_parte(self):
+        self._pecas()
+        for pagina in ("abc", "0", "-3", "99999999", "²", "①"):
+            r = self.cliente.get("/anuncio/60/2026?pagina=%s&citacao=x" % pagina)
+            self.assertEqual(r.status_code, 200)
+            self.assertNotIn("citacao-excerto", r.get_data(as_text=True))
+
+    def test_a_citacao_nao_passa_para_outra_peca(self):
+        self._pecas()
+        h = self.cliente.get("/anuncio/60/2026?pagina=2&citacao=servidores").get_data(as_text=True)
+        outra = re.search(r"href='([^']*peca=PC\.pdf[^']*)'", h).group(1)
+        self.assertNotIn("pagina=", outra)
+
+
+class TestORegistoDosEnvios(_CicloDoTesteComUtilizadores):
+    """L7 do plano de Outubro (30/09/2026, ele: «ficar registado nos
+    alertas da plataforma que foi enviado»). A base já guardava quando
+    cada anúncio saiu em cada alerta; o ecrã mostrava 25 anúncios soltos
+    e não dizia se tinha saído por e-mail ou só para o AVISOS.txt -- sem
+    e-mail configurado o resumo marca-se como enviado na mesma."""
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            c.execute("INSERT INTO filtros_guardados (id, nome, consulta, alerta) "
+                      "VALUES (7, 'Software', 'q=software', 1)")
+            for n in range(61, 65):
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, estado) "
+                          "VALUES (?,?,?,?,'novo')",
+                          ("%d/2026" % n, "Anúncio %d" % n, "E", "2026-09-29"))
+                c.execute("INSERT INTO alertas_vistos (filtro_id, ref, visto_em) "
+                          "VALUES (7, ?, '2026-09-29 08:00')", ("%d/2026" % n,))
+
+    def _achados(self, refs):
+        return [({"id": 7, "nome": "Software"}, [{"ref": r} for r in refs])]
+
+    def _enviar_imediatos(self, resposta):
+        """O envio imediato com o e-mail a responder `resposta`; o corpo
+        do resumo não interessa aqui, e os anúncios falsos não o têm."""
+        with unittest.mock.patch.object(radar, "alertas_por_enviar",
+                                        lambda so_imediatos=False: self._achados(["61/2026"])), \
+                unittest.mock.patch.object(radar, "texto_do_resumo", lambda *a: ""), \
+                unittest.mock.patch.object(radar, "html_do_resumo", lambda *a: ""), \
+                unittest.mock.patch.object(radar, "enviar_email", lambda *a, **k: resposta):
+            radar.enviar_imediatos({})
+
+    def test_um_resumo_com_quatro_grava_um_envio_com_quatro(self):
+        radar.marcar_alertas_enviados(self._achados(
+            ["61/2026", "62/2026", "63/2026", "64/2026"]), "email")
+        envios = radar.envios_dos_alertas()
+        self.assertEqual(len(envios), 1)
+        self.assertEqual(len(envios[0]["anuncios"]), 4)
+        self.assertEqual(envios[0]["canal"], "email")
+
+    def test_dois_envios_sao_duas_linhas(self):
+        with unittest.mock.patch.object(radar, "datetime") as falso:
+            falso.now.return_value = datetime.datetime(2026, 9, 29, 8, 36)
+            radar.marcar_alertas_enviados(self._achados(["61/2026", "62/2026"]), "email")
+            falso.now.return_value = datetime.datetime(2026, 9, 30, 8, 36)
+            radar.marcar_alertas_enviados(self._achados(["63/2026"]), "ficheiro")
+        envios = radar.envios_dos_alertas()
+        self.assertEqual([len(e["anuncios"]) for e in envios], [1, 2])
+        self.assertEqual([e["canal"] for e in envios], ["ficheiro", "email"])
+
+    def test_um_envio_falhado_nao_grava(self):
+        self._enviar_imediatos((False, "senha recusada"))
+        self.assertEqual(radar.envios_dos_alertas(), [])
+
+    def test_sem_email_configurado_fica_como_ficheiro(self):
+        self._enviar_imediatos((False, radar.EMAIL_POR_CONFIGURAR))
+        self.assertEqual(radar.envios_dos_alertas()[0]["canal"], "ficheiro")
+
+    def test_o_acervo_nao_e_envio(self):
+        radar.marcar_alertas_enviados(self._achados(["61/2026"]), "email")
+        with radar.liga() as c:
+            c.execute("UPDATE alertas_vistos SET enviado_em=? WHERE ref='62/2026'",
+                      (radar.ACERVO,))
+        self.assertEqual(sum(len(e["anuncios"]) for e in radar.envios_dos_alertas()), 1)
+
+    def test_as_configuracoes_e_a_ficha_dizem_o_envio(self):
+        radar.marcar_alertas_enviados(self._achados(["61/2026", "62/2026"]), "email")
+        h = self.cliente.get("/configuracoes/alertas").get_data(as_text=True)
+        self.assertIn("<th>Enviado</th>", h)
+        self.assertIn("<summary>2 anúncios</summary>", h)
+        self.assertIn("por e-mail", h)
+        h = self.cliente.get("/anuncio/61/2026").get_data(as_text=True)
+        self.assertIn("pelo alerta «Software», por e-mail", h)
+        h = self.cliente.get("/anuncio/63/2026").get_data(as_text=True)
+        self.assertNotIn("pelo alerta", h)
+
+
+class TestOsDoisPequenosDoPlanoDeOutubro(_CicloDoTesteComUtilizadores):
+    """L7 b e c do plano de Outubro: a dica por cima da árvore do Perfil
+    da empresa (que não tem palavras-chave: são as áreas CPV), e o total
+    das peças no botão do ZIP -- o tamanho de cada uma já se via."""
+
+    def test_a_dica_esta_no_perfil(self):
+        h = self.cliente.get("/configuracoes/interesse").get_data(as_text=True)
+        self.assertIn(radar.DICA_DO_PERFIL, h)
+
+    def test_o_zip_diz_o_total(self):
+        pasta = radar.pasta_do_anuncio("60/2026")
+        os.makedirs(pasta, exist_ok=True)
+        with radar.liga() as c:
+            for nome, tamanho in (("CE.pdf", 1536 * 1024), ("PC.pdf", 512 * 1024)):
+                with open(os.path.join(pasta, nome), "wb") as f:
+                    f.write(b"%PDF-1.4")
+                c.execute("INSERT INTO documentos (ref, nome, tamanho) VALUES (?,?,?)",
+                          ("60/2026", nome, tamanho))
+            c.execute("UPDATE anuncios SET docs_estado='ok' WHERE ref='60/2026'")
+        h = self.cliente.get("/anuncio/60/2026").get_data(as_text=True)
+        self.assertIn("Descarregar todas (ZIP, 2,0 MB)", h)
+
 
 
 
