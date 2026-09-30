@@ -402,7 +402,9 @@ endereços guardados e configurações gravadas. Este documento usa as
 duas palavras para a mesma coisa.
 
 Uma lista de CPV que a empresa trabalha (e outra de exclusões), em
-Configurações › Perfil da empresa. Recorta **a lista, o Hoje, o
+Configurações › Perfil da empresa, com uma dica por cima da árvore
+(`DICA_DO_PERFIL`, 30/09/2026): marcar as áreas em que um comprador o
+publicaria, duas a quatro. Recorta **a lista, o Hoje, o
 Calendário, o Mercado e a ficha da entidade**. Levanta-se com
 `?interesse=nao`.
 
@@ -588,6 +590,18 @@ que cada linha da resposta acabe com a página de onde veio, «(pág. 12)»,
 ou «(Programa, pág. 5)» quando o pedido leva mais de uma peça. A ficha
 mostra-a em cada linha.
 
+**E a página abre a peça** (30/09/2026, L1 do plano de Outubro): a
+citação é uma ligação (`citacao_com_ligacao()`) que abre a peça dentro
+da ficha, nessa página, com o excerto por cima — uns 240 caracteres à
+volta das palavras da linha (`excerto_da_pagina()`), a dizer «pág. N de
+M» e, quando a linha não se acha tal qual na página, que fica o início
+dela. **Qual é a peça decide-o a ficha** (`peca_da_citacao()`): a que a
+citação nomeia, quando nomeia; senão, entre os PDF que a leitura leu, o
+que tem mais palavras da linha nessa página — a leitura não guarda de
+que peça veio cada campo, e a maior parte das linhas diz só «(pág. 2)».
+Uma peça dentro de um ZIP não abre na página: a lista das peças só tem
+o ZIP.
+
 **A página é posta pelo código** (30/09/2026, 4.ª ronda): o modelo
 acertava em 76 a 85 % das linhas. Depois da resposta, cada linha
 procura-se no texto que foi enviado, por janelas de palavras, sem
@@ -762,6 +776,17 @@ Quatro comportamentos que decidem o que chega:
   dizia «153 por avisar» para sempre e reescrevia o mesmo resumo a cada
   volta. Uma falha a sério (senha recusada, rede em baixo) **não** marca,
   para voltar a tentar.
+- **Cada envio fica registado, e por onde saiu** (30/09/2026, L7 do
+  plano de Outubro). Um envio é um alerta e o minuto em que se marcou
+  (`marcar_alertas_enviados()`), e a coluna `canal` da `alertas_vistos`
+  diz se foi «por e-mail» ou «só no AVISOS.txt» — o caso de cima, que
+  conta como enviado. `envios_dos_alertas()` lê-os, e aparecem em três
+  sítios: nas Configurações › Alertas (um envio por linha, com os
+  anúncios a abrir por baixo do número), na ficha do anúncio («avisado
+  a … pelo alerta …», no Histórico) e na página da empresa na
+  plataforma, para o dono. Os envios de antes da coluna ficam sem canal
+  («—»). O acervo, o que já lá estava quando o alerta nasceu, não é
+  envio.
 - **Uma entidade que se começa a seguir entra com o acervo marcado como
   já visto**, senão o primeiro resumo trazia dez anos de uma vez.
 - **Qualquer entidade se segue, com ou sem NIF** (25/09/2026). Com NIF,
@@ -1006,7 +1031,8 @@ os dias que têm alguma coisa, em vez da grelha de sete colunas.
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
 As peças descarregam-se **todas num ZIP** (`/pecas-zip/<ref>`,
-25/09/2026), além de uma a uma. Com lotes, a comparação com o que a
+25/09/2026), além de uma a uma; cada uma mostra o tamanho, e o botão do
+ZIP o total (30/09/2026). Com lotes, a comparação com o que a
 entidade costuma pagar faz-se **lote a lote** (`comparacao_de_preco()`),
 e não pelo total.
 

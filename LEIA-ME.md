@@ -578,8 +578,10 @@ que se decide:
   bens e nos outros serviços a primeira linha é a do tipo de contrato
   (a equipa técnica e o alvará, os artigos, os postos, o nível de
   serviço), em texto. **Cada linha acaba na página de onde veio**
-  («(pág. 12)», ou «(Programa, pág. 5)»), para ires direito a ela — e
-  desde 30/09/2026 quem a põe é o programa, que procura a linha nas
+  («(pág. 12)», ou «(Programa, pág. 5)»), e **carregar nela abre a peça
+  nessa página**, dentro da ficha, com o excerto por cima (desde
+  30/09/2026; quando a linha não se acha tal qual na página, o excerto
+  di-lo e mostra o início dela). E desde 30/09/2026 quem a põe é o programa, que procura a linha nas
   páginas que o modelo leu: uma lista que passa de uma página para a
   outra diz «(pág. 6–7)», e num `.docx` não há página; e
   uma linha com um número que não está nas páginas lidas traz
@@ -1004,7 +1006,10 @@ as outras cinco só um admin as vê:
   só para o admin, **quem envia**: conta, servidor, porta e
   palavra-passe — esta grava-se no `email_senha.txt`, nunca no
   `config.json`, e o campo fica sempre vazio), a janela do urgente,
-  «enviar já» e os últimos avisos. Os «filtros guardados» de antes
+  «enviar já» e os **últimos envios** — um por linha, com o alerta, se
+  saiu por e-mail ou só para o `AVISOS.txt`, e os anúncios que levou
+  (desde 30/09/2026; a ficha de cada anúncio diz também, no Histórico,
+  por que alerta e quando foi avisado). Os «filtros guardados» de antes
   deixaram de existir: o que era guardar um filtro para o reaplicar é
   o Perfil da empresa; o que era guardá-lo para avisar é criar um alerta.
   Um alerta com uma data ou um valor que não se lê **não se grava**, e

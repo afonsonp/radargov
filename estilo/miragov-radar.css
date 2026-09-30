@@ -1281,3 +1281,11 @@ input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--
 .mg-table th a.ordenar .seta.fraca{opacity:.45}
 .so-cartoes{display:none}
 @media (max-width:900px){.so-cartoes{display:inline}}
+
+/* A citação da leitura (L1 do plano de Outubro): «(pág. 14)» é uma
+   ligação que abre a peça na página, e o excerto dela fica por cima das
+   páginas, com a régua da marca à esquerda. */
+a.citacao{color:var(--link);white-space:nowrap}
+.citacao-excerto{margin:0 0 var(--space-4);padding:var(--space-3) var(--space-4);border-left:3px solid var(--brand);background:var(--surface-raised);font:400 var(--text-sm)/1.6 var(--font-sans);color:var(--ink)}
+.citacao-excerto p{margin:0}
+.citacao-excerto footer{margin-top:var(--space-2);font-size:var(--text-xs);color:var(--ink-muted)}
