@@ -4468,6 +4468,24 @@ botões ou no calendário.
 
 ## Convenções
 
+- **O site está no Acordo Ortográfico, e a aplicação não** (30/09/2026,
+  decisão dele). O `site/` escreve «objeto», «setor», «proteção» e os
+  meses em minúscula, porque é a norma que o visitante lê no Diário da
+  República e nas peças; o resto do projeto continua na norma antiga.
+  Não «uniformizes» nenhum dos dois lados: o
+  `test_as_paginas_legais_tem_a_marca_a_letra_e_o_contacto` guarda o
+  site. Duas coisas que não mudam com a norma: o campo `sector` do
+  formulário (é o nome que o `pedir_acesso()` lê — só o rótulo passou a
+  «Setor»), e «contacto», que é igual nas duas.
+
+- **Um número do site confere-se contra a base, e uma data do site não
+  se escreve à mão** (auditoria de 30/09/2026). O site dizia «180 000
+  entidades públicas»: é o total da tabela `entidades` do corpus, que
+  junta quem compra (~9 600) e quem ganha (~173 000). E os ecrãs de
+  exemplo tinham datas fixas que um dia depois já tinham passado; hoje
+  são marcas que o `datas_do_exemplo()` preenche.
+  `TestOSiteDaTerceiraRonda`.
+
 - **Um teste que abra uma base, abre-a na pasta dele — as duas bases**
   (lote 4 da segunda ronda, 26/09/2026). A `BaseTemporaria` punha o
   `radar.db` numa pasta temporária e deixava o `CORPUS` a apontar para o

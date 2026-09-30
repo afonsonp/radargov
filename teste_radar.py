@@ -13513,7 +13513,7 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         vistas = [html.unescape(p) for p in
                   re.findall(r"<summary>(.*?)</summary>", corpo, re.S)]
         self.assertEqual([q["name"] for q in faq["mainEntity"]], vistas)
-        self.assertEqual(len(vistas), 5)
+        self.assertEqual(len(vistas), 9)
         self.assertNotIn("<!--FAQ-JSONLD-->", corpo)
 
     def test_o_entrar_nao_se_indexa(self):
@@ -13561,8 +13561,11 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
             self.assertIn("mailto:contacto@miragov.pt", corpo, rota)
             self.assertIn('<link rel="canonical"', corpo, rota)
             self.assertNotIn("<!--", corpo.split("<body>")[1], rota)
-            # uma norma só: o mês com maiúscula, como a aplicação
-            self.assertNotRegex(corpo, r"\d de (setembro|outubro)", rota)
+            # uma norma só. Era o mês com maiúscula, como a aplicação;
+            # desde 30/09/2026 o site está no Acordo (decisão dele, a
+            # norma que o leitor vê no DR e nas peças) e a aplicação não
+            self.assertNotRegex(corpo, r"\d de (Setembro|Outubro)", rota)
+            self.assertNotRegex(corpo, r"\b(Objecto|[Ss]ector|Protecção|Directiva)\b", rota)
 
     def test_o_site_usa_os_tokens_da_aplicacao(self):
         corpo = self.get("/").get_data(as_text=True)
@@ -13588,10 +13591,44 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         # e a caixa do erro tem borda, que sobrevive às cores forçadas
         self.assertRegex(self.ficheiro("index.html"), r"\.erro\{[^}]*border:1px solid")
 
-    def test_o_site_nao_leva_nome_de_ninguem(self):
+    def test_o_site_leva_o_nome_dele_e_nao_o_da_empresa(self):
+        """A D9 tirava todos os nomes; a 30/09/2026 ele quis o nome e a
+        cara («quem está por trás»), mas não o da empresa onde trabalhou,
+        que não é dele nem deu autorização."""
         site = self.get("/").get_data(as_text=True)
-        for nome in ("Afonso", "LATD", "Conkord"):
+        self.assertIn("Afonso Pinto", site)
+        for nome in ("LATD", "Conkord"):
             self.assertNotIn(nome, site)
+        # sem a fotografia no disco, as iniciais; nunca um <img> partido
+        if not os.path.isfile(os.path.join(self.PASTA_DO_SITE, radar.FOTOGRAFIA_DO_SITE)):
+            self.assertIn('<span class="rosto" aria-hidden="true">AP</span>', site)
+            self.assertEqual(self.get("/" + radar.FOTOGRAFIA_DO_SITE).status_code, 404)
+        self.assertNotIn("<!--ROSTO-->", site)
+
+    def test_as_datas_do_exemplo_contam_a_partir_de_hoje(self):
+        """30/09/2026: as datas dos ecrãs de exemplo estavam escritas à
+        mão, e um dia depois o prazo «6 dias» já tinha passado."""
+        hoje = datetime.date(2026, 9, 30)   # uma quarta
+        texto = radar.datas_do_exemplo(
+            "{{DATA+6}} {{DATA+6:curta}} {{HOJE_EXTENSO}} {{FITA_EXEMPLO}}", hoje)
+        self.assertTrue(texto.startswith("06/10/2026 06/10 Quarta, 30 de setembro "))
+        dias = re.findall(r"<b>(\w+)</b><span class=\"num\">(\d)</span>", texto)
+        # começa ontem, como a fita da aplicação, e hoje é o segundo
+        self.assertEqual(dias[0][0], "Ter")
+        self.assertIn('aria-current="true"><b>Qua</b>', texto)
+        # o fim de semana não tem prazos
+        self.assertEqual([n for d, n in dias if d in ("Sáb", "Dom")], ["0", "0"])
+        site = self.get("/").get_data(as_text=True)
+        self.assertNotIn("{{", site)
+        amanha = datetime.date.today() + datetime.timedelta(days=6)
+        self.assertIn(amanha.strftime("%d/%m/%Y"), site)
+
+    def test_os_numeros_do_site_sao_os_verdadeiros(self):
+        """30/09/2026: o site dizia «180 000 entidades públicas», e só
+        ~9 600 compram -- as outras 173 mil são empresas adjudicatárias."""
+        site = self.get("/").get_data(as_text=True)
+        self.assertNotIn("180 000", site)
+        self.assertIn("9 500", site)
 
 
 class TestContas(BaseTemporaria):

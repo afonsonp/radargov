@@ -761,7 +761,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**133 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**134 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1191,6 +1191,14 @@ Schema.org: a inicial um `@graph` com `WebSite`, `Organization` e
 que a página mostra; as legais uma `WebPage` com o caminho de migalhas.
 O `http://` passa a `https://` na Cloudflare («Always Use HTTPS»), e não
 no painel, que só vê o túnel.
+Desde a auditoria de 30/09/2026, as **datas dos ecrãs de exemplo** do site
+contam-se a partir de hoje (`datas_do_exemplo()`: os prazos, o título e a
+fita do Hoje de exemplo, que começa ontem como a da aplicação); o site
+diz **quem está por trás** (o nome dele e a fotografia, a
+**`/afonso-pinto.jpg`**, aberta por igualdade; sem o ficheiro, as
+iniciais, `rosto_do_site()`), e nunca o nome da empresa onde trabalhou; e
+o site está **no Acordo Ortográfico** («objeto», «setor», os meses em
+minúscula), ao contrário da aplicação.
 E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site, que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32

@@ -12909,11 +12909,12 @@ def volta_ao_referer(omissao):
 # o mapa lista as paginas publicas, a imagem e um ficheiro do `site/` --,
 # e so respondem a GET, por isso nao ha guarda do POST a fazer.
 # /llms.txt (29/09/2026): o resumo do site para os agentes de IA, na
-# mesma condicao -- um ficheiro do `site/`, sem dados, so GET.
+# mesma condicao -- um ficheiro do `site/`, sem dados, so GET. E a
+# /afonso-pinto.jpg (30/09/2026), a fotografia do site, idem.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
-                 "/partilha.png", "/llms.txt")
+                 "/partilha.png", "/llms.txt", "/afonso-pinto.jpg")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -32756,6 +32757,49 @@ def faq_em_json_ld(texto):
             % json.dumps(dados, ensure_ascii=False).replace("</", "<\\/"))
 
 
+# Quantos prazos tem cada dia útil da fita de exemplo, pela ordem em que
+# aparecem; o fim de semana tem sempre zero.
+PRAZOS_DO_EXEMPLO = (3, 1, 4, 2, 5)
+
+
+def datas_do_exemplo(texto, hoje=None):
+    """As datas dos ecrãs de exemplo do site, contadas a partir de hoje
+    (auditoria de 30/09/2026). Estavam escritas à mão: um dia depois de
+    publicadas, o prazo «28/09 · 6 dias» já tinha passado, e o Hoje de
+    exemplo dizia «Terça, 22 de Setembro» -- um site parado no tempo.
+
+    `{{DATA+6}}` dá 06/10/2026, `{{DATA+6:curta}}` dá 06/10,
+    `{{HOJE_EXTENSO}}` o título do Hoje, e `{{FITA_EXEMPLO}}` a fita,
+    que começa ontem como a da aplicação. Os meses em minúscula: o site
+    está no Acordo Ortográfico, a aplicação não."""
+    hoje = hoje or datetime.now().date()
+
+    def data(m):
+        d = hoje + timedelta(days=int(m.group(1)))
+        return d.strftime("%d/%m" if m.group(2) else "%d/%m/%Y")
+    texto = re.sub(r"\{\{DATA([+-]\d+)(:curta)?\}\}", data, texto)
+    texto = texto.replace("{{HOJE_EXTENSO}}", "%s, %d de %s" % (
+        DIAS_LONGOS[hoje.weekday()], hoje.day,
+        MESES_LONGOS[hoje.month - 1].lower()))
+    if "{{FITA_EXEMPLO}}" in texto:
+        celulas, uteis = [], 0
+        for i in range(-1, 6):
+            d = hoje + timedelta(days=i)
+            n = 0
+            if d.weekday() < 5:
+                n = PRAZOS_DO_EXEMPLO[uteis % len(PRAZOS_DO_EXEMPLO)]
+                uteis += 1
+            celulas.append(
+                '<div class="dia%s"%s><b>%s</b><span class="num">%d</span>'
+                '<i>%s</i></div>'
+                % (" cheio" if n >= 4 else "",
+                   ' aria-current="true"' if i == 0 else "",
+                   DIAS_CURTOS[d.weekday()].capitalize(), n,
+                   "prazo" if n == 1 else "prazos" if n else "&nbsp;"))
+        texto = texto.replace("{{FITA_EXEMPLO}}", "".join(celulas))
+    return texto
+
+
 def _do_site(texto):
     """As marcas que o site e as páginas legais levam, preenchidas: a
     moldura (tokens, tema, letra), o topo e o rodapé, as ligações legais
@@ -32781,6 +32825,9 @@ def _do_site(texto):
         texto = texto.replace(marca_, valor)
     if "<!--FAQ-JSONLD-->" in texto:
         texto = texto.replace("<!--FAQ-JSONLD-->", faq_em_json_ld(texto))
+    texto = datas_do_exemplo(texto)
+    if "<!--ROSTO-->" in texto:
+        texto = texto.replace("<!--ROSTO-->", rosto_do_site())
     if "{{CONCURSOS}}" in texto:
         n = concursos_na_base()
         if n is None:
@@ -32874,7 +32921,8 @@ PAGINAS_DO_SITE = (("/", "index.html"),
                    ("/acessibilidade", "acessibilidade.html"),
                    ("/privacidade", "privacidade.html"),
                    ("/termos", "termos.html"))
-ABERTOS_AO_ROBOT = ("/llms.txt", "/partilha.png", "/favicon.svg", "/tipo/",
+ABERTOS_AO_ROBOT = ("/llms.txt", "/partilha.png", "/afonso-pinto.jpg",
+                    "/favicon.svg", "/tipo/",
                     "/estilo/", "/entrar", "/cdn-cgi/")
 
 
@@ -32927,6 +32975,31 @@ def llms_txt():
             return Response(f.read(), mimetype="text/plain")
     except OSError:
         return pagina_de_erro(404)
+
+
+# A fotografia de quem está por trás (auditoria de 30/09/2026): um ficheiro
+# do `site/`, sem dados, como a imagem de partilha. Sem o ficheiro, o site
+# mostra as iniciais (`rosto_do_site()`), e esta rota dá 404.
+FOTOGRAFIA_DO_SITE = "afonso-pinto.jpg"
+
+
+@app.route("/" + FOTOGRAFIA_DO_SITE)
+def fotografia_do_site():
+    caminho = os.path.join(os.path.dirname(SITE), FOTOGRAFIA_DO_SITE)
+    if not os.path.isfile(caminho):
+        return pagina_de_erro(404)
+    resposta = send_file(caminho, mimetype="image/jpeg")
+    resposta.headers["Cache-Control"] = "public, max-age=86400"
+    return resposta
+
+
+def rosto_do_site():
+    """A fotografia, se o ficheiro existir; senão as iniciais, para o
+    bloco não ficar com um buraco enquanto ela não chega."""
+    if os.path.isfile(os.path.join(os.path.dirname(SITE), FOTOGRAFIA_DO_SITE)):
+        return ('<img class="rosto" src="/%s" width="88" height="88" '
+                'alt="Afonso Pinto">' % FOTOGRAFIA_DO_SITE)
+    return '<span class="rosto" aria-hidden="true">AP</span>'
 
 
 # A imagem de partilha (G100): sem ela o site saía sem imagem no LinkedIn
