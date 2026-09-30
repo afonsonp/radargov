@@ -826,7 +826,8 @@ Eram cinco itens desde 24/09/2026
 **No telemóvel (abaixo de 600 px) a navegação vai para baixo** (D9 da
 segunda ronda, 26/09/2026, decisão dele): uma barra fixa em baixo com
 **Concursos, Propostas, Situação, Calendário e «Mais»** — o «Mais» abre
-o Mercado, as Configurações, a Ajuda, a conta e o sair —, cada destino
+o Mercado, as Configurações, a Ajuda e o sair (a «conta» saiu a
+30/09/2026: as Configurações abrem-na) —, cada destino
 com ícone e nome, alvos de 60 px de altura, o `aria-current` no aceso (e
 o «Mais» aceso quando a página vive lá dentro), e a área segura do
 iPhone respeitada. Em cima fica a marca (o Hoje) e quem está. O
@@ -928,7 +929,10 @@ hoje · o que fecha esta semana · o que mudou · o que está parado.*
      fechámos. Os anúncios novos não contam as republicações, e o
      subtítulo da página conta o mesmo (`novos_de_hoje()`); as peças
      trazidas depois da verificação contam-se à parte no subtítulo («e
-     N trazidas depois»).
+     N trazidas depois»). Quando a última verificação falhou, **só o
+     dono** o lê na meta, em palavras e com o sinal («a última
+     verificação falhou às 20:00», a vermelho, a razão na dica); o
+     gestor e o utilizador vêem a hora, em tom normal (30/09/2026).
    - **Prazos a chegar · 7 dias** — todas as entregas das propostas
      abertas, **por entregar** primeiro e **já entregues** à parte; o
      que passa das cinco dobra num «mais N» (G19, D12).
@@ -1007,7 +1011,7 @@ baixo diz o que se fez e traz o **desfazer** (que devolve a linha ao
 lugar dela), o foco passa à linha seguinte, e **o número da aba e o
 «N que correspondem» descem um** — o que o ecrã mostra continua a ser
 o que a ligação abre. O diálogo do «Abandonar» tem os **motivos como
-botões que gravam** (um clique; o «Gravar» só aparece quando não há
+botões que gravam** (um clique; o «Guardar» só aparece quando não há
 motivo a escolher, como no preço do «Submetido»). Nas outras abas, e
 sem JavaScript, é o POST de sempre, com a página inteira.
 
@@ -1028,7 +1032,10 @@ O número de cada filtro é o que ele desenha nestas seis semanas, e o
 diz o mesmo. Um endereço antigo com `?estado=` redirecciona para o
 filtro equivalente (as ranhuras da empresa → as nossas; o por ver → o
 por ver; o resto → tudo). **No telemóvel é uma agenda**: dia a dia, só
-os dias que têm alguma coisa, em vez da grelha de sete colunas.
+os dias que têm alguma coisa, em vez da grelha de sete colunas. Com
+«As nossas» vazio nas seis semanas, a legenda di-lo e aponta os por ver
+que fecham nelas (30/09/2026: uma empresa nova abria numa grelha vazia,
+sem uma palavra).
 
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
@@ -1117,6 +1124,10 @@ coluna à direita dela em ecrãs com mais de 1600px.
 `/contratos/resumo`: seis agregações — quem compra, quem ganha, por CPV,
 por procedimento, descontos, evolução.
 
+A ficha de uma entidade abre-se pelo nome em qualquer linha, ou pela aba
+**Entidades**; o formulário «Ficha de uma entidade» do pé do cartão do
+filtro saiu a 30/09/2026 (era o terceiro caminho para o mesmo sítio).
+
 O perfil da empresa recorta o Mercado **só pelo CPV**, e a faixa diz
 que os distritos e o valor mínimo ficam para os concursos. O CSV leva
 até 50 000 linhas (`TECTO_CSV`); acima disso o botão diz quantas leva
@@ -1130,8 +1141,12 @@ dias**.
 
 Tabela: entidade (nome + NIF) · papel (cliente / concorrente / ambos) ·
 compra · ganha (as duas **de sempre**, e o cabeçalho di-lo) · **fita do «connosco»** (um quadrado por proposta, com a
-cor do desfecho) · taxa connosco · a acabar · abrir. **Marcando duas
-linhas, comparam-se lado a lado.**
+cor do desfecho) · taxa connosco · a acabar. O nome leva à ficha (a
+coluna «abrir», o mesmo destino, saiu a 30/09/2026). O papel é uma
+abreviatura neutra (CLI, CONC, C+C), explicada por baixo desta tabela e
+da dos contratos e no glossário. **Marcando duas linhas, comparam-se
+lado a lado** — o «comparar as marcadas» está por cima e por baixo da
+tabela.
 
 **A ficha** abre com **seis factos** — compra a 24 meses · quanto disso
 cai no nosso CPV · a que desconto fecha · quantas propostas lhe fizemos
@@ -1162,9 +1177,9 @@ dono da plataforma as abre; os **documentos** só o admin da empresa.
 | cópias | a cópia diária (plataforma e empresa) e o ensaio de restauro |
 
 **Como funciona** — `/ajuda` (25/09/2026, do teste com utilizadores),
-o «?» da barra desde 26/09/2026 (era no menu da conta): o caminho de
-todos os dias num parágrafo, e o glossário (`GLOSSARIO`) das palavras
-da aplicação. Cada termo tem âncora (`/ajuda#em-jogo`), e o «?» de um
+o «?» da barra desde 26/09/2026 (era no menu da conta): um índice das
+seis secções no topo (30/09/2026), o caminho de todos os dias num
+parágrafo, e o glossário (`GLOSSARIO`) das palavras da aplicação. Cada termo tem âncora (`/ajuda#em-jogo`), e o «?» de um
 bloco ou de uma página cujo nome é um termo liga à definição («Mais na
 ajuda», `mais_na_ajuda()`). **As definições de lá
 seguem as deste documento**: uma regra que mude aqui muda lá. No fim,
@@ -1540,8 +1555,10 @@ ronda: estavam a meio, e os semáforos passaram a encher a linha).
   resumo (`empresas_a_trabalhar()`). A lista é `empresas_suspensas` no
   config.json da plataforma.
 - **Os pedidos de acesso** recusam-se com o motivo, sem se apagar
-  (`recusar_pedido()`); um recusado não se aceita. No telemóvel a lista
-  são cartões, com o «aceitar» à vista.
+  (`recusar_pedido()`); um recusado não se aceita. Os por decidir vêm
+  num bloco em cima e os decididos por baixo (30/09/2026). No telemóvel
+  a lista são cartões, com o «aceitar» à vista. O pedido aceite mostra a
+  ligação do convite com o botão «Copiar», como o convite da Conta.
 - **O admin da empresa** vê e anula os convites por usar da empresa dele
   em Configurações › Conta (um de outra empresa dá 404).
 
@@ -1614,7 +1631,7 @@ mesma rota sem sair da página (§4.3).
 | Triar um anúncio (interessa / abandonar + motivo) | lista, ficha |
 | Mudar de ranhura (+ os campos que ela exige) | lista, Hoje, ficha |
 | Gravar campos da proposta · escrever uma nota nova · corrigir ou apagar a própria nota | ficha, ficha da proposta |
-| Juntar · mudar · remover um documento do cofre | Configurações › Documentos da empresa (admin) |
+| Acrescentar · mudar · remover um documento do cofre | Configurações › Documentos da empresa (admin) |
 | Criar / apagar proposta | ficha, `/proposta/nova` |
 | Criar tarefa · marcar feita · desfazer · adiar · atribuir | Hoje, ficha |
 | Adiar todas as atrasadas | Hoje |
@@ -1664,7 +1681,10 @@ Não são gosto: cada uma é um erro que já aconteceu.
     com significado: azul = acção / em curso · verde = ganho / feito ·
     laranja = a chegar, atenção · vermelho = atrasado, perdido. **A cor
     nunca está sozinha**: ⚠ no vermelho, ◷ no laranja, ✓/✕ nos botões
-    da triagem (26/09/2026).
+    da triagem (26/09/2026). O «Abandonar» é neutro, e o laranja fica
+    para a urgência; **um só botão cheio por ecrã** (30/09/2026). No
+    toque, os alvos de todos os dias — a triagem, o «Mudar», as abas, a
+    paginação, a caixa ✓ — têm 44 px.
 12. **Nada de fora**: CSP `default-src 'self'`. Sem CDN, sem fontes
     externas, sem analytics.
 

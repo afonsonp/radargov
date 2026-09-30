@@ -1172,7 +1172,12 @@ Uma árvore, duas fontes de contagem, dois campos.
   laranja pede que a **cor** faça o trabalho da palavra — que não se lê
   em voz alta nem sobrevive à daltonia. São `CLI`, `CONC` e `C+C`
   (`PAPEL_ABREVIADO`), com a palavra e o porquê no `title`. Visto no
-  ecrã a 16/09/2026, na própria lista para que isto foi feito.
+  ecrã a 16/09/2026, na própria lista para que isto foi feito. **Desde
+  30/09/2026 os selos são neutros** (o laranja do «conc» lia-se como
+  aviso: 45 cores por página do Mercado, UX-7-LEIS V4), e o `title` não
+  chega a quem toca ou usa o teclado: a `LEGENDA_DO_PAPEL` vai por baixo
+  das tabelas das entidades e dos contratos, e o glossário tem «Cliente»
+  e «Concorrente».
 
 - **O papel da entidade (Cliente / Concorrente) conta com os totais SEM
   o filtro da ficha.** São duas somas próprias no `ficha_entidade()`
@@ -4283,7 +4288,7 @@ botões ou no calendário.
   sem ele. O calendário tem o mesmo sinal no número do dia, com texto
   para o leitor e uma legenda; e o «Interessa» e o «Abandonar» levam ✓ e
   ✕ (`SINAL_SIM`, `SINAL_NAO`), que eram o par verde/âmbar que um
-  daltónico não distingue.
+  daltónico não distingue (o «Abandonar» é neutro desde 30/09/2026).
 
 - **O texto que o ecrã mostra passa por um formatador só, e há um teste
   que lê o HTML** (lote 5 da segunda ronda, 26/09/2026, perfil 15).
@@ -4539,6 +4544,45 @@ botões ou no calendário.
   para o lado» nasce e sai com a medida (`.cal-rolo`, `.tab-cx`,
   `.mercado-tab`), porque a 768px o domingo do calendário e a última
   coluna da Situação ficavam cortados sem sinal nenhum.
+- **Um só botão cheio por ecrã, e o laranja é da urgência** (30/09/2026,
+  UX-7-LEIS V1 e V2, e o E8 do `UX-ECRAS-EM-FALTA-E-ESCURO`). A Conta
+  tinha cinco `mg-btn--primary`, a ficha com proposta sete; e as vinte
+  molduras laranja do «Abandonar» tinham o tom das oito etiquetas que
+  pediam atenção — no escuro eram o que mais se via na lista. O
+  «Abandonar» é `mini`/`bt` (neutro; o ✕ diz o que é), o «Filtrar» das
+  Propostas é secundário (`botoes_de_filtro(primario=False)`: lá o
+  primário é a «Nova proposta»), e o «Aplicar seleccionados» da árvore
+  também (o primário é o do formulário). O
+  `test_v2_e8_um_so_primario_por_ecra` conta-os em sete ecrãs, **tirado
+  o `<dialog>` do motivo**, que é modal e tem o seu. Um botão novo nasce
+  secundário; primário só se for **o** gesto do ecrã.
+- **A razão de uma verificação falhada é do dono** (V6, 30/09/2026). O
+  «O que mudou» do Hoje punha a hora a vermelho com «o DR não aceitou a
+  pesquisa (apiVersion) … refaz a captura» na dica — para o gestor de
+  uma empresa cliente, que não pode fazer nada com isso. Com `sou_dono()`
+  diz-se em palavras e com o sinal («a última verificação falhou às
+  20:00»; a cor sozinha não chega, WCAG 1.4.1); para os outros, a hora
+  em tom normal e **sem a dica**. Atenção: o acesso livre local é o
+  dono, e por isso um teste que queira ver o gestor tem de entrar com
+  uma conta, como o `TestAsCorreccoesDeUXDoLancamento` faz.
+- **O sistema de desenho não tem 700** (UX-ICONES-DICAS-PESOS, C.2,
+  30/09/2026): pesa 400, 500 e 600. O `<b>` do browser saía a 700 — o
+  peso mais alto do ecrã, numa nota de 12 px — e o `h3` sem classe era
+  mais pesado do que o `h2` por cima dele. A nossa folha põe `main.mg
+  :is(b,strong){font-weight:600}` (0,1,2): uma regra antiga que queira
+  outro peso num `b` precisa de mais do que isso (a `.desfecho-som
+  .por-haver b`, 0,2,1, continua a ganhar). E nenhum `font-weight:700`
+  na nossa folha — o teste di-lo.
+- **A colagem dos ecrãs não julga a hierarquia se lhe mexer na raiz**
+  (`ferramentas/ecrans.py`, FERR-E, 30/09/2026). Punha `html,body{font:
+  13px 'Plex Sans'}`: tudo o que a aplicação mede em `rem` saía a 81 %,
+  e uma auditoria inteira teve de medir numa cópia remendada. A letra da
+  colagem vai **só** no que é dela (o topo, o índice, os cabeçalhos), e
+  as fontes são as da aplicação, embutidas pelo `url(/tipo/…)` do
+  `CSS_TUDO`. E desde o multi-empresa o acesso local é o dono sem
+  empresa: o script vê as páginas da empresa como o gestor dela e as da
+  plataforma como o dono, com uma conta que devolve ele próprio (o
+  `utilizador_da_sessao()` substituído) — **não grava sessão nenhuma**.
 
 ## Convenções
 

@@ -9227,6 +9227,8 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         ".etq": "a letra sobre a cor da etiqueta, que é da pessoa e não do tema",
         "button.etq-x": "o × da etiqueta, sobre a mesma cor",
         "dialog.mg-dialog::backdrop": "o véu por trás do diálogo, igual nos três",
+        '[data-theme="escuro"] dialog.mg-dialog::backdrop':
+            "o véu do escuro: sobre #14171c o de cima não se via (1,02:1)",
     }
     RX_COR = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgb|hsl)a?\(|"
                         r"(?<![\w-])(?:white|black)(?![\w-])")
@@ -9294,10 +9296,13 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         """Eram cinco: «Filtrar» com 12,5 px e raio 8, «Perguntar», dois
         «procurar» sem classe e um «Filtrar» secundário."""
         paginas = _paginas_do_guia(self)
-        for rota in (radar.LISTA, "/propostas", "/contratos?cpv=72000000",
-                     "/entidade/506000001"):
-            self.assertIn("<button type='submit' class='mg-btn mg-btn--primary'>"
-                          "Filtrar</button>", paginas[rota], rota)
+        # Nas Propostas o «Filtrar» é o mesmo botão, secundário: o
+        # primário do ecrã é a «Nova proposta» (UX-7-LEIS V2, 30/09/2026).
+        for rota, tom in ((radar.LISTA, "primary"), ("/propostas", "secondary"),
+                          ("/contratos?cpv=72000000", "primary"),
+                          ("/entidade/506000001", "primary")):
+            self.assertIn("<button type='submit' class='mg-btn mg-btn--%s'>"
+                          "Filtrar</button>" % tom, paginas[rota], rota)
             self.assertNotIn(">Perguntar<", paginas[rota], rota)
             self.assertNotIn(">procurar<", paginas[rota], rota)
 
@@ -9815,16 +9820,19 @@ class TestPeleNova(unittest.TestCase):
         self.assertIn('"Remover", "mini perigo"',
                       inspect.getsource(radar._bloco_utilizadores))
 
-    def test_abandonar_e_laranja_e_nao_vermelho(self):
+    def test_abandonar_e_neutro(self):
         """Abandonar **não apaga nada** -- a própria aplicação o diz no
         pop-up do motivo, e repõe-se numa linha. Pintar de vermelho uma
-        coisa reversível gasta o vermelho, e depois não sobra cor para o
-        que apaga mesmo (design.md §5)."""
+        coisa reversível gasta o vermelho (design.md §5); e desde
+        30/09/2026 também não é laranja (UX-7-LEIS V1): vinte molduras
+        laranja numa lista tinham o tom das etiquetas urgentes, e no
+        escuro eram o que mais se via."""
         # o botao da linha, pela omissao do forma_abandonar()
-        self.assertIn('classe="mini cuidado"',
+        self.assertIn('classe="mini",',
                       inspect.getsource(radar.forma_abandonar))
         # e o botao grande da ficha, que passa a classe a mao
-        self.assertIn('"bt cuidado"', inspect.getsource(radar.ficha))
+        self.assertIn('forma_abandonar(ref, "bt", "Abandonar"',
+                      inspect.getsource(radar.ficha))
 
     def test_os_cinco_botoes_existem_e_os_perigosos_comecam_em_contorno(self):
         """A regra do design.md §5: um botão vermelho cheio numa lista de
@@ -14280,7 +14288,7 @@ class TestListaRecolhidaETeclado(BaseTemporaria):
 
     def test_o_teclado_esta_na_lista_e_diz_se(self):
         html_ = self.cliente.get(radar.LISTA).get_data(as_text=True)
-        self.assertIn("class='teclas'", html_)
+        self.assertIn("<details class='teclas'>", html_)
         self.assertIn("keydown", radar.LISTA_JS)
         for tecla in ("'j'", "'k'", "'i'", "'a'"):
             self.assertIn("e.key === " + tecla, radar.LISTA_JS)
@@ -25336,6 +25344,354 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
             self.assertIn(frase, termos)
         self.assertNotIn("<h2>Fase beta</h2>", termos)
         self.assertIn("NIF da empresa", privacidade)
+
+
+class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
+    """As correcções de UX aprovadas a 30/09/2026 («sim a todas»), das três
+    auditorias desse dia: `docs/historico/UX-7-LEIS.md`,
+    `UX-ICONES-DICAS-PESOS.md` e `UX-ECRAS-EM-FALTA-E-ESCURO.md`. Cada
+    método diz de que achado vem; todos falhavam com o código de antes."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    @staticmethod
+    def _ficheiro(*caminho):
+        with open(os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               *caminho), encoding="utf-8") as f:
+            return f.read()
+
+    def _folha(self):
+        return self._ficheiro("estilo", "miragov-radar.css")
+
+    def _gestor(self):
+        with radar.liga() as c:
+            if not c.execute("SELECT 1 FROM utilizadores WHERE email='dono'").fetchone():
+                radar.contas.criar_utilizador(c, "dono", "senha-comprida",
+                                              pela_consola=True)
+            radar.contas.criar_utilizador(c, "gestora", "senha-comprida",
+                                          nome="Ana Gestora", papel="admin",
+                                          empresa_id=1)
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": "gestora",
+                                          "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def _ver(self, cliente, rota):
+        r = cliente.get(rota, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200, rota)
+        return r.get_data(as_text=True)
+
+    @staticmethod
+    def _marcacao(h):
+        """O `<main>` sem guiões nem o diálogo do motivo (que é modal, e
+        tem o seu primário)."""
+        h = h.split("<main", 1)[-1]
+        h = re.sub(r"(?s)<script.*?</script>", "", h)
+        return re.sub(r"(?s)<dialog.*?</dialog>", "", h)
+
+    def _sem_anuncio(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO propostas (estado, titulo, entidade) "
+                      "VALUES ('analisar', 'Consulta prévia', 'Câmara')")
+            return c.execute("SELECT MAX(id) FROM propostas").fetchone()[0]
+
+    # -- UX-7-LEIS.md --------------------------------------------------
+
+    def test_v1_o_abandonar_e_neutro_na_lista_e_na_ficha(self):
+        """V1: vinte «Abandonar» laranja tinham o tom das etiquetas
+        urgentes (era cinzento a 02/09)."""
+        lista = self._marcacao(self.cliente.get(radar.LISTA).get_data(as_text=True))
+        self.assertIn("class='mg-btn mg-btn--sm mg-btn--secondary' "
+                      "aria-label='Abandonar: ", lista)
+        self.assertNotIn("mg-btn--warning", lista)
+        self.assertNotIn("mg-btn--warning", self._marcacao(self._ficha()))
+
+    def test_f1_os_alvos_de_todos_os_dias_tem_44_no_toque(self):
+        """F1 e E10: a triagem, o «Mudar», as abas, a paginação e a caixa ✓
+        ficavam entre 24 e 32 px no dedo."""
+        toque = self._folha().split("@media (pointer:coarse){", 1)[1].split("}}", 1)[0]
+        for alvo in (".col-acc .mg-btn--sm", ".celula-ranhura .mg-btn--sm",
+                     "main.mg td select", ".mg-tab", ".mg-pager>a"):
+            self.assertIn(alvo, toque)
+        self.assertIn("min-height:44px", toque)
+        self.assertIn(".chk::before{content:'';position:absolute;inset:-11px}", toque)
+
+    def test_v2_e8_um_so_primario_por_ecra(self):
+        """V2, F2 e E8: a Conta tinha 5 botões cheios, os Alertas 4, as
+        Propostas 2, o Perfil 2, a ficha com proposta 7, a entidade 4 e a
+        proposta sem anúncio 3."""
+        self._proposta()
+        sem = self._sem_anuncio()
+        gestor = self._gestor()
+        for rota in ("/configuracoes/conta", "/configuracoes/alertas",
+                     "/configuracoes/interesse", "/propostas?estado=analisar",
+                     "/anuncio/60%2F2026", "/proposta/%d" % sem,
+                     "/entidade/n:ipl"):
+            h = self._marcacao(self._ver(gestor, rota))
+            self.assertLessEqual(h.count("mg-btn--primary"), 1, rota)
+        conta = self._marcacao(self._ver(gestor, "/configuracoes/conta"))
+        self.assertIn("class='mg-btn mg-btn--primary'>Criar convite", conta)
+        # H2: o segundo caminho para criar uma conta fica recolhido
+        self.assertIn("<summary class='nota'>Criar sem convite", conta)
+
+    def test_f2_trazer_pecas_nao_e_o_botao_cheio_da_ficha_por_ver(self):
+        h = self._marcacao(self._ficha())
+        self.assertIn("Trazer peças", h)
+        self.assertNotIn("mg-btn--primary", h)
+
+    def test_z1_o_calendario_vazio_diz_porque_e_aponta_os_por_ver(self):
+        daqui_a_3 = (datetime.date.today() + datetime.timedelta(days=3)).isoformat()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET prazo=? WHERE ref='60/2026'", (daqui_a_3,))
+        h = self.cliente.get("/calendario").get_data(as_text=True)
+        self.assertIn("Nenhuma proposta da empresa fecha nestas seis semanas.", h)
+        self.assertIn("href='/calendario?ver=porver'>Há 1 por ver com prazo", h)
+
+    def _verificacao_falhou(self):
+        radar.marca("ultima_verificacao", "2026-09-30 20:00:00")
+        radar.marca("ultima_mensagem", "o DR não aceitou a pesquisa (apiVersion)")
+        radar.marca("ultima_ok", "0")
+
+    def test_v6_b1_a_falha_da_verificacao_e_do_dono_em_palavras(self):
+        """V6 e B.1 #1 (ícones): a falha era só cor e `title`, e o gestor
+        de uma empresa cliente via o vermelho e a dica técnica."""
+        self._verificacao_falhou()
+        dono = self.cliente.get("/").get_data(as_text=True)     # acesso local
+        self.assertIn("a última verificação falhou", dono)
+        self.assertRegex(dono, r"class='mau'><svg[^>]*mg-icon")
+        gestor = self._ver(self._gestor(), "/")
+        self.assertNotIn("falhou", gestor)
+        self.assertNotIn("apiVersion", gestor)
+        self.assertIn("<span>desde a última verificação, ", gestor)
+
+    def test_v4_cliente_e_concorrente_sao_neutros(self):
+        self.assertNotRegex(radar.CSS, r"\.ent-papel\.(cliente|concorrente)\{")
+
+    def test_v5_a_coluna_falta_nao_e_laranja(self):
+        self.assertIn(".tab-lista td.falta{color:var(--ink);", self._folha())
+
+    def test_v3_o_cartao_do_prazo_nao_repete_a_etiqueta(self):
+        daqui_a_5 = (datetime.date.today() + datetime.timedelta(days=5)).isoformat()
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET prazo=? WHERE ref='60/2026'", (daqui_a_5,))
+        h = self._marcacao(self._ficha())
+        prazo = h.split("id='prazo'", 1)[1].split("id='", 1)[0]
+        self.assertIn("ficha-prazo", prazo)
+        self.assertNotIn("mg-tag", prazo)
+        self.assertIn("<div class='mg-alert mg-alert--info'><div class='mg-alert__body'>"
+                      "<div class='mg-alert__title'>Falta decidir.", h)
+
+    def test_f3_h6_as_entidades_comparam_por_cima_e_sem_o_abrir(self):
+        """F3: o «comparar» só existia depois da 60.ª linha. H6: o nome e o
+        «abrir» davam no mesmo sítio. A.3: o cabeçalho era um «☐»."""
+        self._proposta()
+        h = self._marcacao(self.cliente.get("/entidades").get_data(as_text=True))
+        tabela = h.split("action='/entidades'", 1)[1]
+        self.assertIn("href='/entidade/n%3Aipl'", tabela)
+        self.assertLess(tabela.index("comparar as marcadas"), tabela.index("<table"))
+        self.assertEqual(tabela.count("comparar as marcadas"), 2)
+        self.assertNotIn("class='nota abrir'", tabela)
+        self.assertNotIn("<th>☐</th>", tabela)
+        self.assertIn("<th><span class='so-leitor'>Comparar</span></th>", tabela)
+        # B.1 #2 (ícones): a abreviatura explica-se por baixo
+        self.assertIn(radar.LEGENDA_DO_PAPEL, tabela)
+
+    def test_h5_o_mais_nao_repete_a_conta(self):
+        h = self._ver(self._gestor(), "/")
+        baixo = h.split("class='barra-baixo'", 1)[1]
+        self.assertIn(">Configurações<", baixo)
+        self.assertNotIn(">A conta<", baixo)
+
+    def test_h3_o_mercado_nao_repete_a_procura_da_entidade(self):
+        # sem corpus o Mercado não desenha o cartão da pergunta: lê-se o código
+        self.assertNotIn("<form class='procura-entidade'", inspect.getsource(radar))
+
+    def test_v7_as_datas_do_fim_estimado_sem_negrito(self):
+        self.assertNotIn("<tr><td class='d'><b>%s</b><br>", inspect.getsource(radar))
+
+    def test_h7_a_arvore_do_perfil_fecha_quando_ja_ha_cpv(self):
+        aberta = self.cliente.get("/configuracoes/interesse").get_data(as_text=True)
+        self.assertRegex(aberta, r"<details class='arvore'[^>]* open>")
+        radar.gravar_config({"interesse_cpv": "72000000", "interesse_activo": True})
+        fechada = self.cliente.get("/configuracoes/interesse").get_data(as_text=True)
+        self.assertNotRegex(fechada, r"<details class='arvore'[^>]* open>")
+
+    def test_j8_m5_v8_os_pedidos_de_acesso(self):
+        """J8: a ligação do pedido aceite estava num `<code>`, sem
+        «Copiar». M5: os pendentes misturados com os decididos. V8: um
+        «aceitar…» cheio por pedido, e «activa» verde."""
+        self.assertIn("caixa_de_copiar(ligacao", inspect.getsource(radar.aceitar_pedido))
+        with radar.liga() as c:
+            for estado in ("recusado", ""):
+                c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
+                          "email, sector, estado) VALUES ('2026-09-30 10:00', "
+                          "'Ana', 'Obras', 'ana@exemplo.pt', 'obras', ?)", (estado,))
+        h = self._marcacao(self.cliente.get("/pedidos-de-acesso").get_data(as_text=True))
+        self.assertLess(h.index(">Por decidir &middot; 1<"), h.index(">Decididos &middot; 1<"))
+        self.assertNotIn("mg-btn--primary", h)
+        self.assertIn('tom("mau") if e["suspensa"] else ""',
+                      inspect.getsource(radar.administracao_da_plataforma))
+
+    def test_f4_os_alvos_do_topo_do_site_no_telemovel(self):
+        self.assertIn(".topo nav a.entrar,.topo nav .btn-pequeno{display:inline-flex;"
+                      "align-items:center;min-height:44px",
+                      self._ficheiro("site", "moldura.css"))
+
+    # -- UX-ICONES-DICAS-PESOS.md --------------------------------------
+
+    def test_b1_2_cliente_e_concorrente_no_glossario(self):
+        termos = {t for _, grupo in radar.GLOSSARIO for t, _ in grupo}
+        self.assertLessEqual({"Cliente", "Concorrente"}, termos)
+
+    def test_c2_1_2_8_9_nenhum_peso_a_700(self):
+        folha = self._folha()
+        self.assertIn("main.mg :is(b,strong){font-weight:600}", folha)
+        self.assertIn("main.mg h3:not([class]){font-size:var(--text-lg);font-weight:600}",
+                      folha)
+        self.assertNotIn("font-weight:700", folha)
+        self.assertIn(".conc-n{font:600 var(--text-2xl)", radar.CSS)
+
+    def test_c2_3_um_so_tamanho_de_cabecalho_de_tabela(self):
+        self.assertNotIn("[data-pele=novo] .tab-contratos th,", radar.CSS_NOVO)
+
+    def test_a1_o_porque_e_o_do_sistema(self):
+        h = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertIn("<span class='mg-disc__q' aria-hidden='true'", h)
+        self.assertNotIn("<i aria-hidden='true' title='O que é", h)
+        self.assertNotIn("details.porque > summary > i", radar.CSS)
+
+    def test_b1_5_o_responsavel_por_extenso_para_o_leitor(self):
+        self.assertIn("<span class='so-leitor'>Ana Silva</span>",
+                      radar._avatar_html("Ana Silva"))
+        self.assertIn("<span class='so-leitor'>sem dono</span>", radar._avatar_html(""))
+        id_ = self._proposta()
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET responsavel='Ana Silva' WHERE id=?", (id_,))
+        h = self.cliente.get("/propostas?estado=analisar").get_data(as_text=True)
+        self.assertIn("<span class='so-leitor'>Ana Silva</span></span>", h)
+
+    def test_ferr_e_a_colagem_nao_encolhe_a_raiz(self):
+        """Nota inicial dos ícones e FERR-E: a colagem punha a raiz a 13 px
+        e a letra Plex, e o acesso local entrava como o dono sem empresa."""
+        fonte = self._ficheiro("ferramentas", "ecrans.py")
+        folha = fonte.split("FOLHA = ", 1)[1]
+        self.assertNotIn("Plex", folha)
+        self.assertIn("html,body{margin:0;background:#e9ebef}\n", folha)
+        for rota in ("/propostas?", "/ajuda", "/configuracoes/documentos",
+                     "/plataforma", "--empresa"):
+            self.assertIn(rota, fonte)
+
+    def test_a1_a3_b2_os_pequenos(self):
+        fonte = inspect.getsource(radar)
+        # apagar um contacto é destruir: o caixote, como no alerta
+        self.assertIn('accao("/contacto/%d/apagar" % l["id"], icone("apagar", 16)', fonte)
+        # a peça com o `peca`, e o `documento` fica para as Propostas
+        self.assertIn('icone("peca"),', fonte)
+        # o › das migalhas não se lê
+        self.assertIn("<s aria-hidden='true'>&rsaquo;</s>",
+                      radar.migalhas_de("contratos", "x"))
+        # o número do `title` das barras pelo mil_pt
+        barras = radar.barras_v([{"t": "< 20 k€", "v": 1.0, "k": 39562}], "T")
+        self.assertIn("39 562", barras)
+        # o logótipo diz que é o Hoje
+        self.assertIn('aria-label="Hoje &mdash; Mira Gov"', radar.BASE)
+        # o «Prazo» da lista diz que ordena
+        h = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        self.assertIn("Prazo<span class='so-leitor'>, ordenar</span>", h)
+
+    def test_a1_a_paginacao_e_a_fita_com_os_icones(self):
+        from werkzeug.datastructures import MultiDict
+        pag = radar.paginador(2, 5, MultiDict(), "/concursos")
+        self.assertNotIn("&larr;", pag)
+        self.assertEqual(pag.count("mg-icon"), 2)
+        hoje = self.cliente.get("/").get_data(as_text=True)
+        self.assertRegex(hoje, r"</svg> 7 dias antes</a>")
+
+    def test_c2_6_os_vazios_tem_titulo(self):
+        self.assertNotIn("<div class='mg-empty comecar'><b>", inspect.getsource(radar))
+        h = self.cliente.get("/entidades?ver=clientes").get_data(as_text=True)
+        self.assertIn("<div class='mg-empty comecar'><h2 class='mg-empty__title'>", h)
+
+    def test_b1_7_os_atalhos_explicados_a_vista(self):
+        h = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        self.assertIn("<span class='teclas-o-que'>Com o foco numa linha da tabela: "
+                      "<kbd>j</kbd>", h)
+
+    def test_c2_11_o_sobre_do_site_a_600(self):
+        self.assertNotIn(".sobre{font-weight:700", self._ficheiro("site", "index.html"))
+
+    # -- UX-ECRAS-EM-FALTA-E-ESCURO.md ---------------------------------
+
+    def test_e1_a_situacao_diz_quantas_e_os_euros(self):
+        self._proposta()
+        h = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertIn("<span class='v'>1 &middot; 0 €</span>", h)
+
+    def test_e2_sem_anuncio_nao_ha_voltar_a_por_ver(self):
+        sem = self._sem_anuncio()
+        p = radar.proposta(sem)
+        self.assertNotIn("voltar a «Por ver»",
+                         radar.selector_de_ranhura("/proposta/%d/escada" % sem,
+                                                   p["estado"], p=p))
+        self.assertIn("voltar a «Por ver»",
+                      radar.selector_de_ranhura("/escada/x", "analisar"))
+
+    def test_b41_e3_e4_b1_b2_a_nossa_folha(self):
+        folha = self._folha()
+        # B4.1: o foco amarelo também na banda azul do cartão
+        self.assertIn(".mg-card--band .mg-card__head :focus-visible"
+                      "{outline-color:var(--focus-on-header)}", folha)
+        # E3: a fase das nossas propostas à vista na ficha da entidade
+        self.assertIn(".ent-nossas .tab-contratos{min-width:0}", folha)
+        # E4: «3 189anúncios»
+        self.assertIn(".ent-num{gap:.25em}", folha)
+        # B.1: a seta fraca em cor, não em meia-luz
+        self.assertIn(".seta.fraca{color:var(--ink-muted)}", folha)
+        # B.2: o véu do diálogo no escuro
+        self.assertIn('[data-theme="escuro"] dialog.mg-dialog::backdrop', folha)
+
+    def test_e5_o_nome_do_campo_alterado_e_portugues(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO alteracoes (ref, campo, antes, depois, "
+                      "detectado_em) VALUES ('60/2026', 'preco_base', '1', '2', ?)",
+                      (datetime.date.today().isoformat(),))
+        h = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("preço base alterado", h)
+        self.assertNotIn("preco_base alterado", h)
+
+    def test_e8_o_dialogo_diz_guardar(self):
+        self.assertIn("id='dlg-motivo-gravar'>Guardar</button>", radar.caixa_do_motivo())
+
+    def test_b3_a_etiqueta_ambar_passa_o_contraste(self):
+        self.assertNotIn("#d68910", radar.CORES_ETIQUETA)
+        self.assertIn("#a0640a", radar.CORES_ETIQUETA)
+        self.assertIn("button.etq-x{background:none;border:0;color:#fff;opacity:.85;",
+                      radar.CSS)
+
+    def test_e13_a_cronologia_sem_anuncio_tem_a_marcacao_da_ficha(self):
+        sem = self._sem_anuncio()
+        radar.registar("", "proposta", "criou a proposta", proposta_id=sem)
+        h = self.cliente.get("/proposta/%d" % sem).get_data(as_text=True)
+        cronologia = h.split(">Cronologia</div>", 1)[1]
+        self.assertTrue(cronologia.startswith("<ul class='ficha-lista'><li><span class='t'>"))
+        self.assertNotIn("<div class='hist'><b>", h)
+
+    def test_e14_os_documentos_da_empresa(self):
+        h = self._marcacao(self.cliente.get("/configuracoes/documentos")
+                           .get_data(as_text=True))
+        self.assertNotIn("cofre", h)
+        self.assertIn(">Acrescentar</button>", h)
+        self.assertNotIn("O alvará, as certidões, as ISO", h)
+
+    def test_e15_a_ajuda_tem_indice_e_nao_se_explica_a_si_propria(self):
+        h = self.cliente.get("/ajuda").get_data(as_text=True)
+        indice = h.split("class='ajuda-indice", 1)[1].split("</nav>", 1)[0]
+        self.assertEqual(indice.count("<a href='#grupo-"), len(radar.GLOSSARIO))
+        for grupo, _ in radar.GLOSSARIO:
+            self.assertIn("id='grupo-%s'" % radar.ancora_do_termo(grupo), h)
+        self.assertNotIn("title='O que é esta página'", h)
 
 
 

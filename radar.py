@@ -2897,7 +2897,10 @@ def passos_do_anuncio(c, ref, limite, proposta_id=None):
 # que a ficha mostra -- e continua antes das propostas porque é delas
 # que a escada precisa.
 
-CORES_ETIQUETA = ("#c0392b", "#d68910", "#1e8449", "#1f4e79",
+# O ambar era #d68910, que com a letra branca dava 2,82:1 nos dois temas
+# (UX-ECRAS-EM-FALTA-E-ESCURO, B.3 #1, 30/09/2026); #a0640a da 4,86:1. As
+# etiquetas ja gravadas guardam a cor que tinham.
+CORES_ETIQUETA = ("#c0392b", "#a0640a", "#1e8449", "#1f4e79",
                    "#6c3483", "#616a6b")
 
 
@@ -14440,20 +14443,13 @@ form.accao button{font-family:inherit}
 details.porque > summary{display:flex;align-items:baseline;gap:9px;
  cursor:pointer;list-style:none}
 details.porque > summary::-webkit-details-marker{display:none}
-/* O mesmo "?" dentro da ficha, ao lado do rotulo de um bloco. O
-   rotulo e mais pequeno que o titulo da pagina, e por isso o circulo
-   tambem: 16px em vez de 19. */
+/* O "?" e o `.mg-disc__q` do sistema desde 30/09/2026 (era um <i> com
+   o circulo feito aqui; UX-ICONES-DICAS-PESOS A.1): enche-se de azul
+   quando aberto. Dentro da ficha vai ao lado do rotulo de um bloco. */
+details.porque > summary > .mg-disc__q{align-self:center}
 details.porque-bloco > summary{gap:7px}
-details.porque-bloco > summary > i{width:16px;height:16px;
- font:600 var(--text-xs)/14px var(--font-sans)}
 details.porque-bloco .rot{margin:0}
 details.porque-bloco > .nota{margin:6px 0 12px}
-details.porque > summary > i{flex:none;font-style:normal;align-self:center;
- width:19px;height:19px;border-radius:50%;border:1px solid var(--line-strong);
- color:var(--ink-muted);font:600 var(--text-xs)/17px var(--font-sans);text-align:center}
-details.porque > summary:hover > i{border-color:var(--brand);color:var(--brand)}
-details.porque[open] > summary > i{background:var(--brand);color:var(--on-brand);
- border-color:var(--brand)}
 h1.tit{margin:8px 0 0;font:700 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);
  letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
 p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);
@@ -14647,16 +14643,15 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .ent-cab{padding:20px 24px;margin-bottom:14px}
 .ent-cab .n{font:600 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);letter-spacing:-.3px}
 .ent-cab .m{font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted);margin-top:7px}
-/* Cliente ou concorrente. Duas cores e nao uma: o que se quer distinguir
-   ao correr o olho e o LADO DA MESA, e um selo neutro para os dois
-   obrigava a ler a palavra para saber qual e. O terceiro caso -- as que
-   sao as duas coisas -- fica sem cor de propósito: nao ha lado. */
+/* Cliente ou concorrente. Eram duas cores (verde e laranja) ate
+   30/09/2026: o laranja e o tom do aviso, e ser concorrente nao e um
+   aviso -- 45 selos coloridos por pagina do Mercado (UX-7-LEIS, V4). O
+   texto ja diz qual e, e a legenda por baixo das tabelas explica a
+   abreviatura; os tres casos sao neutros. */
 .ent-papel{display:inline-block;vertical-align:middle;margin-left:10px;
  padding:4px 9px;border-radius:var(--radius-full);border:1px solid var(--line-strong);
  font:600 var(--text-xs)/1 var(--font-sans);letter-spacing:.2px;color:var(--ink-secondary);
  white-space:nowrap}
-.ent-papel.cliente{color:var(--success);border-color:var(--success)}
-.ent-papel.concorrente{color:var(--warning);border-color:var(--warning)}
 /* O da LISTA é só a inicial: numa coluna de nomes o selo é um sinal e
    não uma etiqueta, e a palavra por extenso ao lado de cada nome
    dobrava a largura da coluna mais cheia da tabela. O `title` diz a
@@ -14718,7 +14713,7 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .graf .barras .col.destaque .b{background:var(--success)}
 .graf .barras .col.destaque .v{color:var(--success)}
 .graf .barras .col.destaque .l{color:var(--success);font-weight:600}
-.conc-n{font:700 var(--text-3xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;
+.conc-n{font:600 var(--text-2xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;
  margin-bottom:12px}
 .conc-b{display:flex;height:22px;border-radius:var(--radius-sm);overflow:hidden;
  background:var(--surface-sunken)}
@@ -15176,7 +15171,7 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
 .etq{display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:var(--radius-sm);
  color:#fff;font:600 var(--text-xs)/1.3 var(--font-sans)}
 .etq form.accao{display:inline-flex}
-button.etq-x{background:none;border:0;color:#fff;opacity:.6;cursor:pointer;
+button.etq-x{background:none;border:0;color:#fff;opacity:.85;cursor:pointer;
  font-size:var(--text-xs);line-height:1;padding:6px;margin:-6px -4px -6px 0;
  min-width:24px;min-height:24px;box-sizing:border-box}
 button.etq-x:hover{opacity:1}
@@ -15650,7 +15645,6 @@ CSS_NOVO = r"""
    menos, e deixa de obrigar a letra a descer a 9px para caber. */
 [data-pele=novo] .rot,[data-pele=novo] .kpi .r,[data-pele=novo] .facto .k,
 [data-pele=novo] details.sec .st,[data-pele=novo] .prop-campos label,
-[data-pele=novo] .tab-contratos th,[data-pele=novo] .tab-mercado th,
 [data-pele=novo] details.painel-filtros .pf-tit,
 [data-pele=novo] .desfecho-som span{
  text-transform:none;letter-spacing:0;font-size:var(--text-sm);font-weight:600;
@@ -16115,7 +16109,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
 <a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
 <div class="app">
 <header class="mg mg-topbar">%(faixa)s
- <a class="mg-topbar__brand" href="/" %(inicio_on)s title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
+ <a class="mg-topbar__brand" href="/" %(inicio_on)s aria-label="Hoje &mdash; Mira Gov" title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
  <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
  %(conta)s
 </header>
@@ -16513,11 +16507,11 @@ def migalhas_de(vista, folha=""):
 
     pedacos = []
     for etiqueta, destino in passos[:-1]:
-        pedacos.append("<a href='%s'>%s</a><s>&rsaquo;</s>"
+        pedacos.append("<a href='%s'>%s</a><s aria-hidden='true'>&rsaquo;</s>"
                        % (destino, html.escape(etiqueta)))
     etiqueta, destino = passos[-1]
     if folha:
-        pedacos.append("<a href='%s'>%s</a><s>&rsaquo;</s><em>%s</em>"
+        pedacos.append("<a href='%s'>%s</a><s aria-hidden='true'>&rsaquo;</s><em>%s</em>"
                        % (destino, html.escape(etiqueta), html.escape(folha)))
     else:
         pedacos.append("<em>%s</em>" % html.escape(etiqueta))
@@ -16702,9 +16696,14 @@ SINAL_SIM = "<span aria-hidden='true'>&#10003;</span> "
 SINAL_NAO = "<span aria-hidden='true'>&#10005;</span> "
 
 
-def forma_abandonar(ref, classe="mini cuidado", etiqueta="abandonar",
+def forma_abandonar(ref, classe="mini", etiqueta="abandonar",
                     titulo=""):
     """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
+
+    Neutro desde 30/09/2026 (UX-7-LEIS V1; era cinzento a 02/09): o
+    laranja e a cor da urgencia, e vinte «Abandonar» laranja numa lista
+    tinham o mesmo tom das oito etiquetas que pedem atencao -- no escuro
+    eram o que mais se via. O «✕» (`SINAL_NAO`) diz o que e.
 
     Decisao do Afonso a 01/09/2026: pop-up e nao selector ao lado. Um
     selector colado ao botao punha a pergunta em cada uma das vinte
@@ -16775,14 +16774,18 @@ def selector_de_ranhura(accao, actual, titulo="", p=None):
         opcoes.append("<option value='%s'%s>%s</option>"
                       % (chave, " selected" if chave == actual else "",
                          html.escape(rotulo)))
-    opcoes.append("<option value='%s'>voltar a «Por ver»</option>"
-                  % ENTRADA_DA_ESCADA[0])
+    ref = (p["ref"] if p is not None and "ref" in p.keys() else "") or ""
+    # Uma proposta sem anuncio nao tem «Por ver» para onde voltar: o
+    # mover_proposta() recusava com o nome interno, ««porver» não é um
+    # estado da empresa» (UX-ECRAS-EM-FALTA-E-ESCURO, E2, 30/09/2026).
+    if ref or p is None:
+        opcoes.append("<option value='%s'>voltar a «Por ver»</option>"
+                      % ENTRADA_DA_ESCADA[0])
     base = preco_base_da_proposta(p) if p is not None else None
     # O nome diz DE QUE concurso (segunda ronda, 26/09/2026; WCAG 2.4.6):
     # sete «Ranhura na escada» iguais numa lista não diziam qual se ia
     # mudar. E o botão «Mudar» está sempre à vista: o selector já não
     # grava ao mudar (3.2.2), grava-se com ele ou com o Enter.
-    ref = (p["ref"] if p is not None and "ref" in p.keys() else "") or ""
     qual = " — ".join(x for x in (ref, corta(titulo, 80) if titulo != ref
                                   else "") if x)
     # O `de` é a fase que esta página mostra: o servidor recusa se a
@@ -16907,7 +16910,7 @@ def caixa_do_motivo():
             "<button type='button' class='mg-btn mg-btn--secondary' "
             "id='dlg-motivo-nao'>Cancelar</button>"
             "<button type='submit' class='mg-btn mg-btn--primary' "
-            "id='dlg-motivo-gravar'>Gravar</button>"
+            "id='dlg-motivo-gravar'>Guardar</button>"
             "</div></form></dialog>"
             "<script>\n"
             "(function () {\n"
@@ -17174,7 +17177,11 @@ def barra_de_baixo(activo, item_activo, sem_empresa):
     menu.append(do_menu("/ajuda", "Ajuda", "ajuda", activo == "ajuda"))
     if g.get("sessao"):
         menu.append("<div class='mg-menu__sep'></div>")
-        menu.append(do_menu("/configuracoes/conta", "A conta", "utilizador"))
+        # Com empresa, «Configurações» ja abre a conta: eram duas entradas
+        # para o mesmo endereco (UX-7-LEIS H5, 30/09/2026). O dono sem
+        # empresa tem a «Plataforma» no lugar, e a conta so por aqui.
+        if sem_empresa:
+            menu.append(do_menu("/configuracoes/conta", "A conta", "utilizador"))
         menu.append("<form method='post' action='/sair'><button type='submit' "
                     "class='mg-menu__item'>%sSair</button></form>" % icone("sair"))
     # O «Mais» acende quando a página em que se está vive lá dentro:
@@ -17338,7 +17345,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # morto, que a empresa nao poe no ecra.
         "titulo_e_porque": (
             ("<details class='mg-disc porque'><summary>"
-             "<h1 class='mg-pagehead__title'>%s</h1><i aria-hidden='true' title='O que é esta página'>?</i>"
+             "<h1 class='mg-pagehead__title'>%s</h1><span class='mg-disc__q' aria-hidden='true' title='O que é esta página'>?</span>"
              "</summary><p class='mg-pagehead__sub'>%s%s</p></details>"
              % (html.escape(titulo), subtitulo, mais_na_ajuda(titulo)))
             if subtitulo.strip()
@@ -18576,10 +18583,14 @@ def paginador(pagina, paginas, args, base="/"):
         return ("<a class='%s' href='%s?%s'>%s</a>"
                 % (classe, base, urlencode(args_n), etiqueta or n))
 
+    # os icones do sistema, como no Calendario, e nao as setas de texto
+    # (UX-ICONES-DICAS-PESOS, A.1, 30/09/2026)
+    antes, depois = (icone("anterior", 16) + " anterior",
+                     "seguinte " + icone("seguinte", 16))
     pecas = []
-    pecas.append(liga_pag(pagina - 1, "&larr; anterior")
+    pecas.append(liga_pag(pagina - 1, antes)
                  if pagina > 1
-                 else "<span class='morto'>&larr; anterior</span>")
+                 else "<span class='morto'>%s</span>" % antes)
 
     # janela de duas paginas para cada lado, com a primeira e a ultima
     # sempre presentes -- e delas que se salta para as pontas
@@ -18593,9 +18604,9 @@ def paginador(pagina, paginas, args, base="/"):
                      else liga_pag(n))
         anterior = n
 
-    pecas.append(liga_pag(pagina + 1, "seguinte &rarr;")
+    pecas.append(liga_pag(pagina + 1, depois)
                  if pagina < paginas
-                 else "<span class='morto'>seguinte &rarr;</span>")
+                 else "<span class='morto'>%s</span>" % depois)
 
     # Caixa para saltar. A barra mostra uma janela a volta da pagina
     # actual, portanto sem isto a unica forma de chegar ao meio de 3300
@@ -19247,10 +19258,13 @@ def _lista_de_anuncios():
         quote=True)
     th_do_prazo = (
         "<th class='mg-num'%s><a class='ordenar' href='%s' title='%s'>Prazo"
+        "<span class='so-leitor'>, %s</span>"
         "<span class='seta%s' aria-hidden='true'>%s</span></a></th>"
         % (" aria-sort='ascending'" if por_prazo else "", href_da_ordem,
            "Voltar à ordem de publicação" if por_prazo
            else "Ordenar pelo prazo mais perto",
+           # o nome da ligacao era so «Prazo» (UX-ICONES-DICAS-PESOS, B.2)
+           "voltar à ordem de publicação" if por_prazo else "ordenar",
            "" if por_prazo else " fraca", "▲" if por_prazo else "↕"))
     if linhas:
         # A tabela do `EcraConcursos`, com o cabeçalho que ele desenhou.
@@ -19400,13 +19414,17 @@ def _lista_de_anuncios():
                 # tapa e a ter o "ver tudo".
                 "<div class='linha-conta resumo'><span class='conta'>" + conta
                 + "</span>" + faixa_interesse +
-                "<span class='teclas' "
-                "title='Com o foco numa linha da tabela — j/k: anúncio seguinte/anterior · "
-                "i: interessa · a: abandonar · Enter: abrir a ficha'>"
+                # A explicacao a vista, num <details>: estava no `title`,
+                # que nao aparece com o foco -- e quem usa o teclado e ve e
+                # a unica pessoa que precisa disto (UX-ICONES-DICAS-PESOS,
+                # B.1 #7, 30/09/2026).
+                "<details class='teclas'><summary>"
                 "<span aria-hidden='true'>j k i a &#9166;</span>"
-                "<span class='so-leitor'>Atalhos, com o foco numa linha da tabela: "
-                "j e k mudam de linha, i marca Interessa, a abandona, "
-                "Enter abre a ficha.</span></span>" +
+                "<span class='so-leitor'>Atalhos do teclado</span></summary>"
+                "<span class='teclas-o-que'>Com o foco numa linha da tabela: "
+                "<kbd>j</kbd> e <kbd>k</kbd> mudam de linha, <kbd>i</kbd> "
+                "marca Interessa, <kbd>a</kbd> abandona, <kbd>Enter</kbd> "
+                "abre a ficha.</span></details>" +
                 # dizer quantas linhas e que saem: a ligacao esta encostada
                 # ao "1-20" e exportava as 66 mil sem avisar
                 "</div>" +
@@ -19579,9 +19597,13 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
                html.escape(corta(p["entidade"] or "", 45)),
                "L%d" % p["lote"] if p["lote"] else
                ("conjunto" if p["lote"] == 0 else "&mdash;"),
-               ("<span class='mg-avatar' title='%s'>%s</span>"
+               # o nome inteiro tambem para o leitor de ecra: as iniciais
+               # so diziam «AF» (UX-ICONES-DICAS-PESOS, B.1 #5)
+               ("<span class='mg-avatar' title='%s'><span aria-hidden='true'>%s"
+                "</span><span class='so-leitor'>%s</span></span>"
                 % (html.escape(nome_da_pessoa(p["responsavel"]), quote=True),
-                   html.escape(iniciais(nome_da_pessoa(p["responsavel"])))))
+                   html.escape(iniciais(nome_da_pessoa(p["responsavel"]))),
+                   html.escape(nome_da_pessoa(p["responsavel"]))))
                if p["responsavel"] else "&mdash;",
                html.escape(preco_pt(p["preco_base"])),
                # pelo tuplo e nao concatenada ao molde: o valor ja vem
@@ -19713,7 +19735,7 @@ def _lista_de_propostas():
              % (PROPOSTAS, html.escape(estado_actual, quote=True),
                 html.escape(procura, quote=True),
                 botoes_de_filtro("%s?estado=%s" % (PROPOSTAS, estado_actual)
-                                 if procura else "")))
+                                 if procura else "", primario=False)))
     # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
     # corpo, a procura e a contagem, e a tabela.
     conteudo = (barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)
@@ -19944,8 +19966,10 @@ def arvore_html(n_cpv, de, submeter=True, aberta=False,
                           mil_pt(n_cpv), quantos,
                           # sem `botao`, grava o botão do formulário (o
                           # Perfil da empresa: um «Guardar» só, 3.ª ronda G95)
+                          # secundario: o primario de cada ecra e o do
+                          # formulario (o «Filtrar»; UX-ECRAS-EM-FALTA E8)
                           "<button type='button' class='mg-btn mg-btn--sm "
-                          "mg-btn--primary' onclick='arvoreAplicar()'>%s</button>"
+                          "mg-btn--secondary' onclick='arvoreAplicar()'>%s</button>"
                           % html.escape(botao) if botao else "", pe))
 
 
@@ -20978,7 +21002,9 @@ def _conteudo_interesse():
         "</button></div></div>"
         % (estado, html.escape(DICA_DO_PERFIL), html.escape(dentro, quote=True),
            html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg),
-           arvore_html(n_cpv, "anuncios", submeter=False, aberta=True,
+           # fechada quando o perfil ja tem CPV (UX-7-LEIS H7, 30/09/2026):
+           # 9 454 codigos abertos por cima de um «Em vigor: 72000000»
+           arvore_html(n_cpv, "anuncios", submeter=False, aberta=not dentro,
                        botao=None, rodape=False)))
     conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
     if sou_admin():
@@ -21023,7 +21049,7 @@ def _cartao_das_listas_da_proposta(cfg):
         "<textarea class='mg-field__input' name='unidades' rows='4'>%s"
         "</textarea><span class='mg-field__hint'>Uma por linha</span></label>"
         "</div></div>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar as listas"
+        "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar as listas"
         "</button></form></div>"
         % (html.escape("\n".join(tipologias)),
            html.escape("" if rotulo == ROTULO_DA_UNIDADE else rotulo, quote=True),
@@ -21212,7 +21238,7 @@ def _caixa_email(cfg):
             "placeholder='nome@empresa.pt'></label>"
             "<label>Hora do resumo<input type='time' name='hora_resumo' "
             "value='%s'></label>"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
+            "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
             "</form></div>"
             % (html.escape(str(e.get("para") or ""), quote=True),
                html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
@@ -21226,7 +21252,7 @@ def _caixa_email(cfg):
         "placeholder='nome@empresa.pt'></label>"
         "<label>Hora do resumo<input type='time' name='hora_resumo' "
         "value='%s'></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
+        "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
         "</form>"
         "<div class='mg-field__label' style='margin:22px 0 6px'>Quem envia</div>"
         "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
@@ -21241,7 +21267,7 @@ def _caixa_email(cfg):
         "<label>Porta<input type='text' name='porta' value='%s'></label>"
         "<label>Palavra-passe<input type='password' name='senha' value='' "
         "autocomplete='new-password'%s></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button>"
+        "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
         "</form>"
         "<div class='saude'>%s</div>%s</div>"
         % (html.escape(str(e.get("para") or ""), quote=True),
@@ -21277,7 +21303,7 @@ def _caixa_urgente():
             "<input type='text' id='dias-urgente' name='dias' value='%d' inputmode='numeric' "
             "style='min-width:0;width:70px;flex:none'>"
             "<label>dias</label>"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form></div>"
+            "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form></div>"
             % dias_urgente())
 
 
@@ -21325,7 +21351,7 @@ def _caixa_alerta_do_perfil(cfg):
             "<p class='nota'>Avisa por e-mail do que entrar dentro do perfil "
             "da empresa: %s.</p>%s</div>"
             % (descricao, accao("/alertas/do-perfil",
-                                "Criar o alerta do perfil", "bt forte")))
+                                "Criar o alerta do perfil", "bt")))
 
 
 def _conteudo_alertas():
@@ -22071,7 +22097,9 @@ def administracao_da_plataforma():
             _celula_da_tabela("Empresa", "<a href='/plataforma/empresa/%d'>%s</a>"
                     % (e["id"], html.escape(e["nome"]))),
             _celula_da_tabela("Estado", "<span class='mg-tag %s'>%s</span>"
-                    % (tom("mau") if e["suspensa"] else tom("ok"),
+                    # «activa» neutra: e o normal, e so a suspensa pede o
+                    # olho (UX-7-LEIS V8, 30/09/2026)
+                    % (tom("mau") if e["suspensa"] else "",
                        "suspensa" if e["suspensa"] else "activa")),
             _celula_da_tabela("Contas", "%d" % e["contas"], "mg-num"),
             _celula_da_tabela("Última entrada", html.escape(ha_quanto(e["ultima"]))),
@@ -22388,6 +22416,26 @@ def mostrar_uma_vez(titulo, frase, ligacao, rotulo, voltar):
     return redirect(LIGACAO_UMA_VEZ)
 
 
+def caixa_de_copiar(ligacao, rotulo):
+    """A ligação num campo só de leitura, com o botão «Copiar». Uma por
+    página (os `id`). Serve o convite e o repor das Configurações e, desde
+    30/09/2026, o pedido aceite, que a mostrava num `<code>` sem botão
+    (UX-7-LEIS J8)."""
+    return (
+        "<div class='copiar-linha'><input class='mg-field__input' type='text' "
+        "id='ligacao-uma-vez' readonly value='%s' aria-label='%s' "
+        "onfocus='this.select()'>"
+        "<button type='button' class='mg-btn mg-btn--primary' "
+        "id='copiar-ligacao'>Copiar</button></div>"
+        "<script>document.getElementById('copiar-ligacao').addEventListener("
+        "'click',function(){var b=this,i=document.getElementById('ligacao-uma-vez');"
+        "i.select();var feito=function(){b.textContent='Copiada';};"
+        "if(navigator.clipboard)navigator.clipboard.writeText(i.value).then(feito,"
+        "function(){document.execCommand('copy');feito();});"
+        "else{document.execCommand('copy');feito();}});</script>"
+        % (html.escape(ligacao, quote=True), html.escape(rotulo, quote=True)))
+
+
 @app.route("/configuracoes/conta/ligacao")
 def ligacao_uma_vez():
     """A ligação acabada de criar, com o botão «Copiar». Recarregar não
@@ -22407,21 +22455,10 @@ def ligacao_uma_vez():
     else:
         corpo = (
             "<div class='mg-card conf-cx'>"
-            "<div class='mg-field__label'>%s</div><p class='nota'>%s</p>"
-            "<div class='copiar-linha'><input class='mg-field__input' type='text' "
-            "id='ligacao-uma-vez' readonly value='%s' aria-label='%s' "
-            "onfocus='this.select()'>"
-            "<button type='button' class='mg-btn mg-btn--primary' "
-            "id='copiar-ligacao'>Copiar</button></div>"
+            "<div class='mg-field__label'>%s</div><p class='nota'>%s</p>%s"
             "<p style='margin-top:14px'><a href='%s'>Voltar</a></p></div>"
-            "<script>document.getElementById('copiar-ligacao').addEventListener("
-            "'click',function(){var b=this,i=document.getElementById('ligacao-uma-vez');"
-            "i.select();var feito=function(){b.textContent='Copiada';};"
-            "if(navigator.clipboard)navigator.clipboard.writeText(i.value).then(feito,"
-            "function(){document.execCommand('copy');feito();});"
-            "else{document.execCommand('copy');feito();}});</script>"
             % (html.escape(l["titulo"]), l["frase"],
-               html.escape(l["ligacao"], quote=True), html.escape(l["rotulo"], quote=True),
+               caixa_de_copiar(l["ligacao"], l["rotulo"]),
                html.escape(l["voltar"], quote=True)))
     if sou_dono():
         return envolver("configuracoes", "Plataforma", "",
@@ -23368,7 +23405,8 @@ def config_conta():
                  extra="autocomplete='new-password'")
         + _campo("Repetir a nova palavra-passe", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
-        + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
+        # secundario: o primario da Conta e o «Criar convite» (UX-7-LEIS V2)
+        + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>"
         + "<div class='mg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
         + "<div class='saude'>%s</div>" % linhas
         + ("<div style='margin-top:14px'>%s</div>"
@@ -23420,7 +23458,7 @@ def _bloco_do_aspecto(utilizador):
             "sistema» segue o claro ou o escuro que o computador ou o "
             "telemóvel tiverem. Vale para esta conta, em todos os "
             "aparelhos.</div>"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Guardar o aspecto</button>"
+            "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar o aspecto</button>"
             "</form>" % opcoes)
 
 
@@ -23654,7 +23692,7 @@ def _bloco_da_empresa(cfg=None):
                      nota="como aparece nos contratos")
             + _campo("NIF", "nif_da_empresa", nif,
                      nota="nove dígitos; é por aqui que a ligação é certa")
-            + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>")
+            + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>")
 
 
 @app.route("/configuracoes/conta/empresa", methods=["POST"])
@@ -23750,11 +23788,13 @@ def config_documentos():
     tabela = ("<table class='mg-table tab-docs'><thead><tr><th>Estado</th>"
               "<th>Documento e validade</th><th></th></tr></thead>"
               "<tbody>%s</tbody></table>" % linhas) if docs else (
-        "<p class='nota'>Ainda não há documentos no cofre.</p>")
+        "<p class='nota'>Ainda não há documentos na lista.</p>")
     novo = ("<form method='post' class='conf-form' style='margin-top:18px'>"
             "<label class='conf-campo'><span>Tipo</span><select name='tipo'>"
             "%s</select></label>%s%s"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Juntar"
+            # «Acrescentar» e nao «Juntar»: nada se junta, nao ha
+            # ficheiro (UX-ECRAS-EM-FALTA-E-ESCURO, E14)
+            "<button type='submit' class='mg-btn mg-btn--primary'>Acrescentar"
             "</button></form>"
             % (opcoes(""), _campo("Número ou descrição", "descricao", "",
                                   extra="maxlength='120'"),
@@ -23763,8 +23803,8 @@ def config_documentos():
                       extra="inputmode='numeric' maxlength='10' "
                             "placeholder='dd/mm/aaaa'")))
     return pagina_config("documentos", (
-        "<div class='mg-card conf-cx'><p class='nota'>O alvará, as "
-        "certidões, as ISO e os seguros, com a validade. Os ficheiros "
+        # sem a primeira frase, que repetia o subtitulo da banda (E14)
+        "<div class='mg-card conf-cx'><p class='nota'>Os ficheiros "
         "ficam onde a empresa os tem: aqui fica o que caduca. %d dias "
         "antes de cada validade nasce uma tarefa no Hoje, e mudar a "
         "validade troca-a pela da data nova.</p>%s%s</div>"
@@ -23853,15 +23893,19 @@ def _bloco_utilizadores(todos, eu):
         "<option value='tester'>Utilizador</option>"
         "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
-        "<div class='nota' style='margin-top:18px'>Ou criar a conta já, com "
-        "a palavra-passe:</div>"
+        # O segundo caminho recolhido (UX-7-LEIS, H2 e V2, 30/09/2026):
+        # eram dois caminhos a vista para a mesma coisa, e dois botoes
+        # cheios; o convite e o caminho, e este fica para quem o procura.
+        "<details class='mg-disc' style='margin-top:18px'><summary class='nota'>"
+        "Criar sem convite, já com a palavra-passe</summary>"
         "<form method='post' action='/configuracoes/conta/utilizadores' "
         "class='conf-form' style='margin-top:8px'>"
         "%s%s"
         "<label class='conf-campo'><span>Papel</span><select name='papel'>"
         "<option value='tester'>Utilizador</option>"
         "<option value='admin'>Gestor</option></select></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Criar utilizador</button></form>"
+        "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button>"
+        "</form></details>"
         % (linhas, contas.DIAS_DE_CONVITE,
            _campo("Utilizador", "email", "", extra="autocomplete='off'"),
            _campo("Palavra-passe", "senha", "", tipo="password",
@@ -24026,6 +24070,12 @@ GLOSSARIO = (
         ("Entidade", "Quem compra (adjudicante) ou quem ganha "
          "(adjudicatário). A ficha de uma entidade junta os dois lados e o "
          "que a empresa já fez com ela."),
+        ("Cliente", "Uma entidade que compra muito mais do que vende (três "
+         "vezes ou mais, nos contratos do Portal BASE): é a ela que se "
+         "apresenta proposta. Nas tabelas, «CLI»."),
+        ("Concorrente", "Uma entidade que vende muito mais do que compra: é "
+         "com ela que se concorre. Nas tabelas, «CONC»; «C+C» quando compra "
+         "e vende em valores da mesma ordem."),
         ("Procedimentos homólogos", "Contratos da mesma entidade com um "
          "objecto parecido com o do anúncio: as edições anteriores do mesmo "
          "concurso, com quem ganhou e por quanto."),
@@ -24078,8 +24128,14 @@ def ajuda():
         cartao(html.escape(grupo), "<dl class='glossario'>%s</dl>" % "".join(
             "<dt id='%s'>%s</dt><dd>%s</dd>"
             % (ancora_do_termo(termo), html.escape(termo), html.escape(texto))
-            for termo, texto in termos))
+            for termo, texto in termos), id_="grupo-" + ancora_do_termo(grupo))
         for grupo, termos in GLOSSARIO)
+    # Um indice das seis seccoes (UX-ECRAS-EM-FALTA-E-ESCURO, E15): eram
+    # 29 termos em 3 587 px sem nada que dissesse o que vinha a seguir.
+    indice = ("<nav class='ajuda-indice nota' aria-label='Secções da ajuda'>%s</nav>"
+              % " &middot; ".join("<a href='#grupo-%s'>%s</a>"
+                                  % (ancora_do_termo(g), html.escape(g))
+                                  for g, _ in GLOSSARIO))
     abertura = (
         "<div class='mg-card conf-cx'><p>O Mira Gov lê os concursos públicos "
         "ao longo do dia, traz as peças, e põe no mesmo sítio o que há para "
@@ -24097,10 +24153,11 @@ def ajuda():
         "acessibilidade</a>. O aspecto de alto contraste escolhe-se em "
         "<a href='/configuracoes/conta#aspecto'>Configurações &rsaquo; "
         "Conta</a>.</p>"))
-    return envolver("ajuda", "Como funciona",
-                    "O que o Mira Gov faz, e o que quer dizer cada palavra.",
-                    "<div class='larg ajuda'>%s%s%s</div>" % (abertura, blocos,
-                                                              acesso))
+    # Sem subtitulo, e por isso sem o «?»: na propria Ajuda o «O que é
+    # esta página» era a pagina a explicar-se a si propria (E15).
+    return envolver("ajuda", "Como funciona", "",
+                    "<div class='larg ajuda'>%s%s%s%s</div>"
+                    % (indice, abertura, blocos, acesso))
 
 
 @app.route("/configuracoes/conta/utilizadores/convite", methods=["POST"])
@@ -24654,6 +24711,12 @@ def papel_da_entidade(compra_v, ganha_v):
 # nao se le em voz alta nem sobrevive a daltonia. Visto no ecra a
 # 16/09/2026, na propria lista para que isto foi feito.
 PAPEL_ABREVIADO = {"cliente": "cli", "concorrente": "conc", "ambos": "c+c"}
+# A abreviatura a vista, por baixo das tabelas que a usam
+# (UX-ICONES-DICAS-PESOS, B.1 #2): so estava no `title`, que o toque e o
+# teclado nao mostram.
+LEGENDA_DO_PAPEL = ("Papel: <abbr>CLI</abbr> cliente &middot; <abbr>CONC</abbr> "
+                    "concorrente &middot; <abbr>C+C</abbr> os dois "
+                    "(<a href='/ajuda#cliente'>o que quer dizer</a>).")
 
 
 def papeis_de(chaves):
@@ -25075,7 +25138,8 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
             "</div><span class='l'>%s</span></div>"
             % (classes, fmt(l["v"]) if i in marcados else "",
                max(2.0, 100.0 * l["v"] / maior), html.escape(l["t"]),
-               fmt(l["v"]), l["k"], unidade,
+               # pelo mil_pt: saia «39562 contratos» (UX-ICONES B.2)
+               fmt(l["v"]), mil_pt(l["k"]), unidade,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
@@ -25268,15 +25332,19 @@ def campo_de_filtro(rotulo, dentro, classe=""):
             "</span>%s</label>" % (classe, rotulo, dentro))
 
 
-def botoes_de_filtro(limpar=""):
+def botoes_de_filtro(limpar="", primario=True):
     """O fim de um formulário de filtro, igual nos quatro (segunda ronda,
     perfil 11: eram cinco desenhos do mesmo gesto, com os verbos
     Filtrar, Perguntar e procurar). O verbo é «Filtrar», o botão é o
     primário, e o «Limpar» é subtil. O `limpar` é o endereço sem filtro,
-    ou nada quando não há o que limpar."""
+    ou nada quando não há o que limpar.
+
+    Com `primario=False` o «Filtrar» é secundário: nas Propostas o
+    primário do ecrã é a «Nova proposta» (UX-7-LEIS V2, 30/09/2026)."""
     return ("<span class='f-accoes'><button type='submit' "
-            "class='mg-btn mg-btn--primary'>Filtrar</button>%s</span>"
-            % ("<a class='mg-btn mg-btn--subtle limpar' href='%s'>Limpar</a>"
+            "class='mg-btn mg-btn--%s'>Filtrar</button>%s</span>"
+            % ("primary" if primario else "secondary",
+               "<a class='mg-btn mg-btn--subtle limpar' href='%s'>Limpar</a>"
                % limpar if limpar else ""))
 
 
@@ -25656,10 +25724,9 @@ def entidades():
         corpo.append(
             "<tr><td><input type='checkbox' name='vs' value='%s'%s "
             "aria-label='%s'></td>"
-            "<td><a href='/entidade/%s'>%s</a>%s</td>"
+            "<td><a href='/entidade/%s'>%s</a>%s%s</td>"
             "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
-            "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
-            "<td>%s</td></tr>"
+            "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
             % (html.escape(ch, quote=True),
                " checked" if ch in marcadas else "",
                # o nome diz QUAL (26/09/2026; WCAG 2.4.6): eram vinte
@@ -25667,6 +25734,10 @@ def entidades():
                html.escape("Comparar %s" % corta(nome or ch, 60), quote=True),
                quote(ch, safe=""),
                html.escape(corta(nome or ch, 46)),
+               # a coluna «abrir» saiu (UX-7-LEIS, H6): o nome ja leva a
+               # ficha, e eram duas ligacoes por linha para o mesmo sitio
+               " <span class='mg-tag mg-tag--success'>seguida</span>"
+               if ch in seguidas else "",
                ("<div class='nota'>%s</div>"
                 % html.escape(e["nif"] or "sem NIF")) if e else
                "<div class='nota'>só no DR</div>",
@@ -25678,33 +25749,37 @@ def entidades():
                _fita_connosco(propostas) if propostas
                else "<span class='nota'>ainda nenhuma</span>",
                taxa,
-               ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—",
-               "<span class='mg-tag mg-tag--success'>seguida</span>" if ch in seguidas
-               else "<a class='nota abrir' href='/entidade/%s' aria-label='%s'>abrir</a>"
-               % (quote(ch, safe=""),
-                  html.escape("Abrir %s" % corta(nome or ch, 60), quote=True))))
+               ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—"))
 
     if corpo:
+        # O «comparar» tambem por cima da tabela (UX-7-LEIS, F3): so
+        # existia depois da 60.a linha, e com ele a instrucao «Marque duas».
+        comparar = ("<button type='submit' class='mg-btn mg-btn--secondary'>"
+                    "comparar as marcadas</button>")
         tabela = (
             "<form method='get' action='/entidades'>"
             "<input type='hidden' name='ver' value='%s'>"
-            "<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
-            "<thead><tr><th>☐</th><th>Entidade</th><th>Papel</th>"
+            "<div class='mg-card tab-cx'>"
+            "<div class='tab-pe'>%s<span class='nota'>Marque duas.</span></div>"
+            "<table class='mg-table tab-contratos'>"
+            "<thead><tr><th><span class='so-leitor'>Comparar</span></th>"
+            "<th>Entidade</th><th>Papel</th>"
             "<th class='p'>Compra · sempre</th><th class='p'>Ganha · sempre</th>"
             "<th>Connosco</th><th class='p'>Taxa connosco</th>"
-            "<th class='p'>A acabar · %d meses</th><th><span class='so-leitor'>Acções</span></th></tr></thead>"
+            "<th class='p'>A acabar · %d meses</th></tr></thead>"
             "<tbody>%s</tbody></table>"
-            "<div class='tab-pe'><button type='submit' class='mg-btn mg-btn--secondary'>comparar "
-            "as marcadas</button><span class='nota'>Marque duas. "
+            "<div class='tab-pe'>%s<span class='nota'>Marque duas. "
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
-            "a partir de %d decididas.</span></div></div></form>"
-            % (html.escape(aba, quote=True), MESES_A_ACABAR, "".join(corpo),
-               MINIMO_COM_ENTIDADE))
+            "a partir de %d decididas. %s</span></div></div></form>"
+            % (html.escape(aba, quote=True), comparar, MESES_A_ACABAR,
+               "".join(corpo), comparar, MINIMO_COM_ENTIDADE,
+               LEGENDA_DO_PAPEL))
     else:
         titulo_vazio, porque = _vazio_da_aba(aba)
-        tabela = ("<div class='mg-empty comecar'><b>%s</b><span>%s</span></div>"
+        tabela = ("<div class='mg-empty comecar'><h2 class='mg-empty__title'>%s</h2>"
+                  "<span>%s</span></div>"
                   % (html.escape(titulo_vazio), porque))
 
     return envolver("entidades", "Entidades",
@@ -25832,7 +25907,8 @@ def _seguir_cx(chave):
             % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
                      "Deixar de seguir" if seguida else
                      "Seguir esta entidade",
-                     "bt" if seguida else "bt forte"),
+                     # secundario: o primario da ficha e o «Filtrar» (E8)
+                     "bt"),
                "<span class='nota' style='align-self:center'>"
                "a seguir &mdash; os anúncios novos dela entram no resumo "
                "diário</span>" if seguida else ""))
@@ -26410,7 +26486,9 @@ def contratos():
                 except (TypeError, ValueError):
                     falta = ""
                 corpo.append(
-                    "<tr><td class='d'><b>%s</b><br>"
+                    # sem negrito: vinte datas iguais a 700 eram o que
+                    # mais pesava na pagina (UX-7-LEIS, V7)
+                    "<tr><td class='d'>%s<br>"
                     "<span class='nota'>%s</span></td>"
                     "<td class='o'>%s</td><td>%s</td><td class='g'>%s</td>"
                     "<td class='d'>%s</td><td class='p'>%s</td></tr>"
@@ -26457,7 +26535,9 @@ def contratos():
                           "<th class='p'>Preço</th>")
         tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
                   "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
-                  "</table></div>" % (cabecalhos, "".join(corpo)))
+                  "</table><div class='tab-pe'><span class='nota'>%s</span>"
+                  "</div></div>" % (cabecalhos, "".join(corpo),
+                                    LEGENDA_DO_PAPEL))
     elif ha_pergunta:
         tabela = ("<div class='mg-empty'>%s "
                   "<a href='%s'>limpar</a></div>"
@@ -26467,7 +26547,7 @@ def contratos():
                      html.escape(modo_limpo, quote=True)))
     elif fim:
         tabela = ("<div class='mg-empty comecar'>"
-                  "<b>De que mercado quer ver os fins de contrato?</b>"
+                  "<h2 class='mg-empty__title'>De que mercado quer ver os fins de contrato?</h2>"
                   "<span>Escolha um CPV na árvore ou escreva uma entidade: "
                   "a lista mostra os contratos desse mercado que terminam "
                   "na janela, do mais próximo para o mais distante. Um "
@@ -26481,7 +26561,7 @@ def contratos():
         # A pergunta vem primeiro. Um milhao e meio de contratos por data
         # nao e uma resposta a nada.
         tabela = ("<div class='mg-empty comecar'>"
-                  "<b>Filtre os contratos do Portal BASE.</b>"
+                  "<h2 class='mg-empty__title'>Filtre os contratos do Portal BASE.</h2>"
                   "<span>Escolha um CPV na árvore, escreva quem ganhou ou "
                   "que entidade comprou, aperte as datas ou o valor. Os "
                   "gráficos e a lista respondem ao filtro.</span>"
@@ -26618,19 +26698,10 @@ def contratos():
         "Prorrogações e cessações antecipadas não constam do dump &mdash; "
         "confirme antes de contar com a data.</div>") if fim else ""
 
-    # 11.7-B: a porta directa para a ficha de uma entidade, por nome ou
-    # NIF -- o sinal que a reabriu foi exactamente "abrir um contrato
-    # qualquer so para chegar a ficha". Desde 17/09/2026 vive tambem em
-    # /entidades, que e a vista da barra; este continua aqui porque e
-    # daqui que a pergunta se faz a meio de uma consulta.
-    procura_entidade = (
-        "<form class='procura-entidade' method='get' action='/entidade/procurar'>"
-        "<span>Ficha de uma entidade:</span>"
-        "<input class='mg-field__input' type='text' name='q' value='' "
-        "placeholder='Nome ou NIF' aria-label='Nome ou NIF da entidade'>"
-        "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
-        "Abrir</button>"
-        "<a href='/entidades'>ou ver a lista das entidades</a></form>")
+    # A porta directa para a ficha de uma entidade (11.7-B) vive na aba
+    # Entidades, desde 17/09/2026. O formulario do pe deste cartao saiu a
+    # 30/09/2026 (UX-7-LEIS H3): eram tres sitios para chegar a mesma
+    # ficha -- este, o campo «Entidade que comprou» e a aba.
 
     # Os dois blocos de pergunta dobram-se quando JA HA pergunta, e e o
     # INVERSO da lista dos anuncios (16/09/2026, fase 5).
@@ -26655,7 +26726,7 @@ def contratos():
         + faixa_interesse + filtros,
         meta=html.escape(resumo_filtro(filtro_actual(request.args, vista), vista))
         if ha_pergunta else "",
-        pe=procura_entidade, id_="pergunta")
+        id_="pergunta")
 
     # O `EcraMercado`: a pergunta, a arvore, a linha do resumo (o filtro
     # activo e a contagem a esquerda, os dois modos a direita), e por
@@ -26997,7 +27068,7 @@ def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
     if porque:
         titulo_html = ("<details class='mg-disc porque porque-bloco'><summary>"
                        "<h2 class='mg-card__title'>%s</h2>"
-                       "<i aria-hidden='true' title='O que é este bloco'>?</i></summary>"
+                       "<span class='mg-disc__q' aria-hidden='true' title='O que é este bloco'>?</span></summary>"
                        "<p class='mg-card__meta'>%s%s</p></details>"
                        % (titulo, porque, mais_na_ajuda(titulo)))
     else:
@@ -27157,27 +27228,25 @@ def prazo_da_ficha(a, cadeia=None, decidida=False):
     if dias is None:
         return cartao("Prazo", "<p class='ficha-nota'>O anúncio não indica "
                       "o prazo das propostas.</p>" + historia, id_="prazo")
-    texto, classe = etiqueta_prazo(a["prazo"])
+    _, classe = etiqueta_prazo(a["prazo"])
     grande = "expirou" if passou else (
         "hoje" if dias == 0 else "%d dia%s" % (dias, "" if dias == 1 else "s"))
-    if not passou and dias:
-        texto = "Prazo em " + texto
     if decidida:
         # sem contagem numa proposta decidida (G28): «Prazo em 10 dias»
         # numa Ganha lia-se como trabalho por fazer
-        grande, texto, classe = "decidida", "Proposta decidida", ""
+        grande, classe = "decidida", ""
     try:
         fim = datetime.strptime(a["prazo"], "%Y-%m-%d").date()
         por_extenso = "%d de %s" % (fim.day, MESES_LONGOS[fim.month - 1])
     except ValueError:
         por_extenso = data_pt(a["prazo"])
+    # Sem a etiqueta por baixo do numero (30/09/2026, UX-7-LEIS V3): a
+    # ficha dizia o prazo tres vezes a laranja -- por baixo do titulo, nos
+    # factos e aqui --, e aqui o numero grande ja o diz.
     return cartao(
         "Prazo",
-        "<div class='ficha-prazo %s'><b>%s</b><span>%s</span></div>"
-        "<div class='mg-row' style='margin-top:12px'>"
-        "<span class='mg-tag %s'><span class='mg-tag__dot'></span>%s</span></div>%s"
-        % (classe, grande, por_extenso, tom(classe),
-           html.escape(texto), historia),
+        "<div class='ficha-prazo %s'><b>%s</b><span>%s</span></div>%s"
+        % (classe, grande, por_extenso, historia),
         pe="Publicado a %s." % data_pt(a["data_pub"]) if a["data_pub"] else "",
         id_="prazo")
 
@@ -28587,7 +28656,7 @@ def rot_com_porque(titulo, porque=""):
     if not porque:
         return "<div class='mg-field__label'>%s</div>" % titulo
     return ("<details class='mg-disc porque porque-bloco'><summary>"
-            "<span class='mg-field__label'>%s</span><i aria-hidden='true' title='O que é este bloco'>?</i>"
+            "<span class='mg-field__label'>%s</span><span class='mg-disc__q' aria-hidden='true' title='O que é este bloco'>?</span>"
             "</summary><div class='nota'>%s%s</div></details>"
             % (titulo, porque, mais_na_ajuda(titulo)))
 
@@ -29014,7 +29083,7 @@ def ficha(ref):
     if not minhas and not e_alteracao and not sem_empresa:
         decidir.append(accao("/estado/%s/analisar" % quote(ref, safe=""),
                              SINAL_SIM + "Interessa", "bt verde"))
-        decidir.append(forma_abandonar(ref, "bt cuidado", "Abandonar",
+        decidir.append(forma_abandonar(ref, "bt", "Abandonar",
                                        a["titulo"] or ref))
 
     # As migalhas voltam para a lista **de onde se veio**, com o filtro e
@@ -29220,7 +29289,9 @@ def ficha(ref):
             linhas_doc.append(
                 "<li%s>%s<a href='%s'>%s</a><span class='n'>%s</span></li>"
                 % (" class='aberta'" if e_pdf and d["nome"] == peca_aberta else "",
-                   icone("documento"),
+                   # o `peca` do sistema: o `documento` e o das Propostas
+                   # na barra de baixo (UX-ICONES-DICAS-PESOS, A.1)
+                   icone("peca"),
                    html.escape(destino_doc, quote=True),
                    html.escape(d["nome"]), tamanho_legivel(d["tamanho"])))
         # Sucesso parcial tem de se ver: o PDF do anuncio vem sempre, e
@@ -29298,9 +29369,12 @@ def ficha(ref):
                      "<a href='/anuncio/%s#pecas'>%s</a>, da mesma cadeia."
                      % (quote(pecas_noutro, safe=""), html.escape(pecas_noutro)))
         corpo_docs = "<p class='ficha-nota'>%s</p>" % nota
+        # Secundario (UX-7-LEIS F2 e E8, 30/09/2026): era o unico botao
+        # cheio da ficha por ver, no terceiro cartao, por cima de uma nota
+        # a dizer que as pecas vem sozinhas ao marcar «interessa».
         accoes_pecas = (accao("/documentos/%s" % ref,
                               icone("descarregar", 16) + " Trazer peças",
-                              "mini forte")
+                              "mini")
                         + botao_das_pecas_na_plataforma(a))
         meta_pecas = html.escape(a["plataforma"] or "")
 
@@ -29368,7 +29442,8 @@ def ficha(ref):
         "<span class='mg-avatar'>%s</span>"
         "<select class='mg-field__input' name='nome' aria-label='Responsável'>"
         "%s</select>"
-        "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
+        # secundario: o primario da ficha e o «Guardar» da proposta (E8)
+        "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
         "Guardar</button></form>"
         % (ref, html.escape(resp, quote=True),
            _iniciais(nome_da_pessoa(resp)),
@@ -30365,7 +30440,9 @@ def contactos_cx(a):
            if l["telefone"] else "",
            "<div class='ct-notas'>%s</div>" % html.escape(l["notas"])
            if l["notas"] else "",
-           accao("/contacto/%d/apagar" % l["id"], "&times;", "etq-x",
+           # apagar e destruir: o caixote, como no alerta; o «×» fica
+           # para tirar de um conjunto (UX-ICONES-DICAS-PESOS, A.1)
+           accao("/contacto/%d/apagar" % l["id"], icone("apagar", 16), "etq-x",
                  confirmar="Apagar o contacto «%s»?"
                            % (l["nome"] or "").replace("'", " "),
                  # o «×» sozinho o leitor lia «vezes» (3.ª ronda, G67)
@@ -30383,7 +30460,7 @@ def contactos_cx(a):
             + rotulado("E-mail", "<input type='email' name='email' maxlength='120'>")
             + rotulado("Telefone", "<input type='tel' name='telefone' autocomplete='tel' "
                        "maxlength='40'>") +
-            "<button class='mg-btn mg-btn--sm mg-btn--primary' type='submit'>"
+            "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
             "Adicionar</button></form>")
             % (postos,
                html.escape(chave, quote=True),
@@ -30656,7 +30733,7 @@ def _tarefas_da_ficha(p):
                          "placeholder='dd/mm/aaaa' maxlength='10' "
                          "pattern='\\d{1,2}/\\d{1,2}(/\\d{4})?'>")
               + rotulado("Quem faz", "<select name='quem'>%s</select>") +
-              "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Adicionar</button></form>")
+              "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>Adicionar</button></form>")
               % (html.escape(p["ref"] or "", quote=True), p["id"],
                  opcoes_de_pessoas("", None, eu=True)))
     return ("<div class='prop-tarefas'><div class='mg-field__label'>O que falta fazer"
@@ -30704,7 +30781,8 @@ def proposta_cx(a):
     if not minhas:
         return cartao(
             "A nossa proposta",
-            "<div class='mg-alert mg-alert--warning'><div class='mg-alert__body'>"
+            # info e nao aviso (UX-7-LEIS, V3): o laranja fica para o prazo
+            "<div class='mg-alert mg-alert--info'><div class='mg-alert__body'>"
             "<div class='mg-alert__title'>Falta decidir.</div>"
             "<div class='mg-alert__text'>Este concurso ainda não está na "
             "fase nenhuma: «Interessa», lá em cima, abre a proposta e as "
@@ -31177,13 +31255,19 @@ def cronologia_da_proposta(p):
         passos = passos_do_anuncio(c, p["ref"], 20, proposta_id=p["id"])
     if not passos:
         return ""
+    # A mesma marcacao do historico da ficha do anuncio (`ficha-lista`):
+    # era texto solto num <div class='hist'>, com a data a 700/16, mais
+    # pesada do que o titulo do bloco (UX-ECRAS-EM-FALTA-E-ESCURO, E13).
     return ("<div class='mg-card lado-cx'><div class='mg-field__label' "
-            "style='margin-bottom:10px'>Cronologia</div>%s</div>"
-            % "".join("<div class='hist'><b>%s</b> %s <i>%s</i> %s</div>"
-                      % (data_hora_pt(h["quando"]),
+            "style='margin-bottom:10px'>Cronologia</div>"
+            "<ul class='ficha-lista'>%s</ul></div>"
+            % "".join("<li><span class='t'><b>%s</b> %s%s</span>"
+                      "<span class='n'>%s</span></li>"
+                      % (html.escape(h["quem"] or ""),
                          html.escape(_NOMES_ACCAO.get(h["accao"] or "", h["accao"] or "")),
-                         html.escape(corta(h["detalhe"] or "", 80)),
-                         html.escape(h["quem"] or ""))
+                         (" &mdash; %s" % html.escape(corta(h["detalhe"], 80)))
+                         if h["detalhe"] else "",
+                         html.escape(data_hora_pt(h["quando"])))
                       for h in passos))
 
 
@@ -31655,22 +31739,34 @@ def calendario():
     # mesmo.
     em_lista = (PROPOSTAS if ver == "nossas" else LISTA + "?" + urlencode(
         [("estado", "porver" if ver == "porver" else "")] + levantado))
-    legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
-               "%s.</span><span><i class='cal-urg' aria-hidden='true'>&#9888;</i> "
-               "fecha hoje ou já fechou &middot; <i class='cal-urg' "
-               "aria-hidden='true'>&#9719;</i> fecha em %d dias ou menos</span>"
-               "%s<a href='%s'>ver em lista</a></div>"
-               % (html.escape(o_que), data_pt(principio.isoformat()),
-                  data_pt(fim.isoformat()), urgente,
-                  ("<span>%s com prazo depois destas seis semanas &mdash; "
-                   "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
-                  html.escape(em_lista, quote=True)))
-
     def para(filtro, n):
         pedaco = ([("ver", filtro)] if filtro != "nossas" else []) + levantado
         if n:
             pedaco.append(("semana", str(n)))
         return "/calendario" + ("?" + urlencode(pedaco) if pedaco else "")
+
+    # O Calendario de uma empresa nova abria em «As nossas» com 0 e a
+    # grelha vazia, sem uma palavra, com «Por ver 49» na aba ao lado
+    # (UX-7-LEIS Z1, 30/09/2026). Diz porque, e aponta os por ver.
+    vazio = ""
+    if ver == "nossas" and not por_filtro["nossas"][0]:
+        n_porver = len(por_filtro["porver"][0])
+        vazio = ("<span class='cal-vazio'>Nenhuma proposta da empresa fecha "
+                 "nestas seis semanas.%s</span>"
+                 % (" <a href='%s'>Há %s por ver com prazo aqui &rarr;</a>"
+                    % (html.escape(para("porver", semana), quote=True),
+                       mil_pt(n_porver)) if n_porver else ""))
+    legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
+               "%s.</span>%s<span><i class='cal-urg' aria-hidden='true'>&#9888;</i> "
+               "fecha hoje ou já fechou &middot; <i class='cal-urg' "
+               "aria-hidden='true'>&#9719;</i> fecha em %d dias ou menos</span>"
+               "%s<a href='%s'>ver em lista</a></div>"
+               % (html.escape(o_que), data_pt(principio.isoformat()),
+                  data_pt(fim.isoformat()), vazio, urgente,
+                  ("<span>%s com prazo depois destas seis semanas &mdash; "
+                   "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
+                  html.escape(em_lista, quote=True)))
+
     anterior, hoje_, seguinte = (html.escape(para(ver, n), quote=True)
                                  for n in (semana - 1, 0, semana + 1))
     # «Semana» e «Semana» eram o nome das duas setas, que o ícone é
@@ -32127,7 +32223,11 @@ def negocio_cx():
         "<a class='b' href='%s?estado=%s' style='height:%d%%' "
         "title='%d proposta(s)' aria-label='%s: %d proposta(s)'></a>"
         "<span class='l'>%s</span></div>"
-        % (euros_curto(pipeline[ch]["euros"]) if pipeline[ch]["euros"] else "0",
+        # a contagem e os euros, com a unidade: «0» por cima de uma barra
+        # que abre duas propostas lia-se como contagem, e o leitor de ecra
+        # ouvia 2 (UX-ECRAS-EM-FALTA-E-ESCURO, E1, 30/09/2026)
+        % ("%s &middot; %s" % (mil_pt(pipeline[ch]["quantas"]),
+                               euros_curto(pipeline[ch]["euros"] or 0)),
            PROPOSTAS, ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
            pipeline[ch]["quantas"],
            html.escape(estado_da_empresa(ch), quote=True),
@@ -33108,7 +33208,8 @@ TIPOS = {
          # Source Code Pro nos números. A Inter e as duas Plex sairam a
          # 26/09/2026 (lote 4 da segunda ronda): o `@font-face` delas
          # ainda viajava na folha, e nada as usava. Os ficheiros das Plex
-         # ficam em `tipo/` para o `ferramentas/ecrans.py`, que as embute.
+         # sairam de `tipo/` a 30/09/2026: o `ferramentas/ecrans.py`, que
+         # as embutia, passou a embutir estas quatro.
          "ZillaSlab-SemiBold.woff2", "ZillaSlab-Medium.woff2",
          "SourceSans3-Variable.woff2", "SourceCodePro-Variable.woff2"}
 
@@ -33664,7 +33765,8 @@ def pedidos_de_acesso():
             return "recusado a %s: %s" % (html.escape(data_pt((l["decidido_em"] or "")[:10])),
                                           html.escape(l["motivo"] or ""))
         return ("<div class='mg-row' style='gap:8px;flex-wrap:wrap;align-items:center'>"
-                "<a class='mg-btn mg-btn--sm mg-btn--primary' "
+                # secundario: um primario por pedido eram muitos (V8)
+                "<a class='mg-btn mg-btn--sm mg-btn--secondary' "
                 "href='/pedidos-de-acesso/%d/aceitar'>aceitar&hellip;</a>"
                 "<form class='accao' method='post' action='/pedidos-de-acesso/%d/recusar' "
                 "onsubmit=\"return confirm(%s)\" "
@@ -33681,8 +33783,8 @@ def pedidos_de_acesso():
                                           % (l["empresa"] or l["nome"])), quote=True),
                    html.escape(l["empresa"] or l["nome"], quote=True)))
 
-    if linhas:
-        corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
+    def tabela(linhas):
+        return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
                  "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
                  "<th>NIF</th><th>Plano</th>"
                  "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
@@ -33703,6 +33805,18 @@ def pedidos_de_acesso():
                          _celula_da_tabela("Aviso por e-mail", html.escape(l["avisado"] or "a enviar")),
                          _celula_da_tabela("Decisão", decisao(l)))
                      for l in linhas))
+
+    # Os por decidir em cima, num cartao seu, e os decididos por baixo
+    # (UX-7-LEIS M5, 30/09/2026): estavam misturados por ordem de chegada.
+    por_decidir = [l for l in linhas if l["estado"] not in ("aceite", "recusado")]
+    decididos = [l for l in linhas if l["estado"] in ("aceite", "recusado")]
+    def seccao(titulo, estes):
+        return ("<h2 class='mg-card__title pedidos-titulo'>%s &middot; %s</h2>%s"
+                % (titulo, mil_pt(len(estes)), tabela(estes)))
+    if linhas:
+        corpo = ((seccao("Por decidir", por_decidir) if por_decidir else
+                  "<p class='nota'>Nenhum pedido por decidir.</p>")
+                 + (seccao("Decididos", decididos) if decididos else ""))
     else:
         corpo = ("<div class='mg-empty'>Ainda não chegou nenhum pedido pelo "
                  "site.</div>")
@@ -33989,13 +34103,14 @@ def aceitar_pedido(id_):
         "criada</b> &mdash; <a href='/plataforma/empresa/%d'>abrir a página "
         "dela</a>.</p><p>%s</p><p>%s</p>"
         "<p>A ligação, que serve uma vez e dura %d dias:</p>"
-        "<p><code>%s</code></p><p><a href='/pedidos-de-acesso'>voltar aos "
+        "%s<p><a href='/pedidos-de-acesso'>voltar aos "
         "pedidos</a></p></div></div>"
         % (empresa_id, empresa_id, envio,
            ("Perfil da empresa: %s." % descricao_do_interesse(perfil))
            if perfil["interesse_activo"] else
            "Sem perfil: a empresa define-o no primeiro dia.",
-           contas.DIAS_DE_CONVITE, html.escape(ligacao)))
+           contas.DIAS_DE_CONVITE,
+           caixa_de_copiar(ligacao, "Ligação do convite")))
 
 
 PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
@@ -34490,11 +34605,17 @@ def _avatar_html(quem, eu=""):
     um lugar vazio a dizer que falta alguem, e nao a ausencia de marca:
     seis tarefas sem dono numa lista de cinquenta passavam despercebidas
     quando a coluna ficava simplesmente em branco."""
+    # O nome inteiro, e o «sem dono», tambem para o leitor de ecra: o vago
+    # era um <span> vazio, que para ele nao existia (B.1 #5 do
+    # UX-ICONES-DICAS-PESOS, 30/09/2026).
     if not quem:
-        return "<span class='av vago' title='sem dono'></span>"
-    return ("<span class='av%s' title='%s'>%s</span>"
+        return ("<span class='av vago' title='sem dono'>"
+                "<span class='so-leitor'>sem dono</span></span>")
+    return ("<span class='av%s' title='%s'><span aria-hidden='true'>%s</span>"
+            "<span class='so-leitor'>%s</span></span>"
             % (" eu" if _e_minha(quem, eu) else "",
-               html.escape(quem, quote=True), html.escape(iniciais(quem))))
+               html.escape(quem, quote=True), html.escape(iniciais(quem)),
+               html.escape(quem)))
 
 
 def _quem_pedido():
@@ -34756,13 +34877,13 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
     # fim -- sem ele, quem anda para a frente na fita nao sabe quando
     # parar.
     nav = ("<div class='fita-nav'>"
-           "<a href='%s'>&larr; 7 dias antes</a>"
-           "<a href='%s'>7 dias depois &rarr;</a>"
+           "<a href='%s'>%s 7 dias antes</a>"
+           "<a href='%s'>7 dias depois %s</a>"
            "<span class='adiante'>mais para a frente: %s</span></div>"
            % (html.escape(_com_dia(base, dia_escolhido - timedelta(days=7)),
-                          quote=True),
+                          quote=True), icone("anterior", 16),
               html.escape(_com_dia(base, dia_escolhido + timedelta(days=7)),
-                          quote=True),
+                          quote=True), icone("seguinte", 16),
               mil_pt(depois)))
     return "<div class='fita'>%s</div>%s" % ("".join(celulas), nav)
 
@@ -34878,6 +34999,12 @@ def _o_que_mudou(hoje, cfg):
     if so_a_hora.startswith(data_pt(hoje.isoformat())):
         so_a_hora = so_a_hora.split()[-1]
     dica_verif = html.escape(re.sub(r"&\w+;", "—", quando_verif), quote=True)
+    # A razao de uma falha e para o dono, que a pode resolver («refaz a
+    # captura»); o gestor de uma empresa cliente nao pode fazer nada com
+    # ela, e o vermelho so o assustava (UX-7-LEIS, V6, 30/09/2026).
+    falha_para_o_dono = not verif_ok and sou_dono()
+    if not verif_ok and not falha_para_o_dono:
+        dica_verif = ""
 
     # O espaço entre o número e a palavra é real (3.ª ronda, G27): o
     # leitor de ecrã lia «0peças novas», que o CSS separava só à vista.
@@ -34934,7 +35061,11 @@ def _o_que_mudou(hoje, cfg):
             "<span class='mg-tag mg-tag--warning'>%s alterado</span> "
             "<a href='/anuncio/%s'>%s</a>"
             "<div class='nota'>%s &rarr; %s</div></div></div>"
-            % (data_curta(hoje), html.escape(m["campo"] or "campo"),
+            # o nome da coluna da base nao e texto do ecra: «preco_base
+            # alterado» (UX-ECRAS-EM-FALTA-E-ESCURO, E5)
+            % (data_curta(hoje),
+               html.escape(NOME_DO_CAMPO_ALTERADO.get(m["campo"], m["campo"])
+                           or "campo"),
                quote(m["ref"], safe=""),
                html.escape(corta(m["titulo"] or m["ref"], 52)),
                # a data como no resto do ecrã, e não em ISO (E53)
@@ -34975,13 +35106,28 @@ def _o_que_mudou(hoje, cfg):
                else "Ainda não houve uma verificação. O Mira Gov verifica "
                     "sozinho, de hora a hora."))
 
-    # A hora da verificacao vai na meta do cartao (o `EcraHoje`), a
-    # vermelho quando a ultima falhou; a mensagem inteira fica na dica.
+    # A hora da verificacao vai na meta do cartao (o `EcraHoje`); a
+    # mensagem inteira fica na dica. Quando a ultima falhou, o dono le-o
+    # em palavras e com o sinal, alem da cor (UX-ICONES-DICAS-PESOS, B.1
+    # #1; WCAG 1.4.1); os outros veem a hora, em tom neutro (V6).
+    if nunca:
+        meta = "<span class='mau'>ainda sem verificação</span>"
+    elif falha_para_o_dono:
+        meta = ("<span title='%s' class='mau'>%s a última verificação "
+                "falhou %s %s</span>"
+                % (dica_verif, icone("aviso", 16),
+                   "a" if "/" in so_a_hora else "às", so_a_hora))
+    else:
+        meta = ("<span%s>desde a última verificação, %s</span>"
+                % (" title='%s'" % dica_verif if dica_verif else "", so_a_hora))
     return cartao(
         "O que mudou", numeros + "<div class='feed'>%s</div>" % "".join(linhas),
-        meta=("<span title='%s'%s>desde a última verificação, %s</span>"
-              % (dica_verif, "" if verif_ok else " class='mau'", so_a_hora))
-             if not nunca else "<span class='mau'>ainda sem verificação</span>")
+        meta=meta)
+
+
+# O nome de um campo vigiado, como se le no Hoje: o da base (`preco_base`)
+# saia escrito na etiqueta «preco_base alterado».
+NOME_DO_CAMPO_ALTERADO = {"preco_base": "preço base", "prazo": "prazo"}
 
 
 def _prazos_a_chegar(hoje, prazos):

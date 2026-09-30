@@ -48,7 +48,9 @@ a:hover{color:var(--brand-hover)}
 .topo nav a.entrar{padding:6px 2px;border-bottom:1px solid transparent}
 .topo nav a.entrar:hover{border-bottom-color:var(--on-header-muted)}
 .topo nav .btn,.topo nav .btn:hover{color:var(--surface-header)}
-@media (max-width:860px){.topo nav a.ligacao{display:none}.topo nav{gap:16px}}
+@media (max-width:860px){.topo nav a.ligacao{display:none}.topo nav{gap:16px}
+ /* no telemóvel ficam os dois alvos do topo, e o dedo pede 44 px (UX-7-LEIS F4) */
+ .topo nav a.entrar,.topo nav .btn-pequeno{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}}
 
 /* Marca */
 .logo{display:inline-flex;align-items:center;font-family:var(--font-serif);font-weight:600;font-size:26px;line-height:1;white-space:nowrap;color:var(--on-header);text-decoration:none}
