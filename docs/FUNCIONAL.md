@@ -117,13 +117,13 @@ as exactas e salta as outras.
 | `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **2** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
-| `estado` | 19 | Marcas do sistema (última verificação, migrações feitas) |
+| `estado` | 21 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
-| `reposicoes` | **2** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
+| `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
-| `pedidos_acesso` | **4** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |
+| `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -170,11 +170,11 @@ comparadas antes de apagar.
 | `historico` | uma por movimento | Quem, o quê, quando — o que a **empresa** fez. Cresce a **cada acção** no painel; o que o DR e as peças fizeram está nos `eventos` |
 | `pessoas` | 0 | Os nomes que a lista de «responsável» sugere |
 | `etiquetas` · `anuncio_etiquetas` | **0** · **0** | Etiquetas livres — construído, **por usar** |
-| `filtros_guardados` | **0** | Hoje só os alertas lá vivem (§3.8) |
+| `filtros_guardados` | **1** | Hoje só os alertas lá vivem (§3.8) |
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
-| `alertas_vistos` | **0** | A memória do que já foi avisado (§3.8) |
+| `alertas_vistos` | **9 879** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
-| `marcas_da_empresa` | 1 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`) |
+| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`) |
 | `alteracoes_avisadas` | uma por alteração recebida | O que esta empresa já recebeu da fila `alteracoes`, que é da plataforma (F2) |
 
 **As colunas de `propostas`, e quantas das 78 estão preenchidas:**

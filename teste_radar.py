@@ -13702,7 +13702,8 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         vistas = [html.unescape(p) for p in
                   re.findall(r"<summary>(.*?)</summary>", corpo, re.S)]
         self.assertEqual([q["name"] for q in faq["mainEntity"]], vistas)
-        self.assertEqual(len(vistas), 9)
+        # nove até 30/09/2026; o «Como se paga?» entrou com os planos
+        self.assertEqual(len(vistas), 10)
         self.assertNotIn("<!--FAQ-JSONLD-->", corpo)
 
     def test_o_entrar_nao_se_indexa(self):
