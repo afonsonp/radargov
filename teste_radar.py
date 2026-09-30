@@ -1216,6 +1216,19 @@ class TestORecorteLevaAResposta(unittest.TestCase):
                                         lambda nomes, var: "" if var == "CEREBRAS_API_KEY" else "k"):
             self.assertNotIn("cerebras", [f[0] for f in radar.cadeia_de_fornecedores({})])
 
+    def test_o_gemini_entra_antes_da_reserva_e_so_com_chave(self):
+        # 30/09/2026: o Gemini entra atrás de todos os outros e antes da
+        # reserva da Groq, até as leituras dele serem julgadas; a chave é
+        # a de um projecto Google só para a leitura (o MiroFish usa outro)
+        nomes = [f[0] for f in radar.FORNECEDORES]
+        self.assertEqual(nomes[-2:], ["gemini", "groq-reserva"])
+        gemini = {f[0]: f for f in radar.FORNECEDORES}["gemini"]
+        self.assertIn("generativelanguage.googleapis.com", gemini[1])
+        self.assertEqual(gemini[3], ("gemini_API_KEY.txt",))
+        with unittest.mock.patch.object(radar, "ler_chave",
+                                        lambda nomes, var: "" if var == "GEMINI_API_KEY" else "k"):
+            self.assertNotIn("gemini", [f[0] for f in radar.cadeia_de_fornecedores({})])
+
 
 class TestSegundaRondaDaLeitura(unittest.TestCase):
     """29/09/2026: quatro agentes voltaram a julgar as 70 leituras,
