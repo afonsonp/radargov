@@ -948,10 +948,13 @@ di-lo. Uma taxa só se diz a partir de
 **As dez ranhuras da escada nas abas.** As duas pontas mostram
 **anúncios**; as oito do meio mostram **propostas**.
 
-Por omissão a lista vem **pela publicação**, a mais recente primeiro; a
-ligação ao lado da contagem troca para **o prazo mais perto primeiro**
-(`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026), com os sem prazo no
-fim. A ordem não é um filtro: não se guarda num alerta.
+Por omissão a lista vem **pela publicação**, a mais recente primeiro; o
+**cabeçalho «Prazo»** troca para **o prazo mais perto primeiro**, como
+numa folha de cálculo (seta ▲ e `aria-sort` quando está activo; um
+segundo clique volta atrás; 30/09/2026), com os sem prazo no fim
+(`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026). Nos cartões do
+telemóvel, onde o cabeçalho se esconde, a troca é uma ligação ao lado da
+contagem. A ordem não é um filtro: não se guarda num alerta.
 
 A caixa **Pesquisar** procura **todas as palavras**, por qualquer ordem
 (26/09/2026: «limpeza manutenção» dava 0, porque se procurava a frase);

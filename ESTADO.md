@@ -173,8 +173,9 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.32`**, de
-  30/09/2026 — **o cartão das listas da proposta com os campos do
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.33`**, de
+  30/09/2026 — **a lista ordena-se no cabeçalho do Prazo**, como numa
+  folha de cálculo. A `v2.0.32`, do mesmo dia — **o cartão das listas da proposta com os campos do
   sistema**, em duas colunas, e o aspecto a dizer só «Como o sistema». A
   `v2.0.31`, do mesmo dia — **o site fala da procura plataforma a plataforma**, e não
   de abrir o Diário da República. A `v2.0.30`, do mesmo dia — **a fotografia no «Quem está por trás» do site**. A

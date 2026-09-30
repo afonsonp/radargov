@@ -11294,6 +11294,25 @@ class TestOQueFaltavaDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertEqual(ordem, ["62/2026", "61/2026", "63/2026"])
         self.assertIn("ordenar por publicação", h)
 
+    def test_a_ordem_troca_se_no_cabecalho_do_prazo(self):
+        """30/09/2026, ele: «o botão ordenar por prazo devia estar na
+        tabela, tipo Excel». O cabeçalho troca a ordem e diz qual é; a
+        ligação da contagem fica só para os cartões do telemóvel."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado, prazo) VALUES ('61/2026','T','E','2026-09-02',"
+                      "'novo','2026-12-01')")
+        h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        th = re.search(r"<th class='mg-num'[^>]*><a class='ordenar'[^>]*>Prazo.*?</th>", h).group(0)
+        self.assertIn("ordem=prazo", th)
+        self.assertNotIn("aria-sort", th)
+        self.assertIn("<span class='so-cartoes'>", h)
+        h = self.cliente.get("/concursos?estado=&ordem=prazo").get_data(as_text=True)
+        th = re.search(r"<th class='mg-num'[^>]*><a class='ordenar'[^>]*>Prazo.*?</th>", h).group(0)
+        self.assertIn("aria-sort='ascending'", th)
+        self.assertNotIn("ordem=prazo", th)   # o segundo clique volta atrás
+        self.assertIn(".so-cartoes{display:none}", radar.CSS_TUDO)
+
     def test_as_pecas_descarregam_se_num_zip(self):
         pasta = radar.pasta_do_anuncio("60/2026")
         os.makedirs(pasta, exist_ok=True)
