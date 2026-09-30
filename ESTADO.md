@@ -18,6 +18,7 @@ volta ao formato. Onde está o resto:
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade |
 | `docs/diario/2026-08.md` | As sessões de 28 a 31 de agosto |
 | `docs/diario/2026-09.md` | As sessões de setembro |
+| `docs/diario/2026-10.md` | As sessões de outubro, a começar pelo L0 do plano de Outubro (as medições de 30/09) |
 | `docs/historico/` | Auditorias e propostas com data fechada — instantâneos |
 | `BACKLOG.md` | O que falta, com prioridade |
 
@@ -131,6 +132,14 @@ Escrito a 24/09/2026, para fechar nas próximas conversas. Por ordem:
 6. **Antes de cobrar o primeiro cliente:** falar com um contabilista
    sobre abrir uma sociedade. O NIPC dela entra no `operador` do
    `config.json` no lugar do teu nome, e os termos passam a ser dela.
+7. **As três decisões que o L0 do plano de Outubro deixou** (medido a
+   30/09/2026, `docs/diario/2026-10.md`): (a) a hora do prazo diverge
+   da Vortal em 7% dos anúncios, acima do limiar de 5% — entra ou não o
+   lote «a hora da plataforma na ficha»; (b) a antecipação das
+   renovações não dá «N meses antes» — o L6 muda de frase, espera pelo
+   fim real do BASE, ou sai; (c) a firewall do BASE cortou o IP ao 193.º
+   pedido a um por segundo — o ritmo do L5 desenha-se antes de o
+   prometer.
 
 ## O que está implementado
 

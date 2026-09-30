@@ -189,6 +189,13 @@ python ferramentas/repetido.py     # o que está escrito duas vezes, com
 python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar
                                    # uma release: árvore, testes, documentação
                                    # e os números medidos do ESTADO.md
+python ferramentas/mede_concorrentes.py [--inventario]  # as medições do L0 do
+python ferramentas/mede_prazo_plataforma.py  # plano de Outubro: o detalhe do BASE,
+python ferramentas/mede_antecipacao.py       # a hora do prazo DR × Vortal e a
+                                   # antecipação. Só leitura e fora da bateria;
+                                   # --amostra N para ensaiar, --pasta
+                                   # ~/Desktop/radar num worktree. Resultados
+                                   # em docs/diario/2026-10.md
 python radar.py --palavra-passe NOME     # troca-a pela consola (no painel, o "esqueci-me" é a
                                    # ligação de repor que o admin ou o dono geram)
 python radar.py --desligar-segundo-factor NOME  # desliga o segundo factor (TOTP) da conta,
@@ -614,7 +621,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **419 pontos** (contados a 30/09/2026), cada um de um erro que
+São **420 pontos** (contados a 30/09/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

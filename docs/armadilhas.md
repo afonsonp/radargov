@@ -9,7 +9,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 15
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 16
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 28
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 119
 - [Convenções](#convencoes) &middot; 7
 
-São **419** ao todo, contados a 30/09/2026. Contam-se por secção com
+São **420** ao todo, contados a 30/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -178,6 +178,17 @@ O DR, a Vortal, e como um anúncio entra na base.
   traz o `tzdata`). Escrever o UTC punha o prazo uma hora mais
   cedo do que a plataforma diz. Só a Vortal precisa disto: o DR
   publica datas já locais.
+
+- **O `anuncios.prazo` é só a data; a hora está no texto.** Nenhum dos
+  211 108 anúncios tem hora na coluna (30/09/2026). A hora vive no
+  `texto`, na linha «Prazo para apresentação das propostas: 03-10-2026
+  23:59» (704 dos 711 anúncios da Vortal abertos). O plano de Outubro
+  escreveu «o prazo do DR, com a hora» e estava errado; quem precisar
+  da hora lê-a do texto. Do lado das plataformas: a Vortal dá-a no
+  detalhe do procedimento (`AJ7_SchedulingCN_DueDateForReceivingReplies`,
+  em UTC); **a acinGov não a mostra em público** — a listagem não tem
+  data e «consultar procedimento» pede sessão. Ver
+  `ferramentas/mede_prazo_plataforma.py`.
 
 - **A API da Vortal responde de DUAS formas ao mesmo pedido.**
   `GetPublicTenderInformation` (o primeiro salto, a partir do link
