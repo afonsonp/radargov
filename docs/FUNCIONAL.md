@@ -1749,9 +1749,15 @@ Estas já têm código, tabela e ecrã — falta **usá-las**:
 
 Para não desenhares o que não se pode fazer:
 
-- **Quem mais concorreu** (não só quem ganhou) — não está em lado nenhum
-  público.
-- **Preços das propostas perdedoras** — idem.
+- **Quem mais concorreu** (não só quem ganhou) — **não está no dump**
+  semanal do IMPIC, que é o que o corpus tem. **Está no detalhe de cada
+  contrato do Portal BASE** (medido a 30/09/2026: o pedido
+  `type=detail_contratos` devolve `contestants`, a lista dos concorrentes
+  com NIF, e ainda `invitees`, `closeDate`, `causesDeadlineChange`,
+  `causesPriceChange`, o PDF do contrato e o link das peças). É um pedido
+  por contrato, não uma coluna — o que se pode fazer com isso está no
+  `docs/historico/CONCORRENTES-2026-09.md`, adenda 2; nada foi construído.
+- **Preços das propostas perdedoras** — não estão em lado nenhum público.
 - **Relatórios preliminares e finais** — só chegam a quem concorre, pela
   plataforma, com sessão iniciada.
 - **Impugnações e recursos** — não constam do dump.
