@@ -588,6 +588,18 @@ que cada linha da resposta acabe com a página de onde veio, «(pág. 12)»,
 ou «(Programa, pág. 5)» quando o pedido leva mais de uma peça. A ficha
 mostra-a em cada linha.
 
+**A página é posta pelo código** (30/09/2026, 4.ª ronda): o modelo
+acertava em 76 a 85 % das linhas. Depois da resposta, cada linha
+procura-se no texto que foi enviado, por janelas de palavras, sem
+acentos, espaços nem pontuação (`paginas_pelo_codigo()`); onde se acha,
+a página — e a peça, quando o pedido leva mais de uma — é a desse sítio,
+e substitui a que o modelo escreveu. Uma linha que passa a quebra de
+página leva o intervalo, «(pág. 6–7)». Onde não se acha (um resumo, uma
+reformulação), fica a do modelo **só** se for uma das páginas enviadas.
+Num texto sem marcas (`.docx`) não há página, e as linhas «não consta» e
+«—» também não a têm. Uma leitura guardada antes disto fica com a página
+do modelo até ser relida.
+
 **Nenhum número que não esteja nas peças** (29/09/2026). Depois da
 resposta, sem modelo, cada número de cada linha tem de estar no texto
 que foi ao modelo, comparado como o `ensaio-de-leitura` compara — sem
@@ -596,7 +608,12 @@ espaços como separador, porque «4 1920» junto não tem o 1920 lá dentro
 (`numeros_por_confirmar()`). A linha que falha fica, e **não passa por
 facto**: leva «[confirmar: o número 1200 não está nas páginas lidas]».
 Os algarismos colados a letras («m3/h», «ePM1»), a página citada e o
-número da própria lista não se conferem. No mesmo passo saem do objecto
+número da própria lista não se conferem. Desde 30/09/2026: os milhares
+com qualquer espaço («18 000» com o espaço estreito é «18.000»)
+conferem-se como um número, **inteiro** — o «7» e o «000» soltos não
+sustentam um «7 000» —, e as horas são uma forma só («09:00» = «09.00h»
+= «9h00»). Não se convertem unidades: «36 meses» contra «3 anos» fica
+marcado, porque a regra é copiar das peças. No mesmo passo saem do objecto
 as cláusulas que todos os contratos têm — cumprir a lei, o sigilo,
 comunicar alterações — quando sobra alguma coisa (`sem_clausulas_tipo()`).
 

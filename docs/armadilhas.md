@@ -11,21 +11,21 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 15
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 27
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 28
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
-- [Contratos e entidades](#contratos-e-entidades) &middot; 31
+- [Contratos e entidades](#contratos-e-entidades) &middot; 35
 - [Alertas e interesse](#alertas-e-interesse) &middot; 13
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 18
-- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 8
-- [Contas e a porta](#contas-e-a-porta) &middot; 40
-- [A interface](#a-interface) &middot; 118
-- [Convenções](#convencoes) &middot; 5
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 20
+- [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
+- [Contas e a porta](#contas-e-a-porta) &middot; 41
+- [A interface](#a-interface) &middot; 119
+- [Convenções](#convencoes) &middot; 7
 
-São **406** ao todo, contados a 29/09/2026. Contam-se por secção com
+São **419** ao todo, contados a 30/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -675,6 +675,41 @@ Orçamento, cadeia de reserva, chaves.
   **As marcas contam no tecto**: o `_janelas_que_cabem()` desconta-as
   como desconta os «[...]», e o maior pedido passou de 13 430 a 13 933
   caracteres com as perguntas novas.
+
+- **A página de cada linha é do código, não do modelo** (30/09/2026,
+  4.ª ronda). Julgadas as 76 leituras desse dia, a página que o modelo
+  escreve estava certa em 76 a 85 % das linhas: a página ao lado numa
+  lista que passa a quebra, páginas que nem foram enviadas (a 41 da
+  23780, com o recorte nas 14 e 42–43), «pág. 1» num `.docx`. O
+  `PREAMBULO` continua a pedi-la (mudá-lo mandava reler tudo), mas
+  depois da resposta o `paginas_pelo_codigo()` procura cada linha no
+  **texto enviado** (`mapa_do_recorte()`: os «### nome» e os «[pág. N]»)
+  por janelas de palavras comprimidas, e **substitui** a do modelo.
+  Três ciladas medidas: as janelas vão por letras
+  (`LETRAS_DA_JANELA`) e não por número de palavras — «Rua da
+  Holanda, n.º 1» são palavras curtas e não se achava; as janelas da
+  mesma linha só contam juntas **a menos do comprimento da linha**
+  (`FOLGA_NO_RECORTE`) — com meia página de folga, «Experiência
+  comprovada em», que se repete em todos os perfis, puxava a página para
+  trás e a 23804 dava «pág. 61–63» a uma linha toda na 63; e a linha
+  que não se acha (um resumo) só fica com a página do modelo se ela
+  estiver entre as enviadas. Sem marcas no texto não há página, e «não
+  consta» e «—» também não. O `ensaio-de-leitura` diz por linha se a
+  página citada bate com o sítio achado (`nota_da_pagina()`), contra
+  **todos** os sítios empatados — o mesmo perfil repete-se em páginas
+  diferentes. **E a conferência dos números**: qualquer travessão entre
+  páginas (`TRAVESSOES`; a 21925 escrevia «40‑41» com o U+2011, onze
+  marcas falsas); o espaço estreito U+202F e o fino a separar milhares
+  (`RX_MILHARES_COM_ESPACO`), só a partir do princípio de um número —
+  «1,00 120.000,00» são dois (21764); um número de vários grupos
+  confere-se inteiro, com os grupos seguidos (`_esta_no_texto()`): na
+  23010 o OCR tinha o «7» e o «000» soltos e o «7 000» errado passava;
+  e as horas numa forma só (`RX_HORAS`: «09:00» = «09.00h» = «9h00»,
+  23174). «3 anos» contra «36 meses» **continua a marcar**: a regra é
+  copiar das peças. Medido sem modelo, nas mesmas 76: linhas com página
+  certa de 80 % para 100 % (as literais e únicas) e de 74 % para 89 %
+  (a página com mais palavras da linha); marcas de 24 (17 falsas) para
+  9 (uma falsa: o `33.233000000000004` de um Excel, na 24011).
 
 - **O «14ª» do sumário é «14a» depois do `simplifica()`** (29/09/2026,
   23577). A chave que junta o título do sumário ao do corpo tirava o

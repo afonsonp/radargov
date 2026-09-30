@@ -91,27 +91,34 @@ def melhor_sitio(achados, largura=400):
     perfis -- que e a fonte a serio daquela linha -- esta noutro sitio.
     Mostrar a primeira mandava os olhos para o lado errado.
     """
-    candidatos = [(p, comprimida) for comprimida, posicoes in achados
-                  for p in posicoes]
-    if not candidatos:
-        return None
-    melhor, melhor_conta = None, -1
-    for centro, _ in candidatos:
-        juntos = sum(1 for _, posicoes in achados
-                     if any(abs(p - centro) <= largura for p in posicoes))
-        if juntos > melhor_conta:
-            melhor, melhor_conta = centro, juntos
-    return melhor
+    melhores = melhores_sitios(achados, largura)
+    return melhores[0] if melhores else None
+
+
+def melhores_sitios(achados, largura=400):
+    """Todos os pontos empatados no melhor: o mesmo perfil repete-se em
+    varias paginas, e a pagina citada so se julga contra todos eles."""
+    candidatos = sorted({p for _, posicoes in achados for p in posicoes})
+    contas = [(sum(1 for _, posicoes in achados
+                   if any(abs(p - centro) <= largura for p in posicoes)), centro)
+              for centro in candidatos]
+    melhor = max((n for n, _ in contas), default=0)
+    return [centro for n, centro in contas if n == melhor and n]
 
 
 def apoio(linha, fonte, fonte_comprimida, mapa):
-    """(veredicto, explicacao) de uma linha da resposta do modelo."""
+    """(veredicto, explicacao, sitios) de uma linha da resposta do modelo.
+
+    `sitios` sao os [(inicio, fim)] no texto onde a linha se achou -- todos
+    os que empatam --, para a pagina citada se julgar contra eles."""
     agulha = comprime(linha)[0]
     if not agulha:
-        return "", ""
+        return "", "", []
     p = fonte_comprimida.find(agulha)
     if p >= 0:
-        return "literal", janela(fonte, mapa, p, p + len(agulha) - 1)
+        fim = p + len(agulha) - 1
+        return "literal", janela(fonte, mapa, p, fim), [
+            (mapa[q], mapa[q + len(agulha) - 1]) for q in onde_estao(agulha, fonte_comprimida)]
 
     faltam, achados = [], []
     for palavra, comprimida in termos(linha):
@@ -122,14 +129,52 @@ def apoio(linha, fonte, fonte_comprimida, mapa):
             faltam.append(palavra)
     centro = melhor_sitio(achados)
     onde = janela(fonte, mapa, centro, centro) if centro is not None else ""
+    sitio = [(mapa[c], mapa[c]) for c in melhores_sitios(achados)]
     if not faltam:
         # Todas as palavras estao no documento, mas nao seguidas: o
         # modelo resumiu ou juntou pedacos de sitios diferentes. E o
         # caso normal de um "objecto decomposto" bem feito.
-        return "reescrito", onde
+        return "reescrito", onde, sitio
     return "sem apoio", "termos que não aparecem: %s%s" % (
         ", ".join('"%s"' % t for t in faltam[:6]),
-        ("\n        mais perto: " + onde) if onde else "")
+        ("\n        mais perto: " + onde) if onde else ""), sitio
+
+
+def pagina_em(fonte, pos, inicios):
+    """A pagina de `pos`, contada desde o principio do ficheiro dele (um
+    documento, ou um ficheiro dentro de um ZIP); None sem paginas."""
+    ini = max(i for i in inicios if i <= pos)
+    fim = min([i for i in inicios if i > pos] + [len(fonte)])
+    if "\f" not in fonte[ini:fim]:
+        return None
+    return fonte.count("\f", ini, pos) + 1
+
+
+def _paginas(a, b):
+    return "%d" % a if a == b else "%d–%d" % (a, b)
+
+
+def nota_da_pagina(linha, fonte, sitios, inicios):
+    """A pagina citada confere com a pagina onde a janela foi achada?
+    (4.a ronda, 30/09/2026: e a pergunta com que se julga a leitura.)
+    Com a linha em varios sitios, basta um deles."""
+    if not sitios:
+        return ""
+    import radar
+    citadas = radar.paginas_da_citacao(linha)
+    achadas = [(pagina_em(fonte, a, inicios), pagina_em(fonte, b, inicios))
+               for a, b in sitios]
+    com_paginas = [(a, b) for a, b in achadas if a is not None]
+    if not com_paginas:
+        return ("✗ citada pág. %s, e o ficheiro não tem páginas"
+                % _paginas(min(citadas), max(citadas))) if citadas else ""
+    onde = ", ".join(sorted({_paginas(a, b) for a, b in com_paginas},
+                            key=lambda x: int(re.match(r"\d+", x).group()))[:4])
+    if not citadas:
+        return "· sem página citada; encontrada na %s" % onde
+    if any(a <= min(citadas) and max(citadas) <= b for a, b in com_paginas):
+        return "✓ pág. %s" % _paginas(min(citadas), max(citadas))
+    return "✗ citada pág. %s, encontrada na %s" % (_paginas(min(citadas), max(citadas)), onde)
 
 
 MARCA = {"literal": "✓", "reescrito": "~", "sem apoio": "?"}
@@ -155,8 +200,16 @@ def texto_das_pecas(radar, ref, fontes):
     # sem_indice, como no caminho que leva o texto ao modelo: senao as
     # linhas pontilhadas do sumario servem de apoio a tudo -- dizem os
     # titulos todos e nao dizem nada.
-    return ([d["nome"] for d in usados],
-            "\n\n".join(radar.sem_indice(d["texto"]) for d in usados))
+    textos = [radar.sem_indice(d["texto"]) for d in usados]
+    fonte = "\n\n".join(textos)
+    # onde comeca cada ficheiro -- cada documento, e cada ficheiro dentro
+    # de um ZIP --, que e de onde as paginas se contam (como no recorte)
+    inicios, pos = [], 0
+    for t in textos:
+        inicios.append(pos)
+        pos += len(t) + 2
+    inicios += [m.end() for m in radar.RX_MARCA_DO_FICHEIRO.finditer(fonte)]
+    return [d["nome"] for d in usados], fonte, sorted(inicios or [0])
 
 
 def analise_com_modelo(radar, ref):
@@ -196,7 +249,7 @@ def main():
               "peças; com ele, só mostra o que já está guardado." % ref)
         return 1
 
-    nomes, fonte = texto_das_pecas(radar, ref, analise["fontes"])
+    nomes, fonte, inicios = texto_das_pecas(radar, ref, analise["fontes"])
     if not fonte:
         print("Não há texto de peças em disco para %s: não há contra o que "
               "confrontar." % ref)
@@ -210,6 +263,7 @@ def main():
     print("=" * 72)
 
     contas = {"literal": 0, "reescrito": 0, "sem apoio": 0}
+    paginas = {"✓": 0, "✗": 0, "·": 0}
     for campo in radar.CAMPOS_DA_ANALISE:
         valor = (analise[campo] or "").strip()
         print("\n── %s ──" % campo)
@@ -220,19 +274,25 @@ def main():
             if not linha.strip():
                 continue
             # a pagina citada e a marca de confirmar nao sao do documento
-            veredicto, onde = apoio(radar.sem_a_pagina_citada(linha), fonte,
-                                    fonte_comprimida, mapa)
+            veredicto, onde, sitios = apoio(radar.sem_a_pagina_citada(linha), fonte,
+                                            fonte_comprimida, mapa)
             if not veredicto:
                 continue
             contas[veredicto] += 1
             print("  %s %s" % (MARCA[veredicto], linha.strip()))
             if onde:
                 print("      %s" % onde)
+            nota = nota_da_pagina(linha, fonte, sitios, inicios)
+            if nota:
+                paginas[nota[0]] += 1
+                print("      página: %s" % nota)
 
     print("\n" + "=" * 72)
     print("✓ literal no documento: %d   ~ reescrito, palavras todas lá: %d"
           "   ? sem apoio: %d" % (contas["literal"], contas["reescrito"],
                                   contas["sem apoio"]))
+    print("página: ✓ bate com o sítio achado: %d   ✗ não bate: %d   · sem página "
+          "citada: %d" % (paginas["✓"], paginas["✗"], paginas["·"]))
     print("Os '?' são os que exigem os teus olhos: ou o modelo inventou, ou "
           "a peça diz aquilo por outras palavras.")
     return 0
