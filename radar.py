@@ -18903,6 +18903,20 @@ def _lista_de_anuncios():
     arvore = "" if com_interesse else arvore_html(n_cpv, "anuncios")
 
     filtro_em_uso = filtro_actual(request.args, "anuncios")
+    # A ordem troca-se no cabeçalho do «Prazo», como numa folha de cálculo
+    # (30/09/2026, ele). Estava só na linha da contagem; fica lá também,
+    # mas só nos cartões (abaixo de 900 px), onde o cabeçalho se esconde.
+    por_prazo = (request.args.get("ordem") or "") == "prazo"
+    href_da_ordem = html.escape(
+        sem_pagina(request.args, rota, ordem="" if por_prazo else "prazo"),
+        quote=True)
+    th_do_prazo = (
+        "<th class='mg-num'%s><a class='ordenar' href='%s' title='%s'>Prazo"
+        "<span class='seta%s' aria-hidden='true'>%s</span></a></th>"
+        % (" aria-sort='ascending'" if por_prazo else "", href_da_ordem,
+           "Voltar à ordem de publicação" if por_prazo
+           else "Ordenar pelo prazo mais perto",
+           "" if por_prazo else " fraca", "▲" if por_prazo else "↕"))
     if linhas:
         # A tabela do `EcraConcursos`, com o cabeçalho que ele desenhou.
         # O `.lista` fica por fora: é ele que o JS da triagem procura
@@ -18917,7 +18931,8 @@ def _lista_de_anuncios():
             "<thead><tr>"
             "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
             "<th class='mg-num'>Preço base</th>"
-            "<th class='mg-num'>Prazo</th><th>Faltam</th><th><span class='so-leitor'>Acções</span></th>"
+            + th_do_prazo +
+            "<th>Faltam</th><th><span class='so-leitor'>Acções</span></th>"
             "</tr></thead><tbody>"
             + "".join(linha(a, estado_actual, urgente, na_escada)
                       for a in linhas)
@@ -18973,17 +18988,15 @@ def _lista_de_anuncios():
         conta = ("<b class='n-lista'>%s</b> %s"
                  % (mil(correspondem),
                     "resultado" if correspondem == 1 else "resultados"))
-    # A ordem diz-se e troca-se aqui (25/09/2026, do teste com
-    # utilizadores: «a lista nao se ordena por prazo»).
-    por_prazo = (request.args.get("ordem") or "") == "prazo"
-    conta += (" &middot; de <b>%s</b> na base &middot; %s &middot; "
-              "<a href='%s'>%s</a>"
+    # A ordem diz-se aqui (25/09/2026, do teste com utilizadores: «a
+    # lista nao se ordena por prazo»); troca-se no cabeçalho, e aqui só
+    # nos cartões, onde o cabeçalho não se vê (`so-cartoes`).
+    conta += (" &middot; de <b>%s</b> na base &middot; %s"
+              "<span class='so-cartoes'> &middot; <a href='%s'>%s</a></span>"
               % (mil(total),
                  "o prazo mais perto primeiro" if por_prazo
                  else "mais recentes primeiro",
-                 html.escape(sem_pagina(request.args, rota,
-                                        ordem="" if por_prazo else "prazo"),
-                             quote=True),
+                 href_da_ordem,
                  "ordenar por publicação" if por_prazo
                  else "ordenar por prazo"))
     if porler:
