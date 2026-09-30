@@ -38,7 +38,7 @@ pede.**
 | `docs/ccp.md` | **A lei**: os artigos do CCP que o Mira Gov usa, conferidos no texto oficial, o que muda e quando (o DL 177/2026 a 1/10/2026 e o que está por sair) | **Antes de escrever uma frase que cite o CCP** — e nunca o número ou a alínea de um artigo que mudou entre os dois regimes |
 | `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, ou no que serve ficheiros. São 83 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
-| `docs/historico/` | **O arquivo**: dezassete instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `CONCORRENTES-2026-09` (a segunda passagem, com a SWOT) e `CONCORRENTES-2026-09-exploracao` (a prova, por dentro das contas), `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`, `SETORES`, `CADERNOS`, `MAPA`, `LEITURA-VALIDADA`, `PLANO-2026-10` (os planos pagos e os seis gaps, 30/09/2026), `TERMOS-2026-10` (o rascunho dos termos e da privacidade para os planos pagos). **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
+| `docs/historico/` | **O arquivo**: vinte e um instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `CONCORRENTES-2026-09` (a segunda passagem, com a SWOT) e `CONCORRENTES-2026-09-exploracao` (a prova, por dentro das contas), `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`, `SETORES`, `CADERNOS`, `MAPA`, `LEITURA-VALIDADA`, `PLANO-2026-10` (os planos pagos e os seis gaps, 30/09/2026), `TERMOS-2026-10` (o rascunho dos termos e da privacidade para os planos pagos), `MULTIDAO` (o ensaio do lançamento de 5/10 com 500 fornecedores simulados e o dono a decidir os pedidos, 30/09/2026), `UX-7-LEIS`, `UX-ICONES-DICAS-PESOS` e `UX-ECRAS-EM-FALTA-E-ESCURO` (as três auditorias do mesmo dia). **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
@@ -739,7 +739,7 @@ não há `python`, e as sessões remotas também são Linux), e o
 existir, senão no interpretador do hook — sem isto, em Ubuntu travava
 todos os commits por ImportError.
 
-Duas skills e um subagente:
+Duas skills e dois subagentes:
 
 - **`estado-radar`** lê a base em modo só-leitura e diz quantos anúncios há,
   quantos faltam ler e se as capturas ainda são válidas — funciona mesmo com
@@ -751,6 +751,12 @@ Duas skills e um subagente:
 - **`explorador-de-plataforma`** (subagente) investiga se as peças de uma
   plataforma que o radar ainda não sabe descarregar se alcançam sem sessão
   iniciada, e devolve receita ou um "não há" fundamentado.
+- **`dono-dos-pedidos`** (subagente, 30/09/2026) faz o papel do Afonso na
+  página dos pedidos de acesso: aceita com o perfil, recusa com motivo ou
+  pergunta, escolhe os dez fundadores, e **marca** o que ele ainda não
+  decidiu em vez de o inventar. Serve para ensaiar o dia de um anúncio com
+  pedidos simulados, **nunca sobre pedidos reais sem ele**. Foi o que fez o
+  ensaio do `docs/historico/MULTIDAO.md`.
 
 **Saiu a 19/09/2026 a instrução da skill `task-observer`**, que mandava
 invocá-la no início de todas as sessões. Três coisas mortas na mesma
