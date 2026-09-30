@@ -58,6 +58,10 @@
 .mg-tabs>*{flex:none}
 .mg-pager{flex-wrap:wrap}
 .ent-nossas{overflow-x:auto}
+/* As nossas propostas numa coluna de ~360 px: com o `min-width:900px` da
+   tabela dos contratos a fase e o preço ficavam fora da vista, sem dica
+   (UX-ECRAS-EM-FALTA-E-ESCURO, E3, 30/09/2026). */
+.ent-nossas .tab-contratos{min-width:0}
 .barras .col{min-width:0}
 
 /* O `display:flex` do `.mg-field` ganha ao `[hidden]` do browser: a
@@ -373,7 +377,7 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-lista li .t{flex:1 1 auto;min-width:0}
 .ficha-lista li .n{font-family:var(--font-mono);font-size:var(--text-sm);
  color:var(--ink-secondary);flex:none}
-.ficha-lista li.aberta a{color:var(--ink);font-weight:700}
+.ficha-lista li.aberta a{color:var(--ink);font-weight:600}
 .ficha-prazo{display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap}
 .ficha-prazo b{font:600 var(--text-2xl)/32px var(--font-mono);letter-spacing:-.02em;color:var(--success)}
 .ficha-prazo.avisa b{color:var(--warning)}
@@ -405,7 +409,9 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 /* As PROPOSTAS (24/09/2026, o `EcraPropostas`): o cliente por baixo do
    objecto, e o «Falta» em cor de aviso -- e o que trava. */
 .tab-lista td.o small{display:block;color:var(--ink-muted);font-size:var(--text-xs)}
-.tab-lista td.falta{color:var(--warning);font-size:var(--text-sm);min-width:120px}
+/* a coluna «Falta» em tinta normal: toda a laranja, a atrasada perdia o
+   destaque da etiqueta dela (UX-7-LEIS, V5, 30/09/2026) */
+.tab-lista td.falta{color:var(--ink);font-size:var(--text-sm);min-width:120px}
 .tab-lista td.falta .mg-mono{color:var(--ink-muted);font-size:var(--text-xs)}
 .tab-lista td.o>a{color:var(--ink);font:600 var(--text-sm)/20px var(--font-sans);text-decoration:none}
 .tab-lista td.o>a:hover{color:var(--link);text-decoration:underline}
@@ -423,10 +429,6 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
  background:var(--surface-raised);box-shadow:var(--shadow-sm)}
 #filtros-entidade .f-q{grid-column:span 2}
 #filtros-entidade .periodos{grid-column:1/-1}
-.procura-entidade{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);
- font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
-.procura-entidade .mg-field__input{min-height:32px;width:220px;padding:0 var(--space-2);
- border:var(--border-control) solid var(--line-strong);border-radius:var(--radius-md)}
 .mercado-resumo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);
  margin:var(--space-4) 0}
 .mercado-resumo .conta{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-secondary)}
@@ -515,6 +517,9 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
    6,9:1 e 9,6:1. Dentro de um menu aberto (fundo claro) volta o de sempre. */
 :root,[data-theme]{--focus-on-header:#ffd84d}
 .mg-topbar :focus-visible,.barra-baixo :focus-visible{outline-color:var(--focus-on-header)}
+/* e na banda azul do cartão, que é o mesmo --surface-header: o «Esconder
+   as feitas» do Hoje focava a magenta a 2,36:1 (B4.1, 30/09/2026) */
+.mg-card--band .mg-card__head :focus-visible{outline-color:var(--focus-on-header)}
 .mg-topbar .mg-menu :focus-visible,.barra-baixo .mg-menu :focus-visible{outline-color:var(--focus)}
 
 /* O FOCO DOS CAMPOS (24/09/2026, queixa dele: «o rebordo à volta da
@@ -713,6 +718,14 @@ a.nota.abrir{display:inline-flex;align-items:center;min-height:24px}
 @media (pointer:coarse){
  .mg-btn{min-height:44px}
  .mg-btn--sm{min-height:32px}
+ /* os alvos de todos os dias chegam aos 44 (UX-7-LEIS F1 e E10, 30/09/2026):
+    a triagem da linha, o «Mudar» e o selector da fase, as abas, a
+    paginação e o × do aviso. A caixa ✓ fica com o desenho de 24 e o
+    alvo cresce por um ::before invisível. */
+ .col-acc .mg-btn--sm,.celula-ranhura .mg-btn--sm,main.mg td select,
+ .mg-tab,.com-js .aviso-fechar{min-height:44px}
+ .mg-pager>a,.mg-pager>b,.mg-pager>span,.com-js .aviso-fechar{min-width:44px;min-height:44px}
+ [data-pele=novo] .chk::before{content:'';position:absolute;inset:-11px}
  .mg-topbar .sou-menu a,.mg-topbar .sou-menu button{min-height:44px;
   display:flex;align-items:center}
  main.mg input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
@@ -739,6 +752,8 @@ a.nota.abrir{display:inline-flex;align-items:center;min-height:24px}
    outras) e o «N anúncios no Diário da República» (22 px); e uma
    ligação numa frase do Mercado que só se distinguia pela cor (1.4.1). */
 .barras-h .bh .t a,.ent-num{display:inline-flex;align-items:center;min-height:24px}
+/* o flex comia o espaço entre o número e a palavra: «3 189anúncios» (E4) */
+.ent-num{gap:.25em}
 main.mg span.p a{text-decoration:underline;text-underline-offset:2px}
 /* Com o ✓ e o ✕ nos botões da triagem, a coluna das acções precisa de
    mais 32 px, senão o «Abandonar» fica cortado à direita a 1280. */
@@ -850,7 +865,7 @@ ul.notas li>form.accao{display:inline-block}
   border-top:3px solid transparent}
  .bb-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
  .bb-item::-webkit-details-marker{display:none}
- .bb-item[aria-current="page"],.bb-item.aceso{color:var(--on-header);font-weight:700;
+ .bb-item[aria-current="page"],.bb-item.aceso{color:var(--on-header);font-weight:600;
   border-top-color:var(--on-header)}
  .bb-item:focus-visible{outline:var(--border-focus) solid var(--focus-on-header);outline-offset:-4px}
  .bb-mais{position:relative}
@@ -859,7 +874,7 @@ ul.notas li>form.accao{display:inline-block}
   min-width:220px;max-width:calc(100vw - 16px);box-shadow:var(--shadow-md)}
  .bb-menu .mg-menu__item{min-height:48px;box-sizing:border-box;text-decoration:none;
   color:var(--ink);width:100%;font:400 var(--text-md)/1.3 var(--font-sans);text-align:left}
- .bb-menu .mg-menu__item[aria-current="page"]{font-weight:700;color:var(--brand)}
+ .bb-menu .mg-menu__item[aria-current="page"]{font-weight:600;color:var(--brand)}
  .bb-menu form{margin:0}
  body{padding-bottom:var(--baixo-h)}
  html{scroll-padding-bottom:calc(var(--baixo-h) + 16px)}
@@ -1194,7 +1209,7 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .ct-novo,.tarefa-nova,.novo-filtro form.filtros,.hj-mexer>form,
 ul.tarefas li form.accao{align-items:end}
 /* o texto so para o leitor precisa de um antepassado posicionado */
-.ent-papel,.cal-mais>summary{position:relative}
+.ent-papel,.cal-mais>summary,.mg-avatar,.av{position:relative}
 /* O «Mais filtros» dos Concursos (3.a ronda, G75): so no telemovel, e so
    com JS; fechado, fica a pesquisa, o botao e o «Filtrar». */
 #filtros-lista .f-mais{display:none}
@@ -1252,7 +1267,11 @@ ul.tarefas li form.accao{align-items:end}
 .mg-table .mg-num,.mg-table .mg-code,.mg-crumbs,.mg-pager__pg,
 .mg-topbar__user{font-size:var(--text-sm)}
 .mg-avatar,.mg-step__label::before{font-size:var(--text-xs)}
-main.mg h3:not([class]){font-size:var(--text-lg)}
+main.mg h3:not([class]){font-size:var(--text-lg);font-weight:600}
+/* O sistema usa três pesos (400, 500, 600) e nenhum 700; o `<b>` do
+   browser saía a 700, o peso mais alto do ecrã numa nota de 12 px
+   (UX-ICONES-DICAS-PESOS, C.2 #1 e #2, 30/09/2026). */
+main.mg :is(b,strong){font-weight:600}
 .perfil-guardar{margin-top:var(--space-4)}
 input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--danger-soft)}
 /* As cores forçadas (o alto contraste do Windows; 3.ª ronda, G104): o
@@ -1276,9 +1295,11 @@ input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--
    folha de cálculo. A seta fraca diz que se pode clicar; a cheia, que a
    lista está ordenada por ali. Nos cartões o cabeçalho esconde-se, e a
    ligação da linha da contagem (`so-cartoes`) toma o lugar dele. */
-.mg-table th a.ordenar{color:inherit;text-decoration:none;display:inline-flex;gap:4px;align-items:center}
+.mg-table th a.ordenar{color:inherit;text-decoration:none;display:inline-flex;gap:4px;align-items:center;position:relative}
 .mg-table th a.ordenar:hover{text-decoration:underline}
-.mg-table th a.ordenar .seta.fraca{opacity:.45}
+/* a seta fraca em cor e não em meia-luz: a .45 ficava a 1,83:1 (B.1 do
+   UX-ECRAS-EM-FALTA-E-ESCURO) */
+.mg-table th a.ordenar .seta.fraca{color:var(--ink-muted)}
 .so-cartoes{display:none}
 @media (max-width:900px){.so-cartoes{display:inline}}
 
@@ -1289,3 +1310,20 @@ a.citacao{color:var(--link);white-space:nowrap}
 .citacao-excerto{margin:0 0 var(--space-4);padding:var(--space-3) var(--space-4);border-left:3px solid var(--brand);background:var(--surface-raised);font:400 var(--text-sm)/1.6 var(--font-sans);color:var(--ink)}
 .citacao-excerto p{margin:0}
 .citacao-excerto footer{margin-top:var(--space-2);font-size:var(--text-xs);color:var(--ink-muted)}
+
+/* O véu por trás do diálogo no escuro: o do CSS escurecia a página de
+   #14171c para #151920, 1,02:1 (B.2 do UX-ECRAS-EM-FALTA-E-ESCURO). */
+[data-theme="escuro"] dialog.mg-dialog::backdrop{background:rgba(0,0,0,.6)}
+/* As setas da paginação e da fita são os ícones do sistema (30/09/2026). */
+.fita-nav a{display:inline-flex;align-items:center;gap:4px}
+/* Os atalhos do teclado abrem por baixo da pílula, sem empurrar a linha
+   da contagem (UX-ICONES-DICAS-PESOS, B.1 #7). */
+.linha-conta details.teclas>summary{list-style:none;cursor:pointer}
+.linha-conta details.teclas>summary::-webkit-details-marker{display:none}
+.linha-conta details.teclas .teclas-o-que{position:absolute;right:0;top:calc(100% + 6px);
+ z-index:5;width:min(320px,80vw);padding:var(--space-3);background:var(--surface-raised);
+ border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-md);
+ font:400 var(--text-sm)/1.5 var(--font-sans);color:var(--ink-secondary);white-space:normal}
+/* Os pedidos de acesso em dois blocos, os por decidir primeiro (M5). */
+.pedidos-titulo{margin:var(--space-5) 0 var(--space-3)}
+.pedidos-titulo:first-child{margin-top:0}

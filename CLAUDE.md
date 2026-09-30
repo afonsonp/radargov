@@ -177,10 +177,12 @@ python radar.py --criar-utilizador NOME [--empresa N]  # a conta do painel ("adm
 python radar.py --criar-empresa "NOME"   # F4: uma empresa nova, com o ficheiro dela vazio; diz o número
 python radar.py --apagar-empresa N [--sim] # tira a empresa inteira (cópia antes; a pasta vai para copias/); o dono fica sem empresa
 python radar.py --limpar-uso [--sim]    # tira da base os erros, sessões, entradas falhadas e eventos de pessoas; VACUUM no fim
-python ferramentas/ecrans.py       # todos os ecrãs num HTML só, para os ver
-                                   # lado a lado: o HTML verdadeiro de cada
-                                   # rota, com o CSS e as fontes embutidos.
-                                   # Gerado e ignorado pelo git; refaz-se
+python ferramentas/ecrans.py [--empresa N]  # todos os ecrãs num HTML só,
+                                   # para os ver lado a lado: o HTML verdadeiro
+                                   # de cada rota, com o CSS e as fontes
+                                   # embutidos; a empresa (a primeira, por
+                                   # omissão) vista pelo gestor, a plataforma
+                                   # pelo dono. Gerado e ignorado pelo git
 python ferramentas/valida_docs.py  # o que a documentação cita existe? e as
                                    # contagens deriváveis batem? (também corre
                                    # na bateria de testes, e trava o commit)
@@ -621,7 +623,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **423 pontos** (contados a 30/09/2026), cada um de um erro que
+São **427 pontos** (contados a 1/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
