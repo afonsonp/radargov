@@ -28941,7 +28941,8 @@ def ficha(ref):
     # e abre a peça nessa página, com o excerto. Uma página que não é
     # número ignora-se.
     pagina = request.args.get("pagina") or ""
-    pagina = int(pagina) if pagina.isdigit() and 0 < int(pagina) < 100000 else 0
+    # só algarismos ASCII: o isdigit() aceita «²», e o int() rebentava
+    pagina = int(pagina) if re.fullmatch(r"[0-9]{1,5}", pagina) else 0
     citacao = (request.args.get("citacao") or "")[:300]
     if pagina and not peca_aberta:
         peca_aberta = peca_da_citacao(ref, pagina, citacao,

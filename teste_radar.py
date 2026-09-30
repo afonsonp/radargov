@@ -25110,7 +25110,7 @@ class TestACitacaoAbreNaPagina(_CicloDoTesteComUtilizadores):
 
     def test_uma_pagina_que_nao_e_numero_nao_parte(self):
         self._pecas()
-        for pagina in ("abc", "0", "-3", "99999999"):
+        for pagina in ("abc", "0", "-3", "99999999", "²", "①"):
             r = self.cliente.get("/anuncio/60/2026?pagina=%s&citacao=x" % pagina)
             self.assertEqual(r.status_code, 200)
             self.assertNotIn("citacao-excerto", r.get_data(as_text=True))
