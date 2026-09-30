@@ -25271,6 +25271,10 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         self.assertIn("O NIF não parece válido", r.get_json()["erro"])
         self.assertIsNone(self.ultimo())
 
+    def test_um_nif_com_algarismos_de_outra_escrita_nao_passa(self):
+        self.assertEqual(radar.nif_do_pedido("١٢٣٤٥٦٧٨٩"), "")
+        self.assertEqual(radar.nif_do_pedido("123456789"), "123456789")
+
     def test_sem_nif_nao_se_grava(self):
         r = self.pedir(nif="")
         self.assertEqual(r.status_code, 400)

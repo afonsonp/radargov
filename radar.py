@@ -2552,7 +2552,8 @@ def nif_valido(nif):
     Existe desde a varredura de 25/09/2026: a Conta aceitava `123456788`,
     e o NIF da empresa é o que diz «fomos nós» no Portal BASE -- um dígito
     trocado punha a ficha a dizer «Não fomos nós» de tudo."""
-    if not re.fullmatch(r"\d{9}", nif or ""):
+    # [0-9] e não \d: o \d aceita «١٢٣…» e o int() converte-os
+    if not re.fullmatch(r"[0-9]{9}", nif or ""):
         return False
     resto = sum(int(d) * (9 - i) for i, d in enumerate(nif[:8])) % 11
     return int(nif[8]) == (0 if resto < 2 else 11 - resto)
