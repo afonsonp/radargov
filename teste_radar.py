@@ -1709,6 +1709,156 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
         self.assertEqual([f[0] for f in radar.FORNECEDORES][-1], "groq-reserva")
 
 
+class TestQuartaRondaDaLeitura(unittest.TestCase):
+    """30/09/2026: quatro perfis julgaram as 76 leituras relidas com a
+    terceira ronda. A página que o modelo escreve estava certa em 76 a
+    85 % das linhas -- o erro típico é a página ao lado, numa lista que
+    passa a quebra --, e a conferência dos números tinha marcas falsas e
+    um buraco. A página e a conferência passaram a ser do código: cada
+    teste é um caso desse dia."""
+
+    NL = chr(10)
+
+    def confere(self, linha, lido):
+        return radar.numeros_por_confirmar(linha, lido)
+
+    # --- a conferência dos números -------------------------------------
+
+    def test_a_pagina_com_o_hifen_nao_separavel_nao_e_numero(self):
+        # 21925: «(pág. 40\u201141)» com U+2011, onze marcas falsas
+        lido = "[pág. 40]" + self.NL + "Formação e garantia."
+        for linha in ("- Formação (pág. 40\u201141)", "- Formação (pág. 40—41)",
+                      "- Garantia (pág. 4; pág. 6)",
+                      "- Formação (1_275CP26_Caderno_de_Encargos.zip/1.1.1 - "
+                      "PC260622.03.A05 - Anexo_ Clausulas tecnicas.docx - "
+                      "PC260622.03.A05.pdf, pág. 1)"):
+            self.assertEqual(self.confere(linha, lido), linha, linha)
+
+    def test_o_espaco_estreito_separa_os_milhares(self):
+        # 21568: «18\u202f000 subscritores», e a peça diz «18.000»
+        lido = "conta existente com mais de 18.000 subscritores"
+        for sep in (" ", "\u00a0", "\u202f", "\u2009"):
+            linha = "- Mailchimp com mais de 18%s000 subscritores (pág. 20)" % sep
+            self.assertEqual(self.confere(linha, lido), linha, repr(sep))
+
+    def test_as_horas_numa_forma_so(self):
+        # 23174: «09:00\u201118:00», e a peça diz «das 09.00h às 18.00h»
+        lido = "horário de atendimento: dias úteis, das 09.00h às 18.00h"
+        for linha in ("Prioridade Urgente: horário 2ª\u20116ª 09:00\u201118:00 (pág. 21)",
+                      "Horário: 9h00 às 18h00", "Horário: 9:00 às 18.00h"):
+            self.assertEqual(self.confere(linha, lido), linha, linha)
+        # e uma hora que a peça não diz continua a marcar
+        self.assertIn("confirmar", self.confere("Horário: 08:30 às 18:00", lido))
+
+    def test_a_linha_da_tabela_nao_se_comprime_num_numero(self):
+        # 21764: «1 I0041 Licenças UN 1,00 120.000,00 120.000,00» dava
+        # «10012000000120000», sem apoio
+        linha = "1 I0041 Licenças UN 1,00 120.000,00 120.000,00 (Lista.pdf)"
+        lido = "Item Código Designação Un Qtd Preço" + self.NL + \
+            "1 I0041 Licenças UN 1,00 120.000,00 120.000,00"
+        self.assertEqual(self.confere(linha, lido), linha)
+
+    def test_o_numero_de_varios_grupos_confere_se_inteiro(self):
+        # 23010: «7\u202f000 km/ano», e o OCR tinha o «7» e o «000» soltos,
+        # noutros sítios -- um número errado dado por certo
+        lido = ("Lote 2 – Machico / Santana, 7 viaturas" + self.NL +
+                "código postal 9200-000" + self.NL + "13 dias; 520 horas; 219 camas")
+        for linha in ("Lote 2 – 7\u202f000 km/ano (pág. 26)",
+                      "Lote 4 – 13\u202f520,00\u202f€", "Lote 1 – 219\u202f000,00\u202f€"):
+            self.assertIn("confirmar", self.confere(linha, lido), linha)
+        # e numa tabela, os milhares seguidos do número da coluna ao lado
+        # são o número: o mapa de quantidades da 23010 (OCR) e o despacho
+        # da 21618
+        lido = ("L Funchal I Câmara de Lobos 83 000 219 L20,O0 €" + self.NL +
+                "2 Machico / Santana 7s 000 198 000,00 €" + self.NL +
+                "Despacho n.º 15 247/2004")
+        for linha in ("Funchal – 83\u202f000\u202fkm/ano (pág. 26)", "Santana – 198\u202f000,00\u202f€",
+                      "4. Taxas (conforme o Despacho n.º 15\u202f247/2004)"):
+            self.assertEqual(self.confere(linha, lido), linha, linha)
+        self.assertIn("7000", self.confere("Lote 2 – 7\u202f000\u202fkm/ano", lido))
+
+    def test_os_anos_em_meses_continuam_a_marcar(self):
+        # 22631: a peça diz «3 anos» e a leitura «36 meses» -- a regra é
+        # copiar das peças, e a conta não se faz por ela
+        self.assertIn("confirmar", self.confere("Garantia: 36 meses (pág. 21)",
+                                                "garantia de 3 anos"))
+
+    # --- a página posta pelo código -------------------------------------
+
+    def recorte(self, *pecas):
+        """«### nome» e, por página, «[pág. N]», como o recorte as põe."""
+        partes = []
+        for nome, paginas in pecas:
+            corpo = self.NL.join(("[pág. %d]" % n + self.NL + tx) if n else tx
+                                 for n, tx in paginas)
+            partes.append("### %s%s%s" % (nome, self.NL, corpo))
+        return (self.NL * 2).join(partes)
+
+    ROTINA = "Texto de rotina sobre as penalidades contratuais aplicáveis. "
+
+    def test_a_pagina_e_a_de_onde_a_linha_esta(self):
+        # a página ao lado: 20445, 21924, 23780 (a do director de obra)
+        lido = self.recorte(("CE.pdf", [
+            (5, self.ROTINA * 3),
+            (6, "O adjudicatário deve assegurar a manutenção preventiva dos "
+                "equipamentos instalados." + self.NL + self.ROTINA)]))
+        self.assertEqual(
+            radar.paginas_pelo_codigo(
+                "- Assegurar a manutenção preventiva dos equipamentos (pág. 8)", lido),
+            "- Assegurar a manutenção preventiva dos equipamentos (pág. 6)")
+        # a linha sem página, que a tem no texto, ganha-a (as de continuação)
+        self.assertEqual(
+            radar.paginas_pelo_codigo("Manutenção preventiva dos equipamentos instalados",
+                                      lido),
+            "Manutenção preventiva dos equipamentos instalados (pág. 6)")
+
+    def test_a_lista_que_passa_a_quebra_leva_o_intervalo(self):
+        # as alíneas a)–d) do 20445, citadas na 8 e que estão na 7-8
+        lido = self.recorte(("CE.pdf", [
+            (7, self.ROTINA + self.NL + "a) Relatório mensal de actividade; b) Plano de"),
+            (8, "trabalhos detalhado e cronograma de execução;" + self.NL + self.ROTINA)]))
+        self.assertEqual(
+            radar.paginas_pelo_codigo(
+                "- Plano de trabalhos detalhado e cronograma de execução (pág. 8)", lido),
+            "- Plano de trabalhos detalhado e cronograma de execução (pág. 7–8)")
+
+    def test_com_mais_de_uma_peca_diz_qual(self):
+        lido = self.recorte(
+            ("Programa_do_Procedimento.pdf", [(3, "A proposta é constituída pelo DEUCP.")]),
+            ("Caderno_de_Encargos.pdf", [(9, "Local de execução: Rua da Holanda, n.º 1, "
+                                            "em Lisboa.")]))
+        self.assertEqual(
+            radar.paginas_pelo_codigo("Local: Rua da Holanda, n.º 1, em Lisboa (pág. 3)", lido),
+            "Local: Rua da Holanda, n.º 1, em Lisboa (Caderno de Encargos, pág. 9)")
+
+    def test_a_linha_que_nao_se_acha_fica_so_com_uma_pagina_enviada(self):
+        # 23780: citava a 41, e o recorte eram as 14 e 42-43; 22036 idem
+        lido = self.recorte(("CE.pdf", [(14, self.ROTINA), (42, self.ROTINA)]))
+        resumo = "- Director de obra com experiência em obras de natureza similar"
+        self.assertEqual(radar.paginas_pelo_codigo(resumo + " (pág. 42)", lido),
+                         resumo + " (pág. 42)")
+        self.assertEqual(radar.paginas_pelo_codigo(resumo + " (pág. 41)", lido), resumo)
+        self.assertEqual(radar.paginas_pelo_codigo(resumo + " (pág. 42\u201143)", lido), resumo)
+
+    def test_sem_marcas_nao_ha_pagina(self):
+        # 14680 e 23853: os .docx não têm páginas, e a «pág. 1» era inventada
+        lido = self.recorte(("CE.docx", [(None, "O objecto é a manutenção dos "
+                                                "elevadores do edifício sede.")]))
+        for linha in ("- Manutenção dos elevadores do edifício sede (pág. 1)",
+                      "- Outra coisa que se resumiu (pág. 1)"):
+            self.assertEqual(radar.paginas_pelo_codigo(linha, lido),
+                             linha.replace(" (pág. 1)", ""))
+
+    def test_o_que_nao_consta_nao_tem_pagina(self):
+        # 21877: «… não consta (pág. 23)»; uma ausência não tem página
+        lido = self.recorte(("CE.pdf", [(23, self.ROTINA)]))
+        valor = self.NL.join(["Garantia: não consta (pág. 23)", "Formação: — (pág. 23)", "",
+                              "não consta"])
+        self.assertEqual(radar.paginas_pelo_codigo(valor, lido),
+                         self.NL.join(["Garantia: não consta", "Formação: —", "",
+                                       "não consta"]))
+
+
 class TestHabilitacaoECaucaoDoAnuncio(unittest.TestCase):
     """O alvará e a caução estão no anúncio do DR (§12 e §14), e faltavam
     em todas as fichas das obras (28/09/2026, a validação das leituras)."""
@@ -24449,6 +24599,41 @@ class TestALeituraAssociadaAsPecas(BaseTemporaria):
         self.assertIn("confirmar: o número 1200", objecto[1])
         self.assertEqual(len(objecto), 2)
 
+    def test_a_pagina_gravada_e_a_do_codigo(self):
+        # 4.ª ronda (30/09/2026): o modelo cita a página ao lado, e o que
+        # se grava é a página onde a linha está no texto que ele leu
+        linha, _ = self._ler({"objecto": {
+            "objecto": "- Caudal máximo de insuflação 1540 m3/h (pág. 1)",
+            "localizacao": "não consta (pág. 1)"}})
+        self.assertEqual(linha["objecto"], "- Caudal máximo de insuflação 1540 m3/h (pág. 2)")
+        self.assertEqual(linha["localizacao"], "não consta")
+
+    def test_o_ensaio_diz_se_a_pagina_citada_bate(self):
+        # 4.ª ronda: a ferramenta com que se julga diz, por linha, se a
+        # página citada é a da janela encontrada
+        import importlib.util
+        caminho = os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               ".claude", "skills", "ensaio-de-leitura", "ensaio.py")
+        spec = importlib.util.spec_from_file_location("ensaio_de_leitura", caminho)
+        ensaio = importlib.util.module_from_spec(spec)
+        with unittest.mock.patch.object(sys, "stdout", io.TextIOWrapper(io.BytesIO())):
+            spec.loader.exec_module(ensaio)
+        fonte = "Cláusula 1 - Objeto\nrotina\fCláusula 2 - Local\nRua da Holanda, Lisboa\f"
+        comprimida, mapa = ensaio.comprime(fonte)
+        _, _, sitio = ensaio.apoio("Rua da Holanda, Lisboa", fonte, comprimida, mapa)
+        self.assertEqual(ensaio.nota_da_pagina("Rua da Holanda (pág. 2)", fonte, sitio, [0]),
+                         "✓ pág. 2")
+        self.assertEqual(ensaio.nota_da_pagina("Rua da Holanda (pág. 3)", fonte, sitio, [0]),
+                         "✗ citada pág. 3, encontrada na 2")
+        self.assertEqual(ensaio.nota_da_pagina("Rua da Holanda", fonte, sitio, [0]),
+                         "· sem página citada; encontrada na 2")
+        # um ficheiro sem páginas (.docx) não tem página a conferir
+        sem = "Rua da Holanda, Lisboa"
+        c2, m2 = ensaio.comprime(sem)
+        _, _, s2 = ensaio.apoio(sem, sem, c2, m2)
+        self.assertEqual(ensaio.nota_da_pagina("Rua da Holanda (pág. 1)", sem, s2, [0]),
+                         "✗ citada pág. 1, e o ficheiro não tem páginas")
+
     def test_o_ensaio_casa_as_fontes_com_paginas_e_zip(self):
         # 23389, 23728, 22036: as fontes trazem « (pág. …)» e «zip/membro»,
         # e o guião só confrontava com o ficheiro sem páginas
@@ -24465,7 +24650,7 @@ class TestALeituraAssociadaAsPecas(BaseTemporaria):
         # o guião troca o sys.stdout ao ser importado
         with unittest.mock.patch.object(sys, "stdout", io.TextIOWrapper(io.BytesIO())):
             spec.loader.exec_module(ensaio)
-        nomes, _ = ensaio.texto_das_pecas(
+        nomes, _, _ = ensaio.texto_das_pecas(
             radar, "91/2026", "CE.pdf (pág. 1–3), Pecas.zip/Programa.pdf (pág. 4), Anexo.xlsx")
         self.assertEqual(sorted(nomes), ["Anexo.xlsx", "CE.pdf", "Pecas.zip"])
 

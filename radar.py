@@ -8037,7 +8037,16 @@ def limpa_campo(valor):
 
 # A pagina no fim da linha, que a pergunta pede: «(pág. 12)», «(Programa,
 # pág. 5)», «(pág. 12–13)». Nao e um numero da resposta.
-RX_PAGINA_NA_LINHA = re.compile(r"\s*\((?:[^()]{0,80},\s*)?p[áa]g\.?\s*\d[\d\s,–-]*\)\s*$")
+# Qualquer travessao entre as duas paginas (30/09/2026, 4.a ronda): a
+# 21925 escreveu «(pág. 40\u201141)» com o hifen nao separavel (U+2011), e o
+# 40 contava como numero da resposta -- onze marcas falsas numa leitura.
+# E o nome da peca pode ser o do ficheiro, comprido (o 21830 citava
+# «…Anexo_ Clausulas tecnicas.docx - PC260622.03.A05.pdf, pág. 1»), e
+# «(pág. 4; pág. 6)» sao duas paginas.
+TRAVESSOES = "–—\u2011\u2010\u2012\u2212-"
+RX_PAGINA_NA_LINHA = re.compile(
+    r"\s*\((?:[^()]{0,200}[,;]\s*)?p[áa]gs?\.?\s*\d(?:[\d\s,;%s]|p[áa]gs?\.?)*\)\s*$"
+    % TRAVESSOES)
 # O numero da lista que o proprio modelo escreve («3. DEUCP»).
 RX_NUMERO_DA_LISTA = re.compile(r"^\s*(\d{1,2}[.)]|-)\s+")
 RX_POR_CONFIRMAR = re.compile(r" \[confirmar: [^\]]* nas páginas lidas\]")
@@ -8066,6 +8075,22 @@ RX_POR_EXTENSO = re.compile(r"\b(%s)\b" % "|".join(k for k in _EXTENSO
                                                     if k not in ("um", "uma")))
 
 
+RX_HORAS = re.compile(r"(?<![\d.,])(\d{1,2})\s*(?::|h|\.(?=\d{2}\s*h))\s*(\d{2})(?!\d)\s*h?")
+# «1 200 000 €», com o espaco, o nao separavel (U+00A0), o estreito
+# (U+202F) ou o fino (U+2009) a separar os milhares: um numero so, e
+# confere-se inteiro (30/09/2026, 4.a ronda). O estreito ficava de fora, e
+# a 23010 dizia «7 000 km/ano», com o U+202F: o «7» e o «000» achavam-se soltos no
+# texto do OCR, e um numero errado passava por certo. So a partir do
+# principio de um numero: «1,00 120.000,00» sao dois (21764), e juntos
+# davam «10012000000120000», sem apoio.
+RX_MILHARES_COM_ESPACO = re.compile(
+    r"(?<![\d.,])\d{1,3}(?:[ \u00a0\u202f\u2009]\d{3})+(?!\d|[.,]\d{3})")
+
+
+def junta_os_milhares(texto):
+    return RX_MILHARES_COM_ESPACO.sub(lambda m: re.sub(r"\D", "", m.group()), texto)
+
+
 def sem_a_pagina_citada(linha):
     """A linha sem a pagina do fim (e sem a marca de confirmar)."""
     return RX_PAGINA_NA_LINHA.sub("", RX_POR_CONFIRMAR.sub("", linha or ""))
@@ -8075,6 +8100,10 @@ def _numeros_normalizados(texto):
     """(com espacos, sem nada): o texto so com letras e algarismos, os
     numeros por extenso em algarismos, e «1.920,00» feito «1920»."""
     t = simplifica(texto or "")
+    # As horas numa forma so (30/09/2026, 4.a ronda): a 23174 escreveu
+    # «09:00\u201118:00» e a peca diz «das 09.00h as 18.00h» -- o «.00» saia
+    # como casas decimais, e o «00» ficava sem apoio. «9h00» e o mesmo.
+    t = RX_HORAS.sub(lambda m: " %d %s " % (int(m.group(1)), m.group(2)), t)
     t = RX_DEZENA_E_UNIDADE.sub(lambda m: " %d " % (_EXTENSO[m.group(1)]
                                                     + _UNIDADES[m.group(2)]), t)
     t = RX_POR_EXTENSO.sub(lambda m: " %d " % _EXTENSO[m.group(1)], t)
@@ -8086,8 +8115,17 @@ def _numeros_normalizados(texto):
 
 
 def _esta_no_texto(numero, fonte):
-    padrao = r"(?<!\d)0*%s(?!\d)" % re.escape(numero.lstrip("0") or "0")
-    return any(re.search(padrao, f) for f in fonte)
+    n = numero.lstrip("0") or "0"
+    padroes = [r"(?<!\d)0*%s(?!\d)" % n]
+    # E os milhares separados por espaco no texto lido, seguidos do que
+    # vier (30/09/2026, 4.a ronda): numa tabela o numero seguinte cola-se
+    # -- «Câmara de Lobos 83 000 219 120,00 €» (23010), «Despacho n.º
+    # 15 247/2004» (21618) -- e o 83000 ficava sem apoio. Os grupos
+    # seguidos, e nao soltos: o «7» e o «000» noutros sitios nao sao 7000.
+    if len(n) > 3:
+        grupos = [n[max(0, i - 3):i] for i in range(len(n), 0, -3)][::-1]
+        padroes.append(r"(?<!\d)%s(?!\d)" % " ".join(grupos))
+    return any(re.search(p, f) for p in padroes for f in fonte)
 
 
 def numeros_sem_apoio(linha, fonte):
@@ -8095,7 +8133,7 @@ def numeros_sem_apoio(linha, fonte):
     (o par que _numeros_normalizados() da do texto lido)."""
     corpo = RX_NUMERO_DA_LISTA.sub("", sem_a_pagina_citada(linha))
     # «1 200 000 €»: os milhares com espaco sao um numero so
-    corpo = re.sub(r"(?<=\d)[ \u00a0](?=\d{3}(?!\d))", "", corpo)
+    corpo = junta_os_milhares(corpo)
     faltam = []
     # so os numeros soltos: o «3» de «m3/h», o «1» de «ePM1» e o «13» de
     # «R.13» sao nomes, e nao quantidades
@@ -8119,6 +8157,181 @@ def numeros_por_confirmar(valor, texto_lido):
         if faltam and not RX_POR_CONFIRMAR.search(linha):
             linha += marca_por_confirmar(faltam)
         linhas.append(linha)
+    return "\n".join(linhas)
+
+
+# --- a pagina posta pelo codigo (30/09/2026, 4.a ronda)
+#
+# Quatro perfis julgaram as 76 leituras relidas nesse dia: a pagina que o
+# modelo escreve estava certa em 76 a 85 % das linhas. O erro tipico e a
+# pagina ao lado, numa lista que passa a quebra (as alineas do 20445
+# citadas na 8, e estao na 7); ha paginas que nem foram enviadas (a 41 da
+# 23780, com o recorte nas 14 e 42-43); e ha «pág. 1» num .docx, que nao
+# tem paginas (23853). O modelo continua a escrever a pagina, mas quem a
+# poe e o codigo: cada linha procura-se no texto que foi enviado, por
+# janelas de palavras, comprimido como o ensaio-de-leitura comprime (sem
+# acentos, espacos nem pontuacao -- o PDF parte os numeros, «1 2
+# meses»). Achada, a pagina e a desse sitio; nao achada (um resumo), fica
+# a do modelo so se for uma das enviadas.
+
+RX_MARCA_NO_RECORTE = re.compile(r"^\[pág\. (\d+)\]$")
+# Cada janela sao as palavras seguidas que fazem pelo menos estas letras
+# (comprimidas): palavras curtas -- «n.º 1», «da» -- nao se perdem
+LETRAS_DA_JANELA = 16
+# Uma janela mais curta do que isto (so no fim da linha) aparece em todo o lado
+MINIMO_DA_JANELA = 12
+# As janelas da mesma linha contam como o mesmo sitio quando se acham
+# a menos do comprimento da linha mais isto (em letras comprimidas). Com
+# meia pagina de folga, «Experiência comprovada em» -- que se repete em
+# todos os perfis -- puxava a pagina para tras e a 23804 citava «pág.
+# 61–63» para uma linha que esta toda na 63.
+FOLGA_NO_RECORTE = 60
+# Quanto texto da linha tem de se achar junto para a linha contar como
+# achada: uma janela comprida, ou duas curtas
+ACHADO_QUE_CHEGA = 20
+# Uma janela que aparece mais vezes do que isto nao diz onde a linha esta
+REPETIDA_DEMAIS = 20
+
+
+def _comprimido(texto):
+    return re.sub(r"[^a-z0-9]", "", simplifica(texto))
+
+
+def mapa_do_recorte(texto):
+    """(texto comprimido, [(onde começa, peça, página)]) do que foi ao
+    modelo: os «### nome» dizem a peça, os «[pág. N]» a página (None
+    num texto sem marcas -- um .docx, um Excel)."""
+    partes, marcos, pos, peca, pagina = [], [], 0, "", None
+    for linha in (texto or "").split("\n"):
+        if linha.startswith("### "):
+            peca, pagina = linha[4:].strip(), None
+            continue
+        m = RX_MARCA_NO_RECORTE.match(linha.strip())
+        if m:
+            pagina = int(m.group(1))
+            continue
+        c = _comprimido(linha)
+        if not c:
+            continue
+        if not marcos or marcos[-1][1:] != (peca, pagina):
+            marcos.append((pos, peca, pagina))
+        partes.append(c)
+        pos += len(c)
+    return "".join(partes), marcos
+
+
+def _ocorrencias(agulha, palheiro):
+    fora, p = [], palheiro.find(agulha)
+    while p >= 0 and len(fora) <= REPETIDA_DEMAIS:
+        fora.append(p)
+        p = palheiro.find(agulha, p + 1)
+    return fora
+
+
+def onde_esta_a_linha(corpo, comprimido, marcos):
+    """(peça, primeira página, última página) de onde a linha está no
+    recorte, ou None quando não se acha."""
+    palavras = re.findall(r"[a-z0-9]+", simplifica(corpo))
+    janelas = set()
+    for i in range(len(palavras)):
+        janela = ""
+        for palavra in palavras[i:]:
+            janela += palavra
+            if len(janela) >= LETRAS_DA_JANELA:
+                break
+        janelas.add(janela)
+    achados = [(j, ps) for j in janelas if len(j) >= MINIMO_DA_JANELA
+               for ps in [_ocorrencias(j, comprimido)] if 0 < len(ps) <= REPETIDA_DEMAIS]
+    if not achados:
+        return None
+    perto = len(_comprimido(corpo)) + FOLGA_NO_RECORTE
+
+    def junto(centro):
+        """As janelas achadas perto do centro, cada uma no sitio mais perto."""
+        fora = []
+        for j, ps in achados:
+            p = min(ps, key=lambda x: abs(x - centro))
+            if abs(p - centro) <= perto:
+                fora.append((p, p + len(j) - 1))
+        return fora
+
+    # o sitio onde mais texto da linha se junta; no empate, o primeiro
+    centro = max((c for _, ps in achados for c in ps),
+                 key=lambda c: (sum(b - a + 1 for a, b in junto(c)), -c))
+    sitios = junto(centro)
+    if sum(b - a + 1 for a, b in sitios) < ACHADO_QUE_CHEGA:
+        return None
+    inicios = [m[0] for m in marcos]
+
+    def marco(p):
+        return marcos[bisect.bisect_right(inicios, p) - 1]
+
+    peca = marco(centro)[1]
+    paginas = [marco(p)[2] for a, b in sitios for p in (a, b) if marco(p)[1] == peca]
+    if None in paginas:
+        return peca, None, None
+    return peca, min(paginas), max(paginas)
+
+
+def paginas_da_citacao(linha):
+    """As páginas que a linha cita no fim: «(pág. 40\u201141)» -> [40, 41]."""
+    m = RX_PAGINA_NA_LINHA.search(linha or "")
+    if not m:
+        return []
+    pedaco = m.group()[re.search(r"p[áa]gs?\.?", m.group()).start():]
+    fora = []
+    for a, b in re.findall(r"(\d+)(?:\s*[%s]\s*(\d+))?" % TRAVESSOES, pedaco):
+        fora += range(int(a), int(b or a) + 1) if int(b or a) - int(a) < 50 else [int(a)]
+    return fora
+
+
+def _nomes_das_pecas(nomes):
+    """{nome: como se diz}: o papel («Caderno de Encargos», «Programa»)
+    quando só um ficheiro o tem, senão o nome do ficheiro sem o do ZIP."""
+    papeis = []
+    for nome in nomes:
+        p = papeis_da_peca(nome.rsplit("/", 1)[-1]) - {"tecnico"}
+        papeis.append(_NOME_DO_PAPEL[p.pop()] if len(p) == 1 else "")
+    return {nome: papel if papel and papeis.count(papel) == 1 else nome.rsplit("/", 1)[-1]
+            for nome, papel in zip(nomes, papeis)}
+
+
+def _e_ausencia(corpo):
+    """«Garantia: não consta», «Formação: —»: uma ausência não tem página."""
+    return bool(re.search(r"(nao consta|—)[\s.]*$", simplifica(corpo)))
+
+
+def paginas_pelo_codigo(valor, texto_enviado):
+    """O campo com a página de cada linha posta pelo código (4.ª ronda).
+
+    `texto_enviado` é o recorte que foi ao modelo, com as marcas."""
+    if not isinstance(valor, str) or not valor.strip():
+        return valor
+    comprimido, marcos = mapa_do_recorte(texto_enviado)
+    enviadas = {pg for _, _, pg in marcos if pg}
+    pecas = list(dict.fromkeys(m[1] for m in marcos))
+    # o nome sem parenteses, para a citacao continuar a ler-se como tal
+    # (RX_PAGINA_NA_LINHA): ha ficheiros como «…INFARMED(PRR)_WEBSITE.pdf»
+    nomes = {n: re.sub(r"[()]", "", d) for n, d in _nomes_das_pecas(pecas).items()}
+    linhas = []
+    for linha in valor.split("\n"):
+        m = RX_PAGINA_NA_LINHA.search(linha)
+        corpo = linha[:m.start()] if m else linha.rstrip()
+        if not corpo.strip() or _e_ausencia(corpo):
+            linhas.append(corpo)
+            continue
+        onde = onde_esta_a_linha(RX_NUMERO_DA_LISTA.sub("", corpo), comprimido, marcos)
+        if onde:
+            peca, a, b = onde
+            if a is None:
+                linhas.append(corpo)
+                continue
+            pg = "%d" % a if a == b else "%d–%d" % (a, b)
+            linhas.append("%s (%spág. %s)" % (corpo, nomes[peca] + ", " if len(pecas) > 1
+                                                else "", pg))
+            continue
+        citadas = paginas_da_citacao(linha)
+        linhas.append(linha if citadas and set(citadas) <= enviadas else corpo)
     return "\n".join(linhas)
 
 
@@ -8306,14 +8519,8 @@ def fontes_pelo_papel(texto):
     dois ficheiros teriam o mesmo papel -- aí o papel não os distingue.
     Dentro de um ZIP, só o nome do ficheiro, sem o do ZIP."""
     fontes = fontes_por_peca(texto)
-    papeis = []
-    for nome, _ in fontes:
-        p = papeis_da_peca(nome.rsplit("/", 1)[-1]) - {"tecnico"}
-        papeis.append(_NOME_DO_PAPEL[p.pop()] if len(p) == 1 else "")
-    return ", ".join(
-        _com_paginas(papel if papel and papeis.count(papel) == 1
-                     else nome.rsplit("/", 1)[-1], pgs)
-        for (nome, pgs), papel in zip(fontes, papeis))
+    nomes = _nomes_das_pecas([nome for nome, _ in fontes])
+    return ", ".join(_com_paginas(nomes[nome], pgs) for nome, pgs in fontes)
 
 
 def juntar_fontes(usados, anteriores, parcial):
@@ -8479,7 +8686,10 @@ def analisar_pecas(ref):
         # esta no texto lido fica marcada para confirmar
         if "objecto" in resposta:
             resposta["objecto"] = sem_clausulas_tipo(limpa_campo(resposta["objecto"]))
-        dados.update({k: numeros_por_confirmar(limpa_campo(v), texto)
+        # E a pagina de cada linha e a do sitio onde ela esta no texto
+        # enviado, e nao a que o modelo escreveu (30/09/2026, 4.a ronda)
+        dados.update({k: numeros_por_confirmar(
+                          paginas_pelo_codigo(limpa_campo(v), texto), texto)
                       if isinstance(v, str) else v for k, v in resposta.items()})
         usados += [f for f in fontes if f not in usados]
         if usado not in modelos:

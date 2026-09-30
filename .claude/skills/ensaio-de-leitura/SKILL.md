@@ -37,6 +37,13 @@ Cada linha da resposta leva uma marca e, por baixo, o pedaço do documento:
   ("Automatizar" → "Automatização"). A janela ao lado resolve a dúvida numa
   vista de olhos.
 
+E, desde 30/09/2026, uma linha **página:** diz se a página citada bate com o
+sítio onde a linha foi achada: **✓** bate; **✗** «citada pág. 8, encontrada
+na 7» (ou «o ficheiro não tem páginas», num `.docx`); **·** sem página
+citada. A linha que aparece em vários sítios — o mesmo perfil em páginas
+diferentes — conta como certa se um deles for o citado. O fim diz quantas
+de cada.
+
 A comparação é feita sobre texto comprimido — sem acentos, sem maiúsculas, sem
 espaços e sem pontuação — porque o extractor de PDF parte números ("1 2 meses")
 e um grep ingénuo produzia uma acusação falsa. Está no ESTADO.md.
