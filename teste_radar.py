@@ -1216,6 +1216,19 @@ class TestORecorteLevaAResposta(unittest.TestCase):
                                         lambda nomes, var: "" if var == "CEREBRAS_API_KEY" else "k"):
             self.assertNotIn("cerebras", [f[0] for f in radar.cadeia_de_fornecedores({})])
 
+    def test_o_gemini_entra_antes_da_reserva_e_so_com_chave(self):
+        # 30/09/2026: o Gemini entra atrás de todos os outros e antes da
+        # reserva da Groq, até as leituras dele serem julgadas; a chave é
+        # a de um projecto Google só para a leitura (o MiroFish usa outro)
+        nomes = [f[0] for f in radar.FORNECEDORES]
+        self.assertEqual(nomes[-2:], ["gemini", "groq-reserva"])
+        gemini = {f[0]: f for f in radar.FORNECEDORES}["gemini"]
+        self.assertIn("generativelanguage.googleapis.com", gemini[1])
+        self.assertEqual(gemini[3], ("gemini_API_KEY.txt",))
+        with unittest.mock.patch.object(radar, "ler_chave",
+                                        lambda nomes, var: "" if var == "GEMINI_API_KEY" else "k"):
+            self.assertNotIn("gemini", [f[0] for f in radar.cadeia_de_fornecedores({})])
+
 
 class TestSegundaRondaDaLeitura(unittest.TestCase):
     """29/09/2026: quatro agentes voltaram a julgar as 70 leituras,
@@ -13702,8 +13715,11 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         vistas = [html.unescape(p) for p in
                   re.findall(r"<summary>(.*?)</summary>", corpo, re.S)]
         self.assertEqual([q["name"] for q in faq["mainEntity"]], vistas)
-        # nove até 30/09/2026; o «Como se paga?» entrou com os planos
-        self.assertEqual(len(vistas), 10)
+        # 11 desde 30/09/2026: a do preço, do site dos planos (#176), e
+        # «E se o Mira Gov acabar?», a resposta à segunda objecção do
+        # ensaio do lançamento (docs/historico/MULTIDAO.md)
+        self.assertEqual(len(vistas), 11)
+        self.assertIn("E se o Mira Gov acabar?", vistas)
         self.assertNotIn("<!--FAQ-JSONLD-->", corpo)
 
     def test_o_entrar_nao_se_indexa(self):
@@ -21503,9 +21519,10 @@ class TestPedidosDeAcessoRecusarEOCorreio(_PlataformaComDuasEmpresas):
                 radar, "enviar_email",
                 side_effect=lambda a, corpo, cfg=None, **k: mandados.append(
                     cfg["email"]["para"]) or (True, "ok")):
+            # o NIF é obrigatório no formulário desde o site dos planos (#176)
             radar._avisar_do_pedido(self.pedido, {"nome": "Zé", "empresa": "Gama",
                                                   "email": "ze@gama.pt", "sector": "Obras",
-                                                  "mensagem": ""})
+                                                  "nif": "509999999", "mensagem": ""})
         self.assertEqual(mandados, ["dono@miragov.pt"])
         r = self.post(dono, "/plataforma/correio", {"avisos": "não-é-mail", "porta": "587"})
         self.assertIn("tom=erro", r.headers["Location"])

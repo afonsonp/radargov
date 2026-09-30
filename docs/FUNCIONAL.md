@@ -654,7 +654,9 @@ tecto da conta é por minuto e manda no tamanho do recorte
 alguém responder: a Groq (`gpt-oss-120b`), o Cerebras (o mesmo modelo,
 com 1 milhão de tokens por dia; só entra com chave), a NVIDIA
 (`nemotron-3-ultra`, com o raciocínio desligado), o OpenRouter (um
-modelo gratuito, quase sempre cheio) e, no fim, a reserva na própria
+modelo gratuito, quase sempre cheio), o Gemini da Google (desde
+30/09/2026, com a chave de um projecto só para a leitura; atrás dos
+outros até as leituras dele serem julgadas) e, no fim, a reserva na própria
 Groq (`gpt-oss-20b`) — no fim desde 29/09/2026, por ter sido o único a
 errar números nas leituras julgadas nesse dia. Todos gratuitos; a conta de 28/09/2026 dava ~20 concursos por
 dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
@@ -1596,8 +1598,8 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
 - **Exportação da triagem**: `empresas/<id>/triagem.jsonl`, por
   empresa, só local (desde 23/09/2026 não vai ao GitHub).
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
-  a cadeia de fornecedores (a Groq, o Cerebras, a NVIDIA, o OpenRouter
-  e a reserva na Groq) até alguém responder.
+  a cadeia de fornecedores (a Groq, o Cerebras, a NVIDIA, o OpenRouter,
+  o Gemini e a reserva na Groq) até alguém responder.
 
 ---
 

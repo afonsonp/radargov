@@ -6816,6 +6816,18 @@ FORNECEDORES = (
     # da 23389, «com IVA» onde o IVA acresce na 23265) e o que falhou a
     # habilitacao legal da 23351. Fica para quando todos os outros
     # acabaram o dia.
+    # O Gemini (30/09/2026, decisao dele): a entrada da Google que fala o
+    # dialecto da OpenAI, com a chave de um projecto do AI Studio SO para
+    # a leitura -- o MiroFish usa outro, e a quota e por projecto. O
+    # gemini-3.6-flash respondeu em 1,8 s com o response_format de JSON;
+    # o gemini-flash-latest e o 3.7 davam 503 de procura nesse dia, e o
+    # 2.5 ja nao aceita contas novas. Entra ANTES da reserva da Groq e
+    # atras de todos os outros ate as leituras dele serem julgadas, como
+    # a 3.a ronda julgou as outras: um modelo novo le de outra maneira.
+    # A conta gratuita da Google pode usar o que recebe para melhorar os
+    # produtos dela; so lhe vao pecas publicas.
+    ("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+     "gemini-3.6-flash", ("gemini_API_KEY.txt",), "GEMINI_API_KEY", {}),
     ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
      {"reasoning_effort": "low"}),
 )
