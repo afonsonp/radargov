@@ -13702,7 +13702,11 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         vistas = [html.unescape(p) for p in
                   re.findall(r"<summary>(.*?)</summary>", corpo, re.S)]
         self.assertEqual([q["name"] for q in faq["mainEntity"]], vistas)
-        self.assertEqual(len(vistas), 9)
+        # 11 desde 30/09/2026: a do preço, do site dos planos (#176), e
+        # «E se o Mira Gov acabar?», a resposta à segunda objecção do
+        # ensaio do lançamento (docs/historico/MULTIDAO.md)
+        self.assertEqual(len(vistas), 11)
+        self.assertIn("E se o Mira Gov acabar?", vistas)
         self.assertNotIn("<!--FAQ-JSONLD-->", corpo)
 
     def test_o_entrar_nao_se_indexa(self):
@@ -21502,9 +21506,10 @@ class TestPedidosDeAcessoRecusarEOCorreio(_PlataformaComDuasEmpresas):
                 radar, "enviar_email",
                 side_effect=lambda a, corpo, cfg=None, **k: mandados.append(
                     cfg["email"]["para"]) or (True, "ok")):
+            # o NIF é obrigatório no formulário desde o site dos planos (#176)
             radar._avisar_do_pedido(self.pedido, {"nome": "Zé", "empresa": "Gama",
                                                   "email": "ze@gama.pt", "sector": "Obras",
-                                                  "mensagem": ""})
+                                                  "nif": "509999999", "mensagem": ""})
         self.assertEqual(mandados, ["dono@miragov.pt"])
         r = self.post(dono, "/plataforma/correio", {"avisos": "não-é-mail", "porta": "587"})
         self.assertIn("tom=erro", r.headers["Location"])
