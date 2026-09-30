@@ -17453,9 +17453,10 @@ def linha(a, vista="", urgente=None, na_escada=None):
            (" &middot; %s" % publicado) if publicado else "",
            (" &middot; <span class='mg-mono'>%s</span>"
             % html.escape(a["cpv"])) if a["cpv"] else "",
-           ("<span class='mg-tag mg-tag--mono %s'>%s</span>"
-            % (tom("ok" if a["plataforma"] in PLATAFORMAS_COM_PECAS else ""),
-               html.escape(a["plataforma"]))) if a["plataforma"] else "",
+           # Texto, e não uma etiqueta verde (30/09/2026, ele): o verde
+           # dizia «as peças descarregam-se daqui», e isso vale para 99,6%
+           # dos anúncios -- todas iguais, a cor não distinguia nada.
+           html.escape(a["plataforma"] or ""),
            html.escape(preco_pt(a["preco_base"])),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
