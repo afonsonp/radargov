@@ -1,13 +1,14 @@
 # Mira Gov
 
-> O Mira Gov vigia os concursos públicos portugueses. Lê o Diário da República (2.ª série, parte L) ao longo do dia, descarrega as peças do procedimento, resume o que pedem e mostra a que preço o mercado adjudica, a partir dos contratos do Portal BASE. É um produto privado e independente, feito em Portugal, e está em beta fechada, gratuita para as primeiras empresas.
+> O Mira Gov vigia os concursos públicos portugueses. Lê o Diário da República (2.ª série, parte L) ao longo do dia, descarrega as peças do procedimento, resume o que pedem e mostra a que preço o mercado adjudica, a partir dos contratos do Portal BASE. É um produto privado e independente, feito em Portugal, e tem três planos, com preços sem IVA: Vigia, 39 € por mês, com um utilizador e sem a leitura automática das peças; VigIA+, 99 € por mês ou 999 € por ano, com dois utilizadores e a leitura das peças; e Corporate, sob consulta. As dez primeiras empresas têm a oferta de fundador: o VigIA+ a 55 € por mês, sem pagar até 31 de dezembro de 2026.
 
 O Mira Gov não é um serviço oficial: não representa o Diário da República, o IMPIC nem nenhuma plataforma de contratação. Só lê e organiza informação que já é pública, e cada anúncio leva a ligação para o original. A aplicação está atrás de uma conta; o que é público é o site e as páginas abaixo.
 
 ## O site
 
 - [Página inicial](https://miragov.pt/): o que o Mira Gov faz, como funciona, de onde vêm os dados, as perguntas frequentes e o formulário de pedido de acesso
-- [Pedir acesso](https://miragov.pt/#acesso): o formulário da beta; configuramos o perfil da empresa (os códigos CPV do setor) com quem pede
+- [Planos](https://miragov.pt/#planos): os três planos, os preços e a oferta de fundador
+- [Pedir acesso](https://miragov.pt/#acesso): o formulário do pedido, com o NIF da empresa e o plano que interessa; configuramos o perfil da empresa (os códigos CPV do setor) com quem pede
 - [Perguntas frequentes](https://miragov.pt/#perguntas)
 
 ## O que faz

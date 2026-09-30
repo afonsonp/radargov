@@ -1222,8 +1222,11 @@ def iniciar_db():
         # E o recusado (a pagina do dono, 26/09/2026): `estado`
         # 'recusado', com o motivo e o dia -- sem apagar, para um pedido
         # lixo nao ficar por decidir para sempre nem desaparecer.
+        # O NIF e o plano que interessa (30/09/2026, os planos pagos): o
+        # NIF vai para a empresa quando o pedido se aceita, e é o da fatura.
         for nome, tipo in (("estado", "TEXT"), ("empresa_id", "INTEGER"),
-                           ("motivo", "TEXT"), ("decidido_em", "TEXT")):
+                           ("motivo", "TEXT"), ("decidido_em", "TEXT"),
+                           ("nif", "TEXT"), ("plano", "TEXT")):
             if nome not in cols_pa:
                 c.execute("ALTER TABLE pedidos_acesso ADD COLUMN %s %s" % (nome, tipo))
         c.execute("""CREATE TABLE IF NOT EXISTS documentos (
@@ -2549,7 +2552,8 @@ def nif_valido(nif):
     Existe desde a varredura de 25/09/2026: a Conta aceitava `123456788`,
     e o NIF da empresa é o que diz «fomos nós» no Portal BASE -- um dígito
     trocado punha a ficha a dizer «Não fomos nós» de tudo."""
-    if not re.fullmatch(r"\d{9}", nif or ""):
+    # [0-9] e não \d: o \d aceita «١٢٣…» e o int() converte-os
+    if not re.fullmatch(r"[0-9]{9}", nif or ""):
         return False
     resto = sum(int(d) * (9 - i) for i, d in enumerate(nif[:8])) % 11
     return int(nif[8]) == (0 if resto < 2 else 11 - resto)
@@ -33108,6 +33112,19 @@ SITE = os.path.join(BASE_DIR, "site", "index.html")
 SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
                       "Prestação de serviços", "Tecnologias de informação",
                       "Outro")
+# O que o formulario do site deixa escolher (30/09/2026): o valor e como
+# se diz. A oferta de fundador e o VigIA+ a preco de fundador.
+PLANOS_DO_PEDIDO = {"fundador": "Oferta de fundador", "vigia": "Vigia",
+                    "vigia+": "VigIA+", "corporate": "Corporate"}
+
+
+def nif_do_pedido(texto):
+    """Os nove algarismos de um NIF escrito à mão («PT 509 123 456»), ou
+    "" quando não é um NIF português válido."""
+    nif = re.sub(r"^PT", "", re.sub(r"\s+", "", (texto or "").upper()))
+    return nif if nif_valido(nif) else ""
+
+
 # Os tectos de quem escreve sem conta: um formulario aberto a internet
 # sem eles e uma forma de encher a base (e a caixa de correio) de lixo.
 PEDIDOS_POR_IP_POR_HORA = 5
@@ -33482,8 +33499,10 @@ def _avisar_do_pedido(id_, p):
     responder fica na linha do pedido -- sem palavra-passe configurada
     o pedido fica guardado na mesma, e a pagina dos pedidos di-lo."""
     corpo = ("Pedido de acesso ao Mira Gov\n\n"
-             "Nome: %(nome)s\nEmpresa: %(empresa)s\nE-mail: %(email)s\n"
-             "Sector: %(sector)s\n\n%(mensagem)s\n" % p)
+             "Nome: %(nome)s\nEmpresa: %(empresa)s\nNIF: %(nif)s\n"
+             "E-mail: %(email)s\nSector: %(sector)s\nInteressa-lhe: %(rotulo)s"
+             "\n\n%(mensagem)s\n"
+             % dict(p, rotulo=PLANOS_DO_PEDIDO.get(p.get("plano"), "—")))
     # Para o endereco dos avisos da PLATAFORMA (26/09/2026). Ia para o
     # `para` da empresa activa -- a 1, numa thread sem pedido --, que
     # numa plataforma sem empresas nao existe, e com clientes e o e-mail
@@ -33540,15 +33559,22 @@ def pedir_acesso():
          for chave, tecto in (("nome", 120), ("empresa", 160),
                               ("email", 200), ("sector", 60))}
     p["mensagem"] = (f.get("mensagem") or "").strip()[:2000]
+    p["nif"] = nif_do_pedido(f.get("nif"))
+    # quem não mandou plano (a página antiga, em cache) fica pela oferta
+    p["plano"] = f.get("plano") if f.get("plano") in PLANOS_DO_PEDIDO else "fundador"
+    if (f.get("nif") or "").strip() and not p["nif"] and p["nome"] \
+            and p["empresa"] and RX_EMAIL.match(p["email"]):
+        return resposta(False, "O NIF não parece válido: são nove algarismos, "
+                               "e o último é de controlo. Confira-o.", 400)
     if not (p["nome"] and p["empresa"] and RX_EMAIL.match(p["email"])
-            and p["sector"] in SECTORES_DO_PEDIDO):
+            and p["nif"] and p["sector"] in SECTORES_DO_PEDIDO):
         # só o e-mail mal escrito diz-se como tal (3.ª ronda, G103)
-        if p["nome"] and p["empresa"] and p["email"] \
+        if p["nome"] and p["empresa"] and p["email"] and p["nif"] \
                 and p["sector"] in SECTORES_DO_PEDIDO:
             return resposta(False, "O e-mail não parece válido. Confira-o: "
                                    "é para lá que respondemos.", 400)
-        return resposta(False, "Preencha o nome, a empresa, um e-mail válido "
-                               "e o sector, para podermos responder.", 400)
+        return resposta(False, "Preencha o nome, a empresa, um e-mail válido, "
+                               "o NIF e o sector, para podermos responder.", 400)
     agora = datetime.now()
     # O IP do tecto e o que a Cloudflare escreve: o `remote_addr` vem do
     # X-Forwarded-For pelo ProxyFix, e esse o visitante pode mandar feito
@@ -33568,9 +33594,10 @@ def pedir_acesso():
                                    "de novo mais tarde.", 429)
         id_ = c.execute(
             "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
-            "sector, mensagem, ip) VALUES (?,?,?,?,?,?,?)",
+            "sector, mensagem, ip, nif, plano) VALUES (?,?,?,?,?,?,?,?,?)",
             (agora.isoformat(" ", "seconds"), p["nome"], p["empresa"],
-             p["email"], p["sector"], p["mensagem"], ip)).lastrowid
+             p["email"], p["sector"], p["mensagem"], ip, p["nif"],
+             p["plano"])).lastrowid
     threading.Thread(target=_avisar_do_pedido, args=(id_, p),
                      daemon=True).start()
     return resposta(True)
@@ -33645,14 +33672,18 @@ def pedidos_de_acesso():
     if linhas:
         corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
                  "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
+                 "<th>NIF</th><th>Plano</th>"
                  "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
                  "<th>Aviso por e-mail</th><th>Decisão</th></tr></thead><tbody>%s</tbody>"
                  "</table></div>"
                  % "".join(
-                     "<tr>%s%s%s%s%s%s%s%s</tr>" % (
+                     "<tr>%s%s%s%s%s%s%s%s%s%s</tr>" % (
                          _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criado_em"])), "mg-num"),
                          _celula_da_tabela("Nome", html.escape(l["nome"])),
                          _celula_da_tabela("Empresa", html.escape(l["empresa"])),
+                         _celula_da_tabela("NIF", html.escape(l["nif"] or "—"), "mg-num"),
+                         _celula_da_tabela("Plano", html.escape(
+                             PLANOS_DO_PEDIDO.get(l["plano"] or "", "—"))),
                          _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>"
                                  % (html.escape(l["email"], quote=True), html.escape(l["email"]))),
                          _celula_da_tabela("Sector", html.escape(l["sector"])),
@@ -33920,7 +33951,8 @@ def aceitar_pedido(id_):
         return _formulario_do_aceitar(p, str(erro))
     empresa_id = criar_empresa(p["empresa"] or p["nome"])
     with com_empresa(empresa_id):
-        gravar_config(dict(perfil, email={"para": p["email"]}))
+        gravar_config(dict(perfil, email={"para": p["email"]},
+                           **({"nif_da_empresa": p["nif"]} if p["nif"] else {})))
     with liga() as c:
         codigo = contas.criar_convite(c, empresa_id, p["email"], "admin", id_)
         # o dia da decisão também no aceite (G57): é por ele que a lista

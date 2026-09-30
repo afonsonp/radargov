@@ -13425,7 +13425,7 @@ class TestSitePublico(BaseTemporaria):
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
     BOM = {"nome": "Ana Silva", "empresa": "Obras Lda",
            "email": "ana@obras.pt", "sector": "Obras públicas e construção",
-           "mensagem": "CPV 45"}
+           "mensagem": "CPV 45", "nif": "123456789", "plano": "vigia+"}
 
     def setUp(self):
         super().setUp()
@@ -13735,7 +13735,8 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         r = self.cliente.post("/pedir-acesso", environ_base=self.FORA,
                               headers={"Accept": "application/json"},
                               data={"nome": "Ana", "empresa": "Obras",
-                                    "email": "ana@", "sector": "Outro"})
+                                    "email": "ana@", "sector": "Outro",
+                                    "nif": "123456789"})
         self.assertIn("O e-mail não parece válido", r.get_json()["erro"])
         self.assertIn("O e-mail não parece válido", self.ficheiro("index.html"))
 
@@ -17584,6 +17585,16 @@ class TestConvites(BaseTemporaria):
         # e aceitar outra vez não faz outra empresa
         self.aceitar()
         self.assertEqual(radar.empresas_existentes(), [1, 2])
+
+    def test_o_nif_do_pedido_passa_para_a_empresa(self):
+        """30/09/2026: o site pede o NIF, que é o da fatura; aceitar o
+        pedido grava-o como o NIF da empresa, sem o dono o reescrever."""
+        with radar.liga() as c:
+            c.execute("UPDATE pedidos_acesso SET nif='123456789' WHERE id=?",
+                      (self.pedido,))
+        self.aceitar()
+        with radar.com_empresa(2):
+            self.assertEqual(radar.ler_config()["nif_da_empresa"], "123456789")
 
     def test_so_o_dono_aceita(self):
         self.assertEqual(self.aceitar("teste").status_code, 403)
@@ -25220,6 +25231,93 @@ class TestOsDoisPequenosDoPlanoDeOutubro(_CicloDoTesteComUtilizadores):
             c.execute("UPDATE anuncios SET docs_estado='ok' WHERE ref='60/2026'")
         h = self.cliente.get("/anuncio/60/2026").get_data(as_text=True)
         self.assertIn("Descarregar todas (ZIP, 2,0 MB)", h)
+
+
+
+class TestOPedidoLevaONifEOPlano(BaseTemporaria):
+    """30/09/2026, os planos pagos e a oferta de fundador: o formulário do
+    site pede o NIF da empresa (é o da fatura, e passa para a empresa ao
+    aceitar) e o plano que interessa. O NIF confere-se pelo dígito de
+    controlo, como na Conta; escrito à mão, com «PT» e espaços, aceita-se.
+    E o site deixou de dizer que é gratuito e que as contas são para toda
+    a equipa -- são uma no Vigia e duas no VigIA+."""
+
+    FORA = TestSitePublico.FORA
+    BOM = TestSitePublico.BOM
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "_avisar_do_pedido", lambda id_, p: None))
+        self.cliente = radar.app.test_client()
+
+    def pedir(self, **mudar):
+        return self.cliente.post("/pedir-acesso", data=dict(self.BOM, **mudar),
+                                 environ_base=self.FORA,
+                                 headers={"Accept": "application/json"})
+
+    def ultimo(self):
+        with radar.liga() as c:
+            return c.execute("SELECT nif, plano FROM pedidos_acesso "
+                             "ORDER BY id DESC").fetchone()
+
+    def test_o_nif_escrito_a_mao_grava_se_limpo(self):
+        self.assertTrue(self.pedir(nif=" PT 123 456 789 ").get_json()["ok"])
+        self.assertEqual(tuple(self.ultimo()), ("123456789", "vigia+"))
+
+    def test_um_nif_errado_diz_se_como_tal(self):
+        r = self.pedir(nif="123456788")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("O NIF não parece válido", r.get_json()["erro"])
+        self.assertIsNone(self.ultimo())
+
+    def test_um_nif_com_algarismos_de_outra_escrita_nao_passa(self):
+        self.assertEqual(radar.nif_do_pedido("١٢٣٤٥٦٧٨٩"), "")
+        self.assertEqual(radar.nif_do_pedido("123456789"), "123456789")
+
+    def test_sem_nif_nao_se_grava(self):
+        r = self.pedir(nif="")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("o NIF", r.get_json()["erro"])
+
+    def test_um_plano_desconhecido_fica_pela_oferta(self):
+        self.pedir(plano="tudo-gratis")
+        self.assertEqual(self.ultimo()["plano"], "fundador")
+
+    def test_o_aviso_ao_dono_diz_o_nif_e_o_plano(self):
+        enviados = []
+        with unittest.mock.patch.object(
+                radar, "enviar_email",
+                lambda assunto, corpo, cfg=None: enviados.append(corpo) or (True, "ok")):
+            TestSitePublico._avisar_original(0, dict(self.BOM))
+        self.assertIn("NIF: 123456789", enviados[0])
+        self.assertIn("Interessa-lhe: VigIA+", enviados[0])
+
+    def test_o_site_diz_os_planos_e_nao_a_beta_gratuita(self):
+        with open(radar.SITE, encoding="utf-8") as f:
+            site = f.read()
+        for frase in ("39 €", "99 €", "999 €", "55 €/mês + IVA", "31 de dezembro de 2026",
+                      'name="nif"', 'name="plano"', 'id="planos"'):
+            self.assertIn(frase, site)
+        for frase in ("Contas para toda a equipa", "Todas as que precisar",
+                      "Ainda não está decidido", '"price": "0"'):
+            self.assertNotIn(frase, site)
+        # os valores do formulário são os que o servidor aceita
+        seleccao = site.split('id="plano"', 1)[1].split("</select>", 1)[0]
+        self.assertEqual(set(re.findall(r'<option value="([^"]+)">', seleccao)),
+                         set(radar.PLANOS_DO_PEDIDO))
+
+    def test_os_termos_publicados_sao_os_dos_planos(self):
+        pasta = os.path.dirname(radar.SITE)
+        with open(os.path.join(pasta, "termos.html"), encoding="utf-8") as f:
+            termos = f.read()
+        with open(os.path.join(pasta, "privacidade.html"), encoding="utf-8") as f:
+            privacidade = f.read()
+        for frase in ("<h2>Os planos</h2>", "<h2>Os preços</h2>", "Preço de fundador",
+                      "{{NOME}}", "{{MORADA}}"):
+            self.assertIn(frase, termos)
+        self.assertNotIn("<h2>Fase beta</h2>", termos)
+        self.assertIn("NIF da empresa", privacidade)
 
 
 

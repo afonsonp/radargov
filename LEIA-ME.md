@@ -1501,6 +1501,8 @@ acessibilidade** (`/acessibilidade`, o ficheiro
 cumpre da WCAG, o que ainda não cumpre, e que as barreiras se reportam
 pelo mesmo formulário. **Quando se corrigir uma das falhas que lá estão,
 tira-se da lista e muda-se a data.** O formulário «Pedir acesso»
+(desde 30/09/2026 com o NIF da empresa e o plano que lhe interessa: a
+oferta de fundador, o Vigia, o VigIA+ ou o Corporate)
 guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 (se o correio estiver configurado, em Configurações › Alertas). Os
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
@@ -1573,9 +1575,11 @@ Três coisas, que o radar já sabe usar e só precisam de ti (desde
    O `"nif"` é opcional: em nome individual não o pões na internet
    (23/09/2026); quando houver sociedade, entra o NIPC dela. Enquanto
    faltar o nome ou a morada, as duas páginas não aparecem. Os textos
-   estão em `site/termos.html` e `site/privacidade.html` — **são um
-   rascunho: lê-os, e dá-os a rever a quem responda por isto na
-   empresa, antes do primeiro cliente**. Mudam-se lá, sem reiniciar.
+   estão em `site/termos.html` e `site/privacidade.html` — desde
+   30/09/2026 os dos planos pagos, publicados por decisão tua a partir
+   do rascunho `docs/historico/TERMOS-2026-10.md`. **Continuam por rever
+   por um advogado ou pelo contabilista**: as sete dúvidas estão no fim
+   desse rascunho. Mudam-se lá, sem reiniciar.
 2. **Um vigia externo**, que te avisa por e-mail se o radar parar (o
    radar parado não o pode dizer): uma conta gratuita no **UptimeRobot**
    a vigiar `https://miragov.pt/saude`, de cinco em cinco minutos.

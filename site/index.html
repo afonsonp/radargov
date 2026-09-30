@@ -67,13 +67,26 @@
    "publisher": {
     "@id": "https://miragov.pt/#organizacao"
    },
-   "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "EUR",
-    "description": "Gratuito durante a beta, para as primeiras empresas.",
-    "url": "https://miragov.pt/#acesso"
-   }
+   "offers": [
+    {
+     "@type": "Offer",
+     "name": "Vigia",
+     "price": "39",
+     "priceCurrency": "EUR",
+     "priceSpecification": {"@type": "UnitPriceSpecification", "price": "39", "priceCurrency": "EUR", "unitCode": "MON", "valueAddedTaxIncluded": false},
+     "description": "Um utilizador. Sem a leitura automática das peças.",
+     "url": "https://miragov.pt/#planos"
+    },
+    {
+     "@type": "Offer",
+     "name": "VigIA+",
+     "price": "99",
+     "priceCurrency": "EUR",
+     "priceSpecification": {"@type": "UnitPriceSpecification", "price": "99", "priceCurrency": "EUR", "unitCode": "MON", "valueAddedTaxIncluded": false},
+     "description": "Dois utilizadores, com a leitura automática das peças. Também 999 € por ano.",
+     "url": "https://miragov.pt/#planos"
+    }
+   ]
   }
  ]
 }
@@ -278,6 +291,25 @@ section{padding-block:88px}
 .beta li{display:flex;gap:10px;align-items:flex-start}
 .beta li svg{flex:none;margin-top:5px;color:var(--success)}
 @media (max-width:800px){.beta{grid-template-columns:minmax(0,1fr);padding:24px;gap:28px}}
+.beta .condicoes{font-size:.92rem;color:var(--ink-muted);margin-top:14px}
+
+/* Os planos (30/09/2026): três cartões, o do meio com a régua da marca */
+.planos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.plano{display:flex;flex-direction:column;gap:14px;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:28px}
+.plano.destaque{border-color:var(--brand);box-shadow:var(--shadow-sm)}
+.plano h3{font-family:var(--font-serif);font-size:1.5rem}
+.plano .preco{font-size:1.9rem;font-weight:700;color:var(--ink)}
+.plano .preco small{font:400 .95rem var(--font-sans);color:var(--ink-muted)}
+.plano .quem{color:var(--ink-secondary);font-weight:600}
+.plano ul{margin:0;padding:0;list-style:none;display:grid;gap:10px;flex:1;align-content:start}
+.plano .btn{align-self:stretch}
+/* o botão de contorno da moldura é para o fundo escuro do topo */
+.plano .btn-contorno{color:var(--brand);border-color:var(--brand)}
+.plano .btn-contorno:hover{color:var(--brand);background:var(--brand-soft)}
+.plano li{display:flex;gap:10px;align-items:flex-start;color:var(--ink-secondary)}
+.plano li svg{flex:none;margin-top:5px;color:var(--success)}
+.plano li.nao svg{color:var(--ink-muted)}
+@media (max-width:900px){.planos{grid-template-columns:minmax(0,1fr)}}
 
 /* FAQ */
 .faq{max-width:780px;border-top:1px solid var(--line)}
@@ -300,6 +332,7 @@ form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--li
 .campo{display:grid;gap:6px}
 .campo label{font-weight:600;font-size:.95rem}
 .campo label small{font-weight:400;color:var(--ink-muted);font-size:.88rem}
+.campo > small{color:var(--ink-muted);font-size:.85rem}
 .campo input,.campo select,.campo textarea{font:400 1rem/1.35 var(--font-sans);color:var(--ink);background:var(--surface-raised);border:1px solid var(--line-strong);border-radius:10px;padding:11px 12px;width:100%}
 .campo textarea{min-height:96px;resize:vertical}
 /* a cor da marca, como no painel (28/09/2026: o magenta do --focus à volta
@@ -343,12 +376,12 @@ form .btn{justify-self:start}
   <section class="abertura" aria-labelledby="t-abertura">
     <div class="wrap grelha">
       <div>
-        <span class="selo">Beta fechada · acesso antecipado gratuito</span>
+        <span class="selo">Oferta de fundador · 10 lugares</span>
         <h1 id="t-abertura">Nenhum concurso da sua área fica <em>por ver</em>.</h1>
         <p class="lead">O Mira Gov lê o Diário da República <strong>ao longo do dia</strong>, descarrega as peças e mostra-lhe a que preço o mercado adjudica. A sua equipa deixa de vigiar e passa a decidir.</p>
         <div class="accoes">
-          <a class="btn btn-claro" href="#acesso">Pedir acesso antecipado</a>
-          <a class="btn btn-contorno" href="#ganhos">Ver o que ganha</a>
+          <a class="btn btn-claro" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a>
+          <a class="btn btn-contorno" href="#planos">Ver os planos</a>
         </div>
         <p class="fontes">Fontes públicas: Diário da República, 2.ª série, parte&nbsp;L · consultas preliminares da Vortal · Portal BASE.</p>
       </div>
@@ -530,10 +563,10 @@ form .btn{justify-self:start}
   <div class="faixa-cta">
     <div class="wrap">
       <div>
-        <h2>Experimente com os concursos da sua área, sem custo durante a beta.</h2>
+        <h2>Experimente com os concursos da sua área, sem pagar até 31 de dezembro.</h2>
         <p>Configuramos o perfil da empresa consigo, e a equipa pode começar a trabalhar no próprio dia.</p>
       </div>
-      <a class="btn btn-primario" href="#acesso">Pedir acesso antecipado</a>
+      <a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a>
     </div>
   </div>
 
@@ -581,20 +614,70 @@ form .btn{justify-self:start}
     </div>
   </section>
 
-  <section aria-labelledby="t-beta">
+  <section id="planos" aria-labelledby="t-planos">
+    <div class="wrap">
+      <div class="cabeca">
+        <p class="sobre">Planos</p>
+        <h2 id="t-planos">Três planos. Preços sem IVA.</h2>
+        <p>O serviço é pré-pago, ao mês ou ao ano, e basta não renovar para sair.</p>
+      </div>
+      <div class="planos">
+        <article class="plano" aria-labelledby="p-vigia">
+          <h3 id="p-vigia">Vigia</h3>
+          <p class="preco num">39 € <small>/mês + IVA</small></p>
+          <p class="quem">1 utilizador</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os anúncios do Diário da República e as consultas preliminares</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os alertas por e-mail</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O mercado e as entidades, com os contratos do Portal BASE</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As propostas e as tarefas da equipa</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As peças dos concursos, para descarregar</span></li>
+            <li class="nao"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Sem a leitura automática das peças</span></li>
+          </ul>
+          <a class="btn btn-contorno" href="#acesso" data-plano="vigia">Pedir o Vigia</a>
+        </article>
+        <article class="plano destaque" aria-labelledby="p-vigiamais">
+          <h3 id="p-vigiamais">VigIA+</h3>
+          <p class="preco num">99 € <small>/mês + IVA</small></p>
+          <p class="quem">ou 999 € por ano + IVA<br>2 utilizadores</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o Vigia tem</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>A leitura automática das peças, com a página de onde vem cada linha</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O cofre dos documentos da empresa, com as validades</span></li>
+          </ul>
+          <a class="btn btn-primario" href="#acesso" data-plano="vigia+">Pedir o VigIA+</a>
+        </article>
+        <article class="plano" aria-labelledby="p-corporate">
+          <h3 id="p-corporate">Corporate</h3>
+          <p class="preco">Sob consulta</p>
+          <p class="quem">Utilizadores sem limite</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o VigIA+ tem</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As exportações</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Condições acordadas por escrito com a sua empresa</span></li>
+          </ul>
+          <a class="btn btn-contorno" href="#acesso" data-plano="corporate">Falar connosco</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="t-fundador">
     <div class="wrap">
       <div class="beta">
         <div>
-          <span class="selo">Beta fechada</span>
-          <h2 id="t-beta">Gratuito para as primeiras empresas.</h2>
-          <p>Estamos a abrir o Mira Gov a um grupo pequeno de empresas fornecedoras do Estado. Em troca, pedimos a sua opinião franca sobre o que falta.</p>
-          <div class="accoes"><a class="btn btn-primario" href="#acesso">Pedir acesso antecipado</a></div>
+          <span class="selo">10 lugares</span>
+          <h2 id="t-fundador">Oferta de fundador.</h2>
+          <p>O VigIA+ a <strong>55 €/mês + IVA</strong>, em vez de 99 €. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
+          <p>Em troca, pedimos a sua opinião franca sobre o que falta, e autorização para citar o nome da empresa e uma apreciação sua.</p>
+          <div class="accoes"><a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a></div>
+          <p class="condicoes">Para as primeiras dez empresas convidadas. As condições estão nos <a href="/termos">termos de utilização</a>.</p>
         </div>
         <ul>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Acesso completo durante a beta, sem cartão</span></li>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Contas para toda a equipa</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o VigIA+ tem, com dois utilizadores</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Nada a pagar até 31 de dezembro de 2026</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Configuração do perfil da empresa feita connosco</span></li>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Preço final anunciado antes do fim da beta, e saída sem custo</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>55 €/mês + IVA a partir de janeiro, enquanto não interromper</span></li>
         </ul>
       </div>
     </div>
@@ -626,7 +709,7 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Quantas pessoas da equipa podem usar?</summary>
-          <p>Todas as que precisar. Cada pessoa tem a sua conta, e quem gere a empresa no Mira Gov convida as restantes e escolhe o que cada uma pode fazer.</p>
+          <p>Depende do plano: uma no Vigia, duas no VigIA+, e sem limite no Corporate. Cada pessoa tem a sua conta, e quem gere a empresa no Mira Gov convida as restantes e escolhe o que cada uma pode fazer.</p>
         </details>
         <details>
           <summary>Os dados da minha empresa ficam protegidos?</summary>
@@ -634,11 +717,15 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Posso sair quando quiser?</summary>
-          <p>Sim. Durante a beta não há cartão nem contrato, e sair não tem custo. Se nos pedir, apagamos os dados da empresa.</p>
+          <p>Sim. Até 31 de dezembro de 2026 não há pagamento nem contrato. Depois, o serviço é pré-pago, ao mês ou ao ano, e basta não renovar. Se nos pedir, entregamos o trabalho da empresa num ficheiro e apagamos os dados.</p>
         </details>
         <details>
-          <summary>Quanto vai custar depois da beta?</summary>
-          <p>Ainda não está decidido. Quem entrar na beta sabe o preço antes de qualquer cobrança, e pode sair sem custo.</p>
+          <summary>Quanto custa?</summary>
+          <p>O Vigia custa 39 € por mês, e o VigIA+ 99 € por mês ou 999 € por ano; o Corporate é sob consulta. Aos preços acresce o IVA. As dez empresas fundadoras usam o VigIA+ sem pagar até 31 de dezembro de 2026, e depois a 55 € por mês + IVA.</p>
+        </details>
+        <details>
+          <summary>Como se paga?</summary>
+          <p>Por fatura, no início de cada período: referência Multibanco, MB Way, cartão ou transferência. A fatura sai em nome da empresa, com o NIF que nos indicar.</p>
         </details>
       </div>
     </div>
@@ -647,9 +734,9 @@ form .btn{justify-self:start}
   <section id="acesso" class="acesso-seccao" aria-labelledby="t-acesso">
     <div class="wrap acesso">
       <div class="cabeca">
-        <p class="sobre" style="color:var(--seal-on-dark)">Acesso antecipado</p>
-        <h2 id="t-acesso">Comece a ver os concursos da sua área.</h2>
-        <p>Deixe-nos o contacto e a área em que trabalha. Respondemos por e-mail com os próximos passos, normalmente no próprio dia útil.</p>
+        <p class="sobre" style="color:var(--seal-on-dark)">Pedir acesso</p>
+        <h2 id="t-acesso">Peça o seu lugar.</h2>
+        <p>Deixe-nos o contacto, o NIF da empresa e o plano que lhe interessa. Respondemos por e-mail com os próximos passos, normalmente no próprio dia útil.</p>
         <p class="contacto">Prefere escrever? <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a></p>
       </div>
       <form id="form-acesso" method="post" action="/pedir-acesso" novalidate>
@@ -657,7 +744,19 @@ form .btn{justify-self:start}
           <div class="campo"><label for="nome">Nome</label><input id="nome" name="nome" autocomplete="name" required maxlength="120"></div>
           <div class="campo"><label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" required maxlength="160"></div>
         </div>
-        <div class="campo"><label for="email">E-mail profissional</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+        <div class="duas">
+          <div class="campo"><label for="email">E-mail profissional</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+          <div class="campo"><label for="nif">NIF da empresa</label><input id="nif" name="nif" inputmode="numeric" autocomplete="off" required maxlength="14" pattern="\s*(PT)?\s*[0-9](\s*[0-9]){8}\s*" aria-describedby="nif-ajuda"><small id="nif-ajuda">Nove algarismos: é o da fatura</small></div>
+        </div>
+        <div class="campo">
+          <label for="plano">O que lhe interessa</label>
+          <select id="plano" name="plano" required>
+            <option value="fundador">Oferta de fundador (55 €/mês)</option>
+            <option value="vigia">Vigia (39 €/mês)</option>
+            <option value="vigia+">VigIA+ (99 €/mês)</option>
+            <option value="corporate">Corporate (sob consulta)</option>
+          </select>
+        </div>
         <div class="campo">
           <label for="sector">Setor</label>
           <select id="sector" name="sector" required>
@@ -712,6 +811,13 @@ form .btn{justify-self:start}
     if (focar) obrigado.focus();
   }
 
+  // Os botões dos planos levam ao formulário com o plano já escolhido
+  Array.prototype.forEach.call(document.querySelectorAll("a[data-plano]"), function (a) {
+    a.addEventListener("click", function () {
+      document.getElementById("plano").value = a.getAttribute("data-plano");
+    });
+  });
+
   try {
     var guardado = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
     if (guardado && guardado.email) confirma(guardado, false);
@@ -721,7 +827,7 @@ form .btn{justify-self:start}
     e.preventDefault();
     erro.hidden = true;
     var invalidos = [];
-    ["nome", "empresa", "email", "sector"].forEach(function (id) {
+    ["nome", "empresa", "email", "nif", "sector"].forEach(function (id) {
       var el = document.getElementById(id);
       var mau = !el.value.trim() || !el.checkValidity();
       el.setAttribute("aria-invalid", mau ? "true" : "false");
@@ -731,9 +837,12 @@ form .btn{justify-self:start}
       // só o e-mail mal escrito diz-se como tal (06A #19): a frase do
       // formulário vazio mandava preencher o que já estava preenchido
       var email = document.getElementById("email");
+      var nif = document.getElementById("nif");
       mostraErro(invalidos.length === 1 && invalidos[0] === email && email.value.trim()
         ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
-        : "Preencha o nome, a empresa, um e-mail válido e o sector, para podermos responder.");
+        : invalidos.length === 1 && invalidos[0] === nif && nif.value.trim()
+        ? "O NIF não parece válido: são nove algarismos."
+        : "Preencha o nome, a empresa, um e-mail válido, o NIF e o sector, para podermos responder.");
       invalidos[0].focus();
       return;
     }
