@@ -4125,6 +4125,13 @@ class TestBotoesDaLinha(unittest.TestCase):
         self.assertIn("<option value='porver'>voltar a «Por ver»</option>", h)
         self.assertNotIn("abandonar-js", h)     # já está nessa ranhura
 
+    def test_a_plataforma_e_texto_e_nao_uma_etiqueta(self):
+        """30/09/2026, ele: as etiquetas das plataformas estavam todas a
+        verde (acingov, vortal, anogov), e uma cor que todas têm não diz
+        nada. A coluna leva só o nome."""
+        h = radar.linha(dict(self.anuncio(), plataforma="acingov"), na_escada={})
+        self.assertIn("<td class='col-plat'>acingov</td>", h)
+
     def test_em_analise_nao_repete_o_botao_interessa(self):
         h = radar.linha(self.anuncio(), na_escada=self._na_escada("analisar"))
         self.assertNotIn("/estado/1/2026/analisar", h)

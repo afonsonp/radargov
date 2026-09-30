@@ -459,9 +459,11 @@ dela — e há a aba **Entidades**, ao lado dos dois modos, descrita no §5, «A
 uma entidade». (Estava aqui a lista das abas outra vez, e ainda dizia
 «quatro atalhos» quando já são cinco desde 18/09 — saiu a 19/09/2026.)
 
-Na lista, cada anúncio mostra a plataforma numa etiqueta: **a verde**
-quando as peças se conseguem automaticamente, a cinzento quando tens de
-ir ao site da plataforma buscá-las.
+Na lista, cada anúncio mostra o nome da plataforma, em texto. Até
+30/09/2026 era uma etiqueta verde (as peças chegam sozinhas) ou cinzenta
+(tens de as ir buscar), mas 99,6% dos anúncios estão numa plataforma de
+onde as peças chegam sozinhas, e a cor não distinguia nada. Se as peças
+de um anúncio chegaram ou não, vês na ficha dele.
 
 Os botões **interessa** e **abandonar** servem para ires limpando a
 lista. Abandonar não apaga, arquiva — fica em Propostas › Não fomos, e
