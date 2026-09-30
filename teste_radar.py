@@ -13603,6 +13603,12 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         if not os.path.isfile(os.path.join(self.PASTA_DO_SITE, radar.FOTOGRAFIA_DO_SITE)):
             self.assertIn('<span class="rosto" aria-hidden="true">AP</span>', site)
             self.assertEqual(self.get("/" + radar.FOTOGRAFIA_DO_SITE).status_code, 404)
+        else:
+            self.assertIn('<img class="rosto" src="/afonso-pinto.jpg"', site)
+            r = self.get("/" + radar.FOTOGRAFIA_DO_SITE)
+            self.assertEqual((r.status_code, r.mimetype), (200, "image/jpeg"))
+            # sem EXIF: uma fotografia de telemóvel pode trazer a localização
+            self.assertNotIn(b"Exif", r.get_data()[:200])
         self.assertNotIn("<!--ROSTO-->", site)
 
     def test_as_datas_do_exemplo_contam_a_partir_de_hoje(self):
