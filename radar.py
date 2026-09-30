@@ -20644,15 +20644,30 @@ def _cartao_das_listas_da_proposta(cfg):
     tipologia e a unidade de negócio, com o nome que ela lhe der. Uma por
     linha; sem lista, o campo não aparece na proposta."""
     tipologias, unidades, rotulo = listas_da_proposta(cfg)
+    # Os campos do sistema (`mg-field`, rótulo por cima e nota por baixo)
+    # em duas colunas, e não o `filtros`, que é uma linha de filtros
+    # compactos: punha as três caixas lado a lado com o rótulo encostado
+    # a cada uma (30/09/2026, ele: «isto está horrível»). O nome das
+    # unidades vai por cima da lista delas, porque é o nome dessa lista.
     return (
         "<div class='mg-card novo-filtro'><h3>As propostas</h3>"
-        "<p class='nota'>Como a empresa arruma as suas propostas. Um nome por "
-        "linha; uma lista vazia tira o campo da proposta.</p>"
-        "<form method='post' action='/configuracoes/propostas' class='filtros'>"
-        "<label>Tipologias<textarea name='tipologias' rows='4'>%s</textarea></label>"
-        "<label>Nome da unidade<input type='text' name='rotulo_da_unidade' "
-        "value='%s' maxlength='40' placeholder='%s'></label>"
-        "<label>Unidades<textarea name='unidades' rows='4'>%s</textarea></label>"
+        "<p class='nota'>Como a empresa arruma as suas propostas. Uma lista "
+        "vazia tira o campo da proposta.</p>"
+        "<form method='post' action='/configuracoes/propostas' "
+        "class='listas-da-proposta'>"
+        "<div class='colunas'>"
+        "<label class='mg-field'><span class='mg-field__label'>Tipologias</span>"
+        "<textarea class='mg-field__input' name='tipologias' rows='6'>%s"
+        "</textarea><span class='mg-field__hint'>Uma por linha</span></label>"
+        "<div class='coluna'>"
+        "<label class='mg-field'><span class='mg-field__label'>Nome das "
+        "unidades</span><input class='mg-field__input' type='text' "
+        "name='rotulo_da_unidade' value='%s' maxlength='40' placeholder='%s'>"
+        "<span class='mg-field__hint'>Como a empresa lhes chama</span></label>"
+        "<label class='mg-field'><span class='mg-field__label'>Unidades</span>"
+        "<textarea class='mg-field__input' name='unidades' rows='4'>%s"
+        "</textarea><span class='mg-field__hint'>Uma por linha</span></label>"
+        "</div></div>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Guardar as listas"
         "</button></form></div>"
         % (html.escape("\n".join(tipologias)),
@@ -23033,7 +23048,9 @@ def config_conta():
 ROTULOS_DO_ASPECTO = (
     ("normal", "Normal"),
     ("escuro", "Escuro"),
-    ("sistema", "Como o sistema (claro ou escuro, como o computador estiver)"),
+    # só o nome (30/09/2026, ele): a explicação entre parênteses partia a
+    # opção em três linhas, e «como o sistema» já diz o que faz
+    ("sistema", "Como o sistema"),
     ("contraste", "Alto contraste"),
 )
 

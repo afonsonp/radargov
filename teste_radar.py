@@ -10155,6 +10155,19 @@ class TestAPropostaDeCadaEmpresa(_CicloDoTesteComUtilizadores):
         self.assertEqual(unidades, [])
         self.assertEqual(rotulo, "Delegação")
 
+    def test_o_cartao_das_listas_usa_os_campos_do_sistema(self):
+        """30/09/2026, ele: «isto está horrível». O cartão usava a linha
+        de filtros compactos (`filtros`): as três caixas lado a lado, cada
+        rótulo encostado à sua. Agora são os `mg-field`, em duas colunas."""
+        cartao = radar._cartao_das_listas_da_proposta(radar.ler_config())
+        self.assertNotIn("class='filtros'", cartao)
+        self.assertIn("class='listas-da-proposta'", cartao)
+        self.assertEqual(cartao.count("class='mg-field'"), 3)
+        self.assertEqual(cartao.count("class='mg-field__hint'"), 3)
+        for nome in ("tipologias", "rotulo_da_unidade", "unidades"):
+            self.assertIn("name='%s'" % nome, cartao)
+        self.assertIn(".listas-da-proposta .colunas", radar.CSS_TUDO)
+
 
 class TestAsDecisoesDaPropostaD2D3D5D10(_CicloDoTesteComUtilizadores):
     """As decisões dele sobre a proposta, depois da segunda ronda de

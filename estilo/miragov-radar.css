@@ -1261,3 +1261,13 @@ input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--
    cor que tinha (branco, no inverso) em cima do fundo do sistema. Duas
    classes, para empatar com o `.mg-logo--inverse .mg-logo__eye`. */
 @media (forced-colors:active){.mg-logo .mg-logo__eye{forced-color-adjust:none;color:CanvasText}}
+
+/* As listas da proposta nas Configurações (30/09/2026): os campos do
+   sistema em duas colunas, uma só no telemóvel. A caixa de várias linhas
+   precisa do espaço de cima e de baixo que o `mg-field__input` não dá. */
+.listas-da-proposta{display:grid;gap:var(--space-5);margin-top:var(--space-4);max-width:760px}
+.listas-da-proposta .colunas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5) var(--space-6);align-items:start}
+.listas-da-proposta .coluna{display:grid;gap:var(--space-4)}
+.listas-da-proposta textarea.mg-field__input{padding:var(--space-2) var(--space-3);resize:vertical;font:inherit;line-height:1.5}
+.listas-da-proposta>.mg-btn{justify-self:start}
+@media (max-width:700px){.listas-da-proposta .colunas{grid-template-columns:minmax(0,1fr)}}
