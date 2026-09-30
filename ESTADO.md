@@ -186,8 +186,9 @@ ensaio de restauro.
   30/09/2026 — **o início do plano de Outubro**: o site com os três
   planos e a oferta de fundador, os termos e a privacidade dos planos
   pagos, o pedido de acesso com o NIF e o plano, a citação da leitura
-  que abre a peça na página, o registo dos envios dos alertas, e as
-  medições do L0. A `v2.0.35`, do mesmo dia — **a plataforma na lista é
+  que abre a peça na página, o registo dos envios dos alertas, as
+  medições do L0, a promessa de continuidade no site e nos termos, e o
+  Gemini da Google na cadeia da leitura das peças, antes da reserva. A `v2.0.35`, do mesmo dia — **a plataforma na lista é
   texto**, e não uma etiqueta verde que todas tinham. A `v2.0.34`, do mesmo dia — **a página e os números da leitura das peças passam a
   ser do código**: cada linha do resumo leva a página onde está de facto
   no texto enviado (e não a que o modelo escreveu), e a conferência dos
