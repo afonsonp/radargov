@@ -565,8 +565,8 @@ Orçamento, cadeia de reserva, chaves.
 
 - **As chaves da API** lêem-se de `<fornecedor>_API_KEY.txt` na pasta
   (`groq_API_KEY.txt`, `chave_api.txt`, `openrouter_API_KEY.txt`,
-  `nvidia_API_KEY.txt`) ou das variáveis `GROQ_API_KEY`,
-  `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`. O `.gitignore` é
+  `nvidia_API_KEY.txt`, `gemini_API_KEY.txt`) ou das variáveis
+  `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `GEMINI_API_KEY`. O `.gitignore` é
   deliberadamente largo (`*api_key*`, `*token*`, `*secret*`) porque a
   chave já apareceu com nomes diferentes — e é ele que já cobre os
   nomes novos.

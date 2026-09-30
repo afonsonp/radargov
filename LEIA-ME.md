@@ -1035,7 +1035,11 @@ as outras cinco só um admin as vê:
   ambiente aparece como tal e não se edita. **O Cerebras** (desde
   28/09/2026) só lê depois de lá colares a chave dele: cria a conta em
   cloud.cerebras.ai, gera uma chave («API Keys») e cola-a no campo
-  «Chave nova» do bloco `cerebras`. Sem ela, a cadeia salta-o.
+  «Chave nova» do bloco `cerebras`. Sem ela, a cadeia salta-o. **O
+  Gemini** (desde 30/09/2026) é igual: a chave cria-se em
+  aistudio.google.com («Get API key»), **num projecto só para a leitura**
+  — a quota é por projecto, e o MiroFish usa outro —, e cola-se no bloco
+  `gemini`.
 - **Capturas** — o estado das duas capturas (`curl_DR.txt` e
   `curl_detalhe.txt`) e uma caixa para colar a nova; valida antes de
   gravar, e uma colagem errada não toca no ficheiro que lá está.
