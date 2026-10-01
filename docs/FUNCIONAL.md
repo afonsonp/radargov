@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 17 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 19 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -124,6 +124,8 @@ as exactas e salta as outras.
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
 | `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |
+| `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
+| `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -688,6 +690,19 @@ Groq (`gpt-oss-20b`) — no fim desde 29/09/2026, por ter sido o único a
 errar números nas leituras julgadas nesse dia. Todos gratuitos; a conta de 28/09/2026 dava ~20 concursos por
 dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
 publicado.
+
+**O campo 11 desce outra cadeia, com outro recorte** (1/10/2026,
+decisão dele): a NVIDIA primeiro, depois o Cerebras, depois o resto pela
+ordem de cima (`PRIMEIROS_NO_CAMPO_11`, `cadeia_do_campo_11()`). E o
+recorte depende de quem lê (`TECTO_DO_FORNECEDOR`): a NVIDIA e o
+Cerebras levam o dobro do `TECTO_RECORTE` por peça (e 1,5 × isso no
+total, como sempre); quando o pedido cai na Groq, ou noutro de limite
+apertado, vai o recorte de sempre, que o dobro dava 413. O recorte
+monta-se outra vez só quando o tecto muda ao descer a cadeia
+(`_perguntar_com_o_recorte_de_cada_um()`), e as páginas e os números
+por confirmar conferem-se contra o recorte de quem respondeu. O objecto
+e a proposta ficam com a cadeia e o recorte de cima. Medido nesse dia
+sobre as frases-prova que faltavam ao campo 11 (`docs/diario/2026-10.md`).
 
 Três regras que decidem o que se vê:
 

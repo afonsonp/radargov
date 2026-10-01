@@ -30,6 +30,7 @@ import hashlib
 import hmac
 import html
 import io
+import itertools
 import json
 import logging
 import mimetypes
@@ -6886,6 +6887,19 @@ FORNECEDORES = (
 # (413) contra o tecto de 8000 por minuto.
 TECTO_RECORTE = 7000
 
+# O campo 11 (1/10/2026, decisao dele) desce outra cadeia e leva outro
+# recorte. Medido nesse dia sobre as 60 frases-prova que lhe faltavam:
+# - o modelo: com o recorte de hoje, o nemotron-3-ultra da NVIDIA achou
+#   17, 15 e 15 das 31 do grupo a em tres corridas; o gpt-oss-120b
+#   repetido, 11. Inventa as vezes um numero (precos por hora no 21724,
+#   um «19» no 23530) -- e o numeros_por_confirmar() apanhou-os todos;
+# - o espaco: com o recorte a 2x, o gpt-oss-120b do Cerebras achou 9 das
+#   15 do grupo b, sem inventar. A Groq recusa (413) acima de ~1,5 x o
+#   tecto: quem cai nela, ou noutro de limite apertado, leva o de sempre.
+# Os outros dois pedidos ficam com a cadeia e o recorte de hoje.
+PRIMEIROS_NO_CAMPO_11 = ("nvidia", "cerebras")
+TECTO_DO_FORNECEDOR = {"nvidia": 2 * TECTO_RECORTE, "cerebras": 2 * TECTO_RECORTE}
+
 # Onde e que mora cada campo. O numero e a prioridade: quando o
 # orcamento acaba, corta-se pelos 3 antes de tocar nos 1.
 # Comparadas contra simplifica(): sem acentos e em minusculas.
@@ -8481,8 +8495,13 @@ SEM_ORCAMENTO_HOJE = ("o orçamento diário do modelo acabou (200 mil "
 
 
 def orcamento_do_dia_esgotado(resposta):
+    # O Gemini gratuito conta pedidos, e nao tokens (1/10/2026): o 429
+    # do fim do dia diz «free_tier_requests» e o quotaId
+    # «GenerateRequestsPerDayPerProjectPerModel-FreeTier», com um «retry
+    # in 58 s» que e mentira -- cada concurso gastava tres esperas de um
+    # minuto sem o fornecedor ficar marcado
     corpo = simplifica(resposta.text or "")
-    return "tokens per day" in corpo or "(tpd)" in corpo
+    return "tokens per day" in corpo or "(tpd)" in corpo or "perday" in corpo
 
 
 # Quem ja bateu no tecto do dia, e em que dia. O tecto diario nao cede
@@ -8722,6 +8741,34 @@ def _perguntar(cadeia, instrucao, texto):
     return None, "; ".join(avisos), ""
 
 
+def cadeia_do_campo_11(cadeia):
+    """A cadeia do campo 11: a NVIDIA e o Cerebras a frente, o resto pela
+    ordem de sempre (PRIMEIROS_NO_CAMPO_11)."""
+    return ([f for n in PRIMEIROS_NO_CAMPO_11 for f in cadeia if f[0] == n]
+            + [f for f in cadeia if f[0] not in PRIMEIROS_NO_CAMPO_11])
+
+
+def _perguntar_com_o_recorte_de_cada_um(cadeia, instrucao, recorte):
+    """O _perguntar(), com o recorte que cada fornecedor aguenta.
+
+    `recorte(tecto)` devolve (texto, fontes). A cadeia parte-se em
+    trocos seguidos do mesmo tecto (TECTO_DO_FORNECEDOR), e o recorte so
+    se monta outra vez quando o tecto muda: a NVIDIA e o Cerebras levam
+    o dobro, a Groq o de sempre -- com o dobro, recusava-o (413).
+    Devolve (dados, aviso, usado, texto, fontes), com o texto e as fontes
+    do recorte de quem respondeu: as paginas e os numeros por confirmar
+    conferem-se contra o que ele leu."""
+    avisos, texto, fontes = [], "", []
+    for tecto, troco in itertools.groupby(
+            cadeia, lambda f: TECTO_DO_FORNECEDOR.get(f[0], TECTO_RECORTE)):
+        texto, fontes = recorte(tecto)
+        dados, aviso, usado = _perguntar(list(troco), instrucao, texto)
+        if dados is not None:
+            return dados, "", usado, texto, fontes
+        avisos.append(aviso)
+    return None, "; ".join(avisos), "", texto, fontes
+
+
 # As duas razoes por que a leitura nao acontece SEM que o modelo tenha
 # falhado: nao ha o que ler. Nao sao erros da leitura, sao o estado das
 # pecas -- e ate 04/09/2026 iam parar todas ao "Ultimo erro da leitura
@@ -8785,11 +8832,23 @@ def analisar_pecas(ref):
 
     dados, usados, falhas, modelos = {}, [], [], []
     modelo_falhou = False
-    for nome, (texto, fontes), instrucao in recortes:
+    for (nome, (texto, fontes), instrucao), (_, quais, ancoras, _) in zip(recortes, leituras):
         if not texto:
             falhas.append("%s: falta o documento" % nome)
             continue
-        resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
+        if nome == "equipa":
+            # o campo 11: a NVIDIA e o Cerebras primeiro, e com o recorte
+            # que cada um aguenta (TECTO_DO_FORNECEDOR, 1/10/2026)
+            feitos = {TECTO_RECORTE: (texto, fontes)}
+
+            def recorte(tecto):
+                if tecto not in feitos:
+                    feitos[tecto] = pecas_para_analise(docs, quais, ancoras, tecto)
+                return feitos[tecto]
+            resposta, aviso, usado, texto, fontes = _perguntar_com_o_recorte_de_cada_um(
+                cadeia_do_campo_11(cadeia), instrucao, recorte)
+        else:
+            resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
         if resposta is None:
             falhas.append("%s: %s" % (nome, aviso))
             modelo_falhou = True
